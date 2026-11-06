@@ -28,7 +28,7 @@ import { MockChatSessionsService } from '../../../../../chat/test/common/mockCha
 import { IChatModel, IChatRequestModel } from '../../../../../chat/common/model/chatModel.js';
 import { IAgentSource, PromptsStorage } from '../../../../../chat/common/promptSyntax/service/promptsService.js';
 import { Target } from '../../../../../chat/common/promptSyntax/promptTypes.js';
-import { IChat, ISession } from '../../../../common/session.js';
+import { IChat, ISession } from '../../../../../../services/sessions/common/session.js';
 import { ModePicker, ModePickerModel, ScopedModePickerModelCache } from '../../browser/modePicker.js';
 import { ISessionChatSource } from '../../../../browser/sessionHost.js';
 import { IEditorService } from '../../../../../../services/editor/common/editorService.js';

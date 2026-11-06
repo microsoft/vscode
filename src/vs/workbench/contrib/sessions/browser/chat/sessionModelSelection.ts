@@ -21,7 +21,7 @@ import { getAgentModelPolicyError, resolveAgentModelPreferences } from '../../..
 import { IModelPickerComparison } from '../../../chat/browser/widget/input/modelPicker/modelPickerComparison.js';
 import { IPendingModelSelection, isInConversationModelChoice, ModelSelectionReason, RestoredModelReason } from '../../../chat/common/modelSelection.js';
 import { ISessionsProvidersService } from '../sessionsProvidersService.js';
-import { ChatModelSource, IChat, ISession, ISessionType, SessionStatus } from '../../common/session.js';
+import { ChatModelSource, IChat, ISession, ISessionType, SessionStatus } from '../../../../services/sessions/common/session.js';
 import { ISessionsProvider } from '../../common/sessionsProvider.js';
 import { ISessionChatSource } from '../sessionHost.js';
 import { createModelSelectionState, EMPTY_MODEL_SELECTION_STATE, INormalizedSessionModelPickerOptions, ISessionModelSelectionState, normalizeModelPickerOptions } from './sessionModelPickerState.js';

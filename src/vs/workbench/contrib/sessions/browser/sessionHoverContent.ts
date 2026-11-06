@@ -19,7 +19,7 @@ import { SHOW_SESSION_APPLICATION_FILTERS_COMMAND_ID } from '../common/sessionCo
 import { UNKNOWN_SESSION_APPLICATION_ID } from '../common/sessionApplication.js';
 import { ISessionsProvidersService } from './sessionsProvidersService.js';
 import { getHarnessPresentationOrDefault } from '../common/sessionsProvider.js';
-import { BRANCH_CHANGES_CHANGESET_ID, getChatHarness, getSessionOwnedGitHubPullRequestRefs, getSessionPresentationWorkspace, getSessionWorkspaceKind, getUntitledSessionTitle, IChat, ISession, ISessionFolder, ISessionWorkspace, SessionWorkspaceKind } from '../common/session.js';
+import { BRANCH_CHANGES_CHANGESET_ID, getChatHarness, getSessionOwnedGitHubPullRequestRefs, getSessionPresentationWorkspace, getSessionWorkspaceKind, getUntitledSessionTitle, IChat, ISession, ISessionFolder, ISessionWorkspace, SessionWorkspaceKind } from '../../../services/sessions/common/session.js';
 import { ISessionChangesStats, readChatChangesStats, readSessionChangesStats } from '../common/sessionChangesStatsCache.js';
 
 /** Shared session diff counts, omitting entries without line changes. */

@@ -28,7 +28,7 @@ import { IAgentHostSessionsProvider, isAgentHostProvider, LOCAL_AGENT_HOST_PROVI
 import { SessionProviderIdContext, IsPhoneLayoutContext, SessionActiveChatIsUntitledContext } from '../../../common/contextkeys.js';
 import { IsSessionsWindowContext } from '../../../../../common/contextkeys.js';
 import { ISessionsProvidersService } from '../../../browser/sessionsProvidersService.js';
-import { IChat, ISession, ISessionAgentRef, SessionStatus } from '../../../common/session.js';
+import { IChat, ISession, ISessionAgentRef, SessionStatus } from '../../../../../services/sessions/common/session.js';
 import { ModePicker, ScopedModePickerModelCache } from '../../copilotChatSessions/browser/modePicker.js';
 import { IFocusedSessionHostService, InSessionHostScopeContext, ISessionHost } from '../../../browser/sessionHost.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';

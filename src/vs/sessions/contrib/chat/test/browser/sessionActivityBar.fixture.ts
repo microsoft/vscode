@@ -35,7 +35,7 @@ import { IEditorGroupsService } from '../../../../../workbench/services/editor/c
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { SESSION_ACTIVITY_BAR_SETTING, SESSIONS_LIST_GROUP_EXTERNAL_SESSIONS_SETTING } from '../../../../../workbench/contrib/sessions/common/sessionConfig.js';
 import { ISessionActivityBarActivityService, SessionActivityBarActivityService } from '../../../../../workbench/contrib/sessions/common/sessionActivityBarActivityService.js';
-import { ISession } from '../../../../../workbench/contrib/sessions/common/session.js';
+import { ISession } from '../../../../../workbench/services/sessions/common/session.js';
 import { IconBadge } from '../../../../../workbench/services/activity/common/activity.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { FixtureContextViewService, FixtureKeybindingService, FixtureMenuService, fixtureBrowser, fixtureCanvas, fixtureChanges, fixtureFiles, fixtureTerminal, fixtureTogglePanel, fixtureToggleSidePanel, IFixtureEntry } from '../../../../test/browser/addTabFixtureUtils.js';

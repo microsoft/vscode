@@ -6,7 +6,7 @@
 import { constObservable, IObservable, IReader } from '../../../../base/common/observable.js';
 import { URI } from '../../../../base/common/uri.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
-import { IChat, ISession, ISessionChangeset, ISessionChangesetOperation, ISessionChangesSummary, ISessionFileChange } from './session.js';
+import { IChat, ISession, ISessionChangeset, ISessionChangesetOperation, ISessionChangesSummary, ISessionFileChange } from '../../../services/sessions/common/session.js';
 import { ChangesViewMode, IsolationMode } from './changes.js';
 
 export interface ActiveSessionState {

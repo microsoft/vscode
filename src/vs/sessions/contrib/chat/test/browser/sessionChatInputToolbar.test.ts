@@ -58,7 +58,7 @@ import { ISessionHost } from '../../../../../workbench/contrib/sessions/browser/
 import { ISessionsService } from '../../../../../workbench/contrib/sessions/browser/sessionsService.js';
 import { ISessionGridPane } from '../../../../../workbench/contrib/sessions/browser/sessionGridPane.js';
 import { ISessionChangesStatsCache } from '../../../../../workbench/contrib/sessions/common/sessionChangesStatsCache.js';
-import { BRANCH_CHANGES_CHANGESET_ID, ChatOriginKind, SESSION_CHANGES_CHANGESET_ID, SessionArtifactKind, SessionStatus, type IChat, type IGitHubIssueRef, type IGitHubPullRequestRef, type ISessionArtifact, type ISessionCanvas, type ISessionChangeset, type ISessionFileChange, type ISessionFolder, type ISessionGitRepository, type ISessionWorkspace } from '../../../../../workbench/contrib/sessions/common/session.js';
+import { BRANCH_CHANGES_CHANGESET_ID, ChatOriginKind, SESSION_CHANGES_CHANGESET_ID, SessionArtifactKind, SessionStatus, type IChat, type IGitHubIssueRef, type IGitHubPullRequestRef, type ISessionArtifact, type ISessionCanvas, type ISessionChangeset, type ISessionFileChange, type ISessionFolder, type ISessionGitRepository, type ISessionWorkspace } from '../../../../../workbench/services/sessions/common/session.js';
 import { ISessionsManagementService } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import { REVEAL_CANVAS_COMMAND_ID } from '../../../../../workbench/contrib/canvases/common/canvas.js';
 import { ISessionChangesEditorOptions, ISessionChangesService } from '../../../../../workbench/contrib/sessions/common/sessionChangesService.js';

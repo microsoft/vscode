@@ -28,7 +28,7 @@ import { IWorkbenchEnvironmentService } from '../../../../../workbench/services/
 import { SessionsSideChatProviderContribution } from '../../browser/sideChatProvider.contribution.js';
 import { ISessionsPartService } from '../../../../../workbench/contrib/sessions/browser/sessionsPartService.js';
 import { ISessionNavigationRequest, ISessionsService } from '../../../../../workbench/contrib/sessions/browser/sessionsService.js';
-import { ChatInteractivity, ChatOriginKind, IChat, SessionStatus } from '../../../../../workbench/contrib/sessions/common/session.js';
+import { ChatInteractivity, ChatOriginKind, IChat, SessionStatus } from '../../../../../workbench/services/sessions/common/session.js';
 import { ISendRequestOptions, ISessionsManagementService } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 
 suite('SessionsSideChatProviderContribution', () => {

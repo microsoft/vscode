@@ -26,7 +26,7 @@ import { ISessionHost, ISessionHostService } from '../../../../browser/sessionHo
 import { ISessionsProvidersService } from '../../../../browser/sessionsProvidersService.js';
 import { IAgentHostSessionsProvider, LOCAL_AGENT_HOST_PROVIDER_ID } from '../../../../common/agentHostSessionsProvider.js';
 import { ISessionsProvider } from '../../../../common/sessionsProvider.js';
-import { IChat } from '../../../../common/session.js';
+import { IChat } from '../../../../../../services/sessions/common/session.js';
 import { OpenSubagentChatActionViewItem, OpenSubagentChatActionViewItemContribution, shouldShowSubagentModel } from '../../browser/openSubagentChat.js';
 import { ITestSessionsService, ITestSessionWithChat, testGridPanes } from '../../../../test/browser/sessionHostTestUtils.js';
 

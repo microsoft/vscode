@@ -12,7 +12,7 @@ import { PROTOCOL_VERSION } from '../../../../platform/agentHost/common/state/pr
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { reportSessionArtifactOpen, SessionArtifactOpenSource } from '../../../common/sessionArtifactOpenTelemetry.js';
 import { LOCAL_AGENT_HOST_PROVIDER_ID, REMOTE_AGENT_HOST_PROVIDER_PREFIX } from './agentHostSessionsProvider.js';
-import { ISession, SessionArtifactKind } from './session.js';
+import { ISession, SessionArtifactKind } from '../../../services/sessions/common/session.js';
 
 /** Bounded provider categories emitted by Agents window telemetry. */
 export type SessionsTelemetryProviderId = 'default-copilot' | 'local-agent-host' | 'remote-agent-host' | 'other';

@@ -31,7 +31,7 @@ import { IEditorService } from '../../../../../workbench/services/editor/common/
 import { IAgentWorkbenchLayoutService } from '../../../../browser/workbench.js';
 import { Menus } from '../../../../../workbench/contrib/sessions/browser/menus.js';
 import { AgentsWindowMenus } from '../../../../browser/agentsWindowMenus.js';
-import { IChat, ISessionCanvas, ISessionCanvasDefinition, ISessionCapabilities } from '../../../../../workbench/contrib/sessions/common/session.js';
+import { IChat, ISessionCanvas, ISessionCanvasDefinition, ISessionCapabilities } from '../../../../../workbench/services/sessions/common/session.js';
 import { IChatDeletedEvent, ISessionsChangeEvent, ISessionsManagementService } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import { ISessionEditorWorkingSetOwner, SessionEditorWorkingSetService } from '../../../layout/common/sessionEditorWorkingSet.js';
 import { ISessionCanvasRegistryService } from '../../common/sessionCanvas.js';

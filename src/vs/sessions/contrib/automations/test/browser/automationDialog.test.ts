@@ -69,7 +69,7 @@ import { Menus } from '../../../../../workbench/contrib/sessions/browser/menus.j
 import { AgentsWindowMenus } from '../../../../browser/agentsWindowMenus.js';
 import { MobileSessionTypePicker } from '../../../../../workbench/contrib/sessions/browser/chat/mobile/mobileSessionTypePicker.js';
 import { SessionModelSelection } from '../../../../../workbench/contrib/sessions/browser/chat/sessionModelSelection.js';
-import { GITHUB_REMOTE_FILE_SCHEME, ISession, ISessionWorkspace, SessionTypeAuthRequirement } from '../../../../../workbench/contrib/sessions/common/session.js';
+import { GITHUB_REMOTE_FILE_SCHEME, ISession, ISessionWorkspace, SessionTypeAuthRequirement } from '../../../../../workbench/services/sessions/common/session.js';
 import { IAutomationSessionConfiguration, ISessionsProvider } from '../../../../../workbench/contrib/sessions/common/sessionsProvider.js';
 import { ISessionsManagementService } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import { ISessionsProvidersService } from '../../../../../workbench/contrib/sessions/browser/sessionsProvidersService.js';

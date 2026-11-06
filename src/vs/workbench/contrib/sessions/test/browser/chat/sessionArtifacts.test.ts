@@ -44,7 +44,7 @@ import { ToolDataSource } from '../../../../chat/common/tools/languageModelTools
 import { ChatConfiguration } from '../../../../chat/common/constants.js';
 import { IWorkbenchGitHubService } from '../../../../../services/github/common/githubService.js';
 import { buildSessionArtifactSections, sessionArtifactLocationText, SessionArtifacts, type ISessionArtifactActions } from '../../../browser/chat/sessionArtifacts.js';
-import { type IChat, type IGitHubInfo, type ISession, type ISessionArtifact, type ISessionWorkspace, SessionArtifactKind } from '../../../common/session.js';
+import { type IChat, type IGitHubInfo, type ISession, type ISessionArtifact, type ISessionWorkspace, SessionArtifactKind } from '../../../../../services/sessions/common/session.js';
 import { ISessionsManagementService } from '../../../common/sessionsManagement.js';
 import { hashSessionIdForTelemetry } from '../../../common/sessionsTelemetry.js';
 import { IGitHubService as ISessionsGitHubService } from '../../../browser/github/githubService.js';

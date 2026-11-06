@@ -24,7 +24,7 @@ import type { IInstantiationService } from '../../../../../../platform/instantia
 import { Target } from '../../../../chat/common/promptSyntax/promptTypes.js';
 import { AICustomizationManagementCommands } from '../../../../chat/browser/aiCustomization/aiCustomizationManagement.js';
 import { AICustomizationManagementSection } from '../../../../chat/common/aiCustomizationWorkspaceService.js';
-import type { ISession } from '../../../common/session.js';
+import type { ISession } from '../../../../../services/sessions/common/session.js';
 import type { ISessionChatSource } from '../../../browser/sessionHost.js';
 import { reportNewChatPickerClosed } from '../../../browser/newChatPickerTelemetry.js';
 import { CopilotCLISessionType } from '../../agentHost/browser/baseAgentHostSessionsProvider.js';

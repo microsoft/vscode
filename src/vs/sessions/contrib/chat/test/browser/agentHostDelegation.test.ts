@@ -16,7 +16,7 @@ import type { SessionView } from '../../../../../workbench/contrib/sessions/brow
 import { IFocusedSessionHostService, ISessionHost, ISessionHostService, SessionHostKind } from '../../../../../workbench/contrib/sessions/browser/sessionHost.js';
 import { ISessionsPartService } from '../../../../../workbench/contrib/sessions/browser/sessionsPartService.js';
 import { ISessionsService } from '../../../../../workbench/contrib/sessions/browser/sessionsService.js';
-import { ISession, ISessionWorkspace } from '../../../../../workbench/contrib/sessions/common/session.js';
+import { ISession, ISessionWorkspace } from '../../../../../workbench/services/sessions/common/session.js';
 import { ISessionsManagementService } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import '../../browser/agentHostDelegation.js';
 import { ITestSessionWithChat, testGridPanes } from '../../../../../workbench/contrib/sessions/test/browser/sessionHostTestUtils.js';

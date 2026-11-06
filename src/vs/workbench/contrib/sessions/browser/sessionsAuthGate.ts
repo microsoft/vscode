@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { isWeb } from '../../../../base/common/platform.js';
-import { SessionTypeAuthRequirement } from '../common/session.js';
+import { SessionTypeAuthRequirement } from '../../../services/sessions/common/session.js';
 
 /**
  * Predicates behind the Agents window's conditional authentication — when the

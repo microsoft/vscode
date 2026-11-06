@@ -37,7 +37,7 @@ import { AGENT_SESSIONS_RESPONSE_SELECTION_MENU_SETTING } from '../../../../../w
 import { SessionsSideChatProviderContribution } from '../../browser/sideChatProvider.contribution.js';
 import { ISessionsPartService } from '../../../../../workbench/contrib/sessions/browser/sessionsPartService.js';
 import { ISessionsService } from '../../../../../workbench/contrib/sessions/browser/sessionsService.js';
-import { ChatInteractivity, IChat, SessionStatus } from '../../../../../workbench/contrib/sessions/common/session.js';
+import { ChatInteractivity, IChat, SessionStatus } from '../../../../../workbench/services/sessions/common/session.js';
 import { ISessionsManagementService } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import { ITestSessionsService, ITestSessionWithChat, stubMissingSessionHostsFromSessionsService } from '../../../../../workbench/contrib/sessions/test/browser/sessionHostTestUtils.js';
 

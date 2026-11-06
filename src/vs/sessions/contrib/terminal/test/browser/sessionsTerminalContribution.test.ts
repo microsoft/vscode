@@ -22,7 +22,7 @@ import { ITerminalInstance, ITerminalService } from '../../../../../workbench/co
 import { ITerminalCapabilityStore, ICommandDetectionCapability, TerminalCapability } from '../../../../../platform/terminal/common/capabilities/capabilities.js';
 import { toAgentHostUri } from '../../../../../platform/agentHost/common/agentHostUri.js';
 import { AgentSessionProviders } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentSessions.js';
-import { ChatInteractivity, IChat, ISession, ISessionWorkspace, SessionRemoteConnectionFailureReason, SessionRemoteConnectionStatus } from '../../../../../workbench/contrib/sessions/common/session.js';
+import { ChatInteractivity, IChat, ISession, ISessionWorkspace, SessionRemoteConnectionFailureReason, SessionRemoteConnectionStatus } from '../../../../../workbench/services/sessions/common/session.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { SessionsTerminalContribution } from '../../browser/sessionsTerminalContribution.js';
 import { TestPathService } from '../../../../../workbench/test/browser/workbenchTestServices.js';

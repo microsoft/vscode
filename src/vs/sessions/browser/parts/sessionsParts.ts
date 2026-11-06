@@ -13,7 +13,7 @@ import { SessionsGridContent } from '../../../workbench/contrib/sessions/browser
 import { MobileSessionsPart } from './mobile/mobileSessionsPart.js';
 import { SessionView } from '../../../workbench/contrib/sessions/browser/parts/sessionView.js';
 import { assertReturnsDefined } from '../../../base/common/types.js';
-import { ISession } from '../../../workbench/contrib/sessions/common/session.js';
+import { ISession } from '../../../workbench/services/sessions/common/session.js';
 import { IProgressIndicator } from '../../../platform/progress/common/progress.js';
 import { Emitter, Event } from '../../../base/common/event.js';
 import { ISessionGridSlot, ISessionsPartService, IToggleMaximizeSessionEvent, SessionGridRequest } from '../../../workbench/contrib/sessions/browser/sessionsPartService.js';

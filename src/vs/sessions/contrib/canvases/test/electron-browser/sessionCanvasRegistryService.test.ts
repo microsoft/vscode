@@ -32,7 +32,7 @@ import { Menus } from '../../../../../workbench/contrib/sessions/browser/menus.j
 import { AgentsWindowMenus } from '../../../../browser/agentsWindowMenus.js';
 import { SessionActiveChatCanvasReferenceKeysContext } from '../../../../../workbench/contrib/sessions/common/contextkeys.js';
 import { ActiveSessionCanvasReferenceContext } from '../../../../common/agentsWindowContextKeys.js';
-import { IChat, ISessionCanvas, ISessionCanvasDefinition, ISessionCapabilities } from '../../../../../workbench/contrib/sessions/common/session.js';
+import { IChat, ISessionCanvas, ISessionCanvasDefinition, ISessionCapabilities } from '../../../../../workbench/services/sessions/common/session.js';
 import { ISessionsManagementService } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import { NEW_SESSION_ACTION_ID } from '../../../../../workbench/contrib/sessions/common/chatConstants.js';
 import { getSessionCanvasDefinitionInstanceId, WindowCanvasesAvailableContext } from '../../common/sessionCanvas.js';

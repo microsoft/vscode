@@ -39,7 +39,7 @@ import { ChatContextKeys } from '../../../../../../workbench/contrib/chat/common
 import { TestStorageService } from '../../../../../../workbench/test/common/workbenchTestServices.js';
 import { Menus } from '../../../../../../workbench/contrib/sessions/browser/menus.js';
 import { SessionActiveChatResourceContext, SessionIdContext } from '../../../../../../workbench/contrib/sessions/common/contextkeys.js';
-import { IChat, ISessionChangeset, ISessionFileChange, ISessionFolder, ISessionGitRepository, ISessionTurnFileChange, ISessionWorkspace, SESSION_CHANGES_CHANGESET_ID, SessionChangesetOperationStatus } from '../../../../../../workbench/contrib/sessions/common/session.js';
+import { IChat, ISessionChangeset, ISessionFileChange, ISessionFolder, ISessionGitRepository, ISessionTurnFileChange, ISessionWorkspace, SESSION_CHANGES_CHANGESET_ID, SessionChangesetOperationStatus } from '../../../../../../workbench/services/sessions/common/session.js';
 import { ISessionHost, SessionHostKind } from '../../../../../../workbench/contrib/sessions/browser/sessionHost.js';
 import { SessionInputPickerVisibility } from '../../../../../../workbench/contrib/sessions/common/sessionPickerVisibility.js';
 import { ISessionsPartService } from '../../../../../../workbench/contrib/sessions/browser/sessionsPartService.js';

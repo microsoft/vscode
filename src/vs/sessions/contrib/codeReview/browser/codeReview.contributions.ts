@@ -14,7 +14,7 @@ import { ActiveEditorContext, IsSessionsWindowContext, IsTopRightEditorGroupCont
 import { SessionHasChangesContext, SessionIsCreatedContext, SessionWorkspaceIsVirtualContext, DesktopLayoutContext } from '../../../../workbench/contrib/sessions/common/contextkeys.js';
 import { ChatContextKeys } from '../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
 import { CHAT_CATEGORY } from '../../../../workbench/contrib/chat/browser/actions/chatActions.js';
-import { SessionStatus } from '../../../../workbench/contrib/sessions/common/session.js';
+import { SessionStatus } from '../../../../workbench/services/sessions/common/session.js';
 import { ISessionsManagementService } from '../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import { resolveSessionCommandTarget } from '../../../../workbench/contrib/sessions/browser/sessionCommandTarget.js';
 import { CodeReviewService } from './codeReviewService.js';

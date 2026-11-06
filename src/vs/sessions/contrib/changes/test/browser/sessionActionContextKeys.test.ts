@@ -13,7 +13,7 @@ import { ContextKeyService } from '../../../../../platform/contextkey/browser/co
 import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { workbenchInstantiationService } from '../../../../../workbench/test/browser/workbenchTestServices.js';
 import { DesktopChangesEditorTransitionContext, SessionHasOpenPullRequestContext, SessionPrimaryPullRequestOperationContext } from '../../../../../workbench/contrib/sessions/common/contextkeys.js';
-import { ISessionChangeset, ISessionChangesetOperation } from '../../../../../workbench/contrib/sessions/common/session.js';
+import { ISessionChangeset, ISessionChangesetOperation } from '../../../../../workbench/services/sessions/common/session.js';
 import { GitHubCheckConclusion, GitHubCheckStatus, IGitHubCICheck } from '../../../../../workbench/contrib/sessions/common/github/types.js';
 import { GitHubPullRequestCIModel } from '../../../../../workbench/contrib/sessions/browser/github/models/githubPullRequestCIModel.js';
 import { PullRequestCheck } from '../../../../../platform/github/common/githubPullRequestService.js';

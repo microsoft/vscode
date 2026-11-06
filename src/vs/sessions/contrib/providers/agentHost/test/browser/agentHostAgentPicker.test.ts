@@ -33,7 +33,7 @@ import { TestStorageService } from '../../../../../../workbench/test/common/work
 import { Menus } from '../../../../../../workbench/contrib/sessions/browser/menus.js';
 import { IAgentHostSessionsProvider, LOCAL_AGENT_HOST_PROVIDER_ID } from '../../../../../../workbench/contrib/sessions/common/agentHostSessionsProvider.js';
 import { IsPhoneLayoutContext, SessionProviderIdContext, SessionUsesCombinedConfigPickerContext } from '../../../../../../workbench/contrib/sessions/common/contextkeys.js';
-import { IChat, ISession, SessionStatus } from '../../../../../../workbench/contrib/sessions/common/session.js';
+import { IChat, ISession, SessionStatus } from '../../../../../../workbench/services/sessions/common/session.js';
 import { SessionsProvidersService } from '../../../../../../workbench/contrib/sessions/browser/sessionsProvidersService.js';
 import { AGENTS_PICKER_IN_ATTACH_CONTEXT_MENU_SETTING } from '../../../../../../workbench/contrib/sessions/common/chatConstants.js';
 import { AgentHostAgentPickerContribution, AgentHostModePickerActionViewItem, createAgentContextPick, isCustomAgentSelected } from '../../../../../../workbench/contrib/sessions/providers/agentHost/browser/agentHostAgentPicker.js';

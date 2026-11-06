@@ -38,7 +38,7 @@ import { ISessionsListModelService } from '../../../../../workbench/contrib/sess
 import { SessionView } from '../../../../../workbench/contrib/sessions/browser/parts/sessionView.js';
 import { ISessionsService } from '../../../../../workbench/contrib/sessions/browser/sessionsService.js';
 import { ISessionsManagementService } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
-import { ChatInteractivity, IChat, ISession, SessionStatus } from '../../../../../workbench/contrib/sessions/common/session.js';
+import { ChatInteractivity, IChat, ISession, SessionStatus } from '../../../../../workbench/services/sessions/common/session.js';
 import { ArchiveSessionAction } from '../../browser/views/sessionsViewActions.js';
 import { ISessionChatItem, SessionChatItemCanSetReadStateContext, SessionChatItemIsArchivedContext, SessionChatItemIsReadContext, SessionItemContextMenuId, SessionItemIsAutomationContext, SessionItemIsInSessionsListContext, SessionsList, SessionsListFocusedChatItemContext } from '../../../../../workbench/contrib/sessions/browser/views/sessionsList.js';
 import { Menus } from '../../../../../workbench/contrib/sessions/browser/menus.js';

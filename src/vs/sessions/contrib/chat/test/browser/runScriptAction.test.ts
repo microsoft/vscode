@@ -28,7 +28,7 @@ import { IChatWidgetService } from '../../../../../workbench/contrib/chat/browse
 import { IWorkbenchLayoutService } from '../../../../../workbench/services/layout/browser/layoutService.js';
 import { IFocusedSessionHostService } from '../../../../../workbench/contrib/sessions/browser/sessionHost.js';
 import { focusedSessionHostServiceOf, ITestSessionWithChat } from '../../../../../workbench/contrib/sessions/test/browser/sessionHostTestUtils.js';
-import { IChat, ISession } from '../../../../../workbench/contrib/sessions/common/session.js';
+import { IChat, ISession } from '../../../../../workbench/services/sessions/common/session.js';
 import { ISessionsManagementService } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import { ISessionsTasksService, ISessionTaskWithTarget } from '../../browser/sessionsTasksService.js';
 

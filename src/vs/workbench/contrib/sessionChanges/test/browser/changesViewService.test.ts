@@ -14,7 +14,7 @@ import { AGENT_HOST_CHECKOUT_CHANGESET_OPERATION_ID } from '../../../../../platf
 import { MockContextKeyService } from '../../../../../platform/keybinding/test/common/mockKeybindingService.js';
 import { TestStorageService } from '../../../../test/common/workbenchTestServices.js';
 import { IChatDeletedEvent, ISessionsManagementService } from '../../../sessions/common/sessionsManagement.js';
-import { BRANCH_CHANGES_CHANGESET_ID, IChat, ISession, ISessionChangeset, ISessionChangesetOperation, ISessionFileChange, ISessionFolder, ISessionGitRepository, ISessionWorkspace, SESSION_CHANGES_CHANGESET_ID, SessionChangesetOperationScope, SessionChangesetOperationStatus, TURN_CHANGES_CHANGESET_ID, UNCOMMITTED_CHANGES_CHANGESET_ID } from '../../../sessions/common/session.js';
+import { BRANCH_CHANGES_CHANGESET_ID, IChat, ISession, ISessionChangeset, ISessionChangesetOperation, ISessionFileChange, ISessionFolder, ISessionGitRepository, ISessionWorkspace, SESSION_CHANGES_CHANGESET_ID, SessionChangesetOperationScope, SessionChangesetOperationStatus, TURN_CHANGES_CHANGESET_ID, UNCOMMITTED_CHANGES_CHANGESET_ID } from '../../../../services/sessions/common/session.js';
 import { IAgentFeedbackService } from '../../../sessions/browser/agentFeedback.js';
 import { AgentFeedbackState, IAgentFeedback } from '../../../sessions/browser/agentFeedbackModel.js';
 import { ICodeReviewService, PRReviewStateKind } from '../../../sessions/browser/codeReviewService.js';

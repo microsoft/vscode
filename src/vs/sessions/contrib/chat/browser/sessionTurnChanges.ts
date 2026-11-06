@@ -14,7 +14,7 @@ import { ISessionsHostLayoutService } from '../../../../workbench/services/sessi
 import { isAgentHostProviderId } from '../../../../workbench/contrib/sessions/common/agentHostSessionsProvider.js';
 import { ISessionsService } from '../../../../workbench/contrib/sessions/browser/sessionsService.js';
 import { IFocusedSessionHostService } from '../../../../workbench/contrib/sessions/browser/sessionHost.js';
-import { IChat, ISession, ISessionChangeset, ISessionFileChange, TURN_CHANGES_CHANGESET_ID } from '../../../../workbench/contrib/sessions/common/session.js';
+import { IChat, ISession, ISessionChangeset, ISessionFileChange, TURN_CHANGES_CHANGESET_ID } from '../../../../workbench/services/sessions/common/session.js';
 import { ISessionsManagementService } from '../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import { ISessionChangesEditorOptions, ISessionChangesService } from '../../../../workbench/contrib/sessionChanges/browser/sessionChangesService.js';
 import { IChangesViewService } from '../../../../workbench/contrib/sessions/common/changesViewService.js';

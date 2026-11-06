@@ -33,7 +33,7 @@ import { IsPhoneLayoutContext } from '../../../../../workbench/contrib/sessions/
 import { ICustomViewService } from '../../../../../workbench/contrib/sessions/browser/customView.js';
 import { ISessionsRecentWorkspacesService } from '../../../../../workbench/contrib/sessions/browser/sessionsRecentWorkspacesService.js';
 import { ISessionsService } from '../../../../../workbench/contrib/sessions/browser/sessionsService.js';
-import { ISession, SessionStatus } from '../../../../../workbench/contrib/sessions/common/session.js';
+import { ISession, SessionStatus } from '../../../../../workbench/services/sessions/common/session.js';
 import { ISessionsManagementService } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import { IChangesViewService } from '../../../../../workbench/contrib/sessions/common/changesViewService.js';
 import { ISessionChangesService } from '../../../../../workbench/contrib/sessions/common/sessionChangesService.js';

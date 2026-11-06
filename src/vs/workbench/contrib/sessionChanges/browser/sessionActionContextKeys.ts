@@ -12,7 +12,7 @@ import { ILogService } from '../../../../platform/log/common/log.js';
 import { bindContextKey } from '../../../../platform/observable/common/platformObservableUtils.js';
 import { AGENT_HOST_PULL_REQUEST_OPERATION_IDS } from '../../../../platform/agentHost/common/agentHostChangesetOperationService.js';
 import { DesktopChangesEditorTransitionContext, SessionHasOpenPullRequestContext, SessionPrimaryPullRequestOperationContext } from '../../sessions/common/contextkeys.js';
-import { IChat, ISession } from '../../sessions/common/session.js';
+import { IChat, ISession } from '../../../services/sessions/common/session.js';
 import { IGitHubSessionPullRequestObservables } from '../../sessions/browser/github/githubService.js';
 import { IChangesSessionObservables } from '../../sessions/common/changesViewService.js';
 import { SessionChangesReviewedFilesContext } from './changesMultiDiffSourceResolver.js';

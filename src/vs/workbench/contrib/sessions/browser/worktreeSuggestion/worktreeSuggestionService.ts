@@ -34,7 +34,7 @@ import { isAgentHostProvider } from '../../common/agentHostSessionsProvider.js';
 import { IsPhoneLayoutContext } from '../../common/contextkeys.js';
 import { isDevContainerWorktreeEnabled } from '../../common/devContainerAgentHostService.js';
 import { ISessionsProvidersService } from '../sessionsProvidersService.js';
-import { ISessionFileChange, isSessionCreated, UNCOMMITTED_CHANGES_CHANGESET_ID, ISession } from '../../common/session.js';
+import { ISessionFileChange, isSessionCreated, UNCOMMITTED_CHANGES_CHANGESET_ID, ISession } from '../../../../services/sessions/common/session.js';
 import { ISessionsProvider } from '../../common/sessionsProvider.js';
 import { CHANGES_VIEW_ID } from '../../common/changes.js';
 import { ISessionChangesService } from '../../common/sessionChangesService.js';

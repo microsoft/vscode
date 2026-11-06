@@ -34,7 +34,7 @@ import { AgentWorkbenchLayout } from '../../../../../workbench/services/sessions
 import { IAgentHostSessionsProvider, LOCAL_AGENT_HOST_PROVIDER_ID } from '../../../../../workbench/contrib/sessions/common/agentHostSessionsProvider.js';
 import { IsPhoneLayoutContext } from '../../../../../workbench/contrib/sessions/common/contextkeys.js';
 import { ISessionsProvidersService } from '../../../../../workbench/contrib/sessions/browser/sessionsProvidersService.js';
-import { IChat, ISessionChangeset, ISessionFileChange, ISessionWorkspace, SessionStatus, UNCOMMITTED_CHANGES_CHANGESET_ID } from '../../../../../workbench/contrib/sessions/common/session.js';
+import { IChat, ISessionChangeset, ISessionFileChange, ISessionWorkspace, SessionStatus, UNCOMMITTED_CHANGES_CHANGESET_ID } from '../../../../../workbench/services/sessions/common/session.js';
 import { ISessionsProvider } from '../../../../../workbench/contrib/sessions/common/sessionsProvider.js';
 import { CHANGES_VIEW_ID } from '../../../../../workbench/contrib/sessions/common/changes.js';
 import { ISessionChangesEditorOptions, ISessionChangesService } from '../../../../../workbench/contrib/sessions/common/sessionChangesService.js';

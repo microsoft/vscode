@@ -24,7 +24,7 @@ import { IAgentHostSessionsProvider } from '../../../workbench/contrib/sessions/
 import { ISessionsProvidersService } from '../../../workbench/contrib/sessions/browser/sessionsProvidersService.js';
 import { ISessionsService } from '../../../workbench/contrib/sessions/browser/sessionsService.js';
 import { ISessionsProvider } from '../../../workbench/contrib/sessions/common/sessionsProvider.js';
-import { IChat, ISessionWorkspace } from '../../../workbench/contrib/sessions/common/session.js';
+import { IChat, ISessionWorkspace } from '../../../workbench/services/sessions/common/session.js';
 import { ITestSessionsService, ITestSessionWithChat, stubSessionHostsFromSessionsService } from '../../../workbench/contrib/sessions/test/browser/sessionHostTestUtils.js';
 
 suite('Web Open in Editor', () => {

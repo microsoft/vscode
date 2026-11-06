@@ -13,7 +13,7 @@ import { ICodeEditor } from '../../../../editor/browser/editorBrowser.js';
 import { Range } from '../../../../editor/common/core/range.js';
 import { IEditorContribution, ScrollType } from '../../../../editor/common/editorCommon.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
-import { ISessionFileChange } from '../../../../workbench/contrib/sessions/common/session.js';
+import { ISessionFileChange } from '../../../../workbench/services/sessions/common/session.js';
 import { ICodeReviewService, IPRReviewState } from '../../../../workbench/contrib/sessions/browser/codeReviewService.js';
 import { AgentFeedbackEditorWidget, IComposerDraft, IComposerDraftState } from './agentFeedbackEditorWidget.js';
 import { shouldIncludeRawPRReviewComments } from './agentFeedbackService.js';

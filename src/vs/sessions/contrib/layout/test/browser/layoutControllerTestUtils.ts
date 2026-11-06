@@ -40,7 +40,7 @@ import { ISessionsPartService } from '../../../../../workbench/contrib/sessions/
 import { SESSIONS_LAYOUT_SCOPE_SETTING, ChatLayoutMode, ChatLayoutPresentation } from '../../../../common/chatLayout.js';
 import { IAgentWorkbenchLayoutService, ISidePaneToggleEvent } from '../../../../browser/workbench.js';
 import { AgentWorkbenchLayout, ISessionsHostLayoutService } from '../../../../../workbench/services/sessions/browser/sessionsHostLayoutService.js';
-import { ChatInteractivity, IChat, ISession, ISessionChangeset, ISessionFileChange, ISessionWorkspace, SessionStatus } from '../../../../../workbench/contrib/sessions/common/session.js';
+import { ChatInteractivity, IChat, ISession, ISessionChangeset, ISessionFileChange, ISessionWorkspace, SessionStatus } from '../../../../../workbench/services/sessions/common/session.js';
 import { ISessionChangesService, SessionChangesService } from '../../../../../workbench/contrib/sessionChanges/browser/sessionChangesService.js';
 import { CHANGES_VIEW_CONTAINER_ID } from '../../../../../workbench/contrib/sessions/common/changes.js';
 import { SESSIONS_FILES_CONTAINER_ID } from '../../../files/browser/files.contribution.js';

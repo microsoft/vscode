@@ -71,7 +71,7 @@ import { ISessionChangesService } from './sessionChangesService.js';
 import { createSessionActionsInstantiationService } from './sessionActionsHost.js';
 import { getWindowHost, ISessionHost, SessionHostKind } from '../../sessions/browser/sessionHost.js';
 import { CIStatusWidget } from './checksWidget.js';
-import { BRANCH_CHANGES_CHANGESET_ID, GITHUB_REMOTE_FILE_SCHEME, IChat, ISessionChangeset, ISessionFolder, ISessionChangesetOperation, ISessionChangesSummary, ISessionWorkspace, isSessionCreated, SESSION_CHANGES_CHANGESET_ID, SessionChangesetOperationScope, SessionChangesetOperationStatus, SessionStatus, TURN_CHANGES_CHANGESET_ID, UNCOMMITTED_CHANGES_CHANGESET_ID, ISession } from '../../sessions/common/session.js';
+import { BRANCH_CHANGES_CHANGESET_ID, GITHUB_REMOTE_FILE_SCHEME, IChat, ISessionChangeset, ISessionFolder, ISessionChangesetOperation, ISessionChangesSummary, ISessionWorkspace, isSessionCreated, SESSION_CHANGES_CHANGESET_ID, SessionChangesetOperationScope, SessionChangesetOperationStatus, SessionStatus, TURN_CHANGES_CHANGESET_ID, UNCOMMITTED_CHANGES_CHANGESET_ID, ISession } from '../../../services/sessions/common/session.js';
 import { isAgentHostProviderId } from '../../sessions/common/agentHostSessionsProvider.js';
 import { Orientation } from '../../../../base/browser/ui/sash/sash.js';
 import { IView, LayoutPriority, Sizing, SplitView } from '../../../../base/browser/ui/splitview/splitview.js';

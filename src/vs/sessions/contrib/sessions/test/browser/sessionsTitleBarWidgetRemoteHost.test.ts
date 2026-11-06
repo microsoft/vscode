@@ -23,7 +23,7 @@ import { IWorkbenchLayoutService } from '../../../../../workbench/services/layou
 import { AgentsWindowMenus } from '../../../../browser/agentsWindowMenus.js';
 import { IAgentHostSessionsProvider, LOCAL_AGENT_HOST_PROVIDER_ID } from '../../../../../workbench/contrib/sessions/common/agentHostSessionsProvider.js';
 import { ISessionsProvidersChangeEvent, ISessionsProvidersService } from '../../../../../workbench/contrib/sessions/browser/sessionsProvidersService.js';
-import { IChat, ISessionWorkspace } from '../../../../../workbench/contrib/sessions/common/session.js';
+import { IChat, ISessionWorkspace } from '../../../../../workbench/services/sessions/common/session.js';
 import { ISessionsManagementService } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import { BlockedSessionsIndicatorModel } from '../../browser/blockedSessionsIndicatorModel.js';
 import { SessionActionFeedback } from '../../browser/sessionActionFeedback.js';

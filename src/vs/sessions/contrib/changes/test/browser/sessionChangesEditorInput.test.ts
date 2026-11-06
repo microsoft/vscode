@@ -35,7 +35,7 @@ import { IAgentWorkbenchLayoutService } from '../../../../browser/workbench.js';
 import { AgentWorkbenchLayout, ISessionsHostLayoutService } from '../../../../../workbench/services/sessions/browser/sessionsHostLayoutService.js';
 import { ITestSessionWithChat, stubSessionHosts } from '../../../../../workbench/contrib/sessions/test/browser/sessionHostTestUtils.js';
 import { ISessionsService } from '../../../../../workbench/contrib/sessions/browser/sessionsService.js';
-import { ISessionFileChange } from '../../../../../workbench/contrib/sessions/common/session.js';
+import { ISessionFileChange } from '../../../../../workbench/services/sessions/common/session.js';
 import { IDiffEditorOptionsService, SessionsWordWrap } from '../../../../../workbench/services/editor/common/diffEditorOptionsService.js';
 import { SessionChangesEditor } from '../../../../../workbench/contrib/sessionChanges/browser/sessionChangesEditor.js';
 import { SessionChangesEditorInput } from '../../../../../workbench/contrib/sessionChanges/browser/sessionChangesEditorInput.js';

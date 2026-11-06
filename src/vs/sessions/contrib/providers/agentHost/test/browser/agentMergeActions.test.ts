@@ -18,7 +18,7 @@ import { IsSessionsWindowContext } from '../../../../../../workbench/common/cont
 import { ChatContextKeys } from '../../../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
 import { Menus } from '../../../../../../workbench/contrib/sessions/browser/menus.js';
 import { DesktopChangesEditorTransitionContext, SessionAgentMergeEnabledContext, SessionHasOpenPullRequestContext, SessionIsArchivedContext, SessionPrimaryPullRequestOperationContext, SessionProviderIdContext } from '../../../../../../workbench/contrib/sessions/common/contextkeys.js';
-import { ISessionChangeset } from '../../../../../../workbench/contrib/sessions/common/session.js';
+import { ISessionChangeset } from '../../../../../../workbench/services/sessions/common/session.js';
 import { GitHubPullRequestCIModel } from '../../../../../../workbench/contrib/sessions/browser/github/models/githubPullRequestCIModel.js';
 import { ActiveSessionState } from '../../../../../../workbench/contrib/sessions/common/changesViewService.js';
 import { bindSessionActionContextKeys } from '../../../../../../workbench/contrib/sessionChanges/browser/sessionActionContextKeys.js';

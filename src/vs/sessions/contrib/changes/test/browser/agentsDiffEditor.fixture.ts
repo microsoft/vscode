@@ -41,7 +41,7 @@ import { clearAllFeedbackActionId, navigateNextFeedbackActionId, navigatePreviou
 import { IAgentFeedbackService } from '../../../../../workbench/contrib/sessions/browser/agentFeedback.js';
 import { AgentFeedbackKind, AgentFeedbackState, IAgentFeedback } from '../../../../../workbench/contrib/sessions/browser/agentFeedbackModel.js';
 import { Menus } from '../../../../../workbench/contrib/sessions/browser/menus.js';
-import { ISession, ISessionFileChange } from '../../../../../workbench/contrib/sessions/common/session.js';
+import { ISession, ISessionFileChange } from '../../../../../workbench/services/sessions/common/session.js';
 import { ICodeReviewService } from '../../../../../workbench/contrib/sessions/browser/codeReviewService.js';
 import { createMockCodeReviewService } from '../../../../../workbench/test/browser/componentFixtures/sessions/mockCodeReviewService.js';
 

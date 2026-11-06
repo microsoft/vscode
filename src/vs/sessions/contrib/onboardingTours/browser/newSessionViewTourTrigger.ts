@@ -13,7 +13,7 @@ import { isOnboardingDeveloperModeEnabled, IOnboardingScenarioService } from '..
 import { ChatEntitlement, IChatEntitlementService } from '../../../../workbench/services/chat/common/chatEntitlementService.js';
 import { SessionWorkspacePickerVisibleContext } from '../../../../workbench/contrib/sessions/common/contextkeys.js';
 import { ISessionsService } from '../../../../workbench/contrib/sessions/browser/sessionsService.js';
-import { isSessionCreated, ISession } from '../../../../workbench/contrib/sessions/common/session.js';
+import { isSessionCreated, ISession } from '../../../../workbench/services/sessions/common/session.js';
 
 const MAX_REQUESTS_FOR_TOUR = 1;
 /** Drives a new-session view tour using the V2 eligibility and readiness criteria. */

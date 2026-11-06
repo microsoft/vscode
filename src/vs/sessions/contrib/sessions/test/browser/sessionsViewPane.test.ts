@@ -16,7 +16,7 @@ import { ISessionGridPane } from '../../../../../workbench/contrib/sessions/brow
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { Workbench } from '../../../../browser/workbench.js';
-import { ISession } from '../../../../../workbench/contrib/sessions/common/session.js';
+import { ISession } from '../../../../../workbench/services/sessions/common/session.js';
 import { ISessionComparison, SessionComparisonParticipantRole } from '../../../../../workbench/contrib/sessions/common/sessionComparison.js';
 import { AICustomizationShortcutsWidget } from '../../../../../workbench/contrib/sessions/browser/aiCustomizationShortcutsWidget.js';
 import { getCustomizationsPresentation, SessionsView } from '../../../../../workbench/contrib/sessions/browser/views/sessionsView.js';

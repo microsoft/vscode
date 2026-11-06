@@ -17,7 +17,7 @@ import { INotification, INotificationService, Severity } from '../../../../../pl
 import { IPromptsService } from '../../../../../workbench/contrib/chat/common/promptSyntax/service/promptsService.js';
 import { GitCommitOptions, IGitRepository, IGitService } from '../../../../../workbench/contrib/git/common/gitService.js';
 import { SessionsAICustomizationWorkspaceService } from '../../browser/aiCustomizationWorkspaceService.js';
-import { IChat, ISessionWorkspace } from '../../../../../workbench/contrib/sessions/common/session.js';
+import { IChat, ISessionWorkspace } from '../../../../../workbench/services/sessions/common/session.js';
 import { focusedSessionHostServiceOf, ITestSessionWithChat } from '../../../../../workbench/contrib/sessions/test/browser/sessionHostTestUtils.js';
 
 suite('SessionsAICustomizationWorkspaceService', () => {

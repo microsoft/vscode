@@ -15,7 +15,7 @@ import { ChatMoveSettingId } from '../../../../../platform/agentHost/common/agen
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { IConfirmation, IConfirmationResult, IDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
 import { INotificationService } from '../../../../../platform/notification/common/notification.js';
-import { ChatInteractivity, ChatOriginKind, IChat, ISession, SessionStatus } from '../../../../../workbench/contrib/sessions/common/session.js';
+import { ChatInteractivity, ChatOriginKind, IChat, ISession, SessionStatus } from '../../../../../workbench/services/sessions/common/session.js';
 import { ISessionChatMoveTarget, ISessionsManagementService } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import { IChatMovedEvent, ISessionChangeEvent, SessionMoveRefusedError } from '../../../../../workbench/contrib/sessions/common/sessionsProvider.js';
 import { NullLogService } from '../../../../../platform/log/common/log.js';

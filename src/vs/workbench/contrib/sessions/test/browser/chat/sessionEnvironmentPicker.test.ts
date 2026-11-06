@@ -28,7 +28,7 @@ import { MockContextKeyService, MockKeybindingService } from '../../../../../../
 import { ITelemetryService } from '../../../../../../platform/telemetry/common/telemetry.js';
 import { TestExperimentTriggerTelemetryService } from '../../../../../../platform/telemetry/test/common/experimentTriggerTestUtils.js';
 import { IAgentHostSessionsProvider, LOCAL_AGENT_HOST_PROVIDER_ID } from '../../../common/agentHostSessionsProvider.js';
-import { ISessionWorkspace, SessionTypeAuthRequirement } from '../../../common/session.js';
+import { ISessionWorkspace, SessionTypeAuthRequirement } from '../../../../../services/sessions/common/session.js';
 import { ISessionsProvider } from '../../../common/sessionsProvider.js';
 import { ISessionsProvidersService } from '../../../browser/sessionsProvidersService.js';
 import { OPEN_REMOTES_EDITOR_COMMAND_ID } from '../../../common/sessionCommands.js';

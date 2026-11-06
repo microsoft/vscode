@@ -27,7 +27,7 @@ import { IChatPetService } from '../../../../../chat/browser/chatPetService.js';
 import { Menus } from '../../../../browser/menus.js';
 import { SessionUsesCombinedConfigPickerContext, IsPhoneLayoutContext } from '../../../../common/contextkeys.js';
 import { type IAgentHostSessionsProvider, isAgentHostProvider } from '../../../../common/agentHostSessionsProvider.js';
-import { IChat, ISession } from '../../../../common/session.js';
+import { IChat, ISession } from '../../../../../../services/sessions/common/session.js';
 import { ISessionsProvidersService } from '../../../../browser/sessionsProvidersService.js';
 import { IFocusedSessionHostService, ISessionChatSource, ISessionHost } from '../../../../browser/sessionHost.js';
 import { isWellKnownModeSchema } from '../agentHostPermissionPickerDelegate.js';

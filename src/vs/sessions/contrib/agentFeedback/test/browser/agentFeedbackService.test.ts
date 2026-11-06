@@ -27,7 +27,7 @@ import { ISessionsChangeEvent, ISessionsManagementService } from '../../../../..
 import { ISessionsService } from '../../../../../workbench/contrib/sessions/browser/sessionsService.js';
 import { ISessionGridPane } from '../../../../../workbench/contrib/sessions/browser/sessionGridPane.js';
 import { whenChatWidgetForSession } from '../../../../../workbench/contrib/sessions/browser/chat/chatWidgetUtils.js';
-import { IChat, ISession, ISessionFileChange, SessionStatus } from '../../../../../workbench/contrib/sessions/common/session.js';
+import { IChat, ISession, ISessionFileChange, SessionStatus } from '../../../../../workbench/services/sessions/common/session.js';
 import { ISessionsProvidersChangeEvent, ISessionsProvidersService } from '../../../../../workbench/contrib/sessions/browser/sessionsProvidersService.js';
 import { ISessionsProvider, ISendRequestOptions } from '../../../../../workbench/contrib/sessions/common/sessionsProvider.js';
 import { LOCAL_AGENT_HOST_PROVIDER_ID } from '../../../../../workbench/contrib/sessions/common/agentHostSessionsProvider.js';

@@ -50,7 +50,7 @@ import { getGitHubResourcePresentation, GitHubResourceDetailsResolver } from '..
 import { ChatPillHoverCache, createChatPillHover } from '../../../../browser/chatPillHover.js';
 import { IWorkbenchGitHubService } from '../../../../services/github/common/githubService.js';
 import { linkKey } from '../../common/sessionLinks.js';
-import { getChatSessionArtifacts, getSessionArtifactKey, SessionArtifactKind, type IChat, type IGitHubPullRequestRef, type ISessionArtifact, ISession } from '../../common/session.js';
+import { getChatSessionArtifacts, getSessionArtifactKey, SessionArtifactKind, type IChat, type IGitHubPullRequestRef, type ISessionArtifact, ISession } from '../../../../services/sessions/common/session.js';
 import { ISessionHost } from '../sessionHost.js';
 import { ISessionsService } from '../sessionsService.js';
 import { ArtifactIntegrationPresentation, IArtifactDetailsHost } from './artifactIntegrationPresentation.js';

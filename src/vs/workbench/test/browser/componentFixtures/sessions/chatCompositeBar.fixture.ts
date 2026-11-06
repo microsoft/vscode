@@ -16,7 +16,7 @@ import { mock, upcastPartial } from '../../../../../base/test/common/mock.js';
 import { derived, IObservable, observableValue } from '../../../../../base/common/observable.js';
 import { DEFAULT_EDITOR_PART_OPTIONS } from '../../../../browser/parts/editor/editor.js';
 import { IEditorGroupsService } from '../../../../services/editor/common/editorGroupsService.js';
-import { ChatInteractivity, ChatOriginKind, IChat, ISessionCapabilities, SessionStatus } from '../../../../contrib/sessions/common/session.js';
+import { ChatInteractivity, ChatOriginKind, IChat, ISessionCapabilities, SessionStatus } from '../../../../services/sessions/common/session.js';
 import { ISessionsManagementService } from '../../../../contrib/sessions/common/sessionsManagement.js';
 import { ITestSessionWithChat } from '../../../../contrib/sessions/test/browser/sessionHostTestUtils.js';
 import { ISessionsProvidersService } from '../../../../contrib/sessions/browser/sessionsProvidersService.js';

@@ -34,7 +34,7 @@ import { ISessionsListModelService } from '../../../workbench/contrib/sessions/b
 import { ISessionGridSlot, ISessionsPartService, SessionGridRequest } from '../../../workbench/contrib/sessions/browser/sessionsPartService.js';
 import { ISessionsProvidersService } from '../../../workbench/contrib/sessions/browser/sessionsProvidersService.js';
 import { ISessionsService } from '../../../workbench/contrib/sessions/browser/sessionsService.js';
-import { ChatInteractivity, IChat, ISession, ISessionCapabilities, ISessionPreparationProgress, SessionStatus } from '../../../workbench/contrib/sessions/common/session.js';
+import { ChatInteractivity, IChat, ISession, ISessionCapabilities, ISessionPreparationProgress, SessionStatus } from '../../../workbench/services/sessions/common/session.js';
 import { ITestSessionWithChat, LegacyFakePaneState, stubSessionHosts } from '../../../workbench/contrib/sessions/test/browser/sessionHostTestUtils.js';
 import { ChatHostOpenerService, IChatHostOpenerService } from '../../../workbench/contrib/sessions/browser/chatHostOpener.js';
 import { ISessionChangesStatsCache } from '../../../workbench/contrib/sessions/common/sessionChangesStatsCache.js';
@@ -44,7 +44,7 @@ import { ISessionGridPane, SessionGridPaneKind } from '../../../workbench/contri
 import { Parts } from '../../../workbench/services/layout/browser/layoutService.js';
 import { MobileSessionsPart } from '../../browser/parts/mobile/mobileSessionsPart.js';
 import { stubSessionsHostLayout } from './sessionsHostLayoutTestUtils.js';
-import { ISessionPaneTabs } from '../../../workbench/contrib/sessions/common/sessionPane.js';
+import { ISessionPaneTabs } from '../../../workbench/services/sessions/common/sessionPane.js';
 
 export class TestChatView extends AbstractChatView {
 	readonly inputPickerVisibility = this._register(new SessionInputPickerVisibility());

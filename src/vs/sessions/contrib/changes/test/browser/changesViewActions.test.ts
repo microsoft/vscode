@@ -51,7 +51,7 @@ import { createTestActiveSession } from '../../../../test/browser/sessionViewTes
 import { IFocusedSessionHostService } from '../../../../../workbench/contrib/sessions/browser/sessionHost.js';
 import { ITestSessionWithChat, stubSessionHosts, stubSessionHostsFromSessionsService, testGridPanes, withCreatedStatus, testPaneContentOf } from '../../../../../workbench/contrib/sessions/test/browser/sessionHostTestUtils.js';
 import { ISessionsService } from '../../../../../workbench/contrib/sessions/browser/sessionsService.js';
-import { IChat, ISessionChangeset, ISessionChangesSummary, ISessionFolder, ISessionWorkspace } from '../../../../../workbench/contrib/sessions/common/session.js';
+import { IChat, ISessionChangeset, ISessionChangesSummary, ISessionFolder, ISessionWorkspace } from '../../../../../workbench/services/sessions/common/session.js';
 import { ISessionsManagementService } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import { ActiveSessionContextKeys, ChangesContextKeys, ChangesViewMode } from '../../../../../workbench/contrib/sessions/common/changes.js';
 import { IChangesSessionObservables, IChangesSessionScope, IChangesViewService } from '../../../../../workbench/contrib/sessions/common/changesViewService.js';

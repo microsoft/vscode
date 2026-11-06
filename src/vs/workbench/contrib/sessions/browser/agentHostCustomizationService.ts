@@ -15,7 +15,7 @@ import { IFocusedSessionHostService } from './sessionHost.js';
 import { ISessionsProvider } from '../common/sessionsProvider.js';
 import { AgentCustomization, CustomizationType } from '../../../../platform/agentHost/common/state/sessionState.js';
 import { type CustomizationEnablement } from '../../../../platform/agentHost/common/state/protocol/state.js';
-import { IChat, ISession } from '../common/session.js';
+import { IChat, ISession } from '../../../services/sessions/common/session.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { INotificationService } from '../../../../platform/notification/common/notification.js';

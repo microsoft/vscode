@@ -36,7 +36,7 @@ import { ISessionsPartService } from '../../../../workbench/contrib/sessions/bro
 import { resolveGridCommandView } from '../../../../workbench/contrib/sessions/browser/sessionCommandTarget.js';
 import { ISessionHost } from '../../../../workbench/contrib/sessions/browser/sessionHost.js';
 import { createChatPhoneInputSessionContext } from '../../../../workbench/contrib/sessions/browser/chatPhoneInputContext.js';
-import { SessionStatus } from '../../../../workbench/contrib/sessions/common/session.js';
+import { SessionStatus } from '../../../../workbench/services/sessions/common/session.js';
 import { ISessionModelSelection } from '../../../../workbench/contrib/sessions/browser/chat/sessionModelSelection.js';
 import { INewChatModelPickerService } from '../../../../workbench/contrib/sessions/browser/chat/newChatModelPicker.js';
 import { reportNewChatPickerClosed } from '../../../../workbench/contrib/sessions/browser/newChatPickerTelemetry.js';

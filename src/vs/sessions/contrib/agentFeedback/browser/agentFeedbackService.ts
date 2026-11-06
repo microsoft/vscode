@@ -29,7 +29,7 @@ import { IChatWidget, IChatWidgetService } from '../../../../workbench/contrib/c
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { IFeedbackPullRequest } from '../../../../platform/agentHost/common/meta/agentFeedbackAnnotations.js';
 import { ICodeReviewSuggestion } from '../../../../workbench/contrib/sessions/browser/codeReviewService.js';
-import { ISession, ISessionFileChange, ISessionWorkspace, isSessionCreated, SessionStatus } from '../../../../workbench/contrib/sessions/common/session.js';
+import { ISession, ISessionFileChange, ISessionWorkspace, isSessionCreated, SessionStatus } from '../../../../workbench/services/sessions/common/session.js';
 import { isAgentHostProviderId } from '../../../../workbench/contrib/sessions/common/agentHostSessionsProvider.js';
 import { AnnotationsAgentFeedbackItemsBackend, IAgentFeedbackItemsBackend, InMemoryAgentFeedbackItemsBackend } from './agentFeedbackItemsBackend.js';
 import { ATTACHMENT_ID_PREFIX, createAgentFeedbackVariableEntry } from '../../../../workbench/contrib/sessions/browser/agentFeedbackAttachmentEntry.js';

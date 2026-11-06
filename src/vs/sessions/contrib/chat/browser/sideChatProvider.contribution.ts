@@ -18,7 +18,7 @@ import { IChatSideChatOrigin, IChatSideChatProvider, IChatSideChatRequestOptions
 import { IWorkbenchEnvironmentService } from '../../../../workbench/services/environment/common/environmentService.js';
 import { ISessionsService } from '../../../../workbench/contrib/sessions/browser/sessionsService.js';
 import { ISessionsPartService } from '../../../../workbench/contrib/sessions/browser/sessionsPartService.js';
-import { ChatInteractivity, ChatOriginKind, IChat, ISession, SessionStatus } from '../../../../workbench/contrib/sessions/common/session.js';
+import { ChatInteractivity, ChatOriginKind, IChat, ISession, SessionStatus } from '../../../../workbench/services/sessions/common/session.js';
 import { ISessionsManagementService } from '../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import { ISessionHostService } from '../../../../workbench/contrib/sessions/browser/sessionHost.js';
 import { createAndSendSideChat } from './sideChatOrchestration.js';

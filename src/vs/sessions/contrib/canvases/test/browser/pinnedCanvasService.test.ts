@@ -27,7 +27,7 @@ import { IChatEntitlementService } from '../../../../../workbench/services/chat/
 import { AbstractCustomView, ICustomViewService } from '../../../../../workbench/contrib/sessions/browser/customView.js';
 import { CustomViewService } from '../../../../services/customView/browser/customViewService.js';
 import { ISessionsService } from '../../../../../workbench/contrib/sessions/browser/sessionsService.js';
-import { IChat, ISession } from '../../../../../workbench/contrib/sessions/common/session.js';
+import { IChat, ISession } from '../../../../../workbench/services/sessions/common/session.js';
 import { IChatDeletedEvent, ISessionCanvasClosedEvent, ISessionsChangeEvent, ISessionsManagementService } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import { CanvasesPinnedToSidebarContext, IPinnedCanvas, MAX_PINNED_CANVASES, PINNED_CANVAS_PAGE_ID, PinnedCanvasState } from '../../../../../workbench/contrib/sessions/browser/pinnedCanvases.js';
 import { PinnedCanvasService } from '../../browser/pinnedCanvasService.js';

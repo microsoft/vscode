@@ -15,7 +15,7 @@ import { Menus, SessionActivityBarGroup } from '../../../../workbench/contrib/se
 import { ISessionsHostLayoutService } from '../../../../workbench/services/sessions/browser/sessionsHostLayoutService.js';
 import { sessionActivityBarChatActionContext, SessionHasPullRequestContext } from '../../../../workbench/contrib/sessions/common/contextkeys.js';
 import { resolveSessionCommandTarget } from '../../../../workbench/contrib/sessions/browser/sessionCommandTarget.js';
-import { getGitHubPullRequestRefs, IGitHubPullRequestRef, ISession } from '../../../../workbench/contrib/sessions/common/session.js';
+import { getGitHubPullRequestRefs, IGitHubPullRequestRef, ISession } from '../../../../workbench/services/sessions/common/session.js';
 import { OPEN_PULL_REQUEST_ACTION_ID, OPEN_PULL_REQUEST_CHANGES_ACTION_ID } from '../../../../workbench/contrib/sessions/common/github/types.js';
 import { createPullRequestChangesEditorInput } from './pullRequestChangesMultiDiffSourceResolver.js';
 

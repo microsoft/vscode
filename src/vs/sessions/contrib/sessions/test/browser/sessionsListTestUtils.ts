@@ -32,7 +32,7 @@ import { ISessionsProvidersService } from '../../../../../workbench/contrib/sess
 import { ISessionsService } from '../../../../../workbench/contrib/sessions/browser/sessionsService.js';
 import { ISessionsWindowUsageService } from '../../../../services/sessions/browser/sessionsWindowUsageService.js';
 import { ISessionsManagementService } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
-import { IChat, ISession, ISessionCapabilities, ISessionChangesSummary, SessionStatus } from '../../../../../workbench/contrib/sessions/common/session.js';
+import { IChat, ISession, ISessionCapabilities, ISessionChangesSummary, SessionStatus } from '../../../../../workbench/services/sessions/common/session.js';
 import { ISessionComparison, ISessionComparisonService } from '../../../../../workbench/contrib/sessions/common/sessionComparison.js';
 import { IDeleteChatOptions } from '../../../../../workbench/contrib/sessions/common/sessionsProvider.js';
 import { getSessionApplication } from '../../../../../workbench/contrib/sessions/common/sessionApplication.js';

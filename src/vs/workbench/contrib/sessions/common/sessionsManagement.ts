@@ -14,7 +14,7 @@ import { URI } from '../../../../base/common/uri.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
 import { IAutomationSessionTemplate } from '../../chat/common/automations/automation.js';
-import { IChat, ISession, ISessionCanvas, ISessionCanvasDefinition, ISessionCreationReference, ISessionType, ISessionWorkspace, ISideChatSelection, type SessionCanvasDefinitionSnapshot } from './session.js';
+import { IChat, ISession, ISessionCanvas, ISessionCanvasDefinition, ISessionCreationReference, ISessionType, ISessionWorkspace, ISideChatSelection, type SessionCanvasDefinitionSnapshot } from '../../../services/sessions/common/session.js';
 import { IAutomationSessionConfiguration, IChatMovedEvent, IDeleteChatOptions, type IForkChatOptions, type INestedChatWorkspace, ISessionChangesetOperationInvokedEvent, ISessionConfigurationSnapshot, ISessionCreationTarget, ISendRequestOptions as ISessionsProviderSendRequestOptions, type SessionResourceResolveReason, ICreateNewChatOptions } from './sessionsProvider.js';
 
 export interface IManagedSessionWorktree extends IAgentHostManagedWorktree {

@@ -31,7 +31,7 @@ import { SessionActiveChatResourceContext, SessionIdContext } from '../../../../
 import { ISessionHost, SessionHostKind } from '../../../../../workbench/contrib/sessions/browser/sessionHost.js';
 import { ISessionsPartService } from '../../../../../workbench/contrib/sessions/browser/sessionsPartService.js';
 import { ISessionsService } from '../../../../../workbench/contrib/sessions/browser/sessionsService.js';
-import { IChat, ISession, ISessionChangeset, ISessionChangesetOperation, ISessionFolder, ISessionGitRepository, ISessionWorkspace, SessionChangesetOperationScope, SessionChangesetOperationStatus, UNCOMMITTED_CHANGES_CHANGESET_ID } from '../../../../../workbench/contrib/sessions/common/session.js';
+import { IChat, ISession, ISessionChangeset, ISessionChangesetOperation, ISessionFolder, ISessionGitRepository, ISessionWorkspace, SessionChangesetOperationScope, SessionChangesetOperationStatus, UNCOMMITTED_CHANGES_CHANGESET_ID } from '../../../../../workbench/services/sessions/common/session.js';
 import { ISessionInputPickerVisibility, SessionInputPickerVisibility } from '../../../../../workbench/contrib/sessions/common/sessionPickerVisibility.js';
 import { IKeybindingService } from '../../../../../platform/keybinding/common/keybinding.js';
 import { SessionSyncChangesActionViewItem, SessionSyncChangesContribution } from '../../browser/sessionSyncChanges.js';

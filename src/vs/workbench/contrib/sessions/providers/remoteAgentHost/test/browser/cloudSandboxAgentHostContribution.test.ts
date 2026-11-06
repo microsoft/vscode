@@ -82,7 +82,7 @@ import { CloudSandboxStartupError } from '../../../../../chat/browser/remoteAgen
 import { CloudSandboxApiService } from '../../../../../chat/browser/remoteAgentHost/cloudSandboxApiService.js';
 import { IAgentHostGroup } from '../../../../common/agentHostSessionsProvider.js';
 import { IAgentHostFilterService } from '../../../../common/agentHostFilter.js';
-import { ISession } from '../../../../common/session.js';
+import { ISession } from '../../../../../../services/sessions/common/session.js';
 import { ISessionsProvider } from '../../../../common/sessionsProvider.js';
 import { ISessionsProvidersService, SessionsProvidersService } from '../../../../browser/sessionsProvidersService.js';
 import { CloudSandboxAgentHostContribution } from '../../browser/cloudSandboxAgentHostContribution.js';

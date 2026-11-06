@@ -78,7 +78,7 @@ import { ChatConfiguration, ChatModeKind } from '../../../../../../workbench/con
 import { ILanguageModelsService, type ILanguageModelChatMetadata } from '../../../../../../workbench/contrib/chat/common/languageModels.js';
 import type { IChatModel, IChatModelInputState, IInputModel } from '../../../../../../workbench/contrib/chat/common/model/chatModel.js';
 import { ISessionChangeEvent, ISessionsProvider, type INestedChatWorkspace, NestedChatWorkspaceError, type ISessionsProviderCreateSessionOptions } from '../../../../../../workbench/contrib/sessions/common/sessionsProvider.js';
-import { BRANCH_CHANGES_CHANGESET_ID, ChatInteractivity, ChatModelSource, ChatOriginKind, getChatCapabilities, getGitHubPullRequestRefs, IChat, ISession, ISessionCanvas, ISessionWorkspace, SESSION_CHANGES_CHANGESET_ID, SessionStatus, TURN_CHANGES_CHANGESET_ID, toSessionId } from '../../../../../../workbench/contrib/sessions/common/session.js';
+import { BRANCH_CHANGES_CHANGESET_ID, ChatInteractivity, ChatModelSource, ChatOriginKind, getChatCapabilities, getGitHubPullRequestRefs, IChat, ISession, ISessionCanvas, ISessionWorkspace, SESSION_CHANGES_CHANGESET_ID, SessionStatus, TURN_CHANGES_CHANGESET_ID, toSessionId } from '../../../../../../workbench/services/sessions/common/session.js';
 import { readSessionChangesStats } from '../../../../../../workbench/contrib/sessions/common/sessionChangesStatsCache.js';
 import { getSessionGitHubReferences } from '../../../../../../workbench/contrib/sessions/common/github/sessionGitHubReferences.js';
 import { ISessionsManagementService, WorkspaceNotTrustedError } from '../../../../../../workbench/contrib/sessions/common/sessionsManagement.js';

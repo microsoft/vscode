@@ -15,9 +15,9 @@ import { createDecorator, IInstantiationService } from '../../../../platform/ins
 import { ServiceCollection } from '../../../../platform/instantiation/common/serviceCollection.js';
 import { GroupIdentifier } from '../../../common/editor.js';
 import { IEditorGroup } from '../../../services/editor/common/editorGroupsService.js';
-import { IChat, ISession, isSessionCreated } from '../common/session.js';
+import { IChat, ISession, isSessionCreated } from '../../../services/sessions/common/session.js';
 import type { ISessionGridPane } from './sessionGridPane.js';
-import { IShownChat } from '../common/sessionPane.js';
+import { IShownChat } from '../../../services/sessions/common/sessionPane.js';
 
 export const enum SessionHostKind {
 	/** The main window of the Agents window. */

@@ -15,7 +15,7 @@ import { getSessionTypeUnavailableLabel, SessionTypeAvailability } from '../../.
 import { IChatEntitlementService } from '../../../../../services/chat/common/chatEntitlementService.js';
 import { IProviderSessionType, ISessionsManagementService } from '../../../common/sessionsManagement.js';
 import { ISessionsProvidersService } from '../../sessionsProvidersService.js';
-import { ISession } from '../../../common/session.js';
+import { ISession } from '../../../../../services/sessions/common/session.js';
 import { IObservable } from '../../../../../../base/common/observable.js';
 import { SessionTypePicker, ISessionTypePickerOptions } from '../sessionTypePicker.js';
 import { isPhoneLayout } from '../../../../../browser/parts/sessions/mobileLayout.js';

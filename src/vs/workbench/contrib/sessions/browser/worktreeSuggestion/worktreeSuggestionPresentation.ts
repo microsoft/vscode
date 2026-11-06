@@ -7,7 +7,7 @@ import { posix } from '../../../../../base/common/path.js';
 import { basename, extUriBiasedIgnorePathCase } from '../../../../../base/common/resources.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { localize } from '../../../../../nls.js';
-import { ISessionFileChange } from '../../common/session.js';
+import { ISessionFileChange } from '../../../../services/sessions/common/session.js';
 import type { IWorktreeSuggestion } from './worktreeSuggestionService.js';
 import { isIChatSessionFileChange2 } from '../../../../common/chatSessionFileChange.js';
 

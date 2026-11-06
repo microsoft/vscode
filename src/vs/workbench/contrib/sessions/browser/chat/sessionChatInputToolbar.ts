@@ -48,7 +48,7 @@ import { IResolvedSessionPullRequest, SessionPullRequestPresentationModel } from
 import { ISessionChatPillVisibilityService, SESSION_CHAT_PILL_KINDS, SessionChatPillKind } from '../../../chat/common/sessionChatPills.js';
 import { ISessionHost } from '../sessionHost.js';
 import { ISessionsService } from '../sessionsService.js';
-import { BRANCH_CHANGES_CHANGESET_ID, ChatOriginKind, IChat, ISession, SESSION_CHANGES_CHANGESET_ID, type IGitHubIssueRef, type IGitHubPullRequestRef, type ISessionWorkspace } from '../../common/session.js';
+import { BRANCH_CHANGES_CHANGESET_ID, ChatOriginKind, IChat, ISession, SESSION_CHANGES_CHANGESET_ID, type IGitHubIssueRef, type IGitHubPullRequestRef, type ISessionWorkspace } from '../../../../services/sessions/common/session.js';
 import { ISessionsManagementService } from '../../common/sessionsManagement.js';
 import { ISessionsProvidersService } from '../sessionsProvidersService.js';
 import { logSessionArtifactOpen } from '../../common/sessionsTelemetry.js';

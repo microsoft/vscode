@@ -53,7 +53,7 @@ import { IChangesSessionScope, IChangesViewService } from '../../sessions/common
 import { ChangesActionsBar, createChangesSessionScope } from './changesView.js';
 import { SessionChangesEditorInput } from './sessionChangesEditorInput.js';
 import { ISessionChangesService } from './sessionChangesService.js';
-import { ISessionFileChange, ISession } from '../../sessions/common/session.js';
+import { ISessionFileChange, ISession } from '../../../services/sessions/common/session.js';
 import { isEqual } from '../../../../base/common/resources.js';
 import { IAction } from '../../../../base/common/actions.js';
 import { IActionViewItemOptions } from '../../../../base/browser/ui/actionbar/actionViewItems.js';

@@ -16,7 +16,7 @@ import { bindContextKey } from '../../../../platform/observable/common/platformO
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { getMainWindowHost, ISessionHost, ISessionHostService } from '../../sessions/browser/sessionHost.js';
 import { ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
-import { BRANCH_CHANGES_CHANGESET_ID, IChat, ISession, ISessionChangeset, ISessionChangesetOperation, ISessionChangesSummary, ISessionFileChange, ISessionWorkspace, isSessionCreated, sessionFileChangesEqual, SESSION_CHANGES_CHANGESET_ID, SessionChangesetOperationScope } from '../../sessions/common/session.js';
+import { BRANCH_CHANGES_CHANGESET_ID, IChat, ISession, ISessionChangeset, ISessionChangesetOperation, ISessionChangesSummary, ISessionFileChange, ISessionWorkspace, isSessionCreated, sessionFileChangesEqual, SESSION_CHANGES_CHANGESET_ID, SessionChangesetOperationScope } from '../../../services/sessions/common/session.js';
 import { ISessionsManagementService } from '../../sessions/common/sessionsManagement.js';
 import { AGENT_FEEDBACK_NEW_SESSION_RESOURCE, IAgentFeedbackService } from '../../sessions/browser/agentFeedback.js';
 import { AgentFeedbackState } from '../../sessions/browser/agentFeedbackModel.js';

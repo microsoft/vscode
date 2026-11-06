@@ -9,7 +9,7 @@ import { URI } from '../../../../base/common/uri.js';
 import { ISessionGridPane, SessionGridPaneKind } from './sessionGridPane.js';
 import { ISessionHost } from './sessionHost.js';
 import { ISessionsService } from './sessionsService.js';
-import { ISession } from '../common/session.js';
+import { ISession } from '../../../services/sessions/common/session.js';
 
 type IPaneActivator = Pick<ISessionsService, 'gridHost' | 'getPaneOfHost' | 'activatePane' | 'panes'>;
 

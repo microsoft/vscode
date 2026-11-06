@@ -27,7 +27,7 @@ import { WindowCanvasInput, IWindowCanvasService } from '../windowCanvas.js';
 import { inheritableSessionTarget, ISessionsManagementService } from '../../common/sessionsManagement.js';
 import { NEW_SESSION_ACTION_ID } from '../../common/chatConstants.js';
 import { INewSessionComposerService } from '../newSessionComposerService.js';
-import { isSessionCreated } from '../../common/session.js';
+import { isSessionCreated } from '../../../../services/sessions/common/session.js';
 
 export class NewChatInSessionsWindowAction extends Action2 {
 

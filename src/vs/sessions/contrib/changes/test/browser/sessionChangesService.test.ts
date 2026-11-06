@@ -27,7 +27,7 @@ import { IEditorService } from '../../../../../workbench/services/editor/common/
 import { IWorkbenchLayoutService } from '../../../../../workbench/services/layout/browser/layoutService.js';
 import { IAgentWorkbenchLayoutService } from '../../../../browser/workbench.js';
 import { AgentWorkbenchLayout } from '../../../../../workbench/services/sessions/browser/sessionsHostLayoutService.js';
-import { IChat, ISessionChangeset, ISessionFileChange, TURN_CHANGES_CHANGESET_ID, UNCOMMITTED_CHANGES_CHANGESET_ID } from '../../../../../workbench/contrib/sessions/common/session.js';
+import { IChat, ISessionChangeset, ISessionFileChange, TURN_CHANGES_CHANGESET_ID, UNCOMMITTED_CHANGES_CHANGESET_ID } from '../../../../../workbench/services/sessions/common/session.js';
 import { SessionChangesEditorInput } from '../../../../../workbench/contrib/sessionChanges/browser/sessionChangesEditorInput.js';
 import { ISessionChangesService, SessionChangesService } from '../../../../../workbench/contrib/sessionChanges/browser/sessionChangesService.js';
 import { IChangesViewService } from '../../../../../workbench/contrib/sessions/common/changesViewService.js';

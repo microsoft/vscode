@@ -24,7 +24,7 @@ import { bindContextKey } from '../../../../platform/observable/common/platformO
 import { IResourceLabel, ResourceLabels } from '../../../browser/labels.js';
 import { ChatContextKeys } from '../../chat/common/actions/chatContextKeys.js';
 import { ModifiedFileEntryState } from '../../chat/common/editing/chatEditingService.js';
-import { GITHUB_REMOTE_FILE_SCHEME, ISessionFileChange } from '../../sessions/common/session.js';
+import { GITHUB_REMOTE_FILE_SCHEME, ISessionFileChange } from '../../../services/sessions/common/session.js';
 import { ActiveSessionContextKeys, ChangesContextKeys, ChangesViewMode } from '../../sessions/common/changes.js';
 import { IChangesSessionScope, IChangesViewService } from '../../sessions/common/changesViewService.js';
 import { isIChatSessionFileChange2 } from '../../../common/chatSessionFileChange.js';

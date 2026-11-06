@@ -19,7 +19,7 @@ import { IOpenerService } from '../../../../../platform/opener/common/opener.js'
 import { computePullRequestIcon, GitHubPullRequestState } from '../../../../contrib/sessions/common/github/types.js';
 import { getSessionSummaryHoverData } from '../../../../contrib/sessions/browser/sessionHoverContent.js';
 import { ISessionsProvidersService } from '../../../../contrib/sessions/browser/sessionsProvidersService.js';
-import { IChat, IGitHubInfo, IGitHubPullRequestRef, ISession, ISessionFileChange, ISessionFolder, ISessionType, ISessionWorkspace, SessionTypeAuthRequirement } from '../../../../contrib/sessions/common/session.js';
+import { IChat, IGitHubInfo, IGitHubPullRequestRef, ISession, ISessionFileChange, ISessionFolder, ISessionType, ISessionWorkspace, SessionTypeAuthRequirement } from '../../../../services/sessions/common/session.js';
 import { ISessionsProvider } from '../../../../contrib/sessions/common/sessionsProvider.js';
 import { ISessionSummaryHoverData, SessionSummaryHoverWidget } from '../../../../contrib/chat/browser/agentSessions/sessionSummaryHover.js';
 import { ComponentFixtureContext, defineComponentFixture, defineThemedFixtureGroup } from '../fixtureUtils.js';

@@ -20,7 +20,7 @@ import { IStorageService, StorageScope, StorageTarget } from '../../../../platfo
 import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
 import { IWorkspaceTrustManagementService, IWorkspaceTrustRequestService } from '../../../../platform/workspace/common/workspaceTrust.js';
 import { localize } from '../../../../nls.js';
-import { ChatInteractivity, ChatOriginKind, IChat, ISession, isSessionCreated, SessionStatus } from '../common/session.js';
+import { ChatInteractivity, ChatOriginKind, IChat, ISession, isSessionCreated, SessionStatus } from '../../../services/sessions/common/session.js';
 import { ICreateNewChatInSessionOptions, ICreateNewSessionOptions, inheritableSessionTarget, IRecentlyOpenedSessions, ISessionsChangeEvent, ISessionsManagementService, IToggleSessionStickinessEvent } from '../common/sessionsManagement.js';
 import { IChatMovedEvent } from '../common/sessionsProvider.js';
 import { ISessionsProvidersService } from './sessionsProvidersService.js';

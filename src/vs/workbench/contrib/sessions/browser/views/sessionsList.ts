@@ -64,7 +64,7 @@ import { IOpenerService } from '../../../../../platform/opener/common/opener.js'
 import { ISessionsListPresentation } from '../sessionsListPresentation.js';
 import { ILabelService } from '../../../../../platform/label/common/label.js';
 import { ChatSessionArchiveActionWording, ChatSessionArchiveActionWordingSettingId, getChatSessionArchivedSectionLabel, getChatSessionArchiveActionWording } from '../../../../../platform/chat/common/sessionArchiveActions.js';
-import { BRANCH_CHANGES_CHANGESET_ID, ChatInteractivity, ChatOriginKind, getChatCapabilities, getGitHubPullRequestRefs, getGitHubRepositoryOfRemoteFile, getGitHubRepositoryOfUrl, getHighestPriorityPullRequestIcon, getSessionFolderGitHubRepository, getSessionPresentationWorkspace, getSessionStatusMessage, getSessionWorkspaceKind, getUntitledSessionTitle, GITHUB_REMOTE_FILE_SCHEME, IChat, isActiveSessionStatus, ISession, ISessionEnvironment, ISessionWorkspace, SessionArtifactKind, SessionStatus, SessionWorkspaceKind, hasMixedChatHarnesses } from '../../common/session.js';
+import { BRANCH_CHANGES_CHANGESET_ID, ChatInteractivity, ChatOriginKind, getChatCapabilities, getGitHubPullRequestRefs, getGitHubRepositoryOfRemoteFile, getGitHubRepositoryOfUrl, getHighestPriorityPullRequestIcon, getSessionFolderGitHubRepository, getSessionPresentationWorkspace, getSessionStatusMessage, getSessionWorkspaceKind, getUntitledSessionTitle, GITHUB_REMOTE_FILE_SCHEME, IChat, isActiveSessionStatus, ISession, ISessionEnvironment, ISessionWorkspace, SessionArtifactKind, SessionStatus, SessionWorkspaceKind, hasMixedChatHarnesses } from '../../../../services/sessions/common/session.js';
 import { ISessionChangesStats, readChatChangesStats } from '../../common/sessionChangesStatsCache.js';
 import { AgentSessionApprovalModel, agentSessionApprovalId, IAgentSessionApprovalInfo } from '../../../chat/browser/agentSessions/agentSessionApprovalModel.js';
 import { IVoicePlaybackService } from '../../../chat/common/voicePlaybackService.js';
@@ -139,7 +139,7 @@ import { KeybindingLabel } from '../../../../../base/browser/ui/keybindingLabel/
 import { IPinnedCanvas, IPinnedCanvasService, PINNED_CANVAS_PAGE_ID, PinnedCanvasConnectedContext, PinnedCanvasState } from '../pinnedCanvases.js';
 import { logSessionsInteraction } from '../../common/sessionsTelemetry.js';
 import { ISessionGridPane } from '../sessionGridPane.js';
-import { IShownChat } from '../../common/sessionPane.js';
+import { IShownChat } from '../../../../services/sessions/common/sessionPane.js';
 
 const $ = DOM.$;
 

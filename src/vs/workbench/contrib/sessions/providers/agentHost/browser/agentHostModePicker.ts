@@ -27,7 +27,7 @@ import { SessionConfigPropertySchema } from '../../../../../../platform/agentHos
 import { ITelemetryService } from '../../../../../../platform/telemetry/common/telemetry.js';
 import { getSessionConfigProvider } from '../../../common/agentHostSessionsProvider.js';
 import { ISessionsProvidersService } from '../../../browser/sessionsProvidersService.js';
-import { IChat, ISession } from '../../../common/session.js';
+import { IChat, ISession } from '../../../../../services/sessions/common/session.js';
 import { ISessionChatSource } from '../../../browser/sessionHost.js';
 import { type ISessionConfigProvider, type ISessionsProvider } from '../../../common/sessionsProvider.js';
 import { reportNewChatPickerClosed } from '../../../browser/newChatPickerTelemetry.js';

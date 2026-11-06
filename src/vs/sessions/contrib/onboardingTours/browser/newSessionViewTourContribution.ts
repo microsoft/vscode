@@ -16,7 +16,7 @@ import { isOnboardingDeveloperModeEnabled, IOnboardingScenarioService } from '..
 import { IFocusedSessionHostService } from '../../../../workbench/contrib/sessions/browser/sessionHost.js';
 import { SessionHarnessPickerVisibleContext, SessionIsolationPickerVisibleContext, SessionWorkspacePickerVisibleContext } from '../../../../workbench/contrib/sessions/common/contextkeys.js';
 import { createNewSessionViewTour, NEW_SESSION_VIEW_TOUR_ID } from './tours/newSessionViewTour.js';
-import { isSessionCreated } from '../../../../workbench/contrib/sessions/common/session.js';
+import { isSessionCreated } from '../../../../workbench/services/sessions/common/session.js';
 
 /**
  * Context keys the new-session composer keeps in sync with the real visibility

@@ -16,8 +16,8 @@ import { IEditorOptions } from '../../../../../editor/common/config/editorOption
 import { IAgentsWindowDraft } from '../../../../../platform/window/common/window.js';
 import { defaultProgressBarStyles } from '../../../../../platform/theme/browser/defaultStyles.js';
 import { IProgressScope, ScopedProgressIndicator } from '../../../../services/progress/browser/progressIndicator.js';
-import { IChat, ISession } from '../../common/session.js';
-import { ISelectNoWorkspaceOptions, ISelectWorkspaceOptions, WorkspaceSelectionResult } from '../../common/workspaceSelection.js';
+import { IChat, ISession } from '../../../../services/sessions/common/session.js';
+import { ISelectNoWorkspaceOptions, ISelectWorkspaceOptions, WorkspaceSelectionResult } from '../../../../services/sessions/common/workspaceSelection.js';
 import { ISessionPickerVisibility, noSessionPickerVisibility } from '../../common/sessionPickerVisibility.js';
 import type { IChatSessionHistoryStatus } from '../../../../../platform/chat/common/chatSessionHistory.js';
 

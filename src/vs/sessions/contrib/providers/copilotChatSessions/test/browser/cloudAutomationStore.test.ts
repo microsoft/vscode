@@ -42,7 +42,7 @@ import { ISessionsRecentWorkspacesService } from '../../../../../../workbench/co
 import { ISessionsProvidersService } from '../../../../../../workbench/contrib/sessions/browser/sessionsProvidersService.js';
 import { ISessionsManagementService } from '../../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import { ISessionsProvider } from '../../../../../../workbench/contrib/sessions/common/sessionsProvider.js';
-import { GITHUB_REMOTE_FILE_SCHEME, ISession, ISessionType } from '../../../../../../workbench/contrib/sessions/common/session.js';
+import { GITHUB_REMOTE_FILE_SCHEME, ISession, ISessionType } from '../../../../../../workbench/services/sessions/common/session.js';
 import { AutomationSessionDraftSynchronizer } from '../../../../automations/browser/automationDialog.js';
 import { ConfigureAutomationTool, DeleteAutomationTool, ListAutomationsTool, RunAutomationTool } from '../../../../automations/browser/automationTools.js';
 import { AutomationRunner } from '../../../../automations/browser/automationRunner.js';

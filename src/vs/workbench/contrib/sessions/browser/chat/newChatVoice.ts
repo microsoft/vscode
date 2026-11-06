@@ -20,7 +20,7 @@ import { IVoiceSessionController } from '../../../chat/browser/voiceClient/voice
 import { ILanguageModelChatMetadataAndIdentifier } from '../../../chat/common/languageModels.js';
 import { IFocusedSessionHostService } from '../sessionHost.js';
 import { setupVoiceInputDecorations } from './voiceInputDecorations.js';
-import { isSessionCreated } from '../../common/session.js';
+import { isSessionCreated } from '../../../../services/sessions/common/session.js';
 
 /**
  * Stable resource for targeting the new-session composer before a session exists.

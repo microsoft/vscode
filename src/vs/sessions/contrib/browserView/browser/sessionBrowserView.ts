@@ -13,7 +13,7 @@ import { IEditorService } from '../../../../workbench/services/editor/common/edi
 import { IEditorGroupsService } from '../../../../workbench/services/editor/common/editorGroupsService.js';
 import { ISessionsManagementService } from '../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import { getFocusedSessionChatSource, IFocusedSessionHostService } from '../../../../workbench/contrib/sessions/browser/sessionHost.js';
-import { ISession } from '../../../../workbench/contrib/sessions/common/session.js';
+import { ISession } from '../../../../workbench/services/sessions/common/session.js';
 import { runOnChange } from '../../../../base/common/observable.js';
 
 export class SessionBrowserViewController extends Disposable implements IWorkbenchContribution {

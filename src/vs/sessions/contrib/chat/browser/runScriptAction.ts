@@ -32,7 +32,7 @@ import { SessionsCategories } from '../../../../workbench/contrib/sessions/commo
 import { ISessionsManagementService } from '../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import { getFocusedSessionChatSource, getWindowHost, IFocusedSessionHostService, ISessionChatSource, ISessionHost } from '../../../../workbench/contrib/sessions/browser/sessionHost.js';
 import { SessionWorkspaceIsVirtualContext, SessionsWelcomeVisibleContext } from '../../../../workbench/contrib/sessions/common/contextkeys.js';
-import { IChat, ISession } from '../../../../workbench/contrib/sessions/common/session.js';
+import { IChat, ISession } from '../../../../workbench/services/sessions/common/session.js';
 import { IChatWidgetService } from '../../../../workbench/contrib/chat/browser/chat.js';
 import { AgentsWindowMenus } from '../../../browser/agentsWindowMenus.js';
 import { INonSessionTaskEntry, ISessionsTasksService, ISessionTaskWithTarget, ITaskEntry, TaskStorageTarget } from './sessionsTasksService.js';

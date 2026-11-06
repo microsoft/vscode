@@ -28,7 +28,7 @@ import { SessionChangesEditorInput } from '../../../../../workbench/contrib/sess
 import { ISessionChangesService } from '../../../../../workbench/contrib/sessionChanges/browser/sessionChangesService.js';
 import { IChangesViewService } from '../../../../../workbench/contrib/sessions/common/changesViewService.js';
 import { EmptyFileEditorInput } from '../../../../../workbench/contrib/sessions/browser/emptyFileEditorInput.js';
-import { ISessionWorkspace, isSessionCreated } from '../../../../../workbench/contrib/sessions/common/session.js';
+import { ISessionWorkspace, isSessionCreated } from '../../../../../workbench/services/sessions/common/session.js';
 import { IDesktopLayoutContext } from './desktopLayoutStrategy.js';
 
 /** Options to open the Changes tab pinned first, inactive (the workbench auto-activates it only when the group is empty). */

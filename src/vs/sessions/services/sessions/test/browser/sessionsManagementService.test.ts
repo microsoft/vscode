@@ -52,7 +52,7 @@ import { ICopilotHomeService } from '../../../../../platform/environment/common/
 import { TestCopilotHomeService } from '../../../../../platform/environment/test/common/testCopilotHomeService.js';
 import { TestPathService, TestProgressService } from '../../../../../workbench/test/browser/workbenchTestServices.js';
 import { TestLifecycleService } from '../../../../../workbench/test/common/workbenchTestServices.js';
-import { SessionTypeAuthRequirement, ChatInteractivity, ChatOriginKind, IChat, ISession, ISessionType, ISessionWorkspace, ISideChatSelection, SESSION_WORKSPACE_GROUP_REMOTE, SessionRemoteConnectionFailureReason, SessionRemoteConnectionStatus, SessionStatus } from '../../../../../workbench/contrib/sessions/common/session.js';
+import { SessionTypeAuthRequirement, ChatInteractivity, ChatOriginKind, IChat, ISession, ISessionType, ISessionWorkspace, ISideChatSelection, SESSION_WORKSPACE_GROUP_REMOTE, SessionRemoteConnectionFailureReason, SessionRemoteConnectionStatus, SessionStatus } from '../../../../../workbench/services/sessions/common/session.js';
 import { ILanguageModelChatMetadataAndIdentifier } from '../../../../../workbench/contrib/chat/common/languageModels.js';
 import { IAutomationSessionTemplate } from '../../../../../workbench/contrib/chat/common/automations/automation.js';
 import { IChatMovedEvent, ISessionChatMoveDestination, type IForkChatOptions, type INestedChatWorkspace, NestedChatWorkspaceError, ISessionChangeEvent, ISessionChangesetOperationInvokedEvent, ISendRequestOptions, ISessionModelsSnapshot, ISessionModelPickerOptions, ISessionsProvider, ISessionsProviderCreateSessionOptions, ISessionWorktreeConfiguration, type ICreateNewChatOptions } from '../../../../../workbench/contrib/sessions/common/sessionsProvider.js';
@@ -89,7 +89,7 @@ import { IEditorGroupsService } from '../../../../../workbench/services/editor/c
 import { getSingletonServiceDescriptors } from '../../../../../platform/instantiation/common/extensions.js';
 import { InstantiationService } from '../../../../../platform/instantiation/common/instantiationService.js';
 import { ServiceCollection } from '../../../../../platform/instantiation/common/serviceCollection.js';
-import { ISessionPaneContent } from '../../../../../workbench/contrib/sessions/common/sessionPane.js';
+import { ISessionPaneContent } from '../../../../../workbench/services/sessions/common/sessionPane.js';
 
 const stubChat = {
 	resource: URI.parse('test:///chat'),

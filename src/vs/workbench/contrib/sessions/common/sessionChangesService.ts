@@ -9,7 +9,7 @@ import { IMultiDiffEditorOptions } from '../../../../editor/common/multiDiffEdit
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
 import { IEditorGroup } from '../../../services/editor/common/editorGroupsService.js';
 import { PreferredGroup } from '../../../services/editor/common/editorService.js';
-import { ISessionChangeset } from './session.js';
+import { ISessionChangeset } from '../../../services/sessions/common/session.js';
 
 export const ISessionChangesService = createDecorator<ISessionChangesService>('sessionChangesService');
 

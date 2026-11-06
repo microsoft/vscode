@@ -17,7 +17,7 @@ import { IChatWindowService } from '../../../../workbench/contrib/chatWindow/bro
 import { ISessionsHostLayoutService } from '../../../../workbench/services/sessions/browser/sessionsHostLayoutService.js';
 import { getMainWindowHost, getWindowHost, IFocusedSessionHostService, ISessionHost, ISessionHostService, SessionHostKind } from '../../../../workbench/contrib/sessions/browser/sessionHost.js';
 import { ICustomViewService } from '../../../../workbench/contrib/sessions/browser/customView.js';
-import { IChat, ISession, ISessionCanvasDefinition } from '../../../../workbench/contrib/sessions/common/session.js';
+import { IChat, ISession, ISessionCanvasDefinition } from '../../../../workbench/services/sessions/common/session.js';
 import { ISessionsManagementService } from '../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import { ISessionEditorWorkingSetService } from '../../layout/common/sessionEditorWorkingSet.js';
 import { createSessionCanvasReference, getSessionCanvasDefinitionInstanceId, ISessionCanvasRegistryService } from '../common/sessionCanvas.js';

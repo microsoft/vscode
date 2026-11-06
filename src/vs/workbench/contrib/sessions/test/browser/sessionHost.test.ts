@@ -16,7 +16,7 @@ import { IEditorGroup, IEditorGroupsService } from '../../../../services/editor/
 import { IHostService } from '../../../../services/host/browser/host.js';
 import { getMainWindowHost, getWindowHost, IFocusedSessionHostService, ISessionHost, SessionHost, SessionHostKind, shownChatOf } from '../../browser/sessionHost.js';
 import { FocusedSessionHostService, SessionHostService } from '../../browser/sessionHostService.js';
-import { IChat, ISession } from '../../common/session.js';
+import { IChat, ISession } from '../../../../services/sessions/common/session.js';
 import { ISessionsService } from '../../browser/sessionsService.js';
 import { chatOfShown, ITestSessionsService, ITestShownChat, sessionOfShown, sessionsServiceWithGridHost, stubSessionHostsFromSessionsService, TestShown, withCreatedStatus } from './sessionHostTestUtils.js';
 

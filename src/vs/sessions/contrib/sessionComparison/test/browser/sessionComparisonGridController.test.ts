@@ -21,7 +21,7 @@ import { ISessionsHostLayoutService } from '../../../../../workbench/services/se
 import { ISessionsPartService } from '../../../../../workbench/contrib/sessions/browser/sessionsPartService.js';
 import { ISessionsService } from '../../../../../workbench/contrib/sessions/browser/sessionsService.js';
 import { ISessionComparison, ISessionComparisonService, SessionComparisonParticipantRole } from '../../../../../workbench/contrib/sessions/common/sessionComparison.js';
-import { IChat, ISession } from '../../../../../workbench/contrib/sessions/common/session.js';
+import { IChat, ISession } from '../../../../../workbench/services/sessions/common/session.js';
 import { ISessionGridPane, SessionGridPaneKind } from '../../../../../workbench/contrib/sessions/browser/sessionGridPane.js';
 import { SessionComparisonGridController } from '../../browser/sessionComparisonGridController.js';
 import { HIDE_INACTIVE_COMPARISON_INPUTS_SETTING } from '../../../../../workbench/contrib/sessions/common/sessionComparisonConstants.js';

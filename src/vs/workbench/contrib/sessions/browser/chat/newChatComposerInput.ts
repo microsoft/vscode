@@ -14,9 +14,9 @@ import { IChatInputPickerResponsiveLayoutItem } from '../../../chat/browser/widg
 import { IModelPickerComparison } from '../../../chat/browser/widget/input/modelPicker/modelPickerComparison.js';
 import { getGitHubIssueOrPullRequestAttachments } from '../../../chat/browser/widget/input/editor/chatPasteProviders.js';
 import { IChatRequestVariableEntry, isExplicitFileOrImageVariableEntry } from '../../../chat/common/attachments/chatVariableEntries.js';
-import { IWorkspaceSelectionSnapshot } from '../../common/workspaceSelection.js';
+import { IWorkspaceSelectionSnapshot } from '../../../../services/sessions/common/workspaceSelection.js';
 import { isInputGitHubContext, toInputGitHubContextMetadata } from '../../common/newChatContextIds.js';
-import type { IChat, ISession } from '../../common/session.js';
+import type { IChat, ISession } from '../../../../services/sessions/common/session.js';
 import { NewSessionWorkspacePreselectionSource } from '../newSessionComposerService.js';
 import type { NewChatUserInteraction } from './newChatUserInteraction.js';
 import type { ISessionTypePickerOptions } from './sessionTypePicker.js';

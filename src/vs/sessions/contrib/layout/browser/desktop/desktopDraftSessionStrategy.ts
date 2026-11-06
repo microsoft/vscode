@@ -22,7 +22,7 @@ import { Parts } from '../../../../../workbench/services/layout/browser/layoutSe
 import { IAgentWorkbenchLayoutService } from '../../../../browser/workbench.js';
 import { ISessionChangesService } from '../../../../../workbench/contrib/sessionChanges/browser/sessionChangesService.js';
 import { EmptyFileEditorInput } from '../../../../../workbench/contrib/sessions/browser/emptyFileEditorInput.js';
-import { ISessionWorkspace, isSessionCreated } from '../../../../../workbench/contrib/sessions/common/session.js';
+import { ISessionWorkspace, isSessionCreated } from '../../../../../workbench/services/sessions/common/session.js';
 import {
 	DetailPanelTarget,
 	DesktopDetailPanelCoordinator,
@@ -39,7 +39,7 @@ import {
 	DesktopLayoutStrategy,
 } from './desktopLayoutStrategy.js';
 import { SessionVisibilityProfile, DesktopVisibilityProfileStore } from './desktopVisibilityProfileStore.js';
-import { IShownChat } from '../../../../../workbench/contrib/sessions/common/sessionPane.js';
+import { IShownChat } from '../../../../../workbench/services/sessions/common/sessionPane.js';
 
 /**
  * Owns workspace-backed and workspace-less draft layout behavior.

@@ -29,7 +29,7 @@ import { GitHubPullRequestModel } from '../../../../../workbench/contrib/session
 import { GitHubPullRequestState, IGitHubPRComment, IGitHubPullRequestReview, IGitHubPullRequestReviewThread } from '../../../../../workbench/contrib/sessions/common/github/types.js';
 import { toPRContentUri } from '../../../../../workbench/contrib/sessions/common/github/utils.js';
 import { SessionChangesEditorInput } from '../../../../../workbench/contrib/sessionChanges/browser/sessionChangesEditorInput.js';
-import { IChat, IGitHubInfo, SessionStatus, ISession, ISessionWorkspace } from '../../../../../workbench/contrib/sessions/common/session.js';
+import { IChat, IGitHubInfo, SessionStatus, ISession, ISessionWorkspace } from '../../../../../workbench/services/sessions/common/session.js';
 import { commentableRightLines, mapCurrentLineToPullRequestLine, mapCurrentRangeToPullRequestRange, CodeReviewService } from '../../browser/codeReviewService.js';
 import { ICodeReviewService, PRReviewStateKind } from '../../../../../workbench/contrib/sessions/browser/codeReviewService.js';
 import { ISessionsService } from '../../../../../workbench/contrib/sessions/browser/sessionsService.js';

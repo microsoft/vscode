@@ -6,7 +6,7 @@
 import { URI } from '../../../../base/common/uri.js';
 import { isEqual } from '../../../../base/common/resources.js';
 import { ILabelService } from '../../../../platform/label/common/label.js';
-import { ISessionFileChange } from '../../sessions/common/session.js';
+import { ISessionFileChange } from '../../../services/sessions/common/session.js';
 import { isIChatSessionFileChange2 } from '../../../common/chatSessionFileChange.js';
 
 export interface IChangesEditorLabels {

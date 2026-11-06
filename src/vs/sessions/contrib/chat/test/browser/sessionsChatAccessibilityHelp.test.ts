@@ -27,7 +27,7 @@ import { IWorkbenchLayoutService } from '../../../../../workbench/services/layou
 import { IAgentHostFilterEntry, IAgentHostFilterService } from '../../../../../workbench/contrib/sessions/common/agentHostFilter.js';
 import { ISessionsPartService } from '../../../../../workbench/contrib/sessions/browser/sessionsPartService.js';
 import { ISessionsService } from '../../../../../workbench/contrib/sessions/browser/sessionsService.js';
-import { IChat } from '../../../../../workbench/contrib/sessions/common/session.js';
+import { IChat } from '../../../../../workbench/services/sessions/common/session.js';
 import { ISessionComparison, ISessionComparisonService, SessionComparisonParticipantRole } from '../../../../../workbench/contrib/sessions/common/sessionComparison.js';
 import { AGENT_SESSIONS_RESPONSE_SELECTION_MENU_SETTING, AGENTS_PICKER_IN_ATTACH_CONTEXT_MENU_SETTING, COMPARE_AGENTS_ENABLED_SETTING, COMPARE_AGENTS_TOOLS_ENABLED_SETTING, ENVIRONMENT_PICKER_MANAGE_REMOTES_SETTING, ENVIRONMENT_PICKER_SETTING, NEW_SESSION_CONNECTOR_RECOMMENDATIONS_SETTING, NEW_SESSION_WELCOME_PHRASES_SETTING, WORKSPACE_OPT_OUT_SETTING } from '../../../../../workbench/contrib/sessions/common/chatConstants.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';

@@ -39,10 +39,10 @@ import {
 	SessionActiveChatCanvasReferenceKeysContext,
 	SessionHasGitRepositoryContext,
 } from './contextkeys.js';
-import { ChatOriginKind, getChatCapabilities, IChat, isActiveSessionStatus, isSessionCreated, isSideChatOf, ISession, SessionStatus } from './session.js';
+import { ChatOriginKind, getChatCapabilities, IChat, isActiveSessionStatus, isSessionCreated, isSideChatOf, ISession, SessionStatus } from '../../../services/sessions/common/session.js';
 import { ISessionChangesStatsCache, readChatChangesStats, readSessionChangesStats } from './sessionChangesStatsCache.js';
 import { getCanvasReferenceKey } from '../../../common/canvasReference.js';
-import { IPaneViewState } from './sessionPane.js';
+import { IPaneViewState } from '../../../services/sessions/common/sessionPane.js';
 
 /**
  * The set of session context keys bound to a single {@link IContextKeyService}.

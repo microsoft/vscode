@@ -24,7 +24,7 @@ import { getExcludes, ISearchConfiguration, ISearchService, QueryType } from '..
 import { IAgentFeedbackAddedEvent, IAgentFeedbackConvertedEvent, IAgentFeedbackReplyAddedEvent, IAgentFeedbackService, IAgentFeedbackSubmittedEvent } from '../../../../workbench/contrib/sessions/browser/agentFeedback.js';
 import { AgentFeedbackKind } from '../../../../workbench/contrib/sessions/browser/agentFeedbackModel.js';
 import { ISessionsTasksService } from '../../chat/browser/sessionsTasksService.js';
-import { IChat, ISession, ISessionWorkspace, SessionStatus } from '../../../../workbench/contrib/sessions/common/session.js';
+import { IChat, ISession, ISessionWorkspace, SessionStatus } from '../../../../workbench/services/sessions/common/session.js';
 import { ISendRequestSentEvent, ISessionsChangeEvent, ISessionsManagementService } from '../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import { ISessionsService } from '../../../../workbench/contrib/sessions/browser/sessionsService.js';
 import { IFocusedSessionHostService } from '../../../../workbench/contrib/sessions/browser/sessionHost.js';

@@ -44,7 +44,7 @@ import { IOpenSettingsOptions, IPreferencesService } from '../../../../../../ser
 import { AGENT_HOST_PERMISSIONS_SETTINGS_QUERY, MODE_PERMISSIONS_PICKER_OPEN_ATTRIBUTE } from '../../../../../chat/browser/agentSessions/agentHost/agentHostModePickerPresentation.js';
 import { IAgentHostSessionsProvider } from '../../../../common/agentHostSessionsProvider.js';
 import { ISessionsProvidersService } from '../../../../browser/sessionsProvidersService.js';
-import { IChat } from '../../../../common/session.js';
+import { IChat } from '../../../../../../services/sessions/common/session.js';
 import { ISessionConfigProvider, ISessionsProvider } from '../../../../common/sessionsProvider.js';
 import { AgentHostModePicker } from '../../browser/agentHostModePicker.js';
 import { AgentHostPermissionPickerDelegate } from '../../browser/agentHostPermissionPickerDelegate.js';

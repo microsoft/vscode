@@ -17,7 +17,7 @@ import { INotificationService, Severity } from '../../../../platform/notificatio
 import { ILifecycleService, LifecyclePhase } from '../../../../workbench/services/lifecycle/common/lifecycle.js';
 import { IViewsService } from '../../../../workbench/services/views/common/viewsService.js';
 import { ISessionsSetUpService } from '../../../browser/sessionsSetUpService.js';
-import { WorkspaceSelectionOrigin } from '../../../../workbench/contrib/sessions/common/workspaceSelection.js';
+import { WorkspaceSelectionOrigin } from '../../../../workbench/services/sessions/common/workspaceSelection.js';
 import { ISessionsPartService } from '../../../../workbench/contrib/sessions/browser/sessionsPartService.js';
 import { ISessionsService } from '../../../../workbench/contrib/sessions/browser/sessionsService.js';
 import { IFocusedSessionHostService } from '../../../../workbench/contrib/sessions/browser/sessionHost.js';
@@ -30,7 +30,7 @@ import { IStorageService } from '../../../../platform/storage/common/storage.js'
 import { readNewChatDraftState } from '../../../../workbench/contrib/sessions/common/newChatDraftState.js';
 import { IRemoteWorkspaceHandoffService } from '../../../common/remoteWorkspaceHandoff.js';
 import { IAgentsWindowRemoteWorkspace } from './agentsWindowOpenIntent.js';
-import { isSessionCreated } from '../../../../workbench/contrib/sessions/common/session.js';
+import { isSessionCreated } from '../../../../workbench/services/sessions/common/session.js';
 
 export const WORKSPACE_HANDOFF_TIMEOUT_MS = 15_000;
 

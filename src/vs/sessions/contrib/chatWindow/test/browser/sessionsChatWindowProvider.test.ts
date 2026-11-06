@@ -37,7 +37,7 @@ import { ISessionsListModelService } from '../../../../../workbench/contrib/sess
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { ISessionsService } from '../../../../../workbench/contrib/sessions/browser/sessionsService.js';
 import { ChatHostOpenerService, IChatHostOpenerService } from '../../../../../workbench/contrib/sessions/browser/chatHostOpener.js';
-import { ChatInteractivity, IChat, ISession, ISessionChangeset, ISessionChangesetOperation, SessionChangesetOperationScope, SessionStatus } from '../../../../../workbench/contrib/sessions/common/session.js';
+import { ChatInteractivity, IChat, ISession, ISessionChangeset, ISessionChangesetOperation, SessionChangesetOperationScope, SessionStatus } from '../../../../../workbench/services/sessions/common/session.js';
 import { ISessionsChangeEvent, ISessionsManagementService } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import { CHAT_WINDOWS_ENABLED_SETTING } from '../../common/chatWindows.js';
 import { SESSION_ACTIVITY_BAR_SETTING } from '../../../../../workbench/contrib/sessions/common/sessionConfig.js';
@@ -61,7 +61,7 @@ import { ITestSessionWithChat, stubSessionHosts, testGridPanes } from '../../../
 import { ISessionHost } from '../../../../../workbench/contrib/sessions/browser/sessionHost.js';
 import { ITitleService } from '../../../../../workbench/services/title/browser/titleService.js';
 import { IAuxiliaryTitlebarPart } from '../../../../../workbench/browser/parts/titlebar/titlebarPart.js';
-import { ISessionPaneContent } from '../../../../../workbench/contrib/sessions/common/sessionPane.js';
+import { ISessionPaneContent } from '../../../../../workbench/services/sessions/common/sessionPane.js';
 
 suite('Sessions chat window provider', () => {
 

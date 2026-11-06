@@ -27,7 +27,7 @@ import { IChatWidgetService } from '../../../../workbench/contrib/chat/browser/c
 import { ISessionsPartService } from '../../../../workbench/contrib/sessions/browser/sessionsPartService.js';
 import { ISessionsService } from '../../../../workbench/contrib/sessions/browser/sessionsService.js';
 import { resolveSessionCommandTarget } from '../../../../workbench/contrib/sessions/browser/sessionCommandTarget.js';
-import { getSessionWorkspaceKind, IChat, ISession, ISessionChangeset, ISessionChangesetOperation, SessionChangesetOperationScope, SessionChangesetOperationStatus, SessionWorkspaceKind, UNCOMMITTED_CHANGES_CHANGESET_ID } from '../../../../workbench/contrib/sessions/common/session.js';
+import { getSessionWorkspaceKind, IChat, ISession, ISessionChangeset, ISessionChangesetOperation, SessionChangesetOperationScope, SessionChangesetOperationStatus, SessionWorkspaceKind, UNCOMMITTED_CHANGES_CHANGESET_ID } from '../../../../workbench/services/sessions/common/session.js';
 import { ISessionInputPickerVisibility } from '../../../../workbench/contrib/sessions/common/sessionPickerVisibility.js';
 import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
 import { FOCUS_SESSION_SYNC_ACTION_COMMAND_ID } from '../../../../workbench/contrib/sessions/common/sessionCommands.js';

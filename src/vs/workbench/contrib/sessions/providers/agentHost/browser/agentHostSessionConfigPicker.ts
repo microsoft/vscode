@@ -82,7 +82,7 @@ import { getOrganizationDefaultApprovalLevel, isAutoApproveValuePolicyRestricted
 import { getPermissionLevelBadge } from '../../../../chat/browser/agentSessions/agentHost/agentHostModePickerPresentation.js';
 import { BRANCH_PICKER_MAX_VISIBLE_ITEMS, ensureSelectedBranchPickerItem, filterBranchPickerItems } from '../../../../chat/browser/agentSessions/agentHost/agentHostBranchPicker.js';
 import { CodexSessionConfigKey } from '../../../../../../platform/agentHost/common/codexSessionConfigKeys.js';
-import { type IChat, type ISessionChangeset, type ISessionFileChange, UNCOMMITTED_CHANGES_CHANGESET_ID, ISession } from '../../../common/session.js';
+import { type IChat, type ISessionChangeset, type ISessionFileChange, UNCOMMITTED_CHANGES_CHANGESET_ID, ISession } from '../../../../../services/sessions/common/session.js';
 import { MarkdownString } from '../../../../../../base/common/htmlContent.js';
 import { IUncommittedChangesListItem, IWorktreeSuggestion, IWorktreeSuggestionService } from '../../../browser/worktreeSuggestion/worktreeSuggestionService.js';
 import { getChangedFileUri, getUncommittedFilesDescription, getUncommittedFilesSectionLabel } from '../../../browser/worktreeSuggestion/worktreeSuggestionPresentation.js';

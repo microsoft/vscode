@@ -24,7 +24,7 @@ import { getHostOfSession, getMainWindowHost, IFocusedSessionHostService, ISessi
 import { ISessionsService } from '../../sessions/browser/sessionsService.js';
 import { SessionChangesEditorInput } from './sessionChangesEditorInput.js';
 import { ISessionChangesEditorOptions, ISessionChangesService } from '../../sessions/common/sessionChangesService.js';
-import { UNCOMMITTED_CHANGES_CHANGESET_ID } from '../../sessions/common/session.js';
+import { UNCOMMITTED_CHANGES_CHANGESET_ID } from '../../../services/sessions/common/session.js';
 
 export { ISessionChangesService } from '../../sessions/common/sessionChangesService.js';
 export type { ISessionChangesEditorOptions } from '../../sessions/common/sessionChangesService.js';

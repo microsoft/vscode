@@ -20,7 +20,7 @@ import { ITelemetryService } from '../../../../../../platform/telemetry/common/t
 import { IChatWidgetService } from '../../../../chat/browser/chat.js';
 import { ISessionsProvidersService } from '../../../browser/sessionsProvidersService.js';
 import { ISessionChatSource } from '../../../browser/sessionHost.js';
-import { SessionStatus } from '../../../common/session.js';
+import { SessionStatus } from '../../../../../services/sessions/common/session.js';
 import { AgentHostSessionEnumPicker, IAgentHostSessionEnumPickerItem } from './agentHostModePicker.js';
 import { isWellKnownCodexApprovalsSchema } from './agentHostPermissionPickerDelegate.js';
 

@@ -30,7 +30,7 @@ import { IEditorService } from '../../../../workbench/services/editor/common/edi
 import { AICustomizationManagementSection } from '../../../../workbench/contrib/chat/common/aiCustomizationWorkspaceService.js';
 import { ChatContextKeys } from '../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
 import { ICustomizationHarnessService } from '../../../../workbench/contrib/chat/common/customizationHarnessService.js';
-import { ISession } from '../../../../workbench/contrib/sessions/common/session.js';
+import { ISession } from '../../../../workbench/services/sessions/common/session.js';
 import { IFocusedSessionHostService } from '../../../../workbench/contrib/sessions/browser/sessionHost.js';
 import { SessionType } from '../../../../workbench/contrib/chat/common/chatSessionsService.js';
 import { AICustomizationMcpServerCountService, IAICustomizationMcpServerCountService } from '../../../../workbench/contrib/sessions/browser/customizationMcpServerCount.js';

@@ -34,7 +34,7 @@ import { SessionInputBanners } from '../../../../contrib/sessions/browser/sessio
 import { LOCAL_AGENT_HOST_PROVIDER_ID } from '../../../../contrib/sessions/common/agentHostSessionsProvider.js';
 import { IAgentWorkbenchLayoutService } from '../../../../../sessions/browser/workbench.js';
 import { ISessionChangesService } from '../../../../contrib/sessionChanges/browser/sessionChangesService.js';
-import { ChatOriginKind, type IGitHubInfo, type IGitHubPullRequestRef, ISession, ISessionArtifact, ISessionCanvas, ISessionChatCustomization, ISessionTurnFileChange, ISessionWorkspace, IChat, ISessionCapabilities, ISessionFolder, ISessionGitRepository, SessionArtifactKind, SessionCustomizationKind, SessionStatus } from '../../../../contrib/sessions/common/session.js';
+import { ChatOriginKind, type IGitHubInfo, type IGitHubPullRequestRef, ISession, ISessionArtifact, ISessionCanvas, ISessionChatCustomization, ISessionTurnFileChange, ISessionWorkspace, IChat, ISessionCapabilities, ISessionFolder, ISessionGitRepository, SessionArtifactKind, SessionCustomizationKind, SessionStatus } from '../../../../services/sessions/common/session.js';
 import { ISessionsManagementService } from '../../../../contrib/sessions/common/sessionsManagement.js';
 import { ISessionHost, SessionHostKind } from '../../../../contrib/sessions/browser/sessionHost.js';
 import { ISessionsProvidersService } from '../../../../contrib/sessions/browser/sessionsProvidersService.js';

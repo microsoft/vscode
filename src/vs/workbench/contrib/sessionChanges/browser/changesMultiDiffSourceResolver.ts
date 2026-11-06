@@ -10,7 +10,7 @@ import { isEqual } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
 import { IMultiDiffSourceResolver, IMultiDiffSourceResolverService, IResolvedMultiDiffSource, MultiDiffEditorItem } from '../../multiDiffEditor/browser/multiDiffSourceResolverService.js';
 import { sortMultiDiffEditorFileListItems } from '../../multiDiffEditor/common/multiDiffEditor.js';
-import { ISessionFileChange } from '../../sessions/common/session.js';
+import { ISessionFileChange } from '../../../services/sessions/common/session.js';
 import { ChangesViewMode } from '../../sessions/common/changes.js';
 import { getActiveSessionChanges, IChangesSessionObservables, IChangesViewService } from '../../sessions/common/changesViewService.js';
 import { getMainWindowHost, getWindowHost, ISessionHostService, SessionHostKind } from '../../sessions/browser/sessionHost.js';

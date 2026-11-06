@@ -40,7 +40,7 @@ import { SESSIONS_LIST_GROUP_EXTERNAL_SESSIONS_SETTING } from '../../../../../wo
 import { ISessionGroup } from '../../../../../workbench/contrib/sessions/browser/sessionGroupsService.js';
 import { ISessionsPartService } from '../../../../../workbench/contrib/sessions/browser/sessionsPartService.js';
 import { ISessionsService } from '../../../../../workbench/contrib/sessions/browser/sessionsService.js';
-import { ChatInteractivity, IChat, ISession, SessionStatus } from '../../../../../workbench/contrib/sessions/common/session.js';
+import { ChatInteractivity, IChat, ISession, SessionStatus } from '../../../../../workbench/services/sessions/common/session.js';
 import { ISessionComparison, SessionComparisonParticipantRole } from '../../../../../workbench/contrib/sessions/common/sessionComparison.js';
 import type { SessionView } from '../../../../../workbench/contrib/sessions/browser/parts/sessionView.js';
 import { Menus } from '../../../../../workbench/contrib/sessions/browser/menus.js';

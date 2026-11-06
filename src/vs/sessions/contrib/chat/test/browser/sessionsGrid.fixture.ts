@@ -22,7 +22,7 @@ import { ISessionsChatBackground } from '../../../../../workbench/contrib/sessio
 import { IChatViewFactory } from '../../../../../workbench/contrib/sessions/browser/chatViewFactory.js';
 import { ISessionsService } from '../../../../../workbench/contrib/sessions/browser/sessionsService.js';
 import { ISessionHost } from '../../../../../workbench/contrib/sessions/browser/sessionHost.js';
-import { ChatOriginKind, IChat, ISession, ISessionWorkspace } from '../../../../../workbench/contrib/sessions/common/session.js';
+import { ChatOriginKind, IChat, ISession, ISessionWorkspace } from '../../../../../workbench/services/sessions/common/session.js';
 import { ISessionGridPane, SessionGridPaneKind } from '../../../../../workbench/contrib/sessions/browser/sessionGridPane.js';
 import { createTestActiveSession, renderTestPanes } from '../../../../test/browser/sessionViewTestUtils.js';
 import { AGENTS_FLOATING_PANEL_GAP } from '../../../../../workbench/contrib/sessions/common/layoutConstants.js';

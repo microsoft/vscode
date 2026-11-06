@@ -19,7 +19,7 @@ import { IGitRepository, IGitService } from '../../../../../workbench/contrib/gi
 import { ONBOARDING_DEVELOPER_MODE_CONFIG, ONBOARDING_DEVELOPER_MODE_VARIATIONS_CONFIG } from '../../../../../workbench/contrib/onboarding/common/onboardingScenarioService.js';
 import { IWorkbenchAssignmentService } from '../../../../../workbench/services/assignment/common/assignmentService.js';
 import { NullWorkbenchAssignmentService } from '../../../../../workbench/services/assignment/test/common/nullAssignmentService.js';
-import { GITHUB_REMOTE_FILE_SCHEME, ISessionWorkspace, SessionStatus } from '../../../../../workbench/contrib/sessions/common/session.js';
+import { GITHUB_REMOTE_FILE_SCHEME, ISessionWorkspace, SessionStatus } from '../../../../../workbench/services/sessions/common/session.js';
 import { ISessionsService } from '../../../../../workbench/contrib/sessions/browser/sessionsService.js';
 import { INewSessionComposerService, INewSessionPromptOptionsController, NewSessionPromptOptionsState } from '../../../../../workbench/contrib/sessions/browser/newSessionComposerService.js';
 import { GitHubRequestError } from '../../../../../platform/github/common/githubTypes.js';

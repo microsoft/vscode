@@ -12,7 +12,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/tes
 import { IStorageService, InMemoryStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { mock, upcastPartial } from '../../../../../base/test/common/mock.js';
-import { IChat, ISession, SessionStatus } from '../../common/session.js';
+import { IChat, ISession, SessionStatus } from '../../../../services/sessions/common/session.js';
 import { ISessionsChangeEvent, ISessionsManagementService } from '../../common/sessionsManagement.js';
 import { IChatMovedEvent } from '../../common/sessionsProvider.js';
 import { getSessionGroupSectionId, SessionGroupsService, SessionGroupTree } from '../../browser/sessionGroupsService.js';

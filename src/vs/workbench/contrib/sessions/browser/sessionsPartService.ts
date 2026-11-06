@@ -4,8 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
-import { IChat, ISession } from '../common/session.js';
-import { ISelectNoWorkspaceOptions, ISelectWorkspaceOptions, WorkspaceSelectionResult } from '../common/workspaceSelection.js';
+import { IChat, ISession } from '../../../services/sessions/common/session.js';
+import { ISelectNoWorkspaceOptions, ISelectWorkspaceOptions, WorkspaceSelectionResult } from '../../../services/sessions/common/workspaceSelection.js';
 import { URI } from '../../../../base/common/uri.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { IAgentsWindowDraft } from '../../../../platform/window/common/window.js';

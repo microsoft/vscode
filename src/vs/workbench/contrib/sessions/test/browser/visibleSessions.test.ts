@@ -15,7 +15,7 @@ import { IUriIdentityService } from '../../../../../platform/uriIdentity/common/
 import { VisibleSessions } from '../../browser/visibleSessions.js';
 import { ISessionGridPane, SessionGridPaneKind } from '../../browser/sessionGridPane.js';
 import { DisposableStore } from '../../../../../base/common/lifecycle.js';
-import { ChatInteractivity, ChatOriginKind, IChat, ISession, SessionRemoteConnectionFailureReason, SessionRemoteConnectionStatus, SessionStatus } from '../../common/session.js';
+import { ChatInteractivity, ChatOriginKind, IChat, ISession, SessionRemoteConnectionFailureReason, SessionRemoteConnectionStatus, SessionStatus } from '../../../../services/sessions/common/session.js';
 
 const stubChat: IChat = {
 	resource: URI.parse('test:///chat'),

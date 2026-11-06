@@ -22,7 +22,7 @@ import { StorageScope, StorageTarget } from '../../../../../../platform/storage/
 import { SessionStatus as ProtocolSessionStatus } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { discoveredSessionProject } from '../../../../chat/browser/remoteAgentHost/cloudSandboxSessionContribution.js';
 import { getSessionApplication } from '../../../common/sessionApplication.js';
-import { ChatInteractivity, DEFAULT_CHAT_CAPABILITIES, IChat, ISession, ISessionCapabilities, ISessionWorkspace, SessionRemoteConnectionFailureReason, SessionStatus } from '../../../common/session.js';
+import { ChatInteractivity, DEFAULT_CHAT_CAPABILITIES, IChat, ISession, ISessionCapabilities, ISessionWorkspace, SessionRemoteConnectionFailureReason, SessionStatus } from '../../../../../services/sessions/common/session.js';
 import { ISendRequestOptions } from '../../../common/sessionsManagement.js';
 import { IChatMovedEvent, ISessionChangeEvent } from '../../../common/sessionsProvider.js';
 import { BaseAgentHostSessionsProvider } from '../../agentHost/browser/baseAgentHostSessionsProvider.js';

@@ -82,7 +82,7 @@ import { ISessionsProvidersService } from '../../../../../workbench/contrib/sess
 import { ISessionsService } from '../../../../../workbench/contrib/sessions/browser/sessionsService.js';
 import { ISessionHost, ISessionHostService, MainWindowSessionHost } from '../../../../../workbench/contrib/sessions/browser/sessionHost.js';
 import { ITestSessionWithChat, sessionHostServiceOf, testGridPanes } from '../../../../../workbench/contrib/sessions/test/browser/sessionHostTestUtils.js';
-import { IChat, ISession, ISessionEnvironment } from '../../../../../workbench/contrib/sessions/common/session.js';
+import { IChat, ISession, ISessionEnvironment } from '../../../../../workbench/services/sessions/common/session.js';
 import { ISessionsProvider } from '../../../../../workbench/contrib/sessions/common/sessionsProvider.js';
 import { ISessionComparison, ISessionComparisonService } from '../../../../../workbench/contrib/sessions/common/sessionComparison.js';
 import { ISessionsChangeEvent, ISessionsManagementService } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';

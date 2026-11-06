@@ -22,7 +22,7 @@ import { SessionIsCreatedContext, SessionItemIsMultiSelectionContext } from '../
 import { ISessionsService } from '../../../../workbench/contrib/sessions/browser/sessionsService.js';
 import { getMainWindowHost, ISessionHostService } from '../../../../workbench/contrib/sessions/browser/sessionHost.js';
 import { resolveSessionCommandTarget } from '../../../../workbench/contrib/sessions/browser/sessionCommandTarget.js';
-import { IChat, ISession } from '../../../../workbench/contrib/sessions/common/session.js';
+import { IChat, ISession } from '../../../../workbench/services/sessions/common/session.js';
 import { CHAT_WINDOWS_ENABLED_SETTING } from '../common/chatWindows.js';
 
 export const OPEN_CHAT_IN_WINDOW_COMMAND_ID = 'sessions.chatWindow.openChat';

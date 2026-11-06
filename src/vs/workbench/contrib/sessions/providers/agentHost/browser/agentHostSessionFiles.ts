@@ -21,7 +21,7 @@ import {
 	ToolCallStatus,
 	ToolResultContentType,
 } from '../../../../../../platform/agentHost/common/state/sessionState.js';
-import { ISessionChatCustomization, ISessionTurnFileChange, ISessionWorkspace, sessionTurnFileChangesEqual } from '../../../common/session.js';
+import { ISessionChatCustomization, ISessionTurnFileChange, ISessionWorkspace, sessionTurnFileChangesEqual } from '../../../../../services/sessions/common/session.js';
 import { createActiveSessionSubscriptionObs } from './agentHostSessionChangesets.js';
 import { createCustomizationIndexObservable, createProgressiveChatCustomizations, type CustomizationIndexFactory, type ICustomizationJobScheduler } from '../../../../chat/common/agentHostSessionCustomizations.js';
 import { IAgentHostAdapterOptions } from './baseAgentHostSessionsProvider.js';

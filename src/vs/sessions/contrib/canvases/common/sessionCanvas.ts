@@ -10,7 +10,7 @@ import { ActiveEditorContext, MainEditorAreaVisibleContext } from '../../../../w
 import { CanvasInput, getCanvasDefinitionInstanceId, getCanvasDefinitionLabels } from '../../../../workbench/contrib/canvases/common/canvas.js';
 import { SessionActiveChatCanvasReferenceKeysContext } from '../../../../workbench/contrib/sessions/common/contextkeys.js';
 import { ActiveSessionCanvasReferenceContext } from '../../../common/agentsWindowContextKeys.js';
-import { IChat, ISession, ISessionCanvas, ISessionCanvasDefinition } from '../../../../workbench/contrib/sessions/common/session.js';
+import { IChat, ISession, ISessionCanvas, ISessionCanvasDefinition } from '../../../../workbench/services/sessions/common/session.js';
 import { type ICanvasReference } from '../../../../workbench/common/canvasReference.js';
 
 export const WindowCanvasesAvailableContext = new RawContextKey<boolean>('windowCanvasesAvailable', false);

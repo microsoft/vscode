@@ -32,7 +32,7 @@ import { ChatSessionArchiveActionWording, ChatSessionArchiveActionWordingSetting
 import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
 import { localize } from '../../../../../nls.js';
 import { SessionsList, SessionsGrouping, SessionsSorting } from './sessionsList.js';
-import { ISession } from '../../common/session.js';
+import { ISession } from '../../../../services/sessions/common/session.js';
 import { ISessionComparisonService } from '../../common/sessionComparison.js';
 import { ISessionsProvidersService } from '../sessionsProvidersService.js';
 import { getSessionFilterOptions, ISessionFilterOption, sessionFilterKey } from './sessionsListFilters.js';

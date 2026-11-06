@@ -10,7 +10,7 @@ import { IWorkspaceFolderLabelService } from '../../../../workbench/services/wor
 import { IWorkspaceFolder } from '../../../../platform/workspace/common/workspace.js';
 import { IFocusedSessionHostService } from '../../../../workbench/contrib/sessions/browser/sessionHost.js';
 import { ISessionsManagementService } from '../../../../workbench/contrib/sessions/common/sessionsManagement.js';
-import { ISessionFolder } from '../../../../workbench/contrib/sessions/common/session.js';
+import { ISessionFolder } from '../../../../workbench/services/sessions/common/session.js';
 
 export class SessionsWorkspaceFolderLabelService implements IWorkspaceFolderLabelService {
 

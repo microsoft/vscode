@@ -42,7 +42,7 @@ import { GitHubCheckConclusion, GitHubCheckStatus, GitHubCIOverallStatus, IGitHu
 import { IFocusedSessionHostService } from '../../../../contrib/sessions/browser/sessionHost.js';
 import { focusedSessionHostServiceOf, ITestSessionWithChat, stubSessionHosts, testGridPanes } from '../../../../contrib/sessions/test/browser/sessionHostTestUtils.js';
 import { ISessionsService } from '../../../../contrib/sessions/browser/sessionsService.js';
-import { BRANCH_CHANGES_CHANGESET_ID, IChat, IGitHubInfo, ISessionCapabilities, ISessionChangeset, ISessionChangesetOperation, ISessionChangesSummary, ISessionFileChange, ISessionGitRepository, ISessionWorkspace, SessionStatus } from '../../../../contrib/sessions/common/session.js';
+import { BRANCH_CHANGES_CHANGESET_ID, IChat, IGitHubInfo, ISessionCapabilities, ISessionChangeset, ISessionChangesetOperation, ISessionChangesSummary, ISessionFileChange, ISessionGitRepository, ISessionWorkspace, SessionStatus } from '../../../../services/sessions/common/session.js';
 import { isIChatSessionFileChange2 } from '../../../../common/chatSessionFileChange.js';
 
 interface IChangesViewFixtureOptions {

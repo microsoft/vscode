@@ -9,7 +9,7 @@ import { ServicesAccessor } from '../../../../platform/instantiation/common/inst
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { isEditorCommandsContext } from '../../../common/editor.js';
 import { isWindowCommandContext } from '../../../common/windowCommandContext.js';
-import { IChat, ISession } from '../common/session.js';
+import { IChat, ISession } from '../../../services/sessions/common/session.js';
 import { ISessionsManagementService } from '../common/sessionsManagement.js';
 import { getChatHostOpenerOfHost, IChatHostOpener, IChatHostOpenerService } from './chatHostOpener.js';
 import { getHostOfSession, getWindowHost, IFocusedSessionHostService, ISessionGridPanes, ISessionHost, ISessionHostService, isSessionHostCommandContext, SessionHostKind } from './sessionHost.js';

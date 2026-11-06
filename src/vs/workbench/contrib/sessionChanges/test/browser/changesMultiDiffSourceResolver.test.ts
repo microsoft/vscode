@@ -12,7 +12,7 @@ import { mock, upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { fromAgentHostUri, toAgentHostContentUri, toAgentHostUri } from '../../../../../platform/agentHost/common/agentHostUri.js';
 import { IMultiDiffSourceResolver, IMultiDiffSourceResolverService } from '../../../multiDiffEditor/browser/multiDiffSourceResolverService.js';
-import { IChat, ISession, ISessionFileChange } from '../../../sessions/common/session.js';
+import { IChat, ISession, ISessionFileChange } from '../../../../services/sessions/common/session.js';
 import { ChangesMultiDiffSourceResolver } from '../../browser/changesMultiDiffSourceResolver.js';
 import { ChangesViewMode } from '../../../sessions/common/changes.js';
 import { ISessionChangesService } from '../../../sessions/common/sessionChangesService.js';

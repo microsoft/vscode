@@ -9,7 +9,7 @@ import { localize } from '../../../../nls.js';
 import { IContextKeyService, RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
 import { bindContextKey } from '../../../../platform/observable/common/platformObservableUtils.js';
 import { isAgentHostProvider } from '../common/agentHostSessionsProvider.js';
-import { ISession } from '../common/session.js';
+import { ISession } from '../../../services/sessions/common/session.js';
 import { ISessionsProvidersService } from './sessionsProvidersService.js';
 
 /*

@@ -55,14 +55,14 @@ import { ISessionsProvidersService } from '../../../workbench/contrib/sessions/b
 import { ISessionsPartService } from '../../../workbench/contrib/sessions/browser/sessionsPartService.js';
 import { ISessionsListModelService } from '../../../workbench/contrib/sessions/browser/sessionsListModelService.js';
 import { ISessionsService } from '../../../workbench/contrib/sessions/browser/sessionsService.js';
-import { ChatInteractivity, ChatOriginKind, IChat, ISession, ISessionCapabilities, SessionRemoteConnectionFailureReason, SessionRemoteConnectionStatus, SessionStatus } from '../../../workbench/contrib/sessions/common/session.js';
+import { ChatInteractivity, ChatOriginKind, IChat, ISession, ISessionCapabilities, SessionRemoteConnectionFailureReason, SessionRemoteConnectionStatus, SessionStatus } from '../../../workbench/services/sessions/common/session.js';
 import { ISessionsManagementService } from '../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import { ITestSessionWithChat, LegacyFakePaneState, testPaneContentOf } from '../../../workbench/contrib/sessions/test/browser/sessionHostTestUtils.js';
 import { ISessionsProvider } from '../../../workbench/contrib/sessions/common/sessionsProvider.js';
 import '../../browser/media/workbench.css';
 import { ISessionHost, SessionHostKind } from '../../../workbench/contrib/sessions/browser/sessionHost.js';
 import { stubSessionsHostLayout } from './sessionsHostLayoutTestUtils.js';
-import { ISessionPaneContent } from '../../../workbench/contrib/sessions/common/sessionPane.js';
+import { ISessionPaneContent } from '../../../workbench/services/sessions/common/sessionPane.js';
 
 class TestChatView extends AbstractChatView {
 	private readonly _focusTarget = mainWindow.document.createElement('button');

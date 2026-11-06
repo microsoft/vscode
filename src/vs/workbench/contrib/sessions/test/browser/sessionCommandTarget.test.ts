@@ -24,7 +24,7 @@ import { SessionHostService } from '../../browser/sessionHostService.js';
 import { ISessionsService } from '../../browser/sessionsService.js';
 import { ISessionGridPane, SessionGridPaneKind } from '../../browser/sessionGridPane.js';
 import { VisibleSessions } from '../../browser/visibleSessions.js';
-import { ChatInteractivity, IChat, ISession, SessionStatus } from '../../common/session.js';
+import { ChatInteractivity, IChat, ISession, SessionStatus } from '../../../../services/sessions/common/session.js';
 import { ISessionsManagementService } from '../../common/sessionsManagement.js';
 import { sessionsServiceWithGridHost, withCreatedStatus } from './sessionHostTestUtils.js';
 

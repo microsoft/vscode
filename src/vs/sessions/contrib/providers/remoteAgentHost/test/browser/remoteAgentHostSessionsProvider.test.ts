@@ -64,7 +64,7 @@ import { ISessionChangeEvent, ISessionsProvider, ISessionsProviderCreateSessionO
 import { IAgentHostSessionsProvider } from '../../../../../../workbench/contrib/sessions/common/agentHostSessionsProvider.js';
 import { DevContainerIdleTimeoutSettingId, DevContainerWorktreeEnabledSettingId, IDevContainerAgentHostService } from '../../../../../../workbench/contrib/sessions/common/devContainerAgentHostService.js';
 import { ISessionsProvidersService } from '../../../../../../workbench/contrib/sessions/browser/sessionsProvidersService.js';
-import { ChatInteractivity, ChatModelSource, getChatCapabilities, getGitHubPullRequestRefs, getSessionOwnedGitHubPullRequestRefs, SessionRemoteConnectionFailureReason, SessionStatus, type IChat, type IChatCheckpoints, type ISession, type ISessionFileChange } from '../../../../../../workbench/contrib/sessions/common/session.js';
+import { ChatInteractivity, ChatModelSource, getChatCapabilities, getGitHubPullRequestRefs, getSessionOwnedGitHubPullRequestRefs, SessionRemoteConnectionFailureReason, SessionStatus, type IChat, type IChatCheckpoints, type ISession, type ISessionFileChange } from '../../../../../../workbench/services/sessions/common/session.js';
 import { VisibleSessions } from '../../../../../../workbench/contrib/sessions/browser/visibleSessions.js';
 import { SessionPullRequestPresentationModel } from '../../../../../../workbench/contrib/sessions/browser/github/pullRequestIconStatus.js';
 import { buildSessionPullRequestSections } from '../../../../../../workbench/contrib/sessions/browser/chat/sessionChatInputToolbar.js';

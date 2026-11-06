@@ -26,7 +26,7 @@ import { workbenchInstantiationService } from '../../../../../workbench/test/bro
 import { Menus } from '../../../../../workbench/contrib/sessions/browser/menus.js';
 import { ISessionsService } from '../../../../../workbench/contrib/sessions/browser/sessionsService.js';
 import { ISessionsProvidersService } from '../../../../../workbench/contrib/sessions/browser/sessionsProvidersService.js';
-import { ISessionChangeset, ISessionChangesetOperation, SessionChangesetOperationScope } from '../../../../../workbench/contrib/sessions/common/session.js';
+import { ISessionChangeset, ISessionChangesetOperation, SessionChangesetOperationScope } from '../../../../../workbench/services/sessions/common/session.js';
 import { createTestActiveSession } from '../../../../test/browser/sessionViewTestUtils.js';
 import { ChangesHeaderChangesetOperationsActionContribution } from '../../../changes/browser/changesActions.js';
 import { bindSessionActionContextKeys } from '../../../../../workbench/contrib/sessionChanges/browser/sessionActionContextKeys.js';

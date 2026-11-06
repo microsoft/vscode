@@ -32,7 +32,7 @@ import { RemoteAgentHostConnectionStatus } from '../../../../../platform/agentHo
 import { getSessionWorkspaceProperties } from '../../../../../platform/agentHost/common/sessionConfigProperties.js';
 import { localize } from '../../../../../nls.js';
 import { ICreateNewSessionOptions, ISendRequestOptions, ISessionsManagementService, WorkspaceNotTrustedError } from '../../common/sessionsManagement.js';
-import { GITHUB_REMOTE_FILE_SCHEME, ISession, ISessionWorkspace, isSessionCreated, SESSION_WORKSPACE_GROUP_GITHUB } from '../../common/session.js';
+import { GITHUB_REMOTE_FILE_SCHEME, ISession, ISessionWorkspace, isSessionCreated, SESSION_WORKSPACE_GROUP_GITHUB } from '../../../../services/sessions/common/session.js';
 import { IOpenNewSessionResult, ISessionsService } from '../sessionsService.js';
 import { getMainWindowHost, ISessionHostService } from '../sessionHost.js';
 import { ISessionsProvidersService } from '../sessionsProvidersService.js';
@@ -56,7 +56,7 @@ import { IChatRequestVariableEntry } from '../../../chat/common/attachments/chat
 import { IAgentHostFilterService } from '../../common/agentHostFilter.js';
 import { IChatViewOptions } from '../parts/chatView.js';
 import { NewChatUserInteraction } from './newChatUserInteraction.js';
-import { WorkspaceSelectionOrigin, ISelectNoWorkspaceOptions, ISelectWorkspaceOptions, WorkspaceSelectionResult } from '../../common/workspaceSelection.js';
+import { WorkspaceSelectionOrigin, ISelectNoWorkspaceOptions, ISelectWorkspaceOptions, WorkspaceSelectionResult } from '../../../../services/sessions/common/workspaceSelection.js';
 import { ISessionPickerFocusOptions, ISessionPickerVisibility, noSessionPickerVisibility } from '../../common/sessionPickerVisibility.js';
 import { AGENT_FEEDBACK_NEW_SESSION_RESOURCE, IAgentFeedbackService } from '../agentFeedback.js';
 import { AgentFeedbackState, IAgentFeedback } from '../agentFeedbackModel.js';

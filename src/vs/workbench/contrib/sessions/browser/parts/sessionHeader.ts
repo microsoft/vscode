@@ -12,7 +12,7 @@ import { IContextKey, IContextKeyService } from '../../../../../platform/context
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { SessionHeaderTargetsChatContext, SessionToolbarShowsSessionContext } from '../../common/contextkeys.js';
 import { SessionHeaderBar } from './sessionHeaderBar.js';
-import { ISessionPaneContent } from '../../common/sessionPane.js';
+import { ISessionPaneContent } from '../../../../services/sessions/common/sessionPane.js';
 
 /**
  * Session-scoped header whose title follows the session's active chat.

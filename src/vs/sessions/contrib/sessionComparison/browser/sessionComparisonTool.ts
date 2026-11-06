@@ -18,7 +18,7 @@ import { ReasoningEffortConfigKey } from '../../../../platform/agentHost/common/
 import { IWorkbenchContribution } from '../../../../workbench/common/contributions.js';
 import { ChatContextKeys } from '../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
 import { CountTokensCallback, ILanguageModelToolsService, IPreparedToolInvocation, IToolData, IToolImpl, IToolInvocation, IToolInvocationPreparationContext, IToolResult, ToolDataSource, ToolProgress } from '../../../../workbench/contrib/chat/common/tools/languageModelToolsService.js';
-import { ISession, SessionStatus } from '../../../../workbench/contrib/sessions/common/session.js';
+import { ISession, SessionStatus } from '../../../../workbench/services/sessions/common/session.js';
 import { ISessionsManagementService } from '../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import { COMPARE_AGENTS_ENABLED_SETTING, getBoundedSessionComparisonManifestList, getBoundedSessionComparisonManifestText, getSessionComparisonAttemptLabel, getSessionComparisonChat, ISessionComparison, ISessionComparisonAttemptVerdict, ISessionComparisonRationale, ISessionComparisonService, ISessionComparisonVerdict, SESSION_COMPARISON_MANIFEST_LIST_MAX_ITEMS, SessionComparisonParticipantRole, SessionComparisonValidationEvidence, SessionComparisonValidationSource, SessionComparisonValidationState } from '../../../../workbench/contrib/sessions/common/sessionComparison.js';
 import { hashSessionIdForTelemetry } from '../../../../workbench/contrib/sessions/common/sessionsTelemetry.js';

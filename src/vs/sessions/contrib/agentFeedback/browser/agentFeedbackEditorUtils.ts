@@ -12,7 +12,7 @@ import { IRange } from '../../../../editor/common/core/range.js';
 import { DetailedLineRangeMapping } from '../../../../editor/common/diff/rangeMapping.js';
 import { EditorResourceAccessor, SideBySideEditor } from '../../../../workbench/common/editor.js';
 import { MultiDiffEditorInput } from '../../../../workbench/contrib/multiDiffEditor/browser/multiDiffEditorInput.js';
-import { ISessionFileChange } from '../../../../workbench/contrib/sessions/common/session.js';
+import { ISessionFileChange } from '../../../../workbench/services/sessions/common/session.js';
 import { SessionChangesEditorInput } from '../../../../workbench/contrib/sessionChanges/browser/sessionChangesEditorInput.js';
 import { type IAgentFeedbackService, IAgentFeedbackContext } from '../../../../workbench/contrib/sessions/browser/agentFeedback.js';
 import { isIChatSessionFileChange2 } from '../../../../workbench/common/chatSessionFileChange.js';

@@ -50,7 +50,7 @@ import { IChatWidgetService } from '../../../../workbench/contrib/chat/browser/c
 import { IChatHostOpenerService } from '../../../../workbench/contrib/sessions/browser/chatHostOpener.js';
 import { ISessionCommandTarget, resolveCommandOriginHost, resolveGridCommandPane, resolveGridCommandView, resolvePaneCommandTarget, resolveSessionCommandTarget } from '../../../../workbench/contrib/sessions/browser/sessionCommandTarget.js';
 import { WindowCanvasInput } from '../../../../workbench/contrib/sessions/browser/windowCanvas.js';
-import { ChatOriginKind, getChatCapabilities, getGitHubPullRequestRefs, getHighestPriorityPullRequestIcon, getSessionPresentationWorkspace, getSessionWorkspaceKind, getUntitledSessionTitle, IChat, isSideChatOf, ISession, SessionStatus, SessionWorkspaceKind } from '../../../../workbench/contrib/sessions/common/session.js';
+import { ChatOriginKind, getChatCapabilities, getGitHubPullRequestRefs, getHighestPriorityPullRequestIcon, getSessionPresentationWorkspace, getSessionWorkspaceKind, getUntitledSessionTitle, IChat, isSideChatOf, ISession, SessionStatus, SessionWorkspaceKind } from '../../../../workbench/services/sessions/common/session.js';
 import { ISessionsPartService } from '../../../../workbench/contrib/sessions/browser/sessionsPartService.js';
 import { ISessionsListModelService } from '../../../../workbench/contrib/sessions/browser/sessionsListModelService.js';
 import { $, append, EventHelper, isMouseEvent, ModifierKeyEmitter, reset } from '../../../../base/browser/dom.js';

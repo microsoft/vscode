@@ -10,7 +10,7 @@ import { localize } from '../../../../../nls.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
 import { getSessionApplication, UNKNOWN_SESSION_APPLICATION_ID } from '../../common/sessionApplication.js';
-import { ISession, ISessionEnvironment } from '../../common/session.js';
+import { ISession, ISessionEnvironment } from '../../../../services/sessions/common/session.js';
 
 export type SessionFilter =
 	| { readonly kind: 'harness' | 'environment'; readonly id: string }

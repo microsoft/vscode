@@ -20,8 +20,8 @@ import { DesktopDraftSessionStrategy } from './desktop/desktopDraftSessionStrate
 import { DesktopExistingSessionStrategy } from './desktop/desktopExistingSessionStrategy.js';
 import { DesktopOwnerCompositionStore } from './desktop/desktopOwnerCompositionStore.js';
 import { DesktopVisibilityProfileStore } from './desktop/desktopVisibilityProfileStore.js';
-import { isSessionCreated, ISession } from '../../../../workbench/contrib/sessions/common/session.js';
-import { IShownChat } from '../../../../workbench/contrib/sessions/common/sessionPane.js';
+import { isSessionCreated, ISession } from '../../../../workbench/services/sessions/common/session.js';
+import { IShownChat } from '../../../../workbench/services/sessions/common/sessionPane.js';
 
 export { TOGGLE_DETAILS_COMMAND_ID } from './desktop/desktopExistingSessionStrategy.js';
 

@@ -8,7 +8,7 @@ import { autorun, ISettableObservable, observableValue, transaction } from '../.
 import { URI } from '../../../../base/common/uri.js';
 import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { SessionsHasClosedItemContext } from '../common/contextkeys.js';
-import { ISession, SessionStatus } from '../common/session.js';
+import { ISession, SessionStatus } from '../../../services/sessions/common/session.js';
 import { ISessionsManagementService } from '../common/sessionsManagement.js';
 import { ISessionsPartService } from './sessionsPartService.js';
 import { VisibleSessions } from './visibleSessions.js';

@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { localize } from '../../../../nls.js';
-import { ChatInteractivity, effectiveChatInteractivity, IChat, ISession } from '../../sessions/common/session.js';
+import { ChatInteractivity, effectiveChatInteractivity, IChat, ISession } from '../../../services/sessions/common/session.js';
 import { ISessionsManagementService } from '../../sessions/common/sessionsManagement.js';
 import { ISessionPullRequestChatOptions, ISessionPullRequestCreation, SessionPullRequestMergeMethod } from '../../sessions/common/pullRequestCreation.js';
 

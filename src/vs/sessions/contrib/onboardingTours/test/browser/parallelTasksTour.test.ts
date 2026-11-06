@@ -22,7 +22,7 @@ import { IViewsService } from '../../../../../workbench/services/views/common/vi
 import { SessionsWelcomeVisibleContext } from '../../../../../workbench/contrib/sessions/common/contextkeys.js';
 import { NewSessionOnboardingHandoffContext } from '../../../../common/agentsWindowContextKeys.js';
 import { ISessionsService } from '../../../../../workbench/contrib/sessions/browser/sessionsService.js';
-import { ISession, SessionStatus } from '../../../../../workbench/contrib/sessions/common/session.js';
+import { ISession, SessionStatus } from '../../../../../workbench/services/sessions/common/session.js';
 import { ISessionsManagementService } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import { ParallelTasksTourContribution } from '../../browser/parallelTasksTourContribution.js';
 import { NEW_SESSION_ONBOARDING_SEEN_KEY } from '../../browser/tours/newSessionTour.js';

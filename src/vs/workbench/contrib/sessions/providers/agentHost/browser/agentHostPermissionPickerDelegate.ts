@@ -23,7 +23,7 @@ import { IPermissionLevelMeta, IPermissionPickerDelegate } from '../../copilotCh
 import { getSessionConfigProvider, LOCAL_AGENT_HOST_PROVIDER_ID } from '../../../common/agentHostSessionsProvider.js';
 import { ISessionConfigProvider, ISessionsProvider } from '../../../common/sessionsProvider.js';
 import { ISessionsProvidersService } from '../../../browser/sessionsProvidersService.js';
-import { IChat, ISession } from '../../../common/session.js';
+import { IChat, ISession } from '../../../../../services/sessions/common/session.js';
 import { ISessionChatSource } from '../../../browser/sessionHost.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { IManagedSettingsService } from '../../../../../../platform/policy/common/copilotManagedSettings.js';

@@ -33,7 +33,7 @@ import { TestPathService } from '../../../../../workbench/test/browser/workbench
 import { IAgentHostSessionsProvider } from '../../../../../workbench/contrib/sessions/common/agentHostSessionsProvider.js';
 import { ISessionsProvidersService } from '../../../../../workbench/contrib/sessions/browser/sessionsProvidersService.js';
 import { ISessionsProvider } from '../../../../../workbench/contrib/sessions/common/sessionsProvider.js';
-import { ISession } from '../../../../../workbench/contrib/sessions/common/session.js';
+import { ISession } from '../../../../../workbench/services/sessions/common/session.js';
 import { GetRemoteSessionTool } from '../../browser/getRemoteSessionTool.js';
 import { RemoteSessionToolsEnabledSettingId } from '../../common/remoteSessions.js';
 import { RemoteSessionInspector } from '../../browser/remoteSessionInspector.js';

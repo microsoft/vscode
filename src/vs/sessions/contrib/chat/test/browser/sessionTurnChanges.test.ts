@@ -12,7 +12,7 @@ import { AUTHORITATIVE_EMPTY_CHAT_RESPONSE_FILE_CHANGES } from '../../../../../w
 import { IEditorService } from '../../../../../workbench/services/editor/common/editorService.js';
 import { IAgentWorkbenchLayoutService } from '../../../../browser/workbench.js';
 import { ISessionsService } from '../../../../../workbench/contrib/sessions/browser/sessionsService.js';
-import { IChat, ISession, ISessionChangeset, ISessionFileChange, ISessionFolder, ISessionTurnFileChange, ISessionWorkspace, TURN_CHANGES_CHANGESET_ID } from '../../../../../workbench/contrib/sessions/common/session.js';
+import { IChat, ISession, ISessionChangeset, ISessionFileChange, ISessionFolder, ISessionTurnFileChange, ISessionWorkspace, TURN_CHANGES_CHANGESET_ID } from '../../../../../workbench/services/sessions/common/session.js';
 import { ISessionsManagementService } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import { ISessionChangesEditorOptions, ISessionChangesService } from '../../../../../workbench/contrib/sessionChanges/browser/sessionChangesService.js';
 import { IChangesViewService } from '../../../../../workbench/contrib/sessions/common/changesViewService.js';

@@ -19,7 +19,7 @@ import { IChatModel, IChatResponseModel } from '../../../../../workbench/contrib
 import { ChatRequestQueueKind } from '../../../../../workbench/contrib/chat/common/chatService/chatService.js';
 import { IChatViewModel } from '../../../../../workbench/contrib/chat/common/model/chatViewModel.js';
 import { IVoiceSessionController } from '../../../../../workbench/contrib/chat/browser/voiceClient/voiceSessionController.js';
-import { IChat, ISession, ISessionWorkspace, SessionStatus } from '../../../../../workbench/contrib/sessions/common/session.js';
+import { IChat, ISession, ISessionWorkspace, SessionStatus } from '../../../../../workbench/services/sessions/common/session.js';
 import { ICreateNewSessionOptions, ISendRequestOptions, ISendRequestSentEvent, ISessionsManagementService } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import { IOpenNewSessionOptions, ISessionsService } from '../../../../../workbench/contrib/sessions/browser/sessionsService.js';
 import { INewChatVoiceComposer, INewChatVoiceTargetService, NEW_CHAT_VOICE_SENTINEL, NewChatVoiceTargetService } from '../../../../../workbench/contrib/sessions/browser/chat/newChatVoice.js';

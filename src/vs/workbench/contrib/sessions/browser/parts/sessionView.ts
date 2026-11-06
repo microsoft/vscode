@@ -16,8 +16,8 @@ import { IAgentsWindowDraft } from '../../../../../platform/window/common/window
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { IContextKey, IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IThemeService } from '../../../../../platform/theme/common/themeService.js';
-import { IChat, ISession, isSessionCreated } from '../../common/session.js';
-import { ISelectNoWorkspaceOptions, ISelectWorkspaceOptions, WorkspaceSelectionResult } from '../../common/workspaceSelection.js';
+import { IChat, ISession, isSessionCreated } from '../../../../services/sessions/common/session.js';
+import { ISelectNoWorkspaceOptions, ISelectWorkspaceOptions, WorkspaceSelectionResult } from '../../../../services/sessions/common/workspaceSelection.js';
 import { AbstractChatView, IChatViewOptions, ISessionViewHostOptions } from './chatView.js';
 import { ChatGroupsView } from './chatGroupsView.js';
 import { SessionHeader, SessionViewFloatingToolbar } from './sessionHeader.js';
@@ -35,7 +35,7 @@ import { IChatViewFactory } from '../chatViewFactory.js';
 import { noSessionPickerVisibility, SessionPickerVisibilityContextKeys } from '../../common/sessionPickerVisibility.js';
 import { ISessionGridView } from '../../../../browser/parts/sessions/sessionGridLayout.js';
 import { ISessionView } from '../sessionsPartService.js';
-import { IPaneViewState, ISessionPaneContent } from '../../common/sessionPane.js';
+import { IPaneViewState, ISessionPaneContent } from '../../../../services/sessions/common/sessionPane.js';
 
 /**
  * Options passed to {@link SessionView.openSession}. Extends the chat view

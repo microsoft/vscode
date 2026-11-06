@@ -11,7 +11,7 @@ import { URI } from '../../../../../base/common/uri.js';
 import { mock, upcastPartial } from '../../../../../base/test/common/mock.js';
 import { SessionHeader } from '../../../../contrib/sessions/browser/parts/sessionHeader.js';
 import { ISessionsListModelService } from '../../../../contrib/sessions/browser/sessionsListModelService.js';
-import { IChat, ISessionCapabilities, SessionStatus } from '../../../../contrib/sessions/common/session.js';
+import { IChat, ISessionCapabilities, SessionStatus } from '../../../../services/sessions/common/session.js';
 import { ISessionsManagementService } from '../../../../contrib/sessions/common/sessionsManagement.js';
 import { ITestSessionWithChat, testPaneContentOf } from '../../../../contrib/sessions/test/browser/sessionHostTestUtils.js';
 import { ComponentFixtureContext, createEditorServices, defineComponentFixture, defineThemedFixtureGroup, registerWorkbenchServices } from '../fixtureUtils.js';
