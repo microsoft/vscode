@@ -186,6 +186,11 @@ function defaultChatUri(session: URI): URI {
 	return URI.parse(buildDefaultChatUri(session));
 }
 
+/** Applies a stubbed customization installation operation through the owner-bound provider API. */
+function applyTestInstallation(agent: CopilotAgent, operationId: string) {
+	return agent.applyCustomizationInstallation({ operationId, hostGeneration: 'test', ownershipToken: 'test' });
+}
+
 /**
  * Recovers the owning session's raw id from a chat metadata entry's exact
  * default `chat` URI — {@link IAgentChatMetadata} no longer carries a `session`
@@ -3765,7 +3770,7 @@ suite('CopilotAgent', () => {
 					return (item.children ?? []).filter(child => child.type === CustomizationType.Hook).map(child => ({ name: child.name, enabled: child.enabled }));
 				});
 				enabled = true;
-				await agent.applyCustomizationInstallation('enable');
+				await applyTestInstallation(agent, 'enable');
 				const refreshed = await getDefaultChatCustomizations(agent, sessionUri);
 				agent['_hostCustomizations'].set(sessionUri, refreshed);
 				stateManager.dispatchServerAction(sessionUri.toString(), { type: ActionType.SessionCustomizationsChanged, customizations: [...refreshed] });
@@ -3777,7 +3782,7 @@ suite('CopilotAgent', () => {
 				hostDecision = undefined;
 				const snapshot = await agent['_getOrCreateActiveClient'](sessionUri, workspace).snapshot(defaultChatUri(sessionUri).toString());
 				installed = false;
-				await agent.applyCustomizationInstallation('uninstall');
+				await applyTestInstallation(agent, 'uninstall');
 				const removed = await getDefaultChatCustomizations(agent, sessionUri);
 				assert.deepStrictEqual({
 					initial: summarize(initial), refreshed: summarize(refreshed), removed: summarize(removed),
@@ -3818,8 +3823,8 @@ suite('CopilotAgent', () => {
 						published.set(progress.resource.toString(), names(progress.action.customizations));
 					}
 				}));
-				const apply = stub(agent['_customizationInstallations'], 'apply').callsFake(async operationId => {
-					installed = operationId === 'install';
+				const apply = stub(agent['_customizationInstallations'], 'apply').callsFake(async request => {
+					installed = request.operationId === 'install';
 					return undefined;
 				});
 				const install = stub(client.rpc.plugins, 'install').callsFake(async () => {
@@ -3854,7 +3859,7 @@ suite('CopilotAgent', () => {
 					for (const action of ['uninstall', 'install'] as const) {
 						published.clear();
 						if (operation === 'catalog') {
-							await agent.applyCustomizationInstallation(action);
+							await applyTestInstallation(agent, action);
 						} else if (operation === 'enablement') {
 							await agent.setPluginEnabled('session-timeline@test', action === 'install');
 						} else if (action === 'uninstall') {
@@ -3926,7 +3931,7 @@ suite('CopilotAgent', () => {
 				published.length = 0;
 				let operationCompleted = false;
 				let settledCompleted = false;
-				const operation = agent.applyCustomizationInstallation('uninstall').then(() => {
+				const operation = applyTestInstallation(agent, 'uninstall').then(() => {
 					operationCompleted = true;
 					return [...published];
 				});
@@ -3967,7 +3972,7 @@ suite('CopilotAgent', () => {
 				await getDefaultChatCustomizations(agent, session);
 				const requests = client.skillDiscoveryRequests.length;
 
-				await assert.rejects(agent.applyCustomizationInstallation('uninstall'), error => error === failure);
+				await assert.rejects(applyTestInstallation(agent, 'uninstall'), error => error === failure);
 
 				assert.strictEqual(client.skillDiscoveryRequests.length, requests);
 			} finally {
