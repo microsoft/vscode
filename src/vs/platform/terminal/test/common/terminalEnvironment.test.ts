@@ -130,4 +130,3 @@ suite('terminalEnvironment', () => {
 		});
 	});
 });
-
