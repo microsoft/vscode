@@ -359,4 +359,180 @@ suite('Sticky Scroll Tests', () => {
 			});
 		});
 	});
+
+	// Folding-based header detection
+
+	// Uses the suite-level `serviceCollection` defined at the top of this suite.
+	async function withIndentProvider(
+		lines: string[],
+		callback: (provider: StickyLineCandidateProvider) => void | Promise<void>
+	): Promise<void> {
+		return runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const model = createTextModel(lines.join('\n'));
+			await withAsyncTestCodeEditor(model, {
+				stickyScroll: { enabled: true, maxLineCount: 10, defaultModel: 'indentationModel', foldHeaderDetection: true },
+				envConfig: { outerHeight: 500 },
+				serviceCollection,
+			}, async (editor, _viewModel, instantiationService) => {
+				const provider = new StickyLineCandidateProvider(
+					editor,
+					instantiationService.get(ILanguageFeaturesService),
+					instantiationService.get(ILanguageConfigurationService),
+				);
+				await provider.update();
+				await callback(provider);
+				provider.dispose();
+				model.dispose();
+			});
+		});
+	}
+
+	function stickyAt(provider: StickyLineCandidateProvider, line: number): number[] {
+		return provider
+			.getCandidateStickyLinesIntersecting({ startLineNumber: line, endLineNumber: line })
+			.map(c => c.startLineNumber);
+	}
+
+	test('folding: Allman brace, single-line signature shows the header line', () =>
+		withIndentProvider([
+			'void foo(int x)',   // 1
+			'{',                 // 2
+			'    code();',       // 3
+			'}',                 // 4
+		], provider => {
+			assert.deepStrictEqual(stickyAt(provider, 3), [1]);
+		})
+	);
+
+	test('folding: Allman brace, multi-line signature shows the opening ( line', () =>
+		withIndentProvider([
+			'void foo(',         // 1
+			'    int x,',        // 2
+			'    int y)',        // 3
+			'{',                 // 4
+			'    code();',       // 5
+			'}',                 // 6
+		], provider => {
+			assert.deepStrictEqual(stickyAt(provider, 5), [1]);
+		})
+	);
+
+	test('folding: K&R style, fold start is already the scope header line', () =>
+		withIndentProvider([
+			'function foo() {',  // 1
+			'    code();',       // 2
+			'}',                 // 3
+		], provider => {
+			assert.deepStrictEqual(stickyAt(provider, 2), [1]);
+		})
+	);
+
+	test('folding: no-parens scope (namespace) shows the keyword line', () =>
+		withIndentProvider([
+			'namespace Foo',     // 1
+			'{',                 // 2
+			'    int x = 1;',   // 3
+			'}',                 // 4
+		], provider => {
+			assert.deepStrictEqual(stickyAt(provider, 3), [1]);
+		})
+	);
+
+	test('folding: trailing return type on own line, shows the opening ( line', () =>
+		withIndentProvider([
+			'auto foo(',         // 1
+			'    int x)',        // 2
+			'    -> int',        // 3
+			'{',                 // 4
+			'    code();',       // 5
+			'}',                 // 6
+		], provider => {
+			assert.deepStrictEqual(stickyAt(provider, 5), [1]);
+		})
+	);
+
+	test('folding: trailing return type after ) const, does not show -> line (regression)', () =>
+		withIndentProvider([
+			'auto foo(int x) const',  // 1
+			'    -> int',             // 2
+			'{',                      // 3
+			'    code();',            // 4
+			'}',                      // 5
+		], provider => {
+			assert.deepStrictEqual(stickyAt(provider, 4), [1]);
+		})
+	);
+
+	test('folding: multi-line if condition shows the if( line', () =>
+		withIndentProvider([
+			'if (condition1',       // 1
+			'    && condition2)',   // 2
+			'{',                    // 3
+			'    code();',          // 4
+			'}',                    // 5
+		], provider => {
+			assert.deepStrictEqual(stickyAt(provider, 4), [1]);
+		})
+	);
+
+	test('folding: nested Allman scopes show correct headers at both levels', () =>
+		withIndentProvider([
+			'class Outer',      // 1
+			'{',                // 2
+			'    void foo()',   // 3
+			'    {',            // 4
+			'        code();',  // 5
+			'    }',            // 6
+			'}',                // 7
+		], provider => {
+			assert.deepStrictEqual(stickyAt(provider, 5), [1, 3]);
+		})
+	);
+
+	test('folding: walk-back safety — does not show } when overshoot occurs', () =>
+		withIndentProvider([
+			'void foo() {',  // 1
+			'    prior();',  // 2
+			'}',             // 3
+			'',              // 4
+			'{',             // 5
+			'    code();',   // 6
+			'}',             // 7
+		], provider => {
+			assert.ok(!stickyAt(provider, 6).includes(3), 'should not show } on line 3 as a scope header');
+		})
+	);
+
+	test('folding (syntax provider): Allman brace walks back to signature line', () => {
+		return runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const model = createTextModel([
+				'void foo(int x)',  // 1
+				'{',               // 2
+				'    code();',     // 3
+				'}',               // 4
+				'',                // 5 — trailing line so StickyRange(1,5) is valid
+			].join('\n'));
+			await withAsyncTestCodeEditor(model, {
+				stickyScroll: { enabled: true, maxLineCount: 10, defaultModel: 'foldingProviderModel', foldHeaderDetection: true },
+				envConfig: { outerHeight: 500 },
+				serviceCollection,
+			}, async (editor, _viewModel, instantiationService) => {
+				const languageService = instantiationService.get(ILanguageFeaturesService);
+				// Register a mock syntax folding provider: lines 2–4 form one fold.
+				disposables.add(languageService.foldingRangeProvider.register('*', {
+					provideFoldingRanges: (_model, _context, _token) => [{ start: 2, end: 4 }]
+				}));
+				const provider = new StickyLineCandidateProvider(
+					editor, languageService, instantiationService.get(ILanguageConfigurationService)
+				);
+				await provider.update();
+				const sticky = provider
+					.getCandidateStickyLinesIntersecting({ startLineNumber: 3, endLineNumber: 3 })
+					.map(c => c.startLineNumber);
+				assert.deepStrictEqual(sticky, [1]);
+				provider.dispose();
+				model.dispose();
+			});
+		});
+	});
 });
