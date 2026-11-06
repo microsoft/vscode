@@ -37,7 +37,7 @@ export interface IMenuActivityBarActivities {
 /** The size of a {@link MenuActivityBar}. */
 export const enum MenuActivityBarSize {
 	/** Like the workbench activity bar of the Modern UI, at the layout density of the window. */
-	Default = 'default',
+	Normal = 'normal',
 	/** Minimum-size entries around base-size icons, whatever the layout density. */
 	Compact = 'compact',
 }
@@ -49,7 +49,7 @@ export interface IMenuActivityBarOptions {
 	readonly contextMenuId: MenuId;
 	readonly ariaLabel: string;
 	readonly telemetrySource: string;
-	/** The size of the bar. Defaults to {@link MenuActivityBarSize.Default}. */
+	/** The size of the bar. Defaults to {@link MenuActivityBarSize.Normal}. */
 	readonly size?: IObservable<MenuActivityBarSize>;
 	/** Whether the bar shows; it also shows only while it has entries. Defaults to always. */
 	readonly enabled?: IObservable<boolean>;
@@ -85,7 +85,7 @@ export class MenuActivityBar extends Disposable {
 	static readonly COMPACT_SIZE_LANE = 6;
 
 	/** The width of the bar at a size and layout density, its border included. */
-	static getWidth(compactDensity: boolean, size = MenuActivityBarSize.Default): number {
+	static getWidth(compactDensity: boolean, size = MenuActivityBarSize.Normal): number {
 		if (size === MenuActivityBarSize.Compact) {
 			return MenuActivityBar.COMPACT_ITEM_SIZE + MenuActivityBar.COMPACT_SIZE_LANE;
 		}

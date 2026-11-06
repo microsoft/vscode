@@ -131,7 +131,7 @@ MenuRegistry.appendMenuItem(Menus.SessionActivityBarContext, {
 });
 
 for (const [size, order, title] of [
-	[MenuActivityBarSize.Default, 0, localize2('sessionActivityBarSize.default', "Default")],
+	[MenuActivityBarSize.Normal, 0, localize2('sessionActivityBarSize.normal', "Normal")],
 	[MenuActivityBarSize.Compact, 1, localize2('sessionActivityBarSize.compact', "Compact")],
 ] as const) {
 	registerAction2(class extends Action2 {

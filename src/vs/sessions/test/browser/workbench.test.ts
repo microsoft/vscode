@@ -1346,7 +1346,7 @@ suite('Sessions - Workbench', () => {
 		const onDidChangeViewMaximized = store.add(new Emitter<boolean>());
 		const changes: boolean[] = [];
 		const widths: number[] = [];
-		column.setLayout(8, false, MenuActivityBarSize.Default);
+		column.setLayout(8, false, MenuActivityBarSize.Normal);
 		let visible = false;
 		let maximized = false;
 		const mainContainer = document.createElement('div');
