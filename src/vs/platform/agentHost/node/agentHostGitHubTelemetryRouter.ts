@@ -17,7 +17,7 @@ import { multiplexProperties, type IAgentHostRestrictedTelemetry, type IAgentHos
 		"requestModel": { "classification": "CustomerContent", "purpose": "FeatureInsight", "comment": "Model identifier named in this model call's request; may be a bring-your-own-key deployment name. Restricted telemetry only." },
 		"responseModel": { "classification": "CustomerContent", "purpose": "FeatureInsight", "comment": "Model identifier the provider reported in this model call's response; absent when the response does not identify one. Restricted telemetry only." },
 		"interactionType": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Bounded origin of this model call, captured when the call was dispatched: agent, subagent, compaction, sampling, background or user." },
-		"parentToolCallId": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Tool call that spawned the subagent making this model call; absent for root calls and for subagents not spawned by a tool call." },
+		"parentToolCallId": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Model tool call that spawned the subagent making this model call; absent for root calls and for subagents no model tool call spawned." },
 		"runtimeVersion": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Version of the Copilot runtime that made this model call." },
 		"copilotSdkVersion": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Version of the Copilot SDK package bundled with the Agent Host that forwarded this model call." }
 	}
