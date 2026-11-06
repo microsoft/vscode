@@ -30,6 +30,7 @@ suite('AgentHostSettingsFileSystemProvider', () => {
 		readonly fs: AgentHostSettingsFileSystemProvider;
 		readonly uri: URI;
 		readonly provider: IMockAgentHostSessionsProvider;
+		replaceProvider(provider: IMockAgentHostSessionsProvider): void;
 	}
 
 	interface IMockAgentHostSessionsProvider extends IAgentHostSessionsProvider {
@@ -63,15 +64,16 @@ suite('AgentHostSettingsFileSystemProvider', () => {
 			},
 		} as unknown as IMockAgentHostSessionsProvider;
 
+		let currentProvider = provider;
 		const onDidChangeProvidersEmitter = store.add(new Emitter<{ added: readonly ISessionsProvider[]; removed: readonly ISessionsProvider[] }>());
 		const providersService: ISessionsProvidersService = {
 			getProvider<T extends ISessionsProvider>(providerId: string): T | undefined {
 				if (registerProvider && providerId === PROVIDER_ID) {
-					return provider as unknown as T;
+					return currentProvider as unknown as T;
 				}
 				return undefined;
 			},
-			getProviders: () => registerProvider ? [provider as unknown as ISessionsProvider] : [],
+			getProviders: () => registerProvider ? [currentProvider] : [],
 			onDidChangeProviders: onDidChangeProvidersEmitter.event,
 		} as unknown as ISessionsProvidersService;
 
@@ -83,7 +85,14 @@ suite('AgentHostSettingsFileSystemProvider', () => {
 		const schemaRegistrar = store.add(instantiationService.createInstance(AgentHostSettingsSchemaRegistrar));
 		const fs = store.add(instantiationService.createInstance(AgentHostSettingsFileSystemProvider, schemaRegistrar));
 
-		return { fs, uri: agentHostSettingsUri(PROVIDER_ID), provider };
+		return {
+			fs, uri: agentHostSettingsUri(PROVIDER_ID), provider,
+			replaceProvider: replacement => {
+				const previous = currentProvider;
+				currentProvider = replacement;
+				onDidChangeProvidersEmitter.fire({ added: [replacement], removed: [previous] });
+			},
+		};
 	}
 
 	test('readFile returns root config values as JSON', async () => {
@@ -177,6 +186,28 @@ suite('AgentHostSettingsFileSystemProvider', () => {
 		function expectedSchemaId(): string {
 			return `vscode://schemas/agent-host-settings/${PROVIDER_ID}.jsonc`;
 		}
+
+		test('keeps refreshing schemas after a same-ID provider replacement', async () => {
+			const { fs, uri, provider, replaceProvider } = createHarness({
+				schema: { type: 'object', properties: {} }, values: {},
+			});
+			await fs.readFile(uri);
+			const changed = store.add(new Emitter<void>());
+			const replacement: IMockAgentHostSessionsProvider = {
+				...provider,
+				onDidChangeRootConfig: changed.event,
+				onDidChangeRootConfigEmitter: changed,
+				getRootConfig: () => replacement.config,
+			};
+			replaceProvider(replacement);
+			await fs.readFile(uri);
+			replacement.config = {
+				schema: { type: 'object', properties: { mode: { type: 'string', title: 'Mode', enum: ['a', 'b'] } } },
+				values: { mode: 'a' },
+			};
+			changed.fire();
+			assert.ok(schemaRegistry.getSchemaContributions().schemas[expectedSchemaId()].properties?.['mode']);
+		});
 
 		test('readFile lazily registers a schema + association for the provider', async () => {
 			const { fs, uri } = createHarness({

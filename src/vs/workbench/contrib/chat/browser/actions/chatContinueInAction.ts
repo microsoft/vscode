@@ -44,7 +44,7 @@ import { ChatModel, type IChatModel } from '../../common/model/chatModel.js';
 import { ChatRequestParser } from '../../common/requestParser/chatRequestParser.js';
 import { getDynamicVariablesForWidget, getSelectedToolAndToolSetsForWidget } from '../attachments/chatVariables.js';
 import { ChatSendResult, IChatService } from '../../common/chatService/chatService.js';
-import { ResolvedChatSessionsExtensionPoint, IChatSessionsService, SessionType } from '../../common/chatSessionsService.js';
+import { ResolvedChatSessionsExtensionPoint, IChatSessionsService, localChatSessionType, SessionType } from '../../common/chatSessionsService.js';
 import { ChatAgentLocation, ChatModeKind, CONTINUE_CHAT_IN_COPILOT_ACTION_ID } from '../../common/constants.js';
 import { isChatViewTitleActionContext } from '../../common/actions/chatActions.js';
 import { PROMPT_LANGUAGE_ID } from '../../common/promptSyntax/promptTypes.js';
@@ -58,7 +58,8 @@ import { CHAT_SETUP_ACTION_ID } from './chatActions.js';
 import { IChatRequestPasteVariableEntry, PromptFileVariableKind, toPasteVariableEntry, toPromptFileVariableEntry } from '../../common/attachments/chatVariableEntries.js';
 import { getChatSessionType } from '../../common/model/chatUri.js';
 import { ChatSessionPosition, getResourceForNewChatSession, openChatSession } from '../chatSessions/chatSessions.contribution.js';
-import { createImportedConversationStats, importedTurnsFromChatModel, resolveImportedCopilotModel, type IImportedConversationStats } from '../agentSessions/agentHost/importLocalConversationToAgentSession.js';
+import { createImportedConversationStats, importedConversationPrimaryFolder, importedTurnsFromChatModel, resolveImportedCopilotModel, type IImportedConversationStats } from '../agentSessions/agentHost/importLocalConversationToAgentSession.js';
+import { IHistoryService } from '../../../../services/history/common/history.js';
 import { IAgentHostImportConversationStore } from '../agentSessions/agentHost/agentHostImportConversationStore.js';
 import { IAgentHostUntitledProvisionalSessionService } from '../agentSessions/agentHost/agentHostUntitledProvisionalSessionService.js';
 import { IAgentHostNewSessionFolderService } from '../agentSessions/agentHost/agentHostNewSessionFolderService.js';
@@ -275,6 +276,8 @@ export class ContinueChatInCopilotAction extends Action2 {
 		const imports = accessor.get(IAgentHostImportConversationStore);
 		const provisional = accessor.get(IAgentHostUntitledProvisionalSessionService);
 		const folders = accessor.get(IAgentHostNewSessionFolderService);
+		const workspaceContextService = accessor.get(IWorkspaceContextService);
+		const historyService = accessor.get(IHistoryService);
 		const agentHostService = accessor.get(IAgentHostService);
 		const languageModelsService = accessor.get(ILanguageModelsService);
 		const sourceModel = widget.viewModel.model;
@@ -310,6 +313,10 @@ export class ContinueChatInCopilotAction extends Action2 {
 		};
 		const untitledResource = getResourceForNewChatSession(openOptions);
 		let sessionResource = untitledResource;
+		// A Local chat continues in the workspace folder its agent would have run in next.
+		const primaryFolder = sourceModel.hasRequests && getChatSessionType(context.sessionResource) === localChatSessionType
+			? importedConversationPrimaryFolder(sourceModel, workspaceContextService, historyService.getLastActiveWorkspaceRoot())
+			: undefined;
 		const logOutcome = (outcome: ChatEnterprisePolicyRecoveryEvent['outcome']) => telemetryService.publicLog2<ChatEnterprisePolicyRecoveryEvent, ChatEnterprisePolicyRecoveryClassification>('chat.enterprisePolicyRecovery', {
 			action: transcriptOnly ? 'transcript' : turns.length ? 'migrate' : 'newChat',
 			location: sidebar ? 'panel' : 'editor',
@@ -338,6 +345,10 @@ export class ContinueChatInCopilotAction extends Action2 {
 				throw new Error(continueInCopilotFailedMessage());
 			}
 			ensureSourceVisible();
+			// Recorded for the new chat itself, so every lookup of its folder agrees, without becoming the window's default.
+			if (primaryFolder) {
+				folders.setFolder(untitledResource, primaryFolder, { updateDefault: false });
+			}
 			if (turns.length) {
 				const selectedModel = widget.input.selectedLanguageModel.get()?.identifier;
 				const model = (selectedModel ? resolveModel(selectedModel) : undefined) ?? turns.at(-1)?.message.model;
@@ -398,6 +409,7 @@ export class ContinueChatInCopilotAction extends Action2 {
 			}
 		} catch (error) {
 			logOutcome(isCancellationError(error) ? 'cancelled' : 'failed');
+			folders.clear(untitledResource);
 			throw error;
 		} finally {
 			imports.take(untitledResource);
@@ -709,6 +721,9 @@ export class CreateRemoteAgentJobAction {
 		const agentHostService = accessor.get(IAgentHostService);
 		const languageModelsService = accessor.get(ILanguageModelsService);
 		const telemetryService = accessor.get(ITelemetryService);
+		const workspaceContextService = accessor.get(IWorkspaceContextService);
+		const historyService = accessor.get(IHistoryService);
+		const newSessionFolderService = accessor.get(IAgentHostNewSessionFolderService);
 
 		const remoteJobCreatingKey = ChatContextKeys.remoteJobCreating.bindTo(contextKeyService);
 
@@ -841,21 +856,31 @@ export class CreateRemoteAgentJobAction {
 						};
 						await commandService.executeCommand(CHAT_DELEGATE_TO_AGENT_HOST_SESSION_COMMAND_ID, delegationRequest);
 					} else {
+						const newChatOpenOptions = {
+							type: continuationTargetType,
+							displayName: continuationTarget.displayName,
+							position: isSidebar ? ChatSessionPosition.Sidebar : ChatSessionPosition.Editor,
+							// Replace the source chat editor in place so switching harness
+							// feels like the same chat continues rather than opening a new
+							// tab. The source (local) session stays in chat history and is
+							// recoverable. The sidebar path already swaps in place via
+							// `loadSession`, so it needs no replacement. Pass the source
+							// resource (not a bare flag) so the correct editor is resolved
+							// at replace time even if the active editor changed meanwhile.
+							replaceEditorForResource: isSidebar ? undefined : sessionResource,
+						};
+						const newChatResource = getResourceForNewChatSession(newChatOpenOptions);
+						// A Local conversation continues in the workspace folder its agent would have run in next,
+						// recorded for the new chat itself without becoming the window's default.
+						const primaryFolder = sourceSessionType === AgentSessionProviders.Local && chatRequests.length
+							? importedConversationPrimaryFolder(chatModel, workspaceContextService, historyService.getLastActiveWorkspaceRoot())
+							: undefined;
+						if (primaryFolder) {
+							newSessionFolderService.setFolder(newChatResource, primaryFolder, { updateDefault: false });
+						}
 						const opened = await instantiationService.invokeFunction(innerAccessor => openChatSession(
 							innerAccessor,
-							{
-								type: continuationTargetType,
-								displayName: continuationTarget.displayName,
-								position: isSidebar ? ChatSessionPosition.Sidebar : ChatSessionPosition.Editor,
-								// Replace the source chat editor in place so switching harness
-								// feels like the same chat continues rather than opening a new
-								// tab. The source (local) session stays in chat history and is
-								// recoverable. The sidebar path already swaps in place via
-								// `loadSession`, so it needs no replacement. Pass the source
-								// resource (not a bare flag) so the correct editor is resolved
-								// at replace time even if the active editor changed meanwhile.
-								replaceEditorForResource: isSidebar ? undefined : sessionResource,
-							},
+							{ ...newChatOpenOptions, sessionResource: newChatResource },
 							{
 								prompt: handoffPrompt,
 								attachedContext: continuationContext,
@@ -863,6 +888,9 @@ export class CreateRemoteAgentJobAction {
 								importConversation: importConversationTurns ? { turns: importConversationTurns, model: importConversationModel, title: chatModel.title } : undefined,
 							}
 						));
+						if (!opened) {
+							newSessionFolderService.clear(newChatResource);
+						}
 						// Reported only once the new session holds the imported conversation.
 						if (importConversationTurns && opened && holdsImportedTurns(chatService.getSession(opened), importConversationTurns)) {
 							logConversationImport(telemetryService, 'continueIn', importStats);

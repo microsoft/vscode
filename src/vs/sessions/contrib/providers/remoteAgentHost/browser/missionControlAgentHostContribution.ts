@@ -17,6 +17,7 @@ import { IConfigurationService } from '../../../../../platform/configuration/com
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { INotificationService } from '../../../../../platform/notification/common/notification.js';
 import { cloudSandboxAddress, cloudSandboxEnvironmentId } from '../../../../../platform/agentHost/common/cloudSandboxAgentHost.js';
+import { IAgentHostConnectionsService } from '../../../../../platform/agentHost/common/agentHostConnectionsService.js';
 import { GitHubEnvironmentsAvailableContext, GitHubEnvironmentsEnabledSettingId, IMissionControlEnvironmentService, IMissionControlSharingService } from '../../../../../platform/agentHost/common/missionControlEnvironment.js';
 import { IRemoteAgentHostService, RemoteAgentHostAutoConnectSettingId, RemoteAgentHostConnectionStatus, RemoteAgentHostEntryType, RemoteAgentHostsEnabledSettingId, type IRemoteAgentHostEntry } from '../../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
@@ -54,6 +55,7 @@ export class MissionControlAgentHostContribution extends EntryDrivenProviderCont
 		@ISessionsRecentWorkspacesService recentWorkspacesService: ISessionsRecentWorkspacesService,
 		@IMissionControlSharingService sharingService: IMissionControlSharingService,
 		@IStorageService private readonly _storageService: IStorageService,
+		@IAgentHostConnectionsService private readonly _agentHostConnectionsService: IAgentHostConnectionsService,
 	) {
 		super(remoteAgentHostService, configurationService, instantiationService, sessionsProvidersService, notificationService);
 		const updateProjects = () => sharingService.setProjectFolders(recentWorkspacesService
@@ -189,6 +191,19 @@ export class MissionControlAgentHostContribution extends EntryDrivenProviderCont
 		if (this._store.isDisposed) {
 			return;
 		}
+		this._batchProviderChanges(() => this._reconcileInventory());
+	}
+
+	private _batchProviderChanges<T>(fn: () => T): T {
+		return this._agentHostConnectionsService.batchSessionResolutionChanges(() =>
+			this._sessionsProvidersService.batchProviderChanges(fn));
+	}
+
+	override dispose(): void {
+		this._batchProviderChanges(() => super.dispose());
+	}
+
+	private _reconcileInventory(): void {
 		super._reconcile();
 		for (const [address, provider] of this._providerInstances) {
 			const connection = this._remoteAgentHostService.connections.find(connection => connection.address === address);

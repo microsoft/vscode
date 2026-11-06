@@ -12,6 +12,7 @@ import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { mock } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { AgentHostClientConnectionKind } from '../../../../../platform/agentHost/common/agentHostTelemetry.js';
 import { IAgentConnection } from '../../../../../platform/agentHost/common/agentService.js';
 import { IRemoteAgentHostConnectionInfo, IRemoteAgentHostService, RemoteAgentHostConnectionStatus } from '../../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { IAgentSubscription } from '../../../../../platform/agentHost/common/state/agentSubscription.js';
@@ -85,7 +86,7 @@ class TestAgentConnection extends mock<IAgentConnection>() {
 	disposedSubscriptions = 0;
 	readonly dispatchedActions: (SessionAction | TerminalAction | ClientAnnotationsAction | IRootConfigChangedAction)[] = [];
 
-	constructor(override readonly clientId = 'test-client') {
+	constructor(override readonly clientId = 'test-client', override readonly clientConnectionKind: AgentHostClientConnectionKind = AgentHostClientConnectionKind.Local) {
 		super();
 	}
 
@@ -147,7 +148,7 @@ suite('AgentHostTerminalService', () => {
 		));
 	});
 
-	test('terminals are titled by their process with the default icon unless named, like local terminals, and name a remote host by its current name', async () => {
+	test('terminals are titled by their process with the default icon unless named, like local terminals, and name a remote host by its current name and mark its pty as remote', async () => {
 		store.add(service.registerEntry({ name: 'This Computer', address: '__local__', getConnection: () => connection }));
 
 		await service.createTerminal(connection);
@@ -156,7 +157,7 @@ suite('AgentHostTerminalService', () => {
 		await service.reviveTerminal(connection, URI.parse('agenthost-terminal:/tool-terminal'), 'tool-session');
 
 		// Like a chat session in a regular window, which has no entry for the remote host it runs on.
-		const remote = new TestAgentConnection('remote-client');
+		const remote = new TestAgentConnection('remote-client', AgentHostClientConnectionKind.SSH);
 		remoteHosts.push({ address: 'ssh://devbox', name: 'devbox', clientId: remote.clientId, status: RemoteAgentHostConnectionStatus.connected });
 		await service.createTerminal(remote);
 		// The host is renamed while it stays connected.
@@ -164,13 +165,13 @@ suite('AgentHostTerminalService', () => {
 		await service.reviveTerminal(remote, URI.parse('agenthost-terminal:/remote-tool-terminal'), 'remote-tool-session');
 
 		// The host is named on desktop only.
-		assert.deepStrictEqual(terminalService.createdConfigs.map(({ name, icon, hostLabel }) => ({ name, icon, hostLabel })), [
-			{ name: undefined, icon: undefined, hostLabel: undefined },
-			{ name: 'Task: build', icon: undefined, hostLabel: undefined },
-			{ name: undefined, icon: undefined, hostLabel: undefined },
-			{ name: undefined, icon: ThemeIcon.fromId(Codicon.chatSparkle.id), hostLabel: undefined },
-			{ name: undefined, icon: undefined, hostLabel: isWeb ? undefined : 'devbox' },
-			{ name: undefined, icon: ThemeIcon.fromId(Codicon.chatSparkle.id), hostLabel: isWeb ? undefined : 'buildbox' },
+		assert.deepStrictEqual(terminalService.createdConfigs.map(({ name, icon, hostLabel, isRemotePty }) => ({ name, icon, hostLabel, isRemotePty })), [
+			{ name: undefined, icon: undefined, hostLabel: undefined, isRemotePty: false },
+			{ name: 'Task: build', icon: undefined, hostLabel: undefined, isRemotePty: false },
+			{ name: undefined, icon: undefined, hostLabel: undefined, isRemotePty: false },
+			{ name: undefined, icon: ThemeIcon.fromId(Codicon.chatSparkle.id), hostLabel: undefined, isRemotePty: false },
+			{ name: undefined, icon: undefined, hostLabel: isWeb ? undefined : 'devbox', isRemotePty: true },
+			{ name: undefined, icon: ThemeIcon.fromId(Codicon.chatSparkle.id), hostLabel: isWeb ? undefined : 'buildbox', isRemotePty: true },
 		]);
 	});
 

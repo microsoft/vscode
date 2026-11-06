@@ -583,7 +583,7 @@ export class ChatGroupView extends Disposable implements ISerializableView {
 		size(this._barContainer, width, barHeight);
 		size(this._contentContainer, width, height - barHeight);
 		this._chatViewTop.set(barHeight, undefined);
-		this._sessionActivityBar?.layout(barHeight, height - barHeight);
+		this._sessionActivityBar?.layout(barHeight);
 		this._currentView.value?.layout(Math.max(0, width - columnWidth), height - barHeight, top + barHeight, left);
 	}
 

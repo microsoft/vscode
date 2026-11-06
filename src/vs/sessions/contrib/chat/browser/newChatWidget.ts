@@ -72,6 +72,7 @@ import { ChatContextKeys } from '../../../../workbench/contrib/chat/common/actio
 import { ChatModeKind } from '../../../../workbench/contrib/chat/common/constants.js';
 import { ILanguageModelsService } from '../../../../workbench/contrib/chat/common/languageModels.js';
 import { IOpenerService } from '../../../../platform/opener/common/opener.js';
+import { Link } from '../../../../platform/opener/browser/link.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { logSettingExperimentTrigger } from '../../../../platform/telemetry/common/experimentTrigger.js';
@@ -151,6 +152,7 @@ export class NewChatWidget extends Disposable {
 	private readonly _preserveCustomView: boolean;
 	private readonly _backgroundSend: boolean;
 	private readonly _backgroundSendStatus = observableValue<string | undefined>(this, undefined);
+	private _lastBackgroundSentSessionResource: URI | undefined;
 	private _lastBackgroundSendOptions: ISendRequestOptions | undefined;
 	private readonly _pickedEnvironment = observableValue<ISessionCreationEnvironment | undefined>(this, undefined);
 	private readonly _environmentWorkspaces = new Map<string, URI>();
@@ -829,6 +831,7 @@ export class NewChatWidget extends Disposable {
 			});
 		}));
 
+		this._renderBackgroundSendStatus(chatWidgetContent);
 		const workspacePickerContainer = dom.append(chatWidgetContent, dom.$('.new-session-workspace-picker-container'));
 		// On web (vscode.dev / insiders.vscode.dev) the workspace picker is
 		// scoped to the currently selected agent host. When no hosts are
@@ -857,7 +860,6 @@ export class NewChatWidget extends Disposable {
 			);
 		}));
 		const belowInputSurfaces = dom.append(chatWidgetContent, dom.$(`.new-session-below-input-surfaces.${chatInputSurfaceStackClass}`));
-		this._renderBackgroundSendStatus(belowInputSurfaces);
 		const updateBelowInputSurfacesHeight = () => {
 			if (chatWidgetContainer.closest('.phone-layout')) {
 				belowInputSurfaces.style.removeProperty('max-height');
@@ -1986,6 +1988,7 @@ export class NewChatWidget extends Disposable {
 	private async _send(query: string, attachedContext?: IChatRequestVariableEntry[], background?: boolean, userInteraction?: NewChatUserInteraction): Promise<boolean> {
 		background = this._backgroundSend || background;
 		if (this._backgroundSend) {
+			this._lastBackgroundSentSessionResource = undefined;
 			this._backgroundSendStatus.set(undefined, undefined);
 			this._lastBackgroundSendOptions = undefined;
 		}
@@ -2054,10 +2057,11 @@ export class NewChatWidget extends Disposable {
 			}
 			this._pendingBackgroundSends.set(sendOptions, Event.once(
 				Event.filter(this.sessionsManagementService.onDidSendRequest, event => event.options === sendOptions)
-			)(() => {
+			)(event => {
 				clearFeedback();
 				restoreWorkspace();
 				if (this._backgroundSend && this._lastBackgroundSendOptions === sendOptions && !this._newChatInput.hasInput) {
+					this._lastBackgroundSentSessionResource = event.session.resource;
 					this._backgroundSendStatus.set(localize('newSession.messageSent', "Message sent"), undefined);
 				}
 				this._pendingBackgroundSends.deleteAndDispose(sendOptions);
@@ -2171,16 +2175,52 @@ export class NewChatWidget extends Disposable {
 		this._register(autorun(reader => {
 			const message = this._backgroundSendStatus.read(reader);
 			dom.clearNode(status);
+			status.style.visibility = message ? '' : 'hidden';
 			if (message) {
 				const checkmark = renderIcon(Codicon.check);
 				checkmark.setAttribute('aria-hidden', 'true');
-				dom.append(status, dom.$('span', undefined, message), checkmark);
+				dom.append(status, dom.$('span.new-session-send-status-message', undefined, message), checkmark);
 				this.accessibilityService.status(message);
-				reader.store.add(disposableTimeout(() => this._backgroundSendStatus.set(undefined, undefined), 5000));
+				const sessionResource = this._lastBackgroundSentSessionResource;
+				if (sessionResource) {
+					reader.store.add(this.instantiationService.createInstance(Link, status, {
+						label: localize('newSession.openSentSession', "Open Session"),
+						href: sessionResource.toString(),
+					}, {
+						opener: () => { void this.sessionsService.openSession(sessionResource, { source: 'inbox', forceMainChat: true }).catch(onUnexpectedError); },
+					}));
+					const dismissal = reader.store.add(new MutableDisposable<IDisposable>());
+					let remaining = 8000;
+					let startedAt = Date.now();
+					let hovered = false;
+					let focused = false;
+					const updateDismissal = () => {
+						if (hovered || focused) {
+							if (dismissal.value) {
+								remaining -= Date.now() - startedAt;
+								dismissal.clear();
+							}
+						} else if (!dismissal.value) {
+							startedAt = Date.now();
+							dismissal.value = disposableTimeout(() => {
+								this._lastBackgroundSentSessionResource = undefined;
+								this._backgroundSendStatus.set(undefined, undefined);
+							}, Math.max(0, remaining));
+						}
+					};
+					reader.store.add(dom.addDisposableListener(status, dom.EventType.MOUSE_ENTER, () => { hovered = true; updateDismissal(); }));
+					reader.store.add(dom.addDisposableListener(status, dom.EventType.MOUSE_LEAVE, () => { hovered = false; updateDismissal(); }));
+					reader.store.add(dom.addDisposableListener(status, dom.EventType.FOCUS_IN, () => { focused = true; updateDismissal(); }));
+					reader.store.add(dom.addDisposableListener(status, dom.EventType.FOCUS_OUT, () => { focused = false; updateDismissal(); }));
+					updateDismissal();
+				} else {
+					reader.store.add(disposableTimeout(() => this._backgroundSendStatus.set(undefined, undefined), 5000));
+				}
 			}
 		}));
 		this._register(this._newChatInput.onDidChangeInput(() => {
 			if (this._newChatInput.hasInput) {
+				this._lastBackgroundSentSessionResource = undefined;
 				this._backgroundSendStatus.set(undefined, undefined);
 				this._lastBackgroundSendOptions = undefined;
 			}

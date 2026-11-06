@@ -871,6 +871,10 @@ export class PartGrid extends Disposable {
 				}
 			};
 			change(arrangement, stubOf);
+			// As the move will be: the pinned view spans the top of the grid
+			if (this.pinnedTopView && stubs.has(this.pinnedTopView)) {
+				pinViewToTop(arrangement, this.pinnedTopView);
+			}
 			this.previewAdjuster?.({
 				leads: cellId => leads(grid, cellId, stub => !!stub.part && grid.isViewVisible(stub)),
 				isCellVisible: cellId => stubs.has(cellId) || this.cells.has(cellId) ? grid.isViewVisible(stubOf(cellId)) : false,
@@ -1382,6 +1386,8 @@ export class PartGrid extends Disposable {
 	}
 
 	private updateAllVisibility(): void {
+		// Every change of the arrangement ends here: the view pinned to the top goes back there before the cells show
+		this.keepPinnedViewOnTop();
 		for (const id of this.cells.keys()) {
 			this.updateVisibility(id);
 		}
@@ -1403,7 +1409,48 @@ export class PartGrid extends Disposable {
 		return leads(this.grid, id, cell => !!cell.part && this.isCellVisible(cell.id));
 	}
 
+	/**
+	 * Whether a cell reaches the right edge of the grid: it shows, and no cell shows to its right, other than the cells in
+	 * `ignored`. With a `group` of its part, also no other group of that part shows to the right of it.
+	 */
+	reachesRightEdge(id: string, group?: IEditorGroup, ignored: readonly string[] = []): boolean {
+		const cell = this.cells.get(id);
+		if (!this.grid || !cell || !this.isCellVisible(id)) {
+			return false;
+		}
+
+		return !!reachesRightEdge(this.grid.getViews(), this.grid.orientation, id, candidate => !ignored.includes(candidate.id) && this.isCellVisible(candidate.id))
+			&& (!group || !cell.part?.findGroup({ direction: GroupDirection.RIGHT }, group));
+	}
+
 	private previewAdjuster: ((preview: IPartGridMovePreview) => void) | undefined;
+
+	/** The view that spans the top of the grid, whatever moves; see {@link setPinnedTopView}. */
+	private pinnedTopView: string | undefined;
+
+	/**
+	 * Keeps the view `id`, such as the title row of a window, spanning the top of the grid: the first row of the grid,
+	 * across all of it, with the rest of the grid below it. Every change of the arrangement keeps it there, such as a part
+	 * moved or dropped at an edge of the grid, beside it, or a grid restored with it elsewhere, and so does the preview of
+	 * a move. Without one, the arrangement is as the changes make it.
+	 */
+	setPinnedTopView(id: string | undefined): void {
+		this.pinnedTopView = id;
+		this.updateAllVisibility();
+	}
+
+	/** Moves the pinned view back to the top of the grid, unless it is there. */
+	private keepPinnedViewOnTop(): void {
+		if (!this.grid || !this.pinnedTopView) {
+			return;
+		}
+		// Most changes leave it there, such as a cell that shows or hides: nothing to look at then
+		const first = this.grid.getViews().children[0];
+		if (this.grid.orientation === Orientation.VERTICAL && first && !isGridBranchNode(first) && first.view.id === this.pinnedTopView) {
+			return;
+		}
+		pinViewToTop(this.arrangement(), this.pinnedTopView);
+	}
 
 	/**
 	 * Sets what adjusts the preview of a move to what its owner does after
@@ -1723,6 +1770,88 @@ interface IArrangement<T extends IArrangedView> {
 	readonly grid: SerializableGrid<T>;
 	isPart(id: string): boolean;
 	replace(state: ISerializedGrid): void;
+}
+
+/** Moves the view `id` of an arrangement back to the top of its grid, unless it is there; see {@link pinViewToTop}. */
+function pinViewToTop<T extends IArrangedView>(arrangement: IArrangement<T>, id: string): void {
+	const pinned = getGridWithViewOnTop(arrangement.grid.serialize(), id);
+	if (pinned) {
+		arrangement.replace(pinned);
+	}
+}
+
+/**
+ * The grid with the view `id` spanning its top: the first row of a column across the grid, with the rest of the grid
+ * below it, as it was arranged, its rows taking the room the view leaves them in proportion. Undefined while the view
+ * is there already, or not in the grid.
+ */
+export function getGridWithViewOnTop(state: ISerializedGrid, id: string): ISerializedGrid | undefined {
+	const isPinned = (node: ISerializedNode) => node.type === 'leaf' && (node.data as { id: string }).id === id;
+	if (state.root.type !== 'branch' || (state.orientation === Orientation.VERTICAL && isPinned(state.root.data[0]))) {
+		return undefined;
+	}
+
+	// Takes the view out of where it is: the node beside it takes its room, and a row or column left with one node is
+	// that node, in its parent, as the grid has it
+	let pinned: ISerializedNode | undefined;
+	const without = (children: readonly ISerializedNode[]): ISerializedNode[] => {
+		const result: ISerializedNode[] = [];
+		let removedAt: number | undefined;
+		for (const child of children) {
+			if (isPinned(child)) {
+				pinned = child;
+				removedAt = result.length;
+			} else if (child.type === 'branch') {
+				const inner = without(child.data);
+				if (inner.length !== 1) {
+					// A branch with nothing visible left is hidden, as the grid serializes it
+					const visible = inner.some(node => node.visible !== false);
+					result.push(visible ? { ...child, data: inner } : { ...child, data: inner, visible: false });
+				} else if (inner[0].type === 'branch') {
+					// Its row or column across this one: its nodes go into this one, as they are along it
+					result.push(...inner[0].data);
+				} else {
+					result.push({ ...inner[0], size: child.size });
+				}
+			} else {
+				result.push(child);
+			}
+		}
+		if (removedAt !== undefined && pinned && pinned.visible !== false && result.length) {
+			const neighbor = Math.min(removedAt, result.length - 1);
+			result[neighbor] = scaleAlong(result[neighbor], result[neighbor].size + pinned.size);
+		}
+		return result;
+	};
+	let rest = without(state.root.data);
+	if (!pinned) {
+		return undefined;
+	}
+	let orientation = state.orientation;
+	if (rest.length === 1 && rest[0].type === 'leaf') {
+		// One cell left: right below the view
+		orientation = Orientation.VERTICAL;
+	} else if (rest.length === 1 && rest[0].type === 'branch') {
+		// The root holds one row or column: that one is the root, across the other way
+		orientation = orthogonal(orientation);
+		rest = rest[0].data;
+	}
+
+	// The view at the top, with its height; what is below it takes the rest, in proportion to how it was arranged
+	const height = Math.max(0, state.height - (pinned.visible === false ? 0 : Math.min(pinned.size, state.height)));
+	let below: ISerializedNode[];
+	if (orientation === Orientation.VERTICAL) {
+		const total = rest.reduce((sum, node) => sum + (node.visible === false ? 0 : node.size), 0) || 1;
+		below = rest.map(node => node.visible === false ? node : scaleAlong(node, Math.round(node.size * height / total)));
+		const lastVisible = below.map(node => node.visible !== false).lastIndexOf(true);
+		if (lastVisible >= 0) {
+			const sum = below.reduce((value, node) => value + (node.visible === false ? 0 : node.size), 0);
+			below[lastVisible] = scaleAlong(below[lastVisible], below[lastVisible].size + height - sum);
+		}
+	} else {
+		below = [scaleAlong({ type: 'branch', data: rest, size: state.height }, height)];
+	}
+	return { root: { type: 'branch', data: [pinned, ...below], size: state.width }, orientation: Orientation.VERTICAL, width: state.width, height: state.height };
 }
 
 function addAtEdge<T extends IArrangedView>(arrangement: IArrangement<T>, cell: T, edge: Direction, size: number | undefined, donorId?: string): void {
@@ -2151,6 +2280,24 @@ export interface IPartGridMovePreview {
 	leads(id: string): boolean;
 	isCellVisible(id: string): boolean;
 	setCellVisible(id: string, visible: boolean): void;
+}
+
+/**
+ * Whether a cell reaches the right edge of a grid: of every row that holds it, no cell that counts shows after the
+ * branch it is in.
+ */
+function reachesRightEdge<T extends { readonly id: string } & IView>(root: GridNode<T>, orientation: Orientation, id: string, counts: (view: T) => boolean): boolean | undefined {
+	const showsCounted = (node: GridNode<T>): boolean => isGridBranchNode(node) ? node.children.some(showsCounted) : counts(node.view);
+	if (!isGridBranchNode(root)) {
+		return root.view.id === id ? counts(root.view) : undefined;
+	}
+	for (let index = 0; index < root.children.length; index++) {
+		const inChild = reachesRightEdge(root.children[index], orthogonal(orientation), id, counts);
+		if (inChild !== undefined) {
+			return inChild && (orientation !== Orientation.HORIZONTAL || !root.children.slice(index + 1).some(showsCounted));
+		}
+	}
+	return undefined;
 }
 
 /**
