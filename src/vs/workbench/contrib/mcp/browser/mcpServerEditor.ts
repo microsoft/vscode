@@ -776,6 +776,17 @@ export class McpServerEditor extends EditorPane {
 				}
 			}
 		}
+
+		const inputs = mcpServer.installable?.inputs;
+		if (inputs?.length) {
+			const inputsSection = append(container, $('.config-section'));
+			const inputsLabel = append(inputsSection, $('.config-label'));
+			inputsLabel.textContent = localize('inputs', "Inputs:");
+			const inputsValue = append(inputsSection, $('.config-value'));
+			for (const input of inputs) {
+				append(inputsValue, $('code.env-entry', undefined, JSON.stringify(input)));
+			}
+		}
 	}
 
 	private renderManifestDetails(container: HTMLElement, manifest: IGalleryMcpServerConfiguration): void {
