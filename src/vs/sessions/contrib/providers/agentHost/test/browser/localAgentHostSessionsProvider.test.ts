@@ -9026,13 +9026,15 @@ suite('LocalAgentHostSessionsProvider', () => {
 		});
 	});
 
-	test('caches resolved isolation/branch schema and seeds it into the next draft', async () => {
+	test('keeps repository, mode and permission schemas in a replacement draft until discovery completes', async () => {
 		agentHost.resolveSessionConfigResult = {
 			schema: {
 				type: 'object',
 				properties: {
 					[SessionConfigKey.Isolation]: { title: 'Isolation', type: 'string', enum: ['folder', 'worktree'], default: 'worktree' },
 					[SessionConfigKey.Branch]: { title: 'Base Branch', type: 'string', enum: ['main'] },
+					[SessionConfigKey.Mode]: { title: 'Mode', type: 'string', enum: ['interactive', 'plan'], default: 'interactive' },
+					[SessionConfigKey.AutoApprove]: { title: 'Permissions', type: 'string', enum: ['default', 'autoApprove'], default: 'default' },
 				},
 			},
 			values: { [SessionConfigKey.Isolation]: 'worktree' },
@@ -9049,6 +9051,8 @@ suite('LocalAgentHostSessionsProvider', () => {
 
 		// ...but is seeded with the cached chips so they stay visible instead of blanking.
 		const seededKeys = Object.keys(provider.getSessionConfig(second.sessionId, second.mainChat.get().resource)?.schema.properties ?? {}).sort();
+		const resolving = provider.isSessionConfigResolving(second.sessionId, second.mainChat.get().resource).get();
+		const discovery = agentHost.resolveSessionConfigRequests.at(-1)?.config;
 
 		await timeout(0); // let the empty resolve land, replacing the seed and pruning the cache
 		const afterResolveKeys = Object.keys(provider.getSessionConfig(second.sessionId, second.mainChat.get().resource)?.schema.properties ?? {});
@@ -9057,10 +9061,61 @@ suite('LocalAgentHostSessionsProvider', () => {
 		const third = provider.createNewSession(URI.parse('file:///home/user/c'), provider.sessionTypes[0].id);
 		const thirdSeededKeys = Object.keys(provider.getSessionConfig(third.sessionId, third.mainChat.get().resource)?.schema.properties ?? {});
 
-		assert.deepStrictEqual({ seededKeys, afterResolveKeys, thirdSeededKeys }, {
-			seededKeys: [SessionConfigKey.Branch, SessionConfigKey.Isolation],
+		assert.deepStrictEqual({ seededKeys, resolving, discovery, afterResolveKeys, thirdSeededKeys }, {
+			seededKeys: [SessionConfigKey.AutoApprove, SessionConfigKey.Branch, SessionConfigKey.Isolation, SessionConfigKey.Mode],
+			resolving: true,
+			discovery: undefined,
 			afterResolveKeys: [],
 			thirdSeededKeys: [],
+		});
+	});
+
+	test('quick-chat schema discovery does not discard the workspace draft presentation seed', async () => {
+		agentHost.resolveSessionConfigResult = { schema: createVSCodeSessionConfigSchema(), values: {} };
+		const provider = createProvider(disposables, agentHost);
+		const first = provider.createNewSession(URI.file('/workspace-a'), provider.sessionTypes[0].id);
+		await provider.whenSessionConfigResolved(first.sessionId, CancellationToken.None);
+		const workspaceSchema = provider.getSessionConfig(first.sessionId, first.mainChat.get().resource)?.schema;
+
+		agentHost.resolveSessionConfigResult = { schema: { type: 'object', properties: {} }, values: {} };
+		const quickChat = provider.createQuickChat(provider.sessionTypes[0].id);
+		const quickChatSeed = provider.getSessionConfig(quickChat.sessionId, quickChat.mainChat.get().resource)?.schema.properties;
+		const { isolation: _isolation, branch: _branch, ...harnessSchema } = workspaceSchema!.properties;
+		await provider.whenSessionConfigResolved(quickChat.sessionId, CancellationToken.None);
+
+		const next = provider.createNewSession(URI.file('/workspace-b'), provider.sessionTypes[0].id);
+		assert.deepStrictEqual({
+			quickChatSeed,
+			workspaceSeed: provider.getSessionConfig(next.sessionId, next.mainChat.get().resource)?.schema,
+		}, {
+			quickChatSeed: harnessSchema,
+			workspaceSeed: workspaceSchema,
+		});
+	});
+
+	test('draft presentation schemas are isolated between harnesses on the same host', async () => {
+		const provider = createProvider(disposables, agentHost);
+		agentHost.setAgents([
+			{ provider: 'copilotcli', displayName: 'Copilot', description: '', models: [] },
+			{ provider: 'other', displayName: 'Other', description: '', models: [] },
+		]);
+		agentHost.resolveSessionConfigResult = { schema: createVSCodeSessionConfigSchema(), values: {} };
+		const first = provider.createNewSession(URI.file('/workspace-a'), 'copilotcli');
+		await provider.whenSessionConfigResolved(first.sessionId, CancellationToken.None);
+		const firstSchema = provider.getSessionConfig(first.sessionId, first.mainChat.get().resource)?.schema;
+
+		agentHost.resolveSessionConfigResult = { schema: { type: 'object', properties: {} }, values: {} };
+		const other = provider.createNewSession(URI.file('/workspace-a'), 'other');
+		const otherSeed = provider.getSessionConfig(other.sessionId, other.mainChat.get().resource)?.schema.properties;
+		await provider.whenSessionConfigResolved(other.sessionId, CancellationToken.None);
+
+		const next = provider.createNewSession(URI.file('/workspace-b'), 'copilotcli');
+		assert.deepStrictEqual({
+			otherSeed,
+			firstHarnessSeed: provider.getSessionConfig(next.sessionId, next.mainChat.get().resource)?.schema,
+		}, {
+			otherSeed: {},
+			firstHarnessSeed: firstSchema,
 		});
 	});
 

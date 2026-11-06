@@ -225,11 +225,6 @@ function debounceSessionChangeEvents(notifications: Event<ISessionChangeEvent>, 
 	return Event.map(event, event => event, disposable);
 }
 
-// Well-known config chips whose last-resolved schemas are cached and seeded into
-// new drafts, so they stay visible (disabled) while a draft re-resolves rather
-// than blanking then reappearing.
-const SEEDED_CONFIG_SCHEMA_KEYS = [SessionConfigKey.Isolation, SessionConfigKey.Branch, 'target', 'baseBranch'] as const;
-
 /** Cancels its token when replaced or disposed by a mutable disposable. */
 class ActiveClientSyncCancellationTokenSource extends CancellationTokenSource {
 	override dispose(): void {
@@ -4792,12 +4787,8 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 	 */
 	private readonly _carriedOverChatModelConfigurations = new Map<string, { readonly modelId: string; readonly configuration: IAutomationSessionTemplate['modelConfiguration'] }>();
 
-	/**
-	 * Last authoritatively-resolved schemas for {@link SEEDED_CONFIG_SCHEMA_KEYS},
-	 * seeded into new drafts so their chips survive a workspace/agent switch. Lives
-	 * on the provider (not the picker) so it outlives toolbar item reconstruction.
-	 */
-	private readonly _cachedConfigSchemas = new Map<string, SessionConfigPropertySchema>();
+	/** Presentation seeds scoped to the harness and workspace kind; fresh drafts still resolve before accepting input. */
+	private readonly _cachedConfigSchemas = new Map<string, SessionConfigSchema>();
 
 	/**
 	 * Lazy session-state subscriptions used to seed {@link _runningSessionConfigs}
@@ -5875,7 +5866,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 				initialSessionTemplate,
 				initialModelId,
 				initialModelConfiguration,
-				initialConfigSchema: this._seededConfigSchema(),
+				initialConfigSchema: this._seededConfigSchema(sessionType.id, quickChat),
 				initialMetadata,
 				onSessionCreated: backendSession => this.registerBackendSession(backendSession, sessionType.id),
 				onSessionUsed: sessionId => this._publishUsedDraft(sessionId),
@@ -6058,7 +6049,9 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 			return;
 		}
 		const config = session.getConfig();
-		this._cacheSeededConfigSchemas(config);
+		if (config) {
+			this._cachedConfigSchemas.set(this._configSchemaCacheKey(session.agentProvider, session.isQuickChat), config.schema);
+		}
 		session.setLoading(config !== undefined && !isSessionConfigComplete(config));
 		this._onDidChangeSessionConfig.fire(session.sessionId);
 		for (const [property, value] of Object.entries(expected ?? {})) {
@@ -6068,36 +6061,27 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		}
 	}
 
-	/**
-	 * Snapshot the well-known {@link SEEDED_CONFIG_SCHEMA_KEYS} schemas from an
-	 * authoritative resolve so the next new draft can render those chips
-	 * immediately (disabled) instead of blanking. A `undefined` config (failed
-	 * resolve) leaves the previous cache intact.
-	 */
-	private _cacheSeededConfigSchemas(config: ResolveSessionConfigResult | undefined): void {
-		if (!config) {
-			return;
-		}
-		for (const key of SEEDED_CONFIG_SCHEMA_KEYS) {
-			const schema = config.schema.properties[key];
-			if (schema) {
-				this._cachedConfigSchemas.set(key, schema);
-			} else {
-				this._cachedConfigSchemas.delete(key);
-			}
-		}
+	private _configSchemaCacheKey(sessionType: string, quickChat: boolean): string {
+		return JSON.stringify([sessionType, quickChat]);
 	}
 
 	/** Seed schema for a fresh draft, or `undefined` when nothing is cached yet. */
-	private _seededConfigSchema(): Record<string, SessionConfigPropertySchema> | undefined {
-		if (this._cachedConfigSchemas.size === 0) {
+	private _seededConfigSchema(sessionType: string, quickChat: boolean): Record<string, SessionConfigPropertySchema> | undefined {
+		const cached = this._cachedConfigSchemas.get(this._configSchemaCacheKey(sessionType, quickChat));
+		if (cached) {
+			return cached.properties;
+		}
+		const other = this._cachedConfigSchemas.get(this._configSchemaCacheKey(sessionType, !quickChat));
+		if (!other) {
 			return undefined;
 		}
-		const seed: Record<string, SessionConfigPropertySchema> = Object.create(null);
-		for (const [key, schema] of this._cachedConfigSchemas) {
-			seed[key] = schema;
-		}
-		return seed;
+		// Share harness controls on the first workspace-kind switch, but never repository choices.
+		const properties = { ...other.properties };
+		delete properties[SessionConfigKey.Isolation];
+		delete properties[SessionConfigKey.Branch];
+		delete properties.target;
+		delete properties.baseBranch;
+		return properties;
 	}
 
 	/** Subclass hook for additional pre-create checks (e.g. remote requires connection). */

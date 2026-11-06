@@ -387,7 +387,7 @@ function setupServices(
 	const checkoutInvocations: { operationId: string; _meta: Record<string, unknown> | undefined }[] = [];
 	const uncommittedChangeset = new class extends mock<ISessionChangeset>() {
 		override readonly id = UNCOMMITTED_CHANGES_CHANGESET_ID;
-		override readonly operations = constObservable([{
+		override readonly operations = observableValue('checkoutOperations', [{
 			id: AGENT_HOST_CHECKOUT_CHANGESET_OPERATION_ID,
 			label: 'Checkout',
 			scopes: [SessionChangesetOperationScope.Changeset],
@@ -1917,34 +1917,84 @@ suite('Agent Host Session Config Picker', () => {
 		});
 	});
 
-	test('folder branch picker stays read-only until Checkout capability hydrates', () => {
+	test('folder branch picker keeps its appearance but blocks interaction until Checkout capability hydrates', async () => {
 		const services = setupServices(store);
 		services.provider.config = makeDynamicBranchConfig('main', 'folder');
+		const operations = services.uncommittedChangeset.operations.get();
+		services.uncommittedChangeset.operations.set([], undefined);
 		services.changesetsObs.set(undefined, undefined);
 		const { container } = renderPicker(store, services);
 
-		const before = branchSlot(container)?.querySelector<HTMLElement>('.action-label');
+		const snapshot = () => {
+			const slot = branchSlot(container);
+			const trigger = slot?.querySelector<HTMLElement>('.action-label');
+			trigger?.click();
+			trigger?.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
+			return {
+				tagName: trigger?.tagName,
+				ariaReadOnly: trigger?.getAttribute('aria-readonly'),
+				ariaDisabled: trigger?.getAttribute('aria-disabled'),
+				dimmed: slot?.classList.contains('disabled'),
+			};
+		};
+		const beforeChangesets = snapshot();
+		services.changesetsObs.set([], undefined);
+		const beforeCapability = snapshot();
 		services.changesetsObs.set([services.uncommittedChangeset], undefined);
+		const beforeOperations = snapshot();
+		await new Promise(resolve => setTimeout(resolve));
+		const openedWhilePending = !!services.actionWidget.delegate;
+		const queriesWhilePending = [...services.provider.completionQueries];
+
+		services.uncommittedChangeset.operations.set(operations, undefined);
 		const after = branchSlot(container)?.querySelector<HTMLElement>('.action-label');
+		after?.click();
+		await new Promise(resolve => setTimeout(resolve));
 
 		assert.deepStrictEqual({
-			before: {
-				tagName: before?.tagName,
-				ariaReadOnly: before?.getAttribute('aria-readonly'),
-			},
+			pending: [beforeChangesets, beforeCapability, beforeOperations],
+			openedWhilePending,
+			queriesWhilePending,
 			after: {
 				tagName: after?.tagName,
 				role: after?.getAttribute('role'),
+				ariaDisabled: after?.getAttribute('aria-disabled'),
+				opened: !!services.actionWidget.delegate,
 			},
 		}, {
-			before: {
-				tagName: 'SPAN',
-				ariaReadOnly: 'true',
-			},
+			pending: Array.from({ length: 3 }, () => ({
+				tagName: 'A',
+				ariaReadOnly: null,
+				ariaDisabled: 'true',
+				dimmed: false,
+			})),
+			openedWhilePending: false,
+			queriesWhilePending: [],
 			after: {
 				tagName: 'A',
 				role: 'button',
+				ariaDisabled: null,
+				opened: true,
 			},
+		});
+	});
+
+	test('schema-read-only folder branch remains read-only before Checkout capability hydrates', () => {
+		const services = setupServices(store);
+		services.provider.config = makeDynamicBranchConfig('main', 'folder');
+		services.provider.config.schema.properties[SessionConfigKey.Branch].readOnly = true;
+		services.changesetsObs.set(undefined, undefined);
+		const { container } = renderPicker(store, services);
+		const trigger = branchSlot(container)?.querySelector<HTMLElement>('.action-label');
+
+		assert.deepStrictEqual({
+			tagName: trigger?.tagName,
+			ariaReadOnly: trigger?.getAttribute('aria-readonly'),
+			dimmed: branchSlot(container)?.classList.contains('disabled'),
+		}, {
+			tagName: 'SPAN',
+			ariaReadOnly: 'true',
+			dimmed: true,
 		});
 	});
 
