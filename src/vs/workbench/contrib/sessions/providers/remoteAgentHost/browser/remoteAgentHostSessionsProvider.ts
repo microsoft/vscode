@@ -10,7 +10,7 @@ import { Codicon } from '../../../../../../base/common/codicons.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { DisposableStore } from '../../../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../../../base/common/network.js';
-import { autorun, constObservable, derived, IObservable, IReader, observableValue, transaction } from '../../../../../../base/common/observable.js';
+import { autorun, constObservable, derived, IObservable, IReader, observableValue, runOnChange, transaction } from '../../../../../../base/common/observable.js';
 import { isWeb } from '../../../../../../base/common/platform.js';
 import { basename, dirname, isEqual } from '../../../../../../base/common/resources.js';
 import { ThemeIcon } from '../../../../../../base/common/themables.js';
@@ -133,6 +133,11 @@ export interface IRemoteAgentHostSessionsProviderConfig {
 	 * location, where the suffix would put every session in a workspace group of one.
 	 */
 	readonly omitHostFromWorkspaceLabel?: boolean;
+	/**
+	 * Replaces this host's label in the `[host]` suffix of its workspaces. Set by hosts whose label
+	 * names the host itself rather than where its workspaces come from, such as a Dev Container.
+	 */
+	readonly workspaceHostLabel?: IObservable<string>;
 	/** Type icon for this host's workspaces. See {@link ISessionWorkspace.typeIcon}. */
 	readonly workspaceTypeIcon?: ThemeIcon;
 	/** Keeps unavailable and initially connecting sessions read-only, but permits self-healing reconnects. */
@@ -265,6 +270,7 @@ export class RemoteAgentHostSessionsProvider extends DevContainerAgentHostSessio
 	protected readonly _deleteSessionsOnDemand: IRemoteAgentHostSessionsProviderConfig['deleteSessionsOnDemand'];
 	private readonly _sessionSchemeAlias: IAgentHostSessionSchemeAlias | undefined;
 	private readonly _omitHostFromWorkspaceLabel: boolean;
+	private readonly _workspaceHostLabelOverride: IObservable<string> | undefined;
 	private readonly _workspaceTypeIcon: ThemeIcon | undefined;
 	private readonly _defaultChangesetKind: IRemoteAgentHostSessionsProviderConfig['defaultChangesetKind'];
 	private readonly _devContainerSourceWorkspaceUri: URI | undefined;
@@ -345,6 +351,7 @@ export class RemoteAgentHostSessionsProvider extends DevContainerAgentHostSessio
 		this._deleteSessionsOnDemand = config.deleteSessionsOnDemand;
 		this._sessionSchemeAlias = config.sessionSchemeAlias;
 		this._omitHostFromWorkspaceLabel = config.omitHostFromWorkspaceLabel === true;
+		this._workspaceHostLabelOverride = config.workspaceHostLabel;
 		this._workspaceTypeIcon = config.workspaceTypeIcon;
 		this._defaultChangesetKind = config.defaultChangesetKind;
 		this._devContainerSourceWorkspaceUri = config.devContainerSourceWorkspaceUri;
@@ -440,6 +447,9 @@ export class RemoteAgentHostSessionsProvider extends DevContainerAgentHostSessio
 				this._updateLabel();
 			}
 		}));
+		if (this._workspaceHostLabelOverride) {
+			this._register(runOnChange(this._workspaceHostLabelOverride, () => this._refreshSessionWorkspaces()));
+		}
 		this._register(this._configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration('git.branchProtection')) {
 				this._refreshSessionWorkspaces();
@@ -1251,7 +1261,10 @@ export class RemoteAgentHostSessionsProvider extends DevContainerAgentHostSessio
 	 * nothing — in web the workbench is already scoped to a single host by the host picker.
 	 */
 	private get _workspaceHostLabel(): string | undefined {
-		return this.isWebPlatform || this._omitHostFromWorkspaceLabel ? undefined : this.label;
+		if (this.isWebPlatform || this._omitHostFromWorkspaceLabel) {
+			return undefined;
+		}
+		return this._workspaceHostLabelOverride?.get() ?? this.label;
 	}
 
 	static buildWorkspace(project: IAgentSessionMetadata['project'], workingDirectories: readonly URI[] | undefined, providerLabel: string | undefined, gitHubInfo: IObservable<IGitHubInfo | undefined>, gitState: ISessionGitState | undefined, description?: string, branchProtectionPatterns?: readonly string[], typeIcon?: ThemeIcon): ISessionWorkspace | undefined {
