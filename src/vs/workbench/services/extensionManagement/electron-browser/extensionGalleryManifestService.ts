@@ -214,9 +214,6 @@ export class WorkbenchExtensionGalleryManifestService extends ExtensionGalleryMa
 							return;
 						}
 						if (error instanceof MarketplaceAuthRequiredError) {
-							if (account?.requiresScopeConfiguration) {
-								this.logService.error('[Marketplace] The marketplace requires authentication but its protected resource metadata does not advertise usable resource scopes. Contact the marketplace administrator to configure scopes_supported.');
-							}
 							this.logService.debug('[Marketplace] Marketplace still requires authentication for the resolved account');
 							this.update(null, ExtensionGalleryManifestStatus.RequiresSignIn);
 							return;

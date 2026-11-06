@@ -219,11 +219,8 @@ export class MicrosoftGalleryAccountProvider extends AbstractGalleryAccountProvi
 			return {};
 		}
 		const protectedResource = await this.getProtectedResource(cache);
-		if (!protectedResource) {
+		if (!protectedResource || protectedResource.invalidScopes || !this.hasResourceScopes(protectedResource.scopes)) {
 			return {};
-		}
-		if (protectedResource.invalidScopes || !this.hasResourceScopes(protectedResource.scopes)) {
-			return { requiresScopeConfiguration: true };
 		}
 		return { accessToken: (await this.getResourceSession(session, protectedResource))?.accessToken };
 	}
@@ -356,6 +353,9 @@ export class MicrosoftGalleryAccountProvider extends AbstractGalleryAccountProvi
 			if (!Array.isArray(scopes) || !scopes.every(scope => typeof scope === 'string' && scope.length > 0 && !/[^\x21\x23-\x5B\x5D-\x7E]/.test(scope))) {
 				this.logService.warn('[Marketplace] Ignoring invalid protected resource scopes');
 				return { authorizationServer, scopes: [], invalidScopes: true };
+			}
+			if (!this.hasResourceScopes(scopes)) {
+				this.logService.warn('[Marketplace] No usable marketplace resource scopes are advertised. Requests will be rejected if the marketplace requires authentication. Contact the marketplace administrator to configure scopes_supported.');
 			}
 			return { authorizationServer, scopes };
 		} catch {

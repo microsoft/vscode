@@ -117,7 +117,7 @@ suite('WorkbenchExtensionGalleryManifestService', () => {
 	let sharedAuthorizationError: Error | undefined;
 	let authorizationService: IExtensionGalleryManifestService;
 	let accountService: ExtensionGalleryAccountService;
-	let marketplaceErrors: string[];
+	let marketplaceWarnings: string[];
 
 	setup(() => {
 		defaultAccount = null;
@@ -127,7 +127,7 @@ suite('WorkbenchExtensionGalleryManifestService', () => {
 		storageData = new Map();
 		restartPrompts = [];
 		sharedAuthorizationError = undefined;
-		marketplaceErrors = [];
+		marketplaceWarnings = [];
 
 		onDidChangeDefaultAccount = disposableStore.add(new Emitter<IDefaultAccount | null>());
 		onDidChangeSessions = disposableStore.add(new Emitter<{ providerId: string; label: string; event: AuthenticationSessionsChangeEvent }>());
@@ -209,8 +209,8 @@ suite('WorkbenchExtensionGalleryManifestService', () => {
 		}());
 
 		instantiationService.stub(ILogService, new class extends NullLogService {
-			override error(message: string | Error): void {
-				marketplaceErrors.push(message.toString());
+			override warn(message: string): void {
+				marketplaceWarnings.push(message);
 			}
 		}());
 
@@ -1109,7 +1109,8 @@ suite('WorkbenchExtensionGalleryManifestService', () => {
 	}
 
 	const MARKETPLACE_URL = 'https://marketplace.example.com';
-	const SCOPE_CONFIGURATION_ERROR = '[Marketplace] The marketplace requires authentication but its protected resource metadata does not advertise usable resource scopes. Contact the marketplace administrator to configure scopes_supported.';
+	const SCOPE_CONFIGURATION_WARNING = '[Marketplace] No usable marketplace resource scopes are advertised. Requests will be rejected if the marketplace requires authentication. Contact the marketplace administrator to configure scopes_supported.';
+	const INVALID_SCOPE_WARNING = '[Marketplace] Ignoring invalid protected resource scopes';
 
 	const PROTECTED_RESOURCE_METADATA = {
 		resource: 'https://marketplace.example.com',
@@ -1191,7 +1192,7 @@ suite('WorkbenchExtensionGalleryManifestService', () => {
 		gated: boolean,
 		expectedStatus = gated ? ExtensionGalleryManifestStatus.RequiresSignIn : ExtensionGalleryManifestStatus.Available,
 		statusCode = 401,
-		expectsScopeConfigurationError = false,
+		expectedScopeWarnings: readonly string[] = [],
 	): Promise<void> {
 		const marketplace = gatedMarketplace('resource-token', metadata, statusCode);
 		requestHandler = options => !gated && options.url === MARKETPLACE_URL
@@ -1207,7 +1208,7 @@ suite('WorkbenchExtensionGalleryManifestService', () => {
 			requests: marketplaceRequests.map(request => ({ url: request.url, authorization: request.headers?.Authorization })),
 			channelCalls: calls,
 			accessToken: await authorizationService.getAccessToken(MARKETPLACE_URL),
-			scopeConfigurationErrors: marketplaceErrors.filter(message => message === SCOPE_CONFIGURATION_ERROR),
+			scopeWarnings: marketplaceWarnings,
 		}, {
 			status: expectedStatus,
 			requests: [
@@ -1220,7 +1221,7 @@ suite('WorkbenchExtensionGalleryManifestService', () => {
 				args: [manifest, undefined, gated ? undefined : MARKETPLACE_URL],
 			})),
 			accessToken: undefined,
-			scopeConfigurationErrors: expectsScopeConfigurationError ? [SCOPE_CONFIGURATION_ERROR] : [],
+			scopeWarnings: expectedScopeWarnings,
 		});
 	}
 
@@ -1274,17 +1275,17 @@ suite('WorkbenchExtensionGalleryManifestService', () => {
 		await assertAnonymousMarketplace(undefined, true);
 	});
 
-	for (const [scenario, metadata, requiresConfiguration] of [
-		['malformed metadata', { authorization_servers: PROTECTED_RESOURCE_METADATA.authorization_servers }, false],
-		['malformed scopes', { ...PROTECTED_RESOURCE_METADATA, scopes_supported: 'openid' }, false],
-		['no authorization server', { ...PROTECTED_RESOURCE_METADATA, authorization_servers: [] }, false],
-		['missing resource scopes', { ...PROTECTED_RESOURCE_METADATA, scopes_supported: undefined }, true],
-		['empty resource scopes', { ...PROTECTED_RESOURCE_METADATA, scopes_supported: [] }, true],
-		['blank resource scopes', { ...PROTECTED_RESOURCE_METADATA, scopes_supported: [' '] }, true],
-		['invalid scope entries', { ...PROTECTED_RESOURCE_METADATA, scopes_supported: [42] }, true],
-		['mixed invalid resource scopes', { ...PROTECTED_RESOURCE_METADATA, scopes_supported: [...PROTECTED_RESOURCE_METADATA.scopes_supported, ''] }, true],
-		['identity-only scopes', { ...PROTECTED_RESOURCE_METADATA, scopes_supported: ['openid', 'profile', 'email', 'offline_access'] }, true],
-		['internal authentication scopes', { ...PROTECTED_RESOURCE_METADATA, scopes_supported: ['VSCODE_CLIENT_ID:11111111-2222-4333-8444-555555555555'] }, true],
+	for (const [scenario, metadata, expectedScopeWarnings] of [
+		['malformed metadata', { authorization_servers: PROTECTED_RESOURCE_METADATA.authorization_servers }, []],
+		['malformed scopes', { ...PROTECTED_RESOURCE_METADATA, scopes_supported: 'openid' }, []],
+		['no authorization server', { ...PROTECTED_RESOURCE_METADATA, authorization_servers: [] }, []],
+		['missing resource scopes', { ...PROTECTED_RESOURCE_METADATA, scopes_supported: undefined }, [SCOPE_CONFIGURATION_WARNING]],
+		['empty resource scopes', { ...PROTECTED_RESOURCE_METADATA, scopes_supported: [] }, [SCOPE_CONFIGURATION_WARNING]],
+		['blank resource scopes', { ...PROTECTED_RESOURCE_METADATA, scopes_supported: [' '] }, [INVALID_SCOPE_WARNING]],
+		['invalid scope entries', { ...PROTECTED_RESOURCE_METADATA, scopes_supported: [42] }, [INVALID_SCOPE_WARNING]],
+		['mixed invalid resource scopes', { ...PROTECTED_RESOURCE_METADATA, scopes_supported: [...PROTECTED_RESOURCE_METADATA.scopes_supported, ''] }, [INVALID_SCOPE_WARNING]],
+		['identity-only scopes', { ...PROTECTED_RESOURCE_METADATA, scopes_supported: ['openid', 'profile', 'email', 'offline_access'] }, [SCOPE_CONFIGURATION_WARNING]],
+		['internal authentication scopes', { ...PROTECTED_RESOURCE_METADATA, scopes_supported: ['VSCODE_CLIENT_ID:11111111-2222-4333-8444-555555555555'] }, [SCOPE_CONFIGURATION_WARNING]],
 	] as const) {
 		for (const gated of [false, true]) {
 			test(`Microsoft - ${gated ? 'gated' : 'open'} index with ${scenario} never uses identity credentials`, async () => {
@@ -1295,7 +1296,7 @@ suite('WorkbenchExtensionGalleryManifestService', () => {
 				const status = gated
 					? ExtensionGalleryManifestStatus.RequiresSignIn
 					: ExtensionGalleryManifestStatus.Available;
-				await assertAnonymousMarketplace(metadata, gated, status, 401, gated && requiresConfiguration);
+				await assertAnonymousMarketplace(metadata, gated, status, 401, expectedScopeWarnings);
 				await accountService.signIn();
 
 				assert.deepStrictEqual(resourceRequests, []);
@@ -1304,20 +1305,20 @@ suite('WorkbenchExtensionGalleryManifestService', () => {
 	}
 
 	for (const statusCode of [400, 401, 500]) {
-		test(`Microsoft - missing scopes diagnose only an authentication gate (${statusCode})`, async () => {
+		test(`Microsoft - missing scope warnings do not change HTTP status handling (${statusCode})`, async () => {
 			configurationService.setUserConfiguration(ExtensionGalleryAuthProviderConfigKey, 'microsoft');
 			microsoftSessions = [createMicrosoftSession('signin-token')];
 			const resourceRequests = stubResourceScopedAuthentication();
 
 			await assertAnonymousMarketplace({ ...PROTECTED_RESOURCE_METADATA, scopes_supported: [] }, true,
 				statusCode === 401 ? ExtensionGalleryManifestStatus.RequiresSignIn : ExtensionGalleryManifestStatus.AccessDenied,
-				statusCode, statusCode === 401);
+				statusCode, [SCOPE_CONFIGURATION_WARNING]);
 
 			assert.deepStrictEqual(resourceRequests, []);
 		});
 	}
 
-	test('Microsoft - a 403 does not diagnose missing scopes or expose identity credentials', async () => {
+	test('Microsoft - a 403 remains denied without exposing identity credentials', async () => {
 		configurationService.setUserConfiguration(ExtensionGalleryAuthProviderConfigKey, 'microsoft');
 		microsoftSessions = [createMicrosoftSession('signin-token')];
 		const resourceRequests = stubResourceScopedAuthentication();
@@ -1329,7 +1330,7 @@ suite('WorkbenchExtensionGalleryManifestService', () => {
 
 		assert.deepStrictEqual({
 			status: service.extensionGalleryManifestStatus,
-			scopeConfigurationErrors: marketplaceErrors.filter(message => message === SCOPE_CONFIGURATION_ERROR),
+			scopeWarnings: marketplaceWarnings,
 			manifest,
 			resourceRequests,
 			requestAuthorizations: marketplaceRequests.map(request => request.headers?.Authorization),
@@ -1337,7 +1338,7 @@ suite('WorkbenchExtensionGalleryManifestService', () => {
 			accessToken: await service.getAccessToken(MARKETPLACE_URL),
 		}, {
 			status: ExtensionGalleryManifestStatus.AccessDenied,
-			scopeConfigurationErrors: [],
+			scopeWarnings: [SCOPE_CONFIGURATION_WARNING],
 			manifest: null,
 			resourceRequests: [],
 			requestAuthorizations: [undefined, undefined],
