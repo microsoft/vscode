@@ -216,6 +216,54 @@ export interface IMarkSessionReadOptions {
 	readonly preserveExplicitUnread?: boolean;
 }
 
+/**
+ * Holds one new-session draft. The draft of the main window's composer is held by
+ * {@link ISessionsManagementService.defaultNewSessionSlot}; a composer elsewhere holds its own in an independent slot
+ * ({@link ISessionsManagementService.createNewSessionSlot}), so its drafts and sends never replace or clear another
+ * composer's draft.
+ */
+export interface INewSessionDraftSlot {
+	readonly id: string;
+	/** The draft this slot holds, or `undefined` when there is none. */
+	readonly newSession: IObservable<ISession | undefined>;
+	/** Creates a draft for the folder and makes it this slot's draft, replacing (and deleting) the previous one. */
+	createNewSession(folderUri: URI, options?: ICreateNewSessionOptions): ISession;
+	/** Creates a workspace-less draft and makes it this slot's draft, replacing (and deleting) the previous one. */
+	createQuickChat(options?: ICreateNewSessionOptions): ISession;
+	/** Discards this slot's draft; when `session` is given, only if it is that draft. */
+	discardNewSession(session?: ISession): void;
+}
+
+/** Options for {@link ISessionsManagementService.createNewSessionSlot}. */
+export interface ICreateNewSessionSlotOptions {
+	/**
+	 * Asked when a foreground request of the slot ends without starting its session, while the slot is live and holds
+	 * no other draft: returning `true` makes the uncreated session the slot's draft again, so the user can retry it.
+	 * Otherwise the session is deleted. Without it, failed requests are never re-adopted.
+	 */
+	readonly readoptOnFailure?: (session: ISession) => boolean;
+}
+
+/** Fired by {@link ISessionsManagementService.onDidAcceptNewSessionRequest}. */
+export interface INewSessionRequestAcceptedEvent {
+	/** The accepted draft; for a foreground request, after its preparation replaced it. */
+	readonly session: ISession;
+	readonly owner: INewSessionDraftSlot;
+	readonly background: boolean;
+}
+
+/** Fired by {@link ISessionsManagementService.onDidEndNewSessionRequest}. */
+export interface INewSessionRequestEndedEvent {
+	/** The request's session, with its final id. */
+	readonly session: ISession;
+	readonly owner: INewSessionDraftSlot;
+	readonly started: boolean;
+	/** Whether the session became its owner's draft again ({@link ICreateNewSessionSlotOptions.readoptOnFailure}). */
+	readonly readopted: boolean;
+	/** Why the request failed, when it failed. */
+	readonly error?: unknown;
+}
+
 export interface ISessionsManagementService {
 	readonly archivedSessionItems: IObservable<IChatSessionItemArchiveState>;
 	acquireArchivedSessionItems(): IDisposable;
@@ -388,6 +436,34 @@ export interface ISessionsManagementService {
 	 * reactively (e.g. the view restores it into the composer slot).
 	 */
 	readonly newSession: IObservable<ISession | undefined>;
+
+	/** The slot of {@link newSession}: {@link createNewSession}, {@link createQuickChat} and {@link discardNewSession}. */
+	readonly defaultNewSessionSlot: INewSessionDraftSlot;
+
+	/**
+	 * Creates an independent new-session draft slot. Disposing it discards its draft, not requests it already sent.
+	 * Its drafts' replacements and discards fire {@link onDidReplaceNewDraftSession} and {@link onDidDiscardNewSession}
+	 * as those of {@link newSession} do.
+	 */
+	createNewSessionSlot(options?: ICreateNewSessionSlotOptions): INewSessionDraftSlot & IDisposable;
+
+	/**
+	 * The slot that owns a session: a draft of the slot (also while {@link onDidDiscardNewSession} fires for it), or a
+	 * request accepted from it until {@link onDidEndNewSessionRequest} fires. Follows the session's replacements.
+	 */
+	getNewSessionOwner(sessionId: string): INewSessionDraftSlot | undefined;
+
+	/**
+	 * Fires synchronously when {@link sendNewChatRequest} accepts a slot's draft, before the slot lets go of it: for a
+	 * background request when it is dispatched, for a foreground request after its preparation.
+	 */
+	readonly onDidAcceptNewSessionRequest: Event<INewSessionRequestAcceptedEvent>;
+
+	/**
+	 * Fires once for each request {@link onDidAcceptNewSessionRequest} fired for, when it started its session, failed or
+	 * was cancelled. A failure of a request from an independent slot is reported here, not as a notification.
+	 */
+	readonly onDidEndNewSessionRequest: Event<INewSessionRequestEndedEvent>;
 
 	/**
 	 * Observable for the Automation dialog's in-progress session draft. This is
