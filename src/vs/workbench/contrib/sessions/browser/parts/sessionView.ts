@@ -16,18 +16,20 @@ import { IAgentsWindowDraft } from '../../../../../platform/window/common/window
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { IContextKey, IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IThemeService } from '../../../../../platform/theme/common/themeService.js';
-import { IActiveSession } from '../../common/sessionsManagement.js';
-import { IChat } from '../../common/session.js';
+import { IPaneViewState, ISessionPaneContent } from '../../common/sessionsManagement.js';
+import { IChat, ISession, isSessionCreated } from '../../common/session.js';
 import { ISelectNoWorkspaceOptions, ISelectWorkspaceOptions, WorkspaceSelectionResult } from '../../common/workspaceSelection.js';
 import { AbstractChatView, IChatViewOptions, ISessionViewHostOptions } from './chatView.js';
 import { ChatGroupsView } from './chatGroupsView.js';
 import { SessionHeader, SessionViewFloatingToolbar } from './sessionHeader.js';
 import { ChatViewSessionActivityBar } from './sessionActivityBar.js';
-import { ActiveSessionHost, createSessionHostServices, ISessionHost, ISessionHostService, SessionHostKind } from '../sessionHost.js';
-import { autorun, derived, disposableObservableValue, IObservable, observableValue, runOnChange } from '../../../../../base/common/observable.js';
+import { createSessionHostServices, ISessionHost, ISessionHostService, SessionHost, SessionHostKind } from '../sessionHost.js';
+import { autorun, derived, disposableObservableValue, IObservable, observableValue, runOnChange, transaction } from '../../../../../base/common/observable.js';
+import { ISessionGridPane, paneShownOfSession } from '../sessionGridPane.js';
+import { ISessionsService } from '../sessionsService.js';
 import { SessionIsMaximizedContext } from '../../common/contextkeys.js';
 import { AGENTS_CENTERED_CONTENT_MAX_WIDTH } from '../../common/layoutConstants.js';
-import { setActiveSessionContextKeys } from '../../common/sessionContextKeys.js';
+import { setHostSessionContextKeys } from '../../common/sessionContextKeys.js';
 import { ISessionChangesStatsCache } from '../../common/sessionChangesStatsCache.js';
 import { applySessionViewThemeColors } from './sessionBarStyles.js';
 import { IChatViewFactory } from '../chatViewFactory.js';
@@ -80,8 +82,8 @@ export class SessionView extends Disposable implements ISerializableView, ISessi
 	private _contentGap = 0;
 
 	private _openSessionDisposables = this._register(new DisposableStore());
-	private _currentSession: IActiveSession | undefined;
-	private _hasOpenedSession = false;
+	/** What it binds: the pane of the grid it shows and that pane's session, or (deprecated) a view of a session. */
+	private _bound: { readonly pane: ISessionGridPane | undefined; readonly session: ISession | undefined } | undefined;
 
 	private readonly _sessionIsMaximizedKey: IContextKey<boolean>;
 	private readonly _scopedContextKeyService: IContextKeyService;
@@ -99,7 +101,16 @@ export class SessionView extends Disposable implements ISerializableView, ISessi
 	/** Whether this leaf is visible within the part's internal grid. */
 	private _isLeafVisible = true;
 
-	private readonly _sessionObs = observableValue<IActiveSession | undefined>(this, undefined);
+	/** The provider's session the pane it shows shows. */
+	private readonly _sessionObs = observableValue<ISession | undefined>(this, undefined);
+	private readonly _chatObs = observableValue<IObservable<IChat | undefined> | undefined>(this, undefined);
+	/** The chat the pane it shows shows: a slot's active tab, a detached pane's chat. */
+	private readonly _paneChat = derived(this, reader => this._chatObs.read(reader)?.read(reader));
+	private readonly _paneObs = observableValue<ISessionGridPane | undefined>(this, undefined);
+	/** The pane of the grid it shows, while it shows one. */
+	readonly pane: IObservable<ISessionGridPane | undefined> = this._paneObs;
+	/** The content of the pane it shows: the provider's session, its chat and the pane's state. */
+	private readonly _contentObs = observableValue<ISessionPaneContent | undefined>(this, undefined);
 	/** The host of what this view shows, nested in the host of its window. */
 	readonly host: ISessionHost;
 	private readonly _isVisibleObs = observableValue(this, true);
@@ -136,6 +147,7 @@ export class SessionView extends Disposable implements ISerializableView, ISessi
 		@ISessionChangesStatsCache private readonly _changesStatsCache: ISessionChangesStatsCache,
 		@ISessionHost parentHost: ISessionHost,
 		@ISessionHostService sessionHostService: ISessionHostService,
+		@ISessionsService private readonly _sessionsService: ISessionsService,
 	) {
 		super();
 
@@ -154,7 +166,14 @@ export class SessionView extends Disposable implements ISerializableView, ISessi
 
 		// Scoped service exposing this view's session so toolbars and contributed
 		// action view items (e.g. the changes diff stats in the header) can read it.
-		this.host = new ActiveSessionHost({ kind: SessionHostKind.Pane, parent: parentHost, session: this._sessionObs, contextKeyService: scopedContextKeyService });
+		// The host shows the session the grid's view of it is a view of: the one object every host of the session shows.
+		this.host = new SessionHost({
+			kind: SessionHostKind.Pane,
+			parent: parentHost,
+			session: this._sessionObs,
+			chat: this._paneChat,
+			contextKeyService: scopedContextKeyService,
+		});
 		this._register(sessionHostService.registerHost(this.host));
 		this._scopedInstantiationService = this._scopedServices.add(instantiationService.createChild(createSessionHostServices(scopedContextKeyService, this.host)));
 
@@ -214,29 +233,58 @@ export class SessionView extends Disposable implements ISerializableView, ISessi
 			const session = this._sessionObs.read(reader);
 			const groupCount = this._groupsView.groupCount.read(reader);
 			const showChatAsSessionView = this._groupsView.showChatAsSessionView.read(reader);
-			const tabsReplaceHeader = (session?.isCreated.read(reader) ?? false)
+			const tabsReplaceHeader = (isSessionCreated(session, reader))
 				&& !showChatAsSessionView
-				&& (groupCount > 1 || (session?.shouldShowChatTabs.read(reader) ?? false));
+				&& (groupCount > 1 || (this._contentObs.read(reader)?.state.tabs.shouldShowChatTabs.read(reader) ?? false));
 			this._header.setVisible((this._hostOptions?.showHeader ?? true) && !tabsReplaceHeader && !(showChatAsSessionView && groupCount > 1));
 			this._groupsView.setSingleGroupTabsReplaceHeader(tabsReplaceHeader);
 			this.element.classList.toggle('tabs-replace-header', tabsReplaceHeader);
 		}));
 	}
 
-	openSession(session: IActiveSession | undefined, options: ISessionViewOptions): void {
-		if (this._hasOpenedSession && this._currentSession === session) {
+	/**
+	 * Shows `pane`, a pane of the grid: the session it shows, which it binds again as the pane shows another session, such as
+	 * a replacement of it, and the chat and state of the pane, which it follows. The new-session composer while `pane` shows
+	 * no session.
+	 */
+	openPane(pane: ISessionGridPane | undefined, options: ISessionViewOptions): void {
+		const session = pane?.session.get();
+		if (this._bound && this._bound.pane === pane && this._bound.session === session) {
 			return;
 		}
-		options = { ...options, hostVisible: this._isVisibleObs, session: this._sessionObs };
-		this._hasOpenedSession = true;
-		this._currentSession = session;
-		this._sessionObs.set(session, undefined);
+		// What the pane shows of this session: a session opened over it in the pane changes neither until it is bound.
+		const shown = pane && session ? paneShownOfSession(pane, session) : undefined;
+		this._bind(pane, session, shown?.chat ?? pane?.chat, shown?.state, options);
+	}
+
+	private _bind(pane: ISessionGridPane | undefined, session: ISession | undefined, chat: IObservable<IChat | undefined> | undefined, state: IPaneViewState | undefined, options: ISessionViewOptions): void {
+		const bound = this._bound = { pane, session };
+		options = { ...options, hostVisible: this._isVisibleObs, session: this._sessionObs, chat: this._paneChat };
+		// Closing closes this view's pane of the grid, while the view still shows this content: a content kept past a rebind,
+		// or past its pane leaving the grid, closes nothing.
+		const content: ISessionPaneContent | undefined = session && state && {
+			session,
+			chat: derived(reader => chat?.read(reader) ?? session.mainChat.read(reader)),
+			state,
+			close: () => {
+				const pane = this._contentObs.get() === content ? this._sessionsService.getPaneOfHost(this.host) : undefined;
+				if (pane) {
+					this._sessionsService.closePane(pane);
+				}
+			},
+		};
+		transaction(tx => {
+			this._paneObs.set(pane, tx);
+			this._sessionObs.set(session, tx);
+			this._chatObs.set(chat, tx);
+			this._contentObs.set(content, tx);
+		});
 		this._openSessionDisposables.clear();
 
-		this._openSessionDisposables.add(this._handleContextKeys(session));
+		this._openSessionDisposables.add(this._handleContextKeys(content));
 
-		this._header.setSession(session);
-		if (session && !session.isCreated.get()) {
+		this._header.setSession(content);
+		if (session && content && !isSessionCreated(session)) {
 			this._groupsView.setSession(undefined, options);
 			let view = this._standaloneView.get();
 			if (!view || view.kind !== 'newSession') {
@@ -251,12 +299,12 @@ export class SessionView extends Disposable implements ISerializableView, ISessi
 			let restoreComposerFocus = false;
 			const hasPreparationProgress = derived(reader => !!session.preparationProgress?.read(reader));
 			this._openSessionDisposables.add(autorun(reader => {
-				if (this._currentSession !== session) {
+				if (this._bound !== bound) {
 					return;
 				}
-				if (session.isCreated.read(reader)) {
+				if (isSessionCreated(session, reader)) {
 					const moveFocus = restoreComposerFocus || isAncestorOfActiveElement(view.element);
-					this._showSessionGroups(session, options);
+					this._showSessionGroups(content, options);
 					if (moveFocus) {
 						this._groupsView.focus();
 					}
@@ -292,8 +340,8 @@ export class SessionView extends Disposable implements ISerializableView, ISessi
 					}
 				}
 			}));
-		} else if (session) {
-			this._showSessionGroups(session, options);
+		} else if (content) {
+			this._showSessionGroups(content, options);
 		} else {
 			this._groupsView.setSession(undefined, options);
 			let view = this._standaloneView.get();
@@ -307,14 +355,14 @@ export class SessionView extends Disposable implements ISerializableView, ISessi
 			view.setActive(this._isActive);
 			view.setVisible(this._isVisible);
 		}
-		this._floatingToolbar.setSession(session);
+		this._floatingToolbar.setSession(content?.session);
 		this._layoutChildren();
 	}
 
-	private _showSessionGroups(session: IActiveSession, options: ISessionViewOptions): void {
+	private _showSessionGroups(content: ISessionPaneContent, options: ISessionViewOptions): void {
 		this._standaloneView.set(undefined, undefined);
 		this._contentContainer.replaceChildren(this._groupsView.element);
-		this._groupsView.setSession(session, options);
+		this._groupsView.setSession(content, options);
 		this._layoutChildren();
 	}
 
@@ -322,12 +370,12 @@ export class SessionView extends Disposable implements ISerializableView, ISessi
 		return this._preparationView.get() ?? this._standaloneView.get();
 	}
 
-	private _handleContextKeys(session: IActiveSession | undefined): IDisposable {
+	private _handleContextKeys(content: ISessionPaneContent | undefined): IDisposable {
 		// A single autorun re-applies every session-derived context key on the
 		// scoped service whenever the session's observable properties change.
 		// Passing `undefined` resets the keys to their defaults.
 		return autorun(reader => {
-			setActiveSessionContextKeys(session, this._scopedContextKeyService, reader, this._changesStatsCache);
+			setHostSessionContextKeys(content?.session, content?.chat.read(reader), content?.state, this._scopedContextKeyService, reader, this._changesStatsCache);
 		});
 	}
 
@@ -462,8 +510,9 @@ export class SessionView extends Disposable implements ISerializableView, ISessi
 		return this._groupsView.closeChatGroup(chatResource);
 	}
 
-	getSession(): IActiveSession | undefined {
-		return this._currentSession;
+	/** The provider's session it shows. */
+	getSession(): ISession | undefined {
+		return this._sessionObs.get();
 	}
 
 	selectWorkspace(folderUri: URI, options?: ISelectWorkspaceOptions): WorkspaceSelectionResult {

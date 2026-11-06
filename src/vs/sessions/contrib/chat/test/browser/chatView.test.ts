@@ -65,10 +65,11 @@ import { ChatContextKeys } from '../../../../../workbench/contrib/chat/common/ac
 import { workbenchInstantiationService } from '../../../../../workbench/test/browser/workbenchTestServices.js';
 import { renderChatRequestTimestamp } from '../../../../../workbench/contrib/chat/browser/widget/chatListRenderer.js';
 import { MODE_PERMISSIONS_PICKER_OPEN_ATTRIBUTE } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostModePickerPresentation.js';
-import { IActiveSession, ISessionsManagementService } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
+import { ISessionsManagementService } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import { ChatInteractivity, IChat, ISession, ISessionPreparationProgress, SessionStatus } from '../../../../../workbench/contrib/sessions/common/session.js';
 import { ISessionComparison, SessionComparisonParticipantRole } from '../../../../../workbench/contrib/sessions/common/sessionComparison.js';
 import { ISessionsProvidersChangeEvent, ISessionsProvidersService, observeSessionSandboxToggle } from '../../../../../workbench/contrib/sessions/browser/sessionsProvidersService.js';
+import { ISessionHost } from '../../../../../workbench/contrib/sessions/browser/sessionHost.js';
 import { ISessionsService } from '../../../../../workbench/contrib/sessions/browser/sessionsService.js';
 import { SessionsChatBackgroundRenderer, SessionsChatBackgroundReplica } from '../../../../../workbench/contrib/sessions/browser/chatBackgroundRenderer.js';
 import { ISessionsChatBackground } from '../../../../../workbench/contrib/sessions/browser/chatBackgroundService.js';
@@ -92,7 +93,7 @@ import { ISelectWorkspaceOptions } from '../../../../../workbench/contrib/sessio
 import { AbstractChatView } from '../../../../../workbench/contrib/sessions/browser/parts/chatView.js';
 import { SessionView } from '../../../../../workbench/contrib/sessions/browser/parts/sessionView.js';
 import { IChatViewFactory } from '../../../../../workbench/contrib/sessions/browser/chatViewFactory.js';
-import { createSessionViewTestServices, createTestActiveSession } from '../../../../test/browser/sessionViewTestUtils.js';
+import { createSessionViewTestServices, createTestActiveSession, testPaneOf } from '../../../../test/browser/sessionViewTestUtils.js';
 import '../../../../../workbench/contrib/sessions/browser/parts/media/chatCompositeBar.css';
 import '../../../../../workbench/contrib/sessions/browser/parts/media/chatGroupsView.css';
 import '../../../../../workbench/contrib/sessions/browser/parts/media/sessionView.css';
@@ -102,6 +103,7 @@ import '../../../../../workbench/contrib/sessions/browser/chat/media/chatWidget.
 import '../../../../../workbench/contrib/sessions/browser/chat/media/chatView.css';
 import '../../../../../workbench/contrib/sessions/browser/chat/media/newChatInSession.css';
 import '../../../../../workbench/contrib/chat/browser/promptTimeline/media/promptTimeline.css';
+import { ITestSessionWithChat, withCreatedStatus } from '../../../../../workbench/contrib/sessions/test/browser/sessionHostTestUtils.js';
 
 suite('Sessions - Chat View', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
@@ -2052,7 +2054,7 @@ suite('Sessions - Chat View', () => {
 			}());
 			sinon.stub(instantiationService.get(IChatViewFactory), 'createChatView').returns(leaf);
 			const mounted = disposables.add(instantiationService.createInstance(SessionView, undefined));
-			mounted.openSession(createTestActiveSession('failed'), {});
+			mounted.openPane(testPaneOf(createTestActiveSession('failed')), {});
 			await fail(0, new Error('Provider unavailable'));
 			leaf.isInputBlocked.set(true, undefined);
 			leaf.isInputBlocked.set(false, undefined);
@@ -2659,7 +2661,7 @@ suite('Sessions - Chat View', () => {
 		// Another chat of the session is active, such as one open in another group.
 		const activeChat = upcastPartial<IChat>({ resource: URI.parse('chat:/active-elsewhere') });
 		const sessionsService = new class extends mock<ISessionsService>() {
-			readonly activeSession = constObservable<IActiveSession | undefined>(upcastPartial<IActiveSession>({ sessionId: 'session', activeChat: constObservable(activeChat), mainChat: constObservable(activeChat), isCreated: constObservable(false) }));
+			readonly activeSession = constObservable<ITestSessionWithChat | undefined>(upcastPartial<ITestSessionWithChat>({ sessionId: 'session', activeChat: constObservable(activeChat), mainChat: constObservable(activeChat), ...withCreatedStatus(constObservable(false)) }));
 		}();
 		const widget = disposables.add(new NewChatInSessionWidget(
 			{ session: sessionsService.activeSession },
@@ -2676,6 +2678,7 @@ suite('Sessions - Chat View', () => {
 			new TestAccessibilityService(),
 			new class extends mock<IFileService>() { }(),
 			new SessionsChatViewStateService(),
+			upcastPartial<ISessionHost>({}),
 		));
 		const beforeChat = inputOptions?.chat?.get();
 		const view: NewChatView = Object.assign(Object.create(NewChatView.prototype), { _widget: widget });
@@ -2708,7 +2711,7 @@ suite('Sessions - Chat View', () => {
 						: input) as IInstantiationService['createInstance'];
 				}();
 				const sessionsService = new class extends mock<ISessionsService>() {
-					readonly activeSession = constObservable<IActiveSession | undefined>(undefined);
+					readonly activeSession = constObservable<ITestSessionWithChat | undefined>(undefined);
 				}();
 				const widget = disposables.add(new NewChatInSessionWidget(
 					{ session: sessionsService.activeSession },
@@ -2725,6 +2728,7 @@ suite('Sessions - Chat View', () => {
 					new TestAccessibilityService(),
 					new class extends mock<IFileService>() { }(),
 					viewStateService,
+					upcastPartial<ISessionHost>({}),
 				));
 				return {
 					widget,
@@ -5278,7 +5282,7 @@ suite('Sessions - Chat View', () => {
 		const preparationModel = disposables.add(new MutableDisposable<ChatModel>());
 		const progressCalls: Parameters<ChatWidget['setTranscriptProgress']>[] = [];
 		const view: {
-			_showPreparationInput(input: Pick<ISendRequestOptions, 'query' | 'attachedContext'>, session: ISession): void;
+			_showPreparationInput(input: Pick<ISendRequestOptions, 'query' | 'attachedContext'>, session: ISession, chat: IChat): void;
 			_setupTranscriptPreparationProgress(model: IObservable<IChatModel | undefined>): void;
 			_saveCurrentViewState(): void;
 		} = Object.assign(Object.create(ChatView.prototype), {
@@ -5296,7 +5300,7 @@ suite('Sessions - Chat View', () => {
 		});
 		view._setupTranscriptPreparationProgress(chatModel);
 		const attachment = { kind: 'file' as const, id: 'readme', name: 'README.md', value: URI.file('/workspace/README.md') };
-		view._showPreparationInput({ query: 'Review this file\nand explain it.', attachedContext: [attachment] }, session);
+		view._showPreparationInput({ query: 'Review this file\nand explain it.', attachedContext: [attachment] }, session, upcastPartial<IChat>({ modelId: constObservable(undefined) }));
 		const model = preparationModel.value!;
 		const request = model.getRequests()[0];
 		preparationProgress.set({ message: 'Starting Dev Container', cancel: () => { } }, undefined);
@@ -5369,7 +5373,7 @@ suite('Sessions - Chat View', () => {
 				getIntentHolder: () => preparationModel.value!.inputModel,
 				applyModel: () => { },
 			}));
-			const view: { _showPreparationInput(input: Pick<ISendRequestOptions, 'query' | 'attachedContext'>, session: ISession): void } = Object.assign(Object.create(ChatView.prototype), {
+			const view: { _showPreparationInput(input: Pick<ISendRequestOptions, 'query' | 'attachedContext'>, session: ISession, chat: IChat): void } = Object.assign(Object.create(ChatView.prototype), {
 				instantiationService,
 				sessionsProvidersService: { getProvider: () => provider },
 				_preparationModel: preparationModel,
@@ -5385,7 +5389,8 @@ suite('Sessions - Chat View', () => {
 				},
 			});
 
-			view._showPreparationInput({ query: 'Hi' }, session);
+			// The preparation shows the model of the chat being prepared.
+			view._showPreparationInput({ query: 'Hi' }, session, upcastPartial<IChat>({ modelId: session.modelId }));
 			const beforeRefresh = controller.currentModel.get()?.identifier;
 			controller.reconcileModelListChange(filterModelsForSession(models, getChatSessionType(preparationModel.value!.sessionResource), ChatModeKind.Ask, ChatAgentLocation.Chat));
 			assert.deepStrictEqual({

@@ -22,6 +22,7 @@ import { ChatInteractivity, ChatOriginKind, IChat, ISession, SessionStatus } fro
 import { ISessionsManagementService } from '../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import { ISessionHostService } from '../../../../workbench/contrib/sessions/browser/sessionHost.js';
 import { createAndSendSideChat } from './sideChatOrchestration.js';
+import { readPaneSessions } from '../../../../workbench/contrib/sessions/browser/sessionGridPane.js';
 
 const SIDE_CHAT_SOURCE_REVEAL_TIMEOUT = 2_000;
 
@@ -139,11 +140,7 @@ export class SessionsSideChatProviderContribution extends Disposable implements 
 	}
 
 	private _resolveSessionChat(sessionResource: URI, reader?: IReader): { session: ISession; chat: IChat } | undefined {
-		const visibleSessions = reader ? this.sessionsService.visibleSessions.read(reader) : this.sessionsService.visibleSessions.get();
-		for (const session of visibleSessions) {
-			if (!session) {
-				continue;
-			}
+		for (const session of readPaneSessions(this.sessionsService.slotPanes, reader)) {
 
 			const chats = reader ? session.chats.read(reader) : session.chats.get();
 			const chat = chats.find(chat => this.uriIdentityService.extUri.isEqual(chat.resource, sessionResource));

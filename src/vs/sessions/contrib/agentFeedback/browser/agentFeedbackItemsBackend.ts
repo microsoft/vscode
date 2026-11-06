@@ -399,7 +399,8 @@ export class AnnotationsAgentFeedbackItemsBackend extends Disposable implements 
 			if (activeSession) {
 				visible.add(activeSession.resource.toString());
 			}
-			for (const session of this._sessionsService.visibleSessionPanes.read(reader)) {
+			for (const pane of this._sessionsService.panes.read(reader)) {
+				const session = pane.session.read(reader);
 				if (session) {
 					visible.add(session.resource.toString());
 				}

@@ -23,11 +23,11 @@ import { SessionsWelcomeVisibleContext } from '../../../../../workbench/contrib/
 import { NewSessionOnboardingHandoffContext } from '../../../../common/agentsWindowContextKeys.js';
 import { ISessionsService } from '../../../../../workbench/contrib/sessions/browser/sessionsService.js';
 import { ISession, SessionStatus } from '../../../../../workbench/contrib/sessions/common/session.js';
-import { IActiveSession, ISessionsManagementService } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
+import { ISessionsManagementService } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import { ParallelTasksTourContribution } from '../../browser/parallelTasksTourContribution.js';
 import { NEW_SESSION_ONBOARDING_SEEN_KEY } from '../../browser/tours/newSessionTour.js';
 import { createParallelTasksTour, PARALLEL_TASKS_ONBOARDING_SEEN_KEY, PARALLEL_TASKS_TOUR_ID } from '../../browser/tours/parallelTasksTour.js';
-import { focusedSessionHostServiceOf } from '../../../../../workbench/contrib/sessions/test/browser/sessionHostTestUtils.js';
+import { focusedSessionHostServiceOf, ITestSessionWithChat } from '../../../../../workbench/contrib/sessions/test/browser/sessionHostTestUtils.js';
 
 suite('ParallelTasksTour', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
@@ -37,7 +37,7 @@ suite('ParallelTasksTour', () => {
 		const isCreated = observableValue('isCreated', true);
 		const isArchived = observableValue('isArchived', false);
 		const isAutomation = observableValue('isAutomation', false);
-		const session = new class extends mock<IActiveSession>() {
+		const session = new class extends mock<ITestSessionWithChat>() {
 			override readonly sessionId = id;
 			override readonly status = status;
 			override readonly isCreated = isCreated;
@@ -54,7 +54,7 @@ suite('ParallelTasksTour', () => {
 			usage.recordSessionCreated();
 		}
 		const started = disposables.add(new Emitter<ISession>());
-		const activeSession = observableValue<IActiveSession | undefined>('activeSession', undefined);
+		const activeSession = observableValue<ITestSessionWithChat | undefined>('activeSession', undefined);
 		const initialRestoreComplete = observableValue('initialRestoreComplete', true);
 		const contribution = disposables.add(new ParallelTasksTourContribution(
 			new class extends mock<ISessionsManagementService>() {
@@ -70,7 +70,7 @@ suite('ParallelTasksTour', () => {
 		));
 		const scenario = onboardingScenarioRegistry.getScenario(PARALLEL_TASKS_TOUR_ID)!;
 		const triggered = () => scenario.trigger.kind === 'observable' && scenario.trigger.signal.get();
-		const start = (session: IActiveSession) => {
+		const start = (session: ITestSessionWithChat) => {
 			activeSession.set(session, undefined);
 			started.fire(session);
 		};
@@ -199,7 +199,7 @@ suite('ParallelTasksTour', () => {
 				case 'completed': session.status.set(SessionStatus.Completed, undefined); break;
 				case 'archived': session.isArchived.set(true, undefined); break;
 				case 'automation': session.isAutomation.set(true, undefined); break;
-				case 'draft': session.isCreated.set(false, undefined); break;
+				case 'draft': session.status.set(SessionStatus.Untitled, undefined); break;
 				case 'navigatedAway': activeSession.set(createSession('other').session, undefined); break;
 				case 'disposed': contribution.dispose(); break;
 			}

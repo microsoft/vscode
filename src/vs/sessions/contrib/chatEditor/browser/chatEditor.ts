@@ -23,7 +23,7 @@ import { decideStackedChatInputOnlyWhileDragging } from '../../../../workbench/c
 import { ChatWindowLayoutMode } from '../../../../workbench/contrib/chatWindow/common/chatWindowLayout.js';
 import { AbstractChatView, ISessionViewHostOptions } from '../../../../workbench/contrib/sessions/browser/parts/chatView.js';
 import { ChatEditorContent } from './chatEditorContent.js';
-import { IActiveSession } from '../../../../workbench/contrib/sessions/common/sessionsManagement.js';
+import { ISessionPaneContent } from '../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { URI } from '../../../../base/common/uri.js';
@@ -58,8 +58,11 @@ export interface IChatEditorWindow {
 
 /** What a chat editor shows, and the window it shows in, as whoever opens its editor gives it. */
 export interface ISessionChatViewHost {
-	/** The chat it shows, as a session of its own scoped to that chat (its active chat), once the chat is known. */
-	readonly session: IObservable<IActiveSession | undefined>;
+	/**
+	 * What its pane shows, once the chat is known: the provider's session, the chat, and how its pane closes, which closes the
+	 * chat in the window it shows in.
+	 */
+	readonly content: IObservable<ISessionPaneContent | undefined>;
 	/** The window the view shows in, once it shows. */
 	readonly window: IObservable<IChatEditorWindow | undefined>;
 	/** Whether its chat is the active one of its window: only that one shows the Session Activity Bar, also beside its window's chat. */
@@ -307,7 +310,7 @@ export class ChatEditorView extends Disposable implements IViewEditorView {
 			return;
 		}
 		this._register(host.attach(sessionView));
-		this._register(autorun(reader => sessionView.setSession(host.session.read(reader))));
+		this._register(autorun(reader => sessionView.setContent(host.content.read(reader))));
 		// Without the chat, such as while its window shows only its main part, or while another editor beside it, as a tab,
 		// shows, its view is hidden; as with what hosts it hidden, its Session Activity Bar can still show outside of it.
 		this._register(autorun(reader => {

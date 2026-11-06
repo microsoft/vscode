@@ -19,6 +19,7 @@ import { ISessionsManagementService } from '../../../../workbench/contrib/sessio
 import { BlockedSessionReason, BlockedSessions, describeBlockedSessions, IBlockedSession } from '../../../../workbench/contrib/sessions/browser/blockedSessions.js';
 import { BlockedSessionsCIFixModel } from './blockedSessionsCIFixModel.js';
 import { getFirstApprovalAcrossChats, IApprovedSession } from '../../../../workbench/contrib/sessions/browser/views/sessionsList.js';
+import { readPaneSessions } from '../../../../workbench/contrib/sessions/browser/sessionGridPane.js';
 
 const LOG_PREFIX = '[BlockedSessionsIndicator]';
 const IGNORED_OCCURRENCES_STORAGE_KEY = 'sessions.blockedIndicator.ignoredOccurrences';
@@ -172,10 +173,8 @@ export class BlockedSessionsIndicatorModel extends Disposable {
 			}
 			const providerIds = scopedProviderIds.read(reader);
 			const visibleSessionIds = new Set<string>();
-			for (const session of this._sessionsService.visibleSessions.read(reader)) {
-				if (session) {
-					visibleSessionIds.add(session.sessionId);
-				}
+			for (const session of readPaneSessions(this._sessionsService.slotPanes, reader)) {
+				visibleSessionIds.add(session.sessionId);
 			}
 			const ignoredOccurrences = this._ignoredBlockOccurrences.read(reader);
 			// Sessions whose CI fix is being submitted in the background are hidden
@@ -223,7 +222,7 @@ export class BlockedSessionsIndicatorModel extends Disposable {
 			}
 			const blockedSessions = this._blockedSessionsModel.blockedSessionsWithReasons.read(reader);
 			const blockedById = new Map(blockedSessions.map(entry => [entry.session.sessionId, entry] as const));
-			const visibleSessionIds = new Set(this._sessionsService.visibleSessions.read(reader).filter(session => session !== undefined).map(session => session.sessionId));
+			const visibleSessionIds = new Set(readPaneSessions(this._sessionsService.slotPanes, reader).map(session => session.sessionId));
 			const ignoredOccurrences = this._ignoredBlockOccurrences.read(reader);
 			const sessionsById = new Map(ignoredOccurrences.size > 0 ? allSessions.read(reader).map(session => [session.sessionId, session] as const) : []);
 			const next = new Map(ignoredOccurrences);

@@ -7,7 +7,8 @@ import './media/chatWindow.css';
 import { raceTimeout, timeout } from '../../../../base/common/async.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { Disposable, DisposableMap, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
-import { autorun, constObservable, derived, disposableObservableValue, IObservable, IReader, ISettableObservable, observableFromEvent, observableSignalFromEvent, observableValue, waitForState } from '../../../../base/common/observable.js';
+import { autorun, constObservable, derived, IObservable, IReader, ISettableObservable, observableFromEvent, observableSignalFromEvent, observableValue, waitForState } from '../../../../base/common/observable.js';
+import { onUnexpectedError } from '../../../../base/common/errors.js';
 import { isEqual } from '../../../../base/common/resources.js';
 import { DeepPartial } from '../../../../base/common/types.js';
 import { URI } from '../../../../base/common/uri.js';
@@ -35,11 +36,11 @@ import { CustomViewVisibleContext } from '../../../common/agentsWindowContextKey
 import { AGENTS_FLOATING_PANEL_GAP } from '../../../../workbench/contrib/sessions/common/layoutConstants.js';
 import { SESSION_ACTIVITY_BAR_SETTING } from '../../../../workbench/contrib/sessions/common/sessionConfig.js';
 import { SessionsChatSurface } from '../../../../workbench/contrib/sessions/browser/sessionsChatSurface.js';
-import { ActiveSessionHost, bindSessionHostScopeContext, getMainWindowHost, ISessionHost, ISessionHostService, SessionHostKind } from '../../../../workbench/contrib/sessions/browser/sessionHost.js';
+import { bindSessionHostScopeContext, getMainWindowHost, ISessionHost, ISessionHostService, SessionHost, SessionHostKind } from '../../../../workbench/contrib/sessions/browser/sessionHost.js';
 import { ISessionsService } from '../../../../workbench/contrib/sessions/browser/sessionsService.js';
 import { IChatHostOpenerService } from '../../../../workbench/contrib/sessions/browser/chatHostOpener.js';
 import { IChat, ISession } from '../../../../workbench/contrib/sessions/common/session.js';
-import { IActiveSession, ISessionsManagementService } from '../../../../workbench/contrib/sessions/common/sessionsManagement.js';
+import { ISessionPaneContent, ISessionsManagementService } from '../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import { bindSessionScopeContextKeys } from '../../../../workbench/contrib/sessions/browser/changes/sessionActionsHost.js';
 import { SessionChangesEditorFileListContext } from '../../../../workbench/contrib/sessions/common/changes.js';
 import { IChangesViewService } from '../../../../workbench/contrib/sessions/common/changesViewService.js';
@@ -48,7 +49,6 @@ import { CHAT_WINDOWS_ENABLED_SETTING } from '../common/chatWindows.js';
 import { ChatModelHold, chatWindowTitle, isChatWindowChatGone } from './chatWindowOpening.js';
 import { ChatEditorInput, ISessionChatViewHost, registerSessionChatViewHost } from '../../chatEditor/browser/chatEditor.js';
 import { ChatEditorContent } from '../../chatEditor/browser/chatEditorContent.js';
-import { VisibleSession } from '../../../../workbench/contrib/sessions/browser/visibleSessions.js';
 
 /** The class of the element of an Agents chat window. */
 export const AGENTS_CHAT_WINDOW_CLASS = 'agents-chat-window';
@@ -118,9 +118,10 @@ function resolveChat(sessionsManagementService: ISessionsManagementService, reso
 }
 
 /**
- * One chat of a chat window: its editor, and the chat's session scoped to the chat, which its editor shows and the window
- * acts on while it is the window's active chat. The session follows the chat, such as when it is replaced or the chat
- * moves to another session; the chat ends, and leaves the window, once it is deleted or archived.
+ * One chat of a chat window: its editor, and the provider's session of the chat, which its editor shows and the window
+ * acts on while it is the window's active chat. It observes the session without owning it, and follows the chat, such as
+ * when its session is replaced or the chat moves to another session; the chat ends, and leaves the window, once it is
+ * deleted or archived.
  */
 class SessionsChatWindowChat extends Disposable implements IChatWindowChat, ISessionChatViewHost {
 
@@ -131,13 +132,15 @@ class SessionsChatWindowChat extends Disposable implements IChatWindowChat, ISes
 	private readonly _onDidEnd = this._register(new Emitter<void>());
 	readonly onDidEnd = this._onDidEnd.event;
 	private _ended = false;
+	private _disposed = false;
 
-	private readonly _session = this._register(disposableObservableValue<VisibleSession | undefined>(this, undefined));
-	readonly session: IObservable<IActiveSession | undefined> = this._session;
+	/** The provider's session of the chat, and the chat, once known. */
+	private readonly _shown = observableValue<{ readonly session: ISession; readonly chat: IChat } | undefined>(this, undefined);
+	readonly session: IObservable<ISession | undefined> = derived(this, reader => this._shown.read(reader)?.session);
+	readonly shownChat: IObservable<IChat | undefined> = derived(this, reader => this._shown.read(reader)?.chat);
+	readonly content: IObservable<ISessionPaneContent | undefined>;
 	/** The session the chat was last known in, so that its end is known while the session no longer lists it. */
 	private _knownSession: ISession | undefined;
-	/** The session and chat {@link session} is scoped to. */
-	private _scopedTo: { readonly session: ISession; readonly chat: IChat } | undefined;
 
 	private readonly _onWillDispose = this._register(new Emitter<void>());
 	readonly onWillDispose = this._onWillDispose.event;
@@ -159,15 +162,20 @@ class SessionsChatWindowChat extends Disposable implements IChatWindowChat, ISes
 		@ISessionsManagementService private readonly _sessionsManagementService: ISessionsManagementService,
 		@IChatService chatService: IChatService,
 		@ISessionsService private readonly _sessionsService: ISessionsService,
+		@IChatHostOpenerService private readonly _chatHostOpenerService: IChatHostOpenerService,
 	) {
 		super();
 		this.chat = observableValue<URI>(this, chatResource);
+		this.content = derived(this, reader => {
+			const shown = this._shown.read(reader);
+			return shown && this._contentOf(shown);
+		});
 		this.input = this._register(new ChatEditorInput(chatResource));
 		this._register(registerSessionChatViewHost(this.input, this));
 		this.window = owner.window;
 		this.active = derived(this, reader => isEqual(owner.window.read(reader)?.chat.read(reader), this.chat.read(reader)));
 		this.title = derived(this, reader => {
-			const session = this._session.read(reader);
+			const session = this.session.read(reader);
 			return session ? chatWindowTitle(session, this.chat.read(reader), reader) : '';
 		});
 		this._register(autorun(reader => this.input.setName(this.title.read(reader))));
@@ -210,10 +218,10 @@ class SessionsChatWindowChat extends Disposable implements IChatWindowChat, ISes
 				this._end();
 				return;
 			}
-			if (this._scopedTo?.session !== owner.session || this._scopedTo.chat !== owner.chat) {
-				const sessionChanged = this._scopedTo?.session.sessionId !== owner.session.sessionId;
-				this._scopedTo = owner;
-				this._session.set(new VisibleSession(owner.session, owner.chat, undefined, undefined, owner.chat.resource), undefined);
+			const shown = this._shown.get();
+			if (shown?.session !== owner.session || shown.chat !== owner.chat) {
+				const sessionChanged = shown?.session.sessionId !== owner.session.sessionId;
+				this._shown.set({ session: owner.session, chat: owner.chat }, undefined);
 				if (sessionChanged) {
 					this._gridHold.value = this._sessionsService.hideChatFromGrid(owner.session, owner.chat.resource);
 				}
@@ -227,8 +235,36 @@ class SessionsChatWindowChat extends Disposable implements IChatWindowChat, ISes
 	}
 
 	override dispose(): void {
+		// What it showed acts on it no more, such as a content its editor kept, once its window let go of it.
+		this._disposed = true;
 		this._onWillDispose.fire();
 		super.dispose();
+	}
+
+	/**
+	 * What its editor's pane shows of `shown`: its one chat, as a detached pane shows, apart from the session's slot. Closing
+	 * the pane closes the chat in its window, through the window's opener, while it still shows that chat of that session: a
+	 * content kept past the chat moving or its session being replaced, its chat ending, or its window letting go of it, as
+	 * its window closes or the chat moves to another window, closes nothing.
+	 */
+	private _contentOf(shown: { readonly session: ISession; readonly chat: IChat }): ISessionPaneContent {
+		const chats = constObservable([shown.chat]);
+		return {
+			session: shown.session,
+			chat: constObservable(shown.chat),
+			state: {
+				sticky: constObservable(false),
+				tabs: { openChats: chats, closedChats: constObservable([]), lastClosedChat: undefined, visibleChatTabs: chats, shouldShowChatTabs: constObservable(true) },
+				isDetached: true,
+			},
+			close: () => {
+				if (this._disposed || this._ended || this._shown.get() !== shown) {
+					return;
+				}
+				const resource = shown.chat.resource;
+				void this._chatHostOpenerService.getOpenerOf(resource)?.close(resource).catch(onUnexpectedError);
+			},
+		};
 	}
 
 	attach(view: ChatEditorContent): IDisposable {
@@ -301,11 +337,11 @@ export class SessionsChatWindowContent extends Disposable implements IChatWindow
 			return (active && chats.find(chat => isEqual(chat.chat.read(reader), active))) ?? chats[0];
 		});
 		// What the window shows acts on its active chat and its session, not on what the main window shows.
-		const session = derived(this, reader => this.activeChat.read(reader)?.session.read(reader));
-		this.host = new ActiveSessionHost({
+		this.host = new SessionHost({
 			kind: SessionHostKind.ChatWindow,
 			parent: undefined,
-			session,
+			session: derived(this, reader => this.activeChat.read(reader)?.session.read(reader)),
+			chat: derived(this, reader => this.activeChat.read(reader)?.shownChat.read(reader)),
 			loadingChat: derived(this, reader => this.activeChat.read(reader)?.chat.read(reader)),
 			windowId: derived(this, reader => this.window.read(reader)?.windowId),
 			contextKeyService: () => this._windowContextKeyService ?? contextKeyService,
@@ -408,9 +444,9 @@ export class SessionsChatWindowContent extends Disposable implements IChatWindow
 
 /** The chat a chat window opened for a session shows: the one the session shows in the grid, else its main chat. */
 function shownChatOfSession(sessionsService: ISessionsService, session: ISession): URI {
-	// The session's own slot: the grid's visible sessions do not include detached panes.
-	const shown = sessionsService.visibleSessions.get().find(candidate => candidate?.sessionId === session.sessionId);
-	return shown?.activeChat.get().resource ?? session.mainChat.get().resource;
+	// The session's own slot, not a detached pane of one of its chats.
+	const shown = sessionsService.slotPanes.get().find(pane => pane.session.get()?.sessionId === session.sessionId);
+	return shown?.chat.get()?.resource ?? session.mainChat.get().resource;
 }
 
 /**

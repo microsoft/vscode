@@ -59,7 +59,6 @@ import { NEW_WORKTREE_LABEL } from '../../../browser/chat/branchPicker.js';
 import { ISessionChangesService } from '../../../browser/changes/sessionChangesService.js';
 import { CHANGES_VIEW_ID } from '../../../common/changes.js';
 import { ISessionsProvidersService } from '../../../browser/sessionsProvidersService.js';
-import { IHostSession } from '../../../common/sessionsManagement.js';
 import { getFocusedSessionChatSource, IFocusedSessionHostService, InSessionHostScopeContext, ISessionChatSource, ISessionHost } from '../../../browser/sessionHost.js';
 import { ISessionsService } from '../../../browser/sessionsService.js';
 import type { ISessionsProvider } from '../../../common/sessionsProvider.js';
@@ -83,11 +82,12 @@ import { getOrganizationDefaultApprovalLevel, isAutoApproveValuePolicyRestricted
 import { getPermissionLevelBadge } from '../../../../chat/browser/agentSessions/agentHost/agentHostModePickerPresentation.js';
 import { BRANCH_PICKER_MAX_VISIBLE_ITEMS, ensureSelectedBranchPickerItem, filterBranchPickerItems } from '../../../../chat/browser/agentSessions/agentHost/agentHostBranchPicker.js';
 import { CodexSessionConfigKey } from '../../../../../../platform/agentHost/common/codexSessionConfigKeys.js';
-import { type IChat, type ISessionChangeset, type ISessionFileChange, UNCOMMITTED_CHANGES_CHANGESET_ID } from '../../../common/session.js';
+import { type IChat, type ISessionChangeset, type ISessionFileChange, UNCOMMITTED_CHANGES_CHANGESET_ID, ISession } from '../../../common/session.js';
 import { MarkdownString } from '../../../../../../base/common/htmlContent.js';
 import { IUncommittedChangesListItem, IWorktreeSuggestion, IWorktreeSuggestionService } from '../../../browser/worktreeSuggestion/worktreeSuggestionService.js';
 import { getChangedFileUri, getUncommittedFilesDescription, getUncommittedFilesSectionLabel } from '../../../browser/worktreeSuggestion/worktreeSuggestionPresentation.js';
 import { WorktreeSuggestionVariant } from '../../../common/worktreeSuggestion.js';
+import { readPaneSessions } from '../../../browser/sessionGridPane.js';
 
 const ExperimentalSessionComposerLayout = SessionUsesExperimentalComposerLayoutContext;
 const LegacySessionComposerLayout = SessionUsesExperimentalComposerLayoutContext.negate();
@@ -639,7 +639,7 @@ export class AgentHostSessionConfigPicker extends Disposable {
 	 */
 	private readonly _dynamicValueLabels = new Map<string, Map<string, string>>();
 
-	protected readonly _session: IObservable<IHostSession | undefined>;
+	protected readonly _session: IObservable<ISession | undefined>;
 	/** The chat of {@link _session} whose config the picker shows and sets. */
 	protected readonly _chat: IObservable<IChat | undefined>;
 
@@ -2053,7 +2053,7 @@ export class AgentHostSessionConfigPickerContribution extends Disposable impleme
 		// callbacks, which run at `AfterRestored` — well after both
 		// modules have finished evaluating.
 		this._register(autorun(reader => {
-			this._sessionsService.visibleSessions.read(reader);
+			readPaneSessions(this._sessionsService.slotPanes, reader);
 			this._refreshRepositoryMenuItems(actionViewItemService);
 		}));
 		this._watchProviders(this._sessionsProvidersService.getProviders({ includeSessionBackends: true }), actionViewItemService);
@@ -2143,7 +2143,7 @@ export class AgentHostSessionConfigPickerContribution extends Disposable impleme
 			}
 			// Menu items are derived only from visible sessions; refreshing them recreates the repository pickers.
 			this._providerListeners.set(provider.id, provider.onDidChangeSessionConfig(sessionId => {
-				if (this._sessionsService.visibleSessions.get().some(session => session?.sessionId === sessionId)) {
+				if (readPaneSessions(this._sessionsService.slotPanes, undefined).some(session => session.sessionId === sessionId)) {
 					this._refreshRepositoryMenuItems(actionViewItemService);
 				}
 			}));
@@ -2152,7 +2152,8 @@ export class AgentHostSessionConfigPickerContribution extends Disposable impleme
 
 	private _refreshRepositoryMenuItems(actionViewItemService: IActionViewItemService): void {
 		this._repositoryMenuItems.clear();
-		for (const session of this._sessionsService.visibleSessions.get()) {
+		for (const pane of this._sessionsService.slotPanes.get()) {
+			const session = pane.session.get();
 			if (!session) {
 				continue;
 			}
@@ -2160,7 +2161,7 @@ export class AgentHostSessionConfigPickerContribution extends Disposable impleme
 			if (!provider || !isAgentHostProvider(provider)) {
 				continue;
 			}
-			const config = provider.getSessionConfig(session.sessionId, session.activeChat.get().resource);
+			const config = provider.getSessionConfig(session.sessionId, (pane.chat.get() ?? session.mainChat.get()).resource);
 			if (!config) {
 				continue;
 			}

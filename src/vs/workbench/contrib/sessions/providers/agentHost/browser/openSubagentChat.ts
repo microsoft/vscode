@@ -19,9 +19,9 @@ import { fillSessionChatDragData } from '../../../browser/dnd.js';
 import { ISessionsService } from '../../../browser/sessionsService.js';
 import { ISessionsProvidersService } from '../../../browser/sessionsProvidersService.js';
 import { isAgentHostProvider } from '../../../common/agentHostSessionsProvider.js';
-import { IHostSession } from '../../../common/sessionsManagement.js';
 import { ISessionHostService, SessionHostKind } from '../../../browser/sessionHost.js';
-import { IChat } from '../../../common/session.js';
+import { IChat, ISession } from '../../../common/session.js';
+import { readPaneSessions } from '../../../browser/sessionGridPane.js';
 
 export { OpenSubagentChatActionViewItem, shouldShowSubagentModel };
 
@@ -37,10 +37,10 @@ function chatIdFromResource(resource: string): string | undefined {
 type SubagentChatTarget = Pick<IOpenSubagentChatContext, 'chatResource' | 'parentSessionResource'>;
 
 /** Maps a session's chat to the backend chat the host recorded for it. */
-type BackendChatResolver = (session: IHostSession, chat: IChat) => URI | undefined;
+type BackendChatResolver = (session: ISession, chat: IChat) => URI | undefined;
 
 interface ISubagentChatMatch {
-	readonly session: IHostSession;
+	readonly session: ISession;
 	readonly chat: IChat;
 	readonly order: number;
 }
@@ -82,7 +82,7 @@ function createSubagentChatLookup(sessionsService: ISessionsService, sessionHost
 	// The sessions other hosts show too, such as of a link in a chat window's chat.
 	// The main window's session first, as the one the user most likely links from.
 	const hosts = sessionHostService.hosts.read(reader);
-	const sessions: (IHostSession | undefined)[] = [...hosts.filter(host => host.kind === SessionHostKind.MainWindow).map(host => host.session.read(reader)), ...sessionsService.visibleSessions.read(reader), ...hosts.map(host => host.session.read(reader))];
+	const sessions: (ISession | undefined)[] = [...hosts.filter(host => host.kind === SessionHostKind.MainWindow).map(host => host.session.read(reader)), ...readPaneSessions(sessionsService.slotPanes, reader), ...hosts.map(host => host.session.read(reader))];
 	let order = 0;
 	for (const session of sessions) {
 		if (!session || bySession.has(session.resource)) {
