@@ -13,6 +13,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/
 import { runWithFakedTimers } from '../../../../../../base/test/common/virtualScheduling/index.js';
 import { CloudSandboxAuthenticationRequiredError, CloudSandboxRequestError, ICloudSandboxApiService, ICloudSandboxSessionFeedConnection } from '../../../../../../platform/agentHost/common/cloudSandboxAgentHost.js';
 import { RequestError } from '../../../../../../platform/github/common/types.js';
+import { SchemaError } from '../../../../../../platform/github/common/client/schema.js';
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { ILogService, NullLogService } from '../../../../../../platform/log/common/log.js';
 import { CloudSandboxSessionFeed, type CloudSandboxSessionFeedRefresh } from '../../../browser/remoteAgentHost/cloudSandboxSessionFeed.js';
@@ -485,13 +486,14 @@ suite('CloudSandboxSessionFeed', () => {
 			new RequestError('private', 'network'),
 			new RequestError('private', 'timeout'),
 			new RequestError('private', 'schema'),
+			new SchemaError('private'),
 			new Error('private'),
 		]) {
 			const h = createFeed(store, { connect: async () => { throw error; } });
 			await h.feed.start();
 			reasons.push(h.telemetry[0].reason);
 		}
-		assert.deepStrictEqual(reasons, ['authenticationUnavailable', 'networkFailure', 'negotiationTimeout', 'invalidMetadata', 'negotiationError']);
+		assert.deepStrictEqual(reasons, ['authenticationUnavailable', 'networkFailure', 'negotiationTimeout', 'invalidMetadata', 'invalidMetadata', 'negotiationError']);
 	});
 
 	test('a reconnect that finds the feed disabled stops attempts', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {

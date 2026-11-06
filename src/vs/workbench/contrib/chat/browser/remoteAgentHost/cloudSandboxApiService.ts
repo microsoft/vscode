@@ -56,7 +56,8 @@ import { nextLink } from '../../../../../platform/github/common/githubResponse.j
 import { GitHubRequestTimeoutError } from '../../../../../platform/github/common/githubTypes.js';
 import { RequestError } from '../../../../../platform/github/common/types.js';
 import { parseMissionControlError } from '../../../../../platform/github/common/missionControl/missionControlError.js';
-import { ApiRequestError } from '../../../../../platform/github/common/missionControl/missionControlClient.js';
+import { ApiRequestError, MutationUncertainError } from '../../../../../platform/github/common/missionControl/missionControlClient.js';
+import { SchemaError } from '../../../../../platform/github/common/client/schema.js';
 import type { TaskClient } from '../../../../../platform/github/common/missionControl/tasks.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import { IProductService } from '../../../../../platform/product/common/productService.js';
@@ -455,7 +456,8 @@ export class CloudSandboxApiService extends Disposable implements ICloudSandboxA
 					code: error.code, limitedResource: error.limitedResource, requestId: error.requestId,
 				});
 			}
-			if (requested && error instanceof RequestError && (error.kind === 'network' || error instanceof GitHubRequestTimeoutError && error.requestDispatched)) {
+			if (requested && error instanceof RequestError && (error.kind === 'network'
+				|| error.kind === 'timeout' && (error instanceof MutationUncertainError || error instanceof GitHubRequestTimeoutError && error.requestDispatched))) {
 				this._telemetry.reportRequest('connectSessionFeed', 'networkError');
 			}
 			this._logService.debug(`${LOG_PREFIX} Session feed negotiation failed; retaining discovery polling.`);
@@ -467,7 +469,7 @@ export class CloudSandboxApiService extends Disposable implements ICloudSandboxA
 		try {
 			url = new URL(connection.url);
 		} catch {
-			throw new Error('Mission Control returned an invalid session feed URL');
+			throw new SchemaError('Mission Control returned an invalid session feed URL');
 		}
 		const now = Date.now();
 		const reconnectIn = connection.reconnect_in ?? Date.parse(connection.reconnect_after) - now;
@@ -475,7 +477,7 @@ export class CloudSandboxApiService extends Disposable implements ICloudSandboxA
 		if (url.protocol !== 'wss:' || !url.hostname || url.username || url.password || url.hash
 			|| (connection.reconnect_in === undefined) !== (connection.expires_in === undefined)
 			|| reconnectIn <= 0 || reconnectIn >= expiresIn || reconnectIn > MAX_TIMEOUT_DELAY) {
-			throw new Error('Mission Control returned invalid session feed connection metadata');
+			throw new SchemaError('Mission Control returned invalid session feed connection metadata');
 		}
 		if (token.isCancellationRequested) {
 			throw new CancellationError();
@@ -728,12 +730,16 @@ export class CloudSandboxApiService extends Disposable implements ICloudSandboxA
 					const serverTime = typeof date === 'string' ? Date.parse(date) : Number.NaN;
 					if (!Number.isNaN(serverTime)) {
 						checkpoint = Math.min(checkpoint ?? serverTime, serverTime);
+						telemetry.checkpointSource = 'serverDate';
 					}
 					for (const task of response.tasks) {
 						recordTask({ ...task, hasRepository: withRepository });
 						const updatedAt = task.updated_at ? Date.parse(task.updated_at) : Number.NaN;
 						if (!Number.isNaN(updatedAt)) {
 							latestUpdate = Math.max(latestUpdate ?? updatedAt, updatedAt);
+							if (checkpoint === undefined) {
+								telemetry.checkpointSource = 'taskUpdate';
+							}
 						}
 					}
 					url = nextTaskPageUrl(context.res.headers?.link, url, query);
@@ -765,7 +771,6 @@ export class CloudSandboxApiService extends Disposable implements ICloudSandboxA
 			}
 		}
 		const discoveryTime = checkpoint ?? Date.now();
-		telemetry.checkpointSource = checkpoint !== undefined ? 'serverDate' : latestUpdate !== undefined ? 'taskUpdate' : 'unavailable';
 		const sandboxTasks: IScannedTask[] = [];
 		const exclusions = { notSandboxCompute: 0, missingSessionBinding: 0, stalledQueuedSession: 0, detailFetchFailed: 0 };
 		const logExcludedTask = (taskId: string, reason: keyof typeof exclusions) => {

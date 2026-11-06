@@ -10,7 +10,7 @@ import { LRUCache } from '../../../../../base/common/map.js';
 import { StopWatch } from '../../../../../base/common/stopwatch.js';
 import { ICloudSandboxApiService, CloudSandboxAuthenticationRequiredError, CloudSandboxRequestError } from '../../../../../platform/agentHost/common/cloudSandboxAgentHost.js';
 import { computeReconnectDelay } from '../../../../../platform/agentHost/common/reconnectPolicy.js';
-import { parse } from '../../../../../platform/github/common/client/schema.js';
+import { parse, SchemaError } from '../../../../../platform/github/common/client/schema.js';
 import { RequestError } from '../../../../../platform/github/common/types.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import { ICloudSandboxTelemetryService, type CloudSandboxSessionFeedOutcome, type CloudSandboxSessionFeedReason, type ICloudSandboxSessionFeedTelemetryData } from './cloudSandboxTelemetry.js';
@@ -230,6 +230,8 @@ export class CloudSandboxSessionFeed extends Disposable {
 				if (!negotiated) {
 					if (error instanceof CloudSandboxAuthenticationRequiredError || error instanceof RequestError && (error.kind === 'authentication' || error.kind === 'authorization')) {
 						failureReason = 'authenticationUnavailable';
+					} else if (error instanceof SchemaError) {
+						failureReason = 'invalidMetadata';
 					} else if (error instanceof RequestError) {
 						failureReason = error.kind === 'network' ? 'networkFailure' : error.kind === 'timeout' ? 'negotiationTimeout'
 							: error.kind === 'schema' || error.kind === 'malformedResponse' || error.kind === 'validation' ? 'invalidMetadata' : failureReason;
