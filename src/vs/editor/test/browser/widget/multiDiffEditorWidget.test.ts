@@ -13,6 +13,7 @@ import { autorun, waitForState } from '../../../../base/common/observable.js';
 import { URI } from '../../../../base/common/uri.js';
 import { mock } from '../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
+import { runWithFakedTimers } from '../../../../base/test/common/virtualScheduling/index.js';
 import { AccessibilitySupport } from '../../../../platform/accessibility/common/accessibility.js';
 import { IAccessibilitySignalService } from '../../../../platform/accessibilitySignal/browser/accessibilitySignalService.js';
 import { IActionViewItemService, NullActionViewItemService } from '../../../../platform/actions/browser/actionViewItemService.js';
@@ -275,30 +276,26 @@ suite('MultiDiffEditorWidget', () => {
 		}());
 		const instantiationService = createCodeEditorServices(disposables, services);
 		const container = document.createElement('div');
-		const widget = instantiationService.createInstance(
+		const widget = disposables.add(instantiationService.createInstance(
 			MultiDiffEditorWidget,
 			container,
 			{} satisfies IWorkbenchUIElementFactory,
 			{ variant: 'noCardsNonCompact' },
-		);
+		));
 		widget.layout(new Dimension(800, 200));
 		const initialState = widget.getLayoutDebugState().get();
 		widget.setPaddingBottom(24);
 
-		try {
-			const state = widget.getLayoutDebugState().get();
-			assert.deepStrictEqual({
-				logicalScrollHeightDelta: state.layout.logicalScrollHeight - initialState.layout.logicalScrollHeight,
-				scrollHeightDelta: state.scrollDimensions.scrollHeight - initialState.scrollDimensions.scrollHeight,
-				diffItems: state.items.length,
-			}, {
-				logicalScrollHeightDelta: 24,
-				scrollHeightDelta: 24,
-				diffItems: 0,
-			});
-		} finally {
-			widget.dispose();
-		}
+		const state = widget.getLayoutDebugState().get();
+		assert.deepStrictEqual({
+			logicalScrollHeightDelta: state.layout.logicalScrollHeight - initialState.layout.logicalScrollHeight,
+			scrollHeightDelta: state.scrollDimensions.scrollHeight - initialState.scrollDimensions.scrollHeight,
+			diffItems: state.items.length,
+		}, {
+			logicalScrollHeightDelta: 24,
+			scrollHeightDelta: 24,
+			diffItems: 0,
+		});
 	});
 
 	test('user navigation supersedes a clamped restored scroll state', async () => {
@@ -670,7 +667,7 @@ suite('MultiDiffEditorWidget', () => {
 		}
 	});
 
-	test('preserves expanded height when a collapsed template is recycled', async () => {
+	test('preserves expanded height when a collapsed template is recycled', () => runWithFakedTimers({}, async () => {
 		const services = new ServiceCollection();
 		services.set(IAccessibilitySignalService, new class extends mock<IAccessibilitySignalService>() { }());
 		services.set(IActionViewItemService, new NullActionViewItemService());
@@ -759,7 +756,7 @@ suite('MultiDiffEditorWidget', () => {
 				documentItem.dispose();
 			}
 		}
-	});
+	}));
 });
 
 class PendingDiffProviderFactoryService implements IDiffProviderFactoryService {

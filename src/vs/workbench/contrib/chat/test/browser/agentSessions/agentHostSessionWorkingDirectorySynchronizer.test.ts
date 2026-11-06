@@ -4,7 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { agentHostConnectionKinds } from '../../../../../../platform/agentHost/test/common/testAgentHostResourceUriMappers.js';
 import { timeout } from '../../../../../../base/common/async.js';
+import { identityAgentHostResourceUriMapper } from '../../../../../../platform/agentHost/common/agentHostUri.js';
 import { CancellationToken } from '../../../../../../base/common/cancellation.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { Disposable } from '../../../../../../base/common/lifecycle.js';
@@ -82,6 +84,7 @@ class MutableSessionSubscription extends Disposable implements IAgentSubscriptio
 }
 
 class TestConnection extends mock<IAgentConnection>() {
+	override resourceUris = identityAgentHostResourceUriMapper;
 	readonly dispatched: SessionWorkingDirectoryAction[] = [];
 
 	override readonly rootState: IAgentSubscription<RootState>;
@@ -130,7 +133,7 @@ suite('AgentHostSessionWorkingDirectorySynchronizer', () => {
 	const workspaceFile = URI.file('/workspace/demo.code-workspace');
 
 	function createSynchronizer(
-		trusted: boolean | (() => boolean | Promise<boolean>) = true,
+		trusted: boolean | ((uri: URI) => boolean | Promise<boolean>) = true,
 		folders = [retained, added],
 		onDidChangeWorkspaceFolders: Event<IWorkspaceFoldersChangeEvent> = Event.None,
 		onDidChangeTrustedFolders: Event<void> = Event.None,
@@ -148,7 +151,7 @@ suite('AgentHostSessionWorkingDirectorySynchronizer', () => {
 		const trustService = new class extends mock<IWorkspaceTrustManagementService>() {
 			override readonly onDidChangeTrust = Event.None;
 			override readonly onDidChangeTrustedFolders = onDidChangeTrustedFolders;
-			override async getUriTrustInfo(uri: URI) { return { uri, trusted: await (typeof trusted === 'function' ? trusted() : trusted) }; }
+			override async getUriTrustInfo(uri: URI) { return { uri, trusted: await (typeof trusted === 'function' ? trusted(uri) : trusted) }; }
 		};
 		const environmentService = { isSessionsWindow: false, remoteAuthority: undefined } as Partial<IWorkbenchEnvironmentService> as IWorkbenchEnvironmentService;
 		const uriIdentityService = new class extends mock<IUriIdentityService>() {
@@ -182,6 +185,28 @@ suite('AgentHostSessionWorkingDirectorySynchronizer', () => {
 			defaultChat,
 		};
 		return disposables.add(new MutableSessionSubscription(hydrated ? state : undefined));
+	}
+
+	for (const kind of agentHostConnectionKinds) {
+		test(`compares workspace roots in client space and dispatches host-space deltas (${kind.name})`, async () => {
+			const clientRoot = kind.toClient;
+			const trustedRoots: string[] = [];
+			const synchronizer = createSynchronizer(uri => { trustedRoots.push(uri.toString()); return true; }, [clientRoot(retained), clientRoot(added)]);
+			const subscription = createSubscription();
+			const connection = new TestConnection(subscription);
+			connection.resourceUris = kind.resourceUris;
+			disposables.add(synchronizer.register({ session, provider: 'claude', connection, subscription }));
+			await synchronizer.reconcile(session, CancellationToken.None);
+			await synchronizer.reconcile(session, CancellationToken.None);
+			assert.deepStrictEqual({ actions: connection.dispatched, roots: subscription.value?.workingDirectories, trustedRoots }, {
+				actions: [
+					{ type: ActionType.SessionWorkingDirectorySet, directory: added.toString() },
+					{ type: ActionType.SessionWorkingDirectoryRemoved, directory: stale.toString() },
+				],
+				roots: [primary.toString(), retained.toString(), added.toString()],
+				trustedRoots: [clientRoot(added).toString()],
+			});
+		});
 	}
 
 	test('uses ordinary optimistic dispatch and pending state suppresses duplicate deltas', async () => {

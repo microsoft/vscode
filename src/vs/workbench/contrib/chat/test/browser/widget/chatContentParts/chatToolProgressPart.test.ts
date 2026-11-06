@@ -539,30 +539,27 @@ suite('ChatToolProgressSubPart', () => {
 			test(`failure changes only the progress icon (persistent: ${persistentProgress}, error: ${error})`, () => {
 				const context = { ...createRenderContext(true), suppressProgressShimmer: persistentProgress };
 				const hover = sinon.spy(mockHoverService, 'setupDelayedHover');
-				try {
-					const tool = createSerializedToolInvocation({ invocationMessage: 'Navigate to the local preview', originMessage: 'Browser' });
-					const render = (tool: IChatToolInvocationSerialized) => disposables.add(instantiationService.createInstance(ChatToolProgressSubPart, tool, context, mockMarkdownRenderer, new Set<string>()));
-					const original = render(tool);
-					const failed = render({ ...tool, resultError: error });
-					const label = failed.domNode.querySelector<HTMLElement>('.progress-step');
-					assert.deepStrictEqual({
-						card: failed.domNode.classList.contains('chat-notification-widget'),
-						icon: !!failed.domNode.querySelector('.codicon-error-compact'),
-						unchangedContent: label?.outerHTML === original.domNode.querySelector('.progress-step')?.outerHTML,
-						label: label?.textContent,
-						focusable: label?.tabIndex,
-						newHover: hover.called,
-					}, {
-						card: false,
-						icon: true,
-						unchangedContent: true,
-						label: 'Navigate to the local previewBrowser',
-						focusable: -1,
-						newHover: false,
-					});
-				} finally {
-					hover.restore();
-				}
+				store.add(toDisposable(() => hover.restore()));
+				const tool = createSerializedToolInvocation({ invocationMessage: 'Navigate to the local preview', originMessage: 'Browser' });
+				const render = (tool: IChatToolInvocationSerialized) => disposables.add(instantiationService.createInstance(ChatToolProgressSubPart, tool, context, mockMarkdownRenderer, new Set<string>()));
+				const original = render(tool);
+				const failed = render({ ...tool, resultError: error });
+				const label = failed.domNode.querySelector<HTMLElement>('.progress-step');
+				assert.deepStrictEqual({
+					card: failed.domNode.classList.contains('chat-notification-widget'),
+					icon: !!failed.domNode.querySelector('.codicon-error-compact'),
+					unchangedContent: label?.outerHTML === original.domNode.querySelector('.progress-step')?.outerHTML,
+					label: label?.textContent,
+					focusable: label?.tabIndex,
+					newHover: hover.called,
+				}, {
+					card: false,
+					icon: true,
+					unchangedContent: true,
+					label: 'Navigate to the local previewBrowser',
+					focusable: -1,
+					newHover: false,
+				});
 			});
 		}
 

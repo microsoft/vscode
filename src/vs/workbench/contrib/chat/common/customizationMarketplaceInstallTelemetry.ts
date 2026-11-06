@@ -8,6 +8,7 @@ import { isCancellationError } from '../../../../base/common/errors.js';
 import { StopWatch } from '../../../../base/common/stopwatch.js';
 import { type CustomizationMarketplaceInstallation } from '../../../../platform/customizationMarketplace/common/customizationMarketplaceService.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
+import { CustomizationMarketplaceInstallOrigin } from './customizationMarketplaceInstallService.js';
 
 export type CustomizationMarketplaceInstallSurface = 'marketplace' | 'available';
 export type CustomizationMarketplaceInstallType = 'skill' | 'mcpServer' | 'plugin' | 'connector' | 'unknown';
@@ -17,6 +18,7 @@ export interface ICustomizationMarketplaceInstallTelemetryContext {
 	readonly surface: CustomizationMarketplaceInstallSurface;
 	readonly customizationType: CustomizationMarketplaceInstallType;
 	readonly installKind: CustomizationMarketplaceInstallKind;
+	readonly origin: CustomizationMarketplaceInstallOrigin;
 }
 
 export type AvailableCustomizationMarketplaceInstallType = 'mcpServer' | 'plugin';
@@ -32,6 +34,7 @@ type CustomizationMarketplaceInstallClassification = {
 	surface: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether installation started from the unified customization marketplace or a legacy Available section.' };
 	customizationType: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Bounded customization category: skill, MCP server, plugin, connector, or unknown.' };
 	installKind: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Bounded installation mechanism supplied by the validated marketplace resource, or unknown.' };
+	origin: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether installation started from a curated section, a search result, or the fallback Browse catalog.' };
 	outcome: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Whether installation succeeded, failed, or was cancelled.' };
 	durationMs: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Installation duration in milliseconds.' };
 };
@@ -40,28 +43,30 @@ type CustomizationMarketplaceInstallClassification = {
 export function getCustomizationMarketplaceInstallTelemetryContext(
 	surface: CustomizationMarketplaceInstallSurface,
 	installation: CustomizationMarketplaceInstallation | undefined,
+	origin: CustomizationMarketplaceInstallOrigin = 'search',
 ): ICustomizationMarketplaceInstallTelemetryContext {
 	if (!installation) {
-		return { surface, customizationType: 'unknown', installKind: 'unknown' };
+		return { surface, customizationType: 'unknown', installKind: 'unknown', origin };
 	}
 	switch (installation.kind) {
 		case 'skill':
-			return { surface, customizationType: 'skill', installKind: installation.kind };
+			return { surface, customizationType: 'skill', installKind: installation.kind, origin };
 		case 'mcp':
 		case 'mcpGallery':
-			return { surface, customizationType: 'mcpServer', installKind: installation.kind };
+			return { surface, customizationType: 'mcpServer', installKind: installation.kind, origin };
 		case 'plugin':
 		case 'configuredPlugin':
 		case 'providerPlugin':
-			return { surface, customizationType: 'plugin', installKind: installation.kind };
+			return { surface, customizationType: 'plugin', installKind: installation.kind, origin };
 		case 'providerCatalog':
 			return {
 				surface,
 				customizationType: installation.resourceKind === 'mcp' ? 'mcpServer' : installation.resourceKind,
 				installKind: installation.kind,
+				origin,
 			};
 		case 'copilotConnector':
-			return { surface, customizationType: 'connector', installKind: installation.kind };
+			return { surface, customizationType: 'connector', installKind: installation.kind, origin };
 	}
 }
 
@@ -70,8 +75,8 @@ export function getAvailableCustomizationMarketplaceInstallTelemetryContext(
 	customizationType: AvailableCustomizationMarketplaceInstallType,
 ): ICustomizationMarketplaceInstallTelemetryContext {
 	return customizationType === 'mcpServer'
-		? { surface: 'available', customizationType, installKind: 'mcpGallery' }
-		: { surface: 'available', customizationType, installKind: 'configuredPlugin' };
+		? { surface: 'available', customizationType, installKind: 'mcpGallery', origin: 'search' }
+		: { surface: 'available', customizationType, installKind: 'configuredPlugin', origin: 'search' };
 }
 
 /** Runs an installation and emits one outcome event without including error or resource content. */

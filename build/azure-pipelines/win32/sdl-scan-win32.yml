@@ -7,10 +7,9 @@ parameters:
 steps:
   - template: ../common/checkout.yml@self
 
-  - task: NodeTool@0
-    inputs:
-      versionSource: fromFile
-      versionFilePath: .nvmrc
+  - template: ../common/setup-node.yml@self
+    parameters:
+      os: windows
 
   - task: UsePythonVersion@0
     inputs:
@@ -47,6 +46,8 @@ steps:
       workingFile: $(NPMRC_PATH)
     condition: and(succeeded(), ne(variables['NPM_REGISTRY'], 'none'))
     displayName: Setup NPM Authentication
+
+  - template: ../common/install-pnpm.yml@self
 
   - task: NuGetAuthenticate@1
     displayName: Setup NuGet Authentication
@@ -94,6 +95,7 @@ steps:
       path: .build/apiscan_node_modules_cache
       cacheHitVar: APISCAN_NODE_MODULES_RESTORED
     displayName: Restore API Scan node_modules cache
+    retryCountOnTaskFailure: 2
 
   - powershell: 7z.exe x .build/apiscan_node_modules_cache/cache.7z -aoa
     condition: and(succeeded(), eq(variables.APISCAN_NODE_MODULES_RESTORED, 'true'))
@@ -125,10 +127,9 @@ steps:
   - powershell: |
       . build/azure-pipelines/win32/exec.ps1
       $ErrorActionPreference = "Stop"
-      exec { npm ci }
+      exec { pnpm install --frozen-lockfile }
     env:
       npm_config_arch: ${{ parameters.VSCODE_ARCH }}
-      npm_config_foreground_scripts: "true"
       ELECTRON_SKIP_BINARY_DOWNLOAD: 1
       PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: 1
       GITHUB_TOKEN: "$(github-token-code-oss)"
@@ -137,6 +138,13 @@ steps:
     retryCountOnTaskFailure: 5
     displayName: Install dependencies
     condition: and(succeeded(), ne(variables.APISCAN_NODE_MODULES_RESTORED, 'true'))
+
+  # NuGetAuthenticate@1 exposes its access token to all later steps as the
+  # VSS_NUGET_ACCESSTOKEN environment variable, from where they can write it to
+  # logs. Only installing dependencies needs it, so clear it now.
+  - powershell: echo "##vso[task.setvariable variable=VSS_NUGET_ACCESSTOKEN]"
+    displayName: Clear package feed credentials
+    condition: always()
 
   - powershell: node build/azure-pipelines/common/checkNativeOptionalDeps.ts
     displayName: Verify native optional dependency binaries
@@ -166,12 +174,12 @@ steps:
 
   - template: ../common/mixin-vscode-capi.yml@self
 
-  - powershell: npm run gulp core-ci
+  - powershell: pnpm run gulp core-ci
     env:
       GITHUB_TOKEN: "$(github-token-code-oss)"
     displayName: Compile
 
-  - powershell: npm run gulp "vscode-symbols-win32-${{ parameters.VSCODE_ARCH }}"
+  - powershell: pnpm run gulp "vscode-symbols-win32-${{ parameters.VSCODE_ARCH }}"
     env:
       GITHUB_TOKEN: "$(github-token-code-oss)"
       AZURE_DEVOPS_EXT_PAT: $(System.AccessToken)

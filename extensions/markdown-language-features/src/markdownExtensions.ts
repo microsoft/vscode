@@ -27,7 +27,8 @@ import { codeBlockEditorPresentation, type ResolvedCodeBlockEditor } from './pre
 
 export function codeBlockEditorPresentationEqual(a: ResolvedCodeBlockEditor['presentation'], b: ResolvedCodeBlockEditor['presentation']): boolean {
 	return a?.resizable === b?.resizable && a?.fullWidth === b?.fullWidth
-		&& a?.fullView === b?.fullView && a?.minHeight === b?.minHeight;
+		&& a?.fullView === b?.fullView && a?.minHeight === b?.minHeight
+		&& a?.maxAutomaticHeight === b?.maxAutomaticHeight;
 }
 
 export interface MarkdownPreviewScript {

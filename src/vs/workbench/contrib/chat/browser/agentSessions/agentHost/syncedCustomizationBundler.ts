@@ -11,7 +11,7 @@ import { equals } from '../../../../../../base/common/objects.js';
 import { ResourceMap } from '../../../../../../base/common/map.js';
 import { basename, dirname, extUri } from '../../../../../../base/common/resources.js';
 import { URI } from '../../../../../../base/common/uri.js';
-import { hash, hashAsync } from '../../../../../../base/common/hash.js';
+import { hash, hashAsync, StringSHA1 } from '../../../../../../base/common/hash.js';
 import { IFileService, IFileStatWithPartialMetadata } from '../../../../../../platform/files/common/files.js';
 import { ILogService } from '../../../../../../platform/log/common/log.js';
 import { IMcpServerConfiguration } from '../../../../../../platform/mcp/common/mcpPlatformTypes.js';
@@ -31,17 +31,17 @@ const FILE_OPERATION_CONCURRENCY = 10;
 const SKILL_DIRECTORY_IGNORE = new IgnoreFile('.git\nnode_modules\n', '/', undefined, true);
 const bundleSequencer = new SequencerByKey<string>();
 
-const MANIFEST_CONTENT = JSON.stringify({
+const MANIFEST = {
 	name: SYNCED_CUSTOMIZATION_DISPLAY_NAME,
 	description: 'Customization data synced from VS Code',
-}, null, '\t');
+};
 
 const STANDALONE_DISPLAY_NAME = 'VS Code Standalone Customizations';
 
-const STANDALONE_MANIFEST_CONTENT = JSON.stringify({
+const STANDALONE_MANIFEST = {
 	name: STANDALONE_DISPLAY_NAME,
 	description: 'Standalone customizations synced from VS Code',
-}, null, '\t');
+};
 
 /**
  * Maps a {@link PromptsType} to the default plugin directory where that
@@ -127,6 +127,8 @@ async function collectDirectoryFiles(fileService: IFileService, logService: ILog
 export interface ISyncableFile {
 	readonly uri: URI;
 	readonly type: PromptsType;
+	/** Inline content for client-authored rules that have no source file. */
+	readonly content?: string;
 	/**
 	 * Where this file originally came from (extension, plugin, built-in, ...).
 	 * Optional because it is only used to populate the provenance reverse map;
@@ -147,7 +149,7 @@ export interface ISyncableFile {
  * recover it by mapping a synced (destination) URI back to this record.
  */
 export interface ISyncedCustomizationOrigin {
-	/** The original local file URI before it was copied into the synthetic bundle. */
+	/** The source file URI, or the bundled URI for client-authored content without a source file. */
 	readonly uri: URI;
 	/** Where the file originally came from (extension, plugin, built-in, ...). */
 	readonly source: AICustomizationSource;
@@ -170,6 +172,8 @@ export interface ISyncableMcpServer {
 }
 
 export interface ISyncedCustomizationBundlerOptions {
+	/** Separates colliding agent filenames without changing paths for uniquely named agents. */
+	readonly preserveAgentFileCollisions?: boolean;
 	/**
 	 * Bundles standalone customizations: user and workspace skills and agents,
 	 * and the MCP servers that VS Code forwards. The bundle is marked so that a
@@ -198,7 +202,7 @@ interface IBundleResult {
  * .mcp.json        ← MCP servers configured in VS Code
  * rules/          ← instruction files
  * commands/       ← prompt files
- * agents/         ← agent files
+ * agents/         ← agent files, optionally namespaced when filenames collide
  * skills/         ← skill directories
  * ```
  *
@@ -214,6 +218,7 @@ export class SyncedCustomizationBundler extends Disposable {
 	private readonly _fileOperationLimiter = this._register(new DrainingFileOperationLimiter());
 	private readonly _authority: string;
 	private readonly _standalone: boolean;
+	private readonly _preserveAgentFileCollisions: boolean;
 	private _lastNonce: string | undefined;
 	private _lastRef: IBundleResult | undefined;
 	private _isDisposed = false;
@@ -230,6 +235,7 @@ export class SyncedCustomizationBundler extends Disposable {
 		super();
 		this._authority = authority;
 		this._standalone = options?.standalone === true;
+		this._preserveAgentFileCollisions = options?.preserveAgentFileCollisions === true;
 		agentHostFileSystemService.ensureSyncedCustomizationProvider();
 	}
 
@@ -281,13 +287,23 @@ export class SyncedCustomizationBundler extends Disposable {
 			return undefined;
 		}
 
-		const entries: { sourceUri: URI; destUri: URI; hashKey: string }[] = [];
+		const agentFileCounts = new Map<string, number>();
+		if (this._preserveAgentFileCollisions) {
+			for (const file of syncable) {
+				if (file.type === PromptsType.agent) {
+					const name = basename(file.uri).toLowerCase();
+					agentFileCounts.set(name, (agentFileCounts.get(name) ?? 0) + 1);
+				}
+			}
+		}
+		const entries: { sourceUri: URI; destUri: URI; hashKey: string; content?: string }[] = [];
+		const agentPaths: string[] = [];
 		const originByDest = new ResourceMap<ISyncedCustomizationOrigin>();
 		const addEntry = (file: ISyncableFile, sourceUri: URI, destUri: URI, hashKey: string): void => {
-			entries.push({ sourceUri, destUri, hashKey });
+			entries.push({ sourceUri, destUri, hashKey, content: file.content });
 			if (file.source !== undefined) {
 				originByDest.set(destUri, {
-					uri: sourceUri,
+					uri: file.content === undefined ? sourceUri : destUri,
 					source: file.source,
 					extensionId: file.extensionId,
 					pluginUri: file.pluginUri,
@@ -321,6 +337,12 @@ export class SyncedCustomizationBundler extends Disposable {
 						`${dir}/${skillDirName}/${relativePath}`,
 					);
 				}
+			} else if (file.type === PromptsType.agent && (agentFileCounts.get(fileName.toLowerCase()) ?? 0) > 1) {
+				const sourceHash = new StringSHA1();
+				sourceHash.update(file.uri.toString());
+				const path = `${dir}/${sourceHash.digest()}/${fileName}`;
+				agentPaths.push(`./${path}`);
+				addEntry(file, file.uri, URI.joinPath(this._rootUri, path), path);
 			} else {
 				addEntry(file, file.uri, URI.joinPath(this._rootUri, dir, fileName), `${dir}/${fileName}`);
 			}
@@ -351,7 +373,7 @@ export class SyncedCustomizationBundler extends Disposable {
 		const fileContents = await Promise.all(entries.map(async entry => ({
 			destUri: entry.destUri,
 			hashKey: entry.hashKey,
-			content: (await this._queueFileOperation(() => this._fileService.readFile(entry.sourceUri))).value,
+			content: entry.content !== undefined ? VSBuffer.fromString(entry.content) : (await this._queueFileOperation(() => this._fileService.readFile(entry.sourceUri))).value,
 		})));
 		this._throwIfDisposed();
 
@@ -384,7 +406,10 @@ export class SyncedCustomizationBundler extends Disposable {
 		// Write the manifest
 		this._throwIfDisposed();
 		const manifestUri = URI.joinPath(this._rootUri, '.plugin', 'plugin.json');
-		await this._fileService.writeFile(manifestUri, VSBuffer.fromString(this._standalone ? STANDALONE_MANIFEST_CONTENT : MANIFEST_CONTENT));
+		await this._fileService.writeFile(manifestUri, VSBuffer.fromString(JSON.stringify({
+			...(this._standalone ? STANDALONE_MANIFEST : MANIFEST),
+			...(agentPaths.length > 0 ? { agents: agentPaths.sort() } : {}),
+		}, null, '\t')));
 
 		// Write each source file into the correct plugin directory.
 		for (const entry of fileContents) {

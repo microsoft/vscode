@@ -5,6 +5,7 @@
 
 import type { CopilotRequestContext } from '@github/copilot-sdk';
 import assert from 'assert';
+import { DeferredPromise } from '../../../../../base/common/async.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { NullLogService } from '../../../../log/common/log.js';
 import { DOWN_MARK_MS, FIRST_OUTPUT_TIMEOUT_MS, QUEUE_TIMEOUT_MS, SENTINEL_ORIGIN } from '../../../node/copilot/localModelBridge/shim/constants.js';
@@ -26,13 +27,6 @@ function context(url: string, options: { readonly signal?: AbortSignal; readonly
 	return { requestId: 'request-1', sessionId: options.sessionId ?? 'session-1', interactionType: options.interactionType ?? 'conversation-agent', transport: 'http', url, headers: {}, signal: options.signal ?? new AbortController().signal };
 }
 
-/** Yields to pending promise and stream callbacks. */
-async function flush(): Promise<void> {
-	for (let i = 0; i < 5; i++) {
-		await new Promise<void>(resolve => setTimeout(resolve, 0));
-	}
-}
-
 function tryParse(text: string | undefined): LocalModelJsonBody | undefined {
 	try {
 		const value: unknown = text ? JSON.parse(text) : undefined;
@@ -47,16 +41,27 @@ class LocalStream {
 	readonly stream: ReadableStream<Uint8Array>;
 	state: 'open' | 'closed' | 'cancelled' | 'errored' = 'open';
 	private _controller!: ReadableStreamDefaultController<Uint8Array>;
+	private _drained = new DeferredPromise<void>();
 
 	constructor(signal: AbortSignal) {
 		this.stream = new ReadableStream<Uint8Array>({
 			start: controller => { this._controller = controller; },
+			// Without a buffer (`highWaterMark: 0`), `pull` runs only while the reader waits on an empty queue.
+			pull: () => { this._drained.complete(); },
 			cancel: () => { this.state = 'cancelled'; },
-		});
+		}, { highWaterMark: 0 });
 		signal.addEventListener('abort', () => this.error(signal.reason));
 	}
 
+	/** Resolves once the reader has taken every chunk pushed so far and waits for the next one. */
+	get drained(): Promise<void> {
+		return this._drained.p;
+	}
+
 	push(text: string): void {
+		if (this._drained.isSettled) {
+			this._drained = new DeferredPromise<void>();
+		}
 		this._controller.enqueue(encoder.encode(text));
 	}
 
@@ -206,6 +211,17 @@ suite('LocalModelCopilotRequestHandler', () => {
 			const fetches: IRecordedFetch[] = [];
 			const locals: LocalStream[] = [];
 			const waits: string[] = [];
+			const opened: DeferredPromise<LocalStream>[] = [];
+			const localOpened = (index: number) => opened[index] ??= new DeferredPromise<LocalStream>();
+			const reported = new Map<string, DeferredPromise<void>>();
+			const waitReported = (wait: string) => {
+				let deferred = reported.get(wait);
+				if (!deferred) {
+					deferred = new DeferredPromise<void>();
+					reported.set(wait, deferred);
+				}
+				return deferred;
+			};
 
 			const proxyFetch: LocalModelFetch = async input => {
 				const url = new URL(input.url);
@@ -234,6 +250,10 @@ suite('LocalModelCopilotRequestHandler', () => {
 
 			const harness = {
 				clock, serving, routeTable, ledger, telemetry, fetches, locals, waits,
+				/** Resolves with the `index`-th local stream once the default local server has opened it. */
+				whenLocalOpened: (index: number): Promise<LocalStream> => localOpened(index).p,
+				/** Resolves once `onDirectRequestWaiting` has reported `wait`, in the format of {@link waits}. */
+				whenWaitReported: (wait: string): Promise<void> => waitReported(wait).p,
 				onProxy: (path: string, body: LocalModelJsonBody | undefined): Response | Promise<Response> => {
 					if (path === '/auto') {
 						return json(body?.local_models ? A2_RESPONSE : { session_token: 'cloud-token', selected_model: { id: 'gpt-5' } });
@@ -243,6 +263,7 @@ suite('LocalModelCopilotRequestHandler', () => {
 				/** Default local server: an SSE stream the test drives through `locals`. */
 				onLoopback: (signal: AbortSignal): Response | Promise<Response> => {
 					const local = new LocalStream(signal);
+					localOpened(locals.length).complete(local);
 					locals.push(local);
 					return new Response(local.stream, { status: 200, headers: { 'content-type': 'text/event-stream' } });
 				},
@@ -253,13 +274,24 @@ suite('LocalModelCopilotRequestHandler', () => {
 					getRouterEnv: () => createLocalModelRouterEnv([]),
 					telemetry: { reportRoute: e => telemetry.push(e) },
 					clock,
-					onDirectRequestWaiting: e => waits.push(`${e.sessionId}:${e.kind}${e.position ? `:${e.position}` : ''}${e.percent !== undefined ? `:${e.percent}%` : ''}`),
+					onDirectRequestWaiting: e => {
+						const wait = `${e.sessionId}:${e.kind}${e.position ? `:${e.position}` : ''}${e.percent !== undefined ? `:${e.percent}%` : ''}`;
+						waits.push(wait);
+						waitReported(wait).complete();
+					},
 				}),
 			};
 			return harness;
 		}
 
 		type Harness = ReturnType<typeof createHarness>;
+
+		/** Resolves with the `index`-th local stream once the handler has opened it and waits for its first output. */
+		async function reading(h: Harness, index = 0): Promise<LocalStream> {
+			const local = await h.whenLocalOpened(index);
+			await local.drained;
+			return local;
+		}
 
 		/** Runs `/auto` through the handler so the route table holds {@link TOKEN}. */
 		async function declare(h: Harness): Promise<void> {
@@ -334,7 +366,7 @@ suite('LocalModelCopilotRequestHandler', () => {
 		test('re-issues /auto cloud-only when the local pick has no usable fallback', async () => {
 			const h = createHarness();
 			h.onProxy = (_path, body) => body?.local_models
-				? json({ ...A2_RESPONSE, cloud_fallback_model: { id: 'responses-only', supported_endpoints: ['/responses'] } })
+				? json({ ...A2_RESPONSE, cloud_fallback_model: { id: 'messages-only', supported_endpoints: ['/v1/messages'] } })
 				: json({ session_token: 'cloud-token', selected_model: { id: 'gpt-5' } });
 			const answer = await (await h.handler.handleRequest(autoRequest(), context(AUTO_URL))).json();
 			assert.deepStrictEqual({ answer, declared: h.fetches.map(f => !!f.body?.local_models), routes: h.routeTable.size, telemetry: h.telemetry.map(e => `${e.selection}:${e.reason}:${e.tier}`) }, {
@@ -350,15 +382,17 @@ suite('LocalModelCopilotRequestHandler', () => {
 			const cloudOnly = h.onProxy;
 			let deliver!: () => void;
 			const delayed = new Promise<void>(resolve => deliver = resolve);
+			const declaring = new DeferredPromise<void>();
 			h.onProxy = async (path, body) => {
 				if (body?.local_models) {
+					declaring.complete();
 					await delayed;
 					return json(A2_RESPONSE);
 				}
 				return cloudOnly(path, body);
 			};
 			const pending = h.handler.handleRequest(autoRequest(), context(AUTO_URL));
-			await flush();
+			await declaring.p;
 			h.serving.accountGeneration++;
 			deliver();
 			const answer = await (await pending).json();
@@ -383,11 +417,13 @@ suite('LocalModelCopilotRequestHandler', () => {
 			const generation = h.ledger.beginTurn('session-1');
 			let settled = false;
 			const pending = h.handler.handleRequest(chatRequest({ reasoning_effort: 'medium', copilot_thread_id: 'x' }), context(CHAT_URL)).finally(() => settled = true);
-			await flush();
-			const local = h.locals[0];
+			const local = await reading(h);
 			local.push('data: {"model":"mai-code-1.1-flash","choices":[{"index":0,"delta":{"role":"assistant","reasoning_content":"thi');
-			await flush();
+			// An incomplete event is no output yet: the handler reads on instead of answering.
+			await Promise.race([local.drained, pending]);
 			const settledBeforeFirstEvent = settled;
+			// The first-output timer runs until the commit point, so it tells reading on from a premature commit.
+			const timersBeforeFirstEvent = h.clock.activeTimers;
 			local.push('nk"}}]}\n\n');
 			const response = await pending;
 			const slotsAfterCommit = h.serving.slotsInUse;
@@ -398,6 +434,7 @@ suite('LocalModelCopilotRequestHandler', () => {
 
 			assert.deepStrictEqual({
 				settledBeforeFirstEvent,
+				timersBeforeFirstEvent,
 				slotsAfterCommit,
 				text,
 				released: { slots: h.serving.slotsInUse, leases: h.serving.leasesHeld },
@@ -406,6 +443,7 @@ suite('LocalModelCopilotRequestHandler', () => {
 				telemetry: h.telemetry.map(e => ({ selection: e.selection, reason: e.reason, outputTokens: e.outputTokens, firstOutputMs: e.firstOutputMs, direct: e.direct })),
 			}, {
 				settledBeforeFirstEvent: false,
+				timersBeforeFirstEvent: 1,
 				slotsAfterCommit: 1,
 				text: [
 					'data: {"model":"mai-code-1.1-flash-local","choices":[{"index":0,"delta":{"role":"assistant","reasoning_text":"think"}}]}\n\n',
@@ -461,12 +499,12 @@ suite('LocalModelCopilotRequestHandler', () => {
 				let settled = false;
 				const { request, ctx } = nonStreaming();
 				const pending = h.handler.handleRequest(request, ctx).finally(() => settled = true);
-				await flush();
-				const local = h.locals[0];
+				const local = await reading(h);
 				local.push(FIRST_EVENT);
-				await flush();
+				// The first event commits; assembly then reads on.
+				await Promise.race([local.drained, pending]);
+				// `advance` runs due timers synchronously: a first-output timer still armed would abort the local stream here.
 				h.clock.advance(FIRST_OUTPUT_TIMEOUT_MS * 3);
-				await flush();
 				const midway = { settled, slots: h.serving.slotsInUse, timers: h.clock.activeTimers, local: local.state };
 
 				local.push('data: {"id":"chatcmpl-7","choices":[{"index":0,"delta":{"reasoning_content":"ing."}}]}\n\ndata: {"id":"chatcmpl-7","choices":[{"index":0,"delta":{"content":"Rea');
@@ -544,8 +582,10 @@ suite('LocalModelCopilotRequestHandler', () => {
 					testCase.setup?.(h);
 					const { request, ctx } = nonStreaming();
 					const pending = h.handler.handleRequest(request, ctx);
-					await flush();
-					testCase.afterStart?.(h);
+					if (testCase.afterStart) {
+						await reading(h);
+						testCase.afterStart(h);
+					}
 					const response = await pending;
 					results.push({ name: testCase.name, text: await response.text(), reasons: h.telemetry.map(e => e.reason), slots: h.serving.slotsInUse, leases: h.serving.leasesHeld });
 				}
@@ -576,10 +616,11 @@ suite('LocalModelCopilotRequestHandler', () => {
 					const generation = h.ledger.beginTurn('session-1');
 					const { request, ctx } = nonStreaming();
 					const pending = h.handler.handleRequest(request, ctx);
-					await flush();
-					h.locals[0].push(FIRST_EVENT);
-					await flush();
-					end(h.locals[0]);
+					const local = await reading(h);
+					local.push(FIRST_EVENT);
+					// Committed: the failure below comes after the first token.
+					await local.drained;
+					end(local);
 					const response = await pending;
 					results.push({
 						name,
@@ -628,9 +669,10 @@ suite('LocalModelCopilotRequestHandler', () => {
 				const cancellation = new AbortController();
 				const { request, ctx } = nonStreaming(cancellation.signal);
 				const pending = h.handler.handleRequest(request, ctx);
-				await flush();
-				h.locals[0].push(FIRST_EVENT);
-				await flush();
+				const local = await reading(h);
+				local.push(FIRST_EVENT);
+				// Committed and assembling.
+				await local.drained;
 				const held = h.serving.slotsInUse;
 				cancellation.abort();
 				const error = await pending.then(() => undefined, (e: Error) => e.name);
@@ -649,7 +691,7 @@ suite('LocalModelCopilotRequestHandler', () => {
 				const h = createHarness();
 				h.serving.families.set('mai-code-1.1-flash', { familyId: MAI_IDENTITY.familyId, displayName: 'Example Flash 1.0', state: 'active' });
 				const pending = h.handler.handleRequest(directRequest({ stream: undefined }), context(DIRECT_URL));
-				await flush();
+				await reading(h);
 				h.locals[0].push(FIRST_EVENT);
 				h.locals[0].push(event({ choices: [{ index: 0, delta: { content: 'Done.' }, finish_reason: 'stop' }] }));
 				h.clock.advance(FIRST_OUTPUT_TIMEOUT_MS * 2);
@@ -677,12 +719,11 @@ suite('LocalModelCopilotRequestHandler', () => {
 			const h = createHarness();
 			await declare(h);
 			const pending = h.handler.handleRequest(chatRequest(), context(CHAT_URL));
-			await flush();
-			const local = h.locals[0];
+			const local = await reading(h);
 			local.push(event({ choices: [{ delta: { content: 'a' } }] }));
 			const response = await pending;
+			// `advance` runs due timers synchronously: a first-output timer still armed would abort the local stream here.
 			h.clock.advance(FIRST_OUTPUT_TIMEOUT_MS * 3);
-			await flush();
 			local.push(event({ choices: [{ delta: { content: 'b' }, finish_reason: 'stop' }] }));
 			local.close();
 			const text = await response.text();
@@ -728,8 +769,10 @@ suite('LocalModelCopilotRequestHandler', () => {
 				testCase.setup?.(h);
 				const generation = h.ledger.beginTurn('session-1');
 				const pending = h.handler.handleRequest(chatRequest(testCase.body), context(CHAT_URL, { interactionType: testCase.interactionType }));
-				await flush();
-				testCase.afterStart?.(h);
+				if (testCase.afterStart) {
+					await reading(h);
+					testCase.afterStart(h);
+				}
 				const response = await pending;
 				const fallback = h.fetches.find(f => f.via === 'proxy' && f.path === '/chat/completions');
 				results.push({
@@ -786,8 +829,8 @@ suite('LocalModelCopilotRequestHandler', () => {
 				const url = kind === 'direct' ? DIRECT_URL : CHAT_URL;
 				const opened = h.locals.length;
 				const pending = h.handler.handleRequest(kind === 'direct' ? directRequest() : chatRequest(), context(url, { sessionId }));
-				await flush();
-				const local = h.locals[opened];
+				// A request served on the device opens a local stream; a refused or cloud one settles without one.
+				const local = await Promise.race([reading(h, opened), pending.then(() => undefined)]);
 				local?.push(event({ choices: [{ index: 0, delta: { content: 'Hi' }, finish_reason: 'stop' }] }));
 				local?.close();
 				const response = await pending;
@@ -835,7 +878,7 @@ suite('LocalModelCopilotRequestHandler', () => {
 			const generation = h.ledger.beginTurn('session-1');
 			const cancellation = new AbortController();
 			const pending = h.handler.handleRequest(chatRequest(), context(CHAT_URL, { signal: cancellation.signal }));
-			await flush();
+			await reading(h);
 			cancellation.abort();
 			const error = await pending.then(() => undefined, (e: Error) => e.name);
 			assert.deepStrictEqual({ error, cloud: proxiedChats(h), slots: h.serving.slotsInUse, leases: h.serving.leasesHeld, timers: h.clock.activeTimers, turn: h.ledger.endTurn('session-1', generation) }, {
@@ -855,7 +898,7 @@ suite('LocalModelCopilotRequestHandler', () => {
 				await declare(h);
 				const cancellation = new AbortController();
 				const pending = h.handler.handleRequest(chatRequest(), context(CHAT_URL, { signal: cancellation.signal }));
-				await flush();
+				await reading(h);
 				h.locals[0].push(event({ choices: [{ delta: { content: 'a' } }] }));
 				const response = await pending;
 				const reader = response.body!.getReader();
@@ -889,7 +932,7 @@ suite('LocalModelCopilotRequestHandler', () => {
 				const h = createHarness();
 				await declare(h);
 				const pending = h.handler.handleRequest(chatRequest(), context(CHAT_URL));
-				await flush();
+				await reading(h);
 				h.locals[0].push(event({ choices: [{ delta: { content: 'a' } }] }));
 				const response = await pending;
 				end(h.locals[0]);
@@ -920,7 +963,7 @@ suite('LocalModelCopilotRequestHandler', () => {
 			{
 				const h = createHarness();
 				const pending = h.handler.handleRequest(chatRequest({}, {}), context(CHAT_URL));
-				await flush();
+				await reading(h);
 				h.locals[0].push(event({ choices: [{ delta: { content: 'a' }, finish_reason: 'stop' }] }));
 				h.locals[0].close();
 				const response = await pending;
@@ -997,6 +1040,52 @@ suite('LocalModelCopilotRequestHandler', () => {
 			assert.deepStrictEqual({ status: response.status, body: await response.json() }, { status: 401, body: { error: 'token expired' } });
 		});
 
+		test('routes a local pick whose fallback serves only /responses, and falls back through the Responses API without streaming', async () => {
+			const h = createHarness();
+			h.onProxy = path => path === '/auto'
+				? json({ ...A2_RESPONSE, cloud_fallback_model: { ...A2_RESPONSE.cloud_fallback_model, id: 'gpt-6-luna', supported_endpoints: ['/responses', 'ws:/responses'] } })
+				: json({ id: 'resp_1', created_at: 1, model: 'gpt-6-luna', status: 'completed', output: [{ type: 'message', content: [{ type: 'output_text', text: 'cloud answer' }] }], usage: { input_tokens: 5, output_tokens: 2, total_tokens: 7 } });
+			await declare(h);
+			const routes = h.routeTable.size;
+			h.onLoopback = () => json({ error: { message: 'busy' } }, 503);
+			const generation = h.ledger.beginTurn('session-1');
+			const streamed = await h.handler.handleRequest(chatRequest(), context(CHAT_URL));
+			const streamedAnswer = { status: streamed.status, contentType: streamed.headers.get('content-type'), text: await streamed.text() };
+			const nonStreaming = await h.handler.handleRequest(chatRequest({ stream: false }), context(CHAT_URL));
+			const nonStreamingAnswer = { status: nonStreaming.status, body: await nonStreaming.json() };
+			const turn = h.ledger.endTurn('session-1', generation);
+			// CAPI errors, such as an expired route token, reach the runtime as CAPI sent them.
+			h.onProxy = () => json({ error: 'token expired' }, 401);
+			const expired = await h.handler.handleRequest(chatRequest(), context(CHAT_URL));
+
+			const message = { role: 'assistant', content: 'cloud answer' };
+			const usage = { prompt_tokens: 5, completion_tokens: 2, total_tokens: 7 };
+			assert.deepStrictEqual({
+				routes,
+				sent: h.fetches.filter(f => f.via === 'proxy').map(f => ({ path: f.path, model: f.body?.model, stream: f.body?.stream, input: f.body?.input, maxOutputTokens: f.body?.max_output_tokens, token: f.headers['copilot-session-token'] })),
+				streamedAnswer,
+				nonStreamingAnswer,
+				expired: { status: expired.status, body: await expired.json() },
+				turn,
+				telemetry: h.telemetry.map(e => `${e.selection}:${e.reason}`),
+			}, {
+				routes: 1,
+				sent: [0, 1, 2].map(() => ({ path: '/responses', model: 'gpt-6-luna', stream: false, input: [{ type: 'message', role: 'user', content: [{ type: 'input_text', text: 'hi' }] }], maxOutputTokens: 64000, token: TOKEN })),
+				streamedAnswer: {
+					status: 200,
+					contentType: 'text/event-stream',
+					text: `data: ${JSON.stringify({ id: 'resp_1', object: 'chat.completion.chunk', created: 1, model: 'gpt-6-luna', choices: [{ index: 0, delta: message, finish_reason: 'stop' }], usage })}\n\ndata: [DONE]\n\n`,
+				},
+				nonStreamingAnswer: {
+					status: 200,
+					body: { id: 'resp_1', object: 'chat.completion', created: 1, model: 'gpt-6-luna', choices: [{ index: 0, message, finish_reason: 'stop' }], usage },
+				},
+				expired: { status: 401, body: { error: 'token expired' } },
+				turn: { execution: 'fallback', fallbackReason: 'httpError', fallbackModel: 'gpt-6-luna', familyId: MAI_IDENTITY.familyId },
+				telemetry: ['fallback:httpError', 'fallback:httpError', 'fallback:httpError'],
+			});
+		});
+
 		test('rejects other sentinel endpoints and -local ids on other CAPI paths without forwarding', async () => {
 			const h = createHarness();
 			const models = await h.handler.handleRequest(new Request(`${SENTINEL_ORIGIN}/v1/models`), context(`${SENTINEL_ORIGIN}/v1/models`));
@@ -1052,7 +1141,7 @@ suite('LocalModelCopilotRequestHandler', () => {
 					reasoning_effort: 'high',
 					messages: [{ role: 'assistant', content: 'a', reasoning_content: 'prior' }, { role: 'user', content: 'q' }],
 				}), context(DIRECT_URL));
-				await flush();
+				await reading(h);
 				h.locals[0].push('data: {"model":"mai-code-1.1-flash","choices":[{"delta":{"reasoning_content":"r"},"finish_reason":"stop"}]}\n\n');
 				h.locals[0].close();
 				const response = await pending;
@@ -1083,10 +1172,11 @@ suite('LocalModelCopilotRequestHandler', () => {
 				const blocker = h.serving.tryAcquireSlot(blockerLease)!;
 				const pendingA = h.handler.handleRequest(directRequest(), context(DIRECT_URL, { sessionId: 'a' }));
 				const pendingB = h.handler.handleRequest(directRequest(), context(DIRECT_URL, { sessionId: 'b' }));
-				await flush();
+				// Both requests are queued, B behind A.
+				await h.whenWaitReported('b:queued:2');
 				blocker.dispose();
 				blockerLease.dispose();
-				await flush();
+				await reading(h);
 				h.locals[0].push(event({ choices: [{ delta: { content: 'a' }, finish_reason: 'stop' }] }));
 				const responseA = await pendingA;
 				h.clock.advance(QUEUE_TIMEOUT_MS);
@@ -1117,12 +1207,12 @@ suite('LocalModelCopilotRequestHandler', () => {
 					h.serving.families.set('mai-code-1.1-flash', { familyId: MAI_IDENTITY.familyId, displayName: 'Example Flash 1.0', state: 'active' });
 					let settled = false;
 					const pending = h.handler.handleRequest(directRequest(), context(DIRECT_URL)).finally(() => settled = true);
-					await flush();
-					const local = h.locals[0];
+					const local = await reading(h);
 					for (const [advanceMs, processed] of steps) {
 						h.clock.advance(advanceMs);
 						local.push(progressEvent(processed, 12000, cache));
-						await flush();
+						// Prompt progress is no output: the handler reports it and reads on.
+						await Promise.race([local.drained, pending]);
 					}
 					const settledBeforeOutput = settled;
 					local.push(event({ choices: [{ index: 0, delta: { content: 'Hi' }, finish_reason: 'stop' }] }));
@@ -1153,9 +1243,9 @@ suite('LocalModelCopilotRequestHandler', () => {
 				const pending = name === 'autoTimeout'
 					? h.handler.handleRequest(chatRequest(), context(CHAT_URL))
 					: h.handler.handleRequest(directRequest(), context(DIRECT_URL, { signal: cancellation.signal }));
-				await flush();
+				await reading(h);
 				h.locals[0].push(progressEvent(0));
-				await flush();
+				await h.locals[0].drained;
 				switch (name) {
 					case 'directError': h.locals[0].push('error: {"message":"boom"}\n\n'); break;
 					case 'directCancelled': cancellation.abort(); break;

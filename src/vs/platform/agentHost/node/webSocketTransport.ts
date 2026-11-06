@@ -12,7 +12,7 @@ import { connectionTokenQueryName } from '../../../base/common/network.js';
 import { ILogService } from '../../log/common/log.js';
 import { AgentHostTransportKind } from '../common/agentHostTelemetry.js';
 import { JSON_RPC_PARSE_ERROR, type AhpServerNotification, type JsonRpcNotification, type JsonRpcParseErrorResponse, type JsonRpcRequest, type JsonRpcResponse, type ProtocolMessage } from '../common/state/sessionProtocol.js';
-import type { IProtocolServer, IProtocolTransport } from '../common/state/sessionTransport.js';
+import { parseProtocolMessage, type IProtocolServer, type IProtocolTransport } from '../common/state/sessionTransport.js';
 import type * as wsTypes from 'ws';
 import type * as httpTypes from 'http';
 
@@ -58,7 +58,7 @@ export class WebSocketProtocolTransport extends Disposable implements IProtocolT
 		this._ws.on('message', (data: Buffer | string) => {
 			try {
 				const text = typeof data === 'string' ? data : data.toString('utf-8');
-				const message = JSON.parse(text) as ProtocolMessage;
+				const message = parseProtocolMessage(text);
 				this._onMessage.fire(message);
 			} catch {
 				this.send({ jsonrpc: '2.0', id: null, error: { code: JSON_RPC_PARSE_ERROR, message: 'Parse error' } });
@@ -74,6 +74,8 @@ export class WebSocketProtocolTransport extends Disposable implements IProtocolT
 			this._onClose.fire();
 		});
 	}
+
+	get bufferedAmount(): number { return this._ws.bufferedAmount; }
 
 	send(message: ProtocolMessage | AhpServerNotification | JsonRpcNotification | JsonRpcParseErrorResponse | JsonRpcResponse | JsonRpcRequest): void {
 		if (this._ws.readyState === this._WebSocket.OPEN) {

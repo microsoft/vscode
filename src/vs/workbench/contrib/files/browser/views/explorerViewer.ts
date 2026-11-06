@@ -23,7 +23,7 @@ import { dirname, joinPath, distinctParents, relativePath } from '../../../../..
 import { localize } from '../../../../../nls.js';
 import { IKeyboardEvent } from '../../../../../base/browser/keyboardEvent.js';
 import { equals, deepClone } from '../../../../../base/common/objects.js';
-import * as path from '../../../../../base/common/path.js';
+import { posix, relative, sep } from '../../../../../base/common/path.js';
 import { ExplorerItem, NewExplorerItem } from '../../common/explorerModel.js';
 import { compareFileExtensionsDefault, compareFileNamesDefault, compareFileNamesUpper, compareFileExtensionsUpper, compareFileNamesLower, compareFileExtensionsLower, compareFileNamesUnicode, compareFileExtensionsUnicode } from '../../../../../base/common/comparers.js';
 import { CodeDataTransfers, containsDragType } from '../../../../../platform/dnd/browser/dnd.js';
@@ -1146,7 +1146,28 @@ export class FilesRenderer implements ICompressibleTreeRenderer<ExplorerItem, Fu
 
 interface CachedParsedExpression {
 	original: glob.IExpression;
-	parsed: glob.ParsedExpression;
+	parsed: glob.IParsedExcludeExpression;
+}
+
+const NO_EXCLUDES = glob.parseExcludeExpression(glob.getEmptyExpression());
+
+/**
+ * Returns the path of a resource relative to its explorer root, with the separator of the platform path module.
+ */
+function getRootRelativePath(rootResource: URI, resource: URI): string {
+	// URI paths always use `/`. On Windows, the platform path module resolves them against the current working
+	// directory, which is expensive for every item of a large folder. Only fall back to it when it could produce a
+	// different result: it compares paths ignoring case, and normalizes backslashes in names from remote file systems.
+	const relativePath = posix.relative(rootResource.path, resource.path);
+	if (sep === posix.sep) {
+		return relativePath;
+	}
+
+	if (relativePath === '..' || relativePath.startsWith('../') || rootResource.path.includes('\\') || resource.path.includes('\\')) {
+		return relative(rootResource.path, resource.path);
+	}
+
+	return relativePath.replace(/\//g, sep);
 }
 
 /**
@@ -1155,6 +1176,8 @@ interface CachedParsedExpression {
  */
 export class FilesFilter implements ITreeFilter<ExplorerItem, FuzzyScore> {
 	private hiddenExpressionPerRoot = new Map<string, CachedParsedExpression>();
+	// Excluded folders that are shown because an exclude exception could match beneath them
+	private readonly foldersLeadingToExceptions = new WeakSet<ExplorerItem>();
 	private editorsAffectingFilter = new Set<EditorInput>();
 	private _onDidChange = new Emitter<void>();
 	private toDispose: IDisposable[] = [];
@@ -1261,7 +1284,7 @@ export class FilesFilter implements ITreeFilter<ExplorerItem, FuzzyScore> {
 
 			const excludesConfigCopy = deepClone(excludesConfig); // do not keep the config, as it gets mutated under our hoods
 
-			this.hiddenExpressionPerRoot.set(folder.uri.toString(), { original: excludesConfigCopy, parsed: glob.parse(excludesConfigCopy) });
+			this.hiddenExpressionPerRoot.set(folder.uri.toString(), { original: excludesConfigCopy, parsed: glob.parseExcludeExpression(excludesConfigCopy) });
 		});
 
 		if (shouldFire || updatedGitIgnoreSetting) {
@@ -1323,6 +1346,7 @@ export class FilesFilter implements ITreeFilter<ExplorerItem, FuzzyScore> {
 
 	private isVisible(stat: ExplorerItem, parentVisibility: TreeVisibility): boolean {
 		stat.isExcluded = false;
+		this.foldersLeadingToExceptions.delete(stat);
 		if (parentVisibility === TreeVisibility.Hidden) {
 			stat.isExcluded = true;
 			return false;
@@ -1331,27 +1355,50 @@ export class FilesFilter implements ITreeFilter<ExplorerItem, FuzzyScore> {
 			return true; // always visible
 		}
 
-		// Hide those that match Hidden Patterns
-		const cached = this.hiddenExpressionPerRoot.get(stat.root.resource.toString());
-		const globMatch = cached?.parsed(path.relative(stat.root.resource.path, stat.resource.path), stat.name, name => !!(stat.parent?.getChild(name)));
-		// Small optimization to only run isHiddenResource (traverse gitIgnore) if the globMatch from fileExclude returned nothing
-		const isHiddenResource = globMatch ? true : this.isIgnored(stat.resource, stat.root.resource, stat.isDirectory);
-		if (isHiddenResource || stat.parent?.isExcluded) {
-			stat.isExcluded = true;
-			const editors = this.editorService.visibleEditors;
-			const editor = editors.find(e => e.resource && this.uriIdentityService.extUri.isEqualOrParent(e.resource, stat.resource));
-			if (editor && stat.root === this.explorerService.findClosestRoot(stat.resource)) {
-				this.editorsAffectingFilter.add(editor);
-				return true; // Show all opened files and their parents
-			}
-
-			return false; // hidden through pattern
+		const parent = stat.parent;
+		const { isExcluded, isVisited } = glob.evaluateExcludeTreeEntry(this.hiddenExpressionPerRoot.get(stat.root.resource.toString())?.parsed ?? NO_EXCLUDES, {
+			path: getRootRelativePath(stat.root.resource, stat.resource),
+			basename: stat.name,
+			isDirectory: stat.isDirectory,
+			isParentExcluded: !!parent && (parent.isExcluded || this.foldersLeadingToExceptions.has(parent)),
+			isHidden: () => this.isGitIgnored(stat.resource, stat.root.resource, stat.isDirectory),
+			hasSibling: name => !!parent?.getChild(name),
+		});
+		if (!isExcluded) {
+			return true;
 		}
 
-		return true;
+		if (isVisited) {
+			this.foldersLeadingToExceptions.add(stat);
+			return true;
+		}
+
+		stat.isExcluded = true;
+		const editors = this.editorService.visibleEditors;
+		const editor = editors.find(e => e.resource && this.uriIdentityService.extUri.isEqualOrParent(e.resource, stat.resource));
+		if (editor && stat.root === this.explorerService.findClosestRoot(stat.resource)) {
+			this.editorsAffectingFilter.add(editor);
+			return true; // Show all opened files and their parents
+		}
+
+		return false; // hidden through pattern
 	}
 
+	/**
+	 * Whether the resource is hidden by `.gitignore` and not shown again by an exclude exception,
+	 * either because an exception matches it or, for a folder, because it leads to an exception.
+	 */
 	isIgnored(resource: URI, rootResource: URI, isDirectory: boolean): boolean {
+		if (!this.isGitIgnored(resource, rootResource, isDirectory)) {
+			return false;
+		}
+
+		const relativePath = getRootRelativePath(rootResource, resource);
+		const parsed = this.hiddenExpressionPerRoot.get(rootResource.toString())?.parsed;
+		return !parsed?.isExcepted(relativePath) && !(isDirectory && parsed?.couldExceptionMatchBeneath(relativePath));
+	}
+
+	private isGitIgnored(resource: URI, rootResource: URI, isDirectory: boolean): boolean {
 		const ignoreFile = this.ignoreTreesPerRoot.get(rootResource.toString())?.findSubstr(resource);
 		const isIncludedInTraversal = ignoreFile?.isPathIncludedInTraversal(resource.path, isDirectory);
 

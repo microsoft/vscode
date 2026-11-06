@@ -17,35 +17,25 @@ import {
 	GitHubCommitSubscription,
 	GitHubHydratableResourceRef,
 	GitHubIssue,
-	GitHubIssueOrPullRequest,
 	GitHubIssueRef,
 	GitHubIssueResource,
 	GitHubIssueSubscription,
-	GitHubPullRequestLookup,
-	GitHubPullRequestLookupOptions,
 	GitHubQueryApi,
-	GitHubRepositoriesPage,
 	GitHubRepository,
-	GitHubRepositoryListOptions,
-	GitHubRepositoryMergeCapabilities,
-	GitHubRepositoryPageOptions,
 	GitHubRepositoryRef,
 	GitHubRepositoryResource,
-	GitHubRepositorySearchOptions,
-	GitHubRepositorySearchPage,
 	GitHubRepositorySubscription,
 	GitHubResourcePriority,
 	GitHubResourceSubscriptionOptions,
 } from './githubQueryService.js';
-import { FragmentState, GitHubActor, PullRequestMergeMethod } from './githubPullRequestService.js';
+import { FragmentState, GitHubActor } from './githubPullRequestService.js';
 import { GitHubCredential, GitHubCredentialInvalidation, IGitHubCredentials } from './githubCredentialService.js';
 import { IGitHubCapabilities } from './githubHostCapabilitiesService.js';
-import { arrayProperty, asArray, asObject, booleanProperty, idProperty, nextLink, nullableStringProperty, numberProperty, objectProperty, optionalObjectProperty, requiredNumber, requiredString, stringProperty } from './githubResponse.js';
+import { arrayProperty, asObject, idProperty, nullableStringProperty, numberProperty, objectProperty, optionalObjectProperty, requiredNumber, requiredString, stringProperty } from './githubResponse.js';
 import { IRequestScheduler, systemRequestScheduler } from './scheduler.js';
 import { GitHubGraphQLError, GitHubRequestError, IGitHubTransport } from './githubTransport.js';
 import { BackoffPolicy, backoffDelay } from './backoff.js';
 import { IGitHubEndpointProvider } from './githubTypes.js';
-import { getPullRequestUrlKey } from './githubUrls.js';
 import { PullRequestScheduler } from './pullRequestScheduler.js';
 import { AccountHandle } from './types.js';
 
@@ -67,22 +57,11 @@ const defaultPollingPolicy: GitHubEntityPollingPolicy = {
 	jitter: 5_000,
 };
 
-const maximumRepositoryPageSize = 100;
-const maximumRepositorySearchResults = 1_000;
 const maximumHydrationBatchSize = 25;
 const repositoryHydrationFields = `
-	id
-	owner { id login }
-	name
 	nameWithOwner
 	primaryLanguage { name }
 	stargazerCount
-	defaultBranchRef { name }
-	isPrivate
-	description
-	url
-	isArchived
-	isFork
 `;
 const issueHydrationFields = `
 	id
@@ -92,14 +71,13 @@ const issueHydrationFields = `
 	url
 	state
 	stateReason
-	author { id login }
+	author { login ... on Node { id } }
 	assignees(first: 100) { nodes { id login } }
 	labels(first: 100) { nodes { name } }
 	createdAt
 	updatedAt
 	closedAt
 `;
-const maximumCommitPullRequests = 100;
 type EntityKind = 'repository' | 'issue' | 'commit';
 type EntityRef = GitHubRepositoryRef | GitHubIssueRef | GitHubCommitRef;
 type EntityValue = GitHubRepository | GitHubIssue | GitHubCommit;
@@ -324,7 +302,45 @@ export class GitHubQueryService extends Disposable implements GitHubQueryApi {
 		const query = `query HydrateGitHubResources(${definitions.join(', ')}) { ${selections.join('\n')} rateLimit { limit remaining used resetAt } }`;
 		let data: object;
 		try {
-			data = asObject(await this._graphqlRaw(firstRef, query, variables, signal), 'GitHub hydration response was malformed');
+			const credential = await this._credentials.getCredential(signal);
+			if (!sameAccount(firstRef, credential)) {
+				throw new GitHubRequestError('GitHub query account does not match the current credential', 'authentication');
+			}
+			const combinedSignal = AbortSignal.any([signal, credential.signal]);
+			let responseData: unknown;
+			try {
+				const capabilities = await this._capabilities.getCapabilities(credential, combinedSignal);
+				if (!capabilities.graphql) {
+					throw new GitHubRequestError('GitHub GraphQL is unavailable on this host', 'schema');
+				}
+				const queryKey = `${credential.account.host.toLowerCase()}\x00${query}`;
+				if (this._unsupportedGraphQLQueries.has(queryKey)) {
+					throw new GitHubRequestError('GitHub GraphQL query is unsupported on this host', 'schema');
+				}
+				try {
+					const response = await this._transport.graphql<unknown>(
+						credential.account,
+						credential.token,
+						this._endpoint.getGraphQlUri(),
+						query,
+						variables,
+						combinedSignal,
+						'interactive',
+						{ caller: 'github.query' },
+					);
+					throwGraphQLErrors(response.errors);
+					responseData = response.data;
+				} catch (error) {
+					if (error instanceof GitHubRequestError && error.kind === 'schema') {
+						this._unsupportedGraphQLQueries.add(queryKey);
+					}
+					throw error;
+				}
+			} catch (error) {
+				this._credentials.handleRequestError(credential, error);
+				throw error;
+			}
+			data = asObject(responseData, 'GitHub hydration response was malformed');
 		} catch (error) {
 			for (const { entry, generation } of resources) {
 				if (entry.disposed || entry.generation !== generation) {
@@ -431,186 +447,6 @@ export class GitHubQueryService extends Disposable implements GitHubQueryApi {
 		this._logService.trace(`[GitHubQueryService] Added commit subscription for ${formatEntityRef(entry.ref)} (entry ${entry.id}, subscriptions: ${entry.subscriptions.size})`);
 		this._activateEntity(entry);
 		return subscription;
-	}
-
-	async listRepositories(account: AccountHandle, signal: AbortSignal, options?: GitHubRepositoryListOptions): Promise<GitHubRepositoriesPage> {
-		const { page, perPage } = repositoryPagination(options);
-		const params = new URLSearchParams({ page: String(page), per_page: String(perPage) });
-		if (options?.affiliation) {
-			if (options.affiliation.length === 0) {
-				throw new GitHubRequestError('GitHub repository listing requires at least one affiliation', 'validation');
-			}
-			params.set('affiliation', [...new Set(options.affiliation)].join(','));
-		}
-		if (options?.sort) {
-			params.set('sort', options.sort);
-		}
-		if (options?.direction) {
-			params.set('direction', options.direction);
-		}
-		return this._withCredential(account, signal, async (credential, combinedSignal) => {
-			const response = await this._transport.rest<unknown>(credential.account, credential.token, {
-				caller: 'github.query',
-				method: 'GET',
-				url: `${this._endpoint.getApiBaseUri()}/user/repos?${params}`,
-				etag: true,
-				priority: 'interactive',
-			}, combinedSignal);
-			return toRepositoriesPage(response.data, response.link, page, perPage);
-		});
-	}
-
-	async searchRepositories(account: AccountHandle, query: string, signal: AbortSignal, options?: GitHubRepositorySearchOptions): Promise<GitHubRepositorySearchPage> {
-		const { page, perPage } = repositoryPagination(options);
-		if (!query.trim() || (page - 1) * perPage >= maximumRepositorySearchResults) {
-			throw new GitHubRequestError('GitHub repository search requires a query and a page within the first 1,000 results', 'validation');
-		}
-		const params = new URLSearchParams({ q: query.trim(), page: String(page), per_page: String(perPage) });
-		if (options?.sort) {
-			params.set('sort', options.sort);
-		}
-		if (options?.direction) {
-			params.set('order', options.direction);
-		}
-		return this._withCredential(account, signal, async (credential, combinedSignal) => {
-			const response = await this._transport.rest<unknown>(credential.account, credential.token, {
-				caller: 'github.query',
-				method: 'GET',
-				url: `${this._endpoint.getApiBaseUri()}/search/repositories?${params}`,
-				etag: true,
-				priority: 'interactive',
-			}, combinedSignal);
-			const value = asObject(response.data, 'GitHub repository search response was malformed');
-			const totalCount = requiredNumber(value, 'total_count');
-			const incompleteResults = booleanProperty(value, 'incomplete_results');
-			if (!Number.isSafeInteger(totalCount) || totalCount < 0 || incompleteResults === undefined) {
-				throw new GitHubRequestError('GitHub repository search completeness was malformed', 'malformedResponse');
-			}
-			const result = toRepositoriesPage(arrayProperty(value, 'items'), response.link, page, perPage);
-			return {
-				...result,
-				nextPage: page * perPage < maximumRepositorySearchResults ? result.nextPage : undefined,
-				totalCount,
-				incompleteResults,
-				limitReached: totalCount > maximumRepositorySearchResults,
-			};
-		});
-	}
-
-	async getIssueOrPullRequest(ref: GitHubIssueRef, signal: AbortSignal): Promise<GitHubIssueOrPullRequest> {
-		const normalized = normalizeRepositoryRef(ref);
-		return this._withCredential(normalized, signal, async (credential, combinedSignal) => {
-			const response = await this._transport.rest<unknown>(credential.account, credential.token, {
-				caller: 'github.query',
-				method: 'GET',
-				url: this._restUrl(normalized, `issues/${ref.number}`),
-				etag: true,
-				priority: 'background',
-			}, combinedSignal);
-			const item: { readonly body?: unknown } = asObject(response.data, 'GitHub issue or pull request response was malformed');
-			const body = item.body;
-			if (typeof body !== 'string' && body !== null) {
-				throw new GitHubRequestError('GitHub issue or pull request body was malformed', 'malformedResponse');
-			}
-			return { title: requiredString(item, 'title'), body: body ?? '' };
-		});
-	}
-
-	async getRepositoryMergeCapabilities(ref: GitHubRepositoryRef, signal: AbortSignal): Promise<GitHubRepositoryMergeCapabilities> {
-		const normalized = normalizeRepositoryRef(ref);
-		return this._withCredential(normalized, signal, async (credential, combinedSignal) => {
-			const response = await this._transport.rest<unknown>(credential.account, credential.token, {
-				caller: 'github.query',
-				method: 'GET',
-				url: this._restUrl(normalized, ''),
-				etag: true,
-				priority: 'interactive',
-			}, combinedSignal);
-			const item = asObject(response.data, 'GitHub repository merge settings were malformed');
-			const autoMergeAllowed = booleanProperty(item, 'allow_auto_merge');
-			const merge = booleanProperty(item, 'allow_merge_commit');
-			const squash = booleanProperty(item, 'allow_squash_merge');
-			const rebase = booleanProperty(item, 'allow_rebase_merge');
-			if (autoMergeAllowed === undefined || merge === undefined || squash === undefined || rebase === undefined) {
-				throw new GitHubRequestError('GitHub repository merge settings were incomplete', 'malformedResponse');
-			}
-			const mergeMethods: PullRequestMergeMethod[] = [];
-			if (merge) {
-				mergeMethods.push('MERGE');
-			}
-			if (squash) {
-				mergeMethods.push('SQUASH');
-			}
-			if (rebase) {
-				mergeMethods.push('REBASE');
-			}
-			return { autoMergeAllowed, mergeMethods };
-		});
-	}
-
-	async findPullRequestByHeadBranch(
-		ref: GitHubRepositoryRef,
-		branch: string,
-		headOwner: string | undefined,
-		signal: AbortSignal,
-		options?: GitHubPullRequestLookupOptions,
-	): Promise<GitHubPullRequestLookup | undefined> {
-		const allowedPullRequestUrls = options?.allowedPullRequestUrls;
-		if (allowedPullRequestUrls?.length === 0) {
-			return undefined;
-		}
-		const normalized = normalizeRepositoryRef(ref);
-		const owner = headOwner ?? normalized.owner;
-		return this._withCredential(normalized, signal, async (credential, combinedSignal) => {
-			const response = await this._transport.rest<unknown>(credential.account, credential.token, {
-				caller: 'github.query',
-				method: 'GET',
-				url: `${this._restUrl(normalized, 'pulls')}?head=${encodeURIComponent(`${owner}:${branch}`)}&state=all&sort=updated&direction=desc&per_page=${allowedPullRequestUrls ? 100 : 1}`,
-				etag: true,
-				priority: options?.priority ?? 'interactive',
-			}, combinedSignal);
-			const values = asArray(response.data, 'GitHub pull request lookup response was malformed');
-			const selected = allowedPullRequestUrls ? selectAllowedPullRequest(values, allowedPullRequestUrls) : values[0];
-			return selected === undefined ? undefined : toPullRequestLookup(normalized, selected);
-		});
-	}
-
-	async findPullRequestByHeadSha(ref: GitHubRepositoryRef, sha: string, signal: AbortSignal, options?: GitHubPullRequestLookupOptions): Promise<GitHubPullRequestLookup | undefined> {
-		const allowedPullRequestUrls = options?.allowedPullRequestUrls;
-		if (allowedPullRequestUrls?.length === 0) {
-			return undefined;
-		}
-		const normalized = normalizeRepositoryRef(ref);
-		return this._withCredential(normalized, signal, async (credential, combinedSignal) => {
-			let values: readonly unknown[];
-			try {
-				const response = await this._transport.rest<unknown>(credential.account, credential.token, {
-					caller: 'github.query',
-					method: 'GET',
-					url: `${this._restUrl(normalized, `commits/${encodeURIComponent(sha)}/pulls`)}?per_page=${maximumCommitPullRequests}`,
-					etag: true,
-					priority: options?.priority ?? 'interactive',
-				}, combinedSignal);
-				values = asArray(response.data, 'GitHub commit pull request lookup response was malformed');
-			} catch (error) {
-				if (isMissingCommitResponse(error)) {
-					return undefined;
-				}
-				throw error;
-			}
-			if (values.length >= maximumCommitPullRequests) {
-				this._logService.warn(`[GitHubQueryService] Not resolving a pull request for ${sha}: the first page of associated pull requests is full`);
-				return undefined;
-			}
-			const atHead = values.filter(value => stringProperty(objectProperty(asObject(value, 'GitHub pull request was malformed'), 'head'), 'sha') === sha);
-			if (allowedPullRequestUrls) {
-				const selected = selectAllowedPullRequest(atHead, allowedPullRequestUrls);
-				return selected === undefined ? undefined : toPullRequestLookup(normalized, selected);
-			}
-			const open = atHead.filter(value => stringProperty(asObject(value, 'GitHub pull request was malformed'), 'state') === 'open');
-			const candidates = open.length > 0 ? open : atHead;
-			return candidates.length === 1 ? toPullRequestLookup(normalized, candidates[0]) : undefined;
-		});
 	}
 
 	updateEntitySubscription(entry: EntityEntry<EntityRef, EntityValue>): void {
@@ -795,60 +631,6 @@ export class GitHubQueryService extends Disposable implements GitHubQueryApi {
 		}
 	}
 
-	private async _graphqlRaw(
-		ref: GitHubRepositoryRef,
-		query: string,
-		variables: Readonly<Record<string, unknown>>,
-		signal: AbortSignal,
-	): Promise<unknown> {
-		return this._withCredential(ref, signal, async (credential, combinedSignal) => {
-			const capabilities = await this._capabilities.getCapabilities(credential, combinedSignal);
-			if (!capabilities.graphql) {
-				throw new GitHubRequestError('GitHub GraphQL is unavailable on this host', 'schema');
-			}
-			const queryKey = `${credential.account.host.toLowerCase()}\x00${query}`;
-			if (this._unsupportedGraphQLQueries.has(queryKey)) {
-				throw new GitHubRequestError('GitHub GraphQL query is unsupported on this host', 'schema');
-			}
-			try {
-				const response = await this._transport.graphql<unknown>(
-					credential.account,
-					credential.token,
-					this._endpoint.getGraphQlUri(),
-					query,
-					variables,
-					combinedSignal,
-					'interactive',
-					{ caller: 'github.query' },
-				);
-				throwGraphQLErrors(response.errors);
-				return response.data;
-			} catch (error) {
-				if (error instanceof GitHubRequestError && error.kind === 'schema') {
-					this._unsupportedGraphQLQueries.add(queryKey);
-				}
-				throw error;
-			}
-		});
-	}
-
-	private async _withCredential<T>(
-		ref: AccountHandle,
-		signal: AbortSignal,
-		task: (credential: GitHubCredential, signal: AbortSignal) => Promise<T>,
-	): Promise<T> {
-		const credential = await this._credentials.getCredential(signal);
-		if (!sameAccount(ref, credential)) {
-			throw new GitHubRequestError('GitHub query account does not match the current credential', 'authentication');
-		}
-		try {
-			return await task(credential, AbortSignal.any([signal, credential.signal]));
-		} catch (error) {
-			this._credentials.handleRequestError(credential, error);
-			throw error;
-		}
-	}
-
 	private _canonicalizeRepository(entry: EntityEntry<GitHubRepositoryRef, GitHubRepository>, repository: GitHubRepository): void {
 		const [owner, repo, extra] = repository.nameWithOwner.split('/');
 		if (!owner || !repo || extra) {
@@ -1029,67 +811,24 @@ function toRequestPriority(priority: GitHubResourcePriority): 'interactive' | 'v
 	return priority;
 }
 
-function repositoryPagination(options: GitHubRepositoryPageOptions | undefined): { page: number; perPage: number } {
-	const page = options?.page ?? 1;
-	const perPage = options?.perPage ?? maximumRepositoryPageSize;
-	if (!Number.isSafeInteger(page) || page <= 0 || !Number.isSafeInteger(perPage) || perPage <= 0 || perPage > maximumRepositoryPageSize) {
-		throw new GitHubRequestError('GitHub repository pagination requires a positive page and a page size between 1 and 100', 'validation');
-	}
-	return { page, perPage };
-}
-
-function toRepositoriesPage(value: unknown, link: string | undefined, page: number, perPage: number): GitHubRepositoriesPage {
-	const values = asArray(value, 'GitHub repository page was malformed');
-	const nextPage = nextLink(link) ? page + 1 : undefined;
-	if (values.length > perPage || (nextPage !== undefined && !Number.isSafeInteger(nextPage))) {
-		throw new GitHubRequestError('GitHub repository pagination was malformed', 'malformedResponse');
-	}
-	return { repositories: values.map(toRepository), nextPage };
-}
-
 function toRepository(value: unknown): GitHubRepository {
 	const item = asObject(value, 'GitHub repository response was malformed');
-	const owner = objectProperty(item, 'owner');
 	const language = nullableStringProperty(item, 'language');
 	const stars = numberProperty(item, 'stargazers_count');
-	const cloneUrl = stringProperty(item, 'clone_url');
-	const sshUrl = stringProperty(item, 'ssh_url');
 	return {
-		id: idProperty(item, 'node_id') ?? idProperty(item, 'id'),
-		owner: requiredActor(owner),
-		name: requiredString(item, 'name'),
 		nameWithOwner: requiredString(item, 'full_name'),
 		...(language !== undefined ? { language } : {}),
 		...(stars !== undefined ? { stars } : {}),
-		defaultBranch: requiredString(item, 'default_branch'),
-		private: booleanProperty(item, 'private') ?? false,
-		description: nullableStringProperty(item, 'description') ?? '',
-		url: requiredString(item, 'html_url'),
-		...(cloneUrl !== undefined ? { cloneUrl } : {}),
-		...(sshUrl !== undefined ? { sshUrl } : {}),
-		archived: booleanProperty(item, 'archived') ?? false,
-		fork: booleanProperty(item, 'fork') ?? false,
 	};
 }
 
 function toGraphQLRepository(value: object): GitHubRepository {
-	const owner = objectProperty(value, 'owner');
 	const primaryLanguage = optionalObjectProperty(value, 'primaryLanguage');
-	const defaultBranch = optionalObjectProperty(value, 'defaultBranchRef');
 	const stars = numberProperty(value, 'stargazerCount');
 	return {
-		id: idProperty(value, 'id'),
-		owner: requiredActor(owner),
-		name: requiredString(value, 'name'),
 		nameWithOwner: requiredString(value, 'nameWithOwner'),
 		...(primaryLanguage ? { language: requiredString(primaryLanguage, 'name') } : {}),
 		...(stars !== undefined ? { stars } : {}),
-		defaultBranch: defaultBranch ? requiredString(defaultBranch, 'name') : '',
-		private: booleanProperty(value, 'isPrivate') ?? false,
-		description: nullableStringProperty(value, 'description') ?? '',
-		url: requiredString(value, 'url'),
-		archived: booleanProperty(value, 'isArchived') ?? false,
-		fork: booleanProperty(value, 'isFork') ?? false,
 	};
 }
 
@@ -1161,46 +900,6 @@ function toCommit(value: unknown): GitHubCommit {
 		author: author ? requiredActor(author) : { login: requiredString(commitAuthor, 'name') },
 		committedAt: requiredString(commitAuthor, 'date'),
 	};
-}
-
-function toPullRequestLookup(ref: GitHubRepositoryRef, value: unknown): GitHubPullRequestLookup {
-	const item = asObject(value, 'GitHub pull request lookup response was malformed');
-	const title = stringProperty(item, 'title');
-	const state = stringProperty(item, 'state');
-	return {
-		ref: { ...ref, number: requiredNumber(item, 'number') },
-		id: idProperty(item, 'node_id'),
-		url: requiredString(item, 'html_url'),
-		...(title !== undefined ? { title } : {}),
-		createdAt: stringProperty(item, 'created_at'),
-		...(state === 'open' || state === 'closed' ? { state } : {}),
-	};
-}
-
-function selectAllowedPullRequest(values: readonly unknown[], allowedPullRequestUrls: readonly string[]): object | undefined {
-	const byUrl = new Map<string, object>();
-	for (const value of values) {
-		const item = asObject(value, 'GitHub pull request lookup response was malformed');
-		const url = stringProperty(item, 'html_url');
-		if (url !== undefined) {
-			byUrl.set(getPullRequestUrlKey(url), item);
-		}
-	}
-	const allowed = allowedPullRequestUrls.map(url => byUrl.get(getPullRequestUrlKey(url))).filter(item => item !== undefined);
-	return allowed.find(item => stringProperty(item, 'state') === 'open') ?? allowed[0];
-}
-
-function isMissingCommitResponse(error: unknown): boolean {
-	if (!(error instanceof GitHubRequestError) || error.statusCode !== 422 || !error.responseBody) {
-		return false;
-	}
-	let body: unknown;
-	try {
-		body = JSON.parse(error.responseBody);
-	} catch {
-		return false;
-	}
-	return isObject(body) && stringProperty(body, 'message')?.startsWith('No commit found for SHA: ') === true;
 }
 
 function throwGraphQLErrors(errors: readonly GitHubGraphQLError[]): void {

@@ -17,10 +17,9 @@ jobs:
     steps:
       - template: ../common/checkout.yml@self
 
-      - task: NodeTool@0
-        inputs:
-          versionSource: fromFile
-          versionFilePath: .nvmrc
+      - template: ../common/setup-node.yml@self
+        parameters:
+          os: windows
 
       - task: UsePythonVersion@0
         inputs:
@@ -55,6 +54,7 @@ jobs:
           path: .build/node_modules_cache
           cacheHitVar: NODE_MODULES_RESTORED
         displayName: Restore node_modules cache
+        retryCountOnTaskFailure: 2
 
       - powershell: |
           . build/azure-pipelines/win32/exec.ps1
@@ -74,13 +74,16 @@ jobs:
         condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'), ne(variables['NPM_REGISTRY'], 'none'))
         displayName: Setup NPM Authentication
 
+      - template: ../common/install-pnpm.yml@self
+        parameters:
+          condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'))
+
       - powershell: |
           . build/azure-pipelines/win32/exec.ps1
           $ErrorActionPreference = "Stop"
-          exec { npm ci }
+          exec { pnpm install --frozen-lockfile }
         env:
           npm_config_arch: $(VSCODE_ARCH)
-          npm_config_foreground_scripts: "true"
           ELECTRON_SKIP_BINARY_DOWNLOAD: 1
           PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: 1
           GITHUB_TOKEN: "$(github-token-code-oss)"

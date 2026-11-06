@@ -707,7 +707,14 @@ export class Git {
 			options.cwd = sanitizePath(cwd);
 		}
 
-		return cp.spawn(this.path, args, options);
+		const child = cp.spawn(this.path, args, options);
+
+		// Writing to stdin fails with EPIPE when git fails to spawn or exits before
+		// reading all of its input. The child's `error`/`exit` events already report
+		// the failure, so keep the stream error from becoming an uncaught exception.
+		child.stdin?.on('error', () => { });
+
+		return child;
 	}
 
 	private getCwd(options: SpawnOptions): string | undefined {

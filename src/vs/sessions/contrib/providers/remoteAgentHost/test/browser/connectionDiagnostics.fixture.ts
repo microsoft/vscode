@@ -11,10 +11,10 @@ import { mock } from '../../../../../../base/test/common/mock.js';
 import { ICommandService } from '../../../../../../platform/commands/common/commands.js';
 import { IChatEntitlementService } from '../../../../../../workbench/services/chat/common/chatEntitlementService.js';
 import { ComponentFixtureContext, createEditorServices, defineComponentFixture, defineThemedFixtureGroup, registerWorkbenchServices, waitForFixtureCondition } from '../../../../../../workbench/test/browser/componentFixtures/fixtureUtils.js';
-import { IAgentHostFilterService } from '../../../../../services/agentHostFilter/common/agentHostFilter.js';
-import { IConnectionDiagnosticsService, IConnectionDiagnosticsSnapshot, ShowConnectionDiagnosticsCommandId } from '../../browser/connectionDiagnostics.js';
-import { showConnectionDiagnosticsSheet } from '../../browser/connectionDiagnosticsReport.js';
-import { MobileHostFilterActionViewItem } from '../../browser/mobileHostFilterActionViewItem.js';
+import { IAgentHostFilterService } from '../../../../../../workbench/contrib/sessions/common/agentHostFilter.js';
+import { IConnectionDiagnosticsService, IConnectionDiagnosticsSnapshot, ShowConnectionDiagnosticsCommandId } from '../../../../../../workbench/contrib/sessions/providers/remoteAgentHost/browser/connectionDiagnostics.js';
+import { showConnectionDiagnosticsSheet } from '../../../../../../workbench/contrib/sessions/providers/remoteAgentHost/browser/connectionDiagnosticsReport.js';
+import { MobileHostFilterActionViewItem } from '../../../../../../workbench/contrib/sessions/providers/remoteAgentHost/browser/mobileHostFilterActionViewItem.js';
 
 const snapshotContent: Omit<IConnectionDiagnosticsSnapshot, 'text'> = {
 	capturedAt: '2026-09-14T19:00:00.000Z',
@@ -190,9 +190,8 @@ async function renderReport(context: ComponentFixtureContext, width: number, exp
 		const layout = JSON.stringify([content.clientHeight, content.scrollHeight, content.scrollTop, scrollable.clientHeight]);
 		const unchanged = layout === previousLayout;
 		previousLayout = layout;
-		const scrollbarWillHide = !scrollable.matches(':hover') && scrollable.querySelector('.scrollbar.visible');
-		return unchanged && !scrollbarWillHide;
-	}, 'Connection diagnostics fixture did not settle its layout and scrollbar');
+		return unchanged;
+	}, 'Connection diagnostics fixture did not settle its layout');
 }
 
 function renderEmptyPicker(context: ComponentFixtureContext): void {

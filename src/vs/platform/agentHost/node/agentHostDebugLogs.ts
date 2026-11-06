@@ -8,6 +8,7 @@ import { disposableTimeout } from '../../../base/common/async.js';
 import { VSBuffer } from '../../../base/common/buffer.js';
 import { CancellationTokenSource } from '../../../base/common/cancellation.js';
 import { CancellationError } from '../../../base/common/errors.js';
+import { Emitter } from '../../../base/common/event.js';
 import { Disposable, DisposableMap, IDisposable, toDisposable } from '../../../base/common/lifecycle.js';
 import { Schemas } from '../../../base/common/network.js';
 import { join } from '../../../base/common/path.js';
@@ -37,6 +38,10 @@ export class AgentHostDebugLogsCollector extends Disposable {
 	private readonly _readableArtifacts = new Map<string, string>();
 	private readonly _artifactLeases = this._register(new DisposableMap<string, IDisposable>());
 	private readonly _collections = this._register(new DisposableMap<string, CancellationTokenSource>());
+
+	private readonly _onDidExpireArtifact = this._register(new Emitter<URI>());
+	/** Fires with an artifact's resource after its lease lapsed and its removal settled. */
+	readonly onDidExpireArtifact = this._onDidExpireArtifact.event;
 
 	constructor(
 		private readonly _environment: IAgentHostDebugLogsEnvironment,
@@ -259,7 +264,7 @@ export class AgentHostDebugLogsCollector extends Disposable {
 			}
 			rm(path, { recursive, force: true }).catch(error => {
 				this._logService.warn(`[AgentHostDebugLogs] Failed to expire temporary artifact ${path}`, error);
-			});
+			}).finally(() => this._onDidExpireArtifact.fire(URI.file(path)));
 		}, this._artifactLeaseMs));
 	}
 }

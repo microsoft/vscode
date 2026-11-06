@@ -181,7 +181,10 @@ function asListOptions<T, TFilterData, TRef>(modelProvider: () => ITreeModel<T, 
 		},
 		accessibilityProvider: options.accessibilityProvider && {
 			...options.accessibilityProvider,
-			getSetSize(node) {
+			getSetSize(node, index, listLength) {
+				if (options.accessibilityProvider!.getSetSize) {
+					return options.accessibilityProvider!.getSetSize(node.element, index, listLength);
+				}
 				const model = modelProvider();
 				const ref = model.getNodeLocation(node);
 				const parentRef = model.getParentNodeLocation(ref);
@@ -189,8 +192,8 @@ function asListOptions<T, TFilterData, TRef>(modelProvider: () => ITreeModel<T, 
 
 				return parentNode.visibleChildrenCount;
 			},
-			getPosInSet(node) {
-				return node.visibleChildIndex + 1;
+			getPosInSet(node, index) {
+				return options.accessibilityProvider!.getPosInSet?.(node.element, index) ?? node.visibleChildIndex + 1;
 			},
 			isChecked: options.accessibilityProvider && options.accessibilityProvider.isChecked ? (node) => {
 				return options.accessibilityProvider!.isChecked!(node.element);
@@ -2466,6 +2469,12 @@ class Trait<T> {
 	}
 
 	onDidModelSplice({ insertedNodes, deletedNodes }: ITreeModelSpliceEvent<T, unknown>): void {
+		// Splices can contain thousands of nodes, while traits usually contain a handful. Only do work proportional
+		// to the splice when there are nodes with this trait that it could affect.
+		if (this.nodes.length === 0) {
+			return;
+		}
+
 		if (!this.identityProvider) {
 			const set = this.createNodeSet();
 			const visit = (node: ITreeNode<T, unknown>) => set.delete(node);
@@ -2474,22 +2483,40 @@ class Trait<T> {
 			return;
 		}
 
-		const deletedNodesIdSet = new Set<string>();
-		const deletedNodesVisitor = (node: ITreeNode<T, unknown>) => deletedNodesIdSet.add(this.identityProvider!.getId(node.element).toString());
+		const getId = (node: ITreeNode<T, unknown>) => this.identityProvider!.getId(node.element).toString();
+		const ids = this.nodes.map(getId);
+		const idSet = new Set(ids);
+
+		const deletedIds = new Set<string>();
+		const deletedNodesVisitor = (node: ITreeNode<T, unknown>) => {
+			const id = getId(node);
+			if (idSet.has(id)) {
+				deletedIds.add(id);
+			}
+		};
 		deletedNodes.forEach(node => dfs(node, deletedNodesVisitor));
 
+		if (deletedIds.size === 0) {
+			return;
+		}
+
 		const insertedNodesMap = new Map<string, ITreeNode<T, unknown>>();
-		const insertedNodesVisitor = (node: ITreeNode<T, unknown>) => insertedNodesMap.set(this.identityProvider!.getId(node.element).toString(), node);
+		const insertedNodesVisitor = (node: ITreeNode<T, unknown>) => {
+			const id = getId(node);
+			if (deletedIds.has(id)) {
+				insertedNodesMap.set(id, node);
+			}
+		};
 		insertedNodes.forEach(node => dfs(node, insertedNodesVisitor));
 
 		const nodes: ITreeNode<T, unknown>[] = [];
 
-		for (const node of this.nodes) {
-			const id = this.identityProvider.getId(node.element).toString();
-			const wasDeleted = deletedNodesIdSet.has(id);
+		for (let i = 0; i < this.nodes.length; i++) {
+			const id = ids[i];
+			const wasDeleted = deletedIds.has(id);
 
 			if (!wasDeleted) {
-				nodes.push(node);
+				nodes.push(this.nodes[i]);
 			} else {
 				const insertedNode = insertedNodesMap.get(id);
 
@@ -2499,7 +2526,7 @@ class Trait<T> {
 			}
 		}
 
-		if (this.nodes.length > 0 && nodes.length === 0) {
+		if (nodes.length === 0) {
 			const node = this.getFirstViewElementWithTrait();
 
 			if (node) {
@@ -3038,6 +3065,10 @@ export abstract class AbstractTree<T, TFilterData, TRef> implements IDisposable 
 
 	layout(height?: number, width?: number): void {
 		this.view.layout(height, width);
+	}
+
+	withScrollAnchorAtBottom(fn: () => void): void {
+		this.view.withScrollAnchorAtBottom(fn);
 	}
 
 	style(styles: IListStyles): void {

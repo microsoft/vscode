@@ -15,6 +15,10 @@ parameters:
     type: boolean
     default: false
 
+# Cargo steps fetch crates from the ADO Cargo feed, which intermittently cancels HTTP/2 streams
+# ("[92] HTTP/2 stream ... CANCEL"), so they fetch without multiplexing, with more cargo retries,
+# and retry the step on top. The settings are --config flags rather than CARGO_* environment
+# variables, which sccache hashes into every compile key.
 steps:
   - ${{ if contains(parameters.COPILOT_SHIM_TARGET, '-linux-') }}:
     - script: |
@@ -52,7 +56,7 @@ steps:
           fi
         fi
 
-        cargo build --release --locked --target ${{ parameters.COPILOT_SHIM_TARGET }} --bin copilot
+        cargo build --config http.multiplexing=false --config net.retry=5 --release --locked --target ${{ parameters.COPILOT_SHIM_TARGET }} --bin copilot
 
         if [ "$VERIFY_GLIBC" = "1" ]; then
           maximum_glibc_version="2.28"
@@ -72,6 +76,7 @@ steps:
           echo "Copilot shim has no GLIBC dependency newer than 2.28."
         fi
       displayName: Compile ${{ parameters.COPILOT_SHIM_TARGET }}
+      retryCountOnTaskFailure: 2
       workingDirectory: $(Build.SourcesDirectory)/copilot_shim
       env:
         RUSTC_WRAPPER: sccache
@@ -80,8 +85,9 @@ steps:
           ${{ pair.key }}: ${{ pair.value }}
 
   - ${{ else }}:
-    - script: cargo build --release --locked --target ${{ parameters.COPILOT_SHIM_TARGET }} --bin copilot
+    - script: cargo build --config http.multiplexing=false --config net.retry=5 --release --locked --target ${{ parameters.COPILOT_SHIM_TARGET }} --bin copilot
       displayName: Compile ${{ parameters.COPILOT_SHIM_TARGET }}
+      retryCountOnTaskFailure: 2
       workingDirectory: $(Build.SourcesDirectory)/copilot_shim
       env:
         RUSTC_WRAPPER: sccache

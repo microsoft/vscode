@@ -7,17 +7,42 @@ import assert from 'assert';
 import { upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { buildAgentMergePrompt } from '../../../../../platform/agentHost/common/agentMergePrompt.js';
-import { getChatRequestText, stripSystemNotificationWrapper } from '../../browser/chatRequestText.js';
+import { getChatRequestText, stripSystemNotificationWrapper, getChatRequestAccessibleText } from '../../browser/chatRequestText.js';
+import { createTestArtifactRequestPresentation } from '../../../../../platform/artifactIntegrations/test/common/artifactIntegrationTestUtils.js';
 import { getAgentMergeRequestSummary } from '../../browser/widget/chatContentParts/chatAgentMergeContentPart.js';
 import { IChatRequestViewModel } from '../../common/model/chatViewModel.js';
 
-function request(messageText: string, options: Pick<IChatRequestViewModel, 'isSystemInitiated' | 'requestSource' | 'systemInitiatedLabel'> = {}): IChatRequestViewModel {
+function request(messageText: string, options: Pick<IChatRequestViewModel, 'isSystemInitiated' | 'requestSource' | 'systemInitiatedLabel' | 'artifactRequest'> = {}): IChatRequestViewModel {
 	return upcastPartial<IChatRequestViewModel>({ id: 'r', messageText, ...options });
 }
 
 suite('getChatRequestText', () => {
 
 	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('artifact action labels stay concise while the accessible view includes the snapshot', () => {
+		const presentation = createTestArtifactRequestPresentation();
+		const item = request('Model-facing instructions', { isSystemInitiated: true, requestSource: 'artifactIntegration', artifactRequest: presentation });
+		assert.deepStrictEqual({
+			label: getChatRequestText(item),
+			accessible: getChatRequestAccessibleText(item),
+			human: getChatRequestText(request('Human request', { artifactRequest: presentation })),
+			legacy: getChatRequestText(request('Legacy artifact request', { isSystemInitiated: true })),
+		}, {
+			label: 'Analyse Scorecard: Experiment 42',
+			accessible: 'Analyse Scorecard: Experiment 42\nSearch ranking\nScorecard\nResults are ready to analyse.\nState: Completed\nSuccessful searches: +2.3%',
+			human: 'Human request', legacy: 'Legacy artifact request',
+		});
+	});
+
+	test('artifact action accessible text explains loading and partial snapshots', () => {
+		const presentation = createTestArtifactRequestPresentation({
+			details: [{ title: 'Scorecard', availability: { kind: 'loading' }, links: [], items: [], completeness: 'partial' }],
+		});
+		const item = request('Model-facing instructions', { isSystemInitiated: true, requestSource: 'artifactIntegration', artifactRequest: presentation });
+		assert.strictEqual(getChatRequestAccessibleText(item),
+			'Analyse Scorecard: Experiment 42\nSearch ranking\nScorecard\nDetails were still loading when this action started.\nPartial snapshot. Open the artifact for more details.');
+	});
 
 	test('unwraps system notification display text without changing user text or the request', () => {
 		const body = 'Shell command "Install dependencies" (shellId: 16) has exited with exit code 1. Use read_bash with shellId "16".';

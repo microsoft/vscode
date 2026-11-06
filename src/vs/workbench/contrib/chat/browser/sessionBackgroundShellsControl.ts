@@ -33,7 +33,7 @@ export function getBackgroundShellsPillAccessibilityHelp(): string {
 }
 
 function getShellName(shell: IChatBackgroundShell): string {
-	return shell.description.trim() || shell.command;
+	return shell.description.trim() || shell.command.trim() || shell.shellId?.trim() || localize('backgroundShells.unnamed', "Background Shell");
 }
 
 interface IShellDetails {

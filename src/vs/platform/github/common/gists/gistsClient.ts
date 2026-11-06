@@ -13,6 +13,7 @@ export class GistsClient implements IGistsClient {
 
 	async get(gistId: string, signal: AbortSignal, options?: ApiRequestOptions): Promise<Gist> {
 		const response = await this._provider.request({
+			domain: 'gists',
 			method: 'GET',
 			path: `/gists/${pathSegment(gistId)}`,
 			expectedStatus: 200,
@@ -23,6 +24,7 @@ export class GistsClient implements IGistsClient {
 
 	async create(request: CreateGistRequest, signal: AbortSignal, options?: ApiRequestOptions): Promise<Gist> {
 		const response = await this._provider.request({
+			domain: 'gists',
 			method: 'POST',
 			path: '/gists',
 			body: request,
@@ -34,37 +36,12 @@ export class GistsClient implements IGistsClient {
 	}
 }
 
-const parseGist = parse.object<Gist>({
+const parseGist = parse.copyObject<Gist>({
 	id: parse.nonEmptyString,
-	node_id: parse.nonEmptyString,
-	url: parse.nonEmptyString,
 	html_url: parse.nonEmptyString,
-	git_pull_url: parse.nonEmptyString,
-	git_push_url: parse.nonEmptyString,
-	forks_url: parse.nonEmptyString,
-	commits_url: parse.nonEmptyString,
-	comments_url: parse.nonEmptyString,
-	public: parse.boolean,
-	description: parse.nullable(parse.string),
-	files: parse.dictionary(parse.object({
-		filename: parse.nonEmptyString,
-		type: parse.string,
-		language: parse.nullable(parse.string),
-		raw_url: parse.nonEmptyString,
-		size: parse.nonNegativeInteger,
+	files: parse.dictionary(parse.copyObject({
 		truncated: parse.boolean,
 		content: parse.string,
 		encoding: parse.oneOf('utf-8', 'base64'),
-	})),
-	truncated: parse.boolean,
-	created_at: parse.dateTime,
-	updated_at: parse.dateTime,
-	comments: parse.nonNegativeInteger,
-	comments_enabled: parse.optional(parse.boolean),
-	owner: parse.optional(parse.object({
-		id: parse.positiveInteger,
-		login: parse.nonEmptyString,
-		avatar_url: parse.nonEmptyString,
-		html_url: parse.nonEmptyString,
 	})),
 });

@@ -1499,6 +1499,7 @@ export class ChatMLFetcherImpl extends AbstractChatMLFetcher {
 			result: {
 				type: FetchResponseKind.Success,
 				chatCompletions,
+				modelRequestId: getRequestId(response.headers),
 			},
 			fetcher: response.fetcher,
 			bytesReceived: response.bytesReceived,
@@ -2002,9 +2003,9 @@ export class ChatMLFetcherImpl extends AbstractChatMLFetcher {
 			type: ChatFetchResponseType.Unknown,
 			reason: RESPONSE_CONTAINED_NO_CHOICES,
 			requestId: requestId,
-			serverRequestId: result?.requestId.headerRequestId,
-			copilotServiceRequestId: result?.requestId.copilotServiceRequestId,
-			...gitHubCopilotRequestTeProperty(result?.requestId.gitHubCopilotRequestTe),
+			serverRequestId: result?.requestId.headerRequestId ?? (response.modelRequestId?.headerRequestId || undefined),
+			copilotServiceRequestId: result?.requestId.copilotServiceRequestId ?? (response.modelRequestId?.copilotServiceRequestId || undefined),
+			...gitHubCopilotRequestTeProperty(result?.requestId.gitHubCopilotRequestTe ?? response.modelRequestId?.gitHubCopilotRequestTe),
 		};
 	}
 

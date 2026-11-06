@@ -3,8 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { SymbolFlags, type Project, type Symbol as NativeSymbol } from '@typescript/native/unstable/async';
-import type { SourceFile } from '@typescript/native/unstable/ast';
+import { SymbolFlags, type Project, type Symbol as NativeSymbol } from '@typescript/native/async';
+import type { SourceFile } from '@typescript/native/ast';
 import { ImportsRunnable, TypeOfExpressionRunnable, TypeOfLocalsRunnable, TypesOfNeighborFilesRunnable } from './baseContextProviders';
 import { AbstractContextRunnable, ComputeCost, ContextProvider, SnippetLocation, type ComputeContextSession, type ContextResult, type ContextRunnableCollector, type ProviderComputeContext, type RequestContext, type RunnableResult } from './contextProvider';
 import * as protocol from '../../common/serverProtocol';

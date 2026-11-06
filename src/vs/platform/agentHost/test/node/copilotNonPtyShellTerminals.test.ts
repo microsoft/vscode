@@ -413,6 +413,7 @@ suite('NonPtyShellTerminalStreams', () => {
 
 	suite('background shells', () => {
 		const asyncStarted = (shellId: string) => `<command started in background with shellId: ${shellId}>`;
+		const detachedStarted = (shellId: string) => `<command started in detached background with shellId: ${shellId}>`;
 
 		test('keeps streaming an attached command after its tool call returns, until the shell exits', () => {
 			streams.track('call-20', 'shell');
@@ -458,24 +459,120 @@ suite('NonPtyShellTerminalStreams', () => {
 			});
 		});
 
-		test('does not stream detached commands or a shell ID that is already in use', () => {
+		test('reads a detached command\'s output, but not after a read or a start that fails on a shell ID in use', () => {
 			const results = {
-				'call-22': '<command started in detached background with shellId: 9>',
+				'call-22': detachedStarted('9'),
 				'call-26': '<command with shellId: 9 is still running in detached background after 30s. Use read_bash to continue waiting, or stop_bash to stop it.>',
 				'call-27': '<command with shellId: 9 is already running, wait for output with read_bash, stop it with stop_bash tool>',
 			};
 			const completions = Object.entries(results).map(([toolCallId, text]) => {
 				streams.track(toolCallId, 'shell');
 				streams.append(toolCallId, 'starting\n');
-				return { completion: streams.completeToolCall(toolCallId, text, undefined), streaming: streams.isStreamingInBackground(toolCallId) };
+				return { completion: streams.completeToolCall(toolCallId, text, undefined), reading: streams.isReadingDetachedShell(toolCallId) };
 			});
+			const uri = (toolCallId: string) => buildNonPtyShellTerminalUri(sessionUri, sessionUri, chatUri, toolCallId);
 
 			deepStrictEqual({ completions, terminal: streams.getBackgroundShellTerminal('9') }, {
-				completions: Object.keys(results).map(toolCallId => ({
-					completion: { uri: buildNonPtyShellTerminalUri(sessionUri, sessionUri, chatUri, toolCallId), shouldRetire: false },
-					streaming: false,
-				})),
-				terminal: undefined,
+				completions: [
+					{ completion: { uri: uri('call-22'), shouldRetire: false, backgroundShellId: '9', detached: true }, reading: true },
+					{ completion: { uri: uri('call-26'), shouldRetire: false }, reading: false },
+					{ completion: { uri: uri('call-27'), shouldRetire: false }, reading: false },
+				],
+				terminal: uri('call-22'),
+			});
+		});
+
+		test('appends a detached shell\'s log reads and settles it at the exit a read reports, after the output before it', () => {
+			streams.track('call-32', 'shell');
+			const completion = streams.completeToolCall('call-32', detachedStarted('16'), undefined);
+			streams.appendDetachedShellOutput('call-32', 'tick 1\n\x1b[32mtick');
+			// The task list can report the exit before the reads reach it.
+			streams.reconcileBackgroundShells(new Set(), streams.beginShellTaskRead());
+			const finalizedBeforeLastRead = [...manager.outputTerminalsFinalized];
+			streams.appendDetachedShellOutput('call-32', ' 2\x1b[0m\n');
+			streams.completeDetachedShell('call-32', 0);
+			streams.appendDetachedShellOutput('call-32', 'late\n');
+
+			deepStrictEqual({
+				created: manager.outputTerminalsCreated.map(terminal => terminal.uri),
+				content: channelContent(),
+				finalizedBeforeLastRead,
+				finalized: manager.outputTerminalsFinalized,
+				afterExit: { reading: streams.isReadingDetachedShell('call-32'), terminal: streams.getBackgroundShellTerminal('16') },
+			}, {
+				created: [completion?.uri],
+				content: 'tick 1\ntick 2\n',
+				finalizedBeforeLastRead: [],
+				finalized: [{ uri: completion?.uri, exitCode: 0 }],
+				afterExit: { reading: false, terminal: undefined },
+			});
+		});
+
+		test('leaves a detached shell to the task list and tool results once its reads stop', () => {
+			streams.track('call-33', 'shell');
+			const stillRunning = streams.completeToolCall('call-33', detachedStarted('17'), undefined)?.uri;
+			streams.track('call-34', 'shell');
+			const exited = streams.completeToolCall('call-34', detachedStarted('18'), undefined)?.uri;
+
+			// A stop result reported the exit while the shell's log was still being read.
+			streams.completeBackgroundShellFromHelperResult('<command with id: 18 stopped>');
+			const whileReading = [...manager.outputTerminalsFinalized];
+			streams.stopReadingDetachedShell('call-33');
+			streams.stopReadingDetachedShell('call-34');
+			const afterReadsStopped = [...manager.outputTerminalsFinalized];
+			streams.reconcileBackgroundShells(new Set(), streams.beginShellTaskRead());
+
+			deepStrictEqual({ whileReading, afterReadsStopped, finalized: manager.outputTerminalsFinalized }, {
+				whileReading: [],
+				afterReadsStopped: [{ uri: exited, exitCode: undefined }],
+				finalized: [{ uri: exited, exitCode: undefined }, { uri: stillRunning, exitCode: undefined }],
+			});
+		});
+
+		test('settles a detached shell still being read when a new command reuses its shell ID', () => {
+			streams.track('call-35', 'shell');
+			const first = streams.completeToolCall('call-35', detachedStarted('19'), undefined)?.uri;
+			streams.track('call-36', 'shell');
+			const second = streams.completeToolCall('call-36', detachedStarted('19'), undefined)?.uri;
+			streams.appendDetachedShellOutput('call-35', 'from the new command\n');
+
+			deepStrictEqual({
+				finalized: manager.outputTerminalsFinalized,
+				reading: { first: streams.isReadingDetachedShell('call-35'), second: streams.isReadingDetachedShell('call-36') },
+				terminal: streams.getBackgroundShellTerminal('19'),
+				content: channelContent(),
+			}, {
+				finalized: [{ uri: first, exitCode: undefined }],
+				reading: { first: false, second: true },
+				terminal: second,
+				content: '',
+			});
+		});
+
+		test('settles a detached shell that exited while its log was still being read, when a new command reuses its shell ID', () => {
+			streams.track('call-37', 'shell');
+			const first = streams.completeToolCall('call-37', detachedStarted('20'), undefined)?.uri;
+			// The task list reports the exit before the reads have drained the log.
+			streams.reconcileBackgroundShells(new Set(), streams.beginShellTaskRead());
+			const finalizedBeforeReuse = [...manager.outputTerminalsFinalized];
+			streams.track('call-38', 'shell');
+			const second = streams.completeToolCall('call-38', detachedStarted('20'), undefined)?.uri;
+			// A read of the old shell still in flight returns the new command's output.
+			streams.appendDetachedShellOutput('call-37', 'from the new command\n');
+			streams.completeDetachedShell('call-37', 0);
+
+			deepStrictEqual({
+				finalizedBeforeReuse,
+				finalized: manager.outputTerminalsFinalized,
+				reading: { first: streams.isReadingDetachedShell('call-37'), second: streams.isReadingDetachedShell('call-38') },
+				terminal: streams.getBackgroundShellTerminal('20'),
+				content: channelContent(),
+			}, {
+				finalizedBeforeReuse: [],
+				finalized: [{ uri: first, exitCode: undefined }],
+				reading: { first: false, second: true },
+				terminal: second,
+				content: '',
 			});
 		});
 
