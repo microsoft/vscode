@@ -525,8 +525,9 @@ suite('Sessions - Session Activity Bar', () => {
 		});
 	});
 
-	test('in the main window\'s column, fills the column from top to bottom after the gap between cards, with entries the size of the Modern UI workbench activity bar\'s, and offers the context menu anywhere', () => {
-		const { createDocked, root, contextMenus } = createActivityBar(store, [changes, browser]);
+	test('in the main window\'s column, fills the column from top to bottom after the gap between cards, with entries the size of the Modern UI workbench activity bar\'s at the default size, and offers the context menu anywhere', () => {
+		const { createDocked, root, contextMenus, setSize } = createActivityBar(store, [changes, browser]);
+		setSize(MenuActivityBarSize.Default);
 		const hostElement = append(root, $('.session-activity-bar-column.session-activity-bar-host'));
 		// As the workbench sizes the column: the gap between cards, then the bar.
 		hostElement.style.cssText = `--agents-floating-panel-gap: 8px; --vscode-spacing-size80: 8px; --vscode-strokeThickness: 1px; position: relative; width: ${8 + MenuActivityBar.getWidth(false)}px; height: 200px;`;
@@ -567,21 +568,21 @@ suite('Sessions - Session Activity Bar', () => {
 		const state = () => ({ compact: element.classList.contains('size-compact'), floating: element.classList.contains('floating') });
 
 		const initial = state();
-		setSize(MenuActivityBarSize.Compact);
-		const compact = state();
+		setSize(MenuActivityBarSize.Default);
+		const defaultSize = state();
 		inColumn.set(false, undefined);
 		const besideChat = state();
-		setSize(MenuActivityBarSize.Default);
-		const besideChatAfterDefault = state();
 		inColumn.set(true, undefined);
 		const backInColumn = state();
+		setSize(MenuActivityBarSize.Compact);
+		const compact = state();
 
-		assert.deepStrictEqual({ initial, compact, besideChat, besideChatAfterDefault, backInColumn }, {
-			initial: { compact: false, floating: false },
-			compact: { compact: true, floating: false },
+		assert.deepStrictEqual({ initial, defaultSize, besideChat, backInColumn, compact }, {
+			initial: { compact: true, floating: false },
+			defaultSize: { compact: false, floating: false },
 			besideChat: { compact: true, floating: true },
-			besideChatAfterDefault: { compact: true, floating: true },
 			backInColumn: { compact: false, floating: false },
+			compact: { compact: true, floating: false },
 		});
 	});
 

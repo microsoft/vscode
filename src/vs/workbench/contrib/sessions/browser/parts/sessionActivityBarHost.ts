@@ -88,9 +88,9 @@ export function findSessionActivityBarExternalHost(element: HTMLElement): ISessi
 /** The profile state of the size of the Session Activity Bar in the main window's column, chosen from its context menu. */
 const SESSION_ACTIVITY_BAR_SIZE_STORAGE_KEY = 'workbench.sessions.sessionActivityBarSize';
 
-/** The size of the Session Activity Bar in the main window's column. */
+/** The size of the Session Activity Bar in the main window's column: compact unless the default size was chosen. */
 export function getSessionActivityBarSize(storageService: IStorageService): MenuActivityBarSize {
-	return storageService.get(SESSION_ACTIVITY_BAR_SIZE_STORAGE_KEY, StorageScope.PROFILE) === MenuActivityBarSize.Compact ? MenuActivityBarSize.Compact : MenuActivityBarSize.Default;
+	return storageService.get(SESSION_ACTIVITY_BAR_SIZE_STORAGE_KEY, StorageScope.PROFILE) === MenuActivityBarSize.Default ? MenuActivityBarSize.Default : MenuActivityBarSize.Compact;
 }
 
 export function setSessionActivityBarSize(storageService: IStorageService, size: MenuActivityBarSize): void {
@@ -118,7 +118,7 @@ export class SessionActivityBarColumn implements ISerializableView, ISessionActi
 
 	private gap = 0;
 	private compactDensity = false;
-	private size = MenuActivityBarSize.Default;
+	private size = MenuActivityBarSize.Compact;
 
 	get minimumWidth(): number {
 		return this.gap + MenuActivityBar.getWidth(this.compactDensity, this.size);
