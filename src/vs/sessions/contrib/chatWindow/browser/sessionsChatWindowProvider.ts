@@ -7,6 +7,7 @@ import './media/chatWindow.css';
 import { raceTimeout, timeout } from '../../../../base/common/async.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { Disposable, DisposableMap, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
+import { DisposableResizeObserver, getWindow } from '../../../../base/browser/dom.js';
 import { autorun, constObservable, derived, disposableObservableValue, IObservable, IReader, ISettableObservable, observableFromEvent, observableSignalFromEvent, observableValue, waitForState } from '../../../../base/common/observable.js';
 import { isNative } from '../../../../base/common/platform.js';
 import { isEqual } from '../../../../base/common/resources.js';
@@ -188,6 +189,38 @@ export function alignChatWindowHeaderActions(titlebar: HTMLElement, actionsHost:
 	} else {
 		titlebar.style.setProperty('--session-header-actions-inset', `${inset}px`);
 	}
+}
+
+/**
+ * Keeps the session header's actions in `titlebar` centered above the strip ({@link alignChatWindowHeaderActions}) once
+ * it is laid out: as it is, as the actions change, such as when the session header moves into it from another title,
+ * and as the layout density or the size chosen for the strip changes. The title's own layout may not change with them,
+ * so that the grid does not lay it out again.
+ */
+export function trackChatWindowHeaderActions(titlebar: HTMLElement, actionsHost: HTMLElement, compact: IObservable<boolean>, size: IObservable<MenuActivityBarSize>, options?: { readonly resizeObserverCtor?: typeof ResizeObserver }): { layout(): void } & IDisposable {
+	const store = new DisposableStore();
+	let laidOut = false;
+	const align = () => alignChatWindowHeaderActions(titlebar, actionsHost, compact.get(), size.get());
+	store.add(autorun(reader => {
+		compact.read(reader);
+		size.read(reader);
+		if (laidOut) {
+			align();
+		}
+	}));
+	const resizeObserver = store.add(new DisposableResizeObserver('chatWindowHeaderActions', () => {
+		if (laidOut) {
+			align();
+		}
+	}, getWindow(actionsHost), { resizeObserverCtor: options?.resizeObserverCtor }));
+	store.add(resizeObserver.observe(actionsHost));
+	return {
+		layout: () => {
+			laidOut = true;
+			align();
+		},
+		dispose: () => store.dispose(),
+	};
 }
 
 /** A session and the chat of it that a resource names: a session names its own; a chat its session. */
@@ -756,7 +789,9 @@ export class SessionsChatWindowProvider extends Disposable implements IChatWindo
 		const titlebar = store.add(this._titleService.createAuxiliaryTitlebarPart(container, window.mainPart, instantiationService));
 		const size = observableFromEvent(this, titlebar.onDidChange, () => titlebar.height);
 		let header: ISessionChatViewHeaderHost | undefined;
+		let headerActions: { layout(): void } | undefined;
 		if (titlebar instanceof TitlebarPart) {
+			headerActions = store.add(trackChatWindowHeaderActions(titlebar.element, titlebar.getSessionHeaderActionsHost(), this._compact, this._stripSize));
 			store.add(autorun(reader => titlebar.setHeight(this._titleHeight.read(reader))));
 			store.add(autorun(reader => titlebar.setTitle(content.title.read(reader))));
 			if (overChat) {
@@ -779,9 +814,7 @@ export class SessionsChatWindowProvider extends Disposable implements IChatWindo
 				if (height <= 0) {
 					return;
 				}
-				if (titlebar instanceof TitlebarPart) {
-					alignChatWindowHeaderActions(titlebar.element, titlebar.getSessionHeaderActionsHost(), this._compact.get(), this._stripSize.get());
-				}
+				headerActions?.layout();
 				titlebar.layout(width, height, 0, 0);
 				if (overChat && titlebar instanceof TitlebarPart) {
 					reserveChatWindowControls(titlebar.element, titlebar.rightWindowControlsContainer);

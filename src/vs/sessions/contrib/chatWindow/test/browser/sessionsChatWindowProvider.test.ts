@@ -44,13 +44,13 @@ import { SessionChangesetOperationsContext } from '../../../changes/browser/chan
 import { ActiveSessionState, IChangesSessionObservables, IChangesViewService } from '../../../../../workbench/contrib/sessions/common/changesViewService.js';
 import { IGitHubService } from '../../../../../workbench/contrib/sessions/browser/github/githubService.js';
 import { GitHubPullRequestCIModel } from '../../../../../workbench/contrib/sessions/browser/github/models/githubPullRequestCIModel.js';
-import { findSessionActivityBarExternalHost, getSessionActivityBarSize, SessionActivityBarColumn, setSessionActivityBarSize } from '../../../../../workbench/contrib/sessions/browser/parts/sessionActivityBarHost.js';
+import { findSessionActivityBarExternalHost, getSessionActivityBarSize, observeSessionActivityBarSize, SessionActivityBarColumn, setSessionActivityBarSize } from '../../../../../workbench/contrib/sessions/browser/parts/sessionActivityBarHost.js';
 import { MenuActivityBar, MenuActivityBarSize } from '../../../../../workbench/browser/parts/activitybar/menuActivityBar.js';
 import { IStorageService } from '../../../../../platform/storage/common/storage.js';
 import { TestStorageService } from '../../../../../workbench/test/common/workbenchTestServices.js';
 import { AGENTS_FLOATING_PANEL_GAP } from '../../../../../workbench/contrib/sessions/common/layoutConstants.js';
 import { AGENTS_CHAT_WINDOW_CLASS } from '../../browser/chatWindowTitleDoubleClick.js';
-import { alignChatWindowHeaderActions, CHAT_WINDOW_MAIN_PART_GROUP_VIEW_OPTIONS, focusChatWindowUnlessFocused, getChatWindowMainPartOptions, getChatWindowTitleHeight, setChatWindowTitleInChatColumn, SessionsChatWindowContent, SessionsChatWindowProvider } from '../../browser/sessionsChatWindowProvider.js';
+import { alignChatWindowHeaderActions, trackChatWindowHeaderActions, CHAT_WINDOW_MAIN_PART_GROUP_VIEW_OPTIONS, focusChatWindowUnlessFocused, getChatWindowMainPartOptions, getChatWindowTitleHeight, setChatWindowTitleInChatColumn, SessionsChatWindowContent, SessionsChatWindowProvider } from '../../browser/sessionsChatWindowProvider.js';
 import { DesktopMainEditorPart } from '../../../../browser/parts/desktopEditorPart.js';
 import { IEditorGroupViewOptions } from '../../../../../workbench/browser/parts/editor/editor.js';
 import { EditorInputCapabilities, GroupModelChangeKind } from '../../../../../workbench/common/editor.js';
@@ -667,6 +667,47 @@ suite('Sessions chat window provider', () => {
 			'compact density, normal size': ['20: 10px', '22: 9px', '0: none'],
 			'compact density, compact size': ['20: 5px', '22: 4px', '0: none'],
 		});
+	});
+
+	test('the header\'s actions stay centered above the strip after the title is laid out, as its actions arrive and as the size chosen for the strip changes, which leave the title\'s own layout unchanged, in Default and Compact density', () => {
+		// Resizes of the actions are announced by the test, as the window would
+		const observed: { callback: ResizeObserverCallback; targets: Element[] }[] = [];
+		class FakeResizeObserver implements ResizeObserver {
+			private readonly entry: { callback: ResizeObserverCallback; targets: Element[] };
+			constructor(callback: ResizeObserverCallback) { observed.push(this.entry = { callback, targets: [] }); }
+			observe(target: Element): void { this.entry.targets.push(target); }
+			unobserve(target: Element): void { this.entry.targets = this.entry.targets.filter(candidate => candidate !== target); }
+			disconnect(): void { this.entry.targets = []; }
+		}
+		const resized = () => observed.filter(entry => entry.targets.length).forEach(entry => entry.callback([], upcastPartial<ResizeObserver>({})));
+		const insets: Record<string, string> = {};
+		for (const compact of [false, true]) {
+			const titlebar = append(mainWindow.document.body, $('div'));
+			const actionsHost = append(titlebar, $('div'));
+			// The size chosen for the strip, as the chat windows observe it in the profile's storage: compact unless chosen
+			const store = new DisposableStore();
+			const storage = store.add(new TestStorageService());
+			const size = observeSessionActivityBarSize(store, storage, store);
+			const tracker = store.add(trackChatWindowHeaderActions(titlebar, actionsHost, constObservable(compact), size, { resizeObserverCtor: FakeResizeObserver }));
+			const inset = () => titlebar.style.getPropertyValue('--session-header-actions-inset') || 'none';
+			// Laid out while the session header is in another title
+			tracker.layout();
+			const laidOutEmpty = inset();
+			// The session header moves into it, the title's layout unchanged
+			append(actionsHost, $('div')).style.cssText = 'display: inline-block; width: 20px; height: 16px;';
+			resized();
+			const actionsArrived = inset();
+			// The size chosen for the strip changes, from either window's bar, the title's layout unchanged
+			setSessionActivityBarSize(storage, MenuActivityBarSize.Normal);
+			const normal = inset();
+			setSessionActivityBarSize(storage, MenuActivityBarSize.Compact);
+			insets[compact ? 'compact' : 'default'] = `${laidOutEmpty} → ${actionsArrived} → ${normal} → ${inset()}`;
+			store.dispose();
+			titlebar.remove();
+		}
+
+		// As `alignChatWindowHeaderActions` centers a 20px action at each size (see the test above)
+		assert.deepStrictEqual({ insets, observing: observed.filter(entry => entry.targets.length).length }, { insets: { default: 'none → 6px → 13px → 6px', compact: 'none → 5px → 10px → 5px' }, observing: 0 });
 	});
 
 	test('the tab row at the top right of a chat window, and the strip, keep the room of the window controls only while they float above them, beside the chat\'s own title: not while they are in the title row, hidden as in full screen, or at the left as on macOS', () => {
