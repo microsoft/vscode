@@ -118,8 +118,12 @@
 	align-items: center;
 }
 
-.monaco-workbench .part.titlebar > .sessions-titlebar-container > .titlebar-right > :is(.titlebar-right-layout-container, .titlebar-window-layout-container) {
+.monaco-workbench .part.titlebar > .sessions-titlebar-container > .titlebar-right > .titlebar-right-layout-container {
 	padding-right: var(--vscode-spacing-size80);
+}
+
+.monaco-workbench .part.titlebar > .sessions-titlebar-container > .titlebar-right > .titlebar-window-layout-container {
+	padding-right: calc(var(--vscode-spacing-size80) + var(--vscode-agents-layout-floatingPanelGap));
 }
 
 .monaco-workbench .part.titlebar > .sessions-titlebar-container > .titlebar-right > .titlebar-screen-reader-container:not(.has-no-actions) {
