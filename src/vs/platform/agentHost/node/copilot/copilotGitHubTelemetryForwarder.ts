@@ -635,14 +635,12 @@ export function isHydraFusionTelemetryKind(kind: string): boolean {
  * Code's {@link ITelemetryService} so they land in the same first-party
  * Microsoft cluster/database as the rest of the agent host's telemetry.
  *
- * Restricted events (`cli.restricted_telemetry`) are only forwarded when
- * restricted telemetry is enabled for the current Copilot account; standard
- * events always flow through.
+ * Only standard events are forwarded. Restricted events must never enter this
+ * standard telemetry sink; dedicated restricted routing is handled separately.
  */
 export class CopilotGitHubTelemetryForwarder {
 
 	constructor(
-		private readonly _isRestrictedTelemetryEnabled: () => boolean,
 		@ITelemetryService private readonly _telemetryService: ITelemetryService,
 	) { }
 
@@ -653,7 +651,7 @@ export class CopilotGitHubTelemetryForwarder {
 	}
 
 	forward(notification: GitHubTelemetryNotification, agentHostTurnId?: string, correlation?: ICopilotModelCallCorrelationTelemetry, telemetryContext?: IAgentTelemetryContext): void {
-		if (notification.restricted && !this._isRestrictedTelemetryEnabled()) {
+		if (notification.restricted) {
 			return;
 		}
 
@@ -699,7 +697,7 @@ export class CopilotGitHubTelemetryForwarder {
 	 * turn identity with the Agent Host turn that owned the compaction, as response telemetry does.
 	 */
 	forwardCompaction(notification: GitHubTelemetryNotification, correlation: IForwardedCompactionCorrelation, telemetryContext?: IAgentTelemetryContext): void {
-		if (notification.restricted && !this._isRestrictedTelemetryEnabled()) {
+		if (notification.restricted) {
 			return;
 		}
 

@@ -69,7 +69,9 @@ const typeAwareLintInputs = [
 	'src/vscode-dts/',
 	'extensions/tsconfig.base.json',
 	'extensions/package.json',
-	// extensions/ is a member of the root pnpm workspace.
+	// The extensions' own install root.
+	'extensions/pnpm-lock.yaml',
+	// The root workspace's TypeScript and typescript-eslint run the type-aware lint.
 	'pnpm-lock.yaml',
 ];
 

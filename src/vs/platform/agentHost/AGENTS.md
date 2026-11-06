@@ -921,7 +921,7 @@ Every tool definition the model can see is input tokens on every request of ever
 
 "It is handy", "it is read-only", "it is small", "the model will not find it otherwise" and "the previous tool in this group was eager" are not reasons. A quality-of-life tool is exactly the kind that should load on demand. If the model does not find a deferred tool, fix its description so tool search ranks it, not its deferral.
 
-Tool search is only active for models that support it (`agentHostModelSupportsToolSearch`) and when `chat.agentHost.copilot.toolSearch.enabled` is on. On every other session **everything is eager**, so an eager-by-default tool is an eager tool everywhere. Do not reason as if deferral were the common case.
+Tool search is only active for models that support it (`agentHostModelSupportsToolSearch`) and when the client forwards its `toolSearch` tool, which users turn off with the Search Tools toggle in Chat Customizations. On every other session **everything is eager**, so an eager-by-default tool is an eager tool everywhere. Do not reason as if deferral were the common case.
 
 ### Where each kind of tool is controlled
 

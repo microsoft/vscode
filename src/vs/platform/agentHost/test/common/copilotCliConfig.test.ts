@@ -5,7 +5,7 @@
 
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
-import { CopilotCliConfigKey, copilotCliConfigSchema, normalizeCopilotPolicyHelperConfig, normalizeModelFamilyAlias, normalizeSkillCharBudget, normalizeToolSearchDeferThreshold, resolveModelCapabilityOverrideField, type CopilotCliModelCapabilityOverrides } from '../../common/copilotCliConfig.js';
+import { CopilotCliConfigKey, copilotCliConfigSchema, normalizeCopilotPolicyHelperConfig, normalizeModelFamilyAlias, normalizeSkillCharBudget, resolveModelCapabilityOverrideField, type CopilotCliModelCapabilityOverrides } from '../../common/copilotCliConfig.js';
 import { reasoningEffortLevels } from '../../common/reasoningEffort.js';
 
 suite('copilotCliConfig', () => {
@@ -29,13 +29,6 @@ suite('copilotCliConfig', () => {
 		assert.deepStrictEqual(
 			['claude-opus-4.8', 'openai/gpt-5', '', ' padded ', 'has\u0000nul', 'x'.repeat(129)].map(normalizeModelFamilyAlias),
 			['claude-opus-4.8', 'openai/gpt-5', undefined, undefined, undefined, undefined]
-		);
-	});
-
-	test('normalizeToolSearchDeferThreshold floors valid values and defaults invalid values', () => {
-		assert.deepStrictEqual(
-			[5.9, 0, -1, Number.NaN, Number.POSITIVE_INFINITY, undefined].map(normalizeToolSearchDeferThreshold),
-			[5, 0, 1, 1, 1, 1]
 		);
 	});
 
