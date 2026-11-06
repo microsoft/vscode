@@ -20,11 +20,11 @@ import { IEditorGroup, IEditorGroupsService } from '../../../../../workbench/ser
 import { StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
 import { SyncDescriptor } from '../../../../../platform/instantiation/common/descriptors.js';
 import { Parts } from '../../../../../workbench/services/layout/browser/layoutService.js';
-import { IActiveSession } from '../../../../services/sessions/common/sessionsManagement.js';
-import { ISessionFileChange, SessionStatus } from '../../../../services/sessions/common/session.js';
+import { IActiveSession } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
+import { ISessionFileChange, SessionStatus } from '../../../../../workbench/contrib/sessions/common/session.js';
 import { CanvasInput } from '../../../../../workbench/contrib/canvases/common/canvas.js';
-import { IWindowCanvas, WindowCanvasInput } from '../../../../services/canvas/browser/windowCanvasService.js';
-import { EmptyFileEditorInput } from '../../../editor/browser/emptyFileEditorInput.js';
+import { WindowCanvasInput, IWindowCanvas } from '../../../../../workbench/contrib/sessions/browser/windowCanvas.js';
+import { EmptyFileEditorInput } from '../../../../../workbench/contrib/sessions/browser/emptyFileEditorInput.js';
 import { SESSIONS_FILES_CONTAINER_ID } from '../../../files/browser/files.contribution.js';
 import { DesktopDetailPanelCoordinator } from '../../browser/desktop/desktopDetailPanelCoordinator.js';
 import { DesktopDockedTabsCoordinator } from '../../browser/desktop/desktopDockedTabsCoordinator.js';

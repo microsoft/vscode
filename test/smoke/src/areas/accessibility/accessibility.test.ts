@@ -93,8 +93,9 @@ export function setup(logger: Logger, opts: { web?: boolean }, quality: Quality)
 					});
 				});
 
-				// Chat response test requires gallery service which is only available in non-Dev/OSS builds
-				it('chat response has no accessibility violations', async function () {
+				// Chat response test requires gallery service which is only available in non-Dev/OSS builds.
+				// Without it, the test would wait 150 seconds for a response before skipping itself.
+				(quality === Quality.Dev || quality === Quality.OSS ? it.skip : it)('chat response has no accessibility violations', async function () {
 					// Disable retries for this test - it modifies settings and retries cause issues
 					this.retries(0);
 					// Extend timeout for this test since AI responses can take a while

@@ -9,11 +9,11 @@ import { derived, IObservable, ISettableObservable, observableValue } from '../.
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { ChatSendResult, IChatService } from '../../../../workbench/contrib/chat/common/chatService/chatService.js';
 import { ChatAgentLocation } from '../../../../workbench/contrib/chat/common/constants.js';
-import { ISession } from '../../../services/sessions/common/session.js';
-import { buildFixCIPrompt, countRequiredChecks } from '../../changes/browser/checksActions.js';
-import { IGitHubService } from '../../github/browser/githubService.js';
-import { GitHubPullRequestCIModel } from '../../github/browser/models/githubPullRequestCIModel.js';
-import { ISessionCIFixModel, ISessionCIFixState } from './views/sessionsList.js';
+import { ISession } from '../../../../workbench/contrib/sessions/common/session.js';
+import { buildFixCIPrompt, countRequiredChecks } from '../../../../workbench/contrib/sessions/browser/fixCIChecks.js';
+import { IGitHubService } from '../../../../workbench/contrib/sessions/browser/github/githubService.js';
+import { GitHubPullRequestCIModel } from '../../../../workbench/contrib/sessions/browser/github/models/githubPullRequestCIModel.js';
+import { ISessionCIFixModel, ISessionCIFixState } from '../../../../workbench/contrib/sessions/browser/views/sessionsList.js';
 
 /**
  * Backs the per-session "Fix CI" row shown in the blocked-sessions dropdown for

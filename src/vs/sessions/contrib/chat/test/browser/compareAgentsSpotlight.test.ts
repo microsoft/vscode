@@ -25,9 +25,9 @@ import { OnboardingOutcome } from '../../../../../workbench/contrib/onboarding/c
 import { IOnboardingScenarioService } from '../../../../../workbench/contrib/onboarding/common/onboardingScenarioService.js';
 import { IChatEntitlementService } from '../../../../../workbench/services/chat/common/chatEntitlementService.js';
 import { TestHostService, TestLayoutService } from '../../../../../workbench/test/browser/workbenchTestServices.js';
-import { CompareAgentsSpotlight, COMPARE_AGENTS_SPOTLIGHT_ID } from '../../browser/compareAgentsSpotlight.js';
-import { SessionComparisonModelSelection } from '../../browser/sessionComparisonModelSelection.js';
-import { COMPARE_AGENTS_SHOW_SPOTLIGHT_SETTING } from '../../common/constants.js';
+import { CompareAgentsSpotlight, COMPARE_AGENTS_SPOTLIGHT_ID } from '../../../../../workbench/contrib/sessions/browser/chat/compareAgentsSpotlight.js';
+import { SessionComparisonModelSelection } from '../../../../../workbench/contrib/sessions/browser/chat/sessionComparisonModelSelection.js';
+import { COMPARE_AGENTS_SHOW_SPOTLIGHT_SETTING } from '../../../../../workbench/contrib/sessions/common/chatConstants.js';
 
 suite('CompareAgentsSpotlight', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -63,7 +63,7 @@ suite('CompareAgentsSpotlight', () => {
 			instantiationService.set(IOnboardingScenarioService, onboarding);
 			instantiationService.set(IChatEntitlementService, entitlement);
 			instantiationService.set(IStorageService, store.add(new InMemoryStorageService()));
-			const createSelection = () => store.add(instantiationService.createInstance(SessionComparisonModelSelection, constObservable(true), undefined, undefined, undefined, undefined));
+			const createSelection = () => store.add(instantiationService.createInstance(SessionComparisonModelSelection, constObservable(true), undefined, undefined, undefined));
 			const selection = createSelection();
 			if (previouslyOpened) {
 				selection.start();

@@ -106,19 +106,15 @@ import { TestMenuService } from '../workbenchTestServices.js';
 import { IAccessibilitySignalService } from '../../../../platform/accessibilitySignal/browser/accessibilitySignalService.js';
 import { IResolvedTextEditorModel, ITextModelService } from '../../../../editor/common/services/resolverService.js';
 import { InMemoryTextModelService } from '../../../../editor/common/services/inMemoryTextModelService.js';
-// eslint-disable-next-line local/code-import-patterns
-import { AGENT_FEEDBACK_NEW_SESSION_RESOURCE, IAgentFeedbackService } from '../../../../sessions/contrib/agentFeedback/browser/agentFeedbackService.js';
+import { AGENT_FEEDBACK_NEW_SESSION_RESOURCE, IAgentFeedbackService } from '../../../contrib/sessions/browser/agentFeedback.js';
 import { IChatEditingService } from '../../../contrib/chat/common/editing/chatEditingService.js';
-// eslint-disable-next-line local/code-import-patterns
-import { ISessionsManagementService } from '../../../../sessions/services/sessions/common/sessionsManagement.js';
-// eslint-disable-next-line local/code-import-patterns
-import { ISessionsService } from '../../../../sessions/services/sessions/browser/sessionsService.js';
-// eslint-disable-next-line local/code-import-patterns
-import { ActiveSessionHost, SessionHostKind } from '../../../../sessions/services/sessions/browser/sessionHost.js';
-// eslint-disable-next-line local/code-import-patterns
-import { ISessionChangesStatsCache, SessionChangesStatsCache } from '../../../../sessions/services/sessions/common/sessionChangesStatsCache.js';
-// eslint-disable-next-line local/code-import-patterns
-import { ICodeReviewService, PRReviewStateKind } from '../../../../sessions/contrib/codeReview/browser/codeReviewService.js';
+import { ISessionsManagementService } from '../../../contrib/sessions/common/sessionsManagement.js';
+import { ISessionsService } from '../../../contrib/sessions/browser/sessionsService.js';
+import { ISessionsHostLayoutService } from '../../../contrib/sessions/browser/sessionsHostLayoutService.js';
+import { IWorkbenchLayoutService } from '../../../services/layout/browser/layoutService.js';
+import { ActiveSessionHost, SessionHostKind } from '../../../contrib/sessions/browser/sessionHost.js';
+import { ISessionChangesStatsCache, SessionChangesStatsCache } from '../../../contrib/sessions/common/sessionChangesStatsCache.js';
+import { ICodeReviewService, PRReviewStateKind } from '../../../contrib/sessions/browser/codeReviewService.js';
 import { constObservable } from '../../../../base/common/observable.js';
 import { IPreferencesService } from '../../../services/preferences/common/preferences.js';
 
@@ -864,6 +860,17 @@ export function createEditorServices(disposables: DisposableStore, options?: Cre
 			serviceIdentifiers.push(id);
 		},
 	});
+
+	// The Agents workbench is its own session host layout, with itself as the docked side pane. Unless a fixture defines
+	// one, resolve the host layout to the fixture's workbench layout service the same way, when it is first used.
+	if (!services.has(ISessionsHostLayoutService)) {
+		services.set(ISessionsHostLayoutService, new Proxy({}, {
+			get: (_target, property) => {
+				const layout = instantiationService.get(IWorkbenchLayoutService);
+				return property === 'sidePane' ? layout : Reflect.get(layout, property);
+			}
+		}) as ISessionsHostLayoutService);
+	}
 
 	// Pass `_properDispose: true` so the underlying `InstantiationService`'s
 	// dispose runs, which disposes services it instantiated lazily from

@@ -39,12 +39,13 @@ import { NullWorkbenchAssignmentService } from '../../../../../workbench/service
 import { ChatEntitlement, ChatEntitlementContextKeys } from '../../../../../workbench/services/chat/common/chatEntitlementService.js';
 import { TestHostService, TestLayoutService } from '../../../../../workbench/test/browser/workbenchTestServices.js';
 import { TestChatEntitlementService, TestLifecycleService, TestStorageService } from '../../../../../workbench/test/common/workbenchTestServices.js';
-import { AgentHostSessionTypesAvailableContext, IsNewChatSessionContext, NewSessionOnboardingHandoffContext, SessionHarnessPickerVisibleContext, SessionWorkspacePickerVisibleContext } from '../../../../common/contextkeys.js';
-import { ISessionNavigationRequest } from '../../../../services/sessions/browser/sessionsService.js';
-import { IActiveSession } from '../../../../services/sessions/common/sessionsManagement.js';
-import { SessionStatus } from '../../../../services/sessions/common/session.js';
-import { getSessionOnboardingTargetId, SessionsList } from '../../../sessions/browser/views/sessionsList.js';
-import { SessionsView } from '../../../sessions/browser/views/sessionsView.js';
+import { IsNewChatSessionContext, SessionHarnessPickerVisibleContext, SessionWorkspacePickerVisibleContext } from '../../../../../workbench/contrib/sessions/common/contextkeys.js';
+import { AgentHostSessionTypesAvailableContext, NewSessionOnboardingHandoffContext } from '../../../../common/agentsWindowContextKeys.js';
+import { ISessionNavigationRequest } from '../../../../../workbench/contrib/sessions/browser/sessionsService.js';
+import { IActiveSession } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
+import { SessionStatus } from '../../../../../workbench/contrib/sessions/common/session.js';
+import { getSessionOnboardingTargetId, SessionsList } from '../../../../../workbench/contrib/sessions/browser/views/sessionsList.js';
+import { SessionsView } from '../../../../../workbench/contrib/sessions/browser/views/sessionsView.js';
 import { createTestSession } from '../../../sessions/test/browser/sessionsListTestUtils.js';
 import { AgentsWindowInvitationOnboarding } from '../../browser/agentsWindowInvitationOnboarding.js';
 import { createNewSessionTour, NEW_SESSION_ONBOARDING_SEEN_KEY } from '../../browser/tours/newSessionTour.js';
@@ -52,7 +53,7 @@ import { createNewSessionViewTour } from '../../browser/tours/newSessionViewTour
 import { createNewSessionViewV2Tour, NEW_SESSION_VIEW_V2_TOUR_ID } from '../../browser/tours/newSessionViewV2Tour.js';
 import { AGENTS_WINDOW_INVITATION_TOUR_ID } from '../../browser/tours/agentsWindowInvitationTour.js';
 import { createNewSessionViewV3Tour } from '../../browser/tours/newSessionViewV3Tour.js';
-import { focusedSessionHostServiceOf, ITestSessionsService } from '../../../../services/sessions/test/browser/sessionHostTestUtils.js';
+import { focusedSessionHostServiceOf, ITestSessionsService } from '../../../../../workbench/contrib/sessions/test/browser/sessionHostTestUtils.js';
 
 suite('AgentsWindowInvitationOnboarding', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();

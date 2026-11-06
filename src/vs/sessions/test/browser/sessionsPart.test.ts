@@ -8,8 +8,8 @@ import { EventType } from '../../../base/browser/dom.js';
 import { mainWindow } from '../../../base/browser/window.js';
 import { timeout } from '../../../base/common/async.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../base/test/common/utils.js';
-import { SessionHarnessPickerVisibleContext, SessionIsolationPickerVisibleContext, SessionWorkspacePickerVisibleContext } from '../../common/contextkeys.js';
-import { noSessionPickerVisibility } from '../../services/sessions/common/sessionPickerVisibility.js';
+import { SessionHarnessPickerVisibleContext, SessionIsolationPickerVisibleContext, SessionWorkspacePickerVisibleContext } from '../../../workbench/contrib/sessions/common/contextkeys.js';
+import { noSessionPickerVisibility } from '../../../workbench/contrib/sessions/common/sessionPickerVisibility.js';
 import { createSessionsPartTestHarness, createTestActiveSession, getSessionPickerVisibility } from './sessionViewTestUtils.js';
 import { Direction } from '../../../base/browser/ui/grid/grid.js';
 import { contrastBorder } from '../../../platform/theme/common/colorRegistry.js';
@@ -17,11 +17,11 @@ import { ColorScheme } from '../../../platform/theme/common/theme.js';
 import { IThemeService } from '../../../platform/theme/common/themeService.js';
 import { TestColorTheme, TestThemeService } from '../../../platform/theme/test/common/testThemeService.js';
 import { workbenchInstantiationService } from '../../../workbench/test/browser/workbenchTestServices.js';
-import { agentsCardBorder, agentsPanelBorder } from '../../common/theme.js';
+import { agentsCardBorder, agentsPanelBorder } from '../../../workbench/contrib/sessions/common/theme.js';
 import { extUriBiasedIgnorePathCase } from '../../../base/common/resources.js';
 import { mock } from '../../../base/test/common/mock.js';
 import { IUriIdentityService } from '../../../platform/uriIdentity/common/uriIdentity.js';
-import { VisibleSessions } from '../../services/sessions/browser/visibleSessions.js';
+import { VisibleSessions } from '../../../workbench/contrib/sessions/browser/visibleSessions.js';
 
 suite('Sessions - Sessions Part', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();

@@ -14,7 +14,8 @@ import { ActiveEditorContext, LayoutModeContext, TerminalsPositionContext, Termi
 import { ChatWindowCategory, ChatWindowLayoutCommandsContext, resolveChatWindow } from '../../../../workbench/contrib/chatWindow/browser/chatWindowLayoutActions.js';
 import { ChatWindowLayoutMode, ChatWindowTerminalPosition } from '../../../../workbench/contrib/chatWindow/common/chatWindowLayout.js';
 import { terminalEditorId } from '../../../../workbench/contrib/terminal/browser/terminal.js';
-import { Menus, SessionActivityBarGroup } from '../../../browser/menus.js';
+import { Menus, SessionActivityBarGroup } from '../../../../workbench/contrib/sessions/browser/menus.js';
+import { AgentsWindowMenus } from '../../../browser/agentsWindowMenus.js';
 import { IChatWindowTerminalsService } from './chatWindowTerminals.js';
 
 export const TOGGLE_CHAT_WINDOW_TERMINAL_COMMAND_ID = 'workbench.action.chatWindow.toggleTerminal';
@@ -76,7 +77,7 @@ registerAction2(class AddChatWindowTerminalAction extends Action2 {
 			title: localize2('chatWindowAddTerminal', "Terminal"),
 			icon: Codicon.terminal,
 			precondition: ChatWindowLayoutCommandsContext,
-			menu: [Menus.SessionsEditorTabsBarAddTab, Menus.SessionsEmptyEditorGroupAddTab].map(id => ({
+			menu: [AgentsWindowMenus.SessionsEditorTabsBarAddTab, AgentsWindowMenus.SessionsEmptyEditorGroupAddTab].map(id => ({
 				id,
 				group: 'navigation',
 				order: 3,

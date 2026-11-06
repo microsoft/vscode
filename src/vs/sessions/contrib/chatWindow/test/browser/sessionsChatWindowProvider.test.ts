@@ -26,27 +26,27 @@ import { IContentPart, IEditorGroup, IEditorGroupsService, IEditorPart } from '.
 import { IEditorService } from '../../../../../workbench/services/editor/common/editorService.js';
 import { IWorkbenchLayoutService } from '../../../../../workbench/services/layout/browser/layoutService.js';
 import { ServiceCollection } from '../../../../../platform/instantiation/common/serviceCollection.js';
-import { ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
-import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
-import { ChatHostOpenerService, IChatHostOpenerService } from '../../../../services/sessions/browser/chatHostOpener.js';
-import { ChatInteractivity, IChat, ISession, ISessionChangeset, ISessionChangesetOperation, SessionChangesetOperationScope, SessionStatus } from '../../../../services/sessions/common/session.js';
-import { IActiveSession, ISessionsChangeEvent, ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
+import { ISessionsProvidersService } from '../../../../../workbench/contrib/sessions/browser/sessionsProvidersService.js';
+import { ISessionsService } from '../../../../../workbench/contrib/sessions/browser/sessionsService.js';
+import { ChatHostOpenerService, IChatHostOpenerService } from '../../../../../workbench/contrib/sessions/browser/chatHostOpener.js';
+import { ChatInteractivity, IChat, ISession, ISessionChangeset, ISessionChangesetOperation, SessionChangesetOperationScope, SessionStatus } from '../../../../../workbench/contrib/sessions/common/session.js';
+import { IActiveSession, ISessionsChangeEvent, ISessionsManagementService } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import { CHAT_WINDOWS_ENABLED_SETTING } from '../../common/chatWindows.js';
-import { SessionChangesEditorFileListContext } from '../../../changes/common/changes.js';
+import { SessionChangesEditorFileListContext } from '../../../../../workbench/contrib/sessions/common/changes.js';
 import { SessionChangesetOperationsContext } from '../../../changes/browser/changesActions.js';
-import { ActiveSessionState, IChangesSessionObservables, IChangesViewService } from '../../../changes/common/changesViewService.js';
-import { IGitHubService } from '../../../github/browser/githubService.js';
-import { GitHubPullRequestCIModel } from '../../../github/browser/models/githubPullRequestCIModel.js';
-import { SESSION_ACTIVITY_BAR_COLUMN_WIDTH } from '../../../../browser/parts/sessionActivityBar.js';
+import { ActiveSessionState, IChangesSessionObservables, IChangesViewService } from '../../../../../workbench/contrib/sessions/common/changesViewService.js';
+import { IGitHubService } from '../../../../../workbench/contrib/sessions/browser/github/githubService.js';
+import { GitHubPullRequestCIModel } from '../../../../../workbench/contrib/sessions/browser/github/models/githubPullRequestCIModel.js';
+import { SESSION_ACTIVITY_BAR_COLUMN_WIDTH } from '../../../../../workbench/contrib/sessions/browser/parts/sessionActivityBarHost.js';
 import { AGENTS_CHAT_WINDOW_CLASS } from '../../browser/chatWindowTitleDoubleClick.js';
-import { alignChatWindowHeaderActions, CHAT_WINDOW_MAIN_PART_GROUP_VIEW_OPTIONS, focusChatWindowUnlessFocused, getChatWindowMainPartOptions, getChatWindowTitleHeight, isChatWindowStripInColumn, reserveChatWindowControls, SessionsChatWindowContent, SessionsChatWindowProvider } from '../../browser/sessionsChatWindowProvider.js';
+import { alignChatWindowHeaderActions, CHAT_WINDOW_MAIN_PART_GROUP_VIEW_OPTIONS, focusChatWindowUnlessFocused, getChatWindowMainPartOptions, getChatWindowTitleHeight, isChatWindowStripInColumn, setChatWindowTitleInChatColumn, SessionsChatWindowContent, SessionsChatWindowProvider } from '../../browser/sessionsChatWindowProvider.js';
 import { DesktopMainEditorPart } from '../../../../browser/parts/desktopEditorPart.js';
 import { IEditorGroupViewOptions } from '../../../../../workbench/browser/parts/editor/editor.js';
 import { EditorInputCapabilities, GroupModelChangeKind } from '../../../../../workbench/common/editor.js';
 import { EditorInput } from '../../../../../workbench/common/editor/editorInput.js';
 import { IGroupModelChangeEvent } from '../../../../../workbench/common/editor/editorGroupModel.js';
-import { stubSessionHosts } from '../../../../services/sessions/test/browser/sessionHostTestUtils.js';
-import { ISessionHost } from '../../../../services/sessions/browser/sessionHost.js';
+import { stubSessionHosts } from '../../../../../workbench/contrib/sessions/test/browser/sessionHostTestUtils.js';
+import { ISessionHost } from '../../../../../workbench/contrib/sessions/browser/sessionHost.js';
 
 suite('Sessions chat window provider', () => {
 
@@ -86,6 +86,7 @@ suite('Sessions chat window provider', () => {
 		// The main window shows another session than those that move into it, such as one whose opening was cancelled
 		const mainWindowActiveSession = constObservable<IActiveSession | undefined>(undefined);
 		const onDidChangeSessions = store.add(new Emitter<ISessionsChangeEvent>());
+		const visibleSessions = observableValue<readonly (IActiveSession | undefined)[]>('visibleSessions', []);
 		const configuration = new TestConfigurationService({ [CHAT_WINDOWS_ENABLED_SETTING]: true });
 		const sentiment = observableValue<IChatSentiment>('sentiment', {});
 		const instantiationService = store.add(new TestInstantiationService());
@@ -122,11 +123,12 @@ suite('Sessions chat window provider', () => {
 			}
 		}());
 		instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() {
-			override readonly visibleSessions = constObservable([]);
+			override readonly visibleSessions = visibleSessions;
 			override readonly initialRestoreComplete = constObservable(true);
 			readonly mainWindowActiveSession = mainWindowActiveSession;
 			override async openMovedChats(chats: readonly { readonly session: ISession; readonly chatResource: URI }[]) {
-				events.push(`open moved ${chats.map(chat => `${chat.session.sessionId} ${chat.chatResource.path}`).join(', ')}`);
+				// A chat that a window still claims would open in that window again, not in the grid
+				events.push(`open moved ${chats.map(chat => `${chat.session.sessionId} ${chat.chatResource.path}${chatHostOpenerService.getOpenerOf(chat.chatResource) ? ' (claimed by a window)' : ''}`).join(', ')}`);
 			}
 			override hideChatFromGrid(session: ISession, chat: URI) {
 				events.push(`hide ${session.sessionId} ${chat.path}`);
@@ -171,7 +173,7 @@ suite('Sessions chat window provider', () => {
 			}),
 		}));
 		const provider = store.add(instantiationService.createInstance(SessionsChatWindowProvider));
-		return { provider, events, window, windowInstantiationService: store.add(instantiationService.createChild(new ServiceCollection([IContextKeyService, store.add(new ContextKeyService(configuration))]))), onDidChangeSessions, sentiment, configuration, editorGroups, activeChat, chatHostOpenerService };
+		return { provider, events, window, windowInstantiationService: store.add(instantiationService.createChild(new ServiceCollection([IContextKeyService, store.add(new ContextKeyService(configuration))]))), onDidChangeSessions, sentiment, configuration, editorGroups, activeChat, chatHostOpenerService, visibleSessions };
 	}
 
 	/** The window the chats show in: its active chat is `activeChat`. */
@@ -185,7 +187,8 @@ suite('Sessions chat window provider', () => {
 			override readonly onDidMoveGroup = Event.None;
 		}();
 		override readonly layoutMode = constObservable(ChatWindowLayoutMode.SideBySide);
-		override readonly chatLeads = constObservable(true);
+		override readonly titleMerged = constObservable(true);
+		override readonly titleInChatColumn = constObservable(false);
 		override readonly onDidClose = Event.None;
 		override readonly chat = activeChat;
 		override readonly chats = derived(reader => [activeChat.read(reader)]);
@@ -237,6 +240,19 @@ suite('Sessions chat window provider', () => {
 		assert.deepStrictEqual({ same: ofSession === shown, events }, { same: true, events: ['hide session /main'] });
 	});
 
+	test('a session resolves to the chat its grid slot shows, unless the exact chat is asked for, which is its main chat', async () => {
+		const store = disposables.add(new DisposableStore());
+		const session = createSession('session', [createChat('main'), createChat('peer')]);
+		const { provider, visibleSessions } = createProvider(store, [session]);
+		visibleSessions.set([upcastPartial<IActiveSession>({ sessionId: 'session', activeChat: constObservable(session.chats.get()[1]) })], undefined);
+		const content = store.add((await provider.resolveContent(session.resource))!);
+
+		const exact = await content.resolveChat(session.resource, true);
+		const substituted = await content.resolveChat(session.resource);
+
+		assert.deepStrictEqual({ exact: exact?.chat.get().path, substituted: substituted?.chat.get().path }, { exact: '/main', substituted: '/peer' });
+	});
+
 	test('a chat leaves its window once it is archived, or deleted once its session listed its chats', async () => {
 		const store = disposables.add(new DisposableStore());
 		const isArchived = observableValue('archived', false);
@@ -258,23 +274,90 @@ suite('Sessions chat window provider', () => {
 		assert.deepStrictEqual(ended, ['/archived', '/deleted']);
 	});
 
-	test('opening a chat a window shows reveals it there, and a chat opened beside one it shows opens beside it in that window', async () => {
+	test('opening a chat a window shows reveals it there, and a chat opened beside one it shows opens beside it in that window; once the chat\'s editor closed, such as with its window, which is still going away, the window does not show it: it opens elsewhere, not in a new window', async () => {
 		const store = disposables.add(new DisposableStore());
 		const session = createSession('session', [createChat('main'), createChat('subagent')]);
-		const { provider, events, chatHostOpenerService } = createProvider(store, [session]);
+		const { provider, events, chatHostOpenerService, editorGroups } = createProvider(store, [session]);
 		const content = store.add((await provider.resolveContent(session.resource))!);
-		await content.resolveChat(URI.parse('test:/main'));
+		const main = (await content.resolveChat(URI.parse('test:/main')))!;
+		// The group of the window that shows the chat's editor
+		const group = upcastPartial<IEditorGroup>({ contains: editor => editor === main.input });
+		editorGroups.push(group);
 
 		const opener = chatHostOpenerService.getOpenerOf(URI.parse('test:/main'));
 		const notShown = chatHostOpenerService.getOpenerOf(URI.parse('test:/subagent'));
 		await opener?.reveal(URI.parse('test:/main'));
 		await opener?.openBeside(URI.parse('test:/subagent'), URI.parse('test:/main'));
+		editorGroups.splice(editorGroups.indexOf(group), 1);
+		const afterEditorClosed = chatHostOpenerService.getOpenerOf(URI.parse('test:/main'));
 
-		assert.deepStrictEqual({ shown: !!opener, notShown, events: events.filter(event => event.startsWith('window')) }, {
+		assert.deepStrictEqual({ shown: !!opener, notShown, afterEditorClosed, events: events.filter(event => event.startsWith('window')) }, {
 			shown: true,
 			notShown: undefined,
+			afterEditorClosed: undefined,
 			events: ['window open /main', 'window open /subagent in 42 beside /main'],
 		});
+	});
+
+	test('a chat its window closed for it to show elsewhere shows there again when restored: in that window, as long as it stays', async () => {
+		const store = disposables.add(new DisposableStore());
+		const session = createSession('session', [createChat('main'), createChat('subagent')]);
+		const { provider, events, chatHostOpenerService, editorGroups, window, windowInstantiationService } = createProvider(store, [session]);
+		const content = store.add((await provider.resolveContent(session.resource))!);
+		store.add(content.bind!(window, windowInstantiationService));
+		const subagent = (await content.resolveChat(URI.parse('test:/subagent')))!;
+		let open = true;
+		editorGroups.push(upcastPartial<IEditorGroup>({
+			contains: editor => open && editor === subagent.input,
+			closeEditor: async () => {
+				open = false;
+				return true;
+			},
+		}));
+		const opener = chatHostOpenerService.getOpenerOf(URI.parse('test:/subagent'))!;
+
+		const closed = await opener.close(URI.parse('test:/subagent'));
+		await closed?.restore();
+
+		assert.deepStrictEqual({ closed: !!closed, events: events.filter(event => event.startsWith('window')) }, { closed: true, events: ['window open /subagent in 42'] });
+	});
+
+	test('a chat whose close its window vetoes is not closed: there is nothing to show it there again', async () => {
+		const store = disposables.add(new DisposableStore());
+		const session = createSession('session', [createChat('main'), createChat('subagent')]);
+		const { provider, chatHostOpenerService, editorGroups, window, windowInstantiationService } = createProvider(store, [session]);
+		const content = store.add((await provider.resolveContent(session.resource))!);
+		store.add(content.bind!(window, windowInstantiationService));
+		const subagent = (await content.resolveChat(URI.parse('test:/subagent')))!;
+		editorGroups.push(upcastPartial<IEditorGroup>({
+			contains: editor => editor === subagent.input,
+			closeEditor: async () => false,
+		}));
+
+		const closed = await chatHostOpenerService.getOpenerOf(URI.parse('test:/subagent'))!.close(URI.parse('test:/subagent'));
+
+		assert.strictEqual(closed, undefined);
+	});
+
+	test('Move to Main Window, once the window closed its chats\' editors as it closes, opens every chat in the grid: no window, which is still going away, claims them, so none opens again', async () => {
+		const store = disposables.add(new DisposableStore());
+		const session = createSession('session', [createChat('main'), createChat('subagent')]);
+		const other = createSession('other', [createChat('elsewhere')]);
+		const { provider, events, editorGroups } = createProvider(store, [session, other]);
+		const content = store.add((await provider.resolveContent(session.resource))!);
+		const shown = await Promise.all(['test:/elsewhere', 'test:/main', 'test:/subagent'].map(async chat => (await content.resolveChat(URI.parse(chat)))!));
+		// The chat part of the window, which shows the chats' editors until it closes with the window
+		const chatPart = upcastPartial<IEditorGroup>({ contains: editor => shown.some(chat => chat.input === editor) });
+		editorGroups.push(chatPart);
+
+		await provider.moveToMainWindow([URI.parse('test:/elsewhere')], {});
+		editorGroups.splice(editorGroups.indexOf(chatPart), 1);
+		await provider.moveToMainWindow([URI.parse('test:/elsewhere'), URI.parse('test:/main'), URI.parse('test:/subagent')], {});
+
+		assert.deepStrictEqual(events.filter(event => !event.startsWith('hide')), [
+			'open moved other /elsewhere (claimed by a window)',
+			'open moved other /elsewhere, session /main, session /subagent',
+		]);
 	});
 
 	test('Move to Main Window shows the chats of the window in the main window, its active one first, also of other sessions; it then opens its other editors there, without waiting for a session that does not become active', async () => {
@@ -424,22 +507,24 @@ suite('Sessions chat window provider', () => {
 		// The window controls at the right, as on Windows and Linux.
 		const controls = append(titlebar, $('div'));
 		controls.style.cssText = 'display: block; width: 138px; height: 30px;';
+		let inChatColumn = false;
 		const reserved = (windowControls: HTMLElement | undefined) => {
-			reserveChatWindowControls(titlebar, windowControls);
+			setChatWindowTitleInChatColumn(titlebar, windowControls, inChatColumn);
 			return chatWindow.style.getPropertyValue('--chat-window-controls-right-width') || 'none';
 		};
 
 		const inTitleRow = reserved(controls);
 		// Side by Side: the chat's own title, over its column only, leaves its window controls at the top right of the window.
-		titlebar.classList.add('header-chat-column');
+		inChatColumn = true;
 		const overChatColumn = reserved(controls);
+		const classOn = titlebar.classList.contains('header-chat-column');
 		controls.style.display = 'none';
 		const fullScreen = reserved(controls);
 		controls.style.display = 'block';
 		const leftAsOnMacOS = reserved(undefined);
 		const windowedAgain = reserved(controls);
 
-		assert.deepStrictEqual({ inTitleRow, overChatColumn, fullScreen, leftAsOnMacOS, windowedAgain }, { inTitleRow: 'none', overChatColumn: '138px', fullScreen: 'none', leftAsOnMacOS: 'none', windowedAgain: '138px' });
+		assert.deepStrictEqual({ inTitleRow, classOn, overChatColumn, fullScreen, leftAsOnMacOS, windowedAgain }, { inTitleRow: 'none', classOn: true, overChatColumn: '138px', fullScreen: 'none', leftAsOnMacOS: 'none', windowedAgain: '138px' });
 	});
 
 	test('the cards keep the main window\'s gaps: between them and to the edges of the window but its top, where the title row is', () => {

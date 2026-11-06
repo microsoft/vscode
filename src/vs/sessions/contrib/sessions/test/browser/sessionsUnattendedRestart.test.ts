@@ -7,7 +7,7 @@ import assert from 'assert';
 import { observableValue } from '../../../../../base/common/observable.js';
 import { upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { ISession, SessionStatus } from '../../../../services/sessions/common/session.js';
+import { ISession, SessionStatus } from '../../../../../workbench/contrib/sessions/common/session.js';
 import { getSessionsUnattendedRestartBlocker } from '../../browser/sessionsUnattendedRestart.js';
 
 suite('getSessionsUnattendedRestartBlocker', () => {

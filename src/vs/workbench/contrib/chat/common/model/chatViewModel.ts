@@ -431,7 +431,7 @@ export class ChatViewModel extends Disposable implements IChatViewModel {
 		if (this._options?.latestRequestOnly) {
 			const latestItem = items.at(-1);
 			const requestId = latestItem && (isResponseVM(latestItem) ? latestItem.requestId : latestItem.id);
-			return items.filter(item => (isResponseVM(item) ? item.requestId : item.id) === requestId);
+			items = items.filter(item => (isResponseVM(item) ? item.requestId : item.id) === requestId);
 		}
 		if (this._options?.maxVisibleItems !== undefined && items.length > this._options.maxVisibleItems) {
 			items = items.slice(-this._options.maxVisibleItems);

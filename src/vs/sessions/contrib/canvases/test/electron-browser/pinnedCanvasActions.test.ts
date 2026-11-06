@@ -23,8 +23,9 @@ import { ChatContextKeys } from '../../../../../workbench/contrib/chat/common/ac
 import { IEditorGroup, IEditorGroupsService } from '../../../../../workbench/services/editor/common/editorGroupsService.js';
 import { IEditorService } from '../../../../../workbench/services/editor/common/editorService.js';
 import { IWorkbenchEnvironmentService } from '../../../../../workbench/services/environment/common/environmentService.js';
-import { Menus } from '../../../../browser/menus.js';
-import { CanvasesPinnedToSidebarContext, IPinnedCanvasService } from '../../browser/pinnedCanvases.js';
+import { Menus } from '../../../../../workbench/contrib/sessions/browser/menus.js';
+import { AgentsWindowMenus } from '../../../../browser/agentsWindowMenus.js';
+import { CanvasesPinnedToSidebarContext, IPinnedCanvasService } from '../../../../../workbench/contrib/sessions/browser/pinnedCanvases.js';
 import { ADD_CANVAS_TO_SIDEBAR_COMMAND_ID, REMOVE_CANVAS_FROM_SIDEBAR_COMMAND_ID, TOGGLE_CANVAS_PINNED_TO_SIDEBAR_COMMAND_ID } from '../../electron-browser/pinnedCanvasActions.js';
 
 suite('PinnedCanvasActions', () => {
@@ -99,7 +100,7 @@ suite('PinnedCanvasActions', () => {
 		assert.deepStrictEqual({
 			toolbar: describe(Menus.SidebarCanvasToolbar),
 			contextMenu: describe(Menus.SidebarCanvasContext),
-			page: describe(Menus.CustomViewCanvas),
+			page: describe(AgentsWindowMenus.CustomViewCanvas),
 		}, {
 			toolbar: { group: 'navigation', icon: Codicon.unpin, available: true, canvasesDisabled: false },
 			contextMenu: { group: '2_organize', icon: Codicon.unpin, available: true, canvasesDisabled: false },

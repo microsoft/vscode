@@ -21,13 +21,13 @@ import { ContextKeyExpr, IContextKeyService } from '../../../../platform/context
 import { registerWorkbenchContribution2, WorkbenchPhase, type IWorkbenchContribution } from '../../../../workbench/common/contributions.js';
 import { ChatContextKeys } from '../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
 import { IChatEntitlementService } from '../../../../workbench/services/chat/common/chatEntitlementService.js';
-import { SessionsCategories } from '../../../common/categories.js';
-import { IWindowCanvasService } from '../../../services/canvas/browser/windowCanvasService.js';
+import { SessionsCategories } from '../../../../workbench/contrib/sessions/common/categories.js';
+import { IWindowCanvasService } from '../../../../workbench/contrib/sessions/browser/windowCanvas.js';
 import { InboxNotificationsView } from './inboxNotificationsView.js';
 import { InboxNotificationsService } from './inboxNotificationsService.js';
 import { IInboxCanvasHostService, UnsupportedInboxCanvasHostService } from './inboxCanvasHost.js';
-import { IInboxNotificationsService } from '../common/inboxNotificationsService.js';
-import { CHAT_INBOX_ENABLED_SETTING, ChatInboxEnabledContext, INBOX_CANVAS_ID, SHOW_INBOX_NOTIFICATIONS_COMMAND_ID } from './inboxNotificationsConstants.js';
+import { IInboxNotificationsService } from '../../../../workbench/contrib/sessions/common/inboxNotificationsService.js';
+import { CHAT_INBOX_ENABLED_SETTING, ChatInboxEnabledContext, INBOX_CANVAS_ID, SHOW_INBOX_NOTIFICATIONS_COMMAND_ID } from '../../../../workbench/contrib/sessions/browser/inboxNotificationsConstants.js';
 
 registerSingleton(IInboxNotificationsService, InboxNotificationsService, InstantiationType.Delayed);
 registerSingleton(IInboxCanvasHostService, UnsupportedInboxCanvasHostService, InstantiationType.Delayed);

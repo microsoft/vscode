@@ -10,7 +10,7 @@ import { ITextModel } from '../../../../editor/common/model.js';
 import { IModelService } from '../../../../editor/common/services/model.js';
 import { isUserEdit } from '../../../../editor/common/textModelEditSource.js';
 import { IModelContentChangedEvent } from '../../../../editor/common/textModelEvents.js';
-import { IHostSession } from '../../../services/sessions/common/sessionsManagement.js';
+import { IHostSession } from '../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 
 /** Characters the user typed into one resource while `session` was active. */
 export interface ITypedCharactersEntry {

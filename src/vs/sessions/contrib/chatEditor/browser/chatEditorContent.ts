@@ -4,20 +4,20 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { $, size } from '../../../../base/browser/dom.js';
-import { Disposable, toDisposable } from '../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, toDisposable } from '../../../../base/common/lifecycle.js';
 import { autorun, constObservable, derived, IObservable, observableFromEvent, observableValue } from '../../../../base/common/observable.js';
 import { localize } from '../../../../nls.js';
 import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
-import { ActiveSessionHost, createSessionHostServices, ISessionHost, ISessionHostService, SessionHostKind } from '../../../services/sessions/browser/sessionHost.js';
-import { IChat } from '../../../services/sessions/common/session.js';
-import { ISessionChangesStatsCache } from '../../../services/sessions/common/sessionChangesStatsCache.js';
-import { setActiveSessionContextKeys } from '../../../services/sessions/common/sessionContextKeys.js';
-import { SessionInChatEditorContext } from '../../../common/contextkeys.js';
-import { IActiveSession } from '../../../services/sessions/common/sessionsManagement.js';
-import { ChatGroupView, IChatGroupContext } from '../../../browser/parts/chatGroupView.js';
-import { AbstractChatView, ISessionViewHostOptions } from '../../../browser/parts/chatView.js';
-import { SessionHeader } from '../../../browser/parts/sessionHeader.js';
+import { ActiveSessionHost, createSessionHostServices, ISessionHost, ISessionHostService, SessionHostKind } from '../../../../workbench/contrib/sessions/browser/sessionHost.js';
+import { IChat } from '../../../../workbench/contrib/sessions/common/session.js';
+import { ISessionChangesStatsCache } from '../../../../workbench/contrib/sessions/common/sessionChangesStatsCache.js';
+import { setActiveSessionContextKeys } from '../../../../workbench/contrib/sessions/common/sessionContextKeys.js';
+import { SessionInChatEditorContext } from '../../../../workbench/contrib/sessions/common/contextkeys.js';
+import { IActiveSession } from '../../../../workbench/contrib/sessions/common/sessionsManagement.js';
+import { ChatGroupView, IChatGroupContext } from '../../../../workbench/contrib/sessions/browser/parts/chatGroupView.js';
+import { AbstractChatView, ISessionViewHostOptions } from '../../../../workbench/contrib/sessions/browser/parts/chatView.js';
+import { SessionHeader } from '../../../../workbench/contrib/sessions/browser/parts/sessionHeader.js';
 
 /**
  * What a chat editor shows of one chat: the header of its session above the chat, with its Session Activity Bar, as a
@@ -31,6 +31,8 @@ export class ChatEditorContent extends Disposable {
 	private readonly _header: SessionHeader;
 	private readonly _group: ChatGroupView;
 	private readonly _headerContainer: HTMLElement;
+	/** The services of its own scope, which what it shows is created with: disposed after it, see {@link dispose}. */
+	private readonly _scopedServices = new DisposableStore();
 	private readonly _session = observableValue<IActiveSession | undefined>(this, undefined);
 	private readonly _headerHeight = observableValue<number>(this, 0);
 	private _headerHost: HTMLElement | undefined;
@@ -48,6 +50,11 @@ export class ChatEditorContent extends Disposable {
 	/** The title of the session header, wherever the header shows. */
 	get headerTitleElement(): HTMLElement { return this._header.titleElement; }
 
+	override dispose(): void {
+		super.dispose();
+		this._scopedServices.dispose();
+	}
+
 	constructor(
 		hostOptions: ISessionViewHostOptions | undefined,
 		@IInstantiationService instantiationService: IInstantiationService,
@@ -63,12 +70,12 @@ export class ChatEditorContent extends Disposable {
 			this.element.setAttribute('aria-label', session ? localize('chatEditorContent', "Chat: {0}", session.activeChat.read(reader).title.read(reader)) : localize('chatEditorContentEmpty', "Chat"));
 		}));
 
-		const scopedContextKeyService = this._register(contextKeyService.createScoped(this.element));
+		const scopedContextKeyService = this._scopedServices.add(contextKeyService.createScoped(this.element));
 		// What acts on the main window's grid, such as pinning the session there, does not show in it.
 		SessionInChatEditorContext.bindTo(scopedContextKeyService).set(true);
 		this.host = new ActiveSessionHost({ kind: SessionHostKind.Pane, parent: parentHost, session: this._session, contextKeyService: scopedContextKeyService });
 		this._register(sessionHostService.registerHost(this.host));
-		const scopedInstantiationService = this._register(instantiationService.createChild(createSessionHostServices(scopedContextKeyService, this.host)));
+		const scopedInstantiationService = this._scopedServices.add(instantiationService.createChild(createSessionHostServices(scopedContextKeyService, this.host)));
 		this._register(autorun(reader => setActiveSessionContextKeys(this._session.read(reader), scopedContextKeyService, reader, changesStatsCache)));
 
 		this._headerContainer = $('.session-view-centered-content');
@@ -134,6 +141,19 @@ export class ChatEditorContent extends Disposable {
 		this._header.setActionsHost(host ? actionsHost : undefined);
 		(host ?? this._headerContainer).appendChild(this._header.element);
 		this._layoutChildren();
+	}
+
+	/**
+	 * Takes the session header out of the host it shows in, such as the title row of its window, as the view disposes: its
+	 * content is not laid out again, as it goes away with the view.
+	 */
+	detachHeaderHost(): void {
+		if (!this._headerHost) {
+			return;
+		}
+		this._headerHost = undefined;
+		this._header.setActionsHost(undefined);
+		this._header.element.remove();
 	}
 
 	/**

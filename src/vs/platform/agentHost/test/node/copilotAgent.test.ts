@@ -57,7 +57,7 @@ import type { IByokLmBridgeConnection, IByokLmModelInfo } from '../../common/age
 import { ITelemetryData, ITelemetryService, TelemetryLevel } from '../../../telemetry/common/telemetry.js';
 import { TelemetryService } from '../../../telemetry/common/telemetryService.js';
 import { NullTelemetryService, NullTelemetryServiceShape } from '../../../telemetry/common/telemetryUtils.js';
-import { CapturingTelemetryService } from '../../../telemetry/test/common/testTelemetryService.js';
+import { CapturingTelemetryService, TestDataTelemetryService } from '../../../telemetry/test/common/testTelemetryService.js';
 import { AgentHostTelemetryService } from '../../node/agentHostTelemetryService.js';
 import { AgentHostTelemetryReporter } from '../../node/agentHostTelemetryReporter.js';
 import { AgentHostStartupPerformance, IAgentHostStartupPerformance, NullAgentHostStartupPerformance } from '../../node/agentHostStartupPerformance.js';
@@ -91,7 +91,7 @@ import { AgentConfigurationService, IAgentConfigurationService } from '../../nod
 import { AgentHostAuthenticationService, IAgentHostAuthenticationService } from '../../node/agentHostAuthenticationService.js';
 import { AgentHostAuthenticationScope } from '../../node/agentHostAuthenticationScope.js';
 import type { IAgentHostPullRequestResolver } from '../../node/shared/pullRequestResolver.js';
-import { detachedWorktreeRecordUri, IAgentHostWorktreeIsolation, NullAgentHostWorktreeIsolation, WorktreeIsolation } from '../../node/shared/worktreeIsolation.js';
+import { detachedWorktreeRecordUri, IAgentHostWorktreeIsolation, NullAgentHostWorktreeIsolation, SessionWorkingDirectoryMissingError, WorktreeIsolation } from '../../node/shared/worktreeIsolation.js';
 import { IAgentHostSessionStateStore } from '../../common/agentHostSessionStateStore.js';
 import { parseSessionAdditionalWorktrees } from '../../node/shared/sessionAdditionalWorktrees.js';
 import { createTestSessionStateStore, createTestWorktreeCleanupService, seedSessionAdditionalWorktrees } from './chatMetadataTestHelpers.js';
@@ -156,7 +156,7 @@ import { ActiveClientToolSet } from '../../node/activeClientState.js';
 import { ByokLmBridgeRegistry, IByokLmBridgeRegistry } from '../../node/byokLmBridgeRegistry.js';
 import { IByokLmProxyService, NullByokLmProxyService, type IByokLmToolsCappedEvent } from '../../node/copilot/byokLmProxyService.js';
 import { ILocalModelSetupService, NullLocalModelSetupService } from '../../node/copilot/localModelBridge/localModelSetupService.js';
-import type { CopilotComputerUsePlugin } from '../../node/copilot/copilotComputerUsePlugin.js';
+import { COMPUTER_USE_PLUGIN_RELEASE, ComputerUsePluginInstallError, type CopilotComputerUsePlugin } from '../../node/copilot/copilotComputerUsePlugin.js';
 import type { ILocalModelProvider, LocalModelProviderSelection } from '../../node/copilot/localModelBridge/localModelProvider.js';
 import { LocalModelCopilotRequestHandler } from '../../node/copilot/localModelBridge/shim/copilotRequestHandler.js';
 import { ShimLocalModelProvider } from '../../node/copilot/localModelBridge/shim/shimLocalModelProvider.js';
@@ -185,6 +185,11 @@ const TEST_PRODUCT_SERVICE: IProductService = {
 
 function defaultChatUri(session: URI): URI {
 	return URI.parse(buildDefaultChatUri(session));
+}
+
+/** Applies a stubbed customization installation operation through the owner-bound provider API. */
+function applyTestInstallation(agent: CopilotAgent, operationId: string) {
+	return agent.applyCustomizationInstallation({ operationId, hostGeneration: 'test', ownershipToken: 'test' });
 }
 
 /**
@@ -2291,6 +2296,43 @@ suite('CopilotAgent', () => {
 		});
 	});
 
+	test('merges plugin inventories using canonical installation identities', async () => {
+		const client = new TestCopilotClient([]);
+		const timeline = { name: 'session-timeline', marketplace: '', enabled: true, directSourceId: 'local-timeline' };
+		const first = { name: 'duplicate', marketplace: '', enabled: true, directSourceId: 'first-source' };
+		const second = { name: 'duplicate', marketplace: '', enabled: false, directSourceId: 'second-source' };
+		const box = { name: 'box', marketplace: 'claude-plugins-official', enabled: false };
+		client.pluginInstallations.push(timeline, first, second, box);
+		const agent = createTestAgent(disposables, { copilotClient: client });
+		const builtin = { name: 'builtin', marketplace: '', enabled: true, source: 'builtin' };
+		const localBox = { name: 'box', marketplace: '', enabled: true };
+		const sessionOnly = { name: 'duplicate', marketplace: '', enabled: true, directSourceId: 'session-source' };
+		try {
+			const cold = await agent['_listInstalledPlugins']('plugin-completions');
+			setDefaultSessionStub(agent, 'plugin-completions', {
+				listInstalledPlugins: async () => [
+					{ name: timeline.name, marketplace: '', enabled: true },
+					{ name: timeline.name, marketplace: '', enabled: true },
+					{ name: first.name, marketplace: '', enabled: true },
+					first,
+					{ ...box, enabled: true, managed: true },
+					builtin,
+					localBox,
+					sessionOnly,
+					sessionOnly,
+				],
+			});
+			const live = await agent['_listInstalledPlugins']('plugin-completions');
+
+			assert.deepStrictEqual({ cold, live }, {
+				cold: [timeline, first, second, box],
+				live: [timeline, first, second, { ...box, enabled: true, managed: true }, builtin, localBox, sessionOnly],
+			});
+		} finally {
+			await disposeAgent(agent);
+		}
+	});
+
 	test('discovers extensions, persists preferences, and reconciles the selected live chat', async () => {
 		const client = new TestCopilotClient([]);
 		client.extensionInventory = {
@@ -3729,7 +3771,7 @@ suite('CopilotAgent', () => {
 					return (item.children ?? []).filter(child => child.type === CustomizationType.Hook).map(child => ({ name: child.name, enabled: child.enabled }));
 				});
 				enabled = true;
-				await agent.applyCustomizationInstallation('enable');
+				await applyTestInstallation(agent, 'enable');
 				const refreshed = await getDefaultChatCustomizations(agent, sessionUri);
 				agent['_hostCustomizations'].set(sessionUri, refreshed);
 				stateManager.dispatchServerAction(sessionUri.toString(), { type: ActionType.SessionCustomizationsChanged, customizations: [...refreshed] });
@@ -3741,7 +3783,7 @@ suite('CopilotAgent', () => {
 				hostDecision = undefined;
 				const snapshot = await agent['_getOrCreateActiveClient'](sessionUri, workspace).snapshot(defaultChatUri(sessionUri).toString());
 				installed = false;
-				await agent.applyCustomizationInstallation('uninstall');
+				await applyTestInstallation(agent, 'uninstall');
 				const removed = await getDefaultChatCustomizations(agent, sessionUri);
 				assert.deepStrictEqual({
 					initial: summarize(initial), refreshed: summarize(refreshed), removed: summarize(removed),
@@ -3782,8 +3824,8 @@ suite('CopilotAgent', () => {
 						published.set(progress.resource.toString(), names(progress.action.customizations));
 					}
 				}));
-				const apply = stub(agent['_customizationInstallations'], 'apply').callsFake(async operationId => {
-					installed = operationId === 'install';
+				const apply = stub(agent['_customizationInstallations'], 'apply').callsFake(async request => {
+					installed = request.operationId === 'install';
 					return undefined;
 				});
 				const install = stub(client.rpc.plugins, 'install').callsFake(async () => {
@@ -3818,7 +3860,7 @@ suite('CopilotAgent', () => {
 					for (const action of ['uninstall', 'install'] as const) {
 						published.clear();
 						if (operation === 'catalog') {
-							await agent.applyCustomizationInstallation(action);
+							await applyTestInstallation(agent, action);
 						} else if (operation === 'enablement') {
 							await agent.setPluginEnabled('session-timeline@test', action === 'install');
 						} else if (action === 'uninstall') {
@@ -3890,7 +3932,7 @@ suite('CopilotAgent', () => {
 				published.length = 0;
 				let operationCompleted = false;
 				let settledCompleted = false;
-				const operation = agent.applyCustomizationInstallation('uninstall').then(() => {
+				const operation = applyTestInstallation(agent, 'uninstall').then(() => {
 					operationCompleted = true;
 					return [...published];
 				});
@@ -3931,7 +3973,7 @@ suite('CopilotAgent', () => {
 				await getDefaultChatCustomizations(agent, session);
 				const requests = client.skillDiscoveryRequests.length;
 
-				await assert.rejects(agent.applyCustomizationInstallation('uninstall'), error => error === failure);
+				await assert.rejects(applyTestInstallation(agent, 'uninstall'), error => error === failure);
 
 				assert.strictEqual(client.skillDiscoveryRequests.length, requests);
 			} finally {
@@ -5722,6 +5764,51 @@ suite('CopilotAgent', () => {
 		]);
 	});
 
+	for (const kind of ['response.success', 'response.error']) {
+		for (const initiatorType of ['user', 'agent']) {
+			test(`restricted ${kind} does not consume ${initiatorType} turn correlation before its standard copy`, async () => {
+				const events: ITelemetryData[] = [];
+				const received = new DeferredPromise<void>();
+				const telemetryService = new class extends RecordingTelemetryService {
+					override publicLog(eventName?: string, data?: ITelemetryData): void {
+						if (eventName === `copilotSdk/${kind}` && data) {
+							events.push(data);
+							received.complete();
+						}
+					}
+				}();
+				const agent = createTestAgent(disposables, { copilotClient: new TestCopilotClient([]), telemetryService });
+				afterTest(() => disposeAgent(agent));
+				await agent.listChatsToMigrate();
+				const forward = getCreatedClientOptions(agent).at(-1)?.onGitHubTelemetry;
+				assert.ok(forward);
+				const correlation = new ModelCallTurnCorrelation();
+				correlation.recordTelemetryContext('call', { copilotSku: 'sku-a', copilotTrackingId: 'analytics-a' });
+				correlation.record('call', 'owning-turn');
+				setLiveChatStub(agent, 'sdk-session', {
+					currentTurnId: 'different-active-turn', modelCallTurnCorrelation: correlation,
+				});
+				const notification = (restricted: boolean): GitHubTelemetryNotification => ({
+					sessionId: 'sdk-session', restricted,
+					event: { kind, model_call_id: 'call', properties: { initiatorType }, metrics: {} },
+				});
+
+				await forward(notification(true));
+				await forward(notification(false));
+				await received.p;
+
+				assert.deepStrictEqual(events.map(event => ({
+					turnId: event.turnId,
+					outcome: event.ahCorrelationOutcome,
+					copilotSku: event.copilotSku,
+					trackingId: event['common.copilotTrackingId'],
+				})), [{
+					turnId: 'owning-turn', outcome: 'mappingAvailable', copilotSku: 'sku-a', trackingId: 'analytics-a',
+				}]);
+			});
+		}
+	}
+
 	test('waits for originating account context for user and agent initiated SDK responses', async () => {
 		for (const initiatorType of ['user', 'agent']) {
 			const received = new DeferredPromise<ITelemetryData>();
@@ -5869,7 +5956,7 @@ suite('CopilotAgent', () => {
 		]);
 	});
 
-	test('routes exact legacy targets exclusively and falls back to generic forwarding', async () => {
+	test('routes exact restricted targets and only forwards standard fallback events', async () => {
 		const client = new TestCopilotClient([]);
 		const copilotApiService = new TestCopilotApiService();
 		copilotApiService.restrictedTelemetryContexts.set('restricted-token', {
@@ -5925,6 +6012,7 @@ suite('CopilotAgent', () => {
 		await forward(notification('engine.messages.length', true));
 		await forward(notification('engine.messages', false));
 		await forward(notification('unknown_restricted', true));
+		await forward(notification('tool_call_executed', true));
 		await forward(notification('tool_call_executed', false));
 
 		assert.deepStrictEqual({
@@ -5932,7 +6020,7 @@ suite('CopilotAgent', () => {
 			enhanced: telemetryService.enhancedEvents,
 			internal: telemetryService.internalEvents,
 		}, {
-			generic: ['copilotSdk/unknown_restricted', 'copilotSdk/tool_call_executed'],
+			generic: ['copilotSdk/tool_call_executed'],
 			enhanced: ['engine.messages.length'],
 			internal: ['engine.messages.length'],
 		});
@@ -15321,12 +15409,13 @@ suite('CopilotAgent', () => {
 			});
 		});
 
-		function createComputerUseAgent(enabled: boolean, isLocalAgentHost: boolean, client: TestCopilotClient, plugin?: Pick<CopilotComputerUsePlugin, 'isAvailable' | 'installedPath' | 'getInstalledPath' | 'resolve'>) {
+		function createComputerUseAgent(enabled: boolean, isLocalAgentHost: boolean, client: TestCopilotClient, plugin?: Pick<CopilotComputerUsePlugin, 'isAvailable' | 'installedPath' | 'getInstalledPath' | 'resolve'>, telemetryService?: ITelemetryService) {
 			const localModelSetupService: ILocalModelSetupService = { _serviceBrand: undefined, isLocalAgentHost, provider: undefined, applySelection: () => undefined };
 			const context = createTestAgentContext(disposables, {
 				copilotClient: client,
 				localModelSetupService,
 				rootConfig: { [AgentHostComputerUseEnabledConfigKey]: enabled },
+				telemetryService,
 			});
 			if (plugin) {
 				(context.agent as unknown as { _computerUsePlugin: typeof plugin })._computerUsePlugin = plugin;
@@ -15531,6 +15620,35 @@ suite('CopilotAgent', () => {
 				fake.download.error(new CancellationError());
 				await disposeAgent(agent);
 			}
+		});
+
+		test('reports how each Computer Use plugin download ended', async () => {
+			const report = async (finish: (fake: ReturnType<typeof createDownloadingComputerUsePlugin>, configurationService: IAgentConfigurationService) => void) => {
+				const telemetryService = new TestDataTelemetryService();
+				const fake = createDownloadingComputerUsePlugin();
+				const { agent, configurationService } = createComputerUseAgent(true, true, new StopCountingClient([]), fake.plugin, telemetryService);
+				try {
+					await agent.listChatsToMigrate();
+					finish(fake, configurationService);
+					await timeout(0);
+					return telemetryService.events.filter(event => event.name === 'agentHost.computerUsePluginInstall').map(({ data: { durationMs, ...rest } }) => ({ ...rest, durationMs: typeof durationMs }));
+				} finally {
+					await disposeAgent(agent);
+				}
+			};
+			const build = { pluginVersion: COMPUTER_USE_PLUGIN_RELEASE.version, target: `${process.platform}-${process.arch}`, durationMs: 'number' };
+			assert.deepStrictEqual({
+				installed: await report(fake => fake.install('/cache/computer-use')),
+				refused: await report(fake => fake.download.error(new ComputerUsePluginInstallError('http', 'HTTP 404 fetching the plugin', 404))),
+				settingTurnedOff: await report((fake, configurationService) => {
+					configurationService.updateRootConfig({ [AgentHostComputerUseEnabledConfigKey]: false });
+					fake.download.error(new CancellationError());
+				}),
+			}, {
+				installed: [{ result: 'installed', statusCode: undefined, ...build }],
+				refused: [{ result: 'http', statusCode: 404, ...build }],
+				settingTurnedOff: [{ result: 'cancelled', statusCode: undefined, ...build }],
+			});
 		});
 
 		test('restarts the client when the Copilot SDK log level changes', async () => {
@@ -32376,6 +32494,169 @@ suite('CopilotAgent', () => {
 			assert.deepStrictEqual(
 				{ adopted, getSessionMetadataCalls: client.getSessionMetadataCalls, usages },
 				{ adopted: { adopted: false, eligible: false, native: true, reason: 'alreadyNative' }, getSessionMetadataCalls: [], usages: [] },
+			);
+		});
+
+		test('restores an adopted legacy session when SDK getSessionMetadata returns undefined without advancing its modifiedTime on refresh', async () => {
+			const userHome = URI.file(await fs.mkdtemp(`${os.tmpdir()}/adopt-home-`));
+			const workingDirectory = await fs.mkdtemp(`${os.tmpdir()}/adopt-cwd-`);
+			const sessionId = 'legacy-missing-sdk-meta';
+			const session = AgentSession.uri('copilotcli', sessionId);
+			const sessionDataService = disposables.add(new TestSessionDataService());
+			// The SDK returns undefined from getSessionMetadata (e.g. missing workspace.yaml).
+			const client = new TestCopilotClient([]);
+			const { agent, fileService } = createTestAgentContext(disposables, { sessionDataService, copilotClient: client, userHome });
+			registerAgentCleanup(agent, userHome, workingDirectory);
+			await agent.authenticate('https://api.github.com', 'token');
+			(agent as TestableCopilotAgent).registerFakeSession(sessionId, { send: async () => { }, getMessages: async () => [], dispose: () => { } });
+			await writeExtensionHostMarker(userHome, sessionId, {
+				origin: 'vscode',
+				created: 1_700_000_000_000,
+				modified: 1_700_000_005_000,
+				repositoryProperties: { repositoryPath: workingDirectory },
+				customTitle: 'Recovered Legacy Chat',
+			});
+
+			const adopted = await ensureDefaultChatAdopted(agent, session);
+			const chat = defaultChatUri(session);
+			const context = exactChatContext(session, chat, session);
+			const metadataAfterAdoption = await agent.getChatMetadata(chat, context);
+			const metadataWithRegistryFallback = await agent.getChatMetadata(chat, context, undefined, {
+				registryFallback: { startTime: 1_600_000_000_000, modifiedTime: 1_600_000_001_000 },
+			});
+			assert.ok(metadataAfterAdoption);
+			assert.ok(metadataWithRegistryFallback);
+
+			const host = disposables.add(createTestAgentService(new NullLogService(), fileService, sessionDataService, TEST_PRODUCT_SERVICE, new TestAgentHostGitService()));
+			registerTestAgentProvider(host, agent);
+			await (host as unknown as { _sessionRegistry: AgentSessionRegistry })._sessionRegistry.register(session, {
+				provider: agent.id, startTime: metadataAfterAdoption.startTime, modifiedTime: metadataAfterAdoption.modifiedTime, source: 'restore',
+			}, { checkTombstone: true });
+			await host.restoreSession(session);
+
+			assert.deepStrictEqual(
+				{
+					adopted: adopted.adopted,
+					workingDirectories: metadataAfterAdoption.workingDirectories?.map(d => d.toString()),
+					markerTimestamps: { startTime: metadataAfterAdoption.startTime, modifiedTime: metadataAfterAdoption.modifiedTime },
+					registryTimestamps: { startTime: metadataWithRegistryFallback.startTime, modifiedTime: metadataWithRegistryFallback.modifiedTime },
+					restoredTitle: getTestAgentStateManager(host).getSessionSummary(session.toString())?.title,
+				},
+				{
+					adopted: true,
+					workingDirectories: [URI.file(workingDirectory).toString()],
+					markerTimestamps: { startTime: 1_700_000_000_000, modifiedTime: 1_700_000_005_000 },
+					registryTimestamps: { startTime: 1_600_000_000_000, modifiedTime: 1_600_000_001_000 },
+					restoredTitle: 'Recovered Legacy Chat',
+				},
+			);
+		});
+
+		test('restores persisted history read-only when an unarchived worktree branch no longer exists, while rejecting sends', async () => {
+			const userHome = URI.file(await fs.mkdtemp(`${os.tmpdir()}/adopt-home-`));
+			const repoRoot = await fs.mkdtemp(`${os.tmpdir()}/adopt-repo-`);
+			const missingWorktree = join(userHome.fsPath, 'deleted-worktree');
+			const sessionId = 'legacy-missing-worktree-branch';
+			const session = AgentSession.uri('copilotcli', sessionId);
+			const chat = defaultChatUri(session);
+			const sessionDataService = disposables.add(new TestSessionDataService());
+			const client = new TestCopilotClient([sdkSession(sessionId, missingWorktree)]);
+			const history: SessionEvent[] = [
+				{ id: '11111111-1111-4111-8111-111111111111', timestamp: '2026-03-01T00:00:00.000Z', parentId: null, type: 'user.message', data: { content: 'Read-only history from deleted worktree' } },
+				{ id: '22222222-2222-4222-8222-222222222222', timestamp: '2026-03-01T00:00:01.000Z', parentId: '11111111-1111-4111-8111-111111111111', type: 'assistant.message', data: { messageId: 'm1', content: 'Assistant response preserved', toolRequests: [] } },
+				{ id: '33333333-3333-4333-8333-333333333333', timestamp: '2026-03-01T00:00:02.000Z', parentId: '22222222-2222-4222-8222-222222222222', type: 'session.idle', ephemeral: true, data: {} },
+			];
+			client.rpc.sessions.readPersistedEvents = async () => ({ events: history, cursor: 'end', hasMore: false, cursorStatus: 'ok' });
+			const worktreeIsolation = new NullAgentHostWorktreeIsolation();
+			worktreeIsolation.resolveWorkingDirectoryForResume = async (_resource, _id, directory) => {
+				throw new SessionWorkingDirectoryMissingError(directory, 'the branch \'copilot-worktree-gone\' no longer exists');
+			};
+			const { agent } = createTestAgentContext(disposables, {
+				sessionDataService,
+				copilotClient: client,
+				userHome,
+				worktreeIsolation,
+				useRealResumePath: true,
+			});
+			registerAgentCleanup(agent, userHome, repoRoot);
+			await agent.authenticate('https://api.github.com', 'token');
+			await writeExtensionHostMarker(userHome, sessionId, {
+				origin: 'vscode',
+				worktreeProperties: {
+					worktreePath: missingWorktree,
+					repositoryPath: repoRoot,
+					branchName: 'copilot-worktree-gone',
+				},
+			});
+
+			const adopted = await ensureDefaultChatAdopted(agent, session);
+			const context = exactChatContext(session, chat, session);
+			await agent.materializeChat(chat, context, JSON.stringify({ sdkSessionId: sessionId }));
+			const turns = await agent.chats.getMessages(chat, context);
+
+			await assert.rejects(
+				() => agent.chats.sendMessage(chat, 'Attempt to send in missing worktree', undefined, undefined, 'turn-new', undefined, context),
+				(err: Error) => err instanceof SessionWorkingDirectoryMissingError,
+			);
+
+			assert.deepStrictEqual(
+				{
+					adopted: adopted.adopted,
+					turns: turns.map(turn => ({ state: turn.state, prompt: turn.message.text })),
+				},
+				{
+					adopted: true,
+					turns: [{ state: TurnState.Complete, prompt: 'Read-only history from deleted worktree' }],
+				},
+			);
+		});
+
+		test('restores persisted history read-only when reading user MCP config fails, while keeping execution fail-closed', async () => {
+			const userHome = URI.file(await fs.mkdtemp(`${os.tmpdir()}/adopt-home-`));
+			const workingDirectory = await fs.mkdtemp(`${os.tmpdir()}/adopt-cwd-`);
+			const sessionId = 'legacy-mcp-config-fail';
+			const session = AgentSession.uri('copilotcli', sessionId);
+			const chat = defaultChatUri(session);
+			const sessionDataService = disposables.add(new TestSessionDataService());
+			const client = new TestCopilotClient([sdkSession(sessionId, workingDirectory)]);
+			const history: SessionEvent[] = [
+				{ id: '11111111-1111-4111-8111-111111111111', timestamp: '2026-03-01T00:00:00.000Z', parentId: null, type: 'user.message', data: { content: 'History read when MCP config fails' } },
+				{ id: '22222222-2222-4222-8222-222222222222', timestamp: '2026-03-01T00:00:01.000Z', parentId: '11111111-1111-4111-8111-111111111111', type: 'assistant.message', data: { messageId: 'm1', content: 'Preserved reply', toolRequests: [] } },
+				{ id: '33333333-3333-4333-8333-333333333333', timestamp: '2026-03-01T00:00:02.000Z', parentId: '22222222-2222-4222-8222-222222222222', type: 'session.idle', ephemeral: true, data: {} },
+			];
+			client.rpc.sessions.readPersistedEvents = async () => ({ events: history, cursor: 'end', hasMore: false, cursorStatus: 'ok' });
+			client.rpc.mcp.config.list = async () => {
+				throw new Error('Failed to read configuration from .copilot/mcp-config.json: The shared writer lock timed out.');
+			};
+			const { agent } = createTestAgentContext(disposables, {
+				sessionDataService,
+				copilotClient: client,
+				userHome,
+				useRealResumePath: true,
+			});
+			registerAgentCleanup(agent, userHome, workingDirectory);
+			await agent.authenticate('https://api.github.com', 'token');
+			await writeExtensionHostMarker(userHome, sessionId, { origin: 'vscode', workspacePath: workingDirectory });
+
+			const adopted = await ensureDefaultChatAdopted(agent, session);
+			const context = exactChatContext(session, chat, session);
+			await agent.materializeChat(chat, context, JSON.stringify({ sdkSessionId: sessionId }));
+			const turns = await agent.chats.getMessages(chat, context);
+
+			await assert.rejects(
+				() => agent.chats.sendMessage(chat, 'Attempt to send while MCP config is unreadable', undefined, undefined, 'turn-new', undefined, context),
+				/The shared writer lock timed out/,
+			);
+
+			assert.deepStrictEqual(
+				{
+					adopted: adopted.adopted,
+					turns: turns.map(turn => ({ state: turn.state, prompt: turn.message.text })),
+				},
+				{
+					adopted: true,
+					turns: [{ state: TurnState.Complete, prompt: 'History read when MCP config fails' }],
+				},
 			);
 		});
 

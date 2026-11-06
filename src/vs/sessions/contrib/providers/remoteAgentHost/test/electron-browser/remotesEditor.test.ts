@@ -36,13 +36,13 @@ import { IChatEntitlementService } from '../../../../../../workbench/services/ch
 import { IEditorService } from '../../../../../../workbench/services/editor/common/editorService.js';
 import { IPreferencesService } from '../../../../../../workbench/services/preferences/common/preferences.js';
 import { TestEditorGroupView, workbenchInstantiationService } from '../../../../../../workbench/test/browser/workbenchTestServices.js';
-import { OPEN_REMOTES_EDITOR_COMMAND_ID, TOGGLE_REMOTE_CONNECTIONS_COMMAND_ID } from '../../../../../common/sessionCommands.js';
-import { IsPhoneLayoutContext } from '../../../../../common/contextkeys.js';
-import { Menus } from '../../../../../browser/menus.js';
-import { RemotesEditorInput } from '../../browser/remotesEditorInput.js';
-import { ICustomizationRemote, IRemotesModel, RemoteKind, RemotesModel } from '../../browser/remotesModel.js';
-import { RemotesEditor } from '../../electron-browser/remotesEditor.js';
-import { ENVIRONMENT_PICKER_MANAGE_REMOTES_SETTING, ENVIRONMENT_PICKER_SETTING, REMOTE_ENVIRONMENTS_THIS_COMPUTER_SETTING } from '../../../../chat/common/constants.js';
+import { OPEN_REMOTES_EDITOR_COMMAND_ID, TOGGLE_REMOTE_CONNECTIONS_COMMAND_ID } from '../../../../../../workbench/contrib/sessions/common/sessionCommands.js';
+import { IsPhoneLayoutContext } from '../../../../../../workbench/contrib/sessions/common/contextkeys.js';
+import { Menus } from '../../../../../../workbench/contrib/sessions/browser/menus.js';
+import { RemotesEditorInput } from '../../../../../../workbench/contrib/sessions/providers/remoteAgentHost/browser/remotesEditorInput.js';
+import { ICustomizationRemote, IRemotesModel, RemoteKind, RemotesModel } from '../../../../../../workbench/contrib/sessions/providers/remoteAgentHost/browser/remotesModel.js';
+import { RemotesEditor } from '../../../../../../workbench/contrib/sessions/providers/remoteAgentHost/electron-browser/remotesEditor.js';
+import { ENVIRONMENT_PICKER_MANAGE_REMOTES_SETTING, ENVIRONMENT_PICKER_SETTING, REMOTE_ENVIRONMENTS_THIS_COMPUTER_SETTING } from '../../../../../../workbench/contrib/sessions/common/chatConstants.js';
 import '../../electron-browser/remotes.contribution.js';
 
 class TestRemotesModel extends Disposable implements IRemotesModel {
@@ -351,7 +351,10 @@ suite('RemotesEditor', () => {
 		const read = () => ({
 			hidden: container.querySelector<HTMLElement>('.remotes-editor-this-computer')?.hidden,
 			sections: container.querySelectorAll('.remotes-this-computer').length,
+			heading: container.querySelector<HTMLElement>('.remotes-heading:not([hidden])')?.textContent,
+			region: container.querySelector('.remotes-widget[role="region"]')?.getAttribute('aria-labelledby') === container.querySelector('.remotes-heading-title')?.id,
 			accessible: editor.getAccessibilityContent().startsWith('This Computer'),
+			accessibleHeading: editor.getAccessibilityContent().includes('\n\nOther Environments\n'),
 		});
 		const setEnabled = async (enabled: boolean) => {
 			await configuration.setUserConfiguration(REMOTE_ENVIRONMENTS_THIS_COMPUTER_SETTING, enabled);
@@ -366,9 +369,9 @@ suite('RemotesEditor', () => {
 		const enabled = read();
 		await setEnabled(false);
 		assert.deepStrictEqual({ initial, enabled, disabled: read() }, {
-			initial: { hidden: true, sections: 0, accessible: false },
-			enabled: { hidden: false, sections: 1, accessible: true },
-			disabled: { hidden: true, sections: 0, accessible: false },
+			initial: { hidden: true, sections: 0, heading: undefined, region: false, accessible: false, accessibleHeading: false },
+			enabled: { hidden: false, sections: 1, heading: 'Other Environments', region: true, accessible: true, accessibleHeading: true },
+			disabled: { hidden: true, sections: 0, heading: undefined, region: false, accessible: false, accessibleHeading: false },
 		});
 	});
 

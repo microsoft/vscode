@@ -24,12 +24,12 @@ import { getChatMarkdownRenderOptions } from '../../../../../workbench/contrib/c
 import { ILanguageModelChatMetadata, ILanguageModelChatMetadataAndIdentifier } from '../../../../../workbench/contrib/chat/common/languageModels.js';
 import { ILanguageModelToolsService, IToolData, IToolImpl, IToolResult, ToolProgress, ToolSet } from '../../../../../workbench/contrib/chat/common/tools/languageModelToolsService.js';
 import { IChatEntitlementService } from '../../../../../workbench/services/chat/common/chatEntitlementService.js';
-import { IAgentHostSessionsProvider } from '../../../../common/agentHostSessionsProvider.js';
-import { ISessionsProvidersService, SessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
+import { IAgentHostSessionsProvider } from '../../../../../workbench/contrib/sessions/common/agentHostSessionsProvider.js';
+import { ISessionsProvidersService, SessionsProvidersService } from '../../../../../workbench/contrib/sessions/browser/sessionsProvidersService.js';
 import { ILifecycleService } from '../../../../../workbench/services/lifecycle/common/lifecycle.js';
-import { IChat, ISession, ISessionWorkspace, SessionStatus, SessionTypeAuthRequirement } from '../../../../services/sessions/common/session.js';
-import { COMPARE_AGENTS_ENABLED_SETTING, COMPARE_AGENTS_TOOLS_ENABLED_SETTING, ISessionComparison, ISessionComparisonService, IStartSessionComparisonOptions, SessionComparisonLaunchError, SessionComparisonParticipantRole } from '../../../../services/sessions/common/sessionComparison.js';
-import { ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
+import { IChat, ISession, ISessionWorkspace, SessionStatus, SessionTypeAuthRequirement } from '../../../../../workbench/contrib/sessions/common/session.js';
+import { COMPARE_AGENTS_ENABLED_SETTING, COMPARE_AGENTS_TOOLS_ENABLED_SETTING, ISessionComparison, ISessionComparisonService, IStartSessionComparisonOptions, SessionComparisonLaunchError, SessionComparisonParticipantRole } from '../../../../../workbench/contrib/sessions/common/sessionComparison.js';
+import { ISessionsManagementService } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import { ModelEvaluationTool, ModelEvaluationToolContribution } from '../../browser/modelEvaluationTools.js';
 
 const callerResource = URI.parse('test:/parent#evaluator');
@@ -474,6 +474,40 @@ suite('ModelEvaluationTools', () => {
 		await assert.rejects(routing.tool('createModelComparison').prepareToolInvocation({ parameters: launchInput(), toolCallId: 'call', chatSessionResource: callerResource }, CancellationToken.None), /fixed model/);
 		assert.deepStrictEqual(fixture.launches, []);
 	});
+
+	for (const tier of ['balance', 'hydrafusion', 'hydrafusion-max']) {
+		test(`discovers Fusion and launches attempts, Judge, and Synthesizer with its ${tier} tier`, async () => {
+			const fixture = setup();
+			const fusion: ILanguageModelChatMetadataAndIdentifier = {
+				identifier: 'fusion',
+				metadata: {
+					...fixture.model.metadata, id: 'auto', name: 'Copilot Fusion', autoModelFusion: true,
+					configurationSchema: { properties: { tier: { type: 'string', enum: ['balance', 'hydrafusion', 'hydrafusion-max'] } } },
+				},
+			};
+			const legacyAuto = { ...fusion, identifier: 'legacy-auto', metadata: { ...fusion.metadata, autoModelFusion: false } };
+			const hydraFusion = { ...fixture.model, identifier: 'hydrafusion', metadata: { ...fixture.model.metadata, id: 'hydrafusion', modelGroup: { id: 'copilotcli' } } };
+			fixture.provider.getModelsSnapshotForCreation = (_workspace, _type, desired) => ({
+				models: [fixture.model, fusion, legacyAuto, hydraFusion], modelTarget: 'copilotcli',
+				desiredModelResolution: { kind: 'available', model: desired === fusion.identifier ? fusion : fixture.model },
+			});
+			const output: { harnesses: { models: { modelId: string }[] }[] } = JSON.parse(text(await invoke(fixture.tool('getComparisonModels'), {})));
+			const fusionSelection = { sessionTypeId: 'copilotcli', modelId: fusion.identifier, modelConfiguration: { tier } };
+			await invoke(fixture.tool('createModelComparison'), {
+				...launchInput(), attempts: [selection, fusionSelection], judge: fusionSelection, synthesizer: fusionSelection,
+			}, true);
+			const launched = fixture.launches[0];
+			assert.deepStrictEqual({
+				discovered: output.harnesses[0].models.map(model => model.modelId),
+				participants: [launched.attempts[1].harness, launched.judgeHarness, launched.synthesisHarness].map(harness => ({
+					modelId: harness?.modelId, configuration: harness?.modelConfiguration,
+				})),
+			}, {
+				discovered: ['model', 'fusion'],
+				participants: Array.from({ length: 3 }, () => ({ modelId: 'fusion', configuration: { tier } })),
+			});
+		});
+	}
 
 	test('creates explicit folderless comparisons without a Judge and honors cancellation and feature gates', async () => {
 		const fixture = setup();

@@ -16,18 +16,18 @@ import { ContextKeyExpr } from '../../../platform/contextkey/common/contextkey.j
 import { IOpenerService } from '../../../platform/opener/common/opener.js';
 import { IProductService } from '../../../platform/product/common/productService.js';
 import { ITelemetryService } from '../../../platform/telemetry/common/telemetry.js';
-import { IsPhoneLayoutContext, SessionsWelcomeVisibleContext } from '../../common/contextkeys.js';
-import { logSessionsInteraction } from '../../common/sessionsTelemetry.js';
-import { Menus } from '../../browser/menus.js';
-import { resolveSessionCommandTarget } from '../../services/sessions/browser/sessionCommandTarget.js';
-import { ISessionsProvidersService } from '../../services/sessions/browser/sessionsProvidersService.js';
+import { IsPhoneLayoutContext, SessionsWelcomeVisibleContext } from '../../../workbench/contrib/sessions/common/contextkeys.js';
+import { logSessionsInteraction } from '../../../workbench/contrib/sessions/common/sessionsTelemetry.js';
+import { AgentsWindowMenus } from '../agentsWindowMenus.js';
+import { resolveSessionCommandTarget } from '../../../workbench/contrib/sessions/browser/sessionCommandTarget.js';
+import { ISessionsProvidersService } from '../../../workbench/contrib/sessions/browser/sessionsProvidersService.js';
 import { Disposable } from '../../../base/common/lifecycle.js';
 import { IActionViewItemService } from '../../../platform/actions/browser/actionViewItemService.js';
 import { IInstantiationService } from '../../../platform/instantiation/common/instantiation.js';
 import { IWorkbenchContribution } from '../../../workbench/common/contributions.js';
-import { resolveRemoteAuthority, resolveRemoteFolderUri } from '../openInVSCodeUtils.js';
+import { resolveRemoteAuthority, resolveRemoteFolderUri } from '../../../workbench/contrib/sessions/browser/openInVSCodeUtils.js';
 import { OpenInVSCodeTitleBarWidget } from '../widget/openInVSCodeWidget.js';
-import { IChat, ISession } from '../../services/sessions/common/session.js';
+import { IChat, ISession } from '../../../workbench/contrib/sessions/common/session.js';
 
 export class OpenInVSCodeAction extends Action2 {
 	static readonly ID = 'sessions.openInVSCode';
@@ -39,7 +39,7 @@ export class OpenInVSCodeAction extends Action2 {
 			icon: Codicon.vscodeInsiders,
 			precondition: ContextKeyExpr.and(ContextKeyExpr.or(IsAuxiliaryWindowContext.toNegated(), LayoutModeContext)!, SessionsWelcomeVisibleContext.toNegated()),
 			menu: [{
-				id: Menus.TitleBarCenterRight,
+				id: AgentsWindowMenus.TitleBarCenterRight,
 				group: 'navigation',
 				order: 7,
 				when: ContextKeyExpr.and(ContextKeyExpr.or(IsAuxiliaryWindowContext.toNegated(), LayoutModeContext)!, SessionsWelcomeVisibleContext.toNegated(), IsPhoneLayoutContext.negate()),
@@ -119,7 +119,7 @@ export class OpenInVSCodeWidgetContribution extends Disposable implements IWorkb
 		@IInstantiationService instantiationService: IInstantiationService,
 	) {
 		super();
-		this._register(actionViewItemService.register(Menus.TitleBarCenterRight, OpenInVSCodeAction.ID, (action, options) => {
+		this._register(actionViewItemService.register(AgentsWindowMenus.TitleBarCenterRight, OpenInVSCodeAction.ID, (action, options) => {
 			return instantiationService.createInstance(OpenInVSCodeTitleBarWidget, action, options, OpenInVSCodeAction.ID);
 		}, undefined));
 	}

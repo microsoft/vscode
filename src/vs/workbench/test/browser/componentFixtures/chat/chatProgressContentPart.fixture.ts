@@ -35,7 +35,6 @@ import { registerChatFixtureServices } from './chatFixtureUtils.js';
 import { ComponentFixtureContext, createEditorServices, defineComponentFixture, defineThemedFixtureGroup, waitForFixtureCondition } from '../fixtureUtils.js';
 
 import '../../../../contrib/chat/browser/widget/media/chat.css';
-// eslint-disable-next-line local/code-import-patterns
 import '../../../../../sessions/browser/media/style.css';
 
 function createMockContext(opts?: { isComplete?: boolean; hasFollowingContent?: boolean }): IChatContentPartRenderContext {
