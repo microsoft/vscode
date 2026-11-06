@@ -48,6 +48,8 @@ import { AgentHostCanvasCollection, getAgentHostCanvasDefinitionsChangedEvent } 
 import { ICanvasContext, ICanvasOwner, isCanvasOwner } from '../../../../canvases/common/canvas.js';
 import { CanvasReference } from '../../../../../../platform/agentHost/common/state/protocol/channels-canvas/state.js';
 import { agentHostAuthority, fromAgentHostUri, LOCAL_AGENT_HOST_AUTHORITY } from '../../../../../../platform/agentHost/common/agentHostUri.js';
+import { getAgentHostCustomizationUri, toAgentHostAgentUri } from '../../../common/agentHostSessionCustomizations.js';
+import { readCustomizationUriClientId } from '../../../../../../platform/agentHost/common/meta/clientPluginCustomizationMeta.js';
 import { fromAgentClientPath } from '../../../../../../platform/agentHost/common/agentClientUri.js';
 import { getPendingSteeringMessages } from '../../../../../../platform/agentHost/common/agentSessionMessage.js';
 import { isCopilotAgentHostProvider, isCopilotAgentHostSessionType } from '../../../../../../platform/agentHost/common/agentHostSessionType.js';
@@ -1752,9 +1754,13 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 					}, attachment.label !== raw.insertText ? attachment.label : undefined);
 				}
 				if (completionMeta?.kind === 'skill') {
+					const uri = getAgentHostCustomizationUri(URI.parse(completionMeta.uri), this._config.connection, attachment);
+					if (!uri) {
+						return undefined;
+					}
 					return this._createCompletionItem(raw, text, {
 						kind: 'skill',
-						uri: this._config.connection.resourceUris.fromAgentHost(URI.parse(completionMeta.uri)),
+						uri,
 						...(completionMeta.displayName !== undefined ? { displayName: completionMeta.displayName } : {}),
 						...(completionMeta.description !== undefined ? { description: completionMeta.description } : {}),
 						...(attachment._meta !== undefined && { _meta: attachment._meta }),
@@ -2561,9 +2567,15 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 	// ---- Pending message sync -----------------------------------------------
 
 	/** Maps a selected mode's client-space agent to the host URI carried by turn and pending messages. */
-	private _toHostAgentUri(modeInstructions: IChatRequestModeInstructions | undefined): string | undefined {
+	private _toHostAgentUri(sessionResource: URI, modeInstructions: IChatRequestModeInstructions | undefined): string | undefined {
+		if (!modeInstructions?.uri) {
+			return undefined;
+		}
+		const agents = this._customizationService.getCustomAgents(sessionResource);
+		const uri = modeInstructions.uri;
+		const canonical = agents.some(agent => readCustomizationUriClientId(agent) !== undefined && isEqual(URI.parse(agent.uri), uri));
 		// eslint-disable-next-line local/code-agent-host-uri-mapping -- unwraps a legacy local agent wrapper before applying the owning connection mapper
-		return modeInstructions?.uri ? this._config.connection.resourceUris.toAgentHost(fromAgentHostUri(modeInstructions.uri)).toString() : undefined;
+		return toAgentHostAgentUri(canonical ? uri : fromAgentHostUri(uri), this._config.connection, agents).toString();
 	}
 
 	/**
@@ -2602,7 +2614,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			const roundTripMetadata = previousMessage && previousMessage.text !== p.request.message.text ? withoutAgentMessageDelegationMeta(metadata) : metadata;
 			// Requests projected from another client carry no mode, so they keep the agent the host already has.
 			const modeInfo = p.request.modeInfo ?? p.sendOptions.modeInfo;
-			const agentUri = modeInfo ? this._toHostAgentUri(modeInfo.modeInstructions) : previousMessage?.agent?.uri;
+			const agentUri = modeInfo ? this._toHostAgentUri(sessionResource, modeInfo.modeInstructions) : previousMessage?.agent?.uri;
 			const snapshot = {
 				id: p.request.id,
 				kind: p.kind === ChatRequestQueueKind.Steering ? PendingMessageKind.Steering : PendingMessageKind.Queued,
@@ -3820,7 +3832,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		// actions. The host applies the selection carried by the message before
 		// sending the turn to the agent backend.
 		const selectedModel = this._createModelSelection(request.userSelectedModelId, request.modelConfiguration);
-		const requestedAgentUri = this._toHostAgentUri(request.modeInstructions);
+		const requestedAgentUri = this._toHostAgentUri(request.sessionResource, request.modeInstructions);
 		if (this._configurationService.getValue<boolean>(ChatConfiguration.AgentEnabled) === false) {
 			const agent = this._customizationService.getCustomAgents(request.sessionResource).find(agent => URI.parse(agent.uri).toString() === requestedAgentUri);
 			if (!agent || readAgentCustomizationMeta(agent)['vscode.chatMode'] !== 'ask') {
@@ -7543,7 +7555,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			return undefined;
 		}
 		const model = this._createModelSelection(state.selectedModel?.identifier, state.modelConfiguration);
-		const agentUri = [ChatMode.Agent.id, ChatMode.Ask.id, ChatMode.Edit.id].includes(state.mode.id) ? undefined : this._config.connection.resourceUris.toAgentHost(URI.parse(state.mode.id)).toString();
+		const agentUri = [ChatMode.Agent.id, ChatMode.Ask.id, ChatMode.Edit.id].includes(state.mode.id) ? undefined : toAgentHostAgentUri(URI.parse(state.mode.id), this._config.connection, this._customizationService.getCustomAgents(sessionResource)).toString();
 		const references = state.contrib[ChatDynamicVariableModel.ID] as readonly IDynamicVariable[] | undefined;
 		const positions = new PositionOffsetTransformer(state.inputText);
 		const variables = [...state.attachments];
@@ -7665,13 +7677,17 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		}
 		const cursor = offsetToPosition(draft.text, draft.text.length);
 		const draftAgentUri = draft.agent ? URI.parse(draft.agent.uri) : undefined;
-		const agent = draftAgentUri && this._customizationService.getCustomAgents(sessionResource).find(agent => isEqual(URI.parse(agent.uri), draftAgentUri));
+		const agent = draftAgentUri && (this._customizationService.getCustomizations(sessionResource)
+			.flatMap(customization => customization.children ?? [])
+			.filter(child => child.type === CustomizationType.Agent)
+			.find(child => isEqual(URI.parse(child.uri), draftAgentUri))
+			?? this._customizationService.getCustomAgents(sessionResource).find(agent => isEqual(URI.parse(agent.uri), draftAgentUri)));
 		return {
 			attachments,
 			contrib: { [ChatDynamicVariableModel.ID]: references },
 			inputText: draft.text,
 			mode: {
-				id: draft.agent ? this._config.connection.resourceUris.fromAgentHost(URI.parse(draft.agent.uri)).toString() : ChatMode.Agent.id,
+				id: draftAgentUri ? getAgentHostCustomizationUri(draftAgentUri, this._config.connection, agent)?.toString() ?? ChatMode.Agent.id : ChatMode.Agent.id,
 				kind: agent && readAgentCustomizationMeta(agent)['vscode.chatMode'] === 'ask' ? ChatModeKind.Ask : ChatModeKind.Agent,
 			},
 			selectedModel: modelId && metadata ? {

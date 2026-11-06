@@ -49,7 +49,7 @@ import { IByokLmProxyService, type IByokLmProxyHandle } from './byokLmProxyServi
 import type { ICopilotMcpServerInfo, ICopilotPluginInfo } from './copilotAgent.js';
 import { CopilotGitHubSessionCredentials } from './copilotGitHubCredentials.js';
 import { reconcileCopilotConnectors, type ICopilotConnectorServers } from './copilotConnectors.js';
-import { getSdkCustomAgentName, mapCopilotCustomAgentTools, toSdkClientToolName, toSdkCustomAgents, toSdkHooks, toSdkInstructionDirectories, toSdkMcpServers, toSdkMcpServersFromConfigMap, toSdkSkillDirectories, type ISdkCustomAgentResource } from './copilotPluginConverters.js';
+import { getPluginResourceSourceUri, getSdkCustomAgentName, mapCopilotCustomAgentTools, toSdkClientToolName, toSdkCustomAgents, toSdkHooks, toSdkInstructionDirectories, toSdkMcpServers, toSdkMcpServersFromConfigMap, toSdkSkillDirectories, type ISdkCustomAgentResource } from './copilotPluginConverters.js';
 import { buildCopilotBuiltinAgents, COPILOT_BUILTIN_AGENT_NAMES } from './copilotBuiltinAgents.js';
 import { CopilotSessionWrapper, type ICopilotByokSessionConfig } from './copilotSessionWrapper.js';
 import type { ILocalModelProvider, ILocalModelSessionConfigContribution } from './localModelBridge/localModelProvider.js';
@@ -246,7 +246,7 @@ function clientToolRegistrationNames(tools: readonly ToolDefinition[]): Readonly
 
 export function getCopilotCustomAgents(customizations: ICopilotAppliedCustomizations): readonly (IParsedAgent & ISdkCustomAgentResource)[] {
 	return [
-		...customizations.plugins.flatMap(plugin => plugin.agents.map(agent => ({ ...agent, sdkName: getSdkCustomAgentName(agent.uri, plugin) }))),
+		...customizations.plugins.flatMap(plugin => plugin.agents.map(agent => ({ ...agent, sourceUri: getPluginResourceSourceUri(agent.uri, plugin), sdkName: getSdkCustomAgentName(agent.uri, plugin) }))),
 		...customizations.discoveredAgents,
 	].filter(agent => !COPILOT_BUILTIN_AGENT_NAMES.has(agent.name));
 }
@@ -258,9 +258,9 @@ export function getCopilotAgentSelection(customizations: ICopilotAppliedCustomiz
 		return { uri, name: native.id };
 	}
 	const agents = getCopilotCustomAgents(customizations);
-	const forwarded = agents.find(agent => isEqual(agent.uri, resource));
+	const forwarded = agents.find(agent => isEqual(agent.sourceUri ?? agent.uri, resource) || isEqual(agent.uri, resource));
 	if (forwarded) {
-		return { uri, name: forwarded.sdkName ?? getSdkCustomAgentName(forwarded.uri) };
+		return { uri: (forwarded.sourceUri ?? forwarded.uri).toString(), name: forwarded.sdkName ?? getSdkCustomAgentName(forwarded.uri) };
 	}
 	if (!restoreLegacyFlatSelection || resource.scheme !== Schemas.file || resource.query || resource.fragment) {
 		return undefined;
@@ -273,16 +273,16 @@ export function getCopilotAgentSelection(customizations: ICopilotAppliedCustomiz
 			|| !extUri.isEqualOrParent(resource, dirname(root))) {
 			continue;
 		}
-		// The host materializer owns this cache namespace; only restore a flat file in another revision of it.
+		// Only restore files inside another revision of this materializer-owned cache namespace.
 		const parts = extUri.relativePath(dirname(root), resource)?.split('/');
-		if (parts?.length !== 3 || !parts[0] || parts[0] === '..' || parts[0] === '.' || parts[1] !== 'agents') {
+		if (!parts || parts.length < 3 || parts.some(part => !part || part === '..' || part === '.') || parts[1] !== 'agents') {
 			continue;
 		}
-		const current = joinPath(root, parts[1], parts[2]);
+		const current = joinPath(root, ...parts.slice(1));
 		const agent = agents.find(candidate => isEqual(candidate.uri, current));
 		if (agent) {
 			matches.set(getComparisonKey(agent.uri), {
-				uri: agent.uri.toString(), name: agent.sdkName ?? getSdkCustomAgentName(agent.uri),
+				uri: (agent.sourceUri ?? agent.uri).toString(), name: agent.sdkName ?? getSdkCustomAgentName(agent.uri),
 			});
 		}
 	}

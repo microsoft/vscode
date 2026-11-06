@@ -31,8 +31,15 @@ The owning connection's `resourceUris` mapper (`IAgentHostResourceUriMapper`) is
 The publisher of a container does not decide the space of everything inside it:
 
 - A container published by a client (it has a `clientId`) carries that client's URI. Use it as-is only when `clientId === connection.clientId`. Another client's container URI is opaque: show the entry, but never read, expand, or open it from this window.
-- `children` are always authored by the host, which parses its own materialized copy, so map them with `fromAgentHost`, even for this client's plugins.
+- Client-synced file `children` carry their canonical source URI and a validated `vscode.uriClientId` metadata marker. Only that client may use the URI directly; other clients must treat it as opaque. Untagged children, including children published by older hosts, remain host-space resources and must be mapped with `fromAgentHost`.
 - Use `getAgentHostCustomizationUri` for customization URIs, and `toAgentHostClientCustomization` when publishing client plugins.
+- Pass the child itself to `getAgentHostCustomizationUri` when resolving a child, not its parent container. Send canonical agent selections back unchanged through `toAgentHostAgentUri`; only untagged host resources need connection mapping.
+
+## Synced customization identity
+
+The client's plugin metadata carries `vscode.sourceUris`, a validated map from plugin-relative file paths to original source URIs, and an optional `vscode.sourceUri` root for in-place plugin sources. Synthetic bundles include source identities in their nonce, so moving identical content to a different source republishes its identity. Generated content without a source file uses its stable virtual bundle URI.
+
+Host parsers and provider SDKs continue to use materialized files. `getCustomizationSourceUri` and `toSourceCustomizations` project them to source identities for publication and selection; cache locations are not public customization URIs. Immutable automation captures are host-owned resources and retain their captured paths. Legacy cache selections are resolved only against the owning plugin's known materialization namespace.
 
 ## Resources the host reads back from the client
 

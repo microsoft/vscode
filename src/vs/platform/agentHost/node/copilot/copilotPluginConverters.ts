@@ -9,7 +9,7 @@ import { StringSHA1 } from '../../../../base/common/hash.js';
 import { Schemas } from '../../../../base/common/network.js';
 import { dirname } from '../../../../base/common/path.js';
 import { OperatingSystem, OS } from '../../../../base/common/platform.js';
-import { joinPath, relativePath } from '../../../../base/common/resources.js';
+import { isEqual, isEqualOrParent, joinPath, relativePath } from '../../../../base/common/resources.js';
 import { escapeRegExpCharacters } from '../../../../base/common/strings.js';
 import { URI } from '../../../../base/common/uri.js';
 import { parseFrontMatter, type MarkdownNode, type YamlNode } from '../../../../base/common/yaml.js';
@@ -104,13 +104,25 @@ function toSdkMcpServer(_name: string, config: IMcpServerConfiguration, defaultC
 /** A forwarded definition with an optional SDK name resolved from its logical plugin source. */
 export interface ISdkCustomAgentResource extends INamedPluginResource {
 	readonly sdkName?: string;
+	readonly sourceUri?: URI;
+}
+
+type PluginSource = { readonly sourceUri?: URI; readonly sourceUris?: Readonly<Record<string, URI>>; readonly pluginDir?: URI; readonly resourceDir?: URI };
+
+/** Source identity of a plugin resource; the parsed resource itself remains materialized for SDK reads. */
+export function getPluginResourceSourceUri(uri: URI, plugin?: PluginSource): URI {
+	const root = plugin?.pluginDir ?? plugin?.resourceDir;
+	const relative = root && isEqualOrParent(uri, root) ? relativePath(root, uri) : undefined;
+	if (relative === undefined) {
+		return uri;
+	}
+	return plugin?.sourceUris && Object.hasOwn(plugin.sourceUris, relative)
+		? plugin.sourceUris[relative] : plugin?.sourceUri ? joinPath(plugin.sourceUri, relative) : uri;
 }
 
 /** Keeps forwarded SDK identities independent of authored names and materialized cache locations. */
-export function getSdkCustomAgentName(uri: URI, plugin?: { readonly sourceUri?: URI; readonly pluginDir?: URI; readonly resourceDir?: URI }): string {
-	const root = plugin?.pluginDir ?? plugin?.resourceDir;
-	const relative = root && plugin?.sourceUri ? relativePath(root, uri) : undefined;
-	const identity = relative !== undefined && plugin?.sourceUri ? joinPath(plugin.sourceUri, relative) : uri;
+export function getSdkCustomAgentName(uri: URI, plugin?: PluginSource): string {
+	const identity = getPluginResourceSourceUri(uri, plugin);
 	const hash = new StringSHA1();
 	hash.update(identity.toString());
 	return `vscode-agent-${hash.digest()}`;
@@ -627,7 +639,7 @@ export function toSdkHooks(
 	return hooks;
 }
 
-type ComparablePlugin = IParsedPlugin & { readonly sourceUri?: URI; readonly pluginDir?: URI; readonly resourceDir?: URI; readonly nonce?: string };
+type ComparablePlugin = IParsedPlugin & PluginSource & { readonly nonce?: string };
 
 /**
  * Compares SDK configuration, preserving plugin order. A plugin with a content nonce compares relative to its own
@@ -643,6 +655,7 @@ export function parsedPluginsEqual(a: readonly ComparablePlugin[], b: readonly C
 				: undefined;
 			return {
 				sourceUri: p.agents.length > 0 ? p.sourceUri?.toString() : undefined,
+				sourceUris: p.sourceUris && Object.entries(p.sourceUris).map(([path, uri]) => [path, uri.toString()]).sort(([a], [b]) => a.localeCompare(b)),
 				configuration: JSON.stringify({
 					format: p.format,
 					nonce: p.nonce,
@@ -675,7 +688,7 @@ export function parsedPluginsEqual(a: readonly ComparablePlugin[], b: readonly C
 /** Resolves a published agent URI to the agent name a session applied before an equivalent relocation of its plugin. */
 export function findRelocatedAgentName(applied: readonly ComparablePlugin[], published: readonly ComparablePlugin[], agentUri: string): string | undefined {
 	for (const plugin of published) {
-		const index = plugin.agents.findIndex(agent => agent.uri.toString() === agentUri);
+		const index = plugin.agents.findIndex(agent => isEqual(agent.uri, URI.parse(agentUri)) || isEqual(getPluginResourceSourceUri(agent.uri, plugin), URI.parse(agentUri)));
 		// Applied and published sets can come from different chat anchors, so their plugin positions can differ.
 		const equivalent = index >= 0 ? applied.find(candidate => parsedPluginsEqual([candidate], [plugin])) : undefined;
 		if (equivalent) {

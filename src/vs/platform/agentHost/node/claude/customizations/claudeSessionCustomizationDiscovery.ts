@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { URI } from '../../../../../base/common/uri.js';
-import { isEqualOrParent } from '../../../../../base/common/resources.js';
+import { isEqual, isEqualOrParent } from '../../../../../base/common/resources.js';
 import { Event } from '../../../../../base/common/event.js';
 import { Disposable } from '../../../../../base/common/lifecycle.js';
 import { IFileService } from '../../../../files/common/files.js';
@@ -20,6 +20,8 @@ import type { IResolvedNativePlugin } from './scan/claudeNativePluginScan.js';
 import { CLAUDE_BUILTIN_AGENTS, buildClaudeBuiltinSkillsContainer, buildSdkBuiltinSkillsContainer } from './claudeBuiltinCommands.js';
 import { distinctClaudeWorkingDirectories } from './claudeMultiRootCustomizationDiscovery.js';
 import { findMostSpecificClaudeWorkspaceRoot } from './claudeCustomizationPolicy.js';
+import type { ISyncedCustomization } from '../../../common/agentPluginManager.js';
+import { getCustomizationSourceUri } from '../../../common/syncedCustomizationUris.js';
 
 /**
  * The Claude SDK's built-in default agent. Hidden from the picker:
@@ -196,6 +198,7 @@ export function createClaudeInternalMcpServerCustomization(name: string): McpSer
  * - A `claude-internal:` URI — an SDK-only agent the disk scan couldn't
  *   locate (Decision D2); the name is the path segment encoded by
  *   {@link nonEditableUri} (this is its inverse).
+ * - A client source URI is read from its synced materialized agent file.
  * - A real `file:` agent — the SDK keys agents by their frontmatter
  *   `name`, which may differ from the filename, so it is parsed (falling
  *   back to the basename when the file can't be read).
@@ -208,11 +211,20 @@ export async function resolveClaudeAgentName(
 	fileService: IFileService,
 	logService: ILogService,
 	sessionId: string,
+	synced: readonly ISyncedCustomization[] = [],
 ): Promise<string | undefined> {
 	if (!agent) {
 		return undefined;
 	}
-	const uri = URI.parse(agent.uri);
+	let uri = URI.parse(agent.uri);
+	for (const item of synced) {
+		const child = item.customization.children?.find(child => child.type === CustomizationType.Agent
+			&& isEqual(getCustomizationSourceUri(URI.parse(child.uri), item), uri));
+		if (child) {
+			uri = URI.parse(child.uri);
+			break;
+		}
+	}
 
 	// SDK-only (non-editable) agents encode the name in the path:
 	// `claude-internal:/agent/<encoded-name>` (inverse of nonEditableUri).

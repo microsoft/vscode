@@ -1788,7 +1788,7 @@ suite('getCopilotAgentSelectionName', () => {
 			outside: getCopilotAgentSelectionName(snapshot, URI.file('/cache/bundle/../agents/solo.agent.md').toString(), true),
 			opaqueHost: getCopilotAgentSelectionName(snapshot, 'other-host:/cache/bundle/previous/agents/solo.agent.md', true),
 		}, {
-			restored: { uri: uri.toString(), name: getSdkCustomAgentName(uri, plugin) },
+			restored: { uri: URI.joinPath(sourceUri, 'agents/solo.agent.md').toString(), name: getSdkCustomAgentName(uri, plugin) },
 			liveChange: undefined, anotherSource: undefined, directHost: undefined, ambiguousFile: undefined, ambiguousRevision: undefined,
 			outside: undefined, opaqueHost: undefined,
 		});
@@ -1830,6 +1830,30 @@ suite('getCopilotAgentSelectionName', () => {
 			};
 		}));
 		assert.deepStrictEqual(results, Array.from({ length: 4 }, () => ({ registered: expected, selected: expected })));
+	});
+
+	test('resolves original source selections and migrates cache selections without conflating same-named agents', () => {
+		const sources = ['first', 'second'].map(name => URI.parse(`vscode-remote://ssh-client/${name}/reviewer.agent.md`));
+		const results = ['old', 'new'].map(revision => {
+			const root = URI.file(`/cache/bundle/${revision}`);
+			const paths = ['agents/first/reviewer.agent.md', 'agents/second/reviewer.agent.md'];
+			const snapshot = {
+				plugins: [{
+					format: PluginFormat.OpenPlugin, sourceUri: URI.parse('synced:/bundle'),
+					sourceUris: Object.fromEntries(paths.map((path, index) => [path, sources[index]])),
+					nonce: revision, pluginDir: root,
+					agents: paths.map(path => toParsedAgent({ uri: URI.joinPath(root, path), name: 'Reviewer' })),
+					skills: [], hooks: [], instructions: [], mcpServers: [],
+				}],
+				discoveredAgents: [], additionalRootInstructions: [],
+			};
+			return {
+				sources: sources.map(source => getCopilotAgentSelection(snapshot, source.toString())),
+				legacy: getCopilotAgentSelection(snapshot, URI.file('/cache/bundle/previous/agents/second/reviewer.agent.md').toString(), true),
+			};
+		});
+		const selections = sources.map(source => ({ uri: source.toString(), name: getSdkCustomAgentName(source) }));
+		assert.deepStrictEqual(results, Array.from({ length: 2 }, () => ({ sources: selections, legacy: selections[1] })));
 	});
 });
 

@@ -9,10 +9,11 @@ import { parseFrontMatter } from '../../../../base/common/yaml.js';
 import { SYNCED_CUSTOMIZATION_SCHEME } from '../../common/agentHostFileSystemService.js';
 import { IFileService } from '../../../files/common/files.js';
 import { parseRuleFile, resolveAgentDisableModelInvocation, type IMcpServerDefinition, type IParsedAgent, type IParsedPlugin } from '../../../agentPlugins/common/pluginParsers.js';
-import type { ISyncedCustomization } from '../../common/agentPluginManager.js';
+import { AGENT_HOST_FILE_SCHEME, type ISyncedCustomization } from '../../common/agentPluginManager.js';
 import { CustomizationEnablementKind, type AgentSelection } from '../../common/state/protocol/state.js';
 import { CustomizationType, type ChildCustomization, type ClientPluginCustomization, type McpServerCustomization, type PluginCustomization } from '../../common/state/sessionState.js';
-import { readClientPluginMcpDefaultCwd } from '../../common/meta/clientPluginCustomizationMeta.js';
+import { readClientPluginMcpDefaultCwd, readClientPluginSourceUris } from '../../common/meta/clientPluginCustomizationMeta.js';
+import { getCustomizationSourceUri, toSourceCustomizations } from '../../common/syncedCustomizationUris.js';
 import { isCustomizationEnabled } from '../../common/customizationEnablement.js';
 import { AGENT_HOST_FILE_LINK_INSTRUCTIONS } from '../shared/fileLinkInstructions.js';
 import { toCodexMcpServerJson, type ICodexMcpServerConfigJson } from './codexMcpServers.js';
@@ -48,6 +49,7 @@ export const CODEX_FILE_LINK_INSTRUCTIONS = [
 
 /** A single client-pushed plugin: its sync result plus the parsed components (when the sync succeeded). */
 export interface ICodexClientPlugin {
+	readonly clientId?: string;
 	readonly synced: ISyncedCustomization;
 	readonly parsed: IParsedPlugin | undefined;
 	readonly input?: ClientPluginCustomization;
@@ -80,7 +82,7 @@ export class CodexClientCustomizationStore {
 
 	/** Replace one client's synced+parsed plugin set. */
 	setClient(clientId: string, plugins: readonly ICodexClientPlugin[]): void {
-		this._byClient.set(clientId, plugins);
+		this._byClient.set(clientId, plugins.map(plugin => ({ ...plugin, clientId })));
 	}
 
 	/** Drop a client's contribution. Returns whether anything was removed. */
@@ -154,7 +156,7 @@ export class CodexClientCustomizationStore {
 			return {
 				...base,
 				...(this._enablement.has(base.id) ? { enablement: [{ kind: CustomizationEnablementKind.Session, enabled: this._enablement.get(base.id)! }] } : {}),
-				...(children ? { children } : {}),
+				...(children ? { children: toSourceCustomizations(children, plugin.synced, plugin.clientId!) } : {}),
 			};
 		});
 	}
@@ -236,6 +238,9 @@ export async function codexCustomizationConfig(
 	let selectedAgentInstructions: string | undefined;
 	let selectedAgentMatch = SelectedAgentMatch.None;
 	const selectedAgentUri = selectedAgent?.uri;
+	const pluginAgentMatches = new Map(plugins.flatMap(plugin => (plugin.parsed?.agents ?? []).map(agent =>
+		[agent, selectedAgentUri ? matchSelectedAgent(plugin, agent.uri, selectedAgentUri) : SelectedAgentMatch.None] as const)));
+	const ambiguousFallback = [...pluginAgentMatches.values()].filter(match => match === SelectedAgentMatch.SyntheticBundleSource).length > 1;
 
 	const addAgent = async (agent: IParsedAgent, match: SelectedAgentMatch): Promise<void> => {
 		try {
@@ -271,7 +276,8 @@ export async function codexCustomizationConfig(
 
 	for (const plugin of plugins) {
 		for (const agent of plugin.parsed?.agents ?? []) {
-			const match = selectedAgentUri ? matchSelectedAgent(plugin, agent.uri, selectedAgentUri) : SelectedAgentMatch.None;
+			const candidate = pluginAgentMatches.get(agent) ?? SelectedAgentMatch.None;
+			const match = ambiguousFallback && candidate === SelectedAgentMatch.SyntheticBundleSource ? SelectedAgentMatch.None : candidate;
 			await addAgent(agent, match);
 		}
 
@@ -313,16 +319,20 @@ function isAlwaysOnRule(globs: readonly string[] | undefined, alwaysApply: boole
 const enum SelectedAgentMatch {
 	None,
 	SyntheticBundleSource,
+	Legacy,
 	Exact,
 }
 
 function matchSelectedAgent(plugin: ICodexClientPlugin, agentUri: URI, selectedAgentUri: string): SelectedAgentMatch {
 	const selectedUri = URI.parse(selectedAgentUri);
-	if (extUri.isEqual(agentUri, selectedUri)) {
+	if (extUri.isEqual(getCustomizationSourceUri(agentUri, plugin.synced), selectedUri)) {
 		return SelectedAgentMatch.Exact;
 	}
+	if (extUri.isEqual(agentUri, selectedUri)) {
+		return SelectedAgentMatch.Legacy;
+	}
 	const pluginDir = plugin.synced.pluginDir;
-	if (!pluginDir) {
+	if (!pluginDir || !extUri.isEqualOrParent(agentUri, pluginDir)) {
 		return SelectedAgentMatch.None;
 	}
 	const relativeAgentPath = relativePath(pluginDir, agentUri);
@@ -332,16 +342,24 @@ function matchSelectedAgent(plugin: ICodexClientPlugin, agentUri: URI, selectedA
 	const sourcePluginUri = URI.parse(plugin.synced.customization.uri);
 	const sourceAgentUri = relativeAgentPath ? joinPath(sourcePluginUri, relativeAgentPath) : sourcePluginUri;
 	if (extUri.isEqual(sourceAgentUri, selectedUri)) {
-		return SelectedAgentMatch.Exact;
+		return SelectedAgentMatch.Legacy;
+	}
+	const nonce = plugin.input?.nonce ?? (plugin.synced.customization as ClientPluginCustomization).nonce;
+	// Persisted selections can name an older nonce within this plugin's cache namespace.
+	if (sourcePluginUri.scheme !== AGENT_HOST_FILE_SCHEME && nonce && basename(pluginDir) === nonce) {
+		const namespace = extUri.dirname(pluginDir);
+		const selectedPath = relativePath(namespace, selectedUri);
+		const revision = selectedPath?.split('/')[0];
+		if (revision && revision !== '.' && revision !== '..'
+			&& extUri.isEqual(joinPath(namespace, revision, relativeAgentPath), selectedUri)) {
+			return SelectedAgentMatch.Legacy;
+		}
 	}
 
-	// The workbench's synthetic bundle flattens loose custom agents into its
-	// `agents/` directory, while the Agents window intentionally exposes each
-	// agent's original workspace/user URI. The host cannot reconstruct that
-	// original parent path, but the filename remains stable and is unique in
-	// the flattened bundle. Keep this as a lower-priority fallback so an exact
-	// match from another plugin always wins.
-	if (sourcePluginUri.scheme === SYNCED_CUSTOMIZATION_SCHEME
+	// Older clients omitted source identities; use filenames only for an unambiguous legacy bundle.
+	const sources = readClientPluginSourceUris(plugin.synced.customization);
+	if (!sources.root && Object.keys(sources.files).length === 0
+		&& sourcePluginUri.scheme === SYNCED_CUSTOMIZATION_SCHEME
 		&& relativeAgentPath.startsWith('agents/')
 		&& basename(agentUri) === basename(selectedUri)) {
 		return SelectedAgentMatch.SyntheticBundleSource;

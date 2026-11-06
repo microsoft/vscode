@@ -17,6 +17,7 @@ import { CustomizationType, McpServerStatus, type AgentSelection, type Directory
 import { customizationId, type PluginCustomization } from '../../../common/state/sessionState.js';
 import type { ISdkResolvedCustomizations } from '../../../node/claude/claudeSdkPipeline.js';
 import { ClaudeCustomizationWatcher, buildDiscoveredCustomizations, mapDiscoveredCustomizations, resolveClaudeAgentName } from '../../../node/claude/customizations/claudeSessionCustomizationDiscovery.js';
+import { toClientPluginSourceUrisMeta } from '../../../common/meta/clientPluginCustomizationMeta.js';
 import { CLAUDE_BUILTIN_AGENTS } from '../../../node/claude/customizations/claudeBuiltinCommands.js';
 import type { IResolvedNativePlugin } from '../../../node/claude/customizations/scan/claudeNativePluginScan.js';
 import { claudeTestUserHome as userHome, claudeTestWorkspace as workspace, seedFile } from './claudeCustomizationTestUtils.js';
@@ -543,6 +544,23 @@ suite('claudeSessionCustomizationDiscovery', () => {
 		test('file URI resolves the frontmatter name (not the filename)', async () => {
 			const file = await seed('/home/.claude/agents/foo.md', '---\nname: my-real-agent\ndescription: d\n---\nbody');
 			assert.strictEqual(await resolveClaudeAgentName(sel(file.toString()), fileService, log, 'sid'), 'my-real-agent');
+		});
+
+		test('canonical client source selection reads the materialized agent frontmatter', async () => {
+			const file = await seed('/cache/plugin/agents/renamed.md', '---\nname: actual-sdk-name\ndescription: d\n---\nbody');
+			const source = URI.file('/client/.github/agents/original.agent.md');
+			const customization = {
+				type: CustomizationType.Plugin as const,
+				id: 'client-plugin',
+				uri: 'vscode-synced-customization:/bundle',
+				name: 'Client Plugin',
+				_meta: toClientPluginSourceUrisMeta({ files: { 'agents/renamed.md': source } }),
+				children: [{ type: CustomizationType.Agent as const, id: 'agent', name: 'Renamed', uri: file.toString() }],
+			};
+			assert.strictEqual(await resolveClaudeAgentName(sel(source.toString()), fileService, log, 'sid', [{
+				customization,
+				pluginDir: URI.joinPath(file, '..', '..'),
+			}]), 'actual-sdk-name');
 		});
 
 		test('unreadable file URI falls back to the basename (minus .md)', async () => {

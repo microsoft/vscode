@@ -11,6 +11,7 @@ import { URI } from '../../../../../base/common/uri.js';
 import { autorun, IObservable, ISettableObservable, observableValueOpts } from '../../../../../base/common/observable.js';
 import type { ISyncedCustomization } from '../../../common/agentPluginManager.js';
 import type { ClientPluginCustomization } from '../../../common/state/sessionState.js';
+import { toSourceCustomizations } from '../../../common/syncedCustomizationUris.js';
 
 /**
  * Per-session **client-pushed** customization snapshot. Server-side
@@ -18,9 +19,10 @@ import type { ClientPluginCustomization } from '../../../common/state/sessionSta
  */
 export interface ISessionCustomizationsState {
 	readonly synced: readonly ISyncedCustomization[];
+	readonly clientIds: readonly string[];
 }
 
-const INITIAL_STATE: ISessionCustomizationsState = { synced: [] };
+const INITIAL_STATE: ISessionCustomizationsState = { synced: [], clientIds: [] };
 
 /**
  * Pure observable state holder for the **client-pushed**
@@ -53,25 +55,38 @@ export class SessionClientCustomizationsModel {
 	 * customization `id` with the first-inserted client winning. Order
 	 * follows client insertion order.
 	 */
-	private _mergedSynced(): readonly ISyncedCustomization[] {
+	private _mergedState(): ISessionCustomizationsState {
 		const seen = new Set<string>();
 		const result: ISyncedCustomization[] = [];
-		for (const synced of this._byClient.values()) {
+		const clientIds: string[] = [];
+		for (const [clientId, synced] of this._byClient) {
 			for (const item of synced) {
 				if (seen.has(item.customization.id)) {
 					continue;
 				}
 				seen.add(item.customization.id);
 				result.push(item);
+				clientIds.push(clientId);
 			}
 		}
-		return result;
+		return { synced: result, clientIds };
 	}
 
 	/** Replace a single client's pushed customization snapshot for this session. */
 	setSyncedCustomizations(clientId: string, synced: readonly ISyncedCustomization[]): void {
 		this._byClient.set(clientId, synced);
-		this._state.set({ synced: this._mergedSynced() }, undefined);
+		this._state.set(this._mergedState(), undefined);
+	}
+
+	getSourceCustomizations(): readonly ISyncedCustomization[] {
+		const { synced, clientIds } = this._state.get();
+		return synced.map((item, index) => ({
+			...item,
+			customization: {
+				...item.customization,
+				...(item.customization.children ? { children: toSourceCustomizations(item.customization.children, item, clientIds[index]) } : {}),
+			},
+		}));
 	}
 
 	/** Remove a client's pushed customizations from this session. */
@@ -79,7 +94,7 @@ export class SessionClientCustomizationsModel {
 		if (!this._byClient.delete(clientId)) {
 			return;
 		}
-		this._state.set({ synced: this._mergedSynced() }, undefined);
+		this._state.set(this._mergedState(), undefined);
 	}
 }
 
@@ -169,7 +184,7 @@ export class SessionClientCustomizationsDiff extends Disposable {
 }
 
 function stateEqual(a: ISessionCustomizationsState, b: ISessionCustomizationsState): boolean {
-	return syncedListEqual(a.synced, b.synced);
+	return arraysEqual(a.clientIds, b.clientIds) && syncedListEqual(a.synced, b.synced);
 }
 
 function syncedListEqual(a: readonly ISyncedCustomization[], b: readonly ISyncedCustomization[]): boolean {
@@ -197,13 +212,16 @@ function syncedListEqual(a: readonly ISyncedCustomization[], b: readonly ISynced
 		if (!objectsEqual(ai.childEnablement ?? {}, bi.childEnablement ?? {})) {
 			return false;
 		}
+		if (!objectsEqual(ai._meta, bi._meta)) {
+			return false;
+		}
 		if (ai.load?.kind !== bi.load?.kind) {
 			return false;
 		}
 		if (loadMessageOf(ai.load) !== loadMessageOf(bi.load)) {
 			return false;
 		}
-		if (!childrenEqual(ai.children, bi.children)) {
+		if (!objectsEqual(ai.children, bi.children)) {
 			return false;
 		}
 		if (a[i].pluginDir?.toString() !== b[i].pluginDir?.toString()) {
@@ -215,21 +233,6 @@ function syncedListEqual(a: readonly ISyncedCustomization[], b: readonly ISynced
 
 function loadMessageOf(load: { kind: string; message?: string } | undefined): string | undefined {
 	return load && load.message ? load.message : undefined;
-}
-
-function childrenEqual(a: readonly { id: string; name: string }[] | undefined, b: readonly { id: string; name: string }[] | undefined): boolean {
-	if (a === b) {
-		return true;
-	}
-	if (!a || !b || a.length !== b.length) {
-		return false;
-	}
-	for (let i = 0; i < a.length; i++) {
-		if (a[i].id !== b[i].id || a[i].name !== b[i].name) {
-			return false;
-		}
-	}
-	return true;
 }
 
 function pluginPathsEqual(a: readonly URI[], b: readonly URI[]): boolean {

@@ -173,6 +173,19 @@ suite('AgentHostSkillCompletionProvider', () => {
 		]);
 	});
 
+	test('preserves canonical client URI ownership in skill completion attachments', async () => {
+		const agent = new MockAgent('mock');
+		const uri = 'vscode-remote://ssh-client/extensions/review/SKILL.md';
+		agent.getSessionCustomizations = async () => [
+			syncedPlugin('skills-bundle', [{
+				...skillAt('review', uri), _meta: { 'vscode.uriClientId': 'author' },
+			}]),
+		];
+		assert.deepStrictEqual((await run(createProvider(agent), '/review')).map(item => item.attachment._meta), [{
+			uri, name: 'review', displayName: 'review', 'vscode.uriClientId': 'author',
+		}]);
+	});
+
 	test('filters user-disabled and disabled skills without filtering model-disabled skills', async () => {
 		const agent = new MockAgent('mock');
 		agent.getSessionCustomizations = async () => [

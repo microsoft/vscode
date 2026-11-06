@@ -57,6 +57,7 @@ import { applyMcpServerRuntimeStates, McpCustomizationController } from '../shar
 import { buildCodexMcpReadResult, CodexMcpInventory, codexMcpListToInventory, codexMcpServersFromConfig, codexMcpToolsChanged, codexStartupErrorNeedsAuth, injectCodexMcpAuthTokens, inventoryToSdkServers, normalizeCodexMcpResourceUrl, toCodexMcpServerJson, translateCodexMcpStartupState, type ICodexMcpAuthToken, type ICodexMcpServerConfigJson } from './codexMcpServers.js';
 import { codexHooksToContainers, codexSelectedCapabilityRootCandidates, codexSkillsToContainers, discoverCodexWorkspaceAgents, discoverCodexWorkspaceInstructions, discoverCodexWorkspaceSkills, excludeCodexWorkspaceSkillDuplicates } from './codexCustomizations.js';
 import { CodexClientCustomizationStore, codexAgentRoleToml, codexClientSkillInstructions, codexCustomizationConfig, codexMcpServersFromDefinitions, codexMcpServersFromPlugins, codexPluginMcpServerSources, parsedPluginChildren, type ICodexClientPlugin } from './codexClientCustomizations.js';
+import { toSourceCustomizations } from '../../common/syncedCustomizationUris.js';
 import { IAgentHostCustomizationEnablementService, targetForUnownedMcpServer } from '../agentHostCustomizationEnablementService.js';
 import { isCustomizationSdkEligible, resolveCustomizationEnablement, targetForMcpServer } from '../shared/customizationEnablementGate.js';
 import { isCustomizationEnabled } from '../../common/customizationEnablement.js';
@@ -2265,7 +2266,7 @@ export class CodexAgent extends Disposable implements IAgent {
 		const plugins = session.clientCustomizations.plugins();
 		const candidates = plugins.map(plugin => ({
 			...plugin.synced.customization,
-			...(plugin.parsed ? { children: parsedPluginChildren(plugin.parsed) } : {}),
+			...(plugin.parsed ? { children: toSourceCustomizations(parsedPluginChildren(plugin.parsed), plugin.synced, plugin.clientId!) } : {}),
 		}));
 		const clientPlugins = new Map<string, ClientPluginCustomization>();
 		const childEnablement = new Map<string, NonNullable<ClientPluginCustomization['childEnablement']>>();
@@ -8356,7 +8357,7 @@ export class CodexAgent extends Disposable implements IAgent {
 			return;
 		}
 		const inputs = new Map(customizations.map(customization => [customization.uri, customization]));
-		const plugins = await Promise.all(synced.map(item => this._parseClientPlugin(session, item, inputs.get(item.customization.uri))));
+		const plugins = await Promise.all(synced.map(item => this._parseClientPlugin(session, item, inputs.get(item.customization.uri), clientId)));
 		if (session.disposed || options?.isCurrent?.() === false) {
 			return;
 		}
@@ -8424,13 +8425,13 @@ export class CodexAgent extends Disposable implements IAgent {
 	}
 
 	/** Parse one synced plugin directory into its components (best-effort). */
-	private async _parseClientPlugin(session: ICodexSession, synced: ISyncedCustomization, input: ClientPluginCustomization | undefined): Promise<ICodexClientPlugin> {
+	private async _parseClientPlugin(session: ICodexSession, synced: ISyncedCustomization, input: ClientPluginCustomization | undefined, clientId: string): Promise<ICodexClientPlugin> {
 		if (!synced.pluginDir) {
 			return { synced, parsed: undefined, input };
 		}
 		try {
 			const parsed = await parsePlugin(synced.pluginDir, this._fileService, session.workingDirectory, this._environmentService.userHome, synced.pluginDir);
-			const candidate = { ...synced.customization, children: parsedPluginChildren(parsed) };
+			const candidate = { ...synced.customization, children: toSourceCustomizations(parsedPluginChildren(parsed), synced, clientId) };
 			const clientPlugins = input ? new Map([[input.uri, input]]) : undefined;
 			const resolution = resolveCustomizationEnablement(this._customizationEnablementService, session.owner.get(), [candidate], input?.childEnablement ? new Map([[input.uri, input.childEnablement]]) : undefined, clientPlugins);
 			const resolved = resolution.customizations[0];

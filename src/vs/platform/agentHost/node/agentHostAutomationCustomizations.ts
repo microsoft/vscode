@@ -17,6 +17,7 @@ import { AUTOMATION_ACTIVE_CLIENT_ID, toAgentHostFileUri } from '../common/agent
 import type { AutomationEntry, AutomationSessionTemplate } from '../common/state/protocol/channels-automation/state.js';
 import { CustomizationLoadStatus, CustomizationType, type AgentSelection, type ClientPluginCustomization, type PluginCustomization, type SessionActiveClient } from '../common/state/sessionState.js';
 import { toChildCustomizations } from './copilot/copilotPluginConverters.js';
+import { readClientPluginSourceUris } from '../common/meta/clientPluginCustomizationMeta.js';
 
 
 /** Captures automation plugins as host paths, independently of connected clients and the plugin cache. */
@@ -116,14 +117,17 @@ export class AgentHostAutomationCustomizations {
 		const agentUri = URI.parse(template.agent.uri);
 		for (const ref of template.customizations ?? []) {
 			const source = URI.parse(ref.uri);
-			if (!extUriBiasedIgnorePathCase.isEqualOrParent(agentUri, source)) {
+			const sources = readClientPluginSourceUris(ref);
+			const sourcePath = Object.entries(sources.files).find(([, uri]) => extUriBiasedIgnorePathCase.isEqual(uri, agentUri))?.[0];
+			const root = sources.root ?? source;
+			const relative = sourcePath ?? (extUriBiasedIgnorePathCase.isEqualOrParent(agentUri, root) ? extUriBiasedIgnorePathCase.relativePath(root, agentUri) : undefined);
+			if (relative === undefined) {
 				continue;
 			}
 			const copy = captured.find(candidate => candidate.id === ref.id);
 			if (!copy) {
 				throw new Error(`Missing captured automation customization: ${ref.id}`);
 			}
-			const relative = extUriBiasedIgnorePathCase.relativePath(source, agentUri)!;
 			return { ...template.agent, uri: joinPath(URI.parse(copy.uri), relative).with({ query: agentUri.query, fragment: agentUri.fragment }).toString() };
 		}
 		return template.agent;

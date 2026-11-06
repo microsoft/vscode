@@ -4182,6 +4182,35 @@ suite('LocalAgentHostSessionsProvider', () => {
 	});
 
 	for (const kind of agentHostConnectionKinds) {
+		for (const [source, owner] of [
+			['file:///extensions/review.agent.md', 'test-local-client'],
+			['vscode-remote://ssh-remote+workspace/project/review.agent.md', 'test-local-client'],
+			['file:///extensions/foreign.agent.md', 'other-client'],
+		]) {
+			test(`hydrates disabled canonical agent ownership without remapping ${source} from ${owner} (${kind.name})`, () => {
+				agentHost.resourceUris = kind.resourceUris;
+				const provider = createProvider(disposables, agentHost);
+				fireSessionAdded(agentHost, 'canonical-agent', { title: 'Canonical Agent' });
+				const session = provider.getSessions().find(session => session.title.get() === 'Canonical Agent')!;
+				provider.getSessionConfig(session.sessionId, session.mainChat.get().resource);
+				const defaultChat = buildDefaultChatUri(AgentSession.uri('copilotcli', 'canonical-agent'));
+				agentHost.setSessionState('canonical-agent', 'copilotcli', {
+					provider: 'copilotcli', title: 'Canonical Agent', status: ProtocolSessionStatus.Idle, lifecycle: SessionLifecycle.Ready, activeClients: [],
+					defaultChat, chats: [],
+					customizations: [{
+						type: CustomizationType.Plugin, id: 'plugin', uri: 'file:///cache/plugin', name: 'Plugin',
+						enablement: [{ kind: CustomizationEnablementKind.Session, enabled: false }],
+						children: [{ type: CustomizationType.Agent, id: 'review', uri: source, name: 'Review', _meta: { 'vscode.uriClientId': owner } }],
+					}],
+				});
+				agentHost.setChatState(defaultChat, {
+					resource: defaultChat, title: 'Canonical Agent', status: ProtocolSessionStatus.Idle, modifiedAt: new Date(0).toISOString(), turns: [],
+					draft: { text: '', origin: { kind: MessageKind.User }, agent: { uri: source } },
+				});
+				assert.deepStrictEqual(session.mode.get(), owner === agentHost.clientId ? { id: URI.parse(source).toString(), kind: 'agent' } : undefined);
+			});
+		}
+
 		test(`projects host roots and draft agents into client-space session state (${kind.name})`, () => {
 			agentHost.resourceUris = kind.resourceUris;
 			class TestProvider extends LocalAgentHostSessionsProvider {
@@ -4862,6 +4891,7 @@ suite('LocalAgentHostSessionsProvider', () => {
 				id: 'inbox',
 				uri: 'file:///plugins/github-inbox/agents/inbox.agent.md',
 				name: 'Inbox',
+				_meta: { 'vscode.uriClientId': agentHost.clientId },
 			}],
 			fired: 1,
 		});

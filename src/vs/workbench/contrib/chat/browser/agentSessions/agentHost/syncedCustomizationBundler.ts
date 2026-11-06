@@ -17,7 +17,7 @@ import { ILogService } from '../../../../../../platform/log/common/log.js';
 import { IMcpServerConfiguration } from '../../../../../../platform/mcp/common/mcpPlatformTypes.js';
 import { PromptsType } from '../../../common/promptSyntax/promptTypes.js';
 import { AICustomizationSource } from '../../../common/aiCustomizationWorkspaceService.js';
-import { toClientPluginMcpDefaultCwdsMeta, toClientPluginStandaloneMeta, type ClientPluginMcpDefaultCwds } from '../../../../../../platform/agentHost/common/meta/clientPluginCustomizationMeta.js';
+import { toClientPluginMcpDefaultCwdsMeta, toClientPluginSourceUrisMeta, toClientPluginStandaloneMeta, type ClientPluginMcpDefaultCwds } from '../../../../../../platform/agentHost/common/meta/clientPluginCustomizationMeta.js';
 import { withCustomizationEnablement } from '../../../../../../platform/agentHost/common/customizationEnablement.js';
 import { customizationId, type ClientPluginCustomization } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { CustomizationEnablementKind, CustomizationType, type CustomizationEnablement, type URI as ProtocolURI } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
@@ -378,6 +378,11 @@ export class SyncedCustomizationBundler extends Disposable {
 		this._throwIfDisposed();
 
 		const contentHashParts = await Promise.all(fileContents.map(async entry => `${entry.hashKey}:${await hashAsync(entry.content)}`));
+		const sourceUris = Object.fromEntries([...entries].sort((a, b) => a.hashKey.localeCompare(b.hashKey)).map(entry => [
+			entry.hashKey, entry.content === undefined ? entry.sourceUri : entry.destUri,
+		]));
+		const sourceMeta = toClientPluginSourceUrisMeta({ files: sourceUris });
+		contentHashParts.push(`sourceUris:${JSON.stringify(sourceMeta)}`);
 		if (mcpContent !== undefined) {
 			contentHashParts.push(`.mcp.json:${mcpContent}`);
 		}
@@ -430,7 +435,7 @@ export class SyncedCustomizationBundler extends Disposable {
 		this._lastNonce = nonce;
 
 		const rootUriString = this._rootUri.toString() as ProtocolURI;
-		const meta = this._toMeta(mcpDefaultCwds);
+		const meta = { ...this._toMeta(mcpDefaultCwds), ...sourceMeta };
 		const result: IBundleResult = {
 			ref: {
 				type: CustomizationType.Plugin,
@@ -486,13 +491,18 @@ export class SyncedCustomizationBundler extends Disposable {
 			&& Object.hasOwn(this._lastRef.ref.childEnablement ?? {}, serverName);
 	}
 
-	/**
-	 * Recovers the original provenance of a file that was flattened into the
-	 * synthetic bundle, given its synced (destination) URI. Returns `undefined`
-	 * for URIs that are not part of the most recent bundle.
-	 */
+	/** Recovers provenance by canonical source URI or a legacy bundle URI. */
 	getOrigin(syncedUri: URI): ISyncedCustomizationOrigin | undefined {
-		return this._originByDest.get(syncedUri);
+		const origin = this._originByDest.get(syncedUri);
+		if (origin) {
+			return origin;
+		}
+		for (const candidate of this._originByDest.values()) {
+			if (extUri.isEqual(candidate.uri, syncedUri)) {
+				return candidate;
+			}
+		}
+		return undefined;
 	}
 
 	/** Finds the bundled URI for a source file in the most recent bundle. */

@@ -95,9 +95,9 @@ import { toRemoteSessionMessageMetadata } from '../../../../../../platform/agent
 import { ActionType, AuthRequiredReason, isSessionAction, isChatAction, NotificationType, type ActionEnvelope, type IRootConfigChangedAction, type SessionAction, type ChatAction as AgentHostChatAction, type TerminalAction, type INotification, type IToolCallConfirmedAction, type ITurnStartedAction, type ClientAnnotationsAction } from '../../../../../../platform/agentHost/common/state/sessionActions.js';
 import { chatToolCallComplete, chatToolCallReady, chatToolCallStart, chatTurnComplete, chatTurnStarted } from '../../../../../../platform/agentHost/test/common/chatActionBuilders.js';
 import { AhpErrorCodes, AHP_AUTH_REQUIRED, AHP_NOT_FOUND, JsonRpcErrorCodes, ProtocolError, type DispatchActionParams, type IStateSnapshot, type JsonRpcRequest, type ProtocolMessage } from '../../../../../../platform/agentHost/common/state/sessionProtocol.js';
-import { BackgroundWorkKind, ChatInteractivity, ConfirmationOptionKind, CustomizationEnablementKind, CustomizationType, McpAuthRequiredReason, McpServerStatus, SessionOriginKind, type AgentCustomization, type ChatInputAnswer, type ChatInputRequest, type ClientPluginCustomization, type ProtectedResourceMetadata, type SessionActiveClient, type ToolDefinition, type Turn, type UsageInfo } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
+import { BackgroundWorkKind, ChatInteractivity, ConfirmationOptionKind, CustomizationEnablementKind, CustomizationType, McpAuthRequiredReason, McpServerStatus, SessionOriginKind, type AgentCustomization, type ChatInputAnswer, type ChatInputRequest, type ClientPluginCustomization, type Customization, type ProtectedResourceMetadata, type SessionActiveClient, type ToolDefinition, type Turn, type UsageInfo } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
 import { ChatInputAnswerState, ChatInputAnswerValueKind, ChatInputQuestionKind, ChatInputResponseKind, ChatOriginKind, SessionLifecycle, SessionStatus, TurnState, ToolCallStatus, ToolCallConfirmationReason, ToolCallContributorKind, ToolCallRiskAssessmentKind, ToolCallRiskAssessmentStatus, createSessionState, createChatState, createDefaultChatSummary, createErrorResponsePart, buildChatUri, buildDefaultChatUri, parseChatUri, isAhpChatChannel, createActiveTurn, isAhpRootChannel, PolicyState, ResponsePartKind, ROOT_STATE_URI, StateComponents, buildSubagentChatUri, buildSubagentSessionUri, ToolResultContentType, MessageAttachmentKind, MessageKind, PendingMessageKind, withMessageRequestHiddenFromTranscript, withSessionMultiRootMetadata, SESSION_META_EHCLI_ADOPTABLE_KEY, SESSION_META_EHCLI_ADOPTED_KEY, type SessionState, type SessionSummary, type ChatState, type ISessionWithDefaultChat, RootState, type ToolCallState, type AgentInfo, type Message, type MessageAttachment, type MessageChatAttachment } from '../../../../../../platform/agentHost/common/state/sessionState.js';
-import { CompletionItemKind as AhpCompletionItemKind, type CompletionsParams, type CompletionsResult, type InitializeResult } from '../../../../../../platform/agentHost/common/state/protocol/commands.js';
+import { CompletionItemKind as AhpCompletionItemKind, type CompletionItem as AhpCompletionItem, type CompletionsParams, type CompletionsResult, type InitializeResult } from '../../../../../../platform/agentHost/common/state/protocol/commands.js';
 import { sessionReducer, chatReducer } from '../../../../../../platform/agentHost/common/state/sessionReducers.js';
 import { IDefaultAccountService } from '../../../../../../platform/defaultAccount/common/defaultAccount.js';
 import { CommandsRegistry, ICommandService } from '../../../../../../platform/commands/common/commands.js';
@@ -3055,6 +3055,8 @@ suite('AgentHostChatContribution', () => {
 			const commandStart = message.indexOf('/rename');
 			const skillMeta = {
 				providerPayload: 'skill-metadata',
+				uri: 'vscode-remote://ssh-remote+workspace/skills/author-contributions/SKILL.md',
+				'vscode.uriClientId': 'test-window-1',
 				displayName: 'author-contributions',
 				description: 'Summarize author contributions',
 			};
@@ -3068,7 +3070,7 @@ suite('AgentHostChatContribution', () => {
 				variables: {
 					variables: [
 						{
-							...toAgentHostCompletionVariableEntry(AgentHostCompletionReferenceKind.Skill, '/author-contributions', 'file:///skills/author-contributions/SKILL.md', skillMeta),
+							...toAgentHostCompletionVariableEntry(AgentHostCompletionReferenceKind.Skill, '/author-contributions', skillMeta.uri, skillMeta),
 							range: { start: skillStart, endExclusive: skillStart + '/author-contributions'.length },
 						},
 						{
@@ -4196,6 +4198,32 @@ suite('AgentHostChatContribution', () => {
 		}));
 
 		for (const kind of agentHostConnectionKinds) {
+			for (const owner of ['test-window-1', 'other-client']) {
+				test(`hydrates ownership of disabled canonical agent drafts from ${owner} (${kind.name})`, async () => {
+					const source = URI.file('/extensions/review.agent.md');
+					class DisabledCustomizationService extends NullAgentHostCustomizationService {
+						override getCustomizations(): readonly Customization[] {
+							return [{
+								type: CustomizationType.Plugin, id: 'plugin', uri: 'file:///cache/plugin', name: 'Plugin',
+								enablement: [{ kind: CustomizationEnablementKind.Session, enabled: false }],
+								children: [{ type: CustomizationType.Agent, id: 'review', uri: source.toString(), name: 'Review', _meta: { 'vscode.uriClientId': owner } }],
+							}];
+						}
+					}
+					const { sessionHandler, agentHostService } = createContribution(disposables, { customizationServiceOverride: new DisabledCustomizationService() });
+					agentHostService.resourceUris = kind.resourceUris;
+					const sessionResource = URI.parse('agent-host-copilot:/disabled-canonical');
+					seedDraftSession(agentHostService, AgentSession.uri('copilot', 'disabled-canonical'), 'Disabled Draft', {
+						text: 'draft', origin: { kind: MessageKind.User }, agent: { uri: source.toString() },
+					});
+					const chatSession = await sessionHandler.provideChatSessionContent(sessionResource, CancellationToken.None);
+					disposables.add(toDisposable(() => chatSession.dispose()));
+					assert.deepStrictEqual(chatSession.transferredState?.inputState?.mode, {
+						id: owner === agentHostService.clientId ? source.toString() : 'agent', kind: ChatModeKind.Agent,
+					});
+				});
+			}
+
 			test(`round trips draft agents between client modes and host state (${kind.name})`, () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
 				const hostAgent = 'file:///workspace/ask.agent.md';
 				const clientAgent = kind.toClient(URI.parse(hostAgent));
@@ -22586,7 +22614,10 @@ suite('AgentHostChatContribution', () => {
 					created: agentHostService.createSessionCalls.at(-1)?.activeClient?.customizations,
 					republished: agentHostService.dispatchedActions.filter(({ action }) => action.type === ActionType.SessionActiveClientSet),
 				}, {
-					created: [{ ...plugin, uri: kind.name === 'local' ? plugin.uri : toAgentHostFileUri(URI.file('/plugins/own')).toString() }], republished: [],
+					created: [kind.name === 'local' ? plugin : {
+						...plugin, uri: toAgentHostFileUri(URI.file('/plugins/own')).toString(),
+						_meta: { 'vscode.sourceUri': plugin.uri, 'vscode.sourceUris': {} },
+					}], republished: [],
 				});
 			});
 		}
@@ -26004,6 +26035,35 @@ suite('AgentHostChatContribution', () => {
 			assert.strictEqual(result?.items[0].attachment?.isDirectory, true);
 			assert.strictEqual(result?.items[0].attachment?.uri.toString(), 'file:///workspace/dir');
 		});
+
+		for (const kind of agentHostConnectionKinds) {
+			test(`resolves skill completion source ownership (${kind.name})`, async () => {
+				const { sessionHandler, agentHostService } = createContribution(disposables);
+				agentHostService.resourceUris = kind.resourceUris;
+				const own = [
+					'file:///extensions/review/SKILL.md',
+					'vscode-remote://ssh-remote+workspace/project/review/SKILL.md',
+				];
+				const makeItem = (uri: string, clientId?: string): AhpCompletionItem => ({
+					insertText: '/review ',
+					attachment: {
+						type: MessageAttachmentKind.Simple, label: '/review',
+						_meta: { uri, ...(clientId ? { 'vscode.uriClientId': clientId } : {}) },
+					},
+				});
+				(agentHostService as unknown as { completions: (p: CompletionsParams) => Promise<CompletionsResult> }).completions = async () => ({
+					items: [
+						...own.map(uri => makeItem(uri, agentHostService.clientId)),
+						makeItem('file:///foreign/review/SKILL.md', 'other-client'),
+						makeItem('file:///host/review/SKILL.md'),
+					],
+				});
+				const result = await sessionHandler.provideChatInputCompletions(
+					URI.parse('agent-host-copilot:/abc'), { text: '/', offset: 1 }, CancellationToken.None);
+				assert.deepStrictEqual(result?.items.map(item => item.attachment?.kind === 'skill' ? item.attachment.uri.toString() : undefined),
+					[...own.map(uri => URI.parse(uri).toString()), kind.toClient(URI.file('/host/review/SKILL.md')).toString()]);
+			});
+		}
 
 		test('preserves skill completion metadata', async () => {
 			const { sessionHandler, agentHostService } = createContribution(disposables);

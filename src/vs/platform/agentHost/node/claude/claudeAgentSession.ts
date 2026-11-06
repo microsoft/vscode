@@ -642,7 +642,7 @@ export class ClaudeAgentSession extends Disposable implements IRematerializer {
 		this.clientCustomizationsDiff.consume(plugins.map(plugin => plugin.uri));
 		const mcpLaunchEnablementRevision = this._mcpLaunchEnablementRevision;
 		const { mcpServers, deniedMcpServers, allowedTools, agentMergeRestrictedMcpServerNames } = await this._buildStartupToolWiring(launchOwner, ctx.serverToolHost);
-		const agentName = await resolveClaudeAgentName(this._provisionalAgent, this._fileService, this._logService, this.sessionId);
+		const agentName = await resolveClaudeAgentName(this._provisionalAgent, this._fileService, this._logService, this.sessionId, this.getClientCustomizations());
 		const telemetry = await this._otelService.getNativeSdkTelemetryConfig();
 		const traceContext = this._otelService.getSessionTraceContext(this.sessionId, ctx.resource.toString());
 
@@ -775,7 +775,7 @@ export class ClaudeAgentSession extends Disposable implements IRematerializer {
 			this.clientCustomizationsDiff.consume(rebuildPlugins.map(plugin => plugin.uri));
 			const rebuildMcpLaunchEnablementRevision = this._mcpLaunchEnablementRevision;
 			const { mcpServers: rebuildMcp, deniedMcpServers: rebuildDeniedMcpServers, allowedTools: rebuildAllowedTools, agentMergeRestrictedMcpServerNames: rebuildAgentMergeRestrictedMcpServerNames } = await this._buildStartupToolWiring(launchOwner, ctx.serverToolHost);
-			const rebuildAgentName = await resolveClaudeAgentName(this._provisionalAgent, this._fileService, this._logService, this.sessionId);
+			const rebuildAgentName = await resolveClaudeAgentName(this._provisionalAgent, this._fileService, this._logService, this.sessionId, this.getClientCustomizations());
 			const rebuildOptions = await buildOptions(
 				{
 					sessionId: this.sessionId,
@@ -1507,7 +1507,7 @@ export class ClaudeAgentSession extends Disposable implements IRematerializer {
 	 * still returned, so a transient SDK hiccup doesn't blank the UI.
 	 */
 	async getSessionCustomizations(): Promise<readonly Customization[]> {
-		const { synced } = this.clientCustomizationsDiff.model.state.get();
+		const synced = this.clientCustomizationsDiff.model.getSourceCustomizations();
 		const userHome = this._environmentService.userHome;
 		const [multiRoot, rules, mcpServers, hooks] = await Promise.all([
 			discoverClaudeMultiRootCustomizations(this.workingDirectories, userHome, this._fileService, this._logService),

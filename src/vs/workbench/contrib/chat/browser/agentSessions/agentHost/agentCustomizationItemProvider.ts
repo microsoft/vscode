@@ -27,6 +27,7 @@ import { type IAgentConnection } from '../../../../../../platform/agentHost/comm
 import { getAgentHostCustomizationUri } from '../../../common/agentHostSessionCustomizations.js';
 import { readMcpServerDisplayName, readMcpServerSource } from '../../../../../../platform/agentHost/common/meta/mcpCustomizationMeta.js';
 import { readAgentCustomizationMeta } from '../../../../../../platform/agentHost/common/meta/agentCustomizationMeta.js';
+import { readCustomizationUriClientId } from '../../../../../../platform/agentHost/common/meta/clientPluginCustomizationMeta.js';
 import { readCustomizationDiscoveryMeta } from '../../../../../../platform/agentHost/common/meta/customizationDiscoveryMeta.js';
 import { AICustomizationSource, AICustomizationSources } from '../../../common/aiCustomizationWorkspaceService.js';
 import { PromptsType, Target } from '../../../common/promptSyntax/promptTypes.js';
@@ -168,7 +169,8 @@ export class AgentCustomizationItemProvider extends Disposable implements ICusto
 
 	private toDirectoryChildItem(child: ChildCustomization, source: AICustomizationSource): ICustomizationItem | undefined {
 		const type = toPromptsType(child.type);
-		if (!type) {
+		const uri = getAgentHostCustomizationUri(URI.parse(child.uri), this._connection, child);
+		if (!type || !uri) {
 			return undefined;
 		}
 		const discovery = readCustomizationDiscoveryMeta(child);
@@ -180,6 +182,8 @@ export class AgentCustomizationItemProvider extends Disposable implements ICusto
 		let userInvocable: boolean | undefined = undefined;
 		if (child.type === CustomizationType.Agent) {
 			userInvocable = readAgentCustomizationMeta(child).userInvocable !== false;
+		} else if (child.type === CustomizationType.Skill) {
+			userInvocable = child.disableUserInvocation !== true;
 		}
 		let groupKey: string | undefined;
 		let badge: string | undefined = undefined;
@@ -203,7 +207,7 @@ export class AgentCustomizationItemProvider extends Disposable implements ICusto
 
 		return {
 			itemKey: child.id,
-			uri: this.toRemoteUri(child.uri),
+			uri,
 			type,
 			name: hookMetadata?.label ?? child.name,
 			description: discovery?.hookType
@@ -285,17 +289,18 @@ export class AgentCustomizationItemProvider extends Disposable implements ICusto
 			return [];
 		}
 
-		const agents = this.getCustomAgents(sessionResource);
+		const drafts = this._draftCustomAgents?.get() ?? [];
+		const agents = this.getCustomAgents(sessionResource).filter(agent =>
+			drafts.includes(agent) || getAgentHostCustomizationUri(URI.parse(agent.uri), this._connection, agent) !== undefined);
 		const sources = await this.getAgentSources(sessionResource, agents, token);
 		if (token.isCancellationRequested) {
 			return [];
 		}
 		const sessionTypes = [getChatSessionType(sessionResource)];
-		const drafts = this._draftCustomAgents?.get() ?? [];
 		return agents.map((agent, index) => {
 			const meta = readAgentCustomizationMeta(agent);
 			const isAsk = meta['vscode.chatMode'] === 'ask';
-			const uri = drafts.includes(agent) ? URI.parse(agent.uri) : this.toRemoteUri(agent.uri);
+			const uri = drafts.includes(agent) ? URI.parse(agent.uri) : getAgentHostCustomizationUri(URI.parse(agent.uri), this._connection, agent)!;
 			return {
 				id: uri.toString(),
 				kind: isAsk ? ChatModeKind.Ask : undefined,
@@ -385,7 +390,13 @@ export class AgentCustomizationItemProvider extends Disposable implements ICusto
 					pluginLabel: isBundleItem ? undefined : item.name,
 				} satisfies PluginMeta;
 				plugins.push(pluginMeta);
-				expandPromises.push(pluginUri ? this._expandPluginContents(pluginMeta, token) : Promise.resolve([]));
+				const canonicalChildren = sessionCustomization.children?.some(child => readCustomizationUriClientId(child) !== undefined);
+				expandPromises.push(canonicalChildren
+					? Promise.resolve((sessionCustomization.children ?? []).flatMap(child => {
+						const item = this.toDirectoryChildItem(child, AICustomizationSources.plugin);
+						return item ? [{ ...item, groupKey: childGroupKey, pluginUri, pluginLabel: pluginMeta.pluginLabel }] : [];
+					}))
+					: pluginUri ? this._expandPluginContents(pluginMeta, token) : Promise.resolve([]));
 			}
 		}
 
@@ -434,6 +445,10 @@ export class AgentCustomizationItemProvider extends Disposable implements ICusto
 			if (container.type !== CustomizationType.McpServer || !containerEnabled) {
 				continue;
 			}
+			const uri = getAgentHostCustomizationUri(URI.parse(skill.uri), this._connection, skill);
+			if (!uri) {
+				continue;
+			}
 			const plugin = customizations.find((customization): customization is PluginCustomization =>
 				customization.type === CustomizationType.Plugin && customization.children?.includes(container) === true);
 			const source = readMcpServerSource(container);
@@ -443,7 +458,7 @@ export class AgentCustomizationItemProvider extends Disposable implements ICusto
 			const groupKey = plugin ? this.toBadge(plugin, plugin.clientId !== undefined).groupKey : getMcpCustomizationSource(source, hostConfiguredMcpServers?.has(container.name));
 			items.set(skill.id, {
 				itemKey: skill.id,
-				uri: getAgentHostCustomizationUri(URI.parse(skill.uri), this._connection)!,
+				uri,
 				type: PromptsType.skill,
 				name: skill.name,
 				description: skill.description,
@@ -518,7 +533,7 @@ export class AgentCustomizationItemProvider extends Disposable implements ICusto
 			candidate.type !== CustomizationType.McpServer
 			&& (candidate.type === CustomizationType.Plugin ? isCustomizationEnabled(candidate) : candidate.enabled));
 		const drafts = this._draftCustomAgents?.get() ?? [];
-		const agentUris = new Map(agents.map(agent => [agent, drafts.includes(agent) ? URI.parse(agent.uri) : this.toRemoteUri(agent.uri)]));
+		const agentUris = new Map(agents.map(agent => [agent, drafts.includes(agent) ? URI.parse(agent.uri) : getAgentHostCustomizationUri(URI.parse(agent.uri), this._connection, agent)!]));
 		const origins = new Map(agents.map(agent => {
 			const sourceUri = readAgentCustomizationMeta(agent)['vscode.sourceUri'];
 			const container = containers.find(container => container.type === CustomizationType.Plugin && container.children?.some(child => child.uri === agent.uri));

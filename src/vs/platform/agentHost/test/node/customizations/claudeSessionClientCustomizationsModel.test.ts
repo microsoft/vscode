@@ -10,6 +10,7 @@ import type { ISyncedCustomization } from '../../../common/agentPluginManager.js
 import { CustomizationLoadStatus, CustomizationType, customizationId } from '../../../common/state/sessionState.js';
 import { CustomizationEnablementKind, type CustomizationEnablement } from '../../../common/state/protocol/state.js';
 import { SessionClientCustomizationsDiff } from '../../../node/claude/customizations/claudeSessionClientCustomizationsModel.js';
+import { readCustomizationUriClientId, toClientPluginSourceUrisMeta } from '../../../common/meta/clientPluginCustomizationMeta.js';
 
 function synced(uri: string, opts: { dir?: string; enabled?: boolean; nonce?: string; name?: string; enablement?: readonly CustomizationEnablement[]; childEnablement?: Readonly<Record<string, readonly CustomizationEnablement[]>> } = {}): ISyncedCustomization {
 	return {
@@ -38,6 +39,63 @@ suite('SessionClientCustomizationsDiff', () => {
 		const diff = disposables.add(new SessionClientCustomizationsDiff());
 		assert.deepStrictEqual(diff.model.state.get().synced, []);
 		assert.strictEqual(diff.hasDifference, false);
+	});
+
+	test('publishes canonical client source children while retaining runtime paths and enablement', () => {
+		const diff = disposables.add(new SessionClientCustomizationsDiff());
+		const item = synced('vscode-synced-customization:/bundle', { dir: '/cache/plugin' });
+		const source = URI.file('/workspace/.github/agents/reviewer.md');
+		const child = {
+			type: CustomizationType.Agent as const,
+			id: 'agent:reviewer',
+			name: 'Reviewer',
+			uri: URI.file('/cache/plugin/agents/reviewer.md').toString(),
+			enabled: false,
+		};
+		item.customization.children = [child];
+		item.customization._meta = toClientPluginSourceUrisMeta({ files: { 'agents/reviewer.md': source } });
+		diff.model.setSyncedCustomizations('owner', [item]);
+		const published = diff.model.getSourceCustomizations()[0].customization.children![0];
+
+		assert.deepStrictEqual({
+			published: { ...published, _meta: undefined },
+			owner: readCustomizationUriClientId(published),
+			runtime: diff.model.state.get().synced[0].customization.children,
+		}, {
+			published: { ...child, uri: source.toString(), _meta: undefined },
+			owner: 'owner',
+			runtime: [child],
+		});
+	});
+
+	test('source metadata and child URI changes invalidate the customization snapshot', () => {
+		const diff = disposables.add(new SessionClientCustomizationsDiff());
+		const first = synced('https://plugin', { dir: '/cache/plugin' });
+		first.customization.children = [{ type: CustomizationType.Agent, id: 'agent', name: 'Agent', uri: URI.file('/cache/plugin/agents/a.md').toString() }];
+		diff.model.setSyncedCustomizations('owner', [first]);
+		diff.consume([]);
+		const second = { ...first, customization: { ...first.customization, _meta: toClientPluginSourceUrisMeta({ root: URI.file('/source'), files: {} }) } };
+		diff.model.setSyncedCustomizations('owner', [second]);
+		const metadataChanged = diff.hasDifference;
+		diff.consume([]);
+		diff.model.setSyncedCustomizations('owner', [{
+			...second,
+			customization: { ...second.customization, children: first.customization.children.map(child => ({ ...child, uri: URI.file('/cache/plugin/agents/b.md').toString() })) },
+		}]);
+		assert.deepStrictEqual([metadataChanged, diff.hasDifference], [true, true]);
+	});
+
+	test('a deduplicated plugin changing client ownership invalidates publication', () => {
+		const diff = disposables.add(new SessionClientCustomizationsDiff());
+		const item = synced('https://plugin', { dir: '/cache/plugin' });
+		item.customization.children = [{ type: CustomizationType.Agent, id: 'agent', name: 'Agent', uri: URI.file('/cache/plugin/agents/a.md').toString() }];
+		diff.model.setSyncedCustomizations('first', [item]);
+		diff.model.setSyncedCustomizations('second', [item]);
+		diff.consume([]);
+		diff.model.removeClient('first');
+		const child = diff.model.getSourceCustomizations()[0].customization.children![0];
+
+		assert.deepStrictEqual({ changed: diff.hasDifference, owner: readCustomizationUriClientId(child) }, { changed: true, owner: 'second' });
 	});
 
 	test('setSyncedCustomizations flips dirty and fires onDidChange', () => {

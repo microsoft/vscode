@@ -344,7 +344,7 @@ export abstract class AbstractAgentHostCustomizationService extends Disposable i
 					status: server.state.kind,
 					authenticating: this._isAutoAuthenticatingMcpServer(sessionResource, target, server),
 					state: server.state,
-					sourceUri: source.scheme === 'mcp-top-level' || !hasReadableCustomizationContent(source) ? undefined : target.resourceUris.fromAgentHost(source),
+					sourceUri: source.scheme === 'mcp-top-level' || !hasReadableCustomizationContent(source) ? undefined : getAgentHostCustomizationUri(source, target, server),
 					sourceRange: source.scheme === 'mcp-top-level' || !hasReadableCustomizationContent(source) ? undefined : server.range,
 					logOutputChannelId: channelIdForMcpServer(sessionResource.toString(), server.id),
 					setEnabled: (enabled: boolean) => target.setCustomizationEnablement(server.id, withCustomizationEnablement(server.enablement, CustomizationEnablementKind.Session, { kind: CustomizationEnablementKind.Session, enabled })),

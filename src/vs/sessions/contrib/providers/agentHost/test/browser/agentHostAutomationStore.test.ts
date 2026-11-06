@@ -660,7 +660,7 @@ suite('AgentHostAutomationStore', () => {
 		}, { customizations: [undefined, undefined], scopes: [] });
 	});
 
-	test('customization selection remaps bundled agents only when their bundle is selected', async () => {
+	test('customization selection preserves canonical source agents across bundle revisions', async () => {
 		const activeClient = new TestActiveClientService();
 		const source = URI.file('/user/prompts/review.agent.md');
 		const bundle = plugin('vscode-synced-customization:/bundle');
@@ -684,9 +684,9 @@ suite('AgentHostAutomationStore', () => {
 			const session = action.type === ActionType.AutomationCreateRequested ? action.definition.session : action.changes.session!;
 			return { agent: session.agent, customizations: session.customizations };
 		}), [
-			{ agent: { uri: bundledAgent.toString() }, customizations: [bundle] },
+			{ agent: { uri: source.toString() }, customizations: [bundle] },
 			{ agent: { uri: source.toString() }, customizations: [] },
-			{ agent: { uri: refreshedAgent.toString() }, customizations: [refreshed] },
+			{ agent: { uri: source.toString() }, customizations: [refreshed] },
 		]);
 	});
 
@@ -869,7 +869,7 @@ suite('AgentHostAutomationStore', () => {
 		}
 	});
 
-	test('retargeting keeps a bundled agent by mapping it into the new target bundle', async () => {
+	test('retargeting keeps a canonical source agent without rewriting it into the new bundle', async () => {
 		const activeClient = new TestActiveClientService();
 		const source = URI.file('/user/prompts/review.agent.md');
 		const first = plugin('vscode-synced-customization:/scope-one');
@@ -880,7 +880,6 @@ suite('AgentHostAutomationStore', () => {
 		const connection = customizationConnection();
 		store.setConnection(connection);
 		const automation = await store.createAutomation({ ...createOptions(), sessionTemplate: { agent: { uri: source.toString() } } });
-		// The new scope bundles the same source; the store only knows the previous bundle's URI.
 		activeClient.customizations.set([second], undefined);
 		activeClient.syncedUris.set(source, URI.joinPath(URI.parse(second.uri), 'agents', 'review.agent.md'));
 		await store.updateAutomation(automation.id, {
@@ -889,15 +888,15 @@ suite('AgentHostAutomationStore', () => {
 		const update = connection.dispatched[1].action;
 		assert.ok(update.type === ActionType.AutomationUpdateRequested);
 		assert.deepStrictEqual({ agent: update.changes.session?.agent, customizations: update.changes.session?.customizations }, {
-			agent: { uri: 'vscode-synced-customization:/scope-two/agents/review.agent.md' },
+			agent: { uri: source.toString() },
 			customizations: [second],
 		});
 	});
 
-	test('rewrites a selected source agent to its bundled URI when capturing', async () => {
+	test('preserves a selected source agent when capturing', async () => {
 		const activeClient = new TestActiveClientService();
-		const source = URI.file('/extensions/review.agent.md');
-		const bundle = plugin('vscode-synced-customization:/automation-scope');
+		const source = URI.parse('vscode-remote://ssh-remote+workspace/extensions/review.agent.md');
+		const bundle = { ...plugin('vscode-synced-customization:/automation-scope'), _meta: { 'vscode.sourceUris': { 'agents/review.agent.md': source.toString() } } };
 		const bundledAgent = URI.joinPath(URI.parse(bundle.uri), 'agents', 'review.agent.md');
 		activeClient.customizations.set([bundle], undefined);
 		activeClient.syncedUris.set(source, bundledAgent);
@@ -921,9 +920,24 @@ suite('AgentHostAutomationStore', () => {
 			create: { agent: create.definition.session.agent, customizations: create.definition.session.customizations },
 			update: { agent: update.changes.session?.agent, customizations: update.changes.session?.customizations },
 		}, {
-			create: { agent: { uri: 'vscode-synced-customization:/automation-scope/agents/review.agent.md' }, customizations: [bundle] },
+			create: { agent: { uri: source.toString() }, customizations: [bundle] },
 			update: { agent: { uri: source.toString() }, customizations: [] },
 		});
+	});
+
+	test('migrates a legacy bundled agent through the captured source map when recapturing', async () => {
+		const activeClient = new TestActiveClientService();
+		const source = URI.file('/extensions/review.agent.md');
+		const bundle = { ...plugin('vscode-synced-customization:/automation-scope'), _meta: { 'vscode.sourceUris': { 'agents/review.agent.md': source.toString() } } };
+		const bundled = URI.joinPath(URI.parse(bundle.uri), 'agents', 'review.agent.md');
+		activeClient.customizations.set([bundle], undefined);
+		const { store } = reconnectable(true, activeClient);
+		const connection = customizationConnection();
+		store.setConnection(connection);
+		await store.createAutomation({ ...createOptions(), sessionTemplate: { agent: { uri: bundled.toString() } } });
+		const action = connection.dispatched[0].action;
+		assert.ok(action.type === ActionType.AutomationCreateRequested);
+		assert.deepStrictEqual(action.definition.session.agent, { uri: source.toString() });
 	});
 
 	test('disconnected, initializing, unsupported and disabled hosts never use browser ledgers', async () => {
