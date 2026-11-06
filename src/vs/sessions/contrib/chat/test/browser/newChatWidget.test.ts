@@ -280,6 +280,7 @@ interface ISessionOptionsPersistenceHarness {
 }
 
 interface ISendHarness {
+	readonly configurationService?: IConfigurationService;
 	readonly _backgroundSend?: boolean;
 	readonly _backgroundSendStatus?: ISettableObservable<string | undefined>;
 	_lastBackgroundSentSessionResource?: URI;
@@ -3937,8 +3938,8 @@ suite('NewChatWidget', () => {
 		});
 	});
 
-	for (const backgroundSend of [false, true]) {
-		test(`confirms background sends and reseeds the workspace (always background: ${backgroundSend})`, async () => {
+	for (const [backgroundSend, inboxEnabled] of [[false, false], [false, true], [true, false]]) {
+		test(`confirms opted-in background sends and reseeds the workspace (always background: ${backgroundSend}, Inbox enabled: ${inboxEnabled})`, async () => {
 			const onDidSendRequest = disposables.add(new Emitter<ISendRequestSentEvent>());
 			const pendingSends = disposables.add(new DisposableMap<object, IDisposable>());
 			const folderUri = URI.file('/dismissed');
@@ -3948,6 +3949,7 @@ suite('NewChatWidget', () => {
 			let sentOptions: ISendRequestOptions | undefined;
 			const picker = { selectedFolderUri: folderUri, validateSelectedWorkspace: async () => true, clearAttachedContext: () => { }, showPicker: () => { } };
 			const harness: ISendHarness = {
+				configurationService: new TestConfigurationService({ 'sessions.list.inboxEnabled': inboxEnabled }),
 				_backgroundSend: backgroundSend,
 				_backgroundSendStatus: observableValue<string | undefined>('sendStatus', undefined),
 				_newChatInput: { hasInput: false },
@@ -3977,7 +3979,9 @@ suite('NewChatWidget', () => {
 			onDidSendRequest.fire(upcastPartial<ISendRequestSentEvent>({ options: sentOptions, session: sentSession }));
 			assert.deepStrictEqual({ beforeSuccess, afterUnrelatedSend, restored, pending: pendingSends.size, background: sentOptions.background, status: harness._backgroundSendStatus?.get(), resource: harness._lastBackgroundSentSessionResource }, {
 				beforeSuccess: { restored: [], status: undefined }, afterUnrelatedSend: { restored: [], status: undefined },
-				restored: [folderUri], pending: 0, background: true, status: 'Message sent', resource: sentSession.resource,
+				restored: [folderUri], pending: 0, background: true,
+				status: backgroundSend || inboxEnabled ? 'Message sent' : undefined,
+				resource: backgroundSend || inboxEnabled ? sentSession.resource : undefined,
 			});
 		});
 	}

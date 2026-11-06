@@ -19,6 +19,7 @@ import { ChatContextKeys } from '../../../../../workbench/contrib/chat/common/ac
 import { SharedChatInputComposer } from '../../../../../workbench/contrib/sessions/browser/chat/sharedChatInputComposer.js';
 import { ChatInputSupportsBackgroundContext } from '../../../../../workbench/contrib/sessions/common/contextkeys.js';
 import { SEND_IN_BACKGROUND_COMMAND_ID } from '../../../../../workbench/contrib/sessions/common/sessionCommands.js';
+import { SESSIONS_LIST_INBOX_ENABLED_SETTING } from '../../../../../workbench/contrib/sessions/common/sessionConfig.js';
 import { SendInBackgroundAction } from '../../browser/sharedChatInputComposer.contribution.js';
 
 suite('Send in Background', () => {
@@ -39,6 +40,7 @@ suite('Send in Background', () => {
 				[ChatContextKeys.inputHasSendableContent.key]: true,
 				[ChatContextKeys.inputBlocked.key]: false,
 				[ChatContextKeys.chatSessionOptionsValid.key]: true,
+				[`config.${SESSIONS_LIST_INBOX_ENABLED_SETTING}`]: true,
 			};
 			const matches = (overrides: Record<string, boolean> = {}) => {
 				const context: IContext = { getValue: <T>(key: string) => ({ ...values, ...overrides })[key] as T | undefined };
@@ -53,9 +55,11 @@ suite('Send in Background', () => {
 				empty: matches({ [ChatContextKeys.inputHasSendableContent.key]: false }),
 				blocked: matches({ [ChatContextKeys.inputBlocked.key]: true }),
 				invalidOptions: matches({ [ChatContextKeys.chatSessionOptionsValid.key]: false }),
+				inboxDisabled: matches({ [`config.${SESSIONS_LIST_INBOX_ENABLED_SETTING}`]: false }),
 			}, {
 				composer: true, regularWindow: false, aiDisabled: false, toolbar: false,
 				existingChat: false, empty: false, blocked: false, invalidOptions: false,
+				inboxDisabled: modifier === KeyMod.Alt,
 			});
 		});
 	}

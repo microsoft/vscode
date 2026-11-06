@@ -120,11 +120,9 @@ export function renderSessionsHeader(
 			hiddenItemStrategy: HiddenItemStrategy.NoHide,
 			telemetrySource: 'sessionsView.header',
 			toolbarOptions: { primaryGroup: group => group.startsWith('navigation') },
-			actionViewItemProvider: (action, options) => {
-				return onDidShowFilters && action instanceof SubmenuItemAction && action.item.submenu === Menus.SessionsViewFilter
-					? scopedInstantiationService.createInstance(SessionsFilterActionViewItem, action, options, onDidShowFilters)
-					: undefined;
-			},
+			actionViewItemProvider: (action, options) => onDidShowFilters && action instanceof SubmenuItemAction && action.item.submenu === Menus.SessionsViewFilter
+				? scopedInstantiationService.createInstance(SessionsFilterActionViewItem, action, options, onDidShowFilters)
+				: undefined,
 		}));
 	} else {
 		row.classList.add('phone-layout-empty');

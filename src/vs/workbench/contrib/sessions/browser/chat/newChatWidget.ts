@@ -101,6 +101,7 @@ import { AccessibilityVerbositySettingId } from '../../../accessibility/browser/
 import { ISessionsRecentWorkspacesService } from '../sessionsRecentWorkspacesService.js';
 import { filterConfigurationToSchema } from '../../../chat/browser/widget/input/chatModelConfigurationLogic.js';
 import { createSessionComparisonHarness } from '../sessionComparisonConfiguration.js';
+import { SESSIONS_LIST_INBOX_ENABLED_SETTING } from '../../common/sessionConfig.js';
 
 // #region --- New Chat Widget ---
 
@@ -492,6 +493,7 @@ export class NewChatWidget extends Disposable {
 		this._register(autorun(reader => creationProviderKey.set(creationProviderId.read(reader) ?? '')));
 		this._register(toDisposable(() => creationProviderKey.reset()));
 
+		const backgroundSend = this._backgroundSend;
 		const newChatInput = this.instantiationService.createInstance(SharedChatInputComposer, {
 			inputEditorOptions: this.options.inputEditorOptions,
 			session: this._session,
@@ -504,7 +506,7 @@ export class NewChatWidget extends Disposable {
 			onDidChangeWorkspaceSelection: Event.any(this._workspacePicker.onDidChangeSelection, Event.fromObservableLight(this._isQuickChatComposer)),
 			canApplyWorkspaceDefault: () => this._canApplyWorkspaceDefault(),
 			sendRequest: async ({ query, attachments, background, userInteraction }) => this._send(query, attachments, background, userInteraction),
-			preserveInputFocusOnSend: this._backgroundSend,
+			get preserveInputFocusOnSend() { return backgroundSend || configurationService.getValue<boolean>(SESSIONS_LIST_INBOX_ENABLED_SETTING) === true; },
 			confirmSend: async query => this._comparisonSelection.enabled.get() || !this._worktreeSuggestion || this._worktreeSuggestion.confirmBeforeSend(query),
 			modelPickerComparison: this._comparisonSelection,
 			sendButtonLabel: derived(this, reader => this._comparisonSelection.enabled.read(reader)
@@ -1985,7 +1987,8 @@ export class NewChatWidget extends Disposable {
 
 	private async _send(query: string, attachedContext?: IChatRequestVariableEntry[], background?: boolean, userInteraction?: NewChatUserInteraction): Promise<boolean> {
 		background = this._backgroundSend || background;
-		if (background) {
+		const showBackgroundSendStatus = this._backgroundSend || !!background && this.configurationService.getValue<boolean>(SESSIONS_LIST_INBOX_ENABLED_SETTING) === true;
+		if (showBackgroundSendStatus) {
 			this._lastBackgroundSentSessionResource = undefined;
 			this._backgroundSendStatus.set(undefined, undefined);
 			this._lastBackgroundSendOptions = undefined;
@@ -2014,8 +2017,8 @@ export class NewChatWidget extends Disposable {
 		}
 
 		if (this._comparisonSelection.enabled.get()) {
-			const started = await this._sendComparison(session, request, requestContext, background);
-			if (background && started && !this._newChatInput.hasInput) {
+			const started = await this._sendComparison(session, request, requestContext, showBackgroundSendStatus);
+			if (showBackgroundSendStatus && started && !this._newChatInput.hasInput) {
 				this._backgroundSendStatus.set(localize('newSession.comparisonStarted', "Comparison started"), undefined);
 			}
 			return started;
@@ -2050,13 +2053,15 @@ export class NewChatWidget extends Disposable {
 		// separately, keyed by the options object it was started with, so one
 		// send's outcome never clears another's comments.
 		if (background) {
-			this._lastBackgroundSendOptions = sendOptions;
+			if (showBackgroundSendStatus) {
+				this._lastBackgroundSendOptions = sendOptions;
+			}
 			this._pendingBackgroundSends.set(sendOptions, Event.once(
 				Event.filter(this.sessionsManagementService.onDidSendRequest, event => event.options === sendOptions)
 			)(event => {
 				clearFeedback();
 				restoreWorkspace();
-				if (this._lastBackgroundSendOptions === sendOptions && !this._newChatInput.hasInput) {
+				if (showBackgroundSendStatus && this._lastBackgroundSendOptions === sendOptions && !this._newChatInput.hasInput) {
 					this._lastBackgroundSentSessionResource = event.session.resource;
 					this._backgroundSendStatus.set(localize('newSession.messageSent', "Message sent"), undefined);
 				}

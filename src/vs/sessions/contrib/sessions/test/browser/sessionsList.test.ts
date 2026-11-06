@@ -18,7 +18,7 @@ import { ExtUri, isEqual } from '../../../../../base/common/resources.js';
 import { DisposableStore, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { KeyCode, KeyMod } from '../../../../../base/common/keyCodes.js';
 import { autorun, constObservable, derived, IObservable, IReader, ISettableObservable, observableFromEvent, observableValue, transaction } from '../../../../../base/common/observable.js';
-import { OS } from '../../../../../base/common/platform.js';
+import { isMacintosh, OS } from '../../../../../base/common/platform.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { mock, upcastPartial } from '../../../../../base/test/common/mock.js';
@@ -115,9 +115,9 @@ import { getSessionInboxSection, SessionInboxSection } from '../../../../../work
 import { IInboxNotificationsService, IInboxSessionAttention, InboxNotificationPriority, InboxTab } from '../../../../../workbench/contrib/sessions/common/inboxNotificationsService.js';
 import { ITestSessionWithChat, testGridPanes } from '../../../../../workbench/contrib/sessions/test/browser/sessionHostTestUtils.js';
 
-function clickRow(row: HTMLElement): void {
-	row.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, button: 0 }));
-	row.dispatchEvent(new MouseEvent('click', { bubbles: true, button: 0 }));
+function clickRow(row: HTMLElement, modifiers: MouseEventInit = {}): void {
+	row.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, button: 0, ...modifiers }));
+	row.dispatchEvent(new MouseEvent('click', { bubbles: true, button: 0, ...modifiers }));
 }
 
 function createSession(id: string, opts: {
@@ -5349,6 +5349,100 @@ suite('Sessions - SessionsList', () => {
 				smallWindow: { categoriesUseSpareSpace: true, emptyMessageVisible: true },
 			});
 		});
+
+		for (const modifier of ['ctrlCmd', 'alt']) {
+			test(`inbox preserves cross-region selection with ${modifier}`, () => {
+				const ready = createTestSession('ready').session;
+				const working = createTestSession('working', { status: SessionStatus.InProgress }).session;
+				const harness = createListHarness(disposables, [ready, working], instantiationService => {
+					instantiationService.stub(IConfigurationService, new TestConfigurationService({ 'workbench.list.multiSelectModifier': modifier }));
+				});
+				harness.instantiationService.stub(ISessionsListModelService, disposables.add(harness.instantiationService.createInstance(SessionsListModelService)));
+				const container = harness.createContainer();
+				const list = disposables.add(harness.instantiationService.createInstance(TestSessionsList, container, {
+					grouping: () => SessionsGrouping.Inbox, sorting: () => SessionsSorting.Created, onSessionOpen: () => { },
+				}));
+				list.layout(400, 320);
+				list.setHeaderCollapsed(SessionInboxSection.Working, false);
+				const selection = () => [...container.querySelectorAll('.monaco-list-row.selected .session-title')].map(element => element.textContent).sort();
+				const modifiers = modifier === 'alt' ? { altKey: true } : { ctrlKey: !isMacintosh, metaKey: isMacintosh };
+				clickRow(list.getItemRow({ session: ready.resource })!);
+				clickRow(list.getItemRow({ session: working.resource })!, modifiers);
+				const addedFromFooter = selection();
+				clickRow(list.getItemRow({ session: working.resource })!);
+				const replacedFromFooter = selection();
+				clickRow(list.getItemRow({ session: ready.resource })!, modifiers);
+				const addedFromPrimary = selection();
+				clickRow(list.getItemRow({ session: ready.resource })!);
+				assert.deepStrictEqual({ addedFromFooter, replacedFromFooter, addedFromPrimary, replacedFromPrimary: selection() }, {
+					addedFromFooter: ['ready', 'working'], replacedFromFooter: ['working'], addedFromPrimary: ['ready', 'working'], replacedFromPrimary: ['ready'],
+				});
+			});
+		}
+
+		for (const status of [SessionStatus.Completed, SessionStatus.InProgress]) {
+			test(`inbox search refreshes membership and counts after renaming (${status})`, async () => {
+				const title = observableValue('title', 'Needle');
+				const session = { ...createTestSession('session', { status }).session, title };
+				const harness = createListHarness(disposables, [session]);
+				harness.instantiationService.stub(ISessionsListModelService, disposables.add(harness.instantiationService.createInstance(SessionsListModelService)));
+				const container = harness.createContainer();
+				const findWidgetContainer = append(container, $('div'));
+				const list = disposables.add(harness.instantiationService.createInstance(TestSessionsList, container, {
+					grouping: () => SessionsGrouping.Inbox, sorting: () => SessionsSorting.Created, onSessionOpen: () => { }, findWidgetContainer,
+				}));
+				list.layout(400, 320);
+				list.openFind();
+				const input = findWidgetContainer.querySelector<HTMLInputElement>('input')!;
+				input.value = 'needle';
+				input.dispatchEvent(new mainWindow.Event('input', { bubbles: true }));
+				const snapshot = () => ({
+					sessions: list.getVisibleSessions().map(session => session.sessionId),
+					count: list.getItemRow({ section: SessionInboxSection.Working })?.querySelector('.session-section-count')?.textContent,
+				});
+				const before = snapshot();
+				title.set('Other', undefined);
+				list.refresh();
+				const renamedAway = snapshot();
+				title.set('Needle', undefined);
+				list.refresh();
+				const renamedBack = snapshot();
+				list.closeFind();
+				await timeout(350);
+				const matched = { sessions: ['session'], count: status === SessionStatus.InProgress ? '1' : undefined };
+				assert.deepStrictEqual({ before, renamedAway, renamedBack }, { before: matched, renamedAway: { sessions: [], count: undefined }, renamedBack: matched });
+			});
+		}
+
+		for (const grouping of [SessionsGrouping.Inbox, SessionsGrouping.Workspace]) {
+			for (const key of [{ key: 'Enter', keyCode: 13 }, { key: 'ArrowDown', keyCode: 40 }]) {
+				test(`search returns DOM focus to the matching region with ${key.key} (${grouping})`, async () => {
+					const ready = createTestSession('ready').session;
+					const working = createTestSession('working', { status: SessionStatus.InProgress }).session;
+					const harness = createListHarness(disposables, [ready, working]);
+					harness.instantiationService.stub(ISessionsListModelService, disposables.add(harness.instantiationService.createInstance(SessionsListModelService)));
+					const container = harness.createContainer();
+					const findWidgetContainer = append(container, $('div'));
+					const list = disposables.add(harness.instantiationService.createInstance(TestSessionsList, container, {
+						grouping: () => grouping, sorting: () => SessionsSorting.Created, onSessionOpen: () => { }, findWidgetContainer,
+					}));
+					list.layout(400, 320);
+					list.openFind();
+					const input = findWidgetContainer.querySelector<HTMLInputElement>('input')!;
+					input.value = 'working';
+					input.dispatchEvent(new mainWindow.Event('input', { bubbles: true }));
+					input.dispatchEvent(new KeyboardEvent('keydown', { ...key, bubbles: true, cancelable: true }));
+					const focus = {
+						footer: !!mainWindow.document.activeElement?.closest('.sessions-list-inbox-footer'),
+						primary: !!mainWindow.document.activeElement?.closest('.sessions-list-primary'),
+						session: container.querySelector('.monaco-list-row.focused .session-title')?.textContent,
+					};
+					list.closeFind();
+					await timeout(350);
+					assert.deepStrictEqual(focus, { footer: grouping === SessionsGrouping.Inbox, primary: grouping !== SessionsGrouping.Inbox, session: 'working' });
+				});
+			}
+		}
 
 		test('inbox search includes footer sessions and restores collapsed groups without passive reveal reopening them', async () => {
 			const ready = createTestSession('ready').session;

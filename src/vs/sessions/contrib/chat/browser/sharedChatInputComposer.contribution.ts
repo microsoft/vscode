@@ -31,6 +31,7 @@ import { createNewSessionControlToolbar } from './newSessionConfigToolbars.js';
 import { SharedChatInputComposer, SharedChatInputComposerBusyContext } from '../../../../workbench/contrib/sessions/browser/chat/sharedChatInputComposer.js';
 import { ChatInputSupportsBackgroundContext } from '../../../../workbench/contrib/sessions/common/contextkeys.js';
 import { SEND_IN_BACKGROUND_COMMAND_ID } from '../../../../workbench/contrib/sessions/common/sessionCommands.js';
+import { SESSIONS_LIST_INBOX_ENABLED_SETTING } from '../../../../workbench/contrib/sessions/common/sessionConfig.js';
 
 const COMPOSER_INITIALIZING_ACTION_ID = 'sessions.newChatComposer.initializing';
 const COMPOSER_SENDING_ACTION_ID = 'sessions.newChatComposer.sending';
@@ -51,12 +52,15 @@ export class SendInBackgroundAction extends Action2 {
 				ChatContextKeys.inputBlocked.negate(),
 				ChatContextKeys.chatSessionOptionsValid,
 			),
-			keybinding: {
+			keybinding: [{
 				primary: KeyMod.Alt | KeyCode.Enter,
-				secondary: [KeyMod.CtrlCmd | KeyCode.Enter],
 				when: ChatContextKeys.inChatInput,
 				weight: KeybindingWeight.SessionsContrib,
-			},
+			}, {
+				primary: KeyMod.CtrlCmd | KeyCode.Enter,
+				when: ContextKeyExpr.and(ChatContextKeys.inChatInput, ContextKeyExpr.equals(`config.${SESSIONS_LIST_INBOX_ENABLED_SETTING}`, true)),
+				weight: KeybindingWeight.SessionsContrib,
+			}],
 		});
 	}
 

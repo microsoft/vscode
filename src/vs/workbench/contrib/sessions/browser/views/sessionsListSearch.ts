@@ -277,7 +277,7 @@ export class SessionsListFindController<T> extends AbstractFindController<T, Fuz
 		private readonly delegate: ISessionsListFindControllerDelegate,
 		private readonly findOptions: ISessionsListFindControllerOptions<T>,
 	) {
-		super(tree, filter, contextViewProvider, { ...findOptions, placeholder: localize('sessionsList.searchPlaceholder', "Search sessions") });
+		super(tree, filter, contextViewProvider, { ...findOptions, placeholder: localize('sessionsList.searchPlaceholder', "Search sessions"), focusTree: () => this.focusedTree.domFocus() });
 		this.disposables.add(this._onDidSearch);
 		this.disposables.add(this._onDidChangeResults);
 		// Sessions change while the widget is open: keep its "no sessions found" message current.
@@ -295,11 +295,15 @@ export class SessionsListFindController<T> extends AbstractFindController<T, Fuz
 		return [this.tree, ...this.findOptions.additionalTrees ?? []];
 	}
 
+	private get focusedTree(): AbstractTree<T, FuzzyScore, unknown> {
+		return this.trees.find(tree => tree.getFocus().length > 0) ?? this.tree;
+	}
+
 	override close(): void {
 		if (!this.isOpened()) {
 			return;
 		}
-		const focusedTree = this.trees.find(tree => tree.getFocus().length > 0) ?? this.tree;
+		const focusedTree = this.focusedTree;
 		super.close();
 		focusedTree.domFocus();
 	}

@@ -5311,7 +5311,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 		for (const tree of this.trees) {
 			tree.updateOptions({ indent: 0, defaultIndent: 0, expandOnDoubleClick: false });
 			this._register(tree.onDidChangeFocus(e => {
-				if (e.elements.length > 0) {
+				if (this.isInboxLayout() && e.elements.length > 0) {
 					for (const other of this.trees) {
 						if (other !== tree) {
 							other.setFocus([]);
@@ -5320,10 +5320,19 @@ export class SessionsList extends Disposable implements ISessionsList {
 				}
 			}));
 			this._register(tree.onDidChangeSelection(e => {
-				if (e.elements.length > 0) {
-					const additive = e.browserEvent && DOM.isMouseEvent(e.browserEvent) && (e.browserEvent.ctrlKey || e.browserEvent.metaKey);
+				if (this.isInboxLayout() && e.elements.length > 0) {
+					const additive = e.browserEvent && DOM.isMouseEvent(e.browserEvent) && (tree.useAltAsMultipleSelectionModifier ? e.browserEvent.altKey : e.browserEvent.ctrlKey || e.browserEvent.metaKey);
 					for (const other of this.trees) {
 						if (other !== tree && (!additive || ![...e.elements, ...other.getSelection()].every(element => element && isSessionItem(element) && !element.isArchived.get()))) {
+							other.setSelection([]);
+						}
+					}
+				}
+			}));
+			this._register(tree.onPointer(e => {
+				if (this.isInboxLayout() && e.browserEvent.button === 0) {
+					for (const other of this.trees) {
+						if (other !== tree) {
 							other.setSelection([]);
 						}
 					}
@@ -6313,6 +6322,8 @@ export class SessionsList extends Disposable implements ISessionsList {
 			}
 		};
 
+		// Match sessions again before filtering sections: their text may have changed since the last update.
+		this.searchFilter.invalidate();
 		this.hiddenGroupingSections = [];
 		const footerChildren: IObjectTreeElement<SessionListItem>[] = [];
 		if (inbox) {
@@ -6420,8 +6431,6 @@ export class SessionsList extends Disposable implements ISessionsList {
 			(this.isInboxLayout() ? footerChildren : children).push(renderSection(archivedSection));
 		}
 
-		// Match sessions again: their text may have changed since the last update.
-		this.searchFilter.invalidate();
 		const inboxLayoutChanged = this.listContainer.classList.contains('inbox-layout') !== this.isInboxLayout();
 		this.listContainer.classList.toggle('inbox-layout', this.isInboxLayout());
 		this.tree.getHTMLElement().setAttribute('aria-label', this.isInboxLayout() ? localize('inboxHeader', "Inbox") : localize('sessionsList', "Sessions"));
@@ -7017,9 +7026,9 @@ export class SessionsList extends Disposable implements ISessionsList {
 	}
 
 	private isNavigationSectionFocused(sectionId: string): boolean {
-		return !!this.navigationList
-			&& DOM.isAncestorOfActiveElement(this.navigationList.getHTMLElement())
-			&& this.navigationList.getFocusedElements().some(section => section.id === sectionId);
+		return !!this.options.navigationContainer
+			&& DOM.isAncestorOfActiveElement(this.options.navigationContainer)
+			&& this.navigationList?.getFocusedElements().some(section => section.id === sectionId) === true;
 	}
 
 	private focusNavigationSection(sectionId: string): void {
@@ -8496,7 +8505,9 @@ export class SessionsList extends Disposable implements ISessionsList {
 		this.contextMenuService.showContextMenu({
 			getActions: () => actions,
 			getAnchor: () => e.anchor,
-			getKeyBinding: action => this.keybindingService.lookupKeybinding(action.id, contextKeyService, this.options.grouping() === SessionsGrouping.Inbox) ?? undefined,
+			getKeyBinding: action => this.options.grouping() === SessionsGrouping.Inbox
+				? this.keybindingService.lookupKeybinding(action.id, contextKeyService, true) ?? undefined
+				: this.keybindingService.lookupKeybinding(action.id) ?? undefined,
 			onHide: () => {
 				if (this._sessionContextMenuDisposables.value === disposables) {
 					this._sessionContextMenuDisposables.clear();
