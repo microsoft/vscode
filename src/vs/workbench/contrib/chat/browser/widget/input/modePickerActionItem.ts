@@ -132,7 +132,7 @@ export class ModePickerActionItem extends ChatInputPickerActionViewItem {
 						class: ThemeIcon.asClassName(icon),
 						enabled: true,
 						run: async () => {
-							openerService.open(modeResource.get());
+							openerService.open(mode.source?.uri ?? modeResource.get());
 						}
 					});
 				}

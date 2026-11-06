@@ -4,8 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import type { Mutable } from '../../../../../base/common/types.js';
-import { URI } from '../../../../../base/common/uri.js';
 import type { AgentCustomization } from '../../state/protocol/state.js';
+import { readCustomizationSourceUri } from './customizationSourceMeta.js';
 
 /**
  * Well-known typed view over a custom agent's `_meta` bag (see
@@ -27,7 +27,7 @@ export interface IAgentCustomizationMeta {
 	/** Authored reasoning preference; omitted means inherit the selected model's configuration. */
 	readonly 'vscode.reasoningEffort'?: string;
 	readonly 'vscode.modelPolicy'?: 'preferred' | 'required';
-	/** Client-supplied file URI before host materialization, used only to recover local provenance. */
+	/** Position in the contributing client's plugin or bundle before host materialization. */
 	readonly 'vscode.sourceUri'?: string;
 }
 
@@ -56,14 +56,9 @@ export function readAgentCustomizationMeta(agent: AgentCustomization): IAgentCus
 	} else if (typeof meta?.userInvocable === 'boolean') {
 		result.userInvocable = meta.userInvocable;
 	}
-	const sourceUri = meta?.['vscode.sourceUri'];
-	if (typeof sourceUri === 'string') {
-		try {
-			URI.parse(sourceUri, true);
-			result['vscode.sourceUri'] = sourceUri;
-		} catch {
-			// Malformed optional provenance does not affect the agent's identity.
-		}
+	const sourceUri = readCustomizationSourceUri(agent);
+	if (sourceUri) {
+		result['vscode.sourceUri'] = sourceUri.toString();
 	}
 	return result;
 }

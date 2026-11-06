@@ -383,7 +383,7 @@ export class ModePicker extends Disposable {
 			items.push({ kind: ActionListItemKind.Separator, label: '' });
 			for (const mode of customModes) {
 				const source = getChatModeSourceLabel(mode, modes);
-				const resource = mode.uri?.get();
+				const resource = mode.source?.uri ?? mode.uri?.get();
 				const isExtension = mode.source?.storage === PromptsStorage.extension;
 				const openLabel = isExtension
 					? localize('viewModeConfiguration', "View {0} agent", mode.label.get())

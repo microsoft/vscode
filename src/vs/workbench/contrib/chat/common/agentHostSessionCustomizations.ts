@@ -9,7 +9,7 @@ import { onUnexpectedError } from '../../../../base/common/errors.js';
 import { IDisposable } from '../../../../base/common/lifecycle.js';
 import { DebugOwner, derivedObservableWithCache, derivedOpts, IObservable, observableSignalFromEvent } from '../../../../base/common/observable.js';
 import { IdleDeadline, runWhenGlobalIdle } from '../../../../base/common/async.js';
-import { isEqual } from '../../../../base/common/resources.js';
+import { isEqual, isEqualOrParent } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
 import { Schemas } from '../../../../base/common/network.js';
 import { AGENT_HOST_FILE_SCHEME, toAgentHostFileUri } from '../../../../platform/agentHost/common/agentPluginManager.js';
@@ -29,6 +29,7 @@ import {
 } from '../../../../platform/agentHost/common/state/sessionState.js';
 import { getSkillCustomizations } from '../../../../platform/agentHost/common/customizationEnablement.js';
 import { ISessionChatCustomization, SessionCustomizationKind } from './sessionChatCustomizations.js';
+import { readCustomizationSourceUri } from '../../../../platform/agentHost/common/meta/customizationSourceMeta.js';
 
 /**
  * A reference to a customization extracted from a chat's output stream.
@@ -80,6 +81,18 @@ export function getAgentHostCustomizationUri(uri: URI, connection: { readonly cl
 		return fromAgentHostFileUri(uri, connection.resourceUris);
 	}
 	return connection.resourceUris.fromAgentHost(uri);
+}
+
+/** Opens this client's source when known; other clients continue to read the host's copy. */
+export function getAgentHostCustomizationOpenUri(customization: Pick<ChildCustomization, 'uri' | '_meta'>, connection: { readonly clientId?: string; readonly resourceUris: IAgentHostResourceUriMapper }, container?: Pick<PluginCustomization, 'uri' | 'clientId'>, resolveOrigin?: (uri: URI) => URI | undefined): URI {
+	if (container?.clientId !== undefined && container.clientId === connection.clientId) {
+		const root = URI.parse(container.uri);
+		const source = readCustomizationSourceUri(customization);
+		if (root.scheme !== AGENT_HOST_FILE_SCHEME && source && isEqualOrParent(source, root, true)) {
+			return resolveOrigin?.(source) ?? source;
+		}
+	}
+	return connection.resourceUris.fromAgentHost(URI.parse(customization.uri));
 }
 
 /** Publishes same-host client plugins in place without changing their client-side identity. */

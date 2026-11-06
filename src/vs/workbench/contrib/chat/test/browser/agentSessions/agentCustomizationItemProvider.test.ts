@@ -54,6 +54,38 @@ suite('AgentCustomizationItemProvider', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
 	for (const kind of agentHostConnectionKinds) {
+		test(`keeps host selection identities while opening this client's original agent (${kind.name})`, async () => {
+			const root = URI.from({ scheme: SYNCED_CUSTOMIZATION_SCHEME, path: '/bundle' });
+			const original = URI.file('/extensions/reviewer.agent.md');
+			const position = URI.joinPath(root, 'agents/reviewer.agent.md');
+			const agents: AgentCustomization[] = ['vscode', 'foreign'].map(owner => ({
+				type: CustomizationType.Agent, id: owner, name: owner, uri: `file:///cache/${owner}/agents/reviewer.agent.md`,
+				_meta: { 'vscode.sourceUri': position.toString() },
+			}));
+			class TestCustomizationService extends NullAgentHostCustomizationService {
+				override getCustomAgents() { return agents; }
+				override getCustomizations(): readonly Customization[] {
+					return agents.map(agent => ({
+						type: CustomizationType.Plugin, id: `plugin-${agent.id}`, name: 'Bundle', uri: root.toString(), clientId: agent.id, children: [agent],
+					}));
+				}
+			}
+			const provider = disposables.add(new AgentCustomizationItemProvider(
+				{ clientId: 'vscode', resourceUris: kind.resourceUris }, undefined,
+				uri => isEqual(uri, position) ? { uri: original, source: AICustomizationSources.user } : undefined,
+				upcastPartial<IFileService>({ canHandleResource: async () => false }), new NullLogService(),
+				new TestCustomizationService(), makePromptsService(), labelService,
+			));
+			const customAgents = await provider.provideCustomAgents(URI.parse('agent-host-copilot:/source-open'), CancellationToken.None);
+			const modes = customAgents.map(agent => new CustomChatMode(agent));
+			assert.deepStrictEqual(modes.map((mode, index) => ({
+				id: mode.id, uri: mode.uri.get().toString(), open: (mode.source?.uri ?? mode.uri.get()).toString(), protocolUri: agents[index].uri,
+			})), agents.map((agent, index) => ({
+				id: kind.toClient(URI.parse(agent.uri)).toString(), uri: kind.toClient(URI.parse(agent.uri)).toString(),
+				open: index === 0 ? original.toString() : kind.toClient(URI.parse(agent.uri)).toString(), protocolUri: agent.uri,
+			})));
+		});
+
 		test(`projects host-owned troubleshooting as a discovery-only built-in skill (${kind.name})`, async () => {
 			const directory = URI.from({ scheme: AGENT_BUILTIN_CUSTOMIZATION_SCHEME, path: '/skills' });
 			const resource = URI.from({ scheme: AGENT_BUILTIN_CUSTOMIZATION_SCHEME, path: '/skill/troubleshoot' });
