@@ -28,7 +28,7 @@ import { ChatEditorContent, IChatEditorComposer } from './chatEditorContent.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { URI } from '../../../../base/common/uri.js';
-import { EditorInputCapabilities, Verbosity } from '../../../../workbench/common/editor.js';
+import { EditorInputCapabilities, GroupIdentifier, Verbosity } from '../../../../workbench/common/editor.js';
 import { IChat, ISession, SessionStatus } from '../../../../workbench/services/sessions/common/session.js';
 import { ISessionsListModelService } from '../../../../workbench/contrib/sessions/browser/sessionsListModelService.js';
 import { getChatCompletedStateIcon, ISessionAgentMergeConfiguration } from '../../../../workbench/contrib/sessions/browser/sessionAgentMerge.js';
@@ -395,6 +395,13 @@ export interface IChatEditorInputDetails {
 	readonly ariaLabel: string;
 }
 
+/** Where a chat editor can move to ({@link ChatEditorInput.setMoveRestriction}). */
+export interface IChatEditorMoveRestriction {
+	/** Shown when a move is refused. */
+	readonly reason: string;
+	canMoveTo(group: GroupIdentifier): boolean;
+}
+
 /**
  * The editor of a chat, keyed by the chat's resource: one per chat, in the chat part of a chat window. Its tab shows the
  * title of the chat.
@@ -404,9 +411,30 @@ export class ChatEditorInput extends ViewEditorInput {
 	private _name = '';
 	private _details: IChatEditorInputDetails | undefined;
 	private _cannotClose = false;
+	private _moveRestriction: IChatEditorMoveRestriction | undefined;
 
 	constructor(readonly chatResource: URI) {
 		super(SESSION_CHAT_VIEW_TYPE, chatResource);
+	}
+
+	/**
+	 * Keeps the editor in the groups `restriction` allows, such as those of its own window, with its reason elsewhere and
+	 * for a new window. A copy of it is a move, as for any editor of a view.
+	 */
+	setMoveRestriction(restriction: IChatEditorMoveRestriction | undefined): void {
+		if (this._moveRestriction !== restriction) {
+			this._moveRestriction = restriction;
+			this._onDidChangeCapabilities.fire();
+		}
+	}
+
+	override canMove(sourceGroup: GroupIdentifier, targetGroup: GroupIdentifier): true | string {
+		const restriction = this._moveRestriction;
+		return !restriction || restriction.canMoveTo(targetGroup) ? super.canMove(sourceGroup, targetGroup) : restriction.reason;
+	}
+
+	override canMoveToNewWindow(sourceGroup: GroupIdentifier): true | string {
+		return this._moveRestriction?.reason ?? super.canMoveToNewWindow(sourceGroup);
 	}
 
 	setName(name: string): void {

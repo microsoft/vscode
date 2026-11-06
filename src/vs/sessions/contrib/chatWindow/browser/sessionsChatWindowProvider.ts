@@ -46,7 +46,7 @@ import { bindSessionScopeContextKeys } from '../../../../workbench/contrib/sessi
 import { SessionChangesEditorFileListContext } from '../../../../workbench/contrib/sessions/common/changes.js';
 import { IChangesViewService } from '../../../../workbench/contrib/sessions/common/changesViewService.js';
 import { ISessionEditorWorkingSetService } from '../../layout/common/sessionEditorWorkingSet.js';
-import { CHAT_WINDOWS_ENABLED_SETTING } from '../common/chatWindows.js';
+import { CHAT_WINDOWS_ENABLED_SETTING, ChatWindowHasUnsentComposerContext, getUnsentComposerMoveReason } from '../common/chatWindows.js';
 import { ChatModelHold, chatWindowTitle, isChatWindowChatGone } from './chatWindowOpening.js';
 import { ChatEditorInput, getChatEditorInputDetails, ISessionChatViewHost, registerSessionChatViewHost } from '../../chatEditor/browser/chatEditor.js';
 import { ISessionsListModelService } from '../../../../workbench/contrib/sessions/browser/sessionsListModelService.js';
@@ -163,6 +163,8 @@ class SessionsChatWindowChat extends Disposable implements IChatWindowChat, ISes
 	});
 	/** Whether it is a new-session composer that has not sent its session yet. */
 	get isComposer(): boolean { return !!this._composer.get(); }
+	/** Whether it is a new-session composer that has not sent its session yet, which cannot leave its window. */
+	readonly isUnsentComposer: IObservable<boolean> = derived(this, reader => !!this._composer.read(reader));
 	/** The session the chat was last known in, so that its end is known while the session no longer lists it. */
 	private _knownSession: ISession | undefined;
 
@@ -191,6 +193,7 @@ class SessionsChatWindowChat extends Disposable implements IChatWindowChat, ISes
 		@ISessionsListModelService sessionsListModelService: ISessionsListModelService,
 		@ISessionsProvidersService sessionsProvidersService: ISessionsProvidersService,
 		@IConfigurationService configurationService: IConfigurationService,
+		@IEditorGroupsService private readonly _editorGroupsService: IEditorGroupsService,
 	) {
 		super();
 		this.chat = observableValue<URI>(this, chatResource);
@@ -255,6 +258,15 @@ class SessionsChatWindowChat extends Disposable implements IChatWindowChat, ISes
 			});
 			this._composerStore.clear();
 		}));
+		// It stays in its window until it sends its session.
+		this.input.setMoveRestriction({
+			reason: getUnsentComposerMoveReason(),
+			canMoveTo: group => {
+				const windowId = this.window.get()?.windowId;
+				return windowId !== undefined && this._editorGroupsService.getGroup(group)?.windowId === windowId;
+			},
+		});
+		store.add(toDisposable(() => this.input.setMoveRestriction(undefined)));
 		this._composerStore.value = store;
 		this._composer.set(composer, undefined);
 	}
@@ -532,6 +544,11 @@ export class SessionsChatWindowContent extends Disposable implements IChatWindow
 		}
 	}
 
+	/** Whether `chat` is one of its new-session composers that has not sent its session. */
+	isUnsentComposer(chat: URI): boolean {
+		return this._chats.get().some(candidate => candidate.isComposer && isEqual(candidate.chat.get(), chat));
+	}
+
 	/**
 	 * Whether it shows `chat`, as one of its chats, while the chat's editor is open in a group: not once the editor closed,
 	 * such as with its window as the window closes, and the window is still going away.
@@ -562,6 +579,9 @@ export class SessionsChatWindowContent extends Disposable implements IChatWindow
 		// Its Changes editor shows the list of the changed files beside the diffs, in whichever of its parts it shows; the
 		// main window's does not.
 		SessionChangesEditorFileListContext.bindTo(contextKeyService).set(true);
+		// Whether it holds a new session that cannot leave it yet, so that moving its chats to the main window is not offered.
+		const hasUnsentComposer = ChatWindowHasUnsentComposerContext.bindTo(contextKeyService);
+		store.add(autorun(reader => hasUnsentComposer.set(this._chats.read(reader).some(chat => chat.isUnsentComposer.read(reader)))));
 		// Those of its changes too, such as the changeset operations its Changes editor shows.
 		store.add(bindSessionScopeContextKeys(this._instantiationService, { session: this.host.session, chat: this.host.chat, isMainWindow: false, changes: this._changesViewService.getSessionChanges(this.host.session, this.host.chat) }, contextKeyService));
 
@@ -744,6 +764,11 @@ export class SessionsChatWindowProvider extends Disposable implements IChatWindo
 		const active = editors.activeEditor ?? inputs.at(-1);
 		this._layoutService.setPartHidden(false, Parts.EDITOR_PART);
 		await this._editorService.openEditors(inputs.map(editor => ({ editor, options: { pinned: true, preserveFocus: true, inactive: editor !== active } })), this._editorGroupsService.mainPart.activeGroup);
+	}
+
+	moveVeto(chats: readonly URI[]): string | undefined {
+		const unsent = this._contents.get().some(content => chats.some(chat => content.isUnsentComposer(chat)));
+		return unsent ? getUnsentComposerMoveReason() : undefined;
 	}
 
 	didFinishRestore(claimed: readonly URI[]): void {

@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { IDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
 import { DeferredPromise, timeout } from '../../../../../base/common/async.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { DisposableStore } from '../../../../../base/common/lifecycle.js';
@@ -586,10 +587,13 @@ suite('Chat window', () => {
 	 * The service with chat windows of their own, each showing one chat, as it has once they opened: their hosts call it as
 	 * those it opens do. Opening a new window reports it, rather than opening one.
 	 */
-	function createService(chats: readonly string[]) {
+	function createService(chats: readonly string[], moveVeto?: (chats: readonly URI[]) => string | undefined) {
 		const events: string[] = [];
 		const store = disposables.add(new DisposableStore());
 		const instantiationService = workbenchInstantiationService(undefined, store);
+		if (moveVeto) {
+			instantiationService.stub(IDialogService, upcastPartial<IDialogService>({ error: async (message: string) => { events.push(`error ${message}`); } }));
+		}
 		const windows: ChatWindow[] = [];
 		const parts: IContentPart[] = [];
 		let mainPart: IContentPart | undefined;
@@ -610,6 +614,7 @@ suite('Chat window', () => {
 		store.add(service.registerProvider(upcastPartial<IChatWindowProvider>({
 			onDidRemoveChats: Event.None,
 			restoreEnabled: constObservable(false),
+			...(moveVeto ? { moveVeto, moveToMainWindow: async (moved: readonly URI[]) => { events.push(`to main window ${moved.map(chat => chat.path).join(', ')}`); } } : {}),
 			resolveContent: async chat => {
 				events.push(`new window ${chat.path}`);
 				return undefined;
@@ -656,6 +661,20 @@ suite('Chat window', () => {
 		(Reflect.get(service, '_windows') as ISettableObservable<ChatWindow[]>).set(windows, undefined);
 		return { service, events, windows: created, parts, instantiationService, setMainPart: (part: IContentPart) => mainPart = part };
 	}
+
+	test('moving the chats of a window to the main window that its provider vetoes, such as for a chat that cannot leave it yet, says why and leaves the window and its chats as they are; without a veto they move', async () => {
+		const { service, events, windows: [kept, moved] } = createService(['a', 'b'], chats => chats.some(chat => chat.path === '/a') ? 'Send it first.' : undefined);
+
+		await service.moveToMainWindow(kept.window);
+		const afterVeto = { events: [...events], chats: kept.window.chats.get().map(chat => chat.path) };
+		events.length = 0;
+		await service.moveToMainWindow(moved.window);
+
+		assert.deepStrictEqual({ afterVeto, moved: events.filter(event => event.startsWith('close window') || event.startsWith('to main window') || event.startsWith('error')) }, {
+			afterVeto: { events: ['error Send it first.'], chats: ['/a'] },
+			moved: ['close window b', 'to main window /b'],
+		});
+	});
 
 	test('the last chat of a window dropped into another chat window is taken over by that window, and only then its window closes: no new window opens', async () => {
 		const { events, windows: [source, target] } = createService(['a', 'b']);
@@ -1239,12 +1258,17 @@ suite('Chat window', () => {
 		};
 	}
 
-	test('while the editor of a chat a window takes opens, moving the window\'s chats to the main window moves that chat too, as before', async () => {
+	test('while the editor of a chat a window takes opens, moving the window\'s chats to the main window asks the provider about that chat too and moves it, as before', async () => {
 		const { service, windows: [a] } = createService(['a']);
+		const asked: string[][] = [];
 		const moved: string[][] = [];
 		disposables.add(service.registerProvider(upcastPartial<IChatWindowProvider>({
 			onDidRemoveChats: Event.None,
 			restoreEnabled: constObservable(false),
+			moveVeto: chats => {
+				asked.push(chats.map(chat => chat.path));
+				return undefined;
+			},
 			moveToMainWindow: async chats => { moved.push(chats.map(chat => chat.path)); },
 		})));
 		const opened = await startOpeningSlowly(service, a);
@@ -1252,7 +1276,7 @@ suite('Chat window', () => {
 		await service.moveToMainWindow(a.window);
 		await opened();
 
-		assert.deepStrictEqual(moved, [['/a', '/slow']]);
+		assert.deepStrictEqual({ asked, moved }, { asked: [['/a', '/slow']], moved: [['/a', '/slow']] });
 	});
 
 	test('while the editor of a chat a window takes opens, reopening the window in a window of its own, as moving its chat out does, takes that chat along, as before', async () => {

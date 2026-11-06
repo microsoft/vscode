@@ -68,7 +68,7 @@ import { AGENTS_FLOATING_PANEL_GAP } from '../../../../../workbench/contrib/sess
 import { AGENTS_CHAT_WINDOW_CLASS, CHAT_WINDOW_MAIN_PART_GROUP_VIEW_OPTIONS, focusChatWindowUnlessFocused, getChatWindowMainPartOptions, SessionsChatWindowProvider } from '../../browser/sessionsChatWindowProvider.js';
 import { DesktopMainEditorPart } from '../../../../browser/parts/desktopEditorPart.js';
 import { IEditorGroupViewOptions } from '../../../../../workbench/browser/parts/editor/editor.js';
-import { EditorInputCapabilities, GroupModelChangeKind } from '../../../../../workbench/common/editor.js';
+import { EditorInputCapabilities, GroupIdentifier, GroupModelChangeKind } from '../../../../../workbench/common/editor.js';
 import { EditorInput } from '../../../../../workbench/common/editor/editorInput.js';
 import { IGroupModelChangeEvent } from '../../../../../workbench/common/editor/editorGroupModel.js';
 import { ITestSessionWithChat, stubSessionHosts, testGridPanes } from '../../../../../workbench/contrib/sessions/test/browser/sessionHostTestUtils.js';
@@ -135,6 +135,7 @@ suite('Sessions chat window provider', () => {
 		instantiationService.stub(IEditorGroupsService, new class extends mock<IEditorGroupsService>() {
 			override get groups() { return editorGroups; }
 			override get parts() { return editorParts; }
+			override getGroup(id: GroupIdentifier) { return editorGroups.find(group => group.id === id); }
 			override readonly onDidAddGroup = Event.None;
 			override readonly onDidRemoveGroup = Event.None;
 			override readonly mainPart = upcastPartial<IEditorPart>({ activeGroup: upcastPartial<IEditorGroup>({ id: 1 }) });
@@ -1226,6 +1227,40 @@ suite('Sessions chat window provider', () => {
 			canRestore: [true, true, false],
 			typing: { title: 'New Session', input: { input: { inputText: 'draft', attachments: [], references: undefined } }, sameResource: true },
 			sending: { chat: '/started-main', session: 'started' },
+		});
+	});
+
+	test('a composer that has not sent its session stays in its window: its editor refuses other windows and new windows, its window does not move to the main window and says so, and the window knows it holds one; once its send started its session, it moves as any chat', async () => {
+		const store = disposables.add(new DisposableStore());
+		const status = observableValue('status', SessionStatus.Untitled);
+		const draft = Object.assign(createSession('draft', [createChat('draft-main')]), { status });
+		const sessions = [createSession('session', [createChat('main')])];
+		const { provider, opened, slots, editorGroups, windowInstantiationService, onDidAcceptNewSessionRequest, onDidEndNewSessionRequest } = await openWindowWithComposers(store, sessions);
+		editorGroups.push(upcastPartial<IEditorGroup>({ id: 7, windowId: window.windowId, contains: () => false }), upcastPartial<IEditorGroup>({ id: 8, windowId: window.windowId + 1, contains: () => false }));
+		await provider.openComposer(window);
+		const composer = asComposerChat(opened[0]);
+		const resource = composer.chat.get();
+		const hasUnsent = () => windowInstantiationService.invokeFunction(accessor => accessor.get(IContextKeyService)).getContextKeyValue('chatWindowHasUnsentComposer');
+		const read = () => ({
+			sameWindow: composer.input.canMove(7, 7),
+			otherWindow: composer.input.canMove(7, 8),
+			newWindow: composer.input.canMoveToNewWindow(7),
+			veto: provider.moveVeto([URI.parse('test:/main'), resource]),
+			hasUnsent: hasUnsent(),
+		});
+
+		const unsent = read();
+		slots[0].newSession.set(draft, undefined);
+		onDidAcceptNewSessionRequest.fire({ session: draft, owner: slots[0], background: false });
+		status.set(SessionStatus.InProgress, undefined);
+		sessions.push(draft);
+		onDidEndNewSessionRequest.fire({ session: draft, owner: slots[0], started: true, readopted: false });
+		const sent = read();
+
+		const reason = 'A new session can\'t leave its window until it\'s sent. Send it, or close it to discard it.';
+		assert.deepStrictEqual({ unsent, sent }, {
+			unsent: { sameWindow: true, otherWindow: reason, newWindow: reason, veto: reason, hasUnsent: true },
+			sent: { sameWindow: true, otherWindow: true, newWindow: true, veto: undefined, hasUnsent: false },
 		});
 	});
 });

@@ -177,6 +177,11 @@ export interface IChatWindowProvider {
 	resolveContent(chat: URI): Promise<IChatWindowContent | undefined>;
 	readonly chrome?: IChatWindowChrome;
 	readonly look: IChatWindowLook;
+	/**
+	 * Why `chats`, those of a chat window, cannot move to the main window now, such as a chat that cannot leave its window
+	 * yet; undefined when they can. Closing the window is not affected.
+	 */
+	moveVeto?(chats: readonly URI[]): string | undefined;
 	/** Shows `chats` in the main window again, with `editors`, once they left their chat window, such as as it closed; the first is the one that was active there. */
 	moveToMainWindow(chats: readonly URI[], editors: IChatWindowEditors): Promise<void>;
 	/**

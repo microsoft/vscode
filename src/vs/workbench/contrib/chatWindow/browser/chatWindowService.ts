@@ -1354,6 +1354,12 @@ export class ChatWindowService extends Disposable implements IChatWindowService 
 		// Its active chat first, as the one the main window then shows active
 		const active = chatWindow.chat.get();
 		const chats = [...chatWindow.chats.get()].sort((a, b) => Number(isEqual(b, active)) - Number(isEqual(a, active)));
+		// Before anything closes: the window and its chats stay as they are
+		const veto = provider.moveVeto?.(chats);
+		if (veto) {
+			this._dialogService.error(veto);
+			return;
+		}
 		// Serialized, as closing the chat window disposes them, and opened again in the main window
 		const serialized = serializeChatWindowEditorsBesideChat(chatWindow, this._grids.get(chatWindow)?.createdParts ?? []);
 		if (!chatWindow.close()) {

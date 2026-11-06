@@ -673,4 +673,19 @@ suite('Session chat view editor', () => {
 			focusedOutside: { first: { created: 1, shown: 1, focus: 'outside' }, second: { created: 1, shown: 1, focus: 'outside' } },
 		});
 	});
+
+	test('a chat editor kept in its window refuses moves to other windows and to a new window with its reason; without that, it moves anywhere', () => {
+		const input = disposables.add(new ChatEditorInput(URI.parse('test:/chat')));
+		const read = () => ({ sameWindow: input.canMove(1, 2), otherWindow: input.canMove(1, 3), newWindow: input.canMoveToNewWindow(1) });
+		const free = read();
+		input.setMoveRestriction({ reason: 'Send it first.', canMoveTo: group => group === 2 });
+		const kept = read();
+		input.setMoveRestriction(undefined);
+
+		assert.deepStrictEqual({ free, kept, freeAgain: read() }, {
+			free: { sameWindow: true, otherWindow: true, newWindow: true },
+			kept: { sameWindow: true, otherWindow: 'Send it first.', newWindow: 'Send it first.' },
+			freeAgain: { sameWindow: true, otherWindow: true, newWindow: true },
+		});
+	});
 });
