@@ -115,7 +115,7 @@ suite('SharedChatInputComposer', () => {
 					return options.sendResult ?? true;
 				},
 			},
-			storageService: options.storageService ?? { store: () => { } },
+			storageService: options.storageService ?? store.add(new InMemoryStorageService()),
 			logService: new NullLogService(),
 			chatSlashCommandService: slashCommands,
 			instantiationService: { createInstance: (ctor: unknown) => ctor === ChatRequestParser ? parser : { cancel: () => { }, disposeSource: () => { } } },
@@ -152,29 +152,36 @@ suite('SharedChatInputComposer', () => {
 		});
 	});
 
-	test('a composer opened during a background send does not restore the submitted prompt', async () => {
-		const storageService = store.add(new InMemoryStorageService());
-		let restored: ReturnType<SharedChatInputComposer['getDraft']> | undefined;
-		const { composer } = createComposer({
-			storageService,
-			onSend: () => {
-				const next = createComposer({ storageService, text: '', attachments: [] }).composer;
-				Reflect.get(SharedChatInputComposer.prototype, '_restoreDraftState').call(next);
-				restored = next.getDraft();
-				next.setInputValue('Next request');
-				next.saveState();
-			},
-		});
-		composer.saveState();
+	for (const sendResult of [true, false, new Error('send failed')]) {
+		for (const nextInput of ['Next request', '']) {
+			test(`a composer handoff preserves the next saved draft (${sendResult === true ? 'sent' : sendResult instanceof Error ? 'error' : 'declined'}, ${nextInput ? 'nonempty' : 'empty'})`, async () => {
+				const storageService = store.add(new InMemoryStorageService());
+				let restored: ReturnType<SharedChatInputComposer['getDraft']> | undefined;
+				const { composer, state } = createComposer({
+					storageService,
+					sendResult,
+					onSend: () => {
+						const next = createComposer({ storageService, text: '', attachments: [] }).composer;
+						Reflect.get(SharedChatInputComposer.prototype, '_restoreDraftState').call(next);
+						restored = next.getDraft();
+						next.setInputValue(nextInput);
+						next.saveState();
+					},
+				});
+				composer.saveState();
 
-		await composer.submit(true);
+				const sent = await composer.submit(true);
 
-		const nextDraft = readNewChatDraftState(storageService);
-		assert.deepStrictEqual({ restored, nextInput: nextDraft?.inputText }, {
-			restored: { inputText: '', attachments: [] },
-			nextInput: 'Next request',
-		});
-	});
+				const nextDraft = readNewChatDraftState(storageService);
+				assert.deepStrictEqual({ sent, restored, nextInput: nextDraft?.inputText, input: state().input }, {
+					sent: sendResult === true,
+					restored: { inputText: '', attachments: [] },
+					nextInput,
+					input: { text: sent ? '' : 'Build it', attachments: sent ? [] : ['context'], enabled: true },
+				});
+			});
+		}
+	}
 
 	for (const background of [false, true]) {
 		for (const sendResult of [false, new Error('send failed')]) {

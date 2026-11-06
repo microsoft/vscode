@@ -962,13 +962,16 @@ export class SharedChatInputComposer extends Disposable implements INewSessionCo
 		// The send can dispose the input widget, e.g. when the composer is left while a workspace is
 		// applied or the send waits; the send itself completes and only the gone input is skipped.
 		const isInputAlive = () => this._widget === widget && !!widget.input;
+		let ownsClearedDraft: (() => boolean) | undefined;
 		const restoreInput = () => {
 			if (isInputAlive() && !this.getInputValue() && !widget.attachmentModel.attachments.length) {
 				this.setInputValue(rawQuery);
 				widget.attachmentModel.addContext(...attachments);
 				// The send cleared the inline references along with the text.
 				widget.getContrib<ChatDynamicVariableModel>(ChatDynamicVariableModel.ID)?.setInputState({ [ChatDynamicVariableModel.ID]: references });
-				this.saveState();
+				if (ownsClearedDraft?.()) {
+					this.saveState();
+				}
 			}
 		};
 		try {
@@ -990,7 +993,7 @@ export class SharedChatInputComposer extends Disposable implements INewSessionCo
 			await widget.input.acceptInput(true, true);
 			this._modelRef.value?.object.inputModel.setState({ inputText: '', attachments: [] });
 			// The host can create another composer before the send completes.
-			this.saveState();
+			ownsClearedDraft = writeNewChatDraftState(this.storageService, { inputText: '', attachments: [] });
 			// Prompt ranges, such as those of inline references, refer to the untrimmed input.
 			const queryOffset = rawQuery.length - rawQuery.trimStart().length;
 			const sentAttachments = attachments.map(entry => entry.range && queryOffset
