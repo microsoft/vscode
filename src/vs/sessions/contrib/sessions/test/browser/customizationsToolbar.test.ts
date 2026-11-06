@@ -45,6 +45,7 @@ import { IActiveSession } from '../../../../../workbench/contrib/sessions/common
 import { IAICustomizationMcpServerCountService } from '../../../../../workbench/contrib/sessions/browser/customizationMcpServerCount.js';
 import { CustomizationLinkViewItem, CustomizationsToolbarContribution } from '../../browser/customizationsToolbar.contribution.js';
 import { CUSTOMIZATION_ITEMS, readCustomizationCount } from '../../../../../workbench/contrib/sessions/browser/customizationItems.js';
+import { VIEWLET_ID as EXTENSIONS_VIEWLET_ID } from '../../../../../workbench/contrib/extensions/common/extensions.js';
 import { CustomizationsNavigationState } from '../../../../../workbench/contrib/sessions/browser/customizationsNavigationState.js';
 import { IAgentsWindowExtensionSuggestionsService } from '../../../../../workbench/contrib/sessions/browser/agentsWindowExtensionSuggestions.js';
 import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
@@ -129,13 +130,16 @@ suite('Customizations toolbar', () => {
 			label: 'Canvases',
 			section: AICustomizationManagementSection.Canvases,
 		}, {
-			id: 'sessions.customization.extensions',
+			id: EXTENSIONS_VIEWLET_ID,
 			label: 'Extensions',
 			section: AICustomizationManagementSection.Extensions,
 		}]);
 	});
 
-	test('opens the Extensions section with Extensions: Manage Extensions... and the keybinding of the Extensions view in editor windows, where the sidebar offers it', () => {
+	test('opens the Extensions section with Extensions: Manage Extensions..., with the command ID and keybinding of the Extensions view in editor windows, where the sidebar offers it', () => {
+		// The keybinding service does not pick up keybindings registered after it first resolves keybindings, so the keybinding must not wait for the contribution.
+		const keybindings = () => KeybindingsRegistry.getDefaultKeybindings().filter(rule => rule.command === EXTENSIONS_VIEWLET_ID);
+		const keybindingsOnLoad = keybindings();
 		disposables.add(new CustomizationsToolbarContribution(
 			new class extends mock<IActionViewItemService>() {
 				override register() { return toDisposable(() => { }); }
@@ -148,9 +152,8 @@ suite('Customizations toolbar', () => {
 			},
 			disposables.add(new MockContextKeyService()),
 		));
-		const commandId = 'sessions.customization.extensions';
-		const palette = MenuRegistry.getMenuItems(MenuId.CommandPalette).filter(isIMenuItem).find(item => item.command.id === commandId);
-		const keybinding = KeybindingsRegistry.getDefaultKeybindings().find(rule => rule.command === commandId);
+		const palette = MenuRegistry.getMenuItems(MenuId.CommandPalette).filter(isIMenuItem).find(item => item.command.id === EXTENSIONS_VIEWLET_ID);
+		const keybinding = keybindingsOnLoad[0];
 		const text = (value: string | ILocalizedString | undefined) => typeof value === 'string' ? value : value?.value;
 		const offered = (values: { chatEnabled: boolean; sectionVisible: boolean; managementEnabled: boolean }) => {
 			const context: IContext = {
@@ -164,15 +167,19 @@ suite('Customizations toolbar', () => {
 		};
 
 		assert.deepStrictEqual({
+			commandId: palette?.command.id,
 			title: `${text(palette?.command.category)}: ${text(palette?.command.title)}`,
-			keybinding: keybinding?.keybinding?.getHashCode() === decodeKeybinding(KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KeyX, OS)?.getHashCode(),
+			keybindingsOnLoad: keybindingsOnLoad.map(rule => rule.keybinding?.getHashCode()),
+			keybindingsWithContribution: keybindings().map(rule => rule.keybinding?.getHashCode()),
 			offered: offered({ chatEnabled: true, sectionVisible: true, managementEnabled: true }),
 			aiFeaturesDisabled: offered({ chatEnabled: false, sectionVisible: true, managementEnabled: true }),
 			hiddenByHarness: offered({ chatEnabled: true, sectionVisible: false, managementEnabled: true }),
 			managementDisabled: offered({ chatEnabled: true, sectionVisible: true, managementEnabled: false }),
 		}, {
+			commandId: 'workbench.view.extensions',
 			title: 'Extensions: Manage Extensions...',
-			keybinding: true,
+			keybindingsOnLoad: [decodeKeybinding(KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KeyX, OS)?.getHashCode()],
+			keybindingsWithContribution: [decodeKeybinding(KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KeyX, OS)?.getHashCode()],
 			offered: { commandPalette: true, keybinding: true },
 			aiFeaturesDisabled: { commandPalette: false, keybinding: false },
 			hiddenByHarness: { commandPalette: false, keybinding: false },
