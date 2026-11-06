@@ -94,7 +94,7 @@ export function buildCopilotBuiltinAgentMarkdown(agent: ICopilotBuiltinAgent): s
 	].join('\n');
 }
 
-/** Owns read-only built-in agent files served through the host's normal resource-read path. */
+/** Owns read-only built-in customization files served through the host's normal resource-read path. */
 export class CopilotBuiltinAgentsStore extends Disposable {
 	constructor(fileService: IFileService) {
 		super();

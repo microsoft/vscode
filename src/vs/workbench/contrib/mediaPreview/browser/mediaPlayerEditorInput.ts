@@ -21,6 +21,7 @@ import { EditorInputCapabilities, GroupIdentifier, IMoveResult, ISaveOptions, IU
 import { IResourceEditorInput } from '../../../../platform/editor/common/editor.js';
 import { EditorInput } from '../../../common/editor/editorInput.js';
 import { IEditorService } from '../../../services/editor/common/editorService.js';
+import { ICustomEditorCompatibleInput } from '../../customEditor/common/customEditor.js';
 import { IOverlayWebview, IWebviewService } from '../../webview/browser/webview.js';
 import { asWebviewUri, webviewGenericCspSource } from '../../webview/common/webview.js';
 import { WebviewInput } from '../../webviewPanel/browser/webviewEditorInput.js';
@@ -44,7 +45,7 @@ function getMediaPlayerEditorId(kind: MediaPlayerKind): string {
  * {@link WebviewEditor}, which keeps the webview alive while the editor is hidden so playback
  * isn't interrupted.
  */
-export class MediaPlayerEditorInput extends WebviewInput {
+export class MediaPlayerEditorInput extends WebviewInput implements ICustomEditorCompatibleInput {
 
 	static override readonly typeId = 'workbench.input.mediaPlayer';
 
@@ -101,6 +102,10 @@ export class MediaPlayerEditorInput extends WebviewInput {
 
 	override get resource(): URI {
 		return this._resource;
+	}
+
+	get customEditorViewType(): string {
+		return this.viewType;
 	}
 
 	override get capabilities(): EditorInputCapabilities {

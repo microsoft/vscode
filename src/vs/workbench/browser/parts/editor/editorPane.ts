@@ -64,6 +64,12 @@ export abstract class EditorPane<MementoType extends object = object> extends Co
 	get minimumHeight() { return DEFAULT_EDITOR_MIN_DIMENSIONS.height; }
 	get maximumHeight() { return DEFAULT_EDITOR_MAX_DIMENSIONS.height; }
 
+	/**
+	 * Whether the editor pane renders its own title. A group that holds
+	 * only this editor then does not show its title area.
+	 */
+	get providesTitle(): boolean { return false; }
+
 	protected _input: EditorInput | undefined;
 	get input(): EditorInput | undefined { return this._input; }
 

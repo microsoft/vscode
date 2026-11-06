@@ -5,6 +5,7 @@
 
 import * as nls from '../../../../nls.js';
 import { sep } from '../../../../base/common/path.js';
+import { EXCLUDE_EXCEPTION_KEY_PATTERN } from '../../../../base/common/glob.js';
 import { Registry } from '../../../../platform/registry/common/platform.js';
 import { IConfigurationRegistry, Extensions as ConfigurationExtensions, ConfigurationScope, IConfigurationPropertySchema } from '../../../../platform/configuration/common/configurationRegistry.js';
 import { IWorkbenchContribution, WorkbenchPhase, registerWorkbenchContribution2 } from '../../../common/contributions.js';
@@ -152,12 +153,18 @@ configurationRegistry.registerConfiguration({
 	'properties': {
 		[FILES_EXCLUDE_CONFIG]: {
 			'type': 'object',
-			'markdownDescription': nls.localize('exclude', "Configure [glob patterns](https://aka.ms/vscode-glob-patterns) for excluding files and folders. For example, the File Explorer decides which files and folders to show or hide based on this setting. Refer to the `#search.exclude#` setting to define search-specific excludes. Refer to the `#explorer.excludeGitIgnore#` setting for ignoring files based on your `.gitignore`."),
+			'markdownDescription': nls.localize('exclude', "Configure [glob patterns](https://aka.ms/vscode-glob-patterns) for excluding files and folders. For example, the File Explorer decides which files and folders to show or hide based on this setting. Prefix a pattern with `!` to show matching files and folders even if another pattern excludes them, for example `\"!node_modules/@types\": true`. Refer to the `#search.exclude#` setting to define search-specific excludes. Refer to the `#explorer.excludeGitIgnore#` setting for ignoring files based on your `.gitignore`."),
 			'default': {
 				...{ '**/.git': true, '**/.svn': true, '**/.hg': true, '**/.jj': true, '**/.DS_Store': true, '**/Thumbs.db': true },
 				...(isWeb ? { '**/*.crswap': true /* filter out swap files used for local file access */ } : undefined)
 			},
 			'scope': ConfigurationScope.RESOURCE,
+			'patternProperties': {
+				[EXCLUDE_EXCEPTION_KEY_PATTERN]: {
+					'type': 'boolean',
+					'description': nls.localize('files.exclude.exception', "An exception: files and folders that match the glob pattern after the `!`, and everything inside them, are not excluded even if another pattern excludes them. Version control folders such as `.git` stay excluded unless the pattern names them. Set to true or false to enable or disable the exception."),
+				}
+			},
 			'additionalProperties': {
 				'anyOf': [
 					{

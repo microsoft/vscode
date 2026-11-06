@@ -11,7 +11,7 @@ import { SKILL_FILENAME } from '../../../../workbench/contrib/chat/common/prompt
 import { PromptsType } from '../../../../workbench/contrib/chat/common/promptSyntax/promptTypes.js';
 import { IAgentSkill, IBuiltinPromptPath, PromptsStorage } from '../../../../workbench/contrib/chat/common/promptSyntax/service/promptsService.js';
 import { PromptsService } from '../../../../workbench/contrib/chat/common/promptSyntax/service/promptsServiceImpl.js';
-import { AGENT_SESSIONS_APPEARANCE_TOOLS_ENABLED_SETTING } from '../common/constants.js';
+import { AGENT_SESSIONS_APPEARANCE_TOOLS_ENABLED_SETTING } from '../../../../workbench/contrib/sessions/common/chatConstants.js';
 import { CHAT_AUTOMATIONS_ENABLED_SETTING } from '../../../../workbench/contrib/chat/common/automations/automationsEnabled.js';
 import { ChatAIDisabledSettingId } from '../../../../platform/chat/common/chatSettings.js';
 

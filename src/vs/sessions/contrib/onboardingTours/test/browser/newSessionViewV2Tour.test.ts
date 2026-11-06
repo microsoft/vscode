@@ -13,7 +13,8 @@ import { ChatContextKeys } from '../../../../../workbench/contrib/chat/common/ac
 import { ISpotlightStep } from '../../../../../workbench/contrib/onboarding/browser/spotlight/spotlightTypes.js';
 import { ONBOARDING_DEVELOPER_MODE_CONFIG, ONBOARDING_DEVELOPER_MODE_VARIATIONS_CONFIG } from '../../../../../workbench/contrib/onboarding/common/onboardingScenarioService.js';
 import { NullWorkbenchAssignmentService } from '../../../../../workbench/services/assignment/test/common/nullAssignmentService.js';
-import { AgentHostSessionTypesAvailableContext, IsNewChatSessionContext, SessionHarnessPickerVisibleContext, SessionHasWorkspaceContext, SessionsWelcomeVisibleContext, SessionWorkspacePickerVisibleContext } from '../../../../common/contextkeys.js';
+import { IsNewChatSessionContext, SessionHarnessPickerVisibleContext, SessionHasWorkspaceContext, SessionsWelcomeVisibleContext, SessionWorkspacePickerVisibleContext } from '../../../../../workbench/contrib/sessions/common/contextkeys.js';
+import { AgentHostSessionTypesAvailableContext } from '../../../../common/agentsWindowContextKeys.js';
 import { resolveNewSessionViewV2TourVariation } from '../../browser/newSessionViewV2TourVariation.js';
 import { createNewSessionViewV2Tour, NEW_SESSION_VIEW_V2_TOUR_ID } from '../../browser/tours/newSessionViewV2Tour.js';
 import { createAgentsWindowInvitationTour, AGENTS_WINDOW_INVITATION_TOUR_ID } from '../../browser/tours/agentsWindowInvitationTour.js';
@@ -208,16 +209,16 @@ suite('NewSessionViewV2Tour', () => {
 				{
 					id: 'workspacePicker',
 					title: 'Pick a project for this session',
-					description: 'Unlike a normal VS Code window, you aren\'t locked to one folder. Point this session at any repo or folder—or switch projects anytime without opening a new window.',
+					description: 'Unlike a normal VS Code window, you aren\'t locked to one folder. Point this session to any folder. Each session can work on a different folder without opening a new window.',
 					selectedContent: {
 						title: 'Pick a project for this session',
-						description: 'We\'ve selected your current project to get you started. You can point each new session at any repo or folder—all from this window.',
+						description: 'We\'ve selected your current project to get you started. You can point each new session to any folder without opening a new window.',
 					},
 				},
 				{
 					id: 'modelPicker',
 					title: 'All your favorite models, one place',
-					description: 'Claude, GPT, Gemini, and more—the best models from across the industry are ready to go. Pick your favorite or switch anytime.',
+					description: 'Claude, GPT, Gemini, and more. The best models from across the industry are ready to go. Pick your favorite or switch anytime.',
 					selectedContent: undefined,
 				},
 			],

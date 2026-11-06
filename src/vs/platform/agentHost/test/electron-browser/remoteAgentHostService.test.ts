@@ -308,7 +308,7 @@ class TestStorageService extends InMemoryStorageService {
 
 suite('RemoteAgentHostService', () => {
 
-	const disposables = new DisposableStore();
+	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 	let configService: TestConfigurationService;
 	let createdClients: MockProtocolClient[];
 	let createdClientInfos: (Implementation | undefined)[];
@@ -411,8 +411,6 @@ suite('RemoteAgentHostService', () => {
 		}), entries);
 	});
 
-	teardown(() => disposables.clear());
-	ensureNoDisposablesAreLeakedInTestSuite();
 
 	/** Wait for a connection to reach Connected status. */
 	async function waitForConnected(): Promise<void> {
@@ -2399,6 +2397,21 @@ suite('RemoteAgentHostService', () => {
 			const formatter = formatterFor('host1:8080');
 			assert.ok(formatter, 'formatter is registered');
 			assert.strictEqual(formatter.formatting.workspaceSuffix, 'Host 1');
+		});
+
+		test('retains formatters across unchanged large inventory reconciliations', () => {
+			const entries: IRemoteAgentHostEntry[] = Array.from({ length: 150 }, (_, index) => ({
+				name: `Host ${index}`,
+				connection: { type: RemoteAgentHostEntryType.WebSocket, address: `ws://host${index}:8080` },
+			}));
+			configService.setEntries(entries);
+			const original = [...registeredFormatters];
+			configService.setEntries(entries.map(entry => ({ ...entry })));
+			configService.setEntries(entries.map(entry => ({ ...entry })));
+			assert.deepStrictEqual({
+				count: registeredFormatters.length,
+				unchanged: registeredFormatters.every((formatter, index) => formatter === original[index]),
+			}, { count: 150, unchanged: true });
 		});
 
 		test('updates formatter with native Windows path formatting after connecting', async () => {

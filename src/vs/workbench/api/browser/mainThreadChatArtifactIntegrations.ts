@@ -389,6 +389,13 @@ class ExtensionArtifactDetails extends Disposable implements IArtifactDetailsMod
 		}
 	}
 
+	async runItemAction(itemId: string, actionId: string, token: CancellationToken): Promise<void> {
+		if (!this.initialized) {
+			throw new Error(localize('extensionArtifactDetailsLoading', "Artifact details are still loading."));
+		}
+		await this.proxy.$runItemAction(this.handle, itemId, actionId, token);
+	}
+
 	get loadMore(): ((token: CancellationToken) => Promise<void>) | undefined {
 		if (!this.canLoadMore) {
 			return undefined;

@@ -7,7 +7,7 @@ import assert from 'assert';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { MarkdownString } from '../../../../../base/common/htmlContent.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { Disposable, IDisposable } from '../../../../../base/common/lifecycle.js';
+import { Disposable, IDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { constObservable } from '../../../../../base/common/observable.js';
 import { ICommandEvent, ICommandService, CommandsRegistry } from '../../../../../platform/commands/common/commands.js';
 import { ConfigurationTarget, IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
@@ -235,6 +235,84 @@ suite('ChatTipService', () => {
 		assert.strictEqual(service.getWelcomeTip(contextKeyService), contextualTip);
 	});
 
+	test('logs telemetry for contextual provider tip interactions', async () => {
+		const events: { eventName: string; data: Record<string, unknown> }[] = [];
+		instantiationService.stub(ITelemetryService, {
+			...NullTelemetryService,
+			publicLog2(eventName: string, data: Record<string, unknown>) {
+				events.push({ eventName, data });
+			},
+		} as Partial<ITelemetryService> as ITelemetryService);
+
+		const firstTip: IChatTip = { id: 'contextual.first', content: new MarkdownString('First') };
+		const secondTip: IChatTip = {
+			id: 'contextual.second',
+			content: new MarkdownString('Second'),
+			enabledCommands: ['contextual.command'],
+		};
+		let currentTip = firstTip;
+		const dismissedTipIds: string[] = [];
+		const service = createService();
+		testDisposables.add(service.registerTipProvider({
+			onDidChange: Event.None,
+			provideTip: () => currentTip,
+			dismissTip: id => dismissedTipIds.push(id),
+			navigateTip: () => currentTip = secondTip,
+		}));
+
+		assert.strictEqual(service.getWelcomeTip(contextKeyService), firstTip);
+		assert.strictEqual(service.getWelcomeTip(contextKeyService), firstTip);
+		assert.strictEqual(service.navigateToNextTip(), secondTip);
+		commandExecutedEmitter.fire({ commandId: 'contextual.command', args: [] });
+		const dismissedAfterCommand = [...dismissedTipIds];
+		service.dismissTip();
+
+		const hiddenTip: IChatTip = { id: 'contextual.hidden', content: new MarkdownString('Hidden') };
+		const hiddenService = createService();
+		testDisposables.add(hiddenService.registerTipProvider({
+			onDidChange: Event.None,
+			provideTip: () => hiddenTip,
+			dismissTip: () => { },
+		}));
+		hiddenService.getWelcomeTip(contextKeyService);
+		hiddenService.hideTip();
+
+		const disabledTip: IChatTip = { id: 'contextual.disabled', content: new MarkdownString('Disabled') };
+		const disabledService = createService();
+		testDisposables.add(disabledService.registerTipProvider({
+			onDidChange: Event.None,
+			provideTip: () => disabledTip,
+			dismissTip: () => { },
+		}));
+		disabledService.getWelcomeTip(contextKeyService);
+		await disabledService.disableTips();
+
+		assert.deepStrictEqual({
+			dismissedAfterCommand,
+			dismissedTipIds,
+			events: events.map(event => ({
+				eventName: event.eventName,
+				tipId: event.data.tipId,
+				action: event.data.action,
+				commandId: event.data.commandId ?? null,
+			})),
+		}, {
+			dismissedAfterCommand: [],
+			dismissedTipIds: ['contextual.second'],
+			events: [
+				{ eventName: 'chatTip', tipId: 'contextual.first', action: 'shown', commandId: null },
+				{ eventName: 'chatTip', tipId: 'contextual.first', action: 'navigateNext', commandId: null },
+				{ eventName: 'chatTip', tipId: 'contextual.second', action: 'shown', commandId: null },
+				{ eventName: 'chatTip', tipId: 'contextual.second', action: 'commandClicked', commandId: 'contextual.command' },
+				{ eventName: 'chatTip', tipId: 'contextual.second', action: 'dismissed', commandId: null },
+				{ eventName: 'chatTip', tipId: 'contextual.hidden', action: 'shown', commandId: null },
+				{ eventName: 'chatTip', tipId: 'contextual.hidden', action: 'hidden', commandId: null },
+				{ eventName: 'chatTip', tipId: 'contextual.disabled', action: 'shown', commandId: null },
+				{ eventName: 'chatTip', tipId: 'contextual.disabled', action: 'disabled', commandId: null },
+			],
+		});
+	});
+
 	test('applies standard tip visibility gates to contextual provider tips', () => {
 		const disabledService = createService(true, false);
 		testDisposables.add(disabledService.registerTipProvider({
@@ -270,6 +348,36 @@ suite('ChatTipService', () => {
 		service.dismissTip();
 
 		assert.deepStrictEqual(dismissed, ['connectorRecommendation.linear']);
+	});
+
+	test('clears dismissed tips through contextual providers', () => {
+		const service = createService();
+		let clearCount = 0;
+		testDisposables.add(service.registerTipProvider({
+			onDidChange: Event.None,
+			provideTip: () => undefined,
+			dismissTip: () => { },
+			clearDismissedTips: () => clearCount++,
+		}));
+
+		service.clearDismissedTips();
+
+		assert.strictEqual(clearCount, 1);
+	});
+
+	test('resets contextual providers with the chat session', () => {
+		const service = createService();
+		let resetCount = 0;
+		testDisposables.add(service.registerTipProvider({
+			onDidChange: Event.None,
+			provideTip: () => undefined,
+			dismissTip: () => { },
+			resetSession: () => resetCount++,
+		}));
+
+		service.resetSession();
+
+		assert.strictEqual(resetCount, 1);
 	});
 
 	test('contextual provider changes notify tip presenters', () => {
@@ -1466,25 +1574,24 @@ suite('ChatTipService', () => {
 		contextKeyService.createKey(ChatContextKeys.chatModelId.key, 'auto');
 
 		const originalRandom = Math.random;
-		try {
-			Math.random = () => 0;
-			const firstTip = service.getWelcomeTip(contextKeyService);
-
-			service.resetSession();
-
-			Math.random = () => 0.9999;
-			const secondTip = service.getWelcomeTip(contextKeyService);
-
-			assert.ok(firstTip);
-			assert.ok(secondTip);
-			assert.notStrictEqual(firstTip.id, secondTip.id, 'Expected different QoL tips for different random values');
-			assert.notStrictEqual(firstTip.id, 'tip.planMode');
-			assert.notStrictEqual(secondTip.id, 'tip.planMode');
-		} finally {
+		testDisposables.add(toDisposable(() => {
 			Math.random = originalRandom;
 			modeKindKey.set(ChatModeKind.Agent);
 			modeNameKey.set('Plan');
-		}
+		}));
+		Math.random = () => 0;
+		const firstTip = service.getWelcomeTip(contextKeyService);
+
+		service.resetSession();
+
+		Math.random = () => 0.9999;
+		const secondTip = service.getWelcomeTip(contextKeyService);
+
+		assert.ok(firstTip);
+		assert.ok(secondTip);
+		assert.notStrictEqual(firstTip.id, secondTip.id, 'Expected different QoL tips for different random values');
+		assert.notStrictEqual(firstTip.id, 'tip.planMode');
+		assert.notStrictEqual(secondTip.id, 'tip.planMode');
 	});
 
 	test('resetSession reevaluates foundational tips for the next chat session', () => {
@@ -1495,23 +1602,22 @@ suite('ChatTipService', () => {
 		contextKeyService.createKey(ChatContextKeys.chatModelId.key, 'auto');
 
 		const originalRandom = Math.random;
-		try {
-			Math.random = () => 0.9999;
-			const qolTip = service.getWelcomeTip(contextKeyService);
-			assert.ok(qolTip);
-			assert.notStrictEqual(qolTip.id, 'tip.planMode');
-
-			service.resetSession();
-			modeNameKey.set('Agent');
-			sessionTypeKey.set(localChatSessionType);
-
-			const foundationalTip = service.getWelcomeTip(contextKeyService);
-			assert.ok(foundationalTip);
-			assert.strictEqual(foundationalTip.id, 'tip.createAgent', 'Expected foundational ordering to restart on new chat session');
-		} finally {
+		testDisposables.add(toDisposable(() => {
 			Math.random = originalRandom;
 			modeKindKey.set(ChatModeKind.Agent);
-		}
+		}));
+		Math.random = () => 0.9999;
+		const qolTip = service.getWelcomeTip(contextKeyService);
+		assert.ok(qolTip);
+		assert.notStrictEqual(qolTip.id, 'tip.planMode');
+
+		service.resetSession();
+		modeNameKey.set('Agent');
+		sessionTypeKey.set(localChatSessionType);
+
+		const foundationalTip = service.getWelcomeTip(contextKeyService);
+		assert.ok(foundationalTip);
+		assert.strictEqual(foundationalTip.id, 'tip.createAgent', 'Expected foundational ordering to restart on new chat session');
 	});
 
 	test('resetSession allows a new welcome tip', () => {
@@ -2053,14 +2159,11 @@ suite('ChatTipService', () => {
 			throw new Error('AbstractContextKeyService has been disposed');
 		};
 
-		try {
-			assert.doesNotThrow(() => submitRequestEmitter.fire({
-				chatSessionResource: URI.parse('chat:session-disposed'),
-				message: { text: 'hello', parts: [] },
-			}));
-		} finally {
-			contextKeyService.contextMatchesRules = originalContextMatchesRules;
-		}
+		testDisposables.add(toDisposable(() => { contextKeyService.contextMatchesRules = originalContextMatchesRules; }));
+		assert.doesNotThrow(() => submitRequestEmitter.fire({
+			chatSessionResource: URI.parse('chat:session-disposed'),
+			message: { text: 'hello', parts: [] },
+		}));
 	});
 
 });

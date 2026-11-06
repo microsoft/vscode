@@ -15,7 +15,7 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 		[SESSIONS_APPLICATION_BADGE_SETTING]: {
 			type: 'boolean',
 			tags: ['preview'],
-			markdownDescription: localize('sessions.showApplicationBadge', "Controls whether the application icon shows a badge with the number of unarchived sessions matching {0}. The badge appears on the dock icon on macOS, on the launcher icon on Linux and over the taskbar icon on Windows.", `\`#${SESSIONS_APPLICATION_BADGE_OPTIONS_SETTING}#\``),
+			markdownDescription: localize('sessions.showApplicationBadge2', "Controls whether the application icon shows a badge with the number of unarchived sessions matching {0}. The badge appears on the dock icon on macOS, on the launcher icon on Linux and over the taskbar icon on Windows.", `\`#${SESSIONS_APPLICATION_BADGE_OPTIONS_SETTING}#\``),
 			default: SESSIONS_APPLICATION_BADGE_DEFAULT,
 			experiment: { mode: 'auto' }
 		},

@@ -196,10 +196,12 @@ export class AgentHostSnapshotController extends Disposable implements IChatEdit
 	private _addCheckpointEdits(cp: IAgentHostCheckpoint, fileEdits: readonly IToolCallFileEdit[], replace = false): void {
 		const authority = this._connectionAuthority;
 		for (const edit of fileEdits) {
+			// eslint-disable-next-line local/code-agent-host-uri-mapping -- TODO(agent-host-uri): checkpoint file identities need the owning connection mapper, not just its authority
 			const resource = toAgentHostUri(edit.resource, authority);
 			const entry: IToolCallFileEdit = {
 				kind: edit.kind,
 				resource,
+				// eslint-disable-next-line local/code-agent-host-uri-mapping -- TODO(agent-host-uri): checkpoint rename identities need the owning connection mapper, not just its authority
 				originalResource: edit.originalResource ? toAgentHostUri(edit.originalResource, authority) : undefined,
 				beforeContentUri: edit.beforeContentUri ? toAgentHostContentUri(edit.beforeContentUri, authority, edit.originalResource ?? edit.resource) : undefined,
 				afterContentUri: edit.afterContentUri ? toAgentHostContentUri(edit.afterContentUri, authority, edit.resource) : undefined,

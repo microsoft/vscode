@@ -366,7 +366,7 @@ export function agentMergeEnabledNotice(target: Pick<AgentMergeTarget, 'branchNa
 		localize('agentMerge.notice.enabled.summary', "Agent Merge is enabled for {0}. {1}", appendEscapedMarkdownInlineCode(target.branchName), agentMergeMergeBehaviorSummary(configuration.mergePullRequest)),
 		target.pullRequestUrl
 			? localize('agentMerge.notice.enabled.withPullRequest', "It is monitoring the pull request for this branch.")
-			: localize('agentMerge.notice.enabled', "It will wait for a pull request on this branch, then monitor it."),
+			: localize('agentMerge.notice.enabled.waitingForPullRequest', "It will wait for a pull request on this branch, then monitor it."),
 	];
 	if (configuration.addressReviews) {
 		lines.push(localize('agentMerge.notice.enabled.addressReviews', "It will ask the agent to address new pull request review comments."));

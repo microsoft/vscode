@@ -282,6 +282,14 @@ export class CustomizationMarketplaceInstallService extends Disposable implement
 		return matches.length === 1 ? matches[0] : undefined;
 	}
 
+	findInstallation(resource: ICustomizationMarketplaceResource): IRecordedCustomizationMarketplaceResource | undefined {
+		const providerInstallation = this.findProviderInstallation(resource);
+		if (providerInstallation || this.providerInstallations.some(installation => this.matchesProviderInstallation(installation.resource, resource))) {
+			return providerInstallation;
+		}
+		return this.installations.get().findByResource(resource);
+	}
+
 	private getGitHubMcpRegistryIdentity(resource: ICustomizationMarketplaceResource): string | undefined {
 		const installation = resource.installation;
 		const itemUrl = installation?.kind === 'providerCatalog'

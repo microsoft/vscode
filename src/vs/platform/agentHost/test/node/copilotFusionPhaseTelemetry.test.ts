@@ -6,32 +6,17 @@
 import assert from 'assert';
 import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
-import { ITelemetryService, TelemetryLevel } from '../../../telemetry/common/telemetry.js';
+import { CapturingTelemetryService as PlatformCapturingTelemetryService } from '../../../telemetry/test/common/testTelemetryService.js';
 import { AgentSession } from '../../common/agent.js';
 import { buildDefaultChatUri } from '../../common/state/sessionState.js';
 import { createCopilotFailureCorrelation } from '../../node/copilot/copilotFailureTelemetry.js';
 import { reportCopilotFusionPhase } from '../../node/copilot/copilotFusionPhaseTelemetry.js';
 import { fusionTestData, fusionTestEvent } from './copilotFusionTestEvents.js';
 
-class CapturingTelemetryService implements ITelemetryService {
-	declare readonly _serviceBrand: undefined;
-	readonly telemetryLevel = TelemetryLevel.USAGE;
-	readonly sessionId = 'test-session';
-	readonly machineId = 'test-machine';
-	readonly sqmId = 'test-sqm';
-	readonly devDeviceId = 'test-dev-device';
-	readonly firstSessionDate = 'test-first-session-date';
-	readonly sendErrorTelemetry = true;
-	readonly events: { eventName: string; data: Record<string, unknown> | undefined }[] = [];
-
-	publicLog(): void { }
-	publicLog2(eventName: string, data?: Record<string, unknown>): void {
-		this.events.push({ eventName, data });
+class CapturingTelemetryService extends PlatformCapturingTelemetryService<Record<string, unknown> | undefined> {
+	constructor() {
+		super({ sendErrorTelemetry: true });
 	}
-	publicLogError(): void { }
-	publicLogError2(): void { }
-	setExperimentProperty(): void { }
-	setCommonProperty(): void { }
 }
 
 suite('CopilotFusionPhaseTelemetry', () => {

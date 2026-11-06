@@ -143,6 +143,7 @@ export class AgentHostModeSynchronizer extends Disposable implements IWorkbenchC
 	private _findMode(modes: IChatModes, modeId: string): IChatMode | undefined {
 		return modes.findModeById(modeId) ?? modes.custom.find(mode => {
 			const uri = mode.uri?.get();
+			// eslint-disable-next-line local/code-agent-host-uri-mapping -- TODO(agent-host-uri): custom-mode matching needs the session connection mapper for editor-remote agent URIs
 			return uri && fromAgentHostUri(uri).toString() === modeId;
 		});
 	}
@@ -153,6 +154,7 @@ export class AgentHostModeSynchronizer extends Disposable implements IWorkbenchC
 		}
 
 		const uri = mode.uri?.get();
+		// eslint-disable-next-line local/code-agent-host-uri-mapping -- TODO(agent-host-uri): stored custom-agent selection needs the session connection mapper for editor-remote URIs
 		return uri ? fromAgentHostUri(uri).toString() : URI.parse(mode.id).toString();
 	}
 

@@ -9,7 +9,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/c
 import { NullLogService } from '../../../log/common/log.js';
 import { SYNCED_CUSTOMIZATION_SCHEME } from '../../common/agentHostFileSystemService.js';
 import { CompletionItem, CompletionItemKind } from '../../common/state/protocol/commands.js';
-import { Customization, CustomizationEnablementKind, CustomizationLoadStatus, CustomizationType, McpServerStatus, MessageAttachmentKind, type PluginCustomization, type SkillCustomization } from '../../common/state/protocol/state.js';
+import { Customization, CustomizationEnablementKind, CustomizationLoadStatus, CustomizationType, McpServerStatus, MessageAttachmentKind, type McpServerCustomization, type PluginCustomization, type SkillCustomization } from '../../common/state/protocol/state.js';
 import { CopilotSlashCommandCompletionProvider, ICopilotRuntimeSlashCommandInfo, parseLeadingSlashCommand } from '../../node/copilot/copilotSlashCommandCompletionProvider.js';
 import { CopilotSlashCommandProvider } from '../../node/copilot/copilotSlashCommandProvider.js';
 
@@ -598,9 +598,57 @@ suite('CopilotSlashCommandCompletionProvider', () => {
 			}, {
 				uninstall: ['azure@awesome-copilot', 'direct-plugin', 'duplicate@marketplace-one', 'duplicate@marketplace-two', 'elasticsearch@awesome-copilot'],
 				update: ['elasticsearch@awesome-copilot'],
-				enable: ['azure', 'duplicate@marketplace-two'],
-				disable: ['ambiguous-direct-source-1', 'ambiguous-direct-source-2', 'builtin-plugin', 'direct-plugin', 'duplicate@marketplace-one', 'elasticsearch'],
+				enable: ['azure@awesome-copilot', 'duplicate@marketplace-two'],
+				disable: ['ambiguous-direct-source-1', 'ambiguous-direct-source-2', 'builtin-plugin', 'direct-plugin', 'duplicate@marketplace-one', 'elasticsearch@awesome-copilot'],
 				requestedSessionIds: ['abc', 'abc', 'abc', 'abc'],
+			});
+		});
+
+		test('keeps distinct installations qualified and omits ambiguous direct mutations', async () => {
+			const provider = new CopilotSlashCommandCompletionProvider('copilotcli', {
+				getSessionCustomizations: async () => [],
+				getInstalledPlugins: async () => [
+					{ name: 'box', marketplace: 'claude-plugins-official', enabled: true },
+					{ name: 'box', marketplace: 'another-marketplace', enabled: false },
+					{ name: 'box', marketplace: '', directSourceId: 'local-box', enabled: true },
+					{ name: 'session-timeline', marketplace: '', directSourceId: 'local-timeline', enabled: true },
+					{ name: 'duplicate', marketplace: '', directSourceId: 'first-source', enabled: true },
+					{ name: 'duplicate', marketplace: '', directSourceId: 'second-source', enabled: true },
+				],
+			});
+			const complete = async (command: string) => {
+				const text = `/plugin ${command} `;
+				return (await provider.provideCompletionItems({
+					kind: CompletionItemKind.UserMessage, channel: session, text, offset: text.length,
+				}, { chat: undefined }, CancellationToken.None)).map(item => ({ text: item.insertText, label: item.attachment?.label }));
+			};
+
+			assert.deepStrictEqual({
+				update: await complete('update'),
+				uninstall: await complete('uninstall'),
+				enable: await complete('enable'),
+				disable: await complete('disable'),
+			}, {
+				update: [
+					{ text: 'box', label: 'box' },
+					{ text: 'box@another-marketplace', label: 'box@another-marketplace' },
+					{ text: 'box@claude-plugins-official', label: 'box@claude-plugins-official' },
+					{ text: 'session-timeline', label: 'session-timeline' },
+				],
+				uninstall: [
+					{ text: 'box', label: 'box' },
+					{ text: 'box@another-marketplace', label: 'box@another-marketplace' },
+					{ text: 'box@claude-plugins-official', label: 'box@claude-plugins-official' },
+					{ text: 'session-timeline', label: 'session-timeline' },
+				],
+				enable: [{ text: 'box@another-marketplace', label: 'box@another-marketplace' }],
+				disable: [
+					{ text: 'box@claude-plugins-official', label: 'box@claude-plugins-official' },
+					{ text: 'first-source', label: 'first-source' },
+					{ text: 'local-box', label: 'local-box' },
+					{ text: 'second-source', label: 'second-source' },
+					{ text: 'session-timeline', label: 'session-timeline' },
+				],
 			});
 		});
 
@@ -1154,10 +1202,11 @@ suite('CopilotSlashCommandCompletionProvider', () => {
 			};
 		}
 
-		function createProvider(runtimeCommands: readonly ICopilotRuntimeSlashCommandInfo[], customizations: readonly Customization[] = []): CopilotSlashCommandCompletionProvider {
+		function createProvider(runtimeCommands: readonly ICopilotRuntimeSlashCommandInfo[], customizations: readonly Customization[] = [], mcpSkillCommandNames: readonly string[] = []): CopilotSlashCommandCompletionProvider {
 			return new CopilotSlashCommandCompletionProvider('copilotcli', {
 				isRubberDuckEnabled: () => true,
 				getRuntimeSlashCommands: async () => runtimeCommands,
+				getMcpSkillCommandNames: () => new Set(mcpSkillCommandNames),
 				getSessionCustomizations: async () => customizations,
 			});
 		}
@@ -1291,7 +1340,50 @@ suite('CopilotSlashCommandCompletionProvider', () => {
 			]);
 		});
 
-		test('ignores mcp server containers when computing known skills', async () => {
+		test('hides internal MCP skill commands and excludes MCP skills from management arguments', async () => {
+			const server = (name: string, children: SkillCustomization[], enabled = true): McpServerCustomization => ({
+				type: CustomizationType.McpServer, id: `mcp:${name}`, uri: `mcp-config:/${name}`, name, children,
+				state: { kind: McpServerStatus.Ready }, enablement: [{ kind: CustomizationEnablementKind.Session, enabled }],
+			});
+			const customizations: Customization[] = [
+				server('top', [
+					skill('top:friendly'),
+					skill('top:disabled', undefined, { enabled: false }),
+					skill('top:hidden', undefined, { disableUserInvocation: true }),
+					skill('top:fallback'),
+				]),
+				{ ...plugin('plugin'), children: [server('nested', [skill('nested:skill')])] },
+				server('disabled', [skill('disabled:skill')], false),
+				{ ...plugin('disabled-plugin', undefined, false), children: [server('disabled-parent', [skill('disabled-parent:skill')])] },
+			];
+			const internalNames = ['mcp1:server:friendly', 'mcp1:server:disabled', 'mcp1:server:hidden', 'opaque-runtime-command', 'mcp1:nested:skill', 'mcp1:disabled:skill', 'mcp1:disabled-parent:skill'];
+			const provider = createProvider([...internalNames, 'runtime-only'].map(name => ({ name, kind: 'skill' as const, description: '', allowDuringAgentExecution: true })), customizations, internalNames);
+
+			assert.deepStrictEqual({
+				commands: runtimeOnly(await run(provider, '/')).map(item => item.insertText),
+				info: (await run(provider, '/skills info ')).map(item => item.insertText),
+				toggle: runtimeOnly(await run(provider, '/skills disable ')).map(item => item.insertText),
+			}, {
+				commands: ['/runtime-only '],
+				info: [],
+				toggle: [],
+			});
+		});
+
+		test('hides known internal MCP commands and aliases even before customization publication', async () => {
+			const provider = createProvider([
+				{ name: 'mcp1:server:skill', description: '', kind: 'skill', allowDuringAgentExecution: true },
+				{ name: 'runtime-alias', aliases: ['OPAQUE-RUNTIME-COMMAND'], description: '', kind: 'skill', allowDuringAgentExecution: true },
+				{ name: 'runtime-only', description: '', kind: 'skill', allowDuringAgentExecution: true },
+			], [], ['mcp1:server:skill', 'opaque-runtime-command']);
+			assert.deepStrictEqual({
+				leading: runtimeOnly(await run(provider, '/')).map(item => item.insertText),
+				inline: (await run(provider, 'Use /')).map(item => item.insertText),
+				explicit: runtimeOnly(await run(provider, '/mcp1:')).map(item => item.insertText),
+			}, { leading: ['/runtime-only '], inline: ['/runtime-only '], explicit: [] });
+		});
+
+		test('keeps runtime skills when MCP servers publish no skill children', async () => {
 			const mcpServer: Customization = {
 				type: CustomizationType.McpServer,
 				id: 'file:///mcp/my-skill',

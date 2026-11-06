@@ -9,9 +9,9 @@ import { Schemas } from '../../../../../base/common/network.js';
 import { joinPath } from '../../../../../base/common/resources.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { FileService } from '../../../../../platform/files/common/fileService.js';
 import { IFileService } from '../../../../../platform/files/common/files.js';
 import { InMemoryFileSystemProvider } from '../../../../../platform/files/common/inMemoryFilesystemProvider.js';
+import { createInMemoryFileService } from '../../../../../platform/files/test/common/inMemoryFileService.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { ILogService, NullLogService } from '../../../../../platform/log/common/log.js';
 import { IUriIdentityService } from '../../../../../platform/uriIdentity/common/uriIdentity.js';
@@ -32,9 +32,7 @@ suite('SnippetsResource', () => {
 
 	setup(() => {
 		instantiationService = disposables.add(new TestInstantiationService());
-		fileService = disposables.add(new FileService(new NullLogService()));
-		const fileSystemProvider = disposables.add(new InMemoryFileSystemProvider());
-		disposables.add(fileService.registerProvider(ROOT.scheme, fileSystemProvider));
+		fileService = createInMemoryFileService(disposables, ROOT.scheme);
 
 		instantiationService.stub(IFileService, fileService);
 		instantiationService.stub(ILogService, new NullLogService());

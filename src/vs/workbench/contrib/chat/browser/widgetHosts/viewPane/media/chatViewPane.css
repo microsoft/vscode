@@ -154,6 +154,14 @@
 		/* hide new session button when stacked */
 		display: none;
 	}
+
+	.agent-sessions-viewer.can-scroll-down > .monaco-list > .monaco-scrollable-element {
+		mask-image: linear-gradient(to bottom, black calc(100% - var(--vscode-spacing-size160)), transparent);
+	}
+}
+
+.monaco-workbench:is(.hc-black, .hc-light) .chat-viewpane.has-sessions-control.sessions-control-orientation-stacked .agent-sessions-viewer.can-scroll-down > .monaco-list > .monaco-scrollable-element {
+	mask-image: none;
 }
 
 /* Sessions control: side by side */

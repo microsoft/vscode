@@ -11,13 +11,12 @@ import { IIntentService, IntentService } from '../../src/extension/intents/node/
 import { ILinkifyService, LinkifyService } from '../../src/extension/linkify/common/linkifyService';
 import { ChatMLFetcherImpl } from '../../src/extension/prompt/node/chatMLFetcher';
 import { createExtensionUnitTestingServices, ISimulationModelConfig } from '../../src/extension/test/node/services';
-import { AIEvaluationService, IAIEvaluationService } from '../../src/extension/testing/node/aiEvaluationService';
 import { IChatMLFetcher } from '../../src/platform/chat/common/chatMLFetcher';
 import { ChatFetchResponseType, ChatResponses } from '../../src/platform/chat/common/commonTypes';
 import { IChunkingEndpointClient } from '../../src/platform/chunking/common/chunkingEndpointClient';
 import { ChunkingEndpointClientImpl } from '../../src/platform/chunking/common/chunkingEndpointClientImpl';
 import { INaiveChunkingService, NaiveChunkingService } from '../../src/platform/chunking/node/naiveChunkerService';
-import { CHAT_MODEL, Config, ConfigKey, ExperimentBasedConfig, ExperimentBasedConfigType, globalConfigRegistry, IConfigurationService } from '../../src/platform/configuration/common/configurationService';
+import { CHAT_MODEL, Config, ExperimentBasedConfig, ExperimentBasedConfigType, globalConfigRegistry, IConfigurationService } from '../../src/platform/configuration/common/configurationService';
 import { DefaultsOnlyConfigurationService } from '../../src/platform/configuration/common/defaultsOnlyConfigurationService';
 import { InMemoryConfigurationService } from '../../src/platform/configuration/test/common/inMemoryConfigurationService';
 import { IEmbeddingsComputer } from '../../src/platform/embeddings/common/embeddingsComputer';
@@ -48,37 +47,20 @@ import { IJSONOutputPrinter, NoopJSONOutputPrinter } from '../jsonOutputPrinter'
 import { SIMULATION_FOLDER_NAME } from '../simulation/shared/sharedTypes';
 import { ITestInformation, TestInformation } from '../simulation/testInformation';
 import { CachedTestInfo, CachingChatMLFetcher, IChatMLCache } from './cachingChatMLFetcher';
-import { CachingChunkingEndpointClient, ChunkingEndpointClientSQLiteCache } from './cachingChunksEndpointClient';
-import { CachingCodeOrDocSearchClient, CodeOrDocSearchSQLiteCache } from './cachingCodeSearchClient';
 import { CachingCompletionsFetchService } from './cachingCompletionsFetchService';
-import { CachingEmbeddingsComputer } from './cachingEmbeddingsFetcher';
 import { CachingResourceFetcher } from './cachingResourceFetcher';
 import { ICompletionsCache } from './completionsCache';
-import { EmbeddingsSQLiteCache } from './embeddingsCache';
-import { TestingCacheSalts } from './salts';
 import { ISimulationEndpointHealth, SimulationEndpointHealthImpl } from './simulationEndpointHealth';
-import { SimulationCodeSearchChunkSearchService } from './simuliationWorkspaceChunkSearch';
 import { FetchRequestCollector, SpyingChatMLFetcher } from './spyingChatMLFetcher';
 import { SimulationTest } from './stest';
 import { ChatModelThrottlingTaskLaunchers, ThrottlingLimits as SimulationThrottlingLimits, ThrottlingChatMLFetcher } from './throttlingChatMLFetcher';
-import { ThrottlingCodeOrDocsSearchClient } from './throttlingCodeOrDocsSearchClient';
 
 const dotSimulationPath = path.join(__dirname, `../${SIMULATION_FOLDER_NAME}`);
 
 export enum CacheScope {
-	Embeddings = 'embeddings',
 	TSC = 'tsc',
-	Roslyn = 'roslyn',
-	ESLint = 'eslint',
-	Pylint = 'pylint',
-	Ruff = 'ruff',
 	Pyright = 'pyright',
 	Python = 'python',
-	Notebook = 'notebook',
-	DocSearch = 'docs-search',
-	CodeSearch = 'code-search',
-	CPP = 'cpp',
-	Chunks = 'chunks-endpoint',
 }
 
 export const ICachingResourceFetcher = createServiceIdentifier<ICachingResourceFetcher>('ICachingResourceFetcher');
@@ -140,9 +122,6 @@ export interface SimulationServicesOptions {
 	createNesFetchCache?: (info: CurrentTestRunInfo) => ICompletionsCache;
 	resourcesCacheMode: CacheMode;
 	disabledTools: Set<string>;
-	swebenchPrompt: boolean;
-	summarizeHistory: boolean;
-	useExperimentalCodeSearchService: boolean;
 	configs: Record<string, unknown> | undefined;
 }
 
@@ -161,17 +140,11 @@ export interface CurrentTestRunInfo {
 	 * For each test run, we capture fetch requests made.
 	 */
 	fetchRequestCollector: FetchRequestCollector;
-
-	/**
-	 * Whether we're working in a real workspace and extension host.
-	 */
-	isInRealExtensionHost: boolean;
 }
 
 /**
  * Creates an accessor suitable for running tests.
  * The `IChatMLFetcher` will use caching and the chat endpoint is configurable via the `chatModel` parameter.
- * The `IEmbeddingsComputer` will use caching and the embeddings endpoint is configurable via the `embeddingsModel` parameter.
  */
 export async function createSimulationAccessor(
 	modelConfig: ISimulationModelConfig,
@@ -179,10 +152,6 @@ export async function createSimulationAccessor(
 	currentTestRunInfo: CurrentTestRunInfo
 ): Promise<TestingServiceCollection> {
 	const testingServiceCollection = createExtensionUnitTestingServices(undefined, currentTestRunInfo, modelConfig);
-	if (currentTestRunInfo.isInRealExtensionHost) {
-		const { addExtensionHostSimulationServices } = await import('./extHostContext/simulationExtHostContext');
-		await addExtensionHostSimulationServices(testingServiceCollection);
-	}
 
 	testingServiceCollection.define(ITestInformation, new SyncDescriptor(TestInformation, [currentTestRunInfo.test]));
 	try {
@@ -195,7 +164,6 @@ export async function createSimulationAccessor(
 			[
 				new DefaultsOnlyConfigurationService(),
 				new Map<ExperimentBasedConfig<ExperimentBasedConfigType> | Config<any>, unknown>([
-					[ConfigKey.SummarizeAgentConversationHistory, opts.summarizeHistory],
 					...currentTestRunInfo.test.configurations?.map<[ExperimentBasedConfig<ExperimentBasedConfigType> | Config<any>, unknown]>(c => [c.key, c.value]) ?? [],
 					...configs,
 				]),
@@ -218,9 +186,6 @@ export async function createSimulationAccessor(
 	testingServiceCollection.define(IVSCodeExtensionContext, new SyncDescriptor(MockExtensionContext, [globalStoragePath, constructGlobalStateMemento(globalStatePath)]));
 	testingServiceCollection.define(IIntentService, new SyncDescriptor(IntentService));
 
-	testingServiceCollection.define(IAIEvaluationService, new SyncDescriptor(AIEvaluationService));
-
-	const docsSearchClient = new SyncDescriptor(ThrottlingCodeOrDocsSearchClient, [new SyncDescriptor(DocsSearchClient)]);
 	testingServiceCollection.define(ITokenizerProvider, new SyncDescriptor(TokenizerProvider, [false]));
 
 	const cacheTestInfo = new CachedTestInfo(currentTestRunInfo.test, currentTestRunInfo.testRunNumber);
@@ -262,23 +227,13 @@ export async function createSimulationAccessor(
 		);
 	}
 
-	if (opts.languageModelCacheMode === CacheMode.Disable) {
-		testingServiceCollection.define(IEmbeddingsComputer, new SyncDescriptor(RemoteEmbeddingsComputer));
-		testingServiceCollection.define(IDocsSearchClient, docsSearchClient);
-		testingServiceCollection.define(IChunkingEndpointClient, new SyncDescriptor(ChunkingEndpointClientImpl));
-		testingServiceCollection.define(ICombinedEmbeddingIndex, new SyncDescriptor(VSCodeCombinedIndexImpl, [/*useRemoteCache*/ true]));
-		testingServiceCollection.define(IApiEmbeddingsIndex, new SyncDescriptor(ApiEmbeddingsIndex, [/*useRemoteCache*/ true]));
-	} else {
-		const embeddingCache = new EmbeddingsSQLiteCache(TestingCacheSalts.embeddingsCacheSalt, currentTestRunInfo);
-		testingServiceCollection.define(IEmbeddingsComputer, new SyncDescriptor(CachingEmbeddingsComputer, [embeddingCache]));
+	testingServiceCollection.define(IEmbeddingsComputer, new SyncDescriptor(RemoteEmbeddingsComputer));
+	testingServiceCollection.define(IDocsSearchClient, new SyncDescriptor(DocsSearchClient));
+	testingServiceCollection.define(IChunkingEndpointClient, new SyncDescriptor(ChunkingEndpointClientImpl));
 
-		const codeOrDocSearchCache = new CodeOrDocSearchSQLiteCache(TestingCacheSalts.codeSearchCacheSalt, currentTestRunInfo);
-		const chunksEndpointCache = new ChunkingEndpointClientSQLiteCache(TestingCacheSalts.chunksEndpointCacheSalt, currentTestRunInfo);
-		testingServiceCollection.define(IDocsSearchClient, new SyncDescriptor(CachingCodeOrDocSearchClient, [docsSearchClient, codeOrDocSearchCache]));
-		testingServiceCollection.define(ICombinedEmbeddingIndex, new SyncDescriptor(VSCodeCombinedIndexImpl, [/*useRemoteCache*/ false]));
-		testingServiceCollection.define(IApiEmbeddingsIndex, new SyncDescriptor(ApiEmbeddingsIndex, [/*useRemoteCache*/ false]));
-		testingServiceCollection.define(IChunkingEndpointClient, new SyncDescriptor(CachingChunkingEndpointClient, [chunksEndpointCache]));
-	}
+	const useRemoteEmbeddingsIndexCache = opts.languageModelCacheMode === CacheMode.Disable;
+	testingServiceCollection.define(ICombinedEmbeddingIndex, new SyncDescriptor(VSCodeCombinedIndexImpl, [useRemoteEmbeddingsIndexCache]));
+	testingServiceCollection.define(IApiEmbeddingsIndex, new SyncDescriptor(ApiEmbeddingsIndex, [useRemoteEmbeddingsIndexCache]));
 
 	testingServiceCollection.define(INaiveChunkingService, new SyncDescriptor(NaiveChunkingService));
 	testingServiceCollection.define(ILinkifyService, new SyncDescriptor(LinkifyService));
@@ -290,11 +245,7 @@ export async function createSimulationAccessor(
 	testingServiceCollection.define(IWorkspaceFileIndex, new SyncDescriptor(WorkspaceFileIndex));
 	testingServiceCollection.define(IGithubAvailableEmbeddingTypesService, new SyncDescriptor(MockGithubAvailableEmbeddingTypesService));
 
-	if (opts.useExperimentalCodeSearchService) {
-		testingServiceCollection.define(IWorkspaceChunkSearchService, new SyncDescriptor(SimulationCodeSearchChunkSearchService, []));
-	} else {
-		testingServiceCollection.define(IWorkspaceChunkSearchService, new SyncDescriptor(WorkspaceChunkSearchService));
-	}
+	testingServiceCollection.define(IWorkspaceChunkSearchService, new SyncDescriptor(WorkspaceChunkSearchService));
 
 	return testingServiceCollection;
 }

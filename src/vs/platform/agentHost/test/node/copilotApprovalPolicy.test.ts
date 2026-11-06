@@ -4,9 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import type { PermissionMode, SessionEventPayload } from '@github/copilot-sdk';
+import type { JsonValue, PermissionMode, SessionEventPayload } from '@github/copilot-sdk';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
-import { CopilotSessionApprovalPolicy, fromCopilotPermissionMode, getCopilotApprovalConfig, getCopilotApprovalPolicy } from '../../node/copilot/copilotApprovalPolicy.js';
+import { CopilotSessionApprovalPolicy, fromCopilotPermissionMode, getCopilotApprovalConfig, getCopilotApprovalPolicy, isManagedWorkspaceRetrievalWithheld } from '../../node/copilot/copilotApprovalPolicy.js';
 import { getAvailableSessionApprovalValues, getSessionApprovalProperty } from '../../common/sessionConfigProperties.js';
 
 type Resolved = SessionEventPayload<'session.managed_settings_resolved'>['data'];
@@ -97,6 +97,35 @@ suite('Copilot approval policy', () => {
 
 	test('runtime fail-closed state remains restrictive despite explicit new settings', () => {
 		assert.deepStrictEqual(getCopilotApprovalPolicy({ ...baseline, failClosed: true, settings: { permissions: { disableBypassPermissionsMode: 'enable' } } }, true).available, ['default']);
+	});
+
+	test('enterprise managed permission rules withhold workspace retrieval that the SDK cannot match against read rules', () => {
+		const withPermissions = (permissions: { [key: string]: JsonValue }): Resolved => ({ ...baseline, serverManaged: true, settings: { permissions } });
+		assert.deepStrictEqual({
+			none: isManagedWorkspaceRetrievalWithheld(baseline),
+			modesOnly: isManagedWorkspaceRetrievalWithheld(withPermissions({ disableBypassPermissionsMode: 'disable', defaultMode: 'assisted' })),
+			domainBoundaryOnly: isManagedWorkspaceRetrievalWithheld(withPermissions({ limitTo: ['Domain(example.com)'] })),
+			emptyRuleLists: isManagedWorkspaceRetrievalWithheld(withPermissions({ deny: [], ask: [], allow: [] })),
+			readDenied: isManagedWorkspaceRetrievalWithheld(withPermissions({ deny: ['Read(/denied/**)'] })),
+			shellAsk: isManagedWorkspaceRetrievalWithheld(withPermissions({ ask: ['Shell'] })),
+			allow: isManagedWorkspaceRetrievalWithheld(withPermissions({ allow: ['Read(/src/**)'] })),
+			allowIntersected: isManagedWorkspaceRetrievalWithheld({ ...baseline, permissionsAllowIntersected: true }),
+			contextRule: isManagedWorkspaceRetrievalWithheld({ ...baseline, permissionsContext: { failClosed: false, permissions: { deny: ['Read(/denied/**)'] } } }),
+			failClosed: isManagedWorkspaceRetrievalWithheld({ ...baseline, failClosed: true }),
+			contextFailClosed: isManagedWorkspaceRetrievalWithheld({ ...baseline, permissionsContext: { failClosed: true } }),
+		}, {
+			none: false,
+			modesOnly: false,
+			domainBoundaryOnly: false,
+			emptyRuleLists: false,
+			readDenied: true,
+			shellAsk: true,
+			allow: true,
+			allowIntersected: true,
+			contextRule: true,
+			failClosed: true,
+			contextFailClosed: true,
+		});
 	});
 
 	test('launch snapshots do not apply until selection and runtime observations remain immediate', () => {

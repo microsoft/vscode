@@ -73,6 +73,8 @@ export interface IChatTipProvider {
 	readonly onDidChange: Event<void>;
 	provideTip(): IChatTip | undefined;
 	dismissTip(tipId: string): void;
+	resetSession?(): void;
+	clearDismissedTips?(): void;
 	hasMultipleTips?(): boolean;
 	navigateTip?(direction: 1 | -1): IChatTip | undefined;
 }
@@ -372,6 +374,9 @@ export class ChatTipService extends Disposable implements IChatTipService {
 	}
 
 	resetSession(): void {
+		for (const provider of this._tipProviders) {
+			provider.resetSession?.();
+		}
 		this._shownTip = undefined;
 		this._tipRequestId = undefined;
 		this._contextKeyService = undefined;
@@ -382,6 +387,7 @@ export class ChatTipService extends Disposable implements IChatTipService {
 
 	dismissTip(): void {
 		if (this._activeTipProvider && this._activeProvidedTip) {
+			this._logTipTelemetry(this._activeProvidedTip.id, 'dismissed');
 			this._activeTipProvider.dismissTip(this._activeProvidedTip.id);
 			this._activeTipProvider = undefined;
 			this._activeProvidedTip = undefined;
@@ -412,6 +418,9 @@ export class ChatTipService extends Disposable implements IChatTipService {
 		this._tipRequestId = undefined;
 		this._contextKeyService = undefined;
 		this._tipsHiddenForSession = false;
+		for (const provider of this._tipProviders) {
+			provider.clearDismissedTips?.();
+		}
 		this._onDidDismissTip.fire();
 	}
 
@@ -442,10 +451,13 @@ export class ChatTipService extends Disposable implements IChatTipService {
 	}
 
 	hideTip(): void {
-		if (this._shownTip) {
-			this._logTipTelemetry(this._shownTip.id, 'hidden');
+		const tipId = this._activeProvidedTip?.id ?? this._shownTip?.id;
+		if (tipId) {
+			this._logTipTelemetry(tipId, 'hidden');
 		}
 		this._shownTip = undefined;
+		this._activeTipProvider = undefined;
+		this._activeProvidedTip = undefined;
 		this._tipRequestId = undefined;
 		this._onDidHideTip.fire();
 	}
@@ -457,15 +469,20 @@ export class ChatTipService extends Disposable implements IChatTipService {
 
 		this._tipsHiddenForSession = true;
 		this._shownTip = undefined;
+		this._activeTipProvider = undefined;
+		this._activeProvidedTip = undefined;
 		this._tipRequestId = undefined;
 		this._onDidHideTip.fire();
 	}
 
 	async disableTips(): Promise<void> {
-		if (this._shownTip) {
-			this._logTipTelemetry(this._shownTip.id, 'disabled');
+		const tipId = this._activeProvidedTip?.id ?? this._shownTip?.id;
+		if (tipId) {
+			this._logTipTelemetry(tipId, 'disabled');
 		}
 		this._shownTip = undefined;
+		this._activeTipProvider = undefined;
+		this._activeProvidedTip = undefined;
 		this._tipRequestId = undefined;
 		await this._configurationService.updateValue('chat.tips.enabled', false, ConfigurationTarget.APPLICATION);
 		this._onDidDisableTips.fire();
@@ -518,8 +535,13 @@ export class ChatTipService extends Disposable implements IChatTipService {
 		for (const provider of this._tipProviders) {
 			const tip = provider.provideTip();
 			if (tip) {
+				const isNewTip = this._activeTipProvider !== provider || this._activeProvidedTip?.id !== tip.id;
 				this._activeTipProvider = provider;
 				this._activeProvidedTip = tip;
+				if (isNewTip) {
+					this._logTipTelemetry(tip.id, 'shown');
+				}
+				this._trackTipCommandClicks(tip);
 				return tip;
 			}
 		}
@@ -537,7 +559,7 @@ export class ChatTipService extends Disposable implements IChatTipService {
 						this._storageService.store(ChatTipStorageKeys.LastTipId, switchToAutoTip.id, StorageScope.APPLICATION, StorageTarget.USER);
 						const tip = this._createTip(switchToAutoTip);
 						this._logTipTelemetry(switchToAutoTip.id, 'shown');
-						this._trackTipCommandClicks(switchToAutoTip);
+						this._trackTipCommandClicks(tip);
 						this._onDidNavigateTip.fire(tip);
 						return tip;
 					}
@@ -562,7 +584,9 @@ export class ChatTipService extends Disposable implements IChatTipService {
 				this.hideTip();
 				return undefined;
 			}
-			return this._createTip(this._shownTip);
+			const tip = this._createTip(this._shownTip);
+			this._trackTipCommandClicks(tip);
+			return tip;
 		}
 
 		const tip = this._pickTip('welcome', contextKeyService);
@@ -643,10 +667,11 @@ export class ChatTipService extends Disposable implements IChatTipService {
 		this._tipRequestId = sourceId;
 		this._shownTip = selectedTip;
 
+		const tip = this._createTip(selectedTip);
 		this._logTipTelemetry(selectedTip.id, 'shown');
-		this._trackTipCommandClicks(selectedTip);
+		this._trackTipCommandClicks(tip);
 
-		return this._createTip(selectedTip);
+		return tip;
 	}
 
 	private _selectTipByTier(eligibleTips: readonly ITipDefinition[]): ITipDefinition | undefined {
@@ -698,9 +723,10 @@ export class ChatTipService extends Disposable implements IChatTipService {
 			this._shownTip = candidate;
 			this._tipRequestId = 'welcome';
 			this._storageService.store(ChatTipStorageKeys.LastTipId, candidate.id, StorageScope.APPLICATION, StorageTarget.USER);
+			const tip = this._createTip(candidate);
 			this._logTipTelemetry(candidate.id, 'shown');
-			this._trackTipCommandClicks(candidate);
-			return this._createTip(candidate);
+			this._trackTipCommandClicks(tip);
+			return tip;
 		}
 
 		return undefined;
@@ -738,9 +764,13 @@ export class ChatTipService extends Disposable implements IChatTipService {
 
 	private _navigateTip(direction: 1 | -1, contextKeyService: IContextKeyService): IChatTip | undefined {
 		if (this._activeTipProvider && this._activeProvidedTip) {
+			const previousTip = this._activeProvidedTip;
 			const tip = this._activeTipProvider.navigateTip?.(direction);
 			if (tip) {
+				this._logTipTelemetry(previousTip.id, direction === 1 ? 'navigateNext' : 'navigatePrevious');
 				this._activeProvidedTip = tip;
+				this._logTipTelemetry(tip.id, 'shown');
+				this._trackTipCommandClicks(tip);
 				this._onDidNavigateTip.fire(tip);
 			}
 			return tip;
@@ -769,9 +799,9 @@ export class ChatTipService extends Disposable implements IChatTipService {
 			this._shownTip = candidate;
 			this._tipRequestId = 'welcome';
 			this._storageService.store(ChatTipStorageKeys.LastTipId, candidate.id, StorageScope.APPLICATION, StorageTarget.USER);
-			this._logTipTelemetry(candidate.id, 'shown');
-			this._trackTipCommandClicks(candidate);
 			const tip = this._createTip(candidate);
+			this._logTipTelemetry(candidate.id, 'shown');
+			this._trackTipCommandClicks(tip);
 			this._onDidNavigateTip.fire(tip);
 			return tip;
 		}
@@ -960,22 +990,23 @@ export class ChatTipService extends Disposable implements IChatTipService {
 		});
 	}
 
-	private _trackTipCommandClicks(tip: ITipDefinition): void {
+	private _trackTipCommandClicks(tip: IChatTip): void {
 		this._tipCommandListener.clear();
 
-		// Build message to extract enabled commands dynamically
-		const ctx: ITipBuildContext = { keybindingService: this._keybindingService, experimentalTipMessages: this._experimentalTipMessages };
-		const rawMessage = tip.buildMessage(ctx);
-		const enabledCommands = extractCommandIds(rawMessage.value);
+		const enabledCommands = tip.enabledCommands;
 
-		if (!enabledCommands.length) {
+		if (!enabledCommands?.length) {
 			return;
 		}
 		const enabledCommandSet = new Set(enabledCommands);
 		this._tipCommandListener.value = this._commandService.onDidExecuteCommand(e => {
-			if (enabledCommandSet.has(e.commandId) && this._shownTip?.id === tip.id) {
+			const activeProvidedTip = this._activeProvidedTip;
+			const activeTipId = activeProvidedTip?.id ?? this._shownTip?.id;
+			if (enabledCommandSet.has(e.commandId) && activeTipId === tip.id) {
 				this._logTipTelemetry(tip.id, 'commandClicked', e.commandId);
-				this.dismissTipForSession();
+				if (!activeProvidedTip) {
+					this.dismissTipForSession();
+				}
 			}
 		});
 	}

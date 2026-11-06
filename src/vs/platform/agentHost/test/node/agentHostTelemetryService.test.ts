@@ -14,49 +14,26 @@ import { FileService } from '../../../files/common/fileService.js';
 import { InMemoryFileSystemProvider } from '../../../files/common/inMemoryFilesystemProvider.js';
 import { NullLoggerService, NullLogService } from '../../../log/common/log.js';
 import type { IProductService } from '../../../product/common/productService.js';
-import { ITelemetryData, ITelemetryService, TelemetryLevel } from '../../../telemetry/common/telemetry.js';
+import { ITelemetryData, TelemetryLevel } from '../../../telemetry/common/telemetry.js';
+import { CapturingTelemetryService } from '../../../telemetry/test/common/testTelemetryService.js';
 import { AgentHostTelemetryLevelConfigKey, telemetryLevelToAgentHostConfigValue } from '../../common/agentHostSchema.js';
 import { AgentHostRestrictedTelemetrySender, IAgentHostRestrictedTelemetry, IAgentHostInternalTelemetryContext, IAgentHostRestrictedTelemetryContext, TelemetryProps } from '../../node/agentHostRestrictedTelemetry.js';
 import { AgentHostTelemetryService, createAgentHostTelemetryService, type IAgentHostTelemetryService, updateAgentHostTelemetryLevelFromConfig } from '../../node/agentHostTelemetryService.js';
 import { AgentHostInternalTelemetrySender } from '../../node/agentHostMicrosoftTelemetry.js';
 
-class TestTelemetryService implements ITelemetryService {
-	declare readonly _serviceBrand: undefined;
-
-	telemetryLevel = TelemetryLevel.USAGE;
-	sendErrorTelemetry = true;
-	sessionId = 'sessionId';
-	machineId = 'machineId';
-	sqmId = 'sqmId';
-	devDeviceId = 'devDeviceId';
-	firstSessionDate = 'firstSessionDate';
-	readonly events: { eventName: string; data: ITelemetryData | undefined }[] = [];
-	readonly errorEvents: { eventName: string; data: ITelemetryData | undefined }[] = [];
-	readonly commonProperties: Record<string, string | boolean> = {};
-
-	publicLog(eventName: string, data?: ITelemetryData): void {
-		this.events.push({ eventName, data });
-	}
-
-	publicLogError(eventName: string, data?: ITelemetryData): void {
-		this.errorEvents.push({ eventName, data });
-	}
-
-	publicLog2(eventName: string, data?: ITelemetryData): void {
-		this.events.push({ eventName, data });
-	}
-
-	publicLogError2(eventName: string, data?: ITelemetryData): void {
-		this.errorEvents.push({ eventName, data });
-	}
-
-	setExperimentProperty(): void { }
-	setCommonProperty(name: string, value: string | boolean | undefined): void {
-		if (value === undefined) {
-			delete this.commonProperties[name];
-		} else {
-			this.commonProperties[name] = value;
-		}
+class TestTelemetryService extends CapturingTelemetryService<ITelemetryData | undefined> {
+	constructor() {
+		super({
+			captureLegacyEvents: true,
+			captureErrors: true,
+			separateErrors: true,
+			sendErrorTelemetry: true,
+			sessionId: 'sessionId',
+			machineId: 'machineId',
+			sqmId: 'sqmId',
+			devDeviceId: 'devDeviceId',
+			firstSessionDate: 'firstSessionDate',
+		});
 	}
 }
 

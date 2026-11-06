@@ -15,6 +15,7 @@ import { createTestArtifactRequestPresentation } from '../../../artifactIntegrat
 import { ArtifactChatAction, ArtifactChatEvent, ArtifactProtocolChatAccess, IArtifactChatBackend } from '../../common/artifactIntegrationChat.js';
 import { AgentHostArtifactRequestMetaKey, AgentHostArtifactRunInitiatorMetaKey, AgentHostArtifactRunMetaKey, getAgentHostArtifactIntegrationsCapability, readArtifactIntegrationRequest } from '../../common/meta/agentHostArtifactIntegrationMeta.js';
 import { ActionType, ChatAction } from '../../common/state/sessionActions.js';
+import { chatTurnComplete, chatTurnStarted } from './chatActionBuilders.js';
 import { chatReducer } from '../../common/state/protocol/reducers.js';
 import { PROTOCOL_VERSION } from '../../common/state/protocol/version/registry.js';
 import { buildDefaultChatUri, ChatOriginKind, ChatState, MessageAttachmentKind, MessageKind, PendingMessageKind, ResponsePartKind, SessionStatus } from '../../common/state/sessionState.js';
@@ -148,7 +149,7 @@ suite('Artifact Integration Chat', () => {
 		f.apply({ type: ActionType.ChatTurnStarted, turnId: 'backend-turn', queuedMessageId: queued.id, startedAt: new Date(1).toISOString(), message: { text: queued.message.text, origin: { kind: MessageKind.User } } });
 		await waitForState(handle.state, value => value.kind === 'running');
 		const completedWhileRunning = completed;
-		f.apply({ type: ActionType.ChatTurnComplete, turnId: 'backend-turn', duration: 1 });
+		f.apply(chatTurnComplete('backend-turn', 1));
 		const outcome = await completion;
 		assert.deepStrictEqual({
 			completedOnAcceptance, completedWhileRunning, outcome: outcome.kind, turnId: outcome.turnId,
@@ -158,14 +159,14 @@ suite('Artifact Integration Chat', () => {
 
 	test('an active human turn wins the idle check and is never steered or replaced', async () => {
 		const f = fixture();
-		f.apply({ type: ActionType.ChatTurnStarted, turnId: 'human-turn', startedAt: new Date(1).toISOString(), message: { text: 'Human message', origin: { kind: MessageKind.User } } });
+		f.apply(chatTurnStarted('human-turn', 'Human message', new Date(1).toISOString()));
 		assert.deepStrictEqual({ result: await f.access.submit(request, CancellationToken.None), dispatches: f.dispatches, active: f.state.get().activeTurn?.id }, { result: { kind: 'busy' }, dispatches: [], active: 'human-turn' });
 	});
 
 	test('best-effort admission queues behind a human turn that wins the dispatch race', async () => {
 		const f = fixture();
 		f.beforeDispatch(() => {
-			f.apply({ type: ActionType.ChatTurnStarted, turnId: 'human-turn', startedAt: new Date(1).toISOString(), message: { text: 'Human message', origin: { kind: MessageKind.User } } });
+			f.apply(chatTurnStarted('human-turn', 'Human message', new Date(1).toISOString()));
 		});
 		await submit(f);
 		assert.deepStrictEqual({
@@ -230,7 +231,7 @@ suite('Artifact Integration Chat', () => {
 	test('completion can be awaited after the terminal handle was disposed', async () => {
 		const f = fixture('atomic');
 		const handle = await submit(f);
-		f.apply({ type: ActionType.ChatTurnComplete, turnId: request.requestId, duration: 1 });
+		f.apply(chatTurnComplete(request.requestId, 1));
 		await waitForState(handle.state, state => state.kind === 'completed');
 		handle.dispose();
 		assert.deepStrictEqual({ outcome: (await handle.completion).kind, leases: f.leases() }, { outcome: 'completed', leases: 0 });
@@ -338,7 +339,7 @@ suite('Artifact Integration Chat', () => {
 		f.available.set(false, undefined);
 		await waitForState(handle.state, value => value.kind === 'unavailable');
 		f.apply({ type: ActionType.ChatTurnStarted, turnId: 'offline-turn', queuedMessageId: request.requestId, startedAt: new Date(1).toISOString(), message: f.state.get().queuedMessages![0].message }, false);
-		f.apply({ type: ActionType.ChatTurnComplete, turnId: 'offline-turn', duration: 1 }, false);
+		f.apply(chatTurnComplete('offline-turn', 1), false);
 		const disconnected = { state: handle.state.get().kind, settled };
 		f.available.set(true, undefined);
 		const outcome = await completion;
@@ -360,7 +361,7 @@ suite('Artifact Integration Chat', () => {
 		const recovered = await f.createAccess().recover(request, receipt, CancellationToken.None);
 		assert.ok(recovered.kind === 'attached');
 		const handle = store.add(recovered.handle);
-		f.apply({ type: ActionType.ChatTurnComplete, turnId: 'legacy-turn', duration: 1 });
+		f.apply(chatTurnComplete('legacy-turn', 1));
 		const outcome = await handle.completion;
 		assert.deepStrictEqual({
 			requestId: handle.requestId, receipt, outcome: outcome.kind, turnId: outcome.turnId, dispatches: f.dispatches.length,
@@ -373,7 +374,7 @@ suite('Artifact Integration Chat', () => {
 		const receipt = first.receipt;
 		f.access.dispose();
 		f.apply({ type: ActionType.ChatTurnStarted, turnId: 'finished-turn', queuedMessageId: request.requestId, startedAt: new Date(1).toISOString(), message: f.state.get().queuedMessages![0].message });
-		f.apply({ type: ActionType.ChatTurnComplete, turnId: 'finished-turn', duration: 1 });
+		f.apply(chatTurnComplete('finished-turn', 1));
 		const recovered = await f.createAccess().recover(request, receipt, CancellationToken.None);
 		assert.ok(recovered.kind === 'attached');
 		const handle = store.add(recovered.handle);
@@ -391,7 +392,7 @@ suite('Artifact Integration Chat', () => {
 			type: ActionType.ChatTurnStarted, turnId: 'unidentified-turn', queuedMessageId: request.requestId,
 			startedAt: new Date(1).toISOString(), message: { text: request.prompt.text, origin: { kind: MessageKind.User } },
 		});
-		f.apply({ type: ActionType.ChatTurnComplete, turnId: 'unidentified-turn', duration: 1 });
+		f.apply(chatTurnComplete('unidentified-turn', 1));
 		const recovered = await f.createAccess().recover(request, receipt, CancellationToken.None);
 		assert.ok(recovered.kind === 'attached');
 		const handle = store.add(recovered.handle);
@@ -422,7 +423,7 @@ suite('Artifact Integration Chat', () => {
 			type: ActionType.ChatTurnStarted, turnId: 'shared-turn', queuedMessageId: request.requestId,
 			startedAt: new Date(1).toISOString(), message: { text: request.prompt.text, origin: { kind: MessageKind.User } },
 		});
-		f.apply({ type: ActionType.ChatTurnComplete, turnId: 'shared-turn', duration: 1 });
+		f.apply(chatTurnComplete('shared-turn', 1));
 		const outcome = await second.completion;
 		assert.deepStrictEqual({ outcome: outcome.kind, turnId: outcome.turnId, dispatches: f.dispatches.length }, { outcome: 'completed', turnId: 'shared-turn', dispatches: 1 });
 	});
@@ -442,8 +443,8 @@ suite('Artifact Integration Chat', () => {
 		f.beforeDispatch(action => {
 			if (action.type === ActionType.ChatPendingMessageRemoved) {
 				f.apply({ type: ActionType.ChatTurnStarted, turnId: 'finished-turn', queuedMessageId: request.requestId, startedAt: new Date(1).toISOString(), message: { text: request.prompt.text, origin: { kind: MessageKind.User } } });
-				f.apply({ type: ActionType.ChatTurnComplete, turnId: 'finished-turn', duration: 1 });
-				f.apply({ type: ActionType.ChatTurnStarted, turnId: 'human-turn', startedAt: new Date(2).toISOString(), message: { text: 'Human message', origin: { kind: MessageKind.User } } });
+				f.apply(chatTurnComplete('finished-turn', 1));
+				f.apply(chatTurnStarted('human-turn', 'Human message', new Date(2).toISOString()));
 			}
 		});
 		await handle.cancel(CancellationToken.None);

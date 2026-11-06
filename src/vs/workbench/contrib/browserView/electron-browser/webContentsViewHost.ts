@@ -6,6 +6,7 @@
 import './media/browser.css';
 import { $, addDisposableListener, EventType, registerExternalFocusChecker } from '../../../../base/browser/dom.js';
 import { StandardKeyboardEvent } from '../../../../base/browser/keyboardEvent.js';
+import { registerOverlayAnchor } from '../../../../base/browser/overlayLayoutElement.js';
 import type { CodeWindow } from '../../../../base/browser/window.js';
 import { encodeBase64, VSBuffer } from '../../../../base/common/buffer.js';
 import { Disposable, DisposableStore, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
@@ -30,6 +31,7 @@ export class WebContentsViewHost extends Disposable {
 	private _model: IBrowserViewModel | undefined;
 	private _editorVisible = false;
 	private _overlayObscured = false;
+	private _hiddenAsAnchor = false;
 
 	private readonly _placeholderScreenshot = $('.browser-placeholder-screenshot');
 	private readonly _overlayPauseElement = $('.browser-overlay-paused');
@@ -66,6 +68,13 @@ export class WebContentsViewHost extends Disposable {
 
 	onContainerCreated(container: HTMLElement): void {
 		this._container = container;
+		// What moves the container by transforms, such as a card dragged in a window, hides the page meanwhile: it does not move with it
+		this._register(registerOverlayAnchor(container, {
+			setHidden: hidden => {
+				this._hiddenAsAnchor = hidden;
+				this._refresh(false, true);
+			}
+		}));
 		this._register(addDisposableListener(container, EventType.FOCUS, () => this.tryFocus()));
 		this._register(addDisposableListener(container, EventType.BLUR, () => this._cancelFocusTimeout()));
 		this._register(registerExternalFocusChecker(() => ({
@@ -75,10 +84,18 @@ export class WebContentsViewHost extends Disposable {
 		this._refreshOverlayObscured();
 	}
 
-	setVisible(visible: boolean): void {
+	/**
+	 * Shows or hides the page with its container. A hide waits a frame so the screenshot
+	 * placeholder can take over, unless `immediate`, because the container itself is
+	 * hidden and nothing would bridge that frame.
+	 */
+	setVisible(visible: boolean, immediate = false): void {
 		if (this._editorVisible !== visible) {
 			this._editorVisible = visible;
-			this._refresh();
+			this._refresh(false, immediate);
+		} else if (!visible && immediate) {
+			// A hide requested earlier in this frame still waits for that frame, so hide now.
+			this._refresh(false, true);
 		}
 	}
 
@@ -150,11 +167,12 @@ export class WebContentsViewHost extends Disposable {
 	private _shouldShowPage(): boolean {
 		return this._editorVisible
 			&& !this._overlayObscured
+			&& !this._hiddenAsAnchor
 			&& !!this._model?.url
 			&& !this._model.error;
 	}
 
-	private _refresh(restartScreenshot = false): void {
+	private _refresh(restartScreenshot = false, hideImmediately = false): void {
 		if (restartScreenshot) {
 			this._screenshotSequence++;
 		}
@@ -184,6 +202,10 @@ export class WebContentsViewHost extends Disposable {
 			}
 		} else {
 			void this._captureScreenshot();
+			if (hideImmediately) {
+				void this._model.setVisible(false);
+				return;
+			}
 			this.targetWindow.requestAnimationFrame(() => {
 				if (this._model && !this._shouldShowPage()) {
 					void this._model.setVisible(false);

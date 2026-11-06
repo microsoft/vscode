@@ -25,9 +25,9 @@ import { IThemeService } from '../../../../platform/theme/common/themeService.js
 import { IsSessionsWindowContext } from '../../../../workbench/common/contextkeys.js';
 import { ChatContextKeys } from '../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
 import { CountTokensCallback, IPreparedToolInvocation, IToolData, IToolImpl, IToolInvocation, IToolInvocationPreparationContext, IToolResult, ToolDataSource, ToolProgress } from '../../../../workbench/contrib/chat/common/tools/languageModelToolsService.js';
-import { AGENT_SESSIONS_CHAT_BACKGROUND_CODICONS_PRESET, chatBackgroundImageExtensions, ChatBackgroundImageLayout, chatBackgroundImageLayoutValues, ISessionsChatBackgroundService } from '../../../services/chatBackground/browser/chatBackgroundService.js';
-import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
-import { AGENT_SESSIONS_APPEARANCE_TOOLS_ENABLED_SETTING } from '../common/constants.js';
+import { chatBackgroundImageExtensions, ChatBackgroundImageLayout, chatBackgroundImageLayoutValues, chatBackgroundPresets as sessionsChatBackgroundPresets, getChatBackgroundPresetLabel, ISessionsChatBackgroundService, SessionsChatBackgroundPreset } from '../../../../workbench/contrib/sessions/browser/chatBackgroundService.js';
+import { ISessionsManagementService } from '../../../../workbench/contrib/sessions/common/sessionsManagement.js';
+import { AGENT_SESSIONS_APPEARANCE_TOOLS_ENABLED_SETTING } from '../../../../workbench/contrib/sessions/common/chatConstants.js';
 
 export const SetChatBackgroundToolId = 'vscode_setChatBackground';
 export const SetChatBackgroundToolReferenceName = 'setChatBackground';
@@ -38,7 +38,7 @@ const MAX_IMAGE_SIZE = 25 * 1024 * 1024;
 /** Recently imported images are never pruned, so an import in another window is not deleted before that window applies it. */
 const PRUNE_GRACE_PERIOD = 60 * 1000;
 
-const chatBackgroundPresets = ['codicons', 'none'] as const;
+const chatBackgroundPresets = [...sessionsChatBackgroundPresets, 'none'] as const;
 type ChatBackgroundPreset = typeof chatBackgroundPresets[number];
 
 type SetChatBackgroundInput =
@@ -53,7 +53,7 @@ interface IImageSize {
 
 /** A chat background as reported to the model. */
 type ChatBackgroundOutput =
-	| { readonly kind: 'none' | 'codicons' }
+	| { readonly kind: 'none' | SessionsChatBackgroundPreset; readonly layout?: ChatBackgroundImageLayout }
 	| { readonly kind: 'image'; readonly image: string; readonly layout: ChatBackgroundImageLayout; readonly width?: number; readonly height?: number };
 
 /** An error the model can act on. Its message is returned to the model as is. */
@@ -86,7 +86,7 @@ export class SetChatBackgroundTool implements IToolImpl {
 			icon: Codicon.paintcan,
 			displayName: localize('setChatBackground.displayName', "Set Chat Background"),
 			userDescription: localize('setChatBackground.userDescription', "Set the chat background of the Agents window to an image or a pattern"),
-			modelDescription: `Set or remove the chat background in the Agents window, or change its image layout. Applies an existing image file or the Codicons preset; does not generate images.
+			modelDescription: `Set or remove the chat background in the Agents window, or change its image layout. Applies an existing image file or a built-in background (Codicons, Koi Light, or Koi Dark); does not generate images.
 
 Use an absolute image path or one relative to the invoking chat's working directory. Supports ${chatBackgroundImageExtensions.join(', ')} up to ${MAX_IMAGE_SIZE / (1024 * 1024)} MB. Images are copied into VS Code storage.
 
@@ -106,7 +106,7 @@ Changes persist across chats for the active color scheme, leaving the other sche
 					preset: {
 						type: 'string',
 						enum: [...chatBackgroundPresets],
-						description: '"codicons" for a theme-aware pattern of VS Code icons, "none" to remove the background. Not combined with image or layout.',
+						description: '"codicons" for a theme-aware pattern of VS Code icons, "koi-light" or "koi-dark" for an animated ASCII koi pond, "none" to remove the background. Not combined with image or layout.',
 					},
 					layout: {
 						type: 'string',
@@ -131,8 +131,8 @@ Changes persist across chats for the active color scheme, leaving the other sche
 					invocationMessage: localize('setChatBackground.invocation.none', "Removing the chat background"),
 					pastTenseMessage: localize('setChatBackground.past.none', "Removed the chat background"),
 				} : {
-					invocationMessage: localize('setChatBackground.invocation.codicons', "Setting the chat background to Codicons"),
-					pastTenseMessage: localize('setChatBackground.past.codicons', "Set the chat background to Codicons"),
+					invocationMessage: localize('setChatBackground.invocation.preset', "Setting the chat background to {0}", getChatBackgroundPresetLabel(input.preset)),
+					pastTenseMessage: localize('setChatBackground.past.preset', "Set the chat background to {0}", getChatBackgroundPresetLabel(input.preset)),
 				};
 			case 'image': {
 				const name = getFileName(input.image);
@@ -194,11 +194,11 @@ Changes persist across chats for the active color scheme, leaving the other sche
 		switch (preparedInput.kind) {
 			case 'preset':
 				if (preparedInput.preset === 'none') {
-					await this.backgroundService.clearBackground(theme);
+					await this.backgroundService.clearBackground('agent', theme);
 					message = localize('setChatBackground.result.none', "Removed the chat background");
 				} else {
-					await this.backgroundService.setBackground(AGENT_SESSIONS_CHAT_BACKGROUND_CODICONS_PRESET, theme);
-					message = localize('setChatBackground.result.codicons', "Set the chat background to Codicons");
+					await this.backgroundService.setBackground(preparedInput.preset, 'agent', theme);
+					message = localize('setChatBackground.result.preset', "Set the chat background to {0}", getChatBackgroundPresetLabel(preparedInput.preset));
 				}
 				break;
 			case 'image': {
@@ -206,9 +206,9 @@ Changes persist across chats for the active color scheme, leaving the other sche
 				image = prepared.image;
 				imageSize = prepared.size;
 				// From here on the change is applied even if the request is cancelled, so that the result stays accurate.
-				await this.backgroundService.setBackground(image, theme);
+				await this.backgroundService.setBackground(image, 'agent', theme);
 				if (preparedInput.layout) {
-					await this.backgroundService.setBackgroundImageLayout(preparedInput.layout, true, theme);
+					await this.backgroundService.setBackgroundImageLayout(preparedInput.layout, 'agent', true, theme);
 				}
 				message = localize('setChatBackground.result.image', "Set the chat background to {0}", prepared.name);
 				break;
@@ -217,7 +217,7 @@ Changes persist across chats for the active color scheme, leaving the other sche
 				if (replaced?.kind !== 'image') {
 					throw new SetChatBackgroundError('There is no background image to lay out. Pass "image" together with "layout".');
 				}
-				await this.backgroundService.setBackgroundImageLayout(preparedInput.layout, true, theme);
+				await this.backgroundService.setBackgroundImageLayout(preparedInput.layout, 'agent', true, theme);
 				message = localize('setChatBackground.result.layout', "Changed the chat background layout");
 				break;
 		}
@@ -381,6 +381,9 @@ Changes persist across chats for the active color scheme, leaving the other sche
 		if (background.kind === 'codicons') {
 			return { kind: 'codicons' };
 		}
+		if (background.preset) {
+			return { kind: background.preset, layout: this.backgroundService.getBackgroundImageLayout(colorScheme) };
+		}
 		return {
 			kind: 'image',
 			image: background.image.fsPath,
@@ -448,6 +451,7 @@ function resolveImage(value: string, workingDirectory: URI | undefined): URI {
 	const remote = workingDirectory?.scheme !== Schemas.file ? workingDirectory : undefined;
 	if (isFileUri) {
 		const uri = URI.parse(value);
+		// eslint-disable-next-line local/code-agent-host-uri-mapping -- wraps an absolute background-image filesystem URI using the working directory's host authority
 		return remote?.scheme === AGENT_HOST_SCHEME ? toAgentHostUri(uri, remote.authority)
 			: remote ? remote.with({ path: uri.path, fragment: '' }) : uri;
 	}
@@ -458,6 +462,7 @@ function resolveImage(value: string, workingDirectory: URI | undefined): URI {
 		// The agent host may run on another OS than this window, so convert Windows paths explicitly.
 		const path = /^[a-z]:[\\/]/i.test(value) ? `/${value.replace(/\\/g, '/')}` : value;
 		if (/^(\\\\|\/\/)/.test(value) && remote.scheme === AGENT_HOST_SCHEME) {
+			// eslint-disable-next-line local/code-agent-host-uri-mapping -- preserves a UNC image path's filesystem authority inside the working directory's host wrapper
 			return toAgentHostUri(URI.file(value.replace(/\\/g, '/')), remote.authority);
 		}
 		return remote.with({ path, fragment: '' });

@@ -8,31 +8,27 @@ import { CancellationToken, CancellationTokenSource } from '../../../../base/com
 import { Codicon } from '../../../../base/common/codicons.js';
 import { MarkdownString } from '../../../../base/common/htmlContent.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
-import { waitForState } from '../../../../base/common/observable.js';
 import { URI } from '../../../../base/common/uri.js';
-import { isStringArray } from '../../../../base/common/types.js';
 import { localize } from '../../../../nls.js';
 import { ConfirmationOptionKind } from '../../../../platform/agentHost/common/state/protocol/channels-chat/state.js';
 import { ChatAIDisabledSettingId } from '../../../../platform/chat/common/chatSettings.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
-import { JsonValue } from '../../../../platform/github/common/client/types.js';
-import { AutomationTrigger } from '../../../../platform/github/common/missionControl/automations.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { IWorkbenchContribution } from '../../../../workbench/common/contributions.js';
 import { ChatContextKeys } from '../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
-import { AutomationInterval, AutomationTarget, AutomationWorkspaceIsolation, IAutomationCloudTrigger, IAutomationDescriptor, IAutomationRun, IAutomationSchedule, IAutomationSessionTemplate, isAutomationModelConfiguration } from '../../../../workbench/contrib/chat/common/automations/automation.js';
+import { AutomationInterval, AutomationTarget, AutomationWorkspaceIsolation, IAutomationDescriptor, IAutomationRun, IAutomationSchedule, IAutomationSessionTemplate, isAutomationModelConfiguration } from '../../../../workbench/contrib/chat/common/automations/automation.js';
 import { IAutomationRunDispatch, IAutomationRunner } from '../../../../workbench/contrib/chat/common/automations/automationRunner.js';
-import { type AutomationCatalogueState, type AutomationMutationGuard, AutomationMutationUncertainError, AutomationRepositoryOwnershipUnavailableError, AutomationSessionTemplateAuthorityError, AutomationToolCatalog, AutomationTriggerCatalog, AutomationUnavailableError, assertAutomationTargetAuthority, ConfigureAutomationToolReferenceName, IAutomationProviderConfiguration, IAutomationService, ICreateAutomationOptions, IUpdateAutomationOptions, serializeAutomationEditableState } from '../../../../workbench/contrib/chat/common/automations/automationService.js';
-import { automationTriggerChoices, canEditAutomationTriggers } from '../../../../workbench/contrib/chat/common/automations/automationTriggers.js';
+import { type AutomationCatalogueState, type AutomationMutationGuard, AutomationMutationUncertainError, AutomationToolCatalog, AutomationSessionTemplateAuthorityError, AutomationUnavailableError, assertAutomationTargetAuthority, ConfigureAutomationToolReferenceName, IAutomationProviderConfiguration, IAutomationService, ICreateAutomationOptions, IDeleteAutomationOptions, IUpdateAutomationOptions, serializeAutomationEditableState } from '../../../../workbench/contrib/chat/common/automations/automationService.js';
 import { ChatAutomationsEnabledContext, CHAT_AUTOMATIONS_ENABLED_SETTING } from '../../../../workbench/contrib/chat/common/automations/automationsEnabled.js';
+import { getAutomationCronValidationError } from '../../../../workbench/contrib/chat/common/automations/schedule.js';
 import { IChatAutomationConfiguredData } from '../../../../workbench/contrib/chat/common/chatService/chatService.js';
 import { ChatPermissionLevel } from '../../../../workbench/contrib/chat/common/constants.js';
 import { CountTokensCallback, ILanguageModelToolsService, IPreparedToolInvocation, IToolData, IToolImpl, IToolInvocation, IToolInvocationPreparationContext, IToolResult, ToolDataSource, ToolProgress } from '../../../../workbench/contrib/chat/common/tools/languageModelToolsService.js';
-import { ISessionsProvidersService } from '../../../services/sessions/browser/sessionsProvidersService.js';
-import { ISession } from '../../../services/sessions/common/session.js';
-import { IProviderSessionType, ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
+import { ISessionsProvidersService } from '../../../../workbench/contrib/sessions/browser/sessionsProvidersService.js';
+import { ISession } from '../../../../workbench/contrib/sessions/common/session.js';
+import { IProviderSessionType, ISessionsManagementService } from '../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import { logAutomationConfigureOutcome } from './automationTelemetry.js';
 
 export const ListAutomationsToolId = 'vscode_listAutomations';
@@ -41,10 +37,8 @@ export const RunAutomationToolId = 'vscode_runAutomation';
 export const DeleteAutomationToolId = 'vscode_deleteAutomation';
 
 const automationToolWhen = ContextKeyExpr.and(ChatContextKeys.enabled, ChatAutomationsEnabledContext);
-const createEnabledConfirmationId = 'create-enabled';
-const createDisabledConfirmationId = 'create-disabled';
 const deleteAutomationConfirmationId = 'delete';
-const automationIntervals: readonly AutomationInterval[] = ['manual', 'hourly', 'daily', 'weekdays', 'weekly'];
+const automationIntervals: readonly AutomationInterval[] = ['manual', 'hourly', 'daily', 'weekdays', 'weekly', 'cron'];
 const automationIsolationKinds: readonly AutomationWorkspaceIsolation['kind'][] = ['default', 'folder', 'worktree'];
 const chatPermissionLevels: readonly ChatPermissionLevel[] = [ChatPermissionLevel.Default, ChatPermissionLevel.Assisted, ChatPermissionLevel.AutoApprove, ChatPermissionLevel.Autopilot];
 const MAX_SESSION_TEMPLATE_CONFIG_DEPTH = 32;
@@ -54,7 +48,6 @@ const uncertainAutomationRuns = new WeakMap<IAutomationProviderConfiguration, Re
 
 interface IAutomationToolOutput {
 	readonly id: string;
-	readonly ownership?: IAutomationDescriptor['ownership'];
 	readonly name: string;
 	readonly prompt: string;
 	readonly schedule: IAutomationSchedule;
@@ -85,6 +78,7 @@ interface IAutomationToolOutput {
 }
 
 interface IAutomationListToolOutput extends IAutomationToolOutput {
+	readonly supportsDeleteHistoryChoice?: true;
 	readonly availableOperations: readonly ('run' | 'update' | 'delete')[];
 	readonly activeRun?: Pick<IAutomationRun, 'id' | 'status' | 'startedAt'>;
 }
@@ -95,10 +89,7 @@ interface IAutomationProviderToolOutput {
 	readonly state: AutomationCatalogueState;
 	readonly historyState?: AutomationCatalogueState;
 	readonly canCreateAutomation: boolean;
-	readonly configuration?: Pick<IAutomationProviderConfiguration, 'sessionTypes' | 'description' | 'timeZone' | 'targetChangeDisabledReason'> & {
-		readonly tools?: AutomationToolCatalog;
-		readonly triggers?: AutomationTriggerCatalog;
-	};
+	readonly configuration?: Pick<IAutomationProviderConfiguration, 'sessionTypes' | 'description' | 'timeZone' | 'targetChangeDisabledReason'> & { readonly tools: AutomationToolCatalog };
 	readonly unavailableReason?: string;
 	readonly automations: readonly IAutomationListToolOutput[];
 }
@@ -141,7 +132,7 @@ export class ListAutomationsTool implements IToolImpl {
 			icon: Codicon.calendar,
 			displayName: localize('automation.tool.list.displayName', "List Automations"),
 			userDescription: localize('automation.tool.list.userDescription', "List scheduled agent automations"),
-			modelDescription: 'List enabled Automation providers and their currently visible automations. Use this before configuring or running an automation to obtain stable IDs, provider configuration, canCreateAutomation, and availableOperations. A provider\'s state applies only to that provider and never makes automations from another provider unavailable. When a provider is "ready", its automations array is complete for its known repositories; otherwise it may be incomplete, including when empty. Cloud discovery is not account-wide. This tool refreshes cloud definitions and requests the provider tool and trigger catalogs without changing saved automations. activeRun reports a known active run; historyState, when available, reports history readiness separately from definition readiness. A missing activeRun does not prove an uncertain request failed or is safe to repeat. Only ready catalogs supply selectable tool IDs or event triggers; loading or error is not an empty catalog. List again after loading completes or to retry a catalog error.',
+			modelDescription: 'List enabled Automation providers and their currently visible automations. Use this before configuring or running an automation to obtain stable IDs, provider configuration, canCreateAutomation, and availableOperations. A provider\'s state applies only to that provider and never makes automations from another provider unavailable. When a provider is "ready", its automations array is complete for its known repositories; otherwise it may be incomplete, including when empty. Cloud discovery is not account-wide. This tool refreshes cloud definitions and requests the provider tool catalog without changing saved automations. activeRun reports a known active run; historyState, when available, reports history readiness separately from definition readiness. A missing activeRun does not prove an uncertain request failed or is safe to repeat. Only a ready tool catalog supplies selectable tool IDs; loading or error is not an empty catalog. List again after loading completes or to retry a catalog error.',
 			source: ToolDataSource.Internal,
 			when: automationToolWhen,
 			runsInWorkspace: false,
@@ -175,7 +166,6 @@ export class ListAutomationsTool implements IToolImpl {
 			}
 			const configuration = store.configuration;
 			let tools: AutomationToolCatalog | undefined;
-			let triggers: AutomationTriggerCatalog | undefined;
 			let refreshError: string | undefined;
 			if (configuration) {
 				const uncertainRuns = uncertainAutomationRuns.get(configuration);
@@ -190,12 +180,8 @@ export class ListAutomationsTool implements IToolImpl {
 				if (token.isCancellationRequested || store.enabled?.get() === false || !isAutomationsEnabled(this.configurationService)) {
 					return [];
 				}
-				if (configuration.tools) {
-					tools = configuration.tools.get();
-					configuration.loadTools();
-				}
-				triggers = configuration.triggers?.get();
-				configuration.loadTriggers?.();
+				tools = configuration.tools.get();
+				configuration.loadTools();
 			}
 			if (store.enabled?.get() === false) {
 				return [];
@@ -209,14 +195,13 @@ export class ListAutomationsTool implements IToolImpl {
 				state,
 				...(historyState !== undefined ? { historyState } : {}),
 				canCreateAutomation: store.canCreateAutomation.get(),
-				...(configuration && (tools || triggers) ? {
+				...(configuration && tools ? {
 					configuration: {
 						sessionTypes: configuration.sessionTypes,
 						description: configuration.description,
 						timeZone: configuration.timeZone,
 						targetChangeDisabledReason: configuration.targetChangeDisabledReason,
-						...(tools ? { tools } : {}),
-						...(triggers ? { triggers } : {}),
+						tools,
 					}
 				} : {}),
 				...(unavailableReason !== undefined ? { unavailableReason } : {}),
@@ -382,7 +367,7 @@ export class DeleteAutomationTool implements IToolImpl {
 			icon: Codicon.trash,
 			displayName: localize('automation.tool.delete.displayName', "Delete Automation"),
 			userDescription: localize('automation.tool.delete.userDescription', "Delete a scheduled agent automation"),
-			modelDescription: 'Delete an automation by stable ID. Call listAutomations first to obtain the current ID. The current approval policy may approve the action automatically; otherwise the user is shown a Delete/Cancel confirmation.',
+			modelDescription: 'Delete an automation by stable ID. Call listAutomations first to obtain the current ID and capabilities. Run history is deleted by default. Set deleteHistory to false to keep it only when supportsDeleteHistoryChoice is true. The current approval policy may approve the action automatically; otherwise the user is shown a Delete/Cancel confirmation.',
 			source: ToolDataSource.Internal,
 			when: automationToolWhen,
 			runsInWorkspace: false,
@@ -393,6 +378,10 @@ export class DeleteAutomationTool implements IToolImpl {
 					automationId: {
 						type: 'string',
 						description: 'Stable automation ID from listAutomations.',
+					},
+					deleteHistory: {
+						type: 'boolean',
+						description: 'Whether to permanently delete run history. Defaults to true. Specify only when listAutomations reports supportsDeleteHistoryChoice.',
 					},
 				},
 				required: ['automationId'],
@@ -405,12 +394,18 @@ export class DeleteAutomationTool implements IToolImpl {
 			throw new AutomationToolInputError('Automations are disabled.');
 		}
 		const automation = resolveAutomationInput(this.automationService, context.parameters, 'deleteAutomation');
+		const options = resolveDeleteAutomationOptions(this.automationService, automation.id, context.parameters);
 		return {
 			invocationMessage: localize('automation.tool.delete.invocationMessage', "Deleting automation {0}", automation.name),
 			pastTenseMessage: localize('automation.tool.delete.pastTenseMessage', "Deleted automation {0}", automation.name),
 			confirmationMessages: {
 				title: localize('automation.tool.delete.confirmationTitle', "Delete Automation?"),
-				message: new MarkdownString(localize(
+				message: new MarkdownString(options?.deleteHistory === false ? localize(
+					'automation.tool.delete.keepHistoryConfirmation',
+					"Delete **{0}** (`{1}`)? Its saved configuration will be permanently removed. Run history will be kept.",
+					automation.name,
+					automation.id,
+				) : localize(
 					'automation.tool.delete.confirmationMessage',
 					"Delete **{0}** (`{1}`)? Its saved configuration and run history will be permanently removed. Runs already in flight will continue.",
 					automation.name,
@@ -433,8 +428,10 @@ export class DeleteAutomationTool implements IToolImpl {
 		}
 
 		let automation: IAutomationDescriptor;
+		let options: IDeleteAutomationOptions | undefined;
 		try {
 			automation = resolveAutomationInput(this.automationService, invocation.parameters, 'deleteAutomation');
+			options = resolveDeleteAutomationOptions(this.automationService, automation.id, invocation.parameters);
 		} catch (error) {
 			if (error instanceof AutomationToolInputError) {
 				return automationToolError(error.message);
@@ -447,7 +444,7 @@ export class DeleteAutomationTool implements IToolImpl {
 		}
 
 		try {
-			await this.automationService.deleteAutomation(automation.id, this.createMutationGuard(token));
+			await this.automationService.deleteAutomation(automation.id, this.createMutationGuard(token), options);
 		} catch (error) {
 			if (error instanceof AutomationToolMutationBlockedError) {
 				return error.result;
@@ -506,17 +503,11 @@ Omit "automationId" to create an automation; "name", "prompt", and "schedule.int
 
 Use "sessionTemplate" for provider-owned Model, Agent, Mode, Approvals, and other configuration returned by listAutomations. Omit it on unrelated partial updates, or set it to null to reset provider configuration. Do not combine it with the legacy "modelId", "mode", or "permissionLevel" aliases.
 
-Use "customizationIds" to preserve an explicit customization selection. An empty array selects none. Omission uses all enabled target customizations when creating, and preserves saved selections when updating. The selected provider must support the supplied selection.
+Cloud automations are user-owned and require a private or internal GitHub.com repository with default isolation. Daily/weekly cloud schedules require "timeZone": "UTC" and minutes 0, 15, 30, or 45. Cron schedules are Agent Host only. "manual" removes the schedule. Creation defaults to enabled: scheduled work runs without VS Code and may consume credits. Set "enabled": false to save without scheduling.
 
-Cloud automations default to user-owned and require a private or internal GitHub.com repository with default isolation. Set "ownership": "repository" only when creating a shared automation: repository readers can view it and writers can manage it. Ownership cannot change after creation. Daily/weekly cloud schedules require "timeZone": "UTC" and minutes 0, 15, 30, or 45. "manual" removes the schedule. Scheduled cloud work runs without VS Code and may consume credits.
+For cloud, use "sessionTemplate.modelId" and "sessionTemplate.config" with "tools" IDs from the ready provider catalog and optional "reasoningEffort". Preserve saved tool IDs outside that catalog on unrelated updates. Cloud template reset (null), custom agents, modelConfiguration, local mode/approval settings, and MCP management are not supported.
 
-For cloud event automations, set schedule.interval to "manual" and provide "cloudTrigger" from a ready provider trigger catalog. Set requireActorWritePermission explicitly; true is least privilege. Repository settings may require it. Event triggers can be set only during creation through this tool.
-
-For cloud, use "sessionTemplate.modelId" and "sessionTemplate.config" with an explicit "tools" array of IDs from the ready provider catalog and optional "reasoningEffort". Use an empty tools array for least privilege when no tools are needed. Preserve saved tool IDs outside that catalog on unrelated updates. Cloud template reset (null), custom agents, modelConfiguration, local mode/approval settings, and MCP management are not supported.
-
-Use "enabled" only on updates. On creation, the user chooses Create Enabled or Create Disabled in the tool confirmation; do not provide "enabled". If approval is automatic, new automations are enabled.
-
-The change uses the current tool-approval policy. If the user cancels or denies the request, do not retry unless they ask you to. An unknown result may already have changed remote state; refresh with listAutomations before considering another request.`,
+The change uses the current tool-approval policy. When approval is required, the user sees a normal tool confirmation. If the user cancels or denies the request, do not retry unless they ask you to. An unknown result may already have changed remote state; refresh with listAutomations before considering another request.`,
 			source: ToolDataSource.Internal,
 			when: automationToolWhen,
 			runsInWorkspace: false,
@@ -527,16 +518,6 @@ The change uses the current tool-approval policy. If the user cancels or denies 
 					automationId: {
 						type: 'string',
 						description: 'Stable automation ID from listAutomations. Omit to create a new automation.',
-					},
-					ownership: {
-						type: 'string',
-						enum: ['user', 'repository'],
-						description: 'Cloud ownership on create only. Defaults to user. Repository ownership shares the automation with repository readers and writers.',
-					},
-					customizationIds: {
-						type: 'array',
-						items: { type: 'string', minLength: 1 },
-						description: 'Explicit customization IDs selected for the target. An empty array selects none. Omit to use provider defaults on create or preserve saved selections on update.',
 					},
 					name: {
 						type: 'string',
@@ -554,7 +535,15 @@ The change uses the current tool-approval policy. If the user cancels or denies 
 							interval: {
 								type: 'string',
 								enum: [...automationIntervals],
-								description: 'manual, hourly, daily, weekdays, or weekly. Weekdays runs Monday-Friday at the same local time on an Agent Host; it is not supported by Cloud.',
+								description: 'manual, hourly, daily, weekdays, weekly, or cron. Weekdays runs Monday-Friday at the same local time on an Agent Host; it is not supported by Cloud. Cron is also Agent Host only.',
+							},
+							cronExpression: {
+								type: 'string',
+								description: 'Required for cron: five fields (minute, hour, day of month, month, day of week). Supports *, lists, ascending ranges, and positive steps on * or ranges only (for example */5 or 20-59/15); steps from a single starting value are not supported. JAN-DEC and SUN-SAT names are accepted. Weekdays use 0-7; both 0 and 7 mean Sunday. The month limits both day alternatives; restricted day-of-month and weekday fields are combined with OR.',
+							},
+							cronTimeZone: {
+								type: 'string',
+								description: 'IANA time zone for cron. Defaults to the local time zone when creating; preserved when updating.',
 							},
 							scheduleHour: {
 								type: 'integer',
@@ -580,27 +569,6 @@ The change uses the current tool-approval policy. If the user cancels or denies 
 								description: 'Required for daily/weekly cloud schedules; omit for local-time Agent Host schedules.',
 							},
 						},
-					},
-					cloudTrigger: {
-						type: 'object',
-						additionalProperties: false,
-						description: 'Cloud event trigger on create only. Requires schedule.interval manual and a ready provider trigger catalog.',
-						properties: {
-							triggers: {
-								type: 'object',
-								minProperties: 1,
-								description: 'Event trigger entries keyed by provider trigger ID.',
-								additionalProperties: {
-									type: 'object',
-									additionalProperties: true,
-								},
-							},
-							requireActorWritePermission: {
-								type: 'boolean',
-								description: 'Whether event activity must come from an actor with repository write access. Set explicitly; true is least privilege.',
-							},
-						},
-						required: ['triggers', 'requireActorWritePermission'],
 					},
 					target: {
 						type: 'object',
@@ -679,7 +647,7 @@ The change uses the current tool-approval policy. If the user cancels or denies 
 					},
 					enabled: {
 						type: 'boolean',
-						description: 'Updates only: whether scheduled runs are enabled. Omit on create; the user chooses the initial state in the confirmation.',
+						description: 'Whether scheduled runs are enabled. Defaults to true when creating.',
 					},
 				},
 			},
@@ -699,7 +667,6 @@ The change uses the current tool-approval policy. If the user cancels or denies 
 			throw error;
 		}
 		const existing = proposal.kind === 'update' ? proposal.existing : undefined;
-		const repositoryOwned = proposal.kind === 'create' && proposal.initialValues.ownership === 'repository';
 		return {
 			invocationMessage: existing
 				? localize('automation.tool.configure.update.invocationMessage', "Configuring automation")
@@ -718,20 +685,11 @@ The change uses the current tool-approval policy. If the user cancels or denies 
 						existing.name,
 						existing.id,
 					))
-					: repositoryOwned ? new MarkdownString(localize(
-						'automation.tool.configure.create.repositoryConfirmationMessage',
-						"Create the automation **{0}**, visible to everyone with repository access and editable by repository writers?",
-						proposal.initialValues.name,
-					)) : new MarkdownString(localize(
+					: new MarkdownString(localize(
 						'automation.tool.configure.create.confirmationMessage',
 						"Create the automation **{0}**?",
 						proposal.initialValues.name,
 					)),
-				customOptions: existing ? undefined : [
-					{ id: createEnabledConfirmationId, label: localize('automation.tool.configure.create.enabled', "Create Enabled"), kind: ConfirmationOptionKind.Approve },
-					{ id: createDisabledConfirmationId, label: localize('automation.tool.configure.create.disabled', "Create Disabled"), kind: ConfirmationOptionKind.Approve },
-					{ id: 'cancel', label: localize('automation.tool.configure.create.cancel', "Cancel"), kind: ConfirmationOptionKind.Deny },
-				],
 			},
 			toolSpecificData: proposal.kind === 'update'
 				? {
@@ -739,7 +697,7 @@ The change uses the current tool-approval policy. If the user cancels or denies 
 					expectedAutomationId: proposal.existing.id,
 					expectedEditableState: serializeAutomationEditableState(proposal.existing),
 				}
-				: undefined,
+				: { kind: 'input', rawInput: context.parameters, editable: false },
 		};
 	}
 
@@ -764,16 +722,10 @@ The change uses the current tool-approval policy. If the user cancels or denies 
 
 		try {
 			if (proposal.kind === 'create') {
-				if (invocation.selectedCustomButton !== undefined
-					&& invocation.selectedCustomButton !== createEnabledConfirmationId
-					&& invocation.selectedCustomButton !== createDisabledConfirmationId) {
-					return this.completeOperation('create', automationToolCancelled());
-				}
 				const target = proposal.validateTargetAvailability
 					? this.resolveAvailableTarget(proposal.initialValues.target)
 					: proposal.initialValues.target;
-				const enabled = invocation.selectedCustomButton !== createDisabledConfirmationId;
-				return this.completeOperation('create', await this.applyCreate({ ...proposal.initialValues, target, enabled }, token));
+				return this.completeOperation('create', await this.applyCreate({ ...proposal.initialValues, target }, token));
 			}
 
 			const prepared = invocation.toolSpecificData?.kind === 'automationConfiguration'
@@ -793,9 +745,6 @@ The change uses the current tool-approval policy. If the user cancels or denies 
 			const patch = target ? { ...proposal.initialValues, target } : proposal.initialValues;
 			return this.completeOperation('update', await this.applyUpdate(proposal.existing, patch, token));
 		} catch (error) {
-			if (token.isCancellationRequested) {
-				return this.completeOperation(proposal.kind, automationToolCancelled());
-			}
 			if (error instanceof AutomationToolMutationBlockedError) {
 				return this.completeOperation(proposal.kind, error.result);
 			}
@@ -803,7 +752,7 @@ The change uses the current tool-approval policy. If the user cancels or denies 
 				logAutomationConfigureOutcome(this.telemetryService, proposal.kind, 'failed');
 				return automationUnknownOutcome(error.message, proposal.existing);
 			}
-			if (error instanceof AutomationToolInputError || error instanceof AutomationUnavailableError || error instanceof AutomationRepositoryOwnershipUnavailableError) {
+			if (error instanceof AutomationToolInputError || error instanceof AutomationUnavailableError) {
 				return this.completeOperation(proposal.kind, automationToolError(error.message));
 			}
 			if (error instanceof AutomationSessionTemplateAuthorityError) {
@@ -820,23 +769,14 @@ The change uses the current tool-approval policy. If the user cancels or denies 
 		return result;
 	}
 
-	private async applyCreate(initialOptions: ICreateAutomationOptions, token: CancellationToken): Promise<IToolResult> {
+	private async applyCreate(options: ICreateAutomationOptions, token: CancellationToken): Promise<IToolResult> {
 		const blocked = this.getMutationBlockedResult(token);
 		if (blocked) {
 			return blocked;
 		}
-		if (!this.automationService.canCreateAutomation(initialOptions.target.providerId)) {
+		if (!this.automationService.canCreateAutomation(options.target.providerId)) {
 			return automationToolError('The selected provider is unavailable or does not support automations. Connect to an Agent Host that supports automations.');
 		}
-		const options = await this.validateProviderCreateOptions(initialOptions, token);
-		const afterValidation = this.getMutationBlockedResult(token);
-		if (afterValidation) {
-			return afterValidation;
-		}
-		if (options.ownership !== undefined && !this.automationService.getProviderConfiguration?.(options.target.providerId)) {
-			return automationToolError('The selected provider does not support automation ownership. Omit ownership for this provider.');
-		}
-		await this.validateCustomizationSelection(options.target, options.customizationIds, undefined, token);
 		const created = await this.automationService.createAutomation(options, this.createMutationGuard(token));
 		const result = automationToolResult(JSON.stringify({ status: 'created', automation: toAutomationToolOutput(created) }, undefined, 2));
 		result.toolSpecificData = toAutomationConfiguredData(created, 'created');
@@ -844,75 +784,11 @@ The change uses the current tool-approval policy. If the user cancels or denies 
 		return result;
 	}
 
-	private async validateProviderCreateOptions(options: ICreateAutomationOptions, token: CancellationToken): Promise<ICreateAutomationOptions> {
-		const configuration = this.automationService.getProviderConfiguration?.(options.target.providerId);
-		if (!configuration) {
-			return options;
-		}
-
-		let target = options.target;
-		let allowReadAccessTriggers: boolean | undefined;
-		if (target.kind === 'workspace' && configuration.getWorkspaceTarget) {
-			const targetState = await waitForState(
-				configuration.getWorkspaceTarget(target.folderUri),
-				state => state.pending !== true,
-				undefined,
-				token,
-			);
-			if (targetState.disabledReason || !targetState.workspace) {
-				throw new AutomationToolInputError(targetState.disabledReason ?? 'The selected repository is not available for cloud automations.');
-			}
-			target = { ...target, folderUri: targetState.workspace };
-			allowReadAccessTriggers = targetState.allowReadAccessTriggers;
-		}
-
-		if (configuration.tools) {
-			const selectedTools = options.sessionTemplate?.config?.tools;
-			if (!isStringArray(selectedTools)) {
-				throw new AutomationToolInputError('Select cloud tools explicitly, using an empty array for least privilege when none are needed.');
-			}
-			const catalog = configuration.tools.get();
-			configuration.loadTools();
-			if (catalog.kind !== 'ready') {
-				throw new AutomationToolInputError(catalog.kind === 'error'
-					? `The provider tool catalog is unavailable: ${catalog.message}`
-					: 'The provider tool catalog is still loading. Call listAutomations again before creating the automation.');
-			}
-			const availableTools = new Set(catalog.groups.flatMap(group => group.tools.map(tool => tool.id)));
-			const unavailableTool = selectedTools.find(id => !availableTools.has(id));
-			if (unavailableTool) {
-				throw new AutomationToolInputError(`Cloud tool "${unavailableTool}" is not in the ready provider catalog.`);
-			}
-		}
-
-		if (options.cloudTrigger) {
-			if (target.kind !== 'workspace') {
-				throw new AutomationToolInputError('Cloud event triggers require a workspace repository target.');
-			}
-			const catalog = configuration.triggers?.get();
-			configuration.loadTriggers?.();
-			if (!catalog || catalog.kind !== 'ready') {
-				throw new AutomationToolInputError(catalog?.kind === 'error'
-					? `The provider trigger catalog is unavailable: ${catalog.message}`
-					: 'The provider trigger catalog is still loading. Call listAutomations again before creating the automation.');
-			}
-			if (!canEditAutomationTriggers(options.cloudTrigger.triggers, automationTriggerChoices(catalog.definitions))) {
-				throw new AutomationToolInputError('The selected cloud trigger is not supported by the ready provider catalog.');
-			}
-			if (options.cloudTrigger.requireActorWritePermission !== true && allowReadAccessTriggers !== true) {
-				throw new AutomationToolInputError('Repository settings require event triggers to run only for actors with write access.');
-			}
-		}
-
-		return target === options.target ? options : { ...options, target };
-	}
-
 	private async applyUpdate(existing: IAutomationDescriptor, patch: IUpdateAutomationOptions, token: CancellationToken): Promise<IToolResult> {
 		const blocked = this.getMutationBlockedResult(token);
 		if (blocked) {
 			return blocked;
 		}
-		await this.validateCustomizationSelection(patch.target ?? existing.target, patch.customizationIds, existing.id, token);
 		const updateResult = await this.automationService.updateAutomationIfUnchanged(existing.id, patch, existing, this.createMutationGuard(token));
 		if (updateResult.kind === 'conflict' && !updateResult.current) {
 			return automationToolError(`Automation "${existing.id}" was deleted before the update was applied. No changes were made.`);
@@ -925,21 +801,6 @@ The change uses the current tool-approval policy. If the user cancels or denies 
 		result.toolSpecificData = toAutomationConfiguredData(updated, 'updated');
 		result.toolResultMessage = localize('automation.tool.configure.updated', "Updated automation {0}", updated.name);
 		return result;
-	}
-
-	private async validateCustomizationSelection(target: AutomationTarget, customizationIds: readonly string[] | undefined, existingId: string | undefined, token: CancellationToken): Promise<void> {
-		if (customizationIds === undefined) {
-			return;
-		}
-		const choices = await this.automationService.getCustomizationChoices?.(target, existingId, token);
-		if (!choices) {
-			throw new AutomationToolInputError('The selected provider does not support customization selection.');
-		}
-		const available = new Set(choices.map(choice => choice.id));
-		const unavailable = customizationIds.find(id => !available.has(id));
-		if (unavailable !== undefined) {
-			throw new AutomationToolInputError(`Customization "${unavailable}" is unavailable for the selected target. Refresh its customization choices before retrying.`);
-		}
 	}
 
 	private createMutationGuard(token: CancellationToken): AutomationMutationGuard {
@@ -993,20 +854,12 @@ The change uses the current tool-approval policy. If the user cancels or denies 
 			throw new AutomationToolInputError('configureAutomation input must be an object.');
 		}
 		const input = rawInput;
-		assertKnownProperties(input, ['automationId', 'ownership', 'customizationIds', 'name', 'prompt', 'schedule', 'cloudTrigger', 'target', 'modelId', 'mode', 'permissionLevel', 'sessionTemplate', 'enabled'], 'configureAutomation input');
+		assertKnownProperties(input, ['automationId', 'name', 'prompt', 'schedule', 'target', 'modelId', 'mode', 'permissionLevel', 'sessionTemplate', 'enabled'], 'configureAutomation input');
 
 		const automationId = readOptionalNonEmptyString(input, 'automationId');
 		const existing = automationId ? this.automationService.getAutomation(automationId) : undefined;
 		if (automationId && !existing) {
 			throw new AutomationToolInputError(`Automation "${automationId}" does not exist. Call listAutomations to refresh the available IDs.`);
-		}
-		const ownership = readOptionalEnum(input, 'ownership', ['user', 'repository']);
-		if (existing && ownership !== undefined) {
-			throw new AutomationToolInputError('"ownership" can only be set when creating an automation.');
-		}
-		const customizationIds = input.customizationIds;
-		if (customizationIds !== undefined && (!isStringArray(customizationIds) || customizationIds.some(id => id.trim() === ''))) {
-			throw new AutomationToolInputError('"customizationIds" must be an array of non-empty strings.');
 		}
 
 		const name = readOptionalRequiredText(input, 'name');
@@ -1019,15 +872,17 @@ The change uses the current tool-approval policy. If the user cancels or denies 
 		}
 
 		const schedule = parseSchedule(input, existing?.schedule, !existing);
-		const cloudTrigger = parseCloudTrigger(input, existing);
-		if (cloudTrigger && schedule?.interval !== 'manual') {
-			throw new AutomationToolInputError('"cloudTrigger" requires "schedule.interval" to be "manual".');
-		}
 		if (schedule && existing?.cloudTrigger && existing.schedule.interval === 'custom') {
 			throw new AutomationToolInputError('Edit event triggers in the automation dialog or on GitHub. Omit schedule when editing other fields.');
 		}
 		const currentTarget = this.getCurrentSessionTarget(sessionResource);
-		const target = parseTarget(input, existing, currentTarget);
+		let target = parseTarget(input, existing, currentTarget);
+		if (schedule?.interval === 'cron' && target?.kind === 'workspace' && target.providerId === undefined) {
+			target = this.resolveAvailableTarget(target, existing);
+		}
+		if (schedule?.interval === 'cron' && this.automationService.getProviderConfiguration?.(target?.providerId ?? existing?.target.providerId)?.timeZone === 'UTC') {
+			throw new AutomationToolInputError('Cron schedules are not supported by Cloud automations.');
+		}
 		const modelId = readOptionalNullableNonEmptyString(input, 'modelId');
 		const mode = readOptionalNullableNonEmptyString(input, 'mode');
 		const permissionLevel = readOptionalNullableEnum(input, 'permissionLevel', chatPermissionLevels);
@@ -1039,9 +894,6 @@ The change uses the current tool-approval policy. If the user cancels or denies 
 			throw new AutomationToolInputError('Legacy "modelId", "mode", and "permissionLevel" aliases cannot update an automation with a canonical session template. Pass the complete updated "sessionTemplate" returned by listAutomations.');
 		}
 		const enabled = readOptionalBoolean(input, 'enabled');
-		if (!existing && enabled !== undefined) {
-			throw new AutomationToolInputError('"enabled" can only be set when updating an automation. The user chooses Create Enabled or Create Disabled in the creation confirmation.');
-		}
 
 		const proposedValues: IUpdateAutomationOptions = {
 			...(name !== undefined ? { name } : {}),
@@ -1053,7 +905,6 @@ The change uses the current tool-approval policy. If the user cancels or denies 
 			...(permissionLevel !== undefined ? { permissionLevel } : {}),
 			...(sessionTemplate !== undefined ? { sessionTemplate } : {}),
 			...(enabled !== undefined ? { enabled } : {}),
-			...(customizationIds !== undefined ? { customizationIds } : {}),
 		};
 		const validateTargetAvailability = input.target !== undefined
 			&& !(isRecord(input.target) && input.target.kind === 'currentSession');
@@ -1076,14 +927,12 @@ The change uses the current tool-approval policy. If the user cancels or denies 
 				name,
 				prompt,
 				schedule,
-				...(cloudTrigger ? { cloudTrigger } : {}),
 				target,
 				...(modelId ? { modelId } : {}),
 				...(mode ? { mode } : {}),
 				...(permissionLevel ? { permissionLevel } : {}),
 				...(sessionTemplate ? { sessionTemplate } : {}),
-				...(ownership !== undefined ? { ownership } : {}),
-				...(customizationIds !== undefined ? { customizationIds } : {}),
+				...(enabled !== undefined ? { enabled } : {}),
 			},
 			validateTargetAvailability,
 		};
@@ -1158,7 +1007,7 @@ function parseSchedule(input: Record<string, unknown>, existing: IAutomationSche
 		return undefined;
 	}
 
-	assertKnownProperties(value, ['interval', 'scheduleHour', 'scheduleMinute', 'scheduleDay', 'timeZone'], '"schedule"');
+	assertKnownProperties(value, ['interval', 'scheduleHour', 'scheduleMinute', 'scheduleDay', 'timeZone', 'cronExpression', 'cronTimeZone'], '"schedule"');
 	const interval = readOptionalEnum(value, 'interval', automationIntervals) ?? existing?.interval;
 	if (!interval) {
 		throw new AutomationToolInputError('"schedule.interval" is required when creating an automation.');
@@ -1166,44 +1015,24 @@ function parseSchedule(input: Record<string, unknown>, existing: IAutomationSche
 	const scheduleHour = readOptionalInteger(value, 'scheduleHour', 0, 23) ?? existing?.scheduleHour ?? 9;
 	const scheduleMinute = readOptionalInteger(value, 'scheduleMinute', 0, 59) ?? existing?.scheduleMinute ?? 0;
 	const scheduleDay = readOptionalInteger(value, 'scheduleDay', 0, 6) ?? existing?.scheduleDay ?? 1;
+	if (interval === 'cron') {
+		const cronExpression = readOptionalRequiredText(value, 'cronExpression') ?? existing?.cronExpression;
+		const cronTimeZone = readOptionalNonEmptyString(value, 'cronTimeZone') ?? existing?.cronTimeZone;
+		if (!cronExpression?.trim()) {
+			throw new AutomationToolInputError('"schedule.cronExpression" is required for cron schedules.');
+		}
+		const error = getAutomationCronValidationError(cronExpression, cronTimeZone ?? Intl.DateTimeFormat().resolvedOptions().timeZone);
+		if (error) {
+			throw new AutomationToolInputError(error);
+		}
+		return { interval, scheduleHour, scheduleMinute, scheduleDay, cronExpression, ...(cronTimeZone !== undefined ? { cronTimeZone } : {}) };
+	}
 
 	const timeZone = readOptionalEnum(value, 'timeZone', ['UTC'] as const) ?? existing?.timeZone;
 	if (interval === 'weekdays' && timeZone !== undefined) {
 		throw new AutomationToolInputError('Weekday schedules use local time and do not support "timeZone".');
 	}
 	return { interval, scheduleHour, scheduleMinute, scheduleDay, ...(timeZone ? { timeZone } : {}) };
-}
-
-function parseCloudTrigger(input: Record<string, unknown>, existing: IAutomationDescriptor | undefined): IAutomationCloudTrigger | undefined {
-	const rawValue = input.cloudTrigger;
-	if (rawValue === undefined) {
-		return undefined;
-	}
-	if (existing) {
-		throw new AutomationToolInputError('"cloudTrigger" can only be set when creating an automation.');
-	}
-	if (!isRecord(rawValue)) {
-		throw new AutomationToolInputError('"cloudTrigger" must be an object.');
-	}
-	assertKnownProperties(rawValue, ['triggers', 'requireActorWritePermission'], '"cloudTrigger"');
-	if (!isRecord(rawValue.triggers) || Object.keys(rawValue.triggers).length === 0) {
-		throw new AutomationToolInputError('"cloudTrigger.triggers" must be a non-empty object.');
-	}
-	if (typeof rawValue.requireActorWritePermission !== 'boolean') {
-		throw new AutomationToolInputError('"cloudTrigger.requireActorWritePermission" must be a boolean.');
-	}
-	const cloneState = { nodes: 0, rootField: 'cloudTrigger.triggers' };
-	const triggers: Record<string, AutomationTrigger> = {};
-	for (const [name, trigger] of Object.entries(rawValue.triggers)) {
-		if (!name.trim() || !isRecord(trigger)) {
-			throw new AutomationToolInputError('"cloudTrigger.triggers" must contain non-empty trigger IDs mapped to objects.');
-		}
-		triggers[name] = cloneJsonObject(trigger, `cloudTrigger.triggers.${name}`, cloneState, 0);
-	}
-	if (JSON.stringify(triggers).length > MAX_SESSION_TEMPLATE_CONFIG_LENGTH) {
-		throw new AutomationToolInputError(`"cloudTrigger.triggers" must not exceed ${MAX_SESSION_TEMPLATE_CONFIG_LENGTH} characters.`);
-	}
-	return { triggers, requireActorWritePermission: rawValue.requireActorWritePermission };
 }
 
 function parseTarget(input: Record<string, unknown>, existing: IAutomationDescriptor | undefined, currentTarget: AutomationTarget | undefined): AutomationTarget | undefined {
@@ -1318,7 +1147,7 @@ function parseSessionTemplateConfiguration(rawConfig: unknown, field: string): R
 	return undefined;
 }
 
-function cloneJsonObject(value: Record<string, unknown>, field: string, state: { nodes: number; readonly rootField: string }, depth: number): Record<string, JsonValue> {
+function cloneJsonObject(value: Record<string, unknown>, field: string, state: { nodes: number; readonly rootField: string }, depth: number): Record<string, unknown> {
 	const prototype = Object.getPrototypeOf(value);
 	if (prototype !== Object.prototype && prototype !== null) {
 		throw new AutomationToolInputError(`"${field}" must contain only JSON values.`);
@@ -1326,7 +1155,7 @@ function cloneJsonObject(value: Record<string, unknown>, field: string, state: {
 	return Object.fromEntries(Object.entries(value).map(([key, entry]) => [key, cloneJsonValue(entry, `${field}.${key}`, state, depth + 1)]));
 }
 
-function cloneJsonValue(value: unknown, field: string, state: { nodes: number; readonly rootField: string }, depth: number): JsonValue {
+function cloneJsonValue(value: unknown, field: string, state: { nodes: number; readonly rootField: string }, depth: number): unknown {
 	assertJsonComplexity(field, state, depth);
 	if (value === null || typeof value === 'string' || typeof value === 'boolean') {
 		return value;
@@ -1381,7 +1210,6 @@ function toAutomationToolOutput(automation: IAutomationDescriptor): IAutomationT
 		};
 	return {
 		id: automation.id,
-		...(automation.ownership !== undefined ? { ownership: automation.ownership } : {}),
 		name: automation.name,
 		prompt: automation.prompt,
 		schedule: automation.schedule,
@@ -1412,6 +1240,7 @@ function toAutomationListToolOutput(automation: IAutomationDescriptor, automatio
 	const activeRun = automationService.getActiveRunFor(automation.id);
 	return {
 		...toAutomationToolOutput(automation),
+		...(automationService.supportsDeleteHistoryChoice?.(automation.id) ? { supportsDeleteHistoryChoice: true as const } : {}),
 		...(activeRun ? { activeRun: { id: activeRun.id, status: activeRun.status, startedAt: activeRun.startedAt } } : {}),
 		availableOperations: [
 			...(automationService.canRunAutomation(automation.id) && getUncertainAutomationRun(automation, automationService) === undefined ? ['run'] as const : []),
@@ -1518,7 +1347,7 @@ function resolveAutomationInput(automationService: IAutomationService, rawInput:
 	if (!isRecord(rawInput)) {
 		throw new AutomationToolInputError(`${toolName} input must be an object.`);
 	}
-	assertKnownProperties(rawInput, ['automationId'], `${toolName} input`);
+	assertKnownProperties(rawInput, toolName === 'deleteAutomation' ? ['automationId', 'deleteHistory'] : ['automationId'], `${toolName} input`);
 	const automationId = readOptionalNonEmptyString(rawInput, 'automationId');
 	if (!automationId) {
 		throw new AutomationToolInputError('"automationId" is required.');
@@ -1528,6 +1357,20 @@ function resolveAutomationInput(automationService: IAutomationService, rawInput:
 		throw new AutomationToolInputError(`Automation "${automationId}" does not exist. Call listAutomations to refresh the available IDs.`);
 	}
 	return automation;
+}
+
+function resolveDeleteAutomationOptions(service: IAutomationService, id: string, input: unknown): IDeleteAutomationOptions | undefined {
+	if (!isRecord(input)) {
+		throw new AutomationToolInputError('deleteAutomation input must be an object.');
+	}
+	const deleteHistory = readOptionalBoolean(input, 'deleteHistory');
+	if (deleteHistory === undefined) {
+		return undefined;
+	}
+	if (service.supportsDeleteHistoryChoice?.(id) !== true) {
+		throw new AutomationToolInputError('This provider does not support choosing whether to delete run history.');
+	}
+	return { deleteHistory };
 }
 
 function assertKnownProperties(value: Record<string, unknown>, properties: readonly string[], field: string): void {

@@ -18,10 +18,12 @@ import { isNewSessionPickerTryoutPayload, NEW_SESSION_PICKER_TRYOUT_PRESENTATION
 import { resolveOnboardingTarget } from '../../../../../workbench/contrib/onboarding/browser/spotlight/onboardingTarget.js';
 import { IOnboardingScenario } from '../../../../../workbench/contrib/onboarding/common/onboardingScenario.js';
 import { IOnboardingTryoutRunContext, IOnboardingTryoutService, onboardingTryoutPresentationRegistry, OnboardingTryoutAvailability } from '../../../../../workbench/contrib/onboarding/common/onboardingTryout.js';
-import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
-import { INewSessionComposer, INewSessionComposerPicker, INewSessionComposerService, NewSessionComposerService } from '../../browser/newSessionComposerService.js';
+import { ISessionsService } from '../../../../../workbench/contrib/sessions/browser/sessionsService.js';
+import { INewSessionComposer, INewSessionComposerPicker, INewSessionComposerService, NewSessionComposerService } from '../../../../../workbench/contrib/sessions/browser/newSessionComposerService.js';
 import { NewSessionPickerTryoutContribution } from '../../browser/newSessionPickerTryout.js';
 import { NewSessionOnboardingTargets } from '../../browser/newSessionOnboardingTargets.js';
+import { ITestSessionsService } from '../../../../../workbench/contrib/sessions/test/browser/sessionHostTestUtils.js';
+import { upcastPartial } from '../../../../../base/test/common/mock.js';
 
 suite('New session picker tryout adapter', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
@@ -50,7 +52,7 @@ suite('New session picker tryout adapter', () => {
 	) {
 		const instantiationService = disposables.add(new TestInstantiationService());
 		const composerService = disposables.add(new NewSessionComposerService());
-		instantiationService.stub(ISessionsService, { activeSession: constObservable(undefined), openNewSession });
+		instantiationService.stub(ISessionsService, upcastPartial<ITestSessionsService>({ activeSession: constObservable(undefined), openNewSession }));
 		instantiationService.stub(INewSessionComposerService, composerService);
 		instantiationService.stub(IOnboardingTryoutService, { getAvailability });
 		const construction = sinon.spy(instantiationService, 'createInstance');

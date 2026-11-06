@@ -967,7 +967,10 @@ suite('Artifact Integrations', () => {
 		await waitForState(f.service.ledger.state, state => state.runs[0]?.indeterminate === true);
 		const blocked = await second.object.invoke('test', 'act', 'chat', 'alias');
 		await waitForState(f.service.ledger.state, state => state.runs.some(run => run.id === blocked.id && run.state === 'blocked'));
-		assert.deepStrictEqual({ effects, resources: f.counts().resources }, { effects: 1, resources: 1 });
+		assert.deepStrictEqual({
+			effects, resources: f.counts().resources,
+			resourceKeys: [first, second].map(reference => reference.object.snapshot.get().contributions.map(contribution => contribution.resourceKey)),
+		}, { effects: 1, resources: 1, resourceKeys: [['canonical-resource'], ['canonical-resource']] });
 	}));
 
 	test('main presentation follows registration priority rather than availability timing', () => run(async store => {
@@ -1081,12 +1084,12 @@ suite('Artifact Integrations', () => {
 				kind: 'changed', content: [
 					'Autopilot updated for Example \\(3 rules\\)',
 					'',
-					'- Repair enabled\\',
+					'- **Repair enabled**\\',
 					'  Repair failures.',
-					'- Merge enabled\\',
+					'- **Merge enabled**\\',
 					'  Merge when ready.\\',
 					'  Mode: Only if Unchanged',
-					'- Address \\*Reviews\\* disabled\\',
+					'- **Address \\*Reviews\\* disabled**\\',
 					'  Attempt limit reached',
 					'',
 					'No new automatic runs will start for the disabled rules. Pending runs will be cancelled; work already sent may still finish. Completed changes are not undone.',
@@ -1103,6 +1106,22 @@ suite('Artifact Integrations', () => {
 			},
 			integrations: 'Still enabled: Repair.',
 			disabledAcrossIntegrations: 'No automation rules remain enabled for these artifact integrations.',
+		});
+	});
+
+	test('notice list titles are bold without formatting their descriptions', () => {
+		assert.deepStrictEqual(formatArtifactAutomationNotice('Example', [
+			{ integrationId: 'test', optionId: 'repair', label: '*Repair*\nfailures', kind: 'changed', details: ['Use [this](command:run).\nThen push.'] },
+			{ integrationId: 'test', optionId: 'merge', label: 'Merge', kind: 'enabled', details: [] },
+		], []), {
+			kind: 'changed',
+			content: [
+				'Autopilot updated for Example \\(2 rules\\)',
+				'',
+				'- **\\*Repair\\* failures updated**\\',
+				'  Use \\[this\\]\\(command:run\\). Then push.',
+				'- **Merge enabled**',
+			].join('\n'),
 		});
 	});
 
@@ -1243,6 +1262,31 @@ suite('Artifact Integrations', () => {
 			version: 1, integrationLabel: 'Test', source: 'manual', action: { label: 'Analyse', iconId: 'graph' },
 			artifact: { resource: artifact.resource, label: artifact.label, description: undefined, icon: undefined },
 			details: [],
+		});
+	}));
+
+	test('prompt-supplied details replace the linked details in the presentation and are not part of the prompt', () => run(async store => {
+		const promptDetails = {
+			title: 'Failing', availability: { kind: 'available' as const }, links: [{ kind: 'action' as const, actionId: 'act' }],
+			items: [{ id: 'failed', label: 'Failed', icon: { id: 'error' }, resource: artifact.resource }],
+			completeness: 'complete' as const,
+		};
+		const f = fixture(store, { id: 'act', label: 'Analyse', iconId: 'graph', kind: 'prompt', prepare: async () => ({ kind: 'ready', value: { text: 'Analyse', details: [promptDetails, { title: 'Invalid' } as unknown as ArtifactDetails] } }) });
+		const model = store.add(await f.service.acquireArtifact('session', artifact.id)).object;
+		const acquired: string[] = [];
+		f.bindings[0].acquireDetails = (detailsId = 'main') => {
+			acquired.push(detailsId);
+			return { details: f.bindings[0].details, dispose: () => { } };
+		};
+		const requested = await model.invoke('test', 'act', 'invoking-chat', 'manual');
+		await waitForState(f.service.ledger.state, state => state.runs.some(run => run.id === requested.id && run.state === 'submitted'));
+		assert.deepStrictEqual({ prompt: f.submitted[0].prompt, details: f.submitted[0].presentation?.details, acquired }, {
+			prompt: { text: 'Analyse' },
+			details: [
+				{ ...promptDetails, links: [] },
+				{ title: 'Analyse', availability: { kind: 'error', reason: 'The integration supplied invalid details for this action.' }, links: [], items: [], completeness: 'partial' },
+			],
+			acquired: [],
 		});
 	}));
 

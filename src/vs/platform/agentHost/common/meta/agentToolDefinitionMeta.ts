@@ -3,4 +3,4 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-export { readAgentToolFullReferenceName, withAgentToolFullReferenceName } from './vscode/agentToolDefinitionMeta.js';
+export { readAgentToolFullReferenceName, withAgentToolFullReferenceName, readAgentToolOrigin, withAgentToolOrigin } from './vscode/agentToolDefinitionMeta.js';

@@ -15,7 +15,6 @@ import { ManagedSettingsData } from '../../../../../../../base/common/policy.js'
 import { URI } from '../../../../../../../base/common/uri.js';
 import { mock } from '../../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../../base/test/common/utils.js';
-import { AgentHostAllowSignedOutWhenUsableSettingId } from '../../../../../../../platform/agentHost/common/agentService.js';
 import { IAgentHostEnablementService } from '../../../../../../../platform/agentHost/common/agentHostEnablementService.js';
 import { ActionListItemKind, ActionListWidget, IActionListDelegate, IActionListItem } from '../../../../../../../platform/actionWidget/browser/actionList.js';
 import { IActionWidgetDropdownAction } from '../../../../../../../platform/actionWidget/browser/actionWidgetDropdown.js';
@@ -74,17 +73,15 @@ function getMarkdownValue(value: string | IMarkdownString | HTMLElement | (() =>
 
 interface IAvailabilityInputs {
 	readonly type: string;
-	readonly allowSignedOutWhenUsable: boolean;
 	/** Whether the harness is gated on a Copilot account. */
 	readonly requiresCopilotSignIn: boolean;
 	readonly entitlement?: ChatEntitlement;
 	/** Agents that advertise a demand-driven SDK setup path. */
 	readonly setupAgents?: readonly string[];
-	readonly codexAccountStatus?: ICodexAccountService['account']['status'];
 }
 
 /** Availability for a harness that needs its own models and has none. */
-function getAvailability({ type, allowSignedOutWhenUsable, requiresCopilotSignIn, entitlement = ChatEntitlement.Unknown, setupAgents = [], codexAccountStatus = 'unknown' }: IAvailabilityInputs): SessionTypeAvailability {
+function getAvailability({ type, requiresCopilotSignIn, entitlement = ChatEntitlement.Unknown, setupAgents = [] }: IAvailabilityInputs): SessionTypeAvailability {
 	const chatSessionsService = new class extends mock<IChatSessionsService>() {
 		override getChatSessionContribution(candidate: string): ResolvedChatSessionsExtensionPoint | undefined {
 			return candidate === type
@@ -120,24 +117,20 @@ function getAvailability({ type, allowSignedOutWhenUsable, requiresCopilotSignIn
 	const agentSdkSetupService = new class extends mock<IAgentSdkSetupService>() {
 		override readonly setups = setupAgents.map(agent => ({ agent, download: 'ready' as const }));
 	}();
-	const codexAccountService = new class extends mock<ICodexAccountService>() {
-		override readonly account = { status: codexAccountStatus };
-	}();
 
 	return getConfiguredSessionTypePickerAvailability(
 		type,
-		new TestConfigurationService({ [AgentHostAllowSignedOutWhenUsableSettingId]: allowSignedOutWhenUsable }),
+		new TestConfigurationService(),
 		chatSessionsService,
 		entitlementService,
 		languageModelsService,
 		agentSdkSetupService,
-		codexAccountService,
 		new NullManagedSettingsService(),
 	);
 }
 
-function getCopilotAvailability(allowSignedOutWhenUsable: boolean): SessionTypeAvailability {
-	return getAvailability({ type: SessionType.AgentHostCopilot, allowSignedOutWhenUsable, requiresCopilotSignIn: true });
+function getCopilotAvailability(): SessionTypeAvailability {
+	return getAvailability({ type: SessionType.AgentHostCopilot, requiresCopilotSignIn: true });
 }
 
 suite('SessionTypePickerActionItem', () => {
@@ -367,19 +360,12 @@ suite('SessionTypePickerActionItem', () => {
 	});
 
 	test('applies signed-out Agent Host availability in editor chat', () => {
-		assert.deepStrictEqual({
-			enabled: getCopilotAvailability(true),
-			disabled: getCopilotAvailability(false),
-		}, {
-			enabled: SessionTypeAvailability.Available,
-			disabled: SessionTypeAvailability.SignInRequired,
-		});
+		assert.strictEqual(getCopilotAvailability(), SessionTypeAvailability.Available);
 	});
 
 	test('a harness whose agent advertises setup stays selectable, so demand-driven discovery can start', () => {
 		const claude = (setupAgents: readonly string[]) => getAvailability({
 			type: SessionType.AgentHostClaude,
-			allowSignedOutWhenUsable: true,
 			requiresCopilotSignIn: false,
 			setupAgents,
 		});
@@ -396,62 +382,26 @@ suite('SessionTypePickerActionItem', () => {
 	test('another agent\'s setup does not unlock this harness', () => {
 		assert.strictEqual(getAvailability({
 			type: SessionType.AgentHostCodex,
-			allowSignedOutWhenUsable: true,
 			requiresCopilotSignIn: false,
 			setupAgents: ['claude'],
 		}), SessionTypeAvailability.NoModels);
 	});
 
-	test('a Copilot Free account can initialize Codex without enabling signed-out use', () => {
+	test('a Copilot Free account can initialize Codex without GitHub', () => {
 		assert.strictEqual(getAvailability({
 			type: SessionType.AgentHostCodex,
-			allowSignedOutWhenUsable: false,
 			requiresCopilotSignIn: false,
 			entitlement: ChatEntitlement.Free,
 			setupAgents: ['codex'],
 		}), SessionTypeAvailability.Available);
 	});
 
-	test('a ChatGPT account can initialize Codex without GitHub or the signed-out experiment', () => {
+	test('a signed-out user can initialize Codex without a provider account', () => {
 		assert.strictEqual(getAvailability({
 			type: SessionType.AgentHostCodex,
-			allowSignedOutWhenUsable: false,
 			requiresCopilotSignIn: true,
 			setupAgents: ['codex'],
-			codexAccountStatus: 'signedIn',
 		}), SessionTypeAvailability.Available);
-	});
-
-	test('an unknown Codex account can reach selection-time discovery without GitHub or the signed-out experiment', () => {
-		const availability = (codexAccountStatus: ICodexAccountService['account']['status'], setupAgents = ['codex']) => getAvailability({
-			type: SessionType.AgentHostCodex,
-			allowSignedOutWhenUsable: false,
-			requiresCopilotSignIn: true,
-			setupAgents,
-			codexAccountStatus,
-		});
-
-		assert.deepStrictEqual({
-			beforeDiscovery: availability('unknown'),
-			afterChatGPTDiscovery: availability('signedIn'),
-			afterSignedOutDiscovery: availability('signedOut'),
-			withoutSetup: availability('unknown', []),
-		}, {
-			beforeDiscovery: SessionTypeAvailability.Available,
-			afterChatGPTDiscovery: SessionTypeAvailability.Available,
-			afterSignedOutDiscovery: SessionTypeAvailability.SignInRequired,
-			withoutSetup: SessionTypeAvailability.SignInRequired,
-		});
-	});
-
-	test('a fully signed-out user still needs the signed-out experiment', () => {
-		assert.strictEqual(getAvailability({
-			type: SessionType.AgentHostCodex,
-			allowSignedOutWhenUsable: false,
-			requiresCopilotSignIn: true,
-			setupAgents: ['codex'],
-			codexAccountStatus: 'signedOut',
-		}), SessionTypeAvailability.SignInRequired);
 	});
 
 	test('creates an available Codex extension action with hover context', () => {

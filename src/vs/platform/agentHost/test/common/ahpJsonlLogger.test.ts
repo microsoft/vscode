@@ -8,9 +8,11 @@ import { VSBuffer } from '../../../../base/common/buffer.js';
 import { basename, dirname, joinPath } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
+import { Schemas } from '../../../../base/common/network.js';
 import { FileService } from '../../../files/common/fileService.js';
 import { IFileWriteOptions } from '../../../files/common/files.js';
 import { InMemoryFileSystemProvider } from '../../../files/common/inMemoryFilesystemProvider.js';
+import { createInMemoryFileService } from '../../../files/test/common/inMemoryFileService.js';
 import { NullLogService } from '../../../log/common/log.js';
 import { AhpJsonlLogger, AhpJsonlLogRetention, getAhpLogByteLength, isAhpJsonlLoggingEnabled, isAhpLogFileFor, stringifyAhpLogEntry } from '../../common/ahpJsonlLogger.js';
 
@@ -28,8 +30,7 @@ suite('AhpJsonlLogger', () => {
 	});
 
 	test('does not record inspection of its own logs or log-only file-watch changes', async () => {
-		const files = store.add(new FileService(new NullLogService()));
-		store.add(files.registerProvider('file', store.add(new InMemoryFileSystemProvider())));
+		const files = createInMemoryFileService(store, Schemas.file);
 		const logger = store.add(new AhpJsonlLogger({
 			logsHome: URI.file('/inspection-logs'), logId: 'host', connectionId: 'client', transport: 'mission-control',
 		}, files, new NullLogService()));
@@ -180,8 +181,7 @@ suite('AhpJsonlLogger', () => {
 	});
 
 	test('writes canonical JSON-RPC JSONL with metadata at the root', async () => {
-		const fileService = store.add(new FileService(new NullLogService()));
-		store.add(fileService.registerProvider('file', store.add(new InMemoryFileSystemProvider())));
+		const fileService = createInMemoryFileService(store, Schemas.file);
 
 		const logger = store.add(new AhpJsonlLogger(
 			{ logsHome: URI.file('/logs'), logId: 'logical-host', connectionId: 'conn:1', transport: 'websocket' },
@@ -277,8 +277,7 @@ suite('AhpJsonlLogger', () => {
 	});
 
 	test('rotates JSONL files and keeps bounded history', async () => {
-		const fileService = store.add(new FileService(new NullLogService()));
-		store.add(fileService.registerProvider('file', store.add(new InMemoryFileSystemProvider())));
+		const fileService = createInMemoryFileService(store, Schemas.file);
 
 		const logger = store.add(new AhpJsonlLogger(
 			{ logsHome: URI.file('/logs'), logId: 'logical-host', connectionId: 'rotating', transport: 'websocket', maxFileSizeBytes: 1, maxFiles: 2 },
@@ -315,8 +314,7 @@ suite('AhpJsonlLogger', () => {
 	});
 
 	test('redacts authentication tokens without mutating live requests, including oversized entries', async () => {
-		const fileService = store.add(new FileService(new NullLogService()));
-		store.add(fileService.registerProvider('file', store.add(new InMemoryFileSystemProvider())));
+		const fileService = createInMemoryFileService(store, Schemas.file);
 		const logger = store.add(new AhpJsonlLogger(
 			{ logsHome: URI.file('/logs'), logId: 'authentication', connectionId: 'client', transport: 'mission-control' },
 			fileService, new NullLogService(),
@@ -412,6 +410,26 @@ suite('AhpJsonlLogger', () => {
 		}, { bytesWithinBudget: true, fileCount: 1, latest: 2 });
 	});
 
+	test('redacts client certificate responses without modifying the live result', () => {
+		const response = { jsonrpc: '2.0', id: 1, result: { certificates: ['PRIVATE CLIENT CA'] } };
+		assert.deepStrictEqual({
+			logged: JSON.parse(stringifyAhpLogEntry(response)).result.certificates,
+			live: response.result.certificates,
+		}, { logged: '<redacted>', live: ['PRIVATE CLIENT CA'] });
+	});
+
+	test('redacts Assisted permissions feedback in dispatched confirmations without modifying the live action', () => {
+		const action = { type: 'chat/toolCallConfirmed', turnId: 't', toolCallId: 'tc', approved: true, _meta: { 'agentHost.permissionDecisionSource': 'human_response', 'vscode.assistedApprovalFeedback': 'Private note' } };
+		const message = { jsonrpc: '2.0', method: 'dispatchAction', params: { channel: 'ahp-chat:/c', clientSeq: 1, action } };
+		assert.deepStrictEqual({
+			logged: JSON.parse(stringifyAhpLogEntry(message)).params.action._meta,
+			live: action._meta['vscode.assistedApprovalFeedback'],
+		}, {
+			logged: { 'agentHost.permissionDecisionSource': 'human_response', 'vscode.assistedApprovalFeedback': '<redacted permission feedback>' },
+			live: 'Private note',
+		});
+	});
+
 	test('preserves existing authentication redaction markers', () => {
 		assert.deepStrictEqual(['<redacted>', '[REDACTED]'].map(token => JSON.parse(stringifyAhpLogEntry({
 			method: 'authenticate', params: { token },
@@ -453,8 +471,7 @@ suite('AhpJsonlLogger', () => {
 	});
 
 	test('bounds pending log data and records dropped entries', async () => {
-		const fileService = store.add(new FileService(new NullLogService()));
-		store.add(fileService.registerProvider('file', store.add(new InMemoryFileSystemProvider())));
+		const fileService = createInMemoryFileService(store, Schemas.file);
 
 		const logger = store.add(new AhpJsonlLogger(
 			{ logsHome: URI.file('/logs'), logId: 'bounded', connectionId: 'bounded', transport: 'websocket', maxPendingBytes: 1 },
@@ -478,8 +495,7 @@ suite('AhpJsonlLogger', () => {
 	});
 
 	test('redacts canvas URLs in actions and snapshots without mutating live state', async () => {
-		const fileService = store.add(new FileService(new NullLogService()));
-		store.add(fileService.registerProvider('file', store.add(new InMemoryFileSystemProvider())));
+		const fileService = createInMemoryFileService(store, Schemas.file);
 		const logger = store.add(new AhpJsonlLogger(
 			{ logsHome: URI.file('/logs'), logId: 'canvas-source', connectionId: 'canvas-source', transport: 'websocket' },
 			fileService,
@@ -500,8 +516,7 @@ suite('AhpJsonlLogger', () => {
 	});
 
 	test('redacts replayed canvas actions and incomplete canvas state fail closed', async () => {
-		const fileService = store.add(new FileService(new NullLogService()));
-		store.add(fileService.registerProvider('file', store.add(new InMemoryFileSystemProvider())));
+		const fileService = createInMemoryFileService(store, Schemas.file);
 		const logger = store.add(new AhpJsonlLogger(
 			{ logsHome: URI.file('/logs'), logId: 'canvas-source-saturated', connectionId: 'canvas-source-saturated', transport: 'websocket' },
 			fileService,
@@ -528,8 +543,7 @@ suite('AhpJsonlLogger', () => {
 	});
 
 	test('flush waits for batched writes and ordering is preserved across drains', async () => {
-		const fileService = store.add(new FileService(new NullLogService()));
-		store.add(fileService.registerProvider('file', store.add(new InMemoryFileSystemProvider())));
+		const fileService = createInMemoryFileService(store, Schemas.file);
 
 		const logger = store.add(new AhpJsonlLogger(
 			{ logsHome: URI.file('/logs'), logId: 'flush-order', connectionId: 'flush-order', transport: 'websocket' },
@@ -553,8 +567,7 @@ suite('AhpJsonlLogger', () => {
 	});
 
 	test('elides oversized string payloads while keeping the line valid JSONL', async () => {
-		const fileService = store.add(new FileService(new NullLogService()));
-		store.add(fileService.registerProvider('file', store.add(new InMemoryFileSystemProvider())));
+		const fileService = createInMemoryFileService(store, Schemas.file);
 
 		const logger = store.add(new AhpJsonlLogger(
 			{ logsHome: URI.file('/logs'), logId: 'logical-host', connectionId: 'conn:1', transport: 'websocket' },
@@ -567,23 +580,39 @@ suite('AhpJsonlLogger', () => {
 		// A message carrying a multi-MB string (e.g. a base64 resourceRead) is trimmed.
 		const huge = 'x'.repeat(4 * 1024 * 1024);
 		logger.log({ jsonrpc: '2.0', id: 2, result: { data: huge } }, 's2c');
+		let readsWithByteLength = 0;
+		logger.log({ jsonrpc: '2.0', id: 3, result: { get data() { readsWithByteLength++; return huge; } } }, 's2c', huge.length);
 		await logger.flush();
 
 		const content = (await fileService.readFile(logger.resource)).value.toString();
 		const lines = content.split('\n').filter(Boolean);
-		// Both lines must be valid JSON (the trimmed line stays well-formed JSONL).
+		// All lines must be valid JSON (the trimmed lines stay well-formed JSONL).
 		const parsed = lines.map(line => JSON.parse(line));
 
 		assert.strictEqual(parsed[0]._ahpLog.truncated, undefined);
 		assert.strictEqual(parsed[1]._ahpLog.truncated, true);
+		assert.strictEqual(parsed[2]._ahpLog.truncated, true);
+		assert.strictEqual(readsWithByteLength, 1);
 		// The huge string was elided rather than written in full.
 		assert.ok(parsed[1].result.data.length < huge.length);
 		assert.ok(parsed[1].result.data.includes('chars elided'));
+		assert.ok(parsed[2].result.data.includes('chars elided'));
 		// The whole serialized line stays modest in size.
 		assert.ok(lines[1].length < 1024 * 1024);
+		assert.ok(lines[2].length < 1024 * 1024);
 	});
 
 	suite('stringifyAhpLogEntry', () => {
+		test('redacts proxy authorization results without changing the live value', () => {
+			const result = { jsonrpc: '2.0', id: 1, result: { authorization: 'Negotiate private-ticket' } };
+			assert.deepStrictEqual({
+				logged: JSON.parse(stringifyAhpLogEntry(result)),
+				live: result.result.authorization,
+			}, {
+				logged: { jsonrpc: '2.0', id: 1, result: { authorization: '<redacted>' } },
+				live: 'Negotiate private-ticket',
+			});
+		});
 
 		test('serialises a top-level URI as its string form', () => {
 			const uri = URI.parse('file:///tmp/example.txt');

@@ -19,28 +19,28 @@ Ask one concept per question, titled by the missing input, such as "Repositories
 
 ## Shape the draft
 
-Use `listAutomations` to verify capabilities and duplicates before configuration; mention only relevant matches. Missing, loading, or partial information is unverified, not an empty catalog. Retry usefully, never an unchanged authentication failure. Explain blocked verification; use only ready-catalog cloud tool and trigger IDs.
+Use `listAutomations` to verify capabilities and duplicates before configuration; mention only relevant matches. Missing, loading, or partial information is unverified, not an empty catalog. Retry usefully, never an unchanged authentication failure. Explain blocked verification; use only ready-catalog cloud tool IDs and fields supported by the current creation tool.
 
 For work centered on a supplied folder, prefer that folder; otherwise suggest Chat. Prefer the current harness, or Copilot if unknown. Preserve explicit target, isolation, provider, model, reasoning, and permission choices. Explain unsupported choices rather than substituting them.
 
 Focus on user decisions, not discovery results, provider counts, machine requirements, or confirmation reassurances. Discuss limitations only when requested or blocking; mention unavailable cloud only for a cloud request. Validate repository access through supported tools before creation.
 
-Start with no optional customizations or cloud tools, using explicit empty selections where supported. Add only what the task needs. Keep read-only work read-only. Separate task instructions from enforced settings: use verified permission labels, or identify provider defaults without promising which actions will prompt. Never invent controls or imitate unavailable guarantees with chat approval questions; explain the limitation and let the user choose.
+Request no optional tools or customizations, using explicit empty selections only where the current tool supports them. Add only what the task needs; do not invent parameters or claim unavailable customization controls were applied. Keep read-only work read-only. Separate task instructions from enforced settings: use verified permission labels, or identify provider defaults without promising which actions will prompt. Never invent controls or imitate unavailable guarantees with chat approval questions; explain the limitation and let the user choose.
 
 Write the saved prompt for a person to skim: a short goal, then short paragraphs or bullets for steps, output, and necessary limits. Use headings only when useful. Preserve exact filenames, commands, thresholds, and stated constraints without setup narration or unrelated boilerplate. Use paths relative to a configured folder; Chat tasks need sufficient absolute inputs. Do not invent consequential behavior: offer assumptions as suggestions or clarify them.
 
-Reflect requested schedule times and zones; verify local-clock compatibility and daylight-saving behavior before creation. Never approximate unsupported events or silently convert times. Cloud events require ready trigger configuration and a manual schedule; require repository-write access for triggering actors unless the user explicitly approves broader activity and the repository allows it.
+Reflect requested schedule times and zones; verify local-clock compatibility and daylight-saving behavior before creation. Use only schedules supported by the current tool. Explain unsupported event triggers rather than approximating them or silently converting times.
 
 ## Propose, then wait
 
 Show an ordinary-chat draft: name; **Runs** with plain location, full folder path in code, and direct-folder/worktree distinction; **When**; decision-relevant verified settings, ownership, or costs; and the exact prompt. Use "Copilot on this computer", not "Copilot SDK", "folder isolation", or "Local Agent Host", for local runs. Separate suggestions and unresolved choices from verified settings.
 
-Complete the proposal without an acceptance form. End: "Say Create it when ready, or tell me what to change." Ask only for missing facts. Never use `configureAutomation` as a preview: it saves. Invoking the skill, supplying an idea, or pressing Start Chat is not acceptance.
+Complete the proposal without an acceptance form. End: "Say Create it when ready, or tell me what to change." Ask only for missing facts. Never use `configureAutomation` as a preview: it saves. Invoking the skill or supplying an idea is not acceptance.
 
 If the user accepts with a rename or unambiguous edit, save the reviewed draft plus only that edit without another round. If resolving a change requires judgment, conflicting choices, or consequential assumptions, show the resolved draft and wait for acceptance. Add no new task behavior while saving.
 
 ## Create only after acceptance
 
-After acceptance, resolve remaining blockers and call `configureAutomation` with the reviewed configuration and the same prompt, retaining its line breaks. Omit `enabled` on create: the user chooses Create Enabled or Create Disabled in confirmation. Respect tool approval and organization policy; never bypass them through shell, HTTP, or repository edits. Chat targets omit workspace, isolation, and branch fields. Never guess settings or widen permissions.
+After acceptance, resolve remaining blockers and call `configureAutomation` with the reviewed configuration and the same prompt, retaining its line breaks. Preserve explicit creation-state requests; otherwise omit `enabled` and retain existing tool defaults. Do not claim confirmation choices the tool does not offer. Respect tool approval and organization policy; never bypass them through shell, HTTP, or repository edits. Chat targets omit workspace, isolation, and branch fields. Never guess settings or widen permissions.
 
 Report saved identity, state, and accepted prompt edits. Reconcile uncertain results before retrying. Do not enable, run, change, or delete an automation without explicit authorization. Creating does not authorize a run.

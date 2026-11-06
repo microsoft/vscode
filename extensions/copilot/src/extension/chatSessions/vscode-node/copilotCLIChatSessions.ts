@@ -18,7 +18,7 @@ import { ILogService } from '../../../platform/log/common/logService';
 import { ITelemetryService } from '../../../platform/telemetry/common/telemetry';
 import { IWorkspaceService } from '../../../platform/workspace/common/workspaceService';
 import { isUri } from '../../../util/common/types';
-import { DeferredPromise, IntervalTimer, raceCancellation } from '../../../util/vs/base/common/async';
+import { DeferredPromise, IntervalTimer, Limiter, raceCancellation } from '../../../util/vs/base/common/async';
 import { CancellationToken } from '../../../util/vs/base/common/cancellation';
 import { isCancellationError } from '../../../util/vs/base/common/errors';
 import { Emitter, Event } from '../../../util/vs/base/common/event';
@@ -44,7 +44,7 @@ import { getCopilotCLISessionDir } from '../copilotcli/node/cliHelpers';
 import { ICopilotCLIModels, ICopilotCLISDK } from '../copilotcli/node/copilotCli';
 import { CopilotCLIPromptResolver } from '../copilotcli/node/copilotcliPromptResolver';
 import { builtinSlashSCommands, CopilotCLICommand, copilotCLICommands, CopilotCLIQuotaExceededError, ICopilotCLISession } from '../copilotcli/node/copilotcliSession';
-import { ICopilotCLISessionItem, ICopilotCLISessionService } from '../copilotcli/node/copilotcliSessionService';
+import { CHAT_SESSION_ITEM_MAX_PARALLELISM, ICopilotCLISessionItem, ICopilotCLISessionService } from '../copilotcli/node/copilotcliSessionService';
 import { buildMcpServerMappings } from '../copilotcli/node/mcpHandler';
 import { ICopilotCLISessionTracker } from '../copilotcli/vscode-node/copilotCLISessionTracker';
 import { ICopilotCLITerminalIntegration } from './copilotCLITerminalIntegration';
@@ -135,7 +135,8 @@ export class CopilotCLIChatSessionContentProvider extends Disposable implements 
 			void this._metadataStore.refresh().catch(error => this.logService.error(error, 'Failed to refresh session metadata store during session list refresh'));
 			try {
 				const sessions = await this.sessionService.getAllSessions(CancellationToken.None);
-				const items = await Promise.all(sessions.map(async session => this.toChatSessionItem(session)));
+				const limiter = new Limiter<vscode.ChatSessionItem>(CHAT_SESSION_ITEM_MAX_PARALLELISM);
+				const items = await Promise.all(sessions.map(session => limiter.queue(() => this.toChatSessionItem(session))));
 
 				const count = items.length;
 				void this.commandExecutionService.executeCommand('setContext', 'github.copilot.chat.cliSessionsEmpty', count === 0);

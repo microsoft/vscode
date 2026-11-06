@@ -17,13 +17,18 @@ import { mock } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { IAgentExtensionInventory } from '../../../../../../platform/agentHost/common/agent.js';
 import { ICommandService } from '../../../../../../platform/commands/common/commands.js';
+import { IConfigurationChangeEvent, IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
+import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { IContextMenuService } from '../../../../../../platform/contextview/browser/contextView.js';
+import { ICustomizationMarketplaceService } from '../../../../../../platform/customizationMarketplace/common/customizationMarketplaceService.js';
+import { CustomizationMarketplaceConfiguration } from '../../../../../../platform/customizationMarketplace/common/customizationMarketplaceSources.js';
 import { IOpenerService } from '../../../../../../platform/opener/common/opener.js';
 import { INotificationService } from '../../../../../../platform/notification/common/notification.js';
 import { InMemoryStorageService, IStorageService } from '../../../../../../platform/storage/common/storage.js';
 import { getCanvasDefinitionInstanceId, ICanvas, ICanvasContext, ICanvasContextService, ICanvasDefinition, ICanvasReference, ICanvasService } from '../../../../canvases/common/canvas.js';
 import { workbenchInstantiationService } from '../../../../../test/browser/workbenchTestServices.js';
 import { AICustomizationManagementCommands } from '../../../common/aiCustomizationWorkspaceService.js';
+import { ICustomizationHarnessService } from '../../../common/customizationHarnessService.js';
 import { IAgentPlugin, IAgentPluginService } from '../../../common/plugins/agentPluginService.js';
 import { CopilotCanvasesWidget } from '../../../browser/aiCustomization/copilotCustomizationsWidget.js';
 import { ICopilotExtensionsService } from '../../../browser/aiCustomization/copilotExtensionsService.js';
@@ -73,7 +78,11 @@ suite('CopilotCanvasesWidget', () => {
 		readonly contextAvailable?: boolean;
 		readonly ownerSuffix?: string;
 		readonly mutationGate?: Promise<void>;
+		readonly mutationError?: Error;
+		readonly onMutation?: () => void;
 		readonly plugins?: readonly IAgentPlugin[];
+		readonly discoveryAvailable?: boolean;
+		readonly customizationSessionResource?: URI;
 	}) {
 		const container = DOM.append(mainWindow.document.body, DOM.$('.copilot-canvases-test.ai-customization-management-editor'));
 		container.style.width = '900px';
@@ -81,6 +90,7 @@ suite('CopilotCanvasesWidget', () => {
 		store.add({ dispose: () => container.remove() });
 		const ownerSuffix = options?.ownerSuffix ?? 'owner';
 		const frontendSessionResource = URI.parse(`agent-host-copilotcli:/frontend-${ownerSuffix}`);
+		const customizationSessionResource = options?.customizationSessionResource ?? frontendSessionResource;
 		let definitions = options?.definitions ?? [definition()];
 		let extensionInventory = options?.extensionInventory ?? inventory(definitions);
 		const definitionsChanged = store.add(new Emitter<void>());
@@ -140,6 +150,10 @@ suite('CopilotCanvasesWidget', () => {
 				if (!value) {
 					definitions = definitions.filter(canvas => canvas.extensionId !== extensionId);
 				}
+				options?.onMutation?.();
+				if (options?.mutationError) {
+					throw options.mutationError;
+				}
 				definitionsChanged.fire();
 			}
 		}();
@@ -149,10 +163,29 @@ suite('CopilotCanvasesWidget', () => {
 		const plugins = observableValue<readonly IAgentPlugin[]>('plugins', options?.plugins ?? []);
 		const menuActions: IAction[] = [];
 		let hideMenu = () => { };
+		const canvasMarketplaceSetting = 'test.canvasMarketplace.enabled';
+		const discoveryAvailable = options?.discoveryAvailable ?? true;
+		const configurationService = new TestConfigurationService({
+			[CustomizationMarketplaceConfiguration.MarketplaceEnabled]: discoveryAvailable,
+			[canvasMarketplaceSetting]: discoveryAvailable,
+		});
+		store.add({ dispose: () => configurationService.onDidChangeConfigurationEmitter.dispose() });
 		const instantiationService = workbenchInstantiationService({}, store);
 		instantiationService.stub(ICanvasContextService, canvasContextService);
 		instantiationService.stub(ICanvasService, canvasService);
 		instantiationService.stub(ICopilotExtensionsService, extensionsService);
+		instantiationService.stub(ICustomizationHarnessService, new class extends mock<ICustomizationHarnessService>() {
+			override readonly activeSessionResource = constObservable(customizationSessionResource);
+		}());
+		instantiationService.stub(IConfigurationService, configurationService);
+		instantiationService.stub(ICustomizationMarketplaceService, new class extends mock<ICustomizationMarketplaceService>() {
+			override readonly sources = [{
+				id: 'canvasMarketplace',
+				displayName: 'Canvas Marketplace',
+				enablementSetting: canvasMarketplaceSetting,
+			}];
+			override readonly onDidChangeSources = Event.None;
+		}());
 		instantiationService.stub(IOpenerService, new class extends mock<IOpenerService>() {
 			override async open(resource: URI | string): Promise<boolean> {
 				openedLinks.push(resource.toString());
@@ -167,6 +200,7 @@ suite('CopilotCanvasesWidget', () => {
 		}());
 		instantiationService.stub(INotificationService, new class extends mock<INotificationService>() {
 			override info(message: string): void { notifications.push(message); }
+			override error(message: string): void { notifications.push(message); }
 		}());
 		instantiationService.stub(ICommandService, new class extends mock<ICommandService>() {
 			override executeCommand<R = unknown>(id: string, ...args: unknown[]): Promise<R | undefined> {
@@ -204,6 +238,7 @@ suite('CopilotCanvasesWidget', () => {
 			definitionsChanged,
 			enabled,
 			frontendSessionResource,
+			configurationService,
 			listRequests,
 			setRequests,
 			get listCalls() { return listCalls; },
@@ -346,6 +381,65 @@ suite('CopilotCanvasesWidget', () => {
 		});
 	});
 
+	test('opens Canvas discovery from the header when available', async () => {
+		const customizationSessionResource = URI.parse('agent-host-copilotcli:/customization-session');
+		const available = createHarness({ contextAvailable: false, customizationSessionResource });
+		const unavailable = createHarness({ contextAvailable: false, discoveryAvailable: false });
+		const create = available.container.querySelector<HTMLElement>('[aria-label="Create a Canvas"]');
+		const browse = available.container.querySelector<HTMLElement>('[aria-label="Browse Canvas Extensions"]');
+		const hiddenBrowse = unavailable.container.querySelector<HTMLElement>('[aria-label="Browse Canvas Extensions"]');
+		assert.ok(create);
+		assert.ok(browse);
+		assert.ok(hiddenBrowse);
+		create.click();
+		browse.click();
+		await timeout(0);
+		const visibleDisplay = browse.style.display;
+		await available.configurationService.setUserConfiguration(CustomizationMarketplaceConfiguration.MarketplaceEnabled, false);
+		available.configurationService.onDidChangeConfigurationEmitter.fire(new class extends mock<IConfigurationChangeEvent>() {
+			override affectsConfiguration(section: string): boolean {
+				return section === CustomizationMarketplaceConfiguration.MarketplaceEnabled;
+			}
+		}());
+		const hiddenAfterConfigurationChange = browse.style.display;
+		await available.configurationService.setUserConfiguration(CustomizationMarketplaceConfiguration.MarketplaceEnabled, true);
+		available.configurationService.onDidChangeConfigurationEmitter.fire(new class extends mock<IConfigurationChangeEvent>() {
+			override affectsConfiguration(section: string): boolean {
+				return section === CustomizationMarketplaceConfiguration.MarketplaceEnabled;
+			}
+		}());
+
+		assert.deepStrictEqual({
+			createLabel: create.textContent,
+			createAriaLabel: create.getAttribute('aria-label'),
+			label: browse.textContent,
+			ariaLabel: browse.getAttribute('aria-label'),
+			commands: available.commands,
+			visibleDisplay,
+			hiddenAfterConfigurationChange,
+			restoredDisplay: browse.style.display,
+			hiddenDisplay: hiddenBrowse.style.display,
+			hiddenAccessibilityMentionsBrowse: unavailable.widget.getAccessibilityContent().includes('Use Browse'),
+		}, {
+			createLabel: 'Create a Canvas...',
+			createAriaLabel: 'Create a Canvas',
+			label: 'Browse',
+			ariaLabel: 'Browse Canvas Extensions',
+			commands: [
+				{ id: AICustomizationManagementCommands.CreateCanvas, args: [] },
+				{
+					id: AICustomizationManagementCommands.OpenEditor,
+					args: [{ showDiscover: true, searchQuery: '@type:canvas', sessionResource: customizationSessionResource }],
+				},
+			],
+			visibleDisplay: '',
+			hiddenAfterConfigurationChange: 'none',
+			restoredDisplay: '',
+			hiddenDisplay: 'none',
+			hiddenAccessibilityMentionsBrowse: false,
+		});
+	});
+
 	test('distinguishes a missing compatible chat from a chat with no Canvases', async () => {
 		const withoutContext = createHarness({ contextAvailable: false });
 		const withoutCanvases = createHarness({ definitions: [] });
@@ -359,13 +453,13 @@ suite('CopilotCanvasesWidget', () => {
 		}, {
 			withoutContext: [
 				'Canvases',
-				'Canvas availability follows the chats currently visible in this window.',
+				'Canvas availability follows the chats currently visible in this window. Use Create a Canvas to start a guided authoring session, or Browse to find and install Canvas extensions.',
 				'Canvases are only available inside a session',
 				'Select an active Copilot session and then open this Customizations menu again',
 			].join('\n\n'),
 			withoutCanvases: [
 				'Canvases',
-				'Canvas availability follows the chats currently visible in this window.',
+				'Canvas availability follows the chats currently visible in this window. Use Create a Canvas to start a guided authoring session, or Browse to find and install Canvas extensions.',
 				'No Canvases Available',
 				'None of the current Copilot chats provide any Canvases.',
 			].join('\n\n'),
@@ -518,6 +612,77 @@ suite('CopilotCanvasesWidget', () => {
 		harness.hideMenu();
 	});
 
+	test('keeps Open Canvas discoverable when direct opening requires input', async () => {
+		const harness = createHarness({
+			definitions: [definition({
+				canvasId: 'form',
+				displayName: 'Form',
+				description: 'Collects structured input.',
+				requiresInput: true,
+			})],
+		});
+		await timeout(0);
+		const row = harness.container.querySelector<HTMLElement>('.monaco-list-row[aria-label^="Form."]');
+		assert.ok(row);
+		const more = row.querySelector<HTMLElement>('[data-customization-action="more"]');
+		assert.ok(more);
+		more.click();
+		const open = harness.menuActions.find(action => action.id === 'canvas.show');
+		assert.ok(open);
+		await open.run();
+		harness.hideMenu();
+
+		assert.deepStrictEqual({
+			moreVisible: more.checkVisibility(),
+			moreAriaLabel: more.getAttribute('aria-label'),
+			rowExplainsInput: row.getAttribute('aria-label')?.includes('Opening this canvas requires specific inputs. You can ask an agent to open it.'),
+			accessibleContentExplainsInput: harness.widget.getAccessibilityContent().includes('Opening this canvas requires specific inputs. You can ask an agent to open it.'),
+			action: {
+				label: open.label,
+				enabled: open.enabled,
+			},
+			openCalls: harness.openCalls,
+			closeCalls: harness.closeCalls,
+		}, {
+			moreVisible: true,
+			moreAriaLabel: 'More Actions for Canvas Form. Opening this canvas requires specific inputs. You can ask an agent to open it.',
+			rowExplainsInput: true,
+			accessibleContentExplainsInput: true,
+			action: {
+				label: 'Open Canvas (Requires Specific Inputs)',
+				enabled: false,
+			},
+			openCalls: 0,
+			closeCalls: 0,
+		});
+	});
+
+	test('search treats dashes and spaces as equivalent separators', async () => {
+		const harness = createHarness({
+			definitions: [
+				definition({ canvasId: 'workspace', extensionId: 'project:workspace', extensionSource: 'project', extensionName: 'Workspace Tools', displayName: 'Workspace Board' }),
+				definition({ canvasId: 'plugin', extensionId: 'plugin:diagram:canvas', extensionSource: 'plugin', extensionName: 'diagram-plugin', displayName: 'Diagram Board' }),
+			],
+		});
+		await timeout(0);
+		const search = harness.container.querySelector<HTMLInputElement>('input[aria-label="Search Canvases"]');
+		assert.ok(search);
+		const results: Record<string, string[]> = {};
+		for (const query of ['workspace-tools', 'diagram plugin', 'diagram-board']) {
+			search.value = query;
+			search.dispatchEvent(new InputEvent('input', { bubbles: true }));
+			await timeout(0);
+			const accessible = harness.widget.getAccessibilityContent();
+			results[query] = ['Workspace Tools', 'diagram-plugin', 'Diagram Board'].filter(label => accessible.includes(label));
+		}
+
+		assert.deepStrictEqual(results, {
+			'workspace-tools': ['Workspace Tools'],
+			'diagram plugin': ['diagram-plugin', 'Diagram Board'],
+			'diagram-board': ['diagram-plugin', 'Diagram Board'],
+		});
+	});
+
 	test('does not restore mutation focus after the user moves to search', async () => {
 		const gate = new DeferredPromise<void>();
 		const harness = createHarness({ mutationGate: gate.p });
@@ -539,7 +704,7 @@ suite('CopilotCanvasesWidget', () => {
 	test('disables only at the extension parent and retains its Canvas children', async () => {
 		const harness = createHarness({
 			definitions: [
-				definition({ canvasId: 'review', extensionId: 'user:pr-tools', extensionSource: 'user', extensionName: 'PR Tools', displayName: 'PR Review Board' }),
+				definition({ canvasId: 'review', extensionId: 'user:pr-tools', extensionSource: 'user', extensionName: 'PR Tools', displayName: 'PR Review Board', requiresInput: true }),
 				definition({ canvasId: 'release', extensionId: 'user:pr-tools', extensionSource: 'user', extensionName: 'PR Tools', displayName: 'Release Notes Draft' }),
 			],
 		});
@@ -549,12 +714,16 @@ suite('CopilotCanvasesWidget', () => {
 		disable.click();
 		await timeout(20);
 		const accessible = harness.widget.getAccessibilityContent();
+		const reviewRow = harness.container.querySelector<HTMLElement>('.monaco-list-row[aria-label^="PR Review Board."]');
+		assert.ok(reviewRow);
 
 		assert.deepStrictEqual({
 			requests: harness.setRequests.map(request => ({ session: request.session.toString(), extensionId: request.extensionId, enabled: request.enabled })),
 			visibleSwitchChecked: harness.container.querySelector('[aria-label="Enable canvas extension \'PR Tools\'"]')?.getAttribute('aria-checked'),
 			retainedCanvases: ['PR Review Board', 'Release Notes Draft'].filter(name => accessible.includes(name)),
 			canvasSwitches: harness.container.querySelectorAll('.copilot-canvas-tree-item [role="switch"]').length,
+			inputGuidance: accessible.includes('You can ask an agent to open it.'),
+			inputActionVisible: reviewRow.querySelector<HTMLElement>('[data-customization-action="more"]')?.checkVisibility(),
 		}, {
 			requests: [{
 				session: harness.frontendSessionResource.toString(),
@@ -564,8 +733,68 @@ suite('CopilotCanvasesWidget', () => {
 			visibleSwitchChecked: 'false',
 			retainedCanvases: ['PR Review Board', 'Release Notes Draft'],
 			canvasSwitches: 0,
+			inputGuidance: false,
+			inputActionVisible: false,
 		});
 	});
+
+	test('refreshes committed enablement when Canvas listing also fails', async () => {
+		const preview = definition();
+		let failCanvasListing = false;
+		const harness = createHarness({
+			definitions: [preview],
+			listCanvases: async () => {
+				if (failCanvasListing) {
+					throw new Error('Canvas listing failed.');
+				}
+				return [preview];
+			},
+			onMutation: () => failCanvasListing = true,
+			mutationError: new Error('After disabling \'Preview Extension\', this chat couldn\'t finish updating canvas extensions because \'Other\' failed to start. This chat may not match your canvas extension settings.'),
+		});
+		await timeout(20);
+		const disable = harness.container.querySelector<HTMLElement>('[aria-label="Disable canvas extension \'Preview Extension\'"]');
+		assert.ok(disable);
+		const requestsBefore = harness.listRequests.length;
+		disable.click();
+		await timeout(20);
+		assert.deepStrictEqual({
+			refreshed: harness.listRequests.length > requestsBefore,
+			checked: harness.container.querySelector('[aria-label="Enable canvas extension \'Preview Extension\'"]')?.getAttribute('aria-checked'),
+			notifications: harness.notifications,
+		}, {
+			refreshed: true,
+			checked: 'false',
+			notifications: ['After disabling \'Preview Extension\', this chat couldn\'t finish updating canvas extensions because \'Other\' failed to start. This chat may not match your canvas extension settings.'],
+		});
+	});
+
+	for (const scenario of [
+		{ name: 'successful enable', mutationError: undefined },
+		{ name: 'failed live reconciliation', mutationError: new Error('Canvas extension \'Preview Extension\' was enabled in settings, but couldn\'t be started in this chat. Reconciliation failed.') },
+	]) {
+		test(`restores toggle focus after ${scenario.name}`, async () => {
+			const preview = definition();
+			const harness = createHarness({
+				definitions: [preview],
+				extensionInventory: inventory([preview], 'disabled'),
+				mutationError: scenario.mutationError,
+			});
+			await timeout(20);
+			const enable = harness.container.querySelector<HTMLElement>('[aria-label="Enable canvas extension \'Preview Extension\'"]');
+			assert.ok(enable);
+			enable.focus();
+			enable.click();
+			await timeout(20);
+			assert.deepStrictEqual({
+				label: DOM.getActiveElement()?.getAttribute('aria-label'),
+				checked: DOM.getActiveElement()?.getAttribute('aria-checked'),
+			}, {
+				label: 'Disable canvas extension \'Preview Extension\'',
+				checked: 'true',
+			});
+		});
+	}
 
 	test('restores cached children after the Customizations widget is recreated while disabled', async () => {
 		const definitions = [
@@ -654,11 +883,11 @@ suite('CopilotCanvasesWidget', () => {
 		assert.deepStrictEqual({
 			canvas: accessible.includes('Preview. Last known:'),
 			lastKnown: accessible.includes('Last known:'),
-			itemCounts: refreshed.itemCounts,
+			itemCount: refreshed.itemCounts.at(-1),
 		}, {
 			canvas: false,
 			lastKnown: false,
-			itemCounts: [0],
+			itemCount: 0,
 		});
 	});
 
@@ -715,6 +944,28 @@ suite('CopilotCanvasesWidget', () => {
 
 		harness.setContextAvailable(false);
 		await timeout(0);
+		await show.run();
+		harness.hideMenu();
+
+		assert.strictEqual(harness.openCalls, 0);
+	});
+
+	test('does not run a retained Canvas action after the definition starts requiring input', async () => {
+		let definitions = [definition()];
+		const harness = createHarness({
+			definitions,
+			listCanvases: async () => definitions,
+		});
+		await timeout(0);
+		const more = harness.container.querySelector<HTMLElement>('[aria-label="More Actions for Canvas Preview"]');
+		assert.ok(more);
+		more.click();
+		const show = harness.menuActions.find(action => action.id === 'canvas.show');
+		assert.ok(show);
+
+		definitions = [definition({ requiresInput: true })];
+		harness.definitionsChanged.fire();
+		await timeout(20);
 		await show.run();
 		harness.hideMenu();
 

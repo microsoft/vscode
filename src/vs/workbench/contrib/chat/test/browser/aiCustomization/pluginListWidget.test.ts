@@ -300,10 +300,12 @@ suite('pluginListWidget', () => {
 			name: item.name,
 			location: item.location,
 			matchesLocation: installedPluginMatchesQuery(item, 'agent-plugins'),
+			matchesSpacedLocation: installedPluginMatchesQuery(item, 'agent plugins'),
 			matchesDescription: installedPluginMatchesQuery(item, 'design system'),
+			matchesDashedDescription: installedPluginMatchesQuery(item, 'design-system'),
 		})), [
-			{ name: 'example', location: '~/.copilot/installed-plugins/local', matchesLocation: false, matchesDescription: false },
-			{ name: 'figma', location: '~/.vscode/agent-plugins/github.com/example', matchesLocation: true, matchesDescription: true },
+			{ name: 'example', location: '~/.copilot/installed-plugins/local', matchesLocation: false, matchesSpacedLocation: false, matchesDescription: false, matchesDashedDescription: false },
+			{ name: 'figma', location: '~/.vscode/agent-plugins/github.com/example', matchesLocation: true, matchesSpacedLocation: true, matchesDescription: true, matchesDashedDescription: true },
 		]);
 	});
 

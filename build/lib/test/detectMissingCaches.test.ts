@@ -14,8 +14,11 @@ import { cacheWarmingJobs, detectMissingCaches, getCaches, type ICacheWarmingJob
 const repositoryRoot = path.resolve(import.meta.dirname, '../../..');
 
 interface IStep {
+	readonly name?: string;
 	readonly uses?: string;
 	readonly run?: string;
+	readonly shell?: string;
+	readonly 'working-directory'?: string;
 	readonly with?: Record<string, string>;
 }
 
@@ -47,10 +50,10 @@ function readRepositoryFile(relativePath: string): Buffer {
  * `ELECTRON_CACHE_PATH` that `.github/actions/setup-electron` sets on the runner, which depends on its
  * user profile and is part of the cache version.
  */
-const runners: Record<string, { platform: string; arch: string; os: ICacheWarmingJob['os']; electronCachePath: string }> = {
-	'1ES.Pool=1es-vscode-oss-ubuntu-22.04-x64': { platform: 'linux', arch: 'x64', os: 'Linux', electronCachePath: '/home/cloudtest/.cache/electron' },
-	'vscode-large-runners-windows-8-core': { platform: 'win32', arch: 'x64', os: 'Windows', electronCachePath: 'C:\\Users\\runneradmin\\AppData\\Local\\electron\\Cache' },
-	'macos-26-xlarge': { platform: 'darwin', arch: 'arm64', os: 'macOS', electronCachePath: '/Users/runner/Library/Caches/electron' },
+const runners: Record<string, { platform: string; arch: string; runnerArch: string; os: ICacheWarmingJob['os']; electronCachePath: string }> = {
+	'vscode-large-runners-ubuntu-8-core': { platform: 'linux', arch: 'x64', runnerArch: 'X64', os: 'Linux', electronCachePath: '/home/runner/.cache/electron' },
+	'vscode-large-runners-windows-8-core': { platform: 'win32', arch: 'x64', runnerArch: 'X64', os: 'Windows', electronCachePath: 'C:\\Users\\runneradmin\\AppData\\Local\\electron\\Cache' },
+	'vscode-large-runners-macos-5-core-0': { platform: 'darwin', arch: 'arm64', runnerArch: 'ARM64', os: 'macOS', electronCachePath: '/Users/runner/Library/Caches/electron' },
 };
 
 function getRunner(job: IJob, name: string) {
@@ -78,12 +81,14 @@ suite('Detect missing caches', () => {
 
 			const nodeModules = step('./.github/actions/restore-node-modules')?.with;
 			const electron = step('./.github/actions/setup-electron')?.with;
+			const playwright = step('./.github/actions/restore-playwright')?.with;
 			jobs[name] = {
 				os: runner.os,
 				nodeModules: { prefix: nodeModules?.['key-prefix'] ?? '', args: evaluate(nodeModules?.['key-args'] ?? '').split(/\s+/) },
 				...electron ? { electron: { arch: evaluate(electron.arch) } } : {},
 				...job.steps.some(step => step.with?.key?.startsWith('builtin-extensions-')) ? { builtInExtensions: { target: `${runner.platform}-${runner.arch}` } } : {},
 				...step('./.github/actions/restore-wsl-installer') ? { wslInstaller: true } : {},
+				...playwright ? { playwright: { arch: runner.runnerArch, browsers: playwright.browsers } } : {},
 			};
 			gates[name] = `${job.needs} ${job.if}`;
 		}
@@ -119,6 +124,7 @@ suite('Detect missing caches', () => {
 			electron: [...caches(loadActionSteps('setup-electron')), ...commands(loadActionSteps('setup-electron'), /ELECTRON_CACHE_PATH=|\$cacheRoot =/)],
 			builtInExtensions: [...caches(compile), ...commands(compile, /computeBuiltInDepsCacheKey/)],
 			wslInstaller: caches(loadActionSteps('restore-wsl-installer')),
+			playwright: [...caches(loadActionSteps('restore-playwright')), ...commands(loadActionSteps('restore-playwright'), /const (version|browsers) =/)],
 		}, {
 			nodeModules: [
 				{ key: '${{ inputs.key-prefix }}-${{ hashFiles(\'.build/packagelockhash\') }}', path: '.build/node_modules_cache', enableCrossOsArchive: undefined },
@@ -127,7 +133,7 @@ suite('Detect missing caches', () => {
 				'node build/azure-pipelines/common/computeNodeModulesCacheKey.ts ${{ inputs.key-args }} > .build/packagelockhash',
 			],
 			electron: [
-				{ key: 'electron-download-v1-${{ runner.os }}-${{ inputs.arch }}-${{ hashFiles(\'.npmrc\', \'build/checksums/electron.txt\') }}', path: '${{ env.ELECTRON_CACHE_PATH }}', enableCrossOsArchive: undefined },
+				{ key: 'electron-download-v1-${{ runner.os }}-${{ inputs.arch }}-${{ hashFiles(\'build/checksums/electron.txt\') }}', path: '${{ env.ELECTRON_CACHE_PATH }}', enableCrossOsArchive: undefined },
 				{ key: '${{ steps.restore.outputs.cache-primary-key }}', path: '${{ env.ELECTRON_CACHE_PATH }}', enableCrossOsArchive: undefined },
 				'echo "ELECTRON_CACHE_PATH=$HOME/Library/Caches/electron" >> "$GITHUB_ENV"',
 				'echo "ELECTRON_CACHE_PATH=${XDG_CACHE_HOME:-$HOME/.cache}/electron" >> "$GITHUB_ENV"',
@@ -141,6 +147,12 @@ suite('Detect missing caches', () => {
 			wslInstaller: [
 				{ key: 'wsl-installer-v1-${{ runner.os }}-${{ hashFiles(\'build/checksums/wsl.txt\') }}', path: '.build/wsl-installer', enableCrossOsArchive: undefined },
 				{ key: '${{ steps.restore.outputs.cache-primary-key }}', path: '.build/wsl-installer', enableCrossOsArchive: undefined },
+			],
+			playwright: [
+				{ key: 'playwright-v1-${{ runner.os }}-${{ runner.arch }}-${{ steps.prepare.outputs.version }}-${{ steps.prepare.outputs.browsers }}', path: '.build/ms-playwright', enableCrossOsArchive: undefined },
+				{ key: '${{ steps.restore.outputs.cache-primary-key }}', path: '.build/ms-playwright', enableCrossOsArchive: undefined },
+				'const version = /\\n  \\.:\\n(?:(?!\\n  \\S)[\\s\\S])*?\\n      \'@playwright\\/test\':\\n        specifier: .*\\n        version: ([^\\s(]+)/.exec(fs.readFileSync(process.env.PLAYWRIGHT_PNPM_LOCK, \'utf8\').replace(/\\r\\n/g, \'\\n\'))[1];',
+				'const browsers = process.env.PLAYWRIGHT_INSTALL_ARGS.replace(/[^A-Za-z0-9]+/g, \'-\').replace(/^-|-$/g, \'\');',
 			],
 		});
 	});
@@ -158,42 +170,67 @@ suite('Detect missing caches', () => {
 		assert.deepStrictEqual(actual, expected);
 	});
 
+	test('the Windows cache warmer installs on the Dev Drive of the Windows test jobs', () => {
+		// pr-win32-test.yml explains the step. It needs an empty workspace: the cache warmer creates it
+		// first, and the test jobs after the steps of the workspace image, which leave the workspace
+		// empty when they mount no image (see .github/workflows/workspace_image/README.md).
+		const devDrive = (relativePath: string, jobName: string) => {
+			const steps = loadYaml<{ jobs: Record<string, IJob> }>(relativePath).jobs[jobName].steps;
+			const index = steps.findIndex(step => step.name === 'Move the workspace to a Dev Drive');
+			return { before: steps.slice(0, index).map(step => step.name), run: steps[index]?.run, shell: steps[index]?.shell, workingDirectory: steps[index]?.['working-directory'] };
+		};
+		const { before: warmerBefore, ...warmer } = devDrive('.github/workflows/pr-node-modules.yml', 'windows');
+		const { before: testsBefore, ...tests } = devDrive('.github/workflows/pr-win32-test.yml', 'electron-unit');
+		assert.deepStrictEqual(
+			{ warmerBefore, testsBefore, tests },
+			{ warmerBefore: [], testsBefore: ['Download the workspace image scripts', 'Setup Node.js', 'Restore the workspace image'], tests: warmer }
+		);
+	});
+
 	test('jobs run when one of their caches is missing, has another version or cannot be listed', async () => {
-		const [missing, incompatible] = [getCaches(cacheWarmingJobs.windows, readRepositoryFile)[1], getCaches(cacheWarmingJobs.macOS, readRepositoryFile)[1]];
+		const [missing, incompatible] = [getCaches(cacheWarmingJobs.windows, readRepositoryFile)[1], getCaches(cacheWarmingJobs.linux, readRepositoryFile)[1]];
 		const existing = Object.values(cacheWarmingJobs)
 			.flatMap(job => getCaches(job, readRepositoryFile))
 			.filter(cache => cache.key !== missing.key)
 			.map(cache => cache.key === incompatible.key ? { ...cache, version: 'other' } : cache);
+		// Listing by key prefix also returns longer keys.
+		const list = (caches: readonly { key: string; version: string }[], key: string) => caches.filter(cache => cache.key.startsWith(key)).concat({ key: `${key}-other`, version: 'other' });
 
-		const detect = async (listCaches: (key: string) => { key: string; version: string }[]) => {
+		const detect = async (ref: string, listCaches: (key: string, ref: string) => { key: string; version: string }[]) => {
 			const outputs: Record<string, string> = {};
+			const listedRefs = new Set<string>();
 			await detectMissingCaches({
 				rest: {
 					actions: {
 						getActionsCacheList: async parameters => {
-							assert.deepStrictEqual([parameters.ref, parameters.per_page], ['refs/heads/main', 100]);
-							return { data: { actions_caches: listCaches(parameters.key) } };
+							assert.equal(parameters.per_page, 100);
+							listedRefs.add(parameters.ref);
+							return { data: { actions_caches: listCaches(parameters.key, parameters.ref) } };
 						},
 					},
 				},
 			}, {
 				repo: { owner: 'microsoft', repo: 'vscode' },
-				ref: 'refs/heads/main',
+				ref,
+				payload: { repository: { default_branch: 'main' } },
 			}, {
 				info: () => { },
 				warning: () => { },
 				setOutput: (name, value) => outputs[name] = value,
 			}, { lf: readRepositoryFile, crlf: readRepositoryFile });
-			return outputs;
+			return { listedRefs: [...listedRefs], outputs };
 		};
 
+		const missingOrIncompatible = { 'compile': 'false', 'linux': 'true', 'windows': 'true', 'copilot-linux': 'false', 'copilot-windows': 'false' };
 		assert.deepStrictEqual(await Promise.all([
-			// Listing by key prefix also returns longer keys.
-			detect(key => existing.filter(cache => cache.key.startsWith(key)).concat({ key: `${key}-other`, version: 'other' })),
-			detect(() => { throw new Error('Not available'); }),
+			detect('refs/heads/main', (key, ref) => ref === 'refs/heads/main' ? list(existing, key) : []),
+			// A release branch also restores the caches of main, without saving a copy.
+			detect('refs/heads/release/1.200', (key, ref) => list(existing.filter((_cache, index) => (index % 2 === 0) === (ref === 'refs/heads/main')), key)),
+			detect('refs/heads/main', () => { throw new Error('Not available'); }),
 		]), [
-			{ 'compile': 'false', 'linux': 'false', 'macOS': 'true', 'windows': 'true', 'copilot-linux': 'false', 'copilot-windows': 'false' },
-			{ 'compile': 'true', 'linux': 'true', 'macOS': 'true', 'windows': 'true', 'copilot-linux': 'true', 'copilot-windows': 'true' },
+			{ listedRefs: ['refs/heads/main'], outputs: missingOrIncompatible },
+			{ listedRefs: ['refs/heads/release/1.200', 'refs/heads/main'], outputs: missingOrIncompatible },
+			{ listedRefs: ['refs/heads/main'], outputs: { 'compile': 'true', 'linux': 'true', 'windows': 'true', 'copilot-linux': 'true', 'copilot-windows': 'true' } },
 		]);
 	});
 });

@@ -3,24 +3,30 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { status } from '../../../../../../base/browser/ui/aria/aria.js';
 import { disposableTimeout } from '../../../../../../base/common/async.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
 import { CancellationError, getErrorMessage } from '../../../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { Disposable, DisposableStore } from '../../../../../../base/common/lifecycle.js';
+import { escapeIcons } from '../../../../../../base/common/iconLabels.js';
 import { ResourceMap } from '../../../../../../base/common/map.js';
 import { Schemas } from '../../../../../../base/common/network.js';
 import { waitForState } from '../../../../../../base/common/observable.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { localize } from '../../../../../../nls.js';
-import { IAgentCustomizationInstallation, IAgentCustomizationInstallationApplyResult, IAgentCustomizationInstallationRequest, IAgentCustomizationInstallationReview, IAgentPluginInstallation } from '../../../../../../platform/agentHost/common/agent.js';
+import { IAgentCustomizationInstallation, IAgentCustomizationInstallationAnswers, IAgentCustomizationInstallationApplyResult, IAgentCustomizationInstallationChoice, IAgentCustomizationInstallationConfigurationRequest, IAgentCustomizationInstallationPreparation, IAgentCustomizationInstallationRequest, IAgentCustomizationInstallationReview, IAgentCustomizationInstallationValuePrompt, IAgentPluginInstallation } from '../../../../../../platform/agentHost/common/agent.js';
 import { AMBIENT_AGENT_HOST_AUTHORITY, IAgentHostConnectionsService } from '../../../../../../platform/agentHost/common/agentHostConnectionsService.js';
 import { IAgentHostService } from '../../../../../../platform/agentHost/common/agentService.js';
+import { configuredNumberPattern, configuredVariableReferencePattern, maxConfiguredValueBytes } from '../../../../../../platform/agentHost/common/customizationInstallationValues.js';
 import { CustomizationMarketplaceMediaType, CustomizationMarketplaceRecoveryGroup, ICustomizationMarketplaceResource, ICustomizationMarketplaceSourcePage, ICustomizationMarketplaceSourceQuery, ICustomizationMarketplaceSourceRecoveryAction } from '../../../../../../platform/customizationMarketplace/common/customizationMarketplaceService.js';
 import { CustomizationMarketplaceSources } from '../../../../../../platform/customizationMarketplace/common/customizationMarketplaceSources.js';
 import { IDialogService } from '../../../../../../platform/dialogs/common/dialogs.js';
 import { ILogService } from '../../../../../../platform/log/common/log.js';
+import { IInputBox, IQuickInput, IQuickInputService, IQuickPick, IQuickPickItem } from '../../../../../../platform/quickinput/common/quickInput.js';
+import Severity from '../../../../../../base/common/severity.js';
+import { IWorkspaceTrustManagementService, IWorkspaceTrustRequestService } from '../../../../../../platform/workspace/common/workspaceTrust.js';
 import type { IMcpServerConfiguration } from '../../../../../../platform/mcp/common/mcpPlatformTypes.js';
 import { IRecordedCustomizationMarketplaceResource, ICustomizationMarketplaceInstallProvider } from '../../../common/customizationMarketplaceInstallService.js';
 import { ICustomizationMarketplaceInfo, ICustomizationMarketplaceManagementProvider, ICustomizationMarketplaceSearchProvider, ICustomizationMcpConfigurationProvider, ICustomizationPluginInstallProvider } from '../../../common/customizationHarnessService.js';
@@ -33,6 +39,121 @@ const maxCachedReceiptSessions = 50;
 const maxCatalogAssociations = 1000;
 const githubLoginPattern = /^[A-Za-z0-9](?:[A-Za-z0-9]|-(?=[A-Za-z0-9])){0,38}$/;
 type AppliedPluginIdentity = Extract<IAgentCustomizationInstallationApplyResult, { readonly kind: 'plugin' }>;
+const maxPromptLabelLength = 200;
+
+/** Marks the part of a command preview that the current step fills in. */
+const currentCommandPartMarker = '\u25B6';
+/** How much of a long command preview to keep before the marked part. */
+const commandPreviewLeadingContext = 80;
+
+/** The user's answers to a configuration request and the choice they answer. */
+type ICustomizationInstallationAnswers = Omit<IAgentCustomizationInstallationAnswers, 'choiceId'> & { readonly choice: IAgentCustomizationInstallationChoice };
+
+/** The outcome of one configuration step. */
+type ConfigurationStepResult<T> = { readonly kind: 'value'; readonly value: T } | { readonly kind: 'back' } | { readonly kind: 'cancel' };
+
+/** Header shared by every configuration step. */
+interface IConfigurationStep {
+	readonly title: string;
+	/** 1-based; omitted for a step whose position is not yet known. */
+	readonly step?: number;
+	readonly totalSteps?: number;
+	readonly canGoBack: boolean;
+	/** Shown below the input. */
+	readonly description?: string;
+}
+
+/**
+ * Previews where values go for a choice: a package's command, with pending
+ * values as `<name>` and the part {@link value} fills marked, or a remote endpoint.
+ */
+function formatChoicePreview(choice: IAgentCustomizationInstallationChoice, value: IAgentCustomizationInstallationValuePrompt | undefined): string | undefined {
+	if (choice.command === undefined) {
+		return choice.endpointSummary !== undefined
+			? localize('agentHost.customizationInstall.endpointPreview', "Endpoint: {0}", toPlainLabel(choice.endpointSummary))
+			: undefined;
+	}
+	const isArgument = value?.category === 'package-argument' || value?.category === 'runtime-argument';
+	const names = isArgument ? [value.key, value.key.replace(/^-+/, '')] : [];
+	let marked = false;
+	let preview = choice.command.replace(/\$\{input:([^}]*)\}/g, (_match, name: string) => {
+		if (!marked && names.includes(name)) {
+			marked = true;
+			return `${currentCommandPartMarker}<${name}>`;
+		}
+		return `<${name}>`;
+	});
+	// A flag without its own placeholder, such as `-d`, appears in the command as written.
+	if (!marked && isArgument && value.key.startsWith('-')) {
+		const parts = preview.split(' ');
+		const index = parts.indexOf(value.key);
+		if (index >= 0) {
+			parts[index] = `${currentCommandPartMarker}${parts[index]}`;
+			preview = parts.join(' ');
+			marked = true;
+		}
+	}
+	const start = marked ? Math.max(0, preview.indexOf(currentCommandPartMarker) - commandPreviewLeadingContext) : 0;
+	return localize('agentHost.customizationInstall.commandPreview', "Command: {0}", toPlainLabel(start > 0 ? `…${preview.slice(start)}` : preview));
+}
+
+/** Renders untrusted plan text as plain text. Quick Input turns `[text](command:…)` into links, so `](` is split apart. */
+function toPlainText(value: string): string {
+	return escapeIcons(value.replace(/[\u0000-\u001f\u007f]+/g, ' ').replace(/\]\(/g, '] ('));
+}
+
+/** Renders untrusted plan text as a bounded plain-text label. */
+function toPlainLabel(value: string): string {
+	const singleLine = toPlainText(value);
+	return singleLine.length > maxPromptLabelLength ? `${singleLine.slice(0, maxPromptLabelLength)}…` : singleLine;
+}
+
+/** Names a configured value by where the server uses it, so a bare key such as `-d` has context. */
+function describeConfiguredValue(value: IAgentCustomizationInstallationValuePrompt): string {
+	const key = toPlainLabel(value.key);
+	switch (value.category) {
+		case 'header':
+			return localize('agentHost.customizationInstall.headerValue', "HTTP header '{0}'", key);
+		case 'url-variable':
+			return localize('agentHost.customizationInstall.urlVariableValue', "URL variable '{0}'", key);
+		case 'environment-variable':
+			return localize('agentHost.customizationInstall.environmentVariableValue', "Environment variable '{0}'", key);
+		case 'runtime-argument':
+		case 'package-argument':
+			return value.key.startsWith('-')
+				? localize('agentHost.customizationInstall.optionValue', "Value for command-line option '{0}'", key)
+				: localize('agentHost.customizationInstall.argumentValue', "Command-line argument '{0}'", key);
+	}
+}
+
+/** UI validation for one configured value; the host revalidates and the runtime remains authoritative. */
+function validateConfiguredValue(value: IAgentCustomizationInstallationValuePrompt, input: string, omittable: boolean): string | undefined {
+	if (!input) {
+		return omittable ? undefined : localize('agentHost.customizationInstall.valueRequired', "A value is required.");
+	}
+	if (input.includes('\0') || new TextEncoder().encode(input).byteLength > maxConfiguredValueBytes) {
+		return localize('agentHost.customizationInstall.valueInvalid', "This value is not allowed.");
+	}
+	if (value.valueType === 'number') {
+		return configuredNumberPattern.test(input) ? undefined : localize('agentHost.customizationInstall.numberInvalid', "Enter a number, for example 42 or -1.5e3.");
+	}
+	return configuredVariableReferencePattern.test(input)
+		? localize('agentHost.customizationInstall.variableReference', "Variable references such as $NAME or ${NAME} are not allowed.")
+		: undefined;
+}
+
+/** UI validation for a secret, matching the host's checks. Never echoes the secret. */
+function validateSecret(input: string): string | undefined {
+	if (!input) {
+		return localize('agentHost.customizationInstall.secretRequired', "A value is required.");
+	}
+	if (input.includes('\0')) {
+		return localize('agentHost.customizationInstall.secretInvalid', "This secret contains characters that are not allowed.");
+	}
+	return new TextEncoder().encode(input).byteLength > maxConfiguredValueBytes
+		? localize('agentHost.customizationInstall.secretTooLong', "This secret is longer than {0} bytes.", maxConfiguredValueBytes)
+		: undefined;
+}
 
 export class AgentHostCustomizationMarketplaceInstallProvider extends Disposable implements ICustomizationMarketplaceInstallProvider, ICustomizationMarketplaceSearchProvider, ICustomizationMarketplaceManagementProvider, ICustomizationMcpConfigurationProvider, ICustomizationPluginInstallProvider {
 	private readonly _onDidChange = this._register(new Emitter<void>());
@@ -54,6 +175,9 @@ export class AgentHostCustomizationMarketplaceInstallProvider extends Disposable
 		@IDialogService private readonly dialogService: IDialogService,
 		@ILogService private readonly logService: ILogService,
 		@IAgentPluginService private readonly agentPluginService: IAgentPluginService,
+		@IQuickInputService private readonly quickInputService: IQuickInputService,
+		@IWorkspaceTrustManagementService private readonly workspaceTrustManagementService: IWorkspaceTrustManagementService,
+		@IWorkspaceTrustRequestService private readonly workspaceTrustRequestService: IWorkspaceTrustRequestService,
 	) {
 		super();
 		this.onDidChange = Event.any(
@@ -82,19 +206,19 @@ export class AgentHostCustomizationMarketplaceInstallProvider extends Disposable
 		}
 
 		if (installation?.kind === 'plugin') {
-			return localize('agentHost.customizationInstall.directPluginUnavailable', "The SDK cannot yet install a catalog plugin at its exact pinned revision.");
+			return localize('agentHost.customizationInstall.directPluginUnavailable', "Catalog plugins at pinned revisions are not yet supported.");
 		}
 		if (installation?.kind === 'providerPlugin' && !installation.marketplaceSource) {
-			return localize('agentHost.customizationInstall.pluginSourceUnavailable', "The SDK plugin marketplace source is unavailable.");
+			return localize('agentHost.customizationInstall.pluginSourceUnavailable', "The plugin marketplace source is unavailable.");
 		}
 		if (installation?.kind === 'configuredPlugin' && (!installation.name || !installation.marketplace || !installation.marketplaceId || !installation.marketplaceSource)) {
-			return localize('agentHost.customizationInstall.pluginIdentityUnavailable', "The SDK plugin installation identity is unavailable.");
+			return localize('agentHost.customizationInstall.pluginIdentityUnavailable', "The plugin installation identity is unavailable.");
 		}
 		if (installation?.kind === 'mcpGallery' && !installation.cardUrl) {
 			return localize('agentHost.customizationInstall.mcpGalleryIdentityUnavailable', "This MCP Gallery entry does not provide the server card URL required for Copilot installation.");
 		}
 		if ((installation?.kind === 'skill' || installation?.kind === 'mcp') && !resource.externalUrl && !resource.url) {
-			return localize('agentHost.customizationInstall.catalogIdentityUnavailable', "This customization does not provide the SDK catalog identity required for installation.");
+			return localize('agentHost.customizationInstall.catalogIdentityUnavailable', "This customization does not provide the catalog identity required for installation.");
 		}
 		return undefined;
 	}
@@ -348,7 +472,7 @@ export class AgentHostCustomizationMarketplaceInstallProvider extends Disposable
 				throw new CancellationError();
 			}
 			this.throwIfCancelled(token);
-			const review = await this.prepare(sessionResource, {
+			const prepared = await this.prepare(sessionResource, {
 				mediaType: resource.mediaType,
 				identifier: resource.identifier,
 				displayName: resource.displayName,
@@ -358,16 +482,16 @@ export class AgentHostCustomizationMarketplaceInstallProvider extends Disposable
 				selectionId: installation.selectionId,
 				...(installation.catalogIdentity ? { catalogIdentity: installation.catalogIdentity } : {}),
 				installation: { kind: installation.resourceKind },
-			}, token);
-			await this.confirmAndApplyCatalogResource(review, resource, token);
+			}, token, installation.resourceKind === 'mcp');
+			await this.confirmAndApplyCatalogResource(prepared, resource, token);
 			return;
 		}
 		if (installation?.kind === 'configuredPlugin') {
 			if (!installation.name || !installation.marketplace || !installation.marketplaceId || !installation.marketplaceSource) {
-				throw new Error(localize('agentHost.customizationInstall.pluginIdentityUnavailable', "The SDK plugin installation identity is unavailable."));
+				throw new Error(localize('agentHost.customizationInstall.pluginIdentityUnavailable', "The plugin installation identity is unavailable."));
 			}
 			if (!this.agentHostService.installPlugin) {
-				throw new Error(localize('agentHost.customizationInstall.pluginUnavailable', "The selected agent does not support SDK plugin installation."));
+				throw new Error(localize('agentHost.customizationInstall.pluginUnavailable', "The selected agent does not support plugin installation."));
 			}
 			await this.agentHostService.installPlugin(this.providerId, { source: `${installation.name}@${installation.marketplace}` }, this.getBackendSession(sessionResource), this.agentHostCustomizationService.getBackendChatResource?.(sessionResource));
 			this.throwIfCancelled(token);
@@ -376,7 +500,7 @@ export class AgentHostCustomizationMarketplaceInstallProvider extends Disposable
 		}
 		if (installation?.kind === 'providerPlugin') {
 			if (!this.agentHostService.installPlugin) {
-				throw new Error(localize('agentHost.customizationInstall.pluginUnavailable', "The selected agent does not support SDK plugin installation."));
+				throw new Error(localize('agentHost.customizationInstall.pluginUnavailable', "The selected agent does not support plugin installation."));
 			}
 			await this.agentHostService.installPlugin(this.providerId, { source: `${installation.name}@${installation.marketplace}` }, this.getBackendSession(sessionResource), this.agentHostCustomizationService.getBackendChatResource?.(sessionResource));
 			this.throwIfCancelled(token);
@@ -394,7 +518,7 @@ export class AgentHostCustomizationMarketplaceInstallProvider extends Disposable
 				throw new CancellationError();
 			}
 			this.throwIfCancelled(token);
-			const review = await this.prepare(sessionResource, {
+			const prepared = await this.prepare(sessionResource, {
 				mediaType: resource.mediaType,
 				identifier: resource.identifier,
 				displayName: resource.displayName,
@@ -405,18 +529,18 @@ export class AgentHostCustomizationMarketplaceInstallProvider extends Disposable
 					kind: 'mcp',
 					source: { kind: 'url', mediaType: CustomizationMarketplaceMediaType.McpServer, url: installation.cardUrl },
 				},
-			}, token);
-			await this.confirmAndApplyCatalogResource(review, resource, token);
+			}, token, true);
+			await this.confirmAndApplyCatalogResource(prepared, resource, token);
 			return;
 		}
 		if (installation?.kind !== 'skill' && installation?.kind !== 'mcp') {
-			throw new Error(localize('agentHost.customizationInstall.unsupported', "The selected agent does not support installing this customization through its SDK."));
+			throw new Error(localize('agentHost.customizationInstall.unsupported', "The selected agent does not support installing this customization."));
 		}
 		if (!await this.resolveAuthentication()) {
 			throw new CancellationError();
 		}
 		this.throwIfCancelled(token);
-		const review = await this.prepare(sessionResource, {
+		const prepared = await this.prepare(sessionResource, {
 			mediaType: resource.mediaType,
 			identifier: resource.identifier,
 			displayName: resource.displayName,
@@ -424,20 +548,20 @@ export class AgentHostCustomizationMarketplaceInstallProvider extends Disposable
 			version: resource.version,
 			itemUrl: resource.externalUrl ?? resource.url?.toString(true),
 			installation: { kind: installation.kind },
-		}, token);
-		await this.confirmAndApply(review, token);
+		}, token, installation.kind === 'mcp');
+		await this.confirmAndApply(prepared, token);
 	}
 
 	async repair(sessionResource: URI, installation: IRecordedCustomizationMarketplaceResource, token: CancellationToken): Promise<void> {
 		this.throwIfCancelled(token);
 		if (!installation.installationId || !this.agentHostService.recoverCustomizationInstallations) {
-			throw new Error(localize('agentHost.customizationInstall.repairUnavailable', "The selected agent cannot repair this SDK installation."));
+			throw new Error(localize('agentHost.customizationInstall.repairUnavailable', "The selected agent cannot repair this installation."));
 		}
 		const recovered = await this.agentHostService.recoverCustomizationInstallations(this.providerId, this.getBackendSession(sessionResource));
 		this.throwIfCancelled(token);
 		const current = recovered.find(candidate => candidate.installationId === installation.installationId);
 		if (!current || current.state !== 'installed') {
-			throw new Error(current?.errorMessage ?? localize('agentHost.customizationInstall.repairIncomplete', "The SDK could not repair this customization installation."));
+			throw new Error(current?.errorMessage ?? localize('agentHost.customizationInstall.repairIncomplete', "Could not repair this customization installation."));
 		}
 		this._onDidChange.fire();
 	}
@@ -453,7 +577,7 @@ export class AgentHostCustomizationMarketplaceInstallProvider extends Disposable
 			const identity = matches.length === 1 ? matches[0] : undefined;
 			if (!identity || !identity.marketplace && !identity.directSourceId || !this.agentHostService.uninstallPlugin) {
 				this._onDidChange.fire();
-				throw new Error(localize('agentHost.customizationInstall.pluginRemovalUnavailable', "The SDK plugin installation identity is unavailable."));
+				throw new Error(localize('agentHost.customizationInstall.pluginRemovalUnavailable', "The plugin installation identity is unavailable."));
 			}
 			await this.agentHostService.uninstallPlugin(this.providerId, {
 				name: identity.name,
@@ -470,50 +594,393 @@ export class AgentHostCustomizationMarketplaceInstallProvider extends Disposable
 			return;
 		}
 		if (!installation.installationId) {
-			throw new Error(localize('agentHost.customizationInstall.removalUnavailable', "The SDK installation identity is unavailable."));
+			throw new Error(localize('agentHost.customizationInstall.removalUnavailable', "The installation identity is unavailable."));
 		}
-		const review = await this.prepare(sessionResource, { installationId: installation.installationId }, token);
-		await this.confirmAndApply(review, token);
+		const prepared = await this.prepare(sessionResource, { installationId: installation.installationId }, token);
+		await this.confirmAndApply(prepared, token);
 	}
 
-	private async prepare(sessionResource: URI, request: IAgentCustomizationInstallationRequest | { readonly installationId: string }, token: CancellationToken): Promise<IAgentCustomizationInstallationReview> {
+	/**
+	 * Prepares a review or configuration request on the local Agent Host.
+	 * MCP installs require workspace trust before anything reaches the host.
+	 */
+	private async prepare(sessionResource: URI, request: IAgentCustomizationInstallationRequest | { readonly installationId: string }, token: CancellationToken, requiresWorkspaceTrust = false): Promise<IAgentCustomizationInstallationPreparation> {
 		if (!this.agentHostService.prepareCustomizationInstallation) {
-			throw new Error(localize('agentHost.customizationInstall.prepareUnavailable', "The selected agent does not support SDK installation review."));
+			throw new Error(localize('agentHost.customizationInstall.prepareUnavailable', "The selected agent does not support installation review."));
 		}
-		const review = await this.agentHostService.prepareCustomizationInstallation(this.providerId, this.getBackendSession(sessionResource), request);
+		const backendSession = this.getBackendSession(sessionResource);
+		if (requiresWorkspaceTrust) {
+			await this.requireWorkspaceTrust(token);
+		}
+		const preparation = await this.agentHostService.prepareCustomizationInstallation(this.providerId, backendSession, request);
 		this.throwIfCancelled(token);
-		return review;
+		return preparation;
 	}
 
+	private async requireWorkspaceTrust(token: CancellationToken): Promise<void> {
+		if (this.workspaceTrustManagementService.isWorkspaceTrusted()) {
+			return;
+		}
+		const trusted = await this.workspaceTrustRequestService.requestWorkspaceTrust({
+			message: localize('agentHost.customizationInstall.trustRequired', "Installing MCP servers requires a trusted workspace."),
+			buttons: [
+				{ label: localize('agentHost.customizationInstall.trustAndContinue', "Trust Workspace and Continue"), type: 'ContinueWithTrust' },
+				{ label: localize('agentHost.customizationInstall.trustCancel', "Cancel"), type: 'Cancel' },
+			],
+		});
+		this.throwIfCancelled(token);
+		if (!trusted) {
+			throw new CancellationError();
+		}
+	}
+
+	/**
+	 * Collects the transport choice, values and secrets in plan order, one
+	 * step at a time. Back returns to the previous step with its answer kept;
+	 * choosing a different transport discards the answers for the previous one.
+	 * Returns `undefined` when the user cancels.
+	 */
+	private async collectConfiguration(request: IAgentCustomizationInstallationConfigurationRequest, token: CancellationToken): Promise<ICustomizationInstallationAnswers | undefined> {
+		const title = localize('agentHost.customizationInstall.configureTitle', "Configure '{0}'", toPlainLabel(request.displayName));
+		const choosesTransport = request.choices.length > 1;
+		const firstStep = choosesTransport ? -1 : 0;
+		let choice: IAgentCustomizationInstallationChoice | undefined = choosesTransport ? undefined : request.choices[0];
+		let values = new Map<number, string | string[] | undefined>();
+		let secrets = new Map<number, string>();
+		let index = firstStep;
+		while (true) {
+			if (index < 0 || !choice) {
+				const picked = await this.pickTransport(request, title, choice, token);
+				if (picked.kind !== 'value') {
+					return undefined;
+				}
+				if (picked.value !== choice) {
+					values = new Map();
+					secrets = new Map();
+				}
+				choice = picked.value;
+				index = 0;
+			}
+			if (index >= choice.values.length + choice.secrets.length) {
+				break;
+			}
+			const offset = choosesTransport ? 1 : 0;
+			const value = index < choice.values.length ? choice.values[index] : undefined;
+			const step: IConfigurationStep = {
+				title,
+				step: offset + index + 1,
+				totalSteps: offset + choice.values.length + choice.secrets.length,
+				canGoBack: index > firstStep,
+				description: formatChoicePreview(choice, value),
+			};
+			let result: ConfigurationStepResult<unknown>;
+			if (value?.isRepeated) {
+				const previous = values.get(index);
+				const repeated = await this.collectRepeatedValues(step, value, Array.isArray(previous) ? previous : [], token);
+				if (repeated.kind === 'value') {
+					values.set(index, repeated.value);
+				} else if (repeated.kind === 'back') {
+					// Back leaves the step only once every entry was removed.
+					values.delete(index);
+				}
+				result = repeated;
+			} else if (value) {
+				const previous = values.get(index);
+				const single = await this.collectValue(step, value, values.has(index) && !Array.isArray(previous) ? { value: previous } : undefined, token);
+				if (single.kind === 'value') {
+					values.set(index, single.value);
+				}
+				result = single;
+			} else {
+				const secret = choice.secrets[index - choice.values.length];
+				const secretResult = await this.showInputStep(step, {
+					prompt: localize('agentHost.customizationInstall.secretPrompt', "Enter the secret for {0}. It is stored by the Agent Host and never shown again.", toPlainLabel(secret.title ?? secret.key)),
+					value: secrets.get(index) ?? '',
+					password: true,
+					validate: input => validateSecret(input),
+				}, token);
+				if (secretResult.kind === 'value') {
+					secrets.set(index, secretResult.value);
+				}
+				result = secretResult;
+			}
+			if (result.kind === 'cancel') {
+				return undefined;
+			}
+			index += result.kind === 'back' ? -1 : 1;
+		}
+		const selected = choice;
+		return {
+			choice: selected,
+			inputs: selected.values.flatMap((value, i) => {
+				const answer = values.get(i);
+				const answers = Array.isArray(answer) ? answer : answer !== undefined ? [answer] : [];
+				return answers.map(entry => ({ key: value.key, category: value.category, value: entry }));
+			}),
+			secrets: selected.secrets.map((secret, i) => ({ placeholder: secret.placeholder, value: secrets.get(selected.values.length + i)! })),
+		};
+	}
+
+	/** Asks how to connect, preselecting the previous choice or else the recommendation. */
+	private async pickTransport(request: IAgentCustomizationInstallationConfigurationRequest, title: string, previous: IAgentCustomizationInstallationChoice | undefined, token: CancellationToken): Promise<ConfigurationStepResult<IAgentCustomizationInstallationChoice>> {
+		const items = request.choices.map(candidate => {
+			const summary = candidate.endpointSummary ?? candidate.command;
+			return {
+				label: toPlainLabel(candidate.transport),
+				description: candidate.choiceId === request.recommendedChoiceId ? localize('agentHost.customizationInstall.recommended', "Recommended") : undefined,
+				detail: summary !== undefined ? toPlainLabel(summary) : undefined,
+				choice: candidate,
+			};
+		});
+		const picked = await this.showPickStep({ title, canGoBack: false }, {
+			placeholder: localize('agentHost.customizationInstall.pickTransport', "Select how to connect to this MCP server"),
+			items,
+			activeItem: items.find(item => item.choice === previous) ?? items.find(item => item.choice.choiceId === request.recommendedChoiceId),
+		}, token);
+		return picked.kind === 'value' ? { kind: 'value', value: picked.value.choice } : picked;
+	}
+
+	/**
+	 * Asks for one value, pre-filled with {@link previous} when returning to
+	 * the step. An omitted field yields `undefined`.
+	 */
+	private async collectValue(step: IConfigurationStep, value: IAgentCustomizationInstallationValuePrompt, previous: { readonly value: string | undefined } | undefined, token: CancellationToken): Promise<ConfigurationStepResult<string | undefined>> {
+		const kind = describeConfiguredValue(value);
+		const label = value.title !== undefined
+			? localize('agentHost.customizationInstall.titledValue', "{0} ({1})", toPlainLabel(value.title), kind)
+			: kind;
+		const prompt = value.description !== undefined ? `${label}: ${toPlainLabel(value.description)}` : label;
+		const omittable = !value.required || value.defaultValue !== undefined;
+		if (value.valueType === 'enum' || value.valueType === 'boolean') {
+			const values = value.valueType === 'enum' ? value.enumValues ?? [] : ['true', 'false'];
+			const items: (IQuickPickItem & { readonly value: string | undefined })[] = values.map(candidate => ({
+				label: escapeIcons(candidate),
+				description: candidate === value.defaultValue ? localize('agentHost.customizationInstall.default', "Default") : undefined,
+				value: candidate,
+			}));
+			if (omittable) {
+				items.unshift({
+					label: value.defaultValue !== undefined
+						? localize('agentHost.customizationInstall.useDefault', "Use Default")
+						: localize('agentHost.customizationInstall.leaveUnset', "Leave Unset"),
+					value: undefined,
+				});
+			}
+			const picked = await this.showPickStep(step, {
+				placeholder: prompt,
+				items,
+				activeItem: previous ? items.find(item => item.value === previous.value) : undefined,
+			}, token);
+			return picked.kind === 'value' ? { kind: 'value', value: picked.value.value } : picked;
+		}
+		const fieldPrompt = (value.valueType === 'path'
+			? localize('agentHost.customizationInstall.pathPrompt', "{0} (a path on the Agent Host machine)", prompt)
+			: prompt).replace(/[.\s]+$/, '');
+		const entered = await this.showInputStep(step, {
+			prompt: value.defaultValue !== undefined
+				? localize('agentHost.customizationInstall.defaultPrompt', "{0}. Leave empty to use the default.", fieldPrompt)
+				: omittable
+					? localize('agentHost.customizationInstall.optionalPrompt', "{0}. Optional: leave empty to skip.", fieldPrompt)
+					: fieldPrompt,
+			placeholder: value.defaultValue !== undefined
+				? localize('agentHost.customizationInstall.defaultPlaceholder', "Default: {0}", toPlainLabel(value.defaultValue))
+				: omittable ? localize('agentHost.customizationInstall.optionalPlaceholder', "Optional") : undefined,
+			value: previous?.value ?? '',
+			password: false,
+			validate: input => validateConfiguredValue(value, input, omittable),
+		}, token);
+		return entered.kind === 'value' ? { kind: 'value', value: entered.value === '' ? undefined : entered.value } : entered;
+	}
+
+	/**
+	 * Asks for a value that may be given several times, one entry at a time in
+	 * the same step. An empty entry finishes the list; Back removes the last
+	 * entry, or leaves the step when none remain. Returning to the step keeps
+	 * {@link previous} and continues adding.
+	 */
+	private async collectRepeatedValues(step: IConfigurationStep, value: IAgentCustomizationInstallationValuePrompt, previous: readonly string[], token: CancellationToken): Promise<ConfigurationStepResult<string[]>> {
+		const kind = describeConfiguredValue(value);
+		const label = value.title !== undefined
+			? localize('agentHost.customizationInstall.titledValue', "{0} ({1})", toPlainLabel(value.title), kind)
+			: kind;
+		const allowed = value.valueType === 'enum' ? value.enumValues ?? [] : value.valueType === 'boolean' ? ['true', 'false'] : undefined;
+		const entries = [...previous];
+		while (true) {
+			const required = entries.length === 0 && value.required && value.defaultValue === undefined;
+			const added = entries.length
+				? localize('agentHost.customizationInstall.repeatedAdded', "Added: {0}.", entries.map(toPlainLabel).join(', '))
+				: '';
+			const prompt = entries.length === 0
+				? required
+					? localize('agentHost.customizationInstall.repeatedFirst', "{0}. Can be given more than once; enter the first value.", label)
+					: value.defaultValue !== undefined
+						? localize('agentHost.customizationInstall.repeatedFirstDefault', "{0}. Can be given more than once; leave empty to use the default.", label)
+						: localize('agentHost.customizationInstall.repeatedFirstOptional', "{0}. Can be given more than once; leave empty to skip.", label)
+				: localize('agentHost.customizationInstall.repeatedNext', "{0}. {1} Enter another value, or leave empty to finish.", label, added);
+			const entered = await this.showInputStep({ ...step, canGoBack: step.canGoBack || entries.length > 0 }, {
+				prompt,
+				placeholder: allowed ? localize('agentHost.customizationInstall.repeatedAllowed', "One of: {0}", allowed.map(toPlainLabel).join(', ')) : undefined,
+				value: '',
+				password: false,
+				validate: input => {
+					if (!input) {
+						return required ? localize('agentHost.customizationInstall.valueRequired', "A value is required.") : undefined;
+					}
+					if (allowed && !allowed.includes(input)) {
+						return localize('agentHost.customizationInstall.repeatedNotAllowed', "Enter one of: {0}", allowed.map(toPlainLabel).join(', '));
+					}
+					return validateConfiguredValue(value, input, false);
+				},
+			}, token);
+			if (entered.kind === 'cancel') {
+				return entered;
+			}
+			if (entered.kind === 'back') {
+				if (!entries.length) {
+					return entered;
+				}
+				entries.pop();
+				continue;
+			}
+			if (!entered.value) {
+				return { kind: 'value', value: entries };
+			}
+			entries.push(entered.value);
+		}
+	}
+
+	private applyStep(input: IQuickInput, step: IConfigurationStep): void {
+		input.title = step.title;
+		input.step = step.step;
+		input.totalSteps = step.totalSteps;
+		input.description = step.description;
+		input.buttons = step.canGoBack ? [this.quickInputService.backButton] : [];
+		input.ignoreFocusOut = true;
+	}
+
+	/** Shows one quick-pick step and resolves with the accepted item, Back or cancellation. */
+	private async showPickStep<T extends IQuickPickItem>(step: IConfigurationStep, options: { readonly placeholder: string; readonly items: readonly T[]; readonly activeItem: T | undefined }, token: CancellationToken): Promise<ConfigurationStepResult<T>> {
+		if (token.isCancellationRequested) {
+			return { kind: 'cancel' };
+		}
+		const store = new DisposableStore();
+		const picker: IQuickPick<T> = store.add(this.quickInputService.createQuickPick<T>());
+		this.applyStep(picker, step);
+		picker.placeholder = options.placeholder;
+		// The description isn't announced, so the preview of where the value goes is part of the accessible label.
+		picker.ariaLabel = step.description !== undefined
+			? localize('agentHost.customizationInstall.stepAriaLabel', "{0}, {1}", options.placeholder, step.description)
+			: undefined;
+		picker.items = options.items;
+		if (options.activeItem) {
+			picker.activeItems = [options.activeItem];
+		}
+		try {
+			return await new Promise<ConfigurationStepResult<T>>(resolve => {
+				store.add(token.onCancellationRequested(() => resolve({ kind: 'cancel' })));
+				store.add(picker.onDidTriggerButton(button => {
+					if (button === this.quickInputService.backButton) {
+						resolve({ kind: 'back' });
+					}
+				}));
+				store.add(picker.onDidAccept(() => {
+					const [selected] = picker.selectedItems;
+					if (selected) {
+						resolve({ kind: 'value', value: selected });
+					}
+				}));
+				store.add(picker.onDidHide(() => resolve({ kind: 'cancel' })));
+				picker.show();
+			});
+		} finally {
+			store.dispose();
+		}
+	}
+
+	/** Shows one input step and resolves with the accepted text, Back or cancellation. Invalid text cannot be accepted. */
+	private async showInputStep(step: IConfigurationStep, options: { readonly prompt: string; readonly placeholder?: string; readonly value: string; readonly password: boolean; readonly validate: (input: string) => string | undefined }, token: CancellationToken): Promise<ConfigurationStepResult<string>> {
+		if (token.isCancellationRequested) {
+			return { kind: 'cancel' };
+		}
+		const store = new DisposableStore();
+		const box: IInputBox = store.add(this.quickInputService.createInputBox());
+		this.applyStep(box, step);
+		box.prompt = options.prompt;
+		box.placeholder = options.placeholder;
+		box.value = options.value;
+		box.password = options.password;
+		// Validated only after the user types or accepts, so the prompt stays visible until then.
+		const validate = () => {
+			const message = options.validate(box.value);
+			box.validationMessage = message;
+			box.severity = message ? Severity.Error : Severity.Ignore;
+			return message;
+		};
+		try {
+			return await new Promise<ConfigurationStepResult<string>>(resolve => {
+				store.add(token.onCancellationRequested(() => resolve({ kind: 'cancel' })));
+				store.add(box.onDidChangeValue(() => validate()));
+				store.add(box.onDidTriggerButton(button => {
+					if (button === this.quickInputService.backButton) {
+						resolve({ kind: 'back' });
+					}
+				}));
+				store.add(box.onDidAccept(() => {
+					if (!validate()) {
+						resolve({ kind: 'value', value: box.value });
+					}
+				}));
+				store.add(box.onDidHide(() => resolve({ kind: 'cancel' })));
+				box.show();
+				// The input box only announces its prompt, so announce the preview of where the value goes.
+				if (step.description !== undefined) {
+					status(step.description);
+				}
+			});
+		} finally {
+			store.dispose();
+		}
+	}
+
+	/**
+	 * Confirms and applies a prepared installation. A configuration request is
+	 * answered first; its values and secrets are sent once with the apply, only
+	 * after the user confirms. Apply is never resent after a failure.
+	 */
 	private async confirmAndApply(
-		review: IAgentCustomizationInstallationReview,
+		preparation: IAgentCustomizationInstallationPreparation,
 		token: CancellationToken,
 		beforeChange?: (result: IAgentCustomizationInstallationApplyResult | undefined) => Promise<void> | void,
 	): Promise<void> {
-		const activatePlugin = review.action === 'install' && review.kind === 'plugin';
-		const confirmation = await this.dialogService.confirm({
-			type: 'question',
-			message: activatePlugin
-				? localize('agentHost.customizationInstall.confirmInstallAndEnable', "Install and enable '{0}'?", review.displayName)
-				: review.action === 'install'
-					? localize('agentHost.customizationInstall.confirmInstall', "Install '{0}'?", review.displayName)
-					: localize('agentHost.customizationInstall.confirmUninstall', "Uninstall '{0}'?", review.displayName),
-			detail: this.getReviewDetail(review),
-			primaryButton: activatePlugin
-				? localize('agentHost.customizationInstall.installAndEnableButton', "Install and Enable")
-				: review.action === 'install'
-					? localize('agentHost.customizationInstall.installButton', "Install")
-					: localize('agentHost.customizationInstall.uninstallButton', "Uninstall"),
-			custom: { icon: Codicon.shield },
-		});
-		this.throwIfCancelled(token);
-		if (!confirmation.confirmed) {
-			throw new CancellationError();
+		const review = preparation.kind === 'review' ? preparation.review : undefined;
+		const activatePlugin = review?.action === 'install' && review.kind === 'plugin';
+		let answers: IAgentCustomizationInstallationAnswers | undefined;
+		if (review) {
+			await this.confirm(review.action, activatePlugin, review.displayName, this.getReviewDetail(review), token);
+		} else if (preparation.kind === 'configuration') {
+			const collected = await this.collectConfiguration(preparation, token);
+			if (!collected) {
+				throw new CancellationError();
+			}
+			await this.confirm('install', false, preparation.displayName, this.getConfiguredDetail(preparation, collected), token);
+			answers = { choiceId: collected.choice.choiceId, inputs: collected.inputs, secrets: collected.secrets };
 		}
 		if (!this.agentHostService.applyCustomizationInstallation) {
-			throw new Error(localize('agentHost.customizationInstall.applyUnavailable', "The selected agent cannot apply this SDK installation."));
+			throw new Error(localize('agentHost.customizationInstall.applyUnavailable', "The selected agent cannot apply this installation."));
 		}
-		const result = await this.agentHostService.applyCustomizationInstallation(this.providerId, review.operationId);
+		let result: IAgentCustomizationInstallationApplyResult | undefined;
+		try {
+			result = await this.agentHostService.applyCustomizationInstallation(this.providerId, {
+				hostGeneration: preparation.hostGeneration,
+				ownershipToken: preparation.ownershipToken,
+				operationId: preparation.kind === 'review' ? preparation.review.operationId : preparation.operationId,
+				...(answers ? { answers } : {}),
+			});
+		} catch (error) {
+			// Never resend: refresh the inventory so the host can report the outcome.
+			this._onDidChange.fire();
+			throw error;
+		}
 		await beforeChange?.(result);
 		if (activatePlugin) {
 			try {
@@ -524,11 +991,47 @@ export class AgentHostCustomizationMarketplaceInstallProvider extends Disposable
 			} catch (error) {
 				this._onDidChange.fire();
 				this.throwIfCancelled(token);
-				throw new Error(localize('agentHost.customizationInstall.activationFailed', "Plugin '{0}' was installed, but activation failed: {1}. Enable it from Plugins to retry.", review.displayName, getErrorMessage(error)));
+				throw new Error(localize('agentHost.customizationInstall.activationFailed', "Plugin '{0}' was installed, but activation failed: {1}. Enable it from Plugins to retry.", review!.displayName, getErrorMessage(error)));
 			}
 		}
-		this.throwIfCancelled(token);
 		this._onDidChange.fire();
+		this.throwIfCancelled(token);
+	}
+
+	/** Throws a {@link CancellationError} unless the user confirms. */
+	private async confirm(action: 'install' | 'uninstall', activatePlugin: boolean, displayName: string, detail: string, token: CancellationToken): Promise<void> {
+		const confirmation = await this.dialogService.confirm({
+			type: 'question',
+			message: activatePlugin
+				? localize('agentHost.customizationInstall.confirmInstallAndEnable', "Install and enable '{0}'?", displayName)
+				: action === 'install'
+					? localize('agentHost.customizationInstall.confirmInstall', "Install '{0}'?", displayName)
+					: localize('agentHost.customizationInstall.confirmUninstall', "Uninstall '{0}'?", displayName),
+			detail,
+			primaryButton: activatePlugin
+				? localize('agentHost.customizationInstall.installAndEnableButton', "Install and Enable")
+				: action === 'install'
+					? localize('agentHost.customizationInstall.installButton', "Install")
+					: localize('agentHost.customizationInstall.uninstallButton', "Uninstall"),
+			custom: { icon: Codicon.shield },
+		});
+		this.throwIfCancelled(token);
+		if (!confirmation.confirmed) {
+			throw new CancellationError();
+		}
+	}
+
+	/** Review detail for a configured MCP install: value and secret names only, never their values. */
+	private getConfiguredDetail(request: IAgentCustomizationInstallationConfigurationRequest, answers: ICustomizationInstallationAnswers): string {
+		const choice = answers.choice;
+		const none = localize('agentHost.customizationInstall.none', "None");
+		const values = [...new Set(answers.inputs.map(input => `${toPlainLabel(input.key)} (${input.category})`))].join(', ') || none;
+		const secrets = choice.secrets.map(secret => toPlainLabel(secret.key)).join(', ') || none;
+		if (choice.command !== undefined) {
+			// The command and environment are shown in full: anything cut off here would run without being reviewed.
+			return localize('agentHost.customizationInstall.mcpConfiguredLocalInstallDetail', "MCP servers can run tools and access local files. Only install resources from sources you trust.\n\nServer: {0}\nDestination: {1}\nCommand (your values replace the placeholders): {2}\nEnvironment: {3}\nConfigured values: {4}\nConfiguration fields: {5}", toPlainLabel(request.serverName), toPlainLabel(request.target), toPlainText(choice.command), toPlainText(JSON.stringify(choice.env ?? {})), values, choice.configurationFields.map(toPlainLabel).join(', ') || none);
+		}
+		return localize('agentHost.customizationInstall.mcpConfiguredInstallDetail', "MCP servers can run tools and access external services. Only install resources from sources you trust.\n\nServer: {0}\nDestination: {1}\nEndpoint (from the installation plan): {2}\nConfigured values: {3}\nSecrets: {4}\nConfiguration fields: {5}", toPlainLabel(request.serverName), toPlainLabel(request.target), choice.endpointSummary !== undefined ? toPlainText(choice.endpointSummary) : localize('agentHost.customizationInstall.notApplicable', "Not applicable"), values, secrets, choice.configurationFields.map(toPlainLabel).join(', ') || none);
 	}
 
 	private async activateInstalledPlugin(identity: AppliedPluginIdentity, token: CancellationToken): Promise<void> {
@@ -561,8 +1064,8 @@ export class AgentHostCustomizationMarketplaceInstallProvider extends Disposable
 		}
 	}
 
-	private async confirmAndApplyCatalogResource(review: IAgentCustomizationInstallationReview, resource: ICustomizationMarketplaceResource, token: CancellationToken): Promise<void> {
-		await this.confirmAndApply(review, token, result => {
+	private async confirmAndApplyCatalogResource(prepared: IAgentCustomizationInstallationPreparation, resource: ICustomizationMarketplaceResource, token: CancellationToken): Promise<void> {
+		await this.confirmAndApply(prepared, token, result => {
 			const installation = resource.installation;
 			if (installation?.kind !== 'providerCatalog' && installation?.kind !== 'mcpGallery') {
 				return;
@@ -583,11 +1086,11 @@ export class AgentHostCustomizationMarketplaceInstallProvider extends Disposable
 	private getReviewDetail(review: IAgentCustomizationInstallationReview): string {
 		if (review.kind === 'skill') {
 			const modifiedDetail = review.filesModified
-				? localize('agentHost.customizationInstall.skillFilesModified', "\n\nThe installed files have been modified. The SDK will refuse removal if they changed after this review.")
+				? localize('agentHost.customizationInstall.skillFilesModified', "\n\nThe installed files have been modified. Removal will be blocked if they change after this review.")
 				: '';
 			return review.action === 'install'
 				? localize('agentHost.customizationInstall.skillInstallDetail', "Skills can supply instructions and scripts that an agent may run. Only install resources from sources you trust.\n\nSource: {0}\nDestination: {1}\nFiles: {2}\nSize: {3} bytes", review.source, review.target, review.fileCount, review.totalBytes)
-				: localize('agentHost.customizationInstall.skillUninstallDetail', "The SDK will remove {0} owned files ({1} bytes) from {2}.{3}", review.fileCount, review.totalBytes, review.target, modifiedDetail);
+				: localize('agentHost.customizationInstall.skillUninstallDetail', "Remove {0} owned files ({1} bytes) from {2}.{3}", review.fileCount, review.totalBytes, review.target, modifiedDetail);
 		}
 		if (review.kind === 'plugin') {
 			const status = localize('agentHost.customizationInstall.pluginActivated', "The plugin will be enabled for your profile after installation, and running chats will reload its contributions.");
@@ -597,6 +1100,9 @@ export class AgentHostCustomizationMarketplaceInstallProvider extends Disposable
 			return localize('agentHost.customizationInstall.pluginInstallDetail', "Plugins can supply agents, skills, hooks, and MCP servers. Only install resources from sources you trust.\n\nSource: {0}\nDestination: {1}\nFiles: {2}\nSize: {3} bytes\n\n{4}{5}", review.source, review.target, review.fileCount, review.totalBytes, status, mcpServers);
 		}
 		if (review.action === 'install') {
+			if (review.command !== undefined) {
+				return localize('agentHost.customizationInstall.mcpLocalInstallDetail', "MCP servers can run tools and access local files. Only install resources from sources you trust.\n\nServer: {0}\nDestination: {1}\nCommand: {2}\nArguments: {3}\nEnvironment: {4}\nConfiguration fields: {5}", review.serverName, review.target, review.command, JSON.stringify(review.args ?? []), JSON.stringify(review.env ?? {}), review.configurationFields.join(', ') || localize('agentHost.customizationInstall.none', "None"));
+			}
 			return localize('agentHost.customizationInstall.mcpInstallDetail', "MCP servers can run tools and access external services. Only install resources from sources you trust.\n\nServer: {0}\nDestination: {1}\nEndpoint: {2}\nConfiguration fields: {3}", review.serverName, review.target, review.endpoint ?? localize('agentHost.customizationInstall.notApplicable', "Not applicable"), review.configurationFields.join(', ') || localize('agentHost.customizationInstall.none', "None"));
 		}
 		return localize('agentHost.customizationInstall.mcpUninstallDetail', "Server: {0}\nRestores previous configuration: {1}\nShared authentication is preserved: {2}", review.serverName, review.restoresPreviousConfiguration ? localize('agentHost.customizationInstall.yes', "Yes") : localize('agentHost.customizationInstall.no', "No"), review.preservesSharedAuthentication ? localize('agentHost.customizationInstall.yes', "Yes") : localize('agentHost.customizationInstall.no', "No"));
@@ -605,7 +1111,7 @@ export class AgentHostCustomizationMarketplaceInstallProvider extends Disposable
 	private toRecordedInstallation(sessionResource: URI, installation: IAgentCustomizationInstallation): IRecordedCustomizationMarketplaceResource {
 		const resource = this.catalogAssociations.get(installation.installationId) ?? this.toMarketplaceResource(installation);
 		const state = installation.state === 'error'
-			? { kind: 'error' as const, message: installation.errorMessage ?? localize('agentHost.customizationInstall.inventoryError', "The SDK could not verify this installation."), target: this.getTarget(sessionResource, installation) }
+			? { kind: 'error' as const, message: installation.errorMessage ?? localize('agentHost.customizationInstall.inventoryError', "Could not verify this installation."), target: this.getTarget(sessionResource, installation) }
 			: { kind: installation.state, target: this.getTarget(sessionResource, installation) };
 		return { installationId: installation.installationId, resource, state };
 	}

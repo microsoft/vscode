@@ -33,8 +33,8 @@ Follow these steps exactly:
 ### 1. Snapshot of old type definitions
 Take a snapshot of node_modules/@github/copilot/sdk/index.d.ts to compare against after the upghttps://github.com/microsoft/vscode/issues/291457rade.
 
-### 2. Update the package using command `npm install @github/copilot@latest`
-After this you MUST run `npm run postinstall`
+### 2. Update the package using command `pnpm add @github/copilot@latest`
+After this you MUST run `pnpm run postinstall`
 
 ### 3. Compare differences in type definitions
 * Use mode=background for comparing the files and when done, just let me know its done
@@ -50,15 +50,15 @@ After this you MUST run `npm run postinstall`
 - You must perform a deep analysis of the compilation errors before attempting to resolve them.
 - Ensure there are no compilation errors before proceeding to run the tests.
 ```bash
-npm run postinstall
-npm run compile
-npx tsc --noEmit --project tsconfig.json
+pnpm run postinstall
+pnpm run compile
+pnpm exec tsc --noEmit --project tsconfig.json
 ```
 
 #### 4.2 Run Tests
 - Use the following command to run test
 ```bash
-npm run test:unit
+pnpm run test:unit
 ```
 - Do NOT change the behavior of the code just to make the tests pass.
 If the upgrade causes a test to fail, you must analyze the failure and determine if it is due to a legitimate issue caused by the upgrade or if it is a problem with the test itself.

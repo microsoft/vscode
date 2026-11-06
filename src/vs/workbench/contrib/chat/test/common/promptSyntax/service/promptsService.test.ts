@@ -10,10 +10,11 @@ import { CancellationToken, CancellationTokenSource } from '../../../../../../..
 import { CancellationError } from '../../../../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../../../../base/common/event.js';
 import { match } from '../../../../../../../base/common/glob.js';
+import { toDisposable } from '../../../../../../../base/common/lifecycle.js';
 import { ResourceSet } from '../../../../../../../base/common/map.js';
 import { Schemas } from '../../../../../../../base/common/network.js';
 import { ISettableObservable, observableValue } from '../../../../../../../base/common/observable.js';
-import { basename, relativePath } from '../../../../../../../base/common/resources.js';
+import { basename, isEqual, relativePath } from '../../../../../../../base/common/resources.js';
 import { URI } from '../../../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../../base/test/common/utils.js';
 import { Range } from '../../../../../../../editor/common/core/range.js';
@@ -63,6 +64,10 @@ import { PluginFormat } from '../../../../../../../platform/agentPlugins/common/
 import { IWorkspaceTrustManagementService } from '../../../../../../../platform/workspace/common/workspaceTrust.js';
 import { COPILOT_ALLOW_MANAGED_HOOKS_ONLY_CONFIG, COPILOT_STRICT_PLUGIN_ONLY_CUSTOMIZATION_CONFIG } from '../../../../../../../platform/policy/common/copilotManagedSettings.js';
 import { ChatPromptFilesExtensionPointHandler } from '../../../../common/promptSyntax/chatPromptFilesContribution.js';
+import { ChatModeService } from '../../../../common/chatModes.js';
+import { createVSCodeHarnessDescriptor, CustomizationHarnessServiceBase, ICustomizationHarnessService } from '../../../../common/customizationHarnessService.js';
+import { LocalChatSessionUri } from '../../../../common/model/chatUri.js';
+import { IChatAgentService } from '../../../../common/participants/chatAgents.js';
 
 class TestPromptContextKeyService extends MockContextKeyService {
 	private readonly _onDidChangeContextEmitter = new Emitter<IContextKeyChangeEvent>();
@@ -298,7 +303,7 @@ suite('PromptsService', () => {
 		});
 
 		test('cancels in-flight voice instruction reads', async () => {
-			const cts = new CancellationTokenSource();
+			const cts = disposables.add(new CancellationTokenSource());
 			const readStarted = new DeferredPromise<void>();
 			const readFileStub = sinon.stub(fileService, 'readFile').callsFake(async (_resource, _options, token) => {
 				readStarted.complete();
@@ -311,15 +316,11 @@ suite('PromptsService', () => {
 				throw new CancellationError();
 			});
 
-			try {
-				const instructions = service.getVoiceInstructions(cts.token);
-				await readStarted.p;
-				cts.cancel();
-				assert.strictEqual(await instructions, undefined);
-			} finally {
-				readFileStub.restore();
-				cts.dispose();
-			}
+			disposables.add(toDisposable(() => readFileStub.restore()));
+			const instructions = service.getVoiceInstructions(cts.token);
+			await readStarted.p;
+			cts.cancel();
+			assert.strictEqual(await instructions, undefined);
 		});
 	});
 
@@ -1088,6 +1089,156 @@ suite('PromptsService', () => {
 			);
 		});
 
+		test('keeps user and workspace agents across New Chat during delayed discovery', async () => {
+			const workspace = URI.file('/agent-lifecycle-workspace');
+			const profile = toUserDataProfile('agent-lifecycle', 'Agent Lifecycle', URI.file('/agent-lifecycle-profile'), URI.file('/cache'));
+			workspaceContextService.setWorkspace(testWorkspace(workspace));
+			instaService.stub(IUserDataProfileService, {
+				currentProfile: profile,
+				onDidChangeCurrentProfile: Event.None,
+			});
+			instaService.stub(IStorageService, disposables.add(new InMemoryStorageService()));
+			service.dispose();
+			service = disposables.add(instaService.createInstance(PromptsService));
+			await mockFiles(fileService, [
+				{ path: URI.joinPath(profile.promptsHome, 'user-agent.agent.md').path, contents: ['---', 'description: User agent', '---'] },
+				{ path: URI.joinPath(profile.promptsHome, 'hidden-agent.agent.md').path, contents: ['---', 'description: Subagent only', 'user-invocable: false', '---'] },
+				{ path: URI.joinPath(workspace, '.github/agents/workspace-agent.agent.md').path, contents: ['---', 'description: Workspace agent', '---'] },
+			]);
+			const harness = disposables.add(new CustomizationHarnessServiceBase([createVSCodeHarnessDescriptor()], 'local', service));
+			instaService.stub(ICustomizationHarnessService, harness);
+			instaService.stub(IChatAgentService, { hasToolsAgent: true, onDidChangeAgents: Event.None });
+			const modeService = disposables.add(instaService.createInstance(ChatModeService));
+			const outgoing = disposables.add(modeService.createModes(LocalChatSessionUri.getNewSessionUri()));
+			await outgoing.waitForPendingUpdates();
+			const initial = outgoing.custom.map(mode => mode.name.get());
+
+			const scanStarted = new DeferredPromise<void>();
+			const releaseScan = new DeferredPromise<void>();
+			const activationStub = sinon.stub(instaService.get(IExtensionService), 'activateByEvent').callsFake(async () => {
+				scanStarted.complete();
+				await releaseScan.p;
+			});
+			disposables.add(toDisposable(() => activationStub.restore()));
+			// Invalidate discovery without changing the profile, workspace, harness, or agent files.
+			fireConfigChange(testConfigService, COPILOT_STRICT_PLUGIN_ONLY_CUSTOMIZATION_CONFIG);
+			await scanStarted.p;
+			await timeout(0);
+
+			const incomingStarted = new DeferredPromise<void>();
+			const getAgents = service.getCustomAgents.bind(service);
+			const getAgentsStub = sinon.stub(service, 'getCustomAgents').callsFake(token => {
+				const result = getAgents(token);
+				incomingStarted.complete();
+				return result;
+			});
+			disposables.add(toDisposable(() => getAgentsStub.restore()));
+			const incoming = disposables.add(modeService.createModes(LocalChatSessionUri.getNewSessionUri()));
+			outgoing.dispose();
+			await incomingStarted.p;
+			releaseScan.complete();
+			await incoming.waitForPendingUpdates();
+			const incomingNames = incoming.custom.map(mode => mode.name.get());
+
+			const next = disposables.add(modeService.createModes(LocalChatSessionUri.getNewSessionUri()));
+			incoming.dispose();
+			await next.waitForPendingUpdates();
+			const nextNames = next.custom.map(mode => mode.name.get());
+			service.setDisabledPromptFiles(PromptsType.agent, new ResourceSet([URI.joinPath(profile.promptsHome, 'user-agent.agent.md')]));
+			await next.waitForPendingUpdates();
+			const afterDisable = next.custom.map(mode => mode.name.get());
+			const removed = Event.toPromise(harness.onDidChangeCustomAgents);
+			await fileService.del(URI.joinPath(workspace, '.github/agents/workspace-agent.agent.md'));
+			await removed;
+			await next.waitForPendingUpdates();
+			assert.deepStrictEqual({
+				initial,
+				incoming: incomingNames,
+				next: nextNames,
+				afterDisable,
+				afterRemoval: next.custom.map(mode => mode.name.get()),
+			}, {
+				initial: ['user-agent', 'workspace-agent'],
+				incoming: ['user-agent', 'workspace-agent'],
+				next: ['user-agent', 'workspace-agent'],
+				afterDisable: ['workspace-agent'],
+				afterRemoval: [],
+			});
+		});
+
+		test('late completion of an invalidated file scan does not replace the new inventory', async () => {
+			const root = URI.file('/stale-agent-scan');
+			const agent = URI.joinPath(root, '.github/agents/test.agent.md');
+			workspaceContextService.setWorkspace(testWorkspace(root));
+			await mockFiles(fileService, [{ path: agent.path, contents: ['---', 'description: Test agent', '---'] }]);
+			const scanStarted = new DeferredPromise<void>();
+			const releaseScan = new DeferredPromise<void>();
+			const activationStub = sinon.stub(instaService.get(IExtensionService), 'activateByEvent');
+			activationStub.onFirstCall().callsFake(async () => {
+				scanStarted.complete();
+				await releaseScan.p;
+			});
+			activationStub.resolves();
+			disposables.add(toDisposable(() => activationStub.restore()));
+			const oldScan = service.listPromptFiles(PromptsType.agent, CancellationToken.None);
+			await scanStarted.p;
+			await timeout(0);
+			await fileService.del(agent);
+			fireConfigChange(testConfigService, COPILOT_STRICT_PLUGIN_ONLY_CUSTOMIZATION_CONFIG);
+			const current = await service.listPromptFiles(PromptsType.agent, CancellationToken.None);
+			releaseScan.complete();
+			const old = await oldScan;
+			const afterOldScan = await service.listPromptFiles(PromptsType.agent, CancellationToken.None);
+			assert.deepStrictEqual({
+				old: old.map(file => file.uri.toString()),
+				current,
+				afterOldScan,
+			}, { old: [agent.toString()], current: [], afterOldScan: [] });
+		});
+
+		test('reloading discovery for a different profile replaces only user agents', async () => {
+			const workspace = URI.file('/agent-profile-workspace');
+			workspaceContextService.setWorkspace(testWorkspace(workspace));
+			await mockFiles(fileService, [
+				{ path: URI.joinPath(workspace, '.github/agents/workspace.agent.md').path, contents: ['---', 'description: Workspace agent', '---'] },
+				{ path: '/first-profile/prompts/first.agent.md', contents: ['---', 'description: First profile agent', '---'] },
+				{ path: '/second-profile/prompts/second.agent.md', contents: ['---', 'description: Second profile agent', '---'] },
+			]);
+			const results: string[][] = [];
+			for (const name of ['first', 'second']) {
+				service.dispose();
+				instaService.stub(IUserDataProfileService, {
+					currentProfile: toUserDataProfile(name, name, URI.file(`/${name}-profile`), URI.file('/cache')),
+					onDidChangeCurrentProfile: Event.None,
+				});
+				service = disposables.add(instaService.createInstance(PromptsService));
+				results.push((await service.getCustomAgents(CancellationToken.None)).map(agent => agent.name).sort());
+			}
+			assert.deepStrictEqual(results, [['first', 'workspace'], ['second', 'workspace']]);
+		});
+
+		test('cancelling one caller does not cancel another caller of the same file scan', async () => {
+			const agent = URI.file('/shared-scan/.github/agents/test.agent.md');
+			workspaceContextService.setWorkspace(testWorkspace(URI.file('/shared-scan')));
+			await mockFiles(fileService, [{ path: agent.path, contents: ['---', 'description: Test agent', '---'] }]);
+			const scanStarted = new DeferredPromise<void>();
+			const releaseScan = new DeferredPromise<void>();
+			const activationStub = sinon.stub(instaService.get(IExtensionService), 'activateByEvent').callsFake(async () => {
+				scanStarted.complete();
+				await releaseScan.p;
+			});
+			disposables.add(toDisposable(() => activationStub.restore()));
+			const cancelled = disposables.add(new CancellationTokenSource());
+			const first = service.listPromptFiles(PromptsType.agent, cancelled.token);
+			await scanStarted.p;
+			const second = service.listPromptFiles(PromptsType.agent, CancellationToken.None);
+			cancelled.cancel();
+			const firstRejected = assert.rejects(first, CancellationError);
+			releaseScan.complete();
+			await firstRejected;
+			assert.deepStrictEqual((await second).map(file => file.uri.toString()), [agent.toString()]);
+		});
+
 		test('resolves CLAUDE_PLUGIN_ROOT in hooks from Claude plugin agents', async () => {
 			const pluginUri = URI.file('/plugins/claude-plugin');
 			const { hooks, workspaceUri } = await getPluginAgentPreToolUseHooks(
@@ -1417,6 +1568,7 @@ suite('PromptsService', () => {
 						'description: \'VS Code specialized agent.\'',
 						'target: \'vscode\'',
 						'model: \'gpt-4\'',
+						'reasoning-effort: low',
 						'---',
 						'I am specialized for VS Code editor tasks.',
 					]
@@ -1462,6 +1614,7 @@ suite('PromptsService', () => {
 					description: 'VS Code specialized agent.',
 					target: Target.VSCode,
 					model: ['gpt-4'],
+					reasoningEffort: 'low',
 					agentInstructions: {
 						content: 'I am specialized for VS Code editor tasks.',
 						toolReferences: [],
@@ -2739,17 +2892,13 @@ suite('PromptsService', () => {
 				enabledApiProposals: ['chatParticipantPrivate']
 			} as unknown as IExtensionDescription;
 			const logErrorSpy = sinon.spy(logService, 'error');
-			const registered = service.registerPromptFileProvider(extension, PromptsType.instructions, {
+			disposables.add(service.registerPromptFileProvider(extension, PromptsType.instructions, {
 				providePromptFiles: async () => { throw new CancellationError(); }
-			});
+			}));
 
-			try {
-				const files = await service.listPromptFilesForStorage(PromptsType.instructions, PromptsStorage.extension, CancellationToken.None);
-				assert.deepStrictEqual({ files, errorCalls: logErrorSpy.callCount }, { files: [], errorCalls: 0 });
-			} finally {
-				registered.dispose();
-				logErrorSpy.restore();
-			}
+			disposables.add(toDisposable(() => logErrorSpy.restore()));
+			const files = await service.listPromptFilesForStorage(PromptsType.instructions, PromptsStorage.extension, CancellationToken.None);
+			assert.deepStrictEqual({ files, errorCalls: logErrorSpy.callCount }, { files: [], errorCalls: 0 });
 		});
 
 		test('Prompt file provider error is logged and skipped', async () => {
@@ -2758,17 +2907,13 @@ suite('PromptsService', () => {
 				enabledApiProposals: ['chatParticipantPrivate']
 			} as unknown as IExtensionDescription;
 			const logErrorSpy = sinon.spy(logService, 'error');
-			const registered = service.registerPromptFileProvider(extension, PromptsType.instructions, {
+			disposables.add(service.registerPromptFileProvider(extension, PromptsType.instructions, {
 				providePromptFiles: async () => { throw new Error('provider failed'); }
-			});
+			}));
 
-			try {
-				const files = await service.listPromptFilesForStorage(PromptsType.instructions, PromptsStorage.extension, CancellationToken.None);
-				assert.deepStrictEqual({ files, errorCalls: logErrorSpy.callCount }, { files: [], errorCalls: 1 });
-			} finally {
-				registered.dispose();
-				logErrorSpy.restore();
-			}
+			disposables.add(toDisposable(() => logErrorSpy.restore()));
+			const files = await service.listPromptFilesForStorage(PromptsType.instructions, PromptsStorage.extension, CancellationToken.None);
+			assert.deepStrictEqual({ files, errorCalls: logErrorSpy.callCount }, { files: [], errorCalls: 1 });
 		});
 
 		test('Canceled provider listing stops without logging an error', async () => {
@@ -2792,24 +2937,21 @@ suite('PromptsService', () => {
 			}));
 			const errorSpy = sinon.spy(logService, 'error');
 
-			try {
-				// Cancellation must surface as an error rather than an empty result,
-				// otherwise it gets cached as "no prompt files".
-				await assert.rejects(
-					service.listPromptFiles(PromptsType.agent, cancellationTokenSource.token),
-					CancellationError,
-				);
+			disposables.add(toDisposable(() => errorSpy.restore()));
+			// Cancellation must surface as an error rather than an empty result,
+			// otherwise it gets cached as "no prompt files".
+			await assert.rejects(
+				service.listPromptFiles(PromptsType.agent, cancellationTokenSource.token),
+				CancellationError,
+			);
 
-				assert.deepStrictEqual({
-					secondProviderCalled,
-					errorCount: errorSpy.callCount,
-				}, {
-					secondProviderCalled: false,
-					errorCount: 0,
-				});
-			} finally {
-				errorSpy.restore();
-			}
+			assert.deepStrictEqual({
+				secondProviderCalled,
+				errorCount: errorSpy.callCount,
+			}, {
+				secondProviderCalled: false,
+				errorCount: 0,
+			});
 		});
 
 		test('does not cache a partial result when a provider swallows cancellation', async () => {
@@ -3055,21 +3197,20 @@ suite('PromptsService', () => {
 				service.registerContributedFile(PromptsType.skill, skillUri, extension, undefined, undefined, undefined, sessionTypes),
 			];
 
-			try {
-				const agent = (await service.getCustomAgents(CancellationToken.None)).find(item => item.uri.toString() === agentUri.toString());
-				const instruction = (await service.getInstructionFiles(CancellationToken.None)).find(item => item.uri.toString() === instructionUri.toString());
-				const prompt = (await service.getPromptSlashCommands(CancellationToken.None)).find(item => item.uri.toString() === promptUri.toString());
-				const skill = (await service.findAgentSkills(CancellationToken.None))?.find(item => item.uri.toString() === skillUri.toString());
-
-				assert.deepStrictEqual(agent?.sessionTypes, sessionTypes);
-				assert.deepStrictEqual(instruction?.sessionTypes, sessionTypes);
-				assert.deepStrictEqual(prompt?.sessionTypes, sessionTypes);
-				assert.deepStrictEqual(skill?.sessionTypes, sessionTypes);
-			} finally {
+			disposables.add(toDisposable(() => {
 				for (const registration of registrations) {
 					registration.dispose();
 				}
-			}
+			}));
+			const agent = (await service.getCustomAgents(CancellationToken.None)).find(item => item.uri.toString() === agentUri.toString());
+			const instruction = (await service.getInstructionFiles(CancellationToken.None)).find(item => item.uri.toString() === instructionUri.toString());
+			const prompt = (await service.getPromptSlashCommands(CancellationToken.None)).find(item => item.uri.toString() === promptUri.toString());
+			const skill = (await service.findAgentSkills(CancellationToken.None))?.find(item => item.uri.toString() === skillUri.toString());
+
+			assert.deepStrictEqual(agent?.sessionTypes, sessionTypes);
+			assert.deepStrictEqual(instruction?.sessionTypes, sessionTypes);
+			assert.deepStrictEqual(prompt?.sessionTypes, sessionTypes);
+			assert.deepStrictEqual(skill?.sessionTypes, sessionTypes);
 		});
 	});
 
@@ -3159,47 +3300,44 @@ suite('PromptsService', () => {
 					await writeContribution(description, filePath);
 				}
 				const register = sinon.spy(service, 'registerContributedFile');
+				disposables.add(toDisposable(() => register.restore()));
+				acceptContributions(name, description, [
+					{ path },
+					{ path: removedPath },
+					{ path: changedPath, sessionTypes: ['old'] },
+				]);
+				await service.listPromptFilesForStorage(type, PromptsStorage.extension, CancellationToken.None);
+				const unchangedDispose = sinon.spy(register.getCall(0).returnValue, 'dispose');
+				const removedDispose = sinon.spy(register.getCall(1).returnValue, 'dispose');
+				const changedDispose = sinon.spy(register.getCall(2).returnValue, 'dispose');
 				try {
-					acceptContributions(name, description, [
-						{ path },
-						{ path: removedPath },
-						{ path: changedPath, sessionTypes: ['old'] },
+					register.resetHistory();
+					acceptContributions(name, { ...description }, [
+						{ path: `./${path}` },
+						{ path: addedPath },
+						{ path: changedPath, sessionTypes: ['new'] },
 					]);
-					await service.listPromptFilesForStorage(type, PromptsStorage.extension, CancellationToken.None);
-					const unchangedDispose = sinon.spy(register.getCall(0).returnValue, 'dispose');
-					const removedDispose = sinon.spy(register.getCall(1).returnValue, 'dispose');
-					const changedDispose = sinon.spy(register.getCall(2).returnValue, 'dispose');
-					try {
-						register.resetHistory();
-						acceptContributions(name, { ...description }, [
-							{ path: `./${path}` },
-							{ path: addedPath },
-							{ path: changedPath, sessionTypes: ['new'] },
-						]);
-						const files = await service.listPromptFilesForStorage(type, PromptsStorage.extension, CancellationToken.None);
-						assert.deepStrictEqual({
-							registered: register.args.map(([, uri]) => uri.path),
-							disposed: [unchangedDispose.callCount, removedDispose.callCount, changedDispose.callCount],
-							files: files.map(file => ({ uri: file.uri.path, sessionTypes: file.sessionTypes })),
-						}, {
-							registered: [
-								URI.joinPath(description.extensionLocation, addedPath).path,
-								URI.joinPath(description.extensionLocation, changedPath).path,
-							],
-							disposed: [0, 1, 1],
-							files: [
-								{ uri: URI.joinPath(description.extensionLocation, path).path, sessionTypes: undefined },
-								{ uri: URI.joinPath(description.extensionLocation, addedPath).path, sessionTypes: undefined },
-								{ uri: URI.joinPath(description.extensionLocation, changedPath).path, sessionTypes: ['new'] },
-							],
-						});
-					} finally {
-						unchangedDispose.restore();
-						removedDispose.restore();
-						changedDispose.restore();
-					}
+					const files = await service.listPromptFilesForStorage(type, PromptsStorage.extension, CancellationToken.None);
+					assert.deepStrictEqual({
+						registered: register.args.map(([, uri]) => uri.path),
+						disposed: [unchangedDispose.callCount, removedDispose.callCount, changedDispose.callCount],
+						files: files.map(file => ({ uri: file.uri.path, sessionTypes: file.sessionTypes })),
+					}, {
+						registered: [
+							URI.joinPath(description.extensionLocation, addedPath).path,
+							URI.joinPath(description.extensionLocation, changedPath).path,
+						],
+						disposed: [0, 1, 1],
+						files: [
+							{ uri: URI.joinPath(description.extensionLocation, path).path, sessionTypes: undefined },
+							{ uri: URI.joinPath(description.extensionLocation, addedPath).path, sessionTypes: undefined },
+							{ uri: URI.joinPath(description.extensionLocation, changedPath).path, sessionTypes: ['new'] },
+						],
+					});
 				} finally {
-					register.restore();
+					unchangedDispose.restore();
+					removedDispose.restore();
+					changedDispose.restore();
 				}
 			});
 		}
@@ -3262,20 +3400,17 @@ suite('PromptsService', () => {
 			acceptContribution('chatSkills', description, path);
 			await service.findAgentSkills(CancellationToken.None);
 			const register = sinon.spy(service, 'registerContributedFile');
-			try {
-				acceptContribution('chatSkills', {
-					...description,
-					identifier: new ExtensionIdentifier('TEST.extension'),
-					description: 'Updated extension description',
-				}, path);
-				ExtensionsRegistry.getExtensionPoints().find(point => point.name === 'chatSkills')!.acceptUsers([]);
-				assert.deepStrictEqual({
-					registrations: register.callCount,
-					skills: await service.findAgentSkills(CancellationToken.None),
-				}, { registrations: 0, skills: [] });
-			} finally {
-				register.restore();
-			}
+			disposables.add(toDisposable(() => register.restore()));
+			acceptContribution('chatSkills', {
+				...description,
+				identifier: new ExtensionIdentifier('TEST.extension'),
+				description: 'Updated extension description',
+			}, path);
+			ExtensionsRegistry.getExtensionPoints().find(point => point.name === 'chatSkills')!.acceptUsers([]);
+			assert.deepStrictEqual({
+				registrations: register.callCount,
+				skills: await service.findAgentSkills(CancellationToken.None),
+			}, { registrations: 0, skills: [] });
 		});
 	});
 
@@ -3552,21 +3687,20 @@ suite('PromptsService', () => {
 			}),
 		];
 
-		try {
-			const agent = (await service.getCustomAgents(CancellationToken.None)).find(item => item.uri.toString() === agentUri.toString());
-			const instruction = (await service.getInstructionFiles(CancellationToken.None)).find(item => item.uri.toString() === instructionUri.toString());
-			const prompt = (await service.getPromptSlashCommands(CancellationToken.None)).find(item => item.uri.toString() === promptUri.toString());
-			const skill = (await service.findAgentSkills(CancellationToken.None))?.find(item => item.uri.toString() === skillUri.toString());
-
-			assert.deepStrictEqual(agent?.sessionTypes, sessionTypes);
-			assert.deepStrictEqual(instruction?.sessionTypes, sessionTypes);
-			assert.deepStrictEqual(prompt?.sessionTypes, sessionTypes);
-			assert.deepStrictEqual(skill?.sessionTypes, sessionTypes);
-		} finally {
+		disposables.add(toDisposable(() => {
 			for (const registration of registrations) {
 				registration.dispose();
 			}
-		}
+		}));
+		const agent = (await service.getCustomAgents(CancellationToken.None)).find(item => item.uri.toString() === agentUri.toString());
+		const instruction = (await service.getInstructionFiles(CancellationToken.None)).find(item => item.uri.toString() === instructionUri.toString());
+		const prompt = (await service.getPromptSlashCommands(CancellationToken.None)).find(item => item.uri.toString() === promptUri.toString());
+		const skill = (await service.findAgentSkills(CancellationToken.None))?.find(item => item.uri.toString() === skillUri.toString());
+
+		assert.deepStrictEqual(agent?.sessionTypes, sessionTypes);
+		assert.deepStrictEqual(instruction?.sessionTypes, sessionTypes);
+		assert.deepStrictEqual(prompt?.sessionTypes, sessionTypes);
+		assert.deepStrictEqual(skill?.sessionTypes, sessionTypes);
 	});
 
 	test('Prompt file provider', async () => {
@@ -4432,6 +4566,58 @@ suite('PromptsService', () => {
 			assert.strictEqual(discoveryInfo.files.length, 1);
 			assert.strictEqual(discoveryInfo.files[0].status, 'skipped');
 			assert.strictEqual(discoveryInfo.files[0].skipReason, 'parse-error');
+		});
+
+		test('preserves Unicode characters in prompt slash command names', async () => {
+			testConfigService.setUserConfiguration(PromptsConfig.USE_AGENT_SKILLS, false);
+
+			// allow-any-unicode-next-line
+			const name = '龩胤𬭳獫㰜〒６0D狛龫龨截茎疄盷㓝㏄ΩFe佨勵)エ㈱㑺惊龬㈨γ8傐𬨎';
+			const promptUri = URI.file(`/workspace/.github/prompts/${name}.prompt.md`);
+			workspaceContextService.setWorkspace(testWorkspace(URI.file('/workspace')));
+			await mockFiles(fileService, [{ path: promptUri.path, contents: ['Unicode prompt content'] }]);
+
+			const slashCommand = (await service.getPromptSlashCommands(CancellationToken.None)).find(command => isEqual(command.uri, promptUri));
+			const resolved = await service.resolvePromptSlashCommand(name, undefined, CancellationToken.None);
+			const reopened = await service.parseNew(promptUri, CancellationToken.None);
+
+			assert.deepStrictEqual({
+				name: slashCommand?.name,
+				valid: service.isValidSlashCommandName(name),
+				resolvedUri: resolved?.uri.toString(),
+				parsedUri: resolved?.parsedPromptFile?.uri.toString(),
+				reopenedUri: reopened.uri.toString(),
+			}, {
+				name,
+				valid: true,
+				resolvedUri: promptUri.toString(),
+				parsedUri: promptUri.toString(),
+				reopenedUri: promptUri.toString(),
+			});
+		});
+
+		test('sanitizes path separators and whitespace without changing the prompt URI', async () => {
+			testConfigService.setUserConfiguration(PromptsConfig.USE_AGENT_SKILLS, false);
+			const promptUri = URI.file('/workspace/.github/prompts/review.prompt.md');
+			workspaceContextService.setWorkspace(testWorkspace(URI.file('/workspace')));
+			await mockFiles(fileService, [{ path: promptUri.path, contents: ['---', 'name: "review/ security"', '---', 'Review content'] }]);
+
+			const command = (await service.getPromptSlashCommands(CancellationToken.None)).find(command => isEqual(command.uri, promptUri));
+			const resolved = await service.resolvePromptSlashCommand('review-security', undefined, CancellationToken.None);
+			assert.deepStrictEqual({
+				name: command?.name,
+				valid: service.isValidSlashCommandName(command?.name ?? ''),
+				uri: resolved?.parsedPromptFile?.uri.toString(),
+			}, {
+				name: 'review-security',
+				valid: true,
+				uri: promptUri.toString(),
+			});
+		});
+
+		test('validates Unicode prompt names while excluding separators, whitespace and controls', () => {
+			const names = ['review', 'plugin:tool!', '\uFF160', 'cafe\u0301', '\uE234', '', 'review/security', 'review security', 'review\nsecurity', 'review\u0000security'];
+			assert.deepStrictEqual(names.map(name => service.isValidSlashCommandName(name)), [true, true, true, true, true, false, false, false, false, false]);
 		});
 	});
 

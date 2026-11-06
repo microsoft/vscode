@@ -191,7 +191,7 @@ suite('Product test checkpoint templates', () => {
 		const windowsExpected = [
 			'unit-electron', 'unit-node', 'unit-browser-chromium',
 			'integration-agent-host-e2e', 'integration-electron', 'integration-browser-firefox', 'integration-remote',
-			'smoke-electron', 'smoke-browser-chromium', 'smoke-remote',
+			'smoke-electron', 'smoke-wsl-kerberos-proxy', 'smoke-browser-chromium', 'smoke-remote',
 			'copilot-extension', 'copilot-completions-core', 'copilot-sanity',
 		];
 		const linuxExpected = [
@@ -209,7 +209,7 @@ suite('Product test checkpoint templates', () => {
 		const allExpected = [
 			'unit-electron', 'unit-node', 'unit-browser-chromium', 'unit-browser-webkit',
 			'integration-agent-host-e2e', 'integration-electron', 'integration-browser-chromium', 'integration-browser-firefox', 'integration-browser-webkit', 'integration-remote',
-			'smoke-electron', 'smoke-agents-pac-proxy', 'smoke-agents-kerberos-pac-proxy', 'smoke-browser-chromium', 'smoke-remote',
+			'smoke-electron', 'smoke-agents-pac-proxy', 'smoke-agents-kerberos-pac-proxy', 'smoke-wsl-kerberos-proxy', 'smoke-browser-chromium', 'smoke-remote',
 			'copilot-extension', 'copilot-completions-core', 'copilot-sanity',
 		];
 		const targets = [
@@ -645,18 +645,45 @@ suite('Product test checkpoint templates', () => {
 		});
 	});
 
-	test('the WSL Dev Container setup is skipped together with the Electron smoke tests', () => {
-		const smoke = readTemplate(windowsTestFile).steps.flatMap(step =>
-			Object.entries(step)
-				.filter(([key]) => key === '${{ if containsValue(parameters.VSCODE_TEST_IDS, \'smoke-electron\') }}')
-				.flatMap(([, branch]) => branch as ScriptStep[])
-		);
-		const wsl = smoke.flatMap(step => (step['${{ if eq(parameters.VSCODE_ARCH, \'x64\') }}'] ?? []) as ScriptStep[]);
-		const gated = 'and(succeeded(), ne(variables[\'TEST_CHECKPOINT_SMOKE_ELECTRON_HIT\'], \'true\'))';
-		assert.deepStrictEqual(wsl.map(step => ({ displayName: step.displayName, condition: step.condition })), [
-			{ displayName: 'Restore WSL installer cache', condition: gated },
-			{ displayName: 'Prepare WSL Dev Container smoke tests', condition: gated },
-			{ displayName: 'Clean up WSL Dev Container smoke tests', condition: 'and(always(), ne(variables[\'WSL_SMOKE_ROOT\'], \'\'))' },
-		]);
+	test('the WSL Dev Container setup is skipped together with the smoke tests that use it', () => {
+		const wslKey = '${{ if and(eq(parameters.VSCODE_ARCH, \'x64\'), or(containsValue(parameters.VSCODE_TEST_IDS, \'smoke-electron\'), containsValue(parameters.VSCODE_TEST_IDS, \'smoke-wsl-kerberos-proxy\'))) }}';
+		const wslTestKeys = [
+			wslKey,
+			'${{ if containsValue(parameters.VSCODE_TEST_IDS, \'smoke-electron\') }}',
+			'${{ if and(eq(parameters.VSCODE_ARCH, \'x64\'), containsValue(parameters.VSCODE_TEST_IDS, \'smoke-wsl-kerberos-proxy\')) }}',
+		];
+		type SequenceEntry = { displayName?: string; condition?: string } | { testId: string };
+		const sequence = (items: unknown): SequenceEntry[] => (Array.isArray(items) ? items : [items]).flatMap((item: Record<string, unknown>) => {
+			if (typeof item.template === 'string' && item.template.endsWith('/run-test-with-checkpoint.yml@self')) {
+				return [{ testId: (item.parameters as CheckpointParameters).testId }];
+			}
+			if (typeof item.displayName === 'string') {
+				return [{ displayName: item.displayName, condition: item.condition as string | undefined }];
+			}
+			return Object.entries(item).filter(([key]) => key.startsWith('${{ ')).flatMap(([, branch]) => sequence(branch));
+		});
+		const steps = readTemplate(windowsTestFile).steps.flatMap(step => Object.entries(step).filter(([key]) => wslTestKeys.includes(key)).flatMap(([, branch]) => branch as unknown[]));
+		const linuxServerFlags = ['product-build.yml', 'product-build-template.yml'].map(file => records(readTemplate(file))
+			.filter(record => typeof record.template === 'string' && record.template.endsWith('win32/product-build-win32-test.yml@self'))
+			.flatMap(record => {
+				const parameters = record.parameters as { VSCODE_JOB_NAME: string; VSCODE_LINUX_X64_COMPILATION_ARTIFACT?: string };
+				return parameters.VSCODE_LINUX_X64_COMPILATION_ARTIFACT ? [`${parameters.VSCODE_JOB_NAME}: ${parameters.VSCODE_LINUX_X64_COMPILATION_ARTIFACT}`] : [];
+			}));
+		const gated = 'and(succeeded(), or(ne(variables[\'TEST_CHECKPOINT_SMOKE_ELECTRON_HIT\'], \'true\'), ne(variables[\'TEST_CHECKPOINT_SMOKE_WSL_KERBEROS_PROXY_HIT\'], \'true\')))';
+		const kerberosGated = 'and(succeeded(), ne(variables[\'TEST_CHECKPOINT_SMOKE_WSL_KERBEROS_PROXY_HIT\'], \'true\'))';
+		assert.deepStrictEqual({ sequence: sequence(steps), linuxServerFlags }, {
+			sequence: [
+				{ displayName: 'Restore WSL installer cache', condition: gated },
+				{ displayName: 'Prepare WSL Dev Container smoke tests', condition: gated },
+				{ testId: 'smoke-electron' },
+				{ displayName: 'Wait for the Linux x64 compilation artifact', condition: kerberosGated },
+				{ displayName: 'Download the Linux x64 compilation artifact', condition: kerberosGated },
+				{ displayName: 'Add the Linux x64 server to the WSL distribution', condition: kerberosGated },
+				{ testId: 'smoke-wsl-kerberos-proxy' },
+				{ displayName: 'Clean up WSL Dev Container smoke tests', condition: 'and(always(), ne(variables[\'WSL_SMOKE_ROOT\'], \'\'))' },
+			],
+			// Only the product build's smoke job opens an editor window with the server of this run's Linux x64 compile job
+			linuxServerFlags: [0, 1].map(() => ['Smoke: ${{ eq(variables[\'VSCODE_BUILD_STAGE_LINUX_X64\'], true) }}']),
+		});
 	});
 });

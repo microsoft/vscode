@@ -8,7 +8,7 @@ import { localize } from '../../../../../nls.js';
 import { ISpotlightPayload, ISpotlightStep, SPOTLIGHT_PRESENTATION_KIND } from '../../../../../workbench/contrib/onboarding/browser/spotlight/spotlightTypes.js';
 import { onboardingScenarioRegistry } from '../../../../../workbench/contrib/onboarding/common/onboardingRegistry.js';
 import { IOnboardingScenario } from '../../../../../workbench/contrib/onboarding/common/onboardingScenario.js';
-import { SessionHarnessPickerVisibleContext, SessionWorkspacePickerVisibleContext } from '../../../../common/contextkeys.js';
+import { SessionHarnessPickerVisibleContext, SessionWorkspacePickerVisibleContext } from '../../../../../workbench/contrib/sessions/common/contextkeys.js';
 import { NEW_SESSION_ONBOARDING_SEEN_KEY } from './newSessionTour.js';
 import { createNewSessionViewRecentTourWhen, createNewSessionViewWorkspaceStep, getNewSessionViewMentalModelWorkspaceCopy } from './newSessionViewTourShared.js';
 
@@ -82,7 +82,7 @@ const mentalModelAndModelsPayload: ISpotlightPayload = {
 			...modelPickerStep,
 			openTarget: false,
 			title: localize('sessions.onboarding.newSessionViewV2.mentalModelAndModels.model.title', "All your favorite models, one place"),
-			description: localize('sessions.onboarding.newSessionViewV2.mentalModelAndModels.model.description', "Claude, GPT, Gemini, and more—the best models from across the industry are ready to go. Pick your favorite or switch anytime."),
+			description: localize('sessions.onboarding.newSessionViewV2.mentalModelAndModels.model.description', "Claude, GPT, Gemini, and more. The best models from across the industry are ready to go. Pick your favorite or switch anytime."),
 		},
 	],
 };

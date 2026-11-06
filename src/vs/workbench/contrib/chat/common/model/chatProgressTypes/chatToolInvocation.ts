@@ -38,6 +38,7 @@ export class ChatToolInvocation implements IChatToolInvocation {
 	public readonly chatRequestId?: string;
 	public isAttachedToThinking: boolean = false;
 	public otherClientToolCall?: IChatToolInvocationOtherClientData;
+	public confirmationFeedback?: string;
 	private _startedAt: number | undefined = Date.now();
 	private _completedAt: number | undefined;
 

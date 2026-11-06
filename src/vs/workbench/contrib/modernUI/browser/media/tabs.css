@@ -752,6 +752,20 @@
 	z-index: 11;
 }
 
+/* Keep Modern UI tab scrolling above the tab strip without changing its layout. */
+.modern-ui-tabs .part.editor .tabs-and-actions-container > .monaco-scrollable-element > .scrollbar.horizontal {
+	top: 0;
+}
+
+.modern-ui-tabs .part.editor .tabs-and-actions-container > .monaco-scrollable-element > .scrollbar.horizontal > .slider {
+	border-radius: var(--vscode-cornerRadius-circle);
+}
+
+/* Agents paints thumbs with a pseudo-element; tab thumbs use the full track in both hosts. */
+.modern-ui-tabs .part.editor .tabs-and-actions-container > .monaco-scrollable-element > .scrollbar.horizontal > .slider::before {
+	inset: 0;
+}
+
 .modern-ui-tabs.monaco-workbench:where(:not(.modern-ui-connected-editor-tabs)) .part.editor > .content .editor-group-container > .title .tabs-container > .tab.dirty.dirty-border-top > .tab-border-top-container {
 	display: block !important;
 	position: absolute;

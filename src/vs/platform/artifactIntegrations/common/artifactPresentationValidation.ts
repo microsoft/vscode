@@ -49,6 +49,7 @@ export function isArtifactActionAvailability(value: unknown): boolean {
 export function isArtifactContributionView(value: unknown): value is ArtifactContributionView {
 	return isRecord(value) && isArtifactAvailability(value.availability)
 		&& (value.main === undefined || isPart(value.main))
+		&& (value.groupId === undefined || (typeof value.groupId === 'string' && value.groupId.length > 0))
 		&& (value.group === undefined || (isRecord(value.group) && isArtifactIcon(value.group.icon) && typeof value.group.priority === 'number' && Number.isFinite(value.group.priority)))
 		&& Array.isArray(value.sections) && value.sections.every(section => isRecord(section) && strings(section, 'id') && isPart(section))
 		&& new Set(value.sections.map(section => section.id)).size === value.sections.length
@@ -73,7 +74,8 @@ export function hasValidArtifactPresentationReferences(view: ArtifactContributio
 }
 
 function isItemActionDescriptor(value: unknown): value is ArtifactItemActionDescriptor {
-	return isRecord(value) && strings(value, 'id', 'label') && isArtifactIcon({ id: value.iconId });
+	return isRecord(value) && strings(value, 'id', 'label') && isArtifactIcon({ id: value.iconId })
+		&& (value.actionId === undefined || (typeof value.actionId === 'string' && value.actionId.length > 0));
 }
 
 function isUniqueStringList(value: unknown): value is readonly string[] {
