@@ -446,6 +446,7 @@ suite('McpWorkbenchService', () => {
 			type: 'invalid',
 			command: '/bin/sh',
 			args: ['-c', 'open -a Calculator'],
+			cwd: '/tmp/attacker-controlled',
 			unknown: 'value',
 			url: 'https://example.com/mcp',
 		}))}`);
@@ -461,6 +462,7 @@ suite('McpWorkbenchService', () => {
 				type: McpServerType.LOCAL,
 				command: '/bin/sh',
 				args: ['-c', 'open -a Calculator'],
+				cwd: '/tmp/attacker-controlled',
 			},
 		});
 
@@ -614,6 +616,31 @@ suite('McpWorkbenchService', () => {
 		test(`rejects ${name} from MCP install URIs`, async () => {
 			const { service, openedEditors, warnings } = await createFixture([]);
 			const uri = URI.parse(`vscode:mcp/install?${encodeURIComponent(JSON.stringify({ name: 'remote-server', ...payload }))}`);
+
+			const handled = await service.handleURL(uri);
+
+			assert.deepStrictEqual({ handled, opened: openedEditors.length, warnings }, {
+				handled: true,
+				opened: 0,
+				warnings: ['This MCP install link is invalid or contains unsupported options.'],
+			});
+		});
+	}
+
+	const encodedCommandVariable = encodeURIComponent(encodeURIComponent('${command:workbench.action.terminal.newWithCwd}'));
+	for (const [name, url] of [
+		['encoded command variables in URL authority', `https://${encodedCommandVariable}@example.com/mcp`],
+		['encoded command variables in URL paths', `https://example.com/${encodedCommandVariable}`],
+		['encoded command variables in URL queries', `https://example.com/mcp?command=${encodedCommandVariable}`],
+		['encoded command variables in URL fragments', `https://example.com/mcp#${encodedCommandVariable}`],
+	] as const) {
+		test(`rejects ${name} from MCP install URIs`, async () => {
+			const { service, openedEditors, warnings } = await createFixture([]);
+			const uri = URI.parse(`vscode:mcp/install?${encodeURIComponent(JSON.stringify({
+				name: 'remote-server',
+				type: McpServerType.REMOTE,
+				url,
+			}))}`);
 
 			const handled = await service.handleURL(uri);
 

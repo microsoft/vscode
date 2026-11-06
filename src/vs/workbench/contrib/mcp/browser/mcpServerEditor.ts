@@ -738,6 +738,15 @@ export class McpServerEditor extends EditorPane {
 				argsValue.textContent = config.args.join(' ');
 			}
 
+			// Working directory (if present)
+			if (config.cwd) {
+				const cwdSection = append(container, $('.config-section'));
+				const cwdLabel = append(cwdSection, $('.config-label'));
+				cwdLabel.textContent = localize('workingDirectory', "Working Directory:");
+				const cwdValue = append(cwdSection, $('code.config-value'));
+				cwdValue.textContent = config.cwd;
+			}
+
 			// Environment variables (if present)
 			if (config.env && Object.keys(config.env).length > 0) {
 				const envSection = append(container, $('.config-section'));
