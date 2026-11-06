@@ -95,8 +95,12 @@ export function collapseTildePath(path: string | undefined, userHome: string | u
 	if (userHome.match(/[\/\\]$/)) {
 		userHome = userHome.slice(0, userHome.length - 1);
 	}
-	const normalizedPath = path.replace(/\\/g, '/').toLowerCase();
-	const normalizedUserHome = userHome.replace(/\\/g, '/').toLowerCase();
+	let normalizedPath = path.replace(/\\/g, '/');
+	let normalizedUserHome = userHome.replace(/\\/g, '/');
+	if (separator === '\\') {
+		normalizedPath = normalizedPath.toLowerCase();
+		normalizedUserHome = normalizedUserHome.toLowerCase();
+	}
 	if (!normalizedPath.includes(normalizedUserHome)) {
 		return path;
 	}
