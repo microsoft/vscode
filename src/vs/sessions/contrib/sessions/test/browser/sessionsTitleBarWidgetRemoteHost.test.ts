@@ -29,6 +29,7 @@ import { BlockedSessionsIndicatorModel } from '../../browser/blockedSessionsIndi
 import { SessionActionFeedback } from '../../browser/sessionActionFeedback.js';
 import { SessionsTitleBarWidget } from '../../browser/sessionsTitleBarWidget.js';
 import { ISessionHost } from '../../../../../workbench/contrib/sessions/browser/sessionHost.js';
+import { IChatWindowService } from '../../../../../workbench/contrib/chatWindow/browser/chatWindow.js';
 import { ITestSessionsService } from '../../../../../workbench/contrib/sessions/test/browser/sessionHostTestUtils.js';
 
 suite('SessionsTitleBarWidget - Remote Host', () => {
@@ -94,6 +95,7 @@ suite('SessionsTitleBarWidget - Remote Host', () => {
 			upcastPartial<IQuickInputService>({}),
 			hoverService,
 			upcastPartial<IBrowserWorkbenchEnvironmentService>({ sessionTitle }),
+			upcastPartial<IChatWindowService>({}),
 		));
 		const container = $('div');
 		widget.render(container);

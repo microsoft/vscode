@@ -34,7 +34,7 @@ import { IChatWindow, IChatWindowChat, IChatWindowChatPart, IChatWindowContent, 
 import { bindWindowLayoutContext, bindWindowTerminalsContext } from './chatWindowContextKeys.js';
 import { captureChatPart, deserializeChatWindowEditors, getRestoredChatGroup, reopenChatWindow, serializeChatWindowEditorsBesideChat } from './chatWindowEditors.js';
 import { InFlightOperations, openCleaningUpOnFailure } from './chatWindowOpening.js';
-import { bindChatWindowPartsVisible, moveEditorsToChatWindow, showChatInsteadOfEmptyMainPart, trackMainPartEditors } from './chatWindowParts.js';
+import { bindChatWindowPartsVisible, moveEditorsBackFromChatWindow, moveEditorsToChatWindow, showChatInsteadOfEmptyMainPart, trackMainPartEditors } from './chatWindowParts.js';
 import { ChatWindowGrid, TERMINAL_EDITOR_TYPE_ID } from './chatWindowGrid.js';
 import { ChatWindowPartFactory } from './chatWindowPartFactory.js';
 import { ChatWindowsRestoration } from './chatWindowsRestoration.js';
@@ -813,10 +813,25 @@ export class ChatWindowService extends Disposable implements IChatWindowService 
 			// The main window's editors move in before the window's content takes the chat, which takes its session out of
 			// the main window, and with it the editors the main window shows for it, as when a window opens for the chat.
 			const moveFrom = options?.editors?.moveFrom;
-			if (moveFrom?.length) {
-				moveEditorsToChatWindow(moveFrom, target.mainPart.activeGroup);
+			const into = moveFrom?.length ? target.mainPart.activeGroup : undefined;
+			const moved = into && moveFrom ? moveEditorsToChatWindow(moveFrom, into) : [];
+			// Unless the chat opens in the window: then they go back to where they came from
+			const moveBack = () => {
+				if (into) {
+					moveEditorsBackFromChatWindow(moved, into, () => this._editorGroupsService.mainPart.activeGroup, group => this._editorGroupsService.groups.includes(group));
+				}
+			};
+			let added: IChatWindow | undefined;
+			try {
+				added = await this._addChat(target, chat, options);
+			} catch (error) {
+				moveBack();
+				throw error;
 			}
-			return this._addChat(target, chat, options);
+			if (added !== target) {
+				moveBack();
+			}
+			return added;
 		}
 		const provider = this._provider.get();
 		if (!provider) {

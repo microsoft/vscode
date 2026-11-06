@@ -8,6 +8,7 @@ import { autorun, IObservable } from '../../../../base/common/observable.js';
 import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { MainEditorAreaVisibleContext } from '../../../common/contextkeys.js';
 import { EditorCloseContext, EditorsOrder, GroupModelChangeKind } from '../../../common/editor.js';
+import { EditorInput } from '../../../common/editor/editorInput.js';
 import { IEditorGroup, IEditorPart } from '../../../services/editor/common/editorGroupsService.js';
 import { ChatWindowLayoutMode } from '../common/chatWindowLayout.js';
 
@@ -58,26 +59,64 @@ export function showChatInsteadOfEmptyMainPart(part: Pick<IEditorPart, 'groups'>
 	return true;
 }
 
+/** An editor that {@link moveEditorsToChatWindow} moved, the group it came from, and whether it was that group's active editor. */
+export interface IMovedChatWindowEditor {
+	readonly editor: EditorInput;
+	readonly from: IEditorGroup;
+	readonly wasActive: boolean;
+}
+
 /**
  * Moves the editors of `groups` to `target`, keeping the active one active. An editor that cannot move there, such as
  * one that shows only in the main window, stays where it is, without the error its group shows for a move it vetoes.
+ * Returns the editors it moved, which {@link moveEditorsBackFromChatWindow} can put back.
  */
-export function moveEditorsToChatWindow(groups: readonly IEditorGroup[], target: IEditorGroup): void {
+export function moveEditorsToChatWindow(groups: readonly IEditorGroup[], target: IEditorGroup): IMovedChatWindowEditor[] {
+	const moved: IMovedChatWindowEditor[] = [];
 	let active: { readonly group: IEditorGroup; readonly editor: NonNullable<IEditorGroup['activeEditor']> } | undefined;
 	for (const group of groups) {
 		if (group === target) {
 			continue;
 		}
+		const groupActive = group.activeEditor;
 		const editors = group.getEditors(EditorsOrder.SEQUENTIAL).filter(editor => editor.canMove(group.id, target.id) === true);
-		if (!active && group.activeEditor && editors.includes(group.activeEditor)) {
-			active = { group, editor: group.activeEditor };
+		if (!active && groupActive && editors.includes(groupActive)) {
+			active = { group, editor: groupActive };
 		}
 		if (editors.length) {
 			group.moveEditors(editors.map(editor => ({ editor, options: { pinned: true, preserveFocus: true, inactive: editor !== active?.editor } })), target);
+			moved.push(...editors.filter(editor => target.contains(editor, { strictEquals: true })).map(editor => ({ editor, from: group, wasActive: editor === groupActive })));
 		}
 	}
 	if (active && target.contains(active.editor)) {
 		void target.openEditor(active.editor, { preserveFocus: true });
+	}
+	return moved;
+}
+
+/**
+ * Puts the editors that {@link moveEditorsToChatWindow} moved into `target` back: each into the group it came from, or
+ * into `fallback` if that group is gone, the one that was active there active again. An editor no longer in `target`,
+ * such as one the user closed or moved meanwhile, stays where it is.
+ */
+export function moveEditorsBackFromChatWindow(moved: readonly IMovedChatWindowEditor[], target: IEditorGroup, fallback: () => IEditorGroup, exists: (group: IEditorGroup) => boolean): void {
+	const byGroup = new Map<IEditorGroup, IMovedChatWindowEditor[]>();
+	for (const entry of moved) {
+		if (!target.contains(entry.editor, { strictEquals: true })) {
+			continue;
+		}
+		const to = exists(entry.from) ? entry.from : fallback();
+		if (to === target) {
+			continue;
+		}
+		byGroup.set(to, [...byGroup.get(to) ?? [], entry]);
+	}
+	for (const [to, entries] of byGroup) {
+		target.moveEditors(entries.map(({ editor, wasActive }) => ({ editor, options: { pinned: true, preserveFocus: true, inactive: !wasActive } })), to);
+		const active = entries.find(entry => entry.wasActive)?.editor;
+		if (active && to.contains(active, { strictEquals: true })) {
+			void to.openEditor(active, { preserveFocus: true });
+		}
 	}
 }
 

@@ -17,7 +17,9 @@ import { ISessionsManagementService } from '../../../../../workbench/contrib/ses
 import { IOpenSessionOptions, ISessionsService } from '../../../../../workbench/contrib/sessions/browser/sessionsService.js';
 import { ISession } from '../../../../../workbench/contrib/sessions/common/session.js';
 import { SessionsTitleBarWidget } from '../../browser/sessionsTitleBarWidget.js';
-import { ISessionHost } from '../../../../../workbench/contrib/sessions/browser/sessionHost.js';
+import { ISessionHost, SessionHostKind } from '../../../../../workbench/contrib/sessions/browser/sessionHost.js';
+import { IChatWindow, IChatWindowService } from '../../../../../workbench/contrib/chatWindow/browser/chatWindow.js';
+import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 
 suite('SessionsTitleBarWidget', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
@@ -45,6 +47,29 @@ suite('SessionsTitleBarWidget', () => {
 		openBlockedSession.call(widget, resource, true, true);
 
 		assert.deepStrictEqual(options, [{ preserveFocus: true, source: 'sessionsList', forceMainChat: true }]);
+	});
+
+	test('in a chat window, a blocked session opens in that window, not in the main window', () => {
+		const widget = Object.create(SessionsTitleBarWidget.prototype) as SessionsTitleBarWidget;
+		const resource = URI.parse('test:/blocked');
+		const session = upcastPartial<ISession>({ sessionId: 'blocked', resource });
+		const chatWindow = upcastPartial<IChatWindow>({ windowId: 7 });
+		const opened: string[] = [];
+		Reflect.set(widget, '_windowHost', upcastPartial<ISessionHost>({ kind: SessionHostKind.ChatWindow, parent: undefined, windowId: constObservable(7) }));
+		Reflect.set(widget, 'chatWindowService', upcastPartial<IChatWindowService>({ getWindow: windowId => windowId === 7 ? chatWindow : undefined }));
+		Reflect.set(widget, 'sessionsManagementService', upcastPartial<ISessionsManagementService>({ getSession: () => session }));
+		Reflect.set(widget, 'sessionsService', upcastPartial<ISessionsService>({
+			openSession: async () => { opened.push('main window'); },
+			openSessionToSide: async () => { opened.push('main window to the side'); },
+		}));
+		Reflect.set(widget, 'instantiationService', upcastPartial<IInstantiationService>({
+			invokeFunction: (() => { opened.push('chat window'); return Promise.resolve(); }) as IInstantiationService['invokeFunction'],
+		}));
+
+		openBlockedSession.call(widget, resource, false, false);
+		openBlockedSession.call(widget, resource, true, true);
+
+		assert.deepStrictEqual(opened, ['chat window', 'chat window']);
 	});
 
 	test('uses only the workspace context in the command center', () => {

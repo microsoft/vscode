@@ -66,6 +66,7 @@ import { TestAccessibilityService } from '../../../../platform/accessibility/tes
 import { IActionViewItemService, NullActionViewItemService } from '../../../../platform/actions/browser/actionViewItemService.js';
 import { IChatPhoneInputPresenter } from '../../../contrib/chat/browser/widget/input/chatPhoneInputPresenter.js';
 import { IChatPasteTargetService } from '../../../contrib/chat/browser/chat.js';
+import { IChatWindowService } from '../../../contrib/chatWindow/browser/chatWindow.js';
 import { ChatPasteTargetService } from '../../../contrib/chat/browser/attachments/chatPasteTargetService.js';
 import { IMenuService } from '../../../../platform/actions/common/actions.js';
 import { IClipboardService } from '../../../../platform/clipboard/common/clipboardService.js';
@@ -908,6 +909,8 @@ export function registerWorkbenchServices(registration: ServiceRegistration): vo
 		async whenInitialized(): Promise<void> { },
 	};
 	registration.defineInstance(IAccountPolicyGateService, accountPolicyGateService);
+	// No chat windows: the command center's session widget asks for one only as the user picks a session
+	registration.definePartialInstance(IChatWindowService, { getWindow: () => undefined });
 	registration.defineInstance(IContextMenuService, {
 		showContextMenu: () => { },
 		onDidShowContextMenu: () => ({ dispose: () => { } }),

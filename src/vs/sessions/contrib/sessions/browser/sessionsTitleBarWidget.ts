@@ -32,7 +32,8 @@ import { IsAuxiliaryWindowContext, LayoutModeContext } from '../../../../workben
 import { IWorkbenchLayoutService } from '../../../../workbench/services/layout/browser/layoutService.js';
 import { SessionsBlockedSessionsVisibleContext, SessionsWelcomeVisibleContext } from '../../../../workbench/contrib/sessions/common/contextkeys.js';
 import { ISessionsProvidersService } from '../../../../workbench/contrib/sessions/browser/sessionsProvidersService.js';
-import { SHOW_SESSIONS_PICKER_COMMAND_ID } from './sessionsActions.js';
+import { getChatWindowOfHost, openPickedSessionInChatWindow, SHOW_SESSIONS_PICKER_COMMAND_ID } from './sessionsActions.js';
+import { IChatWindowService } from '../../../../workbench/contrib/chatWindow/browser/chatWindow.js';
 import { ISessionsManagementService } from '../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import { ISessionsService } from '../../../../workbench/contrib/sessions/browser/sessionsService.js';
 import { getWindowHost, ISessionHost } from '../../../../workbench/contrib/sessions/browser/sessionHost.js';
@@ -200,6 +201,7 @@ export class SessionsTitleBarWidget extends BaseActionViewItem {
 		@IQuickInputService private readonly quickInputService: IQuickInputService,
 		@IHoverService private readonly hoverService: IHoverService,
 		@IBrowserWorkbenchEnvironmentService environmentService: IBrowserWorkbenchEnvironmentService,
+		@IChatWindowService private readonly chatWindowService: IChatWindowService,
 	) {
 		super(undefined, action, options);
 		this._windowHost = getWindowHost(sessionHost);
@@ -700,6 +702,13 @@ export class SessionsTitleBarWidget extends BaseActionViewItem {
 	}
 
 	private _openBlockedSession(resource: URI, preserveFocus: boolean, sideBySide: boolean): void {
+		// In a chat window, the session opens in that window, as one picked in its Sessions picker
+		const chatWindow = getChatWindowOfHost(this._windowHost, this.chatWindowService);
+		const session = chatWindow && this.sessionsManagementService.getSession(resource);
+		if (chatWindow && session) {
+			this.instantiationService.invokeFunction(accessor => openPickedSessionInChatWindow(accessor, session, chatWindow, { preserveFocus, toSide: sideBySide })).catch(onUnexpectedError);
+			return;
+		}
 		if (sideBySide) {
 			const session = this.sessionsManagementService.getSession(resource);
 			if (session) {

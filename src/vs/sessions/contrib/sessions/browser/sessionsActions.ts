@@ -45,7 +45,7 @@ import { SessionsTitleBarNewSessionEnabledContext } from '../../../common/agents
 import { ARRANGE_SESSIONS_COMMAND_ID, CLOSE_CHAT_COMMAND_ID, CLOSE_SESSION_COMMAND_ID, DETACH_CHAT_COMMAND_ID, FOCUS_ACTIVE_SESSION_COMMAND_ID, FOCUS_NEXT_CHAT_GROUP_COMMAND_ID, FOCUS_PREVIOUS_CHAT_GROUP_COMMAND_ID, MOVE_CHAT_TO_NEXT_GROUP_COMMAND_ID, MOVE_CHAT_TO_PREVIOUS_GROUP_COMMAND_ID, RENAME_CHAT_COMMAND_ID, RENAME_SESSION_COMMAND_ID, SESSION_GRID_FOCUS_COMMANDS, SPLIT_CHAT_GROUP_DOWN_COMMAND_ID, SPLIT_CHAT_GROUP_RIGHT_COMMAND_ID, TOGGLE_PIN_CHAT_COMMAND_ID, TOGGLE_PIN_SESSION_COMMAND_ID } from '../../../../workbench/contrib/sessions/common/sessionCommands.js';
 import { IActiveSession, ISessionsManagementService } from '../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import { ISessionsService } from '../../../../workbench/contrib/sessions/browser/sessionsService.js';
-import { getWindowHost, IFocusedSessionHostService, SessionHostKind } from '../../../../workbench/contrib/sessions/browser/sessionHost.js';
+import { getWindowHost, IFocusedSessionHostService, ISessionHost, SessionHostKind } from '../../../../workbench/contrib/sessions/browser/sessionHost.js';
 import { IChatWidgetService } from '../../../../workbench/contrib/chat/browser/chat.js';
 import { IChatHostOpenerService } from '../../../../workbench/contrib/sessions/browser/chatHostOpener.js';
 import { ISessionCommandTarget, resolveGridCommandView, resolveSessionCommandTarget } from '../../../../workbench/contrib/sessions/browser/sessionCommandTarget.js';
@@ -92,11 +92,16 @@ export type NewSessionButtonStyle = 'default' | 'lightweight' | 'lightweightWith
 
 // -- Show Sessions Picker --
 
-/** The chat window the Sessions picker runs in, by the host it runs for: what it opens there opens in that window. */
-export function getSessionsPickerChatWindow(target: ISessionCommandTarget | undefined, chatWindowService: IChatWindowService): IChatWindow | undefined {
-	const windowHost = target?.host && getWindowHost(target.host);
+/** The chat window of `host`, by the host of its window: none for the main window. */
+export function getChatWindowOfHost(host: ISessionHost | undefined, chatWindowService: IChatWindowService): IChatWindow | undefined {
+	const windowHost = host && getWindowHost(host);
 	const windowId = windowHost?.kind === SessionHostKind.ChatWindow ? windowHost.windowId.get() : undefined;
 	return windowId === undefined ? undefined : chatWindowService.getWindow(windowId);
+}
+
+/** The chat window the Sessions picker runs in, by the host it runs for: what it opens there opens in that window. */
+export function getSessionsPickerChatWindow(target: ISessionCommandTarget | undefined, chatWindowService: IChatWindowService): IChatWindow | undefined {
+	return getChatWindowOfHost(target?.host, chatWindowService);
 }
 
 /**

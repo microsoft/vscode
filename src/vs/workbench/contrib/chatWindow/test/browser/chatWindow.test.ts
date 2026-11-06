@@ -630,7 +630,7 @@ suite('Chat window', () => {
 			return { window, main, chat, input };
 		});
 		(Reflect.get(service, '_windows') as ISettableObservable<ChatWindow[]>).set(windows, undefined);
-		return { service, events, windows: created };
+		return { service, events, windows: created, parts };
 	}
 
 	test('the last chat of a window dropped into another chat window is taken over by that window, and only then its window closes: no new window opens', async () => {
@@ -713,6 +713,43 @@ suite('Chat window', () => {
 			tab: { events: ['move to a main', 'a takes /c'], mainWindow: ['canvas'], windowMainPart: ['file'], windowMainPartActive: 'file', chatGroups: [['/a', '/c']] },
 			beside: { events: ['move to a main', 'a takes /c'], mainWindow: ['canvas'], windowMainPart: ['file'], windowMainPartActive: 'file', chatGroups: [['/a'], ['/c']] },
 			background: { events: ['move to a main', 'a takes /c'], mainWindow: ['canvas'], windowMainPart: ['file'], windowMainPartActive: 'file', chatGroups: [['/a', '/c']] },
+		});
+	});
+
+	test('the editors a chat brings along into a window go back to where they came from when the chat does not open in that window: it does not resolve, or it shows in another window', async () => {
+		const opened = async (resolvesTo: 'nothing' | 'chat of another window') => {
+			const { service, events, windows: [target, other], parts } = createService(['a', 'b']);
+			const mainWindow = createPart(events, 'main window');
+			parts.push(mainWindow.part);
+			const canvas = disposables.add(new MainWindowOnlyInput());
+			const file = editor();
+			const notes = editor();
+			mainWindow.group.open(canvas);
+			mainWindow.group.open(notes);
+			mainWindow.group.open(file);
+			let revealed: string | undefined;
+			Reflect.set(other.window, 'revealChat', (chat: URI) => { revealed = chat.path; });
+			// The window resolves the chat to nothing, or to the chat the other window shows, such as the main chat of its session
+			Reflect.set(target.window.content, 'resolveChat', async () => resolvesTo === 'nothing' ? undefined : upcastPartial<IChatWindowChat>({ chat: constObservable(URI.parse('test:/b')), dispose: () => { } }));
+			const result = await service.open(URI.parse('test:/session-b'), { window: target.window, editors: { moveFrom: [mainWindow.group] } });
+			const name = (input: EditorInput) => input === file ? 'file' : input === notes ? 'notes' : input === canvas ? 'canvas' : (input as ChatViewInput).chatResource.path;
+			return {
+				opened: result === target.window ? 'a' : result === other.window ? 'b' : undefined,
+				revealed,
+				events: events.filter(event => event.startsWith('move')),
+				mainWindow: mainWindow.group.testEditors.map(name),
+				mainWindowActive: mainWindow.group.activeEditor && name(mainWindow.group.activeEditor),
+				windowMainPart: target.main.group.testEditors.map(name),
+				windowChats: target.window.chats.get().map(chat => chat.path),
+			};
+		};
+
+		assert.deepStrictEqual({
+			nothing: await opened('nothing'),
+			otherWindow: await opened('chat of another window'),
+		}, {
+			nothing: { opened: undefined, revealed: undefined, events: ['move to a main', 'move to a main', 'move to main window', 'move to main window'], mainWindow: ['canvas', 'notes', 'file'], mainWindowActive: 'file', windowMainPart: [], windowChats: ['/a'] },
+			otherWindow: { opened: 'b', revealed: '/b', events: ['move to a main', 'move to a main', 'move to main window', 'move to main window'], mainWindow: ['canvas', 'notes', 'file'], mainWindowActive: 'file', windowMainPart: [], windowChats: ['/a'] },
 		});
 	});
 
