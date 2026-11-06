@@ -2397,6 +2397,54 @@ suite('ChatListRenderer', () => {
 		});
 	});
 
+	test('sticky progress does not measure unchanged subagent activity during streaming', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		const { model, request, container, renderer } = createPersistentProgressRenderer();
+		const data: IChatSubagentToolInvocationData = { kind: 'subagent', hasStarted: true, isActive: true };
+		const subagent = createSubagentTool('background-agent', data);
+		await subagent.didExecuteTool(undefined);
+		model.acceptResponseProgress(request, subagent);
+		const sticky = dom.append(container, dom.$('.chat-sticky-progress.interactive-item-container.chat-persistent-progress'));
+		let measurements = 0;
+		renderer.setWorkingProgressContainer(sticky, () => {
+			measurements++;
+			return true;
+		});
+		await timeout(1);
+		const progress = sticky.querySelector('.chat-working-progress');
+		measurements = 0;
+
+		for (let i = 0; i < 40; i++) {
+			model.acceptResponseProgress(request, { kind: 'markdownContent', content: new MarkdownString('More progress. ') });
+			await timeout(1);
+		}
+		const unchangedMeasurements = measurements;
+		const streamingLabel = progress?.textContent?.replace(/\u00a0/g, ' ').trim();
+
+		data.isActive = false;
+		subagent.notifyToolSpecificDataChanged();
+		await timeout(1);
+		const settledLabel = progress?.textContent?.replace(/\u00a0/g, ' ').trim();
+		const sameComponent = sticky.querySelector('.chat-working-progress') === progress;
+		request.response!.complete();
+		await timeout(1);
+
+		assert.deepStrictEqual({
+			unchangedMeasurements,
+			streamingLabel,
+			settledLabel,
+			sameComponent,
+			measuredChangedStatus: measurements > 0,
+			completedCopies: sticky.querySelectorAll('.chat-working-progress').length,
+		}, {
+			unchangedMeasurements: 0,
+			streamingLabel: '1 subagent running',
+			settledLabel: 'Working',
+			sameComponent: true,
+			measuredChangedStatus: true,
+			completedCopies: 0,
+		});
+	}));
+
 	test('sticky progress replaces a stale anchor when a hidden completed turn resumes', async () => {
 		const { request, container, renderer, template, node } = createPersistentProgressRenderer();
 		const sticky = dom.append(container, dom.$('.chat-sticky-progress.interactive-item-container.chat-persistent-progress'));

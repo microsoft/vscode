@@ -1367,7 +1367,8 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			return;
 		}
 		const progress = this.getPersistentWorkingProgress(response, annotateSpecialMarkdownContent(response.response.value));
-		if (this.stickyProgressResponse !== response) {
+		const responseChanged = this.stickyProgressResponse !== response;
+		if (responseChanged) {
 			this.clearStickyProgress();
 			this.stickyProgressPart.value = this.instantiationService.createInstance(ChatWorkingProgressContentPart, progress, this.chatContentMarkdownRenderer, {
 				element: response,
@@ -1387,10 +1388,13 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 				treeStartIndex: 0,
 			});
 			this.stickyProgressResponse = response;
+			container.classList.remove('hidden');
 		}
-		container.classList.remove('hidden');
-		this.stickyProgressPart.value?.updateWorkingContent(progress.content, progress.isActive, progress.announce, progress.progressStep, progress.showDelayedProgressMessage, progress.imageGeneration, progress.backgroundActivity);
-		this.updateStickyProgress();
+		const contentChanged = this.stickyProgressPart.value?.updateWorkingContent(progress.content, progress.isActive, progress.announce, progress.progressStep, progress.showDelayedProgressMessage, progress.imageGeneration, progress.backgroundActivity);
+		// Rendering, scrolling and layout handle movement when the status itself is unchanged.
+		if (responseChanged || contentChanged) {
+			this.updateStickyProgress();
+		}
 	}
 
 	updateStickyProgress(): void {
