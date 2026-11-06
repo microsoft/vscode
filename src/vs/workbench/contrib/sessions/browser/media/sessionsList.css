@@ -1500,8 +1500,8 @@
 		color: var(--vscode-strongForeground);
 	}
 
-	.monaco-list .monaco-list-row.selected .session-section.session-group-colored,
-	.monaco-list .monaco-list-row.selected .session-section.session-group-colored .session-section-label {
+	.monaco-list .monaco-list-row:is(.selected, .focused) .session-section.session-group-colored,
+	.monaco-list .monaco-list-row:is(.selected, .focused) .session-section.session-group-colored .session-section-label {
 		color: inherit;
 	}
 

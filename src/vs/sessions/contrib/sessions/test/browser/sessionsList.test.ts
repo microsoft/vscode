@@ -2257,6 +2257,12 @@ suite('Sessions - SessionsList', () => {
 				row.style.color = 'rgb(12, 34, 56)';
 				const selectedColor = mainWindow.getComputedStyle(label()).color;
 				row.classList.remove('selected', 'hovered');
+				const focusedColors = [false, true].map(hovered => {
+					row.classList.add('focused');
+					row.classList.toggle('hovered', hovered);
+					return mainWindow.getComputedStyle(label()).color;
+				});
+				row.classList.remove('focused', 'hovered');
 				const highContrast = [ColorScheme.HIGH_CONTRAST_DARK, ColorScheme.HIGH_CONTRAST_LIGHT].map(type => {
 					themeService.setTheme(new TestColorTheme({}, type));
 					return appearance();
@@ -2266,10 +2272,11 @@ suite('Sessions - SessionsList', () => {
 					'terminal.ansiYellow': '#e5e510',
 				}));
 				groupsService.setSectionColor('workspace:Workspace', undefined);
-				assert.deepStrictEqual({ initial, contrasts, selectedColor, highContrast, reset: appearance() }, {
+				assert.deepStrictEqual({ initial, contrasts, selectedColor, focusedColors, highContrast, reset: appearance() }, {
 					initial: { color: '', colored: false },
 					contrasts: Array(40).fill(true),
 					selectedColor: 'rgb(12, 34, 56)',
+					focusedColors: ['rgb(12, 34, 56)', 'rgb(12, 34, 56)'],
 					highContrast: [{ color: '', colored: false }, { color: '', colored: false }],
 					reset: { color: '', colored: false },
 				});

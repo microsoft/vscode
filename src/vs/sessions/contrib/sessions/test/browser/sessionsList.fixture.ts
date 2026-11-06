@@ -696,11 +696,12 @@ export default defineThemedFixtureGroup({ path: 'sessions/' }, {
 		sessions: GROUP_SESSIONS,
 		groups: [{ ...RELEASE_GROUP, color: 'charts.blue' }, { ...TRIAGE_GROUP, color: 'charts.orange' }],
 		view: { compact: true, height: 300 },
-		interaction: { hovered: { group: 'release' }, focused: { group: 'triage' }, selected: [{ group: 'triage' }] },
+		interaction: { hovered: { group: 'release' }, focused: { group: 'triage' } },
 	}, {
+		deferPaint: true,
 		labels: { kind: 'screenshot' },
 		additionalThemes: ['darkHighContrast', 'lightHighContrast'],
-		expectedVisualDescriptions: ['In compact mode the hovered Release work name retains a readable blue color even when its icon yields to the chevron. The selected Triage name uses the normal selection foreground rather than its assigned orange, and uncustomized workspace and session names remain unchanged. High-contrast themes retain their normal label colors.'],
+		expectedVisualDescriptions: ['In compact mode the hovered Release work name retains a readable blue color even when its icon yields to the chevron. The keyboard-focused Triage name uses the normal focus foreground rather than its assigned orange, and uncustomized workspace and session names remain unchanged. High-contrast themes retain their normal label colors.'],
 	}),
 	SessionsList_Groups_FocusedHeader: defineSessionsListFixture({
 		sessions: GROUP_SESSIONS,
