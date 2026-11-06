@@ -123,19 +123,33 @@ suite('Product test checkpoint templates', () => {
 		});
 	});
 
-	test('wrapper copies the test step and records its checkpoint on the same condition', () => {
+	test('wrapper copies the test step and records its checkpoint only when nothing in the job failed', () => {
 		// Step parameters arrive normalized (e.g. `powershell:` as `task: PowerShell@2`), so the test step must be copied as is
-		const condition = 'and(${{ coalesce(parameters.testStep.condition, \'succeeded()\') }}, ne(variables[\'TEST_CHECKPOINT_${{ upper(replace(parameters.testId, \'-\', \'_\')) }}_HIT\'], \'true\'))';
+		const hit = 'ne(variables[\'TEST_CHECKPOINT_${{ upper(replace(parameters.testId, \'-\', \'_\')) }}_HIT\'], \'true\')';
 		assert.deepStrictEqual({ parameters: wrapper.parameters, steps: wrapper.steps }, {
 			parameters: [{ name: 'testId', type: 'string' }, { name: 'testStep', type: 'step' }],
 			steps: [
 				{
 					'${{ each pair in parameters.testStep }}': { '${{ if ne(pair.key, \'condition\') }}': { '${{ pair.key }}': '${{ pair.value }}' } },
-					condition,
+					condition: `and(\${{ coalesce(parameters.testStep.condition, 'succeeded()') }}, ${hit})`,
 				},
-				{ template: './publish-test-checkpoint.yml@self', parameters: { testId: '${{ parameters.testId }}', condition } },
+				// Not the test's own condition: a test that runs after a failure (succeededOrFailed())
+				// and then fails itself must not be recorded as passed
+				{ template: './publish-test-checkpoint.yml@self', parameters: { testId: '${{ parameters.testId }}', condition: `and(succeeded(), ${hit})` } },
 			],
 		});
+	});
+
+	test('the record condition does not depend on the test step\'s own condition', () => {
+		// No checkpointed test sets its own condition today, but one that runs after a failure
+		// (succeededOrFailed()) would still only be recorded when it passes
+		const conditions = (['win32', 'linux', 'darwin'] as const).flatMap(os => allCalls({ win32: windowsTestFile, linux: linuxTestFile, darwin: darwinTestFile }[os], os)
+			.filter(call => call.testStep.condition !== undefined)
+			.map(call => `${call.testId}: ${call.testStep.condition}`));
+		assert.deepStrictEqual({
+			conditions,
+			record: (wrapper.steps[1] as { parameters: { condition: string } }).parameters.condition.startsWith('and(succeeded(), '),
+		}, { conditions: [], record: true });
 	});
 
 	test('restore never resets an already initialized job', () => {

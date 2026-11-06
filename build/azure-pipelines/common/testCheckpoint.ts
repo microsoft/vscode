@@ -6,6 +6,7 @@
 import { globSync } from 'node:fs';
 import path from 'node:path';
 import { retry } from './retry.ts';
+
 /**
  * Product test tasks that record a checkpoint once they pass.
  */

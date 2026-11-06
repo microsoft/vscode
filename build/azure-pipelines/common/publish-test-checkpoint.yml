@@ -26,8 +26,8 @@ parameters:
 
 steps:
   # A retry of this job skips the test when this step succeeded in an earlier
-  # attempt (see testCheckpoint.ts). It runs on the condition of the test step,
-  # so it only succeeds when the test did. Keep its display name unchanged.
+  # attempt (see testCheckpoint.ts). It only runs when nothing in the job has
+  # failed, so it only succeeds when the test did. Keep its display name unchanged.
   - script: node "$(Build.SourcesDirectory)/build/azure-pipelines/common/testCheckpoint.ts" record ${{ parameters.testId }}
     condition: ${{ parameters.condition }}
     displayName: Record ${{ parameters.testId }} checkpoint
