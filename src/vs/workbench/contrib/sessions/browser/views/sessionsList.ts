@@ -5828,6 +5828,8 @@ export class SessionsList extends Disposable implements ISessionsList {
 				}
 			}
 		}
+		// The same sessions also stay visible past the "+N more" caps of sections and folders.
+		const revealedSessionIds = [activeSession, onboardingSession].flatMap(session => session ? [session.sessionId] : []);
 		filtered = filtered.filter(session => {
 			const comparison = this.sessionComparisonService.getComparisonForSession(session.resource);
 			return !comparison || !isComparisonLaunchPending(comparison);
@@ -6123,7 +6125,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 				}
 
 				for (const section of workspaceSections) {
-					if (!meetsCriteria(section) && section.id !== fallbackId && !this._sessionSectionOrderService.isPromoted(section.id) && !section.sessions.some(session => session.sessionId === onboardingSession?.sessionId)) {
+					if (!meetsCriteria(section) && section.id !== fallbackId && !this._sessionSectionOrderService.isPromoted(section.id) && !section.sessions.some(session => revealedSessionIds.includes(session.sessionId))) {
 						moreFolderSectionIds.add(section.id);
 					}
 				}
@@ -6181,7 +6183,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 				sectionId,
 				stateId: cap?.stateId,
 				sectionLabel,
-				revealSessionId: onboardingSession?.sessionId,
+				revealSessionIds: revealedSessionIds,
 			});
 			const children = sectionId === 'archived' && standaloneDoneChats.length > 0
 				? this.toDoneSectionChildren(limited.sessions, standaloneDoneChats, sorting, toSessionChildren)
@@ -6760,6 +6762,30 @@ export class SessionsList extends Disposable implements ISessionsList {
 		}
 		tree.setFocus([chatItem]);
 		tree.setSelection([chatItem]);
+	}
+
+	/**
+	 * Keeps the row of the open chat selected and in view after `session` moved to another section, when `session` is
+	 * the session the main window shows. A collapsed session row stands for its open chat. Revealing the row expands a
+	 * collapsed section that holds it.
+	 */
+	private revealOpenChatRow(session: ISession): void {
+		const shown = this._mainWindowShown.get();
+		if (!this.visible || !shown || shown.session.sessionId !== session.sessionId) {
+			return;
+		}
+		const listed = this.sessions.find(candidate => candidate.sessionId === session.sessionId);
+		if (!listed || !this.getTree(listed).hasElement(listed)) {
+			return;
+		}
+		const chatRow = this.findChatRow(listed, shown.chat.resource);
+		const row = chatRow && (!chatRow.parent || !this.getTree(chatRow.parent).isCollapsed(chatRow.parent)) ? chatRow.chatItem : listed;
+		const tree = this.getTree(row);
+		if (tree.getRelativeTop(row) === null) {
+			tree.reveal(row, 0.5);
+		}
+		tree.setFocus([row]);
+		tree.setSelection([row]);
 	}
 
 	/**
@@ -8903,10 +8929,12 @@ export class SessionsList extends Disposable implements ISessionsList {
 
 	pinSession(session: ISession): void {
 		this._sessionsListModelService.pinSession(session);
+		this.revealOpenChatRow(session);
 	}
 
 	unpinSession(session: ISession): void {
 		this._sessionsListModelService.unpinSession(session);
+		this.revealOpenChatRow(session);
 	}
 
 	isSessionPinned(session: ISession): boolean {
@@ -9745,7 +9773,8 @@ export function limitSessionsForList(
 		/** Identity of the section's show more/show less state; defaults to {@link sectionId}. */
 		readonly stateId?: string;
 		readonly sectionLabel: string;
-		readonly revealSessionId?: string;
+		/** Sessions listed even when the cap hides them, after the sessions the cap keeps. */
+		readonly revealSessionIds?: readonly string[];
 	},
 ): ISessionLimitResult {
 	if (!options.enabled || sessions.length <= limit) {
@@ -9769,11 +9798,9 @@ export function limitSessionsForList(
 	}
 
 	const visibleSessions = sessions.slice(0, limit);
-	if (options.revealSessionId !== undefined) {
-		const revealIndex = sessions.findIndex(session => session.sessionId === options.revealSessionId);
-		if (revealIndex >= limit) {
-			visibleSessions.push(sessions[revealIndex]);
-		}
+	if (options.revealSessionIds?.length) {
+		const revealSessionIds = new Set(options.revealSessionIds);
+		visibleSessions.push(...sessions.slice(limit).filter(session => revealSessionIds.has(session.sessionId)));
 	}
 	const remainingCount = sessions.length - visibleSessions.length;
 
