@@ -211,13 +211,15 @@ suite('Sessions - Actions', () => {
 		}, {
 			toolbar: [
 				{ id: 'sessions.chatCompositeBar.addChat', group: 'navigation', order: 1, when: 'sessionSupportsMultipleChats && sessionsListPromoteNewChatAction && !sessionIsArchived && !sessionItem.inExternalSection && !sessionItem.isCloud' },
-				{ id: ARCHIVE_SESSION_COMMAND_ID, group: 'navigation', order: 2, when: '!sessionIsArchived' },
+				{ id: ARCHIVE_SESSION_COMMAND_ID, group: 'navigation', order: 3, when: 'chatIsEnabled && !sessionIsArchived && sessionsViewPane.grouping == \'inbox\'' },
+				{ id: ARCHIVE_SESSION_COMMAND_ID, group: 'navigation', order: 2, when: '!sessionIsArchived && sessionsViewPane.grouping != \'inbox\'' },
 				{ id: 'sessionsViewPane.pinSession', group: 'navigation', order: 1, when: '!sessionIsArchived && !sessionItem.isPinned && !sessionsListPromoteNewChatAction' },
 				{ id: 'sessionsViewPane.unpinSession', group: 'navigation', order: 1, when: 'sessionItem.isPinned && !sessionIsArchived && !sessionsListPromoteNewChatAction' },
 			],
 			contextMenu: [
 				{ id: 'sessions.chatCompositeBar.addChat', group: 'navigation', order: 2, when: 'sessionSupportsMultipleChats && !sessionIsArchived && !sessionItem.inExternalSection' },
-				{ id: ARCHIVE_SESSION_COMMAND_ID, group: '1_state', order: 3, when: '!sessionIsArchived' },
+				{ id: ARCHIVE_SESSION_COMMAND_ID, group: '4_manage', order: 2.5, when: 'chatIsEnabled && !sessionIsArchived && sessionsViewPane.grouping == \'inbox\'' },
+				{ id: ARCHIVE_SESSION_COMMAND_ID, group: '1_state', order: 3, when: '!sessionIsArchived && sessionsViewPane.grouping != \'inbox\'' },
 				{ id: 'sessionsViewPane.pinSession', group: '2_organize', order: 1, when: '!sessionIsArchived && !sessionItem.isPinned' },
 				{ id: 'sessionsViewPane.unpinSession', group: '2_organize', order: 1, when: 'sessionItem.isPinned && !sessionIsArchived' },
 			],

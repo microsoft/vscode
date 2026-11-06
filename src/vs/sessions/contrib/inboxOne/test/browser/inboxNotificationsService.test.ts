@@ -48,6 +48,7 @@ import { CHAT_INBOX_ENABLED_SETTING } from '../../../../../workbench/contrib/ses
 suite('InboxNotificationsService', () => {
 	const dismissedStorageKey = 'sessions.inboxNotifications.dismissedIds';
 	const completionStartTimeStorageKey = 'sessions.inboxNotifications.completionStartTime';
+	const attentionStartTimeStorageKey = 'sessions.inboxNotifications.attentionStartTime';
 	const disposables = new DisposableStore();
 	const passingChecks: readonly IGitHubCICheck[] = [{
 		id: 1, name: 'CI', status: GitHubCheckStatus.Completed, conclusion: GitHubCheckConclusion.Success,
@@ -1807,6 +1808,159 @@ suite('InboxNotificationsService', () => {
 			description: 'Review the confirmation request below.',
 		}]);
 	});
+
+	test('sidebar history cutoff starts on first demand and survives late history, fresh turns, and restarts', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		const old = createSession({ id: 'old', status: SessionStatus.Completed, updatedAt: Date.now() - 1 });
+		const fixture = createFixture([], undefined, undefined, undefined, undefined, true, [], false, { completionStartTime: null });
+		const beforeActivation = fixture.storageService.getNumber(attentionStartTimeStorageKey, StorageScope.PROFILE);
+		fixture.sentiment.set({ hidden: true }, undefined);
+		const demand = disposables.add(fixture.service.acquireSessionAttention());
+		const whileHidden = fixture.storageService.getNumber(attentionStartTimeStorageKey, StorageScope.PROFILE);
+		fixture.sentiment.set({}, undefined);
+		const startTime = fixture.storageService.getNumber(attentionStartTimeStorageKey, StorageScope.PROFILE)!;
+		const boundary = createSession({ id: 'boundary', status: SessionStatus.Completed, updatedAt: startTime });
+		const late = createSession({ id: 'late', status: SessionStatus.Completed, updatedAt: startTime - 2, isRead: true });
+		const pending = createSession({ id: 'pending', status: SessionStatus.NeedsInput, updatedAt: startTime - 2 });
+		const working = createSession({ id: 'working', status: SessionStatus.InProgress, updatedAt: startTime - 2 });
+		const sessions = [old, boundary, late, pending, working];
+		const historical = (service: InboxNotificationsService) => [...service.sessionAttention.get()]
+			.filter(([, value]) => value.isHistoricalCompletion).map(([id]) => id);
+		fixture.setSessions(sessions);
+		const initial = historical(fixture.service);
+		(old.updatedAt as ISettableObservable<Date>).set(new Date(startTime + 1), undefined);
+		const metadataUpdate = historical(fixture.service);
+		transaction(tx => {
+			(old.status as ISettableObservable<SessionStatus>).set(SessionStatus.InProgress, tx);
+			(old.lastTurnEnd as ISettableObservable<Date | undefined>).set(undefined, tx);
+		});
+		const nextTurn = historical(fixture.service);
+		transaction(tx => {
+			(old.status as ISettableObservable<SessionStatus>).set(SessionStatus.Completed, tx);
+			(old.lastTurnEnd as ISettableObservable<Date | undefined>).set(new Date(startTime + 1), tx);
+		});
+		demand.dispose();
+		fixture.service.dispose();
+		await timeout(1000);
+		const offline = createSession({ id: 'offline', status: SessionStatus.Completed, updatedAt: startTime + 500 });
+		const restored = createFixture([...sessions, offline], fixture.storageService, undefined, undefined, undefined, true, [], false, { completionStartTime: null });
+		disposables.add(restored.service.acquireSessionAttention());
+		assert.deepStrictEqual({
+			beforeActivation, whileHidden, initial, metadataUpdate, nextTurn,
+			restored: historical(restored.service),
+			preservedCutoff: restored.storageService.getNumber(attentionStartTimeStorageKey, StorageScope.PROFILE) === startTime,
+			canvasCutoff: restored.storageService.getNumber(completionStartTimeStorageKey, StorageScope.APPLICATION),
+		}, {
+			beforeActivation: undefined, whileHidden: undefined, initial: ['old', 'late'], metadataUpdate: ['old', 'late'], nextTurn: ['late'],
+			restored: ['late'], preservedCutoff: true, canvasCutoff: undefined,
+		});
+	}));
+
+	test('sidebar attention demand is ref-counted, respects hidden AI, and leaves the canvas inactive', async () => {
+			let utilityRequests = 0;
+			const fixture = createFixture([
+				createSession({ id: 'input', status: SessionStatus.NeedsInput, updatedAt: 100 }),
+				createSession({ id: 'working', status: SessionStatus.InProgress, updatedAt: 100 }),
+				createSession({ id: 'old', status: SessionStatus.Completed, updatedAt: 100 }),
+				createSession({ id: 'pr', status: SessionStatus.Completed, updatedAt: 100, pullRequest: { owner: 'owner', repo: 'repo', number: 42 } }),
+			], undefined, undefined, undefined, undefined, true, [], false, {
+				completionStartTime: null,
+				utilityRequest: async () => { utilityRequests++; return 'Preview'; },
+			});
+			fixture.gitHubService.setPullRequest('owner', 'repo', 42, openPullRequest(42, 'sha42'));
+			fixture.gitHubService.setCIStatus('owner', 'repo', 42, 'sha42', GitHubCIOverallStatus.Success, passingChecks);
+			const polling = [fixture.gitHubService.pollingCount];
+			const first = disposables.add(fixture.service.acquireSessionAttention());
+			const second = disposables.add(fixture.service.acquireSessionAttention());
+			await waitForState(fixture.service.isLoading, loading => !loading);
+			const attention = [...fixture.service.sessionAttention.get()].map(([id, value]) => [id, value.tab, value.priority, value.isHistoricalCompletion]);
+			polling.push(fixture.gitHubService.pollingCount);
+			first.dispose();
+			polling.push(fixture.gitHubService.pollingCount);
+			fixture.sentiment.set({ hidden: true }, undefined);
+			const hidden = fixture.service.sessionAttention.get().size;
+			polling.push(fixture.gitHubService.pollingCount);
+			fixture.sentiment.set({}, undefined);
+			await waitForState(fixture.service.isLoading, loading => !loading);
+			polling.push(fixture.gitHubService.pollingCount);
+			second.dispose();
+			polling.push(fixture.gitHubService.pollingCount);
+			assert.deepStrictEqual({
+				attention, polling, hidden, released: fixture.service.sessionAttention.get().size,
+				rows: fixture.service.sessionRows.get(), notifications: fixture.service.notifications.get(), count: fixture.service.attentionCount.get(),
+				cutoff: fixture.storageService.getNumber(completionStartTimeStorageKey, StorageScope.APPLICATION),
+				utilityRequests, telemetry: fixture.telemetryEvents,
+			}, {
+				attention: [
+					['input', InboxTab.ReadyForYou, InboxNotificationPriority.Now, false],
+					['working', InboxTab.Working, InboxNotificationPriority.Later, false],
+					['old', InboxTab.ReadyForYou, InboxNotificationPriority.Later, true],
+					['pr', InboxTab.ReadyToMerge, InboxNotificationPriority.Next, false],
+				],
+				polling: [0, 3, 3, 0, 3, 0], hidden: 0, released: 0,
+				rows: [], notifications: [], count: 0, cutoff: undefined, utilityRequests: 0, telemetry: [],
+			});
+		});
+
+		test('sidebar attention follows CI and Copilot review changes without enabling the canvas', () => {
+			const session = createSession({ id: 'pr', status: SessionStatus.Completed, updatedAt: 100, pullRequest: { owner: 'owner', repo: 'repo', number: 42 } });
+			const fixture = createFixture([session], undefined, undefined, undefined, undefined, true, [], false);
+			disposables.add(fixture.service.acquireSessionAttention());
+			const github = fixture.gitHubService;
+			github.setPullRequest('owner', 'repo', 42, openPullRequest(42, 'sha42'));
+			const state = () => {
+				const attention = fixture.service.sessionAttention.get().get('pr')!;
+				return [attention.tab, attention.priority, attention.isHistoricalCompletion];
+			};
+			github.setCIStatus('owner', 'repo', 42, 'sha42', GitHubCIOverallStatus.Failure, []);
+			const failing = state();
+			github.setCIStatus('owner', 'repo', 42, 'sha42', GitHubCIOverallStatus.Success, passingChecks);
+			const passing = state();
+			github.setReviewThreads('owner', 'repo', 42, [{
+				id: 'thread', isResolved: false, path: 'src/test.ts', startLine: 10, line: 10,
+				comments: [{
+					id: 1, body: 'Suggestion', author: { login: 'copilot[bot]', avatarUrl: '' },
+					createdAt: '2026-09-21T16:00:00Z', updatedAt: '2026-09-21T16:00:00Z',
+					path: 'src/test.ts', line: 10, threadId: 'thread', inReplyToId: undefined,
+				}],
+			}]);
+			const review = state();
+			github.setReviewThreads('owner', 'repo', 42, []);
+			const resolved = state();
+			github.setPullRequest('owner', 'repo', 42, { ...openPullRequest(42, 'sha42'), isDraft: true });
+			const draft = state();
+			github.setPullRequest('owner', 'repo', 42, { ...openPullRequest(42, 'sha42'), state: GitHubPullRequestState.Merged });
+			const merged = state();
+			(session.lastTurnEnd as ISettableObservable<Date | undefined>).set(new Date(Date.now() + 1), undefined);
+			assert.deepStrictEqual({ failing, passing, review, resolved, draft, merged, newCompletion: state() }, {
+				failing: [InboxTab.ReadyForYou, InboxNotificationPriority.Now, false],
+				passing: [InboxTab.ReadyToMerge, InboxNotificationPriority.Next, false],
+				review: [InboxTab.ReadyForYou, InboxNotificationPriority.Now, false],
+				resolved: [InboxTab.ReadyToMerge, InboxNotificationPriority.Next, false],
+				draft: [InboxTab.ReadyForYou, InboxNotificationPriority.Later, true],
+				merged: [InboxTab.ReadyForYou, InboxNotificationPriority.Next, true],
+				newCompletion: [InboxTab.ReadyForYou, InboxNotificationPriority.Next, false],
+			});
+		});
+
+		test('shared attention does not inherit canvas holds, acknowledgements, or automatic Done', () => {
+			const fixture = createFixture([
+				createSession({ id: 'old', status: SessionStatus.Completed, updatedAt: 100 }),
+				createSession({ id: 'held', status: SessionStatus.Completed, updatedAt: 200 }),
+				createSession({ id: 'done', status: SessionStatus.Completed, updatedAt: 200 }),
+				createSession({ id: 'merged', status: SessionStatus.Completed, updatedAt: 200, pullRequest: { owner: 'owner', repo: 'repo', number: 42 } }),
+			], undefined, undefined, undefined, undefined, true, [], true, { completionStartTime: 150 });
+			fixture.service.setSessionOnHold(fixture.service.sessionRows.get().find(row => row.sessionTitle === 'held')!, true);
+			fixture.service.markSessionDone(fixture.service.sessionRows.get().find(row => row.sessionTitle === 'done')!);
+			fixture.gitHubService.setPullRequest('owner', 'repo', 42, { ...openPullRequest(42, 'sha42'), state: GitHubPullRequestState.Merged });
+			assert.deepStrictEqual(fixture.service.sessionRows.get().map(row => [
+				row.sessionTitle, row.tab, fixture.service.sessionAttention.get().get(row.sessionTitle)?.tab,
+			]).sort((a, b) => a[0]!.localeCompare(b[0]!)), [
+				['done', InboxTab.Done, InboxTab.ReadyForYou],
+				['held', InboxTab.OnHold, InboxTab.ReadyForYou],
+				['merged', InboxTab.Done, InboxTab.ReadyForYou],
+				['old', InboxTab.Done, InboxTab.ReadyForYou],
+			]);
+		});
 
 	test('includes pending tool confirmation data for needs-input notifications', () => {
 		const chatResource = URI.parse('test:///chat/pending-tool-confirmation');

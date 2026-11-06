@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Disposable, DisposableStore, toDisposable } from '../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, IDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { raceCancellation, raceTimeout } from '../../../../base/common/async.js';
 import { autorun, derived, derivedOpts, IObservable, IReader, IReaderWithStore, ISettableObservable, mapObservableArrayCached, observableSignal, observableSignalFromEvent, observableValue } from '../../../../base/common/observable.js';
 import { arrayEquals } from '../../../../base/common/equals.js';
@@ -60,6 +60,7 @@ import {
 	IInboxNotificationToolConfirmationPart,
 	IInboxNotificationsService,
 	IInboxSessionRow,
+	IInboxSessionAttention,
 	InboxTab,
 	IInboxInteractionTelemetryContext,
 	InboxNotificationActionKind,
@@ -76,6 +77,7 @@ const DISMISSED_NOTIFICATION_IDS_STORAGE_KEY = 'sessions.inboxNotifications.dism
 const MAX_DISMISSED_NOTIFICATION_IDS = 1000;
 const WORKFLOW_STORAGE_KEY = 'sessions.inboxNotifications.workflow';
 const COMPLETION_START_TIME_STORAGE_KEY = 'sessions.inboxNotifications.completionStartTime';
+const ATTENTION_START_TIME_STORAGE_KEY = 'sessions.inboxNotifications.attentionStartTime';
 
 /** The small, non-user-selectable utility model used for lightweight generation (same class used for chat title/goal summaries). */
 const PREVIEW_MODEL_SELECTOR = { vendor: 'copilot', id: 'copilot-utility-small' } as const;
@@ -475,12 +477,16 @@ export class InboxNotificationsService extends Disposable implements IInboxNotif
 
 	readonly notifications: IObservable<readonly IInboxNotificationItem[]>;
 	readonly sessionRows: IObservable<readonly IInboxSessionRow[]>;
+	readonly sessionAttention: IObservable<ReadonlyMap<string, IInboxSessionAttention>>;
+	private readonly _attentionConsumers = observableValue(this, 0);
 	readonly attentionCount: IObservable<number>;
 	private readonly _workflow = observableValue<ReadonlyMap<string, IInboxWorkflowState>>(this, new Map());
-	private readonly _completionStartTime = observableValue(this, Number.POSITIVE_INFINITY);
+	private readonly _completionStartTime: IObservable<number>;
+	private readonly _attentionStartTime: IObservable<number>;
 	readonly dismissedNotifications: IObservable<readonly IInboxNotificationItem[]>;
 	private readonly _allItems: IObservable<readonly IInboxNotificationItem[]>;
 	private readonly _enabled: IObservable<boolean>;
+	private readonly _trackingEnabled: IObservable<boolean>;
 
 	constructor(
 		@ISessionsManagementService private readonly sessionsManagementService: ISessionsManagementService,
@@ -506,6 +512,10 @@ export class InboxNotificationsService extends Disposable implements IInboxNotif
 
 		const inboxEnabled = observableConfigValue(CHAT_INBOX_ENABLED_SETTING, false, configurationService);
 		this._enabled = derived(this, reader => inboxEnabled.read(reader) && !chatEntitlementService.sentimentObs.read(reader).hidden);
+		this._trackingEnabled = derived(this, reader => (inboxEnabled.read(reader) || this._attentionConsumers.read(reader) > 0) && !chatEntitlementService.sentimentObs.read(reader).hidden);
+		this._completionStartTime = this.trackCompletionStartTime(COMPLETION_START_TIME_STORAGE_KEY, StorageScope.APPLICATION, this._enabled);
+		this._attentionStartTime = this.trackCompletionStartTime(ATTENTION_START_TIME_STORAGE_KEY, StorageScope.PROFILE,
+			derived(this, reader => this._attentionConsumers.read(reader) > 0 && this._trackingEnabled.read(reader)));
 
 		this._previews = observableValue('sessionsInboxNotificationsPreviews', new Map<string, string>());
 		this.previews = this._previews;
@@ -522,20 +532,6 @@ export class InboxNotificationsService extends Disposable implements IInboxNotif
 
 		const sessionsChanged = observableSignalFromEvent(this, this.sessionsManagementService.onDidChangeSessions);
 		const providersChanged = observableSignalFromEvent(this, this.sessionsProvidersService.onDidChangeProviders);
-		this._register(this.storageService.onDidChangeValue(StorageScope.APPLICATION, COMPLETION_START_TIME_STORAGE_KEY, this._store)(event => {
-			if (event.external) {
-				this._completionStartTime.set(this.storageService.getNumber(COMPLETION_START_TIME_STORAGE_KEY, StorageScope.APPLICATION, Number.POSITIVE_INFINITY), undefined);
-			}
-		}));
-		this._register(autorun(reader => {
-			if (!this._enabled.read(reader)) {
-				return;
-			}
-			// Enabling Inbox must not backfill completed history, even when it is still unread.
-			const startTime = this.storageService.getNumber(COMPLETION_START_TIME_STORAGE_KEY, StorageScope.APPLICATION) ?? Date.now();
-			this.storageService.store(COMPLETION_START_TIME_STORAGE_KEY, startTime, StorageScope.APPLICATION, StorageTarget.MACHINE);
-			this._completionStartTime.set(startTime, undefined);
-		}));
 		this._register(chatSessionsService.onDidChangeContentProviderSchemes(({ added, removed }) => {
 			for (const type of removed) {
 				this._unregisteredChatProviders.add(type);
@@ -566,7 +562,7 @@ export class InboxNotificationsService extends Disposable implements IInboxNotif
 		}));
 
 		this._register(autorun(reader => {
-			if (!this._enabled.read(reader)) {
+			if (!this._trackingEnabled.read(reader)) {
 				return;
 			}
 			sessionsChanged.read(reader);
@@ -594,7 +590,7 @@ export class InboxNotificationsService extends Disposable implements IInboxNotif
 		}));
 		this._register(autorun(reader => {
 			this._activeNeedsInputChatResources.clear();
-			if (this._enabled.read(reader)) {
+			if (this._trackingEnabled.read(reader)) {
 				sessionsChanged.read(reader);
 				this._chatProvidersChanged.read(reader);
 				this.chatService.chatModels.read(reader);
@@ -614,16 +610,19 @@ export class InboxNotificationsService extends Disposable implements IInboxNotif
 				for (const cts of this._loadingNeedsInputChatModels.values()) {
 					cts.cancel();
 				}
+			}
+			this.disposeInactiveChatModels(this._activeNeedsInputChatResources, this._needsInputChatModelRefs);
+		}));
+		this._register(autorun(reader => {
+			if (!this._enabled.read(reader)) {
 				for (const cts of this._previewCancellationSources) {
 					cts.cancel();
 				}
 			}
-
-			this.disposeInactiveChatModels(this._activeNeedsInputChatResources, this._needsInputChatModelRefs);
 		}));
 
 		const sessions = derived(this, reader => {
-			if (!this._enabled.read(reader)) {
+			if (!this._trackingEnabled.read(reader)) {
 				return [];
 			}
 			sessionsChanged.read(reader);
@@ -664,7 +663,7 @@ export class InboxNotificationsService extends Disposable implements IInboxNotif
 		const externalItems = mapObservableArrayCached(this, this._externalItems, item => this.attachPreviewInput(item));
 
 		this._allItems = derived(this, reader => {
-			if (!this._enabled.read(reader)) {
+			if (!this._trackingEnabled.read(reader)) {
 				return [];
 			}
 			const itemsById = new Map<string, IInboxNotificationItem>();
@@ -680,6 +679,9 @@ export class InboxNotificationsService extends Disposable implements IInboxNotif
 		});
 
 		this.notifications = derived(this, reader => {
+			if (!this._enabled.read(reader)) {
+				return [];
+			}
 			const dismissed = this._dismissedIds.read(reader);
 			const sortMode = this.sortMode.read(reader);
 			return this._allItems.read(reader)
@@ -716,18 +718,27 @@ export class InboxNotificationsService extends Disposable implements IInboxNotif
 				const source = sourceItems.read(reader);
 				const notifications = visibleItems.read(reader);
 				const timestamp = session.lastTurnEnd.read(reader)?.getTime() ?? session.updatedAt.read(reader).getTime();
-				const occurrence = `${status}:${session.lastTurnEnd.read(reader)?.getTime() ?? 0}:${source.map(item => item.id).sort().join('|')}`;
+				const notificationIds = source.map(item => item.id).sort();
+				const occurrence = `${status}:${session.lastTurnEnd.read(reader)?.getTime() ?? 0}:${notificationIds.join('|')}`;
 				const saved = workflow.read(reader);
 				const ownedPullRequests = getInboxPullRequestRefs(session, reader);
 				const merged = source.some(item => item.kind === InboxNotificationKind.PullRequestMerged
 					&& item.pullRequestStates?.length === ownedPullRequests.length);
 				const terminal = session.isArchived.read(reader) || (merged && status !== SessionStatus.NeedsInput);
 				const needsAttention = notifications.some(item => item.kind !== InboxNotificationKind.PassingCI && item.kind !== InboxNotificationKind.Completed);
+				const attentionStartTime = this._attentionStartTime.read(reader);
+				const attention: IInboxSessionAttention = {
+					tab: needsAttention ? InboxTab.ReadyForYou : status === SessionStatus.InProgress ? InboxTab.Working
+						: notifications.some(item => item.kind === InboxNotificationKind.PassingCI) ? InboxTab.ReadyToMerge : InboxTab.ReadyForYou,
+					priority: notifications[0]?.priority ?? InboxNotificationPriority.Later,
+					notificationIds,
+					isHistoricalCompletion: status === SessionStatus.Completed && Number.isFinite(attentionStartTime) && timestamp < attentionStartTime
+						&& !notifications.some(item => item.kind !== InboxNotificationKind.Completed && item.kind !== InboxNotificationKind.PullRequestMerged),
+				};
 				const tab = terminal ? InboxTab.Done : saved?.hold ? InboxTab.OnHold : saved?.done === occurrence ? InboxTab.Done
-					: needsAttention ? InboxTab.ReadyForYou : status === SessionStatus.InProgress ? InboxTab.Working
-						: notifications.some(item => item.kind === InboxNotificationKind.PassingCI) ? InboxTab.ReadyToMerge
-							: status === SessionStatus.Completed && !pendingCompletion.read(reader) ? InboxTab.Done : InboxTab.ReadyForYou;
-				return { status, notifications, timestamp, occurrence, tab };
+					: attention.tab === InboxTab.ReadyForYou && !needsAttention && status === SessionStatus.Completed && !pendingCompletion.read(reader)
+						? InboxTab.Done : attention.tab;
+				return { status, notifications, timestamp, occurrence, tab, attention };
 			});
 			const row = derived(this, reader => {
 				const current = state.read(reader);
@@ -787,6 +798,9 @@ export class InboxNotificationsService extends Disposable implements IInboxNotif
 		});
 
 		this.sessionRows = derived(this, reader => {
+			if (!this._enabled.read(reader)) {
+				return [];
+			}
 			const rows: IInboxSessionRow[] = [];
 			for (const entry of sessionEntries.read(reader)) {
 				const row = entry.row.read(reader);
@@ -806,6 +820,9 @@ export class InboxNotificationsService extends Disposable implements IInboxNotif
 		});
 
 		this.attentionCount = derived(this, reader => {
+			if (!this._enabled.read(reader)) {
+				return 0;
+			}
 			let count = 0;
 			for (const entry of sessionEntries.read(reader)) {
 				if (entry.state.read(reader)?.tab === InboxTab.ReadyForYou) {
@@ -819,12 +836,23 @@ export class InboxNotificationsService extends Disposable implements IInboxNotif
 			}).length;
 		});
 
+		this.sessionAttention = derived(this, reader => {
+			const attention = new Map<string, IInboxSessionAttention>();
+			for (const entry of sessionEntries.read(reader)) {
+				const state = entry.state.read(reader);
+				if (state) {
+					attention.set(entry.session.sessionId, state.attention);
+				}
+			}
+			return attention;
+		});
+
 		this.dismissedNotifications = derived(this, reader => {
 			const dismissed = this._dismissedIds.read(reader);
 			const snapshots = this._dismissedSnapshots.read(reader);
 			const sortMode = this.sortMode.read(reader);
-			const liveDismissedItems = this._allItems.read(reader)
-				.filter(item => dismissed.has(item.id));
+			const liveDismissedItems = this._enabled.read(reader)
+				? this._allItems.read(reader).filter(item => dismissed.has(item.id)) : [];
 			const liveDismissedIds = new Set(liveDismissedItems.map(item => item.id));
 			for (const [id, snapshot] of snapshots) {
 				if (dismissed.has(id) && !liveDismissedIds.has(id)) {
@@ -859,6 +887,29 @@ export class InboxNotificationsService extends Disposable implements IInboxNotif
 			}
 			this.reconcileItemLifecycle(this.notifications.read(reader));
 		}));
+	}
+
+	private trackCompletionStartTime(key: string, scope: StorageScope, enabled: IObservable<boolean>): IObservable<number> {
+		const startTime = observableValue(this, Number.POSITIVE_INFINITY);
+		this._register(this.storageService.onDidChangeValue(scope, key, this._store)(event => {
+			if (event.external) {
+				startTime.set(this.storageService.getNumber(key, scope, Number.POSITIVE_INFINITY), undefined);
+			}
+		}));
+		this._register(autorun(reader => {
+			if (enabled.read(reader)) {
+				// Persist the first activation so late-arriving history cannot backfill the inbox after reload.
+				const value = this.storageService.getNumber(key, scope) ?? Date.now();
+				this.storageService.store(key, value, scope, StorageTarget.MACHINE);
+				startTime.set(value, undefined);
+			}
+		}));
+		return startTime;
+	}
+
+	acquireSessionAttention(): IDisposable {
+		this._attentionConsumers.set(this._attentionConsumers.get() + 1, undefined);
+		return toDisposable(() => this._attentionConsumers.set(this._attentionConsumers.get() - 1, undefined));
 	}
 
 	private invalidatePreviewFallbacks(): void {

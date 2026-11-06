@@ -9,6 +9,7 @@ import { getAnchorRect } from '../../../../../base/browser/ui/contextview/contex
 import { Menu } from '../../../../../base/browser/ui/menu/menu.js';
 import { ActionRunner } from '../../../../../base/common/actions.js';
 import { timeout } from '../../../../../base/common/async.js';
+import { Codicon } from '../../../../../base/common/codicons.js';
 import { onUnexpectedError } from '../../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { KeyCode, KeyMod } from '../../../../../base/common/keyCodes.js';
@@ -81,10 +82,11 @@ import { IActiveSession, ISessionsChangeEvent, ISessionsManagementService } from
 import { buildTestSession, ITestChat, ITestChatSpec, ITestSession, ITestSessionSpec } from '../../../../../workbench/contrib/sessions/test/common/testSessionBuilder.js';
 import { BlockedSessionReason, BlockedSessions } from '../../../../../workbench/contrib/sessions/browser/blockedSessions.js';
 import { NEW_SESSION_ACTION_ID } from '../../../../../workbench/contrib/sessions/common/chatConstants.js';
-import { IInboxNotificationsService, InboxNotificationsSortMode } from '../../../../../workbench/contrib/sessions/common/inboxNotificationsService.js';
+import { IInboxNotificationsService, IInboxSessionAttention, InboxNotificationsSortMode } from '../../../../../workbench/contrib/sessions/common/inboxNotificationsService.js';
+import { SessionInboxAction } from '../../../../../workbench/contrib/sessions/common/sessionInbox.js';
 import { NEW_SESSION_BUTTON_STYLE_SETTING, NEW_SESSION_BUTTON_STYLE_TREATMENT, NewSessionActionViewItemContribution, type NewSessionButtonStyle } from '../../browser/sessionsActions.js';
 import { SessionChatItem, SessionsGrouping, SessionsList, SessionsListItemReference, SessionsSorting } from '../../../../../workbench/contrib/sessions/browser/views/sessionsList.js';
-import { ISessionsHeaderElements, renderSessionsHeader } from '../../../../../workbench/contrib/sessions/browser/views/sessionsView.js';
+import { ISessionsHeaderElements, renderSessionsHeader, SessionsViewGroupingContext } from '../../../../../workbench/contrib/sessions/browser/views/sessionsView.js';
 import { SessionsArchiveActionsContribution, getSessionsArchiveActionConstructors } from '../../browser/views/sessionsViewActions.js';
 import { TestSessionsList } from '../../../../../workbench/contrib/sessions/test/browser/views/testSessionsList.js';
 
@@ -105,6 +107,8 @@ export interface ISessionsListFixtureSession extends ITestSessionSpec {
 	readonly chats?: readonly ISessionsListFixtureChat[];
 	/** Pinned to the sidebar's Pinned section. */
 	readonly pinned?: boolean;
+	readonly inboxState?: SessionInboxAction;
+	readonly inboxAttention?: Pick<IInboxSessionAttention, 'tab' | 'priority'>;
 	/** The session's view is pinned in the sessions grid. */
 	readonly sticky?: boolean;
 	readonly hasFailingCI?: boolean;
@@ -188,6 +192,7 @@ export interface ISessionsListFixtureHeader {
 	readonly newSessionButtonTreatment?: NewSessionButtonStyle;
 	/** Shows New Session, Automations, and Customizations as navigation rows above the Sessions header. */
 	readonly navigationShortcuts?: boolean;
+	readonly automationsEnabled?: boolean;
 	/** Customization count exposed in the navigation row's accessibility label. */
 	readonly customizationsCount?: number;
 	/** Shows the Customizations navigation row's migrations-available indicator. */
@@ -374,7 +379,7 @@ class SessionsListFixtureMenuService extends MenuService {
 
 	override createMenu(id: MenuId, contextKeyService: IContextKeyService, options?: IMenuCreateOptions): IMenu {
 		if (id === Menus.SidebarSessionsHeader) {
-			const newSession = new MenuItemAction({ id: NEW_SESSION_ACTION_ID, title: 'New Session' }, undefined, undefined, undefined, undefined, contextKeyService, this.commandService);
+			const newSession = new MenuItemAction({ id: NEW_SESSION_ACTION_ID, title: 'New Session', icon: Codicon.add }, undefined, undefined, undefined, undefined, contextKeyService, this.commandService);
 			return {
 				onDidChange: Event.None,
 				getActions: () => SessionsListRearrangeContext.getValue(contextKeyService) ? [] : [['navigation', [newSession]]],
@@ -710,6 +715,8 @@ export async function renderSessionsListFixture(context: ComponentFixtureContext
 			}());
 			reg.defineInstance(IInboxNotificationsService, new class extends mock<IInboxNotificationsService>() {
 				override readonly notifications = constObservable([]);
+				override readonly sessionAttention = constObservable(new Map(state.sessions.flatMap(spec => spec.inboxAttention ? [[spec.id, { ...spec.inboxAttention, notificationIds: [], isHistoricalCompletion: false }] as const] : [])));
+				override acquireSessionAttention() { return Disposable.None; }
 				override readonly attentionCount = constObservable(0);
 				override readonly isLoading = constObservable(false);
 				override readonly sortMode = constObservable(InboxNotificationsSortMode.Priority);
@@ -736,12 +743,13 @@ export async function renderSessionsListFixture(context: ComponentFixtureContext
 
 	const contextKeyService = instantiationService.get(IContextKeyService);
 	ChatContextKeys.enabled.bindTo(contextKeyService).set(true);
+	SessionsViewGroupingContext.bindTo(contextKeyService).set(view.grouping ?? SessionsGrouping.Workspace);
 	SessionsListRearrangeContext.bindTo(contextKeyService).set(header?.navigationShortcuts ?? false);
 	// Phone layout drives both the visual CSS class and the tree delegate's row heights.
 	if (view.phone) {
 		IsPhoneLayoutContext.bindTo(contextKeyService).set(true);
 	}
-	if (header?.navigationShortcuts) {
+	if (header?.navigationShortcuts || header?.automationsEnabled) {
 		ChatAutomationsEnabledContext.bindTo(contextKeyService).set(true);
 	}
 
@@ -808,7 +816,7 @@ export async function renderSessionsListFixture(context: ComponentFixtureContext
 		navigationContainer = DOM.append(content, DOM.$('.agent-sessions-navigation-container'));
 		const sessionsHeaderContainer = DOM.append(content, DOM.$('.agent-sessions-header-container'));
 		disposableStore.add(instantiationService.createInstance(NewSessionActionViewItemContribution));
-		renderedHeader = renderSessionsHeader(sessionsHeaderContainer, false, instantiationService, contextKeyService, disposableStore);
+		renderedHeader = renderSessionsHeader(sessionsHeaderContainer, false, instantiationService, contextKeyService, disposableStore, undefined, () => view.grouping ?? SessionsGrouping.Workspace);
 		renderedHeader.toolbar?.refresh();
 		findWidgetContainer = DOM.append(renderedHeader.row, DOM.$('.agent-sessions-find-widget-container'));
 		findWidgetContainer.style.display = 'none';
@@ -847,6 +855,9 @@ export async function renderSessionsListFixture(context: ComponentFixtureContext
 		list.setExcludeArchived(false);
 	}
 	list.layout(height, width);
+	if (view.grouping === SessionsGrouping.Inbox && renderedHeader) {
+		list.layout(Math.max(0, height - renderedHeader.row.offsetHeight - (navigationContainer?.offsetHeight ?? 0)), width);
+	}
 	if (view.collapsed === 'all') {
 		list.collapseAllSections();
 	} else {
@@ -878,6 +889,9 @@ function seedListState(instantiationService: TestInstantiationService, state: IS
 	for (const spec of state.sessions) {
 		if (spec.pinned) {
 			listModelService.pinSession(getSession(spec.id).session);
+		}
+		if (spec.inboxState !== undefined) {
+			listModelService.setInboxState([getSession(spec.id).session], spec.inboxState);
 		}
 	}
 
@@ -926,7 +940,7 @@ async function renderHeaderState(container: HTMLElement, instantiationService: T
 			affectsConfiguration: configuration => configuration === NEW_SESSION_BUTTON_STYLE_SETTING,
 		});
 	}
-	const newSessionButton = container.querySelector('.agent-sessions-compact-new-button');
+	const newSessionButton = container.querySelector('.agent-sessions-compact-new-button, .agent-sessions-header-row.inbox-layout .action-label.codicon-add');
 	if (header.navigationShortcuts && newSessionButton) {
 		throw new Error('Expected the experimental navigation to replace the Sessions header New Session action.');
 	}

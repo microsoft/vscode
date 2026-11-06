@@ -1884,7 +1884,7 @@ export class NewChatWidget extends Disposable {
 
 	// --- Send ---
 
-	private async _sendComparison(session: IActiveSession, request: string, requestContext: ReadonlyMap<string, IChatRequestVariableEntry>): Promise<boolean> {
+	private async _sendComparison(session: IActiveSession, request: string, requestContext: ReadonlyMap<string, IChatRequestVariableEntry>, background = this._backgroundSend): Promise<boolean> {
 		try {
 			const provider = this.sessionsProvidersService.getProvider(session.providerId);
 			if (this._environment.get()?.kind === 'container' || provider && isAgentHostProvider(provider) && provider.isDevContainerRequested?.(session.sessionId)) {
@@ -1950,7 +1950,7 @@ export class NewChatWidget extends Disposable {
 				branch,
 			});
 			try {
-				if (this._backgroundSend) {
+				if (background) {
 					if (!this._store.isDisposed && !this._pendingWorkspaceCreation
 						&& this.sessionsManagementService.newSession.get()?.sessionId === session.sessionId
 						&& (this._preserveCustomView || getMainWindowHost(this.sessionHostService).session.get()?.sessionId === session.sessionId)
@@ -1974,7 +1974,7 @@ export class NewChatWidget extends Disposable {
 				this.logService.error('Failed to open session comparison:', error);
 				this.notificationService.error(error);
 			} finally {
-				if (!this._backgroundSend) {
+				if (!background) {
 					this._comparisonSelection.reset();
 				}
 			}
@@ -1988,7 +1988,7 @@ export class NewChatWidget extends Disposable {
 
 	private async _send(query: string, attachedContext?: IChatRequestVariableEntry[], background?: boolean, userInteraction?: NewChatUserInteraction): Promise<boolean> {
 		background = this._backgroundSend || background;
-		if (this._backgroundSend) {
+		if (background) {
 			this._lastBackgroundSentSessionResource = undefined;
 			this._backgroundSendStatus.set(undefined, undefined);
 			this._lastBackgroundSendOptions = undefined;
@@ -2017,8 +2017,8 @@ export class NewChatWidget extends Disposable {
 		}
 
 		if (this._comparisonSelection.enabled.get()) {
-			const started = await this._sendComparison(session, request, requestContext);
-			if (this._backgroundSend && started && !this._newChatInput.hasInput) {
+			const started = await this._sendComparison(session, request, requestContext, background);
+			if (background && started && !this._newChatInput.hasInput) {
 				this._backgroundSendStatus.set(localize('newSession.comparisonStarted', "Comparison started"), undefined);
 			}
 			return started;
@@ -2053,15 +2053,13 @@ export class NewChatWidget extends Disposable {
 		// separately, keyed by the options object it was started with, so one
 		// send's outcome never clears another's comments.
 		if (background) {
-			if (this._backgroundSend) {
-				this._lastBackgroundSendOptions = sendOptions;
-			}
+			this._lastBackgroundSendOptions = sendOptions;
 			this._pendingBackgroundSends.set(sendOptions, Event.once(
 				Event.filter(this.sessionsManagementService.onDidSendRequest, event => event.options === sendOptions)
 			)(event => {
 				clearFeedback();
 				restoreWorkspace();
-				if (this._backgroundSend && this._lastBackgroundSendOptions === sendOptions && !this._newChatInput.hasInput) {
+				if (this._lastBackgroundSendOptions === sendOptions && !this._newChatInput.hasInput) {
 					this._lastBackgroundSentSessionResource = event.session.resource;
 					this._backgroundSendStatus.set(localize('newSession.messageSent', "Message sent"), undefined);
 				}
@@ -2169,14 +2167,12 @@ export class NewChatWidget extends Disposable {
 	}
 
 	private _renderBackgroundSendStatus(container: HTMLElement): void {
-		if (!this._backgroundSend) {
-			return;
-		}
 		const status = dom.append(container, dom.$('.new-session-send-status'));
 		this._register(autorun(reader => {
 			const message = this._backgroundSendStatus.read(reader);
 			dom.clearNode(status);
 			status.style.visibility = message ? '' : 'hidden';
+			status.style.display = this._backgroundSend || message ? '' : 'none';
 			if (message) {
 				const checkmark = renderIcon(Codicon.check);
 				checkmark.setAttribute('aria-hidden', 'true');
@@ -2188,7 +2184,7 @@ export class NewChatWidget extends Disposable {
 						label: localize('newSession.openSentSession', "Open Session"),
 						href: sessionResource.toString(),
 					}, {
-						opener: () => { void this.sessionsService.openSession(sessionResource, { source: 'inbox', forceMainChat: true }).catch(onUnexpectedError); },
+						opener: () => { void this.sessionsService.openSession(sessionResource, { source: this._backgroundSend ? 'inbox' : 'link', forceMainChat: true }).catch(onUnexpectedError); },
 					}));
 					const dismissal = reader.store.add(new MutableDisposable<IDisposable>());
 					let remaining = 8000;

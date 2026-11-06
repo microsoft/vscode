@@ -7,13 +7,15 @@ import { ChatSessionArchiveActionWording, ChatSessionArchiveActionWordingSetting
 import { ONBOARDING_TARGET_ATTR } from '../../../../../workbench/contrib/onboarding/browser/spotlight/onboardingTarget.js';
 import { SpotlightOverlay } from '../../../../../workbench/contrib/onboarding/browser/spotlight/spotlightOverlay.js';
 import { ComponentFixtureContext, defineThemedFixtureGroup } from '../../../../../workbench/test/browser/componentFixtures/fixtureUtils.js';
-import { ExternalSessionApplicationBadgeMode, SESSIONS_LIST_EXTERNAL_APPLICATION_BADGE_SETTING, SESSIONS_LIST_EXTERNAL_APPLICATION_BADGE_SHOW_FROM_SETTING, SESSIONS_LIST_GROUP_EXTERNAL_SESSIONS_SETTING } from '../../../../../workbench/contrib/sessions/common/sessionConfig.js';
+import { ExternalSessionApplicationBadgeMode, SESSIONS_LIST_EXTERNAL_APPLICATION_BADGE_SETTING, SESSIONS_LIST_EXTERNAL_APPLICATION_BADGE_SHOW_FROM_SETTING, SESSIONS_LIST_GROUP_EXTERNAL_SESSIONS_SETTING, SESSIONS_LIST_INBOX_ENABLED_SETTING } from '../../../../../workbench/contrib/sessions/common/sessionConfig.js';
 import { ISessionEnvironment, SessionStatus } from '../../../../../workbench/contrib/sessions/common/session.js';
 import { ISessionComparison, SessionComparisonParticipantRole } from '../../../../../workbench/contrib/sessions/common/sessionComparison.js';
 import { getTestSessionResource } from '../../../../../workbench/contrib/sessions/test/common/testSessionBuilder.js';
 import { createSessionArchiveTour } from '../../../../../workbench/contrib/sessions/browser/tours/sessionArchiveTour.js';
 import { SESSIONS_LIST_INDENT_ITEMS_SETTING, SESSIONS_LIST_SHOW_UNREAD_IN_COLLAPSED_SECTIONS_SETTING, SessionsGrouping } from '../../../../../workbench/contrib/sessions/browser/views/sessionsList.js';
 import { defineSessionsListFixture, ISessionsListFixture, ISessionsListFixtureGroup, ISessionsListFixtureSession } from './sessionsListFixtureUtils.js';
+import { InboxNotificationPriority, InboxTab } from '../../../../../workbench/contrib/sessions/common/inboxNotificationsService.js';
+import { SessionInboxSection } from '../../../../../workbench/contrib/sessions/common/sessionInbox.js';
 
 //#region Data
 
@@ -294,6 +296,42 @@ const CONTEXT_MENU_FRAME = { width: 480, height: 320 };
 //#endregion
 
 export default defineThemedFixtureGroup({ path: 'sessions/' }, {
+	SessionsList_Inbox: defineSessionsListFixture({
+		header: { navigationShortcuts: true },
+		settings: { [SESSIONS_LIST_INBOX_ENABLED_SETTING]: true },
+		sessions: [
+			{ id: 'pinned', title: 'Pinned investigation', workspace: 'vscode', pinned: true, status: SessionStatus.InProgress },
+			{ id: 'input', title: 'Approve the test run', workspace: 'vscode', status: SessionStatus.NeedsInput, minutesAgo: 15 },
+			{ id: 'completed', title: 'Review the navigation fix', workspace: 'vscode-tools', minutesAgo: 2 },
+			{ id: 'ci', title: 'Fix failing CI checks', workspace: 'vscode', minutesAgo: 20, inboxAttention: { tab: InboxTab.ReadyForYou, priority: InboxNotificationPriority.Now } },
+			{ id: 'merge', title: 'Merge the search improvements', workspace: 'vscode-tools', minutesAgo: 10, inboxAttention: { tab: InboxTab.ReadyToMerge, priority: InboxNotificationPriority.Next } },
+			{ id: 'working', title: 'Add regression tests', workspace: 'vscode', status: SessionStatus.InProgress },
+			{ id: 'snoozed', title: 'Waiting for more context', workspace: 'vscode-tools', inboxState: 'untilActivity', minutesAgo: 30 },
+			{ id: 'held', title: 'Paused for a decision', workspace: 'vscode', inboxState: 'hold', minutesAgo: 40 },
+			{ id: 'done', title: 'Update the documentation', workspace: 'vscode', inboxState: 'done', minutesAgo: 60 },
+		],
+		view: { grouping: SessionsGrouping.Inbox, height: 800 },
+		interaction: { hovered: { session: 'completed' } },
+	}, { additionalThemes: ['darkHighContrast', 'lightHighContrast'] }),
+	SessionsList_Inbox_Empty: defineSessionsListFixture({
+		header: { automationsEnabled: true },
+		sessions: [],
+		view: { grouping: SessionsGrouping.Inbox, height: 360 },
+	}, { additionalThemes: ['darkHighContrast', 'lightHighContrast'] }),
+	SessionsList_Inbox_Expanded: defineSessionsListFixture({
+		header: { automationsEnabled: true },
+		sessions: [
+			{ id: 'ready', title: 'Review the navigation fix', workspace: 'vscode' },
+			{ id: 'held', title: 'Waiting for more context', workspace: 'vscode', inboxState: 'hold' },
+			...Array.from({ length: 20 }, (_, i) => ({ id: `working-${i}`, title: `Background task ${i + 1}`, workspace: 'vscode', status: SessionStatus.InProgress })),
+		],
+		view: { grouping: SessionsGrouping.Inbox, height: 420, expanded: [{ section: SessionInboxSection.Working }, { section: SessionInboxSection.OnHold }] },
+	}, { additionalThemes: ['darkHighContrast', 'lightHighContrast'] }),
+	SessionsList_Inbox_Long: defineSessionsListFixture({
+		header: { navigationShortcuts: true },
+		sessions: Array.from({ length: 25 }, (_, i) => ({ id: `ready-${i}`, title: `Review completed task ${i + 1}`, workspace: 'vscode', minutesAgo: i })),
+		view: { grouping: SessionsGrouping.Inbox, height: 420 },
+	}, { additionalThemes: ['darkHighContrast', 'lightHighContrast'] }),
 	SessionsList_Bakeoff: defineSessionsListFixture({
 		sessions: BAKEOFF_SESSIONS,
 		groups: [{ id: 'bakeoff', name: BAKEOFF_COMPARISON.title, sessions: BAKEOFF_SESSIONS.map(session => session.id) }],

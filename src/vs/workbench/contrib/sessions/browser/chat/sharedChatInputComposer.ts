@@ -12,6 +12,7 @@ import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { isCancellationError } from '../../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { KeyCode } from '../../../../../base/common/keyCodes.js';
+import { isMacintosh } from '../../../../../base/common/platform.js';
 import { Disposable, MutableDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { autorun, constObservable, derived, IObservable, IReader, observableValue, transaction } from '../../../../../base/common/observable.js';
 import { isEqual } from '../../../../../base/common/resources.js';
@@ -339,9 +340,10 @@ export class SharedChatInputComposer extends Disposable implements INewSessionCo
 		}));
 		this._register(this.instantiationService.createInstance(SessionReferenceCompletions, widget, () => this.options.session.get()));
 		if (this.options.supportsBackground) {
-			// Alt+Enter sends without navigating into the session, like the other Agents window composers.
 			this._register(widget.inputEditor.onKeyDown(e => {
-				if (e.keyCode === KeyCode.Enter && e.altKey && !e.shiftKey && !e.ctrlKey && !e.metaKey) {
+				const backgroundModifier = e.altKey && !e.ctrlKey && !e.metaKey
+					|| !e.altKey && (isMacintosh ? e.metaKey && !e.ctrlKey : e.ctrlKey && !e.metaKey);
+				if (e.keyCode === KeyCode.Enter && !e.shiftKey && backgroundModifier) {
 					e.preventDefault();
 					e.stopPropagation();
 					void this.submit(true);
@@ -930,7 +932,7 @@ export class SharedChatInputComposer extends Disposable implements INewSessionCo
 				this._confirmingSend.set(true, tx);
 			});
 			// The request is already captured, so edits made while the host confirms would be lost.
-			widget.input.setInputEnabled(false, this.options.preserveInputFocusOnSend);
+			widget.input.setInputEnabled(false, background || this.options.preserveInputFocusOnSend);
 			let confirmed = false;
 			try {
 				confirmed = await this.options.confirmSend(query);
@@ -958,7 +960,7 @@ export class SharedChatInputComposer extends Disposable implements INewSessionCo
 		});
 		this._userInteractionSource.value = toDisposable(() => userInteraction?.disposeSource());
 		this._sending.set(true, undefined);
-		widget.input.setInputEnabled(false, this.options.preserveInputFocusOnSend);
+		widget.input.setInputEnabled(false, background || this.options.preserveInputFocusOnSend);
 		// The send can dispose the input widget, e.g. when the composer is left while a workspace is
 		// applied or the send waits; the send itself completes and only the gone input is skipped.
 		const isInputAlive = () => this._widget === widget && !!widget.input;
