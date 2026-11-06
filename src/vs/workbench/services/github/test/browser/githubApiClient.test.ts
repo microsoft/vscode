@@ -4,18 +4,18 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { DeferredPromise } from '../../../../../../base/common/async.js';
-import { CancellationToken, CancellationTokenSource } from '../../../../../../base/common/cancellation.js';
-import { IDefaultAccount } from '../../../../../../base/common/defaultAccount.js';
-import { isCancellationError } from '../../../../../../base/common/errors.js';
-import { Emitter } from '../../../../../../base/common/event.js';
-import { mock, upcastPartial } from '../../../../../../base/test/common/mock.js';
-import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
-import { IDefaultAccountService } from '../../../../../../platform/defaultAccount/common/defaultAccount.js';
-import { IGitHubAccountClient } from '../../../../../../platform/github/common/account/account.js';
-import { GitHubRequestError } from '../../../../../../platform/github/common/githubTypes.js';
-import { IWorkbenchGitHubService } from '../../../../../services/github/common/githubService.js';
-import { GitHubApiClient } from '../../../browser/github/githubApiClient.js';
+import { DeferredPromise } from '../../../../../base/common/async.js';
+import { CancellationToken, CancellationTokenSource } from '../../../../../base/common/cancellation.js';
+import { IDefaultAccount } from '../../../../../base/common/defaultAccount.js';
+import { isCancellationError } from '../../../../../base/common/errors.js';
+import { Emitter } from '../../../../../base/common/event.js';
+import { mock, upcastPartial } from '../../../../../base/test/common/mock.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { IDefaultAccountService } from '../../../../../platform/defaultAccount/common/defaultAccount.js';
+import { IGitHubAccountClient } from '../../../../../platform/github/common/account/account.js';
+import { GitHubRequestError } from '../../../../../platform/github/common/githubTypes.js';
+import { IWorkbenchGitHubService } from '../../common/githubService.js';
+import { GitHubApiClient } from '../../browser/githubApiClient.js';
 
 suite('GitHubApiClient', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();

@@ -8,7 +8,7 @@ import { Disposable, IReference } from '../../../../../base/common/lifecycle.js'
 import { createDecorator, IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import { IGitHubChangedFile, IGitHubPullRequestChanges, IGitHubPullRequestContext, IGitHubPullRequestSummary, IGitHubPullRequestsPage, IGitHubRepository } from '../../common/github/types.js';
-import { GitHubApiClient } from './githubApiClient.js';
+import { GitHubApiClient } from '../../../../services/github/browser/githubApiClient.js';
 import { GitHubPullRequestModel, GitHubPullRequestModelReferenceCollection } from './models/githubPullRequestModel.js';
 import { GitHubPullRequestReviewThreadsModel, GitHubPullRequestReviewThreadsModelReferenceCollection } from './models/githubPullRequestReviewThreadsModel.js';
 import { GitHubPullRequestCIModel, GitHubPullRequestCIModelReferenceCollection } from './models/githubPullRequestCIModel.js';

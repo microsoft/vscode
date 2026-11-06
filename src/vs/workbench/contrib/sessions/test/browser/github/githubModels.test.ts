@@ -21,7 +21,7 @@ import { GitHubPullRequestModel } from '../../../browser/github/models/githubPul
 import { GitHubPullRequestReviewThreadsModel } from '../../../browser/github/models/githubPullRequestReviewThreadsModel.js';
 import { GitHubPullRequestCIModel, GitHubPullRequestCIModelReferenceCollection, parseWorkflowRunId } from '../../../browser/github/models/githubPullRequestCIModel.js';
 import { GitHubIssueModelReferenceCollection, MIN_REFRESH_INTERVAL_MS } from '../../../browser/github/models/githubIssueModel.js';
-import { GitHubApiClient } from '../../../browser/github/githubApiClient.js';
+import { GitHubApiClient } from '../../../../../services/github/browser/githubApiClient.js';
 import { GitHubPRFetcher } from '../../../browser/github/fetchers/githubPRFetcher.js';
 import { GitHubPRCIFetcher } from '../../../browser/github/fetchers/githubPRCIFetcher.js';
 import { IPullRequestChecksSource } from '../../../browser/github/fetchers/githubPRChecksSource.js';

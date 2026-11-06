@@ -3,17 +3,17 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { raceCancellationError } from '../../../../../base/common/async.js';
-import { abortOnDispose, CancellationToken } from '../../../../../base/common/cancellation.js';
-import { CancellationError } from '../../../../../base/common/errors.js';
-import { Emitter } from '../../../../../base/common/event.js';
-import { Disposable, DisposableStore } from '../../../../../base/common/lifecycle.js';
-import { localize } from '../../../../../nls.js';
-import { IDefaultAccountService } from '../../../../../platform/defaultAccount/common/defaultAccount.js';
-import { IGitHubAccountClient } from '../../../../../platform/github/common/account/account.js';
-import { deriveGitHubEndpoints } from '../../../../../platform/github/common/githubEndpoints.js';
-import { GitHubRequestError } from '../../../../../platform/github/common/githubTypes.js';
-import { IWorkbenchGitHubService } from '../../../../services/github/common/githubService.js';
+import { raceCancellationError } from '../../../../base/common/async.js';
+import { abortOnDispose, CancellationToken } from '../../../../base/common/cancellation.js';
+import { CancellationError } from '../../../../base/common/errors.js';
+import { Emitter } from '../../../../base/common/event.js';
+import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.js';
+import { localize } from '../../../../nls.js';
+import { IDefaultAccountService } from '../../../../platform/defaultAccount/common/defaultAccount.js';
+import { IGitHubAccountClient } from '../../../../platform/github/common/account/account.js';
+import { deriveGitHubEndpoints } from '../../../../platform/github/common/githubEndpoints.js';
+import { GitHubRequestError } from '../../../../platform/github/common/githubTypes.js';
+import { IWorkbenchGitHubService } from '../common/githubService.js';
 
 /** Retains the selected account's client and notifies models when its grant changes. */
 export class GitHubApiClient extends Disposable {
