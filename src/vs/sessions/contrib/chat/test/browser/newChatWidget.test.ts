@@ -113,6 +113,7 @@ interface ICreateSessionNowHarness {
 	readonly sessionsService: { openNewSession(options: IOpenNewSessionOptions, token: CancellationToken): Promise<IOpenNewSessionResult> };
 	readonly logService: { error(message: string, ...args: unknown[]): void };
 	_isPreferredServable(folderUri: URI, pick: IPreferredSessionType): boolean;
+	_requestsDevContainer(folderUri: URI | undefined): boolean;
 }
 
 interface INewChatWidgetHarness extends IRecreateHarness {
@@ -230,6 +231,7 @@ function workspaceIdentity(providers: { getProviders(): readonly ISessionsProvid
 	return picker as unknown as Pick<WorkspacePicker, 'isWorkspaceOfFolder'>;
 }
 const clearBackgroundSendOnFailure = Reflect.get(NewChatWidget.prototype, '_clearBackgroundSendOnFailure') as (this: ISendHarness, slot: INewSessionDraftSlot, session: ISession, sendOptions: ISendRequestOptions) => IDisposable;
+const backgroundReseedTarget = Reflect.get(NewChatWidget.prototype, '_backgroundReseedTarget') as (this: { readonly _environment: IObservable<ISessionCreationEnvironment | undefined>; _requestsDevContainer(folderUri: URI | undefined): boolean }, session: ISession, folderUri: URI | undefined) => INewSessionTarget;
 const updateWelcomeMessage = Reflect.get(NewChatWidget.prototype, '_updateWelcomeMessage') as (container: HTMLElement, title: HTMLElement, visible: boolean, phrases: readonly string[], phraseIndex: number) => string | undefined;
 const getComparisonBranch = Reflect.get(NewChatWidget.prototype, '_getComparisonBranch') as (this: IGetComparisonBranchHarness, session?: ISession, reader?: IReader) => string | undefined;
 const getComparisonModelIds = Reflect.get(NewChatWidget.prototype, '_getComparisonModelIds') as (this: {
@@ -358,6 +360,7 @@ interface ISendHarness {
 	_getWorkspaceRoots(session: ISession): readonly URI[];
 	_createNewSession?(folderUri: URI, pick?: IPreferredSessionType): Promise<void>;
 	_openQuickChat?(): void;
+	_backgroundReseedTarget?(session: ISession, folderUri: URI | undefined): INewSessionTarget;
 	_clearBackgroundSendOnFailure?(slot: INewSessionDraftSlot, session: ISession, sendOptions: ISendRequestOptions): IDisposable;
 }
 
@@ -803,10 +806,24 @@ suite('NewChatWidget', () => {
 				focusWorkspacePicker: () => calls.push('openWorkspacePicker'),
 				logService: { error: () => assert.fail('unexpected connection failure') },
 				notificationService: { error: () => assert.fail('unexpected connection failure notification') },
+				/** The host of a composer outside the main window, if it is one. */
+				_draftHost: undefined as Partial<INewSessionDraftHost> | undefined,
+				_requestTarget(change: (target: INewSessionTarget) => INewSessionTarget) { (Reflect.get(NewChatWidget.prototype, '_requestTarget') as (this: unknown, change: (target: INewSessionTarget) => INewSessionTarget) => void).call(this, change); },
 			};
 			const select = Reflect.get(NewChatWidget.prototype, '_selectEnvironment') as (this: typeof harness, environment: ISessionCreationEnvironment) => Promise<void>;
 			return { harness, calls, select: (environment: ISessionCreationEnvironment) => select.call(harness, environment) };
 		}
+
+		test('a composer outside the main window requests the Dev Container of the environment the user picks, and no longer once the user picks another environment', async () => {
+			const { harness, select } = createHarness(true);
+			const target = observableValue<INewSessionTarget | undefined>('target', { folderUri: folder, requireDevContainer: true });
+			harness._draftHost = { requestedTarget: target, setRequestedTarget: next => target.set(next, undefined) };
+			await select(cloud);
+			const inCloud = target.get()?.requireDevContainer;
+			await select(container);
+
+			assert.deepStrictEqual({ inCloud, inContainer: target.get()?.requireDevContainer }, { inCloud: undefined, inContainer: true });
+		});
 
 		test('does not open the workspace picker after changing or reselecting an environment', async () => {
 			const { calls, select } = createHarness(true);
@@ -1360,6 +1377,7 @@ suite('NewChatWidget', () => {
 					},
 					agentHostFilterService: { selectedHost: { sessionCreationProviderId: remote.providerIds[0] } },
 					_isPreferredServable: (folderUri: URI, pick: IPreferredSessionType): boolean => isPreferredServable.call(harness, folderUri, pick),
+					_requestsDevContainer: () => false,
 					_newChatInput: {
 						sessionTypePicker: {
 							getPreferredSessionType: () => ({ providerId: environment.get().providerIds[0], sessionTypeId: 'copilot' }),
@@ -3008,6 +3026,7 @@ suite('NewChatWidget', () => {
 				}),
 			},
 			_isPreferredServable: () => true,
+			_requestsDevContainer: () => false,
 			logService: { error: () => assert.fail('unexpected creation error') },
 		};
 		await createSessionNow.call(harness, folder, undefined, CancellationToken.None);
@@ -3031,6 +3050,7 @@ suite('NewChatWidget', () => {
 				},
 			},
 			_isPreferredServable: () => true,
+			_requestsDevContainer: () => false,
 			logService: { error: () => assert.fail('unexpected creation error') },
 		};
 		await createSessionNow.call(harness, folder, undefined, CancellationToken.None);
@@ -3069,6 +3089,7 @@ suite('NewChatWidget', () => {
 				},
 			},
 			_isPreferredServable: () => true,
+			_requestsDevContainer: () => false,
 			logService: { error: () => assert.fail('unexpected creation error') },
 		};
 		for (const sessionTypeId of ['copilot', 'claude', 'copilot']) {
@@ -3246,6 +3267,7 @@ suite('NewChatWidget', () => {
 				},
 				logService: { error: () => { } },
 				_isPreferredServable: () => servable,
+				_requestsDevContainer: () => false,
 			}, folder, pick, CancellationToken.None);
 			return { providerId: options?.providerId, sessionTypeId: options?.sessionTypeId, preserveNavigation: options?.preserveNavigation };
 		}));
@@ -4236,6 +4258,7 @@ suite('NewChatWidget', () => {
 				_workspacePicker: { selectedResolved: { providerId: 'local' } },
 				sessionsService: { openNewSession: async options => { requests.push(options); return { session: undefined, trustDeclined: false }; } },
 				_isPreferredServable: () => true,
+				_requestsDevContainer: () => false,
 				logService: { error: () => assert.fail('unexpected creation error') },
 			};
 			await createSessionNow.call(harness, folder, undefined, CancellationToken.None);
@@ -4575,6 +4598,10 @@ suite('NewChatWidget', () => {
 				override createNewSession(folderUri: URI, sessionTypeId: string, options?: ISessionsProviderCreateSessionOptions): ISession { return this._draft(sessionTypeId, false, options, folderUri); }
 				override createQuickChat(sessionTypeId: string, options?: ISessionsProviderCreateSessionOptions): ISession { return this._draft(sessionTypeId, true, options); }
 				override deleteNewSession(): void { }
+				override preferDevContainer(sessionId: string, options?: { readonly required?: boolean }): void { this.log.push(`devContainer ${sessionId}${options?.required ? ' required' : ''}`); }
+				/** The drafts that run in a Dev Container. */
+				readonly inDevContainer = new Set<string>();
+				override isDevContainerRequested(sessionId: string): boolean { return this.inDevContainer.has(sessionId); }
 				/** Holds the chat of a send until it settles, which fails it by default, as an agent that cannot start it does. */
 				chatOfSend: () => Promise<IChat> = () => Promise.reject(new Error('no agent'));
 				override createNewChat(): Promise<IChat> { return this.chatOfSend(); }
@@ -4677,6 +4704,7 @@ suite('NewChatWidget', () => {
 					// As the sessions service creates a draft of a slot (`openNewSession`).
 					sessionsService: { openNewSession: async (options: IOpenNewSessionOptions) => ({ session: options.draftSlot!.createNewSession(options.folderUri!, options), trustDeclined: false }) },
 					_isPreferredServable: () => true,
+					_requestsDevContainer: () => false,
 					logService: { error: (message: string) => assert.fail(message), trace: () => { } },
 				}, ['_trackUserModelSelections', '_trackUserAgentSelections', '_applyRequestedSelection', '_isSameCustomAgent', '_applyRequestedAgent', '_waitForRequestedAgent', '_applyRequestedModel', '_isRequestedAgent', 'selectNoWorkspace', '_selectNoWorkspaceByUser', '_openQuickChat', '_createQuickChat', '_selectRequestedNoWorkspace', '_scheduleRequestedNoWorkspaceUpgrade', '_resumeRequestedTargetUpgrade', '_requestTarget']);
 			}
@@ -5085,6 +5113,95 @@ suite('NewChatWidget', () => {
 				});
 			});
 
+			test('a composer whose requested folder runs in a Dev Container creates its drafts of that folder in one, also when seeded again after its view went and for the next draft after a background send; not for another folder, nor once the user picks the folder in another environment', async () => {
+				const provider = new ModelProvider('local-agent-host', ['t']);
+				const agents = createAgents([provider]);
+				const a = URI.file('/a');
+				const b = URI.file('/b');
+				const target = observableValue<INewSessionTarget | undefined>('target', { folderUri: a, providerId: 'local-agent-host', sessionTypeId: 't', requireDevContainer: true });
+				const composerOf = () => withWidgetMethods(Object.assign(hostedComposer(agents, target), {
+					_preferredDevContainerFolderUri: undefined,
+					_pendingWorkspaceCreation: undefined,
+					_createdSessionId: undefined,
+					uriIdentityService: { extUri },
+					_isCurrentWorkspaceSelection: () => true,
+					_workspaceOptOutEnabled: constObservable(false),
+					_newChatInput: { sessionTypePicker: { getPreferredSessionType: () => undefined, getUserPickedSessionType: () => undefined }, onDidSelectModel: agents.modelSelections.event, focus: () => { } },
+					_workspacePicker: { selectedResolved: undefined, selectedFolderUri: a, setSelectedWorkspace: () => { }, ...workspaceIdentity(agents.providers) },
+					sessionsService: {
+						// As `SessionsService.openNewSession`: a draft that requires a Dev Container is created in one.
+						openNewSession: async (options: IOpenNewSessionOptions) => {
+							const session = options.draftSlot!.createNewSession(options.folderUri!, options);
+							if (options.requireDevContainer) {
+								provider.preferDevContainer(session.sessionId, { required: true });
+							}
+							return { session, trustDeclined: false };
+						},
+						openSession: async () => assert.fail('A hosted composer must not change the grid'),
+					},
+				}), ['_createNewSession', '_createSessionNow', '_applyPreferredDevContainer', '_seedRequestedTarget', '_reconcileWorkspaceEnvironment', '_requestsDevContainer', '_backgroundReseedTarget', '_handleWorkspaceSelection', '_isPreferredServable', '_scheduleRecreateOnProviderChange', '_recreateOnProviderChange']);
+
+				const first = composerOf();
+				first._seedRequestedTarget(target.get());
+				await timeout(0);
+				await first._createNewSession(b, { providerId: 'local-agent-host', sessionTypeId: 't' });
+				// Its view goes; the next one seeds again from what its host requests.
+				const remounted = composerOf();
+				remounted._seedRequestedTarget(target.get());
+				await timeout(0);
+				const sent = agents.slot.newSession.get()!;
+				const reseed = { a: (remounted._backgroundReseedTarget(sent, a) as INewSessionTarget).requireDevContainer, b: (remounted._backgroundReseedTarget(sent, b) as INewSessionTarget).requireDevContainer };
+				// The user picks the folder again, in the environment shown: not a Dev Container.
+				await remounted._handleWorkspaceSelection(a);
+				await remounted._createNewSession(a, { providerId: 'local-agent-host', sessionTypeId: 't' });
+
+				assert.deepStrictEqual({ log: provider.log, reseed, requested: target.get()?.requireDevContainer }, {
+					log: ['create t1', 'devContainer t1 required', 'create t2', 'create t3', 'devContainer t3 required', 'create t4'],
+					reseed: { a: true, b: undefined },
+					requested: undefined,
+				});
+			});
+
+			test('a composer whose chosen folder\'s trust is declined goes back to its kept draft in the Dev Container that draft runs in, not as the declined folder was requested', async () => {
+				const outcomes: (boolean | undefined)[] = [];
+				for (const keptInDevContainer of [true, false]) {
+					const provider = new ModelProvider('local-agent-host', ['t']);
+					const agents = createAgents([provider]);
+					const a = URI.file('/a');
+					const b = URI.file('/b');
+					const target = observableValue<INewSessionTarget | undefined>('target', { folderUri: a, providerId: 'local-agent-host', sessionTypeId: 't' });
+					const composer = withWidgetMethods(Object.assign(hostedComposer(agents, target), {
+						_workspaceOptOutEnabled: constObservable(false),
+						_preferredDevContainerFolderUri: undefined,
+						_pendingWorkspaceCreation: undefined,
+						_createdSessionId: undefined,
+						_store: { isDisposed: false },
+						uriIdentityService: { extUri },
+						_newChatInput: { sessionTypePicker: { getPreferredSessionType: () => undefined, getUserPickedSessionType: () => undefined }, onDidSelectModel: agents.modelSelections.event, preparePromptOptionsRefresh: () => false, showPromptOptions: () => { }, focus: () => { } },
+						_workspacePicker: { selectedResolved: undefined, selectedFolderUri: a, setSelectedWorkspace: () => { }, removeFromRecents: () => { }, selectNoWorkspace: () => { }, ...workspaceIdentity(agents.providers) },
+						sessionsService: {
+							// The user declines the trust of B.
+							openNewSession: async (options: IOpenNewSessionOptions) => options.folderUri!.path === b.path
+								? { session: undefined, trustDeclined: true }
+								: { session: options.draftSlot!.createNewSession(options.folderUri!, options), trustDeclined: false },
+						},
+					}), ['_createNewSession', '_createSessionNow', '_applyPreferredDevContainer', '_requestsDevContainer', '_reopenRequestedWorkspace', '_isPreferredServable', '_scheduleRecreateOnProviderChange', '_recreateOnProviderChange']);
+					await composer._createNewSession(a, { providerId: 'local-agent-host', sessionTypeId: 't' });
+					const kept = agents.slot.newSession.get()!;
+					if (keptInDevContainer) {
+						provider.inDevContainer.add(kept.sessionId);
+					}
+					// The user chose B, in a Dev Container unless A runs in one.
+					target.set({ folderUri: b, providerId: 'local-agent-host', sessionTypeId: 't', requireDevContainer: !keptInDevContainer || undefined }, undefined);
+					composer._pendingPreferredUpgrade.clear();
+					await composer._reopenRequestedWorkspace(b, target.get(), kept, a);
+					composer._pendingPreferredUpgrade.clear();
+					outcomes.push(target.get()?.folderUri?.path === a.path ? target.get()?.requireDevContainer : false);
+				}
+
+				assert.deepStrictEqual(outcomes, [true, undefined]);
+			});
+
 			test('a composer whose foreground send failed without its slot taking its draft back creates a fresh draft of what it aims for, and sending again waits for that draft rather than asking for a workspace; never over a draft its slot holds', async () => {
 				const provider = new ModelProvider('p', ['t']);
 				const agents = createAgents([provider]);
@@ -5268,6 +5385,7 @@ suite('NewChatWidget', () => {
 					_getWorkspaceRoots: () => [],
 					_createNewSession: async (folderUri: URI, pick?: IPreferredSessionType) => { created.push({ folder: folderUri.path, pick }); },
 					_clearBackgroundSendOnFailure: (...args) => clearBackgroundSendOnFailure.apply(harness, args),
+					_backgroundReseedTarget: (session, folderUri) => backgroundReseedTarget.call({ _environment: constObservable(undefined), _requestsDevContainer: () => false }, session, folderUri),
 				};
 
 				await send.call(harness, 'hello', undefined, true);

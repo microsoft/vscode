@@ -112,6 +112,11 @@ export interface INewSessionTarget {
 	 * agent offers it. Not the session mode a creation takes. Undefined for the agent's default selection.
 	 */
 	readonly modeId?: string;
+	/**
+	 * Whether the drafts of {@link folderUri} run in a Dev Container, as the session they inherit from does, or as the user
+	 * picked; a draft that cannot is not created elsewhere.
+	 */
+	readonly requireDevContainer?: boolean;
 }
 
 /** A background send of a composer ({@link INewSessionDraftHost.trackBackgroundSend}). */

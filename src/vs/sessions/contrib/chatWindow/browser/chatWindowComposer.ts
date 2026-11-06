@@ -67,6 +67,7 @@ export function getChatWindowComposerTarget(sessionsManagementService: ISessions
 		folderUri: inherited.folderUri,
 		...(inherited.providerId ? { providerId: inherited.providerId } : {}),
 		...(inherited.sessionTypeId ? { sessionTypeId: inherited.sessionTypeId } : {}),
+		...(inherited.requireDevContainer ? { requireDevContainer: true } : {}),
 		...ofChat(),
 	};
 }
@@ -357,7 +358,8 @@ function fromStoredComposer(value: unknown): IStoredChatWindowComposer {
 	const attempt = entry?.attempt;
 	if (!entry || !URI.isUri(entry.resource) || !isChatWindowComposerResource(entry.resource) || !isOptionalString(entry.groupId)
 		|| (target !== undefined && (typeof target !== 'object' || target === null || (target.folderUri !== undefined && !URI.isUri(target.folderUri))
-			|| !isOptionalString(target.providerId) || !isOptionalString(target.sessionTypeId) || !isOptionalString(target.modelId) || !isOptionalString(target.modeId)))
+			|| !isOptionalString(target.providerId) || !isOptionalString(target.sessionTypeId) || !isOptionalString(target.modelId) || !isOptionalString(target.modeId)
+			|| (target.requireDevContainer !== undefined && typeof target.requireDevContainer !== 'boolean')))
 		|| (attempt !== undefined && (typeof attempt !== 'object' || attempt === null || typeof attempt.id !== 'string' || (attempt.session !== undefined && !URI.isUri(attempt.session))))) {
 		throw new Error('Invalid chat window composer.');
 	}

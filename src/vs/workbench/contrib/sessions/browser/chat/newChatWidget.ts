@@ -1189,8 +1189,12 @@ export class NewChatWidget extends Disposable {
 	private _seedRequestedTarget(target: INewSessionTarget): void {
 		const pick = target.sessionTypeId ? { providerId: target.providerId, sessionTypeId: target.sessionTypeId } : undefined;
 		if (target.folderUri) {
+			// In a Dev Container, as the session it inherits from runs, its environment shows that.
+			if (target.requireDevContainer) {
+				this._reconcileWorkspaceEnvironment({ providerId: target.providerId, preferDevContainer: true });
+			}
 			// Not persisted: the main composer's last workspace stays its own.
-			this._workspacePicker.setSelectedWorkspace(target.folderUri, { fireEvent: false, providerId: target.providerId, persist: false, origin: WorkspaceSelectionOrigin.RestoredDraft });
+			this._workspacePicker.setSelectedWorkspace(target.folderUri, { fireEvent: false, providerId: target.providerId, ...(target.requireDevContainer ? { preferDevContainer: true } : {}), persist: false, origin: WorkspaceSelectionOrigin.RestoredDraft });
 			void this._createNewSession(target.folderUri, pick);
 		} else {
 			this._selectRequestedNoWorkspace(target);
@@ -1457,7 +1461,10 @@ export class NewChatWidget extends Disposable {
 		}
 		const requested = this._draftHost?.requestedTarget?.get();
 		if (requested?.folderUri && this.uriIdentityService.extUri.isEqual(requested.folderUri, folderUri)) {
-			this._draftHost?.setRequestedTarget?.({ ...requested, folderUri: keptFolderUri }, 'user');
+			// In a Dev Container as the kept draft is, not as the declined folder's was requested.
+			const keptProvider = this.sessionsProvidersService.getProvider(kept.providerId, kept.sessionId);
+			const keptInDevContainer = !!keptProvider && isAgentHostProvider(keptProvider) && keptProvider.isDevContainerRequested?.(kept.sessionId) === true;
+			this._draftHost?.setRequestedTarget?.({ ...requested, folderUri: keptFolderUri, requireDevContainer: keptInDevContainer || undefined }, 'user');
 		}
 		if (keptFolderUri) {
 			this._workspacePicker.setSelectedWorkspace(keptFolderUri, { fireEvent: false, providerId: kept.providerId, persist: false, origin: WorkspaceSelectionOrigin.RestoredDraft });
@@ -1674,6 +1681,12 @@ export class NewChatWidget extends Disposable {
 		this._preferredDevContainerFolderUri = undefined;
 	}
 
+	/** Whether the host of a hosted composer requests the drafts of `folderUri` in a Dev Container. */
+	private _requestsDevContainer(folderUri: URI | undefined): boolean {
+		const target = this._draftHost?.requestedTarget?.get();
+		return !!folderUri && !!target?.requireDevContainer && !!target.folderUri && this.uriIdentityService.extUri.isEqual(target.folderUri, folderUri);
+	}
+
 	private async _createSessionNow(folderUri: URI, userPick: IPreferredSessionType | undefined, token: CancellationToken, providerId?: string): Promise<IOpenNewSessionResult> {
 		// Prefer the user's explicit pick when its provider can serve the
 		// folder; otherwise fall back to the preferred (first) session type.
@@ -1691,7 +1704,7 @@ export class NewChatWidget extends Disposable {
 				folderUri,
 				preserveNavigation: true,
 				...(this._draftHost ? { draftSlot: this._draftHost.slot } : this._preserveCustomView ? { preserveCustomView: true } : {}),
-				...(environment?.kind === 'container' ? { requireDevContainer: true } : undefined),
+				...(environment?.kind === 'container' || this._requestsDevContainer(folderUri) ? { requireDevContainer: true } : undefined),
 				...(preferredPick
 					? { providerId: preferredPick.providerId, sessionTypeId: preferredPick.sessionTypeId }
 					: fallbackProviderId
@@ -2010,6 +2023,7 @@ export class NewChatWidget extends Disposable {
 		const workspace = this._workspacePicker.getEnvironmentWorkspace(environment, undefined, this._environmentWorkspaces.get(environment.id));
 		const folderUri = workspace?.workspace.folders[0]?.root;
 		this._pickedEnvironment.set(environment, undefined);
+		this._requestTarget(target => ({ ...target, requireDevContainer: environment.kind === 'container' || undefined }));
 		if (!folderUri || !workspace) {
 			this._changingEnvironment = true;
 			try {
@@ -2516,7 +2530,7 @@ export class NewChatWidget extends Disposable {
 		// session-type/model pickers for the next message.
 		if (background) {
 			// A hosted composer's next draft aims for the selection the send had, also once a provider arrives later.
-			const reseed = this._draftHost?.setRequestedTarget ? { folderUri: reseedFolderUri, providerId: session.providerId, sessionTypeId: session.sessionType, modelId: session.modelId.get(), modeId: session.mode.get()?.id } : undefined;
+			const reseed = this._draftHost?.setRequestedTarget ? this._backgroundReseedTarget(session, reseedFolderUri) : undefined;
 			if (reseed) {
 				this._draftHost?.setRequestedTarget?.(reseed, 'background');
 			}
@@ -2528,6 +2542,17 @@ export class NewChatWidget extends Disposable {
 			}
 		}
 		return true;
+	}
+
+	/**
+	 * What a hosted composer's next draft aims for after a background send of `session`: the send's folder, agent, model
+	 * and custom agent, and its Dev Container, so that the next draft runs where the sent one does.
+	 */
+	private _backgroundReseedTarget(session: ISession, folderUri: URI | undefined): INewSessionTarget & IPreferredSessionType {
+		return {
+			folderUri, providerId: session.providerId, sessionTypeId: session.sessionType, modelId: session.modelId.get(), modeId: session.mode.get()?.id,
+			...(this._environment.get()?.kind === 'container' || this._requestsDevContainer(folderUri) ? { requireDevContainer: true } : {}),
+		};
 	}
 
 	/**
@@ -2702,7 +2727,8 @@ export class NewChatWidget extends Disposable {
 	private async _handleWorkspaceSelection(folderUri: URI | undefined): Promise<void> {
 		const host = this._draftHost;
 		if (host?.setRequestedTarget) {
-			host.setRequestedTarget({ ...host.requestedTarget?.get(), folderUri }, 'user');
+			// In a Dev Container only as the user picked it, in the environment the folder was picked in.
+			host.setRequestedTarget({ ...host.requestedTarget?.get(), folderUri, requireDevContainer: this._environment.get()?.kind === 'container' || undefined }, 'user');
 		}
 		if (!this._isCurrentWorkspaceSelection(folderUri)) {
 			await this._onWorkspaceSelected(folderUri);

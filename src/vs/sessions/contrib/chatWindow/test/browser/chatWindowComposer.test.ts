@@ -23,6 +23,8 @@ import { IStorageService, StorageScope, StorageTarget, WillSaveStateReason } fro
 import { TestStorageService } from '../../../../../workbench/test/common/workbenchTestServices.js';
 import { parse, stringify } from '../../../../../base/common/marshalling.js';
 import { Range } from '../../../../../editor/common/core/range.js';
+import { IAgentHostSessionsProvider } from '../../../../../workbench/contrib/sessions/common/agentHostSessionsProvider.js';
+import { ISessionsProvider } from '../../../../../workbench/contrib/sessions/common/sessionsProvider.js';
 import { ISessionGroupsService } from '../../../../../workbench/contrib/sessions/browser/sessionGroupsService.js';
 import { ISessionsProvidersService } from '../../../../../workbench/contrib/sessions/browser/sessionsProvidersService.js';
 import { IChat, ISession, ISessionWorkspace, SessionStatus } from '../../../../../workbench/services/sessions/common/session.js';
@@ -95,7 +97,10 @@ suite('Chat window composer', () => {
 		instantiationService.stub(IStorageService, storageService);
 		instantiationService.stub(ILogService, new NullLogService());
 		instantiationService.stub(ISessionsProvidersService, new class extends mock<ISessionsProvidersService>() {
-			override getProvider() { return undefined; }
+			// The local agent host, whose drafts can run in a Dev Container
+			override getProvider<T extends ISessionsProvider>(providerId: string): T | undefined {
+				return providerId === 'local-agent-host' ? upcastPartial<IAgentHostSessionsProvider>({ id: providerId, isDevContainerRequested: () => true }) as ISessionsProvider as T : undefined;
+			}
 		}());
 		instantiationService.stub(ISessionGroupsService, new class extends mock<ISessionGroupsService>() {
 			override setDraftSlotGroup(slotId: string, groupId: string | undefined) {
@@ -128,7 +133,7 @@ suite('Chat window composer', () => {
 		return { events, actions, onDidAccept, onDidEnd, onDidReplace, slots, sessionsManagementService, backgroundSends, createComposer, sessionsProvidersService: instantiationService.get(ISessionsProvidersService), instantiationService, storageService };
 	}
 
-	test('a composer starts its session as the chat it opened from: the session\'s folder, provider and agent where they serve the folder, and the chat\'s model and mode; a quick chat\'s provider and agent with no workspace; nothing without a session or a workspace', () => {
+	test('a composer starts its session as the chat it opened from: the session\'s folder, provider and agent where they serve the folder, and the chat\'s model and mode; a Dev Container it runs in; a quick chat\'s provider and agent with no workspace; nothing without a session or a workspace', () => {
 		const store = disposables.add(new DisposableStore());
 		const { sessionsManagementService, sessionsProvidersService } = createServices(store);
 		const target = (session: ISession | undefined) => getChatWindowComposerTarget(sessionsManagementService, sessionsProvidersService, session, session?.mainChat.get());
@@ -136,12 +141,14 @@ suite('Chat window composer', () => {
 		assert.deepStrictEqual({
 			workspace: target(createSession('workspace', { folder: '/repo' })),
 			unavailable: target(createSession('unavailable', { folder: '/repo', providerId: 'unavailable' })),
+			devContainer: target(createSession('container', { folder: '/repo', providerId: 'local-agent-host' })),
 			quickChat: target(createSession('quick', { quickChat: true })),
 			noWorkspace: target(createSession('none')),
 			noSession: target(undefined),
 		}, {
 			workspace: { folderUri: URI.file('/repo'), providerId: 'provider', sessionTypeId: 'type', modelId: 'model', modeId: 'agent' },
 			unavailable: { folderUri: URI.file('/repo'), modelId: 'model', modeId: 'agent' },
+			devContainer: { folderUri: URI.file('/repo'), providerId: 'local-agent-host', sessionTypeId: 'type', requireDevContainer: true, modelId: 'model', modeId: 'agent' },
 			quickChat: { providerId: 'provider', sessionTypeId: 'type', modelId: 'model', modeId: 'agent' },
 			noWorkspace: undefined,
 			noSession: undefined,
@@ -432,7 +439,7 @@ suite('Chat window composer', () => {
 
 		const waitForSession = async (resource: URI) => resource.toString() === started.resource.toString() ? started : undefined;
 		const composers = instantiationService.createInstance(ChatWindowComposers, waitForSession);
-		const typed = composers.create(resource('typed'), { target: { folderUri: URI.file('/repo'), providerId: 'provider', sessionTypeId: 'type', modelId: 'model' }, groupId: 'group' }, open);
+		const typed = composers.create(resource('typed'), { target: { folderUri: URI.file('/repo'), providerId: 'provider', sessionTypeId: 'type', modelId: 'model', requireDevContainer: true }, groupId: 'group' }, open);
 		typed.input.set({ inputText: '#attachment:index.ts fix it', attachments: [file], references: [reference] });
 		const sending = composers.create(resource('sending'), {}, open);
 		sending.input.beginSendAttempt({ inputText: 'in flight', attachments: [] });
@@ -466,7 +473,7 @@ suite('Chat window composer', () => {
 		}, {
 			beforeSave: undefined,
 			stored: [true, true, true, false],
-			typed: { target: { folderUri: URI.file('/repo').toString(), providerId: 'provider', sessionTypeId: 'type', modelId: 'model' }, groupId: 'group', text: '#attachment:index.ts fix it', attachments: ['/repo/index.ts'], references: ['a'] },
+			typed: { target: { folderUri: URI.file('/repo').toString(), providerId: 'provider', sessionTypeId: 'type', modelId: 'model', requireDevContainer: true }, groupId: 'group', text: '#attachment:index.ts fix it', attachments: ['/repo/index.ts'], references: ['a'] },
 			sending: { input: { inputText: 'in flight', attachments: [], references: undefined } },
 			sent: 'started',
 		});
