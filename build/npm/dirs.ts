@@ -105,15 +105,6 @@ export const standaloneRoots = [
 ];
 
 /**
- * Folders that are still installed with npm (`npm ci`), because their packaging relies on npm's
- * `npm_config_os`/`npm_config_cpu`/`npm_config_libc` handling.
- */
-export const npmFolders = [
-	'build/agent-sdk/agents/claude',
-	'build/agent-sdk/agents/codex',
-];
-
-/**
  * Distro folders, present only when the distro is checked out in `.build/distro`. Each one is a
  * separate pnpm install root, never a workspace member.
  */
