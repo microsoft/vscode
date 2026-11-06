@@ -20,9 +20,14 @@ import { SessionStatus } from '../../../../../../platform/agentHost/common/state
 import { ActionType } from '../../../../../../platform/agentHost/common/state/protocol/common/actions.js';
 import { COPILOT_INTEGRATION_ID } from '../../../../../../platform/endpoint/common/licenseAgreement.js';
 import { IGitHubAccountClient } from '../../../../../../platform/github/common/account/account.js';
-import { ApiRequest, ApiResponse, BufferedApiRequestProvider } from '../../../../../../platform/github/common/client/request.js';
+import { ApiRequest, ApiResponse, BufferedApiRequestProvider, IApiRequestProvider } from '../../../../../../platform/github/common/client/request.js';
+import { LocalMissionControlRequestProvider } from '../../../../../../platform/github/common/client/localMissionControlRequestProvider.js';
+import { SchemaError } from '../../../../../../platform/github/common/client/schema.js';
+import { GitHubRestTextRequest, IGitHubTransport } from '../../../../../../platform/github/common/githubTransport.js';
+import { AccountHandle, RequestError } from '../../../../../../platform/github/common/types.js';
 import { ApiRequestError, MissionControlClient } from '../../../../../../platform/github/common/missionControl/missionControlClient.js';
 import { TasksClient } from '../../../../../../platform/github/common/missionControl/tasksClient.js';
+import { GitHubRequestError, GitHubRequestTimeoutError } from '../../../../../../platform/github/common/githubTypes.js';
 import type { TaskClient } from '../../../../../../platform/github/common/missionControl/tasks.js';
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { ILogService, NullLogService } from '../../../../../../platform/log/common/log.js';
@@ -129,6 +134,7 @@ function createService(store: Pick<{ add<T extends { dispose(): void }>(t: T): T
 	/** Suspend every task-detail response by this many ms, so overlapping fetches are observable. */
 	readonly taskFetchDelayMs?: number;
 	readonly requestError?: Error;
+	readonly missionControlProvider?: IApiRequestProvider;
 	readonly logService?: ILogService;
 	readonly onRequest?: (url: URL, token: CancellationToken, options: IRequestOptions) => IRequestContext | undefined | Promise<IRequestContext | undefined>;
 	readonly discoveryDate?: () => string;
@@ -277,7 +283,7 @@ function createService(store: Pick<{ add<T extends { dispose(): void }>(t: T): T
 				}
 			}();
 			return new class extends mock<IGitHubAccountClient>() {
-				override readonly tasks = new TasksClient(new MissionControlClient(provider));
+				override readonly tasks = new TasksClient(new MissionControlClient(options.missionControlProvider ?? provider));
 				override readonly environments = new EnvironmentsClient(new MissionControlClient(provider));
 				override dispose(): void { }
 			}();
@@ -312,8 +318,81 @@ suite('CloudSandboxApiService discovery telemetry', () => {
 		pageCount: 4, listRequestCount: 4, taskCount: 0, sandboxTaskCount: 0,
 		changedSandboxTaskCount: 0, checkpointAdvanced: true, validDuration: true,
 	};
-	const summarize = ({ durationMs, ...event }: ICloudSandboxDiscoveryTelemetryData) => ({
-		...event, validDuration: Number.isFinite(durationMs) && durationMs >= 0,
+	const summarize = (event: ICloudSandboxDiscoveryTelemetryData) => ({
+		trigger: event.trigger, requestedMode: event.requestedMode, mode: event.mode, outcome: event.outcome,
+		pageCount: event.pageCount, listRequestCount: event.listRequestCount, taskCount: event.taskCount,
+		sandboxTaskCount: event.sandboxTaskCount, changedSandboxTaskCount: event.changedSandboxTaskCount, checkpointAdvanced: event.checkpointAdvanced,
+		validDuration: Number.isFinite(event.durationMs) && event.durationMs >= 0,
+	});
+
+	test('distinguishes scope initialization, missing checkpoints and explicit repair with a checkpoint', async () => {
+		const h = createService(store, { tasks: [], repositories: new Map(), discoveryDate: () => date });
+		await h.service.listSessions(CancellationToken.None, { incremental: true, includeArchived: false });
+		await h.service.listSessions(CancellationToken.None, { incremental: true, includeArchived: true });
+		await h.service.listSessions(CancellationToken.None, { incremental: true });
+		await h.service.listSessions(CancellationToken.None, { diagnostics: { intentMode: 'incremental', fullScanReason: 'reconciliationDue' } });
+		assert.deepStrictEqual(h.discoveryEvents.map(event => ({
+			mode: event.mode, reason: event.fullScanReason, available: event.checkpointAvailable, source: event.checkpointSource,
+		})), [
+			{ mode: 'full', reason: 'noCheckpoint', available: false, source: 'serverDate' },
+			{ mode: 'full', reason: 'scopeInitialization', available: false, source: 'serverDate' },
+			{ mode: 'incremental', reason: 'notFull', available: true, source: 'serverDate' },
+			{ mode: 'full', reason: 'reconciliationDue', available: true, source: 'serverDate' },
+		]);
+	});
+
+	test('preserves simultaneous page, required-detail and optional-label failures', async () => {
+		const h = createService(store, {
+			tasks: [task('bad', 'Bad detail', undefined, 's1', 'e1'), task('label', 'Optional label', 42, 's2', 'e2')],
+			repositories: new Map([[42, 'error']]),
+			onRequest: url => url.pathname === '/agents/tasks/bad' || url.pathname === '/agents/tasks' && url.searchParams.get('is_archived') === 'true'
+				? jsonResponse({}, 503) : undefined,
+		});
+		await h.service.listSessions(CancellationToken.None);
+		const event = h.discoveryEvents[0];
+		assert.deepStrictEqual({
+			outcome: event.outcome, pages: event.listPageFailureCount, details: event.taskDetailFailureCount,
+			labels: event.repositoryEnrichmentMissCount, unresolved: event.unresolvedTaskCount,
+			advanced: event.checkpointAdvanced, invalidated: event.generationInvalidated,
+		}, { outcome: 'partial', pages: 2, details: 1, labels: 1, unresolved: 1, advanced: false, invalidated: false });
+	});
+
+	test('counts successful bounded pagination separately from failures and generation invalidation', async () => {
+		const h = createService(store, {
+			tasks: [task('one', 'One', undefined, 's1', 'e1')], repositories: new Map(),
+			onRequest: url => url.pathname === '/agents/tasks'
+				? jsonResponse({ tasks: [task('one', 'One', undefined, 's1', 'e1')] }, 200, { link: `<?page=${Number(url.searchParams.get('page')) + 1}>; rel="next"` })
+				: undefined,
+		});
+		await h.service.listSessions(CancellationToken.None);
+		const bounded = h.discoveryEvents[0];
+		const entered = new DeferredPromise<void>();
+		const pending = new DeferredPromise<void>();
+		const invalidated = createService(store, {
+			tasks: [], repositories: new Map(),
+			onRequest: async url => {
+				if (url.pathname === '/agents/tasks/removed') {
+					return jsonResponse({});
+				}
+				if (!entered.isSettled) {
+					await entered.complete();
+					await pending.p;
+				}
+				return undefined;
+			},
+		});
+		const scan = invalidated.service.listSessions(CancellationToken.None);
+		await entered.p;
+		await invalidated.service.deleteTask('removed', CancellationToken.None);
+		await pending.complete();
+		await scan;
+		assert.deepStrictEqual({
+			bounded: { outcome: bounded.outcome, unread: bounded.unreadPageScopeCount, failures: bounded.listPageFailureCount, advanced: bounded.checkpointAdvanced },
+			invalidated: { outcome: invalidated.discoveryEvents[0].outcome, generation: invalidated.discoveryEvents[0].generationInvalidated, advanced: invalidated.discoveryEvents[0].checkpointAdvanced },
+		}, {
+			bounded: { outcome: 'complete', unread: 4, failures: 0, advanced: true },
+			invalidated: { outcome: 'failed', generation: true, advanced: false },
+		});
 	});
 
 	test('reports checkpoint fallback, unchanged checkpoints and empty targeted reads', async () => {
@@ -397,6 +476,20 @@ suite('CloudSandboxApiService discovery telemetry', () => {
 		assert.deepStrictEqual(h.discoveryEvents.map(summarize), [
 			{ ...emptyScan, outcome: 'cancelled', pageCount: 1, listRequestCount: 2, checkpointAdvanced: false },
 		]);
+		assert.strictEqual(h.discoveryEvents[0].checkpointSource, 'serverDate');
+	});
+
+	test('retains the observed checkpoint source when an empty partition is followed by a list failure', async () => {
+		const h = createService(store, {
+			tasks: [], repositories: new Map(),
+			onRequest: url => url.searchParams.get('with_repo') === 'true'
+				? jsonResponse({ tasks: [] }, 200, { date })
+				: jsonResponse({}, 503),
+		});
+		await h.service.listSessions(CancellationToken.None);
+		assert.deepStrictEqual(h.discoveryEvents.map(event => ({
+			source: event.checkpointSource, outcome: event.outcome, advanced: event.checkpointAdvanced, pages: event.pageCount,
+		})), [{ source: 'serverDate', outcome: 'failed', advanced: false, pages: 1 }]);
 	});
 
 	test('reports malformed successful HTTP responses as failed discovery', async () => {
@@ -1031,6 +1124,54 @@ suite('CloudSandboxApiService session feed', () => {
 		});
 	});
 
+	test('counts typed feed transport failures without inventing HTTP attempts for authentication or local validation', async () => {
+		const outcomes: RequestOutcome[][] = [];
+		for (const requestError of [
+			new GitHubRequestError('private-network-error', 'network'),
+			new GitHubRequestTimeoutError(true),
+			new GitHubRequestTimeoutError(false),
+			new GitHubRequestError('private-schema-error', 'schema'),
+		]) {
+			const h = createService(store, { tasks: [], repositories: new Map(), requestError });
+			await assert.rejects(h.service.connectSessionFeed(CancellationToken.None));
+			outcomes.push(h.requestOutcomes);
+		}
+		const signedOut = createService(store, { tasks: [], repositories: new Map(), authenticationSessions: async () => [] });
+		await assert.rejects(signedOut.service.connectSessionFeed(CancellationToken.None));
+		outcomes.push(signedOut.requestOutcomes);
+		assert.deepStrictEqual(outcomes, [
+			[['connectSessionFeed', 'networkError']], [['connectSessionFeed', 'networkError']], [], [], [],
+		]);
+	});
+
+	test('counts dispatched feed timeouts through the production Mission Control provider conversion', async () => {
+		const outcomes: RequestOutcome[][] = [];
+		for (const dispatched of [false, true]) {
+			const provider = new LocalMissionControlRequestProvider({
+				apiBaseUri: 'https://api.githubcopilot.com/agents',
+				feedApiBaseUri: 'https://api.github.com/cmc_internal/api/agents',
+				integrationId: 'test',
+			}, {
+				onDidInvalidate: Event.None,
+				getCredential: async () => ({
+					account: { host: 'github.com', accountId: 'a' }, token: 'tok', generation: 0, signal: new AbortController().signal,
+				}),
+				handleRequestError: () => { },
+			}, new class extends mock<IGitHubTransport>() {
+				override async restText(_account: AccountHandle, _token: string, request: GitHubRestTextRequest): Promise<never> {
+					if (dispatched) {
+						request.onDidDispatch?.();
+					}
+					throw new GitHubRequestTimeoutError(dispatched);
+				}
+			}(), new NullLogService());
+			const h = createService(store, { tasks: [], repositories: new Map(), missionControlProvider: provider });
+			await assert.rejects(h.service.connectSessionFeed(CancellationToken.None));
+			outcomes.push(h.requestOutcomes);
+		}
+		assert.deepStrictEqual(outcomes, [[], [['connectSessionFeed', 'networkError']]]);
+	});
+
 	test('honors relative feed lifetimes independently of the local wall clock', async () => {
 		const results = [];
 		for (const skew of [60 * 60_000, -60 * 60_000]) {
@@ -1099,7 +1240,8 @@ suite('CloudSandboxApiService session feed', () => {
 				tasks: [], repositories: new Map(), onRequest: () => jsonResponse({ ...feedConnection(), ...invalid }),
 			});
 			await assert.rejects(service.connectSessionFeed(CancellationToken.None), error => {
-				return error instanceof Error && !error.message.includes('secret') && !error.message.includes('password');
+				return (error instanceof SchemaError || error instanceof RequestError && error.kind === 'schema')
+					&& !error.message.includes('secret') && !error.message.includes('password');
 			});
 		});
 	}
