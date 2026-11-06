@@ -21,9 +21,9 @@ import { IViewEditorRegistry, IViewEditorView, ViewEditorExtensions } from '../.
 import { IEditorPart } from '../../../../workbench/services/editor/common/editorGroupsService.js';
 import { decideStackedChatInputOnlyWhileDragging } from '../../../../workbench/contrib/chatWindow/common/chatWindowInputOnly.js';
 import { ChatWindowLayoutMode } from '../../../../workbench/contrib/chatWindow/common/chatWindowLayout.js';
-import { AbstractChatView, ISessionViewHostOptions } from '../../../browser/parts/chatView.js';
+import { AbstractChatView, ISessionViewHostOptions } from '../../../../workbench/contrib/sessions/browser/parts/chatView.js';
 import { ChatEditorContent } from './chatEditorContent.js';
-import { IActiveSession } from '../../../services/sessions/common/sessionsManagement.js';
+import { IActiveSession } from '../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { URI } from '../../../../base/common/uri.js';

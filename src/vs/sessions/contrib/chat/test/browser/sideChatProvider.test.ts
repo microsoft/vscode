@@ -9,8 +9,8 @@ import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { DisposableStore, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { constObservable, derived, observableValue } from '../../../../../base/common/observable.js';
-import { ISessionHostService } from '../../../../services/sessions/browser/sessionHost.js';
-import { ITestSessionsService, sessionHostServiceOf } from '../../../../services/sessions/test/browser/sessionHostTestUtils.js';
+import { ISessionHostService } from '../../../../../workbench/contrib/sessions/browser/sessionHost.js';
+import { ITestSessionsService, sessionHostServiceOf } from '../../../../../workbench/contrib/sessions/test/browser/sessionHostTestUtils.js';
 import { extUri } from '../../../../../base/common/resources.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { upcastPartial } from '../../../../../base/test/common/mock.js';
@@ -26,10 +26,10 @@ import { IChatModel, IChatRequestModel } from '../../../../../workbench/contrib/
 import { IChatRequestViewModel, IChatViewModel } from '../../../../../workbench/contrib/chat/common/model/chatViewModel.js';
 import { IWorkbenchEnvironmentService } from '../../../../../workbench/services/environment/common/environmentService.js';
 import { SessionsSideChatProviderContribution } from '../../browser/sideChatProvider.contribution.js';
-import { ISessionsPartService } from '../../../../services/sessions/browser/sessionsPartService.js';
-import { ISessionNavigationRequest, ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
-import { ChatInteractivity, ChatOriginKind, IChat, SessionStatus } from '../../../../services/sessions/common/session.js';
-import { IActiveSession, ISendRequestOptions, ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
+import { ISessionsPartService } from '../../../../../workbench/contrib/sessions/browser/sessionsPartService.js';
+import { ISessionNavigationRequest, ISessionsService } from '../../../../../workbench/contrib/sessions/browser/sessionsService.js';
+import { ChatInteractivity, ChatOriginKind, IChat, SessionStatus } from '../../../../../workbench/contrib/sessions/common/session.js';
+import { IActiveSession, ISendRequestOptions, ISessionsManagementService } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 
 suite('SessionsSideChatProviderContribution', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();

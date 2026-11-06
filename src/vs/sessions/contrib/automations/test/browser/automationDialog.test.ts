@@ -5,7 +5,7 @@
 
 import assert from 'assert';
 import * as sinon from 'sinon';
-import { IChatViewFactory } from '../../../../services/chatView/browser/chatViewFactory.js';
+import { IChatViewFactory } from '../../../../../workbench/contrib/sessions/browser/chatViewFactory.js';
 import * as DOM from '../../../../../base/browser/dom.js';
 import { StandardKeyboardEvent } from '../../../../../base/browser/keyboardEvent.js';
 import { Button } from '../../../../../base/browser/ui/button/button.js';
@@ -65,18 +65,19 @@ import { GitRefType, IGitRepository, IGitService } from '../../../../../workbenc
 import { IHostService } from '../../../../../workbench/services/host/browser/host.js';
 import { IWorkbenchLayoutService } from '../../../../../workbench/services/layout/browser/layoutService.js';
 import { workbenchInstantiationService } from '../../../../../workbench/test/browser/workbenchTestServices.js';
-import { Menus } from '../../../../browser/menus.js';
-import { MobileSessionTypePicker } from '../../../chat/browser/mobile/mobileSessionTypePicker.js';
-import { SessionModelSelection } from '../../../chat/browser/sessionModelSelection.js';
-import { GITHUB_REMOTE_FILE_SCHEME, ISession, ISessionWorkspace, SessionTypeAuthRequirement } from '../../../../services/sessions/common/session.js';
-import { IAutomationSessionConfiguration, ISessionsProvider } from '../../../../services/sessions/common/sessionsProvider.js';
-import { ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
-import { ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
+import { Menus } from '../../../../../workbench/contrib/sessions/browser/menus.js';
+import { AgentsWindowMenus } from '../../../../browser/agentsWindowMenus.js';
+import { MobileSessionTypePicker } from '../../../../../workbench/contrib/sessions/browser/chat/mobile/mobileSessionTypePicker.js';
+import { SessionModelSelection } from '../../../../../workbench/contrib/sessions/browser/chat/sessionModelSelection.js';
+import { GITHUB_REMOTE_FILE_SCHEME, ISession, ISessionWorkspace, SessionTypeAuthRequirement } from '../../../../../workbench/contrib/sessions/common/session.js';
+import { IAutomationSessionConfiguration, ISessionsProvider } from '../../../../../workbench/contrib/sessions/common/sessionsProvider.js';
+import { ISessionsManagementService } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
+import { ISessionsProvidersService } from '../../../../../workbench/contrib/sessions/browser/sessionsProvidersService.js';
 import { AutomationDialogService } from '../../browser/automationDialogService.js';
 import { AutomationCustomizationSelection, AutomationIsolationGroupActionViewItem, AutomationSessionDraftSynchronizer, canSelectAutomationWorkspace, getAutomationDialogProviders, IFormState, IValidationState, isAutomationDialogPopupTarget, MobileAutomationsWorkspacePicker, registerAutomationDialogKeyboardNavigation, renderForm, shouldPassThroughAutomationDialogCommand, updateSaveButtonState } from '../../browser/automationDialog.js';
 import { AutomationInputCompletions } from '../../browser/automationInputCompletions.js';
 import { AutomationIsolationModel } from '../../common/isolationGroupModel.js';
-import { stubSessionHosts } from '../../../../services/sessions/test/browser/sessionHostTestUtils.js';
+import { stubSessionHosts } from '../../../../../workbench/contrib/sessions/test/browser/sessionHostTestUtils.js';
 
 const FOLDER = URI.file('/workspace');
 const REPOSITORY = URI.from({ scheme: GITHUB_REMOTE_FILE_SCHEME, authority: 'github', path: '/owner/private/HEAD' });
@@ -3406,7 +3407,7 @@ suite('Automation dialog layout', () => {
 	});
 
 	test('keeps target actions out of the prompt toolbar', () => {
-		const targetActions = MenuRegistry.getMenuItems(Menus.AutomationsDialogTargetToolbar).filter(isIMenuItem);
+		const targetActions = MenuRegistry.getMenuItems(AgentsWindowMenus.AutomationsDialogTargetToolbar).filter(isIMenuItem);
 		const promptActions = [
 			...MenuRegistry.getMenuItems(Menus.AutomationsDialogInputToolbar),
 			...MenuRegistry.getMenuItems(MenuId.ChatInputSecondary),

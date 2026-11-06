@@ -5,7 +5,7 @@
 
 import { AbstractPaneCompositePart } from '../../../../workbench/browser/parts/paneCompositePart.js';
 import { SidebarPart } from '../sidebarPart.js';
-import { isPhoneLayout } from './mobileLayout.js';
+import { isPhoneLayout } from '../../../../workbench/contrib/sessions/browser/mobileLayout.js';
 
 /**
  * Mobile variant of SidebarPart.

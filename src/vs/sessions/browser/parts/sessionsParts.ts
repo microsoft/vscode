@@ -8,17 +8,17 @@ import { getClientArea } from '../../../base/browser/dom.js';
 import { mainWindow } from '../../../base/browser/window.js';
 import { IInstantiationService } from '../../../platform/instantiation/common/instantiation.js';
 import { InstantiationType, registerSingleton } from '../../../platform/instantiation/common/extensions.js';
-import { SessionsPart } from './sessionsPart.js';
+import { SessionsPart } from '../../../workbench/contrib/sessions/browser/parts/sessionsPart.js';
 import { MobileSessionsPart } from './mobile/mobileSessionsPart.js';
-import { SessionView } from './sessionView.js';
-import { IActiveSession } from '../../services/sessions/common/sessionsManagement.js';
-import { ISession } from '../../services/sessions/common/session.js';
+import { SessionView } from '../../../workbench/contrib/sessions/browser/parts/sessionView.js';
+import { IActiveSession } from '../../../workbench/contrib/sessions/common/sessionsManagement.js';
+import { ISession } from '../../../workbench/contrib/sessions/common/session.js';
 import { IProgressIndicator } from '../../../platform/progress/common/progress.js';
 import { Emitter, Event } from '../../../base/common/event.js';
-import { ISessionGridSlot, ISessionsPartService, IToggleMaximizeSessionEvent, SessionGridRequest } from '../../services/sessions/browser/sessionsPartService.js';
+import { ISessionGridSlot, ISessionsPartService, IToggleMaximizeSessionEvent, SessionGridRequest } from '../../../workbench/contrib/sessions/browser/sessionsPartService.js';
 import { Direction } from '../../../base/browser/ui/grid/grid.js';
 import { IAgentWorkbenchLayoutService } from '../workbench.js';
-import { createMainWindowInstantiationService } from '../../services/sessions/browser/sessionHost.js';
+import { createMainWindowInstantiationService } from '../../../workbench/contrib/sessions/browser/sessionHost.js';
 
 /**
  * Owns the lifecycle of the {@link SessionsPart}. Selects the mobile vs. desktop

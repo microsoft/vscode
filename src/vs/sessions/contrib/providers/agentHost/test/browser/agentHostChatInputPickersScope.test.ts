@@ -22,10 +22,10 @@ import { MockKeybindingService } from '../../../../../../platform/keybinding/tes
 import { InMemoryStorageService } from '../../../../../../platform/storage/common/storage.js';
 import { IsSessionsWindowContext } from '../../../../../../workbench/common/contextkeys.js';
 import { ChatContextKeys } from '../../../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
-import { SessionUsesExperimentalComposerLayoutContext } from '../../../../../common/contextkeys.js';
-import { ActiveSessionHost, bindSessionHostScopeContext, createMainWindowInstantiationService, createSessionHostServices, InSessionHostScopeContext, ISessionHost, ISessionHostService, SessionHostKind } from '../../../../../services/sessions/browser/sessionHost.js';
-import '../../browser/agentHostAgentPicker.js';
-import '../../browser/agentHostSessionConfigPicker.js';
+import { SessionUsesExperimentalComposerLayoutContext } from '../../../../../../workbench/contrib/sessions/common/contextkeys.js';
+import { ActiveSessionHost, bindSessionHostScopeContext, createMainWindowInstantiationService, createSessionHostServices, InSessionHostScopeContext, ISessionHost, ISessionHostService, SessionHostKind } from '../../../../../../workbench/contrib/sessions/browser/sessionHost.js';
+import '../../../../../../workbench/contrib/sessions/providers/agentHost/browser/agentHostAgentPicker.js';
+import '../../../../../../workbench/contrib/sessions/providers/agentHost/browser/agentHostSessionConfigPicker.js';
 
 /** The pickers of the session a chat input shows, contributed to the workbench's chat input menus. */
 const PICKERS = new Set([

@@ -19,14 +19,15 @@ import { AgentsWindowUsage } from '../../../../../workbench/contrib/chat/common/
 import { onboardingScenarioRegistry } from '../../../../../workbench/contrib/onboarding/common/onboardingRegistry.js';
 import { ChatEntitlementContextKeys } from '../../../../../workbench/services/chat/common/chatEntitlementService.js';
 import { IViewsService } from '../../../../../workbench/services/views/common/viewsService.js';
-import { NewSessionOnboardingHandoffContext, SessionsWelcomeVisibleContext } from '../../../../common/contextkeys.js';
-import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
-import { ISession, SessionStatus } from '../../../../services/sessions/common/session.js';
-import { IActiveSession, ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
+import { SessionsWelcomeVisibleContext } from '../../../../../workbench/contrib/sessions/common/contextkeys.js';
+import { NewSessionOnboardingHandoffContext } from '../../../../common/agentsWindowContextKeys.js';
+import { ISessionsService } from '../../../../../workbench/contrib/sessions/browser/sessionsService.js';
+import { ISession, SessionStatus } from '../../../../../workbench/contrib/sessions/common/session.js';
+import { IActiveSession, ISessionsManagementService } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import { ParallelTasksTourContribution } from '../../browser/parallelTasksTourContribution.js';
 import { NEW_SESSION_ONBOARDING_SEEN_KEY } from '../../browser/tours/newSessionTour.js';
 import { createParallelTasksTour, PARALLEL_TASKS_ONBOARDING_SEEN_KEY, PARALLEL_TASKS_TOUR_ID } from '../../browser/tours/parallelTasksTour.js';
-import { focusedSessionHostServiceOf } from '../../../../services/sessions/test/browser/sessionHostTestUtils.js';
+import { focusedSessionHostServiceOf } from '../../../../../workbench/contrib/sessions/test/browser/sessionHostTestUtils.js';
 
 suite('ParallelTasksTour', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();

@@ -41,14 +41,15 @@ import { ChatContextKeys } from '../../../../../workbench/contrib/chat/common/ac
 import { CustomizationMigrationType, ICustomizationMigrationHint, ICustomizationMigrationIgnoredGroup, ICustomizationMigrationService } from '../../../../../workbench/contrib/chat/common/promptSyntax/service/customizationMigrationService.js';
 import { PromptsStorage } from '../../../../../workbench/contrib/chat/common/promptSyntax/service/promptsService.js';
 import { ILanguageModelToolsService, IToolData, IToolSet } from '../../../../../workbench/contrib/chat/common/tools/languageModelToolsService.js';
-import { IActiveSession } from '../../../../services/sessions/common/sessionsManagement.js';
-import { IAICustomizationMcpServerCountService } from '../../browser/customizationMcpServerCount.js';
-import { CUSTOMIZATION_ITEMS, CustomizationLinkViewItem, CustomizationsToolbarContribution, readCustomizationCount } from '../../browser/customizationsToolbar.contribution.js';
-import { CustomizationsNavigationState } from '../../browser/customizationsNavigationState.js';
-import { IAgentsWindowExtensionSuggestionsService } from '../../../extensions/browser/agentsWindowExtensionSuggestions.js';
+import { IActiveSession } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
+import { IAICustomizationMcpServerCountService } from '../../../../../workbench/contrib/sessions/browser/customizationMcpServerCount.js';
+import { CustomizationLinkViewItem, CustomizationsToolbarContribution } from '../../browser/customizationsToolbar.contribution.js';
+import { CUSTOMIZATION_ITEMS, readCustomizationCount } from '../../../../../workbench/contrib/sessions/browser/customizationItems.js';
+import { CustomizationsNavigationState } from '../../../../../workbench/contrib/sessions/browser/customizationsNavigationState.js';
+import { IAgentsWindowExtensionSuggestionsService } from '../../../../../workbench/contrib/sessions/browser/agentsWindowExtensionSuggestions.js';
 import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
 import { NullHoverService } from '../../../../../platform/hover/test/browser/nullHoverService.js';
-import { focusedSessionHostServiceOf } from '../../../../services/sessions/test/browser/sessionHostTestUtils.js';
+import { focusedSessionHostServiceOf } from '../../../../../workbench/contrib/sessions/test/browser/sessionHostTestUtils.js';
 
 function createExtensionSuggestionsService(showBadge: IObservable<boolean>): IAgentsWindowExtensionSuggestionsService {
 	return new class extends mock<IAgentsWindowExtensionSuggestionsService>() {

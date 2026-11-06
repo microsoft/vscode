@@ -36,13 +36,13 @@ import { IChatEntitlementService } from '../../../../../../workbench/services/ch
 import { IEditorService } from '../../../../../../workbench/services/editor/common/editorService.js';
 import { IPreferencesService } from '../../../../../../workbench/services/preferences/common/preferences.js';
 import { TestEditorGroupView, workbenchInstantiationService } from '../../../../../../workbench/test/browser/workbenchTestServices.js';
-import { OPEN_REMOTES_EDITOR_COMMAND_ID, TOGGLE_REMOTE_CONNECTIONS_COMMAND_ID } from '../../../../../common/sessionCommands.js';
-import { IsPhoneLayoutContext } from '../../../../../common/contextkeys.js';
-import { Menus } from '../../../../../browser/menus.js';
-import { RemotesEditorInput } from '../../browser/remotesEditorInput.js';
-import { ICustomizationRemote, IRemotesModel, RemoteKind, RemotesModel } from '../../browser/remotesModel.js';
-import { RemotesEditor } from '../../electron-browser/remotesEditor.js';
-import { ENVIRONMENT_PICKER_MANAGE_REMOTES_SETTING, ENVIRONMENT_PICKER_SETTING, REMOTE_ENVIRONMENTS_THIS_COMPUTER_SETTING } from '../../../../chat/common/constants.js';
+import { OPEN_REMOTES_EDITOR_COMMAND_ID, TOGGLE_REMOTE_CONNECTIONS_COMMAND_ID } from '../../../../../../workbench/contrib/sessions/common/sessionCommands.js';
+import { IsPhoneLayoutContext } from '../../../../../../workbench/contrib/sessions/common/contextkeys.js';
+import { Menus } from '../../../../../../workbench/contrib/sessions/browser/menus.js';
+import { RemotesEditorInput } from '../../../../../../workbench/contrib/sessions/providers/remoteAgentHost/browser/remotesEditorInput.js';
+import { ICustomizationRemote, IRemotesModel, RemoteKind, RemotesModel } from '../../../../../../workbench/contrib/sessions/providers/remoteAgentHost/browser/remotesModel.js';
+import { RemotesEditor } from '../../../../../../workbench/contrib/sessions/providers/remoteAgentHost/electron-browser/remotesEditor.js';
+import { ENVIRONMENT_PICKER_MANAGE_REMOTES_SETTING, ENVIRONMENT_PICKER_SETTING, REMOTE_ENVIRONMENTS_THIS_COMPUTER_SETTING } from '../../../../../../workbench/contrib/sessions/common/chatConstants.js';
 import '../../electron-browser/remotes.contribution.js';
 
 class TestRemotesModel extends Disposable implements IRemotesModel {

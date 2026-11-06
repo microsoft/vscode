@@ -26,23 +26,23 @@ import { IEditorService } from '../../../../workbench/services/editor/common/edi
 import { IEditorPane, isEditorCommandsContext } from '../../../../workbench/common/editor.js';
 import { MultiDiffEditor } from '../../../../workbench/contrib/multiDiffEditor/browser/multiDiffEditor.js';
 import { DiffEditorWidget } from '../../../../editor/browser/widget/diffEditor/diffEditorWidget.js';
-import { IAgentWorkbenchLayoutService } from '../../../browser/workbench.js';
-import { Menus } from '../../../browser/menus.js';
+import { ISessionsHostLayoutService } from '../../../../workbench/contrib/sessions/browser/sessionsHostLayoutService.js';
+import { Menus } from '../../../../workbench/contrib/sessions/browser/menus.js';
 import { AGENT_HOST_CHECKOUT_CHANGESET_OPERATION_ID, AGENT_HOST_COMMIT_CHANGESET_OPERATION_ID, AGENT_HOST_SYNC_CHANGESET_OPERATION_ID } from '../../../../platform/agentHost/common/agentHostChangesetOperationService.js';
-import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
-import { IHostSession } from '../../../services/sessions/common/sessionsManagement.js';
-import { resolveSessionCommandTarget } from '../../../services/sessions/browser/sessionCommandTarget.js';
-import { IChat, ISessionChangeset, ISessionChangesetOperation, ISessionFileChange, SessionChangesetOperationScope, SessionChangesetOperationStatus, SessionStatus, UNCOMMITTED_CHANGES_CHANGESET_ID } from '../../../services/sessions/common/session.js';
-import { ISessionChangesStatsCache, readSessionChangesStats } from '../../../services/sessions/common/sessionChangesStatsCache.js';
-import { getChangesOfSession, IChangesSessionObservables, IChangesViewService } from '../common/changesViewService.js';
-import { ChangesMultiDiffSourceResolver } from './changesMultiDiffSourceResolver.js';
-import { ISessionChangesService } from './sessionChangesService.js';
-import { getFileActionEditorPane, IChangesEditorFileActionContext, SessionChangesEditor } from './sessionChangesEditor.js';
-import { VIEW_SESSION_CHANGES_COMMAND_ID } from '../common/changes.js';
-import { getChangesFileUri, isChangesFileResource } from './changesViewRenderer.js';
-import { ISessionActionContextKeysSource, registerSessionActionContextKeyBinder } from './sessionActionContextKeys.js';
+import { ISessionsService } from '../../../../workbench/contrib/sessions/browser/sessionsService.js';
+import { IHostSession } from '../../../../workbench/contrib/sessions/common/sessionsManagement.js';
+import { resolveSessionCommandTarget } from '../../../../workbench/contrib/sessions/browser/sessionCommandTarget.js';
+import { IChat, ISessionChangeset, ISessionChangesetOperation, ISessionFileChange, SessionChangesetOperationScope, SessionChangesetOperationStatus, SessionStatus, UNCOMMITTED_CHANGES_CHANGESET_ID } from '../../../../workbench/contrib/sessions/common/session.js';
+import { ISessionChangesStatsCache, readSessionChangesStats } from '../../../../workbench/contrib/sessions/common/sessionChangesStatsCache.js';
+import { getChangesOfSession, IChangesSessionObservables, IChangesViewService } from '../../../../workbench/contrib/sessions/common/changesViewService.js';
+import { ChangesMultiDiffSourceResolver } from '../../../../workbench/contrib/sessions/browser/changes/changesMultiDiffSourceResolver.js';
+import { ISessionChangesService } from '../../../../workbench/contrib/sessions/browser/changes/sessionChangesService.js';
+import { getFileActionEditorPane, IChangesEditorFileActionContext, SessionChangesEditor } from '../../../../workbench/contrib/sessions/browser/changes/sessionChangesEditor.js';
+import { VIEW_SESSION_CHANGES_COMMAND_ID } from '../../../../workbench/contrib/sessions/common/changes.js';
+import { getChangesFileUri, isChangesFileResource } from '../../../../workbench/contrib/sessions/browser/changes/changesViewRenderer.js';
+import { ISessionActionContextKeysSource, registerSessionActionContextKeyBinder } from '../../../../workbench/contrib/sessions/browser/changes/sessionActionContextKeys.js';
 import { escapeRegExpCharacters } from '../../../../base/common/strings.js';
-import { mainWindowChangesOwner } from './changesViewService.js';
+import { mainWindowChangesOwner } from '../../../../workbench/contrib/sessions/browser/changes/changesViewService.js';
 
 function getWorkspaceResource(resource: URI, changes: readonly ISessionFileChange[]): URI {
 	const change = changes.find(change => isChangesFileResource(change, resource));
@@ -65,7 +65,7 @@ class ViewAllChangesAction extends Action2 {
 
 	override async run(accessor: ServicesAccessor, sessionArg?: unknown): Promise<void> {
 		const sessionChangesService = accessor.get(ISessionChangesService);
-		const layoutService = accessor.get(IAgentWorkbenchLayoutService);
+		const layoutService = accessor.get(ISessionsHostLayoutService);
 
 		// The clicked session is forwarded as the argument by the session header,
 		// which has already promoted it to be the active session. Fall back to the

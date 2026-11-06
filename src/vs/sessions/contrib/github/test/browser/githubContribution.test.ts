@@ -12,21 +12,21 @@ import { constObservable, IObservable, ISettableObservable, observableValue } fr
 import { NullLogService } from '../../../../../platform/log/common/log.js';
 import { Extensions as ConfigurationExtensions, IConfigurationRegistry } from '../../../../../platform/configuration/common/configurationRegistry.js';
 import { Registry } from '../../../../../platform/registry/common/platform.js';
-import { GitHubPullRequestModel } from '../../browser/models/githubPullRequestModel.js';
-import { GitHubPullRequestCIModel } from '../../browser/models/githubPullRequestCIModel.js';
-import { GitHubPullRequestReviewThreadsModel } from '../../browser/models/githubPullRequestReviewThreadsModel.js';
-import { GitHubPullRequestState, IGitHubPullRequest } from '../../common/types.js';
+import { GitHubPullRequestModel } from '../../../../../workbench/contrib/sessions/browser/github/models/githubPullRequestModel.js';
+import { GitHubPullRequestCIModel } from '../../../../../workbench/contrib/sessions/browser/github/models/githubPullRequestCIModel.js';
+import { GitHubPullRequestReviewThreadsModel } from '../../../../../workbench/contrib/sessions/browser/github/models/githubPullRequestReviewThreadsModel.js';
+import { GitHubPullRequestState, IGitHubPullRequest } from '../../../../../workbench/contrib/sessions/common/github/types.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { mock, upcastPartial } from '../../../../../base/test/common/mock.js';
 import '../../../../../workbench/contrib/chat/browser/agentSessionsConfiguration.js';
 import { AUTO_DELETE_MARKED_AS_DONE_MERGED_SESSIONS_AFTER_DAYS_SETTING, AUTO_MARK_AS_DONE_MERGED_SESSIONS_AFTER_DAYS_SETTING, GitHubPullRequestPollingContribution } from '../../browser/github.contribution.js';
-import { AUTOMATIC_MERGED_SESSION_CLEANUP_SETTINGS_QUERY, AUTOMATIC_MERGED_SESSION_CLEANUP_SETTINGS_TAG } from '../../common/sessionLifecycleSettings.js';
-import { IGitHubService } from '../../browser/githubService.js';
-import { ChatInteractivity, IChat, IGitHubInfo, ISession, ISessionArtifact, ISessionCapabilities, ISessionChangeset, IChatCheckpoints, ISessionFileChange, ISessionWorkspace, SessionArtifactKind, SessionStatus } from '../../../../services/sessions/common/session.js';
-import { IActiveSession, ISessionsChangeEvent, ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
-import { focusedSessionHostServiceOf } from '../../../../services/sessions/test/browser/sessionHostTestUtils.js';
-import { ISessionHostService } from '../../../../services/sessions/browser/sessionHost.js';
+import { AUTOMATIC_MERGED_SESSION_CLEANUP_SETTINGS_QUERY, AUTOMATIC_MERGED_SESSION_CLEANUP_SETTINGS_TAG } from '../../../../../workbench/contrib/sessions/common/github/sessionLifecycleSettings.js';
+import { IGitHubService } from '../../../../../workbench/contrib/sessions/browser/github/githubService.js';
+import { ChatInteractivity, IChat, IGitHubInfo, ISession, ISessionArtifact, ISessionCapabilities, ISessionChangeset, IChatCheckpoints, ISessionFileChange, ISessionWorkspace, SessionArtifactKind, SessionStatus } from '../../../../../workbench/contrib/sessions/common/session.js';
+import { IActiveSession, ISessionsChangeEvent, ISessionsManagementService } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
+import { focusedSessionHostServiceOf } from '../../../../../workbench/contrib/sessions/test/browser/sessionHostTestUtils.js';
+import { ISessionHostService } from '../../../../../workbench/contrib/sessions/browser/sessionHost.js';
 import { isEqual } from '../../../../../base/common/resources.js';
 
 suite('GitHubPullRequestPollingContribution', () => {

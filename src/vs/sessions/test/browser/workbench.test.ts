@@ -22,22 +22,23 @@ import { DockedAuxiliaryBarController, IDockedAuxiliaryBarHost } from '../../bro
 import { upcastPartial } from '../../../base/test/common/mock.js';
 import { IAuxiliaryWindow, IAuxiliaryWindowOpenEvent } from '../../../workbench/services/auxiliaryWindow/browser/auxiliaryWindowService.js';
 import { ContentPart } from '../../../workbench/browser/parts/editor/contentPart.js';
-import { addAuxiliaryWindowContainers, AgentWorkbenchLayout, ISidePaneState, ISidePaneToggleEvent, Workbench } from '../../browser/workbench.js';
+import { addAuxiliaryWindowContainers, ISidePaneState, ISidePaneToggleEvent, Workbench } from '../../browser/workbench.js';
+import { AgentWorkbenchLayout } from '../../../workbench/contrib/sessions/browser/sessionsHostLayoutService.js';
 import { DesktopWorkbench, DockedEditorSizeMemento } from '../../browser/desktopWorkbench.js';
-import { AGENTS_SIDE_PANE_MULTIPLE_TABS_CLASS } from '../../browser/parts/agentsPartCard.js';
-import { SessionActivityBarColumn } from '../../browser/parts/sessionActivityBarHost.js';
+import { AGENTS_SIDE_PANE_MULTIPLE_TABS_CLASS } from '../../../workbench/contrib/sessions/browser/parts/agentsPartCard.js';
+import { SessionActivityBarColumn } from '../../../workbench/contrib/sessions/browser/parts/sessionActivityBarHost.js';
 import { DesktopMainEditorPart } from '../../browser/parts/desktopEditorPart.js';
 import { MainEditorPart } from '../../browser/parts/editorPart.js';
 import { EditorParts } from '../../browser/parts/editorParts.js';
-import { DockedEditorInput } from '../../browser/dockedEditorInput.js';
+import { DockedEditorInput } from '../../../workbench/contrib/sessions/browser/dockedEditorInput.js';
 import { EditorInputCapabilities, IEditorPartOptions, IEditorPartOptionsChangeEvent } from '../../../workbench/common/editor.js';
 import { GroupDirection, GroupOrientation, IEditorGroupsService } from '../../../workbench/services/editor/common/editorGroupsService.js';
 import { SESSIONS_LIST_MINIMUM_WIDTH } from '../../browser/parts/sidebarPart.js';
-import { Menus } from '../../browser/menus.js';
+import { Menus } from '../../../workbench/contrib/sessions/browser/menus.js';
 import { DEFAULT_NOTIFICATION_ROW_HEIGHT, onDidChangeNotificationRowHeight, setNotificationRowHeight } from '../../../workbench/browser/parts/notifications/notificationsViewer.js';
 import { DEFAULT_EDITOR_PART_OPTIONS, IEditorGroupViewOptions } from '../../../workbench/browser/parts/editor/editor.js';
 import { EditorInput } from '../../../workbench/common/editor/editorInput.js';
-import '../../browser/parts/media/chatCompositeBar.css';
+import '../../../workbench/contrib/sessions/browser/parts/media/chatCompositeBar.css';
 import { TestDataTelemetryService } from '../../../platform/telemetry/test/common/testTelemetryService.js';
 
 interface IViewSize { width: number; height: number }

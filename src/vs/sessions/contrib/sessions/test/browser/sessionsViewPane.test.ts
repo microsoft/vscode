@@ -15,12 +15,12 @@ import { upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { Workbench } from '../../../../browser/workbench.js';
-import { ISession } from '../../../../services/sessions/common/session.js';
-import { ISessionComparison, SessionComparisonParticipantRole } from '../../../../services/sessions/common/sessionComparison.js';
-import { AICustomizationShortcutsWidget } from '../../browser/aiCustomizationShortcutsWidget.js';
-import { getCustomizationsPresentation, SessionsView } from '../../browser/views/sessionsView.js';
-import { SessionsGrouping, SessionsSorting } from '../../browser/views/sessionsList.js';
-import '../../browser/media/sessionsViewPane.css';
+import { ISession } from '../../../../../workbench/contrib/sessions/common/session.js';
+import { ISessionComparison, SessionComparisonParticipantRole } from '../../../../../workbench/contrib/sessions/common/sessionComparison.js';
+import { AICustomizationShortcutsWidget } from '../../../../../workbench/contrib/sessions/browser/aiCustomizationShortcutsWidget.js';
+import { getCustomizationsPresentation, SessionsView } from '../../../../../workbench/contrib/sessions/browser/views/sessionsView.js';
+import { SessionsGrouping, SessionsSorting } from '../../../../../workbench/contrib/sessions/browser/views/sessionsList.js';
+import '../../../../../workbench/contrib/sessions/browser/media/sessionsViewPane.css';
 
 const registerEditorTabHeightClass = Reflect.get(Workbench.prototype, 'registerEditorTabHeightClass') as (this: {
 	readonly mainContainer: HTMLElement;
@@ -33,7 +33,8 @@ const registerEditorTabHeightClass = Reflect.get(Workbench.prototype, 'registerE
 const handleSessionOpened = Reflect.get(SessionsView.prototype, '_handleSessionOpened') as (this: {
 	readonly sessionComparisonService: { getComparisonForSession(resource: URI): ISessionComparison | undefined };
 	readonly sessionsService: { readonly visibleSessions: IObservable<readonly (ISession | undefined)[]> };
-	readonly layoutService: { hideSidePane(): void; mainContainer: HTMLElement; setPartHidden(hidden: boolean, part: string): void };
+	readonly layoutService: { mainContainer: HTMLElement; setPartHidden(hidden: boolean, part: string): void };
+	readonly hostLayoutService: { readonly sidePane?: { hideSidePane(): void } };
 }, session: ISession) => void;
 const updateHeaderLayout = Reflect.get(SessionsView.prototype, 'updateHeaderLayout') as (this: {
 	readonly sessionsHeaders: ReadonlySet<{
@@ -347,9 +348,11 @@ suite('Sessions - SessionsViewPane', () => {
 			},
 			sessionsService: { visibleSessions },
 			layoutService: {
-				hideSidePane: () => hideSidePaneCalls++,
 				mainContainer: mainWindow.document.createElement('div'),
 				setPartHidden: () => { },
+			},
+			hostLayoutService: {
+				sidePane: { hideSidePane: () => hideSidePaneCalls++ },
 			},
 		};
 

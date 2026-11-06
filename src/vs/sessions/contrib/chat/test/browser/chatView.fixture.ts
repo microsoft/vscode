@@ -34,14 +34,14 @@ import { FixtureMotionAccessibilityService } from '../../../../../workbench/test
 import { assertChatPetInScreenshot, configureChatPetFixtureFileRoot, FixtureChatPetService } from '../../../../../workbench/test/browser/componentFixtures/chat/chatPetFixtureUtils.js';
 import { fixtureResourceUri, readFixtureBinaryResource } from '../../../../../workbench/test/browser/componentFixtures/fixtureResourceLoader.js';
 import { ComponentFixtureContext, defineComponentFixture, defineThemedFixtureGroup, waitForFixtureCondition } from '../../../../../workbench/test/browser/componentFixtures/fixtureUtils.js';
-import { activeSessionViewBackground } from '../../../../common/theme.js';
-import { SessionsChatBackgroundRenderer, SessionsChatBackgroundReplica } from '../../../../services/chatBackground/browser/chatBackgroundRenderer.js';
-import { getSessionChatItemHorizontalPadding } from '../../browser/chatView.js';
+import { activeSessionViewBackground } from '../../../../../workbench/contrib/sessions/common/theme.js';
+import { SessionsChatBackgroundRenderer, SessionsChatBackgroundReplica } from '../../../../../workbench/contrib/sessions/browser/chatBackgroundRenderer.js';
+import { getSessionChatItemHorizontalPadding } from '../../../../../workbench/contrib/sessions/browser/chat/chatView.js';
 
 import '../../../../browser/media/style.css';
 import '../../../../browser/parts/mobile/mobileChatShell.css';
-import '../../../../browser/parts/media/sessionView.css';
-import '../../browser/media/chatView.css';
+import '../../../../../workbench/contrib/sessions/browser/parts/media/sessionView.css';
+import '../../../../../workbench/contrib/sessions/browser/chat/media/chatView.css';
 
 const fixtureWidth = 800;
 const fixtureHeight = 720;

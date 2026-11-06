@@ -30,11 +30,11 @@ import { IAutomationDescriptor, IAutomationRun } from '../../../../../workbench/
 import { IAutomationRunDispatch, IAutomationRunner } from '../../../../../workbench/contrib/chat/common/automations/automationRunner.js';
 import { AutomationCatalogueState, IAutomationService } from '../../../../../workbench/contrib/chat/common/automations/automationService.js';
 import { ChatAutomationsEnabledContext, CHAT_AUTOMATIONS_ENABLED_SETTING, CHAT_CLOUD_AUTOMATIONS_ENABLED_SETTING } from '../../../../../workbench/contrib/chat/common/automations/automationsEnabled.js';
-import { ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
-import { ICustomViewService } from '../../../../services/customView/browser/customViewService.js';
-import { IOpenSessionOptions, ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
-import { ISessionsProvider } from '../../../../services/sessions/common/sessionsProvider.js';
-import { AUTOMATIONS_CUSTOM_VIEW_ID } from '../../../sessions/browser/automationsConstants.js';
+import { ISessionsProvidersService } from '../../../../../workbench/contrib/sessions/browser/sessionsProvidersService.js';
+import { ICustomViewService } from '../../../../../workbench/contrib/sessions/browser/customView.js';
+import { IOpenSessionOptions, ISessionsService } from '../../../../../workbench/contrib/sessions/browser/sessionsService.js';
+import { ISessionsProvider } from '../../../../../workbench/contrib/sessions/common/sessionsProvider.js';
+import { AUTOMATIONS_CUSTOM_VIEW_ID } from '../../../../../workbench/contrib/sessions/browser/automationsConstants.js';
 
 import '../../browser/automations.contribution.js';
 

@@ -9,7 +9,7 @@ import { AccessibleContentProvider, AccessibleViewProviderId, AccessibleViewType
 import { IAccessibleViewImplementation } from '../../../../platform/accessibility/browser/accessibleViewRegistry.js';
 import { localize } from '../../../../nls.js';
 import { AccessibilityVerbositySettingId } from '../../../../workbench/contrib/accessibility/browser/accessibilityConfiguration.js';
-import { SessionWorktreeCleanupEditorFocusedContext } from '../../../common/contextkeys.js';
+import { SessionWorktreeCleanupEditorFocusedContext } from '../../../../workbench/contrib/sessions/common/contextkeys.js';
 
 /**
  * Editor-scoped accessibility help for the Worktree Cleanup editor. It replaces the

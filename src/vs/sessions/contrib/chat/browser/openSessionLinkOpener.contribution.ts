@@ -19,13 +19,13 @@ import { IOpenerService, OpenOptions } from '../../../../platform/opener/common/
 import { IWorkbenchContribution } from '../../../../workbench/common/contributions.js';
 import { IChatWindow, IChatWindowService } from '../../../../workbench/contrib/chatWindow/browser/chatWindow.js';
 import { ISessionSummaryHoverService } from '../../../../workbench/contrib/chat/browser/agentSessions/sessionSummaryHoverService.js';
-import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
-import { ISession, SessionStatus } from '../../../services/sessions/common/session.js';
-import { ISessionsProvidersService } from '../../../services/sessions/browser/sessionsProvidersService.js';
-import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
+import { ISessionsManagementService } from '../../../../workbench/contrib/sessions/common/sessionsManagement.js';
+import { ISession, SessionStatus } from '../../../../workbench/contrib/sessions/common/session.js';
+import { ISessionsProvidersService } from '../../../../workbench/contrib/sessions/browser/sessionsProvidersService.js';
+import { ISessionsService } from '../../../../workbench/contrib/sessions/browser/sessionsService.js';
 import { isChatWindowChatGone } from '../../chatWindow/browser/chatWindowOpening.js';
 import { CHAT_WINDOWS_ENABLED_SETTING } from '../../chatWindow/common/chatWindows.js';
-import { getSessionSummaryHoverData } from '../../sessions/browser/sessionHoverContent.js';
+import { getSessionSummaryHoverData } from '../../../../workbench/contrib/sessions/browser/sessionHoverContent.js';
 
 /** The chat window a link was activated in, and the chat of it the user activated it in. */
 interface ILinkSource {

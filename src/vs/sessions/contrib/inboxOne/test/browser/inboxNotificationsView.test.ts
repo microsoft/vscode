@@ -62,30 +62,32 @@ import { ChatContextKeys } from '../../../../../workbench/contrib/chat/common/ac
 import { URI } from '../../../../../base/common/uri.js';
 import { isEqual } from '../../../../../base/common/resources.js';
 import { IOnboardingScenarioService } from '../../../../../workbench/contrib/onboarding/common/onboardingScenarioService.js';
-import { ISessionNavigationRequest, ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
+import { ISessionNavigationRequest, ISessionsService } from '../../../../../workbench/contrib/sessions/browser/sessionsService.js';
 import { IAgentWorkbenchLayoutService } from '../../../../browser/workbench.js';
 import { Parts } from '../../../../../workbench/services/layout/browser/layoutService.js';
-import { ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
-import { IChatViewFactory } from '../../../../services/chatView/browser/chatViewFactory.js';
-import { AbstractChatView, IChatViewOptions, IChatViewRequestOutcome, IChatViewRequestSubmission } from '../../../../browser/parts/chatView.js';
-import { getChatRequestOutcome } from '../../../chat/browser/chatView.js';
-import { ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
-import { WelcomeName } from '../../../chat/browser/welcomeName.js';
-import { IChat, ISession, ISessionArtifact, ISessionCapabilities, ISessionChangeset, ISessionChangesetOperation, ISessionFolder, ISessionGitRepository, ISessionWorkspace, SessionArtifactKind, SessionChangesetOperationScope, SessionChangesetOperationStatus } from '../../../../services/sessions/common/session.js';
+import { ISessionsProvidersService } from '../../../../../workbench/contrib/sessions/browser/sessionsProvidersService.js';
+import { IChatViewFactory } from '../../../../../workbench/contrib/sessions/browser/chatViewFactory.js';
+import { AbstractChatView, IChatViewOptions, IChatViewRequestOutcome, IChatViewRequestSubmission } from '../../../../../workbench/contrib/sessions/browser/parts/chatView.js';
+import { getChatRequestOutcome } from '../../../../../workbench/contrib/sessions/browser/chat/chatView.js';
+import { ISessionsManagementService } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
+import { WelcomeName } from '../../../../../workbench/contrib/sessions/browser/chat/welcomeName.js';
+import { IChat, ISession, ISessionArtifact, ISessionCapabilities, ISessionChangeset, ISessionChangesetOperation, ISessionFolder, ISessionGitRepository, ISessionWorkspace, SessionArtifactKind, SessionChangesetOperationScope, SessionChangesetOperationStatus } from '../../../../../workbench/contrib/sessions/common/session.js';
 import { InboxNotificationsView } from '../../browser/inboxNotificationsView.js';
 import { InboxEvidenceWidget } from '../../browser/inboxEvidenceWidget.js';
 import { InboxCanvases } from '../../browser/inboxCanvases.js';
-import { IInboxDetailSummary, IInboxNotificationConfirmationPart, IInboxNotificationItem, IInboxNotificationPlanReviewPart, IInboxNotificationQuestionCarouselPart, IInboxNotificationsService, IInboxNotificationToolConfirmationPart, IInboxSessionRow, InboxNotificationActionKind, InboxNotificationKind, InboxNotificationPriority, InboxNotificationsSortMode, InboxTab } from '../../common/inboxNotificationsService.js';
-import { IGitHubService } from '../../../github/browser/githubService.js';
-import { AgentFeedbackKind, AgentFeedbackState, IAgentFeedback, IAgentFeedbackChangeEvent, IAgentFeedbackService, ISubmitFeedbackOptions } from '../../../agentFeedback/browser/agentFeedbackService.js';
+import { IInboxDetailSummary, IInboxNotificationConfirmationPart, IInboxNotificationItem, IInboxNotificationPlanReviewPart, IInboxNotificationQuestionCarouselPart, IInboxNotificationsService, IInboxNotificationToolConfirmationPart, IInboxSessionRow, InboxNotificationActionKind, InboxNotificationKind, InboxNotificationPriority, InboxNotificationsSortMode, InboxTab } from '../../../../../workbench/contrib/sessions/common/inboxNotificationsService.js';
+import { IGitHubService } from '../../../../../workbench/contrib/sessions/browser/github/githubService.js';
+import { IAgentFeedbackChangeEvent, IAgentFeedbackService, ISubmitFeedbackOptions } from '../../../../../workbench/contrib/sessions/browser/agentFeedback.js';
+import { AgentFeedbackKind, AgentFeedbackState, IAgentFeedback } from '../../../../../workbench/contrib/sessions/browser/agentFeedbackModel.js';
 import { ConfirmationOptionKind } from '../../../../../platform/agentHost/common/state/protocol/state.js';
-import { GitHubPullRequestCIModel } from '../../../github/browser/models/githubPullRequestCIModel.js';
-import { GitHubPullRequestModel } from '../../../github/browser/models/githubPullRequestModel.js';
-import { GitHubPullRequestReviewThreadsModel } from '../../../github/browser/models/githubPullRequestReviewThreadsModel.js';
-import { IGitHubPRComment } from '../../../github/common/types.js';
+import { GitHubPullRequestCIModel } from '../../../../../workbench/contrib/sessions/browser/github/models/githubPullRequestCIModel.js';
+import { GitHubPullRequestModel } from '../../../../../workbench/contrib/sessions/browser/github/models/githubPullRequestModel.js';
+import { GitHubPullRequestReviewThreadsModel } from '../../../../../workbench/contrib/sessions/browser/github/models/githubPullRequestReviewThreadsModel.js';
+import { IGitHubPRComment } from '../../../../../workbench/contrib/sessions/common/github/types.js';
 import { PullRequestCheck } from '../../../../../platform/github/common/githubPullRequestService.js';
-import '../../../chat/browser/media/chatWidget.css';
-import '../../../chat/browser/media/chatInput.css';
+import '../../../../../workbench/contrib/sessions/browser/chat/media/chatWidget.css';
+import '../../../../../workbench/contrib/sessions/browser/chat/media/chatInput.css';
+import { stubSessionsHostLayout } from '../../../../test/browser/sessionsHostLayoutTestUtils.js';
 
 suite('InboxNotificationsView', () => {
 	const disposables = new DisposableStore();
@@ -222,6 +224,7 @@ suite('InboxNotificationsView', () => {
 				sessionsVisible = !hidden;
 			},
 		});
+		stubSessionsHostLayout(instantiationService);
 		instantiationService.stub(ISessionsManagementService, { getSession: () => undefined, setSessionReadState: async () => { }, markChatRead: async () => { } });
 		instantiationService.stubInstance(InboxEvidenceWidget, { element: document.createElement('div'), getAccessibleContent: () => '', dispose: () => { } });
 		instantiationService.stubInstance(InboxCanvases, { element: document.createElement('div'), layout: () => { }, setVisible: () => { }, createAccessibleProvider: () => undefined, dispose: () => { } });

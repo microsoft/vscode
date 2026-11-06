@@ -9,15 +9,15 @@ import { autorun, constObservable, derived, IObservable, observableFromEvent, ob
 import { localize } from '../../../../nls.js';
 import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
-import { ActiveSessionHost, createSessionHostServices, ISessionHost, ISessionHostService, SessionHostKind } from '../../../services/sessions/browser/sessionHost.js';
-import { IChat } from '../../../services/sessions/common/session.js';
-import { ISessionChangesStatsCache } from '../../../services/sessions/common/sessionChangesStatsCache.js';
-import { setActiveSessionContextKeys } from '../../../services/sessions/common/sessionContextKeys.js';
-import { SessionInChatEditorContext } from '../../../common/contextkeys.js';
-import { IActiveSession } from '../../../services/sessions/common/sessionsManagement.js';
-import { ChatGroupView, IChatGroupContext } from '../../../browser/parts/chatGroupView.js';
-import { AbstractChatView, ISessionViewHostOptions } from '../../../browser/parts/chatView.js';
-import { SessionHeader } from '../../../browser/parts/sessionHeader.js';
+import { ActiveSessionHost, createSessionHostServices, ISessionHost, ISessionHostService, SessionHostKind } from '../../../../workbench/contrib/sessions/browser/sessionHost.js';
+import { IChat } from '../../../../workbench/contrib/sessions/common/session.js';
+import { ISessionChangesStatsCache } from '../../../../workbench/contrib/sessions/common/sessionChangesStatsCache.js';
+import { setActiveSessionContextKeys } from '../../../../workbench/contrib/sessions/common/sessionContextKeys.js';
+import { SessionInChatEditorContext } from '../../../../workbench/contrib/sessions/common/contextkeys.js';
+import { IActiveSession } from '../../../../workbench/contrib/sessions/common/sessionsManagement.js';
+import { ChatGroupView, IChatGroupContext } from '../../../../workbench/contrib/sessions/browser/parts/chatGroupView.js';
+import { AbstractChatView, ISessionViewHostOptions } from '../../../../workbench/contrib/sessions/browser/parts/chatView.js';
+import { SessionHeader } from '../../../../workbench/contrib/sessions/browser/parts/sessionHeader.js';
 
 /**
  * What a chat editor shows of one chat: the header of its session above the chat, with its Session Activity Bar, as a

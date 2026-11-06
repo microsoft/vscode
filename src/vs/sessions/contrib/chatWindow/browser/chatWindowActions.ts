@@ -29,15 +29,17 @@ import { ChatShownContext, ChatWindowCategory, ChatWindowLayoutCommandsContext, 
 import { ChatWindowLayoutMode } from '../../../../workbench/contrib/chatWindow/common/chatWindowLayout.js';
 import { IEditorGroup, IEditorGroupsService } from '../../../../workbench/services/editor/common/editorGroupsService.js';
 import { IEditorService } from '../../../../workbench/services/editor/common/editorService.js';
-import { Menus, SessionActivityBarGroup } from '../../../browser/menus.js';
-import { SessionActivityBarLayoutActionsContext, SessionWithWorkspaceContext } from '../../../common/contextkeys.js';
-import { CHAT_WINDOW_OPEN_BROWSER_COMMAND_ID, CHAT_WINDOW_OPEN_CHANGES_COMMAND_ID, CHAT_WINDOW_OPEN_FILES_COMMAND_ID } from '../../../common/sessionCommands.js';
-import { ISessionHostService, SessionHostKind } from '../../../services/sessions/browser/sessionHost.js';
-import { IChat } from '../../../services/sessions/common/session.js';
-import { IHostSession } from '../../../services/sessions/common/sessionsManagement.js';
-import { SessionChangesEditorInput } from '../../changes/browser/sessionChangesEditorInput.js';
-import { ISessionChangesService } from '../../changes/common/sessionChangesService.js';
-import { EmptyFileEditorInput } from '../../editor/browser/emptyFileEditorInput.js';
+import { Menus, SessionActivityBarGroup } from '../../../../workbench/contrib/sessions/browser/menus.js';
+import { AgentsWindowMenus } from '../../../browser/agentsWindowMenus.js';
+import { SessionWithWorkspaceContext } from '../../../../workbench/contrib/sessions/common/contextkeys.js';
+import { SessionActivityBarLayoutActionsContext } from '../../../common/agentsWindowContextKeys.js';
+import { CHAT_WINDOW_OPEN_BROWSER_COMMAND_ID, CHAT_WINDOW_OPEN_CHANGES_COMMAND_ID, CHAT_WINDOW_OPEN_FILES_COMMAND_ID } from '../../../../workbench/contrib/sessions/common/sessionCommands.js';
+import { ISessionHostService, SessionHostKind } from '../../../../workbench/contrib/sessions/browser/sessionHost.js';
+import { IChat } from '../../../../workbench/contrib/sessions/common/session.js';
+import { IHostSession } from '../../../../workbench/contrib/sessions/common/sessionsManagement.js';
+import { SessionChangesEditorInput } from '../../../../workbench/contrib/sessions/browser/changes/sessionChangesEditorInput.js';
+import { ISessionChangesService } from '../../../../workbench/contrib/sessions/common/sessionChangesService.js';
+import { EmptyFileEditorInput } from '../../../../workbench/contrib/sessions/browser/emptyFileEditorInput.js';
 
 //#region Close
 
@@ -127,14 +129,14 @@ export const chatWindowLayoutButtonIcons: Readonly<Record<ChatWindowLayoutButton
 	},
 };
 
-/** The groups of {@link Menus.WindowLayout}: the chat and the editor parts as toggles, then how both show together. */
+/** The groups of {@link AgentsWindowMenus.WindowLayout}: the chat and the editor parts as toggles, then how both show together. */
 const WindowLayoutMenuGroup = {
 	panes: '1_panes',
 	arrangement: '2_arrangement',
 } as const;
 
 for (const [button, group, order] of [[ChatWindowLayoutButton.Chat, WindowLayoutMenuGroup.panes, 1], [ChatWindowLayoutButton.Editor, WindowLayoutMenuGroup.panes, 2], [ChatWindowLayoutButton.Arrangement, WindowLayoutMenuGroup.arrangement, 1]] as const) {
-	MenuRegistry.appendMenuItem(Menus.WindowLayout, {
+	MenuRegistry.appendMenuItem(AgentsWindowMenus.WindowLayout, {
 		command: {
 			id: chatWindowLayoutButtonCommands[button],
 			title: chatWindowLayoutButtonTitles[button],
@@ -160,7 +162,7 @@ interface IChatWindowLayoutButtonsMenu {
 // One entry point to the Layout menu of a window: its title bar, or its Session Activity Bar while the strip shows the
 // layout actions, as the main window's does. The Layout menu ends the layout actions, after the buttons the user shows.
 export const chatWindowLayoutButtonsMenus: readonly IChatWindowLayoutButtonsMenu[] = [
-	{ menu: Menus.TitleBarWindowLayout, group: 'navigation', order: 0, when: SessionActivityBarLayoutActionsContext.negate() },
+	{ menu: AgentsWindowMenus.TitleBarWindowLayout, group: 'navigation', order: 0, when: SessionActivityBarLayoutActionsContext.negate() },
 	{ menu: Menus.SessionActivityBar, group: SessionActivityBarGroup.WindowLayout, order: 100, when: SessionActivityBarLayoutActionsContext },
 ];
 
@@ -196,7 +198,7 @@ for (const target of chatWindowLayoutButtonsMenus) {
 	});
 	for (const choice of chatWindowLayoutModeChoices) {
 		MenuRegistry.appendMenuItem(target.menu, {
-			submenu: Menus.WindowLayout,
+			submenu: AgentsWindowMenus.WindowLayout,
 			title: localize('chatWindowLayoutMenu', "Layout: {0}", choice.shortTitle),
 			icon: Codicon.layout,
 			group: target.group,
@@ -291,7 +293,7 @@ for (const entry of chatWindowTabEntries) {
 	// Checked while the main part shows its tab, as the main window's entries are.
 	const shown = ContextKeyExpr.and(ActiveEditorContext.isEqualTo(entry.editorId), EditorShownContext);
 	// The same entries as the Add Tab actions of the main window, for the main part of a chat window.
-	for (const menu of [Menus.SessionsEditorTabsBarAddTab, Menus.SessionsEmptyEditorGroupAddTab]) {
+	for (const menu of [AgentsWindowMenus.SessionsEditorTabsBarAddTab, AgentsWindowMenus.SessionsEmptyEditorGroupAddTab]) {
 		MenuRegistry.appendMenuItem(menu, {
 			command: { id: entry.id, title: entry.title, icon: entry.icon },
 			group: 'navigation',

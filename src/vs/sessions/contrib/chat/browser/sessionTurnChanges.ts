@@ -10,14 +10,14 @@ import { localize } from '../../../../nls.js';
 import { AbstractChatResponseFileChangesService, AUTHORITATIVE_EMPTY_CHAT_RESPONSE_FILE_CHANGES, IChatResponseFileChangesOpenContext, IChatResponseFileChangesStats } from '../../../../workbench/contrib/chat/browser/chatResponseFileChangesService.js';
 import { IEditSessionEntryDiff } from '../../../../workbench/contrib/chat/common/editing/chatEditingService.js';
 import { IEditorService } from '../../../../workbench/services/editor/common/editorService.js';
-import { IAgentWorkbenchLayoutService } from '../../../browser/workbench.js';
-import { isAgentHostProviderId } from '../../../common/agentHostSessionsProvider.js';
-import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
-import { IFocusedSessionHostService } from '../../../services/sessions/browser/sessionHost.js';
-import { IChat, ISession, ISessionChangeset, ISessionFileChange, TURN_CHANGES_CHANGESET_ID } from '../../../services/sessions/common/session.js';
-import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
-import { ISessionChangesEditorOptions, ISessionChangesService } from '../../changes/browser/sessionChangesService.js';
-import { IChangesViewService } from '../../changes/common/changesViewService.js';
+import { ISessionsHostLayoutService } from '../../../../workbench/contrib/sessions/browser/sessionsHostLayoutService.js';
+import { isAgentHostProviderId } from '../../../../workbench/contrib/sessions/common/agentHostSessionsProvider.js';
+import { ISessionsService } from '../../../../workbench/contrib/sessions/browser/sessionsService.js';
+import { IFocusedSessionHostService } from '../../../../workbench/contrib/sessions/browser/sessionHost.js';
+import { IChat, ISession, ISessionChangeset, ISessionFileChange, TURN_CHANGES_CHANGESET_ID } from '../../../../workbench/contrib/sessions/common/session.js';
+import { ISessionsManagementService } from '../../../../workbench/contrib/sessions/common/sessionsManagement.js';
+import { ISessionChangesEditorOptions, ISessionChangesService } from '../../../../workbench/contrib/sessions/browser/changes/sessionChangesService.js';
+import { IChangesViewService } from '../../../../workbench/contrib/sessions/common/changesViewService.js';
 
 interface ISessionTransientTurnChanges {
 	readonly id: string;
@@ -38,7 +38,7 @@ export class SessionsChatResponseFileChangesService extends AbstractChatResponse
 		@ISessionsService private readonly _sessionsService: ISessionsService,
 		@IFocusedSessionHostService private readonly _focusedSessionHostService: IFocusedSessionHostService,
 		@ISessionChangesService private readonly _sessionChangesService: ISessionChangesService,
-		@IAgentWorkbenchLayoutService private readonly _layoutService: IAgentWorkbenchLayoutService,
+		@ISessionsHostLayoutService private readonly _layoutService: ISessionsHostLayoutService,
 		@IChangesViewService private readonly _changesViewService: IChangesViewService,
 	) {
 		super();

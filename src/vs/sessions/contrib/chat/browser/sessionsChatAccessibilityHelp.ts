@@ -15,37 +15,38 @@ import { IAccessibleViewImplementation } from '../../../../platform/accessibilit
 import { AccessibilityVerbositySettingId } from '../../../../workbench/contrib/accessibility/browser/accessibilityConfiguration.js';
 import { IsSessionsWindowContext } from '../../../../workbench/common/contextkeys.js';
 import { ContextKeyExpr, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
-import { CustomViewVisibleContext, SESSIONS_LIST_PROMOTE_NEW_CHAT_ACTION_DEFAULT, SessionsListPromoteNewChatActionContext, SessionWorktreeCleanupEditorFocusedContext } from '../../../common/contextkeys.js';
+import { SESSIONS_LIST_PROMOTE_NEW_CHAT_ACTION_DEFAULT, SessionsListPromoteNewChatActionContext, SessionWorktreeCleanupEditorFocusedContext } from '../../../../workbench/contrib/sessions/common/contextkeys.js';
+import { CustomViewVisibleContext } from '../../../common/agentsWindowContextKeys.js';
 import { localize } from '../../../../nls.js';
 import { FOCUS_AI_CUSTOMIZATION_VIEW_ID } from '../../aiCustomizationTreeView/browser/aiCustomizationTreeView.js';
-import { ISessionsPartService } from '../../../services/sessions/browser/sessionsPartService.js';
-import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
-import { REPLACE_PROMPT_TEMPLATE_PLACEHOLDER_COMMAND_ID } from './promptTemplatePlaceholder.js';
-import { ARCHIVE_SESSION_COMMAND_ID, FOCUS_ACTIVE_SESSION_COMMAND_ID, FOCUS_NEW_SESSION_HARNESS_PICKER_COMMAND_ID, FOCUS_NEW_SESSION_WORKSPACE_PICKER_COMMAND_ID, FOCUS_NEXT_CHAT_GROUP_COMMAND_ID, FOCUS_PREVIOUS_CHAT_GROUP_COMMAND_ID, MARK_SESSION_READ_COMMAND_ID, MARK_SESSION_UNREAD_COMMAND_ID, MOVE_CHAT_TO_NEXT_GROUP_COMMAND_ID, MOVE_CHAT_TO_PREVIOUS_GROUP_COMMAND_ID, RENAME_CHAT_COMMAND_ID, RENAME_SESSION_COMMAND_ID, SESSION_GRID_FOCUS_COMMANDS, SPLIT_CHAT_GROUP_DOWN_COMMAND_ID, SPLIT_CHAT_GROUP_RIGHT_COMMAND_ID } from '../../../common/sessionCommands.js';
+import { ISessionsPartService } from '../../../../workbench/contrib/sessions/browser/sessionsPartService.js';
+import { ISessionsService } from '../../../../workbench/contrib/sessions/browser/sessionsService.js';
+import { REPLACE_PROMPT_TEMPLATE_PLACEHOLDER_COMMAND_ID } from '../../../../workbench/contrib/sessions/browser/chat/promptTemplatePlaceholder.js';
+import { ARCHIVE_SESSION_COMMAND_ID, FOCUS_ACTIVE_SESSION_COMMAND_ID, FOCUS_NEW_SESSION_HARNESS_PICKER_COMMAND_ID, FOCUS_NEW_SESSION_WORKSPACE_PICKER_COMMAND_ID, FOCUS_NEXT_CHAT_GROUP_COMMAND_ID, FOCUS_PREVIOUS_CHAT_GROUP_COMMAND_ID, MARK_SESSION_READ_COMMAND_ID, MARK_SESSION_UNREAD_COMMAND_ID, MOVE_CHAT_TO_NEXT_GROUP_COMMAND_ID, MOVE_CHAT_TO_PREVIOUS_GROUP_COMMAND_ID, RENAME_CHAT_COMMAND_ID, RENAME_SESSION_COMMAND_ID, SESSION_GRID_FOCUS_COMMANDS, SPLIT_CHAT_GROUP_DOWN_COMMAND_ID, SPLIT_CHAT_GROUP_RIGHT_COMMAND_ID } from '../../../../workbench/contrib/sessions/common/sessionCommands.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { ArtifactIntegrationsSettingId } from '../../../../platform/artifactIntegrations/common/artifactIntegration.js';
 import { areRemoteSessionToolsEnabled } from '../../remoteSessions/common/remoteSessions.js';
 import { ChatSessionArchiveActionWording, getChatSessionArchiveActionWording } from '../../../../platform/chat/common/sessionArchiveActions.js';
-import { SESSION_ARCHIVE_NUDGE_SETTING } from './sessionArchiveNudge.js';
-import { getWorktreeSuggestionAccessibilityHelp } from '../../worktreeSuggestion/browser/worktreeSuggestionPresentation.js';
-import { AGENT_SESSIONS_STORAGE_CLEANUP_SUGGESTION_SETTING } from '../../sessionInputBanners/browser/sessionWorktreeCleanupService.js';
+import { SESSION_ARCHIVE_NUDGE_SETTING } from '../../../../workbench/contrib/sessions/browser/chat/sessionArchiveNudge.js';
+import { getWorktreeSuggestionAccessibilityHelp } from '../../../../workbench/contrib/sessions/browser/worktreeSuggestion/worktreeSuggestionPresentation.js';
+import { AGENT_SESSIONS_STORAGE_CLEANUP_SUGGESTION_SETTING } from '../../../../workbench/contrib/sessions/browser/sessionInputBanners/sessionWorktreeCleanupService.js';
 import { IWorkbenchLayoutService } from '../../../../workbench/services/layout/browser/layoutService.js';
 import { NAVIGATE_VIEW_COMMANDS } from '../../../../workbench/browser/actions/navigationActions.js';
-import { isPhoneLayout } from '../../../browser/parts/mobile/mobileLayout.js';
-import { AgentWorkbenchLayout, IAgentWorkbenchLayoutService } from '../../../browser/workbench.js';
-import { ISessionComparisonService } from '../../../services/sessions/common/sessionComparison.js';
+import { isPhoneLayout } from '../../../../workbench/contrib/sessions/browser/mobileLayout.js';
+import { AgentWorkbenchLayout, ISessionsHostLayoutService } from '../../../../workbench/contrib/sessions/browser/sessionsHostLayoutService.js';
+import { ISessionComparisonService } from '../../../../workbench/contrib/sessions/common/sessionComparison.js';
 import { CHAT_WINDOWS_ENABLED_SETTING } from '../../chatWindow/common/chatWindows.js';
-import { buildSessionComparisonAccessibleContent, isJudgeSession, SessionComparisonResultFocused } from './sessionComparisonResult.js';
-import { SESSION_ACTIVITY_BAR_SETTING, SESSIONS_CHAT_TABS_DEFAULT, SESSIONS_CHAT_TABS_SETTING, SESSIONS_LIST_GROUP_EXTERNAL_SESSIONS_SETTING, SESSIONS_LIST_SHOW_AUTOMATION_SESSIONS_SETTING, SessionsChatTabsMode } from '../../../common/sessionConfig.js';
+import { buildSessionComparisonAccessibleContent, isJudgeSession, SessionComparisonResultFocused } from '../../../../workbench/contrib/sessions/browser/chat/sessionComparisonResult.js';
+import { SESSION_ACTIVITY_BAR_SETTING, SESSIONS_CHAT_TABS_DEFAULT, SESSIONS_CHAT_TABS_SETTING, SESSIONS_LIST_GROUP_EXTERNAL_SESSIONS_SETTING, SESSIONS_LIST_SHOW_AUTOMATION_SESSIONS_SETTING, SessionsChatTabsMode } from '../../../../workbench/contrib/sessions/common/sessionConfig.js';
 import { CHAT_AUTOMATIONS_ENABLED_SETTING } from '../../../../workbench/contrib/chat/common/automations/automationsEnabled.js';
-import { AGENT_SESSIONS_APPEARANCE_TOOLS_ENABLED_SETTING, AGENT_SESSIONS_RESPONSE_SELECTION_MENU_SETTING, AGENTS_PICKER_IN_ATTACH_CONTEXT_MENU_SETTING, COMPARE_AGENTS_ENABLED_SETTING, COMPARE_AGENTS_TOOLS_ENABLED_SETTING, ENVIRONMENT_PICKER_MANAGE_REMOTES_SETTING, ENVIRONMENT_PICKER_SETTING, NEW_SESSION_CONNECTOR_RECOMMENDATIONS_SETTING, NEW_SESSION_WELCOME_PHRASES_SETTING, WORKSPACE_OPT_OUT_SETTING } from '../common/constants.js';
+import { AGENT_SESSIONS_APPEARANCE_TOOLS_ENABLED_SETTING, AGENT_SESSIONS_RESPONSE_SELECTION_MENU_SETTING, AGENTS_PICKER_IN_ATTACH_CONTEXT_MENU_SETTING, COMPARE_AGENTS_ENABLED_SETTING, COMPARE_AGENTS_TOOLS_ENABLED_SETTING, ENVIRONMENT_PICKER_MANAGE_REMOTES_SETTING, ENVIRONMENT_PICKER_SETTING, NEW_SESSION_CONNECTOR_RECOMMENDATIONS_SETTING, NEW_SESSION_WELCOME_PHRASES_SETTING, WORKSPACE_OPT_OUT_SETTING } from '../../../../workbench/contrib/sessions/common/chatConstants.js';
 import { logSettingExperimentTrigger } from '../../../../platform/telemetry/common/experimentTrigger.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
-import { IAgentHostFilterService } from '../../../services/agentHostFilter/common/agentHostFilter.js';
+import { IAgentHostFilterService } from '../../../../workbench/contrib/sessions/common/agentHostFilter.js';
 import { IAccessibilityService } from '../../../../platform/accessibility/common/accessibility.js';
 import { RemoteAgentHostAutoConnectSettingId, RemoteAgentHostsEnabledSettingId } from '../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { IChatEntitlementService } from '../../../../workbench/services/chat/common/chatEntitlementService.js';
-import { areDevContainerSamplesEnabled } from '../../../common/devContainerAgentHostService.js';
+import { areDevContainerSamplesEnabled } from '../../../../workbench/contrib/sessions/common/devContainerAgentHostService.js';
 import { CustomizationMarketplaceConfiguration } from '../../../../platform/customizationMarketplace/common/customizationMarketplaceSources.js';
 export class SessionsChatAccessibilityHelp implements IAccessibleViewImplementation {
 	readonly priority = 120;
@@ -349,8 +350,7 @@ export class SessionsChatAccessibilityHelp implements IAccessibleViewImplementat
 		content.push(localize('sessionsChat.openPullRequest', "When the session is associated with GitHub pull requests, a status pill above the chat input shows the pull request number or count. Activate it to open a single pull request or choose from the associated pull requests{0}.", '<keybinding:workbench.agentSessions.action.openPullRequest>'));
 		content.push(localize('sessionsChat.filesView', "Focus the Files Explorer view{0}.", '<keybinding:workbench.action.agentSessions.focusChangesFileView>'));
 		content.push(localize('sessionsChat.sessionsView', "Focus the Chat Sessions view{0}.", '<keybinding:workbench.action.chat.focusAgentSessionsViewer>'));
-		const agentLayoutService = accessor.get(IAgentWorkbenchLayoutService);
-		if (agentLayoutService.agentWorkbenchLayout === AgentWorkbenchLayout.Desktop && !isPhoneLayout(agentLayoutService) && configurationService.getValue<boolean>(SESSION_ACTIVITY_BAR_SETTING)) {
+		if (accessor.get(ISessionsHostLayoutService).agentWorkbenchLayout === AgentWorkbenchLayout.Desktop && !isPhoneLayout(accessor.get(IWorkbenchLayoutService)) && configurationService.getValue<boolean>(SESSION_ACTIVITY_BAR_SETTING)) {
 			content.push(localize('sessionsChat.sessionActivityBar', "The Session Activity Bar beside the active chat opens the Changes, Files, Browser, and Canvas tabs. The pull request action appears automatically in the side-pane group. Open Pull Request is available for the active chat's pull requests when a contributed opener is available for their links. The action reveals an already-open matching editor or opens the first supported pull request if none is open. A checked button means the pull request editor is visible; activating it collapses the side pane. Activate it again to reveal the editor. The action opens directly, without a dropdown or picker, even with multiple pull requests. Issue actions are not shown in the activity bar; issue pills remain available above the chat input. Its layout actions, Toggle Side Panel above the tabs and Toggle Panel below them, replace the title bar buttons; turn them off with Show Layout Actions in its context menu. Press Tab past the chat input's controls to reach it, use the Up and Down Arrow keys to move between its entries, and press Enter or Space to open one. The Changes entry's label includes the active chat's number of changed files and lines added and removed, and New changes when it has changes you have not yet seen in the Changes tab. Only canvases belonging to the active chat are shown. A single canvas opens directly and is labeled with its title. With multiple canvases, Canvas opens a submenu: press Enter, Space, or Left Arrow to open it, and Right Arrow or Escape to close it. When the active chat has no canvases, Canvas instead opens a submenu, even with a single entry, listing the canvases you can open or reopen, the same entries as the Canvas submenu of the empty editor's Add Tab list. Open the context menu{1} on an entry to hide that entry or the whole activity bar. Toggle the activity bar from the chat background's context menu, View > Appearance > Session Activity Bar, or the {0} setting.", SESSION_ACTIVITY_BAR_SETTING, '<keybinding:editor.action.showContextMenu>'));
 		}
 		if (!isPhoneLayout(accessor.get(IWorkbenchLayoutService))) {

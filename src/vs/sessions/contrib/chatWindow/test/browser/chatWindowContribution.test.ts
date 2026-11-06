@@ -17,9 +17,9 @@ import { IEditorService } from '../../../../../workbench/services/editor/common/
 import { IChatWindow, IChatWindowService } from '../../../../../workbench/contrib/chatWindow/browser/chatWindow.js';
 import { IEditorGroup, IEditorGroupsService } from '../../../../../workbench/services/editor/common/editorGroupsService.js';
 import { IAgentWorkbenchLayoutService } from '../../../../browser/workbench.js';
-import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
-import { IActiveSession } from '../../../../services/sessions/common/sessionsManagement.js';
-import { IChat, ISession } from '../../../../services/sessions/common/session.js';
+import { ISessionsService } from '../../../../../workbench/contrib/sessions/browser/sessionsService.js';
+import { IActiveSession } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
+import { IChat, ISession } from '../../../../../workbench/contrib/sessions/common/session.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { isIMenuItem, isISubmenuItem, MenuRegistry, registerAction2 } from '../../../../../platform/actions/common/actions.js';
 import { CommandsRegistry, ICommandService } from '../../../../../platform/commands/common/commands.js';
@@ -30,19 +30,22 @@ import { EditorTabsVisibleContext, IsAuxiliaryWindowContext, IsSessionsWindowCon
 import { KeybindingsRegistry } from '../../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { ChatContextKeys } from '../../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
 import { ChatWindowLayoutMode } from '../../../../../workbench/contrib/chatWindow/common/chatWindowLayout.js';
-import { Menus } from '../../../../browser/menus.js';
-import { DesktopChangesTabAvailableContext, DesktopFilesTabAvailableContext, DesktopLayoutContext, IsQuickChatSessionContext, SessionHasWorkspaceContext } from '../../../../common/contextkeys.js';
-import { CHAT_WINDOW_OPEN_BROWSER_COMMAND_ID, CHAT_WINDOW_OPEN_CHANGES_COMMAND_ID, CHAT_WINDOW_OPEN_FILES_COMMAND_ID, NEW_FILE_TAB_COMMAND_ID } from '../../../../common/sessionCommands.js';
-import { ActiveSessionHost, ISessionHostService, SessionHostKind } from '../../../../services/sessions/browser/sessionHost.js';
-import { ISessionChangesService } from '../../../changes/common/sessionChangesService.js';
+import { Menus } from '../../../../../workbench/contrib/sessions/browser/menus.js';
+import { AgentsWindowMenus } from '../../../../browser/agentsWindowMenus.js';
+import { DesktopLayoutContext, IsQuickChatSessionContext, SessionHasWorkspaceContext } from '../../../../../workbench/contrib/sessions/common/contextkeys.js';
+import { DesktopChangesTabAvailableContext, DesktopFilesTabAvailableContext } from '../../../../common/agentsWindowContextKeys.js';
+import { CHAT_WINDOW_OPEN_BROWSER_COMMAND_ID, CHAT_WINDOW_OPEN_CHANGES_COMMAND_ID, CHAT_WINDOW_OPEN_FILES_COMMAND_ID, NEW_FILE_TAB_COMMAND_ID } from '../../../../../workbench/contrib/sessions/common/sessionCommands.js';
+import { ActiveSessionHost, ISessionHostService, SessionHostKind } from '../../../../../workbench/contrib/sessions/browser/sessionHost.js';
+import { ISessionChangesService } from '../../../../../workbench/contrib/sessions/common/sessionChangesService.js';
 import { NEW_BROWSER_TAB_COMMAND_ID, NEW_CHANGES_TAB_COMMAND_ID, NEW_SEARCH_TAB_COMMAND_ID, NewBrowserTabAction, NewChangesTabAction, NewFileTabAction, NewSearchTabAction } from '../../../editor/browser/addTabActions.js';
 import '../../../../browser/layoutActions.js';
 import '../../../chat/browser/runScriptAction.js';
-import { SESSION_ACTIVITY_BAR_LAYOUT_ACTIONS_SETTING, SESSION_ACTIVITY_BAR_SETTING } from '../../../../common/sessionConfig.js';
+import { SESSION_ACTIVITY_BAR_LAYOUT_ACTIONS_SETTING, SESSION_ACTIVITY_BAR_SETTING } from '../../../../../workbench/contrib/sessions/common/sessionConfig.js';
 import { CHAT_WINDOWS_ENABLED_SETTING } from '../../common/chatWindows.js';
 import '../../browser/chatWindow.contribution.js';
 import { MOVE_CHAT_TO_MAIN_WINDOW_COMMAND_ID, OPEN_ACTIVE_CHAT_IN_WINDOW_COMMAND_ID, OPEN_CHAT_IN_WINDOW_COMMAND_ID, OPEN_SESSION_IN_WINDOW_COMMAND_ID, openChatInWindow } from '../../browser/openChatInWindow.js';
-import { ITestSessionsService, stubMissingSessionHostsFromSessionsService } from '../../../../services/sessions/test/browser/sessionHostTestUtils.js';
+import { ITestSessionsService, stubMissingSessionHostsFromSessionsService } from '../../../../../workbench/contrib/sessions/test/browser/sessionHostTestUtils.js';
+import { stubSessionsHostLayout } from '../../../../test/browser/sessionsHostLayoutTestUtils.js';
 
 function evaluate(expression: ContextKeyExpression | undefined, values: Record<string, ContextKeyValue>): boolean {
 	return expression?.evaluate({ getValue: <T extends ContextKeyValue>(key: string) => values[key] as T | undefined } satisfies IContext) !== false;
@@ -130,16 +133,16 @@ suite('Chat window contribution', () => {
 	});
 
 	test('the Layout menu and Show Editor show in the title bar of a chat window, or in its Session Activity Bar while the strip shows the layout actions; never in the main window', () => {
-		const layoutEntries = (menu: typeof Menus.TitleBarWindowLayout, values: Record<string, ContextKeyValue>) => MenuRegistry.getMenuItems(menu)
-			.filter(item => evaluate(item.when, values) && (isISubmenuItem(item) ? item.submenu === Menus.WindowLayout : !item.isHiddenByDefault && /chatWindow\.toggle(Chat|Editor|Arrangement)$/.test(item.command.id)))
+		const layoutEntries = (menu: typeof AgentsWindowMenus.TitleBarWindowLayout, values: Record<string, ContextKeyValue>) => MenuRegistry.getMenuItems(menu)
+			.filter(item => evaluate(item.when, values) && (isISubmenuItem(item) ? item.submenu === AgentsWindowMenus.WindowLayout : !item.isHiddenByDefault && /chatWindow\.toggle(Chat|Editor|Arrangement)$/.test(item.command.id)))
 			.map(item => isISubmenuItem(item) ? 'Layout' : item.command.id);
 		const stripKeys = { [DesktopLayoutContext.key]: true, [`config.${SESSION_ACTIVITY_BAR_SETTING}`]: true, [`config.${SESSION_ACTIVITY_BAR_LAYOUT_ACTIONS_SETTING}`]: true };
 		assert.deepStrictEqual({
-			titleBar: layoutEntries(Menus.TitleBarWindowLayout, chatWindowKeys),
+			titleBar: layoutEntries(AgentsWindowMenus.TitleBarWindowLayout, chatWindowKeys),
 			strip: layoutEntries(Menus.SessionActivityBar, chatWindowKeys),
-			titleBarWithStripLayoutActions: layoutEntries(Menus.TitleBarWindowLayout, { ...chatWindowKeys, ...stripKeys }),
+			titleBarWithStripLayoutActions: layoutEntries(AgentsWindowMenus.TitleBarWindowLayout, { ...chatWindowKeys, ...stripKeys }),
 			stripWithStripLayoutActions: layoutEntries(Menus.SessionActivityBar, { ...chatWindowKeys, ...stripKeys }),
-			mainWindow: layoutEntries(Menus.TitleBarWindowLayout, { [IsSessionsWindowContext.key]: true, [ChatContextKeys.enabled.key]: true }),
+			mainWindow: layoutEntries(AgentsWindowMenus.TitleBarWindowLayout, { [IsSessionsWindowContext.key]: true, [ChatContextKeys.enabled.key]: true }),
 		}, {
 			titleBar: ['workbench.action.chatWindow.toggleEditor', 'Layout'],
 			strip: [],
@@ -150,7 +153,7 @@ suite('Chat window contribution', () => {
 	});
 
 	test('the Layout menu disables hiding the part that shows alone, as 491817 does', () => {
-		const items = MenuRegistry.getMenuItems(Menus.WindowLayout).filter(isIMenuItem);
+		const items = MenuRegistry.getMenuItems(AgentsWindowMenus.WindowLayout).filter(isIMenuItem);
 		const enabled = (mode: ChatWindowLayoutMode) => items
 			.filter(item => evaluate(item.when, { ...chatWindowKeys, [LayoutModeContext.key]: mode }) && evaluate(item.command.precondition, { ...chatWindowKeys, [LayoutModeContext.key]: mode }))
 			.map(item => item.command.id.replace('workbench.action.chatWindow.', ''));
@@ -175,6 +178,7 @@ suite('Chat window contribution', () => {
 					return toDisposable(() => suppressions--);
 				},
 			}));
+			stubSessionsHostLayout(instantiationService);
 			const chat = (id: string) => ({ resource: URI.parse(`test:/chat/${id}`) });
 			const active = new class extends mock<IActiveSession>() {
 				override readonly sessionId = mainWindowShows;
@@ -221,7 +225,7 @@ suite('Chat window contribution', () => {
 		const bound = (values: Record<string, ContextKeyValue>) => Object.entries(commands)
 			.filter(([, id]) => rules.some(rule => rule.command === id && evaluate(rule.when ?? undefined, values)))
 			.map(([name]) => name);
-		const addTabMenu = MenuRegistry.getMenuItems(Menus.SessionsEditorTabsBarAddTab).filter(isIMenuItem);
+		const addTabMenu = MenuRegistry.getMenuItems(AgentsWindowMenus.SessionsEditorTabsBarAddTab).filter(isIMenuItem);
 		const addTabIds = [...Object.values(commands), CHAT_WINDOW_OPEN_CHANGES_COMMAND_ID, CHAT_WINDOW_OPEN_FILES_COMMAND_ID, CHAT_WINDOW_OPEN_BROWSER_COMMAND_ID];
 		const addTabEntries = (values: Record<string, ContextKeyValue>) => addTabMenu
 			.filter(item => addTabIds.includes(item.command.id) && evaluate(item.when, values))

@@ -19,15 +19,15 @@ import { createEditorParts, registerTestEditor, TestFileEditorInput, workbenchIn
 import { SyncDescriptor } from '../../../../../platform/instantiation/common/descriptors.js';
 import { Registry } from '../../../../../platform/registry/common/platform.js';
 import { EditorExtensions, IEditorFactoryRegistry } from '../../../../../workbench/common/editor.js';
-import { ICodeReviewService } from '../../../codeReview/browser/codeReviewService.js';
-import { EmptyFileEditorInput } from '../../../editor/browser/emptyFileEditorInput.js';
+import { ICodeReviewService } from '../../../../../workbench/contrib/sessions/browser/codeReviewService.js';
+import { EmptyFileEditorInput } from '../../../../../workbench/contrib/sessions/browser/emptyFileEditorInput.js';
 import { AgentFeedbackEditorOverlay, getAgentFeedbackOverlayResourceCandidates } from '../../browser/agentFeedbackEditorOverlay.js';
-import { IAgentFeedbackService } from '../../browser/agentFeedbackService.js';
+import { IAgentFeedbackService } from '../../../../../workbench/contrib/sessions/browser/agentFeedback.js';
 import { constObservable } from '../../../../../base/common/observable.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
-import { ActiveSessionHost, ISessionHostService, SessionHostKind } from '../../../../services/sessions/browser/sessionHost.js';
-import { IActiveSession } from '../../../../services/sessions/common/sessionsManagement.js';
-import { IChat, ISession } from '../../../../services/sessions/common/session.js';
+import { ActiveSessionHost, ISessionHostService, SessionHostKind } from '../../../../../workbench/contrib/sessions/browser/sessionHost.js';
+import { IActiveSession } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
+import { IChat, ISession } from '../../../../../workbench/contrib/sessions/common/session.js';
 
 suite('AgentFeedbackEditorOverlay', () => {
 

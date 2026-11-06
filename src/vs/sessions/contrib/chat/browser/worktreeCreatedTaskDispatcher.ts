@@ -8,9 +8,9 @@ import { autorun, registerAutorunSelfDisposable } from '../../../../base/common/
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { IWorkbenchContribution } from '../../../../workbench/common/contributions.js';
-import { isAgentHostProviderId } from '../../../common/agentHostSessionsProvider.js';
-import { ISession, SessionStatus } from '../../../services/sessions/common/session.js';
-import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
+import { isAgentHostProviderId } from '../../../../workbench/contrib/sessions/common/agentHostSessionsProvider.js';
+import { ISession, SessionStatus } from '../../../../workbench/contrib/sessions/common/session.js';
+import { ISessionsManagementService } from '../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import { ISessionsTasksService } from './sessionsTasksService.js';
 
 const LOG_PREFIX = '[WorktreeCreatedTaskDispatcher]';
