@@ -14,7 +14,7 @@ import { arrayEquals, structuralEquals } from '../../../../base/common/equals.js
 import { CancellationError, getErrorCode, getErrorMessage, isCancellationError } from '../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { Disposable, DisposableMap, DisposableResourceMap, DisposableSet, DisposableStore, type IDisposable, type IReference, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
-import { LinkedMap, ResourceMap, ResourceSet, Touch } from '../../../../base/common/map.js';
+import { LinkedMap, LRUCache, ResourceMap, ResourceSet, Touch } from '../../../../base/common/map.js';
 import { Schemas } from '../../../../base/common/network.js';
 import { equals } from '../../../../base/common/objects.js';
 import { autorun, observableValue, observableValueOpts, type IObservable, type IReader, type ISettableObservable } from '../../../../base/common/observable.js';
@@ -61,7 +61,10 @@ import { IAgentPluginManager, ISyncedCustomization } from '../../common/agentPlu
 import { toAgentCustomizationMeta } from '../../common/meta/agentCustomizationMeta.js';
 import { decodeProviderData, encodeProviderData, type IPersistedChat } from '../agentChatBackings.js';
 import { type AgentCanvasDefinitionSnapshot, AgentChatOperationContext, AgentSession, fixedChatOwnerRef, getChatSurfaceOptions, type IAgentChatOwnerRef, isAgentChatDefaultChat, resolveSessionBackedStorage, AgentSignal, AuthenticateParams, COPILOT_CLI_AGENT_PROVIDER_ID, IActiveClient, IAgent, IAgentChatAdoptionResult, type IAgentAdoptedWorktree, type IAgentCanvasCloseRequest, type IAgentCanvasOpenRequest, type IAgentChatCanvasWatchHost, IAgentChatConfigCompletionsParams, IAgentChatContext, type IAgentChatDiscoveryOptions, type IAgentChatMetadataOptions, type IAgentChatReleaseOptions, IAgentChatSessionSettings, IAgentChatDataChange, IAgentChatMetadata, IAgentChats, IAgentLegacyChat, IAgentCreateChatOptions, IAgentCreateChatResult, IAgentCustomizationInstallation, IAgentCustomizationInstallationApplyRequest, IAgentCustomizationInstallationApplyResult, IAgentCustomizationInstallationPreparation, IAgentCustomizationInstallationRequest, IAgentCustomizationMarketplaceSearchRequest, IAgentCustomizationMarketplaceSearchResult, IAgentDescriptor, IAgentDiscoveredChat, type IAgentExtensionInfo, type IAgentExtensionInventory, IAgentListedChat, IAgentHostManagedSettingsSnapshot, IAgentHostNetworkEndpoint, IAgentKnownSessionsFilter, type IAgentManagedPluginRetryEntry, IAgentMaterializeChatEvent, IAgentModelInfo, type IAgentPendingMessageSender, type IAgentPermissionResponseContext, type IAgentPluginInstallRequest, type IAgentPluginMarketplace, type IAgentPluginMarketplaceItem, type IAgentPluginMarketplaceRefreshResult, type IAgentPluginMarketplaceRemoveResult, type IAgentPluginUninstallRequest, type IAgentPrepareChatResult, IAgentResolveChatConfigParams, IAgentSessionProjectInfo, IAgentSpawnChatEvent, IMcpNotification, SubagentChatSignal, resolveAgentChatContext, resolveAgentHostCustomizations, resolveAgentHostInstructions, resolveSubagentChatParent, type IAgentTurnDiagnosticSnapshot, type IAgentTurnTokenUsage, type IAgentChatSessionEvent, type IAgentImportChatOptions, type IAgentImportedChat, type IAgentTurnModelRequest, type IAgentTurnModelResolution } from '../../common/agent.js';
-import { createModelRouterModelMeta, MODEL_ROUTER_FOLDER, modelRouterModelId } from '../../common/modelRouter.js';
+import { createModelRouterModelMeta, DecisionsApiFeatureFlag, MODEL_ROUTER_FOLDER, modelRouterModelId } from '../../common/modelRouter.js';
+import { AgentDecisionsUnavailableError, type IAgentDecisionsRequest, type IAgentDecisionsResult } from '../../common/agentDecisions.js';
+import { DecisionsGate } from '../../common/decisionsGate.js';
+import { DecisionsModelRouterPicker } from './copilotModelRouterPicker.js';
 import { ModelRouterEnabledConfigKey } from '../../common/modelRouterConfig.js';
 import { CopilotModelRouter } from './copilotModelRouter.js';
 import { CopilotModelRouterCatalog, findModelRouter, UserModelRouterSource } from './copilotModelRouterCatalog.js';
@@ -175,6 +178,11 @@ function setCopilotBuiltinGitHubMcpEnvironment(env: Record<string, string | unde
 	if (enabled) {
 		env[COPILOT_ENABLE_BUILTIN_GITHUB_MCP_ENV_VAR] = 'true';
 	}
+}
+
+/** The runtime's `decisions.ask`, which the SDK in use may not have yet. */
+interface ICopilotSdkDecisionsRpc {
+	ask(params: IAgentDecisionsRequest & { readonly gitHubToken?: string }): Promise<IAgentDecisionsResult>;
 }
 
 function addCopilotFeatureFlag(env: Record<string, string | undefined>, flag: string): void {
@@ -1176,6 +1184,8 @@ export class CopilotAgent extends Disposable implements IAgent {
 	/** The user's model routers, while the setting is on. */
 	private readonly _modelRouterCatalog = this._register(new MutableDisposable<CopilotModelRouterCatalog>());
 	private _modelRouter: CopilotModelRouter | undefined;
+	/** One decisions gate per client and account, so a restarted client or a new account starts fresh. */
+	private readonly _decisionsGates = new WeakMap<CopilotClient, LRUCache<string, DecisionsGate>>();
 	private readonly _scopedModelClients = this._register(new DisposableMap<IAgentHostCredentialSource, ScopedCopilotClient>());
 	/**
 	 * The two sources merged into {@link _models}: CAPI models from the CLI's
@@ -2015,6 +2025,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 			this._getExecutionSubagentModel(),
 			this._isComputerUseEnabled(),
 			this._getPolicyHelper(),
+			this._isModelRouterEnabled(),
 		);
 	}
 
@@ -4115,8 +4126,39 @@ export class CopilotAgent extends Disposable implements IAgent {
 			text: request.text,
 			models,
 			previousTurns: request.previousTurns,
-			picker: undefined,
+			picker: new DecisionsModelRouterPicker(decisionsRequest => this.askDecisions(decisionsRequest, context.credentials, token)),
 		});
+	}
+
+	async askDecisions(request: IAgentDecisionsRequest, credentials: IAgentHostCredentialSource | undefined, token: CancellationToken): Promise<IAgentDecisionsResult> {
+		let gitHubToken: string | undefined;
+		if (credentials) {
+			const resource = this._gitHubEndpointService.getCopilotResource();
+			const credential = credentials.getCredential({ resource: resource.resource, scopes: resource.scopes_supported });
+			if (!credential || !isScopedCredentialUsable(credential)) {
+				throw new AgentDecisionsUnavailableError({ kind: 'unauthenticated' });
+			}
+			gitHubToken = credential.token;
+		}
+		const client = await raceCancellationError(this._ensureClient(), token);
+		// Feature-detected until the SDK in use ships `decisions.ask`.
+		const decisions = (client.rpc as { readonly decisions?: Partial<ICopilotSdkDecisionsRpc> }).decisions;
+		const ask = decisions?.ask?.bind(decisions);
+		if (!ask) {
+			throw new AgentDecisionsUnavailableError({ kind: 'unavailable' });
+		}
+		let gates = this._decisionsGates.get(client);
+		if (!gates) {
+			gates = new LRUCache<string, DecisionsGate>(20);
+			this._decisionsGates.set(client, gates);
+		}
+		const key = gitHubToken ?? '';
+		let gate = gates.get(key);
+		if (!gate) {
+			gate = new DecisionsGate(decisionsRequest => ask({ ...decisionsRequest, ...(gitHubToken !== undefined ? { gitHubToken } : {}) }));
+			gates.set(key, gate);
+		}
+		return gate.ask(request, token);
 	}
 
 	/**
@@ -4596,6 +4638,11 @@ export class CopilotAgent extends Disposable implements IAgent {
 
 			// Auto's tiers, including Fusion's, come from the service. This also moves the runtime's whole model catalog to CAPI `/meta`.
 			addCopilotFeatureFlag(env, DynamicAutoTiersFeatureFlag);
+			// Model routers ask a decision model.
+			if (startupConfig.decisionsApi) {
+				addCopilotFeatureFlag(env, DecisionsApiFeatureFlag);
+				this._logService.info(`[Copilot] Enabled runtime feature flag ${DecisionsApiFeatureFlag}`);
+			}
 			this._logService.info(`[Copilot] Enabled runtime feature flag ${DynamicAutoTiersFeatureFlag}`);
 
 			deleteEnvironmentVariable(env, 'COPILOT_CLI_POLICY_HELPER');
