@@ -6,11 +6,10 @@
 import { Event } from '../../../base/common/event.js';
 import * as platform from '../../../base/common/platform.js';
 import type { IExperimentationFilterProvider } from 'tas-client';
+import { COPILOT_INTEGRATION_ID } from '../../endpoint/common/licenseAgreement.js';
 
 export const ASSIGNMENT_STORAGE_KEY = 'VSCode.ABExp.FeatureData';
 export const ASSIGNMENT_REFETCH_INTERVAL = 60 * 60 * 1000; // 1 hour
-/** Matches CAPI's VS Code integrator for cross-client experiment targeting. */
-export const ASSIGNMENT_INTEGRATOR_ID = 'vscode-chat';
 
 export interface IAssignmentService {
 	readonly _serviceBrand: undefined;
@@ -132,7 +131,7 @@ export class AssignmentFilterProvider implements IExperimentationFilterProvider 
 	getFilterValue(filter: string): string | null {
 		switch (filter) {
 			case Filters.IntegratorId:
-				return ASSIGNMENT_INTEGRATOR_ID;
+				return COPILOT_INTEGRATION_ID;
 			case Filters.ApplicationVersion:
 				return trimVersionSuffix(this.version); // productService.version
 			case Filters.Build:
@@ -227,7 +226,7 @@ export class VSCodeCoreAssignmentsFilterProvider implements IExperimentationFilt
 	getFilterValue(filter: string): string | null {
 		switch (filter) {
 			case AssignmentsFilters.IntegratorId:
-				return ASSIGNMENT_INTEGRATOR_ID;
+				return COPILOT_INTEGRATION_ID;
 			case AssignmentsFilters.ApplicationVersion:
 				return trimVersionSuffix(this.version);
 			case AssignmentsFilters.Build:

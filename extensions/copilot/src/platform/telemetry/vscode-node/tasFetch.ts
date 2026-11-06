@@ -4,9 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IFetcherService } from '../../networking/common/fetcherService';
-
-/** Matches CAPI's VS Code integrator for cross-client experiment targeting. */
-export const TAS_INTEGRATOR_ID = 'vscode-chat';
+import { INTEGRATION_ID } from '../../endpoint/common/licenseAgreement';
 
 /**
  * Builds the transport that TAS uses for both the legacy (GET) and the assignments (POST)
@@ -19,7 +17,7 @@ export function createTasFetch(fetcherService: IFetcherService) {
 	return (url: string, init: { method: 'GET' | 'POST'; headers: Record<string, string>; body?: string }) =>
 		fetcherService.fetch(url, {
 			method: init.method,
-			headers: { ...init.headers, integratorid: TAS_INTEGRATOR_ID },
+			headers: { ...init.headers, integratorid: INTEGRATION_ID },
 			body: init.body,
 			callSite: init.method === 'POST' ? 'exp.assignments' : 'exp.legacy',
 		});

@@ -14,6 +14,7 @@ import { ICopilotTokenStore } from '../../../authentication/common/copilotTokenS
 import { IConfigurationService } from '../../../configuration/common/configurationService';
 import { IVSCodeExtensionContext } from '../../../extContext/common/extensionContext';
 import { ILogService } from '../../../log/common/logService';
+import { INTEGRATION_ID } from '../../../endpoint/common/licenseAgreement';
 import { FetchOptions, HeadersImpl, IFetcherService, Response } from '../../../networking/common/fetcherService';
 import { createPlatformServices, ITestingServicesAccessor } from '../../../test/node/services';
 import { TreatmentsChangeEvent } from '../../common/nullExperimentationService';
@@ -898,8 +899,8 @@ describe('TAS proxy transport adapter', () => {
 		await tasFetch('https://exp.example.test/vscode/api/v1/assignments', { method: 'POST', headers: { 'X-New': '1' }, body: '{"parameters":{}}' });
 
 		expect(fetcher.calls).toEqual([
-			{ url: 'https://default.exp-tas.com/vscode/ab', method: 'GET', callSite: 'exp.legacy', headers: { 'X-Legacy': '1', integratorid: 'vscode-chat' }, body: undefined },
-			{ url: 'https://exp.example.test/vscode/api/v1/assignments', method: 'POST', callSite: 'exp.assignments', headers: { 'X-New': '1', integratorid: 'vscode-chat' }, body: '{"parameters":{}}' },
+			{ url: 'https://default.exp-tas.com/vscode/ab', method: 'GET', callSite: 'exp.legacy', headers: { 'X-Legacy': '1', integratorid: INTEGRATION_ID }, body: undefined },
+			{ url: 'https://exp.example.test/vscode/api/v1/assignments', method: 'POST', callSite: 'exp.assignments', headers: { 'X-New': '1', integratorid: INTEGRATION_ID }, body: '{"parameters":{}}' },
 		]);
 	});
 });

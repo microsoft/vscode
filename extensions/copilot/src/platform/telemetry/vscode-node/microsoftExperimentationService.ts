@@ -18,7 +18,8 @@ import { IFetcherService } from '../../networking/common/fetcherService';
 import { FetcherService } from '../../networking/vscode-node/fetcherServiceImpl';
 import { IExperimentationTelemetry, ITelemetryService } from '../common/telemetry';
 import { BaseExperimentationService, RevocationGate, UserInfoStore } from '../node/baseExperimentationService';
-import { createTasFetch, TAS_INTEGRATOR_ID } from './tasFetch';
+import { createTasFetch } from './tasFetch';
+import { INTEGRATION_ID } from '../../endpoint/common/licenseAgreement';
 
 function getTargetPopulation(isPreRelease: boolean): TargetPopulation {
 	if (isPreRelease) {
@@ -244,7 +245,7 @@ export class CopilotAssignmentsFilterProvider implements IExperimentationFilterP
 			: undefined;
 
 		const filters = new Map<string, string | undefined>();
-		filters.set('integratorid', TAS_INTEGRATOR_ID);
+		filters.set('integratorid', INTEGRATION_ID);
 		filters.set('vscode_core_platform', PlatformToString(platform));
 		if (this._releaseDate) {
 			filters.set('vscode_core_releasedate', this._releaseDate);

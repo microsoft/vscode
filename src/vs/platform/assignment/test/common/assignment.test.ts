@@ -7,6 +7,7 @@ import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import * as platform from '../../../../base/common/platform.js';
 import { AssignmentFilterProvider, isInternalAccount, TargetPopulation, VSCodeCoreAssignmentsFilterProvider, WindowKind } from '../../common/assignment.js';
+import { COPILOT_INTEGRATION_ID } from '../../../endpoint/common/licenseAgreement.js';
 
 suite('Assignment', () => {
 
@@ -15,13 +16,13 @@ suite('Assignment', () => {
 	for (const windowKind of [WindowKind.Editor, WindowKind.Agents]) {
 		test(`includes the CAPI integrator in legacy assignment headers (${windowKind})`, () => {
 			const provider = new AssignmentFilterProvider('1.100.0', 'VS Code', 'machine', 'device', TargetPopulation.Public, '', windowKind);
-			assert.strictEqual(provider.getFilters().get('integratorid'), 'vscode-chat');
+			assert.strictEqual(provider.getFilters().get('integratorid'), COPILOT_INTEGRATION_ID);
 		});
 
 		test(`includes the CAPI integrator in new assignment parameters (${windowKind})`, () => {
 			const provider = new VSCodeCoreAssignmentsFilterProvider('1.100.0-insider', 'VS Code', 'device', TargetPopulation.Insiders, '2026-11-02T12:00:00Z', windowKind);
 			assert.deepStrictEqual(Object.fromEntries(provider.getFilters()), {
-				integratorid: 'vscode-chat',
+				integratorid: COPILOT_INTEGRATION_ID,
 				vscode_core_appversion: '1.100.0',
 				vscode_core_build: 'VS Code',
 				devdeviceid: 'device',
