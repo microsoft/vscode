@@ -77,61 +77,61 @@ suite('Marker Hover Participant', () => {
 				inputUnchanged: true
 			});
 		});
+	});
 
-		test('preserves a single diagnostic with multiline text, code and related information', () => {
-			withTestCodeEditor('some text', { readOnly: true }, (editor, _viewModel, instantiationService) => {
-				instantiationService.stub(IMarkerDecorationsService, {});
-				instantiationService.stub(IMenuService, { getMenuActions: () => [] });
-				const participant = instantiationService.createInstance(MarkerHoverParticipant, editor);
-				const marker: IMarker = {
-					owner: 'test',
-					resource: editor.getModel().uri,
-					severity: MarkerSeverity.Warning,
-					message: 'First line\nSecond line',
-					source: 'test-source',
-					code: { value: 'test-code', target: URI.parse('https://example.com/diagnostic') },
-					startLineNumber: 1,
-					startColumn: 1,
-					endLineNumber: 1,
-					endColumn: 5,
-					relatedInformation: [{
-						resource: URI.file('/related.ts'),
-						message: 'Related message',
-						startLineNumber: 2,
-						startColumn: 3,
-						endLineNumber: 2,
-						endColumn: 6
-					}]
-				};
-				const hoverPart = new MarkerHover(participant, Range.lift(marker), marker);
-				const context: IEditorHoverRenderContext = {
-					fragment: mainWindow.document.createDocumentFragment(),
-					statusBar: store.add(instantiationService.createInstance(EditorHoverStatusBar)),
-					onContentsChanged: () => { },
-					setMinimumDimensions: () => { },
-					hide: () => { },
-					focus: () => { }
-				};
-				const rendered = store.add(participant.renderHoverParts(context, [hoverPart]));
-				const message = context.fragment.querySelector('.marker-message');
-				assert.ok(message);
-				assert.deepStrictEqual({
-					parts: rendered.renderedHoverParts.map(part => part.hoverPart),
-					message: message.firstElementChild?.innerHTML,
-					whiteSpace: message.querySelector('span')?.style.whiteSpace,
-					code: message.querySelector('.code-link')?.getAttribute('href'),
-					source: message.children[1].firstElementChild?.textContent,
-					relatedInformation: message.lastElementChild?.textContent,
-					accessibleContent: participant.getAccessibleContent(hoverPart)
-				}, {
-					parts: [hoverPart],
-					message: 'First line<br>Second line',
-					whiteSpace: 'pre-wrap',
-					code: 'https://example.com/diagnostic',
-					source: 'test-source',
-					relatedInformation: 'related.ts(2, 3): Related message',
-					accessibleContent: 'Warning: First line\nSecond line\nrelated.ts(2, 3): Related message'
-				});
+	test('preserves a single diagnostic with multiline text, code and related information', () => {
+		withTestCodeEditor('some text', { readOnly: true }, (editor, _viewModel, instantiationService) => {
+			instantiationService.stub(IMarkerDecorationsService, {});
+			instantiationService.stub(IMenuService, { getMenuActions: () => [] });
+			const participant = instantiationService.createInstance(MarkerHoverParticipant, editor);
+			const marker: IMarker = {
+				owner: 'test',
+				resource: editor.getModel().uri,
+				severity: MarkerSeverity.Warning,
+				message: 'First line\nSecond line',
+				source: 'test-source',
+				code: { value: 'test-code', target: URI.parse('https://example.com/diagnostic') },
+				startLineNumber: 1,
+				startColumn: 1,
+				endLineNumber: 1,
+				endColumn: 5,
+				relatedInformation: [{
+					resource: URI.file('/related.ts'),
+					message: 'Related message',
+					startLineNumber: 2,
+					startColumn: 3,
+					endLineNumber: 2,
+					endColumn: 6
+				}]
+			};
+			const hoverPart = new MarkerHover(participant, Range.lift(marker), marker);
+			const context: IEditorHoverRenderContext = {
+				fragment: mainWindow.document.createDocumentFragment(),
+				statusBar: store.add(instantiationService.createInstance(EditorHoverStatusBar)),
+				onContentsChanged: () => { },
+				setMinimumDimensions: () => { },
+				hide: () => { },
+				focus: () => { }
+			};
+			const rendered = store.add(participant.renderHoverParts(context, [hoverPart]));
+			const message = context.fragment.querySelector('.marker-message');
+			assert.ok(message);
+			assert.deepStrictEqual({
+				parts: rendered.renderedHoverParts.map(part => part.hoverPart),
+				message: message.firstElementChild?.innerHTML,
+				whiteSpace: message.querySelector('span')?.style.whiteSpace,
+				code: message.querySelector('.code-link')?.getAttribute('href'),
+				source: message.children[1].firstElementChild?.textContent,
+				relatedInformation: message.lastElementChild?.textContent,
+				accessibleContent: participant.getAccessibleContent(hoverPart)
+			}, {
+				parts: [hoverPart],
+				message: 'First line<br>Second line',
+				whiteSpace: 'pre-wrap',
+				code: 'https://example.com/diagnostic',
+				source: 'test-source',
+				relatedInformation: 'related.ts(2, 3): Related message',
+				accessibleContent: 'Warning: First line\nSecond line\nrelated.ts(2, 3): Related message'
 			});
 		});
 	});
