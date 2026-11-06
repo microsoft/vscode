@@ -33,6 +33,7 @@ import { Selection } from '../../../common/core/selection.js';
 import { Color } from '../../../../base/common/color.js';
 import { GestureEvent, EventType, Gesture } from '../../../../base/browser/touch.js';
 import { MinimapCharRendererFactory } from './minimapCharRendererFactory.js';
+import { findDirtyRows } from './minimapDirtyRows.js';
 import { MinimapPosition, MinimapSectionHeaderStyle, TextModelResolvedOptions } from '../../../common/model.js';
 import { createSingleCallFunction } from '../../../../base/common/functional.js';
 import { LRUCache } from '../../../../base/common/map.js';
@@ -1158,6 +1159,12 @@ class InnerMinimap extends Disposable {
 	private readonly _shadow: FastDomNode<HTMLElement>;
 	private readonly _canvas: FastDomNode<HTMLCanvasElement>;
 	private readonly _decorationsCanvas: FastDomNode<HTMLCanvasElement>;
+	/**
+	 * Decorations are drawn here first, and only the rows that changed are copied to
+	 * `_decorationsCanvas`. Drawing on a visible canvas makes the browser repaint all of it.
+	 */
+	private readonly _decorationsBuffer: HTMLCanvasElement;
+	private _lastDecorationsImage: ImageData | null = null;
 	private readonly _slider: FastDomNode<HTMLElement>;
 	private readonly _sliderHorizontal: FastDomNode<HTMLElement>;
 	private readonly _pointerDownListener: IDisposable;
@@ -1210,6 +1217,7 @@ class InnerMinimap extends Disposable {
 		this._decorationsCanvas.setClassName('minimap-decorations-layer');
 		this._decorationsCanvas.setLeft(0);
 		this._domNode.appendChild(this._decorationsCanvas);
+		this._decorationsBuffer = document.createElement('canvas');
 
 		this._slider = createFastDomNode(document.createElement('div'));
 		this._slider.setPosition('absolute');
@@ -1420,6 +1428,9 @@ class InnerMinimap extends Disposable {
 		this._decorationsCanvas.setHeight(this._model.options.canvasOuterHeight);
 		this._decorationsCanvas.domNode.width = this._model.options.canvasInnerWidth;
 		this._decorationsCanvas.domNode.height = this._model.options.canvasInnerHeight;
+		this._decorationsBuffer.width = this._model.options.canvasInnerWidth;
+		this._decorationsBuffer.height = this._model.options.canvasInnerHeight;
+		this._lastDecorationsImage = null;
 
 		this._slider.setWidth(this._model.options.minimapWidth);
 	}
@@ -1557,7 +1568,10 @@ class InnerMinimap extends Disposable {
 			const minimapLineHeight = this._model.options.minimapLineHeight;
 			const minimapCharWidth = this._model.options.minimapCharWidth;
 			const tabSize = this._model.getOptions().tabSize;
-			const canvasContext = this._decorationsCanvas.domNode.getContext('2d')!;
+			if (canvasInnerWidth === 0 || canvasInnerHeight === 0) {
+				return;
+			}
+			const canvasContext = this._decorationsBuffer.getContext('2d', { willReadFrequently: true })!;
 
 			canvasContext.clearRect(0, 0, canvasInnerWidth, canvasInnerHeight);
 
@@ -1573,7 +1587,20 @@ class InnerMinimap extends Disposable {
 			const lineOffsetMap = new ContiguousLineMap<number[] | null>(layout.startLineNumber, layout.endLineNumber, null);
 			this._renderSelectionsHighlights(canvasContext, selections, lineOffsetMap, layout, minimapLineHeight, tabSize, minimapCharWidth, canvasInnerWidth);
 			this._renderDecorationsHighlights(canvasContext, decorations, lineOffsetMap, layout, minimapLineHeight, tabSize, minimapCharWidth, canvasInnerWidth);
-			this._renderSectionHeaders(layout);
+			this._renderSectionHeaders(canvasContext, layout);
+
+			this._copyChangedDecorationRows(canvasContext.getImageData(0, 0, canvasInnerWidth, canvasInnerHeight));
+		}
+	}
+
+	private _copyChangedDecorationRows(image: ImageData): void {
+		const previous = this._lastDecorationsImage;
+		const dirty = previous
+			? findDirtyRows(previous.data, image.data, image.width, image.height)
+			: { start: 0, end: image.height };
+		this._lastDecorationsImage = image;
+		if (dirty) {
+			this._decorationsCanvas.domNode.getContext('2d')!.putImageData(image, 0, 0, 0, dirty.start, image.width, dirty.end - dirty.start);
 		}
 	}
 
@@ -1840,7 +1867,7 @@ class InnerMinimap extends Disposable {
 		canvasContext.fillRect(x, y, width, height);
 	}
 
-	private _renderSectionHeaders(layout: MinimapLayout) {
+	private _renderSectionHeaders(canvasContext: CanvasRenderingContext2D, layout: MinimapLayout) {
 		const minimapLineHeight = this._model.options.minimapLineHeight;
 		const sectionHeaderFontSize = this._model.options.sectionHeaderFontSize;
 		const sectionHeaderLetterSpacing = this._model.options.sectionHeaderLetterSpacing;
@@ -1856,7 +1883,6 @@ class InnerMinimap extends Disposable {
 		const foregroundFill = `rgb(${foregroundColor.r} ${foregroundColor.g} ${foregroundColor.b})`;
 		const separatorStroke = foregroundFill;
 
-		const canvasContext = this._decorationsCanvas.domNode.getContext('2d')!;
 		canvasContext.letterSpacing = sectionHeaderLetterSpacing + 'px';
 		canvasContext.font = '500 ' + sectionHeaderFontSize + 'px ' + this._model.options.sectionHeaderFontFamily;
 		canvasContext.strokeStyle = separatorStroke;
