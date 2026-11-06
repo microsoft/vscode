@@ -56,7 +56,7 @@ import { SessionIdContext, SessionProviderIdContext, IsPhoneLayoutContext, IsQui
 import { IWorkbenchLayoutService } from '../../../../../services/layout/browser/layoutService.js';
 import { reportNewChatPickerClosed } from '../../../browser/newChatPickerTelemetry.js';
 import { NEW_WORKTREE_LABEL } from '../../../browser/chat/branchPicker.js';
-import { ISessionChangesService } from '../../../browser/changes/sessionChangesService.js';
+import { ISessionChangesService } from '../../../common/sessionChangesService.js';
 import { CHANGES_VIEW_ID } from '../../../common/changes.js';
 import { ISessionsProvidersService } from '../../../browser/sessionsProvidersService.js';
 import { getFocusedSessionChatSource, IFocusedSessionHostService, InSessionHostScopeContext, ISessionChatSource, ISessionHost } from '../../../browser/sessionHost.js';

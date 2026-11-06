@@ -60,7 +60,7 @@ import type { ISessionChatPillsDebugData } from './sessionChatInputToolbarDebug.
 import { activateHostPane, IActionTarget, SessionActivatingActionRunner } from '../sessionActionRunner.js';
 import { computePullRequestIcon } from '../../../../common/chatPullRequest.js';
 import { ISessionChangesStatsCache, readChatChangesStats, readLoadedChatChangesStats } from '../../common/sessionChangesStatsCache.js';
-import { ISessionChangesService } from '../changes/sessionChangesService.js';
+import { ISessionChangesService } from '../../common/sessionChangesService.js';
 import { Parts, IWorkbenchLayoutService } from '../../../../services/layout/browser/layoutService.js';
 import { mainWindow } from '../../../../../base/browser/window.js';
 import { SessionCanvasesControl } from '../sessionCanvasesControl.js';
