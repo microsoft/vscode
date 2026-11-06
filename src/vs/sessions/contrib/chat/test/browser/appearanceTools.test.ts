@@ -33,13 +33,13 @@ import { PromptFileSource, PromptsType } from '../../../../../workbench/contrib/
 import { ILocalPromptPath, PromptsStorage } from '../../../../../workbench/contrib/chat/common/promptSyntax/service/promptsService.js';
 import { PromptFilesLocator } from '../../../../../workbench/contrib/chat/common/promptSyntax/utils/promptFilesLocator.js';
 import { workbenchInstantiationService } from '../../../../../workbench/test/browser/workbenchTestServices.js';
-import { ISessionsChatBackgroundService } from '../../../../services/chatBackground/browser/chatBackgroundService.js';
-import { ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
+import { ISessionsChatBackgroundService } from '../../../../../workbench/contrib/sessions/browser/chatBackgroundService.js';
+import { ISessionsManagementService } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import { SetChatBackgroundTool } from '../../browser/chatBackgroundTool.js';
 import { GetThemeColorsTool } from '../../browser/getThemeColorsTool.js';
 import { ScreenshotWindowTool } from '../../browser/screenshotWindowTool.js';
 import { AgenticPromptsService, BUILTIN_SKILLS_URI } from '../../browser/promptsService.js';
-import { AGENT_SESSIONS_APPEARANCE_TOOLS_ENABLED_SETTING, NEW_SESSION_ACTION_ID } from '../../common/constants.js';
+import { AGENT_SESSIONS_APPEARANCE_TOOLS_ENABLED_SETTING, NEW_SESSION_ACTION_ID } from '../../../../../workbench/contrib/sessions/common/chatConstants.js';
 import '../../browser/chat.contribution.js';
 
 const appearanceToolsProperty = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).getConfigurationProperties()[AGENT_SESSIONS_APPEARANCE_TOOLS_ENABLED_SETTING];
@@ -190,7 +190,7 @@ suite('Sessions - Appearance tools', () => {
 			let items: string[] = [];
 			const executed: unknown[][] = [];
 			t.instantiationService.stub(ISessionsChatBackgroundService, upcastPartial<ISessionsChatBackgroundService>({
-				getBackground: () => undefined,
+				getConfiguredBackground: () => undefined,
 				getRecentBackgroundImages: () => [URI.file('/backgrounds/recent.png')],
 				getConfiguredBackgroundImage: () => undefined,
 			}));
@@ -212,7 +212,7 @@ suite('Sessions - Appearance tools', () => {
 			results.push({ name: scenario.name, items, executed });
 		}
 
-		const backgroundTypes = ['No Background', 'Codicons', 'Image...'];
+		const backgroundTypes = ['No Background', 'Codicons', 'Koi Light', 'Koi Dark', 'Image...'];
 		const recentImages = ['--- recently used', 'recent.png'];
 		assert.deepStrictEqual(results, [{
 			name: 'available',

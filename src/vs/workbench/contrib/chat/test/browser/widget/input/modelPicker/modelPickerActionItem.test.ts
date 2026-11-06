@@ -23,6 +23,7 @@ import { IDefaultAccountService } from '../../../../../../../../platform/default
 import { MockContextKeyService, MockKeybindingService } from '../../../../../../../../platform/keybinding/test/common/mockKeybindingService.js';
 import { TestInstantiationService } from '../../../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { IOpenerService } from '../../../../../../../../platform/opener/common/opener.js';
+import { IManagedSettingsService, NullManagedSettingsService } from '../../../../../../../../platform/policy/common/copilotManagedSettings.js';
 import { IProductService } from '../../../../../../../../platform/product/common/productService.js';
 import { InMemoryStorageService, IStorageService } from '../../../../../../../../platform/storage/common/storage.js';
 import { ITelemetryService } from '../../../../../../../../platform/telemetry/common/telemetry.js';
@@ -92,6 +93,7 @@ suite('ModelPickerActionItem', () => {
 		instantiationService.stub(IUpdateService, {});
 		instantiationService.stub(IUriIdentityService, {});
 		instantiationService.stub(IDefaultAccountService, {});
+		instantiationService.stub(IManagedSettingsService, new NullManagedSettingsService());
 		instantiationService.stub(IWorkspaceTrustManagementService, disposables.add(new TestWorkspaceTrustManagementService()));
 		instantiationService.stub(IWorkspaceTrustRequestService, {});
 		instantiationService.stub(IStorageService, disposables.add(new InMemoryStorageService()));

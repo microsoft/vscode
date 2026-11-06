@@ -15,7 +15,7 @@ import { ILogService } from '../../../../platform/log/common/log.js';
 import { INotificationService } from '../../../../platform/notification/common/notification.js';
 import { defaultButtonStyles } from '../../../../platform/theme/browser/defaultStyles.js';
 import { getCanvasInstanceLabels } from '../../../../workbench/contrib/canvases/common/canvas.js';
-import { IChat, ISession } from '../../../services/sessions/common/session.js';
+import { IChat, ISession } from '../../../../workbench/contrib/sessions/common/session.js';
 import { IInboxCanvasHost, IInboxCanvasHostService } from './inboxCanvasHost.js';
 
 export class InboxCanvases extends Disposable {

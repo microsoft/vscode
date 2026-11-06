@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import '../../../../../browser/actions/listCommands.js';
 import assert from 'assert';
 import { URI } from '../../../../../../base/common/uri.js';
 import { CancellationToken } from '../../../../../../base/common/cancellation.js';
@@ -12,7 +13,7 @@ import { derived, observableValue } from '../../../../../../base/common/observab
 import { setARIAContainer } from '../../../../../../base/browser/ui/aria/aria.js';
 import { mock } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
-import { ICommandService } from '../../../../../../platform/commands/common/commands.js';
+import { CommandsRegistry, ICommandService } from '../../../../../../platform/commands/common/commands.js';
 import { CustomizationMarketplaceMediaType, ICustomizationMarketplaceService } from '../../../../../../platform/customizationMarketplace/common/customizationMarketplaceService.js';
 import { IListService, ListService } from '../../../../../../platform/list/browser/listService.js';
 import { ColorScheme } from '../../../../../../platform/theme/common/theme.js';
@@ -22,7 +23,7 @@ import { IProductService } from '../../../../../../platform/product/common/produ
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { workbenchInstantiationService } from '../../../../../test/browser/workbenchTestServices.js';
 import { AICustomizationListWidget, getAlwaysVisibleCustomizationGroupKeys, getCollapsedCustomizationGroupKey, getCustomizationItemAriaLabel, getCustomizationSearchAriaLabel, getMultiRootWorkspaceRelativeFilename, getTargetedCreateActionLabel, usesCustomizationTreePresentation } from '../../../browser/aiCustomization/aiCustomizationListWidget.js';
-import { AICustomizationItemNormalizer, IAICustomizationListItem } from '../../../browser/aiCustomization/aiCustomizationItemSource.js';
+import { AICustomizationItemNormalizer, IAICustomizationListItem, ICustomizationSkillItem } from '../../../browser/aiCustomization/aiCustomizationItemSource.js';
 import { IAICustomizationItemsModel } from '../../../browser/aiCustomization/aiCustomizationItemsModel.js';
 import { extractExtensionIdFromPath, getCustomizationSecondaryText, splitPathLabel, truncateToFirstLine } from '../../../browser/aiCustomization/aiCustomizationListWidgetUtils.js';
 import { AICustomizationManagementSection, IAICustomizationWorkspaceService } from '../../../common/aiCustomizationWorkspaceService.js';
@@ -127,6 +128,10 @@ suite('aiCustomizationListWidget', () => {
 		const items = [
 			{ id: '1', uri: URI.file('/skills/typescript-setup/SKILL.md'), name: 'typescript-setup', filename: 'SKILL.md', description: 'Set up TypeScript', promptType: PromptsType.skill, storage: PromptsStorage.local },
 			{ id: '2', uri: URI.file('/skills/other/SKILL.md'), name: 'other', filename: 'SKILL.md', description: 'Unrelated', promptType: PromptsType.skill, storage: PromptsStorage.local },
+			{
+				id: '3', uri: URI.parse('mcp-resource:/skills/review'), name: 'review', filename: 'SKILL.md', promptType: PromptsType.skill, storage: PromptsStorage.user,
+				skillBundle: { id: 'server', name: 'TypeScript Setup', description: 'MCP Server', namePrefix: 'server:' }
+			},
 		] as unknown as IAICustomizationListItem[];
 		const filter = (searchQuery: string) => (AICustomizationListWidget.prototype as unknown as {
 			applySearchFilter(this: { searchQuery: string }, items: readonly IAICustomizationListItem[]): IAICustomizationListItem[];
@@ -136,10 +141,14 @@ suite('aiCustomizationListWidget', () => {
 			spaced: filter('typescript setup'),
 			dashed: filter('typescript-setup'),
 			underscored: filter('TypeScript_Setup'),
+			mcpSpaced: filter('mcp server'),
+			mcpDashed: filter('mcp-server'),
 		}, {
-			spaced: [['typescript-setup', [{ start: 0, end: 10 }, { start: 11, end: 16 }]]],
-			dashed: [['typescript-setup', [{ start: 0, end: 16 }]]],
-			underscored: [['typescript-setup', [{ start: 0, end: 16 }]]],
+			spaced: [['typescript-setup', [{ start: 0, end: 10 }, { start: 11, end: 16 }]], ['review', undefined]],
+			dashed: [['typescript-setup', [{ start: 0, end: 16 }]], ['review', undefined]],
+			underscored: [['typescript-setup', [{ start: 0, end: 16 }]], ['review', undefined]],
+			mcpSpaced: [['review', undefined]],
+			mcpDashed: [['review', undefined]],
 		});
 	});
 
@@ -664,6 +673,22 @@ suite('aiCustomizationListWidget', () => {
 		});
 	});
 
+	test('keeps MCP skill invocation names while shortening bundle child labels', () => {
+		const normalizer = new AICustomizationItemNormalizer(new class extends mock<ILabelService>() { }(), new class extends mock<IProductService>() { }());
+		const skillBundle = { id: 'opaque-server-id', name: 'Skills from Demo', description: 'MCP Server', namePrefix: 'demo:' };
+		const items: ICustomizationSkillItem[] = ['demo:review-changes', 'demo:review:changes', 'unprefixed'].map(name => ({
+			uri: URI.parse(`mcp-resource:/skills/${name}`), type: PromptsType.skill, name, source: PromptsStorage.plugin, groupKey: PromptsStorage.user,
+			extensionId: undefined, pluginUri: undefined, skillBundle,
+		}));
+		assert.deepStrictEqual(items.map(item => normalizer.normalizeItem(item, PromptsType.skill)).map(item => ({
+			name: item.name, displayName: item.displayName, bundle: item.skillBundle,
+		})), [
+			{ name: 'demo:review-changes', displayName: 'review-changes', bundle: skillBundle },
+			{ name: 'demo:review:changes', displayName: 'review:changes', bundle: skillBundle },
+			{ name: 'unprefixed', displayName: 'unprefixed', bundle: skillBundle },
+		]);
+	});
+
 	test('normalizes remote workspace customization locations through the label service', () => {
 		const labelService = new class extends mock<ILabelService>() {
 			override getUriLabel(resource: URI, options?: Parameters<ILabelService['getUriLabel']>[1]): string {
@@ -1108,6 +1133,126 @@ suite('aiCustomizationListWidget', () => {
 					{ name: 'Plain Skill', image: undefined, fallbackDisplay: '', visibleChildren: 1 },
 				],
 				withoutMarketplaceIcon: false,
+			});
+		});
+
+		test('expands MCP skill bundles in their source group and keeps children openable', async () => {
+			const listService = disposables.add(new ListService());
+			instaService.stub(IListService, listService);
+			const normalizer = new AICustomizationItemNormalizer(new class extends mock<ILabelService>() { }(), new class extends mock<IProductService>() { }());
+			const skillBundle = { id: 'opaque-server-id', name: 'Skills from Demo', description: 'MCP Server', namePrefix: 'demo:' };
+			const skills: ICustomizationSkillItem[] = ['review-changes', 'disabled'].map(name => ({
+				uri: URI.parse(`mcp-resource:/skills/${name}/SKILL.md`), type: PromptsType.skill, name: `demo:${name}`, source: PromptsStorage.plugin, groupKey: PromptsStorage.user,
+				enabled: name !== 'disabled', extensionId: undefined, pluginUri: undefined, skillBundle,
+			}));
+			const items = observableValue<readonly IAICustomizationListItem[]>('skills', normalizer.normalizeItems(skills, PromptsType.skill));
+			instaService.stub(IAICustomizationItemsModel, {
+				getItems: () => items,
+				getCount: () => observableValue('test', 1),
+				getPluginCount: () => observableValue('test', 0),
+				whenSectionLoaded: async () => { },
+				getActiveItemSource: () => ({ onDidAICustomizationItemsChange: Event.None, fetchProviderItems: async () => skills, fetchAICustomizationItems: async () => [], fetchSourceFolders: async () => [], sessionResource: URI.parse('test:///session'), dispose() { } }),
+			});
+			const widget = disposables.add(instaService.createInstance(AICustomizationListWidget));
+			document.body.appendChild(widget.element);
+			disposables.add(toDisposable(() => widget.element.remove()));
+			const selections: string[] = [];
+			disposables.add(widget.onDidSelectItem(item => selections.push(`${item.name} ${item.uri.toString()}`)));
+			setLayoutHeights(widget, 500);
+			await widget.setSection(AICustomizationManagementSection.Skills);
+			widget.layout(800, 500);
+			widget.focusList();
+			const labels = () => [...widget.element.querySelectorAll('.item-name')].map(element => element.textContent);
+			const bundleRow = () => widget.element.querySelector('.item-name')!.closest<HTMLElement>('.monaco-list-row')!;
+			const collapsed = {
+				labels: labels(),
+				group: bundleRow().previousElementSibling?.querySelector('.group-label')?.textContent,
+				description: bundleRow().querySelector('.item-description')?.textContent,
+				expanded: bundleRow().getAttribute('aria-expanded'),
+				level: bundleRow().getAttribute('aria-level'),
+			};
+			bundleRow().querySelector('.item-name')!.dispatchEvent(new MouseEvent('click', { bubbles: true, detail: 1 }));
+			const expanded = {
+				labels: labels(),
+				expanded: bundleRow().getAttribute('aria-expanded'),
+				disabled: [...widget.element.querySelectorAll('.ai-customization-list-item.disabled .item-name')].map(element => element.textContent),
+			};
+			widget.element.querySelectorAll('.item-name')[2].dispatchEvent(new MouseEvent('click', { bubbles: true, detail: 1 }));
+			widget.refresh();
+			const afterRefresh = labels();
+			bundleRow().querySelector('.item-name')!.dispatchEvent(new MouseEvent('click', { bubbles: true, detail: 1 }));
+			const list = widget.element.querySelector<HTMLElement>('.monaco-list')!;
+			list.focus();
+			list.dispatchEvent(new FocusEvent('focus'));
+			const activeDescendant = list.getAttribute('aria-activedescendant');
+			const focusedRow = activeDescendant ? document.getElementById(activeDescendant) : undefined;
+			const keyboardFocus = focusedRow?.querySelector('.item-name')?.textContent;
+			// Workbench trees route ArrowRight through keybindings, not their built-in DOM keyboard controller.
+			await instaService.invokeFunction(CommandsRegistry.getCommand('list.expand')!.handler);
+			assert.deepStrictEqual({ collapsed, expanded, selections, afterRefresh, keyboardFocus, afterKeyboardExpand: labels() }, {
+				collapsed: { labels: ['Skills from Demo'], group: 'User', description: 'MCP Server', expanded: 'false', level: '2' },
+				expanded: { labels: ['Skills from Demo', 'disabled', 'review-changes'], expanded: 'true', disabled: ['disabled'] },
+				selections: ['demo:review-changes mcp-resource:/skills/review-changes/SKILL.md'],
+				afterRefresh: ['Skills from Demo', 'disabled', 'review-changes'],
+				keyboardFocus: 'Skills from Demo',
+				afterKeyboardExpand: ['Skills from Demo', 'disabled', 'review-changes'],
+			});
+		});
+
+		test('filters MCP skills by bundle identity, expands its source group and clears through search', async () => {
+			const listService = disposables.add(new ListService());
+			instaService.stub(IListService, listService);
+			const normalizer = new AICustomizationItemNormalizer(new class extends mock<ILabelService>() { }(), new class extends mock<IProductService>() { }());
+			const skills: ICustomizationSkillItem[] = ['target', 'same-name'].map(id => ({
+				uri: URI.parse(`mcp-resource:/skills/${id}/SKILL.md`), type: PromptsType.skill, name: `${id}:review-changes`, source: PromptsStorage.plugin, groupKey: PromptsStorage.user,
+				enabled: true, extensionId: undefined, pluginUri: undefined,
+				skillBundle: { id, name: 'Skills from test-skills', description: 'MCP Server', namePrefix: `${id}:` },
+			}));
+			const items = observableValue<readonly IAICustomizationListItem[]>('skills', normalizer.normalizeItems(skills, PromptsType.skill));
+			instaService.stub(IAICustomizationItemsModel, {
+				getItems: () => items,
+				getCount: () => observableValue('test', 2),
+				getPluginCount: () => observableValue('test', 0),
+				whenSectionLoaded: async () => { },
+				getActiveItemSource: () => ({ onDidAICustomizationItemsChange: Event.None, fetchProviderItems: async () => skills, fetchAICustomizationItems: async () => [], fetchSourceFolders: async () => [], sessionResource: URI.parse('test:///session'), dispose() { } }),
+			});
+			const widget = disposables.add(instaService.createInstance(AICustomizationListWidget));
+			document.body.appendChild(widget.element);
+			disposables.add(toDisposable(() => widget.element.remove()));
+			setLayoutHeights(widget, 500);
+			await widget.setSection(AICustomizationManagementSection.Skills);
+			widget.layout(800, 500);
+			const labels = () => [...widget.element.querySelectorAll('.item-name')].map(element => element.textContent);
+			const list = widget.element.querySelector<HTMLElement>('.monaco-list')!;
+			widget.focusList();
+			list.focus();
+			list.dispatchEvent(new FocusEvent('focus'));
+			await instaService.invokeFunction(CommandsRegistry.getCommand('list.collapse')!.handler);
+			await instaService.invokeFunction(CommandsRegistry.getCommand('list.collapse')!.handler);
+			const collapsedGroup = labels();
+			widget.showSkillBundle('target');
+			const filtered = {
+				labels: labels(),
+				search: widget.element.querySelector<HTMLInputElement>('input')?.value,
+				expanded: widget.element.querySelector('.item-name')?.closest('.monaco-list-row')?.getAttribute('aria-expanded'),
+				focused: document.getElementById(list.getAttribute('aria-activedescendant')!)?.querySelector('.item-name')?.textContent,
+			};
+			const selected: string[] = [];
+			disposables.add(widget.onDidSelectItem(item => selected.push(item.uri.toString())));
+			widget.element.querySelectorAll('.item-name')[1].dispatchEvent(new MouseEvent('click', { bubbles: true, detail: 1 }));
+			widget.refresh();
+			const afterRefresh = labels();
+			widget.setSearchQuery('review changes');
+			const afterEditingSearch = labels();
+			widget.showSkillBundle('target');
+			widget.clearSearch();
+			assert.deepStrictEqual({ collapsedGroup, filtered, selected, afterRefresh, afterEditingSearch, cleared: labels() }, {
+				collapsedGroup: [],
+				filtered: { labels: ['Skills from test-skills', 'review-changes'], search: 'Skills from test-skills', expanded: 'true', focused: 'Skills from test-skills' },
+				selected: ['mcp-resource:/skills/target/SKILL.md'],
+				afterRefresh: ['Skills from test-skills', 'review-changes'],
+				afterEditingSearch: ['Skills from test-skills', 'review-changes', 'Skills from test-skills', 'review-changes'],
+				cleared: ['Skills from test-skills', 'Skills from test-skills'],
 			});
 		});
 

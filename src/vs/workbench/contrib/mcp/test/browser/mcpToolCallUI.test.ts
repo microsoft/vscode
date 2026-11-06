@@ -5,7 +5,8 @@
 
 import assert from 'assert';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
-import { Emitter } from '../../../../../base/common/event.js';
+import { Emitter, Event } from '../../../../../base/common/event.js';
+import { constObservable } from '../../../../../base/common/observable.js';
 import { upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { IAgentConnection } from '../../../../../platform/agentHost/common/agentService.js';
@@ -15,10 +16,86 @@ import { TestInstantiationService } from '../../../../../platform/instantiation/
 import { IThemeService } from '../../../../../platform/theme/common/themeService.js';
 import { TestThemeService } from '../../../../../platform/theme/test/common/testThemeService.js';
 import { McpToolCallUI } from '../../browser/mcpToolCallUI.js';
-import { IMcpToolCallUIData } from '../../common/mcpTypes.js';
+import { IMcpServer, IMcpService, IMcpTool, IMcpToolCallContext, IMcpToolCallUIData, McpConnectionState, McpServerCacheState, McpToolVisibility } from '../../common/mcpTypes.js';
+import { MCP } from '../../common/modelContextProtocol.js';
 
 suite('McpToolCallUI', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('preserves local tool request metadata and app visibility checks', async () => {
+		const calls: { args: Record<string, unknown>; context: IMcpToolCallContext | undefined; meta: MCP.RequestMetaObject | undefined }[] = [];
+		const tool = upcastPartial<IMcpTool>({
+			definition: { name: 'correlation_probe', inputSchema: { type: 'object' } },
+			visibility: McpToolVisibility.App,
+			call: async (args, context, _token, meta) => {
+				calls.push({ args, context, meta });
+				return { content: [] };
+			},
+		});
+		const hiddenTool = upcastPartial<IMcpTool>({
+			...tool,
+			definition: { name: 'model_only', inputSchema: { type: 'object' } },
+			visibility: McpToolVisibility.Model,
+		});
+		const server = upcastPartial<IMcpServer>({
+			definition: { id: 'server', label: 'Server' },
+			collection: { id: 'collection', label: 'Collection', order: 0 },
+			start: async () => ({ state: McpConnectionState.Kind.Running }),
+			connectionState: constObservable({ state: McpConnectionState.Kind.Running }),
+			cacheState: constObservable(McpServerCacheState.Live),
+			tools: constObservable([tool, hiddenTool]),
+		});
+		const instantiationService = store.add(new TestInstantiationService(new ServiceCollection(
+			[IMcpService, upcastPartial<IMcpService>({ servers: constObservable([server]) })],
+			[IThemeService, new TestThemeService()],
+		)));
+		const ui = store.add(instantiationService.createInstance(McpToolCallUI, {
+			kind: 'local', serverDefinitionId: 'server', collectionId: 'collection', resourceUri: 'ui://probe/app',
+		}));
+		const meta = { 'com.example/correlation-id': 'correlation-1', 'com.example/context': { enabled: false, value: null } };
+		await ui.callTool({ name: 'correlation_probe', arguments: { value: 42 }, _meta: meta }, CancellationToken.None);
+		await ui.callTool({ name: 'correlation_probe', _meta: {} }, CancellationToken.None);
+		await ui.callTool({ name: 'correlation_probe' }, CancellationToken.None);
+		await assert.rejects(ui.callTool({ name: 'model_only', _meta: meta }, CancellationToken.None), /Tool not found on server/);
+		assert.deepStrictEqual(calls, [
+			{ args: { value: 42 }, context: undefined, meta },
+			{ args: {}, context: undefined, meta: {} },
+			{ args: {}, context: undefined, meta: undefined },
+		]);
+	});
+
+	test('preserves Agent Host tool request metadata separately from arguments', async () => {
+		const calls: { channel: string; method: string; params: Record<string, unknown> | undefined }[] = [];
+		const connection = upcastPartial<IAgentConnection>({
+			onMcpNotification: Event.None,
+			handleMcpRequest: async (channel, method, params) => {
+				calls.push({ channel, method, params });
+				return { content: [] };
+			},
+		});
+		const instantiationService = store.add(new TestInstantiationService(new ServiceCollection(
+			[IAgentHostConnectionsService, upcastPartial<IAgentHostConnectionsService>({
+				onDidChangeConnections: Event.None,
+				getConnectionByAuthority: authority => authority === 'remote-host' ? connection : undefined,
+			})],
+			[IThemeService, new TestThemeService()],
+		)));
+		const channel = 'mcp://opaque-host-defined-channel/probe';
+		const ui = store.add(instantiationService.createInstance(McpToolCallUI, {
+			kind: 'agentHost', resourceUri: 'ui://probe/app', connectionAuthority: 'remote-host', channel, serverId: 'probe',
+		}));
+		const requests: MCP.CallToolRequestParams[] = [
+			{ name: 'correlation_probe', arguments: { value: 42 }, _meta: { 'com.example/correlation-id': 'correlation-1', 'com.example/context': { enabled: false, value: null } } },
+			{ name: 'correlation_probe', _meta: {} },
+			{ name: 'correlation_probe' },
+		];
+		for (const request of requests) {
+			await ui.callTool(request, CancellationToken.None);
+		}
+		assert.deepStrictEqual(calls, requests.map(params => ({
+			channel, method: 'tools/call', params: { ...params, arguments: params.arguments ?? {} },
+		})));
+	});
 
 	test('routes Agent Host requests through the connection authority', async () => {
 		const calls: Array<{ connection: string; channel: string; method: string; params: Record<string, unknown> | undefined }> = [];

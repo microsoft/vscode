@@ -5,6 +5,7 @@
 
 import './media/aiCustomizationManagement.css';
 import './aiCustomizationColors.js';
+import { getMcpCustomizationSource } from './mcpCustomizationSource.js';
 import * as DOM from '../../../../../base/browser/dom.js';
 import { renderFormattedText } from '../../../../../base/browser/formattedTextRenderer.js';
 import { IMouseEvent } from '../../../../../base/browser/mouseEvent.js';
@@ -37,6 +38,9 @@ import { ICustomizationMarketplaceInstallService, IRecordedCustomizationMarketpl
 import { McpCommandIds } from '../../../../contrib/mcp/common/mcpCommandIds.js';
 import { autorun, derived, IObservable, IReader, observableSignalFromEvent, observableValue } from '../../../../../base/common/observable.js';
 import { IOpenerService } from '../../../../../platform/opener/common/opener.js';
+import { getManagedSupportUrl, IManagedSettingsService } from '../../../../../platform/policy/common/copilotManagedSettings.js';
+import { appendContactAdministratorLink } from '../../../../services/policies/browser/organizationSupportLink.js';
+import { Link } from '../../../../../platform/opener/browser/link.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { isEqual } from '../../../../../base/common/resources.js';
 import { InputBox, MessageType } from '../../../../../base/browser/ui/inputbox/inputBox.js';
@@ -52,7 +56,7 @@ import { mcpServerIcon } from './aiCustomizationIcons.js';
 import { createMcpSignInButton, registerMcpInlineButtonAction, registerMcpSignInButtonAction, resetMcpSignInButton } from './mcpServerSignInButton.js';
 import { formatDisplayName, truncateToFirstLine } from './aiCustomizationListWidget.js';
 import { MiddleEllipsisPathLabel } from './aiCustomizationListWidgetUtils.js';
-import { getDefaultHoverDelegate } from '../../../../../base/browser/ui/hover/hoverDelegateFactory.js';
+import { createInstantHoverDelegate, getDefaultHoverDelegate } from '../../../../../base/browser/ui/hover/hoverDelegateFactory.js';
 import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
 import { IManagedHover } from '../../../../../base/browser/ui/hover/hover.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
@@ -316,6 +320,8 @@ interface IMcpServerItemTemplateData {
 	readonly sourcePath: HTMLElement;
 	readonly sourcePathLabel: MiddleEllipsisPathLabel;
 	readonly sourcePathHover: IManagedHover;
+	readonly skillsLink: Link;
+	readonly skillsLinkElement: HTMLAnchorElement;
 	readonly description: HTMLElement;
 	readonly descriptionHover: IManagedHover;
 	readonly issue: HTMLElement;
@@ -343,6 +349,7 @@ interface IMcpServerItemTemplateData {
 export class McpServerItemRenderer extends Disposable implements IListRenderer<IMcpInstalledEntry, IMcpServerItemTemplateData> {
 	readonly templateId = 'mcpServerItem';
 	private readonly _templates = new Set<IMcpServerItemTemplateData>();
+	private readonly _sourceHoverDelegate = this._register(createInstantHoverDelegate());
 	private _focusedRowKey: string | undefined;
 
 	constructor(
@@ -351,6 +358,7 @@ export class McpServerItemRenderer extends Disposable implements IListRenderer<I
 		private readonly _isMigratable: (entry: IMcpInstalledEntry, reader?: IReader) => boolean,
 		private readonly _openPlugin: (plugin: IAgentPlugin) => void,
 		private readonly _openMigrations: () => void,
+		private readonly _showSkillBundle: (bundleId: string) => void,
 		@IAICustomizationWorkspaceService private readonly workspaceService: IAICustomizationWorkspaceService,
 		@IAgentPluginService private readonly agentPluginService: IAgentPluginService,
 		@IHoverService private readonly hoverService: IHoverService,
@@ -359,6 +367,7 @@ export class McpServerItemRenderer extends Disposable implements IListRenderer<I
 		@ILabelService private readonly labelService: ILabelService,
 		@IExtensionsWorkbenchService private readonly extensionsWorkbenchService: IExtensionsWorkbenchService,
 		@IThemeService private readonly themeService: IThemeService,
+		@IOpenerService private readonly openerService: IOpenerService,
 	) {
 		super();
 		this._register(this.themeService.onDidColorThemeChange(() => {
@@ -386,9 +395,23 @@ export class McpServerItemRenderer extends Disposable implements IListRenderer<I
 		const compatibilityMessageDisposables = templateDisposables.add(new DisposableStore());
 		const sourcePath = DOM.append(secondaryLine, $('a.mcp-server-source-path'));
 		const sourcePathLabel = templateDisposables.add(new MiddleEllipsisPathLabel(sourcePath));
-		const sourcePathHover = templateDisposables.add(this.hoverService.setupManagedHover(getDefaultHoverDelegate('element'), sourcePath, ''));
-		const description = DOM.append(details, $('.mcp-server-description'));
+		const sourcePathHover = templateDisposables.add(this.hoverService.setupManagedHover(this._sourceHoverDelegate, sourcePath, ''));
+		const description = DOM.append(secondaryLine, $('.mcp-server-description'));
 		const descriptionHover = templateDisposables.add(this.hoverService.setupManagedHover(getDefaultHoverDelegate('element'), description, ''));
+		const skillsLink = templateDisposables.add(new Link(secondaryLine, { label: '', href: '#', tabIndex: -1 }, {
+			hoverDelegate: this._sourceHoverDelegate,
+			opener: () => {
+				const entry = template.currentElement && resolveMcpEntry(template.currentElement, this.agentHostCustomizationService, this.customizationHarnessService.activeSessionResource.get());
+				const bundle = entry && getActiveSessionServer(entry)?.skillBundle;
+				if (bundle?.count) {
+					this._showSkillBundle(bundle.id);
+				}
+			},
+		}, this.hoverService, this.openerService));
+		const skillsLinkElement = secondaryLine.lastElementChild as HTMLAnchorElement;
+		skillsLinkElement.classList.add('mcp-server-source-path', 'source-link', 'mcp-server-skills');
+		skillsLinkElement.style.display = 'none';
+		templateDisposables.add(DOM.addDisposableListener(skillsLinkElement, DOM.EventType.MOUSE_DOWN, event => event.stopPropagation()));
 		const issue = DOM.append(details, $('.mcp-server-issue'));
 		const issueHover = templateDisposables.add(this.hoverService.setupManagedHover(getDefaultHoverDelegate('element'), issue, ''));
 
@@ -406,6 +429,8 @@ export class McpServerItemRenderer extends Disposable implements IListRenderer<I
 			sourcePath,
 			sourcePathLabel,
 			sourcePathHover,
+			skillsLink,
+			skillsLinkElement,
 			description,
 			descriptionHover,
 			issue,
@@ -602,13 +627,26 @@ export class McpServerItemRenderer extends Disposable implements IListRenderer<I
 	private updateStatus(templateData: IMcpServerItemTemplateData, element: IMcpInstalledEntry, currentEntry: IMcpInstalledEntry | undefined, state: McpStatusKind | undefined, compatibilityKind: CustomizationMcpServerCompatibilityKind | undefined, migratable: boolean, disabledReason?: CustomizationDisabledReason): void {
 		const isError = state === McpServerStatus.Error || state === McpConnectionState.Kind.Error;
 		templateData.compatibilityLink = updateMcpCompatibilityMessage(templateData.compatibilityMessage, compatibilityKind, templateData.compatibilityMessageDisposables, this._openMigrations, migratable);
-		this.updateActionsTabbability(templateData);
 		if (isError) {
 			templateData.compatibilityMessage.style.display = 'none';
 		}
 
 		const presentation = getMcpStatusPresentation(state, disabledReason);
 		const activeSessionServer = currentEntry && getActiveSessionServer(currentEntry);
+		const bundle = activeSessionServer?.skillBundle;
+		templateData.skillsLinkElement.style.display = bundle?.count ? '' : 'none';
+		if (bundle?.count && activeSessionServer) {
+			const ariaLabel = bundle.count === 1
+				? localize('showMcpSkill', "Show {0} skill from {1}", bundle.count, activeSessionServer.name)
+				: localize('showMcpSkills', "Show {0} skills from {1}", bundle.count, activeSessionServer.name);
+			templateData.skillsLink.link = {
+				label: bundle.count === 1 ? localize('mcpSkillCount', "• {0} Skill", bundle.count) : localize('mcpSkillsCount', "• {0} Skills", bundle.count),
+				href: '#',
+				title: ariaLabel,
+			};
+			templateData.skillsLinkElement.setAttribute('aria-label', ariaLabel);
+		}
+		this.updateActionsTabbability(templateData);
 		templateData.issue.textContent = '';
 		templateData.issue.style.display = 'none';
 		templateData.issueHover.update('');
@@ -672,6 +710,7 @@ export class McpServerItemRenderer extends Disposable implements IListRenderer<I
 		const focused = templateData.currentElement !== undefined && getMcpRowKey(templateData.currentElement) === this._focusedRowKey;
 		setVirtualizedRowActionsTabbable(templateData.actions, focused);
 		templateData.sourcePath.tabIndex = templateData.sourcePath.classList.contains('source-link') && focused ? 0 : -1;
+		templateData.skillsLinkElement.tabIndex = templateData.skillsLinkElement.style.display !== 'none' && focused ? 0 : -1;
 		if (templateData.compatibilityLink) {
 			templateData.compatibilityLink.tabIndex = focused ? 0 : -1;
 		}
@@ -1119,20 +1158,12 @@ export function getMcpEntryGroup(entry: IMcpInstalledEntry): 'user' | 'workspace
 		}
 	}
 	const activeSessionServer = getActiveSessionServer(entry);
-	switch (activeSessionServer?.source) {
-		case 'user':
-			return 'user';
-		case 'workspace':
-			return 'workspace';
-		case 'plugin':
-			return 'plugins';
-		case undefined:
-			// The agent host's own configuration applies to all of its sessions, like user configuration.
-			if (activeSessionServer?.hostConfiguration) {
-				return 'user';
-			}
+	switch (getMcpCustomizationSource(activeSessionServer?.source, activeSessionServer?.hostConfiguration !== undefined)) {
+		case 'user': return 'user';
+		case 'local': return 'workspace';
+		case 'plugin': return 'plugins';
+		default: return 'builtin';
 	}
-	return 'builtin';
 }
 
 /** Everything the status actions of a row are built from: what they show, and what they act on. */
@@ -1959,6 +1990,8 @@ export class McpListWidget extends Disposable {
 	private disabledIcon!: HTMLElement;
 	private disabledMessage!: HTMLElement;
 	private readonly disabledLinkListener = this._register(new MutableDisposable());
+	/** Identifies the message in `disabledMessage`, so unchanged state doesn't rebuild it and drop focus. */
+	private renderedDisabledMessage: string | undefined;
 
 	private filteredServers: IWorkbenchMcpServer[] = [];
 	private installedEntries: IMcpInstalledPresentation[] = [];
@@ -1991,6 +2024,7 @@ export class McpListWidget extends Disposable {
 	private readonly delayedFilter = new Delayer<void>(200);
 	private readonly delayedGallerySearch = new Delayer<void>(400);
 	private _closeCustomizationEditor: () => Promise<void> = () => Promise.resolve();
+	private _showSkillBundle: (bundleId: string) => void = () => { };
 	private readonly agentHostCustomizationsChanged: IObservable<void>;
 	private readonly mcpServerCompatibility = observableValue<ReadonlyMap<string, CustomizationMcpServerCompatibilityKind>>(this, new Map());
 	private readonly mcpServerCompatibilityScope = this._register(new MutableDisposable<DisposableStore>());
@@ -2023,6 +2057,7 @@ export class McpListWidget extends Disposable {
 		@ILogService private readonly logService: ILogService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
 		@IWorkspaceContextService private readonly workspaceContextService: IWorkspaceContextService,
+		@IManagedSettingsService private readonly managedSettingsService: IManagedSettingsService,
 	) {
 		super();
 		this.agentHostCustomizationsChanged = observableSignalFromEvent(this, this.agentHostCustomizationService.onDidChangeCustomizations);
@@ -2039,6 +2074,7 @@ export class McpListWidget extends Disposable {
 		));
 		this._register(resizeObserver.observe(this.element));
 		this.updateAccessState();
+		this._register(this.managedSettingsService.onDidChangeManagedSettings(() => this.updateAccessState()));
 		this._register(mcpGalleryManifestService.onDidChangeMcpGalleryManifest(() => {
 			if (this.isGalleryDiscoveryEnabled()) {
 				return;
@@ -2108,6 +2144,11 @@ export class McpListWidget extends Disposable {
 				this.connectorsCancellation.value?.cancel();
 			}
 		});
+	}
+
+	/** Sets navigation from a server's skill count to its Skills bundle. */
+	setShowSkillBundle(showSkillBundle: (bundleId: string) => void): void {
+		this._showSkillBundle = showSkillBundle;
 	}
 
 	setCloseCustomizationEditor(closeCustomizationEditor: () => Promise<void>): void {
@@ -2258,6 +2299,7 @@ export class McpListWidget extends Disposable {
 			(entry, reader) => this.isMcpServerMigratable(entry, reader),
 			plugin => this._onDidRequestShowPlugin.fire(createInstalledPluginItem(plugin)),
 			() => this._onDidRequestOpenMigrations.fire(),
+			bundleId => this._showSkillBundle(bundleId),
 		));
 		const marketplaceRenderer = new McpMarketplaceItemRenderer((server, button) => this.installMarketplaceServer(server, button));
 		this.list = this._register(this.instantiationService.createInstance(
@@ -2484,6 +2526,9 @@ export class McpListWidget extends Disposable {
 		this.mcpAccessEnabled = !disabled;
 
 		this.element.classList.toggle('access-disabled', disabled);
+		if (!disabled) {
+			this.renderedDisabledMessage = undefined;
+		}
 
 		if (disabled) {
 			this.connectorsCancellation.value?.cancel();
@@ -2499,20 +2544,36 @@ export class McpListWidget extends Disposable {
 			this.disabledIcon.className = 'empty-icon';
 			this.disabledIcon.classList.add(...ThemeIcon.asClassNameArray(policyLocked ? Codicon.shield : mcpServerIcon));
 
-			DOM.clearNode(this.disabledMessage);
-			this.disabledLinkListener.clear();
-			if (policyLocked) {
-				this.disabledMessage.textContent = localize('mcpAccessDisabledByPolicy', "Access to MCP servers is disabled by your organization. Contact your administrator for more information.");
-			} else {
-				this.disabledMessage.appendChild(document.createTextNode(localize('mcpAccessDisabledBySettingPrefix', "MCP servers are disabled in settings. ")));
-				const link = DOM.append(this.disabledMessage, $('a.mcp-disabled-settings-link')) as HTMLAnchorElement;
-				link.textContent = localize('mcpAccessDisabledSettingLink', "Configure in settings.");
-				link.href = '#';
-				link.setAttribute('role', 'button');
-				this.disabledLinkListener.value = DOM.addDisposableListener(link, 'click', (e) => {
-					e.preventDefault();
-					this.commandService.executeCommand('workbench.action.openSettings', `@id:${mcpAccessConfig}`);
-				});
+			const supportUrl = policyLocked ? getManagedSupportUrl(this.managedSettingsService) : undefined;
+			const messageKey = `${policyLocked}:${supportUrl ?? ''}`;
+			if (this.renderedDisabledMessage !== messageKey) {
+				this.renderedDisabledMessage = messageKey;
+				const hadFocus = DOM.isAncestorOfActiveElement(this.disabledMessage);
+				DOM.clearNode(this.disabledMessage);
+				this.disabledLinkListener.clear();
+				let link: HTMLElement | undefined;
+				if (supportUrl) {
+					this.disabledMessage.appendChild(document.createTextNode(localize('mcpAccessDisabledByPolicyPrefix', "Access to MCP servers is disabled by your organization. ")));
+					const supportLink = appendContactAdministratorLink(this.disabledMessage, 'mcp-disabled-settings-link', supportUrl, this.openerService, this.hoverService);
+					this.disabledLinkListener.value = supportLink;
+					link = supportLink.element;
+				} else if (policyLocked) {
+					this.disabledMessage.textContent = localize('mcpAccessDisabledByPolicy', "Access to MCP servers is disabled by your organization. Contact your administrator for more information.");
+				} else {
+					this.disabledMessage.appendChild(document.createTextNode(localize('mcpAccessDisabledBySettingPrefix', "MCP servers are disabled in settings. ")));
+					const settingsLink = DOM.append(this.disabledMessage, $('a.mcp-disabled-settings-link')) as HTMLAnchorElement;
+					settingsLink.textContent = localize('mcpAccessDisabledSettingLink', "Configure in settings.");
+					settingsLink.href = '#';
+					settingsLink.setAttribute('role', 'button');
+					this.disabledLinkListener.value = DOM.addDisposableListener(settingsLink, 'click', (e) => {
+						e.preventDefault();
+						this.commandService.executeCommand('workbench.action.openSettings', `@id:${mcpAccessConfig}`);
+					});
+					link = settingsLink;
+				}
+				if (hadFocus) {
+					link?.focus();
+				}
 			}
 		} else if (accessChanged && this.visible) {
 			if (this.searchQuery.trim() && !this.isGalleryDiscoveryEnabled()) {

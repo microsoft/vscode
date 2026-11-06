@@ -6,7 +6,7 @@ on:
         type: boolean
         default: true
       electron_affected:
-        description: Whether the pull request can affect the Electron jobs, which are skipped when false
+        description: Whether the pull request can affect the Electron (extension host) job, which is skipped when false
         type: boolean
         default: true
       agent_host_e2e_affected:
@@ -29,6 +29,10 @@ on:
         description: Whether the pull request can affect the Remote jobs, which are skipped when false
         type: boolean
         default: true
+      node_integration_tests:
+        description: Whether the plan selects node.js integration tests for the Electron (node.js) job, which is skipped when false
+        type: boolean
+        default: true
       agent_host_test_profile:
         description: Agent Host test profile, 'pr' or 'full' (see .github/actions/detect-agent-host-e2e-changes)
         type: string
@@ -37,6 +41,10 @@ on:
         description: Reason for selecting the Agent Host test profile
         type: string
         default: Change detection unavailable
+      workspace_image_branch:
+        description: The branch whose workspace images the jobs use (see .github/workflows/workspace_image/README.md)
+        type: string
+        default: main
 
 env:
   NPM_ARCH: x64
@@ -52,13 +60,15 @@ env:
 # - UNIT_TEST_SUITE: the unit tests of an Electron job, 'electron' or 'node', or both when unset
 # - INTEGRATION_TEST_SUITE: the integration tests of an Electron job, 'node' for the node.js integration
 #   tests or 'extension-host' for the extension host tests, or both when unset
+# - TEST_SELECTION: run only the test files listed in the test-plan artifact of the workflow run, when
+#   the Detect Changes job of pr.yml uploaded one, instead of every test of the kinds that it plans
+#   (unit.txt for the unit tests, integration.txt for the node.js integration tests and Agent Host E2E)
 # - SMOKE_SHARD_INDEX and SMOKE_SHARD_TOTAL: the 1-based index of the Electron smoke test shard to run,
 #   and the number of shards
 # - ARTIFACT_NAME: identifies the job in the names of the artifacts that it publishes
 jobs:
-  # Linux runs every unit test, so the Electron and node.js unit tests in one job could be the slowest
-  # job of the workflow: they run on separate machines. macOS and Windows run only the selected unit
-  # tests, so they rarely take as long.
+  # When a change runs every unit test (see build/ripple/README.md), the Electron and node.js unit tests
+  # in one job could be the slowest job of the workflow, so they run on separate machines.
   electron-unit-electron:
     name: Electron-Unit (electron)
     if: ${{ inputs.electron_unit_affected }}
@@ -68,19 +78,78 @@ jobs:
       ELECTRON_TESTS: 'true'
       UNIT_TESTS: 'true'
       UNIT_TEST_SUITE: electron
+      TEST_SELECTION: 'true'
     steps: &steps
+      # A workspace image of main holds a workspace whose dependencies, Electron, Playwright browsers,
+      # and the sysroots and compilers of setup-env.sh are installed, which the checkout updates (see
+      # .github/workflows/workspace_image/README.md). Its scripts run before the checkout, so they come
+      # from the API, at the commit that the job tests, as in pr-workspace-images.yml.
+      - name: Download the workspace image scripts
+        id: image-scripts
+        continue-on-error: true
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          dir="$RUNNER_TEMP/workspace-image"
+          mkdir -p "$dir"
+          echo '{ "type": "module" }' > "$dir/package.json"
+          # The scripts keep their folders below workspace_image, such as win32/vhd.ps1
+          files=(.nvmrc .github/workflows/workspace_image/{image.ts,win32/vhd.ps1,win32/Vhd.cs})
+          args=()
+          for file in "${files[@]}"; do
+            args+=(-o "$dir/${file#.github/workflows/workspace_image/}" "$GITHUB_API_URL/repos/$GITHUB_REPOSITORY/contents/$file?ref=$GITHUB_SHA")
+          done
+          curl -fsSL --retry 3 --parallel --create-dirs -H "Authorization: Bearer $GH_TOKEN" -H 'Accept: application/vnd.github.raw' "${args[@]}"
+          for file in "${files[@]}"; do
+            [ -s "$dir/${file#.github/workflows/workspace_image/}" ]
+          done
+          echo "node-version=$(tr -d '[:space:]' < "$dir/.nvmrc")" >> "$GITHUB_OUTPUT"
+
+      - name: Setup Node.js
+        if: steps.image-scripts.outcome == 'success'
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: ${{ steps.image-scripts.outputs.node-version }}
+
+      # The image is an ext4 volume, which a loop device mounts at the parent of the workspace. image.ts
+      # gives up before the timeout of the step, which could stop it with the image half mounted, and
+      # then unmounts it and detaches the loop device as after any other error, so that the job sets up
+      # as without an image. Pull requests to release branches look for images of their own branch,
+      # which pr-workspace-images.yml doesn't build.
+      - name: Restore the workspace image
+        id: image
+        if: steps.image-scripts.outcome == 'success'
+        continue-on-error: true
+        timeout-minutes: 5
+        working-directory: ${{ runner.temp }}
+        run: node "$RUNNER_TEMP/workspace-image/image.ts" restore --name workspace-image-linux-x64.img --branch "$WORKSPACE_IMAGE_BRANCH" --timeout-seconds 240
+        env:
+          GH_TOKEN: ${{ github.token }}
+          WORKSPACE_IMAGE_BRANCH: ${{ inputs.workspace_image_branch }}
+
       - name: Checkout microsoft/vscode
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           lfs: true
+          # With a workspace image, keeps its untracked files, such as node_modules, and reuses its .git
+          clean: ${{ steps.image.outputs.used != 'true' }}
 
       - name: Setup Node.js
+        if: steps.image-scripts.outcome != 'success'
         uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version-file: .nvmrc
 
       - name: Setup pnpm
         uses: ./.github/actions/setup-pnpm
+
+      # The linux-packages job of pr-workspace-images.yml caches the .deb files of the packages on main, for
+      # the image of the runner, so that the jobs install them without apt-get, whose mirrors are at times
+      # slow. Without them, apt-get installs the packages as before.
+      - name: Install system packages
+        uses: ./.github/actions/install-linux-packages
 
       - name: Setup system services
         run: |
@@ -89,23 +158,15 @@ jobs:
           # Ubuntu 24.04 restricts this by default via AppArmor
           sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
           # Start X server
-          ./build/azure-pipelines/linux/apt-retry.sh sudo apt-get update
-          ./build/azure-pipelines/linux/apt-retry.sh sudo apt-get install -y pkg-config \
-            xvfb \
-            libgtk-3-0 \
-            libxkbfile-dev \
-            libkrb5-dev \
-            libgbm1 \
-            rpm \
-            bubblewrap \
-            socat
           sudo cp build/azure-pipelines/linux/xvfb.init /etc/init.d/xvfb
           sudo chmod +x /etc/init.d/xvfb
           sudo update-rc.d xvfb defaults
           sudo service xvfb start
 
+      # A workspace image holds the node_modules of its commit, which the install steps update
       - name: Restore node_modules cache
         id: cache-node-modules
+        if: steps.image.outputs.used != 'true'
         uses: ./.github/actions/restore-node-modules
         with:
           key-prefix: node_modules-linux
@@ -128,6 +189,8 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
+      # On a workspace image, pnpm installs only what changed since the commit of the image, and
+      # setup-env.sh reuses the sysroots and compilers in its .build folder
       - name: Install dependencies
         if: steps.cache-node-modules.outputs.cache-hit != 'true'
         run: |
@@ -306,8 +369,10 @@ jobs:
         run: pnpm run compile
 
       # pr-node-modules.yml fills this cache on main, so pull requests don't download the browsers.
+      # A workspace image holds them already, and points PLAYWRIGHT_BROWSERS_PATH at them, which this
+      # action would point into the workspace.
       - name: Restore Playwright browsers
-        if: ${{ env.BROWSER_TESTS == 'true' }}
+        if: ${{ env.BROWSER_TESTS == 'true' && steps.image.outputs.used != 'true' }}
         uses: ./.github/actions/restore-playwright
         with:
           browsers: --only-shell chromium
@@ -332,23 +397,41 @@ jobs:
             sleep 5
           done
 
+      - name: Download test plan
+        id: download-plan
+        if: ${{ env.TEST_SELECTION == 'true' }}
+        # Without a plan (Detect Changes only uploads one when the selection applies), the test
+        # steps below run every test. A pattern, unlike a name, downloads nothing instead of
+        # failing when there is no plan.
+        continue-on-error: true
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          pattern: test-plan
+          path: .build/test-plan
+
+      # A failed download (such as a digest mismatch, reported after extracting) can leave a partial
+      # plan behind: without one, the test steps below run every test.
+      - name: Discard a failed test plan download
+        if: ${{ steps.download-plan.outcome == 'failure' }}
+        run: rm -rf .build/test-plan
+
       - name: 🧪 Run unit tests (Electron)
-        if: ${{ env.ELECTRON_TESTS == 'true' && env.UNIT_TESTS == 'true' && env.UNIT_TEST_SUITE != 'node' }}
+        if: ${{ env.ELECTRON_TESTS == 'true' && env.UNIT_TESTS == 'true' && env.UNIT_TEST_SUITE != 'node' && (hashFiles('.build/test-plan/plan.json') == '' || hashFiles('.build/test-plan/unit.txt') != '') }}
         timeout-minutes: 25
-        run: ./scripts/test.sh --tfs "Unit Tests" --workers 4 --rerun-failed-files 2
+        run: ./scripts/test.sh --tfs "Unit Tests" --workers 4 --rerun-failed-files 2 ${{ hashFiles('.build/test-plan/plan.json') != '' && '--runList .build/test-plan/unit.txt' || '' }}
         env:
           DISPLAY: ":10"
           VSCODE_SKIP_PRELAUNCH: '1'
 
       - name: 🧪 Run unit tests (node.js)
-        if: ${{ env.ELECTRON_TESTS == 'true' && env.UNIT_TESTS == 'true' && env.UNIT_TEST_SUITE != 'electron' }}
+        if: ${{ env.ELECTRON_TESTS == 'true' && env.UNIT_TESTS == 'true' && env.UNIT_TEST_SUITE != 'electron' && (hashFiles('.build/test-plan/plan.json') == '' || hashFiles('.build/test-plan/unit.txt') != '') }}
         timeout-minutes: 25
-        run: pnpm run test-node --workers 4 --rerun-failed-files 2
+        run: pnpm run test-node --workers 4 --rerun-failed-files 2 ${{ hashFiles('.build/test-plan/plan.json') != '' && '--runList .build/test-plan/unit.txt' || '' }}
 
       - name: 🧪 Run unit tests (Browser, Chromium)
-        if: ${{ env.BROWSER_TESTS == 'true' && env.UNIT_TESTS == 'true' }}
+        if: ${{ env.BROWSER_TESTS == 'true' && env.UNIT_TESTS == 'true' && (hashFiles('.build/test-plan/plan.json') == '' || hashFiles('.build/test-plan/unit.txt') != '') }}
         timeout-minutes: 30
-        run: pnpm run test-browser-no-install --browser chromium --tfs "Browser Unit Tests" --workers 4 --rerun-failed-files 2
+        run: pnpm run test-browser-no-install --browser chromium --tfs "Browser Unit Tests" --workers 4 --rerun-failed-files 2 ${{ hashFiles('.build/test-plan/plan.json') != '' && '--runList .build/test-plan/unit.txt' || '' }}
         env:
           DEBUG: "*browser*"
 
@@ -381,7 +464,7 @@ jobs:
         id: agent-host-e2e
         if: ${{ env.ELECTRON_TESTS == 'true' && env.AGENT_HOST_E2E_TESTS == 'true' }}
         timeout-minutes: 25
-        run: ./scripts/test-agent-host-e2e.sh --tfs "Integration Tests" --rerun-failed-files 2
+        run: ./scripts/test-agent-host-e2e.sh --tfs "Integration Tests" --rerun-failed-files 2 ${{ hashFiles('.build/test-plan/integration.txt') != '' && '--runList .build/test-plan/integration.txt' || '' }}
         env:
           DISPLAY: ":10"
           AGENT_HOST_TEST_PROFILE: ${{ inputs.agent_host_test_profile }}
@@ -394,7 +477,7 @@ jobs:
         id: node-integration-tests
         if: ${{ env.ELECTRON_TESTS == 'true' && env.INTEGRATION_TESTS == 'true' && env.INTEGRATION_TEST_SUITE != 'extension-host' && !cancelled() && (success() || steps.agent-host-e2e.outcome == 'failure') }}
         timeout-minutes: 25
-        run: ./scripts/test-integration.sh --only-node-tests --tfs "Integration Tests" --rerun-failed-files 2
+        run: ./scripts/test-integration.sh --only-node-tests --tfs "Integration Tests" --rerun-failed-files 2 ${{ hashFiles('.build/test-plan/integration.txt') != '' && '--runList .build/test-plan/integration.txt' || '' }}
         env:
           DISPLAY: ":10"
           AGENT_HOST_TEST_PROFILE: ${{ inputs.agent_host_test_profile }}
@@ -556,19 +639,22 @@ jobs:
       ELECTRON_TESTS: 'true'
       UNIT_TESTS: 'true'
       UNIT_TEST_SUITE: node
+      TEST_SELECTION: 'true'
     steps: *steps
 
   # The node.js integration tests and the extension host tests take about 6.5 and 5 minutes. In one job
-  # they would be the slowest job of the workflow, so they run on separate machines.
+  # they would be the slowest job of the workflow, so they run on separate machines. This job runs only
+  # the node.js integration tests that the plan selects, and is skipped when it selects none.
   electron-node:
     name: Electron (node.js)
-    if: ${{ inputs.electron_affected }}
+    if: ${{ inputs.node_integration_tests }}
     runs-on: vscode-large-runners-ubuntu-8-core
     env:
       ARTIFACT_NAME: electron-node
       ELECTRON_TESTS: 'true'
       INTEGRATION_TESTS: 'true'
       INTEGRATION_TEST_SUITE: node
+      TEST_SELECTION: 'true'
     steps: *steps
 
   electron-extension-host:
@@ -583,7 +669,7 @@ jobs:
     steps: *steps
 
   # The integration tests and Agent Host E2E in one job would be the slowest job of the workflow, so
-  # Agent Host E2E runs in parallel on its own machine.
+  # Agent Host E2E runs in parallel on its own machine. It runs only the suites that the plan selects.
   agent-host-e2e:
     name: Agent-Host-E2E
     if: ${{ inputs.agent_host_e2e_affected }}
@@ -592,6 +678,7 @@ jobs:
       ARTIFACT_NAME: electron-agent-host-e2e
       ELECTRON_TESTS: 'true'
       AGENT_HOST_E2E_TESTS: 'true'
+      TEST_SELECTION: 'true'
     steps: *steps
 
   # Running every Electron smoke test takes one machine up to about 20 minutes, the timeout of the
@@ -641,6 +728,7 @@ jobs:
       ARTIFACT_NAME: browser-unit
       BROWSER_TESTS: 'true'
       UNIT_TESTS: 'true'
+      TEST_SELECTION: 'true'
     steps: *steps
 
   browser:

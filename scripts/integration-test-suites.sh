@@ -8,14 +8,25 @@
 # suite then gets its own folders from the prepare_suite <name> <folder> function of the script: a
 # VS Code instance that starts with the user data folder of a running instance hands its arguments to
 # that instance and exits. The output of a suite is printed when it finishes. Suites of the same group
-# run one after another in one lane, for example when they change the same workspace folder.
+# run one after another in one lane, for example when they change the same workspace folder. The
+# suites of a group marked with run_group_alone run first, with no other suite at the same time.
 
 # The added suites, in order: "<group>|<name>|<estimated seconds>|<title>|<function>".
 INTEGRATION_SUITES=()
 
+# The groups marked with run_group_alone, each followed by a space.
+INTEGRATION_SOLO_GROUPS=" "
+
 # add_suite <group> <name> <estimated seconds> <title> <function>
 add_suite() {
 	INTEGRATION_SUITES+=("$1|$2|$3|$4|$5")
+}
+
+# run_group_alone <group>: in a parallel run, runs the suites of the group before the lanes start, with
+# no other suite at the same time. For suites whose tests wait a fixed time for something to happen,
+# which another VS Code instance competing for the CPU can delay past that time.
+run_group_alone() {
+	INTEGRATION_SOLO_GROUPS+="$1 "
 }
 
 # Runs one suite of a parallel lane and prints its output when it finishes.
@@ -92,11 +103,15 @@ run_suites() {
 		export VSCODE_SKIP_PRELAUNCH=1
 	fi
 
-	# The groups, longest first.
-	local weights="" groups=() total
+	# The groups that don't run alone, longest first.
+	local weights="" groups=() solo=() total
 	for entry in "${INTEGRATION_SUITES[@]}"; do
 		IFS='|' read -r group name estimate title fn <<< "$entry"
-		weights+="$estimate $group"$'\n'
+		if [[ "$INTEGRATION_SOLO_GROUPS" == *" $group "* ]]; then
+			solo+=("$entry")
+		else
+			weights+="$estimate $group"$'\n'
+		fi
 	done
 	while read -r total group; do
 		groups+=("$group")
@@ -108,7 +123,11 @@ run_suites() {
 	state=$(mktemp -d /tmp/vscode-it.XXXXXX)
 	echo 0 > "$state/next"
 	echo
-	echo "Running ${#INTEGRATION_SUITES[@]} suites in $lanes parallel lanes; each suite's output follows when it finishes."
+	echo "Running ${#solo[@]} suites alone, then $((${#INTEGRATION_SUITES[@]} - ${#solo[@]})) suites in $lanes parallel lanes; each suite's output follows when it finishes."
+	for entry in "${solo[@]}"; do
+		IFS='|' read -r group name estimate title fn <<< "$entry"
+		run_parallel_suite "$name" "$title" "$fn" "$state"
+	done
 	for ((lane = 0; lane < lanes; lane++)); do
 		run_lane "$state" "${groups[@]}" &
 		pids+=($!)

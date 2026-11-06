@@ -11,7 +11,7 @@ import { getChatImageResourceComparisonKey, getToolResultImageResources } from '
 import { IChatToolInvocation, isLegacyChatTerminalToolInvocationData, ToolConfirmKind } from '../../../../workbench/contrib/chat/common/chatService/chatService.js';
 import { IChatModel } from '../../../../workbench/contrib/chat/common/model/chatModel.js';
 import { isToolResultInputOutputDetails } from '../../../../workbench/contrib/chat/common/tools/languageModelToolsService.js';
-import { getChatSessionArtifacts, IChat, ISession, ISessionArtifact } from '../../../services/sessions/common/session.js';
+import { getChatSessionArtifacts, IChat, ISession, ISessionArtifact } from '../../../../workbench/contrib/sessions/common/session.js';
 
 export interface IInboxEvidenceImage {
 	readonly uri: URI;

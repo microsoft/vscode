@@ -4,9 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
+import { DeferredPromise } from '../../../../base/common/async.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { LocalTranscriptionService, selectCachedModelVariant } from '../../node/localTranscriptionService.js';
-import { ILocalTranscriptionResult } from '../../common/localTranscription.js';
+import { ILocalTranscriptionModelStatus, ILocalTranscriptionResult } from '../../common/localTranscription.js';
 
 type TranscriptionResponse = {
 	is_final: boolean;
@@ -15,8 +16,17 @@ type TranscriptionResponse = {
 	end_time?: number;
 };
 
+type TranscriptionTestSession = {
+	getStream(): AsyncGenerator<TranscriptionResponse>;
+	stop(): Promise<void>;
+	dispose(): Promise<void>;
+};
+
 type StreamingTestService = {
 	_sessionActive: boolean;
+	_session: TranscriptionTestSession | undefined;
+	_consumePromise: Promise<void> | undefined;
+	_openPromise: Promise<void> | undefined;
 	_consume(session: { getStream(): AsyncGenerator<TranscriptionResponse> }, generation: number): Promise<void>;
 };
 
@@ -36,6 +46,124 @@ suite('LocalTranscriptionService', () => {
 		}, 0);
 		return { updates, text: await service.stop() };
 	}
+
+	for (const outcome of ['stream', 'stop', 'success'] as const) {
+		test(outcome === 'success' ? 'returns the native final transcript on stop' : `rejects a native ${outcome} failure during finalization`, async () => {
+			const service = store.add(new LocalTranscriptionService());
+			const streamingService = service as unknown as StreamingTestService;
+			const finished = new DeferredPromise<TranscriptionResponse[]>();
+			const error = new Error('native inference failed');
+			const updates: ILocalTranscriptionResult[] = [];
+			store.add(service.onDidTranscribe(result => updates.push(result)));
+			const session: TranscriptionTestSession = {
+				async *getStream() {
+					yield* await finished.p;
+				},
+				async stop() {
+					if (outcome === 'stream') {
+						await finished.error(error);
+					} else if (outcome === 'stop') {
+						await finished.complete([]);
+						throw error;
+					} else {
+						await finished.complete([{ is_final: true, content: [{ text: 'final transcript' }] }]);
+					}
+				},
+				async dispose() {
+					await finished.complete([]);
+				},
+			};
+			streamingService._sessionActive = true;
+			streamingService._session = session;
+			streamingService._consumePromise = streamingService._consume(session, 0);
+
+			if (outcome === 'success') {
+				assert.deepStrictEqual({ text: await service.stop(), updates }, {
+					text: 'final transcript',
+					updates: [{ text: 'final transcript', isFinal: true, finalizedText: 'final transcript' }],
+				});
+			} else {
+				await assert.rejects(service.stop(), error);
+				assert.deepStrictEqual(updates, []);
+			}
+		});
+	}
+
+	test('ignores stream errors caused by cancellation', async () => {
+		const service = store.add(new LocalTranscriptionService());
+		const streamingService = service as unknown as StreamingTestService;
+		const finished = new DeferredPromise<TranscriptionResponse[]>();
+		const statuses: ILocalTranscriptionModelStatus[] = [];
+		store.add(service.onDidChangeModelStatus(status => statuses.push(status)));
+		const session: TranscriptionTestSession = {
+			async *getStream() {
+				yield* await finished.p;
+			},
+			async stop() { },
+			async dispose() {
+				await finished.error(new Error('cancelled'));
+			},
+		};
+		streamingService._sessionActive = true;
+		streamingService._session = session;
+		streamingService._consumePromise = streamingService._consume(session, 0);
+
+		await service.cancel();
+
+		assert.deepStrictEqual({ statuses, text: await service.stop() }, { statuses: [], text: '' });
+	});
+
+	test('rejects a failed session open rather than returning an empty transcript', async () => {
+		const service = store.add(new LocalTranscriptionService());
+		const streamingService = service as unknown as StreamingTestService;
+		const error = new Error('session failed to open');
+		streamingService._openPromise = Promise.reject(error);
+
+		await assert.rejects(service.stop(), error);
+	});
+
+	test('a cancelled stop does not dispose a newer session', async () => {
+		const service = store.add(new LocalTranscriptionService());
+		const streamingService = service as unknown as StreamingTestService;
+		const stopping = new DeferredPromise<void>();
+		const resumeStop = new DeferredPromise<void>();
+		const finished = new DeferredPromise<TranscriptionResponse[]>();
+		const session: TranscriptionTestSession = {
+			async *getStream() {
+				yield* await finished.p;
+			},
+			async stop() {
+				await stopping.complete();
+				await resumeStop.p;
+			},
+			async dispose() {
+				await finished.complete([]);
+			},
+		};
+		streamingService._sessionActive = true;
+		streamingService._session = session;
+		streamingService._consumePromise = streamingService._consume(session, 0);
+
+		const stop = service.stop();
+		await stopping.p;
+		await service.cancel();
+		let disposed = false;
+		const replacement: TranscriptionTestSession = {
+			getStream: () => session.getStream(),
+			async stop() { },
+			async dispose() { disposed = true; },
+		};
+		streamingService._session = replacement;
+		streamingService._sessionActive = true;
+		await resumeStop.complete();
+
+		assert.deepStrictEqual({
+			text: await stop,
+			disposed,
+			active: streamingService._sessionActive,
+			session: streamingService._session,
+		}, { text: '', disposed: false, active: true, session: replacement });
+	});
 
 	test('preserves whitespace-only deltas and subword boundaries without a final segment', async () => {
 		const chunks = ['What', ' ', 'is', ' ', 'wrong', ' with', ' the', ' ', 'trans', 'cript', '?'];

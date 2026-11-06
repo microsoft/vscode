@@ -15,7 +15,11 @@ import { mock } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { IChatWidget, IChatWidgetService } from '../../../browser/chat.js';
 import { AgentSessionsModel, IAgentSession, isAgentSession, isAgentSessionsModel, isLocalAgentSessionItem } from '../../../browser/agentSessions/agentSessionsModel.js';
-import { AgentSessionsService } from '../../../browser/agentSessions/agentSessionsService.js';
+import { AgentSessionsService, IAgentSessionsService } from '../../../browser/agentSessions/agentSessionsService.js';
+import { AgentSessionsControl } from '../../../browser/agentSessions/agentSessionsControl.js';
+import { HoverPosition } from '../../../../../../base/browser/ui/hover/hoverWidget.js';
+import { IVoicePlaybackService } from '../../../common/voicePlaybackService.js';
+import { observableValue } from '../../../../../../base/common/observable.js';
 import { AgentSessionsFilter } from '../../../browser/agentSessions/agentSessionsFilter.js';
 import { ChatSessionRefreshReason, ChatSessionStatus, IChatSessionItemController, IChatSessionItem, IChatSessionItemsDelta, IChatSessionsService, localChatSessionType } from '../../../common/chatSessionsService.js';
 import { IChatService } from '../../../common/chatService/chatService.js';
@@ -83,6 +87,29 @@ suite('AgentSessions', () => {
 				},
 			}));
 			return reasons;
+		}
+
+		function createSessionsControl(model: AgentSessionsModel): AgentSessionsControl {
+			instantiationService.stub(IAgentSessionsService, new class extends mock<IAgentSessionsService>() {
+				override readonly model = model;
+				override readonly onDidChangeSessionArchivedState = Event.None;
+			});
+			instantiationService.stub(IVoicePlaybackService, new class extends mock<IVoicePlaybackService>() {
+				override readonly pendingResponseVersion = observableValue(this, 0);
+				override hasPendingResponse = () => false;
+			});
+			return disposables.add(instantiationService.createInstance(AgentSessionsControl, document.createElement('div'), {
+				source: 'test',
+				overrideStyles: {},
+				filter: {
+					onDidChange: Event.None, exclude: () => false,
+					getExcludes: () => ({ providers: [], states: [], archived: false, read: false, repositoryGroupCapped: true }),
+					isDefault: () => true, reset: () => { },
+				},
+				createNewChat: () => { },
+				getHoverPosition: () => HoverPosition.BELOW,
+				trackActiveEditorSession: () => false,
+			}));
 		}
 
 		setup(() => {
@@ -205,6 +232,33 @@ suite('AgentSessions', () => {
 				await viewModel.resolve('type-eh');
 
 				assert.deepStrictEqual(viewModel.sessions.map(s => s.resource.toString()), ['type-agenthost://ah-1']);
+			});
+		});
+
+		test('keeps rows of a provider that registered while a sibling provider was still activating', async () => {
+			return runWithFakedTimers({}, async () => {
+				const activated = new DeferredPromise<void>();
+				disposables.add(mockChatSessionsService.registerChatSessionItemController('type-cloud', {
+					onDidChangeChatSessionItems: Event.None,
+					items: [],
+					refresh: () => activated.p,
+				}));
+				viewModel = createViewModel();
+				// Registration reads the provider's items once its initial refresh completes, which
+				// waits for its extension to activate.
+				mockChatSessionsService.fireDidChangeItemsProviders({ chatSessionType: 'type-cloud' });
+				await timeout(1_000);
+				disposables.add(mockChatSessionsService.registerChatSessionItemController('type-agenthost', new StaticChatSessionItemController([makeSimpleSessionItem('ah-1', { resource: URI.parse('type-agenthost://ah-1') })])));
+				await viewModel.resolve('type-agenthost');
+				const beforeActivation = viewModel.sessions.map(s => s.resource.toString());
+
+				activated.complete();
+				await viewModel.resolve('type-cloud');
+
+				assert.deepStrictEqual({ beforeActivation, afterActivation: viewModel.sessions.map(s => s.resource.toString()) }, {
+					beforeActivation: ['type-agenthost://ah-1'],
+					afterActivation: ['type-agenthost://ah-1'],
+				});
 			});
 		});
 
@@ -539,13 +593,31 @@ suite('AgentSessions', () => {
 			test(`manual refresh takes precedence when coalescing ${order.join(' then ')}`, () => runWithFakedTimers({}, async () => {
 				const reasons = recordRefreshReasons();
 				viewModel = createViewModel();
-				const refreshes = order.map(reason => viewModel.resolve(chatSessionTestType, undefined, reason));
+				const control = createSessionsControl(viewModel);
+				const refreshes = order.map(reason => control.refresh(reason));
 				mockChatSessionsService.fireDidChangeItemsProviders({ chatSessionType: chatSessionTestType });
 				await Promise.all(refreshes);
 
 				assert.deepStrictEqual(reasons, ['initial', 'manual']);
 			}));
 		}
+
+		test('automatic control refresh still refreshes providers without a freshness policy', () => runWithFakedTimers({}, async () => {
+			let refreshCount = 0;
+			registerContribution(chatSessionTestType);
+			disposables.add(mockChatSessionsService.registerChatSessionItemController(chatSessionTestType, {
+				onDidChangeChatSessionItems: Event.None,
+				items: [],
+				async refresh() { refreshCount++; },
+			}));
+			viewModel = createViewModel();
+			const control = createSessionsControl(viewModel);
+			await control.refresh('automatic');
+			await control.refresh('automatic');
+			await control.refresh();
+
+			assert.strictEqual(refreshCount, 4);
+		}));
 
 		for (const followUpRefresh of [false, true]) {
 			test(`preserves manual refresh errors consumed by a queued reread${followUpRefresh ? ' with a later successful refresh' : ''}`, () => runWithFakedTimers({}, async () => {
