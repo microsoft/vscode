@@ -65,7 +65,7 @@ export interface IChatQuestionCarouselOptions {
 	};
 	shouldAutoFocus?: boolean;
 	shouldAutoSelectFirstOption?: boolean;
-	/** Opt-in suppression of details identical to the displayed question heading. */
+	/** Suppress details identical to the displayed question heading. Defaults to true. */
 	hideDuplicateDetailedMessage?: boolean;
 }
 
@@ -579,7 +579,7 @@ export class ChatQuestionCarouselPart extends Disposable implements IChatContent
 		this._submitHint = undefined;
 	}
 
-	private layoutQuestionSections(header: HTMLElement, input: HTMLElement, inputScrollableNode: HTMLElement): void {
+	private layoutQuestionSections(header: HTMLElement, headerScrollableNode: HTMLElement, input: HTMLElement, inputScrollableNode: HTMLElement): void {
 		const maxHeight = Math.min(MAX_CAROUSEL_HEIGHT, dom.getWindow(this.domNode).innerHeight * MAX_CAROUSEL_VIEWPORT_RATIO);
 		const reservedHeight = (this._footerRow?.offsetHeight ?? 0) + (this._validationMessageElement?.offsetHeight ?? 0);
 		const availableHeight = Math.max(0, maxHeight - reservedHeight);
@@ -594,6 +594,7 @@ export class ChatQuestionCarouselPart extends Disposable implements IChatContent
 
 		if (header.style.maxHeight !== headerMaxHeightPx) {
 			header.style.maxHeight = headerMaxHeightPx;
+			headerScrollableNode.style.maxHeight = headerMaxHeightPx;
 		}
 		if (input.style.maxHeight !== inputMaxHeightPx) {
 			input.style.maxHeight = inputMaxHeightPx;
@@ -818,15 +819,6 @@ export class ChatQuestionCarouselPart extends Disposable implements IChatContent
 		headerRow.setAttribute('aria-label', localize('chat.questionCarousel.details', "Question details"));
 		const titleRow = dom.$(`.chat-question-title-row.${CHAT_CARD_HEADER_CLASS}`);
 
-		// Render carousel-level message if present (e.g. from MCP elicitation)
-		if (this.carousel.message && this._currentIndex === 0) {
-			const messageMd = isMarkdownString(this.carousel.message) ? MarkdownString.lift(this.carousel.message) : new MarkdownString(this.carousel.message);
-			const carouselMessage = dom.$('.chat-question-carousel-message');
-			const renderedMessage = questionRenderStore.add(this._markdownRenderer.render(messageMd));
-			carouselMessage.appendChild(renderedMessage.element);
-			headerRow.appendChild(carouselMessage);
-		}
-
 		const questionText = getDisplayedQuestionText(question);
 		const rawValue = isMarkdownString(questionText) ? questionText.value : questionText;
 		if (questionText) {
@@ -859,6 +851,14 @@ export class ChatQuestionCarouselPart extends Disposable implements IChatContent
 			titleRow.appendChild(this._headerActionsContainer);
 		}
 
+		if (this.carousel.message && this._currentIndex === 0) {
+			const messageMd = isMarkdownString(this.carousel.message) ? MarkdownString.lift(this.carousel.message) : new MarkdownString(this.carousel.message);
+			const carouselMessage = dom.$('.chat-question-carousel-message');
+			const renderedMessage = questionRenderStore.add(this._markdownRenderer.render(messageMd));
+			carouselMessage.appendChild(renderedMessage.element);
+			headerRow.appendChild(carouselMessage);
+		}
+
 		// Render description if present
 		if (question.description) {
 			const descriptionEl = dom.$('.chat-question-description');
@@ -866,23 +866,69 @@ export class ChatQuestionCarouselPart extends Disposable implements IChatContent
 			headerRow.appendChild(descriptionEl);
 		}
 
-		this._questionContainer.appendChild(headerRow);
-
-		// Render input based on question type
-		const inputContainer = dom.$('.chat-question-input-container');
-
-		// Render detailed markdown message inside the scrollable input area
 		const detailedValue = isMarkdownString(question.detailedMessage) ? question.detailedMessage.value : question.detailedMessage;
-		if (question.detailedMessage && (!this._options.hideDuplicateDetailedMessage || detailedValue?.trim() !== rawValue.trim())) {
+		if (question.detailedMessage && (this._options.hideDuplicateDetailedMessage === false || detailedValue?.trim() !== rawValue.trim())) {
 			const detailedMd = isMarkdownString(question.detailedMessage)
 				? MarkdownString.lift(question.detailedMessage)
 				: new MarkdownString(question.detailedMessage);
 			const detailedMessageEl = dom.$('.chat-question-detailed-message');
 			const renderedDetailedMessage = questionRenderStore.add(this._markdownRenderer.render(detailedMd));
 			detailedMessageEl.appendChild(renderedDetailedMessage.element);
-			inputContainer.appendChild(detailedMessageEl);
+			headerRow.appendChild(detailedMessageEl);
 		}
 
+		const headerScrollable = questionRenderStore.add(new DomScrollableElement(headerRow, {
+			vertical: ScrollbarVisibility.Visible,
+			horizontal: ScrollbarVisibility.Auto,
+			consumeMouseWheelIfScrollbarIsNeeded: true,
+		}));
+		// Preserve native touch panning; DomScrollableElement provides the scrollbars.
+		headerRow.style.overflow = 'auto';
+		const headerScrollableNode = headerScrollable.getDomNode();
+		headerScrollableNode.classList.add('chat-question-header-scrollable');
+		this._questionContainer.appendChild(headerScrollableNode);
+		questionRenderStore.add(dom.addDisposableListener(headerRow, dom.EventType.SCROLL, () => headerScrollable.scanDomNode()));
+		questionRenderStore.add(dom.addDisposableListener(headerRow, dom.EventType.KEY_DOWN, event => {
+			if (event.target !== headerRow || event.defaultPrevented || event.altKey || event.ctrlKey || event.metaKey || event.shiftKey) {
+				return;
+			}
+			const { scrollTop, scrollLeft } = headerScrollable.getScrollPosition();
+			let nextScrollTop = scrollTop;
+			let nextScrollLeft = scrollLeft;
+			switch (new StandardKeyboardEvent(event).keyCode) {
+				case KeyCode.LeftArrow:
+					nextScrollLeft = scrollLeft - 40;
+					break;
+				case KeyCode.RightArrow:
+					nextScrollLeft = scrollLeft + 40;
+					break;
+				case KeyCode.UpArrow:
+					nextScrollTop = scrollTop - 40;
+					break;
+				case KeyCode.DownArrow:
+					nextScrollTop = scrollTop + 40;
+					break;
+				case KeyCode.PageUp:
+					nextScrollTop = scrollTop - headerRow.clientHeight;
+					break;
+				case KeyCode.PageDown:
+					nextScrollTop = scrollTop + headerRow.clientHeight;
+					break;
+				case KeyCode.Home:
+					nextScrollTop = 0;
+					break;
+				case KeyCode.End:
+					nextScrollTop = headerRow.scrollHeight;
+					break;
+				default:
+					return;
+			}
+			headerScrollable.setScrollPosition({ scrollTop: nextScrollTop, scrollLeft: nextScrollLeft });
+			event.preventDefault();
+			event.stopPropagation();
+		}));
+
+		const inputContainer = dom.$('.chat-question-input-container');
 		this.renderInput(inputContainer, question);
 
 		const inputScrollable = questionRenderStore.add(new DomScrollableElement(inputContainer, {
@@ -893,6 +939,7 @@ export class ChatQuestionCarouselPart extends Disposable implements IChatContent
 		const inputScrollableNode = inputScrollable.getDomNode();
 		inputScrollableNode.classList.add('chat-question-input-scrollable');
 		this._questionContainer.appendChild(inputScrollableNode);
+		questionRenderStore.add(dom.addDisposableListener(inputContainer, dom.EventType.SCROLL, () => inputScrollable.scanDomNode()));
 
 		// Validation message element below the scrollable area (not inside it)
 		this._validationMessageElement = dom.$('.chat-question-validation-message');
@@ -911,17 +958,18 @@ export class ChatQuestionCarouselPart extends Disposable implements IChatContent
 
 		const targetWindow = dom.getWindow(this.domNode);
 		const relayoutScheduler = questionRenderStore.add(new dom.AnimationFrameScheduler(this.domNode, () => {
-			this.layoutQuestionSections(headerRow, inputContainer, inputScrollableNode);
+			this.layoutQuestionSections(headerRow, headerScrollableNode, inputContainer, inputScrollableNode);
 		}));
 		const inputResizeObserver = questionRenderStore.add(new dom.DisposableResizeObserver('ChatQuestionCarouselPart.inputScrollable', entries => {
 			// Viewport resizes update scrolling, but only intrinsic content changes need another allocation.
 			if (entries.some(entry => entry.target !== headerRow && entry.target !== inputContainer)) {
 				relayoutScheduler.schedule();
 			}
-			const headerTabIndex = headerRow.scrollHeight > headerRow.clientHeight ? 0 : -1;
+			const headerTabIndex = headerRow.scrollHeight > headerRow.clientHeight || headerRow.scrollWidth > headerRow.clientWidth ? 0 : -1;
 			if (headerRow.tabIndex !== headerTabIndex) {
 				headerRow.tabIndex = headerTabIndex;
 			}
+			headerScrollable.scanDomNode();
 			inputScrollable.scanDomNode();
 		}, targetWindow));
 		questionRenderStore.add(inputResizeObserver.observe(inputContainer));
@@ -1212,6 +1260,7 @@ export class ChatQuestionCarouselPart extends Disposable implements IChatContent
 			}
 
 			this.saveCurrentAnswer();
+			listItems[newIndex]?.scrollIntoView({ block: 'nearest', inline: 'nearest' });
 		};
 
 		const listItems: HTMLElement[] = [];
