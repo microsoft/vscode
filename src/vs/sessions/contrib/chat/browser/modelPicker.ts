@@ -28,7 +28,7 @@ import { getAgentHostProviderForTelemetry, IChatSessionsService } from '../../..
 import { IAgentHostService } from '../../../../platform/agentHost/common/agentService.js';
 import { LOCAL_AGENT_HOST_PROVIDER_ID } from '../../../../workbench/contrib/sessions/common/agentHostSessionsProvider.js';
 import { Menus } from '../../../../workbench/contrib/sessions/browser/menus.js';
-import { IsPhoneLayoutContext, SessionUsesCombinedConfigPickerContext } from '../../../../workbench/contrib/sessions/common/contextkeys.js';
+import { IsPhoneLayoutContext, SessionUsesCombinedConfigPickerContext, AutomationDialogAgentCreationContext } from '../../../../workbench/contrib/sessions/common/contextkeys.js';
 import { IsSessionsWindowContext } from '../../../../workbench/common/contextkeys.js';
 import { COMPARE_SESSION_MODELS_COMMAND_ID } from '../../../../workbench/contrib/sessions/common/sessionCommands.js';
 import { ModelComparisonAvailableContext, ModelComparisonPickerFocusedContext } from '../../../../workbench/contrib/chat/browser/widget/input/modelPicker/modelPickerComparison.js';
@@ -56,6 +56,7 @@ export class ModelPicker extends Disposable {
 	private readonly _modelPicker: ModelPickerActionItem;
 	private _container: HTMLElement | undefined;
 	private _phonePickerOpen = false;
+	private _showWhenUnavailable = false;
 
 	constructor(
 		compact: IObservable<boolean>,
@@ -130,10 +131,14 @@ export class ModelPicker extends Disposable {
 			// On-device models are offered only by the local Agent Host.
 			getLocalModelConnection: () => !this._selectionModel.state.get().agentModelPreferences?.required
 				&& this._sessionHost.session.get()?.providerId === LOCAL_AGENT_HOST_PROVIDER_ID ? this._agentHostService : undefined,
-			getPresentationOptions: () => ({
-				...this._selectionModel.state.get().options,
-				showModelIcon: true,
-			}),
+			getPresentationOptions: () => {
+				const state = this._selectionModel.state.get();
+				return {
+					...state.options,
+					showAutoModel: this._showWhenUnavailable && state.models.length === 0 ? false : state.options.showAutoModel,
+					showModelIcon: true,
+				};
+			},
 			isCacheWarm: () => {
 				const session = this._sessionHost.session.get();
 				// The session's prompt cache is warm once its first request has
@@ -195,8 +200,9 @@ export class ModelPicker extends Disposable {
 		this._register(this._chatEntitlementService.onDidChangeAnonymous(() => this._updatePickerState()));
 	}
 
-	render(container: HTMLElement): void {
+	render(container: HTMLElement, showWhenUnavailable = false): void {
 		this._container = container;
+		this._showWhenUnavailable = showWhenUnavailable;
 		this._modelPicker.render(container);
 		this._updatePickerState();
 	}
@@ -231,7 +237,7 @@ export class ModelPicker extends Disposable {
 	private _updatePickerState(): void {
 		const visible = this._shouldShowPicker();
 		this._modelPicker.setEnabled(visible);
-		this._updateVisibility(visible);
+		this._updateVisibility(visible || this._showWhenUnavailable);
 	}
 
 	private _updateVisibility(visible: boolean): void {
@@ -277,7 +283,7 @@ registerAction2(class extends Action2 {
 				when: ContextKeyExpr.and(
 					ChatContextKeys.enabled,
 					ChatContextKeys.inAutomationsDialog,
-					ContextKeyExpr.or(IsPhoneLayoutContext.negate(), SessionUsesCombinedConfigPickerContext.negate()),
+					ContextKeyExpr.or(AutomationDialogAgentCreationContext, IsPhoneLayoutContext.negate(), SessionUsesCombinedConfigPickerContext.negate()),
 				),
 			}, {
 				id: Menus.NewSessionChatInputToolbar,
@@ -295,12 +301,12 @@ registerAction2(class extends Action2 {
 // -- Action View Item --
 
 export class ModelPickerActionViewItem extends BaseActionViewItem {
-	constructor(private readonly picker: ModelPicker, private readonly compact?: ISettableObservable<boolean>) {
+	constructor(private readonly picker: ModelPicker, private readonly compact?: ISettableObservable<boolean>, private readonly showWhenUnavailable = false) {
 		super(undefined, { id: '', label: '', enabled: true, class: undefined, tooltip: '', run: () => { } });
 	}
 
 	override render(container: HTMLElement): void {
-		this.picker.render(container);
+		this.picker.render(container, this.showWhenUnavailable);
 	}
 
 	isCompact(): boolean {
@@ -333,7 +339,7 @@ export class ModelPickerToolbarsContribution extends Disposable implements IWork
 			this._register(actionViewItemService.register(menu, 'sessions.modelPicker', (_action, _options, instantiationService) => {
 				const compact = observableValue(this, false);
 				const picker = instantiationService.createInstance(ModelPicker, compact);
-				return new ModelPickerActionViewItem(picker, compact);
+				return new ModelPickerActionViewItem(picker, compact, menu === Menus.AutomationsDialogInputToolbar);
 			}));
 		}
 	}

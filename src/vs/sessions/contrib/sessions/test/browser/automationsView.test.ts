@@ -2202,6 +2202,7 @@ suite('AutomationsCardsWidget', () => {
 			description: widget.element.querySelector('.automations-cards-empty-description')?.textContent,
 			buttons: widget.element.querySelectorAll('.automations-cards-create-button').length,
 			templateSections: widget.element.querySelectorAll('.automations-templates').length,
+			chatInputs: widget.element.querySelectorAll('.interactive-input-part, .automation-authoring-composer').length,
 			templateNames: Array.from(widget.element.querySelectorAll('.automations-template-card-name-text'), element => element.textContent),
 		}, {
 			titles: 1,
@@ -2209,6 +2210,7 @@ suite('AutomationsCardsWidget', () => {
 			description: 'Describe what you want to automate, then choose when it runs.',
 			buttons: 1,
 			templateSections: 1,
+			chatInputs: 0,
 			templateNames: ['Catch up on main', 'Issue triage', 'Find bugs'],
 		});
 	});
@@ -4823,7 +4825,7 @@ suite('AutomationsCardsWidget', () => {
 		});
 	});
 
-	test('accessibility help explains prompt-only automation creation', () => {
+	test('accessibility help explains agent-first submission and reversible manual creation', () => {
 		const { instantiationService } = setup();
 		instantiationService.stub(IAgentWorkbenchLayoutService, new class extends mock<IAgentWorkbenchLayoutService>() { });
 		stubSessionsHostLayout(instantiationService);
@@ -4832,7 +4834,13 @@ suite('AutomationsCardsWidget', () => {
 		const provider = instantiationService.invokeFunction(accessor => help.getProvider(accessor));
 		assert.ok(provider);
 		disposables.add(provider);
-		assert.ok(provider.provideContent().includes('When creating an automation, you only need to enter a prompt. An empty name is derived from the prompt, and the target defaults to No workspace unless one is already supplied. An available Agent Host that supports the target is still required.'));
+		const content = provider.provideContent();
+		assert.deepStrictEqual({
+			standardForm: content.includes('When creating an automation, you only need to enter a prompt.'),
+			agentFirst: content.includes('New Automation opens an agent-first input.'),
+			conservativeControls: content.includes('For Copilot these are Interactive and Manual permissions; their pickers are hidden in agent creation.'),
+			switchBack: content.includes('Create with agent returns to the agent-first input without sending or losing your draft, but starting the walkthrough always uses Chat and conservative permissions.'),
+		}, { standardForm: true, agentFirst: true, conservativeControls: true, switchBack: true });
 	});
 
 	test('accessibility help explains showing run sessions in the Sessions list', () => {

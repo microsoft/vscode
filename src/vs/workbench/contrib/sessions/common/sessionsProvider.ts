@@ -496,6 +496,8 @@ export interface ISessionsProvider {
 	readonly supportsModelConfigurationForCreation?: boolean;
 	/** Whether the provider validates and applies explicit permission choices before creating the backend session. */
 	readonly supportsPermissionsForCreation?: boolean;
+	/** Conservative provider-owned settings required before an Automation authoring session can send. */
+	getAutomationAuthoringPermissions?(sessionTypeId: string): { readonly permissionId: string; readonly modeId?: string } | undefined;
 	/** Provider-owned permission choice for a draft or an exact running chat, including policy availability. */
 	getPermissionOptionForSession?(sessionId: string, chatResource?: URI): ISessionPermissionOption | undefined;
 	/** Translates a draft or exact running chat's permission intent to a comparison participant's session type. */

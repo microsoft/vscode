@@ -20,7 +20,8 @@ import { Emitter, Event } from '../../../../../base/common/event.js';
 import { CancellationError, getErrorMessage } from '../../../../../base/common/errors.js';
 import { DisposableStore, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { autorun, constObservable, IObservable, observableValue, transaction } from '../../../../../base/common/observable.js';
-import { isEqual } from '../../../../../base/common/resources.js';
+import { isEqual, joinPath } from '../../../../../base/common/resources.js';
+import { ResourceSet } from '../../../../../base/common/map.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { mock, upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
@@ -43,6 +44,7 @@ import { IContextViewService } from '../../../../../platform/contextview/browser
 import { IKeybindingService } from '../../../../../platform/keybinding/common/keybinding.js';
 import { ResultKind } from '../../../../../platform/keybinding/common/keybindingResolver.js';
 import { KeybindingsRegistry } from '../../../../../platform/keybinding/common/keybindingsRegistry.js';
+import { ConfigurationTarget } from '../../../../../platform/configuration/common/configuration.js';
 import { ILayoutService } from '../../../../../platform/layout/browser/layoutService.js';
 import { ILogService, NullLogService } from '../../../../../platform/log/common/log.js';
 import { IQuickInputHideEvent, IQuickInputService, IQuickTree, IQuickTreeItem, QuickInputHideReason } from '../../../../../platform/quickinput/common/quickInput.js';
@@ -54,6 +56,8 @@ import { IWorkspaceTrustRequestService, ResourceTrustRequestOptions } from '../.
 import { createWorkbenchDialogOptions } from '../../../../../workbench/browser/parts/dialogs/dialog.js';
 import { ChatContextKeys } from '../../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
 import { IChatSessionsService } from '../../../../../workbench/contrib/chat/common/chatSessionsService.js';
+import { IPromptsService, PromptsStorage } from '../../../../../workbench/contrib/chat/common/promptSyntax/service/promptsService.js';
+import { PromptFileVariableKind, toPromptFileVariableEntry } from '../../../../../workbench/contrib/chat/common/attachments/chatVariableEntries.js';
 import { ChatEntitlement, IChatEntitlementService } from '../../../../../workbench/services/chat/common/chatEntitlementService.js';
 import { ChatInputPart, IChatInputPartOptions } from '../../../../../workbench/contrib/chat/browser/widget/input/chatInputPart.js';
 import { IAutomationDescriptor, IAutomationSessionTemplate } from '../../../../../workbench/contrib/chat/common/automations/automation.js';
@@ -71,8 +75,9 @@ import { MobileSessionTypePicker } from '../../../../../workbench/contrib/sessio
 import { SessionModelSelection } from '../../../../../workbench/contrib/sessions/browser/chat/sessionModelSelection.js';
 import { GITHUB_REMOTE_FILE_SCHEME, ISession, ISessionWorkspace, SessionTypeAuthRequirement } from '../../../../../workbench/services/sessions/common/session.js';
 import { IAutomationSessionConfiguration, ISessionsProvider } from '../../../../../workbench/contrib/sessions/common/sessionsProvider.js';
-import { ISessionsManagementService } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
+import { ISessionsManagementService, ICreateNewSessionOptions, NewSessionRequestOptions } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import { ISessionsProvidersService } from '../../../../../workbench/contrib/sessions/browser/sessionsProvidersService.js';
+import { ISessionsService } from '../../../../../workbench/contrib/sessions/browser/sessionsService.js';
 import { AutomationDialogService } from '../../browser/automationDialogService.js';
 import { AutomationCustomizationSelection, AutomationIsolationGroupActionViewItem, AutomationSessionDraftSynchronizer, canSelectAutomationWorkspace, getAutomationDialogProviders, IFormState, IValidationState, isAutomationDialogPopupTarget, MobileAutomationsWorkspacePicker, registerAutomationDialogKeyboardNavigation, renderForm, shouldPassThroughAutomationDialogCommand, updateSaveButtonState } from '../../browser/automationDialog.js';
 import { AutomationInputCompletions } from '../../browser/automationInputCompletions.js';
@@ -80,6 +85,7 @@ import { AutomationIsolationModel } from '../../common/isolationGroupModel.js';
 import { SessionHostKind } from '../../../../../workbench/services/sessions/browser/sessionHost.js';
 import { stubSessionHosts } from '../../../../../workbench/contrib/sessions/test/browser/sessionHostTestUtils.js';
 import { createTestActiveSession } from '../../../../test/browser/sessionViewTestUtils.js';
+import { BUILTIN_SKILLS_URI } from '../../../chat/browser/promptsService.js';
 
 const FOLDER = URI.file('/workspace');
 const REPOSITORY = URI.from({ scheme: GITHUB_REMOTE_FILE_SCHEME, authority: 'github', path: '/owner/private/HEAD' });
@@ -108,7 +114,7 @@ suite('Automation dialog creation', () => {
 		assert.deepStrictEqual(actual, { session: true, chat: true });
 	});
 
-	function openDialog(options: IShowAutomationDialogOptions = {}, cloudConfigurationOrChoices?: IAutomationProviderConfiguration | IAutomationService['getCustomizationChoices'], sessionOverrides?: Partial<ISessionsManagementService>, repository?: IGitRepository, cloudCreatable = true, cloudEnabledAtOpen = true, canUpdate = true, inputEditorOptions?: IChatInputPartOptions['inputEditorOptions']) {
+	function openDialog(options: IShowAutomationDialogOptions & { readonly agentFirst?: boolean } = {}, cloudConfigurationOrChoices?: IAutomationProviderConfiguration | IAutomationService['getCustomizationChoices'], sessionOverrides?: Partial<ISessionsManagementService>, repository?: IGitRepository, cloudCreatable = true, cloudEnabledAtOpen = true, canUpdate = true, inputEditorOptions?: IChatInputPartOptions['inputEditorOptions']) {
 		const cloudConfiguration = typeof cloudConfigurationOrChoices === 'function' ? undefined : cloudConfigurationOrChoices;
 		const getCustomizationChoices = typeof cloudConfigurationOrChoices === 'function' ? cloudConfigurationOrChoices : undefined;
 		const configurationService = new TestConfigurationService();
@@ -120,6 +126,26 @@ suite('Automation dialog creation', () => {
 		const { sessionHostService } = stubSessionHosts(instantiationService, disposables);
 		instantiationService.stub(ICommandService, new class extends mock<ICommandService>() { });
 		instantiationService.stub(IChatViewFactory, { inputEditorOptions });
+		const requests: { folder: URI | undefined; options: NewSessionRequestOptions; createOptions: ICreateNewSessionOptions | undefined }[] = [];
+		const opened: { resource: URI; dialogOpen: boolean }[] = [];
+		const session = upcastPartial<ISession>({ resource: URI.parse('copilotcli:/authoring') });
+		let sendError: Error | undefined;
+		const recordSend = async (folder: URI | undefined, options: NewSessionRequestOptions, createOptions?: ICreateNewSessionOptions) => {
+			requests.push({ folder, options, createOptions });
+			if (sendError) {
+				throw sendError;
+			}
+			return session;
+		};
+		instantiationService.stub(ISessionsService, upcastPartial<ISessionsService>({
+			openSession: async resource => { opened.push({ resource, dialogOpen: container.classList.contains('automation-dialog-open') }); },
+		}));
+		const skill = joinPath(BUILTIN_SKILLS_URI, 'automate', 'SKILL.md');
+		const disabledSkills = new ResourceSet();
+		instantiationService.stub(IPromptsService, upcastPartial<IPromptsService>({
+			findAgentSkills: async () => [{ name: 'automate', uri: skill, description: 'Create automations', storage: PromptsStorage.builtIn, disableModelInvocation: false, userInvocable: true }],
+			getDisabledPromptFiles: () => disabledSkills,
+		}));
 		instantiationService.stub(IMenuService, disposables.add(instantiationService.createInstance(MenuService)));
 		const actionWidgetService = new RecordingActionWidgetService();
 		instantiationService.stub(IActionWidgetService, actionWidgetService);
@@ -133,6 +159,7 @@ suite('Automation dialog creation', () => {
 			sessionType: { id: 'copilotcli', label: 'Copilot', icon: Codicon.copilot, authRequirement: SessionTypeAuthRequirement.None },
 		}];
 		const cloudTypes = [{ providerId: 'cloud', sessionType: { ...types[0].sessionType, id: 'cloud-agent', label: 'Cloud' } }];
+		let conservativePermissionsAvailable = true;
 		const getSessionTypesForFolder = sessionOverrides?.getSessionTypesForFolder
 			?? ((uri: URI) => uri.scheme === GITHUB_REMOTE_FILE_SCHEME ? cloudTypes : [...types, ...(cloudConfiguration ? cloudTypes : [])]);
 		instantiationService.stub(ISessionsProvidersService, upcastPartial<ISessionsProvidersService>({
@@ -142,6 +169,8 @@ suite('Automation dialog creation', () => {
 				id,
 				sessionTypes: cloudTypes.map(type => type.sessionType),
 				getSessionTypes: uri => getSessionTypesForFolder(uri).filter(type => type.providerId === id).map(type => type.sessionType),
+			}) as T : id === 'host' ? upcastPartial<ISessionsProvider>({
+				getAutomationAuthoringPermissions: () => conservativePermissionsAvailable ? { permissionId: 'default', modeId: 'interactive' } : undefined,
 			}) as T : undefined,
 		}));
 		const providers = observableValue('providers', [{ id: 'host', label: 'Host' }, ...(cloudConfiguration && cloudCreatable ? [{ id: 'cloud', label: 'Cloud' }] : [])]);
@@ -184,6 +213,8 @@ suite('Automation dialog creation', () => {
 			supportsAutomationSessionConfiguration: () => false,
 			getAutomationSessionConfiguration: async () => null,
 			discardAutomationSession: () => { },
+			createAndSendQuickChatRequest: (options, createOptions) => recordSend(undefined, options, createOptions),
+			createAndSendNewChatRequest: (folder, options, createOptions) => recordSend(folder, options, createOptions),
 			...sessionOverrides,
 		}));
 		instantiationService.stub(IAutomationService, upcastPartial<IAutomationService>({
@@ -220,6 +251,7 @@ suite('Automation dialog creation', () => {
 		instantiationService.stubInstance(AutomationInputCompletions, { dispose: () => { } });
 		const promptChanged = disposables.add(new Emitter<void>());
 		const promptInput = document.createElement('textarea');
+		let placeholder: string | undefined;
 		const inputToolbarElement = DOM.$('div');
 		instantiationService.stubInstance(ChatInputPart, {
 			render: (container, value) => {
@@ -229,8 +261,8 @@ suite('Automation dialog creation', () => {
 			inputToolbarElement,
 			setInputToolbarAriaLabel: () => { },
 			inputEditor: upcastPartial<ChatInputPart['inputEditor']>({
-				updateOptions: () => { },
 				hasTextFocus: () => document.activeElement === promptInput,
+				updateOptions: options => { placeholder = options?.placeholder ?? placeholder; },
 				onDidChangeModelContent: Event.map(promptChanged.event, () => ({
 					changes: [], eol: '\n', versionId: 1, isUndoing: false, isRedoing: false, isFlush: false, isEolChange: false,
 					detailedReasons: [], detailedReasonsChangeLengths: [],
@@ -239,6 +271,7 @@ suite('Automation dialog creation', () => {
 				getContribution: () => null,
 			}),
 			layout: () => { },
+			focus: () => promptInput.focus(),
 			dispose: () => { },
 		});
 		const inputCreations: sinon.SinonSpy[] = [];
@@ -250,18 +283,26 @@ suite('Automation dialog creation', () => {
 			return child;
 		});
 		disposables.add(toDisposable(() => createChild.restore()));
-		const result = instantiationService.createInstance(AutomationDialogService).showAutomationDialog(options);
+		const { agentFirst, ...dialogOptions } = options;
+		const result = instantiationService.createInstance(AutomationDialogService).showAutomationDialog(dialogOptions);
 		const container = instantiationService.get(IWorkbenchLayoutService).activeContainer;
+		if (!agentFirst) {
+			container.querySelector<HTMLElement>('.automation-dialog-create-manually')?.click();
+		}
 		const buttons = Array.from(container.querySelectorAll<HTMLElement>('.automation-dialog-footer-actions .monaco-button'));
-		const saveButton = buttons.find(button => button.textContent === (options.existing ? 'Save' : 'Create'))!;
+		const saveButton = buttons.find(button => ['Save', 'Create', 'Start session'].includes(button.textContent ?? ''))!;
 		const cancelButton = buttons.find(button => button.textContent === 'Cancel')!;
 		disposables.add(toDisposable(() => cancelButton.click()));
 		const nameInput = container.querySelector<HTMLInputElement>('.automation-form-input-host input')!;
 		return {
-			result, saveButton, cancelButton, nameInput, container, providers, actionWidgetService, sessionHostService,
+			result, saveButton, cancelButton, nameInput, container, providers, actionWidgetService, sessionHostService, requests, opened, session, skill, disabledSkills,
 			getInputEditorOptions: () => inputCreations.flatMap(spy => spy.getCalls())
 				.filter(call => call.args[0] === ChatInputPart)
 				.map(call => (call.args[2] as IChatInputPartOptions).inputEditorOptions),
+			getPlaceholder: () => placeholder,
+			isPromptFocused: () => DOM.isActiveElement(promptInput),
+			setConservativePermissionsAvailable: (available: boolean) => { conservativePermissionsAvailable = available; },
+			setSendError: (error: Error | undefined) => { sendError = error; },
 			openEventPicker: () => {
 				container.querySelector<HTMLElement>('.automation-event-button')!.click();
 				const tree = quickInputService.trees.at(-1);
@@ -316,6 +357,323 @@ suite('Automation dialog creation', () => {
 			},
 		};
 	}
+
+	test('new creation starts with a minimal goal input and an explicit manual switch', async () => {
+		const dialog = openDialog({ agentFirst: true });
+		const before = {
+			minimal: dialog.container.querySelector('.automation-form')?.classList.contains('agent-first'),
+			action: dialog.saveButton.textContent,
+			disabled: dialog.saveButton.getAttribute('aria-disabled'),
+			switch: dialog.container.querySelector('.automation-dialog-mode-switch')?.textContent,
+			placeholder: dialog.getPlaceholder(),
+			guidance: dialog.container.querySelector('.automation-creation-guidance')?.textContent,
+		};
+		dialog.setPrompt('   ');
+		dialog.saveButton.click();
+		const requests = [...dialog.requests];
+		dialog.cancelButton.click();
+		await dialog.result;
+		assert.deepStrictEqual({ before, requests }, {
+			before: {
+				minimal: true, action: 'Start session', disabled: 'true', switch: 'Create manually',
+				placeholder: 'Describe what you want to automate',
+				guidance: 'Describe your idea and let an agent guide the setup, or choose Create manually to fill in the details.',
+			},
+			requests: [],
+		});
+	});
+
+	test('agent-first creation focuses the prompt on open and on returning from manual mode', async () => {
+		const dialog = openDialog({ agentFirst: true });
+		const initial = dialog.isPromptFocused();
+		dialog.container.querySelector<HTMLElement>('.automation-dialog-create-manually')!.click();
+		const manualName = DOM.isActiveElement(dialog.nameInput);
+		dialog.container.querySelector<HTMLElement>('.automation-dialog-create-with-agent')!.click();
+		const returned = dialog.isPromptFocused();
+		dialog.cancelButton.click();
+		await dialog.result;
+		assert.deepStrictEqual({ initial, manualName, returned }, { initial: true, manualName: true, returned: true });
+	});
+
+	test('creation guidance sits below the title and is hidden in the manual form', async () => {
+		const dialog = openDialog({ agentFirst: true });
+		const guidance = dialog.container.querySelector<HTMLElement>('.automation-creation-guidance')!;
+		const initial = {
+			hidden: guidance.hidden,
+			beforeForm: guidance.nextElementSibling?.classList.contains('automation-form'),
+			outsideForm: !dialog.container.querySelector('.automation-form')!.contains(guidance),
+		};
+		dialog.container.querySelector<HTMLElement>('.automation-dialog-create-manually')!.click();
+		const manualHidden = guidance.hidden;
+		dialog.container.querySelector<HTMLElement>('.automation-dialog-create-with-agent')!.click();
+		const restoredHidden = guidance.hidden;
+		dialog.cancelButton.click();
+		await dialog.result;
+		assert.deepStrictEqual({ initial, manualHidden, restoredHidden }, {
+			initial: { hidden: false, beforeForm: true, outsideForm: true },
+			manualHidden: true, restoredHidden: false,
+		});
+	});
+
+	test('mode switches preserve the same prompt and manual configuration without sending', async () => {
+		const dialog = openDialog({ agentFirst: true });
+		dialog.setPrompt('Review pending pull requests');
+		dialog.container.querySelector<HTMLElement>('.automation-dialog-create-manually')!.click();
+		dialog.setName('Morning review');
+		const trigger = dialog.container.querySelector<HTMLSelectElement>('select[aria-label="Trigger"]')!;
+		trigger.selectedIndex = Array.from(trigger.options).findIndex(option => option.textContent === 'Manual');
+		trigger.dispatchEvent(new (DOM.getWindow(trigger).Event)('change'));
+		dialog.container.querySelector<HTMLElement>('.automation-dialog-create-with-agent')!.click();
+		const minimal = dialog.container.querySelector('.automation-form')?.classList.contains('agent-first');
+		dialog.container.querySelector<HTMLElement>('.automation-dialog-create-manually')!.click();
+		const restored = {
+			minimal, name: dialog.nameInput.value,
+			trigger: trigger.selectedOptions[0].textContent,
+			placeholder: dialog.getPlaceholder(), action: dialog.saveButton.textContent,
+			requests: [...dialog.requests],
+		};
+		dialog.saveButton.click();
+		const result = await dialog.result;
+		assert.deepStrictEqual({ restored, prompt: result?.kind === 'create' ? result.value.prompt : undefined }, {
+			restored: {
+				minimal: true, name: 'Morning review', trigger: 'Manual',
+				placeholder: 'Describe what you want to automate', action: 'Create', requests: [],
+			},
+			prompt: 'Review pending pull requests',
+		});
+	});
+
+	for (const prompt of ['Review pending pull requests each morning.', '/automate Review pending pull requests each morning.']) {
+		test(`Start session sends through the selected harness and opens after disposing the dialog: ${prompt}`, async () => {
+			let commits = 0;
+			let captures = 0;
+			const dialog = openDialog({ agentFirst: true, commit: async () => { commits++; } }, undefined, {
+				getAutomationSessionConfiguration: async () => { captures++; return null; },
+			});
+			dialog.setPrompt(prompt);
+			dialog.saveButton.click();
+			assert.deepStrictEqual({ result: await dialog.result, requests: dialog.requests, opened: dialog.opened, commits, captures }, {
+				result: undefined,
+				requests: [{
+					folder: undefined,
+					options: { query: '/automate Review pending pull requests each morning.', attachedContext: [toPromptFileVariableEntry(dialog.skill, PromptFileVariableKind.PromptFile)] },
+					createOptions: { providerId: 'host', sessionTypeId: 'copilotcli', permissionId: 'default', modeId: 'interactive' },
+				}],
+				opened: [{ resource: dialog.session.resource, dialogOpen: false }],
+				commits: 0, captures: 1,
+			});
+		});
+	}
+
+	for (const folder of [undefined, FOLDER]) {
+		test(`Start session overrides elevated manual execution and permissions for ${folder ? 'a workspace' : 'no workspace'}`, async () => {
+			const configuration: IAutomationSessionConfiguration = {
+				sessionTemplate: { modelId: 'selected-model', config: { mode: 'autopilot', autoApprove: 'autoApprove' } },
+				mode: 'autopilot', permissionLevel: 'autoApprove',
+			};
+			const dialog = openDialog({ agentFirst: true }, undefined, {
+				supportsAutomationSessionConfiguration: () => true,
+				getAutomationSessionConfiguration: async () => configuration,
+			});
+			dialog.setPrompt('Plan a manual hello world');
+			dialog.container.querySelector<HTMLElement>('.automation-dialog-create-manually')!.click();
+			if (folder) {
+				await dialog.selectWorkspace(folder);
+			}
+			dialog.container.querySelector<HTMLElement>('.automation-dialog-create-with-agent')!.click();
+			dialog.saveButton.click();
+			await dialog.result;
+			assert.deepStrictEqual(dialog.requests.map(request => ({
+				folder: request.folder,
+				configuration: request.createOptions,
+			})), [{
+				folder: undefined,
+				configuration: {
+					providerId: 'host', sessionTypeId: 'copilotcli', permissionId: 'default', modeId: 'interactive', automationConfiguration: configuration,
+				},
+			}]);
+		});
+	}
+
+	test('agent creation places the harness first and does not render a workspace picker', async () => {
+		const dialog = openDialog({ agentFirst: true });
+		const target = dialog.container.querySelector<HTMLElement>('.automation-target-toolbar')!;
+		const agent = {
+			workspace: !!target.querySelector('button'),
+			harness: !!target.querySelector('.automation-harness-picker'),
+			first: target.querySelector('.action-item')?.classList.contains('automation-harness-picker'),
+		};
+		dialog.container.querySelector<HTMLElement>('.automation-dialog-create-manually')!.click();
+		const manual = !!target.querySelector('button');
+		dialog.cancelButton.click();
+		await dialog.result;
+		assert.deepStrictEqual({ agent, manual }, {
+			agent: { workspace: false, harness: true, first: true },
+			manual: true,
+		});
+	});
+
+	test('manual execution controls have a nonzero layout lane after agent-first creation', async () => {
+		const dialog = openDialog({ agentFirst: true });
+		const controls = dialog.container.querySelector<HTMLElement>('.automation-session-controls')!;
+		const hidden = controls.getBoundingClientRect().width;
+		dialog.container.querySelector<HTMLElement>('.automation-dialog-create-manually')!.click();
+		await timeout(0);
+		const visible = controls.getBoundingClientRect().width > 0;
+		dialog.container.querySelector<HTMLElement>('.automation-dialog-create-with-agent')!.click();
+		const hiddenAgain = controls.getBoundingClientRect().width;
+		dialog.cancelButton.click();
+		await dialog.result;
+		assert.deepStrictEqual({ hidden, visible, hiddenAgain }, { hidden: 0, visible: true, hiddenAgain: 0 });
+	});
+
+	test('a provider without conservative authoring permissions cannot dispatch', async () => {
+		const dialog = openDialog({ agentFirst: true });
+		dialog.setConservativePermissionsAvailable(false);
+		dialog.setPrompt('Plan a manual hello world');
+		dialog.saveButton.click();
+		await timeout(0);
+		const state = {
+			requests: [...dialog.requests], opened: [...dialog.opened],
+			message: dialog.container.querySelector('.automation-dialog-notification-text')?.textContent,
+		};
+		dialog.cancelButton.click();
+		await dialog.result;
+		assert.deepStrictEqual(state, {
+			requests: [], opened: [],
+			message: 'The selected provider cannot confirm conservative permissions for this walkthrough. Choose another harness or use manual creation.',
+		});
+	});
+
+	test('manual creation preserves its configured execution and permissions', async () => {
+		const configuration: IAutomationSessionConfiguration = {
+			sessionTemplate: { config: { mode: 'autopilot', autoApprove: 'autoApprove' } },
+		};
+		const dialog = openDialog({}, undefined, {
+			supportsAutomationSessionConfiguration: () => true,
+			getAutomationSessionConfiguration: async () => configuration,
+		});
+		dialog.setPrompt('Manual configuration');
+		dialog.saveButton.click();
+		const result = await dialog.result;
+		assert.deepStrictEqual({
+			template: result?.kind === 'create' ? result.value.sessionTemplate : undefined,
+			authoringRequests: dialog.requests,
+		}, { template: configuration.sessionTemplate, authoringRequests: [] });
+	});
+
+	test('a disabled automate skill prevents dispatch and keeps the selected controls available', async () => {
+		const dialog = openDialog({ agentFirst: true });
+		dialog.disabledSkills.add(dialog.skill);
+		dialog.setPrompt('Plan a manual hello world');
+		dialog.saveButton.click();
+		await timeout(0);
+		const state = {
+			requests: [...dialog.requests], opened: [...dialog.opened],
+			message: dialog.container.querySelector('.automation-dialog-notification-text')?.textContent,
+			open: dialog.container.classList.contains('automation-dialog-open'),
+		};
+		dialog.cancelButton.click();
+		await dialog.result;
+		assert.deepStrictEqual(state, {
+			requests: [], opened: [], open: true,
+			message: 'The built-in /automate skill is unavailable or disabled. Enable it before starting the walkthrough.',
+		});
+	});
+
+	test('an unavailable selected provider disables Start session rather than falling back', async () => {
+		const dialog = openDialog({ agentFirst: true });
+		dialog.setPrompt('Plan a manual hello world');
+		dialog.providers.set([], undefined);
+		await timeout(0);
+		dialog.saveButton.click();
+		const disabled = dialog.saveButton.getAttribute('aria-disabled');
+		dialog.cancelButton.click();
+		await dialog.result;
+		assert.deepStrictEqual({ disabled, requests: dialog.requests }, { disabled: 'true', requests: [] });
+	});
+
+	test('templates open manually and can switch to an agent session without committing', async () => {
+		let commits = 0;
+		const dialog = openDialog({
+			initialValues: { name: 'Daily review', prompt: 'Review changes', schedule: { interval: 'daily', scheduleHour: 9, scheduleMinute: 0, scheduleDay: 1 } },
+			commit: async () => { commits++; },
+		});
+		dialog.container.querySelector<HTMLElement>('.automation-dialog-create-with-agent')!.click();
+		dialog.saveButton.click();
+		await dialog.result;
+		assert.deepStrictEqual({ requests: dialog.requests, commits }, {
+			requests: [{
+				folder: undefined,
+				options: { query: '/automate Review changes', attachedContext: [toPromptFileVariableEntry(dialog.skill, PromptFileVariableKind.PromptFile)] },
+				createOptions: { providerId: 'host', sessionTypeId: 'copilotcli', permissionId: 'default', modeId: 'interactive' },
+			}],
+			commits: 0,
+		});
+	});
+
+	test('a failed Start session keeps the selected draft open and allows retry', async () => {
+		const dialog = openDialog({ agentFirst: true });
+		dialog.setPrompt('Review changes');
+		dialog.setSendError(new Error('The selected harness is unavailable.'));
+		dialog.saveButton.click();
+		await timeout(0);
+		const failure = {
+			open: dialog.container.classList.contains('automation-dialog-open'),
+			message: dialog.container.querySelector('.automation-dialog-notification-text')?.textContent,
+			canRetry: dialog.saveButton.getAttribute('aria-disabled') === 'false',
+			opened: [...dialog.opened],
+		};
+		dialog.setSendError(undefined);
+		dialog.saveButton.click();
+		await dialog.result;
+		assert.deepStrictEqual({ failure, attempts: dialog.requests.length, opened: dialog.opened }, {
+			failure: { open: true, message: 'The selected harness is unavailable.', canRetry: true, opened: [] },
+			attempts: 2, opened: [{ resource: dialog.session.resource, dialogOpen: false }],
+		});
+	});
+
+	test('disabling AI prevents a stale Start session action', async () => {
+		const dialog = openDialog({ agentFirst: true });
+		dialog.setPrompt('Review changes');
+		await dialog.configurationService.setUserConfiguration('chat.disableAIFeatures', true);
+		dialog.configurationService.onDidChangeConfigurationEmitter.fire({
+			source: ConfigurationTarget.USER,
+			affectedKeys: new Set(['chat.disableAIFeatures']),
+			change: { keys: ['chat.disableAIFeatures'], overrides: [] },
+			affectsConfiguration: key => key === 'chat.disableAIFeatures',
+		});
+		dialog.saveButton.click();
+		const disabled = dialog.saveButton.getAttribute('aria-disabled');
+		dialog.cancelButton.click();
+		await dialog.result;
+		assert.deepStrictEqual({ disabled, requests: dialog.requests }, { disabled: 'true', requests: [] });
+	});
+
+	test('cancel does not open an agent draft and editing does not offer the creation handoff', async () => {
+		const create = openDialog();
+		create.cancelButton.click();
+		await create.result;
+		const edit = openDialog({ existing: eventAutomation({ issues: { types: ['opened'] } }) }, eventConfiguration());
+		const agentButton = edit.container.querySelector('.automation-dialog-create-with-agent');
+		edit.cancelButton.click();
+		await edit.result;
+		assert.deepStrictEqual({ create: create.requests, edit: edit.requests, agentButton }, { create: [], edit: [], agentButton: null });
+	});
+
+	test('Create with agent cannot interrupt an automation save', async () => {
+		const commit = new DeferredPromise<void>();
+		const dialog = openDialog({ commit: async () => commit.p });
+		dialog.setPrompt('Review changes');
+		dialog.saveButton.click();
+		await timeout(0);
+		const agentButton = dialog.container.querySelector<HTMLElement>('.automation-dialog-create-with-agent')!;
+		const disabled = agentButton.getAttribute('aria-disabled');
+		agentButton.click();
+		void commit.complete();
+		const result = await dialog.result;
+		assert.deepStrictEqual({ disabled, result: result?.kind, requests: dialog.requests }, { disabled: 'true', result: 'create', requests: [] });
+	});
 
 	test('keeps the title outside scrolling content and themes the Name input consistently', async () => {
 		const dialog = openDialog();
@@ -1884,7 +2242,7 @@ suite('Automation dialog creation', () => {
 			notes: dialog.container.querySelectorAll('#automation-target-note, .automation-dialog-footer-note').length,
 			dialogText: dialog.container.textContent?.includes(description),
 			targetDescribedBy: target.getAttribute('aria-describedby'),
-			promptGuidance: dialog.container.querySelector('.automation-description'),
+			promptGuidance: dialog.container.querySelector('.automation-description:not([hidden])'),
 			saveDescribedBy: dialog.saveButton.getAttribute('aria-describedby'),
 		}, {
 			order: ['automation-form-label', 'automation-provider-tools', 'automation-provider-tools-status'],

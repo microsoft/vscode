@@ -25,7 +25,7 @@ import { getModelProviderIcon } from '../../../../../chat/browser/widget/input/m
 import { ChatPetAchievementIds, didExplicitlySwitchChatPetModel } from '../../../../../chat/browser/chatPetAchievements.js';
 import { IChatPetService } from '../../../../../chat/browser/chatPetService.js';
 import { Menus } from '../../../../browser/menus.js';
-import { SessionUsesCombinedConfigPickerContext, IsPhoneLayoutContext } from '../../../../common/contextkeys.js';
+import { SessionUsesCombinedConfigPickerContext, IsPhoneLayoutContext, AutomationDialogAgentCreationContext } from '../../../../common/contextkeys.js';
 import { type IAgentHostSessionsProvider, isAgentHostProvider } from '../../../../common/agentHostSessionsProvider.js';
 import { IChat, ISession } from '../../../../../../services/sessions/common/session.js';
 import { ISessionsProvidersService } from '../../../../browser/sessionsProvidersService.js';
@@ -358,7 +358,7 @@ export class MobileChatInputConfigPickerAction extends Action2 {
 				id: Menus.AutomationsDialogInputToolbar,
 				group: 'navigation',
 				order: 0,
-				when: ContextKeyExpr.and(ChatContextKeys.enabled, ChatContextKeys.inAutomationsDialog, SessionUsesCombinedConfigPickerContext, IsPhoneLayoutContext),
+				when: ContextKeyExpr.and(ChatContextKeys.enabled, ChatContextKeys.inAutomationsDialog, AutomationDialogAgentCreationContext.negate(), SessionUsesCombinedConfigPickerContext, IsPhoneLayoutContext),
 			}, {
 				id: Menus.NewSessionChatInputToolbar,
 				group: 'navigation',

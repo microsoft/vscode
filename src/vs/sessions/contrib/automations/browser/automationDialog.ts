@@ -85,7 +85,7 @@ import { createNewSessionControlToolbar } from '../../chat/browser/newSessionCon
 import { ISessionModelSelection, SessionModelSelection } from '../../../../workbench/contrib/sessions/browser/chat/sessionModelSelection.js';
 import { createSessionHostServices, getMainWindowHost, ISessionHostService, SessionHost, SessionHostKind } from '../../../../workbench/services/sessions/browser/sessionHost.js';
 import { setHostSessionContextKeys } from '../../../../workbench/contrib/sessions/common/sessionContextKeys.js';
-import { SessionUsesCombinedConfigPickerContext } from '../../../../workbench/contrib/sessions/common/contextkeys.js';
+import { SessionUsesCombinedConfigPickerContext, AutomationDialogAgentCreationContext } from '../../../../workbench/contrib/sessions/common/contextkeys.js';
 import { Menus } from '../../../../workbench/contrib/sessions/browser/menus.js';
 import { AgentsWindowMenus } from '../../../browser/agentsWindowMenus.js';
 
@@ -279,6 +279,7 @@ export function getAutomationDialogProviders(automationService: IAutomationServi
 }
 
 interface IRenderFormHandle {
+	readonly focusPrompt: () => void;
 	readonly getPrompt: () => string;
 	readonly getSessionConfiguration: (token: CancellationToken) => Promise<AutomationSessionConfigurationCapture>;
 	readonly getBranch: () => string | undefined;
@@ -1045,7 +1046,7 @@ registerAction2(class OpenAutomationsWorkspacePickerAction extends Action2 {
 				id: AgentsWindowMenus.AutomationsDialogTargetToolbar,
 				group: 'navigation',
 				order: -2,
-				when: ChatContextKeys.inAutomationsDialog,
+				when: ContextKeyExpr.and(ChatContextKeys.inAutomationsDialog, AutomationDialogAgentCreationContext.negate()),
 			}],
 		});
 	}
@@ -1099,6 +1100,7 @@ export function renderForm(
 	setDialogMessage: (source: AutomationDialogMessageSource, message: IAutomationDialogMessage | undefined) => void = () => { },
 	focusDialogMessage: () => void = () => { },
 	inputEditorOptions?: IChatInputPartOptions['inputEditorOptions'],
+	manualMode: IObservable<boolean> = constObservable(true),
 ): IRenderFormHandle {
 	let reloadCustomizations: () => void = () => { };
 	const validateForm = revalidate;
@@ -1290,7 +1292,8 @@ export function renderForm(
 
 	// The execution mode constrains the harness before workspace selection.
 	const initialProviderConfiguration = getProviderConfiguration(state.providerId);
-	const runInCloud = observableValue(form, initialProviderConfiguration !== undefined);
+	const manualRunInCloud = observableValue(form, initialProviderConfiguration !== undefined);
+	const runInCloud = derived(reader => manualMode.read(reader) && manualRunInCloud.read(reader));
 	// New automations keep an enabled cloud provider reachable before its catalogue is ready, so the switch can
 	// offer to connect; saving stays gated on allowedProviders.
 	const findCloudProvider = (reader: IReader | undefined) => allowedProviders.read(reader).find(id => getProviderConfiguration(id) !== undefined)
@@ -1341,6 +1344,8 @@ export function renderForm(
 	// A cloud draft (for example a duplicated cloud automation) has no local target to restore.
 	let localTarget = initialProviderConfiguration ? { ...state, folderUri: undefined, providerId: undefined, sessionTypeId: undefined } : { ...state };
 	const isolationModel = new AutomationIsolationModel(state);
+	const targetQuickChat = derived(reader => !manualMode.read(reader) || isolationModel.isQuickChatObs.read(reader));
+	const targetFolder = derived(reader => manualMode.read(reader) ? isolationModel.folderUriObs.read(reader) : undefined);
 	disposables.add(autorun(reader => {
 		const configuration = cloudConfiguration.read(reader);
 		const catalog = configuration?.triggers?.read(reader);
@@ -1350,15 +1355,15 @@ export function renderForm(
 		}
 		triggerEditor.update(catalog, configuration !== undefined && configuration.triggers !== undefined, target?.allowReadAccessTriggers);
 	}));
-	const workspaceControlsVisible = derived(reader => !runInCloud.read(reader) && !isolationModel.isQuickChatObs.read(reader) && isolationModel.folderUriObs.read(reader)?.scheme !== GITHUB_REMOTE_FILE_SCHEME && isolationModel.folderUriObs.read(reader) !== undefined);
+	const workspaceControlsVisible = derived(reader => manualMode.read(reader) && !runInCloud.read(reader) && !isolationModel.isQuickChatObs.read(reader) && isolationModel.folderUriObs.read(reader)?.scheme !== GITHUB_REMOTE_FILE_SCHEME && isolationModel.folderUriObs.read(reader) !== undefined);
 	const sessionTypesChanged = observableSignalFromEvent(form, sessionsManagementService.onDidChangeSessionTypes);
 	const sessionTypes = derived(reader => {
 		sessionTypesChanged.read(reader);
 		if (runInCloud.read(reader)) {
 			return sessionsManagementService.getAllProviderSessionTypes().filter(type => type.providerId === cloudProvider.read(reader));
 		}
-		const folder = isolationModel.folderUriObs.read(reader);
-		const quickChat = isolationModel.isQuickChatObs.read(reader);
+		const folder = targetFolder.read(reader);
+		const quickChat = targetQuickChat.read(reader);
 		return quickChat ? sessionsManagementService.getQuickChatSessionTypes() : folder ? sessionsManagementService.getSessionTypesForFolder(folder) : [];
 	});
 	const pickerProviders = derived(reader => {
@@ -1377,8 +1382,8 @@ export function renderForm(
 		providerId: derived(reader => runInCloud.read(reader) ? cloudProvider.read(reader) : undefined),
 		prepareSessionTypeSelection: () => workspacePicker.onWillSelectWorkspace(),
 	}));
-	sessionTypePicker.setQuickChatSource(isolationModel.isQuickChatObs);
-	sessionTypePicker.setFolderSource(isolationModel.folderUriObs, {
+	sessionTypePicker.setQuickChatSource(targetQuickChat);
+	sessionTypePicker.setFolderSource(targetFolder, {
 		initialPick: state.sessionTypeId
 			? { providerId: state.providerId, sessionTypeId: state.sessionTypeId }
 			: undefined,
@@ -1481,9 +1486,9 @@ export function renderForm(
 		if (switchingTarget || connectingCloud) {
 			return;
 		}
-		const folderUri = runInCloud.get() ? state.resolvedFolderUri : isolationModel.folderUriObs.get();
+		const folderUri = runInCloud.get() ? state.resolvedFolderUri : targetFolder.get();
 		const pick = sessionTypePicker.selectedPick;
-		const isQuickChat = isolationModel.isQuickChatObs.get();
+		const isQuickChat = targetQuickChat.get();
 		const diagnostic = JSON.stringify({
 			providerId: pick?.providerId,
 			sessionType: pick?.sessionTypeId,
@@ -1535,6 +1540,8 @@ export function renderForm(
 		allowedProviders.read(reader);
 		pickerProviders.read(reader);
 		sessionTypes.read(reader);
+		targetQuickChat.read(reader);
+		targetFolder.read(reader);
 		cloudConfiguration.read(reader)?.getWorkspaceTarget(isolationModel.folderUriObs.read(reader)).read(reader);
 		syncStateFromPicker();
 		updateAutomationSessionTarget();
@@ -1606,7 +1613,7 @@ export function renderForm(
 				?? (restoreLocalTarget ? types.find(type => type.sessionType.id === SessionType.CopilotCLI) : undefined)
 				?? types[0];
 			const pick = first ? { providerId: first.providerId, sessionTypeId: first.sessionType.id } : undefined;
-			sessionTypePicker.setFolderSource(isolationModel.folderUriObs, { initialPick: pick });
+			sessionTypePicker.setFolderSource(targetFolder, { initialPick: pick });
 			state.providerId = pick?.providerId;
 			state.sessionTypeId = pick?.sessionTypeId;
 			if (restoreLocalTarget && isEqual(uri, localTarget.folderUri)) {
@@ -1638,7 +1645,7 @@ export function renderForm(
 		if (checked && state.interval === 'weekdays') {
 			state.interval = 'manual';
 		}
-		runInCloud.set(checked, undefined);
+		manualRunInCloud.set(checked, undefined);
 		if (folder) {
 			workspacePicker.setSelectedWorkspace(folder, { fireEvent: false, persist: false });
 		} else {
@@ -1750,6 +1757,8 @@ export function renderForm(
 	const activeAutomationSession = sessionsManagementService.automationSession;
 	const activeAutomationChat = derived(reader => activeAutomationSession.read(reader)?.mainChat.read(reader));
 	const scopedContextKeyService = disposables.add(contextKeyService.createScoped(sessionSection));
+	const agentCreationContext = AutomationDialogAgentCreationContext.bindTo(scopedContextKeyService);
+	disposables.add(autorun(reader => agentCreationContext.set(!manualMode.read(reader))));
 	ChatContextKeys.location.bindTo(scopedContextKeyService).set(ChatAgentLocation.Chat);
 	ChatContextKeys.inChatSession.bindTo(scopedContextKeyService).set(true);
 	ChatContextKeys.inAutomationsDialog.bindTo(scopedContextKeyService).set(true);
@@ -1886,6 +1895,9 @@ export function renderForm(
 	);
 	chatInput.render(promptHost, initialPrompt, stubWidget as IChatWidget);
 	chatInput.inputEditor.updateOptions({ placeholder: localize('automation.form.prompt.placeholder', "Describe what you want to automate") });
+	disposables.add(autorun(reader => {
+		form.classList.toggle('agent-first', !manualMode.read(reader));
+	}));
 	disposables.add(scopedInstantiationService.createInstance(AutomationInputCompletions, chatInput.inputEditor));
 	const sessionConfigContainer = chatInput.inputToolbarElement;
 	sessionConfigContainer.classList.add('automation-session-config', 'sessions-chat-config-toolbar');
@@ -1904,12 +1916,19 @@ export function renderForm(
 		relayout: () => sessionControlsToolbar.relayout(),
 	}));
 	sessionControlsLayout.layout();
+	disposables.add(autorun(reader => {
+		manualMode.read(reader);
+		targetToolbar.refresh();
+		sessionControlsToolbar.refresh();
+		targetLayout.layout();
+		sessionControlsLayout.layout();
+	}));
 	const sessionConfigurationUnavailable = DOM.append(sessionConfiguration, $('span.automation-session-configuration-unavailable', {
 		role: 'status',
 		'aria-atomic': 'true',
 	}));
 	disposables.add(autorun(reader => {
-		const hasTarget = isolationModel.isQuickChatObs.read(reader) || isolationModel.folderUriObs.read(reader) !== undefined;
+		const hasTarget = targetQuickChat.read(reader) || targetFolder.read(reader) !== undefined;
 		const cloud = runInCloud.read(reader);
 		setAutomationControlVisible(sessionConfigContainer, hasTarget);
 		setAutomationControlVisible(sessionControlsContainer, hasTarget && !cloud);
@@ -2161,6 +2180,7 @@ export function renderForm(
 	}));
 
 	return {
+		focusPrompt: () => chatInput.focus(),
 		getPrompt: () => chatInput.inputEditor.getValue(),
 		getSessionConfiguration: async token => {
 			const captured = await automationSessionDraftSynchronizer.getSessionConfiguration(token);

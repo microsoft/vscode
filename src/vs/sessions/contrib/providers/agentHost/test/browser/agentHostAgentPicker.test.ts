@@ -32,7 +32,7 @@ import { ILifecycleService } from '../../../../../../workbench/services/lifecycl
 import { TestStorageService } from '../../../../../../workbench/test/common/workbenchTestServices.js';
 import { Menus } from '../../../../../../workbench/contrib/sessions/browser/menus.js';
 import { IAgentHostSessionsProvider, LOCAL_AGENT_HOST_PROVIDER_ID } from '../../../../../../workbench/contrib/sessions/common/agentHostSessionsProvider.js';
-import { IsPhoneLayoutContext, SessionProviderIdContext, SessionUsesCombinedConfigPickerContext } from '../../../../../../workbench/contrib/sessions/common/contextkeys.js';
+import { IsPhoneLayoutContext, SessionProviderIdContext, SessionUsesCombinedConfigPickerContext, AutomationDialogAgentCreationContext } from '../../../../../../workbench/contrib/sessions/common/contextkeys.js';
 import { IChat, ISession, SessionStatus } from '../../../../../../workbench/services/sessions/common/session.js';
 import { SessionsProvidersService } from '../../../../../../workbench/contrib/sessions/browser/sessionsProvidersService.js';
 import { AGENTS_PICKER_IN_ATTACH_CONTEXT_MENU_SETTING } from '../../../../../../workbench/contrib/sessions/common/chatConstants.js';
@@ -130,6 +130,7 @@ suite('agentHostAgentPicker', () => {
 		const enabled = ChatContextKeys.enabled.bindTo(context);
 		const inDialog = ChatContextKeys.inAutomationsDialog.bindTo(context);
 		const phone = IsPhoneLayoutContext.bindTo(context);
+		const agentCreation = AutomationDialogAgentCreationContext.bindTo(context);
 		SessionProviderIdContext.bindTo(context).set(LOCAL_AGENT_HOST_PROVIDER_ID);
 		SessionUsesCombinedConfigPickerContext.bindTo(context).set(true);
 		enabled.set(true);
@@ -142,13 +143,20 @@ suite('agentHostAgentPicker', () => {
 		const desktop = visible();
 		phone.set(true);
 		const mobile = visible();
+		agentCreation.set(true);
+		const agentCreationMobile = visible();
+		phone.set(false);
+		const agentCreationDesktop = visible();
+		agentCreation.set(false);
 		enabled.set(false);
 		const disabled = visible();
 		enabled.set(true);
 		inDialog.set(false);
-		assert.deepStrictEqual({ desktop, mobile, disabled, outsideDialog: visible() }, {
+		assert.deepStrictEqual({ desktop, mobile, agentCreationDesktop, agentCreationMobile, disabled, outsideDialog: visible() }, {
 			desktop: ['sessions.agentHost.agentPicker'],
 			mobile: ['sessions.agentHost.mobileChatInputConfigPicker'],
+			agentCreationDesktop: [],
+			agentCreationMobile: [],
 			disabled: [],
 			outsideDialog: [],
 		});
