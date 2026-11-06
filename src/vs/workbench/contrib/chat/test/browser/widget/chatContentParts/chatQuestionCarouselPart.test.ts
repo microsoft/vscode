@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { isSafari } from '../../../../../../../base/browser/browser.js';
 import { getWindow } from '../../../../../../../base/browser/dom.js';
 import { mainWindow } from '../../../../../../../base/browser/window.js';
 import { MarkdownString } from '../../../../../../../base/common/htmlContent.js';
@@ -83,13 +84,13 @@ suite('ChatQuestionCarouselPart', () => {
 		};
 		widget = store.add(instantiationService.createInstance(ChatQuestionCarouselPart, carousel, createMockContext(), options));
 		container.appendChild(widget.domNode);
+		// Tests can create several widgets, and a widget left in the page shifts the layout of later suites.
+		const domNode = widget.domNode;
+		store.add(toDisposable(() => domNode.remove()));
 		return widget;
 	}
 
 	teardown(() => {
-		if (widget?.domNode?.parentNode) {
-			widget.domNode.parentNode.removeChild(widget.domNode);
-		}
 		submittedAnswers = null;
 	});
 
@@ -623,7 +624,12 @@ suite('ChatQuestionCarouselPart', () => {
 			});
 		}
 
-		test('Page Down scrolls the focused overflowing body', async () => {
+		// In WebKit, auto-focusing the answer control scrolls the body's overflowing content natively, after the frame
+		// in which the carousel resets it to the top, so the DOM and the body's scrollable disagree on the scroll position
+		// (`scrollTop` is already near the bottom before any key or click). Skipped there until #346600's behavior is fixed for WebKit.
+		const layoutTestUnlessWebKit = isSafari ? test.skip : test;
+
+		layoutTestUnlessWebKit('Page Down scrolls the focused overflowing body', async () => {
 			const carousel = createMockCarousel([{ id: 'q1', type: 'text', title: 'Choose a deployment strategy' }]);
 			carousel.message = 'Review the deployment requirements before choosing an option. '.repeat(80);
 			createLayoutWidget(carousel);
@@ -637,7 +643,7 @@ suite('ChatQuestionCarouselPart', () => {
 			assert.deepStrictEqual({ before, scrolled: body.scrollTop > before }, { before: 0, scrolled: true });
 		});
 
-		test('primary button points at the answers while they are below the fold and becomes the action once revealed', async () => {
+		layoutTestUnlessWebKit('primary button points at the answers while they are below the fold and becomes the action once revealed', async () => {
 			const carousel = createMockCarousel([{
 				id: 'q1',
 				type: 'singleSelect',

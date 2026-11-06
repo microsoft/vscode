@@ -80,10 +80,39 @@ import { getChatSessionType, LocalChatSessionUri } from '../../../common/model/c
 import { IChatSessionsService, ResolvedChatSessionsExtensionPoint, SessionType } from '../../../common/chatSessionsService.js';
 import { IsSessionsWindowContext } from '../../../../../common/contextkeys.js';
 import { createTextModel } from '../../../../../../editor/test/common/testTextModel.js';
+import { MockChatModel } from '../../common/model/mockChatModel.js';
 
 suite('ChatWidget', () => {
 
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('model binding only resets tip rotation when the widget owns the tip', () => {
+		const resetCounts: number[] = [];
+		for (const renderGettingStartedTip of [undefined, true, false]) {
+			let resets = 0;
+			const model = store.add(new MockChatModel(URI.parse('test:/session')));
+			const inputPart = upcastPartial<ChatInputPart>({
+				clearTodoListWidget: () => { },
+				clearArtifactsWidget: () => { },
+				setInputModel: () => { throw new Error('stop after tip initialization'); },
+			});
+			const widget: ChatWidget = Object.assign(Object.create(ChatWidget.prototype), {
+				container: dom.$('div'),
+				inputPartDisposable: { value: inputPart },
+				viewOptions: { renderGettingStartedTip },
+				logService: new NullLogService(),
+				_setResponseIdentity: () => { },
+				chatSuggestNextWidget: { hide: () => { } },
+				chatTipService: upcastPartial<IChatTipService>({ resetSession: () => { resets++; } }),
+				clearGettingStartedTip: () => { },
+			});
+
+			assert.throws(() => widget.setModel(model), /stop after tip initialization/);
+			resetCounts.push(resets);
+		}
+
+		assert.deepStrictEqual(resetCounts, [1, 1, 0]);
+	});
 
 	test('history failure updates the existing read-only banner without repeating announcements or retaining hovers', () => {
 		let activeHovers = 0;

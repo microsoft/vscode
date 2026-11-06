@@ -53,6 +53,11 @@ export interface ICustomizationSkillItem extends ICustomizationItem {
 	readonly skillBundle?: ICustomizationSkillBundle;
 }
 
+/** Browser-only marker for hook actions already enumerated by a host. */
+export interface ICustomizationHookItem extends ICustomizationItem {
+	readonly isHookAction?: boolean;
+}
+
 /**
  * Identifies who supplied a customization within its scope.
  * Items sharing an origin `id` are shown together under one separator.
@@ -170,7 +175,7 @@ export function getFriendlyName(filename: string): string {
  * when parsing fails.
  */
 export async function expandHookFileItems(
-	hookFileItems: readonly ICustomizationItem[],
+	hookFileItems: readonly ICustomizationHookItem[],
 	workspaceService: IAICustomizationWorkspaceService,
 	fileService: IFileService,
 	pathService: IPathService,
@@ -181,7 +186,7 @@ export async function expandHookFileItems(
 	const userHome = userHomeUri.scheme === Schemas.file ? userHomeUri.fsPath : userHomeUri.path;
 
 	for (const item of hookFileItems) {
-		if (!hasReadableCustomizationContent(item.uri)) {
+		if (item.isHookAction || !hasReadableCustomizationContent(item.uri)) {
 			items.push(item);
 			continue;
 		}
@@ -255,7 +260,7 @@ export class AICustomizationItemNormalizer {
 			.sort((a, b) => a.name.localeCompare(b.name));
 	}
 
-	normalizeItem(item: ICustomizationSkillItem, promptType: PromptsType, uriUseCounts = new ResourceMap<number>()): IAICustomizationListItem {
+	normalizeItem(item: ICustomizationSkillItem & ICustomizationHookItem, promptType: PromptsType, uriUseCounts = new ResourceMap<number>()): IAICustomizationListItem {
 		const { source, groupKey, isBuiltin, extensionId, pluginUri } = this.inferStorageAndGroup(item);
 		const scope = this.inferScope(item, source, isBuiltin);
 		const seenCount = uriUseCounts.get(item.uri) ?? 0;
@@ -264,7 +269,7 @@ export class AICustomizationItemNormalizer {
 		const isWorkspaceItem = source === AICustomizationSources.local;
 
 		return {
-			id: `${item.uri.toString()}${duplicateSuffix}`,
+			id: item.isHookAction && item.itemKey ? item.itemKey : `${item.uri.toString()}${duplicateSuffix}`,
 			uri: item.uri,
 			name: item.name,
 			filename: item.uri.scheme === Schemas.file || item.uri.scheme === Schemas.vscodeRemote
