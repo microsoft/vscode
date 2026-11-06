@@ -76,7 +76,7 @@ import { getChatSessionTelemetryContext } from '../../common/chatService/chatSer
 import { getAgentHostProviderForTelemetry, IChatSessionsService, isAgentHostTarget, localChatSessionType } from '../../common/chatSessionsService.js';
 import { IChatSessionHistoryStatus } from '../../../../../platform/chat/common/chatSessionHistory.js';
 import { IAgentHostPolicyContinuationService } from '../agentSessions/agentHost/agentHostPolicyContinuation.js';
-import { logLocalChatMigrationOffered } from '../agentSessions/agentHost/localChatMigrationTelemetry.js';
+import { logLocalChatMigrationOffered, type LocalChatMigrationTrigger } from '../agentSessions/agentHost/localChatMigrationTelemetry.js';
 import { IChatSlashCommandService } from '../../common/participants/chatSlashCommands.js';
 import { IChatTodoListService } from '../../common/tools/chatTodoListService.js';
 import { recoverAttachmentMentions } from '../../common/attachments/chatInlineAttachments.js';
@@ -457,8 +457,6 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	private readonly readOnlyBanner: ChatReadOnlyBanner | undefined;
 	private readonly policyRequiresAgentHost: IObservable<boolean>;
 	private policyReadOnly = false;
-	/** Whether the policy move to Copilot is running on its own, rather than because the user chose it. */
-	private _movingToCopilotAutomatically = false;
 	/** Local chats this view has reported as offered to be moved, each once. */
 	private _reportedMigrationOffers: ResourceSet | undefined;
 
@@ -2199,10 +2197,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 				: canMove
 					? localize('chatReadOnlyBanner.continueDescription', "Keep your conversation and draft in Copilot, then archive this chat. Nothing will be sent automatically.")
 					: localize('chatReadOnlyBanner.continueWithTranscriptDescription', "Start a new Copilot chat with this conversation attached as context and your draft. This chat stays available. Nothing will be sent automatically."),
-			run: () => this.commandService.executeCommand<void>(CONTINUE_CHAT_IN_COPILOT_ACTION_ID, {
-				$mid: MarshalledId.ChatViewContext, sessionResource: resource, inputUri: this.input.inputUri,
-				trigger: this._movingToCopilotAutomatically ? 'automatic' : 'manual',
-			}),
+			run: () => this.moveLocalChatToCopilot(resource, 'manual'),
 		} : historyStatus?.action);
 		const wasBannerVisible = this.readOnlyBanner?.visible;
 		this.readOnlyBanner?.setVisible(readOnly && (!keepInputVisible || !!historyStatus));
@@ -2250,35 +2245,57 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			: constObservable(false);
 	}
 
+	/** Moves a Local chat to Copilot, reporting whether it ran on its own or the user chose it. */
+	private moveLocalChatToCopilot(sessionResource: URI, trigger: LocalChatMigrationTrigger): Promise<void> {
+		return this.commandService.executeCommand<void>(CONTINUE_CHAT_IN_COPILOT_ACTION_ID, {
+			$mid: MarshalledId.ChatViewContext, sessionResource, inputUri: this.input.inputUri, trigger,
+		});
+	}
+
 	private updateReadOnlyState(model: IChatModel, archived: boolean, reader: IReader): void {
-		const policyRequired = isLocalChatSessionSubjectToManagedPolicy(model.sessionResource, model.initialLocation) && this.policyRequiresAgentHost.read(reader);
-		const hostInitialized = policyRequired && this._agentHostService.initializeResult?.read(reader) !== undefined;
-		// An archived chat was already moved, unless the host cannot import history or
-		// runs on a remote (where earlier moves archived the source before remote import
-		// was supported); keep offering the manual action there without auto-moving.
-		this.policyReadOnly = policyRequired && (!archived || !this._agentHostService.supportsConversationImport || this._agentHostService.clientConnectionKind === AgentHostClientConnectionKind.RemoteExtensionHost);
-		// Whether the chat can import its conversation is only known once the host has started.
-		if (this.policyReadOnly && hostInitialized) {
-			this.reportMigrationOffered(model, archived);
-		}
+		const policyRequired = this.isPolicyRequired(model, reader);
+		this.policyReadOnly = this.isPolicyReadOnly(policyRequired, archived);
 		const readOnly = model.isReadOnly.read(reader) || policyRequired || (archived && isAgentHostTarget(getChatSessionType(model.sessionResource)));
 		this.setReadOnly(readOnly, !policyRequired && !archived && model.isInputBlocked.read(reader), model.historyStatus?.read(reader));
 	}
 
-	/** Reports, once per chat in this view, that a Local chat is offered to be moved because a policy requires Copilot. */
-	private reportMigrationOffered(model: IChatModel, archived: boolean): void {
-		const reported = this._reportedMigrationOffers ??= new ResourceSet();
-		if (reported.has(model.sessionResource)) {
-			return;
-		}
-		reported.add(model.sessionResource);
-		logLocalChatMigrationOffered(this.telemetryService, {
-			policyRequired: true,
-			hasRequests: model.hasRequests,
-			archived,
-			blockedReason: this._agentHostService.supportsConversationImport ? 'none' : 'importUnsupported',
-			remoteExtensionHost: this._agentHostService.clientConnectionKind === AgentHostClientConnectionKind.RemoteExtensionHost,
-			location: this.viewOptions.isSessionsWindow ? 'agentsWindow' : isIChatViewViewContext(this.viewContext) ? 'panel' : 'editor',
+	private isPolicyRequired(model: IChatModel, reader: IReader): boolean {
+		return isLocalChatSessionSubjectToManagedPolicy(model.sessionResource, model.initialLocation) && this.policyRequiresAgentHost.read(reader);
+	}
+
+	/**
+	 * An archived chat was already moved, unless the host cannot import history or
+	 * runs on a remote (where earlier moves archived the source before remote import
+	 * was supported); keep offering the manual action there without auto-moving.
+	 */
+	private isPolicyReadOnly(policyRequired: boolean, archived: boolean): boolean {
+		return policyRequired && (!archived || !this._agentHostService.supportsConversationImport || this._agentHostService.clientConnectionKind === AgentHostClientConnectionKind.RemoteExtensionHost);
+	}
+
+	/**
+	 * Reports, once per chat in this view, that a Local chat is offered to be moved because a policy requires Copilot.
+	 * Whether the chat can import its conversation is only known once the host has started, and an offer counts only
+	 * once the user can see it.
+	 */
+	private reportMigrationOffers(model: IChatModel, archived: IObservable<boolean>): IDisposable {
+		return autorun(reader => {
+			const isArchived = archived.read(reader);
+			if (!this._visible.read(reader) || !this.isPolicyReadOnly(this.isPolicyRequired(model, reader), isArchived) || this._agentHostService.initializeResult?.read(reader) === undefined) {
+				return;
+			}
+			const reported = this._reportedMigrationOffers ??= new ResourceSet();
+			if (reported.has(model.sessionResource)) {
+				return;
+			}
+			reported.add(model.sessionResource);
+			logLocalChatMigrationOffered(this.telemetryService, {
+				policyRequired: true,
+				hasRequests: model.hasRequests,
+				archived: isArchived,
+				blockedReason: this._agentHostService.supportsConversationImport ? 'none' : 'importUnsupported',
+				remoteExtensionHost: this._agentHostService.clientConnectionKind === AgentHostClientConnectionKind.RemoteExtensionHost,
+				location: this.viewOptions.isSessionsWindow ? 'agentsWindow' : isIChatViewViewContext(this.viewContext) ? 'panel' : 'editor',
+			});
 		});
 	}
 
@@ -2314,12 +2331,8 @@ export class ChatWidget extends Disposable implements IChatWidget {
 						const run = () => this.policyContinuationService.continueInCopilot(model.sessionResource, 'automatic');
 						await (this.readOnlyBanner ? this.readOnlyBanner.runAction(run) : run());
 					} else {
-						this._movingToCopilotAutomatically = true;
-						try {
-							await this.readOnlyBanner?.runAction();
-						} finally {
-							this._movingToCopilotAutomatically = false;
-						}
+						// Run through the banner so it shows the move in progress, but report it as automatic.
+						await this.readOnlyBanner?.runAction(() => this.moveLocalChatToCopilot(model.sessionResource, 'automatic'));
 					}
 				} catch (error) {
 					if (isCancellationError(error)) {
@@ -3226,6 +3239,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		const archived = this.observeSessionArchived(model);
 		if (!this.viewOptions.isSessionsWindow) {
 			this.viewModelDisposables.add(autorun(reader => this.updateReadOnlyState(model, archived.read(reader), reader)));
+			this.viewModelDisposables.add(this.reportMigrationOffers(model, archived));
 		}
 		this.viewModelDisposables.add(this.autoMigratePolicySession(model, archived));
 

@@ -3,7 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { CLOUD_SANDBOX_TASK_SCHEME, isRemoteAgentHostSessionType } from '../../../../../../platform/agentHost/common/agentHostSessionType.js';
 import { ITelemetryService } from '../../../../../../platform/telemetry/common/telemetry.js';
+import { SessionType } from '../../../common/chatSessionsService.js';
 
 /** Where a Local chat is moved from: the Move to Copilot action, or Continue In. */
 export type LocalChatMigrationEntryPoint = 'move' | 'continueIn';
@@ -20,6 +22,31 @@ export type LocalChatMigrationKind = 'migrate' | 'transcript' | 'newChat';
 
 /** Where the moved chat is shown. */
 export type LocalChatMigrationLocation = 'panel' | 'editor' | 'agentsWindow';
+
+/**
+ * The agent a Local chat is moved to: a built-in agent host session type, or a
+ * fixed category for other agent hosts. A remote agent host's session type contains
+ * the host's address, so it is never reported.
+ */
+export type LocalChatMigrationTarget =
+	| typeof SessionType.AgentHostCopilot
+	| typeof SessionType.AgentHostClaude
+	| typeof SessionType.AgentHostCodex
+	| typeof CLOUD_SANDBOX_TASK_SCHEME
+	| 'remoteAgentHost'
+	| 'otherAgentHost';
+
+/** Maps the session type a Local chat is moved to onto a value that is safe to report. */
+export function getLocalChatMigrationTarget(sessionType: string): LocalChatMigrationTarget {
+	switch (sessionType) {
+		case SessionType.AgentHostCopilot:
+		case SessionType.AgentHostClaude:
+		case SessionType.AgentHostCodex:
+		case CLOUD_SANDBOX_TASK_SCHEME:
+			return sessionType;
+	}
+	return isRemoteAgentHostSessionType(sessionType) ? 'remoteAgentHost' : 'otherAgentHost';
+}
 
 /**
  * The step a move failed at. These are code-defined so they can be counted;
@@ -42,6 +69,8 @@ export type LocalChatMigrationFailureReason =
 	| 'sessionNotCreated'
 	/** The new chat did not open. */
 	| 'openFailed'
+	/** The new chat opened, but the request carrying the conversation was rejected or failed to send. */
+	| 'sendFailed'
 	/** The new chat opened without the moved conversation. */
 	| 'historyMissing'
 	/** An error at a step that is not recorded. */
@@ -52,7 +81,7 @@ type LocalChatMigrationEvent = {
 	trigger: LocalChatMigrationTrigger;
 	policyRequired: boolean;
 	kind: LocalChatMigrationKind;
-	target: string;
+	target: LocalChatMigrationTarget;
 	location: LocalChatMigrationLocation;
 	outcome: 'started' | 'succeeded' | 'failed' | 'cancelled';
 	failureReason: LocalChatMigrationFailureReason | 'none';
@@ -67,7 +96,7 @@ type LocalChatMigrationClassification = {
 	trigger: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the move ran automatically or the user started it.' };
 	policyRequired: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Whether an organization policy required the Copilot agent when the move was attempted.' };
 	kind: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the conversation was moved as editable history, attached as a transcript because the target cannot import it, or only the unsent draft was carried because the chat had no requests.' };
-	target: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The code-defined session type the chat was moved to, such as the Copilot agent host.' };
+	target: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The built-in agent host session type the chat was moved to, or a fixed category for other (including remote) agent hosts. Host addresses are never reported.' };
 	location: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the moved chat is shown in the chat panel, an editor, or the Agents window.' };
 	outcome: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'A started attempt, or whether it succeeded, failed or was cancelled.' };
 	failureReason: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'For a failed attempt, the code-defined step it failed at; otherwise none.' };
@@ -81,7 +110,7 @@ export interface ILocalChatMigrationAttempt {
 	readonly trigger: LocalChatMigrationTrigger;
 	readonly policyRequired: boolean;
 	readonly kind: LocalChatMigrationKind;
-	readonly target: string;
+	readonly target: LocalChatMigrationTarget;
 	readonly location: LocalChatMigrationLocation;
 	readonly turns: number;
 }

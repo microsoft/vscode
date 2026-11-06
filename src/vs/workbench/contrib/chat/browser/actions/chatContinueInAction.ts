@@ -47,7 +47,7 @@ import { ChatSendResult, IChatService } from '../../common/chatService/chatServi
 import { ResolvedChatSessionsExtensionPoint, IChatSessionsService, localChatSessionType, SessionType } from '../../common/chatSessionsService.js';
 import { ChatAgentLocation, ChatModeKind, CONTINUE_CHAT_IN_COPILOT_ACTION_ID } from '../../common/constants.js';
 import { isChatViewTitleActionContext, type IChatViewTitleActionContext } from '../../common/actions/chatActions.js';
-import { LocalChatMigrationTelemetry, type LocalChatMigrationFailureReason } from '../agentSessions/agentHost/localChatMigrationTelemetry.js';
+import { getLocalChatMigrationTarget, LocalChatMigrationTelemetry, type LocalChatMigrationFailureReason } from '../agentSessions/agentHost/localChatMigrationTelemetry.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { IManagedSettingsService, requiresCopilotAgentHost } from '../../../../../platform/policy/common/copilotManagedSettings.js';
 import { PROMPT_LANGUAGE_ID } from '../../common/promptSyntax/promptTypes.js';
@@ -60,7 +60,7 @@ import { ctxHasEditorModification } from '../chatEditing/chatEditingEditorContex
 import { CHAT_SETUP_ACTION_ID } from './chatActions.js';
 import { IChatRequestPasteVariableEntry, PromptFileVariableKind, toPasteVariableEntry, toPromptFileVariableEntry } from '../../common/attachments/chatVariableEntries.js';
 import { getChatSessionType } from '../../common/model/chatUri.js';
-import { ChatSessionPosition, getResourceForNewChatSession, openChatSession } from '../chatSessions/chatSessions.contribution.js';
+import { ChatSessionPosition, getResourceForNewChatSession, openChatSession, openChatSessionAndSend } from '../chatSessions/chatSessions.contribution.js';
 import { createImportedConversationStats, importedConversationPrimaryFolder, importedTurnsFromChatModel, resolveImportedCopilotModel, type IImportedConversationStats } from '../agentSessions/agentHost/importLocalConversationToAgentSession.js';
 import { IHistoryService } from '../../../../services/history/common/history.js';
 import { IAgentHostImportConversationStore } from '../agentSessions/agentHost/agentHostImportConversationStore.js';
@@ -891,7 +891,7 @@ export class CreateRemoteAgentJobAction {
 							trigger: 'manual',
 							policyRequired: requiresCopilotAgentHost(managedSettingsService, configurationService),
 							kind: importConversationTurns ? 'migrate' : 'transcript',
-							target: continuationTargetType,
+							target: getLocalChatMigrationTarget(continuationTargetType),
 							location: isSessionsWindow ? 'agentsWindow' : isSidebar ? 'panel' : 'editor',
 							turns: importConversationTurns?.length ?? 0,
 						})
@@ -929,7 +929,7 @@ export class CreateRemoteAgentJobAction {
 							if (primaryFolder) {
 								newSessionFolderService.setFolder(newChatResource, primaryFolder, { updateDefault: false });
 							}
-							const opened = await instantiationService.invokeFunction(innerAccessor => openChatSession(
+							const openResult = await instantiationService.invokeFunction(innerAccessor => openChatSessionAndSend(
 								innerAccessor,
 								{ ...newChatOpenOptions, sessionResource: newChatResource },
 								{
@@ -939,10 +939,13 @@ export class CreateRemoteAgentJobAction {
 									importConversation: importConversationTurns ? { turns: importConversationTurns, model: importConversationModel, title: chatModel.title } : undefined,
 								}
 							));
-							if (!opened) {
+							if (!openResult) {
 								newSessionFolderService.clear(newChatResource);
 								migration?.failed('openFailed');
-							} else if (importConversationTurns && !holdsImportedTurns(chatService.getSession(opened), importConversationTurns)) {
+							} else if (openResult.sendOutcome === 'rejected' || openResult.sendOutcome === 'failed') {
+								// The new chat stays open, but neither the transcript nor the draft reached it.
+								migration?.failed('sendFailed');
+							} else if (importConversationTurns && !holdsImportedTurns(chatService.getSession(openResult.resource), importConversationTurns)) {
 								migration?.failed('historyMissing');
 							} else {
 								migration?.succeeded();
