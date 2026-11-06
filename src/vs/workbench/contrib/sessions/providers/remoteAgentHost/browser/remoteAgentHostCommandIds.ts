@@ -12,6 +12,5 @@ export const RemoteAgentHostCommandIds = {
 	connectViaTunnel: 'workbench.action.sessions.connectViaTunnel',
 	connectViaMissionControl: 'workbench.action.sessions.connectViaMissionControl',
 	connectViaWSL: 'workbench.action.sessions.connectViaWSL',
-	manageRemoteAgentHosts: 'workbench.action.sessions.manageRemoteAgentHosts',
 	updateRemoteAgentHost: 'workbench.action.sessions.updateRemoteAgentHost',
 } as const;
