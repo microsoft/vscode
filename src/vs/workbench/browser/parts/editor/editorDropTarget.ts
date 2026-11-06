@@ -506,7 +506,7 @@ class DropOverlay extends Themable {
 
 					// Into another part only when its editors can go there, before any group is added or moved. A split copies the
 					// group with its editors themselves (see `copyGroup`), so all are asked; a merge copies each editor
-					if (this.isTransferVetoed(sourceGroup.editors, sourceGroup, this.isCopyOperation(event) && typeof splitDirection !== 'number')) {
+					if (this.isTransferVetoed(sourceGroup.editors, sourceGroup, this.isCopyOperation(event) && typeof splitDirection !== 'number', splitDirection)) {
 						this.groupTransfer.clearData(DraggedEditorGroupIdentifier.prototype);
 						return;
 					}
@@ -555,7 +555,7 @@ class DropOverlay extends Themable {
 					let targetGroup: IEditorGroup | undefined = undefined;
 
 					// Into another part only when the dragged editors can go there, before any group is added or moved
-					if (this.isTransferVetoed(draggedEditors.map(editor => editor.identifier.editor), sourceGroup, copyEditor)) {
+					if (this.isTransferVetoed(draggedEditors.map(editor => editor.identifier.editor), sourceGroup, copyEditor, splitDirection)) {
 						this.editorTransfer.clearData(DraggedEditorIdentifier.prototype);
 						return;
 					}
@@ -628,11 +628,14 @@ class DropOverlay extends Themable {
 	 * Whether `editors` of `sourceGroup`, dropped into another part, cannot go there, telling the user why. A group of
 	 * the part they are dropped in stands for the group a split adds.
 	 */
-	private isTransferVetoed(editors: readonly EditorInput[], sourceGroup: IEditorGroup, copy: boolean): boolean {
-		if (this.editorGroupService.getPart(sourceGroup) === this.editorGroupService.getPart(this.groupView)) {
+	private isTransferVetoed(editors: readonly EditorInput[], sourceGroup: IEditorGroup, copy: boolean, splitDirection: GroupDirection | undefined): boolean {
+
+		// A split adds a group where the part of this group adds groups, such as the main window for a compact auxiliary window
+		const target = typeof splitDirection === 'number' ? this.groupView.groupsView.getAddGroupLocation(this.groupView) : this.groupView;
+		if (this.editorGroupService.getPart(sourceGroup) === this.editorGroupService.getPart(target)) {
 			return false;
 		}
-		const veto = getEditorsTransferVeto(editors, sourceGroup.id, this.groupView.id, { copy });
+		const veto = getEditorsTransferVeto(editors, sourceGroup.id, target.id, { copy });
 		if (veto) {
 			showEditorTransferVeto(this.dialogService, veto);
 			return true;

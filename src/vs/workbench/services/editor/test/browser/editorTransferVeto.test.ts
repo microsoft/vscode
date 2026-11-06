@@ -23,6 +23,7 @@ import { DraggedEditorGroupIdentifier } from '../../../../browser/dnd.js';
 import { IEditorGroupView } from '../../../../browser/parts/editor/editor.js';
 import { CopyEditorToNewindowAction, MoveEditorGroupToNewWindowAction, MoveEditorToNewWindowAction } from '../../../../browser/parts/editor/editorActions.js';
 import { MoveModalEditorToMainWindowAction } from '../../../../browser/parts/editor/editorCommands.js';
+import { AuxiliaryEditorPartImpl } from '../../../../browser/parts/editor/auxiliaryEditorPart.js';
 import { EditorPart } from '../../../../browser/parts/editor/editorPart.js';
 import { getEditorsTransferVeto, IEditorTransferVeto, INewWindowTransfer, NEW_WINDOW_TARGET, transferToNewWindow } from '../../../../browser/parts/editor/editorTransferVeto.js';
 import { EditorExtensions, EditorInputCapabilities, EditorsOrder, IEditorFactoryRegistry } from '../../../../common/editor.js';
@@ -101,6 +102,20 @@ suite('Editor transfer vetoes', () => {
 		const part = parts.createEditorPart({ container });
 		// Force: a part that holds an editor that cannot go back to the main part refuses to close
 		partClosers.add({ dispose: () => part.forceClose() });
+		part.layout(800, 600, 0, 0);
+
+		return part;
+	}
+
+	/** An auxiliary editor part of the main window, compact or not, as an auxiliary window has. */
+	function createAuxiliaryPart(parts: TestEditorParts, instantiationService: TestInstantiationService, compact: boolean): AuxiliaryEditorPartImpl {
+		const container = mainWindow.document.createElement('div');
+		mainWindow.document.body.appendChild(container);
+		disposables.add({ dispose: () => container.remove() });
+		const part = disposables.add(instantiationService.createInstance(AuxiliaryEditorPartImpl, mainWindow.vscodeWindowId, parts, undefined, 'Auxiliary'));
+		part.updateOptions({ compact });
+		disposables.add(parts.registerPart(part));
+		part.create(container);
 		part.layout(800, 600, 0, 0);
 
 		return part;
@@ -298,6 +313,49 @@ suite('Editor transfer vetoes', () => {
 				merged: true,
 				partEditors: ['/vetoing'],
 				dialogs: [],
+			});
+		});
+
+		test('copying a group into a compact auxiliary window, which adds its groups to the main window, copies it there, so its editors are not asked', async () => {
+			const { parts, dialogs, instantiationService } = await createServices();
+			const compact = createAuxiliaryPart(parts, instantiationService, true);
+			const source = parts.mainPart.activeGroup;
+			await source.openEditor(createInput('/vetoing', { veto: true, dirty: true }), { pinned: true });
+			const mainGroupCount = parts.mainPart.count;
+
+			const copy = parts.copyGroup(source.id, compact.activeGroup.id, GroupDirection.RIGHT);
+
+			assert.deepStrictEqual({ inMain: parts.getPart(copy) === parts.mainPart, mainGroupCount: parts.mainPart.count, editors: editorsOf(copy), compactGroups: compact.count, dialogs: dialogs.errors }, {
+				inMain: true, mainGroupCount: mainGroupCount + 1, editors: ['/vetoing'], compactGroups: 1, dialogs: []
+			});
+		});
+
+		test('moving a group onto a compact auxiliary window, which adds its groups to the main window, keeps it there, so its editors are not asked', async () => {
+			const { parts, dialogs, instantiationService } = await createServices();
+			const compact = createAuxiliaryPart(parts, instantiationService, true);
+			const source = parts.mainPart.activeGroup;
+			await source.openEditor(createInput('/vetoing', { veto: true, dirty: true }), { pinned: true });
+			const other = parts.mainPart.addGroup(source, GroupDirection.DOWN);
+			await other.openEditor(createInput('/other'), { pinned: true });
+			const mainGroupCount = parts.mainPart.count;
+
+			const moved = parts.moveGroup(source.id, compact.activeGroup.id, GroupDirection.RIGHT);
+
+			assert.deepStrictEqual({ inMain: parts.getPart(moved) === parts.mainPart, mainGroupCount: parts.mainPart.count, editors: editorsOf(moved), compactGroups: compact.count, dialogs: dialogs.errors }, {
+				inMain: true, mainGroupCount, editors: ['/vetoing'], compactGroups: 1, dialogs: []
+			});
+		});
+
+		test('copying a group into an auxiliary window that is not compact still asks its editors', async () => {
+			const { parts, dialogs, instantiationService } = await createServices();
+			const auxiliary = createAuxiliaryPart(parts, instantiationService, false);
+			const source = parts.mainPart.activeGroup;
+			await source.openEditor(createInput('/vetoing', { veto: true, dirty: true }), { pinned: true });
+
+			const copy = parts.copyGroup(source.id, auxiliary.activeGroup.id, GroupDirection.RIGHT);
+
+			assert.deepStrictEqual({ returnedSource: copy === source, auxiliaryGroups: auxiliary.count, dialogs: dialogs.errors }, {
+				returnedSource: true, auxiliaryGroups: 1, dialogs: [{ message: VETO, detail: 'Try saving or reverting the editor first and then try again.' }]
 			});
 		});
 

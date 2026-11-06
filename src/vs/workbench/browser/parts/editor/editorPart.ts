@@ -634,8 +634,12 @@ export class EditorPart extends Part<IEditorPartMemento> implements IEditorPart,
 		return false;
 	}
 
+	getAddGroupLocation(location: IEditorGroupView): IEditorGroupView {
+		return location;
+	}
+
 	addGroup(location: IEditorGroupView | GroupIdentifier, direction: GroupDirection, groupToCopy?: IEditorGroupView): IEditorGroupView {
-		const locationView = this.assertGroupView(location);
+		const locationView = this.getAddGroupLocation(this.assertGroupView(location));
 
 		let newGroupView: IEditorGroupView;
 
@@ -928,8 +932,9 @@ export class EditorPart extends Part<IEditorPartMemento> implements IEditorPart,
 			throw new Error('Cannot move group into its own');
 		}
 
-		// Into another part, unless an editor cannot go: then the group stays, and nothing changes
-		if (this.vetoGroupTransfer([sourceView], targetView, false)) {
+		// Into another part, unless an editor cannot go: then the group stays, and nothing changes. The group goes where
+		// that part adds groups, such as the main window for a compact auxiliary window
+		if (this.vetoGroupTransfer([sourceView], targetView.groupsView.getAddGroupLocation(targetView), false)) {
 			return sourceView;
 		}
 
@@ -971,8 +976,9 @@ export class EditorPart extends Part<IEditorPartMemento> implements IEditorPart,
 		const groupView = this.assertGroupView(group);
 		const locationView = this.assertGroupView(location);
 
-		// Into another part, the copy shares the editors of the group (its model is cloned), so all are asked, as for a move
-		if (this.vetoGroupTransfer([groupView], locationView, false)) {
+		// Into another part, the copy shares the editors of the group (its model is cloned), so all are asked, as for a move,
+		// where that part adds groups
+		if (this.vetoGroupTransfer([groupView], locationView.groupsView.getAddGroupLocation(locationView), false)) {
 			return groupView;
 		}
 

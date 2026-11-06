@@ -40,7 +40,7 @@ suite('EditorDropTarget', () => {
 		readonly operations: string[];
 	}
 
-	function setup(options?: { readonly contentCoversGroup?: boolean; readonly inputAtBottomEdge?: boolean; readonly dragEditor?: boolean; readonly groupWidth?: number; readonly groupMinimumWidth?: number; readonly fromOtherPart?: boolean; readonly moveVeto?: string; readonly closeEmptyGroups?: boolean; readonly sourceCount?: number; readonly dragGroup?: boolean }): ITestSetup {
+	function setup(options?: { readonly contentCoversGroup?: boolean; readonly inputAtBottomEdge?: boolean; readonly dragEditor?: boolean; readonly groupWidth?: number; readonly groupMinimumWidth?: number; readonly fromOtherPart?: boolean; readonly moveVeto?: string; readonly closeEmptyGroups?: boolean; readonly sourceCount?: number; readonly dragGroup?: boolean; readonly addsGroupsToSourcePart?: boolean }): ITestSetup {
 		const operations: string[] = [];
 
 		// A 300x300 group at the viewport origin with a registered input drop target in its lower center
@@ -68,8 +68,13 @@ suite('EditorDropTarget', () => {
 			override canMove(): true | string { return options?.moveVeto ?? true; }
 			override getName(): string { return 'editor'; }
 		}();
+		// A group of the part of the source group, where a compact auxiliary window adds its groups instead
+		const addGroupsHere = new class extends mock<IEditorGroupView>() {
+			override readonly id = 3;
+		}();
 		const groupsView = new class extends mock<IEditorGroupsView>() {
 			override readonly partOptions = { ...DEFAULT_EDITOR_PART_OPTIONS, allowDropIntoGroup: true, splitOnDragAndDrop: true, openSideBySideDirection: 'right' as const, closeEmptyGroups: options?.closeEmptyGroups ?? false };
+			override getAddGroupLocation(location: IEditorGroupView): IEditorGroupView { return options?.addsGroupsToSourcePart ? addGroupsHere : location; }
 		}();
 		const groupView = new class extends mock<IEditorGroupView>() {
 			override readonly element = groupElement;
@@ -109,7 +114,7 @@ suite('EditorDropTarget', () => {
 		instantiation.stub(IEditorGroupsService, new class extends mock<IEditorGroupsService>() {
 			override readonly groups = [groupView];
 			override getGroup(): IEditorGroup { return sourceGroup; }
-			override getPart(group: IEditorGroup): IEditorPart { return options?.fromOtherPart && group === sourceGroup ? otherPart : part; }
+			override getPart(group: IEditorGroup): IEditorPart { return options?.fromOtherPart && (group === sourceGroup || group === addGroupsHere) ? otherPart : part; }
 			override moveGroup(group: IEditorGroup, location: IEditorGroup, direction: GroupDirection): IEditorGroup {
 				operations.push(`move group ${direction}`);
 				return newGroup;
@@ -244,6 +249,18 @@ suite('EditorDropTarget', () => {
 		dispatch(groupElement, 'dragend', 5, 150, undefined, true);
 
 		assert.deepStrictEqual(operations, ['veto: Cannot leave']);
+	});
+
+	test('a group copied by a drop on an edge of a compact auxiliary window, which adds its groups to the window of the group, is copied without asking its editors', () => {
+		const { groupElement, operations } = setup({ fromOtherPart: true, moveVeto: 'Cannot leave', dragGroup: true, addsGroupsToSourcePart: true });
+
+		dispatch(groupElement, 'dragenter', 5, 150, undefined, true);
+		const overlay = getOverlay(groupElement);
+		dispatch(overlay!, 'dragover', 5, 150, undefined, true);
+		dispatch(overlay!, 'drop', 5, 150, undefined, true);
+		dispatch(groupElement, 'dragend', 5, 150, undefined, true);
+
+		assert.deepStrictEqual(operations.filter(operation => !operation.startsWith('size')), [`copy group ${GroupDirection.LEFT}`, 'activate']);
 	});
 
 	test('a group copied by a drop into a group of another part copies each editor, so an editor that is not a singleton is not asked', () => {
