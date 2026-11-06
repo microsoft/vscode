@@ -3,14 +3,14 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { $, append, clearNode, getContentHeight, getContentWidth } from '../../dom.js';
+import { $, addDisposableListener, append, clearNode, EventType, getContentHeight, getContentWidth } from '../../dom.js';
 import { createStyleSheet } from '../../domStylesheets.js';
 import { getBaseLayerHoverDelegate } from '../hover/hoverDelegate2.js';
 import { getDefaultHoverDelegate } from '../hover/hoverDelegateFactory.js';
 import { IListElementRenderDetails, IListRenderer, IListVirtualDelegate } from '../list/list.js';
 import { IListOptions, IListOptionsUpdate, IListStyles, List, unthemedListStyles } from '../list/listWidget.js';
 import { ISplitViewDescriptor, IView, Orientation, SplitView } from '../splitview/splitview.js';
-import { ITableColumn, ITableContextMenuEvent, ITableEvent, ITableGestureEvent, ITableMouseEvent, ITableRenderer, ITableTouchEvent, ITableVirtualDelegate } from './table.js';
+import { ITableColumn, ITableContextMenuEvent, ITableEvent, ITableGestureEvent, ITableMouseEvent, ITableRenderer, ITableSortState, ITableTouchEvent, ITableVirtualDelegate, SortOrder } from './table.js';
 import { Emitter, Event } from '../../../common/event.js';
 import { Disposable, DisposableStore, IDisposable } from '../../../common/lifecycle.js';
 import { ScrollbarVisibility, ScrollEvent } from '../../../common/scrollable.js';
@@ -129,6 +129,9 @@ class ColumnHeader<TRow, TCell> extends Disposable implements IView {
 	private _onDidLayout = this._register(new Emitter<[number, number]>());
 	readonly onDidLayout = this._onDidLayout.event;
 
+	private _onDidClick = this._register(new Emitter<number>());
+	readonly onDidClick = this._onDidClick.event;
+
 	constructor(readonly column: ITableColumn<TRow, TCell>, private index: number) {
 		super();
 
@@ -137,6 +140,8 @@ class ColumnHeader<TRow, TCell> extends Disposable implements IView {
 		if (column.tooltip) {
 			this._register(getBaseLayerHoverDelegate().setupManagedHover(getDefaultHoverDelegate('mouse'), this.element, column.tooltip));
 		}
+
+		this._register(addDisposableListener(this.element, EventType.CLICK, () => this._onDidClick.fire(this.index)));
 	}
 
 	layout(size: number): void {
@@ -156,11 +161,15 @@ export class Table<TRow> implements ISpliceable<TRow>, IDisposable {
 	readonly domNode: HTMLElement;
 	private splitview: SplitView;
 	private list: List<TRow>;
+	private columnHeaders: ColumnHeader<TRow, TCell>[];
 	private styleElement: HTMLStyleElement;
 	protected readonly disposables = new DisposableStore();
 
 	private cachedWidth: number = 0;
 	private cachedHeight: number = 0;
+
+	private _onDidClickColumn = this.disposables.add(new Emitter<number>());
+	readonly onDidClickColumn = this._onDidClickColumn.event;
 
 	get onDidChangeFocus(): Event<ITableEvent<TRow>> { return this.list.onDidChangeFocus; }
 	get onDidChangeSelection(): Event<ITableEvent<TRow>> { return this.list.onDidChangeSelection; }
@@ -201,6 +210,7 @@ export class Table<TRow> implements ISpliceable<TRow>, IDisposable {
 		this.domNode = append(container, $(`.monaco-table.${this.domId}`));
 
 		const headers = columns.map((c, i) => this.disposables.add(new ColumnHeader(c, i)));
+		this.columnHeaders = headers;
 		const descriptor: ISplitViewDescriptor = {
 			size: headers.reduce((a, b) => a + b.column.weight, 0),
 			views: headers.map(view => ({ size: view.column.weight, view }))
@@ -222,6 +232,9 @@ export class Table<TRow> implements ISpliceable<TRow>, IDisposable {
 		Event.any(...headers.map(h => h.onDidLayout))
 			(([index, size]) => renderer.layoutColumn(index, size), null, this.disposables);
 
+		Event.any(...headers.map(h => h.onDidClick))
+			(index => this._onDidClickColumn.fire(index), null, this.disposables);
+
 		this.splitview.onDidSashReset(index => {
 			const totalWeight = columns.reduce((r, c) => r + c.weight, 0);
 			const size = columns[index].weight / totalWeight * this.cachedWidth;
@@ -234,6 +247,21 @@ export class Table<TRow> implements ISpliceable<TRow>, IDisposable {
 
 	getColumnLabels(): string[] {
 		return this.columns.map(c => c.label);
+	}
+
+	setSortColumn(sortState: ITableSortState | undefined): void {
+		for (const header of this.columnHeaders) {
+			header.element.classList.remove('sort-ascending', 'sort-descending');
+			header.element.removeAttribute('aria-sort');
+		}
+		if (sortState) {
+			const header = this.columnHeaders[sortState.columnIndex];
+			if (header) {
+				const ascending = sortState.sortOrder === SortOrder.Ascending;
+				header.element.classList.add(ascending ? 'sort-ascending' : 'sort-descending');
+				header.element.setAttribute('aria-sort', ascending ? 'ascending' : 'descending');
+			}
+		}
 	}
 
 	resizeColumn(index: number, percentage: number): void {
