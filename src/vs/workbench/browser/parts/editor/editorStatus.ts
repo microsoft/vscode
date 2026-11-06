@@ -45,7 +45,7 @@ import { Promises, timeout } from '../../../../base/common/async.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { IWorkbenchContribution } from '../../../common/contributions.js';
 import { IStatusbarEntryAccessor, IStatusbarService, StatusbarAlignment, IStatusbarEntry } from '../../../services/statusbar/browser/statusbar.js';
-import { IMarker, IMarkerService, MarkerSeverity, IMarkerData } from '../../../../platform/markers/common/markers.js';
+import { getMarkerMessageText, IMarker, IMarkerService, MarkerSeverity, IMarkerData } from '../../../../platform/markers/common/markers.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { SideBySideEditorInput } from '../../../common/editor/sideBySideEditorInput.js';
 import { AutomaticLanguageDetectionLikelyWrongClassification, AutomaticLanguageDetectionLikelyWrongId, IAutomaticLanguageDetectionLikelyWrongData, ILanguageDetectionService } from '../../../services/languageDetection/common/languageDetectionWorkerService.js';
@@ -996,7 +996,7 @@ class ShowCurrentMarkerInStatusbarContribution extends Disposable {
 		this.currentMarker = this.getMarker();
 		if (this.hasToUpdateStatus(previousMarker, this.currentMarker)) {
 			if (this.currentMarker) {
-				const line = splitLines(this.currentMarker.message)[0];
+				const line = splitLines(getMarkerMessageText(this.currentMarker.message))[0];
 				const text = `${this.getType(this.currentMarker)} ${line}`;
 				if (!this.statusBarEntryAccessor.value) {
 					this.statusBarEntryAccessor.value = this.statusbarService.addEntry({ name: localize('currentProblem', "Current Problem"), text, ariaLabel: text }, 'statusbar.currentProblem', StatusbarAlignment.LEFT);
