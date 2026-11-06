@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { autorun, constObservable, observableValue, transaction } from '../../../../../base/common/observable.js';
+import { autorun, constObservable, derived, observableValue, transaction } from '../../../../../base/common/observable.js';
 import { extUriBiasedIgnorePathCase } from '../../../../../base/common/resources.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { Direction } from '../../../../../base/browser/ui/grid/grid.js';
@@ -12,7 +12,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/tes
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { mock } from '../../../../../base/test/common/mock.js';
 import { IUriIdentityService } from '../../../../../platform/uriIdentity/common/uriIdentity.js';
-import { VisibleSession, VisibleSessions } from '../../browser/visibleSessions.js';
+import { VisibleSessions } from '../../browser/visibleSessions.js';
 import { ISessionGridPane, SessionGridPaneKind } from '../../browser/sessionGridPane.js';
 import { DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { ChatInteractivity, ChatOriginKind, IChat, ISession, SessionRemoteConnectionFailureReason, SessionRemoteConnectionStatus, SessionStatus } from '../../common/session.js';
@@ -62,6 +62,36 @@ function stubSession(sessionId: string): ISession {
 		chats: constObservable([stubChat]),
 		mainChat: constObservable(stubChat),
 		capabilities: constObservable({ supportsMultipleChats: false }),
+	};
+}
+
+/**
+ * The slot of `session` in a grid that shows it, as the views of the slot drive it: its tab operations go through the
+ * grid, and its state is read from its pane. The grid seeds the slot's tab state as from the persisted state of the
+ * session, from `seed`.
+ */
+function slotOf(disposables: Pick<DisposableStore, 'add'>, session: ISession, seed?: { readonly activeChat?: IChat; readonly closedChats?: Iterable<string>; readonly shownRelatedChats?: Iterable<string> }) {
+	const model = disposables.add(new VisibleSessions(
+		candidate => seed?.activeChat ?? candidate.chats.get()[0] ?? candidate.mainChat.get(),
+		() => seed?.closedChats ?? [],
+		() => seed?.shownRelatedChats ?? [],
+		() => { },
+		new class extends mock<IUriIdentityService>() { override readonly extUri = extUriBiasedIgnorePathCase; },
+	));
+	model.setActive(session);
+	const pane = model.activePane.get()!;
+	return {
+		activeChat: derived(reader => pane.chat.read(reader)!),
+		modelId: derived(reader => pane.chat.read(reader)?.modelId.read(reader)),
+		mode: derived(reader => pane.chat.read(reader)?.mode.read(reader)),
+		openChats: pane.tabs.openChats,
+		closedChats: pane.tabs.closedChats,
+		get lastClosedChat() { return pane.tabs.lastClosedChat; },
+		visibleChatTabs: pane.tabs.visibleChatTabs,
+		shouldShowChatTabs: pane.tabs.shouldShowChatTabs,
+		openChat: (chat: IChat) => model.openChat(session, chat),
+		closeChat: (chat: IChat) => model.closeChat(session, chat),
+		setActiveChat: (chat: IChat) => model.setActiveChat(session, chat),
 	};
 }
 
@@ -1388,29 +1418,7 @@ suite('VisibleSessions', () => {
 	});
 });
 
-suite('VisibleSession - property forwarding', () => {
-
-	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
-
-	// The wrapper forwards each ISession property by hand, so a newly added
-	// property is easy to drop silently (artifacts was, and its pill never showed).
-	test('forwards every session property, including optional ones', () => {
-		const session: ISession = {
-			...stubSession('S'),
-			artifacts: constObservable([]),
-		};
-		const visible = disposables.add(new VisibleSession(session, stubChat));
-
-		// `modelId` / `mode` intentionally reflect the active chat instead.
-		const perChatOverrides: ReadonlySet<string> = new Set(['modelId', 'mode']);
-		const notForwarded = (Object.keys(session) as (keyof ISession)[])
-			.filter(key => !perChatOverrides.has(key) && visible[key] !== session[key]);
-
-		assert.deepStrictEqual(notForwarded, []);
-	});
-});
-
-suite('VisibleSession - open/close chats', () => {
+suite('VisibleSessions - slot open/close chats', () => {
 
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
@@ -1426,12 +1434,12 @@ suite('VisibleSession - open/close chats', () => {
 		const chatsObs = observableValue<readonly IChat[]>('chats', chats);
 		const base = stubSession('S');
 		const session: ISession = { ...base, chats: chatsObs, mainChat: constObservable(chats[0]) };
-		const visible = disposables.add(new VisibleSession(session, initialActiveChat ?? chats[0], initialClosedChatUris));
+		const visible = slotOf(disposables, session, { activeChat: initialActiveChat ?? chats[0], closedChats: initialClosedChatUris });
 		const ids = (list: readonly IChat[]) => list.map(c => c.title.get());
 		return { visible, chatsObs, ids };
 	}
 
-	function snapshot(visible: VisibleSession, ids: (list: readonly IChat[]) => string[]) {
+	function snapshot(visible: ReturnType<typeof slotOf>, ids: (list: readonly IChat[]) => string[]) {
 		return {
 			open: ids(visible.openChats.get()),
 			closed: ids(visible.closedChats.get()),
@@ -1589,7 +1597,7 @@ suite('VisibleSession - open/close chats', () => {
 	});
 });
 
-suite('VisibleSession - visibleChatTabs', () => {
+suite('VisibleSessions - slot visibleChatTabs', () => {
 
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
@@ -1606,7 +1614,7 @@ suite('VisibleSession - visibleChatTabs', () => {
 	function createSession(chats: IChat[], initialShownRelatedChatUris?: Iterable<string>) {
 		const base = stubSession('S');
 		const session: ISession = { ...base, chats: constObservable(chats), mainChat: constObservable(chats[0]) };
-		return disposables.add(new VisibleSession(session, chats[0], undefined, initialShownRelatedChatUris));
+		return slotOf(disposables, session, { activeChat: chats[0], shownRelatedChats: initialShownRelatedChatUris });
 	}
 
 	test('keeps provider order and hides tool-origin (subagent) chats by default', () => {
@@ -1676,7 +1684,7 @@ suite('VisibleSession - visibleChatTabs', () => {
 	});
 });
 
-suite('VisibleSession - shouldShowChatTabs', () => {
+suite('VisibleSessions - slot shouldShowChatTabs', () => {
 
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
@@ -1693,7 +1701,7 @@ suite('VisibleSession - shouldShowChatTabs', () => {
 	function createSession(sessionTitle: string, chats: IChat[]) {
 		const base = stubSession('S');
 		const session: ISession = { ...base, title: constObservable(sessionTitle), chats: constObservable(chats), mainChat: constObservable(chats[0]) };
-		return disposables.add(new VisibleSession(session, chats[0]));
+		return slotOf(disposables, session, { activeChat: chats[0] });
 	}
 
 	test('hidden for a single chat matching the session title', () => {
@@ -1742,7 +1750,7 @@ suite('VisibleSession - shouldShowChatTabs', () => {
 		const main = makeChat('main', 'Title');
 		const base = stubSession('S');
 		const session: ISession = { ...base, title: constObservable('Title'), chats: constObservable<readonly IChat[]>([]), mainChat: constObservable(main) };
-		const visible = disposables.add(new VisibleSession(session, main));
+		const visible = slotOf(disposables, session, { activeChat: main });
 		assert.strictEqual(visible.shouldShowChatTabs.get(), false);
 	});
 
@@ -1766,7 +1774,7 @@ suite('VisibleSession - shouldShowChatTabs', () => {
 	});
 });
 
-suite('VisibleSession - side chat tabs', () => {
+suite('VisibleSessions - slot side chat tabs', () => {
 
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
@@ -1784,7 +1792,7 @@ suite('VisibleSession - side chat tabs', () => {
 		const base = stubSession('S');
 		const chatsObs = observableValue<readonly IChat[]>('chats', chats);
 		const session: ISession = { ...base, chats: chatsObs, mainChat: constObservable(chats[0]) };
-		const visible = disposables.add(new VisibleSession(session, chats[0]));
+		const visible = slotOf(disposables, session, { activeChat: chats[0] });
 		return { visible, chatsObs };
 	}
 
@@ -1926,7 +1934,7 @@ suite('VisibleSessions - active chat removal fallback', () => {
 	});
 });
 
-suite('VisibleSession - per-chat model/mode', () => {
+suite('VisibleSessions - slot per-chat model/mode', () => {
 
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
@@ -1946,7 +1954,7 @@ suite('VisibleSession - per-chat model/mode', () => {
 		const second = makeChat('second', 'model-2', 'agent-2');
 		const base = stubSession('S');
 		const session: ISession = { ...base, chats: constObservable([first, second]), mainChat: constObservable(first) };
-		const visible = disposables.add(new VisibleSession(session, first));
+		const visible = slotOf(disposables, session, { activeChat: first });
 
 		assert.deepStrictEqual(
 			{ modelId: visible.modelId.get(), mode: visible.mode.get() },
