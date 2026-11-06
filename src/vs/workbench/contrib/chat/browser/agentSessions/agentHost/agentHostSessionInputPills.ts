@@ -767,7 +767,7 @@ export class AgentHostSessionInputPills extends Disposable {
 			const authority = getAgentHostResourceAuthority(currentResolution);
 			return files
 				.map(file => {
-					const diff = agentHostChangesetFileToEntryDiff(file, currentResolution.connection.resourceUris, authority);
+					const diff = agentHostChangesetFileToEntryDiff(file, currentResolution.connection, authority);
 					if (diff && file.nonce !== undefined) {
 						this._fileChangeNonces.set(diff, file.nonce);
 					}
@@ -1520,10 +1520,10 @@ export class AgentHostSessionInputPills extends Disposable {
 					break;
 				}
 				const currentFile = state.files.find(file => {
-					const candidate = agentHostChangesetFileToEntryDiff(file, connection.resourceUris, authority);
+					const candidate = agentHostChangesetFileToEntryDiff(file, connection, authority);
 					return candidate && isEqual(candidate.modifiedURI, diff.modifiedURI);
 				});
-				const current = currentFile && agentHostChangesetFileToEntryDiff(currentFile, connection.resourceUris, authority);
+				const current = currentFile && agentHostChangesetFileToEntryDiff(currentFile, connection, authority);
 				if (!current) {
 					// The file's changes are already gone.
 					continue;

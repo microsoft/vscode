@@ -989,7 +989,7 @@ function isSameWorkingSetFile(a: IWorkingSetFileChange, b: IWorkingSetFileChange
 /** The files of a Working Set, with the version the host published for each. */
 function toWorkingSetFileChanges(state: ChangesetState, workingSet: IWorkingSet): IWorkingSetFileChange[] {
 	return state.files.map(file => {
-		const diff = agentHostChangesetFileToEntryDiff(file, workingSet.connection.resourceUris, workingSet.resourceAuthority);
+		const diff = agentHostChangesetFileToEntryDiff(file, workingSet.connection, workingSet.resourceAuthority);
 		return diff && { diff, nonce: file.nonce, editing: file.isEditing === true };
 	}).filter(isDefined);
 }
