@@ -962,6 +962,11 @@ export class ExtensionsViewPaneContainer extends ViewPaneContainer<IExtensionsVi
 		return undefined;
 	}
 
+	/** Navigate to an available results list without updating the search text. */
+	focusResults(): void {
+		this.focusListView();
+	}
+
 	private focusListView(): void {
 		const pane = this.getFirstExpandedPane();
 		if (pane && pane.count() > 0) {
