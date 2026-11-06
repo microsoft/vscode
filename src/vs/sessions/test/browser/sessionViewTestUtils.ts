@@ -9,7 +9,7 @@ import { Disposable, DisposableStore, toDisposable } from '../../../base/common/
 import { constObservable, IObservable, observableValue } from '../../../base/common/observable.js';
 import { ThemeIcon } from '../../../base/common/themables.js';
 import { URI } from '../../../base/common/uri.js';
-import { mock } from '../../../base/test/common/mock.js';
+import { mock, upcastPartial } from '../../../base/test/common/mock.js';
 import { IConfigurationService } from '../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../platform/configuration/test/common/testConfigurationService.js';
 import { ContextKeyService } from '../../../platform/contextkey/browser/contextKeyService.js';
@@ -31,12 +31,12 @@ import { ISessionsListModelService } from '../../../workbench/contrib/sessions/b
 import { ISessionGridSlot, ISessionsPartService, SessionGridRequest } from '../../../workbench/contrib/sessions/browser/sessionsPartService.js';
 import { ISessionsProvidersService } from '../../../workbench/contrib/sessions/browser/sessionsProvidersService.js';
 import { ISessionsService } from '../../../workbench/contrib/sessions/browser/sessionsService.js';
-import { ChatInteractivity, IChat, ISessionCapabilities, ISessionPreparationProgress, SessionStatus } from '../../../workbench/contrib/sessions/common/session.js';
-import { stubSessionHosts } from '../../../workbench/contrib/sessions/test/browser/sessionHostTestUtils.js';
+import { ChatInteractivity, IChat, ISession, ISessionCapabilities, ISessionPreparationProgress, SessionStatus } from '../../../workbench/contrib/sessions/common/session.js';
+import { ITestSessionWithChat, LegacyFakePaneState, stubSessionHosts } from '../../../workbench/contrib/sessions/test/browser/sessionHostTestUtils.js';
 import { ChatHostOpenerService, IChatHostOpenerService } from '../../../workbench/contrib/sessions/browser/chatHostOpener.js';
 import { ISessionChangesStatsCache } from '../../../workbench/contrib/sessions/common/sessionChangesStatsCache.js';
 import { SessionInputPickerVisibility } from '../../../workbench/contrib/sessions/common/sessionPickerVisibility.js';
-import { IActiveSession, ISessionPaneTabs, ISessionsManagementService } from '../../../workbench/contrib/sessions/common/sessionsManagement.js';
+import { ISessionPaneTabs, ISessionsManagementService } from '../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import { ISessionGridPane, SessionGridPaneKind } from '../../../workbench/contrib/sessions/browser/sessionGridPane.js';
 import { Parts } from '../../../workbench/services/layout/browser/layoutService.js';
 import { MobileSessionsPart } from '../../browser/parts/mobile/mobileSessionsPart.js';
@@ -119,7 +119,7 @@ export function createSessionViewTestServices(store: Pick<DisposableStore, 'add'
 		}
 	}());
 	instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() {
-		readonly activeSession = observableValue<IActiveSession | undefined>(this, undefined);
+		readonly activeSession = observableValue<ITestSessionWithChat | undefined>(this, undefined);
 		override async openChat(): Promise<void> { }
 	}());
 	instantiationService.stub(ISessionsManagementService, new class extends mock<ISessionsManagementService>() {
@@ -191,27 +191,29 @@ export function createTestActiveSession(sessionId: string, isCreated = true, lif
 		override readonly changesets = constObservable([]);
 	}());
 	const mainChat = chats[0];
-	return new class extends mock<IActiveSession>() {
+	// A session fake that carries the pane state the grid gave a session: its pin, its tab strip and the chat it shows.
+	return new class extends mock<ISession>() {
 		override readonly sessionId = sessionId;
 		override readonly resource = URI.parse(`test-session://${sessionId}`);
 		override readonly providerId = 'test';
 		override readonly sessionType = 'test';
 		override readonly title = constObservable('Session');
-		override readonly isCreated = observableValue(this, isCreated);
+		readonly isCreated = observableValue(this, isCreated);
 		// Created is what the status says: flipping `isCreated` flips it.
 		override readonly status = this.isCreated.map(created => created ? SessionStatus.Completed : SessionStatus.Untitled);
 		override readonly isRead = constObservable(true);
 		override readonly isArchived = constObservable(false);
-		override readonly sticky = constObservable(false);
+		readonly sticky = constObservable(false);
 		override readonly workspace = constObservable(undefined);
 		override readonly capabilities: IObservable<ISessionCapabilities> = constObservable({ supportsMultipleChats: true });
 		override readonly chats: IObservable<readonly IChat[]> = constObservable(chats);
-		override readonly openChats: IObservable<readonly IChat[]> = constObservable(chats);
-		override readonly closedChats: IObservable<readonly IChat[]> = constObservable([]);
-		override readonly visibleChatTabs: IObservable<readonly IChat[]> = constObservable(chats);
-		override readonly activeChat: IObservable<IChat> = constObservable(mainChat);
+		readonly openChats: IObservable<readonly IChat[]> = constObservable(chats);
+		readonly closedChats: IObservable<readonly IChat[]> = constObservable([]);
+		readonly lastClosedChat: IChat | undefined = undefined;
+		readonly visibleChatTabs: IObservable<readonly IChat[]> = constObservable(chats);
+		readonly activeChat: IObservable<IChat> = constObservable(mainChat);
 		override readonly mainChat: IObservable<IChat> = constObservable(mainChat);
-		override readonly shouldShowChatTabs = constObservable(true);
+		readonly shouldShowChatTabs = constObservable(true);
 		override readonly isNewSessionRequestInProgress = lifecycle?.isNewSessionRequestInProgress ?? constObservable(false);
 		override readonly preparationProgress = lifecycle?.preparationProgress;
 		override readonly loading = constObservable(false);
@@ -234,14 +236,45 @@ export function getSessionPickerVisibility(contextKeyService: IContextKeyService
 }
 
 const noTabs: ISessionPaneTabs = { openChats: constObservable([]), closedChats: constObservable([]), lastClosedChat: undefined, visibleChatTabs: constObservable([]), shouldShowChatTabs: constObservable(false) };
-const testPanes = new WeakMap<object, Map<string, { readonly session: IActiveSession | undefined; readonly pane: ISessionGridPane }>>();
 
 /**
- * Renders `visible`, a test's views of sessions, in `part` as the panes of its grid, with `active` active: each a pane whose
+ * A pane of the grid with `id` that shows `session`, a session fake, with the pane state it carries: its chat, which it
+ * follows, its pin and its tab strip; detached when the fake is of a detached pane. The new-session slot without a session.
+ */
+function createTestPane(session: LegacyFakePaneState | undefined, id: string): ISessionGridPane {
+	return {
+		id,
+		kind: session?.scopedChatResource ? SessionGridPaneKind.Detached : SessionGridPaneKind.Slot,
+		session: constObservable(session),
+		chat: session?.activeChat ?? constObservable(undefined),
+		sticky: session?.sticky ?? constObservable(false),
+		tabs: session ? upcastPartial<ISessionPaneTabs>(session) : noTabs,
+	};
+}
+
+const panesOfFakes = new WeakMap<LegacyFakePaneState, ISessionGridPane>();
+
+/** The pane that shows `session`, a session fake, for a test of one view: the same pane for the same fake. */
+export function testPaneOf(session: LegacyFakePaneState | undefined): ISessionGridPane | undefined {
+	if (!session) {
+		return undefined;
+	}
+	let pane = panesOfFakes.get(session);
+	if (!pane) {
+		pane = createTestPane(session, `pane:${session.sessionId}`);
+		panesOfFakes.set(session, pane);
+	}
+	return pane;
+}
+
+const testPanes = new WeakMap<object, Map<string, { readonly session: LegacyFakePaneState | undefined; readonly pane: ISessionGridPane }>>();
+
+/**
+ * Renders `visible`, session fakes with the pane state they carry, in `part` as the panes of its grid, with `active` active: each a pane whose
  * id is its slot's (`slots`), else its session's id, else `'initial'`. Rendering the same session in the same slot again gives
  * the same pane, as the grid keeps its panes.
  */
-export function renderTestPanes(part: { updatePanes(panes: readonly ISessionGridPane[], activePane: ISessionGridPane | undefined, slots?: readonly ISessionGridSlot[], request?: SessionGridRequest): void }, visible: readonly (IActiveSession | undefined)[], active: IActiveSession | undefined, slots?: readonly ISessionGridSlot[], request?: SessionGridRequest): readonly ISessionGridPane[] {
+export function renderTestPanes(part: { updatePanes(panes: readonly ISessionGridPane[], activePane: ISessionGridPane | undefined, slots?: readonly ISessionGridSlot[], request?: SessionGridRequest): void }, visible: readonly (LegacyFakePaneState | undefined)[], active: LegacyFakePaneState | undefined, slots?: readonly ISessionGridSlot[], request?: SessionGridRequest): readonly ISessionGridPane[] {
 	let known = testPanes.get(part);
 	if (!known) {
 		known = new Map();
@@ -254,14 +287,7 @@ export function renderTestPanes(part: { updatePanes(panes: readonly ISessionGrid
 		if (existing && existing.session === session) {
 			return existing.pane;
 		}
-		const pane: ISessionGridPane = {
-			id,
-			kind: session?.scopedChatResource ? SessionGridPaneKind.Detached : SessionGridPaneKind.Slot,
-			session: constObservable(session),
-			chat: session?.activeChat ?? constObservable(undefined),
-			sticky: session?.sticky ?? constObservable(false),
-			tabs: session ?? noTabs,
-		};
+		const pane = createTestPane(session, id);
 		known!.set(id, { session, pane });
 		return pane;
 	});

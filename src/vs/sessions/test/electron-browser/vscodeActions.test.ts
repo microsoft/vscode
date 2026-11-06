@@ -11,8 +11,8 @@ import { IOpenedMainWindow, IOpenEmptyWindowOptions, IOpenWindowOptions, IWindow
 import { constObservable } from '../../../base/common/observable.js';
 import { URI } from '../../../base/common/uri.js';
 import { getChatSessionToOpenInEditor, openSessionInVSCode, returnToVSCodeEditor, shouldShowReturnToVSCodeEditor } from '../../electron-browser/actions/vscodeActions.js';
-import { IActiveSession } from '../../../workbench/contrib/sessions/common/sessionsManagement.js';
-import { IChat, SessionStatus } from '../../../workbench/contrib/sessions/common/session.js';
+import { ITestSessionWithChat } from '../../../workbench/contrib/sessions/test/browser/sessionHostTestUtils.js';
+import { IChat, ISession, SessionStatus } from '../../../workbench/contrib/sessions/common/session.js';
 import { ISessionsProvidersService } from '../../../workbench/contrib/sessions/browser/sessionsProvidersService.js';
 import { IRemoteAgentHostEntry, IRemoteAgentHostService, RemoteAgentHostEntryType } from '../../../platform/agentHost/common/remoteAgentHostService.js';
 import { Codicon } from '../../../base/common/codicons.js';
@@ -290,7 +290,7 @@ function createWindow(id: number): IOpenedMainWindow {
 	};
 }
 
-function createSession(id: string, isCreated: boolean, folders?: URI[]): IActiveSession {
+function createSession(id: string, isCreated: boolean, folders?: URI[]): ITestSessionWithChat {
 	const workspace = constObservable(folders ? {
 		uri: URI.from({ scheme: 'test', path: `/${id}/workspace` }),
 		label: id,
@@ -307,11 +307,11 @@ function createSession(id: string, isCreated: boolean, folders?: URI[]): IActive
 	const activeChat = new class extends mock<IChat>() {
 		override readonly workspace = workspace;
 	}();
-	return new class extends mock<IActiveSession>() {
+	return new class extends mock<ISession>() {
 		override readonly resource = URI.from({ scheme: 'test', path: `/${id}` });
 		override readonly providerId = 'test';
-		override readonly isCreated = constObservable(isCreated);
+		readonly isCreated = constObservable(isCreated);
 		override readonly status = this.isCreated.map(created => created ? SessionStatus.Completed : SessionStatus.Untitled);
-		override readonly activeChat = constObservable(activeChat);
+		readonly activeChat = constObservable(activeChat);
 	}();
 }

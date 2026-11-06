@@ -19,7 +19,7 @@ import { ISessionsService } from '../../browser/sessionsService.js';
 import { ISessionsPartService, ISessionView } from '../../browser/sessionsPartService.js';
 import { ISessionGridPane, SessionGridPaneKind } from '../../browser/sessionGridPane.js';
 import { IChat, ISession, SessionStatus } from '../../common/session.js';
-import { ISessionPaneTabs } from '../../common/sessionsManagement.js';
+import { IPaneViewState, ISessionPaneContent, ISessionPaneTabs } from '../../common/sessionsManagement.js';
 
 /**
  * What a test's host or pane shows: the provider's session and the chat of it, and, for a pane of the grid, its pin, tab
@@ -289,8 +289,11 @@ export function stubMissingSessionHostsFromSessionsService(instantiationService:
 
 let paneHostIds = 0;
 
-/** The pane state a legacy {@link ITestSessionWithChat} may carry: its pin, its tab strip, and the chat of a view scoped to one chat. */
-type LegacyFakePaneState = ITestSessionWithChat & Partial<ISessionPaneTabs> & { readonly sticky?: IObservable<boolean>; readonly scopedChatResource?: URI };
+/**
+ * A legacy {@link ITestSessionWithChat} with the pane state it may carry: its pin, its tab strip, and the chat a fake of a
+ * detached pane shows.
+ */
+export type LegacyFakePaneState = ISession & { readonly activeChat?: IObservable<IChat> } & Partial<ISessionPaneTabs> & { readonly sticky?: IObservable<boolean>; readonly scopedChatResource?: URI };
 
 /** A pane of the grid with `id` that shows `shown`, and `chat` when given; see {@link testGridPane}. */
 function paneOfShown(shown: TestShown | undefined, id: string, chat?: IChat): ISessionGridPane {
@@ -371,4 +374,21 @@ export function stubPaneHost(instantiationService: TestInstantiationService, opt
 		getSessionViewOfHost: candidate => candidate === host ? (options.grid ? options.view : undefined) : current?.getSessionViewOfHost?.(candidate),
 	}));
 	return [session, options.chat, host.commandContext];
+}
+
+const contentsOfFakes = new WeakMap<LegacyFakePaneState, ISessionPaneContent>();
+
+/**
+ * The content of a pane that shows `session`, a session fake, as the views of a pane take it: the fake's chat and the pane
+ * state it carries, closed through `close`, such as the sessions service closing the fake. The same content for the same
+ * fake, as a view keeps what it shows while it is given the same content.
+ */
+export function testPaneContentOf(session: LegacyFakePaneState, close: () => void): ISessionPaneContent {
+	let content = contentsOfFakes.get(session);
+	if (!content) {
+		const state = upcastPartial<IPaneViewState>({ sticky: session.sticky, tabs: upcastPartial<ISessionPaneTabs>(session), isDetached: !!session.scopedChatResource });
+		content = upcastPartial<ISessionPaneContent>({ session, chat: session.activeChat, state, close });
+		contentsOfFakes.set(session, content);
+	}
+	return content;
 }

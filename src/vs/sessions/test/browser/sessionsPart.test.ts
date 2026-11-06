@@ -367,7 +367,7 @@ suite('Sessions - Sessions Part', () => {
 		const { part } = createSessionsPartTestHarness(store);
 		const splitSession = createTestActiveSession('split', true, { chatCount: 2 });
 		const singleSession = createTestActiveSession('single');
-		renderTestPanes(part, [splitSession, singleSession], splitSession);
+		const [, singlePane] = renderTestPanes(part, [splitSession, singleSession], splitSession);
 		part.layout(1202, 802, 0, 0);
 		const initial = part.shownChatCount.get();
 
@@ -375,9 +375,9 @@ suite('Sessions - Sessions Part', () => {
 		await timeout(0);
 		const split = part.shownChatCount.get();
 
-		part.toggleMaximizeSession('single');
+		part.toggleMaximizePane(singlePane);
 		const maximized = part.shownChatCount.get();
-		part.toggleMaximizeSession('single');
+		part.toggleMaximizePane(singlePane);
 		const restored = part.shownChatCount.get();
 
 		part.setVisible(false);
@@ -399,10 +399,10 @@ suite('Sessions - Sessions Part', () => {
 		test(`removing and disposing a ${maximized ? 'maximized' : 'phone'} projection detaches its outgoing views`, () => {
 			const { part, container, chatViews } = createSessionsPartTestHarness(store);
 			const [a, b] = ['a', 'b'].map(id => createTestActiveSession(id));
-			renderTestPanes(part, [a, b], b);
+			const [, paneB] = renderTestPanes(part, [a, b], b);
 			part.layout(1202, 802, 0, 0);
 			if (maximized) {
-				part.toggleMaximizeSession('b');
+				part.toggleMaximizePane(paneB);
 			} else {
 				container.classList.add('phone-layout');
 				part.layout(390, 780, 0, 0);

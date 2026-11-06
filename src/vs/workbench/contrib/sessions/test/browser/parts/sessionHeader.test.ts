@@ -32,7 +32,8 @@ import { SessionHeaderTargetsChatContext, SessionToolbarShowsSessionContext } fr
 import { ISessionsListModelService } from '../../../browser/sessionsListModelService.js';
 import { ISessionsService } from '../../../browser/sessionsService.js';
 import { ChatOriginKind, IChat, ISession, ISessionCapabilities, SessionStatus } from '../../../common/session.js';
-import { IActiveSession, ISessionsManagementService } from '../../../common/sessionsManagement.js';
+import { LegacyFakePaneState, testPaneContentOf } from '../sessionHostTestUtils.js';
+import { ISessionsManagementService } from '../../../common/sessionsManagement.js';
 import { ISessionHost, isSessionHostCommandContext } from '../../../browser/sessionHost.js';
 
 function createHarness(disposables: Pick<DisposableStore, 'add'>, capabilities: ISessionCapabilities = { supportsMultipleChats: false }, mainChatStatus = SessionStatus.Completed) {
@@ -83,7 +84,7 @@ function createHarness(disposables: Pick<DisposableStore, 'add'>, capabilities: 
 		override readonly capabilities = constObservable({ canRename: capabilities.supportsRename ?? false, canArchive: true, canDelete: true });
 	}();
 	const activeChat = observableValue<IChat>('activeChat', mainChat);
-	const session = new class extends mock<IActiveSession>() {
+	const session = new class extends mock<ISession>() {
 		override readonly sessionId = 'session';
 		override readonly resource = URI.parse('test-session://session');
 		override readonly providerId = 'test';
@@ -91,24 +92,26 @@ function createHarness(disposables: Pick<DisposableStore, 'add'>, capabilities: 
 		override readonly status = observableValue<SessionStatus>(this, SessionStatus.Completed);
 		override readonly isRead = observableValue(this, true);
 		override readonly isArchived: IObservable<boolean> = constObservable(false);
-		override readonly isCreated: IObservable<boolean> = constObservable(true);
-		override readonly sticky: IObservable<boolean> = constObservable(false);
+		readonly isCreated: IObservable<boolean> = constObservable(true);
+		readonly sticky: IObservable<boolean> = constObservable(false);
 		override readonly mainChat: IObservable<IChat> = constObservable(mainChat);
-		override readonly activeChat: IObservable<IChat> = activeChat;
+		readonly activeChat: IObservable<IChat> = activeChat;
 		override readonly chats = observableValue<readonly IChat[]>(this, [mainChat, secondChat]);
-		override readonly openChats: IObservable<readonly IChat[]> = constObservable([mainChat, secondChat]);
-		override readonly closedChats: IObservable<readonly IChat[]> = constObservable([]);
-		override readonly visibleChatTabs: IObservable<readonly IChat[]> = constObservable([mainChat, secondChat]);
-		override readonly shouldShowChatTabs: IObservable<boolean> = constObservable(true);
+		readonly openChats: IObservable<readonly IChat[]> = constObservable([mainChat, secondChat]);
+		readonly closedChats: IObservable<readonly IChat[]> = constObservable([]);
+		readonly visibleChatTabs: IObservable<readonly IChat[]> = constObservable([mainChat, secondChat]);
+		readonly shouldShowChatTabs: IObservable<boolean> = constObservable(true);
 		override readonly capabilities: IObservable<ISessionCapabilities> = constObservable(capabilities);
 	}();
 
 	const header = store.add(instantiationService.createInstance(SessionHeader));
-	header.setSession(session);
+	// Shows a session fake in the header as its pane's content, closed through the sessions service.
+	const show = (shown: LegacyFakePaneState | undefined) => header.setSession(shown && testPaneContentOf(shown, () => instantiationService.get(ISessionsService).closeSession(shown)));
+	show(session);
 	const container = mainWindow.document.createElement('div');
 	container.appendChild(header.element);
 
-	return { store, instantiationService, header, session, activeChat, mainChat, secondChat, statusIconReads, closedSessions };
+	return { store, instantiationService, header, show, session, activeChat, mainChat, secondChat, statusIconReads, closedSessions };
 }
 
 suite('Sessions - Headers', () => {
@@ -339,7 +342,7 @@ suite('Sessions - Headers', () => {
 	});
 
 	test('standalone header descriptions follow ancestry and parent renames and clear for the main chat', () => {
-		const { header, session, activeChat, mainChat, secondChat } = createHarness(disposables);
+		const { header, show, session, activeChat, mainChat, secondChat } = createHarness(disposables);
 		const nestedChat: IChat = {
 			...secondChat,
 			resource: URI.parse('test-chat://nested'),
@@ -347,7 +350,7 @@ suite('Sessions - Headers', () => {
 			origin: { kind: ChatOriginKind.SideChat, parentChat: secondChat.resource },
 		};
 		session.chats.set([mainChat, secondChat, nestedChat], undefined);
-		header.setSession({ ...session, scopedChatResource: nestedChat.resource });
+		show({ ...session, scopedChatResource: nestedChat.resource });
 		const describe = () => ({
 			title: header.element.querySelector('.label-name')?.textContent,
 			description: header.element.querySelector('.label-description')?.textContent ?? '',
@@ -391,9 +394,9 @@ suite('Sessions - Headers', () => {
 
 	for (const standalone of [false, true]) {
 		test(`headers use the same title, dot and parent-description pattern as tabs (standalone: ${standalone})`, () => {
-			const { header, session, activeChat, secondChat, store } = createHarness(disposables, { supportsMultipleChats: true, supportsRename: true });
+			const { header, show, session, activeChat, secondChat, store } = createHarness(disposables, { supportsMultipleChats: true, supportsRename: true });
 			activeChat.set(secondChat, undefined);
-			header.setSession(standalone ? { ...session, scopedChatResource: secondChat.resource } : session);
+			show(standalone ? { ...session, scopedChatResource: secondChat.resource } : session);
 			const container = header.element.parentElement!;
 			mainWindow.document.body.appendChild(container);
 			store.add(toDisposable(() => container.remove()));

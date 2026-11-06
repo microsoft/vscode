@@ -39,7 +39,8 @@ import { ISessionsListModelService } from '../../../workbench/contrib/sessions/b
 import { ISessionsPartService } from '../../../workbench/contrib/sessions/browser/sessionsPartService.js';
 import { ISessionsService } from '../../../workbench/contrib/sessions/browser/sessionsService.js';
 import { ChatInteractivity, ChatOriginKind, IChat, ISession, ISessionCapabilities, SessionStatus } from '../../../workbench/contrib/sessions/common/session.js';
-import { IActiveSession, ISessionsManagementService } from '../../../workbench/contrib/sessions/common/sessionsManagement.js';
+import { ISessionPaneTabs, ISessionsManagementService } from '../../../workbench/contrib/sessions/common/sessionsManagement.js';
+import { ITestSessionWithChat } from '../../../workbench/contrib/sessions/test/browser/sessionHostTestUtils.js';
 import { ISessionsProvider } from '../../../workbench/contrib/sessions/common/sessionsProvider.js';
 import '../../../workbench/contrib/sessions/browser/parts/media/chatGroupsView.css';
 import '../../../workbench/contrib/sessions/browser/parts/media/sessionsPart.css';
@@ -156,23 +157,24 @@ function createChat(id: string, title: string, status: SessionStatus = SessionSt
 	}();
 }
 
-function createSession(chats: readonly IChat[], activeChat: IChat, isQuickChat = false, supportsRename = true): IActiveSession {
+/** A session fake that carries the chat its pane shows and its tab strip. */
+function createSession(chats: readonly IChat[], activeChat: IChat, isQuickChat = false, supportsRename = true): ITestSessionWithChat & Omit<ISessionPaneTabs, 'lastClosedChat'> {
 	const resource = URI.parse('test-session://session');
-	return new class extends mock<IActiveSession>() {
+	return new class extends mock<ISession>() {
 		override readonly sessionId = 'session';
 		override readonly harness = 'copilot';
 		override readonly resource = resource;
 		override readonly providerId = 'test';
 		override readonly title = observableValue(this, 'Parent Session');
 		override readonly chats: IObservable<readonly IChat[]> = constObservable(chats);
-		override readonly openChats: IObservable<readonly IChat[]> = constObservable(chats);
-		override readonly closedChats: IObservable<readonly IChat[]> = constObservable([]);
-		override readonly visibleChatTabs: IObservable<readonly IChat[]> = constObservable(chats);
-		override readonly shouldShowChatTabs: IObservable<boolean> = constObservable(true);
+		readonly openChats: IObservable<readonly IChat[]> = constObservable(chats);
+		readonly closedChats: IObservable<readonly IChat[]> = constObservable([]);
+		readonly visibleChatTabs: IObservable<readonly IChat[]> = constObservable(chats);
+		readonly shouldShowChatTabs: IObservable<boolean> = constObservable(true);
 		override readonly mainChat: IObservable<IChat> = constObservable(chats[0]);
-		override readonly activeChat: IObservable<IChat> = constObservable(activeChat);
+		readonly activeChat: IObservable<IChat> = constObservable(activeChat);
 		override readonly capabilities: IObservable<ISessionCapabilities> = constObservable({ supportsMultipleChats: true, supportsRename });
-		override readonly isCreated: IObservable<boolean> = constObservable(true);
+		readonly isCreated: IObservable<boolean> = constObservable(true);
 		override readonly status = this.isCreated.map(created => created ? SessionStatus.Completed : SessionStatus.Untitled);
 		override readonly isArchived: IObservable<boolean> = constObservable(false);
 		override readonly isQuickChat: IObservable<boolean> = constObservable(isQuickChat);
@@ -188,7 +190,7 @@ interface IChatCompositeBarHarness {
 	readonly editorGroupsService: TestEditorGroupsService;
 	readonly bar: ChatCompositeBar;
 	readonly container: HTMLElement;
-	readonly session: IActiveSession;
+	readonly session: ReturnType<typeof createSession>;
 	readonly tabs: readonly HTMLElement[];
 	readonly chats: ISettableObservable<readonly IChat[]>;
 	readonly activeChatResource: ISettableObservable<string>;
@@ -208,7 +210,7 @@ function createHarness(disposables: Pick<DisposableStore, 'add'>, options?: { re
 	const mainChat = createChat('main', 'Main Chat', SessionStatus.Completed, { isRead: options?.mainIsRead });
 	const secondaryChat = createChat('secondary', 'Secondary Chat', SessionStatus.Completed, { isArchived: options?.secondaryArchived, isRead: options?.secondaryIsRead, canArchive: options?.secondaryCanArchive, harness: options?.secondaryHarness });
 	const baseSession = createSession([mainChat, secondaryChat], mainChat, options?.isQuickChat, options?.sessionSupportsRename);
-	const session = options?.standaloneChat ? { ...baseSession, scopedChatResource: secondaryChat.resource } : baseSession;
+	const session = baseSession;
 	const chats = observableValue<readonly IChat[]>('test.chats', [mainChat, secondaryChat]);
 	const activeChatResource = observableValue('test.activeChatResource', mainChat.resource.toString());
 	const mainChatResource = observableValue('test.mainChatResource', mainChat.resource.toString());
@@ -266,7 +268,7 @@ function createHarness(disposables: Pick<DisposableStore, 'add'>, options?: { re
 	const bar = store.add(instantiationService.createInstance(ChatCompositeBar, options?.resizeObserverCtor));
 	const delegate: IChatCompositeBarDelegate = {
 		session,
-		isDetached: !!session.scopedChatResource,
+		isDetached: !!options?.standaloneChat,
 		closePane: () => sessionsService.closeSession(session),
 		chats,
 		activeChatResource,
@@ -1729,7 +1731,7 @@ suite('Sessions - ChatCompositeBar', () => {
 		const parent = { ...chats.get()[1], title: parentTitle };
 		const child = { ...parent, resource: URI.parse('test-chat://nested'), title: constObservable('Nested Chat'), origin: { kind: ChatOriginKind.SideChat, parentChat: parent.resource } };
 		const sessionTitle = observableValue('sessionTitle', 'Parent Session');
-		const session = { ...original, scopedChatResource: child.resource, title: sessionTitle, chats: constObservable([chats.get()[0], parent, child]) };
+		const session = { ...original, title: sessionTitle, chats: constObservable([chats.get()[0], parent, child]) };
 		bar.setGroup({
 			session, isDetached: true, closePane: () => { }, chats: session.chats, activeChatResource, mainChatResource: constObservable(chats.get()[0].resource.toString()),
 			visible, showSessionActions, openChat: () => { },
