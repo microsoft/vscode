@@ -119,8 +119,15 @@
 	outline-offset: calc(-1 * var(--vscode-strokeThickness));
 }
 
-/* Sets the groups of the menu apart. The margin overrides `!important` toolbar separator margins, which only suit
- * horizontal toolbars. */
+/* Sets the groups of the menu apart, drawn in the middle of the gap between two entries so that every entry is as far
+ * from the next: the separator takes no room of its own, cancelling the gap on either side of it by half. */
+.monaco-workbench .menu-activity-bar .monaco-action-bar.vertical .action-item:has(> .action-label.separator) {
+	height: 0;
+	margin-block: calc(var(--menu-activity-bar-gap) / -2);
+	overflow: visible;
+}
+
+/* The margin overrides `!important` toolbar separator margins, which only suit horizontal toolbars. */
 .monaco-workbench .menu-activity-bar .monaco-action-bar.vertical .action-label.separator {
 	width: var(--vscode-spacing-size200);
 	height: 0;

@@ -68,6 +68,10 @@
 	box-shadow: var(--vscode-shadow-md);
 }
 
+.monaco-workbench .menu-activity-bar.session-activity-bar.slim .monaco-action-bar.vertical .action-item:has(> .action-label.separator) {
+	height: auto;
+}
+
 .monaco-workbench .menu-activity-bar.session-activity-bar.slim .monaco-action-bar.vertical .action-label.separator {
 	width: var(--vscode-spacing-size160);
 	margin: var(--vscode-spacing-size20) auto !important;
