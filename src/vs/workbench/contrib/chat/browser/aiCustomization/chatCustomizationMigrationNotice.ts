@@ -136,7 +136,7 @@ export class ChatCustomizationMigrationNotice extends Disposable {
 			this.currentContext = currentContext;
 			const nextContextKey = currentContext
 				? [
-					currentContext.sessionResource.toString(),
+					getChatSessionType(currentContext.sessionResource),
 					currentContext.workspace ? uriIdentityService.extUri.getComparisonKey(currentContext.workspace) : 'noWorkspace',
 					currentContext.projectRoot ? uriIdentityService.extUri.getComparisonKey(currentContext.projectRoot) : 'noProject',
 				].join('\n')

@@ -29,7 +29,6 @@ export class NewChatMigrationNotice extends Disposable {
 			const currentSession = session.read(reader);
 			if (!currentSession
 				|| isSessionCreated(currentSession, reader)
-				|| currentSession.loading.read(reader)
 				|| !isAgentHostSessionResource(currentSession.resource)) {
 				return undefined;
 			}

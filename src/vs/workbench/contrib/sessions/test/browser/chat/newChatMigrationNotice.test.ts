@@ -365,6 +365,40 @@ suite('NewChatMigrationNotice', () => {
 		assert.deepStrictEqual({ before, refreshing, after: snapshot(notice).visible }, { before: true, refreshing: true, after: false });
 	});
 
+	test('keeps the migration notice while a replacement draft in the same workspace loads', async () => {
+		const env = setup();
+		const loading = observableValue('loading', false);
+		const workspace = env.session.get()!.workspace;
+		const draft = (name: string) => new class extends mock<ITestSessionWithChat>() {
+			override readonly resource = URI.parse(`agent-host-copilotcli:/${name}`);
+			override readonly workspace = workspace;
+			override readonly loading = loading;
+			override readonly isCreated = constObservable(false);
+			override readonly status = this.isCreated.map(created => created ? SessionStatus.Completed : SessionStatus.Untitled);
+		}();
+		env.session.set(draft('first'), undefined);
+		const notice = env.create();
+		await timeout(0);
+
+		const pending = new DeferredPromise<ICustomizationMigrationHint | undefined>();
+		env.migrations.result = async () => pending.p;
+		loading.set(true, undefined);
+		const whileLoading = snapshot(notice).visible;
+		env.session.set(draft('replacement'), undefined);
+		const whileReplacing = snapshot(notice).visible;
+		loading.set(false, undefined);
+		const afterLoading = snapshot(notice).visible;
+		await pending.complete(undefined);
+		await timeout(0);
+
+		assert.deepStrictEqual({ whileLoading, whileReplacing, afterLoading, afterDiscovery: snapshot(notice).visible }, {
+			whileLoading: true,
+			whileReplacing: true,
+			afterLoading: true,
+			afterDiscovery: false,
+		});
+	});
+
 	test('hides when migrations are disabled', async () => {
 		const env = setup();
 		const notice = env.create();
