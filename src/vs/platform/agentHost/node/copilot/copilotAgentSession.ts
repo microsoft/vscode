@@ -93,6 +93,7 @@ import { isAutoModel } from './modelIdentifiers.js';
 import { clientToolNamesFromSnapshot, composeByokSessionConfig, findLocalModelDirectFamily, getCopilotWorkingDirectoryTrust, isCopilotSessionTelemetryEnabled, isMcpServerExplicitlyProjected, resolveCopilotSessionManagedSettings, toSessionConfigMcpServers, type CopilotChatSurface, type CopilotSessionLaunchPlan, type IActiveClientSnapshot, type ICopilotClientToolConfiguration, type ICopilotSessionLauncher, type ICopilotSessionRuntime } from './copilotSessionLauncher.js';
 import { CLIENT_TOOL_SEARCH_REFERENCE_NAME, NON_DEFERRED_CLIENT_TOOL_NAMES, RUNTIME_TOOL_SEARCH_TOOL_NAME, searchToolsWithoutClient } from './toolSearchDeferral.js';
 import { ActiveClientToolSet, structuralToolsEqual } from '../activeClientState.js';
+import { IAgentHostClientConnectionService } from '../agentHostClientConnectionService.js';
 import { AgentHostTelemetryReporter, toInitiatorTelemetry, type IAgentHostEventClassification, type IAgentHostEventTelemetry, type ICanvasExtensionsReadyEvent } from '../agentHostTelemetryReporter.js';
 import { AgentHostRepoInfoTelemetry, resolveRepoInfoRemote } from '../agentHostRepoInfoTelemetry.js';
 import { IAgentHostGitHubEndpointService } from '../agentHostGitHubEndpointService.js';
@@ -2208,6 +2209,7 @@ export class CopilotAgentSession extends Disposable {
 		@IAgentHostStateManager private readonly _stateManager: AgentHostStateManager,
 		@IAgentHostGitService private readonly _gitService: IAgentHostGitService,
 		@IAgentHostGitHubEndpointService private readonly _gitHubEndpointService: IAgentHostGitHubEndpointService,
+		@IAgentHostClientConnectionService private readonly _clientConnections: IAgentHostClientConnectionService,
 	) {
 		super();
 		this._register(toDisposable(() => {
@@ -3395,15 +3397,11 @@ export class CopilotAgentSession extends Disposable {
 		const provides = (clientId: string) => !!applied && this._activeClientToolSet.get(clientId)
 			.some(tool => tool.name === toolName && structuralToolsEqual([applied], [tool]));
 		const preferred = this._currentTurn.value?.senderClientId;
-		if (preferred && this._clientReachesChat(preferred, chat) && provides(preferred)) {
-			return preferred;
-		}
-		for (const clientId of this._activeClientToolSet.clientIds()) {
-			if (this._clientReachesChat(clientId, chat) && provides(clientId)) {
-				return clientId;
-			}
-		}
-		return undefined;
+		const candidates = [...this._activeClientToolSet.clientIds()]
+			.filter(clientId => this._clientReachesChat(clientId, chat) && provides(clientId));
+		const connected = candidates.filter(clientId => this._clientConnections.isClientConnected(clientId));
+		const owners = connected.length > 0 ? connected : candidates;
+		return preferred && owners.includes(preferred) ? preferred : owners[0];
 	}
 
 	private _getToolCallContributor(toolName: string, mcpServerName: string | undefined): ToolCallContributor | undefined {

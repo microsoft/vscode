@@ -106,6 +106,7 @@ import { IEditSurvivalReporterFactory } from '../../node/shared/editSurvivalRepo
 import { IAgentEditAttribution, IAgentEditAttributionService, NullAgentEditAttributionService } from '../../common/fileEditAttribution.js';
 import { buildSandboxConfigForSdk, type SandboxConfig } from '../../node/copilot/sandboxConfigForSdk.js';
 import { ActiveClientToolSet, structuralToolsEqual } from '../../node/activeClientState.js';
+import { AgentHostClientConnectionService, IAgentHostClientConnectionService } from '../../node/agentHostClientConnectionService.js';
 import { type CopilotSessionLaunchPlan, type IActiveClientSnapshot, type ICopilotClientToolConfiguration, type ICopilotSessionLauncher, type ICopilotSessionRuntime } from '../../node/copilot/copilotSessionLauncher.js';
 import type { ICopilotConnectorServers } from '../../node/copilot/copilotConnectors.js';
 import type { ILocalModelProvider } from '../../node/copilot/localModelBridge/localModelProvider.js';
@@ -115,7 +116,6 @@ import { CopilotSessionWrapper, type ICopilotByokSessionConfig } from '../../nod
 import { CopilotMcpToolRoutingCache, getMcpRoutingCacheKey, getMcpRoutingProxyName, type ICopilotMcpRoutingServer } from '../../node/copilot/copilotMcpToolRoutingCache.js';
 import { AgentHostStateManager, IAgentHostStateManager } from '../../node/agentHostStateManager.js';
 import { AgentHostFileEditCoordinator, describeDiscardedFileEdits, IAgentHostFileEditCoordinator } from '../../node/agentHostFileEditCoordinator.js';
-import { AgentHostClientConnectionService } from '../../node/agentHostClientConnectionService.js';
 import { AgentHostTelemetryReporter, type ICanvasExtensionsReadyEvent } from '../../node/agentHostTelemetryReporter.js';
 import { AgentHostTurnTracker } from '../../node/agentHostTurnTracker.js';
 import { MockAgent } from './mockAgent.js';
@@ -1420,6 +1420,7 @@ async function createAgentSession(disposables: DisposableStore, options?: {
 	copilotHome?: string;
 	clientSnapshot?: IActiveClientSnapshot;
 	activeClientToolSet?: ActiveClientToolSet;
+	connectedClientIds?: ReadonlySet<string>;
 	environmentServiceRegistration?: 'native' | 'none';
 	logService?: ILogService;
 	telemetryService?: ITelemetryService;
@@ -1648,6 +1649,11 @@ async function createAgentSession(disposables: DisposableStore, options?: {
 	};
 
 	const services = new ServiceCollection();
+	services.set(IAgentHostClientConnectionService, disposables.add(new class extends AgentHostClientConnectionService {
+		override isClientConnected(clientId: string): boolean {
+			return options?.connectedClientIds?.has(clientId) ?? true;
+		}
+	}()));
 	services.set(ILogService, logService);
 	const storageService = disposables.add(new AgentHostStorageService(undefined, logService));
 	services.set(IAgentHostStorageService, storageService);
@@ -31034,6 +31040,55 @@ Use the attached image as context.
 			]);
 		});
 
+		for (const toolSearch of [false, true]) {
+			test(`client tool calls prefer a connected replacement during disconnect grace (tool search: ${toolSearch})`, async () => {
+				const tools = toolSearch ? [{ name: CLIENT_TOOL_SEARCH_REFERENCE_NAME }] : snapshot.tools;
+				const activeClientToolSet = new ActiveClientToolSet();
+				activeClientToolSet.set('old-client', tools);
+				const connectedClientIds = new Set(['old-client']);
+				const { session, runtime, mockSession, signals } = await createAgentSession(disposables, {
+					clientSnapshot: { ...snapshot, tools }, activeClientToolSet, connectedClientIds,
+					configValues: { [SessionConfigKey.AutoApprove]: 'autoApprove' },
+				});
+				await session.syncPermissionMode('turn-start');
+				const [tool] = runtime.createClientSdkTools(toolSearch);
+				session.resetTurnState('turn-1', 'old-client');
+				const toolName = toolSearch ? RUNTIME_TOOL_SEARCH_TOOL_NAME : 'my_tool';
+				mockSession.fire('tool.execution_start', { toolCallId: 'original', toolName, arguments: {} });
+				const originalResult = invokeClientToolHandler(tool, 'original');
+				connectedClientIds.clear();
+				mockSession.fire('tool.execution_start', { toolCallId: 'during-grace', toolName, arguments: {} });
+				activeClientToolSet.set('replacement', tools);
+				connectedClientIds.add('replacement');
+				mockSession.fire('tool.execution_start', { toolCallId: 'after-rejoin', toolName, arguments: {} });
+				const replacementResult = invokeClientToolHandler(tool, 'after-rejoin');
+				for (const toolCallId of ['original', 'after-rejoin']) {
+					session.handleClientToolCallComplete(toolCallId, {
+						success: true, pastTenseMessage: 'Completed', content: [],
+					});
+				}
+				await Promise.all([originalResult, replacementResult]);
+
+				assert.deepStrictEqual({
+					starts: getActions(signals).flatMap(action => action.type === ActionType.ChatToolCallStart
+						? [{ id: action.toolCallId, owner: action.contributor }] : []),
+					ready: getActions(signals).flatMap(action => action.type === ActionType.ChatToolCallReady
+						? [{ id: action.toolCallId, owner: action.contributor }] : []),
+				}, {
+					starts: [
+						{ id: 'original', owner: { kind: ToolCallContributorKind.Client, clientId: 'old-client' } },
+						{ id: 'during-grace', owner: { kind: ToolCallContributorKind.Client, clientId: 'old-client' } },
+						{ id: 'after-rejoin', owner: { kind: ToolCallContributorKind.Client, clientId: 'replacement' } },
+					],
+					ready: [
+						{ id: 'original', owner: { kind: ToolCallContributorKind.Client, clientId: 'old-client' } },
+						...(!toolSearch ? [{ id: 'during-grace', owner: { kind: ToolCallContributorKind.Client, clientId: 'old-client' } }] : []),
+						{ id: 'after-rejoin', owner: { kind: ToolCallContributorKind.Client, clientId: 'replacement' } },
+					],
+				});
+			});
+		}
+
 		test('client tool start after steering prefers the steering sender', async () => {
 			const activeClientToolSet = new ActiveClientToolSet();
 			activeClientToolSet.set('original-client', snapshot.tools);
@@ -31072,7 +31127,9 @@ Use the attached image as context.
 			};
 			const activeClientToolSet = activeClientToolSetWith('advertised-client');
 			activeClientToolSet.set('other-client', [incompatible]);
-			const { session, runtime, mockSession, signals } = await createAgentSession(disposables, { clientSnapshot: snapshot, activeClientToolSet });
+			const { session, runtime, mockSession, signals } = await createAgentSession(disposables, {
+				clientSnapshot: snapshot, activeClientToolSet, connectedClientIds: new Set(['other-client']),
+			});
 			session.resetTurnState('turn-1', 'other-client');
 			mockSession.fire('tool.execution_start', { toolCallId: 'before-change', toolName: 'my_tool', arguments: {} });
 
