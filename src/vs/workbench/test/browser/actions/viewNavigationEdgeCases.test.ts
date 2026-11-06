@@ -158,6 +158,67 @@ suite('Workbench view navigation: visibility and focus transitions', () => {
 	});
 
 
+
+	test('container-scoped traversal does not cross locations that share a container ID', () => {
+		const state = makeSnapshot([
+			makeContainer('moving', 'sidebar', ['a', 'b']),
+			makeContainer('moving', 'panel', ['c', 'd'])
+		], 'b');
+		assert.deepStrictEqual(getNavigableViewEntries(state).map(entry => entry.viewId), ['a', 'b', 'c', 'd']);
+		const wrapped = resolveViewNavigationTarget(state, { direction: 'next', scope: 'container' });
+		assert.strictEqual(wrapped?.viewId, 'a');
+		assert.strictEqual(wrapped?.location, 'sidebar');
+		assert.strictEqual(wrapped?.total, 2);
+		assert.strictEqual(targetId(state, {
+			direction: 'next', scope: 'container', wrap: false
+		}), undefined);
+		assert.strictEqual(targetId(state, {
+			direction: 'last', scope: 'container'
+		}), 'b');
+		assert.strictEqual(targetId(state, {
+			direction: 'next', scope: 'workbench', wrap: false
+		}), 'c');
+	});
+
+	test('expanded-only container traversal respects location when IDs collide', () => {
+		const state = makeSnapshot([
+			makeContainer('moving', 'sidebar', ['a', makeView('b', { collapsed: true })]),
+			makeContainer('moving', 'panel', ['c', 'd'])
+		], 'b');
+		const expanded = resolveViewNavigationTarget(state, {
+			direction: 'next', scope: 'container', includeCollapsed: false
+		});
+		assert.strictEqual(expanded?.viewId, 'a');
+		assert.strictEqual(expanded?.location, 'sidebar');
+		assert.strictEqual(expanded?.index, 0);
+		assert.strictEqual(expanded?.total, 1);
+		assert.strictEqual(targetId(state, {
+			direction: 'next', scope: 'container', includeCollapsed: false, wrap: false
+		}), undefined);
+		assert.strictEqual(targetId(state, {
+			direction: 'last', scope: 'container', includeCollapsed: false
+		}), 'a');
+		assert.strictEqual(targetId(state, {
+			direction: 'next', scope: 'workbench', includeCollapsed: false, wrap: false
+		}), 'c');
+	});
+
+	test('focus in the second copy of a moved container stays in that location', () => {
+		const state = makeSnapshot([
+			makeContainer('moving', 'sidebar', ['a', 'b']),
+			makeContainer('moving', 'panel', ['c', 'd'])
+		], 'c');
+		assert.strictEqual(targetId(state, {
+			direction: 'previous', scope: 'container'
+		}), 'd');
+		assert.strictEqual(targetId(state, {
+			direction: 'next', scope: 'container', wrap: false
+		}), 'd');
+		assert.strictEqual(targetId(state, {
+			direction: 'first', scope: 'container'
+		}), 'c');
+	});
+
 	test('expanded-only navigation does not resurrect a collapsed duplicate in another container', () => {
 		const state = makeSnapshot([
 			makeContainer('explorer', 'sidebar', ['a', makeView('b', { collapsed: true })]),
