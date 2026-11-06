@@ -8238,6 +8238,9 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 				const displayKind = detail.type.replaceAll('_', '-');
 				return this._toSimpleAttachment(v.name, v.value instanceof URI ? v.value.toString() : typeof v.value === 'string' ? v.value : undefined, v._meta, displayKind, referenceRange);
 			}
+			if (isLocation(v.value)) {
+				return this._toSelectionAttachment(v.value, v.fullName ?? v.name, 'selection', sessionResource, v._meta, referenceRange);
+			}
 			if (v.value instanceof URI && (v.value.scheme === Schemas.http || v.value.scheme === Schemas.https)) {
 				return this._toSimpleAttachment(v.name, v.value.toString(), v._meta, undefined, referenceRange);
 			}

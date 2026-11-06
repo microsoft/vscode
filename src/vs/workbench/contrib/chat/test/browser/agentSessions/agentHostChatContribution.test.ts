@@ -32,6 +32,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/
 import { runWithFakedTimers } from '../../../../../../base/test/common/timeTravelScheduler.js';
 import { DeferredPromise, raceTimeout, timeout } from '../../../../../../base/common/async.js';
 import { Range } from '../../../../../../editor/common/core/range.js';
+import { OffsetRange } from '../../../../../../editor/common/core/ranges/offsetRange.js';
 import { isLocation } from '../../../../../../editor/common/languages.js';
 import { ITextModel } from '../../../../../../editor/common/model.js';
 import { IModelService } from '../../../../../../editor/common/services/model.js';
@@ -185,6 +186,7 @@ import { ModelSelectionReason } from '../../../common/modelSelection.js';
 import { convertBufferToScreenshotVariable } from '../../../browser/attachments/chatScreenshotContext.js';
 import { AgentHostCompletionReferenceKind, ChatPasteAttachmentMetadata, createChatReferenceVariableEntry, isChatReferenceVariableEntry, toAgentHostCompletionVariableEntry, type IChatRequestVariableEntry } from '../../../common/attachments/chatVariableEntries.js';
 import { messageAttachmentsToVariableData } from '../../../browser/agentSessions/agentHost/stateToProgressAdapter.js';
+import { ChatRequestDynamicVariablePart } from '../../../common/requestParser/chatParserTypes.js';
 import { AgentHostSessionReferenceAttachmentDisplayKind, AgentHostSessionReferenceAttachmentMetadataKey, AgentHostSessionReferenceTrajectoryAttachmentDisplayKind, toSessionReferenceModelRepresentation } from '../../../browser/agentSessions/agentHost/agentHostSessionReferenceAttachment.js';
 import { IAgentHostEnablementService } from '../../../../../../platform/agentHost/common/agentHostEnablementService.js';
 import { CellUri } from '../../../../notebook/common/notebookCommon.js';
@@ -2554,6 +2556,40 @@ suite('AgentHostChatContribution', () => {
 			}]);
 		});
 		for (const kind of agentHostConnectionKinds) {
+			test(`sends accepted symbol completions with source text and ranges (${kind.name})`, async () => {
+				const { startRequest, modelService } = await openWireSession({ resourceUris: kind.resourceUris });
+				const hostUri = URI.file('/workspace/file.ts');
+				const uri = kind.toClient(hostUri);
+				const symbolRange = new Range(2, 1, 2, 9);
+				modelService.setModelContent(uri, 'first\ncaptured\nlast');
+				const part = new ChatRequestDynamicVariablePart(
+					new OffsetRange(8, 16), new Range(1, 9, 1, 17), '#sym:run',
+					`vscode.symbol/${JSON.stringify({ uri, range: symbolRange })}`, undefined,
+					{ uri, range: symbolRange }, 'run',
+				);
+				const { sent, finish } = await startRequest({
+					message: 'explain #sym:run',
+					variables: { variables: [part.toVariableEntry()] },
+				});
+				assert.ok(sent.action.type === ActionType.ChatTurnStarted);
+				await finish();
+
+				assert.deepStrictEqual(sent.action.message.attachments, [{
+					type: MessageAttachmentKind.Resource,
+					label: 'run',
+					uri: hostUri.toString(),
+					displayKind: 'selection',
+					range: { start: { line: 0, character: 8 }, end: { line: 0, character: 16 } },
+					selection: { range: { start: { line: 1, character: 0 }, end: { line: 1, character: 8 } } },
+					_meta: {
+						'copilot.attachmentDetail': {
+							type: 'selection', filePath: hostUri.fsPath, text: 'captured', displayName: 'run',
+							selection: { start: { line: 1, character: 0 }, end: { line: 1, character: 8 } },
+						},
+					},
+				}]);
+			});
+
 			test(`resource attachments and reverse-read grants use the same sent URI (${kind.name})`, async () => {
 				const resourceUris = kind.resourceUris;
 				const { startRequest, implicitReadGrants } = await openWireSession({ resourceUris });
