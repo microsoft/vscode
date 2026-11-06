@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Disposable, IDisposable } from '../../../../base/common/lifecycle.js';
-import { autorun, constObservable, derived, IObservable, observableFromEvent, observableValue, transaction } from '../../../../base/common/observable.js';
+import { constObservable, derived, IObservable, observableFromEvent, observableValue, transaction } from '../../../../base/common/observable.js';
 import { localize } from '../../../../nls.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
@@ -144,8 +144,8 @@ export class SessionComparisonModelSelection extends Disposable implements IMode
 	readonly showPickerHint: IObservable<boolean>;
 	readonly attempts = derived(this, reader => getAttempts(this._committed.read(reader)));
 	readonly attemptModelIds = derived(this, reader => this.attempts.read(reader).map(attempt => attempt.modelId));
-	readonly judgeModelId = derived(this, reader => this._committed.read(reader)?.judge);
-	readonly synthesizerModelId = derived(this, reader => this._committed.read(reader)?.synthesizer);
+	readonly judgeModelId = derived(this, reader => this._reviewAvailable.read(reader) ? this._committed.read(reader)?.judge : undefined);
+	readonly synthesizerModelId = derived(this, reader => this._reviewAvailable.read(reader) ? this._committed.read(reader)?.synthesizer : undefined);
 	readonly summary = derived(this, reader => this.enabled.read(reader)
 		? getAttemptsSummaryText(this.attempts.read(reader), this._getModelLabel)
 		: undefined);
@@ -187,7 +187,6 @@ export class SessionComparisonModelSelection extends Disposable implements IMode
 
 	constructor(
 		readonly available: IObservable<boolean>,
-		configurationResolving: IObservable<boolean> = constObservable(false),
 		private readonly _getModelLabel: ((modelId: string) => string | undefined) | undefined = undefined,
 		private readonly _reviewAvailable: IObservable<boolean> = constObservable(true),
 		showPickerHint: IObservable<boolean> = constObservable(false),
@@ -199,11 +198,6 @@ export class SessionComparisonModelSelection extends Disposable implements IMode
 			_storageService.onDidChangeValue(StorageScope.APPLICATION, SessionComparisonModelSelection._discoveredStorageKey, this._store),
 			() => _storageService.getBoolean(SessionComparisonModelSelection._discoveredStorageKey, StorageScope.APPLICATION, false));
 		this.showPickerHint = derived(this, reader => showPickerHint.read(reader) && !this._discovered.read(reader));
-		this._register(autorun(reader => {
-			if (!available.read(reader) && !configurationResolving.read(reader)) {
-				this.reset();
-			}
-		}));
 	}
 
 	renderToggle(button: HTMLElement): IDisposable {
@@ -354,7 +348,8 @@ export class SessionComparisonModelSelection extends Disposable implements IMode
 	retainModels(availableIds: ReadonlySet<string>): void {
 		transaction(tx => {
 			const committed = this._committed.get();
-			if (committed && [...committed.models, committed.judge, committed.synthesizer].some(id => id !== undefined && !availableIds.has(id))) {
+			const reviewAvailable = this._reviewAvailable.get();
+			if (committed && [...committed.models, ...(reviewAvailable ? [committed.judge, committed.synthesizer] : [])].some(id => id !== undefined && !availableIds.has(id))) {
 				this._committed.set(undefined, tx);
 			}
 			const draft = this._draft.get();
@@ -362,8 +357,8 @@ export class SessionComparisonModelSelection extends Disposable implements IMode
 				return;
 			}
 			const models = draft.models.filter(id => availableIds.has(id));
-			const judge = draft.judge && availableIds.has(draft.judge) ? draft.judge : undefined;
-			const synthesizer = judge && draft.synthesizer && availableIds.has(draft.synthesizer) ? draft.synthesizer : undefined;
+			const judge = !reviewAvailable || draft.judge && availableIds.has(draft.judge) ? draft.judge : undefined;
+			const synthesizer = !reviewAvailable || judge && draft.synthesizer && availableIds.has(draft.synthesizer) ? draft.synthesizer : undefined;
 			const variants = models.length !== draft.models.length
 				? Object.fromEntries(Object.entries(draft.variants).filter(([modelId]) => models.includes(modelId)))
 				: draft.variants;

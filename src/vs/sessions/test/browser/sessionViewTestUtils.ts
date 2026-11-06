@@ -32,6 +32,7 @@ import { ISessionsProvidersService } from '../../services/sessions/browser/sessi
 import { ISessionsService } from '../../services/sessions/browser/sessionsService.js';
 import { ChatInteractivity, IChat, ISessionCapabilities, ISessionPreparationProgress, SessionStatus } from '../../services/sessions/common/session.js';
 import { stubSessionHosts } from '../../services/sessions/test/browser/sessionHostTestUtils.js';
+import { ChatHostOpenerService, IChatHostOpenerService } from '../../services/sessions/browser/chatHostOpener.js';
 import { ISessionChangesStatsCache } from '../../services/sessions/common/sessionChangesStatsCache.js';
 import { SessionInputPickerVisibility } from '../../services/sessions/common/sessionPickerVisibility.js';
 import { IActiveSession, ISessionsManagementService } from '../../services/sessions/common/sessionsManagement.js';
@@ -120,6 +121,8 @@ export function createSessionViewTestServices(store: Pick<DisposableStore, 'add'
 		override set(): void { }
 	}());
 	const { sessionHostService } = stubSessionHosts(instantiationService, store);
+	// No surface outside of the grid shows a chat, such as a chat window
+	instantiationService.stub(IChatHostOpenerService, new ChatHostOpenerService());
 	return { instantiationService, configurationService, contextKeyService, chatViews, sessionHostService };
 }
 

@@ -447,8 +447,11 @@ export class TestContext {
 		const { url, sha256hash } = await this.fetchMetadata(target);
 		const filePath = path.join(this.createTempDir(), path.basename(url));
 
+		// `run` is synchronous, so a stalled download blocks the event loop and the mocha timeout cannot fire until
+		// it ends. Abort transfers that stay below 1 MB/s for 60 s (healthy CDN downloads average 3+ MB/s) so that
+		// curl retries them on a new connection.
 		this.log(`Downloading ${url} to ${filePath}`);
-		this.runNoErrors('curl', '-fSL', '--retry', '5', '--retry-delay', '2', '--retry-all-errors', '-o', filePath, url);
+		this.runNoErrors('curl', '-fSL', '--connect-timeout', '30', '--speed-limit', '1048576', '--speed-time', '60', '--retry', '5', '--retry-delay', '2', '--retry-all-errors', '-o', filePath, url);
 		this.log(`Downloaded ${url} to ${filePath}`);
 
 		this.validateSha256Hash(filePath, sha256hash);

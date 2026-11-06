@@ -16,6 +16,7 @@ import { IEditorGroupViewOptions } from '../../../browser/parts/editor/editor.js
 import { IEditorPartOptions } from '../../../common/editor.js';
 import { EditorInput } from '../../../common/editor/editorInput.js';
 import { IContentPart, IEditorGroup, IEditorPart } from '../../../services/editor/common/editorGroupsService.js';
+import { AuxiliaryWindowMode } from '../../../services/auxiliaryWindow/browser/auxiliaryWindowService.js';
 import { ChatWindowLayoutMode, ChatWindowSplitLayout, ChatWindowTerminalPosition } from '../common/chatWindowLayout.js';
 
 export const IChatWindowService = createDecorator<IChatWindowService>('chatWindowService');
@@ -41,8 +42,17 @@ export interface IChatWindowOpenOptions {
 	readonly window?: IChatWindow;
 	/** The chats it shows besides the one it opens for, in their order after it, such as those it showed when it last closed. */
 	readonly chats?: readonly URI[];
+	/** Of its chats, the one whose remembered layout and part sizes the window uses, when not the one it opens for. */
+	readonly layoutChat?: URI;
 	/** With {@link window}: one of its chats, beside which the chat opens, in a group of its own to the right. */
 	readonly beside?: URI;
+	/** With {@link window}: one of its chats, in whose group the chat opens as a tab. */
+	readonly tabOf?: URI;
+	/**
+	 * Whether to open exactly the given chat, rather than the chat the provider would show for it: a provider may show a
+	 * session's other chat for the resource that names the session, which this opens the session's own chat instead of.
+	 */
+	readonly exactChat?: boolean;
 	/** The editors its main part starts with. */
 	readonly editors?: IChatWindowEditors;
 	/**
@@ -52,6 +62,8 @@ export interface IChatWindowOpenOptions {
 	readonly showTerminals?: boolean;
 	/** Where on the screen a new window opens, such as where a chat was dragged to; a window that shows already stays. */
 	readonly bounds?: Partial<IRectangle>;
+	/** Whether a new window opens maximized or in full screen, such as when it last closed so. */
+	readonly mode?: AuxiliaryWindowMode;
 	/** The groups its chat part starts with besides the chat's own, such as editors split beside the chat, as it opens again. */
 	readonly chatPart?: IChatWindowChatPart;
 	/**
@@ -98,7 +110,7 @@ export interface IChatWindowContent extends IDisposable {
 	/** Services scoped to the window, created for it: what its chats, its parts and its chrome act on. */
 	readonly services?: ServiceCollection;
 	/** Resolves a chat for the window to show; undefined when the chat is unknown. */
-	resolveChat(chat: URI): Promise<IChatWindowChat | undefined>;
+	resolveChat(chat: URI, exactChat?: boolean): Promise<IChatWindowChat | undefined>;
 	/**
 	 * Called once the window's services exist, before its parts show anything: `instantiationService` has the window's
 	 * services, those of its content and the window's context, such as to bind what the window shows on that context.
@@ -207,10 +219,17 @@ export interface IChatWindow {
 	/** Whether `editor` shows one of its chats. */
 	isChatEditor(editor: EditorInput): boolean;
 	/**
-	 * Whether the chat leads the window: it shows in the chat part, with no part before it, to its left or above it. The
-	 * chat can move into another part of the window, and parts can move, such as when dragged.
+	 * Whether its title row merges into the title of its active chat's editor, which then shows the header of the chat;
+	 * otherwise its title row spans the top of the window and shows it. See {@link isChatWindowTitleMerged}.
 	 */
-	readonly chatLeads: IObservable<boolean>;
+	readonly titleMerged: IObservable<boolean>;
+	/**
+	 * Whether the merged title spans only a column of the window, not to its right edge, such as the chat's beside the main
+	 * part: the window controls then float at the top right of the window, beside it, and its tab row below keeps their room.
+	 * Not where the title spans to the right edge, as in chat only or with the chat above the main part: the controls are
+	 * in it, at its right, as in the title row.
+	 */
+	readonly titleInChatColumn: IObservable<boolean>;
 	/**
 	 * The part that holds its terminals, once created (see {@link getOrCreateTerminalsPart}), until the window closes. It is
 	 * a part like the others: what it shows is what the feature that shows terminals opens in it.

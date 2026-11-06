@@ -475,6 +475,40 @@ suite('ModelEvaluationTools', () => {
 		assert.deepStrictEqual(fixture.launches, []);
 	});
 
+	for (const tier of ['balance', 'hydrafusion', 'hydrafusion-max']) {
+		test(`discovers Fusion and launches attempts, Judge, and Synthesizer with its ${tier} tier`, async () => {
+			const fixture = setup();
+			const fusion: ILanguageModelChatMetadataAndIdentifier = {
+				identifier: 'fusion',
+				metadata: {
+					...fixture.model.metadata, id: 'auto', name: 'Copilot Fusion', autoModelFusion: true,
+					configurationSchema: { properties: { tier: { type: 'string', enum: ['balance', 'hydrafusion', 'hydrafusion-max'] } } },
+				},
+			};
+			const legacyAuto = { ...fusion, identifier: 'legacy-auto', metadata: { ...fusion.metadata, autoModelFusion: false } };
+			const hydraFusion = { ...fixture.model, identifier: 'hydrafusion', metadata: { ...fixture.model.metadata, id: 'hydrafusion', modelGroup: { id: 'copilotcli' } } };
+			fixture.provider.getModelsSnapshotForCreation = (_workspace, _type, desired) => ({
+				models: [fixture.model, fusion, legacyAuto, hydraFusion], modelTarget: 'copilotcli',
+				desiredModelResolution: { kind: 'available', model: desired === fusion.identifier ? fusion : fixture.model },
+			});
+			const output: { harnesses: { models: { modelId: string }[] }[] } = JSON.parse(text(await invoke(fixture.tool('getComparisonModels'), {})));
+			const fusionSelection = { sessionTypeId: 'copilotcli', modelId: fusion.identifier, modelConfiguration: { tier } };
+			await invoke(fixture.tool('createModelComparison'), {
+				...launchInput(), attempts: [selection, fusionSelection], judge: fusionSelection, synthesizer: fusionSelection,
+			}, true);
+			const launched = fixture.launches[0];
+			assert.deepStrictEqual({
+				discovered: output.harnesses[0].models.map(model => model.modelId),
+				participants: [launched.attempts[1].harness, launched.judgeHarness, launched.synthesisHarness].map(harness => ({
+					modelId: harness?.modelId, configuration: harness?.modelConfiguration,
+				})),
+			}, {
+				discovered: ['model', 'fusion'],
+				participants: Array.from({ length: 3 }, () => ({ modelId: 'fusion', configuration: { tier } })),
+			});
+		});
+	}
+
 	test('creates explicit folderless comparisons without a Judge and honors cancellation and feature gates', async () => {
 		const fixture = setup();
 		const tool = fixture.tool('createModelComparison');

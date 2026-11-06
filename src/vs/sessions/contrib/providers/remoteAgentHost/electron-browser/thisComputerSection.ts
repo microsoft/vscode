@@ -83,13 +83,15 @@ export class ThisComputerSection extends Disposable {
 		}));
 		toolbar.setActions([this.rename]);
 
+		const controls = dom.append(this.domNode, dom.$('.remotes-this-computer-controls'));
 		const methodLabelId = generateUuid();
-		dom.append(this.domNode, dom.$('.remotes-this-computer-method-label', { id: methodLabelId }, localize('thisComputer.remoteConnections', "Remote Connections")));
+		dom.append(controls, dom.$('.remotes-this-computer-method-label', { id: methodLabelId }, localize('thisComputer.remoteConnections', "Remote Connections")));
 		// Choosing a method starts or stops sharing, so arrow keys only move focus.
 		this.radio = this._register(new Radio({ items: [], arrowKeyBehavior: 'focus' }));
 		this.radio.domNode.setAttribute('aria-labelledby', methodLabelId);
-		this.domNode.appendChild(this.radio.domNode);
+		controls.appendChild(this.radio.domNode);
 		this._register(this.radio.onDidSelect(index => this.select(this.methods[index])));
+		this.status = dom.append(controls, dom.$('p.remotes-this-computer-status', { role: 'status' }));
 
 		// A disabled option cannot be focused, so the policy reason and its next step stay outside the options.
 		this.policy = dom.append(this.domNode, dom.$('p.remotes-this-computer-policy', { id: generateUuid() }));
@@ -101,7 +103,6 @@ export class ThisComputerSection extends Disposable {
 			title: localize('thisComputer.viewManagedSetting', "View the Organization-Managed GitHub Environments Setting"),
 		}, { opener: () => { void preferencesService.openSettings({ query: `@id:${GitHubEnvironmentsEnabledSettingId}` }); } }));
 
-		this.status = dom.append(this.domNode, dom.$('p.remotes-this-computer-status', { role: 'status' }));
 		const description = dom.append(this.domNode, dom.$('p.remotes-this-computer-description', undefined, `${this.descriptionText} `));
 		this._register(instantiationService.createInstance(Link, description, {
 			label: localize('thisComputer.learnMore', "Learn More"),

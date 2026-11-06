@@ -562,7 +562,6 @@ export async function renderPicker(context: ComponentFixtureContext, options: IP
 		comparison: options.comparison,
 		models: [...options.models ?? ALL_MODELS, ...options.localModels?.families.map(family => createOnDeviceModel(family, options.onDeviceThinking?.[family.familyId])).filter(isDefined) ?? []],
 		selectedModelId: options.selectedModelId ?? 'copilot/gpt-5-5',
-		recentModelIds: ['copilot/gpt-5-3-codex', 'copilot/gemini-3-5-flash'],
 		pinnedModelIds: options.pinnedModelIds ?? ['copilot/claude-sonnet-5'],
 		controlModels: options.controlModels ?? CONTROL_MODELS,
 		configurationAccess,

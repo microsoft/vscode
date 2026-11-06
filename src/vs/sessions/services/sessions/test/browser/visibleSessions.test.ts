@@ -1739,6 +1739,26 @@ suite('VisibleSessions - active chat removal fallback', () => {
 			visible: ['main', 'tool'],
 		});
 	});
+
+	test('a chat a chat window takes from the grid leaves the session\'s tabs, and is back once that window lets go of it, such as when it moves to the main window', () => {
+		const main = makeChat('main');
+		const second = makeChat('second', ChatOriginKind.SideChat);
+		const { session } = createSession([main, second]);
+		const model = createModel();
+		const visible = model.setActive(session)!;
+		visible.openChat(second);
+
+		const before = visible.openChats.get().map(c => c.title.get());
+		const hold = model.hideChatFromGrid(session.sessionId, second.resource);
+		const inWindow = visible.openChats.get().map(c => c.title.get());
+		hold.dispose();
+
+		assert.deepStrictEqual({ before, inWindow, back: visible.openChats.get().map(c => c.title.get()) }, {
+			before: ['main', 'second'],
+			inWindow: ['main'],
+			back: ['main', 'second'],
+		});
+	});
 });
 
 suite('VisibleSession - per-chat model/mode', () => {

@@ -41,6 +41,10 @@ on:
         description: Reason for selecting the Agent Host test profile
         type: string
         default: Change detection unavailable
+      workspace_image_branch:
+        description: The branch whose workspace images the jobs use (see .github/workflows/workspace_image/README.md)
+        type: string
+        default: main
 
 env:
   NPM_ARCH: x64
@@ -76,18 +80,76 @@ jobs:
       UNIT_TEST_SUITE: electron
       TEST_SELECTION: 'true'
     steps: &steps
+      # A workspace image of main holds a workspace whose dependencies, Electron, Playwright browsers,
+      # and the sysroots and compilers of setup-env.sh are installed, which the checkout updates (see
+      # .github/workflows/workspace_image/README.md). Its scripts run before the checkout, so they come
+      # from the API, at the commit that the job tests, as in pr-workspace-images.yml.
+      - name: Download the workspace image scripts
+        id: image-scripts
+        continue-on-error: true
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          dir="$RUNNER_TEMP/workspace-image"
+          mkdir -p "$dir"
+          echo '{ "type": "module" }' > "$dir/package.json"
+          # The scripts keep their folders below workspace_image, such as win32/vhd.ps1
+          files=(.nvmrc .github/workflows/workspace_image/{image.ts,win32/vhd.ps1,win32/Vhd.cs})
+          args=()
+          for file in "${files[@]}"; do
+            args+=(-o "$dir/${file#.github/workflows/workspace_image/}" "$GITHUB_API_URL/repos/$GITHUB_REPOSITORY/contents/$file?ref=$GITHUB_SHA")
+          done
+          curl -fsSL --retry 3 --parallel --create-dirs -H "Authorization: Bearer $GH_TOKEN" -H 'Accept: application/vnd.github.raw' "${args[@]}"
+          for file in "${files[@]}"; do
+            [ -s "$dir/${file#.github/workflows/workspace_image/}" ]
+          done
+          echo "node-version=$(tr -d '[:space:]' < "$dir/.nvmrc")" >> "$GITHUB_OUTPUT"
+
+      - name: Setup Node.js
+        if: steps.image-scripts.outcome == 'success'
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: ${{ steps.image-scripts.outputs.node-version }}
+
+      # The image is an ext4 volume, which a loop device mounts at the parent of the workspace. image.ts
+      # gives up before the timeout of the step, which could stop it with the image half mounted, and
+      # then unmounts it and detaches the loop device as after any other error, so that the job sets up
+      # as without an image. Pull requests to release branches look for images of their own branch,
+      # which pr-workspace-images.yml doesn't build.
+      - name: Restore the workspace image
+        id: image
+        if: steps.image-scripts.outcome == 'success'
+        continue-on-error: true
+        timeout-minutes: 5
+        working-directory: ${{ runner.temp }}
+        run: node "$RUNNER_TEMP/workspace-image/image.ts" restore --name workspace-image-linux-x64.img --branch "$WORKSPACE_IMAGE_BRANCH" --timeout-seconds 240
+        env:
+          GH_TOKEN: ${{ github.token }}
+          WORKSPACE_IMAGE_BRANCH: ${{ inputs.workspace_image_branch }}
+
       - name: Checkout microsoft/vscode
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           lfs: true
+          # With a workspace image, keeps its untracked files, such as node_modules, and reuses its .git
+          clean: ${{ steps.image.outputs.used != 'true' }}
 
       - name: Setup Node.js
+        if: steps.image-scripts.outcome != 'success'
         uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version-file: .nvmrc
 
       - name: Setup pnpm
         uses: ./.github/actions/setup-pnpm
+
+      # The linux-packages job of pr-workspace-images.yml caches the .deb files of the packages on main, for
+      # the image of the runner, so that the jobs install them without apt-get, whose mirrors are at times
+      # slow. Without them, apt-get installs the packages as before.
+      - name: Install system packages
+        uses: ./.github/actions/install-linux-packages
 
       - name: Setup system services
         run: |
@@ -96,23 +158,15 @@ jobs:
           # Ubuntu 24.04 restricts this by default via AppArmor
           sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
           # Start X server
-          ./build/azure-pipelines/linux/apt-retry.sh sudo apt-get update
-          ./build/azure-pipelines/linux/apt-retry.sh sudo apt-get install -y pkg-config \
-            xvfb \
-            libgtk-3-0 \
-            libxkbfile-dev \
-            libkrb5-dev \
-            libgbm1 \
-            rpm \
-            bubblewrap \
-            socat
           sudo cp build/azure-pipelines/linux/xvfb.init /etc/init.d/xvfb
           sudo chmod +x /etc/init.d/xvfb
           sudo update-rc.d xvfb defaults
           sudo service xvfb start
 
+      # A workspace image holds the node_modules of its commit, which the install steps update
       - name: Restore node_modules cache
         id: cache-node-modules
+        if: steps.image.outputs.used != 'true'
         uses: ./.github/actions/restore-node-modules
         with:
           key-prefix: node_modules-linux
@@ -135,6 +189,8 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
+      # On a workspace image, pnpm installs only what changed since the commit of the image, and
+      # setup-env.sh reuses the sysroots and compilers in its .build folder
       - name: Install dependencies
         if: steps.cache-node-modules.outputs.cache-hit != 'true'
         run: |
@@ -313,8 +369,10 @@ jobs:
         run: pnpm run compile
 
       # pr-node-modules.yml fills this cache on main, so pull requests don't download the browsers.
+      # A workspace image holds them already, and points PLAYWRIGHT_BROWSERS_PATH at them, which this
+      # action would point into the workspace.
       - name: Restore Playwright browsers
-        if: ${{ env.BROWSER_TESTS == 'true' }}
+        if: ${{ env.BROWSER_TESTS == 'true' && steps.image.outputs.used != 'true' }}
         uses: ./.github/actions/restore-playwright
         with:
           browsers: --only-shell chromium
