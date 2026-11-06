@@ -59,11 +59,15 @@ export function showChatInsteadOfEmptyMainPart(part: Pick<IEditorPart, 'groups'>
 	return true;
 }
 
-/** An editor that {@link moveEditorsToChatWindow} moved, the group it came from, and whether it was that group's active editor. */
+/**
+ * An editor that {@link moveEditorsToChatWindow} moved, the group it came from, whether it was that group's active editor,
+ * and whether the target showed it already: then the move left the target's tab as it was and only closed the source's.
+ */
 export interface IMovedChatWindowEditor {
 	readonly editor: EditorInput;
 	readonly from: IEditorGroup;
 	readonly wasActive: boolean;
+	readonly inTargetBefore: boolean;
 }
 
 /**
@@ -84,8 +88,12 @@ export function moveEditorsToChatWindow(groups: readonly IEditorGroup[], target:
 			active = { group, editor: groupActive };
 		}
 		if (editors.length) {
+			// A group opens an editor that matches one it shows as that one, rather than as another tab
+			const inTargetBefore = new Set(editors.filter(editor => target.contains(editor)));
 			group.moveEditors(editors.map(editor => ({ editor, options: { pinned: true, preserveFocus: true, inactive: editor !== active?.editor } })), target);
-			moved.push(...editors.filter(editor => target.contains(editor, { strictEquals: true })).map(editor => ({ editor, from: group, wasActive: editor === groupActive })));
+			moved.push(...editors
+				.filter(editor => !group.contains(editor, { strictEquals: true }) && target.contains(editor))
+				.map(editor => ({ editor, from: group, wasActive: editor === groupActive, inTargetBefore: inTargetBefore.has(editor) })));
 		}
 	}
 	if (active && target.contains(active.editor)) {
@@ -96,26 +104,36 @@ export function moveEditorsToChatWindow(groups: readonly IEditorGroup[], target:
 
 /**
  * Puts the editors that {@link moveEditorsToChatWindow} moved into `target` back: each into the group it came from, or
- * into `fallback` if that group is gone, the one that was active there active again. An editor no longer in `target`,
- * such as one the user closed or moved meanwhile, stays where it is.
+ * into `fallback` if that group is gone, the one that was active there active again. One the target showed already is
+ * copied back, so that the target keeps its tab. One no longer in `target`, such as one the user closed or moved
+ * meanwhile, stays where it is.
  */
 export function moveEditorsBackFromChatWindow(moved: readonly IMovedChatWindowEditor[], target: IEditorGroup, fallback: () => IEditorGroup, exists: (group: IEditorGroup) => boolean): void {
-	const byGroup = new Map<IEditorGroup, IMovedChatWindowEditor[]>();
+	const targetEditors = target.getEditors(EditorsOrder.SEQUENTIAL);
+	const byGroup = new Map<IEditorGroup, { readonly editor: EditorInput; readonly entry: IMovedChatWindowEditor }[]>();
 	for (const entry of moved) {
-		if (!target.contains(entry.editor, { strictEquals: true })) {
+		// The editor as the target shows it: the one that moved, or, if it showed it already, its own, which matches it
+		const editor = targetEditors.find(candidate => entry.inTargetBefore ? candidate.matches(entry.editor) : candidate === entry.editor);
+		const to = editor && (exists(entry.from) ? entry.from : fallback());
+		if (!editor || !to || to === target) {
 			continue;
 		}
-		const to = exists(entry.from) ? entry.from : fallback();
-		if (to === target) {
-			continue;
-		}
-		byGroup.set(to, [...byGroup.get(to) ?? [], entry]);
+		byGroup.set(to, [...byGroup.get(to) ?? [], { editor, entry }]);
 	}
 	for (const [to, entries] of byGroup) {
-		target.moveEditors(entries.map(({ editor, wasActive }) => ({ editor, options: { pinned: true, preserveFocus: true, inactive: !wasActive } })), to);
-		const active = entries.find(entry => entry.wasActive)?.editor;
-		if (active && to.contains(active, { strictEquals: true })) {
-			void to.openEditor(active, { preserveFocus: true });
+		const options = (entry: IMovedChatWindowEditor) => ({ pinned: true, preserveFocus: true, inactive: !entry.wasActive });
+		const copies = entries.filter(({ entry }) => entry.inTargetBefore);
+		const moves = entries.filter(({ entry }) => !entry.inTargetBefore);
+		if (moves.length) {
+			target.moveEditors(moves.map(({ editor, entry }) => ({ editor, options: options(entry) })), to);
+		}
+		if (copies.length) {
+			target.copyEditors(copies.map(({ editor, entry }) => ({ editor, options: options(entry) })), to);
+		}
+		const active = entries.find(({ entry }) => entry.wasActive)?.editor;
+		const shown = active && to.getEditors(EditorsOrder.SEQUENTIAL).find(candidate => candidate.matches(active));
+		if (shown) {
+			void to.openEditor(shown, { preserveFocus: true });
 		}
 	}
 }
