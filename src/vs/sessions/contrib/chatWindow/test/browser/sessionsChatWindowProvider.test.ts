@@ -86,6 +86,7 @@ suite('Sessions chat window provider', () => {
 		// The main window shows another session than those that move into it, such as one whose opening was cancelled
 		const mainWindowActiveSession = constObservable<IActiveSession | undefined>(undefined);
 		const onDidChangeSessions = store.add(new Emitter<ISessionsChangeEvent>());
+		const visibleSessions = observableValue<readonly (IActiveSession | undefined)[]>('visibleSessions', []);
 		const configuration = new TestConfigurationService({ [CHAT_WINDOWS_ENABLED_SETTING]: true });
 		const sentiment = observableValue<IChatSentiment>('sentiment', {});
 		const instantiationService = store.add(new TestInstantiationService());
@@ -122,7 +123,7 @@ suite('Sessions chat window provider', () => {
 			}
 		}());
 		instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() {
-			override readonly visibleSessions = constObservable([]);
+			override readonly visibleSessions = visibleSessions;
 			override readonly initialRestoreComplete = constObservable(true);
 			readonly mainWindowActiveSession = mainWindowActiveSession;
 			override async openMovedChats(chats: readonly { readonly session: ISession; readonly chatResource: URI }[]) {
@@ -172,7 +173,7 @@ suite('Sessions chat window provider', () => {
 			}),
 		}));
 		const provider = store.add(instantiationService.createInstance(SessionsChatWindowProvider));
-		return { provider, events, window, windowInstantiationService: store.add(instantiationService.createChild(new ServiceCollection([IContextKeyService, store.add(new ContextKeyService(configuration))]))), onDidChangeSessions, sentiment, configuration, editorGroups, activeChat, chatHostOpenerService };
+		return { provider, events, window, windowInstantiationService: store.add(instantiationService.createChild(new ServiceCollection([IContextKeyService, store.add(new ContextKeyService(configuration))]))), onDidChangeSessions, sentiment, configuration, editorGroups, activeChat, chatHostOpenerService, visibleSessions };
 	}
 
 	/** The window the chats show in: its active chat is `activeChat`. */
@@ -237,6 +238,19 @@ suite('Sessions chat window provider', () => {
 		const ofSession = await content.resolveChat(session.resource);
 
 		assert.deepStrictEqual({ same: ofSession === shown, events }, { same: true, events: ['hide session /main'] });
+	});
+
+	test('a session resolves to the chat its grid slot shows, unless the exact chat is asked for, which is its main chat', async () => {
+		const store = disposables.add(new DisposableStore());
+		const session = createSession('session', [createChat('main'), createChat('peer')]);
+		const { provider, visibleSessions } = createProvider(store, [session]);
+		visibleSessions.set([upcastPartial<IActiveSession>({ sessionId: 'session', activeChat: constObservable(session.chats.get()[1]) })], undefined);
+		const content = store.add((await provider.resolveContent(session.resource))!);
+
+		const exact = await content.resolveChat(session.resource, true);
+		const substituted = await content.resolveChat(session.resource);
+
+		assert.deepStrictEqual({ exact: exact?.chat.get().path, substituted: substituted?.chat.get().path }, { exact: '/main', substituted: '/peer' });
 	});
 
 	test('a chat leaves its window once it is archived, or deleted once its session listed its chats', async () => {

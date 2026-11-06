@@ -8,9 +8,10 @@ import { disposableTimeout, raceCancellation, raceTimeout } from '../../../../ba
 import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
 import { onUnexpectedError } from '../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
-import { Disposable, DisposableMap, DisposableStore, IDisposable, MutableDisposable } from '../../../../base/common/lifecycle.js';
+import { Disposable, DisposableMap, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { ResourceMap } from '../../../../base/common/map.js';
 import { mainWindow } from '../../../../base/browser/window.js';
+import { IHostService } from '../../../../workbench/services/host/browser/host.js';
 import { IObservable, autorun, constObservable, observableValue, transaction } from '../../../../base/common/observable.js';
 import { URI } from '../../../../base/common/uri.js';
 import { createDecorator, IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
@@ -482,6 +483,12 @@ export class SessionsService extends Disposable implements ISessionsService {
 
 	/** Tracks wrapper identity so same-ID replacements restore focus but unrelated visibility changes do not. */
 	private _focusedActiveSession: IActiveSession | undefined;
+	/** The window that last gained focus; sticky, so the app being in the background doesn't change it. */
+	private _focusedWindowId = mainWindow.vscodeWindowId;
+	/** A focus the main window skipped while another window was focused; applied once when the main window next becomes active. */
+	private _focusPendingForMainWindow = false;
+	/** What held focus in the main window when its focus was skipped: focus that is still there did not move on its own. */
+	private _focusSkippedAt: Element | null = null;
 
 	/** The in-flight foreground send's "keep newest chat active" follow. */
 	private readonly _sendFollow = this._register(new MutableDisposable<DisposableStore>());
@@ -503,8 +510,11 @@ export class SessionsService extends Disposable implements ISessionsService {
 		@ISessionOpenTelemetryService private readonly sessionOpenTelemetryService: ISessionOpenTelemetryService,
 		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService,
 		@IChatHostOpenerService private readonly chatHostOpenerService: IChatHostOpenerService,
+		@IHostService hostService: IHostService,
 	) {
 		super();
+		this._register(hostService.onDidChangeActiveWindow(windowId => this._onDidChangeActiveWindow(windowId)));
+		this._register(toDisposable(() => this._focusSkippedAt = null));
 
 		// Load persisted state
 		this._sessionStates = this._loadSessionStates();
@@ -639,7 +649,12 @@ export class SessionsService extends Disposable implements ISessionsService {
 				this._focusedActiveSession = active;
 				// Startup restoration may populate the grid underneath an open or opening canvas.
 				if (!preserveFocus && !canvasNavigation) {
-					this.sessionsPartService.focusSession(active);
+					// Another window of the app holding focus (e.g. a chat window a chat just moved into) must not be pulled back to the main window.
+					if (this._focusedWindowId === mainWindow.vscodeWindowId) {
+						this.sessionsPartService.focusSession(active);
+					} else {
+						this._skipMainWindowFocus();
+					}
 				}
 			}
 		}));
@@ -2093,6 +2108,26 @@ export class SessionsService extends Disposable implements ISessionsService {
 		}
 	}
 
+	private _onDidChangeActiveWindow(windowId: number): void {
+		this._focusedWindowId = windowId;
+		if (windowId !== mainWindow.vscodeWindowId || !this._focusPendingForMainWindow) {
+			return;
+		}
+		this._focusPendingForMainWindow = false;
+		const skippedAt = this._focusSkippedAt;
+		this._focusSkippedAt = null;
+		// Where focus would have gone, unless the user moved it meanwhile: it is not there only when the element that held it went away or did not move since.
+		const focused = mainWindow.document.activeElement;
+		if (!focused || focused === mainWindow.document.body || !focused.isConnected || focused === skippedAt) {
+			this.sessionsPartService.focusSession(this._visibility.activeSession.get());
+		}
+	}
+
+	private _skipMainWindowFocus(): void {
+		this._focusPendingForMainWindow = true;
+		this._focusSkippedAt = mainWindow.document.activeElement;
+	}
+
 	hideChatFromGrid(session: ISession, chat: URI): IDisposable {
 		const hold = this._visibility.hideChatFromGrid(session.sessionId, chat);
 		// The session leaves the grid too when that was the only chat it shows there. Subagent chats it does not show as
@@ -2102,8 +2137,14 @@ export class SessionsService extends Disposable implements ISessionsService {
 		if (gridSessions.length && onlyChat) {
 			this._cancelRestore();
 			this._startOpenSession();
-			const wasActive = this._visibility.activeSession.get()?.sessionId === session.sessionId;
-			this._visibility.removeMany([session.sessionId], true);
+			const activeBefore = this._visibility.activeSession.get();
+			this._visibility.removeMany([session.sessionId], true, true);
+			// An active pane that stays, such as a detached child of the session, is not removed: no focus was skipped
+			const wasActive = activeBefore !== undefined && this._visibility.activeSession.get() !== activeBefore;
+			if (wasActive) {
+				// Only a removal that changes the active pane skips focus that would otherwise move into the next one
+				this._skipMainWindowFocus();
+			}
 			if (wasActive && this._visibility.activeSession.get() === undefined && !this._visibility.visibleSessions.get().includes(undefined)) {
 				// The grid shows the new-session composer instead, without taking focus from the window.
 				this._visibility.setActive(undefined, true);

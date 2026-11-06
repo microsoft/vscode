@@ -42,8 +42,17 @@ export interface IChatWindowOpenOptions {
 	readonly window?: IChatWindow;
 	/** The chats it shows besides the one it opens for, in their order after it, such as those it showed when it last closed. */
 	readonly chats?: readonly URI[];
+	/** Of its chats, the one whose remembered layout and part sizes the window uses, when not the one it opens for. */
+	readonly layoutChat?: URI;
 	/** With {@link window}: one of its chats, beside which the chat opens, in a group of its own to the right. */
 	readonly beside?: URI;
+	/** With {@link window}: one of its chats, in whose group the chat opens as a tab. */
+	readonly tabOf?: URI;
+	/**
+	 * Whether to open exactly the given chat, rather than the chat the provider would show for it: a provider may show a
+	 * session's other chat for the resource that names the session, which this opens the session's own chat instead of.
+	 */
+	readonly exactChat?: boolean;
 	/** The editors its main part starts with. */
 	readonly editors?: IChatWindowEditors;
 	/**
@@ -101,7 +110,7 @@ export interface IChatWindowContent extends IDisposable {
 	/** Services scoped to the window, created for it: what its chats, its parts and its chrome act on. */
 	readonly services?: ServiceCollection;
 	/** Resolves a chat for the window to show; undefined when the chat is unknown. */
-	resolveChat(chat: URI): Promise<IChatWindowChat | undefined>;
+	resolveChat(chat: URI, exactChat?: boolean): Promise<IChatWindowChat | undefined>;
 	/**
 	 * Called once the window's services exist, before its parts show anything: `instantiationService` has the window's
 	 * services, those of its content and the window's context, such as to bind what the window shows on that context.

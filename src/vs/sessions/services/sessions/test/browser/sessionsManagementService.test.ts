@@ -496,6 +496,97 @@ suite('SessionsManagementService', () => {
 			}, { chats: [main.resource.toString(), child.resource.toString()], active: child.resource.toString() });
 		});
 
+		test('the main window focuses the active session only while no other window holds focus', async () => {
+			const a = created('a');
+			const b = created('b');
+			const { view, sessionsPartService } = harness([a, b]);
+			const chatWindowId = mainWindow.vscodeWindowId + 1;
+			await view.openSession(a.resource);
+			sessionsPartService.focusedSessions.length = 0;
+
+			activeWindowChanges.get(view)!.fire(chatWindowId);
+			await view.openSession(b.resource);
+			const whileChatWindowFocused = [...sessionsPartService.focusedSessions];
+			sessionsPartService.focusedSessions.length = 0;
+
+			// Becoming active applies the skipped focus (b), then a normal open focuses.
+			activeWindowChanges.get(view)!.fire(mainWindow.vscodeWindowId);
+			await view.openSession(a.resource);
+
+			assert.deepStrictEqual({ whileChatWindowFocused, whileMainFocused: sessionsPartService.focusedSessions }, { whileChatWindowFocused: [], whileMainFocused: ['b', 'a'] });
+		});
+
+		for (const [focusAfterMove, expected] of [['went away', ['a']], ['unchanged', ['a']], ['removed', ['a']], ['moved elsewhere', []]] as const) {
+			test(`after a chat moves into a chat window, the main window ${expected.length ? 'focuses its active session once' : 'keeps its focused element'} when it becomes active and its focus ${focusAfterMove}`, async () => {
+				const a = created('a');
+				const b = created('b');
+				const { view, sessionsPartService } = harness([a, b]);
+				const list = mainWindow.document.body.appendChild(mainWindow.document.createElement('input'));
+				const other = mainWindow.document.body.appendChild(mainWindow.document.createElement('input'));
+				disposables.add(toDisposable(() => { list.remove(); other.remove(); }));
+				await view.openSession(a.resource);
+				await view.openSessionsAt([b], a.sessionId, 'right');
+				if (focusAfterMove === 'went away') {
+					(mainWindow.document.activeElement as HTMLElement | null)?.blur();
+				} else {
+					list.focus();
+				}
+				disposables.add(view.hideChatFromGrid(b, b.mainChat.get().resource));
+				if (focusAfterMove === 'removed') {
+					// Detached focus: reported as the list only by the recorded reference.
+					list.remove();
+				}
+				sessionsPartService.focusedSessions.length = 0;
+
+				const windowChanges = activeWindowChanges.get(view)!;
+				windowChanges.fire(mainWindow.vscodeWindowId + 1);
+				const whileChatWindowFocused = [...sessionsPartService.focusedSessions];
+				if (focusAfterMove === 'moved elsewhere') {
+					other.focus();
+				}
+				windowChanges.fire(mainWindow.vscodeWindowId);
+				windowChanges.fire(mainWindow.vscodeWindowId);
+
+				assert.deepStrictEqual({ whileChatWindowFocused, afterMainActive: sessionsPartService.focusedSessions }, { whileChatWindowFocused: [], afterMainActive: expected });
+			});
+		}
+
+		test('a session that is not active leaving the grid for a chat window does not move the main window\'s focus when it becomes active', async () => {
+			const a = created('a');
+			const b = created('b');
+			const { view, sessionsPartService } = harness([a, b]);
+			await view.openSession(a.resource);
+			await view.openSessionsAt([b], a.sessionId, 'right');
+			await view.openSession(a.resource);
+			const activeBefore = view.activeSession.get()?.sessionId;
+			const windowChanges = activeWindowChanges.get(view)!;
+			windowChanges.fire(mainWindow.vscodeWindowId + 1);
+			disposables.add(view.hideChatFromGrid(b, b.mainChat.get().resource));
+			sessionsPartService.focusedSessions.length = 0;
+
+			windowChanges.fire(mainWindow.vscodeWindowId);
+
+			assert.deepStrictEqual({ activeBefore, focused: sessionsPartService.focusedSessions }, { activeBefore: 'a', focused: [] });
+		});
+
+		test('a chat that leaves the grid for a chat window does not move focus into the main window\'s next session', async () => {
+			const a = created('a');
+			const b = created('b');
+			const { view, sessionsPartService } = harness([a, b]);
+			await view.openSession(a.resource);
+			await view.openSessionsAt([b], a.sessionId, 'right');
+			sessionsPartService.focusedSessions.length = 0;
+
+			const hold = view.hideChatFromGrid(b, b.mainChat.get().resource);
+			disposables.add(hold);
+
+			assert.deepStrictEqual({
+				visible: view.visibleSessions.get().map(session => session?.sessionId),
+				active: view.activeSession.get()?.sessionId,
+				focused: sessionsPartService.focusedSessions,
+			}, { visible: ['a'], active: 'a', focused: [] });
+		});
+
 		test('the grid host is one instance: the one the host lookups register and the main window\'s UI injects, showing the grid\'s active pane; the root has none', async () => {
 			const a = created('a');
 			const b = created('b');
@@ -1203,6 +1294,30 @@ suite('SessionsManagementService', () => {
 				connected: pane?.element.isConnected,
 				leftNeighbor: grid.neighbor(composer, Direction.Left),
 			}, { panes: 2, active: undefined, retained: child.resource.toString(), connected: true, leftNeighbor: childSlot });
+		});
+
+		test('a detached child of the session staying active when its root moves into a chat window does not move the main window\'s focus when it becomes active', async () => {
+			const a = created('a');
+			const main = a.mainChat.get();
+			const child: IChat = { ...main, resource: URI.parse('test:///a/child') };
+			const parent = { ...a, chats: constObservable([main, child]) };
+			const { view, sessionsPartService } = harness([parent]);
+			const list = mainWindow.document.body.appendChild(mainWindow.document.createElement('input'));
+			disposables.add(toDisposable(() => list.remove()));
+			await view.openSession(parent.resource);
+			const visibility = Reflect.get(view, '_visibility') as VisibleSessions;
+			await view.moveChatToGrid(parent.sessionId, child.resource, visibility.getGridSlots()[0].id, 'down');
+			const childPane = visibility.getGridSession(visibility.getRenderedGridSlots().find(slot => visibility.getGridSession(slot.id))!.id)!;
+			view.setActive(childPane);
+			list.focus();
+			const windowChanges = activeWindowChanges.get(view)!;
+			windowChanges.fire(mainWindow.vscodeWindowId + 1);
+			disposables.add(view.hideChatFromGrid(parent, main.resource));
+			sessionsPartService.focusedSessions.length = 0;
+
+			windowChanges.fire(mainWindow.vscodeWindowId);
+
+			assert.deepStrictEqual({ stillActive: view.activeSession.get() === childPane, focused: sessionsPartService.focusedSessions }, { stillActive: true, focused: [] });
 		});
 
 		for (const activePane of ['child', 'parent'] as const) {

@@ -71,7 +71,9 @@ suite('Chat window', () => {
 		private _active: EditorInput | undefined;
 		override get activeEditor() { return this._active && this.testEditors.includes(this._active) ? this._active : this.testEditors.at(-1) ?? null; }
 		override get count() { return this.testEditors.length; }
-		override async openEditor(editor: EditorInput) {
+		/** As a group opens an editor beside the active one, unless given an index. */
+		insertsAfterActive = false;
+		override async openEditor(editor: EditorInput, options?: { index?: number }) {
 			if (this.beforeOpen) {
 				await this.beforeOpen();
 			}
@@ -81,7 +83,11 @@ suite('Chat window', () => {
 			// As a group does, an editor that matches one it has, such as another view of the same chat, shows that one
 			const existing = this.testEditors.find(candidate => candidate.matches(editor));
 			if (!existing) {
+				const at = options?.index ?? (this.insertsAfterActive && this._active ? this.testEditors.indexOf(this._active) + 1 : undefined);
 				this.open(editor);
+				if (at !== undefined) {
+					this.testEditors.splice(at, 0, this.testEditors.pop()!);
+				}
 			}
 			this._active = existing ?? editor;
 			this.onActiveEditorChange.fire({ editor: this._active });
@@ -565,7 +571,7 @@ suite('Chat window', () => {
 		const instantiationService = workbenchInstantiationService(undefined, store);
 		const windows: ChatWindow[] = [];
 		const parts: IContentPart[] = [];
-		instantiationService.stub(IEditorGroupsService, upcastPartial<IEditorGroupsService>({ get parts() { return parts as unknown as IEditorPart[]; } }));
+		instantiationService.stub(IEditorGroupsService, upcastPartial<IEditorGroupsService>({ get parts() { return parts as unknown as IEditorPart[]; }, get groups() { return parts.flatMap(part => part.groups); } }));
 		const service = store.add(instantiationService.createInstance(ChatWindowService));
 		store.add(service.registerProvider(upcastPartial<IChatWindowProvider>({
 			onDidRemoveChats: Event.None,
@@ -640,6 +646,219 @@ suite('Chat window', () => {
 			targetShowsItsChats: { chats: ['/b', '/a'], editors: ['/b', '/a'] },
 			events: ['b takes /a', 'close window a'],
 		});
+	});
+
+	test('a chat opened as a tab of one of the chats of a window opens in the group that chat is in, not the active one; a chat another window shows is revealed there, not added', async () => {
+		const { service, events, windows: [target, other] } = createService(['a', 'b']);
+		await service.open(URI.parse('test:/c'), { window: target.window });
+		const [, cInput] = target.chat.group.testEditors;
+		// The group of the chat part where the user split `a` off, while `c`, the window's active chat, stays in the first group
+		const split = new TestGroup(events, 'split');
+		split.windowId = target.chat.group.windowId;
+		target.chat.part.groups.push(split);
+		target.chat.group.testEditors = [cInput];
+		split.testEditors.push(target.input);
+
+		await service.open(URI.parse('test:/d'), { window: target.window, tabOf: URI.parse('test:/a') });
+		await service.open(URI.parse('test:/b'), { window: target.window, tabOf: URI.parse('test:/a') });
+
+		const names = (group: TestGroup) => group.testEditors.map(editor => (editor as ChatViewInput).chatResource.path);
+		assert.deepStrictEqual({
+			active: names(target.chat.group),
+			split: names(split),
+			targetChats: target.window.chats.get().map(chat => chat.path),
+			otherChats: other.window.chats.get().map(chat => chat.path),
+			otherEditors: names(other.chat.group),
+		}, {
+			active: ['/c'],
+			split: ['/a', '/d'],
+			targetChats: ['/a', '/c', '/d'],
+			otherChats: ['/b'],
+			otherEditors: ['/b'],
+		});
+	});
+
+	test('an exact open of a chat does not share the pending open that resolves the same resource by default', async () => {
+		const { service } = createService(['a']);
+		const resolved: (boolean | undefined)[] = [];
+		const gate = new DeferredPromise<void>();
+		disposables.add(service.registerProvider(upcastPartial<IChatWindowProvider>({
+			onDidRemoveChats: Event.None,
+			restoreEnabled: constObservable(false),
+			resolveContent: async () => {
+				await gate.p;
+				return new class extends mock<IChatWindowContent>() {
+					override async resolveChat(_resource: URI, exactChat?: boolean) {
+						resolved.push(exactChat);
+						return undefined;
+					}
+					override dispose() { }
+				}();
+			},
+		})));
+		const session = URI.parse('test:/session');
+
+		const generic = service.open(session);
+		const exact = service.open(session, { exactChat: true });
+		const duplicate = service.open(session, { exactChat: true });
+		gate.complete();
+		await Promise.all([generic, exact, duplicate]);
+
+		assert.deepStrictEqual({ resolved, exactShared: exact === duplicate }, { resolved: [undefined, true], exactShared: true });
+	});
+
+	test('an exact and a default open of one session that resolve to the same chat while its window opens give one window, which the second reveals', async () => {
+		const { service } = createService(['a']);
+		const main = URI.parse('test:/session');
+		const windows = Reflect.get(service, '_windows') as ISettableObservable<ChatWindow[]>;
+		const events: string[] = [];
+		const gate = new DeferredPromise<void>();
+		const created = upcastPartial<ChatWindow>({
+			isGoingAway: false,
+			chats: constObservable([main]),
+			revealChat: () => { events.push('reveal'); },
+		});
+		Reflect.set(service, '_openWindow', async (_provider: unknown, _content: unknown, _firstChat: unknown, _options: unknown, store: DisposableStore) => {
+			disposables.add(store);
+			events.push('create');
+			await gate.p;
+			windows.set([...windows.get(), created], undefined);
+			return created;
+		});
+		disposables.add(service.registerProvider(upcastPartial<IChatWindowProvider>({
+			onDidRemoveChats: Event.None,
+			restoreEnabled: constObservable(false),
+			resolveContent: async () => new class extends mock<IChatWindowContent>() {
+				// Both the default and the exact resolution give the main chat
+				override async resolveChat() {
+					return new class extends mock<IChatWindowChat>() {
+						override readonly chat = constObservable(main);
+						override dispose() { }
+					}();
+				}
+				override dispose() { }
+			}(),
+		})));
+
+		const generic = service.open(main);
+		const exact = service.open(main, { exactChat: true });
+		await timeout(0);
+		gate.complete();
+		const [first, second] = await Promise.all([generic, exact]);
+
+		assert.deepStrictEqual({ events, same: first === created && second === created }, { events: ['create', 'reveal'], same: true });
+	});
+
+	test('a generic and an exact open of one chat into a window that is adding it place it once, which the second reveals', async () => {
+		const { service } = createService(['a']);
+		const link = URI.parse('test:/link');
+		const windows = Reflect.get(service, '_windows') as ISettableObservable<ChatWindow[]>;
+		const events: string[] = [];
+		const gate = new DeferredPromise<void>();
+		const chats = observableValue<URI[]>('chats', []);
+		const target = upcastPartial<ChatWindow>({
+			isGoingAway: false,
+			chats,
+			revealChat: () => { events.push('reveal'); },
+		});
+		windows.set([target], undefined);
+		Reflect.set(service, '_addChat', async () => {
+			events.push('add');
+			await gate.p;
+			chats.set([link], undefined);
+			return target;
+		});
+
+		const generic = service.open(link, { window: target });
+		const exact = service.open(link, { window: target, exactChat: true });
+		await timeout(0);
+		gate.complete();
+		await Promise.all([generic, exact]);
+
+		assert.deepStrictEqual(events, ['add', 'reveal']);
+	});
+
+	test('a chat that opens slowly does not hold back the reveal of another chat that a window shows already', async () => {
+		const { service } = createService(['a', 'b']);
+		const gate = new DeferredPromise<void>();
+		const events: string[] = [];
+		Reflect.set(service, '_openWindow', async (_provider: unknown, _content: unknown, _firstChat: unknown, _options: unknown, store: DisposableStore) => {
+			disposables.add(store);
+			events.push('create x');
+			await gate.p;
+			return undefined;
+		});
+		disposables.add(service.registerProvider(upcastPartial<IChatWindowProvider>({
+			onDidRemoveChats: Event.None,
+			restoreEnabled: constObservable(false),
+			resolveContent: async () => new class extends mock<IChatWindowContent>() {
+				// A session resolves to a chat of its own: the one that a window shows
+				override async resolveChat(resource: URI) {
+					return new class extends mock<IChatWindowChat>() {
+						override readonly chat = constObservable(resource.path === '/session-b' ? URI.parse('test:/b') : resource);
+						override dispose() { }
+					}();
+				}
+				override dispose() { }
+			}(),
+		})));
+
+		const slow = service.open(URI.parse('test:/x'));
+		await timeout(0);
+		// Completes while the slow open is held, or the test times out
+		const revealed = await service.open(URI.parse('test:/session-b'));
+		gate.complete();
+		await slow;
+
+		assert.deepStrictEqual({ events, revealedWhileSlowOpens: revealed !== undefined }, { events: ['create x'], revealedWhileSlowOpens: true });
+	});
+
+	test('a click in the chat of a group that is not the active one makes that chat the active chat of the window, so a link opens as a tab of its group', async () => {
+		const { service, events, windows: [target] } = createService(['a']);
+		await service.open(URI.parse('test:/c'), { window: target.window });
+		const [, cInput] = target.chat.group.testEditors;
+		const split = new TestGroup(events, 'split');
+		split.windowId = target.chat.group.windowId;
+		target.chat.part.groups.push(split);
+		target.chat.group.testEditors = [cInput];
+		split.testEditors.push(target.input);
+
+		target.chat.activateGroup(split);
+		const clicked = target.window.chat.get();
+		await service.open(URI.parse('test:/d'), { window: target.window, tabOf: clicked });
+
+		const names = (group: TestGroup) => group.testEditors.map(editor => (editor as ChatViewInput).chatResource.path);
+		assert.deepStrictEqual({ clicked: clicked.path, first: names(target.chat.group), split: names(split) }, { clicked: '/a', first: ['/c'], split: ['/a', '/d'] });
+	});
+
+	test('the chats of a window are stored in the order of its tabs, also after a chat opened as a tab of a chat that is not the last', async () => {
+		const { service, windows: [target] } = createService(['a']);
+		target.chat.group.insertsAfterActive = true;
+		await service.open(URI.parse('test:/b'), { window: target.window });
+		// A click in `a`, the first tab, makes it the active tab
+		await target.chat.group.openEditor(target.input);
+		await service.open(URI.parse('test:/c'), { window: target.window, tabOf: URI.parse('test:/a') });
+
+		assert.deepStrictEqual({
+			tabs: target.chat.group.testEditors.map(input => (input as ChatViewInput).chatResource.path),
+			joined: target.window.chats.get().map(chat => chat.path),
+			stored: target.window.chatsInTabOrder().map(chat => chat.path),
+		}, { tabs: ['/a', '/c', '/b'], joined: ['/a', '/b', '/c'], stored: ['/a', '/c', '/b'] });
+	});
+
+	test('chats restored into a group open behind the chat restored before them, so that their tabs are in the stored order', async () => {
+		const { service, windows: [target] } = createService(['a']);
+		target.chat.group.insertsAfterActive = true;
+		const addChat = Reflect.get(service, '_addChat').bind(service) as (window: ChatWindow, chat: URI, options: unknown, group: unknown, opening: boolean, leaving: undefined, replacing: undefined, after: unknown) => Promise<unknown>;
+		let previous: EditorInput = target.input;
+		for (const name of ['c', 'b']) {
+			await addChat(target.window, URI.parse(`test:/${name}`), { preserveFocus: true }, target.chat.group, true, undefined, undefined, previous);
+			previous = target.window.chatInputs.at(-1)!;
+			// As an inactive open leaves the first chat active
+			await target.chat.group.openEditor(target.input);
+		}
+
+		assert.deepStrictEqual(target.chat.group.testEditors.map(input => (input as ChatViewInput).chatResource.path), ['/a', '/c', '/b']);
 	});
 
 	/** The chats a window has, and the chats of the editors it shows: always the same ones. */
