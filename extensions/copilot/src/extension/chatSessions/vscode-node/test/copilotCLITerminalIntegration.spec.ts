@@ -150,6 +150,8 @@ class TestEnvService {
 	clipboard = { readText: async () => '', writeText: async () => { } };
 	getAppSpecificStorageUri() { return undefined; }
 	getEditorInfo() { return { name: 'test-editor', version: '1.0' }; }
+	production = false;
+	isProduction() { return this.production; }
 }
 
 class TestExtensionContext {
@@ -535,6 +537,24 @@ describe('CopilotCLITerminalIntegration', () => {
 				prepared: [['/tmp/test-global-storage', expect.objectContaining({ warn: expect.any(Function) })]],
 				removed: [],
 				contributed: [['copilot-cli', path.dirname(storedShimPath), { command: 'copilot' }]],
+			});
+		});
+
+		it('should never use a local development build in a production build, and should remove stored shims', async () => {
+			terminalService.contributePathSpy.mockClear();
+			mockRm.mockClear();
+			mockStat.mockRejectedValueOnce(new Error('ENOENT'));
+			envService.production = true;
+			await createIntegration();
+
+			expect({
+				prepared: mockPrepareShim.mock.calls.length,
+				removed: mockRm.mock.calls,
+				contributed: terminalService.contributePathSpy.mock.calls,
+			}).toEqual({
+				prepared: 0,
+				removed: [[path.join('/tmp/test-global-storage', 'copilotCli'), { recursive: true, force: true }]],
+				contributed: [],
 			});
 		});
 
