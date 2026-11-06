@@ -80,6 +80,7 @@ import { ExtensionActivationProgress } from './extensionsActivationProgress.js';
 import { ExtensionsCompletionItemsProvider } from './extensionsCompletionItemsProvider.js';
 import { ExtensionEnablementContextKeysContribution } from './extensionEnablementContext.js';
 import { ExtensionDependencyChecker } from './extensionsDependencyChecker.js';
+import { focusExtensionsResults, focusExtensionsSearchInput } from './extensionsFocus.js';
 import { clearSearchResultsIcon, configureRecommendedIcon, extensionsViewIcon, filterIcon, installWorkspaceRecommendedIcon, refreshIcon } from './extensionsIcons.js';
 import { InstallExtensionQuickAccessProvider, ManageExtensionsQuickAccessProvider } from './extensionsQuickAccess.js';
 import { BuiltInExtensionsContext, ExtensionMarketplaceStatusUpdater, ExtensionsSearchValueContext, ExtensionsSortByContext, ExtensionsViewletViewsContribution, ExtensionsViewPaneContainer, MaliciousExtensionChecker, RecommendedExtensionsContext, SearchHasTextContext, SearchMarketplaceExtensionsContext, StatusUpdater } from './extensionsViewlet.js';
@@ -706,6 +707,28 @@ class ExtensionsContributions extends Disposable implements IWorkbenchContributi
 				await accessor.get(IExtensionsWorkbenchService).openSearch('');
 			}
 		});
+
+		// Focus-only commands for the Extensions view preserve its current query.
+		this.registerExtensionAction({
+			id: 'workbench.extensions.action.focusSearchInput',
+			title: localize2('focusExtensionsSearchInput', 'Focus Extensions Search Input'),
+			category: ExtensionsLocalizedLabel,
+			f1: true,
+			run: async (accessor: ServicesAccessor) => {
+				await focusExtensionsSearchInput(accessor.get(IViewsService));
+			}
+		});
+
+		this.registerExtensionAction({
+			id: 'workbench.extensions.action.focusResultList',
+			title: localize2('focusExtensionsResultList', 'Focus Extensions Results List'),
+			category: ExtensionsLocalizedLabel,
+			f1: true,
+			run: async (accessor: ServicesAccessor) => {
+				await focusExtensionsResults(accessor.get(IViewsService));
+			}
+		});
+
 
 		this.registerExtensionAction({
 			id: 'workbench.extensions.action.installExtensions',
