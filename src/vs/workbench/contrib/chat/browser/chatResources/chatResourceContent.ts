@@ -111,6 +111,8 @@ const editorContributions = () => EditorExtensionsRegistry.getSomeEditorContribu
 ]);
 
 const embeddedEditorOptions: IEditorConstructionOptions = {
+	// The resource is a document, so it looks like it does in an editor, rather than like the input boxes of the part around the chat.
+	extraEditorClassName: 'keep-editor-background',
 	// Diffs stay readonly; text content becomes editable once its document turns out to be writable.
 	readOnly: true,
 	scrollBeyondLastLine: false,
