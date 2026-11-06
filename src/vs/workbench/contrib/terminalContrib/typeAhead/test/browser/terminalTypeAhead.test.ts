@@ -782,6 +782,63 @@ suite('Workbench - Terminal Typeahead', () => {
 			assert.deepStrictEqual(state(), { lines: ['$ abxd', '', ''], cursorX: 6, cursorY: 0, baseY: 0 });
 		});
 
+		test('waits for the echo of a key typed while output is unparsed', async () => {
+			await input('b');
+			queueServer('b');
+			terminal.input('c', false);
+			await writeP(terminal, '');
+			await input('d');
+			const beforeEcho = state();
+			await server('c');
+			await server('d');
+			assert.deepStrictEqual([beforeEcho, { ...state(), accuracy: addon.stats?.accuracy }], [
+				{ lines: ['$ ab', '', ''], cursorX: 4, cursorY: 0, baseY: 0 },
+				{ lines: ['$ abcd', '', ''], cursorX: 6, cursorY: 0, baseY: 0, accuracy: 1 }
+			]);
+		});
+
+		test('waits for the echo of a key typed while a reconciled echo is unparsed', async () => {
+			await input('bc');
+			queueServer('b');
+			terminal.input('d', false);
+			await writeP(terminal, '');
+			await input('e');
+			const beforeEcho = state();
+			await server('c');
+			await server('d');
+			await server('e');
+			assert.deepStrictEqual([beforeEcho, { ...state(), accuracy: addon.stats?.accuracy }], [
+				{ lines: ['$ abc', '', ''], cursorX: 5, cursorY: 0, baseY: 0 },
+				{ lines: ['$ abcde', '', ''], cursorX: 7, cursorY: 0, baseY: 0, accuracy: 1 }
+			]);
+		});
+
+		test('waits for the echo of a key typed while a partial echo is buffered', async () => {
+			await input('\x7f');
+			await server('\b');
+			await input('x');
+			await server(`${CSI}K`);
+			await input('y');
+			const beforeEcho = state();
+			await server('x');
+			await server('y');
+			assert.deepStrictEqual([beforeEcho, { ...state(), accuracy: addon.stats?.accuracy }], [
+				{ lines: ['$ ', '', ''], cursorX: 2, cursorY: 0, baseY: 0 },
+				{ lines: ['$ xy', '', ''], cursorX: 4, cursorY: 0, baseY: 0, accuracy: 1 }
+			]);
+		});
+
+		test('does not wait for a terminal reply sent while output is unparsed', async () => {
+			await server(`${CSI}6n`);
+			await input('b');
+			const beforeEcho = state();
+			await server('b');
+			assert.deepStrictEqual([beforeEcho, { ...state(), accuracy: addon.stats?.accuracy }], [
+				{ lines: ['$ ab', '', ''], cursorX: 4, cursorY: 0, baseY: 0 },
+				{ lines: ['$ ab', '', ''], cursorX: 4, cursorY: 0, baseY: 0, accuracy: 1 }
+			]);
+		});
+
 		test('does not navigate on the previous row after a queued prompt', async () => {
 			await input('\rb', false);
 			queueServer('\r\n$ b');
@@ -1303,6 +1360,39 @@ suite('Workbench - Terminal Typeahead', () => {
 				});
 			});
 		}
+
+		test('shows a split PSReadLine echo of a key typed while a partial echo is buffered', async () => {
+			const TerminalCtor = (await importAMDNodeModule<typeof import('@xterm/xterm')>('@xterm/xterm', 'lib/xterm.js')).Terminal;
+			const control = ds.add(new TerminalCtor({ allowProposedApi: true, cols: 60, rows: 3 }));
+			const both = async (data: string) => {
+				await server(data);
+				await writeP(control, data);
+			};
+			// A pty read can end a render before its final cursor placement.
+			const splitRender = (text: string) => {
+				const render = psReadLineRender(text, 18 + text.length);
+				const placement = render.lastIndexOf(`${CSI}1;`);
+				return [render.slice(0, placement), render.slice(placement)];
+			};
+			terminal.resize(60, 3);
+			terminal.reset();
+			addon.reset();
+			addon.showPredictions(true);
+			await both(`${CSI}?1h\x1b=PS /private/tmp> `);
+			const [e, ec] = [splitRender('e'), splitRender('ec')];
+			await input('e');
+			await both(e[0]);
+			await input('c');
+			await both(e[1]);
+			await both(ec[0]);
+			const afterEcho = { line: state().lines[0], cursorX: state().cursorX };
+			await both(ec[1]);
+			assert.deepStrictEqual({ afterEcho, terminal: snapshotTerminal(terminal), accuracy: addon.stats?.accuracy }, {
+				afterEcho: { line: 'PS /private/tmp> ec', cursorX: 19 },
+				terminal: snapshotTerminal(control),
+				accuracy: 1
+			});
+		});
 
 		test('matches a fish mid-line backspace followed by its repaint', async () => {
 			const TerminalCtor = (await importAMDNodeModule<typeof import('@xterm/xterm')>('@xterm/xterm', 'lib/xterm.js')).Terminal;

@@ -489,6 +489,12 @@ class HardBoundary implements IPrediction {
 }
 
 /**
+ * Boundary for input that reached the pty without a prediction. Predictions
+ * made after it wait for that input's echo, which is not a misprediction.
+ */
+class UnpredictedInputBoundary extends HardBoundary { }
+
+/**
  * Wraps another prediction. Does not apply the prediction, but will pass
  * through its `matches` request.
  */
@@ -539,6 +545,9 @@ class TentativeBoundary implements IPrediction {
 
 const isTenativeCharacterPrediction = (p: unknown): p is (TentativeBoundary & { inner: CharacterPrediction }) =>
 	p instanceof TentativeBoundary && p.inner instanceof CharacterPrediction;
+
+const isUnpredictedInputBoundary = (p: unknown): p is (TentativeBoundary & { inner: UnpredictedInputBoundary }) =>
+	p instanceof TentativeBoundary && p.inner instanceof UnpredictedInputBoundary;
 
 /**
  * Prediction for a single alphanumeric character.
@@ -1000,6 +1009,9 @@ export class PredictionStats extends Disposable {
 	}
 
 	private _pushStat(correct: boolean, prediction: IPrediction) {
+		if (isUnpredictedInputBoundary(prediction)) {
+			return;
+		}
 		const started = this._addedAtTime.get(prediction)!;
 		this._stats[this._index] = [Date.now() - started, correct];
 		this._index = (this._index + 1) % StatsConstants.StatsBufferSize;
@@ -1250,7 +1262,8 @@ export class PredictionTimeline extends Disposable {
 			const { p: prediction, gen } = this._expected[0];
 			const cursor = this.physicalCursor(buffer);
 			const beforeTestReaderIndex = reader.index;
-			const repaint = this._readRepaint(reader, cursor, attributes);
+			// A repaint cannot confirm unpredicted input, so output reaching its boundary is never held back.
+			const repaint = isUnpredictedInputBoundary(prediction) ? MatchResult.Failure : this._readRepaint(reader, cursor, attributes);
 			if (repaint === MatchResult.Buffer) {
 				this._inputBuffer = input.slice(beforeTestReaderIndex);
 				reader.index = input.length;
@@ -1810,6 +1823,19 @@ export class TypeAheadAddon extends Disposable implements ITerminalAddon {
 		this._timeline?.resetCursorVisibility();
 	}
 
+	/**
+	 * Input sent without a prediction still reaches the pty, so later
+	 * predictions must wait for its echo.
+	 */
+	private _waitForUnpredictedInput(timeline: PredictionTimeline, data: string) {
+		// Terminal replies, like cursor position reports, are escape sequences the shell consumes without echoing.
+		if (data.startsWith(VT.Esc)) {
+			return;
+		}
+		timeline.addBoundary(timeline.terminal.buffer.active, new UnpredictedInputBoundary());
+		this._deferClearingPredictions();
+	}
+
 	private _deferClearingPredictions() {
 		if (!this.stats || !this._timeline) {
 			return;
@@ -1868,7 +1894,14 @@ export class TypeAheadAddon extends Disposable implements ITerminalAddon {
 	}
 
 	private _onUserData(data: string): void {
-		if (this._timeline?.terminal.buffer.active.type !== 'normal' || this._timeline.hasIncompleteInput) {
+		if (this._timeline?.terminal.buffer.active.type !== 'normal') {
+			return;
+		}
+		if (this._timeline.hasIncompleteInput) {
+			// Without predictions, partial escape sequences stream through, and a boundary would hold them back until they complete.
+			if (this._timeline.length) {
+				this._waitForUnpredictedInput(this._timeline, data);
+			}
 			return;
 		}
 
@@ -1888,6 +1921,7 @@ export class TypeAheadAddon extends Disposable implements ITerminalAddon {
 
 		// A virtual cursor covers pending prediction writes, not unparsed authoritative cursor/style changes.
 		if (!this._timeline.canPredict) {
+			this._waitForUnpredictedInput(this._timeline, data);
 			return;
 		}
 
