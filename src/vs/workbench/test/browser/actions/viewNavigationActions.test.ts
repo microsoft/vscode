@@ -29,6 +29,8 @@ interface IFocusTestHarness {
 	setCollapsed(viewId: string, collapsed: boolean): void;
 	setHeaderAvailable(viewId: string, available: boolean): void;
 	setHeaderVisible(viewId: string, visible: boolean): void;
+	setHeaderConnected(viewId: string, connected: boolean): void;
+	setHeaderTabbable(viewId: string, tabbable: boolean): void;
 	setHidden(viewId: string, hidden: boolean): void;
 }
 
@@ -56,6 +58,8 @@ function createFocusHarness(): IFocusTestHarness {
 	const collapsed = new Set<string>();
 	const unavailableHeaders = new Set<string>();
 	const hiddenHeaders = new Set<string>();
+	const detachedHeaders = new Set<string>();
+	const untabbableHeaders = new Set<string>();
 	const hidden = new Set<string>();
 	const calls: IFocusCall[] = [];
 	const headerFocusCalls: string[] = [];
@@ -73,6 +77,8 @@ function createFocusHarness(): IFocusTestHarness {
 		getActiveViewWithId: (id: string) => unavailableHeaders.has(id) ? null : ({
 			headerVisible: !hiddenHeaders.has(id),
 			draggableElement: {
+				get isConnected() { return !detachedHeaders.has(id); },
+				get tabIndex() { return untabbableHeaders.has(id) ? -1 : 0; },
 				focus: () => {
 					headerFocusCalls.push(id);
 					focusedId = id;
@@ -131,6 +137,12 @@ function createFocusHarness(): IFocusTestHarness {
 		},
 		setHeaderVisible(viewId, visible) {
 			if (visible) { hiddenHeaders.delete(viewId); } else { hiddenHeaders.add(viewId); }
+		},
+		setHeaderConnected(viewId, connected) {
+			if (connected) { detachedHeaders.delete(viewId); } else { detachedHeaders.add(viewId); }
+		},
+		setHeaderTabbable(viewId, tabbable) {
+			if (tabbable) { untabbableHeaders.delete(viewId); } else { untabbableHeaders.add(viewId); }
 		},
 		setHidden(viewId, isHidden) {
 			if (isHidden) { hidden.add(viewId); } else { hidden.delete(viewId); }
