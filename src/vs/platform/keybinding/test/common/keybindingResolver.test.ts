@@ -372,7 +372,8 @@ suite('KeybindingResolver', () => {
 		const toggleChatWhen = ContextKeyExpr.has('chatViewVisible');
 
 		function resolveCommands(defaults: ResolvedKeybindingItem[], overrides: ResolvedKeybindingItem[], keybindings: number[]) {
-			const resolver = new KeybindingResolver(KeybindingResolver.applyAliases(defaults, [alias]), KeybindingResolver.applyAliases(overrides, [alias]), () => { });
+			const aliased = KeybindingResolver.applyAliases(defaults, overrides, [alias]);
+			const resolver = new KeybindingResolver(aliased.defaults, aliased.overrides, () => { });
 			const resolve = (context: object) => keybindings.map(keybinding => {
 				const result = resolver.resolve(createContext(context), [], getDispatchStr(createSimpleKeybinding(keybinding, OS)));
 				return result.kind === ResultKind.KbFound ? result.commandId : null;
@@ -405,6 +406,27 @@ suite('KeybindingResolver', () => {
 			assert.deepStrictEqual(resolveCommands(defaults, overrides, [KeyCode.KeyA, KeyCode.KeyB, KeyCode.KeyC]), {
 				agentsWindow: ['openChat', 'sessions', null],
 				editorWindow: ['openChat', 'toggleChat', 'toggleChat'],
+			});
+		});
+
+		test('keeps the keybindings it inherits from the user when the removed keybindings of its source share their key', () => {
+			const defaults = [kbItem(KeyCode.KeyA, 'sessions', null, alias.when, true)];
+			// Changing only the when clause in the Keyboard Shortcuts editor removes the default at the same key.
+			const sameKey = [
+				kbItem(KeyCode.KeyA, 'toggleChat', null, ContextKeyExpr.has('other'), false),
+				kbItem(KeyCode.KeyA, '-toggleChat', null, toggleChatWhen, false),
+			];
+			const anyKey = [
+				kbItem(KeyCode.KeyB, 'toggleChat', null, undefined, false),
+				new ResolvedKeybindingItem(undefined, '-toggleChat', null, undefined, false, null, false),
+			];
+
+			assert.deepStrictEqual({
+				sameKey: resolveCommands(defaults, sameKey, [KeyCode.KeyA]).agentsWindow,
+				anyKey: resolveCommands(defaults, anyKey, [KeyCode.KeyA, KeyCode.KeyB]).agentsWindow,
+			}, {
+				sameKey: ['sessions'],
+				anyKey: [null, 'sessions'],
 			});
 		});
 	});

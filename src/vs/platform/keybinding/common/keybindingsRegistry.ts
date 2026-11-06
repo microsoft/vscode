@@ -81,7 +81,8 @@ export interface IKeybindingAlias {
 	readonly command: string;
 	/**
 	 * The command whose keybindings are inherited, without their when clauses, which describe where {@link source} applies.
-	 * Removing a keybinding of {@link source} also removes it from {@link command}.
+	 * Removing a keybinding of {@link source} also removes the default keybindings of {@link command} at that key, but not
+	 * those it inherits from the user's keybindings of {@link source}.
 	 */
 	readonly source: string;
 	/** Where the inherited keybindings apply. There, they outrank those of {@link source}. */
