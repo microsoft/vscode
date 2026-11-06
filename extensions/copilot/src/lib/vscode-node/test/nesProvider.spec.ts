@@ -438,6 +438,7 @@ describe('NESProvider Facade', () => {
 
 		// Typing `{` leaves the cursor at the end of the first line; the model then inserts a line below it.
 		const cursorAtEndOfFirstLine = 36;
+		const documentEnd = 38;
 		const modelReply = '```\nfunction add(a: number, b: number) {\n\treturn a + b;\n}\n```';
 
 		function toSseReply(content: string): string {
@@ -451,7 +452,7 @@ describe('NESProvider Facade', () => {
 			return chunk({ role: 'assistant', content }, null) + chunk({}, 'stop') + 'data: [DONE]\n\n';
 		}
 
-		function createProviderWithDocument(options: { configOverrides?: Map<string, unknown> } = {}) {
+		function createProviderWithDocument(options: { configOverrides?: Map<string, unknown>; mimicGhostTextBehavior?: boolean } = {}) {
 			const workspace = new MutableObservableWorkspace();
 			const doc = workspace.addDocument({
 				id: DocumentId.create(URI.file('/test/add.ts').toString()),
@@ -478,6 +479,7 @@ describe('NESProvider Facade', () => {
 					promptingStrategy: 'copilotNesXtab',
 					includeTagsInCurrentFile: false,
 					extraDebounceEndOfLine: 0,
+					nesMimicGhostTextBehavior: options.mimicGhostTextBehavior,
 				}),
 			});
 			// The provider only learns about edits made after it starts tracking the workspace.
@@ -526,6 +528,27 @@ describe('NESProvider Facade', () => {
 			}
 		});
 
+		it('does not resurface a suggestion shown as an inline completion as an inline edit', async () => {
+			const { doc, provider } = createProviderWithDocument({ mimicGhostTextBehavior: true });
+			try {
+				const shown = await provider.getNextEdit(doc.id.toUri(), CancellationToken.None);
+				provider.handleShown(shown);
+
+				// After `}` the same cached suggestion can only be rendered as an inline edit.
+				doc.setSelection([OffsetRange.emptyAt(documentEnd)], undefined);
+				const reshown = await provider.getNextEdit(doc.id.toUri(), CancellationToken.None);
+
+				assert.deepStrictEqual({
+					shown: summarize(shown)?.isInlineCompletion,
+					reshown: summarize(reshown),
+				}, {
+					shown: true,
+					reshown: undefined,
+				});
+			} finally {
+				provider.dispose();
+			}
+		});
 	});
 
 	describe('languageDiagnosticsService injection', () => {

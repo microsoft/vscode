@@ -86,7 +86,7 @@ import { IIgnoreService, NullIgnoreService } from '../../platform/ignore/common/
 import { DocumentId } from '../../platform/inlineEdits/common/dataTypes/documentId';
 import { InlineEditRequestLogContext } from '../../platform/inlineEdits/common/inlineEditLogContext';
 import { IInlineEditsModelService, IUndesiredModelsManager, NullUndesiredModelsManager } from '../../platform/inlineEdits/common/inlineEditsModelService';
-import { observeModelConfigValue } from '../../platform/inlineEdits/common/modelConfigurationResolution';
+import { observeModelConfigValue, resolveModelConfigValue } from '../../platform/inlineEdits/common/modelConfigurationResolution';
 import { ObservableGit } from '../../platform/inlineEdits/common/observableGit';
 import { IObservableDocument, ObservableWorkspace } from '../../platform/inlineEdits/common/observableWorkspace';
 import { NesHistoryContextProvider } from '../../platform/inlineEdits/common/workspaceEditTracker/nesHistoryContextProvider';
@@ -345,6 +345,11 @@ class NESProvider extends Disposable implements INESProvider<NESResult> {
 
 	handleShown(result: NESResult): void {
 		result.telemetryBuilder.setAsShown();
+		// Lets the "mimic ghost text behavior" gate keep this suggestion from resurfacing as an inline edit.
+		const cacheEntry = result.internalResult.result?.cacheEntry;
+		if (result.result?.isInlineCompletion && cacheEntry) {
+			cacheEntry.wasRenderedAsInlineSuggestion = true;
+		}
 		this._nextEditProvider.handleShown(result.internalResult);
 	}
 
@@ -417,6 +422,16 @@ class NESProvider extends Disposable implements INESProvider<NESResult> {
 			const internalResult = await this._nextEditProvider.getNextEdit(docId, context, logContext, cancellationToken, telemetryBuilder.nesBuilder);
 			const edit = internalResult.result?.edit;
 			const inlineCompletion = this._toInlineCompletion(docId, cursor, internalResult);
+			if (edit && !inlineCompletion && this._wasShownAsInlineCompletion(internalResult)) {
+				telemetryBuilder.setStatus('noEdit:suppressedNonInlineReshow');
+				return {
+					result: undefined,
+					docId,
+					requestUuid: context.requestUuid,
+					internalResult: new NextEditResult(internalResult.requestId, internalResult.source, undefined),
+					telemetryBuilder,
+				};
+			}
 			const result: NESResult = {
 				result: edit ? {
 					newText: inlineCompletion?.newText ?? edit.newText,
@@ -458,6 +473,11 @@ class NESProvider extends Disposable implements INESProvider<NESResult> {
 		const transformer = result.documentBeforeEdits.getTransformer();
 		const inlineSuggestion = toInlineSuggestion(transformer.getPosition(cursor.start), result.documentBeforeEdits, transformer.getRange(result.edit.replaceRange), result.edit.newText, advanced);
 		return inlineSuggestion && new StringReplacement(transformer.getOffsetRange(inlineSuggestion.range), inlineSuggestion.text);
+	}
+
+	private _wasShownAsInlineCompletion(internalResult: NextEditResult): boolean {
+		return !!internalResult.result?.cacheEntry?.wasRenderedAsInlineSuggestion
+			&& resolveModelConfigValue(this._configurationService, this._expService, ConfigKey.TeamInternal.InlineEditsNesMimicGhostTextBehavior, this._modelService.selectedModelConfiguration().nesMimicGhostTextBehavior);
 	}
 
 	updateTreatmentVariables(variables: Record<string, boolean | number | string>) {
