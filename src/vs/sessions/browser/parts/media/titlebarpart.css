@@ -126,7 +126,7 @@
 	padding-right: calc(var(--vscode-spacing-size80) + var(--vscode-agents-layout-floatingPanelGap));
 }
 
-.monaco-workbench .part.titlebar > .sessions-titlebar-container.custom-window-controls > .titlebar-right > .titlebar-window-layout-container {
+.monaco-workbench:not(.fullscreen) .part.titlebar > .sessions-titlebar-container.custom-window-controls > .titlebar-right > .titlebar-window-layout-container {
 	padding-right: var(--vscode-spacing-size80);
 }
 
