@@ -4,735 +4,93 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { resolveViewNavigationTarget } from '../../../browser/actions/viewNavigationModel.js';
+import { resolveViewNavigationTarget, ViewNavigationDirection } from '../../../browser/actions/viewNavigationModel.js';
 import { standardSnapshot } from './viewNavigationFixtures.js';
 
+// Retain explicit expected destinations independently of the implementation.
+// Table-driven cases cover all 7 anchors, 4 directions, and both wrap modes,
+// while keeping the regression matrix easy to review and extend.
+type NavigationCase = readonly [
+	from: string,
+	direction: ViewNavigationDirection,
+	wrap: boolean,
+	expectedViewId: string | undefined,
+	expectedContainerId: string | undefined,
+	expectedIndex: number | undefined,
+	expectedTotal: number | undefined
+];
+
+const cases: readonly NavigationCase[] = [
+	['a', 'next', true, 'b', 'explorer', 1, 7],
+	['a', 'next', false, 'b', 'explorer', 1, 7],
+	['a', 'previous', true, 'g', 'problems', 6, 7],
+	['a', 'previous', false, undefined, undefined, undefined, undefined],
+	['a', 'first', true, 'a', 'explorer', 0, 7],
+	['a', 'first', false, 'a', 'explorer', 0, 7],
+	['a', 'last', true, 'g', 'problems', 6, 7],
+	['a', 'last', false, 'g', 'problems', 6, 7],
+	['b', 'next', true, 'c', 'explorer', 2, 7],
+	['b', 'next', false, 'c', 'explorer', 2, 7],
+	['b', 'previous', true, 'a', 'explorer', 0, 7],
+	['b', 'previous', false, 'a', 'explorer', 0, 7],
+	['b', 'first', true, 'a', 'explorer', 0, 7],
+	['b', 'first', false, 'a', 'explorer', 0, 7],
+	['b', 'last', true, 'g', 'problems', 6, 7],
+	['b', 'last', false, 'g', 'problems', 6, 7],
+	['c', 'next', true, 'd', 'auxiliary', 3, 7],
+	['c', 'next', false, 'd', 'auxiliary', 3, 7],
+	['c', 'previous', true, 'b', 'explorer', 1, 7],
+	['c', 'previous', false, 'b', 'explorer', 1, 7],
+	['c', 'first', true, 'a', 'explorer', 0, 7],
+	['c', 'first', false, 'a', 'explorer', 0, 7],
+	['c', 'last', true, 'g', 'problems', 6, 7],
+	['c', 'last', false, 'g', 'problems', 6, 7],
+	['d', 'next', true, 'e', 'auxiliary', 4, 7],
+	['d', 'next', false, 'e', 'auxiliary', 4, 7],
+	['d', 'previous', true, 'c', 'explorer', 2, 7],
+	['d', 'previous', false, 'c', 'explorer', 2, 7],
+	['d', 'first', true, 'a', 'explorer', 0, 7],
+	['d', 'first', false, 'a', 'explorer', 0, 7],
+	['d', 'last', true, 'g', 'problems', 6, 7],
+	['d', 'last', false, 'g', 'problems', 6, 7],
+	['e', 'next', true, 'f', 'problems', 5, 7],
+	['e', 'next', false, 'f', 'problems', 5, 7],
+	['e', 'previous', true, 'd', 'auxiliary', 3, 7],
+	['e', 'previous', false, 'd', 'auxiliary', 3, 7],
+	['e', 'first', true, 'a', 'explorer', 0, 7],
+	['e', 'first', false, 'a', 'explorer', 0, 7],
+	['e', 'last', true, 'g', 'problems', 6, 7],
+	['e', 'last', false, 'g', 'problems', 6, 7],
+	['f', 'next', true, 'g', 'problems', 6, 7],
+	['f', 'next', false, 'g', 'problems', 6, 7],
+	['f', 'previous', true, 'e', 'auxiliary', 4, 7],
+	['f', 'previous', false, 'e', 'auxiliary', 4, 7],
+	['f', 'first', true, 'a', 'explorer', 0, 7],
+	['f', 'first', false, 'a', 'explorer', 0, 7],
+	['f', 'last', true, 'g', 'problems', 6, 7],
+	['f', 'last', false, 'g', 'problems', 6, 7],
+	['g', 'next', true, 'a', 'explorer', 0, 7],
+	['g', 'next', false, undefined, undefined, undefined, undefined],
+	['g', 'previous', true, 'f', 'problems', 5, 7],
+	['g', 'previous', false, 'f', 'problems', 5, 7],
+	['g', 'first', true, 'a', 'explorer', 0, 7],
+	['g', 'first', false, 'a', 'explorer', 0, 7],
+	['g', 'last', true, 'g', 'problems', 6, 7],
+	['g', 'last', false, 'g', 'problems', 6, 7],
+];
+
 suite('Workbench view navigation: workbench focus matrix', () => {
-	test('workbench: next from a (wrap) goes to b', () => {
-		const snapshot = standardSnapshot('a');
-		const result = resolveViewNavigationTarget(snapshot, {
-			scope: 'workbench',
-			direction: 'next',
-			wrap: true
+	for (const [from, direction, wrap, expectedViewId, expectedContainerId, expectedIndex, expectedTotal] of cases) {
+		test(`workbench: ${direction} from ${from} (${wrap ? 'wrap' : 'no wrap'}) goes to ${expectedViewId ?? 'none'}`, () => {
+			const result = resolveViewNavigationTarget(standardSnapshot(from), {
+				scope: 'workbench',
+				direction,
+				wrap
+			});
+			assert.strictEqual(result?.viewId, expectedViewId);
+			assert.strictEqual(result?.containerId, expectedContainerId);
+			assert.strictEqual(result?.index, expectedIndex);
+			assert.strictEqual(result?.total, expectedTotal);
 		});
-		assert.strictEqual(result?.viewId, 'b');
-		assert.strictEqual(result?.containerId, 'explorer');
-		assert.strictEqual(result?.index, 1);
-		assert.strictEqual(result?.total, 7);
-	});
-
-	test('workbench: next from a (no wrap) goes to b', () => {
-		const snapshot = standardSnapshot('a');
-		const result = resolveViewNavigationTarget(snapshot, {
-			scope: 'workbench',
-			direction: 'next',
-			wrap: false
-		});
-		assert.strictEqual(result?.viewId, 'b');
-		assert.strictEqual(result?.containerId, 'explorer');
-		assert.strictEqual(result?.index, 1);
-		assert.strictEqual(result?.total, 7);
-	});
-
-	test('workbench: previous from a (wrap) goes to g', () => {
-		const snapshot = standardSnapshot('a');
-		const result = resolveViewNavigationTarget(snapshot, {
-			scope: 'workbench',
-			direction: 'previous',
-			wrap: true
-		});
-		assert.strictEqual(result?.viewId, 'g');
-		assert.strictEqual(result?.containerId, 'problems');
-		assert.strictEqual(result?.index, 6);
-		assert.strictEqual(result?.total, 7);
-	});
-
-	test('workbench: previous from a (no wrap) goes to none', () => {
-		const snapshot = standardSnapshot('a');
-		const result = resolveViewNavigationTarget(snapshot, {
-			scope: 'workbench',
-			direction: 'previous',
-			wrap: false
-		});
-		assert.strictEqual(result?.viewId, undefined);
-		assert.strictEqual(result?.containerId, undefined);
-		assert.strictEqual(result?.index, undefined);
-		assert.strictEqual(result?.total, undefined);
-	});
-
-	test('workbench: first from a (wrap) goes to a', () => {
-		const snapshot = standardSnapshot('a');
-		const result = resolveViewNavigationTarget(snapshot, {
-			scope: 'workbench',
-			direction: 'first',
-			wrap: true
-		});
-		assert.strictEqual(result?.viewId, 'a');
-		assert.strictEqual(result?.containerId, 'explorer');
-		assert.strictEqual(result?.index, 0);
-		assert.strictEqual(result?.total, 7);
-	});
-
-	test('workbench: first from a (no wrap) goes to a', () => {
-		const snapshot = standardSnapshot('a');
-		const result = resolveViewNavigationTarget(snapshot, {
-			scope: 'workbench',
-			direction: 'first',
-			wrap: false
-		});
-		assert.strictEqual(result?.viewId, 'a');
-		assert.strictEqual(result?.containerId, 'explorer');
-		assert.strictEqual(result?.index, 0);
-		assert.strictEqual(result?.total, 7);
-	});
-
-	test('workbench: last from a (wrap) goes to g', () => {
-		const snapshot = standardSnapshot('a');
-		const result = resolveViewNavigationTarget(snapshot, {
-			scope: 'workbench',
-			direction: 'last',
-			wrap: true
-		});
-		assert.strictEqual(result?.viewId, 'g');
-		assert.strictEqual(result?.containerId, 'problems');
-		assert.strictEqual(result?.index, 6);
-		assert.strictEqual(result?.total, 7);
-	});
-
-	test('workbench: last from a (no wrap) goes to g', () => {
-		const snapshot = standardSnapshot('a');
-		const result = resolveViewNavigationTarget(snapshot, {
-			scope: 'workbench',
-			direction: 'last',
-			wrap: false
-		});
-		assert.strictEqual(result?.viewId, 'g');
-		assert.strictEqual(result?.containerId, 'problems');
-		assert.strictEqual(result?.index, 6);
-		assert.strictEqual(result?.total, 7);
-	});
-
-	test('workbench: next from b (wrap) goes to c', () => {
-		const snapshot = standardSnapshot('b');
-		const result = resolveViewNavigationTarget(snapshot, {
-			scope: 'workbench',
-			direction: 'next',
-			wrap: true
-		});
-		assert.strictEqual(result?.viewId, 'c');
-		assert.strictEqual(result?.containerId, 'explorer');
-		assert.strictEqual(result?.index, 2);
-		assert.strictEqual(result?.total, 7);
-	});
-
-	test('workbench: next from b (no wrap) goes to c', () => {
-		const snapshot = standardSnapshot('b');
-		const result = resolveViewNavigationTarget(snapshot, {
-			scope: 'workbench',
-			direction: 'next',
-			wrap: false
-		});
-		assert.strictEqual(result?.viewId, 'c');
-		assert.strictEqual(result?.containerId, 'explorer');
-		assert.strictEqual(result?.index, 2);
-		assert.strictEqual(result?.total, 7);
-	});
-
-	test('workbench: previous from b (wrap) goes to a', () => {
-		const snapshot = standardSnapshot('b');
-		const result = resolveViewNavigationTarget(snapshot, {
-			scope: 'workbench',
-			direction: 'previous',
-			wrap: true
-		});
-		assert.strictEqual(result?.viewId, 'a');
-		assert.strictEqual(result?.containerId, 'explorer');
-		assert.strictEqual(result?.index, 0);
-		assert.strictEqual(result?.total, 7);
-	});
-
-	test('workbench: previous from b (no wrap) goes to a', () => {
-		const snapshot = standardSnapshot('b');
-		const result = resolveViewNavigationTarget(snapshot, {
-			scope: 'workbench',
-			direction: 'previous',
-			wrap: false
-		});
-		assert.strictEqual(result?.viewId, 'a');
-		assert.strictEqual(result?.containerId, 'explorer');
-		assert.strictEqual(result?.index, 0);
-		assert.strictEqual(result?.total, 7);
-	});
-
-	test('workbench: first from b (wrap) goes to a', () => {
-		const snapshot = standardSnapshot('b');
-		const result = resolveViewNavigationTarget(snapshot, {
-			scope: 'workbench',
-			direction: 'first',
-			wrap: true
-		});
-		assert.strictEqual(result?.viewId, 'a');
-		assert.strictEqual(result?.containerId, 'explorer');
-		assert.strictEqual(result?.index, 0);
-		assert.strictEqual(result?.total, 7);
-	});
-
-	test('workbench: first from b (no wrap) goes to a', () => {
-		const snapshot = standardSnapshot('b');
-		const result = resolveViewNavigationTarget(snapshot, {
-			scope: 'workbench',
-			direction: 'first',
-			wrap: false
-		});
-		assert.strictEqual(result?.viewId, 'a');
-		assert.strictEqual(result?.containerId, 'explorer');
-		assert.strictEqual(result?.index, 0);
-		assert.strictEqual(result?.total, 7);
-	});
-
-	test('workbench: last from b (wrap) goes to g', () => {
-		const snapshot = standardSnapshot('b');
-		const result = resolveViewNavigationTarget(snapshot, {
-			scope: 'workbench',
-			direction: 'last',
-			wrap: true
-		});
-		assert.strictEqual(result?.viewId, 'g');
-		assert.strictEqual(result?.containerId, 'problems');
-		assert.strictEqual(result?.index, 6);
-		assert.strictEqual(result?.total, 7);
-	});
-
-	test('workbench: last from b (no wrap) goes to g', () => {
-		const snapshot = standardSnapshot('b');
-		const result = resolveViewNavigationTarget(snapshot, {
-			scope: 'workbench',
-			direction: 'last',
-			wrap: false
-		});
-		assert.strictEqual(result?.viewId, 'g');
-		assert.strictEqual(result?.containerId, 'problems');
-		assert.strictEqual(result?.index, 6);
-		assert.strictEqual(result?.total, 7);
-	});
-
-	test('workbench: next from c (wrap) goes to d', () => {
-		const snapshot = standardSnapshot('c');
-		const result = resolveViewNavigationTarget(snapshot, {
-			scope: 'workbench',
-			direction: 'next',
-			wrap: true
-		});
-		assert.strictEqual(result?.viewId, 'd');
-		assert.strictEqual(result?.containerId, 'auxiliary');
-		assert.strictEqual(result?.index, 3);
-		assert.strictEqual(result?.total, 7);
-	});
-
-	test('workbench: next from c (no wrap) goes to d', () => {
-		const snapshot = standardSnapshot('c');
-		const result = resolveViewNavigationTarget(snapshot, {
-			scope: 'workbench',
-			direction: 'next',
-			wrap: false
-		});
-		assert.strictEqual(result?.viewId, 'd');
-		assert.strictEqual(result?.containerId, 'auxiliary');
-		assert.strictEqual(result?.index, 3);
-		assert.strictEqual(result?.total, 7);
-	});
-
-	test('workbench: previous from c (wrap) goes to b', () => {
-		const snapshot = standardSnapshot('c');
-		const result = resolveViewNavigationTarget(snapshot, {
-			scope: 'workbench',
-			direction: 'previous',
-			wrap: true
-		});
-		assert.strictEqual(result?.viewId, 'b');
-		assert.strictEqual(result?.containerId, 'explorer');
-		assert.strictEqual(result?.index, 1);
-		assert.strictEqual(result?.total, 7);
-	});
-
-	test('workbench: previous from c (no wrap) goes to b', () => {
-		const snapshot = standardSnapshot('c');
-		const result = resolveViewNavigationTarget(snapshot, {
-			scope: 'workbench',
-			direction: 'previous',
-			wrap: false
-		});
-		assert.strictEqual(result?.viewId, 'b');
-		assert.strictEqual(result?.containerId, 'explorer');
-		assert.strictEqual(result?.index, 1);
-		assert.strictEqual(result?.total, 7);
-	});
-
-	test('workbench: first from c (wrap) goes to a', () => {
-		const snapshot = standardSnapshot('c');
-		const result = resolveViewNavigationTarget(snapshot, {
-			scope: 'workbench',
-			direction: 'first',
-			wrap: true
-		});
-		assert.strictEqual(result?.viewId, 'a');
-		assert.strictEqual(result?.containerId, 'explorer');
-		assert.strictEqual(result?.index, 0);
-		assert.strictEqual(result?.total, 7);
-	});
-
-	test('workbench: first from c (no wrap) goes to a', () => {
-		const snapshot = standardSnapshot('c');
-		const result = resolveViewNavigationTarget(snapshot, {
-			scope: 'workbench',
-			direction: 'first',
-			wrap: false
-		});
-		assert.strictEqual(result?.viewId, 'a');
-		assert.strictEqual(result?.containerId, 'explorer');
-		assert.strictEqual(result?.index, 0);
-		assert.strictEqual(result?.total, 7);
-	});
-
-	test('workbench: last from c (wrap) goes to g', () => {
-		const snapshot = standardSnapshot('c');
-		const result = resolveViewNavigationTarget(snapshot, {
-			scope: 'workbench',
-			direction: 'last',
-			wrap: true
-		});
-		assert.strictEqual(result?.viewId, 'g');
-		assert.strictEqual(result?.containerId, 'problems');
-		assert.strictEqual(result?.index, 6);
-		assert.strictEqual(result?.total, 7);
-	});
-
-	test('workbench: last from c (no wrap) goes to g', () => {
-		const snapshot = standardSnapshot('c');
-		const result = resolveViewNavigationTarget(snapshot, {
-			scope: 'workbench',
-			direction: 'last',
-			wrap: false
-		});
-		assert.strictEqual(result?.viewId, 'g');
-		assert.strictEqual(result?.containerId, 'problems');
-		assert.strictEqual(result?.index, 6);
-		assert.strictEqual(result?.total, 7);
-	});
-
-	test('workbench: next from d (wrap) goes to e', () => {
-		const snapshot = standardSnapshot('d');
-		const result = resolveViewNavigationTarget(snapshot, {
-			scope: 'workbench',
-			direction: 'next',
-			wrap: true
-		});
-		assert.strictEqual(result?.viewId, 'e');
-		assert.strictEqual(result?.containerId, 'auxiliary');
-		assert.strictEqual(result?.index, 4);
-		assert.strictEqual(result?.total, 7);
-	});
-
-	test('workbench: next from d (no wrap) goes to e', () => {
-		const snapshot = standardSnapshot('d');
-		const result = resolveViewNavigationTarget(snapshot, {
-			scope: 'workbench',
-			direction: 'next',
-			wrap: false
-		});
-		assert.strictEqual(result?.viewId, 'e');
-		assert.strictEqual(result?.containerId, 'auxiliary');
-		assert.strictEqual(result?.index, 4);
-		assert.strictEqual(result?.total, 7);
-	});
-
-	test('workbench: previous from d (wrap) goes to c', () => {
-		const snapshot = standardSnapshot('d');
-		const result = resolveViewNavigationTarget(snapshot, {
-			scope: 'workbench',
-			direction: 'previous',
-			wrap: true
-		});
-		assert.strictEqual(result?.viewId, 'c');
-		assert.strictEqual(result?.containerId, 'explorer');
-		assert.strictEqual(result?.index, 2);
-		assert.strictEqual(result?.total, 7);
-	});
-
-	test('workbench: previous from d (no wrap) goes to c', () => {
-		const snapshot = standardSnapshot('d');
-		const result = resolveViewNavigationTarget(snapshot, {
-			scope: 'workbench',
-			direction: 'previous',
-			wrap: false
-		});
-		assert.strictEqual(result?.viewId, 'c');
-		assert.strictEqual(result?.containerId, 'explorer');
-		assert.strictEqual(result?.index, 2);
-		assert.strictEqual(result?.total, 7);
-	});
-
-	test('workbench: first from d (wrap) goes to a', () => {
-		const snapshot = standardSnapshot('d');
-		const result = resolveViewNavigationTarget(snapshot, {
-			scope: 'workbench',
-			direction: 'first',
-			wrap: true
-		});
-		assert.strictEqual(result?.viewId, 'a');
-		assert.strictEqual(result?.containerId, 'explorer');
-		assert.strictEqual(result?.index, 0);
-		assert.strictEqual(result?.total, 7);
-	});
-
-	test('workbench: first from d (no wrap) goes to a', () => {
-		const snapshot = standardSnapshot('d');
-		const result = resolveViewNavigationTarget(snapshot, {
-			scope: 'workbench',
-			direction: 'first',
-			wrap: false
-		});
-		assert.strictEqual(result?.viewId, 'a');
-		assert.strictEqual(result?.containerId, 'explorer');
-		assert.strictEqual(result?.index, 0);
-		assert.strictEqual(result?.total, 7);
-	});
-
-	test('workbench: last from d (wrap) goes to g', () => {
-		const snapshot = standardSnapshot('d');
-		const result = resolveViewNavigationTarget(snapshot, {
-			scope: 'workbench',
-			direction: 'last',
-			wrap: true
-		});
-		assert.strictEqual(result?.viewId, 'g');
-		assert.strictEqual(result?.containerId, 'problems');
-		assert.strictEqual(result?.index, 6);
-		assert.strictEqual(result?.total, 7);
-	});
-
-	test('workbench: last from d (no wrap) goes to g', () => {
-		const snapshot = standardSnapshot('d');
-		const result = resolveViewNavigationTarget(snapshot, {
-			scope: 'workbench',
-			direction: 'last',
-			wrap: false
-		});
-		assert.strictEqual(result?.viewId, 'g');
-		assert.strictEqual(result?.containerId, 'problems');
-		assert.strictEqual(result?.index, 6);
-		assert.strictEqual(result?.total, 7);
-	});
-
-	test('workbench: next from e (wrap) goes to f', () => {
-		const snapshot = standardSnapshot('e');
-		const result = resolveViewNavigationTarget(snapshot, {
-			scope: 'workbench',
-			direction: 'next',
-			wrap: true
-		});
-		assert.strictEqual(result?.viewId, 'f');
-		assert.strictEqual(result?.containerId, 'problems');
-		assert.strictEqual(result?.index, 5);
-		assert.strictEqual(result?.total, 7);
-	});
-
-	test('workbench: next from e (no wrap) goes to f', () => {
-		const snapshot = standardSnapshot('e');
-		const result = resolveViewNavigationTarget(snapshot, {
-			scope: 'workbench',
-			direction: 'next',
-			wrap: false
-		});
-		assert.strictEqual(result?.viewId, 'f');
-		assert.strictEqual(result?.containerId, 'problems');
-		assert.strictEqual(result?.index, 5);
-		assert.strictEqual(result?.total, 7);
-	});
-
-	test('workbench: previous from e (wrap) goes to d', () => {
-		const snapshot = standardSnapshot('e');
-		const result = resolveViewNavigationTarget(snapshot, {
-			scope: 'workbench',
-			direction: 'previous',
-			wrap: true
-		});
-		assert.strictEqual(result?.viewId, 'd');
-		assert.strictEqual(result?.containerId, 'auxiliary');
-		assert.strictEqual(result?.index, 3);
-		assert.strictEqual(result?.total, 7);
-	});
-
-	test('workbench: previous from e (no wrap) goes to d', () => {
-		const snapshot = standardSnapshot('e');
-		const result = resolveViewNavigationTarget(snapshot, {
-			scope: 'workbench',
-			direction: 'previous',
-			wrap: false
-		});
-		assert.strictEqual(result?.viewId, 'd');
-		assert.strictEqual(result?.containerId, 'auxiliary');
-		assert.strictEqual(result?.index, 3);
-		assert.strictEqual(result?.total, 7);
-	});
-
-	test('workbench: first from e (wrap) goes to a', () => {
-		const snapshot = standardSnapshot('e');
-		const result = resolveViewNavigationTarget(snapshot, {
-			scope: 'workbench',
-			direction: 'first',
-			wrap: true
-		});
-		assert.strictEqual(result?.viewId, 'a');
-		assert.strictEqual(result?.containerId, 'explorer');
-		assert.strictEqual(result?.index, 0);
-		assert.strictEqual(result?.total, 7);
-	});
-
-	test('workbench: first from e (no wrap) goes to a', () => {
-		const snapshot = standardSnapshot('e');
-		const result = resolveViewNavigationTarget(snapshot, {
-			scope: 'workbench',
-			direction: 'first',
-			wrap: false
-		});
-		assert.strictEqual(result?.viewId, 'a');
-		assert.strictEqual(result?.containerId, 'explorer');
-		assert.strictEqual(result?.index, 0);
-		assert.strictEqual(result?.total, 7);
-	});
-
-	test('workbench: last from e (wrap) goes to g', () => {
-		const snapshot = standardSnapshot('e');
-		const result = resolveViewNavigationTarget(snapshot, {
-			scope: 'workbench',
-			direction: 'last',
-			wrap: true
-		});
-		assert.strictEqual(result?.viewId, 'g');
-		assert.strictEqual(result?.containerId, 'problems');
-		assert.strictEqual(result?.index, 6);
-		assert.strictEqual(result?.total, 7);
-	});
-
-	test('workbench: last from e (no wrap) goes to g', () => {
-		const snapshot = standardSnapshot('e');
-		const result = resolveViewNavigationTarget(snapshot, {
-			scope: 'workbench',
-			direction: 'last',
-			wrap: false
-		});
-		assert.strictEqual(result?.viewId, 'g');
-		assert.strictEqual(result?.containerId, 'problems');
-		assert.strictEqual(result?.index, 6);
-		assert.strictEqual(result?.total, 7);
-	});
-
-	test('workbench: next from f (wrap) goes to g', () => {
-		const snapshot = standardSnapshot('f');
-		const result = resolveViewNavigationTarget(snapshot, {
-			scope: 'workbench',
-			direction: 'next',
-			wrap: true
-		});
-		assert.strictEqual(result?.viewId, 'g');
-		assert.strictEqual(result?.containerId, 'problems');
-		assert.strictEqual(result?.index, 6);
-		assert.strictEqual(result?.total, 7);
-	});
-
-	test('workbench: next from f (no wrap) goes to g', () => {
-		const snapshot = standardSnapshot('f');
-		const result = resolveViewNavigationTarget(snapshot, {
-			scope: 'workbench',
-			direction: 'next',
-			wrap: false
-		});
-		assert.strictEqual(result?.viewId, 'g');
-		assert.strictEqual(result?.containerId, 'problems');
-		assert.strictEqual(result?.index, 6);
-		assert.strictEqual(result?.total, 7);
-	});
-
-	test('workbench: previous from f (wrap) goes to e', () => {
-		const snapshot = standardSnapshot('f');
-		const result = resolveViewNavigationTarget(snapshot, {
-			scope: 'workbench',
-			direction: 'previous',
-			wrap: true
-		});
-		assert.strictEqual(result?.viewId, 'e');
-		assert.strictEqual(result?.containerId, 'auxiliary');
-		assert.strictEqual(result?.index, 4);
-		assert.strictEqual(result?.total, 7);
-	});
-
-	test('workbench: previous from f (no wrap) goes to e', () => {
-		const snapshot = standardSnapshot('f');
-		const result = resolveViewNavigationTarget(snapshot, {
-			scope: 'workbench',
-			direction: 'previous',
-			wrap: false
-		});
-		assert.strictEqual(result?.viewId, 'e');
-		assert.strictEqual(result?.containerId, 'auxiliary');
-		assert.strictEqual(result?.index, 4);
-		assert.strictEqual(result?.total, 7);
-	});
-
-	test('workbench: first from f (wrap) goes to a', () => {
-		const snapshot = standardSnapshot('f');
-		const result = resolveViewNavigationTarget(snapshot, {
-			scope: 'workbench',
-			direction: 'first',
-			wrap: true
-		});
-		assert.strictEqual(result?.viewId, 'a');
-		assert.strictEqual(result?.containerId, 'explorer');
-		assert.strictEqual(result?.index, 0);
-		assert.strictEqual(result?.total, 7);
-	});
-
-	test('workbench: first from f (no wrap) goes to a', () => {
-		const snapshot = standardSnapshot('f');
-		const result = resolveViewNavigationTarget(snapshot, {
-			scope: 'workbench',
-			direction: 'first',
-			wrap: false
-		});
-		assert.strictEqual(result?.viewId, 'a');
-		assert.strictEqual(result?.containerId, 'explorer');
-		assert.strictEqual(result?.index, 0);
-		assert.strictEqual(result?.total, 7);
-	});
-
-	test('workbench: last from f (wrap) goes to g', () => {
-		const snapshot = standardSnapshot('f');
-		const result = resolveViewNavigationTarget(snapshot, {
-			scope: 'workbench',
-			direction: 'last',
-			wrap: true
-		});
-		assert.strictEqual(result?.viewId, 'g');
-		assert.strictEqual(result?.containerId, 'problems');
-		assert.strictEqual(result?.index, 6);
-		assert.strictEqual(result?.total, 7);
-	});
-
-	test('workbench: last from f (no wrap) goes to g', () => {
-		const snapshot = standardSnapshot('f');
-		const result = resolveViewNavigationTarget(snapshot, {
-			scope: 'workbench',
-			direction: 'last',
-			wrap: false
-		});
-		assert.strictEqual(result?.viewId, 'g');
-		assert.strictEqual(result?.containerId, 'problems');
-		assert.strictEqual(result?.index, 6);
-		assert.strictEqual(result?.total, 7);
-	});
-
-	test('workbench: next from g (wrap) goes to a', () => {
-		const snapshot = standardSnapshot('g');
-		const result = resolveViewNavigationTarget(snapshot, {
-			scope: 'workbench',
-			direction: 'next',
-			wrap: true
-		});
-		assert.strictEqual(result?.viewId, 'a');
-		assert.strictEqual(result?.containerId, 'explorer');
-		assert.strictEqual(result?.index, 0);
-		assert.strictEqual(result?.total, 7);
-	});
-
-	test('workbench: next from g (no wrap) goes to none', () => {
-		const snapshot = standardSnapshot('g');
-		const result = resolveViewNavigationTarget(snapshot, {
-			scope: 'workbench',
-			direction: 'next',
-			wrap: false
-		});
-		assert.strictEqual(result?.viewId, undefined);
-		assert.strictEqual(result?.containerId, undefined);
-		assert.strictEqual(result?.index, undefined);
-		assert.strictEqual(result?.total, undefined);
-	});
-
-	test('workbench: previous from g (wrap) goes to f', () => {
-		const snapshot = standardSnapshot('g');
-		const result = resolveViewNavigationTarget(snapshot, {
-			scope: 'workbench',
-			direction: 'previous',
-			wrap: true
-		});
-		assert.strictEqual(result?.viewId, 'f');
-		assert.strictEqual(result?.containerId, 'problems');
-		assert.strictEqual(result?.index, 5);
-		assert.strictEqual(result?.total, 7);
-	});
-
-	test('workbench: previous from g (no wrap) goes to f', () => {
-		const snapshot = standardSnapshot('g');
-		const result = resolveViewNavigationTarget(snapshot, {
-			scope: 'workbench',
-			direction: 'previous',
-			wrap: false
-		});
-		assert.strictEqual(result?.viewId, 'f');
-		assert.strictEqual(result?.containerId, 'problems');
-		assert.strictEqual(result?.index, 5);
-		assert.strictEqual(result?.total, 7);
-	});
-
-	test('workbench: first from g (wrap) goes to a', () => {
-		const snapshot = standardSnapshot('g');
-		const result = resolveViewNavigationTarget(snapshot, {
-			scope: 'workbench',
-			direction: 'first',
-			wrap: true
-		});
-		assert.strictEqual(result?.viewId, 'a');
-		assert.strictEqual(result?.containerId, 'explorer');
-		assert.strictEqual(result?.index, 0);
-		assert.strictEqual(result?.total, 7);
-	});
-
-	test('workbench: first from g (no wrap) goes to a', () => {
-		const snapshot = standardSnapshot('g');
-		const result = resolveViewNavigationTarget(snapshot, {
-			scope: 'workbench',
-			direction: 'first',
-			wrap: false
-		});
-		assert.strictEqual(result?.viewId, 'a');
-		assert.strictEqual(result?.containerId, 'explorer');
-		assert.strictEqual(result?.index, 0);
-		assert.strictEqual(result?.total, 7);
-	});
-
-	test('workbench: last from g (wrap) goes to g', () => {
-		const snapshot = standardSnapshot('g');
-		const result = resolveViewNavigationTarget(snapshot, {
-			scope: 'workbench',
-			direction: 'last',
-			wrap: true
-		});
-		assert.strictEqual(result?.viewId, 'g');
-		assert.strictEqual(result?.containerId, 'problems');
-		assert.strictEqual(result?.index, 6);
-		assert.strictEqual(result?.total, 7);
-	});
-
-	test('workbench: last from g (no wrap) goes to g', () => {
-		const snapshot = standardSnapshot('g');
-		const result = resolveViewNavigationTarget(snapshot, {
-			scope: 'workbench',
-			direction: 'last',
-			wrap: false
-		});
-		assert.strictEqual(result?.viewId, 'g');
-		assert.strictEqual(result?.containerId, 'problems');
-		assert.strictEqual(result?.index, 6);
-		assert.strictEqual(result?.total, 7);
-	});
+	}
 });
