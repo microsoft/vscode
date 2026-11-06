@@ -9,6 +9,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/c
 import { focusNavigableView } from '../../../browser/actions/viewNavigationActions.js';
 import { IViewContainerModel, IViewDescriptor, IViewDescriptorService, ViewContainer, ViewContainerLocation } from '../../../common/views.js';
 import { IViewsService } from '../../../services/views/common/viewsService.js';
+import { IWorkbenchLayoutService, Parts } from '../../../services/layout/browser/layoutService.js';
 
 /** Exercise the real focusable and collapsible header provided by the pane widget. */
 class NavigationTestPane extends Pane {
@@ -52,7 +53,8 @@ suite('Workbench view navigation: rendered pane', () => {
 			assert.strictEqual(pane.isExpanded(), false);
 			assert.notStrictEqual(document.activeElement, pane.draggableElement);
 
-			await focusNavigableView(views, descriptors, { direction: 'next', scope: 'container' });
+			const layout = { isVisible: (part: Parts) => part === Parts.SIDEBAR_PART } as IWorkbenchLayoutService;
+			await focusNavigableView(views, descriptors, layout, { direction: 'next', scope: 'container' });
 
 			assert.strictEqual(document.activeElement, pane.draggableElement);
 			assert.strictEqual(pane.isExpanded(), false, 'focus must not change the collapsed state');
