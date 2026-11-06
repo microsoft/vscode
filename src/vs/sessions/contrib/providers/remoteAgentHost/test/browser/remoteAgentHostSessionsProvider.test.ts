@@ -33,7 +33,7 @@ import { IAgentHostService, type IAgentConnection } from '../../../../../../plat
 import type { IAgentHostTcpConnection } from '../../../../../../platform/agentHost/common/agentHostTcpConnection.js';
 import { BrowserRemoteProxyEnabledSettingId } from '../../../../../../workbench/contrib/browserView/common/browserView.js';
 import { IRemoteAgentHostService, NullRemoteAgentHostService, RemoteAgentHostConnectionStatus } from '../../../../../../platform/agentHost/common/remoteAgentHostService.js';
-import { cloudSandboxTaskResource, CloudSandboxAutoConnectOnOpenSettingId, CloudSandboxRequestError, ICloudSandboxTask } from '../../../../../../platform/agentHost/common/cloudSandboxAgentHost.js';
+import { cloudSandboxAddress, cloudSandboxTaskResource, CloudSandboxAutoConnectOnOpenSettingId, CloudSandboxRequestError, ICloudSandboxTask } from '../../../../../../platform/agentHost/common/cloudSandboxAgentHost.js';
 import { readRemoteSessionOrigin, withRemoteSessionOrigin } from '../../../../../../platform/agentHost/common/meta/agentRemoteSessionMeta.js';
 import { AgentHostTransportFailureReason } from '../../../../../../platform/agentHost/common/state/sessionTransport.js';
 import { AhpErrorCodes, JsonRpcErrorCodes, ProtocolError } from '../../../../../../platform/agentHost/common/state/sessionProtocol.js';
@@ -64,7 +64,8 @@ import { ISessionChangeEvent, ISessionsProvider, ISessionsProviderCreateSessionO
 import { IAgentHostSessionsProvider } from '../../../../../common/agentHostSessionsProvider.js';
 import { DevContainerIdleTimeoutSettingId, DevContainerWorktreeEnabledSettingId, IDevContainerAgentHostService } from '../../../../../common/devContainerAgentHostService.js';
 import { ISessionsProvidersService } from '../../../../../services/sessions/browser/sessionsProvidersService.js';
-import { ChatInteractivity, ChatModelSource, getChatCapabilities, getGitHubPullRequestRefs, getSessionOwnedGitHubPullRequestRefs, SessionRemoteConnectionFailureReason, SessionStatus, type ISession, type ISessionFileChange } from '../../../../../services/sessions/common/session.js';
+import { ChatInteractivity, ChatModelSource, getChatCapabilities, getGitHubPullRequestRefs, getSessionOwnedGitHubPullRequestRefs, SessionRemoteConnectionFailureReason, SessionStatus, type IChat, type IChatCheckpoints, type ISession, type ISessionFileChange } from '../../../../../services/sessions/common/session.js';
+import { VisibleSession } from '../../../../../services/sessions/browser/visibleSessions.js';
 import { SessionPullRequestPresentationModel } from '../../../../github/browser/pullRequestIconStatus.js';
 import { buildSessionPullRequestSections } from '../../../../chat/browser/sessionChatInputToolbar.js';
 import { ICommandService } from '../../../../../../platform/commands/common/commands.js';
@@ -75,7 +76,7 @@ import { getRemoteAgentHostPickerKey, RemoteAgentHostPickerVisibility } from '..
 import { ENVIRONMENT_PICKER_MANAGE_REMOTES_SETTING } from '../../../../chat/common/constants.js';
 import { getSessionCreationEnvironments } from '../../../../chat/browser/sessionEnvironmentPicker.js';
 import { CloudSandboxSessionsProvider } from '../../browser/cloudSandboxSessionsProvider.js';
-import { CloudSandboxTaskSessionsProvider, CLOUD_SANDBOX_TASK_PROVIDER_ID } from '../../browser/cloudSandboxTaskSessionsProvider.js';
+import { CloudSandboxTaskSessionsProvider, CLOUD_SANDBOX_TASK_PROVIDER_ID, createCloudSandboxTaskSession } from '../../browser/cloudSandboxTaskSessionsProvider.js';
 import { CLOUD_SANDBOX_CREATION_PROVIDER_ID, COPILOT_PROVIDER_ID } from '../../../copilotChatSessions/common/copilotChatSessions.js';
 import { ProviderAutomationService } from '../../../../automations/browser/providerAutomationService.js';
 import { ILabelService } from '../../../../../../platform/label/common/label.js';
@@ -340,12 +341,12 @@ function createSession(id: string, opts?: { session?: URI; provider?: string; su
 	};
 }
 
-function createProvider(disposables: DisposableStore, connection: MockAgentConnection, overrides?: { fileDialogService?: IFileDialogService; address?: string; preferenceKey?: string; connectionName?: string | undefined; chatService?: IChatService; sendRequest?: (resource: URI, message: string, options?: IChatSendRequestOptions) => Promise<ChatSendResult>; onDidAcceptRequest?: Event<IChatRequestAcceptedEvent>; openSession?: boolean; storageService?: IStorageService; localAgentHostService?: IAgentHostService; remoteAgentHostService?: IRemoteAgentHostService; noConnection?: boolean; connectOnDemand?: () => Promise<void>; isWebPlatform?: boolean; workspaceTrusted?: boolean; setUrisTrust?: (uris: URI[], trusted: boolean) => Promise<void>; configurationService?: IConfigurationService; composerService?: INewSessionComposerService; omitHostFromWorkspaceLabel?: boolean; workspaceTypeIcon?: ThemeIcon; sessionSchemeAlias?: IAgentHostSessionSchemeAlias; defaultChangesetKind?: IRemoteAgentHostSessionsProviderConfig['defaultChangesetKind']; sessionResolutionPolicies?: Array<{ authority: string; policy: IAgentHostSessionResolutionPolicy }>; devContainerWorktreeScope?: string; devContainerLifecycle?: IRemoteAgentHostSessionsProviderConfig['devContainerLifecycle']; devContainerSourceWorkspace?: URI; resolveDevContainerWorktreeConnection?: IRemoteAgentHostSessionsProviderConfig['resolveDevContainerWorktreeConnection']; readOnlyWhenDisconnected?: boolean; ctor?: typeof RemoteAgentHostSessionsProvider; labelService?: ILabelService; logService?: ILogService; defaultDirectory?: string; activeSession?: IObservable<IActiveSession | undefined>; deleteSessionsOnDemand?: IRemoteAgentHostSessionsProviderConfig['deleteSessionsOnDemand']; telemetryService?: ITelemetryService }, configOverrides: Partial<IRemoteAgentHostSessionsProviderConfig> = {}): RemoteAgentHostSessionsProvider {
+function createProvider(disposables: DisposableStore, connection: MockAgentConnection, overrides?: { fileDialogService?: IFileDialogService; address?: string; preferenceKey?: string; connectionName?: string | undefined; chatService?: IChatService; sendRequest?: (resource: URI, message: string, options?: IChatSendRequestOptions) => Promise<ChatSendResult>; onDidAcceptRequest?: Event<IChatRequestAcceptedEvent>; openSession?: boolean; storageService?: IStorageService; localAgentHostService?: IAgentHostService; remoteAgentHostService?: IRemoteAgentHostService; noConnection?: boolean; connectOnDemand?: () => Promise<void>; isWebPlatform?: boolean; workspaceTrusted?: boolean; setUrisTrust?: (uris: URI[], trusted: boolean) => Promise<void>; configurationService?: IConfigurationService; composerService?: INewSessionComposerService; omitHostFromWorkspaceLabel?: boolean; workspaceTypeIcon?: ThemeIcon; sessionSchemeAlias?: IAgentHostSessionSchemeAlias; defaultChangesetKind?: IRemoteAgentHostSessionsProviderConfig['defaultChangesetKind']; sessionResolutionPolicies?: Array<{ authority: string; policy: IAgentHostSessionResolutionPolicy }>; devContainerWorktreeScope?: string; devContainerLifecycle?: IRemoteAgentHostSessionsProviderConfig['devContainerLifecycle']; devContainerSourceWorkspace?: URI; resolveDevContainerWorktreeConnection?: IRemoteAgentHostSessionsProviderConfig['resolveDevContainerWorktreeConnection']; readOnlyWhenDisconnected?: boolean; ctor?: typeof RemoteAgentHostSessionsProvider; labelService?: ILabelService; logService?: ILogService; defaultDirectory?: string; activeSession?: IObservable<IActiveSession | undefined>; deleteSessionsOnDemand?: IRemoteAgentHostSessionsProviderConfig['deleteSessionsOnDemand']; telemetryService?: ITelemetryService; workingDirectoryResolver?: IAgentHostSessionWorkingDirectoryResolver }, configOverrides: Partial<IRemoteAgentHostSessionsProviderConfig> = {}): RemoteAgentHostSessionsProvider {
 	const instantiationService = disposables.add(new TestInstantiationService());
 
 	instantiationService.stub(IRemoteAgentHostAuthenticationService, new RemoteAgentHostAuthenticationService());
 	instantiationService.stub(INewSessionComposerService, overrides?.composerService ?? disposables.add(new NewSessionComposerService()));
-	instantiationService.stub(IAgentHostSessionWorkingDirectoryResolver, new class extends mock<IAgentHostSessionWorkingDirectoryResolver>() {
+	instantiationService.stub(IAgentHostSessionWorkingDirectoryResolver, overrides?.workingDirectoryResolver ?? new class extends mock<IAgentHostSessionWorkingDirectoryResolver>() {
 		override registerResolver() { return Disposable.None; }
 	}());
 	instantiationService.stub(IFileDialogService, overrides?.fileDialogService ?? {});
@@ -557,6 +558,139 @@ suite('RemoteAgentHostSessionsProvider', () => {
 
 	ensureNoDisposablesAreLeakedInTestSuite();
 
+	function createTaskCatalog(tasks: readonly ICloudSandboxTask[]) {
+		class Runtime extends CloudSandboxSessionsProvider {
+			createCatalog(): CloudSandboxTaskSessionsProvider {
+				return this._instantiationService.createInstance(CloudSandboxTaskSessionsProvider);
+			}
+		}
+		const storage = disposables.add(new InMemoryStorageService());
+		const resources = new Map(tasks.map(task => [task.sessionId, cloudSandboxTaskResource(task.taskId)]));
+		const runtime = createProvider(disposables, connection, { noConnection: true, storageService: storage, ctor: Runtime }, {
+			providerId: CLOUD_SANDBOX_TASK_PROVIDER_ID,
+			mapSessionResource: session => resources.get(AgentSession.id(session)),
+		});
+		assert.ok(runtime instanceof Runtime);
+		const catalog = disposables.add(runtime.createCatalog());
+		catalog.initialize({
+			accountKey: () => 'account',
+			resolve: async () => { throw new Error('Read-state changes must not acquire an execution.'); },
+			rename: async () => { }, archive: async () => { }, delete: async () => { },
+		});
+		return { runtime, catalog, storage };
+	}
+
+	test('a restored visible chat keeps its facade while runtime fields and interactivity hydrate', () => {
+		const entry = createCloudSandboxTaskSession({ taskId: 'task', name: 'Summary' });
+		const chat = entry.session.mainChat.get();
+		const visible = disposables.add(new VisibleSession(entry.session, chat));
+		const interactivity = observableValue('liveInteractivity', ChatInteractivity.Full);
+		const checkpoints = upcastPartial<IChatCheckpoints>({});
+		const runtimeChat = upcastPartial<IChat>({
+			resource: chat.resource, interactivity,
+			changes: constObservable([upcastPartial<ISessionFileChange>({})]),
+			checkpoints: constObservable(checkpoints), modelSource: constObservable(ChatModelSource.Chosen),
+		});
+		const states: (string | number | boolean | undefined)[][] = [];
+		disposables.add(autorun(reader => {
+			const active = visible.activeChat.read(reader);
+			states.push([active.interactivity.read(reader), active.changes.read(reader).length, active.checkpoints.read(reader) === checkpoints, active.modelSource.read(reader)]);
+		}));
+		entry.runtime.set(upcastPartial<ISession>({ mainChat: constObservable(runtimeChat), chats: constObservable([runtimeChat]) }), undefined);
+		interactivity.set(ChatInteractivity.ReadOnly, undefined);
+		assert.deepStrictEqual({
+			states, stable: visible.activeChat.get() === chat && entry.session.mainChat.get() === chat && entry.session.chats.get()[0] === chat,
+		}, {
+			states: [[ChatInteractivity.DraftOnly, 0, false, undefined], [ChatInteractivity.Full, 1, true, ChatModelSource.Chosen], [ChatInteractivity.ReadOnly, 1, true, ChatModelSource.Chosen]],
+			stable: true,
+		});
+	});
+
+	test('stops advertising summary workspace metadata when the runtime explicitly has no workspace', () => {
+		const entry = createCloudSandboxTaskSession({ taskId: 'task', name: 'Summary', repoName: 'owner/repo' });
+		const hadWorkspace = entry.session.workspace.get() !== undefined;
+		entry.runtime.set(upcastPartial<ISession>({
+			workspace: constObservable(undefined),
+			mainChat: constObservable(upcastPartial<IChat>({ workspace: constObservable(undefined) })),
+		}), undefined);
+		assert.deepStrictEqual({
+			hadWorkspace, session: entry.session.workspace.get(), chat: entry.session.mainChat.get().workspace.get(),
+		}, { hadWorkspace: true, session: undefined, chat: undefined });
+	});
+
+	test('new catalog tasks default to unread while saved read and unread states survive restoration', () => {
+		const { catalog, storage } = createTaskCatalog([]);
+		storage.store(`sessions.cloudSandbox.taskRead.${JSON.stringify(['account', 'read'])}`, true, StorageScope.PROFILE, StorageTarget.MACHINE);
+		storage.store(`sessions.cloudSandbox.taskRead.${JSON.stringify(['account', 'unread'])}`, false, StorageScope.PROFILE, StorageTarget.MACHINE);
+		const tasks = ['new', 'read', 'unread'].map(taskId => ({ taskId, name: taskId }));
+		const readStates = () => catalog.getSessions().map(session => [session.isRead.get(), session.mainChat.get().isRead.get()]);
+		catalog.setTasks(tasks);
+		const discovered = readStates();
+		catalog.clear();
+		catalog.setTasks(tasks);
+		assert.deepStrictEqual({ discovered, restored: readStates(), subscriptions: [...connection.sessionSubscribeCounts] }, {
+			discovered: [[false, false], [true, true], [false, false]],
+			restored: [[false, false], [true, true], [false, false]],
+			subscriptions: [],
+		});
+	});
+
+	test('indexes shared-environment legacy read state once and skips it when task read state is saved', () => {
+		const tasks = Array.from({ length: 1750 }, (_, index) => ({ taskId: `task-${index}`, sessionId: `session-${index}`, environmentId: 'environment', name: 'Task' }));
+		const { catalog, storage } = createTaskCatalog(tasks);
+		const legacyKey = `remoteAgentHost.cachedSessions.v5.${agentHostAuthority(cloudSandboxAddress('environment'))}`;
+		storage.store(legacyKey, JSON.stringify(tasks.map((task, index) => ({
+			session: AgentSession.uri('ahp-session', task.sessionId).toString(), provider: 'copilot',
+			startTime: 0, modifiedTime: 0, status: index % 2 === 0 ? ProtocolSessionStatus.IsRead : ProtocolSessionStatus.Idle,
+		}))), StorageScope.APPLICATION, StorageTarget.MACHINE);
+		const reads = sinon.spy(storage, 'getObject');
+		catalog.setTasks(tasks);
+		const migrated = { reads: reads.getCalls().filter(call => call.args[0] === legacyKey).length, read: catalog.getSessions().filter(session => session.isRead.get()).length };
+		catalog.clear();
+		for (const task of tasks) {
+			storage.store(`sessions.cloudSandbox.taskRead.${JSON.stringify(['account', task.taskId])}`, true, StorageScope.PROFILE, StorageTarget.MACHINE);
+		}
+		reads.resetHistory();
+		catalog.setTasks(tasks);
+		assert.deepStrictEqual({
+			migrated, saved: { reads: reads.getCalls().filter(call => call.args[0] === legacyKey).length, read: catalog.getSessions().filter(session => session.isRead.get()).length },
+			subscriptions: [...connection.sessionSubscribeCounts],
+		}, { migrated: { reads: 1, read: 875 }, saved: { reads: 0, read: 1750 }, subscriptions: [] });
+	});
+
+	for (const isRead of [true, false]) {
+		test(`preserves catalog read=${isRead} when opening a sibling acquires their shared runtime`, async () => {
+			const tasks = ['first', 'second'].map(taskId => ({ taskId, sessionId: `session-${taskId}`, environmentId: 'environment', name: taskId }));
+			const { catalog, runtime, storage } = createTaskCatalog(tasks);
+			catalog.setTasks(tasks);
+			const second = catalog.getSessions()[1];
+			await catalog.setChatReadState(second.sessionId, second.mainChat.get().resource, isRead);
+			runtime.seedSessions(tasks.map(task => createSession(task.sessionId, {
+				provider: 'copilot', session: AgentSession.uri('ahp-session', task.sessionId),
+				status: ProtocolSessionStatus.Idle | (isRead ? 0 : ProtocolSessionStatus.IsRead),
+			})));
+			catalog.attach(tasks[0].taskId, runtime, tasks[0]);
+			assert.deepStrictEqual({
+				catalogRead: second.isRead.get(), chatRead: second.mainChat.get().isRead.get(),
+				runtimeRead: runtime.getCachedSession(tasks[1].sessionId)?.isRead.get(),
+				savedRead: storage.getBoolean(`sessions.cloudSandbox.taskRead.${JSON.stringify(['account', tasks[1].taskId])}`, StorageScope.PROFILE),
+				subscriptions: [...connection.sessionSubscribeCounts],
+			}, { catalogRead: isRead, chatRead: isRead, runtimeRead: isRead, savedRead: isRead, subscriptions: [] });
+		});
+	}
+
+	test('per-chat and bulk read actions work before any task runtime is acquired', async () => {
+		const { catalog } = createTaskCatalog([]);
+		catalog.setTasks([{ taskId: 'first', name: 'First' }, { taskId: 'second', name: 'Second' }]);
+		const sessions = catalog.getSessions();
+		await catalog.setSessionsReadState(sessions.map(session => session.sessionId), false);
+		await catalog.setChatReadStates(sessions[1].sessionId, [sessions[1].mainChat.get().resource], true);
+		assert.deepStrictEqual({
+			read: sessions.map(session => [session.isRead.get(), session.mainChat.get().isRead.get()]),
+			subscriptions: [...connection.sessionSubscribeCounts],
+		}, { read: [[false, false], [true, true]], subscriptions: [] });
+	});
+
 	test('rebinds a host-discovered session after its task binding is learned, preserving state and model targets', async () => {
 		const tasks = new Map<string, URI>();
 		const first = cloudSandboxTaskResource('first-task');
@@ -694,6 +828,7 @@ suite('RemoteAgentHostSessionsProvider', () => {
 			providerId: 'agenthost-cloud-tasks',
 			mapSessionResource: session => isEqual(session, backend) ? resource : undefined,
 		});
+
 		provider.seedSessions([createSession('execution', { session: backend, provider: 'copilot' })]);
 		const session = provider.getSessions()[0];
 		assert.deepStrictEqual({
@@ -704,6 +839,32 @@ suite('RemoteAgentHostSessionsProvider', () => {
 		}, {
 			resource: resource.toString(), provider: 'agenthost-cloud-tasks', backend: backend.toString(),
 			lookup: session.sessionId,
+		});
+	});
+
+	test('resolves an acquired task working directory through its environment resource alias', () => {
+		const resolvers = new Map<string, Parameters<IAgentHostSessionWorkingDirectoryResolver['registerResolver']>[1]>();
+		const resolver = upcastPartial<IAgentHostSessionWorkingDirectoryResolver>({
+			registerResolver: (type, resolve) => {
+				resolvers.set(type, resolve);
+				return toDisposable(() => resolvers.delete(type));
+			},
+		});
+		const resource = cloudSandboxTaskResource('task');
+		connection.setAgents([{ provider: 'copilot', displayName: 'Copilot', description: '', models: [] }]);
+		const metadata = createSession('session', { provider: 'copilot', session: AgentSession.uri('ahp-session', 'session'), workingDirectory: URI.file('/workspace/task') });
+		connection.addSession(metadata);
+		const provider = createProvider(disposables, connection, { ctor: CloudSandboxSessionsProvider, workingDirectoryResolver: resolver }, {
+			providerId: CLOUD_SANDBOX_TASK_PROVIDER_ID,
+			mapSessionResource: session => AgentSession.id(session) === 'session' ? resource : undefined,
+		});
+		provider.seedSessions([{ ...metadata, workingDirectories: [toAgentHostUri(URI.file('/workspace/task'), agentHostAuthority('localhost:4321'))] }]);
+		assert.deepStrictEqual({
+			directory: resolvers.get('remote-localhost__4321-copilot')?.(URI.parse('remote-localhost__4321-copilot:/session'))?.toString(),
+			expected: provider.getSessionByResource(resource)?.workspace.get()?.folders[0]?.workingDirectory.toString(),
+		}, {
+			directory: toAgentHostUri(URI.file('/workspace/task'), agentHostAuthority('localhost:4321')).toString(),
+			expected: toAgentHostUri(URI.file('/workspace/task'), agentHostAuthority('localhost:4321')).toString(),
 		});
 	});
 

@@ -159,6 +159,8 @@ export class CloudSandboxAgentHostContribution extends CloudSandboxSessionContri
 			prepareRequest: (resource, token) => this._prepareTaskRequest(resource, token),
 			handler: resource => this._taskHandler(resource),
 			runtimeResource: resource => this._taskRuntimeResource(resource),
+			completionTriggerCharacters: () => this._taskCompletionTriggerCharacters(),
+			onDidChangeCompletionTriggerCharacters: this._onDidChangeTaskCompletionTriggerCharacters.event,
 		}));
 	}
 

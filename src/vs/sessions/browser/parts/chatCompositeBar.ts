@@ -737,11 +737,11 @@ export class ChatCompositeBar extends Disposable {
 	 * state for the chat — the caller then offers no chat-reference payload.
 	 */
 	private _backendChatResource(chat: IChat): URI | undefined {
-		const providerId = this._delegate?.session.providerId;
-		if (!providerId) {
+		const session = this._delegate?.session;
+		if (!session) {
 			return undefined;
 		}
-		const provider = this._sessionsProvidersService.getProvider(providerId);
+		const provider = this._sessionsProvidersService.getProvider(session.providerId, session.sessionId);
 		return provider && isAgentHostProvider(provider) ? provider.getBackendChatResource(chat.resource) : undefined;
 	}
 

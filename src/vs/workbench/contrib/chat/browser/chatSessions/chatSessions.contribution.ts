@@ -383,7 +383,7 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 	private readonly _onDidChangeInProgress = this._register(new Emitter<void>());
 	public get onDidChangeInProgress() { return this._onDidChangeInProgress.event; }
 
-	private readonly _onDidChangeContentProviderSchemes = this._register(new Emitter<{ readonly added: string[]; readonly removed: string[] }>());
+	private readonly _onDidChangeContentProviderSchemes = this._register(new Emitter<{ readonly added: string[]; readonly removed: string[]; readonly changed?: readonly string[] }>());
 	public get onDidChangeContentProviderSchemes() { return this._onDidChangeContentProviderSchemes.event; }
 	private readonly _onDidChangeSessionOptions = this._register(new Emitter<IChatSessionOptionsChangeEvent>());
 	public get onDidChangeSessionOptions() { return this._onDidChangeSessionOptions.event; }
@@ -1250,10 +1250,16 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 		}
 
 		this._contentProviders.set(chatSessionType, provider);
+		const listeners = new DisposableStore();
+		if (provider.onDidChangeChatInputCompletionTriggerCharacters) {
+			listeners.add(provider.onDidChangeChatInputCompletionTriggerCharacters(() =>
+				this._onDidChangeContentProviderSchemes.fire({ added: [], removed: [], changed: [chatSessionType] })));
+		}
 		this._onDidChangeContentProviderSchemes.fire({ added: [chatSessionType], removed: [] });
 
 		return {
 			dispose: () => {
+				listeners.dispose();
 				this._contentProviders.delete(chatSessionType);
 
 				for (const [key, pending] of this._pendingSessionResolutions) {

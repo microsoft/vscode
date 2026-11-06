@@ -9986,18 +9986,19 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		return this._adoptSessionMeta(meta);
 	}
 
-	static readCachedSessionReadState(storageService: IStorageService, storageKey: string, resource: URI): boolean | undefined {
+	static readCachedSessionReadStates(storageService: IStorageService, storageKey: string): ResourceMap<boolean> {
+		const states = new ResourceMap<boolean>();
 		const entries = storageService.getObject<readonly ISerializedSessionMetadata[]>(storageKey, StorageScope.APPLICATION);
 		if (!Array.isArray(entries)) {
-			return undefined;
+			return states;
 		}
 		for (const entry of entries) {
 			const metadata = deserializeMetadata(entry);
-			if (metadata && isEqual(metadata.session, resource)) {
-				return metadata.status === undefined ? undefined : (metadata.status & ProtocolSessionStatus.IsRead) !== 0;
+			if (metadata?.status !== undefined) {
+				states.set(metadata.session, (metadata.status & ProtocolSessionStatus.IsRead) !== 0);
 			}
 		}
-		return undefined;
+		return states;
 	}
 
 	/** Load persisted session summaries into {@link _sessionCache}. */

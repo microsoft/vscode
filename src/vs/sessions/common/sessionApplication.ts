@@ -69,6 +69,7 @@ function getKnownSessionApplicationId(name: string): KnownSessionApplicationId |
 		case 'copilot-mobile-android':
 			return 'copilot-mobile';
 		case 'copilot-web':
+		case 'copilot-github':
 		case 'agents_panel':
 		case 'agents_page':
 		case 'activity_panel':

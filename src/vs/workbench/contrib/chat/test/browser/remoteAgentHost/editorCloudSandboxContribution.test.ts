@@ -792,6 +792,7 @@ suite('Editor cloud sandbox discovery', () => {
 				assert.ok(provider);
 				const registration = provider(sessionType, {
 					provideChatSessionContent: async publicResource => new ReadOnlyChatSession(publicResource, [], 'Live title', constObservable(false)),
+					provideChatInputCompletionTriggerCharacters: async () => ['@', '/'],
 				});
 				assert.ok(registration);
 				store.add(registration);
@@ -802,7 +803,11 @@ suite('Editor cloud sandbox discovery', () => {
 		h.state.result = { kind: 'complete', sessions: [summary] };
 		await h.refresh();
 		const listed = { resolved: [...resolved], policies: [...h.policies], connected: h.calls.connected.length };
-		const content = store.add(await h.contentProviders.get(CLOUD_SANDBOX_TASK_SCHEME)!.provideChatSessionContent(resource, CancellationToken.None));
+		const taskProvider = h.contentProviders.get(CLOUD_SANDBOX_TASK_SCHEME)!;
+		const completionChanges: number[] = [];
+		store.add(taskProvider.onDidChangeChatInputCompletionTriggerCharacters!(() => completionChanges.push(1)));
+		const initialTriggers = await taskProvider.provideChatInputCompletionTriggerCharacters!();
+		const content = store.add(await taskProvider.provideChatSessionContent(resource, CancellationToken.None));
 		const beforeSend = { resource: content.sessionResource.toString(), prompts: content.history.filter(item => item.type === 'request').map(item => item.prompt), connected: h.calls.connected.length };
 		store.add(h.instantiationService.get(IChatAgentService).registerDynamicAgent(upcastPartial<IChatAgentData>({ id: sessionType }), {
 			invoke: async request => {
@@ -821,11 +826,13 @@ suite('Editor cloud sandbox discovery', () => {
 			listed, beforeSend, resolved, invoked,
 			binding: h.calls.connected.map(options => [options.sessionId, options.environmentId]),
 			resources: h.items().map(item => item.resource.toString()),
+			initialTriggers, liveTriggers: await taskProvider.provideChatInputCompletionTriggerCharacters!(), completionChanges,
 		}, {
 			listed: { resolved: [], policies: [], connected: 0 },
 			beforeSend: { resource: resource.toString(), prompts: ['Original request'], connected: 0 },
 			resolved: [discovered.taskId], invoked: [resource.toString()],
 			binding: [[discovered.sessionId, discovered.environmentId]], resources: [resource.toString()],
+			initialTriggers: [], liveTriggers: ['@', '/'], completionChanges: [1],
 		});
 	});
 

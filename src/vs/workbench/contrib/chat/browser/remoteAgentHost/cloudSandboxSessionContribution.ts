@@ -6,7 +6,7 @@
 import { RunOnceScheduler, raceCancellation, raceCancellationError } from '../../../../../base/common/async.js';
 import { cancelOnDispose, CancellationToken, CancellationTokenSource } from '../../../../../base/common/cancellation.js';
 import { CancellationError, isCancellationError } from '../../../../../base/common/errors.js';
-import { Event } from '../../../../../base/common/event.js';
+import { Emitter, Event } from '../../../../../base/common/event.js';
 import { Disposable, DisposableMap, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { IObservable, observableValue } from '../../../../../base/common/observable.js';
 import { equalsIgnoreCase } from '../../../../../base/common/strings.js';
@@ -31,6 +31,7 @@ import {
 	ICloudSandboxDraftPreparationService,
 	isCloudSandboxEnabled,
 	isCloudSandboxPlaceholderTitle,
+	isStaleQueuedCloudSandboxTask,
 	type ICloudSandboxConnectOptions,
 	type ICloudSandboxCreatedSession,
 	type ICloudSandboxCreateSessionRequest,
@@ -109,6 +110,7 @@ function isDiscoveredSandboxSession(value: unknown): value is ICloudSandboxTask 
 		&& (candidate.repoName === undefined || typeof candidate.repoName === 'string')
 		&& (candidate.hasRepository === undefined || typeof candidate.hasRepository === 'boolean')
 		&& (candidate.updatedAt === undefined || typeof candidate.updatedAt === 'string')
+		&& (candidate.isQueued === undefined || typeof candidate.isQueued === 'boolean')
 		&& (candidate.isArchived === undefined || typeof candidate.isArchived === 'boolean');
 }
 
@@ -190,6 +192,8 @@ export abstract class CloudSandboxSessionContribution<T extends ICloudSandboxSes
 	protected readonly _provisioning = new Set<string>();
 	/** History-backed providers retained through their first live connection. */
 	private readonly _historyHandlers = this._register(new DisposableMap<string, { readonly handler: CloudSandboxSessionHandler; dispose(): void }>());
+	protected readonly _onDidChangeTaskCompletionTriggerCharacters = this._register(new Emitter<void>());
+
 	/**
 	 * Cancelled when the feature is disabled (or the contribution is disposed), so in-flight
 	 * discovery and connects abort instead of committing state after teardown has run.
@@ -218,6 +222,7 @@ export abstract class CloudSandboxSessionContribution<T extends ICloudSandboxSes
 	private _discoveryIncludesArchived = false;
 	private _sessionMutationVersion = 0;
 	private readonly _discoveryPoll = this._register(new RunOnceScheduler(() => {
+		this._pruneStaleQueuedTasks();
 		void this._refreshIfStale();
 		this._discoveryPoll.schedule(this._nextPollDelay());
 	}, DISCOVERY_POLL_INTERVAL_MS));
@@ -535,16 +540,27 @@ export abstract class CloudSandboxSessionContribution<T extends ICloudSandboxSes
 		const hadTasks = this._tasks.size > 0;
 		const previousTasks = new Set(this._tasks.keys());
 		const removedTaskIds = new Set(result.removedTaskIds);
-		for (const task of result.sessions) {
+		const visibleTasks = result.sessions.filter(task => {
+			if (isStaleQueuedCloudSandboxTask(task)) {
+				removedTaskIds.add(task.taskId);
+				return false;
+			}
+			return true;
+		});
+		for (const task of visibleTasks) {
 			previousTasks.delete(task.taskId);
 			if (!this._deletedTaskIds.has(task.taskId)) {
 				const known = this._tasks.get(task.taskId);
-				this._storeTask({
+				const updated = {
 					...known, ...task,
 					isArchived: task.isArchived === true,
 					environmentId: task.environmentId ?? known?.environmentId,
 					sessionId: task.sessionId ?? known?.sessionId,
-				});
+				};
+				if (!task.isQueued) {
+					delete updated.isQueued;
+				}
+				this._storeTask(updated);
 			}
 		}
 		if (result.kind === 'complete' || result.kind === 'scoped') {
@@ -564,7 +580,7 @@ export abstract class CloudSandboxSessionContribution<T extends ICloudSandboxSes
 				this._forgetTask(taskId);
 			}
 		}
-		this._onTasksChanged(result.sessions.flatMap(task => {
+		this._onTasksChanged(visibleTasks.flatMap(task => {
 			const current = this._tasks.get(task.taskId);
 			return current ? [current] : [];
 		}), [...removedTaskIds]);
@@ -575,7 +591,7 @@ export abstract class CloudSandboxSessionContribution<T extends ICloudSandboxSes
 		const present = new Set<string>();
 		const presentSessions = new Set<string>();
 		const updatedTasks = new Set<string>();
-		for (const task of result.sessions) {
+		for (const task of visibleTasks) {
 			const session = this._tasks.get(task.taskId) ?? task;
 			if (!session.environmentId || !session.sessionId || this._deletedTaskIds.has(session.taskId)) {
 				continue;
@@ -633,6 +649,13 @@ export abstract class CloudSandboxSessionContribution<T extends ICloudSandboxSes
 
 		this._persistInventory();
 		this._logService.info(`${LOG_PREFIX} Seeded ${present.size} discovered sandbox environment(s)${result.kind === 'partial' ? ' (partial scan; kept existing entries)' : ''}.`);
+	}
+
+	private _pruneStaleQueuedTasks(): void {
+		const removedTaskIds = [...this._tasks.values()].filter(task => isStaleQueuedCloudSandboxTask(task)).map(task => task.taskId);
+		if (removedTaskIds.length) {
+			this._batchProviderChanges(() => this._reconcileDiscoveredSessions({ kind: 'incremental', sessions: [], removedTaskIds }));
+		}
 	}
 
 	private _hasActiveConnection(address: string): boolean {
@@ -733,6 +756,11 @@ export abstract class CloudSandboxSessionContribution<T extends ICloudSandboxSes
 			throw new CancellationError();
 		}
 		return { sessionType, reference: await handler.acquireLiveChat(resource, token) };
+	}
+
+	protected async _taskCompletionTriggerCharacters(): Promise<readonly string[]> {
+		const characters = await Promise.all([...this._historyHandlers.values()].filter(({ handler }) => handler.hasLiveProvider).map(({ handler }) => handler.provideChatInputCompletionTriggerCharacters()));
+		return [...new Set(characters.flat())];
 	}
 
 	protected _taskHandler(resource: URI): CloudSandboxSessionHandler | undefined {
@@ -867,7 +895,7 @@ export abstract class CloudSandboxSessionContribution<T extends ICloudSandboxSes
 		}
 		if (cached !== undefined) {
 			if (isObject(cached) && cached.version === 1 && Array.isArray(cached.sessions) && cached.sessions.every(isDiscoveredSandboxSession)) {
-				return cached.sessions;
+				return cached.sessions.filter(session => !isStaleQueuedCloudSandboxTask(session));
 			}
 			this._logService.warn(`${LOG_PREFIX} Ignoring invalid cached sandbox inventory.`);
 		}
@@ -1308,6 +1336,7 @@ export abstract class CloudSandboxSessionContribution<T extends ICloudSandboxSes
 			connectionAuthority: agentHostAuthority(address),
 			connectionStatus: this._providerInstances.get(address)!.connectionStatus,
 		}));
+		store.add(handler.onDidChangeChatInputCompletionTriggerCharacters(() => this._onDidChangeTaskCompletionTriggerCharacters.fire()));
 		store.add(this._chatSessionsService.registerChatSessionContentProvider(sessionType, handler));
 		this._historyHandlers.set(sessionType, { handler, dispose: () => store.dispose() });
 		this._logService.info(`${LOG_PREFIX} Serving ${sessionType} from Mission Control history.`);
@@ -1329,10 +1358,15 @@ export abstract class CloudSandboxSessionContribution<T extends ICloudSandboxSes
 
 	private _clearSessionHandlers(address: string): void {
 		const authority = agentHostAuthority(address);
+		let removed = false;
 		for (const sessionType of [...this._historyHandlers.keys()]) {
 			if (findRemoteAgentHostSessionTypeAuthority(sessionType, [authority]) === authority) {
 				this._historyHandlers.deleteAndDispose(sessionType);
+				removed = true;
 			}
+		}
+		if (removed) {
+			this._onDidChangeTaskCompletionTriggerCharacters.fire();
 		}
 	}
 
@@ -1364,11 +1398,15 @@ export abstract class CloudSandboxSessionContribution<T extends ICloudSandboxSes
 		const source = new CancellationTokenSource(this._enabledCts.token);
 		const token = source.token;
 		const attempt = (async () => {
-			this._providerInstances.get(address)?.setConnectionStatus(RemoteAgentHostConnectionStatus.connecting);
+			if (!this._remoteAgentHostService.getConnection(address)) {
+				this._providerInstances.get(address)?.setConnectionStatus(RemoteAgentHostConnectionStatus.connecting);
+			}
 			const result = await raceCancellationError(this._cloudSandboxService.connect(options, token), token);
 			if (token.isCancellationRequested || !this._isEnabled()) {
 				throw new CancellationError();
 			}
+			this._wireConnections();
+			this._updateConnectionStatuses();
 			for (const [sessionType, entry] of this._historyHandlers) {
 				if (this._findAddressForSessionType(sessionType) === address) {
 					entry.handler.retryLiveSessions();

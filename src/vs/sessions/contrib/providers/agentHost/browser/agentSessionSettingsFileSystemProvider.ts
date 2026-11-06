@@ -10,7 +10,7 @@ import { localize } from '../../../../../nls.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import { ResolveSessionConfigResult } from '../../../../../platform/agentHost/common/state/protocol/commands.js';
 import { SessionConfigPropertySchema } from '../../../../../platform/agentHost/common/state/protocol/state.js';
-import { IAgentHostSessionsProvider } from '../../../../common/agentHostSessionsProvider.js';
+import { IAgentHostSessionsProvider, isAgentHostProvider } from '../../../../common/agentHostSessionsProvider.js';
 import { ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
 import { ISession, toSessionId } from '../../../../services/sessions/common/session.js';
 import {
@@ -134,6 +134,11 @@ export class AgentSessionSettingsFileSystemProvider extends AbstractSessionsAgen
 
 	protected _parseUri(resource: URI): ISessionSettingsContext | undefined {
 		return parseSessionSettingsUri(resource);
+	}
+
+	protected override _resolveTarget(ctx: ISessionSettingsContext): IAgentHostSessionsProvider | undefined {
+		const provider = this._sessionsProvidersService.getProvider(ctx.providerId, ctx.sessionId);
+		return provider && isAgentHostProvider(provider) ? provider : undefined;
 	}
 
 	protected _serialize(provider: IAgentHostSessionsProvider, ctx: ISessionSettingsContext): string {

@@ -11,7 +11,8 @@ import { agentHostAuthority } from '../../../../../platform/agentHost/common/age
 import { remoteAgentHostSessionTypeId } from '../../../../../platform/agentHost/common/agentHostSessionType.js';
 import { getAgentHostSessionResource } from '../../../../../platform/agentHost/common/agentHostSessionIdentity.js';
 import { DisposableMap, DisposableStore } from '../../../../../base/common/lifecycle.js';
-import { constObservable, derived, IObservable, IReader, observableValue, transaction } from '../../../../../base/common/observable.js';
+import { ResourceMap } from '../../../../../base/common/map.js';
+import { autorun, constObservable, derived, IObservable, IReader, observableValue, transaction } from '../../../../../base/common/observable.js';
 import { isWeb } from '../../../../../base/common/platform.js';
 import { isEqual } from '../../../../../base/common/resources.js';
 import { URI } from '../../../../../base/common/uri.js';
@@ -20,7 +21,8 @@ import { CLOUD_SANDBOX_AGENT_PROVIDER, CLOUD_SANDBOX_SESSION_SCHEME, CLOUD_SANDB
 import { StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
 import { SessionStatus as ProtocolSessionStatus } from '../../../../../platform/agentHost/common/state/sessionState.js';
 import { discoveredSessionProject } from '../../../../../workbench/contrib/chat/browser/remoteAgentHost/cloudSandboxSessionContribution.js';
-import { ChatInteractivity, IChat, ISession, ISessionCapabilities, ISessionWorkspace, SessionRemoteConnectionFailureReason, SessionStatus } from '../../../../services/sessions/common/session.js';
+import { getSessionApplication } from '../../../../common/sessionApplication.js';
+import { ChatInteractivity, DEFAULT_CHAT_CAPABILITIES, IChat, ISession, ISessionCapabilities, ISessionWorkspace, SessionRemoteConnectionFailureReason, SessionStatus } from '../../../../services/sessions/common/session.js';
 import { ISendRequestOptions } from '../../../../services/sessions/common/sessionsManagement.js';
 import { IChatMovedEvent, ISessionChangeEvent } from '../../../../services/sessions/common/sessionsProvider.js';
 import { BaseAgentHostSessionsProvider } from '../../agentHost/browser/baseAgentHostSessionsProvider.js';
@@ -40,12 +42,14 @@ interface ITaskActions {
 export function createCloudSandboxTaskSession(task: ICloudSandboxTask) {
 	const summary = observableValue('cloudTaskSummary', task);
 	const runtime = observableValue<ISession | undefined>('cloudTaskRuntime', undefined);
-	const read = observableValue('cloudTaskRead', true);
+	const read = observableValue('cloudTaskRead', false);
+	const pendingRead: { value: boolean | undefined } = { value: undefined };
 	const resource = cloudSandboxTaskResource(task.taskId);
 	const property = <T>(select: (session: ISession) => IObservable<T> | undefined, fallback: (reader: IReader) => T): IObservable<T> =>
 		derived(reader => {
 			const session = runtime.read(reader);
-			return (session ? select(session)?.read(reader) : undefined) ?? fallback(reader);
+			const value = session && select(session);
+			return value ? value.read(reader) : fallback(reader);
 		});
 	const title = property(session => session.title, reader => summary.read(reader).name);
 	const updatedAt = property(session => session.updatedAt, reader => new Date(summary.read(reader).updatedAt ?? 0));
@@ -63,12 +67,43 @@ export function createCloudSandboxTaskSession(task: ICloudSandboxTask) {
 	const mode = property(session => session.mode, () => undefined);
 	const description = property(session => session.description, () => undefined);
 	const lastTurnEnd = property(session => session.lastTurnEnd, () => undefined);
-	const fallbackChat: IChat = {
-		resource, createdAt: new Date(task.updatedAt ?? 0), title, updatedAt, status, workspace, isRead, isArchived, modelId, mode, description, lastTurnEnd,
-		changes: constObservable([]), changesets: constObservable(undefined), checkpoints: constObservable(undefined), modelSource: constObservable(undefined),
-		interactivity: constObservable(ChatInteractivity.DraftOnly),
+	const chatProperty = <T>(select: (chat: IChat) => IObservable<T> | undefined, fallback: (reader: IReader) => T): IObservable<T> =>
+		derived(reader => {
+			const chat = runtime.read(reader)?.mainChat.read(reader);
+			const value = chat && select(chat);
+			return value ? value.read(reader) : fallback(reader);
+		});
+	const mainChat: IChat = {
+		resource, createdAt: new Date(task.updatedAt ?? 0),
+		title: chatProperty(chat => chat.title, reader => title.read(reader)),
+		updatedAt: chatProperty(chat => chat.updatedAt, reader => updatedAt.read(reader)),
+		status: chatProperty(chat => chat.status, reader => status.read(reader)),
+		workspace: chatProperty(chat => chat.workspace, reader => workspace.read(reader)),
+		isRead: chatProperty(chat => chat.isRead, reader => read.read(reader)),
+		isArchived: chatProperty(chat => chat.isArchived, reader => isArchived.read(reader)),
+		modelId: chatProperty(chat => chat.modelId, () => undefined),
+		modelSource: chatProperty(chat => chat.modelSource, () => undefined),
+		mode: chatProperty(chat => chat.mode, () => undefined),
+		description: chatProperty(chat => chat.description, () => undefined),
+		lastTurnEnd: chatProperty(chat => chat.lastTurnEnd, () => undefined),
+		changes: chatProperty(chat => chat.changes, () => []),
+		changesets: chatProperty(chat => chat.changesets, () => undefined),
+		changesSummary: chatProperty(chat => chat.changesSummary, () => undefined),
+		lastTurnChanges: chatProperty(chat => chat.lastTurnChanges, () => []),
+		customizations: chatProperty(chat => chat.customizations, () => []),
+		canvases: chatProperty(chat => chat.canvases, () => undefined),
+		backgroundShells: chatProperty(chat => chat.backgroundShells, () => []),
+		checkpoints: chatProperty(chat => chat.checkpoints, () => undefined),
+		completedStateIcon: chatProperty(chat => chat.completedStateIcon, () => undefined),
+		capabilities: chatProperty(chat => chat.capabilities, () => DEFAULT_CHAT_CAPABILITIES),
+		interactivity: chatProperty(chat => chat.interactivity, () => ChatInteractivity.DraftOnly),
+		observeCanvases: () => autorun(reader => {
+			const disposable = runtime.read(reader)?.mainChat.read(reader).observeCanvases?.();
+			if (disposable) {
+				reader.store.add(disposable);
+			}
+		}),
 	};
-	const mainChat = property(session => session.mainChat, () => fallbackChat);
 	const session: ISession = {
 		sessionId: `${CLOUD_SANDBOX_TASK_PROVIDER_ID}:${resource.toString()}`,
 		get previousIdentities() {
@@ -82,21 +117,22 @@ export function createCloudSandboxTaskSession(task: ICloudSandboxTask) {
 		},
 		resource, providerId: CLOUD_SANDBOX_TASK_PROVIDER_ID, sessionType: CLOUD_SANDBOX_AGENT_PROVIDER, harness: 'copilot', environment: 'cloud',
 		icon: Codicon.cloud, createdAt: new Date(task.updatedAt ?? 0),
-		title, updatedAt, status, workspace, isRead, isArchived, modelId, mode, description, lastTurnEnd, mainChat,
+		title, updatedAt, status, workspace, isRead, isArchived, modelId, mode, description, lastTurnEnd,
+		mainChat: constObservable(mainChat),
 		application: property(session => session.application, reader => {
-			const id = summary.read(reader).application ?? 'unknown';
-			return { id, label: id };
+			const task = summary.read(reader);
+			return getSessionApplication(task.application ?? task.eventType ?? 'unknown');
 		}),
 		isQuickChat: property(session => session.isQuickChat, reader => summary.read(reader).hasRepository === false),
 		loading: property(session => session.loading, () => false),
-		chats: property(session => session.chats, () => [fallbackChat]),
+		chats: derived(reader => runtime.read(reader)?.chats.read(reader).map(chat => isEqual(chat.resource, resource) ? mainChat : chat) ?? [mainChat]),
 		capabilities: property<ISessionCapabilities>(session => session.capabilities, () => ({ supportsMultipleChats: false, supportsRename: true, supportsDelete: true })),
 		remoteConnectionStatus: property(session => session.remoteConnectionStatus, () => ({ kind: 'disconnected', reason: SessionRemoteConnectionFailureReason.Unknown })),
 		changesSummary: property(session => session.changesSummary, () => undefined),
 		artifacts: property(session => session.artifacts, () => []),
 		completedStateIcon: property(session => session.completedStateIcon, () => undefined),
 	};
-	return { summary, runtime, read, session };
+	return { summary, runtime, read, pendingRead, session };
 }
 
 /** Publishes cloud work independently of the environment providers acquired on open. */
@@ -160,6 +196,7 @@ export class CloudSandboxTaskSessionsProvider extends BaseAgentHostSessionsProvi
 	setTasks(tasks: readonly ICloudSandboxTask[], announce = true): void {
 		const added: ISession[] = [];
 		const changed: ISession[] = [];
+		const legacyReadStates = new Map<string, ResourceMap<boolean>>();
 		transaction(tx => {
 			for (const task of tasks) {
 				if (this._providers.get(task.taskId)?.isSessionWithheld(cloudSandboxTaskResource(task.taskId))) {
@@ -172,10 +209,19 @@ export class CloudSandboxTaskSessionsProvider extends BaseAgentHostSessionsProvi
 					changed.push(entry.session);
 				} else {
 					const entry = createCloudSandboxTaskSession(task);
-					const cachedRead = task.environmentId && task.sessionId
-						? RemoteAgentHostSessionsProvider.getCachedSessionReadState(this._storageService, cloudSandboxAddress(task.environmentId), AgentSession.uri(CLOUD_SANDBOX_SESSION_SCHEME, task.sessionId))
-						: undefined;
-					entry.read.set(this._storageService.getBoolean(this._readStateKey(task.taskId), StorageScope.PROFILE, cachedRead ?? true), tx);
+					const savedRead = this._storageService.getBoolean(this._readStateKey(task.taskId), StorageScope.PROFILE);
+					let isRead = savedRead;
+					if (isRead === undefined && task.environmentId && task.sessionId) {
+						const address = cloudSandboxAddress(task.environmentId);
+						let cachedRead = legacyReadStates.get(address);
+						if (!cachedRead) {
+							cachedRead = RemoteAgentHostSessionsProvider.getCachedSessionReadStates(this._storageService, address);
+							legacyReadStates.set(address, cachedRead);
+						}
+						isRead = cachedRead.get(AgentSession.uri(CLOUD_SANDBOX_SESSION_SCHEME, task.sessionId));
+					}
+					entry.read.set(isRead ?? false, tx);
+					entry.pendingRead.value = savedRead;
 					this._tasks.set(task.taskId, entry);
 					added.push(entry.session);
 				}
@@ -300,6 +346,11 @@ export class CloudSandboxTaskSessionsProvider extends BaseAgentHostSessionsProvi
 				const entry = this._tasks.get(taskId);
 				if (entry) {
 					this._providers.set(taskId, provider);
+					if (entry.pendingRead.value !== undefined) {
+						provider.restoreSessionReadState(session.sessionId, entry.pendingRead.value);
+						entry.pendingRead.value = undefined;
+					}
+					entry.read.set(session.isRead.get(), tx);
 					entry.runtime.set(session, tx);
 					this._storageService.store(this._readStateKey(taskId), session.isRead.get(), StorageScope.PROFILE, StorageTarget.MACHINE);
 					if (!added.includes(entry.session)) {
@@ -383,11 +434,36 @@ export class CloudSandboxTaskSessionsProvider extends BaseAgentHostSessionsProvi
 		if (!entry) {
 			throw new Error('Cloud task not found.');
 		}
-		if (this.getSessionProvider(sessionId)) {
-			await this.getSessionProvider(sessionId)!.setSessionReadState(sessionId, isRead);
+		entry.pendingRead.value = isRead;
+		const provider = this.getSessionProvider(sessionId);
+		if (provider) {
+			await provider.setSessionReadState(sessionId, isRead);
+			if (entry.runtime.get()?.isRead.get() === isRead) {
+				entry.pendingRead.value = undefined;
+			}
 		}
 		entry.read.set(isRead, undefined);
 		this._storageService.store(this._readStateKey(this._taskId(sessionId)), isRead, StorageScope.PROFILE, StorageTarget.MACHINE);
 		this._onDidChangeSessions.fire({ added: [], removed: [], changed: [entry.session] });
+	}
+
+	override async setChatReadState(sessionId: string, resource: URI, isRead: boolean): Promise<boolean> {
+		const entry = this._tasks.get(this._taskId(sessionId));
+		if (entry && isEqual(resource, entry.session.resource) && !entry.runtime.get()) {
+			await this.setSessionReadState(sessionId, isRead);
+			return true;
+		}
+		return await this.getSessionProvider(sessionId)?.setChatReadState(sessionId, resource, isRead) ?? false;
+	}
+
+	override async setChatReadStates(sessionId: string, resources: readonly URI[], isRead: boolean): Promise<void> {
+		this._onDidChangeSessions.pause();
+		try {
+			for (const resource of resources) {
+				await this.setChatReadState(sessionId, resource, isRead);
+			}
+		} finally {
+			this._onDidChangeSessions.resume();
+		}
 	}
 }

@@ -2508,6 +2508,43 @@ suite('Mission Control environment discovery', () => {
 suite('CloudSandboxApiService archived discovery', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
+	test('resolving an uncached task during archive discovery preserves its complete summary', async () => {
+		const started = new DeferredPromise<void>();
+		const response = new DeferredPromise<IRequestContext>();
+		const archived = {
+			...task('archived', 'Archived task', 42, 'session', 'environment'),
+			archived_at: '2026-09-22T09:00:00Z',
+			updated_at: '2026-09-22T10:00:00Z',
+			state: 'idle',
+		};
+		const { service } = createService(store, {
+			tasks: [archived], repositories: new Map([[42, { full_name: 'owner/repo' }]]),
+			onRequest: url => {
+				if (url.pathname === '/agents/tasks' && url.searchParams.get('is_archived') === 'true' && url.searchParams.get('with_repo') === 'true') {
+					void started.complete();
+					return response.p;
+				}
+				return undefined;
+			},
+		});
+		const discovery = service.listSessions(CancellationToken.None, { includeArchived: true });
+		await started.p;
+		const resolved = await service.resolveSession('archived', CancellationToken.None);
+		void response.complete(jsonResponse({ tasks: [archived] }));
+		const result = await discovery;
+		assert.ok(result.kind !== 'failed');
+		const scanned = result.sessions.find(session => session.taskId === 'archived');
+		const metadata = (session: typeof resolved | typeof scanned) => session && ({
+			isArchived: session.isArchived, updatedAt: session.updatedAt, status: session.status, repoName: session.repoName,
+			environmentId: session.environmentId, sessionId: session.sessionId,
+		});
+		const expected = {
+			isArchived: true, updatedAt: archived.updated_at, status: SessionStatus.Idle, repoName: 'owner/repo',
+			environmentId: 'environment', sessionId: 'session',
+		};
+		assert.deepStrictEqual([metadata(resolved), metadata(scanned)], [expected, expected]);
+	});
+
 	test('bounds active-only discovery and the first archive expansion to three pages per requested partition', async () => {
 		const date = 'Tue, 22 Sep 2026 10:00:00 GMT';
 		const tasks: ITestTask[] = [
@@ -3635,6 +3672,19 @@ suite('CloudSandboxApiService discovery without recorded history', () => {
 
 suite('CloudSandboxApiService task catalog resolution', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('reports queued state from listing metadata without execution reads', async () => {
+		const queued = { ...task('queued', 'New remote session', undefined, 'session', 'environment'), state: 'queued' };
+		const tasks = [queued];
+		const { service, requestedUrls } = createService(store, { tasks, repositories: new Map() });
+		const first = await service.listSessions(CancellationToken.None);
+		tasks[0] = { ...queued, state: 'in_progress' };
+		const second = await service.listSessions(CancellationToken.None);
+		assert.deepStrictEqual({
+			queued: [first, second].map(result => result.kind === 'failed' ? result.reason : result.sessions[0].isQueued),
+			details: requestedUrls.filter(url => new URL(url).pathname.startsWith('/agents/tasks/')),
+		}, { queued: [true, undefined], details: [] });
+	});
 
 	test('reuses execution details already read for a targeted feed update', async () => {
 		const { service, requestedUrls } = createService(store, {

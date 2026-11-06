@@ -322,6 +322,8 @@ export class EditorCloudSandboxSessionContribution extends CloudSandboxSessionCo
 				prepareRequest: (resource, token) => this._prepareTaskRequest(resource, token),
 				handler: resource => this._taskHandler(resource),
 				runtimeResource: resource => this._taskRuntimeResource(resource),
+				completionTriggerCharacters: () => this._taskCompletionTriggerCharacters(),
+				onDidChangeCompletionTriggerCharacters: this._onDidChangeTaskCompletionTriggerCharacters.event,
 			}));
 			const taskList = this._taskList = store.add(this._instantiationService.createInstance(CloudSandboxTaskListController, this._workspaceRepositories, {
 				refresh: (token, reason) => this.refresh(token, reason),

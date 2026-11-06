@@ -8,7 +8,7 @@ import { CancellationToken, CancellationTokenSource, cancelOnDispose } from '../
 import { toErrorMessage } from '../../../../../base/common/errorMessage.js';
 import { CancellationError, isCancellationError } from '../../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
-import { Disposable, DisposableResourceMap, DisposableStore, IDisposable, MutableDisposable } from '../../../../../base/common/lifecycle.js';
+import { Disposable, DisposableResourceMap, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { equals } from '../../../../../base/common/objects.js';
 import { autorun, constObservable, IObservable, observableValue, transaction, waitForState } from '../../../../../base/common/observable.js';
 import { isEqual } from '../../../../../base/common/resources.js';
@@ -247,6 +247,9 @@ export class CloudSandboxSessionHandler extends Disposable implements IChatSessi
 	private readonly _readOnlyHandler: CloudSandboxReadOnlySessionHandler;
 	private _liveReady = new DeferredPromise<IChatSessionContentProvider | undefined>();
 	private _liveProvider: IChatSessionContentProvider | undefined;
+	private readonly _onDidChangeChatInputCompletionTriggerCharacters = this._register(new Emitter<void>());
+	readonly onDidChangeChatInputCompletionTriggerCharacters = this._onDidChangeChatInputCompletionTriggerCharacters.event;
+	private readonly _liveCompletionListener = this._register(new MutableDisposable<IDisposable>());
 
 	constructor(
 		private readonly _config: ICloudSandboxSessionConfig,
@@ -259,8 +262,12 @@ export class CloudSandboxSessionHandler extends Disposable implements IChatSessi
 		this._readOnlyHandler = this._register(instantiationService.createInstance(CloudSandboxReadOnlySessionHandler, _config));
 	}
 
+	get hasLiveProvider(): boolean { return this._liveProvider !== undefined; }
+
 	setLiveProvider(provider: IChatSessionContentProvider): void {
 		this._liveProvider = provider;
+		this._liveCompletionListener.value = provider.onDidChangeChatInputCompletionTriggerCharacters?.(() => this._onDidChangeChatInputCompletionTriggerCharacters.fire());
+		this._onDidChangeChatInputCompletionTriggerCharacters.fire();
 		if (!this._liveReady.isSettled) {
 			void this._liveReady.complete(provider);
 		}
@@ -278,6 +285,8 @@ export class CloudSandboxSessionHandler extends Disposable implements IChatSessi
 
 	clearLiveProvider(): void {
 		this._liveProvider = undefined;
+		this._liveCompletionListener.clear();
+		this._onDidChangeChatInputCompletionTriggerCharacters.fire();
 		if (this._liveReady.isSettled) {
 			this._liveReady = new DeferredPromise();
 		}
@@ -541,7 +550,8 @@ export class CloudSandboxSessionHandler extends Disposable implements IChatSessi
 		entry.trace.record('liveStarted');
 		const store = new DisposableStore();
 		entry.liveStore.value = store;
-		const source = store.add(new CancellationTokenSource(entry.token));
+		const source = new CancellationTokenSource(entry.token);
+		store.add(toDisposable(() => source.dispose(true)));
 		const token = source.token;
 		const pendingSession = store.add(new MutableDisposable<IChatSession>());
 		let timedOut = false;
@@ -612,7 +622,7 @@ export class CloudSandboxSessionHandler extends Disposable implements IChatSessi
 		async (resource, params, token) => this._liveProvider?.provideChatInputCompletions?.(resource, params, token);
 
 	async provideChatInputCompletionTriggerCharacters(): Promise<readonly string[]> {
-		const provider = await this._liveReady.p;
+		const provider = this._liveProvider ?? await this._liveReady.p;
 		const characters = await provider?.provideChatInputCompletionTriggerCharacters?.() ?? [];
 		return this._store.isDisposed ? [] : characters;
 	}

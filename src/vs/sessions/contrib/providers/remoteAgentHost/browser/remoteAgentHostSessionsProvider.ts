@@ -42,6 +42,7 @@ import { BrowserRemoteProxyEnabledSettingId } from '../../../../../workbench/con
 import { IAgentHostActiveClientService } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostActiveClientService.js';
 import { IAgentHostMcpAppToolsService } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostMcpAppToolsService.js';
 import { IAgentHostSessionWorkingDirectoryResolver } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostSessionWorkingDirectoryResolver.js';
+import { getAgentHostSessionResource } from '../../../../../platform/agentHost/common/agentHostSessionIdentity.js';
 import { IRemoteAgentHostAuthenticationService } from '../../../../../workbench/contrib/chat/browser/remoteAgentHost/remoteAgentHostAuthentication.js';
 import { createCloudSandboxSessionPreparation } from '../../../../../workbench/contrib/chat/browser/remoteAgentHost/cloudSandboxLegacySessionPreparation.js';
 import { IChatWidgetService } from '../../../../../workbench/contrib/chat/browser/chat.js';
@@ -184,8 +185,8 @@ export interface IRemoteAgentHostSessionsProviderConfig {
  */
 export class RemoteAgentHostSessionsProvider extends DevContainerAgentHostSessionsProvider {
 
-	static getCachedSessionReadState(storageService: IStorageService, address: string, session: URI): boolean | undefined {
-		return super.readCachedSessionReadState(storageService, `${CACHED_SESSIONS_STORAGE_PREFIX}${agentHostAuthority(address)}`, session);
+	static getCachedSessionReadStates(storageService: IStorageService, address: string) {
+		return super.readCachedSessionReadStates(storageService, `${CACHED_SESSIONS_STORAGE_PREFIX}${agentHostAuthority(address)}`);
 	}
 
 	readonly id: string;
@@ -340,8 +341,8 @@ export class RemoteAgentHostSessionsProvider extends DevContainerAgentHostSessio
 			resolverRegistrations.clear();
 			for (const sessionType of this.sessionTypes) {
 				resolverRegistrations.add(workingDirectoryResolver.registerResolver(this.resourceSchemeForProvider(sessionType.id),
-					resource => this.getSessionByResource(resource)?.workspace.get()?.folders[0]?.workingDirectory,
-					resource => this.getSessionByResource(resource)?.status.get() === SessionStatus.Untitled));
+					resource => this.getSessionByResource(this._mapSessionResource?.(getAgentHostSessionResource(resource)) ?? resource)?.workspace.get()?.folders[0]?.workingDirectory,
+					resource => this.getSessionByResource(this._mapSessionResource?.(getAgentHostSessionResource(resource)) ?? resource)?.status.get() === SessionStatus.Untitled));
 			}
 		};
 		this._register(this.onDidChangeSessionTypes(registerResolvers));

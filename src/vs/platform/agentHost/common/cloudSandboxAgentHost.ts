@@ -207,6 +207,8 @@ export interface ICloudSandboxTask {
 	readonly hasRepository?: boolean;
 	/** Last-updated timestamp (ISO 8601), when known, for ordering. */
 	readonly updatedAt?: string;
+	/** Whether the task list reports a queued task, rather than an in-progress execution. */
+	readonly isQueued?: boolean;
 	/** Last reported activity; this does not establish environment availability or session flags. */
 	readonly status?: SessionStatus;
 	/** Mission Control's archive state, independent of the sandbox's AHP session flags. */
@@ -221,6 +223,12 @@ export interface ICloudSandboxDiscoveredSession extends ICloudSandboxTask {
 
 export function cloudSandboxTaskResource(taskId: string): URI {
 	return URI.from({ scheme: CLOUD_SANDBOX_TASK_SCHEME, path: `/${taskId}` });
+}
+
+/** Whether a default-titled task has remained queued and unmodified for at least 24 hours. */
+export function isStaleQueuedCloudSandboxTask(task: ICloudSandboxTask, now = Date.now()): boolean {
+	return task.isQueued === true && task.name === 'New remote session'
+		&& task.updatedAt !== undefined && now - Date.parse(task.updatedAt) >= 24 * 60 * 60_000;
 }
 
 /** Build the synthesized remote-agent-host address for a sandbox environment. */

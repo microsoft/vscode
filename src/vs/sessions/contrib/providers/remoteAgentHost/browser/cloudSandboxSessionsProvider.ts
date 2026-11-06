@@ -7,7 +7,7 @@ import { disposableTimeout, Sequencer } from '../../../../../base/common/async.j
 import { CancellationError } from '../../../../../base/common/errors.js';
 import { Emitter } from '../../../../../base/common/event.js';
 import { DisposableStore, MutableDisposable } from '../../../../../base/common/lifecycle.js';
-import { constObservable, derived, IObservable } from '../../../../../base/common/observable.js';
+import { constObservable, derived, IObservable, transaction } from '../../../../../base/common/observable.js';
 import { isEqual } from '../../../../../base/common/resources.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { localize } from '../../../../../nls.js';
@@ -317,6 +317,19 @@ export class CloudSandboxSessionsProvider extends RemoteAgentHostSessionsProvide
 		// A connected environment may no longer host this recorded conversation.
 		this._onDidChangeSessions.fire({ added: [], removed: [], changed: [session] });
 		return true;
+	}
+
+	/** Reconciles catalog read state without subscribing to host session state. */
+	restoreSessionReadState(sessionId: string, isRead: boolean): void {
+		const key = this._sessionKeyFromChatId(sessionId);
+		const session = key ? this._sessionCache.get(key) : undefined;
+		if (!session) {
+			throw new Error(localize('cloudSandbox.sessionNotFound', "Sandbox session not found."));
+		}
+		transaction(tx => {
+			session.setChatRead(session.mainChat.get().resource, isRead, tx);
+			session.isRead.set(isRead && !session.hasUnreadChat(), tx);
+		});
 	}
 
 	setSessionArchived(rawId: string, archived: boolean): void {

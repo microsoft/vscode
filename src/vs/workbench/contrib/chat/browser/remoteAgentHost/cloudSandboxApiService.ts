@@ -783,24 +783,10 @@ export class CloudSandboxApiService extends Disposable implements ICloudSandboxA
 					const previous = cache.get(task.id);
 					const full = details.get(task.id);
 					const binding = full ? getTaskEnvironmentBinding(full) : previous?.session;
-					const application = task.clients?.find(client => client.creator === true)?.slug;
-					const repositoryId = [task.repository?.id, previous?.repositoryId].find(id => id !== undefined && id > 0);
-					const status = taskSessionStatus(task.state, this._logService);
-					const eventType = task.event_type || previous?.session?.eventType;
-					const creatingApplication = application ?? previous?.session?.application;
-					const repoName = previous?.repositoryId === repositoryId ? previous?.session?.repoName : undefined;
-					const repositoryName = repoName ?? (repositoryId !== undefined ? await this._resolveRepositoryName(repositoryId, token) : undefined);
+					const { repositoryId, session: summary } = await this._taskSummary(task, previous, token);
 					const session: ICloudSandboxTask = {
-						taskId: task.id,
+						...summary,
 						...(binding?.environmentId && binding.sessionId ? { environmentId: binding.environmentId, sessionId: binding.sessionId } : {}),
-						name: task.name ?? previous?.session?.name ?? `Sandbox ${task.id}`,
-						...(eventType ? { eventType } : {}),
-						...(creatingApplication ? { application: creatingApplication } : {}),
-						hasRepository: task.hasRepository || repositoryId !== undefined,
-						...(repositoryName !== undefined ? { repoName: repositoryName } : {}),
-						updatedAt: task.updated_at,
-						...(status !== undefined ? { status } : {}),
-						...(task.archived_at ? { isArchived: true } : {}),
 					};
 					const cached: ICachedSandboxTask = { summary: task, repositoryId, session };
 					cache.set(task.id, cached);
@@ -924,6 +910,31 @@ export class CloudSandboxApiService extends Disposable implements ICloudSandboxA
 				: { kind: 'scoped', sessions, removedTaskIds: [...removed] };
 	}
 
+	private async _taskSummary(task: IScannedTask, previous: ICachedSandboxTask | undefined, token: CancellationToken): Promise<{ repositoryId: number | undefined; session: ICloudSandboxTask }> {
+		const application = task.clients?.find(client => client.creator === true)?.slug;
+		const repositoryId = [task.repository?.id, previous?.repositoryId].find(id => id !== undefined && id > 0);
+		const status = taskSessionStatus(task.state, this._logService);
+		const eventType = task.event_type || previous?.session?.eventType;
+		const creatingApplication = application ?? previous?.session?.application;
+		const repoName = previous?.repositoryId === repositoryId ? previous?.session?.repoName : undefined;
+		const repositoryName = repoName ?? (repositoryId !== undefined ? await this._resolveRepositoryName(repositoryId, token) : undefined);
+		return {
+			repositoryId,
+			session: {
+				taskId: task.id,
+				name: task.name ?? previous?.session?.name ?? `Sandbox ${task.id}`,
+				...(eventType ? { eventType } : {}),
+				...(creatingApplication ? { application: creatingApplication } : {}),
+				hasRepository: task.hasRepository || repositoryId !== undefined,
+				...(repositoryName !== undefined ? { repoName: repositoryName } : {}),
+				updatedAt: task.updated_at,
+				...(task.state === 'queued' ? { isQueued: true } : {}),
+				...(status !== undefined ? { status } : {}),
+				...(task.archived_at ? { isArchived: true } : {}),
+			},
+		};
+	}
+
 	async resolveSession(taskId: string, token: CancellationToken): Promise<ICloudSandboxDiscoveredSession> {
 		if (token.isCancellationRequested) {
 			throw new CancellationError();
@@ -949,16 +960,24 @@ export class CloudSandboxApiService extends Disposable implements ICloudSandboxA
 				if (!binding) {
 					throw new Error(localize('cloudSandbox.taskNotReady', "The cloud task does not have a session and environment yet."));
 				}
+				const previous = this._discoveredTasks.get(taskId);
+				const summary = previous?.summary ?? { ...full, hasRepository: (full.repository?.id ?? 0) > 0 };
+				const fallback = previous?.session ? undefined : await this._taskSummary(summary, previous, source.token);
+				if (source.token.isCancellationRequested || generation !== this._accountGeneration || this._store.isDisposed) {
+					throw new CancellationError();
+				}
 				const current = this._discoveredTasks.get(taskId);
 				const session: ICloudSandboxDiscoveredSession = {
+					...fallback?.session,
 					...current?.session,
 					taskId,
-					name: current?.session?.name ?? full.name ?? `Sandbox ${taskId}`,
+					name: current?.session?.name ?? fallback?.session.name ?? full.name ?? `Sandbox ${taskId}`,
 					...binding,
 				};
 				const entry: ICachedSandboxTask = {
 					...current,
-					summary: current?.summary ?? { ...full, hasRepository: (full.repository?.id ?? 0) > 0 },
+					summary: current?.summary ?? summary,
+					repositoryId: current?.repositoryId ?? fallback?.repositoryId,
 					session,
 				};
 				this._discoveredTasks.set(taskId, entry);

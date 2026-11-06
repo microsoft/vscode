@@ -8,7 +8,7 @@ import { IStringDictionary } from '../../../../base/common/collections.js';
 import { Event } from '../../../../base/common/event.js';
 import { IMarkdownString } from '../../../../base/common/htmlContent.js';
 import { IDisposable } from '../../../../base/common/lifecycle.js';
-import { IObservable } from '../../../../base/common/observable.js';
+import { IObservable, IReader } from '../../../../base/common/observable.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { URI } from '../../../../base/common/uri.js';
 import { IPosition } from '../../../../editor/common/core/position.js';
@@ -211,6 +211,8 @@ export interface IChatSessionsExtensionPoint {
 	 */
 	readonly customAgentTarget?: Target;
 	readonly requiresCustomModels?: boolean;
+	/** Resolves the model pool for a catalog conversation without acquiring its runtime. Undefined keeps the pool unavailable. */
+	readonly modelSessionType?: (resource: URI, reader?: IReader) => string | undefined;
 	/**
 	 * Whether this session type supports the synthetic "Auto" model fallback.
 	 * Defaults to true. When false and no models are available, the picker
@@ -695,6 +697,8 @@ export interface IChatSessionContentProvider {
 	 * sessions handled by this content provider.
 	 */
 	provideChatInputCompletionTriggerCharacters?(): Promise<readonly string[]>;
+	/** Fires when the provider's announced completion trigger characters change. */
+	readonly onDidChangeChatInputCompletionTriggerCharacters?: Event<void>;
 }
 
 /**
@@ -1107,7 +1111,8 @@ export interface IChatSessionsService {
 	// #endregion
 
 	// #region Content provider support
-	readonly onDidChangeContentProviderSchemes: Event<{ readonly added: string[]; readonly removed: string[] }>;
+	/** Content-provider registrations and completion capability changes, identified by scheme. */
+	readonly onDidChangeContentProviderSchemes: Event<{ readonly added: string[]; readonly removed: string[]; readonly changed?: readonly string[] }>;
 
 	getContentProviderSchemes(): string[];
 

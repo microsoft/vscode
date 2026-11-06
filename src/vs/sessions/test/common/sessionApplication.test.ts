@@ -17,7 +17,7 @@ suite('SessionApplication', () => {
 			'github/autopilot: Copilot App': ['github/autopilot', 'copilot-app'],
 			'copilot-mobile: GitHub Mobile': ['copilot-mobile-ios', 'copilot-mobile-android', 'ios_mobile_mission_control', 'android_mobile_mission_control', 'ios_mobile_repo_profile', 'android_mobile_repo_profile'],
 			'copilot-web: GitHub': [
-				'copilot-web', 'agents_panel', 'agents_page', 'activity_panel', 'repo_agents', 'repo_agents_sidebar', 'new_agent_task_button', 'new_agent_task_button_code_view', 'new_repository_prompt', 'chat', 'legacy_chat', 'copilot-chat-spec-task',
+				'copilot-web', 'copilot-github', 'agents_panel', 'agents_page', 'activity_panel', 'repo_agents', 'repo_agents_sidebar', 'new_agent_task_button', 'new_agent_task_button_code_view', 'new_repository_prompt', 'chat', 'legacy_chat', 'copilot-chat-spec-task',
 				'issues_agent_assignment', 'issue_assignment', 'issue_assigned', 'issue_created', 'issue_comment_created', 'sub_issue_added',
 				'pull_request_comment', 'pull_request_comment_non_copilot_pull_request', 'pull_request_review', 'pull_request_review_requested', 'agent_merge', 'merge_conflict', 'code_review_fix_with_copilot',
 				'fix_failed_workflow', 'workflow_run_failed', 'ci_check_run_failure_analysis',

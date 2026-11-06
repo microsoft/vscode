@@ -6,7 +6,7 @@
 import { Codicon } from '../../base/common/codicons.js';
 import { structuralEquals } from '../../base/common/equals.js';
 import { Event } from '../../base/common/event.js';
-import { constObservable, derivedOpts, IObservable, observableFromEvent } from '../../base/common/observable.js';
+import { constObservable, derived, derivedOpts, IObservable, observableFromEvent, observableSignalFromEvent } from '../../base/common/observable.js';
 import { themeColorFromId, ThemeIcon } from '../../base/common/themables.js';
 import { AgentMergeConfiguration, AgentMergeSettingId, defaultAgentMergeConfiguration, isAgentMergeMergePullRequest, resolveAgentMergeConfiguration } from '../../platform/agentHost/common/agentMerge.js';
 import { ArtifactIntegrationsSettingId } from '../../platform/artifactIntegrations/common/artifactIntegration.js';
@@ -16,7 +16,6 @@ import { IAgentMergeClientState, isAgentHostProvider } from '../common/agentHost
 import { ISessionsProvidersService } from '../services/sessions/browser/sessionsProvidersService.js';
 import { IChat, ISession } from '../services/sessions/common/session.js';
 
-const noAgentMergeConfiguration = constObservable<ISessionAgentMergeConfiguration | undefined>(undefined);
 /** Cached per session, then per chat (`''` for the session folder). */
 const agentMergeSessionStateBySession = new WeakMap<ISession, Map<string, IObservable<IAgentMergeClientState | undefined>>>();
 const agentMergeConfigurationBySession = new WeakMap<ISession, Map<string, IObservable<ISessionAgentMergeConfiguration | undefined>>>();
@@ -40,6 +39,26 @@ function chatCacheKey(session: ISession, chat: IChat | undefined): string {
 }
 const openPullRequestIcon = { ...Codicon.gitPullRequest, color: themeColorFromId('charts.green') };
 
+function observeSessionProvider(session: ISession, providers: ISessionsProvidersService) {
+	const providersChanged = observableSignalFromEvent(session, providers.onDidChangeProviders);
+	return derived(reader => {
+		providersChanged.read(reader);
+		const provider = providers.getProvider(session.providerId);
+		if (!provider) {
+			return constObservable(undefined);
+		}
+		const sessionsChanged = Event.filter(provider.onDidChangeSessions, event =>
+			event.added.some(value => value.sessionId === session.sessionId)
+			|| event.changed.some(value => value.sessionId === session.sessionId)
+			|| event.removed.some(value => value.sessionId === session.sessionId));
+		const changed = Event.any(
+			Event.signal(sessionsChanged),
+			isAgentHostProvider(provider) ? Event.signal(Event.filter(provider.onDidChangeSessionConfig, id => id === session.sessionId)) : Event.None,
+		);
+		return observableFromEvent(session, changed, () => providers.getProvider(session.providerId, session.sessionId));
+	}).flatten();
+}
+
 /** Effective Agent Merge state used by client presentation. */
 export interface ISessionAgentMergeConfiguration {
 	readonly enabled: boolean;
@@ -57,11 +76,13 @@ export function getSessionAgentMergeStateObservable(session: ISession, sessionsP
 	if (cached) {
 		return cached;
 	}
-	const provider = sessionsProvidersService.getProvider(session.providerId, session.sessionId);
-	if (!provider || !isAgentHostProvider(provider)) {
-		return constObservable(undefined);
-	}
-	const observable = provider.getAgentMergeClientStateObservable(session.sessionId, chatCacheKey(session, chat) ? chat?.resource : undefined);
+	const provider = observeSessionProvider(session, sessionsProvidersService);
+	const observable = derived(reader => {
+		const current = provider.read(reader);
+		return current && isAgentHostProvider(current)
+			? current.getAgentMergeClientStateObservable(session.sessionId, chatCacheKey(session, chat) ? chat?.resource : undefined).read(reader)
+			: undefined;
+	});
 	setCached(agentMergeSessionStateBySession, session, chat, observable);
 	return observable;
 }
@@ -72,19 +93,20 @@ export function getSessionAgentMergeConfigurationObservable(session: ISession, s
 	if (cached) {
 		return cached;
 	}
-	const provider = sessionsProvidersService.getProvider(session.providerId, session.sessionId);
-	if (!provider || !isAgentHostProvider(provider)) {
-		return noAgentMergeConfiguration;
-	}
+	const provider = observeSessionProvider(session, sessionsProvidersService);
 	const state = getSessionAgentMergeStateObservable(session, sessionsProvidersService, chat);
 	const artifactIntegrationsEnabled = observableConfigValue(ArtifactIntegrationsSettingId, false, configurationService);
 	const globalConfiguration = observableFromEvent(
 		Event.filter(configurationService.onDidChangeConfiguration, event => Object.values(AgentMergeSettingId).some(settingId => event.affectsConfiguration(settingId))),
 		() => getGlobalAgentMergeConfiguration(configurationService));
-	const observable = derivedOpts<ISessionAgentMergeConfiguration>({
+	const observable = derivedOpts<ISessionAgentMergeConfiguration | undefined>({
 		owner: session,
 		equalsFn: structuralEquals,
 	}, reader => {
+		const current = provider.read(reader);
+		if (!current || !isAgentHostProvider(current)) {
+			return undefined;
+		}
 		const sessionState = state.read(reader);
 		return {
 			enabled: sessionState?.enabled === true && !artifactIntegrationsEnabled.read(reader),
