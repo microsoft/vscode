@@ -515,8 +515,8 @@ export type IAgentCustomizationInstallationApplyResult =
 	| { readonly kind: 'receipt'; readonly installationId: string }
 	| { readonly kind: 'plugin'; readonly name: string; readonly repository: string; readonly ref: string; readonly path: string };
 
-/** Where a configured MCP value is applied. Only remote categories reach prompts. */
-export type AgentCustomizationInstallationValueCategory = 'header' | 'url-variable';
+/** Where a configured MCP value is applied: remote headers and URL variables, or a local package's environment and arguments. */
+export type AgentCustomizationInstallationValueCategory = 'header' | 'url-variable' | 'environment-variable' | 'runtime-argument' | 'package-argument';
 
 /** One non-secret value a transport choice needs. All text fields are untrusted plain text. */
 export interface IAgentCustomizationInstallationValuePrompt {
@@ -540,12 +540,16 @@ export interface IAgentCustomizationInstallationSecretPrompt {
 	readonly title?: string;
 }
 
-/** One remote transport choice a configuration request offers. */
+/** One transport choice a configuration request offers. */
 export interface IAgentCustomizationInstallationChoice {
 	readonly choiceId: string;
 	readonly transport: string;
 	/** The plan's endpoint summary, which may already include substituted defaults. Not a template. */
 	readonly endpointSummary?: string;
+	/** For a local package, the command it runs, with values still to be supplied shown as `${input:…}` placeholders. */
+	readonly command?: string;
+	/** For a local package, the environment it runs with, in the same form as {@link command}. */
+	readonly env?: Readonly<Record<string, string>>;
 	/** Names of the configuration fields this choice would set, without their values. */
 	readonly configurationFields: readonly string[];
 	readonly values: readonly IAgentCustomizationInstallationValuePrompt[];
@@ -585,7 +589,7 @@ export type IAgentCustomizationInstallationPreparation = IAgentCustomizationInst
 /** The user's answers to a configuration request. The only DTO that carries submitted values or secrets. */
 export interface IAgentCustomizationInstallationAnswers {
 	readonly choiceId: string;
-	/** At most one entry per `(category, key)`. */
+	/** One entry per `(category, key)`, except values declared `isRepeated`, which may have several, in order. */
 	readonly inputs: readonly { readonly key: string; readonly category: AgentCustomizationInstallationValueCategory; readonly value: string }[];
 	/** One entry per exact plan placeholder. */
 	readonly secrets: readonly { readonly placeholder: string; readonly value: string }[];

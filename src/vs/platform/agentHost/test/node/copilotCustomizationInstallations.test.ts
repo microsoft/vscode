@@ -1813,18 +1813,13 @@ suite('CopilotCustomizationInstallations', () => {
 		}]);
 	});
 
-	test('refuses blocked local plans and package inputs before fetching a card', async () => {
-		for (const scenario of ['policy', 'secret', 'input'] as const) {
+	test('refuses blocked local plans and package secrets before fetching a card', async () => {
+		for (const scenario of ['policy', 'secret'] as const) {
 			const { service, request, plan, added, requests } = createLocalMcpCardFixture();
 			if (scenario === 'policy') {
 				plan.policy = { decision: 'blocked', source: 'enterprise-allowlist', reason: 'Blocked by test policy' };
 			} else {
-				const choice = plan.transportChoices[0];
-				if (scenario === 'secret') {
-					choice.secretPlaceholders.push({ key: 'token', placeholder: '${secret:token}', title: 'Token' });
-				} else {
-					choice.requiredValues.push({ kind: 'scalar', key: 'mode', category: 'environment-variable', valueType: 'string', required: true, isRepeated: false });
-				}
+				plan.transportChoices[0].secretPlaceholders.push({ key: 'token', placeholder: '${secret:token}', title: 'Token' });
 			}
 			await assert.rejects(prepareReview(service, request), /Blocked by test policy|additional values/);
 			assert.deepStrictEqual({ added, requests }, { added: [], requests: [] });
@@ -2168,6 +2163,246 @@ suite('CopilotCustomizationInstallations', () => {
 			});
 		});
 	});
+	suite('local package MCP installation from the catalog', () => {
+		const errorMessage = (error: unknown) => error instanceof Error ? error.message : String(error);
+		const cardUrl = 'https://api.mcp.github.com/v0.1/servers/io.github.example%2Flocal/versions/latest';
+
+		const remoteValues: McpInstallPlan['transportChoices'][number]['requiredValues'] = [
+			{ kind: 'enum', key: 'region', category: 'url-variable', valueType: 'enum', required: true, enumValues: ['us', 'eu'], isRepeated: false },
+			{ kind: 'scalar', key: 'X-Tenant', category: 'header', valueType: 'string', required: true, isRepeated: false },
+			{ kind: 'scalar', key: 'X-Debug', category: 'header', valueType: 'boolean', required: false, defaultValue: 'false', isRepeated: false },
+			{ kind: 'scalar', key: 'path', category: 'url-variable', valueType: 'string', required: false, isRepeated: false },
+		];
+
+		function createPackageFixture(options: { readonly requiredValues?: McpInstallPlan['transportChoices'][number]['requiredValues']; readonly secret?: boolean; readonly remote?: boolean; readonly sse?: boolean; readonly packageArguments?: readonly object[] } = {}) {
+			const expiresAt = new Date(Date.now() + 60_000).toISOString();
+			const observedAt = new Date().toISOString();
+			const secretHeader = { name: 'Authorization', value: 'Bearer {api_key}', isRequired: true, variables: { api_key: { isRequired: true, isSecret: true } } };
+			const document = {
+				_meta: {},
+				server: {
+					name: 'io.github.example/local',
+					description: 'Local MCP',
+					version: '1.0.0',
+					...(options.remote ? {
+						remotes: [{
+							type: options.sse ? 'sse' : 'streamable-http',
+							url: 'https://example.test/{region}/{path}/mcp',
+							variables: { region: { isRequired: true, choices: ['us', 'eu'] }, path: { description: 'Optional path' } },
+							// A header template whose variable is fixed by the card is not a value the user supplies.
+							headers: [{ name: 'X-Tenant', isRequired: true }, { name: 'X-Debug', format: 'boolean', default: 'false' }, { name: 'X-Region', value: 'r-{fixed}', variables: { fixed: { value: 'us' } } }, ...(options.secret ? [secretHeader] : [])],
+						}],
+					} : {
+						packages: [{
+							registryType: 'npm',
+							identifier: '@example/local',
+							version: '1.2.3',
+							transport: { type: 'stdio' },
+							packageArguments: options.packageArguments ?? (options.requiredValues ? [
+								{ type: 'positional', valueHint: 'directory', description: 'Root directory' },
+								{ type: 'named', name: '--port', description: 'Port', default: '3000' },
+								{ type: 'named', name: '--headless', description: 'Run headless' },
+								{ type: 'named', name: '--verbose', description: 'Verbose logging' },
+							] : [{ type: 'named', name: '--headless' }]),
+							environmentVariables: options.packageArguments ? [] : options.requiredValues ? [
+								{ name: 'LOG_LEVEL', description: 'Log level', choices: ['info', 'debug'] },
+								{ name: 'OPTIONAL_TAG', description: 'Optional tag' },
+							] : [{ name: 'MODE', value: 'stdio' }],
+						}],
+					}),
+				},
+			};
+			const candidate: McpCatalogCandidate = {
+				handle: 'candidate-handle', handleExpiresAt: expiresAt, kind: 'mcp-server', mediaType: 'application/mcp-server+json', installability: 'installable',
+				displayName: 'Local MCP', description: 'Local MCP', source: { kind: 'url', url: cardUrl },
+				provenance: { authority: 'api.mcp.github.com', observedAt, mediaType: 'application/mcp-server+json' },
+				trust: { schemaVersion: 'v1', status: 'absent', eligibility: 'unknown', provenance: { source: 'agent-finder', observedAt } },
+			};
+			const plan: McpInstallPlan = {
+				planHandle: 'plan-handle',
+				planHandleExpiresAt: expiresAt,
+				identity: { canonicalName: document.server.name, serverName: document.server.name, version: document.server.version },
+				provenance: { authority: 'api.mcp.github.com', validatedAt: observedAt, cardDigest: { algorithm: 'sha256-rfc8785', value: createHash('sha256').update(stableStringify(document)).digest('hex') }, mediaType: 'application/mcp-server+json' },
+				transportChoices: [options.remote ? {
+					choiceId: 'remote:0', transport: options.sse ? 'sse' : 'streamable-http', installMethod: 'remote', endpoint: 'https://example.test/{region}/{path}/mcp',
+					requiredValues: remoteValues,
+					secretPlaceholders: options.secret ? [{ key: 'api_key', placeholder: '${secret:abc}' }] : [],
+				} : {
+					choiceId: 'package:0', transport: 'stdio', installMethod: 'package', packageType: 'npm', packageIdentifier: '@example/local',
+					requiredValues: options.requiredValues ?? [],
+					secretPlaceholders: options.secret ? [{ key: 'API_KEY', placeholder: '${secret:abc}' }] : [],
+				}],
+				// The configuration key the runtime planned can differ from the server name.
+				target: { scope: 'user', configKey: options.remote ? 'local-alias' : document.server.name },
+				policy: { decision: 'allowed', source: 'none' },
+				configurationChanges: [options.remote
+					? { operation: 'add', scope: 'user', configKey: 'local-alias', changedFields: ['headers', 'tools', 'type', 'url'], secretReferences: options.secret ? ['${secret:abc}'] : [] }
+					: { operation: 'add', scope: 'user', configKey: document.server.name, changedFields: ['args', 'command', 'env', 'tools', 'type'], secretReferences: [] }],
+				reloadRequired: true,
+				requiresInteractiveConfiguration: !!options.requiredValues?.length,
+			};
+			const negotiated = { runtimeProtocolVersion: 3, grantedCapabilities: [] };
+			const added: Parameters<CopilotClient['rpc']['mcp']['config']['add']>[0][] = [];
+			const client = {
+				rpc: {
+					catalog: new class extends mock<CopilotClient['rpc']['catalog']>() {
+						override readonly search: CopilotClient['rpc']['catalog']['search'] = async () => ({ kind: 'succeeded', searchId: 'search', candidates: [candidate], truncated: false, negotiated });
+					}(),
+					skills: new class extends mock<CopilotClient['rpc']['skills']>() { }(),
+					mcp: new class extends mock<CopilotClient['rpc']['mcp']>() {
+						override readonly planInstall: CopilotClient['rpc']['mcp']['planInstall'] = async () => ({ kind: 'planned', plan, negotiated });
+						override readonly config = new class extends mock<CopilotClient['rpc']['mcp']['config']>() {
+							override readonly add: CopilotClient['rpc']['mcp']['config']['add'] = async request => { added.push(request); };
+						}();
+					}(),
+				},
+			};
+			const requestService = new class extends mock<IRequestService>() {
+				override readonly request: IRequestService['request'] = async () => ({ res: { statusCode: 200, headers: {} }, stream: bufferToStream(VSBuffer.fromString(JSON.stringify(document))) });
+			}();
+			const service = store.add(new CopilotCustomizationInstallations(async () => client, new TestPolicySessions().create, requestService));
+			const request = { mediaType: candidate.mediaType, identifier: cardUrl, displayName: 'Local MCP', description: 'Local MCP', itemUrl: cardUrl, installation: { kind: 'mcp' as const } };
+			return { service, request, added };
+		}
+
+		const declaredValues: McpInstallPlan['transportChoices'][number]['requiredValues'] = [
+			{ kind: 'scalar', key: 'directory', category: 'package-argument', valueType: 'path', required: true, isRepeated: false },
+			{ kind: 'scalar', key: '--port', category: 'package-argument', valueType: 'number', required: false, defaultValue: '3000', isRepeated: false },
+			{ kind: 'scalar', key: '--headless', category: 'package-argument', valueType: 'boolean', required: true, isRepeated: false },
+			{ kind: 'scalar', key: '--verbose', category: 'package-argument', valueType: 'boolean', required: false, isRepeated: false },
+			{ kind: 'enum', key: 'LOG_LEVEL', category: 'environment-variable', valueType: 'enum', required: true, enumValues: ['info', 'debug'], isRepeated: false },
+			{ kind: 'scalar', key: 'OPTIONAL_TAG', category: 'environment-variable', valueType: 'string', required: false, isRepeated: false },
+		];
+		const submitted: IAgentCustomizationInstallationAnswers['inputs'] = [
+			{ category: 'package-argument', key: 'directory', value: 'C:\\work' },
+			{ category: 'package-argument', key: '--headless', value: 'true' },
+			{ category: 'package-argument', key: '--verbose', value: 'false' },
+			{ category: 'environment-variable', key: 'LOG_LEVEL', value: 'debug' },
+		];
+
+		test('installs an input-free catalog package after review', async () => {
+			const { service, request, added } = createPackageFixture();
+			const review = await prepareReview(service, request);
+			assert.deepStrictEqual(added, []);
+			await applyReview(service, review);
+			assert.deepStrictEqual({ review: review.kind === 'mcp' ? [review.command, review.args, review.env] : undefined, added }, {
+				review: ['npx', ['@example/local@1.2.3', '--headless'], { MODE: 'stdio' }],
+				added: [{ name: 'io.github.example/local', config: { type: 'stdio', command: 'npx', args: ['@example/local@1.2.3', '--headless'], env: { MODE: 'stdio' }, tools: ['*'] } }],
+			});
+		});
+
+		test('collects non-secret package values and writes them once into the local configuration', async () => {
+			const { service, request, added } = createPackageFixture({ requiredValues: declaredValues });
+			const configuration = await service.prepare(request);
+			assert.strictEqual(configuration.kind, 'configuration');
+			const apply = { hostGeneration: configuration.hostGeneration, ownershipToken: configuration.ownershipToken, operationId: configuration.operationId, answers: { choiceId: 'package:0', inputs: submitted, secrets: [] } };
+			await service.apply(apply);
+			const duplicate = await service.apply(apply).then(() => 'accepted', errorMessage);
+			assert.deepStrictEqual({ choice: { ...configuration.choices[0], values: configuration.choices[0].values.map(value => `${value.category}:${value.key}`) }, added, duplicate }, {
+				choice: {
+					choiceId: 'package:0', transport: 'stdio',
+					command: 'npx @example/local@1.2.3 ${input:directory} --port ${input:port} --headless ${input:headless} --verbose ${input:verbose}',
+					env: { LOG_LEVEL: '${input:LOG_LEVEL}', OPTIONAL_TAG: '${input:OPTIONAL_TAG}' },
+					configurationFields: ['args', 'command', 'env', 'tools', 'type'],
+					values: ['package-argument:directory', 'package-argument:--port', 'package-argument:--headless', 'package-argument:--verbose', 'environment-variable:LOG_LEVEL', 'environment-variable:OPTIONAL_TAG'],
+					secrets: [],
+				},
+				added: [{ name: 'io.github.example/local', config: { type: 'stdio', command: 'npx', args: ['@example/local@1.2.3', 'C:\\work', '--port', '3000', '--headless'], env: { LOG_LEVEL: 'debug' }, tools: ['*'] } }],
+				duplicate: 'This customization installation review expired. Start the operation again.',
+			});
+		});
+
+		test('configures an MCP Gallery remote with non-secret values and refuses one that needs a secret', async () => {
+			const galleryCard = { kind: 'mcp' as const, source: { kind: 'url' as const, mediaType: 'application/mcp-server+json' as const, url: cardUrl } };
+			const install = async (fixture: ReturnType<typeof createPackageFixture>) => {
+				const configuration = await fixture.service.prepare({ ...fixture.request, installation: galleryCard });
+				assert.strictEqual(configuration.kind, 'configuration');
+				await fixture.service.apply({
+					hostGeneration: configuration.hostGeneration, ownershipToken: configuration.ownershipToken, operationId: configuration.operationId,
+					answers: { choiceId: 'remote:0', inputs: [{ category: 'url-variable', key: 'region', value: 'eu' }, { category: 'header', key: 'X-Tenant', value: 'contoso' }, { category: 'url-variable', key: 'path', value: 'v1' }], secrets: [] },
+				});
+				return configuration;
+			};
+			const streamable = createPackageFixture({ remote: true });
+			const configuration = await install(streamable);
+			const sse = createPackageFixture({ remote: true, sse: true });
+			await install(sse);
+			const withSecret = createPackageFixture({ remote: true, secret: true });
+			const refused = await withSecret.service.prepare({ ...withSecret.request, installation: galleryCard }).then(prepared => prepared.kind, errorMessage);
+			const headers = { 'X-Tenant': 'contoso', 'X-Debug': 'false', 'X-Region': 'r-us' };
+			assert.deepStrictEqual({
+				choice: configuration.choices.map(choice => [choice.choiceId, choice.endpointSummary, choice.command, choice.values.map(value => `${value.key}:${value.required}`)]),
+				added: [...streamable.added, ...sse.added], refused, secretAdded: withSecret.added,
+			}, {
+				// The optional URL variable has no default and sits inside the URL template, so it must be answered.
+				choice: [['remote:0', 'https://example.test/{region}/{path}/mcp', undefined, ['region:true', 'X-Tenant:true', 'X-Debug:false', 'path:true']]],
+				added: [
+					{ name: 'local-alias', config: { type: 'http', url: 'https://example.test/eu/v1/mcp', headers, tools: ['*'] } },
+					{ name: 'local-alias', config: { type: 'sse', url: 'https://example.test/eu/v1/mcp', headers, tools: ['*'] } },
+				],
+				refused: 'This MCP server requires an installation choice or additional values that Browse cannot collect yet.',
+				secretAdded: [],
+			});
+		});
+
+		test('refuses an input-free catalog package after its policy session was released', async () => {
+			const { service, request, added } = createPackageFixture();
+			const review = await prepareReview(service, request);
+			await service.releasePolicySession();
+			const result = await applyReview(service, review).then(() => 'applied', errorMessage);
+			assert.deepStrictEqual({ result, added }, { result: 'The customization runtime restarted. Start the operation again.', added: [] });
+		});
+
+		test('collects package values for an MCP Gallery card the same way', async () => {
+			const { service, request, added } = createPackageFixture({ requiredValues: declaredValues });
+			const configuration = await service.prepare({ ...request, installation: { kind: 'mcp', source: { kind: 'url', mediaType: 'application/mcp-server+json', url: cardUrl } } });
+			assert.strictEqual(configuration.kind, 'configuration');
+			await service.apply({ hostGeneration: configuration.hostGeneration, ownershipToken: configuration.ownershipToken, operationId: configuration.operationId, answers: { choiceId: 'package:0', inputs: submitted, secrets: [] } });
+			assert.deepStrictEqual(added.map(entry => entry.config), [{ type: 'stdio', command: 'npx', args: ['@example/local@1.2.3', 'C:\\work', '--port', '3000', '--headless'], env: { LOG_LEVEL: 'debug' }, tools: ['*'] }]);
+		});
+
+		test('writes a repeated package argument once per submitted value', async () => {
+			const { service, request, added } = createPackageFixture({
+				requiredValues: [
+					{ kind: 'scalar', key: '--include', category: 'package-argument', valueType: 'string', required: true, isRepeated: true },
+					{ kind: 'scalar', key: 'path', category: 'package-argument', valueType: 'path', required: false, defaultValue: '.', isRepeated: true },
+				],
+				packageArguments: [
+					{ type: 'named', name: '--include', isRepeated: true, isRequired: true, description: 'Folder to include' },
+					{ type: 'positional', valueHint: 'path', isRepeated: true, default: '.', description: 'Path' },
+				],
+			});
+			const configuration = await service.prepare(request);
+			assert.strictEqual(configuration.kind, 'configuration');
+			const handle = { hostGeneration: configuration.hostGeneration, ownershipToken: configuration.ownershipToken, operationId: configuration.operationId };
+			const include = (value: string) => ({ category: 'package-argument' as const, key: '--include', value });
+			await service.apply({ ...handle, answers: { choiceId: 'package:0', inputs: [include('src'), include('test')], secrets: [] } });
+			assert.deepStrictEqual(added.map(entry => entry.config), [{ type: 'stdio', command: 'npx', args: ['@example/local@1.2.3', '--include', 'src', '--include', 'test', '.'], tools: ['*'] }]);
+		});
+
+		test('fails closed for package secrets, variable references and values the card cannot place', async () => {
+			const results: string[] = [];
+			const withSecret = createPackageFixture({ requiredValues: declaredValues, secret: true });
+			results.push(await withSecret.service.prepare(withSecret.request).then(prepared => prepared.kind, errorMessage));
+			const cases: [McpInstallPlan['transportChoices'][number]['requiredValues'], IAgentCustomizationInstallationAnswers['inputs']][] = [
+				[declaredValues, submitted.map(input => input.key === 'directory' ? { ...input, value: '${env:HOME}' } : input)],
+				[[...declaredValues, { kind: 'scalar', key: 'UNPLACED', category: 'environment-variable', valueType: 'string', required: false, defaultValue: 'x', isRepeated: false }], submitted],
+			];
+			for (const [requiredValues, inputs] of cases) {
+				const { service, request, added } = createPackageFixture({ requiredValues });
+				const configuration = await service.prepare(request);
+				assert.strictEqual(configuration.kind, 'configuration');
+				results.push(await service.apply({ hostGeneration: configuration.hostGeneration, ownershipToken: configuration.ownershipToken, operationId: configuration.operationId, answers: { choiceId: 'package:0', inputs, secrets: [] } }).then(() => 'accepted', errorMessage));
+				assert.deepStrictEqual(added, []);
+			}
+			assert.deepStrictEqual(results, [
+				'This MCP server requires an installation choice or additional values that Browse cannot collect yet.',
+				'The value for \'directory\' is invalid.',
+				'This MCP package requires additional configuration that Browse cannot collect yet.',
+			]);
+		});
+	});
+
 	suite('configured remote MCP installation', () => {
 		const sentinel = {
 			region: 'SENTINEL-REGION-7f3a',

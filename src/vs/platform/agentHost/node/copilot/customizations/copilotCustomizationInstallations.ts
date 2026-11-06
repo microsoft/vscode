@@ -18,7 +18,7 @@ import { localize } from '../../../../../nls.js';
 import { IAgentCustomizationInstallation, IAgentCustomizationInstallationApplyRequest, IAgentCustomizationInstallationAnswers, IAgentCustomizationInstallationApplyResult, IAgentCustomizationInstallationCatalogue, IAgentCustomizationInstallationChoice, IAgentCustomizationInstallationConfigurationRequest, IAgentCustomizationInstallationHandle, IAgentCustomizationInstallationPreparation, IAgentCustomizationInstallationRequest, IAgentCustomizationInstallationReview, IAgentCustomizationInstallationValuePrompt, IAgentCustomizationMarketplaceSearchItem, IAgentCustomizationMarketplaceSearchRequest, IAgentCustomizationMarketplaceSearchResult } from '../../../common/agent.js';
 import { ICopilotMcpServerConfiguration, toCopilotMcpServerConfiguration } from '../../../../mcp/common/mcpCopilotConfiguration.js';
 import { parseMcpGalleryServerConfiguration } from '../../../../mcp/common/mcpGalleryService.js';
-import { TransportType } from '../../../../mcp/common/mcpManagement.js';
+import { IMcpServerArgument, IMcpServerPackage, IMcpServerVariableInput, RegistryType, RemoteTransport, TransportType } from '../../../../mcp/common/mcpManagement.js';
 import { McpServerManifestParser } from '../../../../mcp/common/mcpManagementService.js';
 import { IMcpServerConfiguration, McpServerType } from '../../../../mcp/common/mcpPlatformTypes.js';
 import { IRequestService, isSuccess, readBoundedResponse } from '../../../../request/common/request.js';
@@ -65,6 +65,10 @@ const maxConfiguredEntries = 128;
 const maxConfiguredKeyBytes = 1024;
 const installationSecretReferencePattern = /\$\{installation-secret:(?<id>[^}]*)\}/g;
 const planSecretPlaceholderPattern = /^\$\{secret:(?<id>[^}]+)\}$/;
+/** Configuration fields a host-written local package configuration may set. */
+const localPackageFields: ReadonlySet<string> = new Set(['tools', 'type', 'command', 'args', 'env']);
+/** Configuration fields a host-written remote configuration may set. */
+const remoteFields: ReadonlySet<string> = new Set(['tools', 'type', 'url', 'headers']);
 
 const pluginInstallationContract = {
 	...catalogContract,
@@ -208,6 +212,18 @@ type McpTransportChoice = McpInstallPlanned['transportChoices'][number];
 type McpConfigurationChange = McpInstallPlanned['configurationChanges'][number];
 
 /**
+ * A choice a configuration request offers. Catalog remote choices are prepared
+ * and applied by the runtime; choices with a verified card package or remote
+ * are configured by the host itself.
+ */
+interface IConfigurableMcpChoice {
+	readonly choice: McpTransportChoice;
+	readonly configuration: McpConfigurationChange;
+	readonly serverPackage?: IMcpServerPackage;
+	readonly serverRemote?: RemoteTransport;
+}
+
+/**
  * A localized installation failure built only from a bounded reason. Never
  * includes SDK text, submitted values or request content.
  */
@@ -229,8 +245,8 @@ class PendingCustomizationPreparation extends Disposable {
 		readonly plan: McpInstallPlanned,
 		readonly card: McpServerCardReference,
 		readonly candidate: InstallableCatalogCandidate | undefined,
-		/** Offered remote choices, each with its configuration change. */
-		readonly choices: ReadonlyMap<string, { readonly choice: Extract<McpTransportChoice, { readonly installMethod: 'remote' }>; readonly configuration: McpConfigurationChange }>,
+		/** Offered choices, each with its configuration change. */
+		readonly choices: ReadonlyMap<string, IConfigurableMcpChoice>,
 		readonly expiresAt: number,
 		onExpire: () => void,
 	) {
@@ -478,6 +494,9 @@ export class CopilotCustomizationInstallations extends Disposable {
 		this.preparations.deleteAndLeak(preparation.id);
 		try {
 			await this.admitConfiguration(preparation);
+			if (selected.serverPackage || selected.serverRemote) {
+				return await this.applyHostConfiguration(preparation, selected, answers);
+			}
 			const operation = await this.prepareConfiguredInstall(preparation, selected, answers);
 			return await this.apply({ hostGeneration: this.hostGeneration, ownershipToken: preparation.ownershipToken, operationId: operation.id });
 		} finally {
@@ -504,11 +523,36 @@ export class CopilotCustomizationInstallations extends Disposable {
 		}
 	}
 
+	/**
+	 * Writes a configuration built from the verified card and the submitted
+	 * values to the admitted client. The runtime cannot own these installs yet
+	 * (local packages, and remotes from unbound direct-card plans), so this is
+	 * an ordinary configured server, like the direct-card fallback. Secrets
+	 * never take this path.
+	 */
+	private async applyHostConfiguration(preparation: PendingCustomizationPreparation, { choice, configuration, serverPackage, serverRemote }: IConfigurableMcpChoice, answers: IAgentCustomizationInstallationAnswers): Promise<undefined> {
+		const config = serverPackage
+			? toMcpPackageConfiguration(withMcpPackageValues(serverPackage, choice.requiredValues, answers.inputs))
+			: toMcpRemoteConfiguration(serverRemote!, choice.requiredValues, answers.inputs);
+		if (Object.keys(config).some(field => !configuration.changedFields.includes(field))) {
+			throw new CustomizationInstallationFailure('invalid-request', localize('copilot.customizationInstallation.mcpConfigurationChanged', "The MCP server configuration does not match the installation plan. Refresh Browse and try again."));
+		}
+		try {
+			await preparation.client.rpc.mcp.config.add({ name: preparation.plan.target.configKey, config });
+		} catch {
+			throw new CustomizationInstallationFailure('write-failed', localize('copilot.customizationInstallation.applyUncertain', "The installation result is unknown. Refresh the installed customizations before trying again."));
+		}
+		return undefined;
+	}
+
 	private async prepareConfiguredInstall(
 		preparation: PendingCustomizationPreparation,
-		{ choice, configuration }: { readonly choice: Extract<McpTransportChoice, { readonly installMethod: 'remote' }>; readonly configuration: McpConfigurationChange },
+		{ choice, configuration }: IConfigurableMcpChoice,
 		answers: IAgentCustomizationInstallationAnswers,
 	): Promise<PendingCustomizationInstallation> {
+		if (choice.installMethod !== 'remote') {
+			throw new CustomizationInstallationFailure('invalid-request', localize('copilot.customizationInstallation.choiceUnavailable', "The selected installation choice is unavailable. Start the installation again."));
+		}
 		// The exact submitted list: sent once to the runtime and later matched against its confirmation.
 		const inputs = answers.inputs.map(input => ({ category: input.category, key: input.key, value: input.value }));
 		const client = preparation.client;
@@ -868,28 +912,45 @@ export class CopilotCustomizationInstallations extends Disposable {
 			? planned.plan.transportChoices.find(choice => choice.choiceId === planned.plan.recommendedTransportChoiceId)
 			: undefined;
 		const choices = [...new Set([recommended, ...planned.plan.transportChoices])].filter(choice => choice !== undefined);
-		const choice = choices.find(choice =>
-			choice.installMethod === 'remote' && choice.requiredValues.length === 0 && choice.secretPlaceholders.length === 0
-		) ?? (source.kind === 'card' ? choices.find(choice =>
-			choice.installMethod === 'package' && choice.requiredValues.length === 0 && choice.secretPlaceholders.length === 0
-		) : undefined);
-		if (!choice) {
+		const isInputFree = (choice: McpTransportChoice) => choice.requiredValues.length === 0 && choice.secretPlaceholders.length === 0;
+		const choice = choices.find(choice => choice.installMethod === 'remote' && isInputFree(choice))
+			?? (source.kind === 'card' ? choices.find(choice => choice.installMethod === 'package' && isInputFree(choice)) : undefined);
+		// Runtimes without configured installation keep today's default-only path for catalog choices.
+		const defaultOnlyRemote = source.kind === 'candidate'
+			? choices.find(choice => choice.installMethod === 'remote' && choice.secretPlaceholders.length === 0)
+			: undefined;
+		if (!choice && planned.plan.policy.decision !== 'blocked') {
 			// Configured preparation consumes a bound plan; direct-card plans are unbound, so the runtime would refuse them after prompting.
 			const configurable = source.kind === 'candidate' ? choices.filter(isConfigurableRemoteChoice) : [];
-			if (configurable.length && planned.plan.policy.decision !== 'blocked' && await this.supportsConfiguredInstallation(client, policySessionId)) {
-				return this.requestMcpConfiguration(client, policySessionId, request, planned.plan, card, configurable, ownershipToken, candidate);
+			if (configurable.length && await this.supportsConfiguredInstallation(client, policySessionId)) {
+				return this.requestMcpConfiguration(client, policySessionId, request, planned.plan, card, configurable.map(choice => ({ choice })), ownershipToken, candidate);
+			}
+			// The host configures local packages from catalog entries and direct cards alike, and remotes with non-secret values from
+			// direct cards, preferred over a remote default-only choice that would still need values.
+			if (!defaultOnlyRemote?.requiredValues.every(value => !value.required || value.defaultValue !== undefined)) {
+				const inputFreePackage = choices.find(choice => choice.installMethod === 'package' && isInputFree(choice));
+				if (inputFreePackage) {
+					const configuration = planned.plan.configurationChanges[planned.plan.transportChoices.indexOf(inputFreePackage)];
+					return this.prepareMcpCardConfiguration(client, request, card, planned.plan, inputFreePackage, configuration, source.kind === 'candidate' ? policySessionId : undefined);
+				}
+				const remotes = source.kind === 'card' ? choices.filter(isConfigurableRemoteChoice).filter(choice => choice.secretPlaceholders.length === 0) : [];
+				const packages = choices.filter(isConfigurablePackageChoice);
+				if (remotes.length || packages.length) {
+					const server = await this.fetchMcpCardServer(card, planned.plan);
+					return this.requestMcpConfiguration(client, policySessionId, request, planned.plan, card, [
+						...remotes.map(choice => ({ choice, serverRemote: findMcpRemote(server, planned.plan, choice) })),
+						...packages.map(choice => ({ choice, serverPackage: findMcpPackage(server, planned.plan, choice) })),
+					], ownershipToken, candidate);
+				}
 			}
 		}
-		// Runtimes without configured installation keep today's default-only path for catalog choices.
-		const selected = choice ?? (source.kind === 'candidate'
-			? choices.find(choice => choice.installMethod === 'remote' && choice.secretPlaceholders.length === 0)
-			: undefined);
+		const selected = choice ?? defaultOnlyRemote;
 		if (!selected) {
 			throw new Error(localize('copilot.customizationInstallation.mcpInputsRequired', "This MCP server requires an installation choice or additional values that Browse cannot collect yet."));
 		}
 		const configuration = planned.plan.configurationChanges[planned.plan.transportChoices.indexOf(selected)];
 		if (source.kind === 'card') {
-			return this.prepareMcpCardConfiguration(client, request, card, planned.plan, selected, configuration);
+			return this.prepareMcpCardConfiguration(client, request, card, planned.plan, selected, configuration, undefined);
 		}
 		if (selected.installMethod !== 'remote') {
 			throw new Error(localize('copilot.customizationInstallation.mcpPackageUnsupported', "Confirmed local MCP server installations are not supported."));
@@ -966,15 +1027,20 @@ export class CopilotCustomizationInstallations extends Disposable {
 		request: IAgentCustomizationInstallationRequest,
 		plan: McpInstallPlanned,
 		card: McpServerCardReference,
-		configurable: readonly Extract<McpTransportChoice, { readonly installMethod: 'remote' }>[],
+		configurable: readonly { readonly choice: McpTransportChoice; readonly serverPackage?: IMcpServerPackage; readonly serverRemote?: RemoteTransport }[],
 		ownershipToken: string,
 		candidate: InstallableCatalogCandidate | undefined,
 	): IAgentCustomizationInstallationConfigurationRequest {
-		const choices = new Map<string, { readonly choice: Extract<McpTransportChoice, { readonly installMethod: 'remote' }>; readonly configuration: McpConfigurationChange }>();
-		for (const choice of configurable) {
+		const choices = new Map<string, IConfigurableMcpChoice & { readonly preview?: IMcpPackagePreview }>();
+		for (const { choice, serverPackage, serverRemote } of configurable) {
 			const configuration = plan.configurationChanges[plan.transportChoices.indexOf(choice)];
-			if (configuration && configuration.operation === 'add' && configuration.scope === 'user' && configuration.configKey === plan.target.configKey) {
-				choices.set(choice.choiceId, { choice, configuration });
+			const preview = serverPackage && describeMcpPackage(serverPackage);
+			const hostFields = serverPackage ? localPackageFields : serverRemote ? remoteFields : undefined;
+			if (configuration && configuration.operation === 'add' && configuration.scope === 'user' && configuration.configKey === plan.target.configKey
+				&& (!serverPackage || preview !== undefined)
+				&& (!hostFields || configuration.secretReferences.length === 0 && configuration.changedFields.every(field => hostFields.has(field)))
+			) {
+				choices.set(choice.choiceId, { choice, configuration, serverPackage, serverRemote, preview });
 			}
 		}
 		const expiresAt = Date.parse(plan.planHandleExpiresAt);
@@ -1004,32 +1070,40 @@ export class CopilotCustomizationInstallations extends Disposable {
 			serverName: plan.identity.serverName,
 			target: plan.target.configKey,
 			recommendedChoiceId: plan.recommendedTransportChoiceId && choices.has(plan.recommendedTransportChoiceId) ? plan.recommendedTransportChoiceId : undefined,
-			choices: [...choices.values()].map(({ choice, configuration }): IAgentCustomizationInstallationChoice => ({
-				choiceId: choice.choiceId,
-				transport: choice.transport,
-				endpointSummary: choice.endpoint,
-				configurationFields: configuration.changedFields,
-				values: choice.requiredValues.map((value): IAgentCustomizationInstallationValuePrompt => ({
-					key: value.key,
-					category: value.category as IAgentCustomizationInstallationValuePrompt['category'],
-					valueType: value.valueType,
-					required: value.required,
-					isRepeated: value.isRepeated,
-					...(value.defaultValue !== undefined ? { defaultValue: value.defaultValue } : {}),
-					...(value.title !== undefined ? { title: value.title } : {}),
-					...(value.description !== undefined ? { description: value.description } : {}),
-					...(value.kind === 'enum' ? { enumValues: [...value.enumValues] } : {}),
-				})),
-				secrets: choice.secretPlaceholders.map(secret => ({
-					key: secret.key,
-					placeholder: secret.placeholder,
-					...(secret.title !== undefined ? { title: secret.title } : {}),
-				})),
-			})),
+			choices: [...choices.values()].map(({ choice, configuration, preview, serverPackage, serverRemote }): IAgentCustomizationInstallationChoice => {
+				// Values inside a host-written template can't be left out, so the prompt must not offer to skip them.
+				const templateKeys = mcpTemplateValueKeys(serverPackage, serverRemote);
+				return {
+					choiceId: choice.choiceId,
+					transport: choice.transport,
+					...(choice.installMethod === 'remote' ? { endpointSummary: choice.endpoint } : {}),
+					...(preview ? { command: preview.command, ...(preview.env ? { env: preview.env } : {}) } : {}),
+					configurationFields: configuration.changedFields,
+					values: choice.requiredValues.map((value): IAgentCustomizationInstallationValuePrompt => ({
+						key: value.key,
+						category: value.category,
+						valueType: value.valueType,
+						required: value.required || (value.defaultValue === undefined && templateKeys.has(`${value.category}\0${value.key}`)),
+						isRepeated: value.isRepeated,
+						...(value.defaultValue !== undefined ? { defaultValue: value.defaultValue } : {}),
+						...(value.title !== undefined ? { title: value.title } : {}),
+						...(value.description !== undefined ? { description: value.description } : {}),
+						...(value.kind === 'enum' ? { enumValues: [...value.enumValues] } : {}),
+					})),
+					secrets: choice.secretPlaceholders.map(secret => ({
+						key: secret.key,
+						placeholder: secret.placeholder,
+						...(secret.title !== undefined ? { title: secret.title } : {}),
+					})),
+				};
+			}),
 		};
 	}
 
-	/** Provisional direct-card fallback until https://github.com/github/copilot-agent-runtime/issues/26495 is available. */
+	/**
+	 * Provisional direct-card fallback until https://github.com/github/copilot-agent-runtime/issues/26495 is available.
+	 * @param policySessionId The policy session a catalog plan is bound to, so apply refuses a released or replaced session.
+	 */
 	private async prepareMcpCardConfiguration(
 		client: ICopilotCustomizationInstallationClient,
 		request: IAgentCustomizationInstallationRequest,
@@ -1037,8 +1111,9 @@ export class CopilotCustomizationInstallations extends Disposable {
 		plan: Extract<Awaited<ReturnType<CopilotClient['rpc']['mcp']['planInstall']>>, { readonly kind: 'planned' }>['plan'],
 		choice: typeof plan.transportChoices[number],
 		configuration: typeof plan.configurationChanges[number] | undefined,
+		policySessionId: string | undefined,
 	): Promise<IAgentCustomizationInstallationReview> {
-		const supportedFields = new Set(choice.installMethod === 'package' ? ['tools', 'type', 'command', 'args', 'env'] : ['tools', 'type', 'url']);
+		const supportedFields = choice.installMethod === 'package' ? localPackageFields : new Set(['tools', 'type', 'url']);
 		if (plan.policy.decision === 'blocked') {
 			throw new Error(plan.policy.reason ?? localize('copilot.customizationInstallation.mcpPolicyBlocked', "Policy blocked this MCP server installation."));
 		}
@@ -1081,12 +1156,12 @@ export class CopilotCustomizationInstallations extends Disposable {
 			operationId,
 			client,
 			generateUuid(),
-			undefined,
+			policySessionId,
 			review,
 			() => false,
 			async () => {
 				await client.rpc.mcp.config.add({
-					name: plan.identity.serverName,
+					name: plan.target.configKey,
 					config,
 				});
 				return undefined;
@@ -1099,9 +1174,14 @@ export class CopilotCustomizationInstallations extends Disposable {
 
 	private async resolveMcpPackageConfiguration(
 		card: McpServerCardReference,
-		plan: Extract<Awaited<ReturnType<CopilotClient['rpc']['mcp']['planInstall']>>, { readonly kind: 'planned' }>['plan'],
-		choice: Extract<typeof plan.transportChoices[number], { readonly installMethod: 'package' }>,
+		plan: McpInstallPlanned,
+		choice: Extract<McpTransportChoice, { readonly installMethod: 'package' }>,
 	): Promise<ICopilotMcpServerConfiguration> {
+		return toMcpPackageConfiguration(findMcpPackage(await this.fetchMcpCardServer(card, plan), plan, choice));
+	}
+
+	/** Fetches the plan's card and verifies it against the plan's digest. */
+	private async fetchMcpCardServer(card: McpServerCardReference, plan: McpInstallPlanned): Promise<ReturnType<typeof parseMcpGalleryServerConfiguration>> {
 		if (card.kind !== 'url' || !this.requestService) {
 			throw new Error(localize('copilot.customizationInstallation.mcpCardUnavailable', "The MCP server card is unavailable for local configuration."));
 		}
@@ -1132,19 +1212,7 @@ export class CopilotCustomizationInstallations extends Disposable {
 		if (plan.provenance.cardDigest.algorithm !== 'sha256-rfc8785' || digest !== plan.provenance.cardDigest.value) {
 			throw new Error(localize('copilot.customizationInstallation.mcpCardChanged', "The MCP server card changed after installation review. Refresh Browse and try again."));
 		}
-		const server = parseMcpGalleryServerConfiguration(data);
-		const packages = server?.configuration.packages?.filter(candidate =>
-			candidate.registryType === choice.packageType && candidate.identifier === choice.packageIdentifier
-			&& candidate.transport.type === TransportType.STDIO
-		);
-		if (!server || server.name !== plan.identity.canonicalName || (plan.identity.version !== undefined && server.version !== plan.identity.version) || packages?.length !== 1) {
-			throw new Error(localize('copilot.customizationInstallation.mcpPackageChanged', "The MCP package does not match the installation plan. Refresh Browse and try again."));
-		}
-		const parsed = new McpServerManifestParser().getMcpServerConfigurationFromManifest({ packages }, packages[0].registryType);
-		if (parsed.notices.length || parsed.mcpServerConfiguration.inputs?.length || parsed.mcpServerConfiguration.config.type !== McpServerType.LOCAL) {
-			throw new Error(localize('copilot.customizationInstallation.mcpPackageInputsRequired', "This MCP package requires additional configuration that Browse cannot collect yet."));
-		}
-		return toCopilotMcpServerConfiguration(parsed.mcpServerConfiguration.config);
+		return parseMcpGalleryServerConfiguration(data);
 	}
 
 	private async prepareUninstall(client: ICopilotCustomizationInstallationClient, policySessionId: string, installationId: string): Promise<IAgentCustomizationInstallationReview> {
@@ -1682,8 +1750,258 @@ function isConfigurableRemoteChoice(choice: McpTransportChoice): choice is Extra
 		&& new Set(choice.secretPlaceholders.map(secret => secret.placeholder)).size === choice.secretPlaceholders.length;
 }
 
+/**
+ * A local package choice VS Code can configure itself: non-secret environment
+ * and argument values only. Arguments may be repeated, since the host writes
+ * one argument per value. Secrets would have to be written into the
+ * configuration in plain text, so they wait for runtime-owned package installs.
+ */
+function isConfigurablePackageChoice(choice: McpTransportChoice): choice is Extract<McpTransportChoice, { readonly installMethod: 'package' }> {
+	return choice.installMethod === 'package'
+		&& choice.secretPlaceholders.length === 0
+		&& choice.requiredValues.length > 0
+		&& choice.requiredValues.length <= maxConfiguredEntries
+		&& choice.requiredValues.every(value => value.category === 'environment-variable' ? !value.isRepeated : value.category === 'runtime-argument' || value.category === 'package-argument')
+		&& new Set(choice.requiredValues.map(value => `${value.category}\0${value.key}`)).size === choice.requiredValues.length;
+}
+
+/** Finds the single stdio package in a verified card that the plan's package choice describes. */
+function findMcpPackage(server: ReturnType<typeof parseMcpGalleryServerConfiguration>, plan: McpInstallPlanned, choice: Extract<McpTransportChoice, { readonly installMethod: 'package' }>): IMcpServerPackage {
+	const packages = server?.configuration.packages?.filter(candidate =>
+		candidate.registryType === choice.packageType && candidate.identifier === choice.packageIdentifier
+		&& candidate.transport.type === TransportType.STDIO
+	);
+	if (!server || server.name !== plan.identity.canonicalName || (plan.identity.version !== undefined && server.version !== plan.identity.version) || packages?.length !== 1) {
+		throw new Error(localize('copilot.customizationInstallation.mcpPackageChanged', "The MCP package does not match the installation plan. Refresh Browse and try again."));
+	}
+	return packages[0];
+}
+
+/** Builds the local configuration for a package whose values are all resolved. */
+function toMcpPackageConfiguration(serverPackage: IMcpServerPackage): ICopilotMcpServerConfiguration {
+	const parsed = new McpServerManifestParser().getMcpServerConfigurationFromManifest({ packages: [serverPackage] }, serverPackage.registryType);
+	if (parsed.notices.length || parsed.mcpServerConfiguration.inputs?.length || parsed.mcpServerConfiguration.config.type !== McpServerType.LOCAL) {
+		throw new Error(localize('copilot.customizationInstallation.mcpPackageInputsRequired', "This MCP package requires additional configuration that Browse cannot collect yet."));
+	}
+	return toCopilotMcpServerConfiguration(parsed.mcpServerConfiguration.config);
+}
+
+/** Finds the single remote in a verified card whose transport and declared values match the plan's remote choice. */
+function findMcpRemote(server: ReturnType<typeof parseMcpGalleryServerConfiguration>, plan: McpInstallPlanned, choice: Extract<McpTransportChoice, { readonly installMethod: 'remote' }>): RemoteTransport {
+	const declared = new Set(choice.requiredValues.map(value => `${value.category}\0${value.key}`));
+	const remotes = server?.configuration.remotes?.filter(remote => {
+		if (remote.type !== choice.transport) {
+			return false;
+		}
+		const keys = [
+			...Object.entries(remote.variables ?? {}).filter(([, variable]) => variable.value === undefined).map(([name]) => `url-variable\0${name}`),
+			...(remote.headers ?? []).flatMap(header => header.variables && Object.keys(header.variables).length
+				? Object.entries(header.variables).filter(([, variable]) => variable.value === undefined).map(([name]) => `header\0${name}`)
+				: header.value ? [] : [`header\0${header.name}`]),
+		];
+		return keys.length === declared.size && keys.every(key => declared.has(key));
+	});
+	if (!server || server.name !== plan.identity.canonicalName || (plan.identity.version !== undefined && server.version !== plan.identity.version) || remotes?.length !== 1) {
+		throw new Error(localize('copilot.customizationInstallation.mcpRemoteChanged', "The MCP server endpoint does not match the installation plan. Refresh Browse and try again."));
+	}
+	return remotes[0];
+}
+
+/**
+ * Builds the remote configuration for a verified card remote with the
+ * submitted header and URL values. URL variables are substituted literally,
+ * once, like the runtime; the result must still be an http(s) URL.
+ */
+function toMcpRemoteConfiguration(remote: RemoteTransport, declared: readonly McpTransportChoice['requiredValues'][number][], inputs: IAgentCustomizationInstallationAnswers['inputs']): ICopilotMcpServerConfiguration {
+	const unsupported = () => new CustomizationInstallationFailure('invalid-request', localize('copilot.customizationInstallation.mcpRemoteInputsRequired', "This MCP server requires configuration that Browse cannot collect yet."));
+	const values = createMcpValueResolver(declared, inputs, unsupported);
+	const variables = { ...remote.variables };
+	for (const name of Object.keys(variables)) {
+		const taken = values.take('url-variable', name);
+		if (taken) {
+			if (taken.value === undefined) {
+				throw unsupported();
+			}
+			variables[name] = { ...variables[name], value: taken.value };
+		}
+	}
+	const headers = remote.headers?.flatMap(entry => {
+		const resolved = values.resolve(entry, 'header', entry.name);
+		return resolved.kind === 'omit' ? [] : resolved.kind === 'set' ? [{ ...entry, value: resolved.value }] : [resolved.entry];
+	});
+	values.assertAllPlaced();
+	const parsed = new McpServerManifestParser().getMcpServerConfigurationFromManifest({ remotes: [{ ...remote, variables, headers }] }, RegistryType.REMOTE);
+	const config = parsed.mcpServerConfiguration.config;
+	if (parsed.notices.length || parsed.mcpServerConfiguration.inputs?.length || config.type !== McpServerType.REMOTE || !isHttpUrlWithoutCredentials(config.url)) {
+		throw unsupported();
+	}
+	// The manifest parser does not record the transport, so keep the card's (SSE or streamable HTTP).
+	return toCopilotMcpServerConfiguration({ ...config, transport: remote.type === TransportType.SSE ? 'sse' : undefined });
+}
+
+function isHttpUrlWithoutCredentials(value: string): boolean {
+	try {
+		const url = new URL(value);
+		return (url.protocol === 'https:' || url.protocol === 'http:') && !url.username && !url.password;
+	} catch {
+		return false;
+	}
+}
+
+/**
+ * Places submitted values into card entries, keyed like the runtime's plan. An
+ * omitted value uses its default. Every declared value must land in exactly
+ * one place; {@link assertAllPlaced} refuses anything left over.
+ */
+function createMcpValueResolver(declared: readonly McpTransportChoice['requiredValues'][number][], inputs: IAgentCustomizationInstallationAnswers['inputs'], unsupported: () => Error) {
+	const pending = new Map(declared.map(value => [`${value.category}\0${value.key}`, value]));
+	const take = (category: string, key: string): { readonly value: string | undefined } | undefined => {
+		const value = pending.get(`${category}\0${key}`);
+		if (!value) {
+			return undefined;
+		}
+		if (value.isRepeated) {
+			throw unsupported();
+		}
+		pending.delete(`${category}\0${key}`);
+		return { value: inputs.find(input => input.category === category && input.key === key)?.value ?? value.defaultValue };
+	};
+	/** Every submitted value of a declared repeated value, or its default when none was submitted. */
+	const takeAll = (category: string, key: string): readonly string[] | undefined => {
+		const value = pending.get(`${category}\0${key}`);
+		if (!value) {
+			return undefined;
+		}
+		if (!value.isRepeated) {
+			throw unsupported();
+		}
+		pending.delete(`${category}\0${key}`);
+		const submitted = inputs.filter(input => input.category === category && input.key === key).map(input => input.value);
+		return submitted.length ? submitted : value.defaultValue !== undefined ? [value.defaultValue] : [];
+	};
+	/** Resolves an entry's nested variables or its own value. */
+	const resolve = <T extends IMcpServerVariableInput>(entry: T, category: string, key: string): { readonly kind: 'keep'; readonly entry: T } | { readonly kind: 'set'; readonly value: string } | { readonly kind: 'omit' } => {
+		if (entry.variables && Object.keys(entry.variables).length) {
+			const variables = { ...entry.variables };
+			for (const name of Object.keys(variables)) {
+				const taken = take(category, name);
+				if (taken) {
+					if (taken.value === undefined) {
+						throw unsupported();
+					}
+					variables[name] = { ...variables[name], value: taken.value };
+				}
+			}
+			return { kind: 'keep', entry: { ...entry, variables } };
+		}
+		const taken = entry.value ? undefined : take(category, key);
+		if (!taken) {
+			return { kind: 'keep', entry };
+		}
+		return taken.value === undefined ? { kind: 'omit' } : { kind: 'set', value: taken.value };
+	};
+	const assertAllPlaced = () => {
+		if (pending.size) {
+			throw unsupported();
+		}
+	};
+	return { take, takeAll, resolve, assertAllPlaced };
+}
+
+/** What a package runs: its command, and its environment, with unresolved values as `${input:…}` placeholders. */
+interface IMcpPackagePreview {
+	readonly command: string;
+	readonly env?: Readonly<Record<string, string>>;
+}
+
+/** Describes a package's command and environment, or `undefined` if it cannot be described. */
+function describeMcpPackage(serverPackage: IMcpServerPackage): IMcpPackagePreview | undefined {
+	try {
+		const { config } = new McpServerManifestParser().getMcpServerConfigurationFromManifest({ packages: [serverPackage] }, serverPackage.registryType).mcpServerConfiguration;
+		if (config.type !== McpServerType.LOCAL) {
+			return undefined;
+		}
+		const env = config.env && Object.keys(config.env).length ? Object.fromEntries(Object.entries(config.env).map(([name, value]) => [name, String(value)])) : undefined;
+		return { command: [config.command, ...(config.args ?? [])].join(' '), ...(env ? { env } : {}) };
+	} catch {
+		return undefined;
+	}
+}
+
+/** The `(category, key)` of every value placed inside a template (a URL or nested variable), which can't be omitted. */
+function mcpTemplateValueKeys(serverPackage: IMcpServerPackage | undefined, serverRemote: RemoteTransport | undefined): ReadonlySet<string> {
+	const keys = new Set<string>();
+	const nested = (entries: readonly IMcpServerVariableInput[] | undefined, category: string) => {
+		for (const entry of entries ?? []) {
+			for (const name of Object.keys(entry.variables ?? {})) {
+				keys.add(`${category}\0${name}`);
+			}
+		}
+	};
+	if (serverRemote) {
+		for (const name of Object.keys(serverRemote.variables ?? {})) {
+			keys.add(`url-variable\0${name}`);
+		}
+		nested(serverRemote.headers, 'header');
+	}
+	if (serverPackage) {
+		nested(serverPackage.environmentVariables, 'environment-variable');
+		nested(serverPackage.runtimeArguments, 'runtime-argument');
+		nested(serverPackage.packageArguments, 'package-argument');
+	}
+	return keys;
+}
+
+/**
+ * Applies submitted values to a verified card package, keyed like the
+ * runtime's plan: a nested variable's name, otherwise the entry's name, value
+ * hint or `argument-<index>`. An omitted value uses its default, and an omitted
+ * optional entry is dropped. Like the runtime, a named argument set to `true`
+ * becomes a bare flag and one set to `false` is dropped. Every declared value
+ * must land in exactly one place; otherwise the package is refused rather than
+ * guessed.
+ */
+function withMcpPackageValues(serverPackage: IMcpServerPackage, declared: readonly McpTransportChoice['requiredValues'][number][], inputs: IAgentCustomizationInstallationAnswers['inputs']): IMcpServerPackage {
+	const unsupported = () => new CustomizationInstallationFailure('invalid-request', localize('copilot.customizationInstallation.mcpPackageInputsRequired', "This MCP package requires additional configuration that Browse cannot collect yet."));
+	const { resolve, takeAll, assertAllPlaced } = createMcpValueResolver(declared, inputs, unsupported);
+	const environmentVariables = serverPackage.environmentVariables?.flatMap(entry => {
+		const resolved = resolve(entry, 'environment-variable', entry.name);
+		return resolved.kind === 'omit' ? [] : resolved.kind === 'set' ? [{ ...entry, value: resolved.value }] : [resolved.entry];
+	});
+	const withValue = (entry: IMcpServerArgument, value: string): IMcpServerArgument[] => {
+		if (entry.type === 'named' && value === 'false') {
+			return [];
+		}
+		return entry.type === 'named' && value === 'true' ? [{ type: 'named', name: entry.name }] : [{ ...entry, value }];
+	};
+	const args = (entries: readonly IMcpServerArgument[] | undefined, category: string) => entries?.flatMap((entry, index): IMcpServerArgument[] => {
+		const key = entry.type === 'named' ? entry.name : entry.valueHint ?? `argument-${index}`;
+		if (entry.isRepeated) {
+			// A repeated argument is written once per submitted value; nested templates can't be repeated.
+			if (entry.variables && Object.keys(entry.variables).length) {
+				throw unsupported();
+			}
+			const values = entry.value ? undefined : takeAll(category, key);
+			return values ? values.flatMap(value => withValue(entry, value)) : [entry];
+		}
+		const resolved = resolve(entry, category, key);
+		if (resolved.kind === 'keep') {
+			return [resolved.entry];
+		}
+		return resolved.kind === 'omit' ? [] : withValue(entry, resolved.value);
+	});
+	const resolved: IMcpServerPackage = {
+		...serverPackage,
+		environmentVariables,
+		runtimeArguments: args(serverPackage.runtimeArguments, 'runtime-argument'),
+		packageArguments: args(serverPackage.packageArguments, 'package-argument'),
+	};
+	assertAllPlaced();
+	return resolved;
+}
+
 /** Revalidates answers against the retained choice. Errors name keys only, never values. */
-function validateAnswers(choice: Extract<McpTransportChoice, { readonly installMethod: 'remote' }>, answers: IAgentCustomizationInstallationAnswers): void {
+function validateAnswers(choice: McpTransportChoice, answers: IAgentCustomizationInstallationAnswers): void {
 	const invalid = (key: string) => new CustomizationInstallationFailure('invalid-request', localize('copilot.customizationInstallation.invalidValue', "The value for '{0}' is invalid.", key.slice(0, 200)));
 	if (answers.inputs.length + answers.secrets.length > maxConfiguredEntries) {
 		throw new CustomizationInstallationFailure('invalid-request', localize('copilot.customizationInstallation.tooManyValues', "Too many installation values were supplied."));
@@ -1692,7 +2010,8 @@ function validateAnswers(choice: Extract<McpTransportChoice, { readonly installM
 	for (const input of answers.inputs) {
 		const identity = `${input.category}\0${input.key}`;
 		const declared = choice.requiredValues.find(value => value.category === input.category && value.key === input.key);
-		if (!declared || seen.has(identity)) {
+		// Only repeated values may appear more than once; owned (runtime) choices never declare them.
+		if (!declared || (seen.has(identity) && !declared.isRepeated)) {
 			throw invalid(input.key);
 		}
 		seen.add(identity);
