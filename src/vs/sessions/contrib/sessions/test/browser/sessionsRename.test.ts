@@ -35,14 +35,14 @@ import { ISessionGroupsService } from '../../../../../workbench/contrib/sessions
 import { ISessionsPartService } from '../../../../../workbench/contrib/sessions/browser/sessionsPartService.js';
 import { ISessionsService } from '../../../../../workbench/contrib/sessions/browser/sessionsService.js';
 import { ISessionHost, SessionHostKind } from '../../../../../workbench/contrib/sessions/browser/sessionHost.js';
-import { IActiveSession, ISessionsManagementService } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
+import { ISessionsManagementService } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import { ChatInteractivity, IChat, ISession, SessionStatus } from '../../../../../workbench/contrib/sessions/common/session.js';
 import { SessionsChatAccessibilityHelp } from '../../../chat/browser/sessionsChatAccessibilityHelp.js';
 import { SessionsFlatList, SessionsGrouping, SessionsList, SessionsSorting } from '../../../../../workbench/contrib/sessions/browser/views/sessionsList.js';
 import { createListHarness, createTestSession, TestCommandService, TestSessionsManagementService } from './sessionsListTestUtils.js';
 import '../../browser/sessionsActions.js';
 import '../../browser/views/sessionsViewActions.js';
-import { stubMissingSessionHostsFromSessionsService, stubPaneHost, testGridPane } from '../../../../../workbench/contrib/sessions/test/browser/sessionHostTestUtils.js';
+import { ITestSessionWithChat, stubMissingSessionHostsFromSessionsService, stubPaneHost, testGridPane } from '../../../../../workbench/contrib/sessions/test/browser/sessionHostTestUtils.js';
 
 class TestQuickInputService extends mock<IQuickInputService>() {
 	result: string | undefined;
@@ -772,14 +772,14 @@ suite('Sessions rename', () => {
 			};
 			const activeChat = observableValue<IChat>('renameActiveChat', peerChat);
 			const focusedChat = observableValue<IChat | undefined>('renameFocusedChat', peerChat);
-			const activeSession = upcastPartial<IActiveSession>({
+			const activeSession = upcastPartial<ITestSessionWithChat>({
 				...session,
 				activeChat,
 			});
 			instantiationService.stub(IQuickInputService, quickInputService);
 			instantiationService.stub(ISessionsManagementService, managementService);
 			instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() {
-				readonly activeSession = constObservable<IActiveSession | undefined>(activeSession);
+				readonly activeSession = constObservable<ITestSessionWithChat | undefined>(activeSession);
 			}());
 			stubMissingSessionHostsFromSessionsService(instantiationService);
 			instantiationService.stub(ISessionsPartService, new class extends mock<ISessionsPartService>() {
@@ -919,13 +919,13 @@ suite('Sessions rename', () => {
 			const instantiationService = disposables.add(new TestInstantiationService());
 			const commandService = new TestCommandService();
 			const sessionData = createTestSession('Existing');
-			const session = upcastPartial<IActiveSession>({ ...sessionData.session });
+			const session = upcastPartial<ITestSessionWithChat>({ ...sessionData.session });
 			let inlineRenameCalls = 0;
 			instantiationService.stub(ICommandService, commandService);
 			// The view of the pane that shows the session: the grid's active pane.
 			const viewHost = upcastPartial<ISessionHost>({ kind: SessionHostKind.Pane });
 			instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() {
-				readonly activeSession = constObservable<IActiveSession | undefined>(session);
+				readonly activeSession = constObservable<ITestSessionWithChat | undefined>(session);
 				override getPaneOfHost(host: ISessionHost) { return host === viewHost ? testGridPane(session) : undefined; }
 			});
 			stubMissingSessionHostsFromSessionsService(instantiationService);
@@ -988,7 +988,7 @@ suite('Sessions rename', () => {
 			const fallbackView = new class extends mock<SessionView>() {
 				override focus(): void { fallbackFocusCount++; }
 			};
-			const activeSession = new class extends mock<IActiveSession>() {
+			const activeSession = new class extends mock<ITestSessionWithChat>() {
 				override readonly sessionId = 'active';
 			};
 			instantiationService.stub(ISessionsPartService, new class extends mock<ISessionsPartService>() {
@@ -996,7 +996,7 @@ suite('Sessions rename', () => {
 				override getActiveSessionView() { return fallbackView; }
 			});
 			instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() {
-				readonly activeSession = constObservable<IActiveSession | undefined>(activeSession);
+				readonly activeSession = constObservable<ITestSessionWithChat | undefined>(activeSession);
 			});
 			stubMissingSessionHostsFromSessionsService(instantiationService);
 			instantiationService.stub(IAgentHostFilterService, { selectedHost: undefined });

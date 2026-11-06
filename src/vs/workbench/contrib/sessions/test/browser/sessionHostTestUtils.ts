@@ -6,6 +6,7 @@
 import { mainWindow } from '../../../../../base/browser/window.js';
 import { DisposableMap, DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { autorun, constObservable, derived, IObservable, IReader } from '../../../../../base/common/observable.js';
+import { URI } from '../../../../../base/common/uri.js';
 import { isEqual } from '../../../../../base/common/resources.js';
 import { upcastPartial } from '../../../../../base/test/common/mock.js';
 import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
@@ -18,7 +19,7 @@ import { ISessionsService } from '../../browser/sessionsService.js';
 import { ISessionsPartService, ISessionView } from '../../browser/sessionsPartService.js';
 import { ISessionGridPane, SessionGridPaneKind } from '../../browser/sessionGridPane.js';
 import { IChat, ISession, SessionStatus } from '../../common/session.js';
-import { IActiveSession, ISessionPaneTabs } from '../../common/sessionsManagement.js';
+import { ISessionPaneTabs } from '../../common/sessionsManagement.js';
 
 /**
  * What a test's host or pane shows: the provider's session and the chat of it, and, for a pane of the grid, its pin, tab
@@ -34,10 +35,14 @@ export interface ITestShownChat {
 }
 
 /**
- * What a test's host or pane shows: an {@link ITestShownChat}, or, transitionally, a test's view of a session, which gives
- * its session and its active chat (its chat for a view scoped to one chat).
+ * A legacy fake shape: a session fake that also carries `activeChat`, the chat its host shows, as tests modelled the grid's
+ * active session when the grid gave a view of a session. Production only ever sees it as an {@link ISession}. New tests use
+ * {@link ITestShownChat} instead.
  */
-export type TestShown = ITestShownChat | IActiveSession;
+export type ITestSessionWithChat = ISession & { readonly activeChat: IObservable<IChat> };
+
+/** What a test's host or pane shows: an {@link ITestShownChat}, or a legacy {@link ITestSessionWithChat}. */
+export type TestShown = ITestShownChat | ITestSessionWithChat;
 
 function isShownChat(shown: TestShown): shown is ITestShownChat {
 	// Partial fakes of a view of a session lack most of its members, but never have a `session`, and a shown chat never
@@ -58,7 +63,9 @@ export function chatOfShown(shown: TestShown | undefined, reader: IReader | unde
 	if (isShownChat(shown)) {
 		return shown.chat;
 	}
-	return shown.scopedChatResource ? upcastPartial<IChat>({ resource: shown.scopedChatResource }) : shown.activeChat?.read(reader);
+	// A legacy fake of a view scoped to one chat shows that chat.
+	const scopedChatResource = (shown as { readonly scopedChatResource?: URI }).scopedChatResource;
+	return scopedChatResource ? upcastPartial<IChat>({ resource: scopedChatResource }) : shown.activeChat?.read(reader);
 }
 
 /**
@@ -282,9 +289,12 @@ export function stubMissingSessionHostsFromSessionsService(instantiationService:
 
 let paneHostIds = 0;
 
+/** The pane state a legacy {@link ITestSessionWithChat} may carry: its pin, its tab strip, and the chat of a view scoped to one chat. */
+type LegacyFakePaneState = ITestSessionWithChat & Partial<ISessionPaneTabs> & { readonly sticky?: IObservable<boolean>; readonly scopedChatResource?: URI };
+
 /** A pane of the grid with `id` that shows `shown`, and `chat` when given; see {@link testGridPane}. */
 function paneOfShown(shown: TestShown | undefined, id: string, chat?: IChat): ISessionGridPane {
-	const view = shown && !isShownChat(shown) ? shown : undefined;
+	const view: LegacyFakePaneState | undefined = shown && !isShownChat(shown) ? shown : undefined;
 	const pane = shown && isShownChat(shown) ? shown : undefined;
 	return upcastPartial<ISessionGridPane>({
 		id,
@@ -293,7 +303,7 @@ function paneOfShown(shown: TestShown | undefined, id: string, chat?: IChat): IS
 		chat: chat ? constObservable(chat) : view ? (view.activeChat ?? constObservable(undefined)) : constObservable(pane?.chat),
 		// A test's view of a session carries the pin and the tab strip of its pane.
 		sticky: (pane ?? view)?.sticky ?? constObservable(false),
-		tabs: pane ? pane.tabs : view,
+		tabs: pane ? pane.tabs : view && upcastPartial<ISessionPaneTabs>(view),
 	});
 }
 

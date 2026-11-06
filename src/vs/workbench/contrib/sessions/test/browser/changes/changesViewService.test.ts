@@ -14,7 +14,7 @@ import { AGENT_HOST_CHECKOUT_CHANGESET_OPERATION_ID } from '../../../../../../pl
 import { MockContextKeyService } from '../../../../../../platform/keybinding/test/common/mockKeybindingService.js';
 import { TestStorageService } from '../../../../../test/common/workbenchTestServices.js';
 import { IChatSessionFileChange2 } from '../../../../chat/common/chatSessionsService.js';
-import { IActiveSession, IChatDeletedEvent, ISessionsManagementService } from '../../../common/sessionsManagement.js';
+import { IChatDeletedEvent, ISessionsManagementService } from '../../../common/sessionsManagement.js';
 import { BRANCH_CHANGES_CHANGESET_ID, IChat, ISession, ISessionChangeset, ISessionChangesetOperation, ISessionFileChange, ISessionFolder, ISessionGitRepository, ISessionWorkspace, SESSION_CHANGES_CHANGESET_ID, SessionChangesetOperationScope, SessionChangesetOperationStatus, TURN_CHANGES_CHANGESET_ID, UNCOMMITTED_CHANGES_CHANGESET_ID } from '../../../common/session.js';
 import { IAgentFeedbackService } from '../../../browser/agentFeedback.js';
 import { AgentFeedbackState, IAgentFeedback } from '../../../browser/agentFeedbackModel.js';
@@ -22,13 +22,13 @@ import { ICodeReviewService, PRReviewStateKind } from '../../../browser/codeRevi
 import { ChangesetReviewedFilesContext, ChangesViewService } from '../../../browser/changes/changesViewService.js';
 import { getChangesOfSession } from '../../../common/changesViewService.js';
 import { ChangesViewMode } from '../../../common/changes.js';
-import { sessionHostServiceOf, withCreatedStatus } from '../sessionHostTestUtils.js';
+import { ITestSessionWithChat, sessionHostServiceOf, withCreatedStatus } from '../sessionHostTestUtils.js';
 
 suite('ChangesViewService', () => {
 
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
-	function createSession(id: string, options?: { readonly workspace?: ISessionWorkspace; readonly changesets?: readonly ISessionChangeset[]; readonly activeChat?: IObservable<IChat>; readonly mainChat?: IObservable<IChat>; readonly chats?: IObservable<readonly IChat[]>; readonly loading?: IObservable<boolean>; readonly baseBranchProtected?: boolean; readonly pullRequestState?: 'open' | 'closed' | 'merged'; readonly livePullRequestState?: 'open' | 'closed' | 'merged'; readonly pullRequestIcon?: { readonly id: string } }): IActiveSession {
+	function createSession(id: string, options?: { readonly workspace?: ISessionWorkspace; readonly changesets?: readonly ISessionChangeset[]; readonly activeChat?: IObservable<IChat>; readonly mainChat?: IObservable<IChat>; readonly chats?: IObservable<readonly IChat[]>; readonly loading?: IObservable<boolean>; readonly baseBranchProtected?: boolean; readonly pullRequestState?: 'open' | 'closed' | 'merged'; readonly livePullRequestState?: 'open' | 'closed' | 'merged'; readonly pullRequestIcon?: { readonly id: string } }): ITestSessionWithChat {
 		const workspace = options?.workspace ?? (options?.baseBranchProtected === undefined && options?.pullRequestState === undefined && options?.livePullRequestState === undefined && options?.pullRequestIcon === undefined
 			? undefined
 			: upcastPartial<ISessionWorkspace>({
@@ -60,7 +60,7 @@ suite('ChangesViewService', () => {
 			changesets: constObservable(options?.changesets ?? []),
 			workspace: constObservable(workspace),
 		});
-		return upcastPartial<IActiveSession>({
+		return upcastPartial<ITestSessionWithChat>({
 			resource: URI.from({ scheme: 'test-session', path: `/${id}` }),
 			...withCreatedStatus(constObservable(true)),
 			providerId: 'local-agent-host',
@@ -120,8 +120,8 @@ suite('ChangesViewService', () => {
 		});
 	}
 
-	function createHarness(initialSession: IActiveSession, storageService = disposables.add(new TestStorageService()), windowSessions: readonly IActiveSession[] = []) {
-		const activeSession = observableValue<IActiveSession | undefined>('test.activeSession', initialSession);
+	function createHarness(initialSession: ITestSessionWithChat, storageService = disposables.add(new TestStorageService()), windowSessions: readonly ITestSessionWithChat[] = []) {
+		const activeSession = observableValue<ITestSessionWithChat | undefined>('test.activeSession', initialSession);
 		const onDidReplaceSession = disposables.add(new Emitter<{ readonly from: ISession; readonly to: ISession }>());
 		const onDidDeleteSession = disposables.add(new Emitter<ISession>());
 		const onDidDeleteChat = disposables.add(new Emitter<IChatDeletedEvent>());
@@ -318,7 +318,7 @@ suite('ChangesViewService', () => {
 		const sessionA = createSession('a', { changesets: [changesetA] });
 		const sessionB = createSession('b', { changesets: [changesetB] });
 		const { activeSession, service } = createHarness(sessionA);
-		const scopedSession = observableValue<IActiveSession | undefined>('test.scopedSession', sessionB);
+		const scopedSession = observableValue<ITestSessionWithChat | undefined>('test.scopedSession', sessionB);
 
 		const scoped = service.getSessionChanges(scopedSession, derived(reader => scopedSession.read(reader)?.activeChat.read(reader)));
 		const read = () => ({
@@ -349,7 +349,7 @@ suite('ChangesViewService', () => {
 		const { feedbackByResource, service } = createHarness(sessionA);
 		const feedbackItem = (path: string) => upcastPartial<IAgentFeedback>({ resourceUri: URI.file(path), state: AgentFeedbackState.Created });
 		feedbackByResource.set(sessionB.resource.toString(), [feedbackItem('/b.ts'), feedbackItem('/b.ts')]);
-		const scopedSession = observableValue<IActiveSession | undefined>('test.scopedSession', sessionB);
+		const scopedSession = observableValue<ITestSessionWithChat | undefined>('test.scopedSession', sessionB);
 
 		const scoped = service.getSessionChanges(scopedSession, derived(reader => scopedSession.read(reader)?.activeChat.read(reader)));
 

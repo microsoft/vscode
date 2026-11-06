@@ -37,7 +37,7 @@ import { ISessionsPartService } from '../../../../../workbench/contrib/sessions/
 import { ISessionsListModelService } from '../../../../../workbench/contrib/sessions/browser/sessionsListModelService.js';
 import { SessionView } from '../../../../../workbench/contrib/sessions/browser/parts/sessionView.js';
 import { ISessionsService } from '../../../../../workbench/contrib/sessions/browser/sessionsService.js';
-import { IActiveSession, ISessionsManagementService } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
+import { ISessionsManagementService } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import { ChatInteractivity, IChat, ISession, SessionStatus } from '../../../../../workbench/contrib/sessions/common/session.js';
 import { ArchiveSessionAction } from '../../browser/views/sessionsViewActions.js';
 import { ISessionChatItem, SessionChatItemCanSetReadStateContext, SessionChatItemIsArchivedContext, SessionChatItemIsReadContext, SessionItemContextMenuId, SessionItemIsAutomationContext, SessionItemIsInSessionsListContext, SessionsList, SessionsListFocusedChatItemContext } from '../../../../../workbench/contrib/sessions/browser/views/sessionsList.js';
@@ -46,7 +46,7 @@ import { isIMenuItem, MenuId, MenuRegistry } from '../../../../../platform/actio
 import { SessionsView, SessionsViewId } from '../../../../../workbench/contrib/sessions/browser/views/sessionsView.js';
 import { createTestSession, TestSessionsManagementService } from './sessionsListTestUtils.js';
 import '../../browser/sessionsActions.js';
-import { ITestSessionsService, stubSessionHostsFromSessionsService, stubPaneHost } from '../../../../../workbench/contrib/sessions/test/browser/sessionHostTestUtils.js';
+import { ITestSessionsService, ITestSessionWithChat, stubPaneHost, stubSessionHostsFromSessionsService } from '../../../../../workbench/contrib/sessions/test/browser/sessionHostTestUtils.js';
 
 const DELETE_CHAT_COMMAND_ID = 'sessions.chatCompositeBar.deleteChat';
 
@@ -97,7 +97,7 @@ suite('Sessions - Session management actions', () => {
 	test('read and unread commands target list selection or explicit context, never an unrelated active session', async () => {
 		const first = createTestSession('First').session;
 		const second = createTestSession('Second').session;
-		const active = upcastPartial<IActiveSession>(createTestSession('Other active').session);
+		const active = upcastPartial<ITestSessionWithChat>(createTestSession('Other active').session);
 		const harness = createActionHarness([first, second], active);
 		const noSelection = createActionHarness([], active);
 		const noListFocus = createActionHarness(undefined, active);
@@ -145,7 +145,7 @@ suite('Sessions - Session management actions', () => {
 		const parent = createTestSession('Parent').session;
 		const peer = upcastPartial<IChat>({ resource: URI.parse('test:/peer') });
 		const second = upcastPartial<IChat>({ resource: URI.parse('test:/second') });
-		const active = upcastPartial<IActiveSession>(createTestSession('Other active').session);
+		const active = upcastPartial<ITestSessionWithChat>(createTestSession('Other active').session);
 		const selected = [{ session: parent, chat: peer }, { session: parent, chat: second }];
 		const harness = createActionHarness([], active, selected[0], undefined, false, { focusedChats: selected });
 		const calls: { sessionId: string; chat: string; read: boolean }[] = [];
@@ -362,7 +362,7 @@ suite('Sessions - Session management actions', () => {
 
 	function createActionHarness(
 		focusedSessions: readonly ISession[] | undefined,
-		activeSession: IActiveSession | undefined,
+		activeSession: ITestSessionWithChat | undefined,
 		focusedChat?: ISessionChatItem,
 		focusedGroupChat?: IChat,
 		renameFocusedTab = false,
@@ -401,7 +401,7 @@ suite('Sessions - Session management actions', () => {
 
 		instantiationService.stub(IViewsService, upcastPartial<IViewsService>({ getViewWithId }));
 		instantiationService.stub(ISessionsService, upcastPartial<ITestSessionsService>({
-			activeSession: constObservable<IActiveSession | undefined>(activeSession ? upcastPartial<IActiveSession>(activeSession) : undefined),
+			activeSession: constObservable<ITestSessionWithChat | undefined>(activeSession ? upcastPartial<ITestSessionWithChat>(activeSession) : undefined),
 		}));
 		stubSessionHostsFromSessionsService(instantiationService);
 		const sessionView = activeSession ? upcastPartial<SessionView>({
@@ -490,7 +490,7 @@ suite('Sessions - Session management actions', () => {
 
 	test('routes session and chat rename commands to their focused targets', async () => {
 		const listSession = createTestSession('List').session;
-		const listActiveSession = upcastPartial<IActiveSession>(createTestSession('Other active').session);
+		const listActiveSession = upcastPartial<ITestSessionWithChat>(createTestSession('Other active').session);
 		const listHarness = createActionHarness([listSession], listActiveSession);
 		const base = createTestSession('Explore Jitter Issue').session;
 		const mainChat = base.mainChat.get();
@@ -502,7 +502,7 @@ suite('Sessions - Session management actions', () => {
 			interactivity: constObservable(ChatInteractivity.Full),
 			capabilities: constObservable({ canRename: true, canArchive: true, canDelete: true }),
 		});
-		const activeSession = upcastPartial<IActiveSession>({
+		const activeSession = upcastPartial<ITestSessionWithChat>({
 			...base,
 			chats: constObservable([mainChat, peerChat]),
 			mainChat: constObservable(mainChat),
