@@ -7,7 +7,7 @@ import assert from 'assert';
 import { IIdentityProvider, IListVirtualDelegate } from '../../../../browser/ui/list/list.js';
 import { TreeRenderer } from '../../../../browser/ui/tree/abstractTree.js';
 import { ICompressedTreeNode } from '../../../../browser/ui/tree/compressedObjectTreeModel.js';
-import { CompressibleObjectTree, ICompressibleTreeRenderer, ObjectTree } from '../../../../browser/ui/tree/objectTree.js';
+import { CompressibleObjectTree, ICompressibleTreeRenderer, IObjectTreeOptions, ObjectTree } from '../../../../browser/ui/tree/objectTree.js';
 import { ObjectTreeModel } from '../../../../browser/ui/tree/objectTreeModel.js';
 import { ITreeNode, ITreeRenderer } from '../../../../browser/ui/tree/tree.js';
 import { mainWindow } from '../../../../browser/window.js';
@@ -23,9 +23,9 @@ function getRowsTextContent(container: HTMLElement): string[] {
 	return rows.map(row => row.querySelector('.monaco-tl-contents')!.textContent!);
 }
 
-function clickElement(element: HTMLElement, ctrlKey = false): void {
-	element.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, ctrlKey, button: 0 }));
-	element.dispatchEvent(new MouseEvent('click', { bubbles: true, ctrlKey, button: 0 }));
+function clickElement(element: HTMLElement, ctrlKey = false, altKey = false): void {
+	element.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, ctrlKey, altKey, button: 0 }));
+	element.dispatchEvent(new MouseEvent('click', { bubbles: true, ctrlKey, altKey, button: 0 }));
 }
 
 function dispatchKeydown(element: HTMLElement, key: string, code: string, keyCode: number): void {
@@ -262,6 +262,194 @@ suite('ObjectTree', function () {
 		}
 		disposeTemplate(): void { }
 	}
+
+	suite('collapseRecursive', function () {
+		const store = ensureNoDisposablesAreLeakedInTestSuite();
+
+		function createTree(options: IObjectTreeOptions<number> = {}): ObjectTree<number> {
+			const container = document.createElement('div');
+			container.style.width = '200px';
+			container.style.height = '200px';
+
+			const tree = store.add(new ObjectTree<number>('test', container, new Delegate(), [new Renderer()], options));
+			tree.layout(200);
+			tree.setChildren(null, [
+				{
+					element: 1, collapsed: false, children: [{
+						element: 11, collapsed: false, children: [{
+							element: 111, collapsed: false, children: [{ element: 1111 }]
+						}]
+					}]
+				},
+				{ element: 2, collapsed: false, children: [{ element: 21 }] }
+			]);
+			return tree;
+		}
+
+		function getCollapsedState(tree: ObjectTree<number>): boolean[] {
+			return [1, 11, 111, 2].map(element => tree.isCollapsed(element));
+		}
+
+		test('preserves descendant state by default', () => {
+			const tree = createTree();
+			const collapseChanged = tree.collapse(1);
+			const afterCollapse = getCollapsedState(tree);
+			tree.expand(1);
+			const toggleChanged = tree.toggleCollapsed(1);
+			const afterToggle = getCollapsedState(tree);
+			tree.expand(1);
+
+			assert.deepStrictEqual({
+				collapseChanged,
+				afterCollapse,
+				toggleChanged,
+				afterToggle,
+				rowsAfterExpand: getRowsTextContent(tree.getHTMLElement()),
+			}, {
+				collapseChanged: true,
+				afterCollapse: [true, false, false, false],
+				toggleChanged: true,
+				afterToggle: [true, false, false, false],
+				rowsAfterExpand: ['1', '11', '111', '1111', '2', '21'],
+			});
+		});
+
+		test('collapses descendants through public methods, clicks and keyboard events', () => {
+			const tree = createTree({ collapseRecursive: true });
+			const actions = [
+				{ input: 'collapse', run: () => tree.collapse(1) },
+				{ input: 'toggleCollapsed', run: () => tree.toggleCollapsed(1) },
+				{ input: 'twistie click', run: () => clickElement(tree.getHTMLElement().querySelector<HTMLElement>('.monaco-list-row[data-index="0"] .monaco-tl-twistie')!) },
+				{ input: 'LeftArrow', run: () => dispatchKeydown(tree.getHTMLElement(), 'ArrowLeft', 'ArrowLeft', 37) },
+				{ input: 'Space', run: () => dispatchKeydown(tree.getHTMLElement(), ' ', 'Space', 32) },
+			];
+			const states = actions.map(({ input, run }) => {
+				tree.expandAll();
+				tree.setFocus([1]);
+				run();
+				return { input, collapsed: getCollapsedState(tree) };
+			});
+
+			assert.deepStrictEqual(states, [
+				{ input: 'collapse', collapsed: [true, true, true, false] },
+				{ input: 'toggleCollapsed', collapsed: [true, true, true, false] },
+				{ input: 'twistie click', collapsed: [true, true, true, false] },
+				{ input: 'LeftArrow', collapsed: [true, true, true, false] },
+				{ input: 'Space', collapsed: [true, true, true, false] },
+			]);
+		});
+
+		test('expands only the target node', () => {
+			const tree = createTree({ collapseRecursive: true });
+			const actions = [
+				{ input: 'expand', run: () => tree.expand(1) },
+				{ input: 'toggleCollapsed', run: () => tree.toggleCollapsed(1) },
+				{ input: 'RightArrow', run: () => dispatchKeydown(tree.getHTMLElement(), 'ArrowRight', 'ArrowRight', 39) },
+				{ input: 'Space', run: () => dispatchKeydown(tree.getHTMLElement(), ' ', 'Space', 32) },
+			];
+			const states = actions.map(({ input, run }) => {
+				tree.collapse(1);
+				tree.setFocus([1]);
+				run();
+				return { input, collapsed: getCollapsedState(tree) };
+			});
+
+			assert.deepStrictEqual(states, [
+				{ input: 'expand', collapsed: [false, true, true, false] },
+				{ input: 'toggleCollapsed', collapsed: [false, true, true, false] },
+				{ input: 'RightArrow', collapsed: [false, true, true, false] },
+				{ input: 'Space', collapsed: [false, true, true, false] },
+			]);
+		});
+
+		test('keeps Alt-click collapse and expand recursive', () => {
+			const states = [undefined, true].map(collapseRecursive => {
+				const tree = createTree({ collapseRecursive });
+				const twistie = tree.getHTMLElement().querySelector<HTMLElement>('.monaco-list-row[data-index="0"] .monaco-tl-twistie')!;
+				clickElement(twistie, false, true);
+				const afterCollapse = getCollapsedState(tree);
+				clickElement(twistie, false, true);
+				return { afterCollapse, afterExpand: getCollapsedState(tree) };
+			});
+
+			assert.deepStrictEqual(states, [
+				{ afterCollapse: [true, true, true, false], afterExpand: [false, false, false, false] },
+				{ afterCollapse: [true, true, true, false], afterExpand: [false, false, false, false] },
+			]);
+		});
+
+		test('supports enabling and disabling the option at runtime', () => {
+			const tree = createTree();
+			tree.updateOptions({ collapseRecursive: true });
+			tree.updateOptions({ indent: 12 });
+			tree.collapse(1);
+			const enabled = getCollapsedState(tree);
+			tree.expandAll();
+			tree.updateOptions({ collapseRecursive: false });
+			tree.toggleCollapsed(1);
+
+			assert.deepStrictEqual({ enabled, disabled: getCollapsedState(tree) }, {
+				enabled: [true, true, true, false],
+				disabled: [true, false, false, false],
+			});
+		});
+
+		test('keeps explicit recursion and collapseAll recursive without duplicate events', () => {
+			const states = [false, true].map(collapseRecursive => {
+				const tree = createTree({ collapseRecursive });
+				const events: (number | null)[] = [];
+				store.add(tree.onDidChangeCollapseState(event => events.push(event.node.element)));
+				tree.collapse(1, true);
+				const afterRecursiveCollapse = events.splice(0);
+				tree.expandAll();
+				events.length = 0;
+				tree.collapseAll();
+				const afterCollapseAll = events.splice(0);
+				tree.collapseAll();
+				return { afterRecursiveCollapse, afterCollapseAll, repeatedEvents: events, collapsed: getCollapsedState(tree) };
+			});
+
+			assert.deepStrictEqual(states, [
+				{ afterRecursiveCollapse: [1, 11, 111], afterCollapseAll: [1, 11, 111, 2], repeatedEvents: [], collapsed: [true, true, true, true] },
+				{ afterRecursiveCollapse: [1, 11, 111], afterCollapseAll: [1, 11, 111, 2], repeatedEvents: [], collapsed: [true, true, true, true] },
+			]);
+		});
+
+		test('preserves hidden descendants and LeftArrow parent navigation when already collapsed', () => {
+			const tree = createTree();
+			tree.collapse(11);
+			tree.updateOptions({ collapseRecursive: true });
+			tree.setFocus([11]);
+			const events: (number | null)[] = [];
+			store.add(tree.onDidChangeCollapseState(event => events.push(event.node.element)));
+			const changed = tree.collapse(11);
+			dispatchKeydown(tree.getHTMLElement(), 'ArrowLeft', 'ArrowLeft', 37);
+
+			assert.deepStrictEqual({ changed, collapsed: getCollapsedState(tree), focus: tree.getFocus(), events }, {
+				changed: false,
+				collapsed: [false, true, false, false],
+				focus: [1],
+				events: [],
+			});
+		});
+
+		test('keeps noncollapsible parents unchanged unless recursion is explicit', () => {
+			const tree = createTree({ collapseRecursive: true, allowNonCollapsibleParents: true });
+			tree.setCollapsible(1, false);
+			const collapseChanged = tree.collapse(1);
+			const toggleChanged = tree.toggleCollapsed(1);
+			const afterNormalCollapse = getCollapsedState(tree);
+			const recursiveChanged = tree.collapse(1, true);
+
+			assert.deepStrictEqual({ collapseChanged, toggleChanged, afterNormalCollapse, recursiveChanged, afterRecursiveCollapse: getCollapsedState(tree) }, {
+				collapseChanged: false,
+				toggleChanged: false,
+				afterNormalCollapse: [false, false, false, false],
+				recursiveChanged: true,
+				afterRecursiveCollapse: [false, true, true, false],
+			});
+		});
+	});
 
 	test('applies renderer row class names', function () {
 		const container = document.createElement('div');
