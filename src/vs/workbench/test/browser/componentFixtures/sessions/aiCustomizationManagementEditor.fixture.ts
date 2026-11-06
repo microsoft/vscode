@@ -122,10 +122,8 @@ import { IIterativePager } from '../../../../../base/common/paging.js';
 import { IAgentHostCustomizationService } from '../../../../contrib/chat/browser/agentSessions/agentHost/agentHostCustomizationService.js';
 import { ICanvasContext, ICanvasContextService, ICanvasDefinition, ICanvasService } from '../../../../contrib/canvases/common/canvas.js';
 import { CustomizationEnablementKind, McpAuthRequiredReason, McpServerStatus } from '../../../../../platform/agentHost/common/state/protocol/state.js';
-// eslint-disable-next-line local/code-import-patterns
-import { IAgentFeedbackService } from '../../../../../sessions/contrib/agentFeedback/browser/agentFeedbackService.js';
-// eslint-disable-next-line local/code-import-patterns
-import { ICodeReviewService } from '../../../../../sessions/contrib/codeReview/browser/codeReviewService.js';
+import { IAgentFeedbackService } from '../../../../contrib/sessions/browser/agentFeedback.js';
+import { ICodeReviewService } from '../../../../contrib/sessions/browser/codeReviewService.js';
 import { createMockCodeReviewService } from './mockCodeReviewService.js';
 import { IChatEditingService } from '../../../../contrib/chat/common/editing/chatEditingService.js';
 import { IAgentSessionsService } from '../../../../contrib/chat/browser/agentSessions/agentSessionsService.js';
@@ -3762,6 +3760,43 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 				sessionResource: localSessionResource,
 				isSessionsWindow: true,
 				selectedSection: AICustomizationManagementSection.Agents,
+				availableHarnesses: [
+					createVSCodeHarnessDescriptor(),
+				],
+				managementSections: [
+					AICustomizationManagementSection.Plugins,
+					AICustomizationManagementSection.McpServers,
+					AICustomizationManagementSection.Skills,
+					AICustomizationManagementSection.Instructions,
+					AICustomizationManagementSection.Agents,
+					AICustomizationManagementSection.Hooks,
+					AICustomizationManagementSection.Tools,
+					AICustomizationManagementSection.Extensions,
+				],
+			});
+		},
+	}),
+
+	// Sessions variant whose contributed section after the separator is selected in the navigation list.
+	SessionsContributedSectionSelected: defineComponentFixture({
+		labels: { kind: 'screenshot', blocksCi: false },
+		expectedVisualDescriptions: [
+			'In the navigation list, a thin divider separates Hooks from the selected Extensions entry. The divider is not inside the selection background of Extensions, which has the same height and the same space above and below its label as the backgrounds of the other entries.',
+		],
+		render: ctx => {
+			ctx.disposableStore.add(aiCustomizationManagementSectionRegistry.register({
+				id: AICustomizationManagementSection.Extensions,
+				label: 'Extensions',
+				icon: Codicon.extensions,
+				description: 'Choose which installed extensions run in the Agents window.',
+				separatorBefore: true,
+				supportsHarness: () => true,
+				create: () => ({ dispose: () => { } }),
+			}));
+			return renderEditor(ctx, {
+				sessionResource: localSessionResource,
+				isSessionsWindow: true,
+				selectedSection: AICustomizationManagementSection.Extensions,
 				availableHarnesses: [
 					createVSCodeHarnessDescriptor(),
 				],

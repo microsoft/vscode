@@ -19,7 +19,8 @@ import { EditorExtensions, IEditorFactoryRegistry, IEditorSerializer } from '../
 import { EditorInput } from '../../../../common/editor/editorInput.js';
 import { IContentPart, IEditorGroup } from '../../../../services/editor/common/editorGroupsService.js';
 import { IChatWindow, IChatWindowOpenOptions, IChatWindowProvider } from '../../browser/chatWindow.js';
-import { ChatWindowsRestoration, OPEN_CHAT_WINDOWS_STORAGE_KEY } from '../../browser/chatWindowsRestoration.js';
+import { ChatWindowsRestoration, IChatWindowBounds, OPEN_CHAT_WINDOWS_STORAGE_KEY } from '../../browser/chatWindowsRestoration.js';
+import { AuxiliaryWindowMode } from '../../../../services/auxiliaryWindow/browser/auxiliaryWindowService.js';
 
 class TestStorageService extends InMemoryStorageService {
 	willSave(): void {
@@ -39,7 +40,7 @@ suite('ChatWindowsRestoration', () => {
 		}();
 	}
 
-	function createRestoration(options: { stored?: object[]; restoreEnabled?: boolean; registered?: boolean; gone?: string[]; canRestore?: (chat: URI) => Promise<boolean>; createdParts?: (window: IChatWindow) => readonly IContentPart[] }) {
+	function createRestoration(options: { stored?: object[]; restoreEnabled?: boolean; registered?: boolean; gone?: string[]; order?: (window: IChatWindow) => readonly URI[] | undefined; layoutChat?: (window: IChatWindow) => URI | undefined; canRestore?: (chat: URI) => Promise<boolean>; createdParts?: (window: IChatWindow) => readonly IContentPart[]; windowState?: (window: IChatWindow) => IChatWindowBounds | undefined }) {
 		const storageService = disposables.add(new TestStorageService());
 		if (options.stored) {
 			storageService.store(OPEN_CHAT_WINDOWS_STORAGE_KEY, JSON.stringify(options.stored), StorageScope.WORKSPACE, StorageTarget.MACHINE);
@@ -66,9 +67,12 @@ suite('ChatWindowsRestoration', () => {
 				return createWindow(chat.toString());
 			},
 			activateChat: (_window: IChatWindow, chat: URI) => activated.push(chat.toString()),
+			chatsInOrder: window => options.order?.(window),
+			layoutChatOf: window => options.layoutChat?.(window),
 			terminalsShown: () => true,
 			chatPart: window => window.chat.get().path === '/split' ? { state: { serializedGrid: {} }, chatGroup: 1 } : undefined,
 			createdParts: window => options.createdParts?.(window) ?? [],
+			windowState: window => options.windowState?.(window),
 		}));
 		const read = () => storageService.get(OPEN_CHAT_WINDOWS_STORAGE_KEY, StorageScope.WORKSPACE);
 		return { storageService, restoration, onDidRemoveChats, restoreEnabled, provider, providerObs, windows, opened, activated, read };
@@ -89,6 +93,34 @@ suite('ChatWindowsRestoration', () => {
 			opened: [{ chat: 'test:/a', chats: ['test:/b'] }, { chat: 'test:/session', chats: undefined }, { chat: 'test:/c', chats: undefined }],
 			stored: [{ chat: 'test:/x', chats: ['test:/y'], activeChat: 'test:/y' }, { chat: 'test:/z', chats: undefined, activeChat: undefined }],
 		});
+	});
+
+	test('stores the chats of a window in the order of its tabs rather than the order they joined in', async () => {
+		const { storageService, windows, read } = createRestoration({ order: () => ['test:/a', 'test:/c', 'test:/b'].map(chat => URI.parse(chat)) });
+		await flush();
+		windows.set([createWindow('test:/a', ['test:/b', 'test:/c'])], undefined);
+		storageService.willSave();
+
+		assert.deepStrictEqual(JSON.parse(read()!).map((entry: { chat: string; chats?: string[] }) => [entry.chat, ...(entry.chats ?? [])]), [['test:/a', 'test:/c', 'test:/b']]);
+	});
+
+	test('stores the chat whose layout the window remembers when a tab was moved before it, and nothing when it is still first', async () => {
+		const stored = async (order: string[], layoutChat: string) => {
+			const { storageService, windows, read } = createRestoration({ order: () => order.map(chat => URI.parse(chat)), layoutChat: () => URI.parse(layoutChat) });
+			await flush();
+			windows.set([createWindow('test:/a', ['test:/b'])], undefined);
+			storageService.willSave();
+			return JSON.parse(read()!).map((entry: { chat: string; layoutChat?: string }) => [entry.chat, entry.layoutChat]);
+		};
+
+		assert.deepStrictEqual({ moved: await stored(['test:/b', 'test:/a'], 'test:/a'), first: await stored(['test:/a', 'test:/b'], 'test:/a') }, { moved: [['test:/b', 'test:/a']], first: [['test:/a', undefined]] });
+	});
+
+	test('restores a window that shows the tab of another chat first with the layout of the chat it remembers it for, unless that chat is gone', async () => {
+		const { opened } = createRestoration({ stored: [{ chat: 'test:/b', layoutChat: 'test:/a', chats: ['test:/a'] }, { chat: 'test:/d', layoutChat: 'test:/c', chats: ['test:/c', 'test:/e'] }], gone: ['test:/c'] });
+		await flush();
+
+		assert.deepStrictEqual(opened.map(({ chat, options }) => [chat, options.layoutChat?.toString(), options.chats?.map(other => other.toString())]), [['test:/b', 'test:/a', ['test:/a']], ['test:/d', undefined, ['test:/e']]]);
 	});
 
 	test('restores the active chat of a window of several chats, also when it is the first', async () => {
@@ -200,5 +232,28 @@ suite('ChatWindowsRestoration', () => {
 			stored: [{ chat: 'test:/a', editors: [], terminal: true, created: [[{ typeId, value: '/created.txt', active: true }]] }, { chat: 'test:/b', editors: [], terminal: true }],
 			restored: [{ chat: 'test:/a', createdParts: [{ editors: ['/created.txt'], active: '/created.txt' }] }, { chat: 'test:/b', createdParts: undefined }]
 		});
+	});
+
+	test('each window opens again where it showed on the screen, maximized or in full screen as it was; a stored state that is not one is left out', async () => {
+		const states: Record<string, IChatWindowBounds> = {
+			'/a': { bounds: { x: 100, y: 50, width: 900, height: 700 }, mode: AuxiliaryWindowMode.Normal },
+			'/b': { bounds: { x: -1200, y: 0, width: 1200, height: 800 }, mode: AuxiliaryWindowMode.Maximized },
+		};
+		const saving = createRestoration({ windowState: window => states[window.chat.get().path] });
+		await flush();
+		saving.windows.set([createWindow('test:/a'), createWindow('test:/b'), createWindow('test:/c')], undefined);
+		saving.storageService.willSave();
+		const stored = JSON.parse(saving.read()!);
+		saving.windows.set([], undefined);
+
+		const { opened } = createRestoration({ stored: [...stored, { chat: 'test:/invalid', window: { bounds: { x: 0, y: 0, width: 'wide' }, mode: AuxiliaryWindowMode.Fullscreen } }] });
+		await flush();
+
+		assert.deepStrictEqual(opened.map(window => ({ chat: window.chat, bounds: window.options.bounds, mode: window.options.mode })), [
+			{ chat: 'test:/a', bounds: { x: 100, y: 50, width: 900, height: 700 }, mode: AuxiliaryWindowMode.Normal },
+			{ chat: 'test:/b', bounds: { x: -1200, y: 0, width: 1200, height: 800 }, mode: AuxiliaryWindowMode.Maximized },
+			{ chat: 'test:/c', bounds: undefined, mode: undefined },
+			{ chat: 'test:/invalid', bounds: undefined, mode: undefined },
+		]);
 	});
 });

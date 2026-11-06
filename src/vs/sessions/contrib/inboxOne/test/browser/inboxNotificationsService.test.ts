@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { spy } from 'sinon';
 import { ConfirmationOptionKind } from '../../../../../platform/agentHost/common/state/protocol/state.js';
 import { DeferredPromise, timeout } from '../../../../../base/common/async.js';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
@@ -22,18 +23,18 @@ import { ITelemetryService, TelemetryLevel } from '../../../../../platform/telem
 import { NullLogService } from '../../../../../platform/log/common/log.js';
 import { IConfigurationChangeEvent } from '../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
-import { IGitHubService } from '../../../github/browser/githubService.js';
-import { GitHubCIOverallStatus, GitHubCheckConclusion, GitHubCheckStatus, GitHubPullRequestState, IGitHubCICheck, IGitHubPullRequest, IGitHubPullRequestReviewThread } from '../../../github/common/types.js';
-import { IAgentHostSessionsProvider, IAgentMergeClientState } from '../../../../common/agentHostSessionsProvider.js';
-import { ISessionsProvidersChangeEvent, ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
-import { ISessionsProvider } from '../../../../services/sessions/common/sessionsProvider.js';
-import { IChat, ISessionArtifact, ISessionChangeset, ISessionChangesetOperation, SessionArtifactKind, SessionChangesetOperationScope, SessionChangesetOperationStatus, SessionStatus, type IGitHubInfo, type ISession, type ISessionWorkspace } from '../../../../services/sessions/common/session.js';
-import { ISessionsChangeEvent, ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
+import { IGitHubService } from '../../../../../workbench/contrib/sessions/browser/github/githubService.js';
+import { GitHubCIOverallStatus, GitHubCheckConclusion, GitHubCheckStatus, GitHubPullRequestState, IGitHubCICheck, IGitHubPullRequest, IGitHubPullRequestReviewThread } from '../../../../../workbench/contrib/sessions/common/github/types.js';
+import { IAgentHostSessionsProvider, IAgentMergeClientState } from '../../../../../workbench/contrib/sessions/common/agentHostSessionsProvider.js';
+import { ISessionsProvidersChangeEvent, ISessionsProvidersService } from '../../../../../workbench/contrib/sessions/browser/sessionsProvidersService.js';
+import { ISessionsProvider } from '../../../../../workbench/contrib/sessions/common/sessionsProvider.js';
+import { IChat, ISessionArtifact, ISessionChangeset, ISessionChangesetOperation, SessionArtifactKind, SessionChangesetOperationScope, SessionChangesetOperationStatus, SessionStatus, type IGitHubInfo, type ISession, type ISessionWorkspace } from '../../../../../workbench/contrib/sessions/common/session.js';
+import { ISessionsChangeEvent, ISessionsManagementService } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import { cleanPreviewText, InboxNotificationsService, parseDetailSummary } from '../../browser/inboxNotificationsService.js';
-import { getInboxPullRequestMergeOperation, InboxNotificationActionKind, InboxNotificationKind, InboxNotificationPriority, InboxNotificationsSortMode, InboxTab, type IInboxNotificationItem } from '../../common/inboxNotificationsService.js';
-import { GitHubPullRequestModel } from '../../../github/browser/models/githubPullRequestModel.js';
-import { GitHubPullRequestCIModel } from '../../../github/browser/models/githubPullRequestCIModel.js';
-import { GitHubPullRequestReviewThreadsModel } from '../../../github/browser/models/githubPullRequestReviewThreadsModel.js';
+import { getInboxPullRequestMergeOperation, InboxNotificationActionKind, InboxNotificationKind, InboxNotificationPriority, InboxNotificationsSortMode, InboxTab, type IInboxNotificationItem } from '../../../../../workbench/contrib/sessions/common/inboxNotificationsService.js';
+import { GitHubPullRequestModel } from '../../../../../workbench/contrib/sessions/browser/github/models/githubPullRequestModel.js';
+import { GitHubPullRequestCIModel } from '../../../../../workbench/contrib/sessions/browser/github/models/githubPullRequestCIModel.js';
+import { GitHubPullRequestReviewThreadsModel } from '../../../../../workbench/contrib/sessions/browser/github/models/githubPullRequestReviewThreadsModel.js';
 import { IChatQuestionCarousel, IChatService, IChatToolInvocation } from '../../../../../workbench/contrib/chat/common/chatService/chatService.js';
 import { IChatSessionsService } from '../../../../../workbench/contrib/chat/common/chatSessionsService.js';
 import { ChatAgentLocation } from '../../../../../workbench/contrib/chat/common/constants.js';
@@ -42,7 +43,7 @@ import { IChatUtilityModelRequest, IChatUtilityModelService } from '../../../../
 import { IChatChangeEvent, IChatModel, IChatRequestModel, IChatResponseModel } from '../../../../../workbench/contrib/chat/common/model/chatModel.js';
 import { ChatPlanReviewData } from '../../../../../workbench/contrib/chat/common/model/chatProgressTypes/chatPlanReviewData.js';
 import { IChatEntitlementService, IChatSentiment } from '../../../../../workbench/services/chat/common/chatEntitlementService.js';
-import { CHAT_INBOX_ENABLED_SETTING } from '../../browser/inboxNotificationsConstants.js';
+import { CHAT_INBOX_ENABLED_SETTING } from '../../../../../workbench/contrib/sessions/browser/inboxNotificationsConstants.js';
 
 suite('InboxNotificationsService', () => {
 	const dismissedStorageKey = 'sessions.inboxNotifications.dismissedIds';
@@ -2683,6 +2684,106 @@ suite('InboxNotificationsService', () => {
 		const done = fixture.service.attentionCount.get();
 		fixture.service.setSessionOnHold(pendingRow, false);
 		assert.deepStrictEqual({ initial, held, done, resumed: fixture.service.attentionCount.get() }, { initial: 2, held: 1, done: 0, resumed: 1 });
+	});
+
+	test('caches unrelated rows and notification previews across session and catalog updates', () => {
+		const sessions = Array.from({ length: 100 }, (_, index) => createSession({
+			id: `cached-${index}`, status: SessionStatus.Completed, updatedAt: 100,
+		}));
+		const chatService = new TestChatService();
+		for (const session of sessions) {
+			chatService.setCompletedResponse(session.mainChat.get().resource, { requestId: 'result', markdown: 'Finished work.' });
+		}
+		const fixture = createFixture(sessions, undefined, undefined, chatService);
+		disposables.add(autorun(reader => fixture.service.sessionRows.read(reader)));
+		const before = fixture.service.sessionRows.get();
+		const unchanged = sessions[1];
+		const requests = spy(chatService.getSession(unchanged.mainChat.get().resource)!, 'getRequests');
+		disposables.add(toDisposable(() => requests.restore()));
+
+		(sessions[0].title as ISettableObservable<string>).set('Updated title', undefined);
+		const updated = fixture.service.sessionRows.get();
+		(sessions[0].artifacts as ISettableObservable<readonly ISessionArtifact[]>).set([
+			{ id: 'image', kind: SessionArtifactKind.File, label: 'Preview', uri: URI.file('/workspace/preview.png'), isArtifact: true },
+		], undefined);
+		const visual = fixture.service.sessionRows.get().find(row => row.id === `session:${sessions[0].sessionId}`)!;
+		fixture.service.setSessionOnHold(visual, true);
+		const held = fixture.service.sessionRows.get().find(row => row.id === visual.id)!;
+		const added = createSession({ id: 'added', status: SessionStatus.InProgress, updatedAt: 300 });
+		fixture.setSessions([...sessions, added]);
+		const expanded = fixture.service.sessionRows.get();
+		fixture.setSessions(sessions.slice(1));
+		const removed = fixture.service.sessionRows.get();
+		(sessions[0].status as ISettableObservable<SessionStatus>).set(SessionStatus.InProgress, undefined);
+
+		assert.deepStrictEqual({
+			title: updated.find(row => row.id === `session:${sessions[0].sessionId}`)?.sessionTitle,
+			imageUpdated: visual.hasImages,
+			workflowUpdated: held.tab,
+			cachedAfterUpdate: updated.filter(row => row.id !== `session:${sessions[0].sessionId}`).every(row => before.includes(row)),
+			cachedAfterAddition: before.filter(row => row.id !== `session:${sessions[0].sessionId}`).every(row => expanded.includes(row)),
+			cachedAfterRemoval: removed.every(row => before.includes(row)),
+			unrelatedTranscriptReads: requests.callCount,
+			removedSessionUnsubscribed: fixture.service.sessionRows.get() === removed,
+		}, {
+			title: 'Updated title', imageUpdated: true, workflowUpdated: InboxTab.OnHold,
+			cachedAfterUpdate: true, cachedAfterAddition: true, cachedAfterRemoval: true,
+			unrelatedTranscriptReads: 0, removedSessionUnsubscribed: true,
+		});
+	});
+
+	test('observing only the attention badge does not prepare row evidence or previews', () => {
+		const sessions = Array.from({ length: 100 }, (_, index) => createSession({
+			id: `badge-${index}`, status: index % 2 ? SessionStatus.Completed : SessionStatus.InProgress, updatedAt: 100,
+		}));
+		const chatService = new TestChatService();
+		for (const session of sessions) {
+			chatService.setCompletedResponse(session.mainChat.get().resource, { requestId: 'result', markdown: 'Previous work.' });
+		}
+		const fixture = createFixture(sessions, undefined, undefined, chatService);
+		const requests = sessions.map(session => {
+			const requests = spy(chatService.getSession(session.mainChat.get().resource)!, 'getRequests');
+			disposables.add(toDisposable(() => requests.restore()));
+			return requests;
+		});
+		disposables.add(autorun(reader => fixture.service.attentionCount.read(reader)));
+		fixture.service.publishExternalNotification({ id: 'attention', title: 'Review', description: '', sessionResource: sessions[0].resource });
+		const badge = { count: fixture.service.attentionCount.get(), transcriptReads: requests.reduce((sum, requests) => sum + requests.callCount, 0) };
+		fixture.service.dismissNotification('attention');
+		const dismissed = fixture.service.attentionCount.get();
+		fixture.service.sessionRows.get();
+
+		assert.deepStrictEqual({
+			badge, dismissed, evidencePreparedOnDemand: requests.every(requests => requests.callCount > 0),
+		}, {
+			badge: { count: 51, transcriptReads: 0 }, dismissed: 50, evidencePreparedOnDemand: true,
+		});
+	});
+
+	test('pull request updates invalidate only the owning row and its preview', () => {
+		const sessions = [44, 45].map(number => createSession({
+			id: `cached-pr-${number}`, status: SessionStatus.Completed, updatedAt: 100,
+			pullRequest: { owner: 'owner', repo: 'repo', number },
+		}));
+		const fixture = createFixture(sessions);
+		for (const number of [44, 45]) {
+			fixture.gitHubService.setPullRequest('owner', 'repo', number, openPullRequest(number, `sha${number}`));
+		}
+		disposables.add(autorun(reader => fixture.service.sessionRows.read(reader)));
+		const before = fixture.service.sessionRows.get();
+		fixture.gitHubService.setCIStatus('owner', 'repo', 44, 'sha44', GitHubCIOverallStatus.Failure, []);
+		const after = fixture.service.sessionRows.get();
+		const changed = after.find(row => row.id === `session:${sessions[0].sessionId}`)!;
+		const unchanged = after.find(row => row.id === `session:${sessions[1].sessionId}`)!;
+
+		assert.deepStrictEqual({
+			kind: changed.kind,
+			previewInvalidated: changed.previewSignature !== before.find(row => row.id === changed.id)!.previewSignature,
+			unrelatedRowCached: before.includes(unchanged),
+			count: fixture.service.attentionCount.get(),
+		}, {
+			kind: InboxNotificationKind.FailingCI, previewInvalidated: true, unrelatedRowCached: true, count: 2,
+		});
 	});
 
 	test('retains PR evidence without pending CI and keeps referenced PRs ineligible for merge actions', () => {

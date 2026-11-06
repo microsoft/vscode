@@ -16,13 +16,17 @@ import { IEditorGroupViewOptions } from '../../../browser/parts/editor/editor.js
 import { IEditorPartOptions } from '../../../common/editor.js';
 import { EditorInput } from '../../../common/editor/editorInput.js';
 import { IContentPart, IEditorGroup, IEditorPart } from '../../../services/editor/common/editorGroupsService.js';
+import { AuxiliaryWindowMode } from '../../../services/auxiliaryWindow/browser/auxiliaryWindowService.js';
 import { ChatWindowLayoutMode, ChatWindowSplitLayout, ChatWindowTerminalPosition } from '../common/chatWindowLayout.js';
 
 export const IChatWindowService = createDecorator<IChatWindowService>('chatWindowService');
 
 /** The editors a chat window's main part starts with. */
 export interface IChatWindowEditors {
-	/** Groups whose editors move into the main part as the window opens, such as the main window's for its chat. */
+	/**
+	 * Groups whose editors move into the main part as the window opens, such as the main window's for its chat; or, with
+	 * {@link IChatWindowOpenOptions.window}, as the chat opens in that window.
+	 */
 	readonly moveFrom?: readonly IEditorGroup[];
 	/** Editors that open in the main part as the window opens, such as those it showed when it last closed. */
 	readonly editors?: readonly EditorInput[];
@@ -41,8 +45,17 @@ export interface IChatWindowOpenOptions {
 	readonly window?: IChatWindow;
 	/** The chats it shows besides the one it opens for, in their order after it, such as those it showed when it last closed. */
 	readonly chats?: readonly URI[];
+	/** Of its chats, the one whose remembered layout and part sizes the window uses, when not the one it opens for. */
+	readonly layoutChat?: URI;
 	/** With {@link window}: one of its chats, beside which the chat opens, in a group of its own to the right. */
 	readonly beside?: URI;
+	/** With {@link window}: one of its chats, in whose group the chat opens as a tab. */
+	readonly tabOf?: URI;
+	/**
+	 * Whether to open exactly the given chat, rather than the chat the provider would show for it: a provider may show a
+	 * session's other chat for the resource that names the session, which this opens the session's own chat instead of.
+	 */
+	readonly exactChat?: boolean;
 	/** The editors its main part starts with. */
 	readonly editors?: IChatWindowEditors;
 	/**
@@ -52,6 +65,8 @@ export interface IChatWindowOpenOptions {
 	readonly showTerminals?: boolean;
 	/** Where on the screen a new window opens, such as where a chat was dragged to; a window that shows already stays. */
 	readonly bounds?: Partial<IRectangle>;
+	/** Whether a new window opens maximized or in full screen, such as when it last closed so. */
+	readonly mode?: AuxiliaryWindowMode;
 	/** The groups its chat part starts with besides the chat's own, such as editors split beside the chat, as it opens again. */
 	readonly chatPart?: IChatWindowChatPart;
 	/**
@@ -98,7 +113,7 @@ export interface IChatWindowContent extends IDisposable {
 	/** Services scoped to the window, created for it: what its chats, its parts and its chrome act on. */
 	readonly services?: ServiceCollection;
 	/** Resolves a chat for the window to show; undefined when the chat is unknown. */
-	resolveChat(chat: URI): Promise<IChatWindowChat | undefined>;
+	resolveChat(chat: URI, exactChat?: boolean): Promise<IChatWindowChat | undefined>;
 	/**
 	 * Called once the window's services exist, before its parts show anything: `instantiationService` has the window's
 	 * services, those of its content and the window's context, such as to bind what the window shows on that context.
@@ -124,14 +139,10 @@ export interface IChatWindowChromeElement extends IDisposable {
  * services: those of its content and the window's context.
  */
 export interface IChatWindowChrome {
-	/**
-	 * A row above the chat part while the main part is beside the chat (Side by Side), else across the window, such as the
-	 * session's title row.
-	 */
+	/** A row across the top of the window, in every layout mode, such as the title bar of the window. */
 	createTitleRow?(window: IChatWindow, container: HTMLElement, instantiationService: IInstantiationService): IChatWindowChromeElement | undefined;
 	/**
-	 * A column at the right of the window while the chat is below the main part or hidden (Stacked, Editor Only), such as
-	 * the session's activity bar, which shows beside the chat otherwise.
+	 * A column at the right of the window, in every layout mode, such as the session's activity bar.
 	 */
 	createStrip?(window: IChatWindow, container: HTMLElement, instantiationService: IInstantiationService): IChatWindowChromeElement | undefined;
 }
@@ -206,11 +217,6 @@ export interface IChatWindow {
 	readonly chatEditor: EditorInput;
 	/** Whether `editor` shows one of its chats. */
 	isChatEditor(editor: EditorInput): boolean;
-	/**
-	 * Whether the chat leads the window: it shows in the chat part, with no part before it, to its left or above it. The
-	 * chat can move into another part of the window, and parts can move, such as when dragged.
-	 */
-	readonly chatLeads: IObservable<boolean>;
 	/**
 	 * The part that holds its terminals, once created (see {@link getOrCreateTerminalsPart}), until the window closes. It is
 	 * a part like the others: what it shows is what the feature that shows terminals opens in it.

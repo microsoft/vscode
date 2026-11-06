@@ -20,9 +20,9 @@ import { IEditorGroupsService } from '../../../../../workbench/services/editor/c
 import { IEditorService } from '../../../../../workbench/services/editor/common/editorService.js';
 import { Parts } from '../../../../../workbench/services/layout/browser/layoutService.js';
 import { IAgentWorkbenchLayoutService } from '../../../../browser/workbench.js';
-import { ISessionChangesService } from '../../../changes/browser/sessionChangesService.js';
-import { EmptyFileEditorInput } from '../../../editor/browser/emptyFileEditorInput.js';
-import { ISessionWorkspace } from '../../../../services/sessions/common/session.js';
+import { ISessionChangesService } from '../../../../../workbench/contrib/sessions/browser/changes/sessionChangesService.js';
+import { EmptyFileEditorInput } from '../../../../../workbench/contrib/sessions/browser/emptyFileEditorInput.js';
+import { ISessionWorkspace, isSessionCreated } from '../../../../../workbench/contrib/sessions/common/session.js';
 import {
 	DetailPanelTarget,
 	DesktopDetailPanelCoordinator,
@@ -39,7 +39,7 @@ import {
 	DesktopLayoutStrategy,
 } from './desktopLayoutStrategy.js';
 import { SessionVisibilityProfile, DesktopVisibilityProfileStore } from './desktopVisibilityProfileStore.js';
-import { IShownChat } from '../../../../services/sessions/common/sessionsManagement.js';
+import { IShownChat } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 
 /**
  * Owns workspace-backed and workspace-less draft layout behavior.
@@ -82,7 +82,7 @@ export class DesktopDraftSessionStrategy extends DesktopLayoutStrategy {
 			return undefined;
 		}
 		const shown = this._ctx.shownByMainWindow();
-		return shown && !shown.session.isCreated.get() && !shown.session.isQuickChat?.get()
+		return shown && !isSessionCreated(shown.session) && !shown.session.isQuickChat?.get()
 			? this._ctx.ownerKeyFor(shown)
 			: undefined;
 	}
@@ -216,7 +216,7 @@ export class DesktopDraftSessionStrategy extends DesktopLayoutStrategy {
 			autorun((reader) => {
 				editorSetChanged.read(reader);
 				const session = this._ctx.mainWindowSession.read(reader);
-				const draftKey = session && !session.isCreated.read(reader) ? session.resource.toString() : undefined;
+				const draftKey = session && !isSessionCreated(session, reader) ? session.resource.toString() : undefined;
 				if (draftKey !== previousDraftKey) {
 					this._replacementDraftKey = previousDraftKey ? draftKey : undefined;
 					previousDraftKey = draftKey;
@@ -520,7 +520,7 @@ export class DesktopDraftSessionStrategy extends DesktopLayoutStrategy {
 		if (
 			!shown ||
 			!session ||
-			session.isCreated.get() ||
+			isSessionCreated(session) ||
 			session.isQuickChat?.get() ||
 			!session.workspace.get() ||
 			this._multipleLayoutOwnersVisible()
@@ -536,7 +536,7 @@ export class DesktopDraftSessionStrategy extends DesktopLayoutStrategy {
 		if (
 			!shown ||
 			!session ||
-			session.isCreated.read(reader) ||
+			isSessionCreated(session, reader) ||
 			(session.isQuickChat?.read(reader) ?? false) ||
 			!session.workspace.read(reader) ||
 			this._multipleLayoutOwnersVisible(reader)
@@ -587,7 +587,7 @@ export class DesktopDraftSessionStrategy extends DesktopLayoutStrategy {
 				}
 				const isQuickChat = activeSession.isQuickChat?.read(reader) ?? false;
 				const workspace = activeSession.workspace.read(reader);
-				if (isQuickChat || !workspace || activeSession.isCreated.read(reader)) {
+				if (isQuickChat || !workspace || isSessionCreated(activeSession, reader)) {
 					previousActiveEditor = undefined;
 					previousEditorPartVisible = false;
 					previousEditorSessionKey = undefined;

@@ -33,7 +33,7 @@ import { ChatMode, CustomChatMode } from '../../../common/chatModes.js';
 import { IExtensionPromptPath, IPromptPath, IPromptsService, PromptsStorage } from '../../../common/promptSyntax/service/promptsService.js';
 import { SYNCED_CUSTOMIZATION_SCHEME } from '../../../../../../workbench/services/agentHost/common/agentHostFileSystemService.js';
 import { withCustomizationDiscoveryMeta } from '../../../../../../platform/agentHost/common/meta/customizationDiscoveryMeta.js';
-import { hasReadableCustomizationContent } from '../../../../../../platform/agentHost/common/agentHostCustomizationUri.js';
+import { AGENT_BUILTIN_CUSTOMIZATION_SCHEME, hasReadableCustomizationContent } from '../../../../../../platform/agentHost/common/agentHostCustomizationUri.js';
 import { expandHookFileItems, ICustomizationSkillItem } from '../../../browser/aiCustomization/aiCustomizationItemSource.js';
 import { buildMcpResourceUri } from '../../../../../../platform/agentHost/common/mcpResourceUri.js';
 import { withMcpServerDisplayNameMeta, withMcpServerSourceMeta } from '../../../../../../platform/agentHost/common/meta/mcpCustomizationMeta.js';
@@ -53,6 +53,26 @@ suite('AgentCustomizationItemProvider', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
 	for (const kind of agentHostConnectionKinds) {
+		test(`projects host-owned troubleshooting as a discovery-only built-in skill (${kind.name})`, async () => {
+			const directory = URI.from({ scheme: AGENT_BUILTIN_CUSTOMIZATION_SCHEME, path: '/skills' });
+			const resource = URI.from({ scheme: AGENT_BUILTIN_CUSTOMIZATION_SCHEME, path: '/skill/troubleshoot' });
+			class TestCustomizationService extends NullAgentHostCustomizationService {
+				override getCustomizations(): readonly Customization[] {
+					return [{
+						type: CustomizationType.Directory, id: directory.toString(), uri: directory.toString(), name: 'builtin',
+						contents: CustomizationType.Skill, enabled: true, writable: false,
+						children: [{ type: CustomizationType.Skill, id: resource.toString(), uri: resource.toString(), name: 'troubleshoot' }],
+					}];
+				}
+			}
+			const provider = disposables.add(new AgentCustomizationItemProvider({ clientId: 'vscode', resourceUris: kind.resourceUris }, undefined, undefined,
+				upcastPartial<IFileService>({ canHandleResource: async () => false }), new NullLogService(), new TestCustomizationService(), makePromptsService(), labelService));
+			const items = await provider.provideChatSessionCustomizations(URI.parse('agent-host-copilot:/session'), CancellationToken.None);
+			assert.deepStrictEqual(items.filter(item => item.type === PromptsType.skill).map(item => ({
+				name: item.name, source: item.source, readable: hasReadableCustomizationContent(item.uri),
+			})), [{ name: 'troubleshoot', source: AICustomizationSources.builtin, readable: false }]);
+		});
+
 		test(`groups MCP skills by user source and parent plugin while preserving enablement and host resource mapping (${kind.name})`, async () => {
 			const session = URI.parse('agent-host-copilot:/remote');
 			const resource = URI.parse(buildMcpResourceUri('opaque-mcp-channel:skills', 'skill://server/friendly/SKILL.md', 'Friendly'));
@@ -352,9 +372,12 @@ suite('AgentCustomizationItemProvider', () => {
 			upcastPartial<IFileService>({}), new NullLogService(), new TestCustomizationService(), makePromptsService(files), labelService,
 		));
 		const result = await provider.provideCustomAgents(URI.parse('other-session:/opaque'), CancellationToken.None);
-		assert.deepStrictEqual(result.map(agent => ({ id: agent.id, name: agent.name, source: agent.source.label })), [
-			{ id: createAgentHostResourceUriMapper('remote').fromAgentHost(URI.parse(agents[0].uri)).toString(), name: 'Reviewer', source: 'Extension: First Extension' },
-			{ id: createAgentHostResourceUriMapper('remote').fromAgentHost(URI.parse(agents[1].uri)).toString(), name: 'Reviewer', source: 'Extension: second' },
+		assert.deepStrictEqual(result.map(agent => {
+			const mode = new CustomChatMode(agent);
+			return { id: mode.id, name: mode.name.get(), source: mode.source?.label, storage: mode.source?.storage };
+		}), [
+			{ id: createAgentHostResourceUriMapper('remote').fromAgentHost(URI.parse(agents[0].uri)).toString(), name: 'Reviewer', source: 'Extension: First Extension', storage: PromptsStorage.extension },
+			{ id: createAgentHostResourceUriMapper('remote').fromAgentHost(URI.parse(agents[1].uri)).toString(), name: 'Reviewer', source: 'Extension: second', storage: PromptsStorage.extension },
 		]);
 	});
 
@@ -368,7 +391,9 @@ suite('AgentCustomizationItemProvider', () => {
 			{ type: CustomizationType.Agent, id: file.uri.toString(), uri: file.uri.toString(), name: 'Reviewer' },
 		]));
 		const result = await provider.provideCustomAgents(URI.parse('agent-host-copilotcli:/draft'), CancellationToken.None);
-		assert.deepStrictEqual(result.map(agent => agent.source.label), ['Extension: Draft Extension']);
+		assert.deepStrictEqual(result.map(agent => ({ label: agent.source.label, storage: agent.source.storage })), [
+			{ label: 'Extension: Draft Extension', storage: PromptsStorage.extension },
+		]);
 	});
 
 	for (const sourceUri of [undefined, 42, 'relative/agent.md', 'other-source:/unmapped/agent.md']) {

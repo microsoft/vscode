@@ -30,19 +30,19 @@ import { IChatViewModel } from '../../../../../../workbench/contrib/chat/common/
 import { IChatService } from '../../../../../../workbench/contrib/chat/common/chatService/chatService.js';
 import { ILifecycleService } from '../../../../../../workbench/services/lifecycle/common/lifecycle.js';
 import { TestStorageService } from '../../../../../../workbench/test/common/workbenchTestServices.js';
-import { Menus } from '../../../../../browser/menus.js';
-import { IAgentHostSessionsProvider, LOCAL_AGENT_HOST_PROVIDER_ID } from '../../../../../common/agentHostSessionsProvider.js';
-import { IsPhoneLayoutContext, SessionProviderIdContext, SessionUsesCombinedConfigPickerContext } from '../../../../../common/contextkeys.js';
-import { IChat, ISession, SessionStatus } from '../../../../../services/sessions/common/session.js';
-import { IActiveSession } from '../../../../../services/sessions/common/sessionsManagement.js';
-import { SessionsProvidersService } from '../../../../../services/sessions/browser/sessionsProvidersService.js';
-import { AGENTS_PICKER_IN_ATTACH_CONTEXT_MENU_SETTING } from '../../../../chat/common/constants.js';
-import { AgentHostAgentPickerContribution, AgentHostModePickerActionViewItem, createAgentContextPick, isCustomAgentSelected } from '../../browser/agentHostAgentPicker.js';
-import { ModePicker } from '../../../copilotChatSessions/browser/modePicker.js';
-import '../../browser/agentHostSessionConfigPicker.js';
-import '../../browser/mobile/mobileChatInputConfigPicker.js';
+import { Menus } from '../../../../../../workbench/contrib/sessions/browser/menus.js';
+import { IAgentHostSessionsProvider, LOCAL_AGENT_HOST_PROVIDER_ID } from '../../../../../../workbench/contrib/sessions/common/agentHostSessionsProvider.js';
+import { IsPhoneLayoutContext, SessionProviderIdContext, SessionUsesCombinedConfigPickerContext } from '../../../../../../workbench/contrib/sessions/common/contextkeys.js';
+import { IChat, ISession, SessionStatus } from '../../../../../../workbench/contrib/sessions/common/session.js';
+import { SessionsProvidersService } from '../../../../../../workbench/contrib/sessions/browser/sessionsProvidersService.js';
+import { AGENTS_PICKER_IN_ATTACH_CONTEXT_MENU_SETTING } from '../../../../../../workbench/contrib/sessions/common/chatConstants.js';
+import { AgentHostAgentPickerContribution, AgentHostModePickerActionViewItem, createAgentContextPick, isCustomAgentSelected } from '../../../../../../workbench/contrib/sessions/providers/agentHost/browser/agentHostAgentPicker.js';
+import { ModePicker } from '../../../../../../workbench/contrib/sessions/providers/copilotChatSessions/browser/modePicker.js';
+import '../../browser/agentHostAgentPicker.contribution.js';
+import '../../browser/agentHostSessionConfigPicker.contribution.js';
+import '../../browser/mobile/mobileChatInputConfigPicker.contribution.js';
 import '../../../../chat/browser/modelPicker.js';
-import { focusedSessionHostServiceOf } from '../../../../../services/sessions/test/browser/sessionHostTestUtils.js';
+import { focusedSessionHostServiceOf, ITestSessionWithChat } from '../../../../../../workbench/contrib/sessions/test/browser/sessionHostTestUtils.js';
 
 suite('agentHostAgentPicker', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
@@ -72,7 +72,7 @@ suite('agentHostAgentPicker', () => {
 
 	test('offers the Agent picker in Add Context only in the treatment, logging the trigger in both arms', async () => {
 		const chat = URI.parse('agent-host-copilot:/chat');
-		const session = upcastPartial<IActiveSession>({ activeChat: constObservable(upcastPartial<IChat>({ resource: chat })) });
+		const session = upcastPartial<ITestSessionWithChat>({ activeChat: constObservable(upcastPartial<IChat>({ resource: chat })) });
 		const opened: string[] = [];
 		const evaluate = async (treatment: boolean, options: { eligible?: boolean; widgetChat?: URI } = {}) => {
 			const telemetryService = new TestExperimentTriggerTelemetryService();
@@ -222,19 +222,21 @@ suite('agentHostAgentPicker', () => {
 				storage.store(key, rememberedUri, StorageScope.PROFILE, StorageTarget.MACHINE);
 				const createSession = (id: string, agent: AgentCustomization | undefined, status: SessionStatus) => {
 					const mode = observableValue<ReturnType<ISession['mode']['get']>>('mode', agent ? { id: kind.toClient(URI.parse(agent.uri)).toString(), kind: 'agent' } : undefined);
-					const session = upcastPartial<IActiveSession>({
+					const session = upcastPartial<ITestSessionWithChat>({
 						sessionId: id,
 						resource: URI.from({ scheme, path: `/${id}` }),
 						providerId: LOCAL_AGENT_HOST_PROVIDER_ID,
 						status: constObservable(status),
 						mode,
+						// The picker reads the agent of the chat the host shows.
+						activeChat: constObservable(upcastPartial<IChat>({ mode })),
 					});
 					return { session, mode };
 				};
 				const running = createSession('running', alpha, SessionStatus.Completed);
 				const draft = createSession('draft', undefined, SessionStatus.Untitled);
 				const sessions = new Map([['running', running], ['draft', draft]]);
-				const activeSession = observableValue<IActiveSession | undefined>('activeSession', running.session);
+				const activeSession = observableValue<ITestSessionWithChat | undefined>('activeSession', running.session);
 				const agentsChanged = disposables.add(new Emitter<void>());
 				let availableAgents: readonly AgentCustomization[] = [beta];
 				const provider = upcastPartial<IAgentHostSessionsProvider>({

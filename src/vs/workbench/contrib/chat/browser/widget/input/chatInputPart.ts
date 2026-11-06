@@ -4001,6 +4001,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			get widget() { return getWidget(); },
 			createAttachmentWidget: (attachment, container, attachmentOptions) => this.createAttachmentWidget(attachment, container, attachmentOptions),
 			removeAttachments: (attachments, explicit) => this.removeInlineAttachments(attachments, explicit),
+			resetDragState: () => this.dnd.resetDragState(),
 		}));
 		this._register(this._inlineAttachments.onDidChange(() => this.renderAttachedContext()));
 		// Pills render with the current model and file icon theme, as the attachments above the input do.

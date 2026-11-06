@@ -20,7 +20,7 @@ import { equals } from '../../../../base/common/arrays.js';
 import { disposableTimeout, raceCancellation, raceTimeout, RunOnceScheduler } from '../../../../base/common/async.js';
 import { clamp } from '../../../../base/common/numbers.js';
 import { isEqual } from '../../../../base/common/resources.js';
-import { Disposable, DisposableStore, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
+import { Disposable, DisposableMap, DisposableStore, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { autorun, constObservable, IObservable, IReader, observableFromEvent, observableValue, runOnChange, waitForState } from '../../../../base/common/observable.js';
 import { ScrollbarVisibility } from '../../../../base/common/scrollable.js';
 import { onUnexpectedError } from '../../../../base/common/errors.js';
@@ -37,8 +37,7 @@ import { IDialogService } from '../../../../platform/dialogs/common/dialogs.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { IHoverService } from '../../../../platform/hover/browser/hover.js';
 import { ILabelService } from '../../../../platform/label/common/label.js';
-import { Parts } from '../../../../workbench/services/layout/browser/layoutService.js';
-import { IAgentWorkbenchLayoutService } from '../../../browser/workbench.js';
+import { IWorkbenchLayoutService, Parts } from '../../../../workbench/services/layout/browser/layoutService.js';
 import { IMarkdownRendererService } from '../../../../platform/markdown/browser/markdownRenderer.js';
 import { ServiceCollection } from '../../../../platform/instantiation/common/serviceCollection.js';
 import { INotificationService, Severity } from '../../../../platform/notification/common/notification.js';
@@ -69,26 +68,28 @@ import { ChatQuestionCarouselData } from '../../../../workbench/contrib/chat/com
 import { ChatPlanReviewData } from '../../../../workbench/contrib/chat/common/model/chatProgressTypes/chatPlanReviewData.js';
 import { ConfirmationOptionKind } from '../../../../platform/agentHost/common/state/protocol/state.js';
 import { SESSIONS_MARK_AS_DONE_CONFETTI_SETTING } from '../../../../platform/chat/common/sessionArchiveActions.js';
-import { isAgentHostProviderId } from '../../../common/agentHostSessionsProvider.js';
-import { IWindowCanvas } from '../../../services/canvas/browser/windowCanvasService.js';
-import { AbstractChatView, IChatViewRequestOutcome } from '../../../browser/parts/chatView.js';
-import { IChatViewFactory } from '../../../services/chatView/browser/chatViewFactory.js';
-import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
-import { ISessionsProvidersService } from '../../../services/sessions/browser/sessionsProvidersService.js';
-import { WelcomeName } from '../../chat/browser/welcomeName.js';
-import { createSessionSummaryHover, getSessionSummaryHoverData } from '../../sessions/browser/sessionHoverContent.js';
-import { getChatSessionArtifacts, IChat, ISession } from '../../../services/sessions/common/session.js';
-import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
+import { isAgentHostProviderId } from '../../../../workbench/contrib/sessions/common/agentHostSessionsProvider.js';
+import { IWindowCanvas } from '../../../../workbench/contrib/sessions/browser/windowCanvas.js';
+import { AbstractChatView, IChatViewRequestOutcome } from '../../../../workbench/contrib/sessions/browser/parts/chatView.js';
+import { IChatViewFactory } from '../../../../workbench/contrib/sessions/browser/chatViewFactory.js';
+import { ISessionsService } from '../../../../workbench/contrib/sessions/browser/sessionsService.js';
+import { ISessionsProvidersService } from '../../../../workbench/contrib/sessions/browser/sessionsProvidersService.js';
+import { WelcomeName } from '../../../../workbench/contrib/sessions/browser/chat/welcomeName.js';
+import { createSessionSummaryHover, getSessionSummaryHoverData } from '../../../../workbench/contrib/sessions/browser/sessionHoverContent.js';
+import { getChatSessionArtifacts, IChat, ISession } from '../../../../workbench/contrib/sessions/common/session.js';
+import { ISessionsManagementService } from '../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import { IEditorService } from '../../../../workbench/services/editor/common/editorService.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
 import { ChatAgentLocation, ChatModeKind } from '../../../../workbench/contrib/chat/common/constants.js';
-import { InboxCanvasFocusContext } from '../../../common/contextkeys.js';
-import { AUTO_DELETE_MARKED_AS_DONE_MERGED_SESSIONS_AFTER_DAYS_SETTING, AUTO_MARK_AS_DONE_MERGED_SESSIONS_AFTER_DAYS_SETTING } from '../../github/common/sessionLifecycleSettings.js';
-import { IGitHubService } from '../../github/browser/githubService.js';
-import { buildFixCIPrompt } from '../../changes/browser/checksActions.js';
-import { AgentFeedbackKind, AgentFeedbackState, IAgentFeedbackService } from '../../agentFeedback/browser/agentFeedbackService.js';
+import { InboxCanvasFocusContext } from '../../../common/agentsWindowContextKeys.js';
+import { AUTO_DELETE_MARKED_AS_DONE_MERGED_SESSIONS_AFTER_DAYS_SETTING, AUTO_MARK_AS_DONE_MERGED_SESSIONS_AFTER_DAYS_SETTING } from '../../../../workbench/contrib/sessions/common/github/sessionLifecycleSettings.js';
+import { IGitHubService } from '../../../../workbench/contrib/sessions/browser/github/githubService.js';
+import { buildFixCIPrompt } from '../../../../workbench/contrib/sessions/browser/fixCIChecks.js';
+import { IAgentFeedbackService } from '../../../../workbench/contrib/sessions/browser/agentFeedback.js';
+import { AgentFeedbackKind, AgentFeedbackState } from '../../../../workbench/contrib/sessions/browser/agentFeedbackModel.js';
 import { syncPRReviewFeedback } from '../../agentFeedback/browser/agentFeedbackPRReviewSeeder.js';
-import { getPRReviewComments, IPRReviewComment } from '../../codeReview/browser/codeReviewService.js';
+import { getPRReviewComments } from '../../codeReview/browser/codeReviewService.js';
+import { IPRReviewComment } from '../../../../workbench/contrib/sessions/browser/codeReviewService.js';
 import {
 	IInboxDetailSummary,
 	IInboxNotificationAction,
@@ -107,7 +108,7 @@ import {
 	getInboxPullRequestMergeOperation,
 	getInboxPullRequestRefs,
 	getInboxToolConfirmationDetails,
-} from '../common/inboxNotificationsService.js';
+} from '../../../../workbench/contrib/sessions/common/inboxNotificationsService.js';
 import { getInboxEmptyMessage, getInboxNotificationLabel, getInboxNotificationPriorityLabel, getInboxTabLabel } from './inboxNotificationsLabels.js';
 import { createInboxEvidenceSection, InboxEvidenceWidget } from './inboxEvidenceWidget.js';
 import { InboxCanvases } from './inboxCanvases.js';
@@ -394,6 +395,9 @@ export class InboxNotificationsView extends Disposable implements IWindowCanvas 
 	private readonly visibleCardIds = new Set<string>();
 	private renderedCards: HTMLElement[] = [];
 	private renderedItems: readonly IInboxNotificationItem[] = [];
+	private latestItems: readonly IInboxNotificationItem[] = [];
+	private readonly rowActions = new Map<string, { item: IInboxNotificationItem; queryKey: string | undefined; succeeded: boolean }>();
+	private readonly rowActionTimeouts = this._register(new DisposableMap<string>());
 	private readonly cardRenderings = new Map<string, { signature: string; card: HTMLElement; store: DisposableStore }>();
 	private readonly carouselModels = new Map<string, ChatQuestionCarouselData>();
 	private readonly focusOutTimeout = this._register(new MutableDisposable());
@@ -417,8 +421,15 @@ export class InboxNotificationsView extends Disposable implements IWindowCanvas 
 	private observedComposerContent: HTMLElement | undefined;
 	private composerInitialization: Promise<void> | undefined;
 	private selectedRowTab: InboxTab | undefined;
+	private retainedReplyRowId: string | undefined;
 	private readonly newSessionElement = $('div.inbox-notifications-new-session');
 	private readonly newSessionDisposables = this._register(new DisposableStore());
+	/**
+	 * The services of the new-session composer's scope: disposed after it, as it may still use them while it goes away,
+	 * such as when its input clears.
+	 */
+	private readonly newSessionScopedServices = this._register(new DisposableStore());
+	private readonly newSessionHighlight = this._register(new MutableDisposable());
 	private newSessionView: AbstractChatView | undefined;
 	private readonly listPaneElement = $('div.inbox-notifications-list-pane');
 	private readonly detailPaneElement = $('div.inbox-notifications-detail-pane');
@@ -497,7 +508,7 @@ export class InboxNotificationsView extends Disposable implements IWindowCanvas 
 		@IHoverService private readonly hoverService: IHoverService,
 		@ILabelService private readonly labelService: ILabelService,
 		@ISessionsProvidersService private readonly sessionsProvidersService: ISessionsProvidersService,
-		@IAgentWorkbenchLayoutService private readonly layoutService: IAgentWorkbenchLayoutService,
+		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService,
 		@IChatMarkdownAnchorService private readonly chatMarkdownAnchorService: IChatMarkdownAnchorService,
 		@IEditorService private readonly editorService: IEditorService,
 	) {
@@ -895,20 +906,18 @@ export class InboxNotificationsView extends Disposable implements IWindowCanvas 
 			this.updateToolbarLoadingSpinner();
 		}));
 
-		const usefulFeedbackButton = this._register(new Button(toolbarActions, {
+		const feedbackButton = this._register(new Button(toolbarActions, {
 			...inboxButtonStyles,
 			secondary: true,
 			small: true,
-			ariaLabel: localize('inboxNotifications.feedback.usefulAria', "Send Positive Feedback about Inbox"),
+			ariaLabel: localize('inboxNotifications.feedback.aria', "Send Feedback about Inbox"),
 		}));
-		usefulFeedbackButton.label = localize('inboxNotifications.feedback.useful', "Send Positive Feedback");
-		usefulFeedbackButton.element.classList.add('inbox-notifications-feedback-button');
-		this._register(usefulFeedbackButton.onDidClick(() => {
-			this.logInboxInteraction('feedback.useful', 'toolbar');
-			this.maybeTriggerConfetti(usefulFeedbackButton.element);
-			usefulFeedbackButton.label = localize('inboxNotifications.feedback.sent', "Feedback Sent");
-			usefulFeedbackButton.enabled = false;
-			status(localize('inboxNotifications.feedback.thanks', "Thanks for your feedback."));
+		feedbackButton.label = localize('inboxNotifications.feedback.label', "Send Feedback");
+		feedbackButton.element.classList.add('inbox-notifications-feedback-button');
+		this._register(feedbackButton.onDidClick(() => {
+			void this.commandService.executeCommand('workbench.action.openIssueReporter', {
+				issueTitle: localize('inboxNotifications.feedback.title', "Agents Window Inbox feedback"),
+			}).catch(onUnexpectedError);
 		}));
 
 		this.deferredUpdatesBanner.appendChild(this.deferredUpdatesBannerLabel);
@@ -920,7 +929,11 @@ export class InboxNotificationsView extends Disposable implements IWindowCanvas 
 		}));
 		showNewNotificationsButton.label = localize('inboxNotifications.showNewNotifications', "Show Inbox Updates");
 		this._register(showNewNotificationsButton.onDidClick(() => {
-			if (this.applyDeferredUpdates(true)) {
+			const retainedReply = !!this.retainedReplyRowId;
+			if (retainedReply) {
+				this.clearSelectedItem('updatesShown');
+			}
+			if (this.applyDeferredUpdates(true) || retainedReply) {
 				this.logInboxInteraction('deferredUpdates.showNewNotifications', 'banner');
 			}
 		}));
@@ -963,21 +976,30 @@ export class InboxNotificationsView extends Disposable implements IWindowCanvas 
 			const tab = this.selectedTab.read(reader);
 			const query = this.searchText.read(reader).toLocaleLowerCase().trim();
 			const rows = this.inboxNotificationsService.sessionRows.read(reader);
+			const categories = this.visibleCategories.read(reader);
+			const sortMode = this.inboxNotificationsService.sortMode.read(reader);
+			const queryKey = JSON.stringify([tab, query, sortMode, [...categories]]);
+			const queryChanged = queryKey !== this.listQueryKey;
 			const selectedId = this.selectedItemId.read(reader);
 			const selected = rows.find(row => row.id === selectedId);
-			if (selectedId && (!selected || selected.tab !== tab)) {
+			const retainReply = !!selected && selected.tab !== tab && !queryChanged
+				&& (this.retainedReplyRowId === selectedId || this.isReplyComposerFocused());
+			// Once retained, incidental blur must not interrupt the same draft on the next update.
+			this.retainedReplyRowId = retainReply ? selectedId : undefined;
+			if (selectedId && (!selected || selected.tab !== tab && !retainReply)) {
 				// Selection cleanup must not apply a deferred snapshot from before the tab change.
 				this.deferredItems = undefined;
 				this.clearSelectedItem(selected ? 'tabChanged' : 'itemRemoved');
 			}
 			const previews = this.inboxNotificationsService.previews.read(reader);
-			const items = rows.filter(row => row.tab === tab && (!query || [
+			const items = rows.filter(row => (row.tab === tab || retainReply && row.id === selectedId) && (!query || [
 				row.title, row.workTitle, row.sessionTitle, row.repositoryLabel, row.previewSignature && previews.get(row.previewSignature),
 			].filter(Boolean).join(' ').toLocaleLowerCase().includes(query)));
-			const categories = this.visibleCategories.read(reader);
-			const sortMode = this.inboxNotificationsService.sortMode.read(reader);
-			const queryKey = JSON.stringify([tab, query, sortMode, [...categories]]);
-			const queryChanged = queryKey !== this.listQueryKey;
+			if (queryChanged) {
+				for (const action of this.rowActions.values()) {
+					action.queryKey = undefined;
+				}
+			}
 			this.listQueryKey = queryKey;
 			this.handleNotificationListUpdate(items, queryChanged);
 		}));
@@ -999,6 +1021,23 @@ export class InboxNotificationsView extends Disposable implements IWindowCanvas 
 	}
 
 	private handleNotificationListUpdate(items: readonly IInboxNotificationItem[], force = false): void {
+		this.latestItems = items;
+		if (this.rowActions.size) {
+			const retained = [...items];
+			for (const [id, action] of this.rowActions) {
+				if (action.queryKey !== this.listQueryKey) {
+					continue;
+				}
+				const index = retained.findIndex(item => item.id === id);
+				if (index >= 0) {
+					retained[index] = action.item;
+				} else {
+					const previousIndex = this.renderedItems.findIndex(item => item.id === id);
+					retained.splice(Math.max(0, Math.min(previousIndex, retained.length)), 0, action.item);
+				}
+			}
+			items = retained;
+		}
 		if (!this.hasReceivedInitialListUpdate) {
 			this.hasReceivedInitialListUpdate = true;
 			this.updateToolbarLoadingSpinner();
@@ -1097,6 +1136,11 @@ export class InboxNotificationsView extends Disposable implements IWindowCanvas 
 			&& !!activeElement.closest('.inbox-notifications-chat-part-host');
 	}
 
+	private isReplyComposerFocused(): boolean {
+		const activeElement = getActiveElement();
+		return !!activeElement && this.detailChatElement.contains(activeElement);
+	}
+
 	private renderList(items: readonly IInboxNotificationItem[]): void {
 		const list = this.listContainer.get();
 		if (!list || this._store.isDisposed) {
@@ -1177,7 +1221,8 @@ export class InboxNotificationsView extends Disposable implements IWindowCanvas 
 	}
 
 	private renderCard(item: IInboxNotificationItem): HTMLElement {
-		const signature = safeStringify(item);
+		const action = this.rowActions.get(item.id);
+		const signature = `${safeStringify(item)}|${this.selectedTab.get()}|${action ? action.succeeded ? 'succeeded' : 'running' : ''}`;
 		let rendering = this.cardRenderings.get(item.id);
 		if (!rendering || rendering.signature !== signature) {
 			rendering?.store.dispose();
@@ -1285,6 +1330,9 @@ export class InboxNotificationsView extends Disposable implements IWindowCanvas 
 		card.setAttribute('role', 'listitem');
 		card.dataset.notificationId = item.id;
 		card.setAttribute('aria-label', this.getCardAriaLabel(item));
+		const rowAction = this.rowActions.get(item.id);
+		card.classList.toggle('action-succeeded', rowAction?.succeeded === true);
+		card.setAttribute('aria-busy', String(!!rowAction && !rowAction.succeeded));
 		if (this.selectedItemId.get() === item.id) {
 			card.classList.add('selected');
 		}
@@ -1335,6 +1383,16 @@ export class InboxNotificationsView extends Disposable implements IWindowCanvas 
 			].filter(Boolean).join('. '));
 		}));
 		const metadata = content.appendChild($('.inbox-notifications-row-metadata'));
+		if (row && row.tab !== this.selectedTab.get()) {
+			metadata.appendChild($('span.inbox-notifications-row-workflow-status', undefined, getInboxTabLabel(row.tab)));
+		}
+		if (rowAction) {
+			const feedback = metadata.appendChild($('.inbox-notifications-row-action-status'));
+			feedback.appendChild(renderIcon(rowAction.succeeded ? Codicon.check : Codicon.loading)).setAttribute('aria-hidden', 'true');
+			feedback.appendChild($('span', undefined, rowAction.succeeded
+				? localize('inboxNotifications.action.taken', "Action taken")
+				: localize('inboxNotifications.action.running', "Taking action…")));
+		}
 		if (row?.hasImages) {
 			const visual = metadata.appendChild($('.inbox-notifications-visual'));
 			visual.appendChild(renderIcon(Codicon.fileMedia)).setAttribute('aria-hidden', 'true');
@@ -1378,7 +1436,14 @@ export class InboxNotificationsView extends Disposable implements IWindowCanvas 
 				ariaLabel: row.tab === InboxTab.OnHold ? localize('inbox.resume', "Resume") : localize('inbox.hold', "Put on Hold")
 			}));
 			hold.label = row.tab === InboxTab.OnHold ? '$(play)' : '$(history)';
-			store.add(hold.onDidClick(() => this.setSessionOnHold(row)));
+			hold.enabled = !rowAction;
+			store.add(hold.onDidClick(event => {
+				event.stopPropagation();
+				void this.runRowAction(row.id, async () => {
+					this.setSessionOnHold(row);
+					return 'success';
+				}).catch(onUnexpectedError);
+			}));
 			this.renderActionButton(actions, row, { id: 'done', label: '$(check)', ariaLabel: localize('inbox.done', "Mark Session as Done"), kind: InboxNotificationActionKind.MarkDone }, store);
 		}
 		if (row) {
@@ -2115,7 +2180,7 @@ export class InboxNotificationsView extends Disposable implements IWindowCanvas 
 		this.applyDeferredUpdates(true);
 	}
 
-	private async runAction(item: IInboxNotificationItem, action: IInboxNotificationAction, sourceElement?: HTMLElement, enableAlways = false): Promise<void> {
+	private async runAction(item: IInboxNotificationItem, action: IInboxNotificationAction, sourceElement?: HTMLElement, enableAlways = false): Promise<InboxInteractionResult> {
 		const startTime = Date.now();
 		const commandId = action.commandId ?? 'none';
 		const logResult = (result: InboxInteractionResult): void => {
@@ -2134,7 +2199,7 @@ export class InboxNotificationsView extends Disposable implements IWindowCanvas 
 				case InboxNotificationActionKind.OpenSession: {
 					if (!item.sessionResource) {
 						logResult('skipped');
-						return;
+						return 'skipped';
 					}
 					await this.sessionsService.openSession(item.sessionResource, { source: 'inbox' });
 					result = 'success';
@@ -2193,10 +2258,42 @@ export class InboxNotificationsView extends Disposable implements IWindowCanvas 
 				}
 			}
 			logResult(result);
+			return result;
 		} catch (error) {
 			logResult('failure');
 			onUnexpectedError(error);
 			this.notificationService.error(localize('inboxNotifications.actionError', "Unable to run inbox action."));
+			return 'failure';
+		}
+	}
+
+	private async runRowAction(rowId: string | undefined, run: () => Promise<InboxInteractionResult>): Promise<void> {
+		if (this._store.isDisposed || rowId && this.rowActions.has(rowId)) {
+			return;
+		}
+		const row = rowId ? this.renderedItems.find(item => item.id === rowId) : undefined;
+		const rowAction = row ? { item: row, queryKey: this.listQueryKey, succeeded: false } : undefined;
+		if (row && rowAction) {
+			this.rowActions.set(row.id, rowAction);
+		}
+		let result: InboxInteractionResult = 'failure';
+		try {
+			result = await run();
+		} finally {
+			if (row && rowAction && !this._store.isDisposed && this.rowActions.get(row.id) === rowAction) {
+				if (result === 'success') {
+					rowAction.succeeded = true;
+					status(localize('inboxNotifications.action.taken', "Action taken"));
+					this.rowActionTimeouts.set(row.id, disposableTimeout(() => {
+						this.rowActions.delete(row.id);
+						this.rowActionTimeouts.deleteAndDispose(row.id);
+						this.handleNotificationListUpdate(this.latestItems);
+					}, 1500));
+				} else {
+					this.rowActions.delete(row.id);
+				}
+				this.handleNotificationListUpdate(this.latestItems);
+			}
 		}
 	}
 
@@ -2233,25 +2330,27 @@ export class InboxNotificationsView extends Disposable implements IWindowCanvas 
 			}))
 			: store.add(new Button(container, baseOptions));
 		button.label = action.label;
+		const card = container.closest<HTMLElement>('.inbox-notifications-item');
+		const rowId = card?.dataset.notificationId;
+		button.enabled = !rowId || !this.rowActions.has(rowId);
 		if (openSessionIsSecondary) {
 			this.setupSessionPreviewHover(button.element, item, store);
 		}
 		if (button instanceof ButtonWithDropdown) {
 			button.dropdownButton.setAriaLabel(localize('inboxNotifications.action.moreActions', "More Actions for {0}", action.label));
 		}
-		store.add(button.onDidClick(async () => {
-			this.logInboxInteraction('runAction', 'actionButton', item, action.kind, { commandId: action.commandId ?? 'none' });
-			if (!showsSpinnerWhileRunning) {
-				void this.runAction(item, action, button.element);
+		store.add(button.onDidClick(async event => {
+			event?.stopPropagation();
+			if (rowId && this.rowActions.has(rowId)) {
 				return;
 			}
-			// The action submits a request to the session in the background, which
-			// can take a moment; show an inline spinner so the click clearly
-			// registers instead of looking like nothing happened.
+			this.logInboxInteraction('runAction', 'actionButton', item, action.kind, { commandId: action.commandId ?? 'none' });
 			button.enabled = false;
-			button.label = `$(loading~spin) ${action.label}`;
+			if (showsSpinnerWhileRunning) {
+				button.label = `$(loading~spin) ${action.label}`;
+			}
 			try {
-				await this.runAction(item, action, button.element);
+				await this.runRowAction(openSessionIsSecondary ? undefined : rowId, () => this.runAction(item, action, button.element));
 			} finally {
 				button.label = action.label;
 				button.enabled = true;
@@ -2756,6 +2855,7 @@ export class InboxNotificationsView extends Disposable implements IWindowCanvas 
 		}
 
 		this.endSelectionTelemetry('selectionChanged');
+		this.retainedReplyRowId = undefined;
 		this.selectedRowTab = this.getRow(id)?.tab;
 		this.selectedChatResource = undefined;
 		this.detailExchangeExpanded = this.selectedRowTab === InboxTab.Working;
@@ -2813,6 +2913,7 @@ export class InboxNotificationsView extends Disposable implements IWindowCanvas 
 		const restoreComposerFocus = !!focused && (this.detailPaneElement.contains(focused) || this.detailChatElement.contains(focused));
 		this.endSelectionTelemetry(trigger);
 		this.selectedRowTab = undefined;
+		this.retainedReplyRowId = undefined;
 		this.selectedChatResource = undefined;
 		this.selectedItemId.set(undefined, undefined);
 		for (const rendering of this.cardRenderings.values()) {
@@ -3031,7 +3132,8 @@ export class InboxNotificationsView extends Disposable implements IWindowCanvas 
 			for (const action of notification.actions) {
 				if (action.kind !== InboxNotificationActionKind.OpenSession
 					&& action.kind !== InboxNotificationActionKind.MarkDone
-					&& action.kind !== InboxNotificationActionKind.Dismiss) {
+					&& action.kind !== InboxNotificationActionKind.Dismiss
+					&& !isInboxPullRequestActionKind(action.kind)) {
 					this.renderActionButton(headerActions, notification, action, this.detailDisposables);
 				}
 			}
@@ -3471,6 +3573,10 @@ export class InboxNotificationsView extends Disposable implements IWindowCanvas 
 		await this.ensureNewSessionComposer();
 		if (!this.selectedItemId.get()) {
 			this.newSessionView?.focus();
+			this.newSessionElement.scrollIntoView({ block: 'nearest' });
+			this.newSessionElement.classList.add('highlight');
+			this.newSessionHighlight.value = disposableTimeout(() => this.newSessionElement.classList.remove('highlight'), 2000);
+			status(localize('inboxNotifications.newSession.focused', "New session composer focused. Type your request at the bottom of Inbox."));
 		}
 	}
 
@@ -3515,8 +3621,8 @@ export class InboxNotificationsView extends Disposable implements IWindowCanvas 
 			return;
 		}
 		if (!this.newSessionView) {
-			const scopedContext = this.newSessionDisposables.add(this.contextKeyService.createScoped(this.newSessionElement));
-			const instantiationService = this.newSessionDisposables.add(this.instantiationService.createChild(new ServiceCollection([IContextKeyService, scopedContext])));
+			const scopedContext = this.newSessionScopedServices.add(this.contextKeyService.createScoped(this.newSessionElement));
+			const instantiationService = this.newSessionScopedServices.add(this.instantiationService.createChild(new ServiceCollection([IContextKeyService, scopedContext])));
 			this.newSessionView = this.newSessionDisposables.add(this.chatViewFactory.createNewChatView(false, { hostVisible: this.visible, preserveCustomView: true, backgroundSend: true, renderChatPet: false, renderAquarium: false }, instantiationService));
 			this.newSessionElement.appendChild(this.newSessionView.element);
 			this.newSessionView.setPrimary(false, true);

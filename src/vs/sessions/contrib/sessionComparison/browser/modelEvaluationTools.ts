@@ -22,14 +22,15 @@ import { observableConfigValue } from '../../../../platform/observable/common/pl
 import { IWorkbenchContribution } from '../../../../workbench/common/contributions.js';
 import { IsSessionsWindowContext } from '../../../../workbench/common/contextkeys.js';
 import { ChatContextKeys } from '../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
+import { isModelComparisonSupported } from '../../../../workbench/contrib/chat/browser/widget/input/modelPicker/modelPickerPresentation.js';
 import { CountTokensCallback, ILanguageModelToolsService, IPreparedToolInvocation, IToolData, IToolImpl, IToolInvocation, IToolInvocationPreparationContext, IToolResult, ToolDataSource, ToolProgress } from '../../../../workbench/contrib/chat/common/tools/languageModelToolsService.js';
 import { IChatEntitlementService } from '../../../../workbench/services/chat/common/chatEntitlementService.js';
-import { isAgentHostProvider } from '../../../common/agentHostSessionsProvider.js';
-import { createSessionComparisonHarness, isFixedSessionComparisonModel } from '../../../services/sessions/browser/sessionComparisonConfiguration.js';
-import { ISessionsProvidersService } from '../../../services/sessions/browser/sessionsProvidersService.js';
-import { IChat, ISession } from '../../../services/sessions/common/session.js';
-import { getSessionComparisonChat, getSessionComparisonWorkspaceError, ISessionComparison, ISessionComparisonService, IStartSessionComparisonOptions, COMPARE_AGENTS_ENABLED_SETTING, COMPARE_AGENTS_TOOLS_ENABLED_SETTING, SESSION_COMPARISON_MAX_ATTEMPTS, SESSION_COMPARISON_MIN_ATTEMPTS, SessionComparisonLaunchError, SessionComparisonParticipantRole } from '../../../services/sessions/common/sessionComparison.js';
-import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
+import { isAgentHostProvider } from '../../../../workbench/contrib/sessions/common/agentHostSessionsProvider.js';
+import { createSessionComparisonHarness } from '../../../../workbench/contrib/sessions/browser/sessionComparisonConfiguration.js';
+import { ISessionsProvidersService } from '../../../../workbench/contrib/sessions/browser/sessionsProvidersService.js';
+import { IChat, ISession } from '../../../../workbench/contrib/sessions/common/session.js';
+import { getSessionComparisonChat, getSessionComparisonWorkspaceError, ISessionComparison, ISessionComparisonService, IStartSessionComparisonOptions, COMPARE_AGENTS_ENABLED_SETTING, COMPARE_AGENTS_TOOLS_ENABLED_SETTING, SESSION_COMPARISON_MAX_ATTEMPTS, SESSION_COMPARISON_MIN_ATTEMPTS, SessionComparisonLaunchError, SessionComparisonParticipantRole } from '../../../../workbench/contrib/sessions/common/sessionComparison.js';
+import { ISessionsManagementService } from '../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import { getManifestSessionStatus, ReadSessionComparisonTool } from './sessionComparisonTool.js';
 
 type EvaluationToolName = 'getComparisonModels' | 'createModelComparison' | 'listModelComparisons' | 'readModelComparison';
@@ -206,7 +207,7 @@ export class ModelEvaluationTool implements IToolImpl {
 							sessionTypeId: type.id,
 							label: type.label,
 							permissions: provider.getComparisonPermissionOptionForSession?.(caller.session.sessionId, type.id, caller.chat.resource),
-							models: provider.getModelsSnapshotForCreation?.(workspace, type.id).models.filter(isFixedSessionComparisonModel).map(model => ({
+							models: provider.getModelsSnapshotForCreation?.(workspace, type.id).models.filter(isModelComparisonSupported).map(model => ({
 								modelId: model.identifier,
 								label: model.metadata.name,
 								configurationSchema: provider.supportsModelConfigurationForCreation ? model.metadata.configurationSchema : undefined,

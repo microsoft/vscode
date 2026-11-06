@@ -39,7 +39,7 @@ import { ILogService, NullLogService } from '../../../log/common/log.js';
 import { McpServerType, type IMcpServerConfiguration } from '../../../mcp/common/mcpPlatformTypes.js';
 import { ITelemetryService, TelemetryLevel } from '../../../telemetry/common/telemetry.js';
 import { NullTelemetryServiceShape } from '../../../telemetry/common/telemetryUtils.js';
-import { CapturingTelemetryService as PlatformCapturingTelemetryService } from '../../../telemetry/test/common/testTelemetryService.js';
+import { CapturingTelemetryService as PlatformCapturingTelemetryService, TestDataTelemetryService } from '../../../telemetry/test/common/testTelemetryService.js';
 import { getTelemetryChatSessionId } from '../../common/agentTelemetryCorrelation.js';
 import { AgentSession, COPILOT_CLI_AGENT_PROVIDER_ID, fixedChatOwnerRef, type IAgentChatOwnerRef, SubagentChatSignal, type AgentSignal, type IAgentActionSignal, type IAgentPermissionResponseContext, type IAgentTelemetryContext, type IAgentToolPendingConfirmationSignal } from '../../common/agent.js';
 import { AgentHostClientType } from '../../common/agentHostClientInfo.js';
@@ -72,7 +72,7 @@ import { IAgentHostOTelService } from '../../common/otel/agentHostOTelService.js
 import { ActionType, isChatAction, type ChatDeltaAction, type ChatErrorAction, type ChatInputRequestedAction, type ChatResponsePartAction, type ChatToolCallCompleteAction, type ChatToolCallDeltaAction, type ChatToolCallReadyAction, type ChatToolCallStartAction, type ChatTurnCompleteAction, type ChatUsageAction, type SessionAction, type StateAction } from '../../common/state/sessionActions.js';
 import { chatToolCallComplete, chatToolCallStart, chatTurnComplete, chatTurnStarted } from '../common/chatActionBuilders.js';
 import { TestChatOwnerRef } from './agentChatContextTestUtils.js';
-import { MessageAttachmentKind, MessageKind, ResponsePartKind, ChatInputAnswerState, ChatInputAnswerValueKind, ChatInputQuestionKind, ChatInputResponseKind, ToolCallConfirmationReason, ToolCallRiskAssessmentKind, ToolCallRiskAssessmentStatus, ToolCallContributorKind, ToolCallStatus, ToolResultContentType, buildChatUri, buildDefaultChatUri, buildSubagentChatUri, createChatState, createSessionState, getInlineToolInput, mergeSessionWithDefaultChat, readSessionPromptCacheState, readUsageInfoMeta, SessionStatus, withSessionPromptCacheState, type ToolResultContent, type ToolResultTerminalContent, type Turn, type UsageInfoMeta, type MessageAttachment } from '../../common/state/sessionState.js';
+import { MessageAttachmentKind, MessageKind, ResponsePartKind, ChatInputAnswerState, ChatInputAnswerValueKind, ChatInputQuestionKind, ChatInputResponseKind, ToolCallCancellationReason, ToolCallConfirmationReason, ToolCallRiskAssessmentKind, ToolCallRiskAssessmentStatus, ToolCallContributorKind, ToolCallStatus, ToolResultContentType, buildChatUri, buildDefaultChatUri, buildSubagentChatUri, createChatState, createSessionState, getInlineToolInput, mergeSessionWithDefaultChat, readSessionPromptCacheState, readUsageInfoMeta, SessionStatus, withSessionPromptCacheState, type ToolResultContent, type ToolResultTerminalContent, type Turn, type UsageInfoMeta, type MessageAttachment } from '../../common/state/sessionState.js';
 import { chatReducer, sessionReducer } from '../../common/state/sessionReducers.js';
 import { BackgroundWorkKind, TerminalClaimKind, type BackgroundWork, type ModelSelection, type ToolDefinition } from '../../common/state/protocol/state.js';
 import { canStopBackgroundWork, toStoppableBackgroundWorkMeta } from '../../common/meta/agentHostBackgroundWorkStopMeta.js';
@@ -126,7 +126,7 @@ import { TestAgentHostTerminalManager } from './testAgentHostTerminalManager.js'
 import { buildCopilotSystemNotification, getCopilotSubagentDisplayNames } from '../../node/copilot/copilotSystemNotification.js';
 import { IAgentConfigurationService } from '../../node/agentConfigurationService.js';
 import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
-import { AgentHostAssistedApprovalInstructionsConfigKey, AgentHostAutoApprovePolicyRestrictedConfigKey, AgentHostAutoReplyAnswer, AgentHostAutoReplyEnabledConfigKey, AgentHostComputerUseEnabledConfigKey, AgentHostDisableRepoInfoTelemetryConfigKey, AgentHostGlobalAutoApproveEnabledConfigKey, AgentHostMcpConnectorsEnabledConfigKey, AgentHostMcpSkillsEnabledConfigKey, AgentHostMcpSamplingAllowedServersConfigKey, AgentHostMcpSkillsServerApprovalsConfigKey, AgentHostMcpToolRoutingEnabledConfigKey } from '../../common/agentHostSchema.js';
+import { AgentHostAssistedApprovalInstructionsConfigKey, AgentHostAutoApprovePolicyRestrictedConfigKey, AgentHostAutoReplyAnswer, AgentHostAutoReplyEnabledConfigKey, AgentHostComputerUseEnabledConfigKey, AgentHostDisableRepoInfoTelemetryConfigKey, AgentHostExtensionPermissionApprovalsConfigKey, AgentHostGlobalAutoApproveEnabledConfigKey, AgentHostMcpConnectorsEnabledConfigKey, AgentHostMcpSkillsEnabledConfigKey, AgentHostMcpSamplingAllowedServersConfigKey, AgentHostMcpSkillsServerApprovalsConfigKey, AgentHostMcpToolRoutingEnabledConfigKey } from '../../common/agentHostSchema.js';
 import { AgentHostCopilotExecutionSubagentEnabledSettingId, AgentHostCopilotExecutionSubagentModelSettingId, AgentHostCopilotProgressUpdatesPromptSettingId, CopilotCliConfigKey, CopilotCliVSCodeAssignmentContextKey } from '../../common/copilotCliConfig.js';
 import { setAdvertisedAutoModeTiers } from '../../common/autoModeTiers.js';
 import { TestExperimentTriggerTelemetryService } from '../../../telemetry/test/common/experimentTriggerTestUtils.js';
@@ -1328,7 +1328,7 @@ type TestPermissionRequest = TestPermissionRequestBase & ({
 	readonly toolTitle: string;
 	readonly readOnly?: boolean;
 	readonly permissionRecommendation?: Extract<PermissionRequest, { kind: 'mcp' }>['permissionRecommendation'];
-} | Extract<PermissionRequest, { kind: 'hook' }>);
+} | Extract<PermissionRequest, { kind: 'hook' | 'extension-permission-access' }>);
 
 function toPermissionRequest(request: TestPermissionRequest): PermissionRequest {
 	switch (request.kind) {
@@ -1352,6 +1352,7 @@ function toPermissionRequest(request: TestPermissionRequest): PermissionRequest 
 		case 'mcp':
 			return { readOnly: false, ...request };
 		case 'hook':
+		case 'extension-permission-access':
 			return request;
 	}
 }
@@ -1525,6 +1526,7 @@ async function createAgentSession(disposables: DisposableStore, options?: {
 	dispatchSessionAction: (action: StateAction) => void;
 	storageService: IAgentHostStorageService;
 	customizationEnablementService: IAgentHostCustomizationEnablementService;
+	copilotApiService: TestCopilotApiService;
 } & ITestSessionConfiguration> {
 	const progressEmitter = disposables.add(new Emitter<AgentSignal>());
 	const signals: AgentSignal[] = options?.signals ?? [];
@@ -1964,6 +1966,7 @@ async function createAgentSession(disposables: DisposableStore, options?: {
 		},
 		storageService,
 		customizationEnablementService,
+		copilotApiService,
 	};
 }
 
@@ -2035,6 +2038,27 @@ suite('CopilotAgentSession', () => {
 
 	teardown(() => disposables.clear());
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('the runtime holds a created session in use, and a resumed one once it sends a turn', async () => {
+		const { session: created } = await createAgentSession(disposables);
+		const { session: resumed } = await createAgentSession(disposables, { resume: true });
+		const resumedBeforeTurn = resumed.isHeldInUse;
+		await resumed.send('hello', undefined, 'turn-1');
+		assert.deepStrictEqual({ created: created.isHeldInUse, resumedBeforeTurn, resumedAfterTurn: resumed.isHeldInUse }, {
+			created: true,
+			resumedBeforeTurn: false,
+			resumedAfterTurn: true,
+		});
+	});
+
+	test('the runtime holds a resumed session in use once a provider-initiated turn runs in it', async () => {
+		const { session, mockSession } = await createAgentSession(disposables, { resume: true });
+		const before = session.isHeldInUse;
+		mockSession.fire('user.message', { content: 'Play one move.', messageId: 'provider-message', turnId: 'provider-sdk-turn' } as SessionEventPayload<'user.message'>['data']);
+		mockSession.fire('session.idle', {} as SessionEventPayload<'session.idle'>['data']);
+		await timeout(0);
+		assert.deepStrictEqual({ before, after: session.isHeldInUse }, { before: false, after: true });
+	});
 
 	suite('image generation preference', () => {
 		for (const resume of [false, true]) {
@@ -11096,7 +11120,7 @@ suite('CopilotAgentSession', () => {
 			mockSession.fire('assistant.message', {
 				messageId: 'message', apiCallId: 'call', content: 'done',
 			} as SessionEventPayload<'assistant.message'>['data'], { agentId: 'agent-1' });
-			new CopilotGitHubTelemetryForwarder(() => false, telemetryService).forward({
+			new CopilotGitHubTelemetryForwarder(telemetryService).forward({
 				sessionId: session.sessionId, restricted: false,
 				event: { kind: 'response.success', properties: { modelCallId: 'call' }, metrics: {} },
 			}, 'child-turn', undefined, session.modelCallTurnCorrelation.getTelemetryContext('call'));
@@ -18404,6 +18428,154 @@ Use the attached image as context.
 			});
 		});
 
+		suite('extension permission consent', () => {
+			const request: Extract<PermissionRequest, { kind: 'extension-permission-access' }> = {
+				kind: 'extension-permission-access', extensionName: 'plugin:grove-agent-monitor:grove-agent-monitor', capabilities: ['register hooks'],
+			};
+			const identity = 'plugin:grove-agent-monitor:grove-agent-monitor (register hooks)';
+
+			function consentReady(signals: AgentSignal[]): ChatToolCallReadyAction {
+				const ready = getActions(signals).findLast((action): action is ChatToolCallReadyAction => action.type === ActionType.ChatToolCallReady);
+				assert.ok(ready);
+				return ready;
+			}
+
+			test('defers until turn preflight, holds the turn open and persists Always Allow across sessions', async () => {
+				const { session, runtime, mockSession, signals, rootConfigUpdates, waitForSignal } = await createAgentSession(disposables);
+				const response = runtime.handleAttributedPermissionRequest(request);
+				await timeout(0);
+				const beforeTurn = getActions(signals);
+				session.resetTurnState('turn-consent');
+				await timeout(0);
+				const beforeReady = getActions(signals);
+				await session.send('Hello', undefined, 'turn-consent');
+				const ready = consentReady(signals);
+				mockSession.fire('session.idle', {});
+				await timeout(0);
+				const pendingActions = getActions(signals).map(action => hasKey(action, { toolCallId: true }) ? { ...action, toolCallId: '<consent-id>' } : action);
+				session.respondToPermissionRequest(ready.toolCallId, true, { selectedOptionId: 'allow-extension-always', decisionSource: 'human_response' });
+				const answer = await response;
+				await waitForSignal(signal => signal.kind === 'action' && signal.action.type === ActionType.ChatTurnComplete);
+				const completed = getActions(signals).find(action => action.type === ActionType.ChatToolCallComplete);
+				const next = await createAgentSession(disposables, { rootValues: rootConfigUpdates[0] });
+				assert.deepStrictEqual({
+					beforeTurn, beforeReady, pendingActions, answer,
+					completed: completed && { ...completed, toolCallId: '<consent-id>' }, rootConfigUpdates,
+					nextAnswer: await next.runtime.handlePermissionRequest(request), nextActions: getActions(next.signals),
+				}, {
+					beforeTurn: [], beforeReady: [],
+					pendingActions: [
+						chatToolCallStart('turn-consent', '<consent-id>', 'extension_permission_consent', 'Extensions'),
+						{
+							type: ActionType.ChatToolCallReady, turnId: 'turn-consent', toolCallId: '<consent-id>',
+							invocationMessage: `Extension 'grove-agent-monitor' wants to load with these permissions: register hooks.`,
+							confirmationTitle: 'Allow Extension grove-agent-monitor?',
+							options: [
+								{ id: 'allow-once', label: 'Allow Once', kind: 'approve' },
+								{ id: 'allow-extension-always', label: 'Always Allow', kind: 'approve', group: 1 },
+								{ id: 'not-now', label: 'Not Now', kind: 'deny', group: 2 },
+								{ id: 'deny-extension-always', label: 'Never', kind: 'deny', group: 2 },
+							],
+						},
+					],
+					answer: { kind: 'attributed', result: { kind: 'approve-once' }, decisionContext: { source: 'human_response', surface: 'sdk', outcome: 'prompted_user', responseCapability: 'interactive' } },
+					completed: { type: ActionType.ChatToolCallComplete, turnId: 'turn-consent', toolCallId: '<consent-id>', result: { success: true, pastTenseMessage: 'Allowed extension grove-agent-monitor' } },
+					rootConfigUpdates: [{ [AgentHostExtensionPermissionApprovalsConfigKey]: { [identity]: 'allow' } }],
+					nextAnswer: { kind: 'approve-once' }, nextActions: [],
+				});
+			});
+
+			test('shows a queued request in a provider-initiated turn', async () => {
+				const { session, runtime, mockSession, signals } = await createAgentSession(disposables);
+				const response = runtime.handlePermissionRequest(request);
+				await timeout(0);
+				const beforeTurn = getActions(signals).length;
+				mockSession.fire('user.message', {
+					content: 'Run the extension command.',
+					messageId: 'provider-message',
+					turnId: 'provider-sdk-turn',
+				} as SessionEventPayload<'user.message'>['data']);
+				await timeout(0);
+				const ready = consentReady(signals);
+				session.respondToPermissionRequest(ready.toolCallId, true, { selectedOptionId: 'allow-once' });
+				const started = getActions(signals).find(action => action.type === ActionType.ChatTurnStarted);
+				assert.deepStrictEqual({ beforeTurn, sameTurn: ready.turnId === started?.turnId, answer: await response }, { beforeTurn: 0, sameTurn: true, answer: { kind: 'approve-once' } });
+			});
+
+			test('stored denial is silent and Allow Once covers repeated session requests without writing settings', async () => {
+				const denied = await createAgentSession(disposables, { rootValues: { [AgentHostExtensionPermissionApprovalsConfigKey]: { [identity]: 'deny' } } });
+				const deniedAnswer = await denied.runtime.handlePermissionRequest(request);
+				const { session, runtime, signals, rootConfigUpdates } = await createAgentSession(disposables);
+				await session.send('Hello', undefined, 'turn-consent');
+				const response = runtime.handlePermissionRequest(request);
+				session.respondToPermissionRequest(consentReady(signals).toolCallId, true, { selectedOptionId: 'allow-once' });
+				const answer = await response;
+				signals.length = 0;
+				assert.deepStrictEqual({ deniedAnswer, deniedActions: getActions(denied.signals), answer, repeated: await runtime.handlePermissionRequest({ ...request, toolCallId: 'extension-tool' }), repeatedActions: getActions(signals), rootConfigUpdates }, {
+					deniedAnswer: { kind: 'reject' }, deniedActions: [], answer: { kind: 'approve-once' }, repeated: { kind: 'approve-once' }, repeatedActions: [], rootConfigUpdates: [],
+				});
+			});
+
+			test('capability widening prompts again and Never persists a sorted identity', async () => {
+				const { session, runtime, signals, rootConfigUpdates } = await createAgentSession(disposables, { rootValues: { [AgentHostExtensionPermissionApprovalsConfigKey]: { [identity]: 'allow' } } });
+				await session.send('Hello', undefined, 'turn-consent');
+				const widerRequest = { ...request, capabilities: ['register hooks', 'read environment'] };
+				const response = runtime.handlePermissionRequest(widerRequest);
+				session.respondToPermissionRequest(consentReady(signals).toolCallId, false, { selectedOptionId: 'deny-extension-always' });
+				const answer = await response;
+				signals.length = 0;
+				assert.deepStrictEqual({ answer, reordered: await runtime.handlePermissionRequest({ ...widerRequest, capabilities: [...widerRequest.capabilities].reverse() }), actions: getActions(signals), rootConfigUpdates }, {
+					answer: { kind: 'reject' }, reordered: { kind: 'reject' }, actions: [],
+					rootConfigUpdates: [{ [AgentHostExtensionPermissionApprovalsConfigKey]: { [identity]: 'allow', 'plugin:grove-agent-monitor:grove-agent-monitor (read environment, register hooks)': 'deny' } }],
+				});
+			});
+
+			test('queued requests survive aborts until the next turn, while disposal and confirmation aborts reject', async () => {
+				const results = [];
+				for (const state of ['dispose', 'dispose-confirmation', 'abort-confirmation', 'abort', 'already-aborted'] as const) {
+					const { session, runtime, signals, rootConfigUpdates } = await createAgentSession(disposables);
+					if (state === 'already-aborted') {
+						await session.send('Earlier', undefined, 'turn-before-abort');
+						await session.abort();
+						signals.length = 0;
+					}
+					let settled = false;
+					const response = runtime.handleAttributedPermissionRequest(request).then(answer => {
+						settled = true;
+						return answer;
+					});
+					if (state === 'dispose-confirmation' || state === 'abort-confirmation') {
+						await session.send('Hello', undefined, 'turn-consent');
+					}
+					const pendingActions = getActions(signals).map(action => action.type);
+					if (state === 'dispose' || state === 'dispose-confirmation') {
+						session.dispose();
+					} else if (state !== 'already-aborted') {
+						await session.abort();
+					}
+					await timeout(0);
+					const settledBeforeNextTurn = settled;
+					if (state === 'abort' || state === 'already-aborted') {
+						await session.send('Hello', undefined, 'turn-after-abort');
+						session.respondToPermissionRequest(consentReady(signals).toolCallId, true, { selectedOptionId: 'allow-once' });
+					}
+					const answer = await response;
+					results.push({ answer, settledBeforeNextTurn, pendingActions, rootConfigUpdates, extraActions: getActions(signals).slice(pendingActions.length).map(action => action.type) });
+				}
+				const denied = { kind: 'attributed', result: { kind: 'reject' }, decisionContext: { source: 'unattended_fallback', surface: 'sdk', outcome: 'autopilot_denied' } };
+				const allowed = { kind: 'attributed', result: { kind: 'approve-once' }, decisionContext: { source: 'human_response', surface: 'sdk', outcome: 'prompted_user', responseCapability: 'interactive' } };
+				const confirmation = [ActionType.ChatToolCallStart, ActionType.ChatToolCallReady];
+				const completed = [...confirmation, ActionType.ChatToolCallComplete];
+				assert.deepStrictEqual(results, [
+					{ answer: denied, settledBeforeNextTurn: true, pendingActions: [], rootConfigUpdates: [], extraActions: [] },
+					{ answer: denied, settledBeforeNextTurn: true, pendingActions: confirmation, rootConfigUpdates: [], extraActions: [] },
+					{ answer: denied, settledBeforeNextTurn: true, pendingActions: confirmation, rootConfigUpdates: [], extraActions: [] },
+					{ answer: allowed, settledBeforeNextTurn: false, pendingActions: [], rootConfigUpdates: [], extraActions: completed },
+					{ answer: allowed, settledBeforeNextTurn: false, pendingActions: [], rootConfigUpdates: [], extraActions: completed },
+				]);
+			});
+		});
+
 		suite('MCP sampling', () => {
 			const samplingData = {
 				requestId: 'sampling-1',
@@ -24769,7 +24941,7 @@ Use the attached image as context.
 			assert.ok(hasPart, 'should have surfaced the message content');
 		});
 
-		test('history replay renders assistant tool requests when lifecycle events are missing', async () => {
+		test('history replay skips assistant tool requests without a recorded completion', async () => {
 			const { session, mockSession } = await createAgentSession(disposables);
 			mockSession.messages = [
 				{
@@ -24829,6 +25001,7 @@ Use the attached image as context.
 								toolCallId: part.toolCall.toolCallId,
 								toolName: part.toolCall.toolName,
 								status: part.toolCall.status,
+								reason: part.toolCall.status === ToolCallStatus.Cancelled ? part.toolCall.reason : undefined,
 								success: part.toolCall.status === ToolCallStatus.Completed ? part.toolCall.success : undefined,
 								content: part.toolCall.status === ToolCallStatus.Completed ? part.toolCall.content : undefined,
 							});
@@ -24847,8 +25020,8 @@ Use the attached image as context.
 				message: 'inspect the workspace',
 				parts: [
 					{ kind: ResponsePartKind.Markdown, content: 'I will inspect the workspace.' },
-					{ kind: ResponsePartKind.ToolCall, toolCallId: 'tc-view', toolName: 'view', status: ToolCallStatus.Completed, success: true, content: undefined },
-					{ kind: ResponsePartKind.ToolCall, toolCallId: 'tc-bash', toolName: 'bash', status: ToolCallStatus.Completed, success: false, content: [{ type: ToolResultContentType.Text, text: 'tests failed' }] },
+					{ kind: ResponsePartKind.ToolCall, toolCallId: 'tc-view', toolName: 'view', status: ToolCallStatus.Cancelled, reason: ToolCallCancellationReason.Skipped, success: undefined, content: undefined },
+					{ kind: ResponsePartKind.ToolCall, toolCallId: 'tc-bash', toolName: 'bash', status: ToolCallStatus.Completed, reason: undefined, success: false, content: [{ type: ToolResultContentType.Text, text: 'tests failed' }] },
 					{ kind: ResponsePartKind.Markdown, content: 'Done.' },
 				],
 			}]);
@@ -26513,13 +26686,14 @@ Use the attached image as context.
 
 	suite('Computer Use activation', () => {
 
-		async function createActivationSession(options?: { readonly settingEnabled?: boolean; readonly enabled?: boolean; readonly mode?: string; readonly activeTurn?: boolean; readonly githubCredentials?: CopilotGitHubSessionCredentials }) {
+		async function createActivationSession(options?: { readonly settingEnabled?: boolean; readonly enabled?: boolean; readonly mode?: string; readonly activeTurn?: boolean; readonly githubCredentials?: CopilotGitHubSessionCredentials; readonly telemetryService?: ITelemetryService }) {
 			const plugin = { name: 'computer-use', marketplace: '', source: 'builtin', enabled: options?.enabled ?? false };
 			let pluginListGate = Promise.resolve();
 			const harness = await createAgentSession(disposables, {
 				rootValues: { [AgentHostComputerUseEnabledConfigKey]: options?.settingEnabled ?? true },
 				configValues: options?.mode ? { [SessionConfigKey.Mode]: options.mode } : undefined,
 				githubCredentials: options?.githubCredentials,
+				telemetryService: options?.telemetryService,
 				getInstalledPlugins: async () => {
 					await pluginListGate;
 					return [{ ...plugin }];
@@ -26556,6 +26730,29 @@ Use the attached image as context.
 				result: { resultType: 'success', textResultForLlm: 'Computer Use is on. Its tools, from the computer-use MCP server, are available now.' },
 				enableCalls: [{ names: ['computer-use'] }],
 				toolsAfter: 0,
+			});
+		});
+
+		test('reports the state at launch and how a request ended for the chat\'s turn, only while VS Code offers Computer Use', async () => {
+			const computerUseEvents = (telemetry: TestDataTelemetryService) => telemetry.events.filter(event => event.name.startsWith('agentHost.computerUse'));
+			const telemetry = new TestDataTelemetryService();
+			const { session, runtime, waitForSignal } = await createActivationSession({ telemetryService: telemetry });
+			const [tool] = await runtime.createComputerUseActivationTools!();
+			const result = invokeClientToolHandler(tool, 'tc-activate', { reason: 'Open Calculator' });
+			const request = getInputRequest(await waitForSignal(signal => isAction(signal, ActionType.ChatInputRequested)));
+			session.respondToUserInputRequest(request.id, ChatInputResponseKind.Accept, getComputerUseActivationAnswers('turnOn'));
+			await result;
+			const settingOff = new TestDataTelemetryService();
+			await (await createActivationSession({ settingEnabled: false, telemetryService: settingOff })).runtime.createComputerUseActivationTools!();
+			assert.deepStrictEqual({
+				events: computerUseEvents(telemetry).map(({ name, data }) => ({ name, state: data.state, outcome: data.outcome, turnId: data.turnId, sdkSessionId: data.sdkSessionId === session.sessionId })),
+				settingOff: computerUseEvents(settingOff).length,
+			}, {
+				events: [
+					{ name: 'agentHost.computerUseState', state: 'off', outcome: undefined, turnId: 'turn-computer-use', sdkSessionId: true },
+					{ name: 'agentHost.computerUseActivation', state: undefined, outcome: 'turnedOn', turnId: 'turn-computer-use', sdkSessionId: true },
+				],
+				settingOff: 0,
 			});
 		});
 
@@ -26605,6 +26802,20 @@ Use the attached image as context.
 			});
 		});
 
+		test('reports a request that the end of its turn cancels against that turn', async () => {
+			const telemetry = new TestDataTelemetryService();
+			const { runtime, mockSession, waitForSignal } = await createActivationSession({ telemetryService: telemetry });
+			const [tool] = await runtime.createComputerUseActivationTools!();
+			const result = invokeClientToolHandler(tool, 'tc-activate', { reason: 'Open Calculator' });
+			await waitForSignal(signal => isAction(signal, ActionType.ChatInputRequested));
+			// Ending a turn clears it before it cancels the request.
+			mockSession.fire('session.idle', {} as SessionEventPayload<'session.idle'>['data']);
+			await result;
+			assert.deepStrictEqual(telemetry.events.filter(event => event.name === 'agentHost.computerUseActivation').map(({ data }) => ({ outcome: data.outcome, turnId: data.turnId })), [
+				{ outcome: 'cancelled', turnId: 'turn-computer-use' },
+			]);
+		});
+
 		test('shows no card outside a running turn, also when the turn stops while the plugin is checked', async () => {
 			const idle = await createActivationSession({ activeTurn: false });
 			const [idleTool] = await idle.runtime.createComputerUseActivationTools!();
@@ -26632,7 +26843,7 @@ Use the attached image as context.
 
 		async function createComputerUseSession(options?: { readonly source?: 'builtin' | 'user'; readonly withSetup?: boolean; readonly mode?: string; readonly activeTurn?: boolean }) {
 			const configuration = disposables.add(new TestComputerUseConfiguration());
-			const setup = disposables.add(new CopilotComputerUsePermissionSetup(undefined, configuration, new NullLogService(), new AgentHostMacAccessibilityTrustService()));
+			const setup = disposables.add(new CopilotComputerUsePermissionSetup(undefined, configuration, new NullLogService(), new AgentHostMacAccessibilityTrustService(), new NullTelemetryServiceShape()));
 			const source = options?.source ?? 'builtin';
 			const harness = await createAgentSession(disposables, {
 				configureMockSession: m => {
@@ -28134,7 +28345,6 @@ Use the attached image as context.
 				activeClientToolSet,
 				modelId: 'claude-opus-4.8',
 				...(autoApprove ? { configValues: { [SessionConfigKey.AutoApprove]: 'autoApprove' } } : {}),
-				rootValues: { [CopilotCliConfigKey.ToolSearchEnabled]: true },
 			});
 			if (autoApprove) {
 				await created.session.syncPermissionMode('turn-start');
@@ -28142,7 +28352,7 @@ Use the attached image as context.
 			return created;
 		}
 
-		async function createMcpRoutingSession(connected = false, routingEnabled = true, serverEnabled = true) {
+		async function createMcpRoutingSession(connected = false, routingEnabled = true, serverEnabled = true, telemetryService?: ITelemetryService) {
 			const configuration = {
 				type: McpServerType.REMOTE,
 				url: 'https://docs.example.com/mcp',
@@ -28159,6 +28369,7 @@ Use the attached image as context.
 			activeClientToolSet.set('tool-search-client', toolSearchSnapshot.tools);
 			const serverCustomizationId = 'mcp-top-level:copilotcli:test-session-1:docs';
 			const created = await createAgentSession(disposables, {
+				telemetryService,
 				clientSnapshot: toolSearchSnapshot,
 				activeClientToolSet,
 				modelId: 'claude-opus-4.8',
@@ -28178,7 +28389,6 @@ Use the attached image as context.
 					}),
 				}),
 				rootValues: {
-					[CopilotCliConfigKey.ToolSearchEnabled]: true,
 					...(routingEnabled ? { [AgentHostMcpToolRoutingEnabledConfigKey]: true } : {}),
 				},
 				configureMockSession: mock => {
@@ -28346,6 +28556,179 @@ Use the attached image as context.
 			});
 		});
 
+		for (const routingEnabled of [false, true]) {
+			test(`MCP usage telemetry compares real tool use and zero-use turns with routing=${routingEnabled}`, async () => {
+				const telemetryService = new PlatformCapturingTelemetryService<Record<string, unknown>>();
+				const { session, runtime, mockSession } = await createMcpRoutingSession(true, routingEnabled, true, telemetryService);
+				runtime.configureClientTools!(clientToolConfiguration(true));
+				runtime.createClientSdkTools(true);
+				session.resetTurnState('zero-use');
+				session.discardActiveTurn();
+				session.resetTurnState('real-use');
+				mockSession.fire('tool.execution_start', { toolCallId: 'real-tool', toolName: 'mcp_docs_search', mcpServerName: 'docs', arguments: {} });
+				mockSession.fire('tool.execution_complete', { toolCallId: 'real-tool', success: true, result: { content: 'Found docs' } });
+				session.failActiveTurn({ errorType: 'test', message: 'A later operation failed' });
+				assert.deepStrictEqual(telemetryService.events
+					.filter(event => event.eventName === 'agentHost.mcpUsageStarted' || event.eventName === 'agentHost.mcpUsageCompleted')
+					.map(({ eventName, data }) => ({
+						eventName, turnId: data.turnId, routingEnabled: data.routingEnabled,
+						configuredServerCount: data.configuredServerCount, toolSearchActive: data.toolSearchActive,
+						mcpToolSuccesses: data.mcpToolSuccesses, serversUsed: data.serversUsed, result: data.result,
+					})), [
+					{ eventName: 'agentHost.mcpUsageStarted', turnId: 'zero-use', routingEnabled, configuredServerCount: 1, toolSearchActive: true, mcpToolSuccesses: undefined, serversUsed: undefined, result: undefined },
+					{ eventName: 'agentHost.mcpUsageCompleted', turnId: 'zero-use', routingEnabled, configuredServerCount: 1, toolSearchActive: true, mcpToolSuccesses: 0, serversUsed: 0, result: 'interrupted' },
+					{ eventName: 'agentHost.mcpUsageStarted', turnId: 'real-use', routingEnabled, configuredServerCount: 1, toolSearchActive: true, mcpToolSuccesses: undefined, serversUsed: undefined, result: undefined },
+					{ eventName: 'agentHost.mcpUsageCompleted', turnId: 'real-use', routingEnabled, configuredServerCount: 1, toolSearchActive: true, mcpToolSuccesses: 1, serversUsed: 1, result: 'failed' },
+				]);
+			});
+		}
+
+		test('MCP usage telemetry records search results and proxy success without claiming real MCP use', async () => {
+			const telemetryService = new PlatformCapturingTelemetryService<Record<string, unknown>>();
+			const { session, runtime, mockSession } = await createMcpRoutingSession(false, true, true, telemetryService);
+			runtime.configureClientTools!(clientToolConfiguration(true));
+			const [search, proxy] = runtime.createClientSdkTools(true);
+			assert.ok(proxy.description);
+			session.resetTurnState('proxy-only');
+			mockSession.fire('tool.execution_start', { toolCallId: 'search-proxy', toolName: RUNTIME_TOOL_SEARCH_TOOL_NAME, arguments: { query: 'docs' } });
+			const result = invokeClientToolHandler(search, 'search-proxy', { query: 'docs' }, [{ name: proxy.name, description: proxy.description, deferLoading: true }]);
+			session.handleClientToolCallComplete('search-proxy', { success: true, pastTenseMessage: 'Searched', content: [{ type: ToolResultContentType.Text, text: JSON.stringify([proxy.name]) }] });
+			await result;
+			mockSession.fire('tool.execution_start', { toolCallId: 'proxy', toolName: proxy.name, arguments: {} });
+			mockSession.fire('tool.execution_complete', { toolCallId: 'proxy', success: true, result: { content: 'Connected' } });
+			session.discardActiveTurn();
+			assert.deepStrictEqual(telemetryService.events.filter(event => event.eventName === 'agentHost.mcpUsageCompleted').map(({ data }) => ({
+				searches: data.searches, searchesReturningRoutingTools: data.searchesReturningRoutingTools,
+				routingToolCalls: data.routingToolCalls, routingToolSuccesses: data.routingToolSuccesses,
+				mcpToolCalls: data.mcpToolCalls, mcpToolSuccesses: data.mcpToolSuccesses, serversUsed: data.serversUsed,
+			})), [{ searches: 1, searchesReturningRoutingTools: 1, routingToolCalls: 1, routingToolSuccesses: 1, mcpToolCalls: 0, mcpToolSuccesses: 0, serversUsed: 0 }]);
+		});
+
+		for (const routingEnabled of [false, true]) {
+			test(`MCP authentication telemetry reports callback cancellation with routing=${routingEnabled}`, async () => {
+				const telemetryService = new PlatformCapturingTelemetryService<Record<string, unknown>>();
+				const { session, runtime, configuration } = await createMcpRoutingSession(false, routingEnabled, true, telemetryService);
+				session.resetTurnState('cancel-auth');
+				const authentication = runtime.handleMcpAuthRequest({ requestId: 'cancel-auth-request', serverName: 'docs', serverUrl: configuration.url, reason: 'initial' }, { sessionId: 'test-session-1' });
+				await timeout(0);
+				await session.abort();
+				await authentication;
+				assert.deepStrictEqual(telemetryService.events.filter(event => event.eventName === 'agentHost.mcpAuthentication').map(({ data }) => ({
+					turnId: data.turnId, routingEnabled: data.routingEnabled, result: data.result,
+				})), [{ turnId: 'cancel-auth', routingEnabled, result: 'cancelled' }]);
+			});
+		}
+
+		test('MCP usage telemetry stays open after a mapped subagent error', async () => {
+			const telemetryService = new PlatformCapturingTelemetryService<Record<string, unknown>>();
+			const { session, mockSession } = await createAgentSession(disposables, { telemetryService });
+			session.resetTurnState('root-turn');
+			mockSession.fire('subagent.started', { toolCallId: 'child', agentName: 'explore', agentDisplayName: 'Explore', agentDescription: 'Explore tests' }, { agentId: 'child-agent' });
+			mockSession.fire('session.error', { errorType: 'test', message: 'Child failed' }, { agentId: 'child-agent' });
+			mockSession.fire('tool.execution_start', { toolCallId: 'real-tool', toolName: 'mcp_docs_search', mcpServerName: 'docs' });
+			mockSession.fire('tool.execution_complete', { toolCallId: 'real-tool', success: true, result: { content: 'Found docs' } });
+			mockSession.fire('session.idle', {});
+			await timeout(0);
+			assert.deepStrictEqual(telemetryService.events.filter(event => event.eventName === 'agentHost.mcpUsageCompleted').map(({ data }) => ({
+				result: data.result, mcpToolSuccesses: data.mcpToolSuccesses, serversUsed: data.serversUsed,
+			})), [{ result: 'success', mcpToolSuccesses: 1, serversUsed: 1 }]);
+		});
+
+		for (const routing of [false, true]) {
+			test(`MCP usage telemetry counts client authentication cancellation for routing proxy=${routing}`, async () => {
+				const telemetryService = new PlatformCapturingTelemetryService<Record<string, unknown>>();
+				const { session, runtime, mockSession, configuration } = await createMcpRoutingSession(false, routing, true, telemetryService);
+				const tools = runtime.createClientSdkTools(true);
+				session.resetTurnState('cancel-tool');
+				mockSession.fire('tool.execution_start', { toolCallId: 'cancelled-tool', toolName: routing ? tools[1].name : 'mcp_docs_search', ...(routing ? {} : { mcpServerName: 'docs' }) });
+				const authentication = runtime.handleMcpAuthRequest({ requestId: 'cancel-tool-auth', serverName: 'docs', serverUrl: configuration.url, reason: 'upscope' }, { sessionId: 'test-session-1' });
+				await timeout(0);
+				session.handleClientToolCallComplete('cancelled-tool', { success: false, pastTenseMessage: 'Cancelled', error: { code: 'cancelled', message: 'Authentication cancelled' } });
+				await authentication;
+				mockSession.fire('tool.execution_complete', { toolCallId: 'cancelled-tool', success: false, error: { code: 'cancelled', message: 'Authentication cancelled' } });
+				session.discardActiveTurn();
+				assert.deepStrictEqual(telemetryService.events.filter(event => event.eventName === 'agentHost.mcpUsageCompleted').map(({ data }) => ({
+					mcpToolCalls: data.mcpToolCalls, mcpToolCancellations: data.mcpToolCancellations,
+					routingToolCalls: data.routingToolCalls, routingToolCancellations: data.routingToolCancellations,
+				})), [{ mcpToolCalls: routing ? 0 : 1, mcpToolCancellations: routing ? 0 : 1, routingToolCalls: routing ? 1 : 0, routingToolCancellations: routing ? 1 : 0 }]);
+			});
+		}
+
+		test('MCP usage telemetry counts SDK success before resource persistence when the turn fails', async () => {
+			const telemetryService = new PlatformCapturingTelemetryService<Record<string, unknown>>();
+			const writeStarted = new DeferredPromise<void>();
+			const writeGate = new DeferredPromise<void>();
+			const database = new class extends TestSessionDatabase {
+				override async storeToolResultResources(...args: Parameters<ISessionDatabase['storeToolResultResources']>): Promise<void> {
+					writeStarted.complete();
+					await writeGate.p;
+					await super.storeToolResultResources(...args);
+				}
+			}();
+			const { session, mockSession, signals } = await createAgentSession(disposables, { telemetryService, sessionDatabase: database });
+			session.resetTurnState('persisting-turn');
+			mockSession.fire('tool.execution_start', { toolCallId: 'resource-tool', toolName: 'mcp_docs_read', mcpServerName: 'docs' });
+			mockSession.fire('tool.execution_complete', {
+				toolCallId: 'resource-tool', success: true,
+				result: { content: 'Document', contents: [{ type: 'resource', resource: { uri: 'demo://resource/1', text: 'Document' } }] },
+			});
+			await writeStarted.p;
+			session.failActiveTurn({ errorType: 'test', message: 'Failed during persistence' });
+			writeGate.complete();
+			await timeout(0);
+			assert.deepStrictEqual({
+				usage: telemetryService.events.filter(event => event.eventName === 'agentHost.mcpUsageCompleted').map(({ data }) => ({ result: data.result, mcpToolSuccesses: data.mcpToolSuccesses })),
+				publishedTools: getActions(signals).filter(action => action.type === ActionType.ChatToolCallComplete),
+			}, { usage: [{ result: 'failed', mcpToolSuccesses: 1 }], publishedTools: [] });
+		});
+
+		test('MCP authentication telemetry reports guarded cancellation during token lookup and abort', async () => {
+			const telemetryService = new PlatformCapturingTelemetryService<Record<string, unknown>>();
+			const { session, runtime, mockSession, copilotApiService } = await createAgentSession(disposables, { telemetryService, githubToken: 'existing-token' });
+			const lookupStarted = new DeferredPromise<void>();
+			const lookupGate = new DeferredPromise<void>();
+			copilotApiService.resolveApiEndpoint = async () => {
+				lookupStarted.complete();
+				await lookupGate.p;
+				return undefined;
+			};
+			session.resetTurnState('auth-owner');
+			const request = { requestId: 'before-abort', serverName: 'github', serverUrl: 'https://api.githubcopilot.com/mcp/', reason: 'initial' as const };
+			const before = runtime.handleMcpAuthRequest(request, { sessionId: 'test-session-1' });
+			await lookupStarted.p;
+			const abortGate = new DeferredPromise<void>();
+			mockSession.abortGate = abortGate.p;
+			const abort = session.abort();
+			const during = runtime.handleMcpAuthRequest({ ...request, requestId: 'during-abort' }, { sessionId: 'test-session-1' });
+			abortGate.complete();
+			await abort;
+			const results = await Promise.all([before, during]);
+			lookupGate.complete();
+			await timeout(0);
+			assert.deepStrictEqual({
+				results,
+				events: telemetryService.events.filter(event => event.eventName === 'agentHost.mcpAuthentication').map(({ data }) => ({ requestId: data.requestId, result: data.result })).sort((a, b) => String(a.requestId).localeCompare(String(b.requestId))),
+			}, {
+				results: [{ kind: 'cancelled' }, { kind: 'cancelled' }],
+				events: [{ requestId: 'before-abort', result: 'cancelled' }, { requestId: 'during-abort', result: 'cancelled' }],
+			});
+		});
+
+		test('MCP authentication telemetry keeps its original turn and excludes credentials', async () => {
+			const telemetryService = new PlatformCapturingTelemetryService<Record<string, unknown>>();
+			const { session, runtime, configuration } = await createMcpRoutingSession(false, true, true, telemetryService);
+			session.resetTurnState('auth-owner');
+			const authentication = runtime.handleMcpAuthRequest({ requestId: 'auth-telemetry', serverName: 'docs', serverUrl: configuration.url, reason: 'initial' }, { sessionId: 'test-session-1' });
+			await timeout(0);
+			session.resetTurnState('successor');
+			await session.resolveMcpAuthentication({ resource: configuration.url, scopes: [], token: 'private-access-token' });
+			await authentication;
+			assert.deepStrictEqual(telemetryService.events.filter(event => event.eventName === 'agentHost.mcpAuthentication').map(({ data }) => ({
+				turnId: data.turnId, routingEnabled: data.routingEnabled, requestId: data.requestId, hasToolCall: data.hasToolCall, result: data.result,
+				containsCredentials: JSON.stringify(data).includes('private-access-token') || JSON.stringify(data).includes(configuration.url),
+			})), [{ turnId: 'auth-owner', routingEnabled: true, requestId: 'auth-telemetry', hasToolCall: false, result: 'tokenProvided', containsCredentials: false }]);
+		});
+
 		test('configured MCP server adds a cautious routing proxy without cached tool metadata', async () => {
 			const { runtime } = await createMcpRoutingSession();
 
@@ -28414,7 +28797,6 @@ Use the attached image as context.
 				activeClientToolSet,
 				modelId: 'claude-opus-4.8',
 				rootValues: {
-					[CopilotCliConfigKey.ToolSearchEnabled]: true,
 					[AgentHostMcpToolRoutingEnabledConfigKey]: options.routingEnabled !== false,
 					[AgentHostMcpConnectorsEnabledConfigKey]: true,
 				},
@@ -29305,7 +29687,6 @@ Use the attached image as context.
 				clientSnapshot: toolSearchSnapshot,
 				activeClientToolSet,
 				modelId: 'claude-opus-4.8',
-				rootValues: { [CopilotCliConfigKey.ToolSearchEnabled]: true },
 			});
 			const override = runtime.createClientSdkTools(true).find(tool => tool.name === 'tool_search_tool')!;
 			activeClientToolSet.delete('tool-search-client');
@@ -29371,7 +29752,6 @@ Use the attached image as context.
 				clientSnapshot: toolSearchSnapshot,
 				activeClientToolSet,
 				modelId: 'claude-opus-4.8',
-				rootValues: { [CopilotCliConfigKey.ToolSearchEnabled]: true },
 			});
 			const override = runtime.createClientSdkTools(true).find(tool => tool.name === 'tool_search_tool')!;
 			const availableTools = [
@@ -29441,12 +29821,13 @@ Use the attached image as context.
 				clientSnapshot: toolSearchSnapshot,
 			});
 
+			const withDefer = (tools: readonly { name: string; defer?: string }[]) => tools.map(({ name, defer }) => ({ name, defer }));
 			assert.deepStrictEqual({
-				inactive: runtime.createClientSdkTools(false).map(tool => tool.name),
-				active: runtime.createClientSdkTools(true).map(tool => tool.name),
+				inactive: withDefer(runtime.createClientSdkTools(false)),
+				active: withDefer(runtime.createClientSdkTools(true)),
 			}, {
-				inactive: ['my_tool'],
-				active: ['tool_search_tool', 'my_tool'],
+				inactive: [{ name: 'my_tool', defer: undefined }],
+				active: [{ name: 'tool_search_tool', defer: 'never' }, { name: 'my_tool', defer: 'auto' }],
 			});
 		});
 

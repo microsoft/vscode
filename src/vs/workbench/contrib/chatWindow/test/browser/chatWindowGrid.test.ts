@@ -43,6 +43,8 @@ suite('Chat window grid', () => {
 			override readonly maximumHeight = Number.POSITIVE_INFINITY;
 			override readonly onDidChange = Event.None;
 			override readonly groups = [group];
+			override getGroups() { return this.groups; }
+			override findGroup() { return undefined; }
 			override readonly activeGroup = group;
 			override readonly onDidAddGroup = Event.None;
 			override readonly onDidRemoveGroup = Event.None;
@@ -138,7 +140,7 @@ suite('Chat window grid', () => {
 		}, { chatOnMainCenter: 'merge', chatOnMainSide: 'beside', mainOnChatCenter: 'beside' });
 	});
 
-	test('the title row is above the chat while the main part is beside it, else across the window; the strip has a column of its own while the chat is below the main part or hidden', () => {
+	test('the title row is across the top of the window in every mode; the strip has a column of its own at the right in every mode', () => {
 		const { mode, grid, visible } = setup();
 		const layouts: Record<string, { topology: string; visible: string[] }> = {};
 		for (const candidate of [ChatWindowLayoutMode.SideBySide, ChatWindowLayoutMode.ChatOnly, ChatWindowLayoutMode.Stacked, ChatWindowLayoutMode.EditorOnly]) {
@@ -147,8 +149,8 @@ suite('Chat window grid', () => {
 		}
 
 		assert.deepStrictEqual(layouts, {
-			[ChatWindowLayoutMode.SideBySide]: { topology: 'column(titleRow, row(chat, main))', visible: ['titleRow', 'chat', 'main'] },
-			[ChatWindowLayoutMode.ChatOnly]: { topology: 'column(titleRow, row(chat, main))', visible: ['titleRow', 'chat'] },
+			[ChatWindowLayoutMode.SideBySide]: { topology: 'column(titleRow, row(chat, main, strip))', visible: ['titleRow', 'chat', 'main', 'strip'] },
+			[ChatWindowLayoutMode.ChatOnly]: { topology: 'column(titleRow, row(chat, main, strip))', visible: ['titleRow', 'chat', 'strip'] },
 			[ChatWindowLayoutMode.Stacked]: { topology: 'column(titleRow, row(column(main, chat), strip))', visible: ['titleRow', 'chat', 'main', 'strip'] },
 			[ChatWindowLayoutMode.EditorOnly]: { topology: 'column(titleRow, row(column(main, chat), strip))', visible: ['titleRow', 'main', 'strip'] },
 		});
@@ -170,9 +172,9 @@ suite('Chat window grid', () => {
 		const hiddenAgain = { ...read(), sameGrid: grid.partGrid === partGrid, sameParent: titleRow.element.parentElement === parent };
 
 		assert.deepStrictEqual({ hidden, visible, hiddenAgain }, {
-			hidden: { topology: 'column(titleRow,row(chat,main))', visible: false, chatHeight: 800 },
-			visible: { topology: 'column(titleRow,row(chat,main))', visible: true, chatHeight: 770 },
-			hiddenAgain: { topology: 'column(titleRow,row(chat,main))', visible: false, chatHeight: 800, sameGrid: true, sameParent: true },
+			hidden: { topology: 'column(titleRow,row(chat,main,strip))', visible: false, chatHeight: 800 },
+			visible: { topology: 'column(titleRow,row(chat,main,strip))', visible: true, chatHeight: 770 },
+			hiddenAgain: { topology: 'column(titleRow,row(chat,main,strip))', visible: false, chatHeight: 800, sameGrid: true, sameParent: true },
 		});
 	});
 
@@ -198,7 +200,7 @@ suite('Chat window grid', () => {
 		const stacked = { chat: grid.partGrid!.getCellSize(ChatWindowGridCell.Chat).height, main: grid.partGrid!.getCellSize(ChatWindowGridCell.Main).height, strip: grid.partGrid!.getCellSize(ChatWindowGridCell.Strip).width };
 
 		assert.deepStrictEqual({ sideBySide, stacked }, {
-			sideBySide: { chat: 400, main: 600, titleRow: 30 },
+			sideBySide: { chat: 386, main: 580, titleRow: 30 },
 			stacked: { chat: 346, main: 424, strip: 34 },
 		});
 	});
@@ -214,10 +216,37 @@ suite('Chat window grid', () => {
 		mode.set(ChatWindowLayoutMode.Stacked, undefined);
 		const stacked = { chatAndMain: width(ChatWindowGridCell.Main), strip: width(ChatWindowGridCell.Strip), chatHeight: grid.partGrid!.getCellSize(ChatWindowGridCell.Chat).height + grid.partGrid!.getCellSize(ChatWindowGridCell.Main).height };
 
-		assert.deepStrictEqual({ sideBySide, stacked, leftInset: container.style.getPropertyValue('--chat-window-outer-inset-left') }, {
-			sideBySide: { chat: 392, main: 588 },
+		assert.deepStrictEqual({ sideBySide, stacked }, {
+			sideBySide: { chat: 378, main: 568 },
 			stacked: { chatAndMain: 946, strip: 34, chatHeight: 760 },
-			leftInset: '10px',
+		});
+	});
+
+	test('the title row spans the window from edge to edge, as the main window\'s title bar does, with its window controls at the corner, while the cards below it keep the outer insets: in Default and Compact density', () => {
+		const measure = (inset: number) => {
+			const container = createAttachedContainer();
+			const titleRow = createChrome(30);
+			const controls = titleRow.element.appendChild($('.window-controls'));
+			controls.style.cssText = 'position: absolute; top: 0; right: 0; width: 138px; height: 30px;';
+			const laidOut: number[] = [];
+			const grid = disposables.add(new ChatWindowGrid(container, { main: createPart('main'), chat: createPart('chat'), titleRow: { ...titleRow, layout: width => laidOut.push(width) }, strip: createChrome(34) }, constObservable(ChatWindowLayoutMode.SideBySide), constObservable(inset), undefined, undefined, undefined, editorGroupsService));
+			grid.setOuterInsets({ top: 0, right: inset, bottom: inset, left: inset });
+			grid.layout(1200, 800);
+			const window = container.getBoundingClientRect();
+			const title = titleRow.element.getBoundingClientRect();
+			const chat = container.querySelector(`[data-part-grid-cell="${ChatWindowGridCell.Chat}"]`)!.getBoundingClientRect();
+			return {
+				title: { left: title.left - window.left, top: title.top - window.top, width: title.width, height: title.height },
+				laidOutWidth: laidOut.at(-1),
+				controlsRight: controls.getBoundingClientRect().right - window.left,
+				chatLeft: chat.left - window.left,
+				firstInWindow: container.firstElementChild === titleRow.element,
+			};
+		};
+
+		assert.deepStrictEqual({ default: measure(4), compact: measure(0) }, {
+			default: { title: { left: 0, top: 0, width: 1200, height: 30 }, laidOutWidth: 1200, controlsRight: 1200, chatLeft: 4, firstInWindow: true },
+			compact: { title: { left: 0, top: 0, width: 1200, height: 30 }, laidOutWidth: 1200, controlsRight: 1200, chatLeft: 0, firstInWindow: true },
 		});
 	});
 
@@ -244,7 +273,7 @@ suite('Chat window grid', () => {
 		mode.set(ChatWindowLayoutMode.Stacked, undefined);
 		mode.set(ChatWindowLayoutMode.SideBySide, undefined);
 
-		assert.deepStrictEqual({ topology: grid.partGrid!.describe(), chat: grid.partGrid!.getCellSize(ChatWindowGridCell.Chat).width, exported: grid.exportSizes()['column(titleRow,row(chat,main))']?.[ChatWindowGridCell.Chat]?.width }, { topology: 'column(titleRow, row(chat, main))', chat: 300, exported: 300 });
+		assert.deepStrictEqual({ topology: grid.partGrid!.describe(), chat: grid.partGrid!.getCellSize(ChatWindowGridCell.Chat).width, exported: grid.exportSizes()['column(titleRow,row(chat,main,strip))']?.[ChatWindowGridCell.Chat]?.width }, { topology: 'column(titleRow, row(chat, main, strip))', chat: 300, exported: 300 });
 	});
 
 	test('reset forgets the sizes the user gave the cells and the parts moved, and arranges them as in a new window', () => {
@@ -260,14 +289,14 @@ suite('Chat window grid', () => {
 		grid.reset();
 
 		assert.deepStrictEqual({ before, after: { topology: grid.partGrid!.describe(), chat: grid.partGrid!.getCellSize(ChatWindowGridCell.Chat).width }, sizes: grid.exportSizes() }, {
-			before: { topology: 'column(titleRow, main, chat)', sizes: true },
+			before: { topology: 'column(titleRow, row(column(main, chat), strip))', sizes: true },
 			after: fresh,
 			sizes: {},
 		});
 	});
 
 	/** A part whose editors come and go: it is empty until an editor opens in it. */
-	function createPartWithEditors(name: string) {
+	function createPartWithEditors(name: string, onWillClose: Event<void> = Event.None) {
 		const onDidModelChange = disposables.add(new Emitter<IGroupModelChangeEvent>());
 		let empty = true;
 		const group = new class extends mock<IEditorGroup>() {
@@ -282,10 +311,12 @@ suite('Chat window grid', () => {
 			override readonly maximumHeight = Number.POSITIVE_INFINITY;
 			override readonly onDidChange = Event.None;
 			override readonly groups = [group];
+			override getGroups() { return this.groups; }
+			override findGroup() { return undefined; }
 			override readonly onDidAddGroup = Event.None;
 			override readonly onDidRemoveGroup = Event.None;
 			override readonly onDidMoveGroup = Event.None;
-			override readonly onWillClose = Event.None;
+			override readonly onWillClose = onWillClose;
 			override layout() { }
 			override setVisible() { }
 		}();
@@ -309,8 +340,9 @@ suite('Chat window grid', () => {
 			terminals.set(terminalsPart.part, undefined);
 			terminalsPart.setEmpty(false);
 		};
+		const close = () => terminals.set(undefined, undefined);
 		const height = () => grid.partGrid!.getCellSize(ChatWindowGridCell.Terminals).height;
-		return { mode, position, terminals: terminals as IObservable<IContentPart | undefined>, terminalsPart, grid, open, height, userResize, container };
+		return { mode, position, terminals: terminals as IObservable<IContentPart | undefined>, terminalsPart, grid, open, close, height, userResize, container };
 	}
 
 	test('the terminals merged into the main part leave the grid, their editors in the main part, and do not come back while the terminals part stays empty', () => {
@@ -337,6 +369,7 @@ suite('Chat window grid', () => {
 			override readonly groups = [mainGroup];
 			override get activeGroup() { return mainGroup; }
 			override getGroups() { return this.groups; }
+			override findGroup() { return undefined; }
 			override readonly onDidAddGroup = Event.None;
 			override readonly onDidRemoveGroup = Event.None;
 			override readonly onDidMoveGroup = Event.None;
@@ -367,6 +400,7 @@ suite('Chat window grid', () => {
 			override readonly groups = [terminalsGroup];
 			override get activeGroup() { return terminalsGroup; }
 			override getGroups() { return this.groups; }
+			override findGroup() { return undefined; }
 			override readonly onDidAddGroup = Event.None;
 			override readonly onDidRemoveGroup = Event.None;
 			override readonly onDidMoveGroup = Event.None;
@@ -401,7 +435,7 @@ suite('Chat window grid', () => {
 		mode.set(ChatWindowLayoutMode.SideBySide, undefined);
 
 		assert.deepStrictEqual({ moved, after: { shape: grid.partGrid!.describe(), main: sizeOf(ChatWindowGridCell.Main) } }, {
-			moved: 'column(titleRow, chat, main, terminals)',
+			moved: 'column(titleRow, row(column(chat, main, terminals), strip))',
 			after: before
 		});
 	});
@@ -475,7 +509,7 @@ suite('Chat window grid', () => {
 		const otherArrangement = { rebuilt: grid.partGrid !== chatOnlyGrid, focused: mainWindow.document.activeElement === input };
 
 		assert.deepStrictEqual({ afterMove, otherArrangement }, {
-			afterMove: { rebuilt: true, shape: 'column(titleRow, row(chat, main), terminals)', focused: true },
+			afterMove: { rebuilt: true, shape: 'column(titleRow, row(column(row(chat, main), terminals), strip))', focused: true },
 			otherArrangement: { rebuilt: true, focused: true },
 		});
 	});
@@ -494,6 +528,8 @@ suite('Chat window grid', () => {
 			override get maximumHeight() { return resizing.get() ? Number.POSITIVE_INFINITY : 101; }
 			override readonly onDidChange = onDidChangeChat.event;
 			override readonly groups = [createPart('chatGroup').groups[0]];
+			override getGroups() { return this.groups; }
+			override findGroup() { return undefined; }
 			override readonly onDidAddGroup = Event.None;
 			override readonly onDidRemoveGroup = Event.None;
 			override readonly onDidMoveGroup = Event.None;
@@ -580,7 +616,7 @@ suite('Chat window grid', () => {
 		assert.deepStrictEqual({ intoTerminals: grid.partGrid!.mergeCell(ChatWindowGridCell.Main, ChatWindowGridCell.Terminals), intoChat: grid.partGrid!.mergeCell(ChatWindowGridCell.Main, ChatWindowGridCell.Chat) }, { intoTerminals: false, intoChat: false });
 	});
 
-	test('the terminals join the grid below the chat, below the main part or across the window, across the chat and the main part while stacked, and below the strip in editor only', () => {
+	test('the terminals join the grid below the chat, below the main part or across the chat and the main part, the strip running past them in every mode', () => {
 		const { mode, position, grid, open } = setupWithTerminals();
 		const before = grid.partGrid!.describe();
 		open();
@@ -594,21 +630,150 @@ suite('Chat window grid', () => {
 		}
 
 		assert.deepStrictEqual({ before, layouts }, {
-			before: 'column(titleRow, row(chat, main))',
+			before: 'column(titleRow, row(chat, main, strip))',
 			layouts: {
-				'sideBySide/fullWidth': 'column(titleRow, row(chat, main), terminals)',
-				'sideBySide/underChat': 'column(titleRow, row(column(chat, terminals), main))',
-				'sideBySide/underEditor': 'column(titleRow, row(chat, column(main, terminals)))',
-				'chatOnly/fullWidth': 'column(titleRow, row(chat, main), terminals)',
-				'chatOnly/underChat': 'column(titleRow, row(column(chat, terminals), main))',
-				'chatOnly/underEditor': 'column(titleRow, row(chat, main), terminals)',
+				'sideBySide/fullWidth': 'column(titleRow, row(column(row(chat, main), terminals), strip))',
+				'sideBySide/underChat': 'column(titleRow, row(column(chat, terminals), main, strip))',
+				'sideBySide/underEditor': 'column(titleRow, row(chat, column(main, terminals), strip))',
+				'chatOnly/fullWidth': 'column(titleRow, row(column(row(chat, main), terminals), strip))',
+				'chatOnly/underChat': 'column(titleRow, row(column(chat, terminals), main, strip))',
+				'chatOnly/underEditor': 'column(titleRow, row(column(row(chat, main), terminals), strip))',
 				'stacked/fullWidth': 'column(titleRow, row(column(main, chat, terminals), strip))',
 				'stacked/underChat': 'column(titleRow, row(column(main, chat, terminals), strip))',
 				'stacked/underEditor': 'column(titleRow, row(column(main, chat, terminals), strip))',
-				'editorOnly/fullWidth': 'column(titleRow, row(column(main, chat), strip), terminals)',
-				'editorOnly/underChat': 'column(titleRow, row(column(main, chat), strip), terminals)',
-				'editorOnly/underEditor': 'column(titleRow, row(column(main, chat), strip), terminals)',
+				'editorOnly/fullWidth': 'column(titleRow, row(column(main, chat, terminals), strip))',
+				'editorOnly/underChat': 'column(titleRow, row(column(main, chat, terminals), strip))',
+				'editorOnly/underEditor': 'column(titleRow, row(column(main, chat, terminals), strip))',
 			},
+		});
+	});
+
+	test('across the chat and the main part side by side, the terminals join, move and leave in place, the strip running past them as tall as the window: the grid stays, the chat input keeps the focus, and the chat and the main part their widths', () => {
+		const { position, grid, open, close, container } = setupWithTerminals();
+		const input = container.querySelector('.chat')!.appendChild($('input'));
+		input.focus();
+		const partGrid = grid.partGrid;
+		const states: string[] = [];
+		const read = (step: string) => {
+			const size = (cell: ChatWindowGridCell) => grid.partGrid!.isCellVisible(cell) ? grid.partGrid!.getCellSize(cell) : undefined;
+			states.push(`${step}: ${grid.partGrid!.describe()} chat ${size(ChatWindowGridCell.Chat)?.width} main ${size(ChatWindowGridCell.Main)?.width} strip ${size(ChatWindowGridCell.Strip)?.width}x${size(ChatWindowGridCell.Strip)?.height} terminals ${size(ChatWindowGridCell.Terminals)?.width} sameGrid ${grid.partGrid === partGrid} focused ${mainWindow.document.activeElement === input}`);
+		};
+		read('before');
+		open();
+		read('joined');
+		position.set(ChatWindowTerminalPosition.UnderChat, undefined);
+		position.set(ChatWindowTerminalPosition.FullWidth, undefined);
+		read('moved back');
+		close();
+		read('left');
+
+		assert.deepStrictEqual(states, [
+			'before: column(titleRow, row(chat, main, strip)) chat 386 main 580 strip 34x770 terminals undefined sameGrid true focused true',
+			'joined: column(titleRow, row(column(row(chat, main), terminals), strip)) chat 386 main 580 strip 34x770 terminals 966 sameGrid true focused true',
+			'moved back: column(titleRow, row(column(row(chat, main), terminals), strip)) chat 386 main 580 strip 34x770 terminals 966 sameGrid true focused true',
+			'left: column(titleRow, row(chat, main, strip)) chat 386 main 580 strip 34x770 terminals undefined sameGrid true focused true',
+		]);
+	});
+
+	test('the strip\'s column takes the width its size says, as the layout density changes it, while it shows and while it does not, the cards beside it taking or giving the rest', () => {
+		const size = observableValue('size', 48);
+		const shown = observableValue('shown', true);
+		const grid = disposables.add(new ChatWindowGrid($('div'), { main: createPart('main'), chat: createPart('chat'), titleRow: createChrome(30), strip: { ...createChrome(0), size, visible: shown } }, constObservable(ChatWindowLayoutMode.SideBySide), constObservable(0), undefined, undefined, undefined, editorGroupsService));
+		grid.layout(1000, 800);
+		const widths = () => {
+			const width = (cell: ChatWindowGridCell) => grid.partGrid!.getCellSize(cell).width;
+			return `${width(ChatWindowGridCell.Chat) + width(ChatWindowGridCell.Main)} + ${shown.get() ? width(ChatWindowGridCell.Strip) : 'hidden'}`;
+		};
+		const states = [widths()];
+		size.set(40, undefined);
+		states.push(widths());
+		shown.set(false, undefined);
+		size.set(48, undefined);
+		shown.set(true, undefined);
+		states.push(widths());
+
+		assert.deepStrictEqual(states, ['952 + 48', '960 + 40', '952 + 48']);
+	});
+
+	test('the strip takes no room in any mode while it does not show, such as while the Session Activity Bar is off', () => {
+		const mode = observableValue<ChatWindowLayoutMode>('mode', ChatWindowLayoutMode.SideBySide);
+		const shown = observableValue('shown', false);
+		const grid = disposables.add(new ChatWindowGrid($('div'), { main: createPart('main'), chat: createPart('chat'), titleRow: createChrome(30), strip: { ...createChrome(34), visible: shown } }, mode, constObservable(0), undefined, undefined, undefined, editorGroupsService));
+		grid.layout(1000, 800);
+		const states: Record<string, string> = {};
+		for (const candidate of [ChatWindowLayoutMode.SideBySide, ChatWindowLayoutMode.ChatOnly, ChatWindowLayoutMode.Stacked, ChatWindowLayoutMode.EditorOnly]) {
+			mode.set(candidate, undefined);
+			const hidden = grid.partGrid!.isCellVisible(ChatWindowGridCell.Strip);
+			shown.set(true, undefined);
+			states[candidate] = `${hidden} → ${grid.partGrid!.isCellVisible(ChatWindowGridCell.Strip)}`;
+			shown.set(false, undefined);
+		}
+
+		assert.deepStrictEqual(states, {
+			[ChatWindowLayoutMode.SideBySide]: 'false → true',
+			[ChatWindowLayoutMode.ChatOnly]: 'false → true',
+			[ChatWindowLayoutMode.Stacked]: 'false → true',
+			[ChatWindowLayoutMode.EditorOnly]: 'false → true',
+		});
+	});
+
+	test('side by side, the chat comes back at the width the user gave it before the strip had a column there, which stays for a version without it to read', () => {
+		const legacyKey = 'column(titleRow,row(chat,main))';
+		const sizes: ChatWindowPartSizes = { [legacyKey]: { [ChatWindowGridCell.Chat]: { width: 300, height: 770 } } };
+		const grid = disposables.add(new ChatWindowGrid($('div'), { main: createPart('main'), chat: createPart('chat'), titleRow: createChrome(30), strip: createChrome(34) }, constObservable(ChatWindowLayoutMode.SideBySide), constObservable(0), sizes, undefined, undefined, editorGroupsService));
+		grid.layout(1000, 800);
+
+		assert.deepStrictEqual({ chat: grid.partGrid!.getCellSize(ChatWindowGridCell.Chat).width, main: grid.partGrid!.getCellSize(ChatWindowGridCell.Main).width, legacy: grid.exportSizes()[legacyKey] }, {
+			chat: 300,
+			main: 666,
+			legacy: sizes[legacyKey],
+		});
+	});
+
+	test('a part moved or dropped at the top edge of the window goes above the parts, beside the strip, which keeps spanning the window below the title row, shown or hidden', () => {
+		const editor = new class extends mock<EditorInput>() {
+			override readonly typeId = 'testEditor';
+			override readonly resource = undefined;
+			override getName() { return 'file'; }
+		}();
+		const results: Record<string, string> = {};
+		for (const title of ['shown', 'hidden'] as const) {
+			const create = () => {
+				const grid = disposables.add(new ChatWindowGrid(createAttachedContainer(), { main: createPart('main'), chat: createPart('chat'), titleRow: { ...createChrome(30), visible: constObservable(title === 'shown') }, strip: createChrome(34) }, constObservable(ChatWindowLayoutMode.SideBySide), constObservable(4), undefined, undefined, { createPart: () => ({ id: 'created', part: createPart('created') }) }, editorGroupsService));
+				grid.layout(1000, 800);
+				return grid;
+			};
+			const moved = create();
+			moved.partGrid!.moveCell(ChatWindowGridCell.Main, { edge: Direction.Up });
+			results[`main moved to the top edge, title ${title}`] = moved.partGrid!.describe();
+			const dropped = create();
+			dropped.partGrid!.moveEditorsIntoNewPart([{ editor, groupId: 1 }], { edge: Direction.Up }, { dropped: true });
+			results[`editor dropped on the top edge, title ${title}`] = dropped.partGrid!.describe();
+		}
+
+		assert.deepStrictEqual(results, {
+			'main moved to the top edge, title shown': 'column(titleRow, row(column(main, chat), strip))',
+			'editor dropped on the top edge, title shown': 'column(titleRow, row(column(created, row(chat, main)), strip))',
+			'main moved to the top edge, title hidden': 'column(titleRow, row(column(main, chat), strip))',
+			'editor dropped on the top edge, title hidden': 'column(titleRow, row(column(created, row(chat, main)), strip))',
+		});
+	});
+
+	test('a new grid side by side opens with the shares of its arrangement wherever the terminals are, also beside the strip, which keeps its size in the row with them', () => {
+		const sizes: Record<string, string> = {};
+		for (const position of [ChatWindowTerminalPosition.UnderEditor, ChatWindowTerminalPosition.UnderChat, ChatWindowTerminalPosition.FullWidth]) {
+			const terminalsPart = createPartWithEditors('terminals');
+			terminalsPart.setEmpty(false);
+			const grid = disposables.add(new ChatWindowGrid($('div'), { main: createPart('main'), chat: createPart('chat'), titleRow: createChrome(30), strip: createChrome(34), terminals: constObservable(terminalsPart.part) }, constObservable(ChatWindowLayoutMode.SideBySide), constObservable(0), undefined, constObservable(position), undefined, editorGroupsService));
+			grid.layout(1000, 800);
+			const width = (cell: ChatWindowGridCell) => grid.partGrid!.getCellSize(cell).width;
+			sizes[position] = `${width(ChatWindowGridCell.Chat)}/${width(ChatWindowGridCell.Main)} strip ${width(ChatWindowGridCell.Strip)}`;
+		}
+
+		assert.deepStrictEqual(sizes, {
+			[ChatWindowTerminalPosition.UnderEditor]: '386/580 strip 34',
+			[ChatWindowTerminalPosition.UnderChat]: '386/580 strip 34',
+			[ChatWindowTerminalPosition.FullWidth]: '386/580 strip 34',
 		});
 	});
 
@@ -659,7 +824,7 @@ suite('Chat window grid', () => {
 		const stackedSizes = resize(stacked);
 
 		assert.deepStrictEqual({ sideBySideSizes, stackedSizes }, {
-			sideBySideSizes: ['400/600 title 30 terminals 240', '640/960 title 30 terminals 240', '320/480 title 30 terminals 240', '400/600 title 30 terminals 240'],
+			sideBySideSizes: ['400/566 title 30 terminals 240', '648/918 title 30 terminals 240', '317/449 title 30 terminals 240', '400/566 title 30 terminals 240'],
 			stackedSizes: ['292/238 title 30 terminals 240 strip 34', '556/454 title 30 terminals 240 strip 34', '204/166 title 30 terminals 240 strip 34', '292/238 title 30 terminals 240 strip 34']
 		});
 	});
@@ -692,7 +857,7 @@ suite('Chat window grid', () => {
 		assert.deepStrictEqual({ heights: heights(), chrome: [...chrome] }, { heights: before, chrome: ['30/34'] });
 	});
 
-	test('in Stacked, with a part dropped at the bottom edge of the window, below the parts and the strip, the parts keep their shares of the window as it is resized, and the title row and the strip their sizes', () => {
+	test('in Stacked, with a part dropped at the bottom edge of the window, below the parts, the strip running past it, the parts keep their shares of the window as it is resized, and the title row and the strip their sizes', () => {
 		const { mode, grid } = setup({ createPart: () => ({ id: 'created', part: createPart('created') }) });
 		mode.set(ChatWindowLayoutMode.Stacked, undefined);
 		const editor = new class extends mock<EditorInput>() {
@@ -709,8 +874,8 @@ suite('Chat window grid', () => {
 		});
 
 		assert.deepStrictEqual({ shape: grid.partGrid!.describe(), resized }, {
-			shape: 'column(titleRow, row(column(main, chat), strip), created)',
-			resized: ['556/214 title 30 strip 34', '845/325 title 30 strip 34', '484/186 title 30 strip 34', '556/214 title 30 strip 34'],
+			shape: 'column(titleRow, row(column(main, chat, created), strip))',
+			resized: ['513/257 title 30 strip 34', '779/391 title 30 strip 34', '446/224 title 30 strip 34', '513/257 title 30 strip 34'],
 		});
 	});
 
@@ -728,7 +893,7 @@ suite('Chat window grid', () => {
 		mode.set(ChatWindowLayoutMode.Stacked, undefined);
 		mode.set(ChatWindowLayoutMode.SideBySide, undefined);
 
-		assert.deepStrictEqual({ sideBySide, again: split() }, { sideBySide: '400/600', again: '400/600' });
+		assert.deepStrictEqual({ sideBySide, again: split() }, { sideBySide: '400/566', again: '400/566' });
 	});
 
 	test('a remembered width that leaves the main part less than its minimum gives way to the default share', () => {
@@ -736,7 +901,7 @@ suite('Chat window grid', () => {
 		const grid = disposables.add(new ChatWindowGrid($('div'), { main: createPart('main'), chat: createPart('chat'), titleRow: createChrome(30), strip: createChrome(34) }, constObservable(ChatWindowLayoutMode.SideBySide), constObservable(0), sizes, undefined, undefined, editorGroupsService));
 		grid.layout(1000, 800);
 
-		assert.deepStrictEqual([grid.partGrid!.getCellSize(ChatWindowGridCell.Chat).width, grid.partGrid!.getCellSize(ChatWindowGridCell.Main).width], [400, 600]);
+		assert.deepStrictEqual([grid.partGrid!.getCellSize(ChatWindowGridCell.Chat).width, grid.partGrid!.getCellSize(ChatWindowGridCell.Main).width], [386, 580]);
 	});
 
 	test('QA\'s terminals round trip: the height the user gave the terminals stays the same through every mode and back', () => {
@@ -789,6 +954,8 @@ suite('Chat window grid', () => {
 			override get maximumHeight() { return inputOnly() ? 164 : Number.POSITIVE_INFINITY; }
 			override readonly onDidChange = onDidChangeChat.event;
 			override readonly groups = [new class extends mock<IEditorGroup>() { override readonly isEmpty = false; override readonly onDidModelChange = Event.None; }()];
+			override getGroups() { return this.groups; }
+			override findGroup() { return undefined; }
 			override readonly onDidAddGroup = Event.None;
 			override readonly onDidRemoveGroup = Event.None;
 			override readonly onDidMoveGroup = Event.None;
@@ -821,7 +988,7 @@ suite('Chat window grid', () => {
 
 		assert.deepStrictEqual({ heights, split: `${grid.partGrid!.getCellSize(ChatWindowGridCell.Chat).width}/${grid.partGrid!.getCellSize(ChatWindowGridCell.Main).width}` }, {
 			heights: ['stacked 199', 'sideBySide 199', 'chatOnly 199', 'sideBySide 199', 'editorOnly 199', 'sideBySide 199'],
-			split: '476/716',
+			split: '476/682',
 		});
 	});
 
@@ -853,7 +1020,7 @@ suite('Chat window grid', () => {
 		walk.push(read());
 		const restarted = create(grid.exportSizes());
 
-		assert.deepStrictEqual({ walk, restarted: restarted.read() }, { walk: ['476/716, terminals 105', '476/716, terminals 105'], restarted: '476/716, terminals 105' });
+		assert.deepStrictEqual({ walk, restarted: restarted.read() }, { walk: ['476/682, terminals 105', '476/682, terminals 105'], restarted: '476/682, terminals 105' });
 	});
 
 	test('a density round trip, default to compact and back, gives the chat and the main part back their exact widths', () => {
@@ -874,7 +1041,7 @@ suite('Chat window grid', () => {
 		grid.setOuterInsets({ top: 0, left: 4, right: 4, bottom: 4 });
 
 		// Compact, the chat and the main part keep their shares of the room the insets leave
-		assert.deepStrictEqual({ before, compact, after: split() }, { before: '476/716', compact: '479/721', after: '476/716' });
+		assert.deepStrictEqual({ before, compact, after: split() }, { before: '476/682', compact: '479/687', after: '476/682' });
 	});
 
 	test('a change of density lays the grid out again once its styles apply, so that the cards read the frames of the new density', async () => {
@@ -916,7 +1083,7 @@ suite('Chat window grid', () => {
 		assert.deepStrictEqual({ shown, heights, split: `${grid.partGrid!.getCellSize(ChatWindowGridCell.Chat).width}/${grid.partGrid!.getCellSize(ChatWindowGridCell.Main).width}` }, {
 			shown: '239',
 			heights: ['dragged 199', 'stacked 199', 'sideBySide 199', 'chatOnly 199', 'sideBySide 199', 'editorOnly 199', 'sideBySide 199'],
-			split: '476/716',
+			split: '476/682',
 		});
 	});
 
@@ -954,6 +1121,8 @@ suite('Chat window grid', () => {
 			override readonly maximumHeight = Number.POSITIVE_INFINITY;
 			override readonly onDidChange = onDidChangeChat.event;
 			override readonly groups = [new class extends mock<IEditorGroup>() { override readonly isEmpty = false; override readonly onDidModelChange = Event.None; }()];
+			override getGroups() { return this.groups; }
+			override findGroup() { return undefined; }
 			override readonly onDidAddGroup = Event.None;
 			override readonly onDidRemoveGroup = Event.None;
 			override readonly onDidMoveGroup = Event.None;
@@ -981,7 +1150,7 @@ suite('Chat window grid', () => {
 		chatMinimumWidth = 280;
 		onDidChangeChat.fire(undefined);
 
-		assert.deepStrictEqual({ user, forced, again: roundTrip() }, { user: '476/716', forced: '505/687', again: '476/716' });
+		assert.deepStrictEqual({ user, forced, again: roundTrip() }, { user: '476/682', forced: '505/653', again: '476/682' });
 	});
 
 	test('closing the editor area, which shows only the chat, with the terminals under the editor keeps the terminals, across the window and as tall, and they go back under the editor as it shows again', () => {
@@ -1001,8 +1170,8 @@ suite('Chat window grid', () => {
 		mode.set(ChatWindowLayoutMode.SideBySide, undefined);
 
 		assert.deepStrictEqual({ editorAreaClosed, editorShownAgain: { ...read(), height: height() } }, {
-			editorAreaClosed: { topology: 'column(titleRow, row(chat, main), terminals)', visible: [ChatWindowGridCell.Chat, ChatWindowGridCell.Terminals], terminalsVisible: true, height: 200, acrossTheWindow: true },
-			editorShownAgain: { topology: 'column(titleRow, row(chat, column(main, terminals)))', visible: [ChatWindowGridCell.Chat, ChatWindowGridCell.Main, ChatWindowGridCell.Terminals], terminalsVisible: true, height: 200 },
+			editorAreaClosed: { topology: 'column(titleRow, row(column(row(chat, main), terminals), strip))', visible: [ChatWindowGridCell.Chat, ChatWindowGridCell.Terminals], terminalsVisible: true, height: 200, acrossTheWindow: true },
+			editorShownAgain: { topology: 'column(titleRow, row(chat, column(main, terminals), strip))', visible: [ChatWindowGridCell.Chat, ChatWindowGridCell.Main, ChatWindowGridCell.Terminals], terminalsVisible: true, height: 200 },
 		});
 	});
 
@@ -1022,11 +1191,26 @@ suite('Chat window grid', () => {
 		assert.deepStrictEqual({ moved: grid.partGrid === partGrid, moves }, {
 			moved: true,
 			moves: [
-				{ topology: 'column(titleRow, row(column(chat, terminals), main))', height: 200, asNew: true },
-				{ topology: 'column(titleRow, row(chat, column(main, terminals)))', height: 200, asNew: true },
-				{ topology: 'column(titleRow, row(chat, main), terminals)', height: 200, asNew: true },
+				{ topology: 'column(titleRow, row(column(chat, terminals), main, strip))', height: 200, asNew: true },
+				{ topology: 'column(titleRow, row(chat, column(main, terminals), strip))', height: 200, asNew: true },
+				{ topology: 'column(titleRow, row(column(row(chat, main), terminals), strip))', height: 200, asNew: true },
 			],
 		});
+	});
+
+	test('terminals joining and leaving while the chat is hidden, in Editor Only, keep the chat\'s height: it is the same in Stacked after each round trip', () => {
+		const { mode, open, close, grid } = setupWithTerminals(ChatWindowLayoutMode.Stacked);
+		const chatHeight = () => grid.partGrid!.getCellSize(ChatWindowGridCell.Chat).height;
+		const heights = [chatHeight()];
+		for (let i = 0; i < 3; i++) {
+			mode.set(ChatWindowLayoutMode.EditorOnly, undefined);
+			open();
+			close();
+			mode.set(ChatWindowLayoutMode.Stacked, undefined);
+			heights.push(chatHeight());
+		}
+
+		assert.deepStrictEqual(heights, [heights[0], heights[0], heights[0], heights[0]]);
 	});
 
 	test('the terminals show only with a terminal in them: hiding them with their last terminal moves no other part, does not rebuild the grid, and showing them gives them their height back', () => {
@@ -1094,21 +1278,6 @@ suite('Chat window grid', () => {
 		assert.deepStrictEqual(height(), 225);
 	});
 
-	test('the chat leads the window while it shows with no part before it: not after it moved after the main part or below it, nor while hidden', () => {
-		const { mode, grid } = setup();
-		const leads: Record<string, boolean> = { sideBySide: grid.chatLeads.get() };
-		grid.partGrid!.moveCellInDirection(ChatWindowGridCell.Chat, Direction.Right);
-		leads.movedRight = grid.chatLeads.get();
-		grid.partGrid!.moveCellInDirection(ChatWindowGridCell.Chat, Direction.Left);
-		leads.movedBack = grid.chatLeads.get();
-		mode.set(ChatWindowLayoutMode.Stacked, undefined);
-		leads.stacked = grid.chatLeads.get();
-		mode.set(ChatWindowLayoutMode.EditorOnly, undefined);
-		leads.editorOnly = grid.chatLeads.get();
-
-		assert.deepStrictEqual(leads, { sideBySide: true, movedRight: false, movedBack: true, stacked: false, editorOnly: false });
-	});
-
 	test('the terminals keep the height the user gave them when an editor moves into a new part beside the main part; at an edge of the window, they make room for it in proportion, as every part in its column does; also once the arrangement shows again', () => {
 		const results: Record<string, { added: number; rearranged: number }> = {};
 		const editor = new class extends mock<EditorInput>() {
@@ -1137,6 +1306,8 @@ suite('Chat window grid', () => {
 				override readonly minimumHeight = 50;
 				override readonly maximumHeight = Number.POSITIVE_INFINITY;
 				override readonly onDidChange = Event.None;
+				override getGroups() { return this.groups; }
+				override findGroup() { return undefined; }
 				override readonly groups = [new class extends mock<IEditorGroup>() {
 					override readonly isEmpty = false;
 					override readonly onDidModelChange = Event.None;
@@ -1177,6 +1348,8 @@ suite('Chat window grid', () => {
 			override readonly minimumHeight = 50;
 			override readonly maximumHeight = Number.POSITIVE_INFINITY;
 			override readonly onDidChange = Event.None;
+			override getGroups() { return this.groups; }
+			override findGroup() { return undefined; }
 			override readonly groups = [new class extends mock<IEditorGroup>() {
 				override readonly isEmpty = false;
 				override readonly onDidModelChange = Event.None;
@@ -1221,6 +1394,8 @@ suite('Chat window grid', () => {
 			override readonly minimumHeight = 50;
 			override readonly maximumHeight = Number.POSITIVE_INFINITY;
 			override readonly onDidChange = Event.None;
+			override getGroups() { return this.groups; }
+			override findGroup() { return undefined; }
 			override readonly groups = [new class extends mock<IEditorGroup>() {
 				override readonly isEmpty = false;
 				override readonly onDidModelChange = Event.None;
@@ -1257,10 +1432,10 @@ suite('Chat window grid', () => {
 		onWillClose.dispose();
 
 		assert.deepStrictEqual({ added, afterModeChange, chatWidthBack, afterClose, chatWidthAfterClose }, {
-			added: 'column(titleRow, row(chat, main, created))',
-			afterModeChange: 'column(titleRow, row(column(main, chat), strip, created))',
+			added: 'column(titleRow, row(chat, main, created, strip))',
+			afterModeChange: 'column(titleRow, row(column(main, chat), created, strip))',
 			chatWidthBack: 300,
-			afterClose: 'column(titleRow, row(chat, main))',
+			afterClose: 'column(titleRow, row(chat, main, strip))',
 			chatWidthAfterClose: 400
 		});
 	});
@@ -1289,6 +1464,8 @@ suite('Chat window grid', () => {
 			override readonly maximumHeight = Number.POSITIVE_INFINITY;
 			override readonly onDidChange = Event.None;
 			override readonly groups = [mainGroup];
+			override getGroups() { return this.groups; }
+			override findGroup() { return undefined; }
 			override get activeGroup() { return mainGroup; }
 			override readonly onDidAddGroup = Event.None;
 			override readonly onDidRemoveGroup = Event.None;
@@ -1305,6 +1482,8 @@ suite('Chat window grid', () => {
 			override readonly minimumHeight = 50;
 			override readonly maximumHeight = Number.POSITIVE_INFINITY;
 			override readonly onDidChange = Event.None;
+			override getGroups() { return this.groups; }
+			override findGroup() { return undefined; }
 			override readonly groups = [new class extends mock<IEditorGroup>() {
 				override readonly id = 20;
 				override readonly isEmpty = false;
@@ -1312,6 +1491,8 @@ suite('Chat window grid', () => {
 				override readonly onDidModelChange = Event.None;
 				override focus(): void { }
 				override getEditors() { return [editor]; }
+				// The editor leaves the group as it moves
+				override contains() { return moved.length === 0; }
 				override moveEditors(editors: { editor: EditorInput }[], target: IEditorGroup) { moved.push(`${editors.map(e => e.editor.getName()).join()} → ${target.id}`); return true; }
 			}()];
 			override get activeGroup() { return this.groups[0]; }
@@ -1332,9 +1513,9 @@ suite('Chat window grid', () => {
 		grid.reset();
 
 		assert.deepStrictEqual({ added, moved, after: grid.partGrid!.describe() }, {
-			added: 'column(titleRow, row(chat, created, main))',
+			added: 'column(titleRow, row(chat, created, main, strip))',
 			moved: ['file → 10', 'closed'],
-			after: 'column(titleRow, row(chat, main))'
+			after: 'column(titleRow, row(chat, main, strip))'
 		});
 	});
 
@@ -1352,6 +1533,8 @@ suite('Chat window grid', () => {
 				override readonly maximumHeight = Number.POSITIVE_INFINITY;
 				override readonly onDidChange = Event.None;
 				override readonly groups = createPart(name).groups;
+				override getGroups() { return this.groups; }
+				override findGroup() { return undefined; }
 				override readonly onDidAddGroup = Event.None;
 				override readonly onDidRemoveGroup = Event.None;
 				override readonly onDidMoveGroup = Event.None;
@@ -1374,7 +1557,7 @@ suite('Chat window grid', () => {
 		grid.willClose();
 		terminals.set(undefined, undefined);
 
-		assert.deepStrictEqual(grid.partGrid!.describe(), 'column(titleRow, terminals)');
+		assert.deepStrictEqual(grid.partGrid!.describe(), 'column(titleRow, row(terminals, strip))');
 	});
 
 	test('a window whose parts close while it stays open, such as a part created for dropped editors, keeps arranging its parts', () => {
@@ -1386,6 +1569,8 @@ suite('Chat window grid', () => {
 			override readonly minimumHeight = 50;
 			override readonly maximumHeight = Number.POSITIVE_INFINITY;
 			override readonly onDidChange = Event.None;
+			override getGroups() { return this.groups; }
+			override findGroup() { return undefined; }
 			override readonly groups = [new class extends mock<IEditorGroup>() {
 				override readonly isEmpty = false;
 				override readonly onDidModelChange = Event.None;
@@ -1409,5 +1594,81 @@ suite('Chat window grid', () => {
 		mode.set(ChatWindowLayoutMode.Stacked, undefined);
 
 		assert.deepStrictEqual(grid.partGrid!.describe(), 'column(titleRow, row(column(main, chat), strip))');
+	});
+	/** A grid of a chat window, its title row always showing, as a chat window's does. */
+	function setupTitled(initialMode: ChatWindowLayoutMode, withTerminals: boolean) {
+		const mode = observableValue<ChatWindowLayoutMode>('mode', initialMode);
+		const terminals = observableValue<IContentPart | undefined>('terminals', undefined);
+		const terminalsPart = createPartWithEditors('terminals');
+		const container = createAttachedContainer();
+		const grid = disposables.add(new ChatWindowGrid(container, { main: createPart('main'), chat: createPart('chat'), titleRow: createChrome(30), strip: createChrome(34), terminals }, mode, constObservable(0), undefined, constObservable(ChatWindowTerminalPosition.FullWidth), undefined, editorGroupsService));
+		grid.layout(1000, 800);
+		if (withTerminals) {
+			terminals.set(terminalsPart.part, undefined);
+			terminalsPart.setEmpty(false);
+		}
+		return { grid, mode };
+	}
+
+	/** Where the title row is: the first row of the grid, across the whole window, above every part. */
+	function observeTitle(grid: ChatWindowGrid) {
+		const partGrid = grid.partGrid!;
+		return {
+			shape: partGrid.describe().startsWith('column(titleRow, ') ? 'title row first, across the top' : partGrid.describe(),
+			titleRow: partGrid.isCellVisible(ChatWindowGridCell.TitleRow) ? `${partGrid.getCellSize(ChatWindowGridCell.TitleRow).width} wide` : 'hidden',
+		};
+	}
+
+	const TITLE_ACROSS_THE_TOP = { shape: 'title row first, across the top', titleRow: '1000 wide' };
+	const MODES = [ChatWindowLayoutMode.SideBySide, ChatWindowLayoutMode.ChatOnly, ChatWindowLayoutMode.Stacked, ChatWindowLayoutMode.EditorOnly];
+	const DIRECTIONS: [string, Direction][] = [['left', Direction.Left], ['right', Direction.Right], ['top', Direction.Up], ['bottom', Direction.Down]];
+
+	test('the chat part and the main part moved to every edge of the window and beside each other, in every mode: the title row shows across the top of the window, above them', () => {
+		const moves: [string, ChatWindowGridCell | undefined, PartGridLocation | undefined][] = [['as arranged', undefined, undefined]];
+		for (const [cell, other] of [[ChatWindowGridCell.Chat, ChatWindowGridCell.Main], [ChatWindowGridCell.Main, ChatWindowGridCell.Chat]] as const) {
+			for (const [name, direction] of DIRECTIONS) {
+				moves.push([`${cell} to the ${name} edge`, cell, { edge: direction }]);
+				moves.push([`${cell} to the ${name} of ${other}`, cell, { reference: other, direction }]);
+			}
+		}
+		for (const mode of MODES) {
+			for (const [moveName, cell, location] of moves) {
+				const { grid } = setupTitled(mode, false);
+				if (cell && location) {
+					grid.partGrid!.moveCell(cell, location);
+				}
+				assert.deepStrictEqual(observeTitle(grid), TITLE_ACROSS_THE_TOP, `${mode}, ${moveName}`);
+			}
+		}
+	});
+
+	test('the terminals and a part for dropped editors moved to the top of the window, above the chat or the main part, or to its left, in every mode: the title row shows across the top of the window, above them', () => {
+		const moves: [string, (grid: ChatWindowGrid) => void][] = [
+			['terminals to the top edge', grid => grid.partGrid!.moveCell(ChatWindowGridCell.Terminals, { edge: Direction.Up })],
+			['terminals above the chat', grid => grid.partGrid!.moveCell(ChatWindowGridCell.Terminals, { reference: ChatWindowGridCell.Chat, direction: Direction.Up })],
+			['terminals above the main part', grid => grid.partGrid!.moveCell(ChatWindowGridCell.Terminals, { reference: ChatWindowGridCell.Main, direction: Direction.Up })],
+			['terminals to the left edge', grid => grid.partGrid!.moveCell(ChatWindowGridCell.Terminals, { edge: Direction.Left })],
+			['a part at the top edge', grid => grid.partGrid!.addPart('other', createPart('other'), { edge: Direction.Up })],
+			['a part at the left edge', grid => grid.partGrid!.addPart('other', createPart('other'), { edge: Direction.Left })],
+			['a part above the chat', grid => grid.partGrid!.addPart('other', createPart('other'), { reference: ChatWindowGridCell.Chat, direction: Direction.Up })],
+		];
+		for (const mode of MODES) {
+			for (const [moveName, move] of moves) {
+				const { grid } = setupTitled(mode, true);
+				move(grid);
+				assert.deepStrictEqual(observeTitle(grid), TITLE_ACROSS_THE_TOP, `${mode}, ${moveName}`);
+			}
+		}
+	});
+
+	test('the title row shows across the top of the window as the layout mode changes after a part moved, and as the window arranges the parts again for the mode', () => {
+		for (const from of MODES) {
+			for (const to of MODES) {
+				const { grid, mode } = setupTitled(from, false);
+				grid.partGrid!.moveCell(ChatWindowGridCell.Chat, { edge: Direction.Right });
+				mode.set(to, undefined);
+				assert.deepStrictEqual(observeTitle(grid), TITLE_ACROSS_THE_TOP, `${from} with the chat moved right, then ${to}`);
+			}
+		}
 	});
 });

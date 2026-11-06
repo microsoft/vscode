@@ -399,7 +399,16 @@ export class CanvasInput extends EditorInput {
 		const group = this.editorGroupsService.getGroup(targetGroup);
 		return group && canPresentCanvasInGroup(this.reference, group, this.editorGroupsService, this.contextService)
 			? true
-			: localize('canvas.mainWindowOnly', "Canvases can only be shown in the main window beside their owning conversation.");
+			: this.getMoveVeto();
+	}
+
+	override canMoveToNewWindow(_sourceGroup: GroupIdentifier): true | string {
+		// A new window is never the owning conversation's
+		return this.getMoveVeto();
+	}
+
+	private getMoveVeto(): string {
+		return localize('canvas.mainWindowOnly', "Canvases can only be shown in the main window beside their owning conversation.");
 	}
 
 	get serializationId(): string | undefined {
