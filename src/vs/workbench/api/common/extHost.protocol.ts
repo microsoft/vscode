@@ -1859,7 +1859,6 @@ export interface IChatSessionCustomizationItemDto {
 	readonly type: string;
 	readonly name: string;
 	readonly source: IChatResourceSourceDto;
-	readonly scope?: string;
 	readonly description?: string;
 	readonly groupKey?: string;
 	readonly badge?: string;

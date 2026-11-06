@@ -53,10 +53,6 @@ export namespace AICustomizationScopes {
 	export const application: AICustomizationScope = 'application';
 	export const all: readonly AICustomizationScope[] = [user, workspace, application];
 
-	export function is(value: unknown): value is AICustomizationScope {
-		return typeof value === 'string' && (all as readonly string[]).includes(value);
-	}
-
 	/**
 	 * Derives the scope implied by a storage source when a provider does not
 	 * report one. Extensions and plugins are installed by the user; providers
