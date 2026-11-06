@@ -5651,6 +5651,51 @@ suite('CopilotAgent', () => {
 		]);
 	});
 
+	for (const kind of ['response.success', 'response.error']) {
+		for (const initiatorType of ['user', 'agent']) {
+			test(`restricted ${kind} does not consume ${initiatorType} turn correlation before its standard copy`, async () => {
+				const events: ITelemetryData[] = [];
+				const received = new DeferredPromise<void>();
+				const telemetryService = new class extends RecordingTelemetryService {
+					override publicLog(eventName?: string, data?: ITelemetryData): void {
+						if (eventName === `copilotSdk/${kind}` && data) {
+							events.push(data);
+							received.complete();
+						}
+					}
+				}();
+				const agent = createTestAgent(disposables, { copilotClient: new TestCopilotClient([]), telemetryService });
+				afterTest(() => disposeAgent(agent));
+				await agent.listChatsToMigrate();
+				const forward = getCreatedClientOptions(agent).at(-1)?.onGitHubTelemetry;
+				assert.ok(forward);
+				const correlation = new ModelCallTurnCorrelation();
+				correlation.recordTelemetryContext('call', { copilotSku: 'sku-a', copilotTrackingId: 'analytics-a' });
+				correlation.record('call', 'owning-turn');
+				setLiveChatStub(agent, 'sdk-session', {
+					currentTurnId: 'different-active-turn', modelCallTurnCorrelation: correlation,
+				});
+				const notification = (restricted: boolean): GitHubTelemetryNotification => ({
+					sessionId: 'sdk-session', restricted,
+					event: { kind, model_call_id: 'call', properties: { initiatorType }, metrics: {} },
+				});
+
+				await forward(notification(true));
+				await forward(notification(false));
+				await received.p;
+
+				assert.deepStrictEqual(events.map(event => ({
+					turnId: event.turnId,
+					outcome: event.ahCorrelationOutcome,
+					copilotSku: event.copilotSku,
+					trackingId: event['common.copilotTrackingId'],
+				})), [{
+					turnId: 'owning-turn', outcome: 'mappingAvailable', copilotSku: 'sku-a', trackingId: 'analytics-a',
+				}]);
+			});
+		}
+	}
+
 	test('waits for originating account context for user and agent initiated SDK responses', async () => {
 		for (const initiatorType of ['user', 'agent']) {
 			const received = new DeferredPromise<ITelemetryData>();
