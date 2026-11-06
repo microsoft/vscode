@@ -25,7 +25,13 @@ import { SessionConfigKey } from '../../../../../platform/agentHost/common/sessi
 import { ResolveSessionConfigResult } from '../../../../../platform/agentHost/common/state/protocol/commands.js';
 import { IActionViewItemFactory, IActionViewItemService } from '../../../../../platform/actions/browser/actionViewItemService.js';
 import { ActionWidgetService, IActionWidgetService } from '../../../../../platform/actionWidget/browser/actionWidget.js';
-import { ExtensionIdentifier } from '../../../../../platform/extensions/common/extensions.js';
+import { ExtensionIdentifier, ExtensionType } from '../../../../../platform/extensions/common/extensions.js';
+import { IExtensionManagementService, ILocalExtension } from '../../../../../platform/extensionManagement/common/extensionManagement.js';
+import { IMcpResourceScannerService } from '../../../../../platform/mcp/common/mcpResourceScannerService.js';
+import { McpServerType } from '../../../../../platform/mcp/common/mcpPlatformTypes.js';
+import { AGENTS_WINDOW_PROFILE_ID, IUserDataProfile, IUserDataProfilesService, toUserDataProfile } from '../../../../../platform/userDataProfile/common/userDataProfile.js';
+import { IMcpCopilotGlobalConfigurationService } from '../../../../../workbench/contrib/mcp/common/mcpCopilotGlobalConfigurationService.js';
+import { IUserDataProfileService } from '../../../../../workbench/services/userDataProfile/common/userDataProfile.js';
 import { IMenuService, MenuId } from '../../../../../platform/actions/common/actions.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
@@ -78,7 +84,7 @@ import { IViewsService } from '../../../../../workbench/services/views/common/vi
 import { ISearchService } from '../../../../../workbench/services/search/common/search.js';
 import { FixtureMenuService, FixtureMotionAccessibilityService, registerChatFixtureServices } from '../../../../../workbench/test/browser/componentFixtures/chat/chatFixtureUtils.js';
 import { assertChatPetInScreenshot, configureChatPetFixtureFileRoot, FixtureChatPetService } from '../../../../../workbench/test/browser/componentFixtures/chat/chatPetFixtureUtils.js';
-import { ComponentFixtureContext, createEditorServices, defineComponentFixture, defineThemedFixtureGroup, waitForFixtureCondition, waitForFixtureDomCondition } from '../../../../../workbench/test/browser/componentFixtures/fixtureUtils.js';
+import { ComponentFixtureContext, createEditorServices, defineComponentFixture, defineThemedFixtureGroup, ServiceRegistration, waitForFixtureCondition, waitForFixtureDomCondition } from '../../../../../workbench/test/browser/componentFixtures/fixtureUtils.js';
 import { activeSessionViewBackground } from '../../../../common/theme.js';
 import { IAgentHostSessionsProvider, LOCAL_AGENT_HOST_PROVIDER_ID } from '../../../../common/agentHostSessionsProvider.js';
 import { IAgentWorkbenchLayoutService } from '../../../../browser/workbench.js';
@@ -211,6 +217,8 @@ interface INewChatWidgetFixtureOptions {
 	readonly chatBackground?: 'codicons' | 'loud';
 	readonly migrationCount?: number;
 	readonly ignoreMigrations?: boolean;
+	/** Whether VS Code opens the workspace with a profile that has an extension and MCP servers that the Agents window does not. */
+	readonly folderProfile?: boolean;
 	readonly collapsedSessionOptionsShowIcons?: boolean;
 	readonly welcomePhrases?: boolean;
 	readonly petEnabled?: boolean;
@@ -422,6 +430,7 @@ async function renderNewChatWidget(context: ComponentFixtureContext, options: IN
 		chatBackground,
 		migrationCount = 0,
 		ignoreMigrations = false,
+		folderProfile = false,
 		collapsedSessionOptionsShowIcons = false,
 		welcomePhrases = false,
 		petEnabled = false,
@@ -494,7 +503,7 @@ async function renderNewChatWidget(context: ComponentFixtureContext, options: IN
 		]));
 	}
 	// The banners below the input, tips and migration notices included, show only once the user started enough sessions.
-	if (showTip || connectorRecommendations || migrationCount > 0) {
+	if (showTip || connectorRecommendations || migrationCount > 0 || folderProfile) {
 		storageService.store(AGENTS_WINDOW_TOTAL_SESSIONS_STORAGE_KEY, NEW_SESSION_BANNERS_MIN_CREATED_SESSIONS, StorageScope.APPLICATION, StorageTarget.MACHINE);
 	}
 
@@ -503,6 +512,7 @@ async function renderNewChatWidget(context: ComponentFixtureContext, options: IN
 		colorTheme: context.theme,
 		additionalServices: reg => {
 			registerChatFixtureServices(reg);
+			registerFixtureProfileServices(reg, workspace.folders[0].root, folderProfile);
 			reg.defineInstance(IMissionControlEnvironmentService, new class extends mock<IMissionControlEnvironmentService>() {
 				override readonly enabled = false;
 				override readonly accountKey = undefined;
@@ -1119,6 +1129,24 @@ async function renderNewChatWidget(context: ComponentFixtureContext, options: IN
 		const notice = view.element.querySelector<HTMLElement>('.new-chat-migration-notice');
 		assert(!!notice && targetWindow.getComputedStyle(notice).display === 'none');
 	}
+	if (folderProfile) {
+		// The notice shows once the folder's profile has been compared with the Agents window.
+		await waitForFixtureDomCondition(view.element, () => {
+			const notice = view.element.querySelector<HTMLElement>('.new-session-folder-profile-notice');
+			return !!notice && targetWindow.getComputedStyle(notice).display !== 'none';
+		}, disposableStore);
+		const notice = view.element.querySelector<HTMLElement>('.new-session-folder-profile-notice')!;
+		const input = view.element.querySelector<HTMLElement>('.new-chat-input-container');
+		assert(!!input);
+		const before = input.getBoundingClientRect();
+		notice.style.display = 'none';
+		const withoutNotice = input.getBoundingClientRect();
+		notice.style.display = '';
+		assert(before.x === withoutNotice.x && before.y === withoutNotice.y && before.height === withoutNotice.height,
+			'The folder profile notice must not move or resize the centered input.');
+		assert(notice.getBoundingClientRect().bottom <= container.getBoundingClientRect().bottom,
+			'The folder profile notice must fit below the input.');
+	}
 	if (connectorRecommendations) {
 		if (connectorPrompt !== undefined) {
 			view.prefillInput(connectorPrompt);
@@ -1431,6 +1459,16 @@ export default defineThemedFixtureGroup({ path: 'sessions/chat/newWidget/' }, {
 		labels: { kind: 'screenshot' },
 		render: context => renderNewChatWidget(context, { width: 420, height: 560, withWorkspace: true, migrationCount: 4 }),
 	}),
+	FolderProfileNotice: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		additionalThemes: ['darkHighContrast', 'lightHighContrast'],
+		expectedVisualDescriptions: ['Below the new-session input, a notice with a briefcase icon says that in VS Code, microsoft/vscode uses the \'Work\' profile, which has 1 extension and 2 MCP servers that the Agents window doesn\'t, followed by a Show Details button and a close button.'],
+		render: context => renderNewChatWidget(context, { withWorkspace: true, folderProfile: true }),
+	}),
+	FolderProfileNoticeNarrow: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		render: context => renderNewChatWidget(context, { width: 420, height: 560, withWorkspace: true, folderProfile: true }),
+	}),
 	MigrationsBackground: defineComponentFixture({
 		labels: { kind: 'screenshot', blocksCi: true },
 		expectedVisualDescriptions: ['Over a loud repeating magenta, cyan, yellow, and blue striped background, the new-session composer shows the customization migration notice below the input on an opaque bordered surface. None of the stripes show through the notice.'],
@@ -1739,6 +1777,46 @@ export default defineThemedFixtureGroup({ path: 'sessions/chat/newWidget/' }, {
 		}),
 	}),
 });
+
+/**
+ * Registers the profiles of the Agents window. With `folderProfile`, VS Code opens `folder` with a 'Work' profile that
+ * has an extension and MCP servers that the Agents window, which uses the Default profile, does not.
+ */
+function registerFixtureProfileServices(reg: ServiceRegistration, folder: URI, folderProfile: boolean): void {
+	const cacheHome = URI.file('/cache');
+	const defaultProfile: IUserDataProfile = { ...toUserDataProfile('__default__profile__', 'Default', URI.file('/User'), cacheHome), isDefault: true };
+	const agentsProfile = toUserDataProfile(AGENTS_WINDOW_PROFILE_ID, 'Agents', URI.file('/User/profiles/agents'), cacheHome, { useDefaultFlags: { extensions: true, mcp: true, prompts: true } }, defaultProfile);
+	// Shares the Default profile's prompt files, as the fixture file service cannot list folders.
+	const workProfile = toUserDataProfile('work', 'Work', URI.file('/User/profiles/work'), cacheHome, { icon: 'briefcase', useDefaultFlags: { prompts: true }, workspaces: [folder] }, defaultProfile);
+	const workTools = new class extends mock<ILocalExtension>() {
+		override readonly identifier = { id: 'contoso.work-tools' };
+		override readonly manifest = { name: 'work-tools', publisher: 'contoso', version: '1.0.0', engines: { vscode: '*' }, displayName: 'Contoso Work Tools', contributes: { languageModelTools: [{ name: 'tickets', displayName: 'Tickets', modelDescription: 'Finds tickets.' }] } };
+	}();
+	reg.defineInstance(IUserDataProfilesService, new class extends mock<IUserDataProfilesService>() {
+		override readonly profiles = folderProfile ? [defaultProfile, agentsProfile, workProfile] : [defaultProfile, agentsProfile];
+		override readonly onDidChangeProfiles = Event.None;
+	}());
+	reg.defineInstance(IUserDataProfileService, new class extends mock<IUserDataProfileService>() {
+		override readonly currentProfile = agentsProfile;
+	}());
+	reg.defineInstance(IExtensionManagementService, new class extends mock<IExtensionManagementService>() {
+		override readonly onDidInstallExtensions = Event.None;
+		override readonly onDidUninstallExtension = Event.None;
+		override async getInstalled(_type?: ExtensionType, profileLocation?: URI): Promise<ILocalExtension[]> {
+			return profileLocation?.toString() === workProfile.extensionsResource.toString() ? [workTools] : [];
+		}
+	}());
+	reg.defineInstance(IMcpResourceScannerService, new class extends mock<IMcpResourceScannerService>() {
+		override async scanMcpServers(resource: URI) {
+			return resource.toString() === workProfile.mcpResource.toString()
+				? { servers: { 'jira': { type: McpServerType.LOCAL as const, command: 'jira-mcp' }, 'work-wiki': { type: McpServerType.LOCAL as const, command: 'wiki-mcp' } } }
+				: {};
+		}
+	}());
+	reg.defineInstance(IMcpCopilotGlobalConfigurationService, new class extends mock<IMcpCopilotGlobalConfigurationService>() {
+		override async getConfigurationResource() { return undefined; }
+	}());
+}
 
 function createFixtureWorkspace(remote: boolean): ISessionWorkspace {
 	const resource = remote
