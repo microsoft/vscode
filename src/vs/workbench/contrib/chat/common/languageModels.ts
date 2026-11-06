@@ -22,7 +22,7 @@ import { IAction, SubmenuAction } from '../../../../base/common/actions.js';
 import { isObject, isString } from '../../../../base/common/types.js';
 import { Schemas } from '../../../../base/common/network.js';
 import { isEqualOrParent, joinPath } from '../../../../base/common/resources.js';
-import { URI } from '../../../../base/common/uri.js';
+import { URI, UriComponents } from '../../../../base/common/uri.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
 import { localize } from '../../../../nls.js';
 import { parseProviderQualifiedModelId } from '../../../../platform/agentHost/common/providerQualifiedModelId.js';
@@ -349,6 +349,8 @@ export interface ILanguageModelChatMetadata {
 		 */
 		readonly sourceId?: string;
 	};
+	/** A file that the model picker's Details opens instead of its details card, such as a model router's file. */
+	readonly detailsResource?: UriComponents;
 	/**
 	 * For an agent-host copy of an extension-provided BYOK model, the identifier the
 	 * original model is registered under in the renderer's LM service

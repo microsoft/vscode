@@ -131,10 +131,18 @@ export function isModelRouterModelId(modelId: string | undefined): boolean {
 }
 
 const MODEL_ROUTER_DESCRIPTION_META_KEY = 'modelRouterDescription';
+const MODEL_ROUTER_URI_META_KEY = 'modelRouterUri';
 
-/** The `_meta` of a router's model row, which carries its description for the model picker. */
-export function createModelRouterModelMeta(description: string): Record<string, unknown> {
-	return { [MODEL_ROUTER_DESCRIPTION_META_KEY]: description };
+/** The `_meta` of a router's model row: its description and file, for the model picker. */
+export function createModelRouterModelMeta(description: string, uri: { toString(): string }): Record<string, unknown> {
+	return { [MODEL_ROUTER_DESCRIPTION_META_KEY]: description, [MODEL_ROUTER_URI_META_KEY]: uri.toString() };
+}
+
+/** A router row's file on the agent host, or `undefined` for other models. */
+export function readModelRouterUri(model: { readonly _meta?: Record<string, unknown> }): string | undefined {
+	const meta = model._meta;
+	const value = meta ? meta[MODEL_ROUTER_URI_META_KEY] : undefined;
+	return typeof value === 'string' ? value : undefined;
 }
 
 /** A router row's description, or `undefined` for other models. */

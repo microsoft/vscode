@@ -22,7 +22,8 @@ import { readAgentManagedModelDefaults, readAgentModelConfigurationDefaults } fr
 import { readAgentModelByokIdentifier } from '../../../../../../platform/agentHost/common/agentModelByokMeta.js';
 import { readAgentModelGroupId, readAgentModelSourceId } from '../../../../../../platform/agentHost/common/agentModelSource.js';
 import { getReasoningEffortDescription, getReasoningEffortLabel } from '../../../../../../platform/agentHost/common/reasoningEffort.js';
-import { readModelRouterDescription } from '../../../../../../platform/agentHost/common/modelRouter.js';
+import { URI } from '../../../../../../base/common/uri.js';
+import { readModelRouterDescription, readModelRouterUri } from '../../../../../../platform/agentHost/common/modelRouter.js';
 import { nullExtensionDescription } from '../../../../../services/extensions/common/extensions.js';
 import { AUTO_RAW_MODEL_ID, COPILOT_VENDOR_ID, ILanguageModelChatMetadata, ILanguageModelChatMetadataAndIdentifier, ILanguageModelChatProvider, ILanguageModelConfigurationSchema, ILanguageModelsService } from '../../../common/languageModels.js';
 
@@ -74,6 +75,8 @@ export class AgentHostLanguageModelProvider extends Disposable implements ILangu
 		private readonly _sessionType: string,
 		private readonly _vendor: string,
 		private readonly _catalogue?: IAgentHostModelCatalogue,
+		/** Maps the agent host's files to URIs this window can open. */
+		private readonly _fromAgentHost: (uri: URI) => URI = uri => uri,
 	) {
 		super();
 
@@ -199,6 +202,7 @@ export class AgentHostLanguageModelProvider extends Disposable implements ILangu
 						family: m.id,
 						...(tooltip !== undefined && { tooltip }),
 						...(detail !== undefined && { detail }),
+						...this._detailsResourceFor(m),
 						...(isAuto && modelDiscount !== undefined && { autoModelDiscountPercent: modelDiscount }),
 						...(fusion && { autoModelFusion: true }),
 						...(fusionInlineChatTier !== undefined && { autoModelFusionInlineChatTier: fusionInlineChatTier }),
@@ -250,6 +254,14 @@ export class AgentHostLanguageModelProvider extends Disposable implements ILangu
 	 * discount, HydraFusion that it is a research preview, and a model router its own description.
 	 * Other models have neither.
 	 */
+	private _detailsResourceFor(model: SessionModelInfo): { detailsResource?: URI } {
+		const routerUri = readModelRouterUri(model);
+		if (!routerUri) {
+			return {};
+		}
+		return { detailsResource: this._fromAgentHost(URI.parse(routerUri)) };
+	}
+
 	private _routingPresentationFor(model: SessionModelInfo, discountPercent: number | undefined): { detail?: string; description?: string } {
 		if (model.id === AUTO_RAW_MODEL_ID) {
 			const fusion = isAgentModelFusion(model);
