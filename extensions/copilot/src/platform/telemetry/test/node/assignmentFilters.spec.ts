@@ -63,6 +63,21 @@ describe('CopilotAssignmentsFilterProvider', () => {
 		});
 	});
 
+	it('emits who pays for Copilot when the token has it', () => {
+		const { tokenStore, provider } = createProvider();
+		const tokens = [
+			new CopilotToken(createTestExtendedTokenInfo({ billable_owner: { universal_key: 'ea:dotcom:42', account_type: 'Enterprise Account' } })),
+			new CopilotToken(createTestExtendedTokenInfo({ billable_owner: { universal_key: 'user:dotcom:7', account_type: 'User' } })),
+			new CopilotToken(createTestExtendedTokenInfo()),
+			undefined,
+		];
+
+		expect(tokens.map(token => {
+			tokenStore.copilotToken = token;
+			return provider.getFilters().get('github_core_copilotbillableentityid');
+		})).toEqual(['ea:dotcom:42', 'user:dotcom:7', undefined, undefined]);
+	});
+
 	it('uses current token values after refresh and clears account values on sign-out', () => {
 		const { tokenStore, provider } = createProvider();
 		const tokens = [

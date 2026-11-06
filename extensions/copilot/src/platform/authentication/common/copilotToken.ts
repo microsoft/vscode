@@ -126,6 +126,11 @@ export class CopilotToken {
 		return this._info.enterprise_list || [];
 	}
 
+	/** Who pays for the user's Copilot, as a universal key such as `ea:dotcom:42`. Undefined when the server doesn't send it. */
+	get billableOwnerUniversalKey(): string | undefined {
+		return this._info.billable_owner?.universal_key;
+	}
+
 	get endpoints(): Endpoints | undefined {
 		return this._info.endpoints;
 	}
@@ -385,6 +390,8 @@ export interface TokenEnvelope {
 	limited_user_reset_date?: number | null;
 	/** Organization tracking IDs if user has org access. */
 	organization_list?: string[];
+	/** Who pays for the user's Copilot (enterprise, organization or the user), when the server sends it. */
+	billable_owner?: { universal_key: string; account_type?: string };
 }
 
 /**
@@ -452,7 +459,11 @@ const tokenEnvelopeValidator = vObj({
 		completions: vRequired(vNumber()),
 	})),
 	limited_user_reset_date: vNullable(vNumber()),
-	organization_list: vArray(vString())
+	organization_list: vArray(vString()),
+	billable_owner: vObj({
+		universal_key: vRequired(vString()),
+		account_type: vString(),
+	}),
 });
 
 const standardErrorEnvelopeValidator = vObj({
