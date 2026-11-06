@@ -19,6 +19,7 @@ import { IAgentSessionsService } from './agentSessionsService.js';
 import { AgentSessionsSorter, groupAgentSessionsByDate, type IAgentSessionsFilter, sessionDateFromNow } from './agentSessionsViewer.js';
 import { AGENT_SESSION_DELETE_ACTION_ID, AGENT_SESSION_RENAME_ACTION_ID } from './agentSessions.js';
 import { AgentSessionsFilter } from './agentSessionsFilter.js';
+import { IChatSessionsService } from '../../common/chatSessionsService.js';
 
 interface ISessionPickItem extends IQuickPickItem {
 	readonly session: IAgentSession;
@@ -95,6 +96,7 @@ export class AgentSessionsPicker {
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@ICommandService private readonly commandService: ICommandService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
+		@IChatSessionsService private readonly chatSessionsService: IChatSessionsService,
 	) { }
 
 	async pickAgentSession(): Promise<void> {
@@ -154,6 +156,10 @@ export class AgentSessionsPicker {
 		}));
 
 		disposables.add(picker.onDidHide(() => disposables.dispose()));
+		disposables.add(this.agentSessionsService.model.onDidChangeSessions(() => {
+			picker.items = this.createPickerItems(filter);
+		}));
+		disposables.add(this.chatSessionsService.acquireSessionItems());
 		picker.show();
 	}
 

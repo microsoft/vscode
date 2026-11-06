@@ -4,17 +4,23 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import * as sinon from 'sinon';
 import { URI } from '../../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { AgentSessionsDataSource, AgentSessionListItem, IAgentSessionsFilter, sessionDateFromNow, getRepositoryName, AgentSessionsSorter, groupAgentSessionsByDate, getAgentSessionStatusIcon, AgentSessionsIdentityProvider } from '../../../browser/agentSessions/agentSessionsViewer.js';
 import { AgentSessionSection, IAgentSession, IAgentSessionSection, IAgentSessionsModel, isAgentSession, isAgentSessionSection, isAgentSessionShowLess, isAgentSessionShowMore } from '../../../browser/agentSessions/agentSessionsModel.js';
-import { ChatSessionStatus } from '../../../common/chatSessionsService.js';
+import { ChatSessionStatus, IChatSessionsService } from '../../../common/chatSessionsService.js';
 import { ITreeSorter } from '../../../../../../base/browser/ui/tree/tree.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
-import { Event } from '../../../../../../base/common/event.js';
+import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { AgentSessionsGrouping, AgentSessionsSorting } from '../../../browser/agentSessions/agentSessionsFilter.js';
-import { shouldShowSessionInPicker } from '../../../browser/agentSessions/agentSessionsPicker.js';
+import { AgentSessionsPicker, shouldShowSessionInPicker } from '../../../browser/agentSessions/agentSessionsPicker.js';
 import { themeColorFromId } from '../../../../../../base/common/themables.js';
+import { mock } from '../../../../../../base/test/common/mock.js';
+import { IAgentSessionsService } from '../../../browser/agentSessions/agentSessionsService.js';
+import { workbenchInstantiationService } from '../../../../../test/browser/workbenchTestServices.js';
+import { MockChatSessionsService } from '../../common/mockChatSessionsService.js';
+import { IQuickInputService } from '../../../../../../platform/quickinput/common/quickInput.js';
 
 suite('sessionDateFromNow', () => {
 
@@ -1446,7 +1452,41 @@ suite('AgentSessionsSorter', () => {
 
 suite('AgentSessionsPicker', () => {
 
-	ensureNoDisposablesAreLeakedInTestSuite();
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('requests an empty catalogue while open, receives discovered rows and reuses them on reopen', async () => {
+		const instantiation = workbenchInstantiationService(undefined, store);
+		const service = new MockChatSessionsService();
+		const changed = store.add(new Emitter<void>());
+		const sessions: IAgentSession[] = [];
+		const model = new class extends mock<IAgentSessionsModel>() {
+			override readonly sessions = sessions;
+			override readonly onDidChangeSessions = changed.event;
+		}();
+		instantiation.stub(IChatSessionsService, service);
+		instantiation.stub(IAgentSessionsService, new class extends mock<IAgentSessionsService>() {
+			override readonly model = model;
+		}());
+		const quickInput = instantiation.get(IQuickInputService);
+		const createQuickPick = sinon.spy(quickInput, 'createQuickPick');
+		const sessionsPicker = instantiation.createInstance(AgentSessionsPicker, undefined, undefined);
+		await sessionsPicker.pickAgentSession();
+		const picker = createQuickPick.firstCall.returnValue;
+		const empty = { requested: service.sessionItemsRequested.get(), items: picker.items.length };
+		sessions.push(createSession({ id: 'discovered' }));
+		changed.fire();
+		const discovered = picker.items.map(item => item.label);
+		picker.hide();
+		const hidden = service.sessionItemsRequested.get();
+		await sessionsPicker.pickAgentSession();
+		const reopenedPicker = createQuickPick.secondCall.returnValue;
+		const reopened = reopenedPicker.items.map(item => item.label);
+		reopenedPicker.hide();
+		assert.deepStrictEqual({ empty, discovered, hidden, reopened, closed: service.sessionItemsRequested.get() }, {
+			empty: { requested: true, items: 0 }, discovered: ['Today', 'Session discovered'], hidden: false,
+			reopened: ['Today', 'Session discovered'], closed: false,
+		});
+	});
 
 	function createSession(overrides: Partial<{
 		id: string;

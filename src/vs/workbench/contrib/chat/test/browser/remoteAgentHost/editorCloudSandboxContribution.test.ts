@@ -9,7 +9,7 @@ import { DeferredPromise, raceCancellationError, timeout } from '../../../../../
 import { CancellationToken, CancellationTokenSource } from '../../../../../../base/common/cancellation.js';
 import { CancellationError, isCancellationError } from '../../../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
-import { Disposable, DisposableStore, IDisposable, toDisposable } from '../../../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../../../base/common/lifecycle.js';
 import { constObservable, observableValue } from '../../../../../../base/common/observable.js';
 import { isWeb } from '../../../../../../base/common/platform.js';
 import { extUriBiasedIgnorePathCase, isEqual } from '../../../../../../base/common/resources.js';
@@ -201,10 +201,49 @@ function reservedSession(): ICloudSandboxReservedSession {
 	return { taskId: 'new-task', sessionId: 'new-session', environmentId: discovered.environmentId, reservationExpiresAt: Date.UTC(2100, 0, 1) };
 }
 
+class CatalogueFeedSocket {
+	onmessage: OmitThisParameter<NonNullable<WebSocket['onmessage']>> | null = null;
+	onerror: WebSocket['onerror'] = null;
+	onclose: WebSocket['onclose'] = null;
+	closes = 0;
+
+	constructor() {
+		queueMicrotask(() => this.receive({ type: 'system', event: 'connected' }));
+	}
+
+	receive(data: object): void {
+		this.onmessage?.(new MessageEvent('message', { data: JSON.stringify(data) }));
+	}
+
+	close(): void { this.closes++; }
+}
+
+function catalogueFeed() {
+	const sockets: CatalogueFeedSocket[] = [];
+	return {
+		sockets,
+		options: {
+			chatVisible: false,
+			connectSessionFeed: async (): Promise<ICloudSandboxSessionFeedConnection> => ({
+				url: 'wss://feed.example.test', subprotocol: 'json.webpubsub.azure.v1', group: 'test',
+				expires_at: new Date(Date.now() + 2 * 60 * 60_000).toISOString(),
+				reconnect_after: new Date(Date.now() + 60 * 60_000).toISOString(), reconnect_in: 60 * 60_000,
+				frame_schema_version: 1,
+			}),
+			sessionFeedSocketFactory: () => {
+				const socket = new CatalogueFeedSocket();
+				sockets.push(socket);
+				return socket;
+			},
+		},
+	};
+}
+
 function createHarness(store: Pick<DisposableStore, 'add'>, options?: {
 	readonly enabled?: boolean;
 	readonly hasFocus?: boolean;
 	readonly chatVisible?: boolean;
+	readonly catalogueVisible?: boolean;
 	readonly draftModels?: readonly SessionModelInfo[];
 	readonly hostModels?: readonly SessionModelInfo[];
 	readonly initializeResult?: InitializeResult;
@@ -212,10 +251,11 @@ function createHarness(store: Pick<DisposableStore, 'add'>, options?: {
 	readonly reserveSession?: (request: ICloudSandboxReserveSessionRequest) => Promise<ICloudSandboxReservedSession>;
 	readonly sessionFeedEnabled?: boolean;
 	readonly sessionFeed?: Partial<CloudSandboxSessionFeed>;
+	readonly sessionFeedSocketFactory?: (url: string, protocol: string) => Pick<WebSocket, 'onmessage' | 'onerror' | 'onclose' | 'close'>;
 	readonly connectSessionFeed?: (token: CancellationToken) => Promise<ICloudSandboxSessionFeedConnection | undefined>;
 	readonly chatSessionsService?: IChatSessionsService;
 	readonly remoteAgentHostService?: IRemoteAgentHostService;
-	readonly listSessions?: () => Promise<ICloudSandboxDiscoveryResult>;
+	readonly listSessions?: (token: CancellationToken) => Promise<ICloudSandboxDiscoveryResult>;
 	readonly getAccountKey?: (accountKey: string | undefined) => Promise<string | undefined>;
 	readonly resolveSession?: (taskId: string) => Promise<ICloudSandboxDiscoveredSession>;
 	readonly storageService?: IStorageService;
@@ -232,6 +272,15 @@ function createHarness(store: Pick<DisposableStore, 'add'>, options?: {
 	readonly pickRepository?: () => Promise<string | undefined>;
 }) {
 	const instantiationService = store.add(new TestInstantiationService());
+	if (options?.sessionFeedSocketFactory) {
+		const createInstance = instantiationService.createInstance;
+		sinon.stub(instantiationService, 'createInstance').callsFake((ctor, ...args) => {
+			if (ctor === CloudSandboxSessionFeed) {
+				args[1] = options.sessionFeedSocketFactory;
+			}
+			return Reflect.apply(createInstance, instantiationService, [ctor, ...args]);
+		});
+	}
 	if (options?.sessionFeed) {
 		options.sessionFeed.takePendingTaskIds ??= () => [];
 		instantiationService.stubInstance(CloudSandboxSessionFeed, options.sessionFeed);
@@ -347,6 +396,7 @@ function createHarness(store: Pick<DisposableStore, 'add'>, options?: {
 			state.hostSessions = state.hostSessions.filter(entry => entry.session.toString() !== session.toString());
 		}
 	}();
+	const chatModels = observableValue<readonly IChatModel[]>('test chat models', []);
 	const chatSessionsService = options?.chatSessionsService ?? new class extends MockChatSessionsService {
 		override readonly onDidChangeSessionOptions = sessionOptionsChanged.event;
 		override readonly onDidChangeItemsProviders = Event.None;
@@ -398,6 +448,10 @@ function createHarness(store: Pick<DisposableStore, 'add'>, options?: {
 			await controller.deleteChatSessionItem(resource, token);
 		}
 	}();
+	const catalogueDemand = store.add(new MutableDisposable());
+	if (options?.catalogueVisible ?? options?.chatVisible ?? true) {
+		catalogueDemand.value = chatSessionsService.acquireSessionItems();
+	}
 	instantiationService.stub(IChatSessionsService, chatSessionsService);
 	instantiationService.stub(IAgentHostService, new class extends mock<IAgentHostService>() { }());
 	instantiationService.stub(IConfigurationService, configuration);
@@ -447,13 +501,13 @@ function createHarness(store: Pick<DisposableStore, 'add'>, options?: {
 			networkCalls.push('feed');
 			return options?.connectSessionFeed?.(token);
 		}
-		override async listSessions(_token: CancellationToken, discoveryOptions?: ICloudSandboxDiscoveryOptions) {
+		override async listSessions(token: CancellationToken, discoveryOptions?: ICloudSandboxDiscoveryOptions) {
 			calls.discovered++;
 			networkCalls.push('list');
 			discoveryRequests.push(discoveryOptions);
 			discoveryModes.push(discoveryOptions?.incremental === true);
 			discoveryTriggers.push(discoveryOptions?.trigger);
-			return options?.listSessions ? options.listSessions() : state.result;
+			return options?.listSessions ? options.listSessions(token) : state.result;
 		}
 		override async resolveSession(taskId: string): Promise<ICloudSandboxDiscoveredSession> {
 			if (!options?.resolveSession) {
@@ -627,6 +681,7 @@ function createHarness(store: Pick<DisposableStore, 'add'>, options?: {
 		override get repositories() { return scmRepositories.values(); }
 	}());
 	instantiationService.stub(IChatService, new class extends mock<IChatService>() {
+		override readonly chatModels = chatModels;
 		override readonly onDidSubmitRequest = Event.None;
 		override readonly onDidDisposeSession = sessionDisposed.event;
 		override setSessionTitle(): void { }
@@ -656,10 +711,23 @@ function createHarness(store: Pick<DisposableStore, 'add'>, options?: {
 		contribution.pickRepository = options.pickRepository;
 	}
 	return {
-		instantiationService, contribution, controllers, contributions, contentProviders, optionGroups, sessionOptions, catalogLoads, languageModelVendors, customizations, progressMessages, progressCommands, agents, aliases, sends, completed, chatSessionsService, state, calls, policies, notifications, errorNotifications, resolvers, sentimentChanged, accountChanged, authenticationPending, initialRefreshes, connectionsChanged, focusChanged, discoveryModes, discoveryTriggers, discoveryRequests, networkCalls, viewVisibilityChanged, workspaceTrust, preparation, allocations, reservationRequests,
+		instantiationService, contribution, controllers, contributions, contentProviders, optionGroups, sessionOptions, catalogLoads, languageModelVendors, customizations, progressMessages, progressCommands, agents, aliases, sends, completed, chatSessionsService, state, calls, policies, notifications, errorNotifications, resolvers, sentimentChanged, accountChanged, authenticationPending, initialRefreshes, connectionsChanged, focusChanged, discoveryModes, discoveryTriggers, discoveryRequests, networkCalls, viewVisibilityChanged, workspaceTrust, preparation, allocations, reservationRequests, chatModels,
 		setChatVisible: async (visible: boolean) => {
 			state.chatVisible = visible;
 			viewVisibilityChanged.fire({ id: ChatViewId, visible });
+			if (visible && !catalogueDemand.value) {
+				catalogueDemand.value = chatSessionsService.acquireSessionItems();
+			} else if (!visible) {
+				catalogueDemand.clear();
+			}
+			await contribution.refresh(CancellationToken.None, 'automatic');
+		},
+		setCatalogueVisible: async (visible: boolean) => {
+			if (visible && !catalogueDemand.value) {
+				catalogueDemand.value = chatSessionsService.acquireSessionItems();
+			} else if (!visible) {
+				catalogueDemand.clear();
+			}
 			await contribution.refresh(CancellationToken.None, 'automatic');
 		},
 		whenAllocationStarted: allocationStarted.p,
@@ -809,7 +877,7 @@ function createHarness(store: Pick<DisposableStore, 'add'>, options?: {
 suite('Editor cloud sandbox discovery', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
-	test('defers feed negotiation and listing until Chat is first presented despite startup callbacks', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+	test('defers feed negotiation and listing until the catalogue is presented despite startup callbacks', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
 		const h = createHarness(store, { chatVisible: false });
 		await Promise.all(h.initialRefreshes);
 		await h.refresh('automatic');
@@ -840,6 +908,267 @@ suite('Editor cloud sandbox discovery', () => {
 			before: [], after: ['feed', 'list'],
 			requests: [{ incremental: false, includeArchived: false, trigger: 'startup', taskIds: undefined }],
 			items: [resource.toString()],
+		});
+	}));
+
+	test('visible Chat without a catalogue stays idle and an empty presented catalogue activates', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+		const h = createHarness(store, { chatVisible: true, catalogueVisible: false });
+		await Promise.all(h.initialRefreshes);
+		h.viewVisibilityChanged.fire({ id: ChatViewId, visible: true });
+		await timeout(20 * 60_000);
+		await h.refresh('automatic');
+		const hidden = [...h.networkCalls];
+		h.state.result = { kind: 'complete', sessions: [] };
+		await h.setCatalogueVisible(true);
+		assert.deepStrictEqual({ hidden, shown: h.networkCalls, items: h.items() }, {
+			hidden: [], shown: ['feed', 'list'], items: [],
+		});
+	}));
+
+	test('suspends the actual feed after grace, preserves rows and subscribes before one full resume read', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+		const feed = catalogueFeed();
+		const h = createHarness(store, feed.options);
+		h.contribution.materializeTasks = false;
+		h.state.result = { kind: 'complete', sessions: [{ ...discovered, status: SessionStatus.Idle }] };
+		await h.setCatalogueVisible(true);
+		await h.setCatalogueVisible(false);
+		await timeout(30_000);
+		await h.setCatalogueVisible(true);
+		await timeout(60_000);
+		const reused = { network: [...h.networkCalls], closes: feed.sockets.map(socket => socket.closes) };
+		await h.setCatalogueVisible(false);
+		await timeout(59_999);
+		const beforeExpiry = feed.sockets.map(socket => socket.closes);
+		feed.sockets[0].receive({
+			type: 'message', from: 'server',
+			data: { type: 'task.changed', schema_version: 1, task: { id: discovered.taskId, updated_at: new Date().toISOString() } },
+		});
+		await timeout(1);
+		const expired = { network: [...h.networkCalls], closes: feed.sockets.map(socket => socket.closes), items: h.items().map(item => item.resource.toString()) };
+		h.focusChanged.fire(true);
+		h.sentimentChanged.fire();
+		h.connectionsChanged.fire();
+		await h.setEnabled(CloudSandboxSessionFeedEnabledSettingId, false);
+		await h.setEnabled(CloudSandboxSessionFeedEnabledSettingId, true);
+		await h.contribution.refreshTasks([discovered.taskId]);
+		await h.refresh('automatic');
+		await timeout(2 * 60 * 60_000);
+		const suspended = [...h.networkCalls];
+		await h.setCatalogueVisible(true);
+		assert.deepStrictEqual({
+			reused, beforeExpiry, expired, suspended, resumed: h.networkCalls,
+			modes: h.discoveryModes, triggers: h.discoveryTriggers, histories: h.calls.history,
+		}, {
+			reused: { network: ['feed', 'list'], closes: [0] }, beforeExpiry: [0],
+			expired: { network: ['feed', 'list'], closes: [1], items: [resource.toString()] },
+			suspended: ['feed', 'list'], resumed: ['feed', 'list', 'feed', 'list'],
+			modes: [false, false], triggers: ['startup', 'feedReconnect'], histories: [],
+		});
+	}));
+
+	test('repeated hide and resume cycles own exactly one feed each and do not duplicate discovery', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+		const feed = catalogueFeed();
+		const h = createHarness(store, feed.options);
+		h.state.result = { kind: 'complete', sessions: [] };
+		for (let cycle = 0; cycle < 3; cycle++) {
+			await h.setCatalogueVisible(true);
+			await h.setCatalogueVisible(true);
+			await h.setCatalogueVisible(false);
+			await timeout(60_000);
+		}
+		await h.setCatalogueVisible(true);
+		h.contribution.dispose();
+		await timeout(2 * 60 * 60_000);
+		assert.deepStrictEqual({ network: h.networkCalls, closes: feed.sockets.map(socket => socket.closes) }, {
+			network: ['feed', 'list', 'feed', 'list', 'feed', 'list', 'feed', 'list'], closes: [1, 1, 1, 1],
+		});
+	}));
+
+	test('manual catalogue demand retains its in-flight read but releases monitoring afterwards', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+		const feed = catalogueFeed();
+		const pending = new DeferredPromise<ICloudSandboxDiscoveryResult>();
+		const started = new DeferredPromise<CancellationToken>();
+		const h = createHarness(store, {
+			...feed.options,
+			listSessions: token => { void started.complete(token); return pending.p; },
+		});
+		const refresh = h.refresh();
+		const token = await started.p;
+		await timeout(2 * 60_000);
+		const pendingState = { cancelled: token.isCancellationRequested, closes: feed.sockets.map(socket => socket.closes) };
+		await pending.complete({ kind: 'complete', sessions: [] });
+		await refresh;
+		await timeout(60_000);
+		await h.refresh('automatic');
+		assert.deepStrictEqual({ pendingState, network: h.networkCalls, closes: feed.sockets.map(socket => socket.closes) }, {
+			pendingState: { cancelled: false, closes: [0] }, network: ['feed', 'list'], closes: [1],
+		});
+	}));
+
+	test('grace expiry cancels pending feed negotiation and ignores its late result', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+		const started = new DeferredPromise<CancellationToken>();
+		const pending = new DeferredPromise<undefined>();
+		const h = createHarness(store, {
+			chatVisible: false,
+			connectSessionFeed: token => {
+				if (!started.isSettled) {
+					void started.complete(token);
+					return pending.p;
+				}
+				return Promise.resolve(undefined);
+			},
+		});
+		const shown = h.setCatalogueVisible(true);
+		const token = await started.p;
+		const hidden = h.setCatalogueVisible(false);
+		await timeout(60_000);
+		await pending.complete(undefined);
+		await Promise.all([shown, hidden]);
+		const suspended = [...h.networkCalls];
+		await h.setCatalogueVisible(true);
+		assert.deepStrictEqual({ cancelled: token.isCancellationRequested, suspended, resumed: h.networkCalls }, {
+			cancelled: true, suspended: ['feed'], resumed: ['feed', 'feed', 'list'],
+		});
+	}));
+
+	for (const active of [
+		{ status: SessionStatus.InProgress },
+		{ status: SessionStatus.InputNeeded },
+		{ status: SessionStatus.Idle, isQueued: true },
+	]) {
+		test(`known background work retains monitoring until settled (${JSON.stringify(active)})`, () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+			const feed = catalogueFeed();
+			const h = createHarness(store, feed.options);
+			h.contribution.materializeTasks = false;
+			h.state.result = { kind: 'complete', sessions: [{ ...discovered, ...active, updatedAt: new Date(Date.now()).toISOString() }] };
+			await h.setCatalogueVisible(true);
+			await h.setCatalogueVisible(false);
+			await timeout(2 * 60_000);
+			const activeCloses = feed.sockets.map(socket => socket.closes);
+			h.state.result = { kind: 'incremental', sessions: [{ ...discovered, status: SessionStatus.Idle }], removedTaskIds: [] };
+			await h.contribution.refreshTasks([discovered.taskId]);
+			await timeout(60_000);
+			assert.deepStrictEqual({ activeCloses, settledCloses: feed.sockets.map(socket => socket.closes), network: h.networkCalls }, {
+				activeCloses: [0], settledCloses: [1], network: ['feed', 'list', 'list'],
+			});
+		}));
+	}
+
+	test('open and restored cloud models retain monitoring without the catalogue, and suspension leaves AHP connected', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+		const feed = catalogueFeed();
+		const h = createHarness(store, feed.options);
+		h.contribution.materializeTasks = false;
+		h.state.result = { kind: 'complete', sessions: [{ ...discovered, status: SessionStatus.Idle }] };
+		h.state.hostSessions = h.state.hostSessions.map(session => ({ ...session, status: SessionStatus.Idle }));
+		h.chatModels.set([upcastPartial<IChatModel>({ sessionResource: resource })], undefined);
+		await h.refresh('automatic');
+		await h.contribution.connect({ environmentId: discovered.environmentId, sessionId: discovered.sessionId, name: discovered.name });
+		await timeout(2 * 60_000);
+		const open = { closes: feed.sockets.map(socket => socket.closes), connected: h.state.connected };
+		h.chatModels.set([upcastPartial<IChatModel>({ sessionResource: resource.with({ scheme: sessionType, path: `/${discovered.sessionId}` }) })], undefined);
+		await timeout(2 * 60_000);
+		const legacyOpen = feed.sockets.map(socket => socket.closes);
+		h.chatModels.set([], undefined);
+		await timeout(60_000);
+		assert.deepStrictEqual({ open, legacyOpen, closed: feed.sockets.map(socket => socket.closes), connected: h.state.connected, disconnected: h.calls.removed }, {
+			open: { closes: [0], connected: true }, legacyOpen: [0], closed: [1], connected: true, disconnected: [],
+		});
+	}));
+
+	test('a pending direct open retains monitoring until history resolves without a sidebar', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+		const feed = catalogueFeed();
+		const pending = new DeferredPromise<IReplayedTaskHistory>();
+		const started = new DeferredPromise<void>();
+		const h = createHarness(store, {
+			...feed.options,
+			getSessionHistory: () => { void started.complete(); return pending.p; },
+		});
+		h.contribution.materializeTasks = false;
+		h.state.result = { kind: 'complete', sessions: [{ ...discovered, status: SessionStatus.Idle }] };
+		await h.setCatalogueVisible(true);
+		await h.setCatalogueVisible(false);
+		await timeout(60_000);
+		const opening = h.contentProviders.get(CLOUD_SANDBOX_TASK_SCHEME)!.provideChatSessionContent(resource, CancellationToken.None);
+		await started.p;
+		await timeout(2 * 60_000);
+		const pendingCloses = feed.sockets.map(socket => socket.closes);
+		await pending.complete(history());
+		store.add(await opening);
+		h.chatModels.set([upcastPartial<IChatModel>({ sessionResource: resource })], undefined);
+		await timeout(2 * 60_000);
+		assert.deepStrictEqual({ pendingCloses, openCloses: feed.sockets.map(socket => socket.closes), history: h.calls.history }, {
+			pendingCloses: [1, 0], openCloses: [1, 0], history: [discovered.taskId],
+		});
+	}));
+
+	test('live completion releases background monitoring even when discovered metadata still says running', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+		const feed = catalogueFeed();
+		const h = createHarness(store, feed.options);
+		h.state.online = true;
+		h.state.hostSessions = h.state.hostSessions.map(session => ({ ...session, status: SessionStatus.InProgress }));
+		h.state.result = { kind: 'complete', sessions: [{ ...discovered, status: SessionStatus.InProgress }] };
+		await h.setCatalogueVisible(true);
+		await h.contribution.activate();
+		await h.whenConnected;
+		await h.setCatalogueVisible(false);
+		await timeout(2 * 60_000);
+		const running = feed.sockets.map(socket => socket.closes);
+		h.notifications.fire({
+			type: NotificationType.SessionSummaryChanged, channel: 'ahp-root://', session: backendSession.toString(),
+			changes: { status: SessionStatus.Idle },
+		});
+		await timeout(60_000);
+		assert.deepStrictEqual({ running, completed: feed.sockets.map(socket => socket.closes), status: h.items()[0].status, connected: h.state.connected }, {
+			running: [0], completed: [1], status: ChatSessionStatus.Completed, connected: true,
+		});
+	}));
+
+	test('expiry cancels an in-flight catalogue scan without cancelling a later resume or publishing stale rows', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+		const started = new DeferredPromise<CancellationToken>();
+		const pending = new DeferredPromise<ICloudSandboxDiscoveryResult>();
+		const h = createHarness(store, {
+			chatVisible: false,
+			listSessions: token => {
+				if (!started.isSettled) {
+					void started.complete(token);
+					return pending.p;
+				}
+				return Promise.resolve({ kind: 'complete', sessions: [] });
+			},
+		});
+		const shown = h.setCatalogueVisible(true);
+		const token = await started.p;
+		const hidden = h.setCatalogueVisible(false);
+		await timeout(60_000);
+		const resumed = h.setCatalogueVisible(true);
+		await pending.complete({ kind: 'complete', sessions: [discovered] });
+		await Promise.all([shown, hidden, resumed]);
+		assert.deepStrictEqual({ cancelled: token.isCancellationRequested, network: h.networkCalls, items: h.items() }, {
+			cancelled: true, network: ['feed', 'list', 'feed', 'list'], items: [],
+		});
+	}));
+
+	test('account, disable and disposal callbacks do not resurrect suspended monitoring', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+		const feed = catalogueFeed();
+		const h = createHarness(store, feed.options);
+		h.state.result = { kind: 'complete', sessions: [] };
+		await h.setCatalogueVisible(true);
+		await h.setCatalogueVisible(false);
+		await h.setEnabled(CloudSandboxEnabledSettingId, false);
+		await timeout(60_000);
+		await h.setEnabled(CloudSandboxEnabledSettingId, true);
+		h.state.accountKey = 'github:other-account';
+		h.accountChanged.fire(h.state.accountKey);
+		h.focusChanged.fire(true);
+		await h.refresh('automatic');
+		const suspended = [...h.networkCalls];
+		await h.setCatalogueVisible(true);
+		await h.setCatalogueVisible(false);
+		h.contribution.dispose();
+		await timeout(2 * 60 * 60_000);
+		await h.setCatalogueVisible(true);
+		assert.deepStrictEqual({ suspended, final: h.networkCalls, closes: feed.sockets.map(socket => socket.closes) }, {
+			suspended: ['feed', 'list'], final: ['feed', 'list', 'feed', 'list'], closes: [1, 1],
 		});
 	}));
 
