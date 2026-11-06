@@ -94,6 +94,8 @@ Providers also supply independent harness and environment identifiers, plus obse
 
 Consumers derive state from those observables. Provider events announce catalog membership changes; they are not a parallel state store.
 
+Surfaces that need existing feedback without opening a session use `IAgentFeedbackService.getFeedbackObservable`. Its Agent Host annotations subscription is held only while observed; it does not seed feedback or retain unopened sessions in the feedback backend cache.
+
 Drafts may expose `preparationProgress` with a startup phase, an action to open the existing log, and cancellation. This is transient provider-owned state, not chat history. Management retains the submitted input for the lifetime of the in-flight first request. The preparation view uses that snapshot in a view-owned chat model to render the request and progress with the normal transcript renderer, without registering, persisting, or sending that model. The chat composer remains visible with editing disabled and Stop available; the original new-session composer is retained so failed or canceled preparation preserves the submitted prompt and attachments.
 
 Sessions backed by a remote agent host may expose `remoteConnectionStatus`, derived from their backing provider; it is absent when the session has no remote host. Its session-facing disconnected variant may include a machine-readable failure reason.
@@ -112,6 +114,8 @@ A session groups one or more chats and exposes a main chat. Providers advertise 
 Chat origin and interactivity describe whether a chat is user-created, tool-created, interactive, read-only, or hidden. Presentation code uses those contracts instead of inferring behavior from resource shape.
 
 Draft-only interactivity allows local composition without permitting sends or transcript mutations. Providers may use it for recoverable offline sessions. User composition can request a connection through the owning chat group's connection controller; restored drafts and focus changes do not request a connection.
+
+`ISessionsManagementService.sendRequestInBackground` sends to an explicit existing session/chat through its provider without navigating or discarding an unrelated new-session draft. Unlike the composer's fire-and-forget background option, it waits for provider acceptance and propagates errors so callers can acknowledge submission accurately.
 
 When an unread chat in a multi-chat session becomes active, the view service asks the owning provider to mark that exact chat read. Activating the main chat does not directly mark the stored session aggregate read. The aggregate may remain unread after every chat becomes read, but it must be unread whenever any normal user-visible chat is unread. Tool-created subagent chats retain exact per-chat read state but do not participate in this aggregate. The main row always presents the main chat's exact read state, whether the chat hierarchy is expanded or collapsed; peer read state appears only on the corresponding peer row. Mark as Read and Mark as Unread on a session row target the main chat represented by that row; providers without independent chat read state may implement that operation through their session state.
 

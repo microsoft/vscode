@@ -39,7 +39,8 @@ import { ContextKeyValue, IContextKey, IContextKeyService, RawContextKey } from 
 import { MarshalledId } from '../../../../../base/common/marshallingIds.js';
 import { SessionProviderIdContext, SessionSupportsDeleteContext, SessionSupportsMultipleChatsContext, SessionSupportsRenameContext, SessionTypeContext, IsPhoneLayoutContext, IsQuickChatSessionContext, SessionIsArchivedContext, SessionIsReadContext, SessionHasPullRequestContext, SessionItemIsMultiSelectionContext } from '../../../../common/contextkeys.js';
 import { ARCHIVE_SESSION_COMMAND_ID, ARCHIVE_SESSIONS_WITH_UNDO_COMMAND_ID, RENAME_CHAT_COMMAND_ID, RENAME_SESSION_COMMAND_ID } from '../../../../common/sessionCommands.js';
-import { ExternalSessionApplicationBadgeMode, SESSIONS_LIST_EXTERNAL_APPLICATION_BADGE_SETTING, SESSIONS_LIST_EXTERNAL_APPLICATION_BADGE_SHOW_FROM_SETTING, SESSIONS_LIST_GROUP_EXTERNAL_SESSIONS_SETTING } from '../../../../common/sessionConfig.js';
+import { ExternalSessionApplicationBadgeMode, SESSIONS_LIST_EXTERNAL_APPLICATION_BADGE_SETTING, SESSIONS_LIST_EXTERNAL_APPLICATION_BADGE_SHOW_FROM_SETTING, SESSIONS_LIST_GROUP_EXTERNAL_SESSIONS_SETTING, SESSIONS_LIST_INLINE_ACTIONS_SETTING } from '../../../../common/sessionConfig.js';
+import { SessionInlineActions } from './sessionInlineActions.js';
 import { IContextMenuService, IContextViewService } from '../../../../../platform/contextview/browser/contextView.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { IKeybindingService } from '../../../../../platform/keybinding/common/keybinding.js';
@@ -522,6 +523,7 @@ class SessionsTreeDelegate implements IListVirtualDelegate<SessionListItem> {
 		private readonly _aggregateChatApprovals = false,
 		private readonly _useInsetRowSpacing = false,
 		private readonly _isComparisonAttempt: (session: ISession) => boolean = () => false,
+		private readonly _inlineActionsHeight: (element: SessionListItem) => number = () => 0,
 	) { }
 
 	private withInsetRowSpacing(height: number): number {
@@ -530,7 +532,7 @@ class SessionsTreeDelegate implements IListVirtualDelegate<SessionListItem> {
 
 	getHeight(element: SessionListItem): number {
 		if (isSessionChatItem(element)) {
-			return this.withInsetRowSpacing(this.withChatApprovalHeight(element, this.getChatBaseHeight()));
+			return this.getHeightWithoutChatWorkspace(element);
 		}
 		if (isSessionGroupItem(element) && element.comparison) {
 			return SessionsTreeDelegate.COMPARISON_SECTION_HEIGHT;
@@ -580,11 +582,11 @@ class SessionsTreeDelegate implements IListVirtualDelegate<SessionListItem> {
 		if (this._ciFixModel && this._ciFixModel.getCIFix(element as ISession).get()) {
 			height += SessionItemRenderer.CI_ROW_HEIGHT;
 		}
-		return this.withInsetRowSpacing(height);
+		return this.withInsetRowSpacing(height + this._inlineActionsHeight(element));
 	}
 
 	getHeightWithoutChatWorkspace(element: ISessionChatItem): number {
-		return this.withInsetRowSpacing(this.withChatApprovalHeight(element, this.getChatBaseHeight()));
+		return this.withInsetRowSpacing(this.withChatApprovalHeight(element, this.getChatBaseHeight()) + this._inlineActionsHeight(element));
 	}
 
 	private getChatBaseHeight(): number {
@@ -737,6 +739,7 @@ class SessionChatItemRenderer implements ITreeRenderer<SessionListItem, FuzzySco
 		 * selection is within this exact session's hierarchy.
 		 */
 		private readonly activeGuideSessionIds: IObservable<ReadonlySet<string>> = constObservable(EMPTY_GUIDE_SESSION_IDS),
+		private readonly renderInlineActions?: (element: ISessionChatItem, before: HTMLElement) => IDisposable,
 	) { }
 
 	renderTemplate(container: HTMLElement): ISessionChatItemTemplate {
@@ -794,6 +797,9 @@ class SessionChatItemRenderer implements ITreeRenderer<SessionListItem, FuzzySco
 		}
 
 		template.elementDisposables.clear();
+		if (this.renderInlineActions) {
+			template.elementDisposables.add(this.renderInlineActions(element, template.approvalRow));
+		}
 		template.titleToolbar.context = element;
 		template.elementDisposables.add(toDisposable(() => template.container.classList.remove('renaming')));
 		template.container.classList.toggle('last-chat', element.isLast);
@@ -1397,6 +1403,7 @@ class SessionItemRenderer implements ITreeRenderer<SessionListItem, FuzzyScore |
 			externalApplicationBadgeShowFrom?: IObservable<boolean>;
 			reportExternalApplicationBadgeModeExperimentTrigger?: () => void;
 			reportExternalApplicationBadgeShowFromExperimentTrigger?: () => void;
+			renderInlineActions?: (session: ISession, before: HTMLElement) => IDisposable;
 		},
 		private readonly approvalModel: AgentSessionApprovalModel | undefined,
 		private readonly ciFixModel: ISessionCIFixModel | undefined,
@@ -1536,6 +1543,9 @@ class SessionItemRenderer implements ITreeRenderer<SessionListItem, FuzzyScore |
 
 	private renderSession(element: ISession, template: ISessionItemTemplate, matches?: IMatch[]): void {
 		template.elementDisposables.clear();
+		if (this.options.renderInlineActions) {
+			template.elementDisposables.add(this.options.renderInlineActions(element, template.approvalRow));
+		}
 		template.container.closest('.monaco-list-row')?.classList.remove(SESSION_EXTERNAL_APPLICATION_BADGE_HOVERED_CLASS);
 		template.renderedSession.set(element, undefined);
 		template.elementDisposables.add(toDisposable(() => {
@@ -3831,6 +3841,8 @@ function resettableValue<T>(read: () => T, write: (value: T) => void, defaultVal
 
 export class SessionsList extends Disposable implements ISessionsList {
 
+	private readonly inlineActionsVisible = observableValue(this, true);
+
 	private static readonly SECTION_COLLAPSE_STATE_KEY = 'sessionsListControl.sectionCollapseState';
 	private static readonly SESSION_COLLAPSE_STATE_KEY = 'sessionsListControl.sessionCollapseState';
 	private static readonly EXCLUDED_TYPES_KEY = 'sessionsListControl.excludedSessionTypes';
@@ -4079,6 +4091,23 @@ export class SessionsList extends Disposable implements ISessionsList {
 		const externalApplicationBadgeShowFrom = observableConfigValue(SESSIONS_LIST_EXTERNAL_APPLICATION_BADGE_SHOW_FROM_SETTING, true, this.configurationService);
 		const reportExternalApplicationBadgeModeExperimentTrigger = () => logDefaultSettingExperimentTrigger(this.configurationService, this.telemetryService, SESSIONS_LIST_EXTERNAL_APPLICATION_BADGE_SETTING);
 		const reportExternalApplicationBadgeShowFromExperimentTrigger = () => logDefaultSettingExperimentTrigger(this.configurationService, this.telemetryService, SESSIONS_LIST_EXTERNAL_APPLICATION_BADGE_SHOW_FROM_SETTING);
+		const inlineActionsHeights = new WeakMap<SessionListItem, number>();
+		const renderInlineActions = (element: ISession | ISessionChatItem, before: HTMLElement) => instantiationService.createInstance(
+			SessionInlineActions,
+			isSessionChatItem(element) ? element.session : element,
+			isSessionChatItem(element) ? element.chat : undefined,
+			before,
+			this.inlineActionsVisible,
+			height => {
+				if ((inlineActionsHeights.get(element) ?? 0) !== height) {
+					inlineActionsHeights.set(element, height);
+					if (this.tree.hasElement(element)) {
+						this.tree.updateElementHeight(element, delegate.getHeight(element));
+					}
+				}
+			},
+			() => this.tree.domFocus(),
+		);
 		const sessionRenderer = new SessionItemRenderer(
 			{
 				grouping: this.options.grouping,
@@ -4110,6 +4139,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 				reportExternalApplicationBadgeShowFromExperimentTrigger,
 				collapsedSessionIds: this.collapsedSessionIds,
 				onboardingTarget: this.onboardingTarget,
+				renderInlineActions,
 			},
 			approvalModel,
 			undefined,
@@ -4158,6 +4188,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 				}
 			},
 			this.activeGuideSessionIds,
+			renderInlineActions,
 		);
 		this._chatRenderer = chatRenderer;
 		const selectHeader = (element: ISessionSection | ISessionGroupItem, event: MouseEvent) => {
@@ -4239,6 +4270,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 			false /* aggregateChatApprovals */,
 			true /* useInsetRowSpacing */,
 			session => this.renderedComparisonAttemptLabels.has(session.sessionId),
+			element => this.configurationService.getValue<boolean>(SESSIONS_LIST_INLINE_ACTIONS_SETTING) ? inlineActionsHeights.get(element) ?? 0 : 0,
 		);
 		this._delegate = delegate;
 
@@ -5564,6 +5596,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 			return;
 		}
 		this.visible = visible;
+		this.inlineActionsVisible.set(visible, undefined);
 		if (this.visible) {
 			this.refresh();
 		}

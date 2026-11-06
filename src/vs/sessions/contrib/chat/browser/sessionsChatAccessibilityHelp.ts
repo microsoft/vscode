@@ -32,7 +32,7 @@ import { isPhoneLayout } from '../../../browser/parts/mobile/mobileLayout.js';
 import { AgentWorkbenchLayout, IAgentWorkbenchLayoutService } from '../../../browser/workbench.js';
 import { ISessionComparisonService } from '../../../services/sessions/common/sessionComparison.js';
 import { buildSessionComparisonAccessibleContent, isJudgeSession, SessionComparisonResultFocused } from './sessionComparisonResult.js';
-import { SESSION_ACTIVITY_BAR_SETTING, SESSIONS_CHAT_TABS_DEFAULT, SESSIONS_CHAT_TABS_SETTING, SESSIONS_LIST_GROUP_EXTERNAL_SESSIONS_SETTING, SessionsChatTabsMode } from '../../../common/sessionConfig.js';
+import { SESSION_ACTIVITY_BAR_SETTING, SESSIONS_CHAT_TABS_DEFAULT, SESSIONS_CHAT_TABS_SETTING, SESSIONS_LIST_GROUP_EXTERNAL_SESSIONS_SETTING, SESSIONS_LIST_INLINE_ACTIONS_SETTING, SessionsChatTabsMode } from '../../../common/sessionConfig.js';
 import { AGENTS_PICKER_IN_ATTACH_CONTEXT_MENU_SETTING, COMPARE_AGENTS_ENABLED_SETTING, ENVIRONMENT_PICKER_BEFORE_WORKSPACE_SETTING, ENVIRONMENT_PICKER_SETTING, EXPERIMENTAL_NEW_SESSION_COMPOSER_LAYOUT_SETTING, NEW_SESSION_CONNECTOR_RECOMMENDATIONS_SETTING, NEW_SESSION_WELCOME_PHRASES_SETTING, UNIFIED_WORKSPACE_PICKER_SETTING, WORKSPACE_OPT_OUT_SETTING } from '../common/constants.js';
 import { logSettingExperimentTrigger } from '../../../../platform/telemetry/common/experimentTrigger.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
@@ -237,6 +237,9 @@ export class SessionsChatAccessibilityHelp implements IAccessibleViewImplementat
 			? localize('sessionsChat.sessionsListChatsAsSessionView', "Sessions with multiple user-facing chats show those chats nested beneath the session in the Sessions list. Use the arrow keys to navigate the list and Enter to show a chat as the session view. Side chats and subagent chats are omitted from this nested list: side chats are reachable from the Side Chats dropdown in the session's overflow menu, and subagent chats open from their pills in the chat transcript.")
 			: localize('sessionsChat.sessionsListChatsAsTabs', "Sessions with multiple user-facing chats show those chats nested beneath the session in the Sessions list. Use the arrow keys to navigate the list and Enter to open a chat as a tab. Side chats and subagent chats are omitted from this nested list: side chats are reachable from the Side Chats dropdown in the session's overflow menu, and subagent chats open from their pills in the chat transcript."));
 		const promoteNewChatAction = SessionsListPromoteNewChatActionContext.getValue(accessor.get(IContextKeyService)) ?? SESSIONS_LIST_PROMOTE_NEW_CHAT_ACTION_DEFAULT;
+		if (configurationService.getValue<boolean>(SESSIONS_LIST_INLINE_ACTIONS_SETTING) && !configurationService.getValue<boolean>('chat.disableAIFeatures')) {
+			content.push(localize('sessionsChat.sessionsListInlineActions', "With sessions.list.inlineActions enabled, eligible rows show Fix Checks, Address Comments, or Fix Checks & Address Comments below the metadata. Use Tab or Shift+Tab to reach the button, and Enter or Space to activate it. The request runs in the background without opening the chat. A session row acts on its main chat; a nested chat row acts on that chat, even when multiple sessions are selected. Enabling this setting does not enable Agent Merge or change permissions."));
+		}
 		content.push(promoteNewChatAction
 			? archiveActionWording === ChatSessionArchiveActionWording.MarkAsDone
 				? localize('sessionsChat.sessionsListPromotedNewChatDoneActions', "For sessions that support multiple chats, the session row toolbar offers New Nested Session before Mark as Done. Open the session's context menu to pin or unpin it.")

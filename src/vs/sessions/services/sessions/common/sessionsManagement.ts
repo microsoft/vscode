@@ -560,6 +560,9 @@ export interface ISessionsManagementService {
 	 */
 	sendRequest(session: ISession, chat: IChat, options: ISendRequestOptions): Promise<void>;
 
+	/** Sends to an existing chat without navigation or discarding the new-session draft; resolves on acceptance and propagates failures. */
+	sendRequestInBackground(session: ISession, chat: IChat, options: ISendRequestOptions): Promise<void>;
+
 	// -- Session Actions --
 
 	/** Cancel the current request in a session's main chat. */

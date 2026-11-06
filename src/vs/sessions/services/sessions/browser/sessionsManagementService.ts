@@ -1247,6 +1247,14 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 	 * {@link _onWillSendRequest}, so the view's send-follow never navigates the
 	 * visible slot into the sent chat. Errors are propagated to the caller.
 	 */
+	async sendRequestInBackground(session: ISession, chat: IChat, options: ISendRequestOptions): Promise<void> {
+		const provider = this._getProvider(session);
+		if (!provider || this.getSession(session.resource) !== session || !session.chats.get().includes(chat)) {
+			throw new Error(localize('sessions.backgroundTargetUnavailable', "The target session or chat is no longer available."));
+		}
+		await this._sendRequestInBackground(provider, session, chat, { ...options, background: true });
+	}
+
 	private async _sendRequestInBackground(provider: ISessionsProvider, session: ISession, chat: IChat, options: ISendRequestOptions): Promise<void> {
 		const sendOptions = this._augmentOptionsForTroubleshoot(session, options);
 		const chatResourceKey = chat.resource.toString();

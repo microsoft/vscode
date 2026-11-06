@@ -36,11 +36,31 @@ import { SESSION_ARCHIVE_NUDGE_SETTING } from '../../browser/sessionArchiveNudge
 import { SessionComparisonAccessibleView, SessionsChatAccessibilityHelp } from '../../browser/sessionsChatAccessibilityHelp.js';
 import { CustomizationMarketplaceConfiguration } from '../../../../../platform/customizationMarketplace/common/customizationMarketplaceSources.js';
 import { SESSIONS_LIST_PROMOTE_NEW_CHAT_ACTION_DEFAULT, SessionsListPromoteNewChatActionContext } from '../../../../common/contextkeys.js';
-import { SESSIONS_CHAT_TABS_SETTING, SESSIONS_LIST_GROUP_EXTERNAL_SESSIONS_SETTING, SessionsChatTabsMode } from '../../../../common/sessionConfig.js';
+import { SESSIONS_CHAT_TABS_SETTING, SESSIONS_LIST_GROUP_EXTERNAL_SESSIONS_SETTING, SESSIONS_LIST_INLINE_ACTIONS_SETTING, SessionsChatTabsMode } from '../../../../common/sessionConfig.js';
 import { RemoteSessionToolsEnabledSettingId } from '../../../remoteSessions/common/remoteSessions.js';
 import { DevContainerAgentHostEnabledSettingId, DevContainerSamplesEnabledSettingId } from '../../../../common/devContainerAgentHostService.js';
 suite('SessionsChatAccessibilityHelp', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('documents inline row actions only when enabled and AI is visible', () => {
+		const results = [[false, false], [true, false], [true, true]].map(([enabled, aiDisabled]) => {
+			const instantiationService = store.add(new TestInstantiationService());
+			const configuration = new TestConfigurationService({
+				[SESSIONS_LIST_INLINE_ACTIONS_SETTING]: enabled,
+				'chat.disableAIFeatures': aiDisabled,
+			});
+			store.add(configuration.onDidChangeConfigurationEmitter);
+			instantiationService.stub(IConfigurationService, configuration);
+			stubContextKeyService(instantiationService, configuration);
+			instantiationService.stub(ISessionsPartService, new class extends mock<ISessionsPartService>() { }());
+			instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() { }());
+			instantiationService.stub(IAgentHostFilterService, { selectedHost: undefined });
+			instantiationService.stub(IWorkbenchLayoutService, { mainContainer: mainWindow.document.createElement('div') });
+			return store.add(new SessionsChatAccessibilityHelp().getProvider(instantiationService)).provideContent()
+				.includes('With sessions.list.inlineActions enabled, eligible rows show Fix Checks, Address Comments, or Fix Checks & Address Comments below the metadata.');
+		});
+		assert.deepStrictEqual(results, [false, true, false]);
+	});
 
 	test('documents navigation through sessions and singleton views', () => {
 		const instantiationService = store.add(new TestInstantiationService());

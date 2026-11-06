@@ -5478,6 +5478,37 @@ suite('SessionsManagementService', () => {
 		completeSendRequest?.();
 	});
 
+	test('awaited background send targets the explicit chat, waits for acceptance, and propagates errors without navigation', async () => {
+		const chat: IChat = { ...stubChat, resource: URI.parse('test:///peer') };
+		const session = stubSession({ sessionId: 's1', providerId: 'test', chats: constObservable([chat]), mainChat: constObservable(chat) });
+		const barrier = new DeferredPromise<void>();
+		const calls: string[] = [];
+		let reject = false;
+		const provider = new class extends TestSessionsProvider {
+			override async sendRequest(_sessionId: string, chatResource: URI): Promise<ISession> {
+				calls.push(chatResource.toString());
+				await barrier.p;
+				if (reject) {
+					throw new Error('Rejected');
+				}
+				return session;
+			}
+		}(session);
+		const { service } = createSessionsManagementService(session, disposables, provider);
+		disposables.add(service.onWillSendRequest(() => calls.push('navigate')));
+		disposables.add(service.onDidSendRequest(() => calls.push('accepted')));
+		let finished = false;
+		const pending = service.sendRequestInBackground(session, chat, { query: '/fix-ci' }).then(() => { finished = true; });
+		await timeout(0);
+		assert.strictEqual(finished, false);
+		await barrier.complete();
+		await pending;
+		reject = true;
+		await assert.rejects(service.sendRequestInBackground(session, chat, { query: '/fix-ci' }), /Rejected/);
+		await assert.rejects(service.sendRequestInBackground(session, { ...chat }, { query: '/fix-ci' }), /no longer available/);
+		assert.deepStrictEqual(calls, ['test:/peer', 'accepted', 'test:/peer']);
+	});
+
 	test('mirrored follow-up requests preserve submitted attachments', () => {
 		const chat: IChat = { ...stubChat, resource: URI.parse('test:///chat') };
 		const session = stubSession({

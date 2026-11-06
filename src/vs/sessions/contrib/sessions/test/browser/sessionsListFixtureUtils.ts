@@ -12,13 +12,13 @@ import { timeout } from '../../../../../base/common/async.js';
 import { onUnexpectedError } from '../../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { KeyCode, KeyMod } from '../../../../../base/common/keyCodes.js';
-import { Disposable, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
-import { constObservable, IObservable } from '../../../../../base/common/observable.js';
+import { Disposable, DisposableStore, IDisposable, ImmortalReference, MutableDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
+import { constObservable, IObservable, observableValue } from '../../../../../base/common/observable.js';
 import { OS } from '../../../../../base/common/platform.js';
 import { ExtUri, isEqual } from '../../../../../base/common/resources.js';
 import { hasKey } from '../../../../../base/common/types.js';
 import { URI } from '../../../../../base/common/uri.js';
-import { mock } from '../../../../../base/test/common/mock.js';
+import { mock, upcastPartial } from '../../../../../base/test/common/mock.js';
 import { IAccessibilityService } from '../../../../../platform/accessibility/common/accessibility.js';
 import { TestAccessibilityService } from '../../../../../platform/accessibility/test/common/testAccessibilityService.js';
 import { ICommandAction } from '../../../../../platform/action/common/action.js';
@@ -51,6 +51,7 @@ import { ChatContextKeys } from '../../../../../workbench/contrib/chat/common/ac
 import { ChatAutomationsEnabledContext } from '../../../../../workbench/contrib/chat/common/automations/automationsEnabled.js';
 import { IAutomationService } from '../../../../../workbench/contrib/chat/common/automations/automationService.js';
 import { IChatService } from '../../../../../workbench/contrib/chat/common/chatService/chatService.js';
+import { IChatWidgetService } from '../../../../../workbench/contrib/chat/browser/chat.js';
 import { IChatEntitlementService, IChatSentiment } from '../../../../../workbench/services/chat/common/chatEntitlementService.js';
 import { IChatModel } from '../../../../../workbench/contrib/chat/common/model/chatModel.js';
 import { IVoicePlaybackService } from '../../../../../workbench/contrib/chat/common/voicePlaybackService.js';
@@ -78,6 +79,11 @@ import { SessionChatItem, SessionsGrouping, SessionsList, SessionsListItemRefere
 import { renderSessionsHeader } from '../../browser/views/sessionsView.js';
 import { SessionsArchiveActionsContribution, getSessionsArchiveActionConstructors } from '../../browser/views/sessionsViewActions.js';
 import { TestSessionsList } from './testSessionsList.js';
+import { AgentFeedbackKind, AgentFeedbackState, IAgentFeedback, IAgentFeedbackService } from '../../../agentFeedback/browser/agentFeedbackService.js';
+import { IGitHubService } from '../../../github/browser/githubService.js';
+import { GitHubPullRequestModel } from '../../../github/browser/models/githubPullRequestModel.js';
+import { GitHubPullRequestCIModel } from '../../../github/browser/models/githubPullRequestCIModel.js';
+import { GitHubCheckConclusion, GitHubCheckStatus, GitHubPullRequestState, IGitHubCICheck, IGitHubPullRequest } from '../../../github/common/types.js';
 
 import '../../browser/media/sessionsList.css';
 import '../../browser/media/sessionsViewPane.css';
@@ -87,12 +93,14 @@ import '../../browser/media/newSessionActionViewItem.css';
 
 /** A peer chat of a {@link ISessionsListFixtureSession}. */
 export interface ISessionsListFixtureChat extends ITestChatSpec {
+	readonly inlineAction?: 'checks' | 'comments' | 'combined';
 	/** Terminal command awaiting approval, shown on the chat row. */
 	readonly approvalCommand?: string;
 }
 
 /** A session in the list, described as plain data. */
 export interface ISessionsListFixtureSession extends ITestSessionSpec {
+	readonly inlineAction?: 'checks' | 'comments' | 'combined';
 	readonly chats?: readonly ISessionsListFixtureChat[];
 	/** Pinned to the sidebar's Pinned section. */
 	readonly pinned?: boolean;
@@ -482,6 +490,7 @@ class FixtureSessionsManagementService extends mock<ISessionsManagementService>(
 	}
 
 	override async cancelCurrentRequest(): Promise<void> { }
+	override async sendRequestInBackground(): Promise<void> { }
 
 	override async importSession(): Promise<void> { }
 
@@ -562,7 +571,60 @@ export async function renderSessionsListFixture(context: ComponentFixtureContext
 	const header = state.header;
 	const interaction = state.interaction ?? {};
 
-	const sessions = new Map(state.sessions.map(spec => [spec.id, buildTestSession(spec)] as const));
+	const feedback = observableValue<readonly IAgentFeedback[]>('inlineFeedback', []);
+	const ciModels = new Map<number, GitHubPullRequestCIModel>();
+	const prModels = new Map<number, GitHubPullRequestModel>();
+	const withInlineAction = (chat: ITestChat, session: ISession, kind: ISessionsListFixtureChat['inlineAction']): ITestChat => {
+		if (!kind) {
+			return chat;
+		}
+		const number = ciModels.size + 1;
+		const workspace = chat.chat.workspace.get() ?? session.workspace.get();
+		if (!workspace) {
+			throw new Error('Inline action fixtures require a workspace.');
+		}
+		const folder = workspace.folders[0];
+		const pullRequest = { owner: 'microsoft', repo: 'vscode', number, uri: URI.parse(`https://github.com/microsoft/vscode/pull/${number}`) };
+		const fixRequested = observableValue('fixRequested', false);
+		prModels.set(number, new class extends mock<GitHubPullRequestModel>() {
+			override readonly pullRequest = constObservable(upcastPartial<IGitHubPullRequest>({ number, state: GitHubPullRequestState.Open, headSha: `sha-${number}` }));
+			override async refresh(): Promise<void> { }
+			override startPolling() { return Disposable.None; }
+		}());
+		ciModels.set(number, new class extends mock<GitHubPullRequestCIModel>() {
+			override readonly checks = constObservable<readonly IGitHubCICheck[]>(kind === 'comments' ? [] : [{
+				id: number, name: 'Tests', status: GitHubCheckStatus.Completed, conclusion: GitHubCheckConclusion.Failure,
+				startedAt: undefined, completedAt: undefined, detailsUrl: undefined,
+			}]);
+			override readonly fixRequested = fixRequested;
+			override async refresh(): Promise<void> { }
+			override startPolling() { return Disposable.None; }
+			override async getCheckRunAnnotations() { return 'Test failed'; }
+			override markFixRequested() { fixRequested.set(true, undefined); }
+		}());
+		if (kind !== 'checks') {
+			feedback.set([...feedback.get(), {
+				id: `review-${number}`, text: 'Address this review', sessionResource: session.resource, resourceUri: URI.joinPath(folder.root, 'index.ts'),
+				range: { startLineNumber: 1, startColumn: 1, endLineNumber: 1, endColumn: 1 },
+				kind: AgentFeedbackKind.PRReview, state: AgentFeedbackState.Created, sourcePullRequest: pullRequest,
+			}], undefined);
+		}
+		return { ...chat, chat: { ...chat.chat, workspace: constObservable({
+			...workspace,
+			folders: [{ ...folder, gitRepository: { uri: folder.root, workTreeUri: undefined, baseBranchName: undefined, gitHubInfo: constObservable({ ...pullRequest, pullRequest }) } }],
+		}) } };
+	};
+	const sessions = new Map(state.sessions.map(spec => {
+		const built = buildTestSession(spec);
+		if (!spec.inlineAction && !spec.chats?.some(chat => chat.inlineAction)) {
+			return [spec.id, built] as const;
+		}
+		const mainChat = withInlineAction(built.mainChat, built.session, spec.inlineAction);
+		const chats = new Map([...built.chats].map(([id, chat]) => [id, withInlineAction(chat, built.session, spec.chats?.find(peer => peer.id === id)?.inlineAction)]));
+		return [spec.id, { ...built, mainChat, chats, session: {
+			...built.session, mainChat: constObservable(mainChat.chat), chats: constObservable([mainChat.chat, ...[...chats.values()].map(peer => peer.chat)]),
+		} }] as const;
+	}));
 	const getSession = (id: string): ITestSession => {
 		const session = sessions.get(id);
 		if (!session) {
@@ -587,6 +649,20 @@ export async function renderSessionsListFixture(context: ComponentFixtureContext
 		colorTheme: context.theme,
 		additionalServices: reg => {
 			registerWorkbenchServices(reg);
+			reg.defineInstance(IGitHubService, new class extends mock<IGitHubService>() {
+				override createPullRequestModelReference(_owner: string, _repo: string, number: number) { return new ImmortalReference(prModels.get(number)!); }
+				override createPullRequestCIModelReference(_owner: string, _repo: string, number: number) { return new ImmortalReference(ciModels.get(number)!); }
+			}());
+			reg.defineInstance(IChatWidgetService, new class extends mock<IChatWidgetService>() { }());
+			reg.defineInstance(IAgentFeedbackService, new class extends mock<IAgentFeedbackService>() {
+				override readonly onDidChangeFeedback = Event.None;
+				override getFeedbackObservable(resource: URI) { return feedback.map(items => items.filter(item => isEqual(item.sessionResource, resource))); }
+				override acceptFeedback(_resource: URI, id: string) { feedback.set(feedback.get().map(item => item.id === id ? { ...item, state: AgentFeedbackState.Accepted } : item), undefined); }
+				override async submitFeedback(_resource: URI, options?: { readonly onRequestAccepted?: () => void }) {
+					options?.onRequestAccepted?.();
+					return true;
+				}
+			}());
 			reg.define(IContextKeyService, ContextKeyService);
 			reg.define(IMenuService, SessionsListFixtureMenuService);
 			reg.defineInstance(IActionViewItemService, new FixtureActionViewItemService());
@@ -663,6 +739,7 @@ export async function renderSessionsListFixture(context: ComponentFixtureContext
 				override getComparisonForSession() { return undefined; }
 			}());
 			reg.defineInstance(IChatEntitlementService, new class extends mock<IChatEntitlementService>() {
+				override readonly onDidChangeSentiment = Event.None;
 				override readonly sentiment: IChatSentiment = {};
 			}());
 			reg.defineInstance(ICustomViewService, new class extends mock<ICustomViewService>() {
