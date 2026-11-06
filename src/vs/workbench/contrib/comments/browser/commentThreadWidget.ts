@@ -16,7 +16,7 @@ import { CommentMenus } from './commentMenus.js';
 import { CommentReply } from './commentReply.js';
 import { ICommentService } from './commentService.js';
 import { CommentThreadBody } from './commentThreadBody.js';
-import { CommentThreadHeader } from './commentThreadHeader.js';
+import { CommentThreadHeader, ICommentThreadCollapseActionPresentation } from './commentThreadHeader.js';
 import { CommentThreadAdditionalActions } from './commentThreadAdditionalActions.js';
 import { CommentContextKeys } from '../common/commentContextKeys.js';
 import { ICommentThreadWidget } from '../common/commentThreadWidget.js';
@@ -35,6 +35,19 @@ import { isCodeEditor } from '../../../../editor/browser/editorBrowser.js';
 
 export const COMMENTEDITOR_DECORATION_KEY = 'commenteditordecoration';
 
+/**
+ * Options for how a comment thread widget presents the thread.
+ */
+export interface ICommentThreadWidgetOptions {
+	/** Overrides how the action that collapses the thread is presented. */
+	readonly collapseAction?: ICommentThreadCollapseActionPresentation;
+	/**
+	 * Lets only the comments scroll, within the height set by {@link CommentThreadWidget.layoutCommentsHeight}, so that
+	 * the reply and the additional actions below them stay in view.
+	 */
+	readonly scrollableComments?: boolean;
+}
+
 export class CommentThreadWidget<T extends IRange | ICellRange = IRange> extends Disposable implements ICommentThreadWidget {
 	private _header!: CommentThreadHeader<T>;
 	private _body: CommentThreadBody<T>;
@@ -47,12 +60,64 @@ export class CommentThreadWidget<T extends IRange | ICellRange = IRange> extends
 	private _focusedContextKey: IContextKey<boolean>;
 	private _onDidResize = this._register(new Emitter<dom.Dimension>());
 	onDidResize = this._onDidResize.event;
+	private readonly _onDidChangeContentSize = this._register(new Emitter<void>());
+	/** Fires when the size that the thread's content needs changes. Only fires when the comments are scrollable. */
+	readonly onDidChangeContentSize = this._onDidChangeContentSize.event;
+	private _contentResizeObserver: dom.DisposableResizeObserver | undefined;
 
 	private _commentThreadState: languages.CommentThreadState | undefined;
 
 	get commentThread() {
 		return this._commentThread;
 	}
+
+	get headerDomNode(): HTMLElement {
+		return this._header.domNode;
+	}
+
+	/**
+	 * Whether a reply is being written or a comment is being edited.
+	 */
+	get isEditing(): boolean {
+		return !!this._commentReply?.isReplyExpanded || this._body.hasCommentsInEditMode();
+	}
+
+	/**
+	 * Measures the width the thread needs to show its title actions, reply and additional actions in full, and the
+	 * width at which none of its content wraps or is cut off. Neither depends on the thread's width.
+	 */
+	measureWidths(): { minimum: number; natural: number } {
+		const header = this._header.measureWidths();
+		const reply = this._commentReply?.measureMinimumWidth() ?? 0;
+		const additionalActions = this._additionalActions?.measureWidth() ?? 0;
+		return {
+			minimum: Math.max(header.minimum, reply, additionalActions),
+			natural: Math.max(header.natural, reply, additionalActions, this._body.measureNaturalWidth())
+		};
+	}
+
+	/**
+	 * Measures, at the thread's current width, the height of everything but the comments, and the height of the comments.
+	 */
+	measureHeights(): { fixed: number; comments: number } {
+		const body = this._body.measureHeights();
+		return { fixed: this._header.domNode.offsetHeight + body.besideComments, comments: body.comments };
+	}
+
+	/**
+	 * Sets the height within which scrollable comments scroll.
+	 */
+	layoutCommentsHeight(height: number): void {
+		this._body.layoutCommentsHeight(height);
+	}
+
+	/**
+	 * Scrolls scrollable comments to the given comment.
+	 */
+	revealComment(commentUniqueId: number): void {
+		this._body.revealComment(commentUniqueId);
+	}
+
 	constructor(
 		readonly container: HTMLElement,
 		readonly _parentEditor: LayoutableEditor,
@@ -69,6 +134,7 @@ export class CommentThreadWidget<T extends IRange | ICellRange = IRange> extends
 			actionRunner: (() => void) | null;
 			collapse: () => Promise<boolean>;
 		},
+		private readonly _options: ICommentThreadWidgetOptions | undefined,
 		@ICommentService private readonly commentService: ICommentService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IKeybindingService private readonly _keybindingService: IKeybindingService
@@ -85,7 +151,8 @@ export class CommentThreadWidget<T extends IRange | ICellRange = IRange> extends
 			CommentThreadHeader,
 			container,
 			{
-				collapse: this._containerDelegate.collapse.bind(this)
+				collapse: this._containerDelegate.collapse.bind(this),
+				collapseAction: this._options?.collapseAction
 			},
 			this._commentMenus,
 			this._commentThread
@@ -129,7 +196,8 @@ export class CommentThreadWidget<T extends IRange | ICellRange = IRange> extends
 			this._commentThread,
 			this._pendingEdits,
 			this._scopedInstantiationService,
-			this
+			this,
+			!!this._options?.scrollableComments
 		) as unknown as CommentThreadBody<T>;
 		this._register(this._body);
 		this._setAriaLabel();
@@ -230,6 +298,12 @@ export class CommentThreadWidget<T extends IRange | ICellRange = IRange> extends
 
 		await this._body.display();
 
+		if (this._options?.scrollableComments) {
+			this._register(this._body.onDidChangeCommentsSize(() => this._onDidChangeContentSize.fire()));
+			// The reply and the additional actions take up the space below the comments.
+			this._contentResizeObserver = this._register(new dom.DisposableResizeObserver('commentThreadWidget', () => this._onDidChangeContentSize.fire(), dom.getWindow(this.container)));
+		}
+
 		// create comment thread only when it supports reply
 		if (this._commentThread.canReply) {
 			this._createCommentForm(focus);
@@ -277,6 +351,9 @@ export class CommentThreadWidget<T extends IRange | ICellRange = IRange> extends
 
 		this._commentThreadDisposables.push(this._commentThread.onDidChangeLabel(_ => {
 			this._header.createThreadLabel();
+			if (this._options?.scrollableComments) {
+				this._onDidChangeContentSize.fire();
+			}
 		}));
 	}
 
@@ -298,6 +375,9 @@ export class CommentThreadWidget<T extends IRange | ICellRange = IRange> extends
 		);
 
 		this._register(this._commentReply);
+		if (this._contentResizeObserver) {
+			this._register(this._contentResizeObserver.observe(this._commentReply.domNode));
+		}
 	}
 
 	private _createAdditionalActions() {
@@ -311,6 +391,9 @@ export class CommentThreadWidget<T extends IRange | ICellRange = IRange> extends
 		);
 
 		this._register(this._additionalActions);
+		if (this._contentResizeObserver && this._additionalActions.domNode) {
+			this._register(this._contentResizeObserver.observe(this._additionalActions.domNode));
+		}
 	}
 
 	getCommentCoords(commentUniqueId: number) {
