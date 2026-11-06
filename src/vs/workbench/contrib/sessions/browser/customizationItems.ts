@@ -17,6 +17,7 @@ import { AGENT_HOST_COPILOT_CLI_SESSION_TYPE, countEnabledCustomizationTools, IA
 import { getCustomizationToolSets } from '../../chat/browser/agentSessions/agentHost/copilotCliBuiltinToolSet.js';
 import { agentIcon, instructionsIcon, mcpServerIcon, pluginIcon, skillIcon, hookIcon, toolsIcon } from '../../chat/browser/aiCustomization/aiCustomizationIcons.js';
 import { extensionsViewIcon } from '../../extensions/browser/extensionsIcons.js';
+import { VIEWLET_ID as EXTENSIONS_VIEWLET_ID } from '../../extensions/common/extensions.js';
 import { EXTENSIONS_AGENTS_WINDOW_MANAGEMENT } from '../../../../platform/extensions/common/extensions.js';
 import { IReader } from '../../../../base/common/observable.js';
 import { AICustomizationManagementSection } from '../../chat/common/aiCustomizationWorkspaceService.js';
@@ -152,7 +153,8 @@ export const CUSTOMIZATION_ITEMS: ICustomizationItemConfig[] = [
 		isTools: true,
 	},
 	{
-		id: 'sessions.customization.extensions',
+		// The ID of Show Extensions in editor windows, so customizations of its keybinding apply in the Agents window too.
+		id: EXTENSIONS_VIEWLET_ID,
 		label: localize('extensions', "Extensions"),
 		icon: extensionsViewIcon,
 		section: AICustomizationManagementSection.Extensions,
