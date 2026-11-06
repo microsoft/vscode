@@ -73,6 +73,8 @@ export class ChatResourcesControl extends Disposable {
 	private readonly _sizes = new Map<string, ISettableObservable<IChatEmbeddedResourceSize>>();
 	/** The content height each resource last reported, so that showing it again starts at that height rather than jumping to it. */
 	private readonly _contentHeights = new Map<string, ISettableObservable<number | undefined>>();
+	/** Whether a resource at the top of the chat uses the full width of the chat's view, by chat and resource id. */
+	private readonly _fullWidths = new Map<string, ISettableObservable<boolean>>();
 	private readonly _chatKey: IObservable<string | undefined>;
 	private readonly _configuredModes: IObservable<Readonly<Record<string, unknown>> | undefined>;
 	private readonly _shown: Readonly<Record<ChatResourceArea, IObservable<IChatResource | undefined>>>;
@@ -147,9 +149,17 @@ export class ChatResourcesControl extends Disposable {
 		const topAvailableSpace = observableValue(this, Number.POSITIVE_INFINITY);
 		const height = observableValue(this, 0);
 		const topHeight = observableValue(this, 0);
+		// A wide chat view centers the chat in a narrower column; a resource at the top can extend over the room beside it.
+		const roomBeside = observableValue<IChatResourceRoomBeside>(this, { left: 0, right: 0 });
 		const layoutObserver = new (dom.getWindow(container).ResizeObserver)(() => {
 			height.set(element.offsetHeight, undefined);
 			topHeight.set(topElement.offsetHeight, undefined);
+			const chatRect = chatElement.getBoundingClientRect();
+			const viewRect = chatElement.parentElement?.getBoundingClientRect() ?? chatRect;
+			const room = { left: Math.max(0, Math.floor(chatRect.left - viewRect.left)), right: Math.max(0, Math.floor(viewRect.right - chatRect.right)) };
+			if (room.left !== roomBeside.get().left || room.right !== roomBeside.get().right) {
+				roomBeside.set(room, undefined);
+			}
 			// The resource at the top takes precedence: it is laid out before the transcript, which leaves its space to it.
 			const inputHeight = container.parentElement?.offsetHeight ?? 0;
 			topAvailableSpace.set(Math.max(0, chatElement.clientHeight - inputHeight - PILL_ROW_HEIGHT - MIN_TRANSCRIPT_HEIGHT), undefined);
@@ -159,7 +169,7 @@ export class ChatResourcesControl extends Disposable {
 				availableSpace.set(Math.max(0, element.getBoundingClientRect().bottom - getBoundary().getBoundingClientRect().top - topElement.offsetHeight - MIN_TRANSCRIPT_HEIGHT), undefined);
 			}
 		});
-		for (const observed of [element, topElement, chatElement, container.parentElement]) {
+		for (const observed of [element, topElement, chatElement, container.parentElement, chatElement.parentElement]) {
 			if (observed) {
 				layoutObserver.observe(observed);
 			}
@@ -175,7 +185,7 @@ export class ChatResourcesControl extends Disposable {
 				return shown ? [shown] : [];
 			});
 			const frames = mapObservableArrayCached(this, shownList, (resource, store) =>
-				store.add(this._instantiationService.createInstance(ChatShownResourceFrame, resource, area, this._getSize(resource, area), this._getContentHeight(resource), availableHeight, getBoundary, {
+				store.add(this._instantiationService.createInstance(ChatShownResourceFrame, resource, area, this._getSize(resource, area), this._getContentHeight(resource), availableHeight, getBoundary, area === 'top' ? { fullWidth: this._getFullWidth(resource), roomBeside } : undefined, {
 					openInEditor: () => this._openInEditor(resource, true),
 					// Closing hides the resource; its pill shows it again, like a tab.
 					close: () => this._select(area, null),
@@ -336,6 +346,16 @@ export class ChatResourcesControl extends Disposable {
 		return size;
 	}
 
+	private _getFullWidth(resource: IChatResource): ISettableObservable<boolean> {
+		const key = `${this._chatKey.get()}\u0000${resource.id}`;
+		let fullWidth = this._fullWidths.get(key);
+		if (!fullWidth) {
+			fullWidth = observableValue(this, false);
+			this._fullWidths.set(key, fullWidth);
+		}
+		return fullWidth;
+	}
+
 	private _getContentHeight(resource: IChatResource): ISettableObservable<number | undefined> {
 		const key = `${this._chatKey.get()}\u0000${resource.id}`;
 		let contentHeight = this._contentHeights.get(key);
@@ -459,6 +479,18 @@ const CONTENT_HEIGHT_SETTLE_DELAY = 150;
 /** The view follows the content height at the latest this long after the content is shown. */
 const CONTENT_HEIGHT_SETTLE_DEADLINE = 600;
 
+/** The room beside the chat's column in the chat's view, in pixels. */
+interface IChatResourceRoomBeside {
+	readonly left: number;
+	readonly right: number;
+}
+
+/** How wide a resource at the top of the chat is: the chat's column, or the chat's whole view. */
+interface IChatShownResourceWidth {
+	readonly fullWidth: ISettableObservable<boolean>;
+	readonly roomBeside: IObservable<IChatResourceRoomBeside>;
+}
+
 interface IChatShownResourceFrameActions {
 	openInEditor(): void;
 	close(): void;
@@ -482,6 +514,7 @@ class ChatShownResourceFrame extends Disposable {
 		private readonly _contentHeight: ISettableObservable<number | undefined>,
 		availableHeight: IObservable<number>,
 		private readonly _getClippingContainer: () => HTMLElement,
+		width: IChatShownResourceWidth | undefined,
 		actions: IChatShownResourceFrameActions,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@ILogService private readonly _logService: ILogService,
@@ -508,15 +541,8 @@ class ChatShownResourceFrame extends Disposable {
 		this._body = elements.body;
 		elements.title.textContent = _resource.label;
 		this.element.setAttribute('aria-label', _resource.label);
-		const buttons: readonly (readonly [string, ThemeIcon, () => void])[] = [
-			[localize('chatResources.save', "Save"), Codicon.save, () => void this._save()],
-			[localize('chatResources.openInEditorButton', "Open in Editor"), Codicon.goToFile, actions.openInEditor],
-			[localize('chatResources.close', "Close"), Codicon.close, actions.close],
-		];
-		const buttonElements: HTMLElement[] = [];
-		for (const [label, icon, run] of buttons) {
+		const addButton = (label: string, icon: ThemeIcon, run: () => void) => {
 			const button = dom.append(elements.actions, dom.$(`a.action-label${ThemeIcon.asCSSSelector(icon)}`, { role: 'button', tabindex: '0', title: label, 'aria-label': label }));
-			buttonElements.push(button);
 			this._register(dom.addDisposableListener(button, dom.EventType.POINTER_DOWN, e => e.stopPropagation()));
 			this._register(dom.addDisposableListener(button, dom.EventType.CLICK, () => run()));
 			this._register(dom.addDisposableListener(button, dom.EventType.KEY_DOWN, e => {
@@ -525,14 +551,21 @@ class ChatShownResourceFrame extends Disposable {
 					run();
 				}
 			}));
+			return button;
+		};
+		const saveButton = addButton(localize('chatResources.save', "Save"), Codicon.save, () => void this._save());
+		if (width) {
+			this._registerFullWidth(addButton(localize('chatResources.useFullWidth', "Use Full Width"), Codicon.screenFull, () => width.fullWidth.set(!width.fullWidth.get(), undefined)), width);
 		}
+		addButton(localize('chatResources.openInEditorButton', "Open in Editor"), Codicon.goToFile, actions.openInEditor);
+		addButton(localize('chatResources.close', "Close"), Codicon.close, actions.close);
 
 		// Like an editor tab, the header shows unsaved changes, and offers to save them.
 		this._register(autorun(reader => {
 			const dirty = this._content.read(reader)?.isDirty?.read(reader) ?? false;
 			this.element.classList.toggle('dirty', dirty);
 			elements.title.textContent = dirty ? `● ${_resource.label}` : _resource.label;
-			buttonElements[0].style.display = dirty ? '' : 'none';
+			saveButton.style.display = dirty ? '' : 'none';
 		}));
 
 		const height = derived(this, reader => getChatEmbeddedResourceHeight(this._size.read(reader), this._contentHeight.read(reader), availableHeight.read(reader)));
@@ -619,6 +652,24 @@ class ChatShownResourceFrame extends Disposable {
 			settleTimer.value = toDisposable(() => clearTimeout(timer));
 		}));
 		return store;
+	}
+
+	/** Extends the resource over the room beside the chat's column while it uses the full width; offered only where there is room. */
+	private _registerFullWidth(button: HTMLElement, width: IChatShownResourceWidth): void {
+		this._register(autorun(reader => {
+			const room = width.roomBeside.read(reader);
+			const hasRoom = room.left + room.right > 0;
+			const fullWidth = width.fullWidth.read(reader) && hasRoom;
+			this.element.style.marginLeft = fullWidth ? `${-room.left}px` : '';
+			this.element.style.marginRight = fullWidth ? `${-room.right}px` : '';
+			button.style.display = hasRoom ? '' : 'none';
+			const label = fullWidth ? localize('chatResources.fitToChat', "Fit to Chat") : localize('chatResources.useFullWidth', "Use Full Width");
+			button.title = label;
+			button.setAttribute('aria-label', label);
+			button.setAttribute('aria-pressed', String(fullWidth));
+			button.classList.remove(...ThemeIcon.asClassNameArray(fullWidth ? Codicon.screenFull : Codicon.screenNormal));
+			button.classList.add(...ThemeIcon.asClassNameArray(fullWidth ? Codicon.screenNormal : Codicon.screenFull));
+		}));
 	}
 
 	private async _save(): Promise<void> {

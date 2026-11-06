@@ -983,7 +983,8 @@ export class AgentHostSessionInputPills extends Disposable {
 					return [];
 				}
 				const originalResource = entry.resource ? this._getOriginalResource(entry.resource, reader) : undefined;
-				return [{ id: entry.id, label: entry.label, icon: entry.icon, resource, ...(originalResource ? { originalResource } : {}), defaultMode: artifact?.mode ?? 'none' }];
+				// The agent's label describes the resource for people; lists show files by their name.
+				return [{ id: entry.id, label: artifact?.label ?? entry.label, icon: entry.icon, resource, ...(originalResource ? { originalResource } : {}), defaultMode: artifact?.mode ?? 'none' }];
 			}));
 		});
 		const chatResourcesEnabled = observableConfigValue(ChatResourcesEnabledSettingId, false, this._configurationService);
