@@ -589,7 +589,7 @@ suite('AgentSessionApprovalModel', () => {
 		});
 	});
 
-	test('skips hidden tools while a non-tool confirmation is the first pending part', () => {
+	test('includes hidden tools requiring approval while a non-tool confirmation is the first pending part', () => {
 		const approvalModel = createModel();
 		const chatModel = addLiveChatModel();
 		const response = chatModel.addRequest({ text: 'Start work', parts: [] }, { variables: [] }, 0).response!;
@@ -608,9 +608,9 @@ suite('AgentSessionApprovalModel', () => {
 			hiddenState: hidden.state.get().type,
 		}, {
 			detail: 'First question',
-			approval: 'visible',
-			remainingApproval: undefined,
-			hiddenState: IChatToolInvocation.StateKind.WaitingForConfirmation,
+			approval: 'hidden',
+			remainingApproval: 'visible',
+			hiddenState: IChatToolInvocation.StateKind.Executing,
 		});
 	});
 

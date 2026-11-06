@@ -186,12 +186,12 @@ export function getToolInvocationIcon(toolId: string, data?: IToolInvocationIcon
 
 /**
  * Whether a tool is waiting on an approval that the confirmation carousel above the chat input hosts
- * when it is enabled. Hidden tools and MCP tools (extension-hosted or agent-host, see
- * {@link isMcpToolInvocation}) keep their confirmations inline.
+ * when it is enabled, including hidden tools requiring approval. MCP tools (extension-hosted or
+ * agent-host, see {@link isMcpToolInvocation}) keep their confirmations inline.
  * @param state The tool state to check, for callers that already read it through an observable reader.
  */
 export function isCarouselToolConfirmation(toolInvocation: IChatToolInvocation | IChatToolInvocationSerialized, state?: IChatToolInvocation.State): toolInvocation is IChatToolInvocation {
-	if (toolInvocation.kind !== 'toolInvocation' || toolInvocation.presentation === 'hidden' || isMcpToolInvocation(toolInvocation)) {
+	if (toolInvocation.kind !== 'toolInvocation' || isMcpToolInvocation(toolInvocation)) {
 		return false;
 	}
 	const current = state ?? toolInvocation.state.get();

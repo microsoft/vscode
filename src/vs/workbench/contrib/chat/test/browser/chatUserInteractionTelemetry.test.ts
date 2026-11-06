@@ -11,7 +11,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/tes
 import { ExtensionIdentifier } from '../../../../../platform/extensions/common/extensions.js';
 import { TelemetryTrustedValue } from '../../../../../platform/telemetry/common/telemetryUtils.js';
 import { ChatUserInteractionTimingResult, isChatFirstVisibleProgress } from '../../browser/chatUserInteractionTelemetry.js';
-import { IChatProgress, IChatToolInvocation, IChatToolInvocationSerialized } from '../../common/chatService/chatService.js';
+import { IChatProgress, IChatToolInvocation, IChatToolInvocationSerialized, ToolConfirmKind } from '../../common/chatService/chatService.js';
 import { getChatSessionTelemetryContext, getChatSessionTelemetryIds } from '../../common/chatService/chatServiceTelemetry.js';
 import { IAgentHostConnectionsService } from '../../../../../platform/agentHost/common/agentHostConnectionsService.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
@@ -19,7 +19,7 @@ import { LocalChatSessionUri } from '../../common/model/chatUri.js';
 import { ChatAgentLocation, ChatModeKind, ChatPermissionLevel } from '../../common/constants.js';
 import { IChatProgressResponseContent, IChatRequestModel, IChatResponseModel } from '../../common/model/chatModel.js';
 import { ToolInvocationPresentation } from '../../common/tools/languageModelToolsService.js';
-import { createChatUserInteractionTestHarness } from './chatUserInteractionTestUtils.js';
+import { createChatUserInteractionTestHarness, createChatUserInteractionTool } from './chatUserInteractionTestUtils.js';
 
 suite('ChatUserInteractionTelemetry', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
@@ -65,8 +65,9 @@ suite('ChatUserInteractionTelemetry', () => {
 			[{ kind: 'progressMessage', content: new MarkdownString('Thinking'), shimmer: true }, false],
 			[{ kind: 'markdownContent', content: new MarkdownString(' \n') }, false],
 			[{ kind: 'markdownContent', content: new MarkdownString('Response') }, true],
-			[upcastPartial<IChatToolInvocation>({ kind: 'toolInvocation', presentation: ToolInvocationPresentation.Hidden }), false],
-			[upcastPartial<IChatToolInvocation>({ kind: 'toolInvocation' }), true],
+			[createChatUserInteractionTool({ presentation: ToolInvocationPresentation.Hidden }), false],
+			[createChatUserInteractionTool(), true],
+			[createChatUserInteractionTool({ presentation: ToolInvocationPresentation.HiddenAfterComplete }), true],
 			[upcastPartial<IChatToolInvocationSerialized>({ kind: 'toolInvocationSerialized' }), true],
 			[upcastPartial<IChatToolInvocationSerialized>({ kind: 'toolInvocationSerialized', presentation: ToolInvocationPresentation.Hidden }), false],
 			[upcastPartial<IChatToolInvocationSerialized>({ kind: 'toolInvocationSerialized', presentation: ToolInvocationPresentation.HiddenAfterComplete }), false],
@@ -74,6 +75,22 @@ suite('ChatUserInteractionTelemetry', () => {
 		for (const [part, expected] of cases) {
 			assert.strictEqual(isChatFirstVisibleProgress(part), expected, JSON.stringify(part));
 		}
+	});
+
+	test('hidden approvals count as visible progress only while awaiting a decision', async () => {
+		const tool = createChatUserInteractionTool({ presentation: ToolInvocationPresentation.Hidden });
+		const hidden = isChatFirstVisibleProgress(tool);
+		tool.requestConfirmation({
+			presentation: ToolInvocationPresentation.Hidden,
+			confirmationMessages: { title: 'Allow tool?', message: 'Run this tool?' },
+		});
+		const awaitingApproval = isChatFirstVisibleProgress(tool);
+		IChatToolInvocation.confirmWith(tool, { type: ToolConfirmKind.UserAction });
+		const executing = isChatFirstVisibleProgress(tool);
+		await tool.didExecuteTool(undefined);
+		assert.deepStrictEqual({ hidden, awaitingApproval, executing, completed: isChatFirstVisibleProgress(tool) }, {
+			hidden: false, awaitingApproval: true, executing: false, completed: false,
+		});
 	});
 
 	test('reports the exact schema and correlated boundaries once after two frames, even without focus', () => {
@@ -142,7 +159,7 @@ suite('ChatUserInteractionTelemetry', () => {
 
 	for (const [part, kind] of [
 		[{ kind: 'thinking', value: 'Reasoning' }, 'reasoning'],
-		[upcastPartial<IChatToolInvocation>({ kind: 'toolInvocation' }), 'tool'],
+		[createChatUserInteractionTool(), 'tool'],
 		[upcastPartial<IChatToolInvocationSerialized>({ kind: 'toolInvocationSerialized' }), 'tool'],
 	] satisfies [IChatProgressResponseContent, string][]) {
 		test(`records ${kind} from ${part.kind} even when text arrives during rendering`, () => {

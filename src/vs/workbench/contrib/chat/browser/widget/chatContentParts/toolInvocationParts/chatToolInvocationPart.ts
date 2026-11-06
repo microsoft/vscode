@@ -18,7 +18,7 @@ import { IChatToolInvocation, IChatToolInvocationSerialized, isLegacyChatTermina
 import { ChatConfiguration } from '../../../../common/constants.js';
 import { IChatRendererContent, isResponseVM } from '../../../../common/model/chatViewModel.js';
 import { IChatTodoListService } from '../../../../common/tools/chatTodoListService.js';
-import { isToolResultInputOutputDetails, isToolResultOutputDetails, ToolInvocationPresentation } from '../../../../common/tools/languageModelToolsService.js';
+import { isToolResultInputOutputDetails, isToolResultOutputDetails } from '../../../../common/tools/languageModelToolsService.js';
 import { ChatTreeItem, IChatCodeBlockInfo, IChatWidgetService } from '../../../chat.js';
 import { getCompactCodicon } from '../../../chatIcons.js';
 import { EditorPool } from '../chatContentCodePools.js';
@@ -156,10 +156,6 @@ export class ChatToolInvocationPart extends Disposable implements IChatContentPa
 			this._onDidChangeHeight.fire();
 		}));
 		this.domNode.classList.toggle('generated-image-tool-invocation', this.renderedGeneratedImageResult);
-		if (toolInvocation.presentation === 'hidden') {
-			this._isVisible.set(false, undefined);
-			return;
-		}
 
 		const toolIcon = !context.inToolConfirmationCarousel ? dom.$('span.chat-tool-call-icon', { 'aria-hidden': 'true' }) : undefined;
 
@@ -215,7 +211,7 @@ export class ChatToolInvocationPart extends Disposable implements IChatContentPa
 				// ticks that don't change the render data.
 				reader.readObservable(toolInvocation.state);
 				reader.readObservable(toolInvocation.toolSpecificDataKind);
-				const data = this.getMcpAppRenderData();
+				const data = IChatToolInvocation.isEffectivelyHidden(toolInvocation, reader) ? undefined : this.getMcpAppRenderData();
 				if (!data) {
 					return undefined;
 				}
@@ -224,7 +220,7 @@ export class ChatToolInvocationPart extends Disposable implements IChatContentPa
 				return !!outcome && outcome.type !== ToolConfirmKind.Denied && outcome.type !== ToolConfirmKind.Skipped ? data : undefined;
 			});
 		} else {
-			const data = this.getMcpAppRenderData();
+			const data = IChatToolInvocation.isEffectivelyHidden(toolInvocation) ? undefined : this.getMcpAppRenderData();
 			if (data) {
 				const outcome = IChatToolInvocation.executionConfirmedOrDenied(toolInvocation, undefined);
 				appData = constObservable(!!outcome && outcome.type !== ToolConfirmKind.Denied && outcome.type !== ToolConfirmKind.Skipped ? data : undefined);
@@ -251,6 +247,7 @@ export class ChatToolInvocationPart extends Disposable implements IChatContentPa
 				partStore.clear();
 				imageResultPart.clear();
 				this.subPart = undefined;
+				this.domNode.classList.remove('has-confirmation');
 				this._isVisible.set(false, undefined);
 				return;
 			}
@@ -272,11 +269,12 @@ export class ChatToolInvocationPart extends Disposable implements IChatContentPa
 			this.renderedLastGeneratedImageToolCallId = toolInvocation.subAgentInvocationId ? undefined : getLastGeneratedImageToolCallId(imageBatch);
 			this.renderedGeneratedImageResults = this.renderedGeneratedImageResult && this.renderedLastGeneratedImageToolCallId === toolInvocation.toolCallId
 				? getGeneratedImageResultSnapshot(imageBatch) : [];
-			if (toolInvocation.presentation === ToolInvocationPresentation.Hidden
-				|| (toolInvocation.presentation === ToolInvocationPresentation.HiddenAfterComplete && IChatToolInvocation.isComplete(toolInvocation))) {
+			if (IChatToolInvocation.isEffectivelyHidden(toolInvocation)) {
 				partStore.clear();
 				imageResultPart.clear();
 				this.subPart = undefined;
+				dom.clearNode(subPartDomNode);
+				this.domNode.classList.remove('has-confirmation');
 				this._isVisible.set(false, undefined);
 				return;
 			}

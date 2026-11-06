@@ -123,7 +123,7 @@ export class AgentSessionApprovalModel extends Disposable {
 				}
 
 				for (const part of response.pendingToolInvocations.read(reader)) {
-					if (part.presentation === 'hidden' || (part.toolSpecificData?.kind === 'modifiedFilesConfirmation' && part.toolSpecificData.options.length !== 1)) {
+					if (IChatToolInvocation.isEffectivelyHidden(part, reader) || (part.toolSpecificData?.kind === 'modifiedFilesConfirmation' && part.toolSpecificData.options.length !== 1)) {
 						continue;
 					}
 					const state = part.state.read(reader);

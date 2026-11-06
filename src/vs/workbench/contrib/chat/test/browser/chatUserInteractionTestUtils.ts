@@ -21,6 +21,16 @@ import { IChatUserInteractionTiming } from '../../../../../platform/otel/common/
 import { ChatResponseModelChangeReason, IChatModel, IChatProgressResponseContent, IChatRequestModel, IChatResponseModel, IResponse } from '../../common/model/chatModel.js';
 import { IChatViewModel } from '../../common/model/chatViewModel.js';
 import { ILanguageModelChatMetadata, ILanguageModelsService } from '../../common/languageModels.js';
+import { ChatToolInvocation } from '../../common/model/chatProgressTypes/chatToolInvocation.js';
+import { IPreparedToolInvocation, ToolDataSource } from '../../common/tools/languageModelToolsService.js';
+
+export function createChatUserInteractionTool(preparation: IPreparedToolInvocation = {}): ChatToolInvocation {
+	return new ChatToolInvocation(
+		preparation,
+		{ id: 'test_tool', displayName: 'Test Tool', modelDescription: 'Test tool', source: ToolDataSource.Internal },
+		'test-tool-call', undefined, {},
+	);
+}
 
 export function createChatUserInteractionTestHarness(disposables: Pick<DisposableStore, 'add'>) {
 	let now = 100;
