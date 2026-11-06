@@ -20,6 +20,7 @@ const LINUX_NETWORK_FILE_SYSTEM_TYPES: ReadonlySet<number> = new Set([
 	0x00c36400, // Ceph
 	0x5346414f, // AFS
 	0x65735546, // FUSE, such as sshfs
+	0x18031977, // WekaFS
 ]);
 
 /** What {@link canUseWriteAheadLog} needs to know about the machine. */
