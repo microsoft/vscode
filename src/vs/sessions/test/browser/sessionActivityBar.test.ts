@@ -508,6 +508,31 @@ suite('Sessions - Session Activity Bar', () => {
 		});
 	});
 
+	test('in the main window\'s column, fills the column from top to bottom, which offers the context menu anywhere', () => {
+		const { createDocked, root, contextMenus } = createActivityBar(store, [changes, browser]);
+		const hostElement = append(root, $('.session-activity-bar-column.session-activity-bar-host'));
+		hostElement.style.cssText = 'position: relative; width: 34px; height: 200px;';
+		store.add(registerSessionActivityBarExternalHost(root, { element: hostElement, active: observableValue('active', true), setOccupied: () => { } }));
+		const docked = createDocked();
+		docked.layout(40);
+		docked.setActive(true);
+		const element = docked.element!;
+		const bounds = element.getBoundingClientRect();
+		const hostBounds = hostElement.getBoundingClientRect();
+		const nearBottom = mainWindow.document.elementFromPoint(bounds.left + bounds.width / 2, bounds.bottom - 10)!;
+		nearBottom.dispatchEvent(new MouseEvent('contextmenu', { button: 2, bubbles: true, cancelable: true }));
+
+		assert.deepStrictEqual({
+			fills: [bounds.top, bounds.bottom, bounds.left, bounds.right].map(Math.round),
+			bottomIsStrip: element.contains(nearBottom),
+			menus: contextMenus,
+		}, {
+			fills: [hostBounds.top, hostBounds.bottom, hostBounds.left, hostBounds.right].map(Math.round),
+			bottomIsStrip: true,
+			menus: ['SessionActivityBarContext'],
+		});
+	});
+
 	test('right-clicking an entry or the rest of the strip offers to hide the activity bar', () => {
 		const { createDocked, contextMenus } = createActivityBar(store, [changes, browser]);
 		const docked = createDocked();
