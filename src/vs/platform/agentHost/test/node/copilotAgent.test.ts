@@ -25992,18 +25992,27 @@ suite('CopilotAgent', () => {
 			const chatB = URI.parse(buildChatUri(session, 'peer-b'));
 			const a = makeFakeChatSession(session, 'sdk-a');
 			const b = makeFakeChatSession(session, 'sdk-b');
+			const send = spy(a.fake, 'send');
+			afterTest(async () => send.restore());
 			setPeerChatStub(agent, chatA, a.fake);
 			setPeerChatStub(agent, chatB, b.fake);
 
-			await agent.chats.sendMessage(chatA, 'hello-a', undefined, undefined, 'turn-a', 'client-1');
+			const originalMessageText = '/review';
+			const prompt = `<context>Host context.</context>\n${originalMessageText}`;
+			await agent.chats.sendMessage(chatA, prompt, undefined, undefined, 'turn-a', 'client-1', {
+				...exactChatContext(session, chatA),
+				originalMessageText,
+			});
 
 			assert.deepStrictEqual({
 				aSends: a.rec.sends.map(s => ({ prompt: s.prompt, turnId: s.turnId, senderClientId: s.senderClientId })),
+				originalMessageText: send.firstCall.args[10],
 				aResets: a.rec.resets,
 				bSends: b.rec.sends,
 				bResets: b.rec.resets,
 			}, {
-				aSends: [{ prompt: 'hello-a', turnId: 'turn-a', senderClientId: 'client-1' }],
+				aSends: [{ prompt, turnId: 'turn-a', senderClientId: 'client-1' }],
+				originalMessageText,
 				aResets: [{ turnId: 'turn-a', senderClientId: 'client-1' }],
 				bSends: [],
 				bResets: [],

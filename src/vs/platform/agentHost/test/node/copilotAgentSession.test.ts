@@ -24,6 +24,7 @@ import { StopWatch } from '../../../../base/common/stopwatch.js';
 import { join, sep } from '../../../../base/common/path.js';
 import { hasKey } from '../../../../base/common/types.js';
 import { URI } from '../../../../base/common/uri.js';
+import { generateUuid } from '../../../../base/common/uuid.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { runWithFakedTimers } from '../../../../base/test/common/virtualScheduling/index.js';
 import { mock } from '../../../../base/test/common/mock.js';
@@ -90,6 +91,8 @@ import { CopilotSandboxCertificate } from '../../node/copilot/copilotSandboxCert
 import { readAgentSandboxCertificate } from '../../common/meta/agentSandboxCertificate.js';
 import { COPILOT_DEFERRED_SDK_EXECUTION_METADATA_KEY } from '../../node/copilot/copilotSessionExecutionMarker.js';
 import { SessionDataService } from '../../node/sessionDataService.js';
+import { SessionDatabase } from '../../node/sessionDatabase.js';
+import { mapSessionEvents } from '../../node/copilot/mapSessionEvents.js';
 import type { ICopilotMcpServerInfo } from '../../node/copilot/copilotAgent.js';
 import { CopilotGitHubCredentials, CopilotGitHubSessionCredentials } from '../../node/copilot/copilotGitHubCredentials.js';
 import { GENERATED_IMAGE_PRESENTATION_CONTEXT } from '../../node/copilot/copilotGeneratedImages.js';
@@ -736,6 +739,15 @@ class MockCopilotSession {
 			delete: async () => { /* no-op */ },
 		},
 		history: {
+			truncate: async (params: Parameters<CopilotSession['rpc']['history']['truncate']>[0]): Promise<Awaited<ReturnType<CopilotSession['rpc']['history']['truncate']>>> => {
+				const index = this.messages.findIndex(event => event.id === params.eventId);
+				if (index < 0) {
+					throw new Error(`Unknown history event: ${params.eventId}`);
+				}
+				const eventsRemoved = this.messages.length - index;
+				this.messages = this.messages.slice(0, index);
+				return { eventsRemoved };
+			},
 			compact: async (params?: unknown) => {
 				this.compactCalls.push(params ?? null);
 				this.onCompact?.();
@@ -6891,6 +6903,260 @@ suite('CopilotAgentSession', () => {
 			usage: undefined,
 			state: 'cancelled',
 		}]);
+	});
+
+	test('durably restores completion references across SDK sends and steering without sending UI metadata (#346586)', async () => {
+		const directory = join(process.cwd(), '.build', `copilot-completion-history-${generateUuid()}`);
+		const database = disposables.add(new SessionDatabase(join(directory, 'session.db')));
+		let reader: SessionDatabase | undefined;
+		try {
+			const { session, mockSession } = await createAgentSession(disposables, { sessionDatabase: database });
+			const transcript: SessionEvent[] = [];
+			mockSession.onSend = () => {
+				const request = mockSession.sendRequests.at(-1) as MessageOptions;
+				const id = `user-${mockSession.sendRequests.length}`;
+				const data = { content: request.prompt, messageId: `message-${mockSession.sendRequests.length}`, attachments: request.attachments };
+				transcript.push(...toSessionEvents([{ type: 'user.message', id, data }]));
+				mockSession.fire('user.message', data as SessionEventPayload<'user.message'>['data'], { id });
+			};
+			const command: MessageAttachment = {
+				type: MessageAttachmentKind.Simple,
+				label: 'chronicle tips',
+				displayKind: 'command',
+				range: { start: { line: 0, character: 0 }, end: { line: 0, character: 15 } },
+				_meta: { command: 'chronicle' },
+			};
+			const repeatedCommand: MessageAttachment = {
+				...command,
+				range: { start: { line: 0, character: 20 }, end: { line: 0, character: 35 } },
+			};
+			const skill: MessageAttachment = {
+				type: MessageAttachmentKind.Simple,
+				label: '/review',
+				range: { start: { line: 0, character: 40 }, end: { line: 0, character: 47 } },
+				_meta: { uri: 'file:///workspace/SKILL.md', name: 'review' },
+				modelRepresentation: 'Review instructions',
+			};
+			const repeatedSkill: MessageAttachment = {
+				...skill,
+				range: { start: { line: 0, character: 52 }, end: { line: 0, character: 59 } },
+			};
+			const completionOnlySkill: MessageAttachment = {
+				type: MessageAttachmentKind.Simple,
+				label: '/review',
+				range: { start: { line: 1, character: 0 }, end: { line: 1, character: 7 } },
+				_meta: { uri: 'file:///workspace/SKILL.md', name: 'review' },
+			};
+			const unrelated: MessageAttachment = {
+				type: MessageAttachmentKind.Simple,
+				label: skill.label,
+				modelRepresentation: 'Unrelated model context',
+			};
+			const file: MessageAttachment = {
+				type: MessageAttachmentKind.Resource,
+				uri: URI.file('/workspace/readme.md').toString(),
+				label: 'readme.md',
+				displayKind: 'document',
+			};
+			const prompt = '/chronicle tips and /chronicle tips and /review and /review\n/review';
+			await session.send(prompt, [command, repeatedCommand, unrelated, skill, repeatedSkill, completionOnlySkill], 'first');
+			mockSession.fire('session.idle', {});
+			await session.send(prompt, [file], 'second');
+			const steeringCommand = { ...command, _meta: { command: 'different-command' } };
+			await session.sendSteering({
+				id: 'steering',
+				message: { text: prompt, origin: { kind: MessageKind.User }, attachments: [steeringCommand] },
+			});
+			await database.whenIdle();
+			session.dispose();
+			await database.whenIdle();
+			await database.close();
+
+			reader = disposables.add(await SessionDatabase.open(join(directory, 'session.db')));
+			const restored = await createAgentSession(disposables, {
+				resume: true,
+				sessionDatabase: reader,
+				configureMockSession: mock => { mock.messages = transcript; },
+			});
+			const messages = (await restored.session.getMessages()).map(turn => ({ text: turn.message.text, attachments: turn.message.attachments }));
+			const withoutMetadata = await mapSessionEvents(session.resourceUri, undefined, transcript, session.chatChannelUri, session.ownerSessionUri, createCopilotSdkPathMapper(toCopilotWorkspace(URI.file('/workspace'))));
+			assert.deepStrictEqual({
+				requests: mockSession.sendRequests,
+				messages,
+				withoutMetadata: withoutMetadata.turns.map(turn => turn.message.attachments),
+			}, {
+				requests: [
+					{
+						prompt, attachments: [
+							{ type: 'blob', data: encodeBase64(VSBuffer.fromString('Unrelated model context')), mimeType: 'text/plain', displayName: skill.label },
+							{ type: 'blob', data: encodeBase64(VSBuffer.fromString('Review instructions')), mimeType: 'text/plain', displayName: '/review' },
+							{ type: 'blob', data: encodeBase64(VSBuffer.fromString('Review instructions')), mimeType: 'text/plain', displayName: '/review' },
+						],
+					},
+					{ prompt, attachments: [{ type: 'file', path: URI.file('/workspace/readme.md').fsPath, displayName: 'readme.md' }] },
+					{ prompt, attachments: undefined, mode: 'immediate' },
+				],
+				messages: [
+					{ text: prompt, attachments: [unrelated, skill, repeatedSkill, command, repeatedCommand, completionOnlySkill] },
+					{ text: prompt, attachments: [file] },
+					{ text: prompt, attachments: [steeringCommand] },
+				],
+				withoutMetadata: [
+					[
+						unrelated,
+						{ type: MessageAttachmentKind.Simple, label: '/review', modelRepresentation: 'Review instructions' },
+						{ type: MessageAttachmentKind.Simple, label: '/review', modelRepresentation: 'Review instructions' },
+					],
+					[file],
+					undefined,
+				],
+			});
+			restored.session.dispose();
+		} finally {
+			await reader?.close();
+			await database.close();
+			rmSync(directory, { recursive: true, force: true });
+		}
+	});
+
+	test('restores authoritative composer text with completion ranges despite contributed prompts and normalized SDK echoes (#346586)', async () => {
+		const directory = join(process.cwd(), '.build', `copilot-completion-text-${generateUuid()}`);
+		const database = disposables.add(new SessionDatabase(join(directory, 'session.db')));
+		let reader: SessionDatabase | undefined;
+		try {
+			const { session, mockSession } = await createAgentSession(disposables, { sessionDatabase: database });
+			const texts = [
+				'\n/review\n<reminder>User-authored reminder.</reminder>\n',
+				'\n\n/review\n<context>User-authored context.</context>\n',
+			];
+			const references: MessageAttachment[] = texts.map((_, index) => ({
+				type: MessageAttachmentKind.Simple,
+				label: '/review',
+				range: { start: { line: index + 1, character: 0 }, end: { line: index + 1, character: 7 } },
+				_meta: { uri: 'file:///workspace/SKILL.md', name: 'review' },
+			}));
+			const transcript: SessionEvent[] = [];
+			mockSession.onSend = () => {
+				const request = mockSession.sendRequests.at(-1) as MessageOptions;
+				const id = `user-${mockSession.sendRequests.length}`;
+				transcript.push(...toSessionEvents([{
+					type: 'user.message', id,
+					data: { content: request.prompt.trim(), messageId: `message-${mockSession.sendRequests.length}`, attachments: request.attachments },
+				}]));
+			};
+			const echo = () => {
+				const event = transcript.at(-1);
+				if (event?.type !== 'user.message') {
+					throw new Error('Expected a user-message echo');
+				}
+				mockSession.fire('user.message', event.data, { id: event.id });
+			};
+			const contributedPrompt = `<context>Host-injected side-chat context.</context>\n\n${texts[0]}`;
+			await session.send(contributedPrompt, [references[0]], 'first', undefined, undefined, undefined, undefined, undefined, undefined, undefined, texts[0]);
+			echo();
+			await session.sendSteering({
+				id: 'steering',
+				message: { text: texts[1], origin: { kind: MessageKind.User }, attachments: [references[1]] },
+			});
+			echo();
+			await database.whenIdle();
+			session.dispose();
+			await database.whenIdle();
+			await database.close();
+			reader = disposables.add(await SessionDatabase.open(join(directory, 'session.db')));
+			const restored = await createAgentSession(disposables, {
+				resume: true, sessionDatabase: reader,
+				configureMockSession: mock => { mock.messages = transcript; },
+			});
+			const withoutMetadata = await mapSessionEvents(
+				session.resourceUri, undefined, transcript, session.chatChannelUri, session.ownerSessionUri,
+				createCopilotSdkPathMapper(toCopilotWorkspace(URI.file('/workspace'))),
+			);
+			assert.deepStrictEqual({
+				requests: mockSession.sendRequests,
+				messages: (await restored.session.getMessages()).map(turn => ({ text: turn.message.text, attachments: turn.message.attachments })),
+				withoutMetadata: withoutMetadata.turns.map(turn => turn.message.text),
+			}, {
+				requests: [{ prompt: contributedPrompt, attachments: undefined }, { prompt: texts[1], attachments: undefined, mode: 'immediate' }],
+				messages: texts.map((text, index) => ({ text, attachments: [references[index]] })),
+				withoutMetadata: ['/review', '/review'],
+			});
+			restored.session.dispose();
+		} finally {
+			await reader?.close();
+			await database.close();
+			rmSync(directory, { recursive: true, force: true });
+		}
+	});
+
+	test('fork remapping and truncation cascade completion references without changing session metadata (#346586)', async () => {
+		const directory = join(process.cwd(), '.build', `copilot-completion-fork-${generateUuid()}`);
+		const database = disposables.add(new SessionDatabase(join(directory, 'source.db')));
+		let forkDatabase: SessionDatabase | undefined;
+		let reader: SessionDatabase | undefined;
+		try {
+			const { session, mockSession } = await createAgentSession(disposables, { sessionDatabase: database });
+			const transcript: SessionEvent[] = [];
+			mockSession.onSend = () => {
+				const request = mockSession.sendRequests.at(-1) as MessageOptions;
+				const id = `user-${mockSession.sendRequests.length}`;
+				const data = { content: request.prompt, messageId: `message-${mockSession.sendRequests.length}`, attachments: request.attachments };
+				transcript.push(...toSessionEvents([{ type: 'user.message', id, data }]));
+				mockSession.fire('user.message', data as SessionEventPayload<'user.message'>['data'], { id });
+			};
+			const reference: MessageAttachment = {
+				type: MessageAttachmentKind.Simple, label: 'chronicle tips', displayKind: 'command',
+				range: { start: { line: 0, character: 0 }, end: { line: 0, character: 15 } },
+				_meta: { command: 'chronicle' },
+			};
+			await session.send('/chronicle tips', [reference], 'first');
+			mockSession.fire('session.idle', {});
+			await session.send('/chronicle tips', [reference], 'second');
+			mockSession.fire('session.idle', {});
+			await database.setMetadata('copilot.completionReferences', 'session-only');
+			await database.whenIdle();
+			await database.vacuumInto(join(directory, 'fork.db'));
+			forkDatabase = disposables.add(await SessionDatabase.open(join(directory, 'fork.db')));
+			const fork = await createAgentSession(disposables, { resume: true, sessionDatabase: forkDatabase });
+			await fork.session.remapTurnIds(new Map());
+			await fork.session.remapTurnIds(new Map([['user-1', 'fork-first']]));
+			mockSession.messages = transcript;
+			const eventLogReadsBeforeTruncate = mockSession.eventLogReadRequests.length;
+			await session.truncateAtEventId('user-2', 'first');
+			await database.whenIdle();
+			session.dispose();
+			await database.close();
+			reader = disposables.add(await SessionDatabase.open(join(directory, 'source.db')));
+			const replay = async (db: ISessionDatabase) => (await mapSessionEvents(
+				session.resourceUri, db, transcript, session.chatChannelUri, session.ownerSessionUri,
+				createCopilotSdkPathMapper(toCopilotWorkspace(URI.file('/workspace'))),
+			)).turns.map(turn => turn.message.attachments);
+			assert.deepStrictEqual({
+				fork: await replay(forkDatabase),
+				truncated: await replay(reader),
+				sdkEventIds: mockSession.messages.map(event => event.id),
+				additionalSdkHistoryReads: mockSession.eventLogReadRequests.length - eventLogReadsBeforeTruncate,
+				sessionMetadata: {
+					fork: await forkDatabase.getMetadata('copilot.completionReferences'),
+					truncated: await reader.getMetadata('copilot.completionReferences'),
+				},
+			}, {
+				fork: [[reference], undefined],
+				truncated: [[reference], undefined],
+				sdkEventIds: ['user-1'],
+				additionalSdkHistoryReads: 0,
+				sessionMetadata: {
+					fork: 'session-only',
+					truncated: 'session-only',
+				},
+			});
+			fork.session.dispose();
+		} finally {
+			await reader?.close();
+			await forkDatabase?.close();
+			await database.close();
+			rmSync(directory, { recursive: true, force: true });
+		}
 	});
 
 	test('sends display-kind simple attachments as inline text SDK blobs', async () => {

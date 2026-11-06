@@ -1729,7 +1729,13 @@ suite('AgentSideEffects', () => {
 
 			assert.deepStrictEqual(agent.sendMessageCalls, [{ session: URI.parse(sessionUri.toString()), prompt: 'hello world', attachments: undefined, chat: URI.parse(defaultChatUri) }]);
 			const sendContext = agent.chatContexts.find(call => call.boundary === 'sendMessage')?.context;
-			assert.strictEqual(!URI.isUri(sendContext) ? sendContext?.hostInstructions : undefined, undefined);
+			assert.deepStrictEqual({
+				hostInstructions: !URI.isUri(sendContext) ? sendContext?.hostInstructions : undefined,
+				originalMessageText: !URI.isUri(sendContext) ? sendContext?.originalMessageText : undefined,
+			}, {
+				hostInstructions: undefined,
+				originalMessageText: 'hello world',
+			});
 		});
 
 		test('marks Agent Merge turns on the provider send context', async () => {

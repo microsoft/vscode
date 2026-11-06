@@ -126,6 +126,7 @@ import { applyMcpServerRuntimeStates, buildMcpChannel, buildMcpTopLevelCustomiza
 import { getSdkMcpServerEnablement, resolveCustomizationEnablement, targetForMcpServer, targetForMcpSkill } from '../shared/customizationEnablementGate.js';
 import { readCustomizationDiscoveryMeta } from '../../common/meta/customizationDiscoveryMeta.js';
 import { appendSdkToolResultContent, getSdkMcpResultMeta, getSdkToolResultContent, getSdkToolResultText, mapSessionEvents, persistSdkToolResultResources } from './mapSessionEvents.js';
+import { getCopilotCompletionReferences, storeCopilotCompletionReferences, type ICopilotCompletionReference } from './copilotCompletionReferenceHistory.js';
 import { withPermissionDiff } from '../../common/meta/agentPermissionRequestMeta.js';
 import { COPILOT_FUSION_PHASE_AGENT_NAME, CopilotFusionProgress, formatFusionReviewContent, getFusionPhaseToolCallId, isProvisionalFusionConversationEvent, type CopilotFusionEvent, type FusionPhasePresentation, type ICopilotFusionProgressUpdate } from './copilotFusionProgress.js';
 import { CopilotFusionRequestCorrelation, getFusionEventKey, getFusionEventSdkTurnId, isSyntheticUserMessage } from './copilotFusionEventIdentity.js';
@@ -887,6 +888,8 @@ class DirectUsageAccumulator {
 
 class CopilotTurn extends Disposable {
 	timingRecorder: IAgentProviderSendStageRecorder | undefined;
+	completionReferences: readonly ICopilotCompletionReference[] = [];
+	completionReferenceText = '';
 	sdkSendInvoked = false;
 	permissionPromptsReady = false;
 
@@ -1086,6 +1089,7 @@ class CopilotTurn extends Disposable {
 interface IPendingSteering {
 	readonly pendingMessage: PendingMessage;
 	readonly sender: IAgentPendingMessageSender | undefined;
+	completionReferences?: readonly ICopilotCompletionReference[];
 	/** Set once the message is handed to the SDK; identifies it for withdrawal. */
 	sdkSend?: { readonly prompt: string; readonly messageId: Promise<string> };
 	/** The SDK's id for the message once `send` returns; its `user.message` echo carries the same id. */
@@ -6285,7 +6289,7 @@ export class CopilotAgentSession extends Disposable {
 		}
 	}
 
-	async send(prompt: string, attachments?: readonly MessageAttachment[], turnId?: string, mode?: CopilotSdkMode, senderClientId?: string, clientType = AgentHostClientType.Unknown, hostInstructions?: readonly string[], clientContext = createUnknownAgentHostClientTelemetryContext(clientType), agentMergeTurn = false, stageRecorder?: IAgentProviderSendStageRecorder): Promise<void> {
+	async send(prompt: string, attachments?: readonly MessageAttachment[], turnId?: string, mode?: CopilotSdkMode, senderClientId?: string, clientType = AgentHostClientType.Unknown, hostInstructions?: readonly string[], clientContext = createUnknownAgentHostClientTelemetryContext(clientType), agentMergeTurn = false, stageRecorder?: IAgentProviderSendStageRecorder, originalMessageText = prompt): Promise<void> {
 		this._assertScopedGitHubCredential();
 		if (this._workingDirectoryMutationInProgress) {
 			throw new Error('Cannot start a turn while the working directory is changing');
@@ -6302,6 +6306,8 @@ export class CopilotAgentSession extends Disposable {
 		if (currentTurn) {
 			currentTurn.messageCharLen = prompt.length;
 			currentTurn.timingRecorder = stageRecorder;
+			currentTurn.completionReferences = getCopilotCompletionReferences(attachments);
+			currentTurn.completionReferenceText = originalMessageText;
 		}
 		const turn = this._currentTurn.value;
 		this._hostInstructions = hostInstructions;
@@ -6681,7 +6687,10 @@ export class CopilotAgentSession extends Disposable {
 			}
 		}
 
-		const sdkAttachments = await measureAgentProviderOperation(stageRecorder, 'attachments', () => this._toSdkAttachments(attachments));
+		const { attachments: sdkAttachments, completionReferences } = await measureAgentProviderOperation(stageRecorder, 'attachments', () => this._toSdkAttachments(attachments));
+		if (sendingTurn?.completionReferences.length) {
+			sendingTurn.completionReferences = completionReferences;
+		}
 		if (!this._canSendTurn(sendingTurn, abortToken)) {
 			return;
 		}
@@ -7028,14 +7037,23 @@ export class CopilotAgentSession extends Disposable {
 
 	}
 
-	private async _toSdkAttachments(attachments: readonly MessageAttachment[] | undefined): Promise<CopilotSdkAttachment[] | undefined> {
-		const sdkAttachments = attachments?.length
-			? (await Promise.all(attachments.map(attachment => this._toSdkAttachment(attachment)))).filter(isDefined)
-			: undefined;
+	private async _toSdkAttachments(attachments: readonly MessageAttachment[] | undefined): Promise<{ attachments: CopilotSdkAttachment[] | undefined; completionReferences: readonly ICopilotCompletionReference[] }> {
+		const converted = await Promise.all(attachments?.map(attachment => this._toSdkAttachment(attachment)) ?? []);
+		const sdkAttachments: CopilotSdkAttachment[] = [];
+		const completionReferences: ICopilotCompletionReference[] = [];
+		for (const [index, attachment] of (attachments ?? []).entries()) {
+			const sdkAttachment = converted[index];
+			for (const reference of getCopilotCompletionReferences([attachment])) {
+				completionReferences.push({ ...reference, ...(sdkAttachment ? { sdkAttachmentIndex: sdkAttachments.length } : {}) });
+			}
+			if (sdkAttachment) {
+				sdkAttachments.push(sdkAttachment);
+			}
+		}
 		if (sdkAttachments?.length) {
 			this._logService.trace(`[Copilot:${this.sessionId}] Attachments: ${JSON.stringify(sdkAttachments.map(attachment => ({ type: attachment.type })))}`);
 		}
-		return sdkAttachments;
+		return { attachments: sdkAttachments.length ? sdkAttachments : undefined, completionReferences };
 	}
 
 	getMcpSkillCommandNames(): ReadonlySet<string> {
@@ -7218,7 +7236,8 @@ export class CopilotAgentSession extends Disposable {
 				// earlier message recorded the same path and its update is still in flight. An unchanged config isn't re-sent.
 				await this._sandbox.applyConfig(false);
 			}
-			const sdkAttachments = await this._toSdkAttachments(steeringMessage.message.attachments);
+			const { attachments: sdkAttachments, completionReferences } = await this._toSdkAttachments(steeringMessage.message.attachments);
+			pending.completionReferences = completionReferences;
 			// Steering is injected into the active turn and never fires the SDK's `user-prompt-submitted`
 			// hook, so the read-only snapshot signal can't ride `additionalContext` here. Fold it into the
 			// prompt as a `<reminder>` block instead: the runtime forwards it to the model, and the host's
@@ -10045,7 +10064,8 @@ export class CopilotAgentSession extends Disposable {
 			} else if (!this._currentTurn.value) {
 				this._beginProviderInitiatedTurn(e);
 			}
-			if (this._turnId) {
+			const turn = this._currentTurn.value;
+			if (turn) {
 				this._hasFusionRootTurnBoundary = true;
 				const precedingResolution = this._fusionRequestCorrelation.getPrecedingResolution(e);
 				if (precedingResolution && !this._fusionEventTurnIds.has(`fusion:${precedingResolution.fusionId}`)) {
@@ -10057,8 +10077,19 @@ export class CopilotAgentSession extends Disposable {
 				if (e.data.interactionId) {
 					this._currentTurn.value?.interactionIds.add(e.data.interactionId);
 				}
-				void this._withDatabase(db => db.setTurnEventId(this._turnId, e.id)).catch(error =>
-					this._logService.error(`[Copilot:${sessionId}] Failed to persist turn event id`, error));
+				const references = steering ? steering.completionReferences ?? getCopilotCompletionReferences(steering.pendingMessage.message.attachments) : turn.completionReferences;
+				const text = steering?.pendingMessage.message.text ?? turn.completionReferenceText;
+				turn.completionReferences = [];
+				turn.completionReferenceText = '';
+				void this._withDatabase(db => Promise.all([
+					db.setTurnEventId(turn.id, e.id),
+					storeCopilotCompletionReferences(db, turn.id, text, references),
+				])).then(() => {
+					if (references.length) {
+						this._invalidateMappedEvents();
+					}
+				}).catch(error =>
+					this._logService.error(`[Copilot:${sessionId}] Failed to persist turn event id or completion references`, error));
 				this._currentTurn.value?.completeEventId(e.id);
 			}
 			this._onSteeringReady?.(this);
@@ -13571,6 +13602,7 @@ export class CopilotAgentSession extends Disposable {
 		} else {
 			await this._withDatabase(db => db.deleteAllTurns());
 		}
+		this._invalidateMappedEvents();
 	}
 
 	/**
@@ -13579,6 +13611,7 @@ export class CopilotAgentSession extends Disposable {
 	 */
 	async remapTurnIds(mapping: ReadonlyMap<string, string>): Promise<void> {
 		await this._withDatabase(db => db.remapTurnIds(mapping));
+		this._invalidateMappedEvents();
 	}
 
 	// ---- cleanup ------------------------------------------------------------
