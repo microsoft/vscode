@@ -49,10 +49,15 @@ function getVisibleViewContainers(
 			active: true,
 			views: model.visibleViewDescriptors
 				// A visible descriptor may not have a rendered pane (for example,
-				// if rendering failed). A collapsed view without a header cannot
-				// receive focus, and openView() would unexpectedly expand it.
-				.filter(view => !model.isCollapsed(view.id) ||
-					!!viewsService.getActiveViewWithId<ViewPane>(view.id)?.draggableElement)
+				// if rendering failed). A collapsed view without a visible header
+				// cannot receive focus, and openView() would expand it unexpectedly.
+				.filter(view => {
+					if (!model.isCollapsed(view.id)) {
+						return true;
+					}
+					const pane = viewsService.getActiveViewWithId<ViewPane>(view.id);
+					return !!pane?.headerVisible && !!pane.draggableElement;
+				})
 				.map(view => ({
 					id: view.id,
 					visible: true,
