@@ -17,18 +17,61 @@ import { SessionHostService } from '../../browser/sessionHostService.js';
 import { ISessionsService } from '../../browser/sessionsService.js';
 import { ISessionsPartService, ISessionView } from '../../browser/sessionsPartService.js';
 import { ISessionGridPane, SessionGridPaneKind } from '../../browser/sessionGridPane.js';
-import { IChat, SessionStatus } from '../../common/session.js';
-import { IActiveSession } from '../../common/sessionsManagement.js';
+import { IChat, ISession, SessionStatus } from '../../common/session.js';
+import { IActiveSession, ISessionPaneTabs } from '../../common/sessionsManagement.js';
+
+/**
+ * What a test's host or pane shows: the provider's session and the chat of it, and, for a pane of the grid, its pin, tab
+ * strip and whether it is detached.
+ */
+export interface ITestShownChat {
+	readonly session: ISession;
+	/** The chat it shows; none, such as before a session's chats are known, while undefined. */
+	readonly chat: IChat | undefined;
+	readonly sticky?: IObservable<boolean>;
+	readonly tabs?: ISessionPaneTabs;
+	readonly detached?: boolean;
+}
+
+/**
+ * What a test's host or pane shows: an {@link ITestShownChat}, or, transitionally, a test's view of a session, which gives
+ * its session and its active chat (its chat for a view scoped to one chat).
+ */
+export type TestShown = ITestShownChat | IActiveSession;
+
+function isShownChat(shown: TestShown): shown is ITestShownChat {
+	// Partial fakes of a view of a session lack most of its members, but never have a `session`, and a shown chat never
+	// has a `resource`.
+	return 'session' in shown && !('resource' in shown);
+}
+
+/** The session `shown` shows: a view of a session itself, as the hosts of such tests show it. */
+export function sessionOfShown(shown: TestShown | undefined): ISession | undefined {
+	return shown && (isShownChat(shown) ? shown.session : shown);
+}
+
+/** The chat `shown` shows. */
+export function chatOfShown(shown: TestShown | undefined, reader: IReader | undefined): IChat | undefined {
+	if (!shown) {
+		return undefined;
+	}
+	if (isShownChat(shown)) {
+		return shown.chat;
+	}
+	return shown.scopedChatResource ? upcastPartial<IChat>({ resource: shown.scopedChatResource }) : shown.activeChat?.read(reader);
+}
 
 /**
  * The grid state a test models on its `ISessionsService` mock, from which the host stubs derive what the windows show:
- * the session of the grid's active pane, the main window's when it differs, and the sessions of chat windows. None of it
- * is part of `ISessionsService`: others read the windows' hosts.
+ * what the grid's active pane shows, the main window's when it differs, and what chat windows show. None of it is part of
+ * `ISessionsService`: others read the windows' hosts.
  */
 export interface ITestSessionsGridState {
-	readonly activeSession?: IObservable<IActiveSession | undefined>;
-	readonly mainWindowActiveSession?: IObservable<IActiveSession | undefined>;
-	readonly windowSessions?: IObservable<readonly IActiveSession[]>;
+	readonly activeSession?: IObservable<TestShown | undefined>;
+	readonly mainWindowActiveSession?: IObservable<TestShown | undefined>;
+	readonly windowSessions?: IObservable<readonly TestShown[]>;
+	/** What the grid's panes show, a pane each; else the service's `visibleSessions`. */
+	readonly gridShown?: IObservable<readonly (TestShown | undefined)[]>;
 }
 
 /**
@@ -52,13 +95,13 @@ export function sessionsServiceWithGridHost(gridHost: ISessionHost): ISessionsSe
  * Stubs the main window host and the host lookups on `instantiationService`, for tests of UI that hosts sessions, such
  * as session views and composers, which nest their hosts in the one they are created in.
  */
-export function stubSessionHosts(instantiationService: TestInstantiationService, store: Pick<DisposableStore, 'add'>, options?: { readonly session?: IObservable<IActiveSession | undefined>; readonly editorGroupsService?: IEditorGroupsService }): { readonly mainHost: ISessionHost; readonly sessionHostService: SessionHostService } {
-	const session = options?.session ?? constObservable(undefined);
+export function stubSessionHosts(instantiationService: TestInstantiationService, store: Pick<DisposableStore, 'add'>, options?: { readonly session?: IObservable<TestShown | undefined>; readonly editorGroupsService?: IEditorGroupsService }): { readonly mainHost: ISessionHost; readonly sessionHostService: SessionHostService } {
+	const shown = options?.session ?? constObservable(undefined);
 	const mainHost = new SessionHost({
 		kind: SessionHostKind.MainWindow,
 		parent: undefined,
-		session,
-		chat: derived(reader => session.read(reader)?.activeChat.read(reader)),
+		session: derived(reader => sessionOfShown(shown.read(reader))),
+		chat: derived(reader => chatOfShown(shown.read(reader), reader)),
 		contextKeyService: upcastPartial<IContextKeyService>({}),
 		windowId: constObservable(mainWindow.vscodeWindowId),
 	});
@@ -76,21 +119,18 @@ export function stubSessionHosts(instantiationService: TestInstantiationService,
 export function sessionHostServiceOf(store: Pick<DisposableStore, 'add'>, grid: Partial<ITestSessionsService>): SessionHostService {
 	const state = {
 		mainWindowActiveSession: grid.mainWindowActiveSession ?? grid.activeSession ?? constObservable(undefined),
-		visibleSessions: grid.visibleSessions ?? constObservable<readonly (IActiveSession | undefined)[]>([]),
-		windowSessions: grid.windowSessions ?? constObservable<readonly IActiveSession[]>([]),
+		visibleSessions: grid.gridShown ?? grid.visibleSessions ?? constObservable<readonly (TestShown | undefined)[]>([]),
+		windowSessions: grid.windowSessions ?? constObservable<readonly TestShown[]>([]),
 	};
 	let nextChatWindowId = 1000;
-	const hostOf = (kind: SessionHostKind, parent: ISessionHost | undefined, session: IObservable<IActiveSession | undefined>, windowId: number | undefined): ISessionHost => {
+	const hostOf = (kind: SessionHostKind, parent: ISessionHost | undefined, shown: IObservable<TestShown | undefined>, windowId: number | undefined): ISessionHost => {
 		// A chat window shows the chat it is scoped to; other hosts the active chat of their session.
-		const chat = derived(reader => {
-			const shown = session.read(reader);
-			return shown?.scopedChatResource ? upcastPartial<IChat>({ resource: shown.scopedChatResource }) : shown?.activeChat?.read(reader);
-		});
+		const chat = derived(reader => chatOfShown(shown.read(reader), reader));
 		return upcastPartial<ISessionHost>({
 			id: `${kind}:${windowId ?? 'pane'}`,
 			kind,
 			parent,
-			session,
+			session: derived(reader => sessionOfShown(shown.read(reader))),
 			chat,
 			chatResource: derived(reader => chat.read(reader)?.resource),
 			windowId: constObservable(windowId),
@@ -98,9 +138,9 @@ export function sessionHostServiceOf(store: Pick<DisposableStore, 'add'>, grid: 
 	};
 	const mainHost = hostOf(SessionHostKind.MainWindow, undefined, state.mainWindowActiveSession, mainWindow.vscodeWindowId);
 	const service = store.add(new SessionHostService(sessionsServiceWithGridHost(mainHost), upcastPartial<IEditorGroupsService>({ getGroup: () => undefined })));
-	const registered = store.add(new DisposableMap<IActiveSession>());
+	const registered = store.add(new DisposableMap<TestShown>());
 	store.add(autorun(reader => {
-		const shown = new Map<IActiveSession, SessionHostKind>();
+		const shown = new Map<TestShown, SessionHostKind>();
 		for (const session of state.visibleSessions.read(reader)) {
 			if (session) {
 				shown.set(session, SessionHostKind.Pane);
@@ -126,11 +166,11 @@ export function sessionHostServiceOf(store: Pick<DisposableStore, 'add'>, grid: 
 }
 
 /** A focused host that shows `session`, for tests modelled on the active session of `ISessionsService`. */
-export function focusedSessionHostServiceOf(session: IObservable<IActiveSession | undefined>): IFocusedSessionHostService {
+export function focusedSessionHostServiceOf(shown: IObservable<TestShown | undefined>): IFocusedSessionHostService {
 	const host = upcastPartial<ISessionHost>({
 		kind: SessionHostKind.MainWindow,
-		session,
-		chat: derived(reader => session.read(reader)?.activeChat?.read(reader)),
+		session: derived(reader => sessionOfShown(shown.read(reader))),
+		chat: derived(reader => chatOfShown(shown.read(reader), reader)),
 	});
 	return upcastPartial<IFocusedSessionHostService>({ focusedHost: constObservable(host), getFocusedHost: () => host });
 }
@@ -156,18 +196,16 @@ export function stubSessionHostsFromSessionsService(instantiationService: TestIn
 	const none = constObservable(undefined);
 	const activeSession = sessionsService?.activeSession ?? none;
 	let hostIds = 0;
-	const hostOf = (kind: SessionHostKind, session: IObservable<IActiveSession | undefined>, windowId: number | undefined, parent?: ISessionHost): ISessionHost => {
-		const chat = derived(reader => {
-			const shown = session.read(reader);
-			return shown?.scopedChatResource ? upcastPartial<IChat>({ resource: shown.scopedChatResource }) : shown?.activeChat?.read(reader);
-		});
+	const hostOf = (kind: SessionHostKind, shown: IObservable<TestShown | undefined>, windowId: number | undefined, parent?: ISessionHost): ISessionHost => {
+		const chat = derived(reader => chatOfShown(shown.read(reader), reader));
+		const session = derived(reader => sessionOfShown(shown.read(reader)));
 		return upcastPartial<ISessionHost>({ id: `${kind}:${windowId}:${hostIds++}`, kind, parent, session, chat, chatResource: derived(reader => chat.read(reader)?.resource), windowId: constObservable(windowId) });
 	};
 	const mainHost = hostOf(SessionHostKind.MainWindow, sessionsService?.mainWindowActiveSession ?? activeSession, mainWindow.vscodeWindowId);
-	const panes = new Map<IActiveSession, ISessionHost>();
-	const chatWindows = new Map<IActiveSession, readonly [ISessionHost, ISessionHost]>();
+	const panes = new Map<TestShown, ISessionHost>();
+	const chatWindows = new Map<TestShown, readonly [ISessionHost, ISessionHost]>();
 	let nextWindowId = 1000;
-	const readPanes = (reader: IReader | undefined) => (sessionsService?.visibleSessions?.read(reader) ?? []).filter(session => !!session).map(session => {
+	const readPanes = (reader: IReader | undefined) => ((sessionsService?.gridShown ?? sessionsService?.visibleSessions)?.read(reader) ?? []).filter(session => !!session).map(session => {
 		let host = panes.get(session!);
 		if (!host) {
 			host = hostOf(SessionHostKind.Pane, constObservable(session), mainWindow.vscodeWindowId, mainHost);
@@ -204,7 +242,7 @@ export function stubSessionHostsFromSessionsService(instantiationService: TestIn
 	});
 	const focusedHost = derived(reader => {
 		const active = activeSession.read(reader);
-		return readChatWindows(reader).find(([windowHost]) => !!active && windowHost.session.read(reader) === active)?.[0] ?? mainHost;
+		return readChatWindows(reader).find(([windowHost]) => !!active && windowHost.session.read(reader) === sessionOfShown(active))?.[0] ?? mainHost;
 	});
 	const focusedSessionHostService = upcastPartial<IFocusedSessionHostService>({ focusedHost, getFocusedHost: () => focusedHost.get() });
 	if (!onlyMissing || isMissingOrDerived(instantiationService, ISessionHostService)) {
@@ -241,40 +279,40 @@ export function stubMissingSessionHostsFromSessionsService(instantiationService:
 
 let paneHostIds = 0;
 
-/**
- * A pane of the grid that shows `session` and `chat`, its active chat by default: a detached pane when `session` is scoped
- * to one chat, else a slot; the new-session slot without a session.
- */
-export function testGridPane(session: IActiveSession | undefined, chat: IChat | undefined = session?.activeChat?.get(), id = `pane:test:${paneHostIds++}`): ISessionGridPane {
+/** A pane of the grid with `id` that shows `shown`, and `chat` when given; see {@link testGridPane}. */
+function paneOfShown(shown: TestShown | undefined, id: string, chat?: IChat): ISessionGridPane {
+	const view = shown && !isShownChat(shown) ? shown : undefined;
+	const pane = shown && isShownChat(shown) ? shown : undefined;
 	return upcastPartial<ISessionGridPane>({
 		id,
-		kind: session?.scopedChatResource ? SessionGridPaneKind.Detached : SessionGridPaneKind.Slot,
-		session: constObservable(session),
-		chat: constObservable(chat),
+		kind: (pane?.detached ?? !!view?.scopedChatResource) ? SessionGridPaneKind.Detached : SessionGridPaneKind.Slot,
+		session: constObservable(sessionOfShown(shown)),
+		chat: chat ? constObservable(chat) : view ? (view.activeChat ?? constObservable(undefined)) : constObservable(pane?.chat),
 		// A test's view of a session carries the pin and the tab strip of its pane.
-		sticky: session?.sticky ?? constObservable(false),
-		tabs: session,
+		sticky: (pane ?? view)?.sticky ?? constObservable(false),
+		tabs: pane ? pane.tabs : view,
 	});
 }
 
 /**
- * The panes of a fake grid that shows `sessions`, as `ISessionsService.panes` gives them: one per entry, the new-session slot
- * for `undefined`, a detached pane for a session scoped to one chat. A session keeps its pane while it stays in the list.
+ * A pane of the grid that shows `shown` and `chat`, the chat `shown` shows by default: a detached pane when `shown` is
+ * detached (a view of a session scoped to one chat), else a slot; the new-session slot without a session.
  */
-export function testGridPanes(sessions: IObservable<readonly (IActiveSession | undefined)[]>): IObservable<readonly ISessionGridPane[]> {
-	const panes = new Map<IActiveSession | undefined, ISessionGridPane>();
-	return derived(reader => sessions.read(reader).map(session => {
-		let pane = panes.get(session);
+export function testGridPane(shown: TestShown | undefined, chat: IChat | undefined = chatOfShown(shown, undefined), id = `pane:test:${paneHostIds++}`): ISessionGridPane {
+	return paneOfShown(shown, id, chat);
+}
+
+/**
+ * The panes of a fake grid that shows `shown`, as `ISessionsService.panes` gives them: one per entry, the new-session slot
+ * for `undefined`, a detached pane for a detached entry. An entry keeps its pane while it stays in the list.
+ */
+export function testGridPanes(shown: IObservable<readonly (TestShown | undefined)[]>): IObservable<readonly ISessionGridPane[]> {
+	const panes = new Map<TestShown | undefined, ISessionGridPane>();
+	return derived(reader => shown.read(reader).map(entry => {
+		let pane = panes.get(entry);
 		if (!pane) {
-			pane = upcastPartial<ISessionGridPane>({
-				id: `pane:test:${paneHostIds++}`,
-				kind: session?.scopedChatResource ? SessionGridPaneKind.Detached : SessionGridPaneKind.Slot,
-				session: constObservable(session),
-				chat: session?.activeChat ?? constObservable(undefined),
-				sticky: session?.sticky ?? constObservable(false),
-				tabs: session,
-			});
-			panes.set(session, pane);
+			pane = paneOfShown(entry, `pane:test:${paneHostIds++}`);
+			panes.set(entry, pane);
 		}
 		return pane;
 	}));
@@ -286,14 +324,15 @@ export function testGridPanes(sessions: IObservable<readonly (IActiveSession | u
  * take it for the pane of `session` and `view`; else, as a chat editor's, for no pane. Keeps the other lookups of the
  * services the test stubbed, and stubs them when it did not. Returns the arguments the pane's menus pass.
  */
-export function stubPaneHost(instantiationService: TestInstantiationService, options: { readonly grid: boolean; readonly session: IActiveSession | undefined; readonly view?: ISessionView; readonly chat?: IChat }): unknown[] {
+export function stubPaneHost(instantiationService: TestInstantiationService, options: { readonly grid: boolean; readonly session: TestShown | undefined; readonly view?: ISessionView; readonly chat?: IChat }): unknown[] {
 	const id = `pane:test:${paneHostIds++}`;
 	// Partial session fakes may have no active chat.
-	const shown = options.chat ?? options.session?.activeChat?.get();
+	const shown = options.chat ?? chatOfShown(options.session, undefined);
+	const session = sessionOfShown(options.session);
 	const host = upcastPartial<ISessionHost>({
 		id,
 		kind: SessionHostKind.Pane,
-		session: constObservable(options.session),
+		session: constObservable(session),
 		chat: constObservable(shown),
 		chatResource: constObservable(shown?.resource),
 		commandContext: { sessionHostId: id },
@@ -318,5 +357,5 @@ export function stubPaneHost(instantiationService: TestInstantiationService, opt
 	extend(ISessionsPartService, current => ({
 		getSessionViewOfHost: candidate => candidate === host ? (options.grid ? options.view : undefined) : current?.getSessionViewOfHost?.(candidate),
 	}));
-	return [options.session, options.chat, host.commandContext];
+	return [session, options.chat, host.commandContext];
 }

@@ -43,7 +43,7 @@ import { SESSIONS_CHAT_TABS_SETTING, SessionsChatTabsMode } from '../../../../..
 import { ISessionsChatBackground, ISessionsChatBackgroundService } from '../../../../../workbench/contrib/sessions/browser/chatBackgroundService.js';
 import { ISessionsPartService } from '../../../../../workbench/contrib/sessions/browser/sessionsPartService.js';
 import { ISessionsService } from '../../../../../workbench/contrib/sessions/browser/sessionsService.js';
-import { focusedSessionHostServiceOf, ITestSessionsGridState, stubSessionHosts } from '../../../../../workbench/contrib/sessions/test/browser/sessionHostTestUtils.js';
+import { chatOfShown, focusedSessionHostServiceOf, ITestSessionsGridState, stubSessionHosts } from '../../../../../workbench/contrib/sessions/test/browser/sessionHostTestUtils.js';
 import { IFocusedSessionHostService } from '../../../../../workbench/contrib/sessions/browser/sessionHost.js';
 import { IActiveSession } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import { createSessionViewTestServices } from '../../../../test/browser/sessionViewTestUtils.js';
@@ -143,7 +143,7 @@ export function createSessionsWorkbenchFixture(context: ComponentFixtureContext,
 	const virtualWorkspace = SessionWorkspaceIsVirtualContext.bindTo(services.contextKeyService);
 	disposableStore.add(autorun(reader => {
 		multipleSessions.set(sessionsService.visibleSessions.read(reader).length > 1);
-		virtualWorkspace.set(sessionsService.activeSession?.read(reader)?.activeChat.read(reader).workspace.read(reader)?.isVirtualWorkspace ?? false);
+		virtualWorkspace.set(chatOfShown(sessionsService.activeSession?.read(reader), reader)?.workspace.read(reader)?.isVirtualWorkspace ?? false);
 	}));
 	disposableStore.add(acquireWorkbenchActions());
 	instantiationService.stub(ICommandService, new TestCommandService(instantiationService));

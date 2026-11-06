@@ -20,9 +20,10 @@ import { IFocusedSessionHostService, ISessionHost, ISessionHostService, SessionH
 import { resolveSessionCommandTarget } from '../../browser/sessionCommandTarget.js';
 import { SessionHostService } from '../../browser/sessionHostService.js';
 import { ISessionsService } from '../../browser/sessionsService.js';
+import { ISessionGridPane, SessionGridPaneKind } from '../../browser/sessionGridPane.js';
 import { VisibleSessions } from '../../browser/visibleSessions.js';
 import { ChatInteractivity, IChat, ISession, SessionStatus } from '../../common/session.js';
-import { IActiveSession, ISessionsManagementService } from '../../common/sessionsManagement.js';
+import { ISessionsManagementService } from '../../common/sessionsManagement.js';
 import { sessionsServiceWithGridHost, withCreatedStatus } from './sessionHostTestUtils.js';
 
 const CHAT_WINDOW_ID = 4242;
@@ -38,19 +39,18 @@ suite('resolveSessionCommandTarget', () => {
 	const mainChat = chat('main');
 	const sideChat = chat('side');
 	const otherChat = chat('other');
-	const sessionA = upcastPartial<IActiveSession>({ sessionId: 'a', resource: URI.parse('session:/a'), ...withCreatedStatus(constObservable(true)), activeChat: constObservable(mainChat), mainChat: constObservable(mainChat), chats: constObservable([mainChat, sideChat]) });
-	const sessionAInWindow = upcastPartial<IActiveSession>({ ...sessionA, activeChat: constObservable(sideChat) });
-	const sessionB = upcastPartial<IActiveSession>({ sessionId: 'b', resource: URI.parse('session:/b'), ...withCreatedStatus(constObservable(true)), activeChat: constObservable(otherChat), mainChat: constObservable(otherChat), chats: constObservable([otherChat]) });
+	const sessionA = upcastPartial<ISession>({ sessionId: 'a', resource: URI.parse('session:/a'), ...withCreatedStatus(constObservable(true)), mainChat: constObservable(mainChat), chats: constObservable([mainChat, sideChat]) });
+	const sessionB = upcastPartial<ISession>({ sessionId: 'b', resource: URI.parse('session:/b'), ...withCreatedStatus(constObservable(true)), mainChat: constObservable(otherChat), chats: constObservable([otherChat]) });
 	const sessions: readonly ISession[] = [sessionA, sessionB];
 
 	function setup(focusedWindow: 'main' | 'chat' = 'main') {
 		const instantiationService = disposables.add(new TestInstantiationService());
 		const contextKeyService = upcastPartial<IContextKeyService>({});
-		const mainHost = new SessionHost({ kind: SessionHostKind.MainWindow, parent: undefined, session: constObservable<IActiveSession | undefined>(sessionB), chat: constObservable(sessionB?.activeChat?.get()), contextKeyService, windowId: constObservable(mainWindow.vscodeWindowId) });
+		const mainHost = new SessionHost({ kind: SessionHostKind.MainWindow, parent: undefined, session: constObservable<ISession | undefined>(sessionB), chat: constObservable(otherChat), contextKeyService, windowId: constObservable(mainWindow.vscodeWindowId) });
 		const groups = [upcastPartial<IEditorGroup>({ id: 1, windowId: mainWindow.vscodeWindowId }), upcastPartial<IEditorGroup>({ id: 7, windowId: CHAT_WINDOW_ID })];
 		const sessionsService = sessionsServiceWithGridHost(mainHost);
 		const sessionHostService = disposables.add(new SessionHostService(sessionsService, upcastPartial<IEditorGroupsService>({ getGroup: id => groups.find(group => group.id === id) })));
-		const chatWindowHost = new SessionHost({ kind: SessionHostKind.ChatWindow, parent: undefined, session: constObservable<IActiveSession | undefined>(sessionAInWindow), chat: constObservable(sessionAInWindow?.activeChat?.get()), contextKeyService, windowId: constObservable(CHAT_WINDOW_ID) });
+		const chatWindowHost = new SessionHost({ kind: SessionHostKind.ChatWindow, parent: undefined, session: constObservable<ISession | undefined>(sessionA), chat: constObservable(sideChat), contextKeyService, windowId: constObservable(CHAT_WINDOW_ID) });
 		disposables.add(sessionHostService.registerHost(chatWindowHost));
 		instantiationService.stub(ISessionHostService, sessionHostService);
 		instantiationService.stub(ISessionsService, sessionsService);
@@ -114,7 +114,7 @@ suite('resolveSessionCommandTarget', () => {
 	test('a session that several windows show resolves to the host in the focused window', () => {
 		const resolveIn = (focusedWindow: 'main' | 'chat') => {
 			const { resolve, mainHost, sessionHostService } = setup(focusedWindow);
-			disposables.add(sessionHostService.registerHost(new SessionHost({ kind: SessionHostKind.Pane, parent: mainHost, session: constObservable<IActiveSession | undefined>(sessionA), chat: constObservable(sessionA?.activeChat?.get()), contextKeyService: upcastPartial<IContextKeyService>({}) })));
+			disposables.add(sessionHostService.registerHost(new SessionHost({ kind: SessionHostKind.Pane, parent: mainHost, session: constObservable<ISession | undefined>(sessionA), chat: constObservable(mainChat), contextKeyService: upcastPartial<IContextKeyService>({}) })));
 			return resolve(sessionA.resource);
 		};
 		assert.deepStrictEqual({ main: resolveIn('main'), chat: resolveIn('chat') }, {
@@ -169,23 +169,26 @@ suite('resolveSessionCommandTarget: panes of the grid', () => {
 		const model = disposables.add(new VisibleSessions(session => session.mainChat.get(), () => [], () => [], () => { }, uriIdentityService));
 		arrange(model);
 		const contextKeyService = upcastPartial<IContextKeyService>({});
-		const mainHost = new SessionHost({ kind: SessionHostKind.MainWindow, parent: undefined, session: model.activeSession, chat: derived(reader => model.activeSession.read(reader)?.activeChat.read(reader)), contextKeyService, windowId: constObservable(mainWindow.vscodeWindowId) });
-		// A pane host stands for the pane whose session it shows; the main window's for the grid's active pane.
-		const paneOfHost = (host: ISessionHost) => host === mainHost ? model.activeSession.get() : host.session.get();
+		const mainHost = new SessionHost({ kind: SessionHostKind.MainWindow, parent: undefined, session: derived(reader => model.activePane.read(reader)?.session.read(reader)), chat: derived(reader => model.activePane.read(reader)?.chat.read(reader)), contextKeyService, windowId: constObservable(mainWindow.vscodeWindowId) });
+		// A pane host stands for its pane; the main window's for the grid's active pane.
+		const paneOfHostMap = new Map<ISessionHost, ISessionGridPane>();
+		const paneOfHost = (host: ISessionHost) => host === mainHost ? model.activePane.get() : paneOfHostMap.get(host);
 		const sessionsService = upcastPartial<ISessionsService>({
 			gridHost: mainHost,
-			isActivePane: host => host === mainHost || model.isActivePane(paneOfHost(host)),
-			isDetachedPane: host => model.isDetachedPane(paneOfHost(host)),
-			getPaneOfHost: host => model.panes.get().find(pane => model.getAdapterOfPane(pane) === paneOfHost(host)),
+			isActivePane: host => host === mainHost || (!!paneOfHost(host) && paneOfHost(host) === model.activePane.get()),
+			isDetachedPane: host => paneOfHost(host)?.kind === SessionGridPaneKind.Detached,
+			getPaneOfHost: host => paneOfHost(host),
 		});
 		const sessionHostService = disposables.add(new SessionHostService(sessionsService, upcastPartial<IEditorGroupsService>({ getGroup: () => undefined })));
 		const panes = new Map<ISessionHost, string>();
-		const hostOfPane = new Map<IActiveSession, ISessionHost>();
-		for (const pane of model.gridSessions.get()) {
-			if (pane) {
-				const host = new SessionHost({ kind: SessionHostKind.Pane, parent: mainHost, session: constObservable(pane), chat: constObservable(pane?.activeChat?.get()), contextKeyService });
+		const hostOfPane = new Map<ISessionGridPane, ISessionHost>();
+		for (const pane of model.panes.get()) {
+			const session = pane.session.get();
+			if (session) {
+				const host = new SessionHost({ kind: SessionHostKind.Pane, parent: mainHost, session: pane.session, chat: pane.chat, contextKeyService });
 				disposables.add(sessionHostService.registerHost(host));
-				panes.set(host, model.isDetachedPane(pane) ? `${pane.sessionId} (detached)` : pane.sessionId);
+				panes.set(host, pane.kind === SessionGridPaneKind.Detached ? `${session.sessionId} (detached)` : session.sessionId);
+				paneOfHostMap.set(host, pane);
 				hostOfPane.set(pane, host);
 			}
 		}
@@ -202,8 +205,8 @@ suite('resolveSessionCommandTarget: panes of the grid', () => {
 			const target = instantiationService.invokeFunction(accessor => resolveSessionCommandTarget(accessor, args));
 			return target && { pane: target.host && (panes.get(target.host) ?? target.host.kind), chat: target.chat?.resource.path.slice(1) };
 		};
-		const paneOf = (detached: boolean) => model.gridSessions.get().find(pane => pane?.sessionId === 'a' && model.isDetachedPane(pane) === detached)!;
-		return { model, resolve, paneOf, hostOf: (pane: IActiveSession) => hostOfPane.get(pane)! };
+		const paneOf = (detached: boolean) => model.panes.get().find(pane => pane.session.get()?.sessionId === 'a' && (pane.kind === SessionGridPaneKind.Detached) === detached)!;
+		return { model, resolve, paneOf, hostOf: (pane: ISessionGridPane) => hostOfPane.get(pane)! };
 	}
 
 	/** Session A in a slot and its side chat in a detached pane beside session B, which the detached pane becomes the active pane of. */
@@ -219,9 +222,9 @@ suite('resolveSessionCommandTarget: panes of the grid', () => {
 		}).resolve(sessionA.resource);
 
 		assert.deepStrictEqual({
-			slotActive: resolveWhile(model => model.setActive(model.visibleSessions.get()[0])),
+			slotActive: resolveWhile(model => model.setActive(model.slotPanes.get()[0].session.get())),
 			detachedActive: resolveWhile(() => { }),
-			otherSessionActive: resolveWhile(model => model.setActive(model.visibleSessions.get()[1])),
+			otherSessionActive: resolveWhile(model => model.setActive(model.slotPanes.get()[1].session.get())),
 		}, {
 			slotActive: { pane: 'a', chat: 'main' },
 			detachedActive: { pane: 'a (detached)', chat: 'side' },
@@ -233,7 +236,7 @@ suite('resolveSessionCommandTarget: panes of the grid', () => {
 		const { resolve } = setup(model => {
 			model.restoreGrid([{ session: sessionB, sticky: false }], 0);
 			model.moveChatToGrid(sessionA, sideChat, model.getGridSlots()[0].id, Direction.Right);
-			model.setActive(model.visibleSessions.get()[0]);
+			model.setActive(model.slotPanes.get()[0].session.get());
 		});
 
 		assert.deepStrictEqual(resolve(sessionA.resource), { pane: 'a (detached)', chat: 'side' });
@@ -245,14 +248,14 @@ suite('resolveSessionCommandTarget: panes of the grid', () => {
 				detachSideChat(model);
 				active(model);
 			});
-			const menuArgsOf = (pane: IActiveSession) => sessionMenuArgs(pane, undefined, hostOf(pane));
-			return { slot: resolve(...menuArgsOf(paneOf(false))), detached: resolve(...menuArgsOf(paneOf(true))), detachedSessionObject: resolve(paneOf(true)) };
+			const menuArgsOf = (pane: ISessionGridPane) => sessionMenuArgs(pane.session.get()!, undefined, hostOf(pane));
+			return { slot: resolve(...menuArgsOf(paneOf(false))), detached: resolve(...menuArgsOf(paneOf(true))), detachedSessionObject: resolve(paneOf(true).session.get()) };
 		};
 
 		assert.deepStrictEqual({
-			slotActive: resolvePanes(model => model.setActive(model.visibleSessions.get()[0])),
+			slotActive: resolvePanes(model => model.setActive(model.slotPanes.get()[0].session.get())),
 			detachedActive: resolvePanes(() => { }),
-			otherSessionActive: resolvePanes(model => model.setActive(model.visibleSessions.get()[1])),
+			otherSessionActive: resolvePanes(model => model.setActive(model.slotPanes.get()[1].session.get())),
 		}, {
 			slotActive: { slot: { pane: 'a', chat: 'main' }, detached: { pane: 'a (detached)', chat: 'side' }, detachedSessionObject: { pane: 'a', chat: 'main' } },
 			detachedActive: { slot: { pane: 'a', chat: 'main' }, detached: { pane: 'a (detached)', chat: 'side' }, detachedSessionObject: { pane: 'a (detached)', chat: 'side' } },
