@@ -8,7 +8,7 @@ import { disposableTimeout, raceCancellation, raceTimeout } from '../../../../ba
 import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
 import { onUnexpectedError } from '../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
-import { Disposable, DisposableMap, DisposableStore, IDisposable, MutableDisposable } from '../../../../base/common/lifecycle.js';
+import { Disposable, DisposableMap, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { ResourceMap } from '../../../../base/common/map.js';
 import { mainWindow } from '../../../../base/browser/window.js';
 import { IHostService } from '../../../../workbench/services/host/browser/host.js';
@@ -487,6 +487,8 @@ export class SessionsService extends Disposable implements ISessionsService {
 	private _focusedWindowId = mainWindow.vscodeWindowId;
 	/** A focus the main window skipped while another window was focused; applied once when the main window next becomes active. */
 	private _focusPendingForMainWindow = false;
+	/** What held focus in the main window when its focus was skipped: focus that is still there did not move on its own. */
+	private _focusSkippedAt: Element | null = null;
 
 	/** The in-flight foreground send's "keep newest chat active" follow. */
 	private readonly _sendFollow = this._register(new MutableDisposable<DisposableStore>());
@@ -512,6 +514,7 @@ export class SessionsService extends Disposable implements ISessionsService {
 	) {
 		super();
 		this._register(hostService.onDidChangeActiveWindow(windowId => this._onDidChangeActiveWindow(windowId)));
+		this._register(toDisposable(() => this._focusSkippedAt = null));
 
 		// Load persisted state
 		this._sessionStates = this._loadSessionStates();
@@ -650,7 +653,7 @@ export class SessionsService extends Disposable implements ISessionsService {
 					if (this._focusedWindowId === mainWindow.vscodeWindowId) {
 						this.sessionsPartService.focusSession(active);
 					} else {
-						this._focusPendingForMainWindow = true;
+						this._skipMainWindowFocus();
 					}
 				}
 			}
@@ -2111,11 +2114,18 @@ export class SessionsService extends Disposable implements ISessionsService {
 			return;
 		}
 		this._focusPendingForMainWindow = false;
-		// Only when the element that held focus went away; otherwise keep the focus where it is.
+		const skippedAt = this._focusSkippedAt;
+		this._focusSkippedAt = null;
+		// Where focus would have gone, unless the user moved it meanwhile: it is not there only when the element that held it went away or did not move since.
 		const focused = mainWindow.document.activeElement;
-		if (!focused || focused === mainWindow.document.body) {
+		if (!focused || focused === mainWindow.document.body || !focused.isConnected || focused === skippedAt) {
 			this.sessionsPartService.focusSession(this._visibility.activeSession.get());
 		}
+	}
+
+	private _skipMainWindowFocus(): void {
+		this._focusPendingForMainWindow = true;
+		this._focusSkippedAt = mainWindow.document.activeElement;
 	}
 
 	hideChatFromGrid(session: ISession, chat: URI): IDisposable {
@@ -2129,7 +2139,7 @@ export class SessionsService extends Disposable implements ISessionsService {
 			this._startOpenSession();
 			const wasActive = this._visibility.activeSession.get()?.sessionId === session.sessionId;
 			this._visibility.removeMany([session.sessionId], true, true);
-			this._focusPendingForMainWindow = true;
+			this._skipMainWindowFocus();
 			if (wasActive && this._visibility.activeSession.get() === undefined && !this._visibility.visibleSessions.get().includes(undefined)) {
 				// The grid shows the new-session composer instead, without taking focus from the window.
 				this._visibility.setActive(undefined, true);

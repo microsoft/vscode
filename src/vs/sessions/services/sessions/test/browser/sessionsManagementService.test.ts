@@ -516,30 +516,39 @@ suite('SessionsManagementService', () => {
 			assert.deepStrictEqual({ whileChatWindowFocused, whileMainFocused: sessionsPartService.focusedSessions }, { whileChatWindowFocused: [], whileMainFocused: ['b', 'a'] });
 		});
 
-		for (const elementStillFocused of [false, true]) {
-			test(`after a chat moves into a chat window, the main window ${elementStillFocused ? 'keeps its focused element' : 'focuses its active session once its focused element went away'} when it becomes active`, async () => {
+		for (const [focusAfterMove, expected] of [['went away', ['a']], ['unchanged', ['a']], ['removed', ['a']], ['moved elsewhere', []]] as const) {
+			test(`after a chat moves into a chat window, the main window ${expected.length ? 'focuses its active session once' : 'keeps its focused element'} when it becomes active and its focus ${focusAfterMove}`, async () => {
 				const a = created('a');
 				const b = created('b');
 				const { view, sessionsPartService } = harness([a, b]);
-				const input = mainWindow.document.body.appendChild(mainWindow.document.createElement('input'));
-				disposables.add(toDisposable(() => input.remove()));
+				const list = mainWindow.document.body.appendChild(mainWindow.document.createElement('input'));
+				const other = mainWindow.document.body.appendChild(mainWindow.document.createElement('input'));
+				disposables.add(toDisposable(() => { list.remove(); other.remove(); }));
 				await view.openSession(a.resource);
 				await view.openSessionsAt([b], a.sessionId, 'right');
-				if (elementStillFocused) {
-					input.focus();
-				} else {
+				if (focusAfterMove === 'went away') {
 					(mainWindow.document.activeElement as HTMLElement | null)?.blur();
+				} else {
+					list.focus();
 				}
 				disposables.add(view.hideChatFromGrid(b, b.mainChat.get().resource));
+				if (focusAfterMove === 'removed') {
+					// Detached focus: reported as the list only by the recorded reference.
+					const detached = mainWindow.document.createElement('input');
+					list.replaceWith(detached);
+				}
 				sessionsPartService.focusedSessions.length = 0;
 
 				const windowChanges = activeWindowChanges.get(view)!;
 				windowChanges.fire(mainWindow.vscodeWindowId + 1);
 				const whileChatWindowFocused = [...sessionsPartService.focusedSessions];
+				if (focusAfterMove === 'moved elsewhere') {
+					other.focus();
+				}
 				windowChanges.fire(mainWindow.vscodeWindowId);
 				windowChanges.fire(mainWindow.vscodeWindowId);
 
-				assert.deepStrictEqual({ whileChatWindowFocused, afterMainActive: sessionsPartService.focusedSessions }, { whileChatWindowFocused: [], afterMainActive: elementStillFocused ? [] : ['a'] });
+				assert.deepStrictEqual({ whileChatWindowFocused, afterMainActive: sessionsPartService.focusedSessions }, { whileChatWindowFocused: [], afterMainActive: expected });
 			});
 		}
 
