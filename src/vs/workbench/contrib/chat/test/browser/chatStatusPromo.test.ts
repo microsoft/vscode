@@ -46,7 +46,7 @@ import type { ChatInputPart } from '../../browser/widget/input/chatInputPart.js'
 import type { ChatViewPane } from '../../browser/widgetHosts/viewPane/chatViewPane.js';
 import { ChatClosedPromoNotification, ChatConfiguration } from '../../common/constants.js';
 import { IChatSessionsService, SessionType } from '../../common/chatSessionsService.js';
-import { IAutoModelTierPromotion, ILanguageModelChatMetadata, ILanguageModelsService } from '../../common/languageModels.js';
+import { IAutoModelTierPromotion, ILanguageModelChatMetadata, ILanguageModelConfigurationSchema, ILanguageModelsService } from '../../common/languageModels.js';
 import { getChatSessionType, LocalChatSessionUri } from '../../common/model/chatUri.js';
 
 class PromoTelemetry extends NullTelemetryServiceShape {
@@ -132,7 +132,7 @@ suite('ChatStatusPromo', () => {
 		return { promo, state, models, modelChanged, storage, configuration, treatment, refetch, warn, telemetry, widgets, widgetAdded, viewVisibility, update, get entry() { return entry; } };
 	}
 
-	function chatView(f: ReturnType<typeof fixture>, sessionType?: string, restored: Promise<void> = Promise.resolve(), configuration?: Record<string, unknown>) {
+	function chatView(f: ReturnType<typeof fixture>, sessionType?: string, restored: Promise<void> = Promise.resolve(), configuration?: Record<string, unknown>, schema?: ILanguageModelConfigurationSchema) {
 		let resource = sessionType === undefined ? undefined : sessionType === 'local' ? LocalChatSessionUri.getNewSessionUri() : URI.from({ scheme: sessionType, path: '/session' });
 		const changed = store.add(new Emitter<IChatWidgetViewModelChangeEvent>());
 		const viewModel = new class extends mock<NonNullable<ChatWidget['viewModel']>>() {
@@ -145,6 +145,7 @@ suite('ChatStatusPromo', () => {
 			override switchModelByIdentifier(id: string) { return select(id); }
 			override requestModelByIdentifier(id: string) { return request(id); }
 			override getModelConfiguration() { return configuration; }
+			override getModelConfigurationSchema() { return schema; }
 			override setModelConfiguration(id: string, values: Record<string, unknown>) { return configure(id, values); }
 		}();
 		const widget = new class extends mock<ChatWidget>() {
@@ -453,6 +454,17 @@ suite('ChatStatusPromo', () => {
 				}, { title: 'Try Copilot Fusion', model: [['copilot:model']], configured: selected, dismissed: '["launch"]' });
 			});
 		}
+
+		test('Try keeps the sale when the chat does not offer a discounted effort level', async () => {
+			const f = fixture(fusion());
+			const view = chatView(f, SessionType.AgentHostCopilot, undefined, undefined, {
+				properties: { tier: { type: 'string', group: 'navigation', enum: ['balance'], default: 'balance' } },
+			});
+			const action = f.entry!.tooltip.commands[0];
+			await CommandsRegistry.getCommand(action.id)!.handler(undefined!, ...action.arguments!);
+			assert.deepStrictEqual({ model: view.select.args, configured: view.configure.args, dismissed: f.storage.get('chat.dismissedPromoIds', StorageScope.APPLICATION) },
+				{ model: [['copilot:model']], configured: [], dismissed: undefined });
+		});
 	});
 
 	test('renders plain, wrapping copy and a fresh element for each native hover', async () => {

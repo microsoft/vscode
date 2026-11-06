@@ -106,7 +106,7 @@ import { getStoredSelectedModel, storeSelectedModel } from '../../../common/chat
 import { CHAT_ATTACH_CONTEXT_ACTION_ID, ChatAgentLocation, ChatConfiguration, ChatModeKind, ChatPermissionLevel, isChatPermissionLevel } from '../../../common/constants.js';
 import { isAutoApprovePolicyRestricted, isAutoApproveValuePolicyRestricted } from '../../../common/agentHostConfigPolicy.js';
 import { IChatEditingSession, IEditSessionEntryDiff, IModifiedFileEntry, ModifiedFileEntryState } from '../../../common/editing/chatEditingService.js';
-import { ILanguageModelChatMetadata, ILanguageModelChatMetadataAndIdentifier, ILanguageModelsService, isAutoLanguageModel } from '../../../common/languageModels.js';
+import { ILanguageModelChatMetadata, ILanguageModelChatMetadataAndIdentifier, ILanguageModelConfigurationSchema, ILanguageModelsService, isAutoLanguageModel } from '../../../common/languageModels.js';
 import { ChatInputModelSelectionController, IChatInputModelSelectionRuntime } from './chatInputModelSelectionController.js';
 import { ChatSessionWorkingSet, ChatSessionWorkingSetKeptChanges, IChatSessionWorkingSetKeep, IChatSessionWorkingSetUndo } from './chatSessionWorkingSet.js';
 import { ChatModelConfigurationStore } from './chatModelConfigurationStore.js';
@@ -1797,6 +1797,11 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	 */
 	getModelConfiguration(modelId: string): IStringDictionary<unknown> | undefined {
 		return this._modelConfigStore.getModelConfiguration(modelId);
+	}
+
+	/** Returns the model's configuration schema as offered in this editor's session. */
+	getModelConfigurationSchema(modelId: string): ILanguageModelConfigurationSchema | undefined {
+		return this._modelConfigStore.getModelConfigurationSchema(modelId);
 	}
 
 	/** Applies a user's configuration choice for a model, as the model picker would. */
