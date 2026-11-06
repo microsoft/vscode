@@ -2125,18 +2125,22 @@ export class SCMViewPane extends ViewPane {
 		this.updateChildrenThrottler.queue(
 			() => this.treeOperationSequencer.queue(
 				async () => {
-					const focusedInput = this.inputRenderer.getFocusedInput();
+					// A hidden tree is refreshed when it is shown again, and refreshing it while hidden would load the
+					// structural diffs of expanded files.
+					if (this.isBodyVisible()) {
+						const focusedInput = this.inputRenderer.getFocusedInput();
 
-					if (element && this.tree.hasNode(element)) {
-						// Refresh specific repository
-						await this.tree.updateChildren(element);
-					} else {
-						// Refresh the entire tree
-						await this.tree.updateChildren(undefined);
-					}
+						if (element && this.tree.hasNode(element)) {
+							// Refresh specific repository
+							await this.tree.updateChildren(element);
+						} else {
+							// Refresh the entire tree
+							await this.tree.updateChildren(undefined);
+						}
 
-					if (focusedInput) {
-						this.inputRenderer.getRenderedInputWidget(focusedInput)?.focus();
+						if (focusedInput) {
+							this.inputRenderer.getRenderedInputWidget(focusedInput)?.focus();
+						}
 					}
 
 					this.updateScmProviderContextKeys();
