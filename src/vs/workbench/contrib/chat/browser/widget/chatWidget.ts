@@ -4380,7 +4380,9 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		const modelId = this.input.currentLanguageModel;
 		const model = this.viewModel?.model;
 		const intendedModel = model?.inputModel.intendedModel;
-		if (this._lockedAgent?.agentHostProviderId && model?.getRequests().length && intendedModel && intendedModel.modelId !== modelId) {
+		// An inline request edit owns its selection independently of the main composer's intent.
+		const isInlineEdit = this.viewModel?.editing && this.configurationService.getValue<string>('chat.editRequests') !== 'input';
+		if (!isInlineEdit && this._lockedAgent?.agentHostProviderId && model?.getRequests().length && intendedModel && intendedModel.modelId !== modelId) {
 			return { userSelectedModelId: undefined, userSelectedModelConfiguration: undefined };
 		}
 		return {
