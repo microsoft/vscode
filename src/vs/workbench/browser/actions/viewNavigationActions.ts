@@ -39,13 +39,18 @@ function getVisibleViewContainers(
 			id: container.id,
 			location: name,
 			active: true,
-			views: model.visibleViewDescriptors.map(view => ({
-				id: view.id,
-				visible: true,
-				// Collapsed panes have a focusable header and are intentionally
-				// kept in the normal navigation sequence.
-				collapsed: model.isCollapsed(view.id)
-			}))
+			views: model.visibleViewDescriptors
+				// A visible descriptor may not have a rendered pane (for example,
+				// if rendering failed). A collapsed view without a header cannot
+				// receive focus, and openView() would unexpectedly expand it.
+				.filter(view => !model.isCollapsed(view.id) ||
+					!!viewsService.getActiveViewWithId<ViewPane>(view.id)?.draggableElement)
+				.map(view => ({
+					id: view.id,
+					visible: true,
+					// A collapsed, rendered pane has a focusable header.
+					collapsed: model.isCollapsed(view.id)
+				}))
 		});
 	}
 
