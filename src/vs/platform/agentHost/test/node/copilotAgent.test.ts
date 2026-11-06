@@ -91,7 +91,7 @@ import { AgentConfigurationService, IAgentConfigurationService } from '../../nod
 import { AgentHostAuthenticationService, IAgentHostAuthenticationService } from '../../node/agentHostAuthenticationService.js';
 import { AgentHostAuthenticationScope } from '../../node/agentHostAuthenticationScope.js';
 import type { IAgentHostPullRequestResolver } from '../../node/shared/pullRequestResolver.js';
-import { detachedWorktreeRecordUri, IAgentHostWorktreeIsolation, NullAgentHostWorktreeIsolation, WorktreeIsolation } from '../../node/shared/worktreeIsolation.js';
+import { detachedWorktreeRecordUri, IAgentHostWorktreeIsolation, NullAgentHostWorktreeIsolation, SessionWorkingDirectoryMissingError, WorktreeIsolation } from '../../node/shared/worktreeIsolation.js';
 import { IAgentHostSessionStateStore } from '../../common/agentHostSessionStateStore.js';
 import { parseSessionAdditionalWorktrees } from '../../node/shared/sessionAdditionalWorktrees.js';
 import { createTestSessionStateStore, createTestWorktreeCleanupService, seedSessionAdditionalWorktrees } from './chatMetadataTestHelpers.js';
@@ -32446,6 +32446,169 @@ suite('CopilotAgent', () => {
 			assert.deepStrictEqual(
 				{ adopted, getSessionMetadataCalls: client.getSessionMetadataCalls, usages },
 				{ adopted: { adopted: false, eligible: false, native: true, reason: 'alreadyNative' }, getSessionMetadataCalls: [], usages: [] },
+			);
+		});
+
+		test('restores an adopted legacy session when SDK getSessionMetadata returns undefined without advancing its modifiedTime on refresh', async () => {
+			const userHome = URI.file(await fs.mkdtemp(`${os.tmpdir()}/adopt-home-`));
+			const workingDirectory = await fs.mkdtemp(`${os.tmpdir()}/adopt-cwd-`);
+			const sessionId = 'legacy-missing-sdk-meta';
+			const session = AgentSession.uri('copilotcli', sessionId);
+			const sessionDataService = disposables.add(new TestSessionDataService());
+			// The SDK returns undefined from getSessionMetadata (e.g. missing workspace.yaml).
+			const client = new TestCopilotClient([]);
+			const { agent, fileService } = createTestAgentContext(disposables, { sessionDataService, copilotClient: client, userHome });
+			registerAgentCleanup(agent, userHome, workingDirectory);
+			await agent.authenticate('https://api.github.com', 'token');
+			(agent as TestableCopilotAgent).registerFakeSession(sessionId, { send: async () => { }, getMessages: async () => [], dispose: () => { } });
+			await writeExtensionHostMarker(userHome, sessionId, {
+				origin: 'vscode',
+				created: 1_700_000_000_000,
+				modified: 1_700_000_005_000,
+				repositoryProperties: { repositoryPath: workingDirectory },
+				customTitle: 'Recovered Legacy Chat',
+			});
+
+			const adopted = await ensureDefaultChatAdopted(agent, session);
+			const chat = defaultChatUri(session);
+			const context = exactChatContext(session, chat, session);
+			const metadataAfterAdoption = await agent.getChatMetadata(chat, context);
+			const metadataWithRegistryFallback = await agent.getChatMetadata(chat, context, undefined, {
+				registryFallback: { startTime: 1_600_000_000_000, modifiedTime: 1_600_000_001_000 },
+			});
+			assert.ok(metadataAfterAdoption);
+			assert.ok(metadataWithRegistryFallback);
+
+			const host = disposables.add(createTestAgentService(new NullLogService(), fileService, sessionDataService, TEST_PRODUCT_SERVICE, new TestAgentHostGitService()));
+			registerTestAgentProvider(host, agent);
+			await (host as unknown as { _sessionRegistry: AgentSessionRegistry })._sessionRegistry.register(session, {
+				provider: agent.id, startTime: metadataAfterAdoption.startTime, modifiedTime: metadataAfterAdoption.modifiedTime, source: 'restore',
+			}, { checkTombstone: true });
+			await host.restoreSession(session);
+
+			assert.deepStrictEqual(
+				{
+					adopted: adopted.adopted,
+					workingDirectories: metadataAfterAdoption.workingDirectories?.map(d => d.toString()),
+					markerTimestamps: { startTime: metadataAfterAdoption.startTime, modifiedTime: metadataAfterAdoption.modifiedTime },
+					registryTimestamps: { startTime: metadataWithRegistryFallback.startTime, modifiedTime: metadataWithRegistryFallback.modifiedTime },
+					restoredTitle: getTestAgentStateManager(host).getSessionSummary(session.toString())?.title,
+				},
+				{
+					adopted: true,
+					workingDirectories: [URI.file(workingDirectory).toString()],
+					markerTimestamps: { startTime: 1_700_000_000_000, modifiedTime: 1_700_000_005_000 },
+					registryTimestamps: { startTime: 1_600_000_000_000, modifiedTime: 1_600_000_001_000 },
+					restoredTitle: 'Recovered Legacy Chat',
+				},
+			);
+		});
+
+		test('restores persisted history read-only when an unarchived worktree branch no longer exists, while rejecting sends', async () => {
+			const userHome = URI.file(await fs.mkdtemp(`${os.tmpdir()}/adopt-home-`));
+			const repoRoot = await fs.mkdtemp(`${os.tmpdir()}/adopt-repo-`);
+			const missingWorktree = join(userHome.fsPath, 'deleted-worktree');
+			const sessionId = 'legacy-missing-worktree-branch';
+			const session = AgentSession.uri('copilotcli', sessionId);
+			const chat = defaultChatUri(session);
+			const sessionDataService = disposables.add(new TestSessionDataService());
+			const client = new TestCopilotClient([sdkSession(sessionId, missingWorktree)]);
+			const history: SessionEvent[] = [
+				{ id: '11111111-1111-4111-8111-111111111111', timestamp: '2026-03-01T00:00:00.000Z', parentId: null, type: 'user.message', data: { content: 'Read-only history from deleted worktree' } },
+				{ id: '22222222-2222-4222-8222-222222222222', timestamp: '2026-03-01T00:00:01.000Z', parentId: '11111111-1111-4111-8111-111111111111', type: 'assistant.message', data: { messageId: 'm1', content: 'Assistant response preserved', toolRequests: [] } },
+				{ id: '33333333-3333-4333-8333-333333333333', timestamp: '2026-03-01T00:00:02.000Z', parentId: '22222222-2222-4222-8222-222222222222', type: 'session.idle', data: {} },
+			];
+			client.rpc.sessions.readPersistedEvents = async () => ({ events: history, cursor: 'end', hasMore: false, cursorStatus: 'ok' });
+			const worktreeIsolation = new NullAgentHostWorktreeIsolation();
+			worktreeIsolation.resolveWorkingDirectoryForResume = async (_resource, _id, directory) => {
+				throw new SessionWorkingDirectoryMissingError(directory, 'the branch \'copilot-worktree-gone\' no longer exists');
+			};
+			const { agent } = createTestAgentContext(disposables, {
+				sessionDataService,
+				copilotClient: client,
+				userHome,
+				worktreeIsolation,
+				useRealResumePath: true,
+			});
+			registerAgentCleanup(agent, userHome, repoRoot);
+			await agent.authenticate('https://api.github.com', 'token');
+			await writeExtensionHostMarker(userHome, sessionId, {
+				origin: 'vscode',
+				worktreeProperties: {
+					worktreePath: missingWorktree,
+					repositoryPath: repoRoot,
+					branchName: 'copilot-worktree-gone',
+				},
+			});
+
+			const adopted = await ensureDefaultChatAdopted(agent, session);
+			const context = exactChatContext(session, chat, session);
+			await agent.materializeChat(chat, context, JSON.stringify({ sdkSessionId: sessionId }));
+			const turns = await agent.chats.getMessages(chat, context);
+
+			await assert.rejects(
+				() => agent.chats.sendMessage(chat, 'Attempt to send in missing worktree', undefined, undefined, 'turn-new', undefined, context),
+				(err: Error) => err instanceof SessionWorkingDirectoryMissingError,
+			);
+
+			assert.deepStrictEqual(
+				{
+					adopted: adopted.adopted,
+					turns: turns.map(turn => ({ state: turn.state, prompt: turn.message.text })),
+				},
+				{
+					adopted: true,
+					turns: [{ state: TurnState.Complete, prompt: 'Read-only history from deleted worktree' }],
+				},
+			);
+		});
+
+		test('restores persisted history read-only when reading user MCP config fails, while keeping execution fail-closed', async () => {
+			const userHome = URI.file(await fs.mkdtemp(`${os.tmpdir()}/adopt-home-`));
+			const workingDirectory = await fs.mkdtemp(`${os.tmpdir()}/adopt-cwd-`);
+			const sessionId = 'legacy-mcp-config-fail';
+			const session = AgentSession.uri('copilotcli', sessionId);
+			const chat = defaultChatUri(session);
+			const sessionDataService = disposables.add(new TestSessionDataService());
+			const client = new TestCopilotClient([sdkSession(sessionId, workingDirectory)]);
+			const history: SessionEvent[] = [
+				{ id: '11111111-1111-4111-8111-111111111111', timestamp: '2026-03-01T00:00:00.000Z', parentId: null, type: 'user.message', data: { content: 'History read when MCP config fails' } },
+				{ id: '22222222-2222-4222-8222-222222222222', timestamp: '2026-03-01T00:00:01.000Z', parentId: '11111111-1111-4111-8111-111111111111', type: 'assistant.message', data: { messageId: 'm1', content: 'Preserved reply', toolRequests: [] } },
+				{ id: '33333333-3333-4333-8333-333333333333', timestamp: '2026-03-01T00:00:02.000Z', parentId: '22222222-2222-4222-8222-222222222222', type: 'session.idle', data: {} },
+			];
+			client.rpc.sessions.readPersistedEvents = async () => ({ events: history, cursor: 'end', hasMore: false, cursorStatus: 'ok' });
+			client.rpc.mcp.config.list = async () => {
+				throw new Error('Failed to read configuration from .copilot/mcp-config.json: The shared writer lock timed out.');
+			};
+			const { agent } = createTestAgentContext(disposables, {
+				sessionDataService,
+				copilotClient: client,
+				userHome,
+				useRealResumePath: true,
+			});
+			registerAgentCleanup(agent, userHome, workingDirectory);
+			await agent.authenticate('https://api.github.com', 'token');
+			await writeExtensionHostMarker(userHome, sessionId, { origin: 'vscode', workspacePath: workingDirectory });
+
+			const adopted = await ensureDefaultChatAdopted(agent, session);
+			const context = exactChatContext(session, chat, session);
+			await agent.materializeChat(chat, context, JSON.stringify({ sdkSessionId: sessionId }));
+			const turns = await agent.chats.getMessages(chat, context);
+
+			await assert.rejects(
+				() => agent.chats.sendMessage(chat, 'Attempt to send while MCP config is unreadable', undefined, undefined, 'turn-new', undefined, context),
+				/The shared writer lock timed out/,
+			);
+
+			assert.deepStrictEqual(
+				{
+					adopted: adopted.adopted,
+					turns: turns.map(turn => ({ state: turn.state, prompt: turn.message.text })),
+				},
+				{
+					adopted: true,
+					turns: [{ state: TurnState.Complete, prompt: 'History read when MCP config fails' }],
+				},
 			);
 		});
 

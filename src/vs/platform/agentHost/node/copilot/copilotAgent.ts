@@ -59,7 +59,7 @@ import { buildCopilotBuiltinAgentsContainer, COPILOT_BUILTIN_AGENT_NAMES_BY_URI,
 import { IAgentPluginManager, ISyncedCustomization } from '../../common/agentPluginManager.js';
 import { toAgentCustomizationMeta } from '../../common/meta/agentCustomizationMeta.js';
 import { decodeProviderData, encodeProviderData, type IPersistedChat } from '../agentChatBackings.js';
-import { type AgentCanvasDefinitionSnapshot, AgentChatOperationContext, AgentSession, fixedChatOwnerRef, getChatSurfaceOptions, type IAgentChatOwnerRef, isAgentChatDefaultChat, resolveSessionBackedStorage, AgentSignal, AuthenticateParams, COPILOT_CLI_AGENT_PROVIDER_ID, IActiveClient, IAgent, IAgentChatAdoptionResult, type IAgentAdoptedWorktree, type IAgentCanvasCloseRequest, type IAgentCanvasOpenRequest, type IAgentChatCanvasWatchHost, IAgentChatConfigCompletionsParams, IAgentChatContext, type IAgentChatDiscoveryOptions, type IAgentChatReleaseOptions, IAgentChatSessionSettings, IAgentChatDataChange, IAgentChatMetadata, IAgentChats, IAgentLegacyChat, IAgentCreateChatOptions, IAgentCreateChatResult, IAgentCustomizationInstallation, IAgentCustomizationInstallationApplyRequest, IAgentCustomizationInstallationApplyResult, IAgentCustomizationInstallationPreparation, IAgentCustomizationInstallationRequest, IAgentCustomizationMarketplaceSearchRequest, IAgentCustomizationMarketplaceSearchResult, IAgentDescriptor, IAgentDiscoveredChat, type IAgentExtensionInfo, type IAgentExtensionInventory, IAgentListedChat, IAgentHostManagedSettingsSnapshot, IAgentHostNetworkEndpoint, IAgentKnownSessionsFilter, type IAgentManagedPluginRetryEntry, IAgentMaterializeChatEvent, IAgentModelInfo, type IAgentPendingMessageSender, type IAgentPermissionResponseContext, type IAgentPluginInstallRequest, type IAgentPluginMarketplace, type IAgentPluginMarketplaceItem, type IAgentPluginMarketplaceRefreshResult, type IAgentPluginMarketplaceRemoveResult, type IAgentPluginUninstallRequest, IAgentResolveChatConfigParams, IAgentSessionProjectInfo, IAgentSpawnChatEvent, IMcpNotification, SubagentChatSignal, resolveAgentChatContext, resolveAgentHostCustomizations, resolveAgentHostInstructions, resolveSubagentChatParent, type IAgentTurnDiagnosticSnapshot, type IAgentTurnTokenUsage, type IAgentChatSessionEvent, type IAgentImportChatOptions, type IAgentImportedChat } from '../../common/agent.js';
+import { type AgentCanvasDefinitionSnapshot, AgentChatOperationContext, AgentSession, fixedChatOwnerRef, getChatSurfaceOptions, type IAgentChatOwnerRef, isAgentChatDefaultChat, resolveSessionBackedStorage, AgentSignal, AuthenticateParams, COPILOT_CLI_AGENT_PROVIDER_ID, IActiveClient, IAgent, IAgentChatAdoptionResult, type IAgentAdoptedWorktree, type IAgentCanvasCloseRequest, type IAgentCanvasOpenRequest, type IAgentChatCanvasWatchHost, IAgentChatConfigCompletionsParams, IAgentChatContext, type IAgentChatDiscoveryOptions, type IAgentChatMetadataOptions, type IAgentChatReleaseOptions, IAgentChatSessionSettings, IAgentChatDataChange, IAgentChatMetadata, IAgentChats, IAgentLegacyChat, IAgentCreateChatOptions, IAgentCreateChatResult, IAgentCustomizationInstallation, IAgentCustomizationInstallationApplyRequest, IAgentCustomizationInstallationApplyResult, IAgentCustomizationInstallationPreparation, IAgentCustomizationInstallationRequest, IAgentCustomizationMarketplaceSearchRequest, IAgentCustomizationMarketplaceSearchResult, IAgentDescriptor, IAgentDiscoveredChat, type IAgentExtensionInfo, type IAgentExtensionInventory, IAgentListedChat, IAgentHostManagedSettingsSnapshot, IAgentHostNetworkEndpoint, IAgentKnownSessionsFilter, type IAgentManagedPluginRetryEntry, IAgentMaterializeChatEvent, IAgentModelInfo, type IAgentPendingMessageSender, type IAgentPermissionResponseContext, type IAgentPluginInstallRequest, type IAgentPluginMarketplace, type IAgentPluginMarketplaceItem, type IAgentPluginMarketplaceRefreshResult, type IAgentPluginMarketplaceRemoveResult, type IAgentPluginUninstallRequest, IAgentResolveChatConfigParams, IAgentSessionProjectInfo, IAgentSpawnChatEvent, IMcpNotification, SubagentChatSignal, resolveAgentChatContext, resolveAgentHostCustomizations, resolveAgentHostInstructions, resolveSubagentChatParent, type IAgentTurnDiagnosticSnapshot, type IAgentTurnTokenUsage, type IAgentChatSessionEvent, type IAgentImportChatOptions, type IAgentImportedChat } from '../../common/agent.js';
 import { getReasoningEffortDescription, getReasoningEffortLabel, resolveDefaultReasoningEffort } from '../../common/reasoningEffort.js';
 import { createAutoModeTierSupport, DynamicAutoTiersFeatureFlag, getAdvertisedAutoModeTierSupport, getAutoModeTierLabel, getFusionAutoModeTierLabel, setAdvertisedAutoModeTiers, type IAutoModeTierSupport } from '../../common/autoModeTiers.js';
 import { AUTO_MODEL_ID, isAutoModel, isGpt56Model } from './modelIdentifiers.js';
@@ -972,6 +972,14 @@ type LegacyMarkerFallbackClassification = {
 	comment: 'Agent host fallback for legacy extension-host Copilot CLI sessions recorded only in the bulk metadata files, for machines where the extension backfill never ran (including remote hosts). Counts only; sent once per host process when migration is on and a bulk file exists.';
 };
 
+/** Thrown when reading the user's MCP server configuration fails, so live runtime startup stays fail-closed while history reads can fall back to persisted events. */
+class CopilotMcpConfigReadError extends Error {
+	constructor(cause: unknown) {
+		super(getErrorMessage(cause), { cause });
+		this.name = 'CopilotMcpConfigReadError';
+	}
+}
+
 /**
  * Shape of the `vscode.metadata.json` marker written next to a Copilot CLI
  * session's SDK event log. Other Copilot CLI hosts (e.g. the GitHub Copilot
@@ -980,6 +988,8 @@ type LegacyMarkerFallbackClassification = {
 interface IExtensionHostCliMarker {
 	readonly origin?: string;
 	readonly customTitle?: string;
+	readonly created?: number;
+	readonly modified?: number;
 	/** Whether the user archived the session in the extension host list. */
 	readonly archived?: boolean;
 	/** Folder-mode repository root recorded by the extension host. */
@@ -5666,7 +5676,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 		return toDisposable(() => { cache.references--; });
 	}
 
-	async getChatMetadata(chat: URI, context: URI | IAgentChatContext, providerData?: string): Promise<IAgentChatMetadata | undefined> {
+	async getChatMetadata(chat: URI, context: URI | IAgentChatContext, providerData?: string, options?: IAgentChatMetadataOptions): Promise<IAgentChatMetadata | undefined> {
 		const resolvedContext = resolveAgentChatContext(context, chat);
 		const ownerSession = resolvedContext.owner.get();
 		if (!AgentSession.isCanonical(ownerSession)) {
@@ -5692,13 +5702,21 @@ export class CopilotAgent extends Disposable implements IAgent {
 			: this._retryAfterClosedConnection('getSessionMetadata', client => client.getSessionMetadata(sessionId), createCopilotFailureCorrelation(session, chat, undefined, sessionId)));
 		if (!sessionMetadata) {
 			const awaitingFirstSdkOperation = sessionStorage ? await getDeferredCopilotSdkExecution(this._sessionDataService, sessionStorage, sessionId, this._logService) : undefined;
-			if (!awaitingFirstSdkOperation) {
+			const marker = !awaitingFirstSdkOperation && storedMetadata?.workingDirectory ? await this._readExtensionHostCliMarker(sessionId) : undefined;
+			const adoptedLegacy = !awaitingFirstSdkOperation && !!storedMetadata?.workingDirectory && isExtensionHostCliMarker(marker);
+			if (!awaitingFirstSdkOperation && !adoptedLegacy) {
+				return undefined;
+			}
+			const fallbackTimestamps = awaitingFirstSdkOperation
+				?? options?.registryFallback
+				?? await this._readExtensionHostCliMarkerTimestamps(sessionId, marker);
+			if (!fallbackTimestamps) {
 				return undefined;
 			}
 			return {
 				chat,
-				startTime: awaitingFirstSdkOperation.startTime,
-				modifiedTime: awaitingFirstSdkOperation.modifiedTime,
+				startTime: fallbackTimestamps.startTime,
+				modifiedTime: fallbackTimestamps.modifiedTime,
 				project: storedMetadata?.project,
 				workingDirectories: storedMetadata?.workingDirectories,
 				_meta: withSessionWorkspaceless(undefined, storedMetadata?.workspaceless ?? false),
@@ -6742,6 +6760,24 @@ export class CopilotAgent extends Disposable implements IAgent {
 
 	private async _isExtensionHostCliSession(sessionId: string): Promise<boolean> {
 		return isExtensionHostCliMarker(await this._readExtensionHostCliMarker(sessionId));
+	}
+
+	/** Stable timestamps from an extension-host marker or its file stats when the SDK has no metadata entry. */
+	private async _readExtensionHostCliMarkerTimestamps(sessionId: string, marker?: IExtensionHostCliMarker): Promise<Pick<IAgentChatMetadata, 'startTime' | 'modifiedTime'> | undefined> {
+		const created = typeof marker?.created === 'number' && Number.isFinite(marker.created) ? marker.created : undefined;
+		const modified = typeof marker?.modified === 'number' && Number.isFinite(marker.modified) ? marker.modified : undefined;
+		if (created !== undefined || modified !== undefined) {
+			const startTime = created ?? modified!;
+			return { startTime, modifiedTime: modified ?? startTime };
+		}
+		try {
+			const stat = await fs.stat(this._extensionHostCliSidecarPath(sessionId, EXTENSION_HOST_CLI_MARKER_FILE));
+			const modifiedTime = Math.round(stat.mtimeMs);
+			const startTime = stat.birthtimeMs > 0 && stat.birthtimeMs <= stat.mtimeMs ? Math.round(stat.birthtimeMs) : modifiedTime;
+			return { startTime, modifiedTime };
+		} catch {
+			return undefined;
+		}
 	}
 
 	/** Reads the marker from disk, bypassing the cache, for its mutable fields. */
@@ -8533,7 +8569,11 @@ export class CopilotAgent extends Disposable implements IAgent {
 				await this._applyChatCredentialBoundary(resolved, this._captureChatCredential(resolved));
 			}
 			return this._ensureResolvedChatSession(resolved).catch(err => {
-				if (err instanceof SessionWorkingDirectoryMissingError) {
+				if (err instanceof SessionWorkingDirectoryMissingError || err instanceof CopilotMcpConfigReadError) {
+					if (context.sdkSessionId) {
+						this._logService.info(`[Copilot:${context.ownerSessionId}] Falling back to persisted history from disk on restore: ${err.message}`);
+						return 'persistedHistory' as const;
+					}
 					throw err;
 				}
 				if (context.sdkSessionId) {
@@ -8543,6 +8583,9 @@ export class CopilotAgent extends Disposable implements IAgent {
 				return undefined;
 			});
 		});
+		if (entry === 'persistedHistory') {
+			return (await this._readPersistedChatHistory(context, context.sdkSessionId!)).turns;
+		}
 		if (!entry) {
 			return [];
 		}
@@ -8633,9 +8676,16 @@ export class CopilotAgent extends Disposable implements IAgent {
 			return history.subagentTurnsByToolCallId.get(spawnedFrom.toolCallId) ?? [];
 		}
 		const parentEntry = await this._ensureResolvedChatSession(parentContext).catch(err => {
+			if ((err instanceof SessionWorkingDirectoryMissingError || err instanceof CopilotMcpConfigReadError) && parentContext.sdkSessionId) {
+				return 'persistedHistory' as const;
+			}
 			this._logService.warn(`[Copilot:${parentContext.sdkSessionId ?? parentContext.ownerSessionId}] Failed to resume exact source chat for subagent restore`, err);
 			return undefined;
 		});
+		if (parentEntry === 'persistedHistory') {
+			const history = await this._readPersistedChatHistory(parentContext, parentContext.sdkSessionId!);
+			return history.subagentTurnsByToolCallId.get(spawnedFrom.toolCallId) ?? [];
+		}
 		return parentEntry?.getSubagentMessages(spawnedFrom.toolCallId) ?? [];
 	}
 
@@ -10147,7 +10197,12 @@ export class CopilotAgent extends Disposable implements IAgent {
 	private async _disabledRootMcpServers(session: URI, snapshot: IActiveClientSnapshot): Promise<readonly string[]> {
 		await this._customizationEnablementService.initializeSession(session.toString());
 		const client = await this._ensureClient();
-		const userServers = await client.rpc.mcp.config.list();
+		let userServers: Awaited<ReturnType<CopilotClient['rpc']['mcp']['config']['list']>>;
+		try {
+			userServers = await client.rpc.mcp.config.list();
+		} catch (error) {
+			throw new CopilotMcpConfigReadError(error);
+		}
 		const rootServers = this._rootMcpCustomizations(AgentSession.id(session), snapshot.mcpServers, Object.keys(userServers.servers));
 		const enablement = getSdkMcpServerEnablement(resolveCustomizationEnablement(
 			this._customizationEnablementService,
