@@ -159,6 +159,24 @@ suite('Chat window contribution', () => {
 		});
 	});
 
+	test('the Layout menu is named Configure Layout in the title bar and the Session Activity Bar, whatever the layout mode, not after the mode', () => {
+		const layoutMenuTitles = (menu: typeof AgentsWindowMenus.TitleBarWindowLayout, values: Record<string, ContextKeyValue>) => MenuRegistry.getMenuItems(menu)
+			.filter(isISubmenuItem)
+			.filter(item => item.submenu === AgentsWindowMenus.WindowLayout && evaluate(item.when, values))
+			.map(item => typeof item.title === 'string' ? item.title : item.title.value);
+		const stripKeys = { [DesktopLayoutContext.key]: true, [`config.${SESSION_ACTIVITY_BAR_SETTING}`]: true, [`config.${SESSION_ACTIVITY_BAR_LAYOUT_ACTIONS_SETTING}`]: true };
+		const modes = [ChatWindowLayoutMode.SideBySide, ChatWindowLayoutMode.Stacked, ChatWindowLayoutMode.ChatOnly, ChatWindowLayoutMode.EditorOnly];
+		const titles = (menu: typeof AgentsWindowMenus.TitleBarWindowLayout, extraKeys: Record<string, ContextKeyValue>) => Object.fromEntries(modes.map(mode => [mode, layoutMenuTitles(menu, { ...chatWindowKeys, ...extraKeys, [LayoutModeContext.key]: mode })]));
+		const configureLayout = Object.fromEntries(modes.map(mode => [mode, ['Configure Layout']]));
+		assert.deepStrictEqual({
+			titleBar: titles(AgentsWindowMenus.TitleBarWindowLayout, {}),
+			strip: titles(Menus.SessionActivityBar, stripKeys),
+		}, {
+			titleBar: configureLayout,
+			strip: configureLayout,
+		});
+	});
+
 	test('the title bar of a chat window shows the command center, with the session of its active chat, and the actions of its session, as the main window\'s does; not the main window\'s navigation, nor what applies to the whole app', () => {
 		disposables.add(registerSessionsTitleBarMenus());
 		disposables.add(appendNewSessionTitleBarMenuItem());

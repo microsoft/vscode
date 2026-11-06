@@ -118,7 +118,7 @@
 	align-items: center;
 }
 
-.monaco-workbench .part.titlebar > .sessions-titlebar-container > .titlebar-right > .titlebar-right-layout-container {
+.monaco-workbench .part.titlebar > .sessions-titlebar-container > .titlebar-right > :is(.titlebar-right-layout-container, .titlebar-window-layout-container) {
 	padding-right: var(--vscode-spacing-size80);
 }
 
@@ -144,9 +144,9 @@
 	margin-left: 5px;
 }
 
-/* Add spacing between the session action group and the right layout actions. */
-.monaco-workbench .part.titlebar > .sessions-titlebar-container > .titlebar-right > .titlebar-session-actions-container:not(.has-no-actions) + .titlebar-right-layout-container:not(.has-no-actions) {
-	margin-left: 4px;
+/* Add spacing between the session action group and the layout actions that follow it. */
+.monaco-workbench .part.titlebar > .sessions-titlebar-container > .titlebar-right > .titlebar-session-actions-container:not(.has-no-actions) + :is(.titlebar-right-layout-container, .titlebar-window-layout-container):not(.has-no-actions) {
+	margin-left: var(--vscode-spacing-size40);
 }
 
 /* Toggled action buttons in session actions toolbar */
