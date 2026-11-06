@@ -19,6 +19,7 @@ import { TestInstantiationService } from '../../../instantiation/test/common/ins
 import { ILogService, NullLogService } from '../../../log/common/log.js';
 import { CustomizationLoadStatus, CustomizationType, type SkillCustomization } from '../../common/state/sessionState.js';
 import { McpServerStatus } from '../../common/state/protocol/state.js';
+import { DEFAULT_MCP_APP } from '../../common/state/protocol/mcpAppDefaults.js';
 import { readCustomizationDiscoveryMeta } from '../../common/meta/customizationDiscoveryMeta.js';
 import { hasReadableCustomizationContent } from '../../common/agentHostCustomizationUri.js';
 import { readSkillArgumentHint } from '../../common/meta/skillCustomizationMeta.js';
@@ -610,10 +611,11 @@ suite('SessionCustomizationDiscovery', () => {
 			children: plugin.children?.map(child => ({
 				name: child.name, pluginId: readCustomizationDiscoveryMeta(child)?.pluginId,
 				enabled: child.type === CustomizationType.Hook ? child.enabled : readCustomizationDiscoveryMeta(child)?.defaultEnabled,
+				...(child.type === CustomizationType.McpServer ? { mcpApp: child.mcpApp } : {}),
 			})),
 		})), [
 			{ uri: inMemoryPathToUri('/resolved/one').toString(), children: [{ name: 'sessionStart', pluginId: 'opaque:a', enabled: false }] },
-			{ uri: inMemoryPathToUri('/resolved/two').toString(), children: [{ name: 'server', pluginId: 'opaque:a:other', enabled: false }] },
+			{ uri: inMemoryPathToUri('/resolved/two').toString(), children: [{ name: 'server', pluginId: 'opaque:a:other', enabled: false, mcpApp: DEFAULT_MCP_APP }] },
 		]);
 		client.rpc.plugins.list = async () => { throw new Error('plugin inventory unavailable'); };
 		const partial = await discovery.discover(client, CancellationToken.None);

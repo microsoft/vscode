@@ -755,7 +755,11 @@ export class SessionCustomizationDiscovery extends Disposable {
 			const pluginChildren = new Map<string, ChildCustomization>(result.get(root)?.children?.map(child => [child.id, child]));
 			for (const child of children) {
 				if (readCustomizationDiscoveryMeta(child)?.pluginId === plugin.id) {
-					const projected = child.type === CustomizationType.McpServer ? { ...child, id: makeMcpServerCustomization(URI.parse(child.uri), child.name).id } : child;
+					let projected = child;
+					if (child.type === CustomizationType.McpServer) {
+						const { id, mcpApp } = makeMcpServerCustomization(URI.parse(child.uri), child.name);
+						projected = { ...child, id, mcpApp: child.mcpApp ?? mcpApp };
+					}
 					pluginChildren.set(projected.id, projected);
 				}
 			}
