@@ -23,10 +23,10 @@ jobs:
     # Defender for Linux can fold the 1ES PT antimalware scan of the outputs into a scan of system
     # folders (/opt, /usr/lib) that started before the job, which blocks it for 45-55 min, so the
     # job times out before publishing the outputs. A scan that times out completes the step with
-    # issues and the outputs are published.
+    # issues and the outputs are published. Scans that aren't blocked take under 6 min.
     sdl:
       antimalwareScan:
-        scanTimeoutInMinutes: '15'
+        scanTimeoutInMinutes: '10'
     outputs:
       - ${{ if not(parameters.VSCODE_CHECK_ONLY) }}:
         - output: pipelineArtifact
