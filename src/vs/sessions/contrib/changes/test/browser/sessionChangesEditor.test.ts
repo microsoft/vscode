@@ -20,7 +20,7 @@ import { MockContextKeyService } from '../../../../../platform/keybinding/test/c
 import { TestEditorGroupView, workbenchInstantiationService } from '../../../../../workbench/test/browser/workbenchTestServices.js';
 import { IAgentWorkbenchLayoutService } from '../../../../browser/workbench.js';
 import { AgentWorkbenchLayout, ISessionsHostLayoutService } from '../../../../../workbench/contrib/sessions/browser/sessionsHostLayoutService.js';
-import { IDiffEditorOptionsService, SessionsWordWrap } from '../../../../../workbench/contrib/sessions/common/diffEditorOptionsService.js';
+import { IDiffEditorOptionsService, SessionsWordWrap } from '../../../../../workbench/services/editor/common/diffEditorOptionsService.js';
 import { SessionChangesEditor } from '../../../../../workbench/contrib/sessions/browser/changes/sessionChangesEditor.js';
 import { MultiDiffEditorWithFileListWidget } from '../../../../../workbench/contrib/multiDiffEditor/browser/multiDiffEditorWithFileListWidget.js';
 import { MultiDiffEditorFileList } from '../../../../../workbench/contrib/multiDiffEditor/browser/multiDiffEditorFileList.js';

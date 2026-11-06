@@ -63,7 +63,7 @@ import { CheckboxActionViewItem } from '../../../../../base/browser/ui/toggle/to
 import { defaultCheckboxStyles } from '../../../../../platform/theme/browser/defaultStyles.js';
 import { localize } from '../../../../../nls.js';
 import { getChangesEditorFileStats } from './changesEditorLabels.js';
-import { IDiffEditorOptionsService } from '../../common/diffEditorOptionsService.js';
+import { IDiffEditorOptionsService } from '../../../../services/editor/common/diffEditorOptionsService.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { MultiDiffEditorFileListAvailableContext, MultiDiffEditorFileListEnabledContext, MultiDiffEditorFileListPositionContext, MultiDiffEditorFileListViewModeContext, MultiDiffEditorFileListVisibleContext, observableMultiDiffEditorFileListHidden, observableMultiDiffEditorFileListPosition, observableMultiDiffEditorFileListViewMode, observableWorkbenchMultiDiffEditorVariant, toggleMultiDiffEditorFileList } from '../../../multiDiffEditor/common/multiDiffEditor.js';
 import { MultiDiffEditorWithFileListWidget } from '../../../multiDiffEditor/browser/multiDiffEditorWithFileListWidget.js';
