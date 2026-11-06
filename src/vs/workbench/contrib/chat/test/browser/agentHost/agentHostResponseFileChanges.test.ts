@@ -14,7 +14,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/
 import { IAgentConnection } from '../../../../../../platform/agentHost/common/agentService.js';
 import { NullLogService } from '../../../../../../platform/log/common/log.js';
 import { buildBranchChangesetUri, buildTurnChangesetUri } from '../../../../../../platform/agentHost/common/changesetUri.js';
-import { fromAgentHostUri } from '../../../../../../platform/agentHost/common/agentHostUri.js';
+import { createAgentHostResourceUriMapper, fromAgentHostUri } from '../../../../../../platform/agentHost/common/agentHostUri.js';
 import { toAgentMergeMessageMeta } from '../../../../../../platform/agentHost/common/meta/agentMergeMessageMeta.js';
 import { toAgentWorkspaceContinuationMessageMeta } from '../../../../../../platform/agentHost/common/meta/agentWorkspaceContinuationMeta.js';
 import { AgentSubscriptionManager, IAgentSubscription } from '../../../../../../platform/agentHost/common/state/agentSubscription.js';
@@ -165,7 +165,7 @@ suite('AgentHostResponseFileChangesProvider', () => {
 				before: { uri: 'file:///repo/old.ts', content: { uri: 'opaque-content:/a1' } },
 				after: { uri: 'file:///repo/new.ts', content: { uri: 'opaque-content:/b2' } },
 			},
-		}, authority)!;
+		}, createAgentHostResourceUriMapper(authority), authority)!;
 
 		assert.deepStrictEqual({
 			file: diff.modifiedURI.path,
