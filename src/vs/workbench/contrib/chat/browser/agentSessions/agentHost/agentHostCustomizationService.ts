@@ -30,6 +30,7 @@ import { getCustomizationDisabledReason, isCustomizationEnabled, withCustomizati
 import { type IAgentSubscription } from '../../../../../../platform/agentHost/common/state/agentSubscription.js';
 import { AuthenticateTargetKind } from '../../../../../../platform/agentHost/common/state/sessionProtocol.js';
 import { ActionType } from '../../../../../../platform/agentHost/common/state/protocol/actions.js';
+import { NotificationType } from '../../../../../../platform/agentHost/common/state/sessionActions.js';
 import { CustomizationEnablementKind, CustomizationLoadStatus, CustomizationType, McpServerCustomization, McpServerStatus, type Customization, type CustomizationEnablement, type McpServerState, type PluginCustomization, type RootConfigState, type SessionState } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
 import { AgentCustomization, DEFAULT_CHAT_ID, ROOT_STATE_URI, StateComponents, getSessionChatResource, readSessionFolderPickerDecision, type ISessionFolderPickerDecision } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { InstantiationType, registerSingleton } from '../../../../../../platform/instantiation/common/extensions.js';
@@ -60,6 +61,18 @@ export function getMcpServerDisplayLabel(server: Pick<IAgentHostMcpServer, 'name
 	return server.displayName
 		? localize('agentHost.mcpServer.connectorDisplayName', "{0} (Connector)", server.displayName)
 		: server.name;
+}
+
+/**
+ * Whether the host disables this workspace-configured server through the class decision of
+ * `chat.mcp.workspaceServersEnabled`. The class publishes itself as the server's Global decision,
+ * which a per-server Global decision cannot override, so only a Workspace or Session decision helps.
+ */
+export function isWorkspaceClassGatedMcpServer(agentHostCustomizations: Pick<IAgentHostCustomizationService, 'getWorkspaceMcpServers'>, sessionResource: URI, server: Pick<IAgentHostMcpServer, 'source' | 'disabledReason'>): boolean {
+	return server.source === 'workspace'
+		&& server.disabledReason?.source === 'scope'
+		&& server.disabledReason.scope === CustomizationEnablementKind.Global
+		&& agentHostCustomizations.getWorkspaceMcpServers(sessionResource)?.enabled === false;
 }
 
 export interface IAgentHostCustomizationService {
@@ -1080,6 +1093,11 @@ export class WorkbenchAgentHostCustomizationService extends AbstractAgentHostCus
 					}
 					break;
 				}
+			}
+		}));
+		this._register(this._connectionsService.ambientConnection.onDidNotification(notification => {
+			if (notification.type === NotificationType.SessionRemoved) {
+				this._lastWorkspaceMcpServers.delete(notification.session);
 			}
 		}));
 		this._register(this._provisionalSessionService.onDidChange(sessionResource => {

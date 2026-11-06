@@ -65,7 +65,7 @@ import { readChatSurfaceMeta, withChatSurfaceMeta } from '../common/meta/agentCh
 import { AH_META_DEV_CONTAINER_WORKTREE_DB_KEY, readAgentDevContainerWorktreeMetadata, withAgentDevContainerWorktreeMetadata } from '../common/meta/agentDevContainerWorktreeMeta.js';
 import { readCodexSessionModel, withCodexSessionModel } from '../common/meta/codexSessionModel.js';
 import { IRemoteSessionOrigin, parseRemoteSessionOrigin, readRemoteSessionOrigin, REMOTE_SESSION_ORIGIN_METADATA_KEY, withRemoteSessionOrigin } from '../common/meta/agentRemoteSessionMeta.js';
-import { SessionOriginKind, type CustomizationEnablement, type SessionOrigin } from '../common/state/protocol/channels-session/state.js';
+import { CustomizationEnablementKind, SessionOriginKind, type CustomizationEnablement, type SessionOrigin } from '../common/state/protocol/channels-session/state.js';
 import { getLegacySessionInitiator, parseSessionInitiator, readSessionInitiator, SESSION_INITIATOR_METADATA_KEY, withSessionInitiator } from '../common/meta/agentSessionInitiatorMeta.js';
 import { AgentConfigurationService } from './agentConfigurationService.js';
 import { agentModelConfigurationReportKey } from '../common/agentModelConfiguration.js';
@@ -7060,6 +7060,15 @@ export class AgentService extends Disposable implements IAgentService {
 	async setWorkspaceMcpServersEnablement(session: URI, enablement: readonly CustomizationEnablement[]): Promise<void> {
 		if (!this._stateManager.getSessionState(session.toString())) {
 			throw new ProtocolError(AHP_SESSION_NOT_FOUND, `Session not found: ${session.toString()}`);
+		}
+		// A Workspace decision is recorded for the session's own working directory; a client naming
+		// another directory is confused about the session, so it is refused rather than redirected.
+		const workspace = enablement.find(entry => entry.kind === CustomizationEnablementKind.Workspace);
+		if (workspace) {
+			const workingDirectory = this._customizationEnablementService.getWorkingDirectoryState(session.toString());
+			if (workingDirectory.kind !== 'directory' || !isEqual(workingDirectory.uri, URI.parse(workspace.uri))) {
+				throw new ProtocolError(JsonRpcErrorCodes.InvalidParams, `The Workspace decision must name the session's working directory${workingDirectory.kind === 'directory' ? ` ${workingDirectory.uri.toString()}` : ''}`);
+			}
 		}
 		// The resulting decision reaches clients through the session's `_meta`; see `WorkspaceMcpServersContribution`.
 		this._customizationEnablementService.replaceWorkspaceMcpServersEnablement(session.toString(), enablement);

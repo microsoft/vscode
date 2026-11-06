@@ -585,8 +585,9 @@ export const AgentHostGitHubMcpServerEnabledConfigKey = 'githubMcpServerEnabled'
 
 /**
  * Root config key mirrored from VS Code's `chat.mcp.workspaceServersEnabled` setting: whether MCP
- * servers configured by a workspace (`.mcp.json`, `.github/mcp.json`) are enabled by default. It is
- * the Global decision for the workspace MCP server class; Workspace and Session decisions override it.
+ * servers configured by a workspace (`.mcp.json`, forwarded `.vscode/mcp.json` entries) are enabled by
+ * default. It is the Global decision for the workspace MCP server class; Workspace and Session
+ * decisions override it.
  */
 export const AgentHostWorkspaceMcpServersEnabledConfigKey = 'workspaceMcpServersEnabled';
 

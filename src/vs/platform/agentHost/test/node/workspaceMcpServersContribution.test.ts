@@ -14,7 +14,7 @@ import { AgentHostWorkspaceMcpServersEnabledConfigKey } from '../../common/agent
 import { readSessionWorkspaceMcpServers } from '../../common/meta/agentHostWorkspaceMcpServersMeta.js';
 import { withMcpServerSourceMeta } from '../../common/meta/mcpCustomizationMeta.js';
 import { ActionType } from '../../common/state/sessionActions.js';
-import { CustomizationEnablementKind, CustomizationType, McpServerStatus, type McpServerCustomization } from '../../common/state/protocol/channels-session/state.js';
+import { CustomizationEnablementKind, CustomizationType, McpServerStatus, type McpServerCustomization, type PluginCustomization } from '../../common/state/protocol/channels-session/state.js';
 import { buildDefaultChatUri, isAhpChatChannel, ROOT_STATE_URI, SessionStatus } from '../../common/state/sessionState.js';
 import { AgentHostChatContributions } from '../../node/agentHostChatContributionsService.js';
 import { AgentHostCustomizationEnablementService, IAgentHostCustomizationEnablementService, targetForWorkspaceMcpServers } from '../../node/agentHostCustomizationEnablementService.js';
@@ -117,6 +117,37 @@ suite('WorkspaceMcpServersContribution', () => {
 			disabledBySetting: { enablement: [{ kind: CustomizationEnablementKind.Global, enabled: false }], enabled: false },
 			reopenedForWorkspace: { enablement: [{ kind: CustomizationEnablementKind.Workspace, uri: workspace, enabled: true }, { kind: CustomizationEnablementKind.Global, enabled: false }], enabled: true },
 			sessionOff: { enablement: [{ kind: CustomizationEnablementKind.Session, enabled: false }, { kind: CustomizationEnablementKind.Workspace, uri: workspace, enabled: true }, { kind: CustomizationEnablementKind.Global, enabled: false }], enabled: false },
+		});
+	});
+
+	test('counts workspace servers a client forwarded in its bundle and follows incremental publications', async () => {
+		const context = createContext();
+		context.setSetting(false);
+		await context.enablementService.initializeSession(session);
+		context.createSession();
+		const bundle: PluginCustomization = {
+			type: CustomizationType.Plugin, id: 'plugin:bundle', uri: 'synced-customization://client/standalone', name: 'VS Code Standalone Customizations', clientId: 'client',
+			children: [{ ...workspaceServer, id: 'mcp:forwarded', uri: 'synced-customization://client/standalone/.mcp.json' }],
+		};
+		const nativePlugin: PluginCustomization = { ...bundle, id: 'plugin:native', uri: 'file:///plugins/native', clientId: undefined, children: bundle.children };
+		context.stateManager.dispatchServerAction(session, { type: ActionType.SessionCustomizationsChanged, customizations: [nativePlugin] });
+		const nativePluginOnly = context.published();
+		context.stateManager.dispatchServerAction(session, { type: ActionType.SessionCustomizationsChanged, customizations: [bundle] });
+		const bundled = context.published();
+		context.stateManager.dispatchServerAction(session, { type: ActionType.SessionCustomizationsChanged, customizations: [userServer] });
+		const cleared = context.published();
+		// Runtime-discovered servers arrive one at a time, after the whole-list publication.
+		context.stateManager.dispatchServerAction(session, { type: ActionType.SessionCustomizationUpdated, customization: workspaceServer });
+		const incremental = context.published();
+		context.stateManager.dispatchServerAction(session, { type: ActionType.SessionCustomizationRemoved, id: workspaceServer.id });
+
+		assert.deepStrictEqual({ nativePluginOnly, bundled, cleared, incremental, removed: context.published() }, {
+			// A real plugin governs its own servers, so the class has nothing to decide for them.
+			nativePluginOnly: undefined,
+			bundled: { enablement: [{ kind: CustomizationEnablementKind.Global, enabled: false }], enabled: false },
+			cleared: undefined,
+			incremental: { enablement: [{ kind: CustomizationEnablementKind.Global, enabled: false }], enabled: false },
+			removed: undefined,
 		});
 	});
 });

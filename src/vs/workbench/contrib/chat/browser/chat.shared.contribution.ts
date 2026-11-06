@@ -1320,8 +1320,10 @@ configurationRegistry.registerConfiguration({
 		[mcpWorkspaceServersEnabledConfig]: {
 			type: 'boolean',
 			default: true,
-			scope: ConfigurationScope.APPLICATION_MACHINE,
-			markdownDescription: nls.localize('chat.mcp.workspaceServersEnabled', "Controls whether MCP servers configured by a workspace, such as those in `.mcp.json`, `.github/mcp.json`, `.vscode/mcp.json` or a `.code-workspace` file, are enabled by default. When disabled, workspace servers stay configured but do not start or provide tools until you enable them for a workspace or session from the MCP servers list. User, plugin, extension and built-in servers are not affected. Workspace settings cannot change this value."),
+			// Local user settings only: a repository must not be able to re-enable its own servers
+			// through workspace settings or the remote settings it ships in a dev container.
+			scope: ConfigurationScope.APPLICATION,
+			markdownDescription: nls.localize('chat.mcp.workspaceServersEnabled', "Controls whether MCP servers configured by a workspace, such as those in `.vscode/mcp.json`, `.mcp.json` or a `.code-workspace` file, are enabled by default. When disabled, workspace servers stay configured but do not start or provide tools until you enable them for a workspace, or individually for a session, from the MCP servers list. User, plugin, extension and built-in servers are not affected. Only your local user settings can change this value."),
 			tags: ['chatPermissions'],
 			agentHost: { key: AgentHostWorkspaceMcpServersEnabledConfigKey },
 		},

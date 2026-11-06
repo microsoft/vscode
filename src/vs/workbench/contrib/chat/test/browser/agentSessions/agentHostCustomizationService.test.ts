@@ -1532,6 +1532,7 @@ suite('WorkbenchAgentHostCustomizationService', () => {
 		const connection = new class extends mock<IAgentConnection>() {
 			override readonly resourceUris = identityAgentHostResourceUriMapper;
 			override readonly onDidAction = actions.event;
+			override readonly onDidNotification = Event.None;
 			override readonly rootState = {
 				value: undefined,
 				verifiedValue: undefined,
@@ -1620,6 +1621,7 @@ suite('WorkbenchAgentHostCustomizationService', () => {
 		const connection = new class extends mock<IAgentConnection>() {
 			override readonly resourceUris = identityAgentHostResourceUriMapper;
 			override readonly onDidAction = Event.None;
+			override readonly onDidNotification = Event.None;
 			override readonly rootState = {
 				value: undefined,
 				verifiedValue: undefined,
@@ -1746,6 +1748,7 @@ suite('WorkbenchAgentHostCustomizationService', () => {
 		const connection = new class extends mock<IAgentConnection>() {
 			override readonly resourceUris = identityAgentHostResourceUriMapper;
 			override readonly onDidAction = Event.None;
+			override readonly onDidNotification = Event.None;
 			override readonly rootState = {
 				value: undefined,
 				verifiedValue: undefined,

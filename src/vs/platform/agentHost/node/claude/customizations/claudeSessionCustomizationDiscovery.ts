@@ -10,7 +10,8 @@ import { Disposable } from '../../../../../base/common/lifecycle.js';
 import { IFileService } from '../../../../files/common/files.js';
 import { ILogService } from '../../../../log/common/log.js';
 import { makeMcpServerCustomization, parseAgentFile, toParsedAgent, type IParsedAgent, type IParsedRule, type IParsedSkill } from '../../../../agentPlugins/common/pluginParsers.js';
-import { CustomizationType, type AgentSelection, type McpServerCustomization } from '../../../common/state/protocol/channels-session/state.js';
+import { readMcpServerSource } from '../../../common/meta/mcpCustomizationMeta.js';
+import { CustomizationType, McpServerStatus, type AgentSelection, type McpServerCustomization } from '../../../common/state/protocol/channels-session/state.js';
 import { CustomizationLoadStatus, customizationId, type AgentCustomization, type ChildCustomization, type Customization, type DirectoryCustomization, type HookCustomization, type PluginCustomization, type RuleCustomization, type SkillCustomization } from '../../../common/state/sessionState.js';
 import type { ISdkResolvedCustomizations } from '../claudeSdkPipeline.js';
 import { isHostInjectedMcpServerName } from '../claudeMcpServerNames.js';
@@ -400,6 +401,13 @@ export function buildDiscoveredCustomizations(
 	for (const server of mcpServers) {
 		const sdkServer = mcpByName.get(server.name);
 		if (!sdkServer) {
+			// A workspace declaration the live session does not report was denied by the host
+			// (`chat.mcp.workspaceServersEnabled`) or not loaded by Claude; it stays listed, stopped,
+			// so the gate decision for it remains visible and reversible.
+			if (readMcpServerSource(server) === 'workspace') {
+				seenMcp.add(server.name);
+				servers.push({ ...server, state: { kind: McpServerStatus.Stopped } });
+			}
 			continue;
 		}
 		seenMcp.add(server.name);

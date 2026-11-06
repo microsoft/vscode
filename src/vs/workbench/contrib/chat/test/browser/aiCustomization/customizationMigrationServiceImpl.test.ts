@@ -2381,6 +2381,7 @@ suite('CustomizationMigrationService', () => {
 			}();
 			const connection = {
 				onDidAction: Event.None,
+				onDidNotification: Event.None,
 				rootState: { value: undefined },
 				resourceUris,
 				getSubscription: () => ({ object: subscription, dispose: () => { } }),

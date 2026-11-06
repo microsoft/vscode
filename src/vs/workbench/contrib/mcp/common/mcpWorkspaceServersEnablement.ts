@@ -9,12 +9,13 @@ import { IMcpRegistry } from './mcpRegistryTypes.js';
 import { McpCollectionDefinition } from './mcpTypes.js';
 
 /**
- * Key under which the workspace-level decision for the class of
- * workspace-configured MCP servers is stored in the MCP enablement model.
+ * Key under which the local harness stores the workspace-level decision for
+ * the class of workspace-configured MCP servers in the MCP enablement model.
  * Server definition ids always contain a `.` or `/` separator, so a bare word
- * cannot collide with one.
+ * cannot collide with one. The agent host keeps its own decision in its own
+ * storage; see `WORKSPACE_MCP_SERVERS_ENABLEMENT_KEY` there.
  */
-export const WORKSPACE_MCP_SERVERS_ENABLEMENT_KEY = 'workspaceServers';
+export const LOCAL_WORKSPACE_MCP_SERVERS_ENABLEMENT_KEY = 'workspaceServers';
 
 /**
  * Gates MCP servers discovered from workspace configuration behind the
@@ -22,7 +23,7 @@ export const WORKSPACE_MCP_SERVERS_ENABLEMENT_KEY = 'workspaceServers';
  *
  * The setting is the Global decision for the whole class of workspace servers;
  * a workspace can override it with {@link setWorkspaceServersEnabled}, which is
- * stored in workspace-scoped storage under {@link WORKSPACE_MCP_SERVERS_ENABLEMENT_KEY},
+ * stored in workspace-scoped storage under {@link LOCAL_WORKSPACE_MCP_SERVERS_ENABLEMENT_KEY},
  * never in a file the repository controls.
  *
  * While the class is disabled, a workspace server is disabled unless it has an
@@ -65,7 +66,7 @@ export class WorkspaceMcpServersEnablementModel implements IEnablementModel {
 	 * workspace decision wins, otherwise the setting decides.
 	 */
 	readWorkspaceServersEnabled(reader?: IReader): ContributionEnablementState {
-		const state = this._base.readEnabled(WORKSPACE_MCP_SERVERS_ENABLEMENT_KEY, reader);
+		const state = this._base.readEnabled(LOCAL_WORKSPACE_MCP_SERVERS_ENABLEMENT_KEY, reader);
 		if (state === ContributionEnablementState.EnabledWorkspace || state === ContributionEnablementState.DisabledWorkspace) {
 			return state;
 		}
@@ -82,10 +83,10 @@ export class WorkspaceMcpServersEnablementModel implements IEnablementModel {
 	 */
 	setWorkspaceServersEnabled(enabled: boolean | undefined, tx?: ITransaction): void {
 		if (enabled === undefined || enabled === this._workspaceServersEnabledSetting.get()) {
-			this._base.remove(WORKSPACE_MCP_SERVERS_ENABLEMENT_KEY);
+			this._base.remove(LOCAL_WORKSPACE_MCP_SERVERS_ENABLEMENT_KEY);
 			return;
 		}
-		this._base.setEnabled(WORKSPACE_MCP_SERVERS_ENABLEMENT_KEY, enabled ? ContributionEnablementState.EnabledWorkspace : ContributionEnablementState.DisabledWorkspace, tx);
+		this._base.setEnabled(LOCAL_WORKSPACE_MCP_SERVERS_ENABLEMENT_KEY, enabled ? ContributionEnablementState.EnabledWorkspace : ContributionEnablementState.DisabledWorkspace, tx);
 	}
 
 	readEnabled(key: string, reader?: IReader): ContributionEnablementState {
