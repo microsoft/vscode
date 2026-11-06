@@ -8,6 +8,7 @@ import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { ExtensionIdentifier } from '../../../../../platform/extensions/common/extensions.js';
 import { getConfiguredChatResourceMode, IChatResourceContribution, resolveChatResourceTemplate } from '../../browser/chatResources/chatResources.js';
+import { getShownChatResource } from '../../browser/chatResources/chatResourcesControl.js';
 import { defaultChatEmbeddedResourceSize, getChatEmbeddedResourceHeight, IChatEmbeddedResourceSize, resizeChatEmbeddedResource } from '../../browser/chatResources/chatResourceSizing.js';
 
 suite('ChatResources', () => {
@@ -79,5 +80,16 @@ suite('ChatResources', () => {
 				resizeChatEmbeddedResource(defaultChatEmbeddedResourceSize, 200, 5000, undefined),
 			], [{ fixedHeight: 40, maxAutomaticHeight: 320 }, { fixedHeight: 1000, maxAutomaticHeight: 320 }]);
 		});
+	});
+
+	test('an area shows its first resource until the user chooses, then only the chosen one', () => {
+		const resources = [{ id: 'todos' }, { id: 'plan' }];
+		assert.deepStrictEqual([
+			getShownChatResource(resources, undefined)?.id,
+			getShownChatResource(resources, 'plan')?.id,
+			getShownChatResource(resources, null)?.id,
+			// The chosen resource left the area, for example because the user showed it at the top: no other one takes its place.
+			getShownChatResource(resources, 'notes')?.id,
+		], ['todos', 'plan', undefined, undefined]);
 	});
 });

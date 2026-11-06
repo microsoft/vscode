@@ -66,7 +66,7 @@ export class ChatResourcesControl extends Disposable {
 	readonly listedContributions: IObservable<readonly IChatResource[]>;
 	/** Modes the user chose for single resources, by chat and resource id. */
 	private readonly _modeOverrides: ISettableObservable<Readonly<Record<string, Readonly<Record<string, ChatResourceMode>>>>>;
-	/** The shown resource by chat and area; `null` when the user collapsed the area, absent to show its first resource. */
+	/** The shown resource by chat and area; `null` when the user hid the area, absent before the user chose; see {@link getShownChatResource}. */
 	private readonly _selection = observableValue<ReadonlyMap<string, string | null>>(this, new Map());
 	/** Sizes by chat and resource id, kept while the control lives so that switching resources keeps their sizes. */
 	private readonly _sizes = new Map<string, ISettableObservable<IChatEmbeddedResourceSize>>();
@@ -127,8 +127,7 @@ export class ChatResourcesControl extends Disposable {
 		const shownIn = (area: ChatResourceArea) => derived(this, reader => {
 			const chat = this._chatKey.read(reader);
 			const selected = chat === undefined ? undefined : this._selection.read(reader).get(`${chat}\u0000${area}`);
-			const resources = this.resources.read(reader).filter(resource => this.getMode(resource, reader) === area);
-			return selected === null ? undefined : resources.find(resource => resource.id === selected) ?? resources[0];
+			return getShownChatResource(this.resources.read(reader).filter(resource => this.getMode(resource, reader) === area), selected);
 		});
 		this._shown = { embedded: shownIn('embedded'), top: shownIn('top') };
 
@@ -399,6 +398,18 @@ export class ChatResourcesControl extends Disposable {
 		void refresh();
 		return exists;
 	}
+}
+
+/**
+ * The resource an area of the chat shows, of the resources in that area. Until the user chooses one, the area shows its first
+ * resource; afterwards only the chosen one, so the area does not show another one when the chosen one leaves it.
+ * @param selected The id of the chosen resource, `null` when the user hid the area, `undefined` before the user chose.
+ */
+export function getShownChatResource<T extends { readonly id: string }>(resources: readonly T[], selected: string | null | undefined): T | undefined {
+	if (selected === undefined) {
+		return resources[0];
+	}
+	return selected === null ? undefined : resources.find(resource => resource.id === selected);
 }
 
 /** The element itself or its nearest ancestor that clips its content, which bounds what floats inside it. */
