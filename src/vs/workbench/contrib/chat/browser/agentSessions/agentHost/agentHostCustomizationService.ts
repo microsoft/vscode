@@ -60,18 +60,6 @@ export function getMcpServerDisplayLabel(server: Pick<IAgentHostMcpServer, 'name
 		: server.name;
 }
 
-/**
- * Whether the host disables this workspace-configured server through the class decision of
- * `chat.mcp.workspaceServersEnabled`. The class publishes itself as the server's Global decision,
- * which a per-server Global decision cannot override, so only a Workspace or Session decision helps.
- */
-export function isWorkspaceClassGatedMcpServer(agentHostCustomizations: Pick<IAgentHostCustomizationService, 'getWorkspaceMcpServers'>, sessionResource: URI, server: Pick<IAgentHostMcpServer, 'source' | 'disabledReason'>): boolean {
-	return server.source === 'workspace'
-		&& server.disabledReason?.source === 'scope'
-		&& server.disabledReason.scope === CustomizationEnablementKind.Global
-		&& agentHostCustomizations.getWorkspaceMcpServers(sessionResource)?.enabled === false;
-}
-
 export interface IAgentHostCustomizationService {
 	readonly _serviceBrand: undefined;
 	readonly onDidChangeCustomAgents: Event<void>;
@@ -362,6 +350,7 @@ export abstract class AbstractAgentHostCustomizationService extends Disposable i
 				const clientPluginUri = plugin?.clientId !== undefined ? getAgentHostCustomizationUri(URI.parse(plugin.uri), target, plugin) : undefined;
 				const channel = server.channel;
 				const handleMcpRequest = target.handleMcpRequest;
+				const serverSource = readMcpServerSource(server);
 				return {
 					id: this._scopedMcpServerId(sessionResource, server.id),
 					name: server.name,
@@ -369,7 +358,8 @@ export abstract class AbstractAgentHostCustomizationService extends Disposable i
 						? { id: server.id, count: server.children.length } : undefined,
 					displayName: readMcpServerDisplayName(server),
 					connectorName: readMcpServerConnectorName(server),
-					source: readMcpServerSource(server),
+					source: serverSource,
+					isWorkspaceClassGated: serverSource === 'workspace' && target.workspaceMcpServers?.enabled === false,
 					sourcePluginName: readMcpServerSourcePlugin(server),
 					hostConfiguration: isTopLevel ? getHostMcpServerConfiguration(target.rootConfig, server.name) : undefined,
 					controllingSettingId: readMcpServerControllingSetting(server),
@@ -749,8 +739,10 @@ export abstract class AbstractAgentHostCustomizationService extends Disposable i
 	}
 
 	private _workspaceEnablementEntry(target: IAgentHostCustomizationTarget, enabled: boolean): CustomizationEnablement | undefined {
-		const workingDirectory = target.workingDirectories?.[0] ?? target.workingDirectory;
-		return workingDirectory ? { kind: CustomizationEnablementKind.Workspace, uri: workingDirectory, enabled } : undefined;
+		// The target's setter maps Workspace entries to host space, so the entry is built in client space like the published ones.
+		const workingDirectory = target.clientWorkingDirectories?.[0]
+			?? (target.workingDirectory ? target.resourceUris.fromAgentHost(URI.parse(target.workingDirectory)) : undefined);
+		return workingDirectory ? { kind: CustomizationEnablementKind.Workspace, uri: workingDirectory.toString(), enabled } : undefined;
 	}
 
 	protected _fireCustomAgentsChanged(): void {
@@ -1050,6 +1042,11 @@ export class WorkbenchAgentHostCustomizationService extends AbstractAgentHostCus
 			.find(candidate => candidate.server.id === customizationId);
 		const pluginUri = entry?.plugin && subscription ? getAgentHostCustomizationUri(URI.parse(entry.plugin.uri), subscription.connection, entry.plugin) : undefined;
 		if (!entry || (entry.plugin && (entry.plugin.clientId !== subscription?.connection.clientId || !pluginUri || !this._activeClientService.isBundledMcpServer(pluginUri.toString(), entry.server.name)))) {
+			return;
+		}
+		if (!global.enabled && readMcpServerSource(entry.server) === 'workspace' && readSessionWorkspaceMcpServers(state?._meta)?.enabled === false) {
+			// The host synthesizes Global:false for a gated server; the local gate already covers it,
+			// so mirroring it would persist a profile decision that outlives the gate.
 			return;
 		}
 		const localServers = this._mcpService.servers.get()

@@ -343,7 +343,7 @@ export class AgentHostCustomizationEnablementService extends Disposable implemen
 		}
 
 		let enablement = this._resolveDecisions(session, target, workingDirectory, sessionEnablement);
-		if (target.isWorkspaceConfigured && !this._isWorkspaceMcpServersEnabled(session, workingDirectory, sessionEnablement)) {
+		if (target.isWorkspaceConfigured && this._isWorkspaceMcpServersClassClosed(session)) {
 			// The class decides the Global scope of a server its workspace configures. A per-server
 			// Global decision is keyed by the server name alone, so honoring it would enable
 			// same-named servers that other workspaces configure. Workspace and Session decisions
@@ -401,10 +401,6 @@ export class AgentHostCustomizationEnablementService extends Disposable implemen
 
 	private _workspaceMcpServersTarget(): ICustomizationEnablementTarget {
 		return targetForWorkspaceMcpServers(this._workspaceMcpServersEnabledSetting());
-	}
-
-	private _isWorkspaceMcpServersEnabled(session: string, workingDirectory: Exclude<WorkingDirectoryState, { kind: 'pending' }>, sessionEnablement: ReadonlyMap<string, boolean>): boolean {
-		return isCustomizationEnabled({ enablement: this._resolveDecisions(session, this._workspaceMcpServersTarget(), workingDirectory, sessionEnablement) });
 	}
 
 	/**
@@ -712,7 +708,19 @@ export class AgentHostCustomizationEnablementService extends Disposable implemen
 			// The mirrored `chat.mcp.workspaceServersEnabled` setting is the only Global decision for the class.
 			return;
 		}
+		if (enabled === false && target.isWorkspaceConfigured && this._isWorkspaceMcpServersClassClosed(session)) {
+			// The Global:false that {@link resolve} synthesizes for a gated server comes back with every
+			// replacement. It is the class decision, not the server's: persisting it would outlive the
+			// gate and reach same-named servers other workspaces configure.
+			return;
+		}
 		this._setGlobalEnablement(session, target, enabled, true);
+	}
+
+	/** Whether the class gate currently withholds workspace-configured servers, falling back to the setting while the session is pending. */
+	private _isWorkspaceMcpServersClassClosed(session: string): boolean {
+		const workspaceMcpServers = this.resolveWorkspaceMcpServers(session);
+		return workspaceMcpServers.kind === 'resolved' ? !workspaceMcpServers.enabled : !this._workspaceMcpServersEnabledSetting();
 	}
 
 	private _setClientGlobal(session: string, target: ICustomizationEnablementTarget, enabled: boolean): void {
@@ -764,11 +772,8 @@ export class AgentHostCustomizationEnablementService extends Disposable implemen
 
 	/** The value a Workspace decision inherits: for a workspace-configured server, the gate when it is closed (see {@link resolve}). */
 	private _globalEnablement(session: string, target: ICustomizationEnablementTarget): boolean {
-		if (target.isWorkspaceConfigured) {
-			const workspaceMcpServers = this.resolveWorkspaceMcpServers(session);
-			if (workspaceMcpServers.kind === 'resolved' ? !workspaceMcpServers.enabled : !this._workspaceMcpServersEnabledSetting()) {
-				return false;
-			}
+		if (target.isWorkspaceConfigured && this._isWorkspaceMcpServersClassClosed(session)) {
+			return false;
 		}
 		const key = this._persistentKey(target);
 		return this._persistent.global?.[key] ?? this._clientGlobalEnablement.get(session)?.get(key) ?? target.defaultEnabled ?? DEFAULT_CUSTOMIZATION_ENABLED;

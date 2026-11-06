@@ -23,6 +23,7 @@ import { AgentHostClientConnectionKind } from '../../../../../platform/agentHost
 import type { IAgentHostTcpConnection } from '../../../../../platform/agentHost/common/agentHostTcpConnection.js';
 import { agentHostAuthority } from '../../../../../platform/agentHost/common/agentHostUri.js';
 import type { IAgentHostDebugLogsArtifact } from '../../../../../platform/agentHost/common/agentService.js';
+import { CustomizationEnablementKind, type CustomizationEnablement } from '../../../../../platform/agentHost/common/state/protocol/channels-session/state.js';
 import type { IClientTransport } from '../../../../../platform/agentHost/common/state/sessionTransport.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { ServiceCollection } from '../../../../../platform/instantiation/common/serviceCollection.js';
@@ -400,6 +401,41 @@ suite('EditorRemoteAgentHostServiceClient', () => {
 			calls: [{ session: session.toString(), chat: chat.toString(), progressToken: 'export-progress' }, { progressToken: 'export-progress' }],
 			result: artifact,
 		});
+	});
+
+	test('forwards workspace MCP server enablement to the remote protocol client', async () => {
+		const remoteAgentService = new DeferredRemoteAgentService(disposables.add(new TestRemoteAgentConnection({
+			call: <T>() => Promise.resolve(undefined as T),
+			listen: () => Event.None,
+		})));
+		const instantiationService = disposables.add(new TestInstantiationService(new ServiceCollection(
+			[IRemoteAgentService, remoteAgentService],
+			[IRemoteAuthorityResolverService, upcastPartial<IRemoteAuthorityResolverService>({})],
+			[IAgentHostEnablementService, { _serviceBrand: undefined, enabled: constObservable(false), managedSandboxEnforced: constObservable(false) }],
+			[ILogService, new NullLogService()],
+			[IWorkbenchEnvironmentService, { isSessionsWindow: false }],
+			[ILabelService, upcastPartial<ILabelService>({ registerFormatter: () => Disposable.None })],
+			[IAgentHostFileSystemService, {
+				_serviceBrand: undefined,
+				registerAuthority: () => Disposable.None,
+				ensureSyncedCustomizationProvider: () => { },
+			}],
+		)));
+		const calls: { session: string; enablement: readonly CustomizationEnablement[] }[] = [];
+		instantiationService.stubInstance(AgentHostProtocolClient, {
+			onDidClose: Event.None,
+			onDidChangeConnectionState: Event.None,
+			setWorkspaceMcpServersEnablement: async (session, enablement) => { calls.push({ session: session.toString(), enablement }); },
+			dispose: () => { },
+		});
+		instantiationService.set(IInstantiationService, instantiationService);
+		const service = disposables.add(instantiationService.createInstance(EditorRemoteAgentHostServiceClient));
+		const session = URI.parse('custom-session://host/session');
+		const enablement: CustomizationEnablement[] = [{ kind: CustomizationEnablementKind.Workspace, uri: 'vscode-remote://ssh-remote+test/repo', enabled: true }];
+
+		await service.setWorkspaceMcpServersEnablement(session, enablement);
+
+		assert.deepStrictEqual(calls, [{ session: session.toString(), enablement }]);
 	});
 
 	suite('sandbox certificate delegation', () => {

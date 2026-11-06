@@ -2996,6 +2996,7 @@ export class CodexAgent extends Disposable implements IAgent {
 	 * workspace server, published disabled until the thread reloads.
 	 */
 	private _resolveMcpServerProvenance(session: ICodexSession, serverName: string): IMcpServerProvenance | undefined {
+		// A client plugin that declares the name owns it, enabled or not, as the MCP controller sees it.
 		if (codexPluginMcpServerSources(session.clientCustomizations.plugins()).has(serverName)) {
 			return undefined;
 		}

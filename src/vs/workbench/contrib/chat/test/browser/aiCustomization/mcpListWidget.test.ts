@@ -1600,6 +1600,55 @@ suite('mcpListWidget', () => {
 		});
 	});
 
+	test('moves the override of a class-gated workspace server with the primary switch', () => {
+		const sessionResource = URI.parse('vscode-agent-session:///session-1');
+		const { service: mcpService, calls: localCalls } = createMcpService(ContributionEnablementState.EnabledProfile);
+		const { service: agentHostService, calls: agentHostCalls } = createAgentHostCustomizations();
+		const gated = createAgentHostServer({
+			source: 'workspace',
+			isWorkspaceClassGated: true,
+			enabled: false,
+			enablement: [{ kind: CustomizationEnablementKind.Global, enabled: false }],
+			disabledReason: { source: 'scope', scope: CustomizationEnablementKind.Global },
+		});
+		const overridden = createAgentHostServer({
+			source: 'workspace',
+			isWorkspaceClassGated: true,
+			enabled: true,
+			enablement: [{ kind: CustomizationEnablementKind.Workspace, uri: 'file:///workspace', enabled: true }, { kind: CustomizationEnablementKind.Global, enabled: false }],
+		});
+
+		const sessionDisabled = createAgentHostServer({
+			source: 'workspace',
+			isWorkspaceClassGated: true,
+			enabled: false,
+			enablement: [{ kind: CustomizationEnablementKind.Session, enabled: false }, ...overridden.enablement!],
+			disabledReason: { source: 'scope', scope: CustomizationEnablementKind.Session },
+		});
+
+		const shown = [isPrimaryMcpServerEnabled(mcpService, undefined, gated), isPrimaryMcpServerEnabled(mcpService, undefined, overridden)];
+		setPrimaryMcpServerEnablement(mcpService, agentHostService, sessionResource, undefined, gated, true);
+		setPrimaryMcpServerEnablement(mcpService, agentHostService, sessionResource, undefined, overridden, false);
+		setPrimaryMcpServerEnablement(mcpService, agentHostService, sessionResource, undefined, sessionDisabled, true);
+		const forwarded = { ...gated, isClientBundled: true };
+		setPrimaryMcpServerEnablement(mcpService, agentHostService, sessionResource, 'server-1', forwarded, true);
+		const menu = trackActions(disposables, getAgentHostMcpServerEnablementActions(agentHostService, createAgentPluginService(), sessionResource, overridden)).map(action => action.label);
+
+		assert.deepStrictEqual({ shown, agentHostCalls, localCalls, menu }, {
+			shown: [false, true],
+			agentHostCalls: [
+				[sessionResource, gated.id, gated.enablement, CustomizationEnablementKind.Workspace, true],
+				[sessionResource, overridden.id, overridden.enablement, CustomizationEnablementKind.Workspace, false],
+				// A decisive Session disable is cleared where it lives rather than shadowed by another Workspace write.
+				[sessionResource, sessionDisabled.id, sessionDisabled.enablement, CustomizationEnablementKind.Session, true],
+				[sessionResource, forwarded.id, forwarded.enablement, CustomizationEnablementKind.Workspace, true],
+			],
+			// The local twin of a forwarded server mirrors the override so the switch it is read from agrees with the host.
+			localCalls: [['server-1', ContributionEnablementState.EnabledWorkspace]],
+			menu: ['Disable (Workspace)', 'Disable (Session)'],
+		});
+	});
+
 	test('uses host enablement for host-owned plugin MCP rows with local counterparts', () => {
 		const sessionResource = URI.parse('vscode-agent-session:///session-1');
 		const activeSessionServer = createAgentHostServer({

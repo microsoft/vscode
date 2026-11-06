@@ -1365,6 +1365,30 @@ suite('AgentHostCustomizationEnablementService', () => {
 			});
 		});
 
+		test('does not persist the synthesized Global decision a replacement echoes back while the gate is closed', () => {
+			setSetting(false);
+			// The UI replaces the full list it was shown, including the gate's Global:false.
+			service.replaceEnablement(session, workspaceServer, [
+				{ kind: CustomizationEnablementKind.Workspace, uri: workspace.toString(), enabled: true },
+				{ kind: CustomizationEnablementKind.Global, enabled: false },
+			]);
+			const overridden = service.resolve(session, workspaceServer);
+			const persisted = storage.get<{ global?: Record<string, boolean> }>('customizationEnablement');
+			setSetting(true);
+			const reopened = service.resolve(session, workspaceServer);
+
+			assert.deepStrictEqual({
+				overridden: serializableResolution(overridden),
+				persistedGlobal: persisted?.global?.['mcpServers#repo-tools'],
+				reopened: serializableResolution(reopened),
+			}, {
+				overridden: { kind: 'resolved', enabled: true, workingDirectory: directory, enablement: [{ kind: CustomizationEnablementKind.Workspace, uri: workspace.toString(), enabled: true }, { kind: CustomizationEnablementKind.Global, enabled: false }] },
+				persistedGlobal: undefined,
+				// Reopening the gate leaves no per-server Global decision behind.
+				reopened: { kind: 'resolved', enabled: true, workingDirectory: directory, enablement: [{ kind: CustomizationEnablementKind.Workspace, uri: workspace.toString(), enabled: true }] },
+			});
+		});
+
 		test('reopens the gate for a workspace through the class workspace decision', () => {
 			setSetting(false);
 			service.replaceWorkspaceMcpServersEnablement(session, [{ kind: CustomizationEnablementKind.Workspace, uri: workspace.toString(), enabled: true }]);

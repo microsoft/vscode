@@ -44,6 +44,7 @@ import { scanClaudeMcpServers } from './customizations/scan/claudeMcpScan.js';
 import { IAgentHostCustomizationEnablementService } from '../agentHostCustomizationEnablementService.js';
 import { IAgentHostOTelService, type IAgentHostNativeOTelConfig, type IAgentHostTraceContext } from '../../common/otel/agentHostOTelService.js';
 import { isCustomizationEnabled } from '../../common/customizationEnablement.js';
+import { readMcpServerSource } from '../../common/meta/mcpCustomizationMeta.js';
 import { scanClaudeRules } from './customizations/scan/claudeRuleScan.js';
 import { discoverClaudeMultiRootCustomizations } from './customizations/claudeMultiRootCustomizationDiscovery.js';
 import { resolvePromptToContentBlocks } from './claudePromptResolver.js';
@@ -919,6 +920,17 @@ export class ClaudeAgentSession extends Disposable implements IRematerializer {
 				continue;
 			}
 			definitions.set(definition.name, definition);
+		}
+		// The SDK loads the project `.claude/settings*.json` servers itself, so a gated one is denied up front
+		// rather than stopped after it started. Same ids as the published scan, so per-server overrides apply.
+		const deniedNames = new Set(deniedServers.map(server => server.serverName));
+		const projectSettingsServers = (await scanClaudeMcpServers(primaryCwd, this._environmentService.userHome, this._fileService))
+			.filter(server => readMcpServerSource(server) === 'workspace' && !server.uri.endsWith('/.mcp.json') && !deniedNames.has(server.name));
+		const projectSettingsEnablement = getSdkMcpServerEnablement(resolveCustomizationEnablement(this._customizationEnablementService, owner, projectSettingsServers));
+		for (const server of projectSettingsServers) {
+			if (projectSettingsEnablement.get(server.id) !== true) {
+				deniedServers.push({ serverName: server.name });
+			}
 		}
 		for (const synced of this._desiredClientPlugins(owner)) {
 			if (!synced.pluginDir || !hasClientPluginMcpDefaultCwds(synced.customization)) {

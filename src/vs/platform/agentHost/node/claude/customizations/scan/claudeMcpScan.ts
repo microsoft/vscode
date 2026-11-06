@@ -23,6 +23,7 @@ function claudeMcpFiles(workingDirectory: URI | undefined, userHome: URI): IClau
 	const files: IClaudeMcpFile[] = [];
 	if (workingDirectory) {
 		files.push({ uri: URI.joinPath(workingDirectory, '.claude', 'settings.json'), source: 'workspace' });
+		files.push({ uri: URI.joinPath(workingDirectory, '.claude', 'settings.local.json'), source: 'workspace' });
 		files.push({ uri: URI.joinPath(workingDirectory, '.mcp.json'), source: 'workspace' });
 	}
 	files.push({ uri: URI.joinPath(userHome, '.claude', 'settings.json'), source: 'user' });
@@ -48,8 +49,8 @@ function extractMcpServerMap(uri: URI, raw: unknown): Record<string, unknown> | 
 }
 
 /**
- * Scans a Claude session's `settings.json` / `.mcp.json` files (project +
- * user scope) for declared MCP servers and returns them as
+ * Scans a Claude session's `settings.json` / `settings.local.json` /
+ * `.mcp.json` files (project + user scope) for declared MCP servers and returns them as
  * {@link McpServerCustomization} entries pointing at the real source file.
  * Each entry carries its configuration source so enablement can gate the
  * project-declared ones behind `chat.mcp.workspaceServersEnabled`.

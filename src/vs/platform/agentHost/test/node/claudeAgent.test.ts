@@ -9446,6 +9446,13 @@ suite('ClaudeAgent — Phase 11 customizations', () => {
 			fileService.writeFile(URI.joinPath(workspace, '.mcp.json'), VSBuffer.fromString(JSON.stringify({
 				project: { type: 'http', url: 'https://project.example.com/mcp' },
 			}))),
+			// Loaded by the SDK itself rather than discovered, so they must be denied up front too.
+			fileService.writeFile(URI.joinPath(workspace, '.claude', 'settings.json'), VSBuffer.fromString(JSON.stringify({
+				mcpServers: { 'project-settings': { type: 'http', url: 'https://settings.example.com/mcp' } },
+			}))),
+			fileService.writeFile(URI.joinPath(workspace, '.claude', 'settings.local.json'), VSBuffer.fromString(JSON.stringify({
+				mcpServers: { 'project-local': { type: 'http', url: 'https://local.example.com/mcp' } },
+			}))),
 			fileService.writeFile(URI.joinPath(URI.file('/mock-home'), '.claude', 'settings.json'), VSBuffer.fromString(JSON.stringify({
 				mcpServers: { personal: { type: 'http', url: 'https://personal.example.com/mcp' } },
 			}))),
@@ -9460,7 +9467,7 @@ suite('ClaudeAgent — Phase 11 customizations', () => {
 		await agent.chats.sendMessage(chat, 'first', [workspace], undefined, 'turn-1', undefined, undefined, chatContext(chat));
 
 		const options = sdk.capturedStartupOptions[0];
-		const uniqueTargets = new Map(resolvedTargets.filter(target => target.name === 'project' || target.name === 'personal').map(target => [target.name, target.isWorkspaceConfigured]));
+		const uniqueTargets = new Map(resolvedTargets.filter(target => ['project', 'project-local', 'project-settings', 'personal'].includes(target.name)).map(target => [target.name, target.isWorkspaceConfigured]));
 		const describe = (list: readonly Customization[]) => list
 			.filter(customization => customization.type === CustomizationType.McpServer)
 			.map(customization => customization.type === CustomizationType.McpServer ? { name: customization.name, source: readMcpServerSource(customization), enabled: isCustomizationEnabled(customization), status: customization.state.kind } : undefined);
@@ -9476,12 +9483,16 @@ suite('ClaudeAgent — Phase 11 customizations', () => {
 			servers: [
 				{ name: 'personal', source: 'user', enabled: true, status: McpCustomizationServerStatus.Stopped },
 				{ name: 'project', source: 'workspace', enabled: false, status: McpCustomizationServerStatus.Stopped },
+				{ name: 'project-local', source: 'workspace', enabled: false, status: McpCustomizationServerStatus.Stopped },
+				{ name: 'project-settings', source: 'workspace', enabled: false, status: McpCustomizationServerStatus.Stopped },
 			],
-			resolvedTargets: [['personal', undefined], ['project', true]],
+			resolvedTargets: [['personal', undefined], ['project', true], ['project-local', true], ['project-settings', true]],
 			explicitServers: ['github-mcp-server'],
-			deniedServers: [{ serverName: 'project' }],
+			deniedServers: [{ serverName: 'project' }, { serverName: 'project-local' }, { serverName: 'project-settings' }],
 			afterStart: [
 				{ name: 'project', source: 'workspace', enabled: false, status: McpCustomizationServerStatus.Stopped },
+				{ name: 'project-local', source: 'workspace', enabled: false, status: McpCustomizationServerStatus.Stopped },
+				{ name: 'project-settings', source: 'workspace', enabled: false, status: McpCustomizationServerStatus.Stopped },
 			],
 		});
 	});
