@@ -65,6 +65,44 @@ suite('Workbench view navigation: rendered pane', () => {
 	});
 
 
+
+	test('focuses a rendered collapsed header when its descriptor mapping becomes unavailable', async () => {
+		const pane = disposables.add(new NavigationTestPane());
+		const host = document.createElement('div');
+		document.body.appendChild(host);
+		host.appendChild(pane.element);
+
+		try {
+			const container = { id: 'explorer' } as ViewContainer;
+			let openedViews = 0;
+			const views = {
+				getFocusedView: () => ({ id: 'a' }) as IViewDescriptor,
+				getVisibleViewContainer: (location: ViewContainerLocation) =>
+					location === ViewContainerLocation.Sidebar ? container : null,
+				getActiveViewWithId: (id: string) => id === 'b' ? pane : null,
+				openView: async () => { openedViews++; return null; }
+			} as unknown as IViewsService;
+			const descriptors = {
+				// A moving view may already have lost its previous descriptor
+				// mapping while its rendered header remains in the snapshot.
+				getViewContainerByViewId: (id: string) => id === 'a' ? container : null,
+				getViewContainerModel: () => ({
+					visibleViewDescriptors: [{ id: 'a' }, { id: 'b' }],
+					isCollapsed: (id: string) => id === 'b'
+				}) as unknown as IViewContainerModel
+			} as unknown as IViewDescriptorService;
+			const layout = { isVisible: (part: Parts) => part === Parts.SIDEBAR_PART } as IWorkbenchLayoutService;
+
+			await focusNavigableView(views, descriptors, layout, { direction: 'next', scope: 'container' });
+
+			assert.strictEqual(document.activeElement, pane.draggableElement);
+			assert.strictEqual(pane.isExpanded(), false, 'snapshot focus must preserve the collapsed state');
+			assert.strictEqual(openedViews, 0, 'stale descriptor mapping must not call openView');
+		} finally {
+			host.remove();
+		}
+	});
+
 	test('skips a collapsed pane with a hidden header in the rendered workbench', async () => {
 		const pane = disposables.add(new NavigationTestPane());
 		const host = document.createElement('div');
