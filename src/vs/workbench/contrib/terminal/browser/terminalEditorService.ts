@@ -100,18 +100,17 @@ export class TerminalEditorService extends Disposable implements ITerminalEditor
 			if (e.context === EditorCloseContext.MOVE || this._editorGroupsService.groups.some(group => group.contains(e.editor, { strictEquals: true }))) {
 				return;
 			}
-			const instance = e.editor instanceof TerminalEditorInput ? e.editor.terminalInstance : undefined;
+			const editor = e.editor;
+			if (editor instanceof TerminalEditorInput) {
+				// Wait for source labels to be released, including when the terminal dies after detachment.
+				queueMicrotask(() => {
+					if (!this._store.isDisposed && editor.isTerminalDisposed) {
+						this._decorationsService.clearCachedDecorations(editor.resource);
+					}
+				});
+			}
+			const instance = editor instanceof TerminalEditorInput ? editor.terminalInstance : undefined;
 			if (instance) {
-				if (instance.isDisposed) {
-					const resource = instance.resource;
-					// Disposed inputs close asynchronously. A queued decoration event can repopulate
-					// their cache before closure, and tab labels are only released after this event.
-					queueMicrotask(() => {
-						if (!this._store.isDisposed) {
-							this._decorationsService.clearCachedDecorations(resource);
-						}
-					});
-				}
 				const instanceIndex = this.instances.findIndex(e => e === instance);
 				if (instanceIndex !== -1) {
 					const wasActiveInstance = this.instances[instanceIndex] === this.activeInstance;

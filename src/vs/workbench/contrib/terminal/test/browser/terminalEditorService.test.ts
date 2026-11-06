@@ -18,7 +18,6 @@ import { GroupDirection, IEditorGroup, IEditorGroupsService } from '../../../../
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
 import { createEditorPart, registerTestEditor, TestEditorPart, TestFileEditorInput, workbenchInstantiationService } from '../../../../test/browser/workbenchTestServices.js';
 import { ITerminalInstance, ITerminalInstanceService } from '../../browser/terminal.js';
-import { TerminalEditorInput } from '../../browser/terminalEditorInput.js';
 import { TerminalEditorService } from '../../browser/terminalEditorService.js';
 import { TerminalEditorInput } from '../../browser/terminalEditorInput.js';
 import { IDecorationsService } from '../../../../services/decorations/common/decorations.js';
@@ -116,6 +115,17 @@ suite('Workbench - TerminalEditorService', () => {
 		deepStrictEqual({ clearedDuringClose, clearedResources }, { clearedDuringClose: [[]], clearedResources: [input.resource] });
 	});
 
+	test('checks a detached terminal lifetime after synchronous close listeners finish', async () => {
+		const input = createEditorTerminal(1);
+		const instance = input.terminalInstance!;
+		terminalEditorService.detachInstance(instance);
+		store.add(onDidCloseEditor.event(() => instance.dispose()));
+		onDidCloseEditor.fire({ editor: input, groupId: 1, index: 0, sticky: false, context: EditorCloseContext.UNKNOWN });
+		await Promise.resolve();
+
+		deepStrictEqual(clearedResources, [input.resource]);
+	});
+
 	test('does not evict a terminal transferred to the panel', async () => {
 		const input = createEditorTerminal(1);
 		terminalEditorService.detachInstance(input.terminalInstance!);
@@ -125,15 +135,22 @@ suite('Workbench - TerminalEditorService', () => {
 		deepStrictEqual(clearedResources, []);
 	});
 
-	test('does not access decorations after the service is disposed', async () => {
-		const input = createEditorTerminal(1);
-		input.dispose();
-		onDidCloseEditor.fire({ editor: input, groupId: 1, index: 0, sticky: false, context: EditorCloseContext.UNKNOWN });
-		terminalEditorService.dispose();
-		await Promise.resolve();
+	for (const detached of [false, true]) {
+		test(`does not access decorations after the service is disposed (detached ${detached})`, async () => {
+			const input = createEditorTerminal(1);
+			const instance = input.terminalInstance!;
+			if (detached) {
+				terminalEditorService.detachInstance(instance);
+			}
+			input.dispose();
+			instance.dispose();
+			onDidCloseEditor.fire({ editor: input, groupId: 1, index: 0, sticky: false, context: EditorCloseContext.UNKNOWN });
+			terminalEditorService.dispose();
+			await Promise.resolve();
 
-		deepStrictEqual(clearedResources, []);
-	});
+			deepStrictEqual(clearedResources, []);
+		});
+	}
 });
 
 suite('Workbench - TerminalEditorService - editor groups', () => {

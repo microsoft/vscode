@@ -203,7 +203,7 @@ suite('Workbench - TerminalService', () => {
 		strictEqual(queries.callCount, before);
 	});
 
-	for (const cause of ['input disposal', 'instance disposal', 'process exit'] as const) {
+	for (const cause of ['input disposal', 'instance disposal', 'process exit', 'panel transfer then disposal', 'panel transfer', 'panel transfer then disposal after close'] as const) {
 		for (const queuedNotification of [true, false]) {
 			test(`evicts decorations after queued editor closure (${cause}, notification ${queuedNotification ? 'already due' : 'not pending'})`, async () => {
 				await configurationService.setUserConfiguration('explorer', { decorations: { colors: true, badges: true }, openEditors: { sortOrder: 'editorOrder' } });
@@ -290,8 +290,14 @@ suite('Workbench - TerminalService', () => {
 								input.dispose();
 							} else if (cause === 'instance disposal') {
 								instance.dispose();
-							} else {
+							} else if (cause === 'process exit') {
 								exited.fire(0);
+							} else {
+								editorHost.detachInstance(instance);
+								strictEqual(input.terminalInstance, undefined, 'the source input no longer owns the panel terminal');
+								if (cause === 'panel transfer then disposal') {
+									instance.dispose();
+								}
 							}
 							strictEqual(part.activeGroup.contains(input), true, 'disposal precedes model closure');
 							queries.resetHistory();
@@ -300,10 +306,23 @@ suite('Workbench - TerminalService', () => {
 							decorations.clearCachedDecorations(file.resource);
 						}
 						await clock.tickAsync(100);
-						if (queuedNotification) {
+						if (queuedNotification && instance.isDisposed) {
 							strictEqual(queries.getCalls().filter(call => call.args[0].toString() === input.resource.toString()).length >= 2, true, 'Open Editors and the tab redraw before queued closure');
 						}
 						await clock.runAllAsync();
+						if (cause === 'panel transfer then disposal after close') {
+							strictEqual(part.activeGroup.contains(input), false, 'the source labels are released before disposal');
+							instance.dispose();
+							await clock.runAllAsync();
+						}
+						const terminalLives = cause === 'panel transfer';
+						strictEqual(instance.isDisposed, !terminalLives);
+						if (terminalLives) {
+							deepStrictEqual({ cached: !!cache.get(instance.resource), parentDecoration: hasParentDecoration() }, { cached: true, parentDecoration: true });
+							// A live panel terminal keeps its decorations until it actually dies.
+							instance.dispose();
+							await clock.runAllAsync();
+						}
 						closedResources.push(input.resource);
 						deepStrictEqual({
 							editors: part.activeGroup.editors.map(editor => editor.resource),
