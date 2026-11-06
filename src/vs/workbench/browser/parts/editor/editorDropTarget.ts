@@ -504,8 +504,9 @@ class DropOverlay extends Themable {
 						return;
 					}
 
-					// Into another part only when its editors can go there, before any group is added or moved
-					if (this.isTransferVetoed(sourceGroup.editors, sourceGroup, this.isCopyOperation(event))) {
+					// Into another part only when its editors can go there, before any group is added or moved. A split copies the
+					// group with its editors themselves (see `copyGroup`), so all are asked; a merge copies each editor
+					if (this.isTransferVetoed(sourceGroup.editors, sourceGroup, this.isCopyOperation(event) && typeof splitDirection !== 'number')) {
 						this.groupTransfer.clearData(DraggedEditorGroupIdentifier.prototype);
 						return;
 					}

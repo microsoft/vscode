@@ -30,7 +30,7 @@ import { EditorInput, IEditorCloseHandler } from '../../../../common/editor/edit
 import { SideBySideEditorInput } from '../../../../common/editor/sideBySideEditorInput.js';
 import { createEditorParts, registerTestEditor, TestEditorParts, TestFileEditorInput, workbenchInstantiationService } from '../../../../test/browser/workbenchTestServices.js';
 import { IAuxiliaryWindowService } from '../../../auxiliaryWindow/browser/auxiliaryWindowService.js';
-import { GroupDirection, GroupsOrder, IAuxiliaryEditorPart, IContentPart, IEditorGroup, IEditorGroupsService, IEditorPart, IModalEditorPart } from '../../common/editorGroupsService.js';
+import { GroupDirection, GroupsOrder, IAuxiliaryEditorPart, IContentPart, IEditorGroup, IEditorGroupsService, IEditorPart, IModalEditorPart, MergeGroupMode } from '../../common/editorGroupsService.js';
 
 /** Records the errors it is asked to show, as a veto is shown. */
 class RecordingDialogService extends TestDialogService {
@@ -280,20 +280,24 @@ suite('Editor transfer vetoes', () => {
 			});
 		});
 
-		test('copying a group asks only its singleton editors', async () => {
+		test('copying a group into another part asks all its editors, which go there themselves; merging a copy asks only singleton editors', async () => {
 			const { parts, dialogs } = await createServices();
 			const part = createPart(parts);
 			await part.activeGroup.openEditor(createInput('/vetoing', { veto: true }), { pinned: true });
-			const singletonPart = createPart(parts);
-			await singletonPart.activeGroup.openEditor(createInput('/singleton', { veto: true, singleton: true }), { pinned: true });
 			const mainGroupCount = parts.mainPart.count;
 
+			// The copied group clones the model of the group: the same editors, not copies of them
 			const copy = parts.copyGroup(part.activeGroup.id, parts.mainPart.activeGroup.id, GroupDirection.RIGHT);
-			const afterCopy = parts.mainPart.count;
-			const singletonCopy = parts.copyGroup(singletonPart.activeGroup.id, parts.mainPart.activeGroup.id, GroupDirection.RIGHT);
+			const afterCopy = { returnedSource: copy === part.activeGroup, mainGroupCount: parts.mainPart.count, dialogs: dialogs.errors.splice(0) };
 
-			assert.deepStrictEqual({ copied: copy !== part.activeGroup, afterCopy, singletonReturnedSource: singletonCopy === singletonPart.activeGroup, afterSingleton: parts.mainPart.count, dialogs: dialogs.errors }, {
-				copied: true, afterCopy: mainGroupCount + 1, singletonReturnedSource: true, afterSingleton: mainGroupCount + 1, dialogs: [{ message: VETO, detail: undefined }]
+			// Merging a copy copies each editor
+			const merged = parts.mergeGroup(part.activeGroup.id, parts.mainPart.activeGroup.id, { mode: MergeGroupMode.COPY_EDITORS });
+
+			assert.deepStrictEqual({ afterCopy, merged, partEditors: editorsOf(part.activeGroup), dialogs: dialogs.errors }, {
+				afterCopy: { returnedSource: true, mainGroupCount, dialogs: [{ message: VETO, detail: undefined }] },
+				merged: true,
+				partEditors: ['/vetoing'],
+				dialogs: [],
 			});
 		});
 

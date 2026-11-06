@@ -971,7 +971,8 @@ export class EditorPart extends Part<IEditorPartMemento> implements IEditorPart,
 		const groupView = this.assertGroupView(group);
 		const locationView = this.assertGroupView(location);
 
-		if (this.vetoGroupTransfer([groupView], locationView, true)) {
+		// Into another part, the copy shares the editors of the group (its model is cloned), so all are asked, as for a move
+		if (this.vetoGroupTransfer([groupView], locationView, false)) {
 			return groupView;
 		}
 
