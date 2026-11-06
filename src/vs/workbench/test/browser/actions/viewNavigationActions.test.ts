@@ -24,6 +24,7 @@ interface IFocusTestHarness {
 	setVisible(location: ViewContainerLocation, visible: boolean): void;
 	setViews(containerId: string, views: readonly string[]): void;
 	setCollapsed(viewId: string, collapsed: boolean): void;
+	setHeaderAvailable(viewId: string, available: boolean): void;
 	setHidden(viewId: string, hidden: boolean): void;
 }
 
@@ -41,6 +42,7 @@ function createFocusHarness(): IFocusTestHarness {
 		['problems', ['f', 'g']]
 	]);
 	const collapsed = new Set<string>();
+	const unavailableHeaders = new Set<string>();
 	const hidden = new Set<string>();
 	const calls: IFocusCall[] = [];
 	const headerFocusCalls: string[] = [];
@@ -55,7 +57,7 @@ function createFocusHarness(): IFocusTestHarness {
 			const container = containers.find(candidate => candidate.location === location);
 			return container && visibleContainers.has(container.id) ? container as ViewContainer : null;
 		},
-		getActiveViewWithId: (id: string) => ({
+		getActiveViewWithId: (id: string) => unavailableHeaders.has(id) ? null : ({
 			draggableElement: {
 				focus: () => {
 					headerFocusCalls.push(id);
@@ -102,6 +104,9 @@ function createFocusHarness(): IFocusTestHarness {
 		setCollapsed(viewId, isCollapsed) {
 			if (isCollapsed) { collapsed.add(viewId); } else { collapsed.delete(viewId); }
 		},
+		setHeaderAvailable(viewId, available) {
+			if (available) { unavailableHeaders.delete(viewId); } else { unavailableHeaders.add(viewId); }
+		},
 		setHidden(viewId, isHidden) {
 			if (isHidden) { hidden.add(viewId); } else { hidden.delete(viewId); }
 		}
@@ -124,6 +129,26 @@ suite('Workbench view navigation: command integration', () => {
 		assert.deepStrictEqual(harness.headerFocusCalls, ['b']);
 		assert.deepStrictEqual(harness.calls, []);
 		assert.strictEqual(harness.isCollapsed('b'), true);
+	});
+
+	test('skips a collapsed pane when rendering produced no header', async () => {
+		const harness = createFocusHarness();
+		harness.setCollapsed('b', true);
+		harness.setHeaderAvailable('b', false);
+		assert.deepStrictEqual(await navigate(harness, { direction: 'next', scope: 'container' }), { id: 'c', focus: true });
+		assert.deepStrictEqual(harness.headerFocusCalls, []);
+		assert.strictEqual(harness.isCollapsed('b'), true);
+	});
+
+	test('does nothing when all visible panes are collapsed and have no headers', async () => {
+		const harness = createFocusHarness();
+		for (const id of ['a', 'b', 'c']) {
+			harness.setCollapsed(id, true);
+			harness.setHeaderAvailable(id, false);
+		}
+		await navigate(harness, { direction: 'next', scope: 'container' });
+		assert.deepStrictEqual(harness.headerFocusCalls, []);
+		assert.deepStrictEqual(harness.calls, []);
 	});
 
 	test('can focus a collapsed pane header in a different workbench location', async () => {
