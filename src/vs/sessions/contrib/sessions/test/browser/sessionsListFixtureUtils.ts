@@ -127,6 +127,7 @@ export interface ISessionsListFixtureGroup {
 	/** Fixture-local id used by row references. */
 	readonly id: string;
 	readonly name: string;
+	readonly color?: string;
 	/** Ids of the member sessions. */
 	readonly sessions?: readonly string[];
 	/** Fixture id of the group this group is nested in, listed before it. */
@@ -980,6 +981,9 @@ function seedListState(instantiationService: TestInstantiationService, state: IS
 			throw new Error(`Fixture group '${group.id}' must be listed after its parent '${group.parent}'.`);
 		}
 		const created = groupsService.createGroup(group.name, (group.sessions ?? []).map(id => getSession(id).session.sessionId), parentId);
+		if (group.color !== undefined) {
+			groupsService.setGroupColor(created.id, group.color);
+		}
 		groupIds.set(group.id, created.id);
 		if (parentId === undefined) {
 			topLevelIds.push(getSessionGroupSectionId(created.id));
