@@ -24,7 +24,7 @@
 //
 // `restore` reads the API with the token in GH_TOKEN, which needs `actions: read`.
 
-import { execFile, spawn, spawnSync, type SpawnSyncOptions } from 'child_process';
+import { execFile, spawn, spawnSync, type ChildProcess, type SpawnSyncOptions } from 'child_process';
 import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
@@ -55,13 +55,14 @@ export const NATIVE_BUILD_INPUTS: { readonly files: readonly string[]; readonly 
 		'.pnpmfile.mjs',
 		'build/.pnpmfile.mjs',
 		'remote/.pnpmfile.mjs',
+		'extensions/.pnpmfile.mjs',
 		'build/npm/pnpm/nativeBuildEnv.ts',
 		'.nvmrc',
 		'extensions/copilot/.nvmrc',
 		'pnpm-workspace.yaml',
 		'build/pnpm-workspace.yaml',
 		'remote/pnpm-workspace.yaml',
-		'remote/web/pnpm-workspace.yaml',
+		'extensions/pnpm-workspace.yaml',
 		'extensions/copilot/pnpm-workspace.yaml',
 	],
 	packageJsonFields: {
@@ -126,6 +127,38 @@ function run(command: string, args: readonly string[], options: SpawnSyncOptions
 		throw new Error(`${command} ${args.join(' ')} exited with ${result.status}`);
 	}
 	return typeof result.stdout === 'string' ? result.stdout : '';
+}
+
+/**
+ * The exit code of a child process, once it exited: stopping it emits 'error' before it exits, and
+ * a process that didn't start emits only 'error'.
+ */
+function exitCode(child: ChildProcess): Promise<number | null> {
+	return new Promise(resolve => {
+		child.on('error', () => {
+			if (child.pid === undefined) {
+				resolve(null);
+			}
+		});
+		child.on('exit', code => resolve(code));
+	});
+}
+
+/** Runs a command of `restore` that its deadline stops, unlike `run`, which holds back the timer of the deadline */
+async function runUntilDeadline(command: string, args: readonly string[]): Promise<void> {
+	const child = spawn(command, args, { stdio: 'inherit', signal: downloads.signal });
+	let error: Error | undefined;
+	child.on('error', err => error = err);
+	const code = await exitCode(child);
+	downloads.signal.throwIfAborted();
+	if (code !== 0) {
+		throw error ?? new Error(`${command} ${args.join(' ')} exited with ${code}`);
+	}
+}
+
+/** Whether a volume is mounted at a folder, on Linux and macOS */
+function isMountPoint(folder: string): boolean {
+	return fs.statSync(folder).dev !== fs.statSync(path.dirname(folder)).dev;
 }
 
 function workspace(): string {
@@ -703,13 +736,18 @@ async function mount(source: Source, root: string, connections: number): Promise
 			try {
 				log(await unpack(source, file, { sparse: true, connections, sized: () => sized.resolve() }));
 				loop = await attached;
+				// Bounded by its own timeout
 				spawnSync('udevadm', ['settle', '--timeout=5'], { stdio: 'inherit' });
-				run('sudo', ['blockdev', '--flushbufs', loop]);
-				run('sudo', ['mount', '-o', 'noatime,noinit_itable,barrier=0', loop, root]);
+				await runUntilDeadline('sudo', ['blockdev', '--flushbufs', loop]);
+				await runUntilDeadline('sudo', ['mount', '-o', 'noatime,noinit_itable,barrier=0', loop, root]);
 			} catch (err) {
 				sized.reject(err);
 				const device = await attached.catch(() => undefined);
 				if (device) {
+					// The deadline may have stopped sudo after the mount
+					if (isMountPoint(root)) {
+						spawnSync('sudo', ['umount', root], { stdio: 'inherit' });
+					}
 					spawnSync('sudo', ['losetup', '--detach', device], { stdio: 'inherit' });
 				}
 				throw err;
@@ -723,7 +761,15 @@ async function mount(source: Source, root: string, connections: number): Promise
 			// An APFS volume in a sparse ASIF image, which hides the empty workspace folder of the runner
 			const file = path.join(temp, 'workspace-image.asif');
 			log(await unpack(source, file, { sparse: true, connections }));
-			run('diskutil', ['image', 'attach', '--nobrowse', '--mountPoint', root, file]);
+			try {
+				await runUntilDeadline('diskutil', ['image', 'attach', '--nobrowse', '--mountPoint', root, file]);
+			} catch (err) {
+				// The deadline may have stopped diskutil after the mount
+				if (isMountPoint(root)) {
+					spawnSync('diskutil', ['unmount', 'force', root], { stdio: 'inherit' });
+				}
+				throw err;
+			}
 			return () => {
 				spawnSync('diskutil', ['unmount', 'force', root], { stdio: 'inherit' });
 			};
@@ -737,15 +783,7 @@ async function mount(source: Source, root: string, connections: number): Promise
 			fs.rmSync(file, { force: true });
 			fs.rmSync(ready, { force: true });
 			const attach = spawn('pwsh', ['-NoProfile', '-NonInteractive', '-File', path.join(import.meta.dirname, 'win32', 'vhd.ps1'), '-Path', file, '-WaitFor', ready, '-MountFolder', root, '-CachedIo', '-Trust'], { stdio: 'inherit', signal: downloads.signal });
-			const exited = new Promise<number | null>(resolve => {
-				// Stopping it emits 'error' before it exits: only a process that didn't start ends with 'error' alone
-				attach.on('error', () => {
-					if (attach.pid === undefined) {
-						resolve(null);
-					}
-				});
-				attach.on('exit', code => resolve(code));
-			});
+			const exited = exitCode(attach);
 			// Leaves the workspace an empty folder on drive C, whatever vhd.ps1 did before it failed or
 			// was stopped: it may have attached the VHDX (for good, beyond its process), and mounted its
 			// volume. Deleting the VHDX also frees the memory that Windows keeps the temporary file in.
@@ -794,7 +832,7 @@ async function mount(source: Source, root: string, connections: number): Promise
 	}
 }
 
-async function restoreImage(args: Args): Promise<void> {
+async function restoreImage(args: Args, checkDeadline: () => void): Promise<void> {
 	const name = required(args, 'name');
 	const branch = args.get('branch') || 'main';
 	const connections = Number(args.get('connections') ?? '32');
@@ -828,6 +866,7 @@ async function restoreImage(args: Args): Promise<void> {
 		if (!fs.existsSync(path.join(ws, '.git'))) {
 			throw new Error('The image holds no .git');
 		}
+		checkDeadline();
 	} catch (err) {
 		unmount();
 		throw err;
@@ -847,9 +886,17 @@ async function restore(args: Args): Promise<void> {
 	if (!(timeoutSeconds > 0)) {
 		throw new Error('--timeout-seconds must be a positive number');
 	}
-	const deadline = setTimeout(() => downloads.abort(new Error(`The restore took longer than ${timeoutSeconds} s`)), timeoutSeconds * 1000);
+	const timedOut = new Error(`The restore took longer than ${timeoutSeconds} s`);
+	const deadline = performance.now() + timeoutSeconds * 1000;
+	const timer = setTimeout(() => downloads.abort(timedOut), timeoutSeconds * 1000);
 	try {
-		await restoreImage(args);
+		await restoreImage(args, () => {
+			// Synchronous work can hold back the timer past the deadline
+			if (performance.now() >= deadline) {
+				downloads.abort(timedOut);
+			}
+			downloads.signal.throwIfAborted();
+		});
 	} catch (err) {
 		// After the deadline, the errors come from stopping the restore
 		const reason: unknown = downloads.signal.aborted ? downloads.signal.reason : err;
@@ -859,7 +906,7 @@ async function restore(args: Args): Promise<void> {
 		console.log(`::warning title=Workspace image::No workspace image: ${reason instanceof Error ? reason.message : String(reason)}`);
 		setOutput('used', 'false');
 	} finally {
-		clearTimeout(deadline);
+		clearTimeout(timer);
 	}
 }
 

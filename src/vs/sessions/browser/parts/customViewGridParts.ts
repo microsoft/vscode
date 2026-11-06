@@ -8,12 +8,12 @@ import { getClientArea } from '../../../base/browser/dom.js';
 import { mainWindow } from '../../../base/browser/window.js';
 import { InstantiationType, registerSingleton } from '../../../platform/instantiation/common/extensions.js';
 import { IInstantiationService } from '../../../platform/instantiation/common/instantiation.js';
-import { ICustomViewDescriptor } from '../../services/customView/browser/customView.js';
+import { ICustomViewDescriptor } from '../../../workbench/contrib/sessions/browser/customView.js';
 import { ICustomViewGridPartService } from '../../services/customView/browser/customViewGridPartService.js';
 import { CustomViewGridPart } from './customViewGridPart.js';
 import { MobileCustomViewGridPart } from './mobile/mobileCustomViewGridPart.js';
 import { IAgentWorkbenchLayoutService } from '../workbench.js';
-import { createMainWindowInstantiationService } from '../../services/sessions/browser/sessionHost.js';
+import { createMainWindowInstantiationService } from '../../../workbench/contrib/sessions/browser/sessionHost.js';
 
 /**
  * Owns the lifecycle of the {@link CustomViewGridPart}. Selects the mobile vs.

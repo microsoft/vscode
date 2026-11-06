@@ -49,8 +49,9 @@ jobs:
       agent-host-test-profile-reason: ${{ steps.detect-agent-host-e2e.outputs.reason }}
       ripple-changed: ${{ steps.ripple.outputs.changed }}
       ripple-failed: ${{ steps.ripple.outputs.failed }}
-      # macOS runs Agent Host E2E in the Electron integration tests job.
-      electron-tests: ${{ steps.detect.outputs.product-tests == 'true' || steps.detect-agent-host-e2e.outputs.affected == 'true' }}
+      # macOS runs Agent Host E2E in the Electron integration tests job. Commented out with the macOS
+      # jobs (see macos-tests).
+      # electron-tests: ${{ steps.detect.outputs.product-tests == 'true' || steps.detect-agent-host-e2e.outputs.affected == 'true' }}
       # The unit test jobs run only the unit test files that the plan selects, so they also skip when
       # the plan of a working ripple selects none (see the Check ripple step).
       selected-unit-tests: ${{ steps.detect.outputs.unit-tests == 'true' && steps.ripple.outputs.selects-nothing != 'true' }}
@@ -117,7 +118,7 @@ jobs:
         run: |
           set -e
           build/ripple/target/release/ripple plan --config build/ripple/vscode.jsonc --base HEAD^1 --head HEAD --out-dir .build/test-plan > /dev/null
-          echo "Linux, macOS and Windows run the selected files, and skip their unit test jobs, the node.js integration tests and Agent Host E2E when there are none. See build/ripple/README.md." >> "$GITHUB_STEP_SUMMARY"
+          echo "Linux and Windows run the selected files, and skip their unit test jobs, the node.js integration tests and Agent Host E2E when there are none. See build/ripple/README.md." >> "$GITHUB_STEP_SUMMARY"
 
       - name: Upload test plan
         if: steps.plan.outputs.select == 'true'
@@ -245,7 +246,7 @@ jobs:
 
       - name: Install Electron headers
         if: steps.cache-node-modules.outputs.cache-hit != 'true'
-        run: node build/npm/preinstall.ts
+        run: pnpm run preinstall
 
       - name: Install dependencies
         if: steps.cache-node-modules.outputs.cache-hit != 'true'
@@ -489,6 +490,11 @@ jobs:
     name: Linux
     needs: changes
     if: ${{ !cancelled() }}
+    # actions: read finds and downloads the workspace image (see .github/workflows/workspace_image/README.md)
+    permissions:
+      contents: read
+      pull-requests: read
+      actions: read
     uses: ./.github/workflows/pr-linux-test.yml
     with:
       electron_unit_affected: ${{ needs.changes.result != 'success' || needs.changes.outputs.selected-unit-tests == 'true' }}
@@ -505,31 +511,46 @@ jobs:
       # The provider integration tests and the Agent Host E2E tests read the profile.
       agent_host_test_profile: ${{ needs.changes.outputs.agent-host-test-profile || 'full' }}
       agent_host_test_profile_reason: ${{ needs.changes.outputs.agent-host-test-profile-reason || 'Change detection unavailable' }}
+      # Pull requests to release branches find no images of their branch, and install everything.
+      workspace_image_branch: ${{ github.base_ref }}
 
-  macos-tests:
-    name: macOS
-    needs: changes
-    if: ${{ !cancelled() }}
-    uses: ./.github/workflows/pr-darwin-test.yml
-    with:
-      electron_unit_affected: ${{ needs.changes.result != 'success' || needs.changes.outputs.selected-unit-tests == 'true' }}
-      electron_affected: ${{ needs.changes.result != 'success' || needs.changes.outputs.electron-tests == 'true' }}
-      electron_smoke_affected: ${{ needs.changes.result != 'success' || needs.changes.outputs.product-tests == 'true' }}
-      browser_unit_affected: ${{ needs.changes.result != 'success' || needs.changes.outputs.selected-browser-unit-tests == 'true' }}
-      browser_affected: ${{ needs.changes.result != 'success' || needs.changes.outputs.browser-integration == 'true' }}
-      remote_affected: ${{ needs.changes.result != 'success' || needs.changes.outputs.product-tests == 'true' }}
-      # The Electron job also runs Agent Host E2E. It runs only the node.js integration tests and the
-      # Agent Host E2E suites that the plan selects, and skips them when it selects none.
-      node_integration_tests: ${{ needs.changes.result != 'success' || needs.changes.outputs.selected-node-integration-tests == 'true' }}
-      agent_host_e2e_tests: ${{ needs.changes.result != 'success' || needs.changes.outputs.selected-agent-host-e2e == 'true' }}
-      # The provider integration tests and the Agent Host E2E tests read the profile.
-      agent_host_test_profile: ${{ needs.changes.outputs.agent-host-test-profile || 'full' }}
-      agent_host_test_profile_reason: ${{ needs.changes.outputs.agent-host-test-profile-reason || 'Change detection unavailable' }}
+  # The macOS jobs are commented out, so that pull requests don't wait for macOS runners: the Linux,
+  # Windows and Compile & Hygiene jobs catch almost every failure that they caught, and the Azure
+  # product build still runs the macOS tests on main (see
+  # build/azure-pipelines/darwin/steps/product-build-darwin-test.yml). To run them again, uncomment
+  # this job and chat-lib-macos-tests, their entries in the needs of PR Gate, the electron-tests output
+  # of Detect Changes, the macOS jobs of pr-node-modules.yml and pr-workspace-images.yml, and the
+  # macOS entries of .github/actions/detect-missing-caches, and add the macOS checks back to the tests
+  # in build/lib/test.
+  # macos-tests:
+  #   name: macOS
+  #   needs: changes
+  #   if: ${{ !cancelled() }}
+  #   uses: ./.github/workflows/pr-darwin-test.yml
+  #   with:
+  #     electron_unit_affected: ${{ needs.changes.result != 'success' || needs.changes.outputs.selected-unit-tests == 'true' }}
+  #     electron_affected: ${{ needs.changes.result != 'success' || needs.changes.outputs.electron-tests == 'true' }}
+  #     electron_smoke_affected: ${{ needs.changes.result != 'success' || needs.changes.outputs.product-tests == 'true' }}
+  #     browser_unit_affected: ${{ needs.changes.result != 'success' || needs.changes.outputs.selected-browser-unit-tests == 'true' }}
+  #     browser_affected: ${{ needs.changes.result != 'success' || needs.changes.outputs.browser-integration == 'true' }}
+  #     remote_affected: ${{ needs.changes.result != 'success' || needs.changes.outputs.product-tests == 'true' }}
+  #     # The Electron job also runs Agent Host E2E. It runs only the node.js integration tests and the
+  #     # Agent Host E2E suites that the plan selects, and skips them when it selects none.
+  #     node_integration_tests: ${{ needs.changes.result != 'success' || needs.changes.outputs.selected-node-integration-tests == 'true' }}
+  #     agent_host_e2e_tests: ${{ needs.changes.result != 'success' || needs.changes.outputs.selected-agent-host-e2e == 'true' }}
+  #     # The provider integration tests and the Agent Host E2E tests read the profile.
+  #     agent_host_test_profile: ${{ needs.changes.outputs.agent-host-test-profile || 'full' }}
+  #     agent_host_test_profile_reason: ${{ needs.changes.outputs.agent-host-test-profile-reason || 'Change detection unavailable' }}
 
   windows-tests:
     name: Windows
     needs: changes
     if: ${{ !cancelled() }}
+    # actions: read finds and downloads the workspace image (see .github/workflows/workspace_image/README.md)
+    permissions:
+      contents: read
+      pull-requests: read
+      actions: read
     uses: ./.github/workflows/pr-win32-test.yml
     with:
       electron_unit_affected: ${{ needs.changes.result != 'success' || needs.changes.outputs.selected-unit-tests == 'true' }}
@@ -546,6 +567,8 @@ jobs:
       # The provider integration tests and the Agent Host E2E tests read the profile.
       agent_host_test_profile: ${{ needs.changes.outputs.agent-host-test-profile || 'full' }}
       agent_host_test_profile_reason: ${{ needs.changes.outputs.agent-host-test-profile-reason || 'Change detection unavailable' }}
+      # Pull requests to release branches find no images of their branch, and install everything.
+      workspace_image_branch: ${{ github.base_ref }}
 
   copilot-check-test-cache:
     name: Copilot - Check Test Cache
@@ -824,20 +847,21 @@ jobs:
       - name: Test chat-lib
         uses: ./.github/actions/test-chat-lib
 
-  chat-lib-macos-tests:
-    name: chat-lib - Test (macOS)
-    needs: changes
-    if: ${{ !cancelled() && (needs.changes.result != 'success' || needs.changes.outputs.copilot == 'true') }}
-    runs-on: vscode-large-runners-macos-5-core-0
-    timeout-minutes: 30
-    permissions:
-      contents: read
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-
-      - name: Test chat-lib
-        uses: ./.github/actions/test-chat-lib
+  # Commented out with the macOS test jobs (see macos-tests).
+  # chat-lib-macos-tests:
+  #   name: chat-lib - Test (macOS)
+  #   needs: changes
+  #   if: ${{ !cancelled() && (needs.changes.result != 'success' || needs.changes.outputs.copilot == 'true') }}
+  #   runs-on: vscode-large-runners-macos-5-core-0
+  #   timeout-minutes: 30
+  #   permissions:
+  #     contents: read
+  #   steps:
+  #     - name: Checkout repository
+  #       uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+  #
+  #     - name: Test chat-lib
+  #       uses: ./.github/actions/test-chat-lib
 
   chat-lib-windows-tests:
     name: chat-lib - Test (Windows)
@@ -856,7 +880,7 @@ jobs:
 
   # When Compile & Hygiene finds a problem in the change, which has to be fixed and pushed again
   # anyway, this job cancels the run so that the test jobs free their machines for other pull
-  # requests, above all the scarce macOS and Windows ones. It does not cancel when the setup of
+  # requests, above all the scarce Windows ones. It does not cancel when the setup of
   # Compile & Hygiene fails, as a rerun of that job fixes it. It runs apart from Compile & Hygiene so
   # that the code of the pull request never runs with a token that can cancel workflow runs, and the
   # token of a pull request from a fork cannot cancel the run.
@@ -895,14 +919,14 @@ jobs:
       - ripple
       - linux-rust-tests
       - linux-tests
-      - macos-tests
+      # - macos-tests
       - windows-tests
       - copilot-check-test-cache
       - copilot-check-telemetry
       - copilot-linux-tests
       - copilot-windows-tests
       - chat-lib-linux-tests
-      - chat-lib-macos-tests
+      # - chat-lib-macos-tests
       - chat-lib-windows-tests
       - cancel-run
     if: ${{ always() }}

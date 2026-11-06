@@ -42,44 +42,44 @@ import { CloseEditorTabAction } from '../../../../../workbench/browser/parts/edi
 import { NAVIGATE_VIEW_COMMANDS } from '../../../../../workbench/browser/actions/navigationActions.js';
 import { workbenchInstantiationService } from '../../../../../workbench/test/browser/workbenchTestServices.js';
 import { IWorkbenchAssignmentService } from '../../../../../workbench/services/assignment/common/assignmentService.js';
-import { Menus, SessionHeaderMenus } from '../../../../browser/menus.js';
-import { SESSION_CONVERSATION_SIDE_CHATS_GROUP } from '../../../../browser/sessionConversationGroups.js';
-import { SessionView } from '../../../../browser/parts/sessionView.js';
+import { Menus, SessionHeaderMenus } from '../../../../../workbench/contrib/sessions/browser/menus.js';
+import { SESSION_CONVERSATION_SIDE_CHATS_GROUP } from '../../../../../workbench/contrib/sessions/browser/sessionConversationGroups.js';
+import { SessionView } from '../../../../../workbench/contrib/sessions/browser/parts/sessionView.js';
 import { createSessionsPartTestHarness, createTestActiveSession } from '../../../../test/browser/sessionViewTestUtils.js';
-import { ISessionsPartService } from '../../../../services/sessions/browser/sessionsPartService.js';
-import { ISessionsRecentWorkspacesService } from '../../../../services/sessions/browser/sessionsRecentWorkspacesService.js';
-import { type IOpenNewSessionOptions, type IOpenNewSessionResult, type IOpenSessionOptions, type IOpenSessionsOptions, ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
-import { ChatInteractivity, ChatOriginKind, IChat, ISession, ISessionWorkspace, SessionStatus } from '../../../../services/sessions/common/session.js';
-import { IActiveSession, ICreateNewSessionOptions, IHostSession, ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
-import { VisibleSessions } from '../../../../services/sessions/browser/visibleSessions.js';
+import { ISessionsPartService } from '../../../../../workbench/contrib/sessions/browser/sessionsPartService.js';
+import { ISessionsRecentWorkspacesService } from '../../../../../workbench/contrib/sessions/browser/sessionsRecentWorkspacesService.js';
+import { type IOpenNewSessionOptions, type IOpenNewSessionResult, type IOpenSessionOptions, type IOpenSessionsOptions, ISessionsService } from '../../../../../workbench/contrib/sessions/browser/sessionsService.js';
+import { ChatInteractivity, ChatOriginKind, IChat, ISession, ISessionWorkspace, SessionStatus } from '../../../../../workbench/contrib/sessions/common/session.js';
+import { IActiveSession, ICreateNewSessionOptions, IHostSession, ISessionsManagementService } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
+import { VisibleSessions } from '../../../../../workbench/contrib/sessions/browser/visibleSessions.js';
 import { mock, upcastPartial } from '../../../../../base/test/common/mock.js';
 
 import { Action } from '../../../../../base/common/actions.js';
-import { NewSessionActionViewItem, type NewSessionButtonStyle, PROMOTE_CHAT_TO_SESSION_ACTION_ID, SessionConversationActionsContribution, SessionListActionsExperimentContribution } from '../../browser/sessionsActions.js';
+import { getSessionsPickerChatWindow, NewSessionActionViewItem, openPickedSessionInChatWindow, type NewSessionButtonStyle, PROMOTE_CHAT_TO_SESSION_ACTION_ID, SessionConversationActionsContribution, SessionListActionsExperimentContribution } from '../../browser/sessionsActions.js';
 import '../../../chat/browser/chat.contribution.js';
-import { NEW_SESSION_ACTION_ID } from '../../../chat/common/constants.js';
+import { NEW_SESSION_ACTION_ID } from '../../../../../workbench/contrib/sessions/common/chatConstants.js';
 import { ArchiveChatAction, ArchiveSessionAction } from '../../browser/views/sessionsViewActions.js';
 import { createTestSession, TestCommandService } from './sessionsListTestUtils.js';
-import { INewSessionComposerService, NewSessionComposerService } from '../../../chat/browser/newSessionComposerService.js';
-import { ISessionSection, NEW_SESSION_FOR_WORKSPACE_ACTION_ID, NEW_SESSION_IN_ENVIRONMENT_ACTION_ID, SessionItemIsCloudContext } from '../../browser/views/sessionsList.js';
-import { ISelectWorkspaceOptions, WorkspaceSelectionResult } from '../../../../browser/parts/chatView.js';
-import { WorkspaceSelectionOrigin } from '../../../../common/workspaceSelection.js';
-import { ARCHIVE_CHAT_COMMAND_ID, ARCHIVE_SESSION_COMMAND_ID, ARRANGE_SESSIONS_COMMAND_ID, CLOSE_CHAT_COMMAND_ID, CLOSE_SESSION_COMMAND_ID, DETACH_CHAT_COMMAND_ID, FOCUS_ACTIVE_SESSION_COMMAND_ID, FOCUS_NEXT_CHAT_GROUP_COMMAND_ID, FOCUS_PREVIOUS_CHAT_GROUP_COMMAND_ID, MARK_SESSION_READ_COMMAND_ID, MARK_SESSION_UNREAD_COMMAND_ID, MOVE_CHAT_TO_NEXT_GROUP_COMMAND_ID, MOVE_CHAT_TO_PREVIOUS_GROUP_COMMAND_ID, RENAME_CHAT_COMMAND_ID, RENAME_SESSION_COMMAND_ID, SESSION_GRID_FOCUS_COMMANDS, SPLIT_CHAT_GROUP_DOWN_COMMAND_ID, SPLIT_CHAT_GROUP_RIGHT_COMMAND_ID, TOGGLE_PIN_CHAT_COMMAND_ID, TOGGLE_PIN_SESSION_COMMAND_ID } from '../../../../common/sessionCommands.js';
-import { SessionInChatEditorContext, IsPhoneLayoutContext, MultipleSessionsVisibleContext, SessionActiveChatHasSideChatsContext, SessionActiveChatIsClosableContext, SessionActiveChatResourceContext, SessionIdContext, SessionIsArchivedContext, SessionIsCreatedContext, SessionsFocusContext, SessionsListPromoteNewChatActionContext } from '../../../../common/contextkeys.js';
-import { SESSIONS_CHAT_TABS_SETTING, SessionsChatTabsMode } from '../../../../common/sessionConfig.js';
+import { INewSessionComposerService, NewSessionComposerService } from '../../../../../workbench/contrib/sessions/browser/newSessionComposerService.js';
+import { ISessionSection, NEW_SESSION_FOR_WORKSPACE_ACTION_ID, NEW_SESSION_IN_ENVIRONMENT_ACTION_ID, SessionItemIsCloudContext } from '../../../../../workbench/contrib/sessions/browser/views/sessionsList.js';
+import { WorkspaceSelectionOrigin, ISelectWorkspaceOptions, WorkspaceSelectionResult } from '../../../../../workbench/contrib/sessions/common/workspaceSelection.js';
+import { ARCHIVE_CHAT_COMMAND_ID, ARCHIVE_SESSION_COMMAND_ID, ARRANGE_SESSIONS_COMMAND_ID, CLOSE_CHAT_COMMAND_ID, CLOSE_SESSION_COMMAND_ID, DETACH_CHAT_COMMAND_ID, FOCUS_ACTIVE_SESSION_COMMAND_ID, FOCUS_NEXT_CHAT_GROUP_COMMAND_ID, FOCUS_PREVIOUS_CHAT_GROUP_COMMAND_ID, MARK_SESSION_READ_COMMAND_ID, MARK_SESSION_UNREAD_COMMAND_ID, MOVE_CHAT_TO_NEXT_GROUP_COMMAND_ID, MOVE_CHAT_TO_PREVIOUS_GROUP_COMMAND_ID, RENAME_CHAT_COMMAND_ID, RENAME_SESSION_COMMAND_ID, SESSION_GRID_FOCUS_COMMANDS, SPLIT_CHAT_GROUP_DOWN_COMMAND_ID, SPLIT_CHAT_GROUP_RIGHT_COMMAND_ID, TOGGLE_PIN_CHAT_COMMAND_ID, TOGGLE_PIN_SESSION_COMMAND_ID } from '../../../../../workbench/contrib/sessions/common/sessionCommands.js';
+import { SessionInChatEditorContext, IsPhoneLayoutContext, MultipleSessionsVisibleContext, SessionActiveChatHasSideChatsContext, SessionActiveChatIsClosableContext, SessionActiveChatResourceContext, SessionIdContext, SessionIsArchivedContext, SessionIsCreatedContext, SessionsFocusContext, SessionsListPromoteNewChatActionContext } from '../../../../../workbench/contrib/sessions/common/contextkeys.js';
+import { SESSIONS_CHAT_TABS_SETTING, SessionsChatTabsMode } from '../../../../../workbench/contrib/sessions/common/sessionConfig.js';
 import { AGENT_HOST_SCHEME, agentHostAuthority, toAgentHostUri } from '../../../../../platform/agentHost/common/agentHostUri.js';
-import { ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
-import { ISessionsProvider } from '../../../../services/sessions/common/sessionsProvider.js';
-import { IAgentHostSessionsProvider } from '../../../../common/agentHostSessionsProvider.js';
+import { ISessionsProvidersService } from '../../../../../workbench/contrib/sessions/browser/sessionsProvidersService.js';
+import { ISessionsProvider } from '../../../../../workbench/contrib/sessions/common/sessionsProvider.js';
+import { IAgentHostSessionsProvider } from '../../../../../workbench/contrib/sessions/common/agentHostSessionsProvider.js';
 import { IsAuxiliaryWindowContext, IsSessionsWindowContext } from '../../../../../workbench/common/contextkeys.js';
-import { IFocusedSessionHostService, ISessionHost, ISessionHostService, SessionHostKind } from '../../../../services/sessions/browser/sessionHost.js';
-import { ChatHostOpenerService, IChatHostOpenerService } from '../../../../services/sessions/browser/chatHostOpener.js';
+import { IFocusedSessionHostService, ISessionHost, ISessionHostService, SessionHostKind } from '../../../../../workbench/contrib/sessions/browser/sessionHost.js';
+import { IChatWindow, IChatWindowService } from '../../../../../workbench/contrib/chatWindow/browser/chatWindow.js';
+import { IAgentWorkbenchLayoutService } from '../../../../browser/workbench.js';
+import { ChatHostOpenerService, IChatHostOpenerService } from '../../../../../workbench/contrib/sessions/browser/chatHostOpener.js';
 import { ChatContextKeys } from '../../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
 import { resolveOnboardingTarget } from '../../../../../workbench/contrib/onboarding/browser/spotlight/onboardingTarget.js';
-import { ICustomViewService } from '../../../../services/customView/browser/customViewService.js';
-import { ICustomViewDescriptor } from '../../../../services/customView/browser/customView.js';
-import { IWindowCanvasService, WindowCanvasInput } from '../../../../services/canvas/browser/windowCanvasService.js';
-import { ITestSessionsService, stubMissingSessionHostsFromSessionsService } from '../../../../services/sessions/test/browser/sessionHostTestUtils.js';
+import { ICustomViewService, ICustomViewDescriptor } from '../../../../../workbench/contrib/sessions/browser/customView.js';
+import { WindowCanvasInput, IWindowCanvasService } from '../../../../../workbench/contrib/sessions/browser/windowCanvas.js';
+import { ITestSessionsService, stubMissingSessionHostsFromSessionsService } from '../../../../../workbench/contrib/sessions/test/browser/sessionHostTestUtils.js';
 
 suite('Sessions - Actions', () => {
 
@@ -1187,7 +1187,10 @@ suite('Sessions - Actions', () => {
 			showsChat: shown => isEqual(shown, chat.resource),
 			reveal: async () => { },
 			openBeside: async () => { },
-			close: async closed => { calls.push(`editor close ${closed.path}`); },
+			close: async closed => {
+				calls.push(`editor close ${closed.path}`);
+				return { restore: async () => { } };
+			},
 		}));
 		instantiationService.stub(IChatHostOpenerService, opener);
 
@@ -1234,7 +1237,10 @@ suite('Sessions - Actions', () => {
 			showsChat: shown => isEqual(shown, mainChat.resource),
 			reveal: async () => { },
 			openBeside: async () => { },
-			close: async closed => { calls.push(`window close ${closed.path}`); },
+			close: async closed => {
+				calls.push(`window close ${closed.path}`);
+				return { restore: async () => { } };
+			},
 		}));
 		instantiationService.stub(IChatHostOpenerService, opener);
 
@@ -2415,7 +2421,73 @@ suite('Sessions - Actions', () => {
 		}
 	}
 
-	test('New Session never starts like a session that only names its repository by URL', async () => {
+	for (const available of [true, false]) {
+		test(`repository URL sections honor an available cloud creation target (${available})`, async () => {
+			const instantiationService = disposables.add(new TestInstantiationService());
+			const repository = { owner: 'owner', name: 'repo' };
+			const environment = { id: 'cloud', label: 'Cloud' };
+			const { session } = createTestSession('cloud', {
+				providerId: 'sandbox-backend',
+				environment: environment.id,
+				repository: 'owner/repo',
+				workspaceResource: URI.parse('https://github.com/owner/repo'),
+			});
+			const localFolder = URI.file('/repo');
+			const local = createTestSession('local', {
+				providerId: 'local-provider', repository: 'owner/repo', workspaceResource: localFolder, createdAt: new Date(0),
+			}).session;
+			const creationTarget = { providerId: 'cloud-creator', folderUri: URI.parse('github-remote-file://github/owner/repo/HEAD') };
+			const providers = [
+				{ id: session.providerId, environment },
+				{ id: local.providerId, environment: { id: 'local', label: 'This Computer' } },
+			].map(provider => upcastPartial<ISessionsProvider>(provider));
+			const selections: { folder: URI; options?: ISelectWorkspaceOptions }[] = [];
+			instantiationService.stub(INewSessionComposerService, disposables.add(new NewSessionComposerService()));
+			instantiationService.stub(ISessionsProvidersService, {
+				getProvider: <T extends ISessionsProvider>(providerId: string) => providers.find(provider => provider.id === providerId) as T | undefined,
+			});
+			instantiationService.stub(ISessionsManagementService, {
+				getNewSessionTarget: (providerId, resource) => providerId === session.providerId && isEqual(resource, session.resource) ? creationTarget : undefined,
+				isNewSessionTargetAvailable: (folder, target) => available && isEqual(folder, creationTarget.folderUri) && target?.providerId === creationTarget.providerId
+					|| isEqual(folder, localFolder) && target?.providerId === local.providerId,
+			});
+			instantiationService.stub(ISessionsService, upcastPartial<ITestSessionsService>({
+				activeSession: constObservable(undefined),
+				focusActiveSession: () => { },
+				openNewSession: async () => ({ session: undefined, trustDeclined: false }),
+			}));
+			stubMissingSessionHostsFromSessionsService(instantiationService);
+			instantiationService.stub(ISessionsPartService, {
+				getSessionView: () => upcastPartial<SessionView>({
+					selectWorkspace: (folder, options) => {
+						selections.push({ folder, options });
+						return 'applied';
+					},
+				}),
+			});
+			instantiationService.stub(ICommandService, new TestCommandService());
+			const run = (commandId: string, context: Partial<ISessionSection>) =>
+				CommandsRegistry.getCommand(commandId)!.handler(instantiationService, upcastPartial<ISessionSection>(context), environment.id);
+
+			await run(NEW_SESSION_FOR_WORKSPACE_ACTION_ID, { repository, sessions: [session] });
+			await run(NEW_SESSION_FOR_WORKSPACE_ACTION_ID, { repository, sessions: [local, session] });
+			await run(NEW_SESSION_IN_ENVIRONMENT_ACTION_ID, { repository, sessions: [local, session] });
+			await run(NEW_SESSION_FOR_WORKSPACE_ACTION_ID, { sessions: [session] });
+			await run(NEW_SESSION_FOR_WORKSPACE_ACTION_ID, { environment, sessions: [session] });
+
+			assert.deepStrictEqual(selections, available
+				? Array.from({ length: 5 }, () => ({
+					folder: creationTarget.folderUri,
+					options: { providerId: creationTarget.providerId, selectionOrigin: WorkspaceSelectionOrigin.User },
+				}))
+				: [{
+					folder: localFolder,
+					options: { providerId: local.providerId, selectionOrigin: WorkspaceSelectionOrigin.User },
+				}]);
+		});
+	}
+
+	test('New Session never starts like a session that only names its repository by URL without a creation target', async () => {
 		const sandboxRoot = URI.parse('https://github.com/microsoft/vscode');
 		const sandbox = (title: string) => {
 			const { session } = createTestSession(title, { providerId: 'sandbox-provider', environment: 'cloud' });
@@ -2570,5 +2642,42 @@ suite('Sessions - Actions', () => {
 		const command = CommandsRegistry.getCommand(NEW_SESSION_ACTION_ID);
 		assert.ok(command);
 		await assert.rejects(async () => command.handler(instantiationService, { toSide: true }), error);
+	});
+
+	test('the Sessions picker, picked in a chat window, opens the session as a tab of that window, beside its active chat to the side; in the main window it opens in the main window', async () => {
+		const host = (kind: SessionHostKind, windowId: number, parent?: ISessionHost) => upcastPartial<ISessionHost>({ kind, parent, windowId: constObservable(windowId) });
+		const chatWindowHost = host(SessionHostKind.ChatWindow, 7);
+		const opened: string[] = [];
+		const chatWindow = upcastPartial<IChatWindow>({ windowId: 7, chat: constObservable(URI.parse('test-chat:/in-window')) });
+		const chatWindowService = upcastPartial<IChatWindowService>({
+			getWindow: windowId => windowId === 7 ? chatWindow : undefined,
+			open: async (chat, options) => {
+				opened.push(`${chat.path} in ${options?.window?.windowId}${options?.beside ? ` beside ${options.beside.path}` : ''}${options?.preserveFocus ? ' preserving focus' : ''}`);
+				return undefined;
+			},
+		});
+		const target = (targetHost: ISessionHost) => ({ host: targetHost, session: undefined, chat: undefined });
+		const windows = {
+			mainWindow: getSessionsPickerChatWindow(target(host(SessionHostKind.MainWindow, 1)), chatWindowService)?.windowId,
+			paneOfMainWindow: getSessionsPickerChatWindow(target(host(SessionHostKind.Pane, 1, host(SessionHostKind.MainWindow, 1))), chatWindowService)?.windowId,
+			chatWindow: getSessionsPickerChatWindow(target(chatWindowHost), chatWindowService)?.windowId,
+			paneOfChatWindow: getSessionsPickerChatWindow(target(host(SessionHostKind.Pane, 7, chatWindowHost)), chatWindowService)?.windowId,
+			noHost: getSessionsPickerChatWindow(undefined, chatWindowService)?.windowId,
+		};
+
+		const instantiationService = disposables.add(new TestInstantiationService());
+		instantiationService.stub(IChatWindowService, chatWindowService);
+		instantiationService.stub(ISessionsService, upcastPartial<ISessionsService>({ visibleSessions: constObservable([]) }));
+		instantiationService.stub(IEditorGroupsService, upcastPartial<IEditorGroupsService>({ mainPart: upcastPartial<IEditorGroupsService['mainPart']>({ groups: [] }) }));
+		instantiationService.stub(IAgentWorkbenchLayoutService, upcastPartial<IAgentWorkbenchLayoutService>({}));
+		instantiationService.stub(ISessionHostService, upcastPartial<ISessionHostService>({ getHostOfWindow: () => upcastPartial<ISessionHost>({ kind: SessionHostKind.MainWindow, session: constObservable(undefined), chat: constObservable(undefined) }) }));
+		const picked = upcastPartial<ISession>({ sessionId: 'picked', resource: URI.parse('test-session:/picked') });
+		await instantiationService.invokeFunction(accessor => openPickedSessionInChatWindow(accessor, picked, chatWindow, { preserveFocus: false, toSide: false }));
+		await instantiationService.invokeFunction(accessor => openPickedSessionInChatWindow(accessor, picked, chatWindow, { preserveFocus: true, toSide: true }));
+
+		assert.deepStrictEqual({ windows, opened }, {
+			windows: { mainWindow: undefined, paneOfMainWindow: undefined, chatWindow: 7, paneOfChatWindow: 7, noHost: undefined },
+			opened: ['/picked in 7', '/picked in 7 beside /in-window preserving focus'],
+		});
 	});
 });

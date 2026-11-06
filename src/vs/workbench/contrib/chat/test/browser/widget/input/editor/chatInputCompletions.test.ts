@@ -18,25 +18,29 @@ import { Range } from '../../../../../../../../editor/common/core/range.js';
 import { OffsetRange } from '../../../../../../../../editor/common/core/ranges/offsetRange.js';
 import { Selection } from '../../../../../../../../editor/common/core/selection.js';
 import { IDecorationOptions } from '../../../../../../../../editor/common/editorCommon.js';
-import { CompletionItem, CompletionItemKind, CompletionList, CompletionTriggerKind } from '../../../../../../../../editor/common/languages.js';
+import { CompletionItem, CompletionItemKind, CompletionList, CompletionTriggerKind, SymbolKind } from '../../../../../../../../editor/common/languages.js';
 import { ITextModel } from '../../../../../../../../editor/common/model.js';
+import { ILanguageFeaturesService } from '../../../../../../../../editor/common/services/languageFeatures.js';
 import { LanguageFeaturesService } from '../../../../../../../../editor/common/services/languageFeaturesService.js';
 import { CompletionModel } from '../../../../../../../../editor/contrib/suggest/browser/completionModel.js';
 import { CompletionItem as SuggestCompletionItem } from '../../../../../../../../editor/contrib/suggest/browser/suggest.js';
 import { WordDistance } from '../../../../../../../../editor/contrib/suggest/browser/wordDistance.js';
+import { IOutlineModelService, OutlineModel } from '../../../../../../../../editor/contrib/documentSymbols/browser/outlineModel.js';
 import { withTestCodeEditor } from '../../../../../../../../editor/test/browser/testCodeEditor.js';
 import { CommandsRegistry } from '../../../../../../../../platform/commands/common/commands.js';
 import { createTextModel } from '../../../../../../../../editor/test/common/testTextModel.js';
 import { TestConfigurationService } from '../../../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { NullLogService } from '../../../../../../../../platform/log/common/log.js';
+import { workbenchInstantiationService } from '../../../../../../../test/browser/workbenchTestServices.js';
 import { ChatSubmitAction } from '../../../../../browser/actions/chatExecuteActions.js';
 import { IChatWidget, IChatWidgetService } from '../../../../../browser/chat.js';
 import { ChatWidget } from '../../../../../browser/widget/chatWidget.js';
 import { AgentHostInputCompletionsBase } from '../../../../../browser/widget/input/editor/agentHostInputCompletionsBase.js';
 import { AgentHostInputCompletions } from '../../../../../browser/widget/input/editor/agentHostInputCompletions.js';
-import { AgentCompletions, SlashCommandCompletions } from '../../../../../browser/widget/input/editor/chatInputCompletions.js';
+import { AgentCompletions, BuiltinDynamicCompletions, SlashCommandCompletions } from '../../../../../browser/widget/input/editor/chatInputCompletions.js';
 import { InputEditorCommandArgumentHint } from '../../../../../browser/widget/input/editor/chatInputCommandArgumentHint.js';
 import { createChatReferenceVariableEntry } from '../../../../../common/attachments/chatVariableEntries.js';
+import { IDynamicVariable } from '../../../../../common/attachments/chatVariables.js';
 import { attachedContextCompletionAdditionalTriggerCharacters, attachedContextCompletionSortText, computeCompletionRanges, escapeForCharClass, getAttachedContextCompletionMatch, getAttachedContextCompletionSortText, getCompletionRangeWord, getPromptSlashCommandFilterText, isAtTriggerCharacterToken } from '../../../../../browser/widget/input/editor/chatInputCompletionUtils.js';
 import { IChatInputCompletionItem, IChatInputCompletionsParams, IChatInputCompletionsResult, IChatSession, IChatSessionsService } from '../../../../../common/chatSessionsService.js';
 import { IChatService } from '../../../../../common/chatService/chatService.js';
@@ -57,6 +61,62 @@ import { IAgentHostUntitledProvisionalSessionService } from '../../../../../brow
 import { IsSessionsWindowContext } from '../../../../../../../common/contextkeys.js';
 import { PromptsType } from '../../../../../common/promptSyntax/promptTypes.js';
 import { PromptsStorage } from '../../../../../common/promptSyntax/service/promptsService.js';
+
+suite('BuiltinDynamicCompletions symbols', () => {
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
+
+	for (const scheme of ['test', 'agent-host-copilotcli', 'remote-agent-host-test']) {
+		test(`offers cached outline symbols with their source locations (${scheme})`, async () => {
+			const instantiationService = workbenchInstantiationService(undefined, store);
+			const languageFeaturesService = new LanguageFeaturesService();
+			const model = store.add(createTextModel('#run', null, undefined, URI.from({ scheme: Schemas.vscodeChatInput, path: '/test' })));
+			const uri = URI.file('/workspace/file.ts');
+			const symbolRange = new Range(2, 1, 4, 2);
+			let supportsFileReferences = true;
+			const widget = upcastPartial<IChatWidget>({
+				get supportsFileReferences() { return supportsFileReferences; },
+				viewModel: upcastPartial<ChatViewModel>({ model: upcastPartial<IChatModel>({ sessionResource: URI.from({ scheme, path: '/test' }) }) }),
+			});
+			instantiationService.stub(IChatWidgetService, { getWidgetByInputUri: () => widget });
+			instantiationService.stub(ILanguageFeaturesService, languageFeaturesService);
+			instantiationService.stub(IChatAgentService, {});
+			instantiationService.stub(IChatSessionsService, new MockChatSessionsService());
+			instantiationService.stub(IOutlineModelService, {
+				getCachedModels: () => [upcastPartial<OutlineModel>({
+					uri,
+					asListOfDocumentSymbols: () => [{
+						name: 'run', detail: '', kind: SymbolKind.Function, tags: [], range: symbolRange, selectionRange: new Range(2, 10, 2, 13),
+					}],
+				})],
+			});
+			store.add(instantiationService.createInstance(BuiltinDynamicCompletions));
+			const provider = languageFeaturesService.completionProvider.ordered(model).find(provider => provider._debugDisplayName === 'chatVarCompletions-symbol')!;
+			const complete = () => provider.provideCompletionItems(model, new Position(1, 5), { triggerKind: CompletionTriggerKind.Invoke }, CancellationToken.None);
+			const result = await complete();
+			const suggestion = result?.suggestions[0];
+			const argument = suggestion?.command?.arguments?.[0] as { variable: IDynamicVariable } | undefined;
+			const reference = argument?.variable;
+			supportsFileReferences = false;
+			const unsupported = await complete();
+
+			assert.deepStrictEqual({
+				insertText: suggestion?.insertText,
+				kind: suggestion?.kind,
+				name: reference?.fullName,
+				location: reference?.data,
+				range: reference?.range,
+				unsupported,
+			}, {
+				insertText: '#sym:run ',
+				kind: CompletionItemKind.Function,
+				name: 'run',
+				location: { uri, range: symbolRange },
+				range: { startLineNumber: 1, startColumn: 1, endLineNumber: 1, endColumn: 9 },
+				unsupported: null,
+			});
+		});
+	}
+});
 
 suite('AgentCompletions in agent-host chats', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();

@@ -30,15 +30,16 @@ import { diffStatsEqual, IDiffStats } from '../../../../workbench/contrib/chat/b
 import { IconBadge } from '../../../../workbench/services/activity/common/activity.js';
 import { IEditorService } from '../../../../workbench/services/editor/common/editorService.js';
 import { IEditorGroupsService } from '../../../../workbench/services/editor/common/editorGroupsService.js';
-import { Menus } from '../../../browser/menus.js';
-import { SessionActivityBarActionViewItem } from '../../../browser/parts/sessionActivityBar.js';
-import { AgentWorkbenchLayout, IAgentWorkbenchLayoutService } from '../../../browser/workbench.js';
-import { ISessionActivityBarActivityService } from '../../../services/activity/common/sessionActivityBarActivityService.js';
-import { IFocusedSessionHostService } from '../../../services/sessions/browser/sessionHost.js';
-import { ISessionChangesStatsCache } from '../../../services/sessions/common/sessionChangesStatsCache.js';
-import { computeSessionInputPillStats, readLoadedSessionInputPillStats } from '../../chat/browser/sessionChatInputToolbar.js';
+import { Menus } from '../../../../workbench/contrib/sessions/browser/menus.js';
+import { SessionActivityBarActionViewItem } from '../../../../workbench/contrib/sessions/browser/parts/sessionActivityBar.js';
+import { IAgentWorkbenchLayoutService } from '../../../browser/workbench.js';
+import { AgentWorkbenchLayout } from '../../../../workbench/contrib/sessions/browser/sessionsHostLayoutService.js';
+import { ISessionActivityBarActivityService } from '../../../../workbench/contrib/sessions/common/sessionActivityBarActivityService.js';
+import { IFocusedSessionHostService } from '../../../../workbench/contrib/sessions/browser/sessionHost.js';
+import { ISessionChangesStatsCache } from '../../../../workbench/contrib/sessions/common/sessionChangesStatsCache.js';
+import { computeSessionInputPillStats, readLoadedSessionInputPillStats } from '../../../../workbench/contrib/sessions/browser/chat/sessionChatInputToolbar.js';
 import { NEW_CHANGES_TAB_COMMAND_ID } from '../../editor/browser/addTabActions.js';
-import { ISessionChangesService } from './sessionChangesService.js';
+import { ISessionChangesService } from '../../../../workbench/contrib/sessions/browser/changes/sessionChangesService.js';
 
 /** How many chats' seen changes are remembered; the least recently seen entry is evicted beyond this. */
 export const MAX_SEEN_CHANGES_CHATS = 200;

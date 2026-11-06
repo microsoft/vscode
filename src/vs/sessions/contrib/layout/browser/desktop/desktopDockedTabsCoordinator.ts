@@ -22,13 +22,13 @@ import { IEditorGroup, IEditorGroupsService } from '../../../../../workbench/ser
 import { IEditorService } from '../../../../../workbench/services/editor/common/editorService.js';
 import { Parts } from '../../../../../workbench/services/layout/browser/layoutService.js';
 import { IAgentWorkbenchLayoutService } from '../../../../browser/workbench.js';
-import { DesktopChangesTabAvailableContext, DesktopChangesTabMissingContext, DesktopFilesTabAvailableContext, DesktopFilesTabMissingContext } from '../../../../common/contextkeys.js';
-import { DockedEditorInput } from '../../../../browser/dockedEditorInput.js';
-import { SessionChangesEditorInput } from '../../../changes/browser/sessionChangesEditorInput.js';
-import { ISessionChangesService } from '../../../changes/browser/sessionChangesService.js';
-import { IChangesViewService } from '../../../changes/common/changesViewService.js';
-import { EmptyFileEditorInput } from '../../../editor/browser/emptyFileEditorInput.js';
-import { ISessionWorkspace } from '../../../../services/sessions/common/session.js';
+import { DesktopChangesTabAvailableContext, DesktopChangesTabMissingContext, DesktopFilesTabAvailableContext, DesktopFilesTabMissingContext } from '../../../../common/agentsWindowContextKeys.js';
+import { DockedEditorInput } from '../../../../../workbench/contrib/sessions/browser/dockedEditorInput.js';
+import { SessionChangesEditorInput } from '../../../../../workbench/contrib/sessions/browser/changes/sessionChangesEditorInput.js';
+import { ISessionChangesService } from '../../../../../workbench/contrib/sessions/browser/changes/sessionChangesService.js';
+import { IChangesViewService } from '../../../../../workbench/contrib/sessions/common/changesViewService.js';
+import { EmptyFileEditorInput } from '../../../../../workbench/contrib/sessions/browser/emptyFileEditorInput.js';
+import { ISessionWorkspace } from '../../../../../workbench/contrib/sessions/common/session.js';
 import { IDesktopLayoutContext } from './desktopLayoutStrategy.js';
 
 /** Options to open the Changes tab pinned first, inactive (the workbench auto-activates it only when the group is empty). */

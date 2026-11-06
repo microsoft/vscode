@@ -171,17 +171,24 @@ suite('Detect missing caches', () => {
 	});
 
 	test('the Windows cache warmer installs on the Dev Drive of the Windows test jobs', () => {
-		// pr-win32-test.yml explains the step. It must come first, as it needs an empty workspace.
+		// pr-win32-test.yml explains the step. It needs an empty workspace: the cache warmer creates it
+		// first, and the test jobs after the steps of the workspace image, which leave the workspace
+		// empty when they mount no image (see .github/workflows/workspace_image/README.md).
 		const devDrive = (relativePath: string, jobName: string) => {
 			const steps = loadYaml<{ jobs: Record<string, IJob> }>(relativePath).jobs[jobName].steps;
 			const index = steps.findIndex(step => step.name === 'Move the workspace to a Dev Drive');
-			return { index, run: steps[index]?.run, shell: steps[index]?.shell, workingDirectory: steps[index]?.['working-directory'] };
+			return { before: steps.slice(0, index).map(step => step.name), run: steps[index]?.run, shell: steps[index]?.shell, workingDirectory: steps[index]?.['working-directory'] };
 		};
-		assert.deepStrictEqual(devDrive('.github/workflows/pr-node-modules.yml', 'windows'), devDrive('.github/workflows/pr-win32-test.yml', 'electron-unit'));
+		const { before: warmerBefore, ...warmer } = devDrive('.github/workflows/pr-node-modules.yml', 'windows');
+		const { before: testsBefore, ...tests } = devDrive('.github/workflows/pr-win32-test.yml', 'electron-unit');
+		assert.deepStrictEqual(
+			{ warmerBefore, testsBefore, tests },
+			{ warmerBefore: [], testsBefore: ['Download the workspace image scripts', 'Setup Node.js', 'Restore the workspace image'], tests: warmer }
+		);
 	});
 
 	test('jobs run when one of their caches is missing, has another version or cannot be listed', async () => {
-		const [missing, incompatible] = [getCaches(cacheWarmingJobs.windows, readRepositoryFile)[1], getCaches(cacheWarmingJobs.macOS, readRepositoryFile)[1]];
+		const [missing, incompatible] = [getCaches(cacheWarmingJobs.windows, readRepositoryFile)[1], getCaches(cacheWarmingJobs.linux, readRepositoryFile)[1]];
 		const existing = Object.values(cacheWarmingJobs)
 			.flatMap(job => getCaches(job, readRepositoryFile))
 			.filter(cache => cache.key !== missing.key)
@@ -214,7 +221,7 @@ suite('Detect missing caches', () => {
 			return { listedRefs: [...listedRefs], outputs };
 		};
 
-		const missingOrIncompatible = { 'compile': 'false', 'linux': 'false', 'macOS': 'true', 'windows': 'true', 'copilot-linux': 'false', 'copilot-windows': 'false' };
+		const missingOrIncompatible = { 'compile': 'false', 'linux': 'true', 'windows': 'true', 'copilot-linux': 'false', 'copilot-windows': 'false' };
 		assert.deepStrictEqual(await Promise.all([
 			detect('refs/heads/main', (key, ref) => ref === 'refs/heads/main' ? list(existing, key) : []),
 			// A release branch also restores the caches of main, without saving a copy.
@@ -223,7 +230,7 @@ suite('Detect missing caches', () => {
 		]), [
 			{ listedRefs: ['refs/heads/main'], outputs: missingOrIncompatible },
 			{ listedRefs: ['refs/heads/release/1.200', 'refs/heads/main'], outputs: missingOrIncompatible },
-			{ listedRefs: ['refs/heads/main'], outputs: { 'compile': 'true', 'linux': 'true', 'macOS': 'true', 'windows': 'true', 'copilot-linux': 'true', 'copilot-windows': 'true' } },
+			{ listedRefs: ['refs/heads/main'], outputs: { 'compile': 'true', 'linux': 'true', 'windows': 'true', 'copilot-linux': 'true', 'copilot-windows': 'true' } },
 		]);
 	});
 });

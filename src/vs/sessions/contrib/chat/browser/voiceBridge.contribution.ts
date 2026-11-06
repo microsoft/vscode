@@ -15,12 +15,12 @@ import { IChatWidgetService } from '../../../../workbench/contrib/chat/browser/c
 import { IVoiceSessionController, VoiceNewSessionPreparationResult } from '../../../../workbench/contrib/chat/browser/voiceClient/voiceSessionController.js';
 import { combineVoiceInput } from '../../../../workbench/contrib/chat/browser/voiceClient/voiceInputUtils.js';
 import { IVoiceModelSelectionResult, resolveVoiceModel } from '../../../../workbench/contrib/chat/browser/voiceClient/voiceToolDispatchService.js';
-import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
-import { getFocusedSessionChatSource, getMainWindowHost, IFocusedSessionHostService, ISessionHostService } from '../../../services/sessions/browser/sessionHost.js';
-import { SessionStatus } from '../../../services/sessions/common/session.js';
-import { IHostSession, inheritableSessionTarget, ISendRequestOptions, ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
-import { INewChatVoiceComposer, INewChatVoiceTargetService, NEW_CHAT_VOICE_SENTINEL } from './newChatVoice.js';
-import { INewSessionComposerService } from './newSessionComposerService.js';
+import { ISessionsService } from '../../../../workbench/contrib/sessions/browser/sessionsService.js';
+import { getFocusedSessionChatSource, getMainWindowHost, IFocusedSessionHostService, ISessionHostService } from '../../../../workbench/contrib/sessions/browser/sessionHost.js';
+import { SessionStatus } from '../../../../workbench/contrib/sessions/common/session.js';
+import { IHostSession, inheritableSessionTarget, ISendRequestOptions, ISessionsManagementService } from '../../../../workbench/contrib/sessions/common/sessionsManagement.js';
+import { INewChatVoiceComposer, INewChatVoiceTargetService, NEW_CHAT_VOICE_SENTINEL } from '../../../../workbench/contrib/sessions/browser/chat/newChatVoice.js';
+import { INewSessionComposerService } from '../../../../workbench/contrib/sessions/browser/newSessionComposerService.js';
 import { ChatRequestQueueKind } from '../../../../workbench/contrib/chat/common/chatService/chatService.js';
 
 export async function prepareNewVoiceSession(

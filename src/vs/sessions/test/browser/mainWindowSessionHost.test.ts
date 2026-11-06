@@ -22,9 +22,11 @@ import { EditorExtensions } from '../../../workbench/common/editor.js';
 import { IEditorGroup } from '../../../workbench/services/editor/common/editorGroupsService.js';
 import { createEditorPart, TestFileEditorInput, workbenchInstantiationService } from '../../../workbench/test/browser/workbenchTestServices.js';
 import { EditorParts } from '../../browser/parts/editorParts.js';
-import { AgentWorkbenchLayout, IAgentWorkbenchLayoutService } from '../../browser/workbench.js';
+import { IAgentWorkbenchLayoutService } from '../../browser/workbench.js';
+import { AgentWorkbenchLayout } from '../../../workbench/contrib/sessions/browser/sessionsHostLayoutService.js';
 import { TestStorageService } from '../../../workbench/test/common/workbenchTestServices.js';
-import { ActiveSessionHost, createMainWindowInstantiationService, ISessionHost, ISessionHostService, SessionHostKind } from '../../services/sessions/browser/sessionHost.js';
+import { ActiveSessionHost, createMainWindowInstantiationService, ISessionHost, ISessionHostService, SessionHostKind } from '../../../workbench/contrib/sessions/browser/sessionHost.js';
+import { stubSessionsHostLayout } from './sessionsHostLayoutTestUtils.js';
 
 const EDITOR_ID = 'test.mainWindowSessionHost.editor';
 const INPUT_ID = 'test.mainWindowSessionHost.input';
@@ -83,6 +85,7 @@ suite('Main window session host', () => {
 		// The agent layout service refines the workbench layout service: same service, one more property.
 		const layoutService = instantiationService.get(IAgentWorkbenchLayoutService);
 		instantiationService.stub(IAgentWorkbenchLayoutService, Object.assign(Object.create(layoutService), { agentWorkbenchLayout: AgentWorkbenchLayout.Mobile }));
+		stubSessionsHostLayout(instantiationService);
 		const parts = store.add(instantiationService.createInstance(EditorParts));
 		parts.mainPart.create(document.createElement('div'));
 		parts.mainPart.layout(1080, 800, 0, 0);

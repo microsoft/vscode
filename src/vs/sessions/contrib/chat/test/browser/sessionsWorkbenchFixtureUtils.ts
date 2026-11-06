@@ -32,20 +32,20 @@ import { IWorkbenchLayoutService, Parts } from '../../../../../workbench/service
 import { ComponentFixtureContext, createEditorServices, registerWorkbenchServices } from '../../../../../workbench/test/browser/componentFixtures/fixtureUtils.js';
 import { TestProductService } from '../../../../../workbench/test/common/workbenchTestServices.js';
 import { OpenInVSCodeAction, OpenInVSCodeWidgetContribution } from '../../../../browser/actions/vscodeActions.js';
-import { Menus } from '../../../../browser/menus.js';
-import { AGENTS_CARD_SURFACE_CLASS, AGENTS_PART_CARD_CLASS, AGENTS_SIDE_PANE_MULTIPLE_TABS_CLASS } from '../../../../browser/parts/agentsPartCard.js';
-import { SessionsPart } from '../../../../browser/parts/sessionsPart.js';
+import { AgentsWindowMenus } from '../../../../browser/agentsWindowMenus.js';
+import { AGENTS_CARD_SURFACE_CLASS, AGENTS_PART_CARD_CLASS, AGENTS_SIDE_PANE_MULTIPLE_TABS_CLASS } from '../../../../../workbench/contrib/sessions/browser/parts/agentsPartCard.js';
+import { SessionsPart } from '../../../../../workbench/contrib/sessions/browser/parts/sessionsPart.js';
 import { TitlebarPart } from '../../../../browser/parts/titlebarPart.js';
 import { IAgentWorkbenchLayoutService } from '../../../../browser/workbench.js';
-import { AGENTS_FLOATING_PANEL_GAP } from '../../../../common/layoutConstants.js';
-import { CanGoBackContext, MultipleSessionsVisibleContext, SessionWorkspaceIsVirtualContext } from '../../../../common/contextkeys.js';
-import { SESSIONS_CHAT_TABS_SETTING, SessionsChatTabsMode } from '../../../../common/sessionConfig.js';
-import { ISessionsChatBackground, ISessionsChatBackgroundService } from '../../../../services/chatBackground/browser/chatBackgroundService.js';
-import { ISessionsPartService } from '../../../../services/sessions/browser/sessionsPartService.js';
-import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
-import { focusedSessionHostServiceOf, ITestSessionsGridState, stubSessionHosts } from '../../../../services/sessions/test/browser/sessionHostTestUtils.js';
-import { IFocusedSessionHostService } from '../../../../services/sessions/browser/sessionHost.js';
-import { IActiveSession } from '../../../../services/sessions/common/sessionsManagement.js';
+import { AGENTS_FLOATING_PANEL_GAP } from '../../../../../workbench/contrib/sessions/common/layoutConstants.js';
+import { CanGoBackContext, MultipleSessionsVisibleContext, SessionWorkspaceIsVirtualContext } from '../../../../../workbench/contrib/sessions/common/contextkeys.js';
+import { SESSIONS_CHAT_TABS_SETTING, SessionsChatTabsMode } from '../../../../../workbench/contrib/sessions/common/sessionConfig.js';
+import { ISessionsChatBackground, ISessionsChatBackgroundService } from '../../../../../workbench/contrib/sessions/browser/chatBackgroundService.js';
+import { ISessionsPartService } from '../../../../../workbench/contrib/sessions/browser/sessionsPartService.js';
+import { ISessionsService } from '../../../../../workbench/contrib/sessions/browser/sessionsService.js';
+import { focusedSessionHostServiceOf, ITestSessionsGridState, stubSessionHosts } from '../../../../../workbench/contrib/sessions/test/browser/sessionHostTestUtils.js';
+import { IFocusedSessionHostService } from '../../../../../workbench/contrib/sessions/browser/sessionHost.js';
+import { IActiveSession } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import { createSessionViewTestServices } from '../../../../test/browser/sessionViewTestUtils.js';
 import { AccountWidgetContribution } from '../../../accountMenu/browser/account.contribution.js';
 import { BaseLayoutController } from '../../../layout/browser/baseSessionLayoutController.js';
@@ -54,7 +54,8 @@ import { SessionActionFeedback } from '../../../sessions/browser/sessionActionFe
 import { NEW_SESSION_BUTTON_STYLE_SETTING, NewSessionActionViewItemContribution } from '../../../sessions/browser/sessionsActions.js';
 import { registerSessionsTitleBarMenus, SessionsTitleBarWidget } from '../../../sessions/browser/sessionsTitleBarWidget.js';
 import { acquireArchiveActions, FixtureActionViewItemService, FixtureContextMenuService } from '../../../sessions/test/browser/sessionsListFixtureUtils.js';
-import { NewChatInSessionsWindowAction } from '../../browser/newSessionAction.js';
+import { NewChatInSessionsWindowAction } from '../../../../../workbench/contrib/sessions/browser/chat/newSessionAction.js';
+import { appendNewSessionTitleBarMenuItem } from '../../browser/newSessionTitleBarMenu.js';
 
 import '../../../../browser/layoutActions.js';
 import '../../browser/runScriptAction.js';
@@ -72,6 +73,7 @@ function acquireWorkbenchActions() {
 		sharedActions.add(BaseLayoutController.registerSidePaneToggleAction());
 		sharedActions.add(registerAction2(OpenInVSCodeAction));
 		sharedActions.add(registerAction2(NewChatInSessionsWindowAction));
+		sharedActions.add(appendNewSessionTitleBarMenuItem());
 		sharedActions.add(acquireArchiveActions());
 	}
 	return toDisposable(() => {
@@ -151,6 +153,8 @@ export function createSessionsWorkbenchFixture(context: ComponentFixtureContext,
 	instantiationService.stub(IContextMenuService, disposableStore.add(instantiationService.createInstance(FixtureContextMenuService, container, context.focus)));
 	instantiationService.stub(IWorkbenchLayoutService, layoutService);
 	instantiationService.stub(IAgentWorkbenchLayoutService, layoutService);
+	// ISessionsHostLayoutService is left to the fixture default, which resolves it to this layout with the layout as the
+	// docked side pane, as the Agents workbench does.
 	instantiationService.stub(ISessionsService, sessionsService);
 	// The main window shows the grid's active session: the host UI of its parts, such as the title bar, injects, and the
 	// focused host, which grid commands check.
@@ -206,7 +210,7 @@ export function createSessionsWorkbenchFixture(context: ComponentFixtureContext,
 		override readonly requiresInputKind = constObservable(undefined);
 		override consumePendingBlink() { return false; }
 	}();
-	disposableStore.add(actionViewItems.register(Menus.CommandCenter, Menus.TitleBarSessionTitle, (action, options) => action instanceof SubmenuItemAction
+	disposableStore.add(actionViewItems.register(AgentsWindowMenus.CommandCenter, AgentsWindowMenus.TitleBarSessionTitle, (action, options) => action instanceof SubmenuItemAction
 		? instantiationService.createInstance(SessionsTitleBarWidget, action, options, feedback, blockedIndicator)
 		: undefined));
 	disposableStore.add(instantiationService.createInstance(NewSessionActionViewItemContribution));

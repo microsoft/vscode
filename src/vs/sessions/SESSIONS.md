@@ -170,7 +170,7 @@ The Agents Window and editor-window Agent Host inputs use the same workbench-own
 
 Providers may advertise `supportsRemoveArtifacts` and implement `removeSessionArtifact`. User-initiated removal routes through `ISessionsManagementService` to the owning provider, which persists and publishes the updated artifact list. Removing a record does not remove independent session associations or alter the linked resource.
 
-The composer owns artifact detail selection, anchoring, dismissal and model lifetime. [ArtifactDetailsModel](contrib/chat/browser/artifactDetailsModel.ts) holds the visible artifact's detail leases and projects provider snapshots into the observable [IArtifactDetailsViewData](contrib/chat/browser/artifactDetailsView.ts) contract. Its Autopilot and Activities models own consent commands, history paging and chat navigation; the runtime remains authoritative for execution and saved consent.
+The composer owns artifact detail selection, anchoring, dismissal and model lifetime. [ArtifactDetailsModel](../workbench/contrib/sessions/browser/chat/artifactDetailsModel.ts) holds the visible artifact's detail leases and projects provider snapshots into the observable [IArtifactDetailsViewData](../workbench/contrib/sessions/browser/chat/artifactDetailsView.ts) contract. Its Autopilot and Activities models own consent commands, history paging and chat navigation; the runtime remains authoritative for execution and saved consent.
 
 The panel and its state-list, Autopilot and Activities widgets render presentation-ready data and invoke its commands. They do not acquire provider details or inspect provider snapshots. List and action identities are provider-qualified; selected tabs, expanded cards and prepared policies belong to artifact-scoped view state, separately from durable automation settings. Closing details releases live subscriptions without changing recorded request-card snapshots.
 
@@ -235,9 +235,9 @@ Backend state, transport, URI formats, recovery, and authentication remain insid
 
 Provider-specific contracts are documented in:
 
-- [Copilot Chat provider](contrib/providers/copilotChatSessions/COPILOT_CHAT_SESSIONS_PROVIDER.md)
-- [Agent Host provider](contrib/providers/agentHost/AGENT_HOST_SESSIONS_PROVIDER.md)
-- [Remote Agent Host provider](contrib/providers/remoteAgentHost/REMOTE_AGENT_HOST_SESSIONS_PROVIDER.md)
+- [Copilot Chat provider](../workbench/contrib/sessions/providers/copilotChatSessions/COPILOT_CHAT_SESSIONS_PROVIDER.md)
+- [Agent Host provider](../workbench/contrib/sessions/providers/agentHost/AGENT_HOST_SESSIONS_PROVIDER.md)
+- [Remote Agent Host provider](../workbench/contrib/sessions/providers/remoteAgentHost/REMOTE_AGENT_HOST_SESSIONS_PROVIDER.md)
 
 ## Principal lifecycle
 

@@ -21,9 +21,9 @@ import { IChatWindow, IChatWindowService } from '../../../../../workbench/contri
 import { ICreateTerminalOptions, ITerminalGroup, ITerminalGroupService, ITerminalInstance, ITerminalLocationOptions, ITerminalService } from '../../../../../workbench/contrib/terminal/browser/terminal.js';
 import { TerminalEditorInput } from '../../../../../workbench/contrib/terminal/browser/terminalEditorInput.js';
 import { IContentPart, IEditorGroup, IEditorGroupsService } from '../../../../../workbench/services/editor/common/editorGroupsService.js';
-import { ISessionHost, ISessionHostService, SessionHostKind } from '../../../../services/sessions/browser/sessionHost.js';
-import { IChat, ISession } from '../../../../services/sessions/common/session.js';
-import { IActiveSession, ISessionsChangeEvent, ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
+import { ISessionHost, ISessionHostService, SessionHostKind } from '../../../../../workbench/contrib/sessions/browser/sessionHost.js';
+import { IChat, ISession } from '../../../../../workbench/contrib/sessions/common/session.js';
+import { IActiveSession, ISessionsChangeEvent, ISessionsManagementService } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import { ChatWindowTerminals, IChatWindowTerminalsSource } from '../../browser/chatWindowTerminals.js';
 
 /** The id of the chat window of the tests, not the main window's. */
@@ -122,6 +122,8 @@ suite('Chat window terminals', () => {
 		readonly panelGroup?: ITerminalInstance[];
 		/** Whether a terminal moved to an editor opens there later, as the editor service opens it. */
 		readonly opensLater?: boolean;
+		/** With {@link opensLater}: how much later each terminal opens, in milliseconds; 10 by default. */
+		readonly openDelay?: (instance: ITerminalInstance) => number;
 		/** The id of the window, such as of the active window, which is the main window in tests. */
 		readonly windowId?: number;
 		/** Whether an editor opens first in its group, as `workbench.editor.openPositioning` `first` opens it. */
@@ -188,7 +190,7 @@ suite('Chat window terminals', () => {
 				panelGroup?.instances.splice(panelGroup.instances.indexOf(instance), 1);
 				options.onMoveToEditor?.(instance);
 				if (options.opensLater) {
-					setTimeout(() => { calls.push('opened'); terminalsGroup.open(editor('workbench.editors.terminal', instance.resource)); }, 10);
+					setTimeout(() => { calls.push('opened'); terminalsGroup.open(editor('workbench.editors.terminal', instance.resource)); }, options.openDelay?.(instance) ?? 10);
 				} else if (options.opensFirst) {
 					terminalsGroup.editors.unshift(editor('workbench.editors.terminal', instance.resource));
 				} else {
@@ -446,6 +448,195 @@ suite('Chat window terminals', () => {
 			shown: { first: false, second: true },
 			owners: { first: 'session-1', second: 'session-2' },
 			tracked: ['session-2:21'],
+		});
+	});
+
+	test('showing, the terminals follow the session of the chat the window shows, such as a chat of another session that becomes the active one: those of the session they showed for go back to the panel, still running, and show again in their order and with their active one as its chat does', async () => {
+		const first = [terminal(5), terminal(6)];
+		const second = terminal(7);
+		const otherSession = upcastPartial<IActiveSession>({ sessionId: 'session-2' });
+		const environment = createEnvironment({ instances: [...first, second], terminalsOf: async forSession => forSession.sessionId === 'session-1' ? first : [second] });
+		const shown = () => environment.terminalsGroup.editors.map(candidate => candidate.resource?.path);
+		await environment.terminals.show(environment.window, false);
+		// The user puts the second first and activates it
+		environment.terminalsGroup.editors.reverse();
+		environment.terminalsGroup.activeEditor = environment.terminalsGroup.editors[0];
+
+		environment.hostSession.set(otherSession, undefined);
+		await timeout(0);
+		const whileOther = { shown: shown(), targets: first.map(instance => instance.target) };
+		environment.hostSession.set(environment.session, undefined);
+		await timeout(0);
+
+		assert.deepStrictEqual({ whileOther, back: { shown: shown(), active: environment.terminalsGroup.activeEditor?.resource?.path, target: second.target }, owners: [...environment.owners] }, {
+			whileOther: { shown: ['/1/7'], targets: [TerminalLocation.Panel, TerminalLocation.Panel] },
+			back: { shown: ['/1/6', '/1/5'], active: '/1/6', target: TerminalLocation.Panel },
+			owners: [[5, 'session-1'], [6, 'session-1'], [7, 'session-2']],
+		});
+	});
+
+	test('hidden, the terminals do not follow the session of the chat the window shows: nothing is got for it until they show, and then they show its terminals', async () => {
+		const first = terminal(5);
+		const second = terminal(7);
+		const otherSession = upcastPartial<IActiveSession>({ sessionId: 'session-2' });
+		const environment = createEnvironment({ instances: [first, second], terminalsOf: async forSession => forSession.sessionId === 'session-1' ? [first] : [second] });
+		await environment.terminals.show(environment.window, false);
+		environment.terminals.hide(environment.window);
+		const callsBefore = environment.calls.length;
+
+		environment.hostSession.set(otherSession, undefined);
+		await timeout(0);
+		const whileHidden = environment.calls.slice(callsBefore);
+		const shown = await environment.terminals.show(environment.window, false);
+
+		assert.deepStrictEqual({ whileHidden, shown, inTerminalsPart: environment.terminalsGroup.editors.map(candidate => candidate.resource?.path), first: first.target }, {
+			whileHidden: [],
+			shown: true,
+			inTerminalsPart: ['/1/7'],
+			first: TerminalLocation.Panel,
+		});
+	});
+
+	test('switching on before the terminals of a session open, such as from A to B to C while B\'s terminal is still on its way, shows only the terminals of the last session: the others go to the panel once they open', async () => {
+		const [a, b, c] = [terminal(5), terminal(6), terminal(7)];
+		const sessions = ['session-2', 'session-3'].map(sessionId => upcastPartial<IActiveSession>({ sessionId }));
+		const environment = createEnvironment({
+			instances: [a, b, c], opensLater: true, openDelay: instance => instance === b ? 50 : 10,
+			terminalsOf: async forSession => [{ 'session-1': a, 'session-2': b, 'session-3': c }[forSession.sessionId]!],
+		});
+		await environment.terminals.show(environment.window, false);
+
+		environment.hostSession.set(sessions[0], undefined);
+		await timeout(0);
+		environment.hostSession.set(sessions[1], undefined);
+		await timeout(100);
+
+		assert.deepStrictEqual({ shown: environment.terminalsGroup.editors.map(candidate => candidate.resource?.path), targets: [a, b, c].map(instance => instance.target) }, {
+			shown: ['/1/7'],
+			targets: [TerminalLocation.Panel, TerminalLocation.Panel, TerminalLocation.Editor],
+		});
+	});
+
+	test('switching back before the terminals of the other session open, such as from A to B and back to A, shows A\'s terminals again without letting them go: only B\'s go to the panel once they open', async () => {
+		const [a, b] = [terminal(5), terminal(6)];
+		const environment = createEnvironment({
+			instances: [a, b], opensLater: true, openDelay: instance => instance === b ? 50 : 10,
+			terminalsOf: async forSession => [forSession.sessionId === 'session-1' ? a : b],
+		});
+		await environment.terminals.show(environment.window, false);
+
+		environment.hostSession.set(upcastPartial<IActiveSession>({ sessionId: 'session-2' }), undefined);
+		await timeout(0);
+		environment.hostSession.set(environment.session, undefined);
+		await timeout(100);
+
+		assert.deepStrictEqual({ shown: environment.terminalsGroup.editors.map(candidate => candidate.resource?.path), targets: [a, b].map(instance => instance.target), aLetGo: environment.shownInChatWindow.includes('5:false') }, {
+			shown: ['/1/5'],
+			targets: [TerminalLocation.Editor, TerminalLocation.Panel],
+			aLetGo: false,
+		});
+	});
+
+	test('a show replaced by a switch to another session leaves the terminals that show to the switch, which lets go of them once those of its session show: the terminals do not hide meanwhile, and follow a switch on to a third session', async () => {
+		const [a1, a2, b, c] = [terminal(5), terminal(6), terminal(7), terminal(8)];
+		const environment = createEnvironment({
+			instances: [a1, a2, b, c], opensLater: true, openDelay: instance => ({ 5: 5, 6: 60, 7: 80, 8: 5 })[instance.instanceId]!,
+			terminalsOf: async forSession => ({ 'session-1': [a1, a2], 'session-2': [b], 'session-3': [c] })[forSession.sessionId]!,
+		});
+
+		// The first of A's terminals shows while the second is still on its way, as the window switches to B.
+		void environment.terminals.show(environment.window, false);
+		await timeout(20);
+		environment.hostSession.set(upcastPartial<IActiveSession>({ sessionId: 'session-2' }), undefined);
+		// A's second terminal opens, which replaced its show, and then the window switches on to C, before B's terminal opens.
+		await timeout(60);
+		const visibleBeforeC = environment.window.terminalsVisible.get();
+		environment.hostSession.set(upcastPartial<IActiveSession>({ sessionId: 'session-3' }), undefined);
+		await timeout(80);
+
+		assert.deepStrictEqual({ visibleBeforeC, shown: environment.terminalsGroup.editors.map(candidate => candidate.resource?.path), targets: [a1, a2, b, c].map(instance => instance.target) }, {
+			visibleBeforeC: true,
+			shown: ['/1/8'],
+			targets: [TerminalLocation.Panel, TerminalLocation.Panel, TerminalLocation.Panel, TerminalLocation.Editor],
+		});
+	});
+
+	test('switching back before the terminals of the other session open keeps the order and the active one that session last showed its terminals with, rather than taking those of the session the window switched from', async () => {
+		const [a, b1, b2] = [terminal(5), terminal(6), terminal(7)];
+		const sessionB = upcastPartial<IActiveSession>({ sessionId: 'session-2' });
+		let slow = false;
+		const environment = createEnvironment({
+			instances: [a, b1, b2], opensLater: true, openDelay: () => slow ? 60 : 5,
+			terminalsOf: async forSession => forSession.sessionId === 'session-1' ? [a] : [b1, b2],
+		});
+		await environment.terminals.show(environment.window, false);
+		environment.hostSession.set(sessionB, undefined);
+		await timeout(30);
+		// The user puts B's second terminal first and activates it, and the window switches back to A.
+		environment.terminalsGroup.editors.reverse();
+		environment.terminalsGroup.activeEditor = environment.terminalsGroup.editors[0];
+		environment.hostSession.set(environment.session, undefined);
+		await timeout(30);
+
+		// To B and back to A before B's terminals open
+		slow = true;
+		environment.hostSession.set(sessionB, undefined);
+		await timeout(10);
+		environment.hostSession.set(environment.session, undefined);
+		await timeout(100);
+		slow = false;
+		environment.hostSession.set(sessionB, undefined);
+		await timeout(30);
+
+		assert.deepStrictEqual({ shown: environment.terminalsGroup.editors.map(candidate => candidate.resource?.path), active: environment.terminalsGroup.activeEditor?.resource?.path }, {
+			shown: ['/1/7', '/1/6'],
+			active: '/1/7',
+		});
+	});
+
+	test('a terminal opened by New Terminal in the part that holds the terminals while they switch to another session stays: the window takes it for the session it shows once it got its terminals, also when a switch it replaced still gets those of its session', async () => {
+		const run = async (switchOn: boolean) => {
+			// Opened in the part that holds the terminals, as an editor
+			const [a, b, c, created] = [terminal(5), terminal(6), terminal(7), terminal(9, { target: TerminalLocation.Editor })];
+			const pendingB = new DeferredPromise<readonly ITerminalInstance[]>();
+			const environment = createEnvironment({
+				instances: [a, b, c, created],
+				terminalsOf: forSession => forSession.sessionId === 'session-1' ? Promise.resolve([a]) : forSession.sessionId === 'session-2' ? pendingB.p : Promise.resolve([c]),
+			});
+			await environment.terminals.show(environment.window, false);
+			environment.hostSession.set(upcastPartial<IActiveSession>({ sessionId: 'session-2' }), undefined);
+			await timeout(0);
+			environment.terminalsGroup.open(editor('workbench.editors.terminal', created.resource));
+			if (switchOn) {
+				environment.hostSession.set(upcastPartial<IActiveSession>({ sessionId: 'session-3' }), undefined);
+				await timeout(0);
+			}
+			await pendingB.complete([b]);
+			await timeout(0);
+			return { shown: environment.terminalsGroup.editors.map(candidate => candidate.resource?.path), owner: environment.owners.get(9) };
+		};
+
+		assert.deepStrictEqual({ toB: await run(false), toBThenC: await run(true) }, {
+			toB: { shown: ['/1/9', '/1/6'], owner: 'session-2' },
+			toBThenC: { shown: ['/1/9', '/1/7'], owner: 'session-3' },
+		});
+	});
+
+	test('terminals shown again while those of an earlier show of the same session are still on their way, such as hidden and shown again at once, stay: the earlier show does not let them go', async () => {
+		const a = terminal(5);
+		const environment = createEnvironment({ instances: [a], opensLater: true, openDelay: () => 30, terminalsOf: async () => [a] });
+
+		const first = environment.terminals.show(environment.window, false);
+		await timeout(0);
+		environment.terminals.hide(environment.window);
+		const second = environment.terminals.show(environment.window, false);
+		const shown = { first: await first, second: await second };
+		await timeout(50);
+
+		assert.deepStrictEqual({ shown, target: a.target, inTerminalsPart: environment.terminalsGroup.editors.some(candidate => candidate.resource?.path === '/1/5') }, {
+			shown: { first: false, second: true },
+			target: TerminalLocation.Editor,
+			inTerminalsPart: true,
 		});
 	});
 

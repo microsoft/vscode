@@ -7,7 +7,7 @@ import { Event } from '../../../../../base/common/event.js';
 import { Disposable } from '../../../../../base/common/lifecycle.js';
 import { IObservable, IReader } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
-import { IHostSession, IShownChat } from '../../../../services/sessions/common/sessionsManagement.js';
+import { IHostSession, IShownChat } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import { DesktopOwnerCompositionStore } from './desktopOwnerCompositionStore.js';
 
 /**

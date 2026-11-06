@@ -15,14 +15,14 @@ import { ChatContextKeys } from '../../../../workbench/contrib/chat/common/actio
 import { IChatWindowOpenOptions, IChatWindowService } from '../../../../workbench/contrib/chatWindow/browser/chatWindow.js';
 import { resolveChatWindow } from '../../../../workbench/contrib/chatWindow/browser/chatWindowLayoutActions.js';
 import { IEditorGroupsService } from '../../../../workbench/services/editor/common/editorGroupsService.js';
-import { Menus, SessionHeaderMenus } from '../../../browser/menus.js';
+import { Menus, SessionHeaderMenus } from '../../../../workbench/contrib/sessions/browser/menus.js';
 import { IAgentWorkbenchLayoutService } from '../../../browser/workbench.js';
-import { SessionsCategories } from '../../../common/categories.js';
-import { SessionIsCreatedContext, SessionItemIsMultiSelectionContext } from '../../../common/contextkeys.js';
-import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
-import { getMainWindowHost, ISessionHostService } from '../../../services/sessions/browser/sessionHost.js';
-import { resolveSessionCommandTarget } from '../../../services/sessions/browser/sessionCommandTarget.js';
-import { IChat, ISession } from '../../../services/sessions/common/session.js';
+import { SessionsCategories } from '../../../../workbench/contrib/sessions/common/categories.js';
+import { SessionIsCreatedContext, SessionItemIsMultiSelectionContext } from '../../../../workbench/contrib/sessions/common/contextkeys.js';
+import { ISessionsService } from '../../../../workbench/contrib/sessions/browser/sessionsService.js';
+import { getMainWindowHost, ISessionHostService } from '../../../../workbench/contrib/sessions/browser/sessionHost.js';
+import { resolveSessionCommandTarget } from '../../../../workbench/contrib/sessions/browser/sessionCommandTarget.js';
+import { IChat, ISession } from '../../../../workbench/contrib/sessions/common/session.js';
 import { CHAT_WINDOWS_ENABLED_SETTING } from '../common/chatWindows.js';
 
 export const OPEN_CHAT_IN_WINDOW_COMMAND_ID = 'sessions.chatWindow.openChat';

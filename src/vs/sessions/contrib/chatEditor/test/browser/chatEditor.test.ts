@@ -5,19 +5,18 @@
 
 import assert from 'assert';
 import { timeout } from '../../../../../base/common/async.js';
-import { constObservable, derived, IObservable, observableValue } from '../../../../../base/common/observable.js';
+import { constObservable, IObservable, observableValue } from '../../../../../base/common/observable.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { Registry } from '../../../../../platform/registry/common/platform.js';
 import { IViewEditorRegistry, ViewEditorExtensions } from '../../../../../workbench/browser/parts/editor/viewEditorRegistry.js';
 import { ChatWindowLayoutMode } from '../../../../../workbench/contrib/chatWindow/common/chatWindowLayout.js';
 import { $ } from '../../../../../base/browser/dom.js';
 import { setARIAContainer } from '../../../../../base/browser/ui/aria/aria.js';
-import { Disposable, toDisposable } from '../../../../../base/common/lifecycle.js';
+import { Disposable } from '../../../../../base/common/lifecycle.js';
 import { Event } from '../../../../../base/common/event.js';
 import { upcastPartial } from '../../../../../base/test/common/mock.js';
 import { IChatWindow } from '../../../../../workbench/contrib/chatWindow/browser/chatWindow.js';
 import { IContentPart, IEditorGroup } from '../../../../../workbench/services/editor/common/editorGroupsService.js';
-import { ChatEditorContent } from '../../browser/chatEditorContent.js';
 import { createSessionViewTestServices, createTestActiveSession } from '../../../../test/browser/sessionViewTestUtils.js';
 import { ChatEditorView, IInputOnlySessionView, ISessionChatViewHost, SESSION_CHAT_VIEW_HOST_OPTIONS, SESSION_CHAT_VIEW_MINIMUM_HEIGHT, SESSION_CHAT_VIEW_TYPE, SessionChatViewInputOnly } from '../../browser/chatEditor.js';
 
@@ -26,7 +25,8 @@ suite('Session chat view editor', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
 	const INPUT_HEIGHT = 100;
-	const HEADER_HEIGHT = 30;
+	/** The top of the chat view while it shows only its input: below the bar of its group, the session header hidden then. */
+	const CHAT_VIEW_TOP = 30;
 
 	/** A chat view that shows only its input when asked to, unless it cannot, and shows the conversation when it needs it. */
 	class TestChatView {
@@ -51,7 +51,7 @@ suite('Session chat view editor', () => {
 		const chatView = new TestChatView();
 		const sessionView: IInputOnlySessionView = {
 			primaryChatView: constObservable(chatView) as IInputOnlySessionView['primaryChatView'],
-			primaryChatViewTop: constObservable(HEADER_HEIGHT),
+			inputOnlyChatViewTop: constObservable(CHAT_VIEW_TOP),
 		};
 		const layoutMode = observableValue<ChatWindowLayoutMode>('layoutMode', options.mode);
 		const inputOnly = observableValue('inputOnly', options.inputOnly);
@@ -89,7 +89,7 @@ suite('Session chat view editor', () => {
 		layoutMode.set(ChatWindowLayoutMode.SideBySide, undefined);
 		const sideBySide = read();
 
-		const collapsed = HEADER_HEIGHT + INPUT_HEIGHT;
+		const collapsed = CHAT_VIEW_TOP + INPUT_HEIGHT;
 		assert.deepStrictEqual({ stacked, conversation, sideBySide }, {
 			stacked: { shown: true, chosen: true, maximumHeight: collapsed + 1, minimumHeight: collapsed },
 			conversation: { shown: false, chosen: false, maximumHeight: Number.POSITIVE_INFINITY, minimumHeight: SESSION_CHAT_VIEW_MINIMUM_HEIGHT },
@@ -103,14 +103,14 @@ suite('Session chat view editor', () => {
 		chatView.needConversation();
 
 		assert.deepStrictEqual({ inputOnly, conversation: read() }, {
-			inputOnly: { shown: true, chosen: true, maximumHeight: HEADER_HEIGHT + INPUT_HEIGHT + 1, minimumHeight: HEADER_HEIGHT + INPUT_HEIGHT },
+			inputOnly: { shown: true, chosen: true, maximumHeight: CHAT_VIEW_TOP + INPUT_HEIGHT + 1, minimumHeight: CHAT_VIEW_TOP + INPUT_HEIGHT },
 			conversation: { shown: false, chosen: true, maximumHeight: Number.POSITIVE_INFINITY, minimumHeight: SESSION_CHAT_VIEW_MINIMUM_HEIGHT },
 		});
 	});
 
 	test('dragged by the sash beside it, the chat showing only its input grows and shows its conversation once past its input, and only its input again once dragged back down to it (a snap); let go there, it is as tall as its input', async () => {
 		const { controller, read, resizing } = createInputOnly({ inputOnly: true, mode: ChatWindowLayoutMode.Stacked });
-		const collapsed = HEADER_HEIGHT + INPUT_HEIGHT;
+		const collapsed = CHAT_VIEW_TOP + INPUT_HEIGHT;
 		const dragTo = async (height: number) => {
 			controller.layout(height);
 			await timeout(0);
@@ -134,7 +134,7 @@ suite('Session chat view editor', () => {
 
 	test('let go past its input, the chat shows its conversation at the height it was dragged to; laid out while not dragged, it does not change what it shows', async () => {
 		const { controller, read, resizing } = createInputOnly({ inputOnly: true, mode: ChatWindowLayoutMode.Stacked });
-		const collapsed = HEADER_HEIGHT + INPUT_HEIGHT;
+		const collapsed = CHAT_VIEW_TOP + INPUT_HEIGHT;
 		controller.layout(collapsed + 200);
 		await timeout(0);
 		const notDragged = read().chosen;
@@ -153,7 +153,7 @@ suite('Session chat view editor', () => {
 		const { controller, resizing } = createInputOnly({ inputOnly: true, mode: ChatWindowLayoutMode.Stacked });
 		const ariaContainer = $('.aria-container');
 		setARIAContainer(ariaContainer);
-		const collapsed = HEADER_HEIGHT + INPUT_HEIGHT;
+		const collapsed = CHAT_VIEW_TOP + INPUT_HEIGHT;
 		const announced = () => ariaContainer.textContent ?? '';
 		const drag = async (...heights: number[]) => {
 			ariaContainer.querySelectorAll('[aria-live]').forEach(element => element.textContent = '');
@@ -189,43 +189,12 @@ suite('Session chat view editor', () => {
 		assert.deepStrictEqual({ inputOnly, conversation: read().chosen }, { inputOnly: true, conversation: false });
 	});
 
-	test('the session header shows in the title row only from the view that shows the chat, the last attached, also while the view it moved from is still there', () => {
-		const { instantiationService } = createSessionViewTestServices(disposables);
-		const titleRow = $('.title-row');
-		const attached = observableValue<ChatEditorContent[]>('attached', []);
-		const host: ISessionChatViewHost = {
-			session: constObservable(undefined),
-			window: constObservable(undefined),
-			header: constObservable({ element: titleRow, actionsElement: undefined, setShown: () => { } }),
-			showsTitle: constObservable(false),
-			active: constObservable(true),
-			createTitle: () => undefined,
-			attach: view => {
-				attached.set([...attached.get(), view], undefined);
-				return toDisposable(() => attached.set(attached.get().filter(candidate => candidate !== view), undefined));
-			},
-			view: derived(reader => attached.read(reader).at(-1)),
-		};
-		const headerOf = (view: ChatEditorView) => [...titleRow.children].filter(header => view.sessionView.headerTitleElement && header.contains(view.sessionView.headerTitleElement)).length;
-		const first = instantiationService.createInstance(ChatEditorView, host);
-		const second = instantiationService.createInstance(ChatEditorView, host);
-		const whileBoth = { headers: titleRow.childElementCount, ofSecond: headerOf(second) };
-		second.dispose();
-		const afterSecondGoes = { headers: titleRow.childElementCount, ofFirst: headerOf(first) };
-		first.dispose();
-
-		assert.deepStrictEqual({ whileBoth, afterSecondGoes, afterBoth: titleRow.childElementCount }, { whileBoth: { headers: 1, ofSecond: 1 }, afterSecondGoes: { headers: 1, ofFirst: 1 }, afterBoth: 0 });
-	});
-
 	test('a chat editor shows exactly one chat, with no tabs of chats in it, also of a session of several chats: its chats are editors of their own', () => {
 		const { instantiationService, chatViews } = createSessionViewTestServices(disposables);
 		const host: ISessionChatViewHost = {
 			session: constObservable(createTestActiveSession('session', true, { chatCount: 3 })),
 			window: constObservable(undefined),
-			header: constObservable(undefined),
-			showsTitle: constObservable(false),
 			active: constObservable(true),
-			createTitle: () => undefined,
 			attach: () => Disposable.None,
 			view: constObservable(undefined),
 		};
@@ -241,10 +210,7 @@ suite('Session chat view editor', () => {
 		const host: ISessionChatViewHost = {
 			session: constObservable(createTestActiveSession('session')),
 			window: constObservable(undefined),
-			header: constObservable(undefined),
-			showsTitle: constObservable(false),
 			active: constObservable(true),
-			createTitle: () => undefined,
 			attach: () => Disposable.None,
 			view: constObservable(undefined),
 		};
@@ -269,10 +235,7 @@ suite('Session chat view editor', () => {
 		const createView = (sessionId: string, active: boolean) => disposables.add(instantiationService.createInstance(ChatEditorView, {
 			session: constObservable(createTestActiveSession(sessionId)),
 			window: constObservable(window),
-			header: constObservable(undefined),
-			showsTitle: constObservable(false),
 			active: constObservable(active),
-			createTitle: () => undefined,
 			attach: () => Disposable.None,
 			view: constObservable(undefined),
 		}));
@@ -293,78 +256,46 @@ suite('Session chat view editor', () => {
 		});
 	});
 
-	test('its own title row shows at the top of its card while its host says so, as tall in chat only as side by side, with the chat below it', () => {
+	test('the session header shows at the top of the chat\'s card, as in the main window, in every layout mode, and hides while the chat shows only its input in Stacked; its title drags the editor of the chat', () => {
 		const { instantiationService } = createSessionViewTestServices(disposables);
-		const run = (mode: ChatWindowLayoutMode) => {
-			const showsTitle = observableValue('showsTitle', true);
-			const titleElement = $('.own-title');
-			const window = upcastPartial<IChatWindow>({
-				layoutMode: constObservable(mode),
-				inputOnly: constObservable(false),
-				resizing: constObservable(false),
-				mainPart: upcastPartial<IContentPart>({ activeGroup: upcastPartial<IEditorGroup>({ activeEditorPane: undefined, onDidActiveEditorChange: Event.None }), onDidChangeActiveGroup: Event.None }),
-			});
-			const host: ISessionChatViewHost = {
-				session: constObservable(undefined),
-				window: constObservable(window),
-				header: constObservable(undefined),
-				showsTitle,
-				active: constObservable(true),
-				createTitle: container => {
-					container.insertBefore(titleElement, container.firstChild);
-					return { element: titleElement, size: constObservable(33), layout: () => { }, dispose: () => titleElement.remove() };
-				},
-				attach: () => Disposable.None,
-				view: constObservable(undefined),
-			};
-			const view = disposables.add(instantiationService.createInstance(ChatEditorView, host));
-			let chat: { height: number; top: number } | undefined;
-			view.sessionView.layout = (_width, height, top) => { chat = { height, top }; };
-			view.layout(400, 800, 0, 0);
-			const read = () => ({ shown: titleElement.style.display !== 'none' && view.element.firstElementChild === titleElement, extraMinimumHeight: view.minimumHeight - SESSION_CHAT_VIEW_MINIMUM_HEIGHT, chat });
-			const shown = read();
-			showsTitle.set(false, undefined);
-			const hidden = read();
-			showsTitle.set(true, undefined);
-			return { shown, hidden, shownAgain: read() };
-		};
-
-		const expected = {
-			shown: { shown: true, extraMinimumHeight: 33, chat: { height: 767, top: 33 } },
-			hidden: { shown: false, extraMinimumHeight: 0, chat: { height: 800, top: 0 } },
-			shownAgain: { shown: true, extraMinimumHeight: 33, chat: { height: 767, top: 33 } },
-		};
-		assert.deepStrictEqual({ chatOnly: run(ChatWindowLayoutMode.ChatOnly), sideBySide: run(ChatWindowLayoutMode.SideBySide) }, { chatOnly: expected, sideBySide: expected });
-	});
-
-	test('a view that disposes, as its window closes, creates no title row on the way, which the services it disposed could not create', () => {
-		const { instantiationService } = createSessionViewTestServices(disposables);
-		const window = () => upcastPartial<IChatWindow>({
-			layoutMode: constObservable(ChatWindowLayoutMode.SideBySide),
-			inputOnly: constObservable(false),
+		const layoutMode = observableValue('layoutMode', ChatWindowLayoutMode.SideBySide);
+		const inputOnly = observableValue('inputOnly', true);
+		const window = upcastPartial<IChatWindow>({
+			layoutMode,
+			inputOnly,
 			resizing: constObservable(false),
+			toggleConversation: () => inputOnly.set(!inputOnly.get(), undefined),
 			mainPart: upcastPartial<IContentPart>({ activeGroup: upcastPartial<IEditorGroup>({ activeEditorPane: undefined, onDidActiveEditorChange: Event.None }), onDidChangeActiveGroup: Event.None }),
 		});
-		const hostWindow = observableValue<IChatWindow | undefined>('window', window());
-		let created = 0;
-		const host: ISessionChatViewHost = {
-			session: constObservable(undefined),
-			window: hostWindow,
-			header: constObservable(undefined),
-			showsTitle: constObservable(true),
+		const view = disposables.add(instantiationService.createInstance(ChatEditorView, {
+			session: constObservable(createTestActiveSession('session')),
+			window: constObservable(window),
 			active: constObservable(true),
-			createTitle: () => {
-				created++;
-				return { element: $('.own-title'), size: constObservable(33), layout: () => { }, dispose: () => { } };
-			},
-			// What changes the window of the view as it disposes, such as its window closing.
-			attach: () => toDisposable(() => hostWindow.set(window(), undefined)),
+			attach: () => Disposable.None,
 			view: constObservable(undefined),
+		}));
+		view.layout(400, 800, 0, 0);
+		const read = () => {
+			const header = view.element.querySelector<HTMLElement>('.session-header-bar');
+			return { inCard: !!header && view.sessionView.element.contains(header), shown: !!header && header.style.display !== 'none', dragsSession: !!header?.draggable, titleDragsEditor: view.dragHandle === view.sessionView.headerTitleElement };
 		};
-		const view = instantiationService.createInstance(ChatEditorView, host);
-		const beforeDispose = created;
-		view.dispose();
 
-		assert.deepStrictEqual({ beforeDispose, afterDispose: created }, { beforeDispose: 1, afterDispose: 1 });
+		const modes: Record<string, ReturnType<typeof read>> = {};
+		for (const mode of [ChatWindowLayoutMode.SideBySide, ChatWindowLayoutMode.ChatOnly, ChatWindowLayoutMode.Stacked]) {
+			layoutMode.set(mode, undefined);
+			modes[mode] = read();
+		}
+		window.toggleConversation();
+		const stackedConversation = read();
+
+		const shown = { inCard: true, shown: true, dragsSession: false, titleDragsEditor: true };
+		assert.deepStrictEqual({ modes, stackedConversation }, {
+			modes: {
+				[ChatWindowLayoutMode.SideBySide]: shown,
+				[ChatWindowLayoutMode.ChatOnly]: shown,
+				[ChatWindowLayoutMode.Stacked]: { ...shown, shown: false },
+			},
+			stackedConversation: shown,
+		});
 	});
 });

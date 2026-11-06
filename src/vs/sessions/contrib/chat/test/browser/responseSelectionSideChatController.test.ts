@@ -32,14 +32,14 @@ import { IChatModel, IChatRequestModel } from '../../../../../workbench/contrib/
 import { IChatResponseViewModel, IChatViewModel } from '../../../../../workbench/contrib/chat/common/model/chatViewModel.js';
 import { IChatEntitlementService } from '../../../../../workbench/services/chat/common/chatEntitlementService.js';
 import { IWorkbenchEnvironmentService } from '../../../../../workbench/services/environment/common/environmentService.js';
-import { logResponseSelectionWidgetAction } from '../../../../common/sessionsTelemetry.js';
-import { AGENT_SESSIONS_RESPONSE_SELECTION_MENU_SETTING } from '../../common/constants.js';
+import { logResponseSelectionWidgetAction } from '../../../../../workbench/contrib/sessions/common/sessionsTelemetry.js';
+import { AGENT_SESSIONS_RESPONSE_SELECTION_MENU_SETTING } from '../../../../../workbench/contrib/sessions/common/chatConstants.js';
 import { SessionsSideChatProviderContribution } from '../../browser/sideChatProvider.contribution.js';
-import { ISessionsPartService } from '../../../../services/sessions/browser/sessionsPartService.js';
-import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
-import { ChatInteractivity, IChat, SessionStatus } from '../../../../services/sessions/common/session.js';
-import { IActiveSession, ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
-import { ITestSessionsService, stubMissingSessionHostsFromSessionsService } from '../../../../services/sessions/test/browser/sessionHostTestUtils.js';
+import { ISessionsPartService } from '../../../../../workbench/contrib/sessions/browser/sessionsPartService.js';
+import { ISessionsService } from '../../../../../workbench/contrib/sessions/browser/sessionsService.js';
+import { ChatInteractivity, IChat, SessionStatus } from '../../../../../workbench/contrib/sessions/common/session.js';
+import { IActiveSession, ISessionsManagementService } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
+import { ITestSessionsService, stubMissingSessionHostsFromSessionsService } from '../../../../../workbench/contrib/sessions/test/browser/sessionHostTestUtils.js';
 
 class RecordingNotificationService extends TestNotificationService {
 	readonly notifications: { severity: Severity; message: string }[] = [];
