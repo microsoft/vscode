@@ -27,7 +27,7 @@ import { SessionsSideChatProviderContribution } from '../../browser/sideChatProv
 import { ISessionsPartService } from '../../../../services/sessions/browser/sessionsPartService.js';
 import { ISessionNavigationRequest, ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
 import { ChatInteractivity, ChatOriginKind, IChat, ISessionCapabilities, SessionStatus } from '../../../../services/sessions/common/session.js';
-import { IActiveSession, ISendRequestOptions, ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
+import { IActiveSession, ICreateNewChatInSessionOptions, ISendRequestOptions, ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
 
 suite('SessionsSideChatProviderContribution', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
@@ -91,7 +91,7 @@ suite('SessionsSideChatProviderContribution', () => {
 
 		const callOrder: string[] = [];
 		const requests: ISendRequestOptions[] = [];
-		const sourceContextOptions: (boolean | undefined)[] = [];
+		const newChatOptions: (ICreateNewChatInSessionOptions | undefined)[] = [];
 		const sendRequest: ISessionsManagementService['sendRequest'] = async (_session, chat, requestOptions) => {
 			callOrder.push(`send:${chat.resource.toString()}:${requestOptions.query}`);
 			requests.push(requestOptions);
@@ -104,11 +104,19 @@ suite('SessionsSideChatProviderContribution', () => {
 				const resolvedChat = [chat, parentChat].find(candidate => extUri.isEqual(candidate.resource, resource));
 				return resolvedChat ? { session, chat: resolvedChat } : undefined;
 			},
-			createSideChatInSession: async (_session, _sourceChat, turnId, selection, includeSourceContext) => {
+			createSideChatInSession: async (_session, _sourceChat, turnId, selection) => {
 				callOrder.push(`create:${turnId}:${selection?.text ?? ''}`);
-				sourceContextOptions.push(includeSourceContext);
 				if (options.fail === 'create') {
 					throw new Error('Create failed');
+				}
+				await options.onCreateSideChat?.();
+				return sideChat;
+			},
+			createNewChatInSession: async (_session, createOptions) => {
+				callOrder.push('new');
+				newChatOptions.push(createOptions);
+				if (options.fail === 'create') {
+					return undefined;
 				}
 				await options.onCreateSideChat?.();
 				return sideChat;
@@ -142,7 +150,7 @@ suite('SessionsSideChatProviderContribution', () => {
 		}));
 
 		store.add(instantiationService.createInstance(SessionsSideChatProviderContribution));
-		return { provider: () => registered, callOrder, requests, sourceContextOptions, activeSession, activeChat, navigationRequest, session, capabilities };
+		return { provider: () => registered, callOrder, requests, newChatOptions, activeSession, activeChat, navigationRequest, session, capabilities };
 	}
 
 	test('registers a provider that branches, opens, then sends on the side chat', async () => {
@@ -275,18 +283,37 @@ suite('SessionsSideChatProviderContribution', () => {
 		assert.deepStrictEqual(harness.callOrder[0], 'create:older-turn:Older response');
 	});
 
-	test('opens a fresh side chat without source context when requested', async () => {
+	test('uses normal fresh-chat creation and opens to the side without a history branch', async () => {
 		const harness = setup();
 		const attachedContext = [toPasteVariableEntry('Terminal Command', 'echo example')];
 		await harness.provider()!.askInSideChat(sourceChat.resource, 'Explain this', undefined, { includeSourceContext: false, attachedContext });
 
 		assert.deepStrictEqual({
-			callOrder: harness.callOrder, sourceContextOptions: harness.sourceContextOptions, requests: harness.requests,
+			callOrder: harness.callOrder, newChatOptions: harness.newChatOptions, requests: harness.requests,
 		}, {
-			callOrder: ['create:turn-1:', `open:${sideChat.resource.toString()}`, `split:${sideChat.resource.toString()}`, `send:${sideChat.resource.toString()}:Explain this`],
-			sourceContextOptions: [false],
+			callOrder: ['new', `open:${sideChat.resource.toString()}`, `split:${sideChat.resource.toString()}`, `send:${sideChat.resource.toString()}:Explain this`],
+			newChatOptions: [{ forceNew: true, harness: 'copilot', sourceChat: sourceChat.resource }],
 			requests: [{ query: 'Explain this', attachedContext }],
 		});
+	});
+
+	test('sends fresh explanations in the background if the user navigates during creation', async () => {
+		const pending = new DeferredPromise<void>();
+		const harness = setup({ onCreateSideChat: () => pending.p });
+		const request = harness.provider()!.askInSideChat(sourceChat.resource, 'Explain', undefined, { includeSourceContext: false });
+		harness.activeChat.set(sideChat, undefined);
+		pending.complete();
+		await request;
+		assert.deepStrictEqual({ calls: harness.callOrder, requests: harness.requests }, {
+			calls: ['new', `send:${sideChat.resource.toString()}:Explain`],
+			requests: [{ query: 'Explain', attachedContext: undefined, background: true }],
+		});
+	});
+
+	test('does not open or send when fresh-chat creation returns no chat', async () => {
+		const harness = setup({ fail: 'create' });
+		await assert.rejects(harness.provider()!.askInSideChat(sourceChat.resource, 'Explain', undefined, { includeSourceContext: false }), /could not be created/);
+		assert.deepStrictEqual(harness.callOrder, ['new']);
 	});
 
 	test('gates fresh cross-harness explanations without disabling ordinary side chats', async () => {

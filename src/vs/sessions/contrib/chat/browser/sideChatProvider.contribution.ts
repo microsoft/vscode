@@ -9,6 +9,7 @@ import { Disposable } from '../../../../base/common/lifecycle.js';
 import { ResourceMap } from '../../../../base/common/map.js';
 import { derived, IObservable, IReader } from '../../../../base/common/observable.js';
 import { URI } from '../../../../base/common/uri.js';
+import { localize } from '../../../../nls.js';
 import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../../workbench/common/contributions.js';
 import { IChatWidgetService } from '../../../../workbench/contrib/chat/browser/chat.js';
@@ -63,7 +64,20 @@ export class SessionsSideChatProviderContribution extends Disposable implements 
 			throw new Error(`Side chats are not supported for ${sessionResource.toString()}`);
 		}
 		const { session, chatResource, turnId } = source;
-		await createAndSendSideChat(this.sessionsManagementService, this.sessionsService, this.sessionsPartService, session, chatResource, turnId, { query, attachedContext: options?.attachedContext }, selection, options?.includeSourceContext);
+		await createAndSendSideChat(this.sessionsManagementService, this.sessionsService, this.sessionsPartService, session, { query, attachedContext: options?.attachedContext }, async () => {
+			if (options?.includeSourceContext !== false) {
+				return this.sessionsManagementService.createSideChatInSession(session, chatResource, turnId, selection);
+			}
+			const chat = await this.sessionsManagementService.createNewChatInSession(session, {
+				forceNew: true,
+				harness: getChatHarness(session, source.chat),
+				sourceChat: chatResource,
+			});
+			if (!chat) {
+				throw new Error(localize('sideChat.createFailed', "The new chat could not be created."));
+			}
+			return chat;
+		});
 	}
 
 	/** Observes the source metadata for a side chat. */
@@ -180,7 +194,7 @@ export class SessionsSideChatProviderContribution extends Disposable implements 
 		if (!sourceTurn) {
 			return undefined;
 		}
-		return { session, chatResource: chat.resource, turnId: sourceTurn.id };
+		return { session, chat, chatResource: chat.resource, turnId: sourceTurn.id };
 	}
 }
 

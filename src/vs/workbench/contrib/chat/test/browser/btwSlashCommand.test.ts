@@ -283,9 +283,12 @@ suite('BtwSlashCommandContribution', () => {
 		assert.deepStrictEqual(harness.calls[0], { create: source, turnId: 'older-turn', selection: { text: 'Older answer' } });
 	});
 
-	test('creates a fresh editor side chat and sends the selected text as an attachment', async () => {
+	test('creates a fresh editor side chat and sends only the explicit attachments', async () => {
 		const harness = setup();
-		await harness.sideChatService.askInSideChat(source, 'Explain this', { text: 'echo example' }, { includeSourceContext: false });
+		await harness.sideChatService.askInSideChat(source, 'Explain this', undefined, {
+			includeSourceContext: false,
+			attachedContext: [{ id: 'command', kind: 'generic', name: 'Terminal Command', value: 'echo example' }],
+		});
 		assert.deepStrictEqual({
 			creation: harness.calls[0],
 			sourceContextOptions: harness.sourceContextOptions,
@@ -293,7 +296,7 @@ suite('BtwSlashCommandContribution', () => {
 		}, {
 			creation: { create: source, turnId: 'active-turn', selection: undefined },
 			sourceContextOptions: [false],
-			attachments: [[{ kind: 'paste', value: 'echo example' }]],
+			attachments: [[{ kind: 'generic', value: 'echo example' }]],
 		});
 	});
 

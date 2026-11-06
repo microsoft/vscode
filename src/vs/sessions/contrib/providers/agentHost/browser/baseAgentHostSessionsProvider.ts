@@ -8461,7 +8461,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		// Otherwise this is an additional peer chat inside an existing running
 		// session. Mint a client-chosen chat URI, ask the host to add it to the
 		// session's catalog, and wait for the adapter to surface the new chat.
-		return this._createAdditionalChat(chatId, connection, options?.harness);
+		return this._createAdditionalChat(chatId, connection, options);
 	}
 
 	getNestedChatWorkspaceSupport(sessionId: string, chat: URI, reader: IReader | undefined): INestedChatWorkspaceSupport | undefined {
@@ -8596,7 +8596,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		return provider;
 	}
 
-	private async _createAdditionalChat(chatId: string, connection: IAgentConnection, harness?: string): Promise<IChat> {
+	private async _createAdditionalChat(chatId: string, connection: IAgentConnection, options?: ICreateNewChatOptions): Promise<IChat> {
 		const rawId = this._sessionKeyFromChatId(chatId);
 		const cached = rawId ? this._sessionCache.get(rawId) : undefined;
 		if (!rawId || !cached) {
@@ -8605,14 +8605,23 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		if (!cached.capabilities.get().supportsMultipleChats) {
 			throw new Error(`Session '${chatId}' does not support multiple chats`);
 		}
-		const chatProvider = this._resolveNewChatProvider(cached, harness);
+		const chatProvider = this._resolveNewChatProvider(cached, options?.harness);
+		const sourceChat = options?.sourceChat;
+		if (sourceChat && (!cached.chats.get().some(chat => isEqual(chat.resource, sourceChat)) || cached.getChatAgentProvider(sourceChat) !== (chatProvider ?? cached.agentProvider))) {
+			throw new Error(localize('newChat.invalidSource', "The source chat must belong to this session and use the requested harness."));
+		}
 
 		const sessionUri = cached.backendUri;
 		const chatUri = URI.parse(newAgentHostChatUri(sessionUri.toString(), this._backendDefaultChat(sessionUri, undefined), this.connection?.initializeResult.get()));
 		const newChatId = getAgentHostChatId(chatUri.toString());
 		// A chat backed by another agent starts with that agent's defaults rather than the session's selections.
-		const selectedModelId = chatProvider ? undefined : cached.modelId.get() ?? (cached.modelSelection ? `${cached.resource.scheme}:${cached.modelSelection.id}` : undefined);
-		const selectedAgentUri = chatProvider ? undefined : cached.mode.get()?.id;
+		const selectedModel = sourceChat
+			? cached.getChatModelSelection(sourceChat) ?? this._readRunningChatModel(connection, cached, this._resolveBackendSourceChatUri(cached.sessionId, sessionUri, sourceChat))
+			: chatProvider ? undefined : cached.modelSelection;
+		const selectedModelId = sourceChat
+			? cached.getChatModelId(sourceChat) ?? (selectedModel ? `${cached.getChatModelScheme(sourceChat)}:${selectedModel.id}` : undefined)
+			: chatProvider ? undefined : cached.modelId.get() ?? (selectedModel ? `${cached.resource.scheme}:${selectedModel.id}` : undefined);
+		const selectedAgentUri = sourceChat ? cached.getChatMode(sourceChat)?.id : chatProvider ? undefined : cached.mode.get()?.id;
 
 		// Show as `Untitled` until the first request; the host commits it below.
 		cached.markChatAsNew(newChatId);
@@ -8620,9 +8629,10 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		// Keep the session-state subscription alive so the `chatAdded` it emits
 		// flows into `_applyChatCatalogFromState` and updates `cached.chats`.
 		this._keepSessionStateAlive(cached.sessionId);
-		const createOptions: IAgentCreateChatRequestOptions = chatProvider
-			? { provider: chatProvider }
-			: { model: cached.modelSelection };
+		const createOptions: IAgentCreateChatRequestOptions = {
+			...(chatProvider ? { provider: chatProvider } : {}),
+			...(!chatProvider || sourceChat ? { model: selectedModel } : {}),
+		};
 		await connection.createChat(sessionUri, chatUri, createOptions);
 
 		let chat: IChat;
@@ -8646,16 +8656,12 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 			throw error;
 		}
 
-		if (chatProvider) {
+		if (chatProvider && !sourceChat) {
 			await this._retainChatSessionModel(chat.resource);
 			return chat;
 		}
 
-		// The model comes from the chat this one was branched off, not from any choice made here.
-		cached.setChatModelId(chat.resource, selectedModelId, ChatModelSource.CarriedOver);
-		cached.setChatAgent(chat.resource, selectedAgentUri ? { uri: selectedAgentUri, name: '' } : undefined);
-
-		await this._retainChatSessionModel(chat.resource, { modelId: selectedModelId, agentUri: selectedAgentUri });
+		await this._retainCreatedChatSelection(cached, chat, selectedModelId, selectedAgentUri, sourceChat ? selectedModel?.config : undefined);
 		return chat;
 	}
 
@@ -8737,7 +8743,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		return chat;
 	}
 
-	async createSideChat(sessionId: string, sourceChat: URI, turnId: string, selection?: ISideChatSelection, includeSourceContext = true): Promise<IChat> {
+	async createSideChat(sessionId: string, sourceChat: URI, turnId: string, selection?: ISideChatSelection): Promise<IChat> {
 		this._assertSessionAvailable(sessionId);
 		const connection = this.connection;
 		if (!connection) {
@@ -8766,15 +8772,16 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 			?? (selectedModel ? `${cached.getChatModelScheme(sourceChat)}:${selectedModel.id}` : undefined);
 		const selectedAgentUri = cached.getChatMode(sourceChat)?.id;
 
-		const chatProvider = includeSourceContext ? undefined : this._resolveNewChatProvider(cached, toAgentHostChatHarness(cached.getChatAgentProvider(sourceChat)));
 		// Keep the session-state subscription alive so the `chatAdded` it emits
 		// flows into `_applyChatCatalogFromState` and updates `cached.chats`.
 		this._keepSessionStateAlive(cached.sessionId);
 		await connection.createChat(sessionUri, chatUri, {
 			model: selectedModel,
-			...(includeSourceContext
-				? { sideChat: { source: sourceBackendUri, turnId, ...(selection ? { selection } : {}) } }
-				: chatProvider ? { provider: chatProvider } : {}),
+			sideChat: {
+				source: sourceBackendUri,
+				turnId,
+				...(selection ? { selection } : {}),
+			},
 		});
 
 		const chat = await waitForState(
@@ -8782,17 +8789,20 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 			c => !!c,
 		);
 
-		// The model comes from the chat this one was branched off, not from any choice made here.
+		await this._retainCreatedChatSelection(cached, chat, selectedModelId, selectedAgentUri, selectedModel?.config);
+		return chat;
+	}
+
+	private async _retainCreatedChatSelection(cached: AgentHostSessionAdapter, chat: IChat, selectedModelId: string | undefined, selectedAgentUri: string | undefined, configuration: ModelSelection['config']): Promise<void> {
 		cached.setChatModelId(chat.resource, selectedModelId, ChatModelSource.CarriedOver);
 		cached.setChatAgent(chat.resource, selectedAgentUri ? { uri: selectedAgentUri, name: '' } : undefined);
 
-		const modelConfiguration = selectedModelId && selectedModel?.config !== undefined ? selectedModel.config : undefined;
+		const modelConfiguration = selectedModelId ? configuration : undefined;
 		if (selectedModelId && modelConfiguration) {
 			this._carriedOverChatModelConfigurations.set(chat.resource.toString(), { modelId: selectedModelId, configuration: modelConfiguration });
 		}
 
 		await this._retainChatSessionModel(chat.resource, { modelId: selectedModelId, agentUri: selectedAgentUri, modelConfiguration });
-		return chat;
 	}
 
 	/**

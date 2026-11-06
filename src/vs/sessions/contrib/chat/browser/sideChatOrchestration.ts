@@ -4,10 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { autorun } from '../../../../base/common/observable.js';
-import { URI } from '../../../../base/common/uri.js';
 import { ISessionsPartService } from '../../../services/sessions/browser/sessionsPartService.js';
 import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
-import { IChat, ISession, ISideChatSelection } from '../../../services/sessions/common/session.js';
+import { IChat, ISession } from '../../../services/sessions/common/session.js';
 import { ISendRequestOptions, ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
 
 /** Activates a new side chat in its own group before sending the request. */
@@ -30,20 +29,14 @@ export async function openAndSendSideChat(
 	await sessionsManagementService.sendRequest(session, sideChat, requestOptions);
 }
 
-/**
- * Creates a side chat branched from `turnId` in `sourceChat`, then opens and
- * sends the request on it via {@link openAndSendSideChat}.
- */
+/** Creates a chat, then opens and sends to the side unless the user navigated away. */
 export async function createAndSendSideChat(
 	sessionsManagementService: ISessionsManagementService,
 	sessionsService: ISessionsService,
 	sessionsPartService: ISessionsPartService,
 	session: ISession,
-	sourceChat: URI,
-	turnId: string,
 	requestOptions: ISendRequestOptions,
-	selection?: ISideChatSelection,
-	includeSourceContext?: boolean,
+	createChat: () => Promise<IChat>,
 ): Promise<IChat> {
 	const navigationRequest = sessionsService.navigationRequest.get();
 	const activeSession = sessionsService.activeSession.get();
@@ -58,7 +51,7 @@ export async function createAndSendSideChat(
 	});
 	let sideChat: IChat;
 	try {
-		sideChat = await sessionsManagementService.createSideChatInSession(session, sourceChat, turnId, selection, includeSourceContext);
+		sideChat = await createChat();
 	} finally {
 		navigationObserver.dispose();
 	}

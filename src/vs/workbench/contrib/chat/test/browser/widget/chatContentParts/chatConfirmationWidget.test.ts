@@ -27,7 +27,7 @@ suite('ChatTerminalToolExplanation', () => {
 	test('explains only the current command in a fresh chat, disabling repeated requests while pending', async () => {
 		const instantiationService = workbenchInstantiationService(undefined, store);
 		const pending = new DeferredPromise<void>();
-		const ask = sinon.spy(() => pending.p);
+		const ask = sinon.spy<IChatSideChatService['askInSideChat']>(() => pending.p);
 		instantiationService.stub(IChatSideChatService, { canAskInSideChat: () => true, askInSideChat: ask });
 		let command = 'original';
 		const resource = URI.parse('test:///secondary');
@@ -41,10 +41,16 @@ suite('ChatTerminalToolExplanation', () => {
 		await pending.complete();
 		await first;
 		assert.deepStrictEqual({
-			calls: ask.getCalls().map(call => call.args),
+			calls: ask.getCalls().map(({ args: [resource, query, selection, options] }) => [
+				resource, query, selection,
+				{ ...options, attachedContext: options?.attachedContext?.map(({ name, value }) => ({ name, value })) },
+			]),
 			disabled, disabledWhilePending, disabledAfter: explanation.button!.disabled,
 		}, {
-			calls: [[resource, 'Explain what this terminal command will do. Do not run it or make changes.', { text: 'edited command' }, { sourceTurnId: 'turn', includeSourceContext: false }]],
+			calls: [[resource, 'Explain what this terminal command will do. Do not run it or make changes.', undefined, {
+				sourceTurnId: 'turn', includeSourceContext: false,
+				attachedContext: [{ name: 'Terminal Command', value: 'edited command' }],
+			}]],
 			disabled: [true, false], disabledWhilePending: true, disabledAfter: false,
 		});
 	});

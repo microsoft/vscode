@@ -8,9 +8,8 @@ import { Disposable, IDisposable, toDisposable } from '../../../../base/common/l
 import { ResourceMap } from '../../../../base/common/map.js';
 import { derived, IObservable, observableValue } from '../../../../base/common/observable.js';
 import { URI } from '../../../../base/common/uri.js';
-import { localize } from '../../../../nls.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
-import { IChatRequestVariableEntry, toPasteVariableEntry } from './attachments/chatVariableEntries.js';
+import { IChatRequestVariableEntry } from './attachments/chatVariableEntries.js';
 
 /**
  * Source text a side chat is anchored to, so the side chat can be given the
@@ -40,7 +39,7 @@ export interface IChatSideChatRequestOptions {
 	readonly token?: CancellationToken;
 	/** Branch from this source request instead of the latest request. */
 	readonly sourceTurnId?: string;
-	/** Defaults to true. When false, start fresh with only the explicit selection and attachments. */
+	/** Defaults to true. When false, start fresh with only the explicit attachments. */
 	readonly includeSourceContext?: boolean;
 }
 
@@ -118,16 +117,6 @@ export class ChatSideChatService extends Disposable implements IChatSideChatServ
 		const provider = this._findProvider(sessionResource, options?.includeSourceContext);
 		if (!provider) {
 			throw new Error(`No side chat provider for ${sessionResource.toString()}`);
-		}
-		if (options?.includeSourceContext === false && selection) {
-			options = {
-				...options,
-				attachedContext: [
-					...(options.attachedContext ?? []),
-					toPasteVariableEntry(localize('sideChat.selectedText', "Selected Text"), selection.text),
-				],
-			};
-			selection = undefined;
 		}
 		await provider.askInSideChat(sessionResource, query, selection, options);
 	}

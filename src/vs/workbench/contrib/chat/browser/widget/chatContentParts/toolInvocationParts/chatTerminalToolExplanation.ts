@@ -9,6 +9,7 @@ import { Disposable } from '../../../../../../../base/common/lifecycle.js';
 import { URI } from '../../../../../../../base/common/uri.js';
 import { localize } from '../../../../../../../nls.js';
 import { INotificationService } from '../../../../../../../platform/notification/common/notification.js';
+import { toPasteVariableEntry } from '../../../../common/attachments/chatVariableEntries.js';
 import { IChatSideChatService } from '../../../../common/chatSideChatService.js';
 import { IChatConfirmationButton } from '../chatConfirmationWidget.js';
 
@@ -50,8 +51,12 @@ export class ChatTerminalToolExplanation extends Disposable {
 			await this.sideChatService.askInSideChat(
 				this.sessionResource,
 				localize('tool.explain.query', "Explain what this terminal command will do. Do not run it or make changes."),
-				{ text: this.getCommand().trim() },
-				{ sourceTurnId: this.sourceTurnId, includeSourceContext: false },
+				undefined,
+				{
+					sourceTurnId: this.sourceTurnId,
+					includeSourceContext: false,
+					attachedContext: [toPasteVariableEntry(localize('tool.explain.command', "Terminal Command"), this.getCommand().trim())],
+				},
 			);
 		} catch (error) {
 			this.notificationService.error(localize('tool.explain.failed', "The side chat could not be started: {0}", toErrorMessage(error)));

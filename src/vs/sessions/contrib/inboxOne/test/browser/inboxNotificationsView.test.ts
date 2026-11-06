@@ -2952,7 +2952,7 @@ suite('InboxNotificationsView', () => {
 		const { view, container, instantiationService } = createView(constObservable([item]));
 		const submit = stub(accessView(view), 'submitToolConfirmationPart').resolves();
 		disposables.add(toDisposable(() => submit.restore()));
-		const explain = spy(async () => { });
+		const explain = spy<IChatSideChatService['askInSideChat']>(async () => { });
 		instantiationService.stub(IChatSideChatService, { canAskInSideChat: () => true, askInSideChat: explain });
 		let menuActions: readonly IAction[] = [];
 		instantiationService.stub(IContextMenuService, {
@@ -2986,7 +2986,10 @@ suite('InboxNotificationsView', () => {
 			submissionsAfterExplain,
 			submittedIndex: submit.firstCall.args[2],
 			submittedId: part.buttons[submit.firstCall.args[2]].id,
-			explanation: explain.firstCall.args,
+			explanation: [
+				...explain.firstCall.args.slice(0, 3),
+				{ ...explain.firstCall.args[3], attachedContext: explain.firstCall.args[3]?.attachedContext?.map(({ name, value }) => ({ name, value })) },
+			],
 			titleCount: host.textContent?.split(part.message as string).length,
 			codeLanguage: host.textContent?.includes('```sh\nseq 1 30'),
 			radius: cardStyle.borderRadius,
@@ -2995,7 +2998,10 @@ suite('InboxNotificationsView', () => {
 			labels: ['Allow Once', 'Skip', 'Explain'],
 			menu: ['', 'Allow in Session', '', 'Always Allow'],
 			submissionsAfterExplain: 0, submittedIndex: 2, submittedId: 'session',
-			explanation: [part.chatResource, 'Explain what this terminal command will do. Do not run it or make changes.', { text: part.commandLine }, { sourceTurnId: part.requestId, includeSourceContext: false }],
+			explanation: [part.chatResource, 'Explain what this terminal command will do. Do not run it or make changes.', undefined, {
+				sourceTurnId: part.requestId, includeSourceContext: false,
+				attachedContext: [{ name: 'Terminal Command', value: part.commandLine }],
+			}],
 			titleCount: 2, codeLanguage: true, radius: '6px', border: 'solid',
 		});
 	});
