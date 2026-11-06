@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { CancellationTokenSource } from '../../../../base/common/cancellation.js';
-import { Limiter, RunOnceScheduler, raceTimeout } from '../../../../base/common/async.js';
+import { Limiter, Promises, RunOnceScheduler, raceTimeout } from '../../../../base/common/async.js';
 import { CancellationError, isCancellationError } from '../../../../base/common/errors.js';
 import { Emitter } from '../../../../base/common/event.js';
 import { Disposable, DisposableMap, DisposableStore } from '../../../../base/common/lifecycle.js';
@@ -13,7 +13,7 @@ import { URI } from '../../../../base/common/uri.js';
 import { IPosition } from '../../../../editor/common/core/position.js';
 import { Range } from '../../../../editor/common/core/range.js';
 import { PositionOrRange, RangeMapping, SingleRangeMapping } from '../../../../editor/common/core/ranges/rangeMapping.js';
-import { StructuralDiffClassification, StructuralDiffNode, SymbolKind, symbolKindNames } from '../../../../editor/common/languages.js';
+import { StructuralDiffClassification, StructuralDiffNode, StructuralDiffResult, SymbolKind, symbolKindNames } from '../../../../editor/common/languages.js';
 import { ILanguageService } from '../../../../editor/common/languages/language.js';
 import { ITextModel } from '../../../../editor/common/model.js';
 import { IEditorWorkerService } from '../../../../editor/common/services/editorWorker.js';
@@ -416,9 +416,12 @@ export class SCMStructuralDiffModel extends Disposable {
 	private async load(entry: StructuralDiffEntry): Promise<readonly SCMStructuralDiffElement[]> {
 		const resource = entry.resource;
 		try {
-			const original = await this.resolveModel(entry, resource.multiDiffEditorOriginalUri!);
-			const modified = await this.resolveModel(entry, resource.multiDiffEditorModifiedUri!);
-			const result = await StructuralDiffs.compute(this.editorWorkerService, this.configurationService, this.languageFeaturesService.structuralDiffProvider, original, modified, entry.cancellation.token);
+			// Both documents are loaded even when one of them cannot be, so that every document that can be loaded is watched.
+			const [original, modified] = await Promises.settled([
+				this.resolveModel(entry, resource.multiDiffEditorOriginalUri!),
+				this.resolveModel(entry, resource.multiDiffEditorModifiedUri!),
+			]);
+			const result = await this.computeStructuralDiff(entry, original, modified);
 			this.checkCancellation(entry);
 			const toModified = new RangeMapping((result?.context.changes ?? []).map(change => new SingleRangeMapping(Range.lift(change.originalRange), Range.lift(change.modifiedRange))));
 			const toOriginal = toModified.reverse();
@@ -456,13 +459,9 @@ export class SCMStructuralDiffModel extends Disposable {
 			}
 			return children;
 		} catch (error) {
-			if (entry.timedOut) {
-				return [];
-			}
-			if (entry.disposed || isCancellationError(error)) {
-				if (!entry.disposed) {
-					this.entries.deleteAndDispose(resource);
-				}
+			// A load that timed out already shows its status, and the view disposes an entry when it cancels loading it. Any
+			// other error, even a cancellation error, is a failure.
+			if (entry.timedOut || entry.disposed) {
 				return [];
 			}
 			if (error instanceof StructuralDiffs.TimeoutError) {
@@ -475,8 +474,24 @@ export class SCMStructuralDiffModel extends Disposable {
 	}
 
 	/**
+	 * Computes the structural diff of the documents. A provider can reject with a cancellation error of its own, for example
+	 * when its language server restarts. Like a provider that fails, it then supplies no result, and the documents remain
+	 * watched, so an edit analyzes the file again.
+	 */
+	private async computeStructuralDiff(entry: StructuralDiffEntry, original: ITextModel, modified: ITextModel): Promise<StructuralDiffResult | undefined> {
+		try {
+			return await StructuralDiffs.compute(this.editorWorkerService, this.configurationService, this.languageFeaturesService.structuralDiffProvider, original, modified, entry.cancellation.token);
+		} catch (error) {
+			if (isCancellationError(error) && !entry.disposed && !entry.cancellation.token.isCancellationRequested) {
+				return undefined;
+			}
+			throw error;
+		}
+	}
+
+	/**
 	 * Shows a status row instead of structural changes until the entry is invalidated. Like a result, a failure keeps the
-	 * documents it resolved, so editing either of them analyzes the file again.
+	 * documents that could be loaded, so editing one of them analyzes the file again.
 	 */
 	private fail(entry: StructuralDiffEntry, status: 'error' | 'timedOut'): readonly SCMStructuralDiffElement[] {
 		if (entry.disposed) {
