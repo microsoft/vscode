@@ -2568,10 +2568,11 @@ class SessionHeaderLabelColor extends Themable {
 		const background = this.theme.getColor(agentsBackground);
 		const hover = this.theme.getColor(listHoverBackground);
 		const hoverBackground = background && hover ? hover.flatten(background) : background;
-		const highContrast = isHighContrast(this.theme.type);
-		const foreground = highContrast ? '' : color && background ? background.ensureConstrast(color.flatten(background), 4.5).toString() : asCssVariable(this.colorId);
-		const hoverForeground = highContrast ? '' : color && hoverBackground ? hoverBackground.ensureConstrast(color.flatten(hoverBackground), 4.5).toString() : foreground;
-		this.template.container.classList.toggle('session-group-colored', !highContrast);
+		// A translucent shell has no single opaque surface against which to correct contrast.
+		const preserveForeground = isHighContrast(this.theme.type) || background?.isOpaque() === false;
+		const foreground = preserveForeground ? '' : color && background ? background.ensureConstrast(color.flatten(background), 4.5).toString() : asCssVariable(this.colorId);
+		const hoverForeground = preserveForeground ? '' : color && hoverBackground ? hoverBackground.ensureConstrast(color.flatten(hoverBackground), 4.5).toString() : foreground;
+		this.template.container.classList.toggle('session-group-colored', !preserveForeground);
 		this.template.label.style.setProperty('--session-group-foreground', foreground);
 		this.template.label.style.setProperty('--session-group-hover-foreground', hoverForeground);
 	}

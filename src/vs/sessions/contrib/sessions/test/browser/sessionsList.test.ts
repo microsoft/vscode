@@ -2267,17 +2267,25 @@ suite('Sessions - SessionsList', () => {
 					themeService.setTheme(new TestColorTheme({}, type));
 					return appearance();
 				});
+				const translucentBackgrounds = ['#00000000', '#ffffff00', '#18181880'].map(background => {
+					themeService.setTheme(new TestColorTheme({
+						'agents.background': background,
+						'terminal.ansiYellow': '#ffffff',
+					}));
+					return appearance();
+				});
 				themeService.setTheme(new TestColorTheme({
 					'agents.background': '#181818',
 					'terminal.ansiYellow': '#e5e510',
 				}));
 				groupsService.setSectionColor('workspace:Workspace', undefined);
-				assert.deepStrictEqual({ initial, contrasts, selectedColor, focusedColors, highContrast, reset: appearance() }, {
+				assert.deepStrictEqual({ initial, contrasts, selectedColor, focusedColors, highContrast, translucentBackgrounds, reset: appearance() }, {
 					initial: { color: '', colored: false },
 					contrasts: Array(40).fill(true),
 					selectedColor: 'rgb(12, 34, 56)',
 					focusedColors: ['rgb(12, 34, 56)', 'rgb(12, 34, 56)'],
 					highContrast: [{ color: '', colored: false }, { color: '', colored: false }],
+					translucentBackgrounds: [{ color: '', colored: false }, { color: '', colored: false }, { color: '', colored: false }],
 					reset: { color: '', colored: false },
 				});
 			});
