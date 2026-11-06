@@ -128,7 +128,13 @@ function getPreferredEntry(
 	if (snapshot.preferredContainerId) {
 		const preferred = entries.filter(entry => entry.containerId === snapshot.preferredContainerId);
 		if (preferred.length > 0) {
-			return backward ? preferred[preferred.length - 1] : preferred[0];
+			// A moving container can briefly appear in two locations. Prefer
+			// the requested location when both preferences identify a view.
+			const inLocation = snapshot.preferredLocation
+				? preferred.filter(entry => entry.location === snapshot.preferredLocation)
+				: [];
+			const candidates = inLocation.length > 0 ? inLocation : preferred;
+			return backward ? candidates[candidates.length - 1] : candidates[0];
 		}
 	}
 
