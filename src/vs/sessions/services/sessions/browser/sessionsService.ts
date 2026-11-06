@@ -2139,7 +2139,10 @@ export class SessionsService extends Disposable implements ISessionsService {
 			this._startOpenSession();
 			const wasActive = this._visibility.activeSession.get()?.sessionId === session.sessionId;
 			this._visibility.removeMany([session.sessionId], true, true);
-			this._skipMainWindowFocus();
+			if (wasActive) {
+				// Only an active session's removal skips focus that would otherwise move into the next session
+				this._skipMainWindowFocus();
+			}
 			if (wasActive && this._visibility.activeSession.get() === undefined && !this._visibility.visibleSessions.get().includes(undefined)) {
 				// The grid shows the new-session composer instead, without taking focus from the window.
 				this._visibility.setActive(undefined, true);
