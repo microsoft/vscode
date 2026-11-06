@@ -1380,8 +1380,8 @@ export class TabbedModelPicker extends Disposable {
 		if (model.metadata.detailsResource) {
 			return toAction({
 				id: MODEL_OPEN_FILE_ACTION_ID,
-				label: localize('chat.modelPicker.openFile', "Open File"),
-				tooltip: localize('chat.modelPicker.openFileTooltip', "Open {0}'s file", name),
+				label: localize('chat.modelPicker.details', "Details"),
+				tooltip: localize('chat.modelPicker.modelDetails', "{0} Details", name),
 				run: () => this._showModelDetails(model),
 			});
 		}
