@@ -12,6 +12,7 @@ import { Emitter, Event } from '../../../../../base/common/event.js';
 import { DisposableStore, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { mock } from '../../../../../base/test/common/mock.js';
+import { SyncDescriptor } from '../../../../../platform/instantiation/common/descriptors.js';
 import { runWithFakedTimers } from '../../../../../base/test/common/timeTravelScheduler.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
@@ -19,7 +20,7 @@ import { IDialogService } from '../../../../../platform/dialogs/common/dialogs.j
 import { TestDialogService } from '../../../../../platform/dialogs/test/common/testDialogService.js';
 import { TerminalLocation, TitleEventSource, type ITerminalBackend, type TerminalIcon } from '../../../../../platform/terminal/common/terminal.js';
 import { TerminalCapabilityStore } from '../../../../../platform/terminal/common/capabilities/terminalCapabilityStore.js';
-import { ITerminalEditingService, ITerminalEditorService, ITerminalGroupService, ITerminalInstance, ITerminalInstanceService, ITerminalService } from '../../browser/terminal.js';
+import { ITerminalEditingService, ITerminalEditorService, ITerminalGroupService, ITerminalInstance, ITerminalInstanceService, ITerminalService, terminalEditorId } from '../../browser/terminal.js';
 import { IDecorationsService, IResourceDecorationChangeEvent } from '../../../../services/decorations/common/decorations.js';
 import { IResourceLabel } from '../../../../browser/labels.js';
 import { TerminalService } from '../../browser/terminalService.js';
@@ -29,8 +30,14 @@ import { TerminalEditorService } from '../../browser/terminalEditorService.js';
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
 import { ITerminalProfileService, TERMINAL_CONFIG_SECTION } from '../../common/terminal.js';
 import { IRemoteAgentService } from '../../../../services/remote/common/remoteAgentService.js';
-import { workbenchInstantiationService } from '../../../../test/browser/workbenchTestServices.js';
+import { createEditorPart, registerTestEditor, TestEditorInput, workbenchInstantiationService } from '../../../../test/browser/workbenchTestServices.js';
 import type { IConfigurationChangeEvent } from '../../../../../platform/configuration/common/configuration.js';
+import { DecorationsService } from '../../../../services/decorations/browser/decorationsService.js';
+import { IEditorGroupsService } from '../../../../services/editor/common/editorGroupsService.js';
+import { OpenEditorsView } from '../../../files/browser/views/openEditorsView.js';
+import { CloseGroupAction, SaveAllInGroupAction } from '../../../files/browser/fileActions.js';
+import { CloseEditorAction, UnpinEditorAction } from '../../../../browser/parts/editor/editorActions.js';
+import { IViewContainerModel, IViewDescriptor, IViewDescriptorService, ViewContainer, ViewContainerLocation } from '../../../../common/views.js';
 
 suite('Workbench - TerminalService', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -46,6 +53,7 @@ suite('Workbench - TerminalService', () => {
 
 	function createInstance(instanceId: number) {
 		const disposed = store.add(new Emitter<ITerminalInstance>());
+		const exited = store.add(new Emitter<number | undefined>());
 		const instance = new class extends mock<ITerminalInstance>() {
 			override readonly instanceId = instanceId;
 			override readonly resource = URI.parse(`vscode-terminal:/test/${instanceId}`);
@@ -60,7 +68,9 @@ suite('Workbench - TerminalService', () => {
 			override readonly onDidBlur = Event.None;
 			override readonly onRequestAddInstanceToGroup = Event.None;
 			override readonly onDidChangeShellType = Event.None;
-			override readonly onExit = Event.None;
+			override readonly onExit = exited.event;
+			override readonly shellLaunchConfig = {};
+			override readonly waitOnExit = false;
 			override readonly onTitleChanged = Event.None;
 			override readonly onIconChanged = Event.None;
 			override isDisposed = false;
@@ -75,7 +85,7 @@ suite('Workbench - TerminalService', () => {
 			}
 		};
 		store.add(toDisposable(() => instance.dispose()));
-		return { instance, disposed };
+		return { instance, disposed, exited };
 	}
 
 	setup(async () => {
@@ -192,6 +202,126 @@ suite('Workbench - TerminalService', () => {
 		changed.fire({ affectsResource: () => true });
 		strictEqual(queries.callCount, before);
 	});
+
+	for (const cause of ['input disposal', 'instance disposal', 'process exit'] as const) {
+		for (const queuedNotification of [true, false]) {
+			test(`evicts decorations after queued editor closure (${cause}, notification ${queuedNotification ? 'already due' : 'not pending'})`, async () => {
+				await configurationService.setUserConfiguration('explorer', { decorations: { colors: true, badges: true }, openEditors: { sortOrder: 'editorOrder' } });
+				const decorations = store.add(instantiationService.createInstance(DecorationsService));
+				// The already-created terminal service must also evict from the real cache.
+				instantiationService.stub(IDecorationsService, 'clearCachedDecorations', (resource: URI) => decorations.clearCachedDecorations(resource));
+				instantiationService.stub(IDecorationsService, decorations);
+				store.add(registerTestEditor(terminalEditorId, [new SyncDescriptor(TerminalEditorInput), new SyncDescriptor(TestEditorInput)]));
+				const clock = sinon.useFakeTimers();
+				try {
+					const part = await createEditorPart(instantiationService, store.add(new DisposableStore()));
+					instantiationService.stub(IEditorGroupsService, part);
+					store.add(part.enforcePartOptions({ decorations: { colors: true, badges: true } }));
+					instantiationService.stub(IEditorService, 'onDidCloseEditor', part.activeGroup.onDidCloseEditor);
+					const editorHost = store.add(instantiationService.createInstance(TerminalEditorService));
+
+					instantiationService.stubInstance(CloseEditorAction, store.add(instantiationService.createInstance(CloseEditorAction, CloseEditorAction.ID, CloseEditorAction.LABEL)));
+					instantiationService.stubInstance(UnpinEditorAction, store.add(instantiationService.createInstance(UnpinEditorAction, UnpinEditorAction.ID, UnpinEditorAction.LABEL)));
+					instantiationService.stubInstance(SaveAllInGroupAction, store.add(instantiationService.createInstance(SaveAllInGroupAction, SaveAllInGroupAction.ID, SaveAllInGroupAction.LABEL)));
+					instantiationService.stubInstance(CloseGroupAction, store.add(instantiationService.createInstance(CloseGroupAction, CloseGroupAction.ID, CloseGroupAction.LABEL)));
+					const viewContainer = new class extends mock<ViewContainer>() {
+						override readonly id = 'workbench.view.explorer';
+					};
+					instantiationService.stub(IViewDescriptorService, {
+						onDidChangeLocation: Event.None,
+						getViewLocationById: () => ViewContainerLocation.Sidebar,
+						getViewDescriptorById: () => null,
+						getViewContainerByViewId: () => viewContainer,
+						getDefaultContainerById: () => viewContainer,
+						getViewContainerModel: () => new class extends mock<IViewContainerModel>() {
+							override readonly visibleViewDescriptors = [OpenEditorsView.ID, 'workbench.explorer.fileView'].map(id => new class extends mock<IViewDescriptor>() {
+								override readonly id = id;
+							}());
+							override readonly onDidChangeAllViewDescriptors = Event.None;
+							override readonly onDidChangeContainerInfo = Event.None;
+						}
+					});
+					const view = store.add(instantiationService.createInstance(OpenEditorsView, { id: OpenEditorsView.ID, title: 'Open Editors' }));
+					view.render();
+					const container = mainWindow.document.body.appendChild(mainWindow.document.createElement('div'));
+					container.append(part.getContainer()!, view.element);
+					store.add(toDisposable(() => container.remove()));
+					view.setVisible(true);
+					view.layout(200);
+					const file = store.add(new TestEditorInput(URI.file('/surviving.txt'), terminalEditorId));
+					await part.activeGroup.openEditor(file, { pinned: true });
+					const cache = Reflect.get(decorations, '_data') as { get(uri: URI): object | undefined };
+					const parent = URI.parse('vscode-terminal:/test');
+					const hasParentDecoration = () => {
+						const decoration = decorations.getDecoration(parent, true);
+						decoration?.dispose();
+						return !!decoration;
+					};
+					let parentNotifications = 0;
+					store.add(decorations.onDidChangeDecorations(event => {
+						if (event.affectsResource(parent)) {
+							parentNotifications++;
+						}
+					}));
+					store.add(decorations.registerDecorationsProvider({
+						label: 'Test',
+						onDidChange: Event.None,
+						provideDecorations: uri => uri.scheme === 'vscode-terminal' && uri.path !== parent.path ? { letter: 'M', bubble: true } : undefined
+					}));
+					const queries = sinon.spy(decorations, 'getDecoration');
+					const closedResources: URI[] = [];
+					for (let i = 0; i < 3; i++) {
+						const { instance, exited } = createInstance(i);
+						instanceCreated.fire(instance);
+						editorHost.resolveResource(instance);
+						const input = store.add(editorHost.getInputFromResource(instance.resource));
+						await part.activeGroup.openEditor(input, { pinned: true });
+						await clock.runAllAsync();
+						strictEqual(container.querySelectorAll('.tabs-container .tab').length, 2);
+						strictEqual(container.querySelectorAll('.open-editor').length, 2);
+						strictEqual(!!cache.get(instance.resource), true);
+						strictEqual(hasParentDecoration(), true);
+						const notificationsBeforeClose = parentNotifications;
+
+						// Register disposal before the 100ms decoration delivery. Input disposal queues
+						// the real group's zero-delay close worker behind that already-due delivery.
+						setTimeout(() => {
+							if (cause === 'input disposal') {
+								input.dispose();
+							} else if (cause === 'instance disposal') {
+								instance.dispose();
+							} else {
+								exited.fire(0);
+							}
+							strictEqual(part.activeGroup.contains(input), true, 'disposal precedes model closure');
+							queries.resetHistory();
+						}, 100);
+						if (queuedNotification) {
+							decorations.clearCachedDecorations(file.resource);
+						}
+						await clock.tickAsync(100);
+						if (queuedNotification) {
+							strictEqual(queries.getCalls().filter(call => call.args[0].toString() === input.resource.toString()).length >= 2, true, 'Open Editors and the tab redraw before queued closure');
+						}
+						await clock.runAllAsync();
+						closedResources.push(input.resource);
+						deepStrictEqual({
+							editors: part.activeGroup.editors.map(editor => editor.resource),
+							cached: closedResources.map(resource => cache.get(resource)),
+							parentDecoration: hasParentDecoration(),
+							notifiedParent: parentNotifications > notificationsBeforeClose,
+						}, { editors: [file.resource], cached: closedResources.map(() => undefined), parentDecoration: false, notifiedParent: true });
+					}
+					decorations.clearCachedDecorations(file.resource);
+					await clock.runAllAsync();
+					strictEqual(!!cache.get(file.resource), true, 'surviving labels still refresh');
+				} finally {
+					clock.restore();
+					sinon.restore();
+				}
+			});
+		}
+	}
 
 	suite('background terminals', () => {
 		test('should remove disposed hidden terminals and their listeners', async () => {

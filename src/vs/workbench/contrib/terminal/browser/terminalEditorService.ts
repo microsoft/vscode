@@ -19,6 +19,7 @@ import { TerminalContextKeys } from '../common/terminalContextKey.js';
 import { IEditorGroupsService } from '../../../services/editor/common/editorGroupsService.js';
 import { IEditorService, ACTIVE_GROUP, SIDE_GROUP } from '../../../services/editor/common/editorService.js';
 import { ILifecycleService } from '../../../services/lifecycle/common/lifecycle.js';
+import { IDecorationsService } from '../../../services/decorations/common/decorations.js';
 
 export class TerminalEditorService extends Disposable implements ITerminalEditorService {
 	declare _serviceBrand: undefined;
@@ -50,7 +51,8 @@ export class TerminalEditorService extends Disposable implements ITerminalEditor
 		@ITerminalInstanceService private readonly _terminalInstanceService: ITerminalInstanceService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@ILifecycleService lifecycleService: ILifecycleService,
-		@IContextKeyService contextKeyService: IContextKeyService
+		@IContextKeyService contextKeyService: IContextKeyService,
+		@IDecorationsService private readonly _decorationsService: IDecorationsService
 	) {
 		super();
 		this._terminalEditorActive = TerminalContextKeys.terminalEditorActive.bindTo(contextKeyService);
@@ -100,6 +102,16 @@ export class TerminalEditorService extends Disposable implements ITerminalEditor
 			}
 			const instance = e.editor instanceof TerminalEditorInput ? e.editor.terminalInstance : undefined;
 			if (instance) {
+				if (instance.isDisposed) {
+					const resource = instance.resource;
+					// Disposed inputs close asynchronously. A queued decoration event can repopulate
+					// their cache before closure, and tab labels are only released after this event.
+					queueMicrotask(() => {
+						if (!this._store.isDisposed) {
+							this._decorationsService.clearCachedDecorations(resource);
+						}
+					});
+				}
 				const instanceIndex = this.instances.findIndex(e => e === instance);
 				if (instanceIndex !== -1) {
 					const wasActiveInstance = this.instances[instanceIndex] === this.activeInstance;
