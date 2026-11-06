@@ -258,7 +258,7 @@ suite('ModelPicker controls', () => {
 		instantiationService.stub(ISessionModelSelection, { state, selectModel: () => false });
 		instantiationService.stub(ITelemetryService, {});
 		instantiationService.stub(IChatPetService, {});
-		instantiationService.stub(IChatPhoneInputPresenter, { supportsUnifiedConfiguration: false });
+		instantiationService.stub(IChatPhoneInputPresenter, { enabled: constObservable(false), supportsUnifiedConfiguration: false });
 		instantiationService.stub(INewChatModelPickerService, new NewChatModelPickerService());
 		instantiationService.stub(IWorkspaceTrustManagementService, {
 			onDidChangeTrust: Event.None, workspaceTrustInitialized: Promise.resolve(),
