@@ -848,8 +848,9 @@ suite('Part Grid', () => {
 		const editorTransfer = LocalSelectionTransfer.getInstance<DraggedEditorIdentifier>();
 		const lifted = () => container.classList.contains('part-grid-card-dragging');
 		const press = (element: Element, to: readonly [number, number]) => {
-			const rect = element.getBoundingClientRect();
-			const [x, y] = [rect.left + rect.width - 4, rect.top + rect.height / 2];
+			// From the top right of the cell, where its title is: the rect of the title itself depends on styles, which browser tests do not load
+			const cell = element.closest<HTMLElement>('[data-part-grid-cell]')!.getBoundingClientRect();
+			const [x, y] = [cell.left + cell.width - 4, cell.top + 4];
 			pointer(element, 'pointerdown', x, y);
 			pointer(element, 'pointermove', x + 10, y + 10);
 			pointer(element, 'pointermove', ...to);
