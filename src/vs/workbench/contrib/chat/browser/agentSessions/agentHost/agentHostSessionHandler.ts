@@ -8260,6 +8260,9 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 	}
 
 	private _convertVariableToAttachment(v: IChatRequestVariableEntry, sessionResource: URI, messageText: string | undefined, materializePastes = true): MessageAttachment | MessageAttachment[] | undefined {
+		if (v.kind === 'generic' && isLocation(v.value) && !readAttachmentDetail(v)) {
+			v = { ...v, kind: 'file', name: v.fullName ?? v.name };
+		}
 		const referenceRange = this._toAttachmentReferenceRange(messageText, v.range);
 		// Copilot agents and Codex can't read unsaved content from disk, so inline the live buffer; drop unreadable schemes.
 		if ((v.kind === 'file' || v.kind === 'implicit') && this._backendInlinesUnsavedEditors()) {

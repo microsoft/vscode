@@ -32,6 +32,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/
 import { runWithFakedTimers } from '../../../../../../base/test/common/timeTravelScheduler.js';
 import { DeferredPromise, raceTimeout, timeout } from '../../../../../../base/common/async.js';
 import { Range } from '../../../../../../editor/common/core/range.js';
+import { OffsetRange } from '../../../../../../editor/common/core/ranges/offsetRange.js';
 import { isLocation } from '../../../../../../editor/common/languages.js';
 import { ITextModel, TrackedRangeStickiness } from '../../../../../../editor/common/model.js';
 import { ICodeEditorService } from '../../../../../../editor/browser/services/codeEditorService.js';
@@ -2570,6 +2571,40 @@ suite('AgentHostChatContribution', () => {
 			}]);
 		});
 		for (const kind of agentHostConnectionKinds) {
+			test(`sends accepted symbol completions with source text and ranges (${kind.name})`, async () => {
+				const { startRequest, modelService } = await openWireSession({ resourceUris: kind.resourceUris });
+				const hostUri = URI.file('/workspace/file.ts');
+				const uri = kind.toClient(hostUri);
+				const symbolRange = new Range(2, 1, 2, 9);
+				modelService.setModelContent(uri, 'first\ncaptured\nlast');
+				const part = new ChatRequestDynamicVariablePart(
+					new OffsetRange(8, 16), new Range(1, 9, 1, 17), '#sym:run',
+					`vscode.symbol/${JSON.stringify({ uri, range: symbolRange })}`, undefined,
+					{ uri, range: symbolRange }, 'run',
+				);
+				const { sent, finish } = await startRequest({
+					message: 'explain #sym:run',
+					variables: { variables: [part.toVariableEntry()] },
+				});
+				assert.ok(sent.action.type === ActionType.ChatTurnStarted);
+				await finish();
+
+				assert.deepStrictEqual(sent.action.message.attachments, [{
+					type: MessageAttachmentKind.Resource,
+					label: 'run',
+					uri: hostUri.toString(),
+					displayKind: 'selection',
+					range: { start: { line: 0, character: 8 }, end: { line: 0, character: 16 } },
+					selection: { range: { start: { line: 1, character: 0 }, end: { line: 1, character: 8 } } },
+					_meta: {
+						'copilot.attachmentDetail': {
+							type: 'selection', filePath: hostUri.fsPath, text: 'captured', displayName: 'run',
+							selection: { start: { line: 1, character: 0 }, end: { line: 1, character: 8 } },
+						},
+					},
+				}]);
+			});
+
 			test(`resource attachments and reverse-read grants use the same sent URI (${kind.name})`, async () => {
 				const resourceUris = kind.resourceUris;
 				const { startRequest, implicitReadGrants } = await openWireSession({ resourceUris });
@@ -17886,6 +17921,43 @@ suite('AgentHostChatContribution', () => {
 					{ type: MessageAttachmentKind.EmbeddedResource, label: 'foo.ts', displayKind: 'selection', data: encodeBase64(VSBuffer.fromString('second line\nthird line\nfourth li')), contentType: 'text/plain', selection: { range: { start: { line: 1, character: 0 }, end: { line: 3, character: 9 } } }, _meta: { provider: 'fs', score: 0.42 } },
 				]);
 			}));
+
+			for (const uri of [URI.file('/workspace/foo.ts'), URI.from({ scheme: Schemas.untitled, path: '/Untitled-1' })]) {
+				test(`symbol completions embed selected live text from an unsaved ${uri.scheme} buffer for ${provider}`, async () => {
+					const { sessionHandler, agentHostService, chatAgentService, modelService, workingCopyService } = createContribution(disposables, { provider });
+					modelService.setModelContent(uri, 'before\nfunction run() {}\nafter');
+					workingCopyService.setDirty(uri, true);
+					const location = { uri, range: new Range(2, 1, 2, 18) };
+					const { turnPromise, session, turnId, fire } = await startTurn(sessionHandler, agentHostService, chatAgentService, disposables, {
+						message: 'explain #sym:run',
+						variables: {
+							variables: [{
+								kind: 'generic',
+								id: `vscode.symbol/${JSON.stringify(location)}`,
+								name: 'sym:run',
+								fullName: 'run',
+								value: location,
+								range: { start: 8, endExclusive: 16 },
+								_meta: { source: 'symbol' },
+							}],
+						},
+					});
+					fire({ type: 'chat/turnComplete', endedAt: '2025-01-01T00:00:00.000Z', session, turnId } as ChatAction);
+					await turnPromise;
+
+					const turnAction = agentHostService.turnActions[0].action as ITurnStartedAction;
+					assert.deepStrictEqual(turnAction.message.attachments, [{
+						type: MessageAttachmentKind.EmbeddedResource,
+						label: 'run',
+						displayKind: 'selection',
+						data: encodeBase64(VSBuffer.fromString('function run() {}')),
+						contentType: 'text/plain',
+						selection: { range: { start: { line: 1, character: 0 }, end: { line: 1, character: 17 } } },
+						range: { start: { line: 0, character: 8 }, end: { line: 0, character: 16 } },
+						_meta: { source: 'symbol' },
+					}]);
+				});
+			}
 		}
 
 		test('dirty non-file resource that cannot be inlined is dropped for the Copilot CLI backend', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
