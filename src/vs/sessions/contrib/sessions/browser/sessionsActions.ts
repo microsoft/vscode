@@ -22,7 +22,9 @@ import { ICommandService } from '../../../../platform/commands/common/commands.j
 import { IConfigurationService, isConfigured } from '../../../../platform/configuration/common/configuration.js';
 import { ContextKeyExpr, IContextKey, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { InputFocusedContext } from '../../../../platform/contextkey/common/contextkeys.js';
-import { ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
+import { IInstantiationService, ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
+import { IChatWindow, IChatWindowService } from '../../../../workbench/contrib/chatWindow/browser/chatWindow.js';
+import { openChatInWindow } from '../../chatWindow/browser/openChatInWindow.js';
 import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
 import { KeybindingsRegistry, KeybindingWeight } from '../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { WorkbenchListFocusContextKey } from '../../../../platform/list/browser/listService.js';
@@ -46,7 +48,7 @@ import { ISessionsService } from '../../../../workbench/contrib/sessions/browser
 import { getWindowHost, IFocusedSessionHostService, SessionHostKind } from '../../../../workbench/contrib/sessions/browser/sessionHost.js';
 import { IChatWidgetService } from '../../../../workbench/contrib/chat/browser/chat.js';
 import { IChatHostOpenerService } from '../../../../workbench/contrib/sessions/browser/chatHostOpener.js';
-import { resolveGridCommandView, resolveSessionCommandTarget } from '../../../../workbench/contrib/sessions/browser/sessionCommandTarget.js';
+import { ISessionCommandTarget, resolveGridCommandView, resolveSessionCommandTarget } from '../../../../workbench/contrib/sessions/browser/sessionCommandTarget.js';
 import { WindowCanvasInput } from '../../../../workbench/contrib/sessions/browser/windowCanvas.js';
 import { ChatOriginKind, getChatCapabilities, getGitHubPullRequestRefs, getHighestPriorityPullRequestIcon, getSessionPresentationWorkspace, getSessionWorkspaceKind, getUntitledSessionTitle, IChat, isSideChatOf, ISession, SessionStatus, SessionWorkspaceKind } from '../../../../workbench/contrib/sessions/common/session.js';
 import { ISessionsPartService } from '../../../../workbench/contrib/sessions/browser/sessionsPartService.js';
@@ -90,6 +92,22 @@ export type NewSessionButtonStyle = 'default' | 'lightweight' | 'lightweightWith
 
 // -- Show Sessions Picker --
 
+/** The chat window the Sessions picker runs in, by the host it runs for: what it opens there opens in that window. */
+export function getSessionsPickerChatWindow(target: ISessionCommandTarget | undefined, chatWindowService: IChatWindowService): IChatWindow | undefined {
+	const windowHost = target?.host && getWindowHost(target.host);
+	const windowId = windowHost?.kind === SessionHostKind.ChatWindow ? windowHost.windowId.get() : undefined;
+	return windowId === undefined ? undefined : chatWindowService.getWindow(windowId);
+}
+
+/**
+ * Opens `session`, picked in the Sessions picker of the chat window `window`, as a tab of that window, as opening a chat in
+ * a window does: beside the window's active chat, in a group of its own, to the side; where it shows in a window already,
+ * there.
+ */
+export function openPickedSessionInChatWindow(accessor: ServicesAccessor, session: ISession, window: IChatWindow, options: { readonly preserveFocus: boolean; readonly toSide: boolean }): Promise<void> {
+	return openChatInWindow(accessor, session, undefined, { window, preserveFocus: options.preserveFocus, beside: options.toSide ? window.chat.get() : undefined });
+}
+
 export const SHOW_SESSIONS_PICKER_COMMAND_ID = 'sessions.showSessionsPicker';
 
 registerAction2(class ShowSessionsPickerAction extends Action2 {
@@ -116,7 +134,11 @@ registerAction2(class ShowSessionsPickerAction extends Action2 {
 		const contextKeyService = accessor.get(IContextKeyService);
 		const composerService = accessor.get(INewSessionComposerService);
 
-		const activeSessionId = resolveSessionCommandTarget(accessor, [])?.session?.sessionId;
+		const instantiationService = accessor.get(IInstantiationService);
+		const target = resolveSessionCommandTarget(accessor, []);
+		const activeSessionId = target?.session?.sessionId;
+		// Picked in a chat window, a session opens as a tab of that window
+		const chatWindow = getSessionsPickerChatWindow(target, accessor.get(IChatWindowService));
 
 		interface ISessionPickItem extends IQuickPickItem {
 			session?: ISession;
@@ -218,8 +240,15 @@ registerAction2(class ShowSessionsPickerAction extends Action2 {
 		const openSelected = (selected: ISessionPickItem, inBackground: boolean, toSide: boolean): void => {
 			composerService.notifyUserNavigation();
 			if (!selected.session) {
+				// A new session opens in the main window, also when picked in a chat window, for now
 				sessionsService.openNewSession();
 				sessionsService.focusActiveSession();
+				return;
+			}
+
+			if (chatWindow) {
+				const session = selected.session;
+				void instantiationService.invokeFunction(accessor => openPickedSessionInChatWindow(accessor, session, chatWindow, { preserveFocus: inBackground, toSide })).catch(onUnexpectedError);
 				return;
 			}
 

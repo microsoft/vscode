@@ -7,7 +7,7 @@ import assert from 'assert';
 import { $, append } from '../../../../../base/browser/dom.js';
 import { mainWindow } from '../../../../../base/browser/window.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
-import { DisposableStore, IDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
+import { DisposableStore, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { constObservable, derived, IObservable, observableValue } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { mock, upcastPartial } from '../../../../../base/test/common/mock.js';
@@ -44,13 +44,12 @@ import { SessionChangesetOperationsContext } from '../../../changes/browser/chan
 import { ActiveSessionState, IChangesSessionObservables, IChangesViewService } from '../../../../../workbench/contrib/sessions/common/changesViewService.js';
 import { IGitHubService } from '../../../../../workbench/contrib/sessions/browser/github/githubService.js';
 import { GitHubPullRequestCIModel } from '../../../../../workbench/contrib/sessions/browser/github/models/githubPullRequestCIModel.js';
-import { findSessionActivityBarExternalHost, getSessionActivityBarSize, observeSessionActivityBarSize, SessionActivityBarColumn, setSessionActivityBarSize } from '../../../../../workbench/contrib/sessions/browser/parts/sessionActivityBarHost.js';
+import { findSessionActivityBarExternalHost, getSessionActivityBarSize, SessionActivityBarColumn, setSessionActivityBarSize } from '../../../../../workbench/contrib/sessions/browser/parts/sessionActivityBarHost.js';
 import { MenuActivityBar, MenuActivityBarSize } from '../../../../../workbench/browser/parts/activitybar/menuActivityBar.js';
 import { IStorageService } from '../../../../../platform/storage/common/storage.js';
 import { TestStorageService } from '../../../../../workbench/test/common/workbenchTestServices.js';
 import { AGENTS_FLOATING_PANEL_GAP } from '../../../../../workbench/contrib/sessions/common/layoutConstants.js';
-import { AGENTS_CHAT_WINDOW_CLASS } from '../../browser/chatWindowTitleDoubleClick.js';
-import { alignChatWindowHeaderActions, trackChatWindowHeaderActions, CHAT_WINDOW_MAIN_PART_GROUP_VIEW_OPTIONS, focusChatWindowUnlessFocused, getChatWindowMainPartOptions, getChatWindowTitleHeight, setChatWindowTitleInChatColumn, SessionsChatWindowContent, SessionsChatWindowProvider } from '../../browser/sessionsChatWindowProvider.js';
+import { AGENTS_CHAT_WINDOW_CLASS, CHAT_WINDOW_MAIN_PART_GROUP_VIEW_OPTIONS, focusChatWindowUnlessFocused, getChatWindowMainPartOptions, SessionsChatWindowProvider } from '../../browser/sessionsChatWindowProvider.js';
 import { DesktopMainEditorPart } from '../../../../browser/parts/desktopEditorPart.js';
 import { IEditorGroupViewOptions } from '../../../../../workbench/browser/parts/editor/editor.js';
 import { EditorInputCapabilities, GroupModelChangeKind } from '../../../../../workbench/common/editor.js';
@@ -58,6 +57,8 @@ import { EditorInput } from '../../../../../workbench/common/editor/editorInput.
 import { IGroupModelChangeEvent } from '../../../../../workbench/common/editor/editorGroupModel.js';
 import { stubSessionHosts } from '../../../../../workbench/contrib/sessions/test/browser/sessionHostTestUtils.js';
 import { ISessionHost } from '../../../../../workbench/contrib/sessions/browser/sessionHost.js';
+import { ITitleService } from '../../../../../workbench/services/title/browser/titleService.js';
+import { IAuxiliaryTitlebarPart } from '../../../../../workbench/browser/parts/titlebar/titlebarPart.js';
 
 suite('Sessions chat window provider', () => {
 
@@ -180,13 +181,29 @@ suite('Sessions chat window provider', () => {
 			}),
 		}));
 		instantiationService.stub(ILogService, new NullLogService());
+		// The title bars it creates for its windows
+		const titleBars: { readonly container: HTMLElement; readonly editorGroupsContainer: unknown; readonly instantiationService: IInstantiationService; setHeight(height: number): void; readonly layouts: string[]; disposed: boolean }[] = [];
+		instantiationService.stub(ITitleService, upcastPartial<ITitleService>({
+			createAuxiliaryTitlebarPart: (container, editorGroupsContainer, partInstantiationService) => {
+				const onDidChange = store.add(new Emitter<undefined>());
+				let height = 44;
+				const titleBar = { container, editorGroupsContainer, instantiationService: partInstantiationService, setHeight: (value: number) => { height = value; onDidChange.fire(undefined); }, layouts: [] as string[], disposed: false };
+				titleBars.push(titleBar);
+				return upcastPartial<IAuxiliaryTitlebarPart>({
+					get height() { return height; },
+					onDidChange: onDidChange.event,
+					layout: (width: number, layoutHeight: number) => { titleBar.layouts.push(`${width}x${layoutHeight}`); },
+					dispose: () => { titleBar.disposed = true; },
+				});
+			},
+		}));
 		instantiationService.stub(IGitHubService, upcastPartial<IGitHubService>({
 			getSessionPullRequest: () => upcastPartial<ReturnType<IGitHubService['getSessionPullRequest']>>({
 				pullRequestCIObs: constObservable(upcastPartial<GitHubPullRequestCIModel>({ checks: constObservable([]), requiredChecks: constObservable(undefined), fixRequested: observableValue('fixRequested', false) })),
 			}),
 		}));
 		const provider = store.add(instantiationService.createInstance(SessionsChatWindowProvider));
-		return { provider, storage, events, window, windowInstantiationService: store.add(instantiationService.createChild(new ServiceCollection([IContextKeyService, store.add(new ContextKeyService(configuration))]))), onDidChangeSessions, sentiment, configuration, editorGroups, activeChat, chatHostOpenerService, visibleSessions };
+		return { provider, storage, events, window, titleBars, windowInstantiationService: store.add(instantiationService.createChild(new ServiceCollection([IContextKeyService, store.add(new ContextKeyService(configuration))]))), onDidChangeSessions, sentiment, configuration, editorGroups, activeChat, chatHostOpenerService, visibleSessions };
 	}
 
 	/** The window the chats show in: its active chat is `activeChat`. */
@@ -200,8 +217,6 @@ suite('Sessions chat window provider', () => {
 			override readonly onDidMoveGroup = Event.None;
 		}();
 		override readonly layoutMode = constObservable(ChatWindowLayoutMode.SideBySide);
-		override readonly titleMerged = constObservable(true);
-		override readonly titleInChatColumn = constObservable(false);
 		override readonly onDidClose = Event.None;
 		override readonly chat = activeChat;
 		override readonly chats = derived(reader => [activeChat.read(reader)]);
@@ -382,30 +397,6 @@ suite('Sessions chat window provider', () => {
 		await provider.moveToMainWindow([URI.parse('test:/elsewhere'), URI.parse('test:/main'), URI.parse('test:/subagent')], { editors: [{ name: 'file.ts' } as unknown as EditorInput] });
 
 		assert.deepStrictEqual(events, ['open moved other /elsewhere, session /main, session /subagent', 'open editors file.ts (active)']);
-	});
-
-	test('each chat editor of a window shows the session header in its own title row: back on the first of two split chats, the header is in the first one\'s row, not in the second\'s', async () => {
-		const store = disposables.add(new DisposableStore());
-		const session = createSession('session', [createChat('main'), createChat('second')]);
-		const { windowInstantiationService } = createProvider(store, [session]);
-		const headers = new Map<HTMLElement, string>();
-		const content = store.add(windowInstantiationService.createInstance(SessionsChatWindowContent, (_window, _content, container) => {
-			const element = append(container, $('.title'));
-			const header = { element, actionsElement: undefined, setShown: () => { } };
-			headers.set(element, `row of ${container.className}`);
-			return { element, size: constObservable(30), header, layout: () => { }, dispose: () => element.remove() };
-		}));
-		store.add(content.bind!(window, windowInstantiationService));
-		const first = (await content.resolveChat(URI.parse('test:/main')))! as unknown as { header: IObservable<{ element: HTMLElement } | undefined>; createTitle(container: HTMLElement, instantiationService: unknown): IDisposable | undefined };
-		const second = (await content.resolveChat(URI.parse('test:/second')))! as unknown as typeof first;
-		store.add(first.createTitle($('.first'), windowInstantiationService)!);
-		activeChat.set(URI.parse('test:/second'), undefined);
-		store.add(second.createTitle($('.second'), windowInstantiationService)!);
-		const onSecond = [first, second].map(chat => chat.header.get() && headers.get(chat.header.get()!.element));
-		activeChat.set(URI.parse('test:/main'), undefined);
-		const backOnFirst = [first, second].map(chat => chat.header.get() && headers.get(chat.header.get()!.element));
-
-		assert.deepStrictEqual({ onSecond, backOnFirst }, { onSecond: [undefined, 'row of second'], backOnFirst: ['row of first', undefined] });
 	});
 
 	test('a chat follows the chats of its session, which change without the sessions changing: it leaves its window once deleted, and shows the chat that replaces it', async () => {
@@ -632,146 +623,39 @@ suite('Sessions chat window provider', () => {
 		assert.deepStrictEqual(actual, expected);
 	});
 
+	test('the title row of a chat window is the title bar of the Agents window, created into it with the window\'s services, which its command center and actions act on, across its top in every layout: as tall as the title bar is, such as for its density', () => {
+		const store = disposables.add(new DisposableStore());
+		const { provider, windowInstantiationService, titleBars } = createProvider(store, []);
+		const container = $('.chat-window-title-row');
+		const row = provider.chrome.createTitleRow!(window, container, windowInstantiationService)!;
+		const visible = row.visible.get();
+		const sizes = [row.size.get()];
+		titleBars[0].setHeight(35);
+		sizes.push(row.size.get());
+		row.layout(1000, 35);
+		row.dispose();
+
+		assert.deepStrictEqual({
+			created: titleBars.map(titleBar => ({ container: titleBar.container === container, editorGroups: titleBar.editorGroupsContainer === window.mainPart, services: titleBar.instantiationService === windowInstantiationService })),
+			visible,
+			sizes,
+			layouts: titleBars[0].layouts,
+			disposed: titleBars[0].disposed,
+		}, {
+			created: [{ container: true, editorGroups: true, services: true }],
+			visible: true,
+			sizes: [44, 35],
+			layouts: ['1000x35'],
+			disposed: true,
+		});
+	});
+
 	test('focuses its window only while that window does not have focus, so that a focused chat window is not focused again', () => {
 		const focused: boolean[] = [];
 		for (const hasFocus of [false, true]) {
 			focusChatWindowUnlessFocused({ document: { hasFocus: () => hasFocus } }, () => focused.push(hasFocus));
 		}
 		assert.deepStrictEqual(focused, [false]);
-	});
-
-	test('the header\'s actions, last at the right of the title bar, are centered above the entries of the Session Activity Bar below, whatever their width, in Default and Compact density', () => {
-		const titlebar = $('div');
-		const host = append(titlebar, $('div'));
-		mainWindow.document.body.appendChild(titlebar);
-		disposables.add({ dispose: () => titlebar.remove() });
-		const insets: Record<string, string[]> = {};
-		for (const compact of [false, true]) {
-			for (const size of [MenuActivityBarSize.Normal, MenuActivityBarSize.Compact]) {
-				insets[`${compact ? 'compact' : 'default'} density, ${size} size`] = [20, 22, 0].map(width => {
-					host.replaceChildren();
-					if (width) {
-						append(host, $('div')).style.cssText = `display: inline-block; width: ${width}px; height: 16px;`;
-					}
-					alignChatWindowHeaderActions(titlebar, host, compact, size);
-					return `${width}: ${titlebar.style.getPropertyValue('--session-header-actions-inset') || 'none'}`;
-				});
-			}
-		}
-		// The strip ends where the title bar does, at the right of the grid, 1px from it at the default density (moved toward the
-		// cards by their frame's inset). The bar is 44px wide at the normal size (36px entries, 8px lane), 40px with compact
-		// density (a 4px lane), and 30px at the compact size (24px entries, 6px lane): an action is centered above it.
-		assert.deepStrictEqual(insets, {
-			'default density, normal size': ['20: 13px', '22: 12px', '0: none'],
-			'default density, compact size': ['20: 6px', '22: 5px', '0: none'],
-			'compact density, normal size': ['20: 10px', '22: 9px', '0: none'],
-			'compact density, compact size': ['20: 5px', '22: 4px', '0: none'],
-		});
-	});
-
-	test('the header\'s actions stay centered above the strip after the title is laid out, as its actions arrive and as the size chosen for the strip changes, which leave the title\'s own layout unchanged, in Default and Compact density', () => {
-		// Resizes of the actions are announced by the test, as the window would
-		const observed: { callback: ResizeObserverCallback; targets: Element[] }[] = [];
-		class FakeResizeObserver implements ResizeObserver {
-			private readonly entry: { callback: ResizeObserverCallback; targets: Element[] };
-			constructor(callback: ResizeObserverCallback) { observed.push(this.entry = { callback, targets: [] }); }
-			observe(target: Element): void { this.entry.targets.push(target); }
-			unobserve(target: Element): void { this.entry.targets = this.entry.targets.filter(candidate => candidate !== target); }
-			disconnect(): void { this.entry.targets = []; }
-		}
-		const resized = () => observed.filter(entry => entry.targets.length).forEach(entry => entry.callback([], upcastPartial<ResizeObserver>({})));
-		const insets: Record<string, string> = {};
-		for (const compact of [false, true]) {
-			const titlebar = append(mainWindow.document.body, $('div'));
-			const actionsHost = append(titlebar, $('div'));
-			// The size chosen for the strip, as the chat windows observe it in the profile's storage: compact unless chosen
-			const store = new DisposableStore();
-			const storage = store.add(new TestStorageService());
-			const size = observeSessionActivityBarSize(store, storage, store);
-			const tracker = store.add(trackChatWindowHeaderActions(titlebar, actionsHost, constObservable(compact), size, { resizeObserverCtor: FakeResizeObserver }));
-			const inset = () => titlebar.style.getPropertyValue('--session-header-actions-inset') || 'none';
-			// Laid out while the session header is in another title
-			tracker.layout();
-			const laidOutEmpty = inset();
-			// The session header moves into it, the title's layout unchanged
-			append(actionsHost, $('div')).style.cssText = 'display: inline-block; width: 20px; height: 16px;';
-			resized();
-			const actionsArrived = inset();
-			// The size chosen for the strip changes, from either window's bar, the title's layout unchanged
-			setSessionActivityBarSize(storage, MenuActivityBarSize.Normal);
-			const normal = inset();
-			setSessionActivityBarSize(storage, MenuActivityBarSize.Compact);
-			insets[compact ? 'compact' : 'default'] = `${laidOutEmpty} → ${actionsArrived} → ${normal} → ${inset()}`;
-			store.dispose();
-			titlebar.remove();
-		}
-
-		// As `alignChatWindowHeaderActions` centers a 20px action at each size (see the test above)
-		assert.deepStrictEqual({ insets, observing: observed.filter(entry => entry.targets.length).length }, { insets: { default: 'none → 6px → 13px → 6px', compact: 'none → 5px → 10px → 5px' }, observing: 0 });
-	});
-
-	test('the tab row at the top right of a chat window, and the strip, keep the room of the window controls only while they float above them, beside the chat\'s own title: not while they are in the title row, hidden as in full screen, or at the left as on macOS', () => {
-		const chatWindow = append(mainWindow.document.body, $(`.${AGENTS_CHAT_WINDOW_CLASS}`));
-		disposables.add({ dispose: () => chatWindow.remove() });
-		const titlebar = append(chatWindow, $('div'));
-		// The window controls at the right, as on Windows and Linux.
-		const controls = append(titlebar, $('div'));
-		controls.style.cssText = 'display: block; width: 138px; height: 30px;';
-		let inChatColumn = false;
-		const reserved = (windowControls: HTMLElement | undefined) => {
-			setChatWindowTitleInChatColumn(titlebar, windowControls, inChatColumn);
-			// The width for the tab row below them, the height for the strip below them
-			return `${chatWindow.style.getPropertyValue('--chat-window-controls-right-width') || 'none'} x ${chatWindow.style.getPropertyValue('--chat-window-controls-right-height') || 'none'}`;
-		};
-
-		const inTitleRow = reserved(controls);
-		// Side by Side: the chat's own title, over its column only, leaves its window controls at the top right of the window.
-		inChatColumn = true;
-		const overChatColumn = reserved(controls);
-		const classOn = titlebar.classList.contains('header-chat-column');
-		controls.style.display = 'none';
-		const fullScreen = reserved(controls);
-		controls.style.display = 'block';
-		const leftAsOnMacOS = reserved(undefined);
-		const windowedAgain = reserved(controls);
-
-		assert.deepStrictEqual({ inTitleRow, classOn, overChatColumn, fullScreen, leftAsOnMacOS, windowedAgain }, { inTitleRow: 'none x none', classOn: true, overChatColumn: '138px x 30px', fullScreen: 'none x none', leftAsOnMacOS: 'none x none', windowedAgain: '138px x 30px' });
-	});
-
-	test('reserving the room of the window controls measures them before it writes any style, and writes nothing while their room is unchanged: no layout forced on every layout of the title', () => {
-		const chatWindow = append(mainWindow.document.body, $(`.${AGENTS_CHAT_WINDOW_CLASS}`));
-		disposables.add({ dispose: () => chatWindow.remove() });
-		const titlebar = append(chatWindow, $('div'));
-		const controls = append(titlebar, $('div'));
-		controls.style.cssText = 'display: block; width: 138px; height: 30px;';
-		const calls: string[] = [];
-		const style = chatWindow.style;
-		const setProperty = style.setProperty;
-		const removeProperty = style.removeProperty;
-		style.setProperty = (name: string, value: string | null) => { calls.push(`set ${name}`); setProperty.call(style, name, value); };
-		style.removeProperty = (name: string) => { calls.push(`remove ${name}`); return removeProperty.call(style, name); };
-		const traceRead = (name: 'offsetWidth' | 'offsetHeight', label: string) => {
-			const read = Object.getOwnPropertyDescriptor(HTMLElement.prototype, name)?.get;
-			Object.defineProperty(controls, name, { get: () => { calls.push(label); return read?.call(controls); } });
-		};
-		traceRead('offsetWidth', 'read width');
-		traceRead('offsetHeight', 'read height');
-		const reserve = () => {
-			calls.length = 0;
-			setChatWindowTitleInChatColumn(titlebar, controls, true);
-			return calls.join(', ');
-		};
-
-		const first = reserve();
-		const unchanged = reserve();
-		controls.style.height = '32px';
-		const taller = reserve();
-
-		assert.deepStrictEqual({ first, unchanged, taller }, {
-			first: 'read width, read height, set --chat-window-controls-right-width, set --chat-window-controls-right-height',
-			unchanged: 'read width, read height',
-			taller: 'read width, read height, set --chat-window-controls-right-height',
-		});
 	});
 
 	test('the cards keep the main window\'s gaps: between them and to the edges of the window but its top, where the title row is, with the strip\'s column or without it', () => {
@@ -785,14 +669,6 @@ suite('Sessions chat window provider', () => {
 			withStrip: { top: 0, right: 4, bottom: 4, left: 4 },
 			withoutStrip: { top: 0, right: 4, bottom: 4, left: 4 },
 		});
-	});
-
-	test('the title rows are as tall as the row of tabs of the main part, its card\'s frame included, in every layout: no measuring, so from the first frame', () => {
-		assert.deepStrictEqual({
-			cards: getChatWindowTitleHeight(false, true),
-			compactDensity: getChatWindowTitleHeight(false, false),
-			compactTabs: getChatWindowTitleHeight(true, true),
-		}, { cards: 33, compactDensity: 32, compactTabs: 29 });
 	});
 
 	test('the main part of a chat window shows the menus of the main window\'s editor area, such as the actions of the Changes editor in its header row', () => {

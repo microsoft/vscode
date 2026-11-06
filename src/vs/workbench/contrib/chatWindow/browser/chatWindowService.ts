@@ -10,7 +10,7 @@ import { disposableTimeout, SequencerByKey } from '../../../../base/common/async
 import { CancellationError, onUnexpectedError } from '../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { combinedDisposable, Disposable, DisposableMap, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
-import { autorun, derived, IObservable, observableSignal, observableValue, transaction } from '../../../../base/common/observable.js';
+import { autorun, derived, IObservable, observableValue, transaction } from '../../../../base/common/observable.js';
 import { isEqual } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
 import { localize } from '../../../../nls.js';
@@ -21,14 +21,14 @@ import { ServiceCollection } from '../../../../platform/instantiation/common/ser
 import { IStorageService } from '../../../../platform/storage/common/storage.js';
 import { IEditorGroupView, IEditorGroupViewOptions } from '../../../browser/parts/editor/editor.js';
 import { IsAuxiliaryWindowContext } from '../../../common/contextkeys.js';
-import { EditorCloseContext, EditorsOrder, GroupIdentifier, GroupModelChangeKind } from '../../../common/editor.js';
+import { EditorCloseContext, EditorsOrder, GroupIdentifier } from '../../../common/editor.js';
 import { EditorInput } from '../../../common/editor/editorInput.js';
 import { IAuxiliaryWindowService } from '../../../services/auxiliaryWindow/browser/auxiliaryWindowService.js';
 import { bindEditorPartsToWindow } from '../../../services/editor/browser/editorPartWindowBinding.js';
 import { GroupDirection, GroupsOrder, IContentPart, IEditorGroup, IEditorGroupsService } from '../../../services/editor/common/editorGroupsService.js';
 import { IHostService } from '../../../services/host/browser/host.js';
 import { ILifecycleService } from '../../../services/lifecycle/common/lifecycle.js';
-import { ChatWindowLayoutMode, ChatWindowSplitLayout, ChatWindowTerminalPosition, isChatWindowTitleMerged } from '../common/chatWindowLayout.js';
+import { ChatWindowLayoutMode, ChatWindowSplitLayout, ChatWindowTerminalPosition } from '../common/chatWindowLayout.js';
 import { ChatWindowChatLayouts, ChatWindowChatSizes, ChatWindowDefaults, ChatWindowState } from '../common/chatWindowState.js';
 import { IChatWindow, IChatWindowChat, IChatWindowChatPart, IChatWindowContent, IChatWindowEditors, IChatWindowOpenOptions, IChatWindowProvider, IChatWindowService } from './chatWindow.js';
 import { bindWindowLayoutContext, bindWindowTerminalsContext } from './chatWindowContextKeys.js';
@@ -85,10 +85,6 @@ export interface IChatWindowHost {
 	createTerminalsPart(): IContentPart;
 	/** Whether the part that holds the window's terminals shows in the window's grid. */
 	readonly terminalsVisible: IObservable<boolean>;
-	/** Whether the chat part leads the window's grid: it shows, with no part before it, to its left or above it. */
-	readonly chatPartLeads: IObservable<boolean>;
-	/** Whether the group at the top left of the chat part reaches the right edge of the window's grid: no part beside the chat part, and no group beside it. */
-	readonly titleReachesRightEdge: IObservable<boolean>;
 	/** Whether the user resizes the parts of the window's grid, dragging a sash between them. */
 	readonly resizing: IObservable<boolean>;
 	/** The editor of the window's last chat moved out of the window, such as into the main window or into an editor window. */
@@ -178,8 +174,6 @@ export class ChatWindow extends Disposable implements IChatWindow {
 	private readonly _terminalsPart = observableValue<IContentPart | undefined>(this, undefined);
 	readonly terminalsPart: IObservable<IContentPart | undefined> = this._terminalsPart;
 
-	readonly titleMerged: IObservable<boolean>;
-	readonly titleInChatColumn: IObservable<boolean>;
 
 	private readonly _chats: ReturnType<typeof observableValue<readonly IChatWindowChat[]>>;
 	private readonly _activeChat: ReturnType<typeof observableValue<IChatWindowChat>>;
@@ -231,24 +225,6 @@ export class ChatWindow extends Disposable implements IChatWindow {
 
 	isChatEditor(editor: EditorInput): boolean {
 		return this._chats.get().some(chat => chat.input === editor);
-	}
-
-	/**
-	 * Whether its title row merges into the title of its active chat's editor while the chat part leads the window, or
-	 * does not, such as where a part being moved would put it: as the group at the top left of the chat part is now.
-	 */
-	isTitleMergedIf(chatPartLeads: boolean, mode: ChatWindowLayoutMode = this.state.layoutMode.get()): boolean {
-		// Not once it closes: its chat part's grid goes away as its editors and chats do
-		if (this._closed || this._closing) {
-			return false;
-		}
-		const first = this.chatPart.getGroups(GroupsOrder.GRID_APPEARANCE)[0];
-		return isChatWindowTitleMerged({
-			mode,
-			chatPartLeads,
-			leadingGroupEditors: first?.count ?? 0,
-			leadingGroupShowsActiveChat: !!first && this._chatOf(first.activeEditor) === this._activeChat.get(),
-		});
 	}
 
 	private _chatOf(editor: EditorInput | null | undefined): IChatWindowChat | undefined {
@@ -351,7 +327,6 @@ export class ChatWindow extends Disposable implements IChatWindow {
 	private _closed = false;
 	/** Set while it closes, so that editors closing with it do not change its layout or close it again. */
 	private _closing = false;
-	private readonly _titleInvalidated = observableSignal(this);
 	/** The groups of every part of the window, where the chat's editor can be. */
 	private readonly _windowGroups: IChatWindowGroups;
 
@@ -399,18 +374,6 @@ export class ChatWindow extends Disposable implements IChatWindow {
 			onDidRemoveGroup: Event.any(chatPart.onDidRemoveGroup, mainPart.onDidRemoveGroup),
 		};
 		const chatGroupListeners = this._register(new DisposableMap<IEditorGroup>());
-		const chatMoved = this._titleInvalidated;
-		// The title row merges into the title of the active chat's editor while the chat part leads the window and the group
-		// at its top left shows only that chat: with other editors beside it, as tabs, or another chat active, the title row
-		// of the window shows instead
-		this._register(Event.any(chatPart.onDidAddGroup, chatPart.onDidRemoveGroup, chatPart.onDidMoveGroup)(() => chatMoved.trigger(undefined)));
-		this.titleMerged = derived(this, reader => {
-			chatMoved.read(reader);
-			this._chats.read(reader);
-			this._activeChat.read(reader);
-			return this.isTitleMergedIf(_host.chatPartLeads.read(reader), state.layoutMode.read(reader));
-		});
-		this.titleInChatColumn = derived(this, reader => this.titleMerged.read(reader) && !_host.titleReachesRightEdge.read(reader));
 		// The active chat: that of the active editor of the group of the window last activated or focused, in any of its
 		// parts, as that group shows another editor or another group becomes active. A group that is not the active one,
 		// such as one a chat opens in without focus, does not change it.
@@ -428,16 +391,10 @@ export class ChatWindow extends Disposable implements IChatWindow {
 		this._register(chatPart.onDidChangeActiveGroup(activateGroup));
 		// Any editor that opens or closes in a group of the window, beside the chat or not
 		const trackChatGroup = (group: IEditorGroup) => chatGroupListeners.set(group, combinedDisposable(group.onDidActiveEditorChange(() => {
-			chatMoved.trigger(undefined);
 			if (group === activeGroup) {
 				activate(group.activeEditor);
 			}
-		}), group.onDidModelChange(e => {
-			if (e.kind === GroupModelChangeKind.EDITOR_OPEN || (e.editor && this.isChatEditor(e.editor))) {
-				chatMoved.trigger(undefined);
-			}
 		}), group.onDidCloseEditor(e => {
-			chatMoved.trigger(undefined);
 			const chat = this._chatOf(e.editor);
 			if (!chat || this._closing || this._host.isUnloading()) {
 				return;
@@ -751,7 +708,6 @@ export class ChatWindow extends Disposable implements IChatWindow {
 	private _abortClose(): void {
 		this._closing = false;
 		this._host.setClosing?.(false);
-		this._titleInvalidated.trigger(undefined);
 	}
 
 	/** Ends the chat window without closing its parts again: its window went away. */
@@ -1091,8 +1047,6 @@ export class ChatWindowService extends Disposable implements IChatWindowService 
 				return part;
 			},
 			terminalsVisible: derived(this, reader => gridRef.read(reader)?.terminalsVisible.read(reader) ?? false),
-			chatPartLeads: derived(this, reader => gridRef.read(reader)?.chatLeads.read(reader) ?? false),
-			titleReachesRightEdge: derived(this, reader => gridRef.read(reader)?.titleReachesRightEdge.read(reader) ?? false),
 			resizing: derived(this, reader => gridRef.read(reader)?.resizing.read(reader) ?? false),
 		}));
 		disposables.add(bindWindowTerminalsContext(windowContextKeyService, { terminalsVisible: chatWindow.terminalsVisible, terminalPosition: state.terminalPosition }));
@@ -1132,7 +1086,6 @@ export class ChatWindowService extends Disposable implements IChatWindowService 
 			strip: strip && { element: stripElement, visible: strip.visible, size: strip.size, layout: (width, height) => strip.layout(width, height) },
 			terminals: chatWindow.terminalsPart,
 			chatInputOnly: derived(reader => state.layoutMode.read(reader) === ChatWindowLayoutMode.Stacked && state.inputOnly.read(reader)),
-			isTitleMergedIf: chatPartLeads => chatWindow.isTitleMergedIf(chatPartLeads),
 		}, state.layoutMode, look.gap, this._chatSizes.get(chat), state.terminalPosition, partFactory));
 		gridRef.set(grid, undefined);
 		// As the window goes away, after its chat part and main part closed and before the part that holds its terminals does

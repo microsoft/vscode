@@ -28,7 +28,7 @@ import { ThemeIcon } from '../../../../base/common/themables.js';
 import { IContextViewService, IOpenContextView } from '../../../../platform/contextview/browser/contextView.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { IQuickInputService } from '../../../../platform/quickinput/common/quickInput.js';
-import { IsAuxiliaryWindowContext } from '../../../../workbench/common/contextkeys.js';
+import { IsAuxiliaryWindowContext, LayoutModeContext } from '../../../../workbench/common/contextkeys.js';
 import { IWorkbenchLayoutService } from '../../../../workbench/services/layout/browser/layoutService.js';
 import { SessionsBlockedSessionsVisibleContext, SessionsWelcomeVisibleContext } from '../../../../workbench/contrib/sessions/common/contextkeys.js';
 import { ISessionsProvidersService } from '../../../../workbench/contrib/sessions/browser/sessionsProvidersService.js';
@@ -762,13 +762,19 @@ export class SessionsTitleBarContribution extends Disposable implements IWorkben
 	}
 }
 
+/**
+ * The windows whose command center shows the session widget: the main window, and windows with layout modes, such as chat
+ * windows, whose widget shows the session of their active chat.
+ */
+const sessionsTitleBarWindowContext = ContextKeyExpr.or(IsAuxiliaryWindowContext.negate(), LayoutModeContext)!;
+
 export function registerSessionsTitleBarMenus(): IDisposable {
 	return combinedDisposable(
 		MenuRegistry.appendMenuItem(AgentsWindowMenus.CommandCenter, {
 			submenu: AgentsWindowMenus.TitleBarSessionTitle,
 			title: localize('agentSessionsControl', "Agent Sessions"),
 			order: 101,
-			when: ContextKeyExpr.and(IsAuxiliaryWindowContext.negate(), SessionsWelcomeVisibleContext.negate())
+			when: ContextKeyExpr.and(sessionsTitleBarWindowContext, SessionsWelcomeVisibleContext.negate())
 		}),
 		MenuRegistry.appendMenuItem(AgentsWindowMenus.TitleBarSessionTitle, {
 			command: {
@@ -777,7 +783,7 @@ export function registerSessionsTitleBarMenus(): IDisposable {
 			},
 			group: 'a_sessions',
 			order: 1,
-			when: IsAuxiliaryWindowContext.negate()
+			when: sessionsTitleBarWindowContext
 		})
 	);
 }

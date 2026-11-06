@@ -210,24 +210,3 @@ export function isChatWindowLayoutMode(value: unknown): value is ChatWindowLayou
 export function isChatWindowSplitLayout(value: unknown): value is ChatWindowSplitLayout {
 	return value === ChatWindowLayoutMode.Stacked || value === ChatWindowLayoutMode.SideBySide;
 }
-
-/** What decides where a chat window shows the header of its active chat; see {@link isChatWindowTitleMerged}. */
-export interface IChatWindowTitleState {
-	readonly mode: ChatWindowLayoutMode;
-	/** Whether the chat part leads the window: no other part shows before it, to its left or above it. */
-	readonly chatPartLeads: boolean;
-	/** The number of editors of the group at the top left of the chat part. */
-	readonly leadingGroupEditors: number;
-	/** Whether the group at the top left of the chat part shows the window's active chat. */
-	readonly leadingGroupShowsActiveChat: boolean;
-}
-
-/**
- * Whether the window's title row merges into the title of its active chat's editor: the chat part leads the window, at
- * its top left in any arrangement, and the group at its top left shows only the active chat, with no tabs. The header of
- * the active chat then shows there, beside the window's controls. Otherwise the window's title row spans the top of the
- * window and shows it, and no chat editor shows a header of its own: the header always shows in exactly one place.
- */
-export function isChatWindowTitleMerged(state: IChatWindowTitleState): boolean {
-	return state.mode !== ChatWindowLayoutMode.EditorOnly && state.chatPartLeads && state.leadingGroupEditors === 1 && state.leadingGroupShowsActiveChat;
-}

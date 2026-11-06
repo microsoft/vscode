@@ -55,6 +55,10 @@ The workbench omits the standard Activity Bar, Status Bar, and Banner. Part posi
 | Custom View Grid | Full-surface contributed views that replace session content |
 | Session Activity Bar column | The active chat's Session Activity Bar; a fixed-width grid view, not a part, shown only while that strip is in it |
 
+### Chat windows
+
+A chat window shows the Agents window's title bar as its first row, across the full width of the window, in every layout mode and whatever its parts show, at the main window's title bar height for the current density, including under a native OS title bar. It is created with the window's services, so its command center and session actions act on the window's active chat and its session; a session picked from its command center opens as a tab of that window. Main-window navigation (the sessions list toggle, Back/Forward, and New Session) and app-wide items (account and status, update, and remote connections) stay in the main window's title bar; the chat window's title bar adds the window's layout actions. The session header of a chat is in the chat's card, as in the main window, and hides while the chat shows only its input in Stacked mode.
+
 ### Window canvases
 
 Built-in native canvases, including Inbox, open as singleton tabs in the Editor rather than replacing the Sessions Part with a custom view. Their definitions and live content belong to `IWindowCanvasService`, not to an agent, session, or chat. The existing Canvas menus expose both native window canvases and provider-owned browser canvases; provider canvases retain their existing ownership and permission model.

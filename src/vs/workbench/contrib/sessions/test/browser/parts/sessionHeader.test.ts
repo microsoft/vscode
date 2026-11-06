@@ -180,9 +180,9 @@ suite('Sessions - Headers', () => {
 		return dragEvent;
 	}
 
-	test('a drag from the title of a header in the title bar of its window, the chat editor\'s drag handle, stays the editor\'s drag, and also carries the session and its chat, so that it drops as an editor and as a chat', () => {
+	test('a drag from the title of a header that drags the editor of its chat, as in a chat window, whose drag handle it is, stays the editor\'s drag, and also carries the session and its chat, so that it drops as an editor and as a chat', () => {
 		const { header, session, mainChat } = createHarness(disposables);
-		header.setWindowChrome(true);
+		header.setDragsEditor(true);
 		const title = header.titleElement;
 		title.draggable = true;
 		// As the editor's drag handle does, before the drag reaches the header

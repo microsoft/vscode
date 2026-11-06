@@ -15,13 +15,13 @@ import { toDisposable } from '../../../../../base/common/lifecycle.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { IInstantiationService, ServicesAccessor } from '../../../../../platform/instantiation/common/instantiation.js';
 import { MockContextKeyService } from '../../../../../platform/keybinding/test/common/mockKeybindingService.js';
-import { IPartGridPartFactory, PART_GRID_TOP_EDGE_CLASS, PartGridLocation } from '../../../../browser/parts/partGrid/partGrid.js';
+import { IPartGridPartFactory, PartGridLocation } from '../../../../browser/parts/partGrid/partGrid.js';
 import { EditorInput } from '../../../../common/editor/editorInput.js';
-import { GroupDirection, IContentPart, IEditorGroup, IEditorGroupsService, IEditorPart } from '../../../../services/editor/common/editorGroupsService.js';
+import { IContentPart, IEditorGroup, IEditorGroupsService, IEditorPart } from '../../../../services/editor/common/editorGroupsService.js';
 import { ChatWindowGrid, ChatWindowGridCell, IChatWindowGridChrome } from '../../browser/chatWindowGrid.js';
 import { GroupModelChangeKind } from '../../../../common/editor.js';
 import { IGroupModelChangeEvent } from '../../../../common/editor/editorGroupModel.js';
-import { ChatWindowLayoutMode, ChatWindowTerminalPosition, isChatWindowTitleMerged } from '../../common/chatWindowLayout.js';
+import { ChatWindowLayoutMode, ChatWindowTerminalPosition } from '../../common/chatWindowLayout.js';
 import { ChatWindowPartSizes } from '../../common/chatWindowState.js';
 
 suite('Chat window grid', () => {
@@ -140,7 +140,7 @@ suite('Chat window grid', () => {
 		}, { chatOnMainCenter: 'merge', chatOnMainSide: 'beside', mainOnChatCenter: 'beside' });
 	});
 
-	test('the title row is above the chat while the main part is beside it, else across the window; the strip has a column of its own at the right in every mode', () => {
+	test('the title row is across the top of the window in every mode; the strip has a column of its own at the right in every mode', () => {
 		const { mode, grid, visible } = setup();
 		const layouts: Record<string, { topology: string; visible: string[] }> = {};
 		for (const candidate of [ChatWindowLayoutMode.SideBySide, ChatWindowLayoutMode.ChatOnly, ChatWindowLayoutMode.Stacked, ChatWindowLayoutMode.EditorOnly]) {
@@ -703,14 +703,14 @@ suite('Chat window grid', () => {
 		});
 	});
 
-	test('a part moved or dropped at the top edge of the window goes above the parts, beside the strip, which keeps spanning the window below the title row, shown or merged into the chat\'s title', () => {
+	test('a part moved or dropped at the top edge of the window goes above the parts, beside the strip, which keeps spanning the window below the title row, shown or hidden', () => {
 		const editor = new class extends mock<EditorInput>() {
 			override readonly typeId = 'testEditor';
 			override readonly resource = undefined;
 			override getName() { return 'file'; }
 		}();
 		const results: Record<string, string> = {};
-		for (const title of ['shown', 'merged'] as const) {
+		for (const title of ['shown', 'hidden'] as const) {
 			const create = () => {
 				const grid = disposables.add(new ChatWindowGrid(createAttachedContainer(), { main: createPart('main'), chat: createPart('chat'), titleRow: { ...createChrome(30), visible: constObservable(title === 'shown') }, strip: createChrome(34) }, constObservable(ChatWindowLayoutMode.SideBySide), constObservable(4), undefined, undefined, { createPart: () => ({ id: 'created', part: createPart('created') }) }, editorGroupsService));
 				grid.layout(1000, 800);
@@ -727,16 +727,9 @@ suite('Chat window grid', () => {
 		assert.deepStrictEqual(results, {
 			'main moved to the top edge, title shown': 'column(titleRow, row(column(main, chat), strip))',
 			'editor dropped on the top edge, title shown': 'column(titleRow, row(column(created, row(chat, main)), strip))',
-			'main moved to the top edge, title merged': 'column(titleRow, row(column(main, chat), strip))',
-			'editor dropped on the top edge, title merged': 'column(titleRow, row(column(created, row(chat, main)), strip))',
+			'main moved to the top edge, title hidden': 'column(titleRow, row(column(main, chat), strip))',
+			'editor dropped on the top edge, title hidden': 'column(titleRow, row(column(created, row(chat, main)), strip))',
 		});
-	});
-
-	test('the part beside the strip is at the right edge of the window, as for the window controls floating above its tab row: the strip is chrome along that edge', () => {
-		const { container } = setup();
-		const atRightEdge = (cell: ChatWindowGridCell) => container.querySelector(`[data-part-grid-cell="${cell}"]`)!.classList.contains('part-grid-cell-right-edge');
-
-		assert.deepStrictEqual({ chat: atRightEdge(ChatWindowGridCell.Chat), main: atRightEdge(ChatWindowGridCell.Main), strip: atRightEdge(ChatWindowGridCell.Strip) }, { chat: false, main: true, strip: true });
 	});
 
 	test('a new grid side by side opens with the shares of its arrangement wherever the terminals are, also beside the strip, which keeps its size in the row with them', () => {
@@ -1258,93 +1251,6 @@ suite('Chat window grid', () => {
 		assert.deepStrictEqual(height(), 225);
 	});
 
-	test('the chat leads the window while it shows with no part before it: not after it moved after the main part or below it, nor while hidden', () => {
-		const { mode, grid } = setup();
-		const leads: Record<string, boolean> = { sideBySide: grid.chatLeads.get() };
-		grid.partGrid!.moveCellInDirection(ChatWindowGridCell.Chat, Direction.Right);
-		leads.movedRight = grid.chatLeads.get();
-		grid.partGrid!.moveCellInDirection(ChatWindowGridCell.Chat, Direction.Left);
-		leads.movedBack = grid.chatLeads.get();
-		mode.set(ChatWindowLayoutMode.Stacked, undefined);
-		leads.stacked = grid.chatLeads.get();
-		mode.set(ChatWindowLayoutMode.EditorOnly, undefined);
-		leads.editorOnly = grid.chatLeads.get();
-
-		assert.deepStrictEqual(leads, { sideBySide: true, movedRight: false, movedBack: true, stacked: false, editorOnly: false });
-	});
-
-	test('the title of the chat reaches the right edge of the window where nothing shows to its right: chat only and stacked with the main part above or below it with or without the strip, but not beside the main part; also once the main part moved to its right, with no other change of the title', () => {
-		const mode = observableValue<ChatWindowLayoutMode>('mode', ChatWindowLayoutMode.SideBySide);
-		const grid = disposables.add(new ChatWindowGrid(createAttachedContainer(), { main: createPart('main'), chat: createPart('chat'), titleRow: createChrome(30) }, mode, constObservable(0), undefined, undefined, undefined, editorGroupsService));
-		grid.layout(1000, 800);
-		const reaches: Record<string, boolean> = { sideBySide: grid.titleReachesRightEdge.get() };
-		mode.set(ChatWindowLayoutMode.ChatOnly, undefined);
-		reaches.chatOnly = grid.titleReachesRightEdge.get();
-		mode.set(ChatWindowLayoutMode.Stacked, undefined);
-		reaches.stackedMainAbove = grid.titleReachesRightEdge.get();
-		grid.partGrid!.moveCellInDirection(ChatWindowGridCell.Chat, Direction.Up);
-		reaches.stackedChatAbove = grid.titleReachesRightEdge.get();
-		const leadsBefore = grid.chatLeads.get();
-		grid.partGrid!.moveCellInDirection(ChatWindowGridCell.Main, Direction.Right);
-		reaches.mainMovedRight = grid.titleReachesRightEdge.get();
-
-		assert.deepStrictEqual({ reaches, leadsBefore, leadsAfter: grid.chatLeads.get() }, {
-			reaches: { sideBySide: false, chatOnly: true, stackedMainAbove: true, stackedChatAbove: true, mainMovedRight: false },
-			leadsBefore: true,
-			leadsAfter: true,
-		});
-	});
-
-	test('the strip beside the chat does not stop its title from reaching the right edge of the window, as the window controls end before it; the main part beside the chat does', () => {
-		const { mode, grid } = setup();
-		const reaches: Record<string, boolean> = { sideBySide: grid.titleReachesRightEdge.get() };
-		mode.set(ChatWindowLayoutMode.Stacked, undefined);
-		grid.partGrid!.moveCellInDirection(ChatWindowGridCell.Chat, Direction.Up);
-		reaches.stackedChatAbove = grid.titleReachesRightEdge.get();
-		grid.partGrid!.moveCellInDirection(ChatWindowGridCell.Main, Direction.Right);
-		reaches.mainMovedRight = grid.titleReachesRightEdge.get();
-
-		assert.deepStrictEqual({ reaches, stripShows: grid.partGrid!.isCellVisible(ChatWindowGridCell.Strip) }, {
-			reaches: { sideBySide: false, stackedChatAbove: true, mainMovedRight: false },
-			stripShows: true,
-		});
-	});
-
-	test('with the chat part split into groups beside each other, the title reaches the right edge of the window while its group does, the first group of the chat part, whatever follows it', () => {
-		const groups = [{}, {}].map(() => new class extends mock<IEditorGroup>() {
-			override readonly isEmpty = false;
-			override readonly onDidModelChange = Event.None;
-			override getEditors() { return []; }
-		}());
-		const onDidAddGroup = disposables.add(new Emitter<IEditorGroup>());
-		let split = false;
-		const chat = new class extends mock<IContentPart>() {
-			override readonly element = $('.chat');
-			override readonly minimumWidth = 100;
-			override readonly maximumWidth = Number.POSITIVE_INFINITY;
-			override readonly minimumHeight = 50;
-			override readonly maximumHeight = Number.POSITIVE_INFINITY;
-			override readonly onDidChange = Event.None;
-			override get groups() { return split ? groups : [groups[0]]; }
-			override getGroups() { return this.groups; }
-			override readonly onDidAddGroup = onDidAddGroup.event;
-			override readonly onDidRemoveGroup = Event.None;
-			override readonly onDidMoveGroup = Event.None;
-			override readonly onWillClose = Event.None;
-			override findGroup(scope: { direction: GroupDirection }, source: IEditorGroup) { return split && scope.direction === GroupDirection.RIGHT && source === groups[0] ? groups[1] : undefined; }
-			override layout() { }
-			override setVisible() { }
-		}();
-		const mode = observableValue<ChatWindowLayoutMode>('mode', ChatWindowLayoutMode.ChatOnly);
-		const grid = disposables.add(new ChatWindowGrid(createAttachedContainer(), { main: createPart('main'), chat, titleRow: createChrome(30) }, mode, constObservable(0), undefined, undefined, undefined, editorGroupsService));
-		grid.layout(1000, 800);
-		const before = grid.titleReachesRightEdge.get();
-		split = true;
-		onDidAddGroup.fire(groups[1]);
-
-		assert.deepStrictEqual({ before, split: grid.titleReachesRightEdge.get() }, { before: true, split: false });
-	});
-
 	test('the terminals keep the height the user gave them when an editor moves into a new part beside the main part; at an edge of the window, they make room for it in proportion, as every part in its column does; also once the arrangement shows again', () => {
 		const results: Record<string, { added: number; rearranged: number }> = {};
 		const editor = new class extends mock<EditorInput>() {
@@ -1625,48 +1531,6 @@ suite('Chat window grid', () => {
 		assert.deepStrictEqual(grid.partGrid!.describe(), 'column(titleRow, row(terminals, strip))');
 	});
 
-	test('the title of the chat is not looked up in a chat part that was disposed while the window closes, as the part that holds its terminals goes away', () => {
-		const mode = observableValue<ChatWindowLayoutMode>('mode', ChatWindowLayoutMode.SideBySide);
-		const terminals = observableValue<IContentPart | undefined>('terminals', undefined);
-		const onTerminalsWillClose = disposables.add(new Emitter<void>());
-		const terminalsPart = createPartWithEditors('terminals', onTerminalsWillClose.event);
-		const onWillClose = disposables.add(new Emitter<void>());
-		let disposed = false;
-		const chatPart = new class extends mock<IContentPart>() {
-			override readonly element = $('.chat');
-			override readonly minimumWidth = 100;
-			override readonly maximumWidth = Number.POSITIVE_INFINITY;
-			override readonly minimumHeight = 50;
-			override readonly maximumHeight = Number.POSITIVE_INFINITY;
-			override readonly onDidChange = Event.None;
-			override readonly groups = createPart('chat').groups;
-			override getGroups() {
-				if (disposed) {
-					throw new Error('Index out of bounds');
-				}
-				return this.groups;
-			}
-			override findGroup() { return undefined; }
-			override readonly onDidAddGroup = Event.None;
-			override readonly onDidRemoveGroup = Event.None;
-			override readonly onDidMoveGroup = Event.None;
-			override readonly onWillClose = onWillClose.event;
-			override layout() { }
-			override setVisible() { }
-		}();
-		const grid = disposables.add(new ChatWindowGrid(createAttachedContainer(), { main: createPart('main'), chat: chatPart, titleRow: createChrome(30), strip: createChrome(34), terminals }, mode, constObservable(0), undefined, constObservable(ChatWindowTerminalPosition.UnderEditor), undefined, editorGroupsService));
-		grid.layout(1000, 800);
-		terminals.set(terminalsPart.part, undefined);
-		terminalsPart.setEmpty(false);
-
-		onWillClose.fire();
-		grid.willClose();
-		disposed = true;
-		onTerminalsWillClose.fire();
-
-		assert.strictEqual(grid.titleReachesRightEdge.get(), false);
-	});
-
 	test('a window whose parts close while it stays open, such as a part created for dropped editors, keeps arranging its parts', () => {
 		const onWillClose = disposables.add(new Emitter<void>());
 		const created = new class extends mock<IContentPart>() {
@@ -1702,71 +1566,35 @@ suite('Chat window grid', () => {
 
 		assert.deepStrictEqual(grid.partGrid!.describe(), 'column(titleRow, row(column(main, chat), strip))');
 	});
-	/** What the group at the top left of the chat part shows: the chat alone, the chat with other editors as tabs, or another chat than the active one. */
-	const CHAT_GROUPS = {
-		alone: { editors: 1, showsActiveChat: true },
-		tabs: { editors: 2, showsActiveChat: true },
-		otherChatActive: { editors: 1, showsActiveChat: false },
-	};
-
-	/** A grid whose title row shows while it does not merge into the chat's title, as a chat window's does. */
-	function setupTitled(initialMode: ChatWindowLayoutMode, chatGroup: { readonly editors: number; readonly showsActiveChat: boolean }, withTerminals: boolean) {
+	/** A grid of a chat window, its title row always showing, as a chat window's does. */
+	function setupTitled(initialMode: ChatWindowLayoutMode, withTerminals: boolean) {
 		const mode = observableValue<ChatWindowLayoutMode>('mode', initialMode);
-		const gridRef = observableValue<ChatWindowGrid | undefined>('grid', undefined);
-		const merged = (chatPartLeads: boolean) => isChatWindowTitleMerged({ mode: mode.get(), chatPartLeads, leadingGroupEditors: chatGroup.editors, leadingGroupShowsActiveChat: chatGroup.showsActiveChat });
-		const titleRow: IChatWindowGridChrome = { ...createChrome(30), visible: derived(reader => { mode.read(reader); return !merged(gridRef.read(reader)?.chatLeads.read(reader) ?? false); }) };
 		const terminals = observableValue<IContentPart | undefined>('terminals', undefined);
 		const terminalsPart = createPartWithEditors('terminals');
 		const container = createAttachedContainer();
-		const grid = disposables.add(new ChatWindowGrid(container, { main: createPart('main'), chat: createPart('chat'), titleRow, strip: createChrome(34), terminals, isTitleMergedIf: merged }, mode, constObservable(0), undefined, constObservable(ChatWindowTerminalPosition.FullWidth), undefined, editorGroupsService));
-		gridRef.set(grid, undefined);
+		const grid = disposables.add(new ChatWindowGrid(container, { main: createPart('main'), chat: createPart('chat'), titleRow: createChrome(30), strip: createChrome(34), terminals }, mode, constObservable(0), undefined, constObservable(ChatWindowTerminalPosition.FullWidth), undefined, editorGroupsService));
 		grid.layout(1000, 800);
 		if (withTerminals) {
 			terminals.set(terminalsPart.part, undefined);
 			terminalsPart.setEmpty(false);
 		}
-		return { grid, container, mode };
+		return { grid, mode };
 	}
 
-	/**
-	 * Where the window shows the header of its active chat, and whether it should, by where the chat part is: it merges
-	 * into the chat's title where the chat part is at the top left of the window, the group there showing only the active
-	 * chat, in any mode but Editor Only; otherwise the title row spans the top of the window. Either way, exactly one place
-	 * shows it, and no part is at the top edge, under the window's controls, while the title row shows.
-	 */
-	function observeTitle(grid: ChatWindowGrid, container: HTMLElement, mode: ChatWindowLayoutMode, chatGroup: { readonly editors: number; readonly showsActiveChat: boolean }) {
+	/** Where the title row is: the first row of the grid, across the whole window, above every part. */
+	function observeTitle(grid: ChatWindowGrid) {
 		const partGrid = grid.partGrid!;
-		const parts = ['chat', 'main', 'terminals', 'other'].filter(id => partGrid.isCellVisible(id));
-		const elementOf = (id: string) => container.querySelector<HTMLElement>(`[data-part-grid-cell="${id}"]`)!;
-		const boxes = parts.map(id => ({ id, x: Math.round(elementOf(id).getBoundingClientRect().left), y: Math.round(elementOf(id).getBoundingClientRect().top) }));
-		const chatAtTopLeft = boxes.some(box => box.id === 'chat' && box.x === Math.min(...boxes.map(other => other.x)) && box.y === Math.min(...boxes.map(other => other.y)));
-		const titleRowShows = partGrid.isCellVisible(ChatWindowGridCell.TitleRow);
-		const width = titleRowShows ? partGrid.getCellSize(ChatWindowGridCell.TitleRow).width : 0;
-		const merged = !titleRowShows;
-		const topEdge = parts.filter(id => elementOf(id).classList.contains(PART_GRID_TOP_EDGE_CLASS));
-		const shouldMerge = mode !== ChatWindowLayoutMode.EditorOnly && chatAtTopLeft && chatGroup.editors === 1 && chatGroup.showsActiveChat;
 		return {
-			actual: {
-				shape: partGrid.describe().startsWith('column(titleRow, ') ? 'title row first, across the top' : partGrid.describe(),
-				titleRow: titleRowShows ? (width === 1000 ? 'full width' : `${width} wide`) : 'hidden',
-				merged,
-				headerPlaces: (titleRowShows ? 1 : 0) + (merged && topEdge.includes('chat') ? 1 : 0),
-				topEdge: merged ? (topEdge.includes('chat') ? 'chat' : topEdge.join() || 'none') : (topEdge.join() || 'none'),
-			},
-			expected: {
-				shape: 'title row first, across the top',
-				titleRow: shouldMerge ? 'hidden' : 'full width',
-				merged: shouldMerge,
-				headerPlaces: 1,
-				topEdge: shouldMerge ? 'chat' : 'none',
-			},
+			shape: partGrid.describe().startsWith('column(titleRow, ') ? 'title row first, across the top' : partGrid.describe(),
+			titleRow: partGrid.isCellVisible(ChatWindowGridCell.TitleRow) ? `${partGrid.getCellSize(ChatWindowGridCell.TitleRow).width} wide` : 'hidden',
 		};
 	}
 
+	const TITLE_ACROSS_THE_TOP = { shape: 'title row first, across the top', titleRow: '1000 wide' };
 	const MODES = [ChatWindowLayoutMode.SideBySide, ChatWindowLayoutMode.ChatOnly, ChatWindowLayoutMode.Stacked, ChatWindowLayoutMode.EditorOnly];
 	const DIRECTIONS: [string, Direction][] = [['left', Direction.Left], ['right', Direction.Right], ['top', Direction.Up], ['bottom', Direction.Down]];
 
-	test('the chat part and the main part moved to every edge of the window and beside each other, in every mode, with the chat alone, with tabs, or another chat active: the title row spans the top of the window, and merges into the chat\'s title exactly where the chat part leads with only the active chat', () => {
+	test('the chat part and the main part moved to every edge of the window and beside each other, in every mode: the title row shows across the top of the window, above them', () => {
 		const moves: [string, ChatWindowGridCell | undefined, PartGridLocation | undefined][] = [['as arranged', undefined, undefined]];
 		for (const [cell, other] of [[ChatWindowGridCell.Chat, ChatWindowGridCell.Main], [ChatWindowGridCell.Main, ChatWindowGridCell.Chat]] as const) {
 			for (const [name, direction] of DIRECTIONS) {
@@ -1775,20 +1603,17 @@ suite('Chat window grid', () => {
 			}
 		}
 		for (const mode of MODES) {
-			for (const [groupName, chatGroup] of Object.entries(CHAT_GROUPS)) {
-				for (const [moveName, cell, location] of moves) {
-					const { grid, container } = setupTitled(mode, chatGroup, false);
-					if (cell && location) {
-						grid.partGrid!.moveCell(cell, location);
-					}
-					const { actual, expected } = observeTitle(grid, container, mode, chatGroup);
-					assert.deepStrictEqual(actual, expected, `${mode}, chat ${groupName}, ${moveName}`);
+			for (const [moveName, cell, location] of moves) {
+				const { grid } = setupTitled(mode, false);
+				if (cell && location) {
+					grid.partGrid!.moveCell(cell, location);
 				}
+				assert.deepStrictEqual(observeTitle(grid), TITLE_ACROSS_THE_TOP, `${mode}, ${moveName}`);
 			}
 		}
 	});
 
-	test('the terminals and a part for dropped editors moved to the top of the window, above the chat or the main part, or to its left, in every mode: the title row stays across the top of the window, above them, and shows, as the chat part no longer leads', () => {
+	test('the terminals and a part for dropped editors moved to the top of the window, above the chat or the main part, or to its left, in every mode: the title row shows across the top of the window, above them', () => {
 		const moves: [string, (grid: ChatWindowGrid) => void][] = [
 			['terminals to the top edge', grid => grid.partGrid!.moveCell(ChatWindowGridCell.Terminals, { edge: Direction.Up })],
 			['terminals above the chat', grid => grid.partGrid!.moveCell(ChatWindowGridCell.Terminals, { reference: ChatWindowGridCell.Chat, direction: Direction.Up })],
@@ -1800,22 +1625,20 @@ suite('Chat window grid', () => {
 		];
 		for (const mode of MODES) {
 			for (const [moveName, move] of moves) {
-				const { grid, container } = setupTitled(mode, CHAT_GROUPS.alone, true);
+				const { grid } = setupTitled(mode, true);
 				move(grid);
-				const { actual, expected } = observeTitle(grid, container, mode, CHAT_GROUPS.alone);
-				assert.deepStrictEqual(actual, expected, `${mode}, ${moveName}`);
+				assert.deepStrictEqual(observeTitle(grid), TITLE_ACROSS_THE_TOP, `${mode}, ${moveName}`);
 			}
 		}
 	});
 
-	test('the title row stays across the top of the window as the layout mode changes after a part moved, and as the window arranges the parts again for the mode', () => {
+	test('the title row shows across the top of the window as the layout mode changes after a part moved, and as the window arranges the parts again for the mode', () => {
 		for (const from of MODES) {
 			for (const to of MODES) {
-				const { grid, container, mode } = setupTitled(from, CHAT_GROUPS.alone, false);
+				const { grid, mode } = setupTitled(from, false);
 				grid.partGrid!.moveCell(ChatWindowGridCell.Chat, { edge: Direction.Right });
 				mode.set(to, undefined);
-				const { actual, expected } = observeTitle(grid, container, to, CHAT_GROUPS.alone);
-				assert.deepStrictEqual(actual, expected, `${from} with the chat moved right, then ${to}`);
+				assert.deepStrictEqual(observeTitle(grid), TITLE_ACROSS_THE_TOP, `${from} with the chat moved right, then ${to}`);
 			}
 		}
 	});

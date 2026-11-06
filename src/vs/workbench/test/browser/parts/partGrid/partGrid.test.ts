@@ -23,8 +23,7 @@ import { IContextKeyService } from '../../../../../platform/contextkey/common/co
 import { MockScopableContextKeyService } from '../../../../../platform/keybinding/test/common/mockKeybindingService.js';
 import { LocalSelectionTransfer } from '../../../../../platform/dnd/browser/dnd.js';
 import { Registry } from '../../../../../platform/registry/common/platform.js';
-import { getGridWithViewOnTop, IPartGridRect, IPartGridView, PART_GRID_TOP_EDGE_CLASS, PART_GRID_TOP_EDGE_GROUP_CLASS, PART_GRID_TOP_RIGHT_GROUP_CLASS, PartGrid } from '../../../../browser/parts/partGrid/partGrid.js';
-import { IEditorGroupView } from '../../../../browser/parts/editor/editor.js';
+import { getGridWithViewOnTop, IPartGridRect, IPartGridView, PartGrid } from '../../../../browser/parts/partGrid/partGrid.js';
 import { DraggedEditorGroupIdentifier, DraggedEditorIdentifier } from '../../../../browser/dnd.js';
 import { ContentPart } from '../../../../browser/parts/editor/contentPart.js';
 import { MoveEditorIntoNewPartBelowAction, MovePartRightAction } from '../../../../browser/parts/partGrid/partGridActions.js';
@@ -159,77 +158,6 @@ suite('Part Grid', () => {
 			'column(title, side, row(chat, bottom))',
 			'column(title, chat, row(side, bottom))'
 		]);
-	});
-
-	test('the groups whose title is at the top edge of the grid are marked, as parts move, split, show and hide, below a row of chrome or not', async () => {
-		const parts = await createParts();
-		const grid = createGrid();
-		const main = createPart(parts);
-		const chat = createPart(parts);
-		const terminals = createPart(parts);
-		await Promise.all([openEditor(main, '/main.txt'), openEditor(chat, '/chat.txt'), openEditor(terminals, '/terminals.txt')]);
-		grid.addPart('chat', chat);
-		grid.addPart('main', main, { reference: 'chat', direction: Direction.Right });
-		grid.addPart('terminals', terminals, { edge: Direction.Down });
-		const lowerMainGroup = main.addGroup(main.activeGroup, GroupDirection.DOWN);
-		const topEdge = () => ({
-			cells: ['chat', 'main', 'terminals'].filter(id => mainWindow.document.querySelector(`[data-part-grid-cell="${id}"]`)?.classList.contains(PART_GRID_TOP_EDGE_CLASS)),
-			groups: [['chat', chat], ['main', main], ['terminals', terminals]].flatMap(([name, part]) => (part as IContentPart).groups
-				.filter(group => (group as IEditorGroupView).element.classList.contains(PART_GRID_TOP_EDGE_GROUP_CLASS))
-				.map(group => `${name}${group === lowerMainGroup ? ' (lower)' : ''}`)),
-		});
-
-		const sideBySide = topEdge();
-		// Move Part Up: the terminals across the top.
-		grid.moveCell('terminals', { edge: Direction.Up });
-		const terminalsMovedUp = topEdge();
-		grid.setCellVisible('terminals', false);
-		const terminalsHidden = topEdge();
-		// A row of chrome across the top, such as the title row of the window.
-		grid.addView('title', createView(), { edge: Direction.Up });
-		const belowTitleRow = topEdge();
-
-		assert.deepStrictEqual({ sideBySide, terminalsMovedUp, terminalsHidden, belowTitleRow }, {
-			sideBySide: { cells: ['chat', 'main'], groups: ['chat', 'main'] },
-			terminalsMovedUp: { cells: ['terminals'], groups: ['terminals'] },
-			terminalsHidden: { cells: ['chat', 'main'], groups: ['chat', 'main'] },
-			belowTitleRow: { cells: [], groups: [] },
-		});
-	});
-
-	test('the group whose title is at the top right corner of the grid is marked, as parts move, split, show and hide, below a row of chrome or not', async () => {
-		const parts = await createParts();
-		const grid = createGrid();
-		const main = createPart(parts);
-		const chat = createPart(parts);
-		const terminals = createPart(parts);
-		await Promise.all([openEditor(main, '/main.txt'), openEditor(chat, '/chat.txt'), openEditor(terminals, '/terminals.txt')]);
-		grid.addPart('chat', chat);
-		grid.addPart('main', main, { reference: 'chat', direction: Direction.Right });
-		grid.addPart('terminals', terminals, { edge: Direction.Down });
-		const topRight = () => [['chat', chat], ['main', main], ['terminals', terminals]].flatMap(([name, part]) => (part as IContentPart).groups
-			.filter(group => (group as IEditorGroupView).element.classList.contains(PART_GRID_TOP_RIGHT_GROUP_CLASS))
-			.map(group => `${name}${group === (part as IContentPart).groups[0] ? '' : ' (split)'}`));
-
-		const sideBySide = topRight();
-		// The main part split to the right: its right group is at the corner, and a group below it is not.
-		const split = main.addGroup(main.activeGroup, GroupDirection.RIGHT);
-		main.addGroup(split, GroupDirection.DOWN);
-		const mainSplit = topRight();
-		grid.moveCell('terminals', { edge: Direction.Up });
-		const terminalsMovedUp = topRight();
-		grid.setCellVisible('terminals', false);
-		const terminalsHidden = topRight();
-		grid.addView('title', createView(), { edge: Direction.Up });
-		const belowTitleRow = topRight();
-
-		assert.deepStrictEqual({ sideBySide, mainSplit, terminalsMovedUp, terminalsHidden, belowTitleRow }, {
-			sideBySide: ['main'],
-			mainSplit: ['main (split)'],
-			terminalsMovedUp: ['terminals'],
-			terminalsHidden: ['main (split)'],
-			belowTitleRow: [],
-		});
 	});
 
 	test('a part shows while it has editors; once no part has editors, the grid says so', async () => {
@@ -905,7 +833,7 @@ suite('Part Grid', () => {
 		});
 	});
 
-	test('the empty space of the title of a group below the top edge of the window drags its part; at the top edge, which moves the window, it drags the group as before', async () => {
+	test('the empty space of the title of a group drags its part, also at the top edge of the window; its tab drags the editor', async () => {
 		const parts = await createParts();
 		const container = boxAt(0, 0, 900, 600);
 		const grid = disposables.add(new PartGrid(container, parts));
@@ -943,7 +871,7 @@ suite('Part Grid', () => {
 		const fromBelow = press(cellOf('below').querySelector('.title .tabs-container')!, point);
 
 		assert.deepStrictEqual({ fromTop, fromTab, shapeBefore, fromBelow, shape: grid.describe(), afterEnd: lifted() || groupTransfer.hasData(DraggedEditorGroupIdentifier.prototype) }, {
-			fromTop: { lifted: false, nativeDrag: true, group: true, editor: false },
+			fromTop: { lifted: true, nativeDrag: false, group: false, editor: false },
 			fromTab: { lifted: false, nativeDrag: true, group: false, editor: true },
 			shapeBefore: 'column(top, below)',
 			fromBelow: { lifted: true, nativeDrag: false, group: false, editor: false },
