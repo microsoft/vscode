@@ -87,9 +87,11 @@ class AuthenticatedWebview implements vscode.Disposable {
 	#ready = false;
 	#publishedReady = false;
 	#disposed = false;
+	readonly #onDidConnect: (connection: HubRpcConnection) => void;
 
 	/** @param onDidConnect Receives each new connection, to sync the editor's content over it. */
-	constructor(readonly webview: vscode.Webview, readonly logger: ILogger, private readonly onDidConnect: (connection: HubRpcConnection) => void) {
+	constructor(readonly webview: vscode.Webview, readonly logger: ILogger, onDidConnect: (connection: HubRpcConnection) => void) {
+		this.#onDidConnect = onDidConnect;
 		this.#connection = this.#connect();
 	}
 
@@ -103,7 +105,7 @@ class AuthenticatedWebview implements vscode.Disposable {
 				this.logger.trace('Markdown editor RPC', operation, error);
 			}
 		});
-		this.onDidConnect(connection);
+		this.#onDidConnect(connection);
 		return connection;
 	}
 
