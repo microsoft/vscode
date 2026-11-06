@@ -93,6 +93,8 @@ export namespace StructuralDiffs {
 				throw new TimeoutError(maxComputationTimeMs);
 			}
 
+			// As in the diff editor, a change can include short unchanged text, which keeps rewritten text from splitting
+			// into many small changes.
 			const context: StructuralDiffContext = {
 				changes: textDiff.changes.flatMap(change => (change.innerChanges ?? [change.toRangeMapping()]).map(mapping => ({
 					originalRange: clampRange(originalModel, mapping.originalRange),
