@@ -559,7 +559,7 @@ export interface IModelRouterResolution {
 }
 
 /** Whether a router may pick `model`: models that route themselves never are. */
-function isRoutableModel(model: IAgentModelInfo): boolean {
+export function isRoutableModel(model: IAgentModelInfo): boolean {
 	return model.id !== 'auto' && !isModelRouterModelId(model.id) && !isCopilotHydraFusionModelId(model.id);
 }
 

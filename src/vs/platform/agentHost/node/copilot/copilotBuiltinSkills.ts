@@ -12,8 +12,10 @@ import { CustomizationType } from '../../common/state/protocol/state.js';
 import { CustomizationLoadStatus, customizationId, type DirectoryCustomization } from '../../common/state/sessionState.js';
 
 const troubleshootName = 'troubleshoot';
+const modelRouterName = 'model-router';
 const skillsDirectory = URI.from({ scheme: AGENT_BUILTIN_CUSTOMIZATION_SCHEME, path: '/skills' });
 const troubleshootUri = URI.from({ scheme: AGENT_BUILTIN_CUSTOMIZATION_SCHEME, path: '/skill/troubleshoot' });
+const modelRouterUri = URI.from({ scheme: AGENT_BUILTIN_CUSTOMIZATION_SCHEME, path: '/skill/model-router' });
 
 function troubleshootDescriptor() {
 	return {
@@ -23,11 +25,18 @@ function troubleshootDescriptor() {
 	};
 }
 
-/** Publishes the host-owned skill without exporting session-specific paths to clients. */
-export function buildCopilotBuiltinSkillsContainer(): DirectoryCustomization {
+function modelRouterDescriptor() {
+	return {
+		name: modelRouterName,
+		description: localize('copilot.builtinModelRouter.description', "Create, edit or fix a model router: a .model-router.yaml file that picks a model for each chat turn. Checks every edit with check_model_router."),
+		userInvocable: true,
+	};
+}
+
+/** Publishes the host-owned skills without exporting session-specific paths to clients. */
+export function buildCopilotBuiltinSkillsContainer(modelRouterEnabled = false): DirectoryCustomization {
 	const uri = skillsDirectory.toString();
-	const skillUri = troubleshootUri.toString();
-	const { name, description } = troubleshootDescriptor();
+	const skills = [{ uri: troubleshootUri, ...troubleshootDescriptor() }, ...(modelRouterEnabled ? [{ uri: modelRouterUri, ...modelRouterDescriptor() }] : [])];
 	return {
 		type: CustomizationType.Directory,
 		id: customizationId(uri),
@@ -37,23 +46,29 @@ export function buildCopilotBuiltinSkillsContainer(): DirectoryCustomization {
 		contents: CustomizationType.Skill,
 		writable: false,
 		load: { kind: CustomizationLoadStatus.Loaded },
-		children: [{
+		children: skills.map(({ uri, name, description }) => ({
 			type: CustomizationType.Skill,
-			id: customizationId(skillUri),
-			uri: skillUri,
+			id: customizationId(uri.toString()),
+			uri: uri.toString(),
 			name,
 			description,
-		}],
+		})),
 	};
 }
 
-/** Supplies paths for the exact SDK conversation on create and resume, including peer chats. */
-export function createCopilotSkillProvider(sdkConversationId: string, copilotHome: URI): SkillProvider {
+/**
+ * Supplies paths for the exact SDK conversation on create and resume, including peer chats.
+ * The `model-router` skill is listed and readable only while `isModelRouterEnabled` is true.
+ */
+export function createCopilotSkillProvider(sdkConversationId: string, copilotHome: URI, isModelRouterEnabled: () => boolean = () => false): SkillProvider {
 	const sessionStateDirectory = joinPath(copilotHome, 'session-state');
 	const eventsFile = joinPath(sessionStateDirectory, sdkConversationId, 'events.jsonl');
 	return {
-		listSkills: () => [troubleshootDescriptor()],
+		listSkills: () => isModelRouterEnabled() ? [troubleshootDescriptor(), modelRouterDescriptor()] : [troubleshootDescriptor()],
 		readSkill: (name, { signal }) => {
+			if (name === modelRouterName) {
+				return isModelRouterEnabled() ? modelRouterSkillContent : undefined;
+			}
 			if (name !== troubleshootName) {
 				return undefined;
 			}
@@ -240,4 +255,56 @@ Cover **what happened and why** (root cause), **key evidence** (paraphrased — 
 - Base every claim on log evidence — never assume causality.
 - Search via the host's terminal tools; never workspace-scoped search, and never read a whole (possibly huge) log — narrow first, then read small ranges.
 - If no Copilot session log exists, say so and stop.
+`;
+
+/** Built from lines because YAML needs leading spaces, which source lines here can't start with. */
+const modelRouterExample = [
+	'version: 1                 # required',
+	'description: Haiku for quick work, Opus for planning.   # required; shown in the model picker',
+	'effort: auto               # optional: auto (default), off, or a fixed level',
+	'switching: auto            # optional: auto (default) or first-turn',
+	'guidance: |                # optional; sent with every routing decision',
+	'  Prefer the cheapest model that can do the job.',
+	'routes:                    # 2 to 10 routes; the first is the fallback',
+	'  - model: claude-haiku-4.5',
+	'    when: Lookups, explanations and small, local edits.',
+	'    examples:              # optional, up to 10',
+	'      - where is the code for the login page?',
+	'  - model: [claude-opus-4.8, claude-opus-4.7]   # fallbacks, in order',
+	'    when: Planning, design, and changes across many files.',
+	'    effort: high           # optional; overrides the router\'s effort',
+].join('\n');
+
+const modelRouterSkillContent = `# Model router
+
+A model router is a YAML file that VS Code lists as a model in the model picker. When a chat uses it, each turn asks a decision model which route fits the request and runs the turn on that route's model. Use this skill to create, edit or fix one.
+
+## Where routers live
+
+- \`~/.agents/model-routers/<name>.model-router.yaml\` (preferred), or \`~/.copilot/model-routers/\`.
+- The file name is the router's name: lowercase letters, digits and single hyphens, like \`daily-driver.model-router.yaml\`. It shows in the picker as \`daily-driver\`.
+- These are the agent host's own folders, so on a remote host they are on the remote machine.
+
+## Format
+
+\`\`\`yaml
+${modelRouterExample}
+\`\`\`
+
+- \`model\` is a Copilot model id, or \`<vendor>/<id>\` for a model on the user's own key (for example \`anthropic/claude-haiku-4-5\`; add the group, \`<vendor>/<group>/<id>\`, if two match). A list is tried in order and the first available model is used. Each model may appear in only one route.
+- \`when\` says, in plain words, which requests the route is for. Write it for a reader who sees only the request.
+- \`effort\` levels: none, minimal, low, medium, high, xhigh, max, ultra. Only levels the model supports work; the check reports the rest. \`auto\` lets the router choose per request; \`off\` leaves each model's default.
+- \`switching: first-turn\` picks a model on the first turn and keeps it; \`auto\` may switch later when the work clearly changes.
+- Keys \`subagents\`, \`phases\` and \`mid-turn\` are reserved for later versions and ignored.
+
+## YAML rules
+
+Only plain YAML is accepted: maps and lists written one item per line, \`[a, b]\` lists with commas, plain or quoted text, \`|\` and \`>\` blocks, and comments. \`{ ... }\` maps, anchors, unknown escapes like \`"\\q"\` and duplicate keys are errors. A file is at most 32 KiB, and the guidance, \`when\` and examples together at most 64 KiB.
+
+## Workflow
+
+1. Call \`check_model_router\` with no arguments to see the existing routers and the models this account can use, with their ids and effort levels. Only use ids from that list.
+2. Write or edit the file with your normal file tools.
+3. **After every edit, call \`check_model_router\` with the file's path and fix every error.** Fix warnings too unless the user wants them (for example, a fallback that is intentionally unavailable).
+4. Tell the user the router's name and that it appears in the model picker. A changed router is used from the next turn.
 `;

@@ -65,6 +65,7 @@ import { createModelRouterModelMeta, MODEL_ROUTER_FOLDER, modelRouterModelId } f
 import { ModelRouterEnabledConfigKey } from '../../common/modelRouterConfig.js';
 import { CopilotModelRouter } from './copilotModelRouter.js';
 import { CopilotModelRouterCatalog, findModelRouter, UserModelRouterSource } from './copilotModelRouterCatalog.js';
+import { createCopilotModelRouterTools } from './copilotModelRouterTools.js';
 import { getReasoningEffortDescription, getReasoningEffortLabel, resolveDefaultReasoningEffort } from '../../common/reasoningEffort.js';
 import { createAutoModeTierSupport, DynamicAutoTiersFeatureFlag, getAdvertisedAutoModeTierSupport, getAutoModeTierLabel, getFusionAutoModeTierLabel, setAdvertisedAutoModeTiers, type IAutoModeTierSupport } from '../../common/autoModeTiers.js';
 import { AUTO_MODEL_ID, isAutoModel, isGpt56Model } from './modelIdentifiers.js';
@@ -4085,6 +4086,19 @@ export class CopilotAgent extends Disposable implements IAgent {
 			? [{ provider: this.id, id: modelRouterModelId(file.name), name: file.name, supportsVision: true, _meta: createModelRouterModelMeta(file.router.description) } satisfies IAgentModelInfo]
 			: []);
 		return [...models, ...rows];
+	}
+
+	/** The check tool, checking routers against the models of the chat's own account. */
+	private _createModelRouterTools(chat: URI) {
+		return createCopilotModelRouterTools(this._isModelRouterEnabled(), {
+			isEnabled: () => this._isModelRouterEnabled(),
+			listRouters: async () => (await this._modelRouterCatalog.value?.whenSettled())?.files ?? [],
+			readFile: async uri => (await this._fileService.readFile(uri)).value.toString(),
+			models: () => {
+				const credentials = this._credentialSources.get(chat.toString());
+				return credentials ? this.getModelsForCredentials(credentials) : Promise.resolve(this._models.get());
+			},
+		}, this._logService);
 	}
 
 	async resolveTurnModel(chat: URI, request: IAgentTurnModelRequest, context: IAgentChatContext, token: CancellationToken): Promise<IAgentTurnModelResolution> {
@@ -10337,6 +10351,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 				serverToolHost: this._serverToolHost,
 				onTurnEnded: () => this._onChatTurnEnded(),
 				computerUsePermissionSetup: () => this._computerUsePermissionSetup.value,
+				modelRouterTools: () => this._createModelRouterTools(chatChannelUri),
 				onConnectorRefreshRetryable: session => void this._scheduleConnectorRefresh(session),
 				onSteeringReady: session => {
 					if (session.hasRunningTurn && !this._preparedTurnLaunches.has(session) && this._findChatByUri(chatChannelUri) === session) {
@@ -11627,6 +11642,7 @@ class SessionPluginController extends Disposable {
 		@ILogService private readonly _logService: ILogService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@IAgentHostCustomizationEnablementService private readonly _customizationEnablementService: IAgentHostCustomizationEnablementService,
+		@IAgentConfigurationService private readonly _configurationService: IAgentConfigurationService,
 	) {
 		super();
 		this._enablementReady = this._customizationEnablementService.initializeSession(this._session.toString()).then(() => {
@@ -11894,7 +11910,7 @@ class SessionPluginController extends Disposable {
 		}
 		result.push(buildCopilotBuiltinAgentsContainer());
 		if (!this._directory || this._directory.scheme === Schemas.file) {
-			result.push(buildCopilotBuiltinSkillsContainer());
+			result.push(buildCopilotBuiltinSkillsContainer(this._configurationService.getRootValue(platformRootSchema, ModelRouterEnabledConfigKey) === true));
 		}
 		const hasNativePluginMcp = result.some(customization => customization.type === CustomizationType.Plugin
 			&& customization.children?.some(child => child.type === CustomizationType.McpServer && readCustomizationDiscoveryMeta(child)?.source === 'plugin'));
