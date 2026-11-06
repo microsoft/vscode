@@ -15,7 +15,7 @@ import { IAgentHostAdvertisedAuthenticationResolver } from '../../../../../../pl
 import { IAgentHostMcpAuthenticationRequest } from '../../../../../../platform/agentHost/common/agentHostExtensionProtocol.js';
 import { ICloudSandboxAgentHostService } from '../../../../../../platform/agentHost/common/cloudSandboxAgentHost.js';
 import { authenticationAccountMeta } from '../../../../../../platform/agentHost/common/meta/agentAuthenticationAccount.js';
-import { IRemoteAgentHostConnectionInfo, IRemoteAgentHostService, RemoteAgentHostConnectionStatus } from '../../../../../../platform/agentHost/common/remoteAgentHostService.js';
+import { IRemoteAgentHostConnectionInfo, IRemoteAgentHostEntry, IRemoteAgentHostService, RemoteAgentHostConnectionStatus, RemoteAgentHostEntryType } from '../../../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { AuthenticateTargetKind } from '../../../../../../platform/agentHost/common/state/sessionProtocol.js';
 import { McpAuthRequiredReason } from '../../../../../../platform/agentHost/common/state/protocol/channels-session/state.js';
 import { AuthRequiredReason, type INotification } from '../../../../../../platform/agentHost/common/state/sessionActions.js';
@@ -62,7 +62,7 @@ suite('Remote Agent Host silent MCP authentication', () => {
 		},
 	};
 
-	function fixture(customization?: IRemoteAgentHostConnectionCustomization, allowed = true, isSessionsWindow = true, address = 'cloudsandbox:remote') {
+	function fixture(customization?: IRemoteAgentHostConnectionCustomization, allowed = true, isSessionsWindow = true, address = 'cloudsandbox:remote', trusted?: boolean) {
 		const instantiation = store.add(new TestInstantiationService());
 		const connectionsChanged = store.add(new Emitter<void>());
 		const notifications = store.add(new Emitter<INotification>());
@@ -102,6 +102,9 @@ suite('Remote Agent Host silent MCP authentication', () => {
 				}()] : [];
 			}
 			override getConnection() { return connection; }
+			override getEntryByAddress(): IRemoteAgentHostEntry {
+				return { name: 'Remote', trusted, connection: { type: RemoteAgentHostEntryType.WebSocket, address } };
+			}
 		}());
 		instantiation.stub(IAuthenticationService, new class extends mock<IAuthenticationService>() {
 			override readonly onDidRegisterAuthenticationProvider = Event.None;
@@ -193,6 +196,15 @@ suite('Remote Agent Host silent MCP authentication', () => {
 		const authenticated = await context.authenticate(request);
 		assert.deepStrictEqual({ authenticated, sent: context.sent }, {
 			authenticated: true, sent: [{ target: request.target, resource: 'https://docs.example/mcp', scopes: ['read'], token: 'docs-token' }],
+		});
+	});
+
+	test('untrusted remotes never resolve or send credentials', async () => {
+		const context = fixture(undefined, true, true, 'ws://remote.example:8081', false);
+		const authenticated = await context.authenticate(request);
+		context.notifications.fire({ type: 'auth/required', channel: 'ahp-root://', reason: AuthRequiredReason.Expired, resource: request.auth.resource });
+		assert.deepStrictEqual({ authenticated, sent: context.sent, sessionOptions: context.sessionOptions, errors: context.errors }, {
+			authenticated: false, sent: [], sessionOptions: [], errors: [],
 		});
 	});
 

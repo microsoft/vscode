@@ -135,6 +135,8 @@ class ConnectionState extends Disposable {
 		address: string,
 		readonly name: string | undefined,
 		readonly connection: IAgentConnection,
+		/** The host is configured as untrusted and must not receive the user's credentials. */
+		readonly withholdCredentials: boolean,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IRemoteAgentHostAuthenticationService authenticationService: IRemoteAgentHostAuthenticationService,
 	) {
@@ -307,13 +309,15 @@ export class RemoteAgentHostContribution extends Disposable implements IWorkbenc
 		}
 
 		const { address, name } = connectionInfo;
-		const connState = this._instantiationService.createInstance(ConnectionState, address, name, connection);
+		const withholdCredentials = this._remoteAgentHostService.getEntryByAddress(address)?.trusted === false;
+		const connState = this._instantiationService.createInstance(ConnectionState, address, name, connection, withholdCredentials);
 		this._connections.set(address, connState);
 		const store = connState.store;
 		if (connection.registerMcpAuthenticationHandler) {
 			// Remote chat URIs encode the host in their scheme, not their authority.
-			store.add(connection.registerMcpAuthenticationHandler(request =>
-				this._instantiationService.invokeFunction(autoAuthenticateMcpServer,
+			store.add(connection.registerMcpAuthenticationHandler(request => withholdCredentials
+				? Promise.resolve(false)
+				: this._instantiationService.invokeFunction(autoAuthenticateMcpServer,
 					{ authenticate: this._authenticateCallback(address, connection) },
 					{ scheme: AGENT_HOST_SCHEME, authority: '' }, request.serverName, request.auth, request.target)));
 		}
@@ -353,6 +357,9 @@ export class RemoteAgentHostContribution extends Disposable implements IWorkbenc
 		if (initialRootState && !(initialRootState instanceof Error)) {
 			this._handleRootStateChange(address, connection, initialRootState);
 			for (const removal of this._initialAuthentication.takePendingSessionRemovals(address)) {
+				if (withholdCredentials) {
+					continue;
+				}
 				this._instantiationService.invokeFunction(revokeAuthenticationForRemovedSessions, initialRootState.agents, removal.providerId, removal.sessions, {
 					authTokenCache: connState.authTokenCache,
 					logPrefix: '[RemoteAgentHost]',
@@ -581,7 +588,7 @@ export class RemoteAgentHostContribution extends Disposable implements IWorkbenc
 		if (removedSessions.length > 0) {
 			for (const [address, connState] of this._connections) {
 				const rootState = connState.connection.rootState.value;
-				if (!rootState || rootState instanceof Error) {
+				if (!rootState || rootState instanceof Error || connState.withholdCredentials) {
 					continue;
 				}
 				try {
@@ -603,6 +610,9 @@ export class RemoteAgentHostContribution extends Disposable implements IWorkbenc
 		const connState = this._connections.get(address);
 		const authTokenCache = connState?.authTokenCache;
 		try {
+			if (connState?.withholdCredentials) {
+				return;
+			}
 			const testToken = this._getScenarioAutomationToken();
 			if (testToken !== undefined) {
 				await authenticateAgentProtectedResourcesWithToken(agents, testToken, {
@@ -639,6 +649,10 @@ export class RemoteAgentHostContribution extends Disposable implements IWorkbenc
 	private _authenticateNotificationResource(address: string, connection: IAgentConnection, protectedResource: ProtectedResourceMetadata, reason?: AuthRequiredReason): void {
 		const connState = this._connections.get(address);
 		if (!connState) {
+			return;
+		}
+		if (connState.withholdCredentials) {
+			connState.authenticationPending.set(false, undefined);
 			return;
 		}
 		const renewAuthentication = reason === AuthRequiredReason.Expired
@@ -689,7 +703,12 @@ export class RemoteAgentHostContribution extends Disposable implements IWorkbenc
 	 * Returns true if authentication succeeded.
 	 */
 	private async _resolveAuthenticationInteractively(address: string, connection: IAgentConnection, protectedResources: readonly ProtectedResourceMetadata[]): Promise<boolean> {
-		const authTokenCache = this._connections.get(address)?.authTokenCache;
+		const connState = this._connections.get(address);
+		if (connState?.withholdCredentials) {
+			this._logService.info(`[RemoteAgentHost] Not authenticating with untrusted host ${address}`);
+			return false;
+		}
+		const authTokenCache = connState?.authTokenCache;
 		const testToken = this._getScenarioAutomationToken();
 		if (testToken !== undefined) {
 			await authenticateProtectedResourcesWithToken(protectedResources, testToken, {

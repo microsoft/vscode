@@ -1748,6 +1748,30 @@ suite('AgentHostProtocolClient', () => {
 		]);
 	});
 
+	test('never sends credentials to a host that withholds them', async () => {
+		const transport = disposables.add(new TestProtocolTransport());
+		const workspaceTrust = createWorkspaceTrustServices();
+		const client = disposables.add(new AgentHostProtocolClient('untrusted.example:1234', transport, { withholdCredentials: true }, new NullLogService(), createPermissionService(), new TestConfigurationService(), NullTelemetryService, workspaceTrustEnablementService, workspaceTrust.management, workspaceTrust.request));
+		await connectClient(client, transport);
+		const sentBefore = transport.sentMessages.length;
+
+		const target = { kind: AuthenticateTargetKind.McpServer, session: 'other-agent://tenant/session', customizationId: 'mcp' };
+		const results = await Promise.allSettled([
+			client.authenticate({ resource: 'https://api.github.com', scopes: ['read:user'], token: 'github-token' }),
+			client.authenticate({ resource: 'https://mcp.slack.com', scopes: ['read'], token: 'mcp-token', target }),
+		]);
+
+		assert.deepStrictEqual({
+			results: results.map(result => result.status),
+			sent: transport.sentMessages.slice(sentBefore),
+			cached: [...client['_authentication'].values()],
+		}, {
+			results: ['rejected', 'rejected'],
+			sent: [],
+			cached: [],
+		});
+	});
+
 	suite('authentication encryption', () => {
 		const resource = 'https://identity.example.test';
 		const challenge = '0123456789abcdef0123456789abcdef';
