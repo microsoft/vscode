@@ -3,16 +3,16 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ServicesAccessor } from '../../../../../editor/browser/editorExtensions.js';
-import { getActiveElement, isHTMLElement } from '../../../../../base/browser/dom.js';
-import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
-import { localize } from '../../../../../nls.js';
-import { AccessibleContentProvider, AccessibleViewProviderId, AccessibleViewType } from '../../../../../platform/accessibility/browser/accessibleView.js';
-import { IAccessibleViewImplementation } from '../../../../../platform/accessibility/browser/accessibleViewRegistry.js';
-import { IViewsService } from '../../../../services/views/common/viewsService.js';
-import { AccessibilityVerbositySettingId } from '../../../accessibility/browser/accessibilityConfiguration.js';
-import { ActiveEditorContext, EditorAreaFocusContext, FocusedViewContext } from '../../../../common/contextkeys.js';
-import { CHANGES_VIEW_ID, CreatePullRequestFocusedContext } from '../../common/changes.js';
+import { ServicesAccessor } from '../../../../editor/browser/editorExtensions.js';
+import { getActiveElement, isHTMLElement } from '../../../../base/browser/dom.js';
+import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
+import { localize } from '../../../../nls.js';
+import { AccessibleContentProvider, AccessibleViewProviderId, AccessibleViewType } from '../../../../platform/accessibility/browser/accessibleView.js';
+import { IAccessibleViewImplementation } from '../../../../platform/accessibility/browser/accessibleViewRegistry.js';
+import { IViewsService } from '../../../services/views/common/viewsService.js';
+import { AccessibilityVerbositySettingId } from '../../accessibility/browser/accessibilityConfiguration.js';
+import { ActiveEditorContext, EditorAreaFocusContext, FocusedViewContext } from '../../../common/contextkeys.js';
+import { CHANGES_VIEW_ID, CreatePullRequestFocusedContext } from '../../sessions/common/changes.js';
 import { ChangesViewPane } from './changesView.js';
 import { SessionChangesEditorInput } from './sessionChangesEditorInput.js';
 

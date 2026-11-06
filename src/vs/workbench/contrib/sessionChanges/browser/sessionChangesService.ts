@@ -3,31 +3,31 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Emitter } from '../../../../../base/common/event.js';
-import { Disposable } from '../../../../../base/common/lifecycle.js';
-import { autorun, derived, IObservable } from '../../../../../base/common/observable.js';
-import { URI } from '../../../../../base/common/uri.js';
-import { isEqual } from '../../../../../base/common/resources.js';
-import { localize } from '../../../../../nls.js';
-import { IMultiDiffEditorOptions } from '../../../../../editor/common/multiDiffEditor.js';
-import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
-import { EditorInput } from '../../../../common/editor/editorInput.js';
-import { MultiDiffEditorInput } from '../../../multiDiffEditor/browser/multiDiffEditorInput.js';
-import { IDecorationData, IDecorationsProvider, IDecorationsService } from '../../../../services/decorations/common/decorations.js';
-import { IEditorGroup } from '../../../../services/editor/common/editorGroupsService.js';
-import { IEditorService, PreferredGroup } from '../../../../services/editor/common/editorService.js';
-import { AgentWorkbenchLayout, ISessionsHostLayoutService } from '../sessionsHostLayoutService.js';
-import { getSessionChangesFileCountLabel } from '../../common/changes.js';
-import { IChangesViewService } from '../../common/changesViewService.js';
-import { ILogService } from '../../../../../platform/log/common/log.js';
-import { getHostOfSession, getMainWindowHost, IFocusedSessionHostService, ISessionHostService } from '../sessionHost.js';
-import { ISessionsService } from '../sessionsService.js';
+import { Emitter } from '../../../../base/common/event.js';
+import { Disposable } from '../../../../base/common/lifecycle.js';
+import { autorun, derived, IObservable } from '../../../../base/common/observable.js';
+import { URI } from '../../../../base/common/uri.js';
+import { isEqual } from '../../../../base/common/resources.js';
+import { localize } from '../../../../nls.js';
+import { IMultiDiffEditorOptions } from '../../../../editor/common/multiDiffEditor.js';
+import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
+import { EditorInput } from '../../../common/editor/editorInput.js';
+import { MultiDiffEditorInput } from '../../multiDiffEditor/browser/multiDiffEditorInput.js';
+import { IDecorationData, IDecorationsProvider, IDecorationsService } from '../../../services/decorations/common/decorations.js';
+import { IEditorGroup } from '../../../services/editor/common/editorGroupsService.js';
+import { IEditorService, PreferredGroup } from '../../../services/editor/common/editorService.js';
+import { AgentWorkbenchLayout, ISessionsHostLayoutService } from '../../sessions/browser/sessionsHostLayoutService.js';
+import { getSessionChangesFileCountLabel } from '../../sessions/common/changes.js';
+import { IChangesViewService } from '../../sessions/common/changesViewService.js';
+import { ILogService } from '../../../../platform/log/common/log.js';
+import { getHostOfSession, getMainWindowHost, IFocusedSessionHostService, ISessionHostService } from '../../sessions/browser/sessionHost.js';
+import { ISessionsService } from '../../sessions/browser/sessionsService.js';
 import { SessionChangesEditorInput } from './sessionChangesEditorInput.js';
-import { ISessionChangesEditorOptions, ISessionChangesService } from '../../common/sessionChangesService.js';
-import { UNCOMMITTED_CHANGES_CHANGESET_ID } from '../../common/session.js';
+import { ISessionChangesEditorOptions, ISessionChangesService } from '../../sessions/common/sessionChangesService.js';
+import { UNCOMMITTED_CHANGES_CHANGESET_ID } from '../../sessions/common/session.js';
 
-export { ISessionChangesService } from '../../common/sessionChangesService.js';
-export type { ISessionChangesEditorOptions } from '../../common/sessionChangesService.js';
+export { ISessionChangesService } from '../../sessions/common/sessionChangesService.js';
+export type { ISessionChangesEditorOptions } from '../../sessions/common/sessionChangesService.js';
 
 const CHANGES_MULTI_DIFF_SOURCE_SCHEME = 'changes-multi-diff-source';
 

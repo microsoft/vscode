@@ -24,8 +24,8 @@ import { Parts } from '../../../../../workbench/services/layout/browser/layoutSe
 import { IAgentWorkbenchLayoutService } from '../../../../browser/workbench.js';
 import { DesktopChangesTabAvailableContext, DesktopChangesTabMissingContext, DesktopFilesTabAvailableContext, DesktopFilesTabMissingContext } from '../../../../common/agentsWindowContextKeys.js';
 import { DockedEditorInput } from '../../../../../workbench/browser/parts/editor/dockedEditorInput.js';
-import { SessionChangesEditorInput } from '../../../../../workbench/contrib/sessions/browser/changes/sessionChangesEditorInput.js';
-import { ISessionChangesService } from '../../../../../workbench/contrib/sessions/browser/changes/sessionChangesService.js';
+import { SessionChangesEditorInput } from '../../../../../workbench/contrib/sessionChanges/browser/sessionChangesEditorInput.js';
+import { ISessionChangesService } from '../../../../../workbench/contrib/sessionChanges/browser/sessionChangesService.js';
 import { IChangesViewService } from '../../../../../workbench/contrib/sessions/common/changesViewService.js';
 import { EmptyFileEditorInput } from '../../../../../workbench/contrib/sessions/browser/emptyFileEditorInput.js';
 import { ISessionWorkspace, isSessionCreated } from '../../../../../workbench/contrib/sessions/common/session.js';

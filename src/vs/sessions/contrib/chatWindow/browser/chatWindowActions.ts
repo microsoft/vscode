@@ -36,7 +36,7 @@ import { SessionActivityBarLayoutActionsContext } from '../../../common/agentsWi
 import { CHAT_WINDOW_OPEN_BROWSER_COMMAND_ID, CHAT_WINDOW_OPEN_CHANGES_COMMAND_ID, CHAT_WINDOW_OPEN_FILES_COMMAND_ID } from '../../../../workbench/contrib/sessions/common/sessionCommands.js';
 import { ISessionHostService, SessionHostKind } from '../../../../workbench/contrib/sessions/browser/sessionHost.js';
 import { IChat, ISession } from '../../../../workbench/contrib/sessions/common/session.js';
-import { SessionChangesEditorInput } from '../../../../workbench/contrib/sessions/browser/changes/sessionChangesEditorInput.js';
+import { SessionChangesEditorInput } from '../../../../workbench/contrib/sessionChanges/browser/sessionChangesEditorInput.js';
 import { ISessionChangesService } from '../../../../workbench/contrib/sessions/common/sessionChangesService.js';
 import { EmptyFileEditorInput } from '../../../../workbench/contrib/sessions/browser/emptyFileEditorInput.js';
 

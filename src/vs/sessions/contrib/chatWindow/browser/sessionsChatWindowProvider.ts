@@ -41,7 +41,7 @@ import { ISessionsService } from '../../../../workbench/contrib/sessions/browser
 import { IChatHostOpenerService } from '../../../../workbench/contrib/sessions/browser/chatHostOpener.js';
 import { IChat, ISession } from '../../../../workbench/contrib/sessions/common/session.js';
 import { ISessionPaneContent, ISessionsManagementService } from '../../../../workbench/contrib/sessions/common/sessionsManagement.js';
-import { bindSessionScopeContextKeys } from '../../../../workbench/contrib/sessions/browser/changes/sessionActionsHost.js';
+import { bindSessionScopeContextKeys } from '../../../../workbench/contrib/sessionChanges/browser/sessionActionsHost.js';
 import { SessionChangesEditorFileListContext } from '../../../../workbench/contrib/sessions/common/changes.js';
 import { IChangesViewService } from '../../../../workbench/contrib/sessions/common/changesViewService.js';
 import { ISessionEditorWorkingSetService } from '../../layout/common/sessionEditorWorkingSet.js';

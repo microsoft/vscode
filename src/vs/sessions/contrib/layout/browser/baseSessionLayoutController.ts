@@ -48,7 +48,7 @@ import { IChatWindowService } from '../../../../workbench/contrib/chatWindow/bro
 import { ChatWindowLayoutCommandsContext, toggleChatWindowEditorAsSidePanel } from '../../../../workbench/contrib/chatWindow/browser/chatWindowLayoutActions.js';
 import { logSidePanelToggle } from '../../../../workbench/contrib/sessions/common/sessionsTelemetry.js';
 import { ChatLayoutContext } from '../../../common/chatLayout.js';
-import { ISessionChangesService } from '../../../../workbench/contrib/sessions/browser/changes/sessionChangesService.js';
+import { ISessionChangesService } from '../../../../workbench/contrib/sessionChanges/browser/sessionChangesService.js';
 import { IChangesViewService } from '../../../../workbench/contrib/sessions/common/changesViewService.js';
 import { ISessionsManagementService, IShownChat } from '../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import { getMainWindowHost, ISessionHostService } from '../../../../workbench/contrib/sessions/browser/sessionHost.js';

@@ -4,22 +4,22 @@
  *--------------------------------------------------------------------------------------------*/
 
 import './media/sessionChangesEditorInput.css';
-import { localize } from '../../../../../nls.js';
-import { Codicon } from '../../../../../base/common/codicons.js';
-import { Event } from '../../../../../base/common/event.js';
-import { IDisposable, MutableDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
-import { ThemeIcon } from '../../../../../base/common/themables.js';
-import { URI } from '../../../../../base/common/uri.js';
-import { EditorInputCapabilities, IEditorSerializer, IUntypedEditorInput, Verbosity } from '../../../../common/editor.js';
-import { EditorInput } from '../../../../common/editor/editorInput.js';
-import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
-import { MultiDiffEditorInput } from '../../../multiDiffEditor/browser/multiDiffEditorInput.js';
-import { MultiDiffEditorViewModel } from '../../../../../editor/browser/widget/multiDiffEditor/multiDiffEditorViewModel.js';
-import { IWorkbenchLayoutService } from '../../../../services/layout/browser/layoutService.js';
-import { DockedEditorInput } from '../../../../browser/parts/editor/dockedEditorInput.js';
-import { IEditorGroupsService } from '../../../../services/editor/common/editorGroupsService.js';
-import { getSessionChangesFileCountLabel } from '../../common/changes.js';
-import { ISessionChangesService } from '../../common/sessionChangesService.js';
+import { localize } from '../../../../nls.js';
+import { Codicon } from '../../../../base/common/codicons.js';
+import { Event } from '../../../../base/common/event.js';
+import { IDisposable, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
+import { ThemeIcon } from '../../../../base/common/themables.js';
+import { URI } from '../../../../base/common/uri.js';
+import { EditorInputCapabilities, IEditorSerializer, IUntypedEditorInput, Verbosity } from '../../../common/editor.js';
+import { EditorInput } from '../../../common/editor/editorInput.js';
+import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
+import { MultiDiffEditorInput } from '../../multiDiffEditor/browser/multiDiffEditorInput.js';
+import { MultiDiffEditorViewModel } from '../../../../editor/browser/widget/multiDiffEditor/multiDiffEditorViewModel.js';
+import { IWorkbenchLayoutService } from '../../../services/layout/browser/layoutService.js';
+import { DockedEditorInput } from '../../../browser/parts/editor/dockedEditorInput.js';
+import { IEditorGroupsService } from '../../../services/editor/common/editorGroupsService.js';
+import { getSessionChangesFileCountLabel } from '../../sessions/common/changes.js';
+import { ISessionChangesService } from '../../sessions/common/sessionChangesService.js';
 
 /**
  * Editor input for the Agents window Changes tab. It wraps the session's

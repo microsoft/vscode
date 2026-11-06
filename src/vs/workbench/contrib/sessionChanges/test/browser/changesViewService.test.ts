@@ -4,25 +4,25 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { Codicon } from '../../../../../../base/common/codicons.js';
-import { Emitter, Event } from '../../../../../../base/common/event.js';
-import { constObservable, derived, IObservable, observableValue } from '../../../../../../base/common/observable.js';
-import { URI } from '../../../../../../base/common/uri.js';
-import { mock, upcastPartial } from '../../../../../../base/test/common/mock.js';
-import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
-import { AGENT_HOST_CHECKOUT_CHANGESET_OPERATION_ID } from '../../../../../../platform/agentHost/common/agentHostChangesetOperationService.js';
-import { MockContextKeyService } from '../../../../../../platform/keybinding/test/common/mockKeybindingService.js';
-import { TestStorageService } from '../../../../../test/common/workbenchTestServices.js';
-import { IChatSessionFileChange2 } from '../../../../chat/common/chatSessionsService.js';
-import { IChatDeletedEvent, ISessionsManagementService } from '../../../common/sessionsManagement.js';
-import { BRANCH_CHANGES_CHANGESET_ID, IChat, ISession, ISessionChangeset, ISessionChangesetOperation, ISessionFileChange, ISessionFolder, ISessionGitRepository, ISessionWorkspace, SESSION_CHANGES_CHANGESET_ID, SessionChangesetOperationScope, SessionChangesetOperationStatus, TURN_CHANGES_CHANGESET_ID, UNCOMMITTED_CHANGES_CHANGESET_ID } from '../../../common/session.js';
-import { IAgentFeedbackService } from '../../../browser/agentFeedback.js';
-import { AgentFeedbackState, IAgentFeedback } from '../../../browser/agentFeedbackModel.js';
-import { ICodeReviewService, PRReviewStateKind } from '../../../browser/codeReviewService.js';
-import { ChangesetReviewedFilesContext, ChangesViewService } from '../../../browser/changes/changesViewService.js';
-import { getChangesOfSession } from '../../../common/changesViewService.js';
-import { ChangesViewMode } from '../../../common/changes.js';
-import { ITestSessionWithChat, sessionHostServiceOf, withCreatedStatus } from '../sessionHostTestUtils.js';
+import { Codicon } from '../../../../../base/common/codicons.js';
+import { Emitter, Event } from '../../../../../base/common/event.js';
+import { constObservable, derived, IObservable, observableValue } from '../../../../../base/common/observable.js';
+import { URI } from '../../../../../base/common/uri.js';
+import { mock, upcastPartial } from '../../../../../base/test/common/mock.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { AGENT_HOST_CHECKOUT_CHANGESET_OPERATION_ID } from '../../../../../platform/agentHost/common/agentHostChangesetOperationService.js';
+import { MockContextKeyService } from '../../../../../platform/keybinding/test/common/mockKeybindingService.js';
+import { TestStorageService } from '../../../../test/common/workbenchTestServices.js';
+import { IChatSessionFileChange2 } from '../../../chat/common/chatSessionsService.js';
+import { IChatDeletedEvent, ISessionsManagementService } from '../../../sessions/common/sessionsManagement.js';
+import { BRANCH_CHANGES_CHANGESET_ID, IChat, ISession, ISessionChangeset, ISessionChangesetOperation, ISessionFileChange, ISessionFolder, ISessionGitRepository, ISessionWorkspace, SESSION_CHANGES_CHANGESET_ID, SessionChangesetOperationScope, SessionChangesetOperationStatus, TURN_CHANGES_CHANGESET_ID, UNCOMMITTED_CHANGES_CHANGESET_ID } from '../../../sessions/common/session.js';
+import { IAgentFeedbackService } from '../../../sessions/browser/agentFeedback.js';
+import { AgentFeedbackState, IAgentFeedback } from '../../../sessions/browser/agentFeedbackModel.js';
+import { ICodeReviewService, PRReviewStateKind } from '../../../sessions/browser/codeReviewService.js';
+import { ChangesetReviewedFilesContext, ChangesViewService } from '../../browser/changesViewService.js';
+import { getChangesOfSession } from '../../../sessions/common/changesViewService.js';
+import { ChangesViewMode } from '../../../sessions/common/changes.js';
+import { ITestSessionWithChat, sessionHostServiceOf, withCreatedStatus } from '../../../sessions/test/browser/sessionHostTestUtils.js';
 
 suite('ChangesViewService', () => {
 

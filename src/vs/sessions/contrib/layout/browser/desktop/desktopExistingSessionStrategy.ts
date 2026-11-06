@@ -30,7 +30,7 @@ import { HasDockedDetailsContext } from '../../../../common/agentsWindowContextK
 import { DockedEditorInput } from '../../../../../workbench/browser/parts/editor/dockedEditorInput.js';
 import { IShownChat } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import { ISessionWorkspace, isSessionCreated, SessionStatus, ISession } from '../../../../../workbench/contrib/sessions/common/session.js';
-import { ISessionChangesService } from '../../../../../workbench/contrib/sessions/browser/changes/sessionChangesService.js';
+import { ISessionChangesService } from '../../../../../workbench/contrib/sessionChanges/browser/sessionChangesService.js';
 import { EmptyFileEditorInput } from '../../../../../workbench/contrib/sessions/browser/emptyFileEditorInput.js';
 import { DetailPanelTarget, DesktopDetailPanelCoordinator } from './desktopDetailPanelCoordinator.js';
 import { DesktopDockedTabsCoordinator } from './desktopDockedTabsCoordinator.js';

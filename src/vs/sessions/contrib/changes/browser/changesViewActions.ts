@@ -43,10 +43,10 @@ import { OPEN_PULL_REQUEST_ACTION_ID } from '../../../../workbench/contrib/sessi
 import { ActiveSessionContextKeys, CHANGES_VIEW_ID, ChangesContextKeys, ChangesViewMode, SESSIONS_CHANGES_OPEN_SINGLE_FILE_DIFF_SETTING } from '../../../../workbench/contrib/sessions/common/changes.js';
 import { getChangesOfSession, IChangesViewService } from '../../../../workbench/contrib/sessions/common/changesViewService.js';
 import { IDiffEditorOptionsService, SESSIONS_DIFF_EDITOR_WORD_WRAP_SETTING, SESSIONS_EDITOR_WORD_WRAP_SETTING, SessionsDiffViewModeContext, SessionsWordWrap } from '../../../../workbench/services/editor/common/diffEditorOptionsService.js';
-import { CHANGES_HEADER_ACTIONS_ID } from '../../../../workbench/contrib/sessions/browser/changes/changesView.js';
-import { SessionChangesEditor } from '../../../../workbench/contrib/sessions/browser/changes/sessionChangesEditor.js';
-import { isChangesFileResource } from '../../../../workbench/contrib/sessions/browser/changes/changesViewRenderer.js';
-import { mainWindowChangesOwner } from '../../../../workbench/contrib/sessions/browser/changes/changesViewService.js';
+import { CHANGES_HEADER_ACTIONS_ID } from '../../../../workbench/contrib/sessionChanges/browser/changesView.js';
+import { SessionChangesEditor } from '../../../../workbench/contrib/sessionChanges/browser/sessionChangesEditor.js';
+import { isChangesFileResource } from '../../../../workbench/contrib/sessionChanges/browser/changesViewRenderer.js';
+import { mainWindowChangesOwner } from '../../../../workbench/contrib/sessionChanges/browser/changesViewService.js';
 
 const openChangesViewActionOptions: IAction2Options = {
 	id: 'workbench.action.agentSessions.openChangesView',

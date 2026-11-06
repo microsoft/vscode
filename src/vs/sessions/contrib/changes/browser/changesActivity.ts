@@ -39,7 +39,7 @@ import { IFocusedSessionHostService } from '../../../../workbench/contrib/sessio
 import { ISessionChangesStatsCache } from '../../../../workbench/contrib/sessions/common/sessionChangesStatsCache.js';
 import { computeSessionInputPillStats, readLoadedSessionInputPillStats } from '../../../../workbench/contrib/sessions/browser/chat/sessionChatInputToolbar.js';
 import { NEW_CHANGES_TAB_COMMAND_ID } from '../../editor/browser/addTabActions.js';
-import { ISessionChangesService } from '../../../../workbench/contrib/sessions/browser/changes/sessionChangesService.js';
+import { ISessionChangesService } from '../../../../workbench/contrib/sessionChanges/browser/sessionChangesService.js';
 
 /** How many chats' seen changes are remembered; the least recently seen entry is evicted beyond this. */
 export const MAX_SEEN_CHANGES_CHATS = 200;

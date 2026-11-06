@@ -3,10 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { localize } from '../../../../../nls.js';
-import { ChatInteractivity, effectiveChatInteractivity, IChat, ISession } from '../../common/session.js';
-import { ISessionsManagementService } from '../../common/sessionsManagement.js';
-import { ISessionPullRequestChatOptions, ISessionPullRequestCreation, SessionPullRequestMergeMethod } from '../../common/pullRequestCreation.js';
+import { localize } from '../../../../nls.js';
+import { ChatInteractivity, effectiveChatInteractivity, IChat, ISession } from '../../sessions/common/session.js';
+import { ISessionsManagementService } from '../../sessions/common/sessionsManagement.js';
+import { ISessionPullRequestChatOptions, ISessionPullRequestCreation, SessionPullRequestMergeMethod } from '../../sessions/common/pullRequestCreation.js';
 
 export class CreatePullRequestChatRequest {
 	constructor(

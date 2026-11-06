@@ -3,20 +3,20 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { DisposableStore, IDisposable } from '../../../../../base/common/lifecycle.js';
-import { Event } from '../../../../../base/common/event.js';
-import { autorun, IObservable, observableFromEvent, observableValue, transaction } from '../../../../../base/common/observable.js';
-import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
-import { IInstantiationService, ServicesAccessor } from '../../../../../platform/instantiation/common/instantiation.js';
-import { ILogService } from '../../../../../platform/log/common/log.js';
-import { bindContextKey } from '../../../../../platform/observable/common/platformObservableUtils.js';
-import { AGENT_HOST_PULL_REQUEST_OPERATION_IDS } from '../../../../../platform/agentHost/common/agentHostChangesetOperationService.js';
-import { DesktopChangesEditorTransitionContext, SessionHasOpenPullRequestContext, SessionPrimaryPullRequestOperationContext } from '../../common/contextkeys.js';
-import { IChat, ISession } from '../../common/session.js';
-import { IGitHubSessionPullRequestObservables } from '../github/githubService.js';
-import { IChangesSessionObservables } from '../../common/changesViewService.js';
+import { DisposableStore, IDisposable } from '../../../../base/common/lifecycle.js';
+import { Event } from '../../../../base/common/event.js';
+import { autorun, IObservable, observableFromEvent, observableValue, transaction } from '../../../../base/common/observable.js';
+import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
+import { IInstantiationService, ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
+import { ILogService } from '../../../../platform/log/common/log.js';
+import { bindContextKey } from '../../../../platform/observable/common/platformObservableUtils.js';
+import { AGENT_HOST_PULL_REQUEST_OPERATION_IDS } from '../../../../platform/agentHost/common/agentHostChangesetOperationService.js';
+import { DesktopChangesEditorTransitionContext, SessionHasOpenPullRequestContext, SessionPrimaryPullRequestOperationContext } from '../../sessions/common/contextkeys.js';
+import { IChat, ISession } from '../../sessions/common/session.js';
+import { IGitHubSessionPullRequestObservables } from '../../sessions/browser/github/githubService.js';
+import { IChangesSessionObservables } from '../../sessions/common/changesViewService.js';
 import { SessionChangesReviewedFilesContext } from './changesMultiDiffSourceResolver.js';
-import { bindSessionCIChecksContextKeys } from '../fixCIChecks.js';
+import { bindSessionCIChecksContextKeys } from '../../sessions/browser/fixCIChecks.js';
 
 /** The session the session action context keys are derived from. */
 export interface ISessionActionContextKeysSource {
