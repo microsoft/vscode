@@ -1069,18 +1069,9 @@ export class ClaudeAgentSession extends Disposable implements IRematerializer {
 		// New turn: reset the per-turn credit accumulator so proxy reports
 		// for this turn's `/v1/messages` calls sum from zero.
 		this._currentTurnNanoAiu = 0;
-		const rebuildReasons = [
-			this.toolDiff.hasDifference && 'client tools',
-			this.clientCustomizationsDiff.hasDifferenceFrom(this._desiredClientPluginPaths(this._owner.get())) && 'client customizations',
-			this._appliedMcpLaunchEnablementRevision !== this._mcpLaunchEnablementRevision && 'MCP enablement',
-			this._pendingResumeSessionAt !== undefined && 'resume point',
-			!areAdditionalWorkingDirectoriesEqual(this._appliedAdditionalDirectories, this._desiredAdditionalDirectories) && 'additional directories',
-			this._pendingTransportSwitch && 'transport switch',
-			// The chat changed owner since its process launched: relaunch with the new owner at this turn boundary.
-			this._materializedOwner !== undefined && !isEqual(this._materializedOwner, this._owner.get()) && 'owner',
-		].filter(reason => typeof reason === 'string');
-		if (rebuildReasons.length > 0) {
-			this._logService.info(`[Claude] session ${this.sessionId}: rebuilding before turn ${turnId} for changed ${rebuildReasons.join(', ')}`);
+		const rebindReason = this._getRebindReason();
+		if (rebindReason) {
+			this._logService.info(`[Claude] session ${this.sessionId}: rebinding before turn ${turnId} for changed ${rebindReason}`);
 			await this._rebindForSyncedState();
 		} else {
 			await pipeline.setPermissionMode(resolveCurrentPermissionMode(this._configurationService, resource, this._chatChannelUri, this._inheritedPermissionMode, this._permissionModeFallback));
@@ -1128,6 +1119,37 @@ export class ClaudeAgentSession extends Disposable implements IRematerializer {
 			return;
 		}
 		this._desiredAdditionalDirectories = desiredAdditionalDirectories;
+	}
+
+	/**
+	 * Returns the first state that differs from what the running Claude
+	 * process was launched with, or `undefined` when the session can keep
+	 * its process for the next turn. Checks stop at the first difference.
+	 */
+	private _getRebindReason(): string | undefined {
+		if (this.toolDiff.hasDifference) {
+			return 'client tools';
+		}
+		if (this.clientCustomizationsDiff.hasDifferenceFrom(this._desiredClientPluginPaths(this._owner.get()))) {
+			return 'client customizations';
+		}
+		if (this._appliedMcpLaunchEnablementRevision !== this._mcpLaunchEnablementRevision) {
+			return 'MCP enablement';
+		}
+		if (this._pendingResumeSessionAt !== undefined) {
+			return 'resume point';
+		}
+		if (!areAdditionalWorkingDirectoriesEqual(this._appliedAdditionalDirectories, this._desiredAdditionalDirectories)) {
+			return 'additional directories';
+		}
+		if (this._pendingTransportSwitch) {
+			return 'transport switch';
+		}
+		// The chat changed owner since its process launched: relaunch with the new owner at this turn boundary.
+		if (this._materializedOwner !== undefined && !isEqual(this._materializedOwner, this._owner.get())) {
+			return 'owner';
+		}
+		return undefined;
 	}
 
 	/**
