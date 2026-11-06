@@ -178,6 +178,45 @@ suite('Workbench view navigation: command integration', () => {
 	});
 
 
+
+	test('skips a collapsed header detached from the document', async () => {
+		const harness = createFocusHarness();
+		harness.setCollapsed('b', true);
+		harness.setHeaderConnected('b', false);
+		assert.deepStrictEqual(await navigate(harness, { direction: 'next', scope: 'container' }), { id: 'c', focus: true });
+		assert.deepStrictEqual(harness.headerFocusCalls, []);
+		assert.strictEqual(harness.isCollapsed('b'), true);
+	});
+
+	test('skips a collapsed header that is not keyboard-focusable', async () => {
+		const harness = createFocusHarness();
+		harness.setCollapsed('b', true);
+		harness.setHeaderTabbable('b', false);
+		assert.deepStrictEqual(await navigate(harness, { direction: 'next', scope: 'container' }), { id: 'c', focus: true });
+		assert.deepStrictEqual(harness.headerFocusCalls, []);
+		assert.strictEqual(harness.isCollapsed('b'), true);
+	});
+
+	test('restoring a detached header makes it a navigation target again', async () => {
+		const harness = createFocusHarness();
+		harness.setCollapsed('b', true);
+		harness.setHeaderConnected('b', false);
+		assert.deepStrictEqual(await navigate(harness, { direction: 'next', scope: 'container' }), { id: 'c', focus: true });
+		harness.setFocused('a');
+		harness.setHeaderConnected('b', true);
+		assert.strictEqual(await navigate(harness, { direction: 'next', scope: 'container' }), undefined);
+		assert.deepStrictEqual(harness.headerFocusCalls, ['b']);
+	});
+
+	test('workbench traversal skips a detached header in another part', async () => {
+		const harness = createFocusHarness();
+		harness.setFocused('c');
+		harness.setCollapsed('d', true);
+		harness.setHeaderConnected('d', false);
+		assert.deepStrictEqual(await navigate(harness, { direction: 'next', scope: 'workbench' }), { id: 'e', focus: true });
+		assert.deepStrictEqual(harness.headerFocusCalls, []);
+	});
+
 	test('skips a collapsed pane whose header exists but is not visible', async () => {
 		const harness = createFocusHarness();
 		harness.setCollapsed('b', true);
