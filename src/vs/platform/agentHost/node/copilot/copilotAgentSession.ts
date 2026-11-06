@@ -1386,6 +1386,7 @@ export class CopilotAgentSession extends Disposable {
 	private readonly _idleWaiters = new Set<DeferredPromise<boolean>>();
 	private readonly _completedTokenUsage = new Map<string, IAgentTurnTokenUsage>();
 	private _hasCompletedTurn = false;
+	private _hasSentTurn = false;
 	private _completedTurnHistory: Promise<boolean> | undefined;
 	private readonly _subagentObservedTokenUsage = new LRUCache<string, ObservedTokenUsage>(256);
 	private readonly _observedUsageEventIds = new Set<string>();
@@ -1420,6 +1421,11 @@ export class CopilotAgentSession extends Disposable {
 	 */
 	get hasActiveTurn(): boolean { return this._currentTurn.value !== undefined; }
 	get hasCompletedTurn(): boolean { return this._hasCompletedTurn; }
+	/**
+	 * Whether the runtime marks this session as in use by this process, so another client asks before continuing it. It
+	 * does from creation, and for a resumed session from the first turn sent after resuming.
+	 */
+	get isHeldInUse(): boolean { return this._launchPlan.kind === 'create' || this._hasSentTurn; }
 	/** Reuses persisted history to distinguish restored chats from a chat's first turn. */
 	get completedTurnHistory(): Promise<boolean> | undefined {
 		return this._launchPlan.kind === 'resume'
@@ -2751,6 +2757,8 @@ export class CopilotAgentSession extends Disposable {
 			this._logService.warn(`[Copilot:${this.sessionId}] Ignoring provider-initiated user.message without messageId and turnId`);
 			return;
 		}
+		// The runtime holds a resumed session in use from its first execution, whoever starts it.
+		this._hasSentTurn = true;
 
 		const turnId = generateUuid();
 		this._emitAction({
@@ -6713,6 +6721,7 @@ export class CopilotAgentSession extends Disposable {
 		if (turn) {
 			turn.sdkSendInvoked = true;
 		}
+		this._hasSentTurn = true;
 		recorder?.markMilestone?.('sdkSend');
 		try {
 			const result = await measureAgentProviderOperation(recorder, 'sdkSend', operation);

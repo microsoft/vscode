@@ -844,6 +844,7 @@ export interface IAgentServiceOptions {
 	readonly debugLogsEnvironment?: IAgentHostDebugLogsEnvironment;
 	readonly sessionResidencyLimit?: number;
 	readonly sessionReleaseRetryMs?: number;
+	readonly sessionIdleReleaseMs?: number;
 	readonly catalogReconciliationOptions?: IAgentHostCatalogReconciliationOptions;
 }
 
@@ -1394,10 +1395,15 @@ export class AgentService extends Disposable implements IAgentService {
 					} : undefined;
 				},
 				evictSessionState: (session, chats) => this._evictSessionState(session, session.toString(), session.toString(), chats.map(chat => chat.toString())),
+				isHeldInUse: session => {
+					const provider = this._providerService.getProviderForSession(session);
+					return !!provider && this._getSessionChatsInTeardownOrder(session).some(chat => this._chatAgentOf(provider, chat)?.chats.isChatHeldInUse?.(chat) === true);
+				},
 			},
 			{
 				limit: options.sessionResidencyLimit,
 				releaseRetryMs: options.sessionReleaseRetryMs,
+				idleReleaseMs: options.sessionIdleReleaseMs,
 				holdsSession: session => this._agentMergeController.holdsSession(session),
 				onDidReleaseHold: this._agentMergeController.onDidReleaseHold,
 			},
