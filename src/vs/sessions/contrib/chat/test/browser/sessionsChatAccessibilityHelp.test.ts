@@ -1202,7 +1202,7 @@ suite('SessionsChatAccessibilityHelp', () => {
 			done: enabledProvider.provideContent().includes('Done returns to the composer'),
 			configRefresh: enabledProvider.provideContent().includes('Comparison selections are kept while draft permissions or mode are updating.'),
 			discovery: enabledProvider.provideContent().includes('Send Query to Multiple Models at the bottom'),
-			folderless: enabledProvider.provideContent().includes('Folderless comparisons do not offer Judge or Synthesizer steps.'),
+			folderless: enabledProvider.provideContent().includes('optionally configure a Judge and Synthesizer with Next'),
 			cancelSetup: enabledProvider.provideContent().includes('Escape or clicking outside the picker discards setup changes'),
 			opensAttemptsGrid: enabledProvider.provideContent().includes('open every available attempt in a resizable grid'),
 			twoPaneInputs: enabledProvider.provideContent().includes('With two attempt panes, both chat inputs remain visible'),

@@ -4462,12 +4462,10 @@ suite('NewChatWidget', () => {
 					...(i === 1 ? { serviceTier: 'priority' } : {}),
 				}, `Attempt ${i + 1}`);
 			}
-			if (!quickChat) {
-				selection.next();
-				selection.select('codex-judge');
-				selection.next();
-				selection.select('copilot-synthesizer');
-			}
+			selection.next();
+			selection.select('codex-judge');
+			selection.next();
+			selection.select('copilot-synthesizer');
 			selection.finish();
 			const workspace = URI.file('/workspace');
 			const session = upcastPartial<IActiveSession>({
@@ -4678,13 +4676,13 @@ suite('NewChatWidget', () => {
 					{ thinkingLevel: 'medium', contextSize: 1_000_000 },
 					...Array.from({ length: runs - 1 }, (_, index) => ({ thinkingLevel: 'medium', contextSize: 1_000_000, testAttempt: index + 1 })),
 				],
-				evaluatorConfigurations: quickChat ? [undefined, undefined] : [
+				evaluatorConfigurations: [
 					{ thinkingLevel: 'medium', contextSize: 1_000_000 },
 					{ thinkingLevel: 'medium', contextSize: 1_000_000, serviceTier: 'priority' },
 				],
-				evaluatorModes: quickChat ? [undefined, undefined] : [undefined, 'autopilot'],
-				judge: quickChat ? undefined : 'codex-judge', synthesizer: quickChat ? undefined : 'copilot-synthesizer',
-				evaluatorHarnesses: quickChat ? [undefined, undefined] : ['codex', 'copilotcli'], workspace: quickChat ? undefined : workspace.toString(), branch: quickChat ? undefined : 'feature',
+				evaluatorModes: [undefined, 'autopilot'],
+				judge: 'codex-judge', synthesizer: 'copilot-synthesizer',
+				evaluatorHarnesses: ['codex', 'copilotcli'], workspace: quickChat ? undefined : workspace.toString(), branch: quickChat ? undefined : 'feature',
 				attachments: [attachment], enabled: backgroundSend && interruption !== 'none',
 				selectionStatesDuringNavigation: backgroundSend ? [] : !openInGrid
 					? [{ stage: 'discardDraft', enabled: true }]
