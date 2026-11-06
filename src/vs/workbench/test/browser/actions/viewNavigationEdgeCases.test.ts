@@ -212,6 +212,34 @@ suite('Workbench view navigation: visibility and focus transitions', () => {
 		assert.strictEqual(result?.total, 2);
 	});
 
+
+	test('expanded-only results are a stable subsequence under all duplicate visibility states', () => {
+		// Model view moves between locations with both copies temporarily present.
+		// None of these combinations may change which container owns the view ID.
+		for (let first = 0; first < 4; first++) {
+			for (let second = 0; second < 4; second++) {
+				const state = makeSnapshot([
+					makeContainer('explorer', 'sidebar', [
+						'a',
+						makeView('shared', { visible: (first & 1) === 0, collapsed: (first & 2) !== 0 })
+					]),
+					makeContainer('problems', 'panel', [
+						makeView('shared', { visible: (second & 1) === 0, collapsed: (second & 2) !== 0 }),
+						'z'
+					])
+				], 'a');
+				const allEntries = getNavigableViewEntries(state);
+				const expandedEntries = getNavigableViewEntries(state, false);
+				const expandedIds = new Set(expandedEntries.map(entry => entry.viewId));
+				assert.deepStrictEqual(
+					expandedEntries,
+					allEntries.filter(entry => expandedIds.has(entry.viewId)),
+					`duplicate visibility combination: ${first}, ${second}`
+				);
+			}
+		}
+	});
+
 	test('empty view IDs are ignored', () => {
 		const state = makeSnapshot([
 			makeContainer('explorer', 'sidebar', ['', 'a', ''])
