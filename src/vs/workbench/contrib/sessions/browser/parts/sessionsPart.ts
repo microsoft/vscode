@@ -8,7 +8,7 @@ import { IContextKey, IContextKeyService } from '../../../../../platform/context
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { IStorageService } from '../../../../../platform/storage/common/storage.js';
 import { IThemeService } from '../../../../../platform/theme/common/themeService.js';
-import { agentsPanelBorder } from '../../common/theme.js';
+import { agentsPanelBorder } from '../../../../common/agentsColors.js';
 import { Parts, IWorkbenchLayoutService } from '../../../../services/layout/browser/layoutService.js';
 import { assertReturnsDefined } from '../../../../../base/common/types.js';
 import { LayoutPriority } from '../../../../../base/browser/ui/splitview/splitview.js';
@@ -35,7 +35,7 @@ import { ISessionGridSlot, SessionGridRequest } from '../sessionsPartService.js'
 import { ISessionGridPane, SessionGridPaneKind } from '../sessionGridPane.js';
 import type { ISessionHost } from '../sessionHost.js';
 import { SessionGridLayout } from './sessionGridLayout.js';
-import { AGENTS_FLOATING_PANEL_GAP } from '../../common/layoutConstants.js';
+import { AGENTS_FLOATING_PANEL_GAP } from '../../../../common/agentsSizes.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ISessionsHostLayoutService } from '../sessionsHostLayoutService.js';
 
