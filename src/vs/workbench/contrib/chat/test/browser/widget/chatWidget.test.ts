@@ -1807,6 +1807,7 @@ suite('ChatWidget', () => {
 		const canMove = mode !== 'unsupported';
 		const isRemote = mode === 'remote';
 		test(`policy read-only banner follows history switches and does not relabel other read-only states (${mode})`, () => {
+			const offered: object[] = [];
 			const instantiation = store.add(new TestInstantiationService());
 			instantiation.stub(IHoverService, NullHoverService);
 			instantiation.stub(IOpenerService, { open: async () => true });
@@ -1853,7 +1854,10 @@ suite('ChatWidget', () => {
 				_agentHostService: {
 					supportsConversationImport: canMove,
 					clientConnectionKind: isRemote ? AgentHostClientConnectionKind.RemoteExtensionHost : AgentHostClientConnectionKind.Local,
+					initializeResult: constObservable({}),
 				},
+				viewOptions: {}, viewContext: {},
+				telemetryService: { publicLog2: (event: string, data: object) => { if (event === 'chat.localChatMigrationOffered') { offered.push(data); } } },
 			});
 			store.add(autorun(reader => {
 				const model = selected.read(reader);
@@ -1888,7 +1892,7 @@ suite('ChatWidget', () => {
 			sessionChanges.fire();
 			const removed = snapshot();
 			selected.set(archived, undefined);
-			assert.deepStrictEqual({ original, unrelatedUpdateChangedBanner, away, inlineUnderPolicy, returned, archivedUnderPolicy, otherProviderWhileArchived, archivedAfterRemoval, removed, archived: snapshot() }, {
+			assert.deepStrictEqual({ original, unrelatedUpdateChangedBanner, away, inlineUnderPolicy, returned, archivedUnderPolicy, otherProviderWhileArchived, archivedAfterRemoval, removed, archived: snapshot(), offered }, {
 				original: { visible: true, text: 'This chat is read-only because your organization requires the new Copilot experience.', action: canMove ? 'Move to Copilot' : 'Continue in Copilot', atTop: true },
 				unrelatedUpdateChangedBanner: false,
 				away: { visible: false, text: 'This chat is read-only', action: '', atTop: true },
@@ -1900,6 +1904,8 @@ suite('ChatWidget', () => {
 				archivedAfterRemoval: { visible: false, text: 'This chat is read-only', action: '', atTop: true },
 				removed: { visible: false, text: 'This chat is read-only', action: '', atTop: true },
 				archived: { visible: true, text: 'This chat is read-only', action: '', atTop: true },
+				// The policy chat is reported as offered to be moved once, however often it is shown again.
+				offered: [{ policyRequired: true, hasRequests: true, archived: false, blockedReason: canMove ? 'none' : 'importUnsupported', remoteExtensionHost: isRemote, location: 'editor' }],
 			});
 		});
 	}
@@ -1974,7 +1980,7 @@ suite('ChatWidget', () => {
 		});
 		const observation = store.add(widget.autoMigratePolicySession(model, archived));
 		return {
-			banner, visible, policy, archived, requestInProgress, readOnly, errors, observation, automaticCalls,
+			widget, banner, visible, policy, archived, requestInProgress, readOnly, errors, observation, automaticCalls,
 			setHasRequests: (value: boolean) => { hasRequests = value; modelChanges.fire({ kind: 'initialize' }); },
 			setAutomaticRun: (run: () => Promise<void>) => { automaticRun = run; },
 			setProviderDisabled: (value: boolean) => { providerDisabled = value; configurationService.onDidChangeConfigurationEmitter.fire(upcastPartial<IConfigurationChangeEvent>({ affectsConfiguration: () => true })); },
@@ -2109,6 +2115,19 @@ suite('ChatWidget', () => {
 		assert.deepStrictEqual({ hiddenCalls, activeCalls, immediateCalls, displayedCalls, finalCalls: calls }, {
 			hiddenCalls: 0, activeCalls: 0, immediateCalls: 0, displayedCalls: 1, finalCalls: 1,
 		});
+	});
+
+	test('marks the Local move it runs on its own as automatic, and one the user chooses as manual', async () => {
+		const fixture = createAutomaticMigrationFixture();
+		// The banner's real action reports this flag as the move's trigger.
+		const automatic = () => (fixture.widget as unknown as { _movingToCopilotAutomatically: boolean })._movingToCopilotAutomatically;
+		const triggers: boolean[] = [];
+		fixture.banner.setAction({ label: 'Move to Copilot', run: async () => { triggers.push(automatic()); } });
+		fixture.policy.set(true, undefined);
+		fixture.visible.set(true, undefined);
+		await timeout(0);
+		await fixture.banner.runAction();
+		assert.deepStrictEqual({ triggers, afterwards: automatic() }, { triggers: [true, false], afterwards: false });
 	});
 
 	test('does not automatically continue Local history when the host cannot import it, and migrates once import support arrives', async () => {
