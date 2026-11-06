@@ -506,12 +506,10 @@ suite('MultiEditorTabsControl', () => {
 					? Math.abs(overlay.getBoundingClientRect().left - boundary) < 1 / 32
 					: !overlay.classList.contains('connected-tab-left-clipped')),
 				oppositeShoulderPresentWhenVisible: oppositeShoulderOutsideViewport || oppositeShoulder.content === '""',
-				activeClipRetainsShoulderGutter: direction === 'rtl'
-					? shoulderClipEdge <= Math.max(activeFillBounds.left - shoulderWidth, add.getBoundingClientRect().right) + 1 / 32
-					: shoulderClipEdge >= Math.min(activeFillBounds.right + shoulderWidth, add.getBoundingClientRect().left) - 1 / 32,
+				activeClipPreservesBodyBoundary: Math.abs(shoulderClipEdge - boundary) < 1 / 32,
 				matchingClip: rendered.every(tab => {
 					const expected = Math.max(0, (direction === 'rtl' ? boundary - tab.getBoundingClientRect().left : tab.getBoundingClientRect().right - boundary) / zoom);
-					const inset = expected - (tab.classList.contains('active') ? 8 : 0);
+					const inset = expected - (tab.classList.contains('active') && expected + shoulderWidth / zoom <= 8 ? 8 : 0);
 					const match = mainWindow.getComputedStyle(tab).clipPath.match(direction === 'rtl' ? /^inset\(-1px -8px -1px (-?[\d.]+)px\)$/ : /^inset\(-1px (-?[\d.]+)px -1px -8px\)$/);
 					return expected < 1 / 32 ? !tab.style.clipPath || !!match && Math.abs(Number.parseFloat(match[1]) - inset) < 1 / 32 : !!match && Math.abs(Number.parseFloat(match[1]) - inset) < 1 / 32;
 				}),
@@ -547,7 +545,7 @@ suite('MultiEditorTabsControl', () => {
 			results, hiddenAddClippingCleared,
 			wrappedClippingCleared: Array.from(tabs.querySelectorAll<HTMLElement>('.tab')).every(tab => !tab.style.clipPath),
 		}, {
-			results: results.map(result => ({ ...result, resting: { hasClippedTab: true, hasClippedActive: true, rtlCapAtBoundary: true, oppositeShoulderPresentWhenVisible: true, activeClipRetainsShoulderGutter: true, matchingClip: true }, scrolled: { hasClippedTab: true, hasClippedActive: true, rtlCapAtBoundary: true, oppositeShoulderPresentWhenVisible: true, activeClipRetainsShoulderGutter: true, matchingClip: true } })),
+			results: results.map(result => ({ ...result, resting: { hasClippedTab: true, hasClippedActive: true, rtlCapAtBoundary: true, oppositeShoulderPresentWhenVisible: true, activeClipPreservesBodyBoundary: true, matchingClip: true }, scrolled: { hasClippedTab: true, hasClippedActive: true, rtlCapAtBoundary: true, oppositeShoulderPresentWhenVisible: true, activeClipPreservesBodyBoundary: true, matchingClip: true } })),
 			hiddenAddClippingCleared: true,
 			wrappedClippingCleared: true,
 		});
@@ -598,6 +596,7 @@ suite('MultiEditorTabsControl', () => {
 						results.push({
 							count, activeIndex, direction, width,
 							clipped: !!active.style.clipPath,
+							stacking: mainWindow.getComputedStyle(active).zIndex,
 							visible: right > left,
 							seamOwner: hit === fill ? 'activeFill' : hit?.className,
 						});
@@ -606,8 +605,47 @@ suite('MultiEditorTabsControl', () => {
 			}
 		}
 		assert.deepStrictEqual(results, results.map(result => ({
-			...result, clipped: result.width === 100, visible: true, seamOwner: 'activeFill',
+			...result, clipped: result.width === 100, stacking: result.width === 100 ? '1' : 'auto', visible: true, seamOwner: 'activeFill',
 		})));
+	});
+
+	test('fractional terminal tabs retain a natural shoulder when its gutter fits beside Add Tab', async () => {
+		const group = connectedGroup();
+		const root = group.closest<HTMLElement>('.monaco-workbench')!;
+		control.dispose();
+		reset(container);
+		control = createControl({ tabsBarAddTab: MenuId.for('test.connectedTabs.fractionalShoulder') });
+		const oldOptions = partOptions;
+		partOptions = { ...partOptions, tabSizing: 'fixed', tabSizingFixedMinWidth: 120.25, tabSizingFixedMaxWidth: 120.25, wrapTabs: false, editorActionsLocation: 'hidden' };
+		control.updateOptions(oldOptions, partOptions);
+		openNamedEditors(['first.ts', 'middle.ts', 'last.ts']);
+		const results = [];
+		for (const direction of ['ltr', 'rtl']) {
+			root.dir = direction;
+			for (const zoom of [1, 1.25]) {
+				root.style.zoom = String(zoom);
+				await layoutConnectedGroup(group, 600);
+				await layoutConnectedGroup(group, 300);
+				const tabs = container.querySelector<HTMLElement>('.tabs-container')!;
+				tabs.classList.add('scroll');
+				const active = tabs.querySelector<HTMLElement>('.tab.active')!;
+				tabs.scrollLeft += direction === 'rtl'
+					? active.getBoundingClientRect().right - tabs.getBoundingClientRect().right
+					: tabs.scrollWidth;
+				tabs.dispatchEvent(new mainWindow.Event(EventType.SCROLL));
+				const fill = active.querySelector<HTMLElement>('.tab-fill')!;
+				const shoulder = mainWindow.getComputedStyle(fill, direction === 'rtl' ? '::before' : '::after');
+				const insets = mainWindow.getComputedStyle(active).clipPath;
+				const clip = insets === 'none' ? undefined : insets.slice(6, -1).split(' ');
+				const naturalEdge = direction === 'rtl' ? fill.getBoundingClientRect().left : fill.getBoundingClientRect().right;
+				const clipEdge = clip ? naturalEdge + (direction === 'rtl' ? Number.parseFloat(clip[3]) : -Number.parseFloat(clip[1])) * zoom : undefined;
+				results.push({
+					direction, zoom, shoulder: shoulder.content,
+					completeCurve: clipEdge === undefined || (direction === 'rtl' ? naturalEdge - clipEdge : clipEdge - naturalEdge) >= Number.parseFloat(shoulder.width) * zoom - 1 / 32,
+				});
+			}
+		}
+		assert.deepStrictEqual(results, results.map(result => ({ ...result, shoulder: '""', completeCurve: true })));
 	});
 
 	test('scrolling Add clipping reads every tab before changing clip styles', async () => {

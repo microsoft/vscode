@@ -319,7 +319,7 @@
 }
 
 /* Add Tab clipping creates a stacking context, so lift the active tab as well as its fill. */
-.modern-ui-tabs.modern-ui-connected-editor-tabs.monaco-workbench .part.editor > .content .editor-group-container > .title.tabs .tabs-container > .tab.active {
+.modern-ui-tabs.modern-ui-connected-editor-tabs.monaco-workbench .part.editor > .content .editor-group-container > .title.tabs .tabs-container > .tab.active.connected-tab-add-clipped {
 	z-index: 1;
 }
 
