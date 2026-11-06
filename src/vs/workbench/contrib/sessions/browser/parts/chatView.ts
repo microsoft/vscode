@@ -17,7 +17,6 @@ import { IAgentsWindowDraft } from '../../../../../platform/window/common/window
 import { defaultProgressBarStyles } from '../../../../../platform/theme/browser/defaultStyles.js';
 import { IProgressScope, ScopedProgressIndicator } from '../../../../services/progress/browser/progressIndicator.js';
 import { IChat, ISession } from '../../common/session.js';
-import { IActiveSession } from '../../common/sessionsManagement.js';
 import { ISelectNoWorkspaceOptions, ISelectWorkspaceOptions, WorkspaceSelectionResult } from '../../common/workspaceSelection.js';
 import { ISessionPickerVisibility, noSessionPickerVisibility } from '../../common/sessionPickerVisibility.js';
 import type { IChatSessionHistoryStatus } from '../../../../../platform/chat/common/chatSessionHistory.js';
@@ -58,7 +57,9 @@ export interface IChatViewOptions {
 	/** Options of the chat input of a chat view that hosts a session's chat. */
 	readonly input?: IChatViewInputOptions;
 	/** The session of the pane that hosts the view, such as the draft its new-session composer shows. */
-	readonly session?: IObservable<IActiveSession | undefined>;
+	readonly session?: IObservable<ISession | undefined>;
+	/** The chat the pane shows of {@link session}; its main chat while undefined. */
+	readonly chat?: IObservable<IChat | undefined>;
 }
 
 /**

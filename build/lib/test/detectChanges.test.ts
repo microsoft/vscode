@@ -413,6 +413,7 @@ suite('Detect Changes', () => {
 				'Windows / Electron-Smoke (shard 1/3)': skipsWhenUnaffected('product-tests'),
 				'Windows / Electron-Smoke (shard 2/3)': skipsWhenUnaffected('product-tests'),
 				'Windows / Electron-Smoke (shard 3/3)': skipsWhenUnaffected('product-tests'),
+				'Windows / Electron-Smoke (WSL)': skipsWhenUnaffected('product-tests'),
 				'Windows / Browser-Unit': skipsWhenUnaffected('selected-browser-unit-tests'),
 				'Windows / Browser (integration)': skipsWhenUnaffected('browser-integration'),
 				'Windows / Browser (smoke)': skipsWhenUnaffected('browser-integration'),

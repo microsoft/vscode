@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { autorun, constObservable, observableValue, transaction } from '../../../../../base/common/observable.js';
+import { autorun, constObservable, derived, observableValue, transaction } from '../../../../../base/common/observable.js';
 import { extUriBiasedIgnorePathCase } from '../../../../../base/common/resources.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { Direction } from '../../../../../base/browser/ui/grid/grid.js';
@@ -12,7 +12,9 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/tes
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { mock } from '../../../../../base/test/common/mock.js';
 import { IUriIdentityService } from '../../../../../platform/uriIdentity/common/uriIdentity.js';
-import { VisibleSession, VisibleSessions } from '../../browser/visibleSessions.js';
+import { VisibleSessions } from '../../browser/visibleSessions.js';
+import { ISessionGridPane, SessionGridPaneKind } from '../../browser/sessionGridPane.js';
+import { DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { ChatInteractivity, ChatOriginKind, IChat, ISession, SessionRemoteConnectionFailureReason, SessionRemoteConnectionStatus, SessionStatus } from '../../common/session.js';
 
 const stubChat: IChat = {
@@ -63,6 +65,36 @@ function stubSession(sessionId: string): ISession {
 	};
 }
 
+/**
+ * The slot of `session` in a grid that shows it, as the views of the slot drive it: its tab operations go through the
+ * grid, and its state is read from its pane. The grid seeds the slot's tab state as from the persisted state of the
+ * session, from `seed`.
+ */
+function slotOf(disposables: Pick<DisposableStore, 'add'>, session: ISession, seed?: { readonly activeChat?: IChat; readonly closedChats?: Iterable<string>; readonly shownRelatedChats?: Iterable<string> }) {
+	const model = disposables.add(new VisibleSessions(
+		candidate => seed?.activeChat ?? candidate.chats.get()[0] ?? candidate.mainChat.get(),
+		() => seed?.closedChats ?? [],
+		() => seed?.shownRelatedChats ?? [],
+		() => { },
+		new class extends mock<IUriIdentityService>() { override readonly extUri = extUriBiasedIgnorePathCase; },
+	));
+	model.setActive(session);
+	const pane = model.activePane.get()!;
+	return {
+		activeChat: derived(reader => pane.chat.read(reader)!),
+		modelId: derived(reader => pane.chat.read(reader)?.modelId.read(reader)),
+		mode: derived(reader => pane.chat.read(reader)?.mode.read(reader)),
+		openChats: pane.tabs.openChats,
+		closedChats: pane.tabs.closedChats,
+		get lastClosedChat() { return pane.tabs.lastClosedChat; },
+		visibleChatTabs: pane.tabs.visibleChatTabs,
+		shouldShowChatTabs: pane.tabs.shouldShowChatTabs,
+		openChat: (chat: IChat) => model.openChat(session, chat),
+		closeChat: (chat: IChat) => model.closeChat(session, chat),
+		setActiveChat: (chat: IChat) => model.setActiveChat(session, chat),
+	};
+}
+
 suite('VisibleSessions', () => {
 
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
@@ -81,12 +113,35 @@ suite('VisibleSessions', () => {
 		return model;
 	}
 
-	function snapshot(model: VisibleSessions, visible = model.visibleSessions.get()): { visible: (string | undefined)[]; active: string | undefined; sticky: string[] } {
+	function snapshot(model: VisibleSessions, visible = model.slotSessions.get()): { visible: (string | undefined)[]; active: string | undefined; sticky: string[] } {
 		return {
 			visible: visible.map(s => s?.sessionId),
-			active: model.activeSession.get()?.sessionId,
-			sticky: visible.filter((s): s is NonNullable<typeof s> => !!s && s.sticky.get()).map(s => s.sessionId),
+			active: activeOf(model)?.sessionId,
+			sticky: visible.filter((s): s is NonNullable<typeof s> => !!s && !!model.getSlot(s.sessionId)?.sticky).map(s => s.sessionId),
 		};
+	}
+
+	/** The session of the grid's active pane: `undefined` while the new-session slot, or no pane, is active. */
+	function activeOf(model: VisibleSessions): ISession | undefined {
+		return model.activePane.get()?.session.get();
+	}
+
+	/** The chat `pane` shows apart from its session's slot: a detached pane's chat; `undefined` for a slot. */
+	function detachedChatOf(pane: ISessionGridPane | undefined): URI | undefined {
+		return pane?.kind === SessionGridPaneKind.Detached ? pane.chat.get()?.resource : undefined;
+	}
+
+	/**
+	 * What the grid shows, as its slots' sessions in order (`undefined` for the new-session slot, none while the grid has no
+	 * slot of its own) and then its detached panes: each with its pane, and the chat a detached pane shows.
+	 */
+	function gridOf(model: VisibleSessions): ({ readonly pane: ISessionGridPane; readonly session: ISession; readonly chat: URI | undefined } | undefined)[] {
+		const panes = model.panes.get();
+		const entry = (pane: ISessionGridPane) => ({ pane, session: pane.session.get()!, chat: detachedChatOf(pane) });
+		return [
+			...model.slotSessions.get().map(session => session && entry(panes.find(pane => pane.kind === SessionGridPaneKind.Slot && pane.session.get() === session)!)),
+			...panes.filter(pane => pane.kind === SessionGridPaneKind.Detached).map(entry),
+		];
 	}
 
 	test('places a child independently beside another session without changing ownership', () => {
@@ -98,13 +153,13 @@ suite('VisibleSessions', () => {
 		model.restoreGrid([{ session, sticky: false }, { session: other, sticky: false }], 0);
 		const reference = model.getGridSlots()[1].id;
 		model.moveChatToGrid(session, child, reference, Direction.Down);
-		const detached = model.activeSession.get()!;
+		const detached = model.activePane.get()!;
 		const slots = model.getRenderedGridSlots();
 		assert.deepStrictEqual({
-			visible: model.visibleSessions.get().map(session => session?.sessionId),
-			panes: model.gridSessions.get().map(session => ({ session: session?.sessionId, chat: session?.scopedChatResource?.toString() })),
-			parentChats: model.visibleSessions.get()[0]?.visibleChatTabs.get().map(chat => chat.resource.toString()),
-			detachedChats: detached.visibleChatTabs.get().map(chat => chat.resource.toString()),
+			visible: model.slotSessions.get().map(session => session?.sessionId),
+			panes: gridOf(model).map(entry => ({ session: entry?.session.sessionId, chat: entry?.chat?.toString() })),
+			parentChats: gridOf(model)[0]?.pane.tabs.visibleChatTabs.get().map(chat => chat.resource.toString()),
+			detachedChats: detached.tabs.visibleChatTabs.get().map(chat => chat.resource.toString()),
 			origin: child.origin?.parentChat?.toString(),
 			placement: slots[2].placement,
 		}, {
@@ -124,13 +179,13 @@ suite('VisibleSessions', () => {
 		model.setActive(session);
 		const reference = model.getGridSlots()[0].id;
 		model.moveChatToGrid(session, child, reference, Direction.Right);
-		const pane = model.activeSession.get();
+		const pane = model.activePane.get();
 		const id = model.getRenderedGridSlots()[1].id;
 		model.setActive(session);
 		model.setActiveChat(session, child);
-		const selected = model.activeSession.get() === pane;
+		const selected = model.activePane.get() === pane;
 		model.moveChatToGrid(session, child, reference, Direction.Down);
-		assert.deepStrictEqual({ selected, samePane: model.activeSession.get() === pane, id: model.getRenderedGridSlots()[1].id }, {
+		assert.deepStrictEqual({ selected, samePane: model.activePane.get() === pane, id: model.getRenderedGridSlots()[1].id }, {
 			selected: true, samePane: true, id,
 		});
 	});
@@ -143,10 +198,10 @@ suite('VisibleSessions', () => {
 		const reference = model.getGridSlots()[0].id;
 		model.moveChatToGrid(session, child, reference, Direction.Right);
 		model.attachChat(session, child.resource);
-		const reattached = model.gridSessions.get().map(session => session?.visibleChatTabs.get().map(chat => chat.resource.toString()));
+		const reattached = gridOf(model).map(entry => entry?.pane.tabs.visibleChatTabs.get().map(chat => chat.resource.toString()));
 		model.moveChatToGrid(session, child, reference, Direction.Right);
 		model.removeMany([session.sessionId]);
-		assert.deepStrictEqual({ reattached, remaining: model.gridSessions.get(), slots: model.getRenderedGridSlots().length }, {
+		assert.deepStrictEqual({ reattached, remaining: gridOf(model), slots: model.getRenderedGridSlots().length }, {
 			reattached: [[stubChat.resource.toString(), child.resource.toString()]], remaining: [], slots: 1,
 		});
 	});
@@ -161,9 +216,9 @@ suite('VisibleSessions', () => {
 		], 1);
 		assert.deepStrictEqual({
 			ids: model.getRenderedGridSlots().map(slot => slot.id),
-			activeChat: model.activeSession.get()?.activeChat.get().resource.toString(),
-			owner: model.activeSession.get()?.sessionId,
-			scope: model.activeSession.get()?.scopedChatResource?.toString(),
+			activeChat: model.activePane.get()?.chat.get()?.resource.toString(),
+			owner: activeOf(model)?.sessionId,
+			scope: detachedChatOf(model.activePane.get())?.toString(),
 		}, { ids: ['parent-pane', 'child-pane'], activeChat: child.resource.toString(), owner: session.sessionId, scope: child.resource.toString() });
 	});
 
@@ -178,8 +233,8 @@ suite('VisibleSessions', () => {
 			];
 			model.restoreGrid(composerActive ? [...slots, { session: undefined, sticky: false, gridId: 'composer' }] : slots, composerActive ? 2 : 0);
 			assert.deepStrictEqual({
-				panes: model.gridSessions.get().map(session => session?.scopedChatResource?.toString()),
-				active: model.activeSession.get()?.activeChat.get().resource.toString(),
+				panes: gridOf(model).map(entry => entry?.chat?.toString()),
+				active: activeOf(model) && model.activePane.get()?.chat.get()?.resource.toString(),
 			}, {
 				panes: composerActive ? [undefined, child.resource.toString()] : [child.resource.toString()],
 				active: composerActive ? undefined : child.resource.toString(),
@@ -194,17 +249,17 @@ suite('VisibleSessions', () => {
 			const session = { ...stubSession('parent'), chats: constObservable([stubChat, child]) };
 			model.setActive(session);
 			model.moveChatToGrid(session, child, model.getGridSlots()[0].id, Direction.Right);
-			const pane = model.activeSession.get()!;
+			const pane = model.activePane.get()!;
 			const childSlot = model.getRenderedGridSlots()[1];
 			if (!childActive) {
 				model.setActive(session);
 			}
 			model.removeMany([session.sessionId], true);
 			assert.deepStrictEqual({
-				roots: model.visibleSessions.get(),
-				panes: model.gridSessions.get().map(session => session?.scopedChatResource?.toString()),
+				roots: model.slotSessions.get(),
+				panes: gridOf(model).map(entry => entry?.chat?.toString()),
 				slots: model.getRenderedGridSlots(),
-				activeRetained: model.activeSession.get() === pane,
+				activeRetained: model.activePane.get() === pane,
 			}, { roots: [], panes: [child.resource.toString()], slots: [childSlot], activeRetained: true });
 		});
 	}
@@ -216,16 +271,16 @@ suite('VisibleSessions', () => {
 		const other = stubSession('other');
 		model.setActive(other);
 		model.moveChatToGrid(parent, child, model.getGridSlots()[0].id, Direction.Right);
-		const standalone = model.activeSession.get()!;
+		const standalone = model.activePane.get()!;
 		const childSlot = model.getRenderedGridSlots()[1];
-		const alone = { roots: model.visibleSessions.get().map(session => session?.sessionId), pane: standalone.scopedChatResource?.toString() };
+		const alone = { roots: model.slotSessions.get().map(session => session?.sessionId), pane: detachedChatOf(standalone)?.toString() };
 		model.insertAtGridSlot(parent, childSlot.id, 'left', true);
 		const parentSlot = model.getGridSlots()[model.getSlot(parent.sessionId)!.index];
 		assert.deepStrictEqual({
 			alone,
-			roots: model.visibleSessions.get().map(session => session?.sessionId),
+			roots: model.slotSessions.get().map(session => session?.sessionId),
 			placement: parentSlot.placement,
-			parentTabs: model.activeSession.get()?.visibleChatTabs.get().map(chat => chat.resource.toString()),
+			parentTabs: model.activePane.get()?.tabs.visibleChatTabs.get().map(chat => chat.resource.toString()),
 			childRetained: model.getChatPane(parent.sessionId, child.resource) === standalone,
 		}, {
 			alone: { roots: ['other'], pane: child.resource.toString() },
@@ -244,14 +299,14 @@ suite('VisibleSessions', () => {
 		model.setActive(other);
 		model.moveChatToGrid(parent, child, model.getGridSlots()[0].id, Direction.Right);
 		model.attachChat(parent, child.resource);
-		const withOther = model.activeSession.get()?.sessionId;
+		const withOther = activeOf(model)?.sessionId;
 		model.moveChatToGrid(parent, child, model.getGridSlots()[0].id, Direction.Right);
 		model.removeMany([other.sessionId], true);
 		model.attachChat(parent, child.resource);
 		assert.deepStrictEqual({
 			withOther,
-			panes: model.gridSessions.get(),
-			active: model.activeSession.get(),
+			panes: gridOf(model),
+			active: activeOf(model),
 			slots: model.getRenderedGridSlots().length,
 		}, { withOther: other.sessionId, panes: [], active: undefined, slots: 1 });
 	});
@@ -263,9 +318,9 @@ suite('VisibleSessions', () => {
 		model.restoreGrid([{ session: parent, sticky: false, gridId: 'child-pane', chatResource: child.resource }], 0);
 		const replacement = { ...parent, title: constObservable('Updated Parent') };
 		model.updateSession(parent, replacement);
-		const rebound = { title: model.activeSession.get()?.title.get(), roots: model.visibleSessions.get().length, slot: model.getRenderedGridSlots()[0].id };
+		const rebound = { title: activeOf(model)?.title.get(), roots: model.slotSessions.get().length, slot: model.getRenderedGridSlots()[0].id };
 		model.removeMany([replacement.sessionId]);
-		assert.deepStrictEqual({ rebound, afterProviderRemoval: model.gridSessions.get() }, {
+		assert.deepStrictEqual({ rebound, afterProviderRemoval: gridOf(model) }, {
 			rebound: { title: 'Updated Parent', roots: 0, slot: 'child-pane' },
 			afterProviderRemoval: [],
 		});
@@ -276,7 +331,7 @@ suite('VisibleSessions', () => {
 		const child: IChat = { ...stubChat, resource: URI.parse('test:///child') };
 		const session = { ...stubSession('parent'), chats: constObservable([stubChat, child]) };
 		const updates: (string | undefined)[][] = [];
-		disposables.add(autorun(reader => updates.push(model.gridSessions.read(reader).map(session => session?.scopedChatResource?.toString() ?? session?.sessionId))));
+		disposables.add(autorun(reader => updates.push(model.panes.read(reader).map(pane => (pane.kind === SessionGridPaneKind.Detached ? pane.chat.read(reader)?.resource.toString() : undefined) ?? pane.session.read(reader)?.sessionId))));
 		transaction(tx => {
 			model.restoreGrid([
 				{ session, sticky: false, gridId: 'parent-pane' },
@@ -301,15 +356,15 @@ suite('VisibleSessions', () => {
 		model.updateSession(session, replacement);
 		const rebound = {
 			id: model.getRenderedGridSlots()[1].id,
-			title: model.activeSession.get()?.title.get(),
-			chat: model.activeSession.get()?.scopedChatResource?.toString(),
+			title: activeOf(model)?.title.get(),
+			chat: detachedChatOf(model.activePane.get())?.toString(),
 		};
 		replacement.chats.set([stubChat], undefined);
-		assert.deepStrictEqual({ rebound, remaining: model.gridSessions.get().length, activeScope: model.activeSession.get()?.scopedChatResource },
+		assert.deepStrictEqual({ rebound, remaining: gridOf(model).length, activeScope: detachedChatOf(model.activePane.get()) },
 			{ rebound: { id, title: 'Replaced', chat: child.resource.toString() }, remaining: 1, activeScope: undefined });
 	});
 
-	test('forwards session metadata through visible and resource-override wrappers', () => {
+	test('the active pane shows the provider\'s session itself, with its metadata', () => {
 		const hasGitRepository = observableValue('hasGitRepository', false);
 		const completedStateIcon = observableValue('completedStateIcon', Codicon.gitMerge);
 		const isExternal = observableValue('isExternal', true);
@@ -317,27 +372,164 @@ suite('VisibleSessions', () => {
 		const session = { ...stubSession('A'), completedStateIcon, hasGitRepository, isExternal, remoteConnectionStatus };
 		const model = createModel();
 		model.setActive(session);
-		const visible = model.activeSession.get();
-		const resourceOverride = model.updateResourceOfSession(session, URI.parse('test:///override'));
+		const visible = activeOf(model);
 
 		assert.deepStrictEqual({
-			visible: visible?.hasGitRepository === hasGitRepository,
-			resourceOverride: resourceOverride.hasGitRepository === hasGitRepository,
-			visibleCompletedStateIcon: visible?.completedStateIcon === completedStateIcon,
-			resourceOverrideCompletedStateIcon: resourceOverride.completedStateIcon === completedStateIcon,
-			visibleExternal: visible?.isExternal === isExternal,
-			resourceOverrideExternal: resourceOverride.isExternal === isExternal,
-			visibleRemoteConnectionStatus: visible?.remoteConnectionStatus === remoteConnectionStatus,
-			resourceOverrideRemoteConnectionStatus: resourceOverride.remoteConnectionStatus === remoteConnectionStatus,
+			hasGitRepository: visible?.hasGitRepository === hasGitRepository,
+			completedStateIcon: visible?.completedStateIcon === completedStateIcon,
+			isExternal: visible?.isExternal === isExternal,
+			remoteConnectionStatus: visible?.remoteConnectionStatus === remoteConnectionStatus,
 		}, {
-			visible: true,
-			resourceOverride: true,
-			visibleCompletedStateIcon: true,
-			resourceOverrideCompletedStateIcon: true,
-			visibleExternal: true,
-			resourceOverrideExternal: true,
-			visibleRemoteConnectionStatus: true,
-			resourceOverrideRemoteConnectionStatus: true,
+			hasGitRepository: true,
+			completedStateIcon: true,
+			isExternal: true,
+			remoteConnectionStatus: true,
+		});
+	});
+
+	suite('panes', () => {
+
+		function parentWithChild() {
+			const child: IChat = { ...stubChat, resource: URI.parse('test:///child'), origin: { kind: ChatOriginKind.SideChat, parentChat: stubChat.resource } };
+			const session = { ...stubSession('parent'), chats: constObservable([stubChat, child]) };
+			return { session, child };
+		}
+
+		function describe(pane: ISessionGridPane | undefined) {
+			return pane && {
+				id: pane.id,
+				kind: pane.kind,
+				session: pane.session.get()?.sessionId,
+				chat: pane.chat.get()?.resource.path,
+				sticky: pane.sticky.get(),
+				tabs: pane.tabs.visibleChatTabs.get().map(chat => chat.resource.path),
+				showsTabs: pane.tabs.shouldShowChatTabs.get(),
+			};
+		}
+
+		test('a slot and a detached pane of one session show the same session object; each keeps its id while the chat moves in and out', () => {
+			const model = createModel();
+			const { session, child } = parentWithChild();
+			const empty = describe(model.activePane.get());
+			model.restoreGrid([{ session, sticky: true }], 0);
+			const [slotId] = model.getGridSlots().map(slot => slot.id);
+			model.moveChatToGrid(session, child, slotId, Direction.Right);
+			const [slot, detached] = model.panes.get();
+			const whileDetached = {
+				panes: model.panes.get().map(describe),
+				active: model.activePane.get()?.id,
+				sameSession: slot.session.get() === detached.session.get() && slot.session.get() === session,
+			};
+			model.attachChat(session, child.resource);
+
+			assert.deepStrictEqual({ empty, whileDetached, afterAttach: model.panes.get().map(describe) }, {
+				empty: { id: 'initial', kind: SessionGridPaneKind.Slot, session: undefined, chat: undefined, sticky: false, tabs: [], showsTabs: false },
+				whileDetached: {
+					panes: [
+						{ id: slotId, kind: SessionGridPaneKind.Slot, session: 'parent', chat: '/chat', sticky: true, tabs: ['/chat'], showsTabs: true },
+						{ id: detached.id, kind: SessionGridPaneKind.Detached, session: 'parent', chat: '/child', sticky: false, tabs: ['/child'], showsTabs: true },
+					],
+					active: detached.id,
+					sameSession: true,
+				},
+				afterAttach: [{ id: slotId, kind: SessionGridPaneKind.Slot, session: 'parent', chat: '/chat', sticky: true, tabs: ['/chat', '/child'], showsTabs: true }],
+			});
+		});
+
+		for (const sameId of [true, false]) {
+			for (const activeReplaced of [true, false]) {
+				test(`a replacement of the session (${sameId ? 'same' : 'different'} id, ${activeReplaced ? 'its pane active' : 'another pane active'}) keeps the panes and their ids, and publishes their session and chat together with the grid and the active session`, () => {
+					const model = createModel();
+					const { session, child } = parentWithChild();
+					const other = stubSession('other');
+					model.restoreGrid([{ session, sticky: false }, { session: other, sticky: false }], 1);
+					model.moveChatToGrid(session, child, model.getGridSlots()[0].id, Direction.Right);
+					model.setActive(activeReplaced ? session : other);
+					const before = model.panes.get();
+					const sessionsBefore = before.map(pane => pane.session.get());
+					const replacement = { ...session, sessionId: sameId ? session.sessionId : 'replaced', resource: URI.parse('test:///replaced') };
+					const seen: string[] = [];
+					const store = new DisposableStore();
+					store.add(autorun(reader => {
+						// The grid, its panes and the active session change in one transaction: no reader sees one without the others.
+						const panes = model.panes.read(reader);
+						const detached = panes.filter(pane => pane.kind === SessionGridPaneKind.Detached).map(pane => pane.session.read(reader));
+						const grid = [...model.slotSessions.read(reader), ...detached].map(session => session?.resource.path).join(',');
+						const shown = panes.map(pane => `${pane.session.read(reader)?.resource.path}${pane.chat.read(reader)?.resource.path}`).join(',');
+						const activePane = model.activePane.read(reader);
+						seen.push(`${grid} | ${shown} | active ${activePane?.session.read(reader)?.resource.path} in pane ${activePane && panes.indexOf(activePane)} showing ${activePane?.session.read(reader)?.resource.path}`);
+					}));
+					model.updateSession(session, replacement);
+					store.dispose();
+					const after = model.panes.get();
+					const active = activeReplaced ? '/parent' : '/other';
+					const activeAfter = activeReplaced ? '/replaced' : '/other';
+					const activeIndex = activeReplaced ? 0 : 1;
+
+					assert.deepStrictEqual({
+						samePanes: before.length === after.length && before.every((pane, index) => pane === after[index]),
+						ids: after.map(pane => pane.id),
+						newSessions: after.map((pane, index) => pane.session.get() !== sessionsBefore[index]),
+						sessions: after.map(pane => pane.session.get() === replacement),
+						seen,
+					}, {
+						samePanes: true,
+						ids: before.map(pane => pane.id),
+						newSessions: [true, false, true],
+						sessions: [true, false, true],
+						seen: [
+							`/parent,/other,/parent | /parent/chat,/other/chat,/parent/child | active ${active} in pane ${activeIndex} showing ${active}`,
+							`/replaced,/other,/replaced | /replaced/chat,/other/chat,/replaced/child | active ${activeAfter} in pane ${activeIndex} showing ${activeAfter}`,
+						],
+					});
+				});
+			}
+		}
+
+		test('a replacement of the session seeds the pane\'s tabs from the persisted session state again, rather than carrying over the closed tabs of the replaced session', () => {
+			const peer: IChat = { ...stubChat, resource: URI.parse('test:///peer') };
+			const child: IChat = { ...stubChat, resource: URI.parse('test:///child') };
+			const session = { ...stubSession('parent'), chats: constObservable([stubChat, peer, child]) };
+			// The persisted state of the session: its peer chat is closed.
+			const persistedClosed = new Map([[session.resource.toString(), [peer.resource.toString()]]]);
+			const model = disposables.add(new VisibleSessions(
+				candidate => candidate.mainChat.get(),
+				candidate => persistedClosed.get(candidate.resource.toString()) ?? [],
+				() => [],
+				() => { },
+				new class extends mock<IUriIdentityService>() { override readonly extUri = extUriBiasedIgnorePathCase; },
+			));
+			model.restoreGrid([{ session, sticky: false }], 0);
+			const [pane] = model.panes.get();
+			// Closed in memory only: the service persists closed tabs, the model does not.
+			model.closeChat(session, child);
+			const closedBefore = pane.tabs.closedChats.get().map(chat => chat.resource.path);
+			model.updateSession(session, { ...session });
+
+			assert.deepStrictEqual({
+				samePane: model.panes.get()[0] === pane,
+				closedBefore,
+				closedAfter: pane.tabs.closedChats.get().map(chat => chat.resource.path),
+				openAfter: pane.tabs.openChats.get().map(chat => chat.resource.path),
+			}, {
+				samePane: true,
+				closedBefore: ['/peer', '/child'],
+				closedAfter: ['/peer'],
+				openAfter: ['/chat', '/child'],
+			});
+		});
+
+		test('the session leaving the grid removes its slot and detached panes', () => {
+			const model = createModel();
+			const { session, child } = parentWithChild();
+			const other = stubSession('other');
+			model.restoreGrid([{ session, sticky: false }, { session: other, sticky: false }], 0);
+			model.moveChatToGrid(session, child, model.getGridSlots()[0].id, Direction.Right);
+			model.removeMany([session.sessionId]);
+
+			assert.deepStrictEqual(model.panes.get().map(describe), [
+				{ id: model.getGridSlots()[0].id, kind: SessionGridPaneKind.Slot, session: 'other', chat: '/chat', sticky: false, tabs: ['/chat'], showsTabs: false },
+			]);
 		});
 	});
 
@@ -442,9 +634,9 @@ suite('VisibleSessions', () => {
 			model.setActive(A);
 			model.toggleStickiness(A);     // [A] sticky:[A]
 			model.setActive(B);            // [A, B] active:B
-			const visibleSessionsBeforeActivation = model.visibleSessions.get();
+			const visibleSessionsBeforeActivation = model.slotSessions.get();
 			model.setActive(A);            // [A, B] active:A — A keeps its slot
-			const visibleSessionsAfterActivation = model.visibleSessions.get();
+			const visibleSessionsAfterActivation = model.slotSessions.get();
 
 			assert.deepStrictEqual({
 				...snapshot(model, visibleSessionsAfterActivation),
@@ -498,9 +690,9 @@ suite('VisibleSessions', () => {
 			model.toggleStickiness(A);     // [A] sticky:[A]
 			model.setActive(undefined);    // [A, undefined] active:undefined (empty slot)
 			model.setActive(A);            // active flips to A (sticky); empty slot remains
-			const visibleSessionsBeforeActivation = model.visibleSessions.get();
+			const visibleSessionsBeforeActivation = model.slotSessions.get();
 			model.setActive(undefined);    // activates the existing empty slot
-			const visibleSessionsAfterActivation = model.visibleSessions.get();
+			const visibleSessionsAfterActivation = model.slotSessions.get();
 
 			assert.deepStrictEqual({
 				...snapshot(model, visibleSessionsAfterActivation),
@@ -995,7 +1187,7 @@ suite('VisibleSessions', () => {
 			const states: { active: string | undefined; preserveFocus: boolean }[] = [];
 			disposables.add(autorun(reader => {
 				states.push({
-					active: model.activeSession.read(reader)?.sessionId,
+					active: model.activePane.read(reader)?.session.read(reader)?.sessionId,
 					preserveFocus: model.activePreserveFocus.read(reader),
 				});
 			}));
@@ -1010,19 +1202,19 @@ suite('VisibleSessions', () => {
 			]);
 		});
 
-		test('replaces the wrapper even when the session id is unchanged', () => {
+		test('replaces the session of the pane even when the session id is unchanged', () => {
 			const model = createModel();
 			const A = stubSession('A');
 			const Av2 = stubSession('A');
 
 			model.setActive(A);
-			const originalWrapper = model.activeSession.get();
+			const originalSession = activeOf(model);
 
 			model.updateSession(A, Av2);
 
-			const newWrapper = model.activeSession.get();
-			assert.strictEqual(newWrapper?.sessionId, 'A');
-			assert.notStrictEqual(newWrapper, originalWrapper);
+			const newSession = activeOf(model);
+			assert.strictEqual(newSession?.sessionId, 'A');
+			assert.notStrictEqual(newSession, originalSession);
 			assert.deepStrictEqual(snapshot(model), {
 				visible: ['A'],
 				active: 'A',
@@ -1226,29 +1418,7 @@ suite('VisibleSessions', () => {
 	});
 });
 
-suite('VisibleSession - property forwarding', () => {
-
-	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
-
-	// The wrapper forwards each ISession property by hand, so a newly added
-	// property is easy to drop silently (artifacts was, and its pill never showed).
-	test('forwards every session property, including optional ones', () => {
-		const session: ISession = {
-			...stubSession('S'),
-			artifacts: constObservable([]),
-		};
-		const visible = disposables.add(new VisibleSession(session, stubChat));
-
-		// `modelId` / `mode` intentionally reflect the active chat instead.
-		const perChatOverrides: ReadonlySet<string> = new Set(['modelId', 'mode']);
-		const notForwarded = (Object.keys(session) as (keyof ISession)[])
-			.filter(key => !perChatOverrides.has(key) && visible[key] !== session[key]);
-
-		assert.deepStrictEqual(notForwarded, []);
-	});
-});
-
-suite('VisibleSession - open/close chats', () => {
+suite('VisibleSessions - slot open/close chats', () => {
 
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
@@ -1264,12 +1434,12 @@ suite('VisibleSession - open/close chats', () => {
 		const chatsObs = observableValue<readonly IChat[]>('chats', chats);
 		const base = stubSession('S');
 		const session: ISession = { ...base, chats: chatsObs, mainChat: constObservable(chats[0]) };
-		const visible = disposables.add(new VisibleSession(session, initialActiveChat ?? chats[0], initialClosedChatUris));
+		const visible = slotOf(disposables, session, { activeChat: initialActiveChat ?? chats[0], closedChats: initialClosedChatUris });
 		const ids = (list: readonly IChat[]) => list.map(c => c.title.get());
 		return { visible, chatsObs, ids };
 	}
 
-	function snapshot(visible: VisibleSession, ids: (list: readonly IChat[]) => string[]) {
+	function snapshot(visible: ReturnType<typeof slotOf>, ids: (list: readonly IChat[]) => string[]) {
 		return {
 			open: ids(visible.openChats.get()),
 			closed: ids(visible.closedChats.get()),
@@ -1427,7 +1597,7 @@ suite('VisibleSession - open/close chats', () => {
 	});
 });
 
-suite('VisibleSession - visibleChatTabs', () => {
+suite('VisibleSessions - slot visibleChatTabs', () => {
 
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
@@ -1444,7 +1614,7 @@ suite('VisibleSession - visibleChatTabs', () => {
 	function createSession(chats: IChat[], initialShownRelatedChatUris?: Iterable<string>) {
 		const base = stubSession('S');
 		const session: ISession = { ...base, chats: constObservable(chats), mainChat: constObservable(chats[0]) };
-		return disposables.add(new VisibleSession(session, chats[0], undefined, initialShownRelatedChatUris));
+		return slotOf(disposables, session, { activeChat: chats[0], shownRelatedChats: initialShownRelatedChatUris });
 	}
 
 	test('keeps provider order and hides tool-origin (subagent) chats by default', () => {
@@ -1514,7 +1684,7 @@ suite('VisibleSession - visibleChatTabs', () => {
 	});
 });
 
-suite('VisibleSession - shouldShowChatTabs', () => {
+suite('VisibleSessions - slot shouldShowChatTabs', () => {
 
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
@@ -1531,7 +1701,7 @@ suite('VisibleSession - shouldShowChatTabs', () => {
 	function createSession(sessionTitle: string, chats: IChat[]) {
 		const base = stubSession('S');
 		const session: ISession = { ...base, title: constObservable(sessionTitle), chats: constObservable(chats), mainChat: constObservable(chats[0]) };
-		return disposables.add(new VisibleSession(session, chats[0]));
+		return slotOf(disposables, session, { activeChat: chats[0] });
 	}
 
 	test('hidden for a single chat matching the session title', () => {
@@ -1580,7 +1750,7 @@ suite('VisibleSession - shouldShowChatTabs', () => {
 		const main = makeChat('main', 'Title');
 		const base = stubSession('S');
 		const session: ISession = { ...base, title: constObservable('Title'), chats: constObservable<readonly IChat[]>([]), mainChat: constObservable(main) };
-		const visible = disposables.add(new VisibleSession(session, main));
+		const visible = slotOf(disposables, session, { activeChat: main });
 		assert.strictEqual(visible.shouldShowChatTabs.get(), false);
 	});
 
@@ -1604,7 +1774,7 @@ suite('VisibleSession - shouldShowChatTabs', () => {
 	});
 });
 
-suite('VisibleSession - side chat tabs', () => {
+suite('VisibleSessions - slot side chat tabs', () => {
 
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
@@ -1622,7 +1792,7 @@ suite('VisibleSession - side chat tabs', () => {
 		const base = stubSession('S');
 		const chatsObs = observableValue<readonly IChat[]>('chats', chats);
 		const session: ISession = { ...base, chats: chatsObs, mainChat: constObservable(chats[0]) };
-		const visible = disposables.add(new VisibleSession(session, chats[0]));
+		const visible = slotOf(disposables, session, { activeChat: chats[0] });
 		return { visible, chatsObs };
 	}
 
@@ -1703,15 +1873,16 @@ suite('VisibleSessions - active chat removal fallback', () => {
 		const tool = makeChat('tool', ChatOriginKind.Tool);
 		const { session, chatsObs } = createSession([main, side, tool]);
 		const model = createModel();
-		const visible = model.setActive(session)!;
+		model.setActive(session);
+		const visible = model.activePane.get()!;
 
-		visible.setActiveChat(side);
+		model.setActiveChat(session, side);
 		chatsObs.set([main, tool], undefined);
 
 		assert.deepStrictEqual({
-			active: visible.activeChat.get().title.get(),
-			open: visible.openChats.get().map(c => c.title.get()),
-			visible: visible.visibleChatTabs.get().map(c => c.title.get()),
+			active: visible.chat.get()?.title.get(),
+			open: visible.tabs.openChats.get().map(c => c.title.get()),
+			visible: visible.tabs.visibleChatTabs.get().map(c => c.title.get()),
 		}, {
 			active: 'main',
 			open: ['main', 'tool'],
@@ -1725,15 +1896,16 @@ suite('VisibleSessions - active chat removal fallback', () => {
 		const tool = makeChat('tool', ChatOriginKind.Tool);
 		const { session, chatsObs } = createSession([main, side, tool]);
 		const model = createModel();
-		const visible = model.setActive(session)!;
+		model.setActive(session);
+		const visible = model.activePane.get()!;
 
-		visible.openChat(tool);
-		visible.setActiveChat(side);
+		model.openChat(session, tool);
+		model.setActiveChat(session, side);
 		chatsObs.set([main, tool], undefined);
 
 		assert.deepStrictEqual({
-			active: visible.activeChat.get().title.get(),
-			visible: visible.visibleChatTabs.get().map(c => c.title.get()),
+			active: visible.chat.get()?.title.get(),
+			visible: visible.tabs.visibleChatTabs.get().map(c => c.title.get()),
 		}, {
 			active: 'tool',
 			visible: ['main', 'tool'],
@@ -1745,15 +1917,16 @@ suite('VisibleSessions - active chat removal fallback', () => {
 		const second = makeChat('second', ChatOriginKind.SideChat);
 		const { session } = createSession([main, second]);
 		const model = createModel();
-		const visible = model.setActive(session)!;
-		visible.openChat(second);
+		model.setActive(session);
+		const visible = model.activePane.get()!;
+		model.openChat(session, second);
 
-		const before = visible.openChats.get().map(c => c.title.get());
+		const before = visible.tabs.openChats.get().map(c => c.title.get());
 		const hold = model.hideChatFromGrid(session.sessionId, second.resource);
-		const inWindow = visible.openChats.get().map(c => c.title.get());
+		const inWindow = visible.tabs.openChats.get().map(c => c.title.get());
 		hold.dispose();
 
-		assert.deepStrictEqual({ before, inWindow, back: visible.openChats.get().map(c => c.title.get()) }, {
+		assert.deepStrictEqual({ before, inWindow, back: visible.tabs.openChats.get().map(c => c.title.get()) }, {
 			before: ['main', 'second'],
 			inWindow: ['main'],
 			back: ['main', 'second'],
@@ -1761,7 +1934,7 @@ suite('VisibleSessions - active chat removal fallback', () => {
 	});
 });
 
-suite('VisibleSession - per-chat model/mode', () => {
+suite('VisibleSessions - slot per-chat model/mode', () => {
 
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
@@ -1781,7 +1954,7 @@ suite('VisibleSession - per-chat model/mode', () => {
 		const second = makeChat('second', 'model-2', 'agent-2');
 		const base = stubSession('S');
 		const session: ISession = { ...base, chats: constObservable([first, second]), mainChat: constObservable(first) };
-		const visible = disposables.add(new VisibleSession(session, first));
+		const visible = slotOf(disposables, session, { activeChat: first });
 
 		assert.deepStrictEqual(
 			{ modelId: visible.modelId.get(), mode: visible.mode.get() },

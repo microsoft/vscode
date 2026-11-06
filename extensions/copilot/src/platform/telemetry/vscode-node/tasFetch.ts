@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IFetcherService } from '../../networking/common/fetcherService';
+import { INTEGRATION_ID } from '../../endpoint/common/licenseAgreement';
 
 /**
  * Builds the transport that TAS uses for both the legacy (GET) and the assignments (POST)
@@ -16,7 +17,7 @@ export function createTasFetch(fetcherService: IFetcherService) {
 	return (url: string, init: { method: 'GET' | 'POST'; headers: Record<string, string>; body?: string }) =>
 		fetcherService.fetch(url, {
 			method: init.method,
-			headers: init.headers,
+			headers: { ...init.headers, integratorid: INTEGRATION_ID },
 			body: init.body,
 			callSite: init.method === 'POST' ? 'exp.assignments' : 'exp.legacy',
 		});

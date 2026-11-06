@@ -59,7 +59,6 @@ import { NEW_WORKTREE_LABEL } from '../../../browser/chat/branchPicker.js';
 import { ISessionChangesService } from '../../../browser/changes/sessionChangesService.js';
 import { CHANGES_VIEW_ID } from '../../../common/changes.js';
 import { ISessionsProvidersService } from '../../../browser/sessionsProvidersService.js';
-import { IHostSession } from '../../../common/sessionsManagement.js';
 import { getFocusedSessionChatSource, IFocusedSessionHostService, InSessionHostScopeContext, ISessionChatSource, ISessionHost } from '../../../browser/sessionHost.js';
 import { ISessionsService } from '../../../browser/sessionsService.js';
 import type { ISessionsProvider } from '../../../common/sessionsProvider.js';
@@ -83,11 +82,12 @@ import { getOrganizationDefaultApprovalLevel, isAutoApproveValuePolicyRestricted
 import { getPermissionLevelBadge } from '../../../../chat/browser/agentSessions/agentHost/agentHostModePickerPresentation.js';
 import { BRANCH_PICKER_MAX_VISIBLE_ITEMS, ensureSelectedBranchPickerItem, filterBranchPickerItems } from '../../../../chat/browser/agentSessions/agentHost/agentHostBranchPicker.js';
 import { CodexSessionConfigKey } from '../../../../../../platform/agentHost/common/codexSessionConfigKeys.js';
-import { type IChat, type ISessionChangeset, type ISessionFileChange, UNCOMMITTED_CHANGES_CHANGESET_ID } from '../../../common/session.js';
+import { type IChat, type ISessionChangeset, type ISessionFileChange, UNCOMMITTED_CHANGES_CHANGESET_ID, ISession } from '../../../common/session.js';
 import { MarkdownString } from '../../../../../../base/common/htmlContent.js';
 import { IUncommittedChangesListItem, IWorktreeSuggestion, IWorktreeSuggestionService } from '../../../browser/worktreeSuggestion/worktreeSuggestionService.js';
 import { getChangedFileUri, getUncommittedFilesDescription, getUncommittedFilesSectionLabel } from '../../../browser/worktreeSuggestion/worktreeSuggestionPresentation.js';
 import { WorktreeSuggestionVariant } from '../../../common/worktreeSuggestion.js';
+import { readPaneSessions } from '../../../browser/sessionGridPane.js';
 
 const ExperimentalSessionComposerLayout = SessionUsesExperimentalComposerLayoutContext;
 const LegacySessionComposerLayout = SessionUsesExperimentalComposerLayoutContext.negate();
@@ -639,7 +639,7 @@ export class AgentHostSessionConfigPicker extends Disposable {
 	 */
 	private readonly _dynamicValueLabels = new Map<string, Map<string, string>>();
 
-	protected readonly _session: IObservable<IHostSession | undefined>;
+	protected readonly _session: IObservable<ISession | undefined>;
 	/** The chat of {@link _session} whose config the picker shows and sets. */
 	protected readonly _chat: IObservable<IChat | undefined>;
 
@@ -773,7 +773,7 @@ export class AgentHostSessionConfigPicker extends Disposable {
 			this._openedPickerSessionId = undefined;
 		}
 		this._evictDynamicValueLabelsForOtherSessions(session?.sessionId);
-		const provider = session ? this._getProvider(session.providerId) : undefined;
+		const provider = session ? this._getProvider(session.providerId, session.sessionId) : undefined;
 		const chat = this._chat.get();
 		const resolvedConfig = session && chat && provider?.getSessionConfig(session.sessionId, chat.resource);
 		if (!session || !chat || !provider || !resolvedConfig) {
@@ -788,12 +788,6 @@ export class AgentHostSessionConfigPicker extends Disposable {
 		// non-mutable properties like `isolation` must remain visible and
 		// interactive there.
 		const isNewSession = provider.getCreateSessionConfig(session.sessionId) !== undefined;
-		// Disable interactions while a resolve is in flight. Schema is
-		// preserved so chips stay visible. Not `session.loading` —
-		// that also covers the required-values-missing state where
-		// chips must remain interactive.
-		const isLoading = provider.isSessionConfigResolving(session.sessionId, chat.resource).get();
-
 		const properties = this._orderProperties(Object.entries(resolvedConfig.schema.properties));
 		let renderedIsolationCheckbox = false;
 
@@ -809,8 +803,8 @@ export class AgentHostSessionConfigPicker extends Disposable {
 			}
 			const value = resolvedConfig.values[property] ?? schema.default;
 			const presentation = getSessionConfigPresentationKey(property, resolvedConfig.schema);
-			const isReadOnly = this._isReadOnlyChip(property, schema, isNewSession)
-				|| (this._requiresBranchCheckout(provider, session.sessionId, property) && !this._getCheckoutChangeset(session.sessionId));
+			const isReadOnly = this._isReadOnlyChip(property, schema, isNewSession);
+			const isLoading = this._isPickerDisabled(provider, session.sessionId, property);
 			if (presentation === SessionConfigKey.Isolation && !isNewSession && this._shouldRenderIsolationAsCheckbox(schema)) {
 				this._renderIsolationCheckbox(provider, session.sessionId, schema, value, isReadOnly, !isReadOnly && isLoading);
 				this._focusableElement = this._isolationCheckbox.value?.checkbox.domNode;
@@ -1032,9 +1026,11 @@ export class AgentHostSessionConfigPicker extends Disposable {
 		return chat && provider.getSessionConfig(sessionId, chat);
 	}
 
-	protected _isSessionConfigResolving(provider: IAgentHostSessionsProvider, sessionId: string): boolean {
+	protected _isPickerDisabled(provider: IAgentHostSessionsProvider, sessionId: string, property: string): boolean {
 		const chat = this._getChat(provider, sessionId);
-		return !!chat && provider.isSessionConfigResolving(sessionId, chat).get();
+		// Checkout operations hydrate after the draft config; their absence does not make the schema read-only.
+		return (!!chat && provider.isSessionConfigResolving(sessionId, chat).get())
+			|| (this._requiresBranchCheckout(provider, sessionId, property) && !this._getCheckoutChangeset(sessionId));
 	}
 
 	protected _getCheckoutChangeset(sessionId: string): ISessionChangeset | undefined {
@@ -1265,7 +1261,7 @@ export class AgentHostSessionConfigPicker extends Disposable {
 		if (!session || session.sessionId !== sessionId) {
 			return;
 		}
-		const provider = this._getProvider(session.providerId);
+		const provider = this._getProvider(session.providerId, session.sessionId);
 		const resolvedConfig = provider && this._getSessionConfig(provider, sessionId);
 		const isolationProperty = resolvedConfig && getSessionWorkspaceProperties(resolvedConfig.schema).isolation;
 		if (!provider || !resolvedConfig || !isolationProperty) {
@@ -1296,7 +1292,7 @@ export class AgentHostSessionConfigPicker extends Disposable {
 		}
 		// Mobile bottom-sheet override dispatches through this entry
 		// point, so guard here for both invocation paths.
-		if (this._isSessionConfigResolving(provider, sessionId)) {
+		if (this._isPickerDisabled(provider, sessionId, property)) {
 			return;
 		}
 
@@ -1373,7 +1369,7 @@ export class AgentHostSessionConfigPicker extends Disposable {
 					item.run();
 					return;
 				}
-				if (item.disabled || !this._isCurrentSession(provider, sessionId) || this._isSessionConfigResolving(provider, sessionId)) {
+				if (item.disabled || !this._isCurrentSession(provider, sessionId) || this._isPickerDisabled(provider, sessionId, property)) {
 					return;
 				}
 				if (presentation === SessionConfigKey.Isolation && item.value === 'worktree'
@@ -1484,7 +1480,7 @@ export class AgentHostSessionConfigPicker extends Disposable {
 
 	protected _isCurrentSession(provider: IAgentHostSessionsProvider, sessionId: string): boolean {
 		const session = this._session.get();
-		return !!session && session.sessionId === sessionId && this._getProvider(session.providerId) === provider;
+		return !!session && session.sessionId === sessionId && this._getProvider(session.providerId, session.sessionId) === provider;
 	}
 
 	private async _showChanges(): Promise<void> {
@@ -1645,18 +1641,18 @@ export class AgentHostSessionConfigPicker extends Disposable {
 			&& schema.enum?.length === 2
 			&& !schema.enumDynamic
 			&& session?.sessionId === sessionId
-			&& this._getProvider(session.providerId)?.getCreateSessionConfig(sessionId) !== undefined;
+			&& this._getProvider(session.providerId, session.sessionId)?.getCreateSessionConfig(sessionId) !== undefined;
 	}
 
-	protected _getProvider(providerId: string): IAgentHostSessionsProvider | undefined {
-		const provider = this._sessionsProvidersService.getProvider(providerId);
+	protected _getProvider(providerId: string, sessionId?: string): IAgentHostSessionsProvider | undefined {
+		const provider = this._sessionsProvidersService.getProvider(providerId, sessionId);
 		return provider && isAgentHostProvider(provider) ? provider : undefined;
 	}
 
 	protected _presentationProperty(sessionId: string, property: string): string {
 		const session = this._session.get();
 		const chat = this._chat.get();
-		const config = session?.sessionId === sessionId && chat ? this._getProvider(session.providerId)?.getSessionConfig(sessionId, chat.resource) : undefined;
+		const config = session?.sessionId === sessionId && chat ? this._getProvider(session.providerId, session.sessionId)?.getSessionConfig(sessionId, chat.resource) : undefined;
 		return config ? getSessionConfigPresentationKey(property, config.schema) : property;
 	}
 }
@@ -1725,7 +1721,7 @@ class MobileAgentHostSessionConfigPicker extends AgentHostSessionConfigPicker {
 
 		// Mirror the base `_showPicker` guard (the repo-sheet path below bypasses
 		// it): bail while resolving so injected disabled chips don't open a sheet.
-		if (this._isSessionConfigResolving(provider, sessionId)) {
+		if (this._isPickerDisabled(provider, sessionId, property)) {
 			return;
 		}
 
@@ -2053,7 +2049,7 @@ export class AgentHostSessionConfigPickerContribution extends Disposable impleme
 		// callbacks, which run at `AfterRestored` — well after both
 		// modules have finished evaluating.
 		this._register(autorun(reader => {
-			this._sessionsService.visibleSessions.read(reader);
+			readPaneSessions(this._sessionsService.slotPanes, reader);
 			this._refreshRepositoryMenuItems(actionViewItemService);
 		}));
 		this._watchProviders(this._sessionsProvidersService.getProviders({ includeSessionBackends: true }), actionViewItemService);
@@ -2143,7 +2139,7 @@ export class AgentHostSessionConfigPickerContribution extends Disposable impleme
 			}
 			// Menu items are derived only from visible sessions; refreshing them recreates the repository pickers.
 			this._providerListeners.set(provider.id, provider.onDidChangeSessionConfig(sessionId => {
-				if (this._sessionsService.visibleSessions.get().some(session => session?.sessionId === sessionId)) {
+				if (readPaneSessions(this._sessionsService.slotPanes, undefined).some(session => session.sessionId === sessionId)) {
 					this._refreshRepositoryMenuItems(actionViewItemService);
 				}
 			}));
@@ -2152,15 +2148,16 @@ export class AgentHostSessionConfigPickerContribution extends Disposable impleme
 
 	private _refreshRepositoryMenuItems(actionViewItemService: IActionViewItemService): void {
 		this._repositoryMenuItems.clear();
-		for (const session of this._sessionsService.visibleSessions.get()) {
+		for (const pane of this._sessionsService.slotPanes.get()) {
+			const session = pane.session.get();
 			if (!session) {
 				continue;
 			}
-			const provider = this._sessionsProvidersService.getProvider(session.providerId);
+			const provider = this._sessionsProvidersService.getProvider(session.providerId, session.sessionId);
 			if (!provider || !isAgentHostProvider(provider)) {
 				continue;
 			}
-			const config = provider.getSessionConfig(session.sessionId, session.activeChat.get().resource);
+			const config = provider.getSessionConfig(session.sessionId, (pane.chat.get() ?? session.mainChat.get()).resource);
 			if (!config) {
 				continue;
 			}

@@ -51,8 +51,9 @@ export interface ISessionCreationEnvironment {
 }
 
 export function getSessionCreationEnvironments(providers: readonly ISessionsProvider[]): ISessionCreationEnvironment[] {
+	// Container-backed providers are offered as the Dev Container option of their source environment, not as separate environments.
 	const visible = providers.filter(provider => provider.supportsWorkspaceSelection !== false
-		&& (!isAgentHostProvider(provider) || provider.isVisibleInEnvironmentPicker?.get() !== false));
+		&& (!isAgentHostProvider(provider) || provider.isVisibleInEnvironmentPicker?.get() !== false && !provider.devContainerSourceWorkspace));
 	const local = visible.filter(provider => provider.environment.id === 'local');
 	const cloud = visible.filter(provider => provider.environment.id === 'cloud' && !isAgentHostProvider(provider));
 	const environments: ISessionCreationEnvironment[] = [];

@@ -113,6 +113,7 @@ import { IAgentHostOTelService, NullAgentHostOTelService } from '../../common/ot
 import { AgentHostCompletions, IAgentHostCompletions } from '../../node/agentHostCompletions.js';
 import { COPILOT_AGENT_HOST_SYSTEM_MESSAGE, CopilotAgent, getCopilotManagedSettingsDiagnostics, mapDiscoveredCustomizations, type CopilotAutoTierMetadata, rebaseUnder, REFRESH_DEBOUNCE_MS, resolveCopilotOtlpMetricsEndpoint } from '../../node/copilot/copilotAgent.js';
 import { buildCopilotBuiltinAgents, buildCopilotBuiltinAgentsContainer, COPILOT_BUILTIN_AGENTS, COPILOT_BUILTIN_AGENT_NAMES, getCopilotBuiltinAgentUri } from '../../node/copilot/copilotBuiltinAgents.js';
+import { buildCopilotBuiltinSkillsContainer } from '../../node/copilot/copilotBuiltinSkills.js';
 import { ICopilotChatDiscoveryScan } from '../../node/copilot/copilotChatDiscovery.js';
 import { COPILOT_DEFERRED_SDK_EXECUTION_METADATA_KEY, deferCopilotSdkExecution } from '../../node/copilot/copilotSessionExecutionMarker.js';
 import { CopilotGitHubSessionCredentials } from '../../node/copilot/copilotGitHubCredentials.js';
@@ -745,6 +746,7 @@ type TestCopilotSessionMetadata = Awaited<ReturnType<ITestCopilotClient['listSes
 
 interface ITestCopilotSessionOptions {
 	readonly clientName?: string;
+	readonly lastClientName?: string;
 	readonly repository?: string;
 	readonly modifiedTime?: Date;
 }
@@ -1753,6 +1755,7 @@ function sdkSession(sessionId: string, cwd?: string, options?: ITestCopilotSessi
 			}
 		} : {}),
 		...(options?.clientName !== undefined ? { clientName: options.clientName } : {}),
+		...(options?.lastClientName !== undefined ? { lastClientName: options.lastClientName } : {}),
 	};
 }
 
@@ -21658,6 +21661,7 @@ suite('CopilotAgent', () => {
 				URI.joinPath(workspace, '.github', 'hooks').toString(),
 				URI.joinPath(userHome, '.copilot', 'hooks').toString(),
 				buildCopilotBuiltinAgentsContainer().uri,
+				buildCopilotBuiltinSkillsContainer().uri,
 			];
 			assert.deepStrictEqual(discoveredDirectories.map(customization => customization.uri).sort(), expectedUris.sort());
 
@@ -21879,6 +21883,7 @@ suite('CopilotAgent', () => {
 				URI.joinPath(workspace, '.github', 'hooks').toString(),
 				URI.joinPath(userHome, '.copilot', 'hooks').toString(),
 				buildCopilotBuiltinAgentsContainer().uri,
+				buildCopilotBuiltinSkillsContainer().uri,
 			];
 			assert.deepStrictEqual(afterDirs.map(customization => customization.uri).sort(), expectedUris.sort());
 		});
@@ -23980,6 +23985,98 @@ suite('CopilotAgent', () => {
 			}
 		});
 
+		for (const promotion of ['user.message', 'session.idle'] as const) {
+			test(`admits sequential steering after ${promotion} promotes the previous steering`, async () => {
+				const h = await createHarness();
+				const sends: Array<{ prompt: string; mode?: string }> = [];
+				const promotedMessageIds: string[] = [];
+				const promotedTurnIds: string[] = [];
+				const responseTurnIds: string[] = [];
+				const send = stub(h.newRuntime, 'send').callsFake(async (options?: Parameters<CopilotSession['send']>[0]) => {
+					assert.ok(options);
+					sends.push({ prompt: options.prompt, mode: options.mode });
+					return '';
+				});
+				const listener = disposables.add(h.agent.onDidChatProgress(signal => {
+					if (signal.kind === 'action' && signal.action.type === ActionType.ChatTurnStarted && signal.action.queuedMessageId) {
+						promotedMessageIds.push(signal.action.queuedMessageId);
+						promotedTurnIds.push(signal.action.turnId);
+					} else if (signal.kind === 'action' && signal.action.type === ActionType.ChatResponsePart) {
+						responseTurnIds.push(signal.action.turnId);
+					}
+				}));
+				const echoSteering = (id: string) => h.newRuntime.emit({
+					id: `${id}-user-message`, timestamp: new Date().toISOString(), parentId: null,
+					type: 'user.message',
+					data: { content: `${id} steering`, messageId: `sdk-${id}`, turnId: 'sdk-turn', delivery: 'steering' },
+				});
+				const respondToSteering = (id: string) => h.newRuntime.emit({
+					id: `${id}-response`, timestamp: new Date().toISOString(), parentId: null, ephemeral: true,
+					type: 'assistant.message_delta',
+					data: { messageId: `${id}-response`, deltaContent: `continuing after ${id}` },
+				});
+				try {
+					await h.agent.chats.sendMessage(h.chat, 'original', undefined, undefined, 'turn-original', undefined, h.context);
+					h.newRuntime.emit({
+						id: 'original-user-message', timestamp: new Date().toISOString(), parentId: null,
+						type: 'user.message',
+						data: { content: 'original', messageId: 'sdk-original', turnId: 'sdk-turn' },
+					});
+					const initiallyReady = h.live().hasRunningTurn;
+					const firstAdmitted = await h.agent.sendSteeringMessage(h.chat, {
+						id: 'steer-first', message: { text: 'first steering', origin: { kind: MessageKind.User } },
+					});
+					if (promotion === 'session.idle') {
+						h.newRuntime.emit({
+							id: 'original-idle', timestamp: new Date().toISOString(), parentId: null,
+							type: 'session.idle', ephemeral: true, data: {},
+						});
+					} else {
+						echoSteering('first');
+					}
+					const readyAfterPromotion = h.live().hasRunningTurn;
+					const secondAdmitted = await h.agent.sendSteeringMessage(h.chat, {
+						id: 'steer-second', message: { text: 'second steering', origin: { kind: MessageKind.User } },
+					});
+					if (promotion === 'session.idle') {
+						echoSteering('first');
+					}
+					respondToSteering('first');
+					echoSteering('second');
+					respondToSteering('second');
+					const readyAfterSecondPromotion = h.live().hasRunningTurn;
+					const thirdAdmitted = await h.agent.sendSteeringMessage(h.chat, {
+						id: 'steer-third', message: { text: 'third steering', origin: { kind: MessageKind.User } },
+					});
+					echoSteering('third');
+					respondToSteering('third');
+
+					assert.deepStrictEqual({
+						admitted: [firstAdmitted, secondAdmitted, thirdAdmitted],
+						ready: [initiallyReady, readyAfterPromotion, readyAfterSecondPromotion, h.live().hasRunningTurn],
+						promotedMessageIds,
+						responseTurnIndices: responseTurnIds.map(id => promotedTurnIds.indexOf(id)),
+						sends,
+					}, {
+						admitted: [true, true, true],
+						ready: [true, true, true, true],
+						promotedMessageIds: ['steer-first', 'steer-second', 'steer-third'],
+						responseTurnIndices: [0, 1, 2],
+						sends: [
+							{ prompt: 'original', mode: undefined },
+							{ prompt: 'first steering', mode: 'immediate' },
+							{ prompt: 'second steering', mode: 'immediate' },
+							{ prompt: 'third steering', mode: 'immediate' },
+						],
+					});
+				} finally {
+					listener.dispose();
+					send.restore();
+					await disposeAgent(h.agent);
+				}
+			});
+		}
+
 		for (const phase of ['prepare', 'create', 'disconnect', 'resume', 'continue'] as const) {
 			test(`delivers steering after send preparation ${phase} to the current runtime`, async () => {
 				const h = await createHarness({ cold: phase === 'create' || phase === 'prepare' });
@@ -24445,7 +24542,7 @@ suite('CopilotAgent', () => {
 			}, {
 				mcpCalls: ['start:mcp-1', 'stop:mcp-1'],
 				mcpRequest: 'srv/tools/list',
-				customizations: [buildCopilotBuiltinAgentsContainer()],
+				customizations: [buildCopilotBuiltinAgentsContainer(), buildCopilotBuiltinSkillsContainer()],
 				sessions: 0,
 			});
 		});
@@ -31622,11 +31719,11 @@ suite('CopilotAgent', () => {
 			);
 		});
 
-		function createImportedChat(inUse: boolean, runtimeSelection?: Awaited<ReturnType<NonNullable<IFakeAgentSession['readRuntimeSelection']>>>) {
+		function createImportedChat(inUse: boolean, runtimeSelection?: Awaited<ReturnType<NonNullable<IFakeAgentSession['readRuntimeSelection']>>>, lastClientName?: string) {
 			const sessionId = 'cli-import';
 			const session = AgentSession.uri('copilotcli', sessionId);
 			const chat = defaultChatUri(session);
-			const client = new TestCopilotClient([sdkSession(sessionId, '/workspace', { clientName: 'github/cli', modifiedTime: new Date() })]);
+			const client = new TestCopilotClient([sdkSession(sessionId, '/workspace', { clientName: 'github/cli', lastClientName, modifiedTime: new Date() })]);
 			if (inUse) {
 				client.inUseSessionIds.add(sessionId);
 			}
@@ -31712,6 +31809,42 @@ suite('CopilotAgent', () => {
 				await disposeAgent(agent);
 			}
 		}));
+
+		for (const { lastClientName, backgroundWork, reloads } of [
+			{ lastClientName: 'github/cli', backgroundWork: undefined, reloads: true },
+			// A runtime that doesn't record the client that last ran a session.
+			{ lastClientName: undefined, backgroundWork: undefined, reloads: true },
+			{ lastClientName: 'vscode-agent-host', backgroundWork: undefined, reloads: false },
+			{ lastClientName: 'github/cli', backgroundWork: 'subagent', reloads: false },
+			{ lastClientName: 'github/cli', backgroundWork: 'detached shell', reloads: false },
+		] as const) {
+			test(`re-importing a chat this host has loaded ${reloads ? 'reloads it from storage' : 'keeps its loaded copy'} when ${lastClientName ?? 'an unknown client'} ran it last${backgroundWork ? ` and a ${backgroundWork} is running` : ''}`, async () => {
+				const { agent, chat, context, adoptions } = createImportedChat(false, undefined, lastClientName);
+				try {
+					await agent.authenticate('https://api.github.com', 'token');
+					await agent.materializeChat(chat, context, undefined);
+					const destroyed: string[] = [];
+					setLiveChatStub(agent, 'cli-import', {
+						sessionId: 'cli-import',
+						hasActiveTurn: false,
+						hasActiveSubagents: backgroundWork === 'subagent',
+						hasRunningDetachedShells: async () => backgroundWork === 'detached shell',
+						adoptRuntimeModes: async () => { adoptions.push('loaded'); },
+						readRuntimeSelection: async () => ({ model: {}, agentName: undefined }),
+						destroySession: async () => { destroyed.push('loaded'); },
+					}, chat);
+					const imported = await agent.importChat(chat, context, { reloadIfStale: true });
+					assert.deepStrictEqual({ destroyed, resumes: agent.resumeCalls, adoptions, reloaded: imported?.reloaded }, {
+						destroyed: reloads ? ['loaded'] : [],
+						resumes: reloads ? ['cli-import'] : [],
+						adoptions: [reloads ? 'cli-import' : 'loaded'],
+						reloaded: reloads ? true : undefined,
+					});
+				} finally {
+					await disposeAgent(agent);
+				}
+			});
+		}
 
 		test('adopts a session whose recorded working directory no longer exists into the workspaceless scratch directory', async () => {
 			// A legacy session whose original folder or worktree was deleted on disk

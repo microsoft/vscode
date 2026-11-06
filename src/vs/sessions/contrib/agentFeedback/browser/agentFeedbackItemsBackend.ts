@@ -399,7 +399,8 @@ export class AnnotationsAgentFeedbackItemsBackend extends Disposable implements 
 			if (activeSession) {
 				visible.add(activeSession.resource.toString());
 			}
-			for (const session of this._sessionsService.visibleSessionPanes.read(reader)) {
+			for (const pane of this._sessionsService.panes.read(reader)) {
+				const session = pane.session.read(reader);
 				if (session) {
 					visible.add(session.resource.toString());
 				}
@@ -679,7 +680,7 @@ export class AnnotationsAgentFeedbackItemsBackend extends Disposable implements 
 		if (!session || !isAgentHostProviderId(session.providerId)) {
 			return undefined;
 		}
-		const provider = this._sessionsProvidersService.getProvider<IAgentHostSessionsProvider>(session.providerId);
+		const provider = this._sessionsProvidersService.getProvider<IAgentHostSessionsProvider>(session.providerId, session.sessionId);
 		if (!provider?.getFeedbackAnnotationsChannel) {
 			return undefined;
 		}

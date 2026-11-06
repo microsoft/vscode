@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { assert, suite, test } from 'vitest';
-import { isSubword } from '../../vscode-node/isInlineSuggestion';
+import { isSubword } from '../../common/inlineSuggestionEdit';
 
 suite('isSubword', () => {
 	test('isSubword', () => {

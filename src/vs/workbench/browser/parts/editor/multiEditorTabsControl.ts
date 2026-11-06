@@ -60,6 +60,7 @@ import { IReadonlyEditorGroupModel } from '../../../common/editor/editorGroupMod
 import { IHostService } from '../../../services/host/browser/host.js';
 import { BugIndicatingError } from '../../../../base/common/errors.js';
 import { applyDragImage } from '../../../../base/browser/ui/dnd/dnd.js';
+import { getEditorsTransferVeto, getGroupTransferVeto } from './editorTransferVeto.js';
 
 interface IEditorInputLabel {
 	readonly editor: EditorInput;
@@ -1384,20 +1385,19 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 					return; // drag to open in new window is disabled
 				}
 
-				const auxiliaryEditorPart = await this.maybeCreateAuxiliaryEditorPartAt(e, tab);
-				if (!auxiliaryEditorPart) {
-					return;
-				}
+				// Only the dragged editors are asked whether they can go: others of the group stay where they are
+				const editors = draggedEditors.map(editor => editor.identifier.editor);
+				const copy = this.isCopyIntoOtherGroup(lastDragEvent ?? e, editors[0]);
+				await this.transferToNewWindowAt(e, tab, target => getEditorsTransferVeto(editors, this.groupView.id, target, { copy }), targetGroup => {
+					const editorsWithOptions = prepareMoveCopyEditors(this.groupView, editors);
+					if (copy) {
+						this.groupView.copyEditors(editorsWithOptions, targetGroup);
+					} else {
+						this.groupView.moveEditors(editorsWithOptions, targetGroup);
+					}
 
-				const targetGroup = auxiliaryEditorPart.activeGroup;
-				const editorsWithOptions = prepareMoveCopyEditors(this.groupView, draggedEditors.map(editor => editor.identifier.editor));
-				if (this.isMoveOperation(lastDragEvent ?? e, targetGroup.id, draggedEditors[0].identifier.editor)) {
-					this.groupView.moveEditors(editorsWithOptions, targetGroup);
-				} else {
-					this.groupView.copyEditors(editorsWithOptions, targetGroup);
-				}
-
-				targetGroup.focus();
+					targetGroup.focus();
+				});
 			},
 
 			onDrop: e => {
@@ -1903,9 +1903,15 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 
 		// Set border BOTTOM if theme defined color
 		if (isActive) {
-			const activeTabBorderColorBottom = this.getColor(isGroupActive ? TAB_ACTIVE_BORDER : TAB_UNFOCUSED_ACTIVE_BORDER);
+			const activeTabBorderBottom = this.theme.getColor(isGroupActive ? TAB_ACTIVE_BORDER : TAB_UNFOCUSED_ACTIVE_BORDER);
+			const activeTabBorderColorBottom = activeTabBorderBottom?.toString();
 			tabContainer.classList.toggle('tab-border-bottom', !!activeTabBorderColorBottom);
-			tabContainer.style.setProperty('--tab-border-bottom-color', activeTabBorderColorBottom ?? '');
+			// A theme whose active tab border has the editor's background color, at any opacity, joins the tab to its editor:
+			// with connected tabs, it joins the surface the tab flows into, which a part whose editors have a surface of their
+			// own sets.
+			const editorBackgroundColor = this.theme.getColor(editorBackground);
+			const joinsEditor = !!activeTabBorderBottom && !!editorBackgroundColor && activeTabBorderBottom.rgba.r === editorBackgroundColor.rgba.r && activeTabBorderBottom.rgba.g === editorBackgroundColor.rgba.g && activeTabBorderBottom.rgba.b === editorBackgroundColor.rgba.b;
+			tabContainer.style.setProperty('--tab-border-bottom-color', joinsEditor ? `var(--modern-ui-connected-tab-surface, ${activeTabBorderColorBottom})` : activeTabBorderColorBottom ?? '');
 		}
 
 		// Set border TOP if theme defined color
@@ -2748,8 +2754,18 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 			if (Array.isArray(data) && data.length > 0) {
 				const sourceGroup = this.editorPartsView.getGroup(data[0].identifier);
 				if (sourceGroup) {
+					const copy = !this.isMoveOperation(e, sourceGroup.id);
+
+					// Into another part only when all its editors can go there, before anything is merged or focused
+					const veto = sourceGroup.groupsView !== this.groupsView ? getGroupTransferVeto(sourceGroup, this.groupView.id, { copy }) : undefined;
+					if (veto) {
+						this.groupTransfer.clearData(DraggedEditorGroupIdentifier.prototype);
+						this.editorPartsView.showTransferVeto(veto);
+						return;
+					}
+
 					const mergeGroupOptions: IMergeGroupOptions = { index: targetEditorIndex };
-					if (!this.isMoveOperation(e, sourceGroup.id)) {
+					if (copy) {
 						mergeGroupOptions.mode = MergeGroupMode.COPY_EDITORS;
 					}
 

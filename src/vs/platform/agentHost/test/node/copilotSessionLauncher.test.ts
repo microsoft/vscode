@@ -18,6 +18,7 @@ import { URI } from '../../../../base/common/uri.js';
 import { mock, upcastPartial } from '../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { PluginFormat, toParsedAgent, type IMcpServerDefinition, type IParsedRule } from '../../../agentPlugins/common/pluginParsers.js';
+import { ICopilotHomeService } from '../../../environment/common/copilotHome.js';
 import { IFileService, type IFileContent } from '../../../files/common/files.js';
 import { InstantiationService } from '../../../instantiation/common/instantiationService.js';
 import { ServiceCollection } from '../../../instantiation/common/serviceCollection.js';
@@ -59,7 +60,7 @@ import type { SandboxConfig, SandboxNetworkPolicy } from '../../node/copilot/san
 import { composeByokSessionConfig, CopilotSessionLauncher, filterClientToolNames, findLocalModelDirectFamily, getCopilotAgentSelection, getCopilotAgentSelectionName, getCopilotAutoTier, getCopilotCustomAgents, getCopilotReasoningEffort, getCopilotWorkingDirectoryTrust, isCopilotReasoningEffort, mergeByokSessionConfig, synthesizeByokSessionConfig, withLocalModelSessionConfig, normalizeToolFilterPatterns, resolveConfiguredReasoningEffortOverride, resolveCopilotAutoTier, resolveCopilotReasoningEffort, toSdkToolFilterPatterns, type CopilotSessionLaunchPlan, type IActiveClientSnapshot, type ICopilotClientToolConfiguration, type ICopilotSessionRuntime } from '../../node/copilot/copilotSessionLauncher.js';
 import { getSdkCustomAgentName } from '../../node/copilot/copilotPluginConverters.js';
 import { createUnmanagedCopilotSettings } from './copilotTestEvents.js';
-import { buildChatUri, buildDefaultChatUri, SessionStatus } from '../../common/state/sessionState.js';
+import { buildChatUri, buildDefaultChatUri, ROOT_STATE_URI, SessionStatus } from '../../common/state/sessionState.js';
 import { ActionType } from '../../common/state/sessionActions.js';
 import type { IAgentHostSessionOpenTelemetry } from '../../node/agentHostSessionOpenTelemetry.js';
 import { createSentinelContribution, FakeLocalModelProvider, MAI_ROW } from './localModelBridge/fakeLocalModelProvider.js';
@@ -936,6 +937,88 @@ suite('CopilotSessionLauncher sandbox policy', () => {
 				maskedCredentials,
 				{ envVars: {} },
 			]);
+		});
+
+		test(`${kind} updates environment credential policy on a running session without managed policy resolution`, async () => {
+			const fixture = setup(kind, false);
+			fixture.configuration.updateSessionConfig(fixture.owner, { sandboxEnabled: 'on' });
+			store.add(await fixture.launcher.launch(fixture.plan, fixture.runtime));
+			const initial = {
+				envVars: {
+					env_name1: { injectHosts: ['google.com'] },
+					env_name2: { injectHosts: ['yahoo.com'] },
+				}
+			};
+			const changed = { envVars: { env_name1: { injectHosts: ['other.example.com'] } } };
+			for (const credentials of [initial, changed, { envVars: {} }, {}]) {
+				fixture.configuration.updateRootConfig({ sandbox: { enabled: 'on', credentials } });
+				await fixture.sandbox.prepareConfigChange().apply();
+			}
+			assert.deepStrictEqual(fixture.updates.filter(update => update.sandboxConfig).map(update => update.sandboxConfig?.credentials), [
+				undefined,
+				initial,
+				changed,
+				{ envVars: {} },
+			]);
+		});
+
+		test(`${kind} rejects malformed credentials without changing a running default sandbox`, async () => {
+			const fixture = setup(kind, false);
+			fixture.configuration.updateSessionConfig(fixture.owner, { sandboxEnabled: 'default' });
+			const initial = {
+				enabled: 'on',
+				allowNetwork: false,
+				'fileSystem.userConfiguredPaths': { deniedPaths: [URI.file('/blocked').fsPath] },
+				credentials: { envVars: { API_TOKEN: { injectHosts: ['api.example.com'] } } },
+			};
+			fixture.configuration.updateRootConfig({ sandbox: initial });
+			store.add(await fixture.launcher.launch(fixture.plan, fixture.runtime));
+			const initialRoot = fixture.manager.rootState;
+			const initialUpdates = [...fixture.updates];
+			const rejections: (string | undefined)[] = [];
+			store.add(fixture.manager.onDidRejectClientAction(envelope => rejections.push(envelope.rejectionReason)));
+			for (const replace of [false, true]) {
+				fixture.manager.dispatchClientAction(ROOT_STATE_URI, {
+					type: ActionType.RootConfigChanged,
+					config: { sandbox: { ...initial, credentials: { envVars: { API_TOKEN: {} } } } },
+					replace,
+				}, { clientId: 'client', clientSeq: rejections.length + 1 });
+				await fixture.sandbox.prepareConfigChange().apply();
+			}
+			assert.deepStrictEqual({
+				root: fixture.manager.rootState,
+				updates: fixture.updates,
+				enabled: fixture.sandboxState?.enabled,
+				rejections,
+			}, {
+				root: initialRoot,
+				updates: initialUpdates,
+				enabled: true,
+				rejections: [
+					'Missing required property at \'sandbox.credentials.envVars.API_TOKEN.injectHosts\'',
+					'Missing required property at \'sandbox.credentials.envVars.API_TOKEN.injectHosts\'',
+				],
+			});
+			assert.throws(() => fixture.configuration.updateRootConfig({
+				sandbox: { ...initial, credentials: { envVars: { API_TOKEN: { injectHosts: 'api.example.com' } } } },
+			}), /sandbox\.credentials\.envVars\.API_TOKEN\.injectHosts/);
+			await fixture.sandbox.prepareConfigChange().apply();
+			const updatesAfterInvalidWrite = [...fixture.updates];
+			const cleared = { ...initial, credentials: { envVars: {} } };
+			fixture.configuration.updateRootConfig({ sandbox: cleared });
+			await fixture.sandbox.prepareConfigChange().apply();
+			fixture.configuration.updateRootConfig({ sandbox: { ...cleared, enabled: 'off' } });
+			await fixture.sandbox.prepareConfigChange().apply();
+			assert.deepStrictEqual({
+				updatesAfterInvalidWrite,
+				subsequentUpdates: fixture.updates.slice(initialUpdates.length),
+			}, {
+				updatesAfterInvalidWrite: initialUpdates,
+				subsequentUpdates: [
+					{ sandboxConfig: { ...initialUpdates.at(-1)?.sandboxConfig, credentials: { envVars: {} } } },
+					{ sandboxConfig: { enabled: false } },
+				],
+			});
 		});
 
 		test(`${kind} applies and removes the legacy mode-group fallback`, async () => {
@@ -1883,6 +1966,7 @@ suite('CopilotSessionLauncher shared session config', () => {
 					tools: captured?.tools?.map(tool => ({ name: tool.name, overridesBuiltInTool: tool.overridesBuiltInTool === true, skipPermission: tool.skipPermission === true })),
 					additionalDirectories: captured?.additionalDirectories,
 					discovery: captured?.enableConfigDiscovery,
+					skills: captured?.skillProvider ? (await captured.skillProvider.listSkills({ signal: new AbortController().signal })).map(skill => skill.name) : [],
 					virtualPrompt: captured?.systemMessage?.content?.includes('virtual (remote) repository') === true,
 					mcpWorkingDirectories: Object.values(captured?.mcpServers ?? {}).map(server => hasKey(server, { url: true }) ? 'remote' : server.workingDirectory),
 				}, {
@@ -1893,6 +1977,7 @@ suite('CopilotSessionLauncher shared session config', () => {
 						: definitions.map(tool => ({ name: tool.name, overridesBuiltInTool: false, skipPermission: false })),
 					additionalDirectories: virtual ? undefined : [URI.file('/additional').fsPath],
 					discovery: !virtual,
+					skills: virtual ? [] : ['troubleshoot'],
 					virtualPrompt: virtual,
 					mcpWorkingDirectories: [virtual ? homedir() : undefined, 'remote'],
 				});
@@ -3717,6 +3802,7 @@ suite('CopilotSessionLauncher resume config', () => {
 	function createLauncher(store: DisposableStore, values: SchemaValues<typeof copilotCliConfigSchema.definition> & Record<string, unknown>, fileContents?: string | (() => string)): CopilotSessionLauncher {
 		const services = new ServiceCollection();
 		services.set(ILogService, new NullLogService());
+		services.set(ICopilotHomeService, { _serviceBrand: undefined, home: URI.file('/copilot-home'), source: 'userHome' });
 		services.set(IByokLmBridgeRegistry, new ByokLmBridgeRegistry());
 		services.set(IAgentHostManagedSettingsService, store.add(new AgentHostManagedSettingsService()));
 		services.set(IAgentConfigurationService, {

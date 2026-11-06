@@ -34,7 +34,7 @@ export function bindHasWorktreeAndRepositoryContextKey(contextKeyService: IConte
 export function bindIsAgentHostSessionContextKey(contextKeyService: IContextKeyService, session: IObservable<ISession | undefined>, sessionsProvidersService: ISessionsProvidersService): IDisposable {
 	return bindContextKey(IsAgentHostSession, contextKeyService, reader => {
 		const value = session.read(reader);
-		const provider = value && sessionsProvidersService.getProvider(value.providerId);
+		const provider = value && sessionsProvidersService.getProvider(value.providerId, value.sessionId);
 		return !!provider && isAgentHostProvider(provider);
 	});
 }

@@ -15,6 +15,7 @@ import { mkdir, mkdtemp, realpath, rm, writeFile } from 'fs/promises';
 import { tmpdir } from 'os';
 import { join } from '../../../../../base/common/path.js';
 import { URI } from '../../../../../base/common/uri.js';
+import { AGENT_BUILTIN_CUSTOMIZATION_SCHEME } from '../../../common/agentHostCustomizationUri.js';
 import { ActionType, SessionCustomizationsChangedAction } from '../../../common/state/sessionActions.js';
 import { customizationId, CustomizationType, ISessionWithDefaultChat, type ClientPluginCustomization, type DirectoryCustomization, type PluginCustomization, type URI as ProtocolURI } from '../../../common/state/sessionState.js';
 import { type AhpNotification, type DisposeSessionParams } from '../../../common/state/sessionProtocol.js';
@@ -324,9 +325,10 @@ suite('Agent Host Provider Integration — Copilot Customizations', function () 
 		const isBuiltInGitHubMcpServer = customization.type === CustomizationType.McpServer
 			&& customization.uri.startsWith('mcp-top-level:copilotcli:')
 			&& customization.uri.endsWith(':github-mcp-server');
-		// Built-in agents (e.g. Ask) are provider-owned and covered by copilotBuiltinAgents.test.ts.
-		const isBuiltInAgents = customization.uri.startsWith(`${COPILOT_BUILTIN_AGENTS_SCHEME}:`);
-		return !isBuiltInSkill && !isBuiltInGitHubMcpServer && !isBuiltInAgents;
+		// Provider-owned agents and skills have dedicated built-in customization tests.
+		const isProviderBuiltIn = customization.uri.startsWith(`${COPILOT_BUILTIN_AGENTS_SCHEME}:`)
+			|| customization.uri.startsWith(`${AGENT_BUILTIN_CUSTOMIZATION_SCHEME}:`);
+		return !isBuiltInSkill && !isBuiltInGitHubMcpServer && !isProviderBuiltIn;
 	};
 
 	async function runEmptyWorkspaceCustomizationsTest(): Promise<void> {

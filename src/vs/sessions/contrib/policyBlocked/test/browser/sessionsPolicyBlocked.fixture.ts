@@ -29,7 +29,7 @@ function createOverlay(ctx: ComponentFixtureContext, options: ISessionsBlockedOv
 				override readonly urlProtocol = 'vscode-insiders';
 			}());
 			reg.definePartialInstance(IWorkbenchLayoutService, { mainContainer: ctx.container, onDidLayoutMainContainer: Event.None });
-			reg.definePartialInstance(ISessionsPartService, { focusSession: () => { } });
+			reg.definePartialInstance(ISessionsPartService, { focusNewSessionSlot: () => { } });
 			reg.definePartialInstance(ISessionsService, { focusActiveSession: () => { } });
 		},
 	});

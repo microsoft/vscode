@@ -201,7 +201,7 @@ export class SessionsWatermarkActionViewItem extends BaseActionViewItem {
 		};
 		updateKeybinding();
 		this._register(this.keybindingService.onDidUpdateKeybindings(updateKeybinding));
-		this._register(this.hoverService.setupDelayedHover(row, () => ({ content: this._action.label })));
+		this._register(this.hoverService.setupDelayedHover(row, () => ({ content: this.submenuFlyout?.isOpen ? '' : this._action.label })));
 
 		const action = this._action;
 		if (action instanceof SubmenuItemAction) {
@@ -215,6 +215,11 @@ export class SessionsWatermarkActionViewItem extends BaseActionViewItem {
 				lookupKeybinding: this.lookupKeybinding,
 				openKeys: [KeyCode.Enter, KeyCode.Space, KeyCode.RightArrow],
 				closeKeys: [KeyCode.LeftArrow],
+			}));
+			this._register(this.submenuFlyout.onDidChangeOpen(open => {
+				if (open) {
+					this.hoverService.hideHover(true);
+				}
 			}));
 		}
 

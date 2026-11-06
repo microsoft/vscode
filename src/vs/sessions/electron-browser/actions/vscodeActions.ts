@@ -34,9 +34,7 @@ import { INativeHostService } from '../../../platform/native/common/native.js';
 import { IFolderToOpen, IOpenedMainWindow } from '../../../platform/window/common/window.js';
 import { ILabelService, Verbosity } from '../../../platform/label/common/label.js';
 import { OPEN_VSCODE_WINDOW_COMMAND_ID, RETURN_TO_VSCODE_EDITOR_COMMAND_ID, SHOULD_SHOW_RETURN_TO_VSCODE_EDITOR_COMMAND_ID } from '../../../workbench/contrib/sessions/common/sessionCommands.js';
-import { IActiveSession } from '../../../workbench/contrib/sessions/common/sessionsManagement.js';
-import { IChat, ISession } from '../../../workbench/contrib/sessions/common/session.js';
-import { hasKey } from '../../../base/common/types.js';
+import { IChat, ISession, isSessionCreated } from '../../../workbench/contrib/sessions/common/session.js';
 
 export class OpenSessionInVSCodeAction extends Action2 {
 	static readonly ID = 'agents.openSessionInVSCode';
@@ -68,13 +66,13 @@ export class OpenSessionInVSCodeAction extends Action2 {
 	}
 }
 
-export async function openSessionInVSCode(accessor: ServicesAccessor, session: ISession | IActiveSession | undefined, chat?: IChat): Promise<void> {
+export async function openSessionInVSCode(accessor: ServicesAccessor, session: ISession | undefined, chat?: IChat): Promise<void> {
 	const nativeHostService = accessor.get(INativeHostService);
 	const sessionsProvidersService = accessor.get(ISessionsProvidersService);
 	const remoteAgentHostService = accessor.get(IRemoteAgentHostService);
 	const labelService = accessor.get(ILabelService);
 
-	const folders = (chat ?? (session && hasKey(session, { activeChat: true }) ? session.activeChat.get() : session?.mainChat.get()))?.workspace.get()?.folders;
+	const folders = (chat ?? session?.mainChat.get())?.workspace.get()?.folders;
 	if (!session || !folders?.length) {
 		return nativeHostService.openWindow();
 	}
@@ -98,8 +96,8 @@ export async function openSessionInVSCode(accessor: ServicesAccessor, session: I
 /**
  * Provisional sessions remain owned by the Agents composer and may be replaced or disposed, so only materialized sessions are safe to share across windows.
  */
-export function getChatSessionToOpenInEditor(session: ISession | IActiveSession | undefined, chat?: IChat): URI | undefined {
-	return session && (!hasKey(session, { isCreated: true }) || session.isCreated.get()) ? chat?.resource ?? session.resource : undefined;
+export function getChatSessionToOpenInEditor(session: ISession | undefined, chat?: IChat): URI | undefined {
+	return session && isSessionCreated(session) ? chat?.resource ?? session.resource : undefined;
 }
 
 export class OpenVSCodeWindowAction extends Action2 {

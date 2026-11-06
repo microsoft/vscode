@@ -77,7 +77,9 @@ import { AutomationDialogService } from '../../browser/automationDialogService.j
 import { AutomationCustomizationSelection, AutomationIsolationGroupActionViewItem, AutomationSessionDraftSynchronizer, canSelectAutomationWorkspace, getAutomationDialogProviders, IFormState, IValidationState, isAutomationDialogPopupTarget, MobileAutomationsWorkspacePicker, registerAutomationDialogKeyboardNavigation, renderForm, shouldPassThroughAutomationDialogCommand, updateSaveButtonState } from '../../browser/automationDialog.js';
 import { AutomationInputCompletions } from '../../browser/automationInputCompletions.js';
 import { AutomationIsolationModel } from '../../common/isolationGroupModel.js';
+import { SessionHostKind } from '../../../../../workbench/contrib/sessions/browser/sessionHost.js';
 import { stubSessionHosts } from '../../../../../workbench/contrib/sessions/test/browser/sessionHostTestUtils.js';
+import { createTestActiveSession } from '../../../../test/browser/sessionViewTestUtils.js';
 
 const FOLDER = URI.file('/workspace');
 const REPOSITORY = URI.from({ scheme: GITHUB_REMOTE_FILE_SCHEME, authority: 'github', path: '/owner/private/HEAD' });
@@ -95,6 +97,17 @@ suite('Automation dialog creation', () => {
 		});
 	}
 
+	test('the dialog\'s host shows the provider\'s draft session object itself', async () => {
+		const draft: ISession = createTestActiveSession('draft', false);
+		const chat = draft.mainChat.get();
+		const dialog = openDialog({}, undefined, { automationSession: constObservable(draft), usesCombinedNewSessionConfigPicker: () => false });
+		const host = dialog.sessionHostService.hosts.get().find(host => host.kind === SessionHostKind.AutomationDialog);
+		const actual = { session: host?.session.get() === draft, chat: host?.chat.get() === chat };
+		dialog.cancelButton.click();
+		await dialog.result;
+		assert.deepStrictEqual(actual, { session: true, chat: true });
+	});
+
 	function openDialog(options: IShowAutomationDialogOptions = {}, cloudConfigurationOrChoices?: IAutomationProviderConfiguration | IAutomationService['getCustomizationChoices'], sessionOverrides?: Partial<ISessionsManagementService>, repository?: IGitRepository, cloudCreatable = true, cloudEnabledAtOpen = true, canUpdate = true, inputEditorOptions?: IChatInputPartOptions['inputEditorOptions']) {
 		const cloudConfiguration = typeof cloudConfigurationOrChoices === 'function' ? undefined : cloudConfigurationOrChoices;
 		const getCustomizationChoices = typeof cloudConfigurationOrChoices === 'function' ? cloudConfigurationOrChoices : undefined;
@@ -104,7 +117,7 @@ suite('Automation dialog creation', () => {
 			configurationService: () => configurationService,
 			contextKeyService: () => contextKeyService,
 		}, disposables);
-		stubSessionHosts(instantiationService, disposables);
+		const { sessionHostService } = stubSessionHosts(instantiationService, disposables);
 		instantiationService.stub(ICommandService, new class extends mock<ICommandService>() { });
 		instantiationService.stub(IChatViewFactory, { inputEditorOptions });
 		instantiationService.stub(IMenuService, disposables.add(instantiationService.createInstance(MenuService)));
@@ -245,7 +258,7 @@ suite('Automation dialog creation', () => {
 		disposables.add(toDisposable(() => cancelButton.click()));
 		const nameInput = container.querySelector<HTMLInputElement>('.automation-form-input-host input')!;
 		return {
-			result, saveButton, cancelButton, nameInput, container, providers, actionWidgetService,
+			result, saveButton, cancelButton, nameInput, container, providers, actionWidgetService, sessionHostService,
 			getInputEditorOptions: () => inputCreations.flatMap(spy => spy.getCalls())
 				.filter(call => call.args[0] === ChatInputPart)
 				.map(call => (call.args[2] as IChatInputPartOptions).inputEditorOptions),

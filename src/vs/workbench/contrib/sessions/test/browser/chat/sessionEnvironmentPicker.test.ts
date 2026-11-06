@@ -66,7 +66,7 @@ suite('SessionEnvironmentPicker', () => {
 		], ['local', 'local', 'remote', 'cloud', 'container:local', 'cloud']);
 	});
 
-	test('groups logical local and cloud destinations and excludes hidden hosts and internal backends', () => {
+	test('groups logical local and cloud destinations and excludes hidden hosts, Dev Containers and internal backends', () => {
 		const providers = [
 			provider(LOCAL_AGENT_HOST_PROVIDER_ID, 'local'),
 			provider('another-local', 'local'),
@@ -79,6 +79,11 @@ suite('SessionEnvironmentPicker', () => {
 				...provider('agenthost-remote-hidden', 'remote'),
 				connectionStatus: constObservable(RemoteAgentHostConnectionStatus.disconnected),
 				isVisibleInEnvironmentPicker: constObservable(false),
+			}),
+			upcastPartial<IAgentHostSessionsProvider>({
+				...provider('agenthost-devcontainer', 'remote'),
+				connectionStatus: constObservable(RemoteAgentHostConnectionStatus.connected),
+				devContainerSourceWorkspace: folder,
 			}),
 			provider('agenthost-remote-backend', 'cloud', { supportsWorkspaceSelection: false }),
 		];

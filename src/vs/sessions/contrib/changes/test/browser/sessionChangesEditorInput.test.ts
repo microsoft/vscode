@@ -33,10 +33,9 @@ import { IPartVisibilityChangeEvent, IWorkbenchLayoutService, Parts } from '../.
 import { TestEditorGroupsService, TestEditorGroupView, workbenchInstantiationService } from '../../../../../workbench/test/browser/workbenchTestServices.js';
 import { IAgentWorkbenchLayoutService } from '../../../../browser/workbench.js';
 import { AgentWorkbenchLayout, ISessionsHostLayoutService } from '../../../../../workbench/contrib/sessions/browser/sessionsHostLayoutService.js';
-import { stubSessionHosts } from '../../../../../workbench/contrib/sessions/test/browser/sessionHostTestUtils.js';
+import { ITestSessionWithChat, stubSessionHosts } from '../../../../../workbench/contrib/sessions/test/browser/sessionHostTestUtils.js';
 import { ISessionsService } from '../../../../../workbench/contrib/sessions/browser/sessionsService.js';
 import { ISessionFileChange } from '../../../../../workbench/contrib/sessions/common/session.js';
-import { IActiveSession } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import { IDiffEditorOptionsService, SessionsWordWrap } from '../../../../../workbench/contrib/sessions/common/diffEditorOptionsService.js';
 import { SessionChangesEditor } from '../../../../../workbench/contrib/sessions/browser/changes/sessionChangesEditor.js';
 import { SessionChangesEditorInput } from '../../../../../workbench/contrib/sessions/browser/changes/sessionChangesEditorInput.js';
@@ -471,11 +470,11 @@ suite('SessionChangesEditorInput', () => {
 			});
 			instantiationService.stub(IMenuService, disposables.add(instantiationService.createInstance(MenuService)));
 			// The editor shows the changes of its host's session: here the main window's.
-			const mainWindowSession = constObservable<IActiveSession | undefined>(undefined);
+			const mainWindowSession = constObservable<ITestSessionWithChat | undefined>(undefined);
 			instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() {
 				readonly activeSession = mainWindowSession;
 				readonly mainWindowActiveSession = mainWindowSession;
-				readonly windowSessions = constObservable<readonly IActiveSession[]>([]);
+				readonly windowSessions = constObservable<readonly ITestSessionWithChat[]>([]);
 			}());
 			stubSessionHosts(instantiationService, disposables, { session: mainWindowSession });
 			instantiationService.stub(IChangesViewService, new class extends mock<IChangesViewService>() {

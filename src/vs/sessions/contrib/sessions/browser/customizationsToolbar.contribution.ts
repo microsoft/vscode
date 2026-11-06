@@ -10,9 +10,9 @@ import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.j
 import { localize } from '../../../../nls.js';
 import { Action2, registerAction2 } from '../../../../platform/actions/common/actions.js';
 import { IActionViewItemService } from '../../../../platform/actions/browser/actionViewItemService.js';
-import { ContextKeyExpr, IContextKey, IContextKeyService, RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
+import { ContextKeyExpr, ContextKeyExpression, IContextKey, IContextKeyService, RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
 import { IInstantiationService, ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
-import { KeybindingWeight } from '../../../../platform/keybinding/common/keybindingsRegistry.js';
+import { KeybindingsRegistry, KeybindingWeight } from '../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../../workbench/common/contributions.js';
 import { AICustomizationManagementEditor } from '../../../../workbench/contrib/chat/browser/aiCustomization/aiCustomizationManagementEditor.js';
 import { AICustomizationManagementEditorInput } from '../../../../workbench/contrib/chat/browser/aiCustomization/aiCustomizationManagementEditorInput.js';
@@ -48,6 +48,17 @@ import { ICustomizationItemConfig, readCustomizationCount, CUSTOMIZATION_ITEMS }
  */
 function customizationSectionVisibleKey(section: string): string {
 	return `sessionsCustomizationSectionVisible.${section}`;
+}
+
+/**
+ * Offers a customization item, and its command, if any, where AI features are
+ * enabled and the active harness exposes the item's section.
+ */
+function customizationItemWhen(config: ICustomizationItemConfig, section: string): ContextKeyExpression | undefined {
+	const sectionVisibleWhen = ContextKeyExpr.has(customizationSectionVisibleKey(section));
+	return config.when
+		? ContextKeyExpr.and(ChatContextKeys.enabled, sectionVisibleWhen, config.when)
+		: ContextKeyExpr.and(ChatContextKeys.enabled, sectionVisibleWhen);
 }
 
 const CUSTOMIZATION_OVERVIEW_ITEM: ICustomizationItemConfig = {
@@ -255,6 +266,24 @@ export class CustomizationsToolbarContribution extends Disposable implements IWo
 			}
 		}));
 
+		// Command enablement context keys, kept in sync with where the sidebar offers the item.
+		for (const config of CUSTOMIZATION_ITEMS) {
+			const enablementContextKey = config.command?.enablementContextKey;
+			if (!config.section || !enablementContextKey) {
+				continue;
+			}
+			const when = customizationItemWhen(config, config.section);
+			const whenKeys = new Set(when?.keys());
+			const enabled = new RawContextKey<boolean>(enablementContextKey, false).bindTo(contextKeyService);
+			const update = () => enabled.set(!when || contextKeyService.contextMatchesRules(when));
+			update();
+			this._register(contextKeyService.onDidChangeContext(e => {
+				if (e.affectsSome(whenKeys)) {
+					update();
+				}
+			}));
+		}
+
 		this._register(actionViewItemService.register(Menus.SidebarCustomizations, CUSTOMIZATION_OVERVIEW_ITEM.id, (action, options) => {
 			return instantiationService.createInstance(CustomizationLinkViewItem, action, options, CUSTOMIZATION_OVERVIEW_ITEM);
 		}, undefined));
@@ -293,10 +322,7 @@ export class CustomizationsToolbarContribution extends Disposable implements IWo
 				return instantiationService.createInstance(CustomizationLinkViewItem, action, options, config);
 			}, undefined));
 
-			const sectionVisibleWhen = ContextKeyExpr.has(customizationSectionVisibleKey(section));
-			const combinedWhen = config.when
-				? ContextKeyExpr.and(ChatContextKeys.enabled, sectionVisibleWhen, config.when)
-				: ContextKeyExpr.and(ChatContextKeys.enabled, sectionVisibleWhen);
+			const combinedWhen = customizationItemWhen(config, section);
 
 			// Register the action with menu item
 			this._register(registerAction2(class extends Action2 {
@@ -312,9 +338,8 @@ export class CustomizationsToolbarContribution extends Disposable implements IWo
 						title: config.command.title,
 						category: config.command.category,
 						f1: true,
-						// Offers the command, and its keybinding, where the sidebar offers the item.
+						// Offers the command where the sidebar offers the item. Its keybinding is registered on load, below.
 						precondition: combinedWhen,
-						keybinding: config.command.keybinding ? { primary: config.command.keybinding, weight: KeybindingWeight.WorkbenchContrib } : undefined,
 						menu,
 					} : {
 						id: config.id,
@@ -333,6 +358,21 @@ export class CustomizationsToolbarContribution extends Disposable implements IWo
 }
 
 registerSingleton(IAICustomizationMcpServerCountService, AICustomizationMcpServerCountService, InstantiationType.Delayed);
+
+// Registered on load rather than with the toolbar's commands: the keybinding service
+// does not pick up keybindings registered after it first resolves keybindings.
+for (const config of CUSTOMIZATION_ITEMS) {
+	if (config.section && config.command?.keybinding) {
+		const enablementContextKey = config.command.enablementContextKey;
+		KeybindingsRegistry.registerKeybindingRule({
+			id: config.id,
+			primary: config.command.keybinding,
+			weight: KeybindingWeight.WorkbenchContrib,
+			// Where the sidebar offers the item, like the command's precondition.
+			when: enablementContextKey ? ContextKeyExpr.has(enablementContextKey) : customizationItemWhen(config, config.section),
+		});
+	}
+}
 
 registerWorkbenchContribution2(CustomizationsToolbarContribution.ID, CustomizationsToolbarContribution, WorkbenchPhase.AfterRestored);
 

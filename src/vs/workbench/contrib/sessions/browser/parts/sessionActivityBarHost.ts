@@ -5,9 +5,11 @@
 
 import { $ } from '../../../../../base/browser/dom.js';
 import { ISerializableView } from '../../../../../base/browser/ui/grid/grid.js';
-import { Event } from '../../../../../base/common/event.js';
-import { IDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
-import { IObservable, observableValue } from '../../../../../base/common/observable.js';
+import { Emitter } from '../../../../../base/common/event.js';
+import { DisposableStore, IDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
+import { IObservable, observableFromEvent, observableValue } from '../../../../../base/common/observable.js';
+import { MenuActivityBar, MenuActivityBarSize } from '../../../../browser/parts/activitybar/menuActivityBar.js';
+import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
 
 /** Width of the strip itself: 24px buttons, 2px padding and a 1px border on each side, in `sessionActivityBar.css`. */
 const STRIP_WIDTH = 30;
@@ -21,6 +23,7 @@ const COLUMN_GAP = 2;
  */
 export const SESSION_ACTIVITY_BAR_COLUMN_WIDTH = COLUMN_GAP + STRIP_WIDTH + COLUMN_GAP;
 
+
 /**
  * A place outside the chat where the active strip shows instead, such as a column of its own at the right of the
  * window. See {@link registerSessionActivityBarExternalHost}.
@@ -30,6 +33,11 @@ export interface ISessionActivityBarExternalHost {
 	readonly element: HTMLElement;
 	/** Whether the active strip shows in the host rather than beside its chat. */
 	readonly active: IObservable<boolean>;
+	/**
+	 * Whether the strip shows at the full size of a {@link MenuActivityBar} in the host, like the workbench activity bar,
+	 * rather than at the slim size it has beside a chat.
+	 */
+	readonly fullSize?: boolean;
 	/**
 	 * Whether `occupant`, a shown strip, is in the host, for the host to keep room for it while any strip is. A strip can
 	 * enter before another leaves; see {@link SessionActivityBarHostOccupancy}.
@@ -77,10 +85,28 @@ export function findSessionActivityBarExternalHost(element: HTMLElement): ISessi
 	return undefined;
 }
 
+/** The profile state of the size of the Session Activity Bar in the main window's column, chosen from its context menu. */
+const SESSION_ACTIVITY_BAR_SIZE_STORAGE_KEY = 'workbench.sessions.sessionActivityBarSize';
+
+/** The size of the Session Activity Bar in the main window's column: compact unless the normal size was chosen. */
+export function getSessionActivityBarSize(storageService: IStorageService): MenuActivityBarSize {
+	return storageService.get(SESSION_ACTIVITY_BAR_SIZE_STORAGE_KEY, StorageScope.PROFILE) === MenuActivityBarSize.Normal ? MenuActivityBarSize.Normal : MenuActivityBarSize.Compact;
+}
+
+export function setSessionActivityBarSize(storageService: IStorageService, size: MenuActivityBarSize): void {
+	storageService.store(SESSION_ACTIVITY_BAR_SIZE_STORAGE_KEY, size, StorageScope.PROFILE, StorageTarget.USER);
+}
+
+/** {@link getSessionActivityBarSize}, as it changes. */
+export function observeSessionActivityBarSize(owner: object, storageService: IStorageService, store: DisposableStore): IObservable<MenuActivityBarSize> {
+	return observableFromEvent(owner, storageService.onDidChangeValue(StorageScope.PROFILE, SESSION_ACTIVITY_BAR_SIZE_STORAGE_KEY, store), () => getSessionActivityBarSize(storageService));
+}
+
 /**
  * The fixed-width column at the right of the main window's grid that the Session Activity Bar of the active chat shows
  * in, to the right of the side pane, or of the chat while the side pane is closed. The workbench shows it while a strip
- * is in it: see {@link occupied}.
+ * is in it: see {@link occupied}. Its width includes the gap between it and the cards to its left, the same as the gap
+ * between those cards; see {@link setGap}.
  */
 export class SessionActivityBarColumn implements ISerializableView, ISessionActivityBarExternalHost {
 
@@ -88,11 +114,25 @@ export class SessionActivityBarColumn implements ISerializableView, ISessionActi
 
 	readonly element = $('.session-activity-bar-column.session-activity-bar-host');
 
-	readonly minimumWidth = SESSION_ACTIVITY_BAR_COLUMN_WIDTH;
-	readonly maximumWidth = SESSION_ACTIVITY_BAR_COLUMN_WIDTH;
+	readonly fullSize = true;
+
+	private gap = 0;
+	private compactDensity = false;
+	private size = MenuActivityBarSize.Compact;
+
+	get minimumWidth(): number {
+		return this.gap + MenuActivityBar.getWidth(this.compactDensity, this.size);
+	}
+
+	get maximumWidth(): number {
+		return this.minimumWidth;
+	}
+
 	readonly minimumHeight = 0;
 	readonly maximumHeight = Number.POSITIVE_INFINITY;
-	readonly onDidChange = Event.None;
+
+	private readonly _onDidChange = new Emitter<undefined>();
+	readonly onDidChange = this._onDidChange.event;
 
 	private readonly occupancy = new SessionActivityBarHostOccupancy();
 	/** Whether a shown strip is in the column. */
@@ -102,6 +142,23 @@ export class SessionActivityBarColumn implements ISerializableView, ISessionActi
 
 	setOccupied(occupant: object, occupied: boolean): void {
 		this.occupancy.set(occupant, occupied);
+	}
+
+	/**
+	 * Sets the gap between the cards of the window, which the column keeps to the left of the strip, whether the window
+	 * has the compact layout density, and the size of the strip, which both set the strip's width.
+	 */
+	setLayout(gap: number, compactDensity: boolean, size: MenuActivityBarSize): void {
+		if (this.gap !== gap || this.compactDensity !== compactDensity || this.size !== size) {
+			this.gap = gap;
+			this.compactDensity = compactDensity;
+			this.size = size;
+			this._onDidChange.fire(undefined);
+		}
+	}
+
+	dispose(): void {
+		this._onDidChange.dispose();
 	}
 
 	layout(): void { }

@@ -66,6 +66,7 @@ import { CustomizationsNavigationState } from '../customizationsNavigationState.
 import { createSessionsListNotices, ISessionsListNoticeHost } from './sessionsListNotice.js';
 import { SessionStorageCleanupNotice } from './sessionStorageCleanupNotice.js';
 import { SessionsListNotification } from './sessionsListNotification.js';
+import { readPaneSessions } from '../sessionGridPane.js';
 
 const $ = DOM.$;
 export const SessionsViewId = 'sessions.workbench.view.sessionsView';
@@ -242,7 +243,7 @@ export class SessionsView extends ViewPane {
 	private _handleSessionOpened(session: ISession): void {
 		const comparison = this.sessionComparisonService.getComparisonForSession(session.resource);
 		// The open may have been cancelled or superseded; only hide the side pane for a session that is actually shown.
-		const isShown = this.sessionsService.visibleSessions.get().some(visible => visible?.sessionId === session.sessionId);
+		const isShown = readPaneSessions(this.sessionsService.slotPanes, undefined).some(visible => visible.sessionId === session.sessionId);
 		if (comparison && comparison.archivedAt === undefined && isShown) {
 			this.hostLayoutService.sidePane?.hideSidePane();
 		}

@@ -326,11 +326,6 @@ export function getStatusHover(status: RemoteAgentHostConnectionStatus, address?
 	}
 }
 
-export interface IShowRemoteHostOptionsOptions {
-	/** When true, show a Back button in the picker title bar. The promise resolves to `'back'` if pressed. */
-	readonly showBackButton?: boolean;
-}
-
 /** Stable per-host preference key prefix used by SSH remote agent hosts. Mirrors `computeSSHConnectionKey`. */
 const SSH_ADDRESS_PREFIX = 'ssh:';
 
@@ -500,18 +495,8 @@ export async function changeRemoteAgentHostLocationPreference(options: IChangeRe
 	);
 }
 
-/**
- * Show the per-remote management options quickpick for the given provider.
- *
- * Used by both the Workspace Picker's Manage submenu and the F1
- * "Manage Remote Agent Hosts..." command, so both surfaces drive the
- * same actions. Callers that don't have a {@link ServicesAccessor} should
- * use `instantiationService.invokeFunction(accessor => showRemoteHostOptions(accessor, provider))`.
- *
- * Returns `'back'` if the user clicked the back button (only possible when
- * `options.showBackButton` is true), otherwise `undefined`.
- */
-export async function showRemoteHostOptions(accessor: ServicesAccessor, provider: IAgentHostSessionsProvider, options: IShowRemoteHostOptionsOptions = {}): Promise<'back' | undefined> {
+/** Show the per-remote management options quickpick for the given provider. */
+export async function showRemoteHostOptions(accessor: ServicesAccessor, provider: IAgentHostSessionsProvider): Promise<void> {
 	const address = provider.remoteAddress;
 	if (!address) {
 		return undefined;
@@ -547,7 +532,7 @@ export async function showRemoteHostOptions(accessor: ServicesAccessor, provider
 
 	const items = buildRemoteHostOptionItems({ address, preferenceKey, isConnected, upgradeMethod, canRemove: provider.canRemove, removeLabel: provider.removeLabel, disconnectLabel: provider.disconnectLabel });
 
-	const result = await new Promise<'back' | RemoteOptionPickItem | undefined>((resolve) => {
+	const result = await new Promise<RemoteOptionPickItem | undefined>((resolve) => {
 		const store = new DisposableStore();
 		const picker = store.add(quickInputService.createQuickPick<RemoteOptionPickItem>());
 		picker.placeholder = localize('workspacePicker.remoteOptionsTitle', "Options for {0}", provider.label);
@@ -567,15 +552,6 @@ export async function showRemoteHostOptions(accessor: ServicesAccessor, provider
 				: localize('workspacePicker.incompatibleValidationClient', "Incompatible protocol version. We speak {0}. Error from {1}: {2}\n\n Ensure {3} and {1} are both up to date.", offered, provider.label, status.message, productService.nameShort);
 		}
 
-		if (options.showBackButton) {
-			picker.buttons = [quickInputService.backButton];
-		}
-		store.add(picker.onDidTriggerButton(button => {
-			if (button === quickInputService.backButton) {
-				resolve('back');
-				picker.hide();
-			}
-		}));
 		store.add(picker.onDidAccept(() => {
 			resolve(picker.selectedItems[0]);
 			picker.hide();
@@ -587,9 +563,6 @@ export async function showRemoteHostOptions(accessor: ServicesAccessor, provider
 		picker.show();
 	});
 
-	if (result === 'back') {
-		return 'back';
-	}
 	if (!result) {
 		return undefined;
 	}

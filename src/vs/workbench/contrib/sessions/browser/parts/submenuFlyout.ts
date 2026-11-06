@@ -10,6 +10,7 @@ import { Menu } from '../../../../../base/browser/ui/menu/menu.js';
 import { RunOnceScheduler } from '../../../../../base/common/async.js';
 import { IAction, IActionRunner } from '../../../../../base/common/actions.js';
 import { KeyCode } from '../../../../../base/common/keyCodes.js';
+import { Emitter, Event } from '../../../../../base/common/event.js';
 import { ResolvedKeybinding } from '../../../../../base/common/keybindings.js';
 import { Disposable, DisposableStore, MutableDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { getMenuActionGroupTitle } from '../../../../../platform/actions/common/actions.js';
@@ -50,6 +51,10 @@ export class SubmenuFlyout extends Disposable {
 	private menu: Menu | undefined;
 	private readonly showScheduler = this._register(new RunOnceScheduler(() => this.show(false), SubmenuFlyout.SHOW_DELAY));
 	private readonly hideScheduler = this._register(new RunOnceScheduler(() => this.flyout.clear(), SubmenuFlyout.HIDE_DELAY));
+
+	private readonly _onDidChangeOpen = this._register(new Emitter<boolean>());
+	/** Fires when the flyout opens or closes, such as for its anchor to hide its hover while the flyout covers it. */
+	readonly onDidChangeOpen: Event<boolean> = this._onDidChangeOpen.event;
 
 	get isOpen(): boolean {
 		return !!this.flyout.value;
@@ -155,6 +160,7 @@ export class SubmenuFlyout extends Disposable {
 				anchor.classList.remove('submenu-open');
 				// Hidden by the context view itself (e.g. replaced by another context view): release the handle.
 				this.flyout.clearAndLeak()?.dispose();
+				this._onDidChangeOpen.fire(false);
 
 				// Hovering the flyout moves focus into it; give focus back instead of losing it with the menu.
 				if (returnFocusToAnchor) {
@@ -167,5 +173,6 @@ export class SubmenuFlyout extends Disposable {
 		this.flyout.value = toDisposable(() => view.close());
 		anchor.setAttribute('aria-expanded', 'true');
 		anchor.classList.add('submenu-open');
+		this._onDidChangeOpen.fire(true);
 	}
 }
