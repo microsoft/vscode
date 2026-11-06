@@ -33,7 +33,7 @@ Reflect requested schedule times and zones; verify local-clock compatibility and
 
 ## Propose, then wait
 
-Show an ordinary-chat draft: name; **Runs** with plain location, full folder path in code, and direct-folder/worktree distinction; **When**; decision-relevant verified settings, ownership, or costs; and the exact prompt. Use "Copilot on this computer", not "Copilot SDK", "folder isolation", or "Local Agent Host", for local runs. Separate suggestions and unresolved choices from verified settings.
+Show an ordinary-chat draft: name; **Runs** with plain location, full folder path in code, and direct-folder/worktree distinction; **When**; decision-relevant verified settings, ownership, or costs; and the exact prompt. For local runs, use the selected agent's display name followed by "on this computer", such as "Copilot on this computer" or "Claude on this computer", not "Copilot SDK", "folder isolation", or "Local Agent Host". Separate suggestions and unresolved choices from verified settings.
 
 Complete the proposal without an acceptance form. End: "Say Create it when ready, or tell me what to change." Ask only for missing facts. Never use `configureAutomation` as a preview: it saves. Invoking the skill or supplying an idea is not acceptance.
 
