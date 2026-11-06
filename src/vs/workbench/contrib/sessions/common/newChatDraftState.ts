@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { IDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { parse, stringify } from '../../../../base/common/marshalling.js';
 import { URI } from '../../../../base/common/uri.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
@@ -74,6 +75,12 @@ export interface IComposerInputSnapshot {
 	beginSendAttempt(input: IChatDraft): string;
 	/** Ends the attempt of `id`: its send was rejected, failed, was cancelled or started. Never ends a newer attempt. */
 	endSendAttempt(id: string): void;
+	/**
+	 * Registers the composer's input as the one that shows an input its host gives back ({@link ComposerInputSnapshot.restore}),
+	 * until the returned disposable is disposed. `restorer` returns whether it showed it: not while it cannot, such as while
+	 * it sends.
+	 */
+	registerRestorer(restorer: (input: IChatDraft) => boolean): IDisposable;
 }
 
 /** An {@link IComposerInputSnapshot} in memory, which its host persists. */
@@ -81,6 +88,8 @@ export class ComposerInputSnapshot implements IComposerInputSnapshot {
 
 	private _input: IChatDraft;
 	private _attempt: IComposerSendAttempt | undefined;
+
+	private _restorer: ((input: IChatDraft) => boolean) | undefined;
 
 	constructor(state?: IComposerInputState) {
 		this._input = state?.input ?? { inputText: '', attachments: [] };
@@ -104,6 +113,28 @@ export class ComposerInputSnapshot implements IComposerInputSnapshot {
 		if (this._attempt?.id === id) {
 			this._attempt = undefined;
 		}
+	}
+
+	registerRestorer(restorer: (input: IChatDraft) => boolean): IDisposable {
+		this._restorer = restorer;
+		return toDisposable(() => {
+			if (this._restorer === restorer) {
+				this._restorer = undefined;
+			}
+		});
+	}
+
+	/**
+	 * Gives the composer `input` back, such as the prompt of a send that did not start its session, and returns whether it
+	 * took it: only once its registered input shows it. Not while no input is registered, nor while its input cannot show
+	 * it, such as while it sends, so that its host offers it otherwise.
+	 */
+	restore(input: IChatDraft): boolean {
+		if (!this._restorer || !this._restorer(input)) {
+			return false;
+		}
+		this._input = input;
+		return true;
 	}
 
 	/** Records the session the send of the current attempt went out with, such as once its request was accepted. */

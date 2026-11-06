@@ -320,6 +320,7 @@ suite('SharedChatInputComposer', () => {
 					get attachments() { return state.attachments; },
 					onDidChange: attachmentsChanged.event,
 					addContext: (...entries: IChatRequestVariableEntry[]) => { state.attachments = [...state.attachments, ...entries]; attachmentsChanged.fire(); },
+					clearAndSetContext: (...entries: IChatRequestVariableEntry[]) => { state.attachments = entries; attachmentsChanged.fire(); },
 				},
 				getContrib: () => ({
 					get variables() { return state.references; },
@@ -366,6 +367,29 @@ suite('SharedChatInputComposer', () => {
 
 			assert.deepStrictEqual({ initially, afterReferences, afterPills, afterTracking: ids(snapshot.get().input), text: snapshot.get().input.inputText }, {
 				initially: ['a'], afterReferences: ['a', 'b'], afterPills: ['b'], afterTracking: ['b'], text: 'typed',
+			});
+		});
+
+		test('shows an input its host gives back, with its attachments and references, while it tracks the snapshot and does not send, and says whether it took it', () => {
+			const snapshot = new ComposerInputSnapshot();
+			const { widget, state } = createEventfulWidget('', [], []);
+			const sending = observableValue('sending', false);
+			const composer = Object.assign(createSnapshotComposer(widget, snapshot), { _sending: sending });
+			const tracking = Reflect.get(SharedChatInputComposer.prototype, '_trackInputSnapshot').call(composer, widget) as IDisposable;
+			const tookIt = snapshot.restore({ inputText: 'given back', attachments: [context], references: [reference('a')] });
+			const shown = { tookIt, text: state.text, attachments: state.attachments.map(entry => entry.id), references: state.references.map(entry => entry.id) };
+			sending.set(true, undefined);
+			const whileSending = { tookIt: snapshot.restore({ inputText: 'while sending', attachments: [], references: [] }), text: state.text, snapshot: snapshot.get().input.inputText };
+			sending.set(false, undefined);
+			tracking.dispose();
+			const afterTracking = { tookIt: snapshot.restore({ inputText: 'after tracking', attachments: [], references: [] }), text: state.text, snapshot: snapshot.get().input.inputText };
+
+			assert.deepStrictEqual({ shown, whileSending, afterTracking }, {
+				shown: { tookIt: true, text: 'given back', attachments: ['context'], references: ['a'] },
+				// It does not take what it cannot show, so its host can offer it otherwise.
+				whileSending: { tookIt: false, text: 'given back', snapshot: 'given back' },
+				// Without an input that shows it, it is not taken either.
+				afterTracking: { tookIt: false, text: 'given back', snapshot: 'given back' },
 			});
 		});
 

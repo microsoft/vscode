@@ -14,7 +14,11 @@ import { generateUuid } from '../../../../base/common/uuid.js';
 import { localize } from '../../../../nls.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
-import { INotificationService } from '../../../../platform/notification/common/notification.js';
+import { INotificationService, Severity } from '../../../../platform/notification/common/notification.js';
+import { IAccessibilityService } from '../../../../platform/accessibility/common/accessibility.js';
+import { IClipboardService } from '../../../../platform/clipboard/common/clipboardService.js';
+import { IAction, toAction } from '../../../../base/common/actions.js';
+import { IChatDraft } from '../../../../workbench/contrib/chat/common/attachments/chatDraft.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { getInheritedNewSessionTarget } from '../../../../workbench/contrib/sessions/browser/chat/newSessionAction.js';
 import { INewSessionBackgroundSend, INewSessionDraftHost, INewSessionTarget } from '../../../../workbench/contrib/sessions/browser/parts/chatView.js';
@@ -67,9 +71,29 @@ export function getChatWindowComposerTarget(sessionsManagementService: ISessions
 	};
 }
 
+/** How a failed background send gives its prompt back to its composer ({@link ChatWindowComposerBackgroundSends.track}). */
+export interface IBackgroundSendRecovery {
+	/** The prompt as the user wrote it, with its attachments and inline references. */
+	readonly input: IChatDraft;
+	/**
+	 * Whether the composer takes the prompt back without asking: it is still there, the send is its latest, and what it
+	 * aims for did not change since the send. {@link restore} then gives it back only while its input is empty and idle.
+	 */
+	canRestoreSilently(): boolean;
+	/** Whether the composer is still there. */
+	isAlive(): boolean;
+	/**
+	 * Gives the prompt back to the composer, only while its input is empty and idle and shows it: never over what the user
+	 * wrote since, nor while it sends, `busy` then; `gone` once the composer is gone.
+	 */
+	restore(): 'restored' | 'busy' | 'gone';
+}
+
 /**
  * Follows the background sends of the composers of chat windows until each ends, also after its composer is gone, and
- * reports a failure: the management service does not notify the failures of a composer's own draft slot.
+ * reports a failure: the management service does not notify the failures of a composer's own draft slot. The prompt of
+ * a failed send goes back into its composer when nothing changed there since; otherwise the notification offers to
+ * restore it, without changing what the composer aims for now, or to copy it, also once the composer is gone.
  */
 export class ChatWindowComposerBackgroundSends extends Disposable {
 
@@ -78,21 +102,59 @@ export class ChatWindowComposerBackgroundSends extends Disposable {
 	constructor(
 		@ISessionsManagementService private readonly _sessionsManagementService: ISessionsManagementService,
 		@INotificationService private readonly _notificationService: INotificationService,
+		@IAccessibilityService private readonly _accessibilityService: IAccessibilityService,
+		@IClipboardService private readonly _clipboardService: IClipboardService,
+		@ISessionsProvidersService private readonly _sessionsProvidersService: ISessionsProvidersService,
 	) {
 		super();
 	}
 
 	/** Follows `send` of `owner` until it ends; disposing the result stops following it, such as when it was not dispatched. */
-	track(owner: INewSessionDraftSlot, send: INewSessionBackgroundSend): IDisposable {
+	track(owner: INewSessionDraftSlot, send: INewSessionBackgroundSend, recovery: IBackgroundSendRecovery): IDisposable {
 		const entry = this._sends.add(new DisposableStore());
 		entry.add(toDisposable(() => this._sends.deleteAndLeak(entry)));
+		// Where it was sent, as it is when it ends, for its notification
+		let session = send.session;
+		entry.add(this._sessionsManagementService.onDidReplaceNewDraftSession(({ from, to }) => {
+			if (from.sessionId === session.sessionId) {
+				session = to;
+			}
+		}));
 		entry.add(trackNewSessionRequestEnd(this._sessionsManagementService, owner, send.session, ({ started, error }) => {
 			entry.dispose();
 			if (!started && error !== undefined && !isCancellationError(error) && !(error instanceof WorkspaceNotTrustedError)) {
-				this._notificationService.error(localize('chatWindowComposer.backgroundSendFailed', "Couldn't start the session: {0}", toErrorMessage(error)));
+				this._reportFailure(session, error, recovery);
 			}
 		}));
 		return entry;
+	}
+
+	private _reportFailure(session: ISession, error: unknown, recovery: IBackgroundSendRecovery): void {
+		if (recovery.canRestoreSilently() && recovery.restore() === 'restored') {
+			this._notificationService.error(localize('chatWindowComposer.backgroundSendFailed', "Couldn't start the session: {0}", toErrorMessage(error)));
+			this._accessibilityService.status(localize('chatWindowComposer.promptRestored', "The prompt of the session that couldn't start is back in the composer."));
+			return;
+		}
+		const actions: IAction[] = [];
+		if (recovery.isAlive()) {
+			actions.push(toAction({
+				id: 'chatWindowComposer.restorePrompt', label: localize('chatWindowComposer.restorePrompt', "Restore Prompt"), run: async () => {
+					// Never over what the user wrote since, nor while it sends, nor once it is gone: the prompt goes to the clipboard instead.
+					if (recovery.restore() !== 'restored') {
+						await this._clipboardService.writeText(recovery.input.inputText);
+						this._notificationService.info(localize('chatWindowComposer.promptCopiedInstead', "The composer can't take the prompt back now, so it was copied to the clipboard instead."));
+					}
+				},
+			}));
+		}
+		actions.push(toAction({ id: 'chatWindowComposer.copyPrompt', label: localize('chatWindowComposer.copyPrompt', "Copy Prompt"), run: () => this._clipboardService.writeText(recovery.input.inputText) }));
+		const workspace = session.isQuickChat?.get() ? localize('chatWindowComposer.noWorkspace', "No Workspace") : session.workspace.get()?.label ?? localize('chatWindowComposer.noWorkspace', "No Workspace");
+		const agent = this._sessionsProvidersService.getProvider(session.providerId, session.sessionId)?.sessionTypes.find(type => type.id === session.sessionType)?.label ?? session.sessionType;
+		this._notificationService.notify({
+			severity: Severity.Error,
+			message: localize('chatWindowComposer.backgroundSendFailedIn', "Couldn't start the session in {0} with {1}: {2}", workspace, agent, toErrorMessage(error)),
+			actions: { primary: actions },
+		});
 	}
 }
 
@@ -118,6 +180,10 @@ export class ChatWindowComposerModel extends Disposable implements INewSessionDr
 
 	readonly slot: INewSessionDraftSlot & IDisposable;
 	readonly input: ComposerInputSnapshot;
+
+	/** Counts the user's changes of what it aims for, so that a failed background send knows whether it changed since. */
+	private _targetGeneration = 0;
+	private _disposed = false;
 
 	private readonly _requestedTarget = observableValue<INewSessionTarget | undefined>(this, undefined);
 	readonly requestedTarget: IObservable<INewSessionTarget | undefined> = this._requestedTarget;
@@ -176,6 +242,7 @@ export class ChatWindowComposerModel extends Disposable implements INewSessionDr
 	}
 
 	override dispose(): void {
+		this._disposed = true;
 		this._onWillDispose.fire();
 		super.dispose();
 	}
@@ -186,8 +253,11 @@ export class ChatWindowComposerModel extends Disposable implements INewSessionDr
 		return { resource: this.resource, ...(target ? { target } : {}), ...(this.groupId ? { groupId: this.groupId } : {}), ...this.input.get() };
 	}
 
-	setRequestedTarget(target: INewSessionTarget): void {
+	setRequestedTarget(target: INewSessionTarget, reason: 'user' | 'background' = 'user'): void {
 		this._requestedTarget.set(target, undefined);
+		if (reason === 'user') {
+			this._targetGeneration++;
+		}
 	}
 
 	openStartedSession(session: ISession): Promise<void> {
@@ -195,7 +265,37 @@ export class ChatWindowComposerModel extends Disposable implements INewSessionDr
 	}
 
 	trackBackgroundSend(send: INewSessionBackgroundSend): IDisposable {
-		return this._backgroundSends.track(this.slot, send);
+		// What the user wrote, as the send's attempt has it before the composer cleared it, with its inline references.
+		const input = this.input.get().attempt?.input ?? { inputText: send.query, attachments: [...(send.attachedContext ?? [])] };
+		const generation = this._targetGeneration;
+		// Held weakly: these recovery callbacks do not keep the composer alive for a send that outlives it.
+		const composer = new WeakRef(this);
+		const alive = () => {
+			const target = composer.deref();
+			return target && !target._disposed ? target : undefined;
+		};
+		return this._backgroundSends.track(this.slot, send, {
+			input,
+			isAlive: () => !!alive(),
+			canRestoreSilently: () => {
+				const target = alive();
+				return !!target && send.isLatest() && target._targetGeneration === generation;
+			},
+			restore: () => {
+				const target = alive();
+				if (!target) {
+					return 'gone';
+				}
+				// Only once its input shows it: not while it sends, such as while it reseeds after another background send.
+				return target._isIdle() && target.input.restore(input) ? 'restored' : 'busy';
+			},
+		});
+	}
+
+	/** Whether its input is empty and no send of it is under way. */
+	private _isIdle(): boolean {
+		const state = this.input.get();
+		return !state.attempt && !state.input.inputText && !state.input.attachments.length;
 	}
 
 	/**

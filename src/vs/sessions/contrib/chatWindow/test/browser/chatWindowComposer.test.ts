@@ -13,7 +13,10 @@ import { URI } from '../../../../../base/common/uri.js';
 import { mock, upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
-import { INotificationHandle, INotificationService, NotificationMessage } from '../../../../../platform/notification/common/notification.js';
+import { INotification, INotificationHandle, INotificationService, NotificationMessage } from '../../../../../platform/notification/common/notification.js';
+import { IAccessibilityService } from '../../../../../platform/accessibility/common/accessibility.js';
+import { IClipboardService } from '../../../../../platform/clipboard/common/clipboardService.js';
+import { IAction } from '../../../../../base/common/actions.js';
 import { TestNotificationService } from '../../../../../platform/notification/test/common/testNotificationService.js';
 import { ILogService, NullLogService } from '../../../../../platform/log/common/log.js';
 import { IStorageService, StorageScope, StorageTarget, WillSaveStateReason } from '../../../../../platform/storage/common/storage.js';
@@ -24,6 +27,10 @@ import { ISessionGroupsService } from '../../../../../workbench/contrib/sessions
 import { ISessionsProvidersService } from '../../../../../workbench/contrib/sessions/browser/sessionsProvidersService.js';
 import { IChat, ISession, ISessionWorkspace, SessionStatus } from '../../../../../workbench/services/sessions/common/session.js';
 import { ICreateNewSessionSlotOptions, INewSessionDraftSlot, INewSessionRequestAcceptedEvent, INewSessionRequestEndedEvent, ISessionsManagementService } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
+import { IChatRequestVariableEntry } from '../../../../../workbench/contrib/chat/common/attachments/chatVariableEntries.js';
+import { ChatDynamicVariableModel } from '../../../../../workbench/contrib/chat/browser/attachments/chatDynamicVariables.js';
+import { IDynamicVariable } from '../../../../../workbench/contrib/chat/common/attachments/chatVariables.js';
+import { SharedChatInputComposer } from '../../../../../workbench/contrib/sessions/browser/chat/sharedChatInputComposer.js';
 import { CHAT_WINDOW_COMPOSERS_STORAGE_KEY, ChatWindowComposerBackgroundSends, ChatWindowComposerModel, ChatWindowComposers, getChatWindowComposerTarget } from '../../browser/chatWindowComposer.js';
 
 suite('Chat window composer', () => {
@@ -43,7 +50,7 @@ suite('Chat window composer', () => {
 			override readonly providerId = options?.providerId ?? 'provider';
 			override readonly sessionType = 'type';
 			override readonly status = options?.status ?? constObservable(SessionStatus.Untitled);
-			override readonly workspace = constObservable(folder ? upcastPartial<ISessionWorkspace>({ uri: URI.file(folder) }) : undefined);
+			override readonly workspace = constObservable(folder ? upcastPartial<ISessionWorkspace>({ uri: URI.file(folder), label: folder.slice(1) }) : undefined);
 			override readonly isQuickChat = constObservable(!!options?.quickChat);
 			override readonly mainChat = constObservable(main);
 		}();
@@ -55,14 +62,35 @@ suite('Chat window composer', () => {
 		const onDidEnd = store.add(new Emitter<INewSessionRequestEndedEvent>());
 		const onDidReplace = store.add(new Emitter<{ readonly from: ISession; readonly to: ISession }>());
 		const slots: { readonly slot: INewSessionDraftSlot & { readonly newSession: ISettableObservable<ISession | undefined> }; readonly options?: ICreateNewSessionSlotOptions }[] = [];
+		/** The actions of the last notification with actions. */
+		const actions: IAction[] = [];
 		const notifications = new class extends TestNotificationService {
 			override error(message: NotificationMessage): INotificationHandle {
 				events.push(`error: ${message}`);
 				return super.error(message);
 			}
+			override info(message: NotificationMessage): INotificationHandle {
+				events.push(`info: ${message}`);
+				return super.info(message);
+			}
+			override notify(notification: INotification): INotificationHandle {
+				// Those with actions; `error` notifies through here too.
+				if (notification.actions) {
+					actions.splice(0, actions.length, ...(notification.actions.primary ?? []));
+					events.push(`notify: ${notification.message} [${actions.map(action => action.label).join(', ')}]`);
+				}
+				return super.notify(notification);
+			}
 		}();
+
 		const instantiationService = store.add(new TestInstantiationService());
 		instantiationService.stub(INotificationService, notifications);
+		instantiationService.stub(IAccessibilityService, new class extends mock<IAccessibilityService>() {
+			override status(message: string) { events.push(`status: ${message}`); }
+		}());
+		instantiationService.stub(IClipboardService, new class extends mock<IClipboardService>() {
+			override async writeText(text: string) { events.push(`copied: ${text}`); }
+		}());
 		const storageService = store.add(new TestStorageService());
 		instantiationService.stub(IStorageService, storageService);
 		instantiationService.stub(ILogService, new NullLogService());
@@ -97,7 +125,7 @@ suite('Chat window composer', () => {
 		instantiationService.stub(ISessionsManagementService, sessionsManagementService);
 		const backgroundSends = store.add(instantiationService.createInstance(ChatWindowComposerBackgroundSends));
 		const createComposer = (target = { folderUri: URI.file('/repo'), providerId: 'provider', sessionTypeId: 'type' }) => instantiationService.createInstance(ChatWindowComposerModel, URI.parse('vscode-agents-composer:/1'), { target, groupId: 'group' }, backgroundSends, async () => { });
-		return { events, onDidAccept, onDidEnd, onDidReplace, slots, sessionsManagementService, backgroundSends, createComposer, sessionsProvidersService: instantiationService.get(ISessionsProvidersService), instantiationService, storageService };
+		return { events, actions, onDidAccept, onDidEnd, onDidReplace, slots, sessionsManagementService, backgroundSends, createComposer, sessionsProvidersService: instantiationService.get(ISessionsProvidersService), instantiationService, storageService };
 	}
 
 	test('a composer starts its session as the chat it opened from: the session\'s folder, provider and agent where they serve the folder, and the chat\'s model and mode; a quick chat\'s provider and agent with no workspace; nothing without a session or a workspace', () => {
@@ -204,7 +232,192 @@ suite('Chat window composer', () => {
 		onDidEnd.fire({ session: cancelled.session, owner: slot, started: false, readopted: false, error: new CancellationError() });
 		onDidEnd.fire({ session: notDispatched.session, owner: slot, started: false, readopted: false, error: new Error('not dispatched') });
 
-		assert.deepStrictEqual(events, ['error: Couldn\'t start the session: no agent', 'error: Couldn\'t start the session: replaced failed']);
+		assert.deepStrictEqual(events, ['notify: Couldn\'t start the session in repo with type: no agent [Copy Prompt]', 'notify: Couldn\'t start the session in No Workspace with type: replaced failed [Copy Prompt]']);
+	});
+
+	test('a failed background send gives its prompt back to its composer when nothing changed there, announcing it; once the user typed, picked another target or sent again, it offers Restore Prompt, which keeps the current target, and Copy Prompt; only Copy Prompt once the composer is gone; Restore Prompt never replaces what the user wrote since, copying the prompt instead', async () => {
+		const store = disposables.add(new DisposableStore());
+		const { events, actions, onDidEnd, slots, createComposer } = createServices(store);
+		const composer = store.add(createComposer());
+		const { slot } = slots[0];
+		events.length = 0;
+		const written = { inputText: '#attachment:index.ts fix it', attachments: [], references: [{ id: 'a', range: new Range(1, 1, 1, 21), data: URI.file('/repo/index.ts') }] };
+		const restored: string[] = [];
+		store.add(composer.input.registerRestorer(draft => { restored.push(draft.inputText); return true; }));
+		let latest = true;
+		// As the composer sends in the background: it records what was written, clears its input, and sends.
+		const send = (name: string) => {
+			const attempt = composer.input.beginSendAttempt(written);
+			composer.input.set({ inputText: '', attachments: [] });
+			const session = createSession(name, { folder: '/repo' });
+			composer.trackBackgroundSend({ session, query: 'fix it', attachedContext: undefined, isLatest: () => latest });
+			composer.input.endSendAttempt(attempt);
+			return session;
+		};
+		const fail = (session: ISession) => onDidEnd.fire({ session, owner: slot, started: false, readopted: false, error: new Error('no agent') });
+
+		fail(send('idle'));
+		const silently = { input: composer.input.get().input, restored: [...restored], events: events.splice(0) };
+		composer.input.set({ inputText: '', attachments: [] });
+		const retargeted = send('retargeted');
+		composer.setRequestedTarget({ folderUri: URI.file('/other') });
+		fail(retargeted);
+		const afterRetarget = { input: composer.input.get().input.inputText, events: events.splice(0) };
+		await actions[0].run();
+		await actions[1].run();
+		const afterActions = { input: composer.input.get().input.inputText, target: composer.requestedTarget.get()?.folderUri?.path, events: events.splice(0) };
+		composer.input.set({ inputText: '', attachments: [] });
+		const typedOver = send('typed');
+		composer.input.set({ inputText: 'next', attachments: [] });
+		fail(typedOver);
+		// Restore Prompt never replaces what the user wrote since.
+		await actions[0].run();
+		const typedKept = composer.input.get().input.inputText;
+		composer.input.set({ inputText: '', attachments: [] });
+		const superseded = send('superseded');
+		latest = false;
+		fail(superseded);
+		latest = true;
+		const gone = send('gone');
+		composer.dispose();
+		fail(gone);
+
+		assert.deepStrictEqual({ silently, afterRetarget, afterActions, typedKept, rest: events, restored }, {
+			silently: { input: written, restored: ['#attachment:index.ts fix it'], events: ['error: Couldn\'t start the session: no agent', 'status: The prompt of the session that couldn\'t start is back in the composer.'] },
+			afterRetarget: { input: '', events: ['notify: Couldn\'t start the session in repo with type: no agent [Restore Prompt, Copy Prompt]'] },
+			afterActions: { input: '#attachment:index.ts fix it', target: '/other', events: ['copied: #attachment:index.ts fix it'] },
+			typedKept: 'next',
+			rest: [
+				'notify: Couldn\'t start the session in repo with type: no agent [Restore Prompt, Copy Prompt]',
+				'copied: #attachment:index.ts fix it',
+				'info: The composer can\'t take the prompt back now, so it was copied to the clipboard instead.',
+				'notify: Couldn\'t start the session in repo with type: no agent [Restore Prompt, Copy Prompt]',
+				'dispose slot1',
+				'ungroup slot1',
+				'notify: Couldn\'t start the session in repo with type: no agent [Copy Prompt]',
+			],
+			restored: ['#attachment:index.ts fix it', '#attachment:index.ts fix it'],
+		});
+	});
+
+	test('a background send that fails while the composer\'s input still sends, such as while it reseeds after the send was accepted, is not reported as given back: its prompt stays in the notification, which restores it once the input shows it, and copies it while the input cannot; one that fails once the input is idle shows in the input', async () => {
+		const store = disposables.add(new DisposableStore());
+		const { events, actions, onDidAccept, onDidEnd, slots, createComposer } = createServices(store);
+		const composer = store.add(createComposer());
+		const { slot } = slots[0];
+		events.length = 0;
+
+		// The composer's shared input, tracking the host's snapshot as it does once rendered, over a widget that keeps its state.
+		const changed = store.add(new Emitter<void>());
+		const state: { text: string; attachments: IChatRequestVariableEntry[]; references: IDynamicVariable[] } = { text: '', attachments: [], references: [] };
+		const widget = {
+			getInput: () => state.text,
+			setInput: (value: string) => { state.text = value; changed.fire(); },
+			inputEditor: { onDidChangeModelContent: changed.event, getModel: () => undefined },
+			attachmentModel: {
+				get attachments() { return state.attachments; },
+				onDidChange: changed.event,
+				addContext: (...entries: IChatRequestVariableEntry[]) => { state.attachments = [...state.attachments, ...entries]; changed.fire(); },
+				clearAndSetContext: (...entries: IChatRequestVariableEntry[]) => { state.attachments = entries; changed.fire(); },
+			},
+			getContrib: () => ({
+				get variables() { return state.references; },
+				onDidChangeReferences: changed.event,
+				setInputState: (inputState: Record<string, unknown>) => { state.references = inputState[ChatDynamicVariableModel.ID] as IDynamicVariable[]; changed.fire(); },
+			}),
+			input: { get attachmentModel() { return widget.attachmentModel; }, inlineAttachments: undefined },
+		};
+		const sending = observableValue('sending', false);
+		const input = Object.assign(Object.create(SharedChatInputComposer.prototype), {
+			_widget: widget, _sending: sending, _pendingAttachments: [], options: { session: constObservable(undefined), inputSnapshot: composer.input },
+		}) as SharedChatInputComposer;
+		store.add(Reflect.get(SharedChatInputComposer.prototype, '_trackInputSnapshot').call(input, widget) as IDisposable);
+
+		const attachment = upcastPartial<IChatRequestVariableEntry>({ id: 'file', name: 'index.ts', kind: 'file', value: URI.file('/repo/index.ts') });
+		const reference: IDynamicVariable = { id: 'a', range: new Range(1, 1, 1, 21), data: URI.file('/repo/index.ts') };
+		const shown = () => ({ text: state.text, attachments: state.attachments.map(entry => entry.id), references: state.references.map(entry => entry.id), snapshot: composer.input.get().input.inputText, attempt: !!composer.input.get().attempt });
+		// As the input sends in the background: it records what was written, clears itself, and sends; its send is accepted, which
+		// ends the attempt, while the input still sends until it reseeds.
+		const send = (name: string) => {
+			state.text = '#attachment:index.ts fix it'; state.attachments = [attachment]; state.references = [reference]; changed.fire();
+			sending.set(true, undefined);
+			composer.input.beginSendAttempt({ inputText: state.text, attachments: [...state.attachments], references: [...state.references] });
+			state.text = ''; state.attachments = []; state.references = []; changed.fire();
+			const session = createSession(name, { folder: '/repo' });
+			composer.trackBackgroundSend({ session, query: 'fix it', attachedContext: undefined, isLatest: () => true });
+			onDidAccept.fire({ session, owner: slot, background: true });
+			return session;
+		};
+		const fail = (session: ISession) => onDidEnd.fire({ session, owner: slot, started: false, readopted: false, error: new Error('no agent') });
+
+		fail(send('while reseeding'));
+		const whileSending = { input: shown(), events: events.splice(0) };
+		// Restore Prompt while the input still sends: copied, never lost in an input that does not show it.
+		await actions[0].run();
+		const restoreWhileSending = { input: shown(), events: events.splice(0) };
+		// The reseed ends: nothing shows by itself, the notification still has it.
+		sending.set(false, undefined);
+		const reseeded = shown();
+		await actions[0].run();
+		const restoreOnceIdle = { input: shown(), events: events.splice(0) };
+
+		// A send that fails once the input is idle: given back, and the input shows it.
+		state.text = ''; state.attachments = []; state.references = []; changed.fire();
+		const idle = send('idle');
+		sending.set(false, undefined);
+		fail(idle);
+		const givenBack = { input: shown(), events: events.splice(0) };
+
+		const prompt = { text: '#attachment:index.ts fix it', attachments: ['file'], references: ['a'], snapshot: '#attachment:index.ts fix it', attempt: false };
+		const empty = { text: '', attachments: [], references: [], snapshot: '', attempt: false };
+		assert.deepStrictEqual({ whileSending, restoreWhileSending, reseeded, restoreOnceIdle, givenBack }, {
+			whileSending: { input: empty, events: ['notify: Couldn\'t start the session in repo with type: no agent [Restore Prompt, Copy Prompt]'] },
+			restoreWhileSending: { input: empty, events: ['copied: #attachment:index.ts fix it', 'info: The composer can\'t take the prompt back now, so it was copied to the clipboard instead.'] },
+			reseeded: empty,
+			restoreOnceIdle: { input: prompt, events: [] },
+			givenBack: { input: prompt, events: ['error: Couldn\'t start the session: no agent', 'status: The prompt of the session that couldn\'t start is back in the composer.'] },
+		});
+	});
+
+	test('a background send that fails while no input of the composer shows, such as before its input renders or once it went, is not reported as given back: the snapshot does not take its prompt, which the notification offers to restore once an input shows and copies until then', async () => {
+		const store = disposables.add(new DisposableStore());
+		const { events, actions, onDidEnd, slots, createComposer } = createServices(store);
+		const composer = store.add(createComposer());
+		const { slot } = slots[0];
+		events.length = 0;
+		const written = { inputText: 'fix it', attachments: [] };
+		const send = (name: string) => {
+			const attempt = composer.input.beginSendAttempt(written);
+			composer.input.set({ inputText: '', attachments: [] });
+			const session = createSession(name, { folder: '/repo' });
+			composer.trackBackgroundSend({ session, query: 'fix it', attachedContext: undefined, isLatest: () => true });
+			composer.input.endSendAttempt(attempt);
+			return session;
+		};
+		const fail = (session: ISession) => onDidEnd.fire({ session, owner: slot, started: false, readopted: false, error: new Error('no agent') });
+
+		// Before an input registers.
+		fail(send('unrendered'));
+		const unrendered = { snapshot: composer.input.get().input.inputText, events: events.splice(0) };
+		await actions[0].run();
+		const restoreUnrendered = { snapshot: composer.input.get().input.inputText, events: events.splice(0) };
+		// Once its input went: its registration is disposed.
+		const shownBy: string[] = [];
+		store.add(composer.input.registerRestorer(() => true)).dispose();
+		fail(send('gone input'));
+		const goneInput = { snapshot: composer.input.get().input.inputText, events: events.splice(0) };
+		// An input shows again: Restore Prompt gives it back there.
+		store.add(composer.input.registerRestorer(draft => { shownBy.push(draft.inputText); return true; }));
+		await actions[0].run();
+		const restoreShown = { snapshot: composer.input.get().input.inputText, events: events.splice(0), shownBy };
+
+		const offered = ['notify: Couldn\'t start the session in repo with type: no agent [Restore Prompt, Copy Prompt]'];
+		assert.deepStrictEqual({ unrendered, restoreUnrendered, goneInput, restoreShown }, {
+			unrendered: { snapshot: '', events: offered },
+			restoreUnrendered: { snapshot: '', events: ['copied: fix it', 'info: The composer can\'t take the prompt back now, so it was copied to the clipboard instead.'] },
+			goneInput: { snapshot: '', events: offered },
+			restoreShown: { snapshot: 'fix it', events: [], shownBy: ['fix it'] },
+		});
 	});
 
 	test('the composers of chat windows are stored as the state is saved, not as their input changes, with what they aim for, their group, their input and a send that did not end; they restore as a composer with that input or with what the send sent, or as the session a send started; a discarded composer and a malformed entry are not stored', async () => {

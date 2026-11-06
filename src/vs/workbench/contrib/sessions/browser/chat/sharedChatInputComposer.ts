@@ -747,8 +747,23 @@ export class SharedChatInputComposer extends Disposable implements INewSessionCo
 		if (inlineAttachments) {
 			store.add(inlineAttachments.onDidChange(write));
 		}
+		store.add(this.options.inputSnapshot!.registerRestorer(draft => this._showRestoredInput(widget, draft)));
 		write();
 		return store;
+	}
+
+	/**
+	 * Shows `draft`, which the host gave back, such as the prompt of a send that did not start its session, and returns
+	 * whether it did: not while it sends, which clears the input it would show it in.
+	 */
+	private _showRestoredInput(widget: ChatWidget, draft: IChatDraft): boolean {
+		if (this._widget !== widget || this._sending.get()) {
+			return false;
+		}
+		this.setInputValue(draft.inputText);
+		widget.attachmentModel.clearAndSetContext(...draft.attachments);
+		this._restoreDraftReferences(draft);
+		return true;
 	}
 
 	private _writeInputSnapshot(widget: ChatWidget): void {
