@@ -24,9 +24,11 @@ export const REVEAL_CANVAS_COMMAND_ID = 'workbench.action.agentSessions.revealCa
 
 export interface ICanvas {
 	readonly resource: URI;
+	/** Stable instance identity; absent only while membership is pending, when {@link source} is also absent. */
 	readonly instanceId: string | undefined;
 	readonly title: string;
 	readonly status?: string;
+	/** Current live source; a defined source always has a defined {@link instanceId}. */
 	readonly source: URI | undefined;
 }
 

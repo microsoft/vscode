@@ -57,8 +57,10 @@ class CanvasPresentation extends Disposable {
 		this.key = getCanvasReferenceKey(reference);
 		this.reference = reference;
 		this.serializationId = generateUuid();
-		this._membership = { kind: 'unknown' };
-		this.updateMembership(membership);
+		this._membership = membership;
+		if (membership.kind === 'hydrating' || membership.kind === 'available' || membership.kind === 'unavailable') {
+			this._canvas = membership.canvas;
+		}
 	}
 
 	get admitted(): boolean {

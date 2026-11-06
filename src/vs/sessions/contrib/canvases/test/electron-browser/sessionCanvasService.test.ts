@@ -345,7 +345,7 @@ suite('SessionCanvasService', () => {
 		const transitions: readonly {
 			readonly state: string;
 			readonly apply: () => Promise<URI | undefined>;
-		readonly expected: {
+			readonly expected: {
 				readonly title: string | undefined;
 				readonly status: string | undefined;
 				readonly source: string | undefined;
@@ -355,143 +355,143 @@ suite('SessionCanvasService', () => {
 				readonly models: readonly { readonly source: string; readonly disposed: boolean }[];
 			};
 		}[] = [
-			{
-				state: 'available',
-				apply: async () => stableSource,
-				expected: {
-					title: 'Preview Live',
-					status: 'connected',
-					source: stableSource.toString(),
-					membershipPending: false,
-					restorable: true,
-					reused: true,
-					models: [{ source: stableSource.toString(true), disposed: false }],
+				{
+					state: 'available',
+					apply: async () => stableSource,
+					expected: {
+						title: 'Preview Live',
+						status: 'connected',
+						source: stableSource.toString(),
+						membershipPending: false,
+						restorable: true,
+						reused: true,
+						models: [{ source: stableSource.toString(true), disposed: false }],
+					},
 				},
-			},
-			{
-				state: 'unknown catalog',
-				apply: async () => {
-					harness.canvases.set(undefined, undefined);
-					return undefined;
+				{
+					state: 'unknown catalog',
+					apply: async () => {
+						harness.canvases.set(undefined, undefined);
+						return undefined;
+					},
+					expected: {
+						title: 'Preview Live',
+						status: 'connected',
+						source: undefined,
+						membershipPending: true,
+						restorable: true,
+						reused: undefined,
+						models: [{ source: stableSource.toString(true), disposed: false }],
+					},
 				},
-				expected: {
-					title: 'Preview Live',
-					status: 'connected',
-					source: undefined,
-					membershipPending: true,
-					restorable: true,
-					reused: undefined,
-					models: [{ source: stableSource.toString(true), disposed: false }],
+				{
+					state: 'hydrating placeholder',
+					apply: async () => {
+						harness.canvases.set([{ ...stableCanvas, instanceId: undefined, title: 'Canvas', status: 'placeholder', source: undefined }], undefined);
+						return undefined;
+					},
+					expected: {
+						title: 'Preview Live',
+						status: 'connected',
+						source: undefined,
+						membershipPending: true,
+						restorable: true,
+						reused: undefined,
+						models: [{ source: stableSource.toString(true), disposed: false }],
+					},
 				},
-			},
-			{
-				state: 'hydrating placeholder',
-				apply: async () => {
-					harness.canvases.set([{ ...stableCanvas, instanceId: undefined, title: 'Canvas', status: 'placeholder', source: undefined }], undefined);
-					return undefined;
+				{
+					state: 'unknown sibling catalog',
+					apply: async () => {
+						harness.chats.set([peer], undefined);
+						return undefined;
+					},
+					expected: {
+						title: 'Preview Live',
+						status: 'connected',
+						source: undefined,
+						membershipPending: true,
+						restorable: true,
+						reused: undefined,
+						models: [{ source: stableSource.toString(true), disposed: false }],
+					},
 				},
-				expected: {
-					title: 'Preview Live',
-					status: 'connected',
-					source: undefined,
-					membershipPending: true,
-					restorable: true,
-					reused: undefined,
-					models: [{ source: stableSource.toString(true), disposed: false }],
+				{
+					state: 'available from sibling catalog',
+					apply: async () => {
+						harness.chats.set([harness.chat, peer], undefined);
+						harness.canvases.set([{ ...stableCanvas, title: 'Preview Returned', status: 'ready' }], undefined);
+						return stableSource;
+					},
+					expected: {
+						title: 'Preview Returned',
+						status: 'ready',
+						source: stableSource.toString(),
+						membershipPending: false,
+						restorable: true,
+						reused: true,
+						models: [{ source: stableSource.toString(true), disposed: false }],
+					},
 				},
-			},
-			{
-				state: 'unknown sibling catalog',
-				apply: async () => {
-					harness.chats.set([peer], undefined);
-					return undefined;
+				{
+					state: 'available with replacement source',
+					apply: async () => {
+						harness.canvases.set([{ ...stableCanvas, title: 'Preview Fresh', status: 'fresh', source: replacementSource }], undefined);
+						return replacementSource;
+					},
+					expected: {
+						title: 'Preview Fresh',
+						status: 'fresh',
+						source: replacementSource.toString(),
+						membershipPending: false,
+						restorable: true,
+						reused: false,
+						models: [
+							{ source: stableSource.toString(true), disposed: true },
+							{ source: replacementSource.toString(true), disposed: false },
+						],
+					},
 				},
-				expected: {
-					title: 'Preview Live',
-					status: 'connected',
-					source: undefined,
-					membershipPending: true,
-					restorable: true,
-					reused: undefined,
-					models: [{ source: stableSource.toString(true), disposed: false }],
+				{
+					state: 'unavailable',
+					apply: async () => {
+						harness.canvases.set([{ ...stableCanvas, title: 'Preview Offline', status: 'offline', source: undefined }], undefined);
+						return undefined;
+					},
+					expected: {
+						title: 'Preview Offline',
+						status: 'offline',
+						source: undefined,
+						membershipPending: false,
+						restorable: true,
+						reused: undefined,
+						models: [
+							{ source: stableSource.toString(true), disposed: true },
+							{ source: replacementSource.toString(true), disposed: true },
+						],
+					},
 				},
-			},
-			{
-				state: 'available from sibling catalog',
-				apply: async () => {
-					harness.chats.set([harness.chat, peer], undefined);
-					harness.canvases.set([{ ...stableCanvas, title: 'Preview Returned', status: 'ready' }], undefined);
-					return stableSource;
+				{
+					state: 'removed',
+					apply: async () => {
+						harness.canvases.set([], undefined);
+						await harness.closeSettled.at(-1);
+						return undefined;
+					},
+					expected: {
+						title: undefined,
+						status: undefined,
+						source: undefined,
+						membershipPending: undefined,
+						restorable: false,
+						reused: undefined,
+						models: [
+							{ source: stableSource.toString(true), disposed: true },
+							{ source: replacementSource.toString(true), disposed: true },
+						],
+					},
 				},
-				expected: {
-					title: 'Preview Returned',
-					status: 'ready',
-					source: stableSource.toString(),
-					membershipPending: false,
-					restorable: true,
-					reused: true,
-					models: [{ source: stableSource.toString(true), disposed: false }],
-				},
-			},
-			{
-				state: 'available with replacement source',
-				apply: async () => {
-					harness.canvases.set([{ ...stableCanvas, title: 'Preview Fresh', status: 'fresh', source: replacementSource }], undefined);
-					return replacementSource;
-				},
-				expected: {
-					title: 'Preview Fresh',
-					status: 'fresh',
-					source: replacementSource.toString(),
-					membershipPending: false,
-					restorable: true,
-					reused: false,
-					models: [
-						{ source: stableSource.toString(true), disposed: true },
-						{ source: replacementSource.toString(true), disposed: false },
-					],
-				},
-			},
-			{
-				state: 'unavailable',
-				apply: async () => {
-					harness.canvases.set([{ ...stableCanvas, title: 'Preview Offline', status: 'offline', source: undefined }], undefined);
-					return undefined;
-				},
-				expected: {
-					title: 'Preview Offline',
-					status: 'offline',
-					source: undefined,
-					membershipPending: false,
-					restorable: true,
-					reused: undefined,
-					models: [
-						{ source: stableSource.toString(true), disposed: true },
-						{ source: replacementSource.toString(true), disposed: true },
-					],
-				},
-			},
-			{
-				state: 'removed',
-				apply: async () => {
-					harness.canvases.set([], undefined);
-					await harness.closeSettled.at(-1);
-					return undefined;
-				},
-				expected: {
-					title: undefined,
-					status: undefined,
-					source: undefined,
-					membershipPending: undefined,
-					restorable: false,
-					reused: undefined,
-					models: [
-						{ source: stableSource.toString(true), disposed: true },
-						{ source: replacementSource.toString(true), disposed: true },
-					],
-				},
-			},
-		];
+			];
 
 		const actual = [];
 		for (const transition of transitions) {
