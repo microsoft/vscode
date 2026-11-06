@@ -1382,6 +1382,9 @@ export interface IAgentChats {
 	/** Prepare an existing chat for input without sending a turn. May acquire its native writer lock. */
 	prepareChat?(chat: URI, context: AgentChatOperationContext): Promise<IAgentPrepareChatResult>;
 
+	/** Returns the input restriction recorded when `getMessages` recovered history read-only after a resume failure. */
+	getInputRestriction?(chat: URI): ErrorInfo | undefined;
+
 	/**
 	 * Optionally starts the runtime of a chat that was created with a deferred
 	 * backing ({@link IAgentCreateChatResult.provisional}) before its first send,

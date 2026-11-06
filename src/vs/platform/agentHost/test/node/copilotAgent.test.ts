@@ -84,7 +84,8 @@ import { AgentHostClientConnectionKind, AgentHostLaunchKind, AgentHostTransportK
 import { ISessionDataService, type StoredAssistantResponsePart } from '../../common/sessionDataService.js';
 import { buildNonPtyShellTerminalUri } from '../../common/nonPtyShellTerminalUri.js';
 import { buildDefaultChatUri, buildChatUri, buildSubagentChatUri, buildSubagentSessionUri, CustomizationLoadStatus, MessageKind, readSessionEhcliAdoptable, readSessionWorkspaceless, ResponsePartKind, ToolCallCancellationReason, ToolCallStatus, ToolResultContentType, TurnState, customizationId, AH_META_EHCLI_ADOPTED_DB_KEY, AH_META_EHCLI_LAST_TURN_DB_KEY, AH_META_IS_ARCHIVED_DB_KEY, AH_META_IS_READ_DB_KEY, AH_META_WORKSPACELESS_DB_KEY, type ClientPluginCustomization, type Customization, type PluginCustomization, type ToolCallResult, type Turn, RuleCustomization } from '../../common/state/sessionState.js';
-import { ChatOriginKind, CustomizationEnablementKind, CustomizationType, McpServerStatus, SessionStatus, ToolCallContributorKind, type AgentSelection, type ModelSelection, type ProtectedResourceMetadata, type ToolDefinition } from '../../common/state/protocol/state.js';
+import { ChatInteractivity, ChatOriginKind, CustomizationEnablementKind, CustomizationType, McpServerStatus, SessionStatus, ToolCallContributorKind, type AgentSelection, type ModelSelection, type ProtectedResourceMetadata, type ToolDefinition } from '../../common/state/protocol/state.js';
+import { readChatInputState } from '../../common/meta/agentHostChatInputState.js';
 import { ActionType, AuthRequiredReason, type ChatAction, type SessionAction } from '../../common/state/sessionActions.js';
 
 import { AgentConfigurationService, IAgentConfigurationService } from '../../node/agentConfigurationService.js';
@@ -32446,6 +32447,153 @@ suite('CopilotAgent', () => {
 			assert.deepStrictEqual(
 				{ adopted, getSessionMetadataCalls: client.getSessionMetadataCalls, usages },
 				{ adopted: { adopted: false, eligible: false, native: true, reason: 'alreadyNative' }, getSessionMetadataCalls: [], usages: [] },
+			);
+		});
+
+		test('skips adoption without throwing when a worktree or SDK metadata path hits ERR_UNC_HOST_NOT_ALLOWED', async () => {
+			const userHome = URI.file(await fs.mkdtemp(`${os.tmpdir()}/adopt-home-`));
+			const sessionId = 'legacy-unc-blocked';
+			const session = AgentSession.uri('copilotcli', sessionId);
+			const sessionDataService = disposables.add(new TestSessionDataService());
+			const client = new TestCopilotClient([]);
+			let metadataErrorMode: 'rpcWrapped' | 'native' | 'none' = 'rpcWrapped';
+			client.getSessionMetadata = async () => {
+				if (metadataErrorMode === 'rpcWrapped') {
+					throw Object.assign(
+						new Error('Request session.getMetadata failed with message: UNC host \'h5\' access is not allowed. Please update the \'security.allowedUNCHosts\' setting if you want to allow this host.'),
+						{ code: -32603 },
+					);
+				}
+				if (metadataErrorMode === 'native') {
+					throw Object.assign(new Error('UNC host \'h5\' access is not allowed.'), { code: 'ERR_UNC_HOST_NOT_ALLOWED' });
+				}
+				return undefined;
+			};
+			const agent = createTestAgent(disposables, { sessionDataService, copilotClient: client, userHome });
+			const checkStub = stub(agent as unknown as { _checkDirectoryStatus(p: string): Promise<'directory' | 'missing' | 'inaccessible'> }, '_checkDirectoryStatus')
+				.callsFake(async (candidate: string) => candidate.startsWith('\\\\h5\\') ? 'inaccessible' : 'missing');
+			try {
+				await agent.authenticate('https://api.github.com', 'token');
+				await writeExtensionHostMarker(userHome, sessionId, {
+					origin: 'vscode',
+					worktreeProperties: {
+						worktreePath: '\\\\h5\\share\\worktree',
+						repositoryPath: '\\\\h5\\share\\repo',
+						branchName: 'feature',
+					},
+				});
+
+				const fromRpcWrappedError = await ensureDefaultChatAdopted(agent, session);
+				metadataErrorMode = 'native';
+				const fromNativeError = await ensureDefaultChatAdopted(agent, session);
+				metadataErrorMode = 'none';
+				const fromWorktreeMarker = await ensureDefaultChatAdopted(agent, session);
+
+				assert.deepStrictEqual(
+					{
+						rpcWrapped: { adopted: fromRpcWrappedError.adopted, eligible: fromRpcWrappedError.eligible, reason: fromRpcWrappedError.reason },
+						native: { adopted: fromNativeError.adopted, eligible: fromNativeError.eligible, reason: fromNativeError.reason },
+						worktree: { adopted: fromWorktreeMarker.adopted, eligible: fromWorktreeMarker.eligible, reason: fromWorktreeMarker.reason },
+					},
+					{
+						rpcWrapped: { adopted: false, eligible: true, reason: 'workingDirectoryMissing' },
+						native: { adopted: false, eligible: true, reason: 'workingDirectoryMissing' },
+						worktree: { adopted: false, eligible: true, reason: 'workingDirectoryMissing' },
+					},
+				);
+			} finally {
+				checkStub.restore();
+				await fs.rm(userHome.fsPath, { recursive: true, force: true });
+				await disposeAgent(agent);
+			}
+		});
+
+		test('falls back to persisted history and marks the chat read-only with an explanation when session.resume fails due to invalid workspace.yaml', async () => {
+			const userHome = URI.file(await fs.mkdtemp(`${os.tmpdir()}/adopt-home-`));
+			const workingDirectory = await fs.mkdtemp(`${os.tmpdir()}/adopt-cwd-`);
+			const sessionId = 'legacy-invalid-workspace-yaml';
+			const session = AgentSession.uri('copilotcli', sessionId);
+			const chat = defaultChatUri(session);
+			const sessionDataService = disposables.add(new TestSessionDataService());
+			const client = new TestCopilotClient([sdkSession(sessionId, workingDirectory)]);
+			const history: SessionEvent[] = [
+				{ id: '11111111-1111-4111-8111-111111111111', timestamp: '2026-03-01T00:00:00.000Z', parentId: null, type: 'user.message', data: { content: 'Prompt with corrupt workspace.yaml' } },
+				{ id: '22222222-2222-4222-8222-222222222222', timestamp: '2026-03-01T00:00:01.000Z', parentId: '11111111-1111-4111-8111-111111111111', type: 'assistant.message', data: { messageId: 'm1', content: 'Recovered reply', toolRequests: [] } },
+				{ id: '33333333-3333-4333-8333-333333333333', timestamp: '2026-03-01T00:00:02.000Z', parentId: '22222222-2222-4222-8222-222222222222', type: 'session.idle', data: {} },
+			];
+			const resumeErrorMessage = `Request session.resume failed with message: session construction failed: Failed to load workspace from ${workingDirectory}/workspace.yaml: Error: created_at: Invalid datetime`;
+			let resumeCalls = 0;
+			client.rpc.sessions.readPersistedEvents = async () => ({ events: history, cursor: 'end', hasMore: false, cursorStatus: 'ok' });
+			client.resumeSession = async () => {
+				resumeCalls++;
+				throw new Error(resumeErrorMessage);
+			};
+			const { agent, fileService } = createTestAgentContext(disposables, {
+				sessionDataService,
+				copilotClient: client,
+				userHome,
+				useRealResumePath: true,
+			});
+			registerAgentCleanup(agent, userHome, workingDirectory);
+			await agent.authenticate('https://api.github.com', 'token');
+			await writeExtensionHostMarker(userHome, sessionId, { origin: 'vscode', workspacePath: workingDirectory });
+
+			const host = disposables.add(createTestAgentService(new NullLogService(), fileService, sessionDataService, TEST_PRODUCT_SERVICE, new TestAgentHostGitService()));
+			registerTestAgentProvider(host, agent);
+			(host as unknown as { _configurationService: IAgentConfigurationService })._configurationService.updateRootConfig({ [AgentHostMigrateLegacyCopilotCliEnabledConfigKey]: true });
+
+			await host.restoreSession(session);
+			const stateManager = getTestAgentStateManager(host);
+			const sessionState = stateManager.getSessionState(session.toString());
+			const chatState = stateManager.getChatState(chat.toString());
+			const inputStateAfterRestore = readChatInputState(sessionState, chat.toString());
+			const resumeCallsAfterRestore = resumeCalls;
+
+			// Dispatching a turn on the restored read-only chat is rejected by TurnAdmissionContribution without retrying resumeSession.
+			host.dispatchAction(chat.toString(), {
+				type: ActionType.ChatTurnStarted,
+				turnId: 'turn-blocked',
+				startedAt: '2026-03-02T00:00:00.000Z',
+				message: { text: 'Attempt to send on corrupt workspace.yaml', origin: { kind: MessageKind.User } },
+			}, 'client-1', 1);
+			await new Promise(resolve => setTimeout(resolve, 20));
+			const turnsAfterSendAttempt = stateManager.getChatState(chat.toString())?.turns ?? [];
+
+			assert.deepStrictEqual(
+				{
+					interactivity: chatState?.interactivity,
+					inputState: inputStateAfterRestore,
+					turns: turnsAfterSendAttempt.map(turn => ({
+						state: turn.state,
+						prompt: turn.message.text,
+						error: turn.responseParts.find(part => part.kind === ResponsePartKind.Error)?.error,
+					})),
+					resumeCallsAfterRestore,
+					resumeCallsAfterSend: resumeCalls,
+				},
+				{
+					interactivity: ChatInteractivity.ReadOnly,
+					inputState: {
+						kind: 'blocked',
+						error: {
+							errorType: 'invalidWorkspaceMetadata',
+							message: resumeErrorMessage,
+						},
+					},
+					turns: [
+						{ state: TurnState.Complete, prompt: 'Prompt with corrupt workspace.yaml', error: undefined },
+						{
+							state: TurnState.Error,
+							prompt: 'Attempt to send on corrupt workspace.yaml',
+							error: {
+								errorType: 'invalidWorkspaceMetadata',
+								message: resumeErrorMessage,
+							},
+						},
+					],
+					resumeCallsAfterRestore: 1,
+					resumeCallsAfterSend: 1,
+				},
 			);
 		});
 

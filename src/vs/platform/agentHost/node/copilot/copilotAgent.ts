@@ -59,7 +59,7 @@ import { buildCopilotBuiltinAgentsContainer, COPILOT_BUILTIN_AGENT_NAMES_BY_URI,
 import { IAgentPluginManager, ISyncedCustomization } from '../../common/agentPluginManager.js';
 import { toAgentCustomizationMeta } from '../../common/meta/agentCustomizationMeta.js';
 import { decodeProviderData, encodeProviderData, type IPersistedChat } from '../agentChatBackings.js';
-import { type AgentCanvasDefinitionSnapshot, AgentChatOperationContext, AgentSession, fixedChatOwnerRef, getChatSurfaceOptions, type IAgentChatOwnerRef, isAgentChatDefaultChat, resolveSessionBackedStorage, AgentSignal, AuthenticateParams, COPILOT_CLI_AGENT_PROVIDER_ID, IActiveClient, IAgent, IAgentChatAdoptionResult, type IAgentAdoptedWorktree, type IAgentCanvasCloseRequest, type IAgentCanvasOpenRequest, type IAgentChatCanvasWatchHost, IAgentChatConfigCompletionsParams, IAgentChatContext, type IAgentChatDiscoveryOptions, type IAgentChatReleaseOptions, IAgentChatSessionSettings, IAgentChatDataChange, IAgentChatMetadata, IAgentChats, IAgentLegacyChat, IAgentCreateChatOptions, IAgentCreateChatResult, IAgentCustomizationInstallation, IAgentCustomizationInstallationApplyRequest, IAgentCustomizationInstallationApplyResult, IAgentCustomizationInstallationPreparation, IAgentCustomizationInstallationRequest, IAgentCustomizationMarketplaceSearchRequest, IAgentCustomizationMarketplaceSearchResult, IAgentDescriptor, IAgentDiscoveredChat, type IAgentExtensionInfo, type IAgentExtensionInventory, IAgentListedChat, IAgentHostManagedSettingsSnapshot, IAgentHostNetworkEndpoint, IAgentKnownSessionsFilter, type IAgentManagedPluginRetryEntry, IAgentMaterializeChatEvent, IAgentModelInfo, type IAgentPendingMessageSender, type IAgentPermissionResponseContext, type IAgentPluginInstallRequest, type IAgentPluginMarketplace, type IAgentPluginMarketplaceItem, type IAgentPluginMarketplaceRefreshResult, type IAgentPluginMarketplaceRemoveResult, type IAgentPluginUninstallRequest, IAgentResolveChatConfigParams, IAgentSessionProjectInfo, IAgentSpawnChatEvent, IMcpNotification, SubagentChatSignal, resolveAgentChatContext, resolveAgentHostCustomizations, resolveAgentHostInstructions, resolveSubagentChatParent, type IAgentTurnDiagnosticSnapshot, type IAgentTurnTokenUsage, type IAgentChatSessionEvent, type IAgentImportChatOptions, type IAgentImportedChat } from '../../common/agent.js';
+import { type AgentCanvasDefinitionSnapshot, AgentChatOperationContext, AgentSession, fixedChatOwnerRef, getChatSurfaceOptions, type IAgentChatOwnerRef, isAgentChatDefaultChat, resolveSessionBackedStorage, AgentSignal, AuthenticateParams, COPILOT_CLI_AGENT_PROVIDER_ID, IActiveClient, IAgent, IAgentChatAdoptionResult, type IAgentAdoptedWorktree, type IAgentCanvasCloseRequest, type IAgentCanvasOpenRequest, type IAgentChatCanvasWatchHost, IAgentChatConfigCompletionsParams, IAgentChatContext, type IAgentChatDiscoveryOptions, type IAgentChatReleaseOptions, IAgentChatSessionSettings, IAgentChatDataChange, IAgentChatMetadata, IAgentChats, IAgentLegacyChat, IAgentCreateChatOptions, IAgentCreateChatResult, IAgentCustomizationInstallation, IAgentCustomizationInstallationApplyRequest, IAgentCustomizationInstallationApplyResult, IAgentCustomizationInstallationPreparation, IAgentCustomizationInstallationRequest, IAgentCustomizationMarketplaceSearchRequest, IAgentCustomizationMarketplaceSearchResult, IAgentDescriptor, IAgentDiscoveredChat, type IAgentExtensionInfo, type IAgentExtensionInventory, IAgentListedChat, IAgentHostManagedSettingsSnapshot, IAgentHostNetworkEndpoint, IAgentKnownSessionsFilter, type IAgentManagedPluginRetryEntry, IAgentMaterializeChatEvent, IAgentModelInfo, type IAgentPendingMessageSender, type IAgentPermissionResponseContext, type IAgentPluginInstallRequest, type IAgentPluginMarketplace, type IAgentPluginMarketplaceItem, type IAgentPluginMarketplaceRefreshResult, type IAgentPluginMarketplaceRemoveResult, type IAgentPluginUninstallRequest, type IAgentPrepareChatResult, IAgentResolveChatConfigParams, IAgentSessionProjectInfo, IAgentSpawnChatEvent, IMcpNotification, SubagentChatSignal, resolveAgentChatContext, resolveAgentHostCustomizations, resolveAgentHostInstructions, resolveSubagentChatParent, type IAgentTurnDiagnosticSnapshot, type IAgentTurnTokenUsage, type IAgentChatSessionEvent, type IAgentImportChatOptions, type IAgentImportedChat } from '../../common/agent.js';
 import { getReasoningEffortDescription, getReasoningEffortLabel, resolveDefaultReasoningEffort } from '../../common/reasoningEffort.js';
 import { createAutoModeTierSupport, DynamicAutoTiersFeatureFlag, getAdvertisedAutoModeTierSupport, getAutoModeTierLabel, getFusionAutoModeTierLabel, setAdvertisedAutoModeTiers, type IAutoModeTierSupport } from '../../common/autoModeTiers.js';
 import { AUTO_MODEL_ID, isAutoModel, isGpt56Model } from './modelIdentifiers.js';
@@ -972,6 +972,22 @@ type LegacyMarkerFallbackClassification = {
 	comment: 'Agent host fallback for legacy extension-host Copilot CLI sessions recorded only in the bulk metadata files, for machines where the extension backfill never ran (including remote hosts). Counts only; sent once per host process when migration is on and a bulk file exists.';
 };
 
+/** Whether an error from `session.resume` indicates a corrupt or invalid `workspace.yaml` file on disk. */
+function isInvalidWorkspaceMetadataError(error: unknown): boolean {
+	const message = getErrorMessage(error);
+	return message.includes('Failed to load workspace from') && message.includes('workspace.yaml');
+}
+
+/** Whether a native or JSON-RPC-wrapped SDK error indicates a blocked Windows UNC host (`security.allowedUNCHosts`). */
+function isDisallowedUncHostError(error: unknown): boolean {
+	if (getErrorCode(error) === 'ERR_UNC_HOST_NOT_ALLOWED') {
+		return true;
+	}
+	const message = getErrorMessage(error);
+	return message.includes('ERR_UNC_HOST_NOT_ALLOWED')
+		|| (message.includes('UNC host') && (message.includes('access is not allowed') || message.includes('security.allowedUNCHosts')));
+}
+
 /**
  * Shape of the `vscode.metadata.json` marker written next to a Copilot CLI
  * session's SDK event log. Other Copilot CLI hosts (e.g. the GitHub Copilot
@@ -1384,6 +1400,8 @@ export class CopilotAgent extends Disposable implements IAgent {
 	readonly onDidCustomizationsChange: Event<void>;
 	/** Per-session active client state for tools + plugin snapshot tracking. */
 	private readonly _activeClients = new ResourceMap<ActiveClient>();
+	/** Chats whose history was recovered read-only from persisted events after a resume failure. */
+	private readonly _readOnlyChatInputErrors = new Map<string, ErrorInfo>();
 	/** Live session -> the turn whose `prepareTurn` launched it; dropped with the session. */
 	private readonly _preparedTurnLaunches = new WeakMap<CopilotAgentSession, string>();
 	/**
@@ -6144,6 +6162,8 @@ export class CopilotAgent extends Disposable implements IAgent {
 	 * Chat-addressed surface for the chats within a session.
 	 */
 	readonly chats: IAgentChats = {
+		prepareChat: (chat: URI, context: URI | IAgentChatContext): Promise<IAgentPrepareChatResult> => this._prepareChat(chat, context),
+		getInputRestriction: (chat: URI): ErrorInfo | undefined => this._readOnlyChatInputErrors.get(chat.toString()),
 		prepareTurn: (chat: URI, turnId: string, workingDirectories: readonly URI[] | undefined, context: URI | IAgentChatContext): Promise<void> => this._prepareTurn(chat, turnId, workingDirectories, context),
 		warmChat: (chat: URI, context: IAgentChatContext): Promise<boolean> => this._warmChat(chat, context),
 		noteWarmSkipped: (chat: URI, context: IAgentChatContext, reason: AgentHostPrewarmSkipReason): void => this._noteWarmSkipped(chat, context, reason),
@@ -6833,25 +6853,33 @@ export class CopilotAgent extends Disposable implements IAgent {
 	 * A still-existing checkout whose marker has no base branch is left to the
 	 * probe-based bridge so the pre-existing `origin/HEAD` fallback is preserved.
 	 */
-	private async _extensionHostCliAdoptedWorktree(sessionId: string): Promise<IAgentAdoptedWorktree | undefined> {
+	private async _extensionHostCliAdoptedWorktree(sessionId: string): Promise<{ worktree?: IAgentAdoptedWorktree; hasInaccessibleCandidate: boolean }> {
 		const worktree = (await this._readExtensionHostCliMarker(sessionId))?.worktreeProperties;
 		if (!worktree?.worktreePath || !worktree.repositoryPath || !worktree.branchName) {
-			return undefined;
+			return { hasInaccessibleCandidate: false };
 		}
-		if (!(await this._isExistingDirectory(worktree.repositoryPath))) {
-			return undefined;
+		const repoStatus = await this._checkDirectoryStatus(worktree.repositoryPath);
+		if (repoStatus !== 'directory') {
+			return { hasInaccessibleCandidate: repoStatus === 'inaccessible' };
 		}
 		// The checkout still exists: only take over from the probe-based bridge when
 		// the marker gives us an authoritative base branch to persist; otherwise let
 		// the probe resolve it (e.g. from `origin/HEAD`) exactly as before.
-		if (await this._isExistingDirectory(worktree.worktreePath) && !worktree.baseBranchName) {
-			return undefined;
+		const worktreeStatus = await this._checkDirectoryStatus(worktree.worktreePath);
+		if (worktreeStatus === 'inaccessible') {
+			return { hasInaccessibleCandidate: true };
+		}
+		if (worktreeStatus === 'directory' && !worktree.baseBranchName) {
+			return { hasInaccessibleCandidate: false };
 		}
 		return {
-			branchName: worktree.branchName,
-			baseBranch: worktree.baseBranchName,
-			worktreePath: URI.file(worktree.worktreePath),
-			repositoryRoot: URI.file(worktree.repositoryPath),
+			worktree: {
+				branchName: worktree.branchName,
+				baseBranch: worktree.baseBranchName,
+				worktreePath: URI.file(worktree.worktreePath),
+				repositoryRoot: URI.file(worktree.repositoryPath),
+			},
+			hasInaccessibleCandidate: false,
 		};
 	}
 
@@ -7001,7 +7029,16 @@ export class CopilotAgent extends Disposable implements IAgent {
 				return { adopted: false, eligible: false, reason: 'notLegacyChat', diagnostics: await this._getLegacyDeclineDiagnostics(sessionId, markerRead) };
 			}
 			const client = await this._ensureClient();
-			const sdkMetadata = await client.getSessionMetadata(sessionId);
+			let sdkMetadata: Awaited<ReturnType<CopilotClient['getSessionMetadata']>>;
+			try {
+				sdkMetadata = await client.getSessionMetadata(sessionId);
+			} catch (error) {
+				if (isDisallowedUncHostError(error)) {
+					this._logService.warn(`[Copilot] Adoption skipped for ${sessionId}: SDK session metadata references a disallowed UNC host; preserving original workspace for retry.`);
+					return { adopted: false, eligible: true, reason: 'workingDirectoryMissing', diagnostics: markerRead.diagnostics };
+				}
+				throw error;
+			}
 			// The SDK reports the directory recorded when the session ran, which may since
 			// have been deleted (a removed worktree). Adopting it anyway commits the claim
 			// and then fails to resume, leaving the session in neither list.
@@ -7011,10 +7048,13 @@ export class CopilotAgent extends Disposable implements IAgent {
 			// recorded branch. A worktree whose checkout still exists is also bridged
 			// (when the marker records its base branch) so the recorded base is
 			// persisted for the Branch Changes diff even without a remote (#333642).
-			const adoptedWorktree = await this._extensionHostCliAdoptedWorktree(sessionId);
+			const adoptedWorktreeResult = await this._extensionHostCliAdoptedWorktree(sessionId);
+			const adoptedWorktree = adoptedWorktreeResult.worktree;
 			const legacyWorkingDirectory = adoptedWorktree?.worktreePath
 				? { directory: adoptedWorktree.worktreePath, hasInaccessibleCandidate: false }
-				: await this._resolveLegacyWorkingDirectory(sessionId, sdkWorkingDirectory);
+				: adoptedWorktreeResult.hasInaccessibleCandidate
+					? { directory: undefined, hasInaccessibleCandidate: true }
+					: await this._resolveLegacyWorkingDirectory(sessionId, sdkWorkingDirectory);
 			if (!legacyWorkingDirectory.directory && legacyWorkingDirectory.hasInaccessibleCandidate) {
 				this._logService.warn(`[Copilot] Adoption skipped for ${sessionId}: recorded working directory is inaccessible; preserving original workspace for retry.`);
 				return { adopted: false, eligible: true, reason: 'workingDirectoryMissing', diagnostics: markerRead.diagnostics };
@@ -8508,6 +8548,43 @@ export class CopilotAgent extends Disposable implements IAgent {
 		void this._findChatByUri(chat)?.withdrawSteering(messageId);
 	}
 
+	private async _prepareChat(chat: URI, sessionOrContext: URI | IAgentChatContext): Promise<IAgentPrepareChatResult> {
+		if (this._isShuttingDown) {
+			return {};
+		}
+		const context = this._resolveChatContext(chat, sessionOrContext);
+		const recordedError = this._readOnlyChatInputErrors.get(context.chatKey);
+		if (!recordedError) {
+			return {};
+		}
+		if (context.target) {
+			this._readOnlyChatInputErrors.delete(context.chatKey);
+			return {};
+		}
+		return this._queueChat(context.lifetimeId, context.sequencerKey, 'prepareChat', async () => {
+			const resolved = this._resolveChatContext(chat, sessionOrContext);
+			if (resolved.target) {
+				this._readOnlyChatInputErrors.delete(context.chatKey);
+				return {};
+			}
+			try {
+				if (resolved.credentials) {
+					await this._applyChatCredentialBoundary(resolved, this._captureChatCredential(resolved));
+				}
+				await this._ensureResolvedChatSession(resolved);
+				this._readOnlyChatInputErrors.delete(context.chatKey);
+				return {};
+			} catch (err) {
+				if (isInvalidWorkspaceMetadataError(err)) {
+					const error: ErrorInfo = { errorType: 'invalidWorkspaceMetadata', message: getErrorMessage(err) };
+					this._readOnlyChatInputErrors.set(context.chatKey, error);
+					return { error };
+				}
+				return { error: recordedError };
+			}
+		});
+	}
+
 	private async _getChatMessages(chat: URI, sessionOrContext: URI | IAgentChatContext): Promise<readonly Turn[]> {
 		if (this._isShuttingDown) {
 			return [];
@@ -8536,6 +8613,12 @@ export class CopilotAgent extends Disposable implements IAgent {
 				if (err instanceof SessionWorkingDirectoryMissingError) {
 					throw err;
 				}
+				if (isInvalidWorkspaceMetadataError(err) && context.sdkSessionId) {
+					const message = getErrorMessage(err);
+					this._logService.info(`[Copilot:${context.ownerSessionId}] Workspace metadata is invalid on restore; reading persisted history from disk: ${message}`);
+					this._readOnlyChatInputErrors.set(context.chatKey, { errorType: 'invalidWorkspaceMetadata', message });
+					return 'persistedHistory' as const;
+				}
 				if (context.sdkSessionId) {
 					throw err;
 				}
@@ -8543,6 +8626,10 @@ export class CopilotAgent extends Disposable implements IAgent {
 				return undefined;
 			});
 		});
+		if (entry === 'persistedHistory') {
+			return (await this._readPersistedChatHistory(context, context.sdkSessionId!)).turns;
+		}
+		this._readOnlyChatInputErrors.delete(context.chatKey);
 		if (!entry) {
 			return [];
 		}
@@ -8633,9 +8720,16 @@ export class CopilotAgent extends Disposable implements IAgent {
 			return history.subagentTurnsByToolCallId.get(spawnedFrom.toolCallId) ?? [];
 		}
 		const parentEntry = await this._ensureResolvedChatSession(parentContext).catch(err => {
+			if (isInvalidWorkspaceMetadataError(err) && parentContext.sdkSessionId) {
+				return 'persistedHistory' as const;
+			}
 			this._logService.warn(`[Copilot:${parentContext.sdkSessionId ?? parentContext.ownerSessionId}] Failed to resume exact source chat for subagent restore`, err);
 			return undefined;
 		});
+		if (parentEntry === 'persistedHistory') {
+			const history = await this._readPersistedChatHistory(parentContext, parentContext.sdkSessionId!);
+			return history.subagentTurnsByToolCallId.get(spawnedFrom.toolCallId) ?? [];
+		}
 		return parentEntry?.getSubagentMessages(spawnedFrom.toolCallId) ?? [];
 	}
 
@@ -9089,6 +9183,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 			this._chatBackings.delete(chatKey);
 			this._pendingModelSelections.delete(chatKey);
 			this._persistedChatHistory.delete(chatKey);
+			this._readOnlyChatInputErrors.delete(chatKey);
 			this._chatOwners.delete(chatKey);
 			this._chatStorageScopes.delete(chatKey);
 
