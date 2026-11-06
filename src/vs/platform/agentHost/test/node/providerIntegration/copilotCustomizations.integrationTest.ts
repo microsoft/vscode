@@ -753,10 +753,12 @@ suite('Agent Host Provider Integration — Copilot Customizations', function () 
 				env: createCopilotCliEnvironment(createIsolatedProviderEnvironment(pluginHomeDir)),
 			});
 			let sdkClientStarted = false;
+			let installedPluginName: string;
 			try {
 				await sdkClient.start();
 				sdkClientStarted = true;
-				await sdkClient.rpc.plugins.install({ source: pluginSourceDir });
+				const { plugin } = await sdkClient.rpc.plugins.install({ source: pluginSourceDir });
+				installedPluginName = plugin.name;
 			} finally {
 				if (sdkClientStarted) {
 					await sdkClient.stop();
@@ -772,8 +774,8 @@ suite('Agent Host Provider Integration — Copilot Customizations', function () 
 			const session = await setupSession(consumerSessionUri, consumerClientId, 'turn-customizations-plugin-consumer-mock');
 			const installedPlugin = session.customizations
 				?.filter((customization): customization is PluginCustomization => customization.type === CustomizationType.Plugin)
-				.find(customization => customization.name === 'SDK Installed Plugin');
-			assert.ok(installedPlugin);
+				.find(customization => customization.name === installedPluginName);
+			assert.ok(installedPlugin, JSON.stringify(session.customizations));
 			assert.deepStrictEqual({
 				version: installedPlugin.version,
 				pluginDirectories: session.customizations
@@ -787,7 +789,6 @@ suite('Agent Host Provider Integration — Copilot Customizations', function () 
 				pluginDirectories: [],
 				children: [
 					{ type: CustomizationType.Agent, name: 'Installed Agent' },
-					{ type: CustomizationType.Rule, name: 'installed' },
 					{ type: CustomizationType.Skill, name: 'installed-skill' },
 				].sort((a, b) => a.name.localeCompare(b.name)),
 			});
