@@ -65,7 +65,8 @@ import { basename, isEqual } from '../../../../../../base/common/resources.js';
 import { hasKey, type Mutable } from '../../../../../../base/common/types.js';
 import { localize } from '../../../../../../nls.js';
 import { stripSystemNotificationWrapper } from '../../chatRequestText.js';
-import type { IRange } from '../../../../../../editor/common/core/range.js';
+import { IRange, Range } from '../../../../../../editor/common/core/range.js';
+import { PositionOffsetTransformer } from '../../../../../../editor/common/core/text/positionToOffset.js';
 import { isSessionReferenceTrajectoryAttachment, restoreSessionReferenceVariableEntryFromAttachment } from './agentHostSessionReferenceAttachment.js';
 import { restoreChatReferenceVariableEntryFromAttachment } from './agentHostChatReferenceAttachment.js';
 import { AGENT_HOST_RETRY_MANAGED_PLUGINS_COMMAND_ID, type IAgentHostManagedPluginRetryTarget } from './agentHostManagedPluginRetry.js';
@@ -1423,6 +1424,7 @@ export function messageAttachmentsToVariableData(attachments: readonly MessageAt
 		return undefined;
 	}
 	const variables: IChatRequestVariableEntry[] = [];
+	const positions = messageText !== undefined ? new PositionOffsetTransformer(messageText) : undefined;
 	const aggregatedFeedback = aggregateAgentFeedbackAttachments(attachments, resourceUris);
 	if (aggregatedFeedback) {
 		variables.push(aggregatedFeedback);
@@ -1449,7 +1451,8 @@ export function messageAttachmentsToVariableData(attachments: readonly MessageAt
 		}
 		const v = messageAttachmentToVariableEntry(a, resourceUris, messageText);
 		if (v) {
-			variables.push(v);
+			const range = a.range && positions?.getOffsetRange(Range.lift(textRangeToIRange(a.range)));
+			variables.push(range ? { ...v, range: { start: range.start, endExclusive: range.endExclusive } } : v);
 		}
 	}
 	return variables.length > 0 ? { variables } : undefined;
