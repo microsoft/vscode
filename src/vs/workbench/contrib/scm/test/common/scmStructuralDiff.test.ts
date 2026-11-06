@@ -6,7 +6,7 @@
 import assert from 'assert';
 import { DeferredPromise, timeout } from '../../../../../base/common/async.js';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
-import { errorHandler, setUnexpectedErrorHandler } from '../../../../../base/common/errors.js';
+import { CancellationError, errorHandler, isCancellationError, setUnexpectedErrorHandler } from '../../../../../base/common/errors.js';
 import { Emitter } from '../../../../../base/common/event.js';
 import { IReference } from '../../../../../base/common/lifecycle.js';
 import { autorun } from '../../../../../base/common/observable.js';
@@ -49,7 +49,8 @@ class TestResolver extends mock<ITextModelService>() {
 	readonly released: URI[] = [];
 	readonly additionalModels: ITextModel[] = [];
 	blockOriginal?: DeferredPromise<void>;
-	failModified = false;
+	originalError?: Error;
+	modifiedError?: Error;
 
 	constructor(readonly original: ITextModel, readonly modified: ITextModel) { super(); }
 
@@ -65,8 +66,9 @@ class TestResolver extends mock<ITextModelService>() {
 		if (isOriginal && this.blockOriginal) {
 			await this.blockOriginal.p;
 		}
-		if (!isOriginal && this.failModified) {
-			throw new Error('Cannot resolve modified model');
+		const error = isOriginal ? this.originalError : this.modifiedError;
+		if (error) {
+			throw error;
 		}
 		const model = this.getModel(resource);
 		return {
@@ -571,6 +573,20 @@ suite('SCM structural diff model', () => {
 		});
 	});
 
+	test('treats a provider that cancels on its own like a provider that fails and watches the documents', async () => {
+		provider.pending = new DeferredPromise<StructuralDiff | undefined>();
+		provider.started = new DeferredPromise<CancellationToken>();
+		const pending = model.getChildren(resource);
+		await provider.started.p;
+		// TypeScript, for example, answers all pending requests as cancelled when its server restarts.
+		await provider.pending.error(new CancellationError());
+		const cancelled = { children: await pending, expandable: model.hasChildren(resource), released: [...resolver.released], errors };
+		modified.setValue('class Changed {}');
+		assert.deepStrictEqual({ cancelled, expandableAfterEdit: model.hasChildren(resource), released: resolver.released }, {
+			cancelled: { children: [], expandable: false, released: [], errors: 0 }, expandableAfterEdit: true, released: [original.uri, modified.uri],
+		});
+	});
+
 	test('cancels stale requests and never publishes their result', async () => {
 		provider.pending = new DeferredPromise<StructuralDiff | undefined>();
 		provider.started = new DeferredPromise<CancellationToken>();
@@ -591,7 +607,7 @@ suite('SCM structural diff model', () => {
 		await resolver.blockOriginal.complete();
 		assert.deepStrictEqual({
 			children: await pending, requested: resolver.requested, released: resolver.released, calls: provider.calls,
-		}, { children: [], requested: [original.uri], released: [original.uri], calls: 0 });
+		}, { children: [], requested: [original.uri, modified.uri], released: [modified.uri, original.uri], calls: 0 });
 	});
 
 	test('analyzes no files while the view is hidden, even when its tree asks for children, and keeps them expandable', async () => {
@@ -609,30 +625,34 @@ suite('SCM structural diff model', () => {
 		});
 	});
 
-	test('surfaces resolution errors as a status row and keeps the documents it resolved', async () => {
-		resolver.failModified = true;
-		const children = await model.getChildren(resource);
-		assert.deepStrictEqual({
-			labels: children.map(getSCMStructuralDiffLabel), errors, released: resolver.released, expandable: model.hasChildren(resource),
-		}, { labels: ['Unable to load structural changes'], errors: 1, released: [], expandable: true });
-	});
+	for (const error of [new Error('Cannot resolve modified model'), new CancellationError()]) {
+		test(`surfaces ${isCancellationError(error) ? 'a cancelled' : 'a failed'} resolution as a status row and keeps the documents that could be loaded`, async () => {
+			resolver.modifiedError = error;
+			const children = await model.getChildren(resource);
+			assert.deepStrictEqual({
+				labels: children.map(getSCMStructuralDiffLabel), errors, released: resolver.released, expandable: model.hasChildren(resource),
+			}, { labels: ['Unable to load structural changes'], errors: 1, released: [], expandable: true });
+		});
+	}
 
-	for (const failure of ['error', 'timedOut'] as const) {
-		test(`analyzes a file again when a document it resolved changes after a status of ${failure}`, async () => {
-			resolver.failModified = failure === 'error';
+	for (const failure of ['original', 'modified', 'timedOut'] as const) {
+		test(`analyzes a file again when a document that could be loaded changes after ${failure === 'timedOut' ? 'the text diff took too long' : `the ${failure} document could not be loaded`}`, async () => {
+			resolver.originalError = failure === 'original' ? new Error('Cannot resolve original model') : undefined;
+			resolver.modifiedError = failure === 'modified' ? new Error('Cannot resolve modified model') : undefined;
 			textDiffTimedOut = failure === 'timedOut';
 			const failed = await model.getChildren(resource);
 			const releasedAfterFailure = [...resolver.released];
-			resolver.failModified = false;
+			resolver.originalError = undefined;
+			resolver.modifiedError = undefined;
 			textDiffTimedOut = false;
-			// The modified document cannot be resolved after an error, so the original document reports the edit.
-			const edited = failure === 'error' ? original : modified;
+			// A document that cannot be loaded cannot be watched, so the other document reports the edit.
+			const edited = failure === 'modified' ? original : modified;
 			edited.setValue(edited.getValue().replace(/return \d/, 'return 3'));
 			const recovered = await model.getChildren(resource);
 			assert.deepStrictEqual({
 				failed: failed.map(getSCMStructuralDiffLabel), releasedAfterFailure, recovered: recovered.map(getSCMStructuralDiffLabel),
 			}, {
-				failed: [failure === 'error' ? 'Unable to load structural changes' : 'Structural changes took too long to load'],
+				failed: [failure === 'timedOut' ? 'Structural changes took too long to load' : 'Unable to load structural changes'],
 				releasedAfterFailure: [], recovered: ['Calculator'],
 			});
 		});
