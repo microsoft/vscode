@@ -58,7 +58,6 @@ import { hasCopilotManagedAutoPreference, omitCopilotManagedModelDefaults, proje
 import { buildCopilotBuiltinAgentsContainer, COPILOT_BUILTIN_AGENT_NAMES_BY_URI, CopilotBuiltinAgentsStore, COPILOT_BUILTIN_AGENTS, getCopilotBuiltinAgentUri } from './copilotBuiltinAgents.js';
 import { buildCopilotBuiltinSkillsContainer } from './copilotBuiltinSkills.js';
 import { IAgentPluginManager, ISyncedCustomization } from '../../common/agentPluginManager.js';
-import { toAgentCustomizationMeta } from '../../common/meta/agentCustomizationMeta.js';
 import { decodeProviderData, encodeProviderData, type IPersistedChat } from '../agentChatBackings.js';
 import { type AgentCanvasDefinitionSnapshot, AgentChatOperationContext, AgentSession, fixedChatOwnerRef, getChatSurfaceOptions, type IAgentChatOwnerRef, isAgentChatDefaultChat, resolveSessionBackedStorage, AgentSignal, AuthenticateParams, COPILOT_CLI_AGENT_PROVIDER_ID, IActiveClient, IAgent, IAgentChatAdoptionResult, type IAgentAdoptedWorktree, type IAgentCanvasCloseRequest, type IAgentCanvasOpenRequest, type IAgentChatCanvasWatchHost, IAgentChatConfigCompletionsParams, IAgentChatContext, type IAgentChatDiscoveryOptions, type IAgentChatMetadataOptions, type IAgentChatReleaseOptions, IAgentChatSessionSettings, IAgentChatDataChange, IAgentChatMetadata, IAgentChats, IAgentLegacyChat, IAgentCreateChatOptions, IAgentCreateChatResult, IAgentCustomizationInstallation, IAgentCustomizationInstallationApplyRequest, IAgentCustomizationInstallationApplyResult, IAgentCustomizationInstallationPreparation, IAgentCustomizationInstallationRequest, IAgentCustomizationMarketplaceSearchRequest, IAgentCustomizationMarketplaceSearchResult, IAgentDescriptor, IAgentDiscoveredChat, type IAgentExtensionInfo, type IAgentExtensionInventory, IAgentListedChat, IAgentHostManagedSettingsSnapshot, IAgentHostNetworkEndpoint, IAgentKnownSessionsFilter, type IAgentManagedPluginRetryEntry, IAgentMaterializeChatEvent, IAgentModelInfo, type IAgentPendingMessageSender, type IAgentPermissionResponseContext, type IAgentPluginInstallRequest, type IAgentPluginMarketplace, type IAgentPluginMarketplaceItem, type IAgentPluginMarketplaceRefreshResult, type IAgentPluginMarketplaceRemoveResult, type IAgentPluginUninstallRequest, type IAgentPrepareChatResult, IAgentResolveChatConfigParams, IAgentSessionProjectInfo, IAgentSpawnChatEvent, IMcpNotification, SubagentChatSignal, resolveAgentChatContext, resolveAgentHostCustomizations, resolveAgentHostInstructions, resolveSubagentChatParent, type IAgentTurnDiagnosticSnapshot, type IAgentTurnTokenUsage, type IAgentChatSessionEvent, type IAgentImportChatOptions, type IAgentImportedChat } from '../../common/agent.js';
 import { getReasoningEffortDescription, getReasoningEffortLabel, resolveDefaultReasoningEffort } from '../../common/reasoningEffort.js';
@@ -121,6 +120,7 @@ import { readLocalModelRootConfig, selectLocalModelProvider, type ILocalModelPro
 import { getLocalModelThinkingLevels, type LocalModelThinkingSupport } from './localModelBridge/localModelThinking.js';
 import { ICopilotSessionContext, projectFromCopilotContext } from './copilotGitProject.js';
 import { findRelocatedAgentName, parsedPluginsEqual, toChildCustomizations } from './copilotPluginConverters.js';
+import { getCustomizationSourceUri, parseSyncedPlugin, withClientCustomizationUriOwners } from '../../common/syncedCustomizationUris.js';
 import { CopilotGitHubTelemetryForwarder, isHydraFusionTelemetryKind, type ICopilotModelCallCorrelationTelemetry } from './copilotGitHubTelemetryForwarder.js';
 import { COMPACTION_REQUEST_KIND, isCompactionTelemetryKind, type IForwardedCompactionCorrelation } from './compactionTurnCorrelation.js';
 import { CopilotGitHubCredentials, CopilotGitHubSessionCredentials } from './copilotGitHubCredentials.js';
@@ -337,6 +337,8 @@ export type ICopilotPluginInfo = Omit<IParsedPlugin, 'mcpServers'> & {
 	 */
 	readonly resourceDir?: URI;
 	readonly sourceUri?: URI;
+	/** Published plugin container identity used for MCP ownership and enablement. */
+	readonly customizationUri?: URI;
 	/** Client content revision, including changes to resource bodies not retained by the parser. */
 	readonly nonce?: string;
 	readonly disabledMcpServers?: readonly string[];
@@ -11416,7 +11418,7 @@ class PluginController extends Disposable {
 			return { customization: baseCustomization, input };
 		}
 
-		const parsed = await this.tryParsePlugin(pluginDir, false);
+		const parsed = await this.tryParsePlugin(pluginDir, false, baseCustomization);
 		if (!parsed) {
 			return {
 				customization: {
@@ -11427,25 +11429,10 @@ class PluginController extends Disposable {
 			};
 		}
 
-		const materializedRoot = URI.parse(pluginDir.toString());
-		const sourceRoot = URI.parse(baseCustomization.uri);
 		return {
 			customization: {
 				...baseCustomization,
-				children: toChildCustomizations([parsed]).map(child => {
-					if (child.type !== CustomizationType.Agent) {
-						return child;
-					}
-					const resource = URI.parse(child.uri);
-					const path = isEqualOrParent(resource, materializedRoot) ? relativePath(materializedRoot, resource) : undefined;
-					return path === undefined ? child : {
-						...child,
-						_meta: {
-							...child._meta,
-							...toAgentCustomizationMeta({ 'vscode.sourceUri': resourceJoinPath(sourceRoot, path).toString() }),
-						},
-					};
-				}),
+				children: toChildCustomizations([parsed]),
 			},
 			pluginDir,
 			plugin: parsed,
@@ -11453,8 +11440,11 @@ class PluginController extends Disposable {
 		};
 	}
 
-	public async tryParsePlugin(pluginDir: URI, deduplicateAgentsByName = true): Promise<IParsedPlugin | undefined> {
+	public async tryParsePlugin(pluginDir: URI, deduplicateAgentsByName = true, customization?: PluginCustomization): Promise<IParsedPlugin | undefined> {
 		try {
+			if (customization?.clientId) {
+				return await parseSyncedPlugin({ customization, pluginDir }, customization.clientId, this._fileService, undefined, this.getUserHome(), { deduplicateAgentsByName });
+			}
 			return await parsePlugin(pluginDir, this._fileService, undefined, this.getUserHome(), pluginDir, { deduplicateAgentsByName });
 		} catch (error) {
 			this._logService.warn(`[Copilot:PluginController] Error parsing plugin '${pluginDir.toString()}': ${error instanceof Error ? error.message : String(error)}`);
@@ -11822,13 +11812,14 @@ class SessionPluginController extends Disposable {
 	private _resolveCustomizationEnablement(anchor: CustomizationAnchor | undefined) {
 		const hostCustomizations = this._parent.hostCustomizations();
 		const clientCustomizations = this._flattenClientCustomizations();
+		const clientContributions = [...this._clients.values()].flatMap(client => client.customizations.map(item => item.customization));
 		const explicitPluginIds = new Set([
 			...hostCustomizations,
 			...clientCustomizations,
 		].map(item => item.customization.id));
 		const result: Customization[] = [
 			...hostCustomizations.map(item => this._projectForPublish(item.customization)),
-			...clientCustomizations.map(item => this._projectForPublish(item.customization)),
+			...clientCustomizations.map(item => this._projectForPublish(withClientCustomizationUriOwners(item.customization, clientContributions))),
 		];
 		const discovered = anchor?.discoveredEntry()?.currentCustomizations() ?? [];
 		const workspaceDefinitions = anchor?.mcpDiscoveryEntry()?.definitions ?? [];
@@ -12001,7 +11992,7 @@ class SessionPluginController extends Disposable {
 		if (nativeAgent) {
 			return { ...customizations, nativeAgents: [...(customizations.nativeAgents ?? []), nativeAgent] };
 		}
-		const agent = getCopilotCustomAgents(source).find(candidate => candidate.uri.toString() === selectedAgentUri);
+		const agent = getCopilotCustomAgents(source).find(candidate => isEqual(candidate.uri, URI.parse(selectedAgentUri)) || isEqual(candidate.materializedUri, URI.parse(selectedAgentUri)));
 		return agent ? {
 			...customizations,
 			discoveredAgents: [...customizations.discoveredAgents, agent],
@@ -12078,6 +12069,7 @@ class SessionPluginController extends Disposable {
 				...plugin,
 				pluginDir,
 				nonce: item.input?.nonce,
+				customizationUri: URI.parse(item.customization.uri),
 				...(standalone && item.pluginDir ? { resourceDir: item.pluginDir } : {}),
 				mcpServers: plugin.mcpServers.map(definition => resolveCopilotMcpServerInfo(definition, pluginDir, item.input, primaryCwd)),
 			};
@@ -12100,7 +12092,7 @@ class SessionPluginController extends Disposable {
 				...host.filter(item => !!item.plugin && isEnabledForSdk(item.customization))
 					.map(item => ({ ...withSdkRegistration(item.plugin!, item.pluginDir), sourceUri: URI.parse(item.customization.uri), ...(disabledChildren(item.customization) ? { disabledMcpServers: disabledChildren(item.customization) } : {}) })),
 				...this._flattenClientCustomizations().filter(item => !!item.plugin && isEnabledForSdk(item.customization))
-					.map(item => ({ ...withClientDefaults(item), sourceUri: URI.parse(item.customization.uri), ...(disabledChildren(item.customization) ? { disabledMcpServers: disabledChildren(item.customization) } : {}) })),
+					.map(item => ({ ...withClientDefaults(item), sourceUri: item.pluginDir ? getCustomizationSourceUri(item.pluginDir, { customization: item.customization, pluginDir: item.pluginDir }) : URI.parse(item.customization.uri), ...(disabledChildren(item.customization) ? { disabledMcpServers: disabledChildren(item.customization) } : {}) })),
 			],
 			...discoveredCustomizations,
 			...(nativeAgents.length > 0 ? { nativeAgents } : {}),

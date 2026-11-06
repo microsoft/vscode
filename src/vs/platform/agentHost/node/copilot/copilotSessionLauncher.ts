@@ -22,7 +22,7 @@ import { ICopilotHomeService } from '../../../environment/common/copilotHome.js'
 import { ILogService, LogLevel } from '../../../log/common/log.js';
 import { ITelemetryService, TelemetryLevel } from '../../../telemetry/common/telemetry.js';
 import { AgentSession, type IAgentModelInfo } from '../../common/agent.js';
-import { AGENT_HOST_FILE_SCHEME } from '../../common/agentPluginManager.js';
+import { AGENT_HOST_FILE_SCHEME, getAgentPluginCacheRevision } from '../../common/agentPluginManager.js';
 import type { IAgentProviderSendStageRecorder } from '../../common/agentHostTelemetry.js';
 import { getByokLmSelectionModelId, resolveByokLmEnablement, type IByokLmModelInfo } from '../../common/agentHostByokLm.js';
 import { LOCAL_MODEL_SENTINEL_PROVIDER_NAME } from '../../common/localModel.js';
@@ -248,7 +248,7 @@ function clientToolRegistrationNames(tools: readonly ToolDefinition[]): Readonly
 
 export function getCopilotCustomAgents(customizations: ICopilotAppliedCustomizations): readonly (IParsedAgent & ISdkCustomAgentResource)[] {
 	return [
-		...customizations.plugins.flatMap(plugin => plugin.agents.map(agent => ({ ...agent, sdkName: getSdkCustomAgentName(agent.uri, plugin) }))),
+		...customizations.plugins.flatMap(plugin => plugin.agents.map(agent => ({ ...agent, sdkName: getSdkCustomAgentName(agent.uri) }))),
 		...customizations.discoveredAgents,
 	].filter(agent => !COPILOT_BUILTIN_AGENT_NAMES.has(agent.name));
 }
@@ -260,9 +260,9 @@ export function getCopilotAgentSelection(customizations: ICopilotAppliedCustomiz
 		return { uri, name: native.id };
 	}
 	const agents = getCopilotCustomAgents(customizations);
-	const forwarded = agents.find(agent => isEqual(agent.uri, resource));
+	const forwarded = agents.find(agent => isEqual(agent.uri, resource) || isEqual(agent.materializedUri, resource));
 	if (forwarded) {
-		return { uri, name: forwarded.sdkName ?? getSdkCustomAgentName(forwarded.uri) };
+		return { uri: forwarded.uri.toString(), name: forwarded.sdkName ?? getSdkCustomAgentName(forwarded.uri) };
 	}
 	if (!restoreLegacyFlatSelection || resource.scheme !== Schemas.file || resource.query || resource.fragment) {
 		return undefined;
@@ -271,20 +271,20 @@ export function getCopilotAgentSelection(customizations: ICopilotAppliedCustomiz
 	for (const plugin of customizations.plugins) {
 		const materializedRoot = plugin.pluginDir ?? plugin.resourceDir;
 		const root = materializedRoot && URI.parse(materializedRoot.toString());
-		if (!plugin.sourceUri || plugin.sourceUri.scheme === AGENT_HOST_FILE_SCHEME || !plugin.nonce || !root || root.scheme !== Schemas.file || basename(root) !== plugin.nonce
+		if (!plugin.sourceUri || (plugin.customizationUri ?? plugin.sourceUri).scheme === AGENT_HOST_FILE_SCHEME || !plugin.nonce || !root || root.scheme !== Schemas.file || basename(root) !== getAgentPluginCacheRevision(plugin.nonce)
 			|| !extUri.isEqualOrParent(resource, dirname(root))) {
 			continue;
 		}
-		// The host materializer owns this cache namespace; only restore a flat file in another revision of it.
+		// Only restore files inside another revision of this materializer-owned cache namespace.
 		const parts = extUri.relativePath(dirname(root), resource)?.split('/');
-		if (parts?.length !== 3 || !parts[0] || parts[0] === '..' || parts[0] === '.' || parts[1] !== 'agents') {
+		if (!parts || parts.length < 3 || parts.some(part => !part || part === '..' || part === '.') || parts[1] !== 'agents') {
 			continue;
 		}
-		const current = joinPath(root, parts[1], parts[2]);
-		const agent = agents.find(candidate => isEqual(candidate.uri, current));
+		const current = joinPath(root, ...parts.slice(1));
+		const agent = plugin.agents.find(candidate => isEqual(candidate.materializedUri ?? candidate.uri, current));
 		if (agent) {
 			matches.set(getComparisonKey(agent.uri), {
-				uri: agent.uri.toString(), name: agent.sdkName ?? getSdkCustomAgentName(agent.uri),
+				uri: agent.uri.toString(), name: getSdkCustomAgentName(agent.uri),
 			});
 		}
 	}

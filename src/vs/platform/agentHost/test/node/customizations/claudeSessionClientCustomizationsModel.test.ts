@@ -10,6 +10,7 @@ import type { ISyncedCustomization } from '../../../common/agentPluginManager.js
 import { CustomizationLoadStatus, CustomizationType, customizationId } from '../../../common/state/sessionState.js';
 import { CustomizationEnablementKind, type CustomizationEnablement } from '../../../common/state/protocol/state.js';
 import { SessionClientCustomizationsDiff } from '../../../node/claude/customizations/claudeSessionClientCustomizationsModel.js';
+import { readCustomizationUriClientId, readCustomizationUriClientIds, toClientPluginSourceUrisMeta, toCustomizationUriClientMeta } from '../../../common/meta/clientPluginCustomizationMeta.js';
 
 function synced(uri: string, opts: { dir?: string; enabled?: boolean; nonce?: string; name?: string; enablement?: readonly CustomizationEnablement[]; childEnablement?: Readonly<Record<string, readonly CustomizationEnablement[]>> } = {}): ISyncedCustomization {
 	return {
@@ -31,6 +32,13 @@ function synced(uri: string, opts: { dir?: string; enabled?: boolean; nonce?: st
 	};
 }
 
+function withClientOwner(item: ISyncedCustomization, clientId: string): ISyncedCustomization {
+	return {
+		...item,
+		customization: { ...item.customization, children: item.customization.children?.map(child => ({ ...child, _meta: toCustomizationUriClientMeta(clientId) })) },
+	};
+}
+
 suite('SessionClientCustomizationsDiff', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
@@ -38,6 +46,84 @@ suite('SessionClientCustomizationsDiff', () => {
 		const diff = disposables.add(new SessionClientCustomizationsDiff());
 		assert.deepStrictEqual(diff.model.state.get().synced, []);
 		assert.strictEqual(diff.hasDifference, false);
+	});
+
+	test('publishes already-canonical parsed children while retaining runtime directories and enablement', () => {
+		const diff = disposables.add(new SessionClientCustomizationsDiff());
+		const item = synced('vscode-synced-customization:/bundle', { dir: '/cache/plugin' });
+		const source = URI.file('/workspace/.github/agents/reviewer.md');
+		const child = {
+			type: CustomizationType.Agent as const,
+			id: 'agent:reviewer',
+			name: 'Reviewer',
+			uri: source.toString(),
+			enabled: false,
+		};
+		item.customization.children = [child];
+		item.customization._meta = toClientPluginSourceUrisMeta({ files: { 'agents/reviewer.md': source } });
+		diff.model.setSyncedCustomizations('owner', [withClientOwner(item, 'owner')]);
+		const published = diff.model.state.get().synced[0].customization.children![0];
+
+		assert.deepStrictEqual({
+			published: { ...published, _meta: undefined },
+			owner: readCustomizationUriClientId(published),
+			containerOwner: diff.model.state.get().synced[0].customization.clientId,
+			runtime: diff.model.state.get().synced[0].pluginDir?.toString(),
+		}, {
+			published: { ...child, uri: source.toString(), _meta: undefined },
+			owner: 'owner',
+			containerOwner: 'owner',
+			runtime: URI.file('/cache/plugin').toString(),
+		});
+	});
+
+	test('source metadata and child URI changes invalidate the customization snapshot', () => {
+		const diff = disposables.add(new SessionClientCustomizationsDiff());
+		const first = synced('https://plugin', { dir: '/cache/plugin' });
+		first.customization.children = [{ type: CustomizationType.Agent, id: 'agent', name: 'Agent', uri: URI.file('/cache/plugin/agents/a.md').toString() }];
+		diff.model.setSyncedCustomizations('owner', [first]);
+		diff.consume([]);
+		const second = { ...first, customization: { ...first.customization, _meta: toClientPluginSourceUrisMeta({ root: URI.file('/source'), files: {} }) } };
+		diff.model.setSyncedCustomizations('owner', [second]);
+		const metadataChanged = diff.hasDifference;
+		diff.consume([]);
+		diff.model.setSyncedCustomizations('owner', [{
+			...second,
+			customization: { ...second.customization, children: first.customization.children.map(child => ({ ...child, uri: URI.file('/cache/plugin/agents/b.md').toString() })) },
+		}]);
+		assert.deepStrictEqual([metadataChanged, diff.hasDifference], [true, true]);
+	});
+
+	test('a deduplicated plugin changing client ownership invalidates publication', () => {
+		const diff = disposables.add(new SessionClientCustomizationsDiff());
+		const item = synced('https://plugin', { dir: '/cache/plugin' });
+		item.customization.children = [{ type: CustomizationType.Agent, id: 'agent', name: 'Agent', uri: URI.file('/cache/plugin/agents/a.md').toString() }];
+		diff.model.setSyncedCustomizations('first', [withClientOwner(item, 'first')]);
+		diff.model.setSyncedCustomizations('second', [withClientOwner(item, 'second')]);
+		diff.consume([]);
+		diff.model.removeClient('first');
+		const child = diff.model.state.get().synced[0].customization.children![0];
+
+		assert.deepStrictEqual({ changed: diff.hasDifference, owner: readCustomizationUriClientId(child) }, { changed: true, owner: 'second' });
+	});
+
+	test('deduplicates runtime plugins without losing a second client source owner', () => {
+		const diff = disposables.add(new SessionClientCustomizationsDiff());
+		const item = synced('synced:/bundle', { dir: '/cache/plugin' });
+		item.customization.children = [{ type: CustomizationType.Agent, id: 'agent', name: 'Agent', uri: URI.file('/cache/plugin/agents/a.md').toString() }];
+		diff.model.setSyncedCustomizations('first', [withClientOwner(item, 'first')]);
+		diff.consume([]);
+		diff.model.setSyncedCustomizations('second', [withClientOwner(item, 'second')]);
+		const published = diff.model.state.get().synced;
+		const changed = diff.hasDifference;
+		diff.model.removeClient('first');
+		assert.deepStrictEqual({
+			changed,
+			runtimeCount: diff.model.state.get().synced.length,
+			publishedCount: published.length,
+			owners: readCustomizationUriClientIds(published[0].customization.children![0]),
+			afterDisconnect: readCustomizationUriClientIds(diff.model.state.get().synced[0].customization.children![0]),
+		}, { changed: true, runtimeCount: 1, publishedCount: 1, owners: ['first', 'second'], afterDisconnect: ['second'] });
 	});
 
 	test('setSyncedCustomizations flips dirty and fires onDidChange', () => {

@@ -4183,6 +4183,83 @@ suite('LocalAgentHostSessionsProvider', () => {
 	});
 
 	for (const kind of agentHostConnectionKinds) {
+		for (const outcome of ['owned', 'foreign', 'picked', 'legacy', 'host'] as const) {
+			test(`restores Loading-to-Loaded draft ownership without losing ${outcome} selections (${kind.name})`, () => {
+				agentHost.resourceUris = kind.resourceUris;
+				const provider = createProvider(disposables, agentHost);
+				fireSessionAdded(agentHost, 'loading-agent', { title: 'Loading Agent' });
+				const session = provider.getSessions().find(session => session.title.get() === 'Loading Agent')!;
+				provider.getSessionConfig(session.sessionId, session.mainChat.get().resource);
+				const defaultChat = buildDefaultChatUri(AgentSession.uri('copilotcli', 'loading-agent'));
+				const source = URI.file('/extensions/review.agent.md');
+				const cache = URI.file('/cache/vscode-synced-customization-bundle/previous/agents/review.agent.md');
+				const plugin: Customization = {
+					type: CustomizationType.Plugin, id: 'plugin', uri: 'vscode-synced-customization:/bundle', name: 'Plugin',
+					...(outcome === 'host' ? {} : { clientId: outcome === 'foreign' ? 'other-client' : agentHost.clientId }),
+					load: { kind: CustomizationLoadStatus.Loading },
+					enablement: [{ kind: CustomizationEnablementKind.Session, enabled: false }],
+				};
+				const state: SessionState = {
+					provider: 'copilotcli', title: 'Loading Agent', status: ProtocolSessionStatus.Idle, lifecycle: SessionLifecycle.Ready,
+					activeClients: [], defaultChat, chats: [], customizations: [plugin],
+				};
+				agentHost.setSessionState('loading-agent', 'copilotcli', state);
+				agentHost.setChatState(defaultChat, {
+					resource: defaultChat, title: 'Loading Agent', status: ProtocolSessionStatus.Idle, modifiedAt: new Date(0).toISOString(), turns: [],
+					draft: { text: '', origin: { kind: MessageKind.User }, agent: { uri: outcome === 'legacy' || outcome === 'host' ? cache.toString() : source.toString() } },
+				});
+				const before = session.mode.get();
+				if (outcome === 'picked') {
+					provider.setAgent?.(session.sessionId, { uri: 'agent://user-picked', name: 'Live' });
+				}
+				agentHost.setSessionState('loading-agent', 'copilotcli', {
+					...state,
+					customizations: [{
+						...plugin, load: { kind: CustomizationLoadStatus.Loaded },
+						...(outcome === 'legacy' ? { _meta: { 'vscode.sourceUris': { 'agents/review.agent.md': source.toString() } } } : {}),
+						children: [{
+							type: CustomizationType.Agent, id: 'review', uri: outcome === 'host' ? cache.toString() : source.toString(), name: 'Review',
+							...(outcome === 'host' ? {} : { _meta: { 'vscode.uriClientId': outcome === 'foreign' ? 'other-client' : agentHost.clientId } }),
+						}],
+					}],
+				});
+				assert.deepStrictEqual({ before, after: session.mode.get() }, {
+					before: undefined,
+					after: outcome === 'foreign' ? undefined : {
+						id: outcome === 'picked' ? 'agent://user-picked' : outcome === 'host' ? kind.toClient(cache).toString() : source.toString(), kind: 'agent',
+					},
+				});
+			});
+		}
+		for (const [source, owner] of [
+			['file:///extensions/review.agent.md', 'test-local-client'],
+			['vscode-remote://ssh-remote+workspace/project/review.agent.md', 'test-local-client'],
+			['file:///extensions/foreign.agent.md', 'other-client'],
+		]) {
+			test(`hydrates disabled canonical agent ownership without remapping ${source} from ${owner} (${kind.name})`, () => {
+				agentHost.resourceUris = kind.resourceUris;
+				const provider = createProvider(disposables, agentHost);
+				fireSessionAdded(agentHost, 'canonical-agent', { title: 'Canonical Agent' });
+				const session = provider.getSessions().find(session => session.title.get() === 'Canonical Agent')!;
+				provider.getSessionConfig(session.sessionId, session.mainChat.get().resource);
+				const defaultChat = buildDefaultChatUri(AgentSession.uri('copilotcli', 'canonical-agent'));
+				agentHost.setSessionState('canonical-agent', 'copilotcli', {
+					provider: 'copilotcli', title: 'Canonical Agent', status: ProtocolSessionStatus.Idle, lifecycle: SessionLifecycle.Ready, activeClients: [],
+					defaultChat, chats: [],
+					customizations: [{
+						type: CustomizationType.Plugin, id: 'plugin', uri: 'file:///cache/plugin', name: 'Plugin',
+						enablement: [{ kind: CustomizationEnablementKind.Session, enabled: false }],
+						children: [{ type: CustomizationType.Agent, id: 'review', uri: source, name: 'Review', _meta: { 'vscode.uriClientId': owner } }],
+					}],
+				});
+				agentHost.setChatState(defaultChat, {
+					resource: defaultChat, title: 'Canonical Agent', status: ProtocolSessionStatus.Idle, modifiedAt: new Date(0).toISOString(), turns: [],
+					draft: { text: '', origin: { kind: MessageKind.User }, agent: { uri: source } },
+				});
+				assert.deepStrictEqual(session.mode.get(), owner === agentHost.clientId ? { id: URI.parse(source).toString(), kind: 'agent' } : undefined);
+			});
+		}
+
 		test(`projects host roots and draft agents into client-space session state (${kind.name})`, () => {
 			agentHost.resourceUris = kind.resourceUris;
 			class TestProvider extends LocalAgentHostSessionsProvider {
@@ -4863,6 +4940,7 @@ suite('LocalAgentHostSessionsProvider', () => {
 				id: 'inbox',
 				uri: 'file:///plugins/github-inbox/agents/inbox.agent.md',
 				name: 'Inbox',
+				_meta: { 'vscode.uriClientId': agentHost.clientId },
 			}],
 			fired: 1,
 		});

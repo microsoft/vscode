@@ -53,7 +53,60 @@ const labelService = upcastPartial<ILabelService>({ getUriLabel: resource => res
 suite('AgentCustomizationItemProvider', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
+	for (const bundled of [false, true]) {
+		test(`retains prompt files alongside canonical plugin children (bundled: ${bundled})`, async () => {
+			const scheme = bundled ? SYNCED_CUSTOMIZATION_SCHEME : Schemas.inMemory;
+			const fileService = createInMemoryFileService(disposables, scheme);
+			const root = URI.from({ scheme, path: '/plugin' });
+			const command = URI.joinPath(root, 'commands', 'review.md');
+			const source = URI.file('/workspace/prompts/review.prompt.md');
+			await fileService.writeFile(command, VSBuffer.fromString('Review changes'));
+			const provider = disposables.add(new AgentCustomizationItemProvider(
+				{ clientId: 'vscode', resourceUris: agentHostConnectionKinds[0].resourceUris }, undefined,
+				uri => bundled && isEqual(uri, command) ? { uri: source, source: AICustomizationSources.user } : undefined,
+				fileService, new NullLogService(),
+				new class extends NullAgentHostCustomizationService {
+					override getCustomizations(): readonly Customization[] {
+						return [{
+							type: CustomizationType.Plugin, id: 'plugin', uri: root.toString(), name: 'Review Tools', clientId: 'vscode',
+							children: [{ type: CustomizationType.Agent, id: 'agent', name: 'Review Agent', uri: 'file:///workspace/agents/review.md', _meta: { 'vscode.uriClientId': 'vscode' } }],
+						}];
+					}
+				}(), makePromptsService(), labelService));
+			const items = await provider.provideChatSessionCustomizations(URI.parse('other-session:/prompts'), CancellationToken.None);
+			assert.deepStrictEqual(items.filter(item => item.type === PromptsType.prompt).map(item => ({
+				uri: item.uri.toString(), pluginLabel: item.pluginLabel,
+			})), [{ uri: (bundled ? source : command).toString(), pluginLabel: bundled ? undefined : 'Review Tools' }]);
+		});
+	}
+
 	for (const kind of agentHostConnectionKinds) {
+		test(`projects canonical plugin children without reading foreign or cached files (${kind.name})`, async () => {
+			const session = URI.parse('other-session:/canonical-plugins');
+			const source = 'file:///extensions/review.agent.md';
+			const provider = disposables.add(new AgentCustomizationItemProvider(
+				{ clientId: 'vscode', resourceUris: kind.resourceUris }, undefined, undefined,
+				upcastPartial<IFileService>({}), new NullLogService(),
+				new class extends NullAgentHostCustomizationService {
+					override getCustomizations(): readonly Customization[] {
+						return ['vscode', 'other-client'].map(clientId => ({
+							type: CustomizationType.Plugin, id: clientId, uri: 'file:///plugins/review-directory', name: 'Review Tools', clientId,
+							children: [
+								{ type: CustomizationType.Agent, id: clientId, uri: source, name: 'Review', _meta: { 'vscode.uriClientId': clientId } },
+								{ type: CustomizationType.Skill, id: `${clientId}-skill`, uri: 'file:///extensions/review/SKILL.md', name: 'Review Skill', disableUserInvocation: true, _meta: { 'vscode.uriClientId': clientId } },
+							],
+						}));
+					}
+				}(), makePromptsService(), labelService));
+			const items: ICustomizationSkillItem[] = await provider.provideChatSessionCustomizations(session, CancellationToken.None);
+			assert.deepStrictEqual(items.filter(item => item.type !== 'plugin').map(item => ({
+				uri: item.uri.toString(), pluginLabel: item.pluginLabel, userInvocable: item.userInvocable,
+			})), [
+				{ uri: source, pluginLabel: 'Review Tools', userInvocable: true },
+				{ uri: 'file:///extensions/review/SKILL.md', pluginLabel: 'Review Tools', userInvocable: false },
+			]);
+		});
+
 		test(`projects host-owned troubleshooting as a discovery-only built-in skill (${kind.name})`, async () => {
 			const directory = URI.from({ scheme: AGENT_BUILTIN_CUSTOMIZATION_SCHEME, path: '/skills' });
 			const resource = URI.from({ scheme: AGENT_BUILTIN_CUSTOMIZATION_SCHEME, path: '/skill/troubleshoot' });
@@ -141,6 +194,32 @@ suite('AgentCustomizationItemProvider', () => {
 	});
 
 	for (const kind of agentHostConnectionKinds) {
+		test(`preserves canonical client agent URIs and omits foreign sources (${kind.name})`, async () => {
+			const session = URI.parse('other-session:/canonical');
+			const agents: AgentCustomization[] = [
+				{ type: CustomizationType.Agent, id: 'local', uri: 'file:///extensions/review.agent.md', name: 'Local', _meta: { 'vscode.uriClientId': 'vscode' } },
+				{ type: CustomizationType.Agent, id: 'remote', uri: 'vscode-remote://ssh-remote+workspace/project/review.agent.md', name: 'Remote', _meta: { 'vscode.uriClientId': 'vscode' } },
+				{ type: CustomizationType.Agent, id: 'foreign', uri: 'file:///extensions/foreign.agent.md', name: 'Foreign', _meta: { 'vscode.uriClientId': 'other-client' } },
+				{ type: CustomizationType.Agent, id: 'legacy', uri: 'file:///cache/legacy.agent.md', name: 'Legacy' },
+			];
+			const provider = disposables.add(new AgentCustomizationItemProvider(
+				{ clientId: 'vscode', resourceUris: kind.resourceUris }, undefined, undefined,
+				upcastPartial<IFileService>({}), new NullLogService(),
+				new class extends NullAgentHostCustomizationService {
+					override getCustomAgents() { return agents; }
+					override getCustomizations(): readonly Customization[] {
+						return [{ type: CustomizationType.Directory, id: 'agents', uri: 'file:///agents', name: 'Agents', contents: CustomizationType.Agent, enabled: true, writable: true, children: agents }];
+					}
+				}(), makePromptsService(), labelService));
+			const available = await provider.provideCustomAgents(session, CancellationToken.None);
+			const items = await provider.provideChatSessionCustomizations(session, CancellationToken.None);
+			const expected = [URI.parse(agents[0].uri).toString(), URI.parse(agents[1].uri).toString(), kind.toClient(URI.parse(agents[3].uri)).toString()];
+			assert.deepStrictEqual({
+				agents: available.map(agent => ({ id: agent.id, uri: agent.uri.toString() })),
+				items: items.map(item => item.uri.toString()),
+			}, { agents: expected.map(uri => ({ id: uri, uri })), items: expected });
+		});
+
 		test(`maps host children of own and foreign plugins while preserving own client containers (${kind.name})`, async () => {
 			const session = URI.parse('agent-host-copilot:/remote');
 			const hostAgent: AgentCustomization = { type: CustomizationType.Agent, id: 'host-agent', uri: 'file:///workspace/agents/host.agent.md', name: 'Host' };

@@ -20,6 +20,7 @@ import { CustomizationEnablementKind } from '../../common/state/protocol/channel
 import type { AutomationEntry } from '../../common/state/protocol/channels-automation/state.js';
 import { AgentHostAutomationCustomizations } from '../../node/agentHostAutomationCustomizations.js';
 import { AUTOMATION_ACTIVE_CLIENT_ID, toAgentHostFileUri } from '../../common/agentPluginManager.js';
+import { toClientPluginSourceUrisMeta } from '../../common/meta/clientPluginCustomizationMeta.js';
 
 suite('AgentHostAutomationCustomizations', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -229,5 +230,15 @@ suite('AgentHostAutomationCustomizations', () => {
 			sibling: { uri: 'virtual:/bundle-other/agents/reviewer.md' },
 			missing: undefined,
 		});
+	});
+
+	test('resolves canonical source selections against immutable captured files', async () => {
+		await seed();
+		const source = URI.parse('vscode-remote://ssh-client/extensions/review/agent.md');
+		const input = { ...ref, _meta: toClientPluginSourceUrisMeta({ files: { 'agents/reviewer.md': source } }) };
+		const copies = (await customizations.capture('author', [input], undefined))!;
+		assert.deepStrictEqual(customizations.resolveAgent({
+			...entry([input]).definition.session, agent: { uri: source.toString() },
+		}, copies), { uri: URI.joinPath(URI.parse(copies[0].uri), 'agents/reviewer.md').toString() });
 	});
 });

@@ -39,6 +39,8 @@ import { Codicon } from '../../../../../../base/common/codicons.js';
 import { IChatContextPickService, IChatContextValueItem } from '../../../../chat/browser/attachments/chatContextPickService.js';
 import { ITelemetryService } from '../../../../../../platform/telemetry/common/telemetry.js';
 import { logSettingExperimentTrigger } from '../../../../../../platform/telemetry/common/experimentTrigger.js';
+import { getAgentHostCustomizationUri } from '../../../../chat/common/agentHostSessionCustomizations.js';
+import { readCustomizationUriClientId } from '../../../../../../platform/agentHost/common/meta/clientPluginCustomizationMeta.js';
 
 const IsActiveSessionAgentHost = ContextKeyExpr.or(
 	ContextKeyExpr.equals(SessionProviderIdContext.key, LOCAL_AGENT_HOST_PROVIDER_ID),
@@ -391,11 +393,18 @@ export class AgentHostAgentPickerContribution extends Disposable implements IWor
 
 		const customizations = provider.getCustomizations(session.sessionId);
 		const rawAgents = provider.getCustomAgents(session.sessionId);
-		const agents = rawAgents.map(agent => {
-			const containers = customizations.filter(customization => customization.type !== CustomizationType.McpServer && customization.children?.some(child => child.uri === agent.uri));
-			return containers.length > 0
-				? { ...agent, uri: provider.mapAgentHostResource(URI.parse(agent.uri)).toString() }
-				: agent;
+		const connection = {
+			clientId: provider.getClientId?.(),
+			resourceUris: { fromAgentHost: (uri: URI) => provider.mapAgentHostResource(uri), toAgentHost: (uri: URI) => uri },
+		};
+		const toClientAgentUri = (agent: typeof rawAgents[number]) => {
+			const published = readCustomizationUriClientId(agent) !== undefined || customizations.some(customization =>
+				customization.type !== CustomizationType.McpServer && customization.children?.some(child => child.uri === agent.uri));
+			return published ? getAgentHostCustomizationUri(URI.parse(agent.uri), connection, agent) : URI.parse(agent.uri);
+		};
+		const agents = rawAgents.flatMap(agent => {
+			const uri = toClientAgentUri(agent);
+			return uri ? [{ ...agent, uri: uri.toString() }] : [];
 		});
 		const storedUri = isUntitled
 			? this.storageService.get(agentHostAgentPickerStorageKey(session.resource.scheme), StorageScope.PROFILE)
@@ -406,8 +415,8 @@ export class AgentHostAgentPickerContribution extends Disposable implements IWor
 				return undefined;
 			}
 			const hostUri = provider.resolveCustomAgent?.(session.sessionId, uri)?.uri ?? uri;
-			const index = rawAgents.findIndex(agent => agent.uri === hostUri);
-			return index >= 0 ? agents[index].uri : uri;
+			const agent = rawAgents.find(agent => agent.uri === hostUri);
+			return agent ? toClientAgentUri(agent)?.toString() : uri;
 		};
 		const resolved = resolveAgentHostAgent(agents, toPickerUri(selectedAgentUri), toPickerUri(storedUri));
 

@@ -49,7 +49,8 @@ import { discoverClaudeMultiRootCustomizations } from './customizations/claudeMu
 import { resolvePromptToContentBlocks } from './claudePromptResolver.js';
 import type { ClaudeTransport } from './claudeProxyService.js';
 import { SessionMcpDiscovery } from '../shared/sessionMcpDiscovery.js';
-import { parsePlugin, type IMcpServerDefinition } from '../../../agentPlugins/common/pluginParsers.js';
+import { type IMcpServerDefinition } from '../../../agentPlugins/common/pluginParsers.js';
+import { parseSyncedPlugin } from '../../common/syncedCustomizationUris.js';
 import { hasClientPluginMcpDefaultCwds, readClientPluginMcpDefaultCwd } from '../../common/meta/clientPluginCustomizationMeta.js';
 import { ClaudeSdkPipeline, IRematerializer, type ISdkResolvedCustomizations } from './claudeSdkPipeline.js';
 import { SubagentRegistry } from './claudeSubagentRegistry.js';
@@ -642,7 +643,7 @@ export class ClaudeAgentSession extends Disposable implements IRematerializer {
 		this.clientCustomizationsDiff.consume(plugins.map(plugin => plugin.uri));
 		const mcpLaunchEnablementRevision = this._mcpLaunchEnablementRevision;
 		const { mcpServers, deniedMcpServers, allowedTools, agentMergeRestrictedMcpServerNames } = await this._buildStartupToolWiring(launchOwner, ctx.serverToolHost);
-		const agentName = await resolveClaudeAgentName(this._provisionalAgent, this._fileService, this._logService, this.sessionId);
+		const agentName = await resolveClaudeAgentName(this._provisionalAgent, this._fileService, this._logService, this.sessionId, this.getClientCustomizations());
 		const telemetry = await this._otelService.getNativeSdkTelemetryConfig();
 		const traceContext = this._otelService.getSessionTraceContext(this.sessionId, ctx.resource.toString());
 
@@ -775,7 +776,7 @@ export class ClaudeAgentSession extends Disposable implements IRematerializer {
 			this.clientCustomizationsDiff.consume(rebuildPlugins.map(plugin => plugin.uri));
 			const rebuildMcpLaunchEnablementRevision = this._mcpLaunchEnablementRevision;
 			const { mcpServers: rebuildMcp, deniedMcpServers: rebuildDeniedMcpServers, allowedTools: rebuildAllowedTools, agentMergeRestrictedMcpServerNames: rebuildAgentMergeRestrictedMcpServerNames } = await this._buildStartupToolWiring(launchOwner, ctx.serverToolHost);
-			const rebuildAgentName = await resolveClaudeAgentName(this._provisionalAgent, this._fileService, this._logService, this.sessionId);
+			const rebuildAgentName = await resolveClaudeAgentName(this._provisionalAgent, this._fileService, this._logService, this.sessionId, this.getClientCustomizations());
 			const rebuildOptions = await buildOptions(
 				{
 					sessionId: this.sessionId,
@@ -925,7 +926,7 @@ export class ClaudeAgentSession extends Disposable implements IRematerializer {
 				continue;
 			}
 			try {
-				const parsed = await parsePlugin(synced.pluginDir, this._fileService, primaryCwd, this._environmentService.userHome, synced.pluginDir);
+				const parsed = await parseSyncedPlugin(synced, synced.customization.clientId!, this._fileService, primaryCwd, this._environmentService.userHome);
 				if (gitHubMcpServerConfiguration && parsed.mcpServers.some(definition => isGitHubMcpServerDefinition(definition, gitHubMcpServerConfiguration))) {
 					hasGitHubMcpServer = true;
 				}

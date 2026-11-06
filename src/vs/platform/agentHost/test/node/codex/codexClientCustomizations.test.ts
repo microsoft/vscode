@@ -14,7 +14,7 @@ import { createInMemoryFileService } from '../../../../files/test/common/inMemor
 import { PluginFormat, type IMcpServerDefinition, type IParsedAgent, type IParsedPlugin, type IParsedRule, type IParsedSkill } from '../../../../agentPlugins/common/pluginParsers.js';
 import { McpServerType, type IMcpServerConfiguration } from '../../../../mcp/common/mcpPlatformTypes.js';
 import { SYNCED_CUSTOMIZATION_SCHEME } from '../../../common/agentHostFileSystemService.js';
-import { toClientPluginMcpDefaultCwdsMeta } from '../../../common/meta/clientPluginCustomizationMeta.js';
+import { readCustomizationUriClientId, readCustomizationUriClientIds, toClientPluginMcpDefaultCwdsMeta, toClientPluginSourceUrisMeta, toCustomizationUriClientMeta } from '../../../common/meta/clientPluginCustomizationMeta.js';
 import type { ISyncedCustomization } from '../../../common/agentPluginManager.js';
 import { CustomizationType, McpServerStatus, type PluginCustomization } from '../../../common/state/protocol/channels-session/state.js';
 import { CODEX_FILE_LINK_INSTRUCTIONS, CodexClientCustomizationStore, codexAgentRoleToml, codexClientSkillInstructions, codexCustomizationConfig, codexMcpServersFromPlugins, type ICodexClientPlugin } from '../../../node/codex/codexClientCustomizations.js';
@@ -41,8 +41,8 @@ suite('codexClientCustomizations', () => {
 		return { uri, name, description: `${name} desc`, customization: { type: CustomizationType.Skill, id: `skill:${name}`, uri: uri.toString(), name } };
 	}
 
-	function agentDef(uri: URI, name: string): IParsedAgent {
-		return { uri, name, customization: { type: CustomizationType.Agent, id: `agent:${name}`, uri: uri.toString(), name } };
+	function agentDef(uri: URI, name: string, materializedUri?: URI, clientId?: string): IParsedAgent {
+		return { uri, name, materializedUri, customization: { type: CustomizationType.Agent, id: `agent:${name}`, uri: uri.toString(), name, ...(clientId ? { _meta: toCustomizationUriClientMeta(clientId) } : {}) } };
 	}
 
 	function instructionDef(uri: URI, name: string): IParsedRule {
@@ -89,6 +89,46 @@ suite('codexClientCustomizations', () => {
 		store.setClient('c2', [plugin('shared', '/plugins/other', parsed())]); // duplicate id ignored
 		store.setEnabled('off', false);
 		assert.deepStrictEqual(store.enabledPlugins().map(p => p.synced.customization.id), ['shared']);
+	});
+
+	test('publishes canonical client source children without changing parsed runtime paths', () => {
+		const store = new CodexClientCustomizationStore();
+		const source = URI.file('/workspace/.github/agents/original.md');
+		const agent = agentDef(source, 'Agent', URI.file('/cache/plugin/agents/agent.md'), 'owner');
+		const clientPlugin = plugin('p', '/cache/plugin', parsed({ agents: [agent] }));
+		clientPlugin.synced.customization._meta = toClientPluginSourceUrisMeta({ files: { 'agents/agent.md': source } });
+		store.setClient('owner', [clientPlugin]);
+		store.setEnabled('p', false);
+		const published = store.toCustomizations()[0];
+
+		assert.deepStrictEqual({
+			enabled: isCustomizationEnabled(published),
+			uri: published.children![0].uri,
+			owner: readCustomizationUriClientId(published.children![0]),
+			runtime: store.plugins()[0].parsed!.agents[0].materializedUri,
+		}, {
+			enabled: false,
+			uri: source.toString(),
+			owner: 'owner',
+			runtime: agent.materializedUri,
+		});
+	});
+
+	test('deduplicates runtime plugins without losing a second client source owner', () => {
+		const store = new CodexClientCustomizationStore();
+		for (const owner of ['first', 'second']) {
+			const shared = plugin('shared', '/cache/plugin', parsed({ agents: [agentDef(URI.file('/source/agents/a.md'), 'Agent', URI.file('/cache/plugin/agents/a.md'), owner)] }));
+			store.setClient(owner, [shared]);
+		}
+		const published = store.toCustomizations();
+		const owners = readCustomizationUriClientIds(published[0].children![0]);
+		store.removeClient('first');
+		assert.deepStrictEqual({
+			runtimeCount: store.enabledPlugins().length,
+			publishedCount: published.length,
+			owners,
+			afterDisconnect: readCustomizationUriClientIds(store.toCustomizations()[0].children![0]),
+		}, { runtimeCount: 1, publishedCount: 1, owners: ['first', 'second'], afterDisconnect: ['second'] });
 	});
 
 	test('codexMcpServersFromPlugins maps stdio + http, stringifies env, and maps headers', () => {
@@ -314,6 +354,99 @@ suite('codexClientCustomizations', () => {
 		assert.strictEqual(config.developerInstructions, `Apply exact reviewer instructions.\n\n${CODEX_FILE_LINK_INSTRUCTIONS}`);
 	});
 
+	test('canonical loose-agent selection disambiguates matching filenames and accepts the legacy cache URI', async () => {
+		const selectedUri = URI.file('/workspace/.github/agents/reviewer.agent.md');
+		const plugins: ICodexClientPlugin[] = [];
+		for (const [id, source, body] of [
+			['other', URI.file('/other/reviewer.agent.md'), 'Other instructions.'],
+			['selected', selectedUri, 'Selected instructions.'],
+		] as const) {
+			const root = URI.from({ scheme: Schemas.inMemory, path: `/cache/${id}` });
+			const agentUri = URI.joinPath(root, 'agents/reviewer.agent.md');
+			await fileService.writeFile(agentUri, VSBuffer.fromString(body));
+			plugins.push({
+				synced: {
+					pluginDir: root,
+					customization: {
+						...pluginCustomization(id),
+						uri: `${SYNCED_CUSTOMIZATION_SCHEME}:/${id}`,
+						_meta: toClientPluginSourceUrisMeta({ files: { 'agents/reviewer.agent.md': source } }),
+					},
+				},
+				parsed: parsed({ agents: [agentDef(source, id, agentUri, 'owner')] }),
+			});
+		}
+		const results = await Promise.all([
+			selectedUri,
+			plugins[1].parsed!.agents[0].materializedUri!,
+			URI.file('/unrelated/reviewer.agent.md'),
+		].map(async uri => (await codexCustomizationConfig([], plugins, { uri: uri.toString() }, fileService)).developerInstructions));
+		assert.deepStrictEqual(results, [
+			`Selected instructions.\n\n${CODEX_FILE_LINK_INSTRUCTIONS}`,
+			`Selected instructions.\n\n${CODEX_FILE_LINK_INSTRUCTIONS}`,
+			CODEX_FILE_LINK_INSTRUCTIONS,
+		]);
+	});
+
+	test('does not select an ambiguous legacy synthetic filename fallback', async () => {
+		const plugins: ICodexClientPlugin[] = [];
+		for (const id of ['first', 'second']) {
+			const root = URI.from({ scheme: Schemas.inMemory, path: `/cache/${id}` });
+			const agentUri = URI.joinPath(root, 'agents/reviewer.agent.md');
+			await fileService.writeFile(agentUri, VSBuffer.fromString(id));
+			plugins.push({
+				synced: { pluginDir: root, customization: { ...pluginCustomization(id), uri: `${SYNCED_CUSTOMIZATION_SCHEME}:/${id}` } },
+				parsed: parsed({ agents: [agentDef(agentUri, id)] }),
+			});
+		}
+		const config = await codexCustomizationConfig([], plugins, { uri: URI.file('/workspace/reviewer.agent.md').toString() }, fileService);
+		assert.strictEqual(config.developerInstructions, CODEX_FILE_LINK_INSTRUCTIONS);
+	});
+
+	test('restores a previous cache revision by owning namespace and relative path with source metadata', async () => {
+		const plugins: ICodexClientPlugin[] = [];
+		for (const id of ['other', 'selected']) {
+			const root = URI.from({ scheme: Schemas.inMemory, path: `/cache/${id}/current` });
+			const agentUri = URI.joinPath(root, 'agents/reviewer.agent.md');
+			await fileService.writeFile(agentUri, VSBuffer.fromString(`${id} instructions.`));
+			const customization = {
+				...pluginCustomization(id),
+				uri: `${SYNCED_CUSTOMIZATION_SCHEME}:/${id}`,
+				nonce: 'current',
+				_meta: toClientPluginSourceUrisMeta({ files: { 'agents/reviewer.agent.md': URI.file(`/client/${id}/original.agent.md`) } }),
+			};
+			plugins.push({
+				synced: { pluginDir: root, customization },
+				input: customization,
+				parsed: parsed({ agents: [agentDef(agentUri, id)] }),
+			});
+		}
+		const selections = [
+			'/cache/selected/previous/agents/reviewer.agent.md',
+			'/cache/other/previous/agents/reviewer.agent.md',
+			'/cache/wrong/previous/agents/reviewer.agent.md',
+			'/cache/selected-lookalike/previous/agents/reviewer.agent.md',
+			'/cache/selected/previous/nested/reviewer.agent.md',
+		];
+		const results = await Promise.all(selections.map(async path => {
+			const uri = URI.from({ scheme: Schemas.inMemory, path });
+			return (await codexCustomizationConfig([], plugins, { uri: uri.toString() }, fileService)).developerInstructions;
+		}));
+		const mismatchedNonce = { ...plugins[1], input: { ...plugins[1].input!, nonce: 'not-the-materialized-revision' } };
+		const mismatchedConfig = await codexCustomizationConfig([], [mismatchedNonce], {
+			uri: URI.from({ scheme: Schemas.inMemory, path: selections[0] }).toString(),
+		}, fileService);
+
+		assert.deepStrictEqual([...results, mismatchedConfig.developerInstructions], [
+			`selected instructions.\n\n${CODEX_FILE_LINK_INSTRUCTIONS}`,
+			`other instructions.\n\n${CODEX_FILE_LINK_INSTRUCTIONS}`,
+			CODEX_FILE_LINK_INSTRUCTIONS,
+			CODEX_FILE_LINK_INSTRUCTIONS,
+			CODEX_FILE_LINK_INSTRUCTIONS,
+			CODEX_FILE_LINK_INSTRUCTIONS,
+		]);
+	});
+
 	test('removeClient drops a client and setEnabled reports whether it changed', () => {
 		const store = new CodexClientCustomizationStore();
 		store.setClient('c1', [plugin('p1', '/plugins/p1', parsed())]);
@@ -325,4 +458,35 @@ suite('codexClientCustomizations', () => {
 			emptyAfter: store.isEmpty(),
 		}, { hasBefore: true, toggledOff: true, toggledOffAgain: false, removed: true, emptyAfter: true });
 	});
+
+	for (const [nonce, revision] of [['-123', '123'], ['!!release..v2?!', 'release-v2'], ['!!!', 'default']]) {
+		test(`restores a sanitized cache revision (${nonce}) only within its owning namespace`, async () => {
+			const root = URI.from({ scheme: Schemas.inMemory, path: `/cache/selected/${revision}` });
+			const agentUri = URI.joinPath(root, 'agents/reviewer.agent.md');
+			await fileService.writeFile(agentUri, VSBuffer.fromString('Selected instructions.'));
+			const customization = {
+				...pluginCustomization('selected'),
+				uri: `${SYNCED_CUSTOMIZATION_SCHEME}:/selected`,
+				nonce,
+				_meta: toClientPluginSourceUrisMeta({ files: { 'agents/reviewer.agent.md': URI.file('/client/original.agent.md') } }),
+			};
+			const plugin: ICodexClientPlugin = {
+				synced: { pluginDir: root, customization }, input: customization,
+				parsed: parsed({ agents: [agentDef(agentUri, 'selected')] }),
+			};
+			const old = URI.from({ scheme: Schemas.inMemory, path: '/cache/selected/previous/agents/reviewer.agent.md' });
+			const results = await Promise.all([
+				old,
+				old.with({ path: '/cache/other/previous/agents/reviewer.agent.md' }),
+				old.with({ path: '/cache/selected-lookalike/previous/agents/reviewer.agent.md' }),
+				old.with({ query: 'other' }),
+				old.with({ fragment: 'other' }),
+				old.with({ authority: 'other-host' }),
+			].map(async uri => (await codexCustomizationConfig([], [plugin], { uri: uri.toString() }, fileService)).developerInstructions));
+			assert.deepStrictEqual(results, [
+				`Selected instructions.\n\n${CODEX_FILE_LINK_INSTRUCTIONS}`,
+				...Array.from({ length: 5 }, () => CODEX_FILE_LINK_INSTRUCTIONS),
+			]);
+		});
+	}
 });

@@ -18,6 +18,7 @@ import { URI } from '../../../../base/common/uri.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
 import { localize } from '../../../../nls.js';
 import { IInstantiationService } from '../../../instantiation/common/instantiation.js';
+import { parseSyncedPlugin } from '../../common/syncedCustomizationUris.js';
 import { INativeEnvironmentService } from '../../../environment/common/environment.js';
 import { ILogService } from '../../../log/common/log.js';
 import { IAgentHostStartupPerformance } from '../agentHostStartupPerformance.js';
@@ -2630,7 +2631,28 @@ export class ClaudeAgent extends Disposable implements IAgent {
 		const target = this._findChatByUri(chat);
 		if (target) {
 			return this._sessionSequencer.queue(target.sessionId, async () => {
-				const synced = await sync();
+				const synced = await Promise.all((await sync()).map(async item => {
+					if (!item.pluginDir) {
+						return item;
+					}
+					try {
+						const parsed = await parseSyncedPlugin(item, clientId, this._fileService, target.workingDirectory, this._environmentService.userHome);
+						const children = [
+							...parsed.agents,
+							...parsed.skills,
+							...parsed.instructions,
+							...parsed.hooks,
+							...parsed.mcpServers,
+						].map(child => ({
+							...item.customization.children?.find(existing => existing.id === child.customization.id),
+							...child.customization,
+						}));
+						return { ...item, customization: { ...item.customization, children } };
+					} catch (error) {
+						this._logService.warn(`[Claude] Failed to parse client plugin ${item.customization.uri}`, error);
+						return item;
+					}
+				}));
 				// Only a real host snapshot is applied. `undefined` means the host
 				// has published none yet — reconciling against an empty list there
 				// would drop enablement state the session already resolved.

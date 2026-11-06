@@ -9,7 +9,7 @@ import { StringSHA1 } from '../../../../base/common/hash.js';
 import { Schemas } from '../../../../base/common/network.js';
 import { dirname } from '../../../../base/common/path.js';
 import { OperatingSystem, OS } from '../../../../base/common/platform.js';
-import { joinPath, relativePath } from '../../../../base/common/resources.js';
+import { isEqual } from '../../../../base/common/resources.js';
 import { escapeRegExpCharacters } from '../../../../base/common/strings.js';
 import { URI } from '../../../../base/common/uri.js';
 import { parseFrontMatter, type MarkdownNode, type YamlNode } from '../../../../base/common/yaml.js';
@@ -106,13 +106,12 @@ export interface ISdkCustomAgentResource extends INamedPluginResource {
 	readonly sdkName?: string;
 }
 
+type PluginSource = { readonly sourceUri?: URI; readonly pluginDir?: URI; readonly resourceDir?: URI };
+
 /** Keeps forwarded SDK identities independent of authored names and materialized cache locations. */
-export function getSdkCustomAgentName(uri: URI, plugin?: { readonly sourceUri?: URI; readonly pluginDir?: URI; readonly resourceDir?: URI }): string {
-	const root = plugin?.pluginDir ?? plugin?.resourceDir;
-	const relative = root && plugin?.sourceUri ? relativePath(root, uri) : undefined;
-	const identity = relative !== undefined && plugin?.sourceUri ? joinPath(plugin.sourceUri, relative) : uri;
+export function getSdkCustomAgentName(uri: URI): string {
 	const hash = new StringSHA1();
-	hash.update(identity.toString());
+	hash.update(uri.toString());
 	return `vscode-agent-${hash.digest()}`;
 }
 
@@ -211,7 +210,7 @@ export async function toSdkCustomAgents(
 	const configs: ICopilotCustomAgentConfig[] = [];
 	for (const agent of agents) {
 		try {
-			const content = await fileService.readFile(agent.uri);
+			const content = await fileService.readFile(agent.materializedUri ?? agent.uri);
 			const raw = content.value.toString();
 			const md = parseFrontMatter(raw);
 			if (!md) {
@@ -336,7 +335,7 @@ function toSdkResourceDirectories(resources: readonly INamedPluginResource[]): s
 	const seen = new Set<string>();
 	const result: string[] = [];
 	for (const resource of resources) {
-		const dir = dirname(resource.uri.fsPath);
+		const dir = dirname((resource.materializedUri ?? resource.uri).fsPath);
 		if (!seen.has(dir)) {
 			seen.add(dir);
 			result.push(dir);
@@ -627,11 +626,11 @@ export function toSdkHooks(
 	return hooks;
 }
 
-type ComparablePlugin = IParsedPlugin & { readonly sourceUri?: URI; readonly pluginDir?: URI; readonly resourceDir?: URI; readonly nonce?: string };
+type ComparablePlugin = IParsedPlugin & PluginSource & { readonly nonce?: string };
 
 /**
- * Compares SDK configuration, preserving plugin order. A plugin with a content nonce compares relative to its own
- * materialized root, since the nonce covers resource bodies that parsed metadata does not; others compare by absolute path.
+ * Compares SDK configuration and forwarded agent identities, preserving plugin order.
+ * SDK paths compare relative to their materialized root only with a content nonce covering the resource bodies.
  */
 export function parsedPluginsEqual(a: readonly ComparablePlugin[], b: readonly ComparablePlugin[]): boolean {
 	const serialize = (plugins: typeof a) => {
@@ -649,13 +648,13 @@ export function parsedPluginsEqual(a: readonly ComparablePlugin[], b: readonly C
 					hooks: p.hooks.map(h => ({ type: h.type, commands: h.commands.map(c => ({ command: c.command, windows: c.windows, linux: c.linux, osx: c.osx, cwd: c.cwd?.toString(), env: c.env, timeout: c.timeout })) })),
 					mcpServers: p.mcpServers.map(m => ({ name: m.name, configuration: m.configuration, defaultCwd: m.defaultCwd?.toString() })),
 					skills: p.skills.map(s => ({
-						uri: s.uri.toString(),
+						uri: (s.materializedUri ?? s.uri).toString(),
 						name: s.name,
 						disableModelInvocation: s.disableModelInvocation,
 						disableUserInvocation: s.disableUserInvocation,
 					})),
-					agents: p.agents.map(a => ({ uri: a.uri.toString(), name: a.name })),
-					instructions: p.instructions.map(i => ({ uri: i.uri.toString(), name: i.name })),
+					agents: p.agents.map(a => ({ uri: a.uri.toString(), materializedUri: a.materializedUri?.toString(), name: a.name })),
+					instructions: p.instructions.map(i => ({ uri: (i.materializedUri ?? i.uri).toString(), name: i.name })),
 				}, (_key, value) => {
 					// Tagged segments distinguish a relocated root from literal placeholder text.
 					if (rootPattern && typeof value === 'string') {
@@ -675,12 +674,12 @@ export function parsedPluginsEqual(a: readonly ComparablePlugin[], b: readonly C
 /** Resolves a published agent URI to the agent name a session applied before an equivalent relocation of its plugin. */
 export function findRelocatedAgentName(applied: readonly ComparablePlugin[], published: readonly ComparablePlugin[], agentUri: string): string | undefined {
 	for (const plugin of published) {
-		const index = plugin.agents.findIndex(agent => agent.uri.toString() === agentUri);
+		const index = plugin.agents.findIndex(agent => isEqual(agent.uri, URI.parse(agentUri)));
 		// Applied and published sets can come from different chat anchors, so their plugin positions can differ.
 		const equivalent = index >= 0 ? applied.find(candidate => parsedPluginsEqual([candidate], [plugin])) : undefined;
 		if (equivalent) {
 			const agent = equivalent.agents[index];
-			return agent ? getSdkCustomAgentName(agent.uri, equivalent) : undefined;
+			return agent ? getSdkCustomAgentName(agent.uri) : undefined;
 		}
 	}
 	return undefined;

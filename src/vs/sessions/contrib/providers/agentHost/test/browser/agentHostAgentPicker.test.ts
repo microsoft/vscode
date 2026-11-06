@@ -210,6 +210,46 @@ suite('agentHostAgentPicker', () => {
 	});
 
 	for (const kind of agentHostConnectionKinds) {
+		for (const owner of ['vscode', 'foreign', 'shared']) {
+			test(`restores canonical agent selection without remapping ${owner} sources (${kind.name})`, () => {
+				const source = 'file:///client/agent.md';
+				const agent: AgentCustomization = {
+					...alpha, uri: source,
+					_meta: { 'vscode.uriClientId': owner, ...(owner === 'shared' ? { 'vscode.uriClientIds': ['shared', 'vscode'] } : {}) },
+				};
+				const storage = disposables.add(new TestStorageService());
+				const resource = URI.parse('custom-host:/canonical');
+				storage.store(agentHostAgentPickerStorageKey(resource.scheme), source, StorageScope.PROFILE, StorageTarget.MACHINE);
+				const selected: string[] = [];
+				const mode = constObservable(undefined);
+				const session = upcastPartial<ITestSessionWithChat>({
+					sessionId: 'canonical', resource, providerId: LOCAL_AGENT_HOST_PROVIDER_ID,
+					mode, status: constObservable(SessionStatus.Untitled),
+					activeChat: constObservable(upcastPartial<IChat>({ mode })),
+				});
+				const provider = upcastPartial<IAgentHostSessionsProvider>({
+					id: LOCAL_AGENT_HOST_PROVIDER_ID, getClientId: () => 'vscode',
+					getCustomAgents: () => [agent],
+					getCustomizations: () => [{ type: CustomizationType.Plugin, id: 'plugin', name: 'Plugin', uri: 'synced:/plugin', clientId: owner, children: [agent] }],
+					mapAgentHostResource: kind.resourceUris.fromAgentHost,
+					onDidChangeCustomAgents: Event.None,
+					setAgent: (_id, value) => { if (value) { selected.push(value.uri); } },
+				});
+				const providers = disposables.add(new SessionsProvidersService(upcastPartial<ILifecycleService>({ willShutdown: false })));
+				disposables.add(providers.registerProvider(provider));
+				const configuration = new TestConfigurationService();
+				disposables.add(configuration.onDidChangeConfigurationEmitter);
+				disposables.add(new AgentHostAgentPickerContribution(
+					new NullActionViewItemService(), focusedSessionHostServiceOf(constObservable(session)), providers,
+					upcastPartial<IChatService>({ getSession: () => undefined }),
+					upcastPartial<IChatWidgetService>({ getWidgetBySessionResource: () => undefined, onDidAddWidget: Event.None, onDidChangeFocusedSession: Event.None }),
+					storage, new NullLogService(), configuration, disposables.add(new ContextKeyService(configuration)),
+					upcastPartial<IChatContextPickService>({ registerChatContextItem: () => Disposable.None }), new TestExperimentTriggerTelemetryService(),
+				));
+				assert.deepStrictEqual(selected, owner === 'foreign' ? [] : [source]);
+			});
+		}
+
 		for (const [scheme, clientId, rememberedSource] of ([['agent-host-copilotcli', undefined], ['custom-host', undefined], ['custom-host', 'vscode'], ['custom-host', 'foreign']] as const).flatMap(([scheme, clientId]) => [[scheme, clientId, false], [scheme, clientId, true]] as const)) {
 			test(`restores the last-used agent after an automatic fallback for ${scheme}${rememberedSource ? ' using its draft source' : ''} (${clientId ?? 'host'}, ${kind.name})`, () => {
 				const storage = disposables.add(new TestStorageService());

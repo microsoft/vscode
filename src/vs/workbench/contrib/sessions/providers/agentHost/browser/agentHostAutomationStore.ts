@@ -8,6 +8,7 @@ import { CancellationToken } from '../../../../../../base/common/cancellation.js
 import { CancellationError } from '../../../../../../base/common/errors.js';
 import { Event } from '../../../../../../base/common/event.js';
 import { Disposable, DisposableMap, DisposableStore, toDisposable, type IReference } from '../../../../../../base/common/lifecycle.js';
+import { ResourceSet } from '../../../../../../base/common/map.js';
 import { stableStringify } from '../../../../../../base/common/objects.js';
 import { derived, type IObservable, observableSignal, observableSignalFromEvent, observableValue } from '../../../../../../base/common/observable.js';
 import { basename, isEqual, isEqualOrParent, joinPath, relativePath } from '../../../../../../base/common/resources.js';
@@ -18,6 +19,7 @@ import { generateUuid } from '../../../../../../base/common/uuid.js';
 import { localize } from '../../../../../../nls.js';
 import { type IAgentConnection } from '../../../../../../platform/agentHost/common/agentService.js';
 import { getAgentHostAutomationHistoryState, getAgentHostAutomationScheduleKind, supportsAgentHostAutomationHistory, supportsAgentHostAutomationHistoryDeletionState, supportsAgentHostAutomationHistoryReceipts, withAgentHostAutomationScheduleKind } from '../../../../../../platform/agentHost/common/meta/agentHostAutomationsMeta.js';
+import { readClientPluginSourceUris } from '../../../../../../platform/agentHost/common/meta/clientPluginCustomizationMeta.js';
 import { applyLegacyAutomationSessionConfig } from '../../../../../../platform/agentHost/common/automationConfig.js';
 import { isCustomizationEnabled } from '../../../../../../platform/agentHost/common/customizationEnablement.js';
 import { omitAutomationSessionTemplateConfigValues, pickAutomationDefinitionOwnedConfigValues, SessionConfigKey } from '../../../../../../platform/agentHost/common/sessionConfigKeys.js';
@@ -767,19 +769,30 @@ export class AgentHostAutomationStore extends Disposable implements ISessionsPro
 			return;
 		}
 		const agentUri = URI.parse(definition.session.agent.uri);
-		const findBundle = (plugins: readonly ClientPluginCustomization[] | undefined, contains?: URI) => plugins?.map(plugin => URI.parse(plugin.uri))
-			.find(uri => uri.scheme === SYNCED_CUSTOMIZATION_SCHEME && (!contains || isEqualOrParent(contains, uri)));
-		let syncedUri = scope.getSyncedUri(agentUri);
-		// An agent saved by an earlier capture points into the previous target's bundle, which lays out files the same way.
-		const previousBundle = findBundle(previous?.session.customizations, agentUri);
-		const bundle = findBundle(customizations);
-		const relative = previousBundle && relativePath(previousBundle, agentUri);
-		if (!syncedUri && bundle && relative !== undefined) {
-			const candidate = joinPath(bundle, relative);
-			syncedUri = this._activeClientService.getOrigin(candidate) ? candidate : undefined;
+		if (agentUri.scheme !== SYNCED_CUSTOMIZATION_SCHEME) {
+			return;
 		}
-		if (syncedUri && customizations.some(plugin => isEqualOrParent(syncedUri, URI.parse(plugin.uri)))) {
-			definition.session.agent = { uri: syncedUri.toString() };
+		for (const plugin of [...(previous?.session.customizations ?? []), ...customizations]) {
+			const root = URI.parse(plugin.uri);
+			const path = isEqualOrParent(agentUri, root) ? relativePath(root, agentUri) : undefined;
+			const source = path !== undefined ? readClientPluginSourceUris(plugin).files[path] : undefined;
+			if (source) {
+				definition.session.agent = { uri: source.toString() };
+				return;
+			}
+			if (path === undefined) {
+				continue;
+			}
+			// Older saved bundles need an unambiguous source in the replacement capture.
+			const matches = new ResourceSet(customizations.flatMap(currentPlugin => {
+				const source = readClientPluginSourceUris(currentPlugin).files[path]
+					?? this._activeClientService.getOrigin(joinPath(URI.parse(currentPlugin.uri), path))?.uri;
+				return source ? [source] : [];
+			}));
+			if (matches.size === 1) {
+				definition.session.agent = { uri: [...matches][0].toString() };
+				return;
+			}
 		}
 	}
 

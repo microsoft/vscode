@@ -27,6 +27,7 @@ import { type IAgentConnection } from '../../../../../../platform/agentHost/comm
 import { getAgentHostCustomizationUri } from '../../../common/agentHostSessionCustomizations.js';
 import { readMcpServerDisplayName, readMcpServerSource } from '../../../../../../platform/agentHost/common/meta/mcpCustomizationMeta.js';
 import { readAgentCustomizationMeta } from '../../../../../../platform/agentHost/common/meta/agentCustomizationMeta.js';
+import { readCustomizationUriClientId } from '../../../../../../platform/agentHost/common/meta/clientPluginCustomizationMeta.js';
 import { readCustomizationDiscoveryMeta } from '../../../../../../platform/agentHost/common/meta/customizationDiscoveryMeta.js';
 import { readCustomizationScopeMeta } from '../../../../../../platform/agentHost/common/meta/customizationScopeMeta.js';
 import { AICustomizationScope, AICustomizationScopes, AICustomizationSource, AICustomizationSources } from '../../../common/aiCustomizationWorkspaceService.js';
@@ -58,7 +59,7 @@ export class AgentCustomizationItemProvider extends Disposable implements ICusto
 	readonly onDidChange: Event<void> = this._onDidChange.event;
 
 	/** Cache: pluginUri → last expansion (keyed by nonce and label so we re-fetch on content or display-name changes). */
-	private readonly _expansionCache = new ResourceMap<{ nonce: string | undefined; pluginLabel: string | undefined; children: readonly ICustomizationItem[] }>();
+	private readonly _expansionCache = new ResourceMap<{ nonce: string | undefined; pluginLabel: string | undefined; promptsOnly: boolean; children: readonly ICustomizationItem[] }>();
 	private readonly _sourceFolderReadiness = new ResourceMap<{
 		readonly bounded: Promise<boolean | undefined>;
 		status: CustomizationSourceFolderReadiness;
@@ -169,7 +170,8 @@ export class AgentCustomizationItemProvider extends Disposable implements ICusto
 
 	private toDirectoryChildItem(child: ChildCustomization, source: AICustomizationSource, scope: AICustomizationScope | undefined, isRemote: boolean): ICustomizationHookItem | undefined {
 		const type = toPromptsType(child.type);
-		if (!type) {
+		const uri = getAgentHostCustomizationUri(URI.parse(child.uri), this._connection, child);
+		if (!type || !uri) {
 			return undefined;
 		}
 		const discovery = readCustomizationDiscoveryMeta(child);
@@ -181,6 +183,8 @@ export class AgentCustomizationItemProvider extends Disposable implements ICusto
 		let userInvocable: boolean | undefined = undefined;
 		if (child.type === CustomizationType.Agent) {
 			userInvocable = readAgentCustomizationMeta(child).userInvocable !== false;
+		} else if (child.type === CustomizationType.Skill) {
+			userInvocable = child.disableUserInvocation !== true;
 		}
 		let groupKey: string | undefined;
 		let badge: string | undefined = undefined;
@@ -202,7 +206,6 @@ export class AgentCustomizationItemProvider extends Disposable implements ICusto
 			}
 		}
 
-		const uri = this.toRemoteUri(child.uri);
 		let description = getChildDescription(child);
 		if (discovery?.hookType) {
 			description = hasReadableCustomizationContent(uri) ? discovery.sourceLabel
@@ -295,17 +298,18 @@ export class AgentCustomizationItemProvider extends Disposable implements ICusto
 			return [];
 		}
 
-		const agents = this.getCustomAgents(sessionResource);
+		const drafts = this._draftCustomAgents?.get() ?? [];
+		const agents = this.getCustomAgents(sessionResource).filter(agent =>
+			drafts.includes(agent) || getAgentHostCustomizationUri(URI.parse(agent.uri), this._connection, agent) !== undefined);
 		const sources = await this.getAgentSources(sessionResource, agents, token);
 		if (token.isCancellationRequested) {
 			return [];
 		}
 		const sessionTypes = [getChatSessionType(sessionResource)];
-		const drafts = this._draftCustomAgents?.get() ?? [];
 		return agents.map((agent, index) => {
 			const meta = readAgentCustomizationMeta(agent);
 			const isAsk = meta['vscode.chatMode'] === 'ask';
-			const uri = drafts.includes(agent) ? URI.parse(agent.uri) : this.toRemoteUri(agent.uri);
+			const uri = drafts.includes(agent) ? URI.parse(agent.uri) : getAgentHostCustomizationUri(URI.parse(agent.uri), this._connection, agent)!;
 			return {
 				id: uri.toString(),
 				kind: isAsk ? ChatModeKind.Ask : undefined,
@@ -394,7 +398,17 @@ export class AgentCustomizationItemProvider extends Disposable implements ICusto
 					pluginLabel: isBundleItem ? undefined : item.name,
 				} satisfies PluginMeta;
 				plugins.push(pluginMeta);
-				expandPromises.push(pluginUri ? this._expandPluginContents(pluginMeta, token) : Promise.resolve([]));
+				const canonicalChildren = sessionCustomization.children?.some(child => readCustomizationUriClientId(child) !== undefined);
+				expandPromises.push(canonicalChildren
+					? (async () => {
+						const children = (sessionCustomization.children ?? []).flatMap(child => {
+							const item = this.toDirectoryChildItem(child, AICustomizationSources.plugin, readCustomizationScopeMeta(sessionCustomization), isClientSynced);
+							return item ? [{ ...item, delivery, pluginUri, pluginLabel: pluginMeta.pluginLabel }] : [];
+						});
+						const prompts = pluginUri ? await this._expandPluginContents(pluginMeta, token, true) : [];
+						return [...children, ...prompts];
+					})()
+					: pluginUri ? this._expandPluginContents(pluginMeta, token) : Promise.resolve([]));
 			}
 		}
 
@@ -444,6 +458,10 @@ export class AgentCustomizationItemProvider extends Disposable implements ICusto
 			if (container.type !== CustomizationType.McpServer || !containerEnabled) {
 				continue;
 			}
+			const uri = getAgentHostCustomizationUri(URI.parse(skill.uri), this._connection, skill);
+			if (!uri) {
+				continue;
+			}
 			const plugin = customizations.find((customization): customization is PluginCustomization =>
 				customization.type === CustomizationType.Plugin && customization.children?.includes(container) === true);
 			const source = readMcpServerSource(container);
@@ -457,7 +475,7 @@ export class AgentCustomizationItemProvider extends Disposable implements ICusto
 			const groupKey = plugin ? this.toBadge(plugin, plugin.clientId !== undefined).groupKey : customizationSource;
 			items.set(skill.id, {
 				itemKey: skill.id,
-				uri: getAgentHostCustomizationUri(URI.parse(skill.uri), this._connection)!,
+				uri,
 				type: PromptsType.skill,
 				name: skill.name,
 				description: skill.description,
@@ -534,7 +552,7 @@ export class AgentCustomizationItemProvider extends Disposable implements ICusto
 			candidate.type !== CustomizationType.McpServer
 			&& (candidate.type === CustomizationType.Plugin ? isCustomizationEnabled(candidate) : candidate.enabled));
 		const drafts = this._draftCustomAgents?.get() ?? [];
-		const agentUris = new Map(agents.map(agent => [agent, drafts.includes(agent) ? URI.parse(agent.uri) : this.toRemoteUri(agent.uri)]));
+		const agentUris = new Map(agents.map(agent => [agent, drafts.includes(agent) ? URI.parse(agent.uri) : getAgentHostCustomizationUri(URI.parse(agent.uri), this._connection, agent)!]));
 		const origins = new Map(agents.map(agent => {
 			const sourceUri = readAgentCustomizationMeta(agent)['vscode.sourceUri'];
 			const container = containers.find(container => container.type === CustomizationType.Plugin && container.children?.some(child => child.uri === agent.uri));
@@ -655,13 +673,13 @@ export class AgentCustomizationItemProvider extends Disposable implements ICusto
 	 * filesystem provider and returns one {@link ICustomizationItem} per
 	 * supported file (agents/skills/instructions/prompts).
 	 */
-	private async _expandPluginContents(plugin: PluginMeta, token: CancellationToken): Promise<readonly ICustomizationItem[]> {
+	private async _expandPluginContents(plugin: PluginMeta, token: CancellationToken, promptsOnly = false): Promise<readonly ICustomizationItem[]> {
 		const cached = this._expansionCache.get(plugin.item.uri);
-		if (cached && cached.nonce === plugin.nonce && cached.pluginLabel === plugin.pluginLabel) {
+		if (cached && cached.nonce === plugin.nonce && cached.pluginLabel === plugin.pluginLabel && cached.promptsOnly === promptsOnly) {
 			return cached.children;
 		}
-		const children = await this._contentExpander.expandPluginContents(plugin.item.uri, plugin.delivery, plugin.isBundleItem, plugin.item.source, plugin.pluginLabel, token);
-		this._expansionCache.set(plugin.item.uri, { nonce: plugin.nonce, pluginLabel: plugin.pluginLabel, children });
+		const children = await this._contentExpander.expandPluginContents(plugin.item.uri, plugin.delivery, plugin.isBundleItem, plugin.item.source, plugin.pluginLabel, token, promptsOnly);
+		this._expansionCache.set(plugin.item.uri, { nonce: plugin.nonce, pluginLabel: plugin.pluginLabel, promptsOnly, children });
 		return children;
 	}
 }

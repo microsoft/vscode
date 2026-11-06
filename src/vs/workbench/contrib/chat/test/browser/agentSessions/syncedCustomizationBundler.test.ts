@@ -23,7 +23,7 @@ import { ILogService, NullLogService } from '../../../../../../platform/log/comm
 import { McpServerType, type IMcpServerConfiguration } from '../../../../../../platform/mcp/common/mcpPlatformTypes.js';
 import { CustomizationEnablementKind, type SessionActiveClient } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
 import { parsePlugin } from '../../../../../../platform/agentPlugins/common/pluginParsers.js';
-import { isClientPluginStandalone } from '../../../../../../platform/agentHost/common/meta/clientPluginCustomizationMeta.js';
+import { isClientPluginStandalone, readClientPluginSourceUris } from '../../../../../../platform/agentHost/common/meta/clientPluginCustomizationMeta.js';
 import { type ISyncableMcpServer, type ISyncedCustomizationBundlerOptions, type ISyncedCustomizationOrigin, SyncedCustomizationBundler } from '../../../browser/agentSessions/agentHost/syncedCustomizationBundler.js';
 import { AgentCustomizationContentExpander } from '../../../browser/agentSessions/agentHost/agentCustomizationContentExpander.js';
 import { IAgentHostFileSystemService, SYNCED_CUSTOMIZATION_SCHEME } from '../../../../../../workbench/services/agentHost/common/agentHostFileSystemService.js';
@@ -594,6 +594,7 @@ suite('SyncedCustomizationBundler', () => {
 			meta: {
 				'vscode.standaloneCustomizations': true,
 				mcpDefaultCwds: { srv: null },
+				'vscode.sourceUris': { 'skills/my-skill/SKILL.md': skill.toString() },
 			},
 			manifestName: 'VS Code Standalone Customizations',
 		});
@@ -623,7 +624,7 @@ suite('SyncedCustomizationBundler', () => {
 				updatedNonce: updated.ref.nonce !== first.ref.nonce,
 			}, {
 				echoed: clients,
-				hasMetadata: Array(3).fill(kind !== 'ordinary'),
+				hasMetadata: [true, true, true],
 				reusedNonce: true,
 				updatedNonce: true,
 			});
@@ -637,6 +638,26 @@ suite('SyncedCustomizationBundler', () => {
 		const result1 = await bundler.bundle([{ uri, type: PromptsType.instructions }]);
 		const result2 = await bundler.bundle([{ uri, type: PromptsType.instructions }]);
 		assert.strictEqual(result1!.ref.nonce, result2!.ref.nonce);
+	});
+
+	test('syncs canonical source identities and invalidates identical content moved to a new source', async () => {
+		const bundler = createBundler();
+		const first = await seedFile('/extension-a/reviewer.agent.md', 'same content');
+		const second = await seedFile('/extension-b/reviewer.agent.md', 'same content');
+		const initial = await bundler.bundle([{ uri: first, type: PromptsType.agent, source: AICustomizationSources.extension }]);
+		const updated = await bundler.bundle([{ uri: second, type: PromptsType.agent, source: AICustomizationSources.extension }]);
+		assert.ok(initial && updated);
+		assert.deepStrictEqual({
+			initial: Object.fromEntries(Object.entries(readClientPluginSourceUris(initial.ref).files).map(([path, uri]) => [path, uri.toString()])),
+			updated: Object.fromEntries(Object.entries(readClientPluginSourceUris(updated.ref).files).map(([path, uri]) => [path, uri.toString()])),
+			nonceChanged: initial.ref.nonce !== updated.ref.nonce,
+			provenance: bundler.getOrigin(second)?.uri.toString(),
+		}, {
+			initial: { 'agents/reviewer.agent.md': first.toString() },
+			updated: { 'agents/reviewer.agent.md': second.toString() },
+			nonceChanged: true,
+			provenance: second.toString(),
+		});
 	});
 
 	test('nonce changes when file content changes', async () => {
@@ -863,16 +884,15 @@ suite('SyncedCustomizationBundler', () => {
 		});
 	});
 
-	test('reused bundle refreshes origins when source metadata and content are unchanged', async () => {
+	test('reused bundle refreshes provenance without changing source identity or content', async () => {
 		const bundler = createBundler();
 		memFs.fixedMtime = 1;
 		const first = await seedFile('/old/rule.md', 'same content');
-		const second = await seedFile('/new/rule.md', 'same content');
 		const result1 = await bundler.bundle([{ uri: first, type: PromptsType.instructions, source: 'extension', extensionId: 'pub.ext' }]);
 		const writeFile = sinon.spy(fileService, 'writeFile');
 		const del = sinon.spy(fileService, 'del');
 
-		const result2 = await bundler.bundle([{ uri: second, type: PromptsType.instructions, source: 'plugin' }]);
+		const result2 = await bundler.bundle([{ uri: first, type: PromptsType.instructions, source: 'plugin' }]);
 		const destination = URI.from({ scheme: SYNCED_CUSTOMIZATION_SCHEME, path: '/test-agent/rules/rule.md' });
 
 		assert.deepStrictEqual({
@@ -882,7 +902,7 @@ suite('SyncedCustomizationBundler', () => {
 			deletes: del.callCount,
 		}, {
 			reused: true,
-			origin: { uri: second.toString(), source: 'plugin', extensionId: undefined, pluginUri: undefined },
+			origin: { uri: first.toString(), source: 'plugin', extensionId: undefined, pluginUri: undefined },
 			writes: 0,
 			deletes: 0,
 		});
@@ -1153,6 +1173,7 @@ suite('SyncedCustomizationBundler', () => {
 			},
 		});
 		assert.deepStrictEqual(result.ref._meta, {
+			'vscode.sourceUris': {},
 			mcpDefaultCwds: {
 				'my-server': defaultCwd.toString(),
 				'session-server': null,

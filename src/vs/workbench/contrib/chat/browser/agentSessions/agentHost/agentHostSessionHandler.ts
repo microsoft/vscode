@@ -48,6 +48,9 @@ import { AgentHostCanvasCollection, getAgentHostCanvasDefinitionsChangedEvent } 
 import { ICanvasContext, ICanvasOwner, isCanvasOwner } from '../../../../canvases/common/canvas.js';
 import { CanvasReference } from '../../../../../../platform/agentHost/common/state/protocol/channels-canvas/state.js';
 import { agentHostAuthority, fromAgentHostUri, LOCAL_AGENT_HOST_AUTHORITY } from '../../../../../../platform/agentHost/common/agentHostUri.js';
+import { getAgentHostCustomizationUri, toAgentHostAgentUri } from '../../../common/agentHostSessionCustomizations.js';
+import { resolveAgentHostDraftAgent } from '../../../common/agentHostDraftAgent.js';
+import { readCustomizationUriClientId } from '../../../../../../platform/agentHost/common/meta/clientPluginCustomizationMeta.js';
 import { fromAgentClientPath } from '../../../../../../platform/agentHost/common/agentClientUri.js';
 import { getPendingSteeringMessages } from '../../../../../../platform/agentHost/common/agentSessionMessage.js';
 import { isCopilotAgentHostProvider, isCopilotAgentHostSessionType } from '../../../../../../platform/agentHost/common/agentHostSessionType.js';
@@ -1753,9 +1756,13 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 					}, attachment.label !== raw.insertText ? attachment.label : undefined);
 				}
 				if (completionMeta?.kind === 'skill') {
+					const uri = getAgentHostCustomizationUri(URI.parse(completionMeta.uri), this._config.connection, attachment);
+					if (!uri) {
+						return undefined;
+					}
 					return this._createCompletionItem(raw, text, {
 						kind: 'skill',
-						uri: this._config.connection.resourceUris.fromAgentHost(URI.parse(completionMeta.uri)),
+						uri,
 						...(completionMeta.displayName !== undefined ? { displayName: completionMeta.displayName } : {}),
 						...(completionMeta.description !== undefined ? { description: completionMeta.description } : {}),
 						...(attachment._meta !== undefined && { _meta: attachment._meta }),
@@ -2562,9 +2569,15 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 	// ---- Pending message sync -----------------------------------------------
 
 	/** Maps a selected mode's client-space agent to the host URI carried by turn and pending messages. */
-	private _toHostAgentUri(modeInstructions: IChatRequestModeInstructions | undefined): string | undefined {
+	private _toHostAgentUri(sessionResource: URI, modeInstructions: IChatRequestModeInstructions | undefined): string | undefined {
+		if (!modeInstructions?.uri) {
+			return undefined;
+		}
+		const agents = this._customizationService.getCustomAgents(sessionResource);
+		const uri = modeInstructions.uri;
+		const canonical = agents.some(agent => readCustomizationUriClientId(agent) !== undefined && isEqual(URI.parse(agent.uri), uri));
 		// eslint-disable-next-line local/code-agent-host-uri-mapping -- unwraps a legacy local agent wrapper before applying the owning connection mapper
-		return modeInstructions?.uri ? this._config.connection.resourceUris.toAgentHost(fromAgentHostUri(modeInstructions.uri)).toString() : undefined;
+		return toAgentHostAgentUri(canonical ? uri : fromAgentHostUri(uri), this._config.connection, agents).toString();
 	}
 
 	/**
@@ -2603,7 +2616,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			const roundTripMetadata = previousMessage && previousMessage.text !== p.request.message.text ? withoutAgentMessageDelegationMeta(metadata) : metadata;
 			// Requests projected from another client carry no mode, so they keep the agent the host already has.
 			const modeInfo = p.request.modeInfo ?? p.sendOptions.modeInfo;
-			const agentUri = modeInfo ? this._toHostAgentUri(modeInfo.modeInstructions) : previousMessage?.agent?.uri;
+			const agentUri = modeInfo ? this._toHostAgentUri(sessionResource, modeInfo.modeInstructions) : previousMessage?.agent?.uri;
 			const snapshot = {
 				id: p.request.id,
 				kind: p.kind === ChatRequestQueueKind.Steering ? PendingMessageKind.Steering : PendingMessageKind.Queued,
@@ -3821,7 +3834,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		// actions. The host applies the selection carried by the message before
 		// sending the turn to the agent backend.
 		const selectedModel = this._createModelSelection(request.userSelectedModelId, request.modelConfiguration);
-		const requestedAgentUri = this._toHostAgentUri(request.modeInstructions);
+		const requestedAgentUri = this._toHostAgentUri(request.sessionResource, request.modeInstructions);
 		if (this._configurationService.getValue<boolean>(ChatConfiguration.AgentEnabled) === false) {
 			const agent = this._customizationService.getCustomAgents(request.sessionResource).find(agent => URI.parse(agent.uri).toString() === requestedAgentUri);
 			if (!agent || readAgentCustomizationMeta(agent)['vscode.chatMode'] !== 'ask') {
@@ -7451,11 +7464,20 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		// compare, which matters because it runs on every chat state change
 		// (each streaming delta), not just draft changes.
 		let lastRemoteDraft = draftState.synced;
+		let pendingAgent = !hasLocalDraft && draftState.synced?.agent && !this._resolveDraftAgent(sessionResource, draftState.synced.agent.uri)
+			? draftState.synced.agent : undefined;
+		let pendingAgentMode = inputModel.state.get()?.mode;
 		const syncDraft = (state: IChatModelInputState | undefined): void => {
 			if (state?.origin === ChatInputStateOrigin.Remote) {
 				return;
 			}
+			if (pendingAgent && state?.mode !== pendingAgentMode) {
+				pendingAgent = undefined;
+			}
 			let draft = this._inputStateToDraft(sessionResource, state);
+			if (pendingAgent) {
+				draft = { ...(draft ?? { text: '', origin: { kind: MessageKind.User } }), agent: pendingAgent };
+			}
 			syncedInputState = state;
 			const chosen = isInConversationModelChoice(state?.selectedModelReason);
 			// Don't overwrite the channel's model with one we only fell back to.
@@ -7474,6 +7496,29 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		store.add(autorun(reader => {
 			const state = inputModel.state.read(reader);
 			delayer.trigger(() => syncDraft(state)).catch(() => { /* delayer disposed */ });
+		}));
+		store.add(this._customizationService.onDidChangeCustomizations(() => {
+			if (!pendingAgent) {
+				return;
+			}
+			const state = inputModel.state.get();
+			if (state?.mode !== pendingAgentMode) {
+				pendingAgent = undefined;
+				return;
+			}
+			const resolved = this._resolveDraftAgent(sessionResource, pendingAgent.uri);
+			if (!resolved) {
+				return;
+			}
+			const hasLocalChanges = state?.origin !== ChatInputStateOrigin.Remote && state !== syncedInputState;
+			pendingAgent = undefined;
+			inputModel.setState({
+				mode: { id: resolved.uri.toString(), kind: resolved.agent && readAgentCustomizationMeta(resolved.agent)['vscode.chatMode'] === 'ask' ? ChatModeKind.Ask : ChatModeKind.Agent },
+				origin: hasLocalChanges ? state?.origin : ChatInputStateOrigin.Remote,
+			});
+			if (!hasLocalChanges) {
+				syncedInputState = inputModel.state.get();
+			}
 		}));
 		store.add(chatSubscription.onDidChange(() => {
 			const remoteDraft = readRemoteDraft();
@@ -7500,6 +7545,8 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			draftState.applyRemote(remoteDraft);
 			this._applyRemoteDraft(inputModel, sessionResource, remoteDraft);
 			syncedInputState = inputModel.state.get();
+			pendingAgent = remoteDraft?.agent && !this._resolveDraftAgent(sessionResource, remoteDraft.agent.uri) ? remoteDraft.agent : undefined;
+			pendingAgentMode = syncedInputState?.mode;
 		}));
 		store.add(toDisposable(() => {
 			delayer.cancel();
@@ -7544,7 +7591,9 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			return undefined;
 		}
 		const model = this._createModelSelection(state.selectedModel?.identifier, state.modelConfiguration);
-		const agentUri = [ChatMode.Agent.id, ChatMode.Ask.id, ChatMode.Edit.id].includes(state.mode.id) ? undefined : this._config.connection.resourceUris.toAgentHost(URI.parse(state.mode.id)).toString();
+		const agents = this._customizationService.getCustomizations(sessionResource)
+			.flatMap(customization => customization.children ?? []).filter(child => child.type === CustomizationType.Agent);
+		const agentUri = [ChatMode.Agent.id, ChatMode.Ask.id, ChatMode.Edit.id].includes(state.mode.id) ? undefined : toAgentHostAgentUri(URI.parse(state.mode.id), this._config.connection, agents).toString();
 		const references = state.contrib[ChatDynamicVariableModel.ID] as readonly IDynamicVariable[] | undefined;
 		const positions = new PositionOffsetTransformer(state.inputText);
 		const variables = [...state.attachments];
@@ -7665,14 +7714,14 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			}
 		}
 		const cursor = offsetToPosition(draft.text, draft.text.length);
-		const draftAgentUri = draft.agent ? URI.parse(draft.agent.uri) : undefined;
-		const agent = draftAgentUri && this._customizationService.getCustomAgents(sessionResource).find(agent => isEqual(URI.parse(agent.uri), draftAgentUri));
+		const resolved = draft.agent && this._resolveDraftAgent(sessionResource, draft.agent.uri);
+		const agent = resolved?.agent;
 		return {
 			attachments,
 			contrib: { [ChatDynamicVariableModel.ID]: references },
 			inputText: draft.text,
 			mode: {
-				id: draft.agent ? this._config.connection.resourceUris.fromAgentHost(URI.parse(draft.agent.uri)).toString() : ChatMode.Agent.id,
+				id: resolved?.uri.toString() ?? ChatMode.Agent.id,
 				kind: agent && readAgentCustomizationMeta(agent)['vscode.chatMode'] === 'ask' ? ChatModeKind.Ask : ChatModeKind.Agent,
 			},
 			selectedModel: modelId && metadata ? {
@@ -7687,6 +7736,10 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 				positionColumn: cursor.column,
 			}],
 		};
+	}
+
+	private _resolveDraftAgent(sessionResource: URI, uri: string): ReturnType<typeof resolveAgentHostDraftAgent> {
+		return resolveAgentHostDraftAgent(URI.parse(uri), this._config.connection, this._customizationService.getCustomizations(sessionResource));
 	}
 
 	/**

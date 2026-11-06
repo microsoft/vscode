@@ -2320,7 +2320,10 @@ export class CopilotAgentSession extends Disposable {
 			...this._appliedSnapshot.plugins.flatMap(plugin => plugin.mcpServers.map(server => server.name)),
 		]);
 		this._agentMergeRestrictedMcpServerNames = getAgentMergeRestrictedMcpServerNames(this._launchPlan);
-		this._appliedPluginSources = new Set(this._appliedSnapshot.plugins.flatMap(plugin => plugin.sourceUri ? [plugin.sourceUri.toString()] : []));
+		this._appliedPluginSources = new Set(this._appliedSnapshot.plugins.flatMap(plugin => {
+			const uri = plugin.customizationUri ?? plugin.sourceUri;
+			return uri ? [uri.toString()] : [];
+		}));
 		this._appliedPluginDirectories = this._appliedSnapshot.plugins.flatMap(plugin => {
 			const directory = plugin.pluginDir ?? plugin.resourceDir;
 			return directory?.scheme === Schemas.file ? [directory] : [];
@@ -2368,7 +2371,7 @@ export class CopilotAgentSession extends Disposable {
 		}));
 
 		const pluginMcpServerSources = new Map((options.clientSnapshot?.plugins ?? []).flatMap(plugin => {
-			const sourceUri = plugin.sourceUri;
+			const sourceUri = plugin.customizationUri ?? plugin.sourceUri;
 			return sourceUri === undefined ? [] : plugin.mcpServers.map(server => [server.name, sourceUri.toString()] as const);
 		}));
 		this._mcpCustomizations = this._register(this._instantiationService.createInstance(McpCustomizationController, {
@@ -8051,7 +8054,7 @@ export class CopilotAgentSession extends Disposable {
 		for (const plugin of this._appliedSnapshot.plugins) {
 			for (const server of plugin.mcpServers) {
 				if (server.name === serverName && !plugin.disabledMcpServers?.includes(serverName)) {
-					identities.push(getMcpRoutingCacheKey({ serverName, configuration: server.configuration }, (plugin.sourceUri ?? server.uri).toString()));
+					identities.push(getMcpRoutingCacheKey({ serverName, configuration: server.configuration }, (plugin.customizationUri ?? plugin.sourceUri ?? server.uri).toString()));
 				}
 			}
 		}
@@ -12030,7 +12033,7 @@ export class CopilotAgentSession extends Disposable {
 		} else if (source !== 'builtin' && source !== 'managed') {
 			const pluginSource = this._mcpCustomizations.pluginMcpServerSources?.get(name);
 			const definition = this._appliedSnapshot.plugins
-				.filter(plugin => source !== 'plugin' || (pluginSource !== undefined && plugin.sourceUri?.toString() === pluginSource))
+				.filter(plugin => source !== 'plugin' || (pluginSource !== undefined && (plugin.customizationUri ?? plugin.sourceUri)?.toString() === pluginSource))
 				.flatMap(plugin => plugin.mcpServers.filter(candidate => source === 'plugin' || !plugin.disabledMcpServers?.includes(candidate.name)))
 				.findLast(candidate => candidate.name === name && (source === 'plugin' || isMcpServerExplicitlyProjected(candidate)));
 			if (definition) {

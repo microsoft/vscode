@@ -56,7 +56,7 @@ import { AgentHostConfigKey } from '../../common/agentHostCustomizationConfig.js
 import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
 import { AgentFeedbackAttachmentDisplayKind } from '../../common/meta/agentFeedbackAttachments.js';
 import { ChatInputRequestPurpose, readChatInputRequestPurpose } from '../../common/meta/agentChatInputRequestMeta.js';
-import { toClientPluginMcpDefaultCwdsMeta } from '../../common/meta/clientPluginCustomizationMeta.js';
+import { readCustomizationUriClientId, toClientPluginMcpDefaultCwdsMeta, toClientPluginSourceUrisMeta } from '../../common/meta/clientPluginCustomizationMeta.js';
 import { ActionType } from '../../common/state/sessionActions.js';
 import { CustomizationLoadStatus, CustomizationType, MessageAttachmentKind, MessageKind, ResponsePartKind, ChatInputResponseKind, SessionStatus, ToolResultContentType, buildChatUri, buildDefaultChatUri, buildSubagentChatUri, buildSubagentSessionUri, customizationId, type ClientPluginCustomization, type Customization, type PluginCustomization } from '../../common/state/sessionState.js';
 import { McpServerStatus as McpCustomizationServerStatus, type ChildCustomization, type CustomizationEnablement, type McpServerCustomization } from '../../common/state/protocol/channels-session/state.js';
@@ -9740,6 +9740,32 @@ suite('ClaudeAgent — Phase 11 customizations', () => {
 		assert.strictEqual(synced.length, 2);
 		assert.ok(updates.some(u => u === undefined ? false : u.uri.includes('a')), `expected an update for plugin a; got ${JSON.stringify(updates)}`);
 		assert.ok(updates.some(u => u === undefined ? false : u.uri.includes('b')), `expected an update for plugin b; got ${JSON.stringify(updates)}`);
+	});
+
+	test('client agents publish canonical source identities and resolve SDK names from synced files', async () => {
+		const pm = new FakeAgentPluginManager();
+		const { agent, sdk, fileService, stateManager } = buildCtxWith(pm);
+		await agent.authenticate(GITHUB_COPILOT_PROTECTED_RESOURCE.resource, 'tok');
+		const pluginDir = URI.file('/cache/client-plugin');
+		const source = URI.file('/client/.github/agents/original.agent.md');
+		await fileService.writeFile(URI.joinPath(pluginDir, '.claude-plugin/plugin.json'), VSBuffer.fromString(JSON.stringify({ name: 'client-plugin' })));
+		await fileService.writeFile(URI.joinPath(pluginDir, 'agents/renamed.md'), VSBuffer.fromString('---\nname: actual-sdk-name\ndescription: Reviews changes\n---\nReview carefully.'));
+		const item = makeSyncedRef('vscode-synced-customization:/bundle', pluginDir.fsPath);
+		item.customization._meta = toClientPluginSourceUrisMeta({ files: { 'agents/renamed.md': source } });
+		pm.syncResult = [item];
+		const created = await createSession(agent, { workingDirectories: [URI.file('/work')], agent: { uri: source.toString() } });
+		await syncClientCustomizations(agent, stateManager, created.session, 'owner', [makeClientCustomization(item.customization.uri, 'Client Plugin')]);
+		const chat = defaultChatUri(created.session);
+		const customizations = await agent.getChatCustomizations!(chat, chatContext(chat), hostCustomizations(stateManager, created.session));
+		const child = customizations.find((customization): customization is PluginCustomization => customization.type === CustomizationType.Plugin && customization.id === item.customization.id)?.children?.find(child => child.type === CustomizationType.Agent);
+		sdk.nextQueryMessages = [makeSystemInitMessage(created.sdkSessionId), makeResultSuccess(created.sdkSessionId)];
+		await agent.chats.sendMessage(chat, 'review', undefined, undefined, 'turn-1');
+
+		assert.deepStrictEqual({
+			uri: child?.uri,
+			owner: child && readCustomizationUriClientId(child),
+			sdkAgent: sdk.capturedStartupOptions[0]?.agent,
+		}, { uri: source.toString(), owner: 'owner', sdkAgent: 'actual-sdk-name' });
 	});
 
 	test('reducer-backed customization enablement stays isolated per session', async () => {

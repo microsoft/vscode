@@ -1846,7 +1846,7 @@ suite('getCopilotAgentSelectionName', () => {
 			format: PluginFormat.OpenPlugin, sourceUri, nonce: 'current', pluginDir: root,
 			agents: [
 				toParsedAgent({ uri: URI.joinPath(root, 'agents', 'Solo.agent.md'), name: 'Case-distinct Solo' }),
-				toParsedAgent({ uri, name: 'Solo' }),
+				{ ...toParsedAgent({ uri: URI.joinPath(sourceUri, 'agents/solo.agent.md'), name: 'Solo' }), materializedUri: uri },
 				...['first', 'second'].map(key => toParsedAgent({ uri: URI.joinPath(root, 'agents', key, 'reviewer.agent.md'), name: 'Reviewer' })),
 			],
 			skills: [], hooks: [], instructions: [], mcpServers: [],
@@ -1860,19 +1860,23 @@ suite('getCopilotAgentSelectionName', () => {
 			directHost: getCopilotAgentSelectionName({
 				...snapshot, plugins: [{ ...plugin, sourceUri: URI.parse('vscode-agent-host-file:/cache/bundle/current') }],
 			}, old, true),
+			canonicalHost: getCopilotAgentSelectionName({
+				...snapshot, plugins: [{ ...plugin, sourceUri: root, customizationUri: root.with({ scheme: 'vscode-agent-host-file' }) }],
+			}, old, true),
 			ambiguousFile: getCopilotAgentSelectionName(snapshot, URI.file('/cache/bundle/previous/agents/reviewer.agent.md').toString(), true),
 			ambiguousRevision: getCopilotAgentSelectionName({
 				...snapshot,
 				plugins: [plugin, {
 					...plugin, nonce: 'another', pluginDir: secondRoot,
-					agents: [toParsedAgent({ uri: URI.joinPath(secondRoot, 'agents', 'solo.agent.md'), name: 'Solo' })],
+					sourceUri: URI.parse('client-customizations:/other-bundle'),
+					agents: [{ ...toParsedAgent({ uri: URI.parse('client-customizations:/other-bundle/agents/solo.agent.md'), name: 'Solo' }), materializedUri: URI.joinPath(secondRoot, 'agents/solo.agent.md') }],
 				}],
 			}, old, true),
 			outside: getCopilotAgentSelectionName(snapshot, URI.file('/cache/bundle/../agents/solo.agent.md').toString(), true),
 			opaqueHost: getCopilotAgentSelectionName(snapshot, 'other-host:/cache/bundle/previous/agents/solo.agent.md', true),
 		}, {
-			restored: { uri: uri.toString(), name: getSdkCustomAgentName(uri, plugin) },
-			liveChange: undefined, anotherSource: undefined, directHost: undefined, ambiguousFile: undefined, ambiguousRevision: undefined,
+			restored: { uri: URI.joinPath(sourceUri, 'agents/solo.agent.md').toString(), name: getSdkCustomAgentName(URI.joinPath(sourceUri, 'agents/solo.agent.md')) },
+			liveChange: undefined, anotherSource: undefined, directHost: undefined, canonicalHost: undefined, ambiguousFile: undefined, ambiguousRevision: undefined,
 			outside: undefined, opaqueHost: undefined,
 		});
 	});
@@ -1891,6 +1895,32 @@ suite('getCopilotAgentSelectionName', () => {
 			[...uris.map(uri => getSdkCustomAgentName(uri)), 'opaque-native-sdk-id', undefined]);
 	});
 
+	for (const [nonce, revision] of [['-123', '123'], ['!!release..v2?!', 'release-v2'], ['!!!', 'default']]) {
+		test(`restores a sanitized cache revision (${nonce}) only within its owning namespace`, () => {
+			const root = URI.file(`/cache/bundle/${revision}`);
+			const sourceUri = URI.parse('client-plugin:/bundle');
+			const uri = URI.joinPath(root, 'agents/reviewer.agent.md');
+			const plugin = {
+				format: PluginFormat.OpenPlugin, sourceUri, nonce, pluginDir: root,
+				agents: [{ ...toParsedAgent({ uri: URI.joinPath(sourceUri, 'agents/reviewer.agent.md'), name: 'Reviewer' }), materializedUri: uri }],
+				skills: [], hooks: [], instructions: [], mcpServers: [],
+			};
+			const snapshot = { plugins: [plugin], discoveredAgents: [], additionalRootInstructions: [] };
+			const old = URI.file('/cache/bundle/previous/agents/reviewer.agent.md');
+			assert.deepStrictEqual([
+				old,
+				URI.file('/cache/other/previous/agents/reviewer.agent.md'),
+				URI.file('/cache/bundle-lookalike/previous/agents/reviewer.agent.md'),
+				old.with({ query: 'other' }),
+				old.with({ fragment: 'other' }),
+				old.with({ authority: 'other-host' }),
+			].map(selection => getCopilotAgentSelection(snapshot, selection.toString(), true)), [
+				{ uri: URI.joinPath(sourceUri, 'agents/reviewer.agent.md').toString(), name: getSdkCustomAgentName(URI.joinPath(sourceUri, 'agents/reviewer.agent.md')) },
+				undefined, undefined, undefined, undefined, undefined,
+			]);
+		});
+	}
+
 	test('keeps plugin and standalone SDK identities stable across cache revisions', () => {
 		const sourceUri = URI.parse('client-plugin:/stable-source');
 		const expected = getSdkCustomAgentName(URI.joinPath(sourceUri, 'agents', 'shared.agent.md'));
@@ -1902,7 +1932,7 @@ suite('getCopilotAgentSelectionName', () => {
 					format: PluginFormat.OpenPlugin, sourceUri, nonce: revision,
 					pluginDir: standalone ? undefined : root,
 					resourceDir: standalone ? root : undefined,
-					agents: [toParsedAgent({ uri, name: 'Friendly Reviewer' })],
+					agents: [{ ...toParsedAgent({ uri: URI.joinPath(sourceUri, 'agents/shared.agent.md'), name: 'Friendly Reviewer' }), materializedUri: uri }],
 					skills: [], hooks: [], instructions: [], mcpServers: [],
 				}],
 				discoveredAgents: [], additionalRootInstructions: [],
@@ -1913,6 +1943,29 @@ suite('getCopilotAgentSelectionName', () => {
 			};
 		}));
 		assert.deepStrictEqual(results, Array.from({ length: 4 }, () => ({ registered: expected, selected: expected })));
+	});
+
+	test('resolves original source selections and migrates cache selections without conflating same-named agents', () => {
+		const sources = ['first', 'second'].map(name => URI.parse(`vscode-remote://ssh-client/${name}/reviewer.agent.md`));
+		const results = ['old', 'new'].map(revision => {
+			const root = URI.file(`/cache/bundle/${revision}`);
+			const paths = ['agents/first/reviewer.agent.md', 'agents/second/reviewer.agent.md'];
+			const snapshot = {
+				plugins: [{
+					format: PluginFormat.OpenPlugin, sourceUri: URI.parse('synced:/bundle'),
+					nonce: revision, pluginDir: root,
+					agents: paths.map((path, index) => ({ ...toParsedAgent({ uri: sources[index], name: 'Reviewer' }), materializedUri: URI.joinPath(root, path) })),
+					skills: [], hooks: [], instructions: [], mcpServers: [],
+				}],
+				discoveredAgents: [], additionalRootInstructions: [],
+			};
+			return {
+				sources: sources.map(source => getCopilotAgentSelection(snapshot, source.toString())),
+				legacy: getCopilotAgentSelection(snapshot, URI.file('/cache/bundle/previous/agents/second/reviewer.agent.md').toString(), true),
+			};
+		});
+		const selections = sources.map(source => ({ uri: source.toString(), name: getSdkCustomAgentName(source) }));
+		assert.deepStrictEqual(results, Array.from({ length: 2 }, () => ({ sources: selections, legacy: selections[1] })));
 	});
 });
 

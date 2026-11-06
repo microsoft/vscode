@@ -29,6 +29,7 @@ import {
 } from '../../../../platform/agentHost/common/state/sessionState.js';
 import { getSkillCustomizations } from '../../../../platform/agentHost/common/customizationEnablement.js';
 import { ISessionChatCustomization, SessionCustomizationKind } from './sessionChatCustomizations.js';
+import { readClientPluginSourceUris, readCustomizationUriClientId, readCustomizationUriClientIds, toClientPluginSourceUrisMeta } from '../../../../platform/agentHost/common/meta/clientPluginCustomizationMeta.js';
 
 /**
  * A reference to a customization extracted from a chat's output stream.
@@ -72,14 +73,24 @@ export function fromAgentHostFileUri(uri: URI, resourceUris: Pick<IAgentHostReso
 }
 
 /** Resolves host-authored resources and this client's plugin sources; foreign client sources are opaque. */
-export function getAgentHostCustomizationUri(uri: URI, connection: { readonly clientId?: string; readonly resourceUris: IAgentHostResourceUriMapper }, container?: Pick<PluginCustomization, 'clientId'>): URI | undefined {
+export function getAgentHostCustomizationUri(uri: URI, connection: { readonly clientId?: string; readonly resourceUris: IAgentHostResourceUriMapper }, container?: Pick<PluginCustomization, 'clientId' | '_meta'>): URI | undefined {
+	const uriClientId = container && readCustomizationUriClientId(container);
+	if (container && uriClientId !== undefined) {
+		return connection.clientId !== undefined && readCustomizationUriClientIds(container).includes(connection.clientId) ? uri : undefined;
+	}
 	if (container?.clientId !== undefined) {
-		if (container.clientId !== connection.clientId) {
+		if (container.clientId !== connection.clientId && (!connection.clientId || !readCustomizationUriClientIds(container).includes(connection.clientId))) {
 			return undefined;
 		}
 		return fromAgentHostFileUri(uri, connection.resourceUris);
 	}
 	return connection.resourceUris.fromAgentHost(uri);
+}
+
+/** Keeps canonical client agent identities opaque when sending a selection back to its host. */
+export function toAgentHostAgentUri(uri: URI, connection: { readonly resourceUris: IAgentHostResourceUriMapper }, agents: readonly { readonly uri: string; readonly _meta?: Record<string, unknown> }[]): URI {
+	return agents.some(agent => readCustomizationUriClientId(agent) !== undefined && isEqual(URI.parse(agent.uri), uri))
+		? uri : connection.resourceUris.toAgentHost(uri);
 }
 
 /** Publishes same-host client plugins in place without changing their client-side identity. */
@@ -90,7 +101,10 @@ export function toAgentHostClientCustomization(customization: ClientPluginCustom
 	}
 	const hostUri = resourceUris.toAgentHost(uri);
 	return hostUri.scheme === Schemas.file
-		? { ...customization, uri: toAgentHostFileUri(hostUri).toString() }
+		? {
+			...customization, uri: toAgentHostFileUri(hostUri).toString(),
+			_meta: { ...customization._meta, ...toClientPluginSourceUrisMeta({ ...readClientPluginSourceUris(customization), root: uri }) },
+		}
 		: customization;
 }
 
@@ -286,12 +300,12 @@ export class CustomizationIndex {
 			const container = customization.type === CustomizationType.Plugin || customization.type === CustomizationType.Directory ? customization : undefined;
 			this._add(customization, uri => getAgentHostCustomizationUri(uri, connection, customization.type === CustomizationType.Plugin ? customization : undefined));
 			for (const child of container?.children ?? []) {
-				this._add(child, uri => getAgentHostCustomizationUri(uri, connection));
+				this._add(child, uri => getAgentHostCustomizationUri(uri, connection, child));
 			}
 		}
 		for (const { skill, container } of getSkillCustomizations(customizations ?? [])) {
 			if (container.type === CustomizationType.McpServer) {
-				this._add(skill, uri => getAgentHostCustomizationUri(uri, connection));
+				this._add(skill, uri => getAgentHostCustomizationUri(uri, connection, skill));
 			}
 		}
 		this._reuseResolvedPaths(previous);

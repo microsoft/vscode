@@ -43,6 +43,7 @@ import { CapturingTelemetryService as PlatformCapturingTelemetryService, TestDat
 import { getTelemetryChatSessionId } from '../../common/agentTelemetryCorrelation.js';
 import { AgentSession, COPILOT_CLI_AGENT_PROVIDER_ID, fixedChatOwnerRef, type IAgentChatOwnerRef, SubagentChatSignal, type AgentSignal, type IAgentActionSignal, type IAgentPermissionResponseContext, type IAgentTelemetryContext, type IAgentToolPendingConfirmationSignal } from '../../common/agent.js';
 import { AgentHostClientType } from '../../common/agentHostClientInfo.js';
+import { toAgentHostFileUri } from '../../common/agentPluginManager.js';
 import { AgentHostClientConnectionKind, AgentHostLaunchKind, AgentHostTransportKind, createUnknownAgentHostClientTelemetryContext, type IAgentProviderSendStageRecorder } from '../../common/agentHostTelemetry.js';
 import { AgentHostProviderTiming } from '../../common/agentHostProviderTiming.js';
 import type { ChatInputRequestWithPlanReview } from '../../common/agentHostPlanReview.js';
@@ -31989,45 +31990,62 @@ Use the attached image as context.
 			});
 		});
 
-		test('preserves the enabled default for an MCP server declared by an applied plugin', async () => {
-			const serverName = 'context7';
-			const pluginDir = URI.file('/plugins/context7');
-			const child: McpServerCustomization = {
-				type: CustomizationType.McpServer,
-				id: 'context7-plugin-server',
-				uri: URI.joinPath(pluginDir, '.mcp.json').toString(),
-				name: serverName,
-				state: { kind: McpServerStatus.Stopped },
-			};
-			const pluginSnapshot = createPluginSnapshot(pluginDir);
-			const { session, mockSession } = await createAgentSession(disposables, {
-				clientSnapshot: {
-					...pluginSnapshot,
-					plugins: [{
-						...pluginSnapshot.plugins[0],
-						sourceUri: pluginDir,
-						mcpServers: [{
-							name: serverName, uri: URI.parse(child.uri), customization: child,
-							configuration: { type: McpServerType.REMOTE, url: 'https://mcp.example.com/context7' },
-							sdkRegistration: 'pluginDiscovery',
+		for (const enabled of [true, false]) {
+			test(`resolves same-host plugin MCP ownership and enablement using its published container (${enabled})`, async () => {
+				const serverName = 'context7';
+				const pluginDir = URI.file('/plugins/context7');
+				const customizationUri = toAgentHostFileUri(pluginDir);
+				const owners = new Set<string | undefined>();
+				const child: McpServerCustomization = {
+					type: CustomizationType.McpServer,
+					id: 'context7-plugin-server',
+					uri: URI.joinPath(pluginDir, '.mcp.json').toString(),
+					name: serverName,
+					state: { kind: McpServerStatus.Stopped },
+				};
+				const pluginSnapshot = createPluginSnapshot(pluginDir);
+				const { session, mockSession } = await createAgentSession(disposables, {
+					clientSnapshot: {
+						...pluginSnapshot,
+						plugins: [{
+							...pluginSnapshot.plugins[0],
+							sourceUri: pluginDir,
+							customizationUri,
+							mcpServers: [{
+								name: serverName, uri: URI.parse(child.uri), customization: child,
+								configuration: { type: McpServerType.REMOTE, url: 'https://mcp.example.com/context7' },
+								sdkRegistration: 'pluginDiscovery',
+							}],
 						}],
+					},
+					sessionCustomizations: () => [{
+						type: CustomizationType.Plugin, id: 'context7-plugin', uri: customizationUri.toString(),
+						name: 'Context7', children: [child],
 					}],
-				},
-				sessionCustomizations: () => [{
-					type: CustomizationType.Plugin, id: 'context7-plugin', uri: pluginDir.toString(),
-					name: 'Context7', children: [child],
-				}],
-				configureMockSession: mock => {
-					mock.mcpConfiguredListResult = { servers: [{ name: serverName, enabled: false, source: 'plugin', live: { status: 'disabled' } }] };
-				},
-			});
+					resolveCustomizationEnablement: target => {
+						if (target.type === CustomizationType.McpServer && target.name === serverName) {
+							owners.add(target.owningPluginSource?.toString());
+						}
+						return {
+							kind: 'resolved',
+							enablement: enabled || target.type !== CustomizationType.McpServer ? [] : [{ kind: CustomizationEnablementKind.Global, enabled: false }],
+							enabled: enabled || target.type !== CustomizationType.McpServer,
+							workingDirectory: { kind: 'workspaceless' },
+						};
+					},
+					configureMockSession: mock => {
+						mock.mcpConfiguredListResult = { servers: [{ name: serverName, enabled: !enabled, source: 'plugin', live: { status: enabled ? 'disabled' : 'stopped' } }] };
+					},
+				});
 
-			await session.send('use the declared plugin server');
+				await session.send('use the declared plugin server');
 
-			assert.deepStrictEqual({ enable: mockSession.mcpEnableCalls, disable: mockSession.mcpDisableCalls }, {
-				enable: [{ serverName }], disable: [],
+				assert.deepStrictEqual({ owners: [...owners], enable: mockSession.mcpEnableCalls, disable: mockSession.mcpDisableCalls }, {
+					owners: [customizationUri.toString()],
+					enable: enabled ? [{ serverName }] : [], disable: enabled ? [] : [{ serverName }],
+				});
 			});
-		});
+		}
 
 		for (const pending of [false, true]) {
 			test(`suppresses MCP authentication before any inventory or lifecycle update with pending resolution ${pending}`, async () => {

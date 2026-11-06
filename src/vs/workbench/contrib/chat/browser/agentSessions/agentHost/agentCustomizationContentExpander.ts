@@ -28,7 +28,7 @@ export class AgentCustomizationContentExpander {
 	) {
 	}
 
-	async expandPluginContents(pluginUri: URI, delivery: 'syncedFromClient' | undefined, isBundleItem: boolean, source: AICustomizationSource, pluginLabel: string | undefined, token: CancellationToken): Promise<readonly ICustomizationItem[]> {
+	async expandPluginContents(pluginUri: URI, delivery: 'syncedFromClient' | undefined, isBundleItem: boolean, source: AICustomizationSource, pluginLabel: string | undefined, token: CancellationToken, promptsOnly = false): Promise<readonly ICustomizationItem[]> {
 		// pluginUri is already an agent-host:// URI (from toRemoteUri),
 		// so use it directly as the filesystem root.
 		const fsRoot = pluginUri;
@@ -41,9 +41,13 @@ export class AgentCustomizationContentExpander {
 				return [];
 			}
 
-			const dirNames = ['agents', 'skills', 'commands', 'rules'] as const;
-			const promptTypes = [PromptsType.agent, PromptsType.skill, PromptsType.prompt, PromptsType.instructions] as const;
-			const stats = await Promise.all(dirNames.map(async name => {
+			const directories = [
+				{ name: 'agents', type: PromptsType.agent },
+				{ name: 'skills', type: PromptsType.skill },
+				{ name: 'commands', type: PromptsType.prompt },
+				{ name: 'rules', type: PromptsType.instructions },
+			].filter(directory => !promptsOnly || directory.type === PromptsType.prompt);
+			const stats = await Promise.all(directories.map(async ({ name }) => {
 				const resource = URI.joinPath(fsRoot, name);
 				try {
 					return await this.fileService.resolve(resource);
@@ -59,9 +63,9 @@ export class AgentCustomizationContentExpander {
 				return [];
 			}
 
-			for (let i = 0; i < dirNames.length; i++) {
+			for (let i = 0; i < directories.length; i++) {
 				const stat = stats[i];
-				const promptType = promptTypes[i];
+				const promptType = directories[i].type;
 				if (!stat?.isDirectory || !stat.children) {
 					continue;
 				}

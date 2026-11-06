@@ -16,6 +16,7 @@ import { CompletionItem, CompletionItemKind, CompletionsParams } from '../common
 import { MessageAttachmentKind } from '../common/state/protocol/state.js';
 import { toSkillCompletionAttachmentMeta } from '../common/meta/agentCompletionAttachmentMeta.js';
 import { readSkillArgumentHint } from '../common/meta/skillCustomizationMeta.js';
+import { readCustomizationUriClientId, toCustomizationUriClientMeta } from '../common/meta/clientPluginCustomizationMeta.js';
 import { CustomizationType, PluginCustomization, SkillCustomization, type Customization } from '../common/state/sessionState.js';
 import { CompletionTriggerCharacter, IAgentHostCompletionItemProvider, type IAgentHostCompletionContext } from './agentHostCompletions.js';
 import { readMcpSkillCache } from './shared/mcpSkillCache.js';
@@ -84,13 +85,16 @@ export class AgentHostSkillCompletionProvider extends Disposable implements IAge
 				attachment: {
 					type: MessageAttachmentKind.Simple,
 					label: '/' + skill.slashCommandName,
-					_meta: toSkillCompletionAttachmentMeta({
-						uri: skill.uri,
-						name: skill.name,
-						displayName: skill.slashCommandName,
-						description: skill.description,
-						argumentHint: skill.argumentHint,
-					}),
+					_meta: {
+						...toSkillCompletionAttachmentMeta({
+							uri: skill.uri,
+							name: skill.name,
+							displayName: skill.slashCommandName,
+							description: skill.description,
+							argumentHint: skill.argumentHint,
+						}),
+						...(skill.uriClientId ? toCustomizationUriClientMeta(skill.uriClientId) : {}),
+					},
 				},
 			}));
 	}
@@ -129,7 +133,7 @@ export class AgentHostSkillCompletionProvider extends Disposable implements IAge
 		return result;
 	}
 
-	private _toSlashCommandCandidate(container: Customization, skill: Pick<SkillCustomization, 'name' | 'description' | 'uri'>, argumentHint?: string): SlashCommmandCandidate {
+	private _toSlashCommandCandidate(container: Customization, skill: Pick<SkillCustomization, 'name' | 'description' | 'uri' | '_meta'>, argumentHint?: string): SlashCommmandCandidate {
 		// see getCanonicalPluginCommandId
 		let slashCommandName = skill.name;
 		if (container.type === CustomizationType.Plugin && !isSyncedCustomization(container) && skill.name !== container.name) {
@@ -144,6 +148,7 @@ export class AgentHostSkillCompletionProvider extends Disposable implements IAge
 				: skill.description,
 			argumentHint,
 			uri: skill.uri,
+			uriClientId: readCustomizationUriClientId(skill),
 		};
 	}
 }
@@ -158,4 +163,5 @@ interface SlashCommmandCandidate {
 	readonly description: string | undefined;
 	readonly argumentHint: string | undefined;
 	readonly uri: string;
+	readonly uriClientId?: string;
 }

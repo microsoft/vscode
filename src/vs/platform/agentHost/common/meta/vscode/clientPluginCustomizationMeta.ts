@@ -8,6 +8,73 @@ import type { ClientPluginCustomization } from '../../state/sessionState.js';
 
 const mcpDefaultCwdsKey = 'mcpDefaultCwds';
 const standaloneCustomizationsKey = 'vscode.standaloneCustomizations';
+const sourceUrisKey = 'vscode.sourceUris';
+const sourceUriKey = 'vscode.sourceUri';
+const uriClientIdKey = 'vscode.uriClientId';
+const uriClientIdsKey = 'vscode.uriClientIds';
+
+type WithMeta = { readonly _meta?: Record<string, unknown> };
+
+/** Source identities keyed by paths relative to a materialized plugin. */
+export interface IClientPluginSourceUris {
+	readonly root?: URI;
+	readonly files: Readonly<Record<string, URI>>;
+}
+
+export function toClientPluginSourceUrisMeta(sources: IClientPluginSourceUris): Record<string, unknown> {
+	return {
+		...(sources.root ? { [sourceUriKey]: sources.root.toString() } : {}),
+		[sourceUrisKey]: Object.fromEntries(Object.entries(sources.files).map(([path, uri]) => [path, uri.toString()])),
+	};
+}
+
+export function readClientPluginSourceUris(customization: WithMeta): IClientPluginSourceUris {
+	const readUri = (value: unknown): URI | undefined => {
+		if (typeof value !== 'string') {
+			return undefined;
+		}
+		try {
+			return URI.parse(value, true);
+		} catch {
+			return undefined;
+		}
+	};
+	const value = customization._meta?.[sourceUrisKey];
+	const files: [string, URI][] = [];
+	if (value && typeof value === 'object' && !Array.isArray(value)) {
+		for (const [path, valueUri] of Object.entries(value)) {
+			const uri = readUri(valueUri);
+			if (uri && path && !path.includes('\\') && !path.split('/').some(part => !part || part === '.' || part === '..')) {
+				files.push([path, uri]);
+			}
+		}
+	}
+	return { root: readUri(customization._meta?.[sourceUriKey]), files: Object.fromEntries(files) };
+}
+
+/** Identifies the client whose URI space a published customization uses. */
+export function readCustomizationUriClientId(customization: WithMeta): string | undefined {
+	const value = customization._meta?.[uriClientIdKey];
+	return typeof value === 'string' && value.length > 0 ? value : undefined;
+}
+
+export function toCustomizationUriClientMeta(clientId: string): Record<string, unknown> {
+	return { [uriClientIdKey]: clientId };
+}
+
+/** Clients that explicitly contributed the same source identity. */
+export function readCustomizationUriClientIds(customization: WithMeta): readonly string[] {
+	const primary = readCustomizationUriClientId(customization);
+	const value = customization._meta?.[uriClientIdsKey];
+	return [...new Set([
+		...(primary ? [primary] : []),
+		...(Array.isArray(value) ? value.filter((id): id is string => typeof id === 'string' && id.length > 0) : []),
+	])];
+}
+
+export function toCustomizationUriClientIdsMeta(clientIds: readonly string[]): Record<string, unknown> {
+	return { [uriClientIdsKey]: [...new Set(clientIds)] };
+}
 
 export type ClientPluginMcpDefaultCwds = Readonly<Record<string, URI | null>>;
 
