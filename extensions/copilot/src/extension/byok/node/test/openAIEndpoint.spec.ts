@@ -349,6 +349,34 @@ describe('OpenAIEndpoint - Reasoning Properties', () => {
 			it('leaves messages untouched when thinking is not supported', () => {
 				expect(reasoningFields(false).every(m => m.reasoning_content === undefined && m.reasoning === undefined)).toBe(true);
 			});
+
+			it('also backfills earlier-turn tool-call messages when history reasoning is replayed (issue #341934)', () => {
+				const endpoint = instaService.createInstance(OpenAIEndpoint,
+					{
+						...modelMetadata,
+						supported_endpoints: [ModelSupportedEndpoint.ChatCompletions],
+						capabilities: { ...modelMetadata.capabilities, supports: { ...modelMetadata.capabilities.supports, thinking: true } }
+					},
+					'test-api-key',
+					'https://api.deepseek.com/v1/chat/completions');
+				const body = endpoint.createRequestBody(createTestOptions([
+					{ role: Raw.ChatRole.User, content: [{ type: Raw.ChatCompletionContentPartKind.Text, text: 'Build it' }] },
+					toolCallMessage('call_0', 'Start the build.'),
+					{ role: Raw.ChatRole.Tool, toolCallId: 'call_0', content: [{ type: Raw.ChatCompletionContentPartKind.Text, text: 'moved to background' }] },
+					// A tool call the runtime inserted itself, with no reasoning.
+					toolCallMessage('read_powershell'),
+					{ role: Raw.ChatRole.Tool, toolCallId: 'read_powershell', content: [{ type: Raw.ChatCompletionContentPartKind.Text, text: 'build output' }] },
+					{ role: Raw.ChatRole.User, content: [{ type: Raw.ChatCompletionContentPartKind.Text, text: 'Now test it' }] },
+				]));
+				expect((body.messages as any[]).map(m => ({ role: m.role, reasoning_content: m.reasoning_content, reasoning: m.reasoning }))).toStrictEqual([
+					{ role: 'user', reasoning_content: undefined, reasoning: undefined },
+					{ role: 'assistant', reasoning_content: 'Start the build.', reasoning: 'Start the build.' },
+					{ role: 'tool', reasoning_content: undefined, reasoning: undefined },
+					{ role: 'assistant', reasoning_content: '', reasoning: '' },
+					{ role: 'tool', reasoning_content: undefined, reasoning: undefined },
+					{ role: 'user', reasoning_content: undefined, reasoning: undefined },
+				]);
+			});
 		});
 
 		it('should handle multiple messages with thinking content', () => {

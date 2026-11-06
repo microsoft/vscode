@@ -46,17 +46,23 @@ function hydrateBYOKErrorMessages(response: ChatResponse): ChatResponse {
 
 /**
  * Thinking-mode Chat Completions providers (e.g. DeepSeek, Kimi) reject requests whose
- * current-turn assistant `tool_calls` messages omit `reasoning_content`. A step can produce
- * tool calls without any streamed reasoning text, in which case no thinking part exists to
- * replay, so echo an empty reasoning string for those messages. Messages before the latest
- * user message are left untouched so history reasoning policies are preserved.
+ * assistant `tool_calls` messages omit `reasoning_content`. A step can produce tool calls
+ * without any streamed reasoning text (including tool calls the runtime inserts itself, such
+ * as a background terminal read), in which case no thinking part exists to replay, so echo an
+ * empty reasoning string for those messages.
+ *
+ * Current-turn messages (after the latest user message) are always backfilled. Earlier
+ * messages are backfilled only when the request already replays reasoning from history, so a
+ * model whose history reasoning is stripped (e.g. a `thinkingInHistory` opt-out) is unchanged.
  */
 function ensureReasoningOnToolCallMessages(messages: CAPIChatMessage[]): void {
 	let lastUserIndex = messages.length - 1;
 	while (lastUserIndex >= 0 && messages[lastUserIndex].role !== 'user') {
 		lastUserIndex--;
 	}
-	for (const message of messages.slice(lastUserIndex + 1)) {
+	const replaysHistoryReasoning = messages.slice(0, lastUserIndex).some(message => message.role === 'assistant' && message.reasoning_content !== undefined);
+	const start = replaysHistoryReasoning ? 0 : lastUserIndex + 1;
+	for (const message of messages.slice(start)) {
 		if (message.role !== 'assistant' || !message.tool_calls?.length || message.reasoning_content !== undefined) {
 			continue;
 		}
