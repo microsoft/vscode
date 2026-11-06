@@ -11,7 +11,7 @@ import { localize } from '../../nls.js';
 import { ChatEntitlement, IChatSentiment, IQuotaSnapshot } from '../../workbench/services/chat/common/chatEntitlementService.js';
 import { IDefaultAccountService } from '../../platform/defaultAccount/common/defaultAccount.js';
 import { IAuthenticationService } from '../../workbench/services/authentication/common/authentication.js';
-import { canCompleteCopilotAccountSetup, CopilotAccountContextView } from '../../workbench/services/agentHost/common/copilotAccountContext.js';
+import { canCompleteCopilotAccountSetup, CopilotAccountContextView, matchesCopilotGitHubAccount } from '../../workbench/services/agentHost/common/copilotAccountContext.js';
 import { copilotEntraClientId } from '../../platform/agentHost/common/copilotEntraAuthentication.js';
 
 export interface IResolvedAccountInfo {
@@ -137,12 +137,6 @@ export function getCopilotAccountMenuPresentation(
 		showSetup: microsoft && visible && !context.isAccountLoading && !canCompleteCopilotAccountSetup(context.copilotAccountContext),
 		showUsage: !microsoft || matchesCopilotGitHubAccount(context.copilotAccountContext, gitHubAccountName, gitHubUrl),
 	};
-}
-
-function matchesCopilotGitHubAccount(context: CopilotAccountContextView, accountName: string | undefined, url: string | undefined): boolean {
-	return !!context && context !== 'loading' && !(context instanceof Error) && context.kind === 'ready'
-		&& context.choice.service === 'github' && accountName === context.choice.accountName
-		&& url === `${context.choice.host.replace(/\/$/, '')}/`;
 }
 
 export function getAccountProfileImageUrl(accountProviderId: string | undefined, accountName: string | undefined, accountIcon?: URI): string | undefined {

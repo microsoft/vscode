@@ -355,8 +355,11 @@ function isForwardedChatError(value: unknown): value is IForwardedChatError {
  * whose fields take precedence over the values forwarded in `_meta`.
  */
 export function getChatErrorDetailsFromMeta(error: ErrorInfo | undefined, context?: IChatErrorContext): IChatResponseErrorDetails | undefined {
-	const detail = error && readErrorDetail(error);
-	if (error && detail?.kind === 'diagnostic') {
+	if (!error) {
+		return undefined;
+	}
+	const detail = readErrorDetail(error);
+	if (detail?.kind === 'diagnostic') {
 		const message = new MarkdownString().appendText(error.message);
 		if (detail.url && URL.canParse(detail.url)) {
 			const url = new URL(detail.url);
@@ -364,32 +367,36 @@ export function getChatErrorDetailsFromMeta(error: ErrorInfo | undefined, contex
 				message.appendText(' ').appendLink(detail.url, localize('copilotError.learnMore', "Learn More"));
 			}
 		}
-		return {
+		return withAccountScopedErrorMessage(message.value, {
 			message: message.value,
 			code: detail.errorCode,
 			isRateLimited: error.errorType === 'rate_limit' || detail.statusCode === 429,
 			isQuotaExceeded: error.errorType === 'quota',
 			isExpectedError: error.errorType === 'rate_limit' || error.errorType === 'quota',
-		};
+		}, context);
 	}
 	const chatError = detail?.kind === 'fetch' ? detail.value : undefined;
 	if (!isForwardedChatError(chatError)) {
 		return undefined;
 	}
-	return getChatErrorDetailsFromFetchError(
+	return withAccountScopedErrorMessage(new MarkdownString().appendText(error.message).value, getChatErrorDetailsFromFetchError(
 		chatError.fetchError,
 		context?.copilotPlan ?? chatError.copilotPlan,
 		context?.isUsageBasedBilling ?? chatError.isUsageBasedBilling,
 		context?.quotaResetDate ?? chatError.quotaResetDate,
-	);
+	), context);
 }
 
-/**
- * User-context overrides for {@link getChatErrorDetailsFromMeta}. When a field
- * is set it takes precedence over the value forwarded by the agent host. Core
- * resolves these from `IChatEntitlementService`.
- */
+function withAccountScopedErrorMessage(providerMessage: string, details: IChatResponseErrorDetails, context: IChatErrorContext | undefined): IChatResponseErrorDetails {
+	return context?.useGitHubAccountFacts === false && (details.isQuotaExceeded || details.isRateLimited)
+		? { ...details, message: providerMessage, isQuotaExceeded: false }
+		: details;
+}
+
+/** Presentation context for provider errors; profile subscription facts require matching account ownership. */
 export interface IChatErrorContext {
+	/** Whether the profile's GitHub subscription facts and actions describe this conversation. Defaults to legacy presentation. */
+	readonly useGitHubAccountFacts?: boolean;
 	readonly copilotPlan?: string;
 	readonly isUsageBasedBilling?: boolean;
 	readonly quotaResetDate?: string;

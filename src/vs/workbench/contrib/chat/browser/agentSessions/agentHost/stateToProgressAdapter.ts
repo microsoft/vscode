@@ -941,17 +941,15 @@ export function chatUsageToSessionCost(usage: IAgentChatUsage): IChatSessionCost
 }
 
 export function usageInfoToChatUsage(usage: UsageInfo | undefined, modelDisplayNameResolver?: (rawModelId: string) => string | undefined, contextUsage?: IAgentContextUsage): IChatUsage | undefined {
-	// Shared with the host's restore path, so "this turn has usage worth
-	// showing" cannot drift between the two.
-	if (!hasReportedUsage(usage) && !contextUsage) {
+	const metadata = readUsageInfoMeta(usage);
+	if (!hasReportedUsage(usage) && !contextUsage && metadata.copilotUsage?.sessionAiCreditsStatus === undefined) {
 		return undefined;
 	}
-	const metadata = readUsageInfoMeta(usage);
 	const turnTokenTotals = metadata.turnTokenTotals;
 	return {
 		kind: 'usage',
-		promptTokens: usage?.inputTokens ?? 0,
-		completionTokens: usage?.outputTokens ?? 0,
+		promptTokens: usage?.inputTokens,
+		completionTokens: usage?.outputTokens,
 		copilotCredits: getCopilotCredits(usage),
 		sessionCopilotCredits: getSessionCopilotCredits(usage),
 		...(metadata.copilotUsage?.sessionAiCreditsStatus !== undefined ? { sessionCopilotCreditsStatus: metadata.copilotUsage.sessionAiCreditsStatus } : {}),
@@ -967,7 +965,7 @@ export function usageInfoToChatUsage(usage: UsageInfo | undefined, modelDisplayN
 
 function getSessionCopilotCredits(usage: UsageInfo | undefined): number | undefined {
 	const sessionTotalNanoAiu = readUsageInfoMeta(usage).copilotUsage?.sessionTotalNanoAiu;
-	return typeof sessionTotalNanoAiu === 'number' && sessionTotalNanoAiu >= 0
+	return typeof sessionTotalNanoAiu === 'number' && Number.isFinite(sessionTotalNanoAiu) && sessionTotalNanoAiu >= 0
 		? sessionTotalNanoAiu / 1_000_000_000
 		: undefined;
 }
@@ -975,13 +973,10 @@ function getSessionCopilotCredits(usage: UsageInfo | undefined): number | undefi
 function getCopilotCredits(usage: UsageInfo | undefined): number | undefined {
 	const meta = readUsageInfoMeta(usage);
 	const totalNanoAiu = meta?.copilotUsage?.totalNanoAiu;
-	if (typeof totalNanoAiu === 'number' && totalNanoAiu >= 0) {
+	if (typeof totalNanoAiu === 'number' && Number.isFinite(totalNanoAiu) && totalNanoAiu >= 0) {
 		return totalNanoAiu / 1_000_000_000;
 	}
-	const cost = meta?.cost;
-	return typeof cost === 'number' && cost >= 0
-		? cost
-		: undefined;
+	return undefined;
 }
 
 /**

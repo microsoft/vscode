@@ -1879,7 +1879,7 @@ export class ChatResponseModel extends Disposable implements IChatResponseModel 
 			return;
 		}
 		this._subagentCopilotCredits.set(subagentCallId, copilotCredits);
-		const usage = this._parentUsage ?? { kind: 'usage', promptTokens: 0, completionTokens: 0 };
+		const usage = this._parentUsage ?? { kind: 'usage' };
 		this._setUsage(this._withSubagentCopilotCredits(usage), false);
 	}
 
@@ -1922,7 +1922,7 @@ export class ChatResponseModel extends Disposable implements IChatResponseModel 
 		const reportedOutputTokens = sumModelOutputTokens(usage.modelTotals);
 		if (reportedOutputTokens !== undefined) {
 			this._completionTokenCountObs.set(reportedOutputTokens, undefined);
-		} else if (countCompletionTokens && isNewCall) {
+		} else if (countCompletionTokens && isNewCall && usage.completionTokens !== undefined) {
 			const previousCompletionTokens = this._completionTokenCountObs.get() ?? 0;
 			this._completionTokenCountObs.set(previousCompletionTokens + usage.completionTokens, undefined);
 		}
@@ -2159,10 +2159,10 @@ export interface IChatModel extends IDisposable {
 	/** Whether this model will be kept alive while it is running or has edits */
 	readonly willKeepAlive: boolean;
 	readonly lastRequestObs: IObservable<IChatRequestModel | undefined>;
-	/** Total Copilot credits consumed by this conversation, including out-of-turn work. */
+	/** Known Copilot credit subtotal for this conversation, including reported out-of-turn work. */
 	readonly sessionCost: number;
 	readonly sessionCostStatus?: IChatUsage['sessionCopilotCreditsStatus'];
-	/** Aggregate-only billing, including charges received after a turn ended. */
+	/** Conversation credit subtotal and reporting status; absent when neither was reported. */
 	readonly sessionCostInfo?: IChatSessionCost;
 	setSessionCost(cost: IChatSessionCost): void;
 	getRequests(): IChatRequestModel[];
@@ -3063,7 +3063,11 @@ export class ChatModel extends Disposable implements IChatModel {
 	private _sessionCostResponseStatus: IChatUsage['sessionCopilotCreditsStatus'];
 
 	get sessionCostInfo(): IChatSessionCost | undefined {
-		return this._sessionCostInfo ? { credits: this.sessionCost, status: this.sessionCostStatus } : undefined;
+		const hasReportedCost = this._sessionCostInfo || this._requests.some(request => {
+			const usage = request.response?.usage;
+			return usage?.copilotCredits !== undefined || usage?.sessionCopilotCredits !== undefined || usage?.sessionCopilotCreditsStatus !== undefined;
+		});
+		return hasReportedCost ? { credits: this.sessionCost, status: this.sessionCostStatus } : undefined;
 	}
 
 	setSessionCost(cost: IChatSessionCost): void {
@@ -3490,11 +3494,11 @@ export class ChatModel extends Disposable implements IChatModel {
 				codeBlockInfos: raw.responseMarkdownInfo?.map<ICodeBlockInfo>(info => ({ suggestionId: info.suggestionId })),
 			});
 			request.response.shouldBeRemovedOnSend = raw.isHidden ? { requestId: raw.requestId } : raw.shouldBeRemovedOnSend;
-			if (typeof raw.completionTokens === 'number' || typeof raw.promptTokens === 'number' || typeof raw.copilotCredits === 'number' || typeof raw.sessionCopilotCredits === 'number') {
+			if (typeof raw.completionTokens === 'number' || typeof raw.promptTokens === 'number' || typeof raw.copilotCredits === 'number' || typeof raw.sessionCopilotCredits === 'number' || raw.sessionCopilotCreditsStatus !== undefined || raw.modelTotals?.length) {
 				request.response.restoreUsage({
 					kind: 'usage',
-					promptTokens: raw.promptTokens ?? 0,
-					completionTokens: raw.lastCallCompletionTokens ?? (raw.modelTotals === undefined ? raw.completionTokens ?? 0 : 0),
+					promptTokens: raw.promptTokens,
+					completionTokens: raw.lastCallCompletionTokens ?? (raw.modelTotals === undefined ? raw.completionTokens : undefined),
 					outputBuffer: raw.outputBuffer,
 					promptTokenDetails: raw.promptTokenDetails,
 					latestModelCall: raw.latestModelCall,

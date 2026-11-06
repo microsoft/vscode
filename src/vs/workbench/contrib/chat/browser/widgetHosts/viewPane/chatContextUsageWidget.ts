@@ -20,7 +20,7 @@ import { IStorageService, StorageScope, StorageTarget } from '../../../../../../
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { ChatContextKeys } from '../../../common/actions/chatContextKeys.js';
 import { ChatConfiguration } from '../../../common/constants.js';
-import { IChatRequestModel, IChatResponseModel } from '../../../common/model/chatModel.js';
+import { IChatRequestModel, IChatResponseModel, IChatSessionCost } from '../../../common/model/chatModel.js';
 import { getModelContextWindowTotal, ILanguageModelConfigurationSchema, ILanguageModelsService } from '../../../common/languageModels.js';
 import { ChatContextUsageDetails, IChatContextUsageData } from './chatContextUsageDetails.js';
 import type { IChatWidget } from '../../chat.js';
@@ -63,6 +63,7 @@ export function isSameContextUsageData(a: IChatContextUsageData | undefined, b: 
 		&& a.percentage === b.percentage
 		&& a.outputBufferPercentage === b.outputBufferPercentage
 		&& a.sessionCost === b.sessionCost
+		&& a.sessionCostStatus === b.sessionCostStatus
 		&& equals(a.promptTokenDetails, b.promptTokenDetails, (x, y) =>
 			x.category === y.category && x.label === y.label && x.percentageOfPrompt === y.percentageOfPrompt);
 }
@@ -297,6 +298,10 @@ export class ChatContextUsageWidget extends Disposable {
 	 */
 	update(lastRequest: IChatRequestModel | undefined): void {
 		this._lastRequestDisposable.clear();
+		if (this._currentResponse?.session !== lastRequest?.session) {
+			this._currentData.set(undefined, undefined);
+			this.hide();
+		}
 		this._currentResponse = undefined;
 		this._currentModelId = undefined;
 
@@ -329,10 +334,10 @@ export class ChatContextUsageWidget extends Disposable {
 		});
 	}
 
-	updateSessionCost(sessionCost: number): void {
+	updateSessionCost(cost: IChatSessionCost | undefined): void {
 		const data = this._currentData.get();
-		if (data && data.sessionCost !== sessionCost) {
-			this.render({ ...data, sessionCost });
+		if (data) {
+			this.render({ ...data, sessionCost: cost?.credits, sessionCostStatus: cost?.status });
 		}
 	}
 
@@ -425,7 +430,12 @@ export class ChatContextUsageWidget extends Disposable {
 		const promptTokens = usage.promptTokens;
 		const completionTokens = usage.completionTokens;
 		const promptTokenDetails = usage.promptTokenDetails;
-		const usedTokens = reportedContext?.currentTokens ?? promptTokens + completionTokens;
+		const usedTokens = reportedContext?.currentTokens ?? (promptTokens !== undefined && completionTokens !== undefined ? promptTokens + completionTokens : undefined);
+		if (usedTokens === undefined) {
+			this._currentData.set(undefined, undefined);
+			this.hide();
+			return;
+		}
 		const percentage = (usedTokens / totalContextWindow) * 100;
 
 		// The reserve band is a property of the model the user currently has
@@ -434,14 +444,14 @@ export class ChatContextUsageWidget extends Disposable {
 		// tokens rather than `usage`. Remaining reserve = that reserve minus what
 		// completions have already consumed; once completions exceed it, it drops
 		// to 0.
-		const outputBufferPercentage = maxOutputTokens !== undefined
+		const outputBufferPercentage = maxOutputTokens !== undefined && completionTokens !== undefined
 			? (Math.max(0, maxOutputTokens - completionTokens) / totalContextWindow) * 100
 			: undefined;
 
 		this.render({
 			usedTokens, completionTokens, totalContextWindow,
 			percentage, outputBufferPercentage,
-			promptTokenDetails, sessionCost: response.session.sessionCost,
+			promptTokenDetails, sessionCost: response.session.sessionCostInfo?.credits, sessionCostStatus: response.session.sessionCostInfo?.status,
 		});
 		this.show();
 	}

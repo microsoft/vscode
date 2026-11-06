@@ -9,6 +9,9 @@ import { Emitter, Event } from '../../../../../base/common/event.js';
 import type { IDisposable } from '../../../../../base/common/lifecycle.js';
 import { observableValue } from '../../../../../base/common/observable.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { NullAgentHostService } from '../../../../../platform/agentHost/browser/nullAgentHostService.js';
+import { IAgentHostService } from '../../../../../platform/agentHost/common/agentService.js';
+import { IDefaultAccountService } from '../../../../../platform/defaultAccount/common/defaultAccount.js';
 import { ICommandEvent, ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { ExtensionIdentifier } from '../../../../../platform/extensions/common/extensions.js';
 import { SyncDescriptor } from '../../../../../platform/instantiation/common/descriptors.js';
@@ -123,6 +126,8 @@ suite('ChatQuotaNotificationContribution integration', () => {
 
 		instantiationService.stub(ITelemetryService, telemetryService);
 		instantiationService.stub(IChatEntitlementService, entitlementService.service);
+		instantiationService.stub(IAgentHostService, new NullAgentHostService());
+		instantiationService.stub(IDefaultAccountService, { onDidChangeDefaultAccount: Event.None });
 		instantiationService.stub(ICommandService, commandService);
 		instantiationService.stub(ILanguageModelsService, {
 			_serviceBrand: undefined,

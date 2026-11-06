@@ -1053,13 +1053,13 @@ suite('ChatInputPart', () => {
 		const first = store.add(new MockChatModel(URI.parse('test:/first')));
 		const peer = store.add(new MockChatModel(URI.parse('test:/peer')));
 		const widget = { viewModel: { model: first } };
-		const costs: number[] = [];
+		const costs: MockChatModel['sessionCostInfo'][] = [];
 		const inputPart = Object.assign(Object.create(ChatInputPart.prototype), {
 			_contextUsageDisposables: store.add(new MutableDisposable()),
 			_widget: widget,
 			contextUsageWidget: {
 				update: () => { },
-				updateSessionCost: (credits: number) => costs.push(credits),
+				updateSessionCost: (cost: MockChatModel['sessionCostInfo']) => costs.push(cost),
 			},
 			languageModelsService: { onDidChangeLanguageModels: Event.None },
 		}) as { updateContextUsageWidget(): void };
@@ -1070,7 +1070,7 @@ suite('ChatInputPart', () => {
 		inputPart.updateContextUsageWidget();
 		first.setSessionCost({ credits: 1.2, status: 'complete' });
 		peer.setSessionCost({ credits: 0.25, status: 'partial' });
-		assert.deepStrictEqual(costs, [0.6, 0.25]);
+		assert.deepStrictEqual(costs, [{ credits: 0.6, status: 'complete' }, { credits: 0.25, status: 'partial' }]);
 	});
 
 	test('renders contributed attachment widgets for the session of the input model that holds the attachments, else the widget session', () => {

@@ -16,10 +16,24 @@ import { IContextKeyService } from '../../../../../../platform/contextkey/common
 import { getActionBarActions } from '../../../../../../platform/actions/browser/menuEntryActionViewItem.js';
 import { formatCopilotCreditsLabel } from '../../../common/chatService/chatService.js';
 import type { IChatWidget } from '../../chat.js';
+import type { IChatSessionCost } from '../../../common/model/chatModel.js';
 
 const $ = dom.$;
 
 const COMPACT_AGENT_HOST_CONVERSATION_ACTION_ID = 'workbench.action.chat.compactAgentHostConversation';
+
+function formatSessionCost(credits: number | undefined, status: IChatSessionCost['status']): string {
+	if (credits === undefined || status === 'unavailable') {
+		return localize('sessionCostNotReported', "Not reported");
+	}
+	const label = formatCopilotCreditsLabel(credits);
+	if (status === 'complete') {
+		return label;
+	}
+	return status === 'partial'
+		? localize('sessionCostPartial', "{0} (partial)", label)
+		: localize('sessionCostUnknown', "{0} (completeness not reported)", label);
+}
 
 export interface IChatContextUsagePromptTokenDetail {
 	category: string;
@@ -29,12 +43,13 @@ export interface IChatContextUsagePromptTokenDetail {
 
 export interface IChatContextUsageData {
 	usedTokens: number;
-	completionTokens: number;
+	completionTokens?: number;
 	totalContextWindow: number;
 	percentage: number;
 	outputBufferPercentage?: number;
 	promptTokenDetails?: readonly IChatContextUsagePromptTokenDetail[];
 	sessionCost?: number;
+	sessionCostStatus?: IChatSessionCost['status'];
 }
 
 /**
@@ -133,7 +148,7 @@ export class ChatContextUsageDetails extends Disposable {
 
 		this._register(autorun(reader => {
 			const data = this._dataObservable.read(reader);
-			// Re-render when the usage data changes; keep the last-rendered DOM when data becomes undefined.
+			this.domNode.style.display = data ? '' : 'none';
 			if (data) {
 				this._render(data);
 			}
@@ -163,15 +178,10 @@ export class ChatContextUsageDetails extends Disposable {
 	}
 
 	private _render(data: IChatContextUsageData): void {
-		const { percentage, usedTokens, totalContextWindow, outputBufferPercentage, promptTokenDetails, sessionCost } = data;
+		const { percentage, usedTokens, totalContextWindow, outputBufferPercentage, promptTokenDetails, sessionCost, sessionCostStatus } = data;
 
-		// Update session cost — hide section when no cost data is available
-		if (typeof sessionCost === 'number' && sessionCost > 0) {
-			this.sessionCostValue.textContent = formatCopilotCreditsLabel(sessionCost);
-			this.sessionCostSection.style.display = '';
-		} else {
-			this.sessionCostSection.style.display = 'none';
-		}
+		this.sessionCostSection.style.display = sessionCost !== undefined || sessionCostStatus !== undefined ? '' : 'none';
+		this.sessionCostValue.textContent = formatSessionCost(sessionCost, sessionCostStatus);
 
 		// Update token count and percentage — reflects actual usage only
 		this.tokenCountLabel.textContent = localize(

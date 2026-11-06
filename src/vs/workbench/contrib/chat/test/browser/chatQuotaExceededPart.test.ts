@@ -5,11 +5,19 @@
 
 import assert from 'assert';
 import { mainWindow } from '../../../../../base/browser/window.js';
-import { Event } from '../../../../../base/common/event.js';
+import { Emitter, Event } from '../../../../../base/common/event.js';
+import { IDefaultAccount } from '../../../../../base/common/defaultAccount.js';
 import { MarkdownString } from '../../../../../base/common/htmlContent.js';
-import { observableValue } from '../../../../../base/common/observable.js';
+import { constObservable, observableValue } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { upcastPartial } from '../../../../../base/test/common/mock.js';
+import { NullAgentHostService } from '../../../../../platform/agentHost/browser/nullAgentHostService.js';
+import { IAgentHostService } from '../../../../../platform/agentHost/common/agentService.js';
+import { CopilotAccountContext, copilotAccountContextKey } from '../../../../../platform/agentHost/common/copilotAccountContext.js';
+import { IAgentSubscription } from '../../../../../platform/agentHost/common/state/agentSubscription.js';
+import { RootState } from '../../../../../platform/agentHost/common/state/sessionState.js';
+import { IDefaultAccountService } from '../../../../../platform/defaultAccount/common/defaultAccount.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { IMarkdownRenderer } from '../../../../../platform/markdown/browser/markdownRenderer.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
@@ -81,7 +89,7 @@ suite('ChatQuotaExceededPart', () => {
 
 	let executedCommands: string[];
 
-	function createWidget(entitlement: ChatEntitlement, errorDetails: IChatResponseErrorDetails): ChatQuotaExceededPart {
+	function createWidget(entitlement: ChatEntitlement, errorDetails: IChatResponseErrorDetails, host: IAgentHostService = new NullAgentHostService()): ChatQuotaExceededPart {
 		executedCommands = [];
 
 		const commandService = {
@@ -106,6 +114,12 @@ suite('ChatQuotaExceededPart', () => {
 			commandService,
 			telemetryService,
 			entitlementService,
+			host,
+			upcastPartial<IDefaultAccountService>({
+				onDidChangeDefaultAccount: Event.None,
+				currentDefaultAccount: upcastPartial<IDefaultAccount>({ accountName: 'synthetic-github' }),
+				resolveGitHubUrl: () => 'https://github.example/',
+			}),
 		);
 		store.add(widget);
 		mainWindow.document.body.appendChild(widget.domNode);
@@ -120,6 +134,43 @@ suite('ChatQuotaExceededPart', () => {
 		for (const el of mainWindow.document.body.querySelectorAll('.chat-quota-error-widget')) {
 			el.remove();
 		}
+	});
+
+	test('hides GitHub billing actions and rejects stale activation after account context loss or change', () => {
+		const github: CopilotAccountContext = {
+			kind: 'ready', entraAccountId: 'synthetic', discoveryId: 'synthetic', derivedFrom: 'synthetic',
+			choice: { service: 'github', selectionId: 'github', resource: 'https://github.example', host: 'https://github.example', accountName: 'synthetic-github', displayName: 'Synthetic GitHub' },
+		};
+		let context: CopilotAccountContext = github;
+		const rootChanged = store.add(new Emitter<RootState>());
+		const root = (): RootState => ({ agents: [], activeSessions: 0, config: { schema: { type: 'object', properties: {} }, values: { [copilotAccountContextKey]: context } } });
+		const host = new class extends NullAgentHostService {
+			override readonly authenticationPending = constObservable(true);
+			override get rootState(): IAgentSubscription<RootState> {
+				return upcastPartial<IAgentSubscription<RootState>>({ get value() { return root(); }, onDidChange: rootChanged.event });
+			}
+		}();
+		const widget = createWidget(ChatEntitlement.Pro, { message: 'Provider capacity unavailable', isQuotaExceeded: true }, host);
+		const button = getPrimaryButton(widget)!;
+		const contexts: CopilotAccountContext[] = [
+			github,
+			{ ...github, choice: { ...github.choice, service: 'm365' } },
+			{ kind: 'signedOut' },
+			{ ...github, choice: { ...github.choice, accountName: 'another-account' } },
+			github,
+		];
+		assert.deepStrictEqual(contexts.map(next => {
+			context = next;
+			rootChanged.fire(root());
+			button.click();
+			return { visible: button.style.display !== 'none', commands: executedCommands.length };
+		}), [
+			{ visible: true, commands: 1 },
+			{ visible: false, commands: 1 },
+			{ visible: false, commands: 1 },
+			{ visible: false, commands: 1 },
+			{ visible: true, commands: 2 },
+		]);
 	});
 
 	suite('button label', () => {

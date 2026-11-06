@@ -178,7 +178,7 @@ suite('ChatContextUsageWidget', () => {
 	}
 
 	function createRequest(modelId: string, usage: IChatUsage | undefined, onDidChange: Event<void> = Event.None, sessionCost: () => number = () => 0): IChatRequestModel {
-		const session = { get sessionCost() { return sessionCost(); } } as IChatRequestModel['session'];
+		const session = { get sessionCostInfo() { return { credits: sessionCost() }; } } as IChatRequestModel['session'];
 		const response = { usage, onDidChange, session } as unknown as IChatResponseModel;
 		return { modelId, response, session } as unknown as IChatRequestModel;
 	}
@@ -190,7 +190,7 @@ suite('ChatContextUsageWidget', () => {
 	test('stays hidden when the session has a cost but no context usage', () => {
 		const { widget } = createWidgetWithData();
 		widget.update(createRequest(CONCRETE_MODEL, undefined, Event.None, () => 0.6));
-		widget.updateSessionCost(0.6);
+		widget.updateSessionCost({ credits: 0.6 });
 		assert.deepStrictEqual({ visible: widget.isVisible.get(), detailsShown: widget.showDetails() }, { visible: false, detailsShown: false });
 	});
 
@@ -261,6 +261,7 @@ suite('ChatContextUsageWidget', () => {
 				outputBufferPercentage: 10,
 				promptTokenDetails: undefined,
 				sessionCost: 0,
+				sessionCostStatus: undefined,
 			},
 			label: '90%',
 			ariaLabel: 'Context window usage: 90%',
@@ -338,9 +339,38 @@ suite('ChatContextUsageWidget', () => {
 		assert.strictEqual(widget.showDetails(), true);
 		const before = getData();
 
-		widget.updateSessionCost(7);
+		widget.updateSessionCost({ credits: 7 });
 
 		assert.deepStrictEqual(getData(), { ...before, sessionCost: 7 });
+	});
+
+	test('does not infer a context percentage from partial tokens or retain another conversation', () => {
+		const { widget, getData } = createWidgetWithData();
+		widget.update(createRequest(CONCRETE_MODEL, usage()));
+		widget.showDetails();
+		widget.update(createRequest(CONCRETE_MODEL, { kind: 'usage', promptTokens: 0 }));
+		const partial = { visible: widget.isVisible.get(), data: getData() };
+		widget.update(createRequest(CONCRETE_MODEL, { kind: 'usage', promptTokens: 0, completionTokens: 0 }));
+		const zero = { visible: widget.isVisible.get(), used: getData()?.usedTokens, percent: getData()?.percentage };
+		widget.update(createRequest(CONCRETE_MODEL, undefined));
+		assert.deepStrictEqual({ partial, zero, missing: { visible: widget.isVisible.get(), data: getData() } }, {
+			partial: { visible: false, data: undefined },
+			zero: { visible: true, used: 0, percent: 0 },
+			missing: { visible: false, data: undefined },
+		});
+	});
+
+	test('keeps reported context and refreshes status without inventing missing completion tokens', () => {
+		const { widget, getData } = createWidgetWithData();
+		widget.update(createRequest(CONCRETE_MODEL, { kind: 'usage', contextUsage: { currentTokens: 25, tokenLimit: 100 } }));
+		widget.showDetails();
+		widget.updateSessionCost({ credits: 0, status: 'unavailable' });
+		const unavailable = getData();
+		widget.updateSessionCost({ credits: 0, status: 'complete' });
+		assert.deepStrictEqual({
+			tokens: unavailable && [unavailable.usedTokens, unavailable.completionTokens, unavailable.percentage, unavailable.outputBufferPercentage],
+			statuses: [unavailable?.sessionCostStatus, getData()?.sessionCostStatus],
+		}, { tokens: [25, undefined, 25, undefined], statuses: ['unavailable', 'complete'] });
 	});
 
 });

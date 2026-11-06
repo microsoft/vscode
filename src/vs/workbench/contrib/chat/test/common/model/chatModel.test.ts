@@ -38,7 +38,7 @@ import { ChatElicitationRequestPart } from '../../../common/model/chatProgressTy
 import { ChatToolInvocation } from '../../../common/model/chatProgressTypes/chatToolInvocation.js';
 import { ChatSessionOperationLog } from '../../../common/model/chatSessionOperationLog.js';
 import { ChatRequestTextPart } from '../../../common/requestParser/chatParserTypes.js';
-import { ChatRequestQueueKind, ChatResponseClearToPreviousToolInvocationReason, ElicitationState, IChatConfirmation, IChatMcpAuthenticationRequired, IChatMcpAuthenticationRequiredServer, IChatPlanReview, IChatQuestionCarousel, IChatService, IChatTask, IChatTerminalToolInvocationData, IChatToolInvocation, IChatToolInvocationSerialized, ResponseModelState, ToolConfirmKind } from '../../../common/chatService/chatService.js';
+import { ChatRequestQueueKind, ChatResponseClearToPreviousToolInvocationReason, ElicitationState, IChatConfirmation, IChatMcpAuthenticationRequired, IChatMcpAuthenticationRequiredServer, IChatPlanReview, IChatQuestionCarousel, IChatService, IChatTask, IChatTerminalToolInvocationData, IChatToolInvocation, IChatToolInvocationSerialized, IChatUsage, ResponseModelState, ToolConfirmKind } from '../../../common/chatService/chatService.js';
 import { IToolResult, ToolDataSource } from '../../../common/tools/languageModelToolsService.js';
 import { ChatAgentLocation, ChatModeKind } from '../../../common/constants.js';
 import { MockChatService } from '../chatService/mockChatService.js';
@@ -596,6 +596,31 @@ suite('ChatModel', () => {
 			{ cost: 1, status: 'partial', tokens: 2 });
 	});
 
+	test('missing and partial measurements survive restore without becoming zero', () => {
+		const inputs: IChatUsage[] = [
+			{ kind: 'usage', completionTokens: 0 },
+			{ kind: 'usage', promptTokens: 3 },
+			{ kind: 'usage', copilotCredits: 0 },
+			{ kind: 'usage', sessionCopilotCreditsStatus: 'unavailable' },
+		];
+		const results = inputs.map(usage => {
+			const model = testDisposables.add(instantiationService.createInstance(ChatModel, undefined, { initialLocation: ChatAgentLocation.Chat, canUseTools: true }));
+			const request = model.addRequest({ text: 'usage', parts: [] }, { variables: [] }, 0);
+			model.acceptResponseProgress(request, usage);
+			const restored = testDisposables.add(instantiationService.createInstance(ChatModel,
+				{ value: JSON.parse(JSON.stringify(model.toJSON())) as ISerializableChatData3, serializer: undefined! },
+				{ initialLocation: ChatAgentLocation.Chat, canUseTools: true }));
+			const response = restored.lastRequest?.response;
+			return [response?.usage?.promptTokens, response?.usage?.completionTokens, response?.completionTokenCount, restored.sessionCostInfo];
+		});
+		assert.deepStrictEqual(results, [
+			[undefined, 0, 0, undefined],
+			[3, undefined, undefined, undefined],
+			[undefined, undefined, undefined, { credits: 0, status: undefined }],
+			[undefined, undefined, undefined, { credits: 0, status: 'unavailable' }],
+		]);
+	});
+
 	test('aggregate-only billing updates a canceled chat and persists without changing its response', () => {
 		const model = testDisposables.add(instantiationService.createInstance(ChatModel, undefined, { initialLocation: ChatAgentLocation.Chat, canUseTools: true }));
 		const request = model.addRequest({ text: 'image', parts: [] }, { variables: [] }, 0);
@@ -848,8 +873,8 @@ suite('ChatModel', () => {
 			return { contextOutput: response?.usage?.completionTokens, consumptionOutput: response?.completionTokenCount };
 		}), [
 			{ contextOutput: 200, consumptionOutput: 200 },
-			{ contextOutput: 0, consumptionOutput: 0 },
-			{ contextOutput: 0, consumptionOutput: 200 },
+			{ contextOutput: undefined, consumptionOutput: 0 },
+			{ contextOutput: undefined, consumptionOutput: 200 },
 		]);
 	});
 

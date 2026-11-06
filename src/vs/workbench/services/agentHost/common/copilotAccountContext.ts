@@ -75,3 +75,9 @@ export async function resolveCopilotAccountContext(host: IAgentHostService, toke
 export function canCompleteCopilotAccountSetup(context: CopilotAccountContextView): boolean {
 	return context === undefined || typeof context === 'object' && !(context instanceof Error) && context.kind === 'ready';
 }
+
+export function matchesCopilotGitHubAccount(context: CopilotAccountContextView, accountName: string | undefined, url: string | undefined): boolean {
+	return !!context && context !== 'loading' && !(context instanceof Error) && context.kind === 'ready'
+		&& context.choice.service === 'github' && accountName === context.choice.accountName
+		&& url === `${context.choice.host.replace(/\/$/, '')}/`;
+}
