@@ -26635,7 +26635,7 @@ suite('AgentService (node dispatcher)', () => {
 			const ownerSession = AgentSession.uri('copilot', 'owner-session');
 			const backingSession = AgentSession.uri('copilot', 'peer-backing-uuid');
 			const backingDefaultChat = deriveLegacyDefaultChat(backingSession);
-			await localService.createSession({ provider: 'copilot', session: ownerSession });
+			await localService.createSession({ legacyChatUris: true, provider: 'copilot', session: ownerSession });
 			getStateManager(localService).addChat(ownerSession.toString(), backingDefaultChat, backingSession.toString());
 
 			await assert.rejects(
