@@ -276,7 +276,9 @@ configurationRegistry.registerConfiguration({
 			markdownDescription: nls.localize('chat.agentHost.modelRouter.enabled', "When enabled, Copilot in Agent Host sessions offers each model router in `~/.agents/model-routers/` as a model. A router picks a model for each turn from the routes you write. The built-in `model-router` skill can write and check routers."),
 			default: false,
 			scope: ConfigurationScope.APPLICATION,
-			tags: ['experimental'],
+			tags: ['preview', 'advanced', 'experimental'],
+			// Hidden from the Settings editor while routers are being tried out; set it in settings.json.
+			included: false,
 			agentHost: { key: ModelRouterEnabledConfigKey },
 		},
 		[AgentHostOverlapProviderPreparationSettingId]: {
