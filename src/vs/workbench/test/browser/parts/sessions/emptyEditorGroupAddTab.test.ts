@@ -4,22 +4,22 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { $, append } from '../../../../../../base/browser/dom.js';
-import { mainWindow } from '../../../../../../base/browser/window.js';
-import { Event } from '../../../../../../base/common/event.js';
-import { DisposableStore, toDisposable } from '../../../../../../base/common/lifecycle.js';
-import { mock } from '../../../../../../base/test/common/mock.js';
-import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
-import { IMenu, IMenuCreateOptions, IMenuService, MenuId, MenuRegistry } from '../../../../../../platform/actions/common/actions.js';
-import { MenuService } from '../../../../../../platform/actions/common/menuService.js';
-import { ICommandService } from '../../../../../../platform/commands/common/commands.js';
-import { ContextKeyService } from '../../../../../../platform/contextkey/browser/contextKeyService.js';
-import { IContextKeyService } from '../../../../../../platform/contextkey/common/contextkey.js';
-import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
-import { IKeybindingService } from '../../../../../../platform/keybinding/common/keybinding.js';
-import { IStorageService } from '../../../../../../platform/storage/common/storage.js';
-import { workbenchInstantiationService } from '../../../../../test/browser/workbenchTestServices.js';
-import { EmptyEditorGroupAddTab } from '../../../browser/parts/emptyEditorGroupAddTab.js';
+import { $, append } from '../../../../../base/browser/dom.js';
+import { mainWindow } from '../../../../../base/browser/window.js';
+import { Event } from '../../../../../base/common/event.js';
+import { DisposableStore, toDisposable } from '../../../../../base/common/lifecycle.js';
+import { mock } from '../../../../../base/test/common/mock.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { IMenu, IMenuCreateOptions, IMenuService, MenuId, MenuRegistry } from '../../../../../platform/actions/common/actions.js';
+import { MenuService } from '../../../../../platform/actions/common/menuService.js';
+import { ICommandService } from '../../../../../platform/commands/common/commands.js';
+import { ContextKeyService } from '../../../../../platform/contextkey/browser/contextKeyService.js';
+import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
+import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
+import { IKeybindingService } from '../../../../../platform/keybinding/common/keybinding.js';
+import { IStorageService } from '../../../../../platform/storage/common/storage.js';
+import { workbenchInstantiationService } from '../../workbenchTestServices.js';
+import { EmptyEditorGroupAddTab } from '../../../../browser/parts/sessions/emptyEditorGroupAddTab.js';
 
 suite('Sessions - Empty editor group Add Tab', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();

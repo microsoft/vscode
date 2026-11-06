@@ -4,11 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { $, append } from '../../../../../../base/browser/dom.js';
-import { mainWindow } from '../../../../../../base/browser/window.js';
-import { toDisposable } from '../../../../../../base/common/lifecycle.js';
-import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
-import { SessionsEmptyStateLayout } from '../../../browser/parts/sessionsEmptyStateLayout.js';
+import { $, append } from '../../../../../base/browser/dom.js';
+import { mainWindow } from '../../../../../base/browser/window.js';
+import { toDisposable } from '../../../../../base/common/lifecycle.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { SessionsEmptyStateLayout } from '../../../../browser/parts/sessions/sessionsEmptyStateLayout.js';
 
 suite('Sessions - Empty state layout', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();

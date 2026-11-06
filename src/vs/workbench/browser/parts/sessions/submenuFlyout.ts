@@ -3,19 +3,19 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { addDisposableListener, EventHelper, EventType, getActiveElement, getWindow, isAncestor, isHTMLElement } from '../../../../../base/browser/dom.js';
-import { StandardKeyboardEvent } from '../../../../../base/browser/keyboardEvent.js';
-import { AnchorAlignment, AnchorAxisAlignment } from '../../../../../base/browser/ui/contextview/contextview.js';
-import { Menu } from '../../../../../base/browser/ui/menu/menu.js';
-import { RunOnceScheduler } from '../../../../../base/common/async.js';
-import { IAction, IActionRunner } from '../../../../../base/common/actions.js';
-import { KeyCode } from '../../../../../base/common/keyCodes.js';
-import { Emitter, Event } from '../../../../../base/common/event.js';
-import { ResolvedKeybinding } from '../../../../../base/common/keybindings.js';
-import { Disposable, DisposableStore, MutableDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
-import { getMenuActionGroupTitle } from '../../../../../platform/actions/common/actions.js';
-import { IContextViewService } from '../../../../../platform/contextview/browser/contextView.js';
-import { defaultMenuStyles } from '../../../../../platform/theme/browser/defaultStyles.js';
+import { addDisposableListener, EventHelper, EventType, getActiveElement, getWindow, isAncestor, isHTMLElement } from '../../../../base/browser/dom.js';
+import { StandardKeyboardEvent } from '../../../../base/browser/keyboardEvent.js';
+import { AnchorAlignment, AnchorAxisAlignment } from '../../../../base/browser/ui/contextview/contextview.js';
+import { Menu } from '../../../../base/browser/ui/menu/menu.js';
+import { RunOnceScheduler } from '../../../../base/common/async.js';
+import { IAction, IActionRunner } from '../../../../base/common/actions.js';
+import { KeyCode } from '../../../../base/common/keyCodes.js';
+import { Emitter, Event } from '../../../../base/common/event.js';
+import { ResolvedKeybinding } from '../../../../base/common/keybindings.js';
+import { Disposable, DisposableStore, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
+import { getMenuActionGroupTitle } from '../../../../platform/actions/common/actions.js';
+import { IContextViewService } from '../../../../platform/contextview/browser/contextView.js';
+import { defaultMenuStyles } from '../../../../platform/theme/browser/defaultStyles.js';
 
 export interface ISubmenuFlyoutOptions {
 	/** The entry the flyout opens beside. It receives `aria-expanded` and the `submenu-open` class. */

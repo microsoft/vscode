@@ -34,7 +34,7 @@ import { ChangesViewService } from '../../../../workbench/contrib/sessionChanges
 import { IChangesViewService } from '../../../../workbench/contrib/sessions/common/changesViewService.js';
 import { AccessibleViewRegistry } from '../../../../platform/accessibility/browser/accessibleViewRegistry.js';
 import { SessionsChangesAccessibilityHelp } from '../../../../workbench/contrib/sessionChanges/browser/sessionsChangesAccessibilityHelp.js';
-import { AgentWorkbenchLayout, ISessionsHostLayoutService } from '../../../../workbench/contrib/sessions/browser/sessionsHostLayoutService.js';
+import { AgentWorkbenchLayout, ISessionsHostLayoutService } from '../../../../workbench/services/sessions/browser/sessionsHostLayoutService.js';
 import { ChangesActivityContribution } from './changesActivity.js';
 
 /**

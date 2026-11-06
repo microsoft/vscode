@@ -4,14 +4,14 @@
  *--------------------------------------------------------------------------------------------*/
 
 import './media/sessionsEmptyState.css';
-import { ActionsOrientation } from '../../../../../base/browser/ui/actionbar/actionbar.js';
-import { Disposable } from '../../../../../base/common/lifecycle.js';
-import { HiddenItemStrategy, IMenuWorkbenchToolBarOptions, MenuWorkbenchToolBar } from '../../../../../platform/actions/browser/toolbar.js';
-import { MenuId } from '../../../../../platform/actions/common/actions.js';
-import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
-import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
-import { ServiceCollection } from '../../../../../platform/instantiation/common/serviceCollection.js';
-import { IKeybindingService } from '../../../../../platform/keybinding/common/keybinding.js';
+import { ActionsOrientation } from '../../../../base/browser/ui/actionbar/actionbar.js';
+import { Disposable } from '../../../../base/common/lifecycle.js';
+import { HiddenItemStrategy, IMenuWorkbenchToolBarOptions, MenuWorkbenchToolBar } from '../../../../platform/actions/browser/toolbar.js';
+import { MenuId } from '../../../../platform/actions/common/actions.js';
+import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
+import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
+import { ServiceCollection } from '../../../../platform/instantiation/common/serviceCollection.js';
+import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
 import { SessionsWatermarkActionViewItem } from './emptyEditorGroupAddTab.js';
 
 export class SessionsEmptyStateActions extends Disposable {

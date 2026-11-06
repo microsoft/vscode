@@ -12,7 +12,7 @@ import { ServicesAccessor } from '../../../../platform/instantiation/common/inst
 import { IOpenerService } from '../../../../platform/opener/common/opener.js';
 import { IEditorService } from '../../../../workbench/services/editor/common/editorService.js';
 import { Menus, SessionActivityBarGroup } from '../../../../workbench/contrib/sessions/browser/menus.js';
-import { ISessionsHostLayoutService } from '../../../../workbench/contrib/sessions/browser/sessionsHostLayoutService.js';
+import { ISessionsHostLayoutService } from '../../../../workbench/services/sessions/browser/sessionsHostLayoutService.js';
 import { sessionActivityBarChatActionContext, SessionHasPullRequestContext } from '../../../../workbench/contrib/sessions/common/contextkeys.js';
 import { resolveSessionCommandTarget } from '../../../../workbench/contrib/sessions/browser/sessionCommandTarget.js';
 import { getGitHubPullRequestRefs, IGitHubPullRequestRef, ISession } from '../../../../workbench/contrib/sessions/common/session.js';

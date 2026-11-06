@@ -35,10 +35,10 @@ import { DEFAULT_EDITOR_PART_OPTIONS } from '../../../workbench/browser/parts/ed
 import { IEditorGroupsService } from '../../../workbench/services/editor/common/editorGroupsService.js';
 import { TestLayoutService, TestMenuService, workbenchInstantiationService } from '../../../workbench/test/browser/workbenchTestServices.js';
 import { IWorkbenchLayoutService } from '../../../workbench/services/layout/browser/layoutService.js';
-import { AgentWorkbenchLayout } from '../../../workbench/contrib/sessions/browser/sessionsHostLayoutService.js';
+import { AgentWorkbenchLayout } from '../../../workbench/services/sessions/browser/sessionsHostLayoutService.js';
 import { IChatSessionHistoryStatus } from '../../../platform/chat/common/chatSessionHistory.js';
 import { AbstractChatView, ChatViewKind, IChatViewOptions } from '../../../workbench/contrib/sessions/browser/parts/chatView.js';
-import { SESSION_ACTIVITY_BAR_COLUMN_WIDTH } from '../../../workbench/contrib/sessions/browser/parts/sessionActivityBarHost.js';
+import { SESSION_ACTIVITY_BAR_COLUMN_WIDTH } from '../../../workbench/browser/parts/sessions/sessionActivityBarHost.js';
 import { ChatGroupsView } from '../../../workbench/contrib/sessions/browser/parts/chatGroupsView.js';
 import { ChatGroupView } from '../../../workbench/contrib/sessions/browser/parts/chatGroupView.js';
 import { GRID_GAP_SASH_CLASS } from '../../../workbench/browser/parts/partGrid/partGridGap.js';

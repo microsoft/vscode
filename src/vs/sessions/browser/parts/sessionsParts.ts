@@ -8,7 +8,7 @@ import { getClientArea } from '../../../base/browser/dom.js';
 import { mainWindow } from '../../../base/browser/window.js';
 import { IInstantiationService } from '../../../platform/instantiation/common/instantiation.js';
 import { InstantiationType, registerSingleton } from '../../../platform/instantiation/common/extensions.js';
-import { SessionsPart } from '../../../workbench/contrib/sessions/browser/parts/sessionsPart.js';
+import { SessionsPart } from '../../../workbench/browser/parts/sessions/sessionsPart.js';
 import { SessionsGridContent } from '../../../workbench/contrib/sessions/browser/parts/sessionsGridContent.js';
 import { MobileSessionsPart } from './mobile/mobileSessionsPart.js';
 import { SessionView } from '../../../workbench/contrib/sessions/browser/parts/sessionView.js';

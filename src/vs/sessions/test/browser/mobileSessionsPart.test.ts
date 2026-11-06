@@ -6,7 +6,7 @@
 import assert from 'assert';
 import { MobileSessionsPart } from '../../browser/parts/mobile/mobileSessionsPart.js';
 import { Parts } from '../../../workbench/services/layout/browser/layoutService.js';
-import { ISessionsPartContentLayout } from '../../../workbench/contrib/sessions/browser/parts/sessionsPartContent.js';
+import { ISessionsPartContentLayout } from '../../../workbench/browser/parts/sessions/sessionsPartContent.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../base/test/common/utils.js';
 
 suite('Sessions - Mobile Sessions Part', () => {

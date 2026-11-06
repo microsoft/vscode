@@ -3,13 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { $ } from '../../../../../base/browser/dom.js';
-import { ISerializableView } from '../../../../../base/browser/ui/grid/grid.js';
-import { Emitter } from '../../../../../base/common/event.js';
-import { DisposableStore, IDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
-import { IObservable, observableFromEvent, observableValue } from '../../../../../base/common/observable.js';
-import { MenuActivityBar, MenuActivityBarSize } from '../../../../browser/parts/activitybar/menuActivityBar.js';
-import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
+import { $ } from '../../../../base/browser/dom.js';
+import { ISerializableView } from '../../../../base/browser/ui/grid/grid.js';
+import { Emitter } from '../../../../base/common/event.js';
+import { DisposableStore, IDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
+import { IObservable, observableFromEvent, observableValue } from '../../../../base/common/observable.js';
+import { MenuActivityBar, MenuActivityBarSize } from '../activitybar/menuActivityBar.js';
+import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 
 /** Width of the strip itself: 24px buttons, 2px padding and a 1px border on each side, in `sessionActivityBar.css`. */
 const STRIP_WIDTH = 30;

@@ -3,9 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
-import { BrandedService, IConstructorSignature } from '../../../../../platform/instantiation/common/instantiation.js';
-import { IColorTheme } from '../../../../../platform/theme/common/themeService.js';
+import { IDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
+import { BrandedService, IConstructorSignature } from '../../../../platform/instantiation/common/instantiation.js';
+import { IColorTheme } from '../../../../platform/theme/common/themeService.js';
 
 /**
  * How the Sessions part lays out its content.

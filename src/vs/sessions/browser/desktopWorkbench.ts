@@ -11,9 +11,9 @@ import { Parts } from '../../workbench/services/layout/browser/layoutService.js'
 import { DockedEditorInput } from '../../workbench/browser/parts/editor/dockedEditorInput.js';
 import { DockedAuxiliaryBarController } from './dockedAuxiliaryBarController.js';
 import { DesktopMainEditorPart } from './parts/desktopEditorPart.js';
-import { EDITOR_PART_MINIMUM_WIDTH } from '../../workbench/contrib/sessions/browser/parts/editorPartSizing.js';
+import { EDITOR_PART_MINIMUM_WIDTH } from '../../workbench/browser/parts/sessions/editorPartSizing.js';
 import { Workbench } from './workbench.js';
-import { AgentWorkbenchLayout } from '../../workbench/contrib/sessions/browser/sessionsHostLayoutService.js';
+import { AgentWorkbenchLayout } from '../../workbench/services/sessions/browser/sessionsHostLayoutService.js';
 
 /**
  * Remembers the editor width captured around visibility transitions.

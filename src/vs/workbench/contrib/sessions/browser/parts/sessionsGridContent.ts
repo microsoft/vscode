@@ -23,9 +23,9 @@ import { noSessionPickerVisibility, SessionPickerVisibilityContextKeys } from '.
 import { ISessionGridSlot, SessionGridRequest } from '../sessionsPartService.js';
 import { ISessionGridPane, SessionGridPaneKind } from '../sessionGridPane.js';
 import type { ISessionHost } from '../sessionHost.js';
-import { SessionGridLayout } from './sessionGridLayout.js';
+import { SessionGridLayout } from '../../../../browser/parts/sessions/sessionGridLayout.js';
 import { URI } from '../../../../../base/common/uri.js';
-import { ISessionsPartContent, ISessionsPartContentHost, ISessionsPartContentLayout } from './sessionsPartContent.js';
+import { ISessionsPartContent, ISessionsPartContentHost, ISessionsPartContentLayout } from '../../../../browser/parts/sessions/sessionsPartContent.js';
 
 interface IGridSlot {
 	readonly id: string;

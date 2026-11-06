@@ -3,9 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IColorTheme } from '../../../../../platform/theme/common/themeService.js';
-import { agentsCardBorder, agentsPanelBackground, agentsPanelForeground } from '../../../../common/agentsColors.js';
-import { AGENTS_FLOATING_PANEL_GAP } from '../../../../common/agentsSizes.js';
+import { IColorTheme } from '../../../../platform/theme/common/themeService.js';
+import { agentsCardBorder, agentsPanelBackground, agentsPanelForeground } from '../../../common/agentsColors.js';
+import { AGENTS_FLOATING_PANEL_GAP } from '../../../common/agentsSizes.js';
 
 const AGENTS_PART_CARD_BORDER_WIDTH = 1;
 

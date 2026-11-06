@@ -28,8 +28,8 @@ import { IWorkbenchLayoutService, LayoutSettings, ModernUIDensity, Parts } from 
 import { ITitleService } from '../../../../workbench/services/title/browser/titleService.js';
 import { Menus } from '../../../../workbench/contrib/sessions/browser/menus.js';
 import { AgentsWindowMenus } from '../../../browser/agentsWindowMenus.js';
-import { EmptyEditorGroupAddTab } from '../../../../workbench/contrib/sessions/browser/parts/emptyEditorGroupAddTab.js';
-import { observeSessionActivityBarSize, registerSessionActivityBarExternalHost } from '../../../../workbench/contrib/sessions/browser/parts/sessionActivityBarHost.js';
+import { EmptyEditorGroupAddTab } from '../../../../workbench/browser/parts/sessions/emptyEditorGroupAddTab.js';
+import { observeSessionActivityBarSize, registerSessionActivityBarExternalHost } from '../../../../workbench/browser/parts/sessions/sessionActivityBarHost.js';
 import { MenuActivityBar, MenuActivityBarSize } from '../../../../workbench/browser/parts/activitybar/menuActivityBar.js';
 import { IStorageService } from '../../../../platform/storage/common/storage.js';
 import { CustomViewVisibleContext } from '../../../common/agentsWindowContextKeys.js';

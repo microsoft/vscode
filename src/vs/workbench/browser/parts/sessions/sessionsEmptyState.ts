@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import './media/sessionsEmptyState.css';
-import * as dom from '../../../../../base/browser/dom.js';
+import * as dom from '../../../../base/browser/dom.js';
 
 /**
  * Appends the shared title and description treatment for Agents Window empty states.

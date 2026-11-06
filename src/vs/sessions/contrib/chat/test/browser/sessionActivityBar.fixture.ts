@@ -24,9 +24,9 @@ import type { IChatWidgetFixtureHandle, IFixtureMessage } from '../../../../../w
 import { AbstractChatView } from '../../../../../workbench/contrib/sessions/browser/parts/chatView.js';
 import { ChatViewSessionActivityBar } from '../../../../../workbench/contrib/sessions/browser/parts/sessionActivityBar.js';
 import { IAgentWorkbenchLayoutService } from '../../../../browser/workbench.js';
-import { AgentWorkbenchLayout } from '../../../../../workbench/contrib/sessions/browser/sessionsHostLayoutService.js';
+import { AgentWorkbenchLayout } from '../../../../../workbench/services/sessions/browser/sessionsHostLayoutService.js';
 import { AGENTS_CENTERED_CONTENT_MAX_WIDTH, AGENTS_FLOATING_PANEL_GAP } from '../../../../../workbench/contrib/sessions/common/layoutConstants.js';
-import { registerSessionActivityBarExternalHost, SessionActivityBarColumn, setSessionActivityBarSize } from '../../../../../workbench/contrib/sessions/browser/parts/sessionActivityBarHost.js';
+import { registerSessionActivityBarExternalHost, SessionActivityBarColumn, setSessionActivityBarSize } from '../../../../../workbench/browser/parts/sessions/sessionActivityBarHost.js';
 import { MenuActivityBarSize } from '../../../../../workbench/browser/parts/activitybar/menuActivityBar.js';
 import { IStorageService, InMemoryStorageService } from '../../../../../platform/storage/common/storage.js';
 import { Direction } from '../../../../../base/browser/ui/grid/grid.js';
@@ -46,7 +46,7 @@ import '../../../../../workbench/contrib/sessions/browser/chat/media/chatView.cs
 import '../../../../../workbench/contrib/sessions/browser/parts/media/chatCompositeBar.css';
 import '../../../../../workbench/contrib/sessions/browser/parts/media/chatGroupsView.css';
 import '../../../../../workbench/contrib/sessions/browser/parts/media/sessionView.css';
-import '../../../../../workbench/contrib/sessions/browser/parts/media/sessionsPart.css';
+import '../../../../../workbench/browser/parts/sessions/media/sessionsPart.css';
 import '../../../../../workbench/contrib/sessions/browser/parts/media/sessionsGridContent.css';
 import '../../../chatWindow/browser/media/chatWindow.css';
 

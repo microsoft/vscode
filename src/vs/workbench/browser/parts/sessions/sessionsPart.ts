@@ -4,22 +4,22 @@
  *--------------------------------------------------------------------------------------------*/
 
 import './media/sessionsPart.css';
-import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
-import { IStorageService } from '../../../../../platform/storage/common/storage.js';
-import { IThemeService } from '../../../../../platform/theme/common/themeService.js';
-import { Parts, IWorkbenchLayoutService } from '../../../../services/layout/browser/layoutService.js';
-import { assertReturnsDefined } from '../../../../../base/common/types.js';
-import { LayoutPriority } from '../../../../../base/browser/ui/splitview/splitview.js';
-import { Part } from '../../../../browser/part.js';
-import { $ } from '../../../../../base/browser/dom.js';
-import { ProgressBar } from '../../../../../base/browser/ui/progressbar/progressbar.js';
-import { defaultProgressBarStyles } from '../../../../../platform/theme/browser/defaultStyles.js';
-import { IProgressIndicator } from '../../../../../platform/progress/common/progress.js';
-import { AbstractProgressScope, ScopedProgressIndicator } from '../../../../services/progress/browser/progressIndicator.js';
+import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
+import { IStorageService } from '../../../../platform/storage/common/storage.js';
+import { IThemeService } from '../../../../platform/theme/common/themeService.js';
+import { Parts, IWorkbenchLayoutService } from '../../../services/layout/browser/layoutService.js';
+import { assertReturnsDefined } from '../../../../base/common/types.js';
+import { LayoutPriority } from '../../../../base/browser/ui/splitview/splitview.js';
+import { Part } from '../../part.js';
+import { $ } from '../../../../base/browser/dom.js';
+import { ProgressBar } from '../../../../base/browser/ui/progressbar/progressbar.js';
+import { defaultProgressBarStyles } from '../../../../platform/theme/browser/defaultStyles.js';
+import { IProgressIndicator } from '../../../../platform/progress/common/progress.js';
+import { AbstractProgressScope, ScopedProgressIndicator } from '../../../services/progress/browser/progressIndicator.js';
 import { applyAgentsPartCardStyles, getAgentsPartCardContentSize, getSessionsPartCardMarginRight } from './agentsPartCard.js';
-import { isPhoneLayout } from '../mobileLayout.js';
-import { AGENTS_FLOATING_PANEL_GAP } from '../../../../common/agentsSizes.js';
-import { ISessionsHostLayoutService } from '../sessionsHostLayoutService.js';
+import { isPhoneLayout } from './mobileLayout.js';
+import { AGENTS_FLOATING_PANEL_GAP } from '../../../common/agentsSizes.js';
+import { ISessionsHostLayoutService } from '../../../services/sessions/browser/sessionsHostLayoutService.js';
 import { ISessionsPartContent, ISessionsPartContentHost, ISessionsPartContentLayout, SessionsPartContentRegistry } from './sessionsPartContent.js';
 
 /**

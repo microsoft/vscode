@@ -44,7 +44,7 @@ import { IMultiDiffEditorOptions } from '../../../../editor/common/multiDiffEdit
 import { ITextResourceConfigurationService } from '../../../../editor/common/services/textResourceConfiguration.js';
 import { IResourceLabel, IWorkbenchUIElementFactory, MultiDiffEditorItemLabelKind } from '../../../../editor/browser/widget/multiDiffEditor/workbenchUIElementFactory.js';
 import { Menus } from '../../sessions/browser/menus.js';
-import { AgentWorkbenchLayout, ISessionsHostLayoutService } from '../../sessions/browser/sessionsHostLayoutService.js';
+import { AgentWorkbenchLayout, ISessionsHostLayoutService } from '../../../services/sessions/browser/sessionsHostLayoutService.js';
 import { ActiveSessionContextKeys, SessionChangesEditorFileListContext } from '../../sessions/common/changes.js';
 import { ISessionHost, ISessionHostService } from '../../sessions/browser/sessionHost.js';
 import { ISessionsManagementService } from '../../sessions/common/sessionsManagement.js';

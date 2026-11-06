@@ -23,7 +23,7 @@ import { ISessionsProvidersService } from '../../../../contrib/sessions/browser/
 import { ISessionsListModelService } from '../../../../contrib/sessions/browser/sessionsListModelService.js';
 import { ChatCompositeBar, IChatCompositeBarDelegate } from '../../../../contrib/sessions/browser/parts/chatCompositeBar.js';
 import { applySessionViewThemeColors } from '../../../../contrib/sessions/browser/parts/sessionBarStyles.js';
-import { applyAgentsPartCardStyles } from '../../../../contrib/sessions/browser/parts/agentsPartCard.js';
+import { applyAgentsPartCardStyles } from '../../../../browser/parts/sessions/agentsPartCard.js';
 import { Menus } from '../../../../contrib/sessions/browser/menus.js';
 import { ComponentFixtureContext, createEditorServices, defineComponentFixture, defineThemedFixtureGroup, registerWorkbenchServices } from '../fixtureUtils.js';
 import { IChatWidgetFixtureHandle, renderChatWidget } from '../chat/chatWidget.fixture.js';
@@ -32,7 +32,7 @@ import '../../../../contrib/modernUI/browser/media/tabs.css';
 import '../../../../contrib/modernUI/browser/connectedEditorTabs.js';
 import '../../../../contrib/sessions/browser/parts/media/chatCompositeBar.css';
 import '../../../../../sessions/browser/media/workbench.css';
-import '../../../../contrib/sessions/browser/parts/media/sessionsPart.css';
+import '../../../../browser/parts/sessions/media/sessionsPart.css';
 import '../../../../contrib/sessions/browser/parts/media/sessionsGridContent.css';
 import '../../../../contrib/sessions/browser/parts/media/chatGroupsView.css';
 import { ISessionHost } from '../../../../contrib/sessions/browser/sessionHost.js';

@@ -32,8 +32,8 @@ import { getWorktreeSuggestionAccessibilityHelp } from '../../../../workbench/co
 import { AGENT_SESSIONS_STORAGE_CLEANUP_SUGGESTION_SETTING } from '../../../../workbench/contrib/sessions/browser/sessionInputBanners/sessionWorktreeCleanupService.js';
 import { IWorkbenchLayoutService } from '../../../../workbench/services/layout/browser/layoutService.js';
 import { NAVIGATE_VIEW_COMMANDS } from '../../../../workbench/browser/actions/navigationActions.js';
-import { isPhoneLayout } from '../../../../workbench/contrib/sessions/browser/mobileLayout.js';
-import { AgentWorkbenchLayout, ISessionsHostLayoutService } from '../../../../workbench/contrib/sessions/browser/sessionsHostLayoutService.js';
+import { isPhoneLayout } from '../../../../workbench/browser/parts/sessions/mobileLayout.js';
+import { AgentWorkbenchLayout, ISessionsHostLayoutService } from '../../../../workbench/services/sessions/browser/sessionsHostLayoutService.js';
 import { ISessionComparisonService } from '../../../../workbench/contrib/sessions/common/sessionComparison.js';
 import { CHAT_WINDOWS_ENABLED_SETTING } from '../../chatWindow/common/chatWindows.js';
 import { buildSessionComparisonAccessibleContent, isJudgeSession, SessionComparisonResultFocused } from '../../../../workbench/contrib/sessions/browser/chat/sessionComparisonResult.js';

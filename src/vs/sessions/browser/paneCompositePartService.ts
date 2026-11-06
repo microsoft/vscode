@@ -25,7 +25,7 @@ import { mainWindow } from '../../base/browser/window.js';
 import { InstantiationType, registerSingleton } from '../../platform/instantiation/common/extensions.js';
 import { IEditorGroupsService } from '../../workbench/services/editor/common/editorGroupsService.js';
 import { IAgentWorkbenchLayoutService } from './workbench.js';
-import { AgentWorkbenchLayout } from '../../workbench/contrib/sessions/browser/sessionsHostLayoutService.js';
+import { AgentWorkbenchLayout } from '../../workbench/services/sessions/browser/sessionsHostLayoutService.js';
 import { DesktopMainEditorPart } from './parts/desktopEditorPart.js';
 import { createMainWindowInstantiationService } from '../../workbench/contrib/sessions/browser/sessionHost.js';
 

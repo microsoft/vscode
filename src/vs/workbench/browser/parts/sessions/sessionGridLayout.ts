@@ -3,14 +3,14 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { $, getActiveElement, getWindow, isAncestor, isHTMLElement, runAtThisOrScheduleAtNextAnimationFrame } from '../../../../../base/browser/dom.js';
-import { Direction, GridNode, IGridStyles, ISerializableView, ISerializedGrid, ISerializedNode, IView, IViewSize, SerializableGrid, Sizing, isGridBranchNode } from '../../../../../base/browser/ui/grid/grid.js';
-import { Orientation } from '../../../../../base/browser/ui/sash/sash.js';
-import { Emitter, Event } from '../../../../../base/common/event.js';
-import { Disposable, IDisposable, MutableDisposable } from '../../../../../base/common/lifecycle.js';
-import { isSessionGridLeafData, projectSessionGrid, ISessionGridPlacement } from '../sessionGridState.js';
-import { Color } from '../../../../../base/common/color.js';
-import { getGridBottomCornerViews, getGridEdgeInsets, IGridEdgeInsets, NO_GRID_EDGE_INSETS, updateGridGapSashes } from '../../../../browser/parts/partGrid/partGridGap.js';
+import { $, getActiveElement, getWindow, isAncestor, isHTMLElement, runAtThisOrScheduleAtNextAnimationFrame } from '../../../../base/browser/dom.js';
+import { Direction, GridNode, IGridStyles, ISerializableView, ISerializedGrid, ISerializedNode, IView, IViewSize, SerializableGrid, Sizing, isGridBranchNode } from '../../../../base/browser/ui/grid/grid.js';
+import { Orientation } from '../../../../base/browser/ui/sash/sash.js';
+import { Emitter, Event } from '../../../../base/common/event.js';
+import { Disposable, IDisposable, MutableDisposable } from '../../../../base/common/lifecycle.js';
+import { isSessionGridLeafData, projectSessionGrid, ISessionGridPlacement } from './sessionGridState.js';
+import { Color } from '../../../../base/common/color.js';
+import { getGridBottomCornerViews, getGridEdgeInsets, IGridEdgeInsets, NO_GRID_EDGE_INSETS, updateGridGapSashes } from '../partGrid/partGridGap.js';
 
 export interface ISessionGridView extends IView {
 	/** Applies the allocated geometry without laying out descendants. */

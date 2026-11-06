@@ -56,7 +56,7 @@ import { ChatAgentLocation, ChatConfiguration, ChatModeKind } from '../../../cha
 import { getChatSessionType, getNewChatSessionResource } from '../../../chat/common/model/chatUri.js';
 import { IChatSessionsService, localChatSessionType } from '../../../chat/common/chatSessionsService.js';
 import { IChatSessionHistoryStatus } from '../../../../../platform/chat/common/chatSessionHistory.js';
-import { isPhoneLayout } from '../mobileLayout.js';
+import { isPhoneLayout } from '../../../../browser/parts/sessions/mobileLayout.js';
 import { ISelectNoWorkspaceOptions, ISelectWorkspaceOptions, WorkspaceSelectionResult } from '../../common/workspaceSelection.js';
 import { AbstractChatView, ChatViewKind, IChatViewOptions, IChatViewRequestOutcome, IChatViewRequestSubmission } from '../parts/chatView.js';
 import { IsPhoneLayoutContext, SessionUsesExperimentalComposerLayoutContext } from '../../common/contextkeys.js';

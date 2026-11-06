@@ -33,7 +33,7 @@ import { IEditorGroupsService } from '../../../../workbench/services/editor/comm
 import { Menus } from '../../../../workbench/contrib/sessions/browser/menus.js';
 import { SessionActivityBarActionViewItem } from '../../../../workbench/contrib/sessions/browser/parts/sessionActivityBar.js';
 import { IAgentWorkbenchLayoutService } from '../../../browser/workbench.js';
-import { AgentWorkbenchLayout } from '../../../../workbench/contrib/sessions/browser/sessionsHostLayoutService.js';
+import { AgentWorkbenchLayout } from '../../../../workbench/services/sessions/browser/sessionsHostLayoutService.js';
 import { ISessionActivityBarActivityService } from '../../../../workbench/contrib/sessions/common/sessionActivityBarActivityService.js';
 import { IFocusedSessionHostService } from '../../../../workbench/contrib/sessions/browser/sessionHost.js';
 import { ISessionChangesStatsCache } from '../../../../workbench/contrib/sessions/common/sessionChangesStatsCache.js';

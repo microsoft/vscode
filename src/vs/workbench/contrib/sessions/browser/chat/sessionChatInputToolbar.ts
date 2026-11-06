@@ -72,7 +72,7 @@ import { IChatEntitlementService } from '../../../../services/chat/common/chatEn
 import { ChatPillHoverCache, createChatPillHover } from '../../../../browser/chatPillHover.js';
 import { EditorsOrder } from '../../../../common/editor.js';
 import { EditorInput } from '../../../../common/editor/editorInput.js';
-import { ISessionsHostLayoutService } from '../sessionsHostLayoutService.js';
+import { ISessionsHostLayoutService } from '../../../../services/sessions/browser/sessionsHostLayoutService.js';
 
 const copiedLabel = localize('sessionChatPills.copied', "Copied");
 const copiedToClipboardStatus = localize('sessionChatPills.copiedToClipboard', "Copied to clipboard");

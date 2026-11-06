@@ -16,7 +16,7 @@ import { MultiDiffEditorInput } from '../../multiDiffEditor/browser/multiDiffEdi
 import { IDecorationData, IDecorationsProvider, IDecorationsService } from '../../../services/decorations/common/decorations.js';
 import { IEditorGroup } from '../../../services/editor/common/editorGroupsService.js';
 import { IEditorService, PreferredGroup } from '../../../services/editor/common/editorService.js';
-import { AgentWorkbenchLayout, ISessionsHostLayoutService } from '../../sessions/browser/sessionsHostLayoutService.js';
+import { AgentWorkbenchLayout, ISessionsHostLayoutService } from '../../../services/sessions/browser/sessionsHostLayoutService.js';
 import { getSessionChangesFileCountLabel } from '../../sessions/common/changes.js';
 import { IChangesViewService } from '../../sessions/common/changesViewService.js';
 import { ILogService } from '../../../../platform/log/common/log.js';

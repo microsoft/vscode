@@ -60,7 +60,7 @@ import { SessionsManagementService } from '../../../../../workbench/contrib/sess
 import { VisibleSessions } from '../../../../../workbench/contrib/sessions/browser/visibleSessions.js';
 import { ISessionsManagementService, IChatDeletedEvent, ICreateNewSessionOptions, inheritableSessionTarget, ISendRequestSentEvent, ISessionPaneContent, WorkspaceNotTrustedError } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import { ISessionsService, SessionsService } from '../../../../../workbench/contrib/sessions/browser/sessionsService.js';
-import { ISessionGridState } from '../../../../../workbench/contrib/sessions/browser/sessionGridState.js';
+import { ISessionGridState } from '../../../../../workbench/browser/parts/sessions/sessionGridState.js';
 import { ISessionOpenTelemetryService, SessionOpenTelemetryService } from '../../../../../workbench/contrib/sessions/browser/sessionOpenTelemetryService.js';
 import { ISessionGridSlot, ISessionsPartService, SessionGridRequest } from '../../../../../workbench/contrib/sessions/browser/sessionsPartService.js';
 import { AbstractCustomView, ICustomViewService } from '../../../../../workbench/contrib/sessions/browser/customView.js';
@@ -75,7 +75,7 @@ import { COPILOT_CLI_EH_SCHEME, COPILOT_CLI_LOCAL_AH_SCHEME } from '../../../../
 import type { SessionView } from '../../../../../workbench/contrib/sessions/browser/parts/sessionView.js';
 import { Direction } from '../../../../../base/browser/ui/grid/grid.js';
 import { SessionsGridContent } from '../../../../../workbench/contrib/sessions/browser/parts/sessionsGridContent.js';
-import { SessionGridLayout } from '../../../../../workbench/contrib/sessions/browser/parts/sessionGridLayout.js';
+import { SessionGridLayout } from '../../../../../workbench/browser/parts/sessions/sessionGridLayout.js';
 import { createSessionsPartTestHarness } from '../../../../test/browser/sessionViewTestUtils.js';
 import { getChatLayoutOwnerAfterReplacement } from '../../../../common/chatLayout.js';
 import { SESSIONS_CHAT_TABS_SETTING, SessionsChatTabsMode } from '../../../../../workbench/contrib/sessions/common/sessionConfig.js';

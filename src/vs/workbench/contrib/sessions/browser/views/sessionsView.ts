@@ -53,9 +53,9 @@ import { HiddenItemStrategy, MenuWorkbenchToolBar } from '../../../../../platfor
 import { Menus } from '../menus.js';
 import { MobileSessionFilterChips } from '../mobile/mobileSessionFilterChips.js';
 import { IMobileSortGroupSheetItem, showMobileSortGroupSheet } from '../mobile/mobileSortGroupSheet.js';
-import { isPhoneLayout } from '../mobileLayout.js';
+import { isPhoneLayout } from '../../../../browser/parts/sessions/mobileLayout.js';
 import { IsPhoneLayoutContext, SessionsListRearrangeContext } from '../../common/contextkeys.js';
-import { ISessionsHostLayoutService } from '../sessionsHostLayoutService.js';
+import { ISessionsHostLayoutService } from '../../../../services/sessions/browser/sessionsHostLayoutService.js';
 import { ISessionsListPresentation } from '../sessionsListPresentation.js';
 import { logSessionsListCompactViewState } from '../../common/sessionsTelemetry.js';
 import { IPinnedCanvasService } from '../pinnedCanvases.js';

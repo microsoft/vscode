@@ -76,7 +76,7 @@ import { SessionReferenceCompletions } from './sessionReferenceCompletions.js';
 import { SessionTypePicker } from './sessionTypePicker.js';
 import { ChatInputPickerResponsiveLayout } from '../../../chat/browser/widget/input/chatInputPickerResponsiveLayout.js';
 import { markOnboardingTarget } from '../../../onboarding/browser/spotlight/onboardingTarget.js';
-import { isPhoneLayout } from '../mobileLayout.js';
+import { isPhoneLayout } from '../../../../browser/parts/sessions/mobileLayout.js';
 import { installMobileChipLaneScroll } from '../mobile/mobileChipLaneScroll.js';
 
 /** Body height the composer lays its chat widget out with; the transcript is hidden, so it only bounds the input. */

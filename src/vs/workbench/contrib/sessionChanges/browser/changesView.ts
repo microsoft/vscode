@@ -96,7 +96,7 @@ import { ChangesViewSection, findDefaultChangeset, IChangesDetailsViewState, ICh
 import { ChangesSummaryWidget } from './changesSummaryWidget.js';
 import { ChangesStatsWidget, IChangesStats } from '../../../browser/changesStatsWidget.js';
 import { Menus } from '../../sessions/browser/menus.js';
-import { ISessionsHostLayoutService } from '../../sessions/browser/sessionsHostLayoutService.js';
+import { ISessionsHostLayoutService } from '../../../services/sessions/browser/sessionsHostLayoutService.js';
 import { CreatePullRequestContextView } from './createPullRequestContextView.js';
 import { CreatePullRequestChatRequest } from './createPullRequestChatRequest.js';
 import { isSessionPullRequestOperation } from '../../sessions/common/pullRequestCreation.js';

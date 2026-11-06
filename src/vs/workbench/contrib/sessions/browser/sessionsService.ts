@@ -40,7 +40,7 @@ import { ISessionChangesStatsCache } from '../common/sessionChangesStatsCache.js
 import { ISessionOpenTelemetryAttempt, ISessionOpenTelemetryService, SessionOpenSource } from './sessionOpenTelemetryService.js';
 import { isAgentHostProvider } from '../common/agentHostSessionsProvider.js';
 import { Direction } from '../../../../base/browser/ui/grid/grid.js';
-import { ISessionGridState, isSessionGridState, projectSessionGrid } from './sessionGridState.js';
+import { ISessionGridState, isSessionGridState, projectSessionGrid } from '../../../browser/parts/sessions/sessionGridState.js';
 import { IWorkbenchLayoutService, Parts } from '../../../services/layout/browser/layoutService.js';
 import { ISessionGridPanes, ISessionHost, SessionHost, SessionHostKind } from './sessionHost.js';
 import { ISessionGridPane, paneViewStateOf, SessionGridPaneKind } from './sessionGridPane.js';

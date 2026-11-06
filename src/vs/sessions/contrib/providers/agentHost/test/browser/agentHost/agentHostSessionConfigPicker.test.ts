@@ -46,7 +46,7 @@ import { ChatContextKeys } from '../../../../../../../workbench/contrib/chat/com
 import { IViewsService } from '../../../../../../../workbench/services/views/common/viewsService.js';
 import { IWorkbenchLayoutService } from '../../../../../../../workbench/services/layout/browser/layoutService.js';
 import { IAgentWorkbenchLayoutService } from '../../../../../../browser/workbench.js';
-import { AgentWorkbenchLayout, ISessionsHostLayoutService } from '../../../../../../../workbench/contrib/sessions/browser/sessionsHostLayoutService.js';
+import { AgentWorkbenchLayout, ISessionsHostLayoutService } from '../../../../../../../workbench/services/sessions/browser/sessionsHostLayoutService.js';
 import { Menus } from '../../../../../../../workbench/contrib/sessions/browser/menus.js';
 import { IAgentHostSessionsProvider, LOCAL_AGENT_HOST_PROVIDER_ID } from '../../../../../../../workbench/contrib/sessions/common/agentHostSessionsProvider.js';
 import { SessionUsesExperimentalComposerLayoutContext } from '../../../../../../../workbench/contrib/sessions/common/contextkeys.js';

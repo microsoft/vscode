@@ -34,7 +34,7 @@ import { ISessionChangesStatsCache } from '../../common/sessionChangesStatsCache
 import { applySessionViewThemeColors } from './sessionBarStyles.js';
 import { IChatViewFactory } from '../chatViewFactory.js';
 import { noSessionPickerVisibility, SessionPickerVisibilityContextKeys } from '../../common/sessionPickerVisibility.js';
-import { ISessionGridView } from './sessionGridLayout.js';
+import { ISessionGridView } from '../../../../browser/parts/sessions/sessionGridLayout.js';
 import { ISessionView } from '../sessionsPartService.js';
 
 /**

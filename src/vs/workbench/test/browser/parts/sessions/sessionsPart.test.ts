@@ -4,19 +4,19 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { Disposable, DisposableStore, IDisposable } from '../../../../../../base/common/lifecycle.js';
-import { mock } from '../../../../../../base/test/common/mock.js';
-import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
-import { createDecorator } from '../../../../../../platform/instantiation/common/instantiation.js';
-import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
-import { IStorageService } from '../../../../../../platform/storage/common/storage.js';
-import { IColorTheme, IThemeService } from '../../../../../../platform/theme/common/themeService.js';
-import { TestThemeService } from '../../../../../../platform/theme/test/common/testThemeService.js';
-import { IWorkbenchLayoutService, Parts } from '../../../../../services/layout/browser/layoutService.js';
-import { TestStorageService } from '../../../../../test/common/workbenchTestServices.js';
-import { SessionsPart } from '../../../browser/parts/sessionsPart.js';
-import { ISessionsPartContent, ISessionsPartContentHost, ISessionsPartContentLayout, SessionsPartContentRegistry } from '../../../browser/parts/sessionsPartContent.js';
-import { ISessionsHostLayoutService } from '../../../browser/sessionsHostLayoutService.js';
+import { Disposable, DisposableStore, IDisposable } from '../../../../../base/common/lifecycle.js';
+import { mock } from '../../../../../base/test/common/mock.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { createDecorator } from '../../../../../platform/instantiation/common/instantiation.js';
+import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
+import { IStorageService } from '../../../../../platform/storage/common/storage.js';
+import { IColorTheme, IThemeService } from '../../../../../platform/theme/common/themeService.js';
+import { TestThemeService } from '../../../../../platform/theme/test/common/testThemeService.js';
+import { IWorkbenchLayoutService, Parts } from '../../../../services/layout/browser/layoutService.js';
+import { TestStorageService } from '../../../common/workbenchTestServices.js';
+import { SessionsPart } from '../../../../browser/parts/sessions/sessionsPart.js';
+import { ISessionsPartContent, ISessionsPartContentHost, ISessionsPartContentLayout, SessionsPartContentRegistry } from '../../../../browser/parts/sessions/sessionsPartContent.js';
+import { ISessionsHostLayoutService } from '../../../../services/sessions/browser/sessionsHostLayoutService.js';
 
 const ITestScopeService = createDecorator<ITestScopeService>('sessionsPartTestScopeService');
 interface ITestScopeService { readonly _serviceBrand: undefined; readonly scope: string }

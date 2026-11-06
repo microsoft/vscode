@@ -27,7 +27,7 @@ import { ActiveEditorContext, EditorPartModalCanMoveToEditorAreaContext, EditorP
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../../workbench/common/contributions.js';
 import { Menus } from '../../../../workbench/contrib/sessions/browser/menus.js';
 import { IAgentWorkbenchLayoutService } from '../../../browser/workbench.js';
-import { AgentWorkbenchLayout } from '../../../../workbench/contrib/sessions/browser/sessionsHostLayoutService.js';
+import { AgentWorkbenchLayout } from '../../../../workbench/services/sessions/browser/sessionsHostLayoutService.js';
 import { DesktopLayoutContext } from '../../../../workbench/contrib/sessions/common/contextkeys.js';
 import { CustomViewVisibleContext, EditorMaximizedContext } from '../../../common/agentsWindowContextKeys.js';
 import { IViewsService } from '../../../../workbench/services/views/common/viewsService.js';

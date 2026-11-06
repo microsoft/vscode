@@ -15,7 +15,7 @@ import { mock, upcastPartial } from '../../../../../base/test/common/mock.js';
 import { IChatWidgetFixtureHandle, renderChatWidget } from '../../../../../workbench/test/browser/componentFixtures/chat/chatWidget.fixture.js';
 import { renderEditorTabsFixture } from '../../../../../workbench/test/browser/componentFixtures/editor/tabs.fixture.js';
 import { ComponentFixtureContext, defineComponentFixture, defineThemedFixtureGroup } from '../../../../../workbench/test/browser/componentFixtures/fixtureUtils.js';
-import { AgentsPartCard, getAgentsPartCardContentSize, getSidePaneBottomFrameInset } from '../../../../../workbench/contrib/sessions/browser/parts/agentsPartCard.js';
+import { AgentsPartCard, getAgentsPartCardContentSize, getSidePaneBottomFrameInset } from '../../../../../workbench/browser/parts/sessions/agentsPartCard.js';
 import { AbstractChatView, ChatViewKind } from '../../../../../workbench/contrib/sessions/browser/parts/chatView.js';
 import { GRID_GAP_SASH_CLASS } from '../../../../../workbench/browser/parts/partGrid/partGridGap.js';
 import { ISessionsChatBackground } from '../../../../../workbench/contrib/sessions/browser/chatBackgroundService.js';

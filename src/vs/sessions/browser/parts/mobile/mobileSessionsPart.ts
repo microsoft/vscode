@@ -5,9 +5,9 @@
 
 import { Parts } from '../../../../workbench/services/layout/browser/layoutService.js';
 import { Part } from '../../../../workbench/browser/part.js';
-import { SessionsPart } from '../../../../workbench/contrib/sessions/browser/parts/sessionsPart.js';
-import { clearAgentsPartCardStyles } from '../../../../workbench/contrib/sessions/browser/parts/agentsPartCard.js';
-import { isPhoneLayout } from '../../../../workbench/contrib/sessions/browser/mobileLayout.js';
+import { SessionsPart } from '../../../../workbench/browser/parts/sessions/sessionsPart.js';
+import { clearAgentsPartCardStyles } from '../../../../workbench/browser/parts/sessions/agentsPartCard.js';
+import { isPhoneLayout } from '../../../../workbench/browser/parts/sessions/mobileLayout.js';
 
 /**
  * Mobile variant of SessionsPart.

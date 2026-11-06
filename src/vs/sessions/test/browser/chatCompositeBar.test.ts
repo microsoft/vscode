@@ -44,7 +44,7 @@ import { ISessionPaneTabs, ISessionsManagementService } from '../../../workbench
 import { ITestSessionWithChat } from '../../../workbench/contrib/sessions/test/browser/sessionHostTestUtils.js';
 import { ISessionsProvider } from '../../../workbench/contrib/sessions/common/sessionsProvider.js';
 import '../../../workbench/contrib/sessions/browser/parts/media/chatGroupsView.css';
-import '../../../workbench/contrib/sessions/browser/parts/media/sessionsPart.css';
+import '../../../workbench/browser/parts/sessions/media/sessionsPart.css';
 import '../../../workbench/contrib/sessions/browser/parts/media/sessionsGridContent.css';
 import '../../../workbench/contrib/sessions/browser/parts/media/sessionView.css';
 import '../../browser/media/workbench.css';

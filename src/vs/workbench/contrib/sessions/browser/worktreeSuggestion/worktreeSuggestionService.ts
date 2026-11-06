@@ -29,7 +29,7 @@ import { OnboardingOutcome } from '../../../onboarding/common/onboardingScenario
 import { IOnboardingScenarioService, ONBOARDING_ENABLED_CONFIG } from '../../../onboarding/common/onboardingScenarioService.js';
 import { IChatEntitlementService } from '../../../../services/chat/common/chatEntitlementService.js';
 import { IViewsService } from '../../../../services/views/common/viewsService.js';
-import { AgentWorkbenchLayout, ISessionsHostLayoutService } from '../sessionsHostLayoutService.js';
+import { AgentWorkbenchLayout, ISessionsHostLayoutService } from '../../../../services/sessions/browser/sessionsHostLayoutService.js';
 import { isAgentHostProvider } from '../../common/agentHostSessionsProvider.js';
 import { IsPhoneLayoutContext } from '../../common/contextkeys.js';
 import { isDevContainerWorktreeEnabled } from '../../common/devContainerAgentHostService.js';

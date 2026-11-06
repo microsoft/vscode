@@ -27,7 +27,7 @@ import { createSessionViewTestServices, createTestActiveSession, testPaneOf } fr
 import { SessionHostKind } from '../../../workbench/contrib/sessions/browser/sessionHost.js';
 import { TestLayoutService, TestMenuService, workbenchInstantiationService } from '../../../workbench/test/browser/workbenchTestServices.js';
 import { IWorkbenchLayoutService } from '../../../workbench/services/layout/browser/layoutService.js';
-import { AgentWorkbenchLayout } from '../../../workbench/contrib/sessions/browser/sessionsHostLayoutService.js';
+import { AgentWorkbenchLayout } from '../../../workbench/services/sessions/browser/sessionsHostLayoutService.js';
 import { IMenu, IMenuService, MenuId, MenuItemAction } from '../../../platform/actions/common/actions.js';
 import { IContextKeyService } from '../../../platform/contextkey/common/contextkey.js';
 import { Menus } from '../../../workbench/contrib/sessions/browser/menus.js';

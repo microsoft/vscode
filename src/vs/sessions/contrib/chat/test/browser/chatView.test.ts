@@ -97,7 +97,7 @@ import { createSessionViewTestServices, createTestActiveSession, testPaneOf } fr
 import '../../../../../workbench/contrib/sessions/browser/parts/media/chatCompositeBar.css';
 import '../../../../../workbench/contrib/sessions/browser/parts/media/chatGroupsView.css';
 import '../../../../../workbench/contrib/sessions/browser/parts/media/sessionView.css';
-import '../../../../../workbench/contrib/sessions/browser/parts/media/sessionsPart.css';
+import '../../../../../workbench/browser/parts/sessions/media/sessionsPart.css';
 import '../../../../../workbench/contrib/sessions/browser/parts/media/sessionsGridContent.css';
 import '../../../../../workbench/contrib/sessions/browser/chat/media/externalSessionBanner.css';
 import '../../../../../workbench/contrib/sessions/browser/chat/media/chatWidget.css';

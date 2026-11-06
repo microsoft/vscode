@@ -32,8 +32,8 @@ import { IAgentHostFilterService } from '../../../../../workbench/contrib/sessio
 import { BlockedSessions } from '../../../../../workbench/contrib/sessions/browser/blockedSessions.js';
 import { Menus, SessionActivityBarGroup } from '../../../../../workbench/contrib/sessions/browser/menus.js';
 import { ChatViewSessionActivityBar } from '../../../../../workbench/contrib/sessions/browser/parts/sessionActivityBar.js';
-import { registerSessionActivityBarExternalHost, setSessionActivityBarSize } from '../../../../../workbench/contrib/sessions/browser/parts/sessionActivityBarHost.js';
-import { AgentWorkbenchLayout } from '../../../../../workbench/contrib/sessions/browser/sessionsHostLayoutService.js';
+import { registerSessionActivityBarExternalHost, setSessionActivityBarSize } from '../../../../../workbench/browser/parts/sessions/sessionActivityBarHost.js';
+import { AgentWorkbenchLayout } from '../../../../../workbench/services/sessions/browser/sessionsHostLayoutService.js';
 import { ISessionsProvidersService } from '../../../../../workbench/contrib/sessions/browser/sessionsProvidersService.js';
 import { ISessionsService } from '../../../../../workbench/contrib/sessions/browser/sessionsService.js';
 import { AGENTS_FLOATING_PANEL_GAP } from '../../../../../workbench/contrib/sessions/common/layoutConstants.js';
@@ -61,7 +61,7 @@ import '../../../../browser/parts/media/editorPart.css';
 import '../../../../../workbench/contrib/sessions/browser/parts/media/chatCompositeBar.css';
 import '../../../../../workbench/contrib/sessions/browser/parts/media/chatGroupsView.css';
 import '../../../../../workbench/contrib/sessions/browser/parts/media/sessionView.css';
-import '../../../../../workbench/contrib/sessions/browser/parts/media/sessionsPart.css';
+import '../../../../../workbench/browser/parts/sessions/media/sessionsPart.css';
 import '../../browser/media/chatWindow.css';
 
 /**

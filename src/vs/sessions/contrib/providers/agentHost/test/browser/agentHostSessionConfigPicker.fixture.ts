@@ -18,7 +18,7 @@ import { IQuickInputService } from '../../../../../../platform/quickinput/common
 import { IViewsService } from '../../../../../../workbench/services/views/common/viewsService.js';
 import { ComponentFixtureContext, createEditorServices, defineComponentFixture, defineThemedFixtureGroup, registerWorkbenchServices } from '../../../../../../workbench/test/browser/componentFixtures/fixtureUtils.js';
 import { IAgentWorkbenchLayoutService } from '../../../../../browser/workbench.js';
-import { ISessionsHostLayoutService } from '../../../../../../workbench/contrib/sessions/browser/sessionsHostLayoutService.js';
+import { ISessionsHostLayoutService } from '../../../../../../workbench/services/sessions/browser/sessionsHostLayoutService.js';
 import { IAgentHostSessionsProvider, LOCAL_AGENT_HOST_PROVIDER_ID } from '../../../../../../workbench/contrib/sessions/common/agentHostSessionsProvider.js';
 import { ISessionsProvidersService } from '../../../../../../workbench/contrib/sessions/browser/sessionsProvidersService.js';
 import { IChat } from '../../../../../../workbench/contrib/sessions/common/session.js';
