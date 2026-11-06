@@ -17,6 +17,7 @@ import { ResolveSessionConfigResult, SessionConfigValueItem } from '../../platfo
 import { AgentCustomization, Customization, McpServerStatus, RootConfigState, type CustomizationEnablement, type McpServerState, type RootState, type TextRange } from '../../platform/agentHost/common/state/protocol/state.js';
 import { type CustomizationDisabledReason } from '../../platform/agentHost/common/customizationEnablement.js';
 import { type McpServerSource } from '../../platform/agentHost/common/meta/mcpCustomizationMeta.js';
+import type { ISessionWorkspaceMcpServers } from '../../platform/agentHost/common/meta/agentHostWorkspaceMcpServersMeta.js';
 import type { IMcpServerConfiguration } from '../../platform/mcp/common/mcpPlatformTypes.js';
 import { ISessionConfigProvider, ISessionsProvider } from '../services/sessions/common/sessionsProvider.js';
 import { ISessionAgentRef } from '../services/sessions/common/session.js';
@@ -149,6 +150,12 @@ export interface IAgentHostMcpServer {
 	readonly isClientBundled?: boolean;
 	readonly owningPluginClientId?: string;
 	readonly disabledReason?: CustomizationDisabledReason;
+	/**
+	 * True while the host withholds the workspace-configured servers of this session as a class
+	 * (`chat.mcp.workspaceServersEnabled`). The class is this server's Global decision, which a
+	 * per-server Global decision cannot override; only a Workspace or Session decision changes it.
+	 */
+	readonly isWorkspaceClassGated?: boolean;
 	readonly status: McpServerStatus;
 	/**
 	 * True while the server is `AuthRequired` but VS Code is silently authenticating it (or has done so
@@ -431,6 +438,13 @@ export interface IAgentHostSessionsProvider extends ISessionsProvider {
 	getMcpServers(sessionId: string): readonly IAgentHostMcpServer[];
 	/** Replaces an agent-host customization's explicit enablement decisions. */
 	setCustomizationEnablement(sessionId: string, customizationId: string, enablement: readonly CustomizationEnablement[]): void;
+	/**
+	 * The host-published class decision for the MCP servers the session's workspace configures, or
+	 * `undefined` when the host does not decide for them as a class.
+	 */
+	getWorkspaceMcpServers?(sessionId: string): ISessionWorkspaceMcpServers | undefined;
+	/** Replaces the Workspace and Session decisions of that class; Workspace entries carry client-space URIs. */
+	setWorkspaceMcpServersEnablement?(sessionId: string, enablement: readonly CustomizationEnablement[]): Promise<void>;
 
 	/**
 	 * Set (or clear) the selected custom agent for a session. Optional so

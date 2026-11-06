@@ -164,6 +164,24 @@ suite('McpGatewayToolBrokerChannel', () => {
 		channel.dispose();
 	});
 
+	test('does not list, start, or call a disabled server', async () => {
+		const mcpService = new TestMcpService();
+		const channel = new McpGatewayToolBrokerChannel(mcpService, new NullLogService());
+
+		const enabled = createServer('collectionA', 'enabled', [createTool('mcp_enabled_echo', async () => ({ content: [{ type: 'text', text: 'A' }] }))]);
+		const disabled = createServer('collectionB', 'disabled', [createTool('mcp_disabled_echo', async () => ({ content: [{ type: 'text', text: 'B' }] }))], McpServerCacheState.Unknown);
+		(disabled.enablement as ReturnType<typeof observableValue<ContributionEnablementState>>).set(ContributionEnablementState.DisabledProfile, undefined);
+		mcpService.servers.set([enabled, disabled], undefined);
+
+		const servers = await channel.call<readonly { id: string }[]>(undefined, 'listServers', undefined);
+		const tools = await channel.call<readonly MCP.Tool[]>(undefined, 'listToolsForServer', { serverId: 'disabled' });
+		const call = channel.call(undefined, 'callToolForServer', { serverId: 'disabled', name: 'mcp_disabled_echo', args: {} });
+
+		await assert.rejects(call, /Unknown server: disabled/);
+		assert.deepStrictEqual({ servers: servers.map(server => server.id), tools, startCalls: disabled.startCalls }, { servers: ['enabled'], tools: [], startCalls: 0 });
+		channel.dispose();
+	});
+
 	test('returns empty tools and does not re-wait if server does not start within grace period', () => {
 		return runWithFakedTimers({ useFakeTimers: true }, async () => {
 			const mcpService = new TestMcpService();

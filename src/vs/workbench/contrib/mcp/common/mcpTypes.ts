@@ -11,7 +11,7 @@ import { Event } from '../../../../base/common/event.js';
 import { IMarkdownString } from '../../../../base/common/htmlContent.js';
 import { Disposable, IDisposable } from '../../../../base/common/lifecycle.js';
 import { equals as objectsEqual } from '../../../../base/common/objects.js';
-import { IObservable, ObservableMap } from '../../../../base/common/observable.js';
+import { IObservable, IReader, ObservableMap } from '../../../../base/common/observable.js';
 import { IIterativePager } from '../../../../base/common/paging.js';
 import { isEqual } from '../../../../base/common/resources.js';
 import Severity from '../../../../base/common/severity.js';
@@ -403,12 +403,27 @@ export namespace IAutostartResult {
 	export const Empty: IAutostartResult = { working: false, starting: [], serversRequiringInteraction: [] };
 }
 
+/**
+ * Enablement of the class of MCP servers discovered from workspace
+ * configuration, decided by `chat.mcp.workspaceServersEnabled` unless the
+ * current workspace overrides it.
+ */
+export interface IWorkspaceMcpServersEnablement {
+	/** The effective decision: an explicit workspace decision wins, otherwise the setting decides. */
+	readWorkspaceServersEnabled(reader?: IReader): ContributionEnablementState;
+	/** Overrides the setting for the current workspace; `undefined` clears the override. */
+	setWorkspaceServersEnabled(enabled: boolean | undefined): void;
+}
+
 export interface IMcpService {
 	_serviceBrand: undefined;
 	readonly servers: IObservable<readonly IMcpServer[]>;
 
 	/** The enablement model for MCP servers. */
 	readonly enablementModel: IEnablementModel;
+
+	/** Class-level enablement of servers discovered from workspace configuration. */
+	readonly workspaceServersEnablement: IWorkspaceMcpServersEnablement;
 
 	/** Resets the cached tools. */
 	resetCaches(): void;

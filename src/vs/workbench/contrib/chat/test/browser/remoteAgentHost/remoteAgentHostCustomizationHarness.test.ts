@@ -210,6 +210,8 @@ function createTestCustomAgentsService(connection: MockAgentConnection, rootCust
 			return Promise.resolve(false);
 		},
 		setCustomizationEnablement() { },
+		getWorkspaceMcpServers: () => undefined,
+		setWorkspaceMcpServersEnablement: () => Promise.resolve(),
 		async showMcpServerLog(_sessionResource: URI, _serverId: string, beforeShow?: () => Promise<void>) {
 			await beforeShow?.();
 		},

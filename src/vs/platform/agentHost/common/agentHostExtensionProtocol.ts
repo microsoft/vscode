@@ -36,8 +36,10 @@ import { AgentHostArtifactIntegrationsCapabilityMetaKey, AgentHostArtifactNotice
 import type { ArtifactIntegrationRequest, ArtifactIntegrationResponse, ArtifactIntegrationUpdate } from '../../artifactIntegrations/common/artifactIntegrationProtocol.js';
 import type { ArtifactIntegrationDescriptor } from '../../artifactIntegrations/common/artifactIntegration.js';
 import { AgentHostCopilotExtensionsCapabilityMetaKey } from './meta/agentHostCopilotExtensionsMeta.js';
+import { AgentHostWorkspaceMcpServersCapabilityMetaKey } from './meta/agentHostWorkspaceMcpServersMeta.js';
 
 export { supportsAgentHostArtifactRemoval } from './meta/agentHostArtifactRemovalMeta.js';
+export { supportsAgentHostWorkspaceMcpServers } from './meta/agentHostWorkspaceMcpServersMeta.js';
 export { StageCreateSessionImportChunkExtensionMethod, stageCreateSessionImportChunkParamsValidator, supportsAgentHostCreateSessionImport };
 export { supportsAgentHostDevContainers } from './meta/agentHostDevContainersMeta.js';
 export { supportsAgentHostSessionMove } from './meta/agentHostSessionMoveMeta.js';
@@ -112,6 +114,13 @@ export const ClientArtifactIntegrationUpdateExtensionMethod = 'vscode/clientArti
 export const ClientArtifactIntegrationExtensionMethod = 'vscode/clientArtifactIntegrations';
 export const ListAgentExtensionsExtensionMethod = 'vscode/listAgentExtensions';
 export const SetAgentExtensionEnabledExtensionMethod = 'vscode/setAgentExtensionEnabled';
+/**
+ * Replaces the Workspace and Session decisions for the class of MCP servers a session's workspace
+ * configures; advertised by `vscode.workspaceMcpServers`. The Global decision is the mirrored
+ * `chat.mcp.workspaceServersEnabled` setting, so a Global entry is ignored. The host publishes the
+ * resolved decision in the session's `vscode.workspaceMcpServers` `_meta` slot.
+ */
+export const SetWorkspaceMcpServersEnablementExtensionMethod = 'vscode/setWorkspaceMcpServersEnablement';
 export const AgentHostChatStateFileCapabilityMetaKey = 'vscode.getAgentHostSessionStateFile.chat';
 const AgentHostDetachedWorktreeCapabilityMetaKey = 'vscode.detachedWorktrees';
 
@@ -142,6 +151,8 @@ export interface IAgentHostExtensionInitializeResultMeta extends Record<string, 
 	/** Present when the host serves the client's proxy support and accepts `vscode/clientProxyChanged`. */
 	readonly [AgentHostClientProxyCapabilityMetaKey]?: true;
 	readonly [AgentHostCopilotExtensionsCapabilityMetaKey]?: true;
+	/** Present when the host gates workspace-configured MCP servers and accepts `vscode/setWorkspaceMcpServersEnablement`. */
+	readonly [AgentHostWorkspaceMcpServersCapabilityMetaKey]?: true;
 	/** Present when Automation execution does not require a client activation or migration handshake. */
 	readonly [AgentHostAutonomousAutomationsCapabilityMetaKey]?: true;
 	/** Present when removing an Automation can keep or delete its run history. */
@@ -166,6 +177,7 @@ export function getAgentHostExtensionInitializeResultMeta(artifactRemoval = true
 		[AgentHostCreateChatWorkspaceCapabilityMetaKey]: true,
 		[AgentHostCreateSessionImportCapabilityMetaKey]: true,
 		[AgentHostAutonomousAutomationsCapabilityMetaKey]: true,
+		[AgentHostWorkspaceMcpServersCapabilityMetaKey]: true,
 		[AgentHostArtifactRemovalCapabilityMetaKey]: artifactRemoval ? true : undefined,
 		...(automationHistory ? {
 			[AgentHostAutomationHistoryCapabilityMetaKey]: true as const,
@@ -268,6 +280,15 @@ export const setAgentExtensionEnabledParamsValidator = vObj({
 	session: vOptionalProp(vString()),
 	chat: vOptionalProp(vString()),
 });
+/** `enablement` entries have the wire shape of `CustomizationEnablement`; a Workspace entry carries the host-space `uri`. */
+export const setWorkspaceMcpServersEnablementParamsValidator = vObj({
+	session: vString(),
+	enablement: vArray(vObj({
+		kind: vEnum('global', 'workspace', 'session'),
+		enabled: vBoolean(),
+		uri: vOptionalProp(vString()),
+	})),
+});
 
 export interface IAgentHostAgentExtensionInventoryResult {
 	readonly mode: AgentExtensionMode;
@@ -327,6 +348,7 @@ export interface IAgentHostExtensionCommandMap {
 	[ClientArtifactIntegrationUpdateExtensionMethod]: { params: ArtifactIntegrationUpdate; result: void };
 	[ListAgentExtensionsExtensionMethod]: { params: ValidatorType<typeof listAgentExtensionsParamsValidator> | undefined; result: IAgentHostAgentExtensionInventoryResult };
 	[SetAgentExtensionEnabledExtensionMethod]: { params: ValidatorType<typeof setAgentExtensionEnabledParamsValidator>; result: void };
+	[SetWorkspaceMcpServersEnablementExtensionMethod]: { params: ValidatorType<typeof setWorkspaceMcpServersEnablementParamsValidator>; result: void };
 	[DevContainerIsDockerAvailableExtensionMethod]: { params: undefined; result: boolean };
 	[DevContainerConnectExtensionMethod]: { params: ValidatorType<typeof devContainerConnectParamsValidator>; result: IDevContainerAgentHostConnectResult };
 	[DevContainerDisconnectExtensionMethod]: { params: ValidatorType<typeof devContainerConnectionParamsValidator>; result: void };

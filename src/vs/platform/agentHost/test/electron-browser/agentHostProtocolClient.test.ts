@@ -27,7 +27,8 @@ import { AgentHostClientProxyCapabilityMetaKey } from '../../common/meta/agentHo
 import { ClientProxyChangedExtensionMethod, LookupClientProxyKerberosAuthorizationExtensionMethod, ResolveClientProxyExtensionMethod, type IAgentHostClientProxyProvider } from '../../common/clientProxyProtocol.js';
 import { WebPubSubRelayTransport, type IWebSocketLike } from '../../browser/webPubSubRelayTransport.js';
 import { AgentHostSessionMoveUnsupportedError, DevContainerConnectExtensionMethod, DevContainerIsDockerAvailableExtensionMethod, DevContainerOutputNotification, DevContainerRelayMessageNotification, DevContainerRelaySendExtensionMethod, DevContainerRemoveExtensionMethod, DevContainerStopExtensionMethod, getAgentHostExtensionInitializeResultMeta, RequestAgentHostMcpAuthenticationExtensionMethod, RequestAgentHostWorkspaceTrustExtensionMethod, type IAgentHostMcpAuthenticationRequest, ArtifactIntegrationUpdateNotification, ClientArtifactIntegrationExtensionMethod, ClientArtifactIntegrationUpdateExtensionMethod, RegisterClientArtifactIntegrationsExtensionMethod } from '../../common/agentHostExtensionProtocol.js';
-import { McpAuthRequiredReason } from '../../common/state/protocol/channels-session/state.js';
+import { CustomizationEnablementKind, McpAuthRequiredReason } from '../../common/state/protocol/channels-session/state.js';
+import { AgentHostWorkspaceMcpServersCapabilityMetaKey } from '../../common/meta/agentHostWorkspaceMcpServersMeta.js';
 import { AgentPolicyError, AuthenticateParams, type AuthenticateResult } from '../../common/agent.js';
 import { authenticationAccountMeta } from '../../common/meta/agentAuthenticationAccount.js';
 import { readAgentSandboxCertificate, withAgentSandboxCertificate, type IAgentSandboxCertificateStatus } from '../../common/meta/agentSandboxCertificate.js';
@@ -4318,6 +4319,41 @@ suite('AgentHostProtocolClient', () => {
 		await assert.rejects(client.listAgentExtensions(), /does not support Copilot extension inventory/);
 		await assert.rejects(client.setAgentExtensionEnabled('user:preview', false, session), /does not support Copilot extension management/);
 		assert.strictEqual(transport.sentMessages.length, 0);
+	});
+
+	test('sends workspace MCP server class decisions only to hosts that advertise the capability', async () => {
+		const session = URI.parse('copilotcli:/session-1');
+		const enablement = [
+			{ kind: CustomizationEnablementKind.Session, enabled: false },
+			{ kind: CustomizationEnablementKind.Workspace, uri: 'file:///repo', enabled: true },
+		] as const;
+
+		const supported = createClient();
+		await connectClient(supported.client, supported.transport, getAgentHostExtensionInitializeResultMeta());
+		supported.transport.sentMessages.length = 0;
+		const sent = supported.client.setWorkspaceMcpServersEnablement(session, enablement);
+		const request = supported.transport.sentMessages[0];
+		supported.transport.fireMessage({ jsonrpc: '2.0', id: 2, result: null });
+		await sent;
+
+		const unsupported = createClient();
+		const { [AgentHostWorkspaceMcpServersCapabilityMetaKey]: _omitted, ...withoutCapability } = getAgentHostExtensionInitializeResultMeta();
+		await connectClient(unsupported.client, unsupported.transport, withoutCapability);
+		unsupported.transport.sentMessages.length = 0;
+		await assert.rejects(unsupported.client.setWorkspaceMcpServersEnablement(session, enablement), /does not decide for workspace MCP servers/);
+
+		assert.deepStrictEqual({
+			request,
+			unsupportedSent: unsupported.transport.sentMessages.length,
+		}, {
+			request: {
+				jsonrpc: '2.0',
+				id: 2,
+				method: 'vscode/setWorkspaceMcpServersEnablement',
+				params: { session: session.toString(), enablement },
+			},
+			unsupportedSent: 0,
+		});
 	});
 
 	test('normalizes future Copilot extension inventory values and preserves entries with unsupported resources', async () => {

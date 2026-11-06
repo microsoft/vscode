@@ -11,17 +11,18 @@ import { autorun, derived, IObservable, ISettableObservable, observableValue, tr
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
-import { mcpAutoStartConfig, McpAutoStartValue } from '../../../../platform/mcp/common/mcpManagement.js';
+import { mcpAutoStartConfig, McpAutoStartValue, mcpWorkspaceServersEnabledConfig } from '../../../../platform/mcp/common/mcpManagement.js';
 import { observableConfigValue } from '../../../../platform/observable/common/platformObservableUtils.js';
 import { IStorageService, StorageScope } from '../../../../platform/storage/common/storage.js';
 import { IUserDataProfileService } from '../../../services/userDataProfile/common/userDataProfile.js';
 import { MCP_ENABLEMENT_STORAGE_KEY, migrateCustomizationEnablementToApplicationStorage } from '../../chat/common/customizationEnablementStorage.js';
-import { CollisionEnablementModel, EnablementModel, isContributionEnabled } from '../../chat/common/enablement.js';
+import { CollisionEnablementModel, EnablementModel, IEnablementModel, isContributionEnabled } from '../../chat/common/enablement.js';
 import { McpCollisionBehavior, mcpServerCollisionBehaviorSection } from './mcpConfiguration.js';
 import { IMcpRegistry } from './mcpRegistryTypes.js';
 import { McpPrefixGenerator, McpServer, McpServerMetadataCache } from './mcpServer.js';
-import { IAutostartResult, IMcpServer, IMcpService, McpCollectionDefinition, McpConnectionState, McpDefinitionReference, McpServerCacheState, McpServerDefinition, McpStartServerInteraction, UserInteractionRequiredError } from './mcpTypes.js';
+import { IAutostartResult, IMcpServer, IMcpService, IWorkspaceMcpServersEnablement, McpCollectionDefinition, McpConnectionState, McpDefinitionReference, McpServerCacheState, McpServerDefinition, McpStartServerInteraction, UserInteractionRequiredError } from './mcpTypes.js';
 import { startServerAndWaitForLiveTools } from './mcpTypesUtils.js';
+import { WorkspaceMcpServersEnablementModel } from './mcpWorkspaceServersEnablement.js';
 
 type IMcpServerRec = { object: IMcpServer };
 
@@ -38,6 +39,7 @@ export class McpService extends Disposable implements IMcpService {
 	public get lazyCollectionState() { return this._mcpRegistry.lazyCollectionState; }
 
 	public readonly enablementModel: McpCollisionEnablementModel;
+	public readonly workspaceServersEnablement: IWorkspaceMcpServersEnablement;
 
 	protected readonly userCache: McpServerMetadataCache;
 	protected readonly workspaceCache: McpServerMetadataCache;
@@ -54,8 +56,16 @@ export class McpService extends Disposable implements IMcpService {
 
 		migrateCustomizationEnablementToApplicationStorage(storageService, userDataProfileService.currentProfile);
 		const baseEnablement = this._register(new EnablementModel(MCP_ENABLEMENT_STORAGE_KEY, storageService));
+		// The workspace gate sits below the collision model so that a gated workspace
+		// server never counts as an enabled collision partner of a user server.
+		const workspaceServersEnablement = new WorkspaceMcpServersEnablementModel(
+			baseEnablement,
+			this._mcpRegistry,
+			observableConfigValue(mcpWorkspaceServersEnabledConfig, true, configurationService),
+		);
+		this.workspaceServersEnablement = workspaceServersEnablement;
 		const collisionBehavior = observableConfigValue(mcpServerCollisionBehaviorSection, McpCollisionBehavior.Disable, configurationService);
-		this.enablementModel = new McpCollisionEnablementModel(baseEnablement, this._mcpRegistry, collisionBehavior);
+		this.enablementModel = new McpCollisionEnablementModel(workspaceServersEnablement, this._mcpRegistry, collisionBehavior);
 
 		this.userCache = this._register(_instantiationService.createInstance(McpServerMetadataCache, StorageScope.PROFILE));
 		this.workspaceCache = this._register(_instantiationService.createInstance(McpServerMetadataCache, StorageScope.WORKSPACE));
@@ -263,7 +273,7 @@ export class McpCollisionEnablementModel extends CollisionEnablementModel {
 	 * order first). Empty when collision behavior is `suffix`.
 	 */
 	constructor(
-		base: EnablementModel,
+		base: IEnablementModel,
 		registry: IMcpRegistry,
 		collisionBehavior: IObservable<McpCollisionBehavior>,
 	) {

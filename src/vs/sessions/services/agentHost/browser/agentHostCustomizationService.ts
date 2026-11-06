@@ -89,12 +89,16 @@ export class AgentHostCustomizationService extends AbstractAgentHostCustomizatio
 			workingDirectory: provider.getWorkingDirectory(session.sessionId),
 			workingDirectories: provider.getWorkingDirectories(session.sessionId),
 			rootConfig: provider.getRootConfig(),
+			workspaceMcpServers: provider.getWorkspaceMcpServers?.(session.sessionId),
 			isBundledMcpServer: (pluginUri, serverName) => this._activeClientService.isBundledMcpServer(pluginUri, serverName),
 			authenticate: request => provider.authenticate(request),
 			handleMcpRequest: provider.handleMcpRequest ? (channel, method, params) => provider.handleMcpRequest!(channel, method, params) : undefined,
 			setCustomizationEnablement: (rawId, enablement: readonly CustomizationEnablement[]) => {
 				provider.setCustomizationEnablement(session.sessionId, rawId, enablement);
 			},
+			setWorkspaceMcpServersEnablement: provider.setWorkspaceMcpServersEnablement
+				? enablement => provider.setWorkspaceMcpServersEnablement!(session.sessionId, enablement)
+				: undefined,
 			startMcpServer: rawId => {
 				return provider.getMcpServers(session.sessionId).find(server => this._serverIdMatchesRawId(server.id, rawId))?.start() ?? Promise.resolve();
 			},

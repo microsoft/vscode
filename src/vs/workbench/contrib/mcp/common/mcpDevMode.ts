@@ -15,6 +15,7 @@ import { ICommandService } from '../../../../platform/commands/common/commands.j
 import { FileSystemProviderCapabilities, IFileService } from '../../../../platform/files/common/files.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
 import { IWorkspaceContextService } from '../../../../platform/workspace/common/workspace.js';
+import { isContributionEnabled } from '../../chat/common/enablement.js';
 import { IConfig, IDebugService, IDebugSessionOptions } from '../../debug/common/debug.js';
 import { IMcpRegistry } from './mcpRegistryTypes.js';
 import { IMcpServer, McpServerDefinition, McpServerLaunch, McpServerTransportType } from './mcpTypes.js';
@@ -35,7 +36,10 @@ export class McpDevModeServerAttache extends Disposable {
 		const restart = async () => {
 			const lastDebugged = fwdRef.lastModeDebugged;
 			await server.stop();
-			await server.start({ debug: lastDebugged });
+			// A disabled server is never started on the user's behalf, even by its own dev-mode watch.
+			if (isContributionEnabled(server.enablement.get())) {
+				await server.start({ debug: lastDebugged });
+			}
 		};
 
 		// 1. Auto-start the server, restart if entering debug mode
@@ -49,6 +53,12 @@ export class McpDevModeServerAttache extends Disposable {
 
 			// don't keep trying to start the server unless it's a new server or devmode is newly turned on
 			if (didAutoStart) {
+				return;
+			}
+
+			// Dev mode is declared by the same file as the server, so a repository could use it to
+			// start a server the user disabled; wait until the server is enabled instead.
+			if (!isContributionEnabled(server.enablement.read(reader))) {
 				return;
 			}
 

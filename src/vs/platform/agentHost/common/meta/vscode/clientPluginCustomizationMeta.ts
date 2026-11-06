@@ -5,11 +5,45 @@
 
 import { URI } from '../../../../../base/common/uri.js';
 import type { ClientPluginCustomization } from '../../state/sessionState.js';
+import type { McpServerSource } from './mcpCustomizationMeta.js';
 
 const mcpDefaultCwdsKey = 'mcpDefaultCwds';
+const mcpServerSourcesKey = 'vscode.mcpServerSources';
 const standaloneCustomizationsKey = 'vscode.standaloneCustomizations';
 
 export type ClientPluginMcpDefaultCwds = Readonly<Record<string, URI | null>>;
+
+/** Where the client read each forwarded MCP server's configuration, by server name. */
+export type ClientPluginMcpServerSources = Readonly<Record<string, McpServerSource>>;
+
+/**
+ * Records where the client read each forwarded MCP server's configuration. A
+ * client bundle only transports the servers, so a host keeps gating a server
+ * the workspace configured as workspace-configured rather than as plugin content.
+ */
+export function toClientPluginMcpServerSourcesMeta(sources: ClientPluginMcpServerSources): Record<string, unknown> {
+	return { [mcpServerSourcesKey]: { ...sources } };
+}
+
+/** Reads the client-recorded configuration source of a forwarded MCP server, ignoring unknown values. */
+export function readClientPluginMcpServerSource(customization: ClientPluginCustomization, serverName: string): McpServerSource | undefined {
+	const value = customization._meta?.[mcpServerSourcesKey];
+	if (!value || typeof value !== 'object' || Array.isArray(value) || !Object.hasOwn(value, serverName)) {
+		return undefined;
+	}
+	const source = (value as Record<string, unknown>)[serverName];
+	switch (source) {
+		case 'user':
+		case 'workspace':
+		case 'plugin':
+		case 'builtin':
+		case 'managed':
+		case 'account':
+			return source;
+		default:
+			return undefined;
+	}
+}
 
 /**
  * Marks a client plugin that bundles standalone customizations, such as user

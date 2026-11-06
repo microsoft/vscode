@@ -11,11 +11,12 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/c
 import { NullLogService } from '../../../log/common/log.js';
 import { AgentSession } from '../../common/agentService.js';
 import { isCustomizationEnabled } from '../../common/customizationEnablement.js';
-import { buildDefaultChatUri, SessionStatus, withSessionWorkspaceless, type SessionSummary, type Turn } from '../../common/state/sessionState.js';
+import { AgentHostWorkspaceMcpServersEnabledConfigKey } from '../../common/agentHostSchema.js';
+import { buildDefaultChatUri, ROOT_STATE_URI, SessionStatus, withSessionWorkspaceless, type SessionSummary, type Turn } from '../../common/state/sessionState.js';
 import { ISessionDataService, type ISessionDatabase } from '../../common/sessionDataService.js';
 import { ActionType } from '../../common/state/protocol/common/actions.js';
 import { CustomizationEnablementKind, CustomizationType } from '../../common/state/protocol/channels-session/state.js';
-import { AgentHostCustomizationEnablementService, getCustomizationEnablementKey, targetForUnownedMcpServer, type ICustomizationEnablementTarget } from '../../node/agentHostCustomizationEnablementService.js';
+import { AgentHostCustomizationEnablementService, getCustomizationEnablementKey, targetForUnownedMcpServer, targetForWorkspaceMcpServers, WORKSPACE_MCP_SERVERS_ENABLEMENT_KEY, type ICustomizationEnablementTarget } from '../../node/agentHostCustomizationEnablementService.js';
 import { AgentHostStateManager } from '../../node/agentHostStateManager.js';
 import { AgentHostStorageService } from '../../node/agentHostStorageService.js';
 import { NullAgentHostWorktreeIsolation } from '../../node/shared/worktreeIsolation.js';
@@ -1251,6 +1252,186 @@ suite('AgentHostCustomizationEnablementService', () => {
 		await service.initializeSession(session);
 
 		assert.deepStrictEqual(changes, [[session]]);
+	});
+
+	suite('workspace MCP servers', () => {
+		const workspaceServer: ICustomizationEnablementTarget = {
+			id: 'mcp-workspace:copilot:session-1:repo-tools',
+			type: CustomizationType.McpServer,
+			name: 'repo-tools',
+			source: URI.file('/repo/.mcp.json'),
+			isWorkspaceConfigured: true,
+		};
+		const userServer: ICustomizationEnablementTarget = {
+			id: 'mcp-user:copilot:session-1:repo-tools',
+			type: CustomizationType.McpServer,
+			name: 'repo-tools',
+			source: URI.file('/home/.copilot/mcp-config.json'),
+		};
+		const directory = { kind: 'directory', uri: workspace.toString() } as const;
+
+		const setSetting = (enabled: boolean) => state.dispatchServerAction(ROOT_STATE_URI, { type: ActionType.RootConfigChanged, config: { [AgentHostWorkspaceMcpServersEnabledConfigKey]: enabled } });
+
+		test('derives the class key from the setting-backed target without colliding with server keys', () => {
+			assert.deepStrictEqual({
+				global: getCustomizationEnablementKey(targetForWorkspaceMcpServers(true), CustomizationEnablementKind.Global),
+				workspace: getCustomizationEnablementKey(targetForWorkspaceMcpServers(false), CustomizationEnablementKind.Workspace),
+				session: getCustomizationEnablementKey(targetForWorkspaceMcpServers(true), CustomizationEnablementKind.Session),
+				server: getCustomizationEnablementKey(targetForUnownedMcpServer(WORKSPACE_MCP_SERVERS_ENABLEMENT_KEY), CustomizationEnablementKind.Global),
+			}, {
+				global: 'workspaceMcpServers',
+				workspace: 'workspaceMcpServers',
+				session: 'vscode.workspaceMcpServers',
+				server: 'mcpServers#workspaceMcpServers',
+			});
+		});
+
+		test('resolves the class from the mirrored setting when no host decision exists', () => {
+			const absent = service.resolveWorkspaceMcpServers(session);
+			setSetting(false);
+			const disabled = service.resolveWorkspaceMcpServers(session);
+			setSetting(true);
+			const enabled = service.resolveWorkspaceMcpServers(session);
+
+			assert.deepStrictEqual([absent, disabled, enabled].map(serializableResolution), [
+				{ kind: 'resolved', enabled: true, workingDirectory: directory, enablement: [{ kind: CustomizationEnablementKind.Global, enabled: true }] },
+				{ kind: 'resolved', enabled: false, workingDirectory: directory, enablement: [{ kind: CustomizationEnablementKind.Global, enabled: false }] },
+				{ kind: 'resolved', enabled: true, workingDirectory: directory, enablement: [{ kind: CustomizationEnablementKind.Global, enabled: true }] },
+			]);
+		});
+
+		test('resolves class session and workspace decisions above the setting and ignores a Global replacement', () => {
+			setSetting(false);
+			service.replaceWorkspaceMcpServersEnablement(session, [
+				{ kind: CustomizationEnablementKind.Global, enabled: true },
+				{ kind: CustomizationEnablementKind.Workspace, uri: workspace.toString(), enabled: true },
+			]);
+			const workspaceOverride = service.resolveWorkspaceMcpServers(session);
+			service.replaceWorkspaceMcpServersEnablement(session, [
+				{ kind: CustomizationEnablementKind.Session, enabled: false },
+				{ kind: CustomizationEnablementKind.Workspace, uri: workspace.toString(), enabled: true },
+			]);
+			const sessionOverride = service.resolveWorkspaceMcpServers(session);
+			const persisted = storage.get<{ global?: Record<string, boolean>; workingDirectories?: Record<string, Record<string, boolean>> }>('customizationEnablement');
+
+			assert.deepStrictEqual({
+				workspaceOverride: serializableResolution(workspaceOverride),
+				sessionOverride: serializableResolution(sessionOverride),
+				persistedGlobal: persisted?.global?.[WORKSPACE_MCP_SERVERS_ENABLEMENT_KEY],
+				persistedWorkspace: persisted?.workingDirectories?.[workspace.toString()]?.[WORKSPACE_MCP_SERVERS_ENABLEMENT_KEY],
+			}, {
+				workspaceOverride: { kind: 'resolved', enabled: true, workingDirectory: directory, enablement: [{ kind: CustomizationEnablementKind.Workspace, uri: workspace.toString(), enabled: true }, { kind: CustomizationEnablementKind.Global, enabled: false }] },
+				sessionOverride: { kind: 'resolved', enabled: false, workingDirectory: directory, enablement: [{ kind: CustomizationEnablementKind.Session, enabled: false }, { kind: CustomizationEnablementKind.Workspace, uri: workspace.toString(), enabled: true }, { kind: CustomizationEnablementKind.Global, enabled: false }] },
+				persistedGlobal: undefined,
+				persistedWorkspace: true,
+			});
+		});
+
+		test('gates workspace-configured servers behind the class without touching same-named user servers', () => {
+			// A provider default of `false` makes the explicit Global `true` persist rather than match its inherited value.
+			const discoveredServer = { ...workspaceServer, defaultEnabled: false };
+			service.setEnablement(session, discoveredServer, CustomizationEnablementKind.Global, true);
+			const open = service.resolve(session, discoveredServer);
+			setSetting(false);
+			const gated = service.resolve(session, discoveredServer);
+			const user = service.resolve(session, userServer);
+
+			assert.deepStrictEqual([open, gated, user].map(serializableResolution), [
+				{ kind: 'resolved', enabled: true, workingDirectory: directory, enablement: [{ kind: CustomizationEnablementKind.Global, enabled: true }] },
+				// The per-server Global decision cannot pierce the gate ...
+				{ kind: 'resolved', enabled: false, workingDirectory: directory, enablement: [{ kind: CustomizationEnablementKind.Global, enabled: false }] },
+				// ... because it is keyed by name alone and therefore shared with the user-configured server.
+				{ kind: 'resolved', enabled: true, workingDirectory: directory, enablement: [{ kind: CustomizationEnablementKind.Global, enabled: true }] },
+			]);
+		});
+
+		test('lets per-server workspace and session decisions pierce a closed gate and persists them', () => {
+			setSetting(false);
+			service.setEnablement(session, workspaceServer, CustomizationEnablementKind.Workspace, true);
+			const workspaceEnabled = service.resolve(session, workspaceServer);
+			service.setEnablement(session, workspaceServer, CustomizationEnablementKind.Session, false);
+			const sessionDisabled = service.resolve(session, workspaceServer);
+			const persisted = storage.get<{ workingDirectories?: Record<string, Record<string, boolean>> }>('customizationEnablement');
+
+			assert.deepStrictEqual({
+				workspaceEnabled: serializableResolution(workspaceEnabled),
+				sessionDisabled: serializableResolution(sessionDisabled),
+				// `true` differs from the gated inherited value, so it is persisted rather than treated as redundant.
+				persisted: persisted?.workingDirectories?.[workspace.toString()]?.['mcpServers#repo-tools'],
+			}, {
+				workspaceEnabled: { kind: 'resolved', enabled: true, workingDirectory: directory, enablement: [{ kind: CustomizationEnablementKind.Workspace, uri: workspace.toString(), enabled: true }, { kind: CustomizationEnablementKind.Global, enabled: false }] },
+				sessionDisabled: { kind: 'resolved', enabled: false, workingDirectory: directory, enablement: [{ kind: CustomizationEnablementKind.Session, enabled: false }, { kind: CustomizationEnablementKind.Workspace, uri: workspace.toString(), enabled: true }, { kind: CustomizationEnablementKind.Global, enabled: false }] },
+				persisted: true,
+			});
+		});
+
+		test('does not persist the synthesized Global decision a replacement echoes back while the gate is closed', () => {
+			setSetting(false);
+			// The UI replaces the full list it was shown, including the gate's Global:false.
+			service.replaceEnablement(session, workspaceServer, [
+				{ kind: CustomizationEnablementKind.Workspace, uri: workspace.toString(), enabled: true },
+				{ kind: CustomizationEnablementKind.Global, enabled: false },
+			]);
+			const overridden = service.resolve(session, workspaceServer);
+			const persisted = storage.get<{ global?: Record<string, boolean> }>('customizationEnablement');
+			setSetting(true);
+			const reopened = service.resolve(session, workspaceServer);
+
+			assert.deepStrictEqual({
+				overridden: serializableResolution(overridden),
+				persistedGlobal: persisted?.global?.['mcpServers#repo-tools'],
+				reopened: serializableResolution(reopened),
+			}, {
+				overridden: { kind: 'resolved', enabled: true, workingDirectory: directory, enablement: [{ kind: CustomizationEnablementKind.Workspace, uri: workspace.toString(), enabled: true }, { kind: CustomizationEnablementKind.Global, enabled: false }] },
+				persistedGlobal: undefined,
+				// Reopening the gate leaves no per-server Global decision behind.
+				reopened: { kind: 'resolved', enabled: true, workingDirectory: directory, enablement: [{ kind: CustomizationEnablementKind.Workspace, uri: workspace.toString(), enabled: true }] },
+			});
+		});
+
+		test('reopens the gate for a workspace through the class workspace decision', () => {
+			setSetting(false);
+			service.replaceWorkspaceMcpServersEnablement(session, [{ kind: CustomizationEnablementKind.Workspace, uri: workspace.toString(), enabled: true }]);
+
+			// The server inherits its provider default again; the class decision is not copied onto it.
+			assert.deepStrictEqual(serializableResolution(service.resolve(session, workspaceServer)), {
+				kind: 'resolved',
+				enabled: true,
+				workingDirectory: directory,
+				enablement: [],
+			});
+		});
+
+		test('keeps the gate closed in a workspace whose class decision is absent', async () => {
+			setSetting(false);
+			service.replaceWorkspaceMcpServersEnablement(session, [{ kind: CustomizationEnablementKind.Workspace, uri: workspace.toString(), enabled: true }]);
+			const otherSession = 'ahp://copilot/session-2';
+			const otherWorkspace = URI.file('/other');
+			state.createSession(makeSummary(otherSession, [otherWorkspace.toString()]));
+			await service.initializeSession(otherSession);
+
+			assert.deepStrictEqual(serializableResolution(service.resolve(otherSession, workspaceServer)), {
+				kind: 'resolved',
+				enabled: false,
+				workingDirectory: { kind: 'directory', uri: otherWorkspace.toString() },
+				enablement: [{ kind: CustomizationEnablementKind.Global, enabled: false }],
+			});
+		});
+
+		test('announces every initialized session when the mirrored setting flips and ignores unrelated config', async () => {
+			const otherSession = 'ahp://copilot/session-2';
+			state.createSession(makeSummary(otherSession, [workspace.toString()]));
+			await service.initializeSession(otherSession);
+			const changes: string[][] = [];
+			disposables.add(service.onDidChange(event => changes.push([...event.sessions].sort())));
+
+			setSetting(false);
+			setSetting(false);
+			state.dispatchServerAction(ROOT_STATE_URI, { type: ActionType.RootConfigChanged, config: { unrelated: true } });
+			setSetting(true);
+
+			assert.deepStrictEqual(changes, [[otherSession, session].sort(), [otherSession, session].sort()]);
+		});
 	});
 
 	test('evicts across global and workspace entries, updating recency only on writes', () => {

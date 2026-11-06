@@ -34,7 +34,9 @@ import { PluginFormat, type IParsedPlugin } from '../../../../agentPlugins/commo
 import { McpServerType } from '../../../../mcp/common/mcpPlatformTypes.js';
 import { AgentSession, type AgentSignal, type IAgentChatContext, type IAgentCreateChatOptions, type IAgentCreateChatResult, fixedChatOwnerRef } from '../../../common/agent.js';
 import { IAgentPluginManager } from '../../../common/agentPluginManager.js';
-import { AgentHostWorkspaceTrustConfigKey } from '../../../common/agentHostSchema.js';
+import { AgentHostMcpServersConfigKey, AgentHostWorkspaceTrustConfigKey } from '../../../common/agentHostSchema.js';
+import { readMcpServerSource } from '../../../common/meta/mcpCustomizationMeta.js';
+import { isCustomizationEnabled } from '../../../common/customizationEnablement.js';
 import { ActionType } from '../../../common/state/sessionActions.js';
 import { buildChatUri, buildDefaultChatUri, readSessionWorkspaceless, ResponsePartKind, ToolCallStatus, ToolResultContentType, type StringOrMarkdown } from '../../../common/state/sessionState.js';
 import { CustomizationEnablementKind, CustomizationType, McpServerStatus, SessionStatus, type Customization } from '../../../common/state/protocol/channels-session/state.js';
@@ -57,7 +59,7 @@ import { CODEX_FILE_LINK_INSTRUCTIONS, type ICodexClientPlugin } from '../../../
 import { codexSkillsToContainers } from '../../../node/codex/codexCustomizations.js';
 import { ICodexProxyService } from '../../../node/codex/codexProxyService.js';
 import { ICopilotApiService } from '../../../node/shared/copilotApiService.js';
-import { buildMcpChannel, McpCustomizationController } from '../../../node/shared/mcpCustomizationController.js';
+import { buildMcpChannel, buildMcpTopLevelCustomizationId, McpCustomizationController } from '../../../node/shared/mcpCustomizationController.js';
 import { AGENT_HOST_WORKSPACELESS_INSTRUCTIONS } from '../../../node/shared/workspacelessInstructions.js';
 import { sessionServerToolDefinitions, sessionToolRequiresConfirmation } from '../../../node/shared/sessionServerTools.js';
 import { CODEX_COMMAND_OUTPUT_INLINE_CHAR_LIMIT } from '../../../node/codex/codexTerminalOutput.js';
@@ -2083,6 +2085,8 @@ suite('CodexAgent prewarm eviction', () => {
 			applyClientGlobalEnablement: resolve,
 			replaceEnablement: resolve,
 			setEnablement: resolve,
+			resolveWorkspaceMcpServers: () => ({ kind: 'resolved', enablement: [], enabled: true, workingDirectory: { kind: 'workspaceless' } }),
+			replaceWorkspaceMcpServersEnablement: () => ({ kind: 'resolved', enablement: [], enabled: true, workingDirectory: { kind: 'workspaceless' } }),
 			whenIdle: async () => { },
 		};
 		const agent = await createAgent(disposables, { customizationEnablementService });
@@ -3583,6 +3587,130 @@ suite('CodexAgent prewarm eviction', () => {
 			peer.exit();
 			await Promise.allSettled([send]);
 		}
+	});
+
+	test('thread start resolves workspace MCP servers as workspace-configured so the class gate can withhold them', async () => {
+		const resolvedTargets: { readonly name: string; readonly isWorkspaceConfigured: boolean | undefined }[] = [];
+		const customizationEnablementService: IAgentHostCustomizationEnablementService = {
+			...createNoopCustomizationEnablementService(),
+			resolve: (_session, target) => {
+				if (target.type === CustomizationType.McpServer) {
+					resolvedTargets.push({ name: target.name, isWorkspaceConfigured: target.isWorkspaceConfigured });
+				}
+				const enabled = target.isWorkspaceConfigured !== true;
+				return { kind: 'resolved', enablement: [{ kind: CustomizationEnablementKind.Global, enabled }], enabled, workingDirectory: { kind: 'workspaceless' } };
+			},
+		};
+		const agent = await createAgent(disposables, { customizationEnablementService });
+		agent['_schedulePrewarm'] = () => { };
+		agent['_refreshSkillHookCustomizations'] = async () => { };
+		agent['_configurationService'].updateRootConfig({ [AgentHostMcpServersConfigKey]: { root: { type: 'stdio', command: 'node', args: ['root.js'] } } });
+		const peer = disposables.add(createTestPeer());
+		agent['_connection'] = {
+			kind: 'ready',
+			client: new CodexAppServerClient(peer.transport),
+			usageSource: 'github',
+			child: { kill: () => true },
+		} as never;
+
+		const repo = URI.file('/repo');
+		await agent['_fileService'].writeFile(URI.joinPath(repo, '.mcp.json'), VSBuffer.fromString(JSON.stringify({
+			mcpServers: { workspace: { command: 'node', args: ['workspace.js'] } },
+		})));
+		const { session } = await createSession(agent, { workingDirectories: [repo], model: { id: COPILOT_TEST_MODEL } });
+
+		const send = agent.chats.sendMessage(URI.parse(buildDefaultChatUri(session)), 'hello', [repo], undefined, 'turn-1');
+		try {
+			const start = await readNextRequest(peer.outbound);
+			peer.push({ id: start.id, result: { thread: { id: 'thread-workspace-mcp' } } });
+			const turn = await readNextRequest(peer.outbound);
+			peer.push({ id: turn.id, result: {} });
+			await send;
+
+			const uniqueTargets = new Map(resolvedTargets.filter(target => target.name === 'workspace' || target.name === 'root').map(target => [target.name, target.isWorkspaceConfigured]));
+			const chat = URI.parse(buildDefaultChatUri(session));
+			const listed = (await agent.getChatCustomizations(chat, chatContext(session, chat)))
+				.filter(customization => customization.type === CustomizationType.McpServer)
+				.map(customization => customization.type === CustomizationType.McpServer ? { name: customization.name, source: readMcpServerSource(customization), enabled: isCustomizationEnabled(customization), status: customization.state.kind } : undefined);
+			assert.deepStrictEqual({
+				startMethod: start.method,
+				mcp: start.params.config?.['mcp_servers'],
+				resolvedTargets: [...uniqueTargets].sort(([a], [b]) => a.localeCompare(b)),
+				// The withheld declaration stays listed, disabled, so the Workspace override remains reachable.
+				listed,
+			}, {
+				startMethod: 'thread/start',
+				mcp: { root: { command: 'node', args: ['root.js'] } },
+				resolvedTargets: [['root', undefined], ['workspace', true]],
+				listed: [{ name: 'workspace', source: 'workspace', enabled: false, status: McpServerStatus.Stopped }],
+			});
+		} finally {
+			peer.exit();
+			await Promise.allSettled([send]);
+		}
+	});
+
+	test('lists .mcp.json declarations with their workspace source before codex reports them and keeps it when the gate closes', async () => {
+		let workspaceServersEnabled = true;
+		const customizationEnablementService: IAgentHostCustomizationEnablementService = {
+			...createNoopCustomizationEnablementService(),
+			resolve: (_session, target) => {
+				const enabled = workspaceServersEnabled || target.isWorkspaceConfigured !== true;
+				return { kind: 'resolved', enablement: [{ kind: CustomizationEnablementKind.Global, enabled }], enabled, workingDirectory: { kind: 'workspaceless' } };
+			},
+		};
+		const agent = await createAgent(disposables, { customizationEnablementService });
+		agent['_schedulePrewarm'] = () => { };
+		agent['_refreshSkillHookCustomizations'] = async () => { };
+		const repo = URI.file('/repo');
+		await agent['_fileService'].writeFile(URI.joinPath(repo, '.mcp.json'), VSBuffer.fromString(JSON.stringify({
+			mcpServers: { workspace: { command: 'node', args: ['workspace.js'] } },
+		})));
+		const { session } = await createSession(agent, { workingDirectories: [repo] });
+		const chat = URI.parse(buildDefaultChatUri(session));
+		const entry = agent['_sessions'].get(AgentSession.id(session))!;
+		const signals: AgentSignal[] = [];
+		disposables.add(agent.onDidChatProgress(signal => signals.push(signal)));
+		const describe = (customization: Customization) => customization.type === CustomizationType.McpServer
+			? { name: customization.name, uri: customization.uri, source: readMcpServerSource(customization), enabled: isCustomizationEnabled(customization), status: customization.state.kind }
+			: undefined;
+		const publishedServers = () => signals.flatMap(signal => signal.kind === 'action' && signal.action.type === ActionType.SessionCustomizationUpdated && signal.action.customization.type === CustomizationType.McpServer
+			? [describe(signal.action.customization)]
+			: []);
+
+		// Before codex starts anything, the declaration is listed as stopped, with its source.
+		const beforeStart = (await agent.getChatCustomizations(chat, chatContext(session, chat))).filter(customization => customization.type === CustomizationType.McpServer).map(describe);
+		signals.length = 0;
+
+		const controller = agent['_getOrCreateMcpController'](entry);
+		assert.ok(controller);
+		controller.applyAll([
+			...agent['_sessionSdkMcpServers'](entry).filter(server => server.name !== 'workspace'),
+			{ name: 'workspace', state: { kind: McpServerStatus.Ready } },
+			{ name: 'elsewhere', state: { kind: McpServerStatus.Ready } },
+		]);
+		const running = publishedServers();
+		signals.length = 0;
+
+		// Closing the gate does not rewrite where the still-running server came from; it is published disabled.
+		workspaceServersEnabled = false;
+		controller.applyAll([{ name: 'workspace', state: { kind: McpServerStatus.Ready } }, { name: 'elsewhere', state: { kind: McpServerStatus.Ready } }], true);
+
+		const declarationUri = URI.joinPath(repo, '.mcp.json').toString();
+		const mintedUri = (name: string) => buildMcpTopLevelCustomizationId(agent.id, AgentSession.id(session), name);
+		assert.deepStrictEqual({ beforeStart, running, gated: publishedServers() }, {
+			beforeStart: [
+				{ name: 'workspace', uri: declarationUri, source: 'workspace', enabled: true, status: McpServerStatus.Stopped },
+			],
+			running: [
+				{ name: 'workspace', uri: declarationUri, source: 'workspace', enabled: true, status: McpServerStatus.Ready },
+				{ name: 'elsewhere', uri: mintedUri('elsewhere'), source: undefined, enabled: true, status: McpServerStatus.Ready },
+			],
+			gated: [
+				{ name: 'workspace', uri: declarationUri, source: 'workspace', enabled: false, status: McpServerStatus.Ready },
+				{ name: 'elsewhere', uri: mintedUri('elsewhere'), source: undefined, enabled: true, status: McpServerStatus.Ready },
+			],
+		});
 	});
 
 	test('resumes an established thread when the selected workspace agent changes', async () => {
