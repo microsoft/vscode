@@ -116,13 +116,6 @@ export class NullLanguageModelsService implements ILanguageModelsService {
 
 	async migrateLanguageModelsProviderGroup(languageModelsProviderGroup: ILanguageModelsProviderGroup): Promise<void> { }
 
-	getRecentlyUsedModelIds(): string[] {
-		return [];
-	}
-
-	addToRecentlyUsedList(): void { }
-	clearRecentlyUsedList(): void { }
-
 	getPinnedModelIds(): string[] { return []; }
 	pinModel(_modelIdentifier: string): void { }
 	unpinModel(_modelIdentifier: string): void { }

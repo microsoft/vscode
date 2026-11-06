@@ -30,7 +30,7 @@ import { IWorkbenchLayoutService, LayoutSettings, ModernUIDensity, Parts } from 
 import { ITitleService } from '../../../../workbench/services/title/browser/titleService.js';
 import { Menus } from '../../../browser/menus.js';
 import { EmptyEditorGroupAddTab } from '../../../browser/parts/emptyEditorGroupAddTab.js';
-import { registerSessionActivityBarExternalHost, SESSION_ACTIVITY_BAR_COLUMN_WIDTH } from '../../../browser/parts/sessionActivityBar.js';
+import { registerSessionActivityBarExternalHost, SESSION_ACTIVITY_BAR_COLUMN_WIDTH } from '../../../browser/parts/sessionActivityBarHost.js';
 import { TitlebarPart } from '../../../browser/parts/titlebarPart.js';
 import { CustomViewVisibleContext } from '../../../common/contextkeys.js';
 import { AGENTS_FLOATING_PANEL_GAP } from '../../../common/layoutConstants.js';
@@ -129,6 +129,15 @@ export function reserveChatWindowControls(titlebar: HTMLElement, controls: HTMLE
 	} else {
 		host.style.removeProperty(WINDOW_CONTROLS_WIDTH_PROPERTY);
 	}
+}
+
+/**
+ * Floats the window controls of the title of a chat window at the top right of the window, beside it, while it spans only a
+ * column of the window (`inChatColumn`), and keeps their room above the tab row below it.
+ */
+export function setChatWindowTitleInChatColumn(titlebar: HTMLElement, controls: HTMLElement | undefined, inChatColumn: boolean): void {
+	titlebar.classList.toggle(CHAT_COLUMN_TITLE_CLASS, inChatColumn);
+	reserveChatWindowControls(titlebar, controls);
 }
 
 export function alignChatWindowHeaderActions(titlebar: HTMLElement, actionsHost: HTMLElement): void {
@@ -393,11 +402,7 @@ export class SessionsChatWindowContent extends Disposable implements IChatWindow
 			return (active && chats.find(chat => isEqual(chat.chat.read(reader), active))) ?? chats[0];
 		});
 		this.title = derived(this, reader => this.activeChat.read(reader)?.title.read(reader) ?? '');
-		this.titleRowsShow = derived(this, reader => {
-			const window = this.window.read(reader);
-			const mode = window?.layoutMode.read(reader);
-			return (mode === ChatWindowLayoutMode.SideBySide || mode === ChatWindowLayoutMode.ChatOnly) && !!window?.chatLeads.read(reader);
-		});
+		this.titleRowsShow = derived(this, reader => !!this.window.read(reader)?.titleMerged.read(reader));
 		this.showsTitle = derived(this, reader => this.activeChat.read(reader)?.showsTitle.read(reader) ?? false);
 		// What the window shows acts on its active chat and its session, not on what the main window shows.
 		const session = derived(this, reader => this.activeChat.read(reader)?.session.read(reader));
@@ -431,16 +436,19 @@ export class SessionsChatWindowContent extends Disposable implements IChatWindow
 		return chat;
 	}
 
-	/** Whether it shows `chat`, as one of its chats. */
+	/**
+	 * Whether it shows `chat`, as one of its chats, while the chat's editor is open in a group: not once the editor closed,
+	 * such as with its window as the window closes, and the window is still going away.
+	 */
 	showsChat(chat: URI): boolean {
-		return this._chats.get().some(candidate => isEqual(candidate.chat.get(), chat));
+		return this._chats.get().some(candidate => isEqual(candidate.chat.get(), chat) && this._editorGroupsService.groups.some(group => group.contains(candidate.input, { strictEquals: true })));
 	}
 
-	/** Closes the editor of `chat`, one of its chats. */
-	async closeChat(chat: URI): Promise<void> {
+	/** Closes the editor of `chat`, one of its chats; resolves whether it closed, not when its close is vetoed. */
+	async closeChat(chat: URI): Promise<boolean> {
 		const entry = this._chats.get().find(candidate => isEqual(candidate.chat.get(), chat));
 		const group = entry && this._editorGroupsService.groups.find(candidate => candidate.contains(entry.input, { strictEquals: true }));
-		await group?.closeEditor(entry!.input);
+		return !!group && await group.closeEditor(entry.input);
 	}
 
 	bind(window: IChatWindow, instantiationService: IInstantiationService): IDisposable {
@@ -555,7 +563,18 @@ export class SessionsChatWindowProvider extends Disposable implements IChatWindo
 				const window = this._chatWindowService.windows.get().find(candidate => candidate.chats.get().some(shown => isEqual(shown, reference)));
 				await this._chatWindowService.open(chat, { window, beside: reference, preserveFocus: options?.preserveFocus });
 			},
-			close: async chat => { await this._contents.get().find(content => content.showsChat(chat))?.closeChat(chat); },
+			close: async chat => {
+				const content = this._contents.get().find(candidate => candidate.showsChat(chat));
+				if (!content) {
+					return undefined;
+				}
+				// The window it closed from, which only what closed it holds on to, to show it there again
+				const window = content.window.get();
+				if (!await content.closeChat(chat)) {
+					return undefined;
+				}
+				return { restore: async () => { await this._chatWindowService.open(chat, { window, preserveFocus: true }); } };
+			},
 		}));
 
 		const enabled = observableConfigValue<boolean>(CHAT_WINDOWS_ENABLED_SETTING, false, _configurationService);
@@ -700,10 +719,7 @@ export class SessionsChatWindowProvider extends Disposable implements IChatWindo
 			store.add(autorun(reader => titlebar.setHeight(this._titleHeight.read(reader))));
 			store.add(autorun(reader => titlebar.setTitle(content.title.read(reader))));
 			if (overChat) {
-				store.add(autorun(reader => {
-					titlebar.element.classList.toggle(CHAT_COLUMN_TITLE_CLASS, window.layoutMode.read(reader) === ChatWindowLayoutMode.SideBySide);
-					reserveChatWindowControls(titlebar.element, titlebar.rightWindowControlsContainer);
-				}));
+				store.add(autorun(reader => setChatWindowTitleInChatColumn(titlebar.element, titlebar.rightWindowControlsContainer, window.titleInChatColumn.read(reader))));
 				// From the element it is in, which stays in the window as the title bar goes.
 				store.add(toDisposable(() => reserveChatWindowControls(container, undefined)));
 			}
@@ -739,18 +755,16 @@ export class SessionsChatWindowProvider extends Disposable implements IChatWindo
 	 * beside the chat otherwise, as in the main window.
 	 */
 	private _createStrip(window: IChatWindow, container: HTMLElement): IChatWindowChromeElement {
-		const height = observableValue<number>(this, 0);
 		const registration = registerSessionActivityBarExternalHost(container.ownerDocument.body, {
 			element: container,
 			active: derived(reader => isChatWindowStripInColumn(window.layoutMode.read(reader))),
-			height,
 			setOccupied: () => { },
 		});
 		return {
 			visible: observableConfigValue<boolean>(SESSION_ACTIVITY_BAR_SETTING, true, this._configurationService),
 			// Its column, the gap to the parts beside it included, as the grid adds the half of the gap beside its card.
 			size: derived(reader => SESSION_ACTIVITY_BAR_COLUMN_WIDTH - Math.floor(this.look.gap.read(reader) / 2)),
-			layout: (_width, columnHeight) => height.set(columnHeight, undefined),
+			layout: () => { },
 			dispose: () => registration.dispose(),
 		};
 	}

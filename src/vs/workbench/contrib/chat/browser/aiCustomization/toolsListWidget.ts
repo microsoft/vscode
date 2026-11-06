@@ -44,7 +44,7 @@ import { ICustomizationHarnessService } from '../../common/customizationHarnessS
 import { IAgentPluginService } from '../../common/plugins/agentPluginService.js';
 import { matchesCustomizationSearchQuery } from '../../common/aiCustomizationSearch.js';
 import { IAgentPluginItem } from '../agentPluginEditor/agentPluginItems.js';
-import { IAgentHostCustomizationService } from '../agentSessions/agentHost/agentHostCustomizationService.js';
+import { getMcpServerDisplayLabel, IAgentHostCustomizationService } from '../agentSessions/agentHost/agentHostCustomizationService.js';
 import { countEnabledCustomizationTools, getToolSetTriState, IAgentHostToolSetEnablementService, isToolEnabledInSet, IToolEnablementState } from '../agentSessions/agentHost/agentHostToolSetEnablementService.js';
 import { COPILOT_CLI_BUILTIN_TOOL_SET_ID, getCustomizationToolSets } from '../agentSessions/agentHost/copilotCliBuiltinToolSet.js';
 import { IMcpService } from '../../../mcp/common/mcpTypes.js';
@@ -1011,7 +1011,8 @@ export class ToolsListWidget extends Disposable {
 		const id = `connected-server:${server.id}`;
 		const expandable = this._isConnectedServerReady(server);
 		const expanded = expandable && this._expanded.get().has(id);
-		const nameMatches = matchesCustomizationSearchQuery(query, server.name) ?? undefined;
+		const serverLabel = getMcpServerDisplayLabel(server);
+		const nameMatches = matchesCustomizationSearchQuery(query, serverLabel) ?? undefined;
 		const state = this._connectedTools.get(server.id);
 		const tools = expanded && state?.state === 'loaded' ? state.tools : [];
 		const toolEntries: IToolsConnectedRowEntry[] = [];
@@ -1036,7 +1037,7 @@ export class ToolsListWidget extends Disposable {
 			plugin ? this._agentHostCustomizationService.getClientPluginUri(this._harnessService.activeSessionResource.get(), plugin) : undefined,
 		);
 		const description = source ? localize('toolsConnectedServerSource', "MCP server from {0}", source.label) : undefined;
-		const entries: IToolsConnectedRowEntry[] = [{ type: 'connected', id, depth, label: server.name, description, source, server, expandable, nameMatches }];
+		const entries: IToolsConnectedRowEntry[] = [{ type: 'connected', id, depth, label: serverLabel, description, source, server, expandable, nameMatches }];
 		if (expanded) {
 			if (toolEntries.length > 0) {
 				entries.push(...toolEntries);
@@ -1081,7 +1082,7 @@ export class ToolsListWidget extends Disposable {
 	private _renderConnectedServerActions(server: AgentHostMcpServer, container: HTMLElement, disposables: DisposableStore): void {
 		const state = getActiveSessionServerPresentation(server).status;
 		renderMcpServerStatusActions(container, disposables, this._hoverService, {
-			label: server.name,
+			label: getMcpServerDisplayLabel(server),
 			state,
 			start: () => this._startConnectedServer(server),
 			signIn: () => this._signInConnectedServer(server),
@@ -1105,7 +1106,7 @@ export class ToolsListWidget extends Disposable {
 			}
 			return authenticated;
 		} catch (error) {
-			this._notificationService.error(localize('mcpAuthenticationFailed', "Unable to sign in to {0}: {1}", server.name, getErrorMessage(error)));
+			this._notificationService.error(localize('mcpAuthenticationFailed', "Unable to sign in to {0}: {1}", getMcpServerDisplayLabel(server), getErrorMessage(error)));
 			return false;
 		}
 	}

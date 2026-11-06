@@ -502,7 +502,7 @@ export abstract class CloudSandboxSessionContribution<T extends ICloudSandboxSes
 			return;
 		}
 		if (includeArchived && !taskIds) {
-			const succeeded = result.kind === 'complete' || result.kind === 'incremental';
+			const succeeded = result.kind === 'complete' || result.kind === 'incremental' || result.kind === 'partial' && result.inventoryComplete === true;
 			this._archivesLoaded ||= succeeded;
 			this._archiveState.set(this._archivesLoaded ? 'loaded' : 'error', undefined);
 		}
@@ -513,10 +513,15 @@ export abstract class CloudSandboxSessionContribution<T extends ICloudSandboxSes
 			this._logService.warn(`${LOG_PREFIX} Discovery failed: ${result.reason}`);
 			return;
 		}
-		if (result.kind === 'complete' || result.kind === 'scoped') {
+		if (result.kind === 'complete' || result.kind === 'scoped'
+			|| result.kind === 'partial' && result.inventoryComplete && !incremental && !taskIds) {
 			this._lastFullDiscovery = Date.now();
 		}
 
+		this._batchProviderChanges(() => this._reconcileDiscoveredSessions(result));
+	}
+
+	private _reconcileDiscoveredSessions(result: Exclude<ICloudSandboxDiscoveryResult, { kind: 'failed' }>): void {
 		const present = new Set<string>();
 		const presentSessions = new Set<string>();
 		const updatedTasks = new Set<string>();
@@ -611,6 +616,10 @@ export abstract class CloudSandboxSessionContribution<T extends ICloudSandboxSes
 	}
 
 	protected _restoreAccount(accountKey: string | undefined): boolean {
+		return this._batchProviderChanges(() => this._restoreAccountInventory(accountKey));
+	}
+
+	private _restoreAccountInventory(accountKey: string | undefined): boolean {
 		if (accountKey === this._accountKey) {
 			return false;
 		}
@@ -860,6 +869,10 @@ export abstract class CloudSandboxSessionContribution<T extends ICloudSandboxSes
 
 	/** Tear down every known sandbox environment (feature disabled). */
 	private _teardownAll(): void {
+		this._batchProviderChanges(() => this._teardownInventory());
+	}
+
+	private _teardownInventory(): void {
 		this._sessionFeed.clear();
 		this._discoveryPoll.cancel();
 		this._pendingTaskIds.clear();
@@ -1369,6 +1382,15 @@ export abstract class CloudSandboxSessionContribution<T extends ICloudSandboxSes
 	}
 
 	protected abstract _updateRegistration(): void;
+
+	/** Allows the window's adapter to publish a coherent provider inventory. */
+	protected _batchProviderChanges<R>(fn: () => R): R {
+		return fn();
+	}
+
+	override dispose(): void {
+		this._batchProviderChanges(() => super.dispose());
+	}
 
 	/** Create the sessions provider for an environment if it doesn't exist yet. */
 	protected _ensureProvider(env: ICloudSandboxSessionEnvironment): void {

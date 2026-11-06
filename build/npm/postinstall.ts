@@ -232,6 +232,9 @@ async function main() {
 		} else if (dir === 'remote') {
 			// remote/.pnpmfile.mjs sets the native module build variables of remote/package.json.
 			nativeTasks.push(install(getRemoteEnv()));
+		} else if (dir === 'extensions') {
+			// extensions/.pnpmfile.mjs sets the native module build variables of the root package.json (Electron).
+			nativeTasks.push(install({ ...process.env }));
 		} else if (dir === 'extensions/copilot') {
 			// No `nativeBuild` field or pnpmfile: builds native modules for Electron with the workspace's variables.
 			nativeTasks.push(install({ ...process.env }));
@@ -243,7 +246,7 @@ async function main() {
 		}
 	}
 
-	// Native roots (build, remote) run sequentially to avoid node-gyp conflicts
+	// Native roots (build, remote, extensions, extensions/copilot) run sequentially to avoid node-gyp conflicts
 	for (const task of nativeTasks) {
 		await task();
 	}

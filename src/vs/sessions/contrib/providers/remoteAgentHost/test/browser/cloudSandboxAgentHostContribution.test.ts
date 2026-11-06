@@ -9,7 +9,7 @@ import { CancellationToken, CancellationTokenSource } from '../../../../../../ba
 import { Codicon } from '../../../../../../base/common/codicons.js';
 import { CancellationError, isCancellationError } from '../../../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
-import { DisposableStore, IDisposable, toDisposable } from '../../../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, IDisposable, toDisposable } from '../../../../../../base/common/lifecycle.js';
 import { isWeb } from '../../../../../../base/common/platform.js';
 import { mock, upcastPartial } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
@@ -17,7 +17,10 @@ import { runWithFakedTimers } from '../../../../../../base/test/common/virtualSc
 import { URI } from '../../../../../../base/common/uri.js';
 import { StorageValue } from '../../../../../../base/parts/storage/common/storage.js';
 import { AgentSession } from '../../../../../../platform/agentHost/common/agent.js';
-import { IAgentConnection, IAgentSessionMetadata } from '../../../../../../platform/agentHost/common/agentService.js';
+import { IAgentConnection, IAgentHostService, IAgentSessionMetadata } from '../../../../../../platform/agentHost/common/agentService.js';
+import { AgentHostConnectionsService } from '../../../../../../platform/agentHost/browser/agentHostConnectionsService.js';
+import { IAgentHostConnectionsService } from '../../../../../../platform/agentHost/common/agentHostConnectionsService.js';
+import { IPathService } from '../../../../../../platform/path/common/pathService.js';
 import { agentHostAuthority, toAgentHostUri } from '../../../../../../platform/agentHost/common/agentHostUri.js';
 import { remoteAgentHostSessionTypeId } from '../../../../../../platform/agentHost/common/agentHostSessionType.js';
 import { IReplayedTaskHistory } from '../../../../../../platform/agentHost/common/taskEventReplay.js';
@@ -47,7 +50,7 @@ import { readSessionWorkspaceless, SessionStatus } from '../../../../../../platf
 import { readSessionInitiator } from '../../../../../../platform/agentHost/common/meta/agentSessionInitiatorMeta.js';
 import { RootStateSubscription } from '../../../../../../platform/agentHost/common/state/agentSubscription.js';
 import { RootState } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
-import { autorun, constObservable, IObservable, observableValue, waitForState } from '../../../../../../base/common/observable.js';
+import { autorun, constObservable, IObservable, observableSignalFromEvent, observableValue, waitForState } from '../../../../../../base/common/observable.js';
 import { ConfigurationTarget, IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { ChatAIDisabledSettingId } from '../../../../../../platform/chat/common/chatSettings.js';
 import { ICommandService } from '../../../../../../platform/commands/common/commands.js';
@@ -130,10 +133,13 @@ class StubProvider extends mock<CloudSandboxSessionsProvider>() {
 	private _displayLabel: string;
 	override get label(): string { return this._displayLabel; }
 
-	constructor(readonly config: IRemoteAgentHostSessionsProviderConfig) {
+	private readonly _resolutionRegistration: IDisposable;
+
+	constructor(readonly config: IRemoteAgentHostSessionsProviderConfig, @IAgentHostConnectionsService connectionsService: IAgentHostConnectionsService) {
 		super();
 		this.id = `agenthost-${config.address}`;
 		this._displayLabel = config.name;
+		this._resolutionRegistration = connectionsService.registerSessionResolutionPolicy(agentHostAuthority(config.address), { connectionAddress: config.address });
 	}
 
 	override setLabel(label: string): void {
@@ -206,6 +212,7 @@ class StubProvider extends mock<CloudSandboxSessionsProvider>() {
 
 	override dispose(): void {
 		this.disposed = true;
+		this._resolutionRegistration.dispose();
 	}
 }
 
@@ -244,7 +251,7 @@ class TestCloudSandboxContribution extends CloudSandboxAgentHostContribution {
 	}
 
 	protected override _instantiateProvider(config: IRemoteAgentHostSessionsProviderConfig): CloudSandboxSessionsProvider {
-		const stub = new StubProvider(config);
+		const stub = this._instantiationService.createInstance(StubProvider, config);
 		this.stubProviders.set(config.address, stub);
 		return stub as unknown as CloudSandboxSessionsProvider;
 	}
@@ -273,6 +280,7 @@ interface ITestHarness {
 	readonly preparation: ICloudSandboxDraftPreparationService;
 	readonly contribution: TestCloudSandboxContribution;
 	readonly providersService: SessionsProvidersService;
+	readonly resolutionService: AgentHostConnectionsService;
 	readonly workspaceTrust: TestWorkspaceTrustManagementService;
 	readonly configurationService: TestConfigurationService;
 	setEnabled(enabled: boolean): Promise<void>;
@@ -522,6 +530,13 @@ async function createContribution(store: Pick<DisposableStore, 'add'>, sessions:
 		order: 0,
 	})));
 	instantiationService.stub(ISessionsProvidersService, providersService);
+	const resolutionService = store.add(new AgentHostConnectionsService(
+		upcastPartial<IAgentHostService>({ onAgentHostStart: Event.None, onAgentHostExit: Event.None }),
+		instantiationService.get(IRemoteAgentHostService),
+		upcastPartial<IPathService>({ registerPathProvider: () => Disposable.None }),
+		new NullLogService(),
+	));
+	instantiationService.stub(IAgentHostConnectionsService, resolutionService);
 	instantiationService.stub(IAgentHostFilterService, new class extends mock<IAgentHostFilterService>() {
 		override readonly onDidChange = hostSelectionChanges.event;
 		override get selectedHostId() { return selectedHostId; }
@@ -599,7 +614,7 @@ async function createContribution(store: Pick<DisposableStore, 'add'>, sessions:
 	if (options?.waitForDiscovery !== false) {
 		await harness.runDiscovery();
 	}
-	return Object.assign(harness, { contribution, configurationService, providersService });
+	return Object.assign(harness, { contribution, configurationService, providersService, resolutionService });
 }
 
 function discoveredSession(overrides?: Partial<ICloudSandboxDiscoveredSession>): ICloudSandboxDiscoveredSession {
@@ -2170,6 +2185,78 @@ suite('CloudSandboxAgentHostContribution startup inventory', () => {
 		return `sessions.cloudSandbox.inventory.${accountKey}.${JSON.stringify([session.environmentId, session.sessionId])}`;
 	}
 
+	test('restores archived and active offline inventory with bounded provider and resolution notifications', async () => {
+		const storageService = store.add(new InMemoryStorageService());
+		const nextAccount = '["github","next-account"]';
+		const sessions = Array.from({ length: 150 }, (_, index) => discoveredSession({
+			environmentId: `env-${index}`, sessionId: `session-${index}`, taskId: `task-${index}`, isArchived: index >= 30,
+		}));
+		for (const session of sessions) {
+			storageService.store(entryKey(session, nextAccount), JSON.stringify({ version: 1, sessions: [session] }), StorageScope.PROFILE, StorageTarget.MACHINE);
+		}
+		const harness = await createContribution(store, [], {
+			storageService, listSessions: async () => ({ kind: 'failed', reason: 'offline' }),
+		});
+		const snapshots: { added: number; removed: number; sessions: number }[] = [];
+		let resolutions = 0;
+		store.add(harness.providersService.onDidChangeProviders(event => snapshots.push({
+			added: event.added.length,
+			removed: event.removed.length,
+			sessions: harness.providersService.getProviders({ includeSessionBackends: true })
+				.filter(provider => provider instanceof StubProvider).reduce((count, provider) => count + provider.seeded.length, 0),
+		})));
+		store.add(harness.resolutionService.onDidChangeSessionResolution(() => resolutions++));
+		const providersChanged = observableSignalFromEvent('providers', harness.providersService.onDidChangeProviders);
+		const resolutionChanged = observableSignalFromEvent('resolution', harness.resolutionService.onDidChangeSessionResolution);
+		const observedInventories: number[] = [];
+		store.add(autorun(reader => {
+			providersChanged.read(reader);
+			resolutionChanged.read(reader);
+			observedInventories.push(harness.providersService.getProviders({ includeSessionBackends: true }).length);
+		}));
+		harness.changeAccount(nextAccount);
+		await harness.runDiscovery();
+		const restored = {
+			resolutions,
+			archived: [...harness.contribution.stubProviders.values()].flatMap(provider => provider.seeded)
+				.filter(meta => !!((meta.status ?? 0) & SessionStatus.IsArchived)).length,
+		};
+		harness.contribution.dispose();
+		assert.deepStrictEqual({ snapshots, restored, resolutions, observedInventories, connected: harness.connectedTo, cached: readInventory(storageService, nextAccount).length }, {
+			snapshots: [
+				{ added: 150, removed: 0, sessions: 150 },
+				{ added: 0, removed: 150, sessions: 0 },
+			],
+			restored: { resolutions: 1, archived: 120 }, resolutions: 2, observedInventories: [1, 151, 151, 1, 1], connected: [], cached: 150,
+		});
+	});
+
+	test('publishes a discovered inventory once after seeding every provider', async () => {
+		const harness = await createContribution(store, []);
+		const snapshots: { added: number; removed: number; sessions: number }[] = [];
+		let resolutions = 0;
+		store.add(harness.providersService.onDidChangeProviders(event => snapshots.push({
+			added: event.added.length,
+			removed: event.removed.length,
+			sessions: event.added.filter(provider => provider instanceof StubProvider).reduce((count, provider) => count + provider.seeded.length, 0),
+		})));
+		store.add(harness.resolutionService.onDidChangeSessionResolution(() => resolutions++));
+		harness.discovered = Array.from({ length: 150 }, (_, index) => discoveredSession({
+			environmentId: `env-${index}`, sessionId: `session-${index}`, taskId: `task-${index}`,
+		}));
+		await harness.runDiscovery();
+		await harness.runDiscovery();
+		harness.discovered = [];
+		await harness.runDiscovery();
+		assert.deepStrictEqual({ snapshots, resolutions, connected: harness.connectedTo }, {
+			snapshots: [
+				{ added: 150, removed: 0, sessions: 150 },
+				{ added: 0, removed: 150, sessions: 0 },
+			],
+			resolutions: 2, connected: [],
+		});
+	});
+
 	function readInventory(storageService: IStorageService, accountKey = account): readonly ICloudSandboxDiscoveredSession[] {
 		return storageService.keys(StorageScope.PROFILE, StorageTarget.MACHINE)
 			.filter(key => key.startsWith(`sessions.cloudSandbox.inventory.${accountKey}.`))
@@ -2357,34 +2444,6 @@ suite('CloudSandboxAgentHostContribution startup inventory', () => {
 			connections: [...restored.connectedTo, ...next.connectedTo],
 			history: [...restored.historyRequests, ...next.historyRequests],
 		}, { removed: true, cached: [], restored: 0, connections: [], history: [] });
-	});
-
-	test('removes task-owned empty placeholders from restored inventory while retaining their shared environment sibling', async () => {
-		const storageService = store.add(new InMemoryStorageService());
-		const real = discoveredSession();
-		const empty = ['empty-1', 'empty-2'].map(id => discoveredSession({
-			sessionId: id, taskId: `task-${id}`, name: 'New task', eventType: 'unknown', status: SessionStatus.Idle,
-		}));
-		const first = await createContribution(store, [real, ...empty], { storageService });
-		first.contribution.dispose();
-		let result: ICloudSandboxDiscoveryResult = { kind: 'failed', reason: 'offline' };
-		const restored = await createContribution(store, [], { storageService, listSessions: async () => result });
-		const provider = restored.contribution.stubProviders.get(cloudSandboxAddress(real.environmentId))!;
-		result = { kind: 'incremental', sessions: [], removedTaskIds: empty.map(session => session.taskId) };
-		await restored.runDiscovery();
-		const remaining = provider.getSessions().map(session => AgentSession.id(session.resource));
-		restored.contribution.dispose();
-		const next = await createContribution(store, [], {
-			storageService, listSessions: async () => ({ kind: 'failed', reason: 'offline' }),
-		});
-
-		assert.deepStrictEqual({
-			remaining,
-			inventory: readInventory(storageService).map(session => session.sessionId),
-			afterRestart: next.contribution.stubProviders.get(cloudSandboxAddress(real.environmentId))?.getSessions().map(session => AgentSession.id(session.resource)),
-			mutations: [...restored.deletedTasks, ...restored.archivedTasks],
-			connections: [...restored.connectedTo, ...next.connectedTo],
-		}, { remaining: [real.sessionId], inventory: [real.sessionId], afterRestart: [real.sessionId], mutations: [], connections: [] });
 	});
 
 	test('refreshes existing provider metadata and persists repository replacement and removal', async () => {
@@ -2674,6 +2733,61 @@ suite('CloudSandboxAgentHostContribution startup inventory', () => {
 
 suite('CloudSandboxAgentHostContribution discovery refresh', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
+
+	for (const inventoryComplete of [false, true]) {
+		test(`renewals retry details incrementally only after the inventory was enumerated (inventoryComplete=${inventoryComplete})`, async () => {
+			const requests: (ICloudSandboxDiscoveryOptions | undefined)[] = [];
+			const session = discoveredSession();
+			const harness = await createContribution(store, [session], {
+				listSessions: async (_token, options) => {
+					requests.push(options);
+					return { kind: 'partial', sessions: requests.length === 1 ? [session] : [], inventoryComplete };
+				},
+			});
+			const provider = harness.contribution.stubProviders.get(cloudSandboxAddress(session.environmentId))!;
+			await harness.contribution.refreshFeed('renewal');
+			await harness.contribution.refreshFeed('renewal');
+			assert.deepStrictEqual({
+				requests, retained: !provider.disposed, rows: provider.seeded.map(session => session.summary),
+			}, {
+				requests: [
+					{ incremental: false, includeArchived: false, trigger: 'startup' },
+					{ incremental: inventoryComplete, includeArchived: false, trigger: 'feedRenewal' },
+					{ incremental: inventoryComplete, includeArchived: false, trigger: 'feedRenewal' },
+				],
+				retained: true, rows: [session.name],
+			});
+		});
+	}
+
+	test('enumerated archives with unresolved details are retained across collapse and expansion without another full scan', async () => {
+		const requests: (ICloudSandboxDiscoveryOptions | undefined)[] = [];
+		const completed = new DeferredPromise<void>();
+		const harness = await createContribution(store, [], {
+			listSessions: async (_token, options) => {
+				requests.push(options);
+				if (options?.includeArchived) {
+					return { kind: 'partial', sessions: [], inventoryComplete: true };
+				}
+				return { kind: 'scoped', sessions: [], removedTaskIds: [] };
+			},
+		});
+		store.add(autorun(reader => {
+			if (harness.archiveProvider!.state.read(reader) === 'loaded') {
+				void completed.complete();
+			}
+		}));
+		harness.archiveProvider!.setRequested(true);
+		await completed.p;
+		harness.archiveProvider!.setRequested(false);
+		harness.archiveProvider!.setRequested(true);
+		await harness.contribution.refreshFeed('renewal');
+		assert.deepStrictEqual(requests, [
+			{ incremental: false, includeArchived: false, trigger: 'startup' },
+			{ incremental: false, includeArchived: true, trigger: 'manual' },
+			{ incremental: true, includeArchived: true, trigger: 'feedRenewal' },
+		]);
+	});
 
 	test('a connected feed still processes task hints and renewal and reconnect catch-up', async () => {
 		const requests: (ICloudSandboxDiscoveryOptions | undefined)[] = [];

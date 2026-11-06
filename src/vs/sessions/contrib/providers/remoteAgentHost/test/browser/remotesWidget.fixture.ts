@@ -42,7 +42,7 @@ const remotes: ICustomizationRemote[] = [
 	{ id: 'container:api', kind: 'devContainer', name: 'API service', detail: '/Users/developer/projects/api', canRemove: false, connectionStatus: RemoteAgentHostConnectionStatus.disconnected },
 ];
 
-async function render({ container, disposableStore, theme }: ComponentFixtureContext, width: number, operatingSystem = OS, empty = false, failedKinds: readonly RemoteKind[] = [], environments = false, refreshing?: RemoteKind, signInRequired: boolean | 'pending' = false, options: { readonly height?: number; readonly connectionError?: string; readonly retrying?: boolean } = {}): Promise<void> {
+async function render({ container, disposableStore, theme }: ComponentFixtureContext, width: number, operatingSystem = OS, empty = false, failedKinds: readonly RemoteKind[] = [], environments = false, refreshing?: RemoteKind, signInRequired: boolean | 'pending' = false, options: { readonly height?: number; readonly connectionError?: string; readonly retrying?: boolean; readonly heading?: string } = {}): Promise<void> {
 	container.style.width = `${width}px`;
 	container.style.height = `${options.height ?? 640}px`;
 	container.classList.add('remotes-editor');
@@ -133,6 +133,7 @@ async function render({ container, disposableStore, theme }: ComponentFixtureCon
 		}
 	}());
 	const widget = disposableStore.add(instantiationService.createInstance(RemotesWidget, content, model, operatingSystem));
+	widget.setHeading(options.heading);
 	widget.setVisible(true);
 	await waitForFixtureCondition(() => refreshing
 		? content.querySelectorAll('.remotes-group-progress:not([hidden])').length === 1
@@ -189,6 +190,12 @@ export default defineThemedFixtureGroup({ path: 'sessions/remotes/' }, {
 	EnvironmentsEmpty: defineComponentFixture({ labels: { kind: 'screenshot' }, render: context => render(context, 1000, OS, true, [], true) }),
 	EnvironmentsWarning: defineComponentFixture({ labels: { kind: 'screenshot' }, render: context => render(context, 1000, OS, true, ['environment'], true) }),
 	Table: defineComponentFixture({ labels: { kind: 'screenshot' }, render: context => render(context, 1000) }),
+	TableWithHeading: defineComponentFixture({
+		labels: { kind: 'screenshot' }, additionalThemes: ['darkHighContrast', 'lightHighContrast'],
+		render: context => render(context, 1000, OS, false, [], true, undefined, false, { heading: 'Other Environments' }),
+	}),
+	EmptyWithHeading: defineComponentFixture({ labels: { kind: 'screenshot' }, render: context => render(context, 1000, OS, true, [], true, undefined, false, { heading: 'Other Environments' }) }),
+	NarrowWithHeading: defineComponentFixture({ labels: { kind: 'screenshot' }, render: context => render(context, 360, OS, false, [], true, undefined, false, { heading: 'Other Environments' }) }),
 	Wide: defineComponentFixture({ labels: { kind: 'screenshot' }, render: context => render(context, 1400) }),
 	Windows: defineComponentFixture({ labels: { kind: 'screenshot' }, render: context => render(context, 700, OperatingSystem.Windows) }),
 	Narrow: defineComponentFixture({ labels: { kind: 'screenshot' }, render: context => render(context, 360) }),

@@ -38,12 +38,13 @@ import { IWorkbenchLayoutService } from '../../../workbench/services/layout/brow
 import { AgentWorkbenchLayout } from '../../browser/workbench.js';
 import { IChatSessionHistoryStatus } from '../../../platform/chat/common/chatSessionHistory.js';
 import { AbstractChatView, ChatViewKind, IChatViewOptions } from '../../browser/parts/chatView.js';
-import { SESSION_ACTIVITY_BAR_COLUMN_WIDTH } from '../../browser/parts/sessionActivityBar.js';
+import { SESSION_ACTIVITY_BAR_COLUMN_WIDTH } from '../../browser/parts/sessionActivityBarHost.js';
 import { ChatGroupsView } from '../../browser/parts/chatGroupsView.js';
 import { ChatGroupView } from '../../browser/parts/chatGroupView.js';
 import { GRID_GAP_SASH_CLASS } from '../../../workbench/browser/parts/partGrid/partGridGap.js';
 import { SessionDropTarget } from '../../browser/parts/sessionDropTarget.js';
-import { DraggedSessionIdentifier, SessionsDataTransfers } from '../../browser/dnd.js';
+import { DraggedSessionIdentifier, fillSessionChatDragData, SessionsDataTransfers } from '../../browser/dnd.js';
+import { ChatHostOpenerService, IChatHostOpenerService } from '../../services/sessions/browser/chatHostOpener.js';
 import { SessionActiveChatCanArchiveContext, SessionActiveChatHasSideChatsContext, SessionActiveChatIsClosableContext, SessionActiveChatIsDeletableContext, SessionActiveChatIsUntitledContext, SessionActiveChatResourceContext, SessionFocusedChatIsRenameTargetContext, SessionHeaderActiveChatIsPinnedContext, SessionHeaderShowsChatContext, SessionHeaderTargetsChatContext, SessionToolbarShowsSessionContext } from '../../common/contextkeys.js';
 import { ISessionActivityBarActivityService, SessionActivityBarActivityService } from '../../services/activity/common/sessionActivityBarActivityService.js';
 import { SESSION_ACTIVITY_BAR_SETTING, SESSIONS_CHAT_TABS_SETTING, SessionsChatTabsMode } from '../../common/sessionConfig.js';
@@ -301,6 +302,7 @@ interface IChatGroupsHarness {
 	readonly sessionsProvidersService: TestSessionsProvidersService;
 	readonly chatViewFactory: TestChatViewFactory;
 	readonly configurationService: TestConfigurationService;
+	readonly chatHostOpenerService: ChatHostOpenerService;
 	readonly view: ChatGroupsView;
 	/** Whether the document of the view's window has focus, as opposed to another window's, such as a new chat window whose activation is not reported yet, or none, while the app is in the background. */
 	readonly focus: { viewWindow: boolean };
@@ -349,12 +351,14 @@ function createHarness(disposables: Pick<DisposableStore, 'add'>, tabsReplaceHea
 	}());
 	instantiationService.stub(ISessionsPartService, new class extends mock<ISessionsPartService>() { });
 	instantiationService.stub(ISessionsProvidersService, sessionsProvidersService);
+	const chatHostOpenerService = new ChatHostOpenerService();
+	instantiationService.stub(IChatHostOpenerService, chatHostOpenerService);
 
 	const view = store.add(instantiationService.createInstance(ChatGroupsView, undefined, targetWindow => targetWindow === mainWindow && focus.viewWindow));
 	view.setSingleGroupTabsReplaceHeader(tabsReplaceHeader);
 	mainWindow.document.body.appendChild(view.element);
 	store.add(toDisposable(() => view.element.remove()));
-	return { instantiationService, sessionsService, sessionsProvidersService, chatViewFactory, configurationService, view, focus };
+	return { instantiationService, sessionsService, sessionsProvidersService, chatViewFactory, configurationService, chatHostOpenerService, view, focus };
 }
 
 function readBanner(view: ChatGroupsView): { readonly visible: boolean; readonly message: string | undefined; readonly action: string | undefined } {
@@ -1308,6 +1312,68 @@ suite('Sessions - ChatGroupsView', () => {
 				activeChat: draggedPeer.resource.toString(),
 			});
 		});
+	}
+
+	for (const mode of [SessionsChatTabsMode.Single, SessionsChatTabsMode.Multiple]) {
+		for (const vetoed of [false, true]) {
+			test(`a chat of the session that a chat window shows, dropped beside its main chat in ${mode} mode, leaves its window and opens beside it, not revealed in its window; while its close is vetoed, it stays there (vetoed: ${vetoed})`, async () => {
+				const { configurationService, instantiationService, chatHostOpenerService, view } = createHarness(disposables);
+				const main = createChat('main');
+				const peer = createChat('peer');
+				const session = new TestActiveSession([main, peer], [main]);
+				view.setSession(session, options);
+				await configurationService.setUserConfiguration(SESSIONS_CHAT_TABS_SETTING, mode);
+				configurationService.onDidChangeConfigurationEmitter.fire({
+					source: ConfigurationTarget.USER,
+					affectedKeys: new Set([SESSIONS_CHAT_TABS_SETTING]),
+					change: { keys: [SESSIONS_CHAT_TABS_SETTING], overrides: [] },
+					affectsConfiguration: key => key === SESSIONS_CHAT_TABS_SETTING,
+				});
+				// A chat window shows the peer
+				let inWindow = true;
+				const calls: string[] = [];
+				disposables.add(chatHostOpenerService.register({
+					showsChat: shown => inWindow && shown.toString() === peer.resource.toString(),
+					reveal: async shown => { calls.push(`reveal ${shown.path}`); },
+					openBeside: async () => { },
+					close: async closed => {
+						calls.push(`close ${closed.path}`);
+						inWindow = vetoed;
+						return vetoed ? undefined : { restore: async () => { } };
+					},
+				}));
+
+				const container = mainWindow.document.createElement('div');
+				disposables.add(toDisposable(() => container.remove()));
+				mainWindow.document.body.appendChild(container);
+				container.appendChild(view.element);
+				view.layout(1200, 600, 0, 0);
+				disposables.add(instantiationService.createInstance(SessionDropTarget, container, {
+					findTargetView: child => container.contains(child) ? { sessionId: session.sessionId, element: container } : undefined,
+				}));
+				// As the header of the peer's chat editor in its window's title row drags it
+				const dataTransfer = new DataTransfer();
+				fillSessionChatDragData(new DragEvent('dragstart', { dataTransfer }), session.sessionId, peer.resource);
+				const group = view.element.querySelector<HTMLElement>('.chat-group-view');
+				assert.ok(group);
+				const bounds = group.getBoundingClientRect();
+				const clientX = bounds.right - 1;
+				const clientY = bounds.top + bounds.height / 2;
+				group.dispatchEvent(new DragEvent('dragenter', { bubbles: true, dataTransfer, clientX, clientY }));
+				const chatOverlay = view.element.querySelector<HTMLElement>('#monaco-workbench-chat-group-drop-overlay');
+				chatOverlay?.dispatchEvent(new DragEvent('dragover', { bubbles: true, dataTransfer, clientX, clientY }));
+				chatOverlay?.dispatchEvent(new DragEvent('drop', { bubbles: true, dataTransfer, clientX, clientY }));
+				await timeout(0);
+
+				assert.deepStrictEqual({
+					calls,
+					groups: view['_groups'].map(group => group.activeResourceId.get()),
+				}, {
+					calls: [`close ${peer.resource.path}`],
+					groups: vetoed ? [main.resource.toString()] : [main.resource.toString(), peer.resource.toString()],
+				});
+			});
+		}
 	}
 
 	for (const mode of [SessionsChatTabsMode.Single, SessionsChatTabsMode.Multiple]) {

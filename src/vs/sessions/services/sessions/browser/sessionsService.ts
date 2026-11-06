@@ -31,7 +31,7 @@ import { SessionsRecencyHistory } from './sessionsRecencyHistory.js';
 import { VisibleSession, VisibleSessions } from './visibleSessions.js';
 import { IContextKey, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { ISessionsPartService, SessionGridRequest } from './sessionsPartService.js';
-import { IChatHostOpenerService } from './chatHostOpener.js';
+import { IChatHostClosedChat, IChatHostOpenerService } from './chatHostOpener.js';
 import { ICustomViewService } from '../../customView/browser/customViewService.js';
 import { IWindowCanvasService } from '../../canvas/browser/windowCanvasService.js';
 import { IsNewChatSessionContext } from '../../../common/contextkeys.js';
@@ -392,9 +392,9 @@ export interface ISessionsService extends ISessionGridPanes {
 
 	/**
 	 * Hides `chat` of `session` from the grid while the returned disposable is not disposed, such as while a chat window
-	 * shows it: its tab leaves the session's slot, and the session leaves the grid when that was the only chat it showed
-	 * there. Releasing it does not show the chat in the grid again. Idempotent, and safe whichever ends first, the hold or
-	 * the session.
+	 * shows it: its tab leaves the session's slot, and the session's slot leaves the grid when that was the only chat it
+	 * showed there; its chats in panes of their own stay. Releasing it does not show the chat in the grid again. Idempotent,
+	 * and safe whichever ends first, the hold or the session.
 	 */
 	hideChatFromGrid(session: ISession, chat: URI): IDisposable;
 
@@ -1189,17 +1189,22 @@ export class SessionsService extends Disposable implements ISessionsService {
 		if (!session) {
 			throw new Error(`Cannot move a chat from unavailable session '${sessionId}'`);
 		}
+		// Where the chat shows outside of the grid, such as a chat window it is dragged out of
+		const shownBy = this.chatHostOpenerService.getOpenerOf(chatResource);
+		const shownResource = chatResource;
 		this._cancelRestore();
 		const token = this._startOpenSession();
-		if (!this._visibility.getRenderedGridSlots().some(slot => slot.id === referenceSlotId)) {
+		const isTargetValid = () => this._visibility.getRenderedGridSlots().some(slot => slot.id === referenceSlotId);
+		if (!isTargetValid()) {
 			return;
 		}
+		let prepared: ISession[] | undefined;
 		if (!this._visibility.gridSessions.get().some(visible => visible?.sessionId === sessionId)) {
 			const resolved = await this._resolveSessionForOpen(session, chatResource);
 			session = resolved.session;
 			chatResource = resolved.chatUri ?? chatResource;
-			const prepared = await this.prepareGridSessions([session], token);
-			if (!prepared || token.isCancellationRequested || !this.areGridSessionsCurrent(prepared) || !this._visibility.getRenderedGridSlots().some(slot => slot.id === referenceSlotId)) {
+			prepared = await this.prepareGridSessions([session], token);
+			if (!prepared || token.isCancellationRequested || !this.areGridSessionsCurrent(prepared) || !isTargetValid()) {
 				return;
 			}
 			session = prepared[0];
@@ -1208,11 +1213,38 @@ export class SessionsService extends Disposable implements ISessionsService {
 		if (!chat) {
 			throw new Error(`Cannot move unavailable chat '${chatResource}'`);
 		}
+		// Once the grid can take it, the chat leaves where it shows: its window closes with its last chat. While it cannot
+		// leave, such as when its close is vetoed, it stays there; when the grid changed as it left, it goes back there.
+		let closed: IChatHostClosedChat | undefined;
+		if (shownBy) {
+			closed = await shownBy.close(shownResource);
+			if (!closed) {
+				return;
+			}
+			if (token.isCancellationRequested || !isTargetValid() || (prepared && !this.areGridSessionsCurrent(prepared))) {
+				await closed.restore();
+				return;
+			}
+		}
 		if (this.uriIdentityService.extUri.isEqual(chat.resource, session.mainChat.get().resource)) {
 			const slots = this._visibility.getRenderedGridSlots();
 			const index = slots.findIndex(slot => slot.id === referenceSlotId);
 			const target = this._visibility.gridSessions.get()[index];
-			await this.openSessionsAt([session], target?.sessionId, direction, { referenceSlotId, forceMainChat: true });
+			const placed = () => this._visibility.gridSessions.get().some(visible => visible?.sessionId === session.sessionId);
+			// The chat it closed shows again where it showed unless the grid took it, such as when the target went away or
+			// the opening was cancelled meanwhile
+			let failure: unknown;
+			try {
+				await this.openSessionsAt([session], target?.sessionId, direction, { referenceSlotId, forceMainChat: true });
+			} catch (error) {
+				failure = error;
+			}
+			if (closed && (failure !== undefined || !placed())) {
+				await closed.restore();
+			}
+			if (failure !== undefined) {
+				throw failure;
+			}
 			return;
 		}
 		this._visibility.moveChatToGrid(session, chat, referenceSlotId,
@@ -2063,14 +2095,15 @@ export class SessionsService extends Disposable implements ISessionsService {
 
 	hideChatFromGrid(session: ISession, chat: URI): IDisposable {
 		const hold = this._visibility.hideChatFromGrid(session.sessionId, chat);
-		// The session leaves the grid too when that was the only chat it shows there.
+		// The session leaves the grid too when that was the only chat it shows there. Subagent chats it does not show as
+		// tabs do not keep it there: they open on demand. Only its own slot leaves: its chats in panes of their own stay.
 		const gridSessions = this._visibility.gridSessions.get().filter(candidate => candidate?.sessionId === session.sessionId && !candidate.scopedChatResource);
-		const onlyChat = gridSessions.every(candidate => candidate!.openChats.get().every(openChat => this.uriIdentityService.extUri.isEqual(openChat.resource, chat)));
+		const onlyChat = gridSessions.every(candidate => candidate!.visibleChatTabs.get().every(tab => this.uriIdentityService.extUri.isEqual(tab.resource, chat)));
 		if (gridSessions.length && onlyChat) {
 			this._cancelRestore();
 			this._startOpenSession();
 			const wasActive = this._visibility.activeSession.get()?.sessionId === session.sessionId;
-			this._visibility.removeMany([session.sessionId]);
+			this._visibility.removeMany([session.sessionId], true);
 			if (wasActive && this._visibility.activeSession.get() === undefined && !this._visibility.visibleSessions.get().includes(undefined)) {
 				// The grid shows the new-session composer instead, without taking focus from the window.
 				this._visibility.setActive(undefined, true);
