@@ -968,6 +968,7 @@ export class SharedChatInputComposer extends Disposable implements INewSessionCo
 				widget.attachmentModel.addContext(...attachments);
 				// The send cleared the inline references along with the text.
 				widget.getContrib<ChatDynamicVariableModel>(ChatDynamicVariableModel.ID)?.setInputState({ [ChatDynamicVariableModel.ID]: references });
+				this.saveState();
 			}
 		};
 		try {
@@ -988,6 +989,8 @@ export class SharedChatInputComposer extends Disposable implements INewSessionCo
 			// host sends, so the draft must not carry the sent prompt.
 			await widget.input.acceptInput(true, true);
 			this._modelRef.value?.object.inputModel.setState({ inputText: '', attachments: [] });
+			// The host can create another composer before the send completes.
+			this.saveState();
 			// Prompt ranges, such as those of inline references, refer to the untrimmed input.
 			const queryOffset = rawQuery.length - rawQuery.trimStart().length;
 			const sentAttachments = attachments.map(entry => entry.range && queryOffset
@@ -998,9 +1001,6 @@ export class SharedChatInputComposer extends Disposable implements INewSessionCo
 				userInteraction?.cancel('notDispatched');
 				restoreInput();
 				return false;
-			}
-			if (isInputAlive()) {
-				this.saveState();
 			}
 			return true;
 		} catch (error) {

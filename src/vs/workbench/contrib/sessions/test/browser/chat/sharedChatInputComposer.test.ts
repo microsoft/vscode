@@ -14,6 +14,7 @@ import { runWithFakedTimers } from '../../../../../../base/test/common/virtualSc
 import { mock, upcastPartial } from '../../../../../../base/test/common/mock.js';
 import { Range } from '../../../../../../editor/common/core/range.js';
 import { NullLogService } from '../../../../../../platform/log/common/log.js';
+import { InMemoryStorageService, IStorageService } from '../../../../../../platform/storage/common/storage.js';
 import { ChatDynamicVariableModel } from '../../../../chat/browser/attachments/chatDynamicVariables.js';
 import { IChatAgentService } from '../../../../chat/common/participants/chatAgents.js';
 import { IChatVariablesService, IDynamicVariable } from '../../../../chat/common/attachments/chatVariables.js';
@@ -27,6 +28,7 @@ import { INewChatComposerInputOptions, INewChatInputSendRequest } from '../../..
 import { SharedChatInputComposer } from '../../../browser/chat/sharedChatInputComposer.js';
 import { IChat } from '../../../common/session.js';
 import { IActiveSession } from '../../../common/sessionsManagement.js';
+import { readNewChatDraftState } from '../../../common/newChatDraftState.js';
 
 suite('SharedChatInputComposer', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -34,7 +36,7 @@ suite('SharedChatInputComposer', () => {
 	const context = toPasteVariableEntry('Context', 'Pasted context', { id: 'context' });
 
 	/** A composer over a fake chat widget, recording what the host is asked to send and the commands it runs. */
-	function createComposer(options: { sendResult?: boolean | Error; disposeDuringSend?: boolean; canSendRequest?: boolean; text?: string; attachments?: IChatRequestVariableEntry[]; references?: IDynamicVariable[]; confirmSend?: DeferredPromise<boolean>; focused?: boolean; preserveInputFocusOnSend?: boolean } = {}) {
+	function createComposer(options: { sendResult?: boolean | Error; disposeDuringSend?: boolean; canSendRequest?: boolean; text?: string; attachments?: IChatRequestVariableEntry[]; references?: IDynamicVariable[]; confirmSend?: DeferredPromise<boolean>; focused?: boolean; preserveInputFocusOnSend?: boolean; storageService?: IStorageService; onSend?: () => void } = {}) {
 		let text = options.text ?? 'Build it';
 		let attachments: IChatRequestVariableEntry[] = options.attachments ?? [context];
 		let references = options.references ?? [];
@@ -102,6 +104,7 @@ suite('SharedChatInputComposer', () => {
 				preserveInputFocusOnSend: options.preserveInputFocusOnSend,
 				sendRequest: async (request: INewChatInputSendRequest) => {
 					requests.push({ query: request.query, attachments: request.attachments?.map(entry => entry.range ? `${entry.id}@${entry.range.start}-${entry.range.endExclusive}` : entry.id) ?? [], background: !!request.background });
+					options.onSend?.();
 					if (options.disposeDuringSend) {
 						// Leaving the composer disposes its chat widget, whose input part is then gone.
 						widget.input = undefined;
@@ -112,7 +115,7 @@ suite('SharedChatInputComposer', () => {
 					return options.sendResult ?? true;
 				},
 			},
-			storageService: { store: () => { } },
+			storageService: options.storageService ?? { store: () => { } },
 			logService: new NullLogService(),
 			chatSlashCommandService: slashCommands,
 			instantiationService: { createInstance: (ctor: unknown) => ctor === ChatRequestParser ? parser : { cancel: () => { }, disposeSource: () => { } } },
@@ -149,12 +152,44 @@ suite('SharedChatInputComposer', () => {
 		});
 	});
 
+	test('a composer opened during a background send does not restore the submitted prompt', async () => {
+		const storageService = store.add(new InMemoryStorageService());
+		let restored: ReturnType<SharedChatInputComposer['getDraft']> | undefined;
+		const { composer } = createComposer({
+			storageService,
+			onSend: () => {
+				const next = createComposer({ storageService, text: '', attachments: [] }).composer;
+				Reflect.get(SharedChatInputComposer.prototype, '_restoreDraftState').call(next);
+				restored = next.getDraft();
+				next.setInputValue('Next request');
+				next.saveState();
+			},
+		});
+		composer.saveState();
+
+		await composer.submit(true);
+
+		const nextDraft = readNewChatDraftState(storageService);
+		assert.deepStrictEqual({ restored, nextInput: nextDraft?.inputText }, {
+			restored: { inputText: '', attachments: [] },
+			nextInput: 'Next request',
+		});
+	});
+
 	for (const background of [false, true]) {
 		for (const sendResult of [false, new Error('send failed')]) {
 			test(`restores the prompt when the host does not send (${background ? 'background' : 'foreground'}, ${sendResult instanceof Error ? 'error' : 'declined'})`, async () => {
-				const { composer, state } = createComposer({ sendResult });
+				const storageService = store.add(new InMemoryStorageService());
+				const { composer, state } = createComposer({ sendResult, storageService });
+				composer.saveState();
 				const sent = await composer.submit(background);
-				assert.deepStrictEqual({ sent, input: state().input }, { sent: false, input: { text: 'Build it', attachments: ['context'], enabled: true } });
+				const draft = readNewChatDraftState(storageService);
+				const savedDraft = { inputText: draft?.inputText, attachments: draft?.attachments.map(entry => entry.id) };
+				assert.deepStrictEqual({ sent, input: state().input, savedDraft }, {
+					sent: false,
+					input: { text: 'Build it', attachments: ['context'], enabled: true },
+					savedDraft: { inputText: 'Build it', attachments: ['context'] },
+				});
 			});
 		}
 	}
