@@ -1774,7 +1774,7 @@ suite('AgentHostSessionChangesets', () => {
 			const actionRunner = disposables.add(new ActionRunner());
 			const container = document.createElement('div');
 			const renderMenu = () => {
-				const action = menu.getActions({ arg: { session } }).flatMap(([, actions]) => actions).find(action => action.id === commandId)!;
+				const action = menu.getActions({ arg: { session, chat } }).flatMap(([, actions]) => actions).find(action => action.id === commandId)!;
 				const viewItem = new SessionSyncChangesActionViewItem(action, {}, upcastPartial<ISessionHost>({ kind: SessionHostKind.Pane, session: constObservable(session), chat: session.activeChat }), new class extends mock<ISessionsPartService>() { }(), disposables.add(new SessionInputPickerVisibility()), new MockKeybindingService(), upcastPartial<IChatWidgetService>({}));
 				item.value = viewItem;
 				viewItem.actionRunner = actionRunner;

@@ -348,6 +348,16 @@ suite('Session Sync Changes', () => {
 		});
 	});
 
+	test('syncs the chat a composer\'s toolbar passes with its session, a provider session that carries no active chat', async () => {
+		const data = createSession('composer');
+		const { invoke } = setup([]);
+		const session = upcastPartial<ISession>({ sessionId: data.session.sessionId, resource: data.session.resource, workspace: data.workspace, worktreePending: data.worktreePending });
+
+		await invoke({ session, chat: data.session.activeChat.get() });
+
+		assert.deepStrictEqual(data.invocations, [[AGENT_HOST_SYNC_CHANGESET_OPERATION_ID]]);
+	});
+
 	test('invokes the active session uncommitted changeset without command arguments or a resource target', async () => {
 		const first = createSession('first');
 		const second = createSession('second');
@@ -449,7 +459,7 @@ suite('Session Sync Changes', () => {
 		const item = store.add(new MutableDisposable<SessionSyncChangesActionViewItem>());
 		const actionRunner = store.add(new ActionRunner());
 		const renderMenu = () => {
-			const action = menu.getActions({ get arg() { return { session: session.get() }; } }).flatMap(([, actions]) => actions).find(action => action.id === commandId)!;
+			const action = menu.getActions({ get arg() { return { session: session.get(), chat: session.get()?.activeChat.get() }; } }).flatMap(([, actions]) => actions).find(action => action.id === commandId)!;
 			assert.ok(action instanceof MenuItemAction);
 			const viewItem = getFactory()(action, {}, scopedInstantiationService, 0)!;
 			assert.ok(viewItem instanceof SessionSyncChangesActionViewItem);
@@ -502,7 +512,7 @@ suite('Session Sync Changes', () => {
 			first: [[AGENT_HOST_SYNC_CHANGESET_OPERATION_ID]],
 			second: [[AGENT_HOST_SYNC_CHANGESET_OPERATION_ID]],
 			menuAction: { label: 'Sync Changes', tooltip: '', enabled: true },
-			commandArguments: [[{ session: second.session }], [{ session: first.session }]],
+			commandArguments: [[{ session: second.session, chat: second.session.activeChat.get() }], [{ session: first.session, chat: first.session.activeChat.get() }]],
 		});
 	});
 

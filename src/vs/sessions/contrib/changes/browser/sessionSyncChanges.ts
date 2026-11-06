@@ -28,7 +28,6 @@ import { ISessionsPartService } from '../../../../workbench/contrib/sessions/bro
 import { ISessionsService } from '../../../../workbench/contrib/sessions/browser/sessionsService.js';
 import { resolveSessionCommandTarget } from '../../../../workbench/contrib/sessions/browser/sessionCommandTarget.js';
 import { getSessionWorkspaceKind, IChat, ISession, ISessionChangeset, ISessionChangesetOperation, SessionChangesetOperationScope, SessionChangesetOperationStatus, SessionWorkspaceKind, UNCOMMITTED_CHANGES_CHANGESET_ID } from '../../../../workbench/contrib/sessions/common/session.js';
-import { IActiveSession } from '../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import { ISessionInputPickerVisibility } from '../../../../workbench/contrib/sessions/common/sessionPickerVisibility.js';
 import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
 import { FOCUS_SESSION_SYNC_ACTION_COMMAND_ID } from '../../../../workbench/contrib/sessions/common/sessionCommands.js';
@@ -87,11 +86,11 @@ class SessionSyncChangesAction extends Action2 {
 		});
 	}
 
-	override async run(accessor: ServicesAccessor, context?: { session: IActiveSession | undefined }): Promise<void> {
-		// A pane's toolbar passes its session; otherwise, the focused host's.
+	override async run(accessor: ServicesAccessor, context?: { session: ISession | undefined; chat?: IChat }): Promise<void> {
+		// A composer's toolbar passes its session and the chat it shows; otherwise, the focused host's.
 		const target = context ? undefined : resolveSessionCommandTarget(accessor, []);
 		const session = context ? context.session : target?.session;
-		const chat = context ? context.session?.activeChat.get() : target?.chat;
+		const chat = context ? context.chat : target?.chat;
 
 		const sync = getSyncChangesOperation(chat);
 		if (!sync || !isFolderSession(session, chat) || !isSyncChangesEnabled(sync.operation)) {
