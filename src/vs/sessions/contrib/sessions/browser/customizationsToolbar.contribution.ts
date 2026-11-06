@@ -266,6 +266,24 @@ export class CustomizationsToolbarContribution extends Disposable implements IWo
 			}
 		}));
 
+		// Command enablement context keys, kept in sync with where the sidebar offers the item.
+		for (const config of CUSTOMIZATION_ITEMS) {
+			const enablementContextKey = config.command?.enablementContextKey;
+			if (!config.section || !enablementContextKey) {
+				continue;
+			}
+			const when = customizationItemWhen(config, config.section);
+			const whenKeys = new Set(when?.keys());
+			const enabled = new RawContextKey<boolean>(enablementContextKey, false).bindTo(contextKeyService);
+			const update = () => enabled.set(!when || contextKeyService.contextMatchesRules(when));
+			update();
+			this._register(contextKeyService.onDidChangeContext(e => {
+				if (e.affectsSome(whenKeys)) {
+					update();
+				}
+			}));
+		}
+
 		this._register(actionViewItemService.register(Menus.SidebarCustomizations, CUSTOMIZATION_OVERVIEW_ITEM.id, (action, options) => {
 			return instantiationService.createInstance(CustomizationLinkViewItem, action, options, CUSTOMIZATION_OVERVIEW_ITEM);
 		}, undefined));
@@ -345,12 +363,13 @@ registerSingleton(IAICustomizationMcpServerCountService, AICustomizationMcpServe
 // does not pick up keybindings registered after it first resolves keybindings.
 for (const config of CUSTOMIZATION_ITEMS) {
 	if (config.section && config.command?.keybinding) {
+		const enablementContextKey = config.command.enablementContextKey;
 		KeybindingsRegistry.registerKeybindingRule({
 			id: config.id,
 			primary: config.command.keybinding,
 			weight: KeybindingWeight.WorkbenchContrib,
 			// Where the sidebar offers the item, like the command's precondition.
-			when: customizationItemWhen(config, config.section),
+			when: enablementContextKey ? ContextKeyExpr.has(enablementContextKey) : customizationItemWhen(config, config.section),
 		});
 	}
 }
