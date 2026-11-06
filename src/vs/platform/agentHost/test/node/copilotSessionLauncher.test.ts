@@ -59,7 +59,7 @@ import type { SandboxConfig, SandboxNetworkPolicy } from '../../node/copilot/san
 import { composeByokSessionConfig, CopilotSessionLauncher, filterClientToolNames, findLocalModelDirectFamily, getCopilotAgentSelection, getCopilotAgentSelectionName, getCopilotAutoTier, getCopilotCustomAgents, getCopilotReasoningEffort, getCopilotWorkingDirectoryTrust, isCopilotReasoningEffort, mergeByokSessionConfig, synthesizeByokSessionConfig, withLocalModelSessionConfig, normalizeToolFilterPatterns, resolveConfiguredReasoningEffortOverride, resolveCopilotAutoTier, resolveCopilotReasoningEffort, toSdkToolFilterPatterns, type CopilotSessionLaunchPlan, type ICopilotClientToolConfiguration, type ICopilotSessionRuntime } from '../../node/copilot/copilotSessionLauncher.js';
 import { getSdkCustomAgentName } from '../../node/copilot/copilotPluginConverters.js';
 import { createUnmanagedCopilotSettings } from './copilotTestEvents.js';
-import { buildChatUri, buildDefaultChatUri, SessionStatus } from '../../common/state/sessionState.js';
+import { buildChatUri, buildDefaultChatUri, ROOT_STATE_URI, SessionStatus } from '../../common/state/sessionState.js';
 import { ActionType } from '../../common/state/sessionActions.js';
 import type { IAgentHostSessionOpenTelemetry } from '../../node/agentHostSessionOpenTelemetry.js';
 import { createSentinelContribution, FakeLocalModelProvider, MAI_ROW } from './localModelBridge/fakeLocalModelProvider.js';
@@ -959,6 +959,65 @@ suite('CopilotSessionLauncher sandbox policy', () => {
 				changed,
 				{ envVars: {} },
 			]);
+		});
+
+		test(`${kind} rejects malformed credentials without changing a running default sandbox`, async () => {
+			const fixture = setup(kind, false);
+			fixture.configuration.updateSessionConfig(fixture.owner, { sandboxEnabled: 'default' });
+			const initial = {
+				enabled: 'on',
+				allowNetwork: false,
+				'fileSystem.userConfiguredPaths': { deniedPaths: [URI.file('/blocked').fsPath] },
+				credentials: { envVars: { API_TOKEN: { injectHosts: ['api.example.com'] } } },
+			};
+			fixture.configuration.updateRootConfig({ sandbox: initial });
+			store.add(await fixture.launcher.launch(fixture.plan, fixture.runtime));
+			const initialRoot = fixture.manager.rootState;
+			const initialUpdates = [...fixture.updates];
+			const rejections: (string | undefined)[] = [];
+			store.add(fixture.manager.onDidRejectClientAction(envelope => rejections.push(envelope.rejectionReason)));
+			for (const replace of [false, true]) {
+				fixture.manager.dispatchClientAction(ROOT_STATE_URI, {
+					type: ActionType.RootConfigChanged,
+					config: { sandbox: { ...initial, credentials: { envVars: { API_TOKEN: {} } } } },
+					replace,
+				}, { clientId: 'client', clientSeq: rejections.length + 1 });
+				await fixture.sandbox.prepareConfigChange().apply();
+			}
+			assert.deepStrictEqual({
+				root: fixture.manager.rootState,
+				updates: fixture.updates,
+				enabled: fixture.sandboxState?.enabled,
+				rejections,
+			}, {
+				root: initialRoot,
+				updates: initialUpdates,
+				enabled: true,
+				rejections: [
+					'Missing required property at \'sandbox.credentials.envVars.API_TOKEN.injectHosts\'',
+					'Missing required property at \'sandbox.credentials.envVars.API_TOKEN.injectHosts\'',
+				],
+			});
+			assert.throws(() => fixture.configuration.updateRootConfig({
+				sandbox: { ...initial, credentials: { envVars: { API_TOKEN: { injectHosts: 'api.example.com' } } } },
+			}), /sandbox\.credentials\.envVars\.API_TOKEN\.injectHosts/);
+			await fixture.sandbox.prepareConfigChange().apply();
+			const updatesAfterInvalidWrite = [...fixture.updates];
+			const cleared = { ...initial, credentials: { envVars: {} } };
+			fixture.configuration.updateRootConfig({ sandbox: cleared });
+			await fixture.sandbox.prepareConfigChange().apply();
+			fixture.configuration.updateRootConfig({ sandbox: { ...cleared, enabled: 'off' } });
+			await fixture.sandbox.prepareConfigChange().apply();
+			assert.deepStrictEqual({
+				updatesAfterInvalidWrite,
+				subsequentUpdates: fixture.updates.slice(initialUpdates.length),
+			}, {
+				updatesAfterInvalidWrite: initialUpdates,
+				subsequentUpdates: [
+					{ sandboxConfig: { ...initialUpdates.at(-1)?.sandboxConfig, credentials: { envVars: {} } } },
+					{ sandboxConfig: { enabled: false } },
+				],
+			});
 		});
 
 		test(`${kind} applies and removes the legacy mode-group fallback`, async () => {
