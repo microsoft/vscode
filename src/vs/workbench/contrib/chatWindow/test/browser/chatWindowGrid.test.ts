@@ -1178,6 +1178,21 @@ suite('Chat window grid', () => {
 		});
 	});
 
+	test('terminals joining and leaving while the chat is hidden, in Editor Only, keep the chat\'s height: it is the same in Stacked after each round trip', () => {
+		const { mode, open, close, grid } = setupWithTerminals(ChatWindowLayoutMode.Stacked);
+		const chatHeight = () => grid.partGrid!.getCellSize(ChatWindowGridCell.Chat).height;
+		const heights = [chatHeight()];
+		for (let i = 0; i < 3; i++) {
+			mode.set(ChatWindowLayoutMode.EditorOnly, undefined);
+			open();
+			close();
+			mode.set(ChatWindowLayoutMode.Stacked, undefined);
+			heights.push(chatHeight());
+		}
+
+		assert.deepStrictEqual(heights, [heights[0], heights[0], heights[0], heights[0]]);
+	});
+
 	test('the terminals show only with a terminal in them: hiding them with their last terminal moves no other part, does not rebuild the grid, and showing them gives them their height back', () => {
 		const { grid, open, height, terminalsPart, userResize } = setupWithTerminals();
 		const beforeFirst = grid.terminalsVisible.get();

@@ -1978,10 +1978,12 @@ function addBesideSpanningViews<T extends IArrangedView>(arrangement: IArrangeme
 	let beside: ISerializedNode;
 	const [only] = parts;
 	if (parts.length === 1 && only.type === 'branch') {
-		// A column (or row) along the edge already: the cell joins it at that end, and what is in it makes room
-		const total = only.data.reduce((sum, child) => sum + (child.size ?? 0), 0);
+		// A column (or row) along the edge already: the cell joins it at that end, and what shows in it makes room. Hidden
+		// children take no room: they keep the size they had, to show at again.
+		const shows = (child: ISerializedNode) => child.type !== 'leaf' || child.visible !== false;
+		const total = only.data.reduce((sum, child) => sum + (shows(child) ? child.size ?? 0 : 0), 0);
 		const factor = total ? rest / total : 1;
-		const data = only.data.map(child => ({ ...child, size: Math.round((child.size ?? 0) * factor) }));
+		const data = only.data.map(child => shows(child) ? { ...child, size: Math.round((child.size ?? 0) * factor) } : child);
 		beside = { ...only, data: atEnd ? [...data, added] : [added, ...data] };
 	} else {
 		const inner: ISerializedNode = parts.length === 1 ? { ...only, size: rest } : { type: 'branch', data: parts, size: rest };
