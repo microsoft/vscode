@@ -805,11 +805,12 @@ suite('Chat window', () => {
 
 		const slow = service.open(URI.parse('test:/x'));
 		await timeout(0);
-		const revealed = await Promise.race([service.open(URI.parse('test:/session-b')).then(() => true), timeout(10).then(() => false)]);
+		// Completes while the slow open is held, or the test times out
+		const revealed = await service.open(URI.parse('test:/session-b'));
 		gate.complete();
 		await slow;
 
-		assert.deepStrictEqual({ events, revealedWhileSlowOpens: revealed }, { events: ['create x'], revealedWhileSlowOpens: true });
+		assert.deepStrictEqual({ events, revealedWhileSlowOpens: revealed !== undefined }, { events: ['create x'], revealedWhileSlowOpens: true });
 	});
 
 	test('a click in the chat of a group that is not the active one makes that chat the active chat of the window, so a link opens as a tab of its group', async () => {
