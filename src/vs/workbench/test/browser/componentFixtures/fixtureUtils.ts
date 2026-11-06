@@ -781,6 +781,7 @@ export function createEditorServices(disposables: DisposableStore, options?: Cre
 		acceptFeedback: () => { },
 		addReply: () => { },
 		getFeedback: () => [],
+		getFeedbackObservable: () => constObservable([]),
 		isAgentHostSession: () => false,
 		showFeedbackInEditor: () => { },
 		hideFeedbackInEditor: () => { },

@@ -1709,7 +1709,7 @@ export class AgentSideEffects extends Disposable {
 		const forbiddenSnapshotWrite = this._permissionManager.isForbiddenSnapshotWrite(approvalEvent, sessionKey);
 		const deniedByPermissions = forbiddenSnapshotWrite || this._permissionManager.isDeniedByPermissions(approvalEvent, sessionKey);
 		const deniedByPolicy = typeof deniedByPermissions === 'boolean' ? deniedByPermissions : await deniedByPermissions;
-		const autoApproval = e.managedApprovalRequired || deniedByPolicy
+		const autoApproval = e.managedApprovalRequired || e.requiresUserConfirmation || deniedByPolicy
 			? undefined
 			: await this._permissionManager.getAutoApproval(approvalEvent, sessionKey);
 		const activeTurn = this._stateManager.getSessionState(sessionKey)?.activeTurn;

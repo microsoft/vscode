@@ -442,11 +442,15 @@ export class NewChatWidget extends Disposable {
 			session?.workspace.read(reader);
 			session?.loading.read(reader);
 			session?.isQuickChat?.read(reader);
-			return this._shouldShowComparisonAction();
+			return this._shouldShowComparisonAction(reader);
 		}), modelId => this.languageModelsService.lookupLanguageModel(modelId)?.name,
 			constObservable(true),
 			observableFromEvent(this, Event.filter(this.configurationService.onDidChangeConfiguration, event => event.affectsConfiguration(COMPARE_AGENTS_SHOW_PICKER_HINT_SETTING)),
-				() => this.configurationService.getValue<boolean>(COMPARE_AGENTS_SHOW_PICKER_HINT_SETTING))));
+				() => this.configurationService.getValue<boolean>(COMPARE_AGENTS_SHOW_PICKER_HINT_SETTING)),
+			derived(this, reader => {
+				const session = this._session.read(reader);
+				return !session || session.loading.read(reader) || comparisonConfigResolving.read(reader);
+			})));
 		const canSendRequest = derived(reader => {
 			const session = this._session.read(reader);
 			if (!session) {
@@ -1661,8 +1665,14 @@ export class NewChatWidget extends Disposable {
 		}
 	}
 
-	private _getComparisonBranch(session = this._session.get()): string | undefined {
+	private _getComparisonBranch(session = this._session.get(), reader?: IReader): string | undefined {
 		const selectedFolderUri = this._workspacePicker.selectedFolderUri;
+		const sessionRepository = getComparisonSessionFolder(session, selectedFolderUri)?.gitRepository;
+		const selectedWorkspaceRepository = getComparisonSelectedWorkspaceFolder(this._workspacePicker.selectedResolved?.workspace, selectedFolderUri)?.gitRepository;
+		const repository = sessionRepository ?? selectedWorkspaceRepository;
+		if (repository?.isRepository?.read(reader) === false) {
+			return undefined;
+		}
 		const provider = session ? this.sessionsProvidersService.getProvider(session.providerId, session.sessionId) : undefined;
 		const matchesSelectedFolder = !selectedFolderUri || !!session?.workspace.get()?.folders.some(folder => isEqual(folder.root, selectedFolderUri));
 		if (session && provider && isAgentHostProvider(provider) && matchesSelectedFolder) {
@@ -1674,12 +1684,10 @@ export class NewChatWidget extends Disposable {
 				return branch;
 			}
 		}
-		const selectedWorkspaceRepository = getComparisonSelectedWorkspaceFolder(this._workspacePicker.selectedResolved?.workspace, selectedFolderUri)?.gitRepository;
 		const selectedWorkspaceBranch = selectedWorkspaceRepository?.branchName?.trim() || selectedWorkspaceRepository?.baseBranchName?.trim();
 		if (selectedWorkspaceBranch) {
 			return selectedWorkspaceBranch;
 		}
-		const sessionRepository = getComparisonSessionFolder(session, selectedFolderUri)?.gitRepository;
 		const workspaceBranch = sessionRepository?.branchName?.trim() || sessionRepository?.baseBranchName?.trim();
 		if (workspaceBranch) {
 			return workspaceBranch;
@@ -1693,7 +1701,7 @@ export class NewChatWidget extends Disposable {
 			.map(model => model.identifier));
 	}
 
-	private _shouldShowComparisonAction(): boolean {
+	private _shouldShowComparisonAction(reader?: IReader): boolean {
 		const session = this._session.get();
 		const provider = session ? this.sessionsProvidersService.getProvider(session.providerId, session.sessionId) : undefined;
 		const selectedFolderUri = this._workspacePicker.selectedFolderUri;
@@ -1709,7 +1717,7 @@ export class NewChatWidget extends Disposable {
 		if (!sessionMatchesSelectedFolder) {
 			return false;
 		}
-		if (this._getComparisonBranch(session) === undefined) {
+		if (this._getComparisonBranch(session, reader) === undefined) {
 			return false;
 		}
 		const sessionConfig = session && providerIsAgentHost && !resolvingConfig ? provider.getSessionConfig(session.sessionId, session.mainChat.get().resource) : undefined;
@@ -1844,7 +1852,7 @@ export class NewChatWidget extends Disposable {
 		// contribution gets a chance, this prevents the user from being
 		// stuck on a picker that never gets populated.
 		if (!hasCompletedDiscovery && !filter.isDiscovering) {
-			filter.rediscover();
+			filter.rediscover('automatic');
 		}
 
 		const update = () => {

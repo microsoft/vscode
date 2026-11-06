@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { SessionInlineActions } from './sessionInlineActions.js';
 import '../media/sessionsList.css';
 import { SessionGroupAppearancePicker } from './sessionGroupAppearancePicker.js';
 import { findSearchWords, getSessionSearchHint, ISessionSearchDocument, ISessionSearchField, ISessionSearchHint, ISessionSearchMatch, ISessionsListSearchResults, matchSessionSearch, SessionsListFindController, SessionsListSearchQuery, SessionsListSearchTelemetry, SessionSearchFieldKind, toSearchFilterData } from './sessionsListSearch.js';
@@ -40,7 +41,7 @@ import { ContextKeyValue, IContextKey, IContextKeyService, RawContextKey } from 
 import { MarshalledId } from '../../../../../base/common/marshallingIds.js';
 import { SessionProviderIdContext, SessionSupportsDeleteContext, SessionSupportsMultipleChatsContext, SessionSupportsRenameContext, SessionTypeContext, IsPhoneLayoutContext, IsQuickChatSessionContext, SessionIsArchivedContext, SessionIsReadContext, SessionHasPullRequestContext, SessionItemIsMultiSelectionContext } from '../../common/contextkeys.js';
 import { ARCHIVE_SESSION_COMMAND_ID, ARCHIVE_SESSIONS_WITH_UNDO_COMMAND_ID, DELETE_SESSION_GROUP_WITH_UNDO_COMMAND_ID, RENAME_CHAT_COMMAND_ID, RENAME_SESSION_COMMAND_ID } from '../../common/sessionCommands.js';
-import { ExternalSessionApplicationBadgeMode, SESSIONS_LIST_EXTERNAL_APPLICATION_BADGE_SETTING, SESSIONS_LIST_EXTERNAL_APPLICATION_BADGE_SHOW_FROM_SETTING, SESSIONS_LIST_GROUP_EXTERNAL_SESSIONS_SETTING } from '../../common/sessionConfig.js';
+import { ExternalSessionApplicationBadgeMode, SESSIONS_LIST_EXTERNAL_APPLICATION_BADGE_SETTING, SESSIONS_LIST_EXTERNAL_APPLICATION_BADGE_SHOW_FROM_SETTING, SESSIONS_LIST_GROUP_EXTERNAL_SESSIONS_SETTING, SESSIONS_LIST_INLINE_ACTIONS_SETTING } from '../../common/sessionConfig.js';
 import { UNKNOWN_SESSION_APPLICATION_ID } from '../../common/sessionApplication.js';
 import { IContextMenuService, IContextViewService } from '../../../../../platform/contextview/browser/contextView.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
@@ -128,7 +129,7 @@ import { IOpenAICustomizationsCommandOptions, OPEN_AI_CUSTOMIZATIONS_COMMAND_ID 
 import { NEW_SESSION_ACTION_ID } from '../../common/chatConstants.js';
 import { Menus } from '../menus.js';
 import { getSessionConversationStatusAriaLabel } from '../sessionConversationGroups.js';
-import { getAgentMergeAwarePullRequestIcon, getSessionAgentMergeConfigurationObservable, ISessionAgentMergeConfiguration, isAgentMergePullRequestIcon } from '../sessionAgentMerge.js';
+import { getAgentMergeAwarePullRequestIcon, getChatCompletedStateIcon, getSessionAgentMergeConfigurationObservable, ISessionAgentMergeConfiguration, isAgentMergePullRequestIcon } from '../sessionAgentMerge.js';
 import { BlockedSessionReason, BlockedSessions } from '../blockedSessions.js';
 import { ChatInboxEnabledContext, INBOX_CANVAS_ID, SHOW_INBOX_NOTIFICATIONS_COMMAND_ID } from '../inboxNotificationsConstants.js';
 import { WindowCanvasInput } from '../windowCanvas.js';
@@ -756,6 +757,7 @@ class SessionsTreeDelegate implements IListVirtualDelegate<SessionListItem> {
 		private readonly _useInsetRowSpacing = false,
 		private readonly _isComparisonAttempt: (session: ISession) => boolean = () => false,
 		private readonly _sectionRowHeight?: number,
+		private readonly _inlineActionsHeight: (element: SessionListItem) => number = () => 0,
 	) { }
 
 	private withInsetRowSpacing(height: number): number {
@@ -764,7 +766,7 @@ class SessionsTreeDelegate implements IListVirtualDelegate<SessionListItem> {
 
 	getHeight(element: SessionListItem): number {
 		if (isSessionChatItem(element)) {
-			return this.withInsetRowSpacing(this.withChatApprovalHeight(element, this.getChatBaseHeight()));
+			return this.getHeightWithoutChatWorkspace(element);
 		}
 		if (isSessionGroupItem(element) && element.comparison) {
 			return SessionsTreeDelegate.COMPARISON_SECTION_HEIGHT;
@@ -816,11 +818,11 @@ class SessionsTreeDelegate implements IListVirtualDelegate<SessionListItem> {
 		if (this._ciFixModel && this._ciFixModel.getCIFix(element as ISession).get()) {
 			height += SessionItemRenderer.CI_ROW_HEIGHT;
 		}
-		return this.withInsetRowSpacing(height);
+		return this.withInsetRowSpacing(height + this._inlineActionsHeight(element));
 	}
 
 	getHeightWithoutChatWorkspace(element: ISessionChatItem): number {
-		return this.withInsetRowSpacing(this.withChatApprovalHeight(element, this.getChatBaseHeight()));
+		return this.withInsetRowSpacing(this.withChatApprovalHeight(element, this.getChatBaseHeight()) + this._inlineActionsHeight(element));
 	}
 
 	private getChatBaseHeight(): number {
@@ -983,6 +985,7 @@ class SessionChatItemRenderer implements ITreeRenderer<SessionListItem, FuzzySco
 		/** While searching, the field a standalone chat matched in that neither its row, through `shownTexts`, nor its section headers show. */
 		private readonly getSearchHint: (item: ISessionChatItem, shownTexts: readonly string[]) => ISessionSearchHint | undefined = () => undefined,
 		private readonly getComparisonAttemptLabel: (session: ISession, chat: IChat) => string | undefined = () => undefined,
+		private readonly renderInlineActions?: (element: ISessionChatItem, before: HTMLElement) => IDisposable,
 	) { }
 
 	renderTemplate(container: HTMLElement): ISessionChatItemTemplate {
@@ -1042,6 +1045,9 @@ class SessionChatItemRenderer implements ITreeRenderer<SessionListItem, FuzzySco
 		}
 
 		template.elementDisposables.clear();
+		if (this.renderInlineActions) {
+			template.elementDisposables.add(this.renderInlineActions(element, template.approvalRow));
+		}
 		template.titleToolbar.context = element;
 		setSessionGroupDepth(template.container, this.getGroupDepth(element));
 		template.elementDisposables.add(toDisposable(() => template.container.classList.remove('renaming')));
@@ -1060,19 +1066,7 @@ class SessionChatItemRenderer implements ITreeRenderer<SessionListItem, FuzzySco
 			const status = element.chat.status.read(reader);
 			const isArchived = element.chat.isArchived.read(reader);
 			const isRead = element.chat.isRead.read(reader);
-			const pullRequestIcon = element.chat.completedStateIcon
-				? element.chat.completedStateIcon.read(reader)
-				// Without provider attribution, only a multi-folder session's chats have pull requests of their own.
-				: (element.session.workspace.read(reader)?.folders.length ?? 0) > 1
-					? getHighestPriorityPullRequestIcon(
-						element.chat.workspace.read(reader)?.folders.flatMap(folder =>
-							getGitHubPullRequestRefs(folder.gitRepository?.gitHubInfo.read(reader)).map(pullRequest => pullRequest.icon)
-						) ?? []
-					)
-					: undefined;
-			const completedStateIcon = pullRequestIcon && isAgentMergePullRequestIcon(pullRequestIcon)
-				? getAgentMergeAwarePullRequestIcon(pullRequestIcon, (agentMergeConfiguration ??= this.getAgentMergeConfiguration(element)).read(reader))
-				: pullRequestIcon;
+			const completedStateIcon = getChatCompletedStateIcon(element.session, element.chat, reader, () => agentMergeConfiguration ??= this.getAgentMergeConfiguration(element));
 			const capabilities = getChatCapabilities(element.chat, element.session, reader);
 			template.canArchiveContext.set(capabilities.canArchive);
 			template.canDeleteContext.set(capabilities.canDelete);
@@ -1697,6 +1691,7 @@ class SessionItemRenderer implements ITreeRenderer<SessionListItem, FuzzyScore, 
 			reportExternalApplicationBadgeShowFromExperimentTrigger?: () => void;
 			/** While searching, the field a session matched in that neither its row, through `shownTexts`, nor its section headers show. */
 			getSearchHint?: (session: ISession, shownTexts: readonly string[]) => ISessionSearchHint | undefined;
+			renderInlineActions?: (session: ISession, before: HTMLElement) => IDisposable;
 		},
 		private readonly approvalModel: AgentSessionApprovalModel | undefined,
 		private readonly ciFixModel: ISessionCIFixModel | undefined,
@@ -1842,6 +1837,9 @@ class SessionItemRenderer implements ITreeRenderer<SessionListItem, FuzzyScore, 
 	private renderSession(element: ISession, template: ISessionItemTemplate, matches?: IMatch[]): void {
 		template.elementDisposables.clear();
 		setSessionGroupDepth(template.container, this.options.getGroupDepth?.(element) ?? 0);
+		if (this.options.renderInlineActions) {
+			template.elementDisposables.add(this.options.renderInlineActions(element, template.approvalRow));
+		}
 		template.container.closest('.monaco-list-row')?.classList.remove(SESSION_EXTERNAL_APPLICATION_BADGE_HOVERED_CLASS);
 		template.renderedSession.set(element, undefined);
 		template.elementDisposables.add(toDisposable(() => {
@@ -4533,6 +4531,8 @@ function resettableValue<T>(read: () => T, write: (value: T) => void, defaultVal
 export class SessionsList extends Disposable implements ISessionsList {
 	private readonly archiveDemand = this._register(new MutableDisposable());
 
+	private readonly inlineActionsVisible = observableValue(this, true);
+
 	private static readonly SECTION_COLLAPSE_STATE_KEY = 'sessionsListControl.sectionCollapseState';
 	private static readonly SESSION_COLLAPSE_STATE_KEY = 'sessionsListControl.sessionCollapseState';
 	private static readonly EXCLUDED_TYPES_KEY = 'sessionsListControl.excludedSessionTypes';
@@ -4818,6 +4818,23 @@ export class SessionsList extends Disposable implements ISessionsList {
 		const reportExternalApplicationBadgeShowFromExperimentTrigger = () => logDefaultSettingExperimentTrigger(this.configurationService, this.telemetryService, SESSIONS_LIST_EXTERNAL_APPLICATION_BADGE_SHOW_FROM_SETTING);
 		this.searchFilter = new SessionsListSearchFilter(session => this.getSessionSearchDocument(session));
 		const getSearchHint = (element: ISession | ISessionChatItem, shownTexts: readonly string[]) => this.getSearchHint(element, shownTexts);
+		const inlineActionsHeights = new WeakMap<SessionListItem, number>();
+		const renderInlineActions = (element: ISession | ISessionChatItem, before: HTMLElement) => instantiationService.createInstance(
+			SessionInlineActions,
+			isSessionChatItem(element) ? element.session : element,
+			isSessionChatItem(element) ? element.chat : undefined,
+			before,
+			this.inlineActionsVisible,
+			height => {
+				if ((inlineActionsHeights.get(element) ?? 0) !== height) {
+					inlineActionsHeights.set(element, height);
+					if (this.tree.hasElement(element)) {
+						this.tree.updateElementHeight(element, delegate.getHeight(element));
+					}
+				}
+			},
+			() => this.tree.domFocus(),
+		);
 		const sessionRenderer = new SessionItemRenderer(
 			{
 				grouping: this.options.grouping,
@@ -4852,6 +4869,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 				onboardingTarget: this.onboardingTarget,
 				getGroupDepth: session => this.getRowGroupDepth(session),
 				getSearchHint,
+				renderInlineActions,
 			},
 			approvalModel,
 			undefined,
@@ -4905,6 +4923,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 			item => getSessionAgentMergeConfigurationObservable(item.session, sessionsProvidersService, this.configurationService, item.chat),
 			getSearchHint,
 			(session, chat) => this.getComparisonAttemptLabel(session, chat),
+			renderInlineActions,
 		);
 		this._chatRenderer = chatRenderer;
 		const selectHeader = (element: ISessionSection | ISessionGroupItem, event: MouseEvent) => {
@@ -5006,6 +5025,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 			true /* useInsetRowSpacing */,
 			session => this.getComparisonAttemptLabel(session) !== undefined,
 			this.options.sectionRowHeight,
+			element => this.configurationService.getValue<boolean>(SESSIONS_LIST_INLINE_ACTIONS_SETTING) ? inlineActionsHeights.get(element) ?? 0 : 0,
 		);
 		this._delegate = delegate;
 
@@ -6685,6 +6705,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 		}
 		this.visible = visible;
 		this.updateArchiveDemand();
+		this.inlineActionsVisible.set(visible, undefined);
 		if (this.visible) {
 			this.refresh();
 		}

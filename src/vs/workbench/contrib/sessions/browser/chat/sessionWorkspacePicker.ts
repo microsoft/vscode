@@ -810,7 +810,7 @@ export class WorkspacePicker extends Disposable {
 		if (!alreadyVisible && (preferredGroup === undefined || preferredGroup === SESSION_WORKSPACE_GROUP_REMOTE)
 			&& this.configurationService.getValue<boolean>(RemoteAgentHostsEnabledSettingId)
 			&& !this.agentHostFilterService.isDiscovering) {
-			void this.agentHostFilterService.rediscover().then(success => {
+			void this.agentHostFilterService.rediscover('automatic').then(success => {
 				if (!success) {
 					this.notificationService.warn(localize('workspacePicker.refreshHostsFailed', "Could not refresh remote hosts. Showing the last known hosts."));
 				}

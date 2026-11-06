@@ -5,7 +5,7 @@
 
 import assert from 'assert';
 import { timeout } from '../../../../../base/common/async.js';
-import { constObservable, IObservable, observableValue } from '../../../../../base/common/observable.js';
+import { autorun, constObservable, IObservable, observableValue, transaction } from '../../../../../base/common/observable.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { Registry } from '../../../../../platform/registry/common/platform.js';
 import { IViewEditorRegistry, ViewEditorExtensions } from '../../../../../workbench/browser/parts/editor/viewEditorRegistry.js';
@@ -19,7 +19,15 @@ import { IChatWindow } from '../../../../../workbench/contrib/chatWindow/browser
 import { IContentPart, IEditorGroup } from '../../../../../workbench/services/editor/common/editorGroupsService.js';
 import { testPaneContentOf } from '../../../../../workbench/contrib/sessions/test/browser/sessionHostTestUtils.js';
 import { createSessionViewTestServices, createTestActiveSession } from '../../../../test/browser/sessionViewTestUtils.js';
-import { ChatEditorView, IInputOnlySessionView, ISessionChatViewHost, SESSION_CHAT_VIEW_HOST_OPTIONS, SESSION_CHAT_VIEW_MINIMUM_HEIGHT, SESSION_CHAT_VIEW_TYPE, SessionChatViewInputOnly } from '../../browser/chatEditor.js';
+import { Menus } from '../../../../../workbench/contrib/sessions/browser/menus.js';
+import { SessionInChatEditorContext } from '../../../../../workbench/contrib/sessions/common/contextkeys.js';
+import { ThemeIcon } from '../../../../../base/common/themables.js';
+import { Codicon } from '../../../../../base/common/codicons.js';
+import { URI } from '../../../../../base/common/uri.js';
+import { Verbosity } from '../../../../../workbench/common/editor.js';
+import { IChat, ISession, SessionStatus } from '../../../../../workbench/contrib/sessions/common/session.js';
+import { ISessionsListModelService } from '../../../../../workbench/contrib/sessions/browser/sessionsListModelService.js';
+import { ChatEditorInput, getChatEditorInputDetails, ChatEditorView, IInputOnlySessionView, ISessionChatViewHost, SESSION_CHAT_VIEW_HOST_OPTIONS, SESSION_CHAT_VIEW_MINIMUM_HEIGHT, SESSION_CHAT_VIEW_TYPE, SessionChatViewInputOnly } from '../../browser/chatEditor.js';
 
 suite('Session chat view editor', () => {
 
@@ -298,5 +306,81 @@ suite('Session chat view editor', () => {
 			},
 			stackedConversation: shown,
 		});
+	});
+
+	test('while the group of its editor shows its tabs, as it holds other editors too, the chat hides its session header, whose actions the tab bar shows for it, in its scope and on its session; alone in its group again, it shows its header', () => {
+		const { instantiationService } = createSessionViewTestServices(disposables);
+		const session = createTestActiveSession('session');
+		const view = disposables.add(instantiationService.createInstance(ChatEditorView, {
+			content: constObservable(testPaneContentOf(session, () => { })),
+			window: constObservable(undefined),
+			active: constObservable(true),
+			attach: () => Disposable.None,
+			view: constObservable(undefined),
+		}));
+		view.layout(400, 800, 0, 0);
+		const headerShown = () => view.element.querySelector<HTMLElement>('.session-header-bar')?.style.display !== 'none';
+
+		const alone = headerShown();
+		view.setProvidedTitleVisible(false);
+		const withTabs = headerShown();
+		view.setProvidedTitleVisible(true);
+		const aloneAgain = headerShown();
+
+		const { menuId, contextKeyService, options } = view.titleMenu;
+		assert.deepStrictEqual({ alone, withTabs, aloneAgain, menu: menuId.id, inChatEditorScope: SessionInChatEditorContext.getValue(contextKeyService), onSession: options.args?.[0] === session }, {
+			alone: true,
+			withTabs: false,
+			aloneAgain: true,
+			menu: Menus.SessionBarToolbar.id,
+			inChatEditorScope: true,
+			onSession: true,
+		});
+	});
+
+	test('the tab of a chat shows its status as the sessions list does, spinning while in progress, its pull request once it is done, and its session in its tooltip and for screen readers; it changes only as these do', () => {
+		const status = observableValue('status', SessionStatus.InProgress);
+		const isRead = observableValue('isRead', true);
+		const pullRequest = observableValue<ThemeIcon | undefined>('pullRequest', undefined);
+		const mainChat = upcastPartial<IChat>({ resource: URI.parse('test-chat:/main'), title: constObservable('Main') });
+		const chat = upcastPartial<IChat>({ resource: URI.parse('test-chat:/side'), title: constObservable('Side chat'), status, isRead, isArchived: constObservable(false), completedStateIcon: pullRequest });
+		const session = upcastPartial<ISession>({ title: constObservable('The session'), mainChat: constObservable(mainChat), chats: constObservable([mainChat, chat]), isQuickChat: constObservable(false) });
+		const sessionsListModelService = upcastPartial<ISessionsListModelService>({
+			getStatusIcon: (status, isRead, _isArchived, completedStateIcon) => ({ id: `${status}${isRead ? '' : '-unread'}${completedStateIcon ? `-${completedStateIcon.id}` : ''}` }),
+		});
+		const input = disposables.add(new ChatEditorInput(chat.resource));
+		input.setName('Side chat');
+		let labelChanges = 0;
+		disposables.add(input.onDidChangeLabel(() => labelChanges++));
+		disposables.add(autorun(reader => input.setDetails(getChatEditorInputDetails(session, chat, 'Side chat', reader, sessionsListModelService, () => constObservable(undefined)))));
+		const read = () => ({ icon: input.getIcon().id, title: input.getTitle(Verbosity.LONG), ariaLabel: input.getAriaLabel(), labelChanges });
+
+		const inProgress = read();
+		isRead.set(true, undefined);
+		const unchanged = read();
+		transaction(tx => {
+			status.set(SessionStatus.Completed, tx);
+			isRead.set(false, tx);
+		});
+		const unread = read();
+		transaction(tx => {
+			isRead.set(true, tx);
+			pullRequest.set(Codicon.gitPullRequest, tx);
+		});
+		const withPullRequest = read();
+
+		assert.deepStrictEqual({ inProgress, unchanged, unread, withPullRequest }, {
+			inProgress: { icon: 'loading~spin', title: 'The session / Side chat', ariaLabel: 'The session / Side chat, State: In Progress', labelChanges: 1 },
+			unchanged: { icon: 'loading~spin', title: 'The session / Side chat', ariaLabel: 'The session / Side chat, State: In Progress', labelChanges: 1 },
+			unread: { icon: `${SessionStatus.Completed}-unread`, title: 'The session / Side chat', ariaLabel: 'The session / Side chat, State: Completed, unread', labelChanges: 2 },
+			withPullRequest: { icon: `${SessionStatus.Completed}-${Codicon.gitPullRequest.id}`, title: 'The session / Side chat', ariaLabel: 'The session / Side chat, State: Completed', labelChanges: 3 },
+		});
+	});
+
+	test('the tab of a chat without details yet shows a chat and its name', () => {
+		const input = disposables.add(new ChatEditorInput(URI.parse('test-chat:/main')));
+		input.setName('Main');
+
+		assert.deepStrictEqual({ icon: input.getIcon().id, title: input.getTitle(Verbosity.LONG), ariaLabel: input.getAriaLabel() }, { icon: Codicon.commentDiscussion.id, title: 'Main', ariaLabel: 'Main' });
 	});
 });
