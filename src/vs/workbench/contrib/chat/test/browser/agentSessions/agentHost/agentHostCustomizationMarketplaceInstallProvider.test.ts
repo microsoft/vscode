@@ -1555,6 +1555,7 @@ suite('AgentHostCustomizationMarketplaceInstallProvider', () => {
 			const prompts: (string | undefined)[] = [];
 			const details: string[] = [];
 			const validation: (string | undefined)[] = [];
+			const secretValidation: (string | undefined)[] = [];
 			const host = new class extends mock<IAgentHostService>() {
 				override readonly onAgentHostStart = Event.None;
 				override readonly onAgentHostExit = Event.None;
@@ -1579,6 +1580,10 @@ suite('AgentHostCustomizationMarketplaceInstallProvider', () => {
 				override async input(inputOptions?: IInputOptions): Promise<string | undefined> {
 					prompts.push(inputOptions?.prompt);
 					if (inputOptions?.password) {
+						for (const probe of ['', 'a\0b', 'x'.repeat(8193), sentinels.secret]) {
+							const message = await inputOptions.validateInput?.(probe);
+							secretValidation.push(typeof message === 'string' ? message : undefined);
+						}
 						return this.cancelAt === 'secret' ? undefined : sentinels.secret;
 					}
 					const tenant = inputOptions?.prompt?.startsWith('TENANT');
@@ -1611,7 +1616,7 @@ suite('AgentHostCustomizationMarketplaceInstallProvider', () => {
 					requestTrust: async () => { calls.push('requestTrust'); return options.grantTrust; },
 				},
 			));
-			return { provider, calls, details, validation, prompts, quickInput };
+			return { provider, calls, details, validation, secretValidation, prompts, quickInput };
 		}
 
 		test('installs once through the local host with exact submitted values after a sanitized review', async () => {
@@ -1645,6 +1650,17 @@ suite('AgentHostCustomizationMarketplaceInstallProvider', () => {
 					'Configuration fields: headers, url',
 				],
 			});
+		});
+
+		test('rejects secrets the host would refuse while the prompt is still open', async () => {
+			const { provider, secretValidation } = createFlow();
+			await provider.install(URI.parse('agent-host-copilotcli:/frontend'), resource, CancellationToken.None);
+			assert.deepStrictEqual(secretValidation, [
+				'A value is required.',
+				'This secret contains characters that are not allowed.',
+				'This secret is longer than 8192 bytes.',
+				undefined,
+			]);
 		});
 
 		test('shows command links from untrusted plan text as plain text', async () => {

@@ -7,6 +7,7 @@ import type { CopilotClient, InstallationConfirmationRequest, McpInstallationRev
 import assert from 'assert';
 import { createHash } from 'crypto';
 import { DeferredPromise, timeout } from '../../../../base/common/async.js';
+import { runWithFakedTimers } from '../../../../base/test/common/virtualScheduling/index.js';
 import { bufferToStream, VSBuffer } from '../../../../base/common/buffer.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import { stableStringify } from '../../../../base/common/objects.js';
@@ -736,6 +737,58 @@ suite('CopilotCustomizationInstallations', () => {
 			sdkRetry: 'This customization installation review expired. Start the operation again.',
 			applies: ['mcp.config.remove:demo'],
 		});
+	});
+
+	test('reports an unfinished skill removal as a removal', async () => {
+		const expiresAt = new Date(Date.now() + 60_000).toISOString();
+		const negotiated = { runtimeProtocolVersion: 3, grantedCapabilities: [] };
+		const catalogue = { resourceId: 'urn:air:github.test:skill:demo', displayName: 'Demo Skill', source: 'https://agentfinder.github.com' };
+		const installation = {
+			installationId: 'skill-installation',
+			operationId: 'skill-operation',
+			name: 'demo-skill',
+			target: { scope: 'personal' as const, relativePath: 'skills/demo', displayLabel: '~/.copilot/skills/demo' },
+			configuredEnabled: false,
+			sessionState: 'loaded-disabled' as const,
+			source: {
+				resourceId: catalogue.resourceId, catalogRevisionId: 'catalog-revision', repositoryId: 'repository-id', repository: 'owner/repository',
+				revision: 'a'.repeat(40), root: 'skills/demo', descriptorDigest: 'b'.repeat(64), bundleDigest: 'c'.repeat(64),
+			},
+			catalogue,
+			installedAt: new Date().toISOString(),
+			ownershipState: 'intact' as const,
+		};
+		const results: string[] = [];
+		for (const kind of ['cancelled', 'declined', 'recovery-required'] as const) {
+			const client = {
+				rpc: {
+					catalog: new class extends mock<CopilotClient['rpc']['catalog']>() { }(),
+					skills: new class extends mock<CopilotClient['rpc']['skills']>() {
+						override readonly installations = new class extends mock<CopilotClient['rpc']['skills']['installations']>() {
+							override readonly list: CopilotClient['rpc']['skills']['installations']['list'] = async () => ({ kind: 'outcome' as const, negotiated, outcome: { kind: 'listed' as const, installations: [installation] } });
+						}();
+						override readonly planUninstall: CopilotClient['rpc']['skills']['planUninstall'] = async () => ({
+							kind: 'outcome' as const,
+							negotiated,
+							outcome: {
+								kind: 'uninstall-planned' as const,
+								plan: { planHandle: 'skill-plan', operationId: 'skill-uninstall', expiresAt, installation, review: { action: 'uninstall' as const, installation, filesModified: false, files: [], totalBytes: 0, catalogue } },
+							},
+						});
+						override readonly applyUninstall: CopilotClient['rpc']['skills']['applyUninstall'] = async () => ({ kind: 'outcome', negotiated, outcome: { kind, operationId: 'skill-uninstall' } } as Awaited<ReturnType<CopilotClient['rpc']['skills']['applyUninstall']>>);
+					}(),
+					mcp: new class extends mock<CopilotClient['rpc']['mcp']>() {
+						override readonly installations = new class extends mock<CopilotClient['rpc']['mcp']['installations']>() {
+							override readonly list: CopilotClient['rpc']['mcp']['installations']['list'] = async () => ({ kind: 'outcome' as const, negotiated, outcome: { kind: 'listed' as const, installations: [] } });
+						}();
+					}(),
+				},
+			};
+			const service = store.add(new CopilotCustomizationInstallations(async () => client, new TestPolicySessions().create));
+			const review = await prepareReview(service, { installationId: installation.installationId });
+			results.push(await applyReview(service, review).then(() => 'removed', error => error instanceof Error ? error.message : String(error)));
+		}
+		assert.deepStrictEqual([...new Set(results)], ['The customization removal did not complete.']);
 	});
 
 	test('adds a raw MCP configuration through the SDK', async () => {
@@ -1692,7 +1745,8 @@ suite('CopilotCustomizationInstallations', () => {
 	suite('apply admission', () => {
 		const errorMessage = (error: unknown) => error instanceof Error ? error.message : String(error);
 
-		test('expiry while the client is admitted prevents the provisional configuration write', async () => {
+		test('expiry while the client is admitted prevents the provisional configuration write', () => runWithFakedTimers({}, async () => {
+			// Virtual time only advances once preparation is idle, so setup time can't expire the plan early.
 			const { service, request, added, clientGate } = createLocalMcpCardFixture({ expiresInMs: 30 });
 			const prepared = await service.prepare(request);
 			assert.strictEqual(prepared.kind, 'review');
@@ -1705,7 +1759,7 @@ suite('CopilotCustomizationInstallations', () => {
 				result: 'This customization installation review expired. Start the operation again.',
 				added: [],
 			});
-		});
+		}));
 
 		test('a concurrent duplicate apply is refused and effects run once', async () => {
 			const { service, request, added, clientGate } = createLocalMcpCardFixture();

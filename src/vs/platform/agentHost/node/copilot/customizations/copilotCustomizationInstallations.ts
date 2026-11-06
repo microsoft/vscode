@@ -1561,7 +1561,8 @@ export class CopilotCustomizationInstallations extends Disposable {
 		}
 		const outcome = result.outcome!;
 		if (outcome.kind !== (action === 'install' ? 'installed' : 'uninstalled')) {
-			if (sensitive || outcome.kind === 'cancelled' || outcome.kind === 'declined' || outcome.kind === 'recovery-required') {
+			// Typed reasons describe an installation, so removals keep their own wording.
+			if (sensitive || (action === 'install' && (outcome.kind === 'cancelled' || outcome.kind === 'declined' || outcome.kind === 'recovery-required'))) {
 				throw toInstallationFailure(typeof outcome.reason === 'string' ? outcome.reason : outcome.kind);
 			}
 			throw new Error(action === 'install'

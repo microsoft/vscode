@@ -64,6 +64,19 @@ function validateConfiguredValue(value: IAgentCustomizationInstallationValueProm
 		: undefined;
 }
 
+/** UI validation for a secret, matching the host's checks. Never echoes the secret. */
+function validateSecret(input: string): string | undefined {
+	if (!input) {
+		return localize('agentHost.customizationInstall.secretRequired', "A value is required.");
+	}
+	if (input.includes('\0')) {
+		return localize('agentHost.customizationInstall.secretInvalid', "This secret contains characters that are not allowed.");
+	}
+	return new TextEncoder().encode(input).byteLength > maxConfiguredValueBytes
+		? localize('agentHost.customizationInstall.secretTooLong', "This secret is longer than {0} bytes.", maxConfiguredValueBytes)
+		: undefined;
+}
+
 export class AgentHostCustomizationMarketplaceInstallProvider extends Disposable implements ICustomizationMarketplaceInstallProvider, ICustomizationMarketplaceSearchProvider, ICustomizationMarketplaceManagementProvider, ICustomizationMcpConfigurationProvider, ICustomizationPluginInstallProvider {
 	private readonly _onDidChange = this._register(new Emitter<void>());
 	private readonly _onDidChangeMarketplaces = this._register(new Emitter<void>());
@@ -585,7 +598,7 @@ export class AgentHostCustomizationMarketplaceInstallProvider extends Disposable
 				prompt: localize('agentHost.customizationInstall.secretPrompt', "Enter the secret for {0}. It is stored by the Agent Host and never shown again.", toPlainLabel(secret.title ?? secret.key)),
 				password: true,
 				ignoreFocusLost: true,
-				validateInput: async input => input ? undefined : localize('agentHost.customizationInstall.secretRequired', "A value is required."),
+				validateInput: async input => validateSecret(input),
 			}, token);
 			if (!value) {
 				return undefined;
