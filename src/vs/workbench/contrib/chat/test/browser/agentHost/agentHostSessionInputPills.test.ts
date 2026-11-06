@@ -19,7 +19,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/
 import { runWithFakedTimers } from '../../../../../../base/test/common/virtualScheduling/index.js';
 import { IAgentHostConnectionsService } from '../../../../../../platform/agentHost/common/agentHostConnectionsService.js';
 import { SYNCED_CUSTOMIZATION_SCHEME } from '../../../../../../platform/agentHost/common/agentHostFileSystemService.js';
-import { createAgentHostResourceUriMapper, IAgentHostResourceUriMapper, identityAgentHostResourceUriMapper, toAgentHostUri } from '../../../../../../platform/agentHost/common/agentHostUri.js';
+import { agentHostAuthority, createAgentHostResourceUriMapper, createEditorRemoteAgentHostResourceUriMapper, IAgentHostResourceUriMapper, identityAgentHostResourceUriMapper, toAgentHostUri } from '../../../../../../platform/agentHost/common/agentHostUri.js';
 import { CanvasesEnabledSettingId, IAgentConnection } from '../../../../../../platform/agentHost/common/agentService.js';
 import { IActionListDelegate, IActionListItem } from '../../../../../../platform/actionWidget/browser/actionList.js';
 import { IActionWidgetService } from '../../../../../../platform/actionWidget/browser/actionWidget.js';
@@ -3188,7 +3188,8 @@ suite('AgentHostSessionInputPills', () => {
 
 	test('opens, keeps and undoes Working Set files through the ambient host of a remote window', async () => {
 		// The ambient host of a remote window resolves as `local` but runs on the remote, so its files aren't on this machine
-		const { harness, errors, setOperations, readInvoked } = createSessionWorkingSetPills({ connectionAuthority: 'local', resourceUris: createAgentHostResourceUriMapper('ambient-remote') });
+		const resourceUris = createEditorRemoteAgentHostResourceUriMapper('wsl+debian', agentHostAuthority('vscode-remote://wsl+debian'));
+		const { harness, errors, setOperations, readInvoked } = createSessionWorkingSetPills({ connectionAuthority: 'local', resourceUris });
 		setOperations([acceptChanges(ChangesetOperationStatus.Idle), discardWorkingSetChanges(ChangesetOperationStatus.Idle)]);
 		await harness.setWorkingSetEnabled(true);
 		const keep = harness.workingSetKeep();
@@ -3203,7 +3204,8 @@ suite('AgentHostSessionInputPills', () => {
 			invoked: readInvoked(),
 			errors,
 		}, {
-			resources: Array.from({ length: 3 }, () => 'vscode-agent-host://ambient-remote/repo/file.ts'),
+			// The file opens as the remote workspace's file; recorded contents are read through the host.
+			resources: ['vscode-agent-host://local/repo/file.ts', 'vscode-remote://wsl+debian/repo/file.ts', 'vscode-agent-host://local/repo/file.ts'],
 			results: [true, true],
 			invoked: [
 				'accept-changes vendor-diff:/opaque/working-set file:///repo/file.ts',

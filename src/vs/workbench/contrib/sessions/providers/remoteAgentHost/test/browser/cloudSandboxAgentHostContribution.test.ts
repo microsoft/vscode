@@ -718,6 +718,20 @@ suite('CloudSandboxAgentHostContribution', () => {
 
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
+	test('eagerly subscribes before listing without a Chat view service', async () => {
+		const requests: string[] = [];
+		const h = await createContribution(store, [], {
+			connectSessionFeed: async () => { requests.push('feed'); return undefined; },
+			listSessions: async (_token, options) => {
+				requests.push(`list:${options?.trigger}:${options?.incremental}`);
+				return { kind: 'complete', sessions: [] };
+			},
+		});
+		assert.deepStrictEqual({ requests, groups: h.hostGroups.map(group => group.id) }, {
+			requests: ['feed', 'list:startup:false'], groups: ['githubsandbox'],
+		});
+	});
+
 	test('keeps task identity while summary metadata and runtime state hydrate', () => {
 		const task = discoveredSession();
 		const entry = createCloudSandboxTaskSession(task);

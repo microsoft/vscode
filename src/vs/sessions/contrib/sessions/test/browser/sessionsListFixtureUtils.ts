@@ -3,6 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { GitHubPullRequestState, IGitHubPullRequest } from '../../../../../workbench/contrib/sessions/common/github/types.js';
+import { classifyRequiredPullRequestChecks } from '../../../../../platform/github/common/pullRequestRequiredChecks.js';
+import { GitHubPullRequestCIModel } from '../../../../../workbench/contrib/sessions/browser/github/models/githubPullRequestCIModel.js';
+import { GitHubPullRequestModel } from '../../../../../workbench/contrib/sessions/browser/github/models/githubPullRequestModel.js';
+import { IGitHubService } from '../../../../../workbench/contrib/sessions/browser/github/githubService.js';
+import { AgentFeedbackKind, AgentFeedbackState, IAgentFeedback } from '../../../../../workbench/contrib/sessions/browser/agentFeedbackModel.js';
+import { IAgentFeedbackService } from '../../../../../workbench/contrib/sessions/browser/agentFeedback.js';
 import * as DOM from '../../../../../base/browser/dom.js';
 import { getContextMenuAutoSelectItem, IContextMenuDelegate } from '../../../../../base/browser/contextmenu.js';
 import { getAnchorRect } from '../../../../../base/browser/ui/contextview/contextview.js';
@@ -13,8 +20,8 @@ import { Codicon } from '../../../../../base/common/codicons.js';
 import { onUnexpectedError } from '../../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { KeyCode, KeyMod } from '../../../../../base/common/keyCodes.js';
-import { Disposable, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
-import { constObservable, IObservable } from '../../../../../base/common/observable.js';
+import { Disposable, DisposableStore, IDisposable, ImmortalReference, MutableDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
+import { constObservable, IObservable, observableValue } from '../../../../../base/common/observable.js';
 import { OS } from '../../../../../base/common/platform.js';
 import { ExtUri, isEqual } from '../../../../../base/common/resources.js';
 import { hasKey } from '../../../../../base/common/types.js';
@@ -54,6 +61,7 @@ import { ChatAutomationsEnabledContext } from '../../../../../workbench/contrib/
 import { IAutomationService } from '../../../../../workbench/contrib/chat/common/automations/automationService.js';
 import { IChatService } from '../../../../../workbench/contrib/chat/common/chatService/chatService.js';
 import { IChatSessionItemArchiveState } from '../../../../../workbench/contrib/chat/common/chatSessionsService.js';
+import { IChatWidgetService } from '../../../../../workbench/contrib/chat/browser/chat.js';
 import { IChatEntitlementService, IChatSentiment } from '../../../../../workbench/services/chat/common/chatEntitlementService.js';
 import { IChatModel } from '../../../../../workbench/contrib/chat/common/model/chatModel.js';
 import { IVoicePlaybackService } from '../../../../../workbench/contrib/chat/common/voicePlaybackService.js';
@@ -73,7 +81,7 @@ import { ISessionsListModelService, SessionsListModelService } from '../../../..
 import { ISessionSectionOrderService, SessionSectionOrderService } from '../../../../../workbench/contrib/sessions/browser/sessionSectionOrderService.js';
 import { ISessionsProvidersService } from '../../../../../workbench/contrib/sessions/browser/sessionsProvidersService.js';
 import { ISessionsService } from '../../../../../workbench/contrib/sessions/browser/sessionsService.js';
-import { ISessionHostService } from '../../../../../workbench/contrib/sessions/browser/sessionHost.js';
+import { ISessionHost, ISessionHostService, MainWindowSessionHost } from '../../../../../workbench/contrib/sessions/browser/sessionHost.js';
 import { ITestSessionWithChat, sessionHostServiceOf, testGridPanes } from '../../../../../workbench/contrib/sessions/test/browser/sessionHostTestUtils.js';
 import { IChat, ISession, ISessionEnvironment } from '../../../../../workbench/contrib/sessions/common/session.js';
 import { ISessionsProvider } from '../../../../../workbench/contrib/sessions/common/sessionsProvider.js';
@@ -98,12 +106,14 @@ import '../../browser/media/newSessionActionViewItem.css';
 
 /** A peer chat of a {@link ISessionsListFixtureSession}. */
 export interface ISessionsListFixtureChat extends ITestChatSpec {
+	readonly inlineAction?: 'checks' | 'comments' | 'combined';
 	/** Terminal command awaiting approval, shown on the chat row. */
 	readonly approvalCommand?: string;
 }
 
 /** A session in the list, described as plain data. */
 export interface ISessionsListFixtureSession extends ITestSessionSpec {
+	readonly inlineAction?: 'checks' | 'comments' | 'combined';
 	readonly chats?: readonly ISessionsListFixtureChat[];
 	/** Pinned to the sidebar's Pinned section. */
 	readonly pinned?: boolean;
@@ -526,6 +536,7 @@ class FixtureSessionsManagementService extends mock<ISessionsManagementService>(
 	}
 
 	override async cancelCurrentRequest(): Promise<void> { }
+	override async sendRequestInBackground(): Promise<void> { }
 
 	override async importSession(): Promise<void> { }
 
@@ -606,7 +617,67 @@ export async function renderSessionsListFixture(context: ComponentFixtureContext
 	const header = state.header;
 	const interaction = state.interaction ?? {};
 
-	const sessions = new Map(state.sessions.map(spec => [spec.id, buildTestSession(spec)] as const));
+	const feedback = observableValue<readonly IAgentFeedback[]>('inlineFeedback', []);
+	const ciModels = new Map<number, GitHubPullRequestCIModel>();
+	const prModels = new Map<number, GitHubPullRequestModel>();
+	const withInlineAction = (chat: ITestChat, session: ISession, kind: ISessionsListFixtureChat['inlineAction']): ITestChat => {
+		if (!kind) {
+			return chat;
+		}
+		const number = ciModels.size + 1;
+		const workspace = chat.chat.workspace.get() ?? session.workspace.get();
+		if (!workspace) {
+			throw new Error('Inline action fixtures require a workspace.');
+		}
+		const folder = workspace.folders[0];
+		const pullRequest = { owner: 'microsoft', repo: 'vscode', number, uri: URI.parse(`https://github.com/microsoft/vscode/pull/${number}`) };
+		const fixRequested = observableValue('fixRequested', false);
+		prModels.set(number, new class extends mock<GitHubPullRequestModel>() {
+			override readonly pullRequest = constObservable(upcastPartial<IGitHubPullRequest>({ number, state: GitHubPullRequestState.Open, headSha: `sha-${number}` }));
+			override async refresh(): Promise<void> { }
+			override startPolling() { return Disposable.None; }
+		}());
+		ciModels.set(number, new class extends mock<GitHubPullRequestCIModel>() {
+			override readonly requiredChecks = constObservable(classifyRequiredPullRequestChecks({
+				headSha: `sha-${number}`,
+				checks: kind === 'comments' ? [] : [{ id: String(number), type: 'checkRun', name: 'Tests', status: 'COMPLETED', conclusion: 'FAILURE' }],
+				requirednessComplete: true, expectedSuites: [], expectedSuitesComplete: true,
+			}));
+			override readonly fixRequested = fixRequested;
+			override async refresh(): Promise<void> { }
+			override startPolling() { return Disposable.None; }
+			override async getCheckRunAnnotations() { return 'Test failed'; }
+			override markFixRequested() { fixRequested.set(true, undefined); }
+		}());
+		if (kind !== 'checks') {
+			feedback.set([...feedback.get(), {
+				id: `review-${number}`, text: 'Address this review', sessionResource: session.resource, resourceUri: URI.joinPath(folder.root, 'index.ts'),
+				range: { startLineNumber: 1, startColumn: 1, endLineNumber: 1, endColumn: 1 },
+				kind: AgentFeedbackKind.PRReview, state: AgentFeedbackState.Created, sourcePullRequest: pullRequest,
+			}], undefined);
+		}
+		return {
+			...chat, chat: {
+				...chat.chat, workspace: constObservable({
+					...workspace,
+					folders: [{ ...folder, gitRepository: { uri: folder.root, workTreeUri: undefined, baseBranchName: undefined, gitHubInfo: constObservable({ ...pullRequest, pullRequest }) } }],
+				})
+			}
+		};
+	};
+	const sessions = new Map(state.sessions.map(spec => {
+		const built = buildTestSession(spec);
+		if (!spec.inlineAction && !spec.chats?.some(chat => chat.inlineAction)) {
+			return [spec.id, built] as const;
+		}
+		const mainChat = withInlineAction(built.mainChat, built.session, spec.inlineAction);
+		const chats = new Map([...built.chats].map(([id, chat]) => [id, withInlineAction(chat, built.session, spec.chats?.find(peer => peer.id === id)?.inlineAction)]));
+		return [spec.id, {
+			...built, mainChat, chats, session: {
+				...built.session, mainChat: constObservable(mainChat.chat), chats: constObservable([mainChat.chat, ...[...chats.values()].map(peer => peer.chat)]),
+			}
+		}] as const;
+	}));
 	const getSession = (id: string): ITestSession => {
 		const session = sessions.get(id);
 		if (!session) {
@@ -633,6 +704,20 @@ export async function renderSessionsListFixture(context: ComponentFixtureContext
 			registerWorkbenchServices(reg);
 			reg.defineInstance(IQuickInputService, new TestQuickInputService());
 			reg.defineInstance(IStorageService, disposableStore.add(new InMemoryStorageService()));
+			reg.defineInstance(IGitHubService, new class extends mock<IGitHubService>() {
+				override createPullRequestModelReference(_owner: string, _repo: string, number: number) { return new ImmortalReference(prModels.get(number)!); }
+				override createPullRequestCIModelReference(_owner: string, _repo: string, number: number) { return new ImmortalReference(ciModels.get(number)!); }
+			}());
+			reg.defineInstance(IChatWidgetService, new class extends mock<IChatWidgetService>() { }());
+			reg.defineInstance(IAgentFeedbackService, new class extends mock<IAgentFeedbackService>() {
+				override readonly onDidChangeFeedback = Event.None;
+				override getFeedbackObservable(resource: URI) { return feedback.map(items => items.filter(item => isEqual(item.sessionResource, resource))); }
+				override acceptFeedback(_resource: URI, id: string) { feedback.set(feedback.get().map(item => item.id === id ? { ...item, state: AgentFeedbackState.Accepted } : item), undefined); }
+				override async submitFeedback(_resource: URI, options?: { readonly onRequestAccepted?: () => void }) {
+					options?.onRequestAccepted?.();
+					return true;
+				}
+			}());
 			reg.define(IContextKeyService, ContextKeyService);
 			reg.define(IMenuService, SessionsListFixtureMenuService);
 			reg.defineInstance(IActionViewItemService, new FixtureActionViewItemService());
@@ -678,6 +763,7 @@ export async function renderSessionsListFixture(context: ComponentFixtureContext
 				readonly activeSession: IObservable<ITestSessionWithChat | undefined> = constObservable(undefined);
 			}());
 			reg.defineInstance(ISessionHostService, sessionHostServiceOf(disposableStore, { mainWindowActiveSession: constObservable(undefined), gridShown: constObservable(visibleSessions), windowSessions: constObservable([]) }));
+			reg.define(ISessionHost, MainWindowSessionHost);
 			reg.defineInstance(IAgentHostFilterService, new class extends mock<IAgentHostFilterService>() {
 				override readonly onDidChange = Event.None;
 				override readonly selectedHostId = undefined;
@@ -708,6 +794,7 @@ export async function renderSessionsListFixture(context: ComponentFixtureContext
 				override readonly extUri = new ExtUri(() => true);
 			}());
 			reg.defineInstance(IChatEntitlementService, new class extends mock<IChatEntitlementService>() {
+				override readonly onDidChangeSentiment = Event.None;
 				override readonly sentiment: IChatSentiment = {};
 			}());
 			reg.defineInstance(ICustomViewService, new class extends mock<ICustomViewService>() {

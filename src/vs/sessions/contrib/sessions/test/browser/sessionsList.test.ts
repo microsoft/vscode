@@ -3,6 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { IGitHubService } from '../../../../../workbench/contrib/sessions/browser/github/githubService.js';
+import { AgentFeedbackKind, AgentFeedbackState } from '../../../../../workbench/contrib/sessions/browser/agentFeedbackModel.js';
+import { IAgentFeedbackService } from '../../../../../workbench/contrib/sessions/browser/agentFeedback.js';
 import assert from 'assert';
 import sinon from 'sinon';
 import { $, append, scheduleAtNextAnimationFrame } from '../../../../../base/browser/dom.js';
@@ -74,7 +77,7 @@ import { getSessionChatDragData, isSessionChatDrag, SessionsDataTransfers } from
 import { IsPhoneLayoutContext, SessionIsArchivedContext, SessionSupportsMultipleChatsContext } from '../../../../../workbench/contrib/sessions/common/contextkeys.js';
 import { ARCHIVE_CHAT_COMMAND_ID, ARCHIVE_SESSION_COMMAND_ID, ARCHIVE_SESSION_GROUP_COMMAND_ID, ARCHIVE_SESSIONS_WITH_UNDO_COMMAND_ID, SHOW_SESSION_APPLICATION_FILTERS_COMMAND_ID, UNARCHIVE_CHAT_COMMAND_ID } from '../../../../../workbench/contrib/sessions/common/sessionCommands.js';
 import { getSessionApplication } from '../../../../../workbench/contrib/sessions/common/sessionApplication.js';
-import { ExternalSessionApplicationBadgeMode, SESSIONS_LIST_EXTERNAL_APPLICATION_BADGE_SETTING, SESSIONS_LIST_EXTERNAL_APPLICATION_BADGE_SHOW_FROM_SETTING, SESSIONS_LIST_GROUP_EXTERNAL_SESSIONS_SETTING } from '../../../../../workbench/contrib/sessions/common/sessionConfig.js';
+import { ExternalSessionApplicationBadgeMode, SESSIONS_LIST_EXTERNAL_APPLICATION_BADGE_SETTING, SESSIONS_LIST_EXTERNAL_APPLICATION_BADGE_SHOW_FROM_SETTING, SESSIONS_LIST_GROUP_EXTERNAL_SESSIONS_SETTING, SESSIONS_LIST_INLINE_ACTIONS_SETTING } from '../../../../../workbench/contrib/sessions/common/sessionConfig.js';
 import { IAgentHostSessionsProvider, LOCAL_AGENT_HOST_PROVIDER_ID } from '../../../../../workbench/contrib/sessions/common/agentHostSessionsProvider.js';
 import { IAgentHostFilterService } from '../../../../../workbench/contrib/sessions/common/agentHostFilter.js';
 import { ICustomViewService, type ICustomViewDescriptor } from '../../../../../workbench/contrib/sessions/browser/customView.js';
@@ -448,6 +451,78 @@ suite('Sessions - SessionsList', () => {
 			initial: ['8px', '8px', '8px', '8px'],
 			updated: ['12px', '12px', '12px', '12px'],
 		});
+	});
+
+	suite('inline feedback actions', () => {
+		for (const grouping of [SessionsGrouping.Workspace, SessionsGrouping.Date, SessionsGrouping.Inbox]) {
+			test(`observes only enabled visible rows and targets one peer under multiselection (${grouping})`, async () => {
+				const a = buildTestSession({ id: 'a', title: 'Main', workspace: 'project', chats: [{ id: 'peer', title: 'Peer' }] });
+				const b = buildTestSession({ id: 'b', title: 'Pinned', workspace: 'project' });
+				const harness = createListHarness(disposables, [a.session, b.session], { pinnedSessionIds: new Set(['b']) });
+				if (grouping === SessionsGrouping.Inbox) {
+					const model = disposables.add(harness.instantiationService.createInstance(SessionsListModelService));
+					harness.instantiationService.stub(ISessionsListModelService, model);
+					model.pinSession(b.session);
+					model.setInboxState([a.session], 'done');
+				}
+				const configuration = harness.instantiationService.get(IConfigurationService) as TestConfigurationService;
+				let observers = 0;
+				let opened = 0;
+				const submitted: string[] = [];
+				harness.instantiationService.stub(IGitHubService, new class extends mock<IGitHubService>() { }());
+				harness.instantiationService.stub(IAgentFeedbackService, {
+					onDidChangeFeedback: Event.None,
+					getFeedbackObservable: resource => derived(reader => {
+						observers++;
+						reader.store.add(toDisposable(() => observers--));
+						return [{
+							id: 'review', text: 'Simplify this', sessionResource: resource, resourceUri: URI.file('/project/main.ts'),
+							range: { startLineNumber: 1, startColumn: 1, endLineNumber: 1, endColumn: 1 },
+							kind: AgentFeedbackKind.AgentReview, state: AgentFeedbackState.Created,
+						}];
+					}),
+					acceptFeedback: () => { },
+					submitFeedback: async (_resource, options) => { submitted.push(options!.targetChat!.toString()); return true; },
+				});
+				const container = harness.createContainer(340, 650);
+				const list = harness.store.add(harness.instantiationService.createInstance(TestSessionsList, container, {
+					grouping: () => grouping, sorting: () => SessionsSorting.Created, onSessionOpen: () => { opened++; },
+				}));
+				list.layout(340, 650);
+				list.setItemCollapsed({ section: 'pinned' }, false);
+				if (grouping === SessionsGrouping.Inbox) {
+					list.setItemCollapsed({ section: SessionInboxSection.Done }, false);
+				}
+				list.setItemCollapsed({ session: a.session.resource }, false);
+				const initial = { buttons: container.querySelectorAll('.session-inline-actions').length, observers };
+				const peer = a.chats.get('peer')!.chat;
+				const peerRow = () => list.getItemRow({ session: a.session.resource, chat: peer.resource })!;
+				const initialHeight = peerRow().getBoundingClientRect().height;
+				await configuration.setUserConfiguration(SESSIONS_LIST_INLINE_ACTIONS_SETTING, true);
+				configuration.onDidChangeConfigurationEmitter.fire(upcastPartial<IConfigurationChangeEvent>({ affectsConfiguration: key => key === SESSIONS_LIST_INLINE_ACTIONS_SETTING }));
+				await timeout(50);
+				list.setSelectedItems([{ session: a.session.resource }, { session: b.session.resource }]);
+				const button = list.getItemRow({ session: a.session.resource, chat: peer.resource })?.querySelector<HTMLElement>('.session-inline-actions .monaco-button');
+				assert.ok(button);
+				const heightIncrease = peerRow().getBoundingClientRect().height - initialHeight;
+				button.focus();
+				button.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', keyCode: 27, bubbles: true }));
+				const footerFocused = !!mainWindow.document.activeElement?.closest('.sessions-list-inbox-footer');
+				button.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', keyCode: 13, bubbles: true }));
+				await timeout(0);
+				const activeObservers = observers;
+				await configuration.setUserConfiguration(SESSIONS_LIST_INLINE_ACTIONS_SETTING, false);
+				configuration.onDidChangeConfigurationEmitter.fire(upcastPartial<IConfigurationChangeEvent>({ affectsConfiguration: key => key === SESSIONS_LIST_INLINE_ACTIONS_SETTING }));
+				const disabledObservers = observers;
+				await configuration.setUserConfiguration(SESSIONS_LIST_INLINE_ACTIONS_SETTING, true);
+				configuration.onDidChangeConfigurationEmitter.fire(upcastPartial<IConfigurationChangeEvent>({ affectsConfiguration: key => key === SESSIONS_LIST_INLINE_ACTIONS_SETTING }));
+				list.setVisible(false);
+				assert.deepStrictEqual({ initial, submitted, opened, activeObservers, disabledObservers, remainingObservers: observers, heightIncrease, footerFocused }, {
+					initial: { buttons: 0, observers: 0 }, submitted: [peer.resource.toString()], opened: 0, activeObservers: 3, disabledObservers: 0, remainingObservers: 0,
+					heightIncrease: 32, footerFocused: grouping === SessionsGrouping.Inbox,
+				});
+			});
+		}
 	});
 
 	suite('SessionSectionRenderer', () => {
