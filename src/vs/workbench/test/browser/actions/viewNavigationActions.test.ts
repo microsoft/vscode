@@ -146,6 +146,8 @@ suite('Workbench view navigation: command integration', () => {
 			harness.setCollapsed(id, true);
 			harness.setHeaderAvailable(id, false);
 		}
+		harness.setVisible(ViewContainerLocation.AuxiliaryBar, false);
+		harness.setVisible(ViewContainerLocation.Panel, false);
 		await navigate(harness, { direction: 'next', scope: 'container' });
 		assert.deepStrictEqual(harness.headerFocusCalls, []);
 		assert.deepStrictEqual(harness.calls, []);
