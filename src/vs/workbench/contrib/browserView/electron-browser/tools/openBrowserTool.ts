@@ -225,8 +225,9 @@ export class OpenBrowserTool implements IToolImpl {
 			return undefined; // No chat context — skip prompt, proceed to open
 		}
 
-		// In autopilot/auto-reply, don't block — just open the new page
-		if (request.modeInfo?.permissionLevel === ChatPermissionLevel.Autopilot || this.configService.getValue<boolean>(ChatConfiguration.AutoReply)) {
+		// In autopilot/auto-reply, don't block — just open the new page. The same applies to subagents:
+		// the carousel is appended to the parent request, so the user would not see it in the subagent view.
+		if (invocation.subAgentInvocationId || request.modeInfo?.permissionLevel === ChatPermissionLevel.Autopilot || this.configService.getValue<boolean>(ChatConfiguration.AutoReply)) {
 			return undefined;
 		}
 

@@ -3181,10 +3181,10 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		this.inputPart?.clearTodoListWidget(model.sessionResource, false);
 		this.inputPart?.clearArtifactsWidget();
 		this.chatSuggestNextWidget.hide();
-		this.chatTipService.resetSession();
-
-		// Switching sessions resets tip service state; clear any rendered tip so
-		// empty-state rendering picks a fresh, context-appropriate tip.
+		// A host-rendered tip must survive binding this widget's input model.
+		if (this.viewOptions.renderGettingStartedTip !== false) {
+			this.chatTipService.resetSession();
+		}
 		this.clearGettingStartedTip();
 
 		// Set the input model on the inputPart before assigning this.viewModel. Assigning this.viewModel

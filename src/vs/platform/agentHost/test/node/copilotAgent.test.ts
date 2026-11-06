@@ -3555,6 +3555,7 @@ suite('CopilotAgent', () => {
 				await fileService.writeFile(source, VSBuffer.fromString('{"mcpServers":{"native":{"command":"native-server"}}}'));
 				const client = new TestCopilotClient([]);
 				let discovered = false;
+				client.pluginInstallations = [{ id: 'opaque-plugin', rootPath: plugin.fsPath, name: 'native', marketplace: '', enabled: true }];
 				client.discoverMcp = async () => ({
 					servers: discovered ? [{
 						name: 'native', type: 'stdio', source: 'plugin', enabled: true,
@@ -3613,6 +3614,7 @@ suite('CopilotAgent', () => {
 			const client = new TestCopilotClient([]);
 			let discovered = false;
 			let hostDecision: boolean | undefined;
+			client.pluginInstallations = [{ id: 'opaque-plugin', rootPath: plugin.fsPath, name: 'native', marketplace: '', enabled: true }];
 			client.discoverMcp = async () => ({
 				servers: discovered ? [{
 					name: 'native', type: 'stdio', source: 'plugin', enabled: false,
@@ -3701,15 +3703,16 @@ suite('CopilotAgent', () => {
 					await fileService.writeFile(skill, VSBuffer.fromString('---\nname: native\ndescription: Native skill\n---\n'));
 				}
 				const client = new TestCopilotClient([]);
+				client.pluginInstallations = [{ id: 'opaque-plugin', rootPath: plugin.fsPath, name: 'native', marketplace: '', enabled: true }];
 				client.discoverMcp = async () => ({
 					servers: [{
 						name: 'native', type: 'stdio', source: 'plugin', enabled: true,
-						effectiveSource: { kind: 'plugin', id: 'opaque', editability: 'read-only', file: { uri: source.toString() } },
+						effectiveSource: { kind: 'plugin', id: 'opaque', editability: 'read-only', plugin: { id: 'opaque-plugin', name: 'native' }, file: { uri: source.toString() } },
 					}]
 				});
 				client.discoverSkills = async () => ({
 					skills: hasSkill ? [{
-						name: 'native', description: 'Native skill', path: skill.fsPath, source: 'plugin', enabled: true, userInvocable: true,
+						name: 'native', description: 'Native skill', path: skill.fsPath, source: 'plugin', pluginId: 'opaque-plugin', enabled: true, userInvocable: true,
 					}] : []
 				});
 				const { agent } = createTestAgentContext(disposables, { fileService, copilotClient: client, rootConfig: { [AgentHostGitHubMcpServerEnabledConfigKey]: false } });
@@ -3815,7 +3818,7 @@ suite('CopilotAgent', () => {
 				let installed = true;
 				const client = new TestCopilotClient([]);
 				client.discoverSkills = async () => ({
-					skills: installed ? [{ name: 'session-timeline', description: 'Timeline', path: skill.fsPath, source: 'plugin', enabled: true, userInvocable: true }] : [],
+					skills: installed ? [{ name: 'session-timeline', description: 'Timeline', path: skill.fsPath, source: 'plugin', pluginId: 'opaque-plugin', enabled: true, userInvocable: true }] : [],
 				});
 				const { agent } = createTestAgentContext(disposables, { copilotClient: client, fileService });
 				const names = (customizations: readonly Customization[]) => customizations
@@ -3839,7 +3842,7 @@ suite('CopilotAgent', () => {
 					installed = false;
 				});
 				const list = stub(client.rpc.plugins, 'list').callsFake(async () => ({
-					plugins: [{ name: 'session-timeline', marketplace: 'test', version: '1.0.0', enabled: installed }],
+					plugins: [{ id: 'opaque-plugin', rootPath: plugin.fsPath, name: 'session-timeline', marketplace: 'test', version: '1.0.0', enabled: installed }],
 				}));
 				const enable = stub(client.rpc.plugins, 'enable').callsFake(async () => { installed = true; });
 				const disable = stub(client.rpc.plugins, 'disable').callsFake(async () => { installed = false; });
@@ -3902,9 +3905,10 @@ suite('CopilotAgent', () => {
 			let installed = true;
 			let scanIndex = 0;
 			const client = new TestCopilotClient([]);
+			client.pluginInstallations = [{ id: 'opaque-plugin', rootPath: plugin.fsPath, name: 'session-timeline', marketplace: 'test', enabled: true }];
 			client.discoverSkills = async () => {
 				if (installed) {
-					return { skills: [{ name: 'session-timeline', description: 'Timeline', path: skill.fsPath, source: 'plugin', enabled: true, userInvocable: true }] };
+					return { skills: [{ name: 'session-timeline', description: 'Timeline', path: skill.fsPath, source: 'plugin', pluginId: 'opaque-plugin', enabled: true, userInvocable: true }] };
 				}
 				const scan = scans[scanIndex++];
 				scan.started.complete();
@@ -21257,16 +21261,20 @@ suite('CopilotAgent', () => {
 
 			const sessionDataService = disposables.add(new TestSessionDataService());
 			const client = new TestCopilotClient([]);
+			client.pluginInstallations = [
+				{ id: 'source-plugin', rootPath: sourcePlugin.fsPath, name: 'Azure exp', marketplace: '', enabled: true },
+				{ id: 'other-plugin', rootPath: sameNamedPlugin.fsPath, name: 'Azure exp', marketplace: '', enabled: true },
+			];
 			client.discoverAgents = async () => ({
 				agents: [
-					{ id: 'source-agent', name: 'discovered-agent', displayName: 'discovered-agent', description: 'discovered', path: sourceAgent.fsPath, source: 'plugin' },
-					{ id: 'other-agent', name: 'discovered-agent', displayName: 'discovered-agent', description: 'discovered', path: sameNamedAgent.fsPath, source: 'plugin' },
+					{ id: 'source-agent', name: 'discovered-agent', displayName: 'discovered-agent', description: 'discovered', path: sourceAgent.fsPath, source: 'plugin', pluginId: 'source-plugin' },
+					{ id: 'other-agent', name: 'discovered-agent', displayName: 'discovered-agent', description: 'discovered', path: sameNamedAgent.fsPath, source: 'plugin', pluginId: 'other-plugin' },
 				],
 			});
 			client.discoverMcp = async () => ({
 				servers: [{
 					name: 'cached-server', type: 'stdio', source: 'plugin', enabled: true,
-					effectiveSource: { kind: 'plugin', id: 'source-server', editability: 'read-only', file: { uri: URI.joinPath(sourcePlugin, '.mcp.json').toString() } },
+					effectiveSource: { kind: 'plugin', id: 'source-server', editability: 'read-only', plugin: { id: 'source-plugin', name: 'Azure exp' }, file: { uri: URI.joinPath(sourcePlugin, '.mcp.json').toString() } },
 				}]
 			});
 			const { agent, stateManager } = createTestAgentContext(disposables, {
@@ -23976,6 +23984,98 @@ suite('CopilotAgent', () => {
 				await disposeAgent(h.agent);
 			}
 		});
+
+		for (const promotion of ['user.message', 'session.idle'] as const) {
+			test(`admits sequential steering after ${promotion} promotes the previous steering`, async () => {
+				const h = await createHarness();
+				const sends: Array<{ prompt: string; mode?: string }> = [];
+				const promotedMessageIds: string[] = [];
+				const promotedTurnIds: string[] = [];
+				const responseTurnIds: string[] = [];
+				const send = stub(h.newRuntime, 'send').callsFake(async (options?: Parameters<CopilotSession['send']>[0]) => {
+					assert.ok(options);
+					sends.push({ prompt: options.prompt, mode: options.mode });
+					return '';
+				});
+				const listener = disposables.add(h.agent.onDidChatProgress(signal => {
+					if (signal.kind === 'action' && signal.action.type === ActionType.ChatTurnStarted && signal.action.queuedMessageId) {
+						promotedMessageIds.push(signal.action.queuedMessageId);
+						promotedTurnIds.push(signal.action.turnId);
+					} else if (signal.kind === 'action' && signal.action.type === ActionType.ChatResponsePart) {
+						responseTurnIds.push(signal.action.turnId);
+					}
+				}));
+				const echoSteering = (id: string) => h.newRuntime.emit({
+					id: `${id}-user-message`, timestamp: new Date().toISOString(), parentId: null,
+					type: 'user.message',
+					data: { content: `${id} steering`, messageId: `sdk-${id}`, turnId: 'sdk-turn', delivery: 'steering' },
+				});
+				const respondToSteering = (id: string) => h.newRuntime.emit({
+					id: `${id}-response`, timestamp: new Date().toISOString(), parentId: null, ephemeral: true,
+					type: 'assistant.message_delta',
+					data: { messageId: `${id}-response`, deltaContent: `continuing after ${id}` },
+				});
+				try {
+					await h.agent.chats.sendMessage(h.chat, 'original', undefined, undefined, 'turn-original', undefined, h.context);
+					h.newRuntime.emit({
+						id: 'original-user-message', timestamp: new Date().toISOString(), parentId: null,
+						type: 'user.message',
+						data: { content: 'original', messageId: 'sdk-original', turnId: 'sdk-turn' },
+					});
+					const initiallyReady = h.live().hasRunningTurn;
+					const firstAdmitted = await h.agent.sendSteeringMessage(h.chat, {
+						id: 'steer-first', message: { text: 'first steering', origin: { kind: MessageKind.User } },
+					});
+					if (promotion === 'session.idle') {
+						h.newRuntime.emit({
+							id: 'original-idle', timestamp: new Date().toISOString(), parentId: null,
+							type: 'session.idle', ephemeral: true, data: {},
+						});
+					} else {
+						echoSteering('first');
+					}
+					const readyAfterPromotion = h.live().hasRunningTurn;
+					const secondAdmitted = await h.agent.sendSteeringMessage(h.chat, {
+						id: 'steer-second', message: { text: 'second steering', origin: { kind: MessageKind.User } },
+					});
+					if (promotion === 'session.idle') {
+						echoSteering('first');
+					}
+					respondToSteering('first');
+					echoSteering('second');
+					respondToSteering('second');
+					const readyAfterSecondPromotion = h.live().hasRunningTurn;
+					const thirdAdmitted = await h.agent.sendSteeringMessage(h.chat, {
+						id: 'steer-third', message: { text: 'third steering', origin: { kind: MessageKind.User } },
+					});
+					echoSteering('third');
+					respondToSteering('third');
+
+					assert.deepStrictEqual({
+						admitted: [firstAdmitted, secondAdmitted, thirdAdmitted],
+						ready: [initiallyReady, readyAfterPromotion, readyAfterSecondPromotion, h.live().hasRunningTurn],
+						promotedMessageIds,
+						responseTurnIndices: responseTurnIds.map(id => promotedTurnIds.indexOf(id)),
+						sends,
+					}, {
+						admitted: [true, true, true],
+						ready: [true, true, true, true],
+						promotedMessageIds: ['steer-first', 'steer-second', 'steer-third'],
+						responseTurnIndices: [0, 1, 2],
+						sends: [
+							{ prompt: 'original', mode: undefined },
+							{ prompt: 'first steering', mode: 'immediate' },
+							{ prompt: 'second steering', mode: 'immediate' },
+							{ prompt: 'third steering', mode: 'immediate' },
+						],
+					});
+				} finally {
+					listener.dispose();
+					send.restore();
+					await disposeAgent(h.agent);
+				}
+			});
+		}
 
 		for (const phase of ['prepare', 'create', 'disconnect', 'resume', 'continue'] as const) {
 			test(`delivers steering after send preparation ${phase} to the current runtime`, async () => {
