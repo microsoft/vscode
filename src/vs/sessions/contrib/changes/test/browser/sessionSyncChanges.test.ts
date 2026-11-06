@@ -612,7 +612,7 @@ suite('Session Sync Changes', () => {
 	test('in a pane of a real grid, whose host shows the provider\'s session object, returns keyboard focus to that pane\'s view when the focused action is removed', () => {
 		// Regressed in B8 (the host's session became the provider's object while the part found views by the grid's view of
 		// the session), fixed in D13a: the part focuses the view of the button's own host.
-		const { part } = createSessionsPartTestHarness(store);
+		const { part, content } = createSessionsPartTestHarness(store);
 		const data = createSession('first');
 		const base = createTestActiveSession('first');
 		const chat: IChat = { ...base.mainChat.get(), changesets: data.changesets, workspace: data.workspace };
@@ -621,11 +621,11 @@ suite('Session Sync Changes', () => {
 			override readonly extUri = extUriBiasedIgnorePathCase;
 		}));
 		grid.restoreGrid([{ session, sticky: false }], 0);
-		part.updatePanes(grid.panes.get(), grid.activePane.get(), grid.getRenderedGridSlots());
+		content.updatePanes(grid.panes.get(), grid.activePane.get(), grid.getRenderedGridSlots());
 		part.layout(800, 600, 0, 0);
-		const view = part.getViewOfPane(grid.panes.get()[0])!;
+		const view = content.getViewOfPane(grid.panes.get()[0])!;
 		const action = store.add(new Action(commandId, 'Sync Changes'));
-		const sessionsPartService = upcastPartial<ISessionsPartService>({ focusViewOfHost: host => part.focusViewOfHost(host) });
+		const sessionsPartService = upcastPartial<ISessionsPartService>({ focusViewOfHost: host => content.focusViewOfHost(host) });
 		const chatWidgetService = upcastPartial<IChatWidgetService>({ getWidgetBySessionResource: () => undefined });
 		const item = store.add(new SessionSyncChangesActionViewItem(action, {}, view.host, sessionsPartService, store.add(new SessionInputPickerVisibility()), new MockKeybindingService(), chatWidgetService));
 		const container = document.createElement('div');

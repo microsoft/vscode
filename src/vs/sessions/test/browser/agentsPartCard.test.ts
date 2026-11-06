@@ -853,7 +853,7 @@ suite('Sessions - Agents Part Card', () => {
 					contentLayouts.push({ width, height });
 					return { contentSize: { width, height } };
 				},
-				_gridWidget: { layout: layoutGrid },
+				layoutContent: (width: number, height: number) => layoutGrid(width, height),
 				_layoutNode: layoutGrid,
 			};
 			const layout = Reflect.get(partConstructor.prototype, 'layout') as (this: typeof part, width: number, height: number, top: number, left: number) => void;

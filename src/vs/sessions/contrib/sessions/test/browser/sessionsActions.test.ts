@@ -1323,7 +1323,7 @@ suite('Sessions - Actions', () => {
 	});
 
 	test('positional focus commands follow visual pane order and work with only a standalone child', async () => {
-		const { part, container } = createSessionsPartTestHarness(disposables);
+		const { part, content, container } = createSessionsPartTestHarness(disposables);
 		const parent = createTestActiveSession('parent', true, { chatCount: 2 });
 		const chat = parent.chats.get()[1];
 		const child: ITestSessionWithChat = {
@@ -1331,7 +1331,7 @@ suite('Sessions - Actions', () => {
 		};
 		const other = createTestActiveSession('other');
 		part.layout(1202, 802, 0, 0);
-		renderTestPanes(part, [parent, other, child], parent, [
+		renderTestPanes(content, [parent, other, child], parent, [
 			{ id: 'parent' }, { id: 'other' }, { id: 'child', placement: { reference: 'other', direction: Direction.Left } },
 		]);
 		const instantiationService = disposables.add(new TestInstantiationService());
@@ -1344,20 +1344,20 @@ suite('Sessions - Actions', () => {
 		});
 		stubMissingSessionHostsFromSessionsService(instantiationService);
 		instantiationService.stub(ISessionsPartService, new class extends mock<ISessionsPartService>() {
-			override getPaneAtPosition(index: number) { return part.getPaneAtPosition(index); }
-			override focusPane(pane: ISessionGridPane): void { part.focusPane(pane.id); }
+			override getPaneAtPosition(index: number) { return content.getPaneAtPosition(index); }
+			override focusPane(pane: ISessionGridPane): void { content.focusPane(pane.id); }
 		});
 		for (const position of [2, 9, 8]) {
 			await CommandsRegistry.getCommand(`sessions.focusSessionInGrid${position}`)!.handler(instantiationService);
 		}
-		renderTestPanes(part, [child], child, [{ id: 'child' }]);
+		renderTestPanes(content, [child], child, [{ id: 'child' }]);
 		for (const position of [1, 9]) {
 			await CommandsRegistry.getCommand(`sessions.focusSessionInGrid${position}`)!.handler(instantiationService);
 		}
 		assert.deepStrictEqual({
 			selected,
 			panes: container.querySelectorAll('.session-view').length,
-			focused: part.getFocusedSessionView()?.pane.get()?.chat.get()?.resource.toString(),
+			focused: content.getFocusedSessionView()?.pane.get()?.chat.get()?.resource.toString(),
 		}, { selected: ['child', 'other', 'child', 'child'], panes: 1, focused: chat.resource.toString() });
 	});
 

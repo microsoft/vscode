@@ -21,6 +21,9 @@ import { IEditorGroupsService } from '../../../workbench/services/editor/common/
 import { workbenchInstantiationService } from '../../../workbench/test/browser/workbenchTestServices.js';
 import { AbstractChatView, ChatViewKind, IChatViewOptions } from '../../../workbench/contrib/sessions/browser/parts/chatView.js';
 import { SessionsPart } from '../../../workbench/contrib/sessions/browser/parts/sessionsPart.js';
+import { assertReturnsDefined } from '../../../base/common/types.js';
+import { SessionsGridContent } from '../../../workbench/contrib/sessions/browser/parts/sessionsGridContent.js';
+import '../../browser/parts/sessionsPartContent.registration.js';
 import { IAgentWorkbenchLayoutService } from '../../browser/workbench.js';
 import { ISessionsHostLayoutService } from '../../../workbench/contrib/sessions/browser/sessionsHostLayoutService.js';
 import { SessionBranchPickerVisibleContext, SessionEnvironmentPickerVisibleContext, SessionHarnessPickerVisibleContext, SessionIsolationPickerVisibleContext, SessionSyncActionVisibleContext, SessionWorkspacePickerVisibleContext, SessionWorktreePickerVisibleContext } from '../../../workbench/contrib/sessions/common/contextkeys.js';
@@ -169,9 +172,9 @@ export function createSessionsPartTestHarness(store: Pick<DisposableStore, 'add'
 		document.body.appendChild(container);
 		store.add(toDisposable(() => container.remove()));
 	}
-	const part = store.add(services.instantiationService.createInstance(mobile ? MobileSessionsPart : SessionsPart));
+	const part = store.add(services.instantiationService.createInstance(mobile ? MobileSessionsPart : SessionsPart, SessionsGridContent.ID));
 	part.create(container);
-	return { ...services, part, container };
+	return { ...services, part, content: assertReturnsDefined(part.getContent(SessionsGridContent)), container };
 }
 
 export function createTestActiveSession(sessionId: string, isCreated = true, lifecycle?: {
