@@ -364,6 +364,9 @@ export abstract class CloudSandboxSessionContribution<T extends ICloudSandboxSes
 		return Math.floor(Math.random() * DISCOVERY_POLL_JITTER_MS);
 	}
 
+	/** Window adapters may defer catalog network work until first use. */
+	protected get discoveryEnabled(): boolean { return true; }
+
 	/** Inventory scans are serialized; feed task reads use an independent coalescing lane. */
 	protected _discoverAndSeed(request: ICloudSandboxDiscoveryRequest = {}): Promise<void> {
 		const { incremental = false, retry = false, taskIds, trigger = 'manual' } = request;
@@ -405,7 +408,9 @@ export abstract class CloudSandboxSessionContribution<T extends ICloudSandboxSes
 		const now = Date.now();
 		const previousInventoryAgeMs = this._lastDiscoveryAttempt === undefined ? undefined : Math.max(0, now - this._lastDiscoveryAttempt);
 		const lastFullAgeMs = this._lastFullDiscovery === undefined ? undefined : Math.max(0, now - this._lastFullDiscovery);
-		this._lastDiscoveryAttempt = now;
+		if (this.discoveryEnabled) {
+			this._lastDiscoveryAttempt = now;
+		}
 		this._discoveryIncremental = incremental && this._lastFullDiscovery !== undefined
 			&& now - this._lastFullDiscovery < FULL_DISCOVERY_INTERVAL_MS;
 		this._discoveryToken = this._enabledCts.token;
@@ -453,7 +458,7 @@ export abstract class CloudSandboxSessionContribution<T extends ICloudSandboxSes
 	}
 
 	private _refreshTasks(taskIds: readonly string[]): Promise<void> {
-		if (!this._isEnabled() || this._store.isDisposed || this._configurationService.getValue<boolean>(CloudSandboxSessionFeedEnabledSettingId) !== true) {
+		if (!this.discoveryEnabled || !this._isEnabled() || this._store.isDisposed || this._configurationService.getValue<boolean>(CloudSandboxSessionFeedEnabledSettingId) !== true) {
 			return Promise.resolve();
 		}
 		for (const id of taskIds) {
@@ -512,6 +517,13 @@ export abstract class CloudSandboxSessionContribution<T extends ICloudSandboxSes
 					Object.assign(diagnostics, { fullScanReason: 'accountChange' });
 				}
 				taskIds = undefined;
+			}
+			if (!this.discoveryEnabled) {
+				// First use must not coalesce into this completed local-only pass.
+				this._discoveryToken = undefined;
+				return;
+			}
+			if (!taskIds && this._lastDiscoveryAttempt === undefined) {
 				this._lastDiscoveryAttempt = Date.now();
 			}
 			if (includeArchived && !taskIds && !this._archivesLoaded) {
