@@ -508,6 +508,8 @@ export abstract class CloudSandboxSessionContribution<T extends ICloudSandboxSes
 				taskIds = undefined;
 			}
 			if (!this.discoveryEnabled) {
+				// First use must not coalesce into this completed local-only pass.
+				this._discoveryToken = undefined;
 				return;
 			}
 			if (!taskIds && this._lastDiscoveryAttempt === undefined) {
