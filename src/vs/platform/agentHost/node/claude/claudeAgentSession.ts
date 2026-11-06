@@ -1069,14 +1069,18 @@ export class ClaudeAgentSession extends Disposable implements IRematerializer {
 		// New turn: reset the per-turn credit accumulator so proxy reports
 		// for this turn's `/v1/messages` calls sum from zero.
 		this._currentTurnNanoAiu = 0;
-		if (this.toolDiff.hasDifference
-			|| this.clientCustomizationsDiff.hasDifferenceFrom(this._desiredClientPluginPaths(this._owner.get()))
-			|| this._appliedMcpLaunchEnablementRevision !== this._mcpLaunchEnablementRevision
-			|| this._pendingResumeSessionAt !== undefined
-			|| !areAdditionalWorkingDirectoriesEqual(this._appliedAdditionalDirectories, this._desiredAdditionalDirectories)
-			|| this._pendingTransportSwitch
+		const rebuildReasons = [
+			this.toolDiff.hasDifference && 'client tools',
+			this.clientCustomizationsDiff.hasDifferenceFrom(this._desiredClientPluginPaths(this._owner.get())) && 'client customizations',
+			this._appliedMcpLaunchEnablementRevision !== this._mcpLaunchEnablementRevision && 'MCP enablement',
+			this._pendingResumeSessionAt !== undefined && 'resume point',
+			!areAdditionalWorkingDirectoriesEqual(this._appliedAdditionalDirectories, this._desiredAdditionalDirectories) && 'additional directories',
+			this._pendingTransportSwitch && 'transport switch',
 			// The chat changed owner since its process launched: relaunch with the new owner at this turn boundary.
-			|| (this._materializedOwner !== undefined && !isEqual(this._materializedOwner, this._owner.get()))) {
+			this._materializedOwner !== undefined && !isEqual(this._materializedOwner, this._owner.get()) && 'owner',
+		].filter(reason => typeof reason === 'string');
+		if (rebuildReasons.length > 0) {
+			this._logService.info(`[Claude] session ${this.sessionId}: rebuilding before turn ${turnId} for changed ${rebuildReasons.join(', ')}`);
 			await this._rebindForSyncedState();
 		} else {
 			await pipeline.setPermissionMode(resolveCurrentPermissionMode(this._configurationService, resource, this._chatChannelUri, this._inheritedPermissionMode, this._permissionModeFallback));
