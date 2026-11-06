@@ -312,7 +312,7 @@ suite('Chat window contribution', () => {
 				showEditor: () => { editorShown = true; },
 			});
 			// The session of the window, which its host shows, differs from the active session of the main window.
-			const windowSession = constObservable<LegacyFakePaneState | undefined>(upcastPartial<LegacyFakePaneState>({ resource: URI.parse('test:/window'), scopedChatResource: URI.parse('test:/window/chat'), ...withCreatedStatus(constObservable(true)) }));
+			const windowSession = constObservable<LegacyFakePaneState | undefined>(upcastPartial<LegacyFakePaneState>({ resource: URI.parse('test:/window'), detachedChat: URI.parse('test:/window/chat'), ...withCreatedStatus(constObservable(true)) }));
 			const scoped = disposables.add(new TestInstantiationService());
 			const windowHost = new SessionHost({ kind: SessionHostKind.ChatWindow, parent: undefined, session: windowSession, chat: constObservable(upcastPartial<IChat>({ resource: URI.parse('test:/window/chat') })), contextKeyService: upcastPartial<IContextKeyService>({}), windowId: constObservable(window.windowId) });
 			const mainSession = constObservable<ITestSessionWithChat | undefined>(upcastPartial<ITestSessionWithChat>({ resource: URI.parse('test:/main'), ...withCreatedStatus(constObservable(true)), activeChat: constObservable(upcastPartial<IChat>({ resource: URI.parse('test:/main/chat') })) }));

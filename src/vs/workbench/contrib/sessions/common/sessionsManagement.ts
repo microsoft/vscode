@@ -199,13 +199,6 @@ export interface IChatDeletedEvent {
 	readonly chatResource: URI;
 }
 
-/**
- * The session as a host of the Agents window sees it: the provider's session, one object for every host that shows it. A
- * host shows a chat of its own; the state of the pane that shows it, such as its pin and tab strip, is the pane's
- * ({@link IPaneViewState}).
- */
-export type IHostSession = ISession;
-
 /** The tab strip a pane of the grid shows. A detached pane shows its one chat. */
 export interface ISessionPaneTabs {
 	/** The chats shown as tabs, without closed ones. */
@@ -253,7 +246,7 @@ export function shownChatOf(session: IObservable<ISession | undefined>, chat: IO
 
 /** A chat a host shows, with its session. */
 export interface IShownChat {
-	readonly session: IHostSession;
+	readonly session: ISession;
 	readonly chat: IChat;
 }
 

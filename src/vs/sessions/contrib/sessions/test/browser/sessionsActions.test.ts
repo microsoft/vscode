@@ -1190,7 +1190,7 @@ suite('Sessions - Actions', () => {
 	test('the header of a chat editor closes the chat\'s editor, and leaves the main window\'s grid alone, which shows the same session: Close and Close Session close the editor; Pin, which pins in the grid, does not show and does nothing', async () => {
 		const { session } = createTestSession('editor');
 		const chat: IChat = { ...session.mainChat.get(), resource: URI.parse('test-chat:/in-editor') };
-		const editorSession = upcastPartial<ITestSessionWithChat>({ ...session, activeChat: constObservable(chat), scopedChatResource: chat.resource });
+		const editorSession = upcastPartial<ITestSessionWithChat>({ ...session, activeChat: constObservable(chat), detachedChat: chat.resource });
 		const calls: string[] = [];
 		const instantiationService = disposables.add(new TestInstantiationService());
 		instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() {
@@ -1327,7 +1327,7 @@ suite('Sessions - Actions', () => {
 		const parent = createTestActiveSession('parent', true, { chatCount: 2 });
 		const chat = parent.chats.get()[1];
 		const child: ITestSessionWithChat = {
-			...parent, scopedChatResource: chat.resource, activeChat: constObservable(chat), visibleChatTabs: constObservable([chat]),
+			...parent, detachedChat: chat.resource, activeChat: constObservable(chat), visibleChatTabs: constObservable([chat]),
 		};
 		const other = createTestActiveSession('other');
 		part.layout(1202, 802, 0, 0);
@@ -1865,7 +1865,7 @@ suite('Sessions - Actions', () => {
 				.filter(item => contextKeyService.contextMatchesRules(item.when))
 				.map(item => typeof item.command.title === 'string' ? item.command.title : item.command.title.value);
 		};
-		const standalone = { ...activeSession, scopedChatResource: peerChat.resource, activeChat: constObservable(peerChat) };
+		const standalone = { ...activeSession, detachedChat: peerChat.resource, activeChat: constObservable(peerChat) };
 		panes.set([activeSession, standalone], undefined);
 		const sharedOwnerEntries = MenuRegistry.getMenuItems(Menus.SessionConversations).filter(isIMenuItem)
 			.filter(item => item.command.id.startsWith(`sessions.openChat.${session.sessionId}.`)).length;

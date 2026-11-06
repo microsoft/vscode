@@ -42,7 +42,7 @@ import {
 } from './contextkeys.js';
 import { ChatOriginKind, getChatCapabilities, IChat, isActiveSessionStatus, isSessionCreated, isSideChatOf, ISession, SessionStatus } from './session.js';
 import { ISessionChangesStatsCache, readChatChangesStats, readSessionChangesStats } from './sessionChangesStatsCache.js';
-import { IHostSession, IPaneViewState } from './sessionsManagement.js';
+import { IPaneViewState } from './sessionsManagement.js';
 
 /**
  * The set of session context keys bound to a single {@link IContextKeyService}.
@@ -206,7 +206,7 @@ function setSessionContextKeysUnbuffered(session: ISession | undefined, contextK
  *
  * See {@link setSessionContextKeys} for the `reader` and `undefined` semantics.
  */
-export function setHostSessionContextKeys(session: IHostSession | undefined, chat: IChat | undefined, paneState: IPaneViewState | undefined, contextKeyService: IContextKeyService, reader: IReader | undefined, changesStatsCache?: ISessionChangesStatsCache): void {
+export function setHostSessionContextKeys(session: ISession | undefined, chat: IChat | undefined, paneState: IPaneViewState | undefined, contextKeyService: IContextKeyService, reader: IReader | undefined, changesStatsCache?: ISessionChangesStatsCache): void {
 	contextKeyService.bufferChangeEvents(() => {
 		setSessionContextKeysUnbuffered(session, contextKeyService, reader, changesStatsCache);
 		const keys = getBoundKeys(contextKeyService);

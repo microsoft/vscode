@@ -28,8 +28,8 @@ import { IAgentWorkbenchLayoutService, ISidePaneState, ISidePaneToggleEvent } fr
 import { DesktopLayoutContext } from '../../../../../workbench/contrib/sessions/common/contextkeys.js';
 import { HasDockedDetailsContext } from '../../../../common/agentsWindowContextKeys.js';
 import { DockedEditorInput } from '../../../../../workbench/contrib/sessions/browser/dockedEditorInput.js';
-import { IHostSession, IShownChat } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
-import { ISessionWorkspace, isSessionCreated, SessionStatus } from '../../../../../workbench/contrib/sessions/common/session.js';
+import { IShownChat } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
+import { ISessionWorkspace, isSessionCreated, SessionStatus, ISession } from '../../../../../workbench/contrib/sessions/common/session.js';
 import { ISessionChangesService } from '../../../../../workbench/contrib/sessions/browser/changes/sessionChangesService.js';
 import { EmptyFileEditorInput } from '../../../../../workbench/contrib/sessions/browser/emptyFileEditorInput.js';
 import { DetailPanelTarget, DesktopDetailPanelCoordinator } from './desktopDetailPanelCoordinator.js';
@@ -146,7 +146,7 @@ export class DesktopExistingSessionStrategy extends DesktopLayoutStrategy {
 		let wasExistingActive = false;
 		let previousQuickChatResource: URI | undefined;
 		let previousIsCreated: boolean | undefined;
-		let previousSession: IHostSession | undefined;
+		let previousSession: ISession | undefined;
 		let previousOwnerKey: URI | undefined;
 		let wasSuspended = false;
 		let togglingSidePane = false;
@@ -608,7 +608,7 @@ export class DesktopExistingSessionStrategy extends DesktopLayoutStrategy {
 	private _registerManagedTabsSupplement(): void {
 		let previousSessionKey: string | undefined;
 		let previousIsCreated: boolean | undefined;
-		let previousSession: IHostSession | undefined;
+		let previousSession: ISession | undefined;
 		let changesActivationPendingForSession: string | undefined;
 
 		this._register(autorun(reader => {

@@ -350,7 +350,7 @@ suite('Sessions - Headers', () => {
 			origin: { kind: ChatOriginKind.SideChat, parentChat: secondChat.resource },
 		};
 		session.chats.set([mainChat, secondChat, nestedChat], undefined);
-		show({ ...session, scopedChatResource: nestedChat.resource });
+		show({ ...session, detachedChat: nestedChat.resource });
 		const describe = () => ({
 			title: header.element.querySelector('.label-name')?.textContent,
 			description: header.element.querySelector('.label-description')?.textContent ?? '',
@@ -396,7 +396,7 @@ suite('Sessions - Headers', () => {
 		test(`headers use the same title, dot and parent-description pattern as tabs (standalone: ${standalone})`, () => {
 			const { header, show, session, activeChat, secondChat, store } = createHarness(disposables, { supportsMultipleChats: true, supportsRename: true });
 			activeChat.set(secondChat, undefined);
-			show(standalone ? { ...session, scopedChatResource: secondChat.resource } : session);
+			show(standalone ? { ...session, detachedChat: secondChat.resource } : session);
 			const container = header.element.parentElement!;
 			mainWindow.document.body.appendChild(container);
 			store.add(toDisposable(() => container.remove()));

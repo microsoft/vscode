@@ -16,7 +16,7 @@ import { ServiceCollection } from '../../../../platform/instantiation/common/ser
 import { GroupIdentifier } from '../../../common/editor.js';
 import { IEditorGroup } from '../../../services/editor/common/editorGroupsService.js';
 import { IChat, ISession, isSessionCreated } from '../common/session.js';
-import { IHostSession, IShownChat } from '../common/sessionsManagement.js';
+import { IShownChat } from '../common/sessionsManagement.js';
 import type { ISessionGridPane } from './sessionGridPane.js';
 
 export const enum SessionHostKind {
@@ -34,9 +34,9 @@ export const enum SessionHostKind {
 
 /** What a host shows. */
 export type SessionHostContent =
-	| { readonly kind: 'chat'; readonly session: IHostSession; readonly chat: IChat }
+	| { readonly kind: 'chat'; readonly session: ISession; readonly chat: IChat }
 	/** The new-session composer, with its draft once the provider created it. */
-	| { readonly kind: 'newSession'; readonly draft: IHostSession | undefined }
+	| { readonly kind: 'newSession'; readonly draft: ISession | undefined }
 	/** A chat whose session is not known yet, such as a restored chat window. */
 	| { readonly kind: 'loading'; readonly chatResource: URI }
 	/** Nothing, or a custom view. */
@@ -56,7 +56,7 @@ export function isSessionHostCommandContext(value: unknown): value is ISessionHo
  * that binds to another chat than its host shows.
  */
 export interface ISessionChatSource {
-	readonly session: IObservable<IHostSession | undefined>;
+	readonly session: IObservable<ISession | undefined>;
 	readonly chat: IObservable<IChat | undefined>;
 }
 
@@ -83,7 +83,7 @@ export interface ISessionHost extends ISessionChatSource {
 	readonly chatResource: IObservable<URI | undefined>;
 	readonly chat: IObservable<IChat | undefined>;
 	/** The session of {@link chat}, or the draft of the new-session composer. */
-	readonly session: IObservable<IHostSession | undefined>;
+	readonly session: IObservable<ISession | undefined>;
 
 	/** Where the keys of the host's session are bound. */
 	readonly contextKeyService: IContextKeyService;
@@ -236,7 +236,7 @@ export function shownChatOf(host: ISessionHost, reader?: IReader): IShownChat | 
  * command context of `host`, by which pane commands, such as Pin or Close, find the pane rather than by the session object.
  * Session-level commands, which the sessions list shares, read the session and chat.
  */
-export function sessionMenuArgs(session: IHostSession, chat: IChat | undefined, host: ISessionHost): unknown[] {
+export function sessionMenuArgs(session: ISession, chat: IChat | undefined, host: ISessionHost): unknown[] {
 	return [session, chat, host.commandContext];
 }
 
@@ -303,7 +303,7 @@ export class SessionHost implements ISessionHost {
 	readonly content: IObservable<SessionHostContent>;
 	readonly chatResource: IObservable<URI | undefined>;
 	readonly chat: IObservable<IChat | undefined>;
-	readonly session: IObservable<IHostSession | undefined>;
+	readonly session: IObservable<ISession | undefined>;
 	readonly commandContext: ISessionHostCommandContext;
 	private readonly _contextKeyService: IContextKeyService | (() => IContextKeyService);
 

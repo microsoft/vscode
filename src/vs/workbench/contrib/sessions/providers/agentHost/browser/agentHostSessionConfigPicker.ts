@@ -59,7 +59,6 @@ import { NEW_WORKTREE_LABEL } from '../../../browser/chat/branchPicker.js';
 import { ISessionChangesService } from '../../../browser/changes/sessionChangesService.js';
 import { CHANGES_VIEW_ID } from '../../../common/changes.js';
 import { ISessionsProvidersService } from '../../../browser/sessionsProvidersService.js';
-import { IHostSession } from '../../../common/sessionsManagement.js';
 import { getFocusedSessionChatSource, IFocusedSessionHostService, InSessionHostScopeContext, ISessionChatSource, ISessionHost } from '../../../browser/sessionHost.js';
 import { ISessionsService } from '../../../browser/sessionsService.js';
 import type { ISessionsProvider } from '../../../common/sessionsProvider.js';
@@ -83,7 +82,7 @@ import { getOrganizationDefaultApprovalLevel, isAutoApproveValuePolicyRestricted
 import { getPermissionLevelBadge } from '../../../../chat/browser/agentSessions/agentHost/agentHostModePickerPresentation.js';
 import { BRANCH_PICKER_MAX_VISIBLE_ITEMS, ensureSelectedBranchPickerItem, filterBranchPickerItems } from '../../../../chat/browser/agentSessions/agentHost/agentHostBranchPicker.js';
 import { CodexSessionConfigKey } from '../../../../../../platform/agentHost/common/codexSessionConfigKeys.js';
-import { type IChat, type ISessionChangeset, type ISessionFileChange, UNCOMMITTED_CHANGES_CHANGESET_ID } from '../../../common/session.js';
+import { type IChat, type ISessionChangeset, type ISessionFileChange, UNCOMMITTED_CHANGES_CHANGESET_ID, ISession } from '../../../common/session.js';
 import { MarkdownString } from '../../../../../../base/common/htmlContent.js';
 import { IUncommittedChangesListItem, IWorktreeSuggestion, IWorktreeSuggestionService } from '../../../browser/worktreeSuggestion/worktreeSuggestionService.js';
 import { getChangedFileUri, getUncommittedFilesDescription, getUncommittedFilesSectionLabel } from '../../../browser/worktreeSuggestion/worktreeSuggestionPresentation.js';
@@ -640,7 +639,7 @@ export class AgentHostSessionConfigPicker extends Disposable {
 	 */
 	private readonly _dynamicValueLabels = new Map<string, Map<string, string>>();
 
-	protected readonly _session: IObservable<IHostSession | undefined>;
+	protected readonly _session: IObservable<ISession | undefined>;
 	/** The chat of {@link _session} whose config the picker shows and sets. */
 	protected readonly _chat: IObservable<IChat | undefined>;
 

@@ -38,7 +38,7 @@ export interface ITestShownChat {
  * The pane state a legacy fake may carry, as the grid's view of a session in a pane did: its tab strip, its pin, whether it
  * is created, and the chat of a fake of a detached pane.
  */
-type LegacyFakePaneMembers = Partial<ISessionPaneTabs> & { readonly sticky?: IObservable<boolean>; readonly isCreated?: IObservable<boolean>; readonly scopedChatResource?: URI };
+type LegacyFakePaneMembers = Partial<ISessionPaneTabs> & { readonly sticky?: IObservable<boolean>; readonly isCreated?: IObservable<boolean>; readonly detachedChat?: URI };
 
 /**
  * A legacy fake shape: a session fake that also carries `activeChat`, the chat its host shows, and may carry the pane state of
@@ -70,8 +70,8 @@ export function chatOfShown(shown: TestShown | undefined, reader: IReader | unde
 		return shown.chat;
 	}
 	// A legacy fake of a view scoped to one chat shows that chat.
-	const scopedChatResource = (shown as { readonly scopedChatResource?: URI }).scopedChatResource;
-	return scopedChatResource ? upcastPartial<IChat>({ resource: scopedChatResource }) : shown.activeChat?.read(reader);
+	const detachedChat = (shown as { readonly detachedChat?: URI }).detachedChat;
+	return detachedChat ? upcastPartial<IChat>({ resource: detachedChat }) : shown.activeChat?.read(reader);
 }
 
 /** A source of the session and the chat `shown` shows, for UI a test gives a source rather than a host. */
@@ -309,7 +309,7 @@ function paneOfShown(shown: TestShown | undefined, id: string, chat?: IChat): IS
 	const pane = shown && isShownChat(shown) ? shown : undefined;
 	return upcastPartial<ISessionGridPane>({
 		id,
-		kind: (pane?.detached ?? !!view?.scopedChatResource) ? SessionGridPaneKind.Detached : SessionGridPaneKind.Slot,
+		kind: (pane?.detached ?? !!view?.detachedChat) ? SessionGridPaneKind.Detached : SessionGridPaneKind.Slot,
 		session: constObservable(sessionOfShown(shown)),
 		chat: chat ? constObservable(chat) : view ? (view.activeChat ?? constObservable(undefined)) : constObservable(pane?.chat),
 		// A test's view of a session carries the pin and the tab strip of its pane.
@@ -394,7 +394,7 @@ const contentsOfFakes = new WeakMap<LegacyFakePaneState, ISessionPaneContent>();
 export function testPaneContentOf(session: LegacyFakePaneState, close: () => void): ISessionPaneContent {
 	let content = contentsOfFakes.get(session);
 	if (!content) {
-		const state = upcastPartial<IPaneViewState>({ sticky: session.sticky, tabs: upcastPartial<ISessionPaneTabs>(session), isDetached: !!session.scopedChatResource });
+		const state = upcastPartial<IPaneViewState>({ sticky: session.sticky, tabs: upcastPartial<ISessionPaneTabs>(session), isDetached: !!session.detachedChat });
 		content = upcastPartial<ISessionPaneContent>({ session, chat: session.activeChat ?? session.mainChat, state, close });
 		contentsOfFakes.set(session, content);
 	}

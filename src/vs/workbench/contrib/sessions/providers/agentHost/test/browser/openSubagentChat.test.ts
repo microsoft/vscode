@@ -208,7 +208,7 @@ suite('OpenSubagentChatActionViewItemContribution', () => {
 		const resource = URI.parse('agent-host-copilotcli:/session');
 		const parent = upcastPartial<IChat>({ resource: resource.with({ fragment: 'main' }) });
 		const subagent = upcastPartial<IChat>({ resource: resource.with({ fragment: 'subagent/launch' }) });
-		const windowSession = upcastPartial<ITestSessionWithChat>({ sessionId: 'session', resource, chats: constObservable([parent, subagent]), scopedChatResource: parent.resource });
+		const windowSession = upcastPartial<ITestSessionWithChat>({ sessionId: 'session', resource, chats: constObservable([parent, subagent]), detachedChat: parent.resource });
 		const otherSession = upcastPartial<ITestSessionWithChat>({ sessionId: 'other', resource: resource.with({ path: '/other' }), chats: constObservable([]) });
 		const opened: Parameters<ISessionsService['openChatToSide']>[] = [];
 		instantiationService.stub(ISessionsService, upcastPartial<ITestSessionsService>({

@@ -49,7 +49,7 @@ import { ISessionChatPillVisibilityService, SESSION_CHAT_PILL_KINDS, SessionChat
 import { ISessionHost } from '../sessionHost.js';
 import { ISessionsService } from '../sessionsService.js';
 import { BRANCH_CHANGES_CHANGESET_ID, ChatOriginKind, IChat, ISession, SESSION_CHANGES_CHANGESET_ID, type IGitHubIssueRef, type IGitHubPullRequestRef, type ISessionWorkspace } from '../../common/session.js';
-import { IHostSession, ISessionsManagementService } from '../../common/sessionsManagement.js';
+import { ISessionsManagementService } from '../../common/sessionsManagement.js';
 import { ISessionsProvidersService } from '../sessionsProvidersService.js';
 import { logSessionArtifactOpen } from '../../common/sessionsTelemetry.js';
 import { isAgentHostProvider, isAgentHostProviderId } from '../../common/agentHostSessionsProvider.js';
@@ -296,7 +296,7 @@ export function buildSessionIssueSections(issues: readonly IResolvedSessionIssue
 }
 
 /** Returns the focused chat's changes counts represented by the shared Changes pill. */
-export function computeSessionInputPillStats(session: IHostSession | undefined, chat: IChat | undefined, reader: IReader, changesStatsCache?: ISessionChangesStatsCache): IDiffStats {
+export function computeSessionInputPillStats(session: ISession | undefined, chat: IChat | undefined, reader: IReader, changesStatsCache?: ISessionChangesStatsCache): IDiffStats {
 	if (session?.worktreePending?.read(reader)) {
 		return EMPTY_DIFF_STATS;
 	}
@@ -316,7 +316,7 @@ export function computeSessionInputPillStats(session: IHostSession | undefined, 
  * represented changeset loads, or while the session's worktree is being created.
  * Unlike {@link computeSessionInputPillStats}, this never falls back to cached stats.
  */
-export function readLoadedSessionInputPillStats(session: IHostSession | undefined, chat: IChat | undefined, reader: IReader): IDiffStats | undefined {
+export function readLoadedSessionInputPillStats(session: ISession | undefined, chat: IChat | undefined, reader: IReader): IDiffStats | undefined {
 	if (session?.worktreePending?.read(reader)) {
 		return undefined;
 	}
@@ -330,17 +330,17 @@ export function readLoadedSessionInputPillStats(session: IHostSession | undefine
 }
 
 /** Whether `chat` is one of the session's nested chats rather than its main chat. */
-function isNestedChat(session: IHostSession | undefined, chat: IChat | undefined, reader: IReader | undefined): boolean {
+function isNestedChat(session: ISession | undefined, chat: IChat | undefined, reader: IReader | undefined): boolean {
 	const mainChat = session?.mainChat?.read(reader);
 	return !!mainChat && !!chat && !isEqual(mainChat.resource, chat.resource);
 }
 
-function isCloudSandboxSession(session: IHostSession | undefined): boolean {
+function isCloudSandboxSession(session: ISession | undefined): boolean {
 	return session?.environment === 'cloud' && isAgentHostProviderId(session.providerId);
 }
 
 /** Cloud sandboxes and nested chats show Session Changes; other main chats keep their workspace-based selection. */
-function getChangesPillChangesetId(workspace: ISessionWorkspace | undefined, isNested: boolean, session: IHostSession | undefined): string {
+function getChangesPillChangesetId(workspace: ISessionWorkspace | undefined, isNested: boolean, session: ISession | undefined): string {
 	return !isNested && !isCloudSandboxSession(session) && workspace?.folders[0]?.gitRepository?.workTreeUri
 		? BRANCH_CHANGES_CHANGESET_ID
 		: SESSION_CHANGES_CHANGESET_ID;

@@ -288,18 +288,11 @@ export class SessionsPart extends Part {
 	}
 
 	/**
-	 * Toggles the maximized state of the session view hosting the given session.
-	 * If the view is already maximized, exits maximized state. Otherwise maximizes
-	 * it (no-op if fewer than two non-placeholder views are present).
+	 * Toggles the maximized state of the view of `pane`. If the view is already maximized, exits maximized state. Otherwise
+	 * maximizes it (no-op if fewer than two non-placeholder views are present).
 	 *
-	 * Returns the view's maximized state after the toggle, or `undefined` when
-	 * the call was a no-op.
+	 * Returns the view's maximized state after the toggle, or `undefined` when the call was a no-op.
 	 */
-	toggleMaximizeSession(sessionId: string | undefined): boolean | undefined {
-		return this._toggleMaximized(this._findSessionSlot(sessionId));
-	}
-
-	/** Toggles the maximized state of the view of `pane`; see {@link toggleMaximizeSession}. */
 	toggleMaximizePane(pane: ISessionGridPane): boolean | undefined {
 		return this._toggleMaximized(this._slots.find(slot => slot.id === pane.id));
 	}
@@ -402,12 +395,11 @@ export class SessionsPart extends Part {
 	}
 
 	/**
-	 * Moves keyboard focus into the session view hosting the given session id (or
-	 * the placeholder view when `sessionId` is `undefined`), first revealing it in
-	 * the grid when it is only partially visible. No-op if no matching slot exists.
+	 * Moves keyboard focus into the placeholder (new-session) view, first revealing it in the grid when it is only
+	 * partially visible. No-op if no new-session slot exists.
 	 */
-	focusSession(sessionId: string | undefined, chatResource?: URI): void {
-		const slot = this._slots.find(s => s.boundSessionId === sessionId && detachedChatOf(s)?.toString() === chatResource?.toString());
+	focusNewSessionSlot(): void {
+		const slot = this._slots.find(s => s.boundSessionId === undefined && !detachedChatOf(s));
 		if (!slot) {
 			return;
 		}
@@ -415,7 +407,7 @@ export class SessionsPart extends Part {
 		slot.view.focus();
 	}
 
-	/** Moves keyboard focus into the view of the grid slot `id`, first revealing it like {@link focusSession}. No-op without one. */
+	/** Moves keyboard focus into the view of the grid slot `id`, first revealing it like {@link focusNewSessionSlot}. No-op without one. */
 	focusPane(id: string): void {
 		const slot = this._slots.find(candidate => candidate.id === id);
 		if (!slot) {
@@ -425,7 +417,7 @@ export class SessionsPart extends Part {
 		slot.view.focus();
 	}
 
-	/** Moves keyboard focus into the view whose host is `host`, of those the grid shows, first revealing it like {@link focusSession}. */
+	/** Moves keyboard focus into the view whose host is `host`, of those the grid shows, first revealing it like {@link focusNewSessionSlot}. */
 	focusViewOfHost(host: ISessionHost): void {
 		const slot = this._slots.find(candidate => candidate.view.host === host);
 		if (!slot) {

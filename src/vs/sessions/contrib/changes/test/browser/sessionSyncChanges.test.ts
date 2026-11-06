@@ -188,7 +188,7 @@ suite('Session Sync Changes', () => {
 		const first = createSession('first-child');
 		const second = createSession('second-child');
 		const childPane = (session: ITestSessionWithChat): ITestSessionWithChat => ({
-			...session, sessionId: parent.session.sessionId, resource: parent.session.resource, scopedChatResource: session.activeChat.get().resource,
+			...session, sessionId: parent.session.sessionId, resource: parent.session.resource, detachedChat: session.activeChat.get().resource,
 		});
 		const children = [childPane(first.session), childPane(second.session)];
 		second.operations.set([{ ...second.operation, status: SessionChangesetOperationStatus.Disabled }], undefined);

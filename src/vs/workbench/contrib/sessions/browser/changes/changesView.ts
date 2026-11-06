@@ -70,9 +70,8 @@ import { getChangesEditorLabels } from './changesEditorLabels.js';
 import { ISessionChangesService } from './sessionChangesService.js';
 import { createSessionActionsInstantiationService } from './sessionActionsHost.js';
 import { getWindowHost, ISessionHost, SessionHostKind } from '../sessionHost.js';
-import { IHostSession } from '../../common/sessionsManagement.js';
 import { CIStatusWidget } from './checksWidget.js';
-import { BRANCH_CHANGES_CHANGESET_ID, GITHUB_REMOTE_FILE_SCHEME, IChat, ISessionChangeset, ISessionFolder, ISessionChangesetOperation, ISessionChangesSummary, ISessionWorkspace, isSessionCreated, SESSION_CHANGES_CHANGESET_ID, SessionChangesetOperationScope, SessionChangesetOperationStatus, SessionStatus, TURN_CHANGES_CHANGESET_ID, UNCOMMITTED_CHANGES_CHANGESET_ID } from '../../common/session.js';
+import { BRANCH_CHANGES_CHANGESET_ID, GITHUB_REMOTE_FILE_SCHEME, IChat, ISessionChangeset, ISessionFolder, ISessionChangesetOperation, ISessionChangesSummary, ISessionWorkspace, isSessionCreated, SESSION_CHANGES_CHANGESET_ID, SessionChangesetOperationScope, SessionChangesetOperationStatus, SessionStatus, TURN_CHANGES_CHANGESET_ID, UNCOMMITTED_CHANGES_CHANGESET_ID, ISession } from '../../common/session.js';
 import { isAgentHostProviderId } from '../../common/agentHostSessionsProvider.js';
 import { Orientation } from '../../../../../base/browser/ui/sash/sash.js';
 import { IView, LayoutPriority, Sizing, SplitView } from '../../../../../base/browser/ui/splitview/splitview.js';
@@ -310,7 +309,7 @@ class ChangesMenuWorkbenchButtonBarWidget extends Disposable implements IChanges
  */
 export const CHANGES_OPERATIONS_DROPDOWN_PRIMARY_GROUP = 'primary';
 
-export function isChangesActionsWorkspaceReady(session: IHostSession | undefined, chat: IChat | undefined, mountedFolders: readonly IWorkspaceFolder[], reader: IReader | undefined): boolean {
+export function isChangesActionsWorkspaceReady(session: ISession | undefined, chat: IChat | undefined, mountedFolders: readonly IWorkspaceFolder[], reader: IReader | undefined): boolean {
 	if (!session || !isSessionCreated(session, reader) || session.isQuickChat?.read(reader)) {
 		return true;
 	}

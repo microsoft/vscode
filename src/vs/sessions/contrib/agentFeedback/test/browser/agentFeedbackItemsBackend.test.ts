@@ -657,7 +657,7 @@ suite('AnnotationsAgentFeedbackItemsBackend', () => {
 			override readonly resource = parent.resource;
 			override readonly providerId = parent.providerId;
 			override readonly sessionId = parent.sessionId;
-			override readonly scopedChatResource = URI.parse('agent-host-test:/s1/chat');
+			override readonly detachedChat = URI.parse('agent-host-test:/s1/chat');
 		}();
 		showPanes([parent, child]);
 		backend.getItems(parent.resource);

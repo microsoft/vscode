@@ -21,7 +21,6 @@ import { getGitHubRemoteInfo, IGitHubRemoteInfo } from '../../../../workbench/co
 import { getOnboardingDeveloperModeVariation, isOnboardingDeveloperModeEnabled, OnboardingDeveloperModeVariations, ONBOARDING_DEVELOPER_MODE_VARIATIONS_CONFIG } from '../../../../workbench/contrib/onboarding/common/onboardingScenarioService.js';
 import { IWorkbenchAssignmentService } from '../../../../workbench/services/assignment/common/assignmentService.js';
 import { isAgentHostProviderId } from '../../../../workbench/contrib/sessions/common/agentHostSessionsProvider.js';
-import { IHostSession } from '../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import { INewSessionComposer, INewSessionComposerService, INewSessionPromptOption, INewSessionPromptOptionsController, NEW_SESSION_PROMPT_TYPING_DURATION_MS, NewSessionPromptOptionsProgress, NewSessionPromptOptionsState } from '../../../../workbench/contrib/sessions/browser/newSessionComposerService.js';
 import { getGitHubRepositoryFromUri } from '../../../../workbench/contrib/sessions/common/github/utils.js';
 import { GitHubRequestError } from '../../../../platform/github/common/githubTypes.js';
@@ -31,7 +30,7 @@ import { IGitHubService } from '../../../../workbench/contrib/sessions/browser/g
 import { computeIssueIcon, computePullRequestIcon, GitHubIssueState, GitHubPullRequestState } from '../../../../workbench/contrib/sessions/common/github/types.js';
 import { resolveGitHubRepositoryFromGitConfig } from '../../../../workbench/contrib/sessions/browser/gitHubRepositoryResolver.js';
 import { NEW_SESSION_VIEW_V3_GITHUB_PROMPT_VARIATION, NEW_SESSION_VIEW_V3_OPTIONS_VARIATION, NEW_SESSION_VIEW_V3_PROMPT_VARIATION, NEW_SESSION_VIEW_V3_TOUR_ID, NEW_SESSION_VIEW_V3_VARIATION_TREATMENT } from './tours/newSessionViewV3Tour.js';
-import { isSessionCreated } from '../../../../workbench/contrib/sessions/common/session.js';
+import { isSessionCreated, ISession } from '../../../../workbench/contrib/sessions/common/session.js';
 
 /**
  * Per-stage budgets are sized so the longest dependent chain of timed lookups fits inside `totalMs`:
@@ -142,7 +141,7 @@ interface INewSessionViewV3PromptOptionsPlan {
 }
 
 interface INewSessionViewV3RepositoryContext {
-	readonly session: IHostSession;
+	readonly session: ISession;
 	readonly workspaceUri: string;
 	readonly folderUri: string;
 	readonly repository: IGitHubRemoteInfo;
@@ -267,7 +266,7 @@ export class NewSessionViewV3PromptRunner {
 		private readonly _assignmentService: IWorkbenchAssignmentService,
 		private readonly _configurationService: IConfigurationService,
 		/** The session the main window shows, whose new-session composer the prompt fills. */
-		private readonly _mainWindowSession: IObservable<IHostSession | undefined>,
+		private readonly _mainWindowSession: IObservable<ISession | undefined>,
 		private readonly _newSessionComposerService: INewSessionComposerService,
 		private readonly _gitService: IGitService,
 		private readonly _fileService: IFileService,
@@ -975,7 +974,7 @@ export class NewSessionViewV3PromptRunner {
 		return undefined;
 	}
 
-	private _waitForAgentHostRepository(activeSession: IHostSession, token: CancellationToken): Promise<AgentHostRepositoryResolution> {
+	private _waitForAgentHostRepository(activeSession: ISession, token: CancellationToken): Promise<AgentHostRepositoryResolution> {
 		return new Promise((resolve, reject) => {
 			const disposables = new DisposableStore();
 			const reaction = disposables.add(new MutableDisposable());
@@ -1014,7 +1013,7 @@ export class NewSessionViewV3PromptRunner {
 		});
 	}
 
-	private _logWorkspaceSnapshot(activeSession: IHostSession): void {
+	private _logWorkspaceSnapshot(activeSession: ISession): void {
 		const workspace = activeSession.workspace.get();
 		const folder = workspace?.folders[0];
 		const gitRepository = folder?.gitRepository;
@@ -1022,7 +1021,7 @@ export class NewSessionViewV3PromptRunner {
 		this._logService.info(`${LOG_PREFIX} Workspace snapshot: provider='${activeSession.providerId}', sessionType='${activeSession.sessionType}', workspace='${workspace?.uri.toString() ?? 'none'}', root='${folder?.root.toString() ?? 'none'}', workingDirectory='${folder?.workingDirectory.toString() ?? 'none'}', gitRepository='${gitRepository?.uri.toString() ?? 'none'}', hasGitHubRemote=${String(gitRepository?.hasGitHubRemote)}, gitHubRepository='${gitHubInfo ? `${gitHubInfo.owner}/${gitHubInfo.repo}` : 'none'}'.`);
 	}
 
-	private _createRepositoryContext(session: IHostSession, workspaceUri: string, folderUri: string, repository: IGitHubRemoteInfo): INewSessionViewV3RepositoryContext {
+	private _createRepositoryContext(session: ISession, workspaceUri: string, folderUri: string, repository: IGitHubRemoteInfo): INewSessionViewV3RepositoryContext {
 		return {
 			session,
 			workspaceUri,

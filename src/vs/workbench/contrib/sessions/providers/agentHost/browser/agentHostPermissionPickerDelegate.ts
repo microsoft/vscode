@@ -23,8 +23,7 @@ import { IPermissionLevelMeta, IPermissionPickerDelegate } from '../../copilotCh
 import { getSessionConfigProvider, LOCAL_AGENT_HOST_PROVIDER_ID } from '../../../common/agentHostSessionsProvider.js';
 import { ISessionConfigProvider, ISessionsProvider } from '../../../common/sessionsProvider.js';
 import { ISessionsProvidersService } from '../../../browser/sessionsProvidersService.js';
-import { IHostSession } from '../../../common/sessionsManagement.js';
-import { IChat } from '../../../common/session.js';
+import { IChat, ISession } from '../../../common/session.js';
 import { ISessionChatSource } from '../../../browser/sessionHost.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { IManagedSettingsService } from '../../../../../../platform/policy/common/copilotManagedSettings.js';
@@ -118,7 +117,7 @@ export class AgentHostPermissionPickerDelegate extends Disposable implements IPe
 		}
 	}
 
-	private readonly _session: IObservable<IHostSession | undefined>;
+	private readonly _session: IObservable<ISession | undefined>;
 	/** The chat of {@link _session} whose permissions the picker shows and sets. */
 	private readonly _chat: IObservable<IChat | undefined>;
 

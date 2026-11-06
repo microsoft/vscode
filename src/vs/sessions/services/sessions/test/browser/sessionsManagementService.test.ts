@@ -348,7 +348,7 @@ class TestSessionsPartService extends mock<ISessionsPartService>() {
 	}
 	override focusNewSessionSlot(): void {
 		this.focusedSessions.push(undefined);
-		this.part?.focusSession(undefined);
+		this.part?.focusNewSessionSlot();
 	}
 	override focusPane(pane: ISessionGridPane): void {
 		this.focusedSessions.push(pane.session.get()?.sessionId);

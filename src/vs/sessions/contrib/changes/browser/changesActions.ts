@@ -30,9 +30,8 @@ import { ISessionsHostLayoutService } from '../../../../workbench/contrib/sessio
 import { Menus } from '../../../../workbench/contrib/sessions/browser/menus.js';
 import { AGENT_HOST_CHECKOUT_CHANGESET_OPERATION_ID, AGENT_HOST_COMMIT_CHANGESET_OPERATION_ID, AGENT_HOST_SYNC_CHANGESET_OPERATION_ID } from '../../../../platform/agentHost/common/agentHostChangesetOperationService.js';
 import { ISessionsService } from '../../../../workbench/contrib/sessions/browser/sessionsService.js';
-import { IHostSession } from '../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import { resolveSessionCommandTarget } from '../../../../workbench/contrib/sessions/browser/sessionCommandTarget.js';
-import { IChat, ISessionChangeset, ISessionChangesetOperation, ISessionFileChange, SessionChangesetOperationScope, SessionChangesetOperationStatus, SessionStatus, UNCOMMITTED_CHANGES_CHANGESET_ID } from '../../../../workbench/contrib/sessions/common/session.js';
+import { IChat, ISessionChangeset, ISessionChangesetOperation, ISessionFileChange, SessionChangesetOperationScope, SessionChangesetOperationStatus, SessionStatus, UNCOMMITTED_CHANGES_CHANGESET_ID, ISession } from '../../../../workbench/contrib/sessions/common/session.js';
 import { ISessionChangesStatsCache, readSessionChangesStats } from '../../../../workbench/contrib/sessions/common/sessionChangesStatsCache.js';
 import { getChangesOfSession, IChangesSessionObservables, IChangesViewService } from '../../../../workbench/contrib/sessions/common/changesViewService.js';
 import { ChangesMultiDiffSourceResolver } from '../../../../workbench/contrib/sessions/browser/changes/changesMultiDiffSourceResolver.js';
@@ -345,7 +344,7 @@ function isChangesetOperationBusy(operation: ISessionChangesetOperation): boolea
  * of its uncommitted changes (except Sync and Checkout), and for an existing session the Commit operation of the
  * changeset selected in its Changes view; the title bar's button bar omits Commit, so that it always lives here.
  */
-export function getChangesetOperations(session: IHostSession | undefined, chat: IChat | undefined, changes: Pick<IChangesSessionObservables, 'changesetObs' | 'changesetOperationsObs'>, reader: IReader | undefined): IChangesetOperations {
+export function getChangesetOperations(session: ISession | undefined, chat: IChat | undefined, changes: Pick<IChangesSessionObservables, 'changesetObs' | 'changesetOperationsObs'>, reader: IReader | undefined): IChangesetOperations {
 	const entries: IChangesetOperationEntry[] = [];
 	const changeset = changes.changesetObs.read(reader);
 	for (const operation of changeset?.operations.read(reader) ?? []) {
@@ -392,7 +391,7 @@ function listHas(key: RawContextKey<string[]>, entry: string): ContextKeyExpress
 }
 
 /** The Changes of the Changes editor whose file toolbar or title an action is invoked from, else those of the main window's session. */
-function getInvokingChangesScope(accessor: ServicesAccessor, args: readonly unknown[]): { readonly session: IHostSession | undefined; readonly chat: IChat | undefined; readonly changes: Pick<IChangesSessionObservables, 'changesObs' | 'changesetObs' | 'changesetOperationsObs'> } {
+function getInvokingChangesScope(accessor: ServicesAccessor, args: readonly unknown[]): { readonly session: ISession | undefined; readonly chat: IChat | undefined; readonly changes: Pick<IChangesSessionObservables, 'changesObs' | 'changesetObs' | 'changesetOperationsObs'> } {
 	const fileContext = args[1] as Partial<IChangesEditorFileActionContext> | undefined;
 	const editorContext = args.find(isEditorCommandsContext);
 	const editor = fileContext?.editor instanceof SessionChangesEditor

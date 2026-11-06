@@ -450,7 +450,7 @@ suite('Sessions - ChatGroupsView', () => {
 		const main = createChat('main');
 		const subagent = createChat('subagent', SessionStatus.Completed, main.resource, ChatOriginKind.Tool);
 		const windowSession = (active: IChat) => {
-			const session = Object.assign(new TestActiveSession([main, subagent]), { scopedChatResource: main.resource });
+			const session = Object.assign(new TestActiveSession([main, subagent]), { detachedChat: main.resource });
 			session.activeChat.set(active, undefined);
 			return session;
 		};

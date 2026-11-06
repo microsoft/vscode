@@ -88,7 +88,7 @@ export class SessionsParts extends Disposable implements ISessionsPartService {
 	}
 
 	focusNewSessionSlot(): void {
-		this._mainPart.focusSession(undefined);
+		this._mainPart.focusNewSessionSlot();
 	}
 
 	focusPane(pane: ISessionGridPane): void {

@@ -29,7 +29,6 @@ import { SessionProviderIdContext, IsPhoneLayoutContext, SessionActiveChatIsUnti
 import { IsSessionsWindowContext } from '../../../../../common/contextkeys.js';
 import { ISessionsProvidersService } from '../../../browser/sessionsProvidersService.js';
 import { IChat, ISession, ISessionAgentRef, SessionStatus } from '../../../common/session.js';
-import { IHostSession } from '../../../common/sessionsManagement.js';
 import { ModePicker, ScopedModePickerModelCache } from '../../copilotChatSessions/browser/modePicker.js';
 import { IFocusedSessionHostService, InSessionHostScopeContext, ISessionHost } from '../../../browser/sessionHost.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
@@ -70,7 +69,7 @@ export function openActiveAgentHostAgentPicker(): void {
 
 /** What the Add Context "Agent..." pick needs from the Agents window. */
 export interface IAgentContextPickDelegate {
-	getActiveSession(): IHostSession | undefined;
+	getActiveSession(): ISession | undefined;
 	/** The chat of {@link getActiveSession} that the focused window shows. */
 	getActiveChat(): IChat | undefined;
 	/** Whether the Agent picker of the session and its chat can move into Add Context, in either experiment arm. */

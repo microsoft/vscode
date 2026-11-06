@@ -221,7 +221,7 @@ export function createSessionsWorkbenchFixture(context: ComponentFixtureContext,
 	instantiationService.stub(ISessionsPartService, new class extends mock<ISessionsPartService>() {
 		override getSessionView(id: string | undefined) { return part.getSessionView(id); }
 		override toggleMaximizePane(pane: ISessionGridPane) { part.toggleMaximizePane(pane); }
-		override focusNewSessionSlot() { part.focusSession(undefined); }
+		override focusNewSessionSlot() { part.focusNewSessionSlot(); }
 	}());
 	part.create(host);
 	const titlebar = disposableStore.add(instantiationService.createInstance(TitlebarPart, Parts.TITLEBAR_PART, getWindow(container)));

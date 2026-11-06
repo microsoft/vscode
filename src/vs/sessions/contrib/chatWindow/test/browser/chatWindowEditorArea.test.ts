@@ -80,7 +80,7 @@ suite('Chat window editor area', () => {
 		}());
 		// It shows the chat `session` names as its own.
 		const shown = session && upcastPartial<ITestSessionWithChat>({ ...session, ...withCreatedStatus(constObservable(true)) });
-		const chat = session?.scopedChatResource && upcastPartial<IChat>({ resource: session.scopedChatResource });
+		const chat = session?.detachedChat && upcastPartial<IChat>({ resource: session.detachedChat });
 		const windowHost = new SessionHost({ kind: SessionHostKind.ChatWindow, parent: undefined, session: constObservable(shown), chat: constObservable(chat), contextKeyService: upcastPartial<IContextKeyService>({}) });
 		instantiationService.stub(ISessionHostService, upcastPartial<ISessionHostService>({ getHostOfWindow: () => windowHost }));
 		return instantiationService;
@@ -142,7 +142,7 @@ suite('Chat window editor area', () => {
 
 	test('the tab entries of the Session Activity Bar and of Add Tab act on the chat window that has focus, and its session', async () => {
 		const events: string[] = [];
-		const session = { sessionId: 'session-2', resource: URI.parse('test:/session-2'), scopedChatResource: URI.parse('test:/chat-2') } as LegacyFakePaneState;
+		const session = { sessionId: 'session-2', resource: URI.parse('test:/session-2'), detachedChat: URI.parse('test:/chat-2') } as LegacyFakePaneState;
 		const instantiationService = createInstantiationService(createWindow(2, events), session);
 		instantiationService.stub(ISessionChangesService, new class extends mock<ISessionChangesService>() {
 			override getChangesEditorResource(resource: URI) { return resource; }
@@ -161,7 +161,7 @@ suite('Chat window editor area', () => {
 
 	test('the Changes entry activates a Changes tab of the session the main part shows, such as one that moved in with the chat or was restored, rather than opening another', async () => {
 		const events: string[] = [];
-		const session = { sessionId: 'session-2', resource: URI.parse('test:/session-2'), scopedChatResource: URI.parse('test:/chat-2') } as LegacyFakePaneState;
+		const session = { sessionId: 'session-2', resource: URI.parse('test:/session-2'), detachedChat: URI.parse('test:/chat-2') } as LegacyFakePaneState;
 		// Of the session, not of its chat, and of another session.
 		const ofSession = new class extends mock<EditorInput>() { override readonly typeId = 'changes'; override readonly resource = URI.parse('changes:/session-2'); }();
 		const ofOther = new class extends mock<EditorInput>() { override readonly typeId = 'changes'; override readonly resource = URI.parse('changes:/other'); }();

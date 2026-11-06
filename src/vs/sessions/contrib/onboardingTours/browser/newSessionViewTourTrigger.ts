@@ -13,8 +13,7 @@ import { isOnboardingDeveloperModeEnabled, IOnboardingScenarioService } from '..
 import { ChatEntitlement, IChatEntitlementService } from '../../../../workbench/services/chat/common/chatEntitlementService.js';
 import { SessionWorkspacePickerVisibleContext } from '../../../../workbench/contrib/sessions/common/contextkeys.js';
 import { ISessionsService } from '../../../../workbench/contrib/sessions/browser/sessionsService.js';
-import { IHostSession } from '../../../../workbench/contrib/sessions/common/sessionsManagement.js';
-import { isSessionCreated } from '../../../../workbench/contrib/sessions/common/session.js';
+import { isSessionCreated, ISession } from '../../../../workbench/contrib/sessions/common/session.js';
 
 const MAX_REQUESTS_FOR_TOUR = 1;
 /** Drives a new-session view tour using the V2 eligibility and readiness criteria. */
@@ -28,7 +27,7 @@ export class NewSessionViewTourTrigger extends Disposable {
 		private readonly _onboardingScenarioService: IOnboardingScenarioService,
 		private readonly _sessionsService: Pick<ISessionsService, 'initialRestoreComplete'>,
 		/** The session the main window shows, whose new-session view the tour guides through. */
-		private readonly _mainWindowSession: IObservable<IHostSession | undefined>,
+		private readonly _mainWindowSession: IObservable<ISession | undefined>,
 		storageService: IStorageService,
 		private readonly _configurationService: IConfigurationService,
 		private readonly _contextKeyService: IContextKeyService,

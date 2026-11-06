@@ -50,7 +50,7 @@ import { logSidePanelToggle } from '../../../../workbench/contrib/sessions/commo
 import { ChatLayoutContext } from '../../../common/chatLayout.js';
 import { ISessionChangesService } from '../../../../workbench/contrib/sessions/browser/changes/sessionChangesService.js';
 import { IChangesViewService } from '../../../../workbench/contrib/sessions/common/changesViewService.js';
-import { IHostSession, ISessionsManagementService, IShownChat } from '../../../../workbench/contrib/sessions/common/sessionsManagement.js';
+import { ISessionsManagementService, IShownChat } from '../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import { getMainWindowHost, ISessionHostService } from '../../../../workbench/contrib/sessions/browser/sessionHost.js';
 import { ISessionsService } from '../../../../workbench/contrib/sessions/browser/sessionsService.js';
 import { ISessionsPartService } from '../../../../workbench/contrib/sessions/browser/sessionsPartService.js';
@@ -174,7 +174,7 @@ export abstract class BaseLayoutController extends Disposable {
 	private _workingSetAdoptingReplacement: URI | undefined;
 	protected readonly _chatLayoutContext: ChatLayoutContext | undefined;
 	/** The session the main window shows, from its host. */
-	protected readonly _mainWindowSession: IObservable<IHostSession | undefined>;
+	protected readonly _mainWindowSession: IObservable<ISession | undefined>;
 	/** The chat the main window shows, from its host. */
 	protected readonly _mainWindowChat: IObservable<IChat | undefined>;
 	/** The session and chat the main window shows, together. */

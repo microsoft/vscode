@@ -15982,7 +15982,7 @@ suite('LocalAgentHostSessionsProvider', () => {
 		const session = provider.getSessions().find(s => s.title.get() === 'Windowed')!;
 		const notShown = session.loading.get();
 
-		windowSessions.set([upcastPartial<ITestSessionWithChat>({ ...session, activeChat: session.mainChat, scopedChatResource: session.mainChat.get().resource })], undefined);
+		windowSessions.set([upcastPartial<ITestSessionWithChat>({ ...session, activeChat: session.mainChat, detachedChat: session.mainChat.get().resource })], undefined);
 		const whileLoading = session.loading.get();
 		const defaultChat = buildDefaultChatUri(AgentSession.uri('copilotcli', 'window-loading').toString());
 		agentHost.setSessionState('window-loading', 'copilotcli', {
@@ -17711,7 +17711,7 @@ suite('LocalAgentHostSessionsProvider', () => {
 		});
 		await timeout(60_000);
 		const notShown = read();
-		windowSessions.set([upcastPartial<ITestSessionWithChat>({ ...session, activeChat: session.mainChat, scopedChatResource: chatResource })], undefined);
+		windowSessions.set([upcastPartial<ITestSessionWithChat>({ ...session, activeChat: session.mainChat, detachedChat: chatResource })], undefined);
 		await timeout(60_000);
 		const inWindow = read();
 		const dispatchedBefore = agentHost.dispatchedActions.length;

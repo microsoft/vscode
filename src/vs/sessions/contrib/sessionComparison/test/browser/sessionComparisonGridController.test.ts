@@ -117,8 +117,8 @@ suite('Session comparison grid controller', () => {
 			let pane = paneObjects.get(session);
 			if (!pane) {
 				pane = upcastPartial<ISessionGridPane>({
-					id: session?.scopedChatResource?.toString() ?? session?.sessionId ?? 'new-session',
-					kind: session?.scopedChatResource ? SessionGridPaneKind.Detached : SessionGridPaneKind.Slot,
+					id: session?.detachedChat?.toString() ?? session?.sessionId ?? 'new-session',
+					kind: session?.detachedChat ? SessionGridPaneKind.Detached : SessionGridPaneKind.Slot,
 					session: constObservable(session),
 					chat: session ? session.activeChat : constObservable(undefined),
 				});
@@ -284,7 +284,7 @@ suite('Session comparison grid controller', () => {
 		const resource = URI.parse('test:/parent');
 		const pane = (id: string) => upcastPartial<ITestSessionWithChat>({
 			sessionId: 'parent', resource,
-			scopedChatResource: resource.with({ fragment: id }),
+			detachedChat: resource.with({ fragment: id }),
 			activeChat: constObservable(upcastPartial<IChat>({ resource: resource.with({ fragment: id }) })),
 		});
 		const attempt = pane('attempt');
@@ -316,7 +316,7 @@ suite('Session comparison grid controller', () => {
 		const chat = (id: string) => upcastPartial<IChat>({ resource: resource.with({ fragment: id }) });
 		const parent = upcastPartial<ITestSessionWithChat>({ sessionId: 'parent', resource, activeChat: constObservable(chat('attempt')) });
 		const judge = upcastPartial<ITestSessionWithChat>({
-			sessionId: 'parent', resource, scopedChatResource: chat('judge').resource, activeChat: constObservable(chat('judge')),
+			sessionId: 'parent', resource, detachedChat: chat('judge').resource, activeChat: constObservable(chat('judge')),
 		});
 		transaction(tx => {
 			fixture.comparisons.set([{
@@ -347,7 +347,7 @@ suite('Session comparison grid controller', () => {
 			const currentChat = observableValue('chat', chat('attempt-2'));
 			const parent = upcastPartial<ITestSessionWithChat>({ sessionId: 'parent', resource, activeChat: currentChat });
 			const attempt = upcastPartial<ITestSessionWithChat>({
-				sessionId: 'parent', resource, scopedChatResource: chat('attempt').resource, activeChat: constObservable(chat('attempt')),
+				sessionId: 'parent', resource, detachedChat: chat('attempt').resource, activeChat: constObservable(chat('attempt')),
 			});
 			transaction(tx => {
 				fixture.comparisons.set([{

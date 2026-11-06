@@ -244,7 +244,7 @@ const noTabs: ISessionPaneTabs = { openChats: constObservable([]), closedChats: 
 function createTestPane(session: LegacyFakePaneState | undefined, id: string): ISessionGridPane {
 	return {
 		id,
-		kind: session?.scopedChatResource ? SessionGridPaneKind.Detached : SessionGridPaneKind.Slot,
+		kind: session?.detachedChat ? SessionGridPaneKind.Detached : SessionGridPaneKind.Slot,
 		session: constObservable(session),
 		chat: session?.activeChat ?? constObservable(undefined),
 		sticky: session?.sticky ?? constObservable(false),

@@ -17,8 +17,8 @@ import { combineVoiceInput } from '../../../../workbench/contrib/chat/browser/vo
 import { IVoiceModelSelectionResult, resolveVoiceModel } from '../../../../workbench/contrib/chat/browser/voiceClient/voiceToolDispatchService.js';
 import { ISessionsService } from '../../../../workbench/contrib/sessions/browser/sessionsService.js';
 import { getFocusedSessionChatSource, getMainWindowHost, IFocusedSessionHostService, ISessionHostService } from '../../../../workbench/contrib/sessions/browser/sessionHost.js';
-import { isSessionCreated, SessionStatus } from '../../../../workbench/contrib/sessions/common/session.js';
-import { IHostSession, inheritableSessionTarget, ISendRequestOptions, ISessionsManagementService } from '../../../../workbench/contrib/sessions/common/sessionsManagement.js';
+import { isSessionCreated, SessionStatus, ISession } from '../../../../workbench/contrib/sessions/common/session.js';
+import { inheritableSessionTarget, ISendRequestOptions, ISessionsManagementService } from '../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import { INewChatVoiceComposer, INewChatVoiceTargetService, NEW_CHAT_VOICE_SENTINEL } from '../../../../workbench/contrib/sessions/browser/chat/newChatVoice.js';
 import { INewSessionComposerService } from '../../../../workbench/contrib/sessions/browser/newSessionComposerService.js';
 import { ChatRequestQueueKind } from '../../../../workbench/contrib/chat/common/chatService/chatService.js';
@@ -28,9 +28,9 @@ export async function prepareNewVoiceSession(
 	sessionsService: Pick<ISessionsService, 'openNewSession'>,
 	shown: {
 		/** The session the user looks at: the focused window's, which a new session inherits its target from. */
-		readonly focused: () => IHostSession | undefined;
+		readonly focused: () => ISession | undefined;
 		/** The session the main window shows, where the new session opens. */
-		readonly mainWindow: () => IHostSession | undefined;
+		readonly mainWindow: () => ISession | undefined;
 	},
 	sessionsManagementService: ISessionsManagementService,
 	voiceSessionController: IVoiceSessionController,
@@ -395,7 +395,7 @@ export class SessionsVoiceActiveSessionContribution extends Disposable implement
 		super();
 
 		const focused = getFocusedSessionChatSource(focusedSessionHostService);
-		let voiceDraftSession: IHostSession | undefined;
+		let voiceDraftSession: ISession | undefined;
 		let voiceDraftRequest: ISendRequestOptions | undefined;
 		this._register(newSessionComposerService.onWillSendRequest(({ options }) => {
 			const composer = newChatVoiceTargetService.activeComposer.get();
