@@ -32,28 +32,19 @@ import { IWorkspaceFolderLabelService } from '../../../../services/workspaces/co
 import { FixtureMenuService } from '../chat/chatFixtureUtils.js';
 import { ComponentFixtureContext, createEditorServices, defineComponentFixture, defineThemedFixtureGroup, registerWorkbenchServices } from '../fixtureUtils.js';
 
-// eslint-disable-next-line local/code-import-patterns
-import { ActiveSessionState, ChangesViewSection, IChangesDetailsViewState, IChangesSessionObservables, IChangesViewSectionCollapseState, IChangesViewService } from '../../../../../sessions/contrib/changes/common/changesViewService.js';
-// eslint-disable-next-line local/code-import-patterns
-import { CHANGES_VIEW_CONTAINER_ID, CHANGES_VIEW_ID, ChangesViewMode, IsolationMode } from '../../../../../sessions/contrib/changes/common/changes.js';
-// eslint-disable-next-line local/code-import-patterns
-import { DesktopChangesViewPane } from '../../../../../sessions/contrib/changes/browser/changesView.js';
-// eslint-disable-next-line local/code-import-patterns
-import { ISessionChangesService, SessionChangesService } from '../../../../../sessions/contrib/changes/browser/sessionChangesService.js';
-// eslint-disable-next-line local/code-import-patterns
-import { GitHubPullRequestCIModel } from '../../../../../sessions/contrib/github/browser/models/githubPullRequestCIModel.js';
-// eslint-disable-next-line local/code-import-patterns
-import { IGitHubService } from '../../../../../sessions/contrib/github/browser/githubService.js';
-// eslint-disable-next-line local/code-import-patterns
-import { GitHubCheckConclusion, GitHubCheckStatus, GitHubCIOverallStatus, IGitHubCICheck } from '../../../../../sessions/contrib/github/common/types.js';
-// eslint-disable-next-line local/code-import-patterns
-import { ISessionScope } from '../../../../../sessions/services/sessions/browser/sessionScope.js';
-// eslint-disable-next-line local/code-import-patterns
-import { ISessionsService } from '../../../../../sessions/services/sessions/browser/sessionsService.js';
-// eslint-disable-next-line local/code-import-patterns
-import { IActiveSession } from '../../../../../sessions/services/sessions/common/sessionsManagement.js';
-// eslint-disable-next-line local/code-import-patterns
-import { BRANCH_CHANGES_CHANGESET_ID, IChat, IGitHubInfo, ISessionCapabilities, ISessionChangeset, ISessionChangesetOperation, ISessionChangesSummary, ISessionFileChange, ISessionGitRepository, ISessionWorkspace, SessionStatus } from '../../../../../sessions/services/sessions/common/session.js';
+import { ActiveSessionState, ChangesViewSection, IChangesDetailsViewState, IChangesSessionObservables, IChangesViewSectionCollapseState, IChangesViewService } from '../../../../contrib/sessions/common/changesViewService.js';
+import { CHANGES_VIEW_CONTAINER_ID, CHANGES_VIEW_ID, ChangesViewMode, IsolationMode } from '../../../../contrib/sessions/common/changes.js';
+import { DesktopChangesViewPane } from '../../../../contrib/sessions/browser/changes/changesView.js';
+import '../../../../../sessions/contrib/changes/browser/changesView.contribution.js';
+import { ISessionChangesService, SessionChangesService } from '../../../../contrib/sessions/browser/changes/sessionChangesService.js';
+import { GitHubPullRequestCIModel } from '../../../../contrib/sessions/browser/github/models/githubPullRequestCIModel.js';
+import { IGitHubService } from '../../../../contrib/sessions/browser/github/githubService.js';
+import { GitHubCheckConclusion, GitHubCheckStatus, GitHubCIOverallStatus, IGitHubCICheck } from '../../../../contrib/sessions/common/github/types.js';
+import { IFocusedSessionHostService } from '../../../../contrib/sessions/browser/sessionHost.js';
+import { focusedSessionHostServiceOf, stubSessionHosts } from '../../../../contrib/sessions/test/browser/sessionHostTestUtils.js';
+import { ISessionsService } from '../../../../contrib/sessions/browser/sessionsService.js';
+import { IActiveSession } from '../../../../contrib/sessions/common/sessionsManagement.js';
+import { BRANCH_CHANGES_CHANGESET_ID, IChat, IGitHubInfo, ISessionCapabilities, ISessionChangeset, ISessionChangesetOperation, ISessionChangesSummary, ISessionFileChange, ISessionGitRepository, ISessionWorkspace, SessionStatus } from '../../../../contrib/sessions/common/session.js';
 
 interface IChangesViewFixtureOptions {
 	readonly viewMode: ChangesViewMode;
@@ -429,11 +420,10 @@ function renderChangesView(ctx: ComponentFixtureContext, options: IChangesViewFi
 			reg.defineInstance(IGitHubService, createGitHubService(options.checks));
 			reg.defineInstance(IViewDescriptorService, new FixtureViewDescriptorService());
 			reg.defineInstance(ISessionsService, new class extends mock<ISessionsService>() {
-				override readonly activeSession = constObservable<IActiveSession | undefined>(session);
+				readonly activeSession = constObservable<IActiveSession | undefined>(session);
 				override readonly visibleSessions = constObservable([session]);
 				override readonly onDidToggleSessionStickiness = Event.None;
 			}());
-			reg.defineInstance(ISessionScope, { _serviceBrand: undefined, session: constObservable<IActiveSession | undefined>(session) });
 			reg.defineInstance(IDecorationsService, new class extends mock<IDecorationsService>() { override onDidChangeDecorations = Event.None; }());
 			reg.defineInstance(ITextFileService, new class extends mock<ITextFileService>() { override readonly untitled = new class extends mock<ITextFileService['untitled']>() { override readonly onDidChangeLabel = Event.None; }(); }());
 			reg.defineInstance(IWorkspaceContextService, new class extends mock<IWorkspaceContextService>() { override onDidChangeWorkspaceFolders = Event.None; override getWorkspace(): IWorkspace { return { id: 'fixture', folders: [], configuration: undefined }; } }());
@@ -473,6 +463,8 @@ function renderChangesView(ctx: ComponentFixtureContext, options: IChangesViewFi
 			}());
 		},
 	});
+	stubSessionHosts(instantiationService, disposableStore, { session: constObservable<IActiveSession | undefined>(session) });
+	instantiationService.stub(IFocusedSessionHostService, focusedSessionHostServiceOf(constObservable<IActiveSession | undefined>(session)));
 
 	const view = disposableStore.add(instantiationService.createInstance(DesktopChangesViewPane, {
 		id: CHANGES_VIEW_ID,
@@ -489,9 +481,9 @@ function renderChangesView(ctx: ComponentFixtureContext, options: IChangesViewFi
 }
 
 const SAMPLE_CHANGES = [
-	createFileChange('src/vs/sessions/contrib/changes/browser/changesView.ts', 'modified', 42, 18),
-	createFileChange('src/vs/sessions/contrib/changes/browser/checksWidget.ts', 'modified', 24, 9),
-	createFileChange('src/vs/sessions/contrib/changes/browser/media/checksWidget.css', 'modified', 6, 2),
+	createFileChange('src/vs/workbench/contrib/sessions/browser/changes/changesView.ts', 'modified', 42, 18),
+	createFileChange('src/vs/workbench/contrib/sessions/browser/changes/checksWidget.ts', 'modified', 24, 9),
+	createFileChange('src/vs/workbench/contrib/sessions/browser/changes/media/checksWidget.css', 'modified', 6, 2),
 	createFileChange('src/vs/sessions/contrib/changes/test/browser/changesView.fixture.ts', 'added', 132, 0),
 	createFileChange('src/vs/sessions/contrib/changes/browser/oldChangesLayout.ts', 'deleted', 0, 47),
 ];

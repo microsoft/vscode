@@ -43,7 +43,6 @@ import { IHoverService } from '../../../../platform/hover/browser/hover.js';
 import { HoverStyle } from '../../../../base/browser/ui/hover/hover.js';
 import { createInstantHoverDelegate } from '../../../../base/browser/ui/hover/hoverDelegateFactory.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
-import { ServiceCollection } from '../../../../platform/instantiation/common/serviceCollection.js';
 import { KeybindingsRegistry, KeybindingWeight } from '../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { HiddenItemStrategy, MenuWorkbenchToolBar } from '../../../../platform/actions/browser/toolbar.js';
@@ -53,11 +52,11 @@ import { defaultButtonStyles, defaultCheckboxStyles, defaultSelectBoxStyles, get
 import { asCssVariable } from '../../../../platform/theme/common/colorUtils.js';
 import { selectBorder } from '../../../../platform/theme/common/colors/inputColors.js';
 import { hasNativeContextMenu } from '../../../../platform/window/common/window.js';
-import { IResolvedFolderWorkspace, IWorkspacePickerItem, WorkspacePicker } from '../../chat/browser/sessionWorkspacePicker.js';
-import { BranchPicker, IBranchPickerBranch, NEW_WORKTREE_LABEL } from '../../chat/browser/branchPicker.js';
-import { MobileSessionTypePicker } from '../../chat/browser/mobile/mobileSessionTypePicker.js';
-import { isMobilePickerSheetTarget } from '../../../browser/parts/mobile/mobilePickerSheet.js';
-import { GITHUB_REMOTE_FILE_SCHEME, ISession, ISessionWorkspaceBrowseAction, SESSION_WORKSPACE_GROUP_LOCAL } from '../../../services/sessions/common/session.js';
+import { IResolvedFolderWorkspace, IWorkspacePickerItem, WorkspacePicker } from '../../../../workbench/contrib/sessions/browser/chat/sessionWorkspacePicker.js';
+import { BranchPicker, IBranchPickerBranch, NEW_WORKTREE_LABEL } from '../../../../workbench/contrib/sessions/browser/chat/branchPicker.js';
+import { MobileSessionTypePicker } from '../../../../workbench/contrib/sessions/browser/chat/mobile/mobileSessionTypePicker.js';
+import { isMobilePickerSheetTarget } from '../../../../workbench/contrib/sessions/browser/mobile/mobilePickerSheet.js';
+import { GITHUB_REMOTE_FILE_SCHEME, ISession, ISessionWorkspaceBrowseAction, SESSION_WORKSPACE_GROUP_LOCAL } from '../../../../workbench/contrib/sessions/common/session.js';
 import { IGitRepository, IGitService } from '../../../../workbench/contrib/git/common/gitService.js';
 import { AutomationInterval, AutomationTarget, IAutomationDescriptor } from '../../../../workbench/contrib/chat/common/automations/automation.js';
 import { AutomationToolCatalog, IAutomationCustomizationChoice, IAutomationProviderConfiguration, IAutomationService, IAutomationTool } from '../../../../workbench/contrib/chat/common/automations/automationService.js';
@@ -75,20 +74,21 @@ import { ChatInputPickerResponsiveLayout, IChatInputPickerResponsiveLayoutItem }
 import { settingsTextInputBackground, settingsTextInputBorder, settingsTextInputForeground } from '../../../../workbench/contrib/preferences/common/settingsEditorColorRegistry.js';
 import { IWorkbenchLayoutService } from '../../../../workbench/services/layout/browser/layoutService.js';
 import { AutomationIsolationModel, normalizeAutomationBranchNames } from '../common/isolationGroupModel.js';
-import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
-import { IAutomationSessionConfiguration } from '../../../services/sessions/common/sessionsProvider.js';
-import { showMobileWorkspacePickerSheet, shouldUseMobileWorkspacePickerSheet } from '../../chat/browser/mobile/mobileWorkspacePickerSheet.js';
+import { ISessionsManagementService } from '../../../../workbench/contrib/sessions/common/sessionsManagement.js';
+import { IAutomationSessionConfiguration } from '../../../../workbench/contrib/sessions/common/sessionsProvider.js';
+import { showMobileWorkspacePickerSheet, shouldUseMobileWorkspacePickerSheet } from '../../../../workbench/contrib/sessions/browser/chat/mobile/mobileWorkspacePickerSheet.js';
 import { AutomationInputCompletions } from './automationInputCompletions.js';
 import { AutomationTriggerEditor, IAutomationTriggerFormState } from './automationTriggerEditor.js';
 import { AutomationCronInput } from './automationCronInput.js';
-import { NewChatModelPickerService, INewChatModelPickerService } from '../../chat/browser/newChatModelPicker.js';
+import { NewChatModelPickerService, INewChatModelPickerService } from '../../../../workbench/contrib/sessions/browser/chat/newChatModelPicker.js';
 import { createNewSessionControlToolbar } from '../../chat/browser/newSessionConfigToolbars.js';
-import { ISessionModelSelection, SessionModelSelection } from '../../chat/browser/sessionModelSelection.js';
-import { ISessionContext, SessionContext } from '../../../services/sessions/browser/sessionContext.js';
-import { VisibleSession } from '../../../services/sessions/browser/visibleSessions.js';
-import { setActiveSessionContextKeys } from '../../../services/sessions/common/sessionContextKeys.js';
-import { SessionUsesCombinedConfigPickerContext } from '../../../common/contextkeys.js';
-import { Menus } from '../../../browser/menus.js';
+import { ISessionModelSelection, SessionModelSelection } from '../../../../workbench/contrib/sessions/browser/chat/sessionModelSelection.js';
+import { ActiveSessionHost, createSessionHostServices, getMainWindowHost, ISessionHostService, SessionHostKind } from '../../../../workbench/contrib/sessions/browser/sessionHost.js';
+import { VisibleSession } from '../../../../workbench/contrib/sessions/browser/visibleSessions.js';
+import { setActiveSessionContextKeys } from '../../../../workbench/contrib/sessions/common/sessionContextKeys.js';
+import { SessionUsesCombinedConfigPickerContext } from '../../../../workbench/contrib/sessions/common/contextkeys.js';
+import { Menus } from '../../../../workbench/contrib/sessions/browser/menus.js';
+import { AgentsWindowMenus } from '../../../browser/agentsWindowMenus.js';
 
 const $ = DOM.$;
 
@@ -1024,7 +1024,7 @@ registerAction2(class OpenAutomationsHarnessChipAction extends Action2 {
 			f1: false,
 			precondition: ChatContextKeys.enabled,
 			menu: [{
-				id: Menus.AutomationsDialogTargetToolbar,
+				id: AgentsWindowMenus.AutomationsDialogTargetToolbar,
 				group: 'navigation',
 				order: -1,
 				when: ChatContextKeys.inAutomationsDialog,
@@ -1043,7 +1043,7 @@ registerAction2(class OpenAutomationsWorkspacePickerAction extends Action2 {
 			f1: false,
 			precondition: ChatContextKeys.enabled,
 			menu: [{
-				id: Menus.AutomationsDialogTargetToolbar,
+				id: AgentsWindowMenus.AutomationsDialogTargetToolbar,
 				group: 'navigation',
 				order: -2,
 				when: ChatContextKeys.inAutomationsDialog,
@@ -1062,7 +1062,7 @@ registerAction2(class OpenAutomationsIsolationGroupAction extends Action2 {
 			f1: false,
 			precondition: ChatContextKeys.enabled,
 			menu: [{
-				id: Menus.AutomationsDialogTargetToolbar,
+				id: AgentsWindowMenus.AutomationsDialogTargetToolbar,
 				group: 'navigation',
 				order: 2,
 				when: ChatContextKeys.inAutomationsDialog,
@@ -1758,12 +1758,17 @@ export function renderForm(
 	ChatContextKeys.inAutomationsDialog.bindTo(scopedContextKeyService).set(true);
 	const newChatModelPickerService = new NewChatModelPickerService();
 	const sessionModelSelection = disposables.add(instantiationService.createInstance(SessionModelSelection, activeAutomationSession, { modelConfiguration: true }));
-	const scopedInstantiationService = disposables.add(instantiationService.createChild(new ServiceCollection(
-		[IContextKeyService, scopedContextKeyService],
-		[ISessionContext, new SessionContext(activeAutomationSession)],
-		[INewChatModelPickerService, newChatModelPickerService],
-		[ISessionModelSelection, sessionModelSelection],
-	)));
+	// The dialog drafts in the host of the window it shows in: the window of its form.
+	const automationHost = instantiationService.invokeFunction(accessor => {
+		const sessionHostService = accessor.get(ISessionHostService);
+		const parent = sessionHostService.getHostOfWindow(DOM.getWindow(form).vscodeWindowId) ?? getMainWindowHost(sessionHostService);
+		return new ActiveSessionHost({ kind: SessionHostKind.AutomationDialog, parent, session: activeAutomationSession, contextKeyService: scopedContextKeyService });
+	});
+	disposables.add(instantiationService.invokeFunction(accessor => accessor.get(ISessionHostService).registerHost(automationHost)));
+	const services = createSessionHostServices(scopedContextKeyService, automationHost);
+	services.set(INewChatModelPickerService, newChatModelPickerService);
+	services.set(ISessionModelSelection, sessionModelSelection);
+	const scopedInstantiationService = disposables.add(instantiationService.createChild(services));
 	const usesCombinedConfigPicker = SessionUsesCombinedConfigPickerContext.bindTo(scopedContextKeyService);
 	disposables.add(autorun(reader => {
 		sessionTypesChanged.read(reader);
@@ -1773,7 +1778,7 @@ export function renderForm(
 	}));
 
 	const pickerHoverDelegate = disposables.add(createInstantHoverDelegate());
-	const targetToolbar = disposables.add(scopedInstantiationService.createInstance(MenuWorkbenchToolBar, targetContainer, Menus.AutomationsDialogTargetToolbar, {
+	const targetToolbar = disposables.add(scopedInstantiationService.createInstance(MenuWorkbenchToolBar, targetContainer, AgentsWindowMenus.AutomationsDialogTargetToolbar, {
 		hoverDelegate: pickerHoverDelegate,
 		ariaLabel: localize('automation.form.targetOptions', "Automation target options"),
 		telemetrySource: 'automations.dialog',

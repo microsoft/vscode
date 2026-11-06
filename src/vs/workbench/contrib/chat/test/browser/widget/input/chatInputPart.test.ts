@@ -335,6 +335,7 @@ suite('ChatInputPart', () => {
 			_store: inputStore,
 			options: {},
 			_widget: { viewModel: { model: { sessionResource: URI.parse('remote-example-agent:/history') } } },
+			localSandboxToggleAvailable: observableValue('localSandboxToggleAvailable', false),
 			chatSessionHasTargetedModels: targetedModels,
 			chatSessionHasCustomAgentTarget: ChatContextKeys.chatSessionHasCustomAgentTarget.bindTo(contextKeyService),
 			chatSessionHasOptions: ChatContextKeys.chatSessionHasModels.bindTo(contextKeyService),
@@ -516,6 +517,7 @@ suite('ChatInputPart', () => {
 				chatSessionHasTargetedModels: ChatContextKeys.chatSessionHasTargetedModels.bindTo(contextKeyService),
 				chatSessionHasCustomAgentTarget: ChatContextKeys.chatSessionHasCustomAgentTarget.bindTo(contextKeyService),
 				chatSessionHasOptions: ChatContextKeys.chatSessionHasModels.bindTo(contextKeyService),
+				localSandboxToggleAvailable: observableValue('localSandboxToggleAvailable', false),
 				chatSessionOptionsValid: optionsValid,
 				_updateInputContentContextKeys: () => { },
 				chatSessionsService: upcastPartial<IChatSessionsService>({

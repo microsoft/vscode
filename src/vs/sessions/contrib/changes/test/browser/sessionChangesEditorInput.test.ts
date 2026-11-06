@@ -31,16 +31,17 @@ import { IEditorGroup, IEditorPart } from '../../../../../workbench/services/edi
 import { MultiDiffEditorInput } from '../../../../../workbench/contrib/multiDiffEditor/browser/multiDiffEditorInput.js';
 import { IPartVisibilityChangeEvent, IWorkbenchLayoutService, Parts } from '../../../../../workbench/services/layout/browser/layoutService.js';
 import { TestEditorGroupsService, TestEditorGroupView, workbenchInstantiationService } from '../../../../../workbench/test/browser/workbenchTestServices.js';
-import { AgentWorkbenchLayout, IAgentWorkbenchLayoutService } from '../../../../browser/workbench.js';
-import { ISessionScope } from '../../../../services/sessions/browser/sessionScope.js';
-import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
-import { ISessionFileChange } from '../../../../services/sessions/common/session.js';
-import { IActiveSession } from '../../../../services/sessions/common/sessionsManagement.js';
-import { IDiffEditorOptionsService, SessionsWordWrap } from '../../../editor/common/diffEditorOptionsService.js';
-import { SessionChangesEditor } from '../../browser/sessionChangesEditor.js';
-import { SessionChangesEditorInput } from '../../browser/sessionChangesEditorInput.js';
-import { ISessionChangesService } from '../../browser/sessionChangesService.js';
-import { IChangesViewService } from '../../common/changesViewService.js';
+import { IAgentWorkbenchLayoutService } from '../../../../browser/workbench.js';
+import { AgentWorkbenchLayout, ISessionsHostLayoutService } from '../../../../../workbench/contrib/sessions/browser/sessionsHostLayoutService.js';
+import { stubSessionHosts } from '../../../../../workbench/contrib/sessions/test/browser/sessionHostTestUtils.js';
+import { ISessionsService } from '../../../../../workbench/contrib/sessions/browser/sessionsService.js';
+import { ISessionFileChange } from '../../../../../workbench/contrib/sessions/common/session.js';
+import { IActiveSession } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
+import { IDiffEditorOptionsService, SessionsWordWrap } from '../../../../../workbench/contrib/sessions/common/diffEditorOptionsService.js';
+import { SessionChangesEditor } from '../../../../../workbench/contrib/sessions/browser/changes/sessionChangesEditor.js';
+import { SessionChangesEditorInput } from '../../../../../workbench/contrib/sessions/browser/changes/sessionChangesEditorInput.js';
+import { ISessionChangesService } from '../../../../../workbench/contrib/sessions/browser/changes/sessionChangesService.js';
+import { IChangesViewService } from '../../../../../workbench/contrib/sessions/common/changesViewService.js';
 
 suite('SessionChangesEditorInput', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
@@ -130,6 +131,7 @@ suite('SessionChangesEditorInput', () => {
 		const instantiationService = workbenchInstantiationService(undefined, disposables);
 		instantiationService.stub(IChangesViewService, emptyChangesViewService);
 		instantiationService.stub(IAgentWorkbenchLayoutService, {});
+		instantiationService.stub(ISessionsHostLayoutService, {});
 		instantiationService.stub(ISessionChangesService, emptySessionChangesService);
 		instantiationService.stub(IWorkbenchLayoutService, {
 			onDidChangePartVisibility: Event.None,
@@ -219,6 +221,7 @@ suite('SessionChangesEditorInput', () => {
 		const instantiationService = workbenchInstantiationService(undefined, disposables);
 		instantiationService.stub(IChangesViewService, emptyChangesViewService);
 		instantiationService.stub(IAgentWorkbenchLayoutService, {});
+		instantiationService.stub(ISessionsHostLayoutService, {});
 		instantiationService.stub(ISessionChangesService, emptySessionChangesService);
 		instantiationService.stub(IWorkbenchLayoutService, {
 			onDidChangePartVisibility: Event.None,
@@ -259,6 +262,7 @@ suite('SessionChangesEditorInput', () => {
 		const instantiationService = workbenchInstantiationService(undefined, disposables);
 		instantiationService.stub(IChangesViewService, emptyChangesViewService);
 		instantiationService.stub(IAgentWorkbenchLayoutService, layoutService);
+		instantiationService.stub(ISessionsHostLayoutService, {});
 		instantiationService.stub(ISessionChangesService, sessionChangesServiceWithResource);
 		instantiationService.stub(IWorkbenchLayoutService, layoutService);
 
@@ -306,6 +310,7 @@ suite('SessionChangesEditorInput', () => {
 		const instantiationService = workbenchInstantiationService(undefined, disposables);
 		instantiationService.stub(IChangesViewService, emptyChangesViewService);
 		instantiationService.stub(IAgentWorkbenchLayoutService, layoutService);
+		instantiationService.stub(ISessionsHostLayoutService, {});
 		instantiationService.stub(ISessionChangesService, sessionChangesServiceWithResource);
 		instantiationService.stub(IWorkbenchLayoutService, layoutService);
 
@@ -468,11 +473,11 @@ suite('SessionChangesEditorInput', () => {
 			// The editor shows the changes of its host's session: here the main window's.
 			const mainWindowSession = constObservable<IActiveSession | undefined>(undefined);
 			instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() {
-				override readonly activeSession = mainWindowSession;
-				override readonly mainWindowActiveSession = mainWindowSession;
-				override readonly windowSessions = constObservable<readonly IActiveSession[]>([]);
+				readonly activeSession = mainWindowSession;
+				readonly mainWindowActiveSession = mainWindowSession;
+				readonly windowSessions = constObservable<readonly IActiveSession[]>([]);
 			}());
-			instantiationService.stub(ISessionScope, { session: mainWindowSession });
+			stubSessionHosts(instantiationService, disposables, { session: mainWindowSession });
 			instantiationService.stub(IChangesViewService, new class extends mock<IChangesViewService>() {
 				override readonly activeSessionHasGitRepositoryObs = constObservable(false);
 				override readonly activeSessionResourceObs = activeSession;
@@ -482,6 +487,7 @@ suite('SessionChangesEditorInput', () => {
 			const layoutService = { agentWorkbenchLayout: AgentWorkbenchLayout.Desktop, onDidChangePartVisibility: Event.None, isVisible: () => true };
 			instantiationService.stub(IAgentWorkbenchLayoutService, layoutService);
 			instantiationService.stub(IWorkbenchLayoutService, layoutService);
+			instantiationService.stub(ISessionsHostLayoutService, layoutService);
 			instantiationService.stub(ISessionChangesService, new class extends mock<ISessionChangesService>() {
 				override readonly activeSessionUncommittedChangesCountObs = constObservable(0);
 				override getSessionResource(resource: URI): URI | undefined {

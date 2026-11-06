@@ -62,6 +62,7 @@ import { IEditorResolverService } from '../../../services/editor/common/editorRe
 import { IHostService } from '../../../services/host/browser/host.js';
 import { DiffEditorInput } from '../../../common/editor/diffEditorInput.js';
 import { FileSystemProviderCapabilities, IFileService } from '../../../../platform/files/common/files.js';
+import { getEditorTransferVetoDetail } from './editorTransferVeto.js';
 
 export class EditorGroupView extends Themable implements IEditorGroupView {
 
@@ -1527,7 +1528,7 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 		if (!keepCopy || editor.hasCapability(EditorInputCapabilities.Singleton) /* singleton editors will always move */) {
 			const canMoveVeto = editor.canMove(this.id, target.id);
 			if (typeof canMoveVeto === 'string') {
-				this.dialogService.error(canMoveVeto, localize('moveErrorDetails', "Try saving or reverting the editor first and then try again."));
+				this.dialogService.error(canMoveVeto, getEditorTransferVetoDetail({ dirty: editor.isDirty() }));
 
 				return false;
 			}
@@ -1787,6 +1788,25 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 		return this.handleCloseConfirmation(editors);
 	}
 
+	private isOpenedInOtherGroup(editor: EditorInput): boolean {
+		return this.editorPartsView.groups.some(groupView => {
+			if (groupView === this) {
+				return false; // skip (we already handled our group above)
+			}
+
+			const otherGroup = groupView;
+			if (otherGroup.contains(editor, { supportSideBySide: SideBySideEditor.BOTH })) {
+				return true; // exact editor still opened (either single, or split-in-group)
+			}
+
+			if (editor instanceof SideBySideEditorInput && otherGroup.contains(editor.primary)) {
+				return true; // primary side of side by side editor still opened
+			}
+
+			return false;
+		});
+	}
+
 	private async doHandleCloseConfirmation(editor: EditorInput, options?: { skipAutoSave: boolean }): Promise<boolean /* veto */> {
 		if (!this.shouldConfirmClose(editor)) {
 			return false; // no veto
@@ -1803,22 +1823,7 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 		// The only exception is when the same editor is opened on both sides of a side
 		// by side editor (https://github.com/microsoft/vscode/issues/138442)
 
-		if (this.editorPartsView.groups.some(groupView => {
-			if (groupView === this) {
-				return false; // skip (we already handled our group above)
-			}
-
-			const otherGroup = groupView;
-			if (otherGroup.contains(editor, { supportSideBySide: SideBySideEditor.BOTH })) {
-				return true; // exact editor still opened (either single, or split-in-group)
-			}
-
-			if (editor instanceof SideBySideEditorInput && otherGroup.contains(editor.primary)) {
-				return true; // primary side of side by side editor still opened
-			}
-
-			return false;
-		})) {
+		if (this.isOpenedInOtherGroup(editor)) {
 			return false; // editor is still editable somewhere else
 		}
 
@@ -2069,7 +2074,7 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 	private doCloseAllEditors(options?: ICloseAllEditorsOptions): void {
 		let editors = this.model.getEditors(EditorsOrder.SEQUENTIAL, options).filter(editor => options?.force || !editor.hasCapability(EditorInputCapabilities.CannotClose));
 		if (options?.excludeConfirming) {
-			editors = editors.filter(editor => !this.shouldConfirmClose(editor));
+			editors = editors.filter(editor => !this.shouldConfirmClose(editor) || this.isOpenedInOtherGroup(editor));
 		}
 
 		// Close all inactive editors first

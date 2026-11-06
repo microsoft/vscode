@@ -80,7 +80,7 @@ const SUPPORTED_ARCHS = new Set(['x64', 'arm64']);
 function isCliInvocation(): boolean {
 	// `import.meta.filename` is already a real filesystem path; comparing it
 	// directly to `process.argv[1]` works on Windows too. Matches the pattern
-	// in `build/agent-sdk/package.ts` and `build/npm/installStateHash.ts`.
+	// in `build/agent-sdk/package.ts` and `build/agent-sdk/upload.ts`.
 	return import.meta.filename === process.argv[1];
 }
 

@@ -8,8 +8,9 @@ import { createDecorator } from '../../../../platform/instantiation/common/insta
 import { ContextKeyExpr, RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
 import { ActiveEditorContext, MainEditorAreaVisibleContext } from '../../../../workbench/common/contextkeys.js';
 import { CanvasInput, getCanvasDefinitionInstanceId, getCanvasDefinitionLabels, type ICanvasReference } from '../../../../workbench/contrib/canvases/common/canvas.js';
-import { ActiveSessionCanvasReferenceContext, SessionActiveChatCanvasReferenceKeysContext } from '../../../common/contextkeys.js';
-import { IChat, ISession, ISessionCanvas, ISessionCanvasDefinition } from '../../../services/sessions/common/session.js';
+import { SessionActiveChatCanvasReferenceKeysContext } from '../../../../workbench/contrib/sessions/common/contextkeys.js';
+import { ActiveSessionCanvasReferenceContext } from '../../../common/agentsWindowContextKeys.js';
+import { IChat, ISession, ISessionCanvas, ISessionCanvasDefinition } from '../../../../workbench/contrib/sessions/common/session.js';
 
 export const WindowCanvasesAvailableContext = new RawContextKey<boolean>('windowCanvasesAvailable', false);
 export const SessionCanvasActivityBarToggledContext = ContextKeyExpr.and(

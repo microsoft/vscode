@@ -30,19 +30,20 @@ import { IChatViewModel } from '../../../../../../workbench/contrib/chat/common/
 import { IChatService } from '../../../../../../workbench/contrib/chat/common/chatService/chatService.js';
 import { ILifecycleService } from '../../../../../../workbench/services/lifecycle/common/lifecycle.js';
 import { TestStorageService } from '../../../../../../workbench/test/common/workbenchTestServices.js';
-import { Menus } from '../../../../../browser/menus.js';
-import { IAgentHostSessionsProvider, LOCAL_AGENT_HOST_PROVIDER_ID } from '../../../../../common/agentHostSessionsProvider.js';
-import { IsPhoneLayoutContext, SessionProviderIdContext, SessionUsesCombinedConfigPickerContext } from '../../../../../common/contextkeys.js';
-import { IChat, ISession, SessionStatus } from '../../../../../services/sessions/common/session.js';
-import { IActiveSession } from '../../../../../services/sessions/common/sessionsManagement.js';
-import { ISessionsService } from '../../../../../services/sessions/browser/sessionsService.js';
-import { SessionsProvidersService } from '../../../../../services/sessions/browser/sessionsProvidersService.js';
-import { AGENTS_PICKER_IN_ATTACH_CONTEXT_MENU_SETTING } from '../../../../chat/common/constants.js';
-import { AgentHostAgentPickerContribution, AgentHostModePickerActionViewItem, createAgentContextPick, isCustomAgentSelected } from '../../browser/agentHostAgentPicker.js';
-import { ModePicker } from '../../../copilotChatSessions/browser/modePicker.js';
-import '../../browser/agentHostSessionConfigPicker.js';
-import '../../browser/mobile/mobileChatInputConfigPicker.js';
+import { Menus } from '../../../../../../workbench/contrib/sessions/browser/menus.js';
+import { IAgentHostSessionsProvider, LOCAL_AGENT_HOST_PROVIDER_ID } from '../../../../../../workbench/contrib/sessions/common/agentHostSessionsProvider.js';
+import { IsPhoneLayoutContext, SessionProviderIdContext, SessionUsesCombinedConfigPickerContext } from '../../../../../../workbench/contrib/sessions/common/contextkeys.js';
+import { IChat, ISession, SessionStatus } from '../../../../../../workbench/contrib/sessions/common/session.js';
+import { IActiveSession } from '../../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
+import { SessionsProvidersService } from '../../../../../../workbench/contrib/sessions/browser/sessionsProvidersService.js';
+import { AGENTS_PICKER_IN_ATTACH_CONTEXT_MENU_SETTING } from '../../../../../../workbench/contrib/sessions/common/chatConstants.js';
+import { AgentHostAgentPickerContribution, AgentHostModePickerActionViewItem, createAgentContextPick, isCustomAgentSelected } from '../../../../../../workbench/contrib/sessions/providers/agentHost/browser/agentHostAgentPicker.js';
+import { ModePicker } from '../../../../../../workbench/contrib/sessions/providers/copilotChatSessions/browser/modePicker.js';
+import '../../browser/agentHostAgentPicker.contribution.js';
+import '../../browser/agentHostSessionConfigPicker.contribution.js';
+import '../../browser/mobile/mobileChatInputConfigPicker.contribution.js';
 import '../../../../chat/browser/modelPicker.js';
+import { focusedSessionHostServiceOf } from '../../../../../../workbench/contrib/sessions/test/browser/sessionHostTestUtils.js';
 
 suite('agentHostAgentPicker', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
@@ -78,6 +79,7 @@ suite('agentHostAgentPicker', () => {
 			const telemetryService = new TestExperimentTriggerTelemetryService();
 			const pick = createAgentContextPick({
 				getActiveSession: () => session,
+				getActiveChat: () => session?.activeChat.get(),
 				isEligible: () => options.eligible ?? true,
 				openPicker: anchor => opened.push(anchor?.className ?? ''),
 			}, new TestConfigurationService({ [AGENTS_PICKER_IN_ATTACH_CONTEXT_MENU_SETTING]: treatment }), telemetryService);
@@ -253,7 +255,7 @@ suite('agentHostAgentPicker', () => {
 				disposables.add(providers.registerProvider(provider));
 				disposables.add(new AgentHostAgentPickerContribution(
 					new NullActionViewItemService(),
-					upcastPartial<ISessionsService>({ activeSession }),
+					focusedSessionHostServiceOf(activeSession),
 					providers,
 					upcastPartial<IChatService>({ getSession: () => undefined }),
 					upcastPartial<IChatWidgetService>({

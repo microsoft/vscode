@@ -67,9 +67,21 @@ export const TOGGLE_CHAT_WINDOW_CONVERSATION_COMMAND_ID = 'workbench.action.chat
 /**
  * The chat window a command acts on: the window of the editor group its arguments name, such as when it runs from the
  * title of a group of the window, or the window they name, such as when it runs from the Session Activity Bar of the
- * window, else the chat window that has focus.
+ * window. Arguments that name a group or window that is not a chat window's, such as the main window's, resolve to none,
+ * never to the chat window that has focus. Without such arguments, as from a keybinding, the chat window that has focus.
  */
 export function resolveChatWindow(accessor: ServicesAccessor, args: readonly unknown[]): IChatWindow | undefined {
+	return args.some(arg => isEditorCommandsContext(arg) || isWindowCommandContext(arg))
+		? resolveChatWindowOfContext(accessor, args)
+		: accessor.get(IChatWindowService).activeWindow;
+}
+
+/**
+ * The chat window the arguments of a command name: the window of the editor group they name, or the window they name.
+ * Unlike {@link resolveChatWindow}, never the chat window that has focus: arguments that name the main window, or none
+ * of the windows, resolve to none.
+ */
+export function resolveChatWindowOfContext(accessor: ServicesAccessor, args: readonly unknown[]): IChatWindow | undefined {
 	const chatWindowService = accessor.get(IChatWindowService);
 	const context = args.find(isEditorCommandsContext);
 	if (context) {
@@ -79,13 +91,7 @@ export function resolveChatWindow(accessor: ServicesAccessor, args: readonly unk
 		}
 	}
 	const windowContext = args.find(isWindowCommandContext);
-	if (windowContext) {
-		const window = chatWindowService.getWindow(windowContext.windowId);
-		if (window) {
-			return window;
-		}
-	}
-	return chatWindowService.activeWindow;
+	return windowContext ? chatWindowService.getWindow(windowContext.windowId) : undefined;
 }
 
 /** In a window with layout modes, in the Agents window, while AI features are enabled: where the layout commands apply. */

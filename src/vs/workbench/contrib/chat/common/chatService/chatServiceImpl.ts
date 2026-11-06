@@ -24,6 +24,7 @@ import { isDefined } from '../../../../../base/common/types.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { generateUuid } from '../../../../../base/common/uuid.js';
 import { OffsetRange } from '../../../../../editor/common/core/ranges/offsetRange.js';
+import { PositionOffsetTransformer } from '../../../../../editor/common/core/text/positionToOffset.js';
 import { localize } from '../../../../../nls.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
@@ -59,7 +60,7 @@ import { ChatSessionStore, IChatSessionEntryMetadata } from '../model/chatSessio
 import { IChatSlashCommandService } from '../participants/chatSlashCommands.js';
 import { IChatTransferService } from '../model/chatTransferService.js';
 import { chatSessionResourceToId, getChatSessionType, isUntitledChatSession, LocalChatSessionUri } from '../model/chatUri.js';
-import { ChatRequestVariableSet, IChatRequestVariableEntry, isExplicitFileOrImageVariableEntry, isPromptTextVariableEntry } from '../attachments/chatVariableEntries.js';
+import { ChatRequestVariableSet, IChatRequestVariableEntry, isAgentHostCompletionVariableEntry, isExplicitFileOrImageVariableEntry, isPromptTextVariableEntry } from '../attachments/chatVariableEntries.js';
 import { IDynamicVariable } from '../attachments/chatVariables.js';
 import { ChatAgentLocation, SessionTypeSelectionReason, ChatConfiguration, ChatModeKind, CONTINUE_AGENT_HOST_CHAT_IN_COPILOT_ACTION_ID, getCopilotHarnessIntroductionMode, isLocalChatSessionSubjectToManagedPolicy, managedPolicyRequiresAgentHostMessage } from '../constants.js';
 import { ChatMessageRole, IChatMessage, ILanguageModelsService } from '../languageModels.js';
@@ -151,8 +152,28 @@ class CancellableRequest implements IDisposable {
 	}
 }
 
-const EMPTY_REFERENCES: ReadonlyArray<IDynamicVariable> = Object.freeze([]);
 const EMPTY_TOOL_ENABLEMENT_MAP: ToolAndToolSetEnablementMap = ToolAndToolSetEnablementMap.fromEntries([]);
+
+function getAgentHostCompletionReferences(text: string, variables: readonly IChatRequestVariableEntry[] = []): readonly IDynamicVariable[] {
+	const positions = new PositionOffsetTransformer(text);
+	return variables.flatMap(variable => {
+		const range = variable.range;
+		if (!isAgentHostCompletionVariableEntry(variable) || !range || !Number.isInteger(range.start) || !Number.isInteger(range.endExclusive) || range.start < 0 || range.start >= range.endExclusive || range.endExclusive > text.length) {
+			return [];
+		}
+		const editorRange = positions.getRange(new OffsetRange(range.start, range.endExclusive));
+		if (editorRange.startLineNumber !== editorRange.endLineNumber) {
+			return [];
+		}
+		return [{
+			id: variable.id,
+			range: editorRange,
+			data: variable.value,
+			fullName: variable.fullName ?? variable.name,
+			_meta: variable._meta,
+		}];
+	});
+}
 
 /**
  * Preserve the picker state from `stateToApply`, only recovering a custom agent mode from
@@ -1027,7 +1048,11 @@ export class ChatService extends Disposable implements IChatService {
 	 * with the input state restored from the session and its persisted draft.
 	 */
 	private createRemoteSessionModel(sessionResource: URI, providedSession: IChatSession, location: ChatAgentLocation, sessionTypeSelectionReason: SessionTypeSelectionReason | undefined): { model: ChatModel; inputRestore: IRemoteSessionInputRestore } {
-		const modelId = findLast(providedSession.history.filter(m => m.type === 'request'), req => req.modelId)?.modelId;
+		// The model the session continues with: its transferred draft's selection when it has one,
+		// else the last model its request history used. A draft model wins even when its metadata is
+		// not loaded yet, so a cold restore waits for it rather than settling on an earlier turn's.
+		const modelId = providedSession.transferredState?.selectedModelId
+			?? findLast(providedSession.history.filter(m => m.type === 'request'), req => req.modelId)?.modelId;
 		const agentUri = findLast(providedSession.history.filter(m => m.type === 'request'), req => req.modeInstructions?.uri)?.modeInstructions?.uri;
 		const storedMetadata = this._chatSessionStore.getMetadataForSessionSync(sessionResource);
 		const storedPermissionLevel = storedMetadata?.permissionLevel;
@@ -1167,12 +1192,12 @@ export class ChatService extends Disposable implements IChatService {
 	 */
 	private createRemoteHistoryPromptParser(chatSessionType: string, location: ChatAgentLocation): RemoteHistoryPromptParser {
 		const requestParser = isAgentHostTarget(chatSessionType) ? this.instantiationService.createInstance(ChatRequestParser) : undefined;
-		return (text, agent) => {
+		return (text, agent, variableData) => {
 			if (requestParser) {
 				try {
 					const attachmentCapabilities = this.getAttachmentCapabilitiesForParser(chatSessionType, agent);
 					const parsed = requestParser.parseChatRequestWithReferences(
-						EMPTY_REFERENCES,
+						getAgentHostCompletionReferences(text, variableData?.variables),
 						EMPTY_TOOL_ENABLEMENT_MAP,
 						text,
 						location,
@@ -1233,6 +1258,8 @@ export class ChatService extends Disposable implements IChatService {
 		if (providedSession.progressObs && providedSession.interruptActiveResponseCallback) {
 			let streamingRequest = restored.lastRequest;
 			let streamingResponseCompletedAt = restored.lastResponseCompletedAt;
+			// Only the replayed turn can carry a recorded cancellation; a live turn's is applied as it happens.
+			let streamingResponseCanceled = restored.lastResponseCanceled;
 			let lastProgressLength = 0;
 			// Completion state as of the previous observation, or undefined before the
 			// first one. A session that is already complete when first observed is
@@ -1266,14 +1293,22 @@ export class ChatService extends Disposable implements IChatService {
 			};
 
 			const completeStreamingResponse = (finishedNow = false) => {
-				if (Number.isFinite(streamingResponseCompletedAt)) {
-					streamingRequest?.response?.complete(streamingResponseCompletedAt);
+				const response = streamingRequest?.response;
+				if (streamingResponseCanceled && !finishedNow) {
+					if (streamingResponseCompletedAt !== undefined && Number.isFinite(streamingResponseCompletedAt)) {
+						response?.cancel(streamingResponseCompletedAt);
+					} else {
+						response?.cancelWithoutTimestamp();
+					}
+				} else if (Number.isFinite(streamingResponseCompletedAt)) {
+					response?.complete(streamingResponseCompletedAt);
 				} else if (finishedNow) {
-					streamingRequest?.response?.complete();
+					response?.complete();
 				} else {
-					streamingRequest?.response?.completeWithoutTimestamp();
+					response?.completeWithoutTimestamp();
 				}
 				streamingResponseCompletedAt = undefined;
+				streamingResponseCanceled = false;
 			};
 			const processProgress = (progressArray: readonly IChatProgress[], isComplete: boolean) => {
 				// The first observation replays whatever the session did before it was watched.
@@ -1320,6 +1355,7 @@ export class ChatService extends Disposable implements IChatService {
 						request.response.reopen();
 						streamingRequest = request;
 						streamingResponseCompletedAt = undefined;
+						streamingResponseCanceled = false;
 						lastProgressLength = 0;
 						ensureCancellationTracking();
 						return;
@@ -1337,7 +1373,7 @@ export class ChatService extends Disposable implements IChatService {
 
 					// Create a new request in the model
 					const agent = this.chatAgentService.getAgent(getChatSessionType(model.sessionResource));
-					const parsedRequest = parsePrompt(prompt, agent);
+					const parsedRequest = parsePrompt(prompt, agent, variableData);
 					streamingRequest = model.addRequest(parsedRequest,
 						variableData ?? { variables: [] },
 						0, // attempt
@@ -1840,6 +1876,10 @@ export class ChatService extends Disposable implements IChatService {
 		if (attachmentCapabilities) {
 			parserContext = { ...parserContext, attachmentCapabilities };
 		}
+		const fallbackReferences = getAgentHostCompletionReferences(request, [...options?.attachedContext ?? [], ...options?.resolvedVariables ?? []]);
+		if (fallbackReferences.length) {
+			parserContext = { ...parserContext, fallbackReferences };
+		}
 
 		const parsedRequest = this.instantiationService.createInstance(ChatRequestParser).parseChatRequest(sessionResource, request, location, parserContext);
 		return parsedRequest;
@@ -2339,9 +2379,6 @@ export class ChatService extends Disposable implements IChatService {
 				this.processNextPendingRequest(model);
 			}
 		});
-		if (options?.userSelectedModelId && !options.isSystemInitiated) {
-			this.languageModelsService.addToRecentlyUsedList(options.userSelectedModelId);
-		}
 		this._onDidSubmitRequest.fire({ chatSessionResource: model.sessionResource, message: parsedRequest, attachedContext: options?.attachedContext });
 		return {
 			responseCreatedPromise: responseCreated.p,
@@ -2860,7 +2897,9 @@ export class ChatService extends Disposable implements IChatService {
 				&& equals(local.sendOptions.agentHostMessageOrigin, agentHostMessageOrigin) && equals(local.sendOptions.metadata, metadata)) {
 				return local.kind === remote.kind ? local : { ...local, kind: remote.kind };
 			}
-			const parsedRequest = this.parseChatRequest(sessionResource, remote.message, model.initialLocation, undefined);
+			const parsedRequest = this.parseChatRequest(sessionResource, remote.message, model.initialLocation, {
+				parserContext: { references: getAgentHostCompletionReferences(remote.message, variableData.variables) },
+			});
 			const requestModel = new ChatRequestModel({
 				session: model,
 				message: parsedRequest,

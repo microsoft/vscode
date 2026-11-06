@@ -364,7 +364,7 @@ export class MissionControlSharingService extends Disposable implements IMission
 			this._accountSessionIds = new Set(sessions.map(session => session.id));
 			const useLocalCredentials = this._configuration.getValue<boolean>(MissionControlUseLocalCredentialsSettingId) === true;
 			if (useLocalCredentials) {
-				this._logService.warn('[Mission Control] Local credential delegation enabled: same-owner remote clients will run Copilot work with the desktop credential and its permissions');
+				this._logService.warn('[Mission Control] Local credential delegation enabled: same-owner remote clients will run GitHub and Copilot work with the desktop credentials and their permissions');
 			}
 			const remoteControlPolicySetting = this._configuration.inspect<boolean>(missionControlIgnoreRemoteControlPolicy);
 			const ignoreRemoteControlPolicy = (remoteControlPolicySetting.userLocalValue ?? remoteControlPolicySetting.applicationValue) === true;

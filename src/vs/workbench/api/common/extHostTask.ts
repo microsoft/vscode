@@ -212,7 +212,8 @@ export namespace TaskHandleDTO {
 		}
 		return {
 			id: value._id!,
-			workspaceFolder: folder!
+			workspaceFolder: folder!,
+			type: value.definition?.type,
 		};
 	}
 }

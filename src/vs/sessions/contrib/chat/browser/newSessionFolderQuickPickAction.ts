@@ -15,9 +15,9 @@ import { ILabelService } from '../../../../platform/label/common/label.js';
 import { IQuickInputService, IQuickPickItem, IQuickPickSeparator } from '../../../../platform/quickinput/common/quickInput.js';
 import { IsSessionsWindowContext } from '../../../../workbench/common/contextkeys.js';
 import { CHAT_CATEGORY } from '../../../../workbench/contrib/chat/browser/actions/chatActions.js';
-import { ISessionsRecentWorkspacesService } from '../../../services/sessions/browser/sessionsRecentWorkspacesService.js';
-import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
-import { INewSessionComposerService } from './newSessionComposerService.js';
+import { ISessionsRecentWorkspacesService } from '../../../../workbench/contrib/sessions/browser/sessionsRecentWorkspacesService.js';
+import { ISessionsService } from '../../../../workbench/contrib/sessions/browser/sessionsService.js';
+import { INewSessionComposerService } from '../../../../workbench/contrib/sessions/browser/newSessionComposerService.js';
 
 export interface IFolderQuickPickItem extends IQuickPickItem {
 	readonly folderUri?: URI;

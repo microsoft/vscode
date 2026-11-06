@@ -1665,6 +1665,33 @@ suite('ChatSessionsService - archive capability', () => {
 		service = store.add(instantiationService.createInstance(ChatSessionsService));
 	});
 
+	test('archive discovery is opt-in and demand is shared across surfaces and provider lifetimes', () => {
+		const calls: { provider: string; requested: boolean }[] = [];
+		const state = observableValue<'idle' | 'loading' | 'loaded' | 'error'>('archive', 'idle');
+		const registration = store.add(service.registerChatSessionItemArchiveProvider({
+			state, setRequested: requested => calls.push({ provider: 'first', requested }),
+		}));
+		const before = [...calls];
+		const first = store.add(service.acquireArchivedSessionItems());
+		const second = store.add(service.acquireArchivedSessionItems());
+		state.set('loading', undefined);
+		const loading = service.archivedSessionItems.get();
+		first.dispose();
+		registration.dispose();
+		store.add(service.registerChatSessionItemArchiveProvider({
+			state: constObservable('loaded'),
+			setRequested: requested => calls.push({ provider: 'replacement', requested }),
+		}));
+		second.dispose();
+		assert.deepStrictEqual({ before, loading, calls }, {
+			before: [], loading: { available: true, state: 'loading' },
+			calls: [
+				{ provider: 'first', requested: true }, { provider: 'first', requested: false },
+				{ provider: 'replacement', requested: true }, { provider: 'replacement', requested: false },
+			],
+		});
+	});
+
 	test('delegates to the registered controller', () => {
 		const sessionType = 'supported-type';
 		const updates: { resource: string; archived: boolean }[] = [];

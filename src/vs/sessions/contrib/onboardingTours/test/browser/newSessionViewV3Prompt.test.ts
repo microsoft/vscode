@@ -19,14 +19,14 @@ import { IGitRepository, IGitService } from '../../../../../workbench/contrib/gi
 import { ONBOARDING_DEVELOPER_MODE_CONFIG, ONBOARDING_DEVELOPER_MODE_VARIATIONS_CONFIG } from '../../../../../workbench/contrib/onboarding/common/onboardingScenarioService.js';
 import { IWorkbenchAssignmentService } from '../../../../../workbench/services/assignment/common/assignmentService.js';
 import { NullWorkbenchAssignmentService } from '../../../../../workbench/services/assignment/test/common/nullAssignmentService.js';
-import { GITHUB_REMOTE_FILE_SCHEME, ISessionWorkspace } from '../../../../services/sessions/common/session.js';
-import { IActiveSession } from '../../../../services/sessions/common/sessionsManagement.js';
-import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
-import { INewSessionComposerService, INewSessionPromptOptionsController, NewSessionPromptOptionsState } from '../../../chat/browser/newSessionComposerService.js';
+import { GITHUB_REMOTE_FILE_SCHEME, ISessionWorkspace } from '../../../../../workbench/contrib/sessions/common/session.js';
+import { IActiveSession } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
+import { ISessionsService } from '../../../../../workbench/contrib/sessions/browser/sessionsService.js';
+import { INewSessionComposerService, INewSessionPromptOptionsController, NewSessionPromptOptionsState } from '../../../../../workbench/contrib/sessions/browser/newSessionComposerService.js';
 import { GitHubRequestError } from '../../../../../platform/github/common/githubTypes.js';
 import { ApiRequestOptions } from '../../../../../platform/github/common/client/request.js';
-import { IGitHubRecentUserWork } from '../../../github/browser/fetchers/githubRecentUserWorkFetcher.js';
-import { IGitHubService } from '../../../github/browser/githubService.js';
+import { IGitHubRecentUserWork } from '../../../../../workbench/contrib/sessions/browser/github/fetchers/githubRecentUserWorkFetcher.js';
+import { IGitHubService } from '../../../../../workbench/contrib/sessions/browser/github/githubService.js';
 import { INewSessionPromptRunnerOptions, NewSessionViewV3PromptRunner, selectNewSessionViewV3GitHubCandidate } from '../../browser/newSessionViewV3Prompt.js';
 import { NEW_SESSION_VIEW_V3_TOUR_ID } from '../../browser/tours/newSessionViewV3Tour.js';
 
@@ -890,10 +890,7 @@ suite('NewSessionViewV3Prompt', () => {
 		const runner = new NewSessionViewV3PromptRunner(
 			new TestAssignmentService({ 'onb.newSessionViewV3.variation': 'githubPrompt' }),
 			new TestConfigurationService(),
-			new class extends mock<ISessionsService>() {
-				override readonly activeSession = constObservable<IActiveSession | undefined>(activeSession);
-				override readonly mainWindowActiveSession = this.activeSession;
-			}(),
+			constObservable<IActiveSession | undefined>(activeSession),
 			new class extends mock<INewSessionComposerService>() {
 				override readonly activeComposer = constObservable({
 					animatePrompt: async (text: string) => {
@@ -948,10 +945,7 @@ suite('NewSessionViewV3Prompt', () => {
 		const runner = new NewSessionViewV3PromptRunner(
 			new TestAssignmentService({ 'onb.newSessionViewV3.variation': 'githubPrompt' }),
 			new TestConfigurationService(),
-			new class extends mock<ISessionsService>() {
-				override readonly activeSession = activeSession;
-				override readonly mainWindowActiveSession = this.activeSession;
-			}(),
+			activeSession,
 			new class extends mock<INewSessionComposerService>() {
 				override readonly activeComposer = constObservable({
 					animatePrompt: async (text: string) => {
@@ -1035,8 +1029,7 @@ async function runPrompt(
 	const workspace = createWorkspace(workspaceUri, 'r', options.includeGitHubInfo !== false);
 	const activeSession = createSession(workspace);
 	const sessionsService = new class extends mock<ISessionsService>() {
-		override readonly activeSession = constObservable<IActiveSession | undefined>(activeSession);
-		override readonly mainWindowActiveSession = this.activeSession;
+		readonly activeSession = constObservable<IActiveSession | undefined>(activeSession);
 	}();
 	const composerService = new class extends mock<INewSessionComposerService>() {
 		override readonly activeComposer = constObservable({
@@ -1136,7 +1129,7 @@ async function runPrompt(
 	const runner = new NewSessionViewV3PromptRunner(
 		new TestAssignmentService(treatments) as IWorkbenchAssignmentService,
 		new TestConfigurationService(configuration),
-		sessionsService,
+		sessionsService.activeSession,
 		composerService,
 		gitService,
 		new MissingFileService(),

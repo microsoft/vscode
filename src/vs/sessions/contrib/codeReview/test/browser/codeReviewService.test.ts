@@ -21,23 +21,25 @@ import { mock, upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ILogService, NullLogService } from '../../../../../platform/log/common/log.js';
 import { IChatSessionFileChange, IChatSessionFileChange2 } from '../../../../../workbench/contrib/chat/common/chatSessionsService.js';
 import { ActiveEditorContext, IsAuxiliaryWindowContext, IsSessionsWindowContext, IsTopRightEditorGroupContext, MainEditorAreaVisibleContext } from '../../../../../workbench/common/contextkeys.js';
-import { Menus } from '../../../../browser/menus.js';
-import { SessionHasChangesContext, SessionIsCreatedContext, DesktopLayoutContext } from '../../../../common/contextkeys.js';
-import { IGitHubService } from '../../../github/browser/githubService.js';
-import { GitHubPRFetcher } from '../../../github/browser/fetchers/githubPRFetcher.js';
-import { GitHubPullRequestReviewThreadsModel } from '../../../github/browser/models/githubPullRequestReviewThreadsModel.js';
-import { GitHubPullRequestModel } from '../../../github/browser/models/githubPullRequestModel.js';
-import { GitHubPullRequestState, IGitHubPRComment, IGitHubPullRequestReview, IGitHubPullRequestReviewThread } from '../../../github/common/types.js';
-import { toPRContentUri } from '../../../github/common/utils.js';
-import { SessionChangesEditorInput } from '../../../changes/browser/sessionChangesEditorInput.js';
-import { IChat, IGitHubInfo, SessionStatus, ISession, ISessionWorkspace } from '../../../../services/sessions/common/session.js';
-import { commentableRightLines, mapCurrentLineToPullRequestLine, mapCurrentRangeToPullRequestRange, ICodeReviewService, CodeReviewService, PRReviewStateKind } from '../../browser/codeReviewService.js';
-import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
-import { ICreateNewChatInSessionOptions, IActiveSession, ISendRequestOptions, ISessionsChangeEvent, ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
+import { Menus } from '../../../../../workbench/contrib/sessions/browser/menus.js';
+import { SessionHasChangesContext, SessionIsCreatedContext, DesktopLayoutContext } from '../../../../../workbench/contrib/sessions/common/contextkeys.js';
+import { IGitHubService } from '../../../../../workbench/contrib/sessions/browser/github/githubService.js';
+import { GitHubPRFetcher } from '../../../../../workbench/contrib/sessions/browser/github/fetchers/githubPRFetcher.js';
+import { GitHubPullRequestReviewThreadsModel } from '../../../../../workbench/contrib/sessions/browser/github/models/githubPullRequestReviewThreadsModel.js';
+import { GitHubPullRequestModel } from '../../../../../workbench/contrib/sessions/browser/github/models/githubPullRequestModel.js';
+import { GitHubPullRequestState, IGitHubPRComment, IGitHubPullRequestReview, IGitHubPullRequestReviewThread } from '../../../../../workbench/contrib/sessions/common/github/types.js';
+import { toPRContentUri } from '../../../../../workbench/contrib/sessions/common/github/utils.js';
+import { SessionChangesEditorInput } from '../../../../../workbench/contrib/sessions/browser/changes/sessionChangesEditorInput.js';
+import { IChat, IGitHubInfo, SessionStatus, ISession, ISessionWorkspace } from '../../../../../workbench/contrib/sessions/common/session.js';
+import { commentableRightLines, mapCurrentLineToPullRequestLine, mapCurrentRangeToPullRequestRange, CodeReviewService } from '../../browser/codeReviewService.js';
+import { ICodeReviewService, PRReviewStateKind } from '../../../../../workbench/contrib/sessions/browser/codeReviewService.js';
+import { ISessionsService } from '../../../../../workbench/contrib/sessions/browser/sessionsService.js';
+import { ICreateNewChatInSessionOptions, IActiveSession, ISendRequestOptions, ISessionsChangeEvent, ISessionsManagementService } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import { IChatWidgetService } from '../../../../../workbench/contrib/chat/browser/chat.js';
 import { ChatContextKeys } from '../../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
-import { ISessionChangesService } from '../../../changes/browser/sessionChangesService.js';
+import { ISessionChangesService } from '../../../../../workbench/contrib/sessions/browser/changes/sessionChangesService.js';
 import '../../browser/codeReview.contributions.js';
+import { stubFocusedSessionHostFromSessionsService } from '../../../../../workbench/contrib/sessions/test/browser/sessionHostTestUtils.js';
 
 suite('CodeReviewService', () => {
 
@@ -302,6 +304,7 @@ suite('CodeReviewService', () => {
 		sessionsManagement = new MockSessionsManagementService(store);
 		instantiationService.stub(ISessionsManagementService, sessionsManagement);
 		instantiationService.stub(ISessionsService, { activeSession: sessionsManagement.activeSession } as unknown as ISessionsService);
+		stubFocusedSessionHostFromSessionsService(instantiationService);
 
 		gitHubService = new MockGitHubService(sessionsManagement);
 		instantiationService.stub(IGitHubService, gitHubService);
@@ -750,6 +753,7 @@ suite('Code Review Contributions', () => {
 			}
 		});
 		testInstantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() { });
+		stubFocusedSessionHostFromSessionsService(testInstantiationService);
 		testInstantiationService.stub(IChatWidgetService, new class extends mock<IChatWidgetService>() { });
 		testInstantiationService.stub(ISessionChangesService, new class extends mock<ISessionChangesService>() {
 			override getSessionResource(resource: URI): URI | undefined {
@@ -789,6 +793,7 @@ suite('Code Review Contributions', () => {
 			}
 		});
 		testInstantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() { });
+		stubFocusedSessionHostFromSessionsService(testInstantiationService);
 		testInstantiationService.stub(IChatWidgetService, new class extends mock<IChatWidgetService>() { });
 		testInstantiationService.stub(ISessionChangesService, new class extends mock<ISessionChangesService>() {
 			override getSessionResource(): URI | undefined {

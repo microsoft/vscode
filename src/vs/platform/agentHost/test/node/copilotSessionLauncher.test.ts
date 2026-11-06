@@ -5,6 +5,7 @@
 
 import type { CopilotClient, CopilotSession, PermissionHandler, PermissionRequest, ResumeSessionConfig, SessionConfig, Tool, Verbosity } from '@github/copilot-sdk';
 import assert from 'assert';
+import { homedir } from 'os';
 import { hasKey } from '../../../../base/common/types.js';
 import { isDeepStrictEqual } from 'util';
 import { useFakeTimers } from 'sinon';
@@ -17,6 +18,7 @@ import { URI } from '../../../../base/common/uri.js';
 import { mock, upcastPartial } from '../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { PluginFormat, toParsedAgent, type IMcpServerDefinition, type IParsedRule } from '../../../agentPlugins/common/pluginParsers.js';
+import { ICopilotHomeService } from '../../../environment/common/copilotHome.js';
 import { IFileService, type IFileContent } from '../../../files/common/files.js';
 import { InstantiationService } from '../../../instantiation/common/instantiationService.js';
 import { ServiceCollection } from '../../../instantiation/common/serviceCollection.js';
@@ -37,6 +39,8 @@ import { autoModeTiers, isAutoAdvertisedAsFusion, setAdvertisedAutoModeTiers } f
 import { SEMANTIC_SEARCH_TOOL_NAME } from '../../common/semanticSearchConstants.js';
 import { CustomizationType, McpServerStatus, type ClientPluginCustomization, type ModelSelection } from '../../common/state/protocol/state.js';
 import { CLIENT_TOOL_SEARCH_REFERENCE_NAME, RUNTIME_TOOL_SEARCH_TOOL_NAME } from '../../common/toolSearchConstants.js';
+import { CopilotVirtualSessionFs } from '../../node/copilot/copilotVirtualSessionFs.js';
+import { toCopilotWorkspace } from '../../node/copilot/copilotWorkspace.js';
 import { COPILOT_DEFAULT_AVAILABLE_TOOLS } from '../../node/copilot/copilotBuiltinToolAllowlist.js';
 import { ActiveClientToolSet } from '../../node/activeClientState.js';
 import { AgentConfigurationService, IAgentConfigurationService } from '../../node/agentConfigurationService.js';
@@ -53,7 +57,7 @@ import type { ShellManager } from '../../node/copilot/copilotShellTools.js';
 import type { CopilotSessionWrapper } from '../../node/copilot/copilotSessionWrapper.js';
 import { CopilotSessionSandbox } from '../../node/copilot/copilotSessionSandbox.js';
 import type { SandboxConfig, SandboxNetworkPolicy } from '../../node/copilot/sandboxConfigForSdk.js';
-import { composeByokSessionConfig, CopilotSessionLauncher, filterClientToolNames, findLocalModelDirectFamily, getCopilotAgentSelection, getCopilotAgentSelectionName, getCopilotAutoTier, getCopilotCustomAgents, getCopilotReasoningEffort, getCopilotWorkingDirectoryTrust, isCopilotReasoningEffort, mergeByokSessionConfig, synthesizeByokSessionConfig, withLocalModelSessionConfig, normalizeToolFilterPatterns, resolveConfiguredReasoningEffortOverride, resolveCopilotAutoTier, resolveCopilotReasoningEffort, toSdkToolFilterPatterns, type CopilotSessionLaunchPlan, type ICopilotClientToolConfiguration, type ICopilotSessionRuntime } from '../../node/copilot/copilotSessionLauncher.js';
+import { composeByokSessionConfig, CopilotSessionLauncher, filterClientToolNames, findLocalModelDirectFamily, getCopilotAgentSelection, getCopilotAgentSelectionName, getCopilotAutoTier, getCopilotCustomAgents, getCopilotReasoningEffort, getCopilotWorkingDirectoryTrust, isCopilotReasoningEffort, mergeByokSessionConfig, synthesizeByokSessionConfig, withLocalModelSessionConfig, normalizeToolFilterPatterns, resolveConfiguredReasoningEffortOverride, resolveCopilotAutoTier, resolveCopilotReasoningEffort, toSdkToolFilterPatterns, type CopilotSessionLaunchPlan, type IActiveClientSnapshot, type ICopilotClientToolConfiguration, type ICopilotSessionRuntime } from '../../node/copilot/copilotSessionLauncher.js';
 import { getSdkCustomAgentName } from '../../node/copilot/copilotPluginConverters.js';
 import { createUnmanagedCopilotSettings } from './copilotTestEvents.js';
 import { buildChatUri, buildDefaultChatUri, SessionStatus } from '../../common/state/sessionState.js';
@@ -1834,6 +1838,71 @@ suite('CopilotSessionLauncher shared session config', () => {
 
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
+	for (const kind of ['create', 'resume'] as const) {
+		for (const virtual of [false, true]) {
+			test(`${kind} ${virtual ? 'uses editor-backed files and search without disk tools' : 'keeps local filesystem and search tools unchanged'}`, async () => {
+				let captured: ResumeSessionConfig | undefined;
+				const raw = {
+					sessionId: 'virtual-workspace', on: () => () => { }, disconnect: async () => { },
+					rpc: { agent: emptyAgentCatalog, options: { update: async () => ({ success: true }) } },
+				} as unknown as CopilotSession;
+				const workingDirectory = virtual ? URI.parse('vscode-vfs://github/microsoft/vscode') : testWorkingDirectory;
+				const workspace = toCopilotWorkspace(workingDirectory);
+				const virtualSessionFs = workspace.kind === 'virtual'
+					? new CopilotVirtualSessionFs(workspace, '/session-state', URI.file('/copilot-home/session-state/virtual-workspace'), () => undefined, upcastPartial<IFileService>({})) : undefined;
+				const definitions = ['copilot_findFiles', 'copilot_findTextInFiles'].map(name => ({ name, description: name, inputSchema: { type: 'object' as const, properties: {} } }));
+				const base = {
+					client: returningSession(raw, config => { captured = config; }),
+					sessionId: 'virtual-workspace', workingDirectory, workspace, virtualSessionFs,
+					additionalDirectories: [URI.file('/additional')],
+					resolvedAgentName: undefined,
+					snapshot: {
+						tools: definitions, plugins: [], discoveredAgents: [], additionalRootInstructions: [], mcpServers: {
+							stdio: { type: McpServerType.LOCAL as const, command: 'npx' },
+							remote: { type: McpServerType.REMOTE as const, url: 'https://example.com/mcp' },
+						}
+					},
+					activeClientToolSet: new ActiveClientToolSet(), shellManager: undefined,
+					githubCredentials: CopilotGitHubSessionCredentials.fromToken(undefined),
+				};
+				const plan: CopilotSessionLaunchPlan = kind === 'create' ? { ...base, kind, model: undefined } : { ...base, kind, fallback: { model: undefined } };
+				const launcher = createTestLauncher(undefined, { [CopilotCliConfigKey.EnableCustomTerminalTool]: virtual });
+				store.add(await launcher.launch(plan, {
+					...testRuntime,
+					createClientSdkTools: (_search, _host, withheld) => definitions.filter(tool => !withheld?.has(tool.name)).map(tool => ({ name: tool.name, description: tool.description, parameters: tool.inputSchema, handler: async () => '' })),
+				}));
+				const disallowed = [
+					...['bash', 'read_bash', 'write_bash', 'stop_bash', 'list_bash', 'bash_shutdown',
+						'powershell', 'read_powershell', 'write_powershell', 'stop_powershell', 'list_powershell', 'powershell_shutdown',
+						'local_shell', 'grep', 'rg', 'glob'].map(name => `builtin:${name}`),
+					'custom:copilot_findFiles', 'custom:copilot_findTextInFiles',
+				];
+				assert.deepStrictEqual({
+					provider: captured?.createSessionFsProvider ? await captured.createSessionFsProvider(raw) === virtualSessionFs : false,
+					workingDirectory: captured?.workingDirectory,
+					excluded: (Array.isArray(captured?.excludedTools) ? captured.excludedTools : []).filter(name => disallowed.includes(name)),
+					tools: captured?.tools?.map(tool => ({ name: tool.name, overridesBuiltInTool: tool.overridesBuiltInTool === true, skipPermission: tool.skipPermission === true })),
+					additionalDirectories: captured?.additionalDirectories,
+					discovery: captured?.enableConfigDiscovery,
+					skills: captured?.skillProvider ? (await captured.skillProvider.listSkills({ signal: new AbortController().signal })).map(skill => skill.name) : [],
+					virtualPrompt: captured?.systemMessage?.content?.includes('virtual (remote) repository') === true,
+					mcpWorkingDirectories: Object.values(captured?.mcpServers ?? {}).map(server => hasKey(server, { url: true }) ? 'remote' : server.workingDirectory),
+				}, {
+					provider: virtual,
+					workingDirectory: virtual ? '/vscode-vfs/github/microsoft/vscode' : workingDirectory.fsPath,
+					excluded: virtual ? disallowed : [],
+					tools: virtual ? [{ name: 'grep', overridesBuiltInTool: true, skipPermission: true }, { name: 'glob', overridesBuiltInTool: true, skipPermission: true }]
+						: definitions.map(tool => ({ name: tool.name, overridesBuiltInTool: false, skipPermission: false })),
+					additionalDirectories: virtual ? undefined : [URI.file('/additional').fsPath],
+					discovery: !virtual,
+					skills: virtual ? [] : ['troubleshoot'],
+					virtualPrompt: virtual,
+					mcpWorkingDirectories: [virtual ? homedir() : undefined, 'remote'],
+				});
+			});
+		}
+	}
+
 	for (const kind of ['create', 'resume', 'recover', 'recover-empty', 'create-selection-error', 'resume-selection-error'] as const) {
 		test(`${kind} selects native plugin agents without registering their definitions`, async () => {
 			let captured: ResumeSessionConfig | undefined;
@@ -3459,7 +3528,7 @@ suite('getCopilotAutoTier', () => {
 			inlineConcreteModel: undefined,
 			inlineWithOverride: 'balance',
 			panel: 'hydrafusion',
-			fastNotAccepted: 'hydrafusion',
+			fastNotAccepted: undefined,
 			inlineNotFusion: 'efficiency',
 			inlineTiersUnknown: undefined,
 			panelTiersUnknown: 'hydrafusion',
@@ -3651,6 +3720,7 @@ suite('CopilotSessionLauncher resume config', () => {
 	function createLauncher(store: DisposableStore, values: SchemaValues<typeof copilotCliConfigSchema.definition> & Record<string, unknown>, fileContents?: string | (() => string)): CopilotSessionLauncher {
 		const services = new ServiceCollection();
 		services.set(ILogService, new NullLogService());
+		services.set(ICopilotHomeService, { _serviceBrand: undefined, home: URI.file('/copilot-home'), source: 'userHome' });
 		services.set(IByokLmBridgeRegistry, new ByokLmBridgeRegistry());
 		services.set(IAgentHostManagedSettingsService, store.add(new AgentHostManagedSettingsService()));
 		services.set(IAgentConfigurationService, {
@@ -3742,7 +3812,6 @@ suite('CopilotSessionLauncher resume config', () => {
 		let configuration: ICopilotClientToolConfiguration | undefined;
 		const definitions = [{ name: 'original' }];
 		await buildResumeConfig(createLauncher(store, {
-			toolSearchEnabled: true,
 			modelCapabilityOverrides: { '*': { availableTools: ['custom:*'] } },
 		}), { id: 'gpt-6-luna' }, { discoveredAgents: [], additionalRootInstructions: [], tools: definitions, plugins: [], mcpServers: {} }, undefined, {
 			configureClientTools: value => { configuration = value; },
@@ -3799,7 +3868,6 @@ suite('CopilotSessionLauncher resume config', () => {
 		const store = disposables.add(new DisposableStore());
 		let configuration: ICopilotClientToolConfiguration | undefined;
 		await buildResumeConfig(createLauncher(store, {
-			toolSearchEnabled: true,
 			modelCapabilityOverrides: {
 				'*': {
 					availableTools: ['custom:*'], excludedTools: [
@@ -4074,6 +4142,47 @@ suite('CopilotSessionLauncher resume config', () => {
 		});
 	});
 
+	test('withholds the virtual search overrides while managed permission rules are active', async () => {
+		const store = disposables.add(new DisposableStore());
+		const launcher = createLauncher(store, {});
+		const workingDirectory = URI.parse('vscode-vfs://github/microsoft/vscode');
+		const workspace = { kind: 'virtual' as const, root: workingDirectory };
+		const virtualSessionFs = new CopilotVirtualSessionFs(workspace, '/session-state', URI.file('/copilot-home/session-state/sess-1'), () => undefined, upcastPartial<IFileService>({}));
+		const build = async (permissions: Record<string, string[]> | undefined) => {
+			const managedSettings = new class extends mock<CopilotClient['rpc']['managedSettings']>() {
+				override resolve = async () => ({
+					resolved: { source: 'none' as const, serverManaged: permissions !== undefined, deviceManaged: false, clientManaged: false, failClosed: false, bypassPermissionsDisabled: false, managedKeys: permissions ? ['permissions'] : [], ...(permissions ? { settings: { permissions } } : {}) },
+					layers: [], diagnostics: [],
+				});
+			}();
+			const { config } = await (launcher as unknown as { _buildSessionConfig(plan: unknown, runtime: unknown, onManagedSettingsResolved: () => void): Promise<{ config: ResumeSessionConfig }> })._buildSessionConfig({
+				kind: 'resume',
+				client: { rpc: { managedSettings }, createSession: async () => { throw new Error('unused'); }, resumeSession: async () => { throw new Error('unused'); } },
+				sessionId: 'sess-1',
+				workingDirectory, workspace, virtualSessionFs,
+				resolvedAgentName: undefined,
+				snapshot: { discoveredAgents: [], additionalRootInstructions: [], tools: [], plugins: [], mcpServers: {} },
+				activeClientToolSet: new ActiveClientToolSet(),
+				shellManager: undefined,
+				githubCredentials: CopilotGitHubSessionCredentials.fromToken('token'),
+				fallback: { model: undefined },
+			}, {
+				createClientSdkTools: () => [],
+				configureClientTools: () => { },
+				createServerSdkTools: () => [],
+			}, () => { });
+			return config.tools?.map(tool => tool.name);
+		};
+
+		assert.deepStrictEqual({
+			unmanaged: await build(undefined),
+			readDenied: await build({ deny: ['Read(/denied/**)'] }),
+		}, {
+			unmanaged: ['grep', 'glob'],
+			readDenied: [],
+		});
+	});
+
 	test('forwards a configured override on resume and leaves the effort untouched otherwise', async () => {
 		const store = new DisposableStore();
 		const model: ModelSelection = { id: 'gpt-5', config: { thinkingLevel: 'medium' } };
@@ -4181,6 +4290,38 @@ suite('CopilotSessionLauncher resume config', () => {
 		store.dispose();
 	});
 
+	test('turning Search Tools off loads every tool up front', async () => {
+		const store = new DisposableStore();
+		const tool = (name: string) => ({ name, description: name, inputSchema: { type: 'object' as const, properties: {} } });
+		const launch = async (tools: IActiveClientSnapshot['tools']) => {
+			const active: Record<string, boolean | undefined> = {};
+			const config = await buildResumeConfig(
+				createLauncher(store, {}),
+				{ id: 'gpt-6-luna' },
+				{ discoveredAgents: [], additionalRootInstructions: [], tools, plugins: [], mcpServers: {} },
+				toolSearchActive => { active.client = toolSearchActive; return []; },
+				{
+					createServerSdkTools: toolSearchActive => { active.server = toolSearchActive; return []; },
+					configureClientTools: configuration => { active.configured = configuration.toolSearchActive; },
+				},
+			);
+			return {
+				toolSearch: config.toolSearch,
+				...active,
+				searchFirstPrompt: JSON.stringify(config.systemMessage).includes('Most tools are deferred'),
+			};
+		};
+
+		assert.deepStrictEqual({
+			off: await launch([tool('get_magic_word')]),
+			on: await launch([tool(CLIENT_TOOL_SEARCH_REFERENCE_NAME), tool('get_magic_word')]),
+		}, {
+			off: { toolSearch: { enabled: false }, client: false, server: false, configured: false, searchFirstPrompt: false },
+			on: { toolSearch: { enabled: true, deferThreshold: 1 }, client: true, server: true, configured: true, searchFirstPrompt: true },
+		});
+		store.dispose();
+	});
+
 	test('maps tool-search reference names to the SDK runtime name', async () => {
 		const store = new DisposableStore();
 		const model: ModelSelection = { id: 'gpt-5', config: { thinkingLevel: 'medium' } };
@@ -4200,30 +4341,25 @@ suite('CopilotSessionLauncher resume config', () => {
 		store.dispose();
 	});
 
-	test('tool search gates on the flag, model support, and the family alias', async () => {
+	test('tool search gates on the forwarded toolSearch tool, model support, and the family alias', async () => {
 		const store = new DisposableStore();
-		const searchSnapshot = {
-			discoveredAgents: [],
-			additionalRootInstructions: [],
-			tools: [{ name: CLIENT_TOOL_SEARCH_REFERENCE_NAME, description: 'Search tools', inputSchema: { type: 'object' as const, properties: {} } }],
-			plugins: [],
-			mcpServers: {},
-		};
-		const toolSearchOf = async (values: SchemaValues<typeof copilotCliConfigSchema.definition>, model: ModelSelection) =>
-			(await buildResumeConfig(createLauncher(store, values), model, searchSnapshot)).toolSearch;
+		const snapshotWith = (tools: IActiveClientSnapshot['tools']) => ({ discoveredAgents: [], additionalRootInstructions: [], tools, plugins: [], mcpServers: {} });
+		const searchSnapshot = snapshotWith([{ name: CLIENT_TOOL_SEARCH_REFERENCE_NAME, description: 'Search tools', inputSchema: { type: 'object' as const, properties: {} } }]);
+		const toolSearchOf = async (values: SchemaValues<typeof copilotCliConfigSchema.definition>, model: ModelSelection, snapshot = searchSnapshot) =>
+			(await buildResumeConfig(createLauncher(store, values), model, snapshot)).toolSearch;
 
 		assert.deepStrictEqual(
 			[
-				// flag off → disabled even on a supported model
-				await toolSearchOf({ toolSearchEnabled: false }, { id: 'claude-opus-4.8' }),
-				// unsupported model → disabled even with the flag on
-				await toolSearchOf({ toolSearchEnabled: true }, { id: 'preview-model-x' }),
+				// toolSearch turned off in Chat Customizations → disabled even on a supported model
+				await toolSearchOf({}, { id: 'claude-opus-4.8' }, snapshotWith([])),
+				// unsupported model → disabled even with toolSearch forwarded
+				await toolSearchOf({}, { id: 'preview-model-x' }),
 				// supported future Claude and GPT-6 families enable tool search directly
-				await toolSearchOf({ toolSearchEnabled: true }, { id: 'claude-opus-5.5' }),
-				await toolSearchOf({ toolSearchEnabled: true }, { id: 'gpt-6-luna' }),
-				await toolSearchOf({ toolSearchEnabled: true }, { id: 'hydrafusion' }),
+				await toolSearchOf({}, { id: 'claude-opus-5.5' }),
+				await toolSearchOf({}, { id: 'gpt-6-luna' }),
+				await toolSearchOf({}, { id: 'hydrafusion' }),
 				// a family alias makes an unsupported preview model tool-search-capable
-				await toolSearchOf({ toolSearchEnabled: true, modelCapabilityOverrides: { 'preview-model-x': { family: 'claude-opus-4.8' } } }, { id: 'preview-model-x' }),
+				await toolSearchOf({ modelCapabilityOverrides: { 'preview-model-x': { family: 'claude-opus-4.8' } } }, { id: 'preview-model-x' }),
 			],
 			[
 				{ enabled: false },
@@ -4269,7 +4405,7 @@ suite('CopilotSessionLauncher resume config', () => {
 		const store = new DisposableStore();
 		const decisions: boolean[] = [];
 		const config = await buildResumeConfig(
-			createLauncher(store, { toolSearchEnabled: true }),
+			createLauncher(store, {}),
 			{ id: 'claude-opus-4.8' },
 			{
 				discoveredAgents: [], additionalRootInstructions: [],
@@ -4291,7 +4427,6 @@ suite('CopilotSessionLauncher resume config', () => {
 		const model: ModelSelection = { id: 'claude-opus-4.8', config: { thinkingLevel: 'medium' } };
 		const config = await buildResumeConfig(
 			createLauncher(store, {
-				toolSearchEnabled: true,
 				modelCapabilityOverrides: { 'claude-opus-4.8': { availableTools: ['custom:*'] } },
 			}),
 			model,

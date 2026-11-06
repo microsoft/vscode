@@ -35,6 +35,7 @@ interface IEditorLayoutProviderOpts {
 	readonly minimapRenderCharacters: boolean;
 	readonly minimapMaxColumn: number;
 	minimapSize?: 'proportional' | 'fill' | 'fit';
+	minimapScale?: number;
 	readonly pixelRatio: number;
 
 	/**
@@ -64,7 +65,7 @@ suite('Editor ViewLayout - EditorLayoutProvider', () => {
 			renderCharacters: input.minimapRenderCharacters,
 			maxColumn: input.minimapMaxColumn,
 			showSlider: 'mouseover',
-			scale: 1,
+			scale: input.minimapScale ?? 1,
 			showRegionSectionHeaders: true,
 			showMarkSectionHeaders: true,
 			sectionHeaderFontSize: 9,
@@ -662,6 +663,22 @@ suite('Editor ViewLayout - EditorLayoutProvider', () => {
 			doTest({ ...minimapInput, ...input }, { ...minimapExpected, ...expected });
 		});
 	}
+
+	test('issue #236999: the minimap scale does not jump when the pixel ratio crosses 2', () => {
+		const pixelRatios = [1, 1.5, 1.99, 2, 2.5];
+		const actual = [1, 2, 3].map(minimapScale => pixelRatios.map(pixelRatio => computeLayoutInfo({
+			...minimapInput,
+			lineNumbersDigitCount: 1,
+			minimapSide: 'right',
+			minimapScale,
+			pixelRatio,
+		}).minimap.minimapScale));
+		assert.deepStrictEqual(actual, [
+			[1, 1, 1, 2, 2],
+			[2, 3, 3, 4, 4],
+			[3, 4, 5, 6, 6],
+		]);
+	});
 
 	test('issue #31312: When wrapping, leave 2px for the cursor', () => {
 		doTest({

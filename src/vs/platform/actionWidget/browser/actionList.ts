@@ -912,6 +912,9 @@ export interface IActionListOptions {
 	/** Optional "Learn more" link rendered inline after {@link headerText}, opened via the opener service. */
 	readonly headerLink?: IActionListHeaderLink;
 
+	/** Replaces its label in {@link headerText} with an independently focusable action link, reached with Shift+Tab from the list. */
+	readonly headerAction?: IAction;
+
 	/** Optional dismiss ("x") button on the header banner; invoked on click, and the banner is removed. */
 	readonly headerDismiss?: () => void;
 
@@ -1421,45 +1424,13 @@ export class ActionListWidget<T> extends Disposable {
 		}
 
 		// Create footer text
+		const describedBy: string[] = [];
 		if (this._options?.footerText) {
 			this._footerContainer = document.createElement('div');
 			this._footerContainer.className = 'action-list-footer';
-			this._footerContainer.textContent = this._options.footerText;
 			this._footerContainer.id = `action-list-footer-${generateUuid()}`;
-			this._list.getHTMLElement().setAttribute('aria-describedby', this._footerContainer.id);
-			const action = this._options.footerAction;
-			if (action) {
-				const nameIndex = this._options.footerText.lastIndexOf(action.label);
-				if (nameIndex >= 0) {
-					this._footerContainer.textContent = this._options.footerText.slice(0, nameIndex);
-					const label = dom.$('span', undefined, action.label);
-					const link = this._register(this._instantiationService.createInstance(Link, this._footerContainer, {
-						label,
-						href: '#',
-						title: action.tooltip,
-					}, { opener: () => { void action.run(); } }));
-					link.enabled = action.enabled;
-					const linkElement = label.parentElement!;
-					linkElement.setAttribute('aria-label', action.tooltip || action.label);
-					linkElement.setAttribute('aria-haspopup', 'dialog');
-					this._footerContainer.append(this._options.footerText.slice(nameIndex + action.label.length));
-					this._register(dom.addDisposableListener(this.domNode, 'keydown', e => {
-						if (e.key === 'Tab' && !e.shiftKey && !e.ctrlKey && !e.altKey && !e.metaKey && action.enabled && dom.getActiveElement() === this._list.getHTMLElement()) {
-							dom.EventHelper.stop(e, true);
-							linkElement.focus();
-						}
-					}, true));
-					this._register(dom.addDisposableListener(linkElement, 'keydown', e => {
-						if (e.key === 'Escape') {
-							dom.EventHelper.stop(e, true);
-							this.hide(true);
-						} else if (e.key === 'Tab' && e.shiftKey && !e.ctrlKey && !e.altKey && !e.metaKey) {
-							dom.EventHelper.stop(e, true);
-							this._list.domFocus();
-						}
-					}));
-				}
-			}
+			describedBy.push(this._footerContainer.id);
+			this._renderTextWithActionLink(this._footerContainer, this._options.footerText, this._options.footerAction, 'after');
 		}
 
 		// Create header banner
@@ -1473,7 +1444,12 @@ export class ActionListWidget<T> extends Disposable {
 				icon.setAttribute('aria-hidden', 'true');
 			}
 			const text = dom.append(this._headerContainer, dom.$('span.action-list-header-text'));
-			text.textContent = this._options.headerText;
+			if (this._options.headerAction) {
+				// The link announces its action rather than the linked text, so the list announces the banner text.
+				text.id = `action-list-header-${generateUuid()}`;
+				describedBy.unshift(text.id);
+			}
+			this._renderTextWithActionLink(text, this._options.headerText, this._options.headerAction, 'before');
 
 			// The banner is chrome, not an item: pointing at it dismisses a row's hover panel.
 			this._register(dom.addDisposableListener(this._headerContainer, dom.EventType.MOUSE_ENTER, () => {
@@ -1488,7 +1464,7 @@ export class ActionListWidget<T> extends Disposable {
 			if (this._options.headerLink) {
 				const { label, uri } = this._options.headerLink;
 				// Trailing space so the link reads as a continuation of the banner text.
-				text.textContent += ' ';
+				text.append(' ');
 				this._register(this._instantiationService.createInstance(Link, text, { label, href: uri.toString(true) }, {}));
 			}
 
@@ -1519,6 +1495,9 @@ export class ActionListWidget<T> extends Disposable {
 					}
 				}));
 			}
+		}
+		if (describedBy.length) {
+			this._list.getHTMLElement().setAttribute('aria-describedby', describedBy.join(' '));
 		}
 
 		this._applyFilter();
@@ -1851,6 +1830,47 @@ export class ActionListWidget<T> extends Disposable {
 
 	get headerContainer(): HTMLElement | undefined {
 		return this._headerContainer;
+	}
+
+	/**
+	 * Renders `text`, replacing the last occurrence of the action's label with an independently
+	 * focusable link. Keyboard users reach the link from the list with Tab when it is rendered
+	 * `after` the list, or with Shift+Tab when it is rendered `before` it.
+	 */
+	private _renderTextWithActionLink(container: HTMLElement, text: string, action: IAction | undefined, position: 'before' | 'after'): void {
+		const nameIndex = action ? text.lastIndexOf(action.label) : -1;
+		if (!action || nameIndex < 0) {
+			container.append(text);
+			return;
+		}
+		container.append(text.slice(0, nameIndex));
+		const label = dom.$('span', undefined, action.label);
+		const link = this._register(this._instantiationService.createInstance(Link, container, {
+			label,
+			href: '#',
+			title: action.tooltip,
+		}, { opener: () => { void action.run(); } }));
+		link.enabled = action.enabled;
+		const linkElement = label.parentElement!;
+		linkElement.setAttribute('aria-label', action.tooltip || action.label);
+		linkElement.setAttribute('aria-haspopup', 'dialog');
+		container.append(text.slice(nameIndex + action.label.length));
+		const isPlainTab = (e: KeyboardEvent, shiftKey: boolean) => e.key === 'Tab' && e.shiftKey === shiftKey && !e.ctrlKey && !e.altKey && !e.metaKey;
+		this._register(dom.addDisposableListener(this.domNode, 'keydown', e => {
+			if (isPlainTab(e, position === 'before') && action.enabled && dom.getActiveElement() === this._list.getHTMLElement()) {
+				dom.EventHelper.stop(e, true);
+				linkElement.focus();
+			}
+		}, true));
+		this._register(dom.addDisposableListener(linkElement, 'keydown', e => {
+			if (e.key === 'Escape') {
+				dom.EventHelper.stop(e, true);
+				this.hide(true);
+			} else if (isPlainTab(e, position === 'after')) {
+				dom.EventHelper.stop(e, true);
+				this._list.domFocus();
+			}
+		}));
 	}
 
 	get filterInput(): HTMLInputElement | undefined {

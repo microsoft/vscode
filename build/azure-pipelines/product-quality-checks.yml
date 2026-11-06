@@ -98,7 +98,7 @@ jobs:
           set -e
 
           source ./build/azure-pipelines/linux/setup-env.sh
-          node build/npm/preinstall.ts
+          pnpm run preinstall
 
           for i in {1..5}; do # try 5 times
             pnpm install --frozen-lockfile && break

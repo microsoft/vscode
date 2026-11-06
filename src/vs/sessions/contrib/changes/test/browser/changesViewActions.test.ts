@@ -33,7 +33,7 @@ import { ICodeEditorService } from '../../../../../editor/browser/services/codeE
 import { ICommandActionToggleInfo } from '../../../../../platform/action/common/action.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
-import { IDiffEditorOptionsService, SESSIONS_DIFF_EDITOR_WORD_WRAP_SETTING, SESSIONS_EDITOR_WORD_WRAP_SETTING, SessionsDiffViewModeContext, SessionsWordWrap } from '../../../editor/common/diffEditorOptionsService.js';
+import { IDiffEditorOptionsService, SESSIONS_DIFF_EDITOR_WORD_WRAP_SETTING, SESSIONS_EDITOR_WORD_WRAP_SETTING, SessionsDiffViewModeContext, SessionsWordWrap } from '../../../../../workbench/contrib/sessions/common/diffEditorOptionsService.js';
 import { ActiveEditorContext, AuxiliaryBarVisibleContext, IsAuxiliaryWindowContext, IsSessionsWindowContext, IsTopRightEditorGroupContext, MainEditorAreaVisibleContext, TextCompareEditorActiveContext } from '../../../../../workbench/common/contextkeys.js';
 import { ChatPetAchievementId, ChatPetAchievementIds } from '../../../../../workbench/contrib/chat/browser/chatPetAchievements.js';
 import { IChatPetService } from '../../../../../workbench/contrib/chat/browser/chatPetService.js';
@@ -44,20 +44,23 @@ import { IEditorGroup, IEditorGroupsService } from '../../../../../workbench/ser
 import { IVisibleEditorPane } from '../../../../../workbench/common/editor.js';
 import { IEditorService } from '../../../../../workbench/services/editor/common/editorService.js';
 import { IViewsService } from '../../../../../workbench/services/views/common/viewsService.js';
-import { Menus } from '../../../../browser/menus.js';
-import { setActiveSessionContextKeys } from '../../../../services/sessions/common/sessionContextKeys.js';
+import { Menus } from '../../../../../workbench/contrib/sessions/browser/menus.js';
+import { AgentsWindowMenus } from '../../../../browser/agentsWindowMenus.js';
+import { setActiveSessionContextKeys } from '../../../../../workbench/contrib/sessions/common/sessionContextKeys.js';
 import { createTestActiveSession } from '../../../../test/browser/sessionViewTestUtils.js';
-import { IChatWindowService } from '../../../../../workbench/contrib/chatWindow/browser/chatWindow.js';
-import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
-import { IChat, ISessionChangeset, ISessionChangesSummary, ISessionFolder, ISessionWorkspace } from '../../../../services/sessions/common/session.js';
-import { IActiveSession } from '../../../../services/sessions/common/sessionsManagement.js';
-import { ActiveSessionContextKeys, ChangesContextKeys, ChangesViewMode } from '../../common/changes.js';
-import { IChangesSessionObservables, IChangesSessionScope, IChangesViewService } from '../../common/changesViewService.js';
-import { CustomViewVisibleContext, IsPhoneLayoutContext, SessionHasChangesContext, SessionHasWorkspaceContext, SessionIsCreatedContext, SessionWorkspaceIsVirtualContext, DesktopChangesEditorTransitionContext, DesktopDiffEditorInputActiveContext, DesktopLayoutContext } from '../../../../common/contextkeys.js';
-import { SessionChangesEditor } from '../../browser/sessionChangesEditor.js';
+import { IFocusedSessionHostService } from '../../../../../workbench/contrib/sessions/browser/sessionHost.js';
+import { stubSessionHosts, stubSessionHostsFromSessionsService } from '../../../../../workbench/contrib/sessions/test/browser/sessionHostTestUtils.js';
+import { ISessionsService } from '../../../../../workbench/contrib/sessions/browser/sessionsService.js';
+import { IChat, ISessionChangeset, ISessionChangesSummary, ISessionFolder, ISessionWorkspace } from '../../../../../workbench/contrib/sessions/common/session.js';
+import { IActiveSession, ISessionsManagementService } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
+import { ActiveSessionContextKeys, ChangesContextKeys, ChangesViewMode } from '../../../../../workbench/contrib/sessions/common/changes.js';
+import { IChangesSessionObservables, IChangesSessionScope, IChangesViewService } from '../../../../../workbench/contrib/sessions/common/changesViewService.js';
+import { IsPhoneLayoutContext, SessionHasChangesContext, SessionHasWorkspaceContext, SessionIsCreatedContext, SessionWorkspaceIsVirtualContext, DesktopChangesEditorTransitionContext, DesktopDiffEditorInputActiveContext, DesktopLayoutContext } from '../../../../../workbench/contrib/sessions/common/contextkeys.js';
+import { CustomViewVisibleContext } from '../../../../common/agentsWindowContextKeys.js';
+import { SessionChangesEditor } from '../../../../../workbench/contrib/sessions/browser/changes/sessionChangesEditor.js';
 import { MultiDiffEditor } from '../../../../../workbench/contrib/multiDiffEditor/browser/multiDiffEditor.js';
-import { CHANGES_HEADER_ACTIONS_ID, ChangesPickerActionItem, ChangesPickerSummary, isChangesActionsWorkspaceReady, unlockChatPetCreatePullRequestAchievement } from '../../browser/changesView.js';
-import { SessionsChangesAccessibilityHelp } from '../../browser/sessionsChangesAccessibilityHelp.js';
+import { CHANGES_HEADER_ACTIONS_ID, ChangesPickerActionItem, ChangesPickerSummary, isChangesActionsWorkspaceReady, unlockChatPetCreatePullRequestAchievement } from '../../../../../workbench/contrib/sessions/browser/changes/changesView.js';
+import { SessionsChangesAccessibilityHelp } from '../../../../../workbench/contrib/sessions/browser/changes/sessionsChangesAccessibilityHelp.js';
 import '../../browser/changesViewActions.js';
 import '../../../codeReview/browser/codeReview.contributions.js';
 
@@ -113,9 +116,9 @@ suite('Changes View Actions', () => {
 		});
 
 		instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() {
-			override readonly activeSession = constObservable<IActiveSession | undefined>(activeSession);
-			override readonly mainWindowActiveSession = this.activeSession;
+			readonly activeSession = constObservable<IActiveSession | undefined>(activeSession);
 		});
+		stubSessionHostsFromSessionsService(instantiationService);
 
 		await instantiationService.invokeFunction(accessor => CommandsRegistry.getCommand('workbench.action.agentSessions.openPullRequest')!.handler(accessor));
 
@@ -134,16 +137,22 @@ suite('Changes View Actions', () => {
 
 		async function openChanges(sessionArg: URI, visible: readonly IActiveSession[]): Promise<{ readonly original: string | undefined; readonly modified: string | undefined }[]> {
 			const opened: { readonly original: string | undefined; readonly modified: string | undefined }[] = [];
-			const activeSession = upcastPartial<IActiveSession>({ sessionId: 'active', resource: sessionResource });
+			const activeChat = upcastPartial<IChat>({});
+			const activeSession = upcastPartial<IActiveSession>({ sessionId: 'active', resource: sessionResource, mainChat: constObservable(activeChat), activeChat: constObservable(activeChat) });
 			const instantiationService = disposables.add(new TestInstantiationService());
 			instantiationService.stub(ILogService, new NullLogService());
-			instantiationService.stub(IChatWindowService, upcastPartial<IChatWindowService>({ activeWindow: undefined }));
+			const { mainHost } = stubSessionHosts(instantiationService, disposables);
+			instantiationService.stub(IFocusedSessionHostService, upcastPartial<IFocusedSessionHostService>({ getFocusedHost: () => mainHost }));
 			instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() {
-				override readonly activeSession = constObservable<IActiveSession | undefined>(activeSession);
-				override readonly mainWindowActiveSession = this.activeSession;
-				override readonly windowSessions = constObservable<readonly IActiveSession[]>([]);
+				readonly activeSession = constObservable<IActiveSession | undefined>(activeSession);
+				readonly windowSessions = constObservable<readonly IActiveSession[]>([]);
 				override readonly visibleSessions = constObservable<readonly (IActiveSession | undefined)[]>(visible);
 			});
+			stubSessionHostsFromSessionsService(instantiationService);
+			instantiationService.stub(ISessionsManagementService, upcastPartial<ISessionsManagementService>({
+				getSession: resource => [activeSession, ...visible].find(session => session.resource.toString() === resource.toString()),
+				getSessionForChatResource: () => undefined,
+			}));
 			instantiationService.stub(IChangesViewService, new class extends mock<IChangesViewService>() {
 				override readonly activeSessionChangesObs = constObservable([{
 					uri: workspaceResource,
@@ -183,7 +192,7 @@ suite('Changes View Actions', () => {
 		});
 
 		test('opens the changes of a visible non-active session', async () => {
-			const other = upcastPartial<IActiveSession>({ sessionId: 'other', resource: otherSessionResource });
+			const other = upcastPartial<IActiveSession>({ sessionId: 'other', resource: otherSessionResource, mainChat: constObservable(upcastPartial<IChat>({})) });
 			assert.deepStrictEqual(await openChanges(otherSessionResource, [other]), [{
 				original: 'readonly-content:/other/before.ts',
 				modified: 'readonly-content:/other/after.ts',
@@ -234,14 +243,14 @@ suite('Changes View Actions', () => {
 		});
 		const mounted = (uri: URI) => [upcastPartial<IWorkspaceFolder>({ uri })];
 
-		const pending = isChangesActionsWorkspaceReady(session, mounted(URI.file('/old-folder')), undefined);
+		const pending = isChangesActionsWorkspaceReady(session, session.activeChat.get(), mounted(URI.file('/old-folder')), undefined);
 		workspace.set(upcastPartial<ISessionWorkspace>({
 			folders: [upcastPartial<ISessionFolder>({ workingDirectory: folder })],
 		}), undefined);
-		const wrongFolder = isChangesActionsWorkspaceReady(session, mounted(URI.file('/old-folder')), undefined);
-		const ready = isChangesActionsWorkspaceReady(session, mounted(folder), undefined);
+		const wrongFolder = isChangesActionsWorkspaceReady(session, session.activeChat.get(), mounted(URI.file('/old-folder')), undefined);
+		const ready = isChangesActionsWorkspaceReady(session, session.activeChat.get(), mounted(folder), undefined);
 		workspace.set(undefined, undefined);
-		const quickChat = isChangesActionsWorkspaceReady({ ...session, isQuickChat: constObservable(true) }, [], undefined);
+		const quickChat = isChangesActionsWorkspaceReady({ ...session, isQuickChat: constObservable(true) }, session.activeChat.get(), [], undefined);
 
 		assert.deepStrictEqual({ pending, wrongFolder, ready, quickChat }, {
 			pending: false,
@@ -567,6 +576,8 @@ suite('Changes View Actions', () => {
 		}();
 		const scope: IChangesSessionScope = {
 			session: constObservable(otherSession),
+			chat: constObservable(undefined),
+			isMainWindow: false,
 			changes: upcastPartial<IChangesSessionObservables>({
 				changesetsObs: constObservable([otherChangeset]),
 				changesetsLoadingObs: constObservable(false),
@@ -1287,7 +1298,7 @@ suite('Changes View Actions', () => {
 	});
 
 	test('Create Pull Request anchor shows in the title bar of each window for the session it shows, by the keys of that window: in a chat window for its session, and not in an editor window, which shows none', () => {
-		const item = MenuRegistry.getMenuItems(Menus.TitleBarSessionMenu).filter(isIMenuItem).find(item => item.command.id === CHANGES_HEADER_ACTIONS_ID)!;
+		const item = MenuRegistry.getMenuItems(AgentsWindowMenus.TitleBarSessionMenu).filter(isIMenuItem).find(item => item.command.id === CHANGES_HEADER_ACTIONS_ID)!;
 		// The main window's context: its session is not created yet, and it shows a custom view.
 		const mainContextKeyService = disposables.add(new ContextKeyService(new TestConfigurationService()));
 		IsSessionsWindowContext.bindTo(mainContextKeyService).set(true);
@@ -1341,7 +1352,7 @@ suite('Changes View Actions', () => {
 	});
 
 	test('Create Pull Request anchor stays mounted while session changes resolve but is hidden for custom views', () => {
-		const item = MenuRegistry.getMenuItems(Menus.TitleBarSessionMenu)
+		const item = MenuRegistry.getMenuItems(AgentsWindowMenus.TitleBarSessionMenu)
 			.filter(isIMenuItem)
 			.find(item => item.command.id === CHANGES_HEADER_ACTIONS_ID);
 		const editorTitleItem = MenuRegistry.getMenuItems(Menus.SessionsEditorTitle)

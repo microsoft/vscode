@@ -5,33 +5,36 @@
 
 import assert from 'assert';
 import { $, append, EventType } from '../../../base/browser/dom.js';
-import { SessionView } from '../../browser/parts/sessionView.js';
+import { SessionView } from '../../../workbench/contrib/sessions/browser/parts/sessionView.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../base/test/common/utils.js';
 import { DisposableStore, toDisposable } from '../../../base/common/lifecycle.js';
 import { constObservable, disposableObservableValue, observableValue } from '../../../base/common/observable.js';
 import { mock } from '../../../base/test/common/mock.js';
-import { IActiveSession } from '../../services/sessions/common/sessionsManagement.js';
-import { ISessionPreparationProgress } from '../../services/sessions/common/session.js';
-import { AbstractChatView, ChatViewKind, IChatViewOptions, ISelectWorkspaceOptions, WorkspaceSelectionResult } from '../../browser/parts/chatView.js';
+import { IActiveSession } from '../../../workbench/contrib/sessions/common/sessionsManagement.js';
+import { ISessionPreparationProgress } from '../../../workbench/contrib/sessions/common/session.js';
+import { ISelectWorkspaceOptions, WorkspaceSelectionResult } from '../../../workbench/contrib/sessions/common/workspaceSelection.js';
+import { AbstractChatView, ChatViewKind, IChatViewOptions } from '../../../workbench/contrib/sessions/browser/parts/chatView.js';
 import { IInstantiationService } from '../../../platform/instantiation/common/instantiation.js';
-import { ChatGroupView } from '../../browser/parts/chatGroupView.js';
-import { ChatGroupsView } from '../../browser/parts/chatGroupsView.js';
+import { ChatGroupView } from '../../../workbench/contrib/sessions/browser/parts/chatGroupView.js';
+import { ChatGroupsView } from '../../../workbench/contrib/sessions/browser/parts/chatGroupsView.js';
 import { GRID_GAP_SASH_CLASS } from '../../../workbench/browser/parts/partGrid/partGridGap.js';
 import { URI } from '../../../base/common/uri.js';
 import { ConfigurationTarget } from '../../../platform/configuration/common/configuration.js';
-import { ISessionActivityBarActivityService, SessionActivityBarActivityService } from '../../services/activity/common/sessionActivityBarActivityService.js';
-import { SESSION_ACTIVITY_BAR_SETTING, SESSIONS_CHAT_TABS_SETTING, SessionsChatTabsMode } from '../../common/sessionConfig.js';
+import { ISessionActivityBarActivityService, SessionActivityBarActivityService } from '../../../workbench/contrib/sessions/common/sessionActivityBarActivityService.js';
+import { SESSION_ACTIVITY_BAR_SETTING, SESSIONS_CHAT_TABS_SETTING, SessionsChatTabsMode } from '../../../workbench/contrib/sessions/common/sessionConfig.js';
 import { mainWindow } from '../../../base/browser/window.js';
 import { createSessionViewTestServices, createTestActiveSession } from './sessionViewTestUtils.js';
+import { SessionHostKind } from '../../../workbench/contrib/sessions/browser/sessionHost.js';
 import { TestLayoutService, TestMenuService, workbenchInstantiationService } from '../../../workbench/test/browser/workbenchTestServices.js';
 import { IWorkbenchLayoutService } from '../../../workbench/services/layout/browser/layoutService.js';
-import { AgentWorkbenchLayout } from '../../browser/workbench.js';
+import { AgentWorkbenchLayout } from '../../../workbench/contrib/sessions/browser/sessionsHostLayoutService.js';
 import { IMenu, IMenuService, MenuId, MenuItemAction } from '../../../platform/actions/common/actions.js';
 import { IContextKeyService } from '../../../platform/contextkey/common/contextkey.js';
-import { Menus } from '../../browser/menus.js';
+import { Menus } from '../../../workbench/contrib/sessions/browser/menus.js';
 import { LocalSelectionTransfer } from '../../../platform/dnd/browser/dnd.js';
-import { DraggedSessionIdentifier, SessionsDataTransfers } from '../../browser/dnd.js';
-import { IChatViewFactory } from '../../services/chatView/browser/chatViewFactory.js';
+import { DraggedSessionIdentifier, SessionsDataTransfers } from '../../../workbench/contrib/sessions/browser/dnd.js';
+import { IChatViewFactory } from '../../../workbench/contrib/sessions/browser/chatViewFactory.js';
+import { stubSessionsHostLayout } from './sessionsHostLayoutTestUtils.js';
 
 suite('Sessions - Session View', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
@@ -65,6 +68,7 @@ suite('Sessions - Session View', () => {
 			const store = disposables.add(new DisposableStore());
 			const { instantiationService, chatViews } = createSessionViewTestServices(store);
 			const session = hasDraft ? createTestActiveSession('draft', false) : undefined;
+			stubSessionsHostLayout(instantiationService);
 			const view = store.add(instantiationService.createInstance(SessionView, undefined));
 			const workbench = append(mainWindow.document.body, $('.monaco-workbench.agent-sessions-workbench'));
 			append(append(workbench, $('.part.sessionspart.sessions-chat-surface')), view.element);
@@ -139,6 +143,7 @@ suite('Sessions - Session View', () => {
 					return view;
 				}
 			}());
+			stubSessionsHostLayout(instantiationService);
 			const host = store.add(instantiationService.createInstance(SessionView, undefined));
 			host.openSession(createTestActiveSession('draft', false), {});
 			const composer = createdViews[0];
@@ -160,6 +165,52 @@ suite('Sessions - Session View', () => {
 			});
 		});
 	}
+
+	test('is a pane host in the host it is created in, for as long as it lives', () => {
+		const { instantiationService, sessionHostService } = createSessionViewTestServices(disposables);
+		stubSessionsHostLayout(instantiationService);
+		const view = instantiationService.createInstance(SessionView, undefined);
+		view.openSession(createTestActiveSession('a'), {});
+		const shown = sessionHostService.hosts.get().map(host => ({ kind: host.kind, parent: host.parent?.kind, session: host.session.get()?.sessionId }));
+		view.dispose();
+		const disposed = sessionHostService.hosts.get().map(host => host.kind);
+
+		assert.deepStrictEqual({ shown, disposed }, {
+			shown: [{ kind: SessionHostKind.MainWindow, parent: undefined, session: undefined }, { kind: SessionHostKind.Pane, parent: SessionHostKind.MainWindow, session: 'a' }],
+			disposed: [SessionHostKind.MainWindow],
+		});
+	});
+
+	test('disposes what its chat groups show, such as a composer whose input clears as it goes away, while the services of its scope that created them are still there: they dispose after it', () => {
+		const { instantiationService, chatViews } = createSessionViewTestServices(disposables);
+		const events: string[] = [];
+		// The services of the view's own scope, which what it shows is created with
+		const createChild = instantiationService.createChild;
+		instantiationService.createChild = (...args: Parameters<typeof createChild>) => {
+			const child = createChild.apply(instantiationService, args);
+			const disposeChild = child.dispose;
+			child.dispose = () => {
+				events.push('dispose services');
+				disposeChild.apply(child);
+			};
+			return child;
+		};
+		stubSessionsHostLayout(instantiationService);
+		const view = instantiationService.createInstance(SessionView, undefined);
+		instantiationService.createChild = createChild;
+		view.openSession(createTestActiveSession('a'), {});
+		// What the chat group of the session shows
+		const composer = chatViews.find(chatView => !chatView.disposed)!;
+		const disposeComposer = composer.dispose;
+		composer.dispose = () => {
+			events.push('dispose composer');
+			disposeComposer.apply(composer);
+		};
+
+		view.dispose();
+
+		assert.deepStrictEqual(events, ['dispose composer', 'dispose services']);
+	});
 
 	test('forwards workspace selection to the actual standalone or active group view', () => {
 		const folder = URI.file('/requested');
@@ -545,47 +596,6 @@ suite('Sessions - Session View', () => {
 		});
 	});
 
-	test('keeps its session header, and its height, unless a host shows it outside of the view', () => {
-		const layouts: number[][] = [];
-		const element = document.createElement('div');
-		const centeredContentContainer = document.createElement('div');
-		const headerElement = document.createElement('div');
-		centeredContentContainer.appendChild(headerElement);
-		const chrome: boolean[] = [];
-		const actionsHosts: string[] = [];
-		const host = document.createElement('div');
-		const host2 = document.createElement('div');
-		const view: SessionView = Object.assign(Object.create(SessionView.prototype), {
-			_headerHeight: observableValue('headerHeight', 0),
-			element,
-			_isPartVisible: true,
-			_isLeafVisible: true,
-			_isVisibleObs: observableValue('visible', true),
-			_centeredContentContainer: centeredContentContainer,
-			_header: { visible: true, height: 35, element: headerElement, setWindowChrome: (shown: boolean) => chrome.push(shown), setActionsHost: (actionsHost: HTMLElement | undefined) => actionsHosts.push(actionsHost === host2 ? 'actionsHost' : actionsHost === undefined ? 'header' : 'other') },
-			_groupsView: { layout: (...dimensions: number[]) => layouts.push(dimensions), setSessionVisible: () => { } },
-			_standaloneView: { get: () => undefined },
-			_preparationView: constObservable(undefined),
-		});
-		const parent = () => headerElement.parentElement === host ? 'host' : headerElement.parentElement === centeredContentContainer ? 'view' : 'none';
-
-		view.layout(1200, 800, 10, 20);
-		const own = parent();
-		view.setHeaderHost(host, host2);
-		const hosted = parent();
-		view.setHeaderHost(undefined);
-
-		assert.deepStrictEqual({ own, hosted, back: parent(), chrome, actionsHosts, layouts }, {
-			own: 'view',
-			hosted: 'host',
-			back: 'view',
-			chrome: [true, false],
-			// Its actions show in the host's place for them while the host shows it, and with it again after.
-			actionsHosts: ['actionsHost', 'header'],
-			layouts: [[1200, 765, 45, 20, 0], [1200, 800, 10, 20, 0], [1200, 765, 45, 20, 0]],
-		});
-	});
-
 	test('deduplicates effective child sizes while respecting header and visibility changes', () => {
 		const layouts: number[][] = [];
 		const header = { visible: true, height: 35 };
@@ -793,6 +803,7 @@ suite('Sessions - Session View', () => {
 				return createView(isNewChatInSession ? 'newChatInSession' : 'newSession', scopedInstantiationService);
 			}
 		}());
+		stubSessionsHostLayout(instantiationService);
 		const view = store.add(instantiationService.createInstance(SessionView, undefined));
 		view.openSession(session, {});
 		session.isCreated.set(false, undefined);
@@ -812,6 +823,7 @@ suite('Sessions - Session View', () => {
 
 	test('clearing a draft normally replaces the composer unless it requests in-place reuse', () => {
 		const { instantiationService, chatViews } = createSessionViewTestServices(disposables);
+		stubSessionsHostLayout(instantiationService);
 		const view = disposables.add(instantiationService.createInstance(SessionView, undefined));
 		const session = createTestActiveSession('draft', false);
 		view.openSession(undefined, {});
@@ -835,6 +847,7 @@ suite('Sessions - Session View', () => {
 			isNewSessionRequestInProgress: requestInProgress,
 			preparationProgress,
 		});
+		stubSessionsHostLayout(instantiationService);
 		const view = store.add(instantiationService.createInstance(SessionView, undefined));
 		const externalControl = document.createElement('button');
 		mainWindow.document.body.append(view.element, externalControl);
@@ -889,6 +902,7 @@ suite('Sessions - Session View', () => {
 			headerWidth: view.element.querySelector<HTMLElement>('.session-view-centered-content')?.style.width,
 		});
 		const session = createTestActiveSession('draft', false);
+		stubSessionsHostLayout(instantiationService);
 		const view = store.add(instantiationService.createInstance(SessionView, undefined));
 		mainWindow.document.body.appendChild(view.element);
 		store.add(toDisposable(() => view.element.remove()));
@@ -918,6 +932,7 @@ suite('Sessions - Session View', () => {
 		const { instantiationService, configurationService } = createSessionViewTestServices(store);
 		const session = createTestActiveSession('session');
 
+		stubSessionsHostLayout(instantiationService);
 		const view = store.add(instantiationService.createInstance(SessionView, undefined));
 		mainWindow.document.body.appendChild(view.element);
 		store.add({ dispose: () => view.element.remove() });
@@ -968,6 +983,7 @@ suite('Sessions - Session View', () => {
 		const store = disposables.add(new DisposableStore());
 		const { instantiationService } = createSessionViewTestServices(store);
 		const session = createTestActiveSession('split-gap', true, { chatCount: 2 });
+		stubSessionsHostLayout(instantiationService);
 		const view = store.add(instantiationService.createInstance(SessionView, undefined));
 		mainWindow.document.body.appendChild(view.element);
 		store.add(toDisposable(() => view.element.remove()));

@@ -32,11 +32,13 @@ import { ContextKeyService } from '../../../../../platform/contextkey/browser/co
 import { IContextMenuService } from '../../../../../platform/contextview/browser/contextView.js';
 import { IDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
 import { IMarkdownRendererService } from '../../../../../platform/markdown/browser/markdownRenderer.js';
+import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { MockContextKeyService } from '../../../../../platform/keybinding/test/common/mockKeybindingService.js';
 import { INotificationService } from '../../../../../platform/notification/common/notification.js';
 import { IOpenerService } from '../../../../../platform/opener/common/opener.js';
 import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
+import { NullHoverService } from '../../../../../platform/hover/test/browser/nullHoverService.js';
 import { ILabelService } from '../../../../../platform/label/common/label.js';
 import { IStorageService, InMemoryStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
@@ -48,36 +50,44 @@ import { ChatViewModel, IChatViewModelChangeEvent } from '../../../../../workben
 import { ChatListWidget } from '../../../../../workbench/contrib/chat/browser/widget/chatListWidget.js';
 import { ChatQuestionCarouselData } from '../../../../../workbench/contrib/chat/common/model/chatProgressTypes/chatQuestionCarouselData.js';
 import { ChatQuestionCarouselPart } from '../../../../../workbench/contrib/chat/browser/widget/chatContentParts/chatQuestionCarouselPart.js';
+import { IChatMarkdownAnchorService } from '../../../../../workbench/contrib/chat/browser/widget/chatContentParts/chatMarkdownAnchorService.js';
+import { IChatPetService } from '../../../../../workbench/contrib/chat/browser/chatPetService.js';
 import { ChatPlanReviewData } from '../../../../../workbench/contrib/chat/common/model/chatProgressTypes/chatPlanReviewData.js';
 import { IPlanReviewFeedbackService, PlanReviewFeedbackService } from '../../../../../workbench/contrib/chat/browser/planReviewFeedback/planReviewFeedbackService.js';
 import { AgentEditorCommentsBridge, IAgentEditorCommentsBridge } from '../../../../../workbench/services/agentEditorComments/common/agentEditorComments.js';
 import { IEditorService } from '../../../../../workbench/services/editor/common/editorService.js';
+import { IEditorPane } from '../../../../../workbench/common/editor.js';
 import { ITextFileService } from '../../../../../workbench/services/textfile/common/textfiles.js';
 import { ChatContextKeys } from '../../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { isEqual } from '../../../../../base/common/resources.js';
 import { IOnboardingScenarioService } from '../../../../../workbench/contrib/onboarding/common/onboardingScenarioService.js';
-import { ISessionNavigationRequest, ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
+import { ISessionNavigationRequest, ISessionsService } from '../../../../../workbench/contrib/sessions/browser/sessionsService.js';
 import { IAgentWorkbenchLayoutService } from '../../../../browser/workbench.js';
 import { Parts } from '../../../../../workbench/services/layout/browser/layoutService.js';
-import { ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
-import { IChatViewFactory } from '../../../../services/chatView/browser/chatViewFactory.js';
-import { AbstractChatView, IChatViewOptions, IChatViewRequestOutcome, IChatViewRequestSubmission } from '../../../../browser/parts/chatView.js';
-import { getChatRequestOutcome } from '../../../chat/browser/chatView.js';
-import { ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
-import { IChat, ISession, ISessionArtifact, ISessionCapabilities, ISessionChangeset, ISessionChangesetOperation, ISessionFolder, ISessionGitRepository, ISessionWorkspace, SessionArtifactKind, SessionChangesetOperationScope, SessionChangesetOperationStatus } from '../../../../services/sessions/common/session.js';
+import { ISessionsProvidersService } from '../../../../../workbench/contrib/sessions/browser/sessionsProvidersService.js';
+import { IChatViewFactory } from '../../../../../workbench/contrib/sessions/browser/chatViewFactory.js';
+import { AbstractChatView, IChatViewOptions, IChatViewRequestOutcome, IChatViewRequestSubmission } from '../../../../../workbench/contrib/sessions/browser/parts/chatView.js';
+import { getChatRequestOutcome } from '../../../../../workbench/contrib/sessions/browser/chat/chatView.js';
+import { ISessionsManagementService } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
+import { WelcomeName } from '../../../../../workbench/contrib/sessions/browser/chat/welcomeName.js';
+import { IChat, ISession, ISessionArtifact, ISessionCapabilities, ISessionChangeset, ISessionChangesetOperation, ISessionFolder, ISessionGitRepository, ISessionWorkspace, SessionArtifactKind, SessionChangesetOperationScope, SessionChangesetOperationStatus } from '../../../../../workbench/contrib/sessions/common/session.js';
 import { InboxNotificationsView } from '../../browser/inboxNotificationsView.js';
 import { InboxEvidenceWidget } from '../../browser/inboxEvidenceWidget.js';
 import { InboxCanvases } from '../../browser/inboxCanvases.js';
-import { IInboxDetailSummary, IInboxNotificationConfirmationPart, IInboxNotificationItem, IInboxNotificationPlanReviewPart, IInboxNotificationQuestionCarouselPart, IInboxNotificationsService, IInboxNotificationToolConfirmationPart, IInboxSessionRow, InboxNotificationActionKind, InboxNotificationKind, InboxNotificationPriority, InboxNotificationsSortMode, InboxTab } from '../../common/inboxNotificationsService.js';
-import { IGitHubService } from '../../../github/browser/githubService.js';
-import { AgentFeedbackKind, AgentFeedbackState, IAgentFeedback, IAgentFeedbackChangeEvent, IAgentFeedbackService, ISubmitFeedbackOptions } from '../../../agentFeedback/browser/agentFeedbackService.js';
+import { IInboxDetailSummary, IInboxNotificationConfirmationPart, IInboxNotificationItem, IInboxNotificationPlanReviewPart, IInboxNotificationQuestionCarouselPart, IInboxNotificationsService, IInboxNotificationToolConfirmationPart, IInboxSessionRow, InboxNotificationActionKind, InboxNotificationKind, InboxNotificationPriority, InboxNotificationsSortMode, InboxTab } from '../../../../../workbench/contrib/sessions/common/inboxNotificationsService.js';
+import { IGitHubService } from '../../../../../workbench/contrib/sessions/browser/github/githubService.js';
+import { IAgentFeedbackChangeEvent, IAgentFeedbackService, ISubmitFeedbackOptions } from '../../../../../workbench/contrib/sessions/browser/agentFeedback.js';
+import { AgentFeedbackKind, AgentFeedbackState, IAgentFeedback } from '../../../../../workbench/contrib/sessions/browser/agentFeedbackModel.js';
 import { ConfirmationOptionKind } from '../../../../../platform/agentHost/common/state/protocol/state.js';
-import { GitHubPullRequestCIModel } from '../../../github/browser/models/githubPullRequestCIModel.js';
-import { GitHubPullRequestModel } from '../../../github/browser/models/githubPullRequestModel.js';
+import { GitHubPullRequestCIModel } from '../../../../../workbench/contrib/sessions/browser/github/models/githubPullRequestCIModel.js';
+import { GitHubPullRequestModel } from '../../../../../workbench/contrib/sessions/browser/github/models/githubPullRequestModel.js';
+import { GitHubPullRequestReviewThreadsModel } from '../../../../../workbench/contrib/sessions/browser/github/models/githubPullRequestReviewThreadsModel.js';
+import { IGitHubPRComment } from '../../../../../workbench/contrib/sessions/common/github/types.js';
 import { PullRequestCheck } from '../../../../../platform/github/common/githubPullRequestService.js';
-import '../../../chat/browser/media/chatWidget.css';
-import '../../../chat/browser/media/chatInput.css';
+import '../../../../../workbench/contrib/sessions/browser/chat/media/chatWidget.css';
+import '../../../../../workbench/contrib/sessions/browser/chat/media/chatInput.css';
+import { stubSessionsHostLayout } from '../../../../test/browser/sessionsHostLayoutTestUtils.js';
 
 suite('InboxNotificationsView', () => {
 	const disposables = new DisposableStore();
@@ -153,7 +163,7 @@ suite('InboxNotificationsView', () => {
 			submitPlanReviewPart(item: IInboxNotificationItem, part: IInboxNotificationPlanReviewPart, review: ChatPlanReviewData, result: IChatPlanReviewResult): void;
 			classifyCarouselAnswers(answers: Map<string, IChatQuestionAnswerValue>): { answerKind: string; answerCharCount: number };
 			runMergedSessionCleanupAction(item: IInboxNotificationItem, kind: InboxNotificationActionKind.ArchiveSession | InboxNotificationActionKind.DeleteSession, enableAlways: boolean): Promise<string>;
-			runAction(item: IInboxNotificationItem, action: IInboxNotificationItem['actions'][number], sourceElement?: HTMLElement, enableAlways?: boolean): Promise<void>;
+			runAction(item: IInboxNotificationItem, action: IInboxNotificationItem['actions'][number], sourceElement?: HTMLElement, enableAlways?: boolean): Promise<string>;
 			getSessionChatModel(item: IInboxNotificationItem): IChatModel | undefined;
 			setCategoryVisible(category: 'now' | 'next' | 'later', visible: boolean): void;
 			runInboxPullRequestAction(item: IInboxNotificationItem, kind: InboxNotificationActionKind.AgentMergeFixCI | InboxNotificationActionKind.AgentMergeAddressReviews | InboxNotificationActionKind.AgentMergeMergePullRequest): Promise<string>;
@@ -180,9 +190,11 @@ suite('InboxNotificationsView', () => {
 			reducedMotion?: boolean;
 			rows?: IObservable<readonly IInboxSessionRow[]>;
 			sortMode?: IObservable<InboxNotificationsSortMode>;
+			welcomeName?: IObservable<string | undefined>;
 		} = {},
 	) {
 		const instantiationService = options.instantiationService ?? disposables.add(new TestInstantiationService());
+		instantiationService.stubInstance(WelcomeName, { name: options.welcomeName ?? constObservable(undefined), dispose: () => { } });
 		instantiationService.stub(IInboxNotificationsService, {
 			notifications: items,
 			sessionRows: options.rows ?? items.map(items => items.map(item => ({
@@ -212,6 +224,7 @@ suite('InboxNotificationsView', () => {
 				sessionsVisible = !hidden;
 			},
 		});
+		stubSessionsHostLayout(instantiationService);
 		instantiationService.stub(ISessionsManagementService, { getSession: () => undefined, setSessionReadState: async () => { }, markChatRead: async () => { } });
 		instantiationService.stubInstance(InboxEvidenceWidget, { element: document.createElement('div'), getAccessibleContent: () => '', dispose: () => { } });
 		instantiationService.stubInstance(InboxCanvases, { element: document.createElement('div'), layout: () => { }, setVisible: () => { }, createAccessibleProvider: () => undefined, dispose: () => { } });
@@ -247,6 +260,8 @@ suite('InboxNotificationsView', () => {
 		instantiationService.stub(IContextMenuService, {});
 		instantiationService.stub(IDialogService, {});
 		instantiationService.stub(IMarkdownRendererService, {});
+		instantiationService.stub(IChatMarkdownAnchorService, { register: () => toDisposable(() => { }) });
+		instantiationService.stub(IEditorService, {});
 		instantiationService.stub(IGitHubService, {});
 		instantiationService.stub(IAgentFeedbackService, {});
 		instantiationService.stub(IOnboardingScenarioService, {});
@@ -274,6 +289,51 @@ suite('InboxNotificationsView', () => {
 		disposables.add({ dispose: () => container.remove() });
 		return { view, container, instantiationService, chatViews, chatOptions, newChatViews, newChatOptions, hovers, navigationRequest, sessionsVisible: () => sessionsVisible };
 	}
+
+	test('rotates personalized empty messages on visits but not passive updates', () => {
+		const name = observableValue<string | undefined>('name', 'Megan');
+		const rows = observableValue<readonly IInboxSessionRow[]>('rows', []);
+		const { view, container } = createView(constObservable([]), { rows, welcomeName: name });
+		view.render(container);
+		const messages = [view.getEmptyAccessibleContent()];
+		rows.set([], undefined);
+		messages.push(view.getEmptyAccessibleContent());
+		name.set(undefined, undefined);
+		messages.push(view.getEmptyAccessibleContent());
+		for (let i = 0; i < 3; i++) {
+			view.setVisible(false);
+			view.setVisible(true);
+			messages.push(view.getEmptyAccessibleContent());
+		}
+		assert.deepStrictEqual(messages, [
+			'All caught up, Megan. Enjoy a little breathing room.',
+			'All caught up, Megan. Enjoy a little breathing room.',
+			'All caught up. Enjoy a little breathing room.',
+			'Nothing needs your attention. Take a moment for yourself.',
+			'You\'re in a good place. We\'ll be here when you\'re ready.',
+			'All caught up. Enjoy a little breathing room.',
+		]);
+	});
+
+	test('mentions working agents only when there are working sessions and preserves filtered copy', () => {
+		const working = {
+			id: 'working', tab: InboxTab.Working, kind: InboxNotificationKind.Completed, priority: InboxNotificationPriority.Later,
+			title: 'Working', sessionTitle: 'Working', occurrence: 'working', notifications: [], hasImages: false,
+			description: '', timestamp: 1, actions: [],
+		};
+		const rows = observableValue<readonly IInboxSessionRow[]>('rows', [working]);
+		const { view, container } = createView(constObservable([]), { rows, welcomeName: constObservable('Megan') });
+		view.render(container);
+		const messages = [view.getEmptyAccessibleContent()];
+		const search = container.querySelector<HTMLInputElement>('.inbox-notifications-search input')!;
+		search.value = 'missing';
+		search.dispatchEvent(new mainWindow.Event('input', { bubbles: true }));
+		messages.push(view.getEmptyAccessibleContent());
+		assert.deepStrictEqual(messages, [
+			'All caught up, Megan. Your agents are working.',
+			'No notifications match the current filter.',
+		]);
+	});
 
 	for (const { hour, before, after } of [
 		{ hour: 11, before: 'Good morning', after: 'Good afternoon' },
@@ -418,6 +478,7 @@ suite('InboxNotificationsView', () => {
 			composerAriaLabel: composer.getAttribute('aria-label'),
 			options: newChatOptions.map(({ hostVisible, ...options }) => ({ ...options, hostVisible: hostVisible?.get() })),
 			requests: openNewSession.args, draft: input.value, focused: mainWindow.document.activeElement === input,
+			highlighted: composer.classList.contains('highlight'),
 			belowNotifications: composer.parentElement?.previousElementSibling === notifications,
 			inputAtTop: input.getBoundingClientRect().top - composer.getBoundingClientRect().top < 40,
 		};
@@ -427,7 +488,7 @@ suite('InboxNotificationsView', () => {
 			hasDuplicateNewSessionButton: false,
 			composerLabel: '', composerAriaLabel: 'New session',
 			requests: Array.from({ length: 3 }, () => [{ preserveCustomView: true, cancelRestore: true }]),
-			draft: 'My new session draft', focused: true, belowNotifications: true, inputAtTop: true, disposed: true,
+			draft: 'My new session draft', focused: true, highlighted: true, belowNotifications: true, inputAtTop: true, disposed: true,
 		});
 	});
 
@@ -443,6 +504,30 @@ suite('InboxNotificationsView', () => {
 		assert.deepStrictEqual({ hidden, hostVisibility }, {
 			hidden: { visible: false, active: false }, hostVisibility: [false, true, false],
 		});
+	});
+
+	test('disposes its new-session composer, whose input may clear as it goes away, while the services of the composer\'s scope are still there: they dispose after it', () => {
+		const { view, container, instantiationService } = createView(constObservable([]));
+		const events: string[] = [];
+		instantiationService.stub(IChatViewFactory, 'createNewChatView', (_nested: boolean, _options: IChatViewOptions, scopedInstantiationService: IInstantiationService) => {
+			const disposeServices = scopedInstantiationService.dispose;
+			scopedInstantiationService.dispose = () => {
+				events.push('dispose services');
+				disposeServices.apply(scopedInstantiationService);
+			};
+			const composer = new TestChatView();
+			const disposeComposer = composer.dispose;
+			composer.dispose = () => {
+				events.push('dispose composer');
+				disposeComposer.apply(composer);
+			};
+			return composer;
+		});
+		view.render(container);
+
+		view.dispose();
+
+		assert.deepStrictEqual(events, ['dispose composer', 'dispose services']);
 	});
 
 	for (const width of [900, 540]) {
@@ -546,30 +631,31 @@ suite('InboxNotificationsView', () => {
 		}, { replying: false, visible: true, sameBounds: true, centered: true });
 	});
 
-	test('notification state sits before the right-aligned date and not in evidence', () => {
-		const { view, container } = createView(constObservable([{
+	test('notification state uses the icon hover and accessible label without redundant visible text', () => {
+		const { view, container, hovers } = createView(constObservable([{
 			id: 'item', kind: InboxNotificationKind.Completed, priority: InboxNotificationPriority.Later,
 			title: 'Review changes', description: '', timestamp: Date.now(), actions: [],
 		}]));
 		container.style.setProperty('--vscode-spacing-size100', '10px');
 		container.style.setProperty('--vscode-spacing-size80', '8px');
+		container.style.width = '1500px';
 		view.render(container);
 		const card = container.querySelector<HTMLElement>('.inbox-notifications-item')!;
 		card.click();
 		view.layout(900, 600);
-		const state = card.querySelector<HTMLElement>('.inbox-notifications-item-kind-label')!;
+		const icon = card.querySelector<HTMLElement>('.inbox-notifications-row-icon')!;
 		const date = card.querySelector<HTMLElement>('.inbox-notifications-item-time')!;
-		const beforeHover = state.getBoundingClientRect();
+		const beforeHover = date.getBoundingClientRect();
+		const hover = hovers.find(hover => hover.target === icon)!.options;
 		card.classList.add('hovered');
 		assert.deepStrictEqual({
-			text: state.textContent,
-			beforeDate: state.nextElementSibling === date.parentElement,
-			onSameLine: Math.abs(beforeHover.top - date.getBoundingClientRect().top) <= 1,
+			state: card.querySelector('.inbox-notifications-item-kind-label'),
+			hover: (typeof hover === 'function' ? hover() : hover)?.content,
 			rightAligned: card.getBoundingClientRect().right - date.getBoundingClientRect().right <= 10,
-			stableOnHover: state.getBoundingClientRect().left === beforeHover.left,
+			stableOnHover: date.getBoundingClientRect().left === beforeHover.left,
 			accessible: card.getAttribute('aria-label')?.includes('Completed'),
 			evidenceStates: container.querySelectorAll('.inbox-notifications-detail-pane .inbox-notifications-item-kind-label').length,
-		}, { text: 'Completed', beforeDate: true, onSameLine: true, rightAligned: true, stableOnHover: true, accessible: true, evidenceStates: 0 });
+		}, { state: null, hover: 'Completed', rightAligned: true, stableOnHover: true, accessible: true, evidenceStates: 0 });
 	});
 
 	test('Inbox only hides the Sessions pane after focus, until explicit navigation, tab hiding, or disposal', () => {
@@ -707,7 +793,66 @@ suite('InboxNotificationsView', () => {
 		});
 	}
 
-	test('merged session cleanup actions wrap below the content without overflowing or competing with the title', () => {
+	for (const [kind, label] of [
+		[InboxNotificationActionKind.AgentMergeAddressReviews, 'Address Reviews'],
+		[InboxNotificationActionKind.AgentMergeFixCI, 'Fix CI Failures'],
+		[InboxNotificationActionKind.AgentMergeMergePullRequest, 'Merge Pull Request'],
+		[InboxNotificationActionKind.Command, 'Extension Action'],
+	] as const) {
+		test(`${label} is not duplicated in evidence when offered inline`, () => {
+			const { view, container } = createView(constObservable([{
+				id: 'item', kind: InboxNotificationKind.ReviewComments, priority: InboxNotificationPriority.Next,
+				title: 'Review comments', description: '', timestamp: 1, sessionResource: URI.parse('test:///session'),
+				actions: [
+					{ id: 'open', label: 'Open Session', kind: InboxNotificationActionKind.OpenSession },
+					{ id: 'action', label, kind },
+					{ id: 'done', label: 'Done', kind: InboxNotificationActionKind.MarkDone },
+					{ id: 'dismiss', label: 'Dismiss', kind: InboxNotificationActionKind.Dismiss },
+				],
+			}]));
+			view.render(container);
+			container.querySelector<HTMLElement>('.inbox-notifications-item')!.click();
+			assert.deepStrictEqual({
+				labels: [...container.querySelectorAll('.inbox-notifications-evidence-actions > .monaco-button')].map(button => button.textContent),
+				notificationActions: container.querySelectorAll('.inbox-notifications-notification .inbox-notifications-item-actions').length,
+			}, {
+				labels: [...(kind === InboxNotificationActionKind.Command ? [label] : []), 'Open Session', 'Mark Session as Done', ''],
+				notificationActions: 0,
+			});
+		});
+	}
+
+	test('evidence header actions retain their originating notification in a combined row', async () => {
+		const items: IInboxNotificationItem[] = ['first', 'second'].map(id => ({
+			id, kind: InboxNotificationKind.External, priority: InboxNotificationPriority.Next,
+			title: id, description: '', timestamp: 1, sessionResource: URI.parse('test:///session'),
+			actions: [{ id: 'command', label: id, kind: InboxNotificationActionKind.Command, commandId: `test.${id}` }],
+		}));
+		const row: IInboxSessionRow = {
+			...items[0], tab: InboxTab.ReadyForYou, sessionTitle: 'Session', occurrence: 'row', notifications: items, hasImages: false,
+		};
+		const { view, container, instantiationService } = createView(constObservable(items), { rows: constObservable([row]) });
+		const execute = spy(async () => undefined);
+		const dismiss = spy();
+		instantiationService.stub(ICommandService, 'executeCommand', execute);
+		instantiationService.stub(IInboxNotificationsService, 'dismissNotification', dismiss);
+		view.render(container);
+		container.querySelector<HTMLElement>('.inbox-notifications-item')!.click();
+		const buttons = [...container.querySelectorAll<HTMLElement>('.inbox-notifications-evidence-actions > .monaco-button')];
+		buttons[1].click();
+		await timeout(0);
+		assert.deepStrictEqual({
+			labels: buttons.map(button => button.textContent),
+			commands: execute.args,
+			dismissed: dismiss.args,
+		}, {
+			labels: ['first', 'second', 'Open Session', 'Mark Session as Done', ''],
+			commands: [['test.second']],
+			dismissed: [['second', items[1]]],
+		});
+	});
+
+	test('merged session cleanup actions precede Open Session and wrap without overflowing', () => {
 		const session = upcastPartial<ISession>({ providerId: 'local-agent-host', mainChat: constObservable(upcastPartial<IChat>({ resource: URI.parse('test:///chat') })), chats: constObservable([]) });
 		const { view, container, instantiationService } = createView(constObservable([{
 			id: 'merged', kind: InboxNotificationKind.PullRequestMerged, priority: InboxNotificationPriority.Later,
@@ -727,22 +872,21 @@ suite('InboxNotificationsView', () => {
 			container.style.width = `${width}px`;
 			view.layout(width, 400);
 			const card = container.querySelector<HTMLElement>('.inbox-notifications-notification')!;
-			const footer = card.querySelector<HTMLElement>('.inbox-notifications-item-footer-actions')!;
-			const bounds = footer.getBoundingClientRect();
-			const description = card.querySelector<HTMLElement>('.inbox-notifications-item-description')!.getBoundingClientRect();
+			const actions = container.querySelector<HTMLElement>('.inbox-notifications-evidence-actions')!;
+			const bounds = actions.getBoundingClientRect();
 			return {
-				belowContent: bounds.top >= description.bottom,
-				last: card.lastElementChild === footer,
-				headerActions: card.querySelector('.inbox-notifications-item-header-actions'),
-				noOverflow: [...footer.querySelectorAll<HTMLElement>('.monaco-button')].every(button => {
+				labels: [...actions.children].map(element => element.textContent),
+				notificationActions: card.querySelector('.inbox-notifications-item-actions'),
+				noOverflow: [...actions.querySelectorAll<HTMLElement>('.monaco-button')].every(button => {
 					const rect = button.getBoundingClientRect();
 					return rect.left >= bounds.left - 1 && rect.right <= bounds.right + 1 && rect.bottom <= bounds.bottom + 1;
 				}),
-				dropdowns: footer.querySelectorAll('.monaco-button-dropdown').length,
+				dropdowns: actions.querySelectorAll('.monaco-button-dropdown').length,
 			};
 		});
 		assert.deepStrictEqual(layouts, Array.from({ length: 4 }, () => ({
-			belowContent: true, last: true, headerActions: null, noOverflow: true, dropdowns: 2,
+			labels: ['Archive Session', 'Delete Session', 'Open Session', 'Mark Session as Done', ''],
+			notificationActions: null, noOverflow: true, dropdowns: 2,
 		})));
 	});
 
@@ -775,7 +919,219 @@ suite('InboxNotificationsView', () => {
 		}), events.map(event => ({ icon: true, decorative: 'true', label: true, hover: event.label })));
 	});
 
-	test('compact rows omit provider labels and retain timestamps while evidence has one title and a bounded session preview', () => {
+	test('combined rows show one emphasized repair action for CI and reviews without duplicate evidence actions', async () => {
+		const notifications: IInboxNotificationItem[] = [
+			{ kind: InboxNotificationKind.FailingCI, label: 'Fix CI', action: InboxNotificationActionKind.AgentMergeFixCI },
+			{ kind: InboxNotificationKind.ReviewComments, label: 'Address Reviews', action: InboxNotificationActionKind.AgentMergeAddressReviews },
+		].map(({ kind, label, action }) => ({
+			id: action, kind, priority: InboxNotificationPriority.Now,
+			title: label, description: '', timestamp: 1, repositoryLabel: 'owner/repository',
+			actions: [{ id: action, label, kind: action }],
+		}));
+		const merged: IInboxNotificationItem = {
+			...notifications[0], id: 'merge', kind: InboxNotificationKind.PassingCI, title: 'Ready to merge',
+			actions: [{ id: 'merge', label: 'Merge Pull Request', kind: InboxNotificationActionKind.AgentMergeMergePullRequest }],
+		};
+		const rows: IInboxSessionRow[] = [notifications, [merged]].map((items, index) => ({
+			...items[0], id: `row-${index}`, sessionTitle: 'Session title', occurrence: '1',
+			tab: InboxTab.ReadyForYou, notifications: items, hasImages: false, actions: [],
+		}));
+		const { view, container } = createView(constObservable([...notifications, merged]), { rows: constObservable(rows) });
+		const pending = new DeferredPromise<string>();
+		const run = stub(accessView(view), 'runAction').returns(pending.p);
+		view.render(container);
+		const firstCard = container.querySelector<HTMLElement>('.inbox-notifications-item')!;
+		const buttons = [...container.querySelectorAll<HTMLElement>('.inbox-notifications-row-inline-actions .monaco-button')];
+		const styles = buttons.map(button => ({
+			label: button.textContent, secondary: button.classList.contains('secondary'), background: button.style.backgroundColor,
+			accessible: button.getAttribute('aria-label'),
+		}));
+		buttons[0].focus();
+		buttons[0].dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', keyCode: 13, bubbles: true }));
+		const during = {
+			notification: run.firstCall.args[0], action: run.firstCall.args[1],
+			selected: firstCard.classList.contains('selected'), disabled: buttons[0].getAttribute('aria-disabled'),
+			spinning: !!buttons[0].querySelector('.codicon-modifier-spin'),
+		};
+		await pending.complete('skipped');
+		await timeout(0);
+		firstCard.click();
+		assert.deepStrictEqual({
+			styles, during,
+			after: { label: buttons[0].textContent, disabled: buttons[0].getAttribute('aria-disabled') },
+			metadata: firstCard.querySelector('.inbox-notifications-row-repository'),
+			duplicates: container.querySelector('.inbox-notifications-notification .inbox-notifications-item-header-actions'),
+			repositoryInEvidence: container.querySelector('.inbox-notifications-notification .repository')?.textContent,
+		}, {
+			styles: [
+				{ label: 'Fix CI & Address Reviews', secondary: false, background: 'var(--vscode-button-background)', accessible: 'Fix CI & Address Reviews for Address Reviews' },
+				{ label: 'Merge Pull Request', secondary: false, background: 'var(--vscode-button-background)', accessible: 'Merge Pull Request for Ready to merge' },
+			],
+			during: {
+				notification: notifications[1],
+				action: { ...notifications[1].actions[0], label: 'Fix CI & Address Reviews', ariaLabel: 'Fix CI & Address Reviews' },
+				selected: false, disabled: 'true', spinning: true,
+			},
+			after: { label: 'Fix CI & Address Reviews', disabled: 'false' }, metadata: null, duplicates: null, repositoryInEvidence: 'owner/repository',
+		});
+	});
+
+	test('a lone CI or review action keeps its individual label and originating notification', async () => {
+		const items: IInboxNotificationItem[] = [
+			{ kind: InboxNotificationKind.FailingCI, label: 'Fix CI', action: InboxNotificationActionKind.AgentMergeFixCI },
+			{ kind: InboxNotificationKind.ReviewComments, label: 'Address Reviews', action: InboxNotificationActionKind.AgentMergeAddressReviews },
+		].map(({ kind, label, action }) => ({
+			id: action, kind, title: label, description: '', priority: InboxNotificationPriority.Now, timestamp: 1,
+			actions: [{ id: action, label, kind: action }],
+		}));
+		const { view, container } = createView(constObservable(items));
+		const run = stub(accessView(view), 'runAction').resolves();
+		view.render(container);
+		const buttons = [...container.querySelectorAll<HTMLElement>('.inbox-notifications-row-inline-actions .monaco-button')];
+		buttons.forEach(button => button.click());
+		await timeout(0);
+		assert.deepStrictEqual({
+			labels: buttons.map(button => button.textContent?.trim()),
+			sources: run.args.map(args => args.slice(0, 2)),
+		}, {
+			labels: ['Fix CI', 'Address Reviews'],
+			sources: items.map(item => [item, item.actions[0]]),
+		});
+	});
+
+	test('clicking an inline action label does not open evidence and retains success feedback before removal', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		const item: IInboxNotificationItem = {
+			id: 'fix', kind: InboxNotificationKind.FailingCI, priority: InboxNotificationPriority.Now,
+			title: 'CI failed', description: '', timestamp: 1,
+			actions: [{ id: 'fix', label: 'Fix CI', kind: InboxNotificationActionKind.AgentMergeFixCI }],
+		};
+		const items = observableValue<readonly IInboxNotificationItem[]>('items', [item]);
+		const { view, container } = createView(items);
+		const pending = new DeferredPromise<string>();
+		stub(accessView(view), 'runInboxPullRequestAction').returns(pending.p);
+		view.render(container);
+		container.querySelector<HTMLElement>('.inbox-notifications-row-inline-actions .monaco-button > span')!.click();
+		const expandedOnClick = !!container.querySelector('.inbox-notifications-item.selected');
+		items.set([], undefined);
+		const retainedWhileRunning = !!container.querySelector('.inbox-notifications-item');
+		await pending.complete('success');
+		await timeout(0);
+		const feedback = container.querySelector('.inbox-notifications-row-action-status')?.textContent;
+		await timeout(1499);
+		const retainedBeforeTimeout = !!container.querySelector('.inbox-notifications-item');
+		await timeout(1);
+		const afterTimeout = container.querySelector('.inbox-notifications-item');
+		view.dispose();
+		assert.deepStrictEqual({ expandedOnClick, retainedWhileRunning, feedback, retainedBeforeTimeout, afterTimeout }, {
+			expandedOnClick: false, retainedWhileRunning: true, feedback: 'Action taken', retainedBeforeTimeout: true, afterTimeout: null,
+		});
+	}));
+
+	test('failed inline actions restore the button without showing success feedback or opening evidence', async () => {
+		const item: IInboxNotificationItem = {
+			id: 'fix', kind: InboxNotificationKind.FailingCI, priority: InboxNotificationPriority.Now,
+			title: 'CI failed', description: '', timestamp: 1,
+			actions: [{ id: 'fix', label: 'Fix CI', kind: InboxNotificationActionKind.AgentMergeFixCI }],
+		};
+		const { view, container, instantiationService } = createView(constObservable([item]));
+		stub(accessView(view), 'runInboxPullRequestAction').resolves('failure');
+		instantiationService.stub(INotificationService, 'error', () => { });
+		view.render(container);
+		container.querySelector<HTMLElement>('.inbox-notifications-row-inline-actions .monaco-button > span')!.click();
+		await timeout(0);
+		const button = container.querySelector('.inbox-notifications-row-inline-actions .monaco-button');
+		assert.deepStrictEqual({
+			expanded: !!container.querySelector('.inbox-notifications-item.selected'),
+			feedback: container.querySelector('.inbox-notifications-row-action-status'),
+			label: button?.textContent, disabled: button?.getAttribute('aria-disabled'),
+		}, { expanded: false, feedback: null, label: 'Fix CI', disabled: 'false' });
+	});
+
+	test('action feedback follows a session without retaining it in a different workflow tab', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		const item: IInboxNotificationItem = {
+			id: 'fix', kind: InboxNotificationKind.FailingCI, priority: InboxNotificationPriority.Now,
+			title: 'CI failed', description: '', timestamp: 1,
+			actions: [{ id: 'fix', label: 'Fix CI', kind: InboxNotificationActionKind.AgentMergeFixCI }],
+		};
+		const row: IInboxSessionRow = { ...item, tab: InboxTab.ReadyForYou, sessionTitle: 'Session', occurrence: 'ci', hasImages: false, notifications: [item] };
+		const rows = observableValue<readonly IInboxSessionRow[]>('rows', [row]);
+		const { view, container } = createView(constObservable([]), { rows });
+		const pending = new DeferredPromise<string>();
+		stub(accessView(view), 'runInboxPullRequestAction').returns(pending.p);
+		view.render(container);
+		container.querySelector<HTMLElement>('.inbox-notifications-row-inline-actions .monaco-button > span')!.click();
+		rows.set([{ ...row, tab: InboxTab.Working, notifications: [], actions: [] }], undefined);
+		const tabs = container.querySelectorAll<HTMLElement>('[role="tab"]');
+		tabs[1].click();
+		tabs[0].click();
+		await pending.complete('success');
+		await timeout(0);
+		const readyCount = container.querySelectorAll('.inbox-notifications-item').length;
+		tabs[1].click();
+		const workingFeedback = container.querySelector('.inbox-notifications-row-action-status')?.textContent;
+		await timeout(1500);
+		const workingCount = container.querySelectorAll('.inbox-notifications-item').length;
+		const expiredFeedback = container.querySelector('.inbox-notifications-row-action-status');
+		view.dispose();
+		assert.deepStrictEqual({ readyCount, workingFeedback, workingCount, expiredFeedback }, {
+			readyCount: 0, workingFeedback: 'Action taken', workingCount: 1, expiredFeedback: null,
+		});
+	}));
+
+	test('Working and Done rows without notifications retain repository metadata in evidence', () => {
+		const results = [InboxTab.Working, InboxTab.Done].map(tab => {
+			const row: IInboxSessionRow = {
+				id: tab, tab, kind: InboxNotificationKind.Completed, priority: InboxNotificationPriority.Later,
+				title: 'Session', sessionTitle: 'Session', occurrence: '1', timestamp: 1, description: '',
+				repositoryLabel: 'owner/repository', notifications: [], hasImages: false, actions: [],
+			};
+			const rows = observableValue<readonly IInboxSessionRow[]>('rows', [row]);
+			const { view, container } = createView(constObservable([]), { rows });
+			view.render(container);
+			[...container.querySelectorAll<HTMLElement>('[role="tab"]')].find(button => button.textContent?.startsWith(tab === InboxTab.Working ? 'Working' : 'Done'))!.click();
+			container.querySelector<HTMLElement>('.inbox-notifications-item')!.click();
+			const before = {
+				inline: container.querySelector('.inbox-notifications-row-repository'),
+				evidence: container.querySelector('.inbox-notifications-detail-body .repository')?.textContent,
+				accessible: view.getDetailAccessibleContent()?.includes('owner/repository'),
+			};
+			rows.set([{ ...row, repositoryLabel: 'owner/updated' }], undefined);
+			return { before, updated: container.querySelector('.inbox-notifications-detail-body .repository')?.textContent };
+		});
+		assert.deepStrictEqual(results, Array.from({ length: 2 }, () => ({
+			before: { inline: null, evidence: 'owner/repository', accessible: true }, updated: 'owner/updated',
+		})));
+	});
+
+	test('inline workflow actions wrap within narrow rows without overlapping titles or trailing controls', () => {
+		const item: IInboxNotificationItem = {
+			id: 'item', kind: InboxNotificationKind.FailingCI, priority: InboxNotificationPriority.Now,
+			title: 'A long notification title that needs to truncate', description: '', timestamp: 1,
+			actions: [
+				{ id: 'fix', label: 'Fix CI Failures', kind: InboxNotificationActionKind.AgentMergeFixCI },
+				{ id: 'reviews', label: 'Address Reviews', kind: InboxNotificationActionKind.AgentMergeAddressReviews },
+			],
+		};
+		const { view, container } = createView(constObservable([item]));
+		view.render(container);
+		const layouts = [320, 420, 560, 900].map(width => {
+			container.style.width = `${width}px`;
+			view.layout(width, 400);
+			const card = container.querySelector<HTMLElement>('.inbox-notifications-item')!;
+			const bounds = card.getBoundingClientRect();
+			const title = card.querySelector<HTMLElement>('.inbox-notifications-row-titles')!.getBoundingClientRect();
+			const trailing = card.querySelector<HTMLElement>('.inbox-notifications-row-trailing')!.getBoundingClientRect();
+			const buttons = [...card.querySelectorAll<HTMLElement>('.inbox-notifications-row-inline-actions .monaco-button')];
+			return buttons.every(button => {
+				const rect = button.getBoundingClientRect();
+				return rect.width > 0 && rect.left >= bounds.left && rect.right <= trailing.left
+					&& rect.bottom <= bounds.bottom && (rect.top >= title.bottom || rect.left >= title.right);
+			});
+		});
+		assert.deepStrictEqual(layouts, [true, true, true, true]);
+	});
+
+	test('compact rows omit provider and repository labels and retain timestamps while evidence has one title and a bounded session preview', () => {
 		const chat = upcastPartial<IChat>({ resource: URI.parse('test:///chat') });
 		const session = upcastPartial<ISession>({
 			sessionId: 'session', mainChat: constObservable(chat), chats: constObservable([chat]),
@@ -840,7 +1196,7 @@ suite('InboxNotificationsView', () => {
 			previews: ['Open Session'].map(button => ({
 				button, title: true, response: `${'R'.repeat(600)}…`, pointer: true, nativeTitle: false,
 			})), createdChats: 1, headerLayouts: Array.from({ length: 3 }, () => ({ actionsFit: true, dateAtRight: true })),
-			providerRequestedForRow: false, metadata: 'owner/repo', evidenceTitles: ['Finished'],
+			providerRequestedForRow: false, metadata: 'Fix CI', evidenceTitles: ['Finished'],
 			title: 'Finished', rowDates: 1, collapsedControls: null, disclosure: 'Show chat response',
 		});
 		view.dispose();
@@ -976,7 +1332,7 @@ suite('InboxNotificationsView', () => {
 			evidenceLabel: container.querySelector('.inbox-notifications-detail-pane .inbox-notifications-item-kind-label')?.textContent,
 		}, {
 			expanded: true, targets: [chat.resource.toString()], evidenceComposers: 0, announcesCompleted: false,
-			iconLabel: { content: 'Working', appearance: { showPointer: true } }, rowState: 'Working', evidenceLabel: undefined,
+			iconLabel: { content: 'Working', appearance: { showPointer: true } }, rowState: undefined, evidenceLabel: undefined,
 		});
 	});
 
@@ -1261,25 +1617,65 @@ suite('InboxNotificationsView', () => {
 			title: id, description: id, timestamp: 1, actions: [], previewSignature: id, previewInputText: id,
 		}));
 		const previewRequests: string[] = [];
+		const summaryRequests: { id: string; source: 'visibility' | 'interaction' | undefined }[] = [];
 		const events: string[] = [];
-		const { view, container } = createView(constObservable(items), { intersectionObserver: TestIntersectionObserver, previewRequests, events });
+		const { view, container, instantiationService } = createView(constObservable(items), { intersectionObserver: TestIntersectionObserver, previewRequests, events });
+		instantiationService.stub(IInboxNotificationsService, 'requestDetailSummary', (item: IInboxNotificationItem, source?: 'visibility' | 'interaction') => summaryRequests.push({ id: item.id, source }));
 		view.render(container);
 		assert.ok(observer);
 		const [visible, offscreen] = Array.from(observer.targets);
 		observer.setIntersecting(offscreen, false);
-		assert.deepStrictEqual({ previewRequests, impressions: events.filter(event => event === 'agents/inboxImpression') }, { previewRequests: [], impressions: [] });
+		assert.deepStrictEqual({ previewRequests, summaryRequests, impressions: events.filter(event => event === 'agents/inboxImpression') }, { previewRequests: [], summaryRequests: [], impressions: [] });
 		observer.setIntersecting(visible, true);
-		assert.deepStrictEqual({ previewRequests, impressions: events.filter(event => event === 'agents/inboxImpression') }, {
-			previewRequests: ['visible'], impressions: ['agents/inboxImpression'],
+		assert.deepStrictEqual({ previewRequests, summaryRequests, impressions: events.filter(event => event === 'agents/inboxImpression') }, {
+			previewRequests: ['visible'], summaryRequests: [{ id: 'visible', source: 'visibility' }], impressions: ['agents/inboxImpression'],
 		});
 
 		observer.setIntersecting(visible, false);
 		observer.setIntersecting(visible, true);
-		assert.deepStrictEqual(events.filter(event => event === 'agents/inboxImpression'), ['agents/inboxImpression']);
+		assert.deepStrictEqual({
+			summaryRequests, impressions: events.filter(event => event === 'agents/inboxImpression'),
+		}, {
+			summaryRequests: [{ id: 'visible', source: 'visibility' }, { id: 'visible', source: 'visibility' }],
+			impressions: ['agents/inboxImpression'],
+		});
 		(visible as HTMLElement).click();
 		assert.ok(previewRequests.length > 0 && previewRequests.every(id => id === 'visible'));
 		view.dispose();
 		assert.strictEqual(observer.targets.size, 0);
+	});
+
+	test('shows preparation instead of a provisional title and interpretation before generated content arrives', () => {
+		const item: IInboxNotificationItem = {
+			id: 'item', kind: InboxNotificationKind.Completed, priority: InboxNotificationPriority.Later,
+			title: 'Review completed work', description: 'Provider summary', timestamp: 1, actions: [],
+			sessionResource: URI.parse('test:///session'), previewSignature: 'preview',
+		};
+		const previews = observableValue<ReadonlyMap<string, string>>('previews', new Map());
+		const summaries = observableValue<ReadonlyMap<string, IInboxDetailSummary>>('summaries', new Map());
+		const { view, container } = createView(constObservable([item]), { previews, detailSummaries: summaries });
+		view.render(container);
+		const card = container.querySelector<HTMLElement>('.inbox-notifications-item')!;
+		const initialTitle = card.querySelector('.inbox-notifications-item-title')?.textContent;
+		previews.set(new Map([['preview', 'Review chocolate.md']]), undefined);
+		card.click();
+		const snapshot = () => ({
+			title: card.querySelector('.inbox-notifications-item-title')?.textContent,
+			heading: container.querySelector('.inbox-notifications-evidence-header h3')?.textContent,
+			interpretation: container.querySelector<HTMLElement>('.inbox-notifications-detail-evidence')?.hidden,
+			accessible: view.getDetailAccessibleContent()?.includes('Review chocolate.md'),
+		});
+		const selected = snapshot();
+		summaries.set(new Map([['item', { status: 'Created chocolate.md.', decisions: [], evidence: [] }]]), undefined);
+		assert.deepStrictEqual({
+			initialTitle, selected, ready: snapshot(),
+			summary: container.querySelector('.inbox-notifications-detail-summary')?.textContent,
+		}, {
+			initialTitle: 'Preparing notification…',
+			selected: { title: 'Review chocolate.md', heading: 'Review chocolate.md', interpretation: true, accessible: true },
+			ready: { title: 'Review chocolate.md', heading: 'Review chocolate.md', interpretation: false, accessible: true },
+			summary: 'Created chocolate.md.',
+		});
 	});
 
 	test('preserves a focused inline draft on same-id refreshes and defers new notifications', () => {
@@ -1404,7 +1800,82 @@ suite('InboxNotificationsView', () => {
 		});
 	}
 
-	test('closes a resumed session detail pane and preserves its reply draft', () => {
+	for (const initialTab of [InboxTab.Working, InboxTab.ReadyForYou]) {
+		test(`retains an actively composed reply across a passive workflow move from ${initialTab} until explicit navigation`, () => {
+			const targetTab = initialTab === InboxTab.Working ? InboxTab.ReadyForYou : InboxTab.Working;
+			const chat = upcastPartial<IChat>({ resource: URI.parse('test:///chat') });
+			const session = upcastPartial<ISession>({ sessionId: 'session', mainChat: constObservable(chat), chats: constObservable([chat]) });
+			const row: IInboxSessionRow = {
+				id: 'session', tab: initialTab, kind: InboxNotificationKind.Completed, priority: InboxNotificationPriority.Later,
+				title: 'Review changes', description: '', timestamp: 1, actions: [], sessionResource: URI.parse('test:///session'),
+				sessionTitle: 'Session', occurrence: 'completed', notifications: [], hasImages: false,
+			};
+			const rows = observableValue<readonly IInboxSessionRow[]>('rows', [row]);
+			const { view, container, instantiationService, chatViews, newChatViews } = createView(constObservable([]), { rows });
+			instantiationService.stub(ISessionsManagementService, 'getSession', () => session);
+			view.render(container);
+			const tabs = container.querySelectorAll<HTMLElement>('[role="tab"]');
+			tabs[initialTab === InboxTab.Working ? 1 : 0].click();
+			container.querySelector<HTMLElement>('.inbox-notifications-item')!.click();
+			const input = chatViews[0].input;
+			input.value = 'Keep composing';
+			input.focus();
+			rows.set([{ ...row, tab: targetTab }], undefined);
+			const retained = {
+				selected: !!container.querySelector('.inbox-notifications-item.selected'),
+				focused: document.activeElement === input,
+				status: container.querySelector('.inbox-notifications-row-workflow-status')?.textContent,
+				counts: [...tabs].slice(0, 2).map(tab => tab.textContent),
+			};
+			const outside = container.appendChild(document.createElement('button'));
+			outside.focus();
+			rows.set([{ ...row, tab: targetTab, description: 'Updated again' }], undefined);
+			const afterBlur = !!container.querySelector('.inbox-notifications-item.selected');
+			tabs[targetTab === InboxTab.Working ? 1 : 0].click();
+			const navigated = {
+				selected: !!container.querySelector('.inbox-notifications-item.selected'),
+				status: container.querySelector('.inbox-notifications-row-workflow-status'),
+			};
+			container.querySelector<HTMLElement>('.inbox-notifications-item')!.click();
+			input.focus();
+			rows.set([], undefined);
+			assert.deepStrictEqual({ retained, afterBlur, navigated, draft: input.value, removed: container.querySelectorAll('.inbox-notifications-item').length, restoredFocus: document.activeElement === newChatViews[0].input }, {
+				retained: {
+					selected: true, focused: true,
+					status: targetTab === InboxTab.Working ? 'Working' : 'Ready for you',
+					counts: targetTab === InboxTab.Working ? ['Ready for you 0', 'Working 1'] : ['Ready for you 1', 'Working 0'],
+				},
+				afterBlur: true, navigated: { selected: false, status: null }, draft: 'Keep composing', removed: 0, restoredFocus: true,
+			});
+		});
+	}
+
+	test('Show Inbox Updates releases a retained reply and applies the current workflow placement', () => {
+		const chat = upcastPartial<IChat>({ resource: URI.parse('test:///chat') });
+		const session = upcastPartial<ISession>({ sessionId: 'session', mainChat: constObservable(chat), chats: constObservable([chat]) });
+		const row: IInboxSessionRow = {
+			id: 'session', tab: InboxTab.Working, kind: InboxNotificationKind.Completed, priority: InboxNotificationPriority.Later,
+			title: 'Review changes', description: '', timestamp: 1, actions: [], sessionResource: URI.parse('test:///session'),
+			sessionTitle: 'Session', occurrence: 'completed', notifications: [], hasImages: false,
+		};
+		const rows = observableValue<readonly IInboxSessionRow[]>('rows', [row]);
+		const { view, container, instantiationService, chatViews } = createView(constObservable([]), { rows });
+		instantiationService.stub(ISessionsManagementService, 'getSession', () => session);
+		view.render(container);
+		container.querySelectorAll<HTMLElement>('[role="tab"]')[1].click();
+		container.querySelector<HTMLElement>('.inbox-notifications-item')!.click();
+		chatViews[0].input.value = 'Keep this draft';
+		chatViews[0].input.focus();
+		rows.set([{ ...row, tab: InboxTab.ReadyForYou }, { ...row, id: 'new' }], undefined);
+		container.querySelector<HTMLElement>('.inbox-notifications-deferred-updates .monaco-button')!.click();
+		assert.deepStrictEqual({
+			rows: [...container.querySelectorAll<HTMLElement>('.inbox-notifications-item')].map(card => card.dataset.notificationId),
+			selected: !!container.querySelector('.inbox-notifications-item.selected'),
+			draft: chatViews[0].input.value,
+		}, { rows: ['new'], selected: false, draft: 'Keep this draft' });
+	});
+
+	test('closes a resumed session detail pane when its reply composer is not focused and preserves its draft', () => {
 		const chat = upcastPartial<IChat>({ resource: URI.parse('test:///chat') });
 		const session = upcastPartial<ISession>({ sessionId: 'session', mainChat: constObservable(chat), chats: constObservable([chat]) });
 		const row: IInboxSessionRow = {
@@ -1413,12 +1884,11 @@ suite('InboxNotificationsView', () => {
 			sessionTitle: 'Session', occurrence: 'completed', notifications: [], hasImages: false,
 		};
 		const rows = observableValue<readonly IInboxSessionRow[]>('rows', [row]);
-		const { view, container, instantiationService, chatViews, newChatViews } = createView(constObservable([]), { rows });
+		const { view, container, instantiationService, chatViews } = createView(constObservable([]), { rows });
 		instantiationService.stub(ISessionsManagementService, 'getSession', () => session);
 		view.render(container);
 		container.querySelector<HTMLElement>('.inbox-notifications-item')!.click();
 		chatViews[0].input.value = 'Follow-up draft';
-		chatViews[0].input.focus();
 		rows.set([{ ...row, tab: InboxTab.Working, occurrence: 'working' }], undefined);
 		const tabs = [...container.querySelectorAll<HTMLElement>('[role="tab"]')];
 		const resumed = {
@@ -1426,12 +1896,11 @@ suite('InboxNotificationsView', () => {
 			details: !!container.querySelector('.inbox-notifications-detail-evidence'),
 			activeTab: tabs.findIndex(tab => tab.getAttribute('aria-selected') === 'true'),
 			counts: tabs.slice(0, 2).map(tab => tab.textContent),
-			focused: document.activeElement === newChatViews[0].input,
 		};
 		tabs[1].click();
 		container.querySelector<HTMLElement>('.inbox-notifications-item')!.click();
 		assert.deepStrictEqual({ resumed, draft: chatViews[0].input.value, views: chatViews.length }, {
-			resumed: { cards: 0, details: false, activeTab: 0, counts: ['Ready for you 0', 'Working 1'], focused: true },
+			resumed: { cards: 0, details: false, activeTab: 0, counts: ['Ready for you 0', 'Working 1'] },
 			draft: 'Follow-up draft', views: 1,
 		});
 	});
@@ -1525,8 +1994,10 @@ suite('InboxNotificationsView', () => {
 			const dismiss = spy();
 			const error = spy();
 			const read = spy();
+			const openSession = spy(async () => { });
 			instantiationService.stub(IInboxNotificationsService, 'dismissNotification', dismiss);
 			instantiationService.stub(ISessionsManagementService, 'setSessionReadState', read);
+			instantiationService.stub(ISessionsService, 'openSession', openSession);
 			instantiationService.stub(INotificationService, 'error', error);
 			view.render(container);
 			container.querySelector<HTMLElement>('.inbox-notifications-item')!.click();
@@ -1548,9 +2019,9 @@ suite('InboxNotificationsView', () => {
 			changes.fire({ reason: 'other' });
 			await completion.complete();
 			await timeout(0);
-			assert.deepStrictEqual({ accepted, dismissed: dismiss.callCount, read: read.callCount, errors: error.args }, {
+			assert.deepStrictEqual({ accepted, dismissed: dismiss.callCount, read: read.callCount, errors: error.args, opened: openSession.callCount }, {
 				accepted: 0, dismissed: outcome === 'success' || outcome === 'queued' ? 1 : 0,
-				read: 0,
+				read: 0, opened: 0,
 				errors: outcome === 'failure' ? [['Backend rejected the reply']] : outcome === 'rejected' ? [['Queued request rejected']] : [],
 			});
 		});
@@ -1631,6 +2102,55 @@ suite('InboxNotificationsView', () => {
 		view.dispose();
 		assert.strictEqual(observer.targets.size, 0);
 	});
+
+	for (const kind of ['questionCarousel', 'confirmation', 'toolConfirmation', 'completed'] as const) {
+		test(`agent interpretation precedes ${kind} details even when generated later`, () => {
+			const chatResource = URI.parse('test:///chat');
+			const common = { chatResource, requestId: 'request', title: 'Continue?', message: '' };
+			const needsInputPart: IInboxNotificationItem['needsInputPart'] = kind === 'questionCarousel'
+				? { kind, ...common, resolveId: 'resolve', questions: [], allowSkip: true }
+				: kind === 'confirmation' ? { kind, ...common, data: {} }
+					: kind === 'toolConfirmation' ? { kind, ...common, toolCallId: 'tool', confirmationKind: 'execution', buttons: [{ label: 'Allow', kind: 'approve' }] }
+						: undefined;
+			const item: IInboxNotificationItem = {
+				id: 'item', kind: needsInputPart ? InboxNotificationKind.NeedsInput : InboxNotificationKind.Completed,
+				priority: InboxNotificationPriority.Now, title: 'Pending work', description: 'Notification details',
+				timestamp: 1, actions: [], needsInputPart,
+			};
+			const summaries = observableValue<ReadonlyMap<string, IInboxDetailSummary>>('summaries', new Map());
+			const { view, container, instantiationService } = createView(constObservable([item]), { detailSummaries: summaries });
+			instantiationService.stub(IMarkdownRendererService, 'render', (markdown: IMarkdownString) => {
+				const element = document.createElement('span');
+				element.textContent = markdown.value;
+				return { element, dispose: () => { } };
+			});
+			const questionControls = document.createElement('div');
+			questionControls.textContent = 'Question controls';
+			instantiationService.stubInstance(ChatQuestionCarouselPart, {
+				domNode: questionControls, onDidChangeHeight: Event.None, dispose: () => { },
+			});
+			view.render(container);
+			container.querySelector<HTMLElement>('.inbox-notifications-item')!.click();
+			const section = container.querySelector<HTMLElement>('.inbox-notifications-detail-evidence')!;
+			const initiallyHidden = section.hidden;
+			const initiallyAccessible = view.getDetailAccessibleContent();
+			summaries.set(new Map([[item.id, { status: 'Interpretation first', decisions: ['Supporting context'], evidence: [] }]]), undefined);
+			const accessible = view.getDetailAccessibleContent()!;
+			const body = container.querySelector<HTMLElement>('.inbox-notifications-detail-body')!;
+			assert.deepStrictEqual({
+				initiallyHidden,
+				initiallyAccessible: initiallyAccessible?.includes('Agent interpretation'),
+				hidden: section.hidden,
+				firstContent: body.children[1] === section,
+				followedByDetails: section.nextElementSibling?.textContent?.includes(kind === 'completed' ? item.description : kind === 'questionCarousel' ? 'Question controls' : 'Continue?'),
+				accessibleOrder: /Interpretation first[\s\S]*Notification details/.test(accessible),
+				context: section.querySelector('summary')?.textContent,
+			}, {
+				initiallyHidden: true, initiallyAccessible: false, hidden: false, firstContent: true,
+				followedByDetails: true, accessibleOrder: true, context: 'More agent context',
+			});
+		});
+	}
 
 	test('question cards isolate their context keys from the window and other cards', () => {
 		const scopes: IContextKeyService[] = [];
@@ -1886,7 +2406,8 @@ suite('InboxNotificationsView', () => {
 			};
 			const { view, container, instantiationService, chatViews } = createView(constObservable([item]));
 			instantiationService.stub(ISessionsManagementService, 'getSession', () => session);
-			instantiationService.stub(ISessionsService, 'openSession', async () => { });
+			const openSession = spy(async () => { });
+			instantiationService.stub(ISessionsService, 'openSession', openSession);
 			instantiationService.stub(ICommandService, 'executeCommand', async () => undefined);
 			stub(accessView(view), 'runInboxPullRequestAction').resolves('success');
 			stub(accessView(view), 'runMergedSessionCleanupAction').resolves('success');
@@ -1903,9 +2424,11 @@ suite('InboxNotificationsView', () => {
 			assert.deepStrictEqual({
 				dismissed: dismiss.args, read: markRead.args, replyDisposed: chatViews[0].disposed,
 				selected: !!container.querySelector('.inbox-notifications-item.selected'), done: done.callCount,
+				opened: openSession.args,
 			}, {
 				dismissed: dismisses ? [[item.id, item]] : [], read: kind !== InboxNotificationActionKind.OpenSession && kind !== InboxNotificationActionKind.Dismiss ? [[session, chat]] : [], replyDisposed: false, selected: kind !== InboxNotificationActionKind.MarkDone,
-				done: kind === InboxNotificationActionKind.MarkDone ? 1 : 0
+				done: kind === InboxNotificationActionKind.MarkDone ? 1 : 0,
+				opened: kind === InboxNotificationActionKind.OpenSession ? [[session.resource, { source: 'inbox' }]] : [],
 			});
 		});
 	}
@@ -1983,7 +2506,9 @@ suite('InboxNotificationsView', () => {
 					},
 				});
 				const dismiss = spy();
+				const openSession = spy(async () => { });
 				instantiationService.stub(IInboxNotificationsService, 'dismissNotification', dismiss);
+				instantiationService.stub(ISessionsService, 'openSession', openSession);
 				instantiationService.stub(INotificationService, 'error', () => { });
 				view.render(container);
 				container.querySelector<HTMLElement>('.inbox-notifications-item')!.click();
@@ -1999,8 +2524,8 @@ suite('InboxNotificationsView', () => {
 				}
 				summaries.set(new Map([[item.id, { status: 'Late interpretation', decisions: [], evidence: [] }]]), undefined);
 				assert.deepStrictEqual({
-					dismissed: dismiss.args, evidence: view.getDetailAccessibleContent()?.includes('Late interpretation'),
-				}, { dismissed: succeeds ? [[item.id, item]] : [], evidence: true });
+					dismissed: dismiss.args, evidence: view.getDetailAccessibleContent()?.includes('Late interpretation'), opened: openSession.callCount,
+				}, { dismissed: succeeds ? [[item.id, item]] : [], evidence: true, opened: 0 });
 			});
 		}
 	}
@@ -2146,6 +2671,78 @@ suite('InboxNotificationsView', () => {
 		});
 	});
 
+	for (const width of [280, 360, 560, 900]) {
+		test(`workflow navigation stays on one line and reveals keyboard-selected tabs at width ${width}`, () => {
+			const { view, container } = createView(constObservable([]));
+			container.style.width = `${width}px`;
+			view.render(container);
+			view.layout(width, 600);
+			const tablist = container.querySelector<HTMLElement>('[role="tablist"]')!;
+			const tabs = [...tablist.querySelectorAll<HTMLElement>('[role="tab"]')];
+			const top = tabs[0].getBoundingClientRect().top;
+			tabs[0].focus();
+			tabs[0].dispatchEvent(new KeyboardEvent('keydown', { key: 'End', bubbles: true }));
+			const last = tabs[4].getBoundingClientRect();
+			const bounds = tablist.getBoundingClientRect();
+			const lastVisible = last.left >= bounds.left - 1 && last.right <= bounds.right + 1;
+			tabs[4].dispatchEvent(new KeyboardEvent('keydown', { key: 'Home', bubbles: true }));
+			const first = tabs[0].getBoundingClientRect();
+			assert.deepStrictEqual({
+				oneLine: tabs.every(tab => Math.abs(tab.getBoundingClientRect().top - top) <= 1),
+				contained: bounds.left >= container.getBoundingClientRect().left && bounds.right <= container.getBoundingClientRect().right,
+				lastVisible,
+				firstVisible: first.left >= bounds.left - 1 && first.right <= bounds.right + 1,
+				focused: document.activeElement === tabs[0],
+			}, { oneLine: true, contained: true, lastVisible: true, firstVisible: true, focused: true });
+		});
+	}
+
+	test('narrow lists prioritize readable titles and retain notification metadata and row actions', () => {
+		const item: IInboxNotificationItem = {
+			id: 'item', kind: InboxNotificationKind.Completed, priority: InboxNotificationPriority.Later,
+			title: 'Review changes to the responsive sidebar layout', description: '', timestamp: Date.now(),
+			repositoryLabel: 'owner/repository', actions: [],
+		};
+		const row: IInboxSessionRow = {
+			...item, tab: InboxTab.ReadyForYou, sessionTitle: item.title, occurrence: item.id,
+			notifications: [item], hasImages: true,
+		};
+		const { view, container, instantiationService } = createView(constObservable([item]), { rows: constObservable([row]) });
+		for (const size of [2, 6, 8, 10, 12, 24]) {
+			container.style.setProperty(`--vscode-spacing-size${size * 10}`, `${size}px`);
+		}
+		const done = spy();
+		instantiationService.stub(IInboxNotificationsService, 'markSessionDone', done);
+		view.render(container);
+		const card = container.querySelector<HTMLElement>('.inbox-notifications-item')!;
+		const layouts = [280, 360, 560, 900].map(width => {
+			container.style.width = `${width}px`;
+			view.layout(width, 600);
+			const bounds = card.getBoundingClientRect();
+			const titles = card.querySelector<HTMLElement>('.inbox-notifications-row-titles')!.getBoundingClientRect();
+			const metadata = card.querySelector<HTMLElement>('.inbox-notifications-row-metadata')!.getBoundingClientRect();
+			return {
+				width,
+				titlesLead: titles.width >= bounds.width * 0.6,
+				stateAbsent: !card.querySelector('.inbox-notifications-item-kind-label'),
+				metadataBelow: metadata.top >= titles.bottom,
+				accessibleState: card.getAttribute('aria-label')?.includes('Completed'),
+				noOverflow: card.scrollWidth <= card.clientWidth,
+			};
+		});
+		container.style.width = '900px';
+		card.click();
+		view.layout(900, 600);
+		card.querySelector<HTMLElement>('.inbox-notifications-row-actions .monaco-button:last-child')!.click();
+		assert.deepStrictEqual({ layouts, done: done.callCount }, {
+			layouts: [280, 360, 560, 900].map(width => ({
+				width,
+				titlesLead: true, stateAbsent: true, metadataBelow: width < 600, accessibleState: true, noOverflow: true,
+			})),
+			done: 1,
+		});
+	});
+
 	test('workflow tabs expose exclusive counts, keyboard navigation, and reset selection', async () => {
 		const items: IInboxNotificationItem[] = [InboxNotificationPriority.Now, InboxNotificationPriority.Next].map((priority, index) => ({
 			id: `item-${index}`, kind: InboxNotificationKind.External, priority, title: 'Task', description: '', timestamp: 1, actions: [],
@@ -2180,10 +2777,12 @@ suite('InboxNotificationsView', () => {
 	for (const width of [360, 560, 1000]) {
 		test(`feedback stays at the top right alongside filters with evidence open at width ${width}`, () => {
 			const telemetry: { event: string; data: { interaction?: string } }[] = [];
-			const { view, container } = createView(constObservable([{
+			const { view, container, instantiationService } = createView(constObservable([{
 				id: 'item', kind: InboxNotificationKind.Completed, priority: InboxNotificationPriority.Later,
 				title: 'Review', description: '', timestamp: 1, actions: [],
 			}]), { telemetry });
+			const executeCommand = stub().resolves();
+			instantiationService.stub(ICommandService, 'executeCommand', executeCommand);
 			container.style.width = `${width}px`;
 			view.render(container);
 			view.setVisible(true);
@@ -2202,16 +2801,21 @@ suite('InboxNotificationsView', () => {
 				rightAligned: Math.abs(feedbackBounds.right - toolbarBounds.right) <= 1,
 				contained: feedbackBounds.left >= toolbarBounds.left && feedbackBounds.bottom <= toolbarBounds.bottom,
 				aligned: width >= 560 ? aligned : true,
-				sent: feedback.textContent, disabled: feedback.getAttribute('aria-disabled'),
-				events: telemetry.filter(event => event.data.interaction === 'feedback.useful').length,
-			}, { rightAligned: true, contained: true, aligned: true, sent: 'Feedback Sent', disabled: 'true', events: 1 });
+				label: feedback.textContent, disabled: feedback.getAttribute('aria-disabled'),
+				commands: executeCommand.args,
+				positiveFeedbackEvents: telemetry.filter(event => event.data.interaction === 'feedback.useful').length,
+			}, {
+				rightAligned: true, contained: true, aligned: true, label: 'Send Feedback', disabled: 'false',
+				commands: [['workbench.action.openIssueReporter', { issueTitle: 'Agents Window Inbox feedback' }]],
+				positiveFeedbackEvents: 0,
+			});
 		});
 	}
 
 	test('toolbar accessible names include their visible labels', () => {
 		const { view, container } = createView(constObservable([]));
 		view.render(container);
-		for (const label of ['Recent', 'Send Positive Feedback']) {
+		for (const label of ['Recent', 'Send Feedback']) {
 			const button = Array.from(container.querySelectorAll<HTMLElement>('.monaco-button')).find(button => button.textContent === label);
 			assert.ok(button?.getAttribute('aria-label')?.startsWith(label), label);
 		}
@@ -2611,6 +3215,67 @@ suite('InboxNotificationsView', () => {
 		}, { displayed: true, buttons: 0, guidance: true });
 	});
 
+	test('file confirmation links display the filename and open the pending change without approving it', async () => {
+		const instantiationService = workbenchInstantiationService(undefined, disposables);
+		const resource = URI.file('/workspace/turtle.ts');
+		const pending = URI.parse('test:///pending/turtle.ts');
+		const part: IInboxNotificationToolConfirmationPart = {
+			kind: 'toolConfirmation', chatResource: URI.parse('test:///chat'), requestId: 'request', toolCallId: 'tool',
+			confirmationKind: 'execution', title: 'Create file?', message: `Create [](${resource.toString()})`, buttons: [],
+		};
+		const item: IInboxNotificationItem = {
+			id: 'tool', kind: InboxNotificationKind.NeedsInput, priority: InboxNotificationPriority.Now,
+			title: 'Task', description: '', timestamp: 1, actions: [], needsInputPart: part,
+		};
+		const invocation = upcastPartial<IChatToolInvocation>({
+			kind: 'toolInvocation', toolCallId: 'tool', toolSpecificData: {
+				kind: 'modifiedFilesConfirmation', options: ['Allow', 'Skip'],
+				modifiedFiles: [{ uri: resource, modifiedContentUri: pending, editKind: 'create' }],
+			},
+		});
+		const model = upcastPartial<IChatModel>({
+			onDidChange: Event.None, onDidDispose: Event.None,
+			getRequests: () => [upcastPartial<IChatRequestModel>({
+				response: upcastPartial<IChatResponseModel>({
+					requestId: 'request', onDidChange: Event.None,
+					response: upcastPartial<IChatResponseModel['response']>({ value: [invocation] }),
+				}),
+			})],
+		});
+		const { view, container } = createView(constObservable([item]), {
+			instantiationService, chatService: { getSession: () => model },
+		});
+		instantiationService.stub(ILabelService, 'getUriBasenameLabel', () => 'turtle.ts');
+		instantiationService.stub(ILabelService, 'getUriLabel', (uri: URI) => uri.path);
+		instantiationService.stub(IHoverService, NullHoverService);
+		instantiationService.stub(IChatPetService, { unlockAchievement: () => false });
+		instantiationService.stub(IMarkdownRendererService, 'render', (markdown: IMarkdownString) => {
+			const element = $('div', undefined, markdown.value === part.message ? 'Create ' : markdown.value);
+			if (markdown.value === part.message) {
+				element.appendChild($('a', { 'data-href': resource.toString() }));
+			}
+			return { element, dispose: () => { } };
+		});
+		const opened = new DeferredPromise<Parameters<IEditorService['openEditor']>[0]>();
+		instantiationService.stub(IEditorService, 'openEditor', async (input: Parameters<IEditorService['openEditor']>[0]) => {
+			await opened.complete(input);
+			return upcastPartial<IEditorPane>({});
+		});
+		view.render(container);
+		container.querySelector<HTMLElement>('.inbox-notifications-item')!.click();
+		const anchor = container.querySelector<HTMLElement>('.inbox-notifications-chat-part-host .chat-inline-anchor-widget')!;
+		anchor.click();
+		assert.deepStrictEqual({
+			label: anchor.textContent,
+			input: await opened.p,
+			approvalButtons: container.querySelectorAll('.inbox-notifications-chat-part-host .monaco-button').length,
+		}, {
+			label: 'turtle.ts',
+			input: { label: 'turtle.ts', original: { resource: undefined, contents: '' }, modified: { resource: pending }, options: { override: undefined, selection: undefined } },
+			approvalButtons: 0,
+		});
+	});
+
 	test('read-only tool approvals display the full input, avoid duplicate headings, and identify approvals', () => {
 		const toolInput = JSON.stringify({ input: 'echo test' }, null, 1);
 		const part: IInboxNotificationToolConfirmationPart = {
@@ -2846,9 +3511,11 @@ suite('InboxNotificationsView', () => {
 				const completion = new DeferredPromise<void>();
 				const cleanupStarted = new DeferredPromise<void>();
 				const cleanup = async () => { items.set([], undefined); await cleanupStarted.complete(); await completion.p; };
+				const openSession = spy(async () => { });
 				instantiationService.stub(ISessionsManagementService, 'getSession', () => session);
 				instantiationService.stub(ISessionsManagementService, 'archiveSession', cleanup);
 				instantiationService.stub(ISessionsManagementService, 'deleteSession', cleanup);
+				instantiationService.stub(ISessionsService, 'openSession', openSession);
 				instantiationService.stub(IDialogService, 'confirm', async () => ({ confirmed: outcome !== 'cancelled' }));
 				instantiationService.stub(INotificationService, 'notify', () => upcastPartial<ReturnType<INotificationService['notify']>>({}));
 				const notifications = spy();
@@ -2857,7 +3524,7 @@ suite('InboxNotificationsView', () => {
 				instantiationService.stub(IInboxNotificationsService, 'dismissNotification', dismiss);
 				view.render(container);
 				container.querySelector<HTMLElement>('.inbox-notifications-item')!.click();
-				const button = container.querySelector<HTMLElement>('.inbox-notifications-item-footer-actions .monaco-button')!;
+				const button = container.querySelector<HTMLElement>('.inbox-notifications-evidence-actions .monaco-button')!;
 				button.style.cssText = 'position: fixed; left: 120px; top: 80px; width: 48px; height: 24px; box-sizing: border-box;';
 				const previousHandler = errorHandler.getUnexpectedErrorHandler();
 				const errors: Error[] = [];
@@ -2890,11 +3557,13 @@ suite('InboxNotificationsView', () => {
 						errors: errors.map(error => error.message),
 						notifications: notifications.callCount,
 						dismissed: dismiss.args,
+						opened: openSession.callCount,
 					}, {
 						before: null, bounds: celebrated ? ['120px', '80px', '48px', '24px'] : null,
 						particles: celebrated ? 24 : 0, buttonConnected: outcome === 'cancelled',
 						errors: outcome === 'failed' ? ['Cleanup failed'] : [], notifications: outcome === 'failed' ? 1 : 0,
 						dismissed: outcome === 'cancelled' || outcome === 'failed' ? [] : [[item.id, item]],
+						opened: 0,
 					});
 				} finally {
 					setUnexpectedErrorHandler(previousHandler);
@@ -2924,7 +3593,7 @@ suite('InboxNotificationsView', () => {
 		instantiationService.stub(IContextMenuService, 'showContextMenu', (delegate: Parameters<IContextMenuService['showContextMenu']>[0]) => { menuAction = delegate.getActions?.()[0]; });
 		view.render(container);
 		container.querySelector<HTMLElement>('.inbox-notifications-item')!.click();
-		container.querySelector<HTMLElement>('.inbox-notifications-item-footer-actions .monaco-dropdown-button')!.click();
+		container.querySelector<HTMLElement>('.inbox-notifications-evidence-actions .monaco-dropdown-button')!.click();
 		assert.ok(menuAction);
 		await menuAction.run();
 		const overlay = container.querySelector('.animation-overlay');
@@ -3105,7 +3774,8 @@ suite('InboxNotificationsView', () => {
 			repeatedCitation: view.getDetailAccessibleContent()?.includes('Review changes and choose next steps'),
 			target: open.firstCall.args[0],
 			hidden: container.querySelector<HTMLElement>('.inbox-notifications-detail-evidence')?.hidden,
-		}, { evidence: true, claims: ['Tests passed.Test source', 'Reviewed the keyboard behavior.', 'Updated focus handling.'], repeatedCitation: false, target: uri, hidden: false });
+			collapsedContext: !!container.querySelector('.inbox-notifications-interpretation-content details:not([open])'),
+		}, { evidence: true, claims: ['Tests passed.Test source', 'Reviewed the keyboard behavior.', 'Updated focus handling.'], repeatedCitation: false, target: uri, hidden: false, collapsedContext: false });
 	});
 
 	for (const kind of ['questionCarousel', 'toolConfirmation'] as const) {
@@ -3204,7 +3874,8 @@ suite('InboxNotificationsView', () => {
 				markFixRequested,
 			});
 			instantiationService.stub(ISessionsManagementService, 'getSession', () => session);
-			instantiationService.stub(ISessionsService, 'openSession', async () => { });
+			const open = spy(async () => { });
+			instantiationService.stub(ISessionsService, 'openSession', open);
 			instantiationService.stub(IGitHubService, 'createPullRequestModelReference', () => ({
 				object: upcastPartial<GitHubPullRequestModel>({ pullRequest: constObservable(upcastPartial<NonNullable<ReturnType<GitHubPullRequestModel['pullRequest']['get']>>>({ headSha: 'head' })) }),
 				dispose: () => { },
@@ -3228,12 +3899,13 @@ suite('InboxNotificationsView', () => {
 			const result = await accessView(view).runInboxPullRequestAction(item, InboxNotificationActionKind.AgentMergeAddressReviews);
 			const options = submit.firstCall.args[1]!;
 			assert.deepStrictEqual({
-				result, accepted: accept.firstCall.args, submitted: submit.callCount, feedbackIds: options.feedbackIds,
+				result, accepted: accept.firstCall.args, submitted: submit.callCount, feedbackIds: options.feedbackIds, opened: open.callCount,
+				background: typeof options.backgroundSubmit,
 				chat: options.targetChat, hasCheck: options.query?.includes('Unit Tests'), hasAnnotations: options.query?.includes('Failure details'),
 				scopedPRs: options.query?.includes('/fix-ci for #1') && options.query.includes('/fix-ci for #2'),
 				reviews: options.query?.includes('/act-on-feedback'), marked: markFixRequested.callCount,
 			}, {
-				result: 'success', accepted: [resource, 'review'], submitted: 1, feedbackIds: ['review'],
+				result: 'success', accepted: [resource, 'review'], submitted: 1, feedbackIds: ['review'], opened: 0, background: 'function',
 				chat: chatResource, hasCheck: true, hasAnnotations: true, scopedPRs: true, reviews: true, marked: 2,
 			});
 			instantiationService.stub(IChatService, 'acquireOrLoadSession', async () => ({
@@ -3262,8 +3934,6 @@ suite('InboxNotificationsView', () => {
 			}, { result: 'success', requests: 5, lastTarget: ['owner', 'repo', 2, 'head'], marked: 5 });
 			notifications.set([item, { ...item, id: 'reviews', kind: InboxNotificationKind.ReviewComments }], undefined);
 			instantiationService.stub(IAgentFeedbackService, 'getFeedback', () => []);
-			const open = spy(async () => { });
-			instantiationService.stub(ISessionsService, 'openSession', open);
 			const ciWithoutReviews = await accessView(view).runInboxPullRequestAction(item, InboxNotificationActionKind.AgentMergeFixCI);
 			assert.deepStrictEqual({
 				result: ciWithoutReviews, opened: open.callCount, marked: markFixRequested.callCount,
@@ -3271,6 +3941,73 @@ suite('InboxNotificationsView', () => {
 			}, { result: 'success', opened: 0, marked: 7, containsCI: true, containsReviews: false });
 		});
 	}
+
+	test('review actions load and seed unvisited session feedback without opening the session', async () => {
+		const resource = URI.parse('test:///unvisited-session');
+		const item: IInboxNotificationItem = {
+			id: 'review', kind: InboxNotificationKind.ReviewComments, priority: InboxNotificationPriority.Now,
+			title: 'Comments', description: '', timestamp: 1, actions: [], sessionResource: resource,
+		};
+		const { view, instantiationService } = createView(constObservable([item]));
+		const session = upcastPartial<ISession>({
+			resource, mainChat: constObservable(upcastPartial<IChat>({ resource: URI.parse('test:///chat') })),
+			workspace: constObservable(upcastPartial<ISessionWorkspace>({
+				folders: [upcastPartial<ISessionFolder>({ workingDirectory: URI.file('/workspace') })],
+			})),
+			artifacts: constObservable([upcastPartial<ISessionArtifact>({
+				id: 'pr', kind: SessionArtifactKind.PullRequest, isArtifact: true, isGitHub: true,
+				link: URI.parse('https://github.com/owner/repo/pull/1'),
+			})]),
+		});
+		const unrelated = upcastPartial<IAgentFeedback>({
+			id: 'unrelated', kind: AgentFeedbackKind.PRReview, state: AgentFeedbackState.Created,
+			sourcePRReviewCommentId: 'other', sourcePullRequest: { owner: 'owner', repo: 'other', number: 2 },
+		});
+		const feedback: IAgentFeedback[] = [unrelated];
+		const open = spy(async () => { });
+		const refresh = spy(async () => { });
+		const submit = spy(async () => true);
+		instantiationService.stub(ISessionsManagementService, 'getSession', () => session);
+		instantiationService.stub(ISessionsService, 'openSession', open);
+		instantiationService.stub(IAgentFeedbackService, 'isAgentHostSession', () => true);
+		instantiationService.stub(IAgentFeedbackService, 'hasLoadedFeedback', () => true);
+		instantiationService.stub(IAgentFeedbackService, 'onDidChangeFeedback', Event.None);
+		instantiationService.stub(IAgentFeedbackService, 'getFeedback', () => feedback);
+		instantiationService.stub(IAgentFeedbackService, 'addFeedback', (...args: Parameters<IAgentFeedbackService['addFeedback']>) => {
+			const [sessionResource, resourceUri, range, text, , , sourcePRReviewCommentId, kind, state, sourcePullRequest] = args;
+			const comment = upcastPartial<IAgentFeedback>({
+				id: 'mirror', sessionResource, resourceUri, range, text, sourcePRReviewCommentId, kind, state, sourcePullRequest,
+			});
+			feedback.push(comment);
+			return comment;
+		});
+		instantiationService.stub(IAgentFeedbackService, 'acceptFeedback', () => { });
+		instantiationService.stub(IAgentFeedbackService, 'submitFeedback', submit);
+		instantiationService.stub(IGitHubService, 'createPullRequestReviewThreadsModelReference', () => ({
+			object: upcastPartial<GitHubPullRequestReviewThreadsModel>({
+				refresh, hasLoaded: constObservable(true),
+				reviewThreads: constObservable([{
+					id: 'thread', isResolved: false, path: 'file.ts', startLine: undefined, line: 7,
+					comments: [upcastPartial<IGitHubPRComment>({ body: 'Fix this review comment', author: { login: 'reviewer', avatarUrl: '' } })],
+				}]),
+			}),
+			dispose: () => { },
+		}));
+		const result = await accessView(view).runInboxPullRequestAction(item, InboxNotificationActionKind.AgentMergeAddressReviews);
+		assert.deepStrictEqual({
+			result, opened: open.callCount, refreshed: refresh.callCount, submitted: submit.callCount, unrelatedPreserved: feedback.includes(unrelated),
+			mirrors: feedback.filter(comment => comment.id !== unrelated.id).map(comment => ({
+				text: comment.text, path: comment.resourceUri.path, line: comment.range.startLineNumber,
+				source: comment.sourcePRReviewCommentId, pullRequest: comment.sourcePullRequest,
+			})),
+		}, {
+			result: 'success', opened: 0, refreshed: 1, submitted: 1, unrelatedPreserved: true,
+			mirrors: [{
+				text: 'Fix this review comment', path: '/workspace/file.ts', line: 7, source: 'thread',
+				pullRequest: { owner: 'owner', repo: 'repo', number: 1 },
+			}],
+		});
+	});
 
 	test('never submits the local merge skill for pull request merge actions', async () => {
 		const { view, instantiationService } = createView(constObservable([]));
@@ -3327,7 +4064,7 @@ suite('InboxNotificationsView', () => {
 			const result = await pending;
 			assert.deepStrictEqual({ result, beforeReady, submitted: submit.callCount, opened: open.callCount, notified: notify.callCount }, {
 				result: outcome === 'loaded' ? 'success' : 'skipped', beforeReady: 0,
-				submitted: outcome === 'loaded' ? 1 : 0, opened: outcome === 'unsupported' ? 0 : 1,
+				submitted: outcome === 'loaded' ? 1 : 0, opened: 0,
 				notified: outcome === 'loaded' ? 0 : 1,
 			});
 		}));
@@ -3356,12 +4093,14 @@ suite('InboxNotificationsView', () => {
 		};
 		instantiationService.stub(ISessionsManagementService, 'getSession', () => session);
 		const confirm = spy(async () => ({ confirmed: true }));
+		const openSession = spy(async () => { });
 		instantiationService.stub(IDialogService, 'confirm', confirm);
+		instantiationService.stub(ISessionsService, 'openSession', openSession);
 		const merged = await accessView(view).runInboxPullRequestAction(item, InboxNotificationActionKind.AgentMergeMergePullRequest);
 		operations.set([{ ...operation, status: SessionChangesetOperationStatus.Disabled }], undefined);
 		const disabled = await accessView(view).runInboxPullRequestAction(item, InboxNotificationActionKind.AgentMergeMergePullRequest);
-		assert.deepStrictEqual({ merged, disabled, confirmations: confirm.callCount, invocations: invoke.getCalls().map(call => call.args) }, {
-			merged: 'success', disabled: 'skipped', confirmations: 0, invocations: [['pr-merge']],
+		assert.deepStrictEqual({ merged, disabled, confirmations: confirm.callCount, invocations: invoke.getCalls().map(call => call.args), opened: openSession.callCount }, {
+			merged: 'success', disabled: 'skipped', confirmations: 0, invocations: [['pr-merge']], opened: 0,
 		});
 	});
 });
