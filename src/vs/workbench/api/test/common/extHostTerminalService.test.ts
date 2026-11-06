@@ -88,6 +88,7 @@ suite('ExtHostTerminalService', () => {
 		const rpcProtocol = new TestRPCProtocol();
 		const synced: [string, ISerializableEnvironmentVariableCollection | undefined][] = [];
 		rpcProtocol.set(MainContext.MainThreadTerminalService, new class extends mock<MainThreadTerminalServiceShape>() {
+			override async $registerProcessSupport(): Promise<void> { }
 			override $setEnvironmentVariableCollection(extensionIdentifier: string, _persistent: boolean, collection: ISerializableEnvironmentVariableCollection | undefined): void {
 				synced.push([extensionIdentifier, collection]);
 			}
