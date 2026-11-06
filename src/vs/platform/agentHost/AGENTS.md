@@ -93,9 +93,11 @@ graph TB
 
 ### Agent layer (`common/agent.ts:IAgent`)
 
+Copilot alone opts into the host-internal `supportsVirtualWorkspaces` capability. A non-`file:` working directory selects a dedicated scoped SDK client with `sessionFs`; scoped credentials, when present, belong to that same client. Its `/session-state` namespace maps to `COPILOT_HOME/session-state/<sdk-session-id>` on the host, while workspace operations resolve the chat's current client window through the existing filesystem bridge. Workspace SDK paths map back to their original virtual URIs; host-local state and spill paths remain `file:`. Host attachment snapshots are staged under `/session-state/files/attachments` so the virtual runtime can read them. Virtual sessions use host `grep`/`glob` overrides that skip permission prompts, and omit shells, git/worktrees, disk-only changes aggregation, workspace customization discovery, and extra roots. This is derived from the recorded working directory on create and resume, not a persisted virtual-session flag.
+
 Responsible for:
 - Creating and owning SDK chats (`chats.createChat`, with optional fork input).
-- Reading history (`chats.getMessages`).
+- Reading history (`chats.getMessages`). Copilot tool requests without a recorded execution completion restore as skipped, not successful. A recorded subagent start proves execution began, so an incomplete task restores as failed and retains child discovery.
 - Emitting progress signals (`onDidChatProgress`).
 - Optionally admitting provider-native metadata through `onDidChatSessionEvent` for environment-owned SDK mirroring. History reads receive exact chat/context plus an acknowledged journal cursor; they never create or resume a runtime. Only the owning provider interprets native records or synchronizes a host title into a live backing.
 - Emitting membership events for harness-spawned chats (`onDidSpawnChat`, `onDidEndChat`).
@@ -115,6 +117,16 @@ Uninstall requires exactly one current SDK identity match, and direct installs r
 SDK-discovered plugin agents retain their SDK selection `id`, which can differ from their display name or parsed filename. Their published children preserve authored names and standard invocation, model, and tool fields. They belong to the native selection catalog, not the forwarded `customAgents` definitions. Native selection is applied only after session construction and `agent.list()`; passing a native ID as the construction-time `agent` can reject before SDK discovery finishes. Create, resume, and empty-history recovery retain the requested native selection and surface selection errors rather than retrying as the default agent. Parsing a plugin directory must not reintroduce agents omitted by SDK discovery. Host/client plugins shadow matching discovered plugin IDs in both publication and native selection. Native plugin selection in SDK `empty` mode remains blocked on SDK catalog support; see the [tracked validation gap](test/node/e2e/KNOWN_ISSUES.md#copilot-empty-mode-native-plugin-agent-selection).
 
 **File organization rule:** `common/agent.ts` holds the *provider model* — `IAgent` and every type/helper/signal reachable from it (chat lifecycle, create/materialize/legacy-migration payloads, config-resolution parameters, `AgentSignal`/`AgentSession`). `common/agentService.ts` holds the *orchestrator-facing service surface* — `IAgentService`, `IAgentConnection`, `IAgentHostService`, settings/env constants, and diagnostics types. The dependency is one-directional: `agentService.ts` may import from `agent.ts`, but `agent.ts` must never import from `agentService.ts`. `agentService.ts` re-exports the public provider types from `agent.ts` for call-site compatibility; new provider code should import directly from `agent.ts`.
+
+### Customization installation (Skills, MCP servers, catalog plugins)
+
+Installation is local-only: the workbench calls `IAgentHostService`, which routes through Management IPC to `CopilotCustomizationInstallations`. Remote Agent Hosts expose no installation methods.
+
+Prepare returns a review, or a configuration request when values or secrets are needed. Records are bound to a host generation, an expiry and a random ownership token; a mismatch behaves like an unknown ID. The client sends any `answers` once on `apply`, which is one-shot and never resent. There is no client cancel; unused records expire.
+
+Submitted values and secrets must never appear in reviews, errors or logs. The runtime owns URL/header expansion and configuration validation; shared value rules live in `common/customizationInstallationValues.ts`.
+
+The runtime does not own local package (stdio) installs, or remote installs from MCP Gallery cards (their plans are not session-bound), yet. For those the host writes the configuration with `mcp.config.add` after verifying the card against the plan's digest. Only non-secret values are supported on this path; anything needing a secret fails closed until the runtime can store it.
 
 ### SDK hook and MCP discovery
 
@@ -255,7 +267,7 @@ Because listing never opens session storage, migrations the provider/session fal
 
 **I6 — Route through `IAgentHostProviderService`.** Creation, registry listing and restoration populate explicit provider associations from durable identity. Only unregistered legacy provider-native resources may fall back to their scheme; `ahp-session` never identifies a provider. Do not read the association map directly.
 
-**Native identities are mixed and immutable.** Negotiate `vscode.ahpSessionUris` only for new allocations; preserve existing registry URIs, SDK backings, storage directories and frontend identities. Use explicit provider metadata and owning-connection address records, not a provider-wide URI alias. See the [session identity contract](../../sessions/contrib/providers/agentHost/AGENT_HOST_SESSIONS_PROVIDER.md#identity).
+**Native identities are mixed and immutable.** Negotiate `vscode.ahpSessionUris` only for new allocations; preserve existing registry URIs, SDK backings, storage directories and frontend identities. Use explicit provider metadata and owning-connection address records, not a provider-wide URI alias. See the [session identity contract](../../workbench/contrib/sessions/providers/agentHost/AGENT_HOST_SESSIONS_PROVIDER.md#identity).
 
 Telemetry provider dimensions use the owning agent's id or the session's explicit `provider` metadata, never the standard session URI scheme. Changeset telemetry preserves URI-scheme provider categories for legacy sessions and scoped owners (`ahp-chat:`, `ahp-folder-changeset:`); provider-neutral root sessions capture the explicit provider when computation is queued. Automation run telemetry retains the linked session provider in host-private storage, independently of protocol state, so it survives session removal and host restart. Preserve the existing provider values (`copilotcli`, `claude`, `codex`, or an advertised provider id) independently of addressing.
 
@@ -648,6 +660,15 @@ A HydraFusion phase that renders in its own child chat (judge, critic, repair, r
 
 `agentHost.skillInvoked` records what triggered each SDK `skill.invoked`, for the main agent and mapped subagents. A subagent the host cannot map is dropped like its other events and remains only on `copilotSdk/skill_invoked`. The trigger is `agent-invoked`, `user-invoked` or `context-load`, and anything else becomes `unknown`. The event deliberately carries no skill identity. Join it to the forwarded `copilotSdk/skill_invoked` on `sdkEventId` = `event_id` to get the hashed skill and plugin names. A subagent invocation is reported against the subagent chat, the root turn it was invoked in (nested subagents inherit it from their spawning subagent), and the account captured when it started. It never takes these from whatever turn is current, because a background subagent can outlive or straddle root turns. A slash command naming a plugin skill by its bare name (`/commit` for `VS Code Synced Data:commit`) resolves to that skill when the name is unambiguous. It then runs through `commands.invoke` and reports `user-invoked`, rather than reaching the model as plain text and reporting `agent-invoked`. The model can load the same skill again within that turn (`agent-invoked`), so to count only skills the agent chose on its own, exclude agent rows whose turn has a user row for the same skill.
 
+#### Computer Use telemetry
+
+Four events from `node/copilot/copilotComputerUseTelemetry.ts` track Computer Use. They carry only categories, counts and durations, never app names, window titles or typed text. Tool calls are in `agentHost.toolInvoked`, with a `toolId` that starts with `computer-use-` and `mcpSourceKind` `builtin`.
+
+- `agentHost.computerUseState` is reported each time a Copilot chat launches while VS Code offers Computer Use, that is while the setting is on and the chat uses the shared runtime. Its `state` is `on`, `off`, `notInstalled` or `unknown`. It is the only signal for `/computer on` and `/computer off`, which the runtime handles. Linux has no plugin build, so its chats report `notInstalled`.
+- `agentHost.computerUseActivation` is reported once for each request of `enable_computer_use`, with its outcome, or `error` when checking or turning on Computer Use threw. Calls that wait for the same card share one report. It carries the turn that made the request, also when that turn's end cancels it.
+- `agentHost.computerUsePluginInstall` is reported for each download of the plugin, with the result, the HTTP status of a refused download, the duration, the pinned version and the build.
+- `agentHost.computerUseSetup` is reported when a macOS permission setup becomes ready or ends, also when Computer Use is turned off while it waits. It has the reason, the permissions missing at its start and at its end, how many times the plugin asked and the duration.
+
 #### Session pre-warming
 
 Behind the `chat.agentHost.experimental.prewarmSessions` setting, an idle provisional draft can launch its SDK session and start its MCP servers before the first send (`IAgentChats.warmChat`). `AgentHostSessionPrewarmer` (`node/agentHostSessionPrewarmer.ts`) decides when: the provider must support warming, the draft must have an active client and resolved customization enablement, and every launch folder, including additional multi-root folders, must be trusted. A missing trust configuration counts as untrusted; workspace-less drafts skip the trust check because their scratch folder has no workspace content. Ephemeral and imported drafts never warm. The experiment trigger is logged only after these gates, in both arms.
@@ -910,7 +931,7 @@ Every tool definition the model can see is input tokens on every request of ever
 
 "It is handy", "it is read-only", "it is small", "the model will not find it otherwise" and "the previous tool in this group was eager" are not reasons. A quality-of-life tool is exactly the kind that should load on demand. If the model does not find a deferred tool, fix its description so tool search ranks it, not its deferral.
 
-Tool search is only active for models that support it (`agentHostModelSupportsToolSearch`) and when `chat.agentHost.copilot.toolSearch.enabled` is on. On every other session **everything is eager**, so an eager-by-default tool is an eager tool everywhere. Do not reason as if deferral were the common case.
+Tool search is only active for models that support it (`agentHostModelSupportsToolSearch`) and when the client forwards its `toolSearch` tool, which users turn off with the Search Tools toggle in Chat Customizations. On every other session **everything is eager**, so an eager-by-default tool is an eager tool everywhere. Do not reason as if deferral were the common case.
 
 ### Where each kind of tool is controlled
 

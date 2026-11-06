@@ -469,20 +469,46 @@ export interface ICloudSandboxApiService {
 export const cloudSandboxDiscoveryTriggers = ['startup', 'automatic', 'poll', 'focus', 'selection', 'accountChange', 'configurationChange', 'manual', 'feedChange', 'feedRenewal', 'feedReconnect'] as const;
 export type CloudSandboxDiscoveryTrigger = typeof cloudSandboxDiscoveryTriggers[number];
 
-export interface ICloudSandboxDiscoveryOptions {
-	readonly incremental?: boolean;
-	readonly taskIds?: readonly string[];
-	readonly trigger?: CloudSandboxDiscoveryTrigger;
+export const cloudSandboxFullScanReasons = ['notFull', 'initial', 'reconciliationDue', 'requestedFull', 'reconnectPolicy', 'accountChange', 'configurationChange', 'noCheckpoint', 'scopeInitialization'] as const;
+export type CloudSandboxFullScanReason = typeof cloudSandboxFullScanReasons[number];
+
+/** Coordinator decisions carried to the existing per-read telemetry event. */
+export interface ICloudSandboxDiscoveryDiagnostics {
+	readonly intentMode?: 'full' | 'incremental';
+	readonly fullScanReason?: CloudSandboxFullScanReason;
+	readonly previousInventoryAgeMs?: number;
+	readonly lastFullAgeMs?: number;
+	readonly queued?: boolean;
+	readonly coalescedRequestCount?: number;
+	readonly coalescedTrigger?: CloudSandboxDiscoveryTrigger | 'multiple';
 }
 
-/** Only a complete scan permits removing absent sessions; other results may name explicit removals. */
+export interface ICloudSandboxDiscoveryOptions {
+	readonly incremental?: boolean;
+	/** Defaults to including archived inventory. False omits archived discovery, not targeted reads of known tasks. */
+	readonly includeArchived?: boolean;
+	readonly taskIds?: readonly string[];
+	readonly trigger?: CloudSandboxDiscoveryTrigger;
+	readonly diagnostics?: ICloudSandboxDiscoveryDiagnostics;
+}
+
+/** Successful recent-window refreshes permit eviction only within their requested scope; removal IDs report confirmed changes. */
 export type ICloudSandboxDiscoveryResult =
-	/** Every task was scanned and resolved; absent sessions really are gone. */
-	| { readonly kind: 'complete'; readonly sessions: readonly ICloudSandboxDiscoveredSession[] }
+	/** A successful recent-window refresh; absent cached sessions may be evicted. Removal IDs report confirmed changes, not window eviction. */
+	| { readonly kind: 'complete'; readonly sessions: readonly ICloudSandboxDiscoveredSession[]; readonly removedTaskIds?: readonly string[] }
+	/** A successful non-archived recent-window refresh; absent cached archives must be retained. */
+	| { readonly kind: 'scoped'; readonly sessions: readonly ICloudSandboxDiscoveredSession[]; readonly removedTaskIds: readonly string[] }
 	/** Changes only; sessions absent from this result must be retained. */
 	| { readonly kind: 'incremental'; readonly sessions: readonly ICloudSandboxDiscoveredSession[]; readonly removedTaskIds: readonly string[] }
 	/** Some tasks could not be resolved; only explicitly removed tasks may be dropped. */
-	| { readonly kind: 'partial'; readonly sessions: readonly ICloudSandboxDiscoveredSession[]; readonly removedTaskIds?: readonly string[]; readonly failedTaskIds?: readonly string[] }
+	| {
+		readonly kind: 'partial';
+		readonly sessions: readonly ICloudSandboxDiscoveredSession[];
+		readonly removedTaskIds?: readonly string[];
+		readonly failedTaskIds?: readonly string[];
+		/** The recent inventory window was enumerated; unresolved details are retained for per-task retries. Does not authorize absence pruning. */
+		readonly inventoryComplete?: boolean;
+	}
 	/** Discovery could not run (auth not ready, request failed). Existing state must be left alone. */
 	| { readonly kind: 'failed'; readonly reason: string };
 

@@ -21,24 +21,25 @@ import { IProductService } from '../../../../../platform/product/common/productS
 import { PromptTimelineRulerRail } from '../../../../../workbench/contrib/chat/browser/promptTimeline/promptTimelineRulerRail.js';
 import { ComponentFixtureContext, createEditorServices, defineComponentFixture, defineThemedFixtureGroup, registerWorkbenchServices, waitForFixtureCondition } from '../../../../../workbench/test/browser/componentFixtures/fixtureUtils.js';
 import type { IChatWidgetFixtureHandle, IFixtureMessage } from '../../../../../workbench/test/browser/componentFixtures/chat/chatWidget.fixture.js';
-import { AbstractChatView } from '../../../../browser/parts/chatView.js';
-import { ChatViewSessionActivityBar } from '../../../../browser/parts/sessionActivityBar.js';
-import { AgentWorkbenchLayout, IAgentWorkbenchLayoutService } from '../../../../browser/workbench.js';
-import { AGENTS_CENTERED_CONTENT_MAX_WIDTH } from '../../../../common/layoutConstants.js';
-import { SESSION_ACTIVITY_BAR_SETTING, SESSIONS_LIST_GROUP_EXTERNAL_SESSIONS_SETTING } from '../../../../common/sessionConfig.js';
-import { ISessionActivityBarActivityService, SessionActivityBarActivityService } from '../../../../services/activity/common/sessionActivityBarActivityService.js';
-import { ISession } from '../../../../services/sessions/common/session.js';
+import { AbstractChatView } from '../../../../../workbench/contrib/sessions/browser/parts/chatView.js';
+import { ChatViewSessionActivityBar } from '../../../../../workbench/contrib/sessions/browser/parts/sessionActivityBar.js';
+import { IAgentWorkbenchLayoutService } from '../../../../browser/workbench.js';
+import { AgentWorkbenchLayout } from '../../../../../workbench/contrib/sessions/browser/sessionsHostLayoutService.js';
+import { AGENTS_CENTERED_CONTENT_MAX_WIDTH } from '../../../../../workbench/contrib/sessions/common/layoutConstants.js';
+import { SESSION_ACTIVITY_BAR_SETTING, SESSIONS_LIST_GROUP_EXTERNAL_SESSIONS_SETTING } from '../../../../../workbench/contrib/sessions/common/sessionConfig.js';
+import { ISessionActivityBarActivityService, SessionActivityBarActivityService } from '../../../../../workbench/contrib/sessions/common/sessionActivityBarActivityService.js';
+import { ISession } from '../../../../../workbench/contrib/sessions/common/session.js';
 import { IconBadge } from '../../../../../workbench/services/activity/common/activity.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { FixtureContextViewService, FixtureKeybindingService, FixtureMenuService, fixtureBrowser, fixtureCanvas, fixtureChanges, fixtureFiles, fixtureTerminal, fixtureTogglePanel, fixtureToggleSidePanel, IFixtureEntry } from '../../../../test/browser/addTabFixtureUtils.js';
-import { SessionActivityBarGroup } from '../../../../browser/menus.js';
-import { OPEN_PULL_REQUEST_ACTION_ID } from '../../../github/common/types.js';
-import { ExternalSessionBanner } from '../../browser/externalSessionBanner.js';
-import '../../browser/media/chatView.css';
-import '../../../../browser/parts/media/chatCompositeBar.css';
-import '../../../../browser/parts/media/chatGroupsView.css';
-import '../../../../browser/parts/media/sessionView.css';
-import '../../../../browser/parts/media/sessionsPart.css';
+import { SessionActivityBarGroup } from '../../../../../workbench/contrib/sessions/browser/menus.js';
+import { OPEN_PULL_REQUEST_ACTION_ID } from '../../../../../workbench/contrib/sessions/common/github/types.js';
+import { ExternalSessionBanner } from '../../../../../workbench/contrib/sessions/browser/chat/externalSessionBanner.js';
+import '../../../../../workbench/contrib/sessions/browser/chat/media/chatView.css';
+import '../../../../../workbench/contrib/sessions/browser/parts/media/chatCompositeBar.css';
+import '../../../../../workbench/contrib/sessions/browser/parts/media/chatGroupsView.css';
+import '../../../../../workbench/contrib/sessions/browser/parts/media/sessionView.css';
+import '../../../../../workbench/contrib/sessions/browser/parts/media/sessionsPart.css';
 
 interface IFixtureOptions {
 	readonly entries?: readonly IFixtureEntry[];
@@ -53,8 +54,6 @@ interface IFixtureOptions {
 	/** Shows the external-session banner above the chat. */
 	readonly externalBanner?: boolean;
 	readonly openSubmenu?: boolean;
-	/** Drags the strip down by this many pixels. */
-	readonly dragBy?: number;
 	/** Badges the Changes entry, as new changes do. */
 	readonly newChanges?: boolean;
 	readonly githubReferenceCount?: number;
@@ -93,8 +92,6 @@ export default defineThemedFixtureGroup({ path: 'sessions/sessionActivityBar/' }
 	ExternalSessionBannerWide: activityBarFixture({ width: 1280, externalBanner: true }),
 	ChatWithoutWorkspace: activityBarFixture({ entries: [fixtureToggleSidePanel, ...sidePanelGroup([fixtureBrowser, fixtureCanvas]), fixtureTerminal, fixtureTogglePanel] }),
 	WithoutLayoutActions: activityBarFixture({ entries: [...sidePanelGroup([fixtureChanges, fixtureFiles, fixtureBrowser, fixtureCanvas]), fixtureTerminal] }),
-	Moved: activityBarFixture({ dragBy: 60 }),
-	AtBottom: activityBarFixture({ dragBy: 2000 }),
 	SubmenuOpen: activityBarFixture({ openSubmenu: true }, highContrastThemes),
 	NewChanges: activityBarFixture({ newChanges: true }, highContrastThemes),
 	GitHubReferences: activityBarFixture({ githubReferenceCount: 1 }, highContrastThemes),
@@ -202,7 +199,7 @@ async function renderActivityBar(context: ComponentFixtureContext, options: IFix
 		checked: options.githubChecked,
 		run: () => { },
 	}))));
-	activityBar.layout(HEADER_HEIGHT, areaHeight);
+	activityBar.layout(HEADER_HEIGHT);
 	// As the chat group lays it out: to the left of the strip's column.
 	const chatWidth = Math.max(0, width - activityBar.reservedWidth.get());
 
@@ -265,14 +262,6 @@ async function renderActivityBar(context: ComponentFixtureContext, options: IFix
 	}
 	activityBar.setActive(true);
 	const element = activityBar.element!;
-
-	if (options.dragBy) {
-		const handle = element.querySelector<HTMLElement>('.session-activity-bar-drag-handle')!;
-		const pointer = { pointerId: 1, button: 0, buttons: 1, bubbles: true, clientX: 0 };
-		handle.dispatchEvent(new PointerEvent('pointerdown', { ...pointer, clientY: 0 }));
-		handle.dispatchEvent(new PointerEvent('pointermove', { ...pointer, clientY: options.dragBy }));
-		handle.dispatchEvent(new PointerEvent('pointerup', { ...pointer, buttons: 0, clientY: options.dragBy }));
-	}
 
 	if (options.openSubmenu) {
 		const submenuEntry = element.querySelector<HTMLElement>('.action-label[aria-haspopup="menu"]');

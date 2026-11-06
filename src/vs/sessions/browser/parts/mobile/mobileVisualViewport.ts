@@ -10,7 +10,7 @@ import { IContextKey, IContextKeyService } from '../../../../platform/contextkey
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
 import { ILayoutService } from '../../../../platform/layout/browser/layoutService.js';
-import { KeyboardVisibleContext } from '../../../common/contextkeys.js';
+import { KeyboardVisibleContext } from '../../../common/agentsWindowContextKeys.js';
 
 /**
  * Threshold (in CSS pixels) above which the visual viewport delta is

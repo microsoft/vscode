@@ -22,7 +22,8 @@ import { IsSessionsWindowContext, RemoteNameContext } from '../../../common/cont
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../common/contributions.js';
 import { ChatContextKeyExprs, ChatContextKeys } from '../common/actions/chatContextKeys.js';
 import { IRemoteTunnelStartOptions, RemoteTunnelCommandIds } from '../../remoteTunnel/electron-browser/remoteTunnel.contribution.js';
-import { getRemoteTunnelAccessState, RemoteConnectionsActionViewItem } from './toggleRemoteConnectionsActionViewItem.js';
+import { RemoteConnectionsActionViewItem } from './toggleRemoteConnectionsActionViewItem.js';
+import { getRemoteTunnelAccessState } from './remoteConnectionsSharing.js';
 
 export const TUNNEL_HOST_SHARING_KEY = 'tunnelHostSharing';
 export const TUNNEL_HOST_SHARING_CONTEXT = new RawContextKey<boolean>(TUNNEL_HOST_SHARING_KEY, false);
@@ -110,7 +111,7 @@ export class TunnelHostContribution extends Disposable implements IWorkbenchCont
 		}));
 
 		const viewItemFactory: IActionViewItemFactory = (action, _options, instantiationService) => {
-			return instantiationService.createInstance(RemoteConnectionsActionViewItem, action, true);
+			return instantiationService.createInstance(RemoteConnectionsActionViewItem, action, true, {});
 		};
 		this._register(actionViewItemService.register(MenuId.ChatInputSecondary, TOGGLE_SHARING_ID, viewItemFactory, this.remoteTunnelService.onDidChangeTunnelStatus));
 		void this._loadState();

@@ -500,13 +500,7 @@ async function rename(source: string, target: string, windowsRetryTimeout: numbe
 	}
 
 	try {
-		if (isWindows && typeof windowsRetryTimeout === 'number') {
-			// On Windows, a rename can fail when either source or target
-			// is locked by AV software.
-			await renameWithRetry(source, target, Date.now(), windowsRetryTimeout);
-		} else {
-			await fs.promises.rename(source, target);
-		}
+		await renameAtomic(source, target, windowsRetryTimeout);
 	} catch (error) {
 		// In two cases we fallback to classic copy and delete:
 		//
@@ -525,9 +519,21 @@ async function rename(source: string, target: string, windowsRetryTimeout: numbe
 	}
 }
 
-async function renameWithRetry(source: string, target: string, startTime: number, retryTimeout: number, attempt = 0): Promise<void> {
+/** Renames without copy/delete fallback, retaining Windows retries for transient errors. */
+async function renameAtomic(source: string, target: string, windowsRetryTimeout: number | false = 60000, renameFn: typeof fs.promises.rename = fs.promises.rename): Promise<void> {
+	if (source === target) {
+		return;
+	}
+	if (isWindows && typeof windowsRetryTimeout === 'number') {
+		await renameWithRetry(source, target, Date.now(), windowsRetryTimeout, 0, renameFn);
+	} else {
+		await renameFn(source, target);
+	}
+}
+
+async function renameWithRetry(source: string, target: string, startTime: number, retryTimeout: number, attempt: number, renameFn: typeof fs.promises.rename): Promise<void> {
 	try {
-		return await fs.promises.rename(source, target);
+		return await renameFn(source, target);
 	} catch (error) {
 		if (error.code !== 'EACCES' && error.code !== 'EPERM' && error.code !== 'EBUSY') {
 			throw error; // only for errors we think are temporary
@@ -559,7 +565,7 @@ async function renameWithRetry(source: string, target: string, startTime: number
 		await timeout(Math.min(100, attempt * 10));
 
 		// Attempt again
-		return renameWithRetry(source, target, startTime, retryTimeout, attempt + 1);
+		return renameWithRetry(source, target, startTime, retryTimeout, attempt + 1, renameFn);
 	}
 }
 
@@ -724,14 +730,17 @@ export async function realcase(path: string, token?: CancellationToken): Promise
 	return null;
 }
 
-async function realpath(path: string): Promise<string> {
+async function realpath(path: string, options?: { readonly strict?: boolean }): Promise<string> {
 	try {
 		// DO NOT USE `fs.promises.realpath` here as it internally
 		// calls `fs.native.realpath` which will result in subst
 		// drives to be resolved to their target on Windows
 		// https://github.com/microsoft/vscode/issues/118562
 		return await promisify(fs.realpath)(path);
-	} catch {
+	} catch (error) {
+		if (options?.strict) {
+			throw error;
+		}
 
 		// We hit an error calling fs.realpath(). Since fs.realpath() is doing some path normalization
 		// we now do a similar normalization and then try again if we can access the path with read
@@ -876,6 +885,7 @@ export const Promises = new class {
 	get rm() { return rimraf; }
 
 	get rename() { return rename; }
+	get renameAtomic() { return renameAtomic; }
 	get copy() { return copy; }
 
 	get realpath() { return realpath; }	// `fs.promises.realpath` will use `fs.realpath.native` which we do not want

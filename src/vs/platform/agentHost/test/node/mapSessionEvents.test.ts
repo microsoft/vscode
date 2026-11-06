@@ -11,8 +11,9 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/c
 import { readToolCallMeta } from '../../common/meta/agentToolCallMeta.js';
 import { readAgentRuntimeModelConfiguration } from '../../common/meta/agentModelConfigurationMeta.js';
 import { AgentSession, subagentChatTitle } from '../../common/agent.js';
-import { getErrorResponsePart, getTurnError, MessageAttachmentKind, MessageKind, ResponsePartKind, ToolCallContributorKind, ToolCallStatus, ToolResultContentType, TurnState, buildChatUri, buildSubagentSessionUri, type ResponsePart, type StringOrMarkdown, type ToolCallResponsePart, type ToolResultContent } from '../../common/state/sessionState.js';
+import { getErrorResponsePart, getTurnError, FileEditKind, MessageAttachmentKind, MessageKind, ResponsePartKind, ToolCallCancellationReason, ToolCallContributorKind, ToolCallStatus, ToolResultContentType, TurnState, buildChatUri, buildSubagentSessionUri, type ResponsePart, type StringOrMarkdown, type ToolCallResponsePart, type ToolResultContent } from '../../common/state/sessionState.js';
 import { appendSdkToolResultContent, getSdkToolResultContent, getSdkToolResultText, mapSessionEvents as mapSessionEventsWithRouting, persistSdkToolResultResources, type IMapSessionEventsOptions } from '../../node/copilot/mapSessionEvents.js';
+import { createCopilotSdkPathMapper, toCopilotWorkspace } from '../../node/copilot/copilotWorkspace.js';
 import { toSessionEvents, type ISessionEvent } from './copilotTestEvents.js';
 import { fusionMainPassTestData as mainPass, fusionTestData as fusion, fusionTestEvent as event } from './copilotFusionTestEvents.js';
 import { AgentSystemNotificationKind, readAgentSystemNotificationMeta } from '../../common/meta/agentSystemNotificationMeta.js';
@@ -25,7 +26,7 @@ import { TestSessionDatabase } from '../common/sessionTestHelpers.js';
 import { prependAnnouncementToFirstTurn } from '../../node/shared/worktreeIsolation.js';
 
 function mapSessionEvents(session: URI, db: ISessionDatabase | undefined, events: Parameters<typeof mapSessionEventsWithRouting>[2], options: IMapSessionEventsOptions | undefined = undefined) {
-	return mapSessionEventsWithRouting(session, db, events, URI.parse(buildChatUri(session, 'default')), session, options);
+	return mapSessionEventsWithRouting(session, db, events, URI.parse(buildChatUri(session, 'default')), session, createCopilotSdkPathMapper(toCopilotWorkspace(options?.workingDirectory ?? URI.file(process.cwd()))), options);
 }
 
 suite('mapSessionEvents — history replay', () => {
@@ -33,6 +34,29 @@ suite('mapSessionEvents — history replay', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
 
 	const session = AgentSession.uri('copilot', 'test-session');
+
+	test('restores virtual workspace edit and attachment URIs while retaining host-local file URIs', async () => {
+		const workingDirectory = URI.parse('vscode-vfs://github/microsoft/vscode');
+		const pathMapper = createCopilotSdkPathMapper(toCopilotWorkspace(workingDirectory));
+		const filePath = `${pathMapper.rootSdkPath}/src/a.ts`;
+		const database = new TestSessionDatabase();
+		await database.storeFileEdit({ turnId: 'turn', toolCallId: 'edit', filePath, kind: FileEditKind.Edit, beforeContent: new Uint8Array(), afterContent: new Uint8Array(), addedLines: 0, removedLines: 0 });
+		const { turns } = await mapSessionEventsWithRouting(session, database, toSessionEvents([
+			{ type: 'user.message', data: { content: 'Edit file', attachments: [{ type: 'file', path: filePath }, { type: 'file', path: '/host/attachment.txt' }] } },
+			{ type: 'tool.execution_start', data: { toolCallId: 'edit', toolName: 'edit', arguments: { path: filePath } } },
+			{ type: 'tool.execution_complete', data: { toolCallId: 'edit', success: true } },
+		]), URI.parse(buildChatUri(session, 'default')), session, pathMapper, { workingDirectory });
+		const edits = turns[0].responseParts.flatMap(part => part.kind === ResponsePartKind.ToolCall && part.toolCall.status === ToolCallStatus.Completed
+			? part.toolCall.content?.flatMap(content => content.type === ToolResultContentType.FileEdit ? [{ before: content.before?.uri, after: content.after?.uri }] : []) ?? [] : []);
+		assert.deepStrictEqual({
+			attachments: turns[0].message.attachments?.map(attachment => attachment.type === MessageAttachmentKind.Resource ? attachment.uri : undefined),
+			edits,
+		}, {
+			attachments: ['vscode-vfs://github/microsoft/vscode/src/a.ts', URI.file('/host/attachment.txt').toString()],
+			edits: [{ before: 'vscode-vfs://github/microsoft/vscode/src/a.ts', after: 'vscode-vfs://github/microsoft/vscode/src/a.ts' }],
+		});
+	});
+
 
 	test('declares native input contracts only when replay knows the client tool set', async () => {
 		const events: ISessionEvent[] = [
@@ -706,11 +730,9 @@ suite('mapSessionEvents — history replay', () => {
 				{ type: 'assistant.message', data: { messageId: 'read-request', content: '', toolRequests: [{ toolCallId: 'tc-read', name: 'read_agent', arguments: { agent_id: agentId } }] } },
 			];
 			if (hasExecutionEvents) {
-				events.push(
-					{ type: 'tool.execution_start', data: { toolCallId: 'tc-read', toolName: 'read_agent', arguments: { agent_id: agentId } } },
-					{ type: 'tool.execution_complete', data: { toolCallId: 'tc-read', success: true } },
-				);
+				events.push({ type: 'tool.execution_start', data: { toolCallId: 'tc-read', toolName: 'read_agent', arguments: { agent_id: agentId } } });
 			}
+			events.push({ type: 'tool.execution_complete', data: { toolCallId: 'tc-read', success: true } });
 			events.push({
 				type: 'subagent.started', agentId, data: {
 					toolCallId: 'tc-task', agentName: 'research', agentDisplayName: 'catalog-perf', agentDescription: 'Profile the catalog',
@@ -736,13 +758,11 @@ suite('mapSessionEvents — history replay', () => {
 				{ type: 'user.message', data: { content: 'Review the result.' } },
 				{ type: 'assistant.message', data: { messageId: 'coordination', content: '', toolRequests: ['read_agent', 'write_agent'].map(name => ({ name, toolCallId: name, arguments: { agent_id: agentId } })) } },
 			];
-			if (hasExecutionEvents) {
-				for (const toolName of ['read_agent', 'write_agent']) {
-					events.push(
-						{ type: 'tool.execution_start', data: { toolCallId: toolName, toolName, arguments: { agent_id: agentId } } },
-						{ type: 'tool.execution_complete', data: { toolCallId: toolName, success: true } },
-					);
+			for (const toolName of ['read_agent', 'write_agent']) {
+				if (hasExecutionEvents) {
+					events.push({ type: 'tool.execution_start', data: { toolCallId: toolName, toolName, arguments: { agent_id: agentId } } });
 				}
+				events.push({ type: 'tool.execution_complete', data: { toolCallId: toolName, success: true } });
 			}
 			events.push(
 				{ type: 'subagent.started', agentId, data: { toolCallId: 'task', agentName: 'general-purpose', agentDisplayName: 'take-all', agentDescription: 'General purpose agent' } },
@@ -784,11 +804,9 @@ suite('mapSessionEvents — history replay', () => {
 				{ type: 'assistant.message', data: { messageId: 'write-request', content: '', toolRequests: [{ toolCallId: 'tc-write', name: 'write_agent', arguments: parameters }] } },
 			];
 			if (hasExecutionEvents) {
-				events.push(
-					{ type: 'tool.execution_start', data: { toolCallId: 'tc-write', toolName: 'write_agent', arguments: parameters } },
-					{ type: 'tool.execution_complete', data: { toolCallId: 'tc-write', success: true } },
-				);
+				events.push({ type: 'tool.execution_start', data: { toolCallId: 'tc-write', toolName: 'write_agent', arguments: parameters } });
 			}
+			events.push({ type: 'tool.execution_complete', data: { toolCallId: 'tc-write', success: true } });
 			events.push(
 				{ type: 'system.notification', data: { content: 'Agent finished', kind: { type: 'agent_idle', agentId: 'renderer-agent', agentType: 'code-review', displayName: 'Renderer reviewer' } } },
 				{ type: 'system.notification', data: { content: 'Agent finished', kind: { type: 'agent_completed', agentId: 'history-agent', agentType: 'code-review', description: 'Review history', status: 'completed' } } },
@@ -1301,6 +1319,59 @@ suite('mapSessionEvents — history replay', () => {
 		}]);
 	});
 
+	for (const withStart of [false, true]) {
+		test(`restores an aborted fetch without completion as skipped (execution start: ${withStart})`, async () => {
+			const arguments_ = { url: 'https://example.net' };
+			const { turns } = await mapSessionEvents(session, undefined, toSessionEvents([
+				{ type: 'user.message', data: { content: 'Fetch the page' } },
+				{ type: 'assistant.message', data: { content: '', toolRequests: [{ toolCallId: 'fetch', name: 'web_fetch', arguments: arguments_ }] } },
+				...(withStart ? [{ type: 'tool.execution_start' as const, data: { toolCallId: 'fetch', toolName: 'web_fetch', arguments: arguments_ } }] : []),
+				{ type: 'abort', data: { reason: 'user_initiated' } },
+				{ type: 'user.message', data: { content: 'Next request' } },
+				{ type: 'assistant.message', data: { content: 'Next answer' } },
+			]));
+
+			assert.deepStrictEqual({
+				states: turns.map(turn => turn.state),
+				tools: turns.flatMap(turn => turn.responseParts.flatMap(part => part.kind === ResponsePartKind.ToolCall ? [part.toolCall] : [])),
+			}, {
+				states: [TurnState.Cancelled, TurnState.Complete],
+				tools: [{
+					status: ToolCallStatus.Cancelled,
+					reason: ToolCallCancellationReason.Skipped,
+					toolCallId: 'fetch',
+					toolName: 'web_fetch',
+					displayName: 'Fetch Web Content',
+					intention: undefined,
+					invocationMessage: { markdown: 'Fetching [https://example.net](https://example.net)' },
+					toolInput: '{\n  "url": "https://example.net"\n}',
+					_meta: undefined,
+				}],
+			});
+		});
+	}
+
+	test('preserves recorded fetch outcomes when the turn is aborted', async () => {
+		const outcomes = await Promise.all([true, false].map(async success => {
+			const { turns } = await mapSessionEvents(session, undefined, toSessionEvents([
+				{ type: 'user.message', data: { content: 'Fetch the page' } },
+				{ type: 'assistant.message', data: { content: '', toolRequests: [{ toolCallId: 'fetch', name: 'web_fetch', arguments: { url: 'https://example.net' } }] } },
+				{ type: 'tool.execution_complete', data: { toolCallId: 'fetch', success, ...(success ? { result: { content: 'Page title' } } : { error: { message: 'Fetch failed' } }) } },
+				{ type: 'abort', data: { reason: 'user_initiated' } },
+			]));
+			return turns.flatMap(turn => turn.responseParts.flatMap(part => part.kind === ResponsePartKind.ToolCall && part.toolCall.status === ToolCallStatus.Completed ? [{
+				status: part.toolCall.status,
+				success: part.toolCall.success,
+				pastTenseMessage: part.toolCall.pastTenseMessage,
+				content: part.toolCall.content,
+			}] : []));
+		}));
+		assert.deepStrictEqual(outcomes, [
+			[{ status: ToolCallStatus.Completed, success: true, pastTenseMessage: { markdown: 'Fetched [https://example.net](https://example.net)' }, content: [{ type: ToolResultContentType.Text, text: 'Page title' }] }],
+			[{ status: ToolCallStatus.Completed, success: false, pastTenseMessage: '"Fetch Web Content" failed', content: [{ type: ToolResultContentType.Text, text: 'Fetch failed' }] }],
+		]);
+	});
+
 	test('a regular tool still renders as a tool call', async () => {
 		const events: ISessionEvent[] = [
 			{ type: 'user.message', data: { interactionId: 'm1', content: 'hi' } },
@@ -1455,7 +1526,7 @@ suite('mapSessionEvents — history replay', () => {
 			const providerId = scheme === 'ahp-session' ? 'copilotcli' : scheme;
 			const chatUri = URI.parse(buildChatUri(owner, 'restored-chat'));
 			const sdkConversationUri = URI.parse('copilot-sdk:/conversation-123');
-			const { turns } = await mapSessionEventsWithRouting(sdkConversationUri, undefined, toSessionEvents(events), chatUri, owner);
+			const { turns } = await mapSessionEventsWithRouting(sdkConversationUri, undefined, toSessionEvents(events), chatUri, owner, createCopilotSdkPathMapper(toCopilotWorkspace(URI.file(process.cwd()))));
 
 			const part = turns[0].responseParts[0] as ToolCallResponsePart;
 			assert.strictEqual(part.kind, ResponsePartKind.ToolCall);
@@ -2761,6 +2832,42 @@ suite('mapSessionEvents — subagent routing', () => {
 	function partKinds(parts: readonly ResponsePart[]): Array<{ kind: ResponsePartKind; content?: string }> {
 		return parts.map(p => p.kind === ResponsePartKind.Markdown ? { kind: p.kind, content: p.content } : { kind: p.kind });
 	}
+
+	test('retains interrupted subagent discovery and partial history without a tool completion', async () => {
+		const { turns, subagentTurnsByToolCallId } = await mapSessionEvents(session, undefined, toSessionEvents([
+			{ type: 'user.message', data: { content: 'Inspect the implementation' } },
+			{ type: 'assistant.message', data: { content: '', toolRequests: [{ toolCallId: 'task', name: 'task', arguments: { description: 'Inspect the implementation', agent_type: 'explore' } }] } },
+			{ type: 'tool.execution_start', data: { toolCallId: 'task', toolName: 'task' } },
+			{ type: 'subagent.started', agentId: 'worker', data: { toolCallId: 'task', agentName: 'explore', agentDisplayName: 'Explore', agentDescription: 'Explores' } },
+			{ type: 'user.message', agentId: 'worker', data: { content: 'Inspect the implementation' } },
+			{ type: 'assistant.message', agentId: 'worker', data: { content: 'Partial findings' } },
+			{ type: 'abort', data: { reason: 'user_initiated' } },
+		]));
+		assert.deepStrictEqual({
+			parentState: turns[0].state,
+			calls: turns.flatMap(turn => turn.responseParts.flatMap(part =>
+				part.kind === ResponsePartKind.ToolCall && part.toolCall.status === ToolCallStatus.Completed ? [{
+					status: part.toolCall.status,
+					success: part.toolCall.success,
+					content: part.toolCall.content,
+				}] : [])),
+			child: subagentTurnsByToolCallId.get('task')?.map(turn => ({ message: turn.message.text, parts: partKinds(turn.responseParts) })),
+		}, {
+			parentState: TurnState.Cancelled,
+			calls: [{
+				status: ToolCallStatus.Completed,
+				success: false,
+				content: [{
+					type: ToolResultContentType.Subagent,
+					resource: 'copilot:/test-session/subagent/task',
+					title: 'Explore',
+					agentName: 'explore',
+					description: 'Explores',
+				}],
+			}],
+			child: [{ message: 'Inspect the implementation', parts: [{ kind: ResponsePartKind.Markdown, content: 'Partial findings' }] }],
+		});
+	});
 
 	// The SDK migrated subagent correlation from the deprecated
 	// `data.parentToolCallId` to an envelope-level `agentId`. Newer session

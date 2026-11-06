@@ -15,7 +15,8 @@ import { MenuRegistry, SubmenuItemAction } from '../../../../platform/actions/co
 import { ContextKeyExpr, IContextKey, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { KeybindingsRegistry, KeybindingWeight } from '../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { CommandsRegistry, ICommandService } from '../../../../platform/commands/common/commands.js';
-import { Menus } from '../../../browser/menus.js';
+import { Menus } from '../../../../workbench/contrib/sessions/browser/menus.js';
+import { AgentsWindowMenus } from '../../../browser/agentsWindowMenus.js';
 import { IWorkbenchContribution } from '../../../../workbench/common/contributions.js';
 import { IActionViewItemService } from '../../../../platform/actions/browser/actionViewItemService.js';
 import { autorun } from '../../../../base/common/observable.js';
@@ -29,11 +30,12 @@ import { ILogService } from '../../../../platform/log/common/log.js';
 import { IQuickInputService } from '../../../../platform/quickinput/common/quickInput.js';
 import { IsAuxiliaryWindowContext } from '../../../../workbench/common/contextkeys.js';
 import { IWorkbenchLayoutService } from '../../../../workbench/services/layout/browser/layoutService.js';
-import { SessionsBlockedSessionsVisibleContext, SessionsWelcomeVisibleContext } from '../../../common/contextkeys.js';
-import { ISessionsProvidersService } from '../../../services/sessions/browser/sessionsProvidersService.js';
+import { SessionsBlockedSessionsVisibleContext, SessionsWelcomeVisibleContext } from '../../../../workbench/contrib/sessions/common/contextkeys.js';
+import { ISessionsProvidersService } from '../../../../workbench/contrib/sessions/browser/sessionsProvidersService.js';
 import { SHOW_SESSIONS_PICKER_COMMAND_ID } from './sessionsActions.js';
-import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
-import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
+import { ISessionsManagementService } from '../../../../workbench/contrib/sessions/common/sessionsManagement.js';
+import { ISessionsService } from '../../../../workbench/contrib/sessions/browser/sessionsService.js';
+import { getWindowHost, ISessionHost } from '../../../../workbench/contrib/sessions/browser/sessionHost.js';
 import { BlockedSessionsList, IBlockedSessionsHeaderActionContext, registerBlockedSessionsItemActions } from './blockedSessionsList.js';
 import { SessionActionFeedback } from './sessionActionFeedback.js';
 import { BlockedSessionsIndicatorModel, RequiresInputKind } from './blockedSessionsIndicatorModel.js';
@@ -41,7 +43,7 @@ import { getSessionWorkspaceDisplayInfo, ISessionWorkspaceDisplayInfo } from '..
 import { IHoverService } from '../../../../platform/hover/browser/hover.js';
 import { getDefaultHoverDelegate } from '../../../../base/browser/ui/hover/hoverDelegateFactory.js';
 import { IBrowserWorkbenchEnvironmentService } from '../../../../workbench/services/environment/browser/environmentService.js';
-import { isAgentHostProvider } from '../../../common/agentHostSessionsProvider.js';
+import { isAgentHostProvider } from '../../../../workbench/contrib/sessions/common/agentHostSessionsProvider.js';
 
 /**
  * Internal command behind the blocked-sessions dropdown header's "Show All
@@ -176,6 +178,9 @@ export class SessionsTitleBarWidget extends BaseActionViewItem {
 	/** Tracks whether the blocked-sessions dropdown is open (drives the Escape keybinding). */
 	private readonly _blockedSessionsVisibleContext: IContextKey<boolean>;
 
+	/** The host of the window whose title bar shows the widget. */
+	private readonly _windowHost: ISessionHost;
+
 	constructor(
 		action: SubmenuItemAction,
 		options: IBaseActionViewItemOptions | undefined,
@@ -185,6 +190,7 @@ export class SessionsTitleBarWidget extends BaseActionViewItem {
 		private readonly _blockedIndicator: BlockedSessionsIndicatorModel,
 		@ISessionsManagementService private readonly sessionsManagementService: ISessionsManagementService,
 		@ISessionsService private readonly sessionsService: ISessionsService,
+		@ISessionHost sessionHost: ISessionHost,
 		@ISessionsProvidersService private readonly sessionsProvidersService: ISessionsProvidersService,
 		@ICommandService private readonly commandService: ICommandService,
 		@IContextViewService private readonly contextViewService: IContextViewService,
@@ -196,6 +202,7 @@ export class SessionsTitleBarWidget extends BaseActionViewItem {
 		@IBrowserWorkbenchEnvironmentService environmentService: IBrowserWorkbenchEnvironmentService,
 	) {
 		super(undefined, action, options);
+		this._windowHost = getWindowHost(sessionHost);
 
 		this._sessionTitle = environmentService.sessionTitle?.replace(/\s+/g, ' ').trim() || undefined;
 		this._blockedSessionsVisibleContext = SessionsBlockedSessionsVisibleContext.bindTo(contextKeyService);
@@ -210,8 +217,8 @@ export class SessionsTitleBarWidget extends BaseActionViewItem {
 
 		// Re-render when the active session's workspace or quick-chat kind changes
 		this._register(autorun(reader => {
-			const sessionData = this.sessionsService.activeSession.read(reader);
-			this._workspaceInfo = getSessionWorkspaceDisplayInfo(sessionData, reader);
+			const sessionData = this._windowHost.session.read(reader);
+			this._workspaceInfo = getSessionWorkspaceDisplayInfo(sessionData, this._windowHost.chat.read(reader), reader);
 			this._isQuickChat = sessionData?.isQuickChat?.read(reader) ?? false;
 			this._lastRenderState = undefined;
 			this._render();
@@ -438,7 +445,7 @@ export class SessionsTitleBarWidget extends BaseActionViewItem {
 			return title;
 		}
 
-		const session = this.sessionsService.activeSession.get();
+		const session = this._windowHost.session.get();
 		const provider = session ? this.sessionsProvidersService.getProvider(session.providerId) : undefined;
 		return provider && isAgentHostProvider(provider) && provider.remoteAddress
 			? localize('noWorkspaceOnRemoteHost', "No workspace [{0}]", provider.label)
@@ -742,27 +749,28 @@ export class SessionsTitleBarContribution extends Disposable implements IWorkben
 		this._register(registerBlockedSessionsHeaderActions());
 		this._register(registerBlockedSessionsItemActions());
 
-		this._register(actionViewItemService.register(Menus.CommandCenter, Menus.TitleBarSessionTitle, (action, options) => {
+		this._register(actionViewItemService.register(AgentsWindowMenus.CommandCenter, AgentsWindowMenus.TitleBarSessionTitle, (action, options, scopedInstantiationService) => {
 			if (!(action instanceof SubmenuItemAction)) {
 				return undefined;
 			}
 			// Traced because each call means the command center threw the previous
 			// widget away; the state above deliberately survives it.
 			logService.trace('[SessionsTitleBar] creating the title bar widget');
-			return instantiationService.createInstance(SessionsTitleBarWidget, action, options, sessionActionFeedback, blockedIndicator);
+			// Created in the title bar of its window, it shows the session of that window.
+			return scopedInstantiationService.createInstance(SessionsTitleBarWidget, action, options, sessionActionFeedback, blockedIndicator);
 		}, undefined));
 	}
 }
 
 export function registerSessionsTitleBarMenus(): IDisposable {
 	return combinedDisposable(
-		MenuRegistry.appendMenuItem(Menus.CommandCenter, {
-			submenu: Menus.TitleBarSessionTitle,
+		MenuRegistry.appendMenuItem(AgentsWindowMenus.CommandCenter, {
+			submenu: AgentsWindowMenus.TitleBarSessionTitle,
 			title: localize('agentSessionsControl', "Agent Sessions"),
 			order: 101,
 			when: ContextKeyExpr.and(IsAuxiliaryWindowContext.negate(), SessionsWelcomeVisibleContext.negate())
 		}),
-		MenuRegistry.appendMenuItem(Menus.TitleBarSessionTitle, {
+		MenuRegistry.appendMenuItem(AgentsWindowMenus.TitleBarSessionTitle, {
 			command: {
 				id: SHOW_SESSIONS_PICKER_COMMAND_ID,
 				title: localize('showSessions', "Show Sessions"),

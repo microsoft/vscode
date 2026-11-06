@@ -124,6 +124,8 @@ export interface ITabBarAction {
 	readonly checked?: boolean;
 	/** When set, the button is disabled and its managed hover explains why instead of showing {@link tooltip}. */
 	readonly disabledReason?: string;
+	/** Attaches consumer-owned behavior for this rendered button's lifetime. */
+	render?(button: HTMLElement): IDisposable;
 	run(): void;
 }
 
@@ -435,6 +437,9 @@ export class TabbedActionListWidget extends Disposable {
 							tabAction.run();
 						}
 					}));
+					if (tabAction.render) {
+						renderDisposables.add(tabAction.render(button));
+					}
 				}
 
 				// Built before the active tab's list because a consumer may hold per-tab state
@@ -874,7 +879,7 @@ export class TabbedActionListWidget extends Disposable {
 						return;
 					}
 					const activeElement = dom.getActiveElement();
-					if (activeElement && (activeElement.closest('.action-widget-hover') || activeElement.closest('.action-list-submenu-panel'))) {
+					if (activeElement && (dom.isAncestorUsingFlowTo(activeElement, container) || activeElement.closest('.action-widget-hover') || activeElement.closest('.action-list-submenu-panel'))) {
 						return;
 					}
 					hide();

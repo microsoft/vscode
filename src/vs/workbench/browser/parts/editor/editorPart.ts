@@ -909,8 +909,10 @@ export class EditorPart extends Part<IEditorPartMemento> implements IEditorPart,
 		// Different groups view: move via groups view API
 		else {
 			movedView = targetView.groupsView.addGroup(targetView, direction, sourceView);
-			sourceView.closeAllEditors({ force: true });
-			this.removeGroup(sourceView, restoreFocus);
+			sourceView.closeAllEditors({ excludeConfirming: true, force: true });
+			if (!sourceView.disposed /* could have been removed already by closing its last editor via the `workbench.editor.closeEmptyGroups` setting */) {
+				this.removeGroup(sourceView, restoreFocus);
+			}
 		}
 
 		// Restore focus if we had it previously after completing the grid

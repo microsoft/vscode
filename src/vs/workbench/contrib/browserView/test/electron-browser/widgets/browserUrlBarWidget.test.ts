@@ -141,6 +141,7 @@ suite('BrowserUrlBarWidget', () => {
 		readonly inputState: { url: string; navigate(url: string): void };
 		readonly navigated: readonly string[];
 		readonly ensureBrowserFocusCalls: () => number;
+		readonly hoverShowCount: () => number;
 		/** Simulate another picker (e.g. command palette) taking over. */
 		setReplaced(active: boolean): void;
 	}
@@ -184,7 +185,14 @@ suite('BrowserUrlBarWidget', () => {
 
 		const instantiationService = store.add(new TestInstantiationService());
 		instantiationService.stub(IQuickInputService, quickInputService);
-		instantiationService.stub(IHoverService, NullHoverService);
+		let hoverShowCount = 0;
+		instantiationService.stub(IHoverService, {
+			...NullHoverService,
+			setupManagedHover: (...args: Parameters<IHoverService['setupManagedHover']>) => ({
+				...NullHoverService.setupManagedHover(...args),
+				show: () => { hoverShowCount++; },
+			}),
+		});
 
 		const widget = store.add(instantiationService.createInstance(BrowserUrlBarWidget, host));
 		widget.mountContributions([]);
@@ -200,6 +208,7 @@ suite('BrowserUrlBarWidget', () => {
 			inputState,
 			navigated,
 			ensureBrowserFocusCalls: () => ensureBrowserFocusCalls,
+			hoverShowCount: () => hoverShowCount,
 			setReplaced: (active: boolean) => { replacementActive = active; },
 		};
 	}
@@ -236,6 +245,28 @@ suite('BrowserUrlBarWidget', () => {
 			pickerVisible: false,
 			navigated: []
 		});
+	});
+
+	test('edit attempts on a readonly URL bar show the read-only hover', () => {
+		const readonlyHarness = makeHarness(true);
+		const editableHarness = makeHarness(false);
+		const attempt = (harness: ITestHarness) => {
+			const inits: KeyboardEventInit[] = [
+				{ key: 'x' },
+				{ key: 'Backspace', keyCode: 8 },
+				{ key: 'Delete', keyCode: 46 },
+				{ key: 'Enter', keyCode: 13 },
+				{ key: 'a', keyCode: 65, ctrlKey: true },
+				{ key: 'c', keyCode: 67, metaKey: true },
+			];
+			for (const init of inits) {
+				harness.display.dispatchEvent(new KeyboardEvent('keydown', { ...init, bubbles: true, cancelable: true }));
+			}
+			harness.display.dispatchEvent(new Event('paste', { bubbles: true }));
+			return harness.hoverShowCount();
+		};
+
+		assert.deepStrictEqual({ readonly: attempt(readonlyHarness), editable: attempt(editableHarness) }, { readonly: 5, editable: 0 });
 	});
 
 	function mountPickerActionProvider(widget: BrowserUrlBarWidget, provider: IBrowserUrlPickerActionProvider): void {

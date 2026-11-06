@@ -640,6 +640,69 @@ suite('ForkConversationAction', () => {
 		});
 	}
 
+	test('forwards a checkpoint for an active request absent from contributed history', async () => {
+		const instantiationService = disposables.add(new TestInstantiationService());
+		const source = URI.parse('agent-host-copilot:/source');
+		const fork = source.with({ fragment: 'fork' });
+		const checkpoint = upcastPartial<IChatRequestViewModel>({
+			id: 'active-request',
+			sessionResource: source,
+			message: { text: 'still running', parts: [] },
+		});
+		const serializedData: ISerializableChatData = {
+			version: 3,
+			sessionId: 'source',
+			creationDate: 0,
+			customTitle: undefined,
+			initialLocation: ChatAgentLocation.Chat,
+			responderUsername: 'test',
+			requests: ['completed-request', checkpoint.id].map(requestId => ({
+				requestId,
+				message: requestId === checkpoint.id ? 'still running' : 'first',
+				variableData: { variables: [] },
+				response: [],
+			})),
+		};
+		let forkCall: { source: URI; request: IChatSessionRequestHistoryItem | undefined } | undefined;
+		let opened: URI | undefined;
+		instantiationService.stub(IChatService, upcastPartial<IChatService>({
+			getSession: resource => resource.toString() === source.toString()
+				? upcastPartial<IChatModel>({ toJSON: () => serializedData })
+				: undefined,
+		}));
+		instantiationService.stub(IChatWidgetService, upcastPartial<IChatWidgetService>({
+			getWidgetBySessionResource: () => undefined,
+			openSession: async resource => {
+				opened = resource;
+				return undefined;
+			},
+		}));
+		instantiationService.stub(IChatSessionsService, upcastPartial<IChatSessionsService>({
+			getContentProviderSchemes: () => [source.scheme],
+			getOrCreateChatSession: async () => upcastPartial<IChatSession>({
+				history: [{ type: 'request', id: 'completed-request', prompt: 'first', participant: '' }],
+			}),
+			forkChatSession: async (resource, request) => {
+				forkCall = { source: resource, request };
+				return { resource: fork, label: 'Fork', timing: { created: 0, lastRequestStarted: undefined, lastRequestEnded: undefined } };
+			},
+		}));
+
+		await instantiationService.invokeFunction(accessor => new ForkConversationAction().run(accessor, checkpoint));
+
+		assert.deepStrictEqual({
+			source: forkCall?.source,
+			requestId: forkCall?.request?.id,
+			opened,
+			sourceRequests: serializedData.requests.map(request => request.requestId),
+		}, {
+			source,
+			requestId: checkpoint.id,
+			opened: fork,
+			sourceRequests: ['completed-request', 'active-request'],
+		});
+	});
+
 	test('forwards contributed checkpoint placement through the hooks and deduplicates pending forks', async () => {
 		const instantiationService = disposables.add(new TestInstantiationService());
 		const source = URI.parse('contributed:/source');

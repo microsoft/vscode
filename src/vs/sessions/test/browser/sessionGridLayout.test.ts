@@ -11,13 +11,13 @@ import { Event } from '../../../base/common/event.js';
 import { IDisposable, toDisposable } from '../../../base/common/lifecycle.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../base/test/common/utils.js';
 import { GRID_GAP_SASH_CLASS } from '../../../workbench/browser/parts/partGrid/partGridGap.js';
-import { ISessionGridEntry, ISessionGridView, SessionGridLayout } from '../../browser/parts/sessionGridLayout.js';
-import { getSessionDropDirection } from '../../browser/parts/sessionDropTarget.js';
-import { ISessionGridState, isSessionGridState, projectSessionGrid } from '../../services/sessions/browser/sessionGridState.js';
+import { ISessionGridEntry, ISessionGridView, SessionGridLayout } from '../../../workbench/contrib/sessions/browser/parts/sessionGridLayout.js';
+import { getSessionDropDirection } from '../../../workbench/contrib/sessions/browser/parts/sessionDropTarget.js';
+import { ISessionGridState, isSessionGridState, projectSessionGrid } from '../../../workbench/contrib/sessions/browser/sessionGridState.js';
 import '../../../workbench/browser/media/style.css';
 import '../../browser/media/workbench.css';
-import '../../browser/parts/media/chatCompositeBar.css';
-import '../../browser/parts/media/sessionsPart.css';
+import '../../../workbench/contrib/sessions/browser/parts/media/chatCompositeBar.css';
+import '../../../workbench/contrib/sessions/browser/parts/media/sessionsPart.css';
 
 suite('Sessions - Grid Layout', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -412,7 +412,7 @@ suite('Sessions - Grid Layout', () => {
 		root.className = 'monaco-workbench agent-sessions-workbench mac modern-ui-tabs modern-ui-connected-editor-tabs nopanel noeditorpane nosidebar';
 		root.style.cssText = '--vscode-cornerRadius-large: 8px; --vscode-agents-layout-floatingPanelGap: 4px; --vscode-strokeThickness: 1px; --window-corner-radius: 16px; --modern-ui-connected-tab-border: #445566;';
 		const card = document.createElement('div');
-		card.className = 'part sessionspart agents-part-card agents-card-surface';
+		card.className = 'part sessionspart sessions-chat-surface agents-part-card agents-card-surface';
 		root.appendChild(card);
 		document.body.appendChild(root);
 		store.add(toDisposable(() => root.remove()));

@@ -13,7 +13,7 @@ import { Schemas } from '../../../../../base/common/network.js';
 import { constObservable, ISettableObservable, observableValue, transaction } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { mock } from '../../../../../base/test/common/mock.js';
+import { mock, upcastPartial } from '../../../../../base/test/common/mock.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { isIMenuItem, MenuId, MenuRegistry } from '../../../../../platform/actions/common/actions.js';
@@ -28,29 +28,36 @@ import { IEditorService } from '../../../../../workbench/services/editor/common/
 import { IViewsService } from '../../../../../workbench/services/views/common/viewsService.js';
 import { Parts } from '../../../../../workbench/services/layout/browser/layoutService.js';
 import { IAgentWorkbenchLayoutService } from '../../../../browser/workbench.js';
-import { ISessionFileChange, ISessionWorkspace, SessionStatus } from '../../../../services/sessions/common/session.js';
-import { IActiveSession } from '../../../../services/sessions/common/sessionsManagement.js';
-import { DesktopChangesEditorTransitionContext, DesktopChangesTabAvailableContext, DesktopChangesTabMissingContext, HasDockedDetailsContext, DesktopFilesTabAvailableContext, DesktopFilesTabMissingContext } from '../../../../common/contextkeys.js';
+import { ISessionFileChange, ISessionWorkspace, SessionStatus } from '../../../../../workbench/contrib/sessions/common/session.js';
+import { IActiveSession } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
+import { DesktopChangesEditorTransitionContext } from '../../../../../workbench/contrib/sessions/common/contextkeys.js';
+import { DesktopChangesTabAvailableContext, DesktopChangesTabMissingContext, HasDockedDetailsContext, DesktopFilesTabAvailableContext, DesktopFilesTabMissingContext } from '../../../../common/agentsWindowContextKeys.js';
 import { BrowserEditorInput } from '../../../../../workbench/contrib/browserView/common/browserEditorInput.js';
 import { CustomEditorInput } from '../../../../../workbench/contrib/customEditor/browser/customEditorInput.js';
 import { FileEditorInput } from '../../../../../workbench/contrib/files/browser/editors/fileEditorInput.js';
 import { WebviewInput } from '../../../../../workbench/contrib/webviewPanel/browser/webviewEditorInput.js';
 import { MultiDiffEditor } from '../../../../../workbench/contrib/multiDiffEditor/browser/multiDiffEditor.js';
 import { multiDiffEditorExperimentalFileListSetting, MultiDiffEditorFileListAvailableContext, observableMultiDiffEditorFileListVisible } from '../../../../../workbench/contrib/multiDiffEditor/common/multiDiffEditor.js';
-import { EmptyFileEditorInput } from '../../../editor/browser/emptyFileEditorInput.js';
+import { EmptyFileEditorInput } from '../../../../../workbench/contrib/sessions/browser/emptyFileEditorInput.js';
 import { EditorInput } from '../../../../../workbench/common/editor/editorInput.js';
 import { DiffEditorInput } from '../../../../../workbench/common/editor/diffEditorInput.js';
 import { IEditorWillOpenEvent, isResourceEditorInput } from '../../../../../workbench/common/editor.js';
 import { DesktopLayoutController, TOGGLE_DETAILS_COMMAND_ID } from '../../browser/desktopLayoutController.js';
-import { CHANGES_VIEW_CONTAINER_ID, CHANGES_VIEW_ID } from '../../../changes/common/changes.js';
-import { ChangesViewPane } from '../../../changes/browser/changesView.js';
-import { REVEAL_CI_CHECKS_COMMAND_ID } from '../../../changes/browser/checksActions.js';
-import { GitHubCheckConclusion, GitHubCheckStatus } from '../../../github/common/types.js';
+import { CHANGES_VIEW_CONTAINER_ID, CHANGES_VIEW_ID } from '../../../../../workbench/contrib/sessions/common/changes.js';
+import { ChangesViewPane } from '../../../../../workbench/contrib/sessions/browser/changes/changesView.js';
+import { REVEAL_CI_CHECKS_COMMAND_ID } from '../../../../../workbench/contrib/sessions/browser/fixCIChecks.js';
+import { GitHubCheckConclusion, GitHubCheckStatus } from '../../../../../workbench/contrib/sessions/common/github/types.js';
 import '../../../changes/browser/changesActions.js';
 import { SESSIONS_FILES_CONTAINER_ID } from '../../../files/browser/files.contribution.js';
 import { NewChangesTabAction, NewFileTabAction } from '../../../editor/browser/addTabActions.js';
+import { ISessionsService } from '../../../../../workbench/contrib/sessions/browser/sessionsService.js';
+import { IFocusedSessionHostService, ISessionHostService } from '../../../../../workbench/contrib/sessions/browser/sessionHost.js';
+import { focusedSessionHostServiceOf, sessionHostServiceOf } from '../../../../../workbench/contrib/sessions/test/browser/sessionHostTestUtils.js';
 import { addPeerChat, createTestHarness, ICreateOptions, ITestLayoutHarness, makeChange, makeSession, setActiveChat, TestStubEditorInput } from './layoutControllerTestUtils.js';
 import '../../../editor/browser/editor.contribution.js';
+
+/** The editor parts of a Files tab of the main window: no part other than the main part. */
+const noOtherEditorParts = upcastPartial<IEditorGroupsService>({ parts: [] });
 
 suite('DesktopLayoutController', () => {
 
@@ -65,8 +72,12 @@ suite('DesktopLayoutController', () => {
 		getViewState(sessionResource: URI) {
 			return this._viewStateBySession.get(sessionResource);
 		}
+		shown() {
+			const shown = this._shownByMainWindow();
+			return shown && { session: shown.session.resource.toString(), chat: shown.chat.resource.toString() };
+		}
 		getComposition(session: IActiveSession) {
-			const key = this._ownerKeyFor(session);
+			const key = this._ownerKeyFor({ session, chat: session.activeChat.get() });
 			return key && this._compositionStore?.get(key);
 		}
 	}
@@ -98,6 +109,25 @@ suite('DesktopLayoutController', () => {
 	function makeChangesEditor(sessionResource: URI): TestStubEditorInput {
 		return store.add(new TestStubEditorInput(harness.sessionChangesService.getChangesEditorResource(sessionResource)));
 	}
+
+	test('lays out what the main window host shows, not a focused chat window that shows another session', () => {
+		harness = createTestHarness(store);
+		const sessionA = makeSession(URI.parse('session:main-window'));
+		const sessionB = makeSession(URI.parse('session:chat-window'));
+		// The chat window that shows B has focus: a window-dependent read of the focused host or of the
+		// sessions service's active session would see B.
+		harness.instaService.stub(ISessionsService, new class extends mock<ISessionsService>() {
+			readonly activeSession = constObservable(sessionB);
+			override readonly visibleSessions = harness.visibleSessionsObs;
+			readonly windowSessions = constObservable([]);
+		});
+		harness.instaService.stub(ISessionHostService, sessionHostServiceOf(store, { mainWindowActiveSession: harness.activeSessionObs, visibleSessions: constObservable([]), windowSessions: constObservable([sessionB]) }));
+		harness.instaService.stub(IFocusedSessionHostService, focusedSessionHostServiceOf(constObservable(sessionB)));
+		const controller = store.add(harness.instaService.createInstance(TestDesktopController));
+		harness.activeSessionObs.set(sessionA, undefined);
+
+		assert.deepStrictEqual(controller.shown(), { session: 'session:main-window', chat: sessionA.activeChat.get().resource.toString() });
+	});
 
 	function makeWebviewEditor(viewType: string, providerId?: string): WebviewInput {
 		const editor = Object.create(WebviewInput.prototype) as WebviewInput;
@@ -418,7 +448,7 @@ suite('DesktopLayoutController', () => {
 
 		harness.setPartHiddenCalls = [];
 		harness.openedViewContainers = [];
-		harness.activeEditorInput = store.add(new EmptyFileEditorInput(undefined, harness.layoutService));
+		harness.activeEditorInput = store.add(new EmptyFileEditorInput(undefined, harness.layoutService, noOtherEditorParts));
 		harness.onDidActiveEditorChange.fire();
 		assert.strictEqual(hasDockedDetails(), true, 'files target should enable the editor chevron context');
 		await timeout(0);
@@ -476,7 +506,7 @@ suite('DesktopLayoutController', () => {
 		);
 
 		harness.setPartHiddenCalls = [];
-		harness.activeEditorInput = store.add(new EmptyFileEditorInput(undefined, harness.layoutService));
+		harness.activeEditorInput = store.add(new EmptyFileEditorInput(undefined, harness.layoutService, noOtherEditorParts));
 		harness.onDidActiveEditorChange.fire();
 		await timeout(0);
 		assert.ok(
@@ -890,7 +920,7 @@ suite('DesktopLayoutController', () => {
 		harness.openedViewContainers = [];
 
 		// The restored managed tab becomes active; the detail must NOT re-reveal.
-		harness.activeEditorInput = store.add(new EmptyFileEditorInput(undefined, harness.layoutService));
+		harness.activeEditorInput = store.add(new EmptyFileEditorInput(undefined, harness.layoutService, noOtherEditorParts));
 		harness.onDidActiveEditorChange.fire();
 		await timeout(0);
 
@@ -2933,7 +2963,7 @@ suite('DesktopLayoutController', () => {
 		assert.strictEqual(hasFilesTab(), false);
 
 		// The user explicitly adds the Files tab via `+` (opens an EmptyFileEditorInput).
-		const userFilesTab = store.add(new EmptyFileEditorInput(undefined, harness.layoutService));
+		const userFilesTab = store.add(new EmptyFileEditorInput(undefined, harness.layoutService, noOtherEditorParts));
 		openEditor(userFilesTab);
 		harness.activeGroupEditors.push(userFilesTab);
 		harness.onDidEditorsChange.fire();

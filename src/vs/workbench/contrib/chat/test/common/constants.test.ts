@@ -36,16 +36,19 @@ suite('ChatConfiguration defaults', () => {
 	const localWorkspace = createWorkspace(URI.file('/workspace'));
 
 	test('Copilot harness defaults on without experiment controls or experimental tags', () => {
-		const setting = Registry.as<IConfigurationRegistry>(Extensions.Configuration).getConfigurationProperties()[ChatConfiguration.DefaultToCopilotHarness];
-		assert.deepStrictEqual({
-			default: setting.default,
-			experiment: setting.experiment,
-			tags: setting.tags,
-		}, {
+		const settings = Registry.as<IConfigurationRegistry>(Extensions.Configuration).getConfigurationProperties();
+		assert.deepStrictEqual([ChatConfiguration.DefaultToCopilotHarness, ChatConfiguration.EditorPreferCopilotHarness].map(key => {
+			const setting = settings[key];
+			return {
+				default: setting.default,
+				experiment: setting.experiment,
+				tags: setting.tags,
+			};
+		}), Array.from({ length: 2 }, () => ({
 			default: true,
 			experiment: undefined,
 			tags: undefined,
-		});
+		})));
 	});
 
 	function createWorkspace(...resources: URI[]): Workspace {
@@ -311,7 +314,7 @@ suite('ChatConfiguration defaults', () => {
 			}, {
 				explicit: { sessionType: SessionType.AgentHostCopilot, selectionReason: 'explicitOverride' },
 				others: [SessionType.AgentHostClaude, SessionType.AgentHostCodex, 'remote-agent-host'],
-				virtual: localChatSessionType,
+				virtual: SessionType.AgentHostCopilot,
 			});
 		});
 
@@ -359,7 +362,7 @@ suite('ChatConfiguration defaults', () => {
 			});
 		});
 
-		test('applied gaps neither veto nor enroll users in experiment-driven Agent Host selection', () => {
+		test('applied gaps do not change the configured Agent Host selection', () => {
 			const sessions = createChatSessionsService(SessionType.AgentHostCopilot);
 			const storage = disposables.add(new TestStorageService());
 			for (const rolloutDefault of [false, true]) {
@@ -393,7 +396,7 @@ suite('ChatConfiguration defaults', () => {
 				{ sessionType: SessionType.AgentHostCopilot, selectionReason: 'copilotPreference' });
 		});
 
-		test('review-only applied policies do not override experiment selection', () => {
+		test('review-only applied policies do not override harness selection', () => {
 			const { configuration, inspection } = createRestrictedConfiguration();
 			inspection.withArgs('chat.mcp.access').returns({});
 			inspection.withArgs('chat.useHooks').returns({});
@@ -558,9 +561,10 @@ suite('ChatConfiguration defaults', () => {
 		});
 	});
 
-	test('editor default stays local when the Copilot default is explicitly disabled', () => {
+	test('editor default stays local when both Copilot preferences are explicitly disabled', () => {
 		const configurationService = new TestConfigurationService({
 			[ChatConfiguration.DefaultToCopilotHarness]: false,
+			[ChatConfiguration.EditorPreferCopilotHarness]: false,
 		});
 		const chatSessionsService = createChatSessionsService(SessionType.AgentHostCopilot);
 		const storageService = disposables.add(new TestStorageService());
@@ -812,6 +816,27 @@ suite('ChatConfiguration defaults', () => {
 		});
 	});
 
+	test('default Copilot preference preserves explicit Local for one conversation and the user opt-out', async () => {
+		const settings = Registry.as<IConfigurationRegistry>(Extensions.Configuration).getConfigurationProperties();
+		const configurationService = new TestConfigurationService({
+			[ChatConfiguration.DefaultToCopilotHarness]: settings[ChatConfiguration.DefaultToCopilotHarness].default,
+			[ChatConfiguration.EditorPreferCopilotHarness]: settings[ChatConfiguration.EditorPreferCopilotHarness].default,
+		});
+		const chatSessionsService = createChatSessionsService(SessionType.AgentHostCopilot);
+		const storageService = disposables.add(new TestStorageService());
+		storeUserSelectedSessionType(storageService, localChatSessionType);
+		const resolve = (options?: IDefaultNewChatSessionTypeOptions) => resolveSessionTypeWithReason(configurationService, chatSessionsService, storageService, localWorkspace, true, options);
+		const explicit = resolve({ explicitOverride: localChatSessionType });
+		const next = resolve({ currentSessionType: localChatSessionType });
+		await configurationService.setUserConfiguration(ChatConfiguration.EditorPreferCopilotHarness, false);
+		assert.deepStrictEqual({ explicit, next, optOut: resolve(), stored: getRememberedSessionType(storageService) }, {
+			explicit: { sessionType: localChatSessionType, selectionReason: 'explicitOverride' },
+			next: { sessionType: SessionType.AgentHostCopilot, selectionReason: 'copilotPreference' },
+			optOut: { sessionType: localChatSessionType, selectionReason: 'rememberedSelection' },
+			stored: localChatSessionType,
+		});
+	});
+
 	test('Copilot preference is skipped when the agent host is disabled', () => {
 		const configurationService = new TestConfigurationService({
 			[ChatConfiguration.EditorPreferCopilotHarness]: true,
@@ -879,6 +904,7 @@ suite('ChatConfiguration defaults', () => {
 	test('selecting local while the agent host default is Copilot remembers local as an opt-out', () => {
 		const configurationService = new TestConfigurationService({
 			[ChatConfiguration.DefaultToCopilotHarness]: true,
+			[ChatConfiguration.EditorPreferCopilotHarness]: false,
 		});
 		const chatSessionsService = createChatSessionsService(SessionType.AgentHostCopilot);
 		const storageService = disposables.add(new TestStorageService());
@@ -937,15 +963,14 @@ suite('ChatConfiguration defaults', () => {
 		});
 	});
 
-	test('new chat from a local session preserves local even when the agent host default is Copilot', () => {
+	test('disabling the Copilot preference preserves current Local even when the computed default is Copilot', () => {
 		const configurationService = new TestConfigurationService({
 			[ChatConfiguration.DefaultToCopilotHarness]: true,
+			[ChatConfiguration.EditorPreferCopilotHarness]: false,
 		});
 		const chatSessionsService = createChatSessionsService(SessionType.AgentHostCopilot);
 		const storageService = disposables.add(new TestStorageService());
 
-		// No remembered selection and no preferred-harness setting: the current
-		// session type wins over the Copilot computed default (session preservation).
 		assert.deepStrictEqual({
 			resolved: resolveSessionType(configurationService, chatSessionsService, storageService, localWorkspace, true, { currentSessionType: localChatSessionType }),
 		}, {
@@ -990,7 +1015,7 @@ suite('ChatConfiguration defaults', () => {
 		});
 	});
 
-	test('virtual workspace defaults implicit new chats to local', () => {
+	test('virtual workspace follows the Copilot harness default and rejects other local harnesses', () => {
 		const configurationService = new TestConfigurationService({
 			[ChatConfiguration.DefaultToCopilotHarness]: true,
 			[ChatConfiguration.EditorLocalAgentEnabled]: false,
@@ -1013,17 +1038,19 @@ suite('ChatConfiguration defaults', () => {
 			explicitOverride: resolveSessionType(configurationService, chatSessionsService, currentStorageService, workspace, true, { explicitOverride: SessionType.AgentHostClaude }),
 			localVisible: isVisibleEditorChatSessionType(localChatSessionType, configurationService, chatSessionsService, workspace),
 			localRememberedUsable: isNewChatSessionTypeUsable(localChatSessionType, configurationService, chatSessionsService, workspace),
+			claudeUsable: isNewChatSessionTypeUsable(SessionType.AgentHostClaude, configurationService, chatSessionsService, workspace),
 		}, {
-			computed: localChatSessionType,
+			computed: SessionType.AgentHostCopilot,
 			remembered: SessionType.AgentHostClaude,
-			rememberedAware: localChatSessionType,
-			currentAware: localChatSessionType,
-			resolvedRemembered: { sessionType: localChatSessionType },
-			resolvedCurrent: { sessionType: localChatSessionType },
-			resolvedPreferMigration: { sessionType: localChatSessionType },
+			rememberedAware: SessionType.AgentHostCopilot,
+			currentAware: SessionType.AgentHostCopilot,
+			resolvedRemembered: { sessionType: SessionType.AgentHostCopilot },
+			resolvedCurrent: { sessionType: SessionType.AgentHostCopilot },
+			resolvedPreferMigration: { sessionType: SessionType.AgentHostCopilot },
 			explicitOverride: { sessionType: SessionType.AgentHostClaude },
 			localVisible: true,
 			localRememberedUsable: true,
+			claudeUsable: false,
 		});
 	});
 
@@ -1293,7 +1320,7 @@ suite('ChatConfiguration defaults', () => {
 			computed: getComputedDefaultSessionType(configurationService, chatSessionsService, workspace, true, true),
 		}, {
 			localEnabled: true,
-			computed: localChatSessionType,
+			computed: SessionType.AgentHostCopilot,
 		});
 	});
 
@@ -1309,14 +1336,12 @@ suite('ChatConfiguration defaults', () => {
 
 		assert.deepStrictEqual({
 			explicit: resolveSessionTypeWithReason(configurationService, chatSessionsService, storageService, localWorkspace, true, { explicitOverride: SessionType.AgentHostClaude }),
-			virtual: resolveSessionTypeWithReason(configurationService, chatSessionsService, storageService, createWorkspace(URI.parse('vscode-vfs://github/microsoft/vscode')), true),
 			remembered: resolveSessionTypeWithReason(configurationService, chatSessionsService, rememberedStorageService, localWorkspace, true),
 			current: resolveSessionTypeWithReason(configurationService, chatSessionsService, storageService, localWorkspace, true, { currentSessionType: SessionType.AgentHostClaude }),
 			copilotPreference: resolveSessionTypeWithReason(preferenceConfigurationService, chatSessionsService, storageService, localWorkspace, true, { currentSessionType: localChatSessionType }),
 			computed: resolveSessionTypeWithReason(configurationService, chatSessionsService, storageService, localWorkspace, true),
 		}, {
 			explicit: { sessionType: SessionType.AgentHostClaude, selectionReason: 'explicitOverride' },
-			virtual: { sessionType: localChatSessionType, selectionReason: 'virtualWorkspace' },
 			remembered: { sessionType: SessionType.AgentHostClaude, selectionReason: 'rememberedSelection' },
 			current: { sessionType: SessionType.AgentHostClaude, selectionReason: 'currentSession' },
 			copilotPreference: { sessionType: SessionType.AgentHostCopilot, selectionReason: 'copilotPreference' },
