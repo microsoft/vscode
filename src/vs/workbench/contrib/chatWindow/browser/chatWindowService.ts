@@ -346,6 +346,8 @@ export class ChatWindow extends Disposable implements IChatWindow {
 		return this._closed || this._closing || this._closingForLastChat;
 	}
 
+	/** The chat whose layout and part sizes the window remembers: the one it opened for, which a restored window keeps. */
+	anchor: IChatWindowChat;
 	private _closed = false;
 	/** Set while it closes, so that editors closing with it do not change its layout or close it again. */
 	private _closing = false;
@@ -364,6 +366,7 @@ export class ChatWindow extends Disposable implements IChatWindow {
 	) {
 		super();
 
+		this.anchor = firstChat;
 		this._chats = observableValue<readonly IChatWindowChat[]>(this, [firstChat]);
 		this._activeChat = observableValue<IChatWindowChat>(this, firstChat);
 		this.chats = derived(this, reader => {
@@ -798,6 +801,7 @@ export class ChatWindowService extends Disposable implements IChatWindowService 
 			open: (chat: URI, options: IChatWindowOpenOptions) => this.open(chat, options),
 			terminalsShown: window => window.terminalsVisible.get(),
 			chatsInOrder: window => this._windows.get().find(candidate => candidate === window)?.chatsInTabOrder(),
+			layoutChatOf: window => this._windows.get().find(candidate => candidate === window)?.anchor.chat.get(),
 			chatPart: window => this._windows.get().find(candidate => candidate === window)?.captureChatPart(),
 			createdParts: window => this._grids.get(window)?.createdParts ?? [],
 			activateChat: (window, chat) => this._windows.get().find(candidate => candidate === window)?.activateChat(chat),
@@ -964,12 +968,12 @@ export class ChatWindowService extends Disposable implements IChatWindowService 
 
 	private async _openWindow(provider: IChatWindowProvider, content: IChatWindowContent, firstChat: IChatWindowChat, options: IChatWindowOpenOptions | undefined, disposables: DisposableStore, setClose: (close: () => boolean) => void): Promise<ChatWindow> {
 		// What the window remembers, its layout and the sizes of its parts, is that of the chat it opens for.
-		const chat = firstChat.chat.get();
+		const chat = options?.layoutChat ?? firstChat.chat.get();
 		const rememberedLayout = this._chatLayouts.get(chat);
 		const state = new ChatWindowState(new ChatWindowDefaults(this._storageService), {
 			initial: rememberedLayout,
 			// For the chat the window opened for when the user chooses, which a replaced chat changes.
-			set: layout => this._chatLayouts.set(firstChat.chat.get(), layout),
+			set: layout => this._chatLayouts.set((window?.anchor ?? firstChat).chat.get(), layout),
 		});
 
 		// The window owns its chats once it exists; until then, the chat it opens for goes away with what failed to open.
@@ -1057,8 +1061,8 @@ export class ChatWindowService extends Disposable implements IChatWindowService 
 			findGroup: editor => this._findGroup(editor),
 			showMoveVeto: message => this._dialogService.error(message),
 			resetLayout: () => {
-				this._chatLayouts.delete(firstChat.chat.get());
-				this._chatSizes.delete(firstChat.chat.get());
+				this._chatLayouts.delete(chatWindow.anchor.chat.get());
+				this._chatSizes.delete(chatWindow.anchor.chat.get());
 				gridRef.get()?.reset();
 			},
 			windowGroups: {
@@ -1131,7 +1135,7 @@ export class ChatWindowService extends Disposable implements IChatWindowService 
 		this._grids.set(chatWindow, grid);
 		disposables.add(toDisposable(() => this._grids.delete(chatWindow)));
 		// What the window shows is what it shows again for its chat: the sizes of its parts per arrangement.
-		const saveSizes = () => this._chatSizes.set(firstChat.chat.get(), grid.exportSizes());
+		const saveSizes = () => this._chatSizes.set(chatWindow.anchor.chat.get(), grid.exportSizes());
 		disposables.add(this._storageService.onWillSaveState(saveSizes));
 		disposables.add(auxiliaryWindow.onBeforeUnload(saveSizes));
 		if (look.paintChatBackground) {
@@ -1170,6 +1174,11 @@ export class ChatWindowService extends Disposable implements IChatWindowService 
 		for (const [index, other] of (options?.chats ?? []).entries()) {
 			await this._addChat(chatWindow, other, { preserveFocus: true }, getRestoredChatGroup(chatPart, options?.chatPart, index), true, undefined, undefined, previous);
 			previous = chatWindow.chatInputs[chatWindow.chatInputs.length - 1] ?? previous;
+		}
+		// The remembered layout and sizes stay with the chat they were recorded for, wherever its tab is now
+		const anchor = options?.layoutChat && chatWindow.chatsOfWindow.find(candidate => candidate.chat.get().toString() === options.layoutChat!.toString());
+		if (anchor) {
+			chatWindow.anchor = anchor;
 		}
 		await this._openEditors(options?.editors, mainPart);
 		await this._openCreatedParts(options?.createdParts, mainPart, grid);

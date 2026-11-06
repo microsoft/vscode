@@ -42,6 +42,8 @@ export interface IChatWindowOpenOptions {
 	readonly window?: IChatWindow;
 	/** The chats it shows besides the one it opens for, in their order after it, such as those it showed when it last closed. */
 	readonly chats?: readonly URI[];
+	/** Of its chats, the one whose remembered layout and part sizes the window uses, when not the one it opens for. */
+	readonly layoutChat?: URI;
 	/** With {@link window}: one of its chats, beside which the chat opens, in a group of its own to the right. */
 	readonly beside?: URI;
 	/** With {@link window}: one of its chats, in whose group the chat opens as a tab. */
