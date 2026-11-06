@@ -36,6 +36,7 @@ import { automationScheduleToLocal, automationScheduleToUTC } from '../../../../
 import { IAutomationDialogResult, IAutomationDialogService, IShowAutomationDialogOptions } from '../../../../workbench/contrib/chat/common/automations/automationDialogService.js';
 import { AutomationRepositoryOwnershipUnavailableError, IAutomationService, ICreateAutomationOptions, IUpdateAutomationOptions } from '../../../../workbench/contrib/chat/common/automations/automationService.js';
 import { PromptFileVariableKind, toPromptFileVariableEntry } from '../../../../workbench/contrib/chat/common/attachments/chatVariableEntries.js';
+import { ChatContextKeys } from '../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
 import { IPromptsService, PromptsStorage } from '../../../../workbench/contrib/chat/common/promptSyntax/service/promptsService.js';
 import { PromptsType } from '../../../../workbench/contrib/chat/common/promptSyntax/promptTypes.js';
 import { IHostService } from '../../../../workbench/services/host/browser/host.js';
@@ -165,6 +166,7 @@ export class AutomationDialogService implements IAutomationDialogService {
 		let getBranch: () => string | undefined = () => initialWorkspaceTarget?.isolation.kind === 'worktree' ? initialWorkspaceTarget.isolation.branch : undefined;
 		let waitForAutomationSessionSync: (token: CancellationToken) => Promise<void> = async () => { };
 		let setSaving: (saving: boolean, committing?: boolean) => void = () => { };
+		let setManualMode: (manual: boolean) => void = () => { };
 		let setOwnership: (ownership: IFormState['ownership']) => void = () => { };
 		let getCustomizationIds: () => readonly string[] | undefined = () => undefined;
 		let waitForCustomizationChoices: (token: CancellationToken) => Promise<void> = async () => { };
@@ -365,7 +367,8 @@ export class AutomationDialogService implements IAutomationDialogService {
 				}
 				if (!manual) {
 					const skillUri = joinPath(BUILTIN_SKILLS_URI, 'automate', 'SKILL.md');
-					const skill = (await this.promptsService.findAgentSkills(cancellation.token))?.find(skill =>
+					const skills = await this.promptsService.findAgentSkills(cancellation.token);
+					const skill = skills && (await this.promptsService.listPromptFilesForStorage(PromptsType.skill, PromptsStorage.builtIn, cancellation.token)).find(skill =>
 						skill.name === 'automate' && skill.storage === PromptsStorage.builtIn && isEqual(skill.uri, skillUri));
 					if (!skill || this.promptsService.getDisabledPromptFiles(PromptsType.skill).has(skill.uri)) {
 						throw new Error(localize('automation.dialog.skillUnavailable', "The built-in /automate skill is unavailable or disabled. Enable it before starting the walkthrough."));
@@ -487,7 +490,7 @@ export class AutomationDialogService implements IAutomationDialogService {
 							if (saveInProgress || completion.isSettled) {
 								return;
 							}
-							manualMode.set(!manualMode.get(), undefined);
+							setManualMode(!manualMode.get());
 							focusFirst();
 						}));
 					}
@@ -554,6 +557,8 @@ export class AutomationDialogService implements IAutomationDialogService {
 				renderBody: container => {
 					container.classList.add('automation-dialog-body');
 					dialogElement = container.closest<HTMLElement>('.monaco-dialog-box') ?? undefined;
+					const dialogContextKeyService = disposables.add(this.contextKeyService.createScoped(dialogElement ?? container));
+					ChatContextKeys.inAutomationsDialog.bindTo(dialogContextKeyService).set(true);
 					const progressHost = DOM.append(container, $('.automation-dialog-progress'));
 					progressBar = disposables.add(new ProgressBar(progressHost, defaultProgressBarStyles));
 					progressBar.hide();
@@ -570,7 +575,8 @@ export class AutomationDialogService implements IAutomationDialogService {
 						description.hidden = manualMode.read(reader);
 					}));
 					const form = DOM.append(formPane, $('.automation-form'));
-					const handle = renderForm(form, state, disposables, validation, () => revalidate(), this.instantiationService, this.contextKeyService, this.contextViewService, this.configurationService, this.layoutService, this.logService, this.sessionsManagementService, this.workspaceTrustRequestService, initial?.prompt ?? '', initialTarget, initialSessionConfiguration, allowedProviders, providerId => this.automationService.getProviderConfiguration?.(providerId), isEdit, { service: this.automationService, hoverService: this.hoverService, existingId: existing?.id }, error => setDialogMessage('operationError', { severity: 'error', text: getErrorMessage(error) }), this.quickInputService, setRepositoryWarningVisible, setDialogMessage, () => notificationCenter?.focus(), this.chatViewFactory.inputEditorOptions, manualMode, save);
+					const handle = renderForm(form, state, disposables, validation, () => revalidate(), this.instantiationService, dialogContextKeyService, this.contextViewService, this.configurationService, this.layoutService, this.logService, this.sessionsManagementService, this.workspaceTrustRequestService, initial?.prompt ?? '', initialTarget, initialSessionConfiguration, allowedProviders, providerId => this.automationService.getProviderConfiguration?.(providerId), isEdit, { service: this.automationService, hoverService: this.hoverService, existingId: existing?.id }, error => setDialogMessage('operationError', { severity: 'error', text: getErrorMessage(error) }), this.quickInputService, setRepositoryWarningVisible, setDialogMessage, () => notificationCenter?.focus(), this.chatViewFactory.inputEditorOptions, manualMode, save);
+					setManualMode = handle.setManualMode;
 					getPrompt = handle.getPrompt;
 					getSessionConfiguration = handle.getSessionConfiguration;
 					getBranch = handle.getBranch;

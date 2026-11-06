@@ -28,6 +28,8 @@ import { URI } from '../../../../../base/common/uri.js';
 import { mock, upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { AccessibleViewRegistry } from '../../../../../platform/accessibility/browser/accessibleViewRegistry.js';
+import { AgentChatAccessibilityHelp } from '../../../../../workbench/contrib/chat/browser/actions/chatAccessibilityHelp.js';
+import { ChatModeKind } from '../../../../../workbench/contrib/chat/common/constants.js';
 import { IAccessibilityService } from '../../../../../platform/accessibility/common/accessibility.js';
 import { TestAccessibilityService } from '../../../../../platform/accessibility/test/common/testAccessibilityService.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
@@ -4834,6 +4836,30 @@ suite('AutomationsCardsWidget', () => {
 		}, {
 			emptyCatalogueHelp: [true, true, true, true],
 			populatedCatalogueHelp: true,
+		});
+	});
+
+	test('automation dialog help takes precedence over generic agent input help only inside the modal', () => {
+		const { contextKeyService } = setup();
+		const inDialog = ChatContextKeys.inAutomationsDialog.bindTo(contextKeyService);
+		const inInput = ChatContextKeys.inChatInput.bindTo(contextKeyService);
+		ChatContextKeys.chatModeKind.bindTo(contextKeyService).set(ChatModeKind.Agent);
+		const implementations = [
+			...AccessibleViewRegistry.getImplementations().filter(implementation => implementation.name.startsWith('sessions-automations')),
+			new AgentChatAccessibilityHelp(),
+		];
+		const selected = () => implementations
+			.filter(implementation => contextKeyService.contextMatchesRules(implementation.when))
+			.sort((a, b) => b.priority - a.priority)[0]?.name;
+		inDialog.set(true);
+		inInput.set(true);
+		const input = selected();
+		inInput.set(false);
+		const footer = selected();
+		inDialog.set(false);
+		inInput.set(true);
+		assert.deepStrictEqual({ input, footer, outside: selected() }, {
+			input: 'sessions-automations-dialog-help', footer: 'sessions-automations-dialog-help', outside: 'agentView',
 		});
 	});
 

@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { localize } from '../../../../../nls.js';
-import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
+import { ContextKeyExpression } from '../../../../../platform/contextkey/common/contextkey.js';
 import { ChatContextKeys } from '../../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
 import { getActiveElement, isHTMLElement } from '../../../../../base/browser/dom.js';
 import { AccessibleContentProvider, AccessibleViewProviderId, AccessibleViewType } from '../../../../../platform/accessibility/browser/accessibleView.js';
@@ -28,9 +28,11 @@ import { automationRunWithLocalProgress } from './automationRunProgress.js';
 
 class AutomationsCustomViewAccessibilityHelp implements IAccessibleViewImplementation {
 	readonly type = AccessibleViewType.Help;
-	readonly priority = 106;
-	readonly name = 'sessions-automations-help';
-	readonly when = ContextKeyExpr.or(AutomationsCustomViewFocusContext, ChatContextKeys.inAutomationsDialog);
+	constructor(
+		readonly priority = 106,
+		readonly name = 'sessions-automations-help',
+		readonly when: ContextKeyExpression = AutomationsCustomViewFocusContext,
+	) { }
 
 	getProvider(accessor: ServicesAccessor): AccessibleContentProvider {
 		const layoutService = accessor.get(IWorkbenchLayoutService);
@@ -300,4 +302,5 @@ function formatRunStatus(run: IAutomationRun): string {
 }
 
 AccessibleViewRegistry.register(new AutomationsCustomViewAccessibilityHelp());
+AccessibleViewRegistry.register(new AutomationsCustomViewAccessibilityHelp(121, 'sessions-automations-dialog-help', ChatContextKeys.inAutomationsDialog));
 AccessibleViewRegistry.register(new AutomationsCustomViewAccessibleView());
