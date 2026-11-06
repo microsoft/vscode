@@ -353,7 +353,9 @@ registerAction2(class FocusSearchInputCommandAction extends Action2 {
 		const searchView = await openSearchView(accessor.get(IViewsService), false);
 		// Focusing must not import macOS's global Find clipboard over the query.
 		if (searchView) {
-			focusSearchInputPreservingQuery(searchView.searchAndReplaceWidget);
+			const widget = searchView.searchAndReplaceWidget;
+			const input = widget.searchInput?.inputBox.inputElement;
+			focusSearchInputPreservingQuery(widget, !!input && getActiveElement() === input);
 		}
 	}
 });
