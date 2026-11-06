@@ -306,6 +306,7 @@ class MockAgentHostService extends mock<IAgentHostService>() {
 				status: ProtocolSessionStatus.Idle,
 				modifiedAt: new Date(0).toISOString(),
 				...(provider !== undefined ? { provider } : {}),
+				...(options?.sideChat ? { origin: { kind: ProtocolChatOriginKind.SideChat, chat: options.sideChat.source.toString(), turnId: options.sideChat.turnId, ...(options.sideChat.selection ? { selection: options.sideChat.selection } : {}) } } : {}),
 			};
 			this.setSessionState(AgentSession.id(session), AgentSession.provider(session)!, {
 				...existing,
@@ -13968,7 +13969,7 @@ suite('LocalAgentHostSessionsProvider', () => {
 				assert.deepStrictEqual(agentHost.createdChats, []);
 			}));
 
-			test('fork and side chat never name an agent and keep the source chat\'s harness', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+			test('forks and side chats keep the source harness with or without source context', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
 				const provider = createProvider(disposables, agentHost, undefined, { configurationService: enableChatProviders() });
 				const session = setupMultiChatSession(provider, 'harness-fork');
 				const sessionUri = AgentSession.uri('copilotcli', 'harness-fork').toString();
@@ -13978,13 +13979,14 @@ suite('LocalAgentHostSessionsProvider', () => {
 
 				const forked = await provider.forkChat(session.sessionId, source.resource, 'turn-1');
 				const side = await provider.createSideChat(session.sessionId, source.resource, 'turn-1');
+				const fresh = await provider.createSideChat(session.sessionId, source.resource, 'turn-1', undefined, false);
 
 				assert.deepStrictEqual({
 					providers: agentHost.createdChats.map(call => (call.options as { readonly provider?: string } | undefined)?.provider),
-					harnesses: [forked.harness, side.harness],
+					harnesses: [forked.harness, side.harness, fresh.harness],
 				}, {
-					providers: [undefined, undefined],
-					harnesses: ['otheragent', 'otheragent'],
+					providers: [undefined, undefined, undefined],
+					harnesses: ['otheragent', 'otheragent', 'otheragent'],
 				});
 			}));
 
@@ -14351,6 +14353,30 @@ suite('LocalAgentHostSessionsProvider', () => {
 				sideChatInCatalog: true,
 			});
 		}));
+
+		for (const opaque of [false, true]) {
+			test(`createSideChat retains side-chat identity while excluding source context on ${opaque ? 'opaque' : 'shaped'} hosts`, () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+				agentHost.setAgents([{ provider: 'copilotcli', displayName: 'Copilot', description: '', models: [], capabilities: { multipleChats: { sideChat: true } } } as AgentInfo]);
+				const provider = createProvider(disposables, agentHost);
+				const session = setupMultiChatSession(provider, 'fresh-side-chat');
+				const sessionUri = AgentSession.uri('copilotcli', 'fresh-side-chat').toString();
+				const defaultChat = opaque ? 'ahp-chat:/11111111-1111-4111-8111-111111111111' : buildDefaultChatUri(sessionUri);
+				agentHost.setSessionState('fresh-side-chat', 'copilotcli', makeState([makeChatSummary(defaultChat, '')], { defaultChat }));
+
+				const sideChat = await provider.createSideChat(session.sessionId, session.resource, 'turn-1', { text: 'Source selection' }, false);
+				const call = agentHost.createdChats.at(-1);
+
+				assert.deepStrictEqual({
+					options: { ...call?.options, sideChat: { ...call?.options?.sideChat, source: call?.options?.sideChat?.source.toString() } },
+					inCatalog: session.chats.get().some(chat => chat.resource.toString() === sideChat.resource.toString()),
+					origin: sideChat.origin,
+				}, {
+					options: { model: undefined, sideChat: { source: defaultChat, turnId: 'turn-1', selection: { text: 'Source selection' }, includeSourceContext: false } },
+					inCatalog: true,
+					origin: { kind: ChatOriginKind.SideChat, parentChat: session.resource, turnId: 'turn-1', selection: { text: 'Source selection' } },
+				});
+			}));
+		}
 
 		test('createSideChat translates a subagent source to the canonical host chat URI', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
 			agentHost.setAgents([{ provider: 'copilotcli', displayName: 'Copilot', description: '', models: [], capabilities: { multipleChats: { fork: true, sideChat: true } } } as AgentInfo]);

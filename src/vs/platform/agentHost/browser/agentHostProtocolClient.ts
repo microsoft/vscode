@@ -26,6 +26,7 @@ import { supportsAgentHostWorktreeDiskUsage } from '../common/meta/agentHostWork
 import { supportsAgentHostManagedWorktrees, supportsAgentHostWorktreeCleanup, supportsForceWorktreeCleanup } from '../common/meta/agentHostWorktreeCleanupMeta.js';
 import { CleanupManagedWorktreeExtensionMethod, ListManagedWorktreesExtensionMethod, managedWorktreesValidator, SessionWorktreeCleanupExtensionMethod, sessionWorktreeCleanupStatusValidator, type IAgentHostManagedWorktree, type IAgentHostWorktreeCleanupStatus } from '../common/agentHostWorktreeCleanup.js';
 import { serializeChatWorkspace, withCreateChatWorkspaceMeta } from '../common/meta/agentHostCreateChatWorkspaceMeta.js';
+import { supportsAgentHostSideChatWithoutContext, withSideChatWithoutContext } from '../common/meta/agentHostSideChatMeta.js';
 import { withoutAgentPermissionFeedback } from '../common/meta/agentPermissionResponseMeta.js';
 import { AGENT_HOST_CREATE_SESSION_IMPORT_CHUNK_CHARS, serializeCreateSessionImport, splitCreateSessionImportChunks, StageCreateSessionImportChunkExtensionMethod, supportsAgentHostCreateSessionImport, withCreateSessionImportMeta, withStagedCreateSessionImportMeta } from '../common/meta/agentHostCreateSessionImportMeta.js';
 import { vArray, vEnum, vObj, vOptionalProp, vString, vUnknown } from '../../../base/common/validation.js';
@@ -2883,6 +2884,16 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 		if (workspace && !supportsAgentHostCreateChatWorkspace(this._initializeResult.get())) {
 			throw new Error(localize('agentHost.createChatWorkspaceUnsupported', "This agent host can't create a chat in its own workspace."));
 		}
+		const withoutSourceContext = options?.sideChat?.includeSourceContext === false;
+		if (withoutSourceContext && !supportsAgentHostSideChatWithoutContext(this._initializeResult.get())) {
+			throw new Error(localize('agentHost.sideChatWithoutContextUnsupported', "This agent host can't create a side chat without source context. Update the agent host to explain this command."));
+		}
+		let meta = workspace
+			? withCreateChatWorkspaceMeta(undefined, workspace.kind === 'folder' ? { ...workspace, folder: this._toHostUri(workspace.folder) } : workspace)
+			: undefined;
+		if (withoutSourceContext) {
+			meta = withSideChatWithoutContext(meta);
+		}
 		const initialMessage = options?.initialMessage && {
 			...options.initialMessage,
 			...(options.initialMessage.model === undefined && options.model !== undefined ? { model: options.model } : {}),
@@ -2908,9 +2919,7 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 					...(options.sideChat.selection ? { selection: options.sideChat.selection } : {}),
 				}
 			} : {}),
-			...(workspace ? {
-				_meta: withCreateChatWorkspaceMeta(undefined, workspace.kind === 'folder' ? { ...workspace, folder: this._toHostUri(workspace.folder) } : workspace),
-			} : {}),
+			...(meta ? { _meta: meta } : {}),
 		});
 	}
 

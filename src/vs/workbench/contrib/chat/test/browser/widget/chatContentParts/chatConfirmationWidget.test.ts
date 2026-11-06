@@ -24,7 +24,7 @@ import { IChatSideChatService } from '../../../../common/chatSideChatService.js'
 suite('ChatTerminalToolExplanation', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
-	test('uses the current command and originating turn, disabling repeated requests while pending', async () => {
+	test('explains only the current command in a fresh side chat, disabling repeated requests while pending', async () => {
 		const instantiationService = workbenchInstantiationService(undefined, store);
 		const pending = new DeferredPromise<void>();
 		const ask = sinon.spy(() => pending.p);
@@ -44,9 +44,20 @@ suite('ChatTerminalToolExplanation', () => {
 			calls: ask.getCalls().map(call => call.args),
 			disabled, disabledWhilePending, disabledAfter: explanation.button!.disabled,
 		}, {
-			calls: [[resource, 'Explain what this terminal command will do.', { text: 'edited command' }, { sourceTurnId: 'turn' }]],
+			calls: [[resource, 'Explain what this terminal command will do. Do not run it.\n\n`edited command`', undefined, { sourceTurnId: 'turn', includeSourceContext: false }]],
 			disabled: [true, false], disabledWhilePending: true, disabledAfter: false,
 		});
+	});
+
+	test('formats shell backticks as part of the command rather than markdown delimiters', async () => {
+		const instantiationService = workbenchInstantiationService(undefined, store);
+		const ask = sinon.spy(async (_resource: URI, _query: string) => { });
+		instantiationService.stub(IChatSideChatService, { canAskInSideChat: () => true, askInSideChat: ask });
+		const explanation = store.add(instantiationService.createInstance(ChatTerminalToolExplanation, URI.parse('test:///chat'), 'turn', () => 'echo `pwd`'));
+
+		await explanation.explain();
+
+		assert.strictEqual(ask.firstCall.args[1], 'Explain what this terminal command will do. Do not run it.\n\n`` echo `pwd` ``');
 	});
 
 	test('omits unsupported explanations and reports failures without leaving the action disabled', async () => {

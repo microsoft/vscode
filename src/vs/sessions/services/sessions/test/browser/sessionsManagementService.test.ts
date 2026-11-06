@@ -9064,29 +9064,33 @@ suite('SessionsManagementService', () => {
 
 	suite('createSideChatInSession', () => {
 
-		test('asks the provider to create the side chat when the session supports it', async () => {
+		test('asks the provider to create side chats with the requested source context', async () => {
 			const sourceChat = URI.parse('test:///source');
 			const sideChat: IChat = { ...stubChat, resource: URI.parse('test:///side') };
 			const session = stubSession({ sessionId: 'side', providerId: 'test', capabilities: constObservable({ supportsMultipleChats: true, supportsSideChat: true }) });
 			const selection = { text: '  selected text  ' };
-			let createSideChatArgs: readonly [string, URI, string, ISideChatSelection | undefined] | undefined;
+			const createSideChatArgs: [string, URI, string, ISideChatSelection | undefined, boolean | undefined][] = [];
 			const provider = new class extends TestSessionsProvider {
 				constructor() { super(session); }
-				override async createSideChat(sessionId: string, sourceChat: URI, turnId: string, selection?: ISideChatSelection): Promise<IChat> {
-					createSideChatArgs = [sessionId, sourceChat, turnId, selection];
+				override async createSideChat(sessionId: string, sourceChat: URI, turnId: string, selection?: ISideChatSelection, includeSourceContext?: boolean): Promise<IChat> {
+					createSideChatArgs.push([sessionId, sourceChat, turnId, selection, includeSourceContext]);
 					return sideChat;
 				}
 			};
 			const { service } = createSessionsManagementService(session, disposables, provider);
 
 			const result = await service.createSideChatInSession(session, sourceChat, 'turn-1', selection);
+			await service.createSideChatInSession(session, sourceChat, 'turn-1', undefined, false);
 
 			assert.deepStrictEqual({
 				result: result.resource.toString(),
-				args: createSideChatArgs?.map(arg => URI.isUri(arg) ? arg.toString() : arg),
+				args: createSideChatArgs.map(args => args.map(arg => URI.isUri(arg) ? arg.toString() : arg)),
 			}, {
 				result: sideChat.resource.toString(),
-				args: ['side', sourceChat.toString(), 'turn-1', selection],
+				args: [
+					['side', sourceChat.toString(), 'turn-1', selection, undefined],
+					['side', sourceChat.toString(), 'turn-1', undefined, false],
+				],
 			});
 		});
 

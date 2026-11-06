@@ -1233,6 +1233,8 @@ export interface IAgentCreateChatSideChatSource {
 	readonly turnId: string;
 	/** Optional selected-text snapshot captured from the source chat transcript. */
 	readonly selection?: IAgentCreateChatSideChatSelection;
+	/** Defaults to true; false retains provenance without forking or injecting source conversation context. */
+	readonly includeSourceContext?: boolean;
 }
 
 /** Result of {@link IAgentChats.createChat}: the opaque blob to persist for restore. */

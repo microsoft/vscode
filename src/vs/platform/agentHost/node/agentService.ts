@@ -99,6 +99,7 @@ import { AgentHostLocalTurns, interleaveLocalTurns } from './agentHostLocalTurns
 import { AgentHostSavedChatService, type AgentHostSavedChatArchiveTarget } from './agentHostSavedChatService.js';
 import type { IAgentHostSavedChat, IAgentHostSavedChatContinuation, IAgentHostSavedChatContinuationResult } from '../common/agentHostSavedChat.js';
 import { hasSingleUserChat, ISessionWorkspaceConversionService } from './chatContributions/sessionWorkspaceConversion/sessionWorkspaceConversionService.js';
+import { persistSideChatSourceContext } from './chatContributions/sideChat/sideChatContext.js';
 import { AgentSessionResidency } from './agentSessionResidency.js';
 import { IAgentHostResourceProviders } from './agentHostResourceProviders.js';
 import { GIT_BLOB_SCHEME } from './gitDiffContent.js';
@@ -7818,6 +7819,10 @@ export class AgentService extends Disposable implements IAgentService {
 						createResult?.inheritedTurnId,
 						createOptions?.workingDirectories?.map(directory => directory.toString()),
 					);
+					if (sideChat) {
+						// Overwrite any context choice copied by the provider's fork.
+						await persistSideChatSourceContext(this._peerChatStore, session, chat, sideChat.includeSourceContext !== false);
+					}
 					if (peerChatOrigin?.kind !== ChatOriginKind.Tool) {
 						await this._recordLaunchDirectories(session, [{ chat: chat.toString(), isDefault: false }], createOptions?.workingDirectories?.map(directory => directory.toString()) ?? this._sessionFoldersOfChatWithoutOwn(sessionKey));
 					}
@@ -8000,7 +8005,7 @@ export class AgentService extends Disposable implements IAgentService {
 				...(selection ? { selection } : {}),
 			},
 			sourceChat: sourceChatKey,
-			shouldFork: sourceHasProviderFork && (!activeTurn || anchorTurnId !== undefined),
+			shouldFork: sideChat.includeSourceContext !== false && sourceHasProviderFork && (!activeTurn || anchorTurnId !== undefined),
 			...(selection ? { selection } : {}),
 			...(anchorTurnId ? { anchorTurnId } : {}),
 		};

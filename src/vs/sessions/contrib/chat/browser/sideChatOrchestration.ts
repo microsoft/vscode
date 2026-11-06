@@ -32,10 +32,8 @@ export async function openAndSendSideChat(
 }
 
 /**
- * Creates a side chat branched from `turnId` in `sourceChat`, then opens and
- * sends the request on it via {@link openAndSendSideChat}, or sends it in the
- * background when the user navigated away from `sourceChat` meanwhile: the
- * window that shows it shows another chat, or none shows it any more.
+ * Creates a side chat with source context by default, then opens and sends the request.
+ * Sends in the background if the user navigated away from `sourceChat` meanwhile.
  */
 export async function createAndSendSideChat(
 	sessionsManagementService: ISessionsManagementService,
@@ -47,6 +45,7 @@ export async function createAndSendSideChat(
 	turnId: string,
 	requestOptions: ISendRequestOptions,
 	selection?: ISideChatSelection,
+	includeSourceContext?: boolean,
 ): Promise<IChat> {
 	const sourceHost = sessionHostService.getHostOfChat(sourceChat);
 	const windowHost = sourceHost && getWindowHost(sourceHost);
@@ -67,7 +66,7 @@ export async function createAndSendSideChat(
 	});
 	let sideChat: IChat;
 	try {
-		sideChat = await sessionsManagementService.createSideChatInSession(session, sourceChat, turnId, selection);
+		sideChat = await sessionsManagementService.createSideChatInSession(session, sourceChat, turnId, selection, includeSourceContext);
 	} finally {
 		navigationObserver.dispose();
 	}

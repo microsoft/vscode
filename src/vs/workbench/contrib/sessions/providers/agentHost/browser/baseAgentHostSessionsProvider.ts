@@ -8733,7 +8733,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		return chat;
 	}
 
-	async createSideChat(sessionId: string, sourceChat: URI, turnId: string, selection?: ISideChatSelection): Promise<IChat> {
+	async createSideChat(sessionId: string, sourceChat: URI, turnId: string, selection?: ISideChatSelection, includeSourceContext = true): Promise<IChat> {
 		this._assertSessionAvailable(sessionId);
 		const connection = this.connection;
 		if (!connection) {
@@ -8771,6 +8771,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 				source: sourceBackendUri,
 				turnId,
 				...(selection ? { selection } : {}),
+				...(!includeSourceContext ? { includeSourceContext: false } : {}),
 			},
 		});
 

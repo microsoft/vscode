@@ -5,6 +5,7 @@
 
 import { toErrorMessage } from '../../../../../../../base/common/errorMessage.js';
 import { Emitter } from '../../../../../../../base/common/event.js';
+import { appendEscapedMarkdownInlineCode } from '../../../../../../../base/common/htmlContent.js';
 import { Disposable } from '../../../../../../../base/common/lifecycle.js';
 import { URI } from '../../../../../../../base/common/uri.js';
 import { localize } from '../../../../../../../nls.js';
@@ -49,9 +50,9 @@ export class ChatTerminalToolExplanation extends Disposable {
 		try {
 			await this.sideChatService.askInSideChat(
 				this.sessionResource,
-				localize('tool.explain.query', "Explain what this terminal command will do."),
-				{ text: this.getCommand().trim() },
-				{ sourceTurnId: this.sourceTurnId },
+				localize('tool.explain.query', "Explain what this terminal command will do. Do not run it.\n\n{0}", appendEscapedMarkdownInlineCode(this.getCommand().trim())),
+				undefined,
+				{ sourceTurnId: this.sourceTurnId, includeSourceContext: false },
 			);
 		} catch (error) {
 			this.notificationService.error(localize('tool.explain.failed', "The side chat could not be started: {0}", toErrorMessage(error)));
