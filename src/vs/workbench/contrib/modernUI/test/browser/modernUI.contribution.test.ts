@@ -3027,7 +3027,7 @@ suite('ModernUIContribution', () => {
 				for (const disabled of [false, true]) {
 					tabs.classList.toggle('disable-sticky-tabs', disabled);
 					assert.deepStrictEqual([active, peer, scrollbar].map(element => targetWindow.getComputedStyle(element).zIndex),
-						[disabled ? 'auto' : '9', disabled ? 'auto' : '8', '11']);
+						[disabled ? '1' : '9', disabled ? 'auto' : '8', '11']);
 				}
 			}
 		}

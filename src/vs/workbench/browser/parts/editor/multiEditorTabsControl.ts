@@ -2659,7 +2659,9 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 			}
 			const shoulderInset = 'calc(-1 * (var(--modern-ui-connected-tab-shoulder-radius) + var(--vscode-strokeThickness)))';
 			for (const { tab, clipped } of clipping) {
-				tab.style.clipPath = clipped > 0 ? `inset(calc(-1 * var(--vscode-strokeThickness)) ${rtl ? shoulderInset : `${clipped}px`} calc(-1 * var(--vscode-strokeThickness)) ${rtl ? `${clipped}px` : shoulderInset})` : '';
+				// The active shoulder may use the reserved gutter, but never extend beneath Add Tab.
+				const inset = clipped - (tab.classList.contains('active') ? shoulderSpace : 0);
+				tab.style.clipPath = clipped > 0 ? `inset(calc(-1 * var(--vscode-strokeThickness)) ${rtl ? shoulderInset : `${inset}px`} calc(-1 * var(--vscode-strokeThickness)) ${rtl ? `${inset}px` : shoulderInset})` : '';
 			}
 		} else {
 			if (this.connectedTabBounds) {

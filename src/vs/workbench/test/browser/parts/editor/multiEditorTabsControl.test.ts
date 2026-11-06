@@ -489,6 +489,11 @@ suite('MultiEditorTabsControl', () => {
 			const oppositeShoulder = mainWindow.getComputedStyle(activeFill, direction === 'rtl' ? '::after' : '::before');
 			const shoulderWidth = Number.parseFloat(oppositeShoulder.width) * zoom;
 			const activeFillBounds = activeFill.getBoundingClientRect();
+			const activeClip = mainWindow.getComputedStyle(activeFill.parentElement!).clipPath;
+			const clipInsets = activeClip === 'none' ? undefined : activeClip.slice(6, -1).split(' ');
+			const shoulderClipEdge = clipInsets
+				? direction === 'rtl' ? activeFillBounds.left + Number.parseFloat(clipInsets[3]) * zoom : activeFillBounds.right - Number.parseFloat(clipInsets[1]) * zoom
+				: direction === 'rtl' ? Number.NEGATIVE_INFINITY : Number.POSITIVE_INFINITY;
 			const activeVisibleWidth = Math.min(activeFillBounds.right, tabs.getBoundingClientRect().right) - Math.max(activeFillBounds.left, boundary);
 			const rtlCapExpected = direction === 'rtl' && activeVisibleWidth > shoulderWidth;
 			const oppositeShoulderOutsideViewport = direction === 'rtl'
@@ -501,10 +506,14 @@ suite('MultiEditorTabsControl', () => {
 					? Math.abs(overlay.getBoundingClientRect().left - boundary) < 1 / 32
 					: !overlay.classList.contains('connected-tab-left-clipped')),
 				oppositeShoulderPresentWhenVisible: oppositeShoulderOutsideViewport || oppositeShoulder.content === '""',
+				activeClipRetainsShoulderGutter: direction === 'rtl'
+					? shoulderClipEdge <= Math.max(activeFillBounds.left - shoulderWidth, add.getBoundingClientRect().right) + 1 / 32
+					: shoulderClipEdge >= Math.min(activeFillBounds.right + shoulderWidth, add.getBoundingClientRect().left) - 1 / 32,
 				matchingClip: rendered.every(tab => {
 					const expected = Math.max(0, (direction === 'rtl' ? boundary - tab.getBoundingClientRect().left : tab.getBoundingClientRect().right - boundary) / zoom);
-					const match = mainWindow.getComputedStyle(tab).clipPath.match(direction === 'rtl' ? /^inset\(-1px -8px -1px ([\d.]+)px\)$/ : /^inset\(-1px ([\d.]+)px -1px -8px\)$/);
-					return expected < 1 / 32 ? !tab.style.clipPath || !!match && Number.parseFloat(match[1]) < 1 / 32 : !!match && Math.abs(Number.parseFloat(match[1]) - expected) < 1 / 32;
+					const inset = expected - (tab.classList.contains('active') ? 8 : 0);
+					const match = mainWindow.getComputedStyle(tab).clipPath.match(direction === 'rtl' ? /^inset\(-1px -8px -1px (-?[\d.]+)px\)$/ : /^inset\(-1px (-?[\d.]+)px -1px -8px\)$/);
+					return expected < 1 / 32 ? !tab.style.clipPath || !!match && Math.abs(Number.parseFloat(match[1]) - inset) < 1 / 32 : !!match && Math.abs(Number.parseFloat(match[1]) - inset) < 1 / 32;
 				}),
 			};
 		};
@@ -538,10 +547,67 @@ suite('MultiEditorTabsControl', () => {
 			results, hiddenAddClippingCleared,
 			wrappedClippingCleared: Array.from(tabs.querySelectorAll<HTMLElement>('.tab')).every(tab => !tab.style.clipPath),
 		}, {
-			results: results.map(result => ({ ...result, resting: { hasClippedTab: true, hasClippedActive: true, rtlCapAtBoundary: true, oppositeShoulderPresentWhenVisible: true, matchingClip: true }, scrolled: { hasClippedTab: true, hasClippedActive: true, rtlCapAtBoundary: true, oppositeShoulderPresentWhenVisible: true, matchingClip: true } })),
+			results: results.map(result => ({ ...result, resting: { hasClippedTab: true, hasClippedActive: true, rtlCapAtBoundary: true, oppositeShoulderPresentWhenVisible: true, activeClipRetainsShoulderGutter: true, matchingClip: true }, scrolled: { hasClippedTab: true, hasClippedActive: true, rtlCapAtBoundary: true, oppositeShoulderPresentWhenVisible: true, activeClipRetainsShoulderGutter: true, matchingClip: true } })),
 			hiddenAddClippingCleared: true,
 			wrappedClippingCleared: true,
 		});
+	});
+
+	test('Connected active tabs cover the separator when Add Tab clips them', async () => {
+		const group = connectedGroup();
+		const root = group.closest<HTMLElement>('.monaco-workbench')!;
+		root.classList.add('test-connected-tab-seam');
+		const probe = mainWindow.document.createElement('style');
+		// Expose the painted surfaces to the browser's stacking-order hit test.
+		probe.textContent = '.test-connected-tab-seam.modern-ui-tabs.modern-ui-connected-editor-tabs.monaco-workbench .part.editor > .content .editor-group-container > .title.tabs > .tabs-and-actions-container::after { pointer-events: auto; }';
+		root.appendChild(probe);
+		control.dispose();
+		reset(container);
+		control = createControl({ tabsBarAddTab: MenuId.for('test.connectedTabs.activeSeam') });
+		const oldOptions = partOptions;
+		partOptions = { ...partOptions, tabSizing: 'fixed', tabSizingFixedMinWidth: 120, tabSizingFixedMaxWidth: 120, wrapTabs: false, editorActionsLocation: 'hidden' };
+		control.updateOptions(oldOptions, partOptions);
+		const results = [];
+		for (const count of [1, 3]) {
+			const editors = openNamedEditors(Array.from({ length: count }, (_, index) => `file${index}.ts`));
+			for (let activeIndex = 0; activeIndex < count; activeIndex++) {
+				model.setActive(editors[activeIndex]);
+				control.openEditor(editors[activeIndex]);
+				for (const direction of ['ltr', 'rtl']) {
+					root.dir = direction;
+					for (const width of [600, 100, 600]) {
+						await layoutConnectedGroup(group, width);
+						control.layout({ container: new Dimension(width, 33), available: new Dimension(width, 300) }, { forceRevealActiveTab: true });
+						await new Promise<void>(resolve => disposables.add(scheduleAtNextAnimationFrame(mainWindow, () => resolve())));
+						const strip = container.querySelector<HTMLElement>('.tabs-and-actions-container')!;
+						const tabs = container.querySelector<HTMLElement>('.tabs-container')!;
+						const active = tabs.querySelector<HTMLElement>('.tab.active')!;
+						const fill = active.querySelector<HTMLElement>('.tab-fill')!;
+						fill.style.pointerEvents = 'auto';
+						const add = tabs.querySelector<HTMLElement>('.tabs-bar-add-tab')!;
+						if (direction === 'rtl') {
+							tabs.classList.add('scroll');
+							tabs.scrollLeft += active.getBoundingClientRect().right - tabs.getBoundingClientRect().right;
+							tabs.dispatchEvent(new mainWindow.Event(EventType.SCROLL));
+						}
+						const bounds = fill.getBoundingClientRect();
+						const viewport = tabs.getBoundingClientRect();
+						const left = Math.max(bounds.left, viewport.left, direction === 'rtl' ? add.getBoundingClientRect().right + 8 : viewport.left);
+						const right = Math.min(bounds.right, viewport.right, direction === 'ltr' ? add.getBoundingClientRect().left - 8 : viewport.right);
+						const hit = mainWindow.document.elementFromPoint((left + right) / 2, strip.getBoundingClientRect().bottom - 0.5);
+						results.push({
+							count, activeIndex, direction, width,
+							clipped: !!active.style.clipPath,
+							visible: right > left,
+							seamOwner: hit === fill ? 'activeFill' : hit?.className,
+						});
+					}
+				}
+			}
+		}
+		assert.deepStrictEqual(results, results.map(result => ({
+			...result, clipped: result.width === 100, visible: true, seamOwner: 'activeFill',
+		})));
 	});
 
 	test('scrolling Add clipping reads every tab before changing clip styles', async () => {
