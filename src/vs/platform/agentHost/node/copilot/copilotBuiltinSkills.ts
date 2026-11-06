@@ -260,19 +260,26 @@ Cover **what happened and why** (root cause), **key evidence** (paraphrased — 
 /** Built from lines because YAML needs leading spaces, which source lines here can't start with. */
 const modelRouterExample = [
 	'version: 1                 # required',
-	'description: Haiku for quick work, Opus for planning.   # required; shown in the model picker',
+	'description: Haiku for quick work, Opus for building, Sol for figuring out why.   # required; shown in the model picker',
 	'effort: auto               # optional: auto (default), off, or a fixed level',
 	'switching: auto            # optional: auto (default) or first-turn',
-	'guidance: |                # optional; sent with every routing decision',
-	'  Prefer the cheapest model that can do the job.',
 	'routes:                    # 2 to 10 routes; the first is the fallback',
 	'  - model: claude-haiku-4.5',
-	'    when: Lookups, explanations and small, local edits.',
+	'    when: Quick answers and small chores that need little investigation, such as where something is, what a setting does, a one-file edit or a git command.',
 	'    examples:              # optional, up to 10',
 	'      - where is the code for the login page?',
+	'      - undo that test',
 	'  - model: [claude-opus-4.8, claude-opus-4.7]   # fallbacks, in order',
-	'    when: Planning, design, and changes across many files.',
+	'    when: Building or changing things over many steps, such as a feature or prototype, multi-file changes, a rebase with conflicts, a PR review, or a doc that needs research.',
+	'    examples:',
+	'      - prototype this',
+	'      - review the PR and tell me what to change',
 	'    effort: high           # optional; overrides the router\'s effort',
+	'  - model: gpt-6.1-sol',
+	'    when: Figuring out why, such as debugging a failure, analyzing data or telemetry, explaining surprising numbers, or judging whether a proposal works.',
+	'    examples:',
+	'      - why is this failing?',
+	'      - why is token usage higher in treatment?',
 ].join('\n');
 
 const modelRouterSkillContent = `# Model router
@@ -292,7 +299,8 @@ ${modelRouterExample}
 \`\`\`
 
 - \`model\` is a Copilot model id, or \`<vendor>/<id>\` for a model on the user's own key (for example \`anthropic/claude-haiku-4-5\`; add the group, \`<vendor>/<group>/<id>\`, if two match). A list is tried in order and the first available model is used. Each model may appear in only one route.
-- \`when\` says, in plain words, which requests the route is for. Write it for a reader who sees only the request.
+- \`when\` says which requests the route is for. The decision model sees only the user's message, so describe **the work a request involves**, not just its topic: "Building or changing things over many steps, such as …" routes far better than "Planning and design". Name concrete kinds of requests, and add 2 or 3 \`examples\` in the user's own words, including short ones like "prototype this". Avoid a catch-all first route ("explanations", "questions"): short messages often start long investigations.
+- Keep \`guidance\` for rules that apply to every request; a line like "prefer the cheapest model" pulls almost every request to the first route.
 - \`effort\` levels: none, minimal, low, medium, high, xhigh, max, ultra. Only levels the model supports work; the check reports the rest. \`auto\` lets the router choose per request; \`off\` leaves each model's default.
 - \`switching: first-turn\` picks a model on the first turn and keeps it; \`auto\` may switch later when the work clearly changes.
 - Keys \`subagents\`, \`phases\` and \`mid-turn\` are reserved for later versions and ignored.

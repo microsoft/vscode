@@ -27,6 +27,9 @@ const scopeCriteria: Readonly<Record<ModelRouterScopeChange, string>> = {
 	different: 'A different task, unrelated to what the chat has been doing.',
 };
 
+/** Without this, the decision model judges a request by its length and routes most of them to the lightest model. */
+const agentFraming = 'The request goes to an AI coding agent that works in the user\'s repositories with tools: it can read files, run commands and edit code. Judge the work the request needs to be done well, not how short the message is: a short message can start a long investigation.';
+
 const effortCriteria: readonly string[] = [
 	'Low: a trivial lookup, mechanical edit, or simple explanation.',
 	'Medium: a well-specified, multi-step task in a familiar area.',
@@ -94,14 +97,14 @@ export function buildModelRouterDecisionsRequest(request: IModelRouterPickReques
 	const questions: IAgentDecisionQuestion[] = [{
 		kind: 'choice',
 		name: 'model',
-		instructions: `Pick the model the user would want for this request, going by the routes they wrote for when to use each model. Follow the routes over your own view of the models.${request.guidance ? `\n\nThe user's guidance for every request:\n${request.guidance}` : ''}`,
+		instructions: `${agentFraming}\n\nPick the model the user would want for this request, going by the routes they wrote for when to use each model. Follow the routes over your own view of the models.${request.guidance ? `\n\nThe user's guidance for every request:\n${request.guidance}` : ''}`,
 		options: rotateForRequest(request.candidates, request.text).map(candidate => ({ value: candidate.id, description: `${candidate.name}. Use for: ${describeRoute(candidate)}` })),
 	}];
 	if (request.askEffort) {
 		questions.push({
 			kind: 'score',
 			name: 'effort',
-			instructions: `How much reasoning effort does this request need? If one of the routes below covers this kind of request and says what effort to use, follow it.\n\n${routes}`,
+			instructions: `${agentFraming}\n\nHow much reasoning effort does this request need? If one of the routes below covers this kind of request and says what effort to use, follow it.\n\n${routes}`,
 			levels: effortCriteria.map(criterion => ({ label: criterion.slice(0, criterion.indexOf(':')), description: criterion })),
 		});
 	}
