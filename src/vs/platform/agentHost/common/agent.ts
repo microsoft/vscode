@@ -548,6 +548,8 @@ export interface IAgentCustomizationInstallationChoice {
 	readonly endpointSummary?: string;
 	/** For a local package, the command it runs, with values still to be supplied shown as `${input:…}` placeholders. */
 	readonly command?: string;
+	/** For a local package, the environment it runs with, in the same form as {@link command}. */
+	readonly env?: Readonly<Record<string, string>>;
 	/** Names of the configuration fields this choice would set, without their values. */
 	readonly configurationFields: readonly string[];
 	readonly values: readonly IAgentCustomizationInstallationValuePrompt[];

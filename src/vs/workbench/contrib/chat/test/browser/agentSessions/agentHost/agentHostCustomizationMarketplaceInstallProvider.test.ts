@@ -1783,7 +1783,7 @@ suite('AgentHostCustomizationMarketplaceInstallProvider', () => {
 					...configuration,
 					recommendedChoiceId: undefined,
 					choices: [{
-						choiceId: 'package:0', transport: 'stdio', command: 'npx @example/local@1.2.3 --port ${input:port} -d ${input:domain}', configurationFields: ['args', 'command', 'env'],
+						choiceId: 'package:0', transport: 'stdio', command: 'npx @example/local@1.2.3 --port ${input:port} -d ${input:domain}', env: { NODE_OPTIONS: '--max-old-space-size=64', LOG_LEVEL: '${input:LOG_LEVEL}' }, configurationFields: ['args', 'command', 'env'],
 						values: [
 							{ key: 'LOG_LEVEL', category: 'environment-variable', valueType: 'enum', required: true, isRepeated: false, enumValues: ['info', sentinels.region] },
 							{ key: '--port', category: 'package-argument', valueType: 'number', required: false, isRepeated: false, defaultValue: '3000' },
@@ -1808,10 +1808,24 @@ suite('AgentHostCustomizationMarketplaceInstallProvider', () => {
 					'Server: owner/configured',
 					'Destination: owner/configured',
 					'Command (your values replace the placeholders): npx @example/local@1.2.3 --port ${input:port} -d ${input:domain}',
+					'Environment: {"NODE_OPTIONS":"--max-old-space-size=64","LOG_LEVEL":"${input:LOG_LEVEL}"}',
 					'Configured values: LOG_LEVEL (environment-variable)',
 					'Configuration fields: args, command, env',
 				],
 			});
+		});
+
+		test('reviews a long package command in full', async () => {
+			const command = `npx @example/local@1.2.3 ${'--flag '.repeat(40)}--last-option`;
+			const { provider, details } = createFlow({
+				configuration: {
+					...configuration,
+					recommendedChoiceId: undefined,
+					choices: [{ choiceId: 'package:0', transport: 'stdio', command, configurationFields: ['args', 'command'], values: [], secrets: [] }],
+				},
+			});
+			await provider.install(URI.parse('agent-host-copilotcli:/frontend'), resource, CancellationToken.None);
+			assert.ok(details[0].includes(`Command (your values replace the placeholders): ${command}\n`));
 		});
 
 		test('collects a repeated value one entry at a time and sends each entry', async () => {

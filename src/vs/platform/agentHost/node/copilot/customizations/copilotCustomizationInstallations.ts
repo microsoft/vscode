@@ -538,7 +538,7 @@ export class CopilotCustomizationInstallations extends Disposable {
 			throw new CustomizationInstallationFailure('invalid-request', localize('copilot.customizationInstallation.mcpConfigurationChanged', "The MCP server configuration does not match the installation plan. Refresh Browse and try again."));
 		}
 		try {
-			await preparation.client.rpc.mcp.config.add({ name: preparation.plan.identity.serverName, config });
+			await preparation.client.rpc.mcp.config.add({ name: preparation.plan.target.configKey, config });
 		} catch {
 			throw new CustomizationInstallationFailure('write-failed', localize('copilot.customizationInstallation.applyUncertain', "The installation result is unknown. Refresh the installed customizations before trying again."));
 		}
@@ -931,7 +931,7 @@ export class CopilotCustomizationInstallations extends Disposable {
 				const inputFreePackage = choices.find(choice => choice.installMethod === 'package' && isInputFree(choice));
 				if (inputFreePackage) {
 					const configuration = planned.plan.configurationChanges[planned.plan.transportChoices.indexOf(inputFreePackage)];
-					return this.prepareMcpCardConfiguration(client, request, card, planned.plan, inputFreePackage, configuration);
+					return this.prepareMcpCardConfiguration(client, request, card, planned.plan, inputFreePackage, configuration, source.kind === 'candidate' ? policySessionId : undefined);
 				}
 				const remotes = source.kind === 'card' ? choices.filter(isConfigurableRemoteChoice).filter(choice => choice.secretPlaceholders.length === 0) : [];
 				const packages = choices.filter(isConfigurablePackageChoice);
@@ -950,7 +950,7 @@ export class CopilotCustomizationInstallations extends Disposable {
 		}
 		const configuration = planned.plan.configurationChanges[planned.plan.transportChoices.indexOf(selected)];
 		if (source.kind === 'card') {
-			return this.prepareMcpCardConfiguration(client, request, card, planned.plan, selected, configuration);
+			return this.prepareMcpCardConfiguration(client, request, card, planned.plan, selected, configuration, undefined);
 		}
 		if (selected.installMethod !== 'remote') {
 			throw new Error(localize('copilot.customizationInstallation.mcpPackageUnsupported', "Confirmed local MCP server installations are not supported."));
@@ -1031,16 +1031,16 @@ export class CopilotCustomizationInstallations extends Disposable {
 		ownershipToken: string,
 		candidate: InstallableCatalogCandidate | undefined,
 	): IAgentCustomizationInstallationConfigurationRequest {
-		const choices = new Map<string, IConfigurableMcpChoice & { readonly command?: string }>();
+		const choices = new Map<string, IConfigurableMcpChoice & { readonly preview?: IMcpPackagePreview }>();
 		for (const { choice, serverPackage, serverRemote } of configurable) {
 			const configuration = plan.configurationChanges[plan.transportChoices.indexOf(choice)];
-			const command = serverPackage && describeMcpPackageCommand(serverPackage);
+			const preview = serverPackage && describeMcpPackage(serverPackage);
 			const hostFields = serverPackage ? localPackageFields : serverRemote ? remoteFields : undefined;
 			if (configuration && configuration.operation === 'add' && configuration.scope === 'user' && configuration.configKey === plan.target.configKey
-				&& (!serverPackage || command !== undefined)
+				&& (!serverPackage || preview !== undefined)
 				&& (!hostFields || configuration.secretReferences.length === 0 && configuration.changedFields.every(field => hostFields.has(field)))
 			) {
-				choices.set(choice.choiceId, { choice, configuration, serverPackage, serverRemote, command });
+				choices.set(choice.choiceId, { choice, configuration, serverPackage, serverRemote, preview });
 			}
 		}
 		const expiresAt = Date.parse(plan.planHandleExpiresAt);
@@ -1070,33 +1070,40 @@ export class CopilotCustomizationInstallations extends Disposable {
 			serverName: plan.identity.serverName,
 			target: plan.target.configKey,
 			recommendedChoiceId: plan.recommendedTransportChoiceId && choices.has(plan.recommendedTransportChoiceId) ? plan.recommendedTransportChoiceId : undefined,
-			choices: [...choices.values()].map(({ choice, configuration, command }): IAgentCustomizationInstallationChoice => ({
-				choiceId: choice.choiceId,
-				transport: choice.transport,
-				...(choice.installMethod === 'remote' ? { endpointSummary: choice.endpoint } : {}),
-				...(command !== undefined ? { command } : {}),
-				configurationFields: configuration.changedFields,
-				values: choice.requiredValues.map((value): IAgentCustomizationInstallationValuePrompt => ({
-					key: value.key,
-					category: value.category,
-					valueType: value.valueType,
-					required: value.required,
-					isRepeated: value.isRepeated,
-					...(value.defaultValue !== undefined ? { defaultValue: value.defaultValue } : {}),
-					...(value.title !== undefined ? { title: value.title } : {}),
-					...(value.description !== undefined ? { description: value.description } : {}),
-					...(value.kind === 'enum' ? { enumValues: [...value.enumValues] } : {}),
-				})),
-				secrets: choice.secretPlaceholders.map(secret => ({
-					key: secret.key,
-					placeholder: secret.placeholder,
-					...(secret.title !== undefined ? { title: secret.title } : {}),
-				})),
-			})),
+			choices: [...choices.values()].map(({ choice, configuration, preview, serverPackage, serverRemote }): IAgentCustomizationInstallationChoice => {
+				// Values inside a host-written template can't be left out, so the prompt must not offer to skip them.
+				const templateKeys = mcpTemplateValueKeys(serverPackage, serverRemote);
+				return {
+					choiceId: choice.choiceId,
+					transport: choice.transport,
+					...(choice.installMethod === 'remote' ? { endpointSummary: choice.endpoint } : {}),
+					...(preview ? { command: preview.command, ...(preview.env ? { env: preview.env } : {}) } : {}),
+					configurationFields: configuration.changedFields,
+					values: choice.requiredValues.map((value): IAgentCustomizationInstallationValuePrompt => ({
+						key: value.key,
+						category: value.category,
+						valueType: value.valueType,
+						required: value.required || (value.defaultValue === undefined && templateKeys.has(`${value.category}\0${value.key}`)),
+						isRepeated: value.isRepeated,
+						...(value.defaultValue !== undefined ? { defaultValue: value.defaultValue } : {}),
+						...(value.title !== undefined ? { title: value.title } : {}),
+						...(value.description !== undefined ? { description: value.description } : {}),
+						...(value.kind === 'enum' ? { enumValues: [...value.enumValues] } : {}),
+					})),
+					secrets: choice.secretPlaceholders.map(secret => ({
+						key: secret.key,
+						placeholder: secret.placeholder,
+						...(secret.title !== undefined ? { title: secret.title } : {}),
+					})),
+				};
+			}),
 		};
 	}
 
-	/** Provisional direct-card fallback until https://github.com/github/copilot-agent-runtime/issues/26495 is available. */
+	/**
+	 * Provisional direct-card fallback until https://github.com/github/copilot-agent-runtime/issues/26495 is available.
+	 * @param policySessionId The policy session a catalog plan is bound to, so apply refuses a released or replaced session.
+	 */
 	private async prepareMcpCardConfiguration(
 		client: ICopilotCustomizationInstallationClient,
 		request: IAgentCustomizationInstallationRequest,
@@ -1104,6 +1111,7 @@ export class CopilotCustomizationInstallations extends Disposable {
 		plan: Extract<Awaited<ReturnType<CopilotClient['rpc']['mcp']['planInstall']>>, { readonly kind: 'planned' }>['plan'],
 		choice: typeof plan.transportChoices[number],
 		configuration: typeof plan.configurationChanges[number] | undefined,
+		policySessionId: string | undefined,
 	): Promise<IAgentCustomizationInstallationReview> {
 		const supportedFields = choice.installMethod === 'package' ? localPackageFields : new Set(['tools', 'type', 'url']);
 		if (plan.policy.decision === 'blocked') {
@@ -1148,12 +1156,12 @@ export class CopilotCustomizationInstallations extends Disposable {
 			operationId,
 			client,
 			generateUuid(),
-			undefined,
+			policySessionId,
 			review,
 			() => false,
 			async () => {
 				await client.rpc.mcp.config.add({
-					name: plan.identity.serverName,
+					name: plan.target.configKey,
 					config,
 				});
 				return undefined;
@@ -1788,7 +1796,7 @@ function findMcpRemote(server: ReturnType<typeof parseMcpGalleryServerConfigurat
 		const keys = [
 			...Object.entries(remote.variables ?? {}).filter(([, variable]) => variable.value === undefined).map(([name]) => `url-variable\0${name}`),
 			...(remote.headers ?? []).flatMap(header => header.variables && Object.keys(header.variables).length
-				? Object.keys(header.variables).map(name => `header\0${name}`)
+				? Object.entries(header.variables).filter(([, variable]) => variable.value === undefined).map(([name]) => `header\0${name}`)
 				: header.value ? [] : [`header\0${header.name}`]),
 		];
 		return keys.length === declared.size && keys.every(key => declared.has(key));
@@ -1824,10 +1832,20 @@ function toMcpRemoteConfiguration(remote: RemoteTransport, declared: readonly Mc
 	values.assertAllPlaced();
 	const parsed = new McpServerManifestParser().getMcpServerConfigurationFromManifest({ remotes: [{ ...remote, variables, headers }] }, RegistryType.REMOTE);
 	const config = parsed.mcpServerConfiguration.config;
-	if (parsed.notices.length || parsed.mcpServerConfiguration.inputs?.length || config.type !== McpServerType.REMOTE || !/^https?:\/\/[^/?#@\s]+/i.test(config.url)) {
+	if (parsed.notices.length || parsed.mcpServerConfiguration.inputs?.length || config.type !== McpServerType.REMOTE || !isHttpUrlWithoutCredentials(config.url)) {
 		throw unsupported();
 	}
-	return toCopilotMcpServerConfiguration(config);
+	// The manifest parser does not record the transport, so keep the card's (SSE or streamable HTTP).
+	return toCopilotMcpServerConfiguration({ ...config, transport: remote.type === TransportType.SSE ? 'sse' : undefined });
+}
+
+function isHttpUrlWithoutCredentials(value: string): boolean {
+	try {
+		const url = new URL(value);
+		return (url.protocol === 'https:' || url.protocol === 'http:') && !url.username && !url.password;
+	} catch {
+		return false;
+	}
 }
 
 /**
@@ -1890,14 +1908,48 @@ function createMcpValueResolver(declared: readonly McpTransportChoice['requiredV
 	return { take, takeAll, resolve, assertAllPlaced };
 }
 
-/** The command a package runs, with unresolved values as `${input:…}` placeholders, or `undefined` if it cannot be described. */
-function describeMcpPackageCommand(serverPackage: IMcpServerPackage): string | undefined {
+/** What a package runs: its command, and its environment, with unresolved values as `${input:…}` placeholders. */
+interface IMcpPackagePreview {
+	readonly command: string;
+	readonly env?: Readonly<Record<string, string>>;
+}
+
+/** Describes a package's command and environment, or `undefined` if it cannot be described. */
+function describeMcpPackage(serverPackage: IMcpServerPackage): IMcpPackagePreview | undefined {
 	try {
 		const { config } = new McpServerManifestParser().getMcpServerConfigurationFromManifest({ packages: [serverPackage] }, serverPackage.registryType).mcpServerConfiguration;
-		return config.type === McpServerType.LOCAL ? [config.command, ...(config.args ?? [])].join(' ') : undefined;
+		if (config.type !== McpServerType.LOCAL) {
+			return undefined;
+		}
+		const env = config.env && Object.keys(config.env).length ? Object.fromEntries(Object.entries(config.env).map(([name, value]) => [name, String(value)])) : undefined;
+		return { command: [config.command, ...(config.args ?? [])].join(' '), ...(env ? { env } : {}) };
 	} catch {
 		return undefined;
 	}
+}
+
+/** The `(category, key)` of every value placed inside a template (a URL or nested variable), which can't be omitted. */
+function mcpTemplateValueKeys(serverPackage: IMcpServerPackage | undefined, serverRemote: RemoteTransport | undefined): ReadonlySet<string> {
+	const keys = new Set<string>();
+	const nested = (entries: readonly IMcpServerVariableInput[] | undefined, category: string) => {
+		for (const entry of entries ?? []) {
+			for (const name of Object.keys(entry.variables ?? {})) {
+				keys.add(`${category}\0${name}`);
+			}
+		}
+	};
+	if (serverRemote) {
+		for (const name of Object.keys(serverRemote.variables ?? {})) {
+			keys.add(`url-variable\0${name}`);
+		}
+		nested(serverRemote.headers, 'header');
+	}
+	if (serverPackage) {
+		nested(serverPackage.environmentVariables, 'environment-variable');
+		nested(serverPackage.runtimeArguments, 'runtime-argument');
+		nested(serverPackage.packageArguments, 'package-argument');
+	}
+	return keys;
 }
 
 /**

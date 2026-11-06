@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { status } from '../../../../../../base/browser/ui/aria/aria.js';
 import { disposableTimeout } from '../../../../../../base/common/async.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
@@ -96,10 +97,15 @@ function formatChoicePreview(choice: IAgentCustomizationInstallationChoice, valu
 	return localize('agentHost.customizationInstall.commandPreview', "Command: {0}", toPlainLabel(start > 0 ? `…${preview.slice(start)}` : preview));
 }
 
-/** Renders untrusted plan text as a bounded plain-text label. Quick Input turns `[text](command:…)` into links, so `](` is split apart. */
+/** Renders untrusted plan text as plain text. Quick Input turns `[text](command:…)` into links, so `](` is split apart. */
+function toPlainText(value: string): string {
+	return escapeIcons(value.replace(/[\u0000-\u001f\u007f]+/g, ' ').replace(/\]\(/g, '] ('));
+}
+
+/** Renders untrusted plan text as a bounded plain-text label. */
 function toPlainLabel(value: string): string {
-	const singleLine = value.replace(/[\u0000-\u001f\u007f]+/g, ' ').replace(/\]\(/g, '] (');
-	return escapeIcons(singleLine.length > maxPromptLabelLength ? `${singleLine.slice(0, maxPromptLabelLength)}…` : singleLine);
+	const singleLine = toPlainText(value);
+	return singleLine.length > maxPromptLabelLength ? `${singleLine.slice(0, maxPromptLabelLength)}…` : singleLine;
 }
 
 /** Names a configured value by where the server uses it, so a bare key such as `-d` has context. */
@@ -673,6 +679,9 @@ export class AgentHostCustomizationMarketplaceInstallProvider extends Disposable
 				const repeated = await this.collectRepeatedValues(step, value, Array.isArray(previous) ? previous : [], token);
 				if (repeated.kind === 'value') {
 					values.set(index, repeated.value);
+				} else if (repeated.kind === 'back') {
+					// Back leaves the step only once every entry was removed.
+					values.delete(index);
 				}
 				result = repeated;
 			} else if (value) {
@@ -858,6 +867,10 @@ export class AgentHostCustomizationMarketplaceInstallProvider extends Disposable
 		const picker: IQuickPick<T> = store.add(this.quickInputService.createQuickPick<T>());
 		this.applyStep(picker, step);
 		picker.placeholder = options.placeholder;
+		// The description isn't announced, so the preview of where the value goes is part of the accessible label.
+		picker.ariaLabel = step.description !== undefined
+			? localize('agentHost.customizationInstall.stepAriaLabel', "{0}, {1}", options.placeholder, step.description)
+			: undefined;
 		picker.items = options.items;
 		if (options.activeItem) {
 			picker.activeItems = [options.activeItem];
@@ -919,6 +932,10 @@ export class AgentHostCustomizationMarketplaceInstallProvider extends Disposable
 				}));
 				store.add(box.onDidHide(() => resolve({ kind: 'cancel' })));
 				box.show();
+				// The input box only announces its prompt, so announce the preview of where the value goes.
+				if (step.description !== undefined) {
+					status(step.description);
+				}
 			});
 		} finally {
 			store.dispose();
@@ -1011,9 +1028,10 @@ export class AgentHostCustomizationMarketplaceInstallProvider extends Disposable
 		const values = [...new Set(answers.inputs.map(input => `${toPlainLabel(input.key)} (${input.category})`))].join(', ') || none;
 		const secrets = choice.secrets.map(secret => toPlainLabel(secret.key)).join(', ') || none;
 		if (choice.command !== undefined) {
-			return localize('agentHost.customizationInstall.mcpConfiguredLocalInstallDetail', "MCP servers can run tools and access local files. Only install resources from sources you trust.\n\nServer: {0}\nDestination: {1}\nCommand (your values replace the placeholders): {2}\nConfigured values: {3}\nConfiguration fields: {4}", toPlainLabel(request.serverName), toPlainLabel(request.target), toPlainLabel(choice.command), values, choice.configurationFields.map(toPlainLabel).join(', ') || none);
+			// The command and environment are shown in full: anything cut off here would run without being reviewed.
+			return localize('agentHost.customizationInstall.mcpConfiguredLocalInstallDetail', "MCP servers can run tools and access local files. Only install resources from sources you trust.\n\nServer: {0}\nDestination: {1}\nCommand (your values replace the placeholders): {2}\nEnvironment: {3}\nConfigured values: {4}\nConfiguration fields: {5}", toPlainLabel(request.serverName), toPlainLabel(request.target), toPlainText(choice.command), toPlainText(JSON.stringify(choice.env ?? {})), values, choice.configurationFields.map(toPlainLabel).join(', ') || none);
 		}
-		return localize('agentHost.customizationInstall.mcpConfiguredInstallDetail', "MCP servers can run tools and access external services. Only install resources from sources you trust.\n\nServer: {0}\nDestination: {1}\nEndpoint (from the installation plan): {2}\nConfigured values: {3}\nSecrets: {4}\nConfiguration fields: {5}", toPlainLabel(request.serverName), toPlainLabel(request.target), choice.endpointSummary !== undefined ? toPlainLabel(choice.endpointSummary) : localize('agentHost.customizationInstall.notApplicable', "Not applicable"), values, secrets, choice.configurationFields.map(toPlainLabel).join(', ') || none);
+		return localize('agentHost.customizationInstall.mcpConfiguredInstallDetail', "MCP servers can run tools and access external services. Only install resources from sources you trust.\n\nServer: {0}\nDestination: {1}\nEndpoint (from the installation plan): {2}\nConfigured values: {3}\nSecrets: {4}\nConfiguration fields: {5}", toPlainLabel(request.serverName), toPlainLabel(request.target), choice.endpointSummary !== undefined ? toPlainText(choice.endpointSummary) : localize('agentHost.customizationInstall.notApplicable', "Not applicable"), values, secrets, choice.configurationFields.map(toPlainLabel).join(', ') || none);
 	}
 
 	private async activateInstalledPlugin(identity: AppliedPluginIdentity, token: CancellationToken): Promise<void> {
