@@ -20,6 +20,7 @@ import { IInstantiationService } from '../../../../platform/instantiation/common
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { INotificationService, Severity } from '../../../../platform/notification/common/notification.js';
 import { IProgressService, ProgressLocation } from '../../../../platform/progress/common/progress.js';
+import { NotificationTelemetryId } from '../../../../platform/notification/common/notificationTelemetry.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { IUserDataProfileService } from '../../../services/userDataProfile/common/userDataProfile.js';
 import type { Dto } from '../../../services/extensions/common/proxyIdentifier.js';
@@ -369,6 +370,7 @@ export class AgentPluginRepositoryService implements IAgentPluginRepositoryServi
 			return await this._progressService.withProgress(
 				{
 					location: ProgressLocation.Notification,
+					telemetry: NotificationTelemetryId.PluginRepositoryUpdate,
 					title: localize('updatingPlugin', "Updating plugin '{0}'...", updateLabel),
 					cancellable: true,
 				},
@@ -390,6 +392,7 @@ export class AgentPluginRepositoryService implements IAgentPluginRepositoryServi
 			await this._progressService.withProgress(
 				{
 					location: ProgressLocation.Notification,
+					telemetry: NotificationTelemetryId.PluginRepositoryRepair,
 					title: localize('purgingMarketplace', "Purging plugin marketplace '{0}'...", marketplace.displayLabel),
 					cancellable: false,
 				},
@@ -507,6 +510,7 @@ export class AgentPluginRepositoryService implements IAgentPluginRepositoryServi
 			await this._progressService.withProgress(
 				{
 					location: ProgressLocation.Notification,
+					telemetry: NotificationTelemetryId.PluginRepositoryClone,
 					title: progressTitle,
 					cancellable: true,
 				},

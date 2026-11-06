@@ -9,20 +9,22 @@ import { Event } from '../../../../../base/common/event.js';
 import { observableValue } from '../../../../../base/common/observable.js';
 import { mock } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { AgentHostSessionTypesAvailableContext, IsNewChatSessionContext, SessionHasWorkspaceContext } from '../../../../common/contextkeys.js';
-import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
-import { IActiveSession } from '../../../../services/sessions/common/sessionsManagement.js';
+import { IsNewChatSessionContext, SessionHasWorkspaceContext } from '../../../../../workbench/contrib/sessions/common/contextkeys.js';
+import { AgentHostSessionTypesAvailableContext } from '../../../../common/agentsWindowContextKeys.js';
+import { ISessionsService } from '../../../../../workbench/contrib/sessions/browser/sessionsService.js';
+import { noSessionPickerVisibility } from '../../../../../workbench/contrib/sessions/common/sessionPickerVisibility.js';
 import { InMemoryStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
 import { ChatContextKeys } from '../../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
 import { findOnboardingTarget, markOnboardingTarget } from '../../../../../workbench/contrib/onboarding/browser/spotlight/onboardingTarget.js';
 import { IOnboardingScenarioService } from '../../../../../workbench/contrib/onboarding/common/onboardingScenarioService.js';
 import { ChatEntitlement, ChatEntitlementContextKeys, IChatEntitlementService } from '../../../../../workbench/services/chat/common/chatEntitlementService.js';
-import { createSessionsPartTestHarness, createTestActiveSession, getSessionPickerVisibility } from '../../../../test/browser/sessionViewTestUtils.js';
+import { createSessionsPartTestHarness, createTestActiveSession, getSessionPickerVisibility, renderTestPanes } from '../../../../test/browser/sessionViewTestUtils.js';
 import { NewSessionViewTourTrigger } from '../../browser/newSessionViewTourTrigger.js';
 import { createNewSessionViewTour } from '../../browser/tours/newSessionViewTour.js';
 import { createNewSessionViewV2Tour, NEW_SESSION_VIEW_V2_TOUR_ID } from '../../browser/tours/newSessionViewV2Tour.js';
 import { createNewSessionViewV3Tour, NEW_SESSION_VIEW_V3_TOUR_ID } from '../../browser/tours/newSessionViewV3Tour.js';
 import { TOTAL_SESSIONS_KEY } from '../../../sessions/browser/sessionsLifecycleTracker.js';
+import { ITestSessionWithChat } from '../../../../../workbench/contrib/sessions/test/browser/sessionHostTestUtils.js';
 
 suite('NewSessionViewTourTrigger', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
@@ -31,9 +33,9 @@ suite('NewSessionViewTourTrigger', () => {
 		const fixture = createSessionsPartTestHarness(disposables);
 		const { configurationService, contextKeyService, part } = fixture;
 		const initialRestoreComplete = observableValue('initialRestoreComplete', options.restored ?? true);
-		const activeSession = observableValue<IActiveSession | undefined>('activeSession', undefined);
+		const activeSession = observableValue<ITestSessionWithChat | undefined>('activeSession', undefined);
 		const sessionsService = new class extends mock<ISessionsService>() {
-			override readonly activeSession = activeSession;
+			readonly activeSession = activeSession;
 			override readonly initialRestoreComplete = initialRestoreComplete;
 		}();
 		const entitlement = observableValue('entitlement', options.entitlement ?? ChatEntitlement.Available);
@@ -51,14 +53,15 @@ suite('NewSessionViewTourTrigger', () => {
 			id,
 			onboardingService,
 			sessionsService,
+			sessionsService.activeSession,
 			storageService,
 			configurationService,
 			contextKeyService,
 			entitlementService,
 		)));
-		const open = (visible: readonly (IActiveSession | undefined)[], active: IActiveSession | undefined) => {
+		const open = (visible: readonly (ITestSessionWithChat | undefined)[], active: ITestSessionWithChat | undefined) => {
 			activeSession.set(active, undefined);
-			part.updateVisibleSessions(visible, active);
+			renderTestPanes(part, visible, active);
 		};
 		return { ...fixture, initialRestoreComplete, entitlement, triggers, open, signals: () => triggers.map(trigger => trigger.signal.get()) };
 	}
@@ -113,8 +116,8 @@ suite('NewSessionViewTourTrigger', () => {
 			beforeRender: { signals: [false, false], workspaceSteps: [false, false] },
 			afterRender: { signals: [true, true], workspaceSteps: [true, true] },
 			visibleTarget: true,
-			global: { workspace: true, harness: false, isolation: false },
-			local: { workspace: true, harness: false, isolation: false },
+			global: { ...noSessionPickerVisibility, workspace: true },
+			local: { ...noSessionPickerVisibility, workspace: true },
 			afterWorkspaceSelection: [false, false],
 		});
 	});

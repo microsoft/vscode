@@ -6,6 +6,7 @@
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { isCopilotAgentHostProvider, parseRemoteAgentHostHarness } from '../../../../platform/agentHost/common/agentHostSessionType.js';
 import { SessionType } from './chatSessionsService.js';
+import { EDITOR_AGENT_HOST_SESSIONS_STORAGE_KEY } from '../../../../platform/chat/common/agentsWindowInvitation.js';
 
 const storagePrefix = 'chat.editorUsage.';
 const providers = ['local', 'copilotcli', 'cloud', 'copilot', 'claude', 'codex', 'codexExtension', 'growth', 'remoteCopilot', 'remoteClaude', 'remoteCodex', 'other'] as const;
@@ -43,6 +44,11 @@ function getProvider(sessionType: string): typeof providers[number] {
 /** Best-effort editor-only usage shared across profiles and applications; overlapping window writes can lose increments. */
 export class EditorChatUsage {
 	constructor(private readonly storageService: IStorageService) { }
+
+	get agentHostSessionCount(): number {
+		return this.storageService.getNumber(EDITOR_AGENT_HOST_SESSIONS_STORAGE_KEY, StorageScope.APPLICATION)
+			?? ['copilot', 'claude', 'codex', 'remoteCopilot', 'remoteClaude', 'remoteCodex'].reduce((total, provider) => total + this.getNumber(`sessions.${provider}`), 0);
+	}
 
 	recordSubmission(sessionType: string, isNewSession: boolean, otherSessionInProgress: boolean, otherWindowSessionInProgress: boolean, timestamp: number): void {
 		if (isNewSession) {

@@ -8,7 +8,8 @@ import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { mock } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
-import { CustomizationType, McpServerStatus, type ChildCustomization, type Customization } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
+import type { McpServerSource } from '../../../../../../platform/agentHost/common/meta/mcpCustomizationMeta.js';
+import { CustomizationType, McpServerStatus, type ChildCustomization, type Customization, type PluginCustomization } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
 import { ILogService } from '../../../../../../platform/log/common/log.js';
 import { ITelemetryService } from '../../../../../../platform/telemetry/common/telemetry.js';
 import { NullTelemetryServiceShape } from '../../../../../../platform/telemetry/common/telemetryUtils.js';
@@ -32,6 +33,9 @@ suite('CustomizationsTelemetryService', () => {
 			override getWorkingDirectories() {
 				return ['file:///workspace'];
 			}
+			override getClientPluginUri(_session: URI, plugin: Pick<PluginCustomization, 'uri' | 'clientId'>): URI | undefined {
+				return plugin.clientId === 'vscode' ? URI.parse(plugin.uri) : undefined;
+			}
 			override getCustomizations(): readonly Customization[] {
 				return [
 					plugin('file:///plugin', [
@@ -40,7 +44,10 @@ suite('CustomizationsTelemetryService', () => {
 					plugin('vscode-synced-customization:/bundle', [
 						child(CustomizationType.Agent, 'file:///host/agents/extension.agent.md'),
 						child(CustomizationType.Skill, 'file:///host/skills/builtin/SKILL.md'),
-					]),
+					], 'vscode'),
+					plugin('vscode-synced-customization:/foreign-bundle', [
+						child(CustomizationType.Agent, 'file:///foreign/agents/extension.agent.md'),
+					], 'foreign'),
 					directory([
 						child(CustomizationType.Rule, 'file:///workspace/.github/instructions/workspace.instructions.md'),
 						child(CustomizationType.Hook, 'file:///user/hooks/hooks.json'),
@@ -53,6 +60,8 @@ suite('CustomizationsTelemetryService', () => {
 					mcpServer('plugin'),
 					mcpServer('builtin'),
 					mcpServer('managed'),
+					mcpServer('user'),
+					mcpServer('account'),
 					mcpServer(undefined),
 				];
 			}
@@ -97,12 +106,12 @@ suite('CustomizationsTelemetryService', () => {
 		}, {
 			errors: [],
 			events: [
-				event('agent', { extensionCount: 1 }),
+				event('agent', { extensionCount: 1, pluginCount: 1 }),
 				event('instructions', { workspaceCount: 1 }),
 				event('prompt', { pluginCount: 1 }),
 				event('skill', { builtinCount: 1 }),
 				event('hook', { userCount: 1 }),
-				event('mcpServer', { userCount: 1, workspaceCount: 1, pluginCount: 1, builtinCount: 2 }),
+				event('mcpServer', { userCount: 3, workspaceCount: 1, pluginCount: 1, builtinCount: 2 }),
 				event('plugin', { pluginCount: 1 }),
 			],
 		});
@@ -164,11 +173,12 @@ function child(type: ChildCustomization['type'], uri: string): ChildCustomizatio
 	} as ChildCustomization;
 }
 
-function plugin(uri: string, children: ChildCustomization[]): Customization {
+function plugin(uri: string, children: ChildCustomization[], clientId?: string): Customization {
 	return {
 		id: uri,
 		uri,
 		type: CustomizationType.Plugin,
+		clientId,
 		name: uri,
 		children,
 	};
@@ -187,7 +197,7 @@ function directory(children: ChildCustomization[]): Customization {
 	};
 }
 
-function mcpServer(source: 'user' | 'workspace' | 'plugin' | 'builtin' | 'managed' | undefined) {
+function mcpServer(source: McpServerSource | undefined) {
 	return {
 		id: `server-${source}`,
 		name: `server-${source}`,

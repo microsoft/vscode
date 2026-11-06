@@ -14,9 +14,13 @@ import { IChatAutoModeResolutionPart } from './chatService/chatService.js';
  */
 export const HIDE_AUTO_EXPLAINABILITY_TREATMENT = 'copilotchat.hideAutoExplainability';
 
-/** The row label, naming the model once the router has picked one. */
+/**
+ * The row label. Once the router has picked a model, its explanation is
+ * preferred because it already names the model.
+ */
 export function autoModeRoutingTitle(part: IChatAutoModeResolutionPart): string {
-	return part.resolved
-		? localize('autoMode.routedTo', "Auto routed task to {0}", part.resolved.name)
-		: localize('autoMode.routing', "Auto routing task");
+	if (!part.resolved) {
+		return localize('autoMode.routing', "Auto routing task");
+	}
+	return part.resolved.reason ?? localize('autoMode.routedTo', "Auto routed task to {0}", part.resolved.name);
 }

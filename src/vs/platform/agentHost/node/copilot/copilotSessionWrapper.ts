@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import type { CopilotSession, NamedProviderConfig, ProviderModelConfig, SessionEvent, SessionEventPayload, SessionEventType } from '@github/copilot-sdk';
+import type { CopilotSession, NamedProviderConfig, ProviderModelConfig, SessionConfig, SessionEvent, SessionEventPayload, SessionEventType } from '@github/copilot-sdk';
 import { DeferredPromise } from '../../../../base/common/async.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { Disposable, toDisposable } from '../../../../base/common/lifecycle.js';
@@ -17,6 +17,20 @@ export type CopilotModelCallFinishedOutcome = 'success' | 'error' | 'cancelled' 
 
 /** Conversation events emitted by a provisional (not yet committed) Fusion phase. */
 export type CopilotProvisionalFusionEvent = SessionEventPayload<'tool.execution_start'> | SessionEventPayload<'tool.execution_complete'> | SessionEventPayload<'assistant.message'>;
+
+const mcpServerToolsLoadedEventType = 'session.mcp_server_tools_loaded' as SessionEventType;
+
+/**
+ * `session.mcp_server_tools_loaded` marks the current connection's tools loaded, also reflected by
+ * inventory `live.toolsLoaded`. It can precede `connected` when tools come from a cached snapshot.
+ */
+export interface ICopilotMcpServerToolsLoadedEvent {
+	readonly id: string;
+	readonly data: {
+		readonly serverName: string;
+		readonly toolCount: number;
+	};
+}
 
 export interface ICopilotModelCallFinishedEvent {
 	readonly id: string;
@@ -44,6 +58,8 @@ export interface ICopilotByokSessionConfig {
  */
 export class CopilotSessionWrapper extends Disposable {
 
+	private readonly _onEvent = this._register(new Emitter<SessionEvent>());
+	readonly onEvent = this._onEvent.event;
 	private readonly _handledEventTypes = new Set<SessionEventType>();
 	private readonly _onUnhandledEvent = this._register(new Emitter<SessionEvent>());
 	readonly onUnhandledEvent = this._onUnhandledEvent.event;
@@ -68,11 +84,19 @@ export class CopilotSessionWrapper extends Disposable {
 		readonly canvasRuntimeEnabled: boolean,
 		/** BYOK providers and models the SDK session was launched with. */
 		readonly launchByokConfig: ICopilotByokSessionConfig,
+		readonly launchImageGenerationEnabled: boolean,
+		readonly launchImageGenerationWatermark: boolean,
+		/** The trust the SDK session was created with for its working directory; `undefined` for a resume or no grant. */
+		readonly launchWorkingDirectoryTrust: SessionConfig['trustWorkingDirectory'],
+		/** Whether the SDK session was created with session telemetry, which carries its restricted telemetry. */
+		readonly launchSessionTelemetryEnabled: boolean,
+		readonly launchMcpSkillsEnabled: boolean,
 		@ILogService private readonly _logService: ILogService,
 	) {
 		super();
 		this._logService.info(this._lifecycleLogMessage('attached'));
 		const unsubscribeAll = session.on(event => {
+			this._onEvent.fire(event);
 			if (isProvisionalFusionConversationEvent(event)) {
 				if (event.type === 'tool.execution_start' || event.type === 'tool.execution_complete' || event.type === 'assistant.message') {
 					this._onProvisionalFusionEvent.fire(event);
@@ -205,6 +229,11 @@ export class CopilotSessionWrapper extends Disposable {
 		return this._onSamplingRequested ??= this._sdkEvent('sampling.requested');
 	}
 
+	private _onSamplingCompleted: Event<SessionEventPayload<'sampling.completed'>> | undefined;
+	get onSamplingCompleted(): Event<SessionEventPayload<'sampling.completed'>> {
+		return this._onSamplingCompleted ??= this._sdkEvent('sampling.completed');
+	}
+
 	private _onIdle: Event<SessionEventPayload<'session.idle'>> | undefined;
 	get onIdle(): Event<SessionEventPayload<'session.idle'>> {
 		return this._onIdle ??= this._sdkEvent('session.idle');
@@ -330,6 +359,11 @@ export class CopilotSessionWrapper extends Disposable {
 		return this._onTurnEnd ??= this._sdkEvent('assistant.turn_end');
 	}
 
+	private _onTaskComplete: Event<SessionEventPayload<'session.task_complete'>> | undefined;
+	get onTaskComplete(): Event<SessionEventPayload<'session.task_complete'>> {
+		return this._onTaskComplete ??= this._sdkEvent('session.task_complete');
+	}
+
 	private _onUsage: Event<SessionEventPayload<'assistant.usage'>> | undefined;
 	get onUsage(): Event<SessionEventPayload<'assistant.usage'>> {
 		return this._onUsage ??= this._sdkEvent('assistant.usage');
@@ -353,6 +387,11 @@ export class CopilotSessionWrapper extends Disposable {
 	private _onToolPartialResult: Event<SessionEventPayload<'tool.execution_partial_result'>> | undefined;
 	get onToolPartialResult(): Event<SessionEventPayload<'tool.execution_partial_result'>> {
 		return this._onToolPartialResult ??= this._sdkEvent('tool.execution_partial_result');
+	}
+
+	private _onToolShellOutput: Event<SessionEventPayload<'tool.shell_output'>> | undefined;
+	get onToolShellOutput(): Event<SessionEventPayload<'tool.shell_output'>> {
+		return this._onToolShellOutput ??= this._sdkEvent('tool.shell_output');
 	}
 
 	private _onToolProgress: Event<SessionEventPayload<'tool.execution_progress'>> | undefined;
@@ -415,6 +454,11 @@ export class CopilotSessionWrapper extends Disposable {
 		return this._onSessionModeChanged ??= this._sdkEvent('session.mode_changed');
 	}
 
+	private _onSkillsLoaded: Event<SessionEventPayload<'session.skills_loaded'>> | undefined;
+	get onSkillsLoaded(): Event<SessionEventPayload<'session.skills_loaded'>> {
+		return this._onSkillsLoaded ??= this._sdkEvent('session.skills_loaded');
+	}
+
 	private _onMcpServersLoaded: Event<SessionEventPayload<'session.mcp_servers_loaded'>> | undefined;
 	get onMcpServersLoaded(): Event<SessionEventPayload<'session.mcp_servers_loaded'>> {
 		return this._onMcpServersLoaded ??= this._sdkEvent('session.mcp_servers_loaded');
@@ -423,6 +467,13 @@ export class CopilotSessionWrapper extends Disposable {
 	private _onMcpServerStatusChanged: Event<SessionEventPayload<'session.mcp_server_status_changed'>> | undefined;
 	get onMcpServerStatusChanged(): Event<SessionEventPayload<'session.mcp_server_status_changed'>> {
 		return this._onMcpServerStatusChanged ??= this._sdkEvent('session.mcp_server_status_changed');
+	}
+
+	private _onMcpServerToolsLoaded: Event<ICopilotMcpServerToolsLoadedEvent> | undefined;
+	/** Fires once per connection when the server's tools become available. */
+	get onMcpServerToolsLoaded(): Event<ICopilotMcpServerToolsLoadedEvent> {
+		// Newer runtimes emit this before the bundled SDK types know about it.
+		return this._onMcpServerToolsLoaded ??= this._sdkEvent(mcpServerToolsLoadedEventType) as unknown as Event<ICopilotMcpServerToolsLoadedEvent>;
 	}
 
 	private _onMcpOAuthCompleted: Event<SessionEventPayload<'mcp.oauth_completed'>> | undefined;
@@ -453,6 +504,11 @@ export class CopilotSessionWrapper extends Disposable {
 	private _onCanvasOpened: Event<SessionEventPayload<'session.canvas.opened'>> | undefined;
 	get onCanvasOpened(): Event<SessionEventPayload<'session.canvas.opened'>> {
 		return this._onCanvasOpened ??= this._sdkEvent('session.canvas.opened');
+	}
+
+	private _onCanvasRecorded: Event<SessionEventPayload<'session.canvas.recorded'>> | undefined;
+	get onCanvasRecorded(): Event<SessionEventPayload<'session.canvas.recorded'>> {
+		return this._onCanvasRecorded ??= this._sdkEvent('session.canvas.recorded');
 	}
 
 	private _onCanvasClosed: Event<SessionEventPayload<'session.canvas.closed'>> | undefined;

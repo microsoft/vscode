@@ -23,7 +23,7 @@ export interface ISynchronizeAnimationsOptions {
 }
 
 /**
- * Phase-aligns looping CSS animations so that every animation of the same
+ * Phase-aligns running, looping CSS animations so that every animation of the same
  * duration displays the same frame at the same time, regardless of when each
  * one started.
  *
@@ -58,6 +58,9 @@ export function synchronizeCSSAnimations(element: HTMLElement, options?: ISynchr
 		if (options?.animationNames && !options.animationNames.has(animationName)) {
 			continue;
 		}
+		if (animation.playState === 'paused') {
+			continue;
+		}
 		// Anchor to a shared origin so all animations of the same duration display
 		// the same frame. Guard against the rare state where startTime is not yet
 		// settable (e.g. an animation still in its pending/ready phase).
@@ -71,10 +74,13 @@ export function synchronizeCSSAnimations(element: HTMLElement, options?: ISynchr
 
 export interface IPauseCSSAnimationsWhenHiddenOptions extends ISynchronizeAnimationsOptions {
 	readonly pausedClass: string;
+	/** Reports whether the element is visible in its viewport and document. */
+	readonly onDidChangeVisibility?: (visible: boolean) => void;
 }
 
 interface ITrackedAnimation {
 	readonly options: IPauseCSSAnimationsWhenHiddenOptions;
+	visible: boolean;
 }
 
 interface IAnimationVisibilityObserver {
@@ -94,6 +100,12 @@ let unregisterWindowListener: IDisposable | undefined;
 export function pauseCSSAnimationsWhenHidden(element: HTMLElement, options: IPauseCSSAnimationsWhenHiddenOptions): IDisposable {
 	const targetWindow = getWindow(element);
 	if (typeof targetWindow.IntersectionObserver !== 'function') {
+		const onDidChangeVisibility = options.onDidChangeVisibility;
+		if (onDidChangeVisibility) {
+			const update = () => onDidChangeVisibility(!targetWindow.document.hidden);
+			update();
+			return addDisposableListener(targetWindow.document, 'visibilitychange', update);
+		}
 		return Disposable.None;
 	}
 
@@ -103,6 +115,7 @@ export function pauseCSSAnimationsWhenHidden(element: HTMLElement, options: IPau
 		const intersectingElements = new Set<HTMLElement>();
 		const observer = new targetWindow.IntersectionObserver(entries => {
 			const toResync: Array<[HTMLElement, IPauseCSSAnimationsWhenHiddenOptions]> = [];
+			const visibilityChanges: Array<() => void> = [];
 			for (const entry of entries) {
 				const target = entry.target as HTMLElement;
 				const trackedAnimation = trackedAnimations.get(target);
@@ -116,6 +129,14 @@ export function pauseCSSAnimationsWhenHidden(element: HTMLElement, options: IPau
 				}
 				const paused = targetWindow.document.hidden || !entry.isIntersecting;
 				target.classList.toggle(trackedAnimation.options.pausedClass, paused);
+				if (trackedAnimation.options.onDidChangeVisibility && trackedAnimation.visible !== !paused) {
+					trackedAnimation.visible = !paused;
+					visibilityChanges.push(() => {
+						if (trackedAnimations.get(target) === trackedAnimation) {
+							trackedAnimation.options.onDidChangeVisibility?.(!paused);
+						}
+					});
+				}
 				if (!paused) {
 					toResync.push([target, trackedAnimation.options]);
 				}
@@ -124,20 +145,35 @@ export function pauseCSSAnimationsWhenHidden(element: HTMLElement, options: IPau
 			for (const [target, trackedOptions] of toResync) {
 				synchronizeCSSAnimations(target, trackedOptions);
 			}
+			for (const notify of visibilityChanges) {
+				notify();
+			}
 			disposeVisibilityObserverIfEmpty(targetWindow, animationVisibilityObservers.get(targetWindow));
 		});
 		const visibilityListener = addDisposableListener(targetWindow.document, 'visibilitychange', () => {
 			const documentHidden = targetWindow.document.hidden;
 			const toResync: Array<[HTMLElement, IPauseCSSAnimationsWhenHiddenOptions]> = [];
+			const visibilityChanges: Array<() => void> = [];
 			for (const [target, trackedAnimation] of trackedAnimations) {
 				const paused = documentHidden || !intersectingElements.has(target);
 				target.classList.toggle(trackedAnimation.options.pausedClass, paused);
+				if (trackedAnimation.options.onDidChangeVisibility && trackedAnimation.visible !== !paused) {
+					trackedAnimation.visible = !paused;
+					visibilityChanges.push(() => {
+						if (trackedAnimations.get(target) === trackedAnimation) {
+							trackedAnimation.options.onDidChangeVisibility?.(!paused);
+						}
+					});
+				}
 				if (!paused) {
 					toResync.push([target, trackedAnimation.options]);
 				}
 			}
 			for (const [target, trackedOptions] of toResync) {
 				synchronizeCSSAnimations(target, trackedOptions);
+			}
+			for (const notify of visibilityChanges) {
+				notify();
 			}
 			disposeVisibilityObserverIfEmpty(targetWindow, animationVisibilityObservers.get(targetWindow));
 		});
@@ -150,6 +186,11 @@ export function pauseCSSAnimationsWhenHidden(element: HTMLElement, options: IPau
 				if (state) {
 					state.observer.disconnect();
 					state.visibilityListener.dispose();
+					for (const trackedAnimation of state.trackedAnimations.values()) {
+						if (trackedAnimation.visible) {
+							trackedAnimation.options.onDidChangeVisibility?.(false);
+						}
+					}
 					animationVisibilityObservers.delete(window);
 					disposeUnregisterWindowListenerIfUnused();
 				}
@@ -158,7 +199,8 @@ export function pauseCSSAnimationsWhenHidden(element: HTMLElement, options: IPau
 	}
 
 	element.classList.add(options.pausedClass);
-	state.trackedAnimations.set(element, { options });
+	state.trackedAnimations.set(element, { options, visible: false });
+	options.onDidChangeVisibility?.(false);
 	state.observer.observe(element);
 
 	return toDisposable(() => {

@@ -6,8 +6,7 @@
 import { illegalArgument } from './errors.js';
 import { escapeIcons } from './iconLabels.js';
 import { matchesSomeScheme, Schemas } from './network.js';
-import { isEqual } from './resources.js';
-import { escapeRegExpCharacters } from './strings.js';
+import { dirname, isEqual, resolvePath } from './resources.js';
 import { URI, UriComponents } from './uri.js';
 
 export interface MarkdownStringTrustedOptions {
@@ -89,28 +88,66 @@ export class MarkdownString implements IMarkdownString {
 		return this;
 	}
 
+	/**
+	 * Appends a link.
+	 *
+	 * @param target The link target, used literally: it cannot end the link or add Markdown.
+	 * It is not validated, so check the scheme of untrusted targets before using them in trusted Markdown.
+	 * @param label The link text as Markdown. Use {@link escapeMarkdownLinkLabel} for plain text.
+	 * @param title The link title, used literally.
+	 */
 	appendLink(target: URI | string, label: string, title?: string): MarkdownString {
 		this.value += '[';
 		this.value += this._escape(label, ']');
 		this.value += '](';
-		this.value += this._escape(String(target), ')');
+		this.value += escapeMarkdownLinkDestination(String(target));
 		if (title) {
-			this.value += ` "${this._escape(this._escape(title, '"'), ')')}"`;
+			this.value += ` "${escapeMarkdownLinkTitle(title)}"`;
 		}
 		this.value += ')';
 		return this;
 	}
 
 	private _escape(value: string, ch: string): string {
-		const r = new RegExp(escapeRegExpCharacters(ch), 'g');
-		return value.replace(r, (match, offset) => {
-			if (value.charAt(offset - 1) !== '\\') {
-				return `\\${match}`;
-			} else {
-				return match;
+		// A delimiter is already escaped only if it follows an odd number of backslashes:
+		// in `\\]` the first backslash escapes the second one, which leaves `]` unescaped.
+		// A trailing odd run of backslashes is completed as well, so that it cannot escape
+		// the delimiter that is appended after the value.
+		let result = '';
+		let backslashes = 0;
+		for (const c of value) {
+			if (c === ch && backslashes % 2 === 0) {
+				result += '\\';
 			}
-		});
+			backslashes = c === '\\' ? backslashes + 1 : 0;
+			result += c;
+		}
+		return backslashes % 2 === 1 ? result + '\\' : result;
 	}
+}
+
+/**
+ * Escapes a string for use as a Markdown link destination: whitespace and control characters,
+ * which would end the destination, are percent-encoded and Markdown syntax is backslash-escaped.
+ */
+function escapeMarkdownLinkDestination(target: string): string {
+	return target
+		.replace(/[\s\x00-\x1f\x7f]/g, ch => encodeURIComponent(ch))
+		.replace(/[\\()<>]/g, '\\$&');
+}
+
+/**
+ * Escapes a string for use as a double-quoted Markdown link title. Line breaks are replaced,
+ * because an empty line would end the paragraph and with it the link. Characters that the
+ * Markdown parser interprets in titles are written as character references, not backslash
+ * escapes: marked reads `\\"` as an escaped quote, so a title ending in a backslash would
+ * otherwise extend into the following text.
+ */
+function escapeMarkdownLinkTitle(title: string): string {
+	return title
+		.replace(/\r\n|[\r\n]/g, ' ')
+		.replace(/\0/g, '\uFFFD') // HTML cannot represent NUL
+		.replace(/[&\\"()\t]/g, ch => `&#${ch.charCodeAt(0)};`);
 }
 
 export function isEmptyMarkdownString(oneOrMany: IMarkdownString | IMarkdownString[] | null | undefined): boolean {
@@ -167,6 +204,19 @@ export function escapeMarkdownSyntaxTokens(text: string): string {
  */
 export function escapeMarkdownLinkLabel(text: string): string {
 	return text.replace(/[\\\]]/g, '\\$&');
+}
+
+/**
+ * Escapes plain text for use as the text of a Markdown link, for example the label of
+ * {@link MarkdownString.appendLink}, so that it renders literally. Unlike
+ * {@link escapeMarkdownLinkLabel}, this also prevents autolinks, emphasis, code spans and
+ * character references: every ASCII punctuation character is backslash-escaped. Line breaks
+ * are replaced with spaces, because an empty line would end the paragraph and with it the link.
+ */
+export function escapeMarkdownLinkText(text: string): string {
+	return text
+		.replace(/\r\n|[\r\n]/g, ' ')
+		.replace(/[!-/:-@[-`{-~]/g, '\\$&'); // CodeQL [SM02383] All ASCII punctuation, including the backslash, is escaped
 }
 
 /**
@@ -235,6 +285,23 @@ export function parseHrefAndDimensions(href: string): { href: string; dimensions
 		}
 	}
 	return { href, dimensions };
+}
+
+/**
+ * Resolves a Markdown link or media destination against the Markdown's base URI, as the Markdown
+ * renderer does. Destinations with a scheme are returned unchanged.
+ */
+export function resolveWithBaseUri(baseUri: URI, href: string): string {
+	const hasScheme = /^\w[\w\d+.-]*:/.test(href);
+	if (hasScheme) {
+		return href;
+	}
+
+	if (baseUri.path.endsWith('/')) {
+		return resolvePath(baseUri, href).toString();
+	} else {
+		return resolvePath(dirname(baseUri), href).toString();
+	}
 }
 
 export function createMarkdownLink(text: string, href: string, title?: string, escapeTokens = true): string {

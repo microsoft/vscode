@@ -5,7 +5,9 @@
 
 import assert from 'assert';
 import type * as vscode from 'vscode';
+import { DeferredPromise } from '../../../../base/common/async.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
+import { SerializedError } from '../../../../base/common/errors.js';
 import { mock } from '../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { NullLogService } from '../../../../platform/log/common/log.js';
@@ -13,7 +15,8 @@ import { nullExtensionDescription } from '../../../services/extensions/common/ex
 import { MainThreadLanguageModelsShape } from '../../common/extHost.protocol.js';
 import { IExtHostAuthentication } from '../../common/extHostAuthentication.js';
 import { ExtHostLanguageModels } from '../../common/extHostLanguageModels.js';
-import { LanguageModelChatApiType } from '../../common/extHostTypes.js';
+import { LanguageModelChatApiType, LanguageModelError } from '../../common/extHostTypes.js';
+import { SerializableObjectWithBuffers } from '../../../services/extensions/common/proxyIdentifier.js';
 import { SingleProxyRPCProtocol } from './testRPCProtocol.js';
 
 suite('ExtHostLanguageModels reasoning capabilities', () => {
@@ -98,5 +101,110 @@ suite('ExtHostLanguageModels request model resolution', () => {
 		const available = await host.getLanguageModelForRequest(nullExtensionDescription, 'test/available');
 		assert.strictEqual(available.id, 'available');
 		await assert.rejects(host.getLanguageModelForRequest(nullExtensionDescription, 'test/missing'), /test\/missing/);
+	});
+});
+
+suite('ExtHostLanguageModels provider errors', () => {
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('reports a synchronously thrown rate limit with its retry guidance', async () => {
+		const done = new DeferredPromise<SerializedError & { retryAfter?: number } | undefined>();
+		const proxy: Partial<MainThreadLanguageModelsShape> = {
+			$registerLanguageModelProvider: () => { },
+			$unregisterProvider: () => { },
+			$reportResponseDone: async (_requestId, error) => { done.complete(error); },
+		};
+		const host = store.add(new ExtHostLanguageModels(SingleProxyRPCProtocol(proxy), new NullLogService(), new class extends mock<IExtHostAuthentication>() { }));
+		store.add(host.registerLanguageModelChatProvider(nullExtensionDescription, 'test', {
+			provideLanguageModelChatInformation: async () => [{ id: 'model', name: 'model', family: 'model', version: '1', maxInputTokens: 1000, maxOutputTokens: 1000, capabilities: {} }],
+			provideLanguageModelChatResponse: () => { throw LanguageModelError.RateLimited('Too many requests', 1500); },
+			provideTokenCount: async () => 0,
+		}));
+		const [{ identifier }] = await host.$provideLanguageModelChatInfo('test', { silent: true }, CancellationToken.None);
+
+		await host.$startChatRequest(identifier, 1, undefined, new SerializableObjectWithBuffers([]), {}, CancellationToken.None);
+		const error = await done.p;
+		assert.deepStrictEqual({ name: error?.name, code: error?.code, retryAfter: error?.retryAfter }, { name: 'LanguageModelError', code: 'RateLimited', retryAfter: 1500 });
+	});
+});
+
+suite('ExtHostLanguageModels provider disposal', () => {
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
+
+	function model(id: string): vscode.LanguageModelChatInformation {
+		return { id, name: id, family: id, version: '1', maxInputTokens: 1000, maxOutputTokens: 1000, capabilities: {} };
+	}
+
+	function createHost(identifiers = ['test/old', 'test/new']) {
+		const proxy: Partial<MainThreadLanguageModelsShape> = {
+			$registerLanguageModelProvider: () => { },
+			$unregisterProvider: () => { },
+			$selectChatModels: async () => identifiers,
+		};
+		return store.add(new ExtHostLanguageModels(SingleProxyRPCProtocol(proxy), new NullLogService(), new class extends mock<IExtHostAuthentication>() { }));
+	}
+
+	function provider(models: Promise<vscode.LanguageModelChatInformation[]>): vscode.LanguageModelChatProvider {
+		return {
+			provideLanguageModelChatInformation: () => models,
+			provideLanguageModelChatResponse: async () => { throw new Error('Unexpected model request'); },
+			provideTokenCount: async () => 0,
+		};
+	}
+
+	test('discards model information completing after provider disposal', async () => {
+		const host = createHost();
+		const pending = new DeferredPromise<vscode.LanguageModelChatInformation[]>();
+		const registration = store.add(host.registerLanguageModelChatProvider(nullExtensionDescription, 'test', provider(pending.p)));
+		const discovery = host.$provideLanguageModelChatInfo('test', { silent: true }, CancellationToken.None);
+		registration.dispose();
+		await pending.complete([model('old')]);
+
+		assert.deepStrictEqual({
+			metadata: await discovery,
+			models: (await host.selectLanguageModels(nullExtensionDescription, { vendor: 'test' })).map(model => model.id),
+		}, { metadata: [], models: [] });
+	});
+
+	test('a disposed registration cannot overwrite its replacement catalog', async () => {
+		const host = createHost();
+		const pending = new DeferredPromise<vscode.LanguageModelChatInformation[]>();
+		const registration = store.add(host.registerLanguageModelChatProvider(nullExtensionDescription, 'test', provider(pending.p)));
+		const discovery = host.$provideLanguageModelChatInfo('test', { silent: true }, CancellationToken.None);
+		registration.dispose();
+		store.add(host.registerLanguageModelChatProvider(nullExtensionDescription, 'test', provider(Promise.resolve([model('new')]))));
+		await host.$provideLanguageModelChatInfo('test', { silent: true }, CancellationToken.None);
+		await pending.complete([model('old')]);
+
+		assert.deepStrictEqual({
+			metadata: await discovery,
+			models: (await host.selectLanguageModels(nullExtensionDescription, { vendor: 'test' })).map(model => model.id),
+		}, { metadata: [], models: ['new'] });
+	});
+
+	test('a live provider still publishes models and disposal clears them', async () => {
+		const host = createHost();
+		const registration = store.add(host.registerLanguageModelChatProvider(nullExtensionDescription, 'test', provider(Promise.resolve([model('new')]))));
+		await host.$provideLanguageModelChatInfo('test', { silent: true }, CancellationToken.None);
+		const before = (await host.selectLanguageModels(nullExtensionDescription, { vendor: 'test' })).map(model => model.id);
+		registration.dispose();
+		const after = (await host.selectLanguageModels(nullExtensionDescription, { vendor: 'test' })).map(model => model.id);
+
+		assert.deepStrictEqual({ before, after }, { before: ['new'], after: [] });
+	});
+
+	test('disposing a provider prevents a pending model catalog from repopulating its cache', async () => {
+		const models = Array.from({ length: 37 }, (_, index) => model(`model-${index}`));
+		const host = createHost(models.map(model => `test/${model.id}`));
+		const pending = new DeferredPromise<vscode.LanguageModelChatInformation[]>();
+		const registration = store.add(host.registerLanguageModelChatProvider(nullExtensionDescription, 'test', provider(pending.p)));
+		const discovery = host.$provideLanguageModelChatInfo('test', { silent: true }, CancellationToken.None);
+		registration.dispose();
+		await pending.complete(models);
+
+		assert.deepStrictEqual({
+			metadataCount: (await discovery).length,
+			cachedModelCount: (await host.selectLanguageModels(nullExtensionDescription, { vendor: 'test' })).length,
+		}, { metadataCount: 0, cachedModelCount: 0 });
 	});
 });

@@ -3,8 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { SymbolFlags, type Project, type Symbol as NativeSymbol } from '@typescript/native/unstable/async';
-import { escapeLeadingUnderscores, isBlock, isFunctionDeclaration, isMethodDeclaration, isModuleBlock, isSourceFile, type Node } from '@typescript/native/unstable/ast';
+import { SymbolFlags, type Project, type Symbol as NativeSymbol } from '@typescript/native/async';
+import { escapeLeadingUnderscores, isBlock, isFunctionDeclaration, isMethodDeclaration, isModuleBlock, isSourceFile, type Node } from '@typescript/native/ast';
 import * as protocol from '../../common/serverProtocol';
 import { CancellationTokenWithTimer, Symbols } from './typescripts';
 

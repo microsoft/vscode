@@ -12,9 +12,6 @@
 		"module": "esnext",
 		"types": [
 			"node"
-		],
-		"typeRoots": [
-			"../node_modules/@types"
 		]
 	},
 	"include": [

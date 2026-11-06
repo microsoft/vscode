@@ -346,6 +346,10 @@ export class ApiRepository implements Repository {
 		return this.#repository.rebaseAbort();
 	}
 
+	rebaseContinue(): Promise<void> {
+		return this.#repository.rebaseContinue();
+	}
+
 	updateRef(ref: string, newSha: string, oldSha: string): Promise<void> {
 		return this.#repository.updateRef(ref, newSha, oldSha);
 	}

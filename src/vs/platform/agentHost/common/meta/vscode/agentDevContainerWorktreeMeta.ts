@@ -6,6 +6,9 @@
 export const AH_META_DEV_CONTAINER_WORKTREE_DB_KEY = 'vscode.devContainerWorktree';
 export const DEV_CONTAINER_WORKTREE_DATA_ID_PREFIX = 'devcontainer-worktree-';
 
+/** The URI scheme of a detached worktree record: its own database, never a session. */
+export const DETACHED_WORKTREE_OWNER_SCHEME = 'vscode-agent-host-worktree';
+
 export interface IAgentDevContainerWorktreeMetadata {
 	readonly version: 1;
 	readonly handle: string;

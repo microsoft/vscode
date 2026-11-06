@@ -443,7 +443,7 @@ suite('AgentHostByokLmHandler', () => {
 				instructions: 'be helpful',
 				previousResponseId: 'resp_previous',
 				reasoningEffort: 'high',
-				modelOptions: { temperature: 0.5 },
+				modelOptions: { temperature: 0.5, _conversationId: 'sess-1' },
 				tools: [
 					{ type: 'function', name: 'getWeather', parametersSchema: { type: 'object' } },
 					{ type: 'custom', name: 'apply_patch' },
@@ -501,7 +501,7 @@ suite('AgentHostByokLmHandler', () => {
 				},
 			],
 			options: {
-				modelOptions: { temperature: 0.5 },
+				modelOptions: { temperature: 0.5, _conversationId: 'sess-1' },
 				includeEncryptedThinking: true,
 				configuration: { reasoningEffort: 'high' },
 				tools: [

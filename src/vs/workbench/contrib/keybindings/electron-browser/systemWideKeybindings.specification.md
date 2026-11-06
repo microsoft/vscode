@@ -159,8 +159,14 @@ registrations. Wired up in `src/vs/code/electron-main/app.ts` with the real Elec
   routing window — a system-wide keybinding fires while VS Code is typically unfocused, and pulling
   the routing window forward would flicker when the command opens/reveals a *different* window
   (e.g. `workbench.action.openAgentsWindow`). This matches every other `vscode:runAction` sender.
-- Lifecycle: on `IWindowsMainService.onDidDestroyWindow` it drops the window's entry and reconciles;
-  on `ILifecycleMainService.onWillShutdown` and on dispose it unregisters everything.
+- Lifecycle: on `ILifecycleMainService.onBeforeCloseWindow` (a normal close) and
+  `IWindowsMainService.onDidDestroyWindow` (destroying a crashed or unresponsive window) it drops the
+  window's entry and reconciles, so accelerators that no open window wants are unregistered. Each
+  path fires only its own event, so both are needed. On `ILifecycleMainService.onWillShutdown` and
+  on dispose it unregisters everything. When the last window closes on macOS (the app keeps
+  running), all system-wide accelerators are released; previously they stayed registered but inert.
+  An open Agents Window still owns the Open Agents Window binding after all editor windows close (see
+  [`src/vs/sessions/SYSTEM_WIDE_KEYBINDING.md`](../../../../sessions/SYSTEM_WIDE_KEYBINDING.md)).
 
 ### How the `systemWide` flag is plumbed
 
@@ -201,10 +207,15 @@ The boolean travels from `keybindings.json` to `ResolvedKeybindingItem`:
 ## Testing
 
 - `src/vs/platform/globalKeybindings/test/electron-main/globalKeybindingsMainService.test.ts` — the
-  main service against a fake `IGlobalShortcutRegistry` and fake windows service: register/reconcile,
-  dedup within a window, failed-registration reporting + retry, trigger routing (focused owner,
-  deterministic lowest-id, no force-focus, undefined args), cross-window conflict resolution, window
-  destroy unregistration, and shutdown unregister-all. Pure electron-main (node-safe, no DOM/CSS).
+  main service against a fake `IGlobalShortcutRegistry` and fake windows and lifecycle services:
+  register/reconcile, dedup within a window, failed-registration reporting + retry, trigger routing
+  (focused owner, deterministic lowest-id, no force-focus, undefined args), cross-window conflict
+  resolution, dropping a window's bindings on a normal close (everything is released once the last
+  window closes) and on a crashed-window destroy (shared accelerators route to the surviving owner),
+  and shutdown unregister-all. The fakes keep the two removal paths separate:
+  `FakeLifecycleMainService.closeWindow()` fires only `onBeforeCloseWindow` and
+  `FakeWindowsMainService.destroyWindow()` fires only `onDidDestroyWindow`, so a normal close is
+  never modeled as a destroy. Pure electron-main (node-safe, no DOM/CSS).
 - `src/vs/workbench/contrib/keybindings/test/electron-browser/systemWideKeybindings.test.ts` — the
   pure `selectSystemWideKeybindings`: eligibility filtering, unsupported (chords/modifiers),
   duplicates.
@@ -226,3 +237,7 @@ The boolean travels from `keybindings.json` to `ResolvedKeybindingItem`:
   reconcile, and are surfaced to the user as a warning.
 - Keep `selectSystemWideKeybindings` pure — it is the primary unit-tested seam for renderer
   eligibility logic.
+- Commands run by system-wide keybindings usually execute while VS Code is inactive or hidden, and
+  `onTrigger` does not focus any window. A command that surfaces UI must focus its window with
+  `FocusMode.Force` (as `workbench.action.focusWindow` and Open Agents Window do), because
+  `FocusMode.Transfer` is a no-op for a hidden app on macOS.

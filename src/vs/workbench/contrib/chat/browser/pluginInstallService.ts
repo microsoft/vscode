@@ -20,6 +20,7 @@ import { IFileService } from '../../../../platform/files/common/files.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { INotificationService, Severity } from '../../../../platform/notification/common/notification.js';
 import { IProgressService, ProgressLocation } from '../../../../platform/progress/common/progress.js';
+import { NotificationTelemetryId } from '../../../../platform/notification/common/notificationTelemetry.js';
 import { IQuickInputService, IQuickPickItem } from '../../../../platform/quickinput/common/quickInput.js';
 import { IPathService } from '../../../services/path/common/pathService.js';
 import { IAgentPluginRepositoryService } from '../common/plugins/agentPluginRepositoryService.js';
@@ -51,7 +52,7 @@ export class PluginInstallService implements IPluginInstallService {
 
 	async installPlugin(plugin: IMarketplacePlugin, token: CancellationToken = CancellationToken.None): Promise<void> {
 		this.throwIfCancelled(token);
-		if (!await this._ensureMarketplaceTrusted(plugin, token)) {
+		if (!await this.ensureMarketplaceTrusted(plugin.marketplaceReference, token)) {
 			throw new CancellationError();
 		}
 		this.throwIfCancelled(token);
@@ -141,7 +142,7 @@ export class PluginInstallService implements IPluginInstallService {
 			marketplaceType: MarketplaceType.OpenPlugin,
 		};
 
-		if (!await this._ensureMarketplaceTrusted(tempPlugin)) {
+		if (!await this.ensureMarketplaceTrusted(tempPlugin.marketplaceReference)) {
 			return { success: false };
 		}
 
@@ -219,9 +220,10 @@ export class PluginInstallService implements IPluginInstallService {
 					};
 				}
 				await this.installPlugin(singlePlugin);
+				const installedUri = this.getPluginInstallUri(singlePlugin);
 				return options?.plugin
-					? { success: true, matchedPlugin: singlePlugin }
-					: { success: true };
+					? { success: true, matchedPlugin: singlePlugin, installedUri }
+					: { success: true, installedUri };
 			}
 
 			void this._pluginRepositoryService.cleanupPluginSource(tempPlugin);
@@ -241,7 +243,7 @@ export class PluginInstallService implements IPluginInstallService {
 		if (!this._pluginMarketplaceService.installedPlugins.get().some(installed => isEqual(installed.pluginUri, installedUri))) {
 			return { success: false, message: localize('pluginSourceInstallIncomplete', "The plugin could not be installed. Review the installation error and try again.") };
 		}
-		return { success: true, matchedPlugin: plugin };
+		return { success: true, matchedPlugin: plugin, installedUri };
 	}
 
 	/**
@@ -289,7 +291,7 @@ export class PluginInstallService implements IPluginInstallService {
 				marketplaceReference: reference,
 				marketplaceType: MarketplaceType.OpenPlugin,
 			};
-			if (!await this._ensureMarketplaceTrusted(tempPlugin)) {
+			if (!await this.ensureMarketplaceTrusted(tempPlugin.marketplaceReference)) {
 				return { success: false };
 			}
 			return this._installDiscoveredPlugins(reference, discoveredPlugins, options);
@@ -299,7 +301,7 @@ export class PluginInstallService implements IPluginInstallService {
 		// a standalone plugin location.
 		if (await this._pluginMarketplaceService.isPluginDirectory(repoDir)) {
 			await this._addPluginLocationToConfig(configPath);
-			return { success: true };
+			return { success: true, installedUri: repoDir };
 		}
 
 		return {
@@ -324,13 +326,13 @@ export class PluginInstallService implements IPluginInstallService {
 			}
 			await this._addMarketplaceToConfig(reference);
 			await this.installPlugin(matchedPlugin);
-			return { success: true, matchedPlugin };
+			return { success: true, matchedPlugin, installedUri: this.getPluginInstallUri(matchedPlugin) };
 		}
 
 		if (discoveredPlugins.length === 1) {
 			await this._addMarketplaceToConfig(reference);
 			await this.installPlugin(discoveredPlugins[0]);
-			return { success: true };
+			return { success: true, installedUri: this.getPluginInstallUri(discoveredPlugins[0]) };
 		}
 
 		// Multiple plugins — let the user choose.
@@ -352,7 +354,7 @@ export class PluginInstallService implements IPluginInstallService {
 		await this._addMarketplaceToConfig(reference);
 		await this.installPlugin(selected.plugin);
 
-		return { success: true };
+		return { success: true, installedUri: this.getPluginInstallUri(selected.plugin) };
 	}
 
 	private _addMarketplaceToConfig(reference: IMarketplaceReference) {
@@ -440,7 +442,7 @@ export class PluginInstallService implements IPluginInstallService {
 		if (this._pluginMarketplaceService.isStrictMarketplacePolicyActive() && !this._pluginMarketplaceService.isMarketplaceTrusted(plugin.marketplaceReference)) {
 			this._notificationService.notify({
 				severity: Severity.Warning,
-				message: localize('strictMarketplaceBlockedUpdate', "Updates from '{0}' are blocked by your organization's policy.", plugin.marketplaceReference.displayLabel),
+				message: localize('strictMarketplaceBlockedUpdate', "Updates from '{0}' are blocked by your organization.", plugin.marketplaceReference.displayLabel),
 			});
 			return false;
 		}
@@ -481,7 +483,7 @@ export class PluginInstallService implements IPluginInstallService {
 			if (moved) {
 				this._pluginEnablementService.copyEnablement(installed.pluginUri, pluginUri);
 			}
-			this._pluginMarketplaceService.addInstalledPlugin(pluginUri, plugin);
+			this._pluginMarketplaceService.addInstalledPlugin(pluginUri, plugin, moved ? installed.pluginUri : undefined);
 			if (moved) {
 				this._pluginMarketplaceService.removeInstalledPlugin(installed.pluginUri);
 			}
@@ -625,6 +627,7 @@ export class PluginInstallService implements IPluginInstallService {
 			await this._progressService.withProgress(
 				{
 					location: ProgressLocation.Notification,
+					telemetry: NotificationTelemetryId.PluginUpdate,
 					title: localize('updatingAllPlugins', "Updating plugins..."),
 				},
 				doUpdate,
@@ -664,32 +667,24 @@ export class PluginInstallService implements IPluginInstallService {
 
 	// --- Trust gate -------------------------------------------------------------
 
-	private async _ensureMarketplaceTrusted(plugin: IMarketplacePlugin, token: CancellationToken = CancellationToken.None): Promise<boolean> {
-		if (this._pluginMarketplaceService.isMarketplaceTrusted(plugin.marketplaceReference)) {
+	async ensureMarketplaceTrusted(reference: IMarketplaceReference, token: CancellationToken = CancellationToken.None): Promise<boolean> {
+		if (this._pluginMarketplaceService.isMarketplaceTrusted(reference)) {
 			return true;
 		}
 
-		// Under the strict-marketplace enterprise policy, a marketplace that is not
-		// on the allowlist is blocked outright — the user cannot grant trust to
-		// bypass it. Surface a non-actionable enterprise-policy notification that
-		// points at the managed setting (shown as "Managed by organization").
+		// Managed restrictions cannot be bypassed by granting user trust.
 		if (this._pluginMarketplaceService.isStrictMarketplacePolicyActive()) {
 			this._notificationService.notify({
 				severity: Severity.Warning,
-				message: localize('strictMarketplaceBlockedInstall', "Plugins from '{0}' are blocked by your organization's policy.", plugin.marketplaceReference.displayLabel),
-				actions: {
-					primary: [new Action('chat.plugins.viewMarketplacePolicy', localize('viewPolicySettings', "View Policy Settings"), undefined, true, () => {
-						return this._commandService.executeCommand('workbench.action.openSettings', ChatConfiguration.StrictMarketplaces);
-					})],
-				},
+				message: localize('strictMarketplaceBlockedInstall', "Plugins from '{0}' are blocked by your organization.", reference.displayLabel),
 			});
 			return false;
 		}
 
 		const { confirmed } = await this._dialogService.confirm({
 			type: 'question',
-			message: localize('trustMarketplace', "Trust Plugins from '{0}'?", plugin.marketplaceReference.displayLabel),
-			detail: localize('trustMarketplaceDetail', "Plugins can run code on your machine. Only install plugins from sources you trust.\n\nSource: {0}", plugin.marketplaceReference.rawValue),
+			message: localize('trustMarketplace', "Trust Plugins from '{0}'?", reference.displayLabel),
+			detail: localize('trustMarketplaceDetail', "Plugins can run code on your machine. Only install plugins from sources you trust.\n\nSource: {0}", reference.rawValue),
 			primaryButton: localize({ key: 'trustAndInstall', comment: ['&& denotes a mnemonic'] }, "&&Trust"),
 			custom: {
 				icon: Codicon.shield,
@@ -701,7 +696,7 @@ export class PluginInstallService implements IPluginInstallService {
 			return false;
 		}
 
-		this._pluginMarketplaceService.trustMarketplace(plugin.marketplaceReference);
+		this._pluginMarketplaceService.trustMarketplace(reference);
 		return true;
 	}
 

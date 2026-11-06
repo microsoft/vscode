@@ -22,6 +22,7 @@ export type { IRemoteFilesystemConnection } from './agentHostFileSystemProvider.
  * and are reachable by the agent host via `fetchContent`.
  */
 export const SYNCED_CUSTOMIZATION_SCHEME = 'vscode-synced-customization';
+export const SYNCED_CUSTOMIZATION_DISPLAY_NAME = 'VS Code Synced Data';
 
 export const IAgentHostFileSystemService = createDecorator<IAgentHostFileSystemService>('agentHostFileSystemService');
 

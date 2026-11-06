@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import type { ChatRequest, ChatResponseStream } from 'vscode';
+import type { CancellationToken, ChatRequest, ChatResponseStream } from 'vscode';
 import { ChatResponseStreamImpl } from '../../../util/common/chatResponseStreamImpl';
 import { createServiceIdentifier } from '../../../util/common/services';
 import { TaskSingler } from '../../../util/common/taskSingler';
@@ -99,6 +99,7 @@ export function reportAutoModeRouting(
 	request: ChatRequest,
 	stream: ChatResponseStream,
 	automodeService: IAutomodeService,
+	token: CancellationToken,
 	reportRouting = true,
 ): IAutoModeRoutingReporter {
 	let tier: AutoModeTier | undefined;
@@ -106,11 +107,15 @@ export function reportAutoModeRouting(
 		if (e.requestId === undefined || e.requestId !== request.id) {
 			return;
 		}
-		if (e.kind === 'started' && reportRouting) {
+		// Routing resolves asynchronously, so a cancelled turn may have already
+		// closed the response stream by the time this fires. Pushing to a closed
+		// stream throws "Response stream has been closed"; the explainability
+		// part is also moot once the turn is gone, so skip it.
+		if (e.kind === 'started' && reportRouting && !token.isCancellationRequested) {
 			stream.push(new ChatResponseAutoModeResolutionPart());
 		} else if (e.kind === 'resolved') {
 			tier = e.tier;
-			if (reportRouting && e.didRoute) {
+			if (reportRouting && e.didRoute && !token.isCancellationRequested) {
 				stream.push(new ChatResponseAutoModeResolutionPart({ id: e.endpoint.model, name: e.endpoint.name }));
 			}
 		} else if (e.kind === 'failed') {
@@ -213,7 +218,7 @@ export class AutomodeService extends Disposable implements IAutomodeService {
 		// its display metadata only. The picker hides per-model pricing for
 		// Auto, so the wrapped model is not user-visible.
 		const base = knownEndpoints.find(e => e.showInModelPicker) ?? knownEndpoints[0];
-		return this._instantiationService.createInstance(AutoChatEndpoint, base, '', 0, this.getAutoPickerMetadata(knownEndpoints).discountRange);
+		return this._instantiationService.createInstance(AutoChatEndpoint, base, '', 0, this.getAutoPickerMetadata(knownEndpoints).discountRange, undefined);
 	}
 
 	getAutoPickerMetadata(knownEndpoints: IChatEndpoint[]): AutoModePickerMetadata {
@@ -351,7 +356,7 @@ export class AutomodeService extends Disposable implements IAutomodeService {
 
 		const endpoint = (entry?.endpoint && entry.sessionToken === result.session_token && entry.endpoint.model === selectedModel.model && entry.tier === tier)
 			? entry.endpoint
-			: this._instantiationService.createInstance(AutoChatEndpoint, selectedModel, result.session_token, result.discounted_costs?.[selectedModel.model] ?? selectedModel.autoDiscount ?? 0, this._calculateDiscountRange(knownEndpoints));
+			: this._instantiationService.createInstance(AutoChatEndpoint, selectedModel, result.session_token, result.discounted_costs?.[selectedModel.model] ?? selectedModel.autoDiscount ?? 0, this._calculateDiscountRange(knownEndpoints), tier);
 
 		if (conversationId === 'unknown') {
 			return endpoint;

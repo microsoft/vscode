@@ -271,24 +271,42 @@ export class OpenAIEndpoint extends ChatEndpoint {
 		return trimmed;
 	}
 
+	/**
+	 * Whether the Responses API server retains prior responses so requests can
+	 * chain via `previous_response_id` and send only post-marker history.
+	 */
+	protected get supportsStatefulResponses(): boolean {
+		return true;
+	}
+
+	/**
+	 * Whether this endpoint can resume a Responses API response ID.
+	 */
+	protected override canResumeResponses(responseId: string): boolean {
+		return !this.modelMetadata.zeroDataRetentionEnabled
+			&& this.supportsStatefulResponses
+			&& responseId.startsWith('resp_');
+	}
+
 	override createRequestBody(options: ICreateEndpointBodyOptions): IEndpointBody {
 		if (this.useResponsesApi) {
 			// Handle Responses API: customize the body directly
 			const zdr = !!this.modelMetadata.zeroDataRetentionEnabled;
 			// When ZDR is on the server refuses to retain responses, so we must
 			// not chain via `previous_response_id` and must not ask it to `store`.
-			options.ignoreStatefulMarker = options.ignoreStatefulMarker || zdr;
-			const body = super.createRequestBody(options);
+			options.ignoreStatefulMarker = options.ignoreStatefulMarker || zdr || !this.supportsStatefulResponses;
+			let body = super.createRequestBody(options);
+			if (body.previous_response_id && !body.previous_response_id.startsWith('resp_')) {
+				// The marker (e.g. a CAPI response ID) can't be chained here, but history was
+				// already sliced at it. Rebuild so the server receives the full history.
+				body = super.createRequestBody({ ...options, ignoreStatefulMarker: true });
+			}
 			body.store = !zdr;
 			body.n = undefined;
 			body.stream_options = undefined;
 			if (!this.modelMetadata.capabilities.supports.thinking) {
 				body.reasoning = undefined;
 				body.include = undefined;
-			}
-			if (body.previous_response_id && (!body.previous_response_id.startsWith('resp_') || zdr)) {
-				// Don't use a response ID from CAPI or when zero data retention is enabled
-				body.previous_response_id = undefined;
 			}
 			this._applyReasoningEffort(body, options);
 			return this._applyConfiguredModelOptions(body, options);

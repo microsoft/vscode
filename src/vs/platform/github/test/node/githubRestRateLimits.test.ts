@@ -9,6 +9,7 @@ import { runWithFakedTimers } from '../../../../base/test/common/timeTravelSched
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { NullLogService } from '../../../log/common/log.js';
 import { NullTelemetryService } from '../../../telemetry/common/telemetryUtils.js';
+import { GitHubRateLimitCoordinator } from '../../common/githubRateLimitCoordinator.js';
 import { GitHubService } from '../../common/githubService.js';
 import { GitHubTransport } from '../../common/githubTransport.js';
 import { FakeScheduler } from './fakeScheduler.js';
@@ -32,6 +33,51 @@ suite('GitHub REST rate limits', () => {
 		{ name: 'legacy checks', resource: 'core', first: '/repos/o/r/check-suites/1', next: '/repos/other/repo/check-runs/2', independent: '/search/issues?q=test' },
 		{ name: 'legacy code search', resource: 'search', first: '/search/code?q=first', next: '/search/code?q=second', independent: '/repos/o/r/issues/1' },
 	];
+
+	test('isolates Agents from same-account REST fallback while retaining account-wide secondary limits', () => {
+		const scheduler = store.add(new FakeScheduler({ now: 1_000_000 }));
+		const limits = store.add(new GitHubRateLimitCoordinator(scheduler));
+		const resources = ['core', 'checks', 'search', 'code_search', 'graphql', 'agents'];
+		const delays = () => resources.map(resource => limits.getRequestDelay(account, resource));
+		limits.updateFromResponse(account, new Response(null, {
+			status: 503, headers: { 'x-ratelimit-resource': 'custom', 'retry-after': '60' },
+		}), undefined, 'core');
+		const restFallback = delays();
+		limits.updateFromAgentsResponse(account, new Response(null, { status: 429, headers: { 'retry-after': '30' } }));
+		const agents = delays();
+		limits.updateFromResponse(account, new Response(null, {
+			status: 403, headers: { 'retry-after': '90', 'x-github-secondary-rate-limited': 'true' },
+		}), undefined, 'core');
+		assert.deepStrictEqual({
+			restFallback, agents, secondary: delays(),
+			otherAccount: resources.map(resource => limits.getRequestDelay({ ...account, accountId: '202' }, resource)),
+		}, {
+			restFallback: [60_000, 60_000, 60_000, 60_000, 0, 0],
+			agents: [60_000, 60_000, 60_000, 60_000, 0, 30_000],
+			secondary: [90_000, 90_000, 90_000, 90_000, 90_000, 90_000],
+			otherAccount: [0, 0, 0, 0, 0, 0],
+		});
+	});
+
+	test('healthy responses and shorter hints do not erase an Agents cooldown', () => {
+		const scheduler = store.add(new FakeScheduler());
+		const limits = store.add(new GitHubRateLimitCoordinator(scheduler));
+		limits.updateFromAgentsResponse(account, new Response(null, { status: 429, headers: { 'retry-after': '60' } }));
+		scheduler.advanceBy(10_000);
+		limits.updateFromAgentsResponse(account, new Response(null, { status: 503, headers: { 'retry-after': '5' } }));
+		const shorterHint = limits.getRequestDelay(account, 'agents');
+		limits.updateFromAgentsResponse(account, new Response(null, { headers: { 'x-ratelimit-remaining': '4999' } }));
+		const healthy = limits.getRequestDelay(account, 'agents');
+		limits.updateFromAgentsResponse(account, new Response(null, {
+			status: 202, headers: { 'retry-after': '120', 'x-ratelimit-remaining': '0', 'x-ratelimit-reset': '120' },
+		}));
+		const wakingHint = limits.getRequestDelay(account, 'agents');
+		scheduler.advanceBy(50_000);
+		assert.deepStrictEqual({
+			shorterHint, healthy, wakingHint, expired: limits.getRequestDelay(account, 'agents'),
+			core: limits.getRequestDelay(account, 'core'),
+		}, { shorterHint: 50_000, healthy: 50_000, wakingHint: 50_000, expired: 0, core: 0 });
+	});
 
 	for (const family of families) {
 		for (const status of [200, 403, 503]) {
@@ -180,33 +226,36 @@ suite('GitHub REST rate limits', () => {
 		for (const accountId of [undefined, account.accountId]) {
 			test(`queued bootstrap ${resource} cooldown survives ${accountId ? 'known-account' : 'unknown-account'} credential replacement`, () => runWithFakedTimers({}, async () => {
 				const started = new DeferredPromise<void>();
-				const response = new DeferredPromise<Response>();
+				const response = new DeferredPromise<void>();
 				const blockedUntil: number[] = [];
 				let calls = 0;
 				const service = store.add(new GitHubService({
 					fetch: async () => {
 						calls++;
 						await started.complete();
-						return response.p;
+						await response.p;
+						return Response.json({}, {
+							status: 403, headers: { 'x-ratelimit-resource': resource, 'x-ratelimit-remaining': '0', 'retry-after': '60' },
+						});
 					},
 				}, new NullLogService(), NullTelemetryService));
 				const options = { apiBaseUri: origin, accountId };
 				const first = store.add(service.acquireBootstrapClient({ ...options, token: 'first' }));
 				const peer = store.add(service.acquireBootstrapClient({ ...options, token: 'peer' }));
-				const firstRejected = assert.rejects(first.object.get('/repos/o/r/check-runs/1', signal()), { kind: 'rateLimit' });
+				const firstRejected = Promise.all(Array.from({ length: 8 }, (_, index) =>
+					assert.rejects(first.object.get(`/repos/o/r/check-runs/${index + 1}`, signal()), { kind: 'rateLimit' })));
 				await started.p;
+				await timeout(0);
 				const peerRejected = assert.rejects(peer.object.get('/repos/other/repo/check-suites/2', signal(), {
 					deadline: Date.now() + 100, onBlockedUntil: time => blockedUntil.push(time),
 				}), { kind: 'rateLimit', statusCode: 429 });
-				await response.complete(Response.json({}, {
-					status: 403, headers: { 'x-ratelimit-resource': resource, 'x-ratelimit-remaining': '0', 'retry-after': '60' },
-				}));
+				await response.complete();
 				await Promise.all([firstRejected, peerRejected]);
 				first.dispose();
 				peer.dispose();
 				const replacement = store.add(service.acquireBootstrapClient({ apiBaseUri: origin, accountId: account.accountId, token: 'replacement' })).object;
 				await assert.rejects(replacement.get('/repos/o/r/check-runs/3', signal(), { deadline: Date.now() + 100 }), { kind: 'rateLimit', statusCode: 429 });
-				assert.deepStrictEqual({ calls, notified: blockedUntil.some(time => time > Date.now()) }, { calls: 1, notified: true });
+				assert.deepStrictEqual({ calls, notified: blockedUntil.some(time => time > Date.now()) }, { calls: 8, notified: true });
 			}));
 		}
 	}

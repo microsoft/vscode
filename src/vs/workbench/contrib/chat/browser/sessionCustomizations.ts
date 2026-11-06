@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Codicon } from '../../../../base/common/codicons.js';
-import { isMarkdownString, MarkdownString } from '../../../../base/common/htmlContent.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../base/common/network.js';
 import { derivedOpts, IObservable } from '../../../../base/common/observable.js';
@@ -13,7 +12,7 @@ import { ThemeIcon } from '../../../../base/common/themables.js';
 import { URI } from '../../../../base/common/uri.js';
 import { localize } from '../../../../nls.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
-import { type IChatPillEntry, type IChatPillSection } from '../../../browser/chatPills.js';
+import { getChatPillLocationHover, type IChatPillEntry, type IChatPillSection } from '../../../browser/chatPills.js';
 import { AICustomizationManagementCommands, AICustomizationManagementSection } from './aiCustomization/aiCustomizationManagement.js';
 import { ISessionChatCustomization, SessionCustomizationKind } from '../common/sessionChatCustomizations.js';
 
@@ -69,7 +68,7 @@ export function buildSessionCustomizationSections(
 			label: customization.name,
 			icon: customizationIcons.get(customization.kind) ?? Codicon.bookmark,
 			ariaDescription: path,
-			hover: path ? { content: new MarkdownString().appendText(path) } : undefined,
+			hover: path ? getChatPillLocationHover(path) : undefined,
 			open: () => reveal(customization),
 		});
 		entriesByKind.set(customization.kind, entries);
@@ -139,13 +138,5 @@ function sectionsEqual(a: readonly IChatPillSection[], b: readonly IChatPillSect
 		&& section.entries.length === b[i].entries.length
 		&& section.entries.every((entry, j) => entry.id === b[i].entries[j].id
 			&& entry.label === b[i].entries[j].label
-			&& hoverContentEqual(entry, b[i].entries[j])));
-}
-
-function hoverContentEqual(a: IChatPillEntry, b: IChatPillEntry): boolean {
-	const aContent = a.hover?.content;
-	const bContent = b.hover?.content;
-	return isMarkdownString(aContent) && isMarkdownString(bContent)
-		? aContent.value === bContent.value
-		: aContent === bContent;
+			&& entry.ariaDescription === b[i].entries[j].ariaDescription));
 }

@@ -6,6 +6,8 @@
 import { localize } from '../../../../../nls.js';
 import { $, addDisposableListener, AnimationFrameScheduler, EventType, isHTMLInputElement } from '../../../../../base/browser/dom.js';
 import { StandardKeyboardEvent } from '../../../../../base/browser/keyboardEvent.js';
+import { status } from '../../../../../base/browser/ui/aria/aria.js';
+import { IManagedHover } from '../../../../../base/browser/ui/hover/hover.js';
 import { getDefaultHoverDelegate } from '../../../../../base/browser/ui/hover/hoverDelegateFactory.js';
 import { CancellationTokenSource } from '../../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
@@ -62,6 +64,10 @@ export interface IBrowserUrlBarHost {
 	getPlaceholder?(): string;
 }
 
+function readonlyAddressMessage(): string {
+	return localize('browser.addressLockedTooltip', "The address is read-only because the browser is locked to a file resource.");
+}
+
 /**
  * The URL bar widget: a contenteditable display showing the current URL,
  * with a quick-pick overlay as the editing surface. Hosts pre/post-URL
@@ -85,8 +91,10 @@ export class BrowserUrlBarWidget extends Disposable {
 	private readonly _suggestionProviders: IBrowserUrlSuggestionProvider[] = [];
 	private readonly _pickerActionProviders: IBrowserUrlPickerActionProvider[] = [];
 	private readonly _picker = this._register(new MutableDisposable<IQuickPick<IUrlPickerItem, { useSeparators: true }>>());
+	private readonly _readonlyHover: IManagedHover;
 
 	private _suppressFocusOpen = false;
+	private _readonlyAnnounced = false;
 	private _suppressBlurRevert = false;
 	private _pickerEdited = false;
 	private _isSettingPickerValue = false;
@@ -111,12 +119,10 @@ export class BrowserUrlBarWidget extends Disposable {
 		this._urlDisplay.setAttribute('aria-multiline', 'false');
 		this._urlDisplay.setAttribute('data-placeholder', this._placeholder);
 		this._updateReadonly();
-		this._register(hoverService.setupManagedHover(
+		this._readonlyHover = this._register(hoverService.setupManagedHover(
 			getDefaultHoverDelegate('mouse'),
 			this._urlDisplay,
-			() => this._host.isReadonly
-				? localize('browser.addressLockedTooltip', "The address is read-only because the browser is locked to a file resource.")
-				: undefined
+			() => this._host.isReadonly ? readonlyAddressMessage() : undefined
 		));
 
 		this._urlBarWidgetsContainer = $('.browser-url-bar-widgets');
@@ -264,6 +270,7 @@ export class BrowserUrlBarWidget extends Disposable {
 		}));
 		this._register(addDisposableListener(this._urlDisplay, EventType.BLUR, () => {
 			pendingMouseFocus = false;
+			this._readonlyAnnounced = false;
 			// Snap the display back to the start of the URL so it doesn't stay
 			// scrolled to wherever the caret was (e.g. after arrow-keying to
 			// the end and then clicking away).
@@ -310,6 +317,9 @@ export class BrowserUrlBarWidget extends Disposable {
 
 		this._register(addDisposableListener(this._urlDisplay, EventType.KEY_DOWN, (e: KeyboardEvent) => {
 			const event = new StandardKeyboardEvent(e);
+			if (this._host.isReadonly && this._isEditKey(event)) {
+				this._showReadonlyFeedback();
+			}
 			if (event.keyCode === KeyCode.Enter) {
 				// Prevent contenteditable from inserting a newline.
 				e.preventDefault();
@@ -352,6 +362,31 @@ export class BrowserUrlBarWidget extends Disposable {
 			const caret = this._getCaretOffset();
 			this._openPicker({ value, selection: [caret, caret], edited: true });
 		}));
+
+		for (const type of ['paste', 'cut']) {
+			this._register(addDisposableListener(this._urlDisplay, type, () => {
+				if (this._host.isReadonly) {
+					this._showReadonlyFeedback();
+				}
+			}));
+		}
+	}
+
+	/** Explain an attempted edit of a read-only address: show the hover, and announce it once per focus. */
+	private _showReadonlyFeedback(): void {
+		this._readonlyHover.show();
+		if (!this._readonlyAnnounced) {
+			this._readonlyAnnounced = true;
+			status(readonlyAddressMessage());
+		}
+	}
+
+	/** Whether the key would modify the address if it were editable. */
+	private _isEditKey(event: StandardKeyboardEvent): boolean {
+		if (event.keyCode === KeyCode.Enter || event.keyCode === KeyCode.Backspace || event.keyCode === KeyCode.Delete) {
+			return true;
+		}
+		return event.browserEvent.key.length === 1 && !event.ctrlKey && !event.metaKey;
 	}
 
 	private _selectAll(): void {

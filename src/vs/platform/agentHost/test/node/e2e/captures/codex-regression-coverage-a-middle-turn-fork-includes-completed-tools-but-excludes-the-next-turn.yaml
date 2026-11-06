@@ -1,0 +1,171 @@
+version: 1
+dialect: responses
+exchanges:
+  - request:
+      model: gpt-5.3-codex
+      system: ${system}
+      messages:
+        - role: user
+          content: Remember MIDDLE_FORK_SEED. Reply exactly "SEED_READY".
+    response:
+      content: SEED_READY
+      stopReason: end_turn
+  - request:
+      model: gpt-5.3-codex
+      system: ${system}
+      messages:
+        - role: user
+          content: Remember MIDDLE_FORK_SEED. Reply exactly "SEED_READY".
+        - role: assistant
+          content: SEED_READY
+        - role: user
+          content: Use your file editing tool exactly once to replace MIDDLE_BEFORE with MIDDLE_AFTER in middle.txt. Do not inspect or search for files and do not run a shell command. Then reply exactly "EDIT_DONE".
+    response:
+      content:
+        - type: text
+          text: Applying the one requested edit to `middle.txt` now.
+        - type: tool_use
+          id: toolcall_0
+          name: exec_command
+          input:
+            cmd: |-
+              apply_patch <<'PATCH'
+              *** Begin Patch
+              *** Update File: middle.txt
+              @@
+              -MIDDLE_BEFORE
+              +MIDDLE_AFTER
+              *** End Patch
+              PATCH
+      stopReason: tool_use
+  - request:
+      model: gpt-5.3-codex
+      system: ${system}
+      messages:
+        - role: user
+          content: Remember MIDDLE_FORK_SEED. Reply exactly "SEED_READY".
+        - role: assistant
+          content: SEED_READY
+        - role: user
+          content: Use your file editing tool exactly once to replace MIDDLE_BEFORE with MIDDLE_AFTER in middle.txt. Do not inspect or search for files and do not run a shell command. Then reply exactly "EDIT_DONE".
+        - role: assistant
+          content: Applying the one requested edit to `middle.txt` now.
+        - role: assistant
+          content:
+            - type: tool_use
+              name: exec_command
+              input:
+                cmd: |-
+                  apply_patch <<'PATCH'
+                  *** Begin Patch
+                  *** Update File: middle.txt
+                  @@
+                  -MIDDLE_BEFORE
+                  +MIDDLE_AFTER
+                  *** End Patch
+                  PATCH
+        - role: user
+          content:
+            - type: tool_result
+              tool_use_id: toolcall_0
+              content: |-
+                Wall time: 0.0000 seconds
+                Output:
+                Exit code: 0
+                Wall time: 0 seconds
+                Output:
+                Success. Updated the following files:
+                M middle.txt
+    response:
+      content: EDIT_DONE
+      stopReason: end_turn
+  - request:
+      model: gpt-5.3-codex
+      system: ${system}
+      messages:
+        - role: user
+          content: Remember MIDDLE_FORK_SEED. Reply exactly "SEED_READY".
+        - role: assistant
+          content: SEED_READY
+        - role: user
+          content: Use your file editing tool exactly once to replace MIDDLE_BEFORE with MIDDLE_AFTER in middle.txt. Do not inspect or search for files and do not run a shell command. Then reply exactly "EDIT_DONE".
+        - role: assistant
+          content: Applying the one requested edit to `middle.txt` now.
+        - role: assistant
+          content:
+            - type: tool_use
+              name: exec_command
+              input:
+                cmd: |-
+                  apply_patch <<'PATCH'
+                  *** Begin Patch
+                  *** Update File: middle.txt
+                  @@
+                  -MIDDLE_BEFORE
+                  +MIDDLE_AFTER
+                  *** End Patch
+                  PATCH
+        - role: user
+          content:
+            - type: tool_result
+              tool_use_id: toolcall_0
+              content: |-
+                Wall time: 0.0000 seconds
+                Output:
+                Exit code: 0
+                Wall time: 0 seconds
+                Output:
+                Success. Updated the following files:
+                M middle.txt
+        - role: assistant
+          content: EDIT_DONE
+        - role: user
+          content: Remember AFTER_BOUNDARY_EXCLUDED. Reply exactly "EXCLUDED_READY".
+    response:
+      content: EXCLUDED_READY
+      stopReason: end_turn
+  - request:
+      model: gpt-5.3-codex
+      system: ${system}
+      messages:
+        - role: user
+          content: Remember MIDDLE_FORK_SEED. Reply exactly "SEED_READY".
+        - role: assistant
+          content: SEED_READY
+        - role: user
+          content: Use your file editing tool exactly once to replace MIDDLE_BEFORE with MIDDLE_AFTER in middle.txt. Do not inspect or search for files and do not run a shell command. Then reply exactly "EDIT_DONE".
+        - role: assistant
+          content: Applying the one requested edit to `middle.txt` now.
+        - role: assistant
+          content:
+            - type: tool_use
+              name: exec_command
+              input:
+                cmd: |-
+                  apply_patch <<'PATCH'
+                  *** Begin Patch
+                  *** Update File: middle.txt
+                  @@
+                  -MIDDLE_BEFORE
+                  +MIDDLE_AFTER
+                  *** End Patch
+                  PATCH
+        - role: user
+          content:
+            - type: tool_result
+              tool_use_id: toolcall_0
+              content: |-
+                Wall time: 0.0000 seconds
+                Output:
+                Exit code: 0
+                Wall time: 0 seconds
+                Output:
+                Success. Updated the following files:
+                M middle.txt
+        - role: assistant
+          content: EDIT_DONE
+        - role: user
+          content: Reply exactly "FORK_HISTORY_READY". Do not use tools.
+    response:
+      content: FORK_HISTORY_READY
+      stopReason: end_turn

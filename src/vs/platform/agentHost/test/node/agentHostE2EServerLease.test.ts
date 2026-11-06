@@ -40,6 +40,7 @@ suite('Agent Host E2E server lease diagnostics', () => {
 			supportsHostTerminalTool: false,
 			supportsSubagents: false,
 			supportsMultipleChats: false,
+			supportsInitialTitle: false,
 			supportsChatFork: false,
 			supportsChatForkE2E: false,
 		});

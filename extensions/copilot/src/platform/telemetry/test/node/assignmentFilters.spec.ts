@@ -12,6 +12,7 @@ import { CopilotToken, createTestExtendedTokenInfo } from '../../../authenticati
 import { CopilotTokenStore } from '../../../authentication/common/copilotTokenStore';
 import { packageJson } from '../../../env/common/packagejson';
 import { ILogService } from '../../../log/common/logService';
+import { INTEGRATION_ID } from '../../../endpoint/common/licenseAgreement';
 import { CopilotAssignmentsFilterProvider } from '../../vscode-node/microsoftExperimentationService';
 
 vi.mock('vscode', async importOriginal => ({
@@ -47,6 +48,7 @@ describe('CopilotAssignmentsFilterProvider', () => {
 		}));
 
 		expect(Object.fromEntries(provider.getFilters())).toEqual({
+			integratorid: INTEGRATION_ID,
 			vscode_core_platform: PlatformToString(platform),
 			vscode_core_windowkind: 'editor',
 			devdeviceid: 'test-device',
@@ -90,6 +92,41 @@ describe('CopilotAssignmentsFilterProvider', () => {
 			[undefined, 'pro', '0', '0'],
 			[undefined, undefined, '0', '0'],
 			[undefined, undefined, '0', '0'],
+		]);
+	});
+
+	it('preserves VS Code team targeting and internal organization precedence across token changes', () => {
+		const { tokenStore, provider } = createProvider();
+		const organizations = [
+			['a5db0bcaae94032fe715fb34a5e4bce2'],
+			['4535c7beffc844b46bb1ed4aa04d759a'],
+			['551cca60ce19654d894e786220822482'],
+			['a5db0bcaae94032fe715fb34a5e4bce2', '4535c7beffc844b46bb1ed4aa04d759a', '551cca60ce19654d894e786220822482'],
+			['unrecognized-org'],
+			[],
+		];
+		const tokens = [
+			...organizations.map(organization_list => new CopilotToken(createTestExtendedTokenInfo({ organization_list }))),
+			new CopilotToken(createTestExtendedTokenInfo({ isVscodeTeamMember: true })),
+			undefined,
+		];
+
+		expect(tokens.map(token => {
+			tokenStore.copilotToken = token;
+			const filters = provider.getFilters();
+			return [
+				filters.get('github_core_ghmsftorexternal'),
+				filters.get('github_core_isghormsftstaff'),
+			];
+		})).toEqual([
+			['microsoft', '1'],
+			['github', '1'],
+			['vscode', '1'],
+			['vscode', '1'],
+			['external', '0'],
+			['external', '0'],
+			['vscode', '1'],
+			['external', '0'],
 		]);
 	});
 

@@ -5,6 +5,7 @@
 
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { EDITOR_AGENT_HOST_SESSIONS_STORAGE_KEY } from '../../../../../platform/chat/common/agentsWindowInvitation.js';
 import { InMemoryStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
 import { EditorChatUsage } from '../../common/editorChatUsage.js';
 import { SessionType } from '../../common/chatSessionsService.js';
@@ -93,5 +94,29 @@ suite('EditorChatUsage', () => {
 			editorMessagesWithOtherSessionInProgressAcrossWindows: 0,
 			editorLastMessageSecondsAgo: 0,
 		});
+	});
+
+	test('seeds invitation usage from local and remote Agent Host providers, not other chat sessions', () => {
+		const usage = new EditorChatUsage(disposables.add(new InMemoryStorageService()));
+		for (const provider of [
+			SessionType.AgentHostCopilot, SessionType.AgentHostClaude, SessionType.AgentHostCodex,
+			'remote-host-copilotcli', 'remote-host-claude', 'remote-host-codex',
+			SessionType.Local, SessionType.CopilotCLI, SessionType.CopilotCloud, SessionType.Codex, 'private-extension',
+		]) {
+			usage.recordSubmission(provider, true, false, false, 1000);
+			usage.recordSubmission(provider, false, false, false, 2000);
+		}
+		assert.strictEqual(usage.agentHostSessionCount, 6);
+	});
+
+	test('uses the authoritative invitation counter once initialized, including zero', () => {
+		const storage = disposables.add(new InMemoryStorageService());
+		const usage = new EditorChatUsage(storage);
+		usage.recordSubmission(SessionType.AgentHostCopilot, true, false, false, 1000);
+		const before = usage.agentHostSessionCount;
+		storage.store(EDITOR_AGENT_HOST_SESSIONS_STORAGE_KEY, 0, StorageScope.APPLICATION, StorageTarget.MACHINE);
+		const zero = usage.agentHostSessionCount;
+		storage.store(EDITOR_AGENT_HOST_SESSIONS_STORAGE_KEY, 8, StorageScope.APPLICATION, StorageTarget.MACHINE);
+		assert.deepStrictEqual({ before, zero, current: usage.agentHostSessionCount }, { before: 1, zero: 0, current: 8 });
 	});
 });

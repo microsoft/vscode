@@ -141,10 +141,12 @@ export class NavigateBrowserTool implements IToolImpl {
 					return errorResult(resourceNavigationError);
 				}
 
-				// In a remote workspace without the remote proxy, the integrated
-				// browser runs locally and cannot reach the remote's localhost directly.
-				// Rewrite to the forwarded local address (if any) so the page can be reached.
-				const rewrite = rewriteRemoteLocalhostUrl(params.url!, this.browserViewService, this.remoteExplorerService);
+				// A page on the local network in a remote workspace runs locally and cannot reach the
+				// remote's localhost directly. Rewrite to the forwarded local address (if
+				// any) so the page can be reached. The page keeps the network it was created with.
+				const model = this.browserViewService.getKnownBrowserViews().get(params.pageId)?.model;
+				const usesRemoteNetwork = model ? !!model.network : !!this.browserViewService.resolveNetwork({ type: 'agent', sessionId });
+				const rewrite = rewriteRemoteLocalhostUrl(params.url!, this.remoteExplorerService, usesRemoteNetwork);
 				const tunnelPolicyError = getExternalTunnelNetworkPolicyError(rewrite, this.agentNetworkFilterService);
 				if (tunnelPolicyError) {
 					return errorResult(tunnelPolicyError);

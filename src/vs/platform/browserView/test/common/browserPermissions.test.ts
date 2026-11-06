@@ -10,6 +10,7 @@ import {
 	ISerializedBrowserPermissionsSnapshot,
 	PermissionCategory,
 	electronPermissionToCategories,
+	isAlwaysAllowedPermission,
 	toOriginKey,
 } from '../../common/browserPermissions.js';
 
@@ -133,6 +134,21 @@ suite('electronPermissionToCategories', () => {
 	});
 });
 
+suite('isAlwaysAllowedPermission', () => {
+
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('allows legacy and split local network permissions', () => {
+		const permissions = ['local-network-access', 'local-network', 'loopback-network'];
+		assert.deepStrictEqual(permissions.map(isAlwaysAllowedPermission), [true, true, true]);
+	});
+
+	test('does not bypass managed or unrecognized permissions', () => {
+		const permissions = ['geolocation', 'media', 'unrecognized'];
+		assert.deepStrictEqual(permissions.map(isAlwaysAllowedPermission), [false, false, false]);
+	});
+});
+
 suite('toOriginKey', () => {
 
 	ensureNoDisposablesAreLeakedInTestSuite();
@@ -151,5 +167,27 @@ suite('toOriginKey', () => {
 		// Opaque origins reported as the literal "null" have no real host.
 		assert.strictEqual(toOriginKey('null'), '');
 		assert.strictEqual(toOriginKey('   '), '');
+	});
+
+	test('returns stable keys for file, inherited and opaque origins', () => {
+		const cases: [string, string][] = [
+			['https://example.com:443/path?query#fragment', 'https://example.com'],
+			['file:///home/user/page.html?query#fragment', 'file:///home/user/page.html'],
+			['file://server/share/page.html?query#fragment', 'file://server/share/page.html'],
+			['blob:https://example.com/id', 'https://example.com'],
+			['about:blank', ''],
+			['about://blank', ''],
+			['about:srcdoc', ''],
+			['data:text/html,hello', ''],
+			['blob:null/id', ''],
+			['custom://host/path', ''],
+			['null', ''],
+			['', ''],
+		];
+
+		assert.deepStrictEqual(cases.map(([url]) => {
+			const key = toOriginKey(url);
+			return [key, toOriginKey(key)];
+		}), cases.map(([, key]) => [key, key]));
 	});
 });

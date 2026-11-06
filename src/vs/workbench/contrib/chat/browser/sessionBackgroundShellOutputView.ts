@@ -4,19 +4,22 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { getActiveElement, getWindow, h, scheduleAtNextAnimationFrame } from '../../../../base/browser/dom.js';
+import { ActionBar } from '../../../../base/browser/ui/actionbar/actionbar.js';
 import { createPixelSpinner } from '../../../../base/browser/ui/pixelSpinner/pixelSpinner.js';
+import type { IAction } from '../../../../base/common/actions.js';
 import { MarkdownString } from '../../../../base/common/htmlContent.js';
-import { Disposable, toDisposable } from '../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, toDisposable } from '../../../../base/common/lifecycle.js';
 import { autorun, IObservable } from '../../../../base/common/observable.js';
 import { removeAnsiEscapeCodes } from '../../../../base/common/strings.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { localize } from '../../../../nls.js';
 import { IAccessibleViewService } from '../../../../platform/accessibility/browser/accessibleView.js';
+import { AGENT_HOST_TERMINAL_MAX_CONTENT_LENGTH } from '../../../../platform/agentHost/common/terminalConstants.js';
 import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { IMarkdownRendererService } from '../../../../platform/markdown/browser/markdownRenderer.js';
 import { asCssVariable, menuBackground } from '../../../../platform/theme/common/colorRegistry.js';
 import { AccessibilityVerbositySettingId } from '../../accessibility/browser/accessibilityConfiguration.js';
-import { computeChatTerminalMirrorCols } from '../../terminal/browser/chatTerminalCommandMirror.js';
+import { computeChatTerminalMirrorCols, enableCursorLineReflow } from '../../terminal/browser/chatTerminalCommandMirror.js';
 import { DetachedProcessInfo } from '../../terminal/browser/detachedTerminal.js';
 import { IDetachedTerminalInstance, ITerminalService } from '../../terminal/browser/terminal.js';
 import { DecorationSelector, getTerminalCommandDecorationState } from '../../terminal/browser/xterm/decorationStyles.js';
@@ -75,10 +78,69 @@ export function getFocusedBackgroundShellOutputView(): BackgroundShellOutputView
 	return undefined;
 }
 
+interface ICommandTitle {
+	readonly element: HTMLElement;
+	readonly decoration: HTMLElement;
+}
+
+/** Renders a background shell's command, status, and actions like a chat terminal tool call's title. */
+function renderCommandTitle(command: string, actions: readonly IAction[], markdownRendererService: IMarkdownRendererService, store: DisposableStore): ICommandTitle {
+	const elements = h('.chat-terminal-content-title@title', [
+		h('.chat-terminal-command-block@commandBlock', [
+			h('span.chat-terminal-command-decoration@decoration', { role: 'img' }),
+		]),
+	]);
+	store.add(createPixelSpinner(elements.decoration));
+	const renderedCommand = store.add(markdownRendererService.render(new MarkdownString().appendCodeblock(commandLanguage, command), getChatMarkdownRenderOptions()));
+	elements.commandBlock.appendChild(renderedCommand.element);
+	if (actions.length) {
+		// Beside the command, like a chat terminal tool call's actions.
+		const actionBarElement = h('.chat-terminal-action-bar').root;
+		elements.title.append(actionBarElement);
+		store.add(new ActionBar(actionBarElement)).push(actions, { icon: true, label: false });
+	}
+	return { element: elements.title, decoration: elements.decoration };
+}
+
+function renderStatus(decoration: HTMLElement, output: ChatBackgroundShellOutput): void {
+	decoration.className = `chat-terminal-command-decoration ${DecorationSelector.CommandDecoration}`;
+	if (output.status === 'loading' || output.status === 'running') {
+		decoration.classList.add('chat-terminal-running-spinner', DecorationSelector.DefaultColor, DecorationSelector.Default);
+	} else {
+		const exitCode = output.status === 'exited' ? output.exitCode : undefined;
+		const state = getTerminalCommandDecorationState(undefined, exitCode === undefined ? undefined : { exitCode });
+		decoration.classList.add(DecorationSelector.Codicon, ...state.classNames, ...ThemeIcon.asClassNameArray(state.icon));
+	}
+	decoration.setAttribute('aria-label', getStatusLabel(output));
+}
+
+/**
+ * A background shell's command and actions without output, presented like a
+ * chat terminal tool call whose output is collapsed. Shows shells whose output
+ * isn't available, such as detached ones.
+ */
+export class BackgroundShellCommandView extends Disposable {
+	readonly element: HTMLElement;
+
+	constructor(
+		command: string,
+		actions: readonly IAction[],
+		@IMarkdownRendererService markdownRendererService: IMarkdownRendererService,
+	) {
+		super();
+		const title = renderCommandTitle(command, actions, markdownRendererService, this._store);
+		this.element = h('.chat-terminal-content-part.chat-background-shell-command').root;
+		this.element.append(title.element);
+		this._register(toDisposable(() => this.element.remove()));
+		// Only active shells are listed, so a listed shell is running.
+		renderStatus(title.decoration, { status: 'running', text: '' });
+	}
+}
+
 /**
  * A background shell's command and live output, presented like a chat
- * terminal tool call: the command with its status, above a small read-only
- * terminal that streams the output.
+ * terminal tool call: the command with its status and actions, above a small
+ * read-only terminal that streams the output.
  */
 export class BackgroundShellOutputView extends Disposable {
 	readonly element: HTMLElement;
@@ -96,18 +158,16 @@ export class BackgroundShellOutputView extends Disposable {
 	constructor(
 		private readonly _command: string,
 		private readonly _output: IObservable<ChatBackgroundShellOutput>,
+		actions: readonly IAction[],
 		@ITerminalService terminalService: ITerminalService,
 		@IMarkdownRendererService markdownRendererService: IMarkdownRendererService,
 		@IAccessibleViewService accessibleViewService: IAccessibleViewService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 	) {
 		super();
+		const title = renderCommandTitle(_command, actions, markdownRendererService, this._store);
+		title.element.classList.add('chat-terminal-content-title-no-bottom-radius');
 		const elements = h('.chat-terminal-content-part.chat-background-shell-output@root', [
-			h('.chat-terminal-content-title.chat-terminal-content-title-no-bottom-radius', [
-				h('.chat-terminal-command-block@commandBlock', [
-					h('span.chat-terminal-command-decoration@decoration', { role: 'img' }),
-				]),
-			]),
 			h('.chat-terminal-output-container.expanded@output', [
 				h('.chat-terminal-output-body', [
 					h('.chat-terminal-output-content', [
@@ -117,15 +177,13 @@ export class BackgroundShellOutputView extends Disposable {
 				]),
 			]),
 		]);
+		elements.root.prepend(title.element);
 		this.element = elements.root;
-		this._decoration = elements.decoration;
+		this._decoration = title.decoration;
 		this._region = elements.output;
 		this._terminalContainer = elements.terminal;
 		this._emptyElement = elements.empty;
 		this._register(toDisposable(() => this.element.remove()));
-		this._register(createPixelSpinner(this._decoration));
-		const renderedCommand = this._register(markdownRendererService.render(new MarkdownString().appendCodeblock(commandLanguage, _command), getChatMarkdownRenderOptions()));
-		elements.commandBlock.appendChild(renderedCommand.element);
 		elements.output.style.backgroundColor = asCssVariable(menuBackground);
 		// The terminal only draws the output, so the region is focusable and opens it as text in the accessible view.
 		this._region.tabIndex = 0;
@@ -142,6 +200,8 @@ export class BackgroundShellOutputView extends Disposable {
 		void terminalService.createDetachedTerminal({
 			cols: BackgroundShellOutputViewConstants.FallbackCols,
 			rows: BackgroundShellOutputViewConstants.Rows,
+			// Every row holds at least one character, so all the output the Agent Host keeps stays scrollable.
+			scrollback: AGENT_HOST_TERMINAL_MAX_CONTENT_LENGTH,
 			readonly: true,
 			processInfo,
 			disableOverviewRuler: true,
@@ -152,6 +212,7 @@ export class BackgroundShellOutputView extends Disposable {
 				return;
 			}
 			this._terminal = this._register(terminal);
+			enableCursorLineReflow(terminal);
 			terminal.attachToElement(this._terminalContainer, { enableGpu: false });
 			terminal.xterm.write(hideCursor);
 			// The details are laid out after they are built, so measure on the next frame.
@@ -182,7 +243,7 @@ export class BackgroundShellOutputView extends Disposable {
 	}
 
 	private _render(output: ChatBackgroundShellOutput): void {
-		this._renderStatus(output);
+		renderStatus(this._decoration, output);
 		const text = output.status === 'running' || output.status === 'exited' ? output.text : '';
 		this._terminalContainer.classList.toggle('chat-terminal-output-terminal-no-output', !text);
 		const empty = text ? '' : this._emptyText(output);
@@ -222,19 +283,6 @@ export class BackgroundShellOutputView extends Disposable {
 			this._resizedCols = cols;
 			terminal.xterm.resize(cols, BackgroundShellOutputViewConstants.Rows);
 		}
-	}
-
-	private _renderStatus(output: ChatBackgroundShellOutput): void {
-		const decoration = this._decoration;
-		decoration.className = `chat-terminal-command-decoration ${DecorationSelector.CommandDecoration}`;
-		if (output.status === 'loading' || output.status === 'running') {
-			decoration.classList.add('chat-terminal-running-spinner', DecorationSelector.DefaultColor, DecorationSelector.Default);
-		} else {
-			const exitCode = output.status === 'exited' ? output.exitCode : undefined;
-			const state = getTerminalCommandDecorationState(undefined, exitCode === undefined ? undefined : { exitCode });
-			decoration.classList.add(DecorationSelector.Codicon, ...state.classNames, ...ThemeIcon.asClassNameArray(state.icon));
-		}
-		decoration.setAttribute('aria-label', getStatusLabel(output));
 	}
 
 	private _emptyText(output: ChatBackgroundShellOutput): string {

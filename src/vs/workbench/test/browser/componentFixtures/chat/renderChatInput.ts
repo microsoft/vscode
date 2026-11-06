@@ -13,9 +13,10 @@ import { IMenuService, MenuId } from '../../../../../platform/actions/common/act
 import { ActionWidgetService, IActionWidgetService } from '../../../../../platform/actionWidget/browser/actionWidget.js';
 import { ResolveSessionConfigResult } from '../../../../../platform/agentHost/common/state/protocol/commands.js';
 import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
-import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
+import { ConfigurationTarget, IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
-import { IContextViewService } from '../../../../../platform/contextview/browser/contextView.js';
+import { IContextMenuService, IContextViewService } from '../../../../../platform/contextview/browser/contextView.js';
+import { ContextMenuService } from '../../../../../platform/contextview/browser/contextMenuService.js';
 import { ContextViewService } from '../../../../../platform/contextview/browser/contextViewService.js';
 import { ILayoutService } from '../../../../../platform/layout/browser/layoutService.js';
 import { IChatWidget } from '../../../../contrib/chat/browser/chat.js';
@@ -23,18 +24,18 @@ import { OpenAgentHostAutoApprovePickerAction, OpenAgentHostModePickerAction } f
 import { SessionType } from '../../../../contrib/chat/common/chatSessionsService.js';
 import { getNewChatSessionResource } from '../../../../contrib/chat/common/model/chatUri.js';
 import { ChatInputPart, IChatInputPartOptions, IChatInputStyles } from '../../../../contrib/chat/browser/widget/input/chatInputPart.js';
-import { TABBED_MODEL_PICKER_SETTING_ID } from '../../../../contrib/chat/browser/widget/input/modelPicker/modelPickerWidget.js';
 import { IChatModel } from '../../../../contrib/chat/common/model/chatModel.js';
 import { IChatViewModel } from '../../../../contrib/chat/common/model/chatViewModel.js';
 import { IArtifactSourceGroup } from '../../../../contrib/chat/common/tools/chatArtifactsService.js';
 import { IChatInputNotification } from '../../../../contrib/chat/browser/widget/input/chatInputNotificationService.js';
 import { IChatEditingSession } from '../../../../contrib/chat/common/editing/chatEditingService.js';
+import { IChatSessionReviewPreferencesService } from '../../../../contrib/chat/common/editing/chatSessionReviewPreferences.js';
 import { IChatTodo } from '../../../../contrib/chat/common/tools/chatTodoListService.js';
 import { ILanguageModelChatMetadataAndIdentifier, ILanguageModelsService } from '../../../../contrib/chat/common/languageModels.js';
 import { NullLanguageModelsService } from '../../../../contrib/chat/test/common/languageModels.js';
 import { ChatAgentLocation, ChatConfiguration } from '../../../../contrib/chat/common/constants.js';
 import { AgentSandboxEnabledValue, AgentSandboxSettingId } from '../../../../../platform/sandbox/common/settings.js';
-import { ComponentFixtureContext, createEditorServices, ServiceRegistration } from '../fixtureUtils.js';
+import { ComponentFixtureContext, createEditorServices, ServiceRegistration, waitForFixtureCondition } from '../fixtureUtils.js';
 import { FixtureMenuService, registerChatFixtureServices } from './chatFixtureUtils.js';
 import { IChatPetService } from '../../../../contrib/chat/browser/chatPetService.js';
 import { IChatPetWidgetService } from '../../../../contrib/chat/browser/widget/chatPetWidgetService.js';
@@ -45,6 +46,8 @@ import { IVoiceSessionController } from '../../../../contrib/chat/browser/voiceC
 import { IMicCaptureService } from '../../../../contrib/chat/browser/voiceClient/micCaptureService.js';
 import { ITtsPlaybackService } from '../../../../contrib/chat/browser/voiceClient/ttsPlaybackService.js';
 import { ChatSpeechToTextState, IChatSpeechToTextService } from '../../../../contrib/chat/browser/speechToText/chatSpeechToTextService.js';
+import { PlaceholderTextContribution } from '../../../../../editor/contrib/placeholderText/browser/placeholderTextContribution.js';
+import '../../../../../editor/contrib/placeholderText/browser/placeholderText.css';
 
 /** Room above the input for the pet, which stands outside it. */
 const PET_HEADROOM = 64;
@@ -106,6 +109,9 @@ export interface ChatInputFixtureOptions {
 	readonly sendEnabled?: boolean;
 	readonly artifacts?: readonly { label: string; uri: string; type: 'devServer' | 'screenshot' | 'plan' | undefined }[];
 	readonly editingSession?: IChatEditingSession;
+	readonly sessionWorkingSet?: boolean;
+	readonly sessionWorkingSetReviewEnabled?: boolean;
+	readonly focusInput?: boolean;
 	readonly todos?: IChatTodo[];
 	/** Enables the agent sandbox setting so the permission picker renders its sandboxed state. */
 	readonly sandboxingEnabled?: boolean;
@@ -128,12 +134,14 @@ export interface ChatInputFixtureOptions {
 	readonly models?: readonly ILanguageModelChatMetadataAndIdentifier[];
 	/** Renders the production Copilot Agent Host mode and permissions pickers. */
 	readonly agentHostSessionConfig?: ResolveSessionConfigResult;
+	readonly placeholder?: string;
 	/** Combines the Agent Host mode and permissions controls in the composer. */
 	readonly combinedModePermissionsPicker?: boolean;
-	readonly tabbedModelPicker?: boolean;
 	/** Renders a standalone dictation / Voice Mode control in the given state. */
 	readonly voiceControl?: VoiceControlState;
 	readonly voiceInputMode?: boolean;
+	/** Gives the matching standalone control or segmented control cell keyboard focus. */
+	readonly focusVoiceControl?: 'dictation' | 'voice';
 	/**
 	 * Docks a notification above the input. Drives the real notification service,
 	 * so the seam between the notice and the input is produced by the stack
@@ -148,7 +156,7 @@ export interface ChatInputFixtureOptions {
 
 export async function renderChatInput(context: ComponentFixtureContext, fixtureOptions: ChatInputFixtureOptions = {}): Promise<void> {
 	const { container, disposableStore } = context;
-	const { artifacts = [], editingSession, todos = [], isSessionsWindow = false, value, selection, sandboxingEnabled = false, width = 500, resizeWidths = [], models = [], agentHostSessionConfig, combinedModePermissionsPicker = false, voiceControl, notification, pet = false, secondaryPickerLabels = ['Local', 'Default permissions'] } = fixtureOptions;
+	const { artifacts = [], editingSession, todos = [], isSessionsWindow = false, value, selection, sandboxingEnabled = false, width = 500, resizeWidths = [], models = [], agentHostSessionConfig, combinedModePermissionsPicker = false, voiceControl, focusVoiceControl, notification, pet = false, secondaryPickerLabels = ['Local', 'Default permissions'] } = fixtureOptions;
 	const artifactGroups: IArtifactSourceGroup[] = artifacts.length > 0 ? [{ source: { kind: 'agent' as const }, artifacts }] : [];
 	const artifactsObs = observableValue<readonly IArtifactSourceGroup[]>('artifactGroups', artifactGroups);
 	const sessionResource = fixtureOptions.sessionResource ?? (agentHostSessionConfig ? getNewChatSessionResource(SessionType.AgentHostCopilot) : undefined);
@@ -161,10 +169,12 @@ export async function renderChatInput(context: ComponentFixtureContext, fixtureO
 
 	const instantiationService = createEditorServices(disposableStore, {
 		colorTheme: context.theme,
+		fileIconTheme: context.fileIconTheme,
 		additionalServices: (reg) => {
 			registerChatFixtureServices(reg, { artifactGroups: artifactsObs, todos, notification, agentHostSessionConfig });
 			reg.define(IActionWidgetService, ActionWidgetService);
 			reg.define(IContextViewService, ContextViewService);
+			reg.define(IContextMenuService, ContextMenuService);
 			reg.defineInstance(ILayoutService, new class extends mock<ILayoutService>() {
 				override readonly mainContainer = container;
 				override readonly activeContainer = container;
@@ -233,6 +243,21 @@ export async function renderChatInput(context: ComponentFixtureContext, fixtureO
 		},
 	});
 
+	if (fixtureOptions.sessionWorkingSet) {
+		const configService = instantiationService.get(IConfigurationService) as TestConfigurationService;
+		await configService.setUserConfiguration(ChatConfiguration.EditorWorkingSetEnabled, true);
+		configService.updateValue = async (key: string, value: unknown) => {
+			await configService.setUserConfiguration(key, value);
+			configService.onDidChangeConfigurationEmitter.fire({
+				source: ConfigurationTarget.USER,
+				affectedKeys: new Set([key]),
+				change: { keys: [key], overrides: [] },
+				affectsConfiguration: setting => setting === key,
+			});
+		};
+		instantiationService.get(IChatSessionReviewPreferencesService).setKeepUndoEnabled(fixtureOptions.sessionWorkingSetReviewEnabled ?? true);
+	}
+
 	if (artifacts.length > 0) {
 		const configService = instantiationService.get(IConfigurationService) as TestConfigurationService;
 		await configService.setUserConfiguration(ChatConfiguration.ArtifactsEnabled, true);
@@ -246,11 +271,6 @@ export async function renderChatInput(context: ComponentFixtureContext, fixtureO
 	if (combinedModePermissionsPicker) {
 		const configService = instantiationService.get(IConfigurationService) as TestConfigurationService;
 		await configService.setUserConfiguration(ChatConfiguration.ExperimentalModePermissionsPicker, true);
-	}
-
-	if (fixtureOptions.tabbedModelPicker) {
-		const configService = instantiationService.get(IConfigurationService) as TestConfigurationService;
-		await configService.setUserConfiguration(TABBED_MODEL_PICKER_SETTING_ID, true);
 	}
 
 	container.style.width = `${width}px`;
@@ -317,13 +337,21 @@ export async function renderChatInput(context: ComponentFixtureContext, fixtureO
 	const inputPart = disposableStore.add(instantiationService.createInstance(ChatInputPart, ChatAgentLocation.Chat, options, styles, false));
 	const mockWidget = new class extends mock<IChatWidget>() {
 		override readonly onDidChangeViewModel = new Emitter<never>().event;
-		override readonly viewModel = sessionResource ? createFixtureChatViewModel(sessionResource) : undefined;
+		override readonly viewModel = sessionResource ? Object.assign(createFixtureChatViewModel(sessionResource), { inputPlaceholder: fixtureOptions.placeholder }) : undefined;
 		override readonly contribs = [];
 		override readonly location = ChatAgentLocation.Chat;
 		override readonly viewContext = {};
 	}();
 
 	inputPart.render(session, '', mockWidget);
+	if (fixtureOptions.placeholder) {
+		// Keep the placeholder renderer local: registering it globally changes unrelated editor fixtures.
+		if (!PlaceholderTextContribution.get(inputPart.inputEditor)) {
+			container.style.setProperty('--vscode-editor-placeholder-foreground', 'var(--vscode-editorGhostText-foreground)');
+			disposableStore.add(new PlaceholderTextContribution(inputPart.inputEditor));
+		}
+		inputPart.inputEditor.updateOptions({ placeholder: fixtureOptions.placeholder });
+	}
 
 	if (pet) {
 		// The same host `ChatWidget` registers, so the platform comes from the input part.
@@ -335,6 +363,7 @@ export async function renderChatInput(context: ComponentFixtureContext, fixtureO
 			hasInput: constObservable(false),
 			inputChanged: inputPart.inputEditor.onDidChangeModelContent,
 			getPlatformTop: petCenterX => inputPart.getChatPetPlatformTop(petCenterX),
+			getPlatforms: () => inputPart.getChatPetPlatforms(),
 			onDidChangePlatform: inputPart.onDidChangeChatPetHorizontalPlatforms,
 		})));
 	}
@@ -362,6 +391,15 @@ export async function renderChatInput(context: ComponentFixtureContext, fixtureO
 	await new Promise(r => setTimeout(r, 50));
 
 	if (editingSession) {
+		if (fixtureOptions.sessionWorkingSet) {
+			disposableStore.add(inputPart.registerSessionFileChanges(editingSession.getDiffsForFilesInSession(), constObservable({
+				enabled: constObservable(true),
+				undo: async diffs => {
+					await editingSession.reject(...diffs.map(diff => diff.modifiedURI));
+					return true;
+				},
+			})));
+		}
 		inputPart.renderChatEditingSessionState(editingSession);
 		await new Promise(r => setTimeout(r, 50));
 		inputPart.layout(width);
@@ -386,7 +424,32 @@ export async function renderChatInput(context: ComponentFixtureContext, fixtureO
 		}
 	}
 
+	if (focusVoiceControl) {
+		const focusTarget = session.querySelector<HTMLElement>(
+			fixtureOptions.voiceInputMode
+				? `.chat-voice-input-mode-cell.${focusVoiceControl}:not(.collapsed)`
+				: '.chat-execute-toolbar .action-item:not(.chat-submit-button) > .action-label'
+		);
+		if (!focusTarget) {
+			throw new Error('Expected a visible voice control to focus.');
+		}
+		context.focus(focusTarget);
+	}
+
+	if (fixtureOptions.focusInput) {
+		const input = inputPart.inputEditor.getDomNode()?.querySelector<HTMLElement>('.native-edit-context, textarea.inputarea');
+		if (!input) {
+			throw new Error('Chat input fixture: no input to focus.');
+		}
+		context.focus(input);
+	}
+
 	if (pet) {
+		// Virtual timers do not wait for the native image load that paints the sprite.
+		await waitForFixtureCondition(() => {
+			const sprite = container.querySelector<HTMLImageElement>('.chat-pet-sprite:not(.hidden) img.chat-pet-spritesheet');
+			return !!sprite?.complete && sprite.naturalWidth > 0;
+		}, 'Chat pet fixture: no pet sprite was painted, so the screenshot would show an empty pet.');
 		assertChatPetInScreenshot(container);
 	}
 }

@@ -5,7 +5,7 @@
 
 import { IContextMenuDelegate } from '../../../base/browser/contextmenu.js';
 import { StandardMouseEvent } from '../../../base/browser/mouseEvent.js';
-import { AnchorAlignment, AnchorAxisAlignment, IAnchor, IContextViewCloseAnimation, IContextViewProvider } from '../../../base/browser/ui/contextview/contextview.js';
+import { AnchorAlignment, AnchorAxisAlignment, IAnchor, IContextViewCloseAnimation, IContextViewProvider, IContextViewRenderContext } from '../../../base/browser/ui/contextview/contextview.js';
 import { IAction } from '../../../base/common/actions.js';
 import { Event } from '../../../base/common/event.js';
 import { AnchorPosition } from '../../../base/common/layout.js';
@@ -38,7 +38,7 @@ export interface IContextViewDelegate {
 	 * or an `IAnchor` to position it at a specific location.
 	 */
 	getAnchor(): HTMLElement | StandardMouseEvent | IAnchor;
-	render(container: HTMLElement): IDisposable;
+	render(container: HTMLElement, context?: IContextViewRenderContext): IDisposable;
 	onDOMEvent?(e: any, activeElement: HTMLElement): void;
 	onHide?(data?: any): void;
 	closeAnimation?: IContextViewCloseAnimation;
@@ -50,6 +50,15 @@ export interface IContextViewDelegate {
 
 	// context views with higher layers are rendered over contet views with lower layers
 	layer?: number; // Default: 0
+
+	/**
+	 * Host the view inside the container passed to `showContextView` (its owner)
+	 * as a popover in the top layer. Focus then stays inside the owner, and the
+	 * context view restores focus, isolates keys and dismisses on outside pointer
+	 * presses itself. Requires a container; falls back to a fixed position when
+	 * popovers are unavailable.
+	 */
+	hostAsPopover?: boolean;
 }
 
 export interface IOpenContextView {
