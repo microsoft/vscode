@@ -136,6 +136,10 @@ class TestSessionsProvidersService extends Disposable implements ISessionsProvid
 	readonly onDidChangeProviders = Event.None;
 	readonly providers = new Map<string, ISessionsProvider>();
 
+	batchProviderChanges<T>(fn: () => T): T {
+		return fn();
+	}
+
 	registerProvider(provider: ISessionsProvider): IDisposable {
 		this.providers.set(provider.id, provider);
 		return toDisposable(() => this.providers.delete(provider.id));

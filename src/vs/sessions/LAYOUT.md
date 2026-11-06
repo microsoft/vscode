@@ -36,9 +36,10 @@ Startup phone windows retain the existing mobile behavior.
 Title bar
 Content
 ├── Sidebar
-└── Main region
-    ├── Sessions Part | Editor | Auxiliary Bar | Custom View Grid
-    └── Panel
+├── Main region
+│   ├── Sessions Part | Editor | Auxiliary Bar | Custom View Grid
+│   └── Panel
+└── Session Activity Bar column (desktop)
 ```
 
 The workbench omits the standard Activity Bar, Status Bar, and Banner. Part positions are fixed by the Agents Window rather than user settings.
@@ -52,6 +53,7 @@ The workbench omits the standard Activity Bar, Status Bar, and Banner. Part posi
 | Auxiliary Bar | Session details such as changes and files |
 | Panel | Terminal and other panel views |
 | Custom View Grid | Full-surface contributed views that replace session content |
+| Session Activity Bar column | The active chat's Session Activity Bar; a fixed-width grid view, not a part, shown only while that strip is in it |
 
 ### Window canvases
 
