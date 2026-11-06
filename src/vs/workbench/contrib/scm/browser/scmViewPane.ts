@@ -85,6 +85,20 @@ export function isSCMTreeElementCollapsedByDefault(element: unknown): boolean {
 	return !(isSCMRepository(element) || isSCMResourceGroup(element) || isSCMResourceNode(element) || isSCMStructuralDiffElement(element));
 }
 
+/**
+ * Returns an additional class for the twistie of an element. Files and symbols open when clicked, so they expand only
+ * through their twistie, and expandable ones keep it when the file icon theme hides arrows, like file nests in the Explorer.
+ */
+export function getSCMTreeTwistieCssClass(element: unknown, dataSource: SCMTreeDataSource): string | undefined {
+	if (isSCMActionButton(element) || isSCMInput(element)) {
+		return 'force-no-twistie';
+	}
+	if ((isSCMResource(element) || isSCMStructuralDiffElement(element)) && dataSource.hasChildren(element)) {
+		return 'force-twistie';
+	}
+	return undefined;
+}
+
 function processResourceFilterData(uri: URI, filterData: FuzzyScore | LabelFuzzyScore | undefined): [IMatch[] | undefined, IMatch[] | undefined] {
 	if (!filterData) {
 		return [undefined, undefined];
@@ -1726,13 +1740,7 @@ export class SCMViewPane extends ViewPane {
 				accessibilityProvider: this.instantiationService.createInstance(SCMAccessibilityProvider),
 				expandOnlyOnTwistieClick: element => isSCMResource(element) || isSCMStructuralDiffElement(element)
 					|| this.configurationService.getValue<string>('workbench.tree.expandMode') === 'doubleClick',
-				twistieAdditionalCssClass: (e: unknown) => {
-					if (isSCMActionButton(e) || isSCMInput(e)) {
-						return 'force-no-twistie';
-					}
-
-					return undefined;
-				},
+				twistieAdditionalCssClass: (element: unknown) => getSCMTreeTwistieCssClass(element, treeDataSource),
 			}) as WorkbenchCompressibleAsyncDataTree<ISCMViewService, TreeElement, FuzzyScore>;
 
 		this.disposables.add(this.tree);

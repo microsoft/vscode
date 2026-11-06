@@ -45,7 +45,7 @@ import { IEditorService, PreferredGroup, SIDE_GROUP } from '../../../../services
 import { IViewsService } from '../../../../services/views/common/viewsService.js';
 import { workbenchInstantiationService } from '../../../../test/browser/workbenchTestServices.js';
 import { SCMAccessibilityHelp } from '../../browser/scmAccessibilityHelp.js';
-import { ContextKeys, SCMAccessibilityProvider, SCMTreeDataSource, SCMTreeKeyboardNavigationLabelProvider, SCMTreeSorter, SCMViewPane, isSCMTreeElementCollapsedByDefault } from '../../browser/scmViewPane.js';
+import { ContextKeys, SCMAccessibilityProvider, SCMTreeDataSource, SCMTreeKeyboardNavigationLabelProvider, SCMTreeSorter, SCMViewPane, getSCMTreeTwistieCssClass, isSCMTreeElementCollapsedByDefault } from '../../browser/scmViewPane.js';
 import { SCMStructuralDiffRenderer, openSCMStructuralDiff } from '../../browser/scmStructuralDiffRenderer.js';
 import { ISCMProvider, ISCMResource, ISCMResourceGroup, ISCMViewService, ViewMode } from '../../common/scm.js';
 import { SCMStructuralDiffElement, SCMStructuralDiffModel, SCMStructuralDiffNode } from '../../common/scmStructuralDiff.js';
@@ -217,6 +217,48 @@ suite('SCM structural diff tree', () => {
 			assert.strictEqual(sorter.compare(first, second), -1);
 		});
 	}
+
+	test('forces the twistie of expandable files and symbols, which expand only through it, so that file icon themes cannot hide it', async () => {
+		const other = new class extends mock<ISCMResource>() {
+			override readonly sourceUri = URI.file('/repo/folder/notes.md');
+			override readonly resourceGroup = group;
+		};
+		const files = new class extends mock<ISCMResourceGroup>() {
+			override readonly provider = group.provider;
+			override readonly resources = [resource, other];
+		};
+		const structuralDiff = new class extends mock<SCMStructuralDiffModel>() {
+			override get enabled(): boolean { return true; }
+			override hasChildren(candidate: ISCMResource): boolean { return candidate === resource; }
+			override async getChildren(): Promise<readonly SCMStructuralDiffElement[]> { return [parent]; }
+		};
+		const viewService = new class extends mock<ISCMViewService>() {
+			override readonly visibleRepositories = [];
+		};
+		const dataSource = store.add(new SCMTreeDataSource(() => ViewMode.List, structuralDiff, new TestConfigurationService(), viewService));
+		const names = new Map<unknown, string>([[resource, 'file.ts'], [parent, 'Calculator'], [child, 'run'], [other, 'notes.md']]);
+		const container = $('.scm-view');
+		type Element = Parameters<SCMTreeDataSource['getParent']>[0];
+		const tree = store.add(new AsyncDataTree<ISCMResourceGroup, Element>('SCM twisties', container, {
+			getHeight: () => 22,
+			getTemplateId: () => 'element',
+		}, [{
+			templateId: 'element',
+			renderTemplate: (template: HTMLElement) => template,
+			renderElement: (node: ITreeNode<Element>, _index: number, template: HTMLElement) => { template.textContent = names.get(node.element) ?? ''; },
+			disposeTemplate: () => { },
+		}], {
+			hasChildren: element => dataSource.hasChildren(element),
+			getChildren: element => dataSource.getChildren(element),
+		}, { collapseByDefault: isSCMTreeElementCollapsedByDefault, twistieAdditionalCssClass: element => getSCMTreeTwistieCssClass(element, dataSource) }));
+		tree.layout(200);
+		await tree.setInput(files);
+		await tree.expand(resource);
+		const rows = [...container.querySelectorAll('.monaco-list-row')];
+		assert.deepStrictEqual(Object.fromEntries(rows.map(row => [row.textContent, row.querySelector('.monaco-tl-twistie')?.classList.contains('force-twistie')])), {
+			'file.ts': true, Calculator: true, run: false, 'notes.md': false,
+		});
+	});
 
 	test('adds Show Structural Diff as a checkable action in a separate View & Sort group while enabled and a provider is registered', () => {
 		const item = MenuRegistry.getMenuItems(MenuId.for('SCMViewSort'))
