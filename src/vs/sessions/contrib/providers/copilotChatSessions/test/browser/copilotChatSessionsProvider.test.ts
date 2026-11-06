@@ -38,17 +38,17 @@ import { CancellationToken, CancellationTokenSource } from '../../../../../../ba
 import { ILanguageModelChatMetadata, ILanguageModelChatMetadataAndIdentifier, ILanguageModelsService, isUserProvidedModel } from '../../../../../../workbench/contrib/chat/common/languageModels.js';
 import { IChatModel, IChatRequestModel, IChatResponseModel } from '../../../../../../workbench/contrib/chat/common/model/chatModel.js';
 import { IChatAgentData } from '../../../../../../workbench/contrib/chat/common/participants/chatAgents.js';
-import { IAutomationSessionConfiguration, ISendRequestOptions, ISessionChangeEvent, ISessionsProvider } from '../../../../../services/sessions/common/sessionsProvider.js';
-import { ChatModelSource, GITHUB_REMOTE_FILE_SCHEME, IChat, ISession, ISessionChangesSummary, ISessionCreationReference, ISessionFileChange, ISessionWorkspace, SESSION_WORKSPACE_GROUP_GITHUB, SESSION_WORKSPACE_GROUP_LOCAL, SessionArtifactKind, SessionStatus } from '../../../../../services/sessions/common/session.js';
+import { IAutomationSessionConfiguration, ISendRequestOptions, ISessionChangeEvent, ISessionsProvider } from '../../../../../../workbench/contrib/sessions/common/sessionsProvider.js';
+import { ChatModelSource, GITHUB_REMOTE_FILE_SCHEME, IChat, ISession, ISessionChangesSummary, ISessionCreationReference, ISessionFileChange, ISessionWorkspace, SESSION_WORKSPACE_GROUP_GITHUB, SESSION_WORKSPACE_GROUP_LOCAL, SessionArtifactKind, SessionStatus } from '../../../../../../workbench/contrib/sessions/common/session.js';
 import { CloudSandboxEarlyPreparationSettingId, CloudSandboxEnabledSettingId, CloudSandboxRequestError, ICloudSandboxApiService, ICloudSandboxDraftPreparationService, type ICloudSandboxCreateSessionRequest, type ICloudSandboxReserveSessionRequest } from '../../../../../../platform/agentHost/common/cloudSandboxAgentHost.js';
 import { IAgentConnection } from '../../../../../../platform/agentHost/common/agentService.js';
 import { ConfigPropertySchema, SessionModelInfo } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
 import { RemoteAgentHostsEnabledSettingId } from '../../../../../../platform/agentHost/common/remoteAgentHostService.js';
-import { CloudSandboxAgentHostContribution, type ICloudSandboxProvisionedSession } from '../../../remoteAgentHost/browser/cloudSandboxAgentHostContribution.js';
-import { CLOUD_SANDBOX_CREATION_PROVIDER_ID, COPILOT_PROVIDER_ID } from '../../common/copilotChatSessions.js';
-import { CloudSandboxSessionsProvider } from '../../../remoteAgentHost/browser/cloudSandboxSessionsProvider.js';
+import { CloudSandboxAgentHostContribution, type ICloudSandboxProvisionedSession } from '../../../../../../workbench/contrib/sessions/providers/remoteAgentHost/browser/cloudSandboxAgentHostContribution.js';
+import { CLOUD_SANDBOX_CREATION_PROVIDER_ID, COPILOT_PROVIDER_ID } from '../../../../../../workbench/contrib/sessions/providers/copilotChatSessions/common/copilotChatSessions.js';
+import { CloudSandboxSessionsProvider } from '../../../../../../workbench/contrib/sessions/providers/remoteAgentHost/browser/cloudSandboxSessionsProvider.js';
 import { ChatConfiguration, ChatDefaultPermissionLevel, ChatModeKind, ChatPermissionLevel } from '../../../../../../workbench/contrib/chat/common/constants.js';
-import { CopilotChatSessionsProvider, CopilotCloudSessionType, CopilotSandboxSessionType, RemoteNewSession } from '../../browser/copilotChatSessionsProvider.js';
+import { CopilotChatSessionsProvider, CopilotCloudSessionType, CopilotSandboxSessionType, RemoteNewSession } from '../../../../../../workbench/contrib/sessions/providers/copilotChatSessions/browser/copilotChatSessionsProvider.js';
 import { ChatAIDisabledSettingId } from '../../../../../../platform/chat/common/chatSettings.js';
 import { ILogService, NullLogService } from '../../../../../../platform/log/common/log.js';
 import { INotificationService } from '../../../../../../platform/notification/common/notification.js';
@@ -56,7 +56,7 @@ import { IProgress } from '../../../../../../platform/progress/common/progress.j
 import { ITelemetryService } from '../../../../../../platform/telemetry/common/telemetry.js';
 import { NullTelemetryService } from '../../../../../../platform/telemetry/common/telemetryUtils.js';
 import { IWorkspaceTrustManagementService } from '../../../../../../platform/workspace/common/workspaceTrust.js';
-import { SessionView } from '../../../../../browser/parts/sessionView.js';
+import { SessionView } from '../../../../../../workbench/contrib/sessions/browser/parts/sessionView.js';
 import { createSessionViewTestServices, createTestActiveSession } from '../../../../../test/browser/sessionViewTestUtils.js';
 import { ILabelService } from '../../../../../../platform/label/common/label.js';
 import { IPathService } from '../../../../../../workbench/services/path/common/pathService.js';
@@ -65,23 +65,24 @@ import { TestPathService } from '../../../../../../workbench/test/browser/workbe
 import { IUriIdentityService } from '../../../../../../platform/uriIdentity/common/uriIdentity.js';
 import { extUri } from '../../../../../../base/common/resources.js';
 import { MockContextKeyService } from '../../../../../../platform/keybinding/test/common/mockKeybindingService.js';
-import { IGitHubService } from '../../../../github/browser/githubService.js';
+import { IGitHubService } from '../../../../../../workbench/contrib/sessions/browser/github/githubService.js';
 import { RepositoryPicker } from '../../../../../../workbench/contrib/chat/browser/agentSessions/repositoryPicker.js';
-import { ISessionRepositoryPicker } from '../../../../../services/presentation/browser/sessionRepositoryPicker.js';
-import { DefaultSessionRepositoryPicker } from '../../../../../services/presentation/browser/defaultSessionRepositoryPicker.js';
-import { GitHubPullRequestModel } from '../../../../github/browser/models/githubPullRequestModel.js';
-import { IPullRequestIconCache } from '../../../../github/browser/pullRequestIconCache.js';
-import { computePullRequestIcon, GitHubPullRequestState, IGitHubPullRequest, IGitHubRepository } from '../../../../github/common/types.js';
+import { ISessionRepositoryPicker } from '../../../../../../workbench/contrib/sessions/browser/sessionRepositoryPicker.js';
+import { DefaultSessionRepositoryPicker } from '../../../../../../workbench/contrib/sessions/browser/defaultSessionRepositoryPicker.js';
+import { GitHubPullRequestModel } from '../../../../../../workbench/contrib/sessions/browser/github/models/githubPullRequestModel.js';
+import { IPullRequestIconCache } from '../../../../../../workbench/contrib/sessions/browser/github/pullRequestIconCache.js';
+import { computePullRequestIcon, GitHubPullRequestState, IGitHubPullRequest, IGitHubRepository } from '../../../../../../workbench/contrib/sessions/common/github/types.js';
 import { CloudSandboxModels } from '../../../../../../workbench/contrib/chat/browser/remoteAgentHost/cloudSandboxModels.js';
 import { CloudSandboxDraftPreparationService } from '../../../../../../workbench/contrib/chat/browser/remoteAgentHost/cloudSandboxDraftPreparationService.js';
 import { createCloudSandboxSessionConfig, resolveCloudSandboxSessionConfig, validateCloudSandboxModelConfig } from '../../../../../../workbench/contrib/chat/browser/remoteAgentHost/cloudSandboxSessionConfig.js';
-import { AutomationModelConfiguration } from '../../../../automations/browser/automationModelConfiguration.js';
+import { AutomationModelConfiguration } from '../../../../../../workbench/contrib/sessions/browser/automationModelConfiguration.js';
 import { IDefaultAccountService } from '../../../../../../platform/defaultAccount/common/defaultAccount.js';
 import { IChatEntitlementService } from '../../../../../../workbench/services/chat/common/chatEntitlementService.js';
 import { IWorkbenchGitHubService } from '../../../../../../workbench/services/github/common/githubService.js';
-import { SessionModelSelection } from '../../../../chat/browser/sessionModelSelection.js';
-import { VisibleSession } from '../../../../../services/sessions/browser/visibleSessions.js';
-import { ISessionsProvidersService } from '../../../../../services/sessions/browser/sessionsProvidersService.js';
+import { SessionModelSelection } from '../../../../../../workbench/contrib/sessions/browser/chat/sessionModelSelection.js';
+import { VisibleSession } from '../../../../../../workbench/contrib/sessions/browser/visibleSessions.js';
+import { ISessionsProvidersService } from '../../../../../../workbench/contrib/sessions/browser/sessionsProvidersService.js';
+import { stubSessionsHostLayout } from '../../../../../test/browser/sessionsHostLayoutTestUtils.js';
 
 // ---- Helpers ----------------------------------------------------------------
 
@@ -3521,6 +3522,7 @@ suite('CopilotChatSessionsProvider', () => {
 				await provider.setSessionConfigValue(draft.sessionId, chatResource, 'mode', 'plan');
 				await provider.setSessionConfigValue(draft.sessionId, chatResource, 'approvalMode', 'manual');
 				const { instantiationService, chatViews } = createSessionViewTestServices(disposables);
+				stubSessionsHostLayout(instantiationService);
 				const view = disposables.add(instantiationService.createInstance(SessionView, undefined));
 				view.openSession({
 					...createTestActiveSession(draft.sessionId, false),

@@ -20,16 +20,16 @@ import { IGitService } from '../../../../workbench/contrib/git/common/gitService
 import { getGitHubRemoteInfo, IGitHubRemoteInfo } from '../../../../workbench/contrib/git/common/utils.js';
 import { getOnboardingDeveloperModeVariation, isOnboardingDeveloperModeEnabled, OnboardingDeveloperModeVariations, ONBOARDING_DEVELOPER_MODE_VARIATIONS_CONFIG } from '../../../../workbench/contrib/onboarding/common/onboardingScenarioService.js';
 import { IWorkbenchAssignmentService } from '../../../../workbench/services/assignment/common/assignmentService.js';
-import { isAgentHostProviderId } from '../../../common/agentHostSessionsProvider.js';
-import { IHostSession } from '../../../services/sessions/common/sessionsManagement.js';
-import { INewSessionComposer, INewSessionComposerService, INewSessionPromptOption, INewSessionPromptOptionsController, NEW_SESSION_PROMPT_TYPING_DURATION_MS, NewSessionPromptOptionsProgress, NewSessionPromptOptionsState } from '../../chat/browser/newSessionComposerService.js';
-import { getGitHubRepositoryFromUri } from '../../github/common/utils.js';
+import { isAgentHostProviderId } from '../../../../workbench/contrib/sessions/common/agentHostSessionsProvider.js';
+import { IHostSession } from '../../../../workbench/contrib/sessions/common/sessionsManagement.js';
+import { INewSessionComposer, INewSessionComposerService, INewSessionPromptOption, INewSessionPromptOptionsController, NEW_SESSION_PROMPT_TYPING_DURATION_MS, NewSessionPromptOptionsProgress, NewSessionPromptOptionsState } from '../../../../workbench/contrib/sessions/browser/newSessionComposerService.js';
+import { getGitHubRepositoryFromUri } from '../../../../workbench/contrib/sessions/common/github/utils.js';
 import { GitHubRequestError } from '../../../../platform/github/common/githubTypes.js';
 import { ApiRequestOptions } from '../../../../platform/github/common/client/request.js';
-import { IGitHubRecentIssue, IGitHubRecentPullRequest, IGitHubRecentUserWork } from '../../github/browser/fetchers/githubRecentUserWorkFetcher.js';
-import { IGitHubService } from '../../github/browser/githubService.js';
-import { computeIssueIcon, computePullRequestIcon, GitHubIssueState, GitHubPullRequestState } from '../../github/common/types.js';
-import { resolveGitHubRepositoryFromGitConfig } from '../../../services/sessions/browser/gitHubRepositoryResolver.js';
+import { IGitHubRecentIssue, IGitHubRecentPullRequest, IGitHubRecentUserWork } from '../../../../workbench/contrib/sessions/browser/github/fetchers/githubRecentUserWorkFetcher.js';
+import { IGitHubService } from '../../../../workbench/contrib/sessions/browser/github/githubService.js';
+import { computeIssueIcon, computePullRequestIcon, GitHubIssueState, GitHubPullRequestState } from '../../../../workbench/contrib/sessions/common/github/types.js';
+import { resolveGitHubRepositoryFromGitConfig } from '../../../../workbench/contrib/sessions/browser/gitHubRepositoryResolver.js';
 import { NEW_SESSION_VIEW_V3_GITHUB_PROMPT_VARIATION, NEW_SESSION_VIEW_V3_OPTIONS_VARIATION, NEW_SESSION_VIEW_V3_PROMPT_VARIATION, NEW_SESSION_VIEW_V3_TOUR_ID, NEW_SESSION_VIEW_V3_VARIATION_TREATMENT } from './tours/newSessionViewV3Tour.js';
 
 /**

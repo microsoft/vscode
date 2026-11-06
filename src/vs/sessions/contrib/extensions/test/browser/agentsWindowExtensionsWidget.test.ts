@@ -39,7 +39,7 @@ import { IPreferencesService } from '../../../../../workbench/services/preferenc
 import { workbenchInstantiationService } from '../../../../../workbench/test/browser/workbenchTestServices.js';
 import { AgentsWindowExtensionGroup, AgentsWindowExtensionsWidget, getMissingFeaturesWarning, getSuggestedContributionLabels, groupAgentsWindowExtensions, IAgentsWindowExtensionsGroup } from '../../browser/agentsWindowExtensionsWidget.js';
 import { AGENTS_WINDOW_MARKETPLACE_QUERY_SOURCE } from '../../browser/agentsWindowExtensionsMarketplace.js';
-import { IAgentsWindowExtensionSuggestionsService } from '../../browser/agentsWindowExtensionSuggestions.js';
+import { IAgentsWindowExtensionSuggestionsService } from '../../../../../workbench/contrib/sessions/browser/agentsWindowExtensionSuggestions.js';
 
 interface ITestExtensionOptions {
 	readonly displayName: string;

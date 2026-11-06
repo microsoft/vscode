@@ -12,7 +12,7 @@ import { IContextKeyService } from '../../../platform/contextkey/common/contextk
 import { IContextViewService } from '../../../platform/contextview/browser/contextView.js';
 import { IKeybindingService } from '../../../platform/keybinding/common/keybinding.js';
 import { ComponentFixtureContext, createEditorServices, defineComponentFixture, defineThemedFixtureGroup, registerWorkbenchServices, waitForFixtureCondition } from '../../../workbench/test/browser/componentFixtures/fixtureUtils.js';
-import { EmptyEditorGroupAddTab } from '../../browser/parts/emptyEditorGroupAddTab.js';
+import { EmptyEditorGroupAddTab } from '../../../workbench/contrib/sessions/browser/parts/emptyEditorGroupAddTab.js';
 import { FixtureContextViewService, FixtureKeybindingService, FixtureMenuService, fixtureBrowser, fixtureCanvas, fixtureCanvasWithDiscover, fixtureCanvasWithTitledGroups, fixtureChanges, fixtureFiles, IFixtureEntry } from './addTabFixtureUtils.js';
 
 const addTabMenu = MenuId.for('sessions.fixture.emptyEditorGroupAddTab');

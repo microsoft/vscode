@@ -15,30 +15,18 @@ import { TestConfigurationService } from '../../../../../platform/configuration/
 import { IProductService } from '../../../../../platform/product/common/productService.js';
 import { IQuickInputService } from '../../../../../platform/quickinput/common/quickInput.js';
 import { AgentSessionApprovalKind, AgentSessionApprovalModel, IAgentSessionApprovalInfo } from '../../../../contrib/chat/browser/agentSessions/agentSessionApprovalModel.js';
-// eslint-disable-next-line local/code-import-patterns
-import { IChat, ISession, ISessionWorkspace } from '../../../../../sessions/services/sessions/common/session.js';
-// eslint-disable-next-line local/code-import-patterns
-import { SESSIONS_CHAT_TABS_SETTING, SessionsChatTabsMode } from '../../../../../sessions/common/sessionConfig.js';
-// eslint-disable-next-line local/code-import-patterns
-import { IActiveSession, ISessionsManagementService } from '../../../../../sessions/services/sessions/common/sessionsManagement.js';
-// eslint-disable-next-line local/code-import-patterns
-import { ISessionsService } from '../../../../../sessions/services/sessions/browser/sessionsService.js';
-// eslint-disable-next-line local/code-import-patterns
-import { ISessionsProvidersService } from '../../../../../sessions/services/sessions/browser/sessionsProvidersService.js';
-// eslint-disable-next-line local/code-import-patterns
-import { IAgentHostFilterService } from '../../../../../sessions/services/agentHostFilter/common/agentHostFilter.js';
-// eslint-disable-next-line local/code-import-patterns
-import { BlockedSessionReason, BlockedSessions, IBlockedSession } from '../../../../../sessions/contrib/blockedSessions/browser/blockedSessions.js';
-// eslint-disable-next-line local/code-import-patterns
+import { IChat, ISession, ISessionWorkspace } from '../../../../contrib/sessions/common/session.js';
+import { SESSIONS_CHAT_TABS_SETTING, SessionsChatTabsMode } from '../../../../contrib/sessions/common/sessionConfig.js';
+import { IActiveSession, ISessionsManagementService } from '../../../../contrib/sessions/common/sessionsManagement.js';
+import { ISessionsService } from '../../../../contrib/sessions/browser/sessionsService.js';
+import { ISessionsProvidersService } from '../../../../contrib/sessions/browser/sessionsProvidersService.js';
+import { IAgentHostFilterService } from '../../../../contrib/sessions/common/agentHostFilter.js';
+import { BlockedSessionReason, BlockedSessions, IBlockedSession } from '../../../../contrib/sessions/browser/blockedSessions.js';
 import { SessionActionFeedback } from '../../../../../sessions/contrib/sessions/browser/sessionActionFeedback.js';
-// eslint-disable-next-line local/code-import-patterns
 import { SessionsTitleBarWidget } from '../../../../../sessions/contrib/sessions/browser/sessionsTitleBarWidget.js';
-// eslint-disable-next-line local/code-import-patterns
 import { BlockedSessionsCIFixModel } from '../../../../../sessions/contrib/sessions/browser/blockedSessionsCIFixModel.js';
-// eslint-disable-next-line local/code-import-patterns
 import { BlockedSessionsIndicatorModel } from '../../../../../sessions/contrib/sessions/browser/blockedSessionsIndicatorModel.js';
-// eslint-disable-next-line local/code-import-patterns
-import { stubSessionHosts } from '../../../../../sessions/services/sessions/test/browser/sessionHostTestUtils.js';
+import { stubSessionHosts } from '../../../../contrib/sessions/test/browser/sessionHostTestUtils.js';
 import { IWorkbenchLayoutService } from '../../../../services/layout/browser/layoutService.js';
 import { ComponentFixtureContext, createEditorServices, defineComponentFixture, defineThemedFixtureGroup, registerWorkbenchServices } from '../fixtureUtils.js';
 

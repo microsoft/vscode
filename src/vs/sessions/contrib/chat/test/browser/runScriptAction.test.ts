@@ -26,10 +26,10 @@ import { IQuickInputService } from '../../../../../platform/quickinput/common/qu
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { IChatWidgetService } from '../../../../../workbench/contrib/chat/browser/chat.js';
 import { IWorkbenchLayoutService } from '../../../../../workbench/services/layout/browser/layoutService.js';
-import { IFocusedSessionHostService } from '../../../../services/sessions/browser/sessionHost.js';
-import { focusedSessionHostServiceOf } from '../../../../services/sessions/test/browser/sessionHostTestUtils.js';
-import { IChat, ISession } from '../../../../services/sessions/common/session.js';
-import { IActiveSession, ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
+import { IFocusedSessionHostService } from '../../../../../workbench/contrib/sessions/browser/sessionHost.js';
+import { focusedSessionHostServiceOf } from '../../../../../workbench/contrib/sessions/test/browser/sessionHostTestUtils.js';
+import { IChat, ISession } from '../../../../../workbench/contrib/sessions/common/session.js';
+import { IActiveSession, ISessionsManagementService } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import { ISessionsTasksService, ISessionTaskWithTarget } from '../../browser/sessionsTasksService.js';
 
 const titleBarCenterRightMenu = MenuId.for('SessionsTitleBarCenterRight');

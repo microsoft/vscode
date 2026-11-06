@@ -19,14 +19,14 @@ import { TestLifecycleService } from '../../../../../workbench/test/common/workb
 import { ISessionsWindowOpenContext, SessionsWindowOpenTelemetry } from '../../../sessions/browser/sessionsWindowOpenTelemetry.js';
 import { AgentsWindowRequestActivity, SelectAgentsFolderContribution } from '../../electron-browser/chat.contribution.js';
 import { Emitter } from '../../../../../base/common/event.js';
-import { ISession } from '../../../../services/sessions/common/session.js';
+import { ISession } from '../../../../../workbench/contrib/sessions/common/session.js';
 import { InMemoryStorageService } from '../../../../../platform/storage/common/storage.js';
 import { IAgentsWindowWorkspaceHandoff } from '../../browser/agentsWindowWorkspaceHandoff.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { AGENT_HOST_SCHEME } from '../../../../../platform/agentHost/common/agentHostUri.js';
-import { DevContainerAgentHostEnabledSettingId } from '../../../../common/devContainerAgentHostService.js';
-import { IOpenNewSessionOptions } from '../../../../services/sessions/browser/sessionsService.js';
-import { SessionsManagementService } from '../../../../services/sessions/browser/sessionsManagementService.js';
+import { DevContainerAgentHostEnabledSettingId } from '../../../../../workbench/contrib/sessions/common/devContainerAgentHostService.js';
+import { IOpenNewSessionOptions } from '../../../../../workbench/contrib/sessions/browser/sessionsService.js';
+import { SessionsManagementService } from '../../../../../workbench/contrib/sessions/browser/sessionsManagementService.js';
 import { createTestSession } from '../../../sessions/test/browser/sessionsListTestUtils.js';
 import { IChatRequestAcceptedEvent, IChatService } from '../../../../../workbench/contrib/chat/common/chatService/chatService.js';
 import { INativeHostService } from '../../../../../platform/native/common/native.js';

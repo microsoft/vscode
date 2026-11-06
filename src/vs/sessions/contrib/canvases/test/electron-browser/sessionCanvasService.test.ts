@@ -29,9 +29,10 @@ import { IChatEntitlementService } from '../../../../../workbench/services/chat/
 import { IEditorGroup, IEditorGroupsService } from '../../../../../workbench/services/editor/common/editorGroupsService.js';
 import { IEditorService } from '../../../../../workbench/services/editor/common/editorService.js';
 import { IAgentWorkbenchLayoutService } from '../../../../browser/workbench.js';
-import { Menus } from '../../../../browser/menus.js';
-import { IChat, ISessionCanvas, ISessionCanvasDefinition, ISessionCapabilities } from '../../../../services/sessions/common/session.js';
-import { IActiveSession, IChatDeletedEvent, ISessionsChangeEvent, ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
+import { Menus } from '../../../../../workbench/contrib/sessions/browser/menus.js';
+import { AgentsWindowMenus } from '../../../../browser/agentsWindowMenus.js';
+import { IChat, ISessionCanvas, ISessionCanvasDefinition, ISessionCapabilities } from '../../../../../workbench/contrib/sessions/common/session.js';
+import { IActiveSession, IChatDeletedEvent, ISessionsChangeEvent, ISessionsManagementService } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import { ISessionEditorWorkingSetOwner, SessionEditorWorkingSetService } from '../../../layout/common/sessionEditorWorkingSet.js';
 import { ISessionCanvasRegistryService } from '../../common/sessionCanvas.js';
 import { registerSessionCanvasActions, REOPEN_SESSION_CANVAS_COMMAND_ID } from '../../electron-browser/sessionCanvasActions.js';
@@ -42,11 +43,10 @@ import { TestNotificationService } from '../../../../../platform/notification/te
 import { SessionCanvasContextService } from '../../electron-browser/sessionCanvasService.js';
 import { IChatService } from '../../../../../workbench/contrib/chat/common/chatService/chatService.js';
 import { IChatWindow, IChatWindowService } from '../../../../../workbench/contrib/chatWindow/browser/chatWindow.js';
-import { ICustomViewService } from '../../../../services/customView/browser/customViewService.js';
-import { ICustomViewDescriptor } from '../../../../services/customView/browser/customView.js';
-import { IPinnedCanvas, IPinnedCanvasService, PINNED_CANVAS_PAGE_ID } from '../../browser/pinnedCanvases.js';
-import { focusedSessionHostServiceOf, sessionHostServiceOf } from '../../../../services/sessions/test/browser/sessionHostTestUtils.js';
-import { ISessionHost, ISessionHostService, SessionHostKind } from '../../../../services/sessions/browser/sessionHost.js';
+import { ICustomViewService, ICustomViewDescriptor } from '../../../../../workbench/contrib/sessions/browser/customView.js';
+import { IPinnedCanvas, IPinnedCanvasService, PINNED_CANVAS_PAGE_ID } from '../../../../../workbench/contrib/sessions/browser/pinnedCanvases.js';
+import { focusedSessionHostServiceOf, sessionHostServiceOf } from '../../../../../workbench/contrib/sessions/test/browser/sessionHostTestUtils.js';
+import { ISessionHost, ISessionHostService, SessionHostKind } from '../../../../../workbench/contrib/sessions/browser/sessionHost.js';
 import { isEqual } from '../../../../../base/common/resources.js';
 
 suite('SessionCanvasService', () => {
@@ -803,19 +803,19 @@ suite('SessionCanvasService', () => {
 		for (const input of [...opened]) {
 			input.dispose();
 		}
-		const getItems = () => MenuRegistry.getMenuItems(Menus.SessionsEditorTabsBarAddTabCanvas)
+		const getItems = () => MenuRegistry.getMenuItems(AgentsWindowMenus.SessionsEditorTabsBarAddTabCanvas)
 			.filter(isIMenuItem)
 			.filter(item => item.command.id.startsWith(`${REOPEN_SESSION_CANVAS_COMMAND_ID}.`))
 			.sort((first, second) => (first.order ?? 0) - (second.order ?? 0));
-		const getSubmenus = () => MenuRegistry.getMenuItems(Menus.SessionsEditorTabsBarAddTab)
+		const getSubmenus = () => MenuRegistry.getMenuItems(AgentsWindowMenus.SessionsEditorTabsBarAddTab)
 			.filter(isISubmenuItem)
-			.filter(item => item.submenu === Menus.SessionsEditorTabsBarAddTabCanvas);
-		const getListSubmenus = () => MenuRegistry.getMenuItems(Menus.SessionsEmptyEditorGroupAddTab)
+			.filter(item => item.submenu === AgentsWindowMenus.SessionsEditorTabsBarAddTabCanvas);
+		const getListSubmenus = () => MenuRegistry.getMenuItems(AgentsWindowMenus.SessionsEmptyEditorGroupAddTab)
 			.filter(isISubmenuItem)
-			.filter(item => item.submenu === Menus.SessionsEditorTabsBarAddTabCanvas);
+			.filter(item => item.submenu === AgentsWindowMenus.SessionsEditorTabsBarAddTabCanvas);
 		const getActivityBarSubmenus = () => MenuRegistry.getMenuItems(Menus.SessionActivityBar)
 			.filter(isISubmenuItem)
-			.filter(item => item.submenu === Menus.SessionActivityBarCanvas);
+			.filter(item => item.submenu === AgentsWindowMenus.SessionActivityBarCanvas);
 		const items = getItems();
 		const submenus = getSubmenus();
 		const activityBarSubmenus = getActivityBarSubmenus();

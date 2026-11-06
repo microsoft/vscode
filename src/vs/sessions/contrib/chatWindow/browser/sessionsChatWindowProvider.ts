@@ -28,29 +28,30 @@ import { IEditorGroup, IEditorGroupsService } from '../../../../workbench/servic
 import { IEditorService } from '../../../../workbench/services/editor/common/editorService.js';
 import { IWorkbenchLayoutService, LayoutSettings, ModernUIDensity, Parts } from '../../../../workbench/services/layout/browser/layoutService.js';
 import { ITitleService } from '../../../../workbench/services/title/browser/titleService.js';
-import { Menus } from '../../../browser/menus.js';
-import { EmptyEditorGroupAddTab } from '../../../browser/parts/emptyEditorGroupAddTab.js';
-import { registerSessionActivityBarExternalHost, SESSION_ACTIVITY_BAR_COLUMN_WIDTH } from '../../../browser/parts/sessionActivityBarHost.js';
+import { Menus } from '../../../../workbench/contrib/sessions/browser/menus.js';
+import { AgentsWindowMenus } from '../../../browser/agentsWindowMenus.js';
+import { EmptyEditorGroupAddTab } from '../../../../workbench/contrib/sessions/browser/parts/emptyEditorGroupAddTab.js';
+import { registerSessionActivityBarExternalHost, SESSION_ACTIVITY_BAR_COLUMN_WIDTH } from '../../../../workbench/contrib/sessions/browser/parts/sessionActivityBarHost.js';
 import { TitlebarPart } from '../../../browser/parts/titlebarPart.js';
-import { CustomViewVisibleContext } from '../../../common/contextkeys.js';
-import { AGENTS_FLOATING_PANEL_GAP } from '../../../common/layoutConstants.js';
-import { SESSION_ACTIVITY_BAR_SETTING } from '../../../common/sessionConfig.js';
-import { SessionsChatSurface } from '../../../services/chatBackground/browser/sessionsChatSurface.js';
-import { ActiveSessionHost, bindSessionHostScopeContext, getMainWindowHost, ISessionHost, ISessionHostService, SessionHostKind } from '../../../services/sessions/browser/sessionHost.js';
-import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
-import { IChatHostOpenerService } from '../../../services/sessions/browser/chatHostOpener.js';
-import { IChat, ISession } from '../../../services/sessions/common/session.js';
-import { IActiveSession, ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
-import { bindSessionScopeContextKeys } from '../../changes/browser/sessionActionsHost.js';
-import { SessionChangesEditorFileListContext } from '../../changes/common/changes.js';
-import { IChangesViewService } from '../../changes/common/changesViewService.js';
+import { CustomViewVisibleContext } from '../../../common/agentsWindowContextKeys.js';
+import { AGENTS_FLOATING_PANEL_GAP } from '../../../../workbench/contrib/sessions/common/layoutConstants.js';
+import { SESSION_ACTIVITY_BAR_SETTING } from '../../../../workbench/contrib/sessions/common/sessionConfig.js';
+import { SessionsChatSurface } from '../../../../workbench/contrib/sessions/browser/sessionsChatSurface.js';
+import { ActiveSessionHost, bindSessionHostScopeContext, getMainWindowHost, ISessionHost, ISessionHostService, SessionHostKind } from '../../../../workbench/contrib/sessions/browser/sessionHost.js';
+import { ISessionsService } from '../../../../workbench/contrib/sessions/browser/sessionsService.js';
+import { IChatHostOpenerService } from '../../../../workbench/contrib/sessions/browser/chatHostOpener.js';
+import { IChat, ISession } from '../../../../workbench/contrib/sessions/common/session.js';
+import { IActiveSession, ISessionsManagementService } from '../../../../workbench/contrib/sessions/common/sessionsManagement.js';
+import { bindSessionScopeContextKeys } from '../../../../workbench/contrib/sessions/browser/changes/sessionActionsHost.js';
+import { SessionChangesEditorFileListContext } from '../../../../workbench/contrib/sessions/common/changes.js';
+import { IChangesViewService } from '../../../../workbench/contrib/sessions/common/changesViewService.js';
 import { ISessionEditorWorkingSetService } from '../../layout/common/sessionEditorWorkingSet.js';
 import { CHAT_WINDOWS_ENABLED_SETTING } from '../common/chatWindows.js';
 import { ChatModelHold, chatWindowTitle, isChatWindowChatGone } from './chatWindowOpening.js';
 import { AGENTS_CHAT_WINDOW_CLASS } from './chatWindowTitleDoubleClick.js';
 import { ChatEditorInput, ISessionChatViewHeaderHost, ISessionChatViewHost, ISessionChatViewTitle, registerSessionChatViewHost } from '../../chatEditor/browser/chatEditor.js';
 import { ChatEditorContent } from '../../chatEditor/browser/chatEditorContent.js';
-import { VisibleSession } from '../../../services/sessions/browser/visibleSessions.js';
+import { VisibleSession } from '../../../../workbench/contrib/sessions/browser/visibleSessions.js';
 import { EditorTabsControl } from '../../../../workbench/browser/parts/editor/editorTabsControl.js';
 
 /** How long restoring a chat window waits for its session to load. */
@@ -86,8 +87,8 @@ export const CHAT_WINDOW_MAIN_PART_GROUP_VIEW_OPTIONS: IEditorGroupViewOptions =
 		headerSecondary: Menus.SessionsEditorHeaderSecondary,
 		headerLayout: Menus.SessionsEditorHeaderLayout,
 		editorActions: Menus.SessionsEditorTitle,
-		tabsBarContext: Menus.SessionsEditorTabsBarContext,
-		tabsBarAddTab: Menus.SessionsEditorTabsBarAddTab,
+		tabsBarContext: AgentsWindowMenus.SessionsEditorTabsBarContext,
+		tabsBarAddTab: AgentsWindowMenus.SessionsEditorTabsBarAddTab,
 	},
 	showHeader: true,
 	useModernUITabs: true,
@@ -475,7 +476,7 @@ export class SessionsChatWindowContent extends Disposable implements IChatWindow
 
 		// Its empty groups offer the same Add Tab entries as the main window's.
 		const addTabs = store.add(new DisposableMap<IEditorGroupView>());
-		const add = (group: IEditorGroupView) => addTabs.set(group, this._instantiationService.createInstance(EmptyEditorGroupAddTab, group, Menus.SessionsEditorTabsBarAddTab, Menus.SessionsEmptyEditorGroupAddTab));
+		const add = (group: IEditorGroupView) => addTabs.set(group, this._instantiationService.createInstance(EmptyEditorGroupAddTab, group, AgentsWindowMenus.SessionsEditorTabsBarAddTab, AgentsWindowMenus.SessionsEmptyEditorGroupAddTab));
 		window.mainPart.groups.forEach(group => add(group as IEditorGroupView));
 		store.add(window.mainPart.onDidAddGroup(group => add(group as IEditorGroupView)));
 		store.add(window.mainPart.onDidRemoveGroup(group => addTabs.deleteAndDispose(group as IEditorGroupView)));

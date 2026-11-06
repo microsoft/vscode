@@ -35,15 +35,15 @@ import { NullTelemetryService } from '../../../../../platform/telemetry/common/t
 import { ChatConfiguration } from '../../../../../workbench/contrib/chat/common/constants.js';
 import { ChatContextKeys } from '../../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
 import { IViewsService } from '../../../../../workbench/services/views/common/viewsService.js';
-import { Menus } from '../../../../browser/menus.js';
-import { IsPhoneLayoutContext } from '../../../../common/contextkeys.js';
-import { SHOW_SESSION_APPLICATION_FILTERS_COMMAND_ID } from '../../../../common/sessionCommands.js';
-import { ISession, ISessionEnvironment } from '../../../../services/sessions/common/session.js';
-import { buildTestSession } from '../../../../services/sessions/test/common/testSessionBuilder.js';
-import { SessionsGrouping, SessionsList, SessionsSorting } from '../../browser/views/sessionsList.js';
-import { SessionsListFilters } from '../../browser/views/sessionsListFilters.js';
-import { ISessionsListNotice, SessionsListNotification } from '../../browser/views/sessionsListNotification.js';
-import { IsWorkspaceGroupCappedContext, SessionsView, SessionsViewCompactContext, SessionsViewGroupingContext, SessionsViewSortingContext } from '../../browser/views/sessionsView.js';
+import { Menus } from '../../../../../workbench/contrib/sessions/browser/menus.js';
+import { IsPhoneLayoutContext } from '../../../../../workbench/contrib/sessions/common/contextkeys.js';
+import { SHOW_SESSION_APPLICATION_FILTERS_COMMAND_ID } from '../../../../../workbench/contrib/sessions/common/sessionCommands.js';
+import { ISession, ISessionEnvironment } from '../../../../../workbench/contrib/sessions/common/session.js';
+import { buildTestSession } from '../../../../../workbench/contrib/sessions/test/common/testSessionBuilder.js';
+import { SessionsGrouping, SessionsList, SessionsSorting } from '../../../../../workbench/contrib/sessions/browser/views/sessionsList.js';
+import { SessionsListFilters } from '../../../../../workbench/contrib/sessions/browser/views/sessionsListFilters.js';
+import { ISessionsListNotice, SessionsListNotification } from '../../../../../workbench/contrib/sessions/browser/views/sessionsListNotification.js';
+import { IsWorkspaceGroupCappedContext, SessionsView, SessionsViewCompactContext, SessionsViewGroupingContext, SessionsViewSortingContext } from '../../../../../workbench/contrib/sessions/browser/views/sessionsView.js';
 import { TestCommandService } from './sessionsListTestUtils.js';
 import '../../browser/views/sessionsViewActions.js';
 

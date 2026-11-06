@@ -11,11 +11,11 @@ import { ITelemetryService } from '../../../../platform/telemetry/common/telemet
 import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
 import { AgentsWindowOpenSource } from '../../../../platform/window/common/window.js';
 import { ILifecycleService, ShutdownReason } from '../../../../workbench/services/lifecycle/common/lifecycle.js';
-import { IWorkspaceSelectionSnapshot, WorkspaceSelectionOrigin } from '../../../common/workspaceSelection.js';
-import { IFocusedSessionHostService } from '../../../services/sessions/browser/sessionHost.js';
-import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
-import { ISendRequestOptions } from '../../../services/sessions/common/sessionsProvider.js';
-import { INewSessionComposerService } from '../../chat/browser/newSessionComposerService.js';
+import { IWorkspaceSelectionSnapshot, WorkspaceSelectionOrigin } from '../../../../workbench/contrib/sessions/common/workspaceSelection.js';
+import { IFocusedSessionHostService } from '../../../../workbench/contrib/sessions/browser/sessionHost.js';
+import { ISessionsManagementService } from '../../../../workbench/contrib/sessions/common/sessionsManagement.js';
+import { ISendRequestOptions } from '../../../../workbench/contrib/sessions/common/sessionsProvider.js';
+import { INewSessionComposerService } from '../../../../workbench/contrib/sessions/browser/newSessionComposerService.js';
 import { FIRST_TIME_WINDOW_OPEN_DURATION_LIMIT_MS, ISessionsWindowOpenContext } from './sessionsWindowOpenTelemetry.js';
 
 type ObservationReason = 'firstRequest' | 'timer' | 'close' | 'quit' | 'reload' | 'otherShutdown';

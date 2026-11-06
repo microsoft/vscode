@@ -12,13 +12,13 @@ import { URI } from '../../../../base/common/uri.js';
 import { IAccessibilityService } from '../../../../platform/accessibility/common/accessibility.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IWorkbenchContribution } from '../../../../workbench/common/contributions.js';
-import { Parts } from '../../../../workbench/services/layout/browser/layoutService.js';
-import { IAgentWorkbenchLayoutService } from '../../../browser/workbench.js';
-import { ISessionsPartService } from '../../../services/sessions/browser/sessionsPartService.js';
-import { getSessionPaneId, ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
-import { ISessionComparison, ISessionComparisonService, SessionComparisonParticipantRole } from '../../../services/sessions/common/sessionComparison.js';
-import { IActiveSession } from '../../../services/sessions/common/sessionsManagement.js';
-import { HIDE_INACTIVE_COMPARISON_INPUTS_SETTING } from '../common/sessionComparison.js';
+import { IWorkbenchLayoutService, Parts } from '../../../../workbench/services/layout/browser/layoutService.js';
+import { ISessionsHostLayoutService } from '../../../../workbench/contrib/sessions/browser/sessionsHostLayoutService.js';
+import { ISessionsPartService } from '../../../../workbench/contrib/sessions/browser/sessionsPartService.js';
+import { getSessionPaneId, ISessionsService } from '../../../../workbench/contrib/sessions/browser/sessionsService.js';
+import { ISessionComparison, ISessionComparisonService, SessionComparisonParticipantRole } from '../../../../workbench/contrib/sessions/common/sessionComparison.js';
+import { IActiveSession } from '../../../../workbench/contrib/sessions/common/sessionsManagement.js';
+import { HIDE_INACTIVE_COMPARISON_INPUTS_SETTING } from '../../../../workbench/contrib/sessions/common/sessionComparisonConstants.js';
 
 const HIDE_INACTIVE_COMPARISON_INPUTS_CLASS = 'session-comparison-hide-inactive-inputs';
 const COMPARISON_GRID_ACTIVE_CLASS = 'session-comparison-grid-active';
@@ -38,7 +38,8 @@ export class SessionComparisonGridController extends Disposable implements IWork
 		@ISessionsPartService sessionsPartService: ISessionsPartService,
 		@ISessionsService private readonly sessionsService: ISessionsService,
 		@ISessionComparisonService private readonly comparisonService: ISessionComparisonService,
-		@IAgentWorkbenchLayoutService private readonly layoutService: IAgentWorkbenchLayoutService,
+		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService,
+		@ISessionsHostLayoutService private readonly hostLayoutService: ISessionsHostLayoutService,
 		@IConfigurationService configurationService: IConfigurationService,
 		@IAccessibilityService accessibilityService: IAccessibilityService,
 	) {
@@ -240,7 +241,7 @@ export class SessionComparisonGridController extends Disposable implements IWork
 	}
 
 	private _hideSidePane(): void {
-		const suppression = this.layoutService.suppressEditorPartAutoVisibility();
+		const suppression = this.hostLayoutService.suppressEditorPartAutoVisibility();
 		try {
 			if (this.layoutService.isVisible(Parts.AUXILIARYBAR_PART)) {
 				this._partsHiddenByController.add(Parts.AUXILIARYBAR_PART);
