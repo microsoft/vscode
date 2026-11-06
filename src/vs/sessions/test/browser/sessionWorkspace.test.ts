@@ -10,8 +10,8 @@ import { URI } from '../../../base/common/uri.js';
 import { upcastPartial } from '../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../base/test/common/utils.js';
 import { getSessionWorkspaceDisplayInfo } from '../../browser/sessionWorkspace.js';
-import { IChat, ISessionWorkspace } from '../../services/sessions/common/session.js';
-import { IActiveSession } from '../../services/sessions/common/sessionsManagement.js';
+import { IChat, ISessionWorkspace } from '../../../workbench/contrib/sessions/common/session.js';
+import { IActiveSession } from '../../../workbench/contrib/sessions/common/sessionsManagement.js';
 
 suite('Session Workspace Display Info', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();

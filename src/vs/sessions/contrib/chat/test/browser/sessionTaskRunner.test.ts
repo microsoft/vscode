@@ -5,7 +5,7 @@
 
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { ISession } from '../../../../services/sessions/common/session.js';
+import { ISession } from '../../../../../workbench/contrib/sessions/common/session.js';
 import { ISessionTaskRunner, SessionTaskRunnerRegistry } from '../../browser/sessionTaskRunner.js';
 
 function makeRunner(id: string, priority: number, canRun: (session: ISession) => boolean = () => true): ISessionTaskRunner {

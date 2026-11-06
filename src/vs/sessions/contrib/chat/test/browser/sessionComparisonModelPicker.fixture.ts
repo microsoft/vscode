@@ -11,7 +11,7 @@ import { TestInstantiationService } from '../../../../../platform/instantiation/
 import { ChatEntitlement } from '../../../../../workbench/services/chat/common/chatEntitlementService.js';
 import { renderPicker } from '../../../../../workbench/test/browser/componentFixtures/chat/tabbedModelPicker.fixture.js';
 import { ComponentFixtureContext, defineComponentFixture, defineThemedFixtureGroup } from '../../../../../workbench/test/browser/componentFixtures/fixtureUtils.js';
-import { SessionComparisonModelSelection } from '../../browser/sessionComparisonModelSelection.js';
+import { SessionComparisonModelSelection } from '../../../../../workbench/contrib/sessions/browser/chat/sessionComparisonModelSelection.js';
 
 type ComparisonPickerState = 'single' | 'empty' | 'attempts' | 'judge' | 'synthesizer' | 'folderless';
 

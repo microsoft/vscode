@@ -25,6 +25,7 @@ export interface IMissionControlAvailabilityService {
 	readonly available: IObservable<boolean | undefined>;
 }
 export const MissionControlUseLocalCredentialsSettingId = 'chat.agentHost.experimentalMissionControl.useLocalCredentials';
+export const MissionControlUseLocalCredentialsConfigKey = 'missionControlUseLocalCredentials';
 /** Logical identity for host-side Mission Control wire logs, including failed handshakes. */
 export const MISSION_CONTROL_AHP_LOG_ID = 'mission-control';
 export type AgentHostRemoteConnectionsBackend = 'devTunnel' | 'githubEnvironment' | 'missionControl';

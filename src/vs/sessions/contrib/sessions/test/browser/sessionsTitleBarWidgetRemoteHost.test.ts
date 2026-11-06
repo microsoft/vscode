@@ -20,16 +20,17 @@ import { MockContextKeyService } from '../../../../../platform/keybinding/test/c
 import { IQuickInputService } from '../../../../../platform/quickinput/common/quickInput.js';
 import { IBrowserWorkbenchEnvironmentService } from '../../../../../workbench/services/environment/browser/environmentService.js';
 import { IWorkbenchLayoutService } from '../../../../../workbench/services/layout/browser/layoutService.js';
-import { Menus } from '../../../../browser/menus.js';
-import { IAgentHostSessionsProvider, LOCAL_AGENT_HOST_PROVIDER_ID } from '../../../../common/agentHostSessionsProvider.js';
-import { ISessionsProvidersChangeEvent, ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
-import { IChat, ISessionWorkspace } from '../../../../services/sessions/common/session.js';
-import { IActiveSession, ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
+import { AgentsWindowMenus } from '../../../../browser/agentsWindowMenus.js';
+import { IAgentHostSessionsProvider, LOCAL_AGENT_HOST_PROVIDER_ID } from '../../../../../workbench/contrib/sessions/common/agentHostSessionsProvider.js';
+import { ISessionsProvidersChangeEvent, ISessionsProvidersService } from '../../../../../workbench/contrib/sessions/browser/sessionsProvidersService.js';
+import { IChat, ISessionWorkspace } from '../../../../../workbench/contrib/sessions/common/session.js';
+import { IActiveSession, ISessionsManagementService } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import { BlockedSessionsIndicatorModel } from '../../browser/blockedSessionsIndicatorModel.js';
 import { SessionActionFeedback } from '../../browser/sessionActionFeedback.js';
 import { SessionsTitleBarWidget } from '../../browser/sessionsTitleBarWidget.js';
-import { ISessionHost } from '../../../../services/sessions/browser/sessionHost.js';
-import { ITestSessionsService } from '../../../../services/sessions/test/browser/sessionHostTestUtils.js';
+import { ISessionHost } from '../../../../../workbench/contrib/sessions/browser/sessionHost.js';
+import { IChatWindowService } from '../../../../../workbench/contrib/chatWindow/browser/chatWindow.js';
+import { ITestSessionsService } from '../../../../../workbench/contrib/sessions/test/browser/sessionHostTestUtils.js';
 
 suite('SessionsTitleBarWidget - Remote Host', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -67,7 +68,7 @@ suite('SessionsTitleBarWidget - Remote Host', () => {
 		hoverService.setupManagedHover.returns({ ...Disposable.None, show: () => { }, hide: () => { }, update: () => { } });
 		const feedback = store.add(new SessionActionFeedback());
 		const action = new SubmenuItemAction({
-			submenu: Menus.TitleBarSessionTitle,
+			submenu: AgentsWindowMenus.TitleBarSessionTitle,
 			title: 'Show Sessions',
 		}, undefined, []);
 		const widget = store.add(new SessionsTitleBarWidget(
@@ -94,6 +95,7 @@ suite('SessionsTitleBarWidget - Remote Host', () => {
 			upcastPartial<IQuickInputService>({}),
 			hoverService,
 			upcastPartial<IBrowserWorkbenchEnvironmentService>({ sessionTitle }),
+			upcastPartial<IChatWindowService>({}),
 		));
 		const container = $('div');
 		widget.render(container);

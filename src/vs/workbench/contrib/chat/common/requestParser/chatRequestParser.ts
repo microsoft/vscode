@@ -8,6 +8,7 @@ import { IPosition, Position } from '../../../../../editor/common/core/position.
 import { Range } from '../../../../../editor/common/core/range.js';
 import { OffsetRange } from '../../../../../editor/common/core/ranges/offsetRange.js';
 import { IChatVariablesService, IDynamicVariable } from '../attachments/chatVariables.js';
+import { getAgentHostCompletionReferenceKindFromValue } from '../attachments/chatVariableEntries.js';
 import { ChatAgentLocation, ChatModeKind } from '../constants.js';
 import { getChatSessionType } from '../model/chatUri.js';
 import { IChatAgentAttachmentCapabilities, IChatAgentData, IChatAgentService } from '../participants/chatAgents.js';
@@ -35,6 +36,8 @@ export interface IChatParserContext {
 	 * gone by the time the query is parsed, instead of those of the chat's input.
 	 */
 	references?: ReadonlyArray<IDynamicVariable>;
+	/** References carried by the submission's attachments when no originating input provides them. */
+	fallbackReferences?: ReadonlyArray<IDynamicVariable>;
 }
 
 export class ChatRequestParser {
@@ -46,7 +49,7 @@ export class ChatRequestParser {
 	) { }
 
 	parseChatRequest(sessionResource: URI, message: string, location: ChatAgentLocation = ChatAgentLocation.Chat, context: IChatParserContext = {}): IParsedChatRequest {
-		const references = context.references ?? this.variableService.getDynamicVariables(sessionResource); // must access this list before any async calls
+		const references = context.references ?? [...this.variableService.getDynamicVariables(sessionResource), ...context.fallbackReferences ?? []]; // must access this list before any async calls
 		const selectedToolAndToolSets = this.variableService.getSelectedToolAndToolSets(sessionResource);
 		if (!context.sessionType) {
 			context = { ...context, sessionType: getChatSessionType(sessionResource) };
@@ -82,7 +85,10 @@ export class ChatRequestParser {
 				} else if (char === chatAgentLeader) {
 					newPart = this.tryToParseAgent(message.slice(i), message, i, new Position(lineNumber, column), parts, location, context);
 				} else if (char === chatSubcommandLeader) {
-					newPart = this.tryToParseSlashCommand(message.slice(i), message, i, new Position(lineNumber, column), parts, location, context);
+					const reference = this.tryToParseDynamicVariable(message.slice(i), i, new Position(lineNumber, column), references);
+					newPart = reference && getAgentHostCompletionReferenceKindFromValue(reference.data) !== undefined
+						? reference
+						: this.tryToParseSlashCommand(message.slice(i), message, i, new Position(lineNumber, column), parts, location, context);
 				}
 
 				if (!newPart) {

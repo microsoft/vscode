@@ -40,7 +40,7 @@ import { IModelService } from '../../../../editor/common/services/model.js';
 import { IEditorTitleControlDimensions } from './editorTitleControl.js';
 import { IReadonlyEditorGroupModel } from '../../../common/editor/editorGroupModel.js';
 import { EDITOR_CORE_NAVIGATION_COMMANDS } from './editorCommands.js';
-import { IAuxiliaryEditorPart, MergeGroupMode } from '../../../services/editor/common/editorGroupsService.js';
+import { IEditorGroup, MergeGroupMode } from '../../../services/editor/common/editorGroupsService.js';
 import { isMacintosh } from '../../../../base/common/platform.js';
 import { IHostService } from '../../../services/host/browser/host.js';
 import { ServiceCollection } from '../../../../platform/instantiation/common/serviceCollection.js';
@@ -49,6 +49,7 @@ import { MarkdownString } from '../../../../base/common/htmlContent.js';
 import { IManagedHoverTooltipMarkdownString } from '../../../../base/browser/ui/hover/hover.js';
 import { applyDragImage } from '../../../../base/browser/ui/dnd/dnd.js';
 import { EditorAddTabControl } from './editorAddTabControl.js';
+import { EditorTransferTarget, getGroupTransferVeto, IEditorTransferVeto, transferToNewWindow } from './editorTransferVeto.js';
 
 export class EditorCommandsContextActionRunner extends ActionRunner {
 
@@ -500,26 +501,34 @@ export abstract class EditorTabsControl extends Themable implements IEditorTabsC
 			return; // drag to open in new window is disabled
 		}
 
-		const auxiliaryEditorPart = await this.maybeCreateAuxiliaryEditorPartAt(e, element);
-		if (!auxiliaryEditorPart) {
-			return;
-		}
+		const copy = this.isCopyIntoOtherGroup(previousDragEvent ?? e);
+		await this.transferToNewWindowAt(e, element, target => getGroupTransferVeto(this.groupView, target, { copy }), targetGroup => {
+			this.groupsView.mergeGroup(this.groupView, targetGroup.id, {
+				mode: copy ? MergeGroupMode.COPY_EDITORS : MergeGroupMode.MOVE_EDITORS
+			});
 
-		const targetGroup = auxiliaryEditorPart.activeGroup;
-		this.groupsView.mergeGroup(this.groupView, targetGroup.id, {
-			mode: this.isMoveOperation(previousDragEvent ?? e, targetGroup.id) ? MergeGroupMode.MOVE_EDITORS : MergeGroupMode.COPY_EDITORS
+			targetGroup.focus();
 		});
-
-		targetGroup.focus();
 	}
 
-	protected async maybeCreateAuxiliaryEditorPartAt(e: DragEvent, offsetElement: HTMLElement): Promise<IAuxiliaryEditorPart | undefined> {
+	/**
+	 * Moves or copies editors of the group into a new window where the drag `e` ends, unless one of them cannot go
+	 * there, which `getVeto` tells (see {@link transferToNewWindow}): then no window opens, or the one that opened
+	 * closes again while empty.
+	 */
+	protected async transferToNewWindowAt(e: DragEvent, offsetElement: HTMLElement, getVeto: (target: EditorTransferTarget) => IEditorTransferVeto | undefined, transfer: (targetGroup: IEditorGroup) => void): Promise<void> {
 		const bounds = await getNewWindowBoundsAtDragEnd(this.hostService, e, offsetElement);
 		if (!bounds) {
 			return;
 		}
 
-		return this.editorPartsView.createAuxiliaryEditorPart({ bounds });
+		await transferToNewWindow({
+			getVeto,
+			showVeto: veto => this.editorPartsView.showTransferVeto(veto),
+			createPart: () => this.editorPartsView.createAuxiliaryEditorPart({ bounds }),
+			isSourceAlive: () => !this.groupView.disposed,
+			transfer: part => transfer(part.activeGroup),
+		});
 	}
 
 	protected isNewWindowOperation(e: DragEvent): boolean {
@@ -531,13 +540,16 @@ export abstract class EditorTabsControl extends Themable implements IEditorTabsC
 	}
 
 	protected isMoveOperation(e: DragEvent, sourceGroup: GroupIdentifier, sourceEditor?: EditorInput): boolean {
+		return !this.isCopyIntoOtherGroup(e, sourceEditor) || sourceGroup === this.groupView.id;
+	}
+
+	/** Whether the drag `e` copies `sourceEditor`, or the group, into a group other than this one rather than moving it. */
+	protected isCopyIntoOtherGroup(e: DragEvent, sourceEditor?: EditorInput): boolean {
 		if (sourceEditor?.hasCapability(EditorInputCapabilities.Singleton)) {
-			return true; // Singleton editors cannot be split
+			return false; // Singleton editors cannot be split
 		}
 
-		const isCopy = (e.ctrlKey && !isMacintosh) || (e.altKey && isMacintosh);
-
-		return (!isCopy || sourceGroup === this.groupView.id);
+		return (e.ctrlKey && !isMacintosh) || (e.altKey && isMacintosh);
 	}
 
 	protected doFillResourceDataTransfers(editors: readonly EditorInput[], e: DragEvent, disableStandardTransfer: boolean): boolean {

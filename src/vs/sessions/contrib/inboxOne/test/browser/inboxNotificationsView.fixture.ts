@@ -25,19 +25,19 @@ import { ChatMarkdownAnchorService, IChatMarkdownAnchorService } from '../../../
 import { ITerminalChatService } from '../../../../../workbench/contrib/terminal/browser/terminal.js';
 import { ComponentFixtureContext, createEditorServices, defineComponentFixture, defineThemedFixtureGroup, registerWorkbenchServices, waitForFixtureCondition } from '../../../../../workbench/test/browser/componentFixtures/fixtureUtils.js';
 import { fixtureResourceUri, readFixtureBinaryResource } from '../../../../../workbench/test/browser/componentFixtures/fixtureResourceLoader.js';
-import { AbstractChatView } from '../../../../browser/parts/chatView.js';
+import { AbstractChatView } from '../../../../../workbench/contrib/sessions/browser/parts/chatView.js';
 import { IAgentWorkbenchLayoutService } from '../../../../browser/workbench.js';
-import { IChat, ISession, SessionArtifactKind } from '../../../../services/sessions/common/session.js';
-import { IChatViewFactory } from '../../../../services/chatView/browser/chatViewFactory.js';
-import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
-import { ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
-import { ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
-import { IAgentFeedbackService } from '../../../agentFeedback/browser/agentFeedbackService.js';
-import { IGitHubService } from '../../../github/browser/githubService.js';
-import { NEW_SESSION_WELCOME_NAME_SETTING } from '../../../chat/common/constants.js';
+import { IChat, ISession, SessionArtifactKind } from '../../../../../workbench/contrib/sessions/common/session.js';
+import { IChatViewFactory } from '../../../../../workbench/contrib/sessions/browser/chatViewFactory.js';
+import { ISessionsService } from '../../../../../workbench/contrib/sessions/browser/sessionsService.js';
+import { ISessionsProvidersService } from '../../../../../workbench/contrib/sessions/browser/sessionsProvidersService.js';
+import { ISessionsManagementService } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
+import { IAgentFeedbackService } from '../../../../../workbench/contrib/sessions/browser/agentFeedback.js';
+import { IGitHubService } from '../../../../../workbench/contrib/sessions/browser/github/githubService.js';
+import { NEW_SESSION_WELCOME_NAME_SETTING } from '../../../../../workbench/contrib/sessions/common/chatConstants.js';
 import { InboxNotificationsView } from '../../browser/inboxNotificationsView.js';
 import { IInboxCanvasHostService, UnsupportedInboxCanvasHostService } from '../../browser/inboxCanvasHost.js';
-import { IInboxDetailSummary, IInboxNotificationItem, IInboxNotificationsService, IInboxSessionRow, InboxNotificationActionKind, InboxNotificationKind, InboxNotificationPriority, InboxNotificationsSortMode, InboxTab } from '../../common/inboxNotificationsService.js';
+import { IInboxDetailSummary, IInboxNotificationItem, IInboxNotificationsService, IInboxSessionRow, InboxNotificationActionKind, InboxNotificationKind, InboxNotificationPriority, InboxNotificationsSortMode, InboxTab } from '../../../../../workbench/contrib/sessions/common/inboxNotificationsService.js';
 
 const actions = [
 	{ id: 'open', label: 'Open Session', kind: InboxNotificationActionKind.OpenSession },

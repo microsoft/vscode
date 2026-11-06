@@ -83,7 +83,8 @@ suite('Chat window opening (sessions)', () => {
 		const chat = { resource: URI.parse('test:/chat'), isArchived: observableValue('archived', false) };
 		const chats = observableValue('chats', [chat]);
 		const loading = observableValue('loading', false);
-		const session = { chats, loading } as unknown as IChatWindowChatSession;
+		const mainChat = { resource: URI.parse('test:/main'), isArchived: observableValue('mainArchived', false) };
+		const session = { chats, loading, mainChat: observableValue('mainChat', mainChat) } as unknown as IChatWindowChatSession;
 		const gone = () => isChatWindowChatGone(session, chat.resource, { readObservable: (o: IObservable<unknown>) => o.get() } as unknown as IReader);
 
 		const states = [gone()];
@@ -97,5 +98,18 @@ suite('Chat window opening (sessions)', () => {
 		states.push(gone());
 
 		assert.deepStrictEqual(states, [false, true, false, true]);
+	});
+
+	test('the main chat a session does not list yet is archived while the session loads, and is otherwise kept', () => {
+		const mainChat = { resource: URI.parse('test:/main'), isArchived: observableValue('archived', false) };
+		const loading = observableValue('loading', true);
+		const session = { chats: observableValue('chats', []), loading, mainChat: observableValue('mainChat', mainChat) } as unknown as IChatWindowChatSession;
+		const reader = { readObservable: (o: IObservable<unknown>) => o.get() } as unknown as IReader;
+		const states = [isChatWindowChatGone(session, mainChat.resource, reader)];
+		mainChat.isArchived.set(true, undefined);
+		states.push(isChatWindowChatGone(session, mainChat.resource, reader));
+		states.push(isChatWindowChatGone(session, URI.parse('test:/other'), reader));
+
+		assert.deepStrictEqual(states, [false, true, false]);
 	});
 });

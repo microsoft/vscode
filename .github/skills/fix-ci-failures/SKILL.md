@@ -103,7 +103,7 @@ gh run download <RUN_ID> -n "logs-linux-x64-electron-extension-host-1" -D /tmp/c
 gh run download <RUN_ID> -n "crash-dump-linux-x64-electron-extension-host-1" -D /tmp/ci-crashes
 ```
 
-> **Tip**: The `<test-type>` is the `ARTIFACT_NAME` in the `env` of the failed job in `.github/workflows/pr-<linux|darwin|win32>-test.yml` (e.g., "Linux / Electron (extension host)" → `electron-extension-host`, "Linux / Remote (integration)" → `remote`, "macOS / Electron" → `electron`). Map the platform with "Windows" → `windows-x64`, "Linux" → `linux-x64`, "macOS" → `macos-arm64`.
+> **Tip**: The `<test-type>` is the `ARTIFACT_NAME` in the `env` of the failed job in `.github/workflows/pr-<linux|win32>-test.yml` (e.g., "Linux / Electron (extension host)" → `electron-extension-host`, "Linux / Remote (integration)" → `remote`). Map the platform with "Windows" → `windows-x64`, "Linux" → `linux-x64`.
 
 > **Warning**: Log artifacts may be empty if the test runner crashed before producing output (e.g., Electron download failure). In that case, fall back to **Option C**.
 

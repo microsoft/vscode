@@ -24,20 +24,20 @@ import { IOnboardingScenarioService } from '../../../../../workbench/contrib/onb
 import { IEditorService } from '../../../../../workbench/services/editor/common/editorService.js';
 import { IWorkbenchLayoutService } from '../../../../../workbench/services/layout/browser/layoutService.js';
 import { IViewsService } from '../../../../../workbench/services/views/common/viewsService.js';
-import { WorkspaceHistoryLoadState } from '../../../../common/workspaceSelection.js';
-import { ICustomViewService } from '../../../../services/customView/browser/customViewService.js';
-import { IRecentWorkspace, ISessionsRecentWorkspacesService } from '../../../../services/sessions/browser/sessionsRecentWorkspacesService.js';
-import { IOpenNewSessionResult, ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
-import { ISession, ISessionChangesSummary } from '../../../../services/sessions/common/session.js';
-import { IActiveSession, ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
-import { IChangesViewService } from '../../../changes/common/changesViewService.js';
-import { ISessionChangesService } from '../../../changes/common/sessionChangesService.js';
-import { SessionsList } from '../../../sessions/browser/views/sessionsList.js';
-import { SessionsView } from '../../../sessions/browser/views/sessionsView.js';
+import { WorkspaceHistoryLoadState } from '../../../../../workbench/contrib/sessions/common/workspaceSelection.js';
+import { ICustomViewService } from '../../../../../workbench/contrib/sessions/browser/customView.js';
+import { IRecentWorkspace, ISessionsRecentWorkspacesService } from '../../../../../workbench/contrib/sessions/browser/sessionsRecentWorkspacesService.js';
+import { IOpenNewSessionResult, ISessionsService } from '../../../../../workbench/contrib/sessions/browser/sessionsService.js';
+import { ISession, ISessionChangesSummary } from '../../../../../workbench/contrib/sessions/common/session.js';
+import { IActiveSession, ISessionsManagementService } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
+import { IChangesViewService } from '../../../../../workbench/contrib/sessions/common/changesViewService.js';
+import { ISessionChangesService } from '../../../../../workbench/contrib/sessions/common/sessionChangesService.js';
+import { SessionsList } from '../../../../../workbench/contrib/sessions/browser/views/sessionsList.js';
+import { SessionsView } from '../../../../../workbench/contrib/sessions/browser/views/sessionsView.js';
 import { createTestSession } from '../../../sessions/test/browser/sessionsListTestUtils.js';
 import { GetStartedItemId } from '../../common/getStartedChecklist.js';
 import { GetStartedTourRunner } from '../../browser/getStartedTourRunner.js';
-import { stubFocusedSessionHostFromSessionsService } from '../../../../services/sessions/test/browser/sessionHostTestUtils.js';
+import { stubFocusedSessionHostFromSessionsService } from '../../../../../workbench/contrib/sessions/test/browser/sessionHostTestUtils.js';
 
 interface IRunnerScenario {
 	readonly sessions: readonly ISession[];
