@@ -30,6 +30,8 @@ export class CopilotAgentStartupConfig {
 		/** `chat.agentHost.computerUse.enabled`: built-in plugins can only be registered before any session exists. */
 		readonly computerUse = false,
 		readonly policyHelper: string | undefined = undefined,
+		/** `chat.agentHost.browserUse.enabled`: built-in plugins can only be registered before any session exists. */
+		readonly browserUse = false,
 	) { }
 
 	equals(other: CopilotAgentStartupConfig): boolean {

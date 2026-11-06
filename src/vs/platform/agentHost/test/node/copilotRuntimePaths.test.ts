@@ -64,4 +64,14 @@ suite('resolveCopilotRuntimePaths', () => {
 
 		assert.strictEqual(relative(await realpath(storeScopeDir), runtimePath).startsWith('copilot-sdk-'), true, runtimePath);
 	});
+
+	test('returns the plugins base path without requiring individual plugins to exist', async () => {
+		const scopeDir = join(testDir, 'node_modules', '@github');
+		await createPlatformPackages(scopeDir);
+		const nodeModulesUri = URI.file(join(testDir, 'node_modules'));
+		const { runtimePath, pluginsPath } = await resolveCopilotRuntimePaths(nodeModulesUri);
+		const packageDir = join(scopeDir, relative(scopeDir, runtimePath).split(/[\\/]/)[0]);
+
+		assert.strictEqual(pluginsPath, join(packageDir, 'plugins'));
+	});
 });
