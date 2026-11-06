@@ -23,7 +23,7 @@ import { TestConfigurationService } from '../../../../../platform/configuration/
 import { INACTIVE_TUNNEL_MODE, IRemoteTunnelService, type TunnelMode, type TunnelStatus } from '../../../../../platform/remoteTunnel/common/remoteTunnel.js';
 import { ChatContextKeys } from '../../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
 import { IsAuxiliaryWindowContext, IsSessionsWindowContext, RemoteNameContext } from '../../../../../workbench/common/contextkeys.js';
-import { Menus } from '../../../../browser/menus.js';
+import { AgentsWindowMenus } from '../../../../browser/agentsWindowMenus.js';
 import { RemoteTunnelCommandIds } from '../../../../../workbench/contrib/remoteTunnel/electron-browser/remoteTunnel.contribution.js';
 import { TOGGLE_SHARING_ID } from '../../../../../workbench/contrib/chat/electron-browser/tunnelHost.contribution.js';
 import { SessionsTunnelHostTitlebarContribution, TOGGLE_SHARING_FROM_AGENTS_ID } from '../../electron-browser/tunnelHost.contribution.js';
@@ -57,7 +57,7 @@ suite('Sessions - Tunnel Host Contribution', () => {
 			.filter(isIMenuItem)
 			.find(item => item.command.id === id);
 
-		assert.strictEqual(findToggle(Menus.TitleBarRightLayout, TOGGLE_SHARING_FROM_AGENTS_ID), undefined);
+		assert.strictEqual(findToggle(AgentsWindowMenus.TitleBarRightLayout, TOGGLE_SHARING_FROM_AGENTS_ID), undefined);
 		assert.strictEqual(CommandsRegistry.getCommand(TOGGLE_SHARING_FROM_AGENTS_ID), undefined);
 
 		const titlebarConfiguration = new TestConfigurationService();
@@ -75,14 +75,14 @@ suite('Sessions - Tunnel Host Contribution', () => {
 
 		try {
 			assert.deepStrictEqual({
-				titlebar: summarize(Menus.TitleBarRightLayout, TOGGLE_SHARING_FROM_AGENTS_ID),
+				titlebar: summarize(AgentsWindowMenus.TitleBarRightLayout, TOGGLE_SHARING_FROM_AGENTS_ID),
 				chatInput: summarize(MenuId.ChatInputSecondary, TOGGLE_SHARING_ID),
 			}, {
 				titlebar: { group: 'navigation', order: 90, icon: Codicon.radioTower.id },
 				chatInput: { group: 'navigation', order: 10, icon: Codicon.radioTower.id },
 			});
 
-			const titlebarToggle = findToggle(Menus.TitleBarRightLayout, TOGGLE_SHARING_FROM_AGENTS_ID);
+			const titlebarToggle = findToggle(AgentsWindowMenus.TitleBarRightLayout, TOGGLE_SHARING_FROM_AGENTS_ID);
 			const chatInputToggle = findToggle(MenuId.ChatInputSecondary, TOGGLE_SHARING_ID);
 			if (!titlebarToggle?.when || !chatInputToggle?.when) {
 				assert.fail('remote connections menu items should have when clauses');
@@ -115,7 +115,7 @@ suite('Sessions - Tunnel Host Contribution', () => {
 			contribution.dispose();
 		}
 
-		assert.strictEqual(findToggle(Menus.TitleBarRightLayout, TOGGLE_SHARING_FROM_AGENTS_ID), undefined);
+		assert.strictEqual(findToggle(AgentsWindowMenus.TitleBarRightLayout, TOGGLE_SHARING_FROM_AGENTS_ID), undefined);
 		assert.strictEqual(CommandsRegistry.getCommand(TOGGLE_SHARING_FROM_AGENTS_ID), undefined);
 	});
 

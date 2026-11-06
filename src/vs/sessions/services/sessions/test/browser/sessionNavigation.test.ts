@@ -14,16 +14,17 @@ import { NullLogService } from '../../../../../platform/log/common/log.js';
 import { InMemoryStorageService } from '../../../../../platform/storage/common/storage.js';
 import { MockContextKeyService } from '../../../../../platform/keybinding/test/common/mockKeybindingService.js';
 import { SyncDescriptor } from '../../../../../platform/instantiation/common/descriptors.js';
-import { AbstractCustomView } from '../../../customView/browser/customView.js';
-import { CustomViewService, ICustomViewService } from '../../../customView/browser/customViewService.js';
-import { IActiveSession, ICreateNewSessionOptions, IProviderSessionType, IRecentlyOpenedSessions, ISessionsManagementService } from '../../common/sessionsManagement.js';
-import { ChatInteractivity, IChat, ISession, ISessionCanvas, ISessionCanvasDefinition, ISessionType, ISessionWorkspace, ISideChatSelection, SessionStatus } from '../../common/session.js';
-import { SessionsNavigation } from '../../browser/sessionNavigation.js';
-import { getRecencyEntryKey, SessionsRecencyHistory } from '../../browser/sessionsRecencyHistory.js';
+import { AbstractCustomView, ICustomViewService } from '../../../../../workbench/contrib/sessions/browser/customView.js';
+import { CustomViewService } from '../../../customView/browser/customViewService.js';
+import { ICreateNewSessionOptions, IProviderSessionType, IRecentlyOpenedSessions, ISessionsManagementService } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
+import { ChatInteractivity, IChat, ISession, ISessionCanvas, ISessionCanvasDefinition, ISessionType, ISessionWorkspace, ISideChatSelection, SessionStatus } from '../../../../../workbench/contrib/sessions/common/session.js';
+import { SessionsNavigation } from '../../../../../workbench/contrib/sessions/browser/sessionNavigation.js';
+import { getRecencyEntryKey, SessionsRecencyHistory } from '../../../../../workbench/contrib/sessions/browser/sessionsRecencyHistory.js';
 import { Event } from '../../../../../base/common/event.js';
-import { INestedChatWorkspace, ISendRequestOptions } from '../../common/sessionsProvider.js';
+import { INestedChatWorkspace, ISendRequestOptions } from '../../../../../workbench/contrib/sessions/common/sessionsProvider.js';
 import { TestWindowCanvasService } from '../../../canvas/test/browser/testWindowCanvasService.js';
-import { IWindowCanvasDescriptor } from '../../../canvas/browser/windowCanvasService.js';
+import { IWindowCanvasDescriptor } from '../../../../../workbench/contrib/sessions/browser/windowCanvas.js';
+import { testGridPanes, TestShown } from '../../../../../workbench/contrib/sessions/test/browser/sessionHostTestUtils.js';
 
 const stubChat = {
 	resource: URI.parse('test:///chat'),
@@ -102,8 +103,11 @@ class MockSessionStore implements ISessionsManagementService {
 
 	readonly _serviceBrand: undefined;
 
-	readonly activeSession = observableValue<IActiveSession | undefined>('test.activeSession', undefined);
-	readonly visibleSessions = observableValue<readonly IActiveSession[]>('test.visibleSessions', []);
+	readonly activeSession = observableValue<ISession | undefined>('test.activeSession', undefined);
+	/** The chat the active session shows. */
+	readonly activeChat = observableValue<IChat | undefined>('test.activeChat', undefined);
+	readonly visibleSessions = observableValue<readonly TestShown[]>('test.visibleSessions', []);
+	readonly slotPanes = testGridPanes(this.visibleSessions);
 	readonly onDidChangeSessions = Event.None;
 	readonly onDidStartSession = Event.None;
 	readonly onDidChangeSessionTypes = Event.None;
@@ -137,33 +141,19 @@ class MockSessionStore implements ISessionsManagementService {
 	constructor(private readonly customViewService: ICustomViewService, private readonly canvasService: TestWindowCanvasService) { }
 
 	setActiveSession(session: ISession | undefined, chat?: IChat): void {
-		if (session) {
-			const activeChat = chat ?? session.chats.get()[0] ?? stubChat;
-			const active: IActiveSession = {
-				...session,
-				isCreated: constObservable(true),
-				sticky: constObservable(false),
-				activeChat: observableValue<IChat>(`test.activeChat-${session.sessionId}`, activeChat),
-				openChats: session.chats,
-				closedChats: constObservable([]),
-				lastClosedChat: undefined,
-				visibleChatTabs: session.chats,
-				shouldShowChatTabs: constObservable(false),
-			};
-			this.activeSession.set(active, undefined);
-		} else {
-			this.activeSession.set(undefined, undefined);
-		}
+		transaction(tx => {
+			this.activeSession.set(session, tx);
+			this.activeChat.set(session && (chat ?? session.chats.get()[0] ?? stubChat), tx);
+		});
 	}
 
-	replaceActiveSession(from: IActiveSession, to: IActiveSession): void {
+	replaceActiveSession(from: ISession, to: ISession): void {
 		this.setActiveSession(to);
 	}
 
 	setActiveChat(chat: IChat): void {
-		const active = this.activeSession.get();
-		if (active) {
-			(active.activeChat as ReturnType<typeof observableValue<IChat>>).set(chat, undefined);
+		if (this.activeSession.get()) {
+			this.activeChat.set(chat, undefined);
 		}
 	}
 
@@ -274,7 +264,7 @@ class MockSessionStore implements ISessionsManagementService {
 	insertAt(_session: ISession, _targetSessionId: string, _side: 'left' | 'right', _activate?: boolean): void { throw new Error('not implemented'); }
 	closeSession(_session: ISession | undefined): void { throw new Error('not implemented'); }
 	closeAllSessions(): void { throw new Error('not implemented'); }
-	setActive(_session: IActiveSession): void { throw new Error('not implemented'); }
+	setActive(_session: ISession): void { throw new Error('not implemented'); }
 	cancelCurrentRequest(_session: ISession): Promise<void> { throw new Error('not implemented'); }
 	archiveSession(_session: ISession): Promise<void> { throw new Error('not implemented'); }
 	importSession(_session: ISession): Promise<void> { throw new Error('not implemented'); }
@@ -331,7 +321,7 @@ suite('SessionsNavigation', () => {
 
 		nav = disposables.add(new SessionsNavigation(
 			store,
-			store.activeSession,
+			store.activeSession.map(session => session && { session: constObservable(session), chat: store.activeChat }),
 			customViewService,
 			canvasService,
 			store,

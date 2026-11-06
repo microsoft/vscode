@@ -33,6 +33,8 @@ import { IDecorationsService } from '../../../../services/decorations/common/dec
 import { IHostService } from '../../../../services/host/browser/host.js';
 import { INotebookDocumentService, NotebookDocumentWorkbenchService } from '../../../../services/notebook/common/notebookDocumentService.js';
 import { createEditorPart, TestFileEditorInput, TestHostService, TestMenuService, workbenchInstantiationService } from '../../workbenchTestServices.js';
+import { IEditorTransferVeto } from '../../../../browser/parts/editor/editorTransferVeto.js';
+import { IAuxiliaryEditorPart, IEditorGroup } from '../../../../services/editor/common/editorGroupsService.js';
 import '../../../../contrib/modernUI/browser/media/tabs.css';
 import '../../../../contrib/modernUI/browser/connectedEditorTabs.js';
 
@@ -52,10 +54,13 @@ suite('MultiEditorTabsControl', () => {
 	let editorPartsView: IEditorPartsView;
 	let addMenuVisible: boolean;
 	let addMenuChange: Emitter<void>;
+	/** What drags of tabs out of the window did: the editors that moved, the windows created, the vetoes shown. */
+	let newWindowTransfers: string[];
 
 	setup(() => {
 		disposables = new DisposableStore();
 		partOptions = { ...DEFAULT_EDITOR_PART_OPTIONS };
+		newWindowTransfers = [];
 		addMenuVisible = true;
 		addMenuChange = disposables.add(new Emitter<void>());
 
@@ -97,6 +102,14 @@ suite('MultiEditorTabsControl', () => {
 			override createEditorActions() { return { actions: { primary: [], secondary: [] }, onDidChange: Event.None }; }
 			override relayout() { }
 			override readonly onDidActiveEditorChange = Event.None;
+			override get disposed() { return false; }
+			override moveEditors(editors: { editor: EditorInput }[]): boolean {
+				newWindowTransfers.push(`move ${editors.map(({ editor }) => editor.getName()).join(', ')}`);
+				return true;
+			}
+			override copyEditors(editors: { editor: EditorInput }[]): void {
+				newWindowTransfers.push(`copy ${editors.map(({ editor }) => editor.getName()).join(', ')}`);
+			}
 		};
 
 		groupsView = new class extends mock<IEditorGroupsView>() {
@@ -110,6 +123,22 @@ suite('MultiEditorTabsControl', () => {
 		editorPartsView = new class extends mock<IEditorPartsView>() {
 			override get count() { return 1; }
 			override getGroup() { return groupView; }
+			override async createAuxiliaryEditorPart(): Promise<IAuxiliaryEditorPart> {
+				newWindowTransfers.push('new window');
+				const targetGroup = new class extends mock<IEditorGroup>() {
+					override readonly id = 4242;
+					override readonly isEmpty = true;
+					override focus(): void { }
+				}();
+				return new class extends mock<IAuxiliaryEditorPart>() {
+					override readonly onWillClose = Event.None;
+					override readonly activeGroup = targetGroup;
+					override readonly groups = [targetGroup];
+				}();
+			}
+			override showTransferVeto(veto: IEditorTransferVeto): void {
+				newWindowTransfers.push(`veto: ${veto.message}`);
+			}
 		};
 
 		container = $('.title.tabs');
@@ -215,6 +244,32 @@ suite('MultiEditorTabsControl', () => {
 				: indicator.getBoundingClientRect().top - fill.getBoundingClientRect().top,
 		};
 	}
+
+	/** Drags the tab at `tabIndex` and releases it outside the window, which opens a new window for the dragged editors. */
+	async function dragTabOutOfWindow(tabIndex: number): Promise<void> {
+		const tab = container.querySelectorAll('.tabs-container > .tab')[tabIndex];
+		// Not over a window of the workbench, which tests that dispatch drag events over it may have left behind
+		mainWindow.dispatchEvent(new DragEvent(EventType.DRAG_LEAVE));
+		tab.dispatchEvent(new DragEvent(EventType.DRAG_START, { dataTransfer: new DataTransfer(), bubbles: true }));
+		tab.dispatchEvent(new DragEvent(EventType.DRAG_END, { dataTransfer: new DataTransfer(), bubbles: true, screenX: 100000, screenY: 100000 }));
+		await timeout(0);
+	}
+
+	test('a tab dragged out of the window moves its editor, while an inactive editor of the group that cannot go stays', async () => {
+		(model.getEditorByIndex(1) as TestFileEditorInput).setMoveDisabled('Cannot leave');
+
+		await dragTabOutOfWindow(0);
+
+		assert.deepStrictEqual(newWindowTransfers, ['new window', 'move file0.txt']);
+	});
+
+	test('a tab dragged out of the window, whose editor cannot go, opens no window', async () => {
+		(model.getEditorByIndex(0) as TestFileEditorInput).setMoveDisabled('Cannot leave');
+
+		await dragTabOutOfWindow(0);
+
+		assert.deepStrictEqual(newWindowTransfers, ['veto: Cannot leave']);
+	});
 
 	test('modern tab scrollbars overlay the top edge without changing header or body geometry', async () => {
 		const group = connectedGroup();

@@ -60,43 +60,43 @@ import { IChatService, type ChatSendResult, type IChatSendRequestData, type ICha
 import type { IChatModel } from '../../../../../../workbench/contrib/chat/common/model/chatModel.js';
 import { IChatSessionsService, isIChatSessionFileChange2 } from '../../../../../../workbench/contrib/chat/common/chatSessionsService.js';
 import { ILanguageModelsService } from '../../../../../../workbench/contrib/chat/common/languageModels.js';
-import { ISessionChangeEvent, ISessionsProvider, ISessionsProviderCreateSessionOptions } from '../../../../../services/sessions/common/sessionsProvider.js';
-import { IAgentHostSessionsProvider } from '../../../../../common/agentHostSessionsProvider.js';
-import { DevContainerIdleTimeoutSettingId, DevContainerWorktreeEnabledSettingId, IDevContainerAgentHostService } from '../../../../../common/devContainerAgentHostService.js';
-import { ISessionsProvidersService } from '../../../../../services/sessions/browser/sessionsProvidersService.js';
-import { ChatInteractivity, ChatModelSource, getChatCapabilities, getGitHubPullRequestRefs, getSessionOwnedGitHubPullRequestRefs, SessionRemoteConnectionFailureReason, SessionStatus, type ISession, type ISessionFileChange } from '../../../../../services/sessions/common/session.js';
-import { SessionPullRequestPresentationModel } from '../../../../github/browser/pullRequestIconStatus.js';
-import { buildSessionPullRequestSections } from '../../../../chat/browser/sessionChatInputToolbar.js';
+import { ISessionChangeEvent, ISessionsProvider, ISessionsProviderCreateSessionOptions } from '../../../../../../workbench/contrib/sessions/common/sessionsProvider.js';
+import { IAgentHostSessionsProvider } from '../../../../../../workbench/contrib/sessions/common/agentHostSessionsProvider.js';
+import { DevContainerIdleTimeoutSettingId, DevContainerWorktreeEnabledSettingId, IDevContainerAgentHostService } from '../../../../../../workbench/contrib/sessions/common/devContainerAgentHostService.js';
+import { ISessionsProvidersService } from '../../../../../../workbench/contrib/sessions/browser/sessionsProvidersService.js';
+import { ChatInteractivity, ChatModelSource, getChatCapabilities, getGitHubPullRequestRefs, getSessionOwnedGitHubPullRequestRefs, SessionRemoteConnectionFailureReason, SessionStatus, type ISession, type ISessionFileChange } from '../../../../../../workbench/contrib/sessions/common/session.js';
+import { SessionPullRequestPresentationModel } from '../../../../../../workbench/contrib/sessions/browser/github/pullRequestIconStatus.js';
+import { buildSessionPullRequestSections } from '../../../../../../workbench/contrib/sessions/browser/chat/sessionChatInputToolbar.js';
 import { ICommandService } from '../../../../../../platform/commands/common/commands.js';
 import { IClipboardService } from '../../../../../../platform/clipboard/common/clipboardService.js';
 import { IOpenerService } from '../../../../../../platform/opener/common/opener.js';
-import { RemoteAgentHostSessionsProvider, type IRemoteAgentHostSessionsProviderConfig } from '../../browser/remoteAgentHostSessionsProvider.js';
-import { getRemoteAgentHostPickerKey, RemoteAgentHostPickerVisibility } from '../../browser/remoteAgentHostPickerVisibility.js';
-import { ENVIRONMENT_PICKER_MANAGE_REMOTES_SETTING } from '../../../../chat/common/constants.js';
-import { getSessionCreationEnvironments } from '../../../../chat/browser/sessionEnvironmentPicker.js';
-import { CloudSandboxSessionsProvider } from '../../browser/cloudSandboxSessionsProvider.js';
-import { CLOUD_SANDBOX_CREATION_PROVIDER_ID, COPILOT_PROVIDER_ID } from '../../../copilotChatSessions/common/copilotChatSessions.js';
+import { RemoteAgentHostSessionsProvider, type IRemoteAgentHostSessionsProviderConfig } from '../../../../../../workbench/contrib/sessions/providers/remoteAgentHost/browser/remoteAgentHostSessionsProvider.js';
+import { getRemoteAgentHostPickerKey, RemoteAgentHostPickerVisibility } from '../../../../../../workbench/contrib/sessions/providers/remoteAgentHost/browser/remoteAgentHostPickerVisibility.js';
+import { ENVIRONMENT_PICKER_MANAGE_REMOTES_SETTING } from '../../../../../../workbench/contrib/sessions/common/chatConstants.js';
+import { getSessionCreationEnvironments } from '../../../../../../workbench/contrib/sessions/browser/chat/sessionEnvironmentPicker.js';
+import { CloudSandboxSessionsProvider } from '../../../../../../workbench/contrib/sessions/providers/remoteAgentHost/browser/cloudSandboxSessionsProvider.js';
+import { CLOUD_SANDBOX_CREATION_PROVIDER_ID, COPILOT_PROVIDER_ID } from '../../../../../../workbench/contrib/sessions/providers/copilotChatSessions/common/copilotChatSessions.js';
 import { ProviderAutomationService } from '../../../../automations/browser/providerAutomationService.js';
 import { ILabelService } from '../../../../../../platform/label/common/label.js';
 import { ILogService, NullLogService } from '../../../../../../platform/log/common/log.js';
-import { IGitHubService } from '../../../../github/browser/githubService.js';
-import { GitHubPullRequestModel } from '../../../../github/browser/models/githubPullRequestModel.js';
-import { IPullRequestIconCache, PullRequestIconCache } from '../../../../github/browser/pullRequestIconCache.js';
+import { IGitHubService } from '../../../../../../workbench/contrib/sessions/browser/github/githubService.js';
+import { GitHubPullRequestModel } from '../../../../../../workbench/contrib/sessions/browser/github/models/githubPullRequestModel.js';
+import { IPullRequestIconCache, PullRequestIconCache } from '../../../../../../workbench/contrib/sessions/browser/github/pullRequestIconCache.js';
 import { IAgentHostActiveClientService } from '../../../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostActiveClientService.js';
 import { IAgentHostMcpAppToolsService } from '../../../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostMcpAppToolsService.js';
 import { IAgentHostSessionWorkingDirectoryResolver } from '../../../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostSessionWorkingDirectoryResolver.js';
 import { IRemoteAgentHostAuthenticationService, RemoteAgentHostAuthenticationService } from '../../../../../../workbench/contrib/chat/browser/remoteAgentHost/remoteAgentHostAuthentication.js';
-import { AgentHostSessionAdapter, CopilotCLISessionType } from '../../../agentHost/browser/baseAgentHostSessionsProvider.js';
+import { AgentHostSessionAdapter, CopilotCLISessionType } from '../../../../../../workbench/contrib/sessions/providers/agentHost/browser/baseAgentHostSessionsProvider.js';
 import { IObservable, autorun, constObservable, observableValue } from '../../../../../../base/common/observable.js';
-import { IActiveSession, WorkspaceNotTrustedError } from '../../../../../services/sessions/common/sessionsManagement.js';
-import { ISessionsService } from '../../../../../services/sessions/browser/sessionsService.js';
-import { ISessionHostService } from '../../../../../services/sessions/browser/sessionHost.js';
-import { sessionHostServiceOf, stubFocusedSessionHostFromSessionsService } from '../../../../../services/sessions/test/browser/sessionHostTestUtils.js';
-import { ISessionsRecentWorkspacesService } from '../../../../../services/sessions/browser/sessionsRecentWorkspacesService.js';
+import { WorkspaceNotTrustedError } from '../../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
+import { ISessionsService } from '../../../../../../workbench/contrib/sessions/browser/sessionsService.js';
+import { ISessionHostService } from '../../../../../../workbench/contrib/sessions/browser/sessionHost.js';
+import { ITestSessionWithChat, sessionHostServiceOf, stubFocusedSessionHostFromSessionsService, testGridPanes } from '../../../../../../workbench/contrib/sessions/test/browser/sessionHostTestUtils.js';
+import { ISessionsRecentWorkspacesService } from '../../../../../../workbench/contrib/sessions/browser/sessionsRecentWorkspacesService.js';
 import { MockLabelService } from '../../../../../../workbench/services/label/test/common/mockLabelService.js';
 import { IUriIdentityService } from '../../../../../../platform/uriIdentity/common/uriIdentity.js';
 import { extUri } from '../../../../../../base/common/resources.js';
-import { INewSessionComposerService, NewSessionComposerService } from '../../../../chat/browser/newSessionComposerService.js';
+import { INewSessionComposerService, NewSessionComposerService } from '../../../../../../workbench/contrib/sessions/browser/newSessionComposerService.js';
 
 // ---- Mock connection --------------------------------------------------------
 
@@ -339,7 +339,7 @@ function createSession(id: string, opts?: { session?: URI; provider?: string; su
 	};
 }
 
-function createProvider(disposables: DisposableStore, connection: MockAgentConnection, overrides?: { fileDialogService?: IFileDialogService; address?: string; preferenceKey?: string; connectionName?: string | undefined; chatService?: IChatService; sendRequest?: (resource: URI, message: string, options?: IChatSendRequestOptions) => Promise<ChatSendResult>; onDidAcceptRequest?: Event<IChatRequestAcceptedEvent>; openSession?: boolean; storageService?: IStorageService; localAgentHostService?: IAgentHostService; remoteAgentHostService?: IRemoteAgentHostService; noConnection?: boolean; connectOnDemand?: () => Promise<void>; isWebPlatform?: boolean; workspaceTrusted?: boolean; setUrisTrust?: (uris: URI[], trusted: boolean) => Promise<void>; configurationService?: IConfigurationService; composerService?: INewSessionComposerService; omitHostFromWorkspaceLabel?: boolean; workspaceTypeIcon?: ThemeIcon; sessionSchemeAlias?: IAgentHostSessionSchemeAlias; defaultChangesetKind?: IRemoteAgentHostSessionsProviderConfig['defaultChangesetKind']; sessionResolutionPolicies?: Array<{ authority: string; policy: IAgentHostSessionResolutionPolicy }>; devContainerWorktreeScope?: string; devContainerLifecycle?: IRemoteAgentHostSessionsProviderConfig['devContainerLifecycle']; devContainerSourceWorkspace?: URI; resolveDevContainerWorktreeConnection?: IRemoteAgentHostSessionsProviderConfig['resolveDevContainerWorktreeConnection']; readOnlyWhenDisconnected?: boolean; ctor?: typeof RemoteAgentHostSessionsProvider; labelService?: ILabelService; logService?: ILogService; defaultDirectory?: string; activeSession?: IObservable<IActiveSession | undefined>; deleteSessionsOnDemand?: IRemoteAgentHostSessionsProviderConfig['deleteSessionsOnDemand']; telemetryService?: ITelemetryService }, configOverrides: Partial<IRemoteAgentHostSessionsProviderConfig> = {}): RemoteAgentHostSessionsProvider {
+function createProvider(disposables: DisposableStore, connection: MockAgentConnection, overrides?: { fileDialogService?: IFileDialogService; address?: string; preferenceKey?: string; connectionName?: string | undefined; chatService?: IChatService; sendRequest?: (resource: URI, message: string, options?: IChatSendRequestOptions) => Promise<ChatSendResult>; onDidAcceptRequest?: Event<IChatRequestAcceptedEvent>; openSession?: boolean; storageService?: IStorageService; localAgentHostService?: IAgentHostService; remoteAgentHostService?: IRemoteAgentHostService; noConnection?: boolean; connectOnDemand?: () => Promise<void>; isWebPlatform?: boolean; workspaceTrusted?: boolean; setUrisTrust?: (uris: URI[], trusted: boolean) => Promise<void>; configurationService?: IConfigurationService; composerService?: INewSessionComposerService; omitHostFromWorkspaceLabel?: boolean; workspaceTypeIcon?: ThemeIcon; sessionSchemeAlias?: IAgentHostSessionSchemeAlias; defaultChangesetKind?: IRemoteAgentHostSessionsProviderConfig['defaultChangesetKind']; sessionResolutionPolicies?: Array<{ authority: string; policy: IAgentHostSessionResolutionPolicy }>; devContainerWorktreeScope?: string; devContainerLifecycle?: IRemoteAgentHostSessionsProviderConfig['devContainerLifecycle']; devContainerSourceWorkspace?: URI; resolveDevContainerWorktreeConnection?: IRemoteAgentHostSessionsProviderConfig['resolveDevContainerWorktreeConnection']; readOnlyWhenDisconnected?: boolean; ctor?: typeof RemoteAgentHostSessionsProvider; labelService?: ILabelService; logService?: ILogService; defaultDirectory?: string; activeSession?: IObservable<ITestSessionWithChat | undefined>; deleteSessionsOnDemand?: IRemoteAgentHostSessionsProviderConfig['deleteSessionsOnDemand']; telemetryService?: ITelemetryService }, configOverrides: Partial<IRemoteAgentHostSessionsProviderConfig> = {}): RemoteAgentHostSessionsProvider {
 	const instantiationService = disposables.add(new TestInstantiationService());
 
 	instantiationService.stub(IRemoteAgentHostAuthenticationService, new RemoteAgentHostAuthenticationService());
@@ -418,9 +418,10 @@ function createProvider(disposables: DisposableStore, connection: MockAgentConne
 	}());
 	instantiationService.stub(IPullRequestIconCache, instantiationService.createInstance(PullRequestIconCache));
 	instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() {
-		readonly activeSession = overrides?.activeSession ?? constObservable<IActiveSession | undefined>(undefined);
-		readonly windowSessions = constObservable<readonly IActiveSession[]>([]);
-		override readonly visibleSessions: IObservable<readonly (IActiveSession | undefined)[]> = constObservable<readonly (IActiveSession | undefined)[]>([]);
+		readonly activeSession = overrides?.activeSession ?? constObservable<ITestSessionWithChat | undefined>(undefined);
+		readonly windowSessions = constObservable<readonly ITestSessionWithChat[]>([]);
+		readonly gridShown: IObservable<readonly (ITestSessionWithChat | undefined)[]> = constObservable<readonly (ITestSessionWithChat | undefined)[]>([]);
+		override readonly slotPanes = testGridPanes(this.gridShown);
 	}());
 	instantiationService.stub(ISessionHostService, sessionHostServiceOf(disposables, instantiationService.get(ISessionsService)));
 	stubFocusedSessionHostFromSessionsService(instantiationService);
@@ -1092,7 +1093,7 @@ suite('RemoteAgentHostSessionsProvider', () => {
 			}()));
 			const entries = buildSessionPullRequestSections(presentation.pullRequests.get(), undefined,
 				upcastPartial<ICommandService>({}), upcastPartial<IClipboardService>({}),
-				upcastPartial<IOpenerService>({}), upcastPartial<ISessionsService>({})).flatMap(section => section.entries);
+				upcastPartial<IOpenerService>({}), undefined).flatMap(section => section.entries);
 			assert.deepStrictEqual({
 				owned: getSessionOwnedGitHubPullRequestRefs(info),
 				pills: entries.map(entry => ({ state: entry.pullRequestState, description: entry.ariaDescription })),
@@ -1336,7 +1337,7 @@ suite('RemoteAgentHostSessionsProvider', () => {
 		const backendChat = URI.parse('ahp-chat:/primary');
 		const sessionChangesUri = URI.parse('ahp-changeset:/all-edits');
 		const turnChangesUri = (id: string) => URI.parse(`ahp-changeset:/turn-edits/${id}`);
-		const activeSession = observableValue<IActiveSession | undefined>('activeSession', undefined);
+		const activeSession = observableValue<ITestSessionWithChat | undefined>('activeSession', undefined);
 		const provider = createProvider(disposables, connection, {
 			noConnection: true,
 			activeSession,
@@ -1346,7 +1347,7 @@ suite('RemoteAgentHostSessionsProvider', () => {
 		provider.seedSessions([metadata]);
 		const session = provider.getSessions()[0];
 		const chat = session.mainChat.get();
-		const active = upcastPartial<IActiveSession>({ ...session, activeChat: session.mainChat });
+		const active = upcastPartial<ITestSessionWithChat>({ ...session, activeChat: session.mainChat });
 		activeSession.set(active, undefined);
 
 		const describeFiles = (changes: readonly ISessionFileChange[]) => changes.map(change => ({
@@ -5004,6 +5005,28 @@ suite('RemoteAgentHostSessionsProvider', () => {
 		}, {
 			session: 'osortega/simple-server',
 			browsed: 'project',
+		});
+	}));
+
+	test('non-web: workspaceHostLabel names the [host] suffix and refreshes existing workspaces when it changes', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+		connection.addSession(createSession('container-1', {
+			summary: 'Container Session',
+			project: { uri: URI.parse('vscode-agent-host://localhost__4321/workspaces/vscode'), displayName: 'vscode' },
+		}));
+		const workspaceHostLabel = observableValue('workspaceHostLabel', 'Dev Container');
+		const provider = createProvider(disposables, connection, { isWebPlatform: false }, { workspaceHostLabel });
+		provider.getSessions();
+		await timeout(0);
+		const labels = () => ({
+			session: provider.getSessions()[0].workspace.get()?.label,
+			browsed: provider.resolveWorkspace(URI.parse('vscode-agent-host://localhost__4321/workspaces/project'))?.label,
+		});
+		const initial = labels();
+		workspaceHostLabel.set('Dev Container on devbox', undefined);
+
+		assert.deepStrictEqual({ initial, changed: labels() }, {
+			initial: { session: 'vscode [Dev Container]', browsed: 'project [Dev Container]' },
+			changed: { session: 'vscode [Dev Container on devbox]', browsed: 'project [Dev Container on devbox]' },
 		});
 	}));
 

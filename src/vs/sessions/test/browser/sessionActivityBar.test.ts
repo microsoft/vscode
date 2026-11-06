@@ -11,7 +11,7 @@ import { timeout } from '../../../base/common/async.js';
 import { Codicon } from '../../../base/common/codicons.js';
 import { Emitter, Event } from '../../../base/common/event.js';
 import { DisposableStore, toDisposable } from '../../../base/common/lifecycle.js';
-import { toAction } from '../../../base/common/actions.js';
+import { Separator, toAction } from '../../../base/common/actions.js';
 import { derived, observableValue } from '../../../base/common/observable.js';
 import { AnchorAlignment } from '../../../base/common/layout.js';
 import { ThemeIcon } from '../../../base/common/themables.js';
@@ -28,22 +28,29 @@ import { ContextKeyService } from '../../../platform/contextkey/browser/contextK
 import { IConfigurationChangeEvent, IConfigurationService } from '../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../platform/configuration/test/common/testConfigurationService.js';
 import { IContextMenuMenuDelegate, IContextMenuService, IContextViewService } from '../../../platform/contextview/browser/contextView.js';
+import { IHoverService } from '../../../platform/hover/browser/hover.js';
+import { HoverService } from '../../../platform/hover/browser/hoverService.js';
+import { ILayoutService } from '../../../platform/layout/browser/layoutService.js';
 import { workbenchInstantiationService } from '../../../workbench/test/browser/workbenchTestServices.js';
-import { ChatViewSessionActivityBar, SessionActivityBar } from '../../browser/parts/sessionActivityBar.js';
-import { registerSessionActivityBarExternalHost, SESSION_ACTIVITY_BAR_COLUMN_WIDTH } from '../../browser/parts/sessionActivityBarHost.js';
-import { Menus, SessionActivityBarGroup } from '../../browser/menus.js';
+import { ChatViewSessionActivityBar, SessionActivityBar } from '../../../workbench/contrib/sessions/browser/parts/sessionActivityBar.js';
+import { MenuActivityBar, MenuActivityBarSize } from '../../../workbench/browser/parts/activitybar/menuActivityBar.js';
+import { IStorageService } from '../../../platform/storage/common/storage.js';
+import { registerSessionActivityBarExternalHost, SESSION_ACTIVITY_BAR_COLUMN_WIDTH, setSessionActivityBarSize } from '../../../workbench/contrib/sessions/browser/parts/sessionActivityBarHost.js';
+import { Menus, SessionActivityBarGroup } from '../../../workbench/contrib/sessions/browser/menus.js';
 import { TogglePanelAction } from '../../../workbench/browser/parts/panel/panelActions.js';
-import { AgentWorkbenchLayout, IAgentWorkbenchLayoutService } from '../../browser/workbench.js';
-import { SESSION_ACTIVITY_BAR_SETTING } from '../../common/sessionConfig.js';
-import { TOGGLE_SIDE_PANEL_COMMAND_ID } from '../../common/sessionCommands.js';
-import { sessionActivityBarChatActionContext } from '../../common/contextkeys.js';
-import { ISessionActivityBarActivityService, SessionActivityBarActivityService } from '../../services/activity/common/sessionActivityBarActivityService.js';
+import { IAgentWorkbenchLayoutService } from '../../browser/workbench.js';
+import { AgentWorkbenchLayout } from '../../../workbench/contrib/sessions/browser/sessionsHostLayoutService.js';
+import { SESSION_ACTIVITY_BAR_SETTING } from '../../../workbench/contrib/sessions/common/sessionConfig.js';
+import { TOGGLE_SIDE_PANEL_COMMAND_ID } from '../../../workbench/contrib/sessions/common/sessionCommands.js';
+import { sessionActivityBarChatActionContext } from '../../../workbench/contrib/sessions/common/contextkeys.js';
+import { ISessionActivityBarActivityService, SessionActivityBarActivityService } from '../../../workbench/contrib/sessions/common/sessionActivityBarActivityService.js';
 import { IconBadge, NumberBadge } from '../../../workbench/services/activity/common/activity.js';
 import { TestContextViewService } from './testContextViewService.js';
 import '../../../base/browser/ui/tree/media/tree.css';
-import '../../browser/parts/media/sessionView.css';
+import '../../../workbench/contrib/sessions/browser/parts/media/sessionView.css';
 import { LayoutModeContext } from '../../../workbench/common/contextkeys.js';
 import { IWindowCommandContext } from '../../../workbench/common/windowCommandContext.js';
+import { stubSessionsHostLayout } from './sessionsHostLayoutTestUtils.js';
 
 interface ITestEntry {
 	readonly id: string;
@@ -65,7 +72,7 @@ suite('Sessions - Session Activity Bar', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 	teardown(() => sinon.restore());
 
-	function createActivityBar(disposables: Pick<DisposableStore, 'add'>, initialEntries: readonly ITestEntry[]) {
+	function createActivityBar(disposables: Pick<DisposableStore, 'add'>, initialEntries: readonly ITestEntry[], options?: { readonly realHovers?: boolean }) {
 		const testStore = disposables.add(new DisposableStore());
 		const instantiationService = workbenchInstantiationService(undefined, testStore);
 
@@ -90,15 +97,22 @@ suite('Sessions - Session Activity Bar', () => {
 			override isScreenReaderOptimized(): boolean { return false; }
 		});
 
+		// Entries can be shown and hidden from the context menu, as menu items are.
+		const hideActions = (entry: ITestEntry) => ({
+			isHidden: false,
+			isModifiedFromDefault: false,
+			hide: toAction({ id: `hide.${entry.id}`, label: `Hide '${entry.title}'`, run: () => { } }),
+			toggle: toAction({ id: `toggle.${entry.id}`, label: entry.title, checked: true, run: () => { } }),
+		});
 		const createEntryAction = (entry: ITestEntry, options: IMenuActionOptions | undefined) => {
 			if (!entry.checked) {
-				return instantiationService.createInstance(MenuItemAction, { id: entry.id, title: entry.title, icon: entry.icon }, undefined, options, undefined, undefined);
+				return instantiationService.createInstance(MenuItemAction, { id: entry.id, title: entry.title, icon: entry.icon }, undefined, options, hideActions(entry), undefined);
 			}
 			// The entry's toggled condition holds, as when the side pane shows its editor.
 			const contextKeyService = new class extends mock<IContextKeyService>() {
 				override contextMatchesRules(rules: ContextKeyExpression | undefined): boolean { return !!rules?.evaluate({ getValue: () => undefined }); }
 			};
-			return instantiationService.invokeFunction(accessor => new MenuItemAction({ id: entry.id, title: entry.title, icon: entry.icon, toggled: ContextKeyExpr.true() }, undefined, options, undefined, undefined, contextKeyService, accessor.get(ICommandService)));
+			return instantiationService.invokeFunction(accessor => new MenuItemAction({ id: entry.id, title: entry.title, icon: entry.icon, toggled: ContextKeyExpr.true() }, undefined, options, hideActions(entry), undefined, contextKeyService, accessor.get(ICommandService)));
 		};
 
 		let entries = initialEntries;
@@ -136,28 +150,41 @@ suite('Sessions - Session Activity Bar', () => {
 			override readonly onDidLayoutMainContainer = onDidLayoutMainContainer.event;
 			override get agentWorkbenchLayout() { return agentWorkbenchLayout; }
 		});
+		stubSessionsHostLayout(instantiationService);
 
 		const contextViewService = new TestContextViewService();
 		instantiationService.stub(IContextViewService, contextViewService);
 
 		const contextMenus: string[] = [];
+		const contextMenuActions: string[][] = [];
 		instantiationService.stub(IContextMenuService, new class extends mock<IContextMenuService>() {
 			override readonly onDidShowContextMenu = Event.None;
 			override readonly onDidHideContextMenu = Event.None;
 			override showContextMenu(delegate: IContextMenuMenuDelegate): void {
 				contextMenus.push(delegate.menuId?.id ?? 'none');
+				contextMenuActions.push((delegate.getActions?.() ?? []).map(action => action instanceof Separator ? '---' : `${action.checked ? '✓ ' : ''}${action.label}${action.enabled ? '' : ' (disabled)'}`));
 			}
 		});
 
-		const configurationService = new TestConfigurationService({ [SESSION_ACTIVITY_BAR_SETTING]: true });
+		const configurationService = new TestConfigurationService({ [SESSION_ACTIVITY_BAR_SETTING]: true, 'workbench.hover.delay': 500 });
 		instantiationService.stub(IConfigurationService, configurationService);
 		const contextKeyService = testStore.add(instantiationService.createInstance(ContextKeyService));
 		instantiationService.stub(IContextKeyService, contextKeyService);
+
+		if (options?.realHovers) {
+			instantiationService.stub(ILayoutService, upcastPartial<ILayoutService>({ activeContainer: root, mainContainer: root, getContainer: () => root, onDidLayoutContainer: Event.None }));
+			const hoverService = testStore.add(instantiationService.createInstance(HoverService));
+			instantiationService.stub(IHoverService, hoverService);
+			const previousHoverDelegate = getBaseLayerHoverDelegate();
+			setBaseLayerHoverDelegate(hoverService);
+			testStore.add(toDisposable(() => setBaseLayerHoverDelegate(previousHoverDelegate)));
+		}
 
 		const activityService = testStore.add(new SessionActivityBarActivityService());
 		instantiationService.stub(ISessionActivityBarActivityService, activityService);
 
 		const activityBar = testStore.add(instantiationService.createInstance(SessionActivityBar, container));
+		const storageService = instantiationService.get(IStorageService);
 		return {
 			root,
 			activityBar,
@@ -165,7 +192,7 @@ suite('Sessions - Session Activity Bar', () => {
 			createDocked: () => {
 				const host = append(root, $('.host'));
 				host.style.cssText = 'width: 800px; height: 600px;';
-				for (const [token, value] of [['spacing-size20', '2px'], ['spacing-size40', '4px'], ['spacing-size120', '12px'], ['spacing-size240', '24px'], ['strokeThickness', '1px']]) {
+				for (const [token, value] of [['spacing-size20', '2px'], ['spacing-size40', '4px'], ['spacing-size60', '6px'], ['spacing-size120', '12px'], ['spacing-size240', '24px'], ['strokeThickness', '1px']]) {
 					host.style.setProperty(`--vscode-${token}`, value);
 				}
 				return testStore.add(instantiationService.createInstance(ChatViewSessionActivityBar, host));
@@ -177,6 +204,8 @@ suite('Sessions - Session Activity Bar', () => {
 			contextKeyService,
 			contextViewService,
 			contextMenus,
+			contextMenuActions,
+			setSize: (size: MenuActivityBarSize) => setSessionActivityBarSize(storageService, size),
 			label: (title: string) => activityBar.element.querySelector<HTMLElement>(`.action-label[aria-label^="${title}"]`)!,
 			setEntries: (newEntries: readonly ITestEntry[]) => {
 				entries = newEntries;
@@ -305,7 +334,7 @@ suite('Sessions - Session Activity Bar', () => {
 	test('shows the activity reported for an entry as a badge and in its label', () => {
 		const { activityBar, activityService } = createActivityBar(store, [changes, browser]);
 		const state = () => [...activityBar.element.querySelectorAll<HTMLElement>('.action-item')].map(item => {
-			const badge = item.querySelector<HTMLElement>('.session-activity-bar-badge')!;
+			const badge = item.querySelector<HTMLElement>('.menu-activity-bar-badge')!;
 			return {
 				ariaLabel: item.querySelector('.action-label')!.getAttribute('aria-label'),
 				badge: mainWindow.getComputedStyle(badge).display === 'none' ? undefined : badge.classList.contains('count') ? badge.textContent : 'dot',
@@ -315,13 +344,13 @@ suite('Sessions - Session Activity Bar', () => {
 		const initial = state();
 		const dot = activityService.showActivity(changes.id, { badge: new IconBadge(Codicon.circleFilled, () => 'New changes') });
 		const withDot = state();
-		// Like the workbench activity bar, the badge overlaps the bottom-right corner of the 16px icon centered in the 24px entry.
-		for (const [token, value] of [['spacing-size20', '2px'], ['spacing-size80', '8px'], ['spacing-size120', '12px'], ['spacing-size240', '24px'], ['strokeThickness', '1px']]) {
+		// Like the workbench activity bar, the badge overlaps the bottom-right corner of the 24px icon centered in the 36px entry.
+		for (const [token, value] of [['spacing-size20', '2px'], ['spacing-size60', '6px'], ['spacing-size80', '8px'], ['spacing-size120', '12px'], ['spacing-size200', '20px'], ['spacing-size240', '24px'], ['strokeThickness', '1px']]) {
 			activityBar.element.style.setProperty(`--vscode-${token}`, value);
 		}
 		const changesItem = activityBar.element.querySelector<HTMLElement>('.action-item')!;
 		const itemBounds = changesItem.getBoundingClientRect();
-		const badgeBounds = changesItem.querySelector('.session-activity-bar-badge')!.getBoundingClientRect();
+		const badgeBounds = changesItem.querySelector('.menu-activity-bar-badge')!.getBoundingClientRect();
 		const centerX = (badgeBounds.left + badgeBounds.right) / 2;
 		const centerY = (badgeBounds.top + badgeBounds.bottom) / 2;
 		const dotPlacement = {
@@ -508,8 +537,69 @@ suite('Sessions - Session Activity Bar', () => {
 		});
 	});
 
-	test('right-clicking an entry or the rest of the strip offers to hide the activity bar', () => {
-		const { createDocked, contextMenus } = createActivityBar(store, [changes, browser]);
+	test('in the main window\'s column, fills the column from top to bottom after the gap between cards, with entries the size of the Modern UI workbench activity bar\'s at the normal size, and offers the context menu anywhere', () => {
+		const { createDocked, root, contextMenus, setSize } = createActivityBar(store, [changes, browser]);
+		setSize(MenuActivityBarSize.Normal);
+		const hostElement = append(root, $('.session-activity-bar-column.session-activity-bar-host'));
+		// As the workbench sizes the column: the gap between cards, then the bar.
+		hostElement.style.cssText = `--agents-floating-panel-gap: 8px; --vscode-spacing-size80: 8px; --vscode-strokeThickness: 1px; position: relative; width: ${8 + MenuActivityBar.getWidth(false)}px; height: 200px;`;
+		store.add(registerSessionActivityBarExternalHost(root, { element: hostElement, active: observableValue('active', true), fullSize: true, setOccupied: () => { } }));
+		const docked = createDocked();
+		docked.layout(40);
+		docked.setActive(true);
+		const element = docked.element!;
+		const bounds = element.getBoundingClientRect();
+		const hostBounds = hostElement.getBoundingClientRect();
+		const nearBottom = mainWindow.document.elementFromPoint(bounds.left + bounds.width / 2, bounds.bottom - 10)!;
+		nearBottom.dispatchEvent(new MouseEvent('contextmenu', { button: 2, bubbles: true, cancelable: true }));
+
+		assert.deepStrictEqual({
+			fills: [bounds.top, bounds.bottom, bounds.left, bounds.right].map(Math.round),
+			entry: (({ width, height }) => [width, height])(element.querySelector<HTMLElement>('.action-label:not(.separator)')!.getBoundingClientRect()),
+			iconSize: mainWindow.getComputedStyle(element.querySelector<HTMLElement>('.action-label:not(.separator)')!).fontSize,
+			bottomIsStrip: element.contains(nearBottom),
+			menus: contextMenus,
+		}, {
+			fills: [hostBounds.top, hostBounds.bottom, hostBounds.left + 8, hostBounds.right].map(Math.round),
+			entry: [36, 36],
+			iconSize: '24px',
+			bottomIsStrip: true,
+			menus: ['SessionActivityBarContext'],
+		});
+	});
+
+	test('in the main window\'s column, takes the size chosen for it, and beside a chat is always compact', () => {
+		const { createDocked, root, setSize } = createActivityBar(store, [changes, browser]);
+		const hostElement = append(root, $('.session-activity-bar-column.session-activity-bar-host'));
+		const inColumn = observableValue('inColumn', true);
+		store.add(registerSessionActivityBarExternalHost(root, { element: hostElement, active: inColumn, fullSize: true, setOccupied: () => { } }));
+		const docked = createDocked();
+		docked.layout(0);
+		docked.setActive(true);
+		const element = docked.element!;
+		const state = () => ({ compact: element.classList.contains('size-compact'), floating: element.classList.contains('floating') });
+
+		const initial = state();
+		setSize(MenuActivityBarSize.Normal);
+		const normalSize = state();
+		inColumn.set(false, undefined);
+		const besideChat = state();
+		inColumn.set(true, undefined);
+		const backInColumn = state();
+		setSize(MenuActivityBarSize.Compact);
+		const compact = state();
+
+		assert.deepStrictEqual({ initial, normalSize, besideChat, backInColumn, compact }, {
+			initial: { compact: true, floating: false },
+			normalSize: { compact: false, floating: false },
+			besideChat: { compact: true, floating: true },
+			backInColumn: { compact: false, floating: false },
+			compact: { compact: true, floating: false },
+		});
+	});
+
+	test('right-clicking an entry or the rest of the strip offers to hide the activity bar and lists the entries to show, the rest of the strip without the actions of an entry', () => {
+		const { createDocked, contextMenus, contextMenuActions } = createActivityBar(store, [changes, browser]);
 		const docked = createDocked();
 		docked.layout(0);
 		docked.setActive(true);
@@ -524,10 +614,15 @@ suite('Sessions - Session Activity Bar', () => {
 			entry: rightClick(element.querySelector<HTMLElement>('.action-label[aria-label^="Browser"]')!),
 			strip: rightClick(element),
 			menus: contextMenus,
+			actions: contextMenuActions,
 		}, {
 			entry: true,
 			strip: true,
 			menus: ['SessionActivityBarContext', 'SessionActivityBarContext'],
+			actions: [
+				['Configure Keybinding (disabled)', 'Hide \'Browser\'', '---', '✓ Changes', '✓ Browser'],
+				['✓ Changes', '✓ Browser'],
+			],
 		});
 	});
 
@@ -673,6 +768,46 @@ suite('Sessions - Session Activity Bar', () => {
 			afterRightArrow: { shown: undefined, expanded: 'false', highlighted: false, anchorFocused: true },
 			afterLeftArrow: { shown: { items: ['Kusto'], focused: true }, expanded: 'true', highlighted: true },
 			afterRun: { shown: undefined, expanded: 'false', highlighted: false, ran: ['test.canvas.kusto'] },
+		});
+	}));
+
+	test('does not show the Canvas entry\'s hover over its submenu, nor after the pointer leaves, and shows it again after the submenu closes', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		const { root, label } = createActivityBar(store, [browser, canvas], { realHovers: true });
+		const hover = () => [...root.querySelectorAll('.monaco-hover')].map(element => element.textContent?.trim());
+		const enter = (target: HTMLElement) => {
+			target.dispatchEvent(new MouseEvent('mouseover', { bubbles: true }));
+			target.dispatchEvent(new MouseEvent('mouseenter'));
+		};
+		const leave = (target: HTMLElement) => {
+			target.dispatchEvent(new MouseEvent('mouseleave'));
+			target.parentElement!.dispatchEvent(new MouseEvent('mouseleave'));
+		};
+		const browserLabel = label('Browser');
+		const canvasLabel = label('Canvas');
+
+		enter(canvasLabel);
+		await timeout(1000);
+		const hoveredUntilSubmenuOpens = { submenu: canvasLabel.getAttribute('aria-expanded'), hover: hover() };
+		leave(canvasLabel);
+		await timeout(1000);
+		const afterLeaving = { submenu: canvasLabel.getAttribute('aria-expanded'), hover: hover() };
+
+		enter(browserLabel);
+		await timeout(1000);
+		const browserHover = hover();
+		leave(browserLabel);
+		enter(canvasLabel);
+		await timeout(0);
+		const instantHoverAfterSubmenuClosed = hover();
+		await timeout(300);
+		const instantHoverOnceSubmenuOpens = { submenu: canvasLabel.getAttribute('aria-expanded'), hover: hover() };
+
+		assert.deepStrictEqual({ hoveredUntilSubmenuOpens, afterLeaving, browserHover, instantHoverAfterSubmenuClosed, instantHoverOnceSubmenuOpens }, {
+			hoveredUntilSubmenuOpens: { submenu: 'true', hover: [] },
+			afterLeaving: { submenu: 'false', hover: [] },
+			browserHover: ['Browser'],
+			instantHoverAfterSubmenuClosed: ['Canvas'],
+			instantHoverOnceSubmenuOpens: { submenu: 'true', hover: [] },
 		});
 	}));
 });

@@ -21,6 +21,7 @@ import { BooleanVerifier, EnumVerifier, NumberVerifier, ObjectVerifier, SetVerif
 import { IAuxiliaryWindowOpenOptions } from '../../../services/auxiliaryWindow/browser/auxiliaryWindowService.js';
 import { ContextKeyValue, IContextKey, RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
 import { coalesce } from '../../../../base/common/arrays.js';
+import type { IEditorTransferVeto } from './editorTransferVeto.js';
 
 export interface IEditorPartCreationOptions {
 	readonly restorePreviousState: boolean;
@@ -212,11 +213,26 @@ export interface IEditorPartsView {
 	createModalEditorPart(): Promise<IModalEditorPart>;
 
 	bind<T extends ContextKeyValue>(contextKey: RawContextKey<T>, group: IEditorGroupView): IContextKey<T>;
+
+	/** Tells the user why editors cannot move or copy to another group, such as with the group they are in. */
+	showTransferVeto(veto: IEditorTransferVeto): void;
 }
 
 /**
  * A helper to access and mutate editor groups within an editor part.
  */
+/** How editors are transferred to a group, which decides where they land (see `IEditorGroupsView.getTransferTarget`). */
+export const enum GroupTransferKind {
+	/** Into the group itself, such as merging a group or dropping editors into it. */
+	Merge,
+	/** As `moveGroup` moves a group beside it: in its grid within a part, else the target part adds it. */
+	MoveGroup,
+	/** As `copyGroup` copies a group beside it: the part of the group adds the copy. */
+	CopyGroup,
+	/** Into a group that the part of the group adds beside it, such as a split for dropped editors. */
+	AddGroup
+}
+
 export interface IEditorGroupsView {
 
 	readonly windowId: number;
@@ -236,6 +252,18 @@ export interface IEditorGroupsView {
 	restoreGroup(identifier: IEditorGroupView | GroupIdentifier): IEditorGroupView;
 
 	addGroup(location: IEditorGroupView | GroupIdentifier, direction: GroupDirection, groupToCopy?: IEditorGroupView): IEditorGroupView;
+
+	/**
+	 * The group beside which {@link addGroup} adds a group asked for beside `location`: `location`, unless this view
+	 * adds its groups elsewhere, such as a compact auxiliary window, which adds them to the main window.
+	 */
+	getAddGroupLocation(location: IEditorGroupView): IEditorGroupView;
+
+	/**
+	 * The group where a transfer of the editors of `source` to `location` puts them, as the operation of `kind` runs:
+	 * `location` itself, or the group beside which the part that adds the group adds it (see {@link getAddGroupLocation}).
+	 */
+	getTransferTarget(kind: GroupTransferKind, source: IEditorGroupView | GroupIdentifier, location: IEditorGroupView): IEditorGroupView;
 	mergeGroup(group: IEditorGroupView | GroupIdentifier, target: IEditorGroupView | GroupIdentifier, options?: IMergeGroupOptions): boolean;
 
 	moveGroup(group: IEditorGroupView | GroupIdentifier, location: IEditorGroupView | GroupIdentifier, direction: GroupDirection): IEditorGroupView;

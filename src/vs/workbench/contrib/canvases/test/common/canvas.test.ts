@@ -66,7 +66,7 @@ suite('CanvasInput', () => {
 			source: URI.parse('https://example.test'),
 		}, editorGroupsService, environmentService(), contextService()));
 
-		assert.deepStrictEqual({ main: input.canMove(1, 1), auxiliary: typeof input.canMove(1, 2) }, { main: true, auxiliary: 'string' });
+		assert.deepStrictEqual({ main: input.canMove(1, 1), auxiliary: typeof input.canMove(1, 2), newWindow: typeof input.canMoveToNewWindow(1) }, { main: true, auxiliary: 'string', newWindow: 'string' });
 	});
 
 	test('moves to a window outside the main window only where its context service presents canvases of its owner, as a canvas editor shows it only there', () => {

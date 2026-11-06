@@ -17302,7 +17302,7 @@ suite('AgentService (node dispatcher)', () => {
 			}
 
 			async importChat(chat: URI, context: IAgentChatContext, options?: IAgentImportChatOptions): Promise<IAgentImportedChat | void> {
-				this.importChatCalls.push(`${context.owner.get().toString()} ${chat.toString()}${options?.takeOver ? ' takeOver' : ''}`);
+				this.importChatCalls.push(`${context.owner.get().toString()} ${chat.toString()}${options?.takeOver ? ' takeOver' : ''}${options?.reloadIfStale ? ' reloadIfStale' : ''}`);
 				if (this.importChatError) {
 					throw this.importChatError;
 				}
@@ -17356,6 +17356,55 @@ suite('AgentService (node dispatcher)', () => {
 				live: getStateManager(svc).getChatState(chat)?.draft,
 				stored: await (svc as unknown as { _getChatDraft(session: URI, chat: URI): Promise<unknown> })._getChatDraft(session, URI.parse(chat)),
 			}, { live: expected, stored: expected });
+		});
+
+		test('importing a session the host has loaded replaces its turns only when the provider reloaded the chat', async () => {
+			const { svc, agent, session, chat } = await createImportableExternalSession();
+			const userMessage = (messageId: string, content: string): IHistoryRecord => ({ type: 'message', session, role: 'user', messageId, content, toolRequests: [] });
+			const turnTexts = () => getStateManager(svc).getChatState(chat)?.turns.map(turn => turn.message.text);
+			agent.sessionMessages = [userMessage('msg-1', 'From the CLI')];
+			await svc.importSession(session);
+			const imported = turnTexts();
+			agent.sessionMessages = [userMessage('msg-1', 'From the CLI'), userMessage('msg-2', 'Back in the CLI')];
+			await svc.importSession(session);
+			const kept = turnTexts();
+			agent.importedSelection = { model: undefined, agent: undefined, reloaded: true };
+			await svc.importSession(session);
+			assert.deepStrictEqual({ imported, kept, reloaded: turnTexts(), importChatCalls: agent.importChatCalls }, {
+				imported: ['From the CLI'],
+				kept: ['From the CLI'],
+				reloaded: ['From the CLI', 'Back in the CLI'],
+				importChatCalls: [`${session.toString()} ${chat}`, `${session.toString()} ${chat} reloadIfStale`, `${session.toString()} ${chat} reloadIfStale`],
+			});
+		});
+
+		test('a turn that starts while an imported chat reloads defers replacing its turns until the turn ends', async () => {
+			const { svc, agent, session, chat } = await createImportableExternalSession();
+			const userMessage = (messageId: string, content: string): IHistoryRecord => ({ type: 'message', session, role: 'user', messageId, content, toolRequests: [] });
+			const manager = getStateManager(svc);
+			const turnTexts = () => manager.getChatState(chat)?.turns.map(turn => turn.message.text);
+			agent.sessionMessages = [userMessage('msg-1', 'From the CLI')];
+			await svc.importSession(session);
+			agent.sessionMessages = [userMessage('msg-1', 'From the CLI'), userMessage('msg-2', 'Back in the CLI')];
+			agent.importedSelection = { model: undefined, agent: undefined, reloaded: true };
+			const getMessages = agent.chats.getMessages;
+			let startTurn = true;
+			agent.chats.getMessages = async (target, context) => {
+				if (startTurn) {
+					startTurn = false;
+					manager.dispatchServerAction(chat, chatTurnStarted('sent-meanwhile', 'Sent meanwhile'));
+				}
+				return getMessages(target, context);
+			};
+			await svc.importSession(session);
+			const whileRunning = { turns: turnTexts(), running: manager.getChatState(chat)?.activeTurn?.id };
+			agent.sessionMessages = [...agent.sessionMessages, userMessage('msg-3', 'Sent meanwhile')];
+			manager.dispatchServerAction(chat, chatTurnComplete('sent-meanwhile', 1));
+			await waitForCondition(manager.onDidEmitEnvelope, () => turnTexts()?.length === 3, 'the reloaded turns should replace the chat\'s turns');
+			assert.deepStrictEqual({ whileRunning, after: turnTexts() }, {
+				whileRunning: { turns: ['From the CLI'], running: 'sent-meanwhile' },
+				after: ['From the CLI', 'Back in the CLI', 'Sent meanwhile'],
+			});
 		});
 
 		test('a provider that refuses an import leaves the session external', async () => {
@@ -26606,6 +26655,43 @@ suite('AgentService (node dispatcher)', () => {
 				{ restored: !!getStateManager(localService).getSessionState(sessionStr), listed },
 				{ restored: true, listed: true },
 			);
+		});
+
+		test('rejects restore of a backing session whose default chat is owned by another session with SessionNotFound without emitting failed migration telemetry', async () => {
+			const events: { data: Record<string, unknown>; error: boolean }[] = [];
+			const telemetry = new class extends NullTelemetryServiceShape {
+				override publicLog2(name?: string, data?: unknown): void {
+					if (name === 'agentHost.legacyCopilotCliMigration') {
+						events.push({ data: data as Record<string, unknown>, error: false });
+					}
+				}
+				override publicLogError2(name?: string, data?: unknown): void {
+					if (name === 'agentHost.legacyCopilotCliMigration') {
+						events.push({ data: data as Record<string, unknown>, error: true });
+					}
+				}
+			};
+			class AdoptAgent extends MockAgent {
+				constructor() { super('copilot'); }
+				async ensureChatAdopted(): Promise<IAgentChatAdoptionResult> {
+					return { adopted: true, eligible: true };
+				}
+			}
+			const localService = disposables.add(createTestAgentService(new NullLogService(), fileService, createSessionDataService(new TestSessionDatabase()), { _serviceBrand: undefined } as IProductService, createNoopGitService(), undefined, telemetry));
+			registerTestAgentProvider(localService, disposables.add(new AdoptAgent()));
+			getConfigurationService(localService).updateRootConfig({ [AgentHostMigrateLegacyCopilotCliEnabledConfigKey]: true });
+
+			const ownerSession = AgentSession.uri('copilot', 'owner-session');
+			const backingSession = AgentSession.uri('copilot', 'peer-backing-uuid');
+			const backingDefaultChat = deriveLegacyDefaultChat(backingSession);
+			await localService.createSession({ legacyChatUris: true, provider: 'copilot', session: ownerSession });
+			getStateManager(localService).addChat(ownerSession.toString(), backingDefaultChat, backingSession.toString());
+
+			await assert.rejects(
+				() => localService.restoreSession(backingSession),
+				(err: Error) => err instanceof ProtocolError && err.code === AhpErrorCodes.SessionNotFound,
+			);
+			assert.deepStrictEqual(events, []);
 		});
 
 		test('an adopted chat whose restore fails is still registered, not lost from every list', async () => {

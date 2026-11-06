@@ -11,7 +11,7 @@ import { SKILL_FILENAME } from '../../../../workbench/contrib/chat/common/prompt
 import { PromptsType } from '../../../../workbench/contrib/chat/common/promptSyntax/promptTypes.js';
 import { IAgentSkill, IBuiltinPromptPath, PromptsStorage } from '../../../../workbench/contrib/chat/common/promptSyntax/service/promptsService.js';
 import { PromptsService } from '../../../../workbench/contrib/chat/common/promptSyntax/service/promptsServiceImpl.js';
-import { AGENT_SESSIONS_APPEARANCE_TOOLS_ENABLED_SETTING } from '../common/constants.js';
+import { AGENT_SESSIONS_APPEARANCE_TOOLS_ENABLED_SETTING } from '../../../../workbench/contrib/sessions/common/chatConstants.js';
 
 /** URI root for built-in skills bundled with the Agents app. */
 export const BUILTIN_SKILLS_URI = FileAccess.asFileUri('vs/sessions/skills');

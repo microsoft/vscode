@@ -715,6 +715,18 @@ suite('Chat Accessibility Help', () => {
 		});
 	});
 
+	test('documents pill dragging and keyboard movement only when inline attachments are enabled', () => {
+		const keybindings = new MockKeybindingService();
+		const help = getAccessibilityHelpText('agentView', keybindings, true, false, false, true, false, ChatSessionArchiveActionWording.Archive, false, false, undefined, false, false, true, true);
+		assert.deepStrictEqual({
+			drag: help.includes('Drag a pill to move it within the same chat input'),
+			cancel: help.includes('Press Escape or drop outside the input to cancel'),
+			cut: help.includes('<keybinding:editor.action.clipboardCutAction>'),
+			paste: help.includes('<keybinding:editor.action.clipboardPasteAction>'),
+			disabled: getAccessibilityHelpText('agentView', keybindings, true).includes('Drag a pill'),
+		}, { drag: true, cancel: true, cut: true, paste: true, disabled: false });
+	});
+
 	test('describes long pasted text attachments regardless of line count', () => {
 		const keybindingService = new MockKeybindingService();
 

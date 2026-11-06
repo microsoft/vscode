@@ -1253,6 +1253,54 @@ suite('ChatPetWidget', () => {
 		});
 	});
 
+	test('falls and respawns when its host moves during a drop', async () => {
+		await new Promise<void>(resolve => mainWindow.requestAnimationFrame(() => resolve()));
+		const clock = sinon.useFakeTimers();
+		const { root, firstParent, button, layout } = createHostTransitionHarness(false);
+		disposables.add(toDisposable(() => {
+			clock.runToFrame();
+			clock.restore();
+		}));
+		firstParent.style.left = '20px';
+		firstParent.style.width = '760px';
+		layout();
+		sinon.stub(button, 'setPointerCapture').throws(new Error('Synthetic pointer events do not establish pointer capture'));
+		const initial = button.getBoundingClientRect();
+		const inputBounds = firstParent.getBoundingClientRect();
+		const pointerX = root.getBoundingClientRect().right - initial.width / 2;
+		const pointerY = inputBounds.top + initial.height / 2;
+		button.dispatchEvent(new mainWindow.PointerEvent('pointerdown', {
+			clientX: initial.left + initial.width / 2, clientY: initial.top + initial.height / 2,
+			button: 0, buttons: 1, pointerId: 1, bubbles: true,
+		}));
+		mainWindow.dispatchEvent(new mainWindow.PointerEvent('pointermove', {
+			clientX: pointerX, clientY: pointerY,
+			buttons: 1, pointerId: 1, bubbles: true,
+		}));
+		clock.tick(100);
+		firstParent.style.left = '22px';
+		mainWindow.dispatchEvent(new mainWindow.PointerEvent('pointerup', {
+			clientX: pointerX + 2, clientY: pointerY,
+			button: 0, buttons: 0, pointerId: 1, bubbles: true,
+		}));
+		clock.tick(400);
+		const fellBelowInput = button.getBoundingClientRect().top > inputBounds.bottom;
+		clock.tick(4_000);
+
+		const bounds = button.getBoundingClientRect();
+		assert.deepStrictEqual({
+			fellBelowInput,
+			airborne: button.classList.contains('throwing'),
+			left: bounds.left,
+			bottom: bounds.bottom,
+		}, {
+			fellBelowInput: true,
+			airborne: false,
+			left: initial.left + 2,
+			bottom: inputBounds.top,
+		});
+	});
+
 	test('migrates proportional positions to stable nearest-edge anchors', () => {
 		const parent = mainWindow.document.createElement('div');
 		parent.style.cssText = 'position:fixed;left:0;top:0;width:400px;height:240px';
@@ -4339,6 +4387,21 @@ suite('ChatPetWidget', () => {
 			{ left: 80, top: 100.09, x: 1_000, y: 18, wall: 'right' },
 			{ left: 10, top: 0, x: 0, y: 36.4, wall: undefined },
 			{ left: 0, top: 100.36, x: 0, y: 36, wall: undefined },
+		]);
+	});
+
+	test('keeps gravity finite when a throw starts just outside a wall', () => {
+		const bounds = { minimumLeft: 0, maximumLeft: 80, minimumTop: 0 };
+		assert.deepStrictEqual([
+			advanceChatPetThrow({ left: -0.001, top: 100, x: 0, y: 0 }, 16, bounds),
+			advanceChatPetThrow({ left: 80.001, top: 100, x: 0, y: 0 }, 16, bounds),
+			advanceChatPetThrow({ left: -0.001, top: 100, x: -500, y: 0 }, 0, bounds),
+			advanceChatPetThrow({ left: 80.001, top: 100, x: 500, y: 0 }, 0, bounds),
+		], [
+			{ left: 0, top: 100.2304, x: 0, y: 28.8, wall: undefined },
+			{ left: 80, top: 100.2304, x: 0, y: 28.8, wall: undefined },
+			{ left: 0, top: 100, x: -500, y: 0, wall: undefined },
+			{ left: 80, top: 100, x: 500, y: 0, wall: undefined },
 		]);
 	});
 

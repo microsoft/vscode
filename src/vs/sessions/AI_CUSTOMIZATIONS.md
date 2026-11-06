@@ -23,6 +23,10 @@ The Agents Window contributes:
 
 Shared workbench code owns reusable discovery and management behavior. Sessions code adapts active-session context and provider-backed harnesses without adding Sessions dependencies to `vs/workbench`.
 
+Harness-specific built-in skills belong to their provider. Copilot Agent Host supplies `troubleshoot` through the SDK skill provider on both create and resume, enriching its Markdown lazily with the exact host-local SDK conversation log and session-state directory. Explicit session-reference attachments take precedence over the current conversation. The extension troubleshooting skill handles extension debug logs and is registered only for Local sessions. SDK-provided invocation names take precedence over same-named disk skills under the SDK catalog contract. Virtual-workspace Copilot sessions retain their disabled skill discovery.
+
+The host-owned troubleshooting Markdown is defined in code and loaded through the SDK skill provider, without a separate packaged skill asset. Its customization entry is discovery-only, like Claude's built-in skills, and has no openable source. Session-reference trajectory attachments retain their existing Copilot CLI path handling; this skill does not change how referenced sessions are resolved.
+
 ## Service boundary
 
 ### `IAICustomizationWorkspaceService`
