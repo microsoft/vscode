@@ -163,7 +163,8 @@ This repository is public, and so is everything written in it: pull requests, is
 
 - Don't include confidential information: credentials or tokens, personal or customer data, links to internal-only tools and dashboards, or data from internal sources such as telemetry queries, experiment scorecards and cost reports.
 - Anything derived from internal data is confidential too: counts of users, devices, sessions or requests; rates, shares and deltas; statistical results; cost, token usage and capacity figures; and screenshots of queries or dashboards. Telemetry event and property names, and the shape of a query, are fine.
-- When internal data informs a change, describe the conclusion without numbers, for example "the experiment showed no regression" or "the error is common on Windows".
+- When internal data informs a change, describe the conclusion without numbers, for example "the error is common on Windows".
+- A pull request, commit or issue that ships, changes, graduates or removes an experiment describes only the code change. Don't explain the change with the experiment, its rollout or its results, even without numbers, such as "the experiment showed no regression" or "the experiment is shipping". Link its tracking issue instead.
 - Numbers you measured yourself, for example in a local run, a test or a benchmark, are fine as long as they aren't cost figures. So are planned settings such as a rollout percentage.
 - Check the text of a pull request, issue, comment or commit message against these rules before you publish it. Commit messages can't be changed after they are merged.
 

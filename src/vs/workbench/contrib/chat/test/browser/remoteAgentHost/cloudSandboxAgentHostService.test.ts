@@ -9,6 +9,7 @@ import { DeferredPromise, raceCancellationError, timeout } from '../../../../../
 import { CancellationToken, CancellationTokenSource } from '../../../../../../base/common/cancellation.js';
 import { CancellationError, isCancellationError } from '../../../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
+import { autorun } from '../../../../../../base/common/observable.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { generateUuid } from '../../../../../../base/common/uuid.js';
 import { mock } from '../../../../../../base/test/common/mock.js';
@@ -262,6 +263,30 @@ suite('CloudSandboxAgentHostService', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
 	teardown(() => sinon.restore());
+
+	test('disconnecting an unstaged cached inventory does not republish connection entries', async () => {
+		const fixture = createService(store, []);
+		const entries: number[] = [];
+		store.add(autorun(reader => entries.push(fixture.getFactory().entries.read(reader).length)));
+		for (let i = 0; i < 150; i++) {
+			await fixture.service.disconnect(cloudSandboxAddress(`offline-${i}`));
+		}
+		assert.deepStrictEqual(entries, [0]);
+	});
+
+	test('disconnecting a staged environment withdraws it only once', async () => {
+		const fixture = createService(store, [{ kind: 'token', token: clientToken('sealed') }]);
+		fixture.service.connectThroughFactory = true;
+		const entries: number[] = [];
+		store.add(autorun(reader => entries.push(fixture.getFactory().entries.read(reader).length)));
+		const connecting = fixture.service.connect({ environmentId: 'staged', name: 'Sandbox' }, CancellationToken.None);
+		await fixture.started;
+		fixture.settle();
+		await connecting;
+		await fixture.service.disconnect(cloudSandboxAddress('staged'));
+		await fixture.service.disconnect(cloudSandboxAddress('staged'));
+		assert.deepStrictEqual(entries, [0, 1, 0]);
+	});
 
 	test('forwards user-local reporting scope through initial credentials and factory recovery', () => runWithFakedTimers({}, async () => {
 		const environmentId = generateUuid();

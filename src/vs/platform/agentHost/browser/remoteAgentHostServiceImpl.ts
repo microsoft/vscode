@@ -230,7 +230,7 @@ export class RemoteAgentHostService extends Disposable implements IRemoteAgentHo
 	 * human-readable name as the host label so any UI looking up the host
 	 * label for an agent host URI gets the friendly name.
 	 */
-	private readonly _labelFormatters = new Map<string, IDisposable>();
+	private readonly _labelFormatters = new Map<string, { readonly name: string; readonly operatingSystem: OperatingSystem | undefined; readonly disposable: IDisposable }>();
 
 	protected get clientInfo() {
 		return editorWindowAgentHostClientInfo;
@@ -1154,9 +1154,14 @@ export class RemoteAgentHostService extends Disposable implements IRemoteAgentHo
 	 * name changes.
 	 */
 	private _updateHostLabelFormatter(address: string, name: string): void {
+		name = this.getDisplayNameOverride(address) ?? name;
+		const operatingSystem = this._operatingSystems.get(address);
+		const existing = this._labelFormatters.get(address);
+		if (existing?.name === name && existing.operatingSystem === operatingSystem) {
+			return;
+		}
 		this._clearHostLabelFormatter(address);
 		const authority = agentHostAuthority(address);
-		const operatingSystem = this._operatingSystems.get(address);
 		const pathFormatting = operatingSystem === undefined
 			? AGENT_HOST_LABEL_FORMATTER.formatting
 			: agentHostLabelFormatter(authority, operatingSystem).formatting;
@@ -1166,10 +1171,10 @@ export class RemoteAgentHostService extends Disposable implements IRemoteAgentHo
 			priority: true,
 			formatting: {
 				...pathFormatting,
-				workspaceSuffix: this.getDisplayNameOverride(address) ?? name,
+				workspaceSuffix: name,
 			},
 		});
-		this._labelFormatters.set(address, handle);
+		this._labelFormatters.set(address, { name, operatingSystem, disposable: handle });
 	}
 
 	private _resolveHostOperatingSystem(address: string, entry: IConnectionEntry, connection: IAgentConnection, retryIfPending = false): void {
@@ -1209,7 +1214,7 @@ export class RemoteAgentHostService extends Disposable implements IRemoteAgentHo
 	private _clearHostLabelFormatter(address: string): void {
 		const existing = this._labelFormatters.get(address);
 		if (existing) {
-			existing.dispose();
+			existing.disposable.dispose();
 			this._labelFormatters.delete(address);
 		}
 	}
@@ -1241,7 +1246,7 @@ export class RemoteAgentHostService extends Disposable implements IRemoteAgentHo
 		this._retainedReconnectEntries.clear();
 		this._operatingSystems.clear();
 		for (const handle of this._labelFormatters.values()) {
-			handle.dispose();
+			handle.disposable.dispose();
 		}
 		this._labelFormatters.clear();
 		super.dispose();

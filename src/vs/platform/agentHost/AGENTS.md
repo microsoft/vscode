@@ -97,7 +97,7 @@ Copilot alone opts into the host-internal `supportsVirtualWorkspaces` capability
 
 Responsible for:
 - Creating and owning SDK chats (`chats.createChat`, with optional fork input).
-- Reading history (`chats.getMessages`).
+- Reading history (`chats.getMessages`). Copilot tool requests without a recorded execution completion restore as skipped, not successful. A recorded subagent start proves execution began, so an incomplete task restores as failed and retains child discovery.
 - Emitting progress signals (`onDidChatProgress`).
 - Optionally admitting provider-native metadata through `onDidChatSessionEvent` for environment-owned SDK mirroring. History reads receive exact chat/context plus an acknowledged journal cursor; they never create or resume a runtime. Only the owning provider interprets native records or synchronizes a host title into a live backing.
 - Emitting membership events for harness-spawned chats (`onDidSpawnChat`, `onDidEndChat`).
@@ -117,6 +117,16 @@ Uninstall requires exactly one current SDK identity match, and direct installs r
 SDK-discovered plugin agents retain their SDK selection `id`, which can differ from their display name or parsed filename. Their published children preserve authored names and standard invocation, model, and tool fields. They belong to the native selection catalog, not the forwarded `customAgents` definitions. Native selection is applied only after session construction and `agent.list()`; passing a native ID as the construction-time `agent` can reject before SDK discovery finishes. Create, resume, and empty-history recovery retain the requested native selection and surface selection errors rather than retrying as the default agent. Parsing a plugin directory must not reintroduce agents omitted by SDK discovery. Host/client plugins shadow matching discovered plugin IDs in both publication and native selection. Native plugin selection in SDK `empty` mode remains blocked on SDK catalog support; see the [tracked validation gap](test/node/e2e/KNOWN_ISSUES.md#copilot-empty-mode-native-plugin-agent-selection).
 
 **File organization rule:** `common/agent.ts` holds the *provider model* — `IAgent` and every type/helper/signal reachable from it (chat lifecycle, create/materialize/legacy-migration payloads, config-resolution parameters, `AgentSignal`/`AgentSession`). `common/agentService.ts` holds the *orchestrator-facing service surface* — `IAgentService`, `IAgentConnection`, `IAgentHostService`, settings/env constants, and diagnostics types. The dependency is one-directional: `agentService.ts` may import from `agent.ts`, but `agent.ts` must never import from `agentService.ts`. `agentService.ts` re-exports the public provider types from `agent.ts` for call-site compatibility; new provider code should import directly from `agent.ts`.
+
+### Customization installation (Skills, MCP servers, catalog plugins)
+
+Installation is local-only: the workbench calls `IAgentHostService`, which routes through Management IPC to `CopilotCustomizationInstallations`. Remote Agent Hosts expose no installation methods.
+
+Prepare returns a review, or a configuration request when values or secrets are needed. Records are bound to a host generation, an expiry and a random ownership token; a mismatch behaves like an unknown ID. The client sends any `answers` once on `apply`, which is one-shot and never resent. There is no client cancel; unused records expire.
+
+Submitted values and secrets must never appear in reviews, errors or logs. The runtime owns URL/header expansion and configuration validation; shared value rules live in `common/customizationInstallationValues.ts`.
+
+The runtime does not own local package (stdio) installs, or remote installs from MCP Gallery cards (their plans are not session-bound), yet. For those the host writes the configuration with `mcp.config.add` after verifying the card against the plan's digest. Only non-secret values are supported on this path; anything needing a secret fails closed until the runtime can store it.
 
 ### SDK hook and MCP discovery
 
@@ -921,7 +931,7 @@ Every tool definition the model can see is input tokens on every request of ever
 
 "It is handy", "it is read-only", "it is small", "the model will not find it otherwise" and "the previous tool in this group was eager" are not reasons. A quality-of-life tool is exactly the kind that should load on demand. If the model does not find a deferred tool, fix its description so tool search ranks it, not its deferral.
 
-Tool search is only active for models that support it (`agentHostModelSupportsToolSearch`) and when `chat.agentHost.copilot.toolSearch.enabled` is on. On every other session **everything is eager**, so an eager-by-default tool is an eager tool everywhere. Do not reason as if deferral were the common case.
+Tool search is only active for models that support it (`agentHostModelSupportsToolSearch`) and when the client forwards its `toolSearch` tool, which users turn off with the Search Tools toggle in Chat Customizations. On every other session **everything is eager**, so an eager-by-default tool is an eager tool everywhere. Do not reason as if deferral were the common case.
 
 ### Where each kind of tool is controlled
 

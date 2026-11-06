@@ -24,7 +24,7 @@ import { ILinesDiffComputer, ILinesDiffComputerOptions } from '../diff/linesDiff
 import { DetailedLineRangeMapping } from '../diff/rangeMapping.js';
 import { linesDiffComputers } from '../diff/linesDiffComputers.js';
 import { IDocumentDiffProviderOptions } from '../diff/documentDiffProvider.js';
-import { verifyLinesDiff } from '../diff/verifyLinesDiff.js';
+import { ILinesDiffWithFallback, resolveLinesDiffComputerWithFallback } from '../diff/linesDiffWithFallback.js';
 import { BugIndicatingError } from '../../../base/common/errors.js';
 import { computeDefaultDocumentColors } from '../languages/defaultDocumentColorsComputer.js';
 import { FindSectionHeaderOptions, SectionHeader, findSectionHeaders } from './findSectionHeaders.js';
@@ -130,18 +130,19 @@ export class EditorWorker implements IDisposable, IWorkerTextModelSyncChannelSer
 			return null;
 		}
 
-		const diffAlgorithm = await resolveLinesDiffComputer(algorithm);
-		const result = EditorWorker.computeDiff(original, modified, options, diffAlgorithm, verify);
-		return result;
+		const computeDiff = await resolveLinesDiffComputerWithFallback(algorithm, a => this._resolveLinesDiffComputer(a));
+		// Read the models only after the await, so the diff and the identity check below see the same model state.
+		const computed = computeDiff(original.getLinesContent(), modified.getLinesContent(), options, verify);
+		return EditorWorker.toDiffComputationResult(original, modified, computed);
 	}
 
-	private static computeDiff(originalTextModel: ICommonModel | ITextModel, modifiedTextModel: ICommonModel | ITextModel, options: IDocumentDiffProviderOptions, diffAlgorithm: ILinesDiffComputer, verify: boolean): IDiffComputationResult {
+	/** Overridden in tests. */
+	protected _resolveLinesDiffComputer(algorithm: DiffAlgorithmName): ILinesDiffComputer | Promise<ILinesDiffComputer> {
+		return resolveLinesDiffComputer(algorithm);
+	}
 
-		const originalLines = originalTextModel.getLinesContent();
-		const modifiedLines = modifiedTextModel.getLinesContent();
-
-		const result = diffAlgorithm.computeDiff(originalLines, modifiedLines, options);
-		const validity = verify ? verifyLinesDiff(result, originalLines, modifiedLines, options.ignoreTrimWhitespace) : undefined;
+	private static toDiffComputationResult(originalTextModel: ICommonModel | ITextModel, modifiedTextModel: ICommonModel | ITextModel, computed: ILinesDiffWithFallback): IDiffComputationResult {
+		const { result, validity, fallback } = computed;
 
 		const identical = (result.changes.length > 0 ? false : this._modelsAreIdentical(originalTextModel, modifiedTextModel));
 
@@ -162,6 +163,7 @@ export class EditorWorker implements IDisposable, IWorkerTextModelSyncChannelSer
 			identical,
 			quitEarly: result.hitTimeout,
 			validity,
+			fallback,
 			changes: getLineChanges(result.changes),
 			moves: result.moves.map(m => ([
 				m.lineRangeMapping.original.startLineNumber,

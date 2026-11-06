@@ -127,6 +127,7 @@ export class RemotesEditor extends EditorPane {
 		} else if (!this.thisComputer.value) {
 			this.thisComputer.value = this.widgetInstantiationService.createInstance(ThisComputerSection, this.thisComputerContainer);
 		}
+		this.widget.value.setHeading(showThisComputer ? localize('remotes.otherEnvironments', "Other Environments") : undefined);
 		this.widget.value.setVisible(this.isVisible());
 		this.widget.value.layout();
 	}

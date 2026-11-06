@@ -48,7 +48,7 @@ const URL_REGEX = /^https?:\/\/.+/;
 
 export class ChatDragAndDrop extends Themable {
 
-	private readonly overlays: Map<HTMLElement, { overlay: HTMLElement; disposable: IDisposable }> = new Map();
+	private readonly overlays: Map<HTMLElement, { overlay: HTMLElement; disposable: IDisposable; observer: DragAndDropObserver }> = new Map();
 	private overlayText?: HTMLElement;
 	private overlayTextBackground: string = '';
 	private disableOverlay: boolean = false;
@@ -90,8 +90,7 @@ export class ChatDragAndDrop extends Themable {
 	addOverlay(target: HTMLElement, overlayContainer: HTMLElement, inputTarget: HTMLElement = target): void {
 		this.removeOverlay(target);
 
-		const { overlay, disposable } = this.createOverlay(target, overlayContainer, inputTarget);
-		this.overlays.set(target, { overlay, disposable });
+		this.overlays.set(target, this.createOverlay(target, overlayContainer, inputTarget));
 	}
 
 	removeOverlay(target: HTMLElement): void {
@@ -111,8 +110,19 @@ export class ChatDragAndDrop extends Themable {
 		this.disableOverlay = disable;
 	}
 
+	/** Clears feedback and enter/leave tracking after an internally handled drag. */
+	resetDragState(): void {
+		if (this.currentActiveTarget) {
+			this.setOverlay(this.currentActiveTarget, undefined);
+			this.currentActiveTarget = undefined;
+		}
+		for (const { observer } of this.overlays.values()) {
+			observer.reset();
+		}
+	}
+
 	private currentActiveTarget: HTMLElement | undefined = undefined;
-	private createOverlay(target: HTMLElement, overlayContainer: HTMLElement, inputTarget: HTMLElement): { overlay: HTMLElement; disposable: IDisposable } {
+	private createOverlay(target: HTMLElement, overlayContainer: HTMLElement, inputTarget: HTMLElement): { overlay: HTMLElement; disposable: IDisposable; observer: DragAndDropObserver } {
 		const overlay = document.createElement('div');
 		overlay.classList.add('chat-dnd-overlay');
 		this.updateOverlayStyles(overlay);
@@ -120,7 +130,7 @@ export class ChatDragAndDrop extends Themable {
 
 		const disposable = new DisposableStore();
 		disposable.add(registerInputDropTarget(inputTarget));
-		disposable.add(new DragAndDropObserver(target, {
+		const observer = disposable.add(new DragAndDropObserver(target, {
 			onDragOver: (e) => {
 				if (this.disableOverlay) {
 					return;
@@ -168,7 +178,7 @@ export class ChatDragAndDrop extends Themable {
 			},
 		}));
 
-		return { overlay, disposable };
+		return { overlay, disposable, observer };
 	}
 
 	private onDragEnter(e: DragEvent, target: HTMLElement): void {
