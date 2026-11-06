@@ -26,6 +26,7 @@ jobs:
             targetPath: $(Build.ArtifactStagingDirectory)/out/server/vscode-server-linux-alpine.tar.gz
             artifactName: vscode_server_linux_alpine_archive-unsigned
             displayName: Publish x64 server archive
+            condition: and(succeeded(), ne(variables['SERVER_ARCHIVE_PUBLISHED'], 'true'))
             sbomBuildDropPath: $(SERVER_DIR_PATH)
             sbomPackageName: "VS Code Alpine x64 Server"
             sbomPackageVersion: $(Build.SourceVersion)
@@ -34,6 +35,7 @@ jobs:
             targetPath: $(Build.ArtifactStagingDirectory)/out/web/vscode-server-linux-alpine-web.tar.gz
             artifactName: vscode_web_linux_alpine_archive-unsigned
             displayName: Publish x64 web server archive
+            condition: and(succeeded(), ne(variables['WEB_ARCHIVE_PUBLISHED'], 'true'))
             sbomBuildDropPath: $(WEB_DIR_PATH)
             sbomPackageName: "VS Code Alpine x64 Web"
             sbomPackageVersion: $(Build.SourceVersion)
@@ -42,6 +44,7 @@ jobs:
             targetPath: $(Build.ArtifactStagingDirectory)/out/server/vscode-server-alpine-$(VSCODE_ARCH).tar.gz
             artifactName: vscode_server_alpine_$(VSCODE_ARCH)_archive-unsigned
             displayName: Publish server archive
+            condition: and(succeeded(), ne(variables['SERVER_ARCHIVE_PUBLISHED'], 'true'))
             sbomBuildDropPath: $(SERVER_DIR_PATH)
             sbomPackageName: "VS Code Alpine $(VSCODE_ARCH) Server"
             sbomPackageVersion: $(Build.SourceVersion)
@@ -49,6 +52,7 @@ jobs:
             targetPath: $(Build.ArtifactStagingDirectory)/out/web/vscode-server-alpine-$(VSCODE_ARCH)-web.tar.gz
             artifactName: vscode_web_alpine_$(VSCODE_ARCH)_archive-unsigned
             displayName: Publish web server archive
+            condition: and(succeeded(), ne(variables['WEB_ARCHIVE_PUBLISHED'], 'true'))
             sbomBuildDropPath: $(WEB_DIR_PATH)
             sbomPackageName: "VS Code Alpine $(VSCODE_ARCH) Web"
             sbomPackageVersion: $(Build.SourceVersion)
@@ -57,7 +61,7 @@ jobs:
           artifactName: agent_sdk_alpine_$(VSCODE_ARCH)_tarballs
           displayName: Publish agent SDK tarballs
           sbomEnabled: false
-          condition: and(succeededOrFailed(), eq(variables['AGENT_SDK_TARBALLS_PRODUCED'], 'true'))
+          condition: and(succeededOrFailed(), eq(variables['AGENT_SDK_TARBALLS_PRODUCED'], 'true'), ne(variables['AGENT_SDK_TARBALLS_PUBLISHED'], 'true'))
     steps:
       - template: ../common/checkout.yml@self
 
@@ -288,3 +292,29 @@ jobs:
           GITHUB_TOKEN: "$(github-token-code-oss)"
           AZURE_DEVOPS_EXT_PAT: $(System.AccessToken)
         displayName: Build server (web)
+
+      # Pipeline artifacts can't be overwritten, so a retry of this job must skip
+      # the artifacts that an earlier attempt already published, for example
+      # before an injected SDL step hung (see ../common/checkForArtifact.ts)
+      - ${{ if eq(parameters.VSCODE_ARCH, 'x64') }}:
+        - script: >-
+            node build/azure-pipelines/common/checkForArtifact.ts
+            SERVER_ARCHIVE_PUBLISHED vscode_server_linux_alpine_archive-unsigned
+            WEB_ARCHIVE_PUBLISHED vscode_web_linux_alpine_archive-unsigned
+            AGENT_SDK_TARBALLS_PUBLISHED agent_sdk_alpine_$(VSCODE_ARCH)_tarballs
+          env:
+            SYSTEM_ACCESSTOKEN: $(System.AccessToken)
+          condition: succeededOrFailed()
+          continueOnError: true
+          displayName: Check for artifacts published by an earlier attempt
+      - ${{ else }}:
+        - script: >-
+            node build/azure-pipelines/common/checkForArtifact.ts
+            SERVER_ARCHIVE_PUBLISHED vscode_server_alpine_$(VSCODE_ARCH)_archive-unsigned
+            WEB_ARCHIVE_PUBLISHED vscode_web_alpine_$(VSCODE_ARCH)_archive-unsigned
+            AGENT_SDK_TARBALLS_PUBLISHED agent_sdk_alpine_$(VSCODE_ARCH)_tarballs
+          env:
+            SYSTEM_ACCESSTOKEN: $(System.AccessToken)
+          condition: succeededOrFailed()
+          continueOnError: true
+          displayName: Check for artifacts published by an earlier attempt
