@@ -97,7 +97,7 @@ Copilot alone opts into the host-internal `supportsVirtualWorkspaces` capability
 
 Responsible for:
 - Creating and owning SDK chats (`chats.createChat`, with optional fork input).
-- Reading history (`chats.getMessages`).
+- Reading history (`chats.getMessages`). Copilot tool requests without a recorded execution completion restore as skipped, not successful. A recorded subagent start proves execution began, so an incomplete task restores as failed and retains child discovery.
 - Emitting progress signals (`onDidChatProgress`).
 - Optionally admitting provider-native metadata through `onDidChatSessionEvent` for environment-owned SDK mirroring. History reads receive exact chat/context plus an acknowledged journal cursor; they never create or resume a runtime. Only the owning provider interprets native records or synchronizes a host title into a live backing.
 - Emitting membership events for harness-spawned chats (`onDidSpawnChat`, `onDidEndChat`).
@@ -649,6 +649,15 @@ A HydraFusion phase that renders in its own child chat (judge, critic, repair, r
 #### Skill invocation trigger telemetry
 
 `agentHost.skillInvoked` records what triggered each SDK `skill.invoked`, for the main agent and mapped subagents. A subagent the host cannot map is dropped like its other events and remains only on `copilotSdk/skill_invoked`. The trigger is `agent-invoked`, `user-invoked` or `context-load`, and anything else becomes `unknown`. The event deliberately carries no skill identity. Join it to the forwarded `copilotSdk/skill_invoked` on `sdkEventId` = `event_id` to get the hashed skill and plugin names. A subagent invocation is reported against the subagent chat, the root turn it was invoked in (nested subagents inherit it from their spawning subagent), and the account captured when it started. It never takes these from whatever turn is current, because a background subagent can outlive or straddle root turns. A slash command naming a plugin skill by its bare name (`/commit` for `VS Code Synced Data:commit`) resolves to that skill when the name is unambiguous. It then runs through `commands.invoke` and reports `user-invoked`, rather than reaching the model as plain text and reporting `agent-invoked`. The model can load the same skill again within that turn (`agent-invoked`), so to count only skills the agent chose on its own, exclude agent rows whose turn has a user row for the same skill.
+
+#### Computer Use telemetry
+
+Four events from `node/copilot/copilotComputerUseTelemetry.ts` track Computer Use. They carry only categories, counts and durations, never app names, window titles or typed text. Tool calls are in `agentHost.toolInvoked`, with a `toolId` that starts with `computer-use-` and `mcpSourceKind` `builtin`.
+
+- `agentHost.computerUseState` is reported each time a Copilot chat launches while VS Code offers Computer Use, that is while the setting is on and the chat uses the shared runtime. Its `state` is `on`, `off`, `notInstalled` or `unknown`. It is the only signal for `/computer on` and `/computer off`, which the runtime handles. Linux has no plugin build, so its chats report `notInstalled`.
+- `agentHost.computerUseActivation` is reported once for each request of `enable_computer_use`, with its outcome, or `error` when checking or turning on Computer Use threw. Calls that wait for the same card share one report. It carries the turn that made the request, also when that turn's end cancels it.
+- `agentHost.computerUsePluginInstall` is reported for each download of the plugin, with the result, the HTTP status of a refused download, the duration, the pinned version and the build.
+- `agentHost.computerUseSetup` is reported when a macOS permission setup becomes ready or ends, also when Computer Use is turned off while it waits. It has the reason, the permissions missing at its start and at its end, how many times the plugin asked and the duration.
 
 #### Session pre-warming
 

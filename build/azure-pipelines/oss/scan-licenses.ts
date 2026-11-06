@@ -1149,10 +1149,10 @@ async function main(): Promise<void> {
 	let noLicense = 0;
 
 	// TODO(future): expand the scanner to walk EVERY node_modules folder in the
-	// repo (e.g. remote/node_modules, remote/web/node_modules, and nested
-	// node_modules), not just the extension + root roots below. The copilot
-	// extension folder has no node_modules, so it is naturally excluded. Walking
-	// all node_modules would make the presence index complete; until then the
+	// repo (e.g. remote/node_modules and nested node_modules), not just the
+	// extension + root roots below. The copilot extension folder has no
+	// node_modules, so it is naturally excluded. Walking all node_modules
+	// would make the presence index complete; until then the
 	// presence index is best-effort and the stale-override signal is warn-only.
 
 	for (const ext of extensions) {

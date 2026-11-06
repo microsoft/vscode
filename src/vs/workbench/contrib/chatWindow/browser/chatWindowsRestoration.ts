@@ -9,6 +9,8 @@ import { URI } from '../../../../base/common/uri.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
+import { IRectangle } from '../../../../platform/window/common/window.js';
+import { AuxiliaryWindowMode } from '../../../services/auxiliaryWindow/browser/auxiliaryWindowService.js';
 import { IContentPart } from '../../../services/editor/common/editorGroupsService.js';
 import { IChatWindow, IChatWindowChatPart, IChatWindowOpenOptions, IChatWindowProvider } from './chatWindow.js';
 import { deserializeChatWindowEditors, isChatWindowChatPart, ISerializedChatWindowEditor, isSerializedChatWindowEditor, serializeChatWindowEditors } from './chatWindowEditors.js';
@@ -36,6 +38,26 @@ interface IStoredChatWindow {
 	readonly chatPart?: unknown;
 	/** The editors of the parts it created, such as for editors dropped on its edges, one list per part. */
 	readonly created?: readonly (readonly ISerializedChatWindowEditor[])[];
+	/** Where on the screen it showed, and whether maximized or in full screen; checked as it restores. */
+	readonly window?: unknown;
+}
+
+/** Where on the screen a chat window shows, and whether maximized or in full screen. */
+export interface IChatWindowBounds {
+	readonly bounds: IRectangle;
+	readonly mode?: AuxiliaryWindowMode;
+}
+
+/**
+ * Whether `value`, read from storage, is where a chat window showed. Bounds off every display, such as one that was
+ * removed, are left to opening the window, which validates them as it does for every auxiliary window.
+ */
+function isChatWindowBounds(value: unknown): value is IChatWindowBounds {
+	const candidate = value as Partial<IChatWindowBounds> | undefined;
+	const bounds = candidate?.bounds as Partial<IRectangle> | undefined;
+	const mode = candidate?.mode;
+	return [bounds?.x, bounds?.y, bounds?.width, bounds?.height].every(coordinate => typeof coordinate === 'number' && Number.isFinite(coordinate))
+		&& (mode === undefined || mode === AuxiliaryWindowMode.Maximized || mode === AuxiliaryWindowMode.Normal || mode === AuxiliaryWindowMode.Fullscreen);
 }
 
 function isStoredChatWindow(entry: Partial<IStoredChatWindow> | undefined): entry is IStoredChatWindow {
@@ -66,6 +88,8 @@ export interface IChatWindowsRestorationHost {
 	createdParts(window: IChatWindow): readonly IContentPart[];
 	/** Makes `chat`, one of `window`'s chats, its active chat without focusing it, as it was when it last closed. */
 	activateChat?(window: IChatWindow, chat: URI): void;
+	/** Where on the screen `window` shows, so that it shows there again. */
+	windowState?(window: IChatWindow): IChatWindowBounds | undefined;
 }
 
 /**
@@ -178,6 +202,7 @@ export class ChatWindowsRestoration extends Disposable {
 				terminal: this._host.terminalsShown(window) || undefined,
 				chatPart: this._host.chatPart(window),
 				created: this._createdParts(window),
+				window: this._host.windowState?.(window),
 			};
 		}));
 	}
@@ -211,7 +236,8 @@ export class ChatWindowsRestoration extends Disposable {
 				const createdParts = (entry.created ?? []).map(created => deserializeChatWindowEditors(this._instantiationService, created, onError)).filter(created => created.editors.length > 0);
 				// The groups of its chat part only while all its chats restore, which they place
 				const chatPart = isChatWindowChatPart(entry.chatPart) && chats.length === (entry.chats?.length ?? 0) && chat.toString() === storedChat(entry) ? entry.chatPart : undefined;
-				const window = await this._host.open(chat, { preserveFocus: true, chats: chats.length ? chats : undefined, showTerminals: entry.terminal, editors, chatPart, createdParts: createdParts.length ? createdParts : undefined });
+				const windowState = isChatWindowBounds(entry.window) ? entry.window : undefined;
+				const window = await this._host.open(chat, { preserveFocus: true, chats: chats.length ? chats : undefined, showTerminals: entry.terminal, editors, chatPart, createdParts: createdParts.length ? createdParts : undefined, bounds: windowState?.bounds, mode: windowState?.mode });
 				// Its active chat, any of those it restored, the first too
 				if (window && entry.activeChat && restorable.some(candidate => candidate.toString() === entry.activeChat)) {
 					this._host.activateChat?.(window, URI.parse(entry.activeChat));

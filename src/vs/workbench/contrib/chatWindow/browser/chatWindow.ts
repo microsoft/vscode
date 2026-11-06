@@ -16,6 +16,7 @@ import { IEditorGroupViewOptions } from '../../../browser/parts/editor/editor.js
 import { IEditorPartOptions } from '../../../common/editor.js';
 import { EditorInput } from '../../../common/editor/editorInput.js';
 import { IContentPart, IEditorGroup, IEditorPart } from '../../../services/editor/common/editorGroupsService.js';
+import { AuxiliaryWindowMode } from '../../../services/auxiliaryWindow/browser/auxiliaryWindowService.js';
 import { ChatWindowLayoutMode, ChatWindowSplitLayout, ChatWindowTerminalPosition } from '../common/chatWindowLayout.js';
 
 export const IChatWindowService = createDecorator<IChatWindowService>('chatWindowService');
@@ -52,6 +53,8 @@ export interface IChatWindowOpenOptions {
 	readonly showTerminals?: boolean;
 	/** Where on the screen a new window opens, such as where a chat was dragged to; a window that shows already stays. */
 	readonly bounds?: Partial<IRectangle>;
+	/** Whether a new window opens maximized or in full screen, such as when it last closed so. */
+	readonly mode?: AuxiliaryWindowMode;
 	/** The groups its chat part starts with besides the chat's own, such as editors split beside the chat, as it opens again. */
 	readonly chatPart?: IChatWindowChatPart;
 	/**

@@ -77,7 +77,7 @@ jobs:
 
       - name: Install Electron headers
         if: steps.cache-node-modules.outputs.cache-hit != 'true'
-        run: node build/npm/preinstall.ts
+        run: pnpm run preinstall
 
       - name: Install dependencies
         if: steps.cache-node-modules.outputs.cache-hit != 'true'

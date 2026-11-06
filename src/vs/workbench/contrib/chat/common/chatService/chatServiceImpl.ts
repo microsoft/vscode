@@ -2354,9 +2354,6 @@ export class ChatService extends Disposable implements IChatService {
 				this.processNextPendingRequest(model);
 			}
 		});
-		if (options?.userSelectedModelId && !options.isSystemInitiated) {
-			this.languageModelsService.addToRecentlyUsedList(options.userSelectedModelId);
-		}
 		this._onDidSubmitRequest.fire({ chatSessionResource: model.sessionResource, message: parsedRequest, attachedContext: options?.attachedContext });
 		return {
 			responseCreatedPromise: responseCreated.p,

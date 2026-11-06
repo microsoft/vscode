@@ -57,7 +57,7 @@ import type { IByokLmBridgeConnection, IByokLmModelInfo } from '../../common/age
 import { ITelemetryData, ITelemetryService, TelemetryLevel } from '../../../telemetry/common/telemetry.js';
 import { TelemetryService } from '../../../telemetry/common/telemetryService.js';
 import { NullTelemetryService, NullTelemetryServiceShape } from '../../../telemetry/common/telemetryUtils.js';
-import { CapturingTelemetryService } from '../../../telemetry/test/common/testTelemetryService.js';
+import { CapturingTelemetryService, TestDataTelemetryService } from '../../../telemetry/test/common/testTelemetryService.js';
 import { AgentHostTelemetryService } from '../../node/agentHostTelemetryService.js';
 import { AgentHostTelemetryReporter } from '../../node/agentHostTelemetryReporter.js';
 import { AgentHostStartupPerformance, IAgentHostStartupPerformance, NullAgentHostStartupPerformance } from '../../node/agentHostStartupPerformance.js';
@@ -155,7 +155,7 @@ import { ActiveClientToolSet } from '../../node/activeClientState.js';
 import { ByokLmBridgeRegistry, IByokLmBridgeRegistry } from '../../node/byokLmBridgeRegistry.js';
 import { IByokLmProxyService, NullByokLmProxyService, type IByokLmToolsCappedEvent } from '../../node/copilot/byokLmProxyService.js';
 import { ILocalModelSetupService, NullLocalModelSetupService } from '../../node/copilot/localModelBridge/localModelSetupService.js';
-import type { CopilotComputerUsePlugin } from '../../node/copilot/copilotComputerUsePlugin.js';
+import { COMPUTER_USE_PLUGIN_RELEASE, ComputerUsePluginInstallError, type CopilotComputerUsePlugin } from '../../node/copilot/copilotComputerUsePlugin.js';
 import type { ILocalModelProvider, LocalModelProviderSelection } from '../../node/copilot/localModelBridge/localModelProvider.js';
 import { LocalModelCopilotRequestHandler } from '../../node/copilot/localModelBridge/shim/copilotRequestHandler.js';
 import { ShimLocalModelProvider } from '../../node/copilot/localModelBridge/shim/shimLocalModelProvider.js';
@@ -2288,6 +2288,43 @@ suite('CopilotAgent', () => {
 			completedBeforePeerReload: false,
 			calls: ['uninstall', 'selected reload', 'peer reload', 'peer reloaded'],
 		});
+	});
+
+	test('merges plugin inventories using canonical installation identities', async () => {
+		const client = new TestCopilotClient([]);
+		const timeline = { name: 'session-timeline', marketplace: '', enabled: true, directSourceId: 'local-timeline' };
+		const first = { name: 'duplicate', marketplace: '', enabled: true, directSourceId: 'first-source' };
+		const second = { name: 'duplicate', marketplace: '', enabled: false, directSourceId: 'second-source' };
+		const box = { name: 'box', marketplace: 'claude-plugins-official', enabled: false };
+		client.pluginInstallations.push(timeline, first, second, box);
+		const agent = createTestAgent(disposables, { copilotClient: client });
+		const builtin = { name: 'builtin', marketplace: '', enabled: true, source: 'builtin' };
+		const localBox = { name: 'box', marketplace: '', enabled: true };
+		const sessionOnly = { name: 'duplicate', marketplace: '', enabled: true, directSourceId: 'session-source' };
+		try {
+			const cold = await agent['_listInstalledPlugins']('plugin-completions');
+			setDefaultSessionStub(agent, 'plugin-completions', {
+				listInstalledPlugins: async () => [
+					{ name: timeline.name, marketplace: '', enabled: true },
+					{ name: timeline.name, marketplace: '', enabled: true },
+					{ name: first.name, marketplace: '', enabled: true },
+					first,
+					{ ...box, enabled: true, managed: true },
+					builtin,
+					localBox,
+					sessionOnly,
+					sessionOnly,
+				],
+			});
+			const live = await agent['_listInstalledPlugins']('plugin-completions');
+
+			assert.deepStrictEqual({ cold, live }, {
+				cold: [timeline, first, second, box],
+				live: [timeline, first, second, { ...box, enabled: true, managed: true }, builtin, localBox, sessionOnly],
+			});
+		} finally {
+			await disposeAgent(agent);
+		}
 	});
 
 	test('discovers extensions, persists preferences, and reconciles the selected live chat', async () => {
@@ -15320,12 +15357,13 @@ suite('CopilotAgent', () => {
 			});
 		});
 
-		function createComputerUseAgent(enabled: boolean, isLocalAgentHost: boolean, client: TestCopilotClient, plugin?: Pick<CopilotComputerUsePlugin, 'isAvailable' | 'installedPath' | 'getInstalledPath' | 'resolve'>) {
+		function createComputerUseAgent(enabled: boolean, isLocalAgentHost: boolean, client: TestCopilotClient, plugin?: Pick<CopilotComputerUsePlugin, 'isAvailable' | 'installedPath' | 'getInstalledPath' | 'resolve'>, telemetryService?: ITelemetryService) {
 			const localModelSetupService: ILocalModelSetupService = { _serviceBrand: undefined, isLocalAgentHost, provider: undefined, applySelection: () => undefined };
 			const context = createTestAgentContext(disposables, {
 				copilotClient: client,
 				localModelSetupService,
 				rootConfig: { [AgentHostComputerUseEnabledConfigKey]: enabled },
+				telemetryService,
 			});
 			if (plugin) {
 				(context.agent as unknown as { _computerUsePlugin: typeof plugin })._computerUsePlugin = plugin;
@@ -15530,6 +15568,35 @@ suite('CopilotAgent', () => {
 				fake.download.error(new CancellationError());
 				await disposeAgent(agent);
 			}
+		});
+
+		test('reports how each Computer Use plugin download ended', async () => {
+			const report = async (finish: (fake: ReturnType<typeof createDownloadingComputerUsePlugin>, configurationService: IAgentConfigurationService) => void) => {
+				const telemetryService = new TestDataTelemetryService();
+				const fake = createDownloadingComputerUsePlugin();
+				const { agent, configurationService } = createComputerUseAgent(true, true, new StopCountingClient([]), fake.plugin, telemetryService);
+				try {
+					await agent.listChatsToMigrate();
+					finish(fake, configurationService);
+					await timeout(0);
+					return telemetryService.events.filter(event => event.name === 'agentHost.computerUsePluginInstall').map(({ data: { durationMs, ...rest } }) => ({ ...rest, durationMs: typeof durationMs }));
+				} finally {
+					await disposeAgent(agent);
+				}
+			};
+			const build = { pluginVersion: COMPUTER_USE_PLUGIN_RELEASE.version, target: `${process.platform}-${process.arch}`, durationMs: 'number' };
+			assert.deepStrictEqual({
+				installed: await report(fake => fake.install('/cache/computer-use')),
+				refused: await report(fake => fake.download.error(new ComputerUsePluginInstallError('http', 'HTTP 404 fetching the plugin', 404))),
+				settingTurnedOff: await report((fake, configurationService) => {
+					configurationService.updateRootConfig({ [AgentHostComputerUseEnabledConfigKey]: false });
+					fake.download.error(new CancellationError());
+				}),
+			}, {
+				installed: [{ result: 'installed', statusCode: undefined, ...build }],
+				refused: [{ result: 'http', statusCode: 404, ...build }],
+				settingTurnedOff: [{ result: 'cancelled', statusCode: undefined, ...build }],
+			});
 		});
 
 		test('restarts the client when the Copilot SDK log level changes', async () => {
