@@ -9,6 +9,7 @@ import { Action2, registerAction2 } from '../../../platform/actions/common/actio
 import { ServicesAccessor } from '../../../platform/instantiation/common/instantiation.js';
 import { IViewDescriptorService, ViewContainerLocation } from '../../common/views.js';
 import { IViewsService } from '../../services/views/common/viewsService.js';
+import { IWorkbenchLayoutService, Parts } from '../../services/layout/browser/layoutService.js';
 import type { ViewPane } from '../parts/views/viewPane.js';
 import { INavigableViewContainer, IViewNavigationRequest, IViewNavigationSnapshot, resolveViewNavigationTarget, ViewNavigationLocation } from './viewNavigationModel.js';
 
@@ -19,16 +20,23 @@ import { INavigableViewContainer, IViewNavigationRequest, IViewNavigationSnapsho
  */
 function getVisibleViewContainers(
 	viewsService: IViewsService,
-	descriptorService: IViewDescriptorService
+	descriptorService: IViewDescriptorService,
+	layoutService: IWorkbenchLayoutService
 ): readonly INavigableViewContainer[] {
-	const locations: readonly [ViewContainerLocation, ViewNavigationLocation][] = [
-		[ViewContainerLocation.Sidebar, 'sidebar'],
-		[ViewContainerLocation.AuxiliaryBar, 'auxiliarybar'],
-		[ViewContainerLocation.Panel, 'panel']
-	];
+	const locations = [
+		[ViewContainerLocation.Sidebar, 'sidebar', Parts.SIDEBAR_PART],
+		[ViewContainerLocation.AuxiliaryBar, 'auxiliarybar', Parts.AUXILIARYBAR_PART],
+		[ViewContainerLocation.Panel, 'panel', Parts.PANEL_PART]
+	] as const;
 
 	const containers: INavigableViewContainer[] = [];
-	for (const [location, name] of locations) {
+	for (const [location, name, part] of locations) {
+		// An active pane composite can outlive the visibility of its workbench part.
+		// Do not navigate into a hidden sidebar or panel just because it remains active.
+		if (!layoutService.isVisible(part)) {
+			continue;
+		}
+
 		const container = viewsService.getVisibleViewContainer(location);
 		if (!container) {
 			continue;
@@ -64,6 +72,7 @@ function getVisibleViewContainers(
 export async function focusNavigableView(
 	viewsService: IViewsService,
 	descriptorService: IViewDescriptorService,
+	layoutService: IWorkbenchLayoutService,
 	request: IViewNavigationRequest
 ): Promise<void> {
 	const focusedView = viewsService.getFocusedView();
@@ -72,7 +81,7 @@ export async function focusNavigableView(
 		: undefined;
 
 	const snapshot: IViewNavigationSnapshot = {
-		containers: getVisibleViewContainers(viewsService, descriptorService),
+		containers: getVisibleViewContainers(viewsService, descriptorService, layoutService),
 		focusedViewId: focusedView?.id,
 		preferredContainerId,
 		// When invoked from the editor, default to the primary sidebar.
@@ -116,6 +125,7 @@ function registerViewNavigationAction(
 			await focusNavigableView(
 				accessor.get(IViewsService),
 				accessor.get(IViewDescriptorService),
+				accessor.get(IWorkbenchLayoutService),
 				request
 			);
 		}
