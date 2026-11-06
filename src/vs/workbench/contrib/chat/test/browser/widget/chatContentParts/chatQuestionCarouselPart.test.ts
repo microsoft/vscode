@@ -83,13 +83,13 @@ suite('ChatQuestionCarouselPart', () => {
 		};
 		widget = store.add(instantiationService.createInstance(ChatQuestionCarouselPart, carousel, createMockContext(), options));
 		container.appendChild(widget.domNode);
+		// Tests can create several widgets, and a widget left in the page shifts the layout of later suites.
+		const domNode = widget.domNode;
+		store.add(toDisposable(() => domNode.remove()));
 		return widget;
 	}
 
 	teardown(() => {
-		if (widget?.domNode?.parentNode) {
-			widget.domNode.parentNode.removeChild(widget.domNode);
-		}
 		submittedAnswers = null;
 	});
 

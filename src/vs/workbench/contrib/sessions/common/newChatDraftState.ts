@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { parse, stringify } from '../../../../base/common/marshalling.js';
+import { generateUuid } from '../../../../base/common/uuid.js';
 import { Range } from '../../../../editor/common/core/range.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { IChatDraft } from '../../chat/common/attachments/chatDraft.js';
@@ -27,12 +28,16 @@ export function readNewChatDraftState(storageService: IStorageService): IChatDra
 	return { inputText: draft.inputText, attachments: attachments.map(IChatRequestVariableEntry.fromExport), references };
 }
 
-export function writeNewChatDraftState(storageService: IStorageService, draft: IChatDraft): void {
-	storageService.store(STORAGE_KEY_DRAFT_STATE, stringify({
+/** Saves the draft and returns a guard that stays true until another write replaces it. */
+export function writeNewChatDraftState(storageService: IStorageService, draft: IChatDraft): () => boolean {
+	const value = stringify({
+		revision: generateUuid(),
 		inputText: draft.inputText,
 		attachments: draft.attachments.map(IChatRequestVariableEntry.toExport),
 		references: draft.references,
-	}), StorageScope.WORKSPACE, StorageTarget.MACHINE);
+	});
+	storageService.store(STORAGE_KEY_DRAFT_STATE, value, StorageScope.WORKSPACE, StorageTarget.MACHINE);
+	return () => storageService.get(STORAGE_KEY_DRAFT_STATE, StorageScope.WORKSPACE) === value;
 }
 
 function isDynamicVariable(value: unknown): value is IDynamicVariable {
