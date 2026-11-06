@@ -279,7 +279,7 @@ export class ModelEvaluationTool implements IToolImpl {
 		if (input.workspaceMode !== undefined && input.workspaceMode !== 'caller' && input.workspaceMode !== 'folderless') {
 			throw new EvaluationInputError('workspaceMode must be caller or folderless.');
 		}
-		const provider = this.providers.getProvider(caller.session.providerId);
+		const provider = this.providers.getProvider(caller.session.providerId, caller.session.sessionId);
 		if (!provider || !isAgentHostProvider(provider) || provider.environment.isConnected?.get() === false
 			|| !provider.supportsPermissionsForCreation || !provider.getModelsSnapshotForCreation
 			|| provider.isDevContainerRequested?.(caller.session.sessionId)) {

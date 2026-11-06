@@ -461,7 +461,7 @@ export class SessionsTerminalContribution extends Disposable implements IWorkben
 		if (!session) {
 			return undefined;
 		}
-		const provider = this._sessionsProvidersService.getProvider(session.providerId);
+		const provider = this._sessionsProvidersService.getProvider(session.providerId, session.sessionId);
 		if (!provider || !isAgentHostProvider(provider)) {
 			return undefined;
 		}
@@ -477,7 +477,7 @@ export class SessionsTerminalContribution extends Disposable implements IWorkben
 		if (info || workspace) {
 			return info;
 		}
-		const provider = this._sessionsProvidersService.getProvider(session.providerId);
+		const provider = this._sessionsProvidersService.getProvider(session.providerId, session.sessionId);
 		if (!provider || !isAgentHostProvider(provider) || !provider.remoteAddress) {
 			return undefined;
 		}

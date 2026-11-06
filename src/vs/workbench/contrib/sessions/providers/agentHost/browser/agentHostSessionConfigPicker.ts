@@ -773,7 +773,7 @@ export class AgentHostSessionConfigPicker extends Disposable {
 			this._openedPickerSessionId = undefined;
 		}
 		this._evictDynamicValueLabelsForOtherSessions(session?.sessionId);
-		const provider = session ? this._getProvider(session.providerId) : undefined;
+		const provider = session ? this._getProvider(session.providerId, session.sessionId) : undefined;
 		const chat = this._chat.get();
 		const resolvedConfig = session && chat && provider?.getSessionConfig(session.sessionId, chat.resource);
 		if (!session || !chat || !provider || !resolvedConfig) {
@@ -1261,7 +1261,7 @@ export class AgentHostSessionConfigPicker extends Disposable {
 		if (!session || session.sessionId !== sessionId) {
 			return;
 		}
-		const provider = this._getProvider(session.providerId);
+		const provider = this._getProvider(session.providerId, session.sessionId);
 		const resolvedConfig = provider && this._getSessionConfig(provider, sessionId);
 		const isolationProperty = resolvedConfig && getSessionWorkspaceProperties(resolvedConfig.schema).isolation;
 		if (!provider || !resolvedConfig || !isolationProperty) {
@@ -1480,7 +1480,7 @@ export class AgentHostSessionConfigPicker extends Disposable {
 
 	protected _isCurrentSession(provider: IAgentHostSessionsProvider, sessionId: string): boolean {
 		const session = this._session.get();
-		return !!session && session.sessionId === sessionId && this._getProvider(session.providerId) === provider;
+		return !!session && session.sessionId === sessionId && this._getProvider(session.providerId, session.sessionId) === provider;
 	}
 
 	private async _showChanges(): Promise<void> {
@@ -1641,18 +1641,18 @@ export class AgentHostSessionConfigPicker extends Disposable {
 			&& schema.enum?.length === 2
 			&& !schema.enumDynamic
 			&& session?.sessionId === sessionId
-			&& this._getProvider(session.providerId)?.getCreateSessionConfig(sessionId) !== undefined;
+			&& this._getProvider(session.providerId, session.sessionId)?.getCreateSessionConfig(sessionId) !== undefined;
 	}
 
-	protected _getProvider(providerId: string): IAgentHostSessionsProvider | undefined {
-		const provider = this._sessionsProvidersService.getProvider(providerId);
+	protected _getProvider(providerId: string, sessionId?: string): IAgentHostSessionsProvider | undefined {
+		const provider = this._sessionsProvidersService.getProvider(providerId, sessionId);
 		return provider && isAgentHostProvider(provider) ? provider : undefined;
 	}
 
 	protected _presentationProperty(sessionId: string, property: string): string {
 		const session = this._session.get();
 		const chat = this._chat.get();
-		const config = session?.sessionId === sessionId && chat ? this._getProvider(session.providerId)?.getSessionConfig(sessionId, chat.resource) : undefined;
+		const config = session?.sessionId === sessionId && chat ? this._getProvider(session.providerId, session.sessionId)?.getSessionConfig(sessionId, chat.resource) : undefined;
 		return config ? getSessionConfigPresentationKey(property, config.schema) : property;
 	}
 }
@@ -2153,7 +2153,7 @@ export class AgentHostSessionConfigPickerContribution extends Disposable impleme
 			if (!session) {
 				continue;
 			}
-			const provider = this._sessionsProvidersService.getProvider(session.providerId);
+			const provider = this._sessionsProvidersService.getProvider(session.providerId, session.sessionId);
 			if (!provider || !isAgentHostProvider(provider)) {
 				continue;
 			}

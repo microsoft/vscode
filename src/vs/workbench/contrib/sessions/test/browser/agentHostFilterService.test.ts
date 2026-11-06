@@ -168,6 +168,19 @@ suite('AgentHostFilterService', () => {
 		});
 	});
 
+	test('includes a catalog-only provider in its declared host group without a remote backend', () => {
+		const providers = new StubSessionsProvidersService();
+		const service = createService(providers);
+		store.add(service.registerHostGroup({ id: 'cloud', label: 'Cloud', connectable: false, sessionProviderIds: ['catalog'] }));
+		const registration = store.add(providers.registerProvider(upcastPartial<ISessionsProvider>({ id: 'catalog', label: 'Cloud', order: 0 })));
+		const registered = service.hosts.find(host => host.id === 'cloud')?.providerIds;
+		registration.dispose();
+		assert.deepStrictEqual({
+			registered,
+			removed: service.hosts.find(host => host.id === 'cloud')?.providerIds,
+		}, { registered: ['catalog'], removed: [] });
+	});
+
 	test('defaults based on platform when none persisted', () => {
 		const providers = new StubSessionsProvidersService();
 		store.add(providers.registerProvider(new StubRemoteProvider('localhost:9999', 'Host B') as unknown as ISessionsProvider));

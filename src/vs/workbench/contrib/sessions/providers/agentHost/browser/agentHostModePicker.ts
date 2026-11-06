@@ -200,7 +200,7 @@ export abstract class AgentHostSessionEnumPicker extends Disposable {
 		if (!session || !chat) {
 			return false;
 		}
-		const provider = this._sessionsProvidersService.getProvider(session.providerId);
+		const provider = this._sessionsProvidersService.getProvider(session.providerId, session.sessionId);
 		const configProvider = provider && getSessionConfigProvider(provider);
 		if (!configProvider) {
 			return false;
@@ -218,7 +218,7 @@ export abstract class AgentHostSessionEnumPicker extends Disposable {
 		if (!session || !chat) {
 			return undefined;
 		}
-		const provider = this._sessionsProvidersService.getProvider(session.providerId);
+		const provider = this._sessionsProvidersService.getProvider(session.providerId, session.sessionId);
 		const rawProvider = provider && getSessionConfigProvider(provider);
 		if (!rawProvider) {
 			return undefined;

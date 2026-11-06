@@ -195,7 +195,7 @@ export class SessionModelSelection extends Disposable implements ISessionModelSe
 	selectModel(modelIdentifier: string, isUserAction = true): boolean {
 		const session = this._source.session.get();
 		const chat = this._source.chat.get();
-		const provider = session ? this._sessionsProvidersService.getProvider(session.providerId) : undefined;
+		const provider = session ? this._sessionsProvidersService.getProvider(session.providerId, session.sessionId) : undefined;
 		if (!session || !chat || !provider) {
 			this._diagnostics.report('selection-rejected', {
 				requestedModel: modelIdentifier,
@@ -351,7 +351,7 @@ export class SessionModelSelection extends Disposable implements ISessionModelSe
 	}
 
 	private _refresh(trigger: ModelSelectionRefreshTrigger, session: ISession | undefined = this._source.session.get(), chat: IChat | undefined = this._source.chat.get()): void {
-		const provider = session ? this._sessionsProvidersService.getProvider(session.providerId) : undefined;
+		const provider = session ? this._sessionsProvidersService.getProvider(session.providerId, session.sessionId) : undefined;
 		this._setProvider(provider);
 		this._activeSession = session;
 		this._activeChat = chat;

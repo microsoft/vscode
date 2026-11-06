@@ -35,7 +35,7 @@ export interface ISessionsProvidersService {
 	 */
 	getProviders(options?: { readonly includeSessionBackends?: boolean }): ISessionsProvider[];
 	/** Resolves both logical provider IDs and existing sessions' backend routing IDs. */
-	getProvider<T extends ISessionsProvider>(providerId: string): T | undefined;
+	getProvider<T extends ISessionsProvider>(providerId: string, sessionId?: string): T | undefined;
 }
 
 export function observeSessionSandboxToggle(session: IObservable<ISession | undefined>, chat: IObservable<URI | undefined>, providers: ISessionsProvidersService): IObservable<boolean> {
@@ -47,7 +47,7 @@ export function observeSessionSandboxToggle(session: IObservable<ISession | unde
 			return undefined;
 		}
 		providersChanged.read(reader);
-		return providers.getProvider(current.providerId)?.getSandboxToggleChecked?.(current, resource);
+		return providers.getProvider(current.providerId, current.sessionId)?.getSandboxToggleChecked?.(current, resource);
 	});
 	return derived(reader => checked.read(reader)?.read(reader) === true);
 }
@@ -152,9 +152,10 @@ export class SessionsProvidersService extends Disposable implements ISessionsPro
 		return providers.sort((a, b) => a.order - b.order);
 	}
 
-	getProvider<T extends ISessionsProvider>(providerId: string): T | undefined {
+	getProvider<T extends ISessionsProvider>(providerId: string, sessionId?: string): T | undefined {
 		const entry = this._sessionBackends.get(providerId);
-		return (this._providers.get(providerId)
-			?? (entry && this._providers.has(entry.ownerProviderId) ? entry.backend : undefined)) as T | undefined;
+		const provider = this._providers.get(providerId)
+			?? (entry && this._providers.has(entry.ownerProviderId) ? entry.backend : undefined);
+		return (sessionId ? provider?.getSessionProvider?.(sessionId) ?? provider : provider) as T | undefined;
 	}
 }
