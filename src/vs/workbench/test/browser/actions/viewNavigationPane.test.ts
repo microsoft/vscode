@@ -106,6 +106,54 @@ suite('Workbench view navigation: rendered pane', () => {
 		}
 	});
 
+
+	test('only connected and tabbable collapsed headers can be navigation targets', async () => {
+		const pane = disposables.add(new NavigationTestPane());
+		const host = document.createElement('div');
+		host.appendChild(pane.element);
+		const header = pane.draggableElement;
+		assert.ok(header);
+		const container = { id: 'explorer' } as ViewContainer;
+		const opened: string[] = [];
+		const views = {
+			getFocusedView: () => ({ id: 'a' }) as IViewDescriptor,
+			getVisibleViewContainer: (location: ViewContainerLocation) =>
+				location === ViewContainerLocation.Sidebar ? container : null,
+			getActiveViewWithId: (id: string) => id === 'b' ? pane : null,
+			openView: async (id: string) => { opened.push(id); return null; }
+		} as unknown as IViewsService;
+		const descriptors = {
+			getViewContainerByViewId: (id: string) => ['a', 'b', 'c'].includes(id) ? container : null,
+			getViewContainerModel: () => ({
+				visibleViewDescriptors: [{ id: 'a' }, { id: 'b' }, { id: 'c' }],
+				isCollapsed: (id: string) => id === 'b'
+			}) as unknown as IViewContainerModel
+		} as unknown as IViewDescriptorService;
+		const layout = { isVisible: (part: Parts) => part === Parts.SIDEBAR_PART } as IWorkbenchLayoutService;
+		const navigate = () => focusNavigableView(views, descriptors, layout, { direction: 'next', scope: 'container' });
+
+		try {
+			assert.strictEqual(header.isConnected, false);
+			await navigate();
+			assert.deepStrictEqual(opened, ['c'], 'detached header must be skipped');
+
+			document.body.appendChild(host);
+			pane.collapsible = false;
+			assert.strictEqual(header.tabIndex, -1);
+			await navigate();
+			assert.deepStrictEqual(opened, ['c', 'c'], 'non-tabbable header must be skipped');
+
+			pane.collapsible = true;
+			assert.strictEqual(header.tabIndex, 0);
+			await navigate();
+			assert.deepStrictEqual(opened, ['c', 'c'], 'focus must not call openView on a collapsed pane');
+			assert.strictEqual(document.activeElement, header);
+			assert.strictEqual(pane.isExpanded(), false);
+		} finally {
+			host.remove();
+		}
+	});
+
 	test('a rendered header is keyboard-focusable and retains its collapsed state', () => {
 		const pane = disposables.add(new NavigationTestPane());
 		const host = document.createElement('div');
