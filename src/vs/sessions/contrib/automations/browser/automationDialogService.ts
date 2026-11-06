@@ -337,7 +337,7 @@ export class AutomationDialogService implements IAutomationDialogService {
 			progressBar?.infinite().show();
 			if (saveButton) {
 				saveButton.enabled = false;
-				saveButton.label = manual ? savingButtonLabel : localize('automation.dialog.startingSession', "Starting session…");
+				saveButton.label = savingButtonLabel;
 			}
 			if (createWithAgentButton) {
 				createWithAgentButton.enabled = false;
@@ -452,7 +452,7 @@ export class AutomationDialogService implements IAutomationDialogService {
 					progressBar?.stop().hide();
 					setSaving(false);
 					if (saveButton) {
-						saveButton.label = manual ? saveButtonLabel : localize('automation.dialog.startSession', "Start session");
+						saveButton.label = saveButtonLabel;
 					}
 					if (createWithAgentButton) {
 						createWithAgentButton.enabled = true;
@@ -545,7 +545,7 @@ export class AutomationDialogService implements IAutomationDialogService {
 							createWithAgentButton.element.classList.toggle('automation-dialog-create-manually', !manual);
 						}
 						if (saveButton) {
-							saveButton.label = manual ? saveButtonLabel : localize('automation.dialog.startSession', "Start session");
+							DOM.setVisibility(manual, saveButton.element);
 						}
 						updateNotificationCenter();
 						revalidate();
@@ -570,7 +570,7 @@ export class AutomationDialogService implements IAutomationDialogService {
 						description.hidden = manualMode.read(reader);
 					}));
 					const form = DOM.append(formPane, $('.automation-form'));
-					const handle = renderForm(form, state, disposables, validation, () => revalidate(), this.instantiationService, this.contextKeyService, this.contextViewService, this.configurationService, this.layoutService, this.logService, this.sessionsManagementService, this.workspaceTrustRequestService, initial?.prompt ?? '', initialTarget, initialSessionConfiguration, allowedProviders, providerId => this.automationService.getProviderConfiguration?.(providerId), isEdit, { service: this.automationService, hoverService: this.hoverService, existingId: existing?.id }, error => setDialogMessage('operationError', { severity: 'error', text: getErrorMessage(error) }), this.quickInputService, setRepositoryWarningVisible, setDialogMessage, () => notificationCenter?.focus(), this.chatViewFactory.inputEditorOptions, manualMode);
+					const handle = renderForm(form, state, disposables, validation, () => revalidate(), this.instantiationService, this.contextKeyService, this.contextViewService, this.configurationService, this.layoutService, this.logService, this.sessionsManagementService, this.workspaceTrustRequestService, initial?.prompt ?? '', initialTarget, initialSessionConfiguration, allowedProviders, providerId => this.automationService.getProviderConfiguration?.(providerId), isEdit, { service: this.automationService, hoverService: this.hoverService, existingId: existing?.id }, error => setDialogMessage('operationError', { severity: 'error', text: getErrorMessage(error) }), this.quickInputService, setRepositoryWarningVisible, setDialogMessage, () => notificationCenter?.focus(), this.chatViewFactory.inputEditorOptions, manualMode, save);
 					getPrompt = handle.getPrompt;
 					getSessionConfiguration = handle.getSessionConfiguration;
 					getBranch = handle.getBranch;
@@ -617,10 +617,8 @@ export class AutomationDialogService implements IAutomationDialogService {
 						const providerAvailable = state.providerId !== undefined && allowedProviders.get().includes(state.providerId);
 						const targetState = manual ? state : { ...state, isQuickChat: true, folderUri: undefined, isolationMode: undefined, branch: undefined };
 						updateSaveButtonState(saveButton, targetState, validation, form, getPrompt, getBranch, this.sessionsManagementService, providerAvailable, existing?.target.providerId, isEdit);
-						if (!manual && saveButton) {
-							saveButton.enabled = !!getPrompt().trim() && !validation.folderError && !validation.sessionTypeError && !validation.branchError && !state.targetPending
-								&& !this.configurationService.getValue<boolean>('chat.disableAIFeatures');
-						}
+						handle.setCanSubmit(!manual && !!getPrompt().trim() && !validation.folderError && !validation.sessionTypeError && !validation.branchError && !state.targetPending
+							&& !this.configurationService.getValue<boolean>('chat.disableAIFeatures'));
 						handle.showTargetValidationError(validation.sessionTypeError);
 						handle.showScheduleValidationError(manual ? validation.scheduleError : undefined);
 						const blocked = manual ? handle.getSaveBlockedReason(validation.sessionTypeError, validation.scheduleError) : undefined;

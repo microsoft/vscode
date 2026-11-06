@@ -39,7 +39,7 @@ import { ICommandService } from '../../../../../platform/commands/common/command
 import { ContextKeyService } from '../../../../../platform/contextkey/browser/contextKeyService.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
-import { IContext } from '../../../../../platform/contextkey/common/contextkey.js';
+import { IContext, IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { ContextViewHandler } from '../../../../../platform/contextview/browser/contextViewService.js';
 import { IContextViewService } from '../../../../../platform/contextview/browser/contextView.js';
 import { IKeybindingService } from '../../../../../platform/keybinding/common/keybinding.js';
@@ -61,6 +61,8 @@ import { IPromptsService, PromptsStorage } from '../../../../../workbench/contri
 import { PromptFileVariableKind, toPromptFileVariableEntry } from '../../../../../workbench/contrib/chat/common/attachments/chatVariableEntries.js';
 import { ChatEntitlement, IChatEntitlementService } from '../../../../../workbench/services/chat/common/chatEntitlementService.js';
 import { ChatInputPart, IChatInputPartOptions } from '../../../../../workbench/contrib/chat/browser/widget/input/chatInputPart.js';
+import { ChatSubmitAction, IChatExecuteActionContext } from '../../../../../workbench/contrib/chat/browser/actions/chatExecuteActions.js';
+import { IChatWidgetService } from '../../../../../workbench/contrib/chat/browser/chat.js';
 import { IAutomationDescriptor, IAutomationSessionTemplate } from '../../../../../workbench/contrib/chat/common/automations/automation.js';
 import { CHAT_CLOUD_AUTOMATIONS_ENABLED_SETTING } from '../../../../../workbench/contrib/chat/common/automations/automationsEnabled.js';
 import { automationScheduleToLocal, automationScheduleToUTC } from '../../../../../workbench/contrib/chat/common/automations/schedule.js';
@@ -125,7 +127,14 @@ suite('Automation dialog creation', () => {
 			contextKeyService: () => contextKeyService,
 		}, disposables);
 		const { sessionHostService } = stubSessionHosts(instantiationService, disposables);
-		instantiationService.stub(ICommandService, new class extends mock<ICommandService>() { });
+		instantiationService.stub(IChatWidgetService, upcastPartial<IChatWidgetService>({}));
+		instantiationService.stub(ICommandService, new class extends mock<ICommandService>() {
+			override async executeCommand<R>(commandId: string, context?: IChatExecuteActionContext): Promise<R | undefined> {
+				assert.strictEqual(commandId, ChatSubmitAction.ID);
+				await instantiationService.invokeFunction(accessor => new ChatSubmitAction().run(accessor, context));
+				return undefined;
+			}
+		});
 		instantiationService.stub(IChatViewFactory, { inputEditorOptions });
 		const requests: { folder: URI | undefined; options: NewSessionRequestOptions; createOptions: ICreateNewSessionOptions | undefined }[] = [];
 		const opened: { resource: URI; dialogOpen: boolean; inputDisposed: boolean }[] = [];
@@ -254,10 +263,25 @@ suite('Automation dialog creation', () => {
 		const promptChanged = disposables.add(new Emitter<void>());
 		const promptInput = document.createElement('textarea');
 		const inputToolbarElement = DOM.$('div');
+		const inputDisposables = disposables.add(new DisposableStore());
+		const inputCreations: sinon.SinonSpy[] = [];
+		let inputServices: TestInstantiationService | undefined;
 		instantiationService.stubInstance(ChatInputPart, {
-			render: (container, value) => {
+			render: (container, value, widget) => {
 				promptInput.value = value ?? '';
 				container.append(promptInput, inputToolbarElement);
+				assert.ok(inputServices);
+				const inputOptions = inputCreations.flatMap(spy => spy.getCalls())
+					.find(call => call.args[0] === ChatInputPart)!.args[2] as IChatInputPartOptions;
+				const toolbarHost = DOM.append(container, DOM.$('.chat-execute-toolbar'));
+				const toolbar = inputDisposables.add(inputServices.createInstance(MenuWorkbenchToolBar, toolbarHost, inputOptions.menus.executeToolbar, { menuOptions: { shouldForwardArgs: true } }));
+				toolbar.context = { widget } satisfies IChatExecuteActionContext;
+				const sendableContent = ChatContextKeys.inputHasSendableContent.bindTo(inputServices.get(IContextKeyService));
+				inputDisposables.add(autorun(reader => {
+					const canSubmit = inputOptions.hostSubmit?.canSubmit.read(reader);
+					sendableContent.set(!!canSubmit && !!promptInput.value.trim());
+					toolbar.refresh();
+				}));
 			},
 			inputToolbarElement,
 			setInputToolbarAriaLabel: () => { },
@@ -273,11 +297,11 @@ suite('Automation dialog creation', () => {
 			}),
 			layout: () => { },
 			focus: () => promptInput.focus(),
-			dispose: () => { inputDisposed = true; },
+			dispose: () => { inputDisposed = true; inputDisposables.dispose(); },
 		});
-		const inputCreations: sinon.SinonSpy[] = [];
 		const createChild = sinon.stub(instantiationService, 'createChild').callsFake(services => {
 			const child = new TestInstantiationService(services, false, instantiationService);
+			inputServices = child;
 			const createInstance = sinon.spy(child, 'createInstance');
 			disposables.add(toDisposable(() => createInstance.restore()));
 			inputCreations.push(createInstance);
@@ -291,12 +315,18 @@ suite('Automation dialog creation', () => {
 			container.querySelector<HTMLElement>('.automation-dialog-create-manually')?.click();
 		}
 		const buttons = Array.from(container.querySelectorAll<HTMLElement>('.automation-dialog-footer-actions .monaco-button'));
-		const saveButton = buttons.find(button => ['Save', 'Create', 'Start session'].includes(button.textContent ?? ''))!;
+		const saveButton = buttons.find(button => ['Save', 'Create'].includes(button.textContent ?? ''))!;
 		const cancelButton = buttons.find(button => button.textContent === 'Cancel')!;
 		disposables.add(toDisposable(() => cancelButton.click()));
 		const nameInput = container.querySelector<HTMLInputElement>('.automation-form-input-host input')!;
 		return {
 			result, saveButton, cancelButton, nameInput, container, providers, actionWidgetService, sessionHostService, requests, opened, session, skill, disabledSkills,
+			get sendButton() {
+				const button = container.querySelector<HTMLElement>('.chat-execute-toolbar .action-label');
+				assert.ok(button);
+				return button;
+			},
+			pressPromptKey: (options: KeyboardEventInit = {}) => promptInput.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', keyCode: 13, bubbles: true, cancelable: true, ...options })),
 			getInputEditorOptions: () => inputCreations.flatMap(spy => spy.getCalls())
 				.filter(call => call.args[0] === ChatInputPart)
 				.map(call => (call.args[2] as IChatInputPartOptions).inputEditorOptions),
@@ -363,16 +393,17 @@ suite('Automation dialog creation', () => {
 		const before = {
 			guided: dialog.container.querySelector('.automation-form')?.classList.contains('agent-first'),
 			focused: dialog.isPromptFocused(),
-			disabled: dialog.saveButton.getAttribute('aria-disabled'),
+			footerPrimaryVisible: dialog.saveButton.checkVisibility(),
+			disabled: dialog.sendButton.getAttribute('aria-disabled'),
 		};
-		dialog.saveButton.click();
+		dialog.sendButton.click();
 		dialog.setPrompt('   ');
-		const whitespaceDisabled = dialog.saveButton.getAttribute('aria-disabled');
-		dialog.saveButton.click();
+		const whitespaceDisabled = dialog.sendButton.getAttribute('aria-disabled');
+		dialog.sendButton.click();
 		dialog.cancelButton.click();
 		await dialog.result;
 		assert.deepStrictEqual({ before, whitespaceDisabled, requests: dialog.requests }, {
-			before: { guided: true, focused: true, disabled: 'true' },
+			before: { guided: true, focused: true, footerPrimaryVisible: false, disabled: 'true' },
 			whitespaceDisabled: 'true', requests: [],
 		});
 	});
@@ -386,6 +417,7 @@ suite('Automation dialog creation', () => {
 		dialog.setPrompt('Review pending pull requests');
 		dialog.container.querySelector<HTMLElement>('.automation-dialog-create-manually')!.click();
 		const manualNameFocused = DOM.isActiveElement(dialog.nameInput);
+		const manualButtons = { create: dialog.saveButton.checkVisibility(), send: !!dialog.container.querySelector('.chat-execute-toolbar .action-label') };
 		dialog.setName('Morning review');
 		await dialog.selectWorkspace(FOLDER);
 		const trigger = dialog.container.querySelector<HTMLSelectElement>('select[aria-label="Trigger"]')!;
@@ -397,13 +429,13 @@ suite('Automation dialog creation', () => {
 		dialog.saveButton.click();
 		const result = await dialog.result;
 		assert.deepStrictEqual({
-			manualNameFocused, promptFocused, requests: dialog.requests,
+			manualNameFocused, manualButtons, promptFocused, requests: dialog.requests,
 			draft: result?.kind === 'create' ? {
 				name: result.value.name, prompt: result.value.prompt, interval: result.value.schedule.interval,
 				target: result.value.target, sessionTemplate: result.value.sessionTemplate,
 			} : undefined,
 		}, {
-			manualNameFocused: true, promptFocused: true, requests: [],
+			manualNameFocused: true, manualButtons: { create: true, send: false }, promptFocused: true, requests: [],
 			draft: {
 				name: 'Morning review', prompt: 'Review pending pull requests', interval: 'manual',
 				target: { kind: 'workspace', folderUri: FOLDER, providerId: 'host', sessionTypeId: 'copilotcli', isolation: { kind: 'folder' } },
@@ -413,11 +445,20 @@ suite('Automation dialog creation', () => {
 	});
 
 	for (const prompt of ['Review pending pull requests each morning.', '/automate Review pending pull requests each morning.']) {
-		test(`Start session sends through the selected harness and opens after disposing the dialog: ${prompt}`, async () => {
+		test(`Send uses the selected harness and opens after disposing the dialog: ${prompt}`, async () => {
 			let commits = 0;
 			const dialog = openDialog({ agentFirst: true, commit: async () => { commits++; } });
 			dialog.setPrompt(prompt);
-			dialog.saveButton.click();
+			assert.notStrictEqual(dialog.sendButton.getAttribute('aria-disabled'), 'true');
+			if (prompt.startsWith('/automate')) {
+				dialog.pressPromptKey({ shiftKey: true });
+				dialog.pressPromptKey({ isComposing: true });
+				assert.strictEqual(dialog.requests.length, 0);
+				dialog.pressPromptKey();
+			} else {
+				dialog.sendButton.click();
+				dialog.sendButton.click();
+			}
 			assert.deepStrictEqual({ result: await dialog.result, requests: dialog.requests, opened: dialog.opened, commits }, {
 				result: undefined,
 				requests: [{
@@ -431,7 +472,7 @@ suite('Automation dialog creation', () => {
 		});
 	}
 
-	test('Start session passes conservative overrides and selected configuration to Chat despite a retained manual workspace', async () => {
+	test('Send passes conservative overrides and selected configuration to Chat despite a retained manual workspace', async () => {
 		const configuration: IAutomationSessionConfiguration = {
 			sessionTemplate: { modelId: 'selected-model', config: { mode: 'autopilot', autoApprove: 'autoApprove' } },
 			mode: 'autopilot', permissionLevel: 'autoApprove',
@@ -443,7 +484,7 @@ suite('Automation dialog creation', () => {
 		dialog.setPrompt('Plan a manual hello world');
 		await dialog.selectWorkspace(FOLDER);
 		dialog.container.querySelector<HTMLElement>('.automation-dialog-create-with-agent')!.click();
-		dialog.saveButton.click();
+		dialog.sendButton.click();
 		await dialog.result;
 		assert.deepStrictEqual(dialog.requests.map(request => ({
 			folder: request.folder,
@@ -482,7 +523,7 @@ suite('Automation dialog creation', () => {
 		const dialog = openDialog({ agentFirst: true });
 		dialog.setConservativePermissionsAvailable(false);
 		dialog.setPrompt('Plan a manual hello world');
-		dialog.saveButton.click();
+		dialog.sendButton.click();
 		await timeout(0);
 		const state = {
 			requests: [...dialog.requests], opened: [...dialog.opened],
@@ -500,7 +541,7 @@ suite('Automation dialog creation', () => {
 		const dialog = openDialog({ agentFirst: true });
 		dialog.disabledSkills.add(dialog.skill);
 		dialog.setPrompt('Plan a manual hello world');
-		dialog.saveButton.click();
+		dialog.sendButton.click();
 		await timeout(0);
 		const state = {
 			requests: [...dialog.requests], opened: [...dialog.opened],
@@ -515,13 +556,13 @@ suite('Automation dialog creation', () => {
 		});
 	});
 
-	test('an unavailable selected provider disables Start session rather than falling back', async () => {
+	test('an unavailable selected provider disables Send rather than falling back', async () => {
 		const dialog = openDialog({ agentFirst: true });
 		dialog.setPrompt('Plan a manual hello world');
 		dialog.providers.set([], undefined);
 		await timeout(0);
-		dialog.saveButton.click();
-		const disabled = dialog.saveButton.getAttribute('aria-disabled');
+		dialog.sendButton.click();
+		const disabled = dialog.sendButton.getAttribute('aria-disabled');
 		dialog.cancelButton.click();
 		await dialog.result;
 		assert.deepStrictEqual({ disabled, requests: dialog.requests }, { disabled: 'true', requests: [] });
@@ -536,7 +577,7 @@ suite('Automation dialog creation', () => {
 		});
 		const template = { guided: dialog.container.querySelector('.automation-form')!.classList.contains('agent-first'), nameFocused: DOM.isActiveElement(dialog.nameInput) };
 		dialog.container.querySelector<HTMLElement>('.automation-dialog-create-with-agent')!.click();
-		dialog.saveButton.click();
+		dialog.sendButton.click();
 		await dialog.result;
 		const edit = openDialog({ agentFirst: true, existing: eventAutomation({ issues: { types: ['opened'] } }) }, eventConfiguration());
 		const editing = {
@@ -551,20 +592,20 @@ suite('Automation dialog creation', () => {
 		});
 	});
 
-	test('a failed Start session keeps the selected draft open and allows retry', async () => {
+	test('a failed Send keeps the selected draft open and allows retry', async () => {
 		const dialog = openDialog({ agentFirst: true });
 		dialog.setPrompt('Review changes');
 		dialog.setSendError(new Error('The selected harness is unavailable.'));
-		dialog.saveButton.click();
+		dialog.sendButton.click();
 		await timeout(0);
 		const failure = {
 			open: dialog.container.classList.contains('automation-dialog-open'),
 			message: dialog.container.querySelector('.automation-dialog-notification-text')?.textContent,
-			canRetry: dialog.saveButton.getAttribute('aria-disabled') === 'false',
+			canRetry: dialog.sendButton.getAttribute('aria-disabled') !== 'true',
 			opened: [...dialog.opened],
 		};
 		dialog.setSendError(undefined);
-		dialog.saveButton.click();
+		dialog.sendButton.click();
 		await dialog.result;
 		assert.deepStrictEqual({ failure, queries: dialog.requests.map(({ options }) => hasKey(options, { query: true }) ? options.query : options.kind), opened: dialog.opened }, {
 			failure: { open: true, message: 'The selected harness is unavailable.', canRetry: true, opened: [] },
@@ -573,9 +614,10 @@ suite('Automation dialog creation', () => {
 		});
 	});
 
-	test('disabling AI prevents a stale Start session action', async () => {
+	test('disabling AI prevents a stale Send action', async () => {
 		const dialog = openDialog({ agentFirst: true });
 		dialog.setPrompt('Review changes');
+		const send = dialog.sendButton;
 		await dialog.configurationService.setUserConfiguration('chat.disableAIFeatures', true);
 		dialog.configurationService.onDidChangeConfigurationEmitter.fire({
 			source: ConfigurationTarget.USER,
@@ -583,8 +625,8 @@ suite('Automation dialog creation', () => {
 			change: { keys: ['chat.disableAIFeatures'], overrides: [] },
 			affectsConfiguration: key => key === 'chat.disableAIFeatures',
 		});
-		dialog.saveButton.click();
-		const disabled = dialog.saveButton.getAttribute('aria-disabled');
+		send.click();
+		const disabled = dialog.sendButton.getAttribute('aria-disabled');
 		dialog.cancelButton.click();
 		await dialog.result;
 		assert.deepStrictEqual({ disabled, requests: dialog.requests }, { disabled: 'true', requests: [] });
@@ -598,7 +640,7 @@ suite('Automation dialog creation', () => {
 			getAutomationSessionConfiguration: () => { void started.complete(); return capture.p; },
 		});
 		dialog.setPrompt('Review changes');
-		dialog.saveButton.click();
+		dialog.sendButton.click();
 		await started.p;
 		dialog.cancelButton.click();
 		const result = await dialog.result;
