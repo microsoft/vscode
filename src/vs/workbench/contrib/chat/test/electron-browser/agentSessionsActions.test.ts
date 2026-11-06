@@ -251,8 +251,8 @@ suite('OpenWorkspaceInAgentsWindowAction', () => {
 suite('OpenChatSessionInAgentsWindowAction', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
-	test('identifies the machine of a remote window\'s own agent host sessions by the window\'s folder', async () => {
-		const calls: { folder: string | undefined; reveal: string | undefined }[] = [];
+	test('names the remote machine of a remote window\'s own agent host sessions and passes its folder for a fallback', async () => {
+		const calls: { folder: string | undefined; reveal: string | undefined; revealRemoteAuthority: string | undefined }[] = [];
 		const run = async (remoteAuthority: string | undefined, folders: URI[], session: string) => {
 			const instantiationService = disposables.add(new TestInstantiationService());
 			instantiationService.stub(IConfigurationService, new TestConfigurationService());
@@ -262,7 +262,7 @@ suite('OpenChatSessionInAgentsWindowAction', () => {
 				getWorkspace: () => ({ id: 'workspace', folders: folders.map((uri, index) => new WorkspaceFolder({ uri, name: uri.path, index })) }),
 			}));
 			instantiationService.stub(INativeHostService, upcastPartial<INativeHostService>({
-				openAgentsWindow: async options => { calls.push({ folder: URI.revive(options?.folderUri)?.toString(), reveal: options?.reveal === 'new' ? 'new' : URI.revive(options?.reveal)?.toString() }); },
+				openAgentsWindow: async options => { calls.push({ folder: URI.revive(options?.folderUri)?.toString(), reveal: options?.reveal === 'new' ? 'new' : URI.revive(options?.reveal)?.toString(), revealRemoteAuthority: options?.revealRemoteAuthority }); },
 			}));
 			await instantiationService.invokeFunction(accessor => new OpenChatSessionInAgentsWindowAction().run(accessor, URI.parse(session)));
 		};
@@ -272,10 +272,10 @@ suite('OpenChatSessionInAgentsWindowAction', () => {
 		await run('tunnel+box', [remoteFolder], 'copilotcli:/session');
 		await run(undefined, [URI.file('/project')], 'agent-host-copilotcli:/session');
 		assert.deepStrictEqual(calls, [
-			{ folder: remoteFolder.toString(), reveal: 'agent-host-copilotcli:/session' },
-			{ folder: URI.from({ scheme: Schemas.vscodeRemote, authority: 'tunnel+box', path: '/' }).toString(), reveal: 'agent-host-copilotcli:/session' },
-			{ folder: undefined, reveal: 'copilotcli:/session' },
-			{ folder: undefined, reveal: 'agent-host-copilotcli:/session' },
+			{ folder: remoteFolder.toString(), reveal: 'agent-host-copilotcli:/session', revealRemoteAuthority: 'tunnel+box' },
+			{ folder: undefined, reveal: 'agent-host-copilotcli:/session', revealRemoteAuthority: 'tunnel+box' },
+			{ folder: undefined, reveal: 'copilotcli:/session', revealRemoteAuthority: undefined },
+			{ folder: undefined, reveal: 'agent-host-copilotcli:/session', revealRemoteAuthority: undefined },
 		]);
 	});
 });

@@ -42,6 +42,7 @@ import {
 	type ITunnelDiscoveryOptions,
 	type ITunnelVisibility,
 	type TunnelAutoConnectMode,
+	type TunnelGatewayServerType,
 } from '../../../../../../platform/agentHost/common/tunnelAgentHost.js';
 import { AhpJsonlLogger } from '../../../../../../platform/agentHost/common/ahpJsonlLogger.js';
 import { AgentHostClientConnectionKind } from '../../../../../../platform/agentHost/common/agentHostTelemetry.js';
@@ -176,6 +177,9 @@ export class TunnelAgentHostService extends Disposable implements ITunnelAgentHo
 	/** See {@link TunnelFailoverTracker}. */
 	private readonly _failoverTracker = new TunnelFailoverTracker();
 
+	/** The server type of each tunnel's latest gateway selection, including relay reconnects. */
+	private readonly _selectedServerTypes = new Map<string, TunnelGatewayServerType | 'unknown'>();
+
 	constructor(
 		@ISharedProcessService sharedProcessService: ISharedProcessService,
 		@IRemoteAgentHostService private readonly _remoteAgentHostService: IRemoteAgentHostService,
@@ -306,6 +310,7 @@ export class TunnelAgentHostService extends Disposable implements ITunnelAgentHo
 			}
 			throw err;
 		}
+		this._selectedServerTypes.set(result.address, result.selected.serverType);
 
 		try {
 			const ahpLoggingEnabled = !!this._configurationService.getValue<boolean>(AgentHostAhpJsonlLoggingSettingId);
@@ -385,6 +390,7 @@ export class TunnelAgentHostService extends Disposable implements ITunnelAgentHo
 			} else {
 				result = await this._mainService.connect(auth.token, auth.provider, tunnel.tunnelId, tunnel.clusterId);
 			}
+			this._selectedServerTypes.set(result.address, result.selected.serverType);
 
 			const connectionId = result.connectionId;
 			return {
@@ -502,6 +508,10 @@ export class TunnelAgentHostService extends Disposable implements ITunnelAgentHo
 	async disconnect(address: string): Promise<void> {
 		this._connectionFactory.unstageTunnel(address);
 		await this._remoteAgentHostService.removeRemoteAgentHost(address);
+	}
+
+	getSelectedServerType(address: string): TunnelGatewayServerType | 'unknown' | undefined {
+		return this._selectedServerTypes.get(address);
 	}
 
 	/**

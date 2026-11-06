@@ -249,7 +249,13 @@ export class RemoteWorkspaceHandoffService extends Disposable implements IRemote
 			return { unavailableReason: localize('remoteWorkspaceHandoff.addFailed', "'{0}' could not be added as a remote agent host: {1}", machine ? getMachineLabel(machine) : remoteAuthority, toErrorMessage(error)) };
 		}
 		const address = getEntryAddress(entry);
-		return { connectionAuthority: agentHostAuthority(address), connected: this._connect(address, machine) };
+		const isTunnel = entry.connection.type === RemoteAgentHostEntryType.Tunnel;
+		return {
+			connectionAuthority: agentHostAuthority(address),
+			connected: this._connect(address, machine),
+			// A tunnel's editor windows reach its standalone agent host, which its gateway may not have selected.
+			sharesEditorWindowAgentHost: () => isTunnel && this._tunnelService.getSelectedServerType(address) !== 'editor',
+		};
 	}
 
 	private async _getDefaultDistro(): Promise<RemoteMachine | undefined> {

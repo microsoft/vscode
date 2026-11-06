@@ -14,6 +14,7 @@ import { localize2 } from '../../../nls.js';
 import { Action2 } from '../../../platform/actions/common/actions.js';
 import { IRemoteAgentHostService } from '../../../platform/agentHost/common/remoteAgentHostService.js';
 import { IAgentHostConnectionsService } from '../../../platform/agentHost/common/agentHostConnectionsService.js';
+import { ITunnelAgentHostService } from '../../../platform/agentHost/common/tunnelAgentHost.js';
 import { INotificationService } from '../../../platform/notification/common/notification.js';
 import { KeyCode, KeyMod } from '../../../base/common/keyCodes.js';
 import { ContextKeyExpr } from '../../../platform/contextkey/common/contextkey.js';
@@ -75,6 +76,7 @@ export async function openSessionInVSCode(accessor: ServicesAccessor, session: I
 	const sessionsProvidersService = accessor.get(ISessionsProvidersService);
 	const remoteAgentHostService = accessor.get(IRemoteAgentHostService);
 	const agentHostConnectionsService = accessor.get(IAgentHostConnectionsService);
+	const tunnelAgentHostService = accessor.get(ITunnelAgentHostService);
 	const notificationService = accessor.get(INotificationService);
 	const labelService = accessor.get(ILabelService);
 
@@ -96,11 +98,11 @@ export async function openSessionInVSCode(accessor: ServicesAccessor, session: I
 	}
 
 	const chatSessionToOpen = getChatSessionToOpenInEditor(session, chat);
-	const editorChatSession = chatSessionToOpen && getEditorWindowSessionResource(chatSessionToOpen, session.providerId, sessionsProvidersService, remoteAgentHostService, agentHostConnectionsService);
-	if (chatSessionToOpen && !editorChatSession) {
-		notifyEditorWindowSessionUnsupported(notificationService);
+	const editorChatSession = chatSessionToOpen && getEditorWindowSessionResource(chatSessionToOpen, session.providerId, sessionsProvidersService, remoteAgentHostService, agentHostConnectionsService, tunnelAgentHostService);
+	if (typeof editorChatSession === 'string') {
+		notifyEditorWindowSessionUnsupported(notificationService, editorChatSession);
 	}
-	return nativeHostService.openWindow(foldersToOpen, { forceNewWindow: true, chatSessionToOpen: editorChatSession });
+	return nativeHostService.openWindow(foldersToOpen, { forceNewWindow: true, chatSessionToOpen: URI.isUri(editorChatSession) ? editorChatSession : undefined });
 }
 
 /**

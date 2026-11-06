@@ -28,6 +28,7 @@ import { TestInstantiationService } from '../../../platform/instantiation/test/c
 import { IAgentHostConnectionsService } from '../../../platform/agentHost/common/agentHostConnectionsService.js';
 import { remoteAgentHostSessionTypeId } from '../../../platform/agentHost/common/agentHostSessionType.js';
 import { INotificationService } from '../../../platform/notification/common/notification.js';
+import { ITunnelAgentHostService, TunnelGatewayServerType } from '../../../platform/agentHost/common/tunnelAgentHost.js';
 
 suite('VS Code Actions', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
@@ -43,6 +44,7 @@ suite('VS Code Actions', () => {
 		instantiationService.stub(ISessionsProvidersService, new class extends mock<ISessionsProvidersService>() { }());
 		instantiationService.stub(IRemoteAgentHostService, new class extends mock<IRemoteAgentHostService>() { }());
 		instantiationService.stub(IAgentHostConnectionsService, upcastPartial<IAgentHostConnectionsService>({ resolveSessionResourceIdentity: () => undefined }));
+		instantiationService.stub(ITunnelAgentHostService, upcastPartial<ITunnelAgentHostService>({ getSelectedServerType: () => undefined }));
 		notifications = [];
 		instantiationService.stub(INotificationService, upcastPartial<INotificationService>({ info: message => { notifications.push(String(message)); } }));
 	});
@@ -190,13 +192,14 @@ suite('VS Code Actions', () => {
 		});
 	}
 
-	for (const connection of [
-		{ type: RemoteAgentHostEntryType.SSH, address: 'ssh:host', hostName: 'host' },
-		{ type: RemoteAgentHostEntryType.Tunnel, tunnelId: 'host', clusterId: 'region' },
-		{ type: RemoteAgentHostEntryType.WSL, address: 'wsl:Ubuntu', distro: 'Ubuntu' },
-		{ type: RemoteAgentHostEntryType.DevContainer, address: 'devcontainer:host', hostPath: '/source/project' },
-	] satisfies IRemoteAgentHostEntry['connection'][]) {
-		test(`preserves supported ${connection.type} workspace and hands off only a tunnel's chats`, async () => {
+	for (const [connection, selectedServerType] of [
+		[{ type: RemoteAgentHostEntryType.SSH, address: 'ssh:host', hostName: 'host' }, undefined],
+		[{ type: RemoteAgentHostEntryType.Tunnel, tunnelId: 'host', clusterId: 'region' }, 'standalone'],
+		[{ type: RemoteAgentHostEntryType.Tunnel, tunnelId: 'host', clusterId: 'region' }, 'editor'],
+		[{ type: RemoteAgentHostEntryType.WSL, address: 'wsl:Ubuntu', distro: 'Ubuntu' }, undefined],
+		[{ type: RemoteAgentHostEntryType.DevContainer, address: 'devcontainer:host', hostPath: '/source/project' }, undefined],
+	] satisfies [IRemoteAgentHostEntry['connection'], TunnelGatewayServerType | undefined][]) {
+		test(`preserves supported ${connection.type} workspace and hands off only the chats of a tunnel's standalone agent host (${selectedServerType ?? 'no gateway'})`, async () => {
 			const calls: { folders?: { uri: URI; label: string | undefined }[]; options?: IOpenWindowOptions }[] = [];
 			const folder = toAgentHostUri(URI.file('/remote/project'), agentHostAuthority('test:host'));
 			const entry: IRemoteAgentHostEntry = { name: 'Remote host', connection };
@@ -216,17 +219,21 @@ suite('VS Code Actions', () => {
 			instantiationService.stub(IAgentHostConnectionsService, upcastPartial<IAgentHostConnectionsService>({
 				resolveSessionResourceIdentity: resource => ({ connectionAuthority: folder.authority, backendSession: resource.with({ scheme: 'copilotcli', fragment: '' }) }),
 			}));
+			instantiationService.stub(ITunnelAgentHostService, upcastPartial<ITunnelAgentHostService>({ getSelectedServerType: () => selectedServerType }));
 			const resource = URI.from({ scheme: remoteAgentHostSessionTypeId(folder.authority, 'copilotcli'), path: '/remote', fragment: 'chat' });
 			await instantiationService.invokeFunction(openSessionInVSCode, createSession('remote', true, [folder], resource));
 			const isTunnel = connection.type === RemoteAgentHostEntryType.Tunnel;
+			const sharesAgentHost = isTunnel && selectedServerType !== 'editor';
 			assert.deepStrictEqual({
 				folders: calls[0].folders?.map(folder => ({ scheme: folder.uri.scheme, path: folder.uri.path, label: folder.label, title: folder.label && splitRecentLabel(folder.label).name })),
 				options: calls[0].options,
 				notifications,
 			}, {
 				folders: [{ scheme: 'vscode-remote', path: '/remote/project', label: '/remote/project [Remote host]', title: 'project [Remote host]' }],
-				options: { forceNewWindow: true, chatSessionToOpen: isTunnel ? URI.from({ scheme: 'agent-host-copilotcli', path: '/remote', fragment: 'chat' }) : undefined },
-				notifications: isTunnel ? [] : ['The session\'s folder was opened in a new editor window, but editor windows can\'t open sessions from this remote yet. Only local and tunnel sessions can be opened there.'],
+				options: { forceNewWindow: true, chatSessionToOpen: sharesAgentHost ? URI.from({ scheme: 'agent-host-copilotcli', path: '/remote', fragment: 'chat' }) : undefined },
+				notifications: sharesAgentHost ? [] : [isTunnel
+					? 'The session\'s folder was opened in a new editor window, but the session can\'t be opened there. This window is connected to a different agent host on the tunnel\'s machine than the one its editor windows use.'
+					: 'The session\'s folder was opened in a new editor window, but editor windows can\'t open sessions from this remote yet. Only local and tunnel sessions can be opened there.'],
 			});
 		});
 	}

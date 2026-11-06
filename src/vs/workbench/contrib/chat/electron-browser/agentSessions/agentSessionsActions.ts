@@ -370,12 +370,13 @@ export class OpenChatSessionInAgentsWindowAction extends Action2 {
 		const draftOptions = commandOptions?.reveal === 'new' ? getDraftHandoffOptions(accessor, sessionResource, commandOptions.transferDraft === true, inputUri) : {};
 		const hasRealSession = sessionResource && !isUntitledChatSession(sessionResource) && commandOptions?.reveal !== 'new';
 		const folderUri = getInvokingWorkspaceFolder(accessor) ?? workspaceContextService.getWorkspace().folders[0]?.uri;
-		// A remote window's own agent host runs on its remote machine, which the Agents Window identifies by the window's folder.
+		// A remote window's own agent host runs on its remote machine. Where the Agents Window can't open that host's
+		// sessions, it falls back to the window's folder.
 		const remoteAuthority = sessionResource && hasRealSession && isLocalAgentHostTarget(getChatSessionType(sessionResource)) ? accessor.get(IWorkbenchEnvironmentService).remoteAuthority : undefined;
-		const sessionHostFolderUri = remoteAuthority ? folderUri ?? URI.from({ scheme: Schemas.vscodeRemote, authority: remoteAuthority, path: '/' }) : undefined;
 		await nativeHostService.openAgentsWindow({
-			folderUri: sessionHostFolderUri?.toJSON() ?? (!hasRealSession && (draftOptions.draft || folderUri?.scheme === Schemas.file) ? folderUri?.toJSON() : undefined),
+			folderUri: remoteAuthority || (!hasRealSession && (draftOptions.draft || folderUri?.scheme === Schemas.file)) ? folderUri?.toJSON() : undefined,
 			reveal: hasRealSession ? sessionResource?.toJSON() : commandOptions?.reveal,
+			revealRemoteAuthority: remoteAuthority,
 			source,
 			...draftOptions,
 		});

@@ -9,7 +9,6 @@ import { Disposable, DisposableStore, MutableDisposable, toDisposable } from '..
 import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
 import { raceCancellation, Sequencer } from '../../../../base/common/async.js';
 import { isCancellationError } from '../../../../base/common/errors.js';
-import { Schemas } from '../../../../base/common/network.js';
 import { isEqual } from '../../../../base/common/resources.js';
 import { localize } from '../../../../nls.js';
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
@@ -127,6 +126,7 @@ export class SelectAgentsFolderContribution extends Disposable implements IWorkb
 			const source = isAgentsWindowOpenSource(args[2]) ? args[2] : AgentsWindowOpenSource.Unknown;
 			const onboardingSessionResource = isAgentsWindowInvitationSource(source) && args[5] ? URI.revive(args[5] as UriComponents) : undefined;
 			const workspaceArgumentIsDefault = args[3] === true;
+			const revealRemoteAuthority = sessionResource && typeof args[6] === 'string' ? args[6] : undefined;
 			const draftPayload = showNewSession || source === AgentsWindowOpenSource.Link ? args[4] : undefined;
 			if (draftPayload !== undefined && !isAgentsWindowDraft(draftPayload)) {
 				this.logService.error('[AgentsHandoff] Invalid draft payload');
@@ -143,7 +143,7 @@ export class SelectAgentsFolderContribution extends Disposable implements IWorkb
 				workspaceArgumentIsDefault,
 			});
 
-			const handoff = () => this._handleOpenIntentAndCaptureInitialState(workspaceUri, sessionResource, workspaceArgumentIsDefault, cancellation.token, telemetry, draft, noWorkspace, showNewSession);
+			const handoff = () => this._handleOpenIntentAndCaptureInitialState(workspaceUri, sessionResource, workspaceArgumentIsDefault, cancellation.token, telemetry, draft, noWorkspace, showNewSession, revealRemoteAuthority);
 			const opening = onboardingSessionResource && (!sessionResource || isEqual(onboardingSessionResource, sessionResource))
 				? this._invitationOnboarding.runWithHandoff(handoff, async () => {
 					const available = await this.waitForSessionAvailable(onboardingSessionResource, cancellation.token);
@@ -188,9 +188,9 @@ export class SelectAgentsFolderContribution extends Disposable implements IWorkb
 		telemetry?.captureInitialViewState();
 	}
 
-	private async _handleOpenIntentAndCaptureInitialState(workspaceUri: URI | undefined, sessionResource: URI | undefined, isDefault: boolean, token: CancellationToken, telemetry: SessionsWindowOpenTelemetry | undefined, draft?: IAgentsWindowDraft, noWorkspace = false, showNewSession = false): Promise<void> {
+	private async _handleOpenIntentAndCaptureInitialState(workspaceUri: URI | undefined, sessionResource: URI | undefined, isDefault: boolean, token: CancellationToken, telemetry: SessionsWindowOpenTelemetry | undefined, draft?: IAgentsWindowDraft, noWorkspace = false, showNewSession = false, revealRemoteAuthority?: string): Promise<void> {
 		try {
-			await this.handleOpenIntent(workspaceUri, sessionResource, isDefault, token, telemetry, draft, noWorkspace, showNewSession);
+			await this.handleOpenIntent(workspaceUri, sessionResource, isDefault, token, telemetry, draft, noWorkspace, showNewSession, revealRemoteAuthority);
 		} catch (error) {
 			telemetry?.recordWorkspaceHandoffState('error');
 			throw error;
@@ -222,17 +222,20 @@ export class SelectAgentsFolderContribution extends Disposable implements IWorkb
 		};
 	}
 
-	private async handleOpenIntent(workspaceUri: URI | undefined, sessionResource: URI | undefined, isDefault: boolean, token: CancellationToken, telemetry: SessionsWindowOpenTelemetry | undefined, draft?: IAgentsWindowDraft, noWorkspace = false, showNewSession = false): Promise<void> {
+	private async handleOpenIntent(workspaceUri: URI | undefined, sessionResource: URI | undefined, isDefault: boolean, token: CancellationToken, telemetry: SessionsWindowOpenTelemetry | undefined, draft?: IAgentsWindowDraft, noWorkspace = false, showNewSession = false, revealRemoteAuthority?: string): Promise<void> {
+		const resolved = resolveAgentsWindowFolderIntent(workspaceUri, this.configurationService);
 		// Opening an existing session establishes its own workspace context, so
 		// the folder selection is only needed for the folder-only handoff (no
-		// session to restore).
+		// session to restore), or for a remote window's session this window can't open.
 		if (sessionResource) {
-			// A remote editor window names sessions of the agent host on its machine like local ones, and sends its folder to identify that machine.
-			const remoteAuthority = workspaceUri?.scheme === Schemas.vscodeRemote && isLocalAgentHostTarget(sessionResource.scheme) ? workspaceUri.authority : undefined;
-			await this.openExistingSession(sessionResource, token, remoteAuthority);
-			return;
+			// A remote editor window names the sessions of its own agent host, on its remote machine, like local ones.
+			const remoteAuthority = revealRemoteAuthority && isLocalAgentHostTarget(sessionResource.scheme) ? revealRemoteAuthority : undefined;
+			const result = await this.openExistingSession(sessionResource, token, remoteAuthority);
+			if (result !== 'unsupported' || token.isCancellationRequested || (!resolved.folderUri && !resolved.remote?.folder)) {
+				return;
+			}
+			this.logService.info('[AgentsHandoff] remote session unsupported; falling back to its window\'s folder');
 		}
-		const resolved = resolveAgentsWindowFolderIntent(workspaceUri, this.configurationService);
 		const folderUri = resolved.folderUri ?? (draft ? workspaceUri : undefined);
 		if (showNewSession && !folderUri && !draft && !resolved.remote) {
 			await raceCancellation(this.lifecycleService.when(LifecyclePhase.Restored), token);
@@ -252,39 +255,42 @@ export class SelectAgentsFolderContribution extends Disposable implements IWorkb
 		}
 	}
 
-	private async openExistingSession(sessionResource: URI, token: CancellationToken, remoteAuthority?: string): Promise<void> {
+	/** Returns `'unsupported'` when this window can't open the session of a remote window, whose folder it can open instead. */
+	private async openExistingSession(sessionResource: URI, token: CancellationToken, remoteAuthority?: string): Promise<'unsupported' | undefined> {
 		this.logService.info(`[AgentsHandoff] openExistingSession: target=${sessionResource.toString()}`);
 
 		// Wait until initial restore has started so opening the target can cancel it,
 		// without delaying the handoff until the intentionally deferred Eventually phase.
 		await raceCancellation(this.lifecycleService.when(LifecyclePhase.Restored), token);
 		if (token.isCancellationRequested) {
-			return;
+			return undefined;
 		}
 		this.logService.info('[AgentsHandoff] reached LifecyclePhase.Restored');
 
 		const backendSession = parseOpenSessionLinkUri(sessionResource);
 		if (backendSession) {
 			await this.sessionsPartService.getProgressIndicator().showWhile(this.resolveAndOpenSessionLink(sessionResource, backendSession, token));
-			return;
+			return undefined;
 		}
 
 		if (remoteAuthority) {
-			await this.sessionsPartService.getProgressIndicator().showWhile(this.resolveAndOpenRemoteSession(sessionResource, remoteAuthority, token));
-			return;
+			const opening = this.resolveAndOpenRemoteSession(sessionResource, remoteAuthority, token);
+			await this.sessionsPartService.getProgressIndicator().showWhile(opening);
+			return opening;
 		}
 
 		// Fast path — already on the target session.
 		const current = this._focusedSessionHostService.focusedHost.get().session.get();
 		if (current && current.resource.toString() === sessionResource.toString()) {
 			this.logService.info('[AgentsHandoff] already on target session');
-			return;
+			return undefined;
 		}
 
 		// Show the sessions part's progress bar while we wait for the session to
 		// appear in the providers and open it, so the window doesn't just sit on
 		// its restored state until the target session pops in.
 		await this.sessionsPartService.getProgressIndicator().showWhile(this.resolveAndOpenSession(sessionResource, token));
+		return undefined;
 	}
 
 	private async resolveAndOpenSessionLink(sessionLink: URI, backendSession: URI, token: CancellationToken): Promise<void> {
@@ -383,48 +389,54 @@ export class SelectAgentsFolderContribution extends Disposable implements IWorkb
 	/**
 	 * Opens a session of a remote editor window. That window reaches the agent host on its remote machine as its own
 	 * agent host, while this window connects to the same host as a remote agent host, which names its sessions differently.
+	 * Returns `'unsupported'` when this window does not share that agent host.
 	 */
-	private async resolveAndOpenRemoteSession(editorSessionResource: URI, remoteAuthority: string, token: CancellationToken): Promise<void> {
+	private async resolveAndOpenRemoteSession(editorSessionResource: URI, remoteAuthority: string, token: CancellationToken): Promise<'unsupported' | undefined> {
 		// Only a tunnel's editor windows share their agent host with this window. Elsewhere, the editor's VS Code server
 		// runs its own agent host, with a session registry separate from that of the agent host this window starts.
 		if (getRemoteName(remoteAuthority) !== 'tunnel') {
 			this.notificationService.warn(localize('agentsHandoff.remoteSessionUnsupported', "The Agents Window can't open sessions from this remote window yet. Only sessions from local and tunnel windows can be opened here."));
-			return;
+			return 'unsupported';
 		}
 		let host: RemoteAgentHostHandoffResult;
 		try {
 			host = await this.remoteWorkspaceHandoffService.resolveHost(remoteAuthority, token);
 		} catch (error) {
 			if (isCancellationError(error)) {
-				return;
+				return undefined;
 			}
 			throw error;
 		}
 		if (host.unavailableReason !== undefined) {
 			this.notificationService.warn(localize('agentsHandoff.remoteSessionUnavailable', "The session of your remote window could not be opened in the Agents Window. {0}", host.unavailableReason));
-			return;
+			return undefined;
 		}
 		const sessionType = toRemoteAgentHostSessionType(editorSessionResource.scheme, host.connectionAuthority);
 		// The handoff reports failures of the connection it starts.
 		if (!sessionType || !await raceCancellation(host.connected, token, false)) {
-			return;
+			return undefined;
+		}
+		if (!host.sharesEditorWindowAgentHost()) {
+			this.notificationService.warn(localize('agentsHandoff.remoteSessionOtherHost', "The session of your remote window can't be opened in the Agents Window, because the Agents Window is connected to a different agent host on the tunnel's machine than your remote window."));
+			return 'unsupported';
 		}
 		const sessionResource = editorSessionResource.with({ scheme: sessionType });
 		this.logService.info(`[AgentsHandoff] remote session: target=${sessionResource.toString()}`);
-		if (isEqual(this._focusedSessionHostService.focusedHost.get().session.get()?.resource, sessionResource)) {
-			return;
+		if (isEqual(this._focusedSessionHostService.focusedHost.get().chatResource.get(), sessionResource)) {
+			return undefined;
 		}
 		const found = await this.waitForSessionAvailable(sessionResource, token);
 		if (token.isCancellationRequested) {
-			return;
+			return undefined;
 		}
 		const session = found ? this.getSessionForResource(sessionResource) : undefined;
 		if (!session) {
 			this.logService.warn('[AgentsHandoff] remote session never appeared in its host\'s provider; aborting');
 			this.notificationService.warn(localize('agentsHandoff.remoteSessionNotFound', "The session of your remote window could not be found on the remote agent host."));
-			return;
+			return undefined;
 		}
 		await this.sessionsService.openChat(session, sessionResource, { source: 'chat' });
+		return undefined;
 	}
 
 	private getSessionForResource(chatResource: URI): ISession | undefined {

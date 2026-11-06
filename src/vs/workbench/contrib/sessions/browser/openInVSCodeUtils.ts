@@ -3,7 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IRemoteAgentHostEntry, IRemoteAgentHostService, RemoteAgentHostEntryType } from '../../../../platform/agentHost/common/remoteAgentHostService.js';
+import { getEntryAddress, IRemoteAgentHostEntry, IRemoteAgentHostService, RemoteAgentHostEntryType } from '../../../../platform/agentHost/common/remoteAgentHostService.js';
+import { ITunnelAgentHostService } from '../../../../platform/agentHost/common/tunnelAgentHost.js';
 import { AMBIENT_AGENT_HOST_AUTHORITY, IAgentHostConnectionsService } from '../../../../platform/agentHost/common/agentHostConnectionsService.js';
 import { toLocalAgentHostSessionType } from '../../../../platform/agentHost/common/agentHostSessionType.js';
 import { INotificationService } from '../../../../platform/notification/common/notification.js';
@@ -114,11 +115,18 @@ export function resolveRemoteFolderUri(
 }
 
 /**
- * Names a session or chat as the editor window that opens its folder does, or returns undefined when that window
- * cannot open it. An editor window of a VS Code remote reaches the agent host on its remote machine as its own agent
- * host, while this window connects to the same host as a remote agent host, which names its sessions differently.
- * Only a tunnel's editor windows share that agent host. Elsewhere, the editor's VS Code server runs its own agent
- * host, with a session registry separate from that of the agent host this window starts.
+ * Why editor windows cannot open a session, see {@link getEditorWindowSessionResource}. For `'remote'`, the editor's
+ * VS Code server runs its own agent host. For `'otherAgentHost'`, the tunnel's gateway connected this window to a
+ * different agent host on the tunnel's machine than the one its editor windows reach.
+ */
+export type EditorWindowSessionUnsupportedReason = 'remote' | 'otherAgentHost';
+
+/**
+ * Names a session or chat as the editor window that opens its folder does, or returns why that window cannot open it.
+ * An editor window of a VS Code remote reaches the agent host on its remote machine as its own agent host, while this
+ * window connects to the same host as a remote agent host, which names its sessions differently. Only a tunnel's
+ * editor windows share that agent host. Elsewhere, the editor's VS Code server runs its own agent host, with a session
+ * registry separate from that of the agent host this window starts.
  */
 export function getEditorWindowSessionResource(
 	resource: URI,
@@ -126,19 +134,29 @@ export function getEditorWindowSessionResource(
 	sessionsProvidersService: ISessionsProvidersService,
 	remoteAgentHostService: IRemoteAgentHostService,
 	agentHostConnectionsService: IAgentHostConnectionsService,
-): URI | undefined {
+	tunnelAgentHostService: ITunnelAgentHostService,
+): URI | EditorWindowSessionUnsupportedReason {
 	const connectionAuthority = agentHostConnectionsService.resolveSessionResourceIdentity(resource)?.connectionAuthority;
 	if (!connectionAuthority || connectionAuthority === AMBIENT_AGENT_HOST_AUTHORITY) {
 		return resource;
 	}
 	const sessionType = toLocalAgentHostSessionType(resource.scheme, connectionAuthority);
 	const entry = getRemoteAgentHostEntry(providerId, sessionsProvidersService, remoteAgentHostService);
-	return sessionType && entry?.connection.type === RemoteAgentHostEntryType.Tunnel ? resource.with({ scheme: sessionType }) : undefined;
+	if (!sessionType || entry?.connection.type !== RemoteAgentHostEntryType.Tunnel) {
+		return 'remote';
+	}
+	// The tunnel's editor windows reach its standalone agent host, which a gateway may not have selected for this window.
+	if (tunnelAgentHostService.getSelectedServerType(getEntryAddress(entry)) === 'editor') {
+		return 'otherAgentHost';
+	}
+	return resource.with({ scheme: sessionType });
 }
 
 /** Explains why the editor window opened for a session's folder does not open the session as well. */
-export function notifyEditorWindowSessionUnsupported(notificationService: INotificationService): void {
-	notificationService.info(localize('openInVSCode.remoteSessionUnsupported', "The session's folder was opened in a new editor window, but editor windows can't open sessions from this remote yet. Only local and tunnel sessions can be opened there."));
+export function notifyEditorWindowSessionUnsupported(notificationService: INotificationService, reason: EditorWindowSessionUnsupportedReason): void {
+	notificationService.info(reason === 'otherAgentHost'
+		? localize('openInVSCode.otherAgentHostSessionUnsupported', "The session's folder was opened in a new editor window, but the session can't be opened there. This window is connected to a different agent host on the tunnel's machine than the one its editor windows use.")
+		: localize('openInVSCode.remoteSessionUnsupported', "The session's folder was opened in a new editor window, but editor windows can't open sessions from this remote yet. Only local and tunnel sessions can be opened there."));
 }
 
 /**

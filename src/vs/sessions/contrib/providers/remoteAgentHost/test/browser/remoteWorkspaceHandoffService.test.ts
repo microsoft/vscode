@@ -15,7 +15,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/
 import { agentHostAuthority, fromAgentHostUri } from '../../../../../../platform/agentHost/common/agentHostUri.js';
 import { getEntryAddress, IRemoteAgentHostEntry, IRemoteAgentHostService, readSSHRemoteAgentHostEntries, RemoteAgentHostConnectionStatus, RemoteAgentHostEntryType, RemoteAgentHostsEnabledSettingId } from '../../../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { ISSHRemoteAgentHostService, ISSHResolvedConfig } from '../../../../../../platform/agentHost/common/sshRemoteAgentHost.js';
-import { ICachedTunnel, ITunnelAgentHostService, ITunnelInfo, TunnelAuthenticationRequiredError } from '../../../../../../platform/agentHost/common/tunnelAgentHost.js';
+import { ICachedTunnel, ITunnelAgentHostService, ITunnelInfo, TunnelAuthenticationRequiredError, TunnelGatewayServerType } from '../../../../../../platform/agentHost/common/tunnelAgentHost.js';
 import { IWSLCachedDistro, IWSLRemoteAgentHostService } from '../../../../../../platform/agentHost/common/wslRemoteAgentHost.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
@@ -51,6 +51,8 @@ suite('RemoteWorkspaceHandoffService', () => {
 		/** Holds SSH config, WSL and tunnel lookups until it settles. */
 		readonly lookupGate?: Promise<void>;
 		readonly dismissedTunnels?: readonly string[];
+		/** The agent host type each tunnel gateway selected, by tunnel address. */
+		readonly selectedServerTypes?: Readonly<Record<string, TunnelGatewayServerType | 'unknown'>>;
 	} = {}) {
 		const instantiationService = disposables.add(new TestInstantiationService());
 		const storage = disposables.add(new InMemoryStorageService());
@@ -83,6 +85,7 @@ suite('RemoteWorkspaceHandoffService', () => {
 				return options.listTunnels ? options.listTunnels(discovery?.authProvider) : [];
 			},
 			cacheTunnel: (info, authProvider) => { calls.push(`cacheTunnel:${info.tunnelId}:${authProvider}`); },
+			getSelectedServerType: address => options.selectedServerTypes?.[address],
 			signIn: options.signIn && (async authProvider => {
 				calls.push(`signIn:${authProvider}`);
 				await options.signIn?.(authProvider);
@@ -403,5 +406,29 @@ suite('RemoteWorkspaceHandoffService', () => {
 			calls: ['show:ssh:myhost', 'connect:ssh:myhost', 'show:wsl:Ubuntu', 'connect:wsl:Ubuntu', 'show:wsl:Debian'],
 			errors: ['Failed to connect to wsl:Ubuntu: WSL is not running'],
 		});
+	});
+
+	test('shares the editor windows\' agent host only with tunnels whose gateway did not select an editor\'s agent host', async () => {
+		const tunnelEntry = (label: string): IRemoteAgentHostEntry => ({ name: label, connection: { type: RemoteAgentHostEntryType.Tunnel, tunnelId: `${label}-id`, clusterId: 'usw2', label } });
+		const ssh: IRemoteAgentHostEntry = { name: 'myhost', connection: { type: RemoteAgentHostEntryType.SSH, address: 'ssh:myhost', sshConfigHost: 'myhost', hostName: 'myhost.example.com' } };
+		const [standalone, editor, protocolV5, unselected] = ['standalone', 'editor', 'v5', 'unselected'].map(tunnelEntry);
+		const harness = createHarness({
+			entries: [ssh, standalone, editor, protocolV5, unselected],
+			selectedServerTypes: { [getEntryAddress(standalone)]: 'standalone', [getEntryAddress(editor)]: 'editor', [getEntryAddress(protocolV5)]: 'unknown' },
+		});
+		const hosts = [];
+		for (const remoteAuthority of ['ssh-remote+myhost', 'tunnel+standalone', 'tunnel+editor', 'tunnel+v5', 'tunnel+unselected']) {
+			hosts.push(await harness.service.resolveHost(remoteAuthority, CancellationToken.None));
+		}
+		for (const entry of [ssh, standalone, editor, protocolV5, unselected]) {
+			harness.addProvider(getEntryAddress(entry), () => assert.fail('A connected host must not reconnect'), RemoteAgentHostConnectionStatus.connected);
+		}
+		assert.deepStrictEqual(await Promise.all(hosts.map(async host => ({ connected: await host.connected, shares: host.sharesEditorWindowAgentHost?.() }))), [
+			{ connected: true, shares: false },
+			{ connected: true, shares: true },
+			{ connected: true, shares: false },
+			{ connected: true, shares: true },
+			{ connected: true, shares: true },
+		]);
 	});
 });
