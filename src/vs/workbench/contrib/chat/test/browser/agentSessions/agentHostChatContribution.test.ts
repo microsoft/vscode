@@ -199,6 +199,7 @@ import { ChatModel, ChatResponseModel, IntendedModelSlot, Response, reviveSerial
 import { ModelSelectionReason } from '../../../common/modelSelection.js';
 import { convertBufferToScreenshotVariable } from '../../../browser/attachments/chatScreenshotContext.js';
 import { AgentHostCompletionReferenceKind, ChatPasteAttachmentMetadata, createChatReferenceVariableEntry, isChatReferenceVariableEntry, toAgentHostCompletionVariableEntry, type IChatRequestVariableEntry } from '../../../common/attachments/chatVariableEntries.js';
+import { INLINE_ATTACHMENT_ANCHOR, projectInlineAttachments } from '../../../common/attachments/chatInlineAttachments.js';
 import { messageAttachmentsToVariableData } from '../../../browser/agentSessions/agentHost/stateToProgressAdapter.js';
 import { AgentHostSessionReferenceAttachmentDisplayKind, AgentHostSessionReferenceAttachmentMetadataKey, AgentHostSessionReferenceTrajectoryAttachmentDisplayKind, toSessionReferenceModelRepresentation } from '../../../browser/agentSessions/agentHost/agentHostSessionReferenceAttachment.js';
 import { IAgentHostEnablementService } from '../../../../../../platform/agentHost/common/agentHostEnablementService.js';
@@ -4751,6 +4752,182 @@ suite('AgentHostChatContribution', () => {
 				peerDrafts: [],
 			});
 		}));
+
+		for (const edit of ['none', 'text', 'attachment', 'model'] as const) {
+			test(`handles remote clear before debounce after inline-pill projection with ${edit} edit`, () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+				const metadata = upcastPartial<ILanguageModelChatMetadata>({ id: 'selected', name: 'Selected' });
+				const selectedModel = { identifier: 'agent-host-copilot:selected', metadata };
+				const { sessionHandler, agentHostService, chatService } = createContribution(disposables, {
+					languageModels: new Map([[selectedModel.identifier, metadata]]),
+				});
+				const backendSession = AgentSession.uri('copilot', 'pill-projection-clear');
+				const sessionResource = URI.parse('agent-host-copilot:/pill-projection-clear');
+				const text = '/review and /compact';
+				seedDraftSession(agentHostService, backendSession, 'Pill Projection', {
+					text, origin: { kind: MessageKind.User },
+					attachments: [{
+						type: MessageAttachmentKind.Simple, label: '/review', displayKind: 'skill',
+						range: { start: { line: 0, character: 0 }, end: { line: 0, character: 7 } },
+						_meta: { uri: 'host-skill:/review', opaque: false },
+					}, {
+						type: MessageAttachmentKind.Simple, label: '/compact', displayKind: 'command',
+						range: { start: { line: 0, character: 12 }, end: { line: 0, character: 20 } },
+						_meta: { command: 'compact', opaque: 0 },
+					}],
+				});
+				const { inputModel, inputState } = createDraftInputModel({
+					inputText: '', attachments: [], mode: { id: 'agent', kind: ChatModeKind.Agent },
+					selectedModel: undefined, selections: [], contrib: {},
+				});
+				chatService.setSession(sessionResource, upcastPartial<IChatModel>({
+					sessionResource, inputModel, onDidChangePendingRequests: Event.None, getPendingRequests: () => [],
+				}));
+				disposables.add(await sessionHandler.provideChatSessionContent(sessionResource, CancellationToken.None));
+				agentHostService.dispatchedActions.length = 0;
+				const references = inputState.get()!.contrib[ChatDynamicVariableModel.ID] as readonly IDynamicVariable[];
+				const projection = projectInlineAttachments(`${INLINE_ATTACHMENT_ANCHOR} and /compact`, [{
+					offset: 0, text: '/review', reference: references[0],
+				}], [{ ...references[1], range: new Range(1, 7, 1, 15) }]);
+				assert.ok(projection);
+				const localAttachment: IChatRequestVariableEntry = { kind: 'generic', id: 'local', name: 'Local', value: 'unsent context' };
+				inputModel.setState({
+					inputText: edit === 'text' ? `${projection.text} unsent` : projection.text,
+					attachments: edit === 'attachment' ? [localAttachment] : [],
+					contrib: { [ChatDynamicVariableModel.ID]: projection.references },
+					...(edit === 'model' ? { selectedModel, selectedModelReason: ModelSelectionReason.UserSelection } : {}),
+				});
+				fireRemoteDraft(agentHostService, backendSession, undefined);
+				await timeout(500);
+
+				assert.deepStrictEqual({
+					text: inputState.get()?.inputText,
+					attachments: inputState.get()?.attachments,
+					references: (inputState.get()?.contrib[ChatDynamicVariableModel.ID] as readonly IDynamicVariable[]).map(reference => reference.id),
+					model: inputState.get()?.selectedModel?.identifier,
+					published: agentHostService.dispatchedActions.flatMap(entry => entry.action.type === ActionType.ChatDraftChanged ? [entry.action.draft?.text] : []),
+				}, {
+					text: edit === 'none' ? '' : edit === 'text' ? `${text} unsent` : text,
+					attachments: edit === 'attachment' ? [localAttachment] : [],
+					references: edit === 'none' ? [] : projection.references.map(reference => reference.id),
+					model: edit === 'model' ? selectedModel.identifier : undefined,
+					published: edit === 'none' ? [] : [edit === 'text' ? `${text} unsent` : text],
+				});
+			}));
+		}
+
+		for (const changePayload of [false, true]) {
+			test(`handles remote clear before debounce after pasted-text range hydration (${changePayload ? 'changed' : 'unchanged'} payload)`, () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+				const { sessionHandler, agentHostService, chatService, chatAgentService } = createContribution(disposables);
+				const backendSession = AgentSession.uri('copilot', 'paste-range-clear');
+				const sessionResource = URI.parse('agent-host-copilot:/paste-range-clear');
+				const text = 'review #attachment:context.txt';
+				seedDraftSession(agentHostService, backendSession, 'Paste Range', {
+					text, origin: { kind: MessageKind.User },
+					attachments: [{
+						type: MessageAttachmentKind.Simple, label: 'context.txt', modelRepresentation: 'original context',
+						range: { start: { line: 0, character: 7 }, end: { line: 0, character: text.length } },
+						_meta: {
+							[ChatPasteAttachmentMetadata.Kind]: 'paste',
+							[ChatPasteAttachmentMetadata.Language]: 'plaintext',
+							[ChatPasteAttachmentMetadata.FileName]: 'context.txt',
+							[ChatPasteAttachmentMetadata.PastedLines]: '1 line',
+							'host.opaque': false,
+						},
+					}],
+				});
+				const { inputModel, inputState } = createDraftInputModel({
+					inputText: '', attachments: [], mode: { id: 'agent', kind: ChatModeKind.Agent },
+					selectedModel: undefined, selections: [], contrib: {},
+				});
+				chatService.setSession(sessionResource, upcastPartial<IChatModel>({
+					sessionResource, inputModel, onDidChangePendingRequests: Event.None, getPendingRequests: () => [],
+				}));
+				disposables.add(await sessionHandler.provideChatSessionContent(sessionResource, CancellationToken.None));
+				agentHostService.dispatchedActions.length = 0;
+				const state = inputState.get()!;
+				const attachment = state.attachments[0];
+				assert.ok(attachment.kind === 'paste');
+				const references = state.contrib[ChatDynamicVariableModel.ID] as readonly IDynamicVariable[];
+				const parser = new ChatRequestParser(chatAgentService, upcastPartial<IChatVariablesService>({}), upcastPartial<IChatSlashCommandService>({}), upcastPartial<IPromptsService>({}));
+				const part = parser.parseChatRequestWithReferences(references, ToolAndToolSetEnablementMap.fromEntries([]), text).parts.find(part => part instanceof ChatRequestDynamicVariablePart);
+				assert.ok(part instanceof ChatRequestDynamicVariablePart);
+				const projectedAttachment = { ...attachment, range: part.range, ...(changePayload ? { code: 'updated context', value: 'updated context' } : {}) };
+				inputModel.setState({ attachments: [projectedAttachment] });
+				fireRemoteDraft(agentHostService, backendSession, undefined);
+				await timeout(500);
+
+				assert.deepStrictEqual({
+					text: inputState.get()?.inputText,
+					attachments: inputState.get()?.attachments.map(attachment => ({ ...attachment, range: undefined })),
+					references: (inputState.get()?.contrib[ChatDynamicVariableModel.ID] as readonly IDynamicVariable[]).length,
+					publishedPayloads: agentHostService.dispatchedActions.flatMap(entry => entry.action.type === ActionType.ChatDraftChanged
+						? [entry.action.draft?.attachments?.map(attachment => attachment.type === MessageAttachmentKind.Simple ? attachment.modelRepresentation : undefined)] : []),
+				}, {
+					text: changePayload ? text : '',
+					attachments: changePayload ? [{ ...projectedAttachment, range: undefined }] : [],
+					references: changePayload ? 1 : 0,
+					publishedPayloads: changePayload ? [['updated context']] : [],
+				});
+			}));
+		}
+
+		for (const kind of agentHostConnectionKinds) {
+			const file = URI.file('/workspace/file.ts');
+			for (const reference of [
+				{ name: 'file', text: 'please #file\nabc', attachment: { type: MessageAttachmentKind.Resource, uri: file.toString(), label: 'file.ts', displayKind: 'document' } },
+				{ name: 'skill', text: 'please /skill\nabc', attachment: { type: MessageAttachmentKind.Simple, label: '/skill', displayKind: 'skill', _meta: { uri: 'host-skill:/skill' } } },
+				{ name: 'command', text: 'please /compact\nabc', attachment: { type: MessageAttachmentKind.Simple, label: '/compact', displayKind: 'command', _meta: { command: 'compact' } } },
+			] as const) {
+				test(`keeps multiline ${reference.name} draft mentions as attachments (${kind.name})`, () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+					const { sessionHandler, agentHostService, chatService, chatAgentService } = createContribution(disposables);
+					agentHostService.resourceUris = kind.resourceUris;
+					const backendSession = AgentSession.uri('copilot', 'multiline-draft');
+					const sessionResource = URI.parse('agent-host-copilot:/multiline-draft');
+					const attachment: MessageAttachment = {
+						...reference.attachment,
+						range: { start: { line: 0, character: 7 }, end: { line: 1, character: 3 } },
+					};
+					seedDraftSession(agentHostService, backendSession, 'Multiline Draft', {
+						text: reference.text, origin: { kind: MessageKind.User }, attachments: [attachment],
+					});
+					const { inputModel, inputState } = createDraftInputModel({
+						inputText: '', attachments: [], mode: { id: 'agent', kind: ChatModeKind.Agent },
+						selectedModel: undefined, selections: [], contrib: {},
+					});
+					chatService.setSession(sessionResource, upcastPartial<IChatModel>({
+						sessionResource, inputModel, onDidChangePendingRequests: Event.None, getPendingRequests: () => [],
+					}));
+					const session = disposables.add(await sessionHandler.provideChatSessionContent(sessionResource, CancellationToken.None));
+					agentHostService.dispatchedActions.length = 0;
+					const state = inputState.get()!;
+					const references = state.contrib[ChatDynamicVariableModel.ID] as readonly IDynamicVariable[];
+					const parser = new ChatRequestParser(chatAgentService, upcastPartial<IChatVariablesService>({}), upcastPartial<IChatSlashCommandService>({}), upcastPartial<IPromptsService>({}));
+					const parsed = parser.parseChatRequestWithReferences(references, ToolAndToolSetEnablementMap.fromEntries([]), reference.text);
+					inputModel.setState({ inputText: `${reference.text} edited` });
+					await timeout(500);
+					assert.deepStrictEqual({
+						transferredReferences: session.transferredState?.inputState?.contrib[ChatDynamicVariableModel.ID],
+						references,
+						attachments: state.attachments.map(variable => ({
+							kind: variable.kind,
+							range: variable.range && { start: variable.range.start, endExclusive: variable.range.endExclusive },
+							resource: URI.isUri(variable.value) ? variable.value.toString() : undefined,
+						})),
+						parsed: parsed.parts.map(part => part.kind),
+						publishedAttachments: agentHostService.dispatchedActions.flatMap(entry => entry.action.type === ActionType.ChatDraftChanged ? [entry.action.draft?.attachments] : []),
+					}, {
+						transferredReferences: [], references: [],
+						attachments: [{
+							kind: reference.name === 'file' ? 'file' : 'generic',
+							range: undefined,
+							resource: reference.name === 'file' ? kind.toClient(file).toString() : undefined,
+						}],
+						parsed: ['text'],
+						publishedAttachments: [[reference.attachment]],
+					});
+				}));
+			}
+		}
 
 		test('accepts remote clear of a lossy input projection before its outbound debounce', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
 			const { sessionHandler, agentHostService, chatService } = createContribution(disposables);

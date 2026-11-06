@@ -7409,16 +7409,32 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			const positions = new PositionOffsetTransformer(state?.inputText ?? '');
 			return {
 				text: state?.inputText ?? '',
-				// Parsing materializes these references as attachments without editing the draft.
-				attachments: state?.attachments.filter(attachment => !attachment.range || !references?.some(reference => {
-					if (reference.isAttachmentReference || reference.id !== attachment.id || !equals(reference.data, attachment.value) || !equals(reference._meta, attachment._meta)) {
-						return false;
+				// Parsing adds reference ranges and materializes ordinary references as attachments.
+				attachments: state?.attachments.flatMap(attachment => {
+					const reference = attachment.range && references?.find(reference => {
+						if (reference.id !== attachment.id) {
+							return false;
+						}
+						const range = positions.getOffsetRange(Range.lift(reference.range));
+						return range.start === attachment.range?.start && range.endExclusive === attachment.range.endExclusive;
+					});
+					if (reference && !reference.isAttachmentReference && equals(reference.data, attachment.value) && equals(reference._meta, attachment._meta)) {
+						return [];
 					}
-					const range = positions.getOffsetRange(Range.lift(reference.range));
-					return range.start === attachment.range?.start && range.endExclusive === attachment.range.endExclusive;
-				})) ?? [],
+					return [{ ...attachment, range: reference?.isAttachmentReference ? undefined : attachment.range }];
+				}) ?? [],
 				mode: state?.mode.id ?? ChatMode.Agent.id,
-				references: references ?? [],
+				references: (references ?? []).map(reference => ({
+					...reference,
+					fullName: reference.fullName,
+					icon: reference.icon,
+					modelDescription: reference.modelDescription,
+					promptText: reference.promptText,
+					isFile: !!reference.isFile,
+					isDirectory: !!reference.isDirectory,
+					isAttachmentReference: !!reference.isAttachmentReference,
+					_meta: reference._meta,
+				})).sort((a, b) => Range.compareRangesUsingStarts(a.range, b.range) || a.id.localeCompare(b.id)),
 			};
 		};
 		let initialDraft = hasLocalDraft ? this._inputStateToDraft(sessionResource, initialInputState) : undefined;
@@ -7624,6 +7640,11 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 				continue;
 			}
 			const range = Range.fromPositions(positions.getPosition(variable.range.start), positions.getPosition(variable.range.endExclusive));
+			if (range.startLineNumber !== range.endLineNumber) {
+				// Without a matching dynamic reference, the composer removes attachments that retain a parsed-reference range.
+				attachments.push({ ...variable, range: undefined });
+				continue;
+			}
 			if (variable.kind === 'file' || variable.kind === 'directory' || getAgentHostCompletionReferenceKind(variable)) {
 				references.push({
 					id: variable.id,
