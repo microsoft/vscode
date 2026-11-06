@@ -25,7 +25,7 @@ import { BrowserEditorInput } from '../../../../workbench/contrib/browserView/co
 import { IBrowserViewWorkbenchService } from '../../../../workbench/contrib/browserView/common/browserView.js';
 import { ChatContextKeys } from '../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
 import { IChatWindow } from '../../../../workbench/contrib/chatWindow/browser/chatWindow.js';
-import { ChatShownContext, ChatWindowCategory, ChatWindowLayoutCommandsContext, chatWindowLayoutModeChoices, EditorShownContext, resolveChatWindow, showChatWindowLayout, StackedContext, TOGGLE_CHAT_WINDOW_ARRANGEMENT_COMMAND_ID, TOGGLE_CHAT_WINDOW_CHAT_COMMAND_ID, TOGGLE_CHAT_WINDOW_EDITOR_COMMAND_ID } from '../../../../workbench/contrib/chatWindow/browser/chatWindowLayoutActions.js';
+import { ChatShownContext, ChatWindowCategory, ChatWindowLayoutCommandsContext, EditorShownContext, resolveChatWindow, showChatWindowLayout, StackedContext, TOGGLE_CHAT_WINDOW_ARRANGEMENT_COMMAND_ID, TOGGLE_CHAT_WINDOW_CHAT_COMMAND_ID, TOGGLE_CHAT_WINDOW_EDITOR_COMMAND_ID } from '../../../../workbench/contrib/chatWindow/browser/chatWindowLayoutActions.js';
 import { ChatWindowLayoutMode } from '../../../../workbench/contrib/chatWindow/common/chatWindowLayout.js';
 import { IEditorGroup, IEditorGroupsService } from '../../../../workbench/services/editor/common/editorGroupsService.js';
 import { IEditorService } from '../../../../workbench/services/editor/common/editorService.js';
@@ -195,16 +195,14 @@ for (const target of chatWindowLayoutButtonsMenus) {
 			}
 		}
 	});
-	for (const choice of chatWindowLayoutModeChoices) {
-		MenuRegistry.appendMenuItem(target.menu, {
-			submenu: AgentsWindowMenus.WindowLayout,
-			title: localize('chatWindowLayoutMenu', "Layout: {0}", choice.shortTitle),
-			icon: Codicon.layout,
-			group: target.group,
-			order: target.order + chatWindowLayoutButtons.length,
-			when: ContextKeyExpr.and(shownIn, LayoutModeContext.isEqualTo(choice.mode)),
-		});
-	}
+	MenuRegistry.appendMenuItem(target.menu, {
+		submenu: AgentsWindowMenus.WindowLayout,
+		title: localize('chatWindowConfigureLayout', "Configure Layout"),
+		icon: Codicon.layout,
+		group: target.group,
+		order: target.order + chatWindowLayoutButtons.length,
+		when: shownIn,
+	});
 }
 
 //#endregion

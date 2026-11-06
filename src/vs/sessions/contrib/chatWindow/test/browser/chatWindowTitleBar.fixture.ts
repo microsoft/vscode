@@ -113,7 +113,7 @@ const CHAT_WINDOW_MENUS = new Map<MenuId, readonly IMenuEntry[]>([
 	[AgentsWindowMenus.CommandCenter, [{ id: AgentsWindowMenus.TitleBarSessionTitle.id, title: 'Agent Sessions', icon: Codicon.copilot, submenu: AgentsWindowMenus.TitleBarSessionTitle }]],
 	[AgentsWindowMenus.TitleBarCenterRight, [{ id: 'run', title: 'Run', icon: Codicon.play }, { id: 'sessions.openInVSCode', title: 'Open in Editor', icon: Codicon.vscodeInsiders }]],
 	[AgentsWindowMenus.TitleBarSessionMenu, [{ id: 'createPullRequest', title: 'Create Pull Request', icon: Codicon.gitPullRequestCreate }]],
-	[AgentsWindowMenus.TitleBarWindowLayout, [{ id: 'workbench.action.chatWindow.toggleEditor', title: 'Show Editor', icon: Codicon.layoutSidebarRight }, { id: 'layout', title: 'Layout', icon: Codicon.layout, submenu: AgentsWindowMenus.WindowLayout }]],
+	[AgentsWindowMenus.TitleBarWindowLayout, [{ id: 'workbench.action.chatWindow.toggleEditor', title: 'Show Editor', icon: Codicon.layoutSidebarRight }, { id: 'layout', title: 'Configure Layout', icon: Codicon.layout, submenu: AgentsWindowMenus.WindowLayout }]],
 ]);
 
 /** The entries of the chat's Session Activity Bar, as the strip's chat-window fixtures show them. */
