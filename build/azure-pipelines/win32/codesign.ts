@@ -68,7 +68,8 @@ async function main() {
 	// Sign setup
 	if (process.env['BUILT_CLIENT']) {
 		printBanner('Sign setup packages (system, user)');
-		const task = $`npm exec -- npm-run-all2 -lp "gulp vscode-win32-${arch}-system-setup -- --sign" "gulp vscode-win32-${arch}-user-setup -- --sign"`;
+		// No `--` before `--sign`: `pnpm run` passes it on to gulp, which would then read `--sign` as a task name.
+		const task = $`pnpm exec npm-run-all2 -lp "gulp vscode-win32-${arch}-system-setup --sign" "gulp vscode-win32-${arch}-user-setup --sign"`;
 		await streamProcessOutputAndCheckResult('Sign setup packages (system, user)', task);
 	}
 }
