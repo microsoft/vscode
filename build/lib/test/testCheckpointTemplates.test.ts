@@ -4,8 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'node:assert/strict';
-import { globSync, mkdtempSync, readFileSync, rmSync } from 'node:fs';
-import os from 'node:os';
+import { globSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 import { suite, test } from 'node:test';
 import { load } from 'js-yaml';
@@ -124,7 +123,7 @@ suite('Product test checkpoint templates', () => {
 		});
 	});
 
-	test('wrapper copies the test step and records and publishes its checkpoint on the same condition', () => {
+	test('wrapper copies the test step and records its checkpoint on the same condition', () => {
 		// Step parameters arrive normalized (e.g. `powershell:` as `task: PowerShell@2`), so the test step must be copied as is
 		const condition = 'and(${{ coalesce(parameters.testStep.condition, \'succeeded()\') }}, ne(variables[\'TEST_CHECKPOINT_${{ upper(replace(parameters.testId, \'-\', \'_\')) }}_HIT\'], \'true\'))';
 		assert.deepStrictEqual({ parameters: wrapper.parameters, steps: wrapper.steps }, {
@@ -187,7 +186,7 @@ suite('Product test checkpoint templates', () => {
 		}]);
 	});
 
-	test('every test task is registered, independently published and gated', async t => {
+	test('every test task is registered, independently recorded and gated', async () => {
 		const windowsExpected = [
 			'unit-electron', 'unit-node', 'unit-browser-chromium',
 			'integration-agent-host-e2e', 'integration-electron', 'integration-browser-firefox', 'integration-remote',
@@ -213,9 +212,9 @@ suite('Product test checkpoint templates', () => {
 			'copilot-extension', 'copilot-completions-core', 'copilot-sanity',
 		];
 		const targets = [
-			{ file: windowsTestFile, os: 'win32' as const, expected: windowsExpected, agentOS: 'Windows_NT', arch: 'x64', target: 'win32-x64', stage: 'Windows', job: 'Windows_x64_Test' },
-			{ file: linuxTestFile, os: 'linux' as const, expected: linuxExpected, agentOS: 'Linux', arch: 'x64', target: 'linux-x64', stage: 'LinuxX64', job: 'Linux_x64_Test' },
-			{ file: darwinTestFile, os: 'darwin' as const, expected: darwinExpected, agentOS: 'Darwin', arch: 'arm64', target: 'darwin-arm64', stage: 'macOSARM64', job: 'macOS_arm64_Test' },
+			{ file: windowsTestFile, os: 'win32' as const, expected: windowsExpected, target: 'win32-x64' },
+			{ file: linuxTestFile, os: 'linux' as const, expected: linuxExpected, target: 'linux-x64' },
+			{ file: darwinTestFile, os: 'darwin' as const, expected: darwinExpected, target: 'darwin-arm64' },
 		];
 		const publishedIds = readTemplate('common/publish-test-checkpoint.yml').parameters?.find(parameter => parameter.name === 'testId')?.values;
 		assert.deepStrictEqual({
@@ -255,26 +254,25 @@ suite('Product test checkpoint templates', () => {
 			scriptIds: allExpected,
 		});
 
-		const temp = mkdtempSync(path.join(os.tmpdir(), 'checkpoint-inventory-'));
-		t.after(() => rmSync(temp, { recursive: true, force: true }));
+		// A retry reuses every test whose record step succeeded in the earlier attempt
 		const restoredTargets: { target: string; hits: string[] }[] = [];
 		for (const target of targets) {
+			const jobId = '11111111-1111-1111-1111-111111111111';
+			const previous = { timelineId: '22222222-2222-2222-2222-222222222222', recordId: '33333333-3333-3333-3333-333333333333' };
 			const env: NodeJS.ProcessEnv = {
-				AGENT_OS: target.agentOS, VSCODE_ARCH: target.arch, BUILD_BUILDID: '123',
-				SYSTEM_STAGENAME: target.stage, SYSTEM_JOBNAME: target.job, SYSTEM_JOBATTEMPT: '1', SYSTEM_STAGEATTEMPT: '1',
-				BUILD_SOURCEVERSION: 'source', AGENT_TEMPDIRECTORY: temp,
+				BUILD_BUILDID: '123', SYSTEM_JOBID: jobId, SYSTEM_JOBATTEMPT: '2',
 				SYSTEM_COLLECTIONURI: 'https://dev.azure.com/organization/', SYSTEM_TEAMPROJECTID: 'project', SYSTEM_ACCESSTOKEN: 'test-token',
 			};
-			const artifacts: { name: string; resource: { type: string } }[] = [];
-			for (const id of target.expected) {
-				const messages: string[] = [];
-				await testCheckpoint(['record', id], env, fetch, message => messages.push(message));
-				const artifact = messages.find(message => message.includes('_ARTIFACT]'))?.split(']')[1];
-				assert.ok(artifact && messages.some(message => message.endsWith('_READY]true')), id);
-				artifacts.push({ name: artifact, resource: { type: 'PipelineArtifact' } });
-			}
+			const recordSteps = target.expected.map(id => ({
+				id: crypto.randomUUID(), parentId: previous.recordId, type: 'Task',
+				name: readTemplate('common/publish-test-checkpoint.yml').steps[0].displayName?.replace('${{ parameters.testId }}', id),
+				result: 'succeeded',
+			}));
 			const restored: string[] = [];
-			await testCheckpoint(['restore'], { ...env, SYSTEM_JOBATTEMPT: '2' }, async () => Response.json({ value: artifacts }), message => restored.push(message));
+			await testCheckpoint(['restore'], env, async url => Response.json(String(url).includes(`/timeline/${previous.timelineId}?`)
+				? { records: recordSteps }
+				: { records: [{ id: jobId, parentId: null, type: 'Job', name: 'Tests', result: null, previousAttempts: [previous] }] }
+			), message => restored.push(message));
 			restoredTargets.push({
 				target: target.target,
 				hits: restored.filter(message => message.endsWith('_HIT]true')).sort(),

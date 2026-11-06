@@ -15,5 +15,5 @@ steps:
   - template: ./publish-test-checkpoint.yml@self
     parameters:
       testId: ${{ parameters.testId }}
-      # Same condition as the test step, so that the checkpoint is recorded and published whenever the test runs
+      # Same condition as the test step, so that the checkpoint is recorded whenever the test runs and passes
       condition: and(${{ coalesce(parameters.testStep.condition, 'succeeded()') }}, ne(variables['TEST_CHECKPOINT_${{ upper(replace(parameters.testId, '-', '_')) }}_HIT'], 'true'))
