@@ -6,17 +6,23 @@
 import assert from 'assert';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { IReference } from '../../../../../base/common/lifecycle.js';
-import { autorun, constObservable, observableValue } from '../../../../../base/common/observable.js';
+import { autorun, constObservable, derived, observableValue } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { mock, upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { IAgentCanvasCloseRequest, IAgentCanvasInfo, IAgentCanvasOpenRequest, IAgentConnection } from '../../../../../platform/agentHost/common/agentService.js';
+import { IAgentCanvasCloseRequest, IAgentCanvasInfo, IAgentCanvasOpenRequest, CanvasesEnabledSettingId, IAgentConnection } from '../../../../../platform/agentHost/common/agentService.js';
+import type { IAgentHostTcpConnection } from '../../../../../platform/agentHost/common/agentHostTcpConnection.js';
 import { IAgentSubscription } from '../../../../../platform/agentHost/common/state/agentSubscription.js';
+import type { InitializeResult } from '../../../../../platform/agentHost/common/state/protocol/common/commands.js';
 import { CanvasReference, CanvasState } from '../../../../../platform/agentHost/common/state/protocol/channels-canvas/state.js';
 import { ActionType, type ActionEnvelope } from '../../../../../platform/agentHost/common/state/sessionActions.js';
 import { ChatState, ComponentToState, ResponsePartKind, StateComponents, ToolCallCompletedState, ToolCallConfirmationReason, ToolCallStatus, Turn } from '../../../../../platform/agentHost/common/state/sessionState.js';
+import { ConfigurationTarget } from '../../../../../platform/configuration/common/configuration.js';
+import { ConfigurationScope, IConfigurationPropertySchema } from '../../../../../platform/configuration/common/configurationRegistry.js';
+import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { NullLogService } from '../../../../../platform/log/common/log.js';
-import { AgentHostCanvas, AgentHostCanvasCollection, getAgentHostCanvasDefinitionsChangedEvent } from '../../common/agentHostCanvas.js';
+import { BrowserRemoteProxyEnabledSettingId } from '../../../browserView/common/browserView.js';
+import { AgentHostCanvas, AgentHostCanvasCollection, createRemoteAgentHostCanvasPresentationSupport, getAgentHostCanvasDefinitionsChangedEvent, remoteAgentHostCanvasesConfigurationProperties, RemoteAgentHostCanvasesEnabledSettingId } from '../../common/agentHostCanvas.js';
 import { ICanvas, ICanvasOwner } from '../../common/canvas.js';
 
 suite('AgentHost canvases', () => {
@@ -28,6 +34,105 @@ suite('AgentHost canvases', () => {
 	const state: CanvasState = {
 		instanceId: 'preview', extensionId: 'project:preview', extensionName: 'Preview Extension', canvasId: 'preview', url: 'https://example.test/preview',
 	};
+
+	test('registers remote presentation as an application-scoped workbench-only opt-in', () => {
+		const property: IConfigurationPropertySchema = remoteAgentHostCanvasesConfigurationProperties[RemoteAgentHostCanvasesEnabledSettingId];
+		const description = property.markdownDescription ?? '';
+		assert.deepStrictEqual({
+			type: property.type,
+			default: property.default,
+			scope: property.scope,
+			tags: property.tags,
+			agentHost: property.agentHost,
+			policy: property.policy,
+			experiment: property.experiment,
+			dependenciesDocumented: description.includes(CanvasesEnabledSettingId)
+				&& description.includes(BrowserRemoteProxyEnabledSettingId),
+		}, {
+			type: 'boolean',
+			default: false,
+			scope: ConfigurationScope.APPLICATION,
+			tags: ['experimental', 'advanced'],
+			agentHost: undefined,
+			policy: undefined,
+			experiment: undefined,
+			dependenciesDocumented: true,
+		});
+	});
+
+	test('requires every remote presentation gate and updates live', async () => {
+		const configurationService = new TestConfigurationService({
+			[CanvasesEnabledSettingId]: false,
+			[RemoteAgentHostCanvasesEnabledSettingId]: false,
+			[BrowserRemoteProxyEnabledSettingId]: false,
+		});
+		store.add(configurationService.onDidChangeConfigurationEmitter);
+		const initializeResult = observableValue<InitializeResult | undefined>('initializeResult', upcastPartial<InitializeResult>({ tcpConnections: {} }));
+		const connection = new class extends mock<IAgentConnection>() {
+			override readonly initializeResult = initializeResult;
+			override async openTcpConnection(): Promise<IAgentHostTcpConnection> { throw new Error('unused'); }
+		}();
+		const currentConnection = observableValue<IAgentConnection | undefined>('connection', connection);
+		const support = createRemoteAgentHostCanvasPresentationSupport(configurationService, false);
+		const available = derived(reader => support.isSupported('copilotcli', currentConnection.read(reader), reader));
+		const otherProvider = derived(reader => support.isSupported('copilot', currentConnection.read(reader), reader));
+		const webSupport = createRemoteAgentHostCanvasPresentationSupport(configurationService, true);
+		const webAvailable = derived(reader => webSupport.isSupported('copilotcli', currentConnection.read(reader), reader));
+		const observed: boolean[] = [];
+		store.add(autorun(reader => observed.push(available.read(reader))));
+		const set = async (key: string, value: boolean) => {
+			await configurationService.setUserConfiguration(key, value);
+			configurationService.onDidChangeConfigurationEmitter.fire({
+				source: ConfigurationTarget.USER,
+				affectedKeys: new Set([key]),
+				change: { keys: [key], overrides: [] },
+				affectsConfiguration: affected => affected === key,
+			});
+		};
+
+		const states = { initial: available.get() };
+		await set(CanvasesEnabledSettingId, true);
+		Object.assign(states, { generalOnly: available.get() });
+		await set(RemoteAgentHostCanvasesEnabledSettingId, true);
+		Object.assign(states, { withoutProxy: available.get() });
+		await set(BrowserRemoteProxyEnabledSettingId, true);
+		Object.assign(states, { enabled: available.get() });
+		await set(CanvasesEnabledSettingId, false);
+		Object.assign(states, { generalDisabled: available.get() });
+		await set(CanvasesEnabledSettingId, true);
+		await set(RemoteAgentHostCanvasesEnabledSettingId, false);
+		Object.assign(states, { remoteDisabled: available.get() });
+		await set(RemoteAgentHostCanvasesEnabledSettingId, true);
+		await set(BrowserRemoteProxyEnabledSettingId, false);
+		Object.assign(states, { proxyDisabled: available.get() });
+		await set(BrowserRemoteProxyEnabledSettingId, true);
+		initializeResult.set(upcastPartial<InitializeResult>({ tcpConnections: undefined }), undefined);
+		Object.assign(states, { tcpUnsupported: available.get() });
+		currentConnection.set(undefined, undefined);
+		Object.assign(states, { disconnected: available.get() });
+
+		assert.deepStrictEqual({
+			states,
+			observed,
+			otherProvider: otherProvider.get(),
+			web: webAvailable.get(),
+		}, {
+			states: {
+				initial: false,
+				generalOnly: false,
+				withoutProxy: false,
+				enabled: true,
+				generalDisabled: false,
+				remoteDisabled: false,
+				proxyDisabled: false,
+				tcpUnsupported: false,
+				disconnected: true,
+			},
+			observed: [false, true, false, true, false, true, false, true, false, true],
+			otherProvider: false,
+			web: false,
+		});
+	});
 
 	test('subscribes to advertised resources, updates source state and releases removed channels', () => {
 		const changed = store.add(new Emitter<CanvasState>());

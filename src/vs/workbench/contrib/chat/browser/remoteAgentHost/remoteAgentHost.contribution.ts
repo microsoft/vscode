@@ -26,6 +26,7 @@ import { IRemoteAgentHostConnectionCustomizationService, RemoteAgentHostConnecti
 import { IAgentHostAdvertisedAuthenticationResolver } from '../../../../../platform/agentHost/common/agentHostAdvertisedAuthentication.js';
 import { RemoteAgentHostAuthenticationResolver } from './remoteAgentHostAuthenticationResolver.js';
 import { MissionControlAvailabilityService } from './missionControlAvailabilityService.js';
+import { remoteAgentHostCanvasesConfigurationProperties } from '../../../canvases/common/agentHostCanvas.js';
 
 class MissionControlContribution {
 	static readonly ID = 'workbench.contrib.missionControl';
@@ -51,6 +52,7 @@ registerWorkbenchContribution2(MissionControlContribution.ID, MissionControlCont
 
 Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).registerConfiguration({
 	properties: {
+		...remoteAgentHostCanvasesConfigurationProperties,
 		[AgentHostRemoteConnectionsSettingId]: {
 			type: 'string',
 			enum: ['devTunnel', 'githubEnvironment'],

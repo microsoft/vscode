@@ -6,17 +6,55 @@
 import { Event } from '../../../../base/common/event.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../base/common/network.js';
-import { derived, derivedOpts, IObservable, mapObservableArrayCached } from '../../../../base/common/observable.js';
+import { derived, derivedOpts, IObservable, IReader, mapObservableArrayCached } from '../../../../base/common/observable.js';
+import { isWeb } from '../../../../base/common/platform.js';
 import { URI } from '../../../../base/common/uri.js';
 import { localize } from '../../../../nls.js';
-import { IAgentConnection } from '../../../../platform/agentHost/common/agentService.js';
+import { AgentHostTcpSupport, getAgentHostTcpSupport } from '../../../../platform/agentHost/common/agentHostTcpSupport.js';
+import { CanvasesEnabledSettingId, IAgentConnection } from '../../../../platform/agentHost/common/agentService.js';
 import { getInlineToolInput, parsePartialToolInput } from '../../../../platform/agentHost/common/partialToolInput.js';
 import { IAgentSubscription, observableFromSubscription } from '../../../../platform/agentHost/common/state/agentSubscription.js';
 import { CanvasReference, CanvasState } from '../../../../platform/agentHost/common/state/protocol/channels-canvas/state.js';
 import { ActionType, type ActionEnvelope } from '../../../../platform/agentHost/common/state/sessionActions.js';
 import { ChatState, ResponsePartKind, StateComponents, ToolCallStatus } from '../../../../platform/agentHost/common/state/sessionState.js';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
+import { ConfigurationScope, IConfigurationPropertySchema } from '../../../../platform/configuration/common/configurationRegistry.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
+import { observableConfigValue } from '../../../../platform/observable/common/platformObservableUtils.js';
+import { BrowserRemoteProxyEnabledSettingId } from '../../browserView/common/browserView.js';
 import { ICanvas, ICanvasContext, ICanvasDefinition, ICanvasDefinitionProvider, ICanvasOpenRequest, ICanvasOwner } from './canvas.js';
+
+/** Workbench-only setting gating Canvas presentation for remote Agent Host sessions. */
+export const RemoteAgentHostCanvasesEnabledSettingId = 'chat.canvases.remoteAgentHost.enabled';
+
+export const remoteAgentHostCanvasesConfigurationProperties = {
+	[RemoteAgentHostCanvasesEnabledSettingId]: {
+		type: 'boolean',
+		default: false,
+		scope: ConfigurationScope.APPLICATION,
+		tags: ['experimental', 'advanced'],
+		markdownDescription: localize('chat.canvases.remoteAgentHost.enabled', "Controls whether Copilot sessions on remote Agent Hosts can present Canvases. Also requires `#{0}#` and `#{1}#`. Changes apply to existing remote sessions.", CanvasesEnabledSettingId, BrowserRemoteProxyEnabledSettingId),
+	},
+} satisfies Record<string, IConfigurationPropertySchema>;
+
+export interface IRemoteAgentHostCanvasPresentationSupport {
+	isSupported(agentProvider: string, connection: IAgentConnection | undefined, reader: IReader): boolean;
+}
+
+export function createRemoteAgentHostCanvasPresentationSupport(configurationService: IConfigurationService, isWebPlatform = isWeb): IRemoteAgentHostCanvasPresentationSupport {
+	const canvasesEnabled = observableConfigValue(CanvasesEnabledSettingId, false, configurationService);
+	const remoteAgentHostCanvasesEnabled = observableConfigValue(RemoteAgentHostCanvasesEnabledSettingId, false, configurationService);
+	const remoteProxyEnabled = observableConfigValue(BrowserRemoteProxyEnabledSettingId, false, configurationService);
+	return {
+		isSupported: (agentProvider, connection, reader) =>
+			!isWebPlatform
+			&& agentProvider === 'copilotcli'
+			&& canvasesEnabled.read(reader)
+			&& remoteAgentHostCanvasesEnabled.read(reader)
+			&& remoteProxyEnabled.read(reader)
+			&& getAgentHostTcpSupport(connection, reader) !== AgentHostTcpSupport.Unsupported,
+	};
+}
 
 export class AgentHostCanvas implements ICanvas {
 	readonly resource: URI;
