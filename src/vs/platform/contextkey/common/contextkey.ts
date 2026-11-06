@@ -5,7 +5,7 @@
 
 import { CharCode } from '../../../base/common/charCode.js';
 import { Event } from '../../../base/common/event.js';
-import { isChrome, isEdge, isFirefox, isLinux, isMacintosh, isSafari, isWeb, isWindows } from '../../../base/common/platform.js';
+import { isChrome, isEdge, isFirefox, isLinux, isMacintosh, isSafari, isWeb, isWindows, isChromeOS } from '../../../base/common/platform.js';
 import { isFalsyOrWhitespace } from '../../../base/common/strings.js';
 import { Scanner, LexingError, Token, TokenType } from './scanner.js';
 import { createDecorator } from '../../instantiation/common/instantiation.js';
@@ -19,6 +19,7 @@ CONSTANT_VALUES.set('true', true);
 CONSTANT_VALUES.set('isMac', isMacintosh);
 CONSTANT_VALUES.set('isLinux', isLinux);
 CONSTANT_VALUES.set('isWindows', isWindows);
+CONSTANT_VALUES.set('isChromeOS', isChromeOS);
 CONSTANT_VALUES.set('isWeb', isWeb);
 CONSTANT_VALUES.set('isMacNative', isMacintosh && !isWeb);
 CONSTANT_VALUES.set('isEdge', isEdge);
@@ -937,11 +938,29 @@ export class ContextKeyInExpr implements IContextKeyExpression {
 
 		if (Array.isArray(source)) {
 			// eslint-disable-next-line local/code-no-any-casts
-			return source.includes(item as any);
+			if (source.includes(item as any)) {
+				return true;
+			}
+			// On Windows, file paths are case-insensitive so file URI
+			// comparisons must be done in a case-insensitive manner.
+			if (isWindows && typeof item === 'string' && item.startsWith('file:///')) {
+				const itemLower = item.toLowerCase();
+				return source.some(s => typeof s === 'string' && s.toLowerCase() === itemLower);
+			}
+			return false;
 		}
 
 		if (typeof item === 'string' && typeof source === 'object' && source !== null) {
-			return hasOwnProperty.call(source, item);
+			if (hasOwnProperty.call(source, item)) {
+				return true;
+			}
+			// On Windows, file paths are case-insensitive so file URI
+			// property lookups must be done in a case-insensitive manner.
+			if (isWindows && item.startsWith('file:///')) {
+				const itemLower = item.toLowerCase();
+				return Object.keys(source).some(key => key.toLowerCase() === itemLower);
+			}
+			return false;
 		}
 		return false;
 	}
@@ -1694,14 +1713,14 @@ export class ContextKeyAndExpr implements IContextKeyExpression {
 		}
 
 		// We must distribute any OR expression because we don't support parens
-		// OR extensions will be at the end (due to sorting rules)
+		// OR extensions sort near the end, but `in` and comparison terms sort after them
 		while (expr.length > 1) {
-			const lastElement = expr[expr.length - 1];
-			if (lastElement.type !== ContextKeyExprType.Or) {
+			const orIndex = expr.findLastIndex(e => e.type === ContextKeyExprType.Or);
+			if (orIndex === -1) {
 				break;
 			}
-			// pop the last element
-			expr.pop();
+			// take out the last OR element
+			const lastElement = expr.splice(orIndex, 1)[0] as ContextKeyOrExpr;
 
 			// pop the second to last element
 			const secondToLastElement = expr.pop()!;
@@ -1716,6 +1735,10 @@ export class ContextKeyAndExpr implements IContextKeyExpression {
 			);
 
 			if (resultElement) {
+				if (resultElement.type === ContextKeyExprType.False) {
+					// anything && false ==> false
+					return ContextKeyFalseExpr.INSTANCE;
+				}
 				expr.push(resultElement);
 				expr.sort(cmp);
 			}
@@ -1723,6 +1746,17 @@ export class ContextKeyAndExpr implements IContextKeyExpression {
 
 		if (expr.length === 1) {
 			return expr[0];
+		}
+
+		if (expr.some(e => e.type === ContextKeyExprType.And)) {
+			// a distributed OR that collapsed into a single AND must not stay nested
+			const terms = expr.flatMap(e => e.type === ContextKeyExprType.And ? e.expr : [e]).sort(cmp);
+			expr.length = 0;
+			for (const term of terms) {
+				if (expr.length === 0 || !expr[expr.length - 1].equals(term)) {
+					expr.push(term);
+				}
+			}
 		}
 
 		// resolve false AND expressions

@@ -114,6 +114,7 @@ export class TerminalFindWidget extends SimpleFindWidget {
 
 		// Disable copy-on-selection during search to prevent search result from overriding clipboard
 		this._register(xterm.onBeforeSearch(() => {
+			this._overrideCopyOnSelectionDisposable.clear();
 			this._overrideCopyOnSelectionDisposable.value = TerminalClipboardContribution.get(this._instance)?.overrideCopyOnSelection(false);
 		}));
 
@@ -182,9 +183,8 @@ export class TerminalFindWidget extends SimpleFindWidget {
 	}
 
 	protected _onFocusTrackerFocus() {
-		if (TerminalClipboardContribution.get(this._instance)?.overrideCopyOnSelection) {
-			this._overrideCopyOnSelectionDisposable.value = TerminalClipboardContribution.get(this._instance)?.overrideCopyOnSelection(false);
-		}
+		this._overrideCopyOnSelectionDisposable.clear();
+		this._overrideCopyOnSelectionDisposable.value = TerminalClipboardContribution.get(this._instance)?.overrideCopyOnSelection(false);
 		this._findWidgetFocused.set(true);
 	}
 

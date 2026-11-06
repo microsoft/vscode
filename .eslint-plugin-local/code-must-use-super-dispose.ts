@@ -16,7 +16,7 @@ export default new class NoAsyncSuite implements eslint.Rule.RuleModule {
 				return;
 			}
 
-			const body = context.getSourceCode().getText(node as ESTree.Node);
+			const body = context.sourceCode.getText(node as ESTree.Node);
 
 			if (body.includes('super.dispose')) {
 				return;

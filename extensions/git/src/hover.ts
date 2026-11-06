@@ -6,18 +6,18 @@
 import { Command, l10n, MarkdownString, Uri } from 'vscode';
 import { fromNow, getCommitShortHash } from './util';
 import { emojify } from './emoji';
-import { CommitShortStat } from './git';
+import { CoAuthor, CommitShortStat } from './git';
 
 export const AVATAR_SIZE = 20;
 
-export function getCommitHover(authorAvatar: string | undefined, authorName: string | undefined, authorEmail: string | undefined, authorDate: Date | number | undefined, message: string, shortStats: CommitShortStat | undefined, commands: Command[][] | undefined): MarkdownString {
+export function getCommitHover(authorAvatar: string | undefined, authorName: string | undefined, authorEmail: string | undefined, authorDate: Date | number | undefined, message: string, shortStats: CommitShortStat | undefined, commands: Command[][] | undefined, coAuthors?: CoAuthor[]): MarkdownString {
 	const markdownString = new MarkdownString('', true);
 	markdownString.isTrusted = {
 		enabledCommands: commands?.flat().map(c => c.command) ?? []
 	};
 
 	// Author, Subject | Message (escape image syntax)
-	appendContent(markdownString, authorAvatar, authorName, authorEmail, authorDate, message);
+	appendContent(markdownString, authorAvatar, authorName, authorEmail, authorDate, message, coAuthors);
 
 	// Short stats
 	if (shortStats) {
@@ -32,12 +32,12 @@ export function getCommitHover(authorAvatar: string | undefined, authorName: str
 	return markdownString;
 }
 
-export function getHistoryItemHover(authorAvatar: string | undefined, authorName: string | undefined, authorEmail: string | undefined, authorDate: Date | number | undefined, message: string, shortStats: CommitShortStat | undefined, commands: Command[][] | undefined): MarkdownString[] {
+export function getHistoryItemHover(authorAvatar: string | undefined, authorName: string | undefined, authorEmail: string | undefined, authorDate: Date | number | undefined, message: string, shortStats: CommitShortStat | undefined, commands: Command[][] | undefined, coAuthors?: CoAuthor[]): MarkdownString[] {
 	const hoverContent: MarkdownString[] = [];
 
 	// Author, Subject | Message (escape image syntax)
 	const authorMarkdownString = new MarkdownString('', true);
-	appendContent(authorMarkdownString, authorAvatar, authorName, authorEmail, authorDate, message);
+	appendContent(authorMarkdownString, authorAvatar, authorName, authorEmail, authorDate, message, coAuthors);
 	hoverContent.push(authorMarkdownString);
 
 	// Short stats
@@ -61,7 +61,7 @@ export function getHistoryItemHover(authorAvatar: string | undefined, authorName
 	return hoverContent;
 }
 
-function appendContent(markdownString: MarkdownString, authorAvatar: string | undefined, authorName: string | undefined, authorEmail: string | undefined, authorDate: Date | number | undefined, message: string): void {
+function appendContent(markdownString: MarkdownString, authorAvatar: string | undefined, authorName: string | undefined, authorEmail: string | undefined, authorDate: Date | number | undefined, message: string, coAuthors?: CoAuthor[]): void {
 	// Author
 	if (authorName) {
 		// Avatar
@@ -99,6 +99,26 @@ function appendContent(markdownString: MarkdownString, authorAvatar: string | un
 		}
 
 		markdownString.appendMarkdown('\n\n');
+	}
+
+	// Co-authors
+	if (coAuthors && coAuthors.length > 0) {
+		for (const coAuthor of coAuthors) {
+			markdownString.appendMarkdown('$(account) ');
+			if (coAuthor.email) {
+				markdownString.appendMarkdown('[**');
+				markdownString.appendText(coAuthor.name);
+				markdownString.appendMarkdown('**](mailto:');
+				markdownString.appendText(coAuthor.email);
+				markdownString.appendMarkdown(')');
+			} else {
+				markdownString.appendMarkdown('**');
+				markdownString.appendText(coAuthor.name);
+				markdownString.appendMarkdown('**');
+			}
+			markdownString.appendMarkdown(` _(${l10n.t('Co-author')})_`);
+			markdownString.appendMarkdown('\n\n');
+		}
 	}
 
 	// Subject | Message (escape image syntax)

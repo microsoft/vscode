@@ -1,7 +1,7 @@
 {
 	"extends": "../../tsconfig.base.json",
 	"compilerOptions": {
-		"rootDir": ".",
+		"rootDir": "..",
 		"outDir": "./dist/",
 		"jsx": "react",
 		"esModuleInterop": true,
@@ -12,9 +12,6 @@
 		],
 		"types": [
 			"vscode-webview"
-		],
-		"typeRoots": [
-			"../node_modules/@types"
 		],
 		"skipLibCheck": true
 	},

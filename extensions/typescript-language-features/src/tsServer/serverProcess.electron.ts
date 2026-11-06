@@ -24,6 +24,12 @@ const contentLengthSize: number = Buffer.byteLength(contentLength, 'utf8');
 const blank: number = Buffer.from(' ', 'utf8')[0];
 const backslashR: number = Buffer.from('\r', 'utf8')[0];
 const backslashN: number = Buffer.from('\n', 'utf8')[0];
+const gracefulExitTimeout = 5000;
+const tsServerExitRequest: Proto.Request = {
+	seq: 0,
+	type: 'request',
+	command: 'exit',
+};
 
 class ProtocolBuffer {
 
@@ -139,12 +145,12 @@ function generatePatchedEnv(env: any, modulePath: string, hasExecPath: boolean):
 	const newEnv = Object.assign({}, env);
 
 	if (!hasExecPath) {
-		newEnv['ELECTRON_RUN_AS_NODE'] = '1';
+		newEnv.ELECTRON_RUN_AS_NODE = '1';
 	}
-	newEnv['NODE_PATH'] = path.join(modulePath, '..', '..', '..');
+	newEnv.NODE_PATH = path.join(modulePath, '..', '..', '..');
 
 	// Ensure we always have a PATH set
-	newEnv['PATH'] = newEnv['PATH'] || process.env.PATH;
+	newEnv.PATH = newEnv.PATH || process.env.PATH;
 
 	return newEnv;
 }
@@ -160,6 +166,24 @@ function getExecArgv(kind: TsServerProcessKind, configuration: TypeScriptService
 
 	if (configuration.maxTsServerMemory) {
 		args.push(`--max-old-space-size=${configuration.maxTsServerMemory}`);
+	}
+
+	if (configuration.diagnosticDir) {
+		args.push(`--diagnostic-dir=${configuration.diagnosticDir}`);
+	}
+
+	if (configuration.heapSnapshot > 0) {
+		args.push(`--heapsnapshot-near-heap-limit=${configuration.heapSnapshot}`);
+	}
+
+	if (configuration.heapProfile.enabled) {
+		args.push('--heap-prof');
+		if (configuration.heapProfile.dir) {
+			args.push(`--heap-prof-dir=${configuration.heapProfile.dir}`);
+		}
+		if (configuration.heapProfile.interval) {
+			args.push(`--heap-prof-interval=${configuration.heapProfile.interval}`);
+		}
 	}
 
 	return args;
@@ -189,10 +213,15 @@ function getTssDebugBrk(): string | undefined {
 }
 
 class IpcChildServerProcess extends Disposable implements TsServerProcess {
+	private _killTimeout: NodeJS.Timeout | undefined;
+	private _isShuttingDown = false;
+
 	constructor(
 		private readonly _process: child_process.ChildProcess,
+		private readonly _useGracefulShutdown: boolean,
 	) {
 		super();
+		this._process.once('exit', () => this.clearKillTimeout());
 	}
 
 	write(serverRequest: Proto.Request): void {
@@ -212,18 +241,47 @@ class IpcChildServerProcess extends Disposable implements TsServerProcess {
 	}
 
 	kill(): void {
-		this._process.kill();
+		if (!this._useGracefulShutdown) {
+			this._process.kill();
+			return;
+		}
+
+		if (this._isShuttingDown) {
+			return;
+		}
+		this._isShuttingDown = true;
+
+		try {
+			this._process.send(tsServerExitRequest);
+		} catch {
+			this._process.kill();
+			return;
+		}
+
+		this._killTimeout = setTimeout(() => this._process.kill(), gracefulExitTimeout);
+		this._killTimeout.unref?.();
+	}
+
+	private clearKillTimeout(): void {
+		if (this._killTimeout) {
+			clearTimeout(this._killTimeout);
+			this._killTimeout = undefined;
+		}
 	}
 }
 
 class StdioChildServerProcess extends Disposable implements TsServerProcess {
 	private readonly _reader: Reader<Proto.Response>;
+	private _killTimeout: NodeJS.Timeout | undefined;
+	private _isShuttingDown = false;
 
 	constructor(
 		private readonly _process: child_process.ChildProcess,
+		private readonly _useGracefulShutdown: boolean,
 	) {
 		super();
 		this._reader = this._register(new Reader<Proto.Response>(this._process.stdout!));
+		this._process.once('exit', () => this.clearKillTimeout());
 	}
 
 	write(serverRequest: Proto.Request): void {
@@ -244,7 +302,39 @@ class StdioChildServerProcess extends Disposable implements TsServerProcess {
 	}
 
 	kill(): void {
-		this._process.kill();
+		if (!this._useGracefulShutdown) {
+			this._process.kill();
+			this._reader.dispose();
+			return;
+		}
+
+		if (this._isShuttingDown) {
+			return;
+		}
+		this._isShuttingDown = true;
+
+		try {
+			this._process.stdin?.write(JSON.stringify(tsServerExitRequest) + '\r\n', 'utf8');
+			this._process.stdin?.end();
+		} catch {
+			this._process.kill();
+			this._reader.dispose();
+			return;
+		}
+
+		this._killTimeout = setTimeout(() => {
+			this._process.kill();
+			this._reader.dispose();
+		}, gracefulExitTimeout);
+		this._killTimeout.unref?.();
+	}
+
+	private clearKillTimeout(): void {
+		if (this._killTimeout) {
+			clearTimeout(this._killTimeout);
+			this._killTimeout = undefined;
+		}
+
 		this._reader.dispose();
 	}
 }
@@ -261,8 +351,9 @@ export class ElectronServiceProcessFactory implements TsServerProcessFactory {
 	): TsServerProcess {
 		let tsServerPath = version.tsServerPath;
 
+		// eslint-disable-next-line local/code-no-sync-fs -- TODO: validate the server path before the synchronous process factory runs; spawn and bundled-version fallback currently depend on this immediate result.
 		if (!fs.existsSync(tsServerPath)) {
-			vscode.window.showWarningMessage(vscode.l10n.t("The path {0} doesn\'t point to a valid tsserver install. Falling back to bundled TypeScript version.", tsServerPath));
+			vscode.window.showWarningMessage(vscode.l10n.t("The path {0} doesn\'t point to a valid tsserver install. Falling back to bundled TypeScript version.", tsServerPath), { notificationId: 'typescript.invalidServerPath' });
 			versionManager.reset();
 			tsServerPath = versionManager.currentVersion.tsServerPath;
 		}
@@ -272,6 +363,7 @@ export class ElectronServiceProcessFactory implements TsServerProcessFactory {
 		const env = generatePatchedEnv(process.env, tsServerPath, !!execPath);
 		const runtimeArgs = [...args];
 		const execArgv = getExecArgv(kind, configuration);
+		const useGracefulShutdown = configuration.heapProfile.enabled;
 		const useIpc = !execPath && version.apiVersion?.gte(API.v460);
 		if (useIpc) {
 			runtimeArgs.push('--useNodeIpc');
@@ -291,6 +383,6 @@ export class ElectronServiceProcessFactory implements TsServerProcessFactory {
 				stdio: useIpc ? ['pipe', 'pipe', 'pipe', 'ipc'] : undefined,
 			});
 
-		return useIpc ? new IpcChildServerProcess(childProcess) : new StdioChildServerProcess(childProcess);
+		return useIpc ? new IpcChildServerProcess(childProcess, useGracefulShutdown) : new StdioChildServerProcess(childProcess, useGracefulShutdown);
 	}
 }

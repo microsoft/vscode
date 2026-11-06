@@ -6,6 +6,7 @@
 import * as browser from '../../../../base/browser/browser.js';
 import { FastDomNode, createFastDomNode } from '../../../../base/browser/fastDomNode.js';
 import * as platform from '../../../../base/common/platform.js';
+import * as strings from '../../../../base/common/strings.js';
 import { IVisibleLine } from '../../view/viewLayer.js';
 import { RangeUtil } from './rangeUtil.js';
 import { StringBuilder } from '../../../common/core/stringBuilder.js';
@@ -116,7 +117,7 @@ export class ViewLine implements IVisibleLine {
 		const lineData = viewportData.getViewLineRenderingData(lineNumber);
 		const options = this._options;
 		const actualInlineDecorations = LineDecoration.filter(lineData.inlineDecorations, lineNumber, lineData.minColumn, lineData.maxColumn);
-		const renderWhitespace = (lineData.hasVariableFonts || options.experimentalWhitespaceRendering === 'off') ? options.renderWhitespace : 'none';
+		const renderWhitespace = options.experimentalWhitespaceRendering === 'off' ? options.renderWhitespace : 'none';
 		const allowFastRendering = !lineData.hasVariableFonts;
 
 		// Only send selection information when needed for rendering whitespace
@@ -169,7 +170,9 @@ export class ViewLine implements IVisibleLine {
 			options.fontLigatures !== EditorFontLigatures.OFF,
 			selectionsOnLine,
 			lineData.textDirection,
-			options.verticalScrollbarSize
+			options.verticalScrollbarSize,
+			false,
+			options.useTwoCellFullwidthCharacters
 		);
 
 		if (this._renderedViewLine && this._renderedViewLine.input.equals(renderLineInput)) {
@@ -641,6 +644,25 @@ class RenderedViewLine implements IRenderedViewLine {
 		}
 
 		const domPosition = this._characterMapping.getDomPosition(column);
+
+		if (this.input.useTwoCellFullwidthCharacters) {
+			const target = this._getReadingTarget(domNode);
+			// The first branch needs the left edge of the character to the right
+			if (strings.isFullWidthCharacter(this.input.lineContent.charCodeAt(column - 1))) {
+				const r = RangeUtil.readHorizontalRangeForElement(target, domPosition.partIndex, context);
+				if (r) {
+					return r.left;
+				}
+			}
+			// The second branch needs the right edge of the character to the left.
+			else if (strings.isFullWidthCharacter(this.input.lineContent.charCodeAt(column - 2))) {
+				const previousDomPosition = this._characterMapping.getDomPosition(column - 1);
+				const r = RangeUtil.readHorizontalRangeForElement(target, previousDomPosition.partIndex, context);
+				if (r) {
+					return r.left + r.width;
+				}
+			}
+		}
 
 		const r = RangeUtil.readHorizontalRanges(this._getReadingTarget(domNode), domPosition.partIndex, domPosition.charIndex, domPosition.partIndex, domPosition.charIndex, context);
 		if (!r || r.length === 0) {

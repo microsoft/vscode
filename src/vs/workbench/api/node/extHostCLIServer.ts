@@ -47,7 +47,7 @@ export interface ExtensionManagementPipeArgs {
 export type PipeCommand = OpenCommandPipeArgs | StatusPipeArgs | OpenExternalCommandPipeArgs | ExtensionManagementPipeArgs;
 
 export interface ICommandsExecuter {
-	executeCommand<T>(id: string, ...args: any[]): Promise<T>;
+	executeCommand<T>(id: string, ...args: unknown[]): Promise<T>;
 }
 
 export class CLIServerBase {

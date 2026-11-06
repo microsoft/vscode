@@ -13,6 +13,7 @@ import { ConfigurationTarget, IConfigurationService } from '../../../../../platf
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { ITerminalConfigurationService, LinuxDistro } from '../../browser/terminal.js';
+import { DEFAULT_COMMANDS_TO_SKIP_SHELL } from '../../common/terminal.js';
 import { TestTerminalConfigurationService, workbenchInstantiationService } from '../../../../test/browser/workbenchTestServices.js';
 
 suite('Workbench - TerminalConfigurationService', () => {
@@ -51,6 +52,33 @@ suite('Workbench - TerminalConfigurationService', () => {
 					});
 				});
 			});
+		});
+	});
+
+	suite('shouldCommandSkipShell', () => {
+		test('should include defaults and added commands', () => {
+			const command = 'test.command';
+			const terminalConfigurationService = createTerminalConfigationService({
+				terminal: {
+					integrated: {
+						commandsToSkipShell: [command]
+					}
+				}
+			});
+			strictEqual(terminalConfigurationService.shouldCommandSkipShell(command), true);
+			strictEqual(terminalConfigurationService.shouldCommandSkipShell(DEFAULT_COMMANDS_TO_SKIP_SHELL[0]), true);
+		});
+
+		test('should remove excluded defaults', () => {
+			const defaultCommand = DEFAULT_COMMANDS_TO_SKIP_SHELL[0];
+			const terminalConfigurationService = createTerminalConfigationService({
+				terminal: {
+					integrated: {
+						commandsToSkipShell: [`-${defaultCommand}`]
+					}
+				}
+			});
+			strictEqual(terminalConfigurationService.shouldCommandSkipShell(defaultCommand), false);
 		});
 	});
 

@@ -74,7 +74,7 @@ export function setup(logger: Logger) {
 			await app.code.waitAndClick('.settings-editor .monaco-list-rows .setting-item-control select', 2, 2);
 			await app.code.waitAndClick('.context-view .monaco-list-row:nth-child(1) .option-text', 2, 2);
 			await app.workbench.settingsEditor.searchSettingsUI('test');
-			await app.code.waitForElements('.settings-editor .settings-toc-container', false, elements => elements.length === 1 && elements[0].attributes['style'].includes('width: 0px'));
+			await app.code.waitForElements('.settings-editor .settings-toc-container', false, elements => elements.length === 1 && elements[0].attributes.style.includes('width: 0px'));
 			await app.code.waitForElements('.settings-editor .settings-body .monaco-sash', false, elements => elements.length === 1 && elements[0].className.includes('disabled'));
 
 			// Show ToC when searching
@@ -82,7 +82,7 @@ export function setup(logger: Logger) {
 			await app.code.waitAndClick('.settings-editor .monaco-list-rows .setting-item-control select', 2, 2);
 			await app.code.waitAndClick('.context-view .monaco-list-row:nth-child(2) .option-text', 2, 2);
 			await app.workbench.settingsEditor.searchSettingsUI('test');
-			await app.code.waitForElements('.settings-editor .settings-toc-container', false, elements => elements.length === 1 && !elements[0].attributes['style'].includes('width: 0px'));
+			await app.code.waitForElements('.settings-editor .settings-toc-container', false, elements => elements.length === 1 && !elements[0].attributes.style.includes('width: 0px'));
 			await app.code.waitForElements('.settings-editor .settings-body .monaco-sash', false, elements => elements.length === 1 && !elements[0].className.includes('disabled'));
 		});
 	});

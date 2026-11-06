@@ -98,19 +98,21 @@ export class FromEventObservable<TArgs, T> extends BaseObservable<T> {
 	private readonly handleEvent = (args: TArgs | undefined) => {
 		const newValue = this._getValue(args);
 		const oldValue = this._value;
+		const hadValue = this._hasValue;
 
-		const didChange = !this._hasValue || !(this._equalityComparator(oldValue!, newValue));
+		const didChange = !hadValue || !(this._equalityComparator(oldValue!, newValue));
 		let didRunTransaction = false;
 
 		if (didChange) {
 			this._value = newValue;
+			this._hasValue = true;
 
-			if (this._hasValue) {
+			if (hadValue) {
 				didRunTransaction = true;
 				subtransaction(
 					this._getTransaction(),
 					(tx) => {
-						getLogger()?.handleObservableUpdated(this, { oldValue, newValue, change: undefined, didChange, hadValue: this._hasValue });
+						getLogger()?.handleObservableUpdated(this, { oldValue, newValue, change: undefined, didChange, hadValue });
 
 						for (const o of this._observers) {
 							tx.updateObserver(o, this);
@@ -123,11 +125,10 @@ export class FromEventObservable<TArgs, T> extends BaseObservable<T> {
 					}
 				);
 			}
-			this._hasValue = true;
 		}
 
 		if (!didRunTransaction) {
-			getLogger()?.handleObservableUpdated(this, { oldValue, newValue, change: undefined, didChange, hadValue: this._hasValue });
+			getLogger()?.handleObservableUpdated(this, { oldValue, newValue, change: undefined, didChange, hadValue });
 		}
 	};
 

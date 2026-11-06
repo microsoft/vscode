@@ -37,6 +37,10 @@ export class McpGalleryManifestService extends Disposable implements IMcpGallery
 	}
 
 	async getMcpGalleryManifest(): Promise<IMcpGalleryManifest | null> {
+		return this.getDefaultMcpGalleryManifest();
+	}
+
+	async getDefaultMcpGalleryManifest(): Promise<IMcpGalleryManifest | null> {
 		if (!this.productService.mcpGallery) {
 			return null;
 		}
@@ -134,6 +138,7 @@ export class McpGalleryManifestService extends Disposable implements IMcpGallery
 			const context = await this.requestService.request({
 				type: 'GET',
 				url: `${url}/${version}/servers?limit=1`,
+				callSite: 'mcpGalleryManifestService.checkVersion'
 			}, CancellationToken.None);
 			if (isSuccess(context)) {
 				return true;

@@ -10,7 +10,7 @@ import { localize, localize2 } from '../../../../nls.js';
 import { IMenu, MenuId, MenuRegistry } from '../../../../platform/actions/common/actions.js';
 import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
 import { IExtensionTerminalProfile, ITerminalProfile, TerminalLocation, TerminalSettingId } from '../../../../platform/terminal/common/terminal.js';
-import { ResourceContextKey } from '../../../common/contextkeys.js';
+import { LayoutModeContext, ResourceContextKey } from '../../../common/contextkeys.js';
 import { TaskExecutionSupportedContext } from '../../tasks/common/taskService.js';
 import { ICreateTerminalOptions, ITerminalLocationOptions, ITerminalService } from './terminal.js';
 import { TerminalCommandId, TERMINAL_VIEW_ID } from '../common/terminal.js';
@@ -19,6 +19,7 @@ import { terminalStrings } from '../common/terminalStrings.js';
 import { ACTIVE_GROUP, AUX_WINDOW_GROUP, SIDE_GROUP } from '../../../services/editor/common/editorService.js';
 import { DisposableStore } from '../../../../base/common/lifecycle.js';
 import { HasSpeechProvider } from '../../speech/common/speechService.js';
+import { ChatContextKeys } from '../../chat/common/actions/chatContextKeys.js';
 import { hasKey } from '../../../../base/common/types.js';
 import { TerminalContribContextKeyStrings } from '../terminalContribExports.js';
 
@@ -37,6 +38,23 @@ export const enum TerminalMenuBarGroup {
 	Manage = '5_manage',
 	Configure = '7_configure'
 }
+
+/**
+ * True when a dictation engine is available for the terminal: either the
+ * built-in on-device engine (with AI features enabled) or the speech
+ * extension's provider. Used to gate the "Start Dictation" context menu entry
+ * so it only shows when dictation can actually be started.
+ */
+const TerminalDictationAvailable = ContextKeyExpr.or(
+	HasSpeechProvider,
+	ContextKeyExpr.and(ChatContextKeys.enabled, ChatContextKeys.speechToTextConfigured)
+);
+
+/**
+ * Where the context menu of a terminal editor's tab offers to move it into the panel: not in a window with layout modes,
+ * which keeps its terminals in a part of its own, while the panel is the main window's.
+ */
+export const MoveTerminalEditorToPanelWhen = ContextKeyExpr.and(ResourceContextKey.Scheme.isEqualTo(Schemas.vscodeTerminal), LayoutModeContext.negate());
 
 export function setupTerminalMenus(): void {
 	MenuRegistry.appendMenuItems(
@@ -182,6 +200,18 @@ export function setupTerminalMenus(): void {
 					order: 3
 				}
 			},
+			{
+				id: MenuId.TerminalInstanceContext,
+				item: {
+					command: {
+						id: TerminalCommandId.StartVoice,
+						title: localize('workbench.action.terminal.startVoiceContext', "Start Dictation"),
+					},
+					group: TerminalContextMenuGroup.Edit,
+					order: 4,
+					when: ContextKeyExpr.and(TerminalDictationAvailable, TerminalContextKeys.terminalDictationInProgress.toNegated())
+				}
+			},
 		]
 	);
 
@@ -289,6 +319,18 @@ export function setupTerminalMenus(): void {
 					},
 					group: TerminalContextMenuGroup.Edit,
 					order: 3
+				}
+			},
+			{
+				id: MenuId.TerminalEditorInstanceContext,
+				item: {
+					command: {
+						id: TerminalCommandId.StartVoice,
+						title: localize('workbench.action.terminal.startVoiceContext', "Start Dictation"),
+					},
+					group: TerminalContextMenuGroup.Edit,
+					order: 4,
+					when: ContextKeyExpr.and(TerminalDictationAvailable, TerminalContextKeys.terminalDictationInProgress.toNegated())
 				}
 			},
 			{
@@ -668,7 +710,7 @@ export function setupTerminalMenus(): void {
 			id: TerminalCommandId.MoveToTerminalPanel,
 			title: terminalStrings.moveToTerminalPanel
 		},
-		when: ResourceContextKey.Scheme.isEqualTo(Schemas.vscodeTerminal),
+		when: MoveTerminalEditorToPanelWhen,
 		group: '2_files'
 	});
 
@@ -787,6 +829,9 @@ export function getTerminalActionBarArgs(location: ITerminalLocationOptions, pro
 	className: string;
 	dropdownIcon?: string;
 } {
+	profiles = profiles.filter(e => !e.isAutoDetected);
+	const [aiProfiles, otherProfiles] = splitProfiles(profiles);
+	const [aiContributedProfiles, otherContributedProfiles] = splitContributedProfiles(contributedProfiles);
 	const dropdownActions: IAction[] = [];
 	const submenuActions: IAction[] = [];
 	const splitLocation = (location === TerminalLocation.Editor || (typeof location === 'object' && hasKey(location, { viewColumn: true }) && location.viewColumn === ACTIVE_GROUP)) ? { viewColumn: SIDE_GROUP } : { splitActiveTerminal: true };
@@ -806,40 +851,22 @@ export function getTerminalActionBarArgs(location: ITerminalLocationOptions, pro
 		location: splitLocation
 	}))));
 	dropdownActions.push(new Separator());
-
-	profiles = profiles.filter(e => !e.isAutoDetected);
-	for (const p of profiles) {
-		const isDefault = p.profileName === defaultProfileName;
-		const options: ICreateTerminalOptions = { config: p, location };
-		const splitOptions: ICreateTerminalOptions = { config: p, location: splitLocation };
-		const sanitizedProfileName = p.profileName.replace(/[\n\r\t]/g, '');
-		dropdownActions.push(disposableStore.add(new Action(TerminalCommandId.NewWithProfile, isDefault ? localize('defaultTerminalProfile', "{0} (Default)", sanitizedProfileName) : sanitizedProfileName, undefined, true, async () => {
-			await terminalService.createAndFocusTerminal(options);
-		})));
-		submenuActions.push(disposableStore.add(new Action(TerminalCommandId.Split, isDefault ? localize('defaultTerminalProfile', "{0} (Default)", sanitizedProfileName) : sanitizedProfileName, undefined, true, async () => {
-			await terminalService.createAndFocusTerminal(splitOptions);
-		})));
+	for (const p of aiProfiles) {
+		addProfileActions(p, defaultProfileName, location, splitLocation, terminalService, dropdownActions, submenuActions, disposableStore);
+	}
+	for (const contributed of aiContributedProfiles) {
+		addContributedProfileActions(contributed, defaultProfileName, location, splitLocation, terminalService, dropdownActions, submenuActions, disposableStore);
+	}
+	if ((aiProfiles.length > 0 || aiContributedProfiles.length > 0) && (otherProfiles.length > 0 || otherContributedProfiles.length > 0)) {
+		dropdownActions.push(new Separator());
 	}
 
-	for (const contributed of contributedProfiles) {
-		const isDefault = contributed.title === defaultProfileName;
-		const title = isDefault ? localize('defaultTerminalProfile', "{0} (Default)", contributed.title.replace(/[\n\r\t]/g, '')) : contributed.title.replace(/[\n\r\t]/g, '');
-		dropdownActions.push(disposableStore.add(new Action('contributed', title, undefined, true, () => terminalService.createAndFocusTerminal({
-			config: {
-				extensionIdentifier: contributed.extensionIdentifier,
-				id: contributed.id,
-				title
-			},
-			location
-		}))));
-		submenuActions.push(disposableStore.add(new Action('contributed-split', title, undefined, true, () => terminalService.createAndFocusTerminal({
-			config: {
-				extensionIdentifier: contributed.extensionIdentifier,
-				id: contributed.id,
-				title
-			},
-			location: splitLocation
-		}))));
+	for (const p of otherProfiles) {
+		addProfileActions(p, defaultProfileName, location, splitLocation, terminalService, dropdownActions, submenuActions, disposableStore);
+	}
+
+	for (const contributed of otherContributedProfiles) {
+		addContributedProfileActions(contributed, defaultProfileName, location, splitLocation, terminalService, dropdownActions, submenuActions, disposableStore);
 	}
 
 	if (dropdownActions.length > 0) {
@@ -851,4 +878,96 @@ export function getTerminalActionBarArgs(location: ITerminalLocationOptions, pro
 
 	const dropdownAction = disposableStore.add(new Action('refresh profiles', localize('launchProfile', 'Launch Profile...'), 'codicon-chevron-down', true));
 	return { dropdownAction, dropdownMenuActions: dropdownActions, className: `terminal-tab-actions-${terminalService.resolveLocation(location)}` };
+}
+
+function splitProfiles(profiles: readonly ITerminalProfile[]): [ITerminalProfile[], ITerminalProfile[]] {
+	const aiProfiles: ITerminalProfile[] = [];
+	const otherProfiles: ITerminalProfile[] = [];
+	for (const profile of profiles) {
+		if (isAiProfileName(profile.profileName)) {
+			aiProfiles.push(profile);
+		} else {
+			otherProfiles.push(profile);
+		}
+	}
+	return [aiProfiles, otherProfiles];
+}
+
+function splitContributedProfiles(contributedProfiles: readonly IExtensionTerminalProfile[]): [IExtensionTerminalProfile[], IExtensionTerminalProfile[]] {
+	const aiContributedProfiles: IExtensionTerminalProfile[] = [];
+	const otherContributedProfiles: IExtensionTerminalProfile[] = [];
+	for (const profile of contributedProfiles) {
+		if (isAiContributedProfile(profile)) {
+			aiContributedProfiles.push(profile);
+		} else {
+			otherContributedProfiles.push(profile);
+		}
+	}
+	return [aiContributedProfiles, otherContributedProfiles];
+}
+
+function isAiContributedProfile(profile: IExtensionTerminalProfile): boolean {
+	const extensionIdentifier = profile.extensionIdentifier.toLowerCase();
+	if (extensionIdentifier === 'github.copilot-chat' || extensionIdentifier === 'anthropic.claude-code') {
+		return true;
+	}
+
+	return isAiProfileName(profile.title);
+}
+
+function isAiProfileName(name: string): boolean {
+	const lowerCaseName = name.toLowerCase();
+	return lowerCaseName.includes('copilot') || lowerCaseName.includes('claude');
+}
+
+function addProfileActions(
+	profile: ITerminalProfile,
+	defaultProfileName: string,
+	location: ITerminalLocationOptions,
+	splitLocation: ITerminalLocationOptions,
+	terminalService: ITerminalService,
+	dropdownActions: IAction[],
+	submenuActions: IAction[],
+	disposableStore: DisposableStore
+): void {
+	const isDefault = profile.profileName === defaultProfileName;
+	const options: ICreateTerminalOptions = { config: profile, location };
+	const splitOptions: ICreateTerminalOptions = { config: profile, location: splitLocation };
+	const sanitizedProfileName = profile.profileName.replace(/[\n\r\t]/g, '');
+	dropdownActions.push(disposableStore.add(new Action(TerminalCommandId.NewWithProfile, isDefault ? localize('defaultTerminalProfile', "{0} (Default)", sanitizedProfileName) : sanitizedProfileName, undefined, true, async () => {
+		await terminalService.createAndFocusTerminal(options);
+	})));
+	submenuActions.push(disposableStore.add(new Action(TerminalCommandId.Split, isDefault ? localize('defaultTerminalProfile', "{0} (Default)", sanitizedProfileName) : sanitizedProfileName, undefined, true, async () => {
+		await terminalService.createAndFocusTerminal(splitOptions);
+	})));
+}
+
+function addContributedProfileActions(
+	contributed: IExtensionTerminalProfile,
+	defaultProfileName: string,
+	location: ITerminalLocationOptions,
+	splitLocation: ITerminalLocationOptions,
+	terminalService: ITerminalService,
+	dropdownActions: IAction[],
+	submenuActions: IAction[],
+	disposableStore: DisposableStore
+): void {
+	const isDefault = contributed.title === defaultProfileName;
+	const title = isDefault ? localize('defaultTerminalProfile', "{0} (Default)", contributed.title.replace(/[\n\r\t]/g, '')) : contributed.title.replace(/[\n\r\t]/g, '');
+	dropdownActions.push(disposableStore.add(new Action('contributed', title, undefined, true, () => terminalService.createAndFocusTerminal({
+		config: {
+			extensionIdentifier: contributed.extensionIdentifier,
+			id: contributed.id,
+			title
+		},
+		location
+	}))));
+	submenuActions.push(disposableStore.add(new Action('contributed-split', title, undefined, true, () => terminalService.createAndFocusTerminal({
+		config: {
+			extensionIdentifier: contributed.extensionIdentifier,
+			id: contributed.id,
+			title
+		},
+		location: splitLocation
+	}))));
 }

@@ -5,7 +5,7 @@
 
 import * as assert from 'assert';
 import { URI } from '../../../../base/common/uri.js';
-import { AXNode, AXProperty, AXValueType, convertAXTreeToMarkdown } from '../../electron-main/cdpAccessibilityDomain.js';
+import { AXNode, AXProperty, AXPropertyName, AXValueType, convertAXTreeToMarkdown } from '../../electron-main/cdpAccessibilityDomain.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 
 suite('CDP Accessibility Domain', () => {
@@ -17,10 +17,9 @@ suite('CDP Accessibility Domain', () => {
 		return { type, value };
 	}
 
-	function createAXProperty(name: string, value: any, type: AXValueType = 'string'): AXProperty {
+	function createAXProperty(name: AXPropertyName, value: any, type: AXValueType = 'string'): AXProperty {
 		return {
-			// eslint-disable-next-line local/code-no-any-casts
-			name: name as any,
+			name,
 			value: createAXValue(type, value)
 		};
 	}

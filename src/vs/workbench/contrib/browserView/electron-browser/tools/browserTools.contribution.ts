@@ -1,0 +1,256 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+import { Codicon } from '../../../../../base/common/codicons.js';
+import { Disposable, DisposableMap, DisposableStore, IDisposable } from '../../../../../base/common/lifecycle.js';
+import { CancellationError } from '../../../../../base/common/errors.js';
+import { localize } from '../../../../../nls.js';
+import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
+import { createSandboxNetworkFilter, IAgentNetworkFilterService } from '../../../../../platform/networkFilter/common/networkFilterService.js';
+import { ServiceCollection } from '../../../../../platform/instantiation/common/serviceCollection.js';
+import { ISandboxNetworkRestrictions } from '../../../../../platform/sandbox/common/sandboxSettingsResolutionHelper.js';
+import { IBrowserViewNetwork } from '../../../../../platform/browserView/common/browserView.js';
+import { IPlaywrightService } from '../../../../../platform/browserView/common/playwrightService.js';
+import { registerWorkbenchContribution2, WorkbenchPhase, type IWorkbenchContribution } from '../../../../common/contributions.js';
+import { IEditorService } from '../../../../services/editor/common/editorService.js';
+import { IChatContextService } from '../../../chat/browser/contextContrib/chatContextService.js';
+import { IChatService } from '../../../chat/common/chatService/chatService.js';
+import { ILanguageModelToolsService, IToolData, IToolImpl, ToolDataSource, ToolSet } from '../../../chat/common/tools/languageModelToolsService.js';
+import { IBrowserViewWorkbenchService } from '../../common/browserView.js';
+import { getBrowserPagesContext, getSessionId } from './browserToolHelpers.js';
+import { ClickBrowserTool, ClickBrowserToolData } from './clickBrowserTool.js';
+import { DragElementTool, DragElementToolData } from './dragElementTool.js';
+import { HandleDialogBrowserTool, HandleDialogBrowserToolData } from './handleDialogBrowserTool.js';
+import { HoverElementTool, HoverElementToolData } from './hoverElementTool.js';
+import { ListBrowserPagesTool, ListBrowserPagesToolData } from './listBrowserPagesTool.js';
+import { NavigateBrowserTool, NavigateBrowserToolData } from './navigateBrowserTool.js';
+import { OpenBrowserTool, OpenBrowserToolData } from './openBrowserTool.js';
+import { OpenBrowserToolNonAgentic, OpenBrowserToolNonAgenticData } from './openBrowserToolNonAgentic.js';
+import { ReadBrowserTool, ReadBrowserToolData } from './readBrowserTool.js';
+import { RunPlaywrightCodeTool, RunPlaywrightCodeToolData } from './runPlaywrightCodeTool.js';
+import { ScreenshotBrowserTool, ScreenshotBrowserToolData } from './screenshotBrowserTool.js';
+import { TypeBrowserTool, TypeBrowserToolData } from './typeBrowserTool.js';
+
+
+/** The network of pages Playwright creates for a chat session, whose proxy is held while the session uses it. */
+interface ISessionNetwork extends IDisposable {
+	readonly network: IBrowserViewNetwork | undefined;
+	/** Settles once the proxy is held and Playwright uses the network. */
+	readonly ready: Promise<void>;
+	/**
+	 * Whether the pages use {@link network}, rather than the local network
+	 * because its host could not proxy browsers. `undefined` until settled.
+	 */
+	readonly usesNetwork: boolean | undefined;
+}
+
+class BrowserChatAgentToolsContribution extends Disposable implements IWorkbenchContribution {
+
+	static readonly ID = 'browserView.chatAgentTools';
+	private static readonly CONTEXT_ID = 'browserView.trackedPages';
+
+	private readonly _toolsStore = this._register(new DisposableStore());
+	private readonly _sessionNetworks = this._register(new DisposableMap<string, ISessionNetwork>());
+	private readonly _modelListeners = this._register(new DisposableMap<string, DisposableStore>());
+	private readonly _browserToolSet: ToolSet;
+
+	constructor(
+		@IInstantiationService private readonly instantiationService: IInstantiationService,
+		@ILanguageModelToolsService private readonly toolsService: ILanguageModelToolsService,
+		@IChatContextService private readonly chatContextService: IChatContextService,
+		@IEditorService private readonly editorService: IEditorService,
+		@IBrowserViewWorkbenchService private readonly browserViewService: IBrowserViewWorkbenchService,
+		@IAgentNetworkFilterService private readonly agentNetworkFilterService: IAgentNetworkFilterService,
+		@IChatService private readonly chatService: IChatService,
+		@IPlaywrightService private readonly playwrightService: IPlaywrightService,
+	) {
+		super();
+
+		this._browserToolSet = this._register(this.toolsService.createToolSet(
+			ToolDataSource.Internal,
+			'browser',
+			'browser',
+			{
+				icon: Codicon.globe,
+				description: localize('browserToolSet.description', 'Open and interact with integrated browser pages'),
+				deprecated: true
+			},
+		));
+
+		this._updateToolRegistrations();
+
+		this._register(this.browserViewService.onDidChangeSharingAvailable(() => {
+			this._updateToolRegistrations();
+		}));
+
+		// Dispose Playwright sessions when the corresponding chat session ends.
+		this._register(this.chatService.onDidDisposeSession(e => {
+			for (const resource of e.sessionResources) {
+				void this.playwrightService.disposeSession(resource.toString()).catch(() => { });
+				this._sessionNetworks.deleteAndDispose(resource.toString());
+			}
+		}));
+	}
+
+	private _updateToolRegistrations(): void {
+		this._toolsStore.clear();
+		this._modelListeners.clearAndDisposeAll();
+
+		if (!this.browserViewService.isSharingAvailable) {
+			// If chat tools are disabled, we only register the non-agentic open tool,
+			// which allows opening browser pages without granting access to their contents.
+			this._toolsStore.add(this.toolsService.registerTool(OpenBrowserToolNonAgenticData, this.instantiationService.createInstance(OpenBrowserToolNonAgentic)));
+			this._toolsStore.add(this._browserToolSet.addTool(OpenBrowserToolNonAgenticData));
+			this.chatContextService.updateWorkspaceContextItems(BrowserChatAgentToolsContribution.CONTEXT_ID, []);
+			return;
+		}
+
+		this._registerTool(OpenBrowserToolData, service => service.createInstance(OpenBrowserTool));
+		this._registerTool(ReadBrowserToolData, service => service.createInstance(ReadBrowserTool));
+		this._registerTool(ScreenshotBrowserToolData, service => service.createInstance(ScreenshotBrowserTool));
+		this._registerTool(NavigateBrowserToolData, service => service.createInstance(NavigateBrowserTool));
+		this._registerTool(ClickBrowserToolData, service => service.createInstance(ClickBrowserTool));
+		this._registerTool(DragElementToolData, service => service.createInstance(DragElementTool));
+		this._registerTool(HoverElementToolData, service => service.createInstance(HoverElementTool));
+		this._registerTool(TypeBrowserToolData, service => service.createInstance(TypeBrowserTool));
+		this._registerTool(RunPlaywrightCodeToolData, service => service.createInstance(RunPlaywrightCodeTool));
+		this._registerTool(HandleDialogBrowserToolData, service => service.createInstance(HandleDialogBrowserTool));
+
+		// Note: this is not currently exposed directly to models. It is mostly exposed so extensions can use it to provide model context via the API.
+		this._registerTool(ListBrowserPagesToolData, service => service.createInstance(ListBrowserPagesTool));
+
+		this._toolsStore.add(this._browserToolSet.addTool(OpenBrowserToolData));
+		this._toolsStore.add(this._browserToolSet.addTool(ReadBrowserToolData));
+		this._toolsStore.add(this._browserToolSet.addTool(ScreenshotBrowserToolData));
+		this._toolsStore.add(this._browserToolSet.addTool(NavigateBrowserToolData));
+		this._toolsStore.add(this._browserToolSet.addTool(ClickBrowserToolData));
+		this._toolsStore.add(this._browserToolSet.addTool(DragElementToolData));
+		this._toolsStore.add(this._browserToolSet.addTool(HoverElementToolData));
+		this._toolsStore.add(this._browserToolSet.addTool(TypeBrowserToolData));
+		this._toolsStore.add(this._browserToolSet.addTool(RunPlaywrightCodeToolData));
+		this._toolsStore.add(this._browserToolSet.addTool(HandleDialogBrowserToolData));
+
+		// Subscribe to browser view changes and model sharing state changes
+		this._syncModelListeners();
+		this._toolsStore.add(this.browserViewService.onDidChangeBrowserViews(() => {
+			this._syncModelListeners();
+			this._updateBrowserContext();
+		}));
+		this._toolsStore.add(this.editorService.onDidActiveEditorChange(() => this._updateBrowserContext()));
+		this._toolsStore.add(this.editorService.onDidVisibleEditorsChange(() => this._updateBrowserContext()));
+		this._toolsStore.add(this.agentNetworkFilterService.onDidChange(() => this._updateBrowserContext()));
+
+		this._updateBrowserContext();
+	}
+
+	private _registerTool(data: IToolData, createTool: (service: IInstantiationService) => IToolImpl): void {
+		const defaultTool = createTool(this.instantiationService);
+		const withScopedTool = async <T>(restrictions: ISandboxNetworkRestrictions | undefined, run: (tool: IToolImpl) => T | Promise<T>): Promise<T> => {
+			if (!restrictions) {
+				return run(defaultTool);
+			}
+			const store = new DisposableStore();
+			try {
+				const service = this.instantiationService.createChild(new ServiceCollection(
+					[IAgentNetworkFilterService, createSandboxNetworkFilter(this.agentNetworkFilterService, restrictions)],
+				), store);
+				return await run(createTool(service));
+			} finally {
+				store.dispose();
+			}
+		};
+		const impl: IToolImpl = {
+			prepareToolInvocation: (context, token) => withScopedTool(context.sandboxNetworkRestrictions,
+				tool => tool.prepareToolInvocation?.(context, token)),
+			invoke: async (invocation, countTokens, progress, token) => {
+				const restrictions = invocation.context?.sandboxNetworkRestrictions;
+				if (restrictions && invocation.context) {
+					await this.playwrightService.setSessionNetworkRestrictions(invocation.context.sessionResource.toString(), restrictions);
+				}
+				// Includes the default session of calls without a chat context.
+				await this._updateSessionNetwork(getSessionId(invocation));
+				return withScopedTool(restrictions, tool => tool.invoke(invocation, countTokens, progress, token));
+			},
+		};
+		this._toolsStore.add(this.toolsService.registerTool(data, impl));
+	}
+
+	/** Point the pages Playwright creates for a session at the session's current network. */
+	private _updateSessionNetwork(sessionId: string): Promise<void> {
+		const network = this.browserViewService.resolveNetwork({ type: 'agent', sessionId });
+		const current = this._sessionNetworks.get(sessionId);
+		// The host may have gained or lost the ability to proxy browsers since, for example by reconnecting with another version.
+		const proxySupported = network && this.browserViewService.getNetworkStatus(network).proxySupported;
+		const supportChanged = (current?.usesNetwork === false && proxySupported === true) || (current?.usesNetwork === true && proxySupported === false);
+		if (current ? current.network?.authority === network?.authority && !supportChanged : !network) {
+			return current?.ready ?? Promise.resolve();
+		}
+		// Recorded before waiting for the proxy, so a session that ends meanwhile releases it.
+		const store = new DisposableStore();
+		let usesNetwork: boolean | undefined;
+		const ready = (async () => {
+			let usedNetwork: IBrowserViewNetwork | undefined;
+			if (network) {
+				const hold = await this.browserViewService.acquireNetwork(network);
+				if (store.isDisposed) {
+					hold.dispose();
+					throw new CancellationError();
+				}
+				store.add(hold);
+				// A host that cannot proxy browsers leaves the pages on the local network.
+				usedNetwork = hold.object;
+				usesNetwork = !!usedNetwork;
+			}
+			await this.playwrightService.setSessionNetwork(sessionId, usedNetwork);
+		})();
+		const sessionNetwork: ISessionNetwork = { network, ready, get usesNetwork() { return usesNetwork; }, dispose: () => store.dispose() };
+		this._sessionNetworks.set(sessionId, sessionNetwork);
+		// Let a later call retry a failed update.
+		ready.catch(() => {
+			if (this._sessionNetworks.get(sessionId) === sessionNetwork) {
+				this._sessionNetworks.deleteAndDispose(sessionId);
+			}
+		});
+		return ready;
+	}
+
+	/**
+	 * Subscribe to sharingState changes on each known model so the workspace
+	 * context updates whenever a page is shared or unshared.
+	 */
+	private _syncModelListeners(): void {
+		const views = this.browserViewService.getContextualBrowserViews();
+		// Remove listeners for views that no longer exist
+		for (const id of this._modelListeners.keys()) {
+			if (!views.has(id)) {
+				this._modelListeners.deleteAndDispose(id);
+			}
+		}
+		// Add listeners for new views
+		for (const [id, input] of views) {
+			if (!this._modelListeners.has(id) && input.model) {
+				const store = new DisposableStore();
+				store.add(input.onDidChangeLabel(() => this._updateBrowserContext()));
+				store.add(input.model.onDidChangeSharingState(() => this._updateBrowserContext()));
+				this._modelListeners.set(id, store);
+			}
+		}
+	}
+
+	private _updateBrowserContext(): void {
+		const value = getBrowserPagesContext(this.editorService, this.browserViewService, this.agentNetworkFilterService, { canPromptUser: true });
+		if (!value) {
+			this.chatContextService.updateWorkspaceContextItems(BrowserChatAgentToolsContribution.CONTEXT_ID, []);
+			return;
+		}
+
+		this.chatContextService.updateWorkspaceContextItems(BrowserChatAgentToolsContribution.CONTEXT_ID, [{
+			handle: 0,
+			label: localize('browserContext.label', "Browser Pages"),
+			value: value
+		}]);
+	}
+}
+registerWorkbenchContribution2(BrowserChatAgentToolsContribution.ID, BrowserChatAgentToolsContribution, WorkbenchPhase.AfterRestored);

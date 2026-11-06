@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as dom from '../../../../base/browser/dom.js';
+import { SeverityIcon } from '../../../../base/browser/ui/severityIcon/severityIcon.js';
 import { isNonEmptyArray } from '../../../../base/common/arrays.js';
 import { CancelablePromise, createCancelablePromise, disposableTimeout } from '../../../../base/common/async.js';
 import { onUnexpectedError } from '../../../../base/common/errors.js';
@@ -22,6 +23,8 @@ import { CodeActionKind, CodeActionSet, CodeActionTrigger, CodeActionTriggerSour
 import { MarkerController, NextMarkerAction } from '../../gotoError/browser/gotoError.js';
 import { HoverAnchor, HoverAnchorType, IEditorHoverParticipant, IEditorHoverRenderContext, IHoverPart, IRenderedHoverPart, IRenderedHoverParts, RenderedHoverParts } from './hoverTypes.js';
 import * as nls from '../../../../nls.js';
+import { IMenuService, MenuId, MenuItemAction } from '../../../../platform/actions/common/actions.js';
+import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { ITextEditorOptions } from '../../../../platform/editor/common/editor.js';
 import { IMarker, IMarkerData, MarkerSeverity } from '../../../../platform/markers/common/markers.js';
 import { IOpenerService } from '../../../../platform/opener/common/opener.js';
@@ -30,6 +33,10 @@ import { ThemeIcon } from '../../../../base/common/themables.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 
 const $ = dom.$;
+
+function getSeverityLabel(severity: MarkerSeverity): string {
+	return severity === MarkerSeverity.Hint ? nls.localize('hint', "Hint") : MarkerSeverity.toString(severity);
+}
 
 export class MarkerHover implements IHoverPart {
 
@@ -65,6 +72,8 @@ export class MarkerHoverParticipant implements IEditorHoverParticipant<MarkerHov
 		@IMarkerDecorationsService private readonly _markerDecorationsService: IMarkerDecorationsService,
 		@IOpenerService private readonly _openerService: IOpenerService,
 		@ILanguageFeaturesService private readonly _languageFeaturesService: ILanguageFeaturesService,
+		@IMenuService private readonly _menuService: IMenuService,
+		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
 	) { }
 
 	public computeSync(anchor: HoverAnchor, lineDecorations: IModelDecoration[]): MarkerHover[] {
@@ -100,28 +109,37 @@ export class MarkerHoverParticipant implements IEditorHoverParticipant<MarkerHov
 		if (!hoverParts.length) {
 			return new RenderedHoverParts([]);
 		}
+		const sortedHoverParts = hoverParts.slice().sort((a, b) => MarkerSeverity.compare(a.marker.severity, b.marker.severity));
 		const renderedHoverParts: IRenderedHoverPart<MarkerHover>[] = [];
-		hoverParts.forEach(hoverPart => {
+		sortedHoverParts.forEach(hoverPart => {
 			const renderedMarkerHover = this._renderMarkerHover(hoverPart);
 			context.fragment.appendChild(renderedMarkerHover.hoverElement);
 			renderedHoverParts.push(renderedMarkerHover);
 		});
-		const markerHoverForStatusbar = hoverParts.length === 1 ? hoverParts[0] : hoverParts.sort((a, b) => MarkerSeverity.compare(a.marker.severity, b.marker.severity))[0];
-		const disposables = this._renderMarkerStatusbar(context, markerHoverForStatusbar);
+		const disposables = this._renderMarkerStatusbar(context, sortedHoverParts[0]);
 		return new RenderedHoverParts(renderedHoverParts, disposables);
 	}
 
 	public getAccessibleContent(hoverPart: MarkerHover): string {
-		return hoverPart.marker.message;
+		const { marker } = hoverPart;
+		const relatedInformation = isNonEmptyArray(marker.relatedInformation)
+			? marker.relatedInformation.map(related => `${basename(related.resource)}(${related.startLineNumber}, ${related.startColumn}): ${related.message}`).join('\n')
+			: undefined;
+		return [nls.localize('diagnosticMessage', "{0}: {1}", getSeverityLabel(marker.severity), marker.message), relatedInformation].filter(value => !!value).join('\n');
 	}
 
 	private _renderMarkerHover(markerHover: MarkerHover): IRenderedHoverPart<MarkerHover> {
 		const disposables: DisposableStore = new DisposableStore();
 		const hoverElement = $('div.hover-row');
-		const markerElement = dom.append(hoverElement, $('div.marker.hover-contents'));
-		const { source, message, code, relatedInformation } = markerHover.marker;
+		const markerContainer = dom.append(hoverElement, $('div.marker.hover-contents'));
+		const { source, message, code, relatedInformation, severity } = markerHover.marker;
 
-		this._editor.applyFontInfo(markerElement);
+		this._editor.applyFontInfo(markerContainer);
+		const severityIcon = dom.append(markerContainer, $('span.marker-severity'));
+		severityIcon.classList.add(...SeverityIcon.className(MarkerSeverity.toSeverity(severity)).split(' '));
+		severityIcon.setAttribute('role', 'img');
+		severityIcon.setAttribute('aria-label', getSeverityLabel(severity));
+		const markerElement = dom.append(markerContainer, $('div.marker-message'));
 		const messageElement = dom.append(markerElement, $('span'));
 		messageElement.style.whiteSpace = 'pre-wrap';
 		messageElement.innerText = message;
@@ -138,7 +156,7 @@ export class MarkerHoverParticipant implements IEditorHoverParticipant<MarkerHov
 				codeLink.setAttribute('href', code.target.toString(true));
 
 				disposables.add(dom.addDisposableListener(codeLink, 'click', (e) => {
-					this._openerService.open(code.target, { allowCommands: true });
+					this._openerService.open(code.target);
 					e.preventDefault();
 					e.stopPropagation();
 				}));
@@ -206,12 +224,38 @@ export class MarkerHoverParticipant implements IEditorHoverParticipant<MarkerHov
 			}
 		}
 
+		// Menu-contributed actions (e.g. fix with inline chat)
+		const menuActions: MenuItemAction[] = [];
+		for (const [, actions] of this._menuService.getMenuActions(MenuId.MarkerHoverStatusBar, this._contextKeyService)) {
+			for (const action of actions) {
+				if (action instanceof MenuItemAction && action.enabled) {
+					menuActions.push(action);
+				}
+			}
+		}
+		const renderMenuActions = () => {
+			for (const action of menuActions) {
+				context.statusBar.addAction({
+					label: action.label,
+					commandId: action.id,
+					iconClass: action.class,
+					run: () => {
+						context.hide();
+						this._editor.setSelection(Range.lift(markerHover.range));
+						action.run();
+					}
+				});
+			}
+		};
+
 		if (!this._editor.getOption(EditorOption.readOnly)) {
 			const quickfixPlaceholderElement = context.statusBar.append($('div'));
 			if (this.recentMarkerCodeActionsInfo) {
 				if (IMarkerData.makeKey(this.recentMarkerCodeActionsInfo.marker) === IMarkerData.makeKey(markerHover.marker)) {
 					if (!this.recentMarkerCodeActionsInfo.hasCodeActions) {
-						quickfixPlaceholderElement.textContent = nls.localize('noQuickFixes', "No quick fixes available");
+						if (menuActions.length === 0) {
+							quickfixPlaceholderElement.textContent = nls.localize('noQuickFixes', "No quick fixes available");
+						}
 					}
 				} else {
 					this.recentMarkerCodeActionsInfo = undefined;
@@ -230,7 +274,12 @@ export class MarkerHoverParticipant implements IEditorHoverParticipant<MarkerHov
 
 				if (!this.recentMarkerCodeActionsInfo.hasCodeActions) {
 					actions.dispose();
-					quickfixPlaceholderElement.textContent = nls.localize('noQuickFixes', "No quick fixes available");
+					if (menuActions.length === 0) {
+						quickfixPlaceholderElement.textContent = nls.localize('noQuickFixes', "No quick fixes available");
+					} else {
+						quickfixPlaceholderElement.style.display = 'none';
+					}
+					renderMenuActions();
 					return;
 				}
 				quickfixPlaceholderElement.style.display = 'none';
@@ -249,9 +298,6 @@ export class MarkerHoverParticipant implements IEditorHoverParticipant<MarkerHov
 						showing = true;
 						const controller = CodeActionController.get(this._editor);
 						const elementPosition = dom.getDomNodePagePosition(target);
-						// Hide the hover pre-emptively, otherwise the editor can close the code actions
-						// context menu as well when using keyboard navigation
-						context.hide();
 						controller?.showCodeActions(markerCodeActionTrigger, actions, {
 							x: elementPosition.left,
 							y: elementPosition.top,
@@ -272,6 +318,10 @@ export class MarkerHoverParticipant implements IEditorHoverParticipant<MarkerHov
 							controller?.applyCodeAction(aiCodeAction, false, false, ApplyCodeActionReason.FromProblemsHover);
 						}
 					});
+				} else {
+					// Only show menu-contributed actions (e.g. inline chat Fix) when there
+					// is no AI code action, to avoid duplicate Fix entry points.
+					renderMenuActions();
 				}
 
 				// Notify that the contents have changed given we added
@@ -280,7 +330,10 @@ export class MarkerHoverParticipant implements IEditorHoverParticipant<MarkerHov
 				context.onContentsChanged();
 
 			}, onUnexpectedError);
+		} else {
+			renderMenuActions();
 		}
+
 		return disposables;
 	}
 

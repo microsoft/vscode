@@ -22,7 +22,7 @@ import { TestNotificationService } from '../../../../../platform/notification/te
 import product from '../../../../../platform/product/common/product.js';
 import { IProductService } from '../../../../../platform/product/common/productService.js';
 import { RemoteAuthorityResolverService } from '../../../../../platform/remote/browser/remoteAuthorityResolverService.js';
-import { IRemoteAuthorityResolverService, ResolverResult } from '../../../../../platform/remote/common/remoteAuthorityResolver.js';
+import { IRemoteAuthorityResolverService, RemoteAuthorityResolverError, RemoteAuthorityResolverErrorCode, ResolverResult, WebSocketRemoteConnection } from '../../../../../platform/remote/common/remoteAuthorityResolver.js';
 import { IRemoteExtensionsScannerService } from '../../../../../platform/remote/common/remoteExtensionsScanner.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { NullTelemetryService } from '../../../../../platform/telemetry/common/telemetryUtils.js';
@@ -192,12 +192,15 @@ suite('ExtensionService', () => {
 		private _extHostId = 0;
 		public readonly order: string[] = [];
 		public readonly activationEvents: { event: string; activationKind: ActivationKind; kind: ExtensionHostKind }[] = [];
+		public remoteExtHostIsReady = true;
+		public localExtHostIsReady = true;
 		protected _pickExtensionHostKind(extensionId: ExtensionIdentifier, extensionKinds: ExtensionKind[], isInstalledLocally: boolean, isInstalledRemotely: boolean, preference: ExtensionRunningPreference): ExtensionHostKind | null {
 			throw new Error('Method not implemented.');
 		}
 		protected override _doCreateExtensionHostManager(extensionHost: IExtensionHost, initialActivationEvents: string[]): IExtensionHostManager {
 			const order = this.order;
 			const activationEvents = this.activationEvents;
+			const extService = this;
 			const extensionHostId = ++this._extHostId;
 			const extHostKind = extensionHost.runningLocation.kind;
 			order.push(`create ${extensionHostId}`);
@@ -205,6 +208,7 @@ suite('ExtensionService', () => {
 				override onDidExit = Event.None;
 				override onDidChangeResponsiveState = Event.None;
 				override kind = extHostKind;
+				override get isReady() { return extHostKind === ExtensionHostKind.Remote ? extService.remoteExtHostIsReady : extService.localExtHostIsReady; }
 				override disconnect() {
 					return Promise.resolve();
 				}
@@ -235,8 +239,18 @@ suite('ExtensionService', () => {
 		protected _onExtensionHostExit(code: number): Promise<void> {
 			throw new Error('Method not implemented.');
 		}
-		protected _resolveAuthority(remoteAuthority: string): Promise<ResolverResult> {
-			throw new Error('Method not implemented.');
+		public readonly resolveAuthorityResults: (ResolverResult | Error)[] = [];
+		public resolveAuthorityAttempts = 0;
+		protected async _resolveAuthority(remoteAuthority: string): Promise<ResolverResult> {
+			this.resolveAuthorityAttempts++;
+			const result = this.resolveAuthorityResults.shift();
+			if (!result || result instanceof Error) {
+				throw result ?? new Error('Method not implemented.');
+			}
+			return result;
+		}
+		public resolveAuthorityInitial(remoteAuthority: string): Promise<ResolverResult> {
+			return this._resolveAuthorityInitial(remoteAuthority);
 		}
 	}
 
@@ -334,16 +348,41 @@ suite('ExtensionService', () => {
 		assert.strictEqual(events[0].activationKind, ActivationKind.Immediate);
 	});
 
-	test('Immediate activation only activates local extension hosts', async () => {
+	test('Immediate activation includes ready remote extension hosts (issue #297019)', async () => {
 		extService.activationEvents.length = 0; // Clear any initial activations
 
 		await extService.activateByEvent('onTest', ActivationKind.Immediate);
 
-		// Should only activate on local hosts (LocalProcess and LocalWebWorker), not Remote
+		// When remote host is ready, Immediate activation should include it
 		const activatedKinds = extService.activationEvents.map(e => e.kind);
 		assert.ok(activatedKinds.includes(ExtensionHostKind.LocalProcess), 'Should activate on LocalProcess');
 		assert.ok(activatedKinds.includes(ExtensionHostKind.LocalWebWorker), 'Should activate on LocalWebWorker');
-		assert.ok(!activatedKinds.includes(ExtensionHostKind.Remote), 'Should NOT activate on Remote');
+		assert.ok(activatedKinds.includes(ExtensionHostKind.Remote), 'Should activate on ready Remote host');
+	});
+
+	test('Immediate activation excludes not-ready remote extension hosts', async () => {
+		extService.remoteExtHostIsReady = false;
+		extService.activationEvents.length = 0; // Clear any initial activations
+
+		await extService.activateByEvent('onTest', ActivationKind.Immediate);
+
+		// When remote host is not ready, Immediate activation should skip it
+		const activatedKinds = extService.activationEvents.map(e => e.kind);
+		assert.ok(activatedKinds.includes(ExtensionHostKind.LocalProcess), 'Should activate on LocalProcess');
+		assert.ok(activatedKinds.includes(ExtensionHostKind.LocalWebWorker), 'Should activate on LocalWebWorker');
+		assert.ok(!activatedKinds.includes(ExtensionHostKind.Remote), 'Should NOT activate on not-ready Remote host');
+	});
+
+	test('Immediate activation still activates local extension hosts even when not ready', async () => {
+		extService.localExtHostIsReady = false;
+		extService.activationEvents.length = 0; // Clear any initial activations
+
+		await extService.activateByEvent('onTest', ActivationKind.Immediate);
+
+		// Local hosts should always be activated for Immediate, regardless of isReady
+		const activatedKinds = extService.activationEvents.map(e => e.kind);
+		assert.ok(activatedKinds.includes(ExtensionHostKind.LocalProcess), 'Should activate on LocalProcess even when not ready');
+		assert.ok(activatedKinds.includes(ExtensionHostKind.LocalWebWorker), 'Should activate on LocalWebWorker even when not ready');
 	});
 
 	test('Normal activation activates all extension hosts', async () => {
@@ -356,5 +395,34 @@ suite('ExtensionService', () => {
 		assert.ok(activatedKinds.includes(ExtensionHostKind.LocalProcess), 'Should activate on LocalProcess');
 		assert.ok(activatedKinds.includes(ExtensionHostKind.LocalWebWorker), 'Should activate on LocalWebWorker');
 		assert.ok(activatedKinds.includes(ExtensionHostKind.Remote), 'Should activate on Remote');
+	});
+
+	test('Initial authority resolution retries temporary failures', async () => {
+		const resolverResult: ResolverResult = { authority: { authority: 'test+remote', connectTo: new WebSocketRemoteConnection('localhost', 8080), connectionToken: undefined } };
+		extService.resolveAuthorityResults.push(
+			new RemoteAuthorityResolverError('test', RemoteAuthorityResolverErrorCode.TemporarilyNotAvailable),
+			new Error('test'),
+			resolverResult,
+		);
+
+		const result = await extService.resolveAuthorityInitial('test+remote');
+
+		assert.deepStrictEqual({ attempts: extService.resolveAuthorityAttempts, result }, { attempts: 3, result: resolverResult });
+	});
+
+	test('Initial authority resolution stops retrying after five failures', async () => {
+		extService.resolveAuthorityResults.push(...Array.from({ length: 6 }, (_, i) => new RemoteAuthorityResolverError(`attempt ${i + 1}`, RemoteAuthorityResolverErrorCode.TemporarilyNotAvailable)));
+
+		const error = await extService.resolveAuthorityInitial('test+remote').catch(err => err);
+
+		assert.deepStrictEqual({ attempts: extService.resolveAuthorityAttempts, message: error.message }, { attempts: 5, message: 'attempt 5' });
+	});
+
+	test('Initial authority resolution does not retry when not available', async () => {
+		extService.resolveAuthorityResults.push(new RemoteAuthorityResolverError('test', RemoteAuthorityResolverErrorCode.NotAvailable, true));
+
+		const error = await extService.resolveAuthorityInitial('test+remote').catch(err => err);
+
+		assert.deepStrictEqual({ attempts: extService.resolveAuthorityAttempts, notAvailable: RemoteAuthorityResolverError.isNotAvailable(error) }, { attempts: 1, notAvailable: true });
 	});
 });

@@ -50,9 +50,6 @@ export class Margin extends ViewPart {
 		this._domNode.appendChild(this._glyphMarginBackgroundDomNode);
 	}
 
-	public override dispose(): void {
-		super.dispose();
-	}
 
 	public getDomNode(): FastDomNode<HTMLElement> {
 		return this._domNode;

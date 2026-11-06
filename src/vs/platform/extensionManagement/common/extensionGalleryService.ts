@@ -16,10 +16,10 @@ import { URI } from '../../../base/common/uri.js';
 import { IHeaders, IRequestContext, IRequestOptions, isOfflineError } from '../../../base/parts/request/common/request.js';
 import { IConfigurationService } from '../../configuration/common/configuration.js';
 import { IEnvironmentService } from '../../environment/common/environment.js';
-import { getTargetPlatform, IExtensionGalleryService, IExtensionIdentifier, IExtensionInfo, IGalleryExtension, IGalleryExtensionAsset, IGalleryExtensionAssets, IGalleryExtensionVersion, InstallOperation, IQueryOptions, IExtensionsControlManifest, isNotWebExtensionInWebTargetPlatform, isTargetPlatformCompatible, ITranslation, SortOrder, StatisticType, toTargetPlatform, WEB_EXTENSION_TAG, IExtensionQueryOptions, IDeprecationInfo, ISearchPrefferedResults, ExtensionGalleryError, ExtensionGalleryErrorCode, IProductVersion, IAllowedExtensionsService, EXTENSION_IDENTIFIER_REGEX, SortBy, FilterType, MaliciousExtensionInfo, ExtensionRequestsTimeoutConfigKey } from './extensionManagement.js';
+import { getTargetPlatform, IExtensionGalleryService, IExtensionIdentifier, IExtensionInfo, IGalleryExtension, IGalleryExtensionAsset, IGalleryExtensionAssets, IGalleryExtensionVersion, InstallOperation, IQueryOptions, IExtensionsControlManifest, isNotWebExtensionInWebTargetPlatform, isTargetPlatformCompatible, ITranslation, SortOrder, StatisticType, toTargetPlatform, WEB_EXTENSION_TAG, IExtensionQueryOptions, IDeprecationInfo, ISearchPrefferedResults, ExtensionGalleryError, ExtensionGalleryErrorCode, IProductVersion, IAllowedExtensionsService, EXTENSION_IDENTIFIER_REGEX, SortBy, FilterType, MaliciousExtensionInfo, ExtensionRequestsTimeoutConfigKey, IExtensionBlockingInfo, ExtensionBlockingOrigin, ExtensionBlockingScope } from './extensionManagement.js';
 import { adoptToGalleryExtensionId, areSameExtensions, getGalleryExtensionId, getGalleryExtensionTelemetryData } from './extensionManagementUtil.js';
 import { IExtensionManifest, TargetPlatform } from '../../extensions/common/extensions.js';
-import { areApiProposalsCompatible, isEngineValid } from '../../extensions/common/extensionValidator.js';
+import { isEngineValid } from '../../extensions/common/extensionValidator.js';
 import { IFileService } from '../../files/common/files.js';
 import { ILogService } from '../../log/common/log.js';
 import { IProductService } from '../../product/common/productService.js';
@@ -56,6 +56,8 @@ export interface IRawGalleryExtensionVersion {
 	readonly files: IRawGalleryExtensionFile[];
 	properties?: IRawGalleryExtensionProperty[];
 	readonly targetPlatform?: string;
+	readonly flags?: string;
+	readonly blocking?: IRawGalleryExtensionBlocking;
 }
 
 interface IRawGalleryExtensionStatistics {
@@ -72,6 +74,11 @@ interface IRawGalleryExtensionPublisher {
 	readonly linkType?: string;
 }
 
+/** The blocking metadata this client consumes. The contract carries more, which is ignored. */
+export interface IRawGalleryExtensionBlocking {
+	readonly origin?: string;
+}
+
 interface IRawGalleryExtension {
 	readonly extensionId: string;
 	readonly extensionName: string;
@@ -86,6 +93,7 @@ interface IRawGalleryExtension {
 	readonly lastUpdated: string;
 	readonly categories: string[] | undefined;
 	readonly flags: string;
+	readonly blocking?: IRawGalleryExtensionBlocking;
 	readonly linkType?: string;
 	readonly ratingLinkType?: string;
 }
@@ -132,6 +140,11 @@ const PropertyType = {
 	SupportLink: 'Microsoft.VisualStudio.Services.Links.Support',
 	ExecutesCode: 'Microsoft.VisualStudio.Code.ExecutesCode',
 	Private: 'PrivateMarketplace',
+};
+
+/** Tokens reported on the extension-level `flags` string. */
+const ExtensionFlag = {
+	Blocked: 'blocked',
 };
 
 interface ICriterium {
@@ -225,6 +238,7 @@ type ExtensionsCriteria = {
 	readonly compatible: boolean;
 	readonly includePreRelease: boolean | (IExtensionIdentifier & { includePreRelease: boolean })[];
 	readonly versions?: (IExtensionIdentifier & { version: string })[];
+	readonly includeBlockedVersions?: boolean;
 	readonly isQueryForReleaseVersionFromPreReleaseVersion?: boolean;
 };
 
@@ -239,6 +253,7 @@ type ExtensionVersionCriteria = {
 	readonly targetPlatform: TargetPlatform;
 	readonly compatible: boolean;
 	readonly version: VersionKind | string;
+	readonly includeBlockedVersions?: boolean;
 };
 
 class Query {
@@ -369,6 +384,41 @@ function getExcludeVersionRangeForExtension(id: string, productService: IProduct
 function isPrivateExtension(version: IRawGalleryExtensionVersion): boolean {
 	const values = version.properties ? version.properties.filter(p => p.key === PropertyType.Private) : [];
 	return values.length > 0 && values[0].value === 'true';
+}
+
+/**
+ * Reads the blocked state of an extension at a given version. At either granularity the flag and
+ * the object are two representations of one fact, so either alone still means blocked: a producer
+ * emitting one without the other is defective, and failing safe is the correct response.
+ */
+export function getBlockingInfo(
+	extension: { readonly flags: string; readonly blocking?: IRawGalleryExtensionBlocking },
+	version: { readonly flags?: string; readonly blocking?: IRawGalleryExtensionBlocking }
+): IExtensionBlockingInfo | undefined {
+	if (isBlocked(extension.flags, extension.blocking)) {
+		return { origin: toBlockingOrigin(extension.blocking?.origin), scope: ExtensionBlockingScope.Extension };
+	}
+	if (isBlocked(version.flags, version.blocking)) {
+		return { origin: toBlockingOrigin(version.blocking?.origin), scope: ExtensionBlockingScope.Version };
+	}
+	return undefined;
+}
+
+function isBlocked(flags: string | undefined, blocking: IRawGalleryExtensionBlocking | undefined): boolean {
+	return !!blocking || hasExtensionFlag(flags, ExtensionFlag.Blocked);
+}
+
+function toBlockingOrigin(origin: unknown): ExtensionBlockingOrigin {
+	// Anything unrecognized, including a wrong type, degrades to the more severe reading
+	// rather than failing the parse and taking the whole query down with it.
+	return typeof origin === 'string' && origin.trim().toLowerCase() === ExtensionBlockingOrigin.Policy
+		? ExtensionBlockingOrigin.Policy
+		: ExtensionBlockingOrigin.Service;
+}
+
+/** Matches a whole token, so that `unblocked` does not match `blocked`. */
+function hasExtensionFlag(flags: string | undefined, flag: string): boolean {
+	return !!flags && flags.split(',').some(f => f.trim().toLowerCase() === flag);
 }
 
 function executesCode(version: IRawGalleryExtensionVersion): boolean | undefined {
@@ -513,6 +563,14 @@ function setTelemetry(extension: IGalleryExtension, index: number, querySource?:
 	extension.telemetryData = { index, querySource, queryActivityId: extension.queryContext?.[SEARCH_ACTIVITY_HEADER_NAME] };
 }
 
+/**
+ * Resolves the link template for a gallery link type, falling back to the default type
+ * when the gallery reports a link type that its manifest does not define.
+ */
+export function getGalleryLinkTemplate(manifest: IExtensionGalleryManifest, linkType: string | undefined, defaultType: ExtensionGalleryResourceType): string | undefined {
+	return (linkType ? getExtensionGalleryManifestResourceUri(manifest, linkType) : undefined) ?? getExtensionGalleryManifestResourceUri(manifest, defaultType);
+}
+
 function toExtension(galleryExtension: IRawGalleryExtension, version: IRawGalleryExtensionVersion, allTargetPlatforms: TargetPlatform[], extensionGalleryManifest: IExtensionGalleryManifest, productService: IProductService, queryContext?: IStringDictionary<unknown>): IGalleryExtension {
 	const latestVersion = galleryExtension.versions[0];
 	const assets: IGalleryExtensionAssets = {
@@ -527,9 +585,9 @@ function toExtension(galleryExtension: IRawGalleryExtension, version: IRawGaller
 		coreTranslations: getCoreTranslationAssets(version)
 	};
 
-	const detailsViewUri = getExtensionGalleryManifestResourceUri(extensionGalleryManifest, galleryExtension.linkType ?? ExtensionGalleryResourceType.ExtensionDetailsViewUri);
-	const publisherViewUri = getExtensionGalleryManifestResourceUri(extensionGalleryManifest, galleryExtension.publisher.linkType ?? ExtensionGalleryResourceType.PublisherViewUri);
-	const ratingViewUri = getExtensionGalleryManifestResourceUri(extensionGalleryManifest, galleryExtension.ratingLinkType ?? ExtensionGalleryResourceType.ExtensionRatingViewUri);
+	const detailsViewUri = getGalleryLinkTemplate(extensionGalleryManifest, galleryExtension.linkType, ExtensionGalleryResourceType.ExtensionDetailsViewUri);
+	const publisherViewUri = getGalleryLinkTemplate(extensionGalleryManifest, galleryExtension.publisher.linkType, ExtensionGalleryResourceType.PublisherViewUri);
+	const ratingViewUri = getGalleryLinkTemplate(extensionGalleryManifest, galleryExtension.ratingLinkType, ExtensionGalleryResourceType.ExtensionRatingViewUri);
 	const id = getGalleryExtensionId(galleryExtension.publisher.publisherName, galleryExtension.extensionName);
 
 	return {
@@ -569,6 +627,7 @@ function toExtension(galleryExtension: IRawGalleryExtension, version: IRawGaller
 		hasPreReleaseVersion: hasPreReleaseForExtension(id, productService) ?? isPreReleaseVersion(latestVersion),
 		hasReleaseVersion: true,
 		private: isPrivateExtension(latestVersion),
+		blockingInfo: getBlockingInfo(galleryExtension, version),
 		preview: getIsPreview(galleryExtension.flags),
 		isSigned: !!assets.signature,
 		queryContext,
@@ -609,7 +668,6 @@ export abstract class AbstractExtensionGalleryService implements IExtensionGalle
 	private readonly unpkgResourceApi: string | undefined;
 
 	private readonly commonHeadersPromise: Promise<IHeaders>;
-	private readonly extensionsEnabledWithApiProposalVersion: string[];
 
 	constructor(
 		storageService: IStorageService | undefined,
@@ -625,7 +683,6 @@ export abstract class AbstractExtensionGalleryService implements IExtensionGalle
 	) {
 		this.extensionsControlUrl = productService.extensionsGallery?.controlUrl;
 		this.unpkgResourceApi = productService.extensionsGallery?.extensionUrlTemplate;
-		this.extensionsEnabledWithApiProposalVersion = productService.extensionsEnabledWithApiProposalVersion?.map(id => id.toLowerCase()) ?? [];
 		this.commonHeadersPromise = resolveMarketplaceHeaders(
 			productService.version,
 			productService,
@@ -741,6 +798,7 @@ export abstract class AbstractExtensionGalleryService implements IExtensionGalle
 				versions,
 				compatible: !!options.compatible,
 				productVersion: options.productVersion ?? { version: this.productService.version, date: this.productService.date },
+				includeBlockedVersions: options.includeBlockedVersions,
 				isQueryForReleaseVersionFromPreReleaseVersion
 			},
 			extensionGalleryManifest,
@@ -763,7 +821,7 @@ export abstract class AbstractExtensionGalleryService implements IExtensionGalle
 			if (!EXTENSION_IDENTIFIER_REGEX.test(extensionInfo.id)) {
 				continue;
 			}
-			if (extensionInfo.version) {
+			if (extensionInfo.version || !extensionInfo.uuid) {
 				toQuery.push(extensionInfo);
 			} else {
 				toFetchLatest.push(extensionInfo);
@@ -775,28 +833,32 @@ export abstract class AbstractExtensionGalleryService implements IExtensionGalle
 			try {
 				galleryExtension = await this.getLatestGalleryExtension(extensionInfo, options, resourceApi, extensionGalleryManifest, token);
 				if (isString(galleryExtension)) {
-					// fallback to query
-					this.telemetryService.publicLog2<
-						{
-							extension: string;
-							preRelease: boolean;
-							compatible: boolean;
-							errorCode: string;
-						},
-						{
-							owner: 'sandy081';
-							comment: 'Report the fallback to the Marketplace query for fetching extensions';
-							extension: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Extension id' };
-							preRelease: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Get pre-release version' };
-							compatible: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Get compatible version' };
-							errorCode: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Error code or reason' };
-						}>('galleryService:fallbacktoquery', {
-							extension: extensionInfo.id,
-							preRelease: !!extensionInfo.preRelease,
-							compatible: !!options.compatible,
-							errorCode: galleryExtension
-						});
-					toQuery.push(extensionInfo);
+					if (galleryExtension === 'LATEST_IS_OUTDATED') {
+						this.logService.debug(`Skipping query API fallback for extension ${extensionInfo.id} because the latest gallery version is older than the current version`);
+					} else {
+						// fallback to query
+						this.telemetryService.publicLog2<
+							{
+								extension: string;
+								preRelease: boolean;
+								compatible: boolean;
+								errorCode: string;
+							},
+							{
+								owner: 'sandy081';
+								comment: 'Report the fallback to the Marketplace query for fetching extensions';
+								extension: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Extension id' };
+								preRelease: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Get pre-release version' };
+								compatible: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Get compatible version' };
+								errorCode: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Error code or reason' };
+							}>('galleryService:fallbacktoquery', {
+								extension: extensionInfo.id,
+								preRelease: !!extensionInfo.preRelease,
+								compatible: !!options.compatible,
+								errorCode: galleryExtension
+							});
+						toQuery.push(extensionInfo);
+					}
 				} else {
 					result.push(galleryExtension);
 				}
@@ -825,7 +887,7 @@ export abstract class AbstractExtensionGalleryService implements IExtensionGalle
 						extension: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Extension id' };
 						preRelease: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Get pre-release version' };
 						compatible: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Get compatible version' };
-						errorCode: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Error code' };
+						errorCode: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Error code or reason' };
 					}>('galleryService:fallbacktoquery', {
 						extension: extensionInfo.id,
 						preRelease: !!extensionInfo.preRelease,
@@ -852,10 +914,20 @@ export abstract class AbstractExtensionGalleryService implements IExtensionGalle
 			return 'NOT_FOUND';
 		}
 
+		if (!Array.isArray(rawGalleryExtension.versions) || rawGalleryExtension.versions.some(version => !Array.isArray(version.files))) {
+			return 'INVALID_RESPONSE';
+		}
+
 		const allTargetPlatforms = getAllTargetPlatforms(rawGalleryExtension);
 		const rawGalleryExtensionVersion = await this.getValidRawGalleryExtensionVersionFromLatestVersions(rawGalleryExtension, rawGalleryExtension.versions, extensionInfo, options, allTargetPlatforms);
 
 		if (!rawGalleryExtensionVersion) {
+			if (extensionInfo.currentVersion) {
+				const latestVersion = rawGalleryExtension.versions.length > 0 ? rawGalleryExtension.versions[0].version : undefined;
+				if (latestVersion && semver.lt(latestVersion, extensionInfo.currentVersion)) {
+					return 'LATEST_IS_OUTDATED';
+				}
+			}
 			return 'NOT_COMPATIBLE';
 		}
 
@@ -940,6 +1012,9 @@ export abstract class AbstractExtensionGalleryService implements IExtensionGalle
 		if (isNotWebExtensionInWebTargetPlatform(extension.allTargetPlatforms, targetPlatform)) {
 			return null;
 		}
+		if (extension.blockingInfo?.scope === ExtensionBlockingScope.Extension) {
+			return extension;
+		}
 		if (await this.isExtensionCompatible(extension, includePreRelease, targetPlatform)) {
 			return extension;
 		}
@@ -969,7 +1044,8 @@ export abstract class AbstractExtensionGalleryService implements IExtensionGalle
 				targetPlatform: extension.properties.targetPlatform,
 				manifestAsset: extension.assets.manifest,
 				engine: extension.properties.engine,
-				enabledApiProposals: extension.properties.enabledApiProposals
+				enabledApiProposals: extension.properties.enabledApiProposals,
+				blocked: !!extension.blockingInfo
 			},
 			{
 				targetPlatform,
@@ -983,7 +1059,7 @@ export abstract class AbstractExtensionGalleryService implements IExtensionGalle
 	}
 
 	private async isValidVersion(
-		extension: { id: string; version: string; isPreReleaseVersion: boolean; targetPlatform: TargetPlatform; manifestAsset: IGalleryExtensionAsset | null; engine: string | undefined; enabledApiProposals: string[] | undefined },
+		extension: { id: string; version: string; isPreReleaseVersion: boolean; targetPlatform: TargetPlatform; manifestAsset: IGalleryExtensionAsset | null; engine: string | undefined; enabledApiProposals: string[] | undefined; blocked: boolean },
 		{ targetPlatform, compatible, productVersion, version }: Omit<ExtensionVersionCriteria, 'targetPlatform'> & { targetPlatform: TargetPlatform | undefined },
 		publisherDisplayName: string,
 		allTargetPlatforms: TargetPlatform[]
@@ -991,6 +1067,12 @@ export abstract class AbstractExtensionGalleryService implements IExtensionGalle
 
 		const hasPreRelease = hasPreReleaseForExtension(extension.id, this.productService);
 		const excludeVersionRange = getExcludeVersionRangeForExtension(extension.id, this.productService);
+
+		// Checked before the version kind and platform filters so that a blocked version is
+		// skipped in display paths as well as install paths.
+		if (extension.blocked) {
+			return false;
+		}
 
 		if (extension.isPreReleaseVersion && hasPreRelease === false /* Skip if hasPreRelease is not defined for this extension */) {
 			return false;
@@ -1023,26 +1105,12 @@ export abstract class AbstractExtensionGalleryService implements IExtensionGalle
 				return false;
 			}
 
-			if (!this.areApiProposalsCompatible(extension.id, extension.enabledApiProposals)) {
-				return false;
-			}
-
 			if (!(await this.isEngineValid(extension.id, extension.version, extension.engine, extension.manifestAsset, productVersion))) {
 				return false;
 			}
 		}
 
 		return true;
-	}
-
-	private areApiProposalsCompatible(extensionId: string, enabledApiProposals: string[] | undefined): boolean {
-		if (!enabledApiProposals) {
-			return true;
-		}
-		if (!this.extensionsEnabledWithApiProposalVersion.includes(extensionId.toLowerCase())) {
-			return true;
-		}
-		return areApiProposalsCompatible(enabledApiProposals);
 	}
 
 	private async isEngineValid(extensionId: string, version: string, engine: string | undefined, manifestAsset: IGalleryExtensionAsset | null, productVersion: IProductVersion): Promise<boolean> {
@@ -1082,7 +1150,7 @@ export abstract class AbstractExtensionGalleryService implements IExtensionGalle
 			this.telemetryService.publicLog2<GalleryServiceEngineFallbackEvent, GalleryServiceEngineFallbackClassification>('galleryService:engineFallback', { extension: extensionId, extensionVersion: version });
 
 			const headers = { 'Accept-Encoding': 'gzip' };
-			const context = await this.getAsset(extensionId, manifestAsset, AssetType.Manifest, version, { headers });
+			const context = await this.getAsset(extensionId, manifestAsset, AssetType.Manifest, version, 'extensionGalleryService.engineVersion', { headers });
 			const manifest = await asJson<IExtensionManifest>(context);
 			if (!manifest) {
 				this.logService.error(`Manifest was not found for the extension ${extensionId} with version ${version}`);
@@ -1232,7 +1300,8 @@ export abstract class AbstractExtensionGalleryService implements IExtensionGalle
 						targetPlatform: criteria.targetPlatform,
 						productVersion: criteria.productVersion,
 						version: criteria.versions?.find(extensionIdentifierWithVersion => areSameExtensions(extensionIdentifierWithVersion, extensionIdentifier))?.version
-							?? (includePreRelease ? VersionKind.Latest : VersionKind.Release)
+							?? (includePreRelease ? VersionKind.Latest : VersionKind.Release),
+						includeBlockedVersions: criteria.includeBlockedVersions
 					},
 					allTargetPlatforms
 				);
@@ -1268,7 +1337,8 @@ export abstract class AbstractExtensionGalleryService implements IExtensionGalle
 					targetPlatform: criteria.targetPlatform,
 					productVersion: criteria.productVersion,
 					version: criteria.versions?.find(extensionIdentifierWithVersion => areSameExtensions(extensionIdentifierWithVersion, extensionIdentifier))?.version
-						?? (includePreRelease ? VersionKind.Latest : VersionKind.Release)
+						?? (includePreRelease ? VersionKind.Latest : VersionKind.Release),
+					includeBlockedVersions: criteria.includeBlockedVersions
 				},
 				allTargetPlatforms
 			);
@@ -1336,7 +1406,8 @@ export abstract class AbstractExtensionGalleryService implements IExtensionGalle
 					targetPlatform: getTargetPlatformForExtensionVersion(rawGalleryExtensionVersion),
 					engine: getEngine(rawGalleryExtensionVersion),
 					manifestAsset: getVersionAsset(rawGalleryExtensionVersion, AssetType.Manifest),
-					enabledApiProposals: getEnabledApiProposals(rawGalleryExtensionVersion)
+					enabledApiProposals: getEnabledApiProposals(rawGalleryExtensionVersion),
+					blocked: isBlocked(rawGalleryExtensionVersion.flags, rawGalleryExtensionVersion.blocking)
 				},
 				criteria,
 				rawGalleryExtension.publisher.displayName,
@@ -1345,6 +1416,9 @@ export abstract class AbstractExtensionGalleryService implements IExtensionGalle
 				return rawGalleryExtensionVersion;
 			}
 			if (version && rawGalleryExtensionVersion.version === version) {
+				if (criteria.includeBlockedVersions && isBlocked(rawGalleryExtensionVersion.flags, rawGalleryExtensionVersion.blocking)) {
+					return rawGalleryExtensionVersion;
+				}
 				return null;
 			}
 		}
@@ -1357,7 +1431,7 @@ export abstract class AbstractExtensionGalleryService implements IExtensionGalle
 		 * Fallback: Return the latest version
 		 * This can happen when the extension does not have a release version or does not have a version compatible with the given target platform.
 		 */
-		return rawGalleryExtension.versions[0];
+		return rawGalleryExtensionVersions.find(version => !isBlocked(version.flags, version.blocking)) ?? null;
 	}
 
 	private async setEngineIfNotExists(extensionId: string, rawGalleryExtensionVersion: IRawGalleryExtensionVersion): Promise<void> {
@@ -1422,9 +1496,8 @@ export abstract class AbstractExtensionGalleryService implements IExtensionGalle
 			}, 0)
 		});
 
-		const commonHeaders = await this.commonHeadersPromise;
 		const headers = {
-			...commonHeaders,
+			...await this.getRequestHeaders(extensionsQueryApi),
 			'Content-Type': 'application/json',
 			'Accept': 'application/json;api-version=3.0-preview.1',
 			'Accept-Encoding': 'gzip',
@@ -1439,7 +1512,8 @@ export abstract class AbstractExtensionGalleryService implements IExtensionGalle
 				type: 'POST',
 				url: extensionsQueryApi,
 				data,
-				headers
+				headers,
+				callSite: 'extensionGalleryService.queryRawGalleryExtensions'
 			}, token);
 
 			if (context.res.statusCode && context.res.statusCode >= 400 && context.res.statusCode < 500) {
@@ -1527,22 +1601,6 @@ export abstract class AbstractExtensionGalleryService implements IExtensionGalle
 			if (!resourceApi.fallback) {
 				throw error;
 			}
-		} finally {
-			this.telemetryService.publicLog2<
-				{
-					extension: string;
-					errorCode?: string;
-				},
-				{
-					owner: 'sandy081';
-					comment: 'Report fetching latest version of an extension';
-					extension: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The identifier of the extension' };
-					errorCode?: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The error code in case of error' };
-				}
-			>('galleryService:getmarketplacelatest', {
-				extension: extensionInfo.id,
-				errorCode,
-			});
 		}
 
 		this.logService.error(`Error while getting the latest version for the extension ${extensionInfo.id} from ${resourceApi.uri}. Trying the fallback ${resourceApi.fallback}`, errorCode);
@@ -1576,9 +1634,8 @@ export abstract class AbstractExtensionGalleryService implements IExtensionGalle
 		const stopWatch = new StopWatch();
 
 		try {
-			const commonHeaders = await this.commonHeadersPromise;
 			const headers = {
-				...commonHeaders,
+				...await this.getRequestHeaders(uri.toString(true)),
 				'Content-Type': 'application/json',
 				'Accept': 'application/json;api-version=7.2-preview',
 				'Accept-Encoding': 'gzip',
@@ -1588,7 +1645,8 @@ export abstract class AbstractExtensionGalleryService implements IExtensionGalle
 				type: 'GET',
 				url: uri.toString(true),
 				headers,
-				timeout: this.getRequestTimeout()
+				timeout: this.getRequestTimeout(),
+				callSite: 'extensionGalleryService.getLatestRawGalleryExtension'
 			}, token);
 
 			if (context.res.statusCode === 404) {
@@ -1680,13 +1738,13 @@ export abstract class AbstractExtensionGalleryService implements IExtensionGalle
 		const url = format2(resource, { publisher, name, version, statTypeName: type });
 
 		const Accept = '*/*;api-version=4.0-preview.1';
-		const commonHeaders = await this.commonHeadersPromise;
-		const headers = { ...commonHeaders, Accept };
+		const headers = { ...await this.getRequestHeaders(url), Accept };
 		try {
 			await this.requestService.request({
 				type: 'POST',
 				url,
-				headers
+				headers,
+				callSite: 'extensionGalleryService.reportStatistic'
 			}, CancellationToken.None);
 		} catch (error) { /* Ignore */ }
 	}
@@ -1704,7 +1762,7 @@ export abstract class AbstractExtensionGalleryService implements IExtensionGalle
 
 		const activityId = extension.queryContext?.[SEARCH_ACTIVITY_HEADER_NAME];
 		const headers: IHeaders | undefined = activityId && typeof activityId === 'string' ? { [SEARCH_ACTIVITY_HEADER_NAME]: activityId } : undefined;
-		const context = await this.getAsset(extension.identifier.id, downloadAsset, AssetType.VSIX, extension.version, headers ? { headers } : undefined);
+		const context = await this.getAsset(extension.identifier.id, downloadAsset, AssetType.VSIX, extension.version, 'extensionGalleryService.download', headers ? { headers } : undefined);
 
 		try {
 			await this.fileService.writeFile(location, context.stream);
@@ -1737,7 +1795,7 @@ export abstract class AbstractExtensionGalleryService implements IExtensionGalle
 
 		this.logService.trace('ExtensionGalleryService#downloadSignatureArchive', extension.identifier.id);
 
-		const context = await this.getAsset(extension.identifier.id, extension.assets.signature, AssetType.Signature, extension.version);
+		const context = await this.getAsset(extension.identifier.id, extension.assets.signature, AssetType.Signature, extension.version, 'extensionGalleryService.signature');
 		try {
 			await this.fileService.writeFile(location, context.stream);
 		} catch (error) {
@@ -1754,7 +1812,7 @@ export abstract class AbstractExtensionGalleryService implements IExtensionGalle
 
 	async getReadme(extension: IGalleryExtension, token: CancellationToken): Promise<string> {
 		if (extension.assets.readme) {
-			const context = await this.getAsset(extension.identifier.id, extension.assets.readme, AssetType.Details, extension.version, {}, token);
+			const context = await this.getAsset(extension.identifier.id, extension.assets.readme, AssetType.Details, extension.version, 'extensionGalleryService.readme', {}, token);
 			const content = await asTextOrError(context);
 			return content || '';
 		}
@@ -1763,7 +1821,7 @@ export abstract class AbstractExtensionGalleryService implements IExtensionGalle
 
 	async getManifest(extension: IGalleryExtension, token: CancellationToken): Promise<IExtensionManifest | null> {
 		if (extension.assets.manifest) {
-			const context = await this.getAsset(extension.identifier.id, extension.assets.manifest, AssetType.Manifest, extension.version, {}, token);
+			const context = await this.getAsset(extension.identifier.id, extension.assets.manifest, AssetType.Manifest, extension.version, 'extensionGalleryService.manifest', {}, token);
 			const text = await asTextOrError(context);
 			return text ? JSON.parse(text) : null;
 		}
@@ -1773,7 +1831,7 @@ export abstract class AbstractExtensionGalleryService implements IExtensionGalle
 	async getCoreTranslation(extension: IGalleryExtension, languageId: string): Promise<ITranslation | null> {
 		const asset = extension.assets.coreTranslations.filter(t => t[0] === languageId.toUpperCase())[0];
 		if (asset) {
-			const context = await this.getAsset(extension.identifier.id, asset[1], asset[0], extension.version);
+			const context = await this.getAsset(extension.identifier.id, asset[1], asset[0], extension.version, 'extensionGalleryService.coreTranslation');
 			const text = await asTextOrError(context);
 			return text ? JSON.parse(text) : null;
 		}
@@ -1782,7 +1840,7 @@ export abstract class AbstractExtensionGalleryService implements IExtensionGalle
 
 	async getChangelog(extension: IGalleryExtension, token: CancellationToken): Promise<string> {
 		if (extension.assets.changelog) {
-			const context = await this.getAsset(extension.identifier.id, extension.assets.changelog, AssetType.Changelog, extension.version, {}, token);
+			const context = await this.getAsset(extension.identifier.id, extension.assets.changelog, AssetType.Changelog, extension.version, 'extensionGalleryService.changelog', {}, token);
 			const content = await asTextOrError(context);
 			return content || '';
 		}
@@ -1836,7 +1894,8 @@ export abstract class AbstractExtensionGalleryService implements IExtensionGalle
 							targetPlatform: getTargetPlatformForExtensionVersion(version),
 							engine: getEngine(version),
 							manifestAsset: getVersionAsset(version, AssetType.Manifest),
-							enabledApiProposals: getEnabledApiProposals(version)
+							enabledApiProposals: getEnabledApiProposals(version),
+							blocked: isBlocked(version.flags, version.blocking)
 						},
 						{
 							compatible: !!onlyCompatible,
@@ -1869,15 +1928,17 @@ export abstract class AbstractExtensionGalleryService implements IExtensionGalle
 		return result;
 	}
 
-	private async getAsset(extension: string, asset: IGalleryExtensionAsset, assetType: string, extensionVersion: string, options: IRequestOptions = {}, token: CancellationToken = CancellationToken.None): Promise<IRequestContext> {
+	private async getRequestHeaders(url: string, headers?: IHeaders): Promise<IHeaders> {
 		const commonHeaders = await this.commonHeadersPromise;
-		const baseOptions = { type: 'GET' };
-		const headers = { ...commonHeaders, ...(options.headers || {}) };
-		options = { ...options, ...baseOptions, headers };
+		const accessToken = await this.extensionGalleryManifestService.getAccessToken(url);
+		return { ...commonHeaders, ...headers, ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}) };
+	}
 
+	private async getAsset(extension: string, asset: IGalleryExtensionAsset, assetType: string, extensionVersion: string, callSite: string, options: Omit<IRequestOptions, 'callSite'> = {}, token: CancellationToken = CancellationToken.None): Promise<IRequestContext> {
+		options = { ...options, type: 'GET' };
 		const url = asset.uri;
 		const fallbackUrl = asset.fallbackUri;
-		const firstOptions = { ...options, url, timeout: this.getRequestTimeout() };
+		const firstOptions = { ...options, headers: await this.getRequestHeaders(url, options.headers), url, timeout: this.getRequestTimeout(), callSite };
 
 		let context;
 		try {
@@ -1923,7 +1984,7 @@ export abstract class AbstractExtensionGalleryService implements IExtensionGalle
 				endToEndId: this.getHeaderValue(context?.res.headers, END_END_ID_HEADER_NAME),
 			});
 
-			const fallbackOptions = { ...options, url: fallbackUrl, timeout: this.getRequestTimeout() };
+			const fallbackOptions = { ...options, headers: await this.getRequestHeaders(fallbackUrl, options.headers), url: fallbackUrl, timeout: this.getRequestTimeout(), callSite: `${callSite}.fallback` };
 			return this.requestService.request(fallbackOptions, token);
 		}
 	}
@@ -1939,10 +2000,13 @@ export abstract class AbstractExtensionGalleryService implements IExtensionGalle
 			return { malicious: [], deprecated: {}, search: [], autoUpdate: {} };
 		}
 
+		const accessToken = await this.extensionGalleryManifestService.getAccessToken(this.extensionsControlUrl);
 		const context = await this.requestService.request({
 			type: 'GET',
 			url: this.extensionsControlUrl,
-			timeout: this.getRequestTimeout()
+			headers: accessToken ? { Authorization: `Bearer ${accessToken}` } : undefined,
+			timeout: this.getRequestTimeout(),
+			callSite: 'extensionGalleryService.getExtensionsControlManifest'
 		}, CancellationToken.None);
 
 		if (context.res.statusCode !== 200) {

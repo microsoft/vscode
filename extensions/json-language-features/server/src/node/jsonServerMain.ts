@@ -4,13 +4,15 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { createConnection, Connection, Disposable } from 'vscode-languageserver/node';
-import { formatError } from '../utils/runner';
-import { RequestService, RuntimeEnvironment, startServer } from '../jsonServer';
+import { formatError } from '../utils/runner.js';
+import { RequestService, RuntimeEnvironment, startServer } from '../jsonServer.js';
 
-import { xhr, XHRResponse, configure as configureHttpRequests, getErrorStatusDescription } from 'request-light';
+import requestLight, { XHRResponse } from 'request-light';
 import { URI as Uri } from 'vscode-uri';
 import { promises as fs } from 'fs';
 import * as l10n from '@vscode/l10n';
+
+const { xhr, configure: configureHttpRequests, getErrorStatusDescription } = requestLight;
 
 // Create a connection for the server.
 const connection: Connection = createConnection();

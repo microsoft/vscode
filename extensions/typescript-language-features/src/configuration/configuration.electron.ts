@@ -10,6 +10,7 @@ import * as child_process from 'child_process';
 import * as fs from 'fs';
 import { BaseServiceConfigurationProvider } from './configuration';
 import { RelativeWorkspacePathResolver } from '../utils/relativePathResolver';
+import { getSafeNotificationMessage } from '../utils/notification';
 
 export class ElectronServiceConfigurationProvider extends BaseServiceConfigurationProvider {
 
@@ -24,6 +25,10 @@ export class ElectronServiceConfigurationProvider extends BaseServiceConfigurati
 	}
 
 	protected readGlobalTsdk(configuration: vscode.WorkspaceConfiguration): string | null {
+		const unifiedInspect = configuration.inspect('js/ts.tsdk.path');
+		if (unifiedInspect && typeof unifiedInspect.globalValue === 'string') {
+			return this.fixPathPrefixes(unifiedInspect.globalValue);
+		}
 		const inspect = configuration.inspect('typescript.tsdk');
 		if (inspect && typeof inspect.globalValue === 'string') {
 			return this.fixPathPrefixes(inspect.globalValue);
@@ -32,6 +37,10 @@ export class ElectronServiceConfigurationProvider extends BaseServiceConfigurati
 	}
 
 	protected readLocalTsdk(configuration: vscode.WorkspaceConfiguration): string | null {
+		const unifiedInspect = configuration.inspect('js/ts.tsdk.path');
+		if (unifiedInspect && typeof unifiedInspect.workspaceValue === 'string') {
+			return this.fixPathPrefixes(unifiedInspect.workspaceValue);
+		}
 		const inspect = configuration.inspect('typescript.tsdk');
 		if (inspect && typeof inspect.workspaceValue === 'string') {
 			return this.fixPathPrefixes(inspect.workspaceValue);
@@ -44,7 +53,10 @@ export class ElectronServiceConfigurationProvider extends BaseServiceConfigurati
 	}
 
 	private readLocalNodePathWorker(configuration: vscode.WorkspaceConfiguration): string | null {
-		const inspect = configuration.inspect('typescript.tsserver.nodePath');
+		const unifiedInspect = configuration.inspect('js/ts.tsserver.node.path');
+		const inspect = (unifiedInspect?.workspaceValue && typeof unifiedInspect.workspaceValue === 'string')
+			? unifiedInspect
+			: configuration.inspect('typescript.tsserver.nodePath');
 		if (inspect?.workspaceValue && typeof inspect.workspaceValue === 'string') {
 			if (inspect.workspaceValue === 'node') {
 				return this.findNodePath();
@@ -64,7 +76,10 @@ export class ElectronServiceConfigurationProvider extends BaseServiceConfigurati
 	}
 
 	private readGlobalNodePathWorker(configuration: vscode.WorkspaceConfiguration): string | null {
-		const inspect = configuration.inspect('typescript.tsserver.nodePath');
+		const unifiedInspect = configuration.inspect('js/ts.tsserver.node.path');
+		const inspect = (unifiedInspect?.globalValue && typeof unifiedInspect.globalValue === 'string')
+			? unifiedInspect
+			: configuration.inspect('typescript.tsserver.nodePath');
 		if (inspect?.globalValue && typeof inspect.globalValue === 'string') {
 			if (inspect.globalValue === 'node') {
 				return this.findNodePath();
@@ -93,8 +108,12 @@ export class ElectronServiceConfigurationProvider extends BaseServiceConfigurati
 	}
 
 	private validatePath(nodePath: string | null): string | null {
+		// eslint-disable-next-line local/code-no-sync-fs -- TODO: await executable validation before publishing configuration; synchronous consumers otherwise could launch the configured Node path before it is validated.
 		if (nodePath && (!fs.existsSync(nodePath) || fs.lstatSync(nodePath).isDirectory())) {
-			vscode.window.showWarningMessage(vscode.l10n.t("The path {0} doesn\'t point to a valid Node installation to run TS Server. Falling back to bundled Node.", nodePath));
+			vscode.window.showWarningMessage(getSafeNotificationMessage(
+				vscode.l10n.t("The path {0} doesn\'t point to a valid Node installation to run TS Server. Falling back to bundled Node.", nodePath),
+				vscode.l10n.t("The configured path doesn't point to a valid Node installation to run TS Server. Falling back to bundled Node."),
+			));
 			return null;
 		}
 		return nodePath;

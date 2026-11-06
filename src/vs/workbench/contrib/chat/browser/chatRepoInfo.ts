@@ -109,7 +109,7 @@ function determineChangeType(resource: ISCMResource, groupId: string): 'added' |
  * files is the presence/absence of a trailing newline (content otherwise identical),
  * no diff will be generated because VS Code's diff algorithm treats the lines as equal.
  */
-async function generateUnifiedDiff(
+export async function generateUnifiedDiff(
 	fileService: IFileService,
 	relPath: string,
 	originalUri: URI | undefined,

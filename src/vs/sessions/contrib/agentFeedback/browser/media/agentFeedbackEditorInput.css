@@ -3,30 +3,23 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-.agent-feedback-input-widget {
+.monaco-editor .line-numbers.agent-feedback-glyph {
+	cursor: pointer;
+	z-index: 10;
+}
+
+.monaco-editor .line-numbers.agent-feedback-glyph.line-hover::before {
+	content: var(--vscode-icon-plus-content);
+	font-family: var(--vscode-icon-plus-font-family);
+	font-size: var(--vscode-codiconFontSize);
 	position: absolute;
-	z-index: 100;
-	background-color: var(--vscode-editorWidget-background);
-	border: 1px solid var(--vscode-editorWidget-border, var(--vscode-contrastBorder));
-	box-shadow: 0 2px 8px var(--vscode-widget-shadow);
-	border-radius: 4px;
-	padding: 4px;
-}
-
-.agent-feedback-input-widget input {
-	background-color: var(--vscode-input-background);
-	border: 1px solid var(--vscode-input-border, transparent);
-	color: var(--vscode-input-foreground);
-	border-radius: 2px;
-	padding: 2px 6px;
-	outline: none;
-	width: 240px;
-}
-
-.agent-feedback-input-widget input:focus {
-	border-color: var(--vscode-focusBorder);
-}
-
-.agent-feedback-input-widget input::placeholder {
-	color: var(--vscode-input-placeholderForeground);
+	inset: 0;
+	z-index: 10;
+	color: var(--vscode-editorGutter-commentGlyphForeground, var(--vscode-foreground));
+	background-color: var(--vscode-editorGutter-commentRangeForeground);
+	text-align: center;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	border-radius: var(--vscode-cornerRadius-small);
 }

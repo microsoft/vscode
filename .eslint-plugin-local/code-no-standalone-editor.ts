@@ -21,7 +21,7 @@ export default new class NoNlsInStandaloneEditorRule implements eslint.Rule.Rule
 
 	create(context: eslint.Rule.RuleContext): eslint.Rule.RuleListener {
 
-		if (/vs(\/|\\)editor/.test(context.getFilename())) {
+		if (/vs(\/|\\)editor/.test(context.filename)) {
 			// the vs/editor folder is allowed to use the standalone editor
 			return {};
 		}
@@ -30,7 +30,7 @@ export default new class NoNlsInStandaloneEditorRule implements eslint.Rule.Rule
 
 			// resolve relative paths
 			if (path[0] === '.') {
-				path = join(context.getFilename(), path);
+				path = join(context.filename, path);
 			}
 
 			if (

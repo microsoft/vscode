@@ -16,9 +16,10 @@ import { RunOnceScheduler } from '../../../base/common/async.js';
 export type SizeIdentifier = string;
 
 /**
- * Size value unit types supported by the registry
+ * Size value unit types supported by the registry.
+ * Use `''` for unitless values such as font weights.
  */
-export type SizeUnit = 'px' | 'rem' | 'em' | '%';
+export type SizeUnit = 'px' | 'rem' | 'em' | '%' | '';
 
 /**
  * A size value with a numeric amount and unit
@@ -85,10 +86,11 @@ export function sizeForAllThemes(value: number, unit: SizeUnit = 'px'): SizeDefa
 }
 
 /**
- * Convert a size value to a CSS string
+ * Convert a size value to a CSS string.
+ * When the unit is `''` the raw numeric value is returned (e.g. font weights).
  */
 export function sizeValueToCss(sizeValue: SizeValue): string {
-	return `${sizeValue.value}${sizeValue.unit}`;
+	return sizeValue.unit === '' ? `${sizeValue.value}` : `${sizeValue.value}${sizeValue.unit}`;
 }
 
 // size registry
@@ -172,11 +174,28 @@ class SizeRegistry extends Disposable implements ISizeRegistry {
 		const sizeContribution: SizeContribution = { id, description, defaults, deprecationMessage };
 		this.sizesById[id] = sizeContribution;
 
-		const propertySchema: IJSONSchema = {
-			type: 'string',
-			pattern: '^(\\d+(\\.\\d+)?(px|rem|em|%))|default$',
-			patternErrorMessage: 'Size must be a number followed by px, rem, em, or % (e.g., "12px", "1.5rem") or "default"'
-		};
+		// Determine whether this token uses unitless values (e.g. font weights).
+		// The pattern is chosen per-token so that length tokens still require a unit.
+		const isUnitless = (() => {
+			if (!defaults) { return false; }
+			if (isSizeDefaults(defaults)) {
+				const sample = defaults.dark ?? defaults.light ?? defaults.hcDark ?? defaults.hcLight;
+				return sample?.unit === '';
+			}
+			return defaults.unit === '';
+		})();
+
+		const propertySchema: IJSONSchema = isUnitless
+			? {
+				type: 'string',
+				pattern: '^(?:\\d+|default)$',
+				patternErrorMessage: 'Value must be an integer (e.g., "400") or "default"'
+			}
+			: {
+				type: 'string',
+				pattern: '^(?:\\d+(\\.\\d+)?(px|rem|em|%)|default)$',
+				patternErrorMessage: 'Size must be a number followed by px, rem, em, or % (e.g., "12px", "1.5rem") or "default"'
+			};
 
 		if (deprecationMessage) {
 			propertySchema.deprecationMessage = deprecationMessage;

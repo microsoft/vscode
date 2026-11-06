@@ -42,6 +42,7 @@ export interface ICustomizationProperties {
 	isBackground?: boolean;
 	color?: string;
 	icon?: string;
+	inAgents?: boolean;
 }
 
 export interface ITaskFilter {
@@ -93,7 +94,7 @@ export interface ITaskService {
 	/**
 	 * @param alias The task's name, label or defined identifier.
 	 */
-	getTask(workspaceFolder: IWorkspace | IWorkspaceFolder | string, alias: string | ITaskIdentifier, compareId?: boolean): Promise<Task | undefined>;
+	getTask(workspaceFolder: IWorkspace | IWorkspaceFolder | string, alias: string | ITaskIdentifier, compareId?: boolean, type?: string): Promise<Task | undefined>;
 	tryResolveTask(configuringTask: ConfiguringTask): Promise<Task | undefined>;
 	createSorter(): TaskSorter;
 

@@ -22,6 +22,7 @@ export interface IExtensionHostManager {
 	readonly onDidChangeResponsiveState: Event<ResponsiveState>;
 	disconnect(): Promise<void>;
 	dispose(): void;
+	readonly isReady: boolean;
 	ready(): Promise<void>;
 	representsRunningLocation(runningLocation: ExtensionRunningLocation): boolean;
 	deltaExtensions(extensionsDelta: IExtensionDescriptionDelta): Promise<void>;

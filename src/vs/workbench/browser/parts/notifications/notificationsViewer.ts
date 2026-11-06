@@ -10,12 +10,12 @@ import { URI } from '../../../../base/common/uri.js';
 import { localize } from '../../../../nls.js';
 import { ButtonBar, IButtonOptions } from '../../../../base/browser/ui/button/button.js';
 import { ActionBar } from '../../../../base/browser/ui/actionbar/actionbar.js';
-import { ActionRunner, IAction, IActionRunner, Separator, toAction } from '../../../../base/common/actions.js';
+import { Action, ActionRunner, IAction, IActionRunner, Separator, toAction } from '../../../../base/common/actions.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
-import { dispose, DisposableStore, Disposable } from '../../../../base/common/lifecycle.js';
+import { dispose, DisposableStore, Disposable, markAsSingleton } from '../../../../base/common/lifecycle.js';
 import { IContextMenuService } from '../../../../platform/contextview/browser/contextView.js';
-import { INotificationViewItem, NotificationViewItem, NotificationViewItemContentChangeKind, INotificationMessage, ChoiceAction } from '../../../common/notifications.js';
-import { ClearNotificationAction, ExpandNotificationAction, CollapseNotificationAction, ConfigureNotificationAction } from './notificationsActions.js';
+import { INotificationViewItem, NotificationViewItem, NotificationViewItemContentChangeKind, INotificationMessage, ChoiceAction, NotificationsSettings, getNotificationsPosition } from '../../../common/notifications.js';
+import { ClearNotificationAction, ExpandNotificationAction, CollapseNotificationAction, ConfigureNotificationAction, getNotificationExpandIcon, getNotificationCollapseIcon } from './notificationsActions.js';
 import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
 import { ProgressBar } from '../../../../base/browser/ui/progressbar/progressbar.js';
 import { INotificationService, NotificationsFilter, Severity, isNotificationSource } from '../../../../platform/notification/common/notification.js';
@@ -25,17 +25,43 @@ import { ThemeIcon } from '../../../../base/common/themables.js';
 import { DropdownMenuActionViewItem } from '../../../../base/browser/ui/dropdown/dropdownActionViewItem.js';
 import { DomEmitter } from '../../../../base/browser/event.js';
 import { Gesture, EventType as GestureEventType } from '../../../../base/browser/touch.js';
-import { Event } from '../../../../base/common/event.js';
+import { Emitter, Event } from '../../../../base/common/event.js';
 import { defaultButtonStyles, defaultProgressBarStyles } from '../../../../platform/theme/browser/defaultStyles.js';
 import { KeyCode } from '../../../../base/common/keyCodes.js';
 import { StandardKeyboardEvent } from '../../../../base/browser/keyboardEvent.js';
 import { getDefaultHoverDelegate } from '../../../../base/browser/ui/hover/hoverDelegateFactory.js';
 import type { IManagedHover } from '../../../../base/browser/ui/hover/hover.js';
 import { IHoverService } from '../../../../platform/hover/browser/hover.js';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
+import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
+import { NotificationActionTelemetryId, withNotificationActionTelemetry } from '../../../../platform/notification/common/notificationTelemetry.js';
+import { logNotificationInteraction, NotificationTelemetrySurface } from '../../../common/notificationTelemetry.js';
+import { NotificationActionRunner } from './notificationsCommands.js';
+
+/** Default height (px) of a single notification row. */
+export const DEFAULT_NOTIFICATION_ROW_HEIGHT = 42;
+
+/** Compact height (px) of a single notification row. */
+export const COMPACT_NOTIFICATION_ROW_HEIGHT = 34;
+
+/** Current height (px) of a single notification row; overridable via {@link setNotificationRowHeight}. */
+let notificationRowHeight = DEFAULT_NOTIFICATION_ROW_HEIGHT;
+const onDidChangeNotificationRowHeightEmitter = new Emitter<number>();
+export const onDidChangeNotificationRowHeight = onDidChangeNotificationRowHeightEmitter.event;
+
+/**
+ * Overrides the height (px) of a single notification row.
+ */
+export function setNotificationRowHeight(height: number): void {
+	if (height !== notificationRowHeight) {
+		notificationRowHeight = height;
+		onDidChangeNotificationRowHeightEmitter.fire(height);
+	}
+}
 
 export class NotificationsListDelegate implements IListVirtualDelegate<INotificationViewItem> {
 
-	private static readonly ROW_HEIGHT = 42;
+	private static get ROW_HEIGHT(): number { return notificationRowHeight; }
 	private static readonly LINE_HEIGHT = 22;
 
 	private offsetHelper: HTMLElement;
@@ -82,7 +108,7 @@ export class NotificationsListDelegate implements IListVirtualDelegate<INotifica
 
 		// Prepare offset helper depending on toolbar actions count
 		let actions = 0;
-		if (!notification.hasProgress) {
+		if (!notification.hasActiveProgress) {
 			actions++; // close
 		}
 		if (notification.canCollapse) {
@@ -230,18 +256,18 @@ export class NotificationRenderer implements IListRenderer<INotificationViewItem
 				ariaLabel: localize('notificationActions', "Notification Actions"),
 				actionViewItemProvider: (action, options) => {
 					if (action instanceof ConfigureNotificationAction) {
-						return data.toDispose.add(new DropdownMenuActionViewItem(action, {
+						return new DropdownMenuActionViewItem(action, {
 							getActions() {
 								const actions: IAction[] = [];
 
 								const source = { id: action.notification.sourceId, label: action.notification.source };
 								if (isNotificationSource(source)) {
 									const isSourceFiltered = that.notificationService.getFilter(source) === NotificationsFilter.ERROR;
-									actions.push(toAction({
+									actions.push(withNotificationActionTelemetry(toAction({
 										id: source.id,
 										label: isSourceFiltered ? localize('turnOnNotifications', "Turn On All Notifications from '{0}'", source.label) : localize('turnOffNotifications', "Turn Off Info and Warning Notifications from '{0}'", source.label),
 										run: () => that.notificationService.setFilter({ ...source, filter: isSourceFiltered ? NotificationsFilter.OFF : NotificationsFilter.ERROR })
-									}));
+									}), NotificationActionTelemetryId.Configure));
 
 									if (action.notification.actions?.secondary?.length) {
 										actions.push(new Separator());
@@ -258,7 +284,7 @@ export class NotificationRenderer implements IListRenderer<INotificationViewItem
 							...options,
 							actionRunner: this.actionRunner,
 							classNames: action.class
-						}));
+						});
 					}
 
 					return undefined;
@@ -295,7 +321,7 @@ export class NotificationRenderer implements IListRenderer<INotificationViewItem
 		data.toDispose.add(data.progress);
 
 		// Renderer
-		data.renderer = this.instantiationService.createInstance(NotificationTemplateRenderer, data, this.actionRunner);
+		data.renderer = this.instantiationService.createInstance(NotificationTemplateRenderer, data, this.actionRunner, this.actionRunner instanceof NotificationActionRunner ? this.actionRunner.telemetrySurface : undefined);
 		data.toDispose.add(data.renderer);
 
 		return data;
@@ -316,6 +342,16 @@ export class NotificationTemplateRenderer extends Disposable {
 	private static expandNotificationAction: ExpandNotificationAction;
 	private static collapseNotificationAction: CollapseNotificationAction;
 
+	private static updateExpandCollapseIcons(configurationService: IConfigurationService): void {
+		if (!NotificationTemplateRenderer.expandNotificationAction) {
+			return;
+		}
+
+		const position = getNotificationsPosition(configurationService);
+		NotificationTemplateRenderer.expandNotificationAction.class = ThemeIcon.asClassName(getNotificationExpandIcon(position));
+		NotificationTemplateRenderer.collapseNotificationAction.class = ThemeIcon.asClassName(getNotificationCollapseIcon(position));
+	}
+
 	private static readonly SEVERITIES = [Severity.Info, Severity.Warning, Severity.Error];
 
 	private readonly inputDisposables = this._register(new DisposableStore());
@@ -323,19 +359,29 @@ export class NotificationTemplateRenderer extends Disposable {
 	constructor(
 		private template: INotificationTemplateData,
 		private actionRunner: IActionRunner,
+		private readonly telemetrySurface: NotificationTelemetrySurface | undefined,
 		@IOpenerService private readonly openerService: IOpenerService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IKeybindingService private readonly keybindingService: IKeybindingService,
 		@IContextMenuService private readonly contextMenuService: IContextMenuService,
 		@IHoverService private readonly hoverService: IHoverService,
+		@IConfigurationService configurationService: IConfigurationService,
+		@ITelemetryService private readonly telemetryService: ITelemetryService,
 	) {
 		super();
 
 		if (!NotificationTemplateRenderer.closeNotificationAction) {
-			NotificationTemplateRenderer.closeNotificationAction = instantiationService.createInstance(ClearNotificationAction, ClearNotificationAction.ID, ClearNotificationAction.LABEL);
-			NotificationTemplateRenderer.expandNotificationAction = instantiationService.createInstance(ExpandNotificationAction, ExpandNotificationAction.ID, ExpandNotificationAction.LABEL);
-			NotificationTemplateRenderer.collapseNotificationAction = instantiationService.createInstance(CollapseNotificationAction, CollapseNotificationAction.ID, CollapseNotificationAction.LABEL);
+			NotificationTemplateRenderer.closeNotificationAction = markAsSingleton(instantiationService.createInstance(ClearNotificationAction, ClearNotificationAction.ID, ClearNotificationAction.LABEL));
+			NotificationTemplateRenderer.expandNotificationAction = markAsSingleton(instantiationService.createInstance(ExpandNotificationAction, ExpandNotificationAction.ID, ExpandNotificationAction.LABEL));
+			NotificationTemplateRenderer.collapseNotificationAction = markAsSingleton(instantiationService.createInstance(CollapseNotificationAction, CollapseNotificationAction.ID, CollapseNotificationAction.LABEL));
+			NotificationTemplateRenderer.updateExpandCollapseIcons(configurationService);
 		}
+
+		this._register(configurationService.onDidChangeConfiguration(e => {
+			if (e.affectsConfiguration(NotificationsSettings.NOTIFICATIONS_POSITION)) {
+				NotificationTemplateRenderer.updateExpandCollapseIcons(configurationService);
+			}
+		}));
 	}
 
 	setInput(notification: INotificationViewItem): void {
@@ -355,9 +401,10 @@ export class NotificationTemplateRenderer extends Disposable {
 			}
 		}));
 		this.inputDisposables.add(addDisposableListener(this.template.container, EventType.AUXCLICK, e => {
-			if (!notification.hasProgress && e.button === 1 /* Middle Button */) {
+			if (!notification.hasActiveProgress && e.button === 1 /* Middle Button */) {
 				EventHelper.stop(e, true);
 
+				logNotificationInteraction(this.telemetryService, notification, 'dismiss', this.telemetrySurface);
 				notification.close();
 			}
 		}));
@@ -414,7 +461,10 @@ export class NotificationTemplateRenderer extends Disposable {
 	private renderMessage(notification: INotificationViewItem, customHover: IManagedHover): boolean {
 		clearNode(this.template.message);
 		this.template.message.appendChild(NotificationMessageRenderer.render(notification.message, {
-			callback: link => this.openerService.open(URI.parse(link), { allowCommands: true }),
+			callback: link => {
+				logNotificationInteraction(this.telemetryService, notification, 'link', this.telemetrySurface);
+				return this.openerService.open(URI.parse(link), { allowCommands: true });
+			},
 			toDispose: this.inputDisposables
 		}));
 
@@ -452,7 +502,7 @@ export class NotificationTemplateRenderer extends Disposable {
 		}
 
 		// Close (unless progress is showing)
-		if (!notification.hasProgress) {
+		if (!notification.hasActiveProgress) {
 			actions.push(NotificationTemplateRenderer.closeNotificationAction);
 		}
 
@@ -513,6 +563,14 @@ export class NotificationTemplateRenderer extends Disposable {
 				);
 
 				button.label = action.label;
+				button.enabled = action.enabled;
+				if (action instanceof Action) {
+					this.inputDisposables.add(action.onDidChange(change => {
+						if (typeof change.enabled === 'boolean') {
+							button.enabled = change.enabled;
+						}
+					}));
+				}
 
 				this.inputDisposables.add(button.onDidClick(e => {
 					if (e) {
@@ -528,7 +586,7 @@ export class NotificationTemplateRenderer extends Disposable {
 	private renderProgress(notification: INotificationViewItem): void {
 
 		// Return early if the item has no progress
-		if (!notification.hasProgress) {
+		if (!notification.hasActiveProgress) {
 			this.template.progress.stop().hide();
 
 			return;

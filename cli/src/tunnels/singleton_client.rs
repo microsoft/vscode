@@ -22,7 +22,7 @@ use crate::{
 	log,
 	rpc::RpcCaller,
 	singleton::connect_as_client,
-	tunnels::{code_server::print_listening, protocol::EmptyObject},
+	tunnels::{code_server::print_listening, machine_status, protocol::EmptyObject},
 	util::{errors::CodeError, sync::Barrier},
 };
 
@@ -35,6 +35,7 @@ pub struct SingletonClientArgs {
 	pub log: log::Logger,
 	pub stream: AsyncPipe,
 	pub shutdown: Barrier<ShutdownSignal>,
+	pub machine_status_enabled: bool,
 }
 
 struct SingletonServerContext {
@@ -59,6 +60,8 @@ const CONTROL_INSTRUCTIONS_INTERACTIVE: &str = concatcp!(
 /// Serves a client singleton. Returns true if the process should exit after
 /// this returns, instead of trying to start a tunnel.
 pub async fn start_singleton_client(args: SingletonClientArgs) -> bool {
+	machine_status::set_stdout_enabled(args.machine_status_enabled);
+
 	let mut rpc = new_json_rpc();
 	let (msg_tx, msg_rx) = mpsc::unbounded_channel();
 	let exit_entirely = Arc::new(AtomicBool::new(false));
@@ -107,7 +110,7 @@ pub async fn start_singleton_client(args: SingletonClientArgs) -> bool {
 
 	rpc.register_async(
 		protocol::singleton::METHOD_LOG_REPLY_DONE,
-		|_: EmptyObject, c| async move {
+		move |_: EmptyObject, c| async move {
 			c.log.result(if *IS_INTERACTIVE_CLI {
 				CONTROL_INSTRUCTIONS_INTERACTIVE
 			} else {
@@ -126,7 +129,15 @@ pub async fn start_singleton_client(args: SingletonClientArgs) -> bool {
 			// connected though, it will be soon, and that'll be in the log replays.
 			if let Ok(Ok(s)) = res.await {
 				if let Some(name) = s.name {
-					print_listening(&c.log, &name);
+					// Older singletons may serve only the agent-host port.
+					let serves_editor = s.has_editor_link.unwrap_or(true);
+					print_listening(&c.log, &name, serves_editor);
+					machine_status::emit_connected(
+						&name,
+						s.tunnel_id.as_deref(),
+						true,
+						serves_editor,
+					);
 				}
 			}
 
@@ -141,6 +152,16 @@ pub async fn start_singleton_client(args: SingletonClientArgs) -> bool {
 				Some(level) => c.log.emit(level, &format!("{}{}", log.prefix, log.message)),
 				None => c.log.result(format!("{}{}", log.prefix, log.message)),
 			}
+			Ok(())
+		},
+	);
+
+	rpc.register_sync(
+		protocol::singleton::METHOD_MACHINE_STATUS,
+		|status: machine_status::MachineStatus, _| {
+			// A server connection event can race the synthetic attached event;
+			// it still describes a distinct, real tunnel transition.
+			machine_status::emit(status);
 			Ok(())
 		},
 	);

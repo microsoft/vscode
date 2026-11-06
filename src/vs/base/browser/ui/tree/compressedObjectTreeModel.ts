@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IIdentityProvider } from '../list/list.js';
+import { IIdentityProvider, NotSelectableGroupIdType } from '../list/list.js';
 import { getVisibleState, IIndexTreeModelSpliceOptions, isFilterResult } from './indexTreeModel.js';
 import { IObjectTreeModel, IObjectTreeModelOptions, IObjectTreeModelSetChildrenOptions, ObjectTreeModel } from './objectTreeModel.js';
 import { ICollapseStateChangeEvent, IObjectTreeElement, ITreeListSpliceData, ITreeModel, ITreeModelSpliceEvent, ITreeNode, TreeError, TreeFilterResult, TreeVisibility, WeakMapper } from './tree.js';
@@ -113,7 +113,10 @@ interface ICompressedObjectTreeModelOptions<T, TFilterData> extends IObjectTreeM
 const wrapIdentityProvider = <T>(base: IIdentityProvider<T>): IIdentityProvider<ICompressedTreeNode<T>> => ({
 	getId(node) {
 		return node.elements.map(e => base.getId(e).toString()).join('\0');
-	}
+	},
+	getGroupId: base.getGroupId ? (node: ICompressedTreeNode<T>): number | NotSelectableGroupIdType => {
+		return base.getGroupId!(node.elements[node.elements.length - 1]);
+	} : undefined
 });
 
 // Exported only for test reasons, do not use directly
@@ -380,7 +383,10 @@ function mapOptions<T, TFilterData>(compressedNodeUnwrapper: CompressedNodeUnwra
 		identityProvider: options.identityProvider && {
 			getId(node: ICompressedTreeNode<T>): { toString(): string } {
 				return options.identityProvider!.getId(compressedNodeUnwrapper(node));
-			}
+			},
+			getGroupId: options.identityProvider!.getGroupId ? (node: ICompressedTreeNode<T>): number | NotSelectableGroupIdType => {
+				return options.identityProvider!.getGroupId!(compressedNodeUnwrapper(node));
+			} : undefined
 		},
 		sorter: options.sorter && {
 			compare(node: ICompressedTreeNode<T>, otherNode: ICompressedTreeNode<T>): number {

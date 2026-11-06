@@ -197,7 +197,7 @@ fi
 
 # Allow verifying $BASH_COMMAND doesn't have aliases resolved via history when the right HISTCONTROL
 # configuration is used
-__vsc_regex_histcontrol=".*(erasedups|ignoreboth|ignoredups).*"
+__vsc_regex_histcontrol=".*(erasedups|ignoreboth|ignoredups|ignorespace).*"
 if [[ "${HISTCONTROL:-}" =~ $__vsc_regex_histcontrol ]]; then
 	__vsc_history_verify=0
 else
@@ -281,6 +281,7 @@ __updateEnvCacheAA() {
 __updateEnvCache() {
 	local key="$1"
 	local value="$2"
+	local i
 
 	for i in "${!vsc_env_keys[@]}"; do
 		if [[ "${vsc_env_keys[$i]}" == "$key" ]]; then
@@ -298,6 +299,8 @@ __updateEnvCache() {
 }
 
 __vsc_update_env() {
+	local key
+
 	if [[ ${#envVarsToReport[@]} -gt 0 ]]; then
 		builtin printf '\e]633;EnvSingleStart;%s;%s\a' 0 $__vsc_nonce
 

@@ -6,11 +6,11 @@
 import { Event } from '../../../base/common/event.js';
 import { Disposable } from '../../../base/common/lifecycle.js';
 import { ProxyChannel } from '../../../base/parts/ipc/common/ipc.js';
-import { createDecorator } from '../../instantiation/common/instantiation.js';
 import { IMainProcessService } from '../../ipc/common/mainProcessService.js';
-import { IBrowserViewGroup, IBrowserViewGroupService, IBrowserViewGroupViewEvent, ipcBrowserViewGroupChannelName } from '../common/browserViewGroup.js';
-
-export const IBrowserViewGroupRemoteService = createDecorator<IBrowserViewGroupRemoteService>('browserViewGroupRemoteService');
+import { IBrowserViewGroup, IBrowserViewGroupFilter, IBrowserViewGroupService, ipcBrowserViewGroupChannelName } from '../common/browserViewGroup.js';
+import { IBrowserViewCreationContext } from '../common/browserView.js';
+import { CDPEvent, CDPRequest, CDPResponse } from '../common/cdp/types.js';
+import { ISandboxNetworkRestrictions } from '../../sandbox/common/sandboxSettingsResolutionHelper.js';
 
 /**
  * Remote-process service for managing browser view groups.
@@ -22,12 +22,11 @@ export const IBrowserViewGroupRemoteService = createDecorator<IBrowserViewGroupR
  * Usable from the shared process.
  */
 export interface IBrowserViewGroupRemoteService {
-	readonly _serviceBrand: undefined;
-
+	setSessionNetworkRestrictions(sessionId: string, restrictions: ISandboxNetworkRestrictions): Promise<void>;
 	/**
 	 * Create a new browser view group.
 	 */
-	createGroup(): Promise<IBrowserViewGroup>;
+	createGroup(filter: IBrowserViewGroupFilter, targetContext: IBrowserViewCreationContext): Promise<IBrowserViewGroup>;
 }
 
 /**
@@ -46,28 +45,16 @@ class RemoteBrowserViewGroup extends Disposable implements IBrowserViewGroup {
 		}));
 	}
 
-	get onDidAddView(): Event<IBrowserViewGroupViewEvent> {
-		return this.groupService.onDynamicDidAddView(this.id);
-	}
-
-	get onDidRemoveView(): Event<IBrowserViewGroupViewEvent> {
-		return this.groupService.onDynamicDidRemoveView(this.id);
-	}
-
 	get onDidDestroy(): Event<void> {
 		return this.groupService.onDynamicDidDestroy(this.id);
 	}
 
-	async addView(viewId: string): Promise<void> {
-		return this.groupService.addViewToGroup(this.id, viewId);
+	async sendCDPMessage(msg: CDPRequest): Promise<void> {
+		return this.groupService.sendCDPMessage(this.id, msg);
 	}
 
-	async removeView(viewId: string): Promise<void> {
-		return this.groupService.removeViewFromGroup(this.id, viewId);
-	}
-
-	async getDebugWebSocketEndpoint(): Promise<string> {
-		return this.groupService.getDebugWebSocketEndpoint(this.id);
+	get onCDPMessage(): Event<CDPResponse | CDPEvent> {
+		return this.groupService.onDynamicCDPMessage(this.id);
 	}
 
 	override dispose(fromService = false): void {
@@ -79,21 +66,23 @@ class RemoteBrowserViewGroup extends Disposable implements IBrowserViewGroup {
 }
 
 export class BrowserViewGroupRemoteService implements IBrowserViewGroupRemoteService {
-	declare readonly _serviceBrand: undefined;
-
 	private readonly _groupService: IBrowserViewGroupService;
 	private readonly _groups = new Map<string, IBrowserViewGroup>();
 
 	constructor(
-		@IMainProcessService mainProcessService: IMainProcessService,
+		mainProcessService: IMainProcessService,
 	) {
 		const channel = mainProcessService.getChannel(ipcBrowserViewGroupChannelName);
 		this._groupService = ProxyChannel.toService<IBrowserViewGroupService>(channel);
 	}
 
-	async createGroup(): Promise<IBrowserViewGroup> {
-		const id = await this._groupService.createGroup();
+	async createGroup(filter: IBrowserViewGroupFilter, targetContext: IBrowserViewCreationContext): Promise<IBrowserViewGroup> {
+		const id = await this._groupService.createGroup(filter, targetContext);
 		return this._wrap(id);
+	}
+
+	setSessionNetworkRestrictions(sessionId: string, restrictions: ISandboxNetworkRestrictions): Promise<void> {
+		return this._groupService.setSessionNetworkRestrictions(sessionId, restrictions);
 	}
 
 	private _wrap(id: string): IBrowserViewGroup {

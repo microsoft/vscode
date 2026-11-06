@@ -6,7 +6,7 @@
 import { registerSingleton, InstantiationType } from '../../../../../../platform/instantiation/common/extensions.js';
 import { MenuId, MenuRegistry, registerAction2 } from '../../../../../../platform/actions/common/actions.js';
 import { IAgentSessionProjectionService, AgentSessionProjectionService, AGENT_SESSION_PROJECTION_ENABLED_PROVIDERS } from './agentSessionProjectionService.js';
-import { EnterAgentSessionProjectionAction, ExitAgentSessionProjectionAction, ToggleAgentStatusAction, ToggleUnifiedAgentsBarAction } from './agentSessionProjectionActions.js';
+import { EnterAgentSessionProjectionAction, ExitAgentSessionProjectionAction, ToggleUnifiedAgentsBarAction } from './agentSessionProjectionActions.js';
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../../../common/contributions.js';
 import { AgentTitleBarStatusRendering } from './agentTitleBarStatusWidget.js';
 import { AgentTitleBarStatusService, IAgentTitleBarStatusService } from './agentTitleBarStatusService.js';
@@ -14,6 +14,7 @@ import { Codicon } from '../../../../../../base/common/codicons.js';
 import { localize } from '../../../../../../nls.js';
 import { ContextKeyExpr } from '../../../../../../platform/contextkey/common/contextkey.js';
 import { ProductQualityContext } from '../../../../../../platform/contextkey/common/contextkeys.js';
+import { InEditorZenModeContext } from '../../../../../common/contextkeys.js';
 import { ChatAgentLocation, ChatConfiguration } from '../../../common/constants.js';
 import { ChatContextKeys } from '../../../common/actions/chatContextKeys.js';
 import { Disposable, DisposableStore, IDisposable } from '../../../../../../base/common/lifecycle.js';
@@ -32,10 +33,11 @@ import './unifiedQuickAccessActions.js'; // Register unified quick access action
  * Contribution that watches for projection-capable sessions and shows
  * the "session ready" state in the title bar when changes are available for review.
  */
-class AgentSessionReadyContribution extends Disposable implements IWorkbenchContribution {
+export class AgentSessionReadyContribution extends Disposable implements IWorkbenchContribution {
 	static readonly ID = 'chat.agentSessionReady';
 
 	private readonly _widgetDisposables = this._register(new DisposableStore());
+	private _watchedWidget: IChatWidget | undefined;
 	private _entriesWatcher: IDisposable | undefined;
 	private _watchedSessionResource: URI | undefined;
 	private _suppressSessionReady = false; // Suppress re-showing session-ready after user explicitly exits projection
@@ -61,6 +63,15 @@ class AgentSessionReadyContribution extends Disposable implements IWorkbenchCont
 		this._register(this.chatWidgetService.onDidAddWidget(widget => {
 			if (widget.location === ChatAgentLocation.Chat) {
 				this._watchWidget(widget);
+			}
+		}));
+
+		this._register(this.chatWidgetService.onDidRemoveWidget(widget => {
+			if (widget === this._watchedWidget) {
+				this._watchedWidget = undefined;
+				this._widgetDisposables.clear();
+				this._clearEntriesWatcher();
+				this.agentTitleBarStatusService.exitSessionReadyMode();
 			}
 		}));
 
@@ -97,6 +108,7 @@ class AgentSessionReadyContribution extends Disposable implements IWorkbenchCont
 	private _watchWidget(widget: IChatWidget): void {
 		// Clear previous disposables when switching widgets
 		this._widgetDisposables.clear();
+		this._watchedWidget = widget;
 
 		// Check initial state
 		this._checkSession(widget.viewModel?.sessionResource);
@@ -165,6 +177,12 @@ class AgentSessionReadyContribution extends Disposable implements IWorkbenchCont
 			this.agentTitleBarStatusService.exitSessionReadyMode();
 			return;
 		}
+
+		// Trigger a lazy resolve so providers that populate `changes` on
+		// demand (see IAgentSessionsModel.observeSession) deliver fresh data.
+		// Re-evaluation happens via the onDidChangeSessions listener in the
+		// constructor.
+		this.agentSessionsService.model.observeSession(sessionResource);
 
 		// Check if this is a projection-capable provider
 		if (!AGENT_SESSION_PROJECTION_ENABLED_PROVIDERS.has(session.providerType)) {
@@ -235,7 +253,6 @@ class AgentSessionReadyContribution extends Disposable implements IWorkbenchCont
 
 registerAction2(EnterAgentSessionProjectionAction);
 registerAction2(ExitAgentSessionProjectionAction);
-registerAction2(ToggleAgentStatusAction);
 registerAction2(ToggleUnifiedAgentsBarAction);
 
 registerSingleton(IAgentSessionProjectionService, AgentSessionProjectionService, InstantiationType.Delayed);
@@ -251,10 +268,9 @@ MenuRegistry.appendMenuItem(MenuId.CommandCenter, {
 	icon: Codicon.chatSparkle,
 	when: ContextKeyExpr.and(
 		ChatContextKeys.enabled,
-		ContextKeyExpr.or(
-			ContextKeyExpr.has(`config.${ChatConfiguration.AgentStatusEnabled}`),
-			ContextKeyExpr.has(`config.${ChatConfiguration.UnifiedAgentsBar}`)
-		)
+		ContextKeyExpr.notEquals(`config.${ChatConfiguration.AgentStatusEnabled}`, 'hidden'),
+		ContextKeyExpr.notEquals(`config.${ChatConfiguration.AgentStatusEnabled}`, false),
+		InEditorZenModeContext.negate()
 	),
 	order: 10002 // to the right of the chat button
 });
@@ -269,9 +285,7 @@ MenuRegistry.appendMenuItem(MenuId.TitleBar, {
 		ChatContextKeys.supported,
 		ContextKeyExpr.and(
 			ChatContextKeys.Setup.hidden.negate(),
-			ChatContextKeys.Setup.disabled.negate()
 		),
-		ContextKeyExpr.has(`config.${ChatConfiguration.AgentStatusEnabled}`),
 		ContextKeyExpr.has('config.window.commandCenter').negate(),
 	),
 	order: 1
@@ -283,13 +297,7 @@ MenuRegistry.appendMenuItem(MenuId.AgentsTitleBarControlMenu, {
 		id: 'workbench.action.chat.toggle',
 		title: localize('openChat', "Open Chat"),
 	},
-	when: ContextKeyExpr.and(
-		ChatContextKeys.enabled,
-		ContextKeyExpr.or(
-			ContextKeyExpr.has(`config.${ChatConfiguration.AgentStatusEnabled}`),
-			ContextKeyExpr.has(`config.${ChatConfiguration.UnifiedAgentsBar}`)
-		)
-	),
+	when: ChatContextKeys.enabled,
 	group: 'a_open',
 	order: 1
 });

@@ -1,0 +1,12 @@
+version: 1
+dialect: anthropic
+exchanges:
+  - request:
+      model: claude-sonnet-5
+      system: ${system}
+      messages:
+        - role: user
+          content: Reply exactly "HOOK_PROMPT_READY".
+    response:
+      content: HOOK_PROMPT_READY
+      stopReason: end_turn

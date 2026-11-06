@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { CoreNavigationCommands } from '../../../../browser/coreCommands.js';
 import { IActiveCodeEditor, ICodeEditor } from '../../../../browser/editorBrowser.js';
@@ -18,17 +17,7 @@ import { withTestCodeEditor } from '../../../../test/browser/testCodeEditor.js';
 
 suite('FindModel', () => {
 
-	let disposables: DisposableStore;
-
-	setup(() => {
-		disposables = new DisposableStore();
-	});
-
-	teardown(() => {
-		disposables.dispose();
-	});
-
-	ensureNoDisposablesAreLeakedInTestSuite();
+	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
 	function findTest(testName: string, callback: (editor: IActiveCodeEditor) => void): void {
 		test(testName, () => {
@@ -2381,6 +2370,25 @@ suite('FindModel', () => {
 		assert.strictEqual(findState.canNavigateForward(), true);
 		assert.strictEqual(findState.canNavigateBack(), true);
 
+	});
+
+	test('issue #288515: Wrong current index in find widget if matches > 1000', () => {
+		// Create 1001 lines of 'hello'
+		const textArr = Array(1001).fill('hello');
+		withTestCodeEditor(textArr, {}, (_editor) => {
+			const editor = _editor as IActiveCodeEditor;
+
+			// Place cursor at line 900, selecting 'hello'
+			editor.setSelection(new Selection(900, 1, 900, 6));
+
+			const findState = disposables.add(new FindReplaceState());
+			findState.change({ searchString: 'hello' }, false);
+			disposables.add(new FindModelBoundToEditorModel(editor, findState));
+
+			assert.strictEqual(findState.matchesCount, 1001);
+			// With cursor selecting 'hello' at line 900, matchesPosition should be 900
+			assert.strictEqual(findState.matchesPosition, 900);
+		});
 	});
 
 });

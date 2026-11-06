@@ -208,7 +208,7 @@ export class SnippetsService implements ISnippetsService {
 	declare readonly _serviceBrand: undefined;
 
 	private readonly _disposables = new DisposableStore();
-	private readonly _pendingWork: Promise<any>[] = [];
+	private readonly _pendingWork = new Set<Promise<void>>();
 	private readonly _files = new ResourceMap<SnippetFile>();
 	private readonly _enablement: SnippetEnablement;
 	private readonly _usageTimestamps: SnippetUsageTimestamps;
@@ -226,7 +226,7 @@ export class SnippetsService implements ISnippetsService {
 		@IInstantiationService instantiationService: IInstantiationService,
 		@ILanguageConfigurationService languageConfigurationService: ILanguageConfigurationService,
 	) {
-		this._pendingWork.push(Promise.resolve(lifecycleService.when(LifecyclePhase.Restored).then(() => {
+		this._trackPendingWork(Promise.resolve(lifecycleService.when(LifecyclePhase.Restored).then(() => {
 			this._initExtensionSnippets();
 			this._initUserSnippets();
 			this._initWorkspaceSnippets();
@@ -254,10 +254,20 @@ export class SnippetsService implements ISnippetsService {
 		this._usageTimestamps.updateUsageTimestamp(snippet.snippetIdentifier);
 	}
 
-	private _joinSnippets(): Promise<any> {
-		const promises = this._pendingWork.slice(0);
-		this._pendingWork.length = 0;
-		return Promise.all(promises);
+	private async _joinSnippets(): Promise<void> {
+		const promises = [...this._pendingWork];
+		await Promise.all(promises);
+	}
+
+	private _trackPendingWork(work: Promise<void>): void {
+		this._pendingWork.add(work);
+		work.then(
+			() => this._pendingWork.delete(work),
+			error => {
+				this._pendingWork.delete(work);
+				this._logService.error(error);
+			}
+		);
 	}
 
 	async getSnippetFiles(): Promise<Iterable<SnippetFile>> {
@@ -422,7 +432,7 @@ export class SnippetsService implements ISnippetsService {
 		const disposables = new DisposableStore();
 		const updateWorkspaceSnippets = () => {
 			disposables.clear();
-			this._pendingWork.push(this._initWorkspaceFolderSnippets(this._contextService.getWorkspace(), disposables));
+			this._trackPendingWork(this._initWorkspaceFolderSnippets(this._contextService.getWorkspace(), disposables));
 		};
 		this._disposables.add(disposables);
 		this._disposables.add(this._contextService.onDidChangeWorkspaceFolders(updateWorkspaceSnippets));
@@ -430,7 +440,7 @@ export class SnippetsService implements ISnippetsService {
 		updateWorkspaceSnippets();
 	}
 
-	private async _initWorkspaceFolderSnippets(workspace: IWorkspace, bucket: DisposableStore): Promise<any> {
+	private async _initWorkspaceFolderSnippets(workspace: IWorkspace, bucket: DisposableStore): Promise<void> {
 		const promises = workspace.folders.map(async folder => {
 			const snippetFolder = folder.toResource('.vscode');
 			const value = await this._fileService.exists(snippetFolder);
@@ -458,7 +468,7 @@ export class SnippetsService implements ISnippetsService {
 		};
 		this._disposables.add(disposables);
 		this._disposables.add(this._userDataProfileService.onDidChangeCurrentProfile(e => e.join((async () => {
-			this._pendingWork.push(updateUserSnippets());
+			this._trackPendingWork(updateUserSnippets());
 		})())));
 		await updateUserSnippets();
 	}

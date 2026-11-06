@@ -669,5 +669,47 @@ suite('EditorsObserver', function () {
 		assert.strictEqual(observer.hasEditor({ resource: input4.resource, typeId: input4.typeId, editorId: input4.editorId }), true);
 	});
 
+	test('observer does not close editors excluded from the limit but still honors the limit for others', async () => {
+		const [part] = await createPart();
+		disposables.add(part.enforcePartOptions({ limit: { enabled: true, value: 1, perEditorGroup: true } }));
+
+		const storage = disposables.add(new TestStorageService());
+		const observer = disposables.add(new EditorsObserver(undefined, part, storage));
+
+		const rootGroup = part.activeGroup;
+
+		const managed1 = disposables.add(new TestFileEditorInput(URI.parse('foo://managed1'), TEST_EDITOR_INPUT_ID));
+		managed1.capabilities = EditorInputCapabilities.ExcludeFromEditorLimit;
+		const managed2 = disposables.add(new TestFileEditorInput(URI.parse('foo://managed2'), TEST_EDITOR_INPUT_ID));
+		managed2.capabilities = EditorInputCapabilities.ExcludeFromEditorLimit;
+		const file1 = disposables.add(new TestFileEditorInput(URI.parse('foo://file1'), TEST_EDITOR_INPUT_ID));
+		const file2 = disposables.add(new TestFileEditorInput(URI.parse('foo://file2'), TEST_EDITOR_INPUT_ID));
+
+		await rootGroup.openEditor(managed1, { pinned: true });
+		await rootGroup.openEditor(managed2, { pinned: true });
+		await rootGroup.openEditor(file1, { pinned: true });
+		await rootGroup.openEditor(file2, { pinned: true });
+
+		// Excluded editors are never evicted (no open/close loop), while a normal
+		// editor still honors the limit of 1 (only the most recent survives).
+		assert.deepStrictEqual({
+			count: rootGroup.count,
+			managed1: rootGroup.contains(managed1),
+			managed2: rootGroup.contains(managed2),
+			file1: rootGroup.contains(file1),
+			file2: rootGroup.contains(file2),
+			file1Observed: observer.hasEditor({ resource: file1.resource, typeId: file1.typeId, editorId: file1.editorId }),
+			file2Observed: observer.hasEditor({ resource: file2.resource, typeId: file2.typeId, editorId: file2.editorId }),
+		}, {
+			count: 3,
+			managed1: true,
+			managed2: true,
+			file1: false,
+			file2: true,
+			file1Observed: false,
+			file2Observed: true,
+		});
+	});
+
 	ensureNoDisposablesAreLeakedInTestSuite();
 });

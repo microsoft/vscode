@@ -3,8 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { SemanticTokenData, Range, TextDocument, LanguageModes, Position } from './languageModes';
-import { beforeOrSame } from '../utils/positions';
+import { SemanticTokenData, Range, TextDocument, LanguageModes, Position } from './languageModes.js';
+import { beforeOrSame } from '../utils/positions.js';
 
 interface LegendMapping {
 	types: number[] | undefined;

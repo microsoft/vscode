@@ -5,8 +5,8 @@
 
 import type * as vscode from 'vscode';
 import { asArray } from '../../../base/common/arrays.js';
-import { VSBuffer } from '../../../base/common/buffer.js';
-import { illegalArgument, SerializedError } from '../../../base/common/errors.js';
+import { encodeBase64, VSBuffer } from '../../../base/common/buffer.js';
+import { illegalArgument, SerializedError, transformErrorForSerialization } from '../../../base/common/errors.js';
 import { IRelativePattern } from '../../../base/common/glob.js';
 import { MarshalledId } from '../../../base/common/marshallingIds.js';
 import { Mimes } from '../../../base/common/mime.js';
@@ -30,9 +30,10 @@ import { SnippetString } from './extHostTypes/snippetString.js';
 import { SymbolKind, SymbolTag } from './extHostTypes/symbolInformation.js';
 import { TextEdit } from './extHostTypes/textEdit.js';
 import { WorkspaceEdit } from './extHostTypes/workspaceEdit.js';
-import { HookTypeValue } from '../../contrib/chat/common/promptSyntax/hookSchema.js';
+import { HookTypeValue } from '../../contrib/chat/common/promptSyntax/hookTypes.js';
 
 export { CodeActionKind } from './extHostTypes/codeActionKind.js';
+export { ViewColumn } from '../../../platform/editor/common/editor.js';
 export {
 	Diagnostic, DiagnosticRelatedInformation,
 	DiagnosticSeverity, DiagnosticTag
@@ -642,20 +643,6 @@ export enum InlineCompletionEndOfLifeReasonKind {
 export enum InlineCompletionDisplayLocationKind {
 	Code = 1,
 	Label = 2
-}
-
-export enum ViewColumn {
-	Active = -1,
-	Beside = -2,
-	One = 1,
-	Two = 2,
-	Three = 3,
-	Four = 4,
-	Five = 5,
-	Six = 6,
-	Seven = 7,
-	Eight = 8,
-	Nine = 9
 }
 
 export enum StatusBarAlignment {
@@ -1273,6 +1260,12 @@ export enum ShellQuoting {
 export enum TaskScope {
 	Global = 1,
 	Workspace = 2
+}
+
+export enum TaskRunOn {
+	Default = 1,
+	FolderOpen = 2,
+	WorktreeCreated = 3,
 }
 
 export class CustomExecution implements vscode.CustomExecution {
@@ -2703,7 +2696,23 @@ export enum NotebookVariablesRequestKind {
 
 @es5ClassCompat
 export class TimelineItem implements vscode.TimelineItem {
-	constructor(public label: string, public timestamp: number) { }
+	label?: string;
+	resourceUri?: URI;
+
+	constructor(label: string, timestamp: number);
+	constructor(resourceUri: URI, timestamp: number);
+	constructor(arg1: string | URI, public timestamp: number) {
+		if (URI.isUri(arg1)) {
+			this.resourceUri = arg1;
+		} else {
+			this.label = arg1;
+		}
+	}
+}
+
+export enum TimelineTriggerKind {
+	Invoke = 1,
+	Automatic = 2
 }
 
 //#endregion Timeline
@@ -2748,6 +2757,14 @@ export enum StandardTokenType {
 	Comment = 1,
 	String = 2,
 	RegEx = 3
+}
+
+export enum SyntaxHighlightingTokenFontStyle {
+	None = 0,
+	Italic = 1,
+	Bold = 2,
+	Underline = 4,
+	Strikethrough = 8,
 }
 
 
@@ -3179,6 +3196,7 @@ export class ChatSubagentToolInvocationData {
 	agentName?: string;
 	prompt?: string;
 	result?: string;
+	modelName?: string;
 	constructor(description?: string, agentName?: string, prompt?: string, result?: string) {
 		this.description = description;
 		this.agentName = agentName;
@@ -3256,7 +3274,36 @@ export class ChatResponseHookPart {
 	}
 }
 
+export type ChatResponseVoiceProgressStage = 'investigating' | 'planning' | 'editing' | 'validating' | 'recovering';
+
+export class ChatResponseVoiceProgressPart {
+	readonly id: ChatResponseVoiceProgressStage;
+	readonly value: string;
+	constructor(id: ChatResponseVoiceProgressStage, value: string) {
+		this.id = id;
+		this.value = value;
+	}
+}
+
+export class ChatResponseAutoModeResolutionPart {
+	resolvedModel: { id: string; name: string } | undefined;
+	constructor(resolvedModel?: { id: string; name: string }) {
+		this.resolvedModel = resolvedModel;
+	}
+}
+
 export class ChatResponseWarningPart {
+	value: vscode.MarkdownString;
+	constructor(value: string | vscode.MarkdownString) {
+		if (typeof value !== 'string' && value.isTrusted === true) {
+			throw new Error('The boolean form of MarkdownString.isTrusted is NOT supported for chat participants.');
+		}
+
+		this.value = typeof value === 'string' ? new MarkdownString(value) : value;
+	}
+}
+
+export class ChatResponseInfoPart {
 	value: vscode.MarkdownString;
 	constructor(value: string | vscode.MarkdownString) {
 		if (typeof value !== 'string' && value.isTrusted === true) {
@@ -3436,6 +3483,7 @@ export class ChatResponseTextEditPart implements vscode.ChatResponseTextEditPart
 	uri: vscode.Uri;
 	edits: vscode.TextEdit[];
 	isDone?: boolean;
+	autoTier?: vscode.ChatAutoModeTier;
 	constructor(uri: vscode.Uri, editsOrDone: vscode.TextEdit | vscode.TextEdit[] | true) {
 		this.uri = uri;
 		if (editsOrDone === true) {
@@ -3451,6 +3499,7 @@ export class ChatResponseNotebookEditPart implements vscode.ChatResponseNotebook
 	uri: vscode.Uri;
 	edits: vscode.NotebookEdit[];
 	isDone?: boolean;
+	autoTier?: vscode.ChatAutoModeTier;
 	constructor(uri: vscode.Uri, editsOrDone: vscode.NotebookEdit | vscode.NotebookEdit[] | true) {
 		this.uri = uri;
 		if (editsOrDone === true) {
@@ -3483,6 +3532,12 @@ export enum ChatTodoStatus {
 	NotStarted = 1,
 	InProgress = 2,
 	Completed = 3
+}
+
+export enum ChatDebugSubagentStatus {
+	Running = 0,
+	Completed = 1,
+	Failed = 2
 }
 
 export class ChatToolInvocationPart {
@@ -3518,6 +3573,8 @@ export class ChatRequestTurn implements vscode.ChatRequestTurn2 {
 		readonly editedFileEvents?: vscode.ChatRequestEditedFileEvent[],
 		readonly id?: string,
 		readonly modelId?: string,
+		readonly modeInstructions2?: vscode.ChatRequestModeInstructions,
+		readonly isSystemInitiated?: boolean,
 	) { }
 }
 
@@ -3555,11 +3612,234 @@ export enum ChatSessionStatus {
 	NeedsInput = 3
 }
 
-export class ChatSessionChangedFile {
-	constructor(public readonly modifiedUri: vscode.Uri, public readonly insertions: number, public readonly deletions: number, public readonly originalUri?: vscode.Uri) { }
+export class ChatSessionCustomizationType {
+	static readonly Agent = new ChatSessionCustomizationType('agent');
+	static readonly Skill = new ChatSessionCustomizationType('skill');
+	static readonly Instructions = new ChatSessionCustomizationType('instructions');
+	static readonly Prompt = new ChatSessionCustomizationType('prompt');
+	static readonly Hook = new ChatSessionCustomizationType('hook');
+	static readonly Plugins = new ChatSessionCustomizationType('plugins');
+
+	constructor(public readonly id: string) { }
 }
 
-export class ChatSessionChangedFile2 {
+export enum ChatDebugLogLevel {
+	Trace = 0,
+	Info = 1,
+	Warning = 2,
+	Error = 3
+}
+
+export enum ChatDebugToolCallResult {
+	Success = 0,
+	Error = 1
+}
+
+export enum ChatDebugHookResult {
+	Success = 0,
+	Error = 1,
+	NonBlockingError = 2
+}
+
+export class ChatDebugToolCallEvent {
+	readonly _kind = 'toolCall';
+	id?: string;
+	sessionResource?: vscode.Uri;
+	created: Date;
+	parentEventId?: string;
+	toolName: string;
+	toolCallId?: string;
+	input?: string;
+	output?: string;
+	result?: ChatDebugToolCallResult;
+	durationInMillis?: number;
+
+	constructor(toolName: string, created: Date) {
+		this.toolName = toolName;
+		this.created = created;
+	}
+}
+
+export class ChatDebugModelTurnEvent {
+	readonly _kind = 'modelTurn';
+	id?: string;
+	sessionResource?: vscode.Uri;
+	created: Date;
+	parentEventId?: string;
+	model?: string;
+	requestName?: string;
+	inputTokens?: number;
+	outputTokens?: number;
+	cachedTokens?: number;
+	totalTokens?: number;
+	cost?: number;
+	copilotUsageNanoAiu?: number;
+	durationInMillis?: number;
+
+	constructor(created: Date) {
+		this.created = created;
+	}
+}
+
+export class ChatDebugGenericEvent {
+	readonly _kind = 'generic';
+	id?: string;
+	sessionResource?: vscode.Uri;
+	created: Date;
+	parentEventId?: string;
+	name: string;
+	details?: string;
+	level: ChatDebugLogLevel;
+	category?: string;
+
+	constructor(name: string, level: ChatDebugLogLevel, created: Date) {
+		this.name = name;
+		this.level = level;
+		this.created = created;
+	}
+}
+
+export class ChatDebugSubagentInvocationEvent {
+	readonly _kind = 'subagentInvocation';
+	id?: string;
+	sessionResource?: vscode.Uri;
+	created: Date;
+	parentEventId?: string;
+	agentName: string;
+	description?: string;
+	status?: ChatDebugSubagentStatus;
+	durationInMillis?: number;
+	toolCallCount?: number;
+	modelTurnCount?: number;
+
+	constructor(agentName: string, created: Date) {
+		this.agentName = agentName;
+		this.created = created;
+	}
+}
+
+export class ChatDebugMessageSection {
+	name: string;
+	content: string;
+
+	constructor(name: string, content: string) {
+		this.name = name;
+		this.content = content;
+	}
+}
+
+export class ChatDebugUserMessageEvent {
+	readonly _kind = 'userMessage';
+	id?: string;
+	sessionResource?: vscode.Uri;
+	created: Date;
+	parentEventId?: string;
+	message: string;
+	sections: ChatDebugMessageSection[];
+
+	constructor(message: string, created: Date) {
+		this.message = message;
+		this.created = created;
+		this.sections = [];
+	}
+}
+
+export class ChatDebugAgentResponseEvent {
+	readonly _kind = 'agentResponse';
+	id?: string;
+	sessionResource?: vscode.Uri;
+	created: Date;
+	parentEventId?: string;
+	message: string;
+	sections: ChatDebugMessageSection[];
+
+	constructor(message: string, created: Date) {
+		this.message = message;
+		this.created = created;
+		this.sections = [];
+	}
+}
+
+export class ChatDebugEventTextContent {
+	readonly _kind = 'text';
+	value: string;
+
+	constructor(value: string) {
+		this.value = value;
+	}
+}
+
+export enum ChatDebugMessageContentType {
+	User = 0,
+	Agent = 1
+}
+
+export class ChatDebugEventMessageContent {
+	readonly _kind = 'messageContent';
+	type: ChatDebugMessageContentType;
+	message: string;
+	sections: ChatDebugMessageSection[];
+
+	constructor(type: ChatDebugMessageContentType, message: string, sections: ChatDebugMessageSection[]) {
+		this.type = type;
+		this.message = message;
+		this.sections = sections;
+	}
+}
+
+export class ChatDebugEventToolCallContent {
+	readonly _kind = 'toolCallContent';
+	toolName: string;
+	result?: ChatDebugToolCallResult;
+	durationInMillis?: number;
+	input?: string;
+	output?: string;
+
+	constructor(toolName: string) {
+		this.toolName = toolName;
+	}
+}
+
+export class ChatDebugEventModelTurnContent {
+	readonly _kind = 'modelTurnContent';
+	requestName: string;
+	model?: string;
+	status?: string;
+	durationInMillis?: number;
+	timeToFirstTokenInMillis?: number;
+	requestId?: string;
+	maxInputTokens?: number;
+	maxOutputTokens?: number;
+	inputTokens?: number;
+	outputTokens?: number;
+	cachedTokens?: number;
+	totalTokens?: number;
+	requestOptions?: string;
+	errorMessage?: string;
+	sections?: ChatDebugMessageSection[];
+
+	constructor(requestName: string) {
+		this.requestName = requestName;
+	}
+}
+
+export class ChatDebugEventHookContent {
+	readonly _kind = 'hookContent';
+	hookType: string;
+	command?: string;
+	result?: ChatDebugHookResult;
+	durationInMillis?: number;
+	input?: string;
+	output?: string;
+	exitCode?: number;
+	errorMessage?: string;
+
+	constructor(hookType: string) {
+		this.hookType = hookType;
+	}
+}
+
+export class ChatSessionChangedFile {
 	constructor(public readonly uri: vscode.Uri, public readonly originalUri: vscode.Uri | undefined, public readonly modifiedUri: vscode.Uri | undefined, public readonly insertions: number, public readonly deletions: number) { }
 }
 
@@ -3594,15 +3874,25 @@ export class ChatReferenceBinaryData implements vscode.ChatReferenceBinaryData {
 	mimeType: string;
 	data: () => Thenable<Uint8Array>;
 	reference?: vscode.Uri;
-	constructor(mimeType: string, data: () => Thenable<Uint8Array>, reference?: vscode.Uri) {
+	isPasted?: boolean;
+	isURL?: boolean;
+	constructor(mimeType: string, data: () => Thenable<Uint8Array>, reference?: vscode.Uri, isPasted?: boolean, isURL?: boolean) {
 		this.mimeType = mimeType;
 		this.data = data;
 		this.reference = reference;
+		this.isPasted = isPasted;
+		this.isURL = isURL;
 	}
 }
 
 export class ChatReferenceDiagnostic implements vscode.ChatReferenceDiagnostic {
 	constructor(public readonly diagnostics: [vscode.Uri, vscode.Diagnostic[]][]) { }
+}
+
+export enum LanguageModelChatApiType {
+	ChatCompletions = 1,
+	Responses = 2,
+	Messages = 3
 }
 
 export enum LanguageModelChatMessageRole {
@@ -3629,6 +3919,12 @@ export enum ChatErrorLevel {
 	Info = 0,
 	Warning = 1,
 	Error = 2
+}
+
+export enum ChatInputNotificationSeverity {
+	Info = 0,
+	Warning = 1,
+	Error = 2,
 }
 
 export class LanguageModelChatMessage implements vscode.LanguageModelChatMessage {
@@ -3792,7 +4088,7 @@ export class LanguageModelDataPart implements vscode.LanguageModelDataPart2 {
 		return {
 			$mid: MarshalledId.LanguageModelDataPart,
 			mimeType: this.mimeType,
-			data: this.data,
+			data: encodeBase64(VSBuffer.wrap(this.data)),
 			audience: this.audience
 		};
 	}
@@ -3897,21 +4193,37 @@ export class LanguageModelError extends Error {
 		return new LanguageModelError(message, LanguageModelError.Blocked.name);
 	}
 
-	static tryDeserialize(data: SerializedError): LanguageModelError | undefined {
+	static RateLimited(message?: string, retryAfter?: number): LanguageModelError {
+		return new LanguageModelError(message, LanguageModelError.RateLimited.name, undefined, retryAfter);
+	}
+
+	static tryDeserialize(data: SerializedLanguageModelError): LanguageModelError | undefined {
 		if (data.name !== LanguageModelError.#name) {
 			return undefined;
 		}
-		return new LanguageModelError(data.message, data.code, data.cause);
+		return new LanguageModelError(data.message, data.code, data.cause, data.retryAfter);
 	}
 
 	readonly code: string;
+	readonly retryAfter?: number;
 
-	constructor(message?: string, code?: string, cause?: Error) {
+	constructor(message?: string, code?: string, cause?: Error, retryAfter?: number) {
 		super(message, { cause });
 		this.name = LanguageModelError.#name;
 		this.code = code ?? '';
+		if (typeof retryAfter === 'number' && retryAfter >= 0) {
+			this.retryAfter = retryAfter;
+		}
 	}
 
+}
+
+type SerializedLanguageModelError = SerializedError & { readonly retryAfter?: number };
+
+/** Like {@link transformErrorForSerialization}, but keeps {@link LanguageModelError.retryAfter}. */
+export function serializeLanguageModelError(error: unknown): SerializedLanguageModelError {
+	const data: SerializedLanguageModelError = transformErrorForSerialization(error);
+	return error instanceof LanguageModelError && error.retryAfter !== undefined ? { ...data, retryAfter: error.retryAfter } : data;
 }
 
 export class LanguageModelToolResult {

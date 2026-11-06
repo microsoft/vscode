@@ -44,7 +44,7 @@ suite('UserAttentionService', () => {
 		};
 
 		const originalCreateInstance = insta.createInstance;
-		sinon.stub(insta, 'createInstance').callsFake((ctor: any, ...args: any[]) => {
+		sinon.stub(insta, 'createInstance').callsFake((ctor: any, ...args: unknown[]) => {
 			if (ctor === UserAttentionServiceEnv) {
 				return hostAdapterMock;
 			}

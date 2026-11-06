@@ -1,0 +1,58 @@
+version: 1
+dialect: responses
+exchanges:
+  - request:
+      model: gpt-5.3-codex
+      system: ${system}
+      messages:
+        - role: user
+          content: Reply exactly "CONTEXT_READY".
+    response:
+      content: CONTEXT_READY
+      stopReason: end_turn
+  - request:
+      model: gpt-5.3-codex
+      system: ${system}
+      messages:
+        - role: user
+          content: Reply exactly "CONTEXT_READY".
+        - role: assistant
+          content: CONTEXT_READY
+        - role: user
+          content: Call get_session_context exactly once with session "codex:/${uuid_0}", then reply exactly "read".
+    response:
+      content:
+        - type: text
+          text: Got it — I’ll fetch that session context once now.
+        - type: tool_use
+          id: toolcall_0
+          name: get_session_context
+          input:
+            session: codex:/${uuid_0}
+      stopReason: tool_use
+  - request:
+      model: gpt-5.3-codex
+      system: ${system}
+      messages:
+        - role: user
+          content: Reply exactly "CONTEXT_READY".
+        - role: assistant
+          content: CONTEXT_READY
+        - role: user
+          content: Call get_session_context exactly once with session "codex:/${uuid_0}", then reply exactly "read".
+        - role: assistant
+          content: Got it — I’ll fetch that session context once now.
+        - role: assistant
+          content:
+            - type: tool_use
+              name: get_session_context
+              input:
+                session: codex:/${uuid_0}
+        - role: user
+          content:
+            - type: tool_result
+              tool_use_id: toolcall_0
+              content: '{"session":"codex:/${uuid_0}","openLink":"agent-host-session://codex/${uuid_0}","detail":"summary","transcript":[{"turn":1,"state":"complete","user":"Reply exactly \"CONTEXT_READY\".","assistant":"CONTEXT_READY"},{"turn":2,"state":"inProgress","user":"Call get_session_context exactly once with session \"codex:/${uuid_0}\", then reply exactly \"read\".","assistant":"Got it — I’ll fetch that session context once now."}],"hasMoreHistory":false,"truncated":false}'
+    response:
+      content: read
+      stopReason: end_turn

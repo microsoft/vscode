@@ -5,6 +5,7 @@
 
 import { Schemas } from '../common/network.js';
 import { reset } from './dom.js';
+import { createTrustedTypesPolicy } from './trustedTypes.js';
 // eslint-disable-next-line no-restricted-imports
 import dompurify, * as DomPurifyTypes from './dompurify/dompurify.js';
 
@@ -135,22 +136,35 @@ function validateLink(value: string, allowedProtocols: AllowedLinksConfig): bool
 }
 
 /**
- * Hooks dompurify using `afterSanitizeAttributes` to check that all `href` and `src`
- * attributes are valid.
+ * Hooks dompurify using `afterSanitizeAttributes` to check link and media-loading attributes.
  */
-function hookDomPurifyHrefAndSrcSanitizer(allowedLinkProtocols: AllowedLinksConfig, allowedMediaProtocols: AllowedLinksConfig) {
+function hookDomPurifyHrefAndSrcSanitizer(
+	allowedLinkProtocols: AllowedLinksConfig,
+	allowedMediaProtocols: AllowedLinksConfig,
+	mediaSourceIsAllowed: ((source: string) => boolean) | undefined,
+	replaceWithPlaintext: boolean,
+) {
 	dompurify.addHook('afterSanitizeAttributes', (node) => {
-		// check all href/src attributes for validity
-		for (const attr of ['href', 'src']) {
+		for (const attr of ['href', 'src', 'poster']) {
 			if (node.hasAttribute(attr)) {
 				const attrValue = node.getAttribute(attr) as string;
-				if (attr === 'href') {
+				if (attr === 'href' && node.nodeName.toLowerCase() === 'a') {
 					if (!attrValue.startsWith('#') && !validateLink(attrValue, allowedLinkProtocols)) {
 						node.removeAttribute(attr);
 					}
-				} else { // 'src'
+				} else if (attr === 'href' && attrValue.startsWith('#')) {
+					continue;
+				} else {
 					if (!validateLink(attrValue, allowedMediaProtocols)) {
 						node.removeAttribute(attr);
+					} else if (mediaSourceIsAllowed && !mediaSourceIsAllowed(attrValue)) {
+						const replacement = replaceWithPlaintext ? convertTagToPlaintext(node) : undefined;
+						if (replacement && node.parentNode) {
+							node.parentNode.replaceChild(replacement, node);
+							return;
+						} else {
+							node.removeAttribute(attr);
+						}
 					}
 				}
 			}
@@ -211,6 +225,11 @@ export interface DomSanitizerConfig {
 	 * If set, allows relative paths for media (images, videos, etc).
 	 */
 	readonly allowRelativeMediaPaths?: boolean;
+
+	/**
+	 * Additional validation for otherwise valid media source attributes.
+	 */
+	readonly mediaSourceIsAllowed?: (source: string) => boolean;
 
 	/**
 	 * If set, replaces unsupported tags with their plaintext representation instead of removing them.
@@ -298,7 +317,10 @@ function doSanitizeHtml(untrusted: string, config: DomSanitizerConfig | undefine
 			{
 				override: config?.allowedMediaProtocols?.override ?? [Schemas.http, Schemas.https],
 				allowRelativePaths: config?.allowRelativeMediaPaths ?? false
-			});
+			},
+			config?.mediaSourceIsAllowed,
+			config?.replaceWithPlaintext ?? false,
+		);
 
 		if (config?.replaceWithPlaintext) {
 			dompurify.addHook('uponSanitizeElement', replaceWithPlainTextHook);
@@ -322,19 +344,59 @@ function doSanitizeHtml(untrusted: string, config: DomSanitizerConfig | undefine
 		}
 
 		if (outputType === 'dom') {
-			return dompurify.sanitize(untrusted, {
-				...resolvedConfig,
-				RETURN_DOM_FRAGMENT: true
-			});
+			return sanitizeSurvivingStalePolicy(untrusted, { ...resolvedConfig, RETURN_DOM_FRAGMENT: true }) as DocumentFragment;
 		} else {
-			return dompurify.sanitize(untrusted, {
-				...resolvedConfig,
-				RETURN_TRUSTED_TYPE: true
-			}) as unknown as TrustedHTML; // Cast from lib TrustedHTML to global TrustedHTML
+			return sanitizeSurvivingStalePolicy(untrusted, { ...resolvedConfig, RETURN_TRUSTED_TYPE: true }) as unknown as TrustedHTML; // Cast from lib TrustedHTML to global TrustedHTML
 		}
 	} finally {
 		dompurify.removeAllHooks();
 	}
+}
+
+/** Names a replacement policy; Trusted Types rejects a name that is already taken. */
+let stalePolicyReplacementCount = 0;
+
+/** The sanitizer call this module recovers around. */
+type SanitizeCall = (untrusted: string, config: DomPurifyTypes.Config) => ReturnType<typeof dompurify.sanitize>;
+
+/**
+ * Sanitizes HTML, replacing the sanitizer's Trusted Types policy first when the policy's
+ * creating realm is gone and every call would otherwise throw. The replacement is kept
+ * for later calls, so this recovers once rather than on every call.
+ *
+ * Exported, with `sanitize` injectable, only so a test can drive the recovery: dompurify
+ * caches one policy for the lifetime of the module, so once anything has sanitized, no
+ * later stand-in policy is ever consulted. Prefer {@link sanitizeHtml}.
+ */
+export function sanitizeSurvivingStalePolicy(
+	untrusted: string,
+	config: DomPurifyTypes.Config,
+	sanitize: SanitizeCall = (html, cfg) => dompurify.sanitize(html, cfg),
+): string | DocumentFragment | TrustedHTML {
+	try {
+		return sanitize(untrusted, config);
+	} catch (error) {
+		if (!isStaleTrustedTypesPolicy(error)) {
+			throw error;
+		}
+		const replacement = createTrustedTypesPolicy(`domSanitize${stalePolicyReplacementCount++}`, {
+			createHTML: (value: string) => value,
+			createScriptURL: (value: string) => value,
+		});
+		if (!replacement) {
+			throw error;
+		}
+		// Named through dompurify's own config rather than the global `TrustedTypePolicy`.
+		// The two spell the same type, but the editor build resolves `trusted-types` twice
+		// and the branded declarations then do not unify.
+		const policy = replacement as unknown as DomPurifyTypes.Config['TRUSTED_TYPES_POLICY'];
+		return sanitize(untrusted, { ...config, TRUSTED_TYPES_POLICY: policy });
+	}
+}
+
+/** Whether the failure is a Trusted Types policy whose realm is gone, rather than bad markup. */
+function isStaleTrustedTypesPolicy(error: unknown): boolean {
+	return error instanceof Error && /no longer runnable/i.test(error.message);
 }
 
 const selfClosingTags = ['area', 'base', 'br', 'col', 'command', 'embed', 'hr', 'img', 'input', 'keygen', 'link', 'meta', 'param', 'source', 'track', 'wbr'];
@@ -380,7 +442,7 @@ export function convertTagToPlaintext(node: Node): DocumentFragment | undefined 
 		return;
 	}
 
-	const fragment = document.createDocumentFragment();
+	const fragment = node.ownerDocument.createDocumentFragment();
 	const textNode = node.ownerDocument.createTextNode(startTagText);
 	fragment.appendChild(textNode);
 	while (node.firstChild) {

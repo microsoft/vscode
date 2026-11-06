@@ -168,10 +168,11 @@ export class TestMcpRegistry implements IMcpRegistry {
 		remoteAuthority: null,
 		label: 'Test Collection',
 		configTarget: ConfigurationTarget.USER,
+		order: 0,
 		serverDefinitions: observableValue(this, [{
 			id: 'test-server',
 			label: 'Test Server',
-			launch: { type: McpServerTransportType.Stdio, command: 'echo', args: ['Hello MCP'], env: {}, envFile: undefined, cwd: undefined },
+			launch: { type: McpServerTransportType.Stdio, command: 'echo', args: ['Hello MCP'], env: {}, envFile: undefined, cwd: undefined, sandbox: undefined },
 			cacheNonce: 'a',
 		} satisfies McpServerDefinition]),
 		trustBehavior: McpServerTrust.Kind.Trusted,
@@ -179,8 +180,12 @@ export class TestMcpRegistry implements IMcpRegistry {
 	}]);
 	delegates = observableValue<readonly IMcpHostDelegate[]>(this, [{
 		priority: 0,
+		resolvePolicyVariables: async () => ({}),
 		canStart: () => true,
 		substituteVariables(serverDefinition, launch) {
+			return Promise.resolve(launch);
+		},
+		expandEnvironmentVariables(serverDefinition, launch) {
 			return Promise.resolve(launch);
 		},
 		start: () => {

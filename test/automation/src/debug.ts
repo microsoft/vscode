@@ -124,7 +124,7 @@ export class Debug extends Viewlet {
 	}
 
 	async waitForReplCommand(text: string, accept: (result: string) => boolean): Promise<void> {
-		await this.commands.runCommand('Debug: Focus on Debug Console View');
+		await this.commands.runCommand('Debug: Focus on Debug Console View', { match: 'exactLabel' });
 		const selector = !this.code.editContextEnabled ? REPL_FOCUSED_TEXTAREA : REPL_FOCUSED_NATIVE_EDIT_CONTEXT;
 		await this.code.waitForActiveElement(selector);
 		await this.code.waitForSetValue(selector, text);

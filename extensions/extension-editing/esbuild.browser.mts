@@ -15,4 +15,7 @@ run({
 	},
 	srcDir,
 	outdir: outDir,
+	additionalOptions: {
+		tsconfig: path.join(import.meta.dirname, 'tsconfig.browser.json'),
+	},
 }, process.argv);

@@ -3,20 +3,36 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Emitter, Event } from '../../../../../base/common/event.js';
-import { Disposable, IDisposable } from '../../../../../base/common/lifecycle.js';
+import { Emitter } from '../../../../../base/common/event.js';
+import { IDisposable } from '../../../../../base/common/lifecycle.js';
 import { basename, normalize } from '../../../../../base/common/path.js';
+import { extUri, IExtUri } from '../../../../../base/common/resources.js';
 import { URI } from '../../../../../base/common/uri.js';
-import { IFormatterChangeEvent, ILabelService, ResourceLabelFormatter, Verbosity } from '../../../../../platform/label/common/label.js';
+import { IFormatterChangeEvent, ILabelService, ResourceLabelFormatter, ResourceLabelFormatting, ResourceLabelTemplateFormatter, Verbosity } from '../../../../../platform/label/common/label.js';
 import { IWorkspace, IWorkspaceIdentifier } from '../../../../../platform/workspace/common/workspace.js';
+import { ResourceLabelTemplate } from '../../common/resourceLabelTemplate.js';
+
+function isTemplateFormatter(formatter: ResourceLabelFormatter | ResourceLabelTemplateFormatter): formatter is ResourceLabelTemplateFormatter {
+	return URI.isUri(formatter.home);
+}
 
 export class MockLabelService implements ILabelService {
 	_serviceBrand: undefined;
+	private formatters: (ResourceLabelFormatter | ResourceLabelTemplateFormatter)[] = [];
+	private readonly _onDidChangeFormatters = new Emitter<IFormatterChangeEvent>();
+	readonly onDidChangeFormatters = this._onDidChangeFormatters.event;
+
+	constructor(private readonly uriExt: IExtUri = extUri) { }
 
 	registerCachedFormatter(formatter: ResourceLabelFormatter): IDisposable {
-		throw new Error('Method not implemented.');
+		return this.registerFormatter(formatter);
 	}
 	getUriLabel(resource: URI, options?: { relative?: boolean | undefined; noPrefix?: boolean | undefined }): string {
+		const formatter = this.findHomeFormatter(resource);
+		if (formatter) {
+			const relativePath = resource.path.slice(formatter.home.path.length).replace(/^\//, '');
+			return relativePath ? `${formatter.formatting.label}/${relativePath}` : formatter.formatting.label;
+		}
 		return normalize(resource.fsPath);
 	}
 	getUriBasenameLabel(resource: URI): string {
@@ -34,8 +50,57 @@ export class MockLabelService implements ILabelService {
 	getSeparator(scheme: string, authority?: string): '/' | '\\' {
 		return '/';
 	}
-	registerFormatter(formatter: ResourceLabelFormatter): IDisposable {
-		return Disposable.None;
+	registerFormatter(formatter: ResourceLabelFormatter | ResourceLabelTemplateFormatter): IDisposable {
+		this.formatters.push(formatter);
+		const scheme = isTemplateFormatter(formatter) ? formatter.home.scheme : formatter.scheme;
+		this._onDidChangeFormatters.fire({ scheme });
+		const changeListener = isTemplateFormatter(formatter) ? formatter.onDidChangeFormatting(() => this._onDidChangeFormatters.fire({ scheme })) : undefined;
+		return {
+			dispose: () => {
+				changeListener?.dispose();
+				this.formatters = this.formatters.filter(candidate => candidate !== formatter);
+				this._onDidChangeFormatters.fire({ scheme });
+			}
+		};
 	}
-	readonly onDidChangeFormatters: Event<IFormatterChangeEvent> = new Emitter<IFormatterChangeEvent>().event;
+
+	get formatterCount(): number {
+		return this.formatters.length;
+	}
+
+	getUriHome(resource: URI): URI | undefined {
+		const formatter = this.findHomeFormatter(resource);
+		return formatter?.home;
+	}
+
+	private findHomeFormatter(resource: URI): { readonly home: URI; readonly formatting: ResourceLabelFormatting } | undefined {
+		let result: { readonly home: URI; readonly formatting: ResourceLabelFormatting } | undefined;
+		for (const formatter of this.formatters) {
+			if (!formatter.home) {
+				continue;
+			}
+			let candidate: { readonly home: URI; readonly formatting: ResourceLabelFormatting } | undefined;
+			if (isTemplateFormatter(formatter)) {
+				const templateMatch = new ResourceLabelTemplate(formatter.home).match(resource, this.uriExt);
+				if (!templateMatch) {
+					continue;
+				}
+				const formatting = formatter.formatting({ resource, home: templateMatch.home, parameters: templateMatch.parameters });
+				if (formatting) {
+					candidate = { home: templateMatch.home, formatting };
+				}
+			} else if (formatter.scheme === resource.scheme && (!formatter.authority || formatter.authority === resource.authority) &&
+				this.uriExt.isEqualOrParent(resource, resource.with({ path: formatter.home }))) {
+				candidate = {
+					home: resource.with({ path: formatter.home, query: null, fragment: null }),
+					formatting: formatter.formatting,
+				};
+			}
+			if (candidate && (!result || candidate.home.path.length > result.home.path.length)) {
+				result = candidate;
+			}
+		}
+		return result;
+	}
+
 }

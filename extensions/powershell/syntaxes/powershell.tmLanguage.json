@@ -4,7 +4,7 @@
 		"If you want to provide a fix or improvement, please create a pull request against the original repository.",
 		"Once accepted there, we are happy to receive an update request."
 	],
-	"version": "https://github.com/PowerShell/EditorSyntax/commit/742f0b5d4b60f5930c0b47fcc1f646860521296e",
+	"version": "https://github.com/PowerShell/EditorSyntax/commit/23eed76d483c887a1608609e9dd57e09666411cc",
 	"name": "PowerShell",
 	"scopeName": "source.powershell",
 	"patterns": [
@@ -647,7 +647,7 @@
 				{
 					"captures": {
 						"0": {
-							"name": "support.constant.variable.powershell"
+							"name": "variable.other.constant.powershell"
 						},
 						"1": {
 							"name": "punctuation.definition.variable.powershell"
@@ -825,7 +825,7 @@
 				{
 					"captures": {
 						"0": {
-							"name": "support.constant.variable.powershell"
+							"name": "variable.other.constant.powershell"
 						},
 						"1": {
 							"name": "punctuation.definition.variable.powershell"

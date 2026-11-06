@@ -19,3 +19,8 @@ When surfacing a UI AI feature, ensure the feature hides when `chat.disableAIFea
   - This should not only disable Chat but also hide all of its UI
 
 This ensures consistency when implementing AI-powered UI functionality across the codebase.
+
+## Rendering Agent-Provided Markdown
+
+- Determine content provenance before rendering markdown. Content authored by an agent must be treated as untrusted; localized VS Code text, tool implementation messages, extension metadata, and other internally authored content do not automatically require the same restrictions.
+- Render agent-provided markdown with `ChatContentMarkdownRenderer`. When a generic markdown renderer is required, apply `getChatMarkdownRenderOptions()`.

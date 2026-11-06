@@ -568,6 +568,24 @@ class ExtHostSourceControl implements vscode.SourceControl {
 		return this._rootUri;
 	}
 
+	private _activeRepositoryName: string | undefined;
+
+	get activeRepositoryName(): string | undefined {
+		checkProposedApiEnabled(this._extension, 'scmProviderOptions');
+		return this._activeRepositoryName;
+	}
+
+	set activeRepositoryName(activeRepositoryName: string | undefined) {
+		checkProposedApiEnabled(this._extension, 'scmProviderOptions');
+
+		if (this._activeRepositoryName === activeRepositoryName) {
+			return;
+		}
+
+		this._activeRepositoryName = activeRepositoryName;
+		this.#proxy.$updateSourceControl(this.handle, { activeRepositoryName: activeRepositoryName ?? null });
+	}
+
 	private _contextValue: string | undefined = undefined;
 
 	get contextValue(): string | undefined {
@@ -914,8 +932,13 @@ class ExtHostSourceControl implements vscode.SourceControl {
 	}
 
 	async provideArtifacts(group: string, token: CancellationToken): Promise<SCMArtifactDto[] | undefined> {
-		const commandsDisposables = new DisposableStore();
+		const providerDisposables = this._artifactProviderDisposable.value;
 		const artifacts = await this.artifactProvider?.provideArtifacts(group, token);
+		if (!providerDisposables || providerDisposables.isDisposed || token.isCancellationRequested) {
+			return undefined;
+		}
+
+		const commandsDisposables = new DisposableStore();
 		const artifactsDto = artifacts?.map(artifact => ({
 			...artifact,
 			icon: getHistoryItemIconDto(artifact.icon),
@@ -1025,6 +1048,24 @@ export class ExtHostSCM implements ExtHostSCMShape {
 		const sourceControls = this._sourceControlsByExtension.get(extension.identifier) || [];
 		sourceControls.push(sourceControl);
 		this._sourceControlsByExtension.set(extension.identifier, sourceControls);
+
+		Event.once(sourceControl.onDidDispose)(() => {
+			this.logService.trace('ExtHostSCM#disposeSourceControl', extension.identifier.value, id, label, rootUri);
+
+			this._sourceControls.delete(sourceControl.handle);
+
+			const sourceControls = this._sourceControlsByExtension.get(extension.identifier);
+			if (sourceControls) {
+				const index = sourceControls.indexOf(sourceControl);
+				if (index !== -1) {
+					sourceControls.splice(index, 1);
+				}
+
+				if (sourceControls.length === 0) {
+					this._sourceControlsByExtension.delete(extension.identifier);
+				}
+			}
+		});
 
 		return sourceControl;
 	}

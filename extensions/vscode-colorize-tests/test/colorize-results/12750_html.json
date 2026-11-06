@@ -10,7 +10,9 @@
 			"hc_black": "punctuation.definition.tag: #808080",
 			"dark_modern": "punctuation.definition.tag: #808080",
 			"hc_light": "punctuation.definition.tag: #0F4A85",
-			"light_modern": "punctuation.definition.tag: #800000"
+			"light_modern": "punctuation.definition.tag: #800000",
+			"2026-dark": "punctuation.definition.tag: #808080",
+			"2026-light": "punctuation.definition.tag: #800000"
 		}
 	},
 	{
@@ -24,7 +26,9 @@
 			"hc_black": "entity.name.tag: #569CD6",
 			"dark_modern": "entity.name.tag: #569CD6",
 			"hc_light": "entity.name.tag: #0F4A85",
-			"light_modern": "entity.name.tag: #800000"
+			"light_modern": "entity.name.tag: #800000",
+			"2026-dark": "entity.name.tag: #7EE787",
+			"2026-light": "entity.name.tag: #116329"
 		}
 	},
 	{
@@ -38,7 +42,9 @@
 			"hc_black": "meta.embedded: #FFFFFF",
 			"dark_modern": "meta.embedded: #D4D4D4",
 			"hc_light": "meta.embedded: #292929",
-			"light_modern": "meta.embedded: #000000"
+			"light_modern": "meta.embedded: #000000",
+			"2026-dark": "meta.embedded: #D4D4D4",
+			"2026-light": "meta.embedded: #000000"
 		}
 	},
 	{
@@ -52,7 +58,9 @@
 			"hc_black": "entity.other.attribute-name: #9CDCFE",
 			"dark_modern": "entity.other.attribute-name: #9CDCFE",
 			"hc_light": "entity.other.attribute-name: #264F78",
-			"light_modern": "entity.other.attribute-name: #E50000"
+			"light_modern": "entity.other.attribute-name: #E50000",
+			"2026-dark": "entity.other.attribute-name: #9CDCFE",
+			"2026-light": "entity.other.attribute-name: #E50000"
 		}
 	},
 	{
@@ -66,7 +74,9 @@
 			"hc_black": "meta.embedded: #FFFFFF",
 			"dark_modern": "meta.embedded: #D4D4D4",
 			"hc_light": "meta.embedded: #292929",
-			"light_modern": "meta.embedded: #000000"
+			"light_modern": "meta.embedded: #000000",
+			"2026-dark": "meta.embedded: #D4D4D4",
+			"2026-light": "meta.embedded: #000000"
 		}
 	},
 	{
@@ -80,7 +90,9 @@
 			"hc_black": "string: #CE9178",
 			"dark_modern": "string: #CE9178",
 			"hc_light": "string.quoted.double.html: #0F4A85",
-			"light_modern": "string.quoted.double.html: #0000FF"
+			"light_modern": "string.quoted.double.html: #0000FF",
+			"2026-dark": "string: #A5D6FF",
+			"2026-light": "string.quoted.double.html: #0000FF"
 		}
 	},
 	{
@@ -94,7 +106,9 @@
 			"hc_black": "string: #CE9178",
 			"dark_modern": "string: #CE9178",
 			"hc_light": "string.quoted.double.html: #0F4A85",
-			"light_modern": "string.quoted.double.html: #0000FF"
+			"light_modern": "string.quoted.double.html: #0000FF",
+			"2026-dark": "string: #A5D6FF",
+			"2026-light": "string.quoted.double.html: #0000FF"
 		}
 	},
 	{
@@ -108,7 +122,9 @@
 			"hc_black": "string: #CE9178",
 			"dark_modern": "string: #CE9178",
 			"hc_light": "string.quoted.double.html: #0F4A85",
-			"light_modern": "string.quoted.double.html: #0000FF"
+			"light_modern": "string.quoted.double.html: #0000FF",
+			"2026-dark": "string: #A5D6FF",
+			"2026-light": "string.quoted.double.html: #0000FF"
 		}
 	},
 	{
@@ -122,7 +138,9 @@
 			"hc_black": "punctuation.definition.tag: #808080",
 			"dark_modern": "punctuation.definition.tag: #808080",
 			"hc_light": "punctuation.definition.tag: #0F4A85",
-			"light_modern": "punctuation.definition.tag: #800000"
+			"light_modern": "punctuation.definition.tag: #800000",
+			"2026-dark": "punctuation.definition.tag: #808080",
+			"2026-light": "punctuation.definition.tag: #800000"
 		}
 	},
 	{
@@ -136,7 +154,9 @@
 			"hc_black": "meta.embedded: #FFFFFF",
 			"dark_modern": "meta.embedded: #D4D4D4",
 			"hc_light": "meta.embedded: #292929",
-			"light_modern": "meta.embedded: #000000"
+			"light_modern": "meta.embedded: #000000",
+			"2026-dark": "meta.embedded: #D4D4D4",
+			"2026-light": "meta.embedded: #000000"
 		}
 	},
 	{
@@ -150,7 +170,9 @@
 			"hc_black": "variable: #9CDCFE",
 			"dark_modern": "variable: #9CDCFE",
 			"hc_light": "variable: #001080",
-			"light_modern": "variable: #001080"
+			"light_modern": "variable: #001080",
+			"2026-dark": "variable.other: #C9D1D9",
+			"2026-light": "variable.other: #1F2328"
 		}
 	},
 	{
@@ -164,7 +186,9 @@
 			"hc_black": "meta.embedded: #FFFFFF",
 			"dark_modern": "meta.embedded: #D4D4D4",
 			"hc_light": "meta.embedded: #292929",
-			"light_modern": "meta.embedded: #000000"
+			"light_modern": "meta.embedded: #000000",
+			"2026-dark": "meta.embedded: #D4D4D4",
+			"2026-light": "meta.embedded: #000000"
 		}
 	},
 	{
@@ -178,7 +202,9 @@
 			"hc_black": "entity.name.function: #DCDCAA",
 			"dark_modern": "entity.name.function: #DCDCAA",
 			"hc_light": "entity.name.function: #5E2CBC",
-			"light_modern": "entity.name.function: #795E26"
+			"light_modern": "entity.name.function: #795E26",
+			"2026-dark": "entity.name.function: #D2A8FF",
+			"2026-light": "entity.name.function: #8250DF"
 		}
 	},
 	{
@@ -192,7 +218,9 @@
 			"hc_black": "meta.embedded: #FFFFFF",
 			"dark_modern": "meta.embedded: #D4D4D4",
 			"hc_light": "meta.embedded: #292929",
-			"light_modern": "meta.embedded: #000000"
+			"light_modern": "meta.embedded: #000000",
+			"2026-dark": "meta.embedded: #D4D4D4",
+			"2026-light": "meta.embedded: #000000"
 		}
 	},
 	{
@@ -206,7 +234,9 @@
 			"hc_black": "string: #CE9178",
 			"dark_modern": "string: #CE9178",
 			"hc_light": "string: #0F4A85",
-			"light_modern": "string: #A31515"
+			"light_modern": "string: #A31515",
+			"2026-dark": "string: #A5D6FF",
+			"2026-light": "string: #0A3069"
 		}
 	},
 	{
@@ -220,7 +250,9 @@
 			"hc_black": "string: #CE9178",
 			"dark_modern": "string: #CE9178",
 			"hc_light": "string: #0F4A85",
-			"light_modern": "string: #A31515"
+			"light_modern": "string: #A31515",
+			"2026-dark": "string: #A5D6FF",
+			"2026-light": "string: #0A3069"
 		}
 	},
 	{
@@ -234,7 +266,9 @@
 			"hc_black": "string: #CE9178",
 			"dark_modern": "string: #CE9178",
 			"hc_light": "string: #0F4A85",
-			"light_modern": "string: #A31515"
+			"light_modern": "string: #A31515",
+			"2026-dark": "string: #A5D6FF",
+			"2026-light": "string: #0A3069"
 		}
 	},
 	{
@@ -248,7 +282,9 @@
 			"hc_black": "meta.embedded: #FFFFFF",
 			"dark_modern": "meta.embedded: #D4D4D4",
 			"hc_light": "meta.embedded: #292929",
-			"light_modern": "meta.embedded: #000000"
+			"light_modern": "meta.embedded: #000000",
+			"2026-dark": "meta.embedded: #D4D4D4",
+			"2026-light": "meta.embedded: #000000"
 		}
 	},
 	{
@@ -262,7 +298,9 @@
 			"hc_black": "meta.embedded: #FFFFFF",
 			"dark_modern": "meta.embedded: #D4D4D4",
 			"hc_light": "meta.embedded: #292929",
-			"light_modern": "meta.embedded: #000000"
+			"light_modern": "meta.embedded: #000000",
+			"2026-dark": "meta.embedded: #D4D4D4",
+			"2026-light": "meta.embedded: #000000"
 		}
 	},
 	{
@@ -276,7 +314,9 @@
 			"hc_black": "punctuation.definition.tag: #808080",
 			"dark_modern": "punctuation.definition.tag: #808080",
 			"hc_light": "punctuation.definition.tag: #0F4A85",
-			"light_modern": "punctuation.definition.tag: #800000"
+			"light_modern": "punctuation.definition.tag: #800000",
+			"2026-dark": "punctuation.definition.tag: #808080",
+			"2026-light": "punctuation.definition.tag: #800000"
 		}
 	},
 	{
@@ -290,7 +330,9 @@
 			"hc_black": "punctuation.definition.tag: #808080",
 			"dark_modern": "punctuation.definition.tag: #808080",
 			"hc_light": "punctuation.definition.tag: #0F4A85",
-			"light_modern": "punctuation.definition.tag: #800000"
+			"light_modern": "punctuation.definition.tag: #800000",
+			"2026-dark": "punctuation.definition.tag: #808080",
+			"2026-light": "punctuation.definition.tag: #800000"
 		}
 	},
 	{
@@ -304,7 +346,9 @@
 			"hc_black": "entity.name.tag: #569CD6",
 			"dark_modern": "entity.name.tag: #569CD6",
 			"hc_light": "entity.name.tag: #0F4A85",
-			"light_modern": "entity.name.tag: #800000"
+			"light_modern": "entity.name.tag: #800000",
+			"2026-dark": "entity.name.tag: #7EE787",
+			"2026-light": "entity.name.tag: #116329"
 		}
 	},
 	{
@@ -318,7 +362,9 @@
 			"hc_black": "punctuation.definition.tag: #808080",
 			"dark_modern": "punctuation.definition.tag: #808080",
 			"hc_light": "punctuation.definition.tag: #0F4A85",
-			"light_modern": "punctuation.definition.tag: #800000"
+			"light_modern": "punctuation.definition.tag: #800000",
+			"2026-dark": "punctuation.definition.tag: #808080",
+			"2026-light": "punctuation.definition.tag: #800000"
 		}
 	},
 	{
@@ -332,7 +378,9 @@
 			"hc_black": "punctuation.definition.tag: #808080",
 			"dark_modern": "punctuation.definition.tag: #808080",
 			"hc_light": "punctuation.definition.tag: #0F4A85",
-			"light_modern": "punctuation.definition.tag: #800000"
+			"light_modern": "punctuation.definition.tag: #800000",
+			"2026-dark": "punctuation.definition.tag: #808080",
+			"2026-light": "punctuation.definition.tag: #800000"
 		}
 	},
 	{
@@ -346,7 +394,9 @@
 			"hc_black": "entity.name.tag: #569CD6",
 			"dark_modern": "entity.name.tag: #569CD6",
 			"hc_light": "entity.name.tag: #0F4A85",
-			"light_modern": "entity.name.tag: #800000"
+			"light_modern": "entity.name.tag: #800000",
+			"2026-dark": "entity.name.tag: #7EE787",
+			"2026-light": "entity.name.tag: #116329"
 		}
 	},
 	{
@@ -360,7 +410,9 @@
 			"hc_black": "punctuation.definition.tag: #808080",
 			"dark_modern": "punctuation.definition.tag: #808080",
 			"hc_light": "punctuation.definition.tag: #0F4A85",
-			"light_modern": "punctuation.definition.tag: #800000"
+			"light_modern": "punctuation.definition.tag: #800000",
+			"2026-dark": "punctuation.definition.tag: #808080",
+			"2026-light": "punctuation.definition.tag: #800000"
 		}
 	},
 	{
@@ -374,7 +426,9 @@
 			"hc_black": "meta.embedded: #FFFFFF",
 			"dark_modern": "meta.embedded: #D4D4D4",
 			"hc_light": "meta.embedded: #292929",
-			"light_modern": "meta.embedded: #000000"
+			"light_modern": "meta.embedded: #000000",
+			"2026-dark": "meta.embedded: #D4D4D4",
+			"2026-light": "meta.embedded: #000000"
 		}
 	},
 	{
@@ -388,7 +442,9 @@
 			"hc_black": "variable: #9CDCFE",
 			"dark_modern": "variable: #9CDCFE",
 			"hc_light": "variable: #001080",
-			"light_modern": "variable: #001080"
+			"light_modern": "variable: #001080",
+			"2026-dark": "variable.other: #C9D1D9",
+			"2026-light": "variable.other: #1F2328"
 		}
 	},
 	{
@@ -402,7 +458,9 @@
 			"hc_black": "meta.embedded: #FFFFFF",
 			"dark_modern": "meta.embedded: #D4D4D4",
 			"hc_light": "meta.embedded: #292929",
-			"light_modern": "meta.embedded: #000000"
+			"light_modern": "meta.embedded: #000000",
+			"2026-dark": "meta.embedded: #D4D4D4",
+			"2026-light": "meta.embedded: #000000"
 		}
 	},
 	{
@@ -416,7 +474,9 @@
 			"hc_black": "entity.name.function: #DCDCAA",
 			"dark_modern": "entity.name.function: #DCDCAA",
 			"hc_light": "entity.name.function: #5E2CBC",
-			"light_modern": "entity.name.function: #795E26"
+			"light_modern": "entity.name.function: #795E26",
+			"2026-dark": "entity.name.function: #D2A8FF",
+			"2026-light": "entity.name.function: #8250DF"
 		}
 	},
 	{
@@ -430,7 +490,9 @@
 			"hc_black": "meta.embedded: #FFFFFF",
 			"dark_modern": "meta.embedded: #D4D4D4",
 			"hc_light": "meta.embedded: #292929",
-			"light_modern": "meta.embedded: #000000"
+			"light_modern": "meta.embedded: #000000",
+			"2026-dark": "meta.embedded: #D4D4D4",
+			"2026-light": "meta.embedded: #000000"
 		}
 	},
 	{
@@ -444,7 +506,9 @@
 			"hc_black": "string: #CE9178",
 			"dark_modern": "string: #CE9178",
 			"hc_light": "string: #0F4A85",
-			"light_modern": "string: #A31515"
+			"light_modern": "string: #A31515",
+			"2026-dark": "string: #A5D6FF",
+			"2026-light": "string: #0A3069"
 		}
 	},
 	{
@@ -458,7 +522,9 @@
 			"hc_black": "string: #CE9178",
 			"dark_modern": "string: #CE9178",
 			"hc_light": "string: #0F4A85",
-			"light_modern": "string: #A31515"
+			"light_modern": "string: #A31515",
+			"2026-dark": "string: #A5D6FF",
+			"2026-light": "string: #0A3069"
 		}
 	},
 	{
@@ -472,7 +538,9 @@
 			"hc_black": "string: #CE9178",
 			"dark_modern": "string: #CE9178",
 			"hc_light": "string: #0F4A85",
-			"light_modern": "string: #A31515"
+			"light_modern": "string: #A31515",
+			"2026-dark": "string: #A5D6FF",
+			"2026-light": "string: #0A3069"
 		}
 	},
 	{
@@ -486,7 +554,9 @@
 			"hc_black": "meta.embedded: #FFFFFF",
 			"dark_modern": "meta.embedded: #D4D4D4",
 			"hc_light": "meta.embedded: #292929",
-			"light_modern": "meta.embedded: #000000"
+			"light_modern": "meta.embedded: #000000",
+			"2026-dark": "meta.embedded: #D4D4D4",
+			"2026-light": "meta.embedded: #000000"
 		}
 	},
 	{
@@ -500,7 +570,9 @@
 			"hc_black": "meta.embedded: #FFFFFF",
 			"dark_modern": "meta.embedded: #D4D4D4",
 			"hc_light": "meta.embedded: #292929",
-			"light_modern": "meta.embedded: #000000"
+			"light_modern": "meta.embedded: #000000",
+			"2026-dark": "meta.embedded: #D4D4D4",
+			"2026-light": "meta.embedded: #000000"
 		}
 	},
 	{
@@ -514,7 +586,9 @@
 			"hc_black": "punctuation.definition.tag: #808080",
 			"dark_modern": "punctuation.definition.tag: #808080",
 			"hc_light": "punctuation.definition.tag: #0F4A85",
-			"light_modern": "punctuation.definition.tag: #800000"
+			"light_modern": "punctuation.definition.tag: #800000",
+			"2026-dark": "punctuation.definition.tag: #808080",
+			"2026-light": "punctuation.definition.tag: #800000"
 		}
 	},
 	{
@@ -528,7 +602,9 @@
 			"hc_black": "punctuation.definition.tag: #808080",
 			"dark_modern": "punctuation.definition.tag: #808080",
 			"hc_light": "punctuation.definition.tag: #0F4A85",
-			"light_modern": "punctuation.definition.tag: #800000"
+			"light_modern": "punctuation.definition.tag: #800000",
+			"2026-dark": "punctuation.definition.tag: #808080",
+			"2026-light": "punctuation.definition.tag: #800000"
 		}
 	},
 	{
@@ -542,7 +618,9 @@
 			"hc_black": "entity.name.tag: #569CD6",
 			"dark_modern": "entity.name.tag: #569CD6",
 			"hc_light": "entity.name.tag: #0F4A85",
-			"light_modern": "entity.name.tag: #800000"
+			"light_modern": "entity.name.tag: #800000",
+			"2026-dark": "entity.name.tag: #7EE787",
+			"2026-light": "entity.name.tag: #116329"
 		}
 	},
 	{
@@ -556,7 +634,9 @@
 			"hc_black": "punctuation.definition.tag: #808080",
 			"dark_modern": "punctuation.definition.tag: #808080",
 			"hc_light": "punctuation.definition.tag: #0F4A85",
-			"light_modern": "punctuation.definition.tag: #800000"
+			"light_modern": "punctuation.definition.tag: #800000",
+			"2026-dark": "punctuation.definition.tag: #808080",
+			"2026-light": "punctuation.definition.tag: #800000"
 		}
 	}
 ]

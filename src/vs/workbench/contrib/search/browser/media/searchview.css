@@ -226,7 +226,12 @@
 	line-height: 22px;
 	padding: 0;
 	height: 100%;
-	font-weight: 500;
+	font-weight: var(--vscode-fontWeight-semiBold);
+}
+
+.search-view > .results > .monaco-list:focus-visible .monaco-list-row.focused {
+	outline: var(--vscode-strokeThickness) solid var(--vscode-list-focusOutline);
+	outline-offset: calc(var(--vscode-strokeThickness) * -1);
 }
 
 .search-view .textsearchresult .actionBarContainer {
@@ -351,7 +356,7 @@
 
 /* High Contrast Theming */
 .monaco-workbench.hc-light .search-view .replace.findInFileMatch,
-.monaco-workbench.hc-dark .search-view .replace.findInFileMatch {
+.monaco-workbench.hc-black .search-view .replace.findInFileMatch {
 	border: 1px dashed var(--vscode-diffEditor-removedTextBackground);
 }
 
@@ -367,7 +372,7 @@
 
 /* High Contrast Theming */
 .monaco-workbench.hc-light .search-view .findInFileMatch,
-.monaco-workbench.hc-dark .search-view .findInFileMatch {
+.monaco-workbench.hc-black .search-view .findInFileMatch {
 	border: 1px dashed var(--vscode-editor-findMatchHighlightBorder);
 }
 
@@ -390,7 +395,7 @@
 
 /* High Contrast Theming */
 .monaco-workbench.hc-light .search-view .replaceMatch:not(:empty),
-.monaco-workbench.hc-dark .search-view .replaceMatch:not(:empty) {
+.monaco-workbench.hc-black .search-view .replaceMatch:not(:empty) {
 	border: 1px dashed var(--vscode-diffEditor-insertedLineBackground);
 }
 

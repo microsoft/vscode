@@ -15,8 +15,10 @@ export namespace McpApps {
 	export type AppRequest =
 		| MCP.CallToolRequest
 		| MCP.ReadResourceRequest
+		| MCP.CreateMessageRequest
 		| MCP.PingRequest
 		| (McpUiOpenLinkRequest & MCP.JSONRPCRequest)
+		| (McpUiDownloadFileRequest & MCP.JSONRPCRequest)
 		| (McpUiUpdateModelContextRequest & MCP.JSONRPCRequest)
 		| (McpUiMessageRequest & MCP.JSONRPCRequest)
 		| (McpUiRequestDisplayModeRequest & MCP.JSONRPCRequest)
@@ -26,17 +28,22 @@ export namespace McpApps {
 		| McpUiInitializedNotification
 		| McpUiSizeChangedNotification
 		| MCP.LoggingMessageNotification
+		| MCP.ToolListChangedNotification
 		| CustomSandboxWheelNotification;
 
-	export type AppMessage = AppRequest | AppNotification;
+	export type AppMessage = AppRequest | AppNotification | MCP.JSONRPCResponse;
+
+	export type HostRequest = MCP.ListToolsRequest | MCP.CallToolRequest;
 
 	export type HostResult =
 		| MCP.CallToolResult
 		| MCP.ReadResourceResult
+		| MCP.CreateMessageResult
 		| MCP.EmptyResult
 		| McpApps.McpUiInitializeResult
 		| McpUiMessageResult
 		| McpUiOpenLinkResult
+		| McpUiDownloadFileResult
 		| McpUiRequestDisplayModeResult;
 
 	export type HostNotification =
@@ -46,9 +53,10 @@ export namespace McpApps {
 		| McpUiToolInputPartialNotification
 		| McpUiToolResultNotification
 		| McpUiToolCancelledNotification
+		| MCP.CancelledNotification
 		| McpUiSizeChangedNotification;
 
-	export type HostMessage = HostResult | HostNotification;
+	export type HostMessage = HostRequest | HostResult | HostNotification;
 
 
 	/** Custom notification used for bubbling up sandbox wheel events. */
@@ -215,6 +223,33 @@ export namespace McpApps {
 	 */
 	export interface McpUiOpenLinkResult {
 		/** @description True if the host failed to open the URL (e.g., due to security policy). */
+		isError?: boolean;
+		/**
+		 * Index signature required for MCP SDK `Protocol` class compatibility.
+		 * Note: The schema intentionally omits this to enforce strict validation.
+		 */
+		[key: string]: unknown;
+	}
+
+	/**
+	 * @description Request to download one or more files through the host.
+	 * Uses standard MCP resource types: EmbeddedResource for inline content
+	 * and ResourceLink for references the host resolves via resources/read.
+	 */
+	export interface McpUiDownloadFileRequest {
+		method: "ui/download-file";
+		params: {
+			/** @description Resources to download, either inline or as links for the host to resolve. */
+			contents: (MCP.EmbeddedResource | MCP.ResourceLink)[];
+		};
+	}
+
+	/**
+	 * @description Result from a download file request.
+	 * @see {@link McpUiDownloadFileRequest}
+	 */
+	export interface McpUiDownloadFileResult {
+		/** @description True if the host rejected or failed to process the download. */
 		isError?: boolean;
 		/**
 		 * Index signature required for MCP SDK `Protocol` class compatibility.
@@ -528,6 +563,8 @@ export namespace McpApps {
 		updateModelContext?: McpUiSupportedContentBlockModalities;
 		/** @description Host supports receiving content messages (ui/message) from the View. */
 		message?: McpUiSupportedContentBlockModalities;
+		/** @description Host supports file downloads (ui/download-file) from the View. */
+		downloadFile?: {};
 	}
 
 	/**
@@ -734,4 +771,6 @@ export namespace McpApps {
 		"ui/request-display-mode";
 	export const UPDATE_MODEL_CONTEXT_METHOD: McpUiUpdateModelContextRequest["method"] =
 		"ui/update-model-context";
+	export const DOWNLOAD_FILE_METHOD: McpUiDownloadFileRequest["method"] =
+		"ui/download-file";
 }

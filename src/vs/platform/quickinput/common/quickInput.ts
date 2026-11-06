@@ -12,7 +12,9 @@ import { IItemAccessor } from '../../../base/common/fuzzyScorer.js';
 import { ResolvedKeybinding } from '../../../base/common/keybindings.js';
 import { IDisposable } from '../../../base/common/lifecycle.js';
 import { Schemas } from '../../../base/common/network.js';
+import { IObservable } from '../../../base/common/observable.js';
 import Severity from '../../../base/common/severity.js';
+import { ThemeColor } from '../../../base/common/themables.js';
 import { URI } from '../../../base/common/uri.js';
 import { IMarkdownString } from '../../../base/common/htmlContent.js';
 
@@ -54,6 +56,8 @@ export interface IQuickItem {
 	 * directly.
 	 */
 	iconClass?: string;
+	/** Theme color applied to the quick item's icon. */
+	iconColor?: ThemeColor;
 	highlights?: IQuickItemHighlights;
 	buttons?: readonly IQuickInputButton[];
 	/**
@@ -115,9 +119,14 @@ export interface IQuickPickSeparator {
 export interface IKeyMods {
 	readonly ctrlCmd: boolean;
 	readonly alt: boolean;
+	readonly shift: boolean;
 }
 
-export const NO_KEY_MODS: IKeyMods = { ctrlCmd: false, alt: false };
+export function isKeyModified(keyMods: IKeyMods): boolean {
+	return keyMods.ctrlCmd || keyMods.alt || keyMods.shift;
+}
+
+export const NO_KEY_MODS: IKeyMods = { ctrlCmd: false, alt: false, shift: false };
 
 export interface IQuickNavigateConfiguration {
 	keybindings: readonly ResolvedKeybinding[];
@@ -200,7 +209,14 @@ export interface IPickOptions<T extends IQuickPickItem> {
 	/**
 	 * an optional anchor for the picker
 	 */
-	anchor?: HTMLElement | { x: number; y: number };
+	anchor?: unknown /* HTMLElement */ | { x: number; y: number };
+
+	/**
+	 * Placement of the quick input relative to {@link anchor}.
+	 * `'overlay'` positions the input box directly on top of the anchor (which must be an HTMLElement)
+	 * and auto-sizes its width to match. Defaults to `'above'`.
+	 */
+	anchorPosition?: 'above' | 'below' | 'overlay';
 
 	onKeyMods?: (keyMods: IKeyMods) => void;
 	onDidFocus?: (entry: T) => void;
@@ -249,6 +265,18 @@ export interface IInputOptions {
 	 * an optional function that is used to validate user input.
 	 */
 	validateInput?: (input: string) => Promise<string | null | undefined | { content: string; severity: Severity }>;
+
+	/**
+	 * an optional anchor for the input.
+	 */
+	anchor?: unknown /* HTMLElement */ | { x: number; y: number };
+
+	/**
+	 * Placement of the quick input relative to {@link anchor}.
+	 * `'overlay'` positions the input box directly on top of the anchor (which must be an HTMLElement)
+	 * and auto-sizes its width to match. Defaults to `'above'`.
+	 */
+	anchorPosition?: 'above' | 'overlay';
 }
 
 export enum QuickInputHideReason {
@@ -287,7 +315,6 @@ export const enum QuickInputType {
  * Represents a quick input control that allows users to make selections or provide input quickly.
  */
 export interface IQuickInput extends IDisposable {
-
 	/**
 	 * The type of the quick input.
 	 */
@@ -361,7 +388,14 @@ export interface IQuickInput extends IDisposable {
 	/**
 	 * An optional anchor for the quick input.
 	 */
-	anchor?: HTMLElement | { x: number; y: number };
+	anchor?: unknown /* HTMLElement */ | { x: number; y: number };
+
+	/**
+	 * Placement of the quick input relative to {@link anchor}.
+	 * `'overlay'` positions the input box directly on top of the anchor (which must be an HTMLElement)
+	 * and auto-sizes its width to match. Defaults to `'above'`.
+	 */
+	anchorPosition?: 'above' | 'below' | 'overlay';
 
 	/**
 	 * Shows the quick input.
@@ -396,7 +430,7 @@ export interface IQuickWidget extends IQuickInput {
 	/**
 	 * A HTML element that will be rendered inside the quick input.
 	 */
-	widget: HTMLElement | undefined;
+	widget: unknown /* HTMLElement */ | undefined;
 }
 
 export interface IQuickPickWillAcceptEvent {
@@ -487,7 +521,6 @@ export enum QuickPickFocus {
  * Represents a quick pick control that allows the user to select an item from a list of options.
  */
 export interface IQuickPick<T extends IQuickPickItem, O extends { useSeparators: boolean } = { useSeparators: false }> extends IQuickInput {
-
 	/**
 	 * The type of the quick input.
 	 */
@@ -929,6 +962,8 @@ export const IQuickInputService = createDecorator<IQuickInputService>('quickInpu
 
 export type Omit<T, K extends keyof T> = Pick<T, Exclude<keyof T, K>>;
 
+export type QuickInputAlignment = 'top' | 'center' | 'custom';
+
 export interface IQuickInputService {
 
 	readonly _serviceBrand: undefined;
@@ -952,6 +987,16 @@ export interface IQuickInputService {
 	 * Allows to register on the event that quick input is hiding.
 	 */
 	readonly onHide: Event<void>;
+
+	/**
+	 * The current alignment of the quick input widget.
+	 */
+	readonly alignment: IObservable<QuickInputAlignment>;
+
+	/**
+	 * Runs an operation so that the next quick pick it opens inherits the provided anchor.
+	 */
+	withQuickInputAnchor<T>(anchor: IQuickInput['anchor'], anchorPosition: IQuickInput['anchorPosition'], operation: () => Promise<T>): Promise<T>;
 
 	/**
 	 * Opens the quick input box for selecting items and returns a promise
@@ -1171,6 +1216,12 @@ export interface IQuickTree<T extends IQuickTreeItem> extends IQuickInput {
 	 * Focuses on the tree input.
 	 */
 	focusOnInput(): void;
+
+	/**
+	 * Reveals and focuses a specific item in the tree.
+	 * @param element The item to reveal and focus.
+	 */
+	reveal(element: T): void;
 
 	/**
 	 * Focus a particular item in the list. Used internally for keyboard navigation.

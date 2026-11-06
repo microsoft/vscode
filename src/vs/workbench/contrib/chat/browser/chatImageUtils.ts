@@ -8,6 +8,7 @@ import { joinPath } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
 import { IFileService } from '../../../../platform/files/common/files.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
+import { CommandsRegistry } from '../../../../platform/commands/common/commands.js';
 
 /**
  * Resizes an image provided as a UInt8Array string. Resizing is based on Open AI's algorithm for tokenzing images.
@@ -85,7 +86,11 @@ export async function resizeImage(data: Uint8Array | string, mimeType?: string):
 export function convertStringToUInt8Array(data: string): Uint8Array {
 	const base64Data = data.includes(',') ? data.split(',')[1] : data;
 	if (isValidBase64(base64Data)) {
-		return decodeBase64(base64Data).buffer;
+		try {
+			return decodeBase64(base64Data).buffer;
+		} catch {
+			// fall through to TextEncoder
+		}
 	}
 	return new TextEncoder().encode(data);
 }
@@ -103,14 +108,7 @@ export function convertUint8ArrayToString(data: Uint8Array): string {
 
 function isValidBase64(str: string): boolean {
 	// checks if the string is a valid base64 string that is NOT encoded
-	return /^[A-Za-z0-9+/]*={0,2}$/.test(str) && (() => {
-		try {
-			atob(str);
-			return true;
-		} catch {
-			return false;
-		}
-	})();
+	return str.length % 4 === 0 && /^[A-Za-z0-9+/]*={0,2}$/.test(str);
 }
 
 export async function createFileForMedia(fileService: IFileService, imagesFolder: URI, dataTransfer: Uint8Array, mimeType: string): Promise<URI | undefined> {
@@ -160,3 +158,10 @@ function getTimestampFromFilename(filename: string): number | undefined {
 	}
 	return undefined;
 }
+
+CommandsRegistry.registerCommand('_chat.resizeImage', async (_accessor, data: Uint8Array | VSBuffer, mimeType?: string): Promise<Uint8Array> => {
+	if (data instanceof VSBuffer) {
+		data = data.buffer;
+	}
+	return resizeImage(data, mimeType);
+});

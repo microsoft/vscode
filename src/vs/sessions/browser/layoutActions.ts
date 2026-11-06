@@ -8,51 +8,193 @@ import { Codicon } from '../../base/common/codicons.js';
 import { KeyCode, KeyMod } from '../../base/common/keyCodes.js';
 import { localize, localize2 } from '../../nls.js';
 import { Categories } from '../../platform/action/common/actionCommonCategories.js';
-import { Action2, registerAction2 } from '../../platform/actions/common/actions.js';
-import { Menus } from './menus.js';
+import { Action2, MenuId, MenuRegistry, registerAction2 } from '../../platform/actions/common/actions.js';
+import { ContextKeyExpr } from '../../platform/contextkey/common/contextkey.js';
+import { Menus, SessionActivityBarGroup } from '../../workbench/contrib/sessions/browser/menus.js';
+import { AgentsWindowMenus } from './agentsWindowMenus.js';
 import { ServicesAccessor } from '../../platform/instantiation/common/instantiation.js';
 import { KeybindingWeight } from '../../platform/keybinding/common/keybindingsRegistry.js';
 import { registerIcon } from '../../platform/theme/common/iconRegistry.js';
-import { AuxiliaryBarVisibleContext, SideBarVisibleContext } from '../../workbench/common/contextkeys.js';
+import { CONTEXT_ACCESSIBILITY_MODE_ENABLED } from '../../platform/accessibility/common/accessibility.js';
+import { TogglePanelAction } from '../../workbench/browser/parts/panel/panelActions.js';
+import { LayoutDensityMenu } from '../../workbench/browser/actions/layoutDensityActions.js';
+import { IsAuxiliaryWindowContext, IsWindowAlwaysOnTopContext, LayoutModeContext, PanelVisibleContext, SideBarVisibleContext } from '../../workbench/common/contextkeys.js';
 import { IWorkbenchLayoutService, Parts } from '../../workbench/services/layout/browser/layoutService.js';
+import { SessionsWelcomeVisibleContext, DesktopLayoutContext, IsPhoneLayoutContext, SessionActivityBarSizeContext } from '../../workbench/contrib/sessions/common/contextkeys.js';
+import { MenuActivityBarSize } from '../../workbench/browser/parts/activitybar/menuActivityBar.js';
+import { setSessionActivityBarSize } from '../../workbench/contrib/sessions/browser/parts/sessionActivityBarHost.js';
+import { IStorageService } from '../../platform/storage/common/storage.js';
+import { CustomViewVisibleContext, SessionActivityBarLayoutActionsContext } from '../common/agentsWindowContextKeys.js';
+import { IConfigurationService } from '../../platform/configuration/common/configuration.js';
+import { SESSION_ACTIVITY_BAR_LAYOUT_ACTIONS_SETTING, SESSION_ACTIVITY_BAR_SETTING } from '../../workbench/contrib/sessions/common/sessionConfig.js';
+
+MenuRegistry.appendMenuItem(AgentsWindowMenus.TitleBarContext, {
+	title: localize('layoutDensity', "Layout Density"),
+	submenu: LayoutDensityMenu,
+	group: '2_configuration',
+	order: 8,
+	when: IsPhoneLayoutContext.negate(),
+});
+
+export const TOGGLE_SESSION_ACTIVITY_BAR_COMMAND_ID = 'workbench.action.agentSessions.toggleSessionActivityBar';
+
+// The Agents window shows the shared View > Appearance menu. Entries that do not
+// apply here are hidden with `IsSessionsWindowContext` where they are contributed.
+MenuRegistry.appendMenuItem(MenuId.MenubarViewMenu, {
+	title: localize({ key: 'miAppearance', comment: ['&& denotes a mnemonic'] }, "&&Appearance"),
+	submenu: MenuId.MenubarAppearanceMenu,
+	group: '2_appearance',
+	order: 1,
+	when: DesktopLayoutContext,
+});
+
+MenuRegistry.appendMenuItem(MenuId.MenubarAppearanceMenu, {
+	title: localize({ key: 'miLayoutDensity', comment: ['&& denotes a mnemonic'] }, "Layout &&Density"),
+	submenu: LayoutDensityMenu,
+	group: '3_workbench_layout_move',
+	order: 6,
+});
+
+registerAction2(class ToggleSessionActivityBarAction extends Action2 {
+	constructor() {
+		super({
+			id: TOGGLE_SESSION_ACTIVITY_BAR_COMMAND_ID,
+			title: {
+				...localize2('toggleSessionActivityBar', "Toggle Session Activity Bar"),
+				mnemonicTitle: localize({ key: 'miSessionActivityBar', comment: ['&& denotes a mnemonic'] }, "Session &&Activity Bar"),
+			},
+			category: Categories.View,
+			f1: true,
+			precondition: DesktopLayoutContext,
+			toggled: ContextKeyExpr.equals(`config.${SESSION_ACTIVITY_BAR_SETTING}`, true),
+			menu: {
+				id: MenuId.MenubarAppearanceMenu,
+				group: '2_workbench_layout',
+				order: 4,
+				when: DesktopLayoutContext,
+			},
+		});
+	}
+
+	override run(accessor: ServicesAccessor): Promise<void> {
+		const configurationService = accessor.get(IConfigurationService);
+		return configurationService.updateValue(SESSION_ACTIVITY_BAR_SETTING, !configurationService.getValue<boolean>(SESSION_ACTIVITY_BAR_SETTING));
+	}
+});
+
+// The activity bar is only shown while enabled, so toggling from its own context menu hides it.
+MenuRegistry.appendMenuItem(Menus.SessionActivityBarContext, {
+	command: {
+		id: TOGGLE_SESSION_ACTIVITY_BAR_COMMAND_ID,
+		title: localize('hideSessionActivityBar', "Hide Session Activity Bar"),
+	},
+	group: 'navigation',
+	order: 1,
+});
+
+export const TOGGLE_SESSION_ACTIVITY_BAR_LAYOUT_ACTIONS_COMMAND_ID = 'workbench.action.agentSessions.toggleSessionActivityBarLayoutActions';
+
+registerAction2(class ToggleSessionActivityBarLayoutActionsAction extends Action2 {
+	constructor() {
+		super({
+			id: TOGGLE_SESSION_ACTIVITY_BAR_LAYOUT_ACTIONS_COMMAND_ID,
+			title: localize2('toggleSessionActivityBarLayoutActions', "Toggle Layout Actions in Session Activity Bar"),
+			category: Categories.View,
+			f1: true,
+			precondition: ContextKeyExpr.and(DesktopLayoutContext, ContextKeyExpr.equals(`config.${SESSION_ACTIVITY_BAR_SETTING}`, true)),
+			toggled: ContextKeyExpr.equals(`config.${SESSION_ACTIVITY_BAR_LAYOUT_ACTIONS_SETTING}`, true),
+		});
+	}
+
+	override run(accessor: ServicesAccessor): Promise<void> {
+		const configurationService = accessor.get(IConfigurationService);
+		return configurationService.updateValue(SESSION_ACTIVITY_BAR_LAYOUT_ACTIONS_SETTING, !configurationService.getValue<boolean>(SESSION_ACTIVITY_BAR_LAYOUT_ACTIONS_SETTING));
+	}
+});
+
+MenuRegistry.appendMenuItem(Menus.SessionActivityBarContext, {
+	command: {
+		id: TOGGLE_SESSION_ACTIVITY_BAR_LAYOUT_ACTIONS_COMMAND_ID,
+		title: localize('showSessionActivityBarLayoutActions', "Show Layout Actions"),
+		toggled: ContextKeyExpr.equals(`config.${SESSION_ACTIVITY_BAR_LAYOUT_ACTIONS_SETTING}`, true),
+	},
+	group: 'navigation',
+	order: 0,
+});
+
+MenuRegistry.appendMenuItem(Menus.SessionActivityBarContext, {
+	title: localize('sessionActivityBarSize', "Size"),
+	submenu: Menus.SessionActivityBarSize,
+	group: 'navigation',
+	order: -1,
+	when: DesktopLayoutContext,
+});
+
+for (const [size, order, title] of [
+	[MenuActivityBarSize.Normal, 0, localize2('sessionActivityBarSize.normal', "Normal")],
+	[MenuActivityBarSize.Compact, 1, localize2('sessionActivityBarSize.compact', "Compact")],
+] as const) {
+	registerAction2(class extends Action2 {
+		constructor() {
+			super({
+				id: `workbench.action.agentSessions.setSessionActivityBarSize.${size}`,
+				title,
+				precondition: DesktopLayoutContext,
+				toggled: SessionActivityBarSizeContext.isEqualTo(size),
+				menu: { id: Menus.SessionActivityBarSize, order },
+			});
+		}
+
+		override run(accessor: ServicesAccessor): void {
+			setSessionActivityBarSize(accessor.get(IStorageService), size);
+		}
+	});
+}
 
 // Register Icons
-const panelLeftIcon = registerIcon('agent-panel-left', Codicon.layoutSidebarLeft, localize('panelLeft', "Represents a side bar in the left position"));
-const panelLeftOffIcon = registerIcon('agent-panel-left-off', Codicon.layoutSidebarLeftOff, localize('panelLeftOff', "Represents a side bar in the left position that is hidden"));
-const panelRightIcon = registerIcon('agent-panel-right', Codicon.layoutSidebarRight, localize('panelRight', "Represents a secondary side bar in the right position"));
-const panelRightOffIcon = registerIcon('agent-panel-right-off', Codicon.layoutSidebarRightOff, localize('panelRightOff', "Represents a secondary side bar in the right position that is hidden"));
 const panelCloseIcon = registerIcon('agent-panel-close', Codicon.close, localize('agentPanelCloseIcon', "Icon to close the panel."));
+const sidebarToggleClosedIcon = registerIcon('agent-sidebar-toggle-closed', Codicon.layoutSidebarLeftOff, localize('agentSidebarToggleClosedIcon', "Icon for the sessions sidebar when closed."));
+const sidebarToggleOpenIcon = registerIcon('agent-sidebar-toggle-open', Codicon.layoutSidebarLeft, localize('agentSidebarToggleOpenIcon', "Icon for the sessions sidebar when open."));
 
 class ToggleSidebarVisibilityAction extends Action2 {
 
 	static readonly ID = 'workbench.action.agentToggleSidebarVisibility';
-	static readonly LABEL = localize('compositePart.hideSideBarLabel', "Hide Primary Side Bar");
 
 	constructor() {
 		super({
 			id: ToggleSidebarVisibilityAction.ID,
-			title: localize2('toggleSidebar', 'Toggle Primary Side Bar Visibility'),
-			icon: panelLeftOffIcon,
+			title: {
+				...localize2('toggleSidebar', 'Toggle Side Bar'),
+				mnemonicTitle: localize({ key: 'miPrimarySideBar', comment: ['&& denotes a mnemonic'] }, "Primary &&Side Bar"),
+			},
+			icon: sidebarToggleClosedIcon,
 			toggled: {
 				condition: SideBarVisibleContext,
-				icon: panelLeftIcon,
-				title: localize('primary sidebar', "Primary Side Bar"),
-				mnemonicTitle: localize({ key: 'primary sidebar mnemonic', comment: ['&& denotes a mnemonic'] }, "&&Primary Side Bar"),
+				icon: sidebarToggleOpenIcon,
 			},
 			metadata: {
 				description: localize('openAndCloseSidebar', 'Open/Show and Close/Hide Sidebar'),
 			},
 			category: Categories.View,
 			f1: true,
+			// Not in a chat window, which has no side bar of its own: neither its key nor the Command Palette toggles the
+			// main window's.
+			precondition: LayoutModeContext.negate(),
 			keybinding: {
-				weight: KeybindingWeight.WorkbenchContrib,
-				primary: KeyMod.CtrlCmd | KeyCode.KeyB
+				weight: KeybindingWeight.SessionsContrib,
+				primary: KeyMod.CtrlCmd | KeyCode.KeyB,
 			},
 			menu: [
 				{
-					id: Menus.TitleBarLeft,
+					id: AgentsWindowMenus.TitleBarLeftLayout,
 					group: 'navigation',
-					order: 0
+					order: 0,
+					when: ContextKeyExpr.and(IsAuxiliaryWindowContext.toNegated(), SessionsWelcomeVisibleContext.toNegated())
+				},
+				{
+					id: MenuId.MenubarAppearanceMenu,
+					group: '2_workbench_layout',
+					order: 1,
 				}
 			]
 		});
@@ -72,78 +214,87 @@ class ToggleSidebarVisibilityAction extends Action2 {
 	}
 }
 
-class ToggleSecondarySidebarVisibilityAction extends Action2 {
-
-	static readonly ID = 'workbench.action.agentToggleSecondarySidebarVisibility';
-	static readonly LABEL = localize('compositePart.hideSecondarySideBarLabel', "Hide Secondary Side Bar");
-
-	constructor() {
-		super({
-			id: ToggleSecondarySidebarVisibilityAction.ID,
-			title: localize2('toggleSecondarySidebar', 'Toggle Secondary Side Bar Visibility'),
-			icon: panelRightOffIcon,
-			toggled: {
-				condition: AuxiliaryBarVisibleContext,
-				icon: panelRightIcon,
-				title: localize('secondary sidebar', "Secondary Side Bar"),
-				mnemonicTitle: localize({ key: 'secondary sidebar mnemonic', comment: ['&& denotes a mnemonic'] }, "&&Secondary Side Bar"),
-			},
-			metadata: {
-				description: localize('openAndCloseSecondarySidebar', 'Open/Show and Close/Hide Secondary Side Bar'),
-			},
-			category: Categories.View,
-			f1: true,
-			menu: [
-				{
-					id: Menus.TitleBarRight,
-					group: 'navigation',
-					order: 10
-				}
-			]
-		});
-	}
-
-	run(accessor: ServicesAccessor): void {
-		const layoutService = accessor.get(IWorkbenchLayoutService);
-		const isCurrentlyVisible = layoutService.isVisible(Parts.AUXILIARYBAR_PART);
-
-		layoutService.setPartHidden(isCurrentlyVisible, Parts.AUXILIARYBAR_PART);
-
-		// Announce visibility change to screen readers
-		const alertMessage = isCurrentlyVisible
-			? localize('secondarySidebarHidden', "Secondary Side Bar hidden")
-			: localize('secondarySidebarVisible', "Secondary Side Bar shown");
-		alert(alertMessage);
-	}
-}
-
-class TogglePanelVisibilityAction extends Action2 {
-
-	static readonly ID = 'workbench.action.agentTogglePanelVisibility';
-
-	constructor() {
-		super({
-			id: TogglePanelVisibilityAction.ID,
-			title: localize2('togglePanel', 'Toggle Panel Visibility'),
-			category: Categories.View,
-			f1: true,
-			icon: panelCloseIcon,
-			menu: [
-				{
-					id: Menus.PanelTitle,
-					group: 'navigation',
-					order: 2
-				}
-			]
-		});
-	}
-
-	run(accessor: ServicesAccessor): void {
-		const layoutService = accessor.get(IWorkbenchLayoutService);
-		layoutService.setPartHidden(layoutService.isVisible(Parts.PANEL_PART), Parts.PANEL_PART);
-	}
-}
-
 registerAction2(ToggleSidebarVisibilityAction);
-registerAction2(ToggleSecondarySidebarVisibilityAction);
-registerAction2(TogglePanelVisibilityAction);
+
+MenuRegistry.appendMenuItem(AgentsWindowMenus.TitleBarAccessibility, {
+	command: {
+		id: 'editor.action.toggleScreenReaderAccessibilityMode',
+		title: localize('screenReaderOptimizedBadge', "Screen Reader Optimized"),
+		tooltip: localize('disableScreenReaderOptimizedMode', "Disable Screen Reader Optimized Mode"),
+	},
+	group: 'navigation',
+	order: 0,
+	when: ContextKeyExpr.and(CONTEXT_ACCESSIBILITY_MODE_ENABLED, IsPhoneLayoutContext.negate())
+});
+
+// The Session Activity Bar hosts these toggles in place of the title bar while it shows its layout actions.
+const titleBarPanelWhen = ContextKeyExpr.and(IsAuxiliaryWindowContext.toNegated(), SessionsWelcomeVisibleContext.toNegated(), IsPhoneLayoutContext.negate(), SessionActivityBarLayoutActionsContext.negate());
+const sessionActivityBarPanelWhen = ContextKeyExpr.and(IsAuxiliaryWindowContext.toNegated(), SessionActivityBarLayoutActionsContext);
+
+const showPanelCommand = {
+	id: TogglePanelAction.ID,
+	title: localize('showPanel', "Show Panel"),
+	icon: Codicon.layoutPanelOff,
+	precondition: CustomViewVisibleContext.negate()
+};
+const hidePanelCommand = {
+	id: TogglePanelAction.ID,
+	title: localize('hidePanel', "Hide Panel"),
+	icon: Codicon.layoutPanel,
+	precondition: CustomViewVisibleContext.negate()
+};
+
+MenuRegistry.appendMenuItem(AgentsWindowMenus.TitleBarSessionMenu, {
+	command: showPanelCommand,
+	group: 'navigation',
+	order: 10,
+	when: ContextKeyExpr.and(titleBarPanelWhen, PanelVisibleContext.toNegated())
+});
+
+MenuRegistry.appendMenuItem(AgentsWindowMenus.TitleBarSessionMenu, {
+	command: hidePanelCommand,
+	group: 'navigation',
+	order: 10,
+	when: ContextKeyExpr.and(titleBarPanelWhen, PanelVisibleContext)
+});
+
+MenuRegistry.appendMenuItem(Menus.SessionActivityBar, {
+	command: showPanelCommand,
+	group: SessionActivityBarGroup.Panel,
+	order: 1,
+	when: ContextKeyExpr.and(sessionActivityBarPanelWhen, PanelVisibleContext.toNegated())
+});
+
+MenuRegistry.appendMenuItem(Menus.SessionActivityBar, {
+	command: hidePanelCommand,
+	group: SessionActivityBarGroup.Panel,
+	order: 1,
+	when: ContextKeyExpr.and(sessionActivityBarPanelWhen, PanelVisibleContext)
+});
+
+MenuRegistry.appendMenuItem(AgentsWindowMenus.PanelTitle, {
+	command: {
+		id: 'workbench.action.closePanel',
+		title: localize('closePanel', "Hide Panel"),
+		icon: panelCloseIcon
+	},
+	group: 'navigation',
+	order: 2
+});
+
+// Floating window controls: always-on-top
+MenuRegistry.appendMenuItem(AgentsWindowMenus.TitleBarRightLayout, {
+	command: {
+		id: 'workbench.action.toggleWindowAlwaysOnTop',
+		title: localize('toggleWindowAlwaysOnTop', "Toggle Always on Top"),
+		icon: Codicon.pin,
+		toggled: {
+			condition: IsWindowAlwaysOnTopContext,
+			icon: Codicon.pinned,
+		},
+	},
+	// Not in windows with layout modes, such as chat windows, whose title bars show their layout actions there.
+	when: ContextKeyExpr.and(IsAuxiliaryWindowContext, LayoutModeContext.toNegated()),
+	group: 'navigation',
+	order: 0
+});

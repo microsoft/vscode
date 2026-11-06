@@ -69,6 +69,8 @@ class MockTelemetryService implements ITelemetryService {
 	}
 	setExperimentProperty(name: string, value: string): void {
 	}
+	setCommonProperty(name: string, value: string): void {
+	}
 }
 
 

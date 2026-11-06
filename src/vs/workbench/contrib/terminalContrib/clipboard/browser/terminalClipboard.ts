@@ -50,10 +50,13 @@ export async function shouldPasteTerminalText(accessor: ServicesAccessor, text: 
 			return true;
 		}
 
-		const textForLines = text.split(/\r?\n/);
-		// Ignore check when a command is copied with a trailing new line
+		// When a command is copied with a trailing new line, strip the trailing newline so the
+		// command is not automatically executed on paste. This mitigates a clipboard hijacking
+		// scenario where a malicious page replaces clipboard contents with a command followed by
+		// a newline; pasting (especially via right click) would otherwise immediately execute it.
+		// The user can still review the pasted text and press Enter to run it.
 		if (textForLines.length === 2 && textForLines[1].trim().length === 0) {
-			return true;
+			return { modifiedText: textForLines[0] };
 		}
 	}
 

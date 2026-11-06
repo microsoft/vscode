@@ -1,0 +1,180 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+/* Hide the top title border because we draw our own */
+.monaco-workbench.agent-sessions-workbench .part.panel.bottom .composite.title {
+	border-top-width: 0;
+}
+
+.agent-sessions-workbench .part.panel > .title {
+	padding-left: 4px;
+	padding-right: 2px;
+	background-color: var(--vscode-agentsPanel-background);
+}
+
+.agent-sessions-workbench .part.panel.bottom.panel-labels > .title > .title-actions {
+	height: 100%;
+}
+
+.agent-sessions-workbench.modern-ui-tabs:not(.phone-layout) .part.panel.bottom.panel-labels {
+	--modern-ui-tab-active-background: var(--modern-ui-editor-tab-active-background);
+	--modern-ui-tab-hover-background: var(--modern-ui-editor-tab-hover-background);
+	--vscode-modernTab-activeForeground: var(--modern-ui-editor-tab-active-foreground);
+	--vscode-modernTab-hoverForeground: var(--modern-ui-editor-tab-hover-foreground);
+	--vscode-panelTitle-activeForeground: var(--modern-ui-editor-tab-hover-foreground);
+}
+
+.agent-sessions-workbench.modern-ui-tabs:not(.phone-layout) .part.panel.bottom.panel-labels > .title > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item:not(.icon) {
+	padding-inline: var(--vscode-spacing-size80);
+	border-block: 0;
+}
+
+.agent-sessions-workbench.modern-ui-tabs:not(.phone-layout) .part.panel.bottom.panel-labels > .title > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item:not(.icon) > .active-item-indicator {
+	border: var(--vscode-strokeThickness) solid var(--modern-ui-editor-tab-border);
+	border-radius: var(--vscode-cornerRadius-small);
+	box-sizing: border-box;
+}
+
+.agent-sessions-workbench.modern-ui-tabs.modern-ui-connected-editor-tabs:not(.phone-layout) .part.panel.bottom.panel-labels {
+	--modern-ui-tab-active-background: var(--modern-ui-connected-tab-surface);
+	--modern-ui-connected-tab-surface: var(--vscode-agentsPanel-background);
+	--modern-ui-connected-tab-border: var(--part-border-color, var(--vscode-agentsBottomPanel-border, var(--vscode-agentsPanel-border)));
+	--modern-ui-connected-tab-radius: var(--vscode-cornerRadius-medium, var(--vscode-cornerRadius-small));
+	--modern-ui-connected-tab-cap-radius: calc(var(--modern-ui-connected-tab-radius) + var(--vscode-strokeThickness));
+	--modern-ui-connected-tab-shoulder-radius: calc(var(--modern-ui-connected-tab-radius) + var(--vscode-strokeThickness));
+}
+
+.agent-sessions-workbench.modern-ui-tabs.modern-ui-connected-editor-tabs:not(.phone-layout) .part.panel.bottom.panel-labels > .title {
+	position: relative;
+	padding-inline-start: 0;
+	background-color: var(--modern-ui-connected-tab-strip-background, var(--vscode-editorGroupHeader-connectedTabsBackground, var(--vscode-editorGroupHeader-tabsBackground)));
+}
+
+.agent-sessions-workbench.modern-ui-tabs.modern-ui-connected-editor-tabs:not(.phone-layout) .part.panel.bottom.panel-labels > .title::after {
+	content: '';
+	position: absolute;
+	right: 0;
+	bottom: 0;
+	left: 0;
+	z-index: 0;
+	border-bottom: var(--vscode-strokeThickness) solid var(--modern-ui-connected-tab-border);
+	pointer-events: none;
+}
+
+.agent-sessions-workbench.modern-ui-tabs.modern-ui-connected-editor-tabs:not(.phone-layout) .part.panel.bottom.panel-labels > .title > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item:not(.icon) > .active-item-indicator {
+	top: calc(-1 * var(--vscode-strokeThickness));
+	right: 0;
+	bottom: calc(-1 * var(--vscode-strokeThickness));
+	left: 0;
+	height: auto;
+	border-radius: var(--vscode-cornerRadius-small);
+	transform: none;
+}
+
+.agent-sessions-workbench.modern-ui-tabs.modern-ui-connected-editor-tabs:not(.phone-layout) .part.panel.bottom.panel-labels > .title > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item:not(.icon).checked > .active-item-indicator {
+	z-index: 1;
+	overflow: visible;
+	background-color: var(--modern-ui-connected-tab-surface);
+	border: var(--vscode-strokeThickness) solid var(--modern-ui-connected-tab-border);
+	border-bottom: 0;
+	border-radius: var(--modern-ui-connected-tab-cap-radius) var(--modern-ui-connected-tab-cap-radius) 0 0;
+}
+
+.agent-sessions-workbench.modern-ui-tabs.modern-ui-connected-editor-tabs:not(.phone-layout) .part.panel.bottom.panel-labels > .title > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item:not(.icon) > :is(.action-label, .badge) {
+	z-index: 2;
+}
+
+.agent-sessions-workbench.modern-ui-tabs.modern-ui-connected-editor-tabs:not(.phone-layout) .part.panel.bottom.panel-labels > .title > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item:not(.icon).checked > .active-item-indicator::before,
+.agent-sessions-workbench.modern-ui-tabs.modern-ui-connected-editor-tabs:not(.phone-layout) .part.panel.bottom.panel-labels > .title > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item:not(.icon).checked > .active-item-indicator::after {
+	content: '';
+	display: block !important;
+	position: absolute;
+	bottom: 0;
+	width: var(--modern-ui-connected-tab-shoulder-radius);
+	height: var(--modern-ui-connected-tab-shoulder-radius);
+	box-sizing: border-box;
+	border-top: 0;
+	border-bottom: var(--vscode-strokeThickness) solid var(--modern-ui-connected-tab-border);
+	pointer-events: none;
+}
+
+.agent-sessions-workbench.modern-ui-tabs.modern-ui-connected-editor-tabs:not(.phone-layout) .part.panel.bottom.panel-labels > .title > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item:not(.icon).checked > .active-item-indicator::before {
+	right: 100%;
+	border-right: var(--vscode-strokeThickness) solid var(--modern-ui-connected-tab-border);
+	border-bottom: var(--vscode-strokeThickness) solid var(--modern-ui-connected-tab-border) !important;
+	border-bottom-right-radius: var(--modern-ui-connected-tab-shoulder-radius);
+	box-shadow: calc(var(--modern-ui-connected-tab-shoulder-radius) / 2) calc(var(--modern-ui-connected-tab-shoulder-radius) / 2) 0 calc(var(--modern-ui-connected-tab-shoulder-radius) / 2) var(--modern-ui-connected-tab-surface);
+}
+
+.agent-sessions-workbench.modern-ui-tabs.modern-ui-connected-editor-tabs:not(.phone-layout) .part.panel.bottom.panel-labels > .title > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item:not(.icon).checked > .active-item-indicator::after {
+	left: 100%;
+	border-left: var(--vscode-strokeThickness) solid var(--modern-ui-connected-tab-border);
+	border-bottom-left-radius: var(--modern-ui-connected-tab-shoulder-radius);
+	box-shadow: calc(var(--modern-ui-connected-tab-shoulder-radius) / -2) calc(var(--modern-ui-connected-tab-shoulder-radius) / 2) 0 calc(var(--modern-ui-connected-tab-shoulder-radius) / 2) var(--modern-ui-connected-tab-surface);
+}
+
+/* The panel frame owns the leading edge of the first connected tab. */
+.agent-sessions-workbench.modern-ui-tabs.modern-ui-connected-editor-tabs:not(.phone-layout) .part.panel.bottom.panel-labels > .title > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item:first-child:not(.icon).checked > .active-item-indicator {
+	border-start-start-radius: 0;
+	border-inline-start-color: transparent;
+	background-clip: border-box;
+}
+
+.agent-sessions-workbench.modern-ui-tabs.modern-ui-connected-editor-tabs:not(.phone-layout) .part.panel.bottom.panel-labels > .title > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item:first-child:not(.icon).checked > .active-item-indicator::before {
+	content: none;
+}
+
+.agent-sessions-workbench.modern-ui-tabs.modern-ui-connected-editor-tabs:not(.phone-layout) .part.panel.bottom.panel-labels > .title > .composite-bar-container > .composite-bar > .monaco-action-bar:dir(rtl) .action-item:not(.icon).checked > .active-item-indicator::before {
+	right: auto;
+	left: 100%;
+	border-right: 0;
+	border-left: var(--vscode-strokeThickness) solid var(--modern-ui-connected-tab-border);
+	border-bottom-right-radius: 0;
+	border-bottom-left-radius: var(--modern-ui-connected-tab-shoulder-radius);
+	box-shadow: calc(var(--modern-ui-connected-tab-shoulder-radius) / -2) calc(var(--modern-ui-connected-tab-shoulder-radius) / 2) 0 calc(var(--modern-ui-connected-tab-shoulder-radius) / 2) var(--modern-ui-connected-tab-surface);
+}
+
+.agent-sessions-workbench.modern-ui-tabs.modern-ui-connected-editor-tabs:not(.phone-layout) .part.panel.bottom.panel-labels > .title > .composite-bar-container > .composite-bar > .monaco-action-bar:dir(rtl) .action-item:not(.icon).checked > .active-item-indicator::after {
+	right: 100%;
+	left: auto;
+	border-right: var(--vscode-strokeThickness) solid var(--modern-ui-connected-tab-border);
+	border-left: 0;
+	border-bottom-right-radius: var(--modern-ui-connected-tab-shoulder-radius);
+	border-bottom-left-radius: 0;
+	box-shadow: calc(var(--modern-ui-connected-tab-shoulder-radius) / 2) calc(var(--modern-ui-connected-tab-shoulder-radius) / 2) 0 calc(var(--modern-ui-connected-tab-shoulder-radius) / 2) var(--modern-ui-connected-tab-surface);
+}
+
+/* Override base workbench panel content background for terminal */
+.agent-sessions-workbench .part.panel > .content .monaco-editor,
+.agent-sessions-workbench .part.panel > .content .monaco-editor .margin,
+.agent-sessions-workbench .part.panel > .content .monaco-editor .monaco-editor-background {
+	background-color: var(--vscode-agentsPanel-background);
+}
+
+.agent-sessions-workbench .part.panel > .content .pane-body,
+.agent-sessions-workbench .part.panel > .content .chat-debug-editor,
+.agent-sessions-workbench .part.panel > .content .chat-debug-home,
+.agent-sessions-workbench .part.panel > .content .chat-debug-home-content,
+.agent-sessions-workbench .part.panel > .content .chat-debug-overview,
+.agent-sessions-workbench .part.panel > .content .chat-debug-overview-content {
+	background-color: var(--vscode-agentsPanel-background);
+}
+
+.monaco-workbench.vs.agent-sessions-workbench .part.panel > .content #workbench\.sessions\.panel\.chatDebugContainer {
+	--vscode-panel-background: var(--vscode-agentsPanel-background);
+}
+
+.monaco-workbench.vs.agent-sessions-workbench .part.panel > .content #workbench\.sessions\.panel\.chatDebugContainer .monaco-list-rows {
+	background: var(--vscode-agentsPanel-background) !important;
+}
+
+/* Terminal body background */
+.agent-sessions-workbench .part.panel .terminal-wrapper {
+	background-color: var(--vscode-agentsPanel-background);
+}
+
+.monaco-workbench.agent-sessions-workbench .part.panel .pane-body.integrated-terminal .tabs-list-container:not(.drop-target) {
+	background-color: var(--vscode-agentsPanel-background);
+}

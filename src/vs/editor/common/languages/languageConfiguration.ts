@@ -142,7 +142,6 @@ export interface IndentationRule {
  * Describes language specific folding markers such as '#region' and '#endregion'.
  * The start and end regexes will be tested against the contents of all lines and must be designed efficiently:
  * - the regex should start with '^'
- * - regexp flags (i, g) are ignored
  */
 export interface FoldingMarkers {
 	start: RegExp;
@@ -216,6 +215,7 @@ export interface IAutoClosingPair {
 
 export interface IAutoClosingPairConditional extends IAutoClosingPair {
 	notIn?: string[];
+	beforeText?: RegExp;
 }
 
 /**
@@ -289,6 +289,7 @@ export class StandardAutoClosingPairConditional {
 
 	readonly open: string;
 	readonly close: string;
+	readonly beforeText: RegExp | undefined;
 	private readonly _inString: boolean;
 	private readonly _inComment: boolean;
 	private readonly _inRegEx: boolean;
@@ -298,6 +299,7 @@ export class StandardAutoClosingPairConditional {
 	constructor(source: IAutoClosingPairConditional) {
 		this.open = source.open;
 		this.close = source.close;
+		this.beforeText = source.beforeText;
 
 		// initially allowed in all tokens
 		this._inString = true;
@@ -320,6 +322,14 @@ export class StandardAutoClosingPairConditional {
 				}
 			}
 		}
+	}
+
+	public shouldAutoCloseBefore(text: string): boolean {
+		if (!this.beforeText) {
+			return true;
+		}
+		this.beforeText.lastIndex = 0;
+		return this.beforeText.test(text);
 	}
 
 	public isOK(standardToken: StandardTokenType): boolean {

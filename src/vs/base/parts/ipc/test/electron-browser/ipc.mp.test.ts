@@ -4,7 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { mainWindow } from '../../../../browser/window.js';
 import { Client as MessagePortClient } from '../../browser/ipc.mp.js';
+import { acquirePort, MessagePortAcquisitionError } from '../../electron-browser/ipc.mp.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../test/common/utils.js';
 
 suite('IPC, MessagePorts', () => {
@@ -27,6 +29,30 @@ suite('IPC, MessagePorts', () => {
 		assert.ok(await whenClosed);
 
 		client1.dispose();
+	});
+
+	test('message port acquisition reports structured errors', async () => {
+		async function acquireError(nonce: string, fatal: boolean): Promise<{ message: string; fatal: boolean }> {
+			const result = acquirePort(undefined, 'test:messagePortError', nonce, () => { });
+			mainWindow.postMessage(null, '*');
+			mainWindow.postMessage(42, '*');
+			mainWindow.postMessage({ nonce, error: `failure-${fatal}`, fatal }, '*');
+			try {
+				await result;
+				throw new Error('Expected acquirePort to reject.');
+			} catch (error) {
+				assert.ok(error instanceof MessagePortAcquisitionError);
+				return { message: error.message, fatal: error.fatal };
+			}
+		}
+
+		assert.deepStrictEqual({
+			nonFatal: await acquireError('non-fatal', false),
+			fatal: await acquireError('fatal', true),
+		}, {
+			nonFatal: { message: 'failure-false', fatal: false },
+			fatal: { message: 'failure-true', fatal: true },
+		});
 	});
 
 	ensureNoDisposablesAreLeakedInTestSuite();

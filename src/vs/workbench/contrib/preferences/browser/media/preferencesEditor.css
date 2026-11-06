@@ -7,7 +7,7 @@
 
 	height: 100%;
 	overflow: hidden;
-	max-width: 1200px;
+	max-width: 1400px;
 	margin: auto;
 
 	.preferences-editor-header {
@@ -18,7 +18,7 @@
 		padding-top: 3px;
 		padding-left: 24px;
 		padding-right: 24px;
-		max-width: 1200px;
+		max-width: 1400px;
 
 		.search-container {
 			position: relative;

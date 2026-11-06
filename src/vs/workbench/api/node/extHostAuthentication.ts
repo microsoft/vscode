@@ -7,12 +7,14 @@ import * as nls from '../../../nls.js';
 import type * as vscode from 'vscode';
 import { URL } from 'url';
 import { ExtHostAuthentication, DynamicAuthProvider, IExtHostAuthentication } from '../common/extHostAuthentication.js';
+import { XaaifyAuthProvider } from '../common/extHostXaaAuthProvider.js';
 import { IExtHostRpcService } from '../common/extHostRpcService.js';
 import { IExtHostInitDataService } from '../common/extHostInitDataService.js';
 import { IExtHostWindow } from '../common/extHostWindow.js';
 import { IExtHostUrlsService } from '../common/extHostUrls.js';
 import { ILoggerService, ILogService } from '../../../platform/log/common/log.js';
 import { MainThreadAuthenticationShape } from '../common/extHost.protocol.js';
+import { Proxied } from '../../services/extensions/common/proxyIdentifier.js';
 import { IAuthorizationServerMetadata, IAuthorizationProtectedResourceMetadata, IAuthorizationTokenResponse, IAuthorizationDeviceResponse, isAuthorizationDeviceResponse, isAuthorizationTokenResponse, IAuthorizationDeviceTokenErrorResponse, AuthorizationErrorType, AuthorizationDeviceCodeErrorType } from '../../../base/common/oauth.js';
 import { Emitter } from '../../../base/common/event.js';
 import { raceCancellationError } from '../../../base/common/async.js';
@@ -30,14 +32,15 @@ export class NodeDynamicAuthProvider extends DynamicAuthProvider {
 		initData: IExtHostInitDataService,
 		extHostProgress: IExtHostProgress,
 		loggerService: ILoggerService,
-		proxy: MainThreadAuthenticationShape,
+		proxy: Proxied<MainThreadAuthenticationShape>,
 		authorizationServer: URI,
 		serverMetadata: IAuthorizationServerMetadata,
 		resourceMetadata: IAuthorizationProtectedResourceMetadata | undefined,
 		clientId: string,
 		clientSecret: string | undefined,
 		onDidDynamicAuthProviderTokensChange: Emitter<{ authProviderId: string; clientId: string; tokens: any[] }>,
-		initialTokens: any[]
+		initialTokens: any[],
+		providerId?: string
 	) {
 		super(
 			extHostWindow,
@@ -52,7 +55,8 @@ export class NodeDynamicAuthProvider extends DynamicAuthProvider {
 			clientId,
 			clientSecret,
 			onDidDynamicAuthProviderTokensChange,
-			initialTokens
+			initialTokens,
+			providerId
 		);
 
 		// Prepend Node-specific flows to the existing flows
@@ -102,12 +106,14 @@ export class NodeDynamicAuthProvider extends DynamicAuthProvider {
 		authorizationUrl.searchParams.append('code_challenge', codeChallenge);
 		authorizationUrl.searchParams.append('code_challenge_method', 'S256');
 		const scopeString = scopes.join(' ');
-		if (scopeString) {
-			authorizationUrl.searchParams.append('scope', scopeString);
+		const requestScopeString = this._getRequestScopes(scopes).join(' ');
+		if (requestScopeString) {
+			authorizationUrl.searchParams.append('scope', requestScopeString);
 		}
-		if (this._resourceMetadata?.resource) {
+		const resource = this._resourceIndicator;
+		if (resource) {
 			// If a resource is specified, include it in the request
-			authorizationUrl.searchParams.append('resource', this._resourceMetadata.resource);
+			authorizationUrl.searchParams.append('resource', resource);
 		}
 
 		// Create and start the loopback server
@@ -183,12 +189,14 @@ export class NodeDynamicAuthProvider extends DynamicAuthProvider {
 		// Step 1: Request device and user codes
 		const deviceCodeRequest = new URLSearchParams();
 		deviceCodeRequest.append('client_id', this._clientId);
-		if (scopeString) {
-			deviceCodeRequest.append('scope', scopeString);
+		const requestScopeString = this._getRequestScopes(scopes).join(' ');
+		if (requestScopeString) {
+			deviceCodeRequest.append('scope', requestScopeString);
 		}
-		if (this._resourceMetadata?.resource) {
+		const resource = this._resourceIndicator;
+		if (resource) {
 			// If a resource is specified, include it in the request
-			deviceCodeRequest.append('resource', this._resourceMetadata.resource);
+			deviceCodeRequest.append('resource', resource);
 		}
 
 		let deviceCodeResponse: Response;
@@ -255,8 +263,8 @@ export class NodeDynamicAuthProvider extends DynamicAuthProvider {
 			tokenRequest.append('client_id', this._clientId);
 
 			// Add resource indicator if available (RFC 8707)
-			if (this._resourceMetadata?.resource) {
-				tokenRequest.append('resource', this._resourceMetadata.resource);
+			if (resource) {
+				tokenRequest.append('resource', resource);
 			}
 
 			try {
@@ -321,6 +329,7 @@ export class NodeDynamicAuthProvider extends DynamicAuthProvider {
 export class NodeExtHostAuthentication extends ExtHostAuthentication implements IExtHostAuthentication {
 
 	protected override readonly _dynamicAuthProviderCtor = NodeDynamicAuthProvider;
+	protected override readonly _xaaAuthProviderCtor = XaaifyAuthProvider(NodeDynamicAuthProvider);
 
 	constructor(
 		extHostRpc: IExtHostRpcService,

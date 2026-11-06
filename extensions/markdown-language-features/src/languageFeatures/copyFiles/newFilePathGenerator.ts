@@ -7,12 +7,12 @@ import * as picomatch from 'picomatch';
 import * as vscode from 'vscode';
 import { Utils } from 'vscode-uri';
 import { getParentDocumentUri } from '../../util/document';
-import { CopyFileConfiguration, getCopyFileConfiguration, parseGlob, resolveCopyDestination } from './copyFiles';
+import { CopyFileConfiguration, getCopyFileConfiguration, GetWorkspaceFolder, isSafeCopyDestination, parseGlob, resolveCopyDestination } from './copyFiles';
 
 
 export class NewFilePathGenerator {
 
-	private readonly _usedPaths = new Set<string>();
+	readonly #usedPaths = new Set<string>();
 
 	async getNewFilePath(
 		document: vscode.TextDocument,
@@ -20,8 +20,33 @@ export class NewFilePathGenerator {
 		token: vscode.CancellationToken
 	): Promise<{ readonly uri: vscode.Uri; readonly overwrite: boolean } | undefined> {
 		const config = getCopyFileConfiguration(document);
-		const desiredPath = getDesiredNewFilePath(config, document, file);
+		const docUri = getParentDocumentUri(document.uri);
+		const getWorkspaceFolder: GetWorkspaceFolder = uri => vscode.workspace.getWorkspaceFolder(uri)?.uri;
+		const defaultPath = vscode.Uri.joinPath(Utils.dirname(docUri), file.name);
+		const desiredPath = getConfiguredNewFilePath(config, docUri, file, getWorkspaceFolder) ?? defaultPath;
 
+		if (vscode.workspace.isTrusted) {
+			return this.#findAvailablePath(desiredPath, config, token);
+		}
+
+		// In untrusted workspaces, never write outside of the workspace
+		for (const candidate of desiredPath.toString() === defaultPath.toString() ? [desiredPath] : [desiredPath, defaultPath]) {
+			const newFile = await this.#findAvailablePath(candidate, config, token);
+			if (!newFile || token.isCancellationRequested) {
+				return undefined;
+			}
+			if (await isSafeCopyDestination(docUri, newFile.uri, getWorkspaceFolder, vscode.workspace.fs)) {
+				return newFile;
+			}
+		}
+		return undefined;
+	}
+
+	async #findAvailablePath(
+		desiredPath: vscode.Uri,
+		config: CopyFileConfiguration,
+		token: vscode.CancellationToken
+	): Promise<{ readonly uri: vscode.Uri; readonly overwrite: boolean } | undefined> {
 		const root = Utils.dirname(desiredPath);
 		const ext = Utils.extname(desiredPath);
 		let baseName = Utils.basename(desiredPath);
@@ -33,13 +58,13 @@ export class NewFilePathGenerator {
 
 			const name = i === 0 ? baseName : `${baseName}-${i}`;
 			const uri = vscode.Uri.joinPath(root, name + ext);
-			if (this._wasPathAlreadyUsed(uri)) {
+			if (this.#wasPathAlreadyUsed(uri)) {
 				continue;
 			}
 
 			// Try overwriting if it already exists
 			if (config.overwriteBehavior === 'overwrite') {
-				this._usedPaths.add(uri.toString());
+				this.#usedPaths.add(uri.toString());
 				return { uri, overwrite: true };
 			}
 
@@ -47,31 +72,28 @@ export class NewFilePathGenerator {
 			try {
 				await vscode.workspace.fs.stat(uri);
 			} catch {
-				if (!this._wasPathAlreadyUsed(uri)) {
+				if (!this.#wasPathAlreadyUsed(uri)) {
 					// Does not exist
-					this._usedPaths.add(uri.toString());
+					this.#usedPaths.add(uri.toString());
 					return { uri, overwrite: false };
 				}
 			}
 		}
 	}
 
-	private _wasPathAlreadyUsed(uri: vscode.Uri) {
-		return this._usedPaths.has(uri.toString());
+	#wasPathAlreadyUsed(uri: vscode.Uri) {
+		return this.#usedPaths.has(uri.toString());
 	}
 }
 
-export function getDesiredNewFilePath(config: CopyFileConfiguration, document: vscode.TextDocument, file: vscode.DataTransferFile): vscode.Uri {
-	const docUri = getParentDocumentUri(document.uri);
+function getConfiguredNewFilePath(config: CopyFileConfiguration, docUri: vscode.Uri, file: vscode.DataTransferFile, getWorkspaceFolder: GetWorkspaceFolder): vscode.Uri | undefined {
 	for (const [rawGlob, rawDest] of Object.entries(config.destination)) {
 		for (const glob of parseGlob(rawGlob)) {
 			if (picomatch.isMatch(docUri.path, glob, { dot: true })) {
-				return resolveCopyDestination(docUri, file.name, rawDest, uri => vscode.workspace.getWorkspaceFolder(uri)?.uri);
+				return resolveCopyDestination(docUri, file.name, rawDest, getWorkspaceFolder);
 			}
 		}
 	}
-
-	// Default to next to current file
-	return vscode.Uri.joinPath(Utils.dirname(docUri), file.name);
+	return undefined;
 }
 

@@ -12,7 +12,7 @@ import { localize2 } from '../../../../../nls.js';
 import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { KeybindingWeight } from '../../../../../platform/keybinding/common/keybindingsRegistry.js';
-import { findInFilesCommand } from '../../../search/browser/searchActionsFind.js';
+import { findInFilesCommand } from '../../../search/browser/searchActionsBase.js';
 import { IDetachedTerminalInstance, ITerminalContribution, ITerminalInstance, ITerminalService, IXtermTerminal, isDetachedTerminalInstance } from '../../../terminal/browser/terminal.js';
 import { registerActiveInstanceAction, registerActiveXtermAction } from '../../../terminal/browser/terminalActions.js';
 import { registerTerminalContribution, type IDetachedCompatibleTerminalContributionContext, type ITerminalContributionContext } from '../../../terminal/browser/terminalExtensions.js';
@@ -52,17 +52,17 @@ class TerminalFindContribution extends Disposable implements ITerminalContributi
 			const findWidget = instantiationService.createInstance(TerminalFindWidget, ctx.instance);
 
 			// Track focus and set state so we can force the scroll bar to be visible
-			findWidget.focusTracker.onDidFocus(() => {
+			this._register(findWidget.focusTracker.onDidFocus(() => {
 				TerminalFindContribution.activeFindWidget = this;
 				ctx.instance.forceScrollbarVisibility();
 				if (!isDetachedTerminalInstance(ctx.instance)) {
 					terminalService.setActiveInstance(ctx.instance);
 				}
-			});
-			findWidget.focusTracker.onDidBlur(() => {
+			}));
+			this._register(findWidget.focusTracker.onDidBlur(() => {
 				TerminalFindContribution.activeFindWidget = undefined;
 				ctx.instance.resetScrollbarVisibility();
-			});
+			}));
 
 			if (!ctx.instance.domElement) {
 				throw new Error('FindWidget expected terminal DOM to be initialized');

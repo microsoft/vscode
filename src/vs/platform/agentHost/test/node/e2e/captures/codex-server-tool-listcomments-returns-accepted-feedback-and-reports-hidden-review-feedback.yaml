@@ -1,0 +1,60 @@
+version: 1
+dialect: responses
+exchanges:
+  - request:
+      model: gpt-5.3-codex
+      system: ${system}
+      messages:
+        - role: user
+          content: Call listComments exactly once, then reply exactly "listed".
+    response:
+      content:
+        - type: text
+          text: I’m going to run `listComments` once now, then return the exact response you requested.
+        - type: tool_use
+          id: toolcall_0
+          name: listComments
+          input: {}
+      stopReason: tool_use
+  - request:
+      model: gpt-5.3-codex
+      system: ${system}
+      messages:
+        - role: user
+          content: Call listComments exactly once, then reply exactly "listed".
+        - role: assistant
+          content: I’m going to run `listComments` once now, then return the exact response you requested.
+        - role: assistant
+          content:
+            - type: tool_use
+              name: listComments
+              input: {}
+        - role: user
+          content:
+            - type: tool_result
+              tool_use_id: toolcall_0
+              content: |-
+                {
+                  "comments": [
+                    {
+                      "id": "accepted-comment",
+                      "resourceUri": "untitled://server-tools/reviewed.ts",
+                      "range": {
+                        "startLineNumber": 2,
+                        "startColumn": 3,
+                        "endLineNumber": 2,
+                        "endColumn": 9
+                      },
+                      "text": "visible",
+                      "kind": "codeReview",
+                      "resolved": false,
+                      "replies": [
+                        "reply"
+                      ]
+                    }
+                  ],
+                  "note": "There is 1 code review comment which the user has not reviewed yet. If the user wants you to tackle them, call the `viewUnreviewedComments` tool to view them."
+                }
+    response:
+      content: listed
+      stopReason: end_turn

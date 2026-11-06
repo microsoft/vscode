@@ -1,0 +1,41 @@
+version: 1
+dialect: anthropic
+exchanges:
+  - request:
+      model: claude-sonnet-5
+      system: ${system}
+      messages:
+        - role: user
+          content: 'Run this exact shell command, do not modify it: cd ${workdir} && echo strip-me-please'
+    response:
+      content:
+        - type: tool_use
+          id: toolcall_0
+          name: ${shell}
+          input:
+            command: cd ${workdir} && echo strip-me-please
+            description: Run echo command in target directory
+      stopReason: tool_use
+  - request:
+      model: claude-sonnet-5
+      system: ${system}
+      messages:
+        - role: user
+          content: 'Run this exact shell command, do not modify it: cd ${workdir} && echo strip-me-please'
+        - role: assistant
+          content:
+            - type: tool_use
+              name: bash
+              input:
+                command: cd ${workdir} && echo strip-me-please
+                description: Run echo command in target directory
+        - role: user
+          content:
+            - type: tool_result
+              tool_use_id: toolcall_0
+              content: |-
+                strip-me-please
+                <shellId: 0 completed with exit code 0>
+    response:
+      content: 'Output: `strip-me-please`'
+      stopReason: end_turn

@@ -1,0 +1,4 @@
+* text=auto eol=lf
+
+# Enable Git LFS for SQLite database files
+*.sqlite filter=lfs diff=lfs merge=lfs -text

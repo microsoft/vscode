@@ -576,7 +576,7 @@ for (let i = 0; i <= KeyCode.MAX_VALUE; i++) {
 		[1, ScanCode.Insert, 'Insert', KeyCode.Insert, 'Insert', 45, 'VK_INSERT', empty, empty],
 		[1, ScanCode.Home, 'Home', KeyCode.Home, 'Home', 36, 'VK_HOME', empty, empty],
 		[1, ScanCode.PageUp, 'PageUp', KeyCode.PageUp, 'PageUp', 33, 'VK_PRIOR', empty, empty],
-		[1, ScanCode.Delete, 'Delete', KeyCode.Delete, 'Delete', 46, 'VK_DELETE', empty, empty],
+		[1, ScanCode.Delete, 'Delete', KeyCode.Delete, 'Del', 46, 'VK_DELETE', 'Delete', empty],
 		[1, ScanCode.End, 'End', KeyCode.End, 'End', 35, 'VK_END', empty, empty],
 		[1, ScanCode.PageDown, 'PageDown', KeyCode.PageDown, 'PageDown', 34, 'VK_NEXT', empty, empty],
 		[1, ScanCode.ArrowRight, 'ArrowRight', KeyCode.RightArrow, 'RightArrow', 39, 'VK_RIGHT', 'Right', empty],
@@ -808,6 +808,8 @@ export namespace KeyCodeUtils {
 				return 'Left';
 			case KeyCode.RightArrow:
 				return 'Right';
+			case KeyCode.Delete:
+				return 'Delete';
 		}
 
 		return uiMap.keyCodeToStr(keyCode);

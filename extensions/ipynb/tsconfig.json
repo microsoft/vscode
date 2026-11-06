@@ -7,8 +7,8 @@
 			"ES2024",
 			"DOM"
 		],
-		"typeRoots": [
-			"./node_modules/@types"
+		"types": [
+			"node"
 		]
 	},
 	"include": [

@@ -5,6 +5,7 @@
 
 import './media/remoteViewlet.css';
 import * as nls from '../../../../nls.js';
+import { NotificationTelemetryId } from '../../../../platform/notification/common/notificationTelemetry.js';
 import * as dom from '../../../../base/browser/dom.js';
 import { URI } from '../../../../base/common/uri.js';
 import { IWorkbenchLayoutService } from '../../../services/layout/browser/layoutService.js';
@@ -702,7 +703,7 @@ class VisibleProgress {
 		const promise = new Promise<void>((resolve) => this._currentProgressPromiseResolve = resolve);
 
 		progressService.withProgress(
-			{ location: location, buttons: buttons },
+			{ location: location, buttons: buttons, telemetry: NotificationTelemetryId.RemoteReconnect },
 			(progress) => { if (!this._isDisposed) { this._currentProgress = progress; } return promise; },
 			(choice) => onDidCancel(choice, this._lastReport)
 		);
@@ -1003,7 +1004,6 @@ export class RemoteAgentConnectionStatusListener extends Disposable implements I
 
 						if (e.handled) {
 							logService.info(`Error handled: Not showing a notification for the error.`);
-							console.log(`Error handled: Not showing a notification for the error.`);
 						} else if (!this._reloadWindowShown) {
 							this._reloadWindowShown = true;
 							dialogService.confirm({

@@ -9,6 +9,7 @@ import * as languages from '../../../../editor/common/languages.js';
 import { ActionsOrientation, ActionBar } from '../../../../base/browser/ui/actionbar/actionbar.js';
 import { Action, IAction, Separator, ActionRunner } from '../../../../base/common/actions.js';
 import { Disposable, DisposableStore, IReference, MutableDisposable } from '../../../../base/common/lifecycle.js';
+import { TimeoutTimer } from '../../../../base/common/async.js';
 import { URI, UriComponents } from '../../../../base/common/uri.js';
 import { IMarkdownRendererExtraOptions, IMarkdownRendererService } from '../../../../platform/markdown/browser/markdownRenderer.js';
 import { IRenderedMarkdown } from '../../../../base/browser/markdownRenderer.js';
@@ -63,7 +64,7 @@ export class CommentNode<T extends IRange | ICellRange> extends Disposable {
 	private _avatar: HTMLElement;
 	private readonly _md: MutableDisposable<IRenderedMarkdown> = this._register(new MutableDisposable());
 	private _plainText: HTMLElement | undefined;
-	private _clearTimeout: Timeout | null;
+	private readonly _focusClearTimer = this._register(new TimeoutTimer());
 
 	private _editAction: Action | null = null;
 	private _commentEditContainer: HTMLElement | null = null;
@@ -149,7 +150,6 @@ export class CommentNode<T extends IRange | ICellRange> extends Disposable {
 
 		this._domNode.setAttribute('aria-label', `${comment.userName}, ${this.commentBodyValue}`);
 		this._domNode.setAttribute('role', 'treeitem');
-		this._clearTimeout = null;
 
 		this._register(dom.addDisposableListener(this._domNode, dom.EventType.CLICK, () => this.isEditing || this._onDidClick.fire(this)));
 		this._register(dom.addDisposableListener(this._domNode, dom.EventType.CONTEXT_MENU, e => {
@@ -730,16 +730,8 @@ export class CommentNode<T extends IRange | ICellRange> extends Disposable {
 
 	focus() {
 		this.domNode.focus();
-		if (!this._clearTimeout) {
-			this.domNode.classList.add('focus');
-			this._clearTimeout = setTimeout(() => {
-				this.domNode.classList.remove('focus');
-			}, 3000);
-		}
-	}
-
-	override dispose(): void {
-		super.dispose();
+		this.domNode.classList.add('focus');
+		this._focusClearTimer.setIfNotSet(() => this.domNode.classList.remove('focus'), 3000);
 	}
 }
 

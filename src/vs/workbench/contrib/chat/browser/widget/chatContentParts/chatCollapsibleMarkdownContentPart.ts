@@ -8,6 +8,8 @@ import { Codicon } from '../../../../../../base/common/codicons.js';
 import { MarkdownString } from '../../../../../../base/common/htmlContent.js';
 import { IHoverService } from '../../../../../../platform/hover/browser/hover.js';
 import { IMarkdownRenderer } from '../../../../../../platform/markdown/browser/markdownRenderer.js';
+import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
+import { ITelemetryService } from '../../../../../../platform/telemetry/common/telemetry.js';
 import { IChatRendererContent } from '../../../common/model/chatViewModel.js';
 import { ChatTreeItem } from '../../chat.js';
 import { ChatCollapsibleContentPart } from './chatCollapsibleContentPart.js';
@@ -27,9 +29,15 @@ export class ChatCollapsibleMarkdownContentPart extends ChatCollapsibleContentPa
 		context: IChatContentPartRenderContext,
 		private readonly chatContentMarkdownRenderer: IMarkdownRenderer,
 		@IHoverService hoverService: IHoverService,
+		@IConfigurationService configurationService: IConfigurationService,
+		@ITelemetryService telemetryService: ITelemetryService,
 	) {
-		super(title, context, undefined, hoverService);
+		super(title, context, undefined, hoverService, configurationService, telemetryService);
 		this.icon = Codicon.check;
+	}
+
+	protected override get collapsibleKind(): string {
+		return 'markdown';
 	}
 
 	protected override initContent(): HTMLElement {

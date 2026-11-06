@@ -147,6 +147,11 @@ declare module 'vscode' {
 		// eslint-disable-next-line local/vscode-dts-provider-naming
 		setCurrentModelId?(modelId: string): Thenable<void>;
 
+		readonly providerOptions?: readonly InlineCompletionProviderOption[];
+		readonly onDidChangeProviderOptions?: Event<void>;
+		// eslint-disable-next-line local/vscode-dts-provider-naming
+		setProviderOptionValue?(optionId: string, valueId: string): Thenable<void>;
+
 
 		// #region Deprecated methods
 
@@ -176,6 +181,18 @@ declare module 'vscode' {
 	export interface InlineCompletionModel {
 		readonly id: string;
 		readonly name: string;
+	}
+
+	export interface InlineCompletionProviderOption {
+		readonly id: string;
+		readonly label: string;
+		readonly values: readonly InlineCompletionProviderOptionValue[];
+		readonly currentValueId: string;
+	}
+
+	export interface InlineCompletionProviderOptionValue {
+		readonly id: string;
+		readonly label: string;
 	}
 
 	export enum InlineCompletionEndOfLifeReasonKind {

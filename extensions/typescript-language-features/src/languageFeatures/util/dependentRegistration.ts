@@ -90,19 +90,6 @@ export function requireMinVersion(
 	);
 }
 
-export function requireGlobalConfiguration(
-	section: string,
-	configValue: string,
-) {
-	return new Condition(
-		() => {
-			const config = vscode.workspace.getConfiguration(section, null);
-			return !!config.get<boolean>(configValue);
-		},
-		vscode.workspace.onDidChangeConfiguration
-	);
-}
-
 /**
  * Requires that a configuration value has been modified from its default value in either the global or workspace scope
  *
@@ -141,11 +128,11 @@ export function requireSomeCapability(
 }
 
 export function requireHasVsCodeExtension(
-	extensionId: string
+	extensionIds: readonly string[]
 ) {
 	return new Condition(
 		() => {
-			return !!vscode.extensions.getExtension(extensionId);
+			return extensionIds.some(extensionId => vscode.extensions.getExtension(extensionId));
 		},
 		vscode.extensions.onDidChange
 	);

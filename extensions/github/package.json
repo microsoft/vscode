@@ -19,10 +19,10 @@
   "extensionDependencies": [
     "vscode.git-base"
   ],
-  "main": "./out/extension.js",
   "type": "module",
+  "main": "./out/extension.js",
   "capabilities": {
-    "virtualWorkspaces": false,
+    "virtualWorkspaces": true,
     "untrustedWorkspaces": {
       "supported": true
     }
@@ -34,8 +34,7 @@
     "contribShareMenu",
     "contribSourceControlHistoryItemMenu",
     "scmHistoryProvider",
-    "shareProvider",
-    "timeline"
+    "shareProvider"
   ],
   "contributes": {
     "commands": [
@@ -74,6 +73,11 @@
         "command": "github.createPullRequest",
         "title": "%command.createPullRequest%",
         "icon": "$(git-pull-request)"
+      },
+      {
+        "command": "github.openPullRequest",
+        "title": "%command.openPullRequest%",
+        "icon": "$(git-pull-request)"
       }
     ],
     "continueEditSession": [
@@ -93,6 +97,10 @@
         },
         {
           "command": "github.createPullRequest",
+          "when": "false"
+        },
+        {
+          "command": "github.openPullRequest",
           "when": "false"
         },
         {
@@ -171,17 +179,10 @@
         {
           "command": "github.timeline.openOnGitHub",
           "group": "1_actions@3",
-          "when": "github.hasGitHubRepo && timelineItem =~ /git:file:commit\\b/"
+          "when": "github.hasGitHubRepo && timelineItem =~ /git:(file|folder):commit\\b/ && !listMultiSelection"
         }
       ],
-      "chat/input/editing/sessionToolbar": [
-        {
-          "command": "github.createPullRequest",
-          "group": "navigation",
-          "order": 1,
-          "when": "isSessionsWindow && agentSessionHasChanges && chatSessionType == copilotcli"
-        }
-      ]
+      "agents/changes/actions/primary": []
     },
     "configuration": [
       {
@@ -234,7 +235,7 @@
     ]
   },
   "scripts": {
-    "vscode:prepublish": "npm run compile",
+    "vscode:prepublish": "pnpm run compile",
     "compile": "gulp compile-extension:github",
     "watch": "gulp watch-extension:github"
   },
@@ -246,7 +247,10 @@
     "@vscode/extension-telemetry": "^1.0.0"
   },
   "devDependencies": {
-    "@types/node": "22.x"
+    "@types/mocha": "^10.0.10",
+    "@types/node": "24.x",
+    "mocha": "^10.8.2",
+    "tslib": "^2.6.3"
   },
   "repository": {
     "type": "git",

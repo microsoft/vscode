@@ -17,13 +17,23 @@ suite('Request', () => {
 
 	let port: number;
 	let server: http.Server;
+	let redirectTargetRequests: number;
 
 	setup(async () => {
 		const http = await import('http');
+		redirectTargetRequests = 0;
 		port = await new Promise<number>((resolvePort, rejectPort) => {
 			server = http.createServer((req, res) => {
 				if (req.url === '/noreply') {
 					return; // never respond
+				}
+				if (req.url === '/redirect') {
+					res.writeHead(302, { location: `http://127.0.0.1:${port}/redirect-target` });
+					res.end();
+					return;
+				}
+				if (req.url === '/redirect-target') {
+					redirectTargetRequests++;
 				}
 				res.setHeader('Content-Type', 'application/json');
 				if (req.headers['echo-header']) {
@@ -49,6 +59,7 @@ suite('Request', () => {
 
 	teardown(async () => {
 		await new Promise<void>((resolve, reject) => {
+			server.closeAllConnections();
 			server.close(err => err ? reject(err) : resolve());
 		});
 	});
@@ -58,7 +69,8 @@ suite('Request', () => {
 			url: `http://127.0.0.1:${port}`,
 			headers: {
 				'echo-header': 'echo-value'
-			}
+			},
+			callSite: 'request.test.GET'
 		}, CancellationToken.None);
 		assert.strictEqual(context.res.statusCode, 200);
 		assert.strictEqual(context.res.headers['content-type'], 'application/json');
@@ -74,6 +86,7 @@ suite('Request', () => {
 			type: 'POST',
 			url: `http://127.0.0.1:${port}/postpath`,
 			data: 'Some data',
+			callSite: 'request.test.POST'
 		}, CancellationToken.None);
 		assert.strictEqual(context.res.statusCode, 200);
 		assert.strictEqual(context.res.headers['content-type'], 'application/json');
@@ -84,6 +97,22 @@ suite('Request', () => {
 		assert.strictEqual(body.data, 'Some data');
 	});
 
+	test('does not follow redirects when disabled', async () => {
+		const context = await request({
+			url: `http://127.0.0.1:${port}/redirect`,
+			followRedirects: 0,
+			callSite: 'request.test.noRedirects'
+		}, CancellationToken.None);
+
+		assert.deepStrictEqual({
+			statusCode: context.res.statusCode,
+			redirectTargetRequests
+		}, {
+			statusCode: 0,
+			redirectTargetRequests: 0
+		});
+	});
+
 	test('timeout', async () => {
 		return runWithFakedTimers({}, async () => {
 			try {
@@ -91,6 +120,7 @@ suite('Request', () => {
 					type: 'GET',
 					url: `http://127.0.0.1:${port}/noreply`,
 					timeout: 123,
+					callSite: 'request.test.timeout'
 				}, CancellationToken.None);
 				assert.fail('Should fail with timeout');
 			} catch (err) {
@@ -106,6 +136,7 @@ suite('Request', () => {
 				const res = request({
 					type: 'GET',
 					url: `http://127.0.0.1:${port}/noreply`,
+					callSite: 'request.test.cancel'
 				}, source.token);
 				await new Promise(resolve => setTimeout(resolve, 100));
 				source.cancel();

@@ -2,11 +2,11 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-import 'mocha';
-import * as assert from 'assert';
-import * as embeddedSupport from '../modes/embeddedSupport';
+import { suite, test } from 'node:test';
+import assert from 'node:assert/strict';
+import * as embeddedSupport from '../modes/embeddedSupport.js';
 import { getLanguageService } from 'vscode-html-languageservice';
-import { TextDocument } from '../modes/languageModes';
+import { TextDocument } from '../modes/languageModes.js';
 
 suite('HTML Embedded Support', () => {
 
@@ -32,6 +32,14 @@ suite('HTML Embedded Support', () => {
 		const docRegions = embeddedSupport.getDocumentRegions(htmlLanguageService, document);
 		const content = docRegions.getEmbeddedDocument(languageId);
 		assert.strictEqual(content.getText(), expectedContent);
+	}
+
+	function assertEmbeddedLanguageContents(value: string, languageId: string, expectedContents: string[]): void {
+		const document = TextDocument.create('test://test/test.html', 'html', 0, value);
+
+		const docRegions = embeddedSupport.getDocumentRegions(htmlLanguageService, document);
+		const contents = docRegions.getEmbeddedDocuments(languageId).map(content => content.getText());
+		assert.deepStrictEqual(contents, expectedContents);
 	}
 
 	test('Styles', function (): any {
@@ -123,9 +131,28 @@ suite('HTML Embedded Support', () => {
 		assertEmbeddedLanguageContent('<script><!--this comment should not give error--> console.log("logging");</script>', 'javascript', '        /* this comment should not give error */ console.log("logging");         ');
 
 		assertEmbeddedLanguageContent('<script>var data=100; <!--this comment should not give error--> </script>', 'javascript', '        var data=100; /* this comment should not give error */          ');
+		assertEmbeddedLanguageContent('<script>/* --> */</script>', 'javascript', '        /* --> */         ');
+		assertEmbeddedLanguageContent('<script>/* --> ----------------------------- */</script>', 'javascript', '        /* --> ----------------------------- */         ');
+		assertEmbeddedLanguageContent('<script><!--commnet1-->\n<!--conment2--></script>', 'javascript', '        /* commnet1 */\n/* conment2 */         ');
+		assertEmbeddedLanguageContent('<script><!--a--> foo(); <!--b--></script>', 'javascript', '        /* a */ foo(); /* b */         ');
 		assertEmbeddedLanguageContent('<div onKeyUp="foo()" onkeydown="bar()"/>', 'javascript', '              foo();            bar();  ');
 		assertEmbeddedLanguageContent('<div onKeyUp="return"/>', 'javascript', '              return;  ');
 		assertEmbeddedLanguageContent('<div onKeyUp=return\n/><script>foo();</script>', 'javascript', '             return;\n          foo();         ');
+	});
+
+	test('Scripts with type module', function (): any {
+		assertLanguageId('<script type="module">var| i = 0;</script>', 'javascript');
+		assertLanguageId('<script type=module>var| i = 0;</script>', 'javascript');
+		assertLanguageId('<script type="Module">var| i = 0;</script>', 'javascript');
+		assertLanguageId('<script type=MODULE>var| i = 0;</script>', 'javascript');
+	});
+
+	test('Script content - module validation documents', function (): any {
+		assertEmbeddedLanguageContent('<script>let a = 1;</script><script type="module">let a = 2;</script>', 'javascript', '        let a = 1;                               let a = 2;         ');
+		assertEmbeddedLanguageContents('<script>let a = 1;</script><script type="module">let a = 2;</script>', 'javascript', [
+			'        let a = 1;                                                  ',
+			'                                                 let a = 2;         \nexport {};'
+		]);
 	});
 
 	test('Script content - HTML escape characters', function (): any {

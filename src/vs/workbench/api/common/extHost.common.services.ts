@@ -28,6 +28,7 @@ import { ILoggerService } from '../../../platform/log/common/log.js';
 import { ExtHostVariableResolverProviderService, IExtHostVariableResolverProvider } from './extHostVariableResolverService.js';
 import { ExtHostLocalizationService, IExtHostLocalizationService } from './extHostLocalizationService.js';
 import { ExtHostManagedSockets, IExtHostManagedSockets } from './extHostManagedSockets.js';
+import { ExtHostBrowserTunnelProxy, IExtHostBrowserTunnelProxy } from './extHostBrowserTunnelProxy.js';
 import { ExtHostLanguageModels, IExtHostLanguageModels } from './extHostLanguageModels.js';
 import { IExtHostTerminalShellIntegration, ExtHostTerminalShellIntegration } from './extHostTerminalShellIntegration.js';
 import { ExtHostTesting, IExtHostTesting } from './extHostTesting.js';
@@ -36,6 +37,7 @@ import { ExtHostUrls, IExtHostUrlsService } from './extHostUrls.js';
 import { ExtHostProgress, IExtHostProgress } from './extHostProgress.js';
 import { ExtHostDataChannels, IExtHostDataChannels } from './extHostDataChannels.js';
 import { ExtHostMeteredConnection, IExtHostMeteredConnection } from './extHostMeteredConnection.js';
+import { ExtHostGitExtensionService, IExtHostGitExtensionService } from './extHostGitExtensionService.js';
 
 registerSingleton(IExtHostLocalizationService, ExtHostLocalizationService, InstantiationType.Delayed);
 registerSingleton(ILoggerService, ExtHostLoggerService, InstantiationType.Delayed);
@@ -50,6 +52,7 @@ registerSingleton(IExtHostDebugService, WorkerExtHostDebugService, Instantiation
 registerSingleton(IExtHostDecorations, ExtHostDecorations, InstantiationType.Eager);
 registerSingleton(IExtHostDocumentsAndEditors, ExtHostDocumentsAndEditors, InstantiationType.Eager);
 registerSingleton(IExtHostManagedSockets, ExtHostManagedSockets, InstantiationType.Eager);
+registerSingleton(IExtHostBrowserTunnelProxy, ExtHostBrowserTunnelProxy, InstantiationType.Eager);
 registerSingleton(IExtHostFileSystemInfo, ExtHostFileSystemInfo, InstantiationType.Eager);
 registerSingleton(IExtHostOutputService, ExtHostOutputService, InstantiationType.Delayed);
 registerSingleton(IExtHostSearch, ExtHostSearch, InstantiationType.Eager);
@@ -68,3 +71,4 @@ registerSingleton(IExtHostVariableResolverProvider, ExtHostVariableResolverProvi
 registerSingleton(IExtHostMpcService, ExtHostMcpService, InstantiationType.Eager);
 registerSingleton(IExtHostDataChannels, ExtHostDataChannels, InstantiationType.Eager);
 registerSingleton(IExtHostMeteredConnection, ExtHostMeteredConnection, InstantiationType.Eager);
+registerSingleton(IExtHostGitExtensionService, ExtHostGitExtensionService, InstantiationType.Delayed);

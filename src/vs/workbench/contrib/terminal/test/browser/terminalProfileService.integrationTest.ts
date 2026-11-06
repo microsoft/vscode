@@ -327,6 +327,19 @@ suite('TerminalProfileService', () => {
 		deepStrictEqual(terminalProfileService.availableProfiles, [powershellProfile]);
 		deepStrictEqual(terminalProfileService.contributedProfiles, [jsdebugProfile]);
 	});
+
+	test('should unregister terminal profile providers', () => {
+		const firstProvider = { createContributedTerminalProfile: async () => undefined };
+		const secondProvider = { createContributedTerminalProfile: async () => undefined };
+		const registration = terminalProfileService.registerTerminalProfileProvider('first.extension', 'profile', firstProvider);
+		store.add(terminalProfileService.registerTerminalProfileProvider('second.extension', 'profile', secondProvider));
+
+		registration.dispose();
+
+		deepStrictEqual(terminalProfileService.getContributedProfileProvider('first.extension', 'profile'), undefined);
+		deepStrictEqual(terminalProfileService.getContributedProfileProvider('second.extension', 'profile'), secondProvider);
+	});
+
 	suite('Profiles Quickpick', () => {
 		let quickInputService: MockQuickInputService;
 		let mockTerminalProfileService: MockTerminalProfileService;
@@ -363,14 +376,14 @@ suite('TerminalProfileService', () => {
 
 		test('createInstance', async () => {
 			mockTerminalProfileService.setDefaultProfileName(powershellProfile.profileName);
-			const pick = { ...powershellPick, keyMods: { alt: true, ctrlCmd: false } };
+			const pick = { ...powershellPick, keyMods: { alt: true, ctrlCmd: false, shift: false } };
 			quickInputService.setPick(pick);
 			const result = await terminalProfileQuickpick.showAndGetResult('createInstance');
-			deepStrictEqual(result, { config: powershellProfile, keyMods: { alt: true, ctrlCmd: false } });
+			deepStrictEqual(result, { config: powershellProfile, keyMods: { alt: true, ctrlCmd: false, shift: false } });
 		});
 
 		test('createInstance with contributed', async () => {
-			const pick = { ...jsdebugPick, keyMods: { alt: true, ctrlCmd: false } };
+			const pick = { ...jsdebugPick, keyMods: { alt: true, ctrlCmd: false, shift: true } };
 			quickInputService.setPick(pick);
 			const result = await terminalProfileQuickpick.showAndGetResult('createInstance');
 			const expected = {
@@ -380,7 +393,7 @@ suite('TerminalProfileService', () => {
 					options: { color: undefined, icon: 'debug' },
 					title: jsdebugProfile.title,
 				},
-				keyMods: { alt: true, ctrlCmd: false }
+				keyMods: { alt: true, ctrlCmd: false, shift: true }
 			};
 			deepStrictEqual(result, expected);
 		});

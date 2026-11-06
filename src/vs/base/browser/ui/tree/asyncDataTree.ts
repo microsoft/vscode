@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IDragAndDropData } from '../../dnd.js';
-import { IIdentityProvider, IKeyboardNavigationLabelProvider, IListDragAndDrop, IListDragOverReaction, IListMouseEvent, IListTouchEvent, IListVirtualDelegate } from '../list/list.js';
+import { IIdentityProvider, IKeyboardNavigationLabelProvider, IListDragAndDrop, IListDragOverReaction, IListMouseEvent, IListTouchEvent, IListVirtualDelegate, NotSelectableGroupIdType } from '../list/list.js';
 import { ElementsDragAndDropData, ListViewTargetSector } from '../list/listView.js';
 import { IListStyles } from '../list/listWidget.js';
 import { ComposedTreeDelegate, TreeFindMode, IAbstractTreeOptions, IAbstractTreeOptionsUpdate, TreeFindMatchType, AbstractTreePart, LabelFuzzyScore, FindFilter, FindController, ITreeFindToggleChangeEvent, IFindControllerOptions, IStickyScrollDelegate, AbstractTree } from './abstractTree.js';
@@ -475,6 +475,7 @@ function asObjectTreeOptions<TInput, T, TFilterData>(options?: IAsyncDataTreeOpt
 				return options.keyboardNavigationLabelProvider!.getKeyboardNavigationLabel(e.element as T);
 			}
 		},
+		stickyScrollNodeSourceRangeProvider: options.stickyScrollNodeSourceRangeProvider && ((e, defaultRange) => options.stickyScrollNodeSourceRangeProvider!(e.element as T, defaultRange)),
 		sorter: undefined,
 		expandOnlyOnTwistieClick: typeof options.expandOnlyOnTwistieClick === 'undefined' ? undefined : (
 			typeof options.expandOnlyOnTwistieClick !== 'function' ? options.expandOnlyOnTwistieClick : (
@@ -837,7 +838,17 @@ export class AsyncDataTree<TInput, T, TFilterData = void> implements IDisposable
 	}
 
 	hasNode(element: TInput | T): boolean {
-		return element === this.root.element || this.nodes.has(element as T);
+		if (element === this.root.element) {
+			return true;
+		}
+
+		const node = this.nodes.get(element as T);
+
+		if (!node) {
+			return false;
+		}
+
+		return this.tree.hasElement(node);
 	}
 
 	// View
@@ -1294,12 +1305,16 @@ export class AsyncDataTree<TInput, T, TFilterData = void> implements IDisposable
 		splice(node.children, 0, node.children.length, children);
 
 		// TODO@joao this doesn't take filter into account
-		if (node !== this.root && this.autoExpandSingleChildren && children.length === 1 && childrenToRefresh.length === 0) {
+		if (node !== this.root && children.length === 1 && childrenToRefresh.length === 0 && this.shouldAutoExpandSingleChild(children[0])) {
 			children[0].forceExpanded = true;
 			childrenToRefresh.push(children[0]);
 		}
 
 		return childrenToRefresh;
+	}
+
+	protected shouldAutoExpandSingleChild(node: IAsyncDataTreeNode<TInput, T>): boolean {
+		return this.autoExpandSingleChildren;
 	}
 
 	protected render(node: IAsyncDataTreeNode<TInput, T>, viewStateContext?: IAsyncDataTreeViewStateContext<TInput, T>, options?: IAsyncDataTreeUpdateChildrenOptions<T>): void {
@@ -1309,7 +1324,10 @@ export class AsyncDataTree<TInput, T, TFilterData = void> implements IDisposable
 			diffIdentityProvider: options.diffIdentityProvider && {
 				getId(node: IAsyncDataTreeNode<TInput, T>): { toString(): string } {
 					return options.diffIdentityProvider!.getId(node.element as T);
-				}
+				},
+				getGroupId: options.diffIdentityProvider!.getGroupId ? (node: IAsyncDataTreeNode<TInput, T>): number | NotSelectableGroupIdType => {
+					return options.diffIdentityProvider!.getGroupId!(node.element as T);
+				} : undefined
 			}
 		};
 
@@ -1495,6 +1513,11 @@ function asCompressibleObjectTreeOptions<TInput, T, TFilterData>(options?: IComp
 export interface ICompressibleAsyncDataTreeOptions<T, TFilterData = void> extends IAsyncDataTreeOptions<T, TFilterData> {
 	readonly compressionEnabled?: boolean;
 	readonly keyboardNavigationLabelProvider?: ICompressibleKeyboardNavigationLabelProvider<T>;
+	/**
+	 * Expands the only child of an element when compression combines both into a single tree
+	 * element, so that expanding the combined element reveals its children. Defaults to false.
+	 */
+	readonly autoExpandCompressedChildren?: boolean;
 }
 
 export interface ICompressibleAsyncDataTreeOptionsUpdate<T> extends IAsyncDataTreeOptionsUpdate<T> {
@@ -1506,6 +1529,7 @@ export class CompressibleAsyncDataTree<TInput, T, TFilterData = void> extends As
 	protected declare readonly tree: CompressibleObjectTree<IAsyncDataTreeNode<TInput, T>, TFilterData>;
 	protected readonly compressibleNodeMapper: CompressibleAsyncDataTreeNodeMapper<TInput, T, TFilterData> = new WeakMapper(node => new CompressibleAsyncDataTreeNodeWrapper(node));
 	private filter?: ITreeFilter<T, TFilterData>;
+	private readonly autoExpandCompressedChildren: boolean;
 
 	constructor(
 		user: string,
@@ -1518,11 +1542,18 @@ export class CompressibleAsyncDataTree<TInput, T, TFilterData = void> extends As
 	) {
 		super(user, container, virtualDelegate, renderers, dataSource, options);
 		this.filter = options.filter;
+		this.autoExpandCompressedChildren = options.autoExpandCompressedChildren ?? false;
 	}
 
 	getCompressedTreeNode(e: T | TInput) {
 		const node = this.getDataNode(e);
 		return this.tree.getCompressedTreeNode(node).element;
+	}
+
+	protected override shouldAutoExpandSingleChild(node: IAsyncDataTreeNode<TInput, T>): boolean {
+		// A single compressible child is rendered combined with its parent, which only reveals
+		// the child's children if the child is expanded along with the parent
+		return super.shouldAutoExpandSingleChild(node) || (this.autoExpandCompressedChildren && this.tree.isCompressionEnabled() && !this.compressionDelegate.isIncompressible(node.element as T));
 	}
 
 	protected override createTree(

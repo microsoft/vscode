@@ -20,7 +20,7 @@ import { CLOSE_SAVED_EDITORS_COMMAND_ID, CLOSE_EDITORS_IN_GROUP_COMMAND_ID, CLOS
 import { AutoSaveAfterShortDelayContext } from '../../../services/filesConfiguration/common/filesConfigurationService.js';
 import { WorkbenchListDoubleSelection } from '../../../../platform/list/browser/listService.js';
 import { Schemas } from '../../../../base/common/network.js';
-import { DirtyWorkingCopiesContext, EnterMultiRootWorkspaceSupportContext, HasWebFileSystemAccess, WorkbenchStateContext, WorkspaceFolderCountContext, SidebarFocusContext, ActiveEditorCanRevertContext, ActiveEditorContext, ResourceContextKey, ActiveEditorAvailableEditorIdsContext, MultipleEditorsSelectedInGroupContext, TwoEditorsSelectedInGroupContext, SelectedEditorsInGroupFileOrUntitledResourceContextKey } from '../../../common/contextkeys.js';
+import { DirtyWorkingCopiesContext, EnterMultiRootWorkspaceSupportContext, HasWebFileSystemAccess, IsSessionsWindowContext, WorkbenchStateContext, WorkspaceFolderCountContext, SidebarFocusContext, ActiveEditorCanRevertContext, ActiveEditorContext, ActiveEditorDirtyContext, ResourceContextKey, ActiveEditorAvailableEditorIdsContext, MultipleEditorsSelectedInGroupContext, TwoEditorsSelectedInGroupContext, SelectedEditorsInGroupFileOrUntitledResourceContextKey } from '../../../common/contextkeys.js';
 import { IsWebContext } from '../../../../platform/contextkey/common/contextkeys.js';
 import { ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
@@ -159,10 +159,29 @@ export const revealInSideBarCommand = {
 	title: nls.localize('revealInSideBar', "Reveal in Explorer View")
 };
 
+/**
+ * The Agents window shows files in its "Files" view instead of the Explorer view.
+ */
+const revealInFilesViewCommand = {
+	id: REVEAL_IN_EXPLORER_COMMAND_ID,
+	title: nls.localize('revealInFilesView', "Reveal in Files View")
+};
+
+/**
+ * Appends the reveal command to a menu, labelled after the view it reveals in.
+ */
+function appendRevealInSideBarMenuItem(menuId: MenuId, group: string, order: number, when: ContextKeyExpression): void {
+	MenuRegistry.appendMenuItem(menuId, { group, order, command: revealInSideBarCommand, when: ContextKeyExpr.and(when, IsSessionsWindowContext.negate()) });
+	MenuRegistry.appendMenuItem(menuId, { group, order, command: revealInFilesViewCommand, when: ContextKeyExpr.and(when, IsSessionsWindowContext) });
+}
+
 // Editor Title Context Menu
+appendEditorTitleContextMenuItem(SAVE_FILE_COMMAND_ID, SAVE_FILE_LABEL.value, ActiveEditorDirtyContext, '1_close_save', true, 10);
+appendEditorTitleContextMenuItem(SAVE_FILE_AS_COMMAND_ID, SAVE_FILE_AS_LABEL.value, ActiveEditorDirtyContext, '1_close_save', false, 20);
 appendEditorTitleContextMenuItem(COPY_PATH_COMMAND_ID, copyPathCommand.title, ResourceContextKey.IsFileSystemResource, '1_cutcopypaste', true);
 appendEditorTitleContextMenuItem(COPY_RELATIVE_PATH_COMMAND_ID, copyRelativePathCommand.title, ResourceContextKey.IsFileSystemResource, '1_cutcopypaste', true);
-appendEditorTitleContextMenuItem(revealInSideBarCommand.id, revealInSideBarCommand.title, ResourceContextKey.IsFileSystemResource, '2_files', false, 1);
+appendEditorTitleContextMenuItem(revealInSideBarCommand.id, revealInSideBarCommand.title, ContextKeyExpr.and(ResourceContextKey.IsFileSystemResource, IsSessionsWindowContext.negate()), '2_files', false, 1);
+appendEditorTitleContextMenuItem(revealInFilesViewCommand.id, revealInFilesViewCommand.title, ContextKeyExpr.and(ResourceContextKey.IsFileSystemResource, IsSessionsWindowContext), '2_files', false, 1);
 
 export function appendEditorTitleContextMenuItem(id: string, title: string, when: ContextKeyExpression | undefined, group: string, supportsMultiSelect: boolean, order?: number): void {
 	const precondition = supportsMultiSelect !== true ? MultipleEditorsSelectedInGroupContext.negate() : undefined;
@@ -212,12 +231,12 @@ appendToCommandPalette({
 	id: COPY_PATH_COMMAND_ID,
 	title: nls.localize2('copyPathOfActive', "Copy Path of Active File"),
 	category: Categories.File
-});
+}, IsSessionsWindowContext.negate());
 appendToCommandPalette({
 	id: COPY_RELATIVE_PATH_COMMAND_ID,
 	title: nls.localize2('copyRelativePathOfActive', "Copy Relative Path of Active File"),
 	category: Categories.File
-});
+}, IsSessionsWindowContext.negate());
 
 appendToCommandPalette({
 	id: SAVE_FILE_COMMAND_ID,
@@ -235,19 +254,19 @@ appendToCommandPalette({
 	id: SAVE_ALL_IN_GROUP_COMMAND_ID,
 	title: nls.localize2('saveAllInGroup', "Save All in Group"),
 	category: Categories.File
-});
+}, IsSessionsWindowContext.negate());
 
 appendToCommandPalette({
 	id: SAVE_FILES_COMMAND_ID,
 	title: nls.localize2('saveFiles', "Save All Files"),
 	category: Categories.File
-});
+}, IsSessionsWindowContext.negate());
 
 appendToCommandPalette({
 	id: REVERT_FILE_COMMAND_ID,
 	title: nls.localize2('revert', "Revert File"),
 	category: Categories.File
-});
+}, IsSessionsWindowContext.negate());
 
 appendToCommandPalette({
 	id: COMPARE_WITH_SAVED_COMMAND_ID,
@@ -262,26 +281,26 @@ appendToCommandPalette({
 	id: SAVE_FILE_AS_COMMAND_ID,
 	title: SAVE_FILE_AS_LABEL,
 	category: Categories.File
-});
+}, IsSessionsWindowContext.negate());
 
 appendToCommandPalette({
 	id: NEW_FILE_COMMAND_ID,
 	title: NEW_FILE_LABEL,
 	category: Categories.File
-}, WorkspaceFolderCountContext.notEqualsTo('0'));
+}, ContextKeyExpr.and(WorkspaceFolderCountContext.notEqualsTo('0'), IsSessionsWindowContext.negate()));
 
 appendToCommandPalette({
 	id: NEW_FOLDER_COMMAND_ID,
 	title: NEW_FOLDER_LABEL,
 	category: Categories.File,
 	metadata: { description: nls.localize2('newFolderDescription', "Create a new folder or directory") }
-}, WorkspaceFolderCountContext.notEqualsTo('0'));
+}, ContextKeyExpr.and(WorkspaceFolderCountContext.notEqualsTo('0'), IsSessionsWindowContext.negate()));
 
 appendToCommandPalette({
 	id: NEW_UNTITLED_FILE_COMMAND_ID,
 	title: NEW_UNTITLED_FILE_LABEL,
 	category: Categories.File
-});
+}, IsSessionsWindowContext.negate());
 
 // Menu registration - open editors
 
@@ -770,12 +789,7 @@ MenuRegistry.appendMenuItem(MenuId.ChatAttachmentsContext, {
 	when: ContextKeyExpr.and(ResourceContextKey.IsFileSystemResource, ExplorerFolderContext.toNegated())
 });
 
-MenuRegistry.appendMenuItem(MenuId.ChatAttachmentsContext, {
-	group: 'navigation',
-	order: 20,
-	command: revealInSideBarCommand,
-	when: ResourceContextKey.IsFileSystemResource
-});
+appendRevealInSideBarMenuItem(MenuId.ChatAttachmentsContext, 'navigation', 20, ResourceContextKey.IsFileSystemResource);
 
 MenuRegistry.appendMenuItem(MenuId.ChatAttachmentsContext, {
 	group: '1_cutcopypaste',
@@ -801,12 +815,7 @@ for (const menuId of [MenuId.ChatInlineResourceAnchorContext, MenuId.ChatInputRe
 		when: ContextKeyExpr.and(ResourceContextKey.HasResource, ExplorerFolderContext.toNegated())
 	});
 
-	MenuRegistry.appendMenuItem(menuId, {
-		group: 'navigation',
-		order: 20,
-		command: revealInSideBarCommand,
-		when: ResourceContextKey.IsFileSystemResource
-	});
+	appendRevealInSideBarMenuItem(menuId, 'navigation', 20, ResourceContextKey.IsFileSystemResource);
 
 	MenuRegistry.appendMenuItem(menuId, {
 		group: '1_cutcopypaste',

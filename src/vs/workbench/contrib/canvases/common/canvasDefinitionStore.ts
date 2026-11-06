@@ -1,0 +1,103 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+import { Delayer, ThrottlerByKey } from '../../../../base/common/async.js';
+import { structuralEquals } from '../../../../base/common/equals.js';
+import { isCancellationError } from '../../../../base/common/errors.js';
+import { Disposable } from '../../../../base/common/lifecycle.js';
+import { autorun, derived, derivedOpts, IObservable, IReaderWithStore, observableValue } from '../../../../base/common/observable.js';
+import { MicrotaskDelay } from '../../../../base/common/symbols.js';
+import { ILogService } from '../../../../platform/log/common/log.js';
+import { canvasOwnerKey, compareCanvasDefinitions, type CanvasDefinitionSnapshot, ICanvasDefinition, ICanvasOwner, isOpenableExtensionCanvasDefinition } from './canvas.js';
+
+/** The chat whose registered canvas types a {@link CanvasDefinitionStore} lists. */
+export interface ICanvasDefinitionSource {
+	readonly owner: ICanvasOwner;
+	/** Defaults to definitions that can be opened without additional input. */
+	readonly includeDefinition?: (definition: ICanvasDefinition) => boolean;
+	/** Returns `undefined` while unsettled; `source` must re-evaluate when an authoritative snapshot is available. */
+	listCanvases(): Promise<CanvasDefinitionSnapshot>;
+}
+
+interface ICanvasDefinitionRequest {
+	readonly ownerKey: string;
+	readonly source: ICanvasDefinitionSource;
+}
+
+interface ILoadedCanvasDefinitions {
+	readonly ownerKey: string;
+	readonly definitions: readonly ICanvasDefinition[];
+}
+
+/**
+ * Lists selected canvas types registered for one chat at a time, refreshing whenever `source` re-evaluates.
+ * Sources list definitions that can be opened without additional input by default.
+ * Pending, failed, and non-authoritative refreshes retain the current list; authoritative results replace it, including with an empty list.
+ */
+export class CanvasDefinitionStore extends Disposable {
+
+	/** The current owner's selected definitions in menu order, empty until a listing for that owner succeeds. */
+	readonly definitions: IObservable<readonly ICanvasDefinition[]>;
+
+	private readonly loaded = observableValue<ILoadedCanvasDefinitions | undefined>(this, undefined);
+	/** Coalesces synchronous bursts of invalidations into one refresh. */
+	private readonly refreshDelayer = this._register(new Delayer<void>(MicrotaskDelay));
+	private readonly refreshes = this._register(new ThrottlerByKey<string>());
+	private ownerKey: string | undefined;
+
+	constructor(
+		source: (reader: IReaderWithStore) => ICanvasDefinitionSource | undefined,
+		private readonly logPrefix: string,
+		@ILogService private readonly logService: ILogService,
+	) {
+		super();
+		const request = derived<ICanvasDefinitionRequest | undefined>(this, reader => {
+			const current = source(reader);
+			return current && { ownerKey: canvasOwnerKey(current.owner), source: current };
+		});
+		this.definitions = derivedOpts<readonly ICanvasDefinition[]>({ owner: this, equalsFn: structuralEquals }, reader => {
+			const ownerKey = request.read(reader)?.ownerKey;
+			const loaded = this.loaded.read(reader);
+			// Derived from the requested owner so readers never pair it with another owner's definitions.
+			return ownerKey !== undefined && loaded?.ownerKey === ownerKey ? loaded.definitions : [];
+		});
+		this._register(autorun(reader => {
+			const next = request.read(reader);
+			if (next?.ownerKey !== this.ownerKey) {
+				this.ownerKey = next?.ownerKey;
+				this.loaded.set(undefined, undefined);
+			}
+			if (next) {
+				this.refreshDelayer.trigger(() => this.refreshes.queue(next.ownerKey, () => this.refresh(next))).catch(error => {
+					if (!isCancellationError(error)) {
+						this.logService.error(`${this.logPrefix} Failed to schedule registered canvas refresh`, error);
+					}
+				});
+			}
+		}));
+	}
+
+	private async refresh(request: ICanvasDefinitionRequest): Promise<void> {
+		if (!this.isCurrent(request)) {
+			return;
+		}
+		try {
+			const definitions = await request.source.listCanvases();
+			// Ignore unsettled and stale snapshots so the last authoritative definitions remain visible.
+			if (definitions !== undefined && this.isCurrent(request)) {
+				const includeDefinition = request.source.includeDefinition ?? isOpenableExtensionCanvasDefinition;
+				this.loaded.set({ ownerKey: request.ownerKey, definitions: definitions.filter(includeDefinition).sort(compareCanvasDefinitions) }, undefined);
+			}
+		} catch (error) {
+			if (this.isCurrent(request)) {
+				this.logService.error(`${this.logPrefix} Failed to list registered canvases`, error);
+			}
+		}
+	}
+
+	private isCurrent(request: ICanvasDefinitionRequest): boolean {
+		return !this._store.isDisposed && request.ownerKey === this.ownerKey;
+	}
+}

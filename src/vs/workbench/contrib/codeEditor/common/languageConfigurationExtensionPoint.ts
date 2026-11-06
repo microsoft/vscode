@@ -44,13 +44,18 @@ interface IOnEnterRule {
 	action: IEnterAction;
 }
 
+export interface ISerializedAutoClosingPairConditional extends IAutoClosingPair {
+	notIn?: string[];
+	beforeText?: string | IRegExp;
+}
+
 /**
  * Serialized form of a language configuration
  */
 export interface ILanguageConfiguration {
 	comments?: CommentRule;
 	brackets?: CharacterPair[];
-	autoClosingPairs?: Array<CharacterPair | IAutoClosingPairConditional>;
+	autoClosingPairs?: Array<CharacterPair | ISerializedAutoClosingPairConditional>;
 	surroundingPairs?: Array<CharacterPair | IAutoClosingPair>;
 	colorizedBracketPairs?: Array<CharacterPair>;
 	wordPattern?: string | IRegExp;
@@ -253,8 +258,15 @@ export class LanguageConfigurationFileHandler extends Disposable {
 						continue;
 					}
 				}
+				let beforeText: RegExp | undefined;
+				if (typeof pair.beforeText !== 'undefined') {
+					beforeText = this._parseRegex(languageId, `autoClosingPairs[${i}].beforeText`, pair.beforeText);
+					if (!beforeText) {
+						continue;
+					}
+				}
 				result = result || [];
-				result.push({ open: pair.open, close: pair.close, notIn: pair.notIn });
+				result.push({ open: pair.open, close: pair.close, notIn: pair.notIn, beforeText });
 			}
 		}
 		return result;
@@ -603,6 +615,24 @@ const schema: IJSONSchema = {
 							items: {
 								enum: ['string', 'comment']
 							}
+						},
+						beforeText: {
+							type: ['string', 'object'],
+							description: nls.localize('schema.autoClosingPairs.beforeText', 'This pair will only auto close if the text on the current line before the cursor, including the just-typed opening string, matches this regular expression.'),
+							properties: {
+								pattern: {
+									type: 'string',
+									description: nls.localize('schema.autoClosingPairs.beforeText.pattern', 'The RegExp pattern for beforeText.'),
+									default: '',
+								},
+								flags: {
+									type: 'string',
+									description: nls.localize('schema.autoClosingPairs.beforeText.flags', 'The RegExp flags for beforeText.'),
+									default: '',
+									pattern: '^([gimuy]+)$',
+									patternErrorMessage: nls.localize('schema.autoClosingPairs.beforeText.errorMessage', 'Must match the pattern `/^([gimuy]+)$/`.')
+								}
+							}
 						}
 					}
 				}]
@@ -747,12 +777,40 @@ const schema: IJSONSchema = {
 					description: nls.localize('schema.folding.markers', 'Language specific folding markers such as \'#region\' and \'#endregion\'. The start and end regexes will be tested against the contents of all lines and must be designed efficiently'),
 					properties: {
 						start: {
-							type: 'string',
-							description: nls.localize('schema.folding.markers.start', 'The RegExp pattern for the start marker. The regexp must start with \'^\'.')
+							type: ['string', 'object'],
+							description: nls.localize('schema.folding.markers.start', 'The RegExp pattern for the start marker. The regexp must start with \'^\'.'),
+							properties: {
+								pattern: {
+									type: 'string',
+									description: nls.localize('schema.folding.markers.start.pattern', 'The RegExp pattern for the start marker.'),
+									default: '',
+								},
+								flags: {
+									type: 'string',
+									description: nls.localize('schema.folding.markers.start.flags', 'The RegExp flags for the start marker.'),
+									default: '',
+									pattern: '^([gimuy]+)$',
+									patternErrorMessage: nls.localize('schema.folding.markers.start.errorMessage', 'Must match the pattern `/^([gimuy]+)$/`.')
+								}
+							}
 						},
 						end: {
-							type: 'string',
-							description: nls.localize('schema.folding.markers.end', 'The RegExp pattern for the end marker. The regexp must start with \'^\'.')
+							type: ['string', 'object'],
+							description: nls.localize('schema.folding.markers.end', 'The RegExp pattern for the end marker. The regexp must start with \'^\'.'),
+							properties: {
+								pattern: {
+									type: 'string',
+									description: nls.localize('schema.folding.markers.end.pattern', 'The RegExp pattern for the end marker.'),
+									default: '',
+								},
+								flags: {
+									type: 'string',
+									description: nls.localize('schema.folding.markers.end.flags', 'The RegExp flags for the end marker.'),
+									default: '',
+									pattern: '^([gimuy]+)$',
+									patternErrorMessage: nls.localize('schema.folding.markers.end.errorMessage', 'Must match the pattern `/^([gimuy]+)$/`.')
+								}
+							}
 						},
 					}
 				}

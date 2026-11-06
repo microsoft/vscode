@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Emitter } from '../../../../base/common/event.js';
-import { IProcessEnvironment, isMacintosh, isWindows, OperatingSystem } from '../../../../base/common/platform.js';
+import { IProcessEnvironment, isMacintosh, isWindows, OperatingSystem, OS } from '../../../../base/common/platform.js';
 import { URI } from '../../../../base/common/uri.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
@@ -37,8 +37,10 @@ import { IStatusbarService } from '../../../services/statusbar/browser/statusbar
 import { memoize } from '../../../../base/common/decorators.js';
 import { StopWatch } from '../../../../base/common/stopwatch.js';
 import { IRemoteAgentService } from '../../../services/remote/common/remoteAgentService.js';
+import { INativeWorkbenchEnvironmentService } from '../../../services/environment/electron-browser/environmentService.js';
 import { shouldUseEnvironmentVariableCollection } from '../../../../platform/terminal/common/terminalEnvironment.js';
 import { DisposableStore, MutableDisposable } from '../../../../base/common/lifecycle.js';
+import { serializeEnvironmentVariableCollections } from '../../../../platform/terminal/common/environmentVariableShared.js';
 
 export class LocalTerminalBackendContribution implements IWorkbenchContribution {
 
@@ -54,7 +56,7 @@ export class LocalTerminalBackendContribution implements IWorkbenchContribution 
 	}
 }
 
-class LocalTerminalBackend extends BaseTerminalBackend implements ITerminalBackend {
+export class LocalTerminalBackend extends BaseTerminalBackend implements ITerminalBackend {
 	readonly remoteAuthority = undefined;
 
 	private readonly _ptys: Map<number, LocalPty> = new Map();
@@ -95,6 +97,7 @@ class LocalTerminalBackend extends BaseTerminalBackend implements ITerminalBacke
 		@INativeHostService private readonly _nativeHostService: INativeHostService,
 		@IStatusbarService statusBarService: IStatusbarService,
 		@IRemoteAgentService private readonly _remoteAgentService: IRemoteAgentService,
+		@INativeWorkbenchEnvironmentService private readonly _environmentService: INativeWorkbenchEnvironmentService,
 	) {
 		super(_localPtyService, logService, historyService, _configurationResolverService, statusBarService, workspaceContextService);
 
@@ -218,10 +221,10 @@ class LocalTerminalBackend extends BaseTerminalBackend implements ITerminalBacke
 		return pty;
 	}
 
-	async attachToProcess(id: number): Promise<ITerminalChildProcess | undefined> {
+	async attachToProcess(id: number, pid?: number): Promise<ITerminalChildProcess | undefined> {
 		await this._connectToDirectProxy();
 		try {
-			await this._proxy.attachToProcess(id);
+			await this._proxy.attachToProcess(id, pid);
 			const pty = new LocalPty(id, true, this._proxy);
 			this._ptys.set(id, pty);
 			return pty;
@@ -231,11 +234,15 @@ class LocalTerminalBackend extends BaseTerminalBackend implements ITerminalBacke
 		return undefined;
 	}
 
-	async attachToRevivedProcess(id: number): Promise<ITerminalChildProcess | undefined> {
+	async attachToRevivedProcess(id: number, pid: number): Promise<ITerminalChildProcess | undefined> {
 		await this._connectToDirectProxy();
 		try {
-			const newId = await this._proxy.getRevivedPtyNewId(this._getWorkspaceId(), id) ?? id;
-			return await this.attachToProcess(newId);
+			const newId = await this._proxy.getRevivedPtyNewId(this._getWorkspaceId(), id);
+			if (newId !== undefined) {
+				return await this.attachToProcess(newId);
+			}
+			// The original ID may belong to another window's process after a pty host restart
+			return await this.attachToProcess(id, pid > 0 ? pid : undefined);
 		} catch (e) {
 			this._logService.warn(`Couldn't attach to process ${e.message}`);
 		}
@@ -294,7 +301,14 @@ class LocalTerminalBackend extends BaseTerminalBackend implements ITerminalBacke
 
 	@memoize
 	async getShellEnvironment(): Promise<IProcessEnvironment> {
-		return this._shellEnvironmentService.getShellEnv();
+		const env = { ... await this._shellEnvironmentService.getShellEnv() };
+
+		// If running in the context of an extension development host, include the environment derived from the launch configuration
+		if (this._environmentService.debugExtensionHost.env) {
+			terminalEnvironment.mergeEnvironments(env, this._environmentService.debugExtensionHost.env);
+		}
+
+		return env;
 	}
 
 	async getWslPath(original: string, direction: 'unix-to-win' | 'win-to-unix'): Promise<string> {
@@ -330,12 +344,11 @@ class LocalTerminalBackend extends BaseTerminalBackend implements ITerminalBacke
 				// Re-resolve the environments and replace it on the state so local terminals use a fresh
 				// environment
 				mark('code/terminal/willGetReviveEnvironments');
-				await Promise.all(reviveBufferState.map(state => new Promise<void>(r => {
-					this._resolveEnvironmentForRevive(variableResolver, state.shellLaunchConfig).then(freshEnv => {
-						state.processLaunchConfig.env = freshEnv;
-						r();
-					});
-				})));
+				await Promise.all(reviveBufferState.map(async state => {
+					const { env, environmentVariableCollections } = await this._resolveEnvironmentForRevive(variableResolver, state.shellLaunchConfig);
+					state.processLaunchConfig.env = env;
+					state.processLaunchConfig.options.environmentVariableCollections = environmentVariableCollections;
+				}));
 				mark('code/terminal/didGetReviveEnvironments');
 
 				mark('code/terminal/willReviveTerminalProcesses');
@@ -359,16 +372,19 @@ class LocalTerminalBackend extends BaseTerminalBackend implements ITerminalBacke
 		return this._proxy.getTerminalLayoutInfo(layoutArgs);
 	}
 
-	private async _resolveEnvironmentForRevive(variableResolver: terminalEnvironment.VariableResolver | undefined, shellLaunchConfig: IShellLaunchConfig): Promise<IProcessEnvironment> {
+	private async _resolveEnvironmentForRevive(variableResolver: terminalEnvironment.VariableResolver | undefined, shellLaunchConfig: IShellLaunchConfig): Promise<{ env: IProcessEnvironment; environmentVariableCollections: ReturnType<typeof serializeEnvironmentVariableCollections> | undefined }> {
 		const platformKey = isWindows ? 'windows' : (isMacintosh ? 'osx' : 'linux');
 		const envFromConfigValue = this._configurationService.getValue<ITerminalEnvironment | undefined>(`terminal.integrated.env.${platformKey}`);
 		const baseEnv = await (shellLaunchConfig.useShellEnvironment ? this.getShellEnvironment() : this.getEnvironment());
 		const env = await terminalEnvironment.createTerminalEnvironment(shellLaunchConfig, envFromConfigValue, variableResolver, this._productService.version, this._configurationService.getValue(TerminalSettingId.DetectLocale), baseEnv);
+		let environmentVariableCollections: ReturnType<typeof serializeEnvironmentVariableCollections> | undefined;
 		if (shouldUseEnvironmentVariableCollection(shellLaunchConfig)) {
 			const workspaceFolder = terminalEnvironment.getWorkspaceForTerminal(shellLaunchConfig.cwd, this._workspaceContextService, this._historyService);
-			await this._environmentVariableService.mergedCollection.applyToProcessEnvironment(env, { workspaceFolder }, variableResolver);
+			const collection = this._environmentVariableService.getMergedCollection(this.remoteAuthority, OS);
+			await collection.applyToProcessEnvironment(env, { workspaceFolder }, variableResolver);
+			environmentVariableCollections = serializeEnvironmentVariableCollections(collection.collections);
 		}
-		return env;
+		return { env, environmentVariableCollections };
 	}
 
 	private _getWorkspaceName(): string {
@@ -377,11 +393,11 @@ class LocalTerminalBackend extends BaseTerminalBackend implements ITerminalBacke
 
 	// #region Pty service contribution RPC calls
 
-	installAutoReply(match: string, reply: string): Promise<void> {
-		return this._proxy.installAutoReply(match, reply);
+	installAutoReply(match: string, reply: string, ownerId: string): Promise<void> {
+		return this._proxy.installAutoReply(match, reply, ownerId);
 	}
-	uninstallAllAutoReplies(): Promise<void> {
-		return this._proxy.uninstallAllAutoReplies();
+	uninstallAllAutoReplies(ownerId: string): Promise<void> {
+		return this._proxy.uninstallAllAutoReplies(ownerId);
 	}
 
 	// #endregion

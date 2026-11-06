@@ -1,0 +1,59 @@
+parameters:
+  - name: runIntegrationTests
+    type: boolean
+    default: true
+
+steps:
+  - task: AzureCLI@2
+    inputs:
+      azureSubscription: 'VS Code Development WIF'
+      scriptType: 'bash'
+      scriptLocation: 'inlineScript'
+      inlineScript: pnpm run setup
+      workingDirectory: $(Build.SourcesDirectory)/extensions/copilot
+    displayName: Setup copilot test environment
+    # The Azure login and secret fetch can fail transiently. `npm run setup`
+    # replaces its .env entries by key, so a retry is safe.
+    retryCountOnTaskFailure: 2
+
+  - script: pnpm run setup:dotnet
+    workingDirectory: $(Build.SourcesDirectory)/extensions/copilot
+    displayName: Install dotnet cli
+
+  - script: pnpm run typecheck
+    workingDirectory: $(Build.SourcesDirectory)/extensions/copilot
+    displayName: Typecheck
+
+  - script: pnpm run lint
+    workingDirectory: $(Build.SourcesDirectory)/extensions/copilot
+    displayName: Lint
+
+  - script: pnpm run compile
+    workingDirectory: $(Build.SourcesDirectory)/extensions/copilot
+    displayName: Compile
+
+  - script: pnpm run test:unit
+    workingDirectory: $(Build.SourcesDirectory)/extensions/copilot
+    displayName: Run vitest unit tests
+
+  - script: pnpm run simulate-ci
+    workingDirectory: $(Build.SourcesDirectory)/extensions/copilot
+    displayName: Run simulation tests
+
+  - ${{ if eq(parameters.runIntegrationTests, true) }}:
+    - script: xvfb-run -a pnpm run test:extension
+      workingDirectory: $(Build.SourcesDirectory)/extensions/copilot
+      displayName: Run extension tests
+
+  - script: pnpm run test:prompt
+    workingDirectory: $(Build.SourcesDirectory)/extensions/copilot
+    displayName: Run prompt tests
+
+  - ${{ if eq(parameters.runIntegrationTests, true) }}:
+    - script: xvfb-run -a pnpm run test:completions-core
+      workingDirectory: $(Build.SourcesDirectory)/extensions/copilot
+      displayName: Run completions core tests
+
+    - script: xvfb-run -a pnpm run test:sanity
+      workingDirectory: $(Build.SourcesDirectory)/extensions/copilot
+      displayName: Run sanity tests

@@ -1,0 +1,32 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+.agent-plugin-editor {
+	& .marketplace-link {
+		color: var(--vscode-textLink-foreground);
+		text-decoration: none;
+		cursor: pointer;
+
+		&:hover {
+			text-decoration: underline;
+			color: var(--vscode-textLink-activeForeground);
+		}
+	}
+
+	& > .body > .content > .details {
+		display: flex;
+		height: 100%;
+
+		&.narrow {
+			flex-direction: column;
+		}
+
+		& > .content-container {
+			flex: 1;
+			min-width: 0;
+			height: 100%;
+		}
+	}
+}

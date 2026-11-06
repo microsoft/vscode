@@ -5,7 +5,7 @@
 
 import * as cp from 'child_process';
 import * as os from 'os';
-import * as playwright from 'playwright';
+import * as playwright from '@playwright/test';
 import { IElement, ILocaleInfo, ILocalizedStrings, ILogFile } from './driver';
 import { Logger, measureAndLog } from './logger';
 import { launch as launchPlaywrightBrowser } from './playwrightBrowser';
@@ -18,6 +18,8 @@ export interface LaunchOptions {
 	// Allows you to override the Playwright instance
 	playwright?: typeof playwright;
 	codePath?: string;
+	/** Isolated source-app metadata and bootstrap overlay; ignored for packaged builds. */
+	readonly sourceAppRoot?: string;
 	readonly workspacePath?: string;
 	userDataDir?: string;
 	readonly extensionsPath?: string;
@@ -29,6 +31,8 @@ export interface LaunchOptions {
 	useInMemorySecretStorage?: boolean;
 	readonly extraArgs?: string[];
 	readonly remote?: boolean;
+	/** The authority a `remote` window opens its workspace with, `test+test` by default. */
+	readonly remoteAuthority?: string;
 	readonly web?: boolean;
 	readonly tracing?: boolean;
 	snapshots?: boolean;
@@ -37,6 +41,14 @@ export interface LaunchOptions {
 	readonly quality: Quality;
 	version: { major: number; minor: number; patch: number };
 	readonly extensionDevelopmentPath?: string;
+
+	/**
+	 * Extra environment variables merged on top of the inherited `process.env`
+	 * when launching the Electron child process. Set a value to `undefined`
+	 * to unset the variable. Used by tests that need to inject env-based
+	 * mocks (e.g. `VSCODE_COPILOT_CHAT_TOKEN`).
+	 */
+	readonly extraEnv?: Readonly<Record<string, string | undefined>>;
 }
 
 interface ICodeInstance {
@@ -196,7 +208,7 @@ export class Code {
 
 					if (safeToKill) {
 						this.logger.log('Smoke test exit(): call did not terminate the process yet, but safeToKill is true, so we can kill it');
-						this.kill(pid);
+						await this.kill(pid);
 					}
 
 					switch (retries) {
@@ -204,14 +216,14 @@ export class Code {
 						// after 10 seconds: forcefully kill
 						case 20: {
 							this.logger.log('Smoke test exit(): call did not terminate process after 10s, forcefully exiting the application...');
-							this.kill(pid);
+							await this.kill(pid);
 							break;
 						}
 
 						// after 20 seconds: give up
 						case 40: {
 							this.logger.log('Smoke test exit(): call did not terminate process after 20s, giving up');
-							this.kill(pid);
+							await this.kill(pid);
 							done = true;
 							resolve();
 							break;
@@ -232,11 +244,23 @@ export class Code {
 		}), 'Code#exit()', this.logger);
 	}
 
-	private kill(pid: number): void {
+	private async kill(pid: number): Promise<void> {
 		try {
 			process.kill(pid, 0); // throws an exception if the process doesn't exist anymore.
 		} catch (e) {
 			this.logger.log('Smoke test kill(): returning early because process does not exist anymore');
+			return;
+		}
+
+		// On Windows, Playwright launches Electron through a shell, so the launched process is
+		// `cmd.exe`. Killing only that leaves the application running, and the next launch then
+		// hands off to it through the single-instance lock and exits, so kill the whole tree
+		// (https://github.com/microsoft/vscode/issues/344456). Elsewhere, only SIGTERM the main
+		// process: Electron quits gracefully on it, while killing the tree would also kill the
+		// windows before they can save their state.
+		if (process.platform === 'win32') {
+			this.logger.log(`Smoke test kill(): Trying to kill process tree: ${pid}`);
+			await teardown(this.mainProcess, this.logger);
 			return;
 		}
 
@@ -271,12 +295,27 @@ export class Code {
 		await this.poll(() => this.driver.click(selector, xoffset, yoffset), () => true, `click '${selector}'`, retryCount);
 	}
 
+	/**
+	 * Clicks an element using Playwright's actionability-checked `page.click` (which
+	 * re-verifies `elementFromPoint` right before dispatching, so the element can't
+	 * shift under the click), with a stable-coordinates fallback when actionability
+	 * checks fail due to an overlay intercepting pointer events. Unlike
+	 * {@link waitAndClick} this does not poll/retry the click — it waits for the
+	 * element to exist first, then attempts a single click. Use for elements that
+	 * may shift due to siblings being inserted asynchronously (e.g. status bar items
+	 * in the editor area when extensions register a language status item).
+	 */
+	async robustClick(selector: string): Promise<void> {
+		await this.waitForElement(selector);
+		await this.driver.robustClick(selector);
+	}
+
 	async waitForSetValue(selector: string, value: string): Promise<void> {
 		await this.poll(() => this.driver.setValue(selector, value), () => true, `set value '${selector}'`);
 	}
 
-	async waitForElements(selector: string, recursive: boolean, accept: (result: IElement[]) => boolean = result => result.length > 0): Promise<IElement[]> {
-		return await this.poll(() => this.driver.getElements(selector, recursive), accept, `get elements '${selector}'`);
+	async waitForElements(selector: string, recursive: boolean, accept: (result: IElement[]) => boolean = result => result.length > 0, retryCount?: number): Promise<IElement[]> {
+		return await this.poll(() => this.driver.getElements(selector, recursive), accept, `get elements '${selector}'`, retryCount);
 	}
 
 	async waitForElement(selector: string, accept: (result: IElement | undefined) => boolean = result => !!result, retryCount: number = 200): Promise<IElement> {
@@ -309,6 +348,19 @@ export class Code {
 
 	async whenWorkbenchRestored(): Promise<void> {
 		await this.poll(() => this.driver.whenWorkbenchRestored(), () => true, `when workbench restored`);
+	}
+
+	/**
+	 * Triggers a window reload via `trigger` and waits until the new window is up
+	 * and its workbench restored. Awaiting {@link whenWorkbenchRestored} alone is
+	 * not enough because that call can still be answered by the old, already
+	 * restored document before the reload took effect.
+	 */
+	async reloadWindow(trigger: () => Promise<void>): Promise<void> {
+		const marker = await this.driver.markWindowForReload();
+		await trigger();
+		await this.driver.waitForWindowReload(marker);
+		await this.whenWorkbenchRestored();
 	}
 
 	getLocaleInfo(): Promise<ILocaleInfo> {

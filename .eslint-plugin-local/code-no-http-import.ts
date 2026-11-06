@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { TSESTree } from '@typescript-eslint/typescript-estree';
+import { TSESTree } from '@typescript-eslint/utils';
 import * as eslint from 'eslint';
 import { normalize } from 'path';
 import minimatch from 'minimatch';
@@ -38,7 +38,7 @@ export default new class implements eslint.Rule.RuleModule {
 	create(context: eslint.Rule.RuleContext): eslint.Rule.RuleListener {
 		const targets = (context.options as { target: string }[]).map(o => o.target);
 		if (targets.length > 0) {
-			const relativeFilename = normalize(context.getFilename()).substring(REPO_ROOT.length + 1).replace(/\\/g, '/');
+			const relativeFilename = normalize(context.filename).substring(REPO_ROOT.length + 1).replace(/\\/g, '/');
 			const matched = targets.some(pattern => minimatch(relativeFilename, pattern));
 			if (!matched) {
 				return {}; // file is not covered by any target pattern

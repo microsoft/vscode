@@ -21,7 +21,7 @@ import { EditorPart, IEditorPartUIState } from './editorPart.js';
 import { IAuxiliaryTitlebarPart } from '../titlebar/titlebarPart.js';
 import { WindowTitle } from '../titlebar/windowTitle.js';
 import { IAuxiliaryWindowOpenOptions, IAuxiliaryWindowService } from '../../../services/auxiliaryWindow/browser/auxiliaryWindowService.js';
-import { GroupDirection, GroupsOrder, IAuxiliaryEditorPart, GroupActivationReason } from '../../../services/editor/common/editorGroupsService.js';
+import { GroupsOrder, IAuxiliaryEditorPart, GroupActivationReason } from '../../../services/editor/common/editorGroupsService.js';
 import { IEditorService } from '../../../services/editor/common/editorService.js';
 import { IHostService } from '../../../services/host/browser/host.js';
 import { IWorkbenchLayoutService, Parts, shouldShowCustomTitleBar } from '../../../services/layout/browser/layoutService.js';
@@ -33,7 +33,6 @@ import { localize, localize2 } from '../../../../nls.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { IsAuxiliaryWindowContext, IsAuxiliaryWindowFocusedContext, IsCompactTitleBarContext } from '../../../common/contextkeys.js';
 import { Categories } from '../../../../platform/action/common/actionCommonCategories.js';
-import { GroupIdentifier } from '../../../common/editor.js';
 
 export interface IAuxiliaryEditorPartOpenOptions extends IAuxiliaryWindowOpenOptions {
 	readonly state?: IEditorPartUIState;
@@ -74,7 +73,8 @@ registerAction2(class extends Action2 {
 			menu: {
 				id: MenuId.LayoutControlMenu,
 				when: ContextKeyExpr.and(IsCompactTitleBarContext.toNegated(), IsAuxiliaryWindowContext),
-				order: 0
+				order: 0,
+				group: 'navigation'
 			}
 		});
 	}
@@ -94,7 +94,8 @@ registerAction2(class extends Action2 {
 			menu: {
 				id: MenuId.LayoutControlMenu,
 				when: ContextKeyExpr.and(IsCompactTitleBarContext, IsAuxiliaryWindowContext),
-				order: 0
+				order: 0,
+				group: 'navigation'
 			}
 		});
 	}
@@ -333,7 +334,10 @@ export class AuxiliaryEditorPart {
 	}
 }
 
-class AuxiliaryEditorPartImpl extends EditorPart implements IAuxiliaryEditorPart {
+/**
+ * The editor part of an auxiliary window, which {@link AuxiliaryEditorPart} creates. Exported for tests only.
+ */
+export class AuxiliaryEditorPartImpl extends EditorPart implements IAuxiliaryEditorPart {
 
 	private static COUNTER = 1;
 
@@ -375,6 +379,7 @@ class AuxiliaryEditorPartImpl extends EditorPart implements IAuxiliaryEditorPart
 			if (!this.optionsDisposable.value) {
 				this.optionsDisposable.value = this.enforcePartOptions({
 					showTabs: 'none',
+					showBreadcrumbs: false,
 					closeEmptyGroups: true
 				});
 			}
@@ -383,14 +388,14 @@ class AuxiliaryEditorPartImpl extends EditorPart implements IAuxiliaryEditorPart
 		}
 	}
 
-	override addGroup(location: IEditorGroupView | GroupIdentifier, direction: GroupDirection, groupToCopy?: IEditorGroupView): IEditorGroupView {
+	override getAddGroupLocation(location: IEditorGroupView): IEditorGroupView {
 		if (this.isCompact) {
 			// When in compact mode, we prefer to open groups in the main part
 			// as compact mode is typically meant for showing just 1 editor.
-			location = this.editorPartsView.mainPart.activeGroup;
+			return this.editorPartsView.mainPart.activeGroup;
 		}
 
-		return super.addGroup(location, direction, groupToCopy);
+		return location;
 	}
 
 	override removeGroup(group: number | IEditorGroupView, preserveFocus?: boolean): void {
@@ -448,7 +453,7 @@ class AuxiliaryEditorPartImpl extends EditorPart implements IAuxiliaryEditorPart
 
 			// First close all editors that are non-confirming
 			for (const group of this.groups) {
-				group.closeAllEditors({ excludeConfirming: true });
+				group.closeAllEditors({ excludeConfirming: true, force: true });
 			}
 
 			// Then merge remaining to main part
@@ -459,35 +464,6 @@ class AuxiliaryEditorPartImpl extends EditorPart implements IAuxiliaryEditorPart
 		}
 
 		this._onWillClose.fire();
-
-		return result;
-	}
-
-	private mergeGroupsToMainPart(): boolean {
-		if (!this.groups.some(group => group.count > 0)) {
-			return true; // skip if we have no editors opened
-		}
-
-		// Find the most recent group that is not locked
-		let targetGroup: IEditorGroupView | undefined = undefined;
-		for (const group of this.editorPartsView.mainPart.getGroups(GroupsOrder.MOST_RECENTLY_ACTIVE)) {
-			if (!group.isLocked) {
-				targetGroup = group;
-				break;
-			}
-		}
-
-		if (!targetGroup) {
-			targetGroup = this.editorPartsView.mainPart.addGroup(this.editorPartsView.mainPart.activeGroup, this.partOptions.openSideBySideDirection === 'right' ? GroupDirection.RIGHT : GroupDirection.DOWN);
-		}
-
-		const result = this.mergeAllGroups(targetGroup, {
-			// Try to reduce the impact of closing the auxiliary window
-			// as much as possible by not changing existing editors
-			// in the main window.
-			preserveExistingIndex: true
-		});
-		targetGroup.focus();
 
 		return result;
 	}

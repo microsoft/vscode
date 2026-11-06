@@ -28,6 +28,7 @@
 		"vs/workbench/api/worker/extensionHostWorker.ts"
 	],
 	"ban-domparser-parsefromstring": [
+		"vs/base/browser/htmlToMarkdown.ts",
 		"vs/base/browser/markdownRenderer.ts",
 		"vs/base/test/browser/markdownRenderer.test.ts"
 	],

@@ -15,7 +15,7 @@ import { Iterable } from '../../../base/common/iterator.js';
 import { DisposableStore } from '../../../base/common/lifecycle.js';
 import { localize } from '../../../nls.js';
 import { createActionViewItem, getActionBarActions } from './menuEntryActionViewItem.js';
-import { IMenuActionOptions, IMenuService, MenuId, MenuItemAction, SubmenuItemAction } from '../common/actions.js';
+import { IMenu, IMenuActionOptions, IMenuService, MenuId, MenuItemAction, SubmenuItemAction } from '../common/actions.js';
 import { createConfigureKeybindingAction } from '../common/menuService.js';
 import { ICommandService } from '../../commands/common/commands.js';
 import { IContextKeyService } from '../../contextkey/common/contextkey.js';
@@ -42,6 +42,13 @@ export type IWorkbenchToolBarOptions = IToolBarOptions & {
 	 * - not be shown at all
 	 */
 	hiddenItemStrategy?: HiddenItemStrategy;
+
+	/**
+	 * Items of the primary group that cannot be hidden, by command id or, for submenus, by submenu id. They always
+	 * show, are not listed among the items that can be shown or hidden, and do not count as the last item that
+	 * cannot be hidden. Right-clicking one of them lists the items that can be shown or hidden.
+	 */
+	alwaysShownItems?: readonly string[];
 
 	/**
 	 * Optional menu id which is used for a "Reset Menu" command. This should be the
@@ -111,11 +118,16 @@ export class WorkbenchToolBar extends ToolBar {
 		// telemetry logic
 		const telemetrySource = _options?.telemetrySource;
 		if (telemetrySource) {
-			this._store.add(this.actionBar.onDidRun(e => telemetryService.publicLog2<WorkbenchActionExecutedEvent, WorkbenchActionExecutedClassification>(
+			this._store.add(this.actionBar.onWillRun(e => telemetryService.publicLog2<WorkbenchActionExecutedEvent, WorkbenchActionExecutedClassification>(
 				'workbenchActionExecuted',
 				{ id: e.action.id, from: telemetrySource })
 			));
 		}
+	}
+
+	private _isAlwaysShown(action: IAction): boolean {
+		const id = action instanceof SubmenuItemAction ? action.item.submenu.id : action.id;
+		return !!this._options?.alwaysShownItems?.includes(id);
 	}
 
 	override setActions(_primary: readonly IAction[], _secondary: readonly IAction[] = [], menuIds?: readonly MenuId[]): void {
@@ -128,11 +140,23 @@ export class WorkbenchToolBar extends ToolBar {
 
 		const extraSecondary: Array<IAction | undefined> = [];
 
-		let someAreHidden = false;
+		let someAreModified = false;
+		let someAreAlwaysShown = false;
 		// unless disabled, move all hidden items to secondary group or ignore them
 		if (this._options?.hiddenItemStrategy !== HiddenItemStrategy.NoHide) {
 			for (let i = 0; i < primary.length; i++) {
 				const action = primary[i];
+				if (action instanceof Separator) {
+					// Track group boundaries from `primary` so hidden items keep
+					// their original groups in the overflow menu (relevant when
+					// all menu groups are treated as primary).
+					extraSecondary[i] = action;
+					continue;
+				}
+				if (action && this._isAlwaysShown(action)) {
+					someAreAlwaysShown = true;
+					continue;
+				}
 				if (!(action instanceof MenuItemAction) && !(action instanceof SubmenuItemAction)) {
 					// console.warn(`Action ${action.id}/${action.label} is not a MenuItemAction`);
 					continue;
@@ -147,9 +171,12 @@ export class WorkbenchToolBar extends ToolBar {
 					toggleActionsCheckedCount++;
 				}
 
+				if (action.hideActions.isModifiedFromDefault) {
+					someAreModified = true;
+				}
+
 				// hidden items move into overflow or ignore
 				if (action.hideActions.isHidden) {
-					someAreHidden = true;
 					primary[i] = undefined;
 					if (this._options?.hiddenItemStrategy !== HiddenItemStrategy.Ignore) {
 						extraSecondary[i] = action;
@@ -184,7 +211,8 @@ export class WorkbenchToolBar extends ToolBar {
 		// coalesce turns Array<IAction|undefined> into IAction[]
 		coalesceInPlace(primary);
 		coalesceInPlace(extraSecondary);
-		super.setActions(primary, Separator.join(extraSecondary, secondary));
+
+		super.setActions(Separator.clean(primary), Separator.join(Separator.clean(extraSecondary), secondary));
 
 		// add context menu for toggle and configure keybinding actions
 		if (toggleActions.length > 0 || primary.length > 0) {
@@ -213,8 +241,8 @@ export class WorkbenchToolBar extends ToolBar {
 				if (toggleActions.length > 0) {
 					let noHide = false;
 
-					// last item cannot be hidden when using ignore strategy
-					if (toggleActionsCheckedCount === 1 && this._options?.hiddenItemStrategy === HiddenItemStrategy.Ignore) {
+					// last item cannot be hidden when using ignore strategy, unless items that cannot be hidden show
+					if (toggleActionsCheckedCount === 1 && this._options?.hiddenItemStrategy === HiddenItemStrategy.Ignore && !someAreAlwaysShown) {
 						noHide = true;
 						for (let i = 0; i < toggleActions.length; i++) {
 							if (toggleActions[i].checked) {
@@ -230,8 +258,9 @@ export class WorkbenchToolBar extends ToolBar {
 						}
 					}
 
-					// add "hide foo" actions
-					if (!noHide && (action instanceof MenuItemAction || action instanceof SubmenuItemAction)) {
+					// add "hide foo" actions; items that cannot be hidden list only the items that can be
+					const alwaysShown = this._isAlwaysShown(action);
+					if (!noHide && !alwaysShown && (action instanceof MenuItemAction || action instanceof SubmenuItemAction)) {
 						if (!action.hideActions) {
 							// no context menu for MenuItemAction instances that support no hiding
 							// those are fake actions and need to be cleaned up
@@ -239,7 +268,7 @@ export class WorkbenchToolBar extends ToolBar {
 						}
 						primaryActions.push(action.hideActions.hide);
 
-					} else {
+					} else if (!alwaysShown) {
 						primaryActions.push(toAction({
 							id: 'label',
 							label: localize('hide', "Hide"),
@@ -249,13 +278,14 @@ export class WorkbenchToolBar extends ToolBar {
 					}
 				}
 
-				const actions = Separator.join(primaryActions, toggleActions);
+				// a copy: join returns `toggleActions` itself when there are no primary actions, and the actions are added to
+				const actions = [...Separator.join(primaryActions, toggleActions)];
 
 				// add "Reset Menu" action
 				if (this._options?.resetMenu && !menuIds) {
 					menuIds = [this._options.resetMenu];
 				}
-				if (someAreHidden && menuIds) {
+				if (someAreModified && menuIds) {
 					actions.push(new Separator());
 					actions.push(toAction({
 						id: 'resetThisMenu',
@@ -332,6 +362,11 @@ export class MenuWorkbenchToolBar extends WorkbenchToolBar {
 	private readonly _onDidChangeMenuItems = this._store.add(new Emitter<this>());
 	get onDidChangeMenuItems() { return this._onDidChangeMenuItems.event; }
 
+	private readonly _menu: IMenu;
+	private readonly _menuOptions: IMenuActionOptions | undefined;
+	private readonly _toolbarOptions: IToolBarRenderOptions | undefined;
+	private readonly _container: HTMLElement;
+
 	constructor(
 		container: HTMLElement,
 		menuId: MenuId,
@@ -361,30 +396,44 @@ export class MenuWorkbenchToolBar extends WorkbenchToolBar {
 			}
 		}, menuService, contextKeyService, contextMenuService, keybindingService, commandService, telemetryService);
 
-		// update logic
-		const menu = this._store.add(menuService.createMenu(menuId, contextKeyService, { emitEventsForSubmenuChanges: true, eventDebounceDelay: options?.eventDebounceDelay }));
-		const updateToolbar = () => {
-			const { primary, secondary } = getActionBarActions(
-				menu.getActions(options?.menuOptions),
-				options?.toolbarOptions?.primaryGroup,
-				options?.toolbarOptions?.shouldInlineSubmenu,
-				options?.toolbarOptions?.useSeparatorsInPrimaryActions
-			);
-			container.classList.toggle('has-no-actions', primary.length === 0 && secondary.length === 0);
-			super.setActions(primary, secondary);
-		};
+		this._container = container;
+		this._menuOptions = options?.menuOptions;
+		this._toolbarOptions = options?.toolbarOptions;
 
-		this._store.add(menu.onDidChange(() => {
-			updateToolbar();
+		// update logic
+		this._menu = this._store.add(menuService.createMenu(menuId, contextKeyService, { emitEventsForSubmenuChanges: true, eventDebounceDelay: options?.eventDebounceDelay }));
+
+		this._store.add(this._menu.onDidChange(() => {
+			this._updateToolbar();
 			this._onDidChangeMenuItems.fire(this);
 		}));
 
 		this._store.add(actionViewService.onDidChange(e => {
 			if (e === menuId) {
-				updateToolbar();
+				this._updateToolbar();
 			}
 		}));
-		updateToolbar();
+		this._updateToolbar();
+	}
+
+	private _updateToolbar(): void {
+		const { primary, secondary } = getActionBarActions(
+			this._menu.getActions(this._menuOptions),
+			this._toolbarOptions?.primaryGroup,
+			this._toolbarOptions?.shouldInlineSubmenu,
+			this._toolbarOptions?.useSeparatorsInPrimaryActions
+		);
+		this._container.classList.toggle('has-no-actions', primary.length === 0 && secondary.length === 0);
+		super.setActions(primary, secondary);
+	}
+
+	/**
+	 * Force the toolbar to immediately re-evaluate its menu actions.
+	 * Use this after synchronously updating context keys to avoid
+	 * layout shifts caused by the debounced menu change event.
+	 */
+	refresh(): void {
+		this._updateToolbar();
 	}
 
 	/**

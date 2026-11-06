@@ -121,7 +121,7 @@ suite('Color Registry', function () {
 
 		const docUrl = 'https://raw.githubusercontent.com/microsoft/vscode-docs/vnext/api/references/theme-color.md';
 
-		const reqContext = await new RequestService('local', new TestConfigurationService(), environmentService, new NullLogService()).request({ url: docUrl }, CancellationToken.None);
+		const reqContext = await new RequestService('local', new TestConfigurationService(), environmentService, new NullLogService()).request({ url: docUrl, callSite: 'colorRegistry.releaseTest' }, CancellationToken.None);
 		const content = (await asTextOrError(reqContext))!;
 
 		const expression = /-\s*\`([\w\.]+)\`: (.*)/g;
@@ -202,14 +202,14 @@ async function getColorsFromExtension(): Promise<{ [id: string]: string }> {
 	for (const folder of extFolders) {
 		try {
 			const packageJSON = JSON.parse((await fs.promises.readFile(path.join(extPath, folder, 'package.json'))).toString());
-			const contributes = packageJSON['contributes'];
+			const contributes = packageJSON.contributes;
 			if (contributes) {
-				const colors = contributes['colors'];
+				const colors = contributes.colors;
 				if (colors) {
 					for (const color of colors) {
-						const colorId = color['id'];
+						const colorId = color.id;
 						if (colorId) {
-							result[colorId] = colorId['description'];
+							result[colorId] = color.description;
 						}
 					}
 				}

@@ -1,0 +1,48 @@
+parameters:
+  - name: NPM_REGISTRY
+    type: string
+
+steps:
+  - task: NodeTool@0
+    inputs:
+      versionSpec: 22.x
+    displayName: 🛠 Install Node.js (22.x)
+
+  - template: setup-npm.yml
+    parameters:
+      NPM_REGISTRY: ${{ parameters.NPM_REGISTRY }}
+
+  - template: ../../../../build/azure-pipelines/common/install-pnpm.yml@self
+
+  # chat-lib is a member of the extensions/copilot pnpm workspace. The extraction sets its
+  # dependencies to Copilot's versions, in its package.json and in Copilot's pnpm-lock.yaml.
+  - bash: pnpm install --frozen-lockfile && pnpm run extract-chat-lib
+    displayName: 📂 Extract chat-lib
+    workingDirectory: extensions/copilot
+    env:
+      PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: 1
+
+  - bash: |
+      set -e
+      VERSION=$(node -p "require('../package.json').version")
+      node -e "
+        const fs = require('fs');
+        const pkg = JSON.parse(fs.readFileSync('package.json', 'utf8'));
+        pkg.version = '$VERSION';
+        fs.writeFileSync('package.json', JSON.stringify(pkg, null, 2) + '\n');
+      "
+      echo "Set chat-lib version to $VERSION"
+    displayName: 📋 Sync chat-lib version
+    workingDirectory: extensions/copilot/chat-lib
+
+  # pnpm doesn't run chat-lib's postinstall again when the workspace is already up to date; it
+  # copies static files next to the extracted sources.
+  - script: pnpm install --frozen-lockfile && pnpm --dir chat-lib run postinstall
+    displayName: 📦 Install chat-lib dependencies
+    workingDirectory: extensions/copilot
+    env:
+      PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: 1
+
+  - script: pnpm run build
+    displayName: 🔨 Build chat-lib
+    workingDirectory: extensions/copilot/chat-lib

@@ -199,7 +199,7 @@ const statusBarItemSchema = {
 		},
 		text: {
 			type: 'string',
-			description: localize('text', 'The text to show for the entry. You can embed icons in the text by leveraging the `$(<name>)`-syntax, like \'Hello $(globe)!\'')
+			description: localize('text', 'The text to show for the entry. You can embed icons in the text by leveraging the `$(<name>)`-syntax, like \'Hello {0}!\'', '$(globe)')
 		},
 		tooltip: {
 			type: 'string',

@@ -1,0 +1,17 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+.agent-sessions-workbench .part.auxiliarybar > .title {
+	padding-left: 4px;
+	padding-right: 2px;
+	background-color: var(--vscode-agentsPanel-background);
+}
+
+/* Override base workbench monaco editor background in auxiliary bar content */
+.agent-sessions-workbench .part.auxiliarybar > .content .monaco-editor,
+.agent-sessions-workbench .part.auxiliarybar > .content .monaco-editor .margin,
+.agent-sessions-workbench .part.auxiliarybar > .content .monaco-editor .monaco-editor-background {
+	background-color: var(--vscode-agentsPanel-background);
+}

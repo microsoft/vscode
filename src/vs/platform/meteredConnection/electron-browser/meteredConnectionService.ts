@@ -6,7 +6,8 @@
 import { toDisposable } from '../../../base/common/lifecycle.js';
 import { IChannel } from '../../../base/parts/ipc/common/ipc.js';
 import { IConfigurationService } from '../../configuration/common/configuration.js';
-import { InstantiationType, registerSingleton } from '../../instantiation/common/extensions.js';
+import { SyncDescriptor } from '../../instantiation/common/descriptors.js';
+import { registerSingleton } from '../../instantiation/common/extensions.js';
 import { IMainProcessService } from '../../ipc/common/mainProcessService.js';
 import { AbstractMeteredConnectionService, getIsBrowserConnectionMetered, IMeteredConnectionService, NavigatorWithConnection } from '../common/meteredConnection.js';
 import { METERED_CONNECTION_CHANNEL, MeteredConnectionCommand } from '../common/meteredConnectionIpc.js';
@@ -19,15 +20,17 @@ export class NativeMeteredConnectionService extends AbstractMeteredConnectionSer
 	private readonly _channel: IChannel;
 
 	constructor(
+		private readonly connectionMeteredDetector: () => boolean,
 		@IConfigurationService configurationService: IConfigurationService,
 		@IMainProcessService mainProcessService: IMainProcessService
 	) {
-		super(configurationService, getIsBrowserConnectionMetered());
+		super(configurationService, connectionMeteredDetector());
 		this._channel = mainProcessService.getChannel(METERED_CONNECTION_CHANNEL);
+		void this._channel.call(MeteredConnectionCommand.SetIsBrowserConnectionMetered, this.isBrowserConnectionMetered);
 
 		const connection = (navigator as NavigatorWithConnection).connection;
 		if (connection) {
-			const onChange = () => this.setIsBrowserConnectionMetered(getIsBrowserConnectionMetered());
+			const onChange = () => this.setIsBrowserConnectionMetered(this.connectionMeteredDetector());
 			connection.addEventListener('change', onChange);
 			this._register(toDisposable(() => connection.removeEventListener('change', onChange)));
 		}
@@ -42,4 +45,4 @@ export class NativeMeteredConnectionService extends AbstractMeteredConnectionSer
 	}
 }
 
-registerSingleton(IMeteredConnectionService, NativeMeteredConnectionService, InstantiationType.Delayed);
+registerSingleton(IMeteredConnectionService, new SyncDescriptor(NativeMeteredConnectionService, [getIsBrowserConnectionMetered], false));

@@ -4,11 +4,12 @@
 		"rootDir": "./src",
 		"outDir": "./out",
 		"lib": [
+			"ES2024",
 			"webworker"
 		],
 		"module": "Node16",
-		"typeRoots": [
-			"../node_modules/@types"
+		"types": [
+			"node"
 		]
 	},
 	"include": [

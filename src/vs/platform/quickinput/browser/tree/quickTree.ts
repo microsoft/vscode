@@ -104,6 +104,11 @@ export class QuickTree<T extends IQuickTreeItem> extends QuickInput implements I
 		this.ui.inputBox.setFocus();
 	}
 
+	reveal(element: T): void {
+		this.ui.tree.tree.reveal(element);
+		this.ui.tree.tree.setFocus([element]);
+	}
+
 	override show() {
 		if (!this.visible) {
 			const visibilities: Visibilities = {

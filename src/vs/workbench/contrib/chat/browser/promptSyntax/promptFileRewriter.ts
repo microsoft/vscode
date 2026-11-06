@@ -4,12 +4,13 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
+import { getLeadingWhitespace } from '../../../../../base/common/strings.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ICodeEditorService } from '../../../../../editor/browser/services/codeEditorService.js';
 import { EditOperation } from '../../../../../editor/common/core/editOperation.js';
 import { Range } from '../../../../../editor/common/core/range.js';
 import { ITextModel } from '../../../../../editor/common/model.js';
-import { ILanguageModelToolsService, IToolAndToolSetEnablementMap } from '../../common/tools/languageModelToolsService.js';
+import { ILanguageModelToolsService, ToolAndToolSetEnablementMap } from '../../common/tools/languageModelToolsService.js';
 import { PromptHeaderAttributes } from '../../common/promptSyntax/promptFileParser.js';
 import { IPromptsService } from '../../common/promptSyntax/service/promptsService.js';
 import { formatArrayValue } from '../../common/promptSyntax/utils/promptEditHelper.js';
@@ -22,7 +23,7 @@ export class PromptFileRewriter {
 	) {
 	}
 
-	public async openAndRewriteTools(uri: URI, newTools: IToolAndToolSetEnablementMap | undefined, token: CancellationToken): Promise<void> {
+	public async openAndRewriteTools(uri: URI, newTools: ToolAndToolSetEnablementMap | undefined, token: CancellationToken): Promise<void> {
 		const editor = await this._codeEditorService.openCodeEditor({ resource: uri }, this._codeEditorService.getFocusedCodeEditor());
 		if (!editor || !editor.hasModel()) {
 			return;
@@ -48,10 +49,21 @@ export class PromptFileRewriter {
 		}
 	}
 
-	public rewriteTools(model: ITextModel, newTools: IToolAndToolSetEnablementMap, range: Range, isString: boolean): void {
+	public rewriteTools(model: ITextModel, newTools: ToolAndToolSetEnablementMap, range: Range, isString: boolean): void {
 		const newToolNames = this._languageModelToolsService.toFullReferenceNames(newTools);
-		const newEntries = newToolNames.map(toolName => formatArrayValue(toolName)).join(', ');
-		const newValue = isString ? newEntries : `[${newEntries}]`;
+		this.rewriteToolNames(model, newToolNames, range, isString);
+	}
+
+	public rewriteToolNames(model: ITextModel, newToolNames: readonly string[], range: Range, isString: boolean): void {
+		const entries = newToolNames.map(toolName => formatArrayValue(toolName));
+		const newEntries = entries.join(', ');
+		const useScalar = isString && entries.length > 0 && entries.every((entry, index) => entry === newToolNames[index]);
+		let newValue = useScalar ? newEntries : `[${newEntries}]`;
+		if (range.startColumn === 1) {
+			const line = model.getLineContent(range.startLineNumber);
+			const indentation = getLeadingWhitespace(line);
+			newValue = `${indentation || '  '}${newValue}`;
+		}
 		this.rewriteAttribute(model, newValue, range);
 	}
 

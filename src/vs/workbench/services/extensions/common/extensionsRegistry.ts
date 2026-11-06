@@ -179,8 +179,8 @@ export const schema: IJSONSchema = {
 			properties: {
 				'vscode': {
 					type: 'string',
-					description: nls.localize('vscode.extension.engines.vscode', 'For VS Code extensions, specifies the VS Code version that the extension is compatible with. Cannot be *. For example: ^0.10.5 indicates compatibility with a minimum VS Code version of 0.10.5.'),
-					default: '^1.22.0',
+					description: nls.localize('vscode.extension.engines.vscode', 'For VS Code extensions, specifies the VS Code version that the extension is compatible with. Cannot be *. For example: ^1.105.0 indicates compatibility with a minimum VS Code version of 1.105.0.'),
+					default: '^1.105.0',
 				}
 			}
 		},
@@ -266,7 +266,7 @@ export const schema: IJSONSchema = {
 				defaultSnippets: [
 					{
 						label: 'onWebviewPanel',
-						description: nls.localize('vscode.extension.activationEvents.onWebviewPanel', 'An activation event emmited when a webview is loaded of a certain viewType'),
+						description: nls.localize('vscode.extension.activationEvents.onWebviewPanel', 'An activation event emitted when a webview is loaded of a certain viewType'),
 						body: 'onWebviewPanel:viewType'
 					},
 					{
@@ -395,6 +395,11 @@ export const schema: IJSONSchema = {
 						description: nls.localize('vscode.extension.activationEvents.onChatParticipant', 'An activation event emitted when the specified chat participant is invoked.'),
 					},
 					{
+						label: 'onChatArtifactIntegration',
+						body: 'onChatArtifactIntegration',
+						description: nls.localize('vscode.extension.activationEvents.onChatArtifactIntegration', 'An activation event emitted when recorded chat artifacts are observed or an agent host that can use artifact integrations connects.'),
+					},
+					{
 						label: 'onChatContextProvider',
 						body: 'onChatContextProvider:${1:contextProviderId}',
 						description: nls.localize('vscode.extension.activationEvents.onChatContextProvider', 'An activation event emitted when the specified chat context provider is invoked.'),
@@ -421,7 +426,7 @@ export const schema: IJSONSchema = {
 					},
 					{
 						label: 'onMcpCollection',
-						description: nls.localize('vscode.extension.activationEvents.onMcpCollection', 'An activation event emitted whenver a tool from the MCP server is requested.'),
+						description: nls.localize('vscode.extension.activationEvents.onMcpCollection', 'An activation event emitted whenever a tool from the MCP server is requested.'),
 						body: 'onMcpCollection:${2:collectionId}',
 					},
 					{
@@ -587,6 +592,20 @@ export const schema: IJSONSchema = {
 							markdownDescription: nls.localize('vscode.extension.capabilities.untrustedWorkspaces.description', "A description of how workspace trust affects the extensions behavior and why it is needed. This only applies when `supported` is not `true`."),
 						}
 					}
+				},
+				agentsWindow: {
+					description: nls.localize('vscode.extension.capabilities.agentsWindow', "Declares whether the extension should be enabled in the Agents window."),
+					type: 'object',
+					required: ['supported'],
+					defaultSnippets: [
+						{ body: { supported: true } },
+					],
+					properties: {
+						supported: {
+							markdownDescription: nls.localize('vscode.extension.capabilities.agentsWindow.supported', "Declares whether the extension supports running in the Agents window."),
+							type: 'boolean'
+						}
+					}
 				}
 			}
 		},
@@ -643,7 +662,7 @@ export type removeArray<T> = T extends Array<infer X> ? X : T;
 
 export interface IExtensionPointDescriptor<T> {
 	extensionPoint: string;
-	deps?: IExtensionPoint<any>[];
+	deps?: IExtensionPoint<unknown>[];
 	jsonSchema: IJSONSchema;
 	defaultExtensionKind?: ExtensionKind[];
 	canHandleResolver?: boolean;
@@ -674,7 +693,7 @@ export class ExtensionsRegistryImpl {
 		return result;
 	}
 
-	public getExtensionPoints(): ExtensionPoint<any>[] {
+	public getExtensionPoints(): ExtensionPoint<unknown>[] {
 		return Array.from(this._extensionPoints.values());
 	}
 }

@@ -1,0 +1,34 @@
+parameters:
+  - name: NPM_REGISTRY
+    type: string
+
+steps:
+  - template: setup-npm.yml
+    parameters:
+      NPM_REGISTRY: ${{ parameters.NPM_REGISTRY }}
+
+  - template: ../../../../build/azure-pipelines/common/install-pnpm.yml@self
+
+  # chat-lib is a member of the extensions/copilot pnpm workspace. The extraction sets its
+  # dependencies to Copilot's versions, in its package.json and in Copilot's pnpm-lock.yaml.
+  - bash: pnpm install --frozen-lockfile && pnpm run extract-chat-lib
+    displayName: 📂 Extract chat-lib
+    workingDirectory: extensions/copilot
+    env:
+      PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: 1
+
+  # pnpm doesn't run chat-lib's postinstall again when the workspace is already up to date; it
+  # copies static files next to the extracted sources.
+  - script: pnpm install --frozen-lockfile && pnpm --dir chat-lib run postinstall
+    displayName: 📦 Install chat-lib dependencies
+    workingDirectory: extensions/copilot
+    env:
+      PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: 1
+
+  - script: pnpm run build
+    displayName: 🔨 Build chat-lib
+    workingDirectory: extensions/copilot/chat-lib
+
+  - script: pnpm test
+    displayName: 🧪 Run chat-lib tests
+    workingDirectory: extensions/copilot/chat-lib

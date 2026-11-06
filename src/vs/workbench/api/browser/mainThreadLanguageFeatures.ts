@@ -19,7 +19,7 @@ import { Range as EditorRange, IRange } from '../../../editor/common/core/range.
 import { Selection } from '../../../editor/common/core/selection.js';
 import * as languages from '../../../editor/common/languages.js';
 import { ILanguageService } from '../../../editor/common/languages/language.js';
-import { IndentationRule, LanguageConfiguration, OnEnterRule } from '../../../editor/common/languages/languageConfiguration.js';
+import { IAutoClosingPairConditional, IndentationRule, LanguageConfiguration, OnEnterRule } from '../../../editor/common/languages/languageConfiguration.js';
 import { ILanguageConfigurationService } from '../../../editor/common/languages/languageConfigurationRegistry.js';
 import { ITextModel } from '../../../editor/common/model.js';
 import { ILanguageFeaturesService } from '../../../editor/common/services/languageFeatures.js';
@@ -33,7 +33,7 @@ import * as callh from '../../contrib/callHierarchy/common/callHierarchy.js';
 import * as search from '../../contrib/search/common/search.js';
 import * as typeh from '../../contrib/typeHierarchy/common/typeHierarchy.js';
 import { extHostNamedCustomer, IExtHostContext } from '../../services/extensions/common/extHostCustomers.js';
-import { ExtHostContext, ExtHostLanguageFeaturesShape, HoverWithId, ICallHierarchyItemDto, ICodeActionDto, ICodeActionProviderMetadataDto, IdentifiableInlineCompletion, IdentifiableInlineCompletions, IDocumentDropEditDto, IDocumentDropEditProviderMetadata, IDocumentFilterDto, IIndentationRuleDto, IInlayHintDto, IInlineCompletionChangeHintDto, IInlineCompletionModelInfoDto, ILanguageConfigurationDto, ILanguageWordDefinitionDto, ILinkDto, ILocationDto, ILocationLinkDto, IOnEnterRuleDto, IPasteEditDto, IPasteEditProviderMetadataDto, IRegExpDto, ISignatureHelpProviderMetadataDto, ISuggestDataDto, ISuggestDataDtoField, ISuggestResultDtoField, ITypeHierarchyItemDto, IWorkspaceSymbolDto, MainContext, MainThreadLanguageFeaturesShape } from '../common/extHost.protocol.js';
+import { ExtHostContext, ExtHostLanguageFeaturesShape, HoverWithId, IAutoClosingPairDto, ICallHierarchyItemDto, ICodeActionDto, ICodeActionProviderMetadataDto, IdentifiableInlineCompletion, IdentifiableInlineCompletions, IDocumentDropEditDto, IDocumentDropEditProviderMetadata, IDocumentFilterDto, IIndentationRuleDto, IInlayHintDto, IInlineCompletionChangeHintDto, IInlineCompletionModelInfoDto, IInlineCompletionProviderOptionDto, ILanguageConfigurationDto, ILanguageWordDefinitionDto, ILinkDto, ILocationDto, ILocationLinkDto, IOnEnterRuleDto, IPasteEditDto, IPasteEditProviderMetadataDto, IRegExpDto, ISignatureHelpProviderMetadataDto, ISuggestDataDto, ISuggestDataDtoField, ISuggestResultDtoField, ITypeHierarchyItemDto, IWorkspaceSymbolDto, MainContext, MainThreadLanguageFeaturesShape } from '../common/extHost.protocol.js';
 import { InlineCompletionEndOfLifeReasonKind } from '../common/extHostTypes.js';
 import { IInstantiationService } from '../../../platform/instantiation/common/instantiation.js';
 import { DataChannelForwardingTelemetryService, forwardToChannelIf, isCopilotLikeExtension } from '../../../platform/dataChannel/browser/forwardingTelemetryService.js';
@@ -659,6 +659,9 @@ export class MainThreadLanguageFeatures extends Disposable implements MainThread
 		supportsSetModelId: boolean,
 		initialModelInfo: IInlineCompletionModelInfoDto | undefined,
 		supportsOnDidChangeModelInfo: boolean,
+		supportsSetProviderOption: boolean,
+		initialProviderOptions: readonly IInlineCompletionProviderOptionDto[] | undefined,
+		supportsOnDidChangeProviderOptions: boolean,
 	): void {
 		const providerId = new languages.ProviderId(extensionId, extensionVersion, groupId);
 
@@ -676,6 +679,9 @@ export class MainThreadLanguageFeatures extends Disposable implements MainThread
 			supportsSetModelId,
 			supportsOnDidChange,
 			supportsOnDidChangeModelInfo,
+			initialProviderOptions,
+			supportsSetProviderOption,
+			supportsOnDidChangeProviderOptions,
 			selector,
 			this._proxy,
 		);
@@ -694,6 +700,13 @@ export class MainThreadLanguageFeatures extends Disposable implements MainThread
 		const obj = this._registrations.get(handle);
 		if (obj instanceof ExtensionBackedInlineCompletionsProvider) {
 			obj._setModelInfo(data);
+		}
+	}
+
+	$emitInlineCompletionProviderOptionsChange(handle: number, data: readonly IInlineCompletionProviderOptionDto[] | undefined): void {
+		const obj = this._registrations.get(handle);
+		if (obj instanceof ExtensionBackedInlineCompletionsProvider) {
+			obj._setProviderOptions(data);
 		}
 	}
 
@@ -954,6 +967,15 @@ export class MainThreadLanguageFeatures extends Disposable implements MainThread
 		return onEnterRules.map(MainThreadLanguageFeatures._reviveOnEnterRule);
 	}
 
+	private static _reviveAutoClosingPairs(autoClosingPairs: IAutoClosingPairDto[]): IAutoClosingPairConditional[] {
+		return autoClosingPairs.map(autoClosingPair => ({
+			open: autoClosingPair.open,
+			close: autoClosingPair.close,
+			notIn: autoClosingPair.notIn,
+			beforeText: autoClosingPair.beforeText ? MainThreadLanguageFeatures._reviveRegExp(autoClosingPair.beforeText) : undefined,
+		}));
+	}
+
 	$setLanguageConfiguration(handle: number, languageId: string, _configuration: ILanguageConfigurationDto): void {
 
 		const configuration: LanguageConfiguration = {
@@ -969,7 +991,7 @@ export class MainThreadLanguageFeatures extends Disposable implements MainThread
 		};
 
 		if (_configuration.autoClosingPairs) {
-			configuration.autoClosingPairs = _configuration.autoClosingPairs;
+			configuration.autoClosingPairs = MainThreadLanguageFeatures._reviveAutoClosingPairs(_configuration.autoClosingPairs);
 		} else if (_configuration.__characterPairSupport) {
 			// backwards compatibility
 			configuration.autoClosingPairs = _configuration.__characterPairSupport.autoClosingPairs;
@@ -1118,7 +1140,10 @@ class MainThreadPasteEditProvider implements languages.DocumentPasteEditProvider
 							};
 						}),
 						dispose: () => {
-							this._proxy.$releasePasteEdits(this._handle, request.id);
+							const cacheId = edits[0]?._cacheId?.[0];
+							if (typeof cacheId === 'number') {
+								this._proxy.$releasePasteEdits(this._handle, cacheId);
+							}
 						},
 					};
 				} finally {
@@ -1199,7 +1224,10 @@ class MainThreadDocumentOnDropEditProvider implements languages.DocumentDropEdit
 					};
 				}),
 				dispose: () => {
-					this._proxy.$releaseDocumentOnDropEdits(this._handle, request.id);
+					const cacheId = edits[0]?._cacheId?.[0];
+					if (typeof cacheId === 'number') {
+						this._proxy.$releaseDocumentOnDropEdits(this._handle, cacheId);
+					}
 				},
 			};
 		} finally {
@@ -1238,10 +1266,11 @@ export class MainThreadDocumentSemanticTokensProvider implements languages.Docum
 		if (!encodedDto) {
 			return null;
 		}
+		const dto = decodeSemanticTokensDto(encodedDto);
 		if (token.isCancellationRequested) {
+			this._proxy.$releaseDocumentSemanticTokens(this._handle, dto.id);
 			return null;
 		}
-		const dto = decodeSemanticTokensDto(encodedDto);
 		if (dto.type === 'full') {
 			return {
 				resultId: String(dto.id),
@@ -1296,6 +1325,10 @@ class ExtensionBackedInlineCompletionsProvider extends Disposable implements lan
 	public readonly _onDidChangeModelInfoEmitter = this._register(new Emitter<void>());
 	public readonly onDidChangeModelInfo: Event<void> | undefined;
 
+	public readonly setProviderOption: ((optionId: string, valueId: string) => Promise<void>) | undefined;
+	public readonly _onDidProviderOptionsChangeEmitter = this._register(new Emitter<void>());
+	public readonly onDidProviderOptionsChange: Event<void> | undefined;
+
 	constructor(
 		public readonly handle: number,
 		public readonly groupId: string,
@@ -1309,6 +1342,9 @@ class ExtensionBackedInlineCompletionsProvider extends Disposable implements lan
 		private readonly _supportsSetModelId: boolean,
 		private readonly _supportsOnDidChange: boolean,
 		private readonly _supportsOnDidChangeModelInfo: boolean,
+		public providerOptions: readonly languages.IInlineCompletionProviderOption[] | undefined,
+		private readonly _supportsSetProviderOption: boolean,
+		private readonly _supportsOnDidChangeProviderOptions: boolean,
 		private readonly _selector: IDocumentFilterDto[],
 		private readonly _proxy: ExtHostLanguageFeaturesShape,
 		@ILanguageFeaturesService private readonly _languageFeaturesService: ILanguageFeaturesService,
@@ -1321,8 +1357,13 @@ class ExtensionBackedInlineCompletionsProvider extends Disposable implements lan
 			await this._proxy.$handleInlineCompletionSetCurrentModelId(this.handle, modelId);
 		} : undefined;
 
+		this.setProviderOption = this._supportsSetProviderOption ? async (optionId: string, valueId: string) => {
+			await this._proxy.$handleInlineCompletionSetProviderOption(this.handle, optionId, valueId);
+		} : undefined;
+
 		this.onDidChangeInlineCompletions = this._supportsOnDidChange ? this._onDidChangeEmitter.event : undefined;
 		this.onDidChangeModelInfo = this._supportsOnDidChangeModelInfo ? this._onDidChangeModelInfoEmitter.event : undefined;
+		this.onDidProviderOptionsChange = this._supportsOnDidChangeProviderOptions ? this._onDidProviderOptionsChangeEmitter.event : undefined;
 
 		this._register(this._languageFeaturesService.inlineCompletionsProvider.register(this._selector, this));
 	}
@@ -1331,6 +1372,13 @@ class ExtensionBackedInlineCompletionsProvider extends Disposable implements lan
 		this.modelInfo = newModelInfo;
 		if (this._supportsOnDidChangeModelInfo) {
 			this._onDidChangeModelInfoEmitter.fire();
+		}
+	}
+
+	public _setProviderOptions(newProviderOptions: readonly languages.IInlineCompletionProviderOption[] | undefined) {
+		this.providerOptions = newProviderOptions;
+		if (this._supportsOnDidChangeProviderOptions) {
+			this._onDidProviderOptionsChangeEmitter.fire();
 		}
 	}
 
@@ -1356,6 +1404,7 @@ class ExtensionBackedInlineCompletionsProvider extends Disposable implements lan
 				modeId: undefined,
 				modelId: undefined,
 				presentation: item.isInlineEdit ? 'nextEditSuggestion' : 'inlineCompletion',
+				sourceRequestId: undefined,
 			});
 		}
 
@@ -1382,7 +1431,7 @@ class ExtensionBackedInlineCompletionsProvider extends Disposable implements lan
 		}
 
 		if (this._supportsHandleEvents) {
-			await this._proxy.$handleInlineCompletionEndOfLifetime(this.handle, completions.pid, item.idx, mapReason(reason, i => ({ pid: completions.pid, idx: i.idx })));
+			await this._proxy.$handleInlineCompletionEndOfLifetime(this.handle, completions.pid, item.idx, mapReason(reason, i => ({ pid: i.pid, idx: i.idx })));
 		}
 
 		if (reason.kind === languages.InlineCompletionEndOfLifeReasonKind.Accepted) {
@@ -1403,6 +1452,28 @@ class ExtensionBackedInlineCompletionsProvider extends Disposable implements lan
 					presentation: item.isInlineEdit ? 'nextEditSuggestion' : 'inlineCompletion',
 					acceptanceMethod: 'accept',
 					applyCodeBlockSuggestionId: undefined,
+					sourceRequestId: undefined,
+				});
+			}
+		} else if (reason.kind === languages.InlineCompletionEndOfLifeReasonKind.Rejected) {
+			if (item.suggestionId !== undefined) {
+				this._aiEditTelemetryService.handleCodeRejected({
+					suggestionId: item.suggestionId,
+					feature: 'inlineSuggestion',
+					source: this.providerId,
+					languageId: completions.languageId,
+					editDeltaInfo: EditDeltaInfo.tryCreate(
+						lifetimeSummary.lineCountModified,
+						lifetimeSummary.lineCountOriginal,
+						lifetimeSummary.characterCountModified,
+						lifetimeSummary.characterCountOriginal,
+					),
+					modeId: undefined,
+					modelId: undefined,
+					presentation: item.isInlineEdit ? 'nextEditSuggestion' : 'inlineCompletion',
+					rejectionMethod: 'reject',
+					applyCodeBlockSuggestionId: undefined,
+					sourceRequestId: undefined,
 				});
 			}
 		}
@@ -1458,6 +1529,7 @@ class ExtensionBackedInlineCompletionsProvider extends Disposable implements lan
 			editKind: lifetimeSummary.editKind,
 			longDistanceHintVisible: lifetimeSummary.longDistanceHintVisible,
 			longDistanceHintDistance: lifetimeSummary.longDistanceHintDistance,
+			isForAnotherDocument: lifetimeSummary.isForAnotherDocument,
 			...forwardToChannelIf(isCopilotLikeExtension(this.providerId.extensionId!)),
 		};
 

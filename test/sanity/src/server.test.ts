@@ -39,12 +39,6 @@ export function setup(context: TestContext) {
 		await testServer(entryPoint);
 	});
 
-	context.test('server-linux-armhf', ['linux', 'arm32'], async () => {
-		const dir = await context.downloadAndUnpack('server-linux-armhf');
-		const entryPoint = context.getServerEntryPoint(dir);
-		await testServer(entryPoint);
-	});
-
 	context.test('server-linux-x64', ['linux', 'x64'], async () => {
 		const dir = await context.downloadAndUnpack('server-linux-x64');
 		const entryPoint = context.getServerEntryPoint(dir);
@@ -54,6 +48,7 @@ export function setup(context: TestContext) {
 	context.test('server-win32-arm64', ['windows', 'arm64'], async () => {
 		const dir = await context.downloadAndUnpack('server-win32-arm64');
 		context.validateAllAuthenticodeSignatures(dir);
+		context.validateAllVersionInfo(dir);
 		const entryPoint = context.getServerEntryPoint(dir);
 		await testServer(entryPoint);
 	});
@@ -61,6 +56,7 @@ export function setup(context: TestContext) {
 	context.test('server-win32-x64', ['windows', 'x64'], async () => {
 		const dir = await context.downloadAndUnpack('server-win32-x64');
 		context.validateAllAuthenticodeSignatures(dir);
+		context.validateAllVersionInfo(dir);
 		const entryPoint = context.getServerEntryPoint(dir);
 		await testServer(entryPoint);
 	});

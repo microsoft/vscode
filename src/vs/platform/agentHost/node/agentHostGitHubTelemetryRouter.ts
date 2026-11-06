@@ -1,0 +1,91 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+import type { GitHubTelemetryNotification } from '@github/copilot-sdk';
+import { multiplexProperties, type IAgentHostRestrictedTelemetry, type IAgentHostRestrictedTelemetryContext, type TelemetryProps } from './agentHostRestrictedTelemetry.js';
+
+/* __GDPR__FRAGMENT__
+	"AgentHostRestrictedSdkSession": {
+		"sdkSessionId": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Existing Copilot SDK conversation identifier, independent of host session grouping and telemetry process lifetime." }
+	}
+*/
+
+/* __GDPR__
+	"copilot-chat/engine.messages": {
+		"owner": "amunger",
+		"comment": "SDK conversation and branch correlation on existing restricted engine snapshots.",
+		"${include}": [ "${AgentHostRestrictedSdkSession}" ],
+		"sdkAgentId": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Native SDK subagent identifier within the root SDK conversation; absent for root calls." }
+	}
+*/
+
+/* __GDPR__
+	"copilot-chat/engine.messages.length": {
+		"owner": "amunger",
+		"comment": "SDK conversation and branch correlation on existing restricted engine length events.",
+		"${include}": [ "${AgentHostRestrictedSdkSession}" ],
+		"sdkAgentId": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Native SDK subagent identifier within the root SDK conversation; absent for root calls." }
+	}
+*/
+
+const enum TelemetryDestination {
+	EnhancedGH = 1,
+	InternalMSFT = 2,
+}
+
+const targetDestinations = new Map<string, TelemetryDestination>([
+	['engine.messages', TelemetryDestination.EnhancedGH],
+	['engine.messages.length', TelemetryDestination.EnhancedGH | TelemetryDestination.InternalMSFT],
+	['conversation.repetition.detected', TelemetryDestination.EnhancedGH],
+	['model.message.added', TelemetryDestination.InternalMSFT],
+	['model.modelCall.input', TelemetryDestination.InternalMSFT],
+	['model.modelCall.output', TelemetryDestination.InternalMSFT],
+	['model.request.added', TelemetryDestination.InternalMSFT],
+	['model.request.options.added', TelemetryDestination.InternalMSFT],
+]);
+
+export class AgentHostGitHubTelemetryRouter {
+
+	constructor(private readonly _telemetryService: IAgentHostRestrictedTelemetry) { }
+
+	isTarget(notification: GitHubTelemetryNotification): boolean {
+		return targetDestinations.has(notification.event.kind);
+	}
+
+	async route(notification: GitHubTelemetryNotification, context?: IAgentHostRestrictedTelemetryContext, additionalProperties?: TelemetryProps): Promise<boolean> {
+		const { event } = notification;
+		const eventName = event.kind;
+		const destinations = targetDestinations.get(eventName);
+		if (destinations === undefined) {
+			return false;
+		}
+		if (!notification.restricted) {
+			return true;
+		}
+		if (!context) {
+			return true;
+		}
+
+		const isEngineSnapshot = eventName === 'engine.messages' || eventName === 'engine.messages.length';
+		const properties: TelemetryProps = {
+			...event.properties,
+			// Engine snapshots mint their own pairing UUID, independently of the SDK model-call ID.
+			...(!isEngineSnapshot && event.model_call_id && event.properties.modelCallId === undefined ? { modelCallId: event.model_call_id } : {}),
+			...additionalProperties,
+			...(isEngineSnapshot ? {
+				sdkSessionId: notification.sessionId || undefined,
+				sdkAgentId: event.properties.agent_id || undefined,
+			} : {}),
+		};
+		const multiplexedProperties = await multiplexProperties(properties);
+		if ((destinations & TelemetryDestination.EnhancedGH) && context.restrictedTelemetryEnabled) {
+			this._telemetryService.sendEnhancedGHTelemetryEventForContext(context, eventName, multiplexedProperties, event.metrics);
+		}
+		if ((destinations & TelemetryDestination.InternalMSFT) && context.isInternal) {
+			this._telemetryService.sendInternalMSFTTelemetryEventForContext(context, eventName, multiplexedProperties, event.metrics);
+		}
+		return true;
+	}
+}

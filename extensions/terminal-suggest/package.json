@@ -6,7 +6,7 @@
   "version": "1.0.1",
   "private": true,
   "license": "MIT",
-  "icon": "./src/media/icon.png",
+  "icon": "./media/icon.png",
   "engines": {
     "vscode": "^1.95.0"
   },
@@ -34,8 +34,8 @@
     }
   },
   "scripts": {
-    "compile": "npx gulp compile-extension:terminal-suggest",
-    "watch": "npx gulp watch-extension:terminal-suggest",
+    "compile": "pnpm exec gulp compile-extension:terminal-suggest",
+    "watch": "pnpm exec gulp watch-extension:terminal-suggest",
     "pull-zshbuiltins": "node ./scripts/pullZshBuiltins.ts",
     "pull-fishbuiltins": "node ./scripts/pullFishBuiltins.ts"
   },
@@ -48,6 +48,8 @@
     "url": "https://github.com/microsoft/vscode.git"
   },
   "devDependencies": {
-    "@types/node": "^22.18.10"
+    "@types/mocha": "^10.0.10",
+    "@types/node": "24.x",
+    "mocha": "^10.8.2"
   }
 }

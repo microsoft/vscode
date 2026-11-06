@@ -1,0 +1,25 @@
+version: 1
+dialect: responses
+exchanges:
+  - request:
+      model: gpt-5.3-codex
+      system: ${system}
+      messages:
+        - role: user
+          content: Remember the code word RESUME_PEER. Reply exactly "ready".
+    response:
+      content: ready
+      stopReason: end_turn
+  - request:
+      model: gpt-5.3-codex
+      system: ${system}
+      messages:
+        - role: user
+          content: Remember the code word RESUME_PEER. Reply exactly "ready".
+        - role: assistant
+          content: ready
+        - role: user
+          content: Reply exactly "resumed".
+    response:
+      content: resumed
+      stopReason: end_turn

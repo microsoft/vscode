@@ -26,6 +26,7 @@ import { IWorkbenchEnvironmentService } from '../../environment/common/environme
 import { isMacintosh } from '../../../../base/common/platform.js';
 import { assert } from '../../../../base/common/assert.js';
 import { IContextMenuService } from '../../../../platform/contextview/browser/contextView.js';
+import { IRectangle } from '../../../../platform/window/common/window.js';
 
 type NativeCodeWindow = CodeWindow & {
 	readonly vscode: ISandboxGlobals;
@@ -98,6 +99,10 @@ export class NativeAuxiliaryWindow extends AuxiliaryWindow {
 		if (fullscreen) {
 			setFullscreen(true, this.window);
 		}
+	}
+
+	override setBounds(bounds: IRectangle): Promise<void> {
+		return this.nativeHostService.positionWindow(bounds, { targetWindowId: this.window.vscodeWindowId });
 	}
 
 	protected override async handleVetoBeforeClose(e: BeforeUnloadEvent, veto: string): Promise<void> {

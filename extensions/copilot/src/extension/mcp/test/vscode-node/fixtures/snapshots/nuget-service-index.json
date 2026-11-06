@@ -1,0 +1,207 @@
+{
+	"version": "3.0.0",
+	"resources": [
+		{
+			"@id": "https://azuresearch-usnc.nuget.org/query",
+			"@type": "SearchQueryService",
+			"comment": "Query endpoint of NuGet Search service (primary)"
+		},
+		{
+			"@id": "https://azuresearch-ussc.nuget.org/query",
+			"@type": "SearchQueryService",
+			"comment": "Query endpoint of NuGet Search service (secondary)"
+		},
+		{
+			"@id": "https://azuresearch-usnc.nuget.org/autocomplete",
+			"@type": "SearchAutocompleteService",
+			"comment": "Autocomplete endpoint of NuGet Search service (primary)"
+		},
+		{
+			"@id": "https://azuresearch-ussc.nuget.org/autocomplete",
+			"@type": "SearchAutocompleteService",
+			"comment": "Autocomplete endpoint of NuGet Search service (secondary)"
+		},
+		{
+			"@id": "https://azuresearch-usnc.nuget.org/",
+			"@type": "SearchGalleryQueryService/3.0.0-rc",
+			"comment": "Azure Website based Search Service used by Gallery (primary)"
+		},
+		{
+			"@id": "https://azuresearch-ussc.nuget.org/",
+			"@type": "SearchGalleryQueryService/3.0.0-rc",
+			"comment": "Azure Website based Search Service used by Gallery (secondary)"
+		},
+		{
+			"@id": "https://api.nuget.org/v3/registration5-semver1/",
+			"@type": "RegistrationsBaseUrl",
+			"comment": "Base URL of Azure storage where NuGet package registration info is stored"
+		},
+		{
+			"@id": "https://api.nuget.org/v3-flatcontainer/",
+			"@type": "PackageBaseAddress/3.0.0",
+			"comment": "Base URL of where NuGet packages are stored, in the format https://api.nuget.org/v3-flatcontainer/{id-lower}/{version-lower}/{id-lower}.{version-lower}.nupkg"
+		},
+		{
+			"@id": "https://www.nuget.org/api/v2",
+			"@type": "LegacyGallery"
+		},
+		{
+			"@id": "https://www.nuget.org/api/v2",
+			"@type": "LegacyGallery/2.0.0"
+		},
+		{
+			"@id": "https://www.nuget.org/api/v2/package",
+			"@type": "PackagePublish/2.0.0"
+		},
+		{
+			"@id": "https://www.nuget.org/api/v2/symbolpackage",
+			"@type": "SymbolPackagePublish/4.9.0",
+			"comment": "The gallery symbol publish endpoint."
+		},
+		{
+			"@id": "https://azuresearch-usnc.nuget.org/query",
+			"@type": "SearchQueryService/3.0.0-rc",
+			"comment": "Query endpoint of NuGet Search service (primary) used by RC clients"
+		},
+		{
+			"@id": "https://azuresearch-ussc.nuget.org/query",
+			"@type": "SearchQueryService/3.0.0-rc",
+			"comment": "Query endpoint of NuGet Search service (secondary) used by RC clients"
+		},
+		{
+			"@id": "https://azuresearch-usnc.nuget.org/query",
+			"@type": "SearchQueryService/3.5.0",
+			"comment": "Query endpoint of NuGet Search service (primary) that supports package type filtering"
+		},
+		{
+			"@id": "https://azuresearch-ussc.nuget.org/query",
+			"@type": "SearchQueryService/3.5.0",
+			"comment": "Query endpoint of NuGet Search service (secondary) that supports package type filtering"
+		},
+		{
+			"@id": "https://azuresearch-usnc.nuget.org/autocomplete",
+			"@type": "SearchAutocompleteService/3.0.0-rc",
+			"comment": "Autocomplete endpoint of NuGet Search service (primary) used by RC clients"
+		},
+		{
+			"@id": "https://azuresearch-ussc.nuget.org/autocomplete",
+			"@type": "SearchAutocompleteService/3.0.0-rc",
+			"comment": "Autocomplete endpoint of NuGet Search service (secondary) used by RC clients"
+		},
+		{
+			"@id": "https://azuresearch-usnc.nuget.org/autocomplete",
+			"@type": "SearchAutocompleteService/3.5.0",
+			"comment": "Autocomplete endpoint of NuGet Search service (primary) that supports package type filtering"
+		},
+		{
+			"@id": "https://azuresearch-ussc.nuget.org/autocomplete",
+			"@type": "SearchAutocompleteService/3.5.0",
+			"comment": "Autocomplete endpoint of NuGet Search service (secondary) that supports package type filtering"
+		},
+		{
+			"@id": "https://api.nuget.org/v3/registration5-semver1/",
+			"@type": "RegistrationsBaseUrl/3.0.0-rc",
+			"comment": "Base URL of Azure storage where NuGet package registration info is stored used by RC clients. This base URL does not include SemVer 2.0.0 packages."
+		},
+		{
+			"@id": "https://www.nuget.org/packages/{id}/{version}/ReportAbuse",
+			"@type": "ReportAbuseUriTemplate/3.0.0-rc",
+			"comment": "URI template used by NuGet Client to construct Report Abuse URL for packages used by RC clients"
+		},
+		{
+			"@id": "https://api.nuget.org/v3/registration5-semver1/{id-lower}/index.json",
+			"@type": "PackageDisplayMetadataUriTemplate/3.0.0-rc",
+			"comment": "URI template used by NuGet Client to construct display metadata for Packages using ID"
+		},
+		{
+			"@id": "https://api.nuget.org/v3/registration5-semver1/{id-lower}/{version-lower}.json",
+			"@type": "PackageVersionDisplayMetadataUriTemplate/3.0.0-rc",
+			"comment": "URI template used by NuGet Client to construct display metadata for Packages using ID, Version"
+		},
+		{
+			"@id": "https://azuresearch-usnc.nuget.org/query",
+			"@type": "SearchQueryService/3.0.0-beta",
+			"comment": "Query endpoint of NuGet Search service (primary) used by beta clients"
+		},
+		{
+			"@id": "https://azuresearch-ussc.nuget.org/query",
+			"@type": "SearchQueryService/3.0.0-beta",
+			"comment": "Query endpoint of NuGet Search service (secondary) used by beta clients"
+		},
+		{
+			"@id": "https://azuresearch-usnc.nuget.org/autocomplete",
+			"@type": "SearchAutocompleteService/3.0.0-beta",
+			"comment": "Autocomplete endpoint of NuGet Search service (primary) used by beta clients"
+		},
+		{
+			"@id": "https://azuresearch-ussc.nuget.org/autocomplete",
+			"@type": "SearchAutocompleteService/3.0.0-beta",
+			"comment": "Autocomplete endpoint of NuGet Search service (secondary) used by beta clients"
+		},
+		{
+			"@id": "https://api.nuget.org/v3/registration5-semver1/",
+			"@type": "RegistrationsBaseUrl/3.0.0-beta",
+			"comment": "Base URL of Azure storage where NuGet package registration info is stored used by Beta clients. This base URL does not include SemVer 2.0.0 packages."
+		},
+		{
+			"@id": "https://www.nuget.org/packages/{id}/{version}/ReportAbuse",
+			"@type": "ReportAbuseUriTemplate/3.0.0-beta",
+			"comment": "URI template used by NuGet Client to construct Report Abuse URL for packages"
+		},
+		{
+			"@id": "https://www.nuget.org/packages/{id}/{version}?_src=template",
+			"@type": "PackageDetailsUriTemplate/5.1.0",
+			"comment": "URI template used by NuGet Client to construct details URL for packages"
+		},
+		{
+			"@id": "https://www.nuget.org/profiles/{owner}?_src=template",
+			"@type": "OwnerDetailsUriTemplate/6.11.0",
+			"comment": "URI template used by NuGet Client to construct owner URL for packages"
+		},
+		{
+			"@id": "https://api.nuget.org/v3/registration5-gz-semver1/",
+			"@type": "RegistrationsBaseUrl/3.4.0",
+			"comment": "Base URL of Azure storage where NuGet package registration info is stored in GZIP format. This base URL does not include SemVer 2.0.0 packages."
+		},
+		{
+			"@id": "https://api.nuget.org/v3/registration5-gz-semver2/",
+			"@type": "RegistrationsBaseUrl/3.6.0",
+			"comment": "Base URL of Azure storage where NuGet package registration info is stored in GZIP format. This base URL includes SemVer 2.0.0 packages."
+		},
+		{
+			"@id": "https://api.nuget.org/v3/registration5-gz-semver2/",
+			"@type": "RegistrationsBaseUrl/Versioned",
+			"clientVersion": "4.3.0-alpha",
+			"comment": "Base URL of Azure storage where NuGet package registration info is stored in GZIP format. This base URL includes SemVer 2.0.0 packages."
+		},
+		{
+			"@id": "https://api.nuget.org/v3-index/repository-signatures/4.7.0/index.json",
+			"@type": "RepositorySignatures/4.7.0",
+			"comment": "The endpoint for discovering information about this package source's repository signatures."
+		},
+		{
+			"@id": "https://api.nuget.org/v3-index/repository-signatures/5.0.0/index.json",
+			"@type": "RepositorySignatures/5.0.0",
+			"comment": "The endpoint for discovering information about this package source's repository signatures."
+		},
+		{
+			"@id": "https://api.nuget.org/v3/vulnerabilities/index.json",
+			"@type": "VulnerabilityInfo/6.7.0",
+			"comment": "The endpoint for discovering information about vulnerabilities of packages in this package source."
+		},
+		{
+			"@id": "https://api.nuget.org/v3/catalog0/index.json",
+			"@type": "Catalog/3.0.0",
+			"comment": "Index of the NuGet package catalog."
+		},
+		{
+			"@id": "https://api.nuget.org/v3-flatcontainer/{lower_id}/{lower_version}/readme",
+			"@type": "ReadmeUriTemplate/6.13.0",
+			"comment": "URI template used by NuGet Client to construct a URL for downloading a package's README."
+		}
+	],
+	"@context": {
+		"@vocab": "http://schema.nuget.org/services#",
+		"comment": "http://www.w3.org/2000/01/rdf-schema#comment"
+	}
+}

@@ -706,6 +706,20 @@ suite('Configuration Resolver Service', () => {
 		});
 	});
 
+	test('contributed taskVar variable', () => {
+		const url = 'http://localhost:5678';
+		const variable = 'taskVar:componentExplorerUrl';
+		const configuration = {
+			'url': '${taskVar:componentExplorerUrl}/___explorer',
+		};
+		configurationResolverService!.contributeVariable(variable, async () => { return url; });
+		return configurationResolverService!.resolveWithInteractionReplace(workspace, configuration).then(result => {
+			assert.deepStrictEqual({ ...result }, {
+				'url': `${url}/___explorer`
+			});
+		});
+	});
+
 	test('resolveWithEnvironment', async () => {
 		const env = {
 			'VAR_1': 'VAL_1',
@@ -795,6 +809,9 @@ class MockCommandService implements ICommandService {
 
 class MockLabelService implements ILabelService {
 	_serviceBrand: undefined;
+	getUriHome(): undefined {
+		return undefined;
+	}
 	getUriLabel(resource: URI, options?: { relative?: boolean | undefined; noPrefix?: boolean | undefined }): string {
 		return normalize(resource.fsPath);
 	}
@@ -841,6 +858,15 @@ class MockPathService implements IPathService {
 	hasValidBasename(resource: URI, os: platform.OperatingSystem, basename?: string): boolean;
 	hasValidBasename(resource: URI, arg2?: string | platform.OperatingSystem, name?: string): boolean | Promise<boolean> {
 		throw new Error('Method not implemented.');
+	}
+	getOperatingSystem(_resource: URI): Promise<platform.OperatingSystem | undefined> {
+		throw new Error('Method not implemented.');
+	}
+	getPath(_resource: URI): Promise<IPath | undefined> {
+		throw new Error('Method not implemented.');
+	}
+	registerPathProvider(): IDisposable {
+		return Disposable.None;
 	}
 	resolvedUserHome: URI | undefined;
 }

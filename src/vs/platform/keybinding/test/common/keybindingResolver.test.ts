@@ -260,6 +260,56 @@ suite('KeybindingResolver', () => {
 			assert.deepStrictEqual(actual, []);
 		});
 
+		test('issue #293802: removal still matches when default when clause becomes more specific', () => {
+			const defaults = [
+				kbItem(KeyCode.KeyA, 'command1', null, ContextKeyExpr.and(ContextKeyExpr.has('inChatInput'), ContextKeyExpr.not('withinEditSessionDiff')), true),
+			];
+			const overrides = [
+				kbItem(KeyCode.KeyA, '-command1', null, ContextKeyExpr.has('inChatInput'), false),
+			];
+			const actual = KeybindingResolver.handleRemovals([...defaults, ...overrides]);
+			assert.deepStrictEqual(actual, []);
+		});
+
+		test('removal with more specific when clause does not match broader default', () => {
+			const defaults = [
+				kbItem(KeyCode.KeyA, 'command1', null, ContextKeyExpr.has('inChatInput'), true),
+			];
+			const overrides = [
+				kbItem(KeyCode.KeyA, '-command1', null, ContextKeyExpr.and(ContextKeyExpr.has('inChatInput'), ContextKeyExpr.not('withinEditSessionDiff')), false),
+			];
+			const actual = KeybindingResolver.handleRemovals([...defaults, ...overrides]);
+			assert.deepStrictEqual(actual, [
+				kbItem(KeyCode.KeyA, 'command1', null, ContextKeyExpr.has('inChatInput'), true),
+			]);
+		});
+
+		test('issue #338834: removing the chat steer or queue Enter keybinding from the Keyboard Shortcuts editor works', () => {
+			// The default `when` clauses as chatQueueActions.ts builds them, merged with the action precondition
+			const editingQueue = ContextKeyExpr.equals('chatEditingSentRequest', 'q');
+			const editingSteer = ContextKeyExpr.equals('chatEditingSentRequest', 'st');
+			const editingQueueOrSteer = ContextKeyExpr.or(editingQueue, editingSteer)!;
+			const queuingActionsPresent = ContextKeyExpr.and(
+				ContextKeyExpr.not('chatTranscriptProgressActive'),
+				ContextKeyExpr.or(ContextKeyExpr.has('chatSessionRequestInProgress'), editingQueueOrSteer),
+				ContextKeyExpr.notEquals('chatEditingSentRequest', 's'),
+			);
+			const steerIsDefault = ContextKeyExpr.equals('config.chat.requestQueuing.defaultAction', 'steer');
+			const effectiveDefaultIsQueue = ContextKeyExpr.or(ContextKeyExpr.and(steerIsDefault.negate(), editingQueueOrSteer.negate()), editingQueue);
+			const effectiveDefaultIsSteer = ContextKeyExpr.or(ContextKeyExpr.and(steerIsDefault, editingQueueOrSteer.negate()), editingSteer);
+			const precondition = ContextKeyExpr.and(ContextKeyExpr.has('chatInputHasText'), ContextKeyExpr.not('chatTranscriptProgressActive'), ContextKeyExpr.not('chatInputBlocked'));
+
+			const defaults = [
+				kbItem(KeyCode.Enter, 'workbench.action.chat.steerWithMessage', null, ContextKeyExpr.and(precondition, ContextKeyExpr.and(ContextKeyExpr.has('inChatInput'), queuingActionsPresent, effectiveDefaultIsSteer)), true),
+				kbItem(KeyCode.Enter, 'workbench.action.chat.queueMessage', null, ContextKeyExpr.and(precondition, ContextKeyExpr.and(ContextKeyExpr.has('inChatInput'), queuingActionsPresent, effectiveDefaultIsQueue)), true),
+			];
+			// "Remove Keybinding" writes the serialized default `when`, which is parsed when keybindings.json is read
+			const overrides = defaults.map(kb => kbItem(KeyCode.Enter, `-${kb.command}`, null, ContextKeyExpr.deserialize(kb.when!.serialize()), false));
+
+			const actual = defaults.map((kb, i) => KeybindingResolver.handleRemovals([kb, overrides[i]]).map(kb => kb.command));
+			assert.deepStrictEqual(actual, [[], []]);
+		});
+
 		test('issue #160604: Remove keybindings with when clause does not work', () => {
 			const defaults = [
 				kbItem(KeyCode.KeyA, 'command1', null, undefined, true),

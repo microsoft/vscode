@@ -30,7 +30,14 @@ suite('MCP - Sampling Log', () => {
 	setup(() => {
 		storage = ds.add(new TestStorageService());
 		log = ds.add(new McpSamplingLog(storage));
-		clock = sinon.useFakeTimers();
+		// `shouldClearNativeTimers` silently absorbs `clearTimeout` calls for
+		// native timer IDs scheduled outside the fake clock (e.g. by cross-test
+		// background schedulers) instead of emitting a `console.warn` that would
+		// fail the renderer's no-console-output assertion. The option exists in
+		// @sinonjs/fake-timers but is missing from the @types/sinon typings, so
+		// we widen the config type locally.
+		const fakeTimerOpts: Partial<sinon.SinonFakeTimersConfig> & { shouldClearNativeTimers: boolean } = { shouldClearNativeTimers: true };
+		clock = sinon.useFakeTimers(fakeTimerOpts);
 		clock.setSystemTime(new Date('2023-10-01T00:00:00Z').getTime());
 	});
 

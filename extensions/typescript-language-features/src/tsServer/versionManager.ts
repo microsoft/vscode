@@ -5,7 +5,8 @@
 
 import * as vscode from 'vscode';
 import { TypeScriptServiceConfiguration } from '../configuration/configuration';
-import { tsNativeExtensionId } from '../commands/useTsgo';
+import { getTsNativeExtension } from '../commands/useTsgo';
+import { readUnifiedConfig, unifiedConfigSection } from '../utils/configuration';
 import { setImmediate } from '../utils/async';
 import { Disposable } from '../utils/dispose';
 import { ITypeScriptVersionProvider, TypeScriptVersion } from './versionProvider';
@@ -131,8 +132,7 @@ export class TypeScriptVersionManager extends Disposable {
 					const trusted = await vscode.workspace.requestWorkspaceTrust();
 					if (trusted) {
 						await this.workspaceState.update(useWorkspaceTsdkStorageKey, true);
-						const tsConfig = vscode.workspace.getConfiguration('typescript');
-						await tsConfig.update('tsdk', version.pathLabel, false);
+						await vscode.workspace.getConfiguration(unifiedConfigSection).update('tsdk.path', version.pathLabel, false);
 						this.updateActiveVersion(version);
 					}
 				},
@@ -141,16 +141,15 @@ export class TypeScriptVersionManager extends Disposable {
 	}
 
 	private getNativePreviewPickItem(): QuickPickItem | undefined {
-		const nativePreviewExtension = vscode.extensions.getExtension(tsNativeExtensionId);
+		const nativePreviewExtension = getTsNativeExtension();
 		if (!nativePreviewExtension) {
 			return undefined;
 		}
 
-		const tsConfig = vscode.workspace.getConfiguration('typescript');
-		const isUsingTsgo = tsConfig.get<boolean>('experimental.useTsgo', false);
+		const isUsingTsgo = readUnifiedConfig<boolean>('experimental.useTsgo', false, { fallbackSection: 'typescript' });
 
 		return {
-			label: (isUsingTsgo ? '• ' : '') + vscode.l10n.t("Use TypeScript Native Preview (Experimental)"),
+			label: (isUsingTsgo ? '• ' : '') + vscode.l10n.t("Use TypeScript 7"),
 			description: nativePreviewExtension.packageJSON.version,
 			run: async () => {
 				await vscode.commands.executeCommand('typescript.native-preview.enable');
@@ -170,6 +169,7 @@ export class TypeScriptVersionManager extends Disposable {
 		const suppressPrompt = vscode.l10n.t("Never in this Workspace");
 
 		const result = await vscode.window.showInformationMessage(vscode.l10n.t("This workspace contains a TypeScript version. Would you like to use the workspace TypeScript version for TypeScript and JavaScript language features?"),
+			{ notificationId: 'typescript.workspaceVersion' },
 			allowIt,
 			dismissPrompt,
 			suppressPrompt

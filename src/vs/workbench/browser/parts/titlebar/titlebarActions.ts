@@ -12,8 +12,17 @@ import { Action2, MenuId, registerAction2 } from '../../../../platform/actions/c
 import { ContextKeyExpr, ContextKeyExpression, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { ACCOUNTS_ACTIVITY_ID, GLOBAL_ACTIVITY_ID } from '../../../common/activity.js';
 import { IAction } from '../../../../base/common/actions.js';
-import { IsMainWindowFullscreenContext, IsCompactTitleBarContext, TitleBarStyleContext, TitleBarVisibleContext } from '../../../common/contextkeys.js';
+import { IsMainWindowFullscreenContext, IsCompactTitleBarContext, IsSessionsWindowContext, TitleBarStyleContext, TitleBarVisibleContext } from '../../../common/contextkeys.js';
 import { CustomTitleBarVisibility, TitleBarSetting, TitlebarStyle } from '../../../../platform/window/common/window.js';
+import { NotificationsPosition, NotificationsSettings } from '../../../common/notifications.js';
+
+/**
+ * Menu group for actions contributed to {@link MenuId.TitleBar} that should render
+ * **before** the layout controls (instead of trailing them like the default group).
+ * Use this group to surface a leading affordance that should remain visible even
+ * when layout controls are toggled off.
+ */
+export const TitleBarLeadingActionsGroup = '0_leading';
 
 // --- Context Menu Actions --- //
 
@@ -58,13 +67,19 @@ registerAction2(class ToggleCommandCenter extends ToggleTitleBarConfigAction {
 
 registerAction2(class ToggleNavigationControl extends ToggleTitleBarConfigAction {
 	constructor() {
-		super('workbench.navigationControl.enabled', localize('toggle.navigation', 'Navigation Controls'), localize('toggle.navigationDescription', "Toggle visibility of the Navigation Controls in title bar"), 2, ContextKeyExpr.and(IsCompactTitleBarContext.toNegated(), ContextKeyExpr.has('config.window.commandCenter')));
+		super('workbench.navigationControl.enabled', localize('toggle.navigation', 'Navigation Controls'), localize('toggle.navigationDescription', "Toggle visibility of the Navigation Controls in title bar"), 2, ContextKeyExpr.and(IsCompactTitleBarContext.toNegated(), ContextKeyExpr.has(`config.${LayoutSettings.COMMAND_CENTER}`)));
 	}
 });
 
 registerAction2(class ToggleLayoutControl extends ToggleTitleBarConfigAction {
 	constructor() {
 		super(LayoutSettings.LAYOUT_ACTIONS, localize('toggle.layout', 'Layout Controls'), localize('toggle.layoutDescription', "Toggle visibility of the Layout Controls in title bar"), 4);
+	}
+});
+
+registerAction2(class ToggleNotificationsButton extends ToggleTitleBarConfigAction {
+	constructor() {
+		super(NotificationsSettings.NOTIFICATIONS_BUTTON, localize('toggle.notifications', 'Notifications'), localize('toggle.notificationsDescription', "Toggle visibility of the Notifications button in title bar"), 5, ContextKeyExpr.equals(`config.${NotificationsSettings.NOTIFICATIONS_POSITION}`, NotificationsPosition.TOP_RIGHT));
 	}
 });
 
@@ -115,18 +130,21 @@ class ToggleCustomTitleBar extends Action2 {
 				{
 					id: MenuId.MenubarAppearanceMenu,
 					order: 6,
-					when: ContextKeyExpr.or(
-						ContextKeyExpr.and(
-							ContextKeyExpr.equals(TitleBarStyleContext.key, TitlebarStyle.NATIVE),
+					when: ContextKeyExpr.and(
+						IsSessionsWindowContext.negate(),
+						ContextKeyExpr.or(
 							ContextKeyExpr.and(
-								ContextKeyExpr.equals('config.workbench.layoutControl.enabled', false),
-								ContextKeyExpr.equals('config.window.commandCenter', false),
-								ContextKeyExpr.notEquals('config.workbench.editor.editorActionsLocation', 'titleBar'),
-								ContextKeyExpr.notEquals('config.workbench.activityBar.location', 'top'),
-								ContextKeyExpr.notEquals('config.workbench.activityBar.location', 'bottom')
-							)?.negate()
-						),
-						IsMainWindowFullscreenContext
+								ContextKeyExpr.equals(TitleBarStyleContext.key, TitlebarStyle.NATIVE),
+								ContextKeyExpr.and(
+									ContextKeyExpr.equals('config.workbench.layoutControl.enabled', false),
+									ContextKeyExpr.equals('config.window.commandCenter', false),
+									ContextKeyExpr.notEquals('config.workbench.editor.editorActionsLocation', 'titleBar'),
+									ContextKeyExpr.notEquals('config.workbench.activityBar.location', 'top'),
+									ContextKeyExpr.notEquals('config.workbench.activityBar.location', 'bottom')
+								)?.negate()
+							),
+							IsMainWindowFullscreenContext
+						)
 					),
 					group: '2_workbench_layout'
 				},

@@ -146,12 +146,15 @@ export class TestExplorerFilterState extends Disposable implements ITestExplorer
 			let nextIndex = match.index + match[0].length;
 
 			const tag = match[0];
-			if (allTestFilterTerms.includes(tag as TestFilterTerm)) {
+			const isFilterTerm = allTestFilterTerms.includes(tag as TestFilterTerm);
+			if (isFilterTerm) {
 				this.termFilterState[tag as TestFilterTerm] = true;
 			}
 
 			// recognize and parse @ctrlId:tagId or quoted like @ctrlId:"tag \\"id"
+			let isTag = false;
 			if (text[nextIndex] === ':') {
+				isTag = true;
 				nextIndex++;
 
 				let delimiter = text[nextIndex];
@@ -178,6 +181,12 @@ export class TestExplorerFilterState extends Disposable implements ITestExplorer
 					this.includeTags.add(namespaceTestTag(match[1], tagId));
 				}
 				nextIndex++;
+			}
+
+			// If the @-prefixed text is not a known filter term or tag,
+			// treat it as regular filter text (e.g., a test named "@smoke")
+			if (!isFilterTerm && !isTag) {
+				continue;
 			}
 
 			globText += text.slice(lastIndex, match.index);

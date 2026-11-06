@@ -10,7 +10,6 @@ import { URI } from '../../../../../base/common/uri.js';
 import { parse, YamlNode, YamlParseError } from '../../../../../base/common/yaml.js';
 import { Range } from '../../../../../editor/common/core/range.js';
 import { PositionOffsetTransformer } from '../../../../../editor/common/core/text/positionToOffsetImpl.js';
-import { Target } from './service/promptsService.js';
 
 export class PromptFileParser {
 	constructor() {
@@ -51,6 +50,10 @@ export class ParsedPromptFile {
 	}
 }
 
+export function isPromptFileTildePath(path: string): boolean {
+	return path === '~' || path.startsWith('~/');
+}
+
 export interface ParseError {
 	readonly message: string;
 	readonly range: Range;
@@ -69,6 +72,8 @@ export namespace PromptHeaderAttributes {
 	export const agent = 'agent';
 	export const mode = 'mode';
 	export const model = 'model';
+	export const modelPolicy = 'model-policy';
+	export const reasoningEffort = 'reasoning-effort';
 	export const applyTo = 'applyTo';
 	export const paths = 'paths';
 	export const tools = 'tools';
@@ -82,21 +87,14 @@ export namespace PromptHeaderAttributes {
 	export const compatibility = 'compatibility';
 	export const metadata = 'metadata';
 	export const agents = 'agents';
-	export const userInvokable = 'user-invokable';
 	export const userInvocable = 'user-invocable';
 	export const disableModelInvocation = 'disable-model-invocation';
-}
-
-export namespace GithubPromptHeaderAttributes {
-	export const mcpServers = 'mcp-servers';
-}
-
-export namespace ClaudeHeaderAttributes {
-	export const disallowedTools = 'disallowedTools';
-}
-
-export function isTarget(value: unknown): value is Target {
-	return value === Target.VSCode || value === Target.GitHubCopilot || value === Target.Claude || value === Target.Undefined;
+	export const hooks = 'hooks';
+	export const context = 'context';
+	export const skills = 'skills';
+	export const deferredToolLoading = 'deferred-tool-loading';
+	export const strictToolsList = 'strict-tools-list';
+	export const includeCustomInstructions = 'include-custom-instructions';
 }
 
 export class PromptHeader {
@@ -185,6 +183,15 @@ export class PromptHeader {
 		return this.getStringOrStringArrayAttribute(PromptHeaderAttributes.model);
 	}
 
+	public get reasoningEffort(): string | undefined {
+		return this.getStringAttribute(PromptHeaderAttributes.reasoningEffort);
+	}
+
+	public get modelPolicy(): 'preferred' | 'required' | undefined {
+		const policy = this.getStringAttribute(PromptHeaderAttributes.modelPolicy);
+		return policy === 'preferred' || policy === 'required' ? policy : undefined;
+	}
+
 	public get applyTo(): string | undefined {
 		return this.getStringAttribute(PromptHeaderAttributes.applyTo);
 	}
@@ -262,7 +269,7 @@ export class PromptHeader {
 							model = prop.value.value;
 						}
 					}
-					if (agent && label && prompt !== undefined) {
+					if (agent && label?.trim() && prompt !== undefined) {
 						const handoff: IHandOff = {
 							agent,
 							label,
@@ -322,12 +329,29 @@ export class PromptHeader {
 	}
 
 	public get userInvocable(): boolean | undefined {
-		// TODO: user-invokable is deprecated, remove later and only keep user-invocable
-		return this.getBooleanAttribute(PromptHeaderAttributes.userInvocable) ?? this.getBooleanAttribute(PromptHeaderAttributes.userInvokable);
+		return this.getBooleanAttribute(PromptHeaderAttributes.userInvocable);
 	}
 
 	public get disableModelInvocation(): boolean | undefined {
 		return this.getBooleanAttribute(PromptHeaderAttributes.disableModelInvocation);
+	}
+
+	public get context(): string | undefined {
+		return this.getStringAttribute(PromptHeaderAttributes.context);
+	}
+
+	/**
+	 * Gets the raw 'hooks' attribute value from the header.
+	 * Returns the YAML map value if present, or undefined. The caller is
+	 * responsible for converting this to `ChatRequestHooks` via
+	 * {@link parseSubagentHooksFromYaml}.
+	 */
+	public get hooksRaw(): IMapValue | undefined {
+		const attr = this._parsedHeader.attributes.find(a => a.key === PromptHeaderAttributes.hooks);
+		if (attr?.value.type === 'map') {
+			return attr.value;
+		}
+		return undefined;
 	}
 
 	private getBooleanAttribute(key: string): boolean | undefined {
@@ -388,6 +412,7 @@ export type IValue = IScalarValue | ISequenceValue | IMapValue;
 interface ParsedBody {
 	readonly fileReferences: readonly IBodyFileReference[];
 	readonly variableReferences: readonly IBodyVariableReference[];
+	readonly placeholderReferences: readonly IBodyPlaceholderReference[];
 	readonly bodyOffset: number;
 }
 
@@ -405,6 +430,10 @@ export class PromptBody {
 		return this.getParsedBody().variableReferences;
 	}
 
+	public get placeholderReferences(): readonly IBodyPlaceholderReference[] {
+		return this.getParsedBody().placeholderReferences;
+	}
+
 	public get offset(): number {
 		return this.getParsedBody().bodyOffset;
 	}
@@ -414,14 +443,67 @@ export class PromptBody {
 			const markdownLinkRanges: Range[] = [];
 			const fileReferences: IBodyFileReference[] = [];
 			const variableReferences: IBodyVariableReference[] = [];
+			const placeholderReferences: IBodyPlaceholderReference[] = [];
 			const bodyOffset = Iterable.reduce(Iterable.slice(this.linesWithEOL, 0, this.range.startLineNumber - 1), (len, line) => line.length + len, 0);
+			let inFencedCodeBlock = false;
+			let fencedCodeBlockFenceChar: string | undefined;
+			let fencedCodeBlockFenceLength = 0;
 			for (let i = this.range.startLineNumber - 1, lineStartOffset = bodyOffset; i < this.range.endLineNumber - 1; i++) {
 				const line = this.linesWithEOL[i];
+				const trimmedLine = line.trimStart();
+
+				// Detect fenced code block lines (``` or ~~~, 3 or more chars)
+				const fenceMatch = /^(?<fence>(`{3,}|~{3,}))/u.exec(trimmedLine);
+				if (fenceMatch) {
+					const fence = fenceMatch.groups!.fence;
+					const fenceChar = fence[0];
+					const fenceLength = fence.length;
+					const restOfLine = trimmedLine.slice(fence.length);
+
+					if (!inFencedCodeBlock) {
+						// Opening fence: record fence char/length and enter fenced code block
+						inFencedCodeBlock = true;
+						fencedCodeBlockFenceChar = fenceChar;
+						fencedCodeBlockFenceLength = fenceLength;
+						lineStartOffset += line.length;
+						continue;
+					}
+
+					// Potential closing fence: must match fence char and have at least the same length,
+					// and only whitespace is allowed after the fence.
+					if (fencedCodeBlockFenceChar === fenceChar && fenceLength >= fencedCodeBlockFenceLength && /^\s*$/.test(restOfLine)) {
+						inFencedCodeBlock = false;
+						fencedCodeBlockFenceChar = undefined;
+						fencedCodeBlockFenceLength = 0;
+						lineStartOffset += line.length;
+						continue;
+					}
+				}
+
+				// Skip all lines inside fenced code blocks
+				if (inFencedCodeBlock) {
+					lineStartOffset += line.length;
+					continue;
+				}
+
+				// Collect inline code spans (backtick-delimited) to exclude from matching
+				const inlineCodeRanges: { start: number; end: number }[] = [];
+				for (const inlineMatch of line.matchAll(/`[^`]+`/g)) {
+					inlineCodeRanges.push({ start: inlineMatch.index, end: inlineMatch.index + inlineMatch[0].length });
+				}
+
+				const isInsideInlineCode = (offset: number) => {
+					return inlineCodeRanges.some(r => offset >= r.start && offset < r.end);
+				};
+
 				// Match markdown links: [text](link)
 				const linkMatch = line.matchAll(/\[(.*?)\]\((.+?)\)/g);
 				for (const match of linkMatch) {
 					if (match.index > 0 && line[match.index - 1] === '!') {
 						continue; // skip image links
+					}
+					if (isInsideInlineCode(match.index)) {
+						continue; // skip matches inside inline code
 					}
 					const linkEndOffset = match.index + match[0].length - 1; // before the parenthesis
 					const linkStartOffset = match.index + match[0].length - match[2].length - 1;
@@ -439,6 +521,9 @@ export class PromptBody {
 					if (markdownLinkRanges.some(mdRange => Range.areIntersectingOrTouching(mdRange, fullRange))) {
 						continue;
 					}
+					if (isInsideInlineCode(match.index)) {
+						continue; // skip matches inside inline code
+					}
 					const contentMatch = match.groups?.['filePath'] || match.groups?.['toolName'];
 					if (!contentMatch) {
 						continue;
@@ -449,12 +534,21 @@ export class PromptBody {
 					if (match.groups?.['filePath']) {
 						fileReferences.push({ content: match.groups?.['filePath'], range, isMarkdownLink: false });
 					} else if (match.groups?.['toolName']) {
-						variableReferences.push({ name: match.groups?.['toolName'], range, offset: lineStartOffset + match.index });
+						variableReferences.push({ name: match.groups?.['toolName'], range, offset: lineStartOffset + match.index, fullLength: fullMatch.length });
 					}
+				}
+				for (const match of line.matchAll(/\{\{(?<placeholder>[a-zA-Z][a-zA-Z0-9]*)\}\}/g)) {
+					if (isInsideInlineCode(match.index)) {
+						continue;
+					}
+					placeholderReferences.push({
+						name: match.groups!.placeholder,
+						range: new Range(i + 1, match.index + 1, i + 1, match.index + match[0].length + 1),
+					});
 				}
 				lineStartOffset += line.length;
 			}
-			this._parsed = { fileReferences: fileReferences.sort((a, b) => Range.compareRangesUsingStarts(a.range, b.range)), variableReferences, bodyOffset };
+			this._parsed = { fileReferences: fileReferences.sort((a, b) => Range.compareRangesUsingStarts(a.range, b.range)), variableReferences, placeholderReferences, bodyOffset };
 		}
 		return this._parsed;
 	}
@@ -463,9 +557,11 @@ export class PromptBody {
 		return this.linesWithEOL.slice(this.range.startLineNumber - 1, this.range.endLineNumber - 1).join('');
 	}
 
-	public resolveFilePath(path: string): URI | undefined {
+	public resolveFilePath(path: string, userHome?: URI): URI | undefined {
 		try {
-			if (path.startsWith('/')) {
+			if (userHome && isPromptFileTildePath(path)) {
+				return path === '~' ? userHome : joinPath(userHome, path.substring(2));
+			} else if (path.startsWith('/')) {
 				return this.uri.with({ path });
 			} else if (path.match(/^[a-zA-Z]+:\//)) {
 				return URI.parse(path);
@@ -489,6 +585,12 @@ export interface IBodyVariableReference {
 	readonly name: string;
 	readonly range: Range;
 	readonly offset: number;
+	readonly fullLength: number;
+}
+
+export interface IBodyPlaceholderReference {
+	readonly name: string;
+	readonly range: Range;
 }
 
 /**
@@ -526,7 +628,18 @@ export function parseCommaSeparatedList(stringValue: IScalarValue): ISequenceVal
 			const quote = char;
 			pos++; // Skip opening quote
 
-			while (pos < input.length && input[pos] !== quote) {
+			while (pos < input.length) {
+				if (input[pos] === quote) {
+					if (quote === '\'' && input[pos + 1] === quote) {
+						value += quote;
+						pos += 2;
+						continue;
+					}
+					break;
+				}
+				if (quote === '"' && input[pos] === '\\' && (input[pos + 1] === quote || input[pos + 1] === '\\')) {
+					pos++;
+				}
 				value += input[pos];
 				pos++;
 			}
@@ -564,4 +677,13 @@ export function parseCommaSeparatedList(stringValue: IScalarValue): ISequenceVal
 	return { type: 'sequence', items: result, range: stringValue.range };
 }
 
-
+/**
+ * Returns the effective `applyTo` pattern for an instruction file.
+ * Claude rules use `paths` (defaulting to `**`), while regular instructions use `applyTo`.
+ */
+export function evaluateApplyToPattern(header: PromptHeader | undefined, isClaudeRules: boolean): string | undefined {
+	if (isClaudeRules) {
+		return header?.paths?.join(', ') ?? '**';
+	}
+	return header?.applyTo;
+}

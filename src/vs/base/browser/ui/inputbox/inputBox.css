@@ -103,4 +103,5 @@
 	background-repeat: no-repeat;
 	width: 16px;
 	height: 16px;
+	color: var(--vscode-icon-foreground);
 }

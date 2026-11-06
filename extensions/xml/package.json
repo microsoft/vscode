@@ -64,6 +64,7 @@
           ".vbproj.user",
           ".vcxproj",
           ".vcxproj.filters",
+          ".wixproj",
           ".wsdl",
           ".wxi",
           ".wxl",
