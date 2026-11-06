@@ -5110,9 +5110,14 @@ suite('CopilotAgent', () => {
 
 			const settled: string[] = [];
 			const disposed: string[] = [];
-			for (const [id, scoped] of [['shared', false], ['scoped', true]] as const) {
+			for (const [id, scoped, workingDirectory] of [
+				['shared', false, undefined],
+				['scoped', true, undefined],
+				['virtual', false, URI.from({ scheme: 'testfs', path: '/workspace' })],
+			] as const) {
 				setDefaultSessionStub(agent, id, {
 					usesScopedGitHubCredentials: scoped,
+					workingDirectory,
 					hasActiveTurn: true,
 					failActiveTurn: () => { settled.push(id); return `${id}-turn`; },
 					dispose: () => { disposed.push(id); },
@@ -5124,7 +5129,7 @@ suite('CopilotAgent', () => {
 				connection.cancel();
 			}
 			await client.waitForCalls(() => client.stopCallCount === 1);
-			assert.deepStrictEqual({ settled, disposed, remaining: [...chatEntriesBySdkId(agent).keys()] }, { settled: ['shared'], disposed: ['shared'], remaining: ['scoped'] });
+			assert.deepStrictEqual({ settled, disposed, remaining: [...chatEntriesBySdkId(agent).keys()] }, { settled: ['shared'], disposed: ['shared'], remaining: ['scoped', 'virtual'] });
 		});
 	}
 
