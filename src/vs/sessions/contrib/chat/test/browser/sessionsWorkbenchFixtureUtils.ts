@@ -44,8 +44,8 @@ import { ISessionsChatBackground, ISessionsChatBackgroundService } from '../../.
 import { ISessionsPartService } from '../../../../../workbench/contrib/sessions/browser/sessionsPartService.js';
 import { ISessionsService } from '../../../../../workbench/contrib/sessions/browser/sessionsService.js';
 import { chatOfShown, focusedSessionHostServiceOf, ITestSessionsGridState, stubSessionHosts } from '../../../../../workbench/contrib/sessions/test/browser/sessionHostTestUtils.js';
+import { ISessionGridPane } from '../../../../../workbench/contrib/sessions/browser/sessionGridPane.js';
 import { IFocusedSessionHostService } from '../../../../../workbench/contrib/sessions/browser/sessionHost.js';
-import { IActiveSession } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import { createSessionViewTestServices } from '../../../../test/browser/sessionViewTestUtils.js';
 import { AccountWidgetContribution } from '../../../accountMenu/browser/account.contribution.js';
 import { BaseLayoutController } from '../../../layout/browser/baseSessionLayoutController.js';
@@ -142,7 +142,7 @@ export function createSessionsWorkbenchFixture(context: ComponentFixtureContext,
 	const multipleSessions = MultipleSessionsVisibleContext.bindTo(services.contextKeyService);
 	const virtualWorkspace = SessionWorkspaceIsVirtualContext.bindTo(services.contextKeyService);
 	disposableStore.add(autorun(reader => {
-		multipleSessions.set(sessionsService.visibleSessions.read(reader).length > 1);
+		multipleSessions.set(sessionsService.slotPanes.read(reader).length > 1);
 		virtualWorkspace.set(chatOfShown(sessionsService.activeSession?.read(reader), reader)?.workspace.read(reader)?.isVirtualWorkspace ?? false);
 	}));
 	disposableStore.add(acquireWorkbenchActions());
@@ -220,8 +220,8 @@ export function createSessionsWorkbenchFixture(context: ComponentFixtureContext,
 	const part = disposableStore.add(instantiationService.createInstance(SessionsPart));
 	instantiationService.stub(ISessionsPartService, new class extends mock<ISessionsPartService>() {
 		override getSessionView(id: string | undefined) { return part.getSessionView(id); }
-		override toggleMaximizeSession(session: IActiveSession | undefined) { part.toggleMaximizeSession(session?.sessionId); }
-		override focusSession(session: IActiveSession | undefined) { part.focusSession(session?.sessionId); }
+		override toggleMaximizePane(pane: ISessionGridPane) { part.toggleMaximizePane(pane); }
+		override focusSession(session: Parameters<ISessionsPartService['focusSession']>[0]) { part.focusSession(session?.sessionId); }
 	}());
 	part.create(host);
 	const titlebar = disposableStore.add(instantiationService.createInstance(TitlebarPart, Parts.TITLEBAR_PART, getWindow(container)));

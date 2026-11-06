@@ -364,8 +364,8 @@ function renderAutomations(ctx: ComponentFixtureContext, options: IAutomationsFi
 			reg.defineInstance(ICustomViewService, customViewService);
 			reg.defineInstance(ISessionsManagementService, sessionsManagementService);
 			reg.defineInstance(ISessionsService, new class extends mock<ISessionsService>() {
-				override readonly visibleSessions = constObservable([]);
-				override readonly slotPanes = testGridPanes(this.visibleSessions);
+				readonly gridShown = constObservable([]);
+				override readonly slotPanes = testGridPanes(this.gridShown);
 				readonly activeSession = constObservable(undefined);
 				override async openSession(): Promise<void> { }
 			}());

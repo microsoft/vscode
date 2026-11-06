@@ -23,7 +23,6 @@ import { IChatViewFactory } from '../../../../../workbench/contrib/sessions/brow
 import { ISessionsService } from '../../../../../workbench/contrib/sessions/browser/sessionsService.js';
 import { ISessionHost } from '../../../../../workbench/contrib/sessions/browser/sessionHost.js';
 import { ChatOriginKind, IChat, ISession, ISessionWorkspace } from '../../../../../workbench/contrib/sessions/common/session.js';
-import { IActiveSession } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import { ISessionGridPane, SessionGridPaneKind } from '../../../../../workbench/contrib/sessions/browser/sessionGridPane.js';
 import { createTestActiveSession, renderTestPanes } from '../../../../test/browser/sessionViewTestUtils.js';
 import { AGENTS_FLOATING_PANEL_GAP } from '../../../../../workbench/contrib/sessions/common/layoutConstants.js';
@@ -33,7 +32,7 @@ import { createSessionsWorkbenchFixture } from './sessionsWorkbenchFixtureUtils.
 import '../../../../browser/media/style.css';
 import '../../../../browser/parts/media/editorPart.css';
 import '../../../../../workbench/contrib/sessions/browser/chat/media/chatView.css';
-import { testGridPanes } from '../../../../../workbench/contrib/sessions/test/browser/sessionHostTestUtils.js';
+import { ITestSessionWithChat, testGridPanes } from '../../../../../workbench/contrib/sessions/test/browser/sessionHostTestUtils.js';
 
 class FixtureChatView extends AbstractChatView {
 	private chat: IChat | undefined;
@@ -211,17 +210,18 @@ async function renderSessionsGrid(context: ComponentFixtureContext, options: { b
 	const [left, top, bottom] = sessions;
 	const multipleChatsSession = options.multipleChats ? sessions[multipleChatsIndex] : undefined;
 	const sessionsService = new class extends mock<ISessionsService>() {
-		readonly activeSession = observableValue<IActiveSession | undefined>(this, left);
-		override readonly visibleSessions = observableValue<readonly IActiveSession[]>(this, sessions);
-		override readonly slotPanes = testGridPanes(this.visibleSessions);
-		override setActive(session: IActiveSession | undefined): void {
+		readonly activeSession = observableValue<ITestSessionWithChat | undefined>(this, left);
+		readonly gridShown = observableValue<readonly ITestSessionWithChat[]>(this, sessions);
+		override readonly slotPanes = testGridPanes(this.gridShown);
+		/** Makes the pane of `session` the active one, as focusing it does. */
+		activate(session: ITestSessionWithChat | undefined): void {
 			this.activeSession.set(session, undefined);
 		}
 		// Its panes are the grid's slots, whose ids are their sessions' ids: none is detached. A pane's host stands for the pane
 		// whose session it shows.
 		override getPaneOfHost(host: ISessionHost): ISessionGridPane | undefined {
 			const session = host.session.get();
-			return session && this.visibleSessions.get().some(candidate => candidate === session) ? upcastPartial<ISessionGridPane>({
+			return session && this.gridShown.get().some(candidate => candidate === session) ? upcastPartial<ISessionGridPane>({
 				id: session.sessionId,
 				kind: SessionGridPaneKind.Slot,
 				session: constObservable(session),
@@ -241,9 +241,9 @@ async function renderSessionsGrid(context: ComponentFixtureContext, options: { b
 			target.sticky.set(!target.sticky.get(), undefined);
 		}
 		override closeSession(session: ISession | undefined): void {
-			const remaining = this.visibleSessions.get().filter(candidate => candidate !== session);
+			const remaining = this.gridShown.get().filter(candidate => candidate !== session);
 			transaction(tx => {
-				this.visibleSessions.set(remaining, tx);
+				this.gridShown.set(remaining, tx);
 				if (this.activeSession.get() === session) {
 					this.activeSession.set(remaining[0], tx);
 				}
@@ -292,7 +292,7 @@ async function renderSessionsGrid(context: ComponentFixtureContext, options: { b
 			...(bottom ? [{ id: bottom.sessionId, placement: { reference: top.sessionId, direction: Direction.Down } }] : []),
 		];
 	context.disposableStore.add(autorun(reader => {
-		const visible = sessionsService.visibleSessions.read(reader);
+		const visible = sessionsService.gridShown.read(reader);
 		renderTestPanes(part, visible, sessionsService.activeSession.read(reader), slots.filter(slot => visible.some(session => session.sessionId === slot.id)));
 	}));
 	layout();
@@ -391,9 +391,9 @@ async function renderSessionsGrid(context: ComponentFixtureContext, options: { b
 			);
 		}
 	}
-	context.disposableStore.add(part.onDidFocusPane(id => sessionsService.setActive(sessions.find(session => session.sessionId === id))));
+	context.disposableStore.add(part.onDidFocusPane(id => sessionsService.activate(sessions.find(session => session.sessionId === id))));
 	if (options.maximized) {
-		part.toggleMaximizeSession(left.sessionId);
+		part.toggleMaximizePane(part.getSessionView(left.sessionId)!.pane.get()!);
 	}
 	const sizes = sessions.map(session => {
 		const element = part.getSessionView(session.sessionId)!.element;
