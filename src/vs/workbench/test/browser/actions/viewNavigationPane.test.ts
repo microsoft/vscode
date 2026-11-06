@@ -64,6 +64,48 @@ suite('Workbench view navigation: rendered pane', () => {
 		}
 	});
 
+
+	test('skips a collapsed pane with a hidden header in the rendered workbench', async () => {
+		const pane = disposables.add(new NavigationTestPane());
+		const host = document.createElement('div');
+		document.body.appendChild(host);
+		host.appendChild(pane.element);
+
+		try {
+			pane.headerVisible = false;
+			const header = pane.draggableElement;
+			assert.ok(header);
+			assert.strictEqual(header.classList.contains('hidden'), true);
+
+			const container = { id: 'explorer' } as ViewContainer;
+			const opened: string[] = [];
+			const views = {
+				getFocusedView: () => ({ id: 'a' }) as IViewDescriptor,
+				getVisibleViewContainer: (location: ViewContainerLocation) =>
+					location === ViewContainerLocation.Sidebar ? container : null,
+				getActiveViewWithId: (id: string) => id === 'b' ? pane : null,
+				openView: async (id: string) => { opened.push(id); return null; }
+			} as unknown as IViewsService;
+			const descriptors = {
+				getViewContainerByViewId: (id: string) => ['a', 'b', 'c'].includes(id) ? container : null,
+				getViewContainerModel: () => ({
+					visibleViewDescriptors: [{ id: 'a' }, { id: 'b' }, { id: 'c' }],
+					isCollapsed: (id: string) => id === 'b'
+				}) as unknown as IViewContainerModel
+			} as unknown as IViewDescriptorService;
+			const layout = { isVisible: (part: Parts) => part === Parts.SIDEBAR_PART } as IWorkbenchLayoutService;
+
+			await focusNavigableView(views, descriptors, layout, { direction: 'next', scope: 'container' });
+
+			assert.deepStrictEqual(opened, ['c']);
+			assert.notStrictEqual(document.activeElement, header);
+			assert.strictEqual(pane.isExpanded(), false);
+			assert.strictEqual(pane.headerVisible, false);
+		} finally {
+			host.remove();
+		}
+	});
+
 	test('a rendered header is keyboard-focusable and retains its collapsed state', () => {
 		const pane = disposables.add(new NavigationTestPane());
 		const host = document.createElement('div');
