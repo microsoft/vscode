@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import sinon from 'sinon';
 import { DeferredPromise, timeout } from '../../../../../base/common/async.js';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { CancellationError, errorHandler, setUnexpectedErrorHandler } from '../../../../../base/common/errors.js';
@@ -27,7 +26,7 @@ import { DocumentHighlight, DocumentHighlightKind, DocumentHighlightProvider } f
 import { ITextModel } from '../../../../common/model.js';
 import { ILanguageFeaturesService } from '../../../../common/services/languageFeatures.js';
 import { IModelService } from '../../../../common/services/model.js';
-import { createCodeEditorServices, instantiateTestCodeEditor, ITestCodeEditor } from '../../../../test/browser/testCodeEditor.js';
+import { createCodeEditorServices, instantiateTestCodeEditor, ITestCodeEditor, TestCodeEditor } from '../../../../test/browser/testCodeEditor.js';
 import { createTextModel } from '../../../../test/common/testTextModel.js';
 import { TextualDocumentHighlightProvider } from '../../browser/textualHighlightProvider.js';
 import { getOccurrencesAtPosition, WordHighlighterContribution } from '../../browser/wordHighlighter.js';
@@ -284,10 +283,10 @@ suite('WordHighlighterContribution', () => {
 			const focusedModel = store.add(services.get(IModelService).createModel('other', null));
 			store.add(instantiateTestCodeEditor(services, focusedModel));
 			const ids = await renderHighlights(editor, contribution, services);
-			const editorFocus = sinon.stub(editor, 'hasTextFocus').returns(false);
-			store.add(toDisposable(() => editorFocus.restore()));
-			const otherFocus = sinon.stub(otherEditor, 'hasTextFocus').returns(false);
-			store.add(toDisposable(() => otherFocus.restore()));
+			assert.ok(editor instanceof TestCodeEditor);
+			assert.ok(otherEditor instanceof TestCodeEditor);
+			editor.setHasTextFocus(false);
+			otherEditor.setHasTextFocus(false);
 
 			editor.setModel(null);
 
@@ -295,6 +294,26 @@ suite('WordHighlighterContribution', () => {
 			otherEditor.setModel(null);
 			assert.strictEqual(ids.has(model.uri), false);
 		}, URI.from({ scheme: Schemas.vscodeNotebookCell, path: '/shared-cell' }));
+	});
+
+	test('releases stored decoration IDs when the remaining editor has no highlighter', async () => {
+		await withHighlighter({}, async (editor, contribution, services) => {
+			const model = editor.getModel();
+			const otherEditor = store.add(instantiateTestCodeEditor(services, model));
+			const focusedModel = store.add(services.get(IModelService).createModel('other', null));
+			store.add(instantiateTestCodeEditor(services, focusedModel));
+			const ids = await renderHighlights(editor, contribution, services);
+			assert.ok(editor instanceof TestCodeEditor);
+			assert.ok(otherEditor instanceof TestCodeEditor);
+			editor.setHasTextFocus(false);
+			otherEditor.setHasTextFocus(false);
+
+			editor.setModel(null);
+			const retainedAfterOwnerDetach = ids.has(model.uri);
+			otherEditor.setModel(null);
+
+			assert.deepStrictEqual({ retainedAfterOwnerDetach, retainedAfterLastDetach: ids.has(model.uri) }, { retainedAfterOwnerDetach: false, retainedAfterLastDetach: false });
+		}, URI.from({ scheme: Schemas.vscodeNotebookCell, path: '/shared-cell-without-highlighter' }));
 	});
 
 	test('cancels in-flight merged results when the setting is disabled', async () => {

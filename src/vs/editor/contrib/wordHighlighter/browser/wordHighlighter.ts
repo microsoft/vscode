@@ -465,8 +465,8 @@ class WordHighlighter {
 
 	private _removeSingleDecorations(): void {
 		if (this.editor.getModel() !== this.model) {
-			const isStillVisible = this.codeEditorService.listCodeEditors().some(editor => isEqual(editor.getModel()?.uri, this.model.uri));
-			if (!isStillVisible) {
+			const hasOtherHighlighter = this.codeEditorService.listCodeEditors().some(editor => isEqual(editor.getModel()?.uri, this.model.uri) && WordHighlighterContribution.get(editor)?.wordHighlighter);
+			if (!hasOtherHighlighter) {
 				WordHighlighter.storedDecorationIDs.delete(this.model.uri);
 			}
 			return;
