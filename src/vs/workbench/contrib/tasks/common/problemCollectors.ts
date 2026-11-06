@@ -348,24 +348,18 @@ export abstract class AbstractProblemCollector extends Disposable implements IDi
 		this.deliveredMarkers.clear();
 	}
 
-	/**
-	 * Reports the markers and cleans up the markers of the previous run.
-	 * Lines are processed asynchronously, so some may still be pending when the
-	 * task ends. The returned promise resolves once all of them have been
-	 * handled and the markers have been reported.
-	 */
-	public done(): Promise<void> {
-		if (this.tail) {
-			const finish = () => this.finish();
-			return this.tail.then(finish, finish);
-		}
-		this.finish();
-		return Promise.resolve();
-	}
-
-	private finish(): void {
+	public done(): void {
 		this.reportMarkers();
 		this.cleanAllMarkers();
+	}
+
+	/**
+	 * Resolves once the lines passed to `processLine` so far have been
+	 * processed. Lines are processed asynchronously, one after the other.
+	 */
+	protected linesProcessed(): Promise<void> {
+		const ignore = () => { };
+		return this.tail ? this.tail.then(ignore, ignore) : Promise.resolve();
 	}
 }
 
@@ -611,11 +605,18 @@ export class WatchingProblemCollector extends AbstractProblemCollector implement
 		}
 	}
 
-	public override done(): Promise<void> {
+	/**
+	 * Reports the markers and cleans up the markers of the previous run. A
+	 * background task can exit right after printing its output, before its last
+	 * lines have been processed, so this waits for them first. The returned
+	 * promise resolves once the markers have been reported.
+	 */
+	public override async done(): Promise<void> {
 		[...this.applyToByOwner.keys()].forEach(owner => {
 			this.recordResourcesToClean(owner);
 		});
-		return super.done();
+		await this.linesProcessed();
+		super.done();
 	}
 
 	public isWatching(): boolean {
