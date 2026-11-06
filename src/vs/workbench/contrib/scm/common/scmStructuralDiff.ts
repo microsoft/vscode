@@ -205,6 +205,7 @@ export function hasSCMStructuralDiffProvider(languageFeaturesService: ILanguageF
 export class SCMStructuralDiffModel extends Disposable {
 	private _enabled = false;
 	get enabled(): boolean { return this._enabled; }
+	private visible = true;
 
 	/** Whether any structural diff provider is registered, see {@link hasSCMStructuralDiffProvider}. */
 	readonly hasProvider = observableFromEvent(this, this.languageFeaturesService.structuralDiffProvider.onDidChange, () => hasSCMStructuralDiffProvider(this.languageFeaturesService));
@@ -271,6 +272,18 @@ export class SCMStructuralDiffModel extends Disposable {
 		this._onDidChange.fire(undefined);
 	}
 
+	/**
+	 * Called when the view is shown or hidden. A hidden view keeps no results and analyzes no files, even when a refresh
+	 * of its tree asks for the children of an expanded file, because refreshes can still run after the view was hidden.
+	 * Files remain expandable, so the tree keeps them expanded and loads their children when it is shown again.
+	 */
+	setVisible(visible: boolean): void {
+		this.visible = visible;
+		if (!visible) {
+			this.clear();
+		}
+	}
+
 	hasChildren(resource: ISCMResource): boolean {
 		if (!this.enabled) {
 			return false;
@@ -283,7 +296,7 @@ export class SCMStructuralDiffModel extends Disposable {
 	}
 
 	getChildren(resource: ISCMResource): Promise<readonly SCMStructuralDiffElement[]> {
-		if (this._store.isDisposed || !this.canProvide(resource)) {
+		if (this._store.isDisposed || !this.visible || !this.canProvide(resource)) {
 			return Promise.resolve([]);
 		}
 		let entry = this.entries.get(resource);
@@ -342,7 +355,7 @@ export class SCMStructuralDiffModel extends Disposable {
 		}
 	}
 
-	clear(): void {
+	private clear(): void {
 		this.changeScheduler.cancel();
 		this.pendingChanges.clear();
 		this.entries.clearAndDisposeAll();
