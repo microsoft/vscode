@@ -30,6 +30,7 @@ import { IDecorationData, IDecorationsProvider, IDecorationsService } from '../.
 import { INotebookDocumentService } from '../../../../services/notebook/common/notebookDocumentService.js';
 import { ITextFileService } from '../../../../services/textfile/common/textfiles.js';
 import { ComponentFixtureContext, createEditorServices, defineComponentFixture, defineThemedFixtureGroup, registerWorkbenchServices } from '../fixtureUtils.js';
+import { setGitDecorationColors } from './scmFixtureUtils.js';
 
 interface SCMDecorationFixture {
 	readonly resource: URI;
@@ -88,12 +89,13 @@ export default defineThemedFixtureGroup({ path: 'scm/' }, {
 		labels: { kind: 'screenshot' },
 		additionalThemes: ['darkHighContrast', 'lightHighContrast'],
 		expectedVisualDescriptions: [
-			'Five file rows each have an indented structural child. Single M, A, D, and R status letters on file and structural rows use the same text size, each is centered in an equal-width box, and their centers form one vertical column. The wider 5, M diagnostic badge ends at the same right edge and extends to the left, so its M sits slightly right of that column. Implementation annotations stay before the M on structural rows, while renames have R without an annotation. Filenames, symbol icons, and theme colors are preserved.',
+			'Five file rows each have an indented structural child. Single M, A, D, and R status letters on file and structural rows use the same text size and dimmed opacity, each is centered in an equal-width box, and their centers form one vertical column. The wider 5, M diagnostic badge ends at the same right edge and extends to the left, so its M sits slightly right of that column. Implementation annotations stay before the M on structural rows, while renames have R without an annotation. Filenames, symbol icons, and theme colors are preserved.',
 		],
 		render: context => renderResourceDecorations(context, mixedFixtureResources, 360),
 	}),
 	ResourceAndStructuralDecorationsNarrow: defineComponentFixture({
 		labels: { kind: 'screenshot' },
+		additionalThemes: ['darkHighContrast', 'lightHighContrast'],
 		expectedVisualDescriptions: [
 			'A narrow Source Control list shows files and indented structural children. Single M, A, D, and R status letters remain fully visible, each centered in an equal-width box, and their centers form one vertical column. The 5, M diagnostic badge retains its count, ends at the same right edge, and extends to the left. Long file and symbol names truncate with ellipses before the annotations and badges.',
 		],
@@ -123,13 +125,8 @@ function renderResourceDecorations({ container, disposableStore, theme, fileIcon
 	container.classList.add('scm-view');
 	container.style.width = `${width}px`;
 	container.style.padding = 'var(--vscode-spacing-size120)';
-	container.style.fontFamily = 'var(--vscode-font-family)';
 	container.style.fontSize = 'var(--vscode-fontSize-body1)';
-	container.style.setProperty('--vscode-gitDecoration-modifiedResourceForeground', 'var(--vscode-editorWarning-foreground)');
-	container.style.setProperty('--vscode-gitDecoration-addedResourceForeground', 'var(--vscode-charts-green)');
-	container.style.setProperty('--vscode-gitDecoration-untrackedResourceForeground', 'var(--vscode-charts-green)');
-	container.style.setProperty('--vscode-gitDecoration-deletedResourceForeground', 'var(--vscode-editorError-foreground)');
-	container.style.setProperty('--vscode-gitDecoration-renamedResourceForeground', 'var(--vscode-charts-yellow)');
+	setGitDecorationColors(container);
 
 	const instantiationService = createEditorServices(disposableStore, {
 		colorTheme: theme,
