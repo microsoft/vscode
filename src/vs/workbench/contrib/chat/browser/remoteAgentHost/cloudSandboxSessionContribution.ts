@@ -367,7 +367,7 @@ export abstract class CloudSandboxSessionContribution<T extends ICloudSandboxSes
 	/** Inventory scans are serialized; feed task reads use an independent coalescing lane. */
 	protected _discoverAndSeed(request: ICloudSandboxDiscoveryRequest = {}): Promise<void> {
 		const { incremental = false, retry = false, taskIds, trigger = 'manual' } = request;
-		if (!this.discoveryEnabled || !this._isEnabled() || this._store.isDisposed) {
+		if (!this._isEnabled() || this._store.isDisposed) {
 			return Promise.resolve();
 		}
 		if (taskIds) {
@@ -405,7 +405,9 @@ export abstract class CloudSandboxSessionContribution<T extends ICloudSandboxSes
 		const now = Date.now();
 		const previousInventoryAgeMs = this._lastDiscoveryAttempt === undefined ? undefined : Math.max(0, now - this._lastDiscoveryAttempt);
 		const lastFullAgeMs = this._lastFullDiscovery === undefined ? undefined : Math.max(0, now - this._lastFullDiscovery);
-		this._lastDiscoveryAttempt = now;
+		if (this.discoveryEnabled) {
+			this._lastDiscoveryAttempt = now;
+		}
 		this._discoveryIncremental = incremental && this._lastFullDiscovery !== undefined
 			&& now - this._lastFullDiscovery < FULL_DISCOVERY_INTERVAL_MS;
 		this._discoveryToken = this._enabledCts.token;
@@ -504,6 +506,11 @@ export abstract class CloudSandboxSessionContribution<T extends ICloudSandboxSes
 					Object.assign(diagnostics, { fullScanReason: 'accountChange' });
 				}
 				taskIds = undefined;
+			}
+			if (!this.discoveryEnabled) {
+				return;
+			}
+			if (!taskIds && this._lastDiscoveryAttempt === undefined) {
 				this._lastDiscoveryAttempt = Date.now();
 			}
 			if (includeArchived && !taskIds && !this._archivesLoaded) {
@@ -982,7 +989,7 @@ export abstract class CloudSandboxSessionContribution<T extends ICloudSandboxSes
 		return tasks;
 	}
 
-	protected _storeTask(task: ICloudSandboxTask): void {
+	private _storeTask(task: ICloudSandboxTask): void {
 		this._removeTaskBinding(task.taskId);
 		this._tasks.set(task.taskId, task);
 		if (task.environmentId && task.sessionId) {
@@ -1232,20 +1239,10 @@ export abstract class CloudSandboxSessionContribution<T extends ICloudSandboxSes
 	}
 
 	/** Resolve the sandbox address owning a remote-agent-host session type, if any. */
-	protected _findAddressForSessionType(sessionType: string): string | undefined {
+	private _findAddressForSessionType(sessionType: string): string | undefined {
 		const byAuthority = this._authoritiesByAddress();
 		const authority = findRemoteAgentHostSessionTypeAuthority(sessionType, byAuthority.keys());
 		return authority ? byAuthority.get(authority) : undefined;
-	}
-
-	protected _hasCachedSessionType(sessionType: string): boolean {
-		for (const key of this._storageService.keys(StorageScope.PROFILE, StorageTarget.MACHINE)) {
-			if (key.startsWith(INVENTORY_STORAGE_PREFIX) && this._readInventory(key).some(task =>
-				task.environmentId && remoteAgentHostSessionTypeId(agentHostAuthority(cloudSandboxAddress(task.environmentId)), CLOUD_SANDBOX_AGENT_PROVIDER) === sessionType)) {
-				return true;
-			}
-		}
-		return false;
 	}
 
 	/** Whether the chat surface can hand off persisted history and offline drafts to a live connection. */

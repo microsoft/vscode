@@ -19,7 +19,6 @@ import { extUriBiasedIgnorePathCase } from '../../../../../base/common/resources
 import { URI } from '../../../../../base/common/uri.js';
 import { localize } from '../../../../../nls.js';
 import { IAgentHostConnectionsService } from '../../../../../platform/agentHost/common/agentHostConnectionsService.js';
-import { isRemoteAgentHostSessionType } from '../../../../../platform/agentHost/common/agentHostSessionType.js';
 import { agentHostAuthority } from '../../../../../platform/agentHost/common/agentHostUri.js';
 import { ChangesetKind } from '../../../../../platform/agentHost/common/changesetUri.js';
 import { CLOUD_SANDBOX_AGENT_PROVIDER, CLOUD_SANDBOX_SESSION_SCHEME, CLOUD_SANDBOX_TASK_SCHEME, cloudSandboxAddress, cloudSandboxTaskResource, ICloudSandboxAgentHostService, ICloudSandboxApiService, ICloudSandboxConnectOptions, ICloudSandboxDraftPreparationService, ICloudSandboxTask, isRetryableCloudSandboxError } from '../../../../../platform/agentHost/common/cloudSandboxAgentHost.js';
@@ -33,7 +32,6 @@ import { ILogService } from '../../../../../platform/log/common/log.js';
 import { INotificationService } from '../../../../../platform/notification/common/notification.js';
 import { IProductService } from '../../../../../platform/product/common/productService.js';
 import { IProgress } from '../../../../../platform/progress/common/progress.js';
-import { Registry } from '../../../../../platform/registry/common/platform.js';
 import { IStorageService } from '../../../../../platform/storage/common/storage.js';
 import { IWorkspaceContextService } from '../../../../../platform/workspace/common/workspace.js';
 import { IWorkspaceTrustManagementService } from '../../../../../platform/workspace/common/workspaceTrust.js';
@@ -48,7 +46,7 @@ import { ISCMService } from '../../../scm/common/scm.js';
 import { ChatContextKeys } from '../../common/actions/chatContextKeys.js';
 import { isImageVariableEntry } from '../../common/attachments/chatVariableEntries.js';
 import { IChatProgress, IChatService } from '../../common/chatService/chatService.js';
-import { ChatSessionRefreshReason, ChatSessionsExtensions, IAsyncChatSessionActivationRegistry, IChatSession, IChatSessionItemController, IChatSessionItemsDelta, IChatSessionProviderOptionGroup, IChatSessionProviderOptionItem, IChatSessionsService, ReadonlyChatSessionOptionsMap, SessionType } from '../../common/chatSessionsService.js';
+import { ChatSessionRefreshReason, IChatSession, IChatSessionItemController, IChatSessionItemsDelta, IChatSessionProviderOptionGroup, IChatSessionProviderOptionItem, IChatSessionsService, ReadonlyChatSessionOptionsMap, SessionType } from '../../common/chatSessionsService.js';
 import { ChatAgentLocation, ChatConfiguration, ChatModeKind } from '../../common/constants.js';
 import { IChatRequestModel } from '../../common/model/chatModel.js';
 import { isUntitledChatSession } from '../../common/model/chatUri.js';
@@ -259,25 +257,10 @@ export class EditorCloudSandboxSessionContribution extends CloudSandboxSessionCo
 		this._discoveryRequested = viewsService.isViewVisible(ChatViewId);
 		this._register(viewsService.onDidChangeViewVisibility(event => {
 			if (event.id === ChatViewId && event.visible && !this._discoveryRequested) {
-				void this._requestDiscovery();
+				this._requestDiscovery();
 			}
 		}));
 		this._updateRegistration();
-		this._register(Registry.as<IAsyncChatSessionActivationRegistry>(ChatSessionsExtensions.AsyncActivation).register({
-			priority: 2,
-			matchSessionType: sessionType => isRemoteAgentHostSessionType(sessionType)
-				&& (this._findAddressForSessionType(sessionType) !== undefined || this._hasCachedSessionType(sessionType)),
-			waitForActivation: async (_accessor, sessionType) => {
-				if (!this._isEnabled()) {
-					return false;
-				}
-				await this._restoreInventory();
-				if (!this._isEnabled()) {
-					return false;
-				}
-				return this._findAddressForSessionType(sessionType) !== undefined && this._waitForActivation(sessionType);
-			},
-		}));
 		const widgetListeners = this._register(new DisposableMap<IChatWidget, DisposableStore>());
 		for (const widget of this._chatWidgetService.getAllWidgets()) {
 			widgetListeners.set(widget, this._watchDraftInput(widget));
@@ -298,74 +281,34 @@ export class EditorCloudSandboxSessionContribution extends CloudSandboxSessionCo
 		}));
 	}
 
-	private _requestDiscovery(): Promise<void> {
-		if (this._discoveryRequested) {
-			return this._refreshIfStale('automatic');
-		}
-		this._discoveryRequested = true;
-		return this._discoverAndSeed({ trigger: 'startup' });
-	}
-
-	private async _restoreInventory(): Promise<void> {
-		const accountKey = await this._apiService.getAccountKey();
-		if (this._isEnabled() && this._restoreAccount(accountKey)) {
-			void this._discoverAndSeed({ trigger: 'accountChange', retry: true });
-		}
-	}
-
-	protected override async _waitForActivation(sessionType: string): Promise<boolean> {
-		const address = this._findAddressForSessionType(sessionType);
-		const task = address && [...this._tasks.values()].find(task => task.environmentId && cloudSandboxAddress(task.environmentId) === address);
+	private _requestDiscovery(): void {
 		if (!this._discoveryRequested) {
-			await this._requestDiscovery();
+			this._discoveryRequested = true;
+			void this._discoverAndSeed({ trigger: 'startup' });
 		}
-		if (task && !this._tasks.has(task.taskId)) {
-			await this._resolveTask(task.taskId, this._enabledCts.token);
-		}
+	}
+
+	protected override _waitForActivation(sessionType: string): Promise<boolean> {
+		this._requestDiscovery();
 		return super._waitForActivation(sessionType);
 	}
 
-	protected override async _resolveTask(taskId: string, token: CancellationToken): Promise<CloudSandboxSessionListController> {
-		if (!this._tasks.has(taskId) && this._isEnabled() && !token.isCancellationRequested) {
-			const generation = this._enabledCts.token;
-			// An explicitly opened conversation may be outside the initial bounded catalog.
-			const task = await this._apiService.resolveSession(taskId, token);
-			if (token.isCancellationRequested || generation.isCancellationRequested || !this._isEnabled()) {
-				throw new CancellationError();
-			}
-			this._storeTask(task);
-			this._onTasksChanged([task], []);
-		}
-		return super._resolveTask(taskId, token);
-	}
-
-	protected override async _openTask(resource: URI, token: CancellationToken) {
-		if (token.isCancellationRequested) {
-			throw new CancellationError();
-		}
-		if (!this._discoveryRequested || !this._tasks.has(resource.path.slice(1))) {
-			await this._requestDiscovery();
+	protected override _openTask(resource: URI, token: CancellationToken) {
+		if (!token.isCancellationRequested) {
+			this._requestDiscovery();
 		}
 		return super._openTask(resource, token);
 	}
 
-	protected override async _prepareTaskRequest(resource: URI, token: CancellationToken) {
-		if (token.isCancellationRequested) {
-			throw new CancellationError();
-		}
-		if (!this._discoveryRequested || !this._tasks.has(resource.path.slice(1))) {
-			await this._requestDiscovery();
+	protected override _prepareTaskRequest(resource: URI, token: CancellationToken) {
+		if (!token.isCancellationRequested) {
+			this._requestDiscovery();
 		}
 		return super._prepareTaskRequest(resource, token);
 	}
 
-	override async connect(options: ICloudSandboxConnectOptions): Promise<string> {
-		if (!this.accountKey && this._isEnabled()) {
-			await this._restoreInventory();
-		}
-		if (!this._discoveryRequested) {
-			void this._requestDiscovery();
-		}
+	override connect(options: ICloudSandboxConnectOptions): Promise<string> {
+		this._requestDiscovery();
 		return super.connect(options);
 	}
 
@@ -481,9 +424,7 @@ export class EditorCloudSandboxSessionContribution extends CloudSandboxSessionCo
 					if (!isUntitledChatSession(sessionResource)) {
 						throw new Error(`Sandbox session ${sessionResource.toString()} is served by its environment's session type.`);
 					}
-					if (!this._discoveryRequested) {
-						void this._requestDiscovery();
-					}
+					this._requestDiscovery();
 					draftModels.load();
 					// Blocked while the first turn provisions, so no follow-up can queue on a draft that is
 					// about to be replaced; the Agents window keeps its placeholder read-only the same way.
@@ -639,6 +580,7 @@ export class EditorCloudSandboxSessionContribution extends CloudSandboxSessionCo
 	}
 
 	async getNewChatSessionInputState(): Promise<readonly IChatSessionProviderOptionGroup[] | undefined> {
+		this._requestDiscovery();
 		this._draftModels.value?.load();
 		return this._draftOptionGroups.get();
 	}
@@ -656,6 +598,7 @@ export class EditorCloudSandboxSessionContribution extends CloudSandboxSessionCo
 		if (token.isCancellationRequested) {
 			throw new CancellationError();
 		}
+		this._requestDiscovery();
 		// The draft may be sent before a slow Git lookup has settled.
 		await waitForState(this._workspaceRepositoryChoices, choices => choices !== undefined, undefined, token);
 		const draftOptions = this._editorChatSessionsService.getSessionOptions(draftResource);
@@ -674,20 +617,6 @@ export class EditorCloudSandboxSessionContribution extends CloudSandboxSessionCo
 		const inputBlocked = this._draftInputBlocked.get(draftResource);
 		inputBlocked?.set(true, undefined);
 		try {
-			if (!this.accountKey && this._isEnabled()) {
-				try {
-					await this._restoreInventory();
-				} catch (error) {
-					if (isCancellationError(error) || token.isCancellationRequested) {
-						throw new CancellationError();
-					}
-					this._editorLogService.error('[CloudSandbox] Could not restore the cloud account before creation.', error);
-					throw this._instantiationService.createInstance(CloudSandboxStartupError, error, 'preparation');
-				}
-			}
-			if (!this._discoveryRequested) {
-				void this._requestDiscovery();
-			}
 			const { sessionResource, sessionType } = await this._provisionForDraft(draftResource, repoNwo, request.message, readCloudSandboxDraftConfig(draftOptions, this._draftConfig.get()), { report }, token, request);
 			// Session-option lookups for the new session resolve to the draft's picks.
 			this._editorChatSessionsService.registerSessionResourceAlias(draftResource, sessionResource);
