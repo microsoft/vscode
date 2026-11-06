@@ -5,7 +5,7 @@
 
 import { derived, IObservable, IReader } from '../../../../base/common/observable.js';
 import { IChat, ISession } from '../common/session.js';
-import { IPaneViewState, ISessionPaneTabs } from '../common/sessionsManagement.js';
+import { IPaneViewState, ISessionPaneTabs } from '../common/sessionPane.js';
 
 export const enum SessionGridPaneKind {
 	/** A session's own slot, with its tab strip; or the new-session slot, without a session. */

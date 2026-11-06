@@ -10,7 +10,6 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../base/test/comm
 import { DisposableStore, toDisposable } from '../../../base/common/lifecycle.js';
 import { constObservable, disposableObservableValue, observableValue } from '../../../base/common/observable.js';
 import { mock } from '../../../base/test/common/mock.js';
-import { ISessionPaneContent } from '../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import { ISession, ISessionPreparationProgress, SessionStatus } from '../../../workbench/contrib/sessions/common/session.js';
 import { ISelectWorkspaceOptions, WorkspaceSelectionResult } from '../../../workbench/contrib/sessions/common/workspaceSelection.js';
 import { AbstractChatView, ChatViewKind, IChatViewOptions } from '../../../workbench/contrib/sessions/browser/parts/chatView.js';
@@ -35,6 +34,7 @@ import { LocalSelectionTransfer } from '../../../platform/dnd/browser/dnd.js';
 import { DraggedSessionIdentifier, SessionsDataTransfers } from '../../../workbench/contrib/sessions/browser/dnd.js';
 import { IChatViewFactory } from '../../../workbench/contrib/sessions/browser/chatViewFactory.js';
 import { stubSessionsHostLayout } from './sessionsHostLayoutTestUtils.js';
+import { ISessionPaneContent } from '../../../workbench/contrib/sessions/common/sessionPane.js';
 
 suite('Sessions - Session View', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();

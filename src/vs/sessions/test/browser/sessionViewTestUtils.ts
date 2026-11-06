@@ -39,11 +39,12 @@ import { ITestSessionWithChat, LegacyFakePaneState, stubSessionHosts } from '../
 import { ChatHostOpenerService, IChatHostOpenerService } from '../../../workbench/contrib/sessions/browser/chatHostOpener.js';
 import { ISessionChangesStatsCache } from '../../../workbench/contrib/sessions/common/sessionChangesStatsCache.js';
 import { SessionInputPickerVisibility } from '../../../workbench/contrib/sessions/common/sessionPickerVisibility.js';
-import { ISessionPaneTabs, ISessionsManagementService } from '../../../workbench/contrib/sessions/common/sessionsManagement.js';
+import { ISessionsManagementService } from '../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import { ISessionGridPane, SessionGridPaneKind } from '../../../workbench/contrib/sessions/browser/sessionGridPane.js';
 import { Parts } from '../../../workbench/services/layout/browser/layoutService.js';
 import { MobileSessionsPart } from '../../browser/parts/mobile/mobileSessionsPart.js';
 import { stubSessionsHostLayout } from './sessionsHostLayoutTestUtils.js';
+import { ISessionPaneTabs } from '../../../workbench/contrib/sessions/common/sessionPane.js';
 
 export class TestChatView extends AbstractChatView {
 	readonly inputPickerVisibility = this._register(new SessionInputPickerVisibility());

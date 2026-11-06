@@ -12,7 +12,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/
 import { NullLogService } from '../../../../../../platform/log/common/log.js';
 import { ISessionsService } from '../../../browser/sessionsService.js';
 import { IChat, SessionStatus } from '../../../common/session.js';
-import { ICreateNewChatInSessionOptions, ISessionsManagementService, shownChatOf } from '../../../common/sessionsManagement.js';
+import { ICreateNewChatInSessionOptions, ISessionsManagementService } from '../../../common/sessionsManagement.js';
 import { NewChatInSessionWidget } from '../../../browser/chat/newChatInSessionWidget.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
@@ -30,6 +30,7 @@ import { TestAccessibilityService } from '../../../../../../platform/accessibili
 import { IFileService } from '../../../../../../platform/files/common/files.js';
 import { ITestSessionWithChat, withCreatedStatus } from '../sessionHostTestUtils.js';
 import { ISessionHost } from '../../../browser/sessionHost.js';
+import { shownChatOf } from '../../../common/sessionPane.js';
 
 class TestNewChatInSessionWidget extends NewChatInSessionWidget {
 	send(query: string, background: boolean): Promise<boolean> {

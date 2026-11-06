@@ -40,7 +40,7 @@ import { ISessionsListModelService } from '../../../workbench/contrib/sessions/b
 import { ISessionsPartService } from '../../../workbench/contrib/sessions/browser/sessionsPartService.js';
 import { ISessionsService } from '../../../workbench/contrib/sessions/browser/sessionsService.js';
 import { ChatInteractivity, ChatOriginKind, IChat, ISession, ISessionCapabilities, SessionStatus } from '../../../workbench/contrib/sessions/common/session.js';
-import { ISessionPaneTabs, ISessionsManagementService } from '../../../workbench/contrib/sessions/common/sessionsManagement.js';
+import { ISessionsManagementService } from '../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import { ITestSessionWithChat } from '../../../workbench/contrib/sessions/test/browser/sessionHostTestUtils.js';
 import { ISessionsProvider } from '../../../workbench/contrib/sessions/common/sessionsProvider.js';
 import '../../../workbench/contrib/sessions/browser/parts/media/chatGroupsView.css';
@@ -54,6 +54,7 @@ import '../../../workbench/contrib/modernUI/browser/media/tabs.css';
 // eslint-disable-next-line local/code-import-patterns -- Test the presentation supplied by the editor contribution.
 import '../../../workbench/contrib/modernUI/browser/connectedEditorTabs.js';
 import { ISessionHost } from '../../../workbench/contrib/sessions/browser/sessionHost.js';
+import { ISessionPaneTabs } from '../../../workbench/contrib/sessions/common/sessionPane.js';
 
 class TestResizeObserver implements ResizeObserver {
 	static instance: TestResizeObserver | undefined;

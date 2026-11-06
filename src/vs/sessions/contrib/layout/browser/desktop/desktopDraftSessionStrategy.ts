@@ -39,7 +39,7 @@ import {
 	DesktopLayoutStrategy,
 } from './desktopLayoutStrategy.js';
 import { SessionVisibilityProfile, DesktopVisibilityProfileStore } from './desktopVisibilityProfileStore.js';
-import { IShownChat } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
+import { IShownChat } from '../../../../../workbench/contrib/sessions/common/sessionPane.js';
 
 /**
  * Owns workspace-backed and workspace-less draft layout behavior.

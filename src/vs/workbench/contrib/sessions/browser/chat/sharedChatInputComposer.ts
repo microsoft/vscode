@@ -58,7 +58,6 @@ import { ISessionsProvidersService, observeSessionSandboxToggle } from '../sessi
 import { ISessionHost, ISessionHostService, SessionHost, SessionHostKind } from '../sessionHost.js';
 import { IChat } from '../../common/session.js';
 import { ChatInputSupportsBackgroundContext } from '../../common/contextkeys.js';
-import { shownChatOf } from '../../common/sessionsManagement.js';
 import { ISessionInputPickerVisibility, SessionInputPickerVisibility } from '../../common/sessionPickerVisibility.js';
 import { WorkbenchHoverDelegate } from '../../../../../platform/hover/browser/hover.js';
 import { HoverStyle } from '../../../../../base/browser/ui/hover/hover.js';
@@ -78,6 +77,7 @@ import { ChatInputPickerResponsiveLayout } from '../../../chat/browser/widget/in
 import { markOnboardingTarget } from '../../../onboarding/browser/spotlight/onboardingTarget.js';
 import { isPhoneLayout } from '../../../../browser/parts/sessions/mobileLayout.js';
 import { installMobileChipLaneScroll } from '../mobile/mobileChipLaneScroll.js';
+import { shownChatOf } from '../../common/sessionPane.js';
 
 /** Body height the composer lays its chat widget out with; the transcript is hidden, so it only bounds the input. */
 const COMPOSER_LAYOUT_HEIGHT = 200;

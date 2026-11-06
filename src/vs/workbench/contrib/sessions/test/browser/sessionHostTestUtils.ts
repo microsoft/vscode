@@ -19,7 +19,7 @@ import { ISessionsService } from '../../browser/sessionsService.js';
 import { ISessionsPartService, ISessionView } from '../../browser/sessionsPartService.js';
 import { ISessionGridPane, SessionGridPaneKind } from '../../browser/sessionGridPane.js';
 import { IChat, ISession, SessionStatus } from '../../common/session.js';
-import { IPaneViewState, ISessionPaneContent, ISessionPaneTabs } from '../../common/sessionsManagement.js';
+import { IPaneViewState, ISessionPaneContent, ISessionPaneTabs } from '../../common/sessionPane.js';
 
 /**
  * What a test's host or pane shows: the provider's session and the chat of it, and, for a pane of the grid, its pin, tab

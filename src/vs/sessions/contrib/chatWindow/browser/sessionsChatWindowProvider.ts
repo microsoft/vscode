@@ -40,7 +40,7 @@ import { bindSessionHostScopeContext, getMainWindowHost, ISessionHost, ISessionH
 import { ISessionsService } from '../../../../workbench/contrib/sessions/browser/sessionsService.js';
 import { IChatHostOpenerService } from '../../../../workbench/contrib/sessions/browser/chatHostOpener.js';
 import { IChat, ISession } from '../../../../workbench/contrib/sessions/common/session.js';
-import { ISessionPaneContent, ISessionsManagementService } from '../../../../workbench/contrib/sessions/common/sessionsManagement.js';
+import { ISessionsManagementService } from '../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import { bindSessionScopeContextKeys } from '../../../../workbench/contrib/sessionChanges/browser/sessionActionsHost.js';
 import { SessionChangesEditorFileListContext } from '../../../../workbench/contrib/sessions/common/changes.js';
 import { IChangesViewService } from '../../../../workbench/contrib/sessions/common/changesViewService.js';
@@ -52,6 +52,7 @@ import { ISessionsListModelService } from '../../../../workbench/contrib/session
 import { ISessionsProvidersService } from '../../../../workbench/contrib/sessions/browser/sessionsProvidersService.js';
 import { getSessionAgentMergeConfigurationObservable } from '../../../../workbench/contrib/sessions/browser/sessionAgentMerge.js';
 import { ChatEditorContent } from '../../chatEditor/browser/chatEditorContent.js';
+import { ISessionPaneContent } from '../../../../workbench/contrib/sessions/common/sessionPane.js';
 
 /** The class of the element of an Agents chat window. */
 export const AGENTS_CHAT_WINDOW_CLASS = 'agents-chat-window';

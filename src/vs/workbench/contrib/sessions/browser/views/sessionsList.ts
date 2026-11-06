@@ -79,7 +79,7 @@ import { createSessionActionViewItemProvider, getSessionArchiveActionViewItemOpt
 import { HoverStyle, IDelayedHoverOptions } from '../../../../../base/browser/ui/hover/hover.js';
 import { HoverPosition } from '../../../../../base/browser/ui/hover/hoverWidget.js';
 import { getDefaultHoverDelegate } from '../../../../../base/browser/ui/hover/hoverDelegateFactory.js';
-import { inheritableSessionTarget, ISessionsManagementService, IShownChat } from '../../common/sessionsManagement.js';
+import { inheritableSessionTarget, ISessionsManagementService } from '../../common/sessionsManagement.js';
 import { getMainWindowHost, ISessionHostService, shownChatOf } from '../sessionHost.js';
 import { getSessionComparisonChat, getSessionComparisonHarnessLabel, getSessionComparisonParticipantsInDisplayOrder, ISessionComparison, ISessionComparisonService, SessionComparisonParticipantRole } from '../../common/sessionComparison.js';
 import { ISessionsService } from '../sessionsService.js';
@@ -139,6 +139,7 @@ import { KeybindingLabel } from '../../../../../base/browser/ui/keybindingLabel/
 import { IPinnedCanvas, IPinnedCanvasService, PINNED_CANVAS_PAGE_ID, PinnedCanvasConnectedContext, PinnedCanvasState } from '../pinnedCanvases.js';
 import { logSessionsInteraction } from '../../common/sessionsTelemetry.js';
 import { ISessionGridPane } from '../sessionGridPane.js';
+import { IShownChat } from '../../common/sessionPane.js';
 
 const $ = DOM.$;
 

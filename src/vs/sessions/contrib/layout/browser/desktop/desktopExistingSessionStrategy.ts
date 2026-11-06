@@ -28,7 +28,6 @@ import { IAgentWorkbenchLayoutService, ISidePaneState, ISidePaneToggleEvent } fr
 import { DesktopLayoutContext } from '../../../../../workbench/contrib/sessions/common/contextkeys.js';
 import { HasDockedDetailsContext } from '../../../../common/agentsWindowContextKeys.js';
 import { DockedEditorInput } from '../../../../../workbench/browser/parts/editor/dockedEditorInput.js';
-import { IShownChat } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import { ISessionWorkspace, isSessionCreated, SessionStatus, ISession } from '../../../../../workbench/contrib/sessions/common/session.js';
 import { ISessionChangesService } from '../../../../../workbench/contrib/sessionChanges/browser/sessionChangesService.js';
 import { EmptyFileEditorInput } from '../../../../../workbench/contrib/sessions/browser/emptyFileEditorInput.js';
@@ -38,6 +37,7 @@ import { FilesDetailsState, getFilesDetailsState, isChangesEditorInput, isEditor
 import { IDesktopLayoutContext, DesktopLayoutStrategy } from './desktopLayoutStrategy.js';
 import { ISidePaneVisibilityState, SessionVisibilityProfile, DesktopVisibilityProfileStore } from './desktopVisibilityProfileStore.js';
 import { ISessionEditorWorkingSetService } from '../../common/sessionEditorWorkingSet.js';
+import { IShownChat } from '../../../../../workbench/contrib/sessions/common/sessionPane.js';
 
 /** Command that toggles the desktop detail panel (auxiliary bar) from the editor header. */
 export const TOGGLE_DETAILS_COMMAND_ID = 'workbench.action.agentSessions.toggleDetails';
