@@ -50,7 +50,7 @@ suite('Agent Host Provider Integration - Copilot grep search nudge', function ()
 					definition: {
 						type: 'multi-turn',
 						turns: [
-							{ kind: 'tool-calls', toolCalls: [grep, grep] },
+							{ kind: 'tool-calls', toolCalls: [grep, { ...grep, arguments: { ...grep.arguments, pattern: 'MATCH_PROOF' } }] },
 							{
 								kind: 'tool-calls',
 								toolCalls: [retryGrep ? grep : {
@@ -92,7 +92,7 @@ suite('Agent Host Provider Integration - Copilot grep search nudge', function ()
 				const completions = connection.receivedNotifications(notification => isActionNotification(notification, ActionType.ChatToolCallComplete))
 					.map(notification => getActionEnvelope(notification).action)
 					.filter(action => action.type === ActionType.ChatToolCallComplete);
-				assert.deepStrictEqual(completions.map(action => action.result.success), [false, false, true], 'Both original calls must be deferred; only the next model response may retry');
+				assert.deepStrictEqual(completions.map(action => action.result.success).sort(), [false, true, true], 'Only one grep is deferred per user message, including parallel calls and retries');
 			} else {
 				const starts = connection.receivedNotifications(notification => isActionNotification(notification, ActionType.ChatToolCallStart)).map(notification => getActionEnvelope(notification).action);
 				const search = starts.find(action => action.type === ActionType.ChatToolCallStart && action.toolName === 'search_code_subagent');

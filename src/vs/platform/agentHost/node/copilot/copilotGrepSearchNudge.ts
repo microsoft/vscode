@@ -3,12 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import type { CopilotSession, CurrentToolMetadata, SessionEventPayload, SessionHooks } from '@github/copilot-sdk';
+import type { CopilotSession, CurrentToolMetadata, SessionEvent, SessionEventPayload, SessionHooks } from '@github/copilot-sdk';
 import { raceCancellationError, raceTimeout } from '../../../../base/common/async.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
 import { CancellationError, isCancellationError } from '../../../../base/common/errors.js';
 import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.js';
-import { stableStringify } from '../../../../base/common/objects.js';
 import { ILogService } from '../../../log/common/log.js';
 import { ITelemetryService } from '../../../telemetry/common/telemetry.js';
 import { CopilotCliConfigKey, copilotCliConfigSchema, CopilotSearchSubagentGrepNudgeSettingId } from '../../common/copilotCliConfig.js';
@@ -21,22 +20,17 @@ type PreToolUseHookInput = Parameters<NonNullable<SessionHooks['onPreToolUse']>>
 type PreToolUseHookOutput = Awaited<ReturnType<NonNullable<SessionHooks['onPreToolUse']>>>;
 
 const LOOKUP_BUDGET_MS = 500;
-const HISTORY_PAGE_SIZE = 100;
-const MAX_HISTORY_PAGES = 3;
 
-/** Defers a root grep call once, without granting permission to its retry. */
+/** Defers at most one root grep per user message, without granting tool permission. */
 export class CopilotGrepSearchNudge extends Disposable {
 	private _messageId: string | undefined;
 	private readonly _userMessageIds = new Set<string>();
-	private _historyInitialization: Promise<void> | undefined;
 	private _historyGeneration = 0;
-	private _messageGeneration = 0;
-	private _historyScanLimitReached = false;
-	private _modelResponseId: string | undefined;
-	private readonly _pendingRetries = new Map<string, string>();
+	private _evaluatedMessageId: string | undefined;
 	private readonly _experimentTrigger: AgentHostSettingExperimentTrigger;
 
 	constructor(
+		private _historyKnown: boolean,
 		@IAgentConfigurationService private readonly _configurationService: IAgentConfigurationService,
 		@ITelemetryService telemetryService: ITelemetryService,
 		@ILogService private readonly _logService: ILogService,
@@ -51,23 +45,34 @@ export class CopilotGrepSearchNudge extends Disposable {
 		}
 		this._userMessageIds.add(event.id);
 		this._messageId = event.id;
-		this._messageGeneration++;
-		this._pendingRetries.clear();
 	}
 
-	recordModelResponse(responseId: string): void {
-		this._modelResponseId = responseId;
+	/** Reuses normal history restoration in both experiment arms, without adding an eligibility RPC. */
+	async trackHistory(read: Promise<readonly SessionEvent[]>): Promise<readonly SessionEvent[]> {
+		const generation = this._historyGeneration;
+		const events = await read;
+		if (generation === this._historyGeneration) {
+			const liveMessageId = this._messageId;
+			for (const event of events) {
+				if (this._userMessageIds.size >= 3) {
+					break;
+				}
+				if (event.type === 'user.message') {
+					this.recordUserMessage(event);
+				}
+			}
+			this._messageId = liveMessageId ?? this._messageId;
+			this._historyKnown = true;
+		}
+		return events;
 	}
 
 	resetHistory(): void {
 		this._historyGeneration++;
-		this._messageGeneration++;
 		this._messageId = undefined;
-		this._modelResponseId = undefined;
 		this._userMessageIds.clear();
-		this._historyInitialization = undefined;
-		this._historyScanLimitReached = false;
-		this._pendingRetries.clear();
+		this._historyKnown = false;
+		this._evaluatedMessageId = undefined;
 	}
 
 	async evaluate(input: PreToolUseHookInput, session: CopilotSession, token: CancellationToken): Promise<PreToolUseHookOutput> {
@@ -76,39 +81,32 @@ export class CopilotGrepSearchNudge extends Disposable {
 			return undefined;
 		}
 
-		// Use an arm-independent superset so the control arm needs no eligibility RPCs.
-		this._experimentTrigger.report();
-		if (this._configurationService.getRootValue(copilotCliConfigSchema, CopilotCliConfigKey.SearchSubagentGrepNudge) !== true) {
-			this._pendingRetries.clear();
-			return undefined;
-		}
-		const modelResponseId = this._modelResponseId;
-		if (this._userMessageIds.size >= 3 || this._historyScanLimitReached || !modelResponseId) {
+		if (!this._historyKnown || !this._messageId || this._userMessageIds.size >= 3
+			|| this._configurationService.getRootValue(copilotCliConfigSchema, CopilotCliConfigKey.SearchSubagent) !== true) {
 			return undefined;
 		}
 
-		const messageGeneration = this._messageGeneration;
+		// These local eligibility checks are identical in control and treatment.
+		this._experimentTrigger.report();
+		if (this._configurationService.getRootValue(copilotCliConfigSchema, CopilotCliConfigKey.SearchSubagentGrepNudge) !== true) {
+			return undefined;
+		}
+		const messageId = this._messageId;
+		if (this._evaluatedMessageId === messageId) {
+			return undefined;
+		}
+
+		// Reserve before awaiting so parallel calls share the one-lookup-per-message budget.
+		this._evaluatedMessageId = messageId;
 		const historyGeneration = this._historyGeneration;
 		const deadline = Date.now() + LOOKUP_BUDGET_MS;
 		let search: CurrentToolMetadata | undefined;
 		try {
-			await (this._historyInitialization ??= this._initializeUserMessages(session, token, deadline, historyGeneration).catch(error => {
-				if (historyGeneration === this._historyGeneration) {
-					this._historyInitialization = undefined;
-				}
-				throw error;
-			}));
-			if (messageGeneration !== this._messageGeneration || this._userMessageIds.size >= 3 || this._historyScanLimitReached || !this._messageId) {
-				return undefined;
-			}
 			const { tools } = await this._readWithinBudget(() => session.rpc.tools.getCurrentMetadata(), token, deadline);
 			search = tools?.find(tool => tool.name === CopilotToolName.SearchCodeSubagent);
 		} catch (error) {
 			if (isCancellationError(error) || token.isCancellationRequested) {
 				throw new CancellationError();
-			}
-			if (messageGeneration === this._messageGeneration) {
-				this._pendingRetries.clear();
 			}
 			this._logService.warn('[CopilotGrepSearchNudge] Could not determine nudge eligibility; continuing through normal tool checks.', error);
 			return undefined;
@@ -116,31 +114,23 @@ export class CopilotGrepSearchNudge extends Disposable {
 		if (token.isCancellationRequested) {
 			throw new CancellationError();
 		}
-		if (messageGeneration !== this._messageGeneration || modelResponseId !== this._modelResponseId || this._userMessageIds.size >= 3) {
+		if (historyGeneration !== this._historyGeneration || messageId !== this._messageId || this._userMessageIds.size >= 3) {
 			return undefined;
 		}
 
 		if (!search) {
-			this._pendingRetries.clear();
 			return undefined;
 		}
 
-		if (this._configurationService.getRootValue(copilotCliConfigSchema, CopilotCliConfigKey.SearchSubagentGrepNudge) !== true) {
-			this._pendingRetries.clear();
+		if (this._configurationService.getRootValue(copilotCliConfigSchema, CopilotCliConfigKey.SearchSubagentGrepNudge) !== true
+			|| this._configurationService.getRootValue(copilotCliConfigSchema, CopilotCliConfigKey.SearchSubagent) !== true) {
 			return undefined;
 		}
 
-		const key = stableStringify({ tool: input.toolName, arguments: input.toolArgs });
-		const nudgedResponseId = this._pendingRetries.get(key);
-		if (nudgedResponseId !== undefined && nudgedResponseId !== modelResponseId) {
-			this._pendingRetries.delete(key);
-			return undefined;
-		}
-		this._pendingRetries.set(key, modelResponseId);
 		const message = [
 			`This ${input.toolName} search has NOT run. Are you sure grep is the best next step? Consider ${search.name} for code exploration instead.`,
 			`Call ${search.name} as a normal tool call using the definition below, not as JSON in assistant text.`,
-			`If grep is still preferable, repeat this exact ${input.toolName} call with the same arguments. Only that retry will proceed through normal permissions. Do not ask the user to confirm.`,
+			`If grep is still preferable, call ${input.toolName} again. Further grep calls for this user message proceed through normal permissions without another nudge. Do not ask the user to confirm.`,
 			JSON.stringify({ name: search.name, description: search.description, input_schema: search.input_schema }),
 		].join('\n\n');
 		return { permissionDecision: 'deny', permissionDecisionReason: message, additionalContext: message };
@@ -165,57 +155,6 @@ export class CopilotGrepSearchNudge extends Disposable {
 		} finally {
 			cts.cancel();
 			store.dispose();
-		}
-	}
-
-	private async _initializeUserMessages(session: CopilotSession, token: CancellationToken, deadline: number, generation: number): Promise<void> {
-		let cursor: string | undefined;
-		let latestMessageId: string | undefined;
-		const userMessageIds = new Set<string>();
-		const seenCursors = new Set<string>();
-		for (let pageIndex = 0; pageIndex < MAX_HISTORY_PAGES; pageIndex++) {
-			if (token.isCancellationRequested) {
-				throw new CancellationError();
-			}
-			const page = await this._readWithinBudget(() => session.rpc.eventLog.read({ cursor, max: HISTORY_PAGE_SIZE, direction: 'backward', types: ['user.message'], agentScope: 'primary', includeEphemeral: false }), token, deadline);
-			if (token.isCancellationRequested) {
-				throw new CancellationError();
-			}
-			if (generation !== this._historyGeneration) {
-				return;
-			}
-			if (page.cursorStatus !== 'ok' || (page.hasMore && (!page.cursor || seenCursors.has(page.cursor)))) {
-				throw new Error('Cannot determine the grep nudge turn boundary: invalid session history cursor.');
-			}
-			for (const event of page.events.toReversed()) {
-				if (event.type === 'user.message' && !event.agentId && !isSyntheticUserMessage(event)) {
-					latestMessageId ??= event.id;
-					userMessageIds.add(event.id);
-					if (userMessageIds.size >= 3) {
-						break;
-					}
-				}
-			}
-			if (!page.hasMore || userMessageIds.size >= 3 || this._userMessageIds.size >= 3) {
-				break;
-			}
-			if (pageIndex === MAX_HISTORY_PAGES - 1) {
-				this._historyScanLimitReached = true;
-				this._logService.warn('[CopilotGrepSearchNudge] History scan limit reached; skipping nudges for this history.');
-				return;
-			}
-			seenCursors.add(page.cursor);
-			cursor = page.cursor;
-		}
-		this._messageId ??= latestMessageId;
-		for (const id of userMessageIds) {
-			if (this._userMessageIds.size >= 3) {
-				break;
-			}
-			this._userMessageIds.add(id);
-		}
-		if (this._userMessageIds.size >= 3) {
-			this._pendingRetries.clear();
 		}
 	}
 }

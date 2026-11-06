@@ -1697,7 +1697,7 @@ configurationRegistry.registerConfiguration({
 		},
 		[CopilotSearchSubagentGrepNudgeSettingId]: {
 			type: 'boolean',
-			markdownDescription: nls.localize('chat.copilot.searchSubagent.grepNudge', "When enabled, Copilot Agent Host defers grep searches during the first two user messages when the search subagent is available. The model can call the search subagent instead or repeat the same grep call once to proceed through normal permissions. Does not affect searches inside subagents."),
+			markdownDescription: nls.localize('chat.copilot.searchSubagent.grepNudge.enabled', "When enabled, Copilot Agent Host defers at most one grep search per user message during the first two user messages when the search subagent is enabled and available. Further grep calls proceed through normal permissions without another nudge. Does not affect searches inside subagents."),
 			default: false,
 			experiment: { mode: 'auto' },
 			tags: ['experimental', 'advanced'],

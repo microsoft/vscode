@@ -122,7 +122,7 @@ export function normalizeCopilotPolicyHelperConfig(value: unknown): ICopilotPoli
 export const CopilotClaudeAdvisorEnabledSettingId = 'chat.copilot.claudeAdvisor.enabled';
 
 export const CopilotSearchSubagentEnabledSettingId = 'chat.copilot.searchSubagent.enabled';
-export const CopilotSearchSubagentGrepNudgeSettingId = 'chat.copilot.searchSubagent.grepNudge';
+export const CopilotSearchSubagentGrepNudgeSettingId = 'chat.copilot.searchSubagent.grepNudge.enabled';
 /** Selects the image model offered to Copilot agents, or turns image generation off. */
 export const CopilotImageGenerationModelSettingId = 'chat.copilot.imageGeneration.model';
 /** Legacy boolean setting, migrated to {@link CopilotImageGenerationModelSettingId}. */
@@ -307,7 +307,7 @@ export const copilotCliConfigSchema = createSchema({
 	[CopilotCliConfigKey.SearchSubagentGrepNudge]: schemaProperty<boolean>({
 		type: 'boolean',
 		title: localize('agentHost.config.searchSubagentGrepNudge.title', "Search Subagent Grep Nudge"),
-		description: localize('agentHost.config.searchSubagentGrepNudge.description', "During the first two user messages, defer each grep search once to suggest the available search subagent. Repeating the same call proceeds through normal permissions. Does not affect searches inside subagents."),
+		description: localize('agentHost.config.searchSubagentGrepNudge.description', "During the first two user messages, defer at most one grep search per message to suggest the available search subagent. Further grep calls proceed through normal permissions. Does not affect searches inside subagents."),
 		default: false,
 	}),
 	[CopilotCliConfigKey.SearchSubagentModel]: schemaProperty<string>({
