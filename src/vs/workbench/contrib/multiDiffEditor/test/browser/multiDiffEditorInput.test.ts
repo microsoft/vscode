@@ -5,7 +5,7 @@
 
 import assert from 'assert';
 import { DeferredPromise, timeout } from '../../../../../base/common/async.js';
-import { CancellationError } from '../../../../../base/common/errors.js';
+import { CancellationError, errorHandler, setUnexpectedErrorHandler } from '../../../../../base/common/errors.js';
 import { Emitter, Event, ValueWithChangeEvent } from '../../../../../base/common/event.js';
 import { IReference, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { autorun, observableFromValueWithChangeEvent, observableValue, ValueWithChangeEventFromObservable, waitForState } from '../../../../../base/common/observable.js';
@@ -172,19 +172,29 @@ suite('MultiDiffEditorInput', () => {
 		pending.set('/modified/9', finish);
 		const item = viewModel.items.get()[9];
 		const error = new Error('File unavailable');
-		const rejected = assert.rejects(item.load(), error);
-		await finish.error(error);
-		await rejected;
+		const previousErrorHandler = errorHandler.getUnexpectedErrorHandler();
+		const reportedErrors: unknown[] = [];
+		setUnexpectedErrorHandler(e => reportedErrors.push(e));
+		try {
+			const rejected = assert.rejects(item.load(), error);
+			await finish.error(error);
+			await rejected;
+			await assert.rejects(item.load(), error);
+		} finally {
+			setUnexpectedErrorHandler(previousErrorHandler);
+		}
 		assert.deepStrictEqual({
 			items: viewModel.items.get().length,
 			loaded: item.isLoaded.get(),
 			binary: item.isBinary,
 			error: item.loadError.get(),
+			reportedErrors,
 			requests: requests.slice(10),
 			diffs: diffs.slice(5),
 			released,
 		}, {
 			items: 10, loaded: false, binary: false, error,
+			reportedErrors: [error],
 			requests: ['/original/9', '/modified/9'],
 			diffs: [],
 			released: ['/original/9'],

@@ -2,10 +2,10 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-import { addDisposableListener, EventHelper, EventType, getWindow, h, scheduleAtNextAnimationFrame, trackFocus } from '../../../../base/browser/dom.js';
+import { addDisposableListener, EventHelper, EventType, getWindow, h, isAncestorOfActiveElement, scheduleAtNextAnimationFrame, trackFocus } from '../../../../base/browser/dom.js';
 import { Button } from '../../../../base/browser/ui/button/button.js';
 import { Codicon } from '../../../../base/common/codicons.js';
-import { BugIndicatingError, onUnexpectedError } from '../../../../base/common/errors.js';
+import { BugIndicatingError } from '../../../../base/common/errors.js';
 import { DisposableStore, MutableDisposable } from '../../../../base/common/lifecycle.js';
 import { autorun, derived, globalTransaction, IObservable, observableValue } from '../../../../base/common/observable.js';
 import { localize } from '../../../../nls.js';
@@ -247,7 +247,7 @@ export class DiffEditorItemTemplate extends VirtualizedItemTemplate<DocumentDiff
 			const loaded = item?.isLoaded.read(reader) === true;
 			const error = item?.loadError.read(reader);
 			const isBinary = item?.isBinary === true;
-			const restoreFocus = loaded && !isBinary && this.isBinaryFilePlaceholderFocused.read(undefined);
+			const restoreFocus = loaded && !isBinary && isAncestorOfActiveElement(this._elements.binaryFilePlaceholder);
 			const canOpenDiff = isBinary && !!(item?.originalUri && item.modifiedUri && this._openBinaryDiffButton);
 			const label = error ? localize('loadingFailed', "Unable to load this file.")
 				: !loaded ? localize('loading', "Loading...")
@@ -459,7 +459,7 @@ export class DiffEditorItemTemplate extends VirtualizedItemTemplate<DocumentDiff
 		}
 		this._dataStore.add(autorun(reader => {
 			if (!item.collapsed.read(reader)) {
-				void item.load().catch(onUnexpectedError);
+				void item.load().catch(() => { });
 			}
 		}));
 		this._dataStore.add(autorun(reader => {

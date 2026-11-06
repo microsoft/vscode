@@ -6,7 +6,7 @@
 import assert from 'assert';
 import sinon from 'sinon';
 import { DeferredPromise, timeout } from '../../../../base/common/async.js';
-import { Dimension } from '../../../../base/browser/dom.js';
+import { Dimension, isAncestorOfActiveElement } from '../../../../base/browser/dom.js';
 import { Button } from '../../../../base/browser/ui/button/button.js';
 import { Emitter, Event, ValueWithChangeEvent } from '../../../../base/common/event.js';
 import { DisposableStore, toDisposable } from '../../../../base/common/lifecycle.js';
@@ -134,6 +134,7 @@ suite('MultiDiffEditorWidget', () => {
 				await target.load();
 				await target.diffEditorViewModel.waitForDiff();
 				await timeout(0);
+				const editorInfo = widget.tryGetCodeEditor(target.modifiedUri!);
 				const editor = widget.tryGetCodeEditor(target.originalUri!)?.editor;
 				const highlights = editor?.getModel()!.getAllDecorations()
 					.filter(d => d.options.description === 'symbol-navigate-action-highlight')
@@ -145,7 +146,7 @@ suite('MultiDiffEditorWidget', () => {
 					collapsed: target.collapsed.get(),
 					highlights,
 					active: viewModel.activeDiffItem.get()?.getKey(),
-					focused: widget.tryGetCodeEditor(target.modifiedUri!)?.editor.hasTextFocus() ?? false,
+					focused: isAncestorOfActiveElement(editorInfo?.editor.getContainerDomNode() ?? container),
 				}, {
 					initialRequests: [0, 1, 2, 3, 4],
 					pendingState: { requests: [0, 1, 2, 3, 4, 40], loading: 'Loading...', editor: false },

@@ -97,11 +97,8 @@ export class MultiDiffEditorViewModel extends Disposable {
 			const result = ObservablePromise.fromFn(async () => {
 				await Promise.all(initialItems.map(i => i.waitForInitialDiffOr1s.getPromise()));
 			});
-			result.promise.catch(error => {
-				if (!this._store.isDisposed) {
-					onUnexpectedError(error);
-				}
-			});
+			// Load failures are reported once by the item itself.
+			result.promise.catch(() => { });
 			return result;
 		}).recomputeInitiallyAndOnChange(this._store);
 
@@ -115,7 +112,16 @@ export class DocumentDiffItemViewModel extends Disposable {
 	/**
 	 * The diff editor view model keeps its inner objects alive.
 	*/
-	private readonly _load = new ObservableLazyPromise(() => this._loadDiff());
+	private readonly _load = new ObservableLazyPromise(async () => {
+		try {
+			return await this._loadDiff();
+		} catch (error) {
+			if (!this._store.isDisposed) {
+				onUnexpectedError(error);
+			}
+			throw error;
+		}
+	});
 	public readonly isLoaded = derived(this, reader => !!this._load.cachedPromiseResult.read(reader)?.data);
 	public readonly loadError = derived(this, reader => this._load.cachedPromiseResult.read(reader)?.error);
 	private _resolvedDocument: IDocumentDiffItem | undefined;
@@ -191,7 +197,7 @@ export class DocumentDiffItemViewModel extends Disposable {
 		}));
 	}
 
-	/** Resolves this item once and retains its text and diff models until disposal. */
+	/** Resolves this item once and retains its text and diff models until disposal. Failures are reported here, so callers may ignore rejections. */
 	public load(): Promise<RefCounted<DiffEditorViewModel> | undefined> {
 		if (this._store.isDisposed) {
 			return Promise.resolve(undefined);

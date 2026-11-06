@@ -719,7 +719,7 @@ export class MultiDiffEditorWidgetImpl extends Disposable {
 			return;
 		}
 		const run = async () => {
-			const ref = await item.viewModel.load();
+			const ref = await item.viewModel.load().catch(() => undefined);
 			if (!ref) {
 				return;
 			}
