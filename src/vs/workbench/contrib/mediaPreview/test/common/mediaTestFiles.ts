@@ -30,9 +30,12 @@ export function mp4Track(handlerType: string, sampleEntry: number[]): number[] {
 					box('stsz', zeros(1024))))));
 }
 
-/** An MPEG-4 elementary stream descriptor of AAC-LC audio. */
-export function aacEsds(): number[] {
-	const decoderSpecificInfo = [0x05, 2, 0x12, 0x10];
+/**
+ * An MPEG-4 elementary stream descriptor of MPEG-4 Audio with the given AudioSpecificConfig, which
+ * is AAC-LC by default.
+ */
+export function mpeg4AudioEsds(audioSpecificConfig = [0x12, 0x10]): number[] {
+	const decoderSpecificInfo = [0x05, audioSpecificConfig.length, ...audioSpecificConfig];
 	const decoderConfig = [0x04, 13 + decoderSpecificInfo.length, 0x40, 0x15, ...zeros(11), ...decoderSpecificInfo];
 	return box('esds', zeros(4), [0x03, 3 + decoderConfig.length, 0, 1, 0, ...decoderConfig]);
 }

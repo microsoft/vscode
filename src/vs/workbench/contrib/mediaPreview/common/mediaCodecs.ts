@@ -254,6 +254,25 @@ const mp4AudioObjectTypes = new Map<number, string>([
 
 const mpeg4AudioObjectType = 0x40;
 
+// Names of the audio object types of MPEG-4 Audio. Others, such as lossless ALS, are left unnamed.
+const mpeg4AudioObjectTypes = new Map<number, string>([
+	[1, 'AAC'], // Main
+	[2, 'AAC'], // LC
+	[3, 'AAC'], // SSR
+	[4, 'AAC'], // LTP
+	[5, 'AAC'], // HE-AAC
+	[6, 'AAC'], // Scalable
+	[17, 'AAC'], // ER LC
+	[19, 'AAC'], // ER LTP
+	[20, 'AAC'], // ER Scalable
+	[23, 'AAC'], // ER LD
+	[29, 'AAC'], // HE-AAC v2
+	[32, 'MPEG Audio'], // Layer 1
+	[33, 'MPEG Audio'], // Layer 2
+	[34, 'MP3'],
+	[39, 'AAC'], // ER ELD
+]);
+
 async function readMp4Tracks(reader: ChunkedReader): Promise<IMediaTrack[]> {
 	const moov = await findBox(reader, 0, Infinity, 'moov');
 	if (!moov) {
@@ -323,27 +342,16 @@ async function readMp4AudioSampleEntry(reader: ChunkedReader, entry: IBox): Prom
 		return undefined;
 	}
 	if (descriptor.objectType === mpeg4AudioObjectType) {
-		const codec = descriptor.audioObjectType === undefined ? 'mp4a.40' : `mp4a.40.${descriptor.audioObjectType}`;
-		return { kind: 'audio', codec, name: getMpeg4AudioName(descriptor.audioObjectType) };
+		const { audioObjectType } = descriptor;
+		return audioObjectType === undefined
+			? { kind: 'audio', codec: 'mp4a.40', name: undefined }
+			: { kind: 'audio', codec: `mp4a.40.${audioObjectType}`, name: mpeg4AudioObjectTypes.get(audioObjectType) };
 	}
 	const name = mp4AudioObjectTypes.get(descriptor.objectType);
 	if (!name) {
 		return undefined;
 	}
 	return { kind: 'audio', codec: `mp4a.${descriptor.objectType.toString(16).toUpperCase()}`, name };
-}
-
-function getMpeg4AudioName(audioObjectType: number | undefined): string {
-	switch (audioObjectType) {
-		// MPEG-1/2 Layer 1 and 2
-		case 32:
-		case 33:
-			return 'MPEG Audio';
-		case 34:
-			return 'MP3';
-		default:
-			return 'AAC';
-	}
 }
 
 /**

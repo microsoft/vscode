@@ -12,7 +12,7 @@ import { FileService } from '../../../../../platform/files/common/fileService.js
 import { InMemoryFileSystemProvider } from '../../../../../platform/files/common/inMemoryFilesystemProvider.js';
 import { NullLogService } from '../../../../../platform/log/common/log.js';
 import { readMediaInfo } from '../../common/mediaCodecs.js';
-import { aacEsds, box, mp4Track, oggBeginningOfStreamPage, text, uint16LE, uint32LE, wav, webm, zeros } from './mediaTestFiles.js';
+import { box, mp4Track, mpeg4AudioEsds, oggBeginningOfStreamPage, text, uint16LE, uint32LE, wav, webm, zeros } from './mediaTestFiles.js';
 
 class WholeFileReadCountingProvider extends InMemoryFileSystemProvider {
 	wholeFileReads = 0;
@@ -42,11 +42,13 @@ suite('Media Preview - readMediaInfo', () => {
 			...box('moov',
 				box('mvhd', zeros(100)),
 				mp4Track('vide', box('avc1', zeros(78))),
-				mp4Track('soun', box('mp4a', zeros(28), aacEsds()))),
+				mp4Track('soun', box('mp4a', zeros(28), mpeg4AudioEsds()))),
 		];
 		const files: Record<string, number[]> = {
 			'/aac.mp4': aacVideo,
 			'/ac3.mp4': [...box('ftyp', text('isom'), zeros(4)), ...box('moov', mp4Track('soun', box('ac-3', zeros(28))))],
+			// MPEG-4 Audio that isn't AAC: lossless ALS, whose object type 36 is escaped
+			'/als.mp4': [...box('ftyp', text('isom'), zeros(4)), ...box('moov', mp4Track('soun', box('mp4a', zeros(28), mpeg4AudioEsds([0xF8, 0x80]))))],
 			'/silent.mp4': [...box('ftyp', text('isom'), zeros(4)), ...box('moov', mp4Track('vide', box('avc1', zeros(78))))],
 			// The codec ID of a subtitle track that matches a video codec is ignored
 			'/vp9.webm': webm([1, 'V_VP9'], [2, 'A_OPUS'], [2, 'A_AAC/MPEG4/LC'], [17, 'V_VP8']),
@@ -77,6 +79,7 @@ suite('Media Preview - readMediaInfo', () => {
 		assert.deepStrictEqual(result, {
 			'/aac.mp4': aac,
 			'/ac3.mp4': { container: 'mp4', tracks: [{ kind: 'audio', codec: 'ac-3', name: 'AC-3' }] },
+			'/als.mp4': { container: 'mp4', tracks: [{ kind: 'audio', codec: 'mp4a.40.36', name: undefined }] },
 			'/silent.mp4': { container: 'mp4', tracks: [] },
 			'/vp9.webm': {
 				container: 'webm', tracks: [
