@@ -23,3 +23,21 @@ export async function focusExtensionsResults(viewsService: IViewsService): Promi
 	const container = viewsService.getActiveViewPaneContainerWithId(VIEWLET_ID) as IExtensionsViewPaneContainer | null;
 	container?.focusResults();
 }
+
+/**
+ * The first expanded Extensions pane is not necessarily the first pane with
+ * results. Skip empty and collapsed lists so focus reaches actionable content.
+ */
+export function focusFirstPopulatedExtensionsList(panes: readonly {
+	isExpanded(): boolean;
+	count(): number;
+	focus(): void;
+}[]): boolean {
+	for (const pane of panes) {
+		if (pane.isExpanded() && pane.count() > 0) {
+			pane.focus();
+			return true;
+		}
+	}
+	return false;
+}
