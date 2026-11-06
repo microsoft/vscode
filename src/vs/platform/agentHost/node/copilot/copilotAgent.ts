@@ -5248,8 +5248,9 @@ export class CopilotAgent extends Disposable implements IAgent {
 	 * costs one resume. Returns whether the chat must be rebuilt from storage.
 	 */
 	private async _releaseChatRunElsewhere(context: IResolvedCopilotChatContext, sdkSessionId: string, client: CopilotClient): Promise<boolean> {
-		if (context.target?.hasActiveTurn) {
-			this._logService.info(`[Copilot:${context.ownerSessionId}] Keeping the loaded copy of session ${sdkSessionId} because a turn is running`);
+		const target = context.target;
+		if (target && (target.hasActiveTurn || target.hasActiveSubagents || await target.hasRunningDetachedShells())) {
+			this._logService.info(`[Copilot:${context.ownerSessionId}] Keeping the loaded copy of session ${sdkSessionId} because a turn or background work is running`);
 			return false;
 		}
 		let lastClientName: string | undefined;
@@ -5258,8 +5259,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 			if (!metadata) {
 				return false;
 			}
-			// TODO@karthiknadig: drop the widening once the bundled SDK types `lastClientName` (1.0.29-preview.6).
-			lastClientName = (metadata as SessionMetadata & { readonly lastClientName?: string }).lastClientName;
+			lastClientName = metadata.lastClientName;
 		} catch (err) {
 			this._logService.warn(`[Copilot:${context.ownerSessionId}] Couldn't read which client last ran session ${sdkSessionId}; reloading it`, err);
 		}
@@ -5267,8 +5267,8 @@ export class CopilotAgent extends Disposable implements IAgent {
 			return false;
 		}
 		this._logService.info(`[Copilot:${context.ownerSessionId}] Reloading session ${sdkSessionId} from storage, last run by ${lastClientName ?? 'an unknown client'}`);
-		if (context.target) {
-			await this._destroyLiveSession(context.target, true);
+		if (target) {
+			await this._destroyLiveSession(target, true);
 		}
 		this._persistedChatHistory.delete(context.chatKey);
 		return true;

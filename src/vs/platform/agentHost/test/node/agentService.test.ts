@@ -17378,6 +17378,35 @@ suite('AgentService (node dispatcher)', () => {
 			});
 		});
 
+		test('a turn that starts while an imported chat reloads defers replacing its turns until the turn ends', async () => {
+			const { svc, agent, session, chat } = await createImportableExternalSession();
+			const userMessage = (messageId: string, content: string): IHistoryRecord => ({ type: 'message', session, role: 'user', messageId, content, toolRequests: [] });
+			const manager = getStateManager(svc);
+			const turnTexts = () => manager.getChatState(chat)?.turns.map(turn => turn.message.text);
+			agent.sessionMessages = [userMessage('msg-1', 'From the CLI')];
+			await svc.importSession(session);
+			agent.sessionMessages = [userMessage('msg-1', 'From the CLI'), userMessage('msg-2', 'Back in the CLI')];
+			agent.importedSelection = { model: undefined, agent: undefined, reloaded: true };
+			const getMessages = agent.chats.getMessages;
+			let startTurn = true;
+			agent.chats.getMessages = async (target, context) => {
+				if (startTurn) {
+					startTurn = false;
+					manager.dispatchServerAction(chat, chatTurnStarted('sent-meanwhile', 'Sent meanwhile'));
+				}
+				return getMessages(target, context);
+			};
+			await svc.importSession(session);
+			const whileRunning = { turns: turnTexts(), running: manager.getChatState(chat)?.activeTurn?.id };
+			agent.sessionMessages = [...agent.sessionMessages, userMessage('msg-3', 'Sent meanwhile')];
+			manager.dispatchServerAction(chat, chatTurnComplete('sent-meanwhile', 1));
+			await waitForCondition(manager.onDidEmitEnvelope, () => turnTexts()?.length === 3, 'the reloaded turns should replace the chat\'s turns');
+			assert.deepStrictEqual({ whileRunning, after: turnTexts() }, {
+				whileRunning: { turns: ['From the CLI'], running: 'sent-meanwhile' },
+				after: ['From the CLI', 'Back in the CLI', 'Sent meanwhile'],
+			});
+		});
+
 		test('a provider that refuses an import leaves the session external', async () => {
 			const { svc, agent, session, database, chat } = await createImportableExternalSession(new ProtocolError(AhpErrorCodes.Conflict, 'Session is in use'));
 			await assert.rejects(() => svc.importSession(session), { code: AhpErrorCodes.Conflict });

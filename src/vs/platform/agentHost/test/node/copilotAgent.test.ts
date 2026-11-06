@@ -742,7 +742,7 @@ interface ITestCopilotClient extends Pick<CopilotClient, 'start' | 'stop' | 'lis
 	};
 }
 
-type TestCopilotSessionMetadata = Awaited<ReturnType<ITestCopilotClient['listSessions']>>[number] & { readonly clientName?: string; readonly lastClientName?: string; readonly name?: string };
+type TestCopilotSessionMetadata = Awaited<ReturnType<ITestCopilotClient['listSessions']>>[number] & { readonly clientName?: string; readonly name?: string };
 
 interface ITestCopilotSessionOptions {
 	readonly clientName?: string;
@@ -31710,13 +31710,15 @@ suite('CopilotAgent', () => {
 			}
 		}));
 
-		for (const { lastClientName, reloads } of [
-			{ lastClientName: 'github/cli', reloads: true },
+		for (const { lastClientName, backgroundWork, reloads } of [
+			{ lastClientName: 'github/cli', backgroundWork: undefined, reloads: true },
 			// A runtime that doesn't record the client that last ran a session.
-			{ lastClientName: undefined, reloads: true },
-			{ lastClientName: 'vscode-agent-host', reloads: false },
-		]) {
-			test(`re-importing a chat this host has loaded ${reloads ? 'reloads it from storage' : 'keeps its loaded copy'} when ${lastClientName ?? 'an unknown client'} ran it last`, async () => {
+			{ lastClientName: undefined, backgroundWork: undefined, reloads: true },
+			{ lastClientName: 'vscode-agent-host', backgroundWork: undefined, reloads: false },
+			{ lastClientName: 'github/cli', backgroundWork: 'subagent', reloads: false },
+			{ lastClientName: 'github/cli', backgroundWork: 'detached shell', reloads: false },
+		] as const) {
+			test(`re-importing a chat this host has loaded ${reloads ? 'reloads it from storage' : 'keeps its loaded copy'} when ${lastClientName ?? 'an unknown client'} ran it last${backgroundWork ? ` and a ${backgroundWork} is running` : ''}`, async () => {
 				const { agent, chat, context, adoptions } = createImportedChat(false, undefined, lastClientName);
 				try {
 					await agent.authenticate('https://api.github.com', 'token');
@@ -31724,6 +31726,9 @@ suite('CopilotAgent', () => {
 					const destroyed: string[] = [];
 					setLiveChatStub(agent, 'cli-import', {
 						sessionId: 'cli-import',
+						hasActiveTurn: false,
+						hasActiveSubagents: backgroundWork === 'subagent',
+						hasRunningDetachedShells: async () => backgroundWork === 'detached shell',
 						adoptRuntimeModes: async () => { adoptions.push('loaded'); },
 						readRuntimeSelection: async () => ({ model: {}, agentName: undefined }),
 						destroySession: async () => { destroyed.push('loaded'); },
