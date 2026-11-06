@@ -161,7 +161,7 @@ function normalizeRiskCacheParameters(parameters: unknown, kind: ToolRiskPromptK
 }
 
 function buildPrompt(tool: IToolData, parameters: unknown, kind: ToolRiskPromptKind): string {
-	const argsJson = serializeParameters(parameters);
+	const argsJson = serializeParameters(parameters, kind);
 	return kind === 'terminal'
 		? buildTerminalPrompt(tool, argsJson)
 		: kind === 'automation' ? buildAutomationPrompt(tool, argsJson) : buildGenericToolPrompt(tool, argsJson);
@@ -174,14 +174,25 @@ function buildAutomationPrompt(tool: IToolData, argsJson: string): string {
 	]);
 }
 
-function serializeParameters(parameters: unknown): string {
+function serializeParameters(parameters: unknown, kind: ToolRiskPromptKind): string {
+	const isAutomationConfiguration = kind === 'automation' && parameters !== null && typeof parameters === 'object' && !Array.isArray(parameters);
 	let argsJson: string;
 	try {
-		argsJson = JSON.stringify(parameters ?? {});
+		if (isAutomationConfiguration) {
+			// Preserve provider-owned configuration and only truncate descriptive automation text.
+			const automation = parameters as Record<string, unknown>;
+			argsJson = JSON.stringify({
+				...automation,
+				...(typeof automation.name === 'string' ? { name: truncate(automation.name, MAX_PARAM_BYTES) } : {}),
+				...(typeof automation.prompt === 'string' ? { prompt: truncate(automation.prompt, MAX_PARAM_BYTES) } : {}),
+			});
+		} else {
+			argsJson = JSON.stringify(parameters ?? {});
+		}
 	} catch {
 		argsJson = '{}';
 	}
-	if (argsJson.length > MAX_PARAM_BYTES) {
+	if (!isAutomationConfiguration && argsJson.length > MAX_PARAM_BYTES) {
 		argsJson = argsJson.slice(0, MAX_PARAM_BYTES) + '...[truncated]';
 	}
 	return argsJson;
