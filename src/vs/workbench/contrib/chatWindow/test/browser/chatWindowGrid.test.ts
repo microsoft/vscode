@@ -1491,6 +1491,8 @@ suite('Chat window grid', () => {
 				override readonly onDidModelChange = Event.None;
 				override focus(): void { }
 				override getEditors() { return [editor]; }
+				// The editor leaves the group as it moves
+				override contains() { return moved.length === 0; }
 				override moveEditors(editors: { editor: EditorInput }[], target: IEditorGroup) { moved.push(`${editors.map(e => e.editor.getName()).join()} → ${target.id}`); return true; }
 			}()];
 			override get activeGroup() { return this.groups[0]; }
