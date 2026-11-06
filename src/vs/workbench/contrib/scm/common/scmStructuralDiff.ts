@@ -178,11 +178,6 @@ class StructuralDiffEntry extends Disposable {
 		super();
 	}
 
-	releaseModels(): void {
-		this.listeners.clear();
-		this.references.clear();
-	}
-
 	override dispose(): void {
 		if (!this.disposed) {
 			this.disposed = true;
@@ -394,6 +389,7 @@ export class SCMStructuralDiffModel extends Disposable {
 		}
 	}
 
+	/** Keeps the document loaded while the entry exists and invalidates the entry when the document changes, also after a failure. */
 	private async resolveModel(entry: StructuralDiffEntry, resource: URI): Promise<ITextModel> {
 		this.checkCancellation(entry);
 		const reference = await this.textModelService.createModelReference(resource);
@@ -402,7 +398,10 @@ export class SCMStructuralDiffModel extends Disposable {
 			throw new CancellationError();
 		}
 		entry.references.add(reference);
-		return reference.object.textEditorModel;
+		const model = reference.object.textEditorModel;
+		entry.listeners.add(model.onDidChangeContent(() => this.invalidate(entry)));
+		entry.listeners.add(model.onWillDispose(() => this.invalidate(entry)));
+		return model;
 	}
 
 	/** Loads within the time budget, so a load that never completes cannot occupy one of the limited load slots forever. */
@@ -419,10 +418,6 @@ export class SCMStructuralDiffModel extends Disposable {
 		try {
 			const original = await this.resolveModel(entry, resource.multiDiffEditorOriginalUri!);
 			const modified = await this.resolveModel(entry, resource.multiDiffEditorModifiedUri!);
-			for (const model of new Set([original, modified])) {
-				entry.listeners.add(model.onDidChangeContent(() => this.invalidate(entry)));
-				entry.listeners.add(model.onWillDispose(() => this.invalidate(entry)));
-			}
 			const result = await StructuralDiffs.compute(this.editorWorkerService, this.configurationService, this.languageFeaturesService.structuralDiffProvider, original, modified, entry.cancellation.token);
 			this.checkCancellation(entry);
 			const toModified = new RangeMapping((result?.context.changes ?? []).map(change => new SingleRangeMapping(Range.lift(change.originalRange), Range.lift(change.modifiedRange))));
@@ -479,12 +474,14 @@ export class SCMStructuralDiffModel extends Disposable {
 		}
 	}
 
-	/** Releases the models and shows a status row instead of structural changes, until the entry is invalidated. */
+	/**
+	 * Shows a status row instead of structural changes until the entry is invalidated. Like a result, a failure keeps the
+	 * documents it resolved, so editing either of them analyzes the file again.
+	 */
 	private fail(entry: StructuralDiffEntry, status: 'error' | 'timedOut'): readonly SCMStructuralDiffElement[] {
 		if (entry.disposed) {
 			return [];
 		}
-		entry.releaseModels();
 		const children = [this.createStatus(entry, status, 0)];
 		entry.children = children;
 		return children;
