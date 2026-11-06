@@ -476,6 +476,9 @@ export default defineConfig(
 			'src/vs/workbench/contrib/chat/browser/agentSessions/**/*.ts',
 			'src/vs/workbench/services/agentHost/**/*.ts',
 			'src/vs/workbench/contrib/sessions/**/*.ts',
+			'src/vs/workbench/contrib/sessionChanges/**/*.ts',
+			'src/vs/workbench/services/sessions/**/*.ts',
+			'src/vs/workbench/browser/parts/sessions/**/*.ts',
 			'src/vs/sessions/**/*.ts',
 		],
 		ignores: [
@@ -2565,7 +2568,10 @@ export default defineConfig(
 		// See src/vs/sessions/SESSIONS.md.
 		files: [
 			'src/vs/sessions/**/*.ts',
-			'src/vs/workbench/contrib/sessions/**/*.ts'
+			'src/vs/workbench/contrib/sessions/**/*.ts',
+			'src/vs/workbench/contrib/sessionChanges/**/*.ts',
+			'src/vs/workbench/services/sessions/**/*.ts',
+			'src/vs/workbench/browser/parts/sessions/**/*.ts'
 		],
 		ignores: [
 			'src/vs/sessions/contrib/providers/copilotChatSessions/**/*.ts',
