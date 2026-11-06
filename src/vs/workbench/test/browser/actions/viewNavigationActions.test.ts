@@ -6,6 +6,7 @@
 import * as assert from 'assert';
 import { IViewContainerModel, IViewDescriptor, IViewDescriptorService, ViewContainer, ViewContainerLocation } from '../../../common/views.js';
 import { IViewsService } from '../../../services/views/common/viewsService.js';
+import { IWorkbenchLayoutService, Parts } from '../../../services/layout/browser/layoutService.js';
 import { focusNavigableView } from '../../../browser/actions/viewNavigationActions.js';
 import { IViewNavigationRequest } from '../../../browser/actions/viewNavigationModel.js';
 
@@ -17,11 +18,13 @@ interface IFocusCall {
 interface IFocusTestHarness {
 	readonly views: IViewsService;
 	readonly descriptors: IViewDescriptorService;
+	readonly layout: IWorkbenchLayoutService;
 	readonly calls: IFocusCall[];
 	readonly headerFocusCalls: string[];
 	isCollapsed(id: string): boolean;
 	setFocused(id: string | undefined): void;
 	setVisible(location: ViewContainerLocation, visible: boolean): void;
+	setPartVisible(location: ViewContainerLocation, visible: boolean): void;
 	setViews(containerId: string, views: readonly string[]): void;
 	setCollapsed(viewId: string, collapsed: boolean): void;
 	setHeaderAvailable(viewId: string, available: boolean): void;
@@ -36,6 +39,14 @@ function createFocusHarness(): IFocusTestHarness {
 	];
 
 	const visibleContainers = new Set<string>(containers.map(container => container.id));
+	const visibleParts = new Set<Parts>([Parts.SIDEBAR_PART, Parts.AUXILIARYBAR_PART, Parts.PANEL_PART]);
+	const partForLocation = (location: ViewContainerLocation) => {
+		switch (location) {
+			case ViewContainerLocation.Sidebar: return Parts.SIDEBAR_PART;
+			case ViewContainerLocation.AuxiliaryBar: return Parts.AUXILIARYBAR_PART;
+			case ViewContainerLocation.Panel: return Parts.PANEL_PART;
+		}
+	};
 	const viewsByContainer = new Map<string, readonly string[]>([
 		['explorer', ['a', 'b', 'c']],
 		['auxiliary', ['d', 'e']],
@@ -85,6 +96,7 @@ function createFocusHarness(): IFocusTestHarness {
 	return {
 		views,
 		descriptors,
+		layout: { isVisible: (part: Parts) => visibleParts.has(part) } as IWorkbenchLayoutService,
 		calls,
 		headerFocusCalls,
 		isCollapsed(id) { return collapsed.has(id); },
@@ -99,6 +111,13 @@ function createFocusHarness(): IFocusTestHarness {
 			} else {
 				visibleContainers.delete(container.id);
 			}
+		},
+		setPartVisible(location, visible) {
+			const part = partForLocation(location);
+			if (!part) {
+				return;
+			}
+			if (visible) { visibleParts.add(part); } else { visibleParts.delete(part); }
 		},
 		setViews(containerId, values) { viewsByContainer.set(containerId, values); },
 		setCollapsed(viewId, isCollapsed) {
@@ -115,7 +134,7 @@ function createFocusHarness(): IFocusTestHarness {
 
 async function navigate(harness: IFocusTestHarness, request: IViewNavigationRequest): Promise<IFocusCall | undefined> {
 	const count = harness.calls.length;
-	await focusNavigableView(harness.views, harness.descriptors, request);
+	await focusNavigableView(harness.views, harness.descriptors, harness.layout, request);
 	return harness.calls[count];
 }
 
