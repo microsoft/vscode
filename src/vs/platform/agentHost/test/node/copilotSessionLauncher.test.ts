@@ -938,6 +938,27 @@ suite('CopilotSessionLauncher sandbox policy', () => {
 			]);
 		});
 
+		test(`${kind} updates environment credential policy on a running session without managed policy resolution`, async () => {
+			const fixture = setup(kind, false);
+			fixture.configuration.updateSessionConfig(fixture.owner, { sandboxEnabled: 'on' });
+			store.add(await fixture.launcher.launch(fixture.plan, fixture.runtime));
+			const initial = { envVars: {
+				env_name1: { injectHosts: ['google.com'] },
+				env_name2: { injectHosts: ['yahoo.com'] },
+			} };
+			const changed = { envVars: { env_name1: { injectHosts: ['other.example.com'] } } };
+			for (const credentials of [initial, changed, { envVars: {} }, {}]) {
+				fixture.configuration.updateRootConfig({ sandbox: { enabled: 'on', credentials } });
+				await fixture.sandbox.prepareConfigChange().apply();
+			}
+			assert.deepStrictEqual(fixture.updates.filter(update => update.sandboxConfig).map(update => update.sandboxConfig?.credentials), [
+				undefined,
+				initial,
+				changed,
+				{ envVars: {} },
+			]);
+		});
+
 		test(`${kind} applies and removes the legacy mode-group fallback`, async () => {
 			const results = [];
 			const fixture = setup(kind);

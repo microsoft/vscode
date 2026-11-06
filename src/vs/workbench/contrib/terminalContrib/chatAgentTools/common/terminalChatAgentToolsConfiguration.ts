@@ -429,6 +429,38 @@ export const terminalChatAgentToolsConfiguration: IStringDictionary<IConfigurati
 		default: true,
 		restricted: true,
 	},
+	[AgentSandboxSettingId.AgentSandboxCredentialEnvVars]: {
+		order: 53,
+		keywords: ['Sandbox', 'sandboxing'],
+		tags: ['chatPermissions'],
+		markdownDescription: localize('agentSandbox.credentialEnvVars', "Mask the named environment variables inside the Copilot Agent Host sandbox. For each variable, list the HTTPS hosts that may receive its value in `injectHosts`. Enter variable names, not secret values."),
+		type: ['object', 'null'],
+		default: null,
+		defaultSnippets: [{
+			body: { '${1:ENV_VAR_NAME}': { injectHosts: ['${2:api.example.com}'] } },
+		}],
+		propertyNames: {
+			description: localize('agentSandbox.credentialEnvVars.name', "Name of an environment variable to mask, not its secret value."),
+			examples: ['ENV_VAR_NAME'],
+		},
+		additionalProperties: {
+			type: 'object',
+			defaultSnippets: [{
+				body: { injectHosts: ['${1:api.example.com}'] },
+			}],
+			properties: {
+				injectHosts: {
+					type: 'array',
+					description: localize('agentSandbox.credentialEnvVars.injectHosts', "HTTPS destination hosts where the sandbox may inject this environment variable's value. Host patterns are validated by the runtime."),
+					items: { type: 'string' },
+					defaultSnippets: [{ body: ['${1:api.example.com}'] }],
+				},
+			},
+			required: ['injectHosts'],
+			additionalProperties: false,
+		},
+		restricted: true,
+	},
 	[AgentSandboxSettingId.AgentSandboxAllowDevToolAccess]: {
 		managedSettingsPresentation: read => SandboxSettingsResolutionHelper.resolveAllowAccess(undefined, read(COPILOT_SANDBOX_ALLOW_DEV_TOOL_ACCESS_KEY) !== false),
 		order: 60,
