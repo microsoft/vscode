@@ -26,6 +26,11 @@ jobs:
       NPM_ARCH: ${{ parameters.NPM_ARCH }}
       VSCODE_ARCH: ${{ parameters.VSCODE_ARCH }}
     templateContext:
+      # Defender for Linux can block the 1ES PT antimalware scan of the outputs for 45-55 min (see
+      # product-build-linux-cli.yml), so cap it. Scans that aren't blocked take under 7 min.
+      sdl:
+        antimalwareScan:
+          scanTimeoutInMinutes: '10'
       outputs:
         - output: pipelineArtifact
           targetPath: $(Build.SourcesDirectory)/.build/crashes
