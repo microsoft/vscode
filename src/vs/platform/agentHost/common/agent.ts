@@ -1387,6 +1387,12 @@ export interface IAgentChats {
 	prepareChat?(chat: URI, context: AgentChatOperationContext): Promise<IAgentPrepareChatResult>;
 
 	/**
+	 * Returns the input restriction recorded when `getMessages` recovered history read-only after a resume failure.
+	 * Providers implementing this are only prepared when they report a restriction or the host already tracks an input state for the chat.
+	 */
+	getInputRestriction?(chat: URI): ErrorInfo | undefined;
+
+	/**
 	 * Optionally starts the runtime of a chat that was created with a deferred
 	 * backing ({@link IAgentCreateChatResult.provisional}) before its first send,
 	 * so its MCP servers and plugins load while the user composes. The warm
@@ -1420,6 +1426,12 @@ export interface IAgentChats {
 
 	/** Return whether the addressed chat can currently release its in-memory backing. */
 	canReleaseChat?(chat: URI, context: AgentChatOperationContext): Promise<boolean>;
+
+	/**
+	 * Whether the provider's runtime marks the chat as in use while this host has it loaded, so another client asks
+	 * before continuing it. The host releases a session with such a chat shortly after no client observes it.
+	 */
+	isChatHeldInUse?(chat: URI): boolean;
 
 	/** Release the addressed chat's in-memory backing without deleting durable data. */
 	releaseChat(chat: URI, context: AgentChatOperationContext, options?: IAgentChatReleaseOptions): Promise<void>;

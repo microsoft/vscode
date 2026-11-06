@@ -26608,6 +26608,43 @@ suite('AgentService (node dispatcher)', () => {
 			);
 		});
 
+		test('rejects restore of a backing session whose default chat is owned by another session with SessionNotFound without emitting failed migration telemetry', async () => {
+			const events: { data: Record<string, unknown>; error: boolean }[] = [];
+			const telemetry = new class extends NullTelemetryServiceShape {
+				override publicLog2(name?: string, data?: unknown): void {
+					if (name === 'agentHost.legacyCopilotCliMigration') {
+						events.push({ data: data as Record<string, unknown>, error: false });
+					}
+				}
+				override publicLogError2(name?: string, data?: unknown): void {
+					if (name === 'agentHost.legacyCopilotCliMigration') {
+						events.push({ data: data as Record<string, unknown>, error: true });
+					}
+				}
+			};
+			class AdoptAgent extends MockAgent {
+				constructor() { super('copilot'); }
+				async ensureChatAdopted(): Promise<IAgentChatAdoptionResult> {
+					return { adopted: true, eligible: true };
+				}
+			}
+			const localService = disposables.add(createTestAgentService(new NullLogService(), fileService, createSessionDataService(new TestSessionDatabase()), { _serviceBrand: undefined } as IProductService, createNoopGitService(), undefined, telemetry));
+			registerTestAgentProvider(localService, disposables.add(new AdoptAgent()));
+			getConfigurationService(localService).updateRootConfig({ [AgentHostMigrateLegacyCopilotCliEnabledConfigKey]: true });
+
+			const ownerSession = AgentSession.uri('copilot', 'owner-session');
+			const backingSession = AgentSession.uri('copilot', 'peer-backing-uuid');
+			const backingDefaultChat = deriveLegacyDefaultChat(backingSession);
+			await localService.createSession({ legacyChatUris: true, provider: 'copilot', session: ownerSession });
+			getStateManager(localService).addChat(ownerSession.toString(), backingDefaultChat, backingSession.toString());
+
+			await assert.rejects(
+				() => localService.restoreSession(backingSession),
+				(err: Error) => err instanceof ProtocolError && err.code === AhpErrorCodes.SessionNotFound,
+			);
+			assert.deepStrictEqual(events, []);
+		});
+
 		test('an adopted chat whose restore fails is still registered, not lost from every list', async () => {
 			// Adoption claims the chat on disk, which stops the extension host listing
 			// it. If restore then fails (e.g. a worktree whose branch is gone) and the

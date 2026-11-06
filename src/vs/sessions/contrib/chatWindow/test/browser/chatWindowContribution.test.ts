@@ -28,6 +28,7 @@ import { ContextKeyExpression, ContextKeyValue, IContext, IContextKeyService } f
 import { Registry } from '../../../../../platform/registry/common/platform.js';
 import { EditorTabsVisibleContext, IsAuxiliaryWindowContext, IsSessionsWindowContext, IsTopRightEditorGroupContext, LayoutModeContext, SplitLayoutContext } from '../../../../../workbench/common/contextkeys.js';
 import { KeybindingsRegistry } from '../../../../../platform/keybinding/common/keybindingsRegistry.js';
+import product from '../../../../../platform/product/common/product.js';
 import { ChatContextKeys } from '../../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
 import { ChatWindowLayoutMode } from '../../../../../workbench/contrib/chatWindow/common/chatWindowLayout.js';
 import { Menus } from '../../../../../workbench/contrib/sessions/browser/menus.js';
@@ -103,17 +104,19 @@ suite('Chat window contribution', () => {
 		assert.deepStrictEqual(commands.filter(id => !CommandsRegistry.getCommand(id)), []);
 	});
 
-	test('the setting is off by default, and opening a chat in a window is offered only with it on and AI features enabled', () => {
+	test('the setting is on by default outside stable, in preview and controlled by experiments, and opening a chat in a window is offered only with it on and AI features enabled', () => {
 		const setting = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).getConfigurationProperties()[CHAT_WINDOWS_ENABLED_SETTING];
 		const item = MenuRegistry.getMenuItems(Menus.SessionChatItemOpenIn).filter(isIMenuItem).find(candidate => candidate.command.id === OPEN_CHAT_IN_WINDOW_COMMAND_ID);
 		const offered = (values: Record<string, ContextKeyValue>) => evaluate(item?.when, { [IsSessionsWindowContext.key]: true, ...values });
 		assert.deepStrictEqual({
 			default: setting?.default,
 			scope: setting?.scope,
+			tags: setting?.tags,
+			experiment: setting?.experiment,
 			off: offered({ [ChatContextKeys.enabled.key]: true, [`config.${CHAT_WINDOWS_ENABLED_SETTING}`]: false }),
 			on: offered({ [ChatContextKeys.enabled.key]: true, [`config.${CHAT_WINDOWS_ENABLED_SETTING}`]: true }),
 			aiDisabled: offered({ [ChatContextKeys.enabled.key]: false, [`config.${CHAT_WINDOWS_ENABLED_SETTING}`]: true }),
-		}, { default: false, scope: ConfigurationScope.APPLICATION, off: false, on: true, aiDisabled: false });
+		}, { default: product.quality !== 'stable', scope: ConfigurationScope.APPLICATION, tags: ['preview', 'onExP'], experiment: { mode: 'auto' }, off: false, on: true, aiDisabled: false });
 	});
 
 	test('the session header offers Open in New Window in the main window and Move to Main Window in a chat window', () => {
