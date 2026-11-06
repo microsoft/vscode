@@ -56,7 +56,8 @@ function getVisibleViewContainers(
 						return true;
 					}
 					const pane = viewsService.getActiveViewWithId<ViewPane>(view.id);
-					return !!pane?.headerVisible && !!pane.draggableElement;
+					const header = pane?.draggableElement;
+					return !!pane?.headerVisible && !!header?.isConnected && header.tabIndex >= 0;
 				})
 				.map(view => ({
 					id: view.id,
