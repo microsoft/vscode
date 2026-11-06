@@ -63,7 +63,7 @@ const nullContext = {
 
 suite('Configuration Resolver Service', () => {
 	let configurationResolverService: IConfigurationResolverService | null;
-	const envVariables: { [key: string]: string } = { key1: 'Value for key1', key2: 'Value for key2' };
+	const envVariables: { [key: string]: string } = { key1: 'Value for key1', key2: 'Value for key2', emptyValueKey: '' };
 	// let environmentService: MockWorkbenchEnvironmentService;
 	let mockCommandService: MockCommandService;
 	let editorService: TestEditorServiceWithActiveEditor;
@@ -222,6 +222,19 @@ suite('Configuration Resolver Service', () => {
 		} else {
 			assert.strictEqual(await configurationResolverService!.resolveAsync(workspace, 'abc ${workspaceFolder} ${env:key1} xyz'), 'abc /VSCode/workspaceLocation Value for key1 xyz');
 		}
+	});
+
+	test('substitute one undefined env variable with default', async () => {
+		assert.strictEqual(await configurationResolverService!.resolveAsync(workspace, 'abc ${env:THIS_DOES_NOT_EXIST:-Default Value For Undefined Env} xyz'), 'abc Default Value For Undefined Env xyz');
+		assert.strictEqual(await configurationResolverService!.resolveAsync(workspace, 'abc ${env:THIS_DOES_NOT_EXIST-Default Value For Undefined Env} xyz'), 'abc Default Value For Undefined Env xyz');
+	});
+
+	test('substitute one empty env variable with default', async () => {
+		assert.strictEqual(await configurationResolverService!.resolveAsync(workspace, 'abc ${env:emptyValueKey:-Default Value For Empty Env} xyz'), 'abc Default Value For Empty Env xyz');
+	});
+
+	test('dont substitute empty env variable with default', async () => {
+		assert.strictEqual(await configurationResolverService!.resolveAsync(workspace, 'abc ${env:emptyValueKey-Default Value For Empty Env} xyz'), 'abc xyz');
 	});
 
 	test('substitute many env variable', async () => {
