@@ -468,9 +468,12 @@ suite('MultiEditorTabsControl', () => {
 		assert.deepStrictEqual(results, results.map(result => ({ ...result, gap: result.expectedGap, terminalMargin: '8px', oppositeMargin: '0px', backplateMatchesButton: true, backplateRadius: '4px', noSquareContainer: 'rgba(0, 0, 0, 0)' })));
 	});
 
-	// TODO@chryw: The RTL cases of these three Connected tab tests fail in WebKit since
-	// https://github.com/microsoft/vscode/pull/346648 and block the macOS arm64 unit tests.
-	// Re-enable them in WebKit once the RTL clipping geometry matches there.
+	// TODO@chryw: The RTL cases of these three Connected tab tests fail in WebKit and block the
+	// macOS arm64 unit tests (https://github.com/microsoft/vscode/pull/346648 added them). In WebKit
+	// with RTL, the sticky Add Tab button scrolls with the tabs instead of staying pinned, and
+	// updateConnectedTabClipping computes the tab clip from its rect, so the active tab is clipped
+	// out of view. Re-enable these tests in WebKit once that clipping no longer depends on the
+	// sticky position.
 	const connectedClipTestUnlessWebKit = isSafari ? test.skip : test;
 
 	connectedClipTestUnlessWebKit('scrolling tab content is clipped before the rounded sticky Add control', async () => {
