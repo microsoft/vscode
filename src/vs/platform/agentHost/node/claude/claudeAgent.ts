@@ -23,6 +23,8 @@ import { ILogService } from '../../../log/common/log.js';
 import { IAgentHostStartupPerformance } from '../agentHostStartupPerformance.js';
 import { IProductService } from '../../../product/common/productService.js';
 import { IAgentPluginManager, ISyncedCustomization } from '../../common/agentPluginManager.js';
+import { withSyncedCustomizationSources } from '../../common/syncedCustomizationSources.js';
+import { parsePlugin } from '../../../agentPlugins/common/pluginParsers.js';
 import { IAgentSdkDownloader } from '../agentSdkDownloader.js';
 import { AgentSdkSetupChannel } from '../agentSdkSetupChannel.js';
 import { decodeProviderData, encodeProviderData, type IPersistedChat } from '../agentChatBackings.js';
@@ -2630,7 +2632,20 @@ export class ClaudeAgent extends Disposable implements IAgent {
 		const target = this._findChatByUri(chat);
 		if (target) {
 			return this._sessionSequencer.queue(target.sessionId, async () => {
-				const synced = await sync();
+				const synced = await Promise.all((await sync()).map(async item => {
+					const customization = { ...item.customization, clientId };
+					if (!item.pluginDir) {
+						return { ...item, customization };
+					}
+					try {
+						const parsed = await parsePlugin(item.pluginDir, this._fileService, target.workingDirectory, this._environmentService.userHome, item.pluginDir);
+						const children = [...parsed.agents, ...parsed.skills, ...parsed.instructions, ...parsed.hooks, ...parsed.mcpServers].map(child => child.customization);
+						return { ...item, customization: { ...customization, children: withSyncedCustomizationSources(children, item) } };
+					} catch (error) {
+						this._logService.warn(`[Claude] Failed to parse client plugin ${customization.uri}`, error);
+						return { ...item, customization };
+					}
+				}));
 				// Only a real host snapshot is applied. `undefined` means the host
 				// has published none yet — reconciling against an empty list there
 				// would drop enablement state the session already resolved.

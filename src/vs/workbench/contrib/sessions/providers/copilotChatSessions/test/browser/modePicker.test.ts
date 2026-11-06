@@ -239,6 +239,7 @@ suite('ModePicker', () => {
 		{ source: { storage: PromptsStorage.extension, extensionId: new ExtensionIdentifier('test.agents') }, resource: URI.file('/extensions/reviewer.agent.md'), actionLabel: 'View Reviewer agent' },
 		{ source: { storage: PromptsStorage.local }, resource: URI.parse('vscode-agent-host://remote/workspace/reviewer.agent.md'), actionLabel: 'Edit Reviewer agent' },
 		{ source: { storage: PromptsStorage.local }, resource: URI.file('/cache/reviewer.agent.md'), actionLabel: 'Edit Reviewer agent' },
+		{ source: { storage: PromptsStorage.local, uri: URI.file('/original/reviewer.agent.md') }, resource: URI.file('/cache/synced-reviewer.agent.md'), actionLabel: 'Edit Reviewer agent' },
 		{ source: { storage: PromptsStorage.local }, resource: URI.parse('claude-internal:/agent/Explore') },
 		{ source: { storage: PromptsStorage.local }, resource: toAgentHostUri(URI.parse('claude-internal:/agent/Explore'), 'remote') },
 		{ source: { storage: PromptsStorage.local }, resource: URI.parse('unregistered:/agent') },
@@ -296,7 +297,7 @@ suite('ModePicker', () => {
 				actionLabel,
 				rowsWithActions: actionLabel ? ['Reviewer'] : [],
 				keyboardActions: true,
-				calls: actionLabel ? ['hide', `open:${resource.toString()}`] : [],
+				calls: actionLabel ? ['hide', `open:${(source.uri ?? resource).toString()}`] : [],
 				selected: ChatMode.Agent.id,
 			});
 		});

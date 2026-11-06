@@ -647,14 +647,17 @@ type IChatModeSourceData = (
 	| { readonly storage: PromptsStorage.extension; readonly extensionId: string; type?: PromptFileSource.ExtensionContribution | PromptFileSource.ExtensionAPI }
 	| { readonly storage: PromptsStorage.local | PromptsStorage.user | PromptsStorage.builtIn }
 	| { readonly storage: PromptsStorage.plugin; readonly pluginUri: URI }
-) & { readonly label?: string };
+) & { readonly label?: string; readonly uri?: URI };
 
 function isChatModeSourceData(value: unknown): value is IChatModeSourceData {
 	if (typeof value !== 'object' || value === null) {
 		return false;
 	}
-	const data = value as { storage?: unknown; extensionId?: unknown; pluginUri?: unknown; label?: unknown };
+	const data = value as { storage?: unknown; extensionId?: unknown; pluginUri?: unknown; label?: unknown; uri?: unknown };
 	if (data.label !== undefined && typeof data.label !== 'string') {
+		return false;
+	}
+	if (data.uri !== undefined && !isUriComponents(data.uri)) {
 		return false;
 	}
 	if (data.storage === PromptsStorage.extension) {
@@ -670,7 +673,7 @@ function serializeChatModeSource(source: IAgentSource | undefined): IChatModeSou
 	if (!source) {
 		return undefined;
 	}
-	const label = source.label !== undefined ? { label: source.label } : {};
+	const label = { ...(source.label !== undefined ? { label: source.label } : {}), ...(source.uri ? { uri: source.uri } : {}) };
 	if (source.storage === PromptsStorage.extension) {
 		return { storage: PromptsStorage.extension, extensionId: source.extensionId.value, ...label };
 	}
@@ -684,7 +687,7 @@ function reviveChatModeSource(data: IChatModeSourceData | undefined): IAgentSour
 	if (!data) {
 		return undefined;
 	}
-	const label = data.label !== undefined ? { label: data.label } : {};
+	const label = { ...(data.label !== undefined ? { label: data.label } : {}), ...(data.uri ? { uri: URI.revive(data.uri) } : {}) };
 	if (data.storage === PromptsStorage.extension) {
 		return { storage: PromptsStorage.extension, extensionId: new ExtensionIdentifier(data.extensionId), ...label };
 	}

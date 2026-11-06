@@ -34,6 +34,10 @@ The publisher of a container does not decide the space of everything inside it:
 - `children` are always authored by the host, which parses its own materialized copy, so map them with `fromAgentHost`, even for this client's plugins.
 - Use `getAgentHostCustomizationUri` for customization URIs, and `toAgentHostClientCustomization` when publishing client plugins.
 
+Synced child identities remain host-readable URIs. `withSyncedCustomizationSources` adds `vscode.sourceUri`, the child's position in its contributing client's plugin or synthetic bundle, without changing `id` or `uri`. Same-host plugins used in place need no source-position annotation.
+
+For file-open actions, use `getAgentHostCustomizationOpenUri` with the child's container: only the contributing client may resolve the source position through its bundler's origin map. Other clients, missing source metadata, and same-host entries use `fromAgentHost` to open the host's copy. Custom-agent provenance may carry this open location as `source.uri`; the agent's identity `uri`, selection ID, drafts, and provider SDK paths remain unchanged.
+
 ## Resources the host reads back from the client
 
 Client plugins and resource attachments are client-owned. When the connection maps one to a host `file:` URI, send that so the host uses the file in place: send attachments as `file:`, and publish plugins as `vscode-agent-host-file:` with their `id` unchanged. Otherwise send the client URI unchanged: the client's implicit read grant is keyed by that exact URI, and the host reads it back through reverse resource requests.

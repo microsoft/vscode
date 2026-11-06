@@ -228,6 +228,8 @@ export type IAgentSource = ({
 	readonly pluginUri: URI;
 }) & {
 	readonly label?: string;
+	/** Source file to open when it differs from the agent's identity URI. */
+	readonly uri?: URI;
 };
 
 export namespace IAgentSource {
@@ -248,7 +250,7 @@ export namespace IAgentSource {
 		if (!a || !b) {
 			return false;
 		}
-		if (a.storage !== b.storage || a.label !== b.label) {
+		if (a.storage !== b.storage || a.label !== b.label || !isEqual(a.uri, b.uri)) {
 			return false;
 		}
 		if (a.storage === PromptsStorage.extension && b.storage === PromptsStorage.extension) {

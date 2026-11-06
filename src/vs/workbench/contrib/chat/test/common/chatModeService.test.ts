@@ -112,6 +112,32 @@ suite('ChatModeService', () => {
 			duplicateSources: ['Workspace', 'Plugin: review-tools'],
 			uniqueSource: undefined,
 		});
+
+	});
+
+	test('caches and refreshes source-only open locations without changing selection identities', async () => {
+		const identity = URI.file('/cache/reviewer.agent.md');
+		const original = URI.file('/original/reviewer.agent.md');
+		const agent: ICustomAgent = {
+			id: identity.toString(), uri: identity, name: 'Reviewer',
+			source: { storage: PromptsStorage.local, uri: original },
+			agentInstructions: { content: '', toolReferences: [] }, target: Target.Undefined,
+			visibility: { userInvocable: true, agentInvocable: true }, enabled: true,
+		};
+		promptsService.setCustomModes([agent]);
+		await waitForRefresh();
+		const modes = await chatModeService.getLocalModes();
+		storageService.store('chat.customModes.local', modes.custom, StorageScope.WORKSPACE, StorageTarget.MACHINE);
+		const cached = testDisposables.add(chatModeService.createModes(LocalChatSessionUri.getNewSessionUri()));
+		const cachedSource = cached.findModeById(agent.id)?.source?.uri;
+		const moved = URI.file('/moved/reviewer.agent.md');
+		promptsService.setCustomModes([{ ...agent, source: { ...agent.source, uri: moved } }]);
+		await waitForRefresh();
+		const updated = modes.findModeById(agent.id);
+		assert.deepStrictEqual({
+			cached: cachedSource?.toString(), revived: URI.isUri(cachedSource),
+			id: updated?.id, identity: updated?.uri?.get().toString(), open: updated?.source?.uri?.toString(),
+		}, { cached: original.toString(), revived: true, id: agent.id, identity: identity.toString(), open: moved.toString() });
 	});
 
 	test('should return builtin modes', async () => {

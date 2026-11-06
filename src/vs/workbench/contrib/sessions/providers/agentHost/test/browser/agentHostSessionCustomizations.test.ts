@@ -15,7 +15,7 @@ import { CustomizationType, ResponsePartKind, ToolCallContributorKind, ToolCallS
 import { SessionCustomizationKind } from '../../../../common/session.js';
 import { autorun, observableValue } from '../../../../../../../base/common/observable.js';
 import { TestCustomizationJobScheduler } from '../../../../../chat/test/common/testCustomizationJobScheduler.js';
-import { createIncrementalChatCustomizationRefsParser, createProgressiveChatCustomizations, CustomizationIndex, type ICustomizationRefChatState, CustomizationRefKind, parseTurnCustomizationRefs, resolveChatCustomizations } from '../../../../../chat/common/agentHostSessionCustomizations.js';
+import { createIncrementalChatCustomizationRefsParser, createProgressiveChatCustomizations, CustomizationIndex, type ICustomizationRefChatState, CustomizationRefKind, getAgentHostCustomizationOpenUri, parseTurnCustomizationRefs, resolveChatCustomizations } from '../../../../../chat/common/agentHostSessionCustomizations.js';
 
 suite('Agent Host Session Customizations', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
@@ -104,6 +104,30 @@ suite('Agent Host Session Customizations', () => {
 	});
 
 	for (const kind of agentHostConnectionKinds) {
+		test(`opens only this client's original file, preserving other clients' host access (${kind.name})`, () => {
+			const host = URI.file('/cache/plugin/agents/review.md');
+			const source = URI.parse('client-bundle:/plugin/agents/review.md');
+			const original = URI.file('/extensions/review.agent.md');
+			const child = { uri: host.toString(), _meta: { 'vscode.sourceUri': source.toString() } };
+			const connection = { clientId: 'vscode', resourceUris: kind.resourceUris };
+			const container = { uri: 'client-bundle:/plugin', clientId: 'vscode' };
+			const lookups: string[] = [];
+			const origin = (uri: URI) => { lookups.push(uri.toString()); return original; };
+			const opened = [
+				getAgentHostCustomizationOpenUri(child, connection, container, origin),
+				getAgentHostCustomizationOpenUri(child, connection, { ...container, clientId: 'foreign' }, origin),
+				getAgentHostCustomizationOpenUri({ ...child, _meta: { 'vscode.sourceUri': 'client-bundle:/outside/review.md' } }, connection, container, origin),
+				getAgentHostCustomizationOpenUri(child, connection, { ...container, uri: 'vscode-agent-host-file:/host/plugin' }, origin),
+				getAgentHostCustomizationOpenUri({ uri: host.toString() }, connection, container, origin),
+			];
+			assert.deepStrictEqual({
+				uris: opened.map(uri => uri.toString()), lookups, identity: child.uri,
+			}, {
+				uris: [original.toString(), ...Array.from({ length: 4 }, () => kind.toClient(host).toString())],
+				lookups: [source.toString()], identity: host.toString(),
+			});
+		});
+
 		test(`maps host-authored children independently of their publishing client and hides foreign container resources (${kind.name})`, () => {
 			const mapper = kind.resourceUris;
 			const plugins: Customization[] = ['vscode', 'foreign'].map(clientId => ({
