@@ -521,10 +521,10 @@ suite('Sessions - Session Activity Bar', () => {
 		});
 	});
 
-	test('in the main window\'s column, fills the column from top to bottom after the gap between cards, which offers the context menu anywhere', () => {
+	test('in the main window\'s column, fills the column from top to bottom after the gap between cards, with entries the size of the workbench activity bar\'s, and offers the context menu anywhere', () => {
 		const { createDocked, root, contextMenus } = createActivityBar(store, [changes, browser]);
 		const hostElement = append(root, $('.session-activity-bar-column.session-activity-bar-host'));
-		hostElement.style.cssText = '--agents-floating-panel-gap: 8px; position: relative; width: 42px; height: 200px;';
+		hostElement.style.cssText = '--agents-floating-panel-gap: 8px; position: relative; width: 56px; height: 200px;';
 		store.add(registerSessionActivityBarExternalHost(root, { element: hostElement, active: observableValue('active', true), setOccupied: () => { } }));
 		const docked = createDocked();
 		docked.layout(40);
@@ -537,10 +537,15 @@ suite('Sessions - Session Activity Bar', () => {
 
 		assert.deepStrictEqual({
 			fills: [bounds.top, bounds.bottom, bounds.left, bounds.right].map(Math.round),
+			entry: (({ width, height }) => [width, height])(element.querySelector<HTMLElement>('.action-label:not(.separator)')!.getBoundingClientRect()),
+			iconSize: mainWindow.getComputedStyle(element.querySelector<HTMLElement>('.action-label:not(.separator)')!).fontSize,
 			bottomIsStrip: element.contains(nearBottom),
 			menus: contextMenus,
 		}, {
 			fills: [hostBounds.top, hostBounds.bottom, hostBounds.left + 8, hostBounds.right].map(Math.round),
+			// The whole width of the strip, whose border, from the theme's stroke thickness, is not set here.
+			entry: [48, 48],
+			iconSize: '24px',
 			bottomIsStrip: true,
 			menus: ['SessionActivityBarContext'],
 		});

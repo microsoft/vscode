@@ -26,6 +26,43 @@
 	box-shadow: none;
 }
 
+/* Beside the cards of the main window, the strip and its entries take the size of the workbench activity bar of an editor
+ * window (`activityaction.css`): 48px entries with 24px icons, in a strip as wide as that activity bar. */
+.monaco-workbench .session-activity-bar-column .session-activity-bar.docked {
+	align-items: stretch;
+	padding: 0;
+}
+
+.monaco-workbench .session-activity-bar-column .session-activity-bar .monaco-action-bar.vertical .actions-container {
+	align-items: stretch;
+	gap: 0;
+}
+
+.monaco-workbench .session-activity-bar-column .session-activity-bar .monaco-action-bar.vertical .action-item {
+	width: 100%;
+}
+
+.monaco-workbench .session-activity-bar-column .session-activity-bar .monaco-action-bar.vertical .action-label:not(.separator) {
+	width: 100%;
+	height: 48px;
+	font-size: 24px;
+}
+
+.monaco-workbench .session-activity-bar-column .session-activity-bar .monaco-action-bar.vertical .action-label.separator {
+	width: var(--vscode-spacing-size240);
+}
+
+/* At the bottom-right of the larger icon, as the workbench activity bar places its badges. */
+.monaco-workbench .session-activity-bar-column .session-activity-bar .session-activity-bar-badge {
+	top: var(--vscode-spacing-size240);
+	right: var(--vscode-spacing-size100);
+}
+
+.monaco-workbench .session-activity-bar-column .session-activity-bar .session-activity-bar-badge.count {
+	top: var(--vscode-spacing-size240);
+	right: var(--vscode-spacing-size60);
+}
+
 /* Beside the chat while the side pane is closed, whose visible frame is inset within its part. */
 .monaco-workbench.noeditorpane .session-activity-bar-column .session-activity-bar.docked {
 	left: calc(var(--agents-floating-panel-gap) - var(--agents-session-frame-inset));

@@ -22,6 +22,12 @@ const COLUMN_GAP = 2;
 export const SESSION_ACTIVITY_BAR_COLUMN_WIDTH = COLUMN_GAP + STRIP_WIDTH + COLUMN_GAP;
 
 /**
+ * The width of the strip in the main window's {@link SessionActivityBarColumn}: that of the workbench activity bar of an
+ * editor window, whose entries the strip's take the size of there, in `sessionActivityBar.css`.
+ */
+const MAIN_WINDOW_STRIP_WIDTH = 48;
+
+/**
  * A place outside the chat where the active strip shows instead, such as a column of its own at the right of the
  * window. See {@link registerSessionActivityBarExternalHost}.
  */
@@ -92,7 +98,7 @@ export class SessionActivityBarColumn implements ISerializableView, ISessionActi
 	private gap = 0;
 
 	get minimumWidth(): number {
-		return this.gap + SESSION_ACTIVITY_BAR_COLUMN_WIDTH;
+		return this.gap + MAIN_WINDOW_STRIP_WIDTH;
 	}
 
 	get maximumWidth(): number {

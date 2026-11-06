@@ -1340,7 +1340,7 @@ suite('Sessions - Workbench', () => {
 		assert.deepStrictEqual({ desktop, customViewOpen, customViewClosed, phone }, { desktop: true, customViewOpen: false, customViewClosed: true, phone: false });
 	});
 
-	test('shows the Session Activity Bar column on the next frame while a strip is in it, as wide as the strip and the gap between cards, and not while a view is maximized', async () => {
+	test('shows the Session Activity Bar column on the next frame while a strip is in it, as wide as the workbench activity bar and the gap between cards, and not while a view is maximized', async () => {
 		const column = new SessionActivityBarColumn(constObservable(true));
 		const onDidChangeViewMaximized = store.add(new Emitter<boolean>());
 		const changes: boolean[] = [];
@@ -1384,7 +1384,7 @@ suite('Sessions - Workbench', () => {
 		column.dispose();
 
 		assert.deepStrictEqual({ beforeFrame, shown, whileMaximized, restored: changes, widths, classWhileShown, classWhenHidden: mainContainer.classList.contains('session-activity-bar-column-visible') }, {
-			widths: [8 + 34],
+			widths: [8 + 48],
 			classWhileShown: true,
 			classWhenHidden: false,
 			beforeFrame: [],
