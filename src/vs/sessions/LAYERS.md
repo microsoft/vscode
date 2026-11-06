@@ -47,6 +47,7 @@ The foundational layer. It may import from the sessions **services** layer, but 
 - `vs/platform/*/~`
 - `vs/editor/~`, `vs/editor/contrib/*/~`
 - `vs/workbench/~`, `vs/workbench/browser/**`, `vs/workbench/services/*/~`
+- `vs/workbench/contrib/sessions/~` (the shared sessions code; see below)
 - `vs/sessions/~` (self), `vs/sessions/services/*/~`
 
 > **Note:** The desktop bootstrap entry `src/vs/sessions/electron-browser/sessions.ts` has its own, **more restrictive** rule: it may import only `vs/base/~`, `vs/base/parts/*/~`, `vs/platform/*/~`, `vs/sessions/~`, and `vs/sessions/sessions.desktop.main.js`.
@@ -115,6 +116,14 @@ This is the **most permissive** contrib layer — providers can reach into non-p
 Entry points can import from all sessions layers: `sessions/~`, `services/*/~`, `contrib/*/~`, and `contrib/providers/*/~`.
 
 ---
+
+## Shared sessions code in `vs/workbench/contrib/sessions`
+
+The provider-neutral session model, the session services, the session providers and the reusable session UI live in `src/vs/workbench/contrib/sessions/` so that other workbench windows can host them. Every layer of `vs/sessions` may import them. They follow the workbench rules and **never** import `vs/sessions`:
+
+- `vs/workbench/contrib/sessions/~` may import what any workbench contribution may import.
+- `vs/workbench/contrib/sessions/providers/*/~` may additionally import sibling providers. Nothing else in `vs/workbench` may import a provider; in `vs/sessions`, only provider contributions and the entry points may.
+- Modules there register nothing at module level. Their services, contributions, actions, menus and keybindings are registered from `vs/sessions` (for example `services/sessions/browser/sessionsServices.registration.ts` and the `*.contribution.ts` modules), so only the windows whose entry points import those modules load them.
 
 ## Key Constraint
 

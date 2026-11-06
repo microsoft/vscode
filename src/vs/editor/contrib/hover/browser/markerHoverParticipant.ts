@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as dom from '../../../../base/browser/dom.js';
+import { SeverityIcon } from '../../../../base/browser/ui/severityIcon/severityIcon.js';
 import { isNonEmptyArray } from '../../../../base/common/arrays.js';
 import { CancelablePromise, createCancelablePromise, disposableTimeout } from '../../../../base/common/async.js';
 import { onUnexpectedError } from '../../../../base/common/errors.js';
@@ -32,6 +33,10 @@ import { ThemeIcon } from '../../../../base/common/themables.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 
 const $ = dom.$;
+
+function getSeverityLabel(severity: MarkerSeverity): string {
+	return severity === MarkerSeverity.Hint ? nls.localize('hint', "Hint") : MarkerSeverity.toString(severity);
+}
 
 export class MarkerHover implements IHoverPart {
 
@@ -104,14 +109,14 @@ export class MarkerHoverParticipant implements IEditorHoverParticipant<MarkerHov
 		if (!hoverParts.length) {
 			return new RenderedHoverParts([]);
 		}
+		const sortedHoverParts = hoverParts.slice().sort((a, b) => MarkerSeverity.compare(a.marker.severity, b.marker.severity));
 		const renderedHoverParts: IRenderedHoverPart<MarkerHover>[] = [];
-		hoverParts.forEach(hoverPart => {
+		sortedHoverParts.forEach(hoverPart => {
 			const renderedMarkerHover = this._renderMarkerHover(hoverPart);
 			context.fragment.appendChild(renderedMarkerHover.hoverElement);
 			renderedHoverParts.push(renderedMarkerHover);
 		});
-		const markerHoverForStatusbar = hoverParts.length === 1 ? hoverParts[0] : hoverParts.sort((a, b) => MarkerSeverity.compare(a.marker.severity, b.marker.severity))[0];
-		const disposables = this._renderMarkerStatusbar(context, markerHoverForStatusbar);
+		const disposables = this._renderMarkerStatusbar(context, sortedHoverParts[0]);
 		return new RenderedHoverParts(renderedHoverParts, disposables);
 	}
 
@@ -120,16 +125,21 @@ export class MarkerHoverParticipant implements IEditorHoverParticipant<MarkerHov
 		const relatedInformation = isNonEmptyArray(marker.relatedInformation)
 			? marker.relatedInformation.map(related => `${basename(related.resource)}(${related.startLineNumber}, ${related.startColumn}): ${related.message}`).join('\n')
 			: undefined;
-		return [marker.message, relatedInformation].filter(value => !!value).join('\n');
+		return [nls.localize('diagnosticMessage', "{0}: {1}", getSeverityLabel(marker.severity), marker.message), relatedInformation].filter(value => !!value).join('\n');
 	}
 
 	private _renderMarkerHover(markerHover: MarkerHover): IRenderedHoverPart<MarkerHover> {
 		const disposables: DisposableStore = new DisposableStore();
 		const hoverElement = $('div.hover-row');
-		const markerElement = dom.append(hoverElement, $('div.marker.hover-contents'));
-		const { source, message, code, relatedInformation } = markerHover.marker;
+		const markerContainer = dom.append(hoverElement, $('div.marker.hover-contents'));
+		const { source, message, code, relatedInformation, severity } = markerHover.marker;
 
-		this._editor.applyFontInfo(markerElement);
+		this._editor.applyFontInfo(markerContainer);
+		const severityIcon = dom.append(markerContainer, $('span.marker-severity'));
+		severityIcon.classList.add(...SeverityIcon.className(MarkerSeverity.toSeverity(severity)).split(' '));
+		severityIcon.setAttribute('role', 'img');
+		severityIcon.setAttribute('aria-label', getSeverityLabel(severity));
+		const markerElement = dom.append(markerContainer, $('div.marker-message'));
 		const messageElement = dom.append(markerElement, $('span'));
 		messageElement.style.whiteSpace = 'pre-wrap';
 		messageElement.innerText = message;

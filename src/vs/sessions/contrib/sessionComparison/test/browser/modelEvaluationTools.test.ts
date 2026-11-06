@@ -24,12 +24,12 @@ import { getChatMarkdownRenderOptions } from '../../../../../workbench/contrib/c
 import { ILanguageModelChatMetadata, ILanguageModelChatMetadataAndIdentifier } from '../../../../../workbench/contrib/chat/common/languageModels.js';
 import { ILanguageModelToolsService, IToolData, IToolImpl, IToolResult, ToolProgress, ToolSet } from '../../../../../workbench/contrib/chat/common/tools/languageModelToolsService.js';
 import { IChatEntitlementService } from '../../../../../workbench/services/chat/common/chatEntitlementService.js';
-import { IAgentHostSessionsProvider } from '../../../../common/agentHostSessionsProvider.js';
-import { ISessionsProvidersService, SessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
+import { IAgentHostSessionsProvider } from '../../../../../workbench/contrib/sessions/common/agentHostSessionsProvider.js';
+import { ISessionsProvidersService, SessionsProvidersService } from '../../../../../workbench/contrib/sessions/browser/sessionsProvidersService.js';
 import { ILifecycleService } from '../../../../../workbench/services/lifecycle/common/lifecycle.js';
-import { IChat, ISession, ISessionWorkspace, SessionStatus, SessionTypeAuthRequirement } from '../../../../services/sessions/common/session.js';
-import { COMPARE_AGENTS_ENABLED_SETTING, COMPARE_AGENTS_TOOLS_ENABLED_SETTING, ISessionComparison, ISessionComparisonService, IStartSessionComparisonOptions, SessionComparisonLaunchError, SessionComparisonParticipantRole } from '../../../../services/sessions/common/sessionComparison.js';
-import { ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
+import { IChat, ISession, ISessionWorkspace, SessionStatus, SessionTypeAuthRequirement } from '../../../../../workbench/contrib/sessions/common/session.js';
+import { COMPARE_AGENTS_ENABLED_SETTING, COMPARE_AGENTS_TOOLS_ENABLED_SETTING, ISessionComparison, ISessionComparisonService, IStartSessionComparisonOptions, SessionComparisonLaunchError, SessionComparisonParticipantRole } from '../../../../../workbench/contrib/sessions/common/sessionComparison.js';
+import { ISessionsManagementService } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import { ModelEvaluationTool, ModelEvaluationToolContribution } from '../../browser/modelEvaluationTools.js';
 
 const callerResource = URI.parse('test:/parent#evaluator');
@@ -417,13 +417,13 @@ suite('ModelEvaluationTools', () => {
 		}, { stale: true, unprepared: true, recursive: true, launches: 0 });
 	});
 
-	test('validates counts, folderless roles, model IDs, and supported model configurations before side effects', async () => {
+	test('validates counts, folderless branches, model IDs, and supported model configurations before side effects', async () => {
 		const fixture = setup();
 		const tool = fixture.tool('createModelComparison');
 		for (const input of [
 			{ ...launchInput(), attempts: [selection] },
 			{ ...launchInput(), attempts: Array.from({ length: 11 }, () => selection) },
-			{ ...launchInput(), workspaceMode: 'folderless' },
+			{ ...launchInput(), workspaceMode: 'folderless', branch: 'main' },
 			{ ...launchInput(), judge: undefined, synthesizer: selection },
 			{ ...launchInput(), attempts: [selection, { ...selection, modelId: 'missing' }] },
 			{ ...launchInput(), attempts: [selection, { ...selection, modelConfiguration: { thinkingLevel: 'max' } }] },
@@ -521,6 +521,22 @@ suite('ModelEvaluationTools', () => {
 			workspace: fixture.launches[0].workspace, judge: fixture.launches[0].judgeHarness,
 			cancelled: !!cancelled.toolResultError, disabled: !!disabled.toolResultError, launches: fixture.launches.length,
 		}, { workspace: undefined, judge: undefined, cancelled: true, disabled: true, launches: 1 });
+	});
+
+	test('creates folderless comparisons with the selected Judge and Synthesizer', async () => {
+		const fixture = setup({ quickChat: true });
+		fixture.chatWorkspace.set(undefined, undefined);
+		const result = await invoke(fixture.tool('createModelComparison'), { ...launchInput(), synthesizer: selection }, true);
+		assert.deepStrictEqual({
+			error: result.toolResultError,
+			workspace: fixture.launches[0]?.workspace,
+			branch: fixture.launches[0]?.branch,
+			judge: fixture.launches[0]?.judgeHarness?.modelId,
+			synthesizer: fixture.launches[0]?.synthesisHarness?.modelId,
+			workspaceConfigRequests: fixture.workspaceConfigRequests,
+		}, {
+			error: undefined, workspace: undefined, branch: undefined, judge: 'model', synthesizer: 'model', workspaceConfigRequests: [],
+		});
 	});
 
 	test('returns survivor identities on an insufficient-success launch failure', async () => {

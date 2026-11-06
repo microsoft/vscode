@@ -5,7 +5,7 @@
 
 import assert from 'assert';
 import { toDisposable } from '../../../../../base/common/lifecycle.js';
-import { constObservable } from '../../../../../base/common/observable.js';
+import { constObservable, derived } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { mock, upcastPartial } from '../../../../../base/test/common/mock.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
@@ -17,32 +17,39 @@ import { IEditorService } from '../../../../../workbench/services/editor/common/
 import { IChatWindow, IChatWindowService } from '../../../../../workbench/contrib/chatWindow/browser/chatWindow.js';
 import { IEditorGroup, IEditorGroupsService } from '../../../../../workbench/services/editor/common/editorGroupsService.js';
 import { IAgentWorkbenchLayoutService } from '../../../../browser/workbench.js';
-import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
-import { IActiveSession } from '../../../../services/sessions/common/sessionsManagement.js';
-import { IChat, ISession } from '../../../../services/sessions/common/session.js';
+import { ISessionsService } from '../../../../../workbench/contrib/sessions/browser/sessionsService.js';
+import { IChat, ISession } from '../../../../../workbench/contrib/sessions/common/session.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { isIMenuItem, isISubmenuItem, MenuRegistry, registerAction2 } from '../../../../../platform/actions/common/actions.js';
+import { IMenuItem, isIMenuItem, ISubmenuItem, isISubmenuItem, MenuRegistry, registerAction2 } from '../../../../../platform/actions/common/actions.js';
 import { CommandsRegistry, ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { ConfigurationScope, Extensions as ConfigurationExtensions, IConfigurationRegistry } from '../../../../../platform/configuration/common/configurationRegistry.js';
 import { ContextKeyExpression, ContextKeyValue, IContext, IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { Registry } from '../../../../../platform/registry/common/platform.js';
 import { EditorTabsVisibleContext, IsAuxiliaryWindowContext, IsSessionsWindowContext, IsTopRightEditorGroupContext, LayoutModeContext, SplitLayoutContext } from '../../../../../workbench/common/contextkeys.js';
 import { KeybindingsRegistry } from '../../../../../platform/keybinding/common/keybindingsRegistry.js';
+import product from '../../../../../platform/product/common/product.js';
 import { ChatContextKeys } from '../../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
 import { ChatWindowLayoutMode } from '../../../../../workbench/contrib/chatWindow/common/chatWindowLayout.js';
-import { Menus } from '../../../../browser/menus.js';
-import { DesktopChangesTabAvailableContext, DesktopFilesTabAvailableContext, DesktopLayoutContext, IsQuickChatSessionContext, SessionHasWorkspaceContext } from '../../../../common/contextkeys.js';
-import { CHAT_WINDOW_OPEN_BROWSER_COMMAND_ID, CHAT_WINDOW_OPEN_CHANGES_COMMAND_ID, CHAT_WINDOW_OPEN_FILES_COMMAND_ID, NEW_FILE_TAB_COMMAND_ID } from '../../../../common/sessionCommands.js';
-import { ActiveSessionHost, ISessionHostService, SessionHostKind } from '../../../../services/sessions/browser/sessionHost.js';
-import { ISessionChangesService } from '../../../changes/common/sessionChangesService.js';
+import { Menus } from '../../../../../workbench/contrib/sessions/browser/menus.js';
+import { AgentsWindowMenus } from '../../../../browser/agentsWindowMenus.js';
+import { DesktopLayoutContext, IsQuickChatSessionContext, SessionHasWorkspaceContext } from '../../../../../workbench/contrib/sessions/common/contextkeys.js';
+import { DesktopChangesTabAvailableContext, DesktopFilesTabAvailableContext, SessionsTitleBarNewSessionEnabledContext } from '../../../../common/agentsWindowContextKeys.js';
+import { CHAT_WINDOW_OPEN_BROWSER_COMMAND_ID, CHAT_WINDOW_OPEN_CHANGES_COMMAND_ID, CHAT_WINDOW_OPEN_FILES_COMMAND_ID, NEW_FILE_TAB_COMMAND_ID } from '../../../../../workbench/contrib/sessions/common/sessionCommands.js';
+import { ISessionHostService, SessionHost, SessionHostKind } from '../../../../../workbench/contrib/sessions/browser/sessionHost.js';
+import { ISessionChangesService } from '../../../../../workbench/contrib/sessions/common/sessionChangesService.js';
 import { NEW_BROWSER_TAB_COMMAND_ID, NEW_CHANGES_TAB_COMMAND_ID, NEW_SEARCH_TAB_COMMAND_ID, NewBrowserTabAction, NewChangesTabAction, NewFileTabAction, NewSearchTabAction } from '../../../editor/browser/addTabActions.js';
 import '../../../../browser/layoutActions.js';
 import '../../../chat/browser/runScriptAction.js';
-import { SESSION_ACTIVITY_BAR_LAYOUT_ACTIONS_SETTING, SESSION_ACTIVITY_BAR_SETTING } from '../../../../common/sessionConfig.js';
+import '../../../sessions/browser/sessionsActions.js';
+import '../../../accountMenu/browser/account.contribution.js';
+import { registerSessionsTitleBarMenus } from '../../../sessions/browser/sessionsTitleBarWidget.js';
+import { appendNewSessionTitleBarMenuItem } from '../../../chat/browser/newSessionTitleBarMenu.js';
+import { SESSION_ACTIVITY_BAR_LAYOUT_ACTIONS_SETTING, SESSION_ACTIVITY_BAR_SETTING } from '../../../../../workbench/contrib/sessions/common/sessionConfig.js';
 import { CHAT_WINDOWS_ENABLED_SETTING } from '../../common/chatWindows.js';
 import '../../browser/chatWindow.contribution.js';
 import { MOVE_CHAT_TO_MAIN_WINDOW_COMMAND_ID, OPEN_ACTIVE_CHAT_IN_WINDOW_COMMAND_ID, OPEN_CHAT_IN_WINDOW_COMMAND_ID, OPEN_SESSION_IN_WINDOW_COMMAND_ID, openChatInWindow } from '../../browser/openChatInWindow.js';
-import { ITestSessionsService, stubMissingSessionHostsFromSessionsService } from '../../../../services/sessions/test/browser/sessionHostTestUtils.js';
+import { ITestSessionsService, ITestSessionWithChat, LegacyFakePaneState, stubMissingSessionHostsFromSessionsService, testGridPanes, withCreatedStatus } from '../../../../../workbench/contrib/sessions/test/browser/sessionHostTestUtils.js';
+import { stubSessionsHostLayout } from '../../../../test/browser/sessionsHostLayoutTestUtils.js';
 
 function evaluate(expression: ContextKeyExpression | undefined, values: Record<string, ContextKeyValue>): boolean {
 	return expression?.evaluate({ getValue: <T extends ContextKeyValue>(key: string) => values[key] as T | undefined } satisfies IContext) !== false;
@@ -100,17 +107,19 @@ suite('Chat window contribution', () => {
 		assert.deepStrictEqual(commands.filter(id => !CommandsRegistry.getCommand(id)), []);
 	});
 
-	test('the setting is off by default, and opening a chat in a window is offered only with it on and AI features enabled', () => {
+	test('the setting is on by default outside stable, in preview and controlled by experiments, and opening a chat in a window is offered only with it on and AI features enabled', () => {
 		const setting = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).getConfigurationProperties()[CHAT_WINDOWS_ENABLED_SETTING];
 		const item = MenuRegistry.getMenuItems(Menus.SessionChatItemOpenIn).filter(isIMenuItem).find(candidate => candidate.command.id === OPEN_CHAT_IN_WINDOW_COMMAND_ID);
 		const offered = (values: Record<string, ContextKeyValue>) => evaluate(item?.when, { [IsSessionsWindowContext.key]: true, ...values });
 		assert.deepStrictEqual({
 			default: setting?.default,
 			scope: setting?.scope,
+			tags: setting?.tags,
+			experiment: setting?.experiment,
 			off: offered({ [ChatContextKeys.enabled.key]: true, [`config.${CHAT_WINDOWS_ENABLED_SETTING}`]: false }),
 			on: offered({ [ChatContextKeys.enabled.key]: true, [`config.${CHAT_WINDOWS_ENABLED_SETTING}`]: true }),
 			aiDisabled: offered({ [ChatContextKeys.enabled.key]: false, [`config.${CHAT_WINDOWS_ENABLED_SETTING}`]: true }),
-		}, { default: false, scope: ConfigurationScope.APPLICATION, off: false, on: true, aiDisabled: false });
+		}, { default: product.quality !== 'stable', scope: ConfigurationScope.APPLICATION, tags: ['preview', 'onExP'], experiment: { mode: 'auto' }, off: false, on: true, aiDisabled: false });
 	});
 
 	test('the session header offers Open in New Window in the main window and Move to Main Window in a chat window', () => {
@@ -130,16 +139,16 @@ suite('Chat window contribution', () => {
 	});
 
 	test('the Layout menu and Show Editor show in the title bar of a chat window, or in its Session Activity Bar while the strip shows the layout actions; never in the main window', () => {
-		const layoutEntries = (menu: typeof Menus.TitleBarWindowLayout, values: Record<string, ContextKeyValue>) => MenuRegistry.getMenuItems(menu)
-			.filter(item => evaluate(item.when, values) && (isISubmenuItem(item) ? item.submenu === Menus.WindowLayout : !item.isHiddenByDefault && /chatWindow\.toggle(Chat|Editor|Arrangement)$/.test(item.command.id)))
+		const layoutEntries = (menu: typeof AgentsWindowMenus.TitleBarWindowLayout, values: Record<string, ContextKeyValue>) => MenuRegistry.getMenuItems(menu)
+			.filter(item => evaluate(item.when, values) && (isISubmenuItem(item) ? item.submenu === AgentsWindowMenus.WindowLayout : !item.isHiddenByDefault && /chatWindow\.toggle(Chat|Editor|Arrangement)$/.test(item.command.id)))
 			.map(item => isISubmenuItem(item) ? 'Layout' : item.command.id);
 		const stripKeys = { [DesktopLayoutContext.key]: true, [`config.${SESSION_ACTIVITY_BAR_SETTING}`]: true, [`config.${SESSION_ACTIVITY_BAR_LAYOUT_ACTIONS_SETTING}`]: true };
 		assert.deepStrictEqual({
-			titleBar: layoutEntries(Menus.TitleBarWindowLayout, chatWindowKeys),
+			titleBar: layoutEntries(AgentsWindowMenus.TitleBarWindowLayout, chatWindowKeys),
 			strip: layoutEntries(Menus.SessionActivityBar, chatWindowKeys),
-			titleBarWithStripLayoutActions: layoutEntries(Menus.TitleBarWindowLayout, { ...chatWindowKeys, ...stripKeys }),
+			titleBarWithStripLayoutActions: layoutEntries(AgentsWindowMenus.TitleBarWindowLayout, { ...chatWindowKeys, ...stripKeys }),
 			stripWithStripLayoutActions: layoutEntries(Menus.SessionActivityBar, { ...chatWindowKeys, ...stripKeys }),
-			mainWindow: layoutEntries(Menus.TitleBarWindowLayout, { [IsSessionsWindowContext.key]: true, [ChatContextKeys.enabled.key]: true }),
+			mainWindow: layoutEntries(AgentsWindowMenus.TitleBarWindowLayout, { [IsSessionsWindowContext.key]: true, [ChatContextKeys.enabled.key]: true }),
 		}, {
 			titleBar: ['workbench.action.chatWindow.toggleEditor', 'Layout'],
 			strip: [],
@@ -149,8 +158,57 @@ suite('Chat window contribution', () => {
 		});
 	});
 
+	test('the Layout menu is named Configure Layout in the title bar and the Session Activity Bar, whatever the layout mode, not after the mode', () => {
+		const layoutMenuTitles = (menu: typeof AgentsWindowMenus.TitleBarWindowLayout, values: Record<string, ContextKeyValue>) => MenuRegistry.getMenuItems(menu)
+			.filter(isISubmenuItem)
+			.filter(item => item.submenu === AgentsWindowMenus.WindowLayout && evaluate(item.when, values))
+			.map(item => typeof item.title === 'string' ? item.title : item.title.value);
+		const stripKeys = { [DesktopLayoutContext.key]: true, [`config.${SESSION_ACTIVITY_BAR_SETTING}`]: true, [`config.${SESSION_ACTIVITY_BAR_LAYOUT_ACTIONS_SETTING}`]: true };
+		const modes = [ChatWindowLayoutMode.SideBySide, ChatWindowLayoutMode.Stacked, ChatWindowLayoutMode.ChatOnly, ChatWindowLayoutMode.EditorOnly];
+		const titles = (menu: typeof AgentsWindowMenus.TitleBarWindowLayout, extraKeys: Record<string, ContextKeyValue>) => Object.fromEntries(modes.map(mode => [mode, layoutMenuTitles(menu, { ...chatWindowKeys, ...extraKeys, [LayoutModeContext.key]: mode })]));
+		const configureLayout = Object.fromEntries(modes.map(mode => [mode, ['Configure Layout']]));
+		assert.deepStrictEqual({
+			titleBar: titles(AgentsWindowMenus.TitleBarWindowLayout, {}),
+			strip: titles(Menus.SessionActivityBar, stripKeys),
+		}, {
+			titleBar: configureLayout,
+			strip: configureLayout,
+		});
+	});
+
+	test('the title bar of a chat window shows the command center, with the session of its active chat, and the actions of its session, as the main window\'s does; not the main window\'s navigation, nor what applies to the whole app', () => {
+		disposables.add(registerSessionsTitleBarMenus());
+		disposables.add(appendNewSessionTitleBarMenuItem());
+		const menus = {
+			left: AgentsWindowMenus.TitleBarLeftLayout,
+			centerLeft: AgentsWindowMenus.TitleBarCenterLeft,
+			commandCenter: AgentsWindowMenus.CommandCenter,
+			centerRight: AgentsWindowMenus.TitleBarCenterRight,
+			right: AgentsWindowMenus.TitleBarRightLayout,
+		};
+		// The entries of the main window's title bar, by their titles
+		const entries = ['Toggle Side Bar', 'New Session', 'Go Back', 'Go Forward', 'Agent Sessions', 'Run', 'Agents Account and Status'];
+		const titleOf = (item: IMenuItem | ISubmenuItem) => {
+			const title = isISubmenuItem(item) ? item.title : item.command.title;
+			return typeof title === 'string' ? title : title?.value;
+		};
+		const shown = (values: Record<string, ContextKeyValue>) => Object.fromEntries(Object.entries(menus).map(([name, menu]) => [name, [...new Set(MenuRegistry.getMenuItems(menu)
+			.filter(item => evaluate(item.when, values))
+			.map(titleOf)
+			.filter((title): title is string => !!title && entries.includes(title)))].sort()]));
+		const newSessionShows = { [SessionsTitleBarNewSessionEnabledContext.key]: true };
+
+		assert.deepStrictEqual({
+			mainWindow: shown({ [IsSessionsWindowContext.key]: true, [ChatContextKeys.enabled.key]: true, ...newSessionShows }),
+			chatWindow: shown({ ...chatWindowKeys, ...newSessionShows }),
+		}, {
+			mainWindow: { left: ['New Session', 'Toggle Side Bar'], centerLeft: ['Go Back', 'Go Forward'], commandCenter: ['Agent Sessions'], centerRight: ['Run'], right: ['Agents Account and Status'] },
+			chatWindow: { left: [], centerLeft: [], commandCenter: ['Agent Sessions'], centerRight: ['Run'], right: [] },
+		});
+	});
+
 	test('the Layout menu disables hiding the part that shows alone, as 491817 does', () => {
-		const items = MenuRegistry.getMenuItems(Menus.WindowLayout).filter(isIMenuItem);
+		const items = MenuRegistry.getMenuItems(AgentsWindowMenus.WindowLayout).filter(isIMenuItem);
 		const enabled = (mode: ChatWindowLayoutMode) => items
 			.filter(item => evaluate(item.when, { ...chatWindowKeys, [LayoutModeContext.key]: mode }) && evaluate(item.command.precondition, { ...chatWindowKeys, [LayoutModeContext.key]: mode }))
 			.map(item => item.command.id.replace('workbench.action.chatWindow.', ''));
@@ -175,14 +233,16 @@ suite('Chat window contribution', () => {
 					return toDisposable(() => suppressions--);
 				},
 			}));
+			stubSessionsHostLayout(instantiationService);
 			const chat = (id: string) => ({ resource: URI.parse(`test:/chat/${id}`) });
-			const active = new class extends mock<IActiveSession>() {
+			const active = new class extends mock<ITestSessionWithChat>() {
 				override readonly sessionId = mainWindowShows;
-				override readonly activeChat = constObservable(chat(mainWindowShows)) as IActiveSession['activeChat'];
+				override readonly activeChat = constObservable(chat(mainWindowShows)) as ITestSessionWithChat['activeChat'];
 			}();
 			instantiationService.stub(ISessionsService, upcastPartial<ITestSessionsService>({
-				visibleSessions: constObservable([active]),
-				mainWindowActiveSession: constObservable<IActiveSession | undefined>(active),
+				gridShown: constObservable([active]),
+				slotPanes: testGridPanes(constObservable([active])),
+				mainWindowActiveSession: constObservable<ITestSessionWithChat | undefined>(active),
 			}));
 			stubMissingSessionHostsFromSessionsService(instantiationService);
 			instantiationService.stub(IEditorGroupsService, upcastPartial<IEditorGroupsService>({ mainPart: upcastPartial<IEditorGroupsService['mainPart']>({ groups: [] }) }));
@@ -221,7 +281,7 @@ suite('Chat window contribution', () => {
 		const bound = (values: Record<string, ContextKeyValue>) => Object.entries(commands)
 			.filter(([, id]) => rules.some(rule => rule.command === id && evaluate(rule.when ?? undefined, values)))
 			.map(([name]) => name);
-		const addTabMenu = MenuRegistry.getMenuItems(Menus.SessionsEditorTabsBarAddTab).filter(isIMenuItem);
+		const addTabMenu = MenuRegistry.getMenuItems(AgentsWindowMenus.SessionsEditorTabsBarAddTab).filter(isIMenuItem);
 		const addTabIds = [...Object.values(commands), CHAT_WINDOW_OPEN_CHANGES_COMMAND_ID, CHAT_WINDOW_OPEN_FILES_COMMAND_ID, CHAT_WINDOW_OPEN_BROWSER_COMMAND_ID];
 		const addTabEntries = (values: Record<string, ContextKeyValue>) => addTabMenu
 			.filter(item => addTabIds.includes(item.command.id) && evaluate(item.when, values))
@@ -270,11 +330,11 @@ suite('Chat window contribution', () => {
 				showEditor: () => { editorShown = true; },
 			});
 			// The session of the window, which its host shows, differs from the active session of the main window.
-			const windowSession = constObservable<IActiveSession | undefined>(upcastPartial<IActiveSession>({ resource: URI.parse('test:/window'), scopedChatResource: URI.parse('test:/window/chat'), isCreated: constObservable(true) }));
+			const windowSession = constObservable<LegacyFakePaneState | undefined>(upcastPartial<LegacyFakePaneState>({ resource: URI.parse('test:/window'), detachedChat: URI.parse('test:/window/chat'), ...withCreatedStatus(constObservable(true)) }));
 			const scoped = disposables.add(new TestInstantiationService());
-			const windowHost = new ActiveSessionHost({ kind: SessionHostKind.ChatWindow, parent: undefined, session: windowSession, chat: constObservable(upcastPartial<IChat>({ resource: URI.parse('test:/window/chat') })), contextKeyService: upcastPartial<IContextKeyService>({}), windowId: constObservable(window.windowId) });
-			const mainSession = constObservable<IActiveSession | undefined>(upcastPartial<IActiveSession>({ resource: URI.parse('test:/main'), isCreated: constObservable(true), activeChat: constObservable(upcastPartial<IChat>({ resource: URI.parse('test:/main/chat') })) }));
-			const mainHost = new ActiveSessionHost({ kind: SessionHostKind.MainWindow, parent: undefined, session: mainSession, contextKeyService: upcastPartial<IContextKeyService>({}), windowId: constObservable(mainWindowId) });
+			const windowHost = new SessionHost({ kind: SessionHostKind.ChatWindow, parent: undefined, session: windowSession, chat: constObservable(upcastPartial<IChat>({ resource: URI.parse('test:/window/chat') })), contextKeyService: upcastPartial<IContextKeyService>({}), windowId: constObservable(window.windowId) });
+			const mainSession = constObservable<ITestSessionWithChat | undefined>(upcastPartial<ITestSessionWithChat>({ resource: URI.parse('test:/main'), ...withCreatedStatus(constObservable(true)), activeChat: constObservable(upcastPartial<IChat>({ resource: URI.parse('test:/main/chat') })) }));
+			const mainHost = new SessionHost({ kind: SessionHostKind.MainWindow, parent: undefined, session: mainSession, chat: derived(reader => mainSession.read(reader)?.activeChat.read(reader)), contextKeyService: upcastPartial<IContextKeyService>({}), windowId: constObservable(mainWindowId) });
 			instantiationService.stub(ISessionHostService, upcastPartial<ISessionHostService>({ getHostOfWindow: windowId => windowId === window.windowId ? windowHost : windowId === mainWindowId ? mainHost : undefined }));
 			instantiationService.stub(IChatWindowService, upcastPartial<IChatWindowService>({
 				activeWindow: focusedWindow === 'chat' ? window : undefined,
@@ -285,7 +345,7 @@ suite('Chat window contribution', () => {
 				mainPart: upcastPartial<IEditorGroupsService['mainPart']>({ activeGroup: mainGroup }),
 				getScopedInstantiationService: () => scoped,
 			}));
-			instantiationService.stub(ISessionsService, upcastPartial<ITestSessionsService>({ activeSession: constObservable<IActiveSession | undefined>(upcastPartial<IActiveSession>({ resource: URI.parse('test:/main') })) }));
+			instantiationService.stub(ISessionsService, upcastPartial<ITestSessionsService>({ activeSession: constObservable<ITestSessionWithChat | undefined>(upcastPartial<ITestSessionWithChat>({ resource: URI.parse('test:/main') })) }));
 			stubMissingSessionHostsFromSessionsService(instantiationService);
 			instantiationService.stub(ISessionChangesService, upcastPartial<ISessionChangesService>({
 				getChangesEditorResource: resource => resource,

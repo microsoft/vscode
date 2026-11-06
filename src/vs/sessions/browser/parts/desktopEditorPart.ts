@@ -18,15 +18,16 @@ import { GroupIdentifier } from '../../../workbench/common/editor.js';
 import { EditorGroupLayout, GroupDirection, GroupLayoutArgument, IEditorDropTargetDelegate } from '../../../workbench/services/editor/common/editorGroupsService.js';
 import { Parts } from '../../../workbench/services/layout/browser/layoutService.js';
 import { IHostService } from '../../../workbench/services/host/browser/host.js';
-import { DockedEditorInput } from '../dockedEditorInput.js';
+import { DockedEditorInput } from '../../../workbench/contrib/sessions/browser/dockedEditorInput.js';
 import { DockedAuxiliaryBarController } from '../dockedAuxiliaryBarController.js';
-import { Menus } from '../menus.js';
+import { Menus } from '../../../workbench/contrib/sessions/browser/menus.js';
+import { AgentsWindowMenus } from '../agentsWindowMenus.js';
 import { IAgentWorkbenchLayoutService } from '../workbench.js';
-import { AGENTS_SIDE_PANE_MULTIPLE_TABS_CLASS } from './agentsPartCard.js';
+import { AGENTS_SIDE_PANE_MULTIPLE_TABS_CLASS } from '../../../workbench/contrib/sessions/browser/parts/agentsPartCard.js';
 import { MainEditorPart } from './editorPart.js';
 import { DesktopAuxiliaryBarPart } from './desktopAuxiliaryBarPart.js';
 import { applySingleGroupEditorStateInPlace } from './editorGroupStateInPlace.js';
-import { EmptyEditorGroupAddTab } from './emptyEditorGroupAddTab.js';
+import { EmptyEditorGroupAddTab } from '../../../workbench/contrib/sessions/browser/parts/emptyEditorGroupAddTab.js';
 
 /**
  * Desktop editor part: owns the docked auxiliary bar so "tab bar + editor
@@ -56,8 +57,8 @@ export class DesktopMainEditorPart extends MainEditorPart {
 				headerSecondary: Menus.SessionsEditorHeaderSecondary,
 				headerLayout: Menus.SessionsEditorHeaderLayout,
 				editorActions: Menus.SessionsEditorTitle,
-				tabsBarContext: Menus.SessionsEditorTabsBarContext,
-				tabsBarAddTab: Menus.SessionsEditorTabsBarAddTab
+				tabsBarContext: AgentsWindowMenus.SessionsEditorTabsBarContext,
+				tabsBarAddTab: AgentsWindowMenus.SessionsEditorTabsBarAddTab
 			},
 			showHeader: true,
 			useModernUITabs: true,
@@ -245,7 +246,7 @@ export class DesktopMainEditorPart extends MainEditorPart {
 	}
 
 	private _createEmptyGroupAddTabControl(group: EditorGroupView): IDisposable {
-		return this._instantiationService.createInstance(EmptyEditorGroupAddTab, group, Menus.SessionsEditorTabsBarAddTab, Menus.SessionsEmptyEditorGroupAddTab);
+		return this._instantiationService.createInstance(EmptyEditorGroupAddTab, group, AgentsWindowMenus.SessionsEditorTabsBarAddTab, AgentsWindowMenus.SessionsEmptyEditorGroupAddTab);
 	}
 
 	/** Also exposes the inset to CSS so content centered in an empty group avoids the docked detail panel. */

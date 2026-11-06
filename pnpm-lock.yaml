@@ -28,8 +28,8 @@ importers:
         specifier: 0.88.0
         version: 0.88.0
       '@github/copilot-sdk':
-        specifier: 1.0.29-preview.8
-        version: 1.0.29-preview.8
+        specifier: 1.0.29-preview.10
+        version: 1.0.29-preview.10
       '@hpke/core':
         specifier: ^1.9.0
         version: 1.9.0
@@ -245,8 +245,8 @@ importers:
         specifier: 0.163.0
         version: 0.163.0
       '@playwright/cli':
-        specifier: ^0.1.9
-        version: 0.1.9
+        specifier: ^0.1.22
+        version: 0.1.22
       '@playwright/test':
         specifier: ^1.61.1
         version: 1.61.1
@@ -506,8 +506,8 @@ importers:
         specifier: ^1.1.0
         version: 1.1.0
       readable-stream:
-        specifier: ^2.3.8
-        version: 2.3.8
+        specifier: ^3.6.0
+        version: 3.6.0
       rimraf:
         specifier: ^2.2.8
         version: 2.6.3
@@ -590,10 +590,10 @@ importers:
         version: 24.12.4
 
   src/vs/sessions/test/e2e:
-    dependencies:
+    devDependencies:
       '@playwright/cli':
-        specifier: 0.1.1
-        version: 0.1.1
+        specifier: ^0.1.22
+        version: 0.1.22
 
   test/automation:
     dependencies:
@@ -1002,52 +1002,52 @@ packages:
     resolution: {integrity: sha512-+CNAzxglkrpNf/kKywqQfk74QjtceuOE7Qm+AF8miRvPF/wmmK5+OJOgVh3AVTT3RP2mH3+FOaxlE5v72owk0A==}
     engines: {node: ^20.19.0 || ^22.13.0 || >=24}
 
-  '@github/copilot-sdk-darwin-arm64@1.0.29-preview.8':
-    resolution: {integrity: sha512-IxXEfg0ecS5r/YHaUdtxG6UvlA7j/zX5rLslDSape7rXQyqTptcs1v1RX7Yi0+v5CVm5Q0XGW2kowfI8/edaBg==}
+  '@github/copilot-sdk-darwin-arm64@1.0.29-preview.10':
+    resolution: {integrity: sha512-q8EdLlBKeZm8r5/EvFugQVCpY+M5I6wrwEqxzVRWVdxMEP0Qkvt1QpndXw4DN9+QjOjBZwMC4WgsMhZn4iEXig==}
     cpu: [arm64]
     os: [darwin]
 
-  '@github/copilot-sdk-darwin-x64@1.0.29-preview.8':
-    resolution: {integrity: sha512-uEIC4eiJiGrLP+uOrLz69LgTmsieaySnx7TpbOlSoP+tA9KH/hK+zDXM5nlNnY1jQnHSy4r3wZQypmmjM+iNgA==}
+  '@github/copilot-sdk-darwin-x64@1.0.29-preview.10':
+    resolution: {integrity: sha512-+jTGIQvx4WIoi1HdOwKz5vmPXhD+Mb88sth6WJPrM+ns8BHOpDCY1EkKO7WydDCiqNtkrpnlsrFMicv8VrByqg==}
     cpu: [x64]
     os: [darwin]
 
-  '@github/copilot-sdk-linux-arm64@1.0.29-preview.8':
-    resolution: {integrity: sha512-tyyWqgFER+1i5D1zozLXZFXB04MsPRuDlSeS7tHIPYPc+JdeGIunmJFyUHvg+KXU4d86SuQmk8UGd+QMVmTZhg==}
+  '@github/copilot-sdk-linux-arm64@1.0.29-preview.10':
+    resolution: {integrity: sha512-dId1li6q3FH0Afy+cxpFKWxGZZIKLlpJQVGeC7FPGGZeIdSa5DBovGdH12m90T2oISubfc3yCvhwUA+UYddL/A==}
     cpu: [arm64]
     os: [linux]
     libc: [glibc]
 
-  '@github/copilot-sdk-linux-x64@1.0.29-preview.8':
-    resolution: {integrity: sha512-UyUvJXESVdSLFQMm/8yavYJN3vVw7Yt4kjf87/DAIoHjM2dA5tI7dAhqJ+KYKhsQ3Z4e/YhwVnx526ldAk4ezw==}
+  '@github/copilot-sdk-linux-x64@1.0.29-preview.10':
+    resolution: {integrity: sha512-I3XP6Rzdorkiwx8izdfta9jDtFQYEn3cJD0yMxlhROte9jZBBteYZ8oJv9TDxy9OUE1Ob45nepHqAhQVPBDENA==}
     cpu: [x64]
     os: [linux]
     libc: [glibc]
 
-  '@github/copilot-sdk-linuxmusl-arm64@1.0.29-preview.8':
-    resolution: {integrity: sha512-eFp0EAPIg3jHye2+ma4jY2BlvlJ8qb18oGyYqIjfrBAqX6rG80I/c8vV7BzgjV6huB+OEMiQ+IoBneEIr1DKGQ==}
+  '@github/copilot-sdk-linuxmusl-arm64@1.0.29-preview.10':
+    resolution: {integrity: sha512-cDpBNFi34MawRtukpNm3nZy78uCTk6w3AZbUk2vaStWZTcVtznD+ZJ3xS4PNmfa0PngdKynWYW3hFNXD+pzn1w==}
     cpu: [arm64]
     os: [linux]
     libc: [musl]
 
-  '@github/copilot-sdk-linuxmusl-x64@1.0.29-preview.8':
-    resolution: {integrity: sha512-/h9ZqcDm/a2B+qQZRN1CnGXc1Q1mPQvxLQ2bAQaNDYwzE11EVAe/37D6Uf6zEzKQSQxlKUHjuFlYScasD/WvUA==}
+  '@github/copilot-sdk-linuxmusl-x64@1.0.29-preview.10':
+    resolution: {integrity: sha512-C2HDB4xRDPINEBMfcCHeuxam/0Dgk+IumoF6kDvCahonHtC+P5ff4iWgR3Vv5tI13o8hPJB+O1bU/aGbGYNZkg==}
     cpu: [x64]
     os: [linux]
     libc: [musl]
 
-  '@github/copilot-sdk-win32-arm64@1.0.29-preview.8':
-    resolution: {integrity: sha512-Pubm8/rLiYFl8AZe2FHCN2r8nv6QxD9t6w6stwcDmMQ+/JaF+S9INyvip+gS/WiO7f+2kqGY3GFnmHsBC8UxZw==}
+  '@github/copilot-sdk-win32-arm64@1.0.29-preview.10':
+    resolution: {integrity: sha512-3r3G246fuDVqVscHiC6SYzGD5n3QQwKmkRVIGBd7uvbycT02lQZFF551nNA5+Soyzsq802eMOW+yp8RN4AiP5w==}
     cpu: [arm64]
     os: [win32]
 
-  '@github/copilot-sdk-win32-x64@1.0.29-preview.8':
-    resolution: {integrity: sha512-X4RoeKhErR7c/9qo7iwQyory5NzRc1b3FjmlekkwOM28xUo6DNg0MDFTZM/6H61GugHtGwUm/bEoJL5LYPtszg==}
+  '@github/copilot-sdk-win32-x64@1.0.29-preview.10':
+    resolution: {integrity: sha512-JlL0C1s9Lua2d7KVCd7Q4RVD0bhr1nczMP0KQPUMc3ZS94tJYZZdRcPuIWlJjbnvu/o1y+g1Frgm4d6zrGWM8w==}
     cpu: [x64]
     os: [win32]
 
-  '@github/copilot-sdk@1.0.29-preview.8':
-    resolution: {integrity: sha512-jdfgQB+fMTNEVPpoytXcsYDeCEGAp1NiiLjDDhFy7U5EhtJPMuep5cqiUs62KVU9/3RpyTs3mhOwg+ltS2OgDw==}
+  '@github/copilot-sdk@1.0.29-preview.10':
+    resolution: {integrity: sha512-ug29ZLmbIKNXxoonq9m3YKkU5utyKS4teQfYJ/vxFqt0JvCf7Spj/SS25MarLjSjLgRs3N0UgsQeW2qsXsyykQ==}
     engines: {node: ^20.19.0 || >=22.12.0}
 
   '@gulp-sourcemaps/identity-map@2.0.1':
@@ -1448,13 +1448,8 @@ packages:
     resolution: {integrity: sha512-t3/zE0i9gik5R/NpRs7G2Xo/6NPeABW6ReplGdtkeWeAkaV764CgFgoKjJo21D2xgjnvDvRYubqBUu4xl0VCqA==}
     engines: {node: '>=18'}
 
-  '@playwright/cli@0.1.1':
-    resolution: {integrity: sha512-9k11ZfDwAfMVDDIuEVW1Wvs8SoDNXIY1dNQ+9C9/SS8ZmElkcxesu5eoL7vNa96ntibUGaq1TM2qQoqvdl/I9g==}
-    engines: {node: '>=18'}
-    hasBin: true
-
-  '@playwright/cli@0.1.9':
-    resolution: {integrity: sha512-WLpY7rb214LZpjrjFJ5iM+SeuwGdlgBupIlhlYgDOxVuMH/o9hG+4CkQMWEeBuQIxtuVWScQW3Lez7ck/oOq/A==}
+  '@playwright/cli@0.1.22':
+    resolution: {integrity: sha512-6WMkQNM4VEzqMkdr/l60X9Cr7i+tI/arK87IWz2K7pB6j8I2ZJ8KN+1JfhJDLnK+SXnab6Op8xGt4adcGLsyfA==}
     engines: {node: '>=18'}
     hasBin: true
 
@@ -5372,16 +5367,6 @@ packages:
     resolution: {integrity: sha512-HRDzbaKjC+AOWVXxAU/x54COGeIv9eb+6CkDSQoNTt4XyWoIJvuPsXizxu/Fr23EiekbtZwmh1IcIG/l/a10GQ==}
     engines: {node: '>=8'}
 
-  playwright-core@1.59.0-alpha-1771104257000:
-    resolution: {integrity: sha512-YiXup3pnpQUCBMSIW5zx8CErwRx4K6O5Kojkw2BzJui8MazoMUDU6E3xGsb1kzFviEAE09LFQ+y1a0RhIJQ5SA==}
-    engines: {node: '>=18'}
-    hasBin: true
-
-  playwright-core@1.60.0-alpha-1777077614000:
-    resolution: {integrity: sha512-cAEm1N5jh0WMr9/EG4nPDbR326paHfMFa2FyHibhIfDGTswbKv8sYvaa9S0UXkgITdv4h6lQfcsD9Dl73lFZsg==}
-    engines: {node: '>=18'}
-    hasBin: true
-
   playwright-core@1.61.0-alpha-2026-06-04:
     resolution: {integrity: sha512-OCdgxfcyRfuc79OcWc0Y019YoVvTqZWvtEYZxyXtwO+CpAln5s8hQH1bmgqOJd5vccKO6yOzfYYz0Vs2Zr8eIg==}
     engines: {node: '>=18'}
@@ -5392,19 +5377,19 @@ packages:
     engines: {node: '>=18'}
     hasBin: true
 
-  playwright@1.59.0-alpha-1771104257000:
-    resolution: {integrity: sha512-6SCMMMJaDRsSqiKVLmb2nhtLES7iTYawTWWrQK6UdIGNzXi8lka4sLKRec3L4DnTWwddAvCuRn8035dhNiHzbg==}
-    engines: {node: '>=18'}
-    hasBin: true
-
-  playwright@1.60.0-alpha-1777077614000:
-    resolution: {integrity: sha512-Uykk/hbDlIaw4aZZZHMni6I0Y9eBtC7+UzH3QwTh9pJEEuYVq14y7F3bcHNCNCI0sLkY0oEiWK+2VeOtB6vUDQ==}
-    engines: {node: '>=18'}
+  playwright-core@1.64.0-alpha-1790635538000:
+    resolution: {integrity: sha512-pNwaXirhXMRLaRQs4NQ18EpTdtDoFwyPH9FOaaDC7YXG4hpwE2xmwCic/1srbuExVQC7zT9LJSJpDBAru+Vo9A==}
+    engines: {node: '>=20'}
     hasBin: true
 
   playwright@1.61.1:
     resolution: {integrity: sha512-DWnY5o3YbLWK4GovuAVwpqL+1VwGNdUGrRr++8j8PtQQzvAVZUIMjKQ90fY689sEJZJBbZVw1rXaOKSTitkzPQ==}
     engines: {node: '>=18'}
+    hasBin: true
+
+  playwright@1.64.0-alpha-1790635538000:
+    resolution: {integrity: sha512-/5XDUMxpOd/9AojJtWDFIRV3EJZNQ0AwvK69wgt3CPzy8wTgiBG9pX45VfxtqtvIRGwfWzMhrvawNKreG69Snw==}
+    engines: {node: '>=20'}
     hasBin: true
 
   plist@3.1.0:
@@ -7278,44 +7263,44 @@ snapshots:
       '@eslint/core': 1.2.1
       levn: 0.4.1
 
-  '@github/copilot-sdk-darwin-arm64@1.0.29-preview.8':
+  '@github/copilot-sdk-darwin-arm64@1.0.29-preview.10':
     optional: true
 
-  '@github/copilot-sdk-darwin-x64@1.0.29-preview.8':
+  '@github/copilot-sdk-darwin-x64@1.0.29-preview.10':
     optional: true
 
-  '@github/copilot-sdk-linux-arm64@1.0.29-preview.8':
+  '@github/copilot-sdk-linux-arm64@1.0.29-preview.10':
     optional: true
 
-  '@github/copilot-sdk-linux-x64@1.0.29-preview.8':
+  '@github/copilot-sdk-linux-x64@1.0.29-preview.10':
     optional: true
 
-  '@github/copilot-sdk-linuxmusl-arm64@1.0.29-preview.8':
+  '@github/copilot-sdk-linuxmusl-arm64@1.0.29-preview.10':
     optional: true
 
-  '@github/copilot-sdk-linuxmusl-x64@1.0.29-preview.8':
+  '@github/copilot-sdk-linuxmusl-x64@1.0.29-preview.10':
     optional: true
 
-  '@github/copilot-sdk-win32-arm64@1.0.29-preview.8':
+  '@github/copilot-sdk-win32-arm64@1.0.29-preview.10':
     optional: true
 
-  '@github/copilot-sdk-win32-x64@1.0.29-preview.8':
+  '@github/copilot-sdk-win32-x64@1.0.29-preview.10':
     optional: true
 
-  '@github/copilot-sdk@1.0.29-preview.8':
+  '@github/copilot-sdk@1.0.29-preview.10':
     dependencies:
       koffi: 3.2.1
       vscode-jsonrpc: 10.0.0
       zod: 4.6.7
     optionalDependencies:
-      '@github/copilot-sdk-darwin-arm64': 1.0.29-preview.8
-      '@github/copilot-sdk-darwin-x64': 1.0.29-preview.8
-      '@github/copilot-sdk-linux-arm64': 1.0.29-preview.8
-      '@github/copilot-sdk-linux-x64': 1.0.29-preview.8
-      '@github/copilot-sdk-linuxmusl-arm64': 1.0.29-preview.8
-      '@github/copilot-sdk-linuxmusl-x64': 1.0.29-preview.8
-      '@github/copilot-sdk-win32-arm64': 1.0.29-preview.8
-      '@github/copilot-sdk-win32-x64': 1.0.29-preview.8
+      '@github/copilot-sdk-darwin-arm64': 1.0.29-preview.10
+      '@github/copilot-sdk-darwin-x64': 1.0.29-preview.10
+      '@github/copilot-sdk-linux-arm64': 1.0.29-preview.10
+      '@github/copilot-sdk-linux-x64': 1.0.29-preview.10
+      '@github/copilot-sdk-linuxmusl-arm64': 1.0.29-preview.10
+      '@github/copilot-sdk-linuxmusl-x64': 1.0.29-preview.10
+      '@github/copilot-sdk-win32-arm64': 1.0.29-preview.10
+      '@github/copilot-sdk-win32-x64': 1.0.29-preview.10
 
   '@gulp-sourcemaps/identity-map@2.0.1':
     dependencies:
@@ -7751,14 +7736,10 @@ snapshots:
     dependencies:
       playwright-core: 1.61.1
 
-  '@playwright/cli@0.1.1':
+  '@playwright/cli@0.1.22':
     dependencies:
-      minimist: 1.2.8
-      playwright: 1.59.0-alpha-1771104257000
-
-  '@playwright/cli@0.1.9':
-    dependencies:
-      playwright: 1.60.0-alpha-1777077614000
+      playwright: 1.64.0-alpha-1790635538000
+      playwright-core: 1.64.0-alpha-1790635538000
 
   '@playwright/test@1.61.1':
     dependencies:
@@ -7852,6 +7833,7 @@ snapshots:
     dependencies:
       '@types/minimatch': 3.0.3
       '@types/node': 24.12.4
+    optional: true
 
   '@types/http-cache-semantics@4.2.0': {}
 
@@ -12114,31 +12096,21 @@ snapshots:
     dependencies:
       find-up: 4.1.0
 
-  playwright-core@1.59.0-alpha-1771104257000: {}
-
-  playwright-core@1.60.0-alpha-1777077614000: {}
-
   playwright-core@1.61.0-alpha-2026-06-04: {}
 
   playwright-core@1.61.1: {}
 
-  playwright@1.59.0-alpha-1771104257000:
-    dependencies:
-      playwright-core: 1.59.0-alpha-1771104257000
-    optionalDependencies:
-      fsevents: 2.3.2
-
-  playwright@1.60.0-alpha-1777077614000:
-    dependencies:
-      playwright-core: 1.60.0-alpha-1777077614000
-    optionalDependencies:
-      fsevents: 2.3.2
+  playwright-core@1.64.0-alpha-1790635538000: {}
 
   playwright@1.61.1:
     dependencies:
       playwright-core: 1.61.1
     optionalDependencies:
       fsevents: 2.3.2
+
+  playwright@1.64.0-alpha-1790635538000:
+    dependencies:
+      playwright-core: 1.64.0-alpha-1790635538000
 
   plist@3.1.0:
     dependencies:

@@ -26,9 +26,9 @@ import { INotificationService } from '../../../../../platform/notification/commo
 import { IProgressService, ProgressLocation } from '../../../../../platform/progress/common/progress.js';
 import { getRemoteName } from '../../../../../platform/remote/common/remoteHosts.js';
 import { IStorageService } from '../../../../../platform/storage/common/storage.js';
-import { IAgentHostSessionsProvider, isAgentHostProvider } from '../../../../common/agentHostSessionsProvider.js';
+import { IAgentHostSessionsProvider, isAgentHostProvider } from '../../../../../workbench/contrib/sessions/common/agentHostSessionsProvider.js';
 import { IRemoteWorkspaceFolder, IRemoteWorkspaceHandoffService, RemoteWorkspaceHandoffResult } from '../../../../common/remoteWorkspaceHandoff.js';
-import { ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
+import { ISessionsProvidersService } from '../../../../../workbench/contrib/sessions/browser/sessionsProvidersService.js';
 
 /** How long to wait for a host's provider after adding the host. */
 const PROVIDER_REGISTRATION_TIMEOUT_MS = 15_000;

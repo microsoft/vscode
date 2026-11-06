@@ -13,11 +13,11 @@ import { ILogService } from '../../../../../platform/log/common/log.js';
 import { ForkConversationAction, IForkConversationOptions } from '../../../../../workbench/contrib/chat/browser/actions/chatForkActions.js';
 import { IChatService } from '../../../../../workbench/contrib/chat/common/chatService/chatService.js';
 import { ChatSessionForkError, IChatSessionRequestHistoryItem } from '../../../../../workbench/contrib/chat/common/chatSessionsService.js';
-import { isAgentHostProviderId } from '../../../../common/agentHostSessionsProvider.js';
-import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
-import { IFocusedSessionHostService } from '../../../../services/sessions/browser/sessionHost.js';
-import { ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
-import type { IForkChatOptions } from '../../../../services/sessions/common/sessionsProvider.js';
+import { isAgentHostProviderId } from '../../../../../workbench/contrib/sessions/common/agentHostSessionsProvider.js';
+import { ISessionsService } from '../../../../../workbench/contrib/sessions/browser/sessionsService.js';
+import { IFocusedSessionHostService } from '../../../../../workbench/contrib/sessions/browser/sessionHost.js';
+import { ISessionsManagementService } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
+import type { IForkChatOptions } from '../../../../../workbench/contrib/sessions/common/sessionsProvider.js';
 
 registerAction2(class extends ForkConversationAction {
 	protected override _captureForkNavigation(accessor: ServicesAccessor): () => boolean {

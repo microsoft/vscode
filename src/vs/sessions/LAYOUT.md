@@ -55,6 +55,10 @@ The workbench omits the standard Activity Bar, Status Bar, and Banner. Part posi
 | Custom View Grid | Full-surface contributed views that replace session content |
 | Session Activity Bar column | The active chat's Session Activity Bar; a fixed-width grid view, not a part, shown only while that strip is in it |
 
+### Chat windows
+
+A chat window shows the Agents window's title bar as its first row, across the full width of the window from edge to edge, in every layout mode and whatever its parts show, at the main window's title bar height for the current density, including under a native OS title bar. The grid keeps the row's room as its first, pinned row inside the window's outer insets, which the cards and the strip keep; the title bar lies over that row across the whole window, so its window controls reach the window's corners as in the main window. It is created with the window's services, so its command center and session actions act on the window's active chat and its session; a session picked from its command center opens as a tab of that window. Main-window navigation (the sessions list toggle, Back/Forward, and New Session) and app-wide items (account and status, update, and remote connections) stay in the main window's title bar; the chat window's title bar adds the window's layout actions. The session header of a chat is in the chat's card, as in the main window, and hides while the chat shows only its input in Stacked mode.
+
 ### Window canvases
 
 Built-in native canvases, including Inbox, open as singleton tabs in the Editor rather than replacing the Sessions Part with a custom view. Their definitions and live content belong to `IWindowCanvasService`, not to an agent, session, or chat. The existing Canvas menus expose both native window canvases and provider-owned browser canvases; provider canvases retain their existing ownership and permission model.
@@ -81,11 +85,11 @@ The desktop Panel supports two profile-scoped alignments. The default justified 
 
 ## Sessions Part
 
-Each visible session has one Sessions-owned view. The view presents the active chat for that session and scopes commands, menus, and context keys to the represented session.
+Each pane of the grid has one Sessions-owned view. The view presents the chat its pane shows of the pane's session, the provider's session object, and scopes commands, menus, and context keys to that session.
 
 New-session views may opt into `preserveOnSessionCleared` to retain their composer when a draft is cleared to the empty slot. The host preserves that view's input, picker state, and focus rather than constructing a replacement that could restore an automatic workspace; other views keep the default replacement lifecycle.
 
-A child chat may also occupy a standalone leaf in the outer grid. The view service owns this placement through a chat-scoped `IActiveSession` with unchanged session identity and provider ownership; the parent view excludes that chat while its standalone leaf is present. These leaves remain usable without a visible parent pane: closing the parent pane preserves its standalone children, and opening or focusing a standalone child does not reopen the parent. Focus selects the represented chat, and closing or reattaching its pane does not close the owning session. Provider removal still removes all leaves belonging to that session. Outer-grid persistence binds these leaves by both session resource and chat resource and supports layouts containing only child leaves.
+A child chat may also occupy a standalone leaf in the outer grid. The view service owns this placement as a detached pane of the grid (`ISessionGridPane` of kind `Detached`), which shows that chat of the provider's session object, with unchanged session identity and provider ownership; the parent's slot excludes that chat while its standalone leaf is present. These leaves remain usable without a visible parent pane: closing the parent pane preserves its standalone children, and opening or focusing a standalone child does not reopen the parent. Focus selects the represented chat, and closing or reattaching its pane does not close the owning session. Provider removal still removes all leaves belonging to that session. Outer-grid persistence binds these leaves by both session resource and chat resource and supports layouts containing only child leaves.
 
 Chat-tab presentation is a property of the session view, not of the action that opened a chat. The view observes its configuration directly and consistently applies either tabbed or session-view presentation to every chat, including restored chats and chats opened through navigation or external entry points.
 

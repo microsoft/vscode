@@ -8,9 +8,9 @@ import { Schemas } from '../../../../base/common/network.js';
 import { URI } from '../../../../base/common/uri.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { getRemoteName } from '../../../../platform/remote/common/remoteHosts.js';
-import { DevContainerAgentHostEnabledSettingId } from '../../../common/devContainerAgentHostService.js';
+import { DevContainerAgentHostEnabledSettingId } from '../../../../workbench/contrib/sessions/common/devContainerAgentHostService.js';
 import { IRemoteWorkspaceFolder } from '../../../common/remoteWorkspaceHandoff.js';
-import { WorkspaceArgumentKind, WorkspaceArgumentRemoteKind } from '../../../common/workspaceSelection.js';
+import { WorkspaceArgumentKind, WorkspaceArgumentRemoteKind } from '../../../../workbench/contrib/sessions/common/workspaceSelection.js';
 
 const DEV_CONTAINER_REMOTE_AUTHORITY_PREFIX = 'dev-container+';
 

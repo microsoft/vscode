@@ -37,8 +37,7 @@ import { IDialogService } from '../../../../platform/dialogs/common/dialogs.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { IHoverService } from '../../../../platform/hover/browser/hover.js';
 import { ILabelService } from '../../../../platform/label/common/label.js';
-import { Parts } from '../../../../workbench/services/layout/browser/layoutService.js';
-import { IAgentWorkbenchLayoutService } from '../../../browser/workbench.js';
+import { IWorkbenchLayoutService, Parts } from '../../../../workbench/services/layout/browser/layoutService.js';
 import { IMarkdownRendererService } from '../../../../platform/markdown/browser/markdownRenderer.js';
 import { ServiceCollection } from '../../../../platform/instantiation/common/serviceCollection.js';
 import { INotificationService, Severity } from '../../../../platform/notification/common/notification.js';
@@ -69,26 +68,28 @@ import { ChatQuestionCarouselData } from '../../../../workbench/contrib/chat/com
 import { ChatPlanReviewData } from '../../../../workbench/contrib/chat/common/model/chatProgressTypes/chatPlanReviewData.js';
 import { ConfirmationOptionKind } from '../../../../platform/agentHost/common/state/protocol/state.js';
 import { SESSIONS_MARK_AS_DONE_CONFETTI_SETTING } from '../../../../platform/chat/common/sessionArchiveActions.js';
-import { isAgentHostProviderId } from '../../../common/agentHostSessionsProvider.js';
-import { IWindowCanvas } from '../../../services/canvas/browser/windowCanvasService.js';
-import { AbstractChatView, IChatViewRequestOutcome } from '../../../browser/parts/chatView.js';
-import { IChatViewFactory } from '../../../services/chatView/browser/chatViewFactory.js';
-import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
-import { ISessionsProvidersService } from '../../../services/sessions/browser/sessionsProvidersService.js';
-import { WelcomeName } from '../../chat/browser/welcomeName.js';
-import { createSessionSummaryHover, getSessionSummaryHoverData } from '../../sessions/browser/sessionHoverContent.js';
-import { getChatSessionArtifacts, IChat, ISession } from '../../../services/sessions/common/session.js';
-import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
+import { isAgentHostProviderId } from '../../../../workbench/contrib/sessions/common/agentHostSessionsProvider.js';
+import { IWindowCanvas } from '../../../../workbench/contrib/sessions/browser/windowCanvas.js';
+import { AbstractChatView, IChatViewRequestOutcome } from '../../../../workbench/contrib/sessions/browser/parts/chatView.js';
+import { IChatViewFactory } from '../../../../workbench/contrib/sessions/browser/chatViewFactory.js';
+import { ISessionsService } from '../../../../workbench/contrib/sessions/browser/sessionsService.js';
+import { ISessionsProvidersService } from '../../../../workbench/contrib/sessions/browser/sessionsProvidersService.js';
+import { WelcomeName } from '../../../../workbench/contrib/sessions/browser/chat/welcomeName.js';
+import { createSessionSummaryHover, getSessionSummaryHoverData } from '../../../../workbench/contrib/sessions/browser/sessionHoverContent.js';
+import { getChatSessionArtifacts, IChat, ISession } from '../../../../workbench/contrib/sessions/common/session.js';
+import { ISessionsManagementService } from '../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import { IEditorService } from '../../../../workbench/services/editor/common/editorService.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
 import { ChatAgentLocation, ChatModeKind } from '../../../../workbench/contrib/chat/common/constants.js';
-import { InboxCanvasFocusContext } from '../../../common/contextkeys.js';
-import { AUTO_DELETE_MARKED_AS_DONE_MERGED_SESSIONS_AFTER_DAYS_SETTING, AUTO_MARK_AS_DONE_MERGED_SESSIONS_AFTER_DAYS_SETTING } from '../../github/common/sessionLifecycleSettings.js';
-import { IGitHubService } from '../../github/browser/githubService.js';
-import { buildFixCIPrompt } from '../../changes/browser/checksActions.js';
-import { AgentFeedbackKind, AgentFeedbackState, IAgentFeedbackService } from '../../agentFeedback/browser/agentFeedbackService.js';
+import { InboxCanvasFocusContext } from '../../../common/agentsWindowContextKeys.js';
+import { AUTO_DELETE_MARKED_AS_DONE_MERGED_SESSIONS_AFTER_DAYS_SETTING, AUTO_MARK_AS_DONE_MERGED_SESSIONS_AFTER_DAYS_SETTING } from '../../../../workbench/contrib/sessions/common/github/sessionLifecycleSettings.js';
+import { IGitHubService } from '../../../../workbench/contrib/sessions/browser/github/githubService.js';
+import { buildFixCIPrompt } from '../../../../workbench/contrib/sessions/browser/fixCIChecks.js';
+import { IAgentFeedbackService } from '../../../../workbench/contrib/sessions/browser/agentFeedback.js';
+import { AgentFeedbackKind, AgentFeedbackState } from '../../../../workbench/contrib/sessions/browser/agentFeedbackModel.js';
 import { syncPRReviewFeedback } from '../../agentFeedback/browser/agentFeedbackPRReviewSeeder.js';
-import { getPRReviewComments, IPRReviewComment } from '../../codeReview/browser/codeReviewService.js';
+import { getPRReviewComments } from '../../codeReview/browser/codeReviewService.js';
+import { IPRReviewComment } from '../../../../workbench/contrib/sessions/browser/codeReviewService.js';
 import {
 	IInboxDetailSummary,
 	IInboxNotificationAction,
@@ -107,7 +108,7 @@ import {
 	getInboxPullRequestMergeOperation,
 	getInboxPullRequestRefs,
 	getInboxToolConfirmationDetails,
-} from '../common/inboxNotificationsService.js';
+} from '../../../../workbench/contrib/sessions/common/inboxNotificationsService.js';
 import { getInboxEmptyMessage, getInboxNotificationLabel, getInboxNotificationPriorityLabel, getInboxTabLabel } from './inboxNotificationsLabels.js';
 import { createInboxEvidenceSection, InboxEvidenceWidget } from './inboxEvidenceWidget.js';
 import { InboxCanvases } from './inboxCanvases.js';
@@ -507,7 +508,7 @@ export class InboxNotificationsView extends Disposable implements IWindowCanvas 
 		@IHoverService private readonly hoverService: IHoverService,
 		@ILabelService private readonly labelService: ILabelService,
 		@ISessionsProvidersService private readonly sessionsProvidersService: ISessionsProvidersService,
-		@IAgentWorkbenchLayoutService private readonly layoutService: IAgentWorkbenchLayoutService,
+		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService,
 		@IChatMarkdownAnchorService private readonly chatMarkdownAnchorService: IChatMarkdownAnchorService,
 		@IEditorService private readonly editorService: IEditorService,
 	) {
@@ -1748,7 +1749,7 @@ export class InboxNotificationsView extends Disposable implements IWindowCanvas 
 			this.createChatContentPartRenderContext(),
 			{
 				shouldAutoFocus: false,
-				hideDuplicateDetailedMessage: true,
+				sessionResource: part.chatResource,
 				onSubmit: answers => {
 					this.logInboxInteraction('submitQuestionCarousel', 'inlineQuestionCarousel', item);
 					void this.submitQuestionCarouselPart(item, part, answers);

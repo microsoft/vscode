@@ -60,6 +60,18 @@ Copilot user/model text and offered-tools events carry the same `sdkSessionId` f
 
 These are string `SystemMetaData` / `FeatureInsight` fields on the existing restricted destinations, under existing account/consent/content-exclusion controls. No host-supplied conversation key, SDK upgrade, new event, or broader population is required. CTS/schema/sharing must separately retain the properties before a curator can consume them; client emission alone does not establish backend availability or request eligibility.
 
+Per-call engine metadata comes from the runtime and passes through the router unchanged when the runtime supplies it. Older runtimes omit these fields; the router does not fill them in:
+
+| Field | Meaning |
+| --- | --- |
+| `requestModel` | Model named in this call's request (same value as `request.option.model` on the input event). Restricted only; may be a BYOK deployment name. |
+| `responseModel` | Model the provider reported in this call's response. Absent when the response does not identify one; never inferred from `requestModel` or the selected model. |
+| `interactionType` | Bounded call origin captured when the call was dispatched (`conversation-agent`, `conversation-subagent`, `conversation-compaction`, `conversation-sampling`, `conversation-background`, `conversation-user`). Distinct from the `source` text role on `conversation.messageText`. |
+| `parentToolCallId` | Model tool call that spawned the subagent making the call. Absent for root calls and for subagents no model tool call spawned, such as subagents the runtime starts on its own or through the API; their `subagent.started` `toolCallId` only correlates lifecycle events. Not derived from `sdkAgentId`. |
+| `runtimeVersion` | Version of the runtime that made the call. |
+
+The router adds `copilotSdkVersion`, the Copilot SDK package bundled with this Agent Host (`IProductService.copilotVersions.sdk`), to engine snapshots, replacing any value in the notification. Editor version (`editor_version`), SDK package version and runtime version stay separate; native Agent Host engine events have no extension version.
+
 ---
 
 ## 2. Ownership and Layering
@@ -117,6 +129,16 @@ Uninstall requires exactly one current SDK identity match, and direct installs r
 SDK-discovered plugin agents retain their SDK selection `id`, which can differ from their display name or parsed filename. Their published children preserve authored names and standard invocation, model, and tool fields. They belong to the native selection catalog, not the forwarded `customAgents` definitions. Native selection is applied only after session construction and `agent.list()`; passing a native ID as the construction-time `agent` can reject before SDK discovery finishes. Create, resume, and empty-history recovery retain the requested native selection and surface selection errors rather than retrying as the default agent. Parsing a plugin directory must not reintroduce agents omitted by SDK discovery. Host/client plugins shadow matching discovered plugin IDs in both publication and native selection. Native plugin selection in SDK `empty` mode remains blocked on SDK catalog support; see the [tracked validation gap](test/node/e2e/KNOWN_ISSUES.md#copilot-empty-mode-native-plugin-agent-selection).
 
 **File organization rule:** `common/agent.ts` holds the *provider model* — `IAgent` and every type/helper/signal reachable from it (chat lifecycle, create/materialize/legacy-migration payloads, config-resolution parameters, `AgentSignal`/`AgentSession`). `common/agentService.ts` holds the *orchestrator-facing service surface* — `IAgentService`, `IAgentConnection`, `IAgentHostService`, settings/env constants, and diagnostics types. The dependency is one-directional: `agentService.ts` may import from `agent.ts`, but `agent.ts` must never import from `agentService.ts`. `agentService.ts` re-exports the public provider types from `agent.ts` for call-site compatibility; new provider code should import directly from `agent.ts`.
+
+### Customization installation (Skills, MCP servers, catalog plugins)
+
+Installation is local-only: the workbench calls `IAgentHostService`, which routes through Management IPC to `CopilotCustomizationInstallations`. Remote Agent Hosts expose no installation methods.
+
+Prepare returns a review, or a configuration request when values or secrets are needed. Records are bound to a host generation, an expiry and a random ownership token; a mismatch behaves like an unknown ID. The client sends any `answers` once on `apply`, which is one-shot and never resent. There is no client cancel; unused records expire.
+
+Submitted values and secrets must never appear in reviews, errors or logs. The runtime owns URL/header expansion and configuration validation; shared value rules live in `common/customizationInstallationValues.ts`.
+
+The runtime does not own local package (stdio) installs, or remote installs from MCP Gallery cards (their plans are not session-bound), yet. For those the host writes the configuration with `mcp.config.add` after verifying the card against the plan's digest. Only non-secret values are supported on this path; anything needing a secret fails closed until the runtime can store it.
 
 ### SDK hook and MCP discovery
 
@@ -257,7 +279,7 @@ Because listing never opens session storage, migrations the provider/session fal
 
 **I6 — Route through `IAgentHostProviderService`.** Creation, registry listing and restoration populate explicit provider associations from durable identity. Only unregistered legacy provider-native resources may fall back to their scheme; `ahp-session` never identifies a provider. Do not read the association map directly.
 
-**Native identities are mixed and immutable.** Negotiate `vscode.ahpSessionUris` only for new allocations; preserve existing registry URIs, SDK backings, storage directories and frontend identities. Use explicit provider metadata and owning-connection address records, not a provider-wide URI alias. See the [session identity contract](../../sessions/contrib/providers/agentHost/AGENT_HOST_SESSIONS_PROVIDER.md#identity).
+**Native identities are mixed and immutable.** Negotiate `vscode.ahpSessionUris` only for new allocations; preserve existing registry URIs, SDK backings, storage directories and frontend identities. Use explicit provider metadata and owning-connection address records, not a provider-wide URI alias. See the [session identity contract](../../workbench/contrib/sessions/providers/agentHost/AGENT_HOST_SESSIONS_PROVIDER.md#identity).
 
 Telemetry provider dimensions use the owning agent's id or the session's explicit `provider` metadata, never the standard session URI scheme. Changeset telemetry preserves URI-scheme provider categories for legacy sessions and scoped owners (`ahp-chat:`, `ahp-folder-changeset:`); provider-neutral root sessions capture the explicit provider when computation is queued. Automation run telemetry retains the linked session provider in host-private storage, independently of protocol state, so it survives session removal and host restart. Preserve the existing provider values (`copilotcli`, `claude`, `codex`, or an advertised provider id) independently of addressing.
 

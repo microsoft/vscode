@@ -176,7 +176,15 @@ export class ChatEditorInput extends EditorInput implements IEditorCloseHandler 
 			return false;
 		}
 
-		return isEqual(this.sessionResource, otherInput.sessionResource);
+		if (isEqual(this.sessionResource, otherInput.sessionResource)) {
+			return true;
+		}
+		if (!this.sessionResource || !otherInput.sessionResource) {
+			return false;
+		}
+		const previous = this.chatSessionsService.getPreviousChatSessionResource?.(this.sessionResource);
+		const otherPrevious = this.chatSessionsService.getPreviousChatSessionResource?.(otherInput.sessionResource);
+		return !!previous && isEqual(previous, otherInput.sessionResource) || !!otherPrevious && isEqual(this.sessionResource, otherPrevious);
 	}
 
 	override get typeId(): string {

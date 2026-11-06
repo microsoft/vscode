@@ -38,7 +38,7 @@ import { CommandsRegistry, ICommandService } from '../../../../../platform/comma
 import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IContextMenuDelegate } from '../../../../../base/browser/contextmenu.js';
 import { IContextMenuMenuDelegate, IContextMenuService } from '../../../../../platform/contextview/browser/contextView.js';
-import { SessionGroupAppearancePicker } from '../../browser/views/sessionGroupAppearancePicker.js';
+import { SessionGroupAppearancePicker } from '../../../../../workbench/contrib/sessions/browser/views/sessionGroupAppearancePicker.js';
 import { IConfigurationChangeEvent, IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
 import { NullHoverService } from '../../../../../platform/hover/test/browser/nullHoverService.js';
@@ -60,7 +60,7 @@ import { IAutomationDescriptor, IAutomationRun } from '../../../../../workbench/
 import { IAutomationService } from '../../../../../workbench/contrib/chat/common/automations/automationService.js';
 import { ChatAutomationsEnabledContext } from '../../../../../workbench/contrib/chat/common/automations/automationsEnabled.js';
 import { ChatContextKeys } from '../../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
-import { ChatInboxEnabledContext, SHOW_INBOX_NOTIFICATIONS_COMMAND_ID } from '../../../inboxOne/browser/inboxNotificationsConstants.js';
+import { ChatInboxEnabledContext, SHOW_INBOX_NOTIFICATIONS_COMMAND_ID } from '../../../../../workbench/contrib/sessions/browser/inboxNotificationsConstants.js';
 import { SessionSummaryHoverWidget } from '../../../../../workbench/contrib/chat/browser/agentSessions/sessionSummaryHover.js';
 import { AICustomizationManagementEditorInput } from '../../../../../workbench/contrib/chat/browser/aiCustomization/aiCustomizationManagementEditorInput.js';
 import { IEditorService } from '../../../../../workbench/services/editor/common/editorService.js';
@@ -70,26 +70,25 @@ import { OnboardingOutcome } from '../../../../../workbench/contrib/onboarding/c
 import { TestHostService, TestLayoutService } from '../../../../../workbench/test/browser/workbenchTestServices.js';
 import '../../../../../workbench/browser/actions/listCommands.js';
 import { AgentMergeSessionState } from '../../../../../platform/agentHost/common/agentMerge.js';
-import { getSessionChatDragData, isSessionChatDrag, SessionsDataTransfers } from '../../../../browser/dnd.js';
-import { IsPhoneLayoutContext, SessionIsArchivedContext, SessionSupportsMultipleChatsContext } from '../../../../common/contextkeys.js';
-import { ARCHIVE_CHAT_COMMAND_ID, ARCHIVE_SESSION_COMMAND_ID, ARCHIVE_SESSION_GROUP_COMMAND_ID, ARCHIVE_SESSIONS_WITH_UNDO_COMMAND_ID, SHOW_SESSION_APPLICATION_FILTERS_COMMAND_ID, UNARCHIVE_CHAT_COMMAND_ID } from '../../../../common/sessionCommands.js';
-import { getSessionApplication } from '../../../../common/sessionApplication.js';
-import { ExternalSessionApplicationBadgeMode, SESSIONS_LIST_EXTERNAL_APPLICATION_BADGE_SETTING, SESSIONS_LIST_EXTERNAL_APPLICATION_BADGE_SHOW_FROM_SETTING, SESSIONS_LIST_GROUP_EXTERNAL_SESSIONS_SETTING } from '../../../../common/sessionConfig.js';
-import { IAgentHostSessionsProvider, LOCAL_AGENT_HOST_PROVIDER_ID } from '../../../../common/agentHostSessionsProvider.js';
-import { IAgentHostFilterService } from '../../../../services/agentHostFilter/common/agentHostFilter.js';
-import { ICustomViewService } from '../../../../services/customView/browser/customViewService.js';
-import type { ICustomViewDescriptor } from '../../../../services/customView/browser/customView.js';
-import { IPinnedCanvas, IPinnedCanvasService, PINNED_CANVAS_PAGE_ID, PinnedCanvasState } from '../../../canvases/browser/pinnedCanvases.js';
-import { ISessionsListModelService, SessionsListModelService } from '../../../../services/sessions/browser/sessionsListModelService.js';
-import { ISessionGroup, ISessionGroupsChangeEvent, ISessionGroupsService, SessionGroupsService, SessionGroupTree } from '../../../../services/sessions/browser/sessionGroupsService.js';
-import { ISessionSectionOrderService, SessionSectionOrderService } from '../../../../services/sessions/browser/sessionSectionOrderService.js';
-import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
-import { BRANCH_CHANGES_CHANGESET_ID, ChatInteractivity, ChatOriginKind, IChat, ISession, ISessionChangeset, ISessionChangesSummary, ISessionFileChange, ISessionFolder, ISessionType, SessionArtifactKind, SessionStatus, SessionTypeAuthRequirement } from '../../../../services/sessions/common/session.js';
-import { IActiveSession, ICreateNewSessionOptions, ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
-import { ISessionChangeEvent, ISessionsProvider } from '../../../../services/sessions/common/sessionsProvider.js';
-import { ISessionComparison, ISessionComparisonService, SessionComparisonParticipantRole } from '../../../../services/sessions/common/sessionComparison.js';
-import { ISessionsProvidersChangeEvent, ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
-import { computeReorderSortChanges, groupByDate, groupByEnvironment, groupByRepository, groupByWorkspace, groupSessionsForList, ISessionChatItem, ISessionSection, limitSessionsForList, NEW_SESSION_IN_ENVIRONMENT_ACTION_ID, QUICK_CHATS_SECTION_ID, SessionChatItemCanArchiveContext, SessionChatItemCanDeleteContext, SessionChatItemIsArchivedContext, SessionChatItemIsUntitledContext, SessionItemInExternalSectionContext, SessionItemIsCloudContext, SessionSectionRenderer, SessionSectionToolbarMenuId, SESSIONS_LIST_SHOW_ARCHIVED_BY_DEFAULT_SETTING, SESSIONS_LIST_SHOW_EMPTY_DEFAULT_GROUPS_SETTING, SESSIONS_LIST_SHOW_UNREAD_IN_COLLAPSED_SECTIONS_SETTING, SessionsFlatList, SessionsList, SessionsListFocusedChatItemContext, SessionsListSnapshotNode, sortSessions, SessionsGrouping, SessionsSorting } from '../../browser/views/sessionsList.js';
+import { getSessionChatDragData, isSessionChatDrag, SessionsDataTransfers } from '../../../../../workbench/contrib/sessions/browser/dnd.js';
+import { IsPhoneLayoutContext, SessionIsArchivedContext, SessionSupportsMultipleChatsContext } from '../../../../../workbench/contrib/sessions/common/contextkeys.js';
+import { ARCHIVE_CHAT_COMMAND_ID, ARCHIVE_SESSION_COMMAND_ID, ARCHIVE_SESSION_GROUP_COMMAND_ID, ARCHIVE_SESSIONS_WITH_UNDO_COMMAND_ID, SHOW_SESSION_APPLICATION_FILTERS_COMMAND_ID, UNARCHIVE_CHAT_COMMAND_ID } from '../../../../../workbench/contrib/sessions/common/sessionCommands.js';
+import { getSessionApplication } from '../../../../../workbench/contrib/sessions/common/sessionApplication.js';
+import { ExternalSessionApplicationBadgeMode, SESSIONS_LIST_EXTERNAL_APPLICATION_BADGE_SETTING, SESSIONS_LIST_EXTERNAL_APPLICATION_BADGE_SHOW_FROM_SETTING, SESSIONS_LIST_GROUP_EXTERNAL_SESSIONS_SETTING } from '../../../../../workbench/contrib/sessions/common/sessionConfig.js';
+import { IAgentHostSessionsProvider, LOCAL_AGENT_HOST_PROVIDER_ID } from '../../../../../workbench/contrib/sessions/common/agentHostSessionsProvider.js';
+import { IAgentHostFilterService } from '../../../../../workbench/contrib/sessions/common/agentHostFilter.js';
+import { ICustomViewService, type ICustomViewDescriptor } from '../../../../../workbench/contrib/sessions/browser/customView.js';
+import { IPinnedCanvas, IPinnedCanvasService, PINNED_CANVAS_PAGE_ID, PinnedCanvasState } from '../../../../../workbench/contrib/sessions/browser/pinnedCanvases.js';
+import { ISessionsListModelService, SessionsListModelService } from '../../../../../workbench/contrib/sessions/browser/sessionsListModelService.js';
+import { ISessionGroup, ISessionGroupsChangeEvent, ISessionGroupsService, SessionGroupsService, SessionGroupTree } from '../../../../../workbench/contrib/sessions/browser/sessionGroupsService.js';
+import { ISessionSectionOrderService, SessionSectionOrderService } from '../../../../../workbench/contrib/sessions/browser/sessionSectionOrderService.js';
+import { ISessionsService } from '../../../../../workbench/contrib/sessions/browser/sessionsService.js';
+import { BRANCH_CHANGES_CHANGESET_ID, ChatInteractivity, ChatOriginKind, IChat, ISession, ISessionChangeset, ISessionChangesSummary, ISessionFileChange, ISessionFolder, ISessionType, SessionArtifactKind, SessionStatus, SessionTypeAuthRequirement } from '../../../../../workbench/contrib/sessions/common/session.js';
+import { ICreateNewSessionOptions, ISessionsManagementService } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
+import { ISessionChangeEvent, ISessionsProvider } from '../../../../../workbench/contrib/sessions/common/sessionsProvider.js';
+import { ISessionComparison, ISessionComparisonService, SessionComparisonParticipantRole } from '../../../../../workbench/contrib/sessions/common/sessionComparison.js';
+import { ISessionsProvidersChangeEvent, ISessionsProvidersService } from '../../../../../workbench/contrib/sessions/browser/sessionsProvidersService.js';
+import { computeReorderSortChanges, groupByDate, groupByEnvironment, groupByRepository, groupByWorkspace, groupSessionsForList, ISessionChatItem, ISessionSection, limitSessionsForList, NEW_SESSION_IN_ENVIRONMENT_ACTION_ID, QUICK_CHATS_SECTION_ID, SessionChatItemCanArchiveContext, SessionChatItemCanDeleteContext, SessionChatItemIsArchivedContext, SessionChatItemIsUntitledContext, SessionItemInExternalSectionContext, SessionItemIsCloudContext, SessionSectionRenderer, SessionSectionToolbarMenuId, SESSIONS_LIST_SHOW_ARCHIVED_BY_DEFAULT_SETTING, SESSIONS_LIST_SHOW_EMPTY_DEFAULT_GROUPS_SETTING, SESSIONS_LIST_SHOW_UNREAD_IN_COLLAPSED_SECTIONS_SETTING, SessionsFlatList, SessionsList, SessionsListFocusedChatItemContext, SessionsListSnapshotNode, sortSessions, SessionsGrouping, SessionsSorting } from '../../../../../workbench/contrib/sessions/browser/views/sessionsList.js';
 import { AgentSessionApprovalKind, AgentSessionApprovalModel, IAgentSessionApprovalInfo } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentSessionApprovalModel.js';
 import { IChatService, IChatToolInvocation } from '../../../../../workbench/contrib/chat/common/chatService/chatService.js';
 import { ChatAgentLocation } from '../../../../../workbench/contrib/chat/common/constants.js';
@@ -98,20 +97,21 @@ import { ChatToolInvocation } from '../../../../../workbench/contrib/chat/common
 import { ChatAgentService, IChatAgentService } from '../../../../../workbench/contrib/chat/common/participants/chatAgents.js';
 import { ToolDataSource } from '../../../../../workbench/contrib/chat/common/tools/languageModelToolsService.js';
 import { MockChatService } from '../../../../../workbench/contrib/chat/test/common/chatService/mockChatService.js';
-import { getChatSummaryHoverData, getDistinctChatHarnessLabel, getSessionDiffStats, getSessionSummaryHoverData } from '../../browser/sessionHoverContent.js';
+import { getChatSummaryHoverData, getDistinctChatHarnessLabel, getSessionDiffStats, getSessionSummaryHoverData } from '../../../../../workbench/contrib/sessions/browser/sessionHoverContent.js';
 import { createListHarness, createTestSession, IListHarnessOptions, ISortChangeRecord, ITestSessionOptions, TestSessionsManagementService } from './sessionsListTestUtils.js';
 import { SessionsArchiveActionsContribution } from '../../browser/views/sessionsViewActions.js';
-import { renderSessionsHeader } from '../../browser/views/sessionsView.js';
-import { computePullRequestIcon, GitHubPullRequestState } from '../../../github/common/types.js';
-import { AUTOMATIONS_CUSTOM_VIEW_ID } from '../../browser/automationsConstants.js';
-import { OPEN_AI_CUSTOMIZATIONS_COMMAND_ID } from '../../browser/customizationsConstants.js';
-import { OPEN_SESSION_COMPARISON_COMMAND_ID } from '../../../sessionComparison/common/sessionComparison.js';
-import { BlockedSessionReason, BlockedSessions } from '../../../blockedSessions/browser/blockedSessions.js';
-import { NEW_SESSION_ACTION_ID } from '../../../chat/common/constants.js';
-import { Menus } from '../../../../browser/menus.js';
-import { buildTestSession } from '../../../../services/sessions/test/common/testSessionBuilder.js';
-import { TestSessionsList } from './testSessionsList.js';
-import { getSessionEnvironments } from '../../browser/views/sessionsListFilters.js';
+import { renderSessionsHeader } from '../../../../../workbench/contrib/sessions/browser/views/sessionsView.js';
+import { computePullRequestIcon, GitHubPullRequestState } from '../../../../../workbench/contrib/sessions/common/github/types.js';
+import { AUTOMATIONS_CUSTOM_VIEW_ID } from '../../../../../workbench/contrib/sessions/browser/automationsConstants.js';
+import { OPEN_AI_CUSTOMIZATIONS_COMMAND_ID } from '../../../../../workbench/contrib/sessions/browser/customizationsConstants.js';
+import { OPEN_SESSION_COMPARISON_COMMAND_ID } from '../../../../../workbench/contrib/sessions/common/sessionComparisonConstants.js';
+import { BlockedSessionReason, BlockedSessions } from '../../../../../workbench/contrib/sessions/browser/blockedSessions.js';
+import { NEW_SESSION_ACTION_ID } from '../../../../../workbench/contrib/sessions/common/chatConstants.js';
+import { Menus } from '../../../../../workbench/contrib/sessions/browser/menus.js';
+import { buildTestSession } from '../../../../../workbench/contrib/sessions/test/common/testSessionBuilder.js';
+import { TestSessionsList } from '../../../../../workbench/contrib/sessions/test/browser/views/testSessionsList.js';
+import { getSessionEnvironments } from '../../../../../workbench/contrib/sessions/browser/views/sessionsListFilters.js';
+import { ITestSessionWithChat, testGridPanes } from '../../../../../workbench/contrib/sessions/test/browser/sessionHostTestUtils.js';
 
 function clickRow(row: HTMLElement): void {
 	row.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, button: 0 }));
@@ -852,7 +852,7 @@ suite('Sessions - SessionsList', () => {
 		test('keeps New Session inactive when Automations opens', () => {
 			const activeCustomView = observableValue<ICustomViewDescriptor | undefined>(disposables, undefined);
 			const draftSession = createTestSession('draft').session;
-			const activeSession = observableValue<IActiveSession | undefined>(disposables, upcastPartial<IActiveSession>({
+			const activeSession = observableValue<ITestSessionWithChat | undefined>(disposables, upcastPartial<ITestSessionWithChat>({
 				...draftSession,
 				isCreated: constObservable(false),
 				activeChat: draftSession.mainChat,
@@ -869,7 +869,8 @@ suite('Sessions - SessionsList', () => {
 				});
 				instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() {
 					readonly activeSession = activeSession;
-					override readonly visibleSessions = constObservable<readonly IActiveSession[]>([]);
+					readonly gridShown = constObservable<readonly ITestSessionWithChat[]>([]);
+					override readonly slotPanes = testGridPanes(this.gridShown);
 				});
 			});
 			const container = harness.createContainer();
@@ -8410,6 +8411,8 @@ suite('Sessions - SessionsList', () => {
 			};
 			const provider = new class extends mock<IAgentHostSessionsProvider>() {
 				override readonly id = LOCAL_AGENT_HOST_PROVIDER_ID;
+				override readonly onDidChangeSessions = Event.None;
+				override readonly onDidChangeSessionConfig = Event.None;
 				override getAgentMergeClientStateObservable(sessionId: string) { return getEnablementObservable(sessionId); }
 			};
 			const completedStateIcon = observableValue('completedStateIcon', computePullRequestIcon(GitHubPullRequestState.Open, { hasFailingChecks: true }));
@@ -9905,11 +9908,12 @@ suite('Sessions - SessionsList', () => {
 				};
 			};
 			const multiFolderSession = withChanges(createMultiFolderSession([first, second], [undefined, [second]]));
-			const activeSession = observableValue<IActiveSession | undefined>('active-session', undefined);
+			const activeSession = observableValue<ITestSessionWithChat | undefined>('active-session', undefined);
 			const multiFolderContainer = renderSessionChatsList(multiFolderSession, undefined, false, true, false, instantiationService => {
 				instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() {
 					readonly activeSession = activeSession;
-					override readonly visibleSessions = constObservable<readonly IActiveSession[]>([]);
+					readonly gridShown = constObservable<readonly ITestSessionWithChat[]>([]);
+					override readonly slotPanes = testGridPanes(this.gridShown);
 				});
 			}).container;
 			const singleFolderContainer = renderSessionChats(withChanges(createMultiFolderSession([first], [undefined])));
@@ -9922,7 +9926,7 @@ suite('Sessions - SessionsList', () => {
 			};
 
 			const beforeOpen = getDiff(multiFolderContainer);
-			activeSession.set(upcastPartial<IActiveSession>({
+			activeSession.set(upcastPartial<ITestSessionWithChat>({
 				...multiFolderSession,
 				activeChat: multiFolderSession.mainChat,
 			}), undefined);
@@ -9964,12 +9968,13 @@ suite('Sessions - SessionsList', () => {
 					chats: constObservable([mainChat, ...base.chats.get().slice(1)]),
 					mainChat: constObservable(mainChat),
 				};
-				const activeSession = observableValue<IActiveSession | undefined>('active-session', undefined);
+				const activeSession = observableValue<ITestSessionWithChat | undefined>('active-session', undefined);
 				const hovers = new Map<HTMLElement, () => IDelayedHoverOptions>();
 				const { container } = renderSessionChatsList(session, undefined, false, true, compact, instantiationService => {
 					instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() {
 						readonly activeSession = activeSession;
-						override readonly visibleSessions = constObservable<readonly IActiveSession[]>([]);
+						readonly gridShown = constObservable<readonly ITestSessionWithChat[]>([]);
+						override readonly slotPanes = testGridPanes(this.gridShown);
 					});
 					instantiationService.stub(IHoverService, {
 						...NullHoverService,
@@ -9993,7 +9998,7 @@ suite('Sessions - SessionsList', () => {
 				};
 
 				const beforeOpen = read();
-				activeSession.set(upcastPartial<IActiveSession>({ ...session, activeChat: session.mainChat }), undefined);
+				activeSession.set(upcastPartial<ITestSessionWithChat>({ ...session, activeChat: session.mainChat }), undefined);
 				const whileOpen = read();
 				activeSession.set(undefined, undefined);
 				const afterSwitch = read();
@@ -11673,6 +11678,33 @@ suite('Sessions - SessionsList', () => {
 			}]);
 		});
 
+		test('marks the row of a session pinned in the grid as sticky, and only that row', async () => {
+			const pinned = createTestSession('Pinned').session;
+			const other = createTestSession('Other').session;
+			const inGrid = (session: ISession, sticky: boolean) => upcastPartial<ITestSessionWithChat>({ ...session, sticky: constObservable(sticky) });
+			const harness = createListHarness(disposables, [pinned, other], instantiationService => {
+				instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() {
+					readonly activeSession = constObservable(undefined);
+					readonly gridShown = constObservable([inGrid(pinned, true), inGrid(other, false)]);
+					override readonly slotPanes = testGridPanes(this.gridShown);
+				});
+			});
+
+			const container = harness.createContainer();
+			const list = harness.store.add(harness.instantiationService.createInstance(SessionsList, container, {
+				grouping: () => SessionsGrouping.Date,
+				sorting: () => SessionsSorting.Created,
+				onSessionOpen: () => { },
+			}));
+			list.layout(300, 400);
+
+			const rows = Array.from(container.querySelectorAll<HTMLElement>('.session-item')).map(row => ({ title: row.querySelector('.session-title')?.textContent, sticky: row.classList.contains('sticky') }));
+			assert.deepStrictEqual(rows.filter(row => row.title === 'Pinned' || row.title === 'Other').sort((a, b) => a.title!.localeCompare(b.title!)), [
+				{ title: 'Other', sticky: false },
+				{ title: 'Pinned', sticky: true },
+			]);
+		});
+
 		test('coalesces restored active chat selection without flashing the parent session', async () => {
 			const main = createChat('Main chat');
 			const first = createChat('First chat', ChatOriginKind.User);
@@ -11686,7 +11718,7 @@ suite('Sessions - SessionsList', () => {
 				mainChat: constObservable(main),
 				capabilities: constObservable({ supportsMultipleChats: true }),
 			};
-			const activeSession = upcastPartial<IActiveSession>({
+			const activeSession = upcastPartial<ITestSessionWithChat>({
 				...session,
 				activeChat,
 				sticky: constObservable(false),
@@ -11696,7 +11728,8 @@ suite('Sessions - SessionsList', () => {
 			const harness = createListHarness(disposables, [session], instantiationService => {
 				instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() {
 					readonly activeSession = constObservable(activeSession);
-					override readonly visibleSessions = constObservable([activeSession]);
+					readonly gridShown = constObservable([activeSession]);
+					override readonly slotPanes = testGridPanes(this.gridShown);
 				});
 			});
 
@@ -11783,7 +11816,7 @@ suite('Sessions - SessionsList', () => {
 				mainChat: constObservable(main),
 				capabilities: constObservable({ supportsMultipleChats: true }),
 			};
-			const activeSession = upcastPartial<IActiveSession>({
+			const activeSession = upcastPartial<ITestSessionWithChat>({
 				...session,
 				activeChat,
 				sticky: constObservable(false),
@@ -11793,7 +11826,8 @@ suite('Sessions - SessionsList', () => {
 			const harness = createListHarness(disposables, [session], instantiationService => {
 				instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() {
 					readonly activeSession = constObservable(activeSession);
-					override readonly visibleSessions = constObservable([activeSession]);
+					readonly gridShown = constObservable([activeSession]);
+					override readonly slotPanes = testGridPanes(this.gridShown);
 				});
 			});
 			const container = harness.createContainer();
@@ -11817,7 +11851,7 @@ suite('Sessions - SessionsList', () => {
 			const peer = createChat('Peer chat', ChatOriginKind.User);
 			const activeSessionBase = createTestSession('Session').session;
 			const session: ISession = { ...activeSessionBase, chats: constObservable([main, peer]), mainChat: constObservable(main) };
-			const activeSession = upcastPartial<IActiveSession>({
+			const activeSession = upcastPartial<ITestSessionWithChat>({
 				...session,
 				activeChat: constObservable(peer),
 				sticky: constObservable(false),
@@ -11827,7 +11861,8 @@ suite('Sessions - SessionsList', () => {
 			const harness = createListHarness(disposables, [session], instantiationService => {
 				instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() {
 					readonly activeSession = constObservable(activeSession);
-					override readonly visibleSessions = constObservable([activeSession]);
+					readonly gridShown = constObservable([activeSession]);
+					override readonly slotPanes = testGridPanes(this.gridShown);
 				});
 			});
 			const container = harness.createContainer();
@@ -12136,7 +12171,7 @@ suite('Sessions - SessionsList', () => {
 					mainChat: constObservable(createChat('Other main chat')),
 					capabilities: constObservable({ supportsMultipleChats: true }),
 				};
-				const activeSession = upcastPartial<IActiveSession>({
+				const activeSession = upcastPartial<ITestSessionWithChat>({
 					...session,
 					activeChat: constObservable(peer),
 					sticky: constObservable(false),
@@ -12147,7 +12182,8 @@ suite('Sessions - SessionsList', () => {
 					if (activePeer) {
 						instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() {
 							readonly activeSession = constObservable(activeSession);
-							override readonly visibleSessions = constObservable([activeSession]);
+							readonly gridShown = constObservable([activeSession]);
+							override readonly slotPanes = testGridPanes(this.gridShown);
 						});
 					}
 				});
@@ -13561,7 +13597,7 @@ suite('Sessions - SessionsList', () => {
 			for (const active of [false, true]) {
 				test(`${flat ? 'flat' : 'main'} list ${active ? 'preserves an active session unread mark' : 'marks an inactive session read'} when opening a row`, async () => {
 					const { session } = createTestSession('Unread', { isRead: false });
-					const activeSession = active ? upcastPartial<IActiveSession>({
+					const activeSession = active ? upcastPartial<ITestSessionWithChat>({
 						...session,
 						activeChat: session.mainChat,
 						sticky: constObservable(false),
@@ -13571,7 +13607,8 @@ suite('Sessions - SessionsList', () => {
 					const harness = createListHarness(disposables, [session], instantiationService => {
 						instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() {
 							readonly activeSession = constObservable(activeSession);
-							override readonly visibleSessions = constObservable(activeSession ? [activeSession] : []);
+							readonly gridShown = constObservable(activeSession ? [activeSession] : []);
+							override readonly slotPanes = testGridPanes(this.gridShown);
 						});
 					});
 					const container = harness.createContainer();

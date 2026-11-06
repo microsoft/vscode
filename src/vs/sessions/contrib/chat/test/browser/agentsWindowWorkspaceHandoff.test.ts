@@ -19,22 +19,21 @@ import { TestInstantiationService } from '../../../../../platform/instantiation/
 import { INotificationService, IPromptChoice, IPromptChoiceWithMenu, NoOpNotification } from '../../../../../platform/notification/common/notification.js';
 import { ILifecycleService, LifecyclePhase } from '../../../../../workbench/services/lifecycle/common/lifecycle.js';
 import { IViewsService } from '../../../../../workbench/services/views/common/viewsService.js';
-import { ISelectNoWorkspaceOptions, ISelectWorkspaceOptions, WorkspaceSelectionResult } from '../../../../browser/parts/chatView.js';
-import { SessionView } from '../../../../browser/parts/sessionView.js';
+import { SessionView } from '../../../../../workbench/contrib/sessions/browser/parts/sessionView.js';
 import { ISessionsSetUpService } from '../../../../browser/sessionsSetUpService.js';
-import { WorkspaceSelectionOrigin } from '../../../../common/workspaceSelection.js';
-import { ISession } from '../../../../services/sessions/common/session.js';
-import { IActiveSession, ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
-import { ISessionNavigationRequest, ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
-import { ISessionsPartService } from '../../../../services/sessions/browser/sessionsPartService.js';
+import { WorkspaceSelectionOrigin, ISelectNoWorkspaceOptions, ISelectWorkspaceOptions, WorkspaceSelectionResult } from '../../../../../workbench/contrib/sessions/common/workspaceSelection.js';
+import { ISession } from '../../../../../workbench/contrib/sessions/common/session.js';
+import { ISessionsManagementService } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
+import { ISessionNavigationRequest, ISessionsService } from '../../../../../workbench/contrib/sessions/browser/sessionsService.js';
+import { ISessionsPartService } from '../../../../../workbench/contrib/sessions/browser/sessionsPartService.js';
 import { WorkspaceHandoffState } from '../../../sessions/browser/sessionsWindowOpenTelemetry.js';
 import { AgentsWindowWorkspaceHandoff, WORKSPACE_HANDOFF_TIMEOUT_MS } from '../../browser/agentsWindowWorkspaceHandoff.js';
-import { INewSessionComposerService, NewSessionComposerService } from '../../browser/newSessionComposerService.js';
+import { INewSessionComposerService, NewSessionComposerService } from '../../../../../workbench/contrib/sessions/browser/newSessionComposerService.js';
 import { InMemoryStorageService, IStorageService } from '../../../../../platform/storage/common/storage.js';
 import { IChatDraft, reviveChatDraft, serializeChatDraft } from '../../../../../workbench/contrib/chat/common/attachments/chatDraft.js';
 import { toFileVariableEntry } from '../../../../../workbench/contrib/chat/common/attachments/chatVariableEntries.js';
-import { writeNewChatDraftState } from '../../common/newChatDraftState.js';
-import { ITestSessionsService, stubFocusedSessionHostFromSessionsService } from '../../../../services/sessions/test/browser/sessionHostTestUtils.js';
+import { writeNewChatDraftState } from '../../../../../workbench/contrib/sessions/common/newChatDraftState.js';
+import { ITestSessionsService, ITestSessionWithChat, stubFocusedSessionHostFromSessionsService, withCreatedStatus } from '../../../../../workbench/contrib/sessions/test/browser/sessionHostTestUtils.js';
 import { IRemoteWorkspaceFolder, IRemoteWorkspaceHandoffService, RemoteWorkspaceHandoffResult } from '../../../../common/remoteWorkspaceHandoff.js';
 import { AGENT_HOST_SCHEME } from '../../../../../platform/agentHost/common/agentHostUri.js';
 
@@ -45,7 +44,7 @@ suite('Agents Window workspace handoff', () => {
 	function createHarness() {
 		const instantiationService = disposables.add(new TestInstantiationService());
 		const composerService = disposables.add(new NewSessionComposerService());
-		const activeSession = observableValue<IActiveSession | undefined>('activeSession', undefined);
+		const activeSession = observableValue<ITestSessionWithChat | undefined>('activeSession', undefined);
 		const initialRestoreComplete = observableValue('restored', true);
 		const navigationRequest = observableValue<ISessionNavigationRequest | undefined>('navigationRequest', undefined);
 		const onWillSend = disposables.add(new Emitter<ISession>());
@@ -292,9 +291,9 @@ suite('Agents Window workspace handoff', () => {
 
 	test('ignores draft input from the previously active created session', async () => {
 		const harness = createHarness();
-		const previousSession = upcastPartial<IActiveSession>({
+		const previousSession = upcastPartial<ITestSessionWithChat>({
 			resource: URI.parse('test:/previous'),
-			isCreated: observableValue('created', true),
+			...withCreatedStatus(observableValue('created', true)),
 		});
 		harness.activeSession.set(previousSession, undefined);
 		disposables.add(harness.composerService.registerComposer({
@@ -391,7 +390,7 @@ suite('Agents Window workspace handoff', () => {
 
 	test('an inferred remote default does not add a host while a created session stays visible', async () => {
 		const harness = createHarness();
-		harness.activeSession.set(upcastPartial<IActiveSession>({ sessionId: 'created', isCreated: observableValue('created', true) }), undefined);
+		harness.activeSession.set(upcastPartial<ITestSessionWithChat>({ sessionId: 'created', ...withCreatedStatus(observableValue('created', true)) }), undefined);
 		harness.remoteResolution = { folderUri: agentHostFolder };
 		await harness.handoff.selectWorkspace({ remote: { kind: 'ssh', folder: remoteFolder }, preferDevContainer: false, isDefault: true }, state => harness.states.push(state));
 		assert.deepStrictEqual({
@@ -403,7 +402,7 @@ suite('Agents Window workspace handoff', () => {
 		test(`unresolvable ${authority} draft does not change the current session, workspace or input`, async () => {
 			await runWithFakedTimers({ useFakeTimers: true, maxTaskCount: 200 }, async () => {
 				const harness = createHarness();
-				const destinationSession = upcastPartial<IActiveSession>({ sessionId: 'destination', isCreated: observableValue('created', true) });
+				const destinationSession = upcastPartial<ITestSessionWithChat>({ sessionId: 'destination', ...withCreatedStatus(observableValue('created', true)) });
 				harness.activeSession.set(destinationSession, undefined);
 				harness.acceptsWorkspace = folder => folder.scheme === Schemas.file;
 				await harness.openDraft({ inputText: 'Source project task', attachments: [] }, URI.from({ scheme: Schemas.vscodeRemote, authority, path: '/source' }));
@@ -434,7 +433,7 @@ suite('Agents Window workspace handoff', () => {
 	test('waits for the requested workspace provider before navigating or applying a draft', async () => {
 		await runWithFakedTimers({ useFakeTimers: true }, async () => {
 			const harness = createHarness();
-			const current = upcastPartial<IActiveSession>({ sessionId: 'current', isCreated: observableValue('created', true) });
+			const current = upcastPartial<ITestSessionWithChat>({ sessionId: 'current', ...withCreatedStatus(observableValue('created', true)) });
 			harness.activeSession.set(current, undefined);
 			harness.providerReady = false;
 			const requested = URI.from({ scheme: 'provider-workspace', path: '/source' });
@@ -531,7 +530,7 @@ suite('Agents Window workspace handoff', () => {
 			} else if (action === 'send') {
 				harness.composerService.notifyWillSendRequest({ query: 'test' }, undefined);
 			} else if (action === 'createdSession') {
-				harness.activeSession.set(upcastPartial<IActiveSession>({ isCreated: observableValue('created', true) }), undefined);
+				harness.activeSession.set(upcastPartial<ITestSessionWithChat>({ ...withCreatedStatus(observableValue('created', true)) }), undefined);
 			} else if (action === 'supersede') {
 				harness.handoff.cancel();
 			} else {
@@ -686,7 +685,7 @@ suite('Agents Window workspace handoff', () => {
 			harness.providerReady = false;
 			const opening = harness.open();
 			await timeout(100);
-			harness.activeSession.set(upcastPartial<IActiveSession>({ isCreated: observableValue('created', true) }), undefined);
+			harness.activeSession.set(upcastPartial<ITestSessionWithChat>({ ...withCreatedStatus(observableValue('created', true)) }), undefined);
 			harness.providerReady = true;
 			await opening;
 			assert.deepStrictEqual({ state: harness.states.at(-1), selections: harness.selections }, { state: 'sessionAlreadyCreated', selections: [] });
@@ -706,8 +705,8 @@ suite('Agents Window workspace handoff', () => {
 
 	test('an inferred workspace replaces an automatic Chat fallback through the target view', async () => {
 		const harness = createHarness();
-		harness.activeSession.set(upcastPartial<IActiveSession>({
-			isCreated: observableValue('created', false), isQuickChat: observableValue('quickChat', true),
+		harness.activeSession.set(upcastPartial<ITestSessionWithChat>({
+			...withCreatedStatus(observableValue('created', false)), isQuickChat: observableValue('quickChat', true),
 		}), undefined);
 		disposables.add(harness.composerService.registerComposer({
 			canApplyWorkspaceDefault: false,
@@ -724,10 +723,10 @@ suite('Agents Window workspace handoff', () => {
 		test(`an inferred default preserves ${protectedState}`, async () => {
 			const harness = createHarness();
 			if (protectedState === 'restoredSession') {
-				harness.activeSession.set(upcastPartial<IActiveSession>({ isCreated: observableValue('created', true) }), undefined);
+				harness.activeSession.set(upcastPartial<ITestSessionWithChat>({ ...withCreatedStatus(observableValue('created', true)) }), undefined);
 			} else if (protectedState === 'quickChat') {
-				harness.activeSession.set(upcastPartial<IActiveSession>({
-					isCreated: observableValue('created', false), isQuickChat: observableValue('quickChat', true),
+				harness.activeSession.set(upcastPartial<ITestSessionWithChat>({
+					...withCreatedStatus(observableValue('created', false)), isQuickChat: observableValue('quickChat', true),
 				}), undefined);
 				harness.defaultAllowed = false;
 			} else {

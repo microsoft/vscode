@@ -9,7 +9,7 @@
 		"generate": "node generate.cjs",
 		"test": "node test.cjs"
 	},
-	"dependencies": {
-		"@playwright/cli": "0.1.1"
+	"devDependencies": {
+		"@playwright/cli": "^0.1.22"
 	}
 }
