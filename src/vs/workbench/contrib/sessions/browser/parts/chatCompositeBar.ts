@@ -325,7 +325,7 @@ export class ChatCompositeBar extends Disposable {
 	 * harnesses (a restored session can render before its host advertises them).
 	 */
 	private _presentChatHarness(session: ISession, chat: IChat, reader: IReader | undefined): IHarnessPresentation {
-		return getHarnessPresentationOrDefault(this._sessionsProvidersService.getProvider(session.providerId), getChatHarness(session, chat), reader);
+		return getHarnessPresentationOrDefault(this._sessionsProvidersService.getProvider(session.providerId, session.sessionId), getChatHarness(session, chat), reader);
 	}
 
 	private _rebuildTabs(chats: readonly IChat[], mainChatId: string): void {
@@ -707,7 +707,7 @@ export class ChatCompositeBar extends Disposable {
 				getAnchor: () => event,
 				getActions: () => {
 					const capabilities = getChatCapabilities(chat, session, undefined);
-					const provider = session && this._sessionsProvidersService.getProvider(session.providerId);
+					const provider = session && this._sessionsProvidersService.getProvider(session.providerId, session.sessionId);
 					const canRename = isMainChat ? !!session?.capabilities.get().supportsRename : capabilities.canRename;
 					const canSetReadState = !!session && !chat.isArchived.get() && (isMainChat || session.capabilities.get().supportsIndependentChatReadState === true);
 					return Separator.join(
@@ -742,11 +742,11 @@ export class ChatCompositeBar extends Disposable {
 	 * state for the chat — the caller then offers no chat-reference payload.
 	 */
 	private _backendChatResource(chat: IChat): URI | undefined {
-		const providerId = this._delegate?.session.providerId;
-		if (!providerId) {
+		const session = this._delegate?.session;
+		if (!session) {
 			return undefined;
 		}
-		const provider = this._sessionsProvidersService.getProvider(providerId);
+		const provider = this._sessionsProvidersService.getProvider(session.providerId, session.sessionId);
 		return provider && isAgentHostProvider(provider) ? provider.getBackendChatResource(chat.resource) : undefined;
 	}
 

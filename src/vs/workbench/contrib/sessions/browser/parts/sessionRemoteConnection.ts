@@ -79,7 +79,7 @@ export class SessionRemoteConnection extends Disposable {
 	 */
 	private readonly _autoConnectPending = derived(this, reader => {
 		const session = this._session.read(reader);
-		const provider = session && this._sessionsProvidersService.getProvider(session.providerId);
+		const provider = session && this._sessionsProvidersService.getProvider(session.providerId, session.sessionId);
 		const status = this._getEffectiveStatus(reader);
 		if (!session || !provider || !isAgentHostProvider(provider) || !provider.connect || !provider.autoConnect) {
 			return false;
@@ -220,7 +220,7 @@ export class SessionRemoteConnection extends Disposable {
 			this._attempt.set(undefined, undefined);
 		}
 
-		const provider = this._sessionsProvidersService.getProvider(session.providerId);
+		const provider = this._sessionsProvidersService.getProvider(session.providerId, session.sessionId);
 		if (!provider || !isAgentHostProvider(provider) || !provider.connect) {
 			this._logService.info(`[SessionRemoteConnection] connect: ${session.providerId} cannot connect on demand`);
 			return;
@@ -354,7 +354,7 @@ export class SessionRemoteConnection extends Disposable {
 		}
 
 		const status = this._getEffectiveStatus(reader);
-		const provider = this._sessionsProvidersService.getProvider(session.providerId);
+		const provider = this._sessionsProvidersService.getProvider(session.providerId, session.sessionId);
 		const hostLabel = provider?.label ?? localize('sessionRemoteHost.unknown', "The remote host");
 		const labels = this._getConnectionLabels(provider);
 		if (status?.kind === 'connected') {
@@ -436,7 +436,7 @@ export class SessionRemoteConnection extends Disposable {
 		}
 
 		const status = this._getEffectiveStatus(reader);
-		const provider = this._sessionsProvidersService.getProvider(session.providerId);
+		const provider = this._sessionsProvidersService.getProvider(session.providerId, session.sessionId);
 		const hostLabel = provider?.label ?? localize('sessionRemoteHost.unknown', "The remote host");
 		const labels = this._getConnectionLabels(provider);
 		const progressMessage = this._getRemoteHostConnectProgress(session, status, labels, reader);

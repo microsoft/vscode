@@ -1552,7 +1552,7 @@ export class SessionsService extends Disposable implements ISessionsService {
 					: undefined;
 				await Promise.all([
 					reopening ? raceCancellation(reopening, token) : undefined,
-					this.sessionsProvidersService.getProvider(sessionData.providerId)?.prepareSessionForOpen?.(sessionData, 'open'),
+					this.sessionsProvidersService.getProvider(sessionData.providerId, sessionData.sessionId)?.prepareSessionForOpen?.(sessionData, 'open'),
 				]);
 				if (token.isCancellationRequested) {
 					return;
@@ -1641,7 +1641,7 @@ export class SessionsService extends Disposable implements ISessionsService {
 		if (!this.areGridSessionsCurrent([session]) || !await this.canOpenSession(session) || token.isCancellationRequested || !this.areGridSessionsCurrent([session])) {
 			return;
 		}
-		await this.sessionsProvidersService.getProvider(session.providerId)?.prepareSessionForOpen?.(session, 'open');
+		await this.sessionsProvidersService.getProvider(session.providerId, session.sessionId)?.prepareSessionForOpen?.(session, 'open');
 		if (token.isCancellationRequested || !this.areGridSessionsCurrent([session])) {
 			return;
 		}
@@ -1696,7 +1696,7 @@ export class SessionsService extends Disposable implements ISessionsService {
 				if (!await this.canOpenSession(session) || token.isCancellationRequested || !this.areGridSessionsCurrent([session])) {
 					return undefined;
 				}
-				await this.sessionsProvidersService.getProvider(session.providerId)?.prepareSessionForOpen?.(session, 'open');
+				await this.sessionsProvidersService.getProvider(session.providerId, session.sessionId)?.prepareSessionForOpen?.(session, 'open');
 				if (token.isCancellationRequested) {
 					return undefined;
 				}
@@ -2029,7 +2029,7 @@ export class SessionsService extends Disposable implements ISessionsService {
 			try {
 				const session = this.sessionsManagementService.createNewSession(folderUri, options);
 				if (options?.requireDevContainer) {
-					const provider = this.sessionsProvidersService.getProvider(session.providerId);
+					const provider = this.sessionsProvidersService.getProvider(session.providerId, session.sessionId);
 					if (!provider || !isAgentHostProvider(provider) || !provider.preferDevContainer) {
 						this.sessionsManagementService.discardNewSession(session);
 						throw new Error(`Session provider '${session.providerId}' does not support Dev Container drafts.`);
@@ -2779,7 +2779,7 @@ export class SessionsService extends Disposable implements ISessionsService {
 			return;
 		}
 		if (activeSession) {
-			const provider = this.sessionsProvidersService.getProvider(activeSession.providerId);
+			const provider = this.sessionsProvidersService.getProvider(activeSession.providerId, activeSession.sessionId);
 			void provider?.prepareSessionForOpen?.(activeSession, 'restore').catch(error => this.logService.warn(`[SessionsView] Failed to prepare restored session for provider '${provider.id}'`, error));
 		}
 

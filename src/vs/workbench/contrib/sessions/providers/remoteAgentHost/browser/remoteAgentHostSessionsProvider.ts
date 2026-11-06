@@ -8,7 +8,7 @@ import { CancellationToken } from '../../../../../../base/common/cancellation.js
 import { isPassiveRelayConnection } from '../../../../../../platform/agentHost/common/meta/relayConnectionMeta.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
-import { DisposableStore } from '../../../../../../base/common/lifecycle.js';
+import { DisposableMap, DisposableStore } from '../../../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../../../base/common/network.js';
 import { autorun, constObservable, derived, IObservable, IReader, observableValue, runOnChange, transaction } from '../../../../../../base/common/observable.js';
 import { isWeb } from '../../../../../../base/common/platform.js';
@@ -42,6 +42,7 @@ import { BrowserRemoteProxyEnabledSettingId } from '../../../../browserView/comm
 import { IAgentHostActiveClientService } from '../../../../chat/browser/agentSessions/agentHost/agentHostActiveClientService.js';
 import { IAgentHostMcpAppToolsService } from '../../../../chat/browser/agentSessions/agentHost/agentHostMcpAppToolsService.js';
 import { IAgentHostSessionWorkingDirectoryResolver } from '../../../../chat/browser/agentSessions/agentHost/agentHostSessionWorkingDirectoryResolver.js';
+import { getAgentHostSessionResource } from '../../../../../../platform/agentHost/common/agentHostSessionIdentity.js';
 import { IRemoteAgentHostAuthenticationService } from '../../../../chat/browser/remoteAgentHost/remoteAgentHostAuthentication.js';
 import { createCloudSandboxSessionPreparation } from '../../../../chat/browser/remoteAgentHost/cloudSandboxLegacySessionPreparation.js';
 import { IChatWidgetService } from '../../../../chat/browser/chat.js';
@@ -82,6 +83,8 @@ function toLocalProjectUri(uri: URI, connectionAuthority: string): URI {
 }
 
 export interface IRemoteAgentHostSessionsProviderConfig {
+	readonly providerId?: string;
+	readonly mapSessionResource?: (backendSession: URI) => URI | undefined;
 	readonly address: string;
 	readonly name: string;
 	/**
@@ -187,6 +190,10 @@ export interface IRemoteAgentHostSessionsProviderConfig {
  */
 export class RemoteAgentHostSessionsProvider extends DevContainerAgentHostSessionsProvider {
 
+	static getCachedSessionReadStates(storageService: IStorageService, address: string) {
+		return super.readCachedSessionReadStates(storageService, `${CACHED_SESSIONS_STORAGE_PREFIX}${agentHostAuthority(address)}`);
+	}
+
 	readonly id: string;
 	private _defaultLabel: string;
 	/** Configured or discovered name, without the client-local override. */
@@ -263,6 +270,8 @@ export class RemoteAgentHostSessionsProvider extends DevContainerAgentHostSessio
 	private readonly _connectionListeners = this._register(new DisposableStore());
 	private readonly _onDidChangeResourceLabelHomes = Event.any(this._onDidChangeSessionsImmediately, this._onDidChangeDraftSessions.event);
 	private readonly _connectionAuthority: string;
+	private readonly _mapSessionResource: IRemoteAgentHostSessionsProviderConfig['mapSessionResource'];
+	private readonly _sessionResourceAliases = this._register(new DisposableMap<string>());
 	private readonly _connectOnDemand: (() => Promise<void>) | undefined;
 	private readonly _disconnectOnDemand: (() => Promise<void>) | undefined;
 	private readonly _removeOnDemand: (() => Promise<void>) | undefined;
@@ -331,14 +340,15 @@ export class RemoteAgentHostSessionsProvider extends DevContainerAgentHostSessio
 		super(chatSessionsService, chatService, chatWidgetService, languageModelsService, _configurationService, logService, gitHubService, instantiationService, sessionHostService, focusedSessionHostService, activeClientService, mcpAppToolsService, storageService, dialogService, workspaceTrustManagementService, recentWorkspacesService, uriIdentityService);
 
 		this._connectionAuthority = agentHostAuthority(config.address);
+		this._mapSessionResource = config.mapSessionResource;
 		const authenticationPending = this._register(remoteAuthenticationService.acquire(config.address)).object;
 		const resolverRegistrations = this._register(new DisposableStore());
 		const registerResolvers = () => {
 			resolverRegistrations.clear();
 			for (const sessionType of this.sessionTypes) {
 				resolverRegistrations.add(workingDirectoryResolver.registerResolver(this.resourceSchemeForProvider(sessionType.id),
-					resource => this.getSessionByResource(resource)?.workspace.get()?.folders[0]?.workingDirectory,
-					resource => this.getSessionByResource(resource)?.status.get() === SessionStatus.Untitled));
+					resource => this.getSessionByResource(this._mapSessionResource?.(getAgentHostSessionResource(resource)) ?? resource)?.workspace.get()?.folders[0]?.workingDirectory,
+					resource => this.getSessionByResource(this._mapSessionResource?.(getAgentHostSessionResource(resource)) ?? resource)?.status.get() === SessionStatus.Untitled));
 			}
 		};
 		this._register(this.onDidChangeSessionTypes(registerResolvers));
@@ -404,7 +414,7 @@ export class RemoteAgentHostSessionsProvider extends DevContainerAgentHostSessio
 		this._defaultLabel = config.name || config.address;
 		const displayName = this._remoteAgentHostService.getDisplayNameOverride(config.address) ?? this._defaultLabel;
 
-		this.id = `agenthost-${this._connectionAuthority}`;
+		this.id = config.providerId ?? `agenthost-${this._connectionAuthority}`;
 		this._label = displayName;
 		this.remoteAddress = config.address;
 		this.remoteLocationPreferenceKey = config.preferenceKey ?? config.address;
@@ -1075,6 +1085,18 @@ export class RemoteAgentHostSessionsProvider extends DevContainerAgentHostSessio
 
 	protected override registerBackendSession(backendSession: URI, provider: string): void {
 		this.agentHostConnectionsService.registerSessionResource(backendSession, this._connectionAuthority, provider);
+		const resource = this._mapSessionResource?.(backendSession);
+		if (resource && !this._sessionResourceAliases.has(backendSession.toString())) {
+			this._sessionResourceAliases.set(backendSession.toString(), this.agentHostConnectionsService.registerSessionResourceAlias(resource, backendSession, this._connectionAuthority, provider));
+		}
+	}
+
+	protected override _mapBackendSessionResource(resource: URI): URI {
+		return this._mapSessionResource?.(resource) ?? super._mapBackendSessionResource(resource);
+	}
+
+	protected override sessionResource(resource: URI, scheme: string): URI {
+		return this._mapSessionResource?.(resource) ?? super.sessionResource(resource, scheme);
 	}
 
 	protected override updateAdapter(adapter: AgentHostSessionAdapter, meta: IAgentSessionMetadata): boolean {

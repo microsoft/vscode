@@ -173,7 +173,7 @@ class MobileChatInputConfigPicker extends Disposable {
 		if (!session || !chat) {
 			return undefined;
 		}
-		const provider = this._sessionsProvidersService.getProvider(session.providerId);
+		const provider = this._sessionsProvidersService.getProvider(session.providerId, session.sessionId);
 		if (!provider || !isAgentHostProvider(provider)) {
 			return undefined;
 		}
@@ -400,7 +400,7 @@ export class MobileChatInputConfigPickerContribution extends Disposable implemen
 		this._register(autorun(reader => {
 			providersChanged.read(reader);
 			const session = focusedSessionHostService.focusedHost.read(reader).session.read(reader);
-			usesCombinedPicker.set(!!session && sessionsProvidersService.getProvider(session.providerId)?.usesCombinedNewSessionConfigPicker === true);
+			usesCombinedPicker.set(!!session && sessionsProvidersService.getProvider(session.providerId, session.sessionId)?.usesCombinedNewSessionConfigPicker === true);
 		}));
 
 		for (const menu of [Menus.AutomationsDialogInputToolbar, Menus.NewSessionChatInputToolbar]) {
