@@ -9,7 +9,7 @@ import { CheckRun } from '../../../../../../platform/github/common/core/checks.j
 import { ApiRequestOptions } from '../../../../../../platform/github/common/client/request.js';
 import { ILogService } from '../../../../../../platform/log/common/log.js';
 import { GitHubCheckConclusion, GitHubCheckStatus, IGitHubCICheck } from '../../../common/github/types.js';
-import { GitHubApiClient } from '../githubApiClient.js';
+import { GitHubApiClient } from '../../../../../services/github/browser/githubApiClient.js';
 
 export class GitHubPRCIFetcher {
 	constructor(readonly client: GitHubApiClient, private readonly _logService: ILogService) { }

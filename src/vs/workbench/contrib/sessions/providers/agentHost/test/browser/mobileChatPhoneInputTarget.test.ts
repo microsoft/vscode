@@ -8,7 +8,7 @@ import { observableValue } from '../../../../../../../base/common/observable.js'
 import { URI } from '../../../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../../base/test/common/utils.js';
 import { extUriBiasedIgnorePathCase } from '../../../../../../../base/common/resources.js';
-import { IChat } from '../../../../common/session.js';
+import { IChat } from '../../../../../../services/sessions/common/session.js';
 import { createChatPhoneInputSessionContext, createChatPhoneInputTarget, matchesChatPhoneInputTarget } from '../../../../browser/chatPhoneInputContext.js';
 import { ITestSessionWithChat } from '../../../../test/browser/sessionHostTestUtils.js';
 

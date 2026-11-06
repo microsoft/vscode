@@ -18,7 +18,7 @@ import { defaultButtonStyles } from '../../../../../platform/theme/browser/defau
 import { IChatEntitlementService } from '../../../../services/chat/common/chatEntitlementService.js';
 import { IsPhoneLayoutContext } from '../../common/contextkeys.js';
 import { SESSIONS_LIST_INLINE_ACTIONS_SETTING } from '../../common/sessionConfig.js';
-import { ChatInteractivity, IChat, ISession, SessionStatus } from '../../common/session.js';
+import { ChatInteractivity, IChat, ISession, SessionStatus } from '../../../../services/sessions/common/session.js';
 import { ISessionsManagementService } from '../../common/sessionsManagement.js';
 import { SessionInputBannerModel } from '../sessionInputBanners/sessionInputBannerModel.js';
 import { ISessionInputBannerAction } from '../sessionInputBanners/sessionInputBannerWidget.js';

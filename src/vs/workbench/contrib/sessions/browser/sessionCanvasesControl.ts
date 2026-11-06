@@ -9,7 +9,7 @@ import { IInstantiationService } from '../../../../platform/instantiation/common
 import type { IChatPillSection } from '../../../browser/chatPills.js';
 import { CanvasesPillControl } from '../../canvases/browser/canvasesPillControl.js';
 import type { ICanvasContext } from '../../canvases/common/canvas.js';
-import { IChat, ISession } from '../common/session.js';
+import { IChat, ISession } from '../../../services/sessions/common/session.js';
 import { ISessionsManagementService } from '../common/sessionsManagement.js';
 
 /** Supplies the canvases pill of the active chat in the Agents window chat input. */

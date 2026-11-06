@@ -31,7 +31,7 @@ suite('NewSessionViewTourTrigger', () => {
 
 	function createHarness(options: { restored?: boolean; entitlement?: ChatEntitlement; requestsSent?: number; shown?: boolean } = {}) {
 		const fixture = createSessionsPartTestHarness(disposables);
-		const { configurationService, contextKeyService, part } = fixture;
+		const { content, configurationService, contextKeyService } = fixture;
 		const initialRestoreComplete = observableValue('initialRestoreComplete', options.restored ?? true);
 		const activeSession = observableValue<ITestSessionWithChat | undefined>('activeSession', undefined);
 		const sessionsService = new class extends mock<ISessionsService>() {
@@ -61,7 +61,7 @@ suite('NewSessionViewTourTrigger', () => {
 		)));
 		const open = (visible: readonly (ITestSessionWithChat | undefined)[], active: ITestSessionWithChat | undefined) => {
 			activeSession.set(active, undefined);
-			renderTestPanes(part, visible, active);
+			renderTestPanes(content, visible, active);
 		};
 		return { ...fixture, initialRestoreComplete, entitlement, triggers, open, signals: () => triggers.map(trigger => trigger.signal.get()) };
 	}
@@ -78,7 +78,7 @@ suite('NewSessionViewTourTrigger', () => {
 	});
 
 	test('V2 and V3 use the active empty composer for trigger readiness and workspace-step eligibility', () => {
-		const { open, part, chatViews, contextKeyService, triggers, signals } = createHarness();
+		const { content, open, chatViews, contextKeyService, triggers, signals } = createHarness();
 		const existing = createTestActiveSession('existing');
 		open([existing, undefined], existing);
 		const composer = chatViews.find(view => view.kind === 'newSession')!;
@@ -109,7 +109,7 @@ suite('NewSessionViewTourTrigger', () => {
 			afterRender,
 			visibleTarget: findOnboardingTarget(mainWindow, v2Workspace.targetId) === target,
 			global: getSessionPickerVisibility(contextKeyService),
-			local: getSessionPickerVisibility(contextKeyService, part.getSessionView(undefined)!.element),
+			local: getSessionPickerVisibility(contextKeyService, content.getSessionView(undefined)!.element),
 			afterWorkspaceSelection: workspaceSteps(),
 		}, {
 			scenarioEligible: [true, true],

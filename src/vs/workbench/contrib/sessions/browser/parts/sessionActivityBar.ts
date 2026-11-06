@@ -32,15 +32,15 @@ import { IInstantiationService } from '../../../../../platform/instantiation/com
 import { IKeybindingService } from '../../../../../platform/keybinding/common/keybinding.js';
 import { Menus, SessionActivityBarGroup } from '../menus.js';
 import { IWorkbenchLayoutService } from '../../../../services/layout/browser/layoutService.js';
-import { AgentWorkbenchLayout, ISessionsHostLayoutService } from '../sessionsHostLayoutService.js';
+import { AgentWorkbenchLayout, ISessionsHostLayoutService } from '../../../../services/sessions/browser/sessionsHostLayoutService.js';
 import { SESSION_ACTIVITY_BAR_SETTING } from '../../common/sessionConfig.js';
 import { TOGGLE_SIDE_PANEL_COMMAND_ID } from '../../common/sessionCommands.js';
 import { sessionActivityBarChatActionContext } from '../../common/contextkeys.js';
 import { LayoutModeContext } from '../../../../common/contextkeys.js';
 import { IWindowCommandContext } from '../../../../common/windowCommandContext.js';
-import { isPhoneLayout } from '../mobileLayout.js';
-import { findSessionActivityBarExternalHost, ISessionActivityBarExternalHost, observeSessionActivityBarSize, SESSION_ACTIVITY_BAR_COLUMN_WIDTH } from './sessionActivityBarHost.js';
-import { SubmenuFlyout } from './submenuFlyout.js';
+import { isPhoneLayout } from '../../../../browser/parts/sessions/mobileLayout.js';
+import { findSessionActivityBarExternalHost, ISessionActivityBarExternalHost, observeSessionActivityBarSize, SESSION_ACTIVITY_BAR_COLUMN_WIDTH } from '../../../../browser/parts/sessions/sessionActivityBarHost.js';
+import { SubmenuFlyout } from '../../../../browser/parts/sessions/submenuFlyout.js';
 
 /**
  * A vertical activity bar of icon-only actions that open session tabs and toggle the panel and side panel, docked by {@link ChatViewSessionActivityBar}:

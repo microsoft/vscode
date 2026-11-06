@@ -24,7 +24,7 @@ import { NewSessionBannerPriority, NewSessionBanners } from '../../common/newSes
 import { WorktreeSuggestionVariant } from '../../common/worktreeSuggestion.js';
 import { getInlineHintMessage, getShowChangesLabel, getUseWorktreeLabel } from './worktreeSuggestionPresentation.js';
 import { IWorktreeSuggestion, IWorktreeSuggestionService, worktreeSuggestionEquals, WorktreeSpotlightChoice } from './worktreeSuggestionService.js';
-import { ISession } from '../../common/session.js';
+import { ISession } from '../../../../services/sessions/common/session.js';
 
 /** The parts of a new-session composer that the worktree suggestion reads. */
 export interface IWorktreeSuggestionComposer {

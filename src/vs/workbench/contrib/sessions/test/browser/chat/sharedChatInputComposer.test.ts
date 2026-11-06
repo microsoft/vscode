@@ -26,7 +26,7 @@ import { IPromptsService } from '../../../../chat/common/promptSyntax/service/pr
 import { ChatRequestParser } from '../../../../chat/common/requestParser/chatRequestParser.js';
 import { INewChatComposerInputOptions, INewChatInputSendRequest } from '../../../browser/chat/newChatComposerInput.js';
 import { SharedChatInputComposer } from '../../../browser/chat/sharedChatInputComposer.js';
-import { IChat } from '../../../common/session.js';
+import { IChat } from '../../../../../services/sessions/common/session.js';
 import { readNewChatDraftState } from '../../../common/newChatDraftState.js';
 import { ITestSessionWithChat } from '../sessionHostTestUtils.js';
 

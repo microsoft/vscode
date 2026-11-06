@@ -15,7 +15,7 @@ import { ArtifactIntegrationsSettingId } from '../../../../../platform/artifactI
 import { IConfigurationChangeEvent } from '../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { ISessionsProvidersService } from '../../browser/sessionsProvidersService.js';
-import { IChat, ISession } from '../../common/session.js';
+import { IChat, ISession } from '../../../../services/sessions/common/session.js';
 import { ISessionsProvider } from '../../common/sessionsProvider.js';
 
 suite('sessionAgentMerge', () => {

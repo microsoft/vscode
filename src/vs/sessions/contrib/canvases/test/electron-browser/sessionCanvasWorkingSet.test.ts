@@ -34,7 +34,7 @@ import { IEditorService, USE_MODAL_EDITOR_SETTING, UseModalEditorMode } from '..
 import { IWorkbenchEnvironmentService } from '../../../../../workbench/services/environment/common/environmentService.js';
 import { Parts } from '../../../../../workbench/services/layout/browser/layoutService.js';
 import { createEditorParts, registerTestEditor, TestFileEditorInput, workbenchInstantiationService } from '../../../../../workbench/test/browser/workbenchTestServices.js';
-import { IChat, ISessionCanvas } from '../../../../../workbench/contrib/sessions/common/session.js';
+import { IChat, ISessionCanvas } from '../../../../../workbench/services/sessions/common/session.js';
 import { ChatLayoutMode } from '../../../../common/chatLayout.js';
 import { BaseLayoutController } from '../../../layout/browser/baseSessionLayoutController.js';
 import { createTestHarness, makeSession } from '../../../layout/test/browser/layoutControllerTestUtils.js';
@@ -46,7 +46,7 @@ import { WindowCanvasService } from '../../../../../workbench/contrib/sessions/b
 import { WindowCanvasInput, IWindowCanvas, IWindowCanvasService } from '../../../../../workbench/contrib/sessions/browser/windowCanvas.js';
 import { WindowCanvasEditor } from '../../browser/windowCanvasEditor.js';
 import { IAgentWorkbenchLayoutService } from '../../../../browser/workbench.js';
-import { IFocusedSessionHostService, ISessionHostService } from '../../../../../workbench/contrib/sessions/browser/sessionHost.js';
+import { IFocusedSessionHostService, ISessionHostService } from '../../../../../workbench/services/sessions/browser/sessionHost.js';
 import { focusedSessionHostServiceOf, sessionHostServiceOf } from '../../../../../workbench/contrib/sessions/test/browser/sessionHostTestUtils.js';
 
 class TestCanvasLayoutController extends BaseLayoutController { }

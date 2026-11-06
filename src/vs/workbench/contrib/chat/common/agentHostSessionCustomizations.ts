@@ -30,7 +30,7 @@ import {
 import { getSkillCustomizations } from '../../../../platform/agentHost/common/customizationEnablement.js';
 import { readCustomizationDiscoveryMeta } from '../../../../platform/agentHost/common/meta/customizationDiscoveryMeta.js';
 import { AICustomizationSource, AICustomizationSources } from './aiCustomizationWorkspaceService.js';
-import { ISessionChatCustomization, SessionCustomizationKind } from './sessionChatCustomizations.js';
+import { ISessionChatCustomization, SessionCustomizationKind } from '../../../common/sessionChatCustomizations.js';
 
 /** Maps host-reported discovery provenance to the shared customization source. */
 export function getAgentHostCustomizationSource(customization: Customization | ChildCustomization): AICustomizationSource | undefined {

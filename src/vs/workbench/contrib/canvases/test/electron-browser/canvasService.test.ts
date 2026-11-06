@@ -22,9 +22,10 @@ import { IChatEntitlementService } from '../../../../services/chat/common/chatEn
 import { IEditorGroup, IEditorGroupsService, IEditorPart, IModalEditorPart } from '../../../../services/editor/common/editorGroupsService.js';
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
 import { IBrowserViewWorkbenchService } from '../../../browserView/common/browserView.js';
-import { CanvasInput, canvasOwnerKey, ICanvas, ICanvasContext, ICanvasContextService, ICanvasOpenRequest, ICanvasOwner, isCanvasOwner } from '../../common/canvas.js';
+import { CanvasInput, ICanvasContext, ICanvasContextService, ICanvasOpenRequest, isCanvasOwner } from '../../common/canvas.js';
 import { EditorInput } from '../../../../common/editor/editorInput.js';
 import { CanvasService } from '../../electron-browser/canvasService.js';
+import { canvasOwnerKey, ICanvas, ICanvasOwner } from '../../../../common/canvasReference.js';
 
 suite('CanvasService', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();

@@ -17,7 +17,7 @@ import { ChatViewModel } from '../../../../../../workbench/contrib/chat/common/m
 import { LOCAL_AGENT_HOST_PROVIDER_ID } from '../../../../../../workbench/contrib/sessions/common/agentHostSessionsProvider.js';
 import { ISessionsProvidersService } from '../../../../../../workbench/contrib/sessions/browser/sessionsProvidersService.js';
 import { ISessionsService } from '../../../../../../workbench/contrib/sessions/browser/sessionsService.js';
-import { IChat, ISession } from '../../../../../../workbench/contrib/sessions/common/session.js';
+import { IChat, ISession } from '../../../../../../workbench/services/sessions/common/session.js';
 import { SessionsAgentHostPolicyContinuationPresenter } from '../../../../../../workbench/contrib/sessions/providers/agentHost/browser/agentHostPolicyContinuationPresenter.js';
 import '../../browser/agentHostPolicyContinuationPresenter.contribution.js';
 import { LocalAgentHostSessionsProvider } from '../../../../../../workbench/contrib/sessions/providers/agentHost/browser/localAgentHostSessionsProvider.js';

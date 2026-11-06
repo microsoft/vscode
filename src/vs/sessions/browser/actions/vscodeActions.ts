@@ -27,7 +27,7 @@ import { IInstantiationService } from '../../../platform/instantiation/common/in
 import { IWorkbenchContribution } from '../../../workbench/common/contributions.js';
 import { resolveRemoteAuthority, resolveRemoteFolderUri } from '../../../workbench/contrib/sessions/browser/openInVSCodeUtils.js';
 import { OpenInVSCodeTitleBarWidget } from '../widget/openInVSCodeWidget.js';
-import { IChat, ISession } from '../../../workbench/contrib/sessions/common/session.js';
+import { IChat, ISession } from '../../../workbench/services/sessions/common/session.js';
 
 export class OpenInVSCodeAction extends Action2 {
 	static readonly ID = 'sessions.openInVSCode';

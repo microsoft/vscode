@@ -30,7 +30,7 @@ import { IKeyboardEvent, StandardKeyboardEvent } from '../../../../../base/brows
 import { KeyCode } from '../../../../../base/common/keyCodes.js';
 import { onUnexpectedError } from '../../../../../base/common/errors.js';
 import { localize } from '../../../../../nls.js';
-import { ChatInteractivity, getChatCapabilities, getChatHarness, IChat, ISession, SessionStatus } from '../../common/session.js';
+import { ChatInteractivity, getChatCapabilities, getChatHarness, IChat, ISession, SessionStatus } from '../../../../services/sessions/common/session.js';
 import { getHarnessPresentationOrDefault, IHarnessPresentation } from '../../common/sessionsProvider.js';
 import { ISessionsManagementService } from '../../common/sessionsManagement.js';
 import { clearChatReferenceDragData, fillChatReferenceDragData, fillSessionChatDragData, isSessionDragFromPaneEdge, onDidEndSessionChatDrag } from '../dnd.js';
@@ -52,7 +52,7 @@ import { SessionStatusIcon } from '../sessionStatusIcon.js';
 import { HoverStyle } from '../../../../../base/browser/ui/hover/hover.js';
 import { createInstantHoverDelegate } from '../../../../../base/browser/ui/hover/hoverDelegateFactory.js';
 import { generateUuid } from '../../../../../base/common/uuid.js';
-import { ISessionHost, sessionMenuArgs } from '../sessionHost.js';
+import { ISessionHost, sessionMenuArgs } from '../../../../services/sessions/browser/sessionHost.js';
 
 interface IChatTab {
 	readonly chat: IChat;

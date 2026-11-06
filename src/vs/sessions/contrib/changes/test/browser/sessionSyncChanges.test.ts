@@ -28,10 +28,10 @@ import { IsSessionsWindowContext } from '../../../../../workbench/common/context
 import { ChatContextKeys } from '../../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
 import { getNewSessionRepositoryConfigGroup, Menus } from '../../../../../workbench/contrib/sessions/browser/menus.js';
 import { SessionActiveChatResourceContext, SessionIdContext } from '../../../../../workbench/contrib/sessions/common/contextkeys.js';
-import { ISessionHost, SessionHostKind } from '../../../../../workbench/contrib/sessions/browser/sessionHost.js';
-import { ISessionsPartService } from '../../../../../workbench/contrib/sessions/browser/sessionsPartService.js';
+import { ISessionHost, SessionHostKind } from '../../../../../workbench/services/sessions/browser/sessionHost.js';
+import { ISessionsPartService } from '../../../../../workbench/services/sessions/browser/sessionsPartService.js';
 import { ISessionsService } from '../../../../../workbench/contrib/sessions/browser/sessionsService.js';
-import { IChat, ISession, ISessionChangeset, ISessionChangesetOperation, ISessionFolder, ISessionGitRepository, ISessionWorkspace, SessionChangesetOperationScope, SessionChangesetOperationStatus, UNCOMMITTED_CHANGES_CHANGESET_ID } from '../../../../../workbench/contrib/sessions/common/session.js';
+import { IChat, ISession, ISessionChangeset, ISessionChangesetOperation, ISessionFolder, ISessionGitRepository, ISessionWorkspace, SessionChangesetOperationScope, SessionChangesetOperationStatus, UNCOMMITTED_CHANGES_CHANGESET_ID } from '../../../../../workbench/services/sessions/common/session.js';
 import { ISessionInputPickerVisibility, SessionInputPickerVisibility } from '../../../../../workbench/contrib/sessions/common/sessionPickerVisibility.js';
 import { IKeybindingService } from '../../../../../platform/keybinding/common/keybinding.js';
 import { SessionSyncChangesActionViewItem, SessionSyncChangesContribution } from '../../browser/sessionSyncChanges.js';
@@ -41,7 +41,7 @@ import '../../../../../workbench/contrib/sessions/browser/chat/media/chatWidget.
 import { ITestSessionWithChat, stubMissingSessionHostsFromSessionsService, testGridPanes } from '../../../../../workbench/contrib/sessions/test/browser/sessionHostTestUtils.js';
 import { IChatWidget, IChatWidgetService } from '../../../../../workbench/contrib/chat/browser/chat.js';
 import { createSessionsPartTestHarness, createTestActiveSession } from '../../../../test/browser/sessionViewTestUtils.js';
-import { VisibleSessions } from '../../../../../workbench/contrib/sessions/browser/visibleSessions.js';
+import { VisibleSessions } from '../../../../../workbench/services/sessions/browser/visibleSessions.js';
 import { IUriIdentityService } from '../../../../../platform/uriIdentity/common/uriIdentity.js';
 import { extUriBiasedIgnorePathCase } from '../../../../../base/common/resources.js';
 
@@ -612,7 +612,7 @@ suite('Session Sync Changes', () => {
 	test('in a pane of a real grid, whose host shows the provider\'s session object, returns keyboard focus to that pane\'s view when the focused action is removed', () => {
 		// Regressed in B8 (the host's session became the provider's object while the part found views by the grid's view of
 		// the session), fixed in D13a: the part focuses the view of the button's own host.
-		const { part } = createSessionsPartTestHarness(store);
+		const { part, content } = createSessionsPartTestHarness(store);
 		const data = createSession('first');
 		const base = createTestActiveSession('first');
 		const chat: IChat = { ...base.mainChat.get(), changesets: data.changesets, workspace: data.workspace };
@@ -621,11 +621,11 @@ suite('Session Sync Changes', () => {
 			override readonly extUri = extUriBiasedIgnorePathCase;
 		}));
 		grid.restoreGrid([{ session, sticky: false }], 0);
-		part.updatePanes(grid.panes.get(), grid.activePane.get(), grid.getRenderedGridSlots());
+		content.updatePanes(grid.panes.get(), grid.activePane.get(), grid.getRenderedGridSlots());
 		part.layout(800, 600, 0, 0);
-		const view = part.getViewOfPane(grid.panes.get()[0])!;
+		const view = content.getViewOfPane(grid.panes.get()[0])!;
 		const action = store.add(new Action(commandId, 'Sync Changes'));
-		const sessionsPartService = upcastPartial<ISessionsPartService>({ focusViewOfHost: host => part.focusViewOfHost(host) });
+		const sessionsPartService = upcastPartial<ISessionsPartService>({ focusViewOfHost: host => content.focusViewOfHost(host) });
 		const chatWidgetService = upcastPartial<IChatWidgetService>({ getWidgetBySessionResource: () => undefined });
 		const item = store.add(new SessionSyncChangesActionViewItem(action, {}, view.host, sessionsPartService, store.add(new SessionInputPickerVisibility()), new MockKeybindingService(), chatWidgetService));
 		const container = document.createElement('div');
