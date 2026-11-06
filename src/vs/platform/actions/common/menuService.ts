@@ -6,7 +6,7 @@
 import { RunOnceScheduler } from '../../../base/common/async.js';
 import { DebounceEmitter, Emitter, Event } from '../../../base/common/event.js';
 import { DisposableStore, Disposable, IDisposable } from '../../../base/common/lifecycle.js';
-import { IMenu, IMenuActionOptions, IMenuChangeEvent, IMenuCreateOptions, IMenuItem, IMenuItemHide, IMenuService, isIMenuItem, isISubmenuItem, ISubmenuItem, MenuId, MenuItemAction, MenuRegistry, SubmenuItemAction } from './actions.js';
+import { IMenu, IMenuActionOptions, IMenuChangeEvent, IMenuCreateOptions, IMenuItem, IMenuItemActionOptions, IMenuItemHide, IMenuService, isIMenuItem, isISubmenuItem, ISubmenuItem, MenuId, MenuItemAction, MenuRegistry, SubmenuItemAction } from './actions.js';
 import { ICommandAction, ILocalizedString } from '../../action/common/action.js';
 import { ICommandService } from '../../commands/common/commands.js';
 import { ContextKeyExpression, IContextKeyService } from '../../contextkey/common/contextkey.js';
@@ -199,6 +199,8 @@ function createActionGroups(
 	const result: [string, Array<MenuItemAction | SubmenuItemAction>][] = [];
 
 	for (const [id, items] of menuGroups) {
+		const groupTitle = MenuRegistry.getMenuGroup(menuId, id)?.title;
+		const actionOptions: IMenuItemActionOptions | undefined = groupTitle ? { ...options, groupTitle } : options;
 		const activeActions: Array<MenuItemAction | SubmenuItemAction> = [];
 		for (const item of items) {
 			const isMenuItem = isIMenuItem(item);
@@ -209,12 +211,12 @@ function createActionGroups(
 			const menuHide = createMenuHide(menuId, isMenuItem ? item.command : item, hiddenStates);
 			if (isMenuItem) {
 				const menuKeybinding = createConfigureKeybindingAction(commandService, keybindingService, item.command.id, item.when);
-				activeActions.push(new MenuItemAction(item.command, item.alt, options, menuHide, menuKeybinding, contextKeyService, commandService));
+				activeActions.push(new MenuItemAction(item.command, item.alt, actionOptions, menuHide, menuKeybinding, contextKeyService, commandService));
 			} else {
 				const groups = createMenuActionGroups(item.submenu, options, hiddenStates, commandService, keybindingService, contextKeyService);
 				const submenuActions = Separator.join(...groups.map(g => g[1]));
 				if (submenuActions.length > 0) {
-					activeActions.push(new SubmenuItemAction(item, menuHide, submenuActions, item.toggled ? contextKeyService.contextMatchesRules(item.toggled) : undefined));
+					activeActions.push(new SubmenuItemAction(item, menuHide, submenuActions, item.toggled ? contextKeyService.contextMatchesRules(item.toggled) : undefined, groupTitle));
 				}
 			}
 		}

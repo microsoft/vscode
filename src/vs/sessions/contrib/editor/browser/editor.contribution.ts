@@ -43,7 +43,6 @@ import { IAuxiliaryWindowService } from '../../../../workbench/services/auxiliar
 import { MOVE_MODAL_EDITOR_TO_MAIN_COMMAND_ID } from '../../../../workbench/browser/parts/editor/editorCommands.js';
 import { TERMINAL_VIEW_ID } from '../../../../workbench/contrib/terminal/common/terminal.js';
 import { TEXT_FILE_EDITOR_ID } from '../../../../workbench/contrib/files/common/files.js';
-import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
 import { ISessionsPartService } from '../../../services/sessions/browser/sessionsPartService.js';
 import { SessionsCategories } from '../../../common/categories.js';
 import { IChangesViewService } from '../../changes/common/changesViewService.js';
@@ -401,7 +400,6 @@ class AddFileAsContextAction extends Action2 {
 
 	run(accessor: ServicesAccessor, ...args: unknown[]): void {
 		const editorService = accessor.get(IEditorService);
-		const sessionsService = accessor.get(ISessionsService);
 		const sessionsPartService = accessor.get(ISessionsPartService);
 
 		const resolvedContext = resolveCommandsContext(args, editorService, accessor.get(IEditorGroupsService), accessor.get(IListService));
@@ -413,8 +411,7 @@ class AddFileAsContextAction extends Action2 {
 			return;
 		}
 
-		const sessionId = sessionsService.activeSession.get()?.sessionId;
-		sessionsPartService.getSessionView(sessionId)?.attach(resources);
+		sessionsPartService.getActiveSessionView()?.attach(resources);
 	}
 }
 

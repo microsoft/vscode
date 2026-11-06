@@ -23,6 +23,7 @@ import { ISessionsProvidersService } from '../../../services/sessions/browser/se
 import { IConfigurationResolverService } from '../../../../workbench/services/configurationResolver/common/configurationResolver.js';
 import { IWorkspaceFolderData } from '../../../../platform/workspace/common/workspace.js';
 import { basename } from '../../../../base/common/resources.js';
+import { IChatWindowTerminalsService } from './chatWindowTerminals.js';
 
 const LOG_PREFIX = '[AgentHostSessionTaskRunner]';
 
@@ -73,6 +74,7 @@ export class AgentHostSessionTaskRunner implements ISessionTaskRunner {
 		@ITerminalService private readonly _terminalService: ITerminalService,
 		@ITerminalGroupService private readonly _terminalGroupService: ITerminalGroupService,
 		@ILogService private readonly _logService: ILogService,
+		@IChatWindowTerminalsService private readonly _chatWindowTerminalsService: IChatWindowTerminalsService,
 	) { }
 
 	canRun(session: ISession): boolean {
@@ -114,7 +116,7 @@ export class AgentHostSessionTaskRunner implements ISessionTaskRunner {
 		const terminalKey = JSON.stringify([address, cwd?.toString(), task.label]);
 		const presentation = this._getPresentation(task);
 		const shouldReuse = !(typeof presentation?.panel === 'string' && presentation.panel.toLowerCase() === 'new');
-		let taskTerminal = shouldReuse ? this._getReusableTerminal(terminalKey, address) : undefined;
+		let taskTerminal = shouldReuse ? this._getReusableTerminal(terminalKey, address, session) : undefined;
 		const isReused = !!taskTerminal;
 		if (!taskTerminal) {
 			const instance = await this._agentHostTerminalService.createTerminalForEntry(address, {
@@ -140,8 +142,12 @@ export class AgentHostSessionTaskRunner implements ISessionTaskRunner {
 		taskTerminal.isLaunching = true;
 		const executionId = ++taskTerminal.executionId;
 		try {
-			this._terminalService.setActiveInstance(instance);
-			await this._terminalGroupService.showPanel(true);
+			// Run for a session a chat window shows, such as from its Run menu: the task shows in the window's terminals, not
+			// in the main window's panel, which would take the focus to the main window.
+			if (!await this._chatWindowTerminalsService.showSessionTerminal(session, instance.instanceId, false)) {
+				this._terminalService.setActiveInstance(instance);
+				await this._terminalGroupService.showPanel(true);
+			}
 			if (isReused) {
 				// Discard anything typed at the prompt since the last run so it is
 				// not prepended to the task command, like `ITerminalInstance.runCommand`.
@@ -172,9 +178,10 @@ export class AgentHostSessionTaskRunner implements ISessionTaskRunner {
 	 * when the shell is still in the directory the terminal started in, so
 	 * that the command runs from the task's working directory, and when it is
 	 * not hidden in the background (e.g. after switching sessions), since only
-	 * foreground terminals can be activated.
+	 * foreground terminals can be activated. One a chat window of the session holds
+	 * while its terminals hide shows there again.
 	 */
-	private _getReusableTerminal(key: string, address: string): ITaskTerminal | undefined {
+	private _getReusableTerminal(key: string, address: string, session: ISession): ITaskTerminal | undefined {
 		const taskTerminal = this._taskTerminals.get(key);
 		if (!taskTerminal) {
 			return undefined;
@@ -187,7 +194,7 @@ export class AgentHostSessionTaskRunner implements ISessionTaskRunner {
 		if (taskTerminal.isLaunching || this._agentHostTerminalService.isCommandExecuting(instance) !== false) {
 			return undefined;
 		}
-		if (!this._terminalService.foregroundInstances.includes(instance)) {
+		if (!this._terminalService.foregroundInstances.includes(instance) && !this._chatWindowTerminalsService.holdsSessionTerminal(session, instance.instanceId)) {
 			return undefined;
 		}
 		const terminalCwd = this._agentHostTerminalService.getCwd(instance);

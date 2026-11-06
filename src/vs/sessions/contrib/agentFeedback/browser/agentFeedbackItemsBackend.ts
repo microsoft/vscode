@@ -20,6 +20,7 @@ import { IAgentHostSessionsProvider, isAgentHostProviderId } from '../../../comm
 import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
 import { ISessionsProvidersService } from '../../../services/sessions/browser/sessionsProvidersService.js';
 import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
+import { IFocusedSessionHostService } from '../../../services/sessions/browser/sessionHost.js';
 import { AgentFeedbackKind, AgentFeedbackState, IAgentFeedback, IAgentFeedbackReply } from './agentFeedbackModel.js';
 
 // --- Backend interface --------------------------------------------------------
@@ -374,6 +375,7 @@ export class AnnotationsAgentFeedbackItemsBackend extends Disposable implements 
 		@ISessionsManagementService private readonly _sessionsManagementService: ISessionsManagementService,
 		@ISessionsProvidersService private readonly _sessionsProvidersService: ISessionsProvidersService,
 		@ISessionsService private readonly _sessionsService: ISessionsService,
+		@IFocusedSessionHostService private readonly _focusedSessionHostService: IFocusedSessionHostService,
 	) {
 		super();
 
@@ -393,7 +395,7 @@ export class AnnotationsAgentFeedbackItemsBackend extends Disposable implements 
 		// in the window.
 		this._register(autorun(reader => {
 			const visible = new Set<string>();
-			const activeSession = this._sessionsService.activeSession.read(reader);
+			const activeSession = this._focusedSessionHostService.focusedHost.read(reader).session.read(reader);
 			if (activeSession) {
 				visible.add(activeSession.resource.toString());
 			}

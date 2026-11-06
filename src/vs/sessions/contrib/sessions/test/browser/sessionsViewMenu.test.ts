@@ -169,7 +169,7 @@ suite('Sessions - View Menu', () => {
 	}
 
 	test('keeps Open to the Side without Open in Grid in the session context menu', () => {
-		const items = MenuRegistry.getMenuItems(Menus.SessionItemContextMenu);
+		const items = MenuRegistry.getMenuItems(Menus.SessionItemOpenIn);
 		assert.deepStrictEqual({
 			openToTheSide: items.filter(isIMenuItem).some(item => item.command.id === 'sessionsViewPane.openToTheSide'),
 			openInGridSubmenu: items.filter(isISubmenuItem).some(item => item.submenu.id === 'SessionsGridOpen'),

@@ -10,25 +10,18 @@ import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { localize2 } from '../../../../../nls.js';
 import { ILocalizedString } from '../../../../../platform/action/common/action.js';
 import { Action2, MenuId, registerAction2 } from '../../../../../platform/actions/common/actions.js';
-import { ContextKeyExpr, ContextKeyExpression, IContextKeyService, RawContextKey } from '../../../../../platform/contextkey/common/contextkey.js';
+import { ContextKeyExpr, ContextKeyExpression, IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { ServicesAccessor } from '../../../../../platform/instantiation/common/instantiation.js';
-import { bindContextKey } from '../../../../../platform/observable/common/platformObservableUtils.js';
 import { IsSessionsWindowContext } from '../../../../../workbench/common/contextkeys.js';
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../../../workbench/common/contributions.js';
 import { ChatSendResult, IChatService } from '../../../../../workbench/contrib/chat/common/chatService/chatService.js';
 import { ChatAgentLocation } from '../../../../../workbench/contrib/chat/common/constants.js';
 import { ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
-import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
+import { getFocusedSessionChatSource, IFocusedSessionHostService } from '../../../../services/sessions/browser/sessionHost.js';
+import { resolveSessionCommandTarget } from '../../../../services/sessions/browser/sessionCommandTarget.js';
+import { bindIsAgentHostSessionContextKey, IsAgentHostSession } from '../../../../services/sessions/browser/sessionScopedContextKeys.js';
 import { ActiveSessionContextKeys, IsolationMode } from '../../../changes/common/changes.js';
 import { BaseAgentHostSessionsProvider } from './baseAgentHostSessionsProvider.js';
-
-/**
- * True when the active session (in the Sessions window) is provided by an
- * agent-host sessions provider (local or remote). Used to gate the built-in
- * skill toolbar buttons and to suppress the Copilot CLI extension's own
- * buttons for the same sessions.
- */
-export const IsAgentHostSession = new RawContextKey<boolean>('sessions.isAgentHostSession', false);
 
 /**
  * Binds {@link IsAgentHostSession} to the global context key service based on
@@ -41,19 +34,12 @@ export class IsAgentHostSessionContextContribution extends Disposable implements
 
 	constructor(
 		@IContextKeyService contextKeyService: IContextKeyService,
-		@ISessionsService sessionsService: ISessionsService,
+		@IFocusedSessionHostService focusedSessionHostService: IFocusedSessionHostService,
 		@ISessionsProvidersService sessionsProvidersService: ISessionsProvidersService,
 	) {
 		super();
 
-		this._register(bindContextKey(IsAgentHostSession, contextKeyService, reader => {
-			const activeSession = sessionsService.activeSession.read(reader);
-			if (!activeSession) {
-				return false;
-			}
-			const provider = sessionsProvidersService.getProvider(activeSession.providerId);
-			return provider instanceof BaseAgentHostSessionsProvider;
-		}));
+		this._register(bindIsAgentHostSessionContextKey(contextKeyService, getFocusedSessionChatSource(focusedSessionHostService).session, sessionsProvidersService));
 	}
 }
 
@@ -188,27 +174,29 @@ function registerAgentHostSkillButton(spec: IAgentHostSkillButtonSpec): void {
 			});
 		}
 
-		async run(accessor: ServicesAccessor): Promise<void> {
-			const sessionsService = accessor.get(ISessionsService);
+		async run(accessor: ServicesAccessor, sessionArg?: unknown): Promise<void> {
 			const chatService = accessor.get(IChatService);
 
-			const activeSession = sessionsService.activeSession.get();
-			if (!activeSession) {
+			// The session the button acts on, such as that of a chat window, else the active one; and the chat it shows.
+			const target = resolveSessionCommandTarget(accessor, [sessionArg]);
+			const session = target?.session;
+			if (!session) {
 				return;
 			}
+			const chatResource = (target.chat ?? session.mainChat.get()).resource;
 
-			// `activeSession.resource.scheme` matches the chat session
+			// `session.resource.scheme` matches the chat session
 			// contribution `type` registered for the agent-host (e.g.
 			// `agent-host-copilotcli`), which is the agent id the chat
 			// service uses for routing. The `sessionType` field is the
 			// logical, user-facing id (e.g. `copilotcli`) that is shared
 			// between the Copilot CLI extension and the local/remote
 			// agent-host providers, so it is NOT a valid agent id here.
-			const agentId = activeSession.resource.scheme;
+			const agentId = session.resource.scheme;
 			const prompt = `/${spec.skill}`;
-			const ref = await chatService.acquireOrLoadSession(activeSession.resource, ChatAgentLocation.Chat, CancellationToken.None, 'AgentHostSkillButton');
+			const ref = await chatService.acquireOrLoadSession(chatResource, ChatAgentLocation.Chat, CancellationToken.None, 'AgentHostSkillButton');
 			try {
-				let result = await chatService.sendRequest(activeSession.resource, prompt, { agentIdSilent: agentId });
+				let result = await chatService.sendRequest(chatResource, prompt, { agentIdSilent: agentId });
 				if (ChatSendResult.isQueued(result)) {
 					result = await result.deferred;
 				}

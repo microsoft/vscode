@@ -101,6 +101,7 @@ export const ActiveEditorGroupEmptyContext = new RawContextKey<boolean>('activeE
 export const ActiveEditorGroupIndexContext = new RawContextKey<number>('activeEditorGroupIndex', 0, localize('activeEditorGroupIndex', "The index of the active editor group"));
 export const ActiveEditorGroupLastContext = new RawContextKey<boolean>('activeEditorGroupLast', false, localize('activeEditorGroupLast', "Whether the active editor group is the last group"));
 export const ActiveEditorGroupLockedContext = new RawContextKey<boolean>('activeEditorGroupLocked', false, localize('activeEditorGroupLocked', "Whether the active editor group is locked"));
+export const EditorGroupLockActionsHiddenContext = new RawContextKey<boolean>('editorGroupLockActionsHidden', false, localize('editorGroupLockActionsHidden', "Whether the editor group hides the actions that lock and unlock it, as its owner keeps it locked"));
 export const MultipleEditorGroupsContext = new RawContextKey<boolean>('multipleEditorGroups', false, localize('multipleEditorGroups', "Whether there are multiple editor groups opened"));
 export const SingleEditorGroupsContext = MultipleEditorGroupsContext.toNegated();
 export const MultipleEditorsSelectedInGroupContext = new RawContextKey<boolean>('multipleEditorsSelectedInGroup', false, localize('multipleEditorsSelectedInGroup', "Whether multiple editors have been selected in an editor group"));
@@ -110,6 +111,7 @@ export const SelectedEditorsInGroupFileOrUntitledResourceContextKey = new RawCon
 // Editor Part Context Keys
 export const EditorPartMultipleEditorGroupsContext = new RawContextKey<boolean>('editorPartMultipleEditorGroups', false, localize('editorPartMultipleEditorGroups', "Whether there are multiple editor groups opened in an editor part"));
 export const EditorPartMaximizedEditorGroupContext = new RawContextKey<boolean>('editorPartMaximizedEditorGroup', false, localize('editorPartEditorGroupMaximized', "Editor Part has a maximized group"));
+export const EditorPartInPartGridContext = new RawContextKey<boolean>('editorPartInPartGrid', false, localize('editorPartInPartGrid', "Whether the editor part is one of the parts of a window that arranges its parts in a grid, where parts move and editors go into new parts"));
 
 export const EditorPartModalContext = new RawContextKey<boolean>('editorPartModal', false, localize('editorPartModal', "Whether focus is in a modal editor part"));
 export const EditorPartModalVisibleContext = new RawContextKey<boolean>('editorPartModalVisible', false, localize('editorPartModalVisible', "Whether a modal editor part is visible"));
@@ -190,6 +192,23 @@ export const PanelPositionContext = new RawContextKey<string>('panelPosition', '
 export const PanelAlignmentContext = new RawContextKey<string>('panelAlignment', 'center', localize('panelAlignment', "The alignment of the panel, either 'center', 'left', 'right' or 'justify'"));
 export const PanelVisibleContext = new RawContextKey<boolean>('panelVisible', false, localize('panelVisible', "Whether the panel is visible"));
 export const PanelMaximizedContext = new RawContextKey<boolean>('panelMaximized', false, localize('panelMaximized', "Whether the panel is maximized"));
+
+//#endregion
+
+
+//#region < --- Window Layout --- >
+
+/** How the window shows its chat and its editor parts. Unset in windows without layout modes. */
+export const LayoutModeContext = new RawContextKey<string | undefined>('layoutMode', undefined, { type: 'string', description: localize('layoutMode', "How the window shows its chat and its editor parts, either 'chatOnly', 'editorOnly', 'stacked' or 'sideBySide'. Unset in windows without layout modes.") });
+
+/** How the window arranges its chat and its editor parts while both show, or will next show. Unset in windows without layout modes. */
+export const SplitLayoutContext = new RawContextKey<string | undefined>('splitLayout', undefined, { type: 'string', description: localize('splitLayout', "How the window arranges its chat and its editor parts while both show, or as they will next show together, either 'stacked' or 'sideBySide'. Unset in windows without layout modes.") });
+
+/** Whether the window shows the part that holds its terminals. Unset in windows without such a part. */
+export const TerminalsVisibleContext = new RawContextKey<boolean | undefined>('terminalsVisible', undefined, { type: 'boolean', description: localize('terminalsVisible', "Whether the window shows the part that holds its terminals. Unset in windows without such a part.") });
+
+/** Where the part that holds the window's terminals sits. Unset in windows without such a part. */
+export const TerminalsPositionContext = new RawContextKey<string | undefined>('terminalsPosition', undefined, { type: 'string', description: localize('terminalsPosition', "Where the part that holds the window's terminals sits, either 'underChat', 'underEditor' or 'fullWidth'. Unset in windows without such a part.") });
 
 //#endregion
 

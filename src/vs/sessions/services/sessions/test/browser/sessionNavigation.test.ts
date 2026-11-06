@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { DisposableStore } from '../../../../../base/common/lifecycle.js';
+import { DisposableStore, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { constObservable, IObservable, observableValue, transaction } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
@@ -97,6 +97,8 @@ function stubSession(id: string, status: SessionStatus = SessionStatus.Completed
 }
 
 class MockSessionStore implements ISessionsManagementService {
+	readonly archivedSessionItems = constObservable({ available: false, state: 'loaded' as const });
+	acquireArchivedSessionItems() { return toDisposable(() => { }); }
 
 	readonly _serviceBrand: undefined;
 

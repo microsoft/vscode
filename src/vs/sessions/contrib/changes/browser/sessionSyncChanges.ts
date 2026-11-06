@@ -22,17 +22,19 @@ import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase 
 import { ChatContextKeys } from '../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
 import { getNewSessionRepositoryConfigGroup, Menus } from '../../../browser/menus.js';
 import { SessionActiveChatResourceContext, SessionIdContext } from '../../../common/contextkeys.js';
-import { ISessionContext } from '../../../services/sessions/browser/sessionContext.js';
+import { getWindowHost, ISessionHost, SessionHostKind } from '../../../services/sessions/browser/sessionHost.js';
+import { IChatWidgetService } from '../../../../workbench/contrib/chat/browser/chat.js';
 import { ISessionsPartService } from '../../../services/sessions/browser/sessionsPartService.js';
 import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
-import { getSessionWorkspaceKind, ISessionChangeset, ISessionChangesetOperation, SessionChangesetOperationScope, SessionChangesetOperationStatus, SessionWorkspaceKind, UNCOMMITTED_CHANGES_CHANGESET_ID } from '../../../services/sessions/common/session.js';
+import { resolveSessionCommandTarget } from '../../../services/sessions/browser/sessionCommandTarget.js';
+import { getSessionWorkspaceKind, IChat, ISession, ISessionChangeset, ISessionChangesetOperation, SessionChangesetOperationScope, SessionChangesetOperationStatus, SessionWorkspaceKind, UNCOMMITTED_CHANGES_CHANGESET_ID } from '../../../services/sessions/common/session.js';
 import { IActiveSession } from '../../../services/sessions/common/sessionsManagement.js';
 import { ISessionInputPickerVisibility } from '../../../services/sessions/common/sessionPickerVisibility.js';
 import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
 import { FOCUS_SESSION_SYNC_ACTION_COMMAND_ID } from '../../../common/sessionCommands.js';
 
-function getSyncChangesOperation(session: IActiveSession | undefined, reader?: IReader): { changeset: ISessionChangeset; operation: ISessionChangesetOperation } | undefined {
-	const changeset = session?.activeChat.read(reader).changesets.read(reader)?.find(candidate =>
+function getSyncChangesOperation(chat: IChat | undefined, reader?: IReader): { changeset: ISessionChangeset; operation: ISessionChangesetOperation } | undefined {
+	const changeset = chat?.changesets.read(reader)?.find(candidate =>
 		candidate.id === UNCOMMITTED_CHANGES_CHANGESET_ID && candidate.isEnabled.read(reader));
 
 	const operation = changeset?.operations.read(reader).find(candidate =>
@@ -46,14 +48,14 @@ function isSyncChangesEnabled(operation: ISessionChangesetOperation | undefined)
 	return !!operation && operation.status !== SessionChangesetOperationStatus.Disabled && operation.status !== SessionChangesetOperationStatus.Running;
 }
 
-function isFolderSession(session: IActiveSession | undefined, reader?: IReader): boolean {
-	const workspace = session?.activeChat.read(reader).workspace.read(reader);
+function isFolderSession(session: Pick<ISession, 'worktreePending'> | undefined, chat: IChat | undefined, reader?: IReader): boolean {
+	const workspace = chat?.workspace.read(reader);
 	return getSessionWorkspaceKind(workspace, session?.worktreePending?.read(reader)) === SessionWorkspaceKind.Folder;
 }
 
-function shouldShowSyncChanges(session: IActiveSession | undefined, reader?: IReader): boolean {
-	const repository = session?.activeChat.read(reader).workspace.read(reader)?.folders[0]?.gitRepository;
-	return isFolderSession(session, reader)
+function shouldShowSyncChanges(session: Pick<ISession, 'worktreePending'> | undefined, chat: IChat | undefined, reader?: IReader): boolean {
+	const repository = chat?.workspace.read(reader)?.folders[0]?.gitRepository;
+	return isFolderSession(session, chat, reader)
 		&& ((repository?.incomingChanges ?? 0) > 0 || (repository?.outgoingChanges ?? 0) > 0);
 }
 
@@ -86,12 +88,13 @@ class SessionSyncChangesAction extends Action2 {
 	}
 
 	override async run(accessor: ServicesAccessor, context?: { session: IActiveSession | undefined }): Promise<void> {
-		const session = context
-			? context.session
-			: accessor.get(ISessionsService).activeSession.get();
+		// A pane's toolbar passes its session; otherwise, the focused host's.
+		const target = context ? undefined : resolveSessionCommandTarget(accessor, []);
+		const session = context ? context.session : target?.session;
+		const chat = context ? context.session?.activeChat.get() : target?.chat;
 
-		const sync = getSyncChangesOperation(session);
-		if (!sync || !isFolderSession(session) || !isSyncChangesEnabled(sync.operation)) {
+		const sync = getSyncChangesOperation(chat);
+		if (!sync || !isFolderSession(session, chat) || !isSyncChangesEnabled(sync.operation)) {
 			throw new Error(localize('sessions.syncChanges.unavailable', "Sync Changes is no longer available for this session."));
 		}
 
@@ -108,19 +111,20 @@ export class SessionSyncChangesActionViewItem extends ActionViewItem {
 	constructor(
 		action: IAction,
 		options: IActionViewItemOptions,
-		@ISessionContext private readonly sessionContext: ISessionContext,
+		@ISessionHost private readonly sessionHost: ISessionHost,
 		@ISessionsPartService private readonly sessionsPartService: ISessionsPartService,
 		@ISessionInputPickerVisibility pickerVisibility: ISessionInputPickerVisibility,
 		@IKeybindingService private readonly keybindingService: IKeybindingService,
+		@IChatWidgetService private readonly chatWidgetService: IChatWidgetService,
 	) {
 		super(undefined, action, { ...options, icon: false, label: true });
 		this._register(pickerVisibility.registerPicker('sync', () => this.focus()));
 		this._register(this.keybindingService.onDidUpdateKeybindings(() => this.updateTooltip()));
 
 		this._register(autorun(reader => {
-			const session = sessionContext.session.read(reader);
-			const operation = getSyncChangesOperation(session, reader)?.operation;
-			const repository = session?.activeChat.read(reader).workspace.read(reader)?.folders[0]?.gitRepository;
+			const chat = sessionHost.chat.read(reader);
+			const operation = getSyncChangesOperation(chat, reader)?.operation;
+			const repository = chat?.workspace.read(reader)?.folders[0]?.gitRepository;
 
 			const incomingChanges = repository?.incomingChanges ?? 0;
 			const outgoingChanges = repository?.outgoingChanges ?? 0;
@@ -169,9 +173,18 @@ export class SessionSyncChangesActionViewItem extends ActionViewItem {
 	}
 
 	override dispose(): void {
-		const session = this.sessionContext.session.get();
-		if ((!getSyncChangesOperation(session) || !shouldShowSyncChanges(session)) && this.element?.contains(getActiveElement())) {
-			this.sessionsPartService.focusSession(this.sessionContext.session.get());
+		const session = this.sessionHost.session.get();
+		const chat = this.sessionHost.chat.get();
+		if ((!getSyncChangesOperation(chat) || !shouldShowSyncChanges(session, chat)) && this.element?.contains(getActiveElement())) {
+			// Back to the surface of the host it is in: a pane of the grid, else its own chat's input, such as a chat
+			// editor's, never the grid's pane of the same session in another window.
+			if (this.sessionHost.kind === SessionHostKind.Pane && getWindowHost(this.sessionHost).kind === SessionHostKind.MainWindow) {
+				if (session) {
+					this.sessionsPartService.focusSessionView(session);
+				}
+			} else if (chat) {
+				this.chatWidgetService.getWidgetBySessionResource(chat.resource)?.focusInput();
+			}
 		}
 
 		super.dispose();
@@ -199,8 +212,9 @@ export class SessionSyncChangesContribution extends Disposable implements IWorkb
 					continue;
 				}
 				const syncEnabled = derived(reader => {
-					const sync = getSyncChangesOperation(session, reader);
-					return sync && shouldShowSyncChanges(session, reader) ? isSyncChangesEnabled(sync.operation) : undefined;
+					const chat = session.activeChat.read(reader);
+					const sync = getSyncChangesOperation(chat, reader);
+					return sync && shouldShowSyncChanges(session, chat, reader) ? isSyncChangesEnabled(sync.operation) : undefined;
 				});
 				reader.store.add(autorun(reader => {
 					const enabled = syncEnabled.read(reader);

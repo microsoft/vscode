@@ -14,7 +14,7 @@ import { IEditorService } from '../../../../workbench/services/editor/common/edi
 import { Menus, SessionActivityBarGroup } from '../../../browser/menus.js';
 import { IAgentWorkbenchLayoutService } from '../../../browser/workbench.js';
 import { sessionActivityBarChatActionContext, SessionHasPullRequestContext } from '../../../common/contextkeys.js';
-import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
+import { resolveSessionCommandTarget } from '../../../services/sessions/browser/sessionCommandTarget.js';
 import { getGitHubPullRequestRefs, IGitHubPullRequestRef, ISession } from '../../../services/sessions/common/session.js';
 import { IActiveSession } from '../../../services/sessions/common/sessionsManagement.js';
 import { OPEN_PULL_REQUEST_ACTION_ID, OPEN_PULL_REQUEST_CHANGES_ACTION_ID } from '../common/types.js';
@@ -61,9 +61,8 @@ class OpenPullRequestAction extends Action2 {
 	}
 
 	override async run(accessor: ServicesAccessor, sessionOrContext?: IActiveSession | ISession | ISession[] | PullRequestActionContext): Promise<void> {
-		const sessionsService = accessor.get(ISessionsService);
 		const openerService = accessor.get(IOpenerService);
-		const targets = Array.isArray(sessionOrContext) ? sessionOrContext : [sessionOrContext ?? sessionsService.activeSession.get()];
+		const targets = Array.isArray(sessionOrContext) ? sessionOrContext : [sessionOrContext ?? resolveSessionCommandTarget(accessor, [])?.session];
 		for (const target of targets) {
 			const pullRequest = isPullRequestActionContext(target) ? target.pullRequest : getSessionPullRequest(target);
 			if (pullRequest) {
@@ -92,11 +91,10 @@ class OpenPullRequestChangesAction extends Action2 {
 	}
 
 	override async run(accessor: ServicesAccessor, sessionOrContext?: IActiveSession | ISession | PullRequestActionContext): Promise<void> {
-		const sessionsService = accessor.get(ISessionsService);
 		const editorService = accessor.get(IEditorService);
 		const layoutService = accessor.get(IAgentWorkbenchLayoutService);
 
-		const target = sessionOrContext ?? sessionsService.activeSession.get();
+		const target = sessionOrContext ?? resolveSessionCommandTarget(accessor, [])?.session;
 		const pullRequest = isPullRequestActionContext(target) ? target.pullRequest : getSessionPullRequest(target);
 		if (!pullRequest) {
 			return;
@@ -127,8 +125,7 @@ class CopyPullRequestUrlAction extends Action2 {
 
 	override async run(accessor: ServicesAccessor, sessionOrContext?: IActiveSession | ISession | ISession[] | PullRequestActionContext): Promise<void> {
 		const clipboardService = accessor.get(IClipboardService);
-		const sessionsService = accessor.get(ISessionsService);
-		const targets = Array.isArray(sessionOrContext) ? sessionOrContext : [sessionOrContext ?? sessionsService.activeSession.get()];
+		const targets = Array.isArray(sessionOrContext) ? sessionOrContext : [sessionOrContext ?? resolveSessionCommandTarget(accessor, [])?.session];
 		const pullRequestUrls = targets.flatMap(target => {
 			const pullRequest = isPullRequestActionContext(target) ? target.pullRequest : getSessionPullRequest(target);
 			return pullRequest ? [pullRequest.uri.toString(true)] : [];

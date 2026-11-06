@@ -119,6 +119,49 @@ export function getProductionDependencies(folderPath: string): string[] {
 	return [...new Set(result)];
 }
 
+/**
+ * A production dependency to package at `node_modules/<name>`, where `<name>` is the name that it is
+ * installed under: its path relative to `base`.
+ */
+export interface IFlatProductionDependency {
+	/** The folder of the installed package, `<base>/node_modules/<name>`. */
+	readonly folder: string;
+	/** The folder whose `node_modules` holds the installed package. */
+	readonly base: string;
+}
+
+/**
+ * Maps the folders of installed packages to a flat layout: each one at `node_modules/<name>`,
+ * wherever the install put it (in the project's `node_modules`, a parent's, or nested in another
+ * package). Throws when two packages have the same name, which a flat layout can't hold.
+ */
+export function toFlatProductionDependencies(folders: readonly string[]): IFlatProductionDependency[] {
+	const nodeModules = `${path.sep}node_modules${path.sep}`;
+	const result = new Map<string, IFlatProductionDependency>();
+	for (const folder of folders) {
+		const index = folder.lastIndexOf(nodeModules);
+		if (index === -1) {
+			throw new Error(`${folder} is not in a node_modules folder.`);
+		}
+		const name = folder.slice(index + nodeModules.length).split(path.sep).join('/');
+		const existing = result.get(name);
+		if (existing) {
+			throw new Error(`Production dependencies ${existing.folder} and ${folder} are both named ${name}, so they can't both be packaged at node_modules/${name}.`);
+		}
+		result.set(name, { folder, base: folder.slice(0, index) });
+	}
+	return [...result.values()];
+}
+
+/**
+ * Returns the production dependencies of the project in `folderPath` (see
+ * {@link getProductionDependencies}), to package in a flat layout: the layout of an install of the
+ * project on its own, whatever its workspace hoisted next to it.
+ */
+export function getFlatProductionDependencies(folderPath: string): IFlatProductionDependency[] {
+	return toFlatProductionDependencies(getProductionDependencies(folderPath));
+}
+
 if (import.meta.main) {
 	console.log(JSON.stringify(getProductionDependencies(root), null, '  '));
 }

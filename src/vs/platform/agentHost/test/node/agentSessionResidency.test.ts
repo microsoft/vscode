@@ -370,6 +370,39 @@ suite('AgentSessionResidency', () => {
 		});
 	});
 
+	test('latches a release veto even when eligibility returns before the provider finishes', async () => {
+		residency.dispose();
+		const checks: boolean[] = [];
+		delegate.createRelease = session => ({
+			canRelease: async () => true,
+			release: async (_chats, canContinue) => {
+				assert.ok(canContinue);
+				checks.push(canContinue());
+				subscriptions.addSubscriber(session, 'observer');
+				checks.push(canContinue());
+				subscriptions.removeSubscriber(session, 'observer');
+				checks.push(canContinue());
+			},
+		});
+		residency = createResidency(0);
+		const session = createUsedSession('vetoed');
+
+		await residency.reconcile();
+
+		const attempts = Array.from({ length: checks.length / 3 }, (_, index) => checks.slice(index * 3, index * 3 + 3));
+		assert.deepStrictEqual({
+			attempted: attempts.length > 0,
+			patterns: [...new Set(attempts.map(attempt => JSON.stringify(attempt)))],
+			released,
+			resident: stateManager.getSessionState(session.toString()) !== undefined,
+		}, {
+			attempted: true,
+			patterns: ['[true,false,false]'],
+			released: [],
+			resident: true,
+		});
+	});
+
 	test('does not continue release after disposal', async () => {
 		residency.dispose();
 		const canRelease = new DeferredPromise<void>();

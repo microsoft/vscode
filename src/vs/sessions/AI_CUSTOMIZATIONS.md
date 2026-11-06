@@ -151,7 +151,7 @@ Contributed management sections can declare `enablementSettings` to gate visibil
 
 ## Active-session context
 
-In the Agents Window, the customization harness and project root track `ISessionsService.activeSession`. Opening the editor synchronizes it with the currently active session, and switching the active session can update the editor's harness and project context. A transient project-root override takes precedence while it is set.
+In the Agents Window, the customization harness and project root track the chat of the focused session host (`IFocusedSessionHostService`). Opening the editor synchronizes it with that chat, and focusing another chat or window can update the editor's harness and project context. A transient project-root override takes precedence while it is set.
 
 The management-editor command may select a section, target a session type, reveal a URI-addressable customization, and open migration mode for a targeted migration category. Operations that migrate files bind destination resolution and confirmation to their initiating session and stop if the active session changes.
 

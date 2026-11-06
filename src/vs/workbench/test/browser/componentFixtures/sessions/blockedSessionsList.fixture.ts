@@ -38,6 +38,8 @@ import { IChatModel } from '../../../../contrib/chat/common/model/chatModel.js';
 import { IAgentSessionsService } from '../../../../contrib/chat/browser/agentSessions/agentSessionsService.js';
 import { IAgentSession, IAgentSessionsModel } from '../../../../contrib/chat/browser/agentSessions/agentSessionsModel.js';
 import { AgentSessionApprovalKind, AgentSessionApprovalModel, IAgentSessionApprovalInfo } from '../../../../contrib/chat/browser/agentSessions/agentSessionApprovalModel.js';
+// eslint-disable-next-line local/code-import-patterns
+import { stubSessionHosts } from '../../../../../sessions/services/sessions/test/browser/sessionHostTestUtils.js';
 import { ComponentFixtureContext, createEditorServices, defineComponentFixture, defineThemedFixtureGroup, registerWorkbenchServices } from '../fixtureUtils.js';
 
 // The blocked-sessions list reuses the shared session-row styles.
@@ -280,6 +282,7 @@ function renderBlockedList(ctx: ComponentFixtureContext, sessions: readonly ISes
 			}());
 		},
 	});
+	stubSessionHosts(instantiationService, disposableStore);
 
 	// Render terminal-approval labels as real (monospace) code blocks — otherwise
 	// the markdown renderer emits empty code-block spans and the command is blank.

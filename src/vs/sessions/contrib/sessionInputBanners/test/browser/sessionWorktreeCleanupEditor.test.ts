@@ -89,7 +89,7 @@ suite('SessionWorktreeCleanupEditor', () => {
 	}
 
 	function rowStatus(row: ParentNode): string | undefined {
-		return row.querySelector('.status')?.textContent?.replace(/^(?:Has session|No matching session): /, '');
+		return row.querySelector('.status')?.textContent?.replace(/^(?:Has session|Session marked as done|No matching session): /, '');
 	}
 
 	test('shows ownership once for idle worktrees and hides failed worktrees without hiding progress', async () => {
@@ -106,7 +106,7 @@ suite('SessionWorktreeCleanupEditor', () => {
 		])), {
 			ready: 'Has session',
 			'agents/unlinked': 'No matching session',
-			pending: 'Has session: Cleanup scheduled…',
+			pending: 'Session marked as done: Cleanup scheduled…',
 		});
 	});
 
@@ -561,7 +561,7 @@ suite('SessionWorktreeCleanupEditor', () => {
 		await timeout(0);
 		assert.deepStrictEqual({ states, cleaned }, {
 			states: [
-				{ all: 'mixed', rows: ['false', 'true'] },
+				{ all: 'mixed', rows: ['true', 'false'] },
 				{ all: 'true', rows: ['true', 'true'] },
 				{ all: 'false', rows: ['false', 'false'] },
 				{ all: 'true', rows: ['true', 'true'] },
@@ -740,7 +740,7 @@ suite('SessionWorktreeCleanupEditor', () => {
 		});
 	}));
 
-	test('sorts by size or session recency without changing checkbox choices', async () => {
+	test('defaults to status and supports size or session recency without changing checkbox choices', async () => {
 		const { container } = await openEditor([
 			{ ...createWorktree('older-large', '/repos/app', 'eligible', 30), sizeBytes: 300 },
 			{ ...createWorktree('newer-small', '/repos/app'), sizeBytes: 100 },
@@ -750,21 +750,79 @@ suite('SessionWorktreeCleanupEditor', () => {
 			title: row.querySelector('a')?.textContent,
 			checked: row.querySelector('[role="checkbox"]')?.getAttribute('aria-checked'),
 		}));
-		container.querySelector<HTMLElement>('.session-worktree-cleanup-row [role="checkbox"]')!.click();
-		const states = [rows()];
 		const sort = container.querySelector<HTMLSelectElement>('.session-worktree-cleanup-sort')!;
+		const defaultSort = sort.value;
+		const states = [rows()];
+		sort.value = 'size';
+		sort.dispatchEvent(new mainWindow.Event('change'));
+		container.querySelector<HTMLElement>('.session-worktree-cleanup-row [role="checkbox"]')!.click();
+		states.push(rows());
 		sort.value = 'recent';
 		sort.dispatchEvent(new mainWindow.Event('change'));
 		states.push(rows());
 		sort.value = 'size';
 		sort.dispatchEvent(new mainWindow.Event('change'));
 		states.push(rows());
-		assert.deepStrictEqual(states, [
-			[{ title: 'older-large', checked: 'false' }, { title: 'newer-small', checked: 'true' }, { title: 'agents/unknown-age', checked: 'true' }],
-			[{ title: 'newer-small', checked: 'true' }, { title: 'older-large', checked: 'false' }, { title: 'agents/unknown-age', checked: 'true' }],
-			[{ title: 'older-large', checked: 'false' }, { title: 'newer-small', checked: 'true' }, { title: 'agents/unknown-age', checked: 'true' }],
-		]);
+		assert.deepStrictEqual({ defaultSort, states }, {
+			defaultSort: 'status', states: [
+				[{ title: 'agents/unknown-age', checked: 'true' }, { title: 'older-large', checked: 'true' }, { title: 'newer-small', checked: 'true' }],
+				[{ title: 'older-large', checked: 'false' }, { title: 'newer-small', checked: 'true' }, { title: 'agents/unknown-age', checked: 'true' }],
+				[{ title: 'newer-small', checked: 'true' }, { title: 'older-large', checked: 'false' }, { title: 'agents/unknown-age', checked: 'true' }],
+				[{ title: 'older-large', checked: 'false' }, { title: 'newer-small', checked: 'true' }, { title: 'agents/unknown-age', checked: 'true' }],
+			]
+		});
 	});
+
+	test('sorts by status with removed worktrees last without rescanning', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		const removedSession = createWorktree('removed-session', '/repos/app', 'archived');
+		const removedUnlinked = createUnlinkedWorktree('removed-unlinked');
+		const done = { ...createWorktree('done', '/repos/app', 'archived'), cleanupStatus: { state: 'unknown' as const } };
+		let worktrees: readonly ISessionWorktree[] = [
+			{ ...createWorktree('small', '/repos/app'), sizeBytes: 100 },
+			createUnlinkedWorktree('unmatched'),
+			{ ...removedSession, cleanupStatus: { state: 'pending' } },
+			{ ...createWorktree('large', '/repos/app'), sizeBytes: 300 },
+			{ ...removedUnlinked, cleanupStatus: { state: 'pending' } },
+			done,
+			{ ...createWorktree('pending', '/repos/app', 'archived'), cleanupStatus: { state: 'pending' } },
+			createWorktree('active', '/repos/app', 'active'),
+			createWorktree('needs-input', '/repos/app', 'needsInput'),
+		];
+		let publish: ((worktrees: readonly ISessionWorktree[]) => void) | undefined;
+		let scans = 0;
+		const { editor, container } = createEditor({
+			getWorktrees: async (_age, update) => { scans++; publish = update; return worktrees; },
+			refreshPendingCleanup: async () => worktrees,
+		});
+		await editor.setInput(disposables.add(new SessionWorktreeCleanupEditorInput()), undefined, {}, CancellationToken.None);
+		await timeout(0);
+		worktrees = worktrees.map(worktree => getWorktreeCleanupId(worktree) === 'removed-session' || getWorktreeCleanupId(worktree) === getWorktreeCleanupId(removedUnlinked)
+			? removedWorktree(worktree) : worktree);
+		publish?.(worktrees);
+		await timeout(100);
+		const selectedIds = () => [...container.querySelectorAll('.session-worktree-cleanup-row')]
+			.filter(row => row.querySelector('[aria-checked="true"]'))
+			.map(row => row.querySelector('a')?.textContent).sort();
+		const selectedBefore = selectedIds();
+		const sort = container.querySelector<HTMLSelectElement>('.session-worktree-cleanup-sort')!;
+		sort.value = 'status';
+		sort.dispatchEvent(new mainWindow.Event('change'));
+		assert.deepStrictEqual({
+			scans,
+			titles: [...container.querySelectorAll('.session-worktree-cleanup-session-link')].map(link => link.textContent),
+			doneStatus: [...container.querySelectorAll('.session-worktree-cleanup-row')].find(row => row.querySelector('a')?.textContent === 'done')?.querySelector('.status')?.textContent,
+			pendingStatus: [...container.querySelectorAll('.session-worktree-cleanup-row')].find(row => row.querySelector('a')?.textContent === 'pending')?.querySelector('.status')?.textContent,
+			accessibleDone: container.querySelector('.session-worktree-cleanup-row')?.parentElement?.getAttribute('aria-label')?.includes('Session marked as done'),
+			selected: selectedIds(),
+		}, {
+			scans: 1,
+			titles: ['done', 'pending', 'agents/unmatched', 'large', 'small', 'active', 'needs-input', 'removed-session', 'agents/removed-unlinked'],
+			doneStatus: 'Session marked as done: Worktree still exists. Select to retry cleanup.',
+			pendingStatus: 'Session marked as done: Cleanup scheduled…',
+			accessibleDone: true,
+			selected: selectedBefore,
+		});
+	}));
 
 	test('moves measured worktrees from progress to available without rescanning', async () => {
 		const worktree = createWorktree('measuring', '/repos/app');
@@ -1960,21 +2018,21 @@ suite('SessionWorktreeCleanupEditor', () => {
 		const initial = {
 			storage: rows.map(row => row.querySelector('.storage')?.textContent),
 			checked: rows.map(row => row.querySelector('[role="checkbox"]')?.getAttribute('aria-checked')),
-			archivedLabel: rows[1].parentElement?.getAttribute('aria-label')?.includes('disk usage Not measured for done sessions'),
+			archivedLabel: rows[0].parentElement?.getAttribute('aria-label')?.includes('disk usage Not measured for done sessions'),
 			summary: container.querySelector('.session-worktree-cleanup-summary')?.textContent,
 			button: button.textContent,
 			accessibleButton: button.getAttribute('aria-label'),
 		};
-		rows[1].querySelector<HTMLElement>('[role="checkbox"]')!.click();
-		const activeOnly = button.textContent;
-		rows[1].querySelector<HTMLElement>('[role="checkbox"]')!.click();
 		rows[0].querySelector<HTMLElement>('[role="checkbox"]')!.click();
+		const activeOnly = button.textContent;
+		rows[0].querySelector<HTMLElement>('[role="checkbox"]')!.click();
+		rows[1].querySelector<HTMLElement>('[role="checkbox"]')!.click();
 		const archivedOnly = button.textContent;
 		button.click();
 		await timeout(0);
 		assert.deepStrictEqual({ initial, activeOnly, archivedOnly, cleaned }, {
 			initial: {
-				storage: ['1.00GB', 'Not measured'],
+				storage: ['Not measured', '1.00GB'],
 				checked: ['true', 'true'],
 				archivedLabel: true,
 				summary: '2 of 2 matching worktrees can be cleaned up. Estimated disk usage: 1.00GB known, 1 unmeasured.',

@@ -13,7 +13,7 @@ import { Menus } from '../../../../browser/menus.js';
 import { SessionProviderIdContext, IsNewChatSessionContext } from '../../../../common/contextkeys.js';
 import { CLOUD_SANDBOX_CREATION_PROVIDER_ID, COPILOT_PROVIDER_ID } from '../common/copilotChatSessions.js';
 import { ChatContextKeys } from '../../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
-import { ISessionContext } from '../../../../services/sessions/browser/sessionContext.js';
+import { ISessionHost } from '../../../../services/sessions/browser/sessionHost.js';
 import { AgentHostModePicker } from '../../agentHost/browser/agentHostModePicker.js';
 import { AgentHostPermissionPickerDelegate } from '../../agentHost/browser/agentHostPermissionPickerDelegate.js';
 import { PickerActionViewItem } from '../../agentHost/browser/agentHostSessionConfigPicker.js';
@@ -55,12 +55,12 @@ class CopilotPickerActionViewItemContribution extends Disposable implements IWor
 	) {
 		super();
 		this._register(actionViewItemService.register(Menus.NewSessionControl, 'sessions.sandbox.modePicker', (_action, _options, scopedInstantiationService) => {
-			const { session } = scopedInstantiationService.invokeFunction(accessor => accessor.get(ISessionContext));
-			return new PickerActionViewItem(scopedInstantiationService.createInstance(isPhoneLayout(layoutService) ? MobileAgentHostModePicker : AgentHostModePicker, session));
+			const host = scopedInstantiationService.invokeFunction(accessor => accessor.get(ISessionHost));
+			return new PickerActionViewItem(scopedInstantiationService.createInstance(isPhoneLayout(layoutService) ? MobileAgentHostModePicker : AgentHostModePicker, host));
 		}));
 		this._register(actionViewItemService.register(Menus.NewSessionControl, 'sessions.sandbox.approvalPicker', (_action, _options, scopedInstantiationService) => {
-			const { session } = scopedInstantiationService.invokeFunction(accessor => accessor.get(ISessionContext));
-			const delegate = scopedInstantiationService.createInstance(AgentHostPermissionPickerDelegate, session);
+			const host = scopedInstantiationService.invokeFunction(accessor => accessor.get(ISessionHost));
+			const delegate = scopedInstantiationService.createInstance(AgentHostPermissionPickerDelegate, host);
 			return new PickerActionViewItem(scopedInstantiationService.createInstance(MobilePermissionPicker, delegate), delegate, true);
 		}));
 	}

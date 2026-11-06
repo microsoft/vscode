@@ -6,6 +6,7 @@
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
 import type { SessionView } from '../../../browser/parts/sessionView.js';
 import { IActiveSession } from '../common/sessionsManagement.js';
+import { ISession } from '../common/session.js';
 import { IProgressIndicator } from '../../../../platform/progress/common/progress.js';
 import { Event } from '../../../../base/common/event.js';
 import { Direction, ISerializedGrid } from '../../../../base/browser/ui/grid/grid.js';
@@ -93,12 +94,28 @@ export interface ISessionsPartService {
 	 * placeholder (new-session) view when `sessionId` is `undefined`. Returns
 	 * `undefined` if no matching slot is currently mounted in the grid.
 	 */
-	getSessionView(sessionId: string | undefined): SessionView | undefined;
+	/**
+	 * The view that shows `session`: given the session itself, the view of the window that shows it, such as a window of its
+	 * own; given its id, the main window's view of it, else the view of a window that shows it.
+	 */
+	getSessionView(session: string | ISession | undefined): SessionView | undefined;
 
 	/**
 	 * Returns the session view that currently contains DOM focus.
 	 */
 	getFocusedSessionView(): SessionView | undefined;
+
+	/**
+	 * Moves keyboard focus into the view that shows exactly `session`, such as a pane's session, first revealing it in the
+	 * grid when it is only partially visible. No-op when the grid does not show it.
+	 */
+	focusSessionView(session: ISession): void;
+
+	/**
+	 * The view of the grid's active pane: the pane commands without arguments act on while the main window is the
+	 * focused host.
+	 */
+	getActiveSessionView(): SessionView | undefined;
 
 	/**
 	 * Returns the progress indicator for the sessions part, which drives the

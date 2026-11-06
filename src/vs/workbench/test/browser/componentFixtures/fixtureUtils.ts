@@ -114,6 +114,8 @@ import { ISessionsManagementService } from '../../../../sessions/services/sessio
 // eslint-disable-next-line local/code-import-patterns
 import { ISessionsService } from '../../../../sessions/services/sessions/browser/sessionsService.js';
 // eslint-disable-next-line local/code-import-patterns
+import { ActiveSessionHost, SessionHostKind } from '../../../../sessions/services/sessions/browser/sessionHost.js';
+// eslint-disable-next-line local/code-import-patterns
 import { ISessionChangesStatsCache, SessionChangesStatsCache } from '../../../../sessions/services/sessions/common/sessionChangesStatsCache.js';
 // eslint-disable-next-line local/code-import-patterns
 import { ICodeReviewService, PRReviewStateKind } from '../../../../sessions/contrib/codeReview/browser/codeReviewService.js';
@@ -288,6 +290,7 @@ import monokai from '../../../../../../extensions/theme-monokai/themes/monokai-c
 import quietlight from '../../../../../../extensions/theme-quietlight/themes/quietlight-color-theme.json' with { type: 'json' };
 import solarized_dark from '../../../../../../extensions/theme-solarized-dark/themes/solarized-dark-color-theme.json' with { type: 'json' };
 import solarized_light from '../../../../../../extensions/theme-solarized-light/themes/solarized-light-color-theme.json' with { type: 'json' };
+import { mainWindow } from '../../../../base/browser/window.js';
 /* eslint-enable local/code-import-patterns */
 
 function toThemeJsonText(theme: string | object): string {
@@ -819,7 +822,14 @@ export function createEditorServices(disposables: DisposableStore, options?: Cre
 
 	definePartialInstance(ISessionsService, {
 		_serviceBrand: undefined,
-		activeSession: constObservable(undefined),
+		// The main window's host, which shows no session.
+		gridHost: new ActiveSessionHost({
+			kind: SessionHostKind.MainWindow,
+			parent: undefined,
+			session: constObservable(undefined),
+			contextKeyService: () => { throw new Error('The fixture grid host binds no context keys'); },
+			windowId: constObservable(mainWindow.vscodeWindowId),
+		}),
 	});
 
 	// The real cache: it only reads and writes the (null) storage service, and

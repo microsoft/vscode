@@ -3,6 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { onUnexpectedError } from '../../base/common/errors.js';
+import { IDisposable, toDisposable } from '../../base/common/lifecycle.js';
 import { URI } from '../../base/common/uri.js';
 import { stringHash } from '../../base/common/hash.js';
 import { CodeDataTransfers, DraggedChatReferenceIdentifier, fillInChatReferenceDragData, LocalSelectionTransfer } from '../../platform/dnd/browser/dnd.js';
@@ -70,6 +72,14 @@ export function fillSessionDragData(event: DragEvent, session: ISession | undefi
 		[new DraggedSessionIdentifier(session?.sessionId, session?.resource)],
 		DraggedSessionIdentifier.prototype,
 	);
+	fillSessionDataTransfer(event, session);
+}
+
+/**
+ * Attaches the session to a drag on the drag's own data only, not on the shared {@link LocalSelectionTransfer}, such as to
+ * a drag that is of something else in the window, an editor, whose payload the shared transfer holds.
+ */
+export function fillSessionDataTransfer(event: DragEvent, session: ISession | undefined): void {
 	event.dataTransfer?.setData(SessionsDataTransfers.SESSION, JSON.stringify({ sessionId: session?.sessionId, resource: session?.resource.toString() }));
 }
 
@@ -183,4 +193,28 @@ export function fillChatReferenceDragData(e: DragEvent, chatResource: URI, clien
  */
 export function clearChatReferenceDragData(): void {
 	chatReferenceTransfer.clearData(DraggedChatReferenceIdentifier.prototype);
+}
+
+/**
+ * Handles the end of a chat's drag, such as by opening the chat in a window of its own where a drag out of the window
+ * ended. Without a chat, the drag is of the session, which stands for the chat it shows. Returns whether it handled it.
+ */
+export type SessionChatDragEndHandler = (e: DragEvent, offsetElement: HTMLElement, session: ISession, chat: URI | undefined, name: string) => Promise<boolean>;
+
+let sessionChatDragEndHandler: SessionChatDragEndHandler | undefined;
+
+/** Registers what handles the end of a chat's drag; there is one at a time. */
+export function registerSessionChatDragEndHandler(handler: SessionChatDragEndHandler): IDisposable {
+	sessionChatDragEndHandler = handler;
+
+	return toDisposable(() => {
+		if (sessionChatDragEndHandler === handler) {
+			sessionChatDragEndHandler = undefined;
+		}
+	});
+}
+
+/** Called where a drag of a chat (or of a session, without `chat`), such as of its tab or its row in the sessions list, ends. */
+export function onDidEndSessionChatDrag(e: DragEvent, offsetElement: HTMLElement, session: ISession, chat: URI | undefined, name: string): void {
+	sessionChatDragEndHandler?.(e, offsetElement, session, chat, name).catch(onUnexpectedError);
 }

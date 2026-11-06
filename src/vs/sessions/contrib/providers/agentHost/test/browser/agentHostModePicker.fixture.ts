@@ -54,6 +54,7 @@ import { ISessionsProvider } from '../../../../../services/sessions/common/sessi
 import '../../../../chat/browser/media/chatWidget.css';
 import '../../../../chat/browser/media/chatInput.css';
 import '../../../../../browser/media/style.css';
+import { sessionChatSourceOf } from '../../../../../services/sessions/browser/sessionHost.js';
 
 async function render(context: ComponentFixtureContext, mode: string, permissions: ChatPermissionLevel, sandboxed = false, openPermissions = false, options: { readonly editor?: boolean; readonly openMode?: boolean; readonly newChat?: boolean; readonly primary?: boolean; readonly compact?: boolean; readonly combined?: boolean; readonly phoneWidth?: number; readonly withheld?: 'policy' | 'unattributed' } = {}): Promise<void> {
 	const { editor = false, openMode = false, newChat = false, primary = false, compact = false, combined = true, phoneWidth, withheld } = options;
@@ -257,11 +258,11 @@ async function render(context: ComponentFixtureContext, mode: string, permission
 		}
 		await getAgentHostOperatingSystem(hostService);
 	} else {
-		const picker = disposableStore.add(instantiationService.createInstance(AgentHostModePicker, session));
+		const picker = disposableStore.add(instantiationService.createInstance(AgentHostModePicker, sessionChatSourceOf(session)));
 		picker.render(actionItem);
 		if (!combined) {
 			if (newChat) {
-				const delegate = disposableStore.add(instantiationService.createInstance(AgentHostPermissionPickerDelegate, session));
+				const delegate = disposableStore.add(instantiationService.createInstance(AgentHostPermissionPickerDelegate, sessionChatSourceOf(session)));
 				const permissionPicker = phoneWidth === undefined
 					? disposableStore.add(instantiationService.createInstance(PermissionPicker, delegate))
 					: disposableStore.add(instantiationService.createInstance(MobilePermissionPicker, delegate));
@@ -269,7 +270,7 @@ async function render(context: ComponentFixtureContext, mode: string, permission
 				showSeparatePermissions = () => permissionPicker.showPicker();
 			} else {
 				const action = instantiationService.createInstance(MenuItemAction, { id: 'fixture.permissions', title: 'Permissions' }, undefined, undefined, undefined, undefined);
-				const permissionPicker = disposableStore.add(instantiationService.createInstance(AgentHostPermissionPickerActionItem, action, { compact: observableValue(action, compact), listOptions: { minWidth: 255 } }, session));
+				const permissionPicker = disposableStore.add(instantiationService.createInstance(AgentHostPermissionPickerActionItem, action, { compact: observableValue(action, compact), listOptions: { minWidth: 255 } }, sessionChatSourceOf(session)));
 				permissionPicker.render(permissionActionItem);
 				showSeparatePermissions = () => permissionPicker.show();
 			}

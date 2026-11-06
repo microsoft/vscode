@@ -579,6 +579,24 @@ suite('SessionGroupsService', () => {
 		});
 	});
 
+	test('automatic group deletion preserves user ungrouping intent across reload', () => {
+		sessions = ['automatic', 'manual', 'removed'].map(id => createSession(id));
+		const automatic = service.createGroup('Automatic', ['automatic', 'removed']);
+		const manual = service.createGroup('Manual', ['manual']);
+		service.removeFromGroup('removed');
+		service.deleteGroup(automatic.id, { automatic: true });
+		service.deleteGroup(manual.id);
+		const reloaded = disposables.add(instantiationService.createInstance(SessionGroupsService));
+		assert.deepStrictEqual(sessions.map(session => ({
+			group: reloaded.getGroupOfSession(session.sessionId),
+			explicitlyUngrouped: reloaded.isExplicitlyUngrouped(session.sessionId),
+		})), [
+			{ group: undefined, explicitlyUngrouped: false },
+			{ group: undefined, explicitlyUngrouped: true },
+			{ group: undefined, explicitlyUngrouped: true },
+		]);
+	});
+
 	test('membership survives a session being evicted from the provider list', () => {
 		const a = service.createGroup('A', ['s1', 's2']);
 		const session = createSession('s1');

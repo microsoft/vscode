@@ -6,7 +6,7 @@
 import './media/editorgroupview.css';
 import { EditorGroupModel, IEditorOpenOptions, IGroupModelChangeEvent, ISerializedEditorGroupModel, isGroupEditorCloseEvent, isGroupEditorOpenEvent, isSerializedEditorGroupModel } from '../../../common/editor/editorGroupModel.js';
 import { GroupIdentifier, CloseDirection, IEditorCloseEvent, IEditorPane, SaveReason, IEditorPartOptionsChangeEvent, EditorsOrder, IVisibleEditorPane, EditorResourceAccessor, EditorInputCapabilities, IUntypedEditorInput, DEFAULT_EDITOR_ASSOCIATION, SideBySideEditor, EditorCloseContext, IEditorWillMoveEvent, IEditorWillOpenEvent, IMatchEditorOptions, GroupModelChangeKind, IActiveEditorChangeEvent, IFindEditorOptions, TEXT_DIFF_EDITOR_ID } from '../../../common/editor.js';
-import { ActiveEditorGroupLockedContext, ActiveEditorDirtyContext, EditorGroupEditorsCountContext, ActiveEditorStickyContext, ActiveEditorPinnedContext, ActiveEditorLastInGroupContext, ActiveEditorFirstInGroupContext, ResourceContextKey, applyAvailableEditorIds, ActiveEditorAvailableEditorIdsContext, ActiveEditorCanSplitInGroupContext, SideBySideEditorActiveContext, TextCompareEditorVisibleContext, TextCompareEditorActiveContext, ActiveEditorContext, ActiveEditorReadonlyContext, ActiveEditorCanRevertContext, ActiveEditorCanToggleReadonlyContext, ActiveCompareEditorCanSwapContext, MultipleEditorsSelectedInGroupContext, TwoEditorsSelectedInGroupContext, SelectedEditorsInGroupFileOrUntitledResourceContextKey, ActiveEditorCannotCloseContext } from '../../../common/contextkeys.js';
+import { ActiveEditorGroupLockedContext, EditorGroupLockActionsHiddenContext, ActiveEditorDirtyContext, EditorGroupEditorsCountContext, ActiveEditorStickyContext, ActiveEditorPinnedContext, ActiveEditorLastInGroupContext, ActiveEditorFirstInGroupContext, ResourceContextKey, applyAvailableEditorIds, ActiveEditorAvailableEditorIdsContext, ActiveEditorCanSplitInGroupContext, SideBySideEditorActiveContext, TextCompareEditorVisibleContext, TextCompareEditorActiveContext, ActiveEditorContext, ActiveEditorReadonlyContext, ActiveEditorCanRevertContext, ActiveEditorCanToggleReadonlyContext, ActiveCompareEditorCanSwapContext, MultipleEditorsSelectedInGroupContext, TwoEditorsSelectedInGroupContext, SelectedEditorsInGroupFileOrUntitledResourceContextKey, ActiveEditorCannotCloseContext } from '../../../common/contextkeys.js';
 import { EditorInput } from '../../../common/editor/editorInput.js';
 import { SideBySideEditorInput } from '../../../common/editor/sideBySideEditorInput.js';
 import { Emitter, Event, Relay } from '../../../../base/common/event.js';
@@ -194,6 +194,9 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 		{
 			// Scoped context key service
 			this.scopedContextKeyService = this._register(this.contextKeyService.createScoped(this.element));
+			if (options?.hideLockActions) {
+				EditorGroupLockActionsHiddenContext.bindTo(this.scopedContextKeyService).set(true);
+			}
 
 			// Container
 			this.element.classList.add(...coalesce(['editor-group-container', this.model.isLocked ? 'locked' : undefined]));
@@ -229,7 +232,7 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 			this.element.appendChild(this.titleContainer);
 
 			// Title control
-			this.titleControl = this._register(this.scopedInstantiationService.createInstance(EditorTitleControl, this.titleContainer, this.editorPartsView, this.groupsView, this, this.model, options?.menuIds, options?.showHeader === true, options?.reserveHeaderSpace, options?.useModernUITabs === true));
+			this.titleControl = this._register(this.scopedInstantiationService.createInstance(EditorTitleControl, this.titleContainer, this.editorPartsView, this.groupsView, this, this.model, options?.menuIds, options?.showHeader === true, options?.reserveHeaderSpace, options?.useModernUITabs === true, options?.showHeaderFor));
 
 			// Editor container
 			this.editorContainer = $('.editor-container');
@@ -1784,6 +1787,25 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 		return this.handleCloseConfirmation(editors);
 	}
 
+	private isOpenedInOtherGroup(editor: EditorInput): boolean {
+		return this.editorPartsView.groups.some(groupView => {
+			if (groupView === this) {
+				return false; // skip (we already handled our group above)
+			}
+
+			const otherGroup = groupView;
+			if (otherGroup.contains(editor, { supportSideBySide: SideBySideEditor.BOTH })) {
+				return true; // exact editor still opened (either single, or split-in-group)
+			}
+
+			if (editor instanceof SideBySideEditorInput && otherGroup.contains(editor.primary)) {
+				return true; // primary side of side by side editor still opened
+			}
+
+			return false;
+		});
+	}
+
 	private async doHandleCloseConfirmation(editor: EditorInput, options?: { skipAutoSave: boolean }): Promise<boolean /* veto */> {
 		if (!this.shouldConfirmClose(editor)) {
 			return false; // no veto
@@ -1800,22 +1822,7 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 		// The only exception is when the same editor is opened on both sides of a side
 		// by side editor (https://github.com/microsoft/vscode/issues/138442)
 
-		if (this.editorPartsView.groups.some(groupView => {
-			if (groupView === this) {
-				return false; // skip (we already handled our group above)
-			}
-
-			const otherGroup = groupView;
-			if (otherGroup.contains(editor, { supportSideBySide: SideBySideEditor.BOTH })) {
-				return true; // exact editor still opened (either single, or split-in-group)
-			}
-
-			if (editor instanceof SideBySideEditorInput && otherGroup.contains(editor.primary)) {
-				return true; // primary side of side by side editor still opened
-			}
-
-			return false;
-		})) {
+		if (this.isOpenedInOtherGroup(editor)) {
 			return false; // editor is still editable somewhere else
 		}
 
@@ -2066,7 +2073,7 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 	private doCloseAllEditors(options?: ICloseAllEditorsOptions): void {
 		let editors = this.model.getEditors(EditorsOrder.SEQUENTIAL, options).filter(editor => options?.force || !editor.hasCapability(EditorInputCapabilities.CannotClose));
 		if (options?.excludeConfirming) {
-			editors = editors.filter(editor => !this.shouldConfirmClose(editor));
+			editors = editors.filter(editor => !this.shouldConfirmClose(editor) || this.isOpenedInOtherGroup(editor));
 		}
 
 		// Close all inactive editors first

@@ -52,6 +52,7 @@ import { IInstantiationService } from '../../../../../../platform/instantiation/
 import { ILogService, NullLogService } from '../../../../../../platform/log/common/log.js';
 import { ChatContextKeys } from '../../../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
 import { getVisibleRemoteKinds, RemoteKind } from '../../browser/remotesModel.js';
+import { ITestSessionsService } from '../../../../../services/sessions/test/browser/sessionHostTestUtils.js';
 
 suite('Remote Agent Host actions', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -133,15 +134,15 @@ suite('Remote Agent Host actions', () => {
 				}
 			}());
 			instantiation.stub(ISessionsProvidersService, { getProviders: () => outcome === 'missing-provider' ? [] : [provider] });
-			instantiation.stub(ISessionsService, {
+			instantiation.stub(ISessionsService, upcastPartial<ITestSessionsService>({
 				activeSession: observableValue<IActiveSession | undefined>('activeSession', undefined),
 				openNewSession: async () => {
 					calls.push({ openNewSession: true });
 					return { session: undefined, trustDeclined: false };
 				},
-			});
+			}));
 			instantiation.stub(ISessionsPartService, {
-				getSessionView: () => upcastPartial<SessionView>({
+				getActiveSessionView: () => upcastPartial<SessionView>({
 					selectWorkspace: (uri, options) => {
 						assert.strictEqual(getSessionCreationEnvironments([provider])[0]?.id, provider.id);
 						calls.push({ selected: uri.toString(), providerId: options?.providerId });
@@ -188,7 +189,7 @@ suite('Remote Agent Host actions', () => {
 		instantiation.stub(IInstantiationService, instantiation);
 		instantiation.stub(ILogService, new NullLogService());
 		instantiation.stub(ISessionsProvidersService, { getProviders: () => [provider] });
-		instantiation.stub(ISessionsService, {
+		instantiation.stub(ISessionsService, upcastPartial<ITestSessionsService>({
 			activeSession: observableValue<IActiveSession | undefined>('activeSession', undefined),
 			openNewSession: async () => {
 				calls.push('open');
@@ -196,9 +197,9 @@ suite('Remote Agent Host actions', () => {
 				await opened.p;
 				return { session: undefined, trustDeclined: false };
 			},
-		});
+		}));
 		instantiation.stub(ISessionsPartService, {
-			getSessionView: () => upcastPartial<SessionView>({
+			getActiveSessionView: () => upcastPartial<SessionView>({
 				selectWorkspace: () => { calls.push('select'); return 'applied'; },
 			}),
 		});

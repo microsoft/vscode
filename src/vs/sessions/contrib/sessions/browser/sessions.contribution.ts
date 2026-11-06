@@ -46,7 +46,8 @@ const agentSessionsViewContainer: ViewContainer = Registry.as<IViewContainersReg
 	openCommandActionDescriptor: {
 		id: SessionsContainerId,
 		mnemonicTitle: localize({ key: 'miSessions', comment: ['&& denotes a mnemonic'] }, "&&Sessions"),
-		keybindings: { primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KeyX },
+		// Like Focus Side Bar in editor windows, and next to Ctrl/Cmd+1..9, which focus the sessions in the grid.
+		keybindings: { primary: KeyMod.CtrlCmd | KeyCode.Digit0 },
 		order: 0
 	},
 	windowEnablement: WindowEnablement.Sessions

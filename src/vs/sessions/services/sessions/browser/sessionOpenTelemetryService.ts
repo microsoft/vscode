@@ -31,6 +31,8 @@ export interface ISessionOpenTelemetryService {
 	sessionResolved(attempt: ISessionOpenTelemetryAttempt, sessionResource: URI, providerId: string, alreadyActive: boolean, sessionWasLoading: boolean): void;
 	sessionActivated(attempt: ISessionOpenTelemetryAttempt, chatResource: URI): void;
 	sessionLoaded(attempt: ISessionOpenTelemetryAttempt): void;
+	/** Ends `attempt` without reporting it: the open is not one of the main window, such as one that a chat window shows. */
+	discard(attempt: ISessionOpenTelemetryAttempt): void;
 	modelBound(sessionResource: URI, chatResource: URI): void;
 	modelUnbound(sessionResource: URI, chatResource: URI): void;
 	modelBindFailed(sessionResource: URI, chatResource: URI): void;
@@ -194,6 +196,14 @@ export class SessionOpenTelemetryService extends Disposable implements ISessionO
 			this._finish(activeAttempt, 'failure');
 		} else {
 			activeAttempt.modelBindFailedChatResource = chatResource;
+		}
+	}
+
+	discard(attempt: ISessionOpenTelemetryAttempt): void {
+		const activeAttempt = this._getActive(attempt);
+		if (activeAttempt) {
+			this._activeAttempt = undefined;
+			activeAttempt.dispose();
 		}
 	}
 

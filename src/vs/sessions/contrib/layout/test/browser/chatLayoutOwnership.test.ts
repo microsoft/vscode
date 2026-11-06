@@ -41,7 +41,7 @@ suite('Chat-owned layout (R1/R5/R8/R13)', () => {
 
 	class TestDesktopController extends DesktopLayoutController {
 		ownerKeyFor(session: IActiveSession): URI {
-			const key = this._ownerKeyFor(session);
+			const key = this._ownerKeyFor({ session, chat: session.activeChat.get() });
 			assert.ok(key, 'expected an owner key while chat layout is active');
 			return key;
 		}

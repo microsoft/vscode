@@ -35,7 +35,7 @@ suite('Session Workspace Display Info', () => {
 			activeChat: constObservable(upcastPartial<IChat>({ workspace: constObservable(workspace('tools', tools, worktree)) })),
 		});
 
-		const info = derived(reader => getSessionWorkspaceDisplayInfo(session, reader)).get();
+		const info = derived(reader => getSessionWorkspaceDisplayInfo(session, session.activeChat.read(reader), reader)).get();
 
 		assert.deepStrictEqual({ ...info, icon: info?.icon.id }, {
 			label: 'tools',
@@ -53,7 +53,7 @@ suite('Session Workspace Display Info', () => {
 			activeChat: constObservable(upcastPartial<IChat>({ workspace: constObservable(workspace('tools', tools)) })),
 		});
 
-		const info = derived(reader => getSessionWorkspaceDisplayInfo(session, reader)).get();
+		const info = derived(reader => getSessionWorkspaceDisplayInfo(session, session.activeChat.read(reader), reader)).get();
 
 		assert.deepStrictEqual({ ...info, icon: info?.icon.id }, {
 			label: 'tools',

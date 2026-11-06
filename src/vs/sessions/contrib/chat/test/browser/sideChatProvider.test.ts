@@ -8,7 +8,9 @@ import { DeferredPromise, timeout } from '../../../../../base/common/async.js';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { DisposableStore, toDisposable } from '../../../../../base/common/lifecycle.js';
-import { constObservable, observableValue } from '../../../../../base/common/observable.js';
+import { constObservable, derived, observableValue } from '../../../../../base/common/observable.js';
+import { ISessionHostService } from '../../../../services/sessions/browser/sessionHost.js';
+import { ITestSessionsService, sessionHostServiceOf } from '../../../../services/sessions/test/browser/sessionHostTestUtils.js';
 import { extUri } from '../../../../../base/common/resources.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { upcastPartial } from '../../../../../base/test/common/mock.js';
@@ -50,6 +52,8 @@ suite('SessionsSideChatProviderContribution', () => {
 		widgetFactory?: (callOrder: string[]) => IChatWidget;
 		onOpenChat?: (callOrder: string[]) => void | Promise<void>;
 		onCreateSideChat?: () => Promise<void>;
+		/** The source chat shows in a chat window, while the main window shows another session. */
+		inChatWindow?: boolean;
 	} = {}) {
 		const store = disposables.add(new DisposableStore());
 		const instantiationService = store.add(new TestInstantiationService());
@@ -68,6 +72,13 @@ suite('SessionsSideChatProviderContribution', () => {
 		});
 		const activeSession = observableValue<IActiveSession | undefined>(store, session);
 		const navigationRequest = observableValue<ISessionNavigationRequest | undefined>(store, undefined);
+		const gridSession = upcastPartial<IActiveSession>({ sessionId: 'grid', resource: URI.parse('test:///grid'), chats: constObservable([]), activeChat: constObservable(upcastPartial<IChat>({ resource: URI.parse('test:///grid/chat') })) });
+		const mainWindowSession = options.inChatWindow ? observableValue<IActiveSession | undefined>(store, gridSession) : activeSession;
+		instantiationService.stub(ISessionHostService, sessionHostServiceOf(store, {
+			mainWindowActiveSession: mainWindowSession,
+			visibleSessions: options.inChatWindow ? derived(reader => [mainWindowSession.read(reader)]) : constObservable([session]),
+			windowSessions: constObservable(options.inChatWindow ? [session] : []),
+		}));
 
 		let registered: SessionsSideChatProviderContribution | undefined;
 		instantiationService.stub(IChatSideChatService, upcastPartial<IChatSideChatService>({
@@ -109,7 +120,7 @@ suite('SessionsSideChatProviderContribution', () => {
 			sendRequest,
 			sendRequestInBackground: (session, chat, requestOptions) => sendRequest(session, chat, { ...requestOptions, background: true }),
 		}));
-		instantiationService.stub(ISessionsService, upcastPartial<ISessionsService>({
+		instantiationService.stub(ISessionsService, upcastPartial<ITestSessionsService>({
 			visibleSessions: constObservable([session]),
 			activeSession,
 			navigationRequest,
@@ -135,7 +146,7 @@ suite('SessionsSideChatProviderContribution', () => {
 		}));
 
 		store.add(instantiationService.createInstance(SessionsSideChatProviderContribution));
-		return { provider: () => registered, callOrder, requests, activeSession, activeChat, navigationRequest, session };
+		return { provider: () => registered, callOrder, requests, activeSession, activeChat, navigationRequest, session, mainWindowSession, gridSession };
 	}
 
 	test('registers a provider that branches, opens, then sends on the side chat', async () => {
@@ -187,6 +198,20 @@ suite('SessionsSideChatProviderContribution', () => {
 			});
 		});
 	}
+
+	test('a side chat from a chat window is not sent in the background when the main window switches sessions meanwhile', async () => {
+		const creation = new DeferredPromise<void>();
+		const harness = setup({ inChatWindow: true, onCreateSideChat: () => creation.p });
+		const request = harness.provider()!.askInSideChat(sourceChat.resource, 'question', undefined, undefined);
+
+		harness.mainWindowSession.set(undefined, undefined);
+		harness.navigationRequest.set({ token: CancellationToken.None }, undefined);
+		harness.mainWindowSession.set(harness.gridSession, undefined);
+		await creation.complete();
+		await request;
+
+		assert.deepStrictEqual(harness.requests.map(request => request.background ?? false), [false]);
+	});
 
 	test('does not split or follow a side chat when navigation supersedes its pending open', async () => {
 		const openEntered = new DeferredPromise<void>();

@@ -35,6 +35,12 @@ export interface IViewEditorView extends IDisposable {
 	 */
 	readonly providesTitle: boolean;
 
+	/**
+	 * An element of the view, such as its title row, that drags the view's
+	 * editor the way its tab would.
+	 */
+	readonly dragHandle?: HTMLElement;
+
 	layout(width: number, height: number, top: number, left: number): void;
 
 	focus(): void;
@@ -46,6 +52,13 @@ export interface IViewEditorView extends IDisposable {
 	 * before the pane clears its input.
 	 */
 	saveViewState?(): void;
+
+	/**
+	 * Called as the view hides while its editor stays in its group, such
+	 * as while another editor of the group shows as a tab, and as it shows
+	 * again: a hidden view should not render or act as if seen.
+	 */
+	setVisible?(visible: boolean): void;
 }
 
 /**
@@ -62,6 +75,12 @@ export interface IViewEditorDescriptor {
 	 * The name of the view, used as the name of its editor.
 	 */
 	readonly name: string;
+
+	/**
+	 * Whether its views render their own title, as {@link IViewEditorView.providesTitle} says: its editors then have the
+	 * `ProvidesTitle` capability.
+	 */
+	readonly providesTitle?: boolean;
 
 	/**
 	 * Creates the view for the input. The instantiation service opens

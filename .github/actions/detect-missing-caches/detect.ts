@@ -88,12 +88,13 @@ export const cacheWarmingJobs: Readonly<Record<string, ICacheWarmingJob>> = {
 		electron: { arch: 'x64' },
 		playwright: { arch: 'X64', browsers: '--only-shell chromium' },
 	},
-	'macOS': {
-		os: 'macOS',
-		nodeModules: { prefix: 'node_modules-macos', args: ['darwin', 'arm64', 'arm64'] },
-		electron: { arch: 'arm64' },
-		playwright: { arch: 'ARM64', browsers: '--only-shell chromium webkit' },
-	},
+	// Commented out with the macOS job of pr-node-modules.yml (see there).
+	// 'macOS': {
+	// 	os: 'macOS',
+	// 	nodeModules: { prefix: 'node_modules-macos', args: ['darwin', 'arm64', 'arm64'] },
+	// 	electron: { arch: 'arm64' },
+	// 	playwright: { arch: 'ARM64', browsers: '--only-shell chromium webkit' },
+	// },
 	'windows': {
 		os: 'Windows',
 		nodeModules: { prefix: 'node_modules-windows', args: ['win32', 'x64', 'x64'] },
@@ -152,7 +153,7 @@ export function getCaches(job: ICacheWarmingJob, readFile: ReadRepositoryFile): 
 	const cache = (key: string, cachePath: string, enableCrossOsArchive?: boolean): ICache => ({ key, version: getCacheVersion(job.os, cachePath, enableCrossOsArchive) });
 	const caches = [cache(`${job.nodeModules.prefix}-${hashFiles(Buffer.from(computeNodeModulesCacheKey(job.nodeModules.args, readFile)))}`, '.build/node_modules_cache')];
 	if (job.electron) {
-		caches.push(cache(`electron-download-v1-${job.os}-${job.electron.arch}-${hashFiles(readFile('.npmrc'), readFile('build/checksums/electron.txt'))}`, electronCachePaths[job.os]));
+		caches.push(cache(`electron-download-v1-${job.os}-${job.electron.arch}-${hashFiles(readFile('build/checksums/electron.txt'))}`, electronCachePaths[job.os]));
 	}
 	if (job.builtInExtensions) {
 		const target = job.builtInExtensions.target;

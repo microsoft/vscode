@@ -28,7 +28,7 @@ import { IHoverService } from '../../../../../../../platform/hover/browser/hover
 import { NullHoverService } from '../../../../../../../platform/hover/test/browser/nullHoverService.js';
 import { IConfigurationService } from '../../../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../../../platform/configuration/test/common/testConfigurationService.js';
-import { IMarkdownRenderer } from '../../../../../../../platform/markdown/browser/markdownRenderer.js';
+import { IMarkdownRenderer, MarkdownRendererService } from '../../../../../../../platform/markdown/browser/markdownRenderer.js';
 import { BrowserResourceService } from '../../../../../../../platform/files/browser/browserResourceService.js';
 import { IOpenerService } from '../../../../../../../platform/opener/common/opener.js';
 import { AGENT_HOST_SCHEME, toAgentHostUri } from '../../../../../../../platform/agentHost/common/agentHostUri.js';
@@ -56,6 +56,7 @@ import { getChatMarkdownImageId } from '../../../../common/chatImageExtraction.j
 import { IChatSessionsService } from '../../../../common/chatSessionsService.js';
 import { ChatRequestSlashPromptPart } from '../../../../common/requestParser/chatParserTypes.js';
 import { ChatConfiguration } from '../../../../common/constants.js';
+import { MarkedKatexSupport } from '../../../../../markdown/browser/markedKatexSupport.js';
 import { rewriteAgentHostLinkTarget } from '../../../../browser/agentSessions/agentHost/stateToProgressAdapter.js';
 import { IAiEditTelemetryService } from '../../../../../editTelemetry/browser/telemetry/aiEditTelemetry/aiEditTelemetryService.js';
 import { IViewDescriptorService } from '../../../../../../common/views.js';
@@ -777,6 +778,58 @@ suite('ChatMarkdownContentPart', () => {
 		assert.strictEqual(part.codeblocks.length, 0);
 		assert.strictEqual(renderedCodeBlocks.length, 0);
 		assert.ok(part.domNode.textContent?.includes('Hello, world!'));
+	});
+
+	suite('Math', () => {
+		setup(async () => {
+			(instantiationService.get(IConfigurationService) as TestConfigurationService).setUserConfiguration(ChatConfiguration.EnableMath, true);
+			await MarkedKatexSupport.loadExtension(mainWindow);
+			// Confirmation widgets render with the general Markdown renderer, which keeps raw spans in trusted Markdown.
+			renderer = instantiationService.createInstance(MarkdownRendererService);
+		});
+
+		teardown(() => {
+			// Loading KaTeX adds its stylesheet, whose rules cannot be read in unit tests.
+			for (const element of [...mainWindow.document.head.children]) {
+				if (element.classList.contains('katex')) {
+					element.remove();
+				}
+			}
+		});
+
+		test('applies math rules only when all HTML comes from the renderer', () => {
+			const span = '<span class="monaco-button" style="position: relative; top: -40px">fake</span>';
+			const render = (markdown: MarkdownString) => {
+				const domNode = createMarkdownPart(markdown).domNode;
+				return {
+					math: !!domNode.querySelector('.katex-html [style]'),
+					span: [...domNode.querySelectorAll('span')].find(e => e.textContent === 'fake')?.outerHTML,
+					video: !!domNode.querySelector('video'),
+				};
+			};
+			const results = {
+				untrusted: render(new MarkdownString(`${span} $x^2$`)),
+				trustedWithSpan: render(new MarkdownString(`${span} $x^2$`, { isTrusted: true })),
+				trustedWithoutSpan: render(new MarkdownString('text $x^2$', { isTrusted: true })),
+				supportHtml: render(new MarkdownString(`${span} <video autoplay muted src="data:video/mp4;base64,AA=="></video> $x^2$`, { supportHtml: true })),
+			};
+			(instantiationService.get(IConfigurationService) as TestConfigurationService).setUserConfiguration(ChatConfiguration.EnableMath, false);
+			assert.deepStrictEqual({ ...results, mathDisabled: render(new MarkdownString('text $x^2$')) }, {
+				untrusted: { math: true, span: undefined, video: false },
+				trustedWithSpan: { math: false, span: '<span>fake</span>', video: false },
+				trustedWithoutSpan: { math: true, span: undefined, video: false },
+				supportHtml: { math: false, span: '<span>fake</span>', video: false },
+				mathDisabled: { math: false, span: undefined, video: false },
+			});
+		});
+
+		test('theme icons do not change the math source attribute', () => {
+			const domNode = createMarkdownPart(new MarkdownString('$$\n\\verb|$(check)|\n$$', { supportThemeIcons: true })).domNode;
+			assert.deepStrictEqual({
+				latex: domNode.querySelector('.vscode-katex-container')?.getAttribute('data-latex'),
+				math: !!domNode.querySelector('.katex-html [style]'),
+			}, { latex: '\\verb|$(check)|', math: true });
+		});
 	});
 
 	test('re-measures every table scrollbar in one animation frame when the part is resized', async () => {

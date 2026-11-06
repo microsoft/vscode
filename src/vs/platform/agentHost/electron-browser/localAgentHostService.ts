@@ -38,7 +38,7 @@ import { identityAgentHostResourceUriMapper } from '../common/agentHostUri.js';
 import { AgentHostStartupTelemetry } from '../common/agentHostStartupTelemetry.js';
 import type { IAgentHostMcpAuthenticationRequest } from '../common/agentHostExtensionProtocol.js';
 import type { IAgentHostSavedChat, IAgentHostSavedChatContinuation, IAgentHostSavedChatContinuationResult } from '../common/agentHostSavedChat.js';
-import type { AgentProvider, AgentSandboxCertificateOperation } from '../common/agent.js';
+import type { AgentProvider, AgentSandboxCertificateOperation, IAgentCustomizationInstallationApplyRequest, IAgentCustomizationInstallationPreparation } from '../common/agent.js';
 import { AgentHostClientConnectionKind } from '../common/agentHostTelemetry.js';
 import type { IAgentHostFirstResponseDiagnostic } from '../common/otel/agentHostTiming.js';
 import type { IChatUserInteractionTiming } from '../../otel/common/chatUserInteraction.js';
@@ -59,7 +59,6 @@ import {
 	IAgentCustomizationInstallation,
 	IAgentCustomizationInstallationApplyResult,
 	IAgentCustomizationInstallationRequest,
-	IAgentCustomizationInstallationReview,
 	IAgentCustomizationMarketplaceSearchRequest,
 	IAgentCustomizationMarketplaceSearchResult,
 	type IAgentExtensionInventory,
@@ -684,12 +683,12 @@ export class LocalAgentHostServiceClient extends Disposable implements IAgentHos
 		return this._getManagementService().listCustomizationInstallations(provider, session);
 	}
 
-	prepareCustomizationInstallation(provider: string, session: URI, request: IAgentCustomizationInstallationRequest | { readonly installationId: string }): Promise<IAgentCustomizationInstallationReview> {
+	prepareCustomizationInstallation(provider: string, session: URI, request: IAgentCustomizationInstallationRequest | { readonly installationId: string }): Promise<IAgentCustomizationInstallationPreparation> {
 		return this._getManagementService().prepareCustomizationInstallation(provider, session, request);
 	}
 
-	applyCustomizationInstallation(provider: string, operationId: string): Promise<IAgentCustomizationInstallationApplyResult | undefined> {
-		return this._getManagementService().applyCustomizationInstallation(provider, operationId);
+	applyCustomizationInstallation(provider: string, request: IAgentCustomizationInstallationApplyRequest): Promise<IAgentCustomizationInstallationApplyResult | undefined> {
+		return this._getManagementService().applyCustomizationInstallation(provider, request);
 	}
 
 	recoverCustomizationInstallations(provider: string, session: URI): Promise<readonly IAgentCustomizationInstallation[]> {

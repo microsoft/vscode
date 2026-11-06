@@ -26,7 +26,7 @@ test -d node_modules || pnpm install
 
 # Get electron
 if [[ -z "${VSCODE_SKIP_PRELAUNCH}" ]]; then
-	EXPECTED_ELECTRON_VERSION=$(sed -n 's/^target="\([^"]*\)"$/\1/p' .npmrc)
+	EXPECTED_ELECTRON_VERSION=$(node -p "require('./package.json').nativeBuild.target")
 	INSTALLED_ELECTRON_VERSION=$(cat .build/electron/version 2>/dev/null || true)
 	INSTALLED_ELECTRON_VERSION=${INSTALLED_ELECTRON_VERSION#v}
 	if [[ -n "${VSCODE_FORCE_PRELAUNCH:-}" || ! -x "$CODE" || "$INSTALLED_ELECTRON_VERSION" != "$EXPECTED_ELECTRON_VERSION" ]]; then

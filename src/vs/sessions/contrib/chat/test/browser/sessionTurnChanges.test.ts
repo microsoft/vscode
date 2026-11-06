@@ -18,6 +18,7 @@ import { IActiveSession, ISessionsManagementService } from '../../../../services
 import { ISessionChangesEditorOptions, ISessionChangesService } from '../../../changes/browser/sessionChangesService.js';
 import { IChangesViewService } from '../../../changes/common/changesViewService.js';
 import { SessionsChatResponseFileChangesService } from '../../browser/sessionTurnChanges.js';
+import { focusedSessionHostServiceOf } from '../../../../services/sessions/test/browser/sessionHostTestUtils.js';
 
 suite('SessionTurnChanges', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
@@ -58,7 +59,7 @@ suite('SessionTurnChanges', () => {
 			}
 		}();
 		const sessionsService = new class extends mock<ISessionsService>() {
-			override readonly activeSession = observableValue<IActiveSession | undefined>('activeSession', undefined);
+			readonly activeSession = observableValue<IActiveSession | undefined>('activeSession', undefined);
 			override async openChat(targetSession: ISession, chatResource: URI, options?: { preserveFocus?: boolean }): Promise<void> {
 				calls.push({ openChat: targetSession.resource.toString(), chatResource: chatResource.toString(), preserveFocus: options?.preserveFocus });
 				this.activeSession.set(session, undefined);
@@ -86,6 +87,7 @@ suite('SessionTurnChanges', () => {
 			new class extends mock<IEditorService>() { }(),
 			sessionsManagementService,
 			sessionsService,
+			focusedSessionHostServiceOf(sessionsService.activeSession),
 			sessionChangesService,
 			layoutService,
 			createChangesViewService(),
@@ -140,7 +142,7 @@ suite('SessionTurnChanges', () => {
 			}
 		}();
 		const sessionsService = new class extends mock<ISessionsService>() {
-			override readonly activeSession = constObservable<IActiveSession | undefined>(session);
+			readonly activeSession = constObservable<IActiveSession | undefined>(session);
 		}();
 		const sessionChangesService = new class extends mock<ISessionChangesService>() {
 			override async openChangesEditor(sessionResource: URI, options?: ISessionChangesEditorOptions): Promise<undefined> {
@@ -174,6 +176,7 @@ suite('SessionTurnChanges', () => {
 			new class extends mock<IEditorService>() { }(),
 			sessionsManagementService,
 			sessionsService,
+			focusedSessionHostServiceOf(sessionsService.activeSession),
 			sessionChangesService,
 			layoutService,
 			createChangesViewService(),
@@ -258,7 +261,7 @@ suite('SessionTurnChanges', () => {
 			}
 		}();
 		const sessionsService = new class extends mock<ISessionsService>() {
-			override readonly activeSession = constObservable<IActiveSession | undefined>(session);
+			readonly activeSession = constObservable<IActiveSession | undefined>(session);
 		}();
 		const sessionChangesService = new class extends mock<ISessionChangesService>() {
 			override async openChangesEditor(_sessionResource: URI, options?: ISessionChangesEditorOptions): Promise<undefined> {
@@ -276,6 +279,7 @@ suite('SessionTurnChanges', () => {
 			new class extends mock<IEditorService>() { }(),
 			sessionsManagementService,
 			sessionsService,
+			focusedSessionHostServiceOf(sessionsService.activeSession),
 			sessionChangesService,
 			layoutService,
 			createChangesViewService(),
@@ -331,8 +335,9 @@ suite('SessionTurnChanges', () => {
 				}
 			}(),
 			new class extends mock<ISessionsService>() {
-				override readonly activeSession = constObservable<IActiveSession | undefined>(session);
+				readonly activeSession = constObservable<IActiveSession | undefined>(session);
 			}(),
+			focusedSessionHostServiceOf(constObservable<IActiveSession | undefined>(session)),
 			new class extends mock<ISessionChangesService>() {
 				override async openChangesEditor(_sessionResource: URI, options?: ISessionChangesEditorOptions): Promise<undefined> {
 					const selection = options?.changesetSelection;
@@ -396,6 +401,7 @@ suite('SessionTurnChanges', () => {
 				}
 			}(),
 			new class extends mock<ISessionsService>() { }(),
+			focusedSessionHostServiceOf(constObservable(undefined)),
 			new class extends mock<ISessionChangesService>() { }(),
 			new class extends mock<IAgentWorkbenchLayoutService>() { }(),
 			createChangesViewService(),
@@ -449,6 +455,7 @@ suite('SessionTurnChanges', () => {
 				}
 			}(),
 			new class extends mock<ISessionsService>() { }(),
+			focusedSessionHostServiceOf(constObservable(undefined)),
 			new class extends mock<ISessionChangesService>() { }(),
 			new class extends mock<IAgentWorkbenchLayoutService>() { }(),
 			new class extends mock<IChangesViewService>() {
@@ -499,6 +506,7 @@ suite('SessionTurnChanges', () => {
 				}
 			}(),
 			new class extends mock<ISessionsService>() { }(),
+			focusedSessionHostServiceOf(constObservable(undefined)),
 			new class extends mock<ISessionChangesService>() { }(),
 			new class extends mock<IAgentWorkbenchLayoutService>() { }(),
 			changesViewService,
@@ -573,6 +581,7 @@ suite('SessionTurnChanges', () => {
 				}
 			}(),
 			new class extends mock<ISessionsService>() { }(),
+			focusedSessionHostServiceOf(constObservable(undefined)),
 			new class extends mock<ISessionChangesService>() { }(),
 			new class extends mock<IAgentWorkbenchLayoutService>() { }(),
 			new class extends mock<IChangesViewService>() {
@@ -642,6 +651,7 @@ suite('SessionTurnChanges', () => {
 				}
 			}(),
 			new class extends mock<ISessionsService>() { }(),
+			focusedSessionHostServiceOf(constObservable(undefined)),
 			new class extends mock<ISessionChangesService>() { }(),
 			new class extends mock<IAgentWorkbenchLayoutService>() { }(),
 			new class extends mock<IChangesViewService>() {

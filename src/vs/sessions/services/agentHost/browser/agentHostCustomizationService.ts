@@ -12,7 +12,7 @@ import { IAgentHostCustomizationService, AbstractAgentHostCustomizationService, 
 import { IAgentHostSessionsProvider, isAgentHostProvider } from '../../../common/agentHostSessionsProvider.js';
 import { ISessionsProvidersService } from '../../sessions/browser/sessionsProvidersService.js';
 import { ISessionsManagementService } from '../../sessions/common/sessionsManagement.js';
-import { ISessionsService } from '../../sessions/browser/sessionsService.js';
+import { IFocusedSessionHostService } from '../../sessions/browser/sessionHost.js';
 import { ISessionsProvider } from '../../sessions/common/sessionsProvider.js';
 import { AgentCustomization, CustomizationType } from '../../../../platform/agentHost/common/state/sessionState.js';
 import { type CustomizationEnablement } from '../../../../platform/agentHost/common/state/protocol/state.js';
@@ -27,7 +27,7 @@ export class AgentHostCustomizationService extends AbstractAgentHostCustomizatio
 
 	constructor(
 		@ISessionsManagementService private readonly _sessionsManagementService: ISessionsManagementService,
-		@ISessionsService private readonly _sessionsService: ISessionsService,
+		@IFocusedSessionHostService private readonly _focusedSessionHostService: IFocusedSessionHostService,
 		@ISessionsProvidersService private readonly _sessionsProvidersService: ISessionsProvidersService,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@ILogService logService: ILogService,
@@ -45,9 +45,9 @@ export class AgentHostCustomizationService extends AbstractAgentHostCustomizatio
 	}
 
 	private _getSession(sessionResource: URI): ISession | undefined {
-		const activeSession = this._sessionsService.activeSession.get();
-		if (activeSession && isEqual(activeSession.resource, sessionResource)) {
-			return activeSession;
+		const focusedSession = this._focusedSessionHostService.focusedHost.get().session.get();
+		if (focusedSession && isEqual(focusedSession.resource, sessionResource)) {
+			return focusedSession;
 		}
 		const automationSession = this._sessionsManagementService.automationSession.get();
 		if (automationSession && isEqual(automationSession.resource, sessionResource)) {
@@ -134,9 +134,10 @@ export class AgentHostCustomizationService extends AbstractAgentHostCustomizatio
 		if (!provider) {
 			return undefined;
 		}
-		const activeSession = this._sessionsService.activeSession.get();
+		const focusedHost = this._focusedSessionHostService.focusedHost.get();
 		const chat = ownedChat?.chat
-			?? (activeSession && isEqual(activeSession.resource, session.resource) ? activeSession.activeChat.get() : session.mainChat.get());
+			?? (isEqual(focusedHost.session.get()?.resource, session.resource) ? focusedHost.chat.get() : undefined)
+			?? session.mainChat.get();
 		return provider.getBackendChatResource(chat.resource);
 	}
 

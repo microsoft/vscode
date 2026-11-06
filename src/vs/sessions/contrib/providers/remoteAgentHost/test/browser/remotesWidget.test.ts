@@ -1446,7 +1446,7 @@ suite('RemotesWidget', () => {
 			model.failedKinds = ['tunnel'];
 			widget.setVisible(true);
 			await timeout(0);
-			const authRow = [...parent.querySelectorAll<HTMLElement>('.monaco-list-row')].find(row => row.textContent?.includes('Sign in to allow access'))!;
+			const authRow = [...parent.querySelectorAll<HTMLElement>('.monaco-list-row')].find(row => row.textContent?.includes('Sign in to'))!;
 			authRow.click();
 			const link = authRow.querySelector<HTMLElement>('.remotes-empty-signin .monaco-link')!;
 			const before = {
@@ -1455,6 +1455,8 @@ suite('RemotesWidget', () => {
 				cached: parent.querySelectorAll('[data-remote-id="tunnel:laptop"]').length,
 				accessible: widget.getAccessibilityContent().includes('Sign In'),
 				spinners: authRow.querySelectorAll('.remotes-signin-progress:not([hidden])').length,
+				guide: !authRow.querySelector<HTMLElement>('.remotes-empty-actions')!.hidden,
+				height: authRow.style.height,
 			};
 			model.pendingSignIn = new DeferredPromise<void>();
 			link.focus();
@@ -1469,7 +1471,9 @@ suite('RemotesWidget', () => {
 			await model.pendingSignIn.complete();
 			await timeout(0);
 			assert.deepStrictEqual({ before, busy, calls: model.signInCalls, refreshes: model.refreshCalls, signInLinks: parent.querySelectorAll('.remotes-empty-signin:not([hidden])').length, remainingSpinners: parent.querySelectorAll('.remotes-signin-progress:not([hidden])').length, errors, documentation }, {
-				before: { copy: 'Sign in to allow access to your tunnels.', warnings: 0, genericError: false, tabbable: 0, cached: hasCachedTunnels ? 1 : 0, accessible: true, spinners: 0 },
+				before: hasCachedTunnels
+					? { copy: 'Sign in to refresh your tunnels.', warnings: 0, genericError: false, tabbable: 0, cached: 1, accessible: true, spinners: 0, guide: false, height: '54px' }
+					: { copy: 'Sign in to allow access to your tunnels.', warnings: 0, genericError: false, tabbable: 0, cached: 0, accessible: true, spinners: 0, guide: true, height: '76px' },
 				busy: { disabled: 'true', rowBusy: 'true', spinning: true, size: '12px' }, calls: 1, refreshes: 2, signInLinks: 0, remainingSpinners: 0, errors: [], documentation: [],
 			});
 		});

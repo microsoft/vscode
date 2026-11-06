@@ -412,7 +412,7 @@ suite('Sessions - Grid Layout', () => {
 		root.className = 'monaco-workbench agent-sessions-workbench mac modern-ui-tabs modern-ui-connected-editor-tabs nopanel noeditorpane nosidebar';
 		root.style.cssText = '--vscode-cornerRadius-large: 8px; --vscode-agents-layout-floatingPanelGap: 4px; --vscode-strokeThickness: 1px; --window-corner-radius: 16px; --modern-ui-connected-tab-border: #445566;';
 		const card = document.createElement('div');
-		card.className = 'part sessionspart agents-part-card agents-card-surface';
+		card.className = 'part sessionspart sessions-chat-surface agents-part-card agents-card-surface';
 		root.appendChild(card);
 		document.body.appendChild(root);
 		store.add(toDisposable(() => root.remove()));

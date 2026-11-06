@@ -24,7 +24,7 @@ export function isAgentBuiltinCustomizationUri(resource: URI): boolean {
 
 export function hasReadableCustomizationContent(resource: URI): boolean {
 	const scheme = fromAgentHostUri(resource).scheme;
-	return scheme !== AGENT_BUILTIN_CUSTOMIZATION_SCHEME && scheme !== AGENT_DISCOVERY_CUSTOMIZATION_SCHEME;
+	return scheme !== AGENT_BUILTIN_CUSTOMIZATION_SCHEME && scheme !== AGENT_DISCOVERY_CUSTOMIZATION_SCHEME && scheme !== 'claude-internal';
 }
 
 /**

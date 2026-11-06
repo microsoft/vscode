@@ -10,7 +10,7 @@ import { ITextModel } from '../../../../editor/common/model.js';
 import { IModelService } from '../../../../editor/common/services/model.js';
 import { isUserEdit } from '../../../../editor/common/textModelEditSource.js';
 import { IModelContentChangedEvent } from '../../../../editor/common/textModelEvents.js';
-import { IActiveSession } from '../../../services/sessions/common/sessionsManagement.js';
+import { IHostSession } from '../../../services/sessions/common/sessionsManagement.js';
 
 /** Characters the user typed into one resource while `session` was active. */
 export interface ITypedCharactersEntry {
@@ -19,14 +19,14 @@ export interface ITypedCharactersEntry {
 	 * that moment so attribution does not depend on which session is active
 	 * when the buffered batch is eventually reported.
 	 */
-	readonly session: IActiveSession;
+	readonly session: IHostSession;
 	readonly resource: URI;
 	readonly characters: number;
 }
 
 /** Buffered {@link ITypedCharactersEntry} plus the bookkeeping used to retry it. */
 interface IPendingEntry {
-	readonly session: IActiveSession;
+	readonly session: IHostSession;
 	readonly resource: URI;
 	characters: number;
 	retries: number;
@@ -67,7 +67,7 @@ export class SessionsTypedCharactersTracker extends Disposable {
 	 * attribute yet, which are retried instead of being dropped.
 	 */
 	constructor(
-		private readonly _getActiveSession: () => IActiveSession | undefined,
+		private readonly _getActiveSession: () => IHostSession | undefined,
 		private readonly _report: (entries: readonly ITypedCharactersEntry[]) => readonly ITypedCharactersEntry[],
 		@IModelService modelService: IModelService,
 	) {

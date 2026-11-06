@@ -159,4 +159,16 @@ suite('SessionOpenTelemetryService', () => {
 			await request;
 		});
 	});
+
+	test('a discarded open, such as one that another surface shows, is never reported, also not once it would time out', async () => {
+		await runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const telemetryService = new TestDataTelemetryService();
+			const service = disposables.add(new SessionOpenTelemetryService(telemetryService));
+
+			await service.withOpenRequest('unknown', CancellationToken.None, async attempt => service.discard(attempt));
+			await timeout(SESSION_OPEN_TIMEOUT_MS * 2);
+
+			assert.deepStrictEqual(telemetryService.events, []);
+		});
+	});
 });

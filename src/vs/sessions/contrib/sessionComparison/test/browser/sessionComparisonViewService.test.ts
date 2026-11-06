@@ -4,13 +4,13 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { observableValue } from '../../../../../base/common/observable.js';
+import { constObservable, observableValue } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { mock, upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
-import { SessionStatus } from '../../../../services/sessions/common/session.js';
+import { IChat, ISession, SessionStatus } from '../../../../services/sessions/common/session.js';
 import { ISessionComparison, ISessionComparisonService, SessionComparisonParticipantRole } from '../../../../services/sessions/common/sessionComparison.js';
 import { IActiveSession, ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
 import { SessionComparisonViewService } from '../../browser/sessionComparisonViewService.js';
@@ -30,6 +30,7 @@ suite('Session comparison navigation', () => {
 			sessionId: `${role}-${index}`,
 			resource: URI.parse(`test:///${role}-${index}`),
 			status: statuses[index],
+			mainChat: constObservable(upcastPartial<IChat>({ resource: URI.parse(`test-chat:/${role}-${index}`) })),
 		}));
 		const comparison: ISessionComparison = {
 			id: 'comparison',
@@ -48,6 +49,7 @@ suite('Session comparison navigation', () => {
 		const comparisons = observableValue<readonly ISessionComparison[]>('comparisons', [comparison]);
 		const openedSessions: string[] = [];
 		const openedGrids: string[][] = [];
+		const openedChats: string[][] = [];
 		const instantiationService = store.add(new TestInstantiationService());
 		instantiationService.stub(ISessionComparisonService, new class extends mock<ISessionComparisonService>() {
 			override comparisons = comparisons;
@@ -65,10 +67,32 @@ suite('Session comparison navigation', () => {
 			override async openSessionsInGrid(targets: readonly IActiveSession[]): Promise<void> {
 				openedGrids.push(targets.map(session => session.sessionId));
 			}
+			override async openChatsInGrid(targets: readonly { session: ISession; chatResource: URI }[]): Promise<void> {
+				openedChats.push(targets.map(target => target.chatResource.toString()));
+			}
 		}());
 		const service = instantiationService.createInstance(SessionComparisonViewService);
-		return { service, comparisons, statuses, openedSessions, openedGrids };
+		return { service, comparisons, statuses, openedSessions, openedGrids, openedChats, sessions };
 	}
+
+	test('opens distinct nested attempts of one parent without opening the Judge', async () => {
+		const fixture = setup();
+		const parent = fixture.sessions[0];
+		const chats = ['attempt-0', 'attempt-1', 'judge'].map(id => upcastPartial<IChat>({ resource: URI.parse(`test-chat:/parent#${id}`) }));
+		fixture.sessions[0] = { ...parent, chats: constObservable(chats) };
+		const comparison = fixture.comparisons.get()[0];
+		fixture.comparisons.set([{
+			...comparison,
+			sessionResource: parent.resource,
+			participants: comparison.participants.slice(0, 3).map((participant, index) => ({
+				...participant, sessionResource: parent.resource, chatResource: chats[index].resource,
+			})),
+		}], undefined);
+		await fixture.service.open(comparison.id);
+		assert.deepStrictEqual({ grids: fixture.openedGrids, chats: fixture.openedChats }, {
+			grids: [], chats: [['test-chat:/parent#attempt-0', 'test-chat:/parent#attempt-1']],
+		});
+	});
 
 	test('opens attempts in the grid when the Judge is available', async () => {
 		const fixture = setup();
@@ -79,6 +103,24 @@ suite('Session comparison navigation', () => {
 		}, {
 			openedSessions: [],
 			openedGrids: [['attempt-0', 'attempt-1']],
+		});
+	});
+
+	test('keeps main-chat attempts in ordinary session slots even with explicit chat identities', async () => {
+		const fixture = setup();
+		for (let index = 0; index < fixture.sessions.length; index++) {
+			const session = fixture.sessions[index];
+			fixture.sessions[index] = { ...session, chats: constObservable([session.mainChat.get()]) };
+		}
+		fixture.comparisons.set([{
+			...fixture.comparisons.get()[0],
+			participants: fixture.comparisons.get()[0].participants.map((participant, index) => ({
+				...participant, chatResource: fixture.sessions[index].mainChat.get().resource,
+			})),
+		}], undefined);
+		await fixture.service.open('comparison');
+		assert.deepStrictEqual({ grids: fixture.openedGrids, chats: fixture.openedChats }, {
+			grids: [['attempt-0', 'attempt-1']], chats: [],
 		});
 	});
 
