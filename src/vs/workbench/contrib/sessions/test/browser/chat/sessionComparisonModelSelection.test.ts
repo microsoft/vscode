@@ -420,7 +420,7 @@ suite('SessionComparisonModelSelection', () => {
 		});
 	});
 
-	test('folderless comparisons preserve review choices without using or pruning them', () => {
+	test('unavailable review preserves choices without using or pruning them', () => {
 		const reviewAvailable = observableValue('reviewAvailable', true);
 		const selection = store.add(createModelSelection(constObservable(true), undefined, reviewAvailable));
 		selection.start();
@@ -435,18 +435,18 @@ suite('SessionComparisonModelSelection', () => {
 		selection.start();
 		selection.retainModels(new Set(['one', 'two']));
 		selection.finish();
-		const folderless = {
+		const withoutReview = {
 			attempts: selection.attemptModelIds.get(),
 			judge: selection.judgeModelId.get(),
 			synthesizer: selection.synthesizerModelId.get(),
 		};
 		reviewAvailable.set(true, undefined);
 		assert.deepStrictEqual({
-			folderless,
+			withoutReview,
 			judge: selection.judgeModelId.get(),
 			synthesizer: selection.synthesizerModelId.get(),
 		}, {
-			folderless: { attempts: ['one', 'two'], judge: undefined, synthesizer: undefined },
+			withoutReview: { attempts: ['one', 'two'], judge: undefined, synthesizer: undefined },
 			judge: 'judge', synthesizer: 'synthesizer',
 		});
 	});

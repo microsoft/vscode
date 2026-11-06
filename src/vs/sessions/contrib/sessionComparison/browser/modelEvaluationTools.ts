@@ -54,7 +54,7 @@ const definitions: Record<EvaluationToolName, { displayName: string; description
 	},
 	createModelComparison: {
 		displayName: localize('evaluation.create', "Create Model Comparison"),
-		description: 'Launch one scenario against two to ten fixed model configurations for a model evaluation. Use getComparisonModels first. This creates isolated worktrees on the calling chat\'s host and project, or independent folderless chats when requested, and inherits the calling chat\'s permissions without elevation. An optional Judge evaluates terminal attempts; a configured Synthesizer remains user-initiated. Folderless comparisons cannot have a Judge or Synthesizer. Returns launch outcomes and a comparison ID, not finished model results; use listModelComparisons or readModelComparison later. Comparison participants cannot launch further comparisons. Follow tool approval; after cancellation or an uncertain launch, list existing comparisons before considering another call. Do not retry a denied request or poll continuously.',
+		description: 'Launch one scenario against two to ten fixed model configurations for a model evaluation. Use getComparisonModels first. This creates isolated worktrees on the calling chat\'s host and project, or independent folderless chats when requested, and inherits the calling chat\'s permissions without elevation. An optional Judge evaluates terminal attempts; a configured Synthesizer remains user-initiated and requires a Judge. For folderless comparisons, the Judge compares responses and synthesis combines them into a new answer. Returns launch outcomes and a comparison ID, not finished model results; use listModelComparisons or readModelComparison later. Comparison participants cannot launch further comparisons. Follow tool approval; after cancellation or an uncertain launch, list existing comparisons before considering another call. Do not retry a denied request or poll continuously.',
 		schema: {
 			type: 'object',
 			properties: {
@@ -335,9 +335,9 @@ export class ModelEvaluationTool implements IToolImpl {
 			}
 		}
 		const { provider, workspace, types } = await this.creationContext(input, caller, store, token, selectedTypes);
-		if ((!workspace && (input.judge !== undefined || input.synthesizer !== undefined || input.branch !== undefined))
+		if ((!workspace && input.branch !== undefined)
 			|| (input.synthesizer !== undefined && input.judge === undefined)) {
-			throw new EvaluationInputError('Folderless comparisons cannot use a branch, Judge, or Synthesizer. A Synthesizer requires a Judge.');
+			throw new EvaluationInputError('Folderless comparisons cannot use a branch. A Synthesizer requires a Judge.');
 		}
 		const repository = caller.chat.workspace.get()?.folders[0]?.gitRepository;
 		const branch = workspace ? input.branch ?? repository?.baseBranchName ?? repository?.branchName : undefined;

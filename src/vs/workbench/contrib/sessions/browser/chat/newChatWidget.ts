@@ -444,7 +444,7 @@ export class NewChatWidget extends Disposable {
 			session?.isQuickChat?.read(reader);
 			return this._shouldShowComparisonAction();
 		}), modelId => this.languageModelsService.lookupLanguageModel(modelId)?.name,
-			derived(this, reader => !this._isQuickChatComposer.read(reader)),
+			constObservable(true),
 			observableFromEvent(this, Event.filter(this.configurationService.onDidChangeConfiguration, event => event.affectsConfiguration(COMPARE_AGENTS_SHOW_PICKER_HINT_SETTING)),
 				() => this.configurationService.getValue<boolean>(COMPARE_AGENTS_SHOW_PICKER_HINT_SETTING))));
 		const canSendRequest = derived(reader => {
