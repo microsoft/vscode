@@ -26,7 +26,7 @@ import { MoveModalEditorToMainWindowAction } from '../../../../browser/parts/edi
 import { AuxiliaryEditorPartImpl } from '../../../../browser/parts/editor/auxiliaryEditorPart.js';
 import { EditorPart } from '../../../../browser/parts/editor/editorPart.js';
 import { getEditorsTransferVeto, IEditorTransferVeto, INewWindowTransfer, NEW_WINDOW_TARGET, transferToNewWindow } from '../../../../browser/parts/editor/editorTransferVeto.js';
-import { EditorExtensions, EditorInputCapabilities, EditorsOrder, IEditorFactoryRegistry } from '../../../../common/editor.js';
+import { EditorExtensions, EditorInputCapabilities, EditorsOrder, GroupIdentifier, IEditorFactoryRegistry } from '../../../../common/editor.js';
 import { EditorInput, IEditorCloseHandler } from '../../../../common/editor/editorInput.js';
 import { SideBySideEditorInput } from '../../../../common/editor/sideBySideEditorInput.js';
 import { createEditorParts, registerTestEditor, TestEditorParts, TestFileEditorInput, workbenchInstantiationService } from '../../../../test/browser/workbenchTestServices.js';
@@ -46,6 +46,14 @@ class ConfirmingTestFileEditorInput extends TestFileEditorInput {
 }
 
 const VETO = 'This editor cannot leave its window.';
+
+/** An editor that cannot go into the groups that `refuses` picks, as an editor that can only be shown in some windows. */
+class PartSensitiveEditorInput extends TestFileEditorInput {
+	refuses: (target: GroupIdentifier) => boolean = () => false;
+	override canMove(_source: GroupIdentifier, target: GroupIdentifier): true | string {
+		return this.refuses(target) ? VETO : true;
+	}
+}
 
 suite('Editor transfer vetoes', () => {
 
@@ -345,6 +353,45 @@ suite('Editor transfer vetoes', () => {
 				inMain: true, mainGroupCount, editors: ['/vetoing'], compactGroups: 1, dialogs: []
 			});
 		});
+
+		test('a group moved within a compact auxiliary window moves in its grid, so an editor that cannot go into the main window is not asked about it', async () => {
+			const { parts, dialogs, instantiationService } = await createServices();
+			const auxiliary = createAuxiliaryPart(parts, instantiationService, false);
+			const source = auxiliary.activeGroup;
+			const editor = disposables.add(new PartSensitiveEditorInput(URI.file('/notInMainWindow'), TEST_EDITOR_INPUT_ID));
+			editor.refuses = target => parts.getPart(target) === parts.mainPart;
+			await source.openEditor(editor, { pinned: true });
+			const other = auxiliary.addGroup(source, GroupDirection.RIGHT);
+			await other.openEditor(createInput('/other'), { pinned: true });
+			auxiliary.updateOptions({ compact: true }); // after it had several groups
+			const mainGroupCount = parts.mainPart.count;
+
+			const moved = parts.moveGroup(source.id, other.id, GroupDirection.RIGHT);
+
+			assert.deepStrictEqual({ inAuxiliary: parts.getPart(moved) === auxiliary, auxiliaryGroups: auxiliary.count, mainGroupCount: parts.mainPart.count, dialogs: dialogs.errors }, {
+				inAuxiliary: true, auxiliaryGroups: 2, mainGroupCount, dialogs: []
+			});
+		});
+
+		for (const mainRefuses of [true, false]) {
+			test(`copying a group out of a compact auxiliary window, whose part adds the copy to the main window, asks its editors about the main window (${mainRefuses ? 'refused' : 'allowed'})`, async () => {
+				const { parts, dialogs, instantiationService } = await createServices();
+				const compact = createAuxiliaryPart(parts, instantiationService, true);
+				const target = createAuxiliaryPart(parts, instantiationService, false);
+				const editor = disposables.add(new PartSensitiveEditorInput(URI.file('/partSensitive'), TEST_EDITOR_INPUT_ID));
+				editor.refuses = group => parts.getPart(group) === (mainRefuses ? parts.mainPart : target);
+				const source = compact.activeGroup;
+				await source.openEditor(editor, { pinned: true });
+				const mainGroupCount = parts.mainPart.count;
+				const events = recordEvents(parts.mainPart, compact, target);
+
+				const copy = parts.copyGroup(source.id, target.activeGroup.id, GroupDirection.RIGHT);
+
+				assert.deepStrictEqual({ returnedSource: copy === source, mainGroupCount: parts.mainPart.count, targetGroups: target.count, events: mainRefuses ? events : [], dialogs: dialogs.errors.length }, mainRefuses
+					? { returnedSource: true, mainGroupCount, targetGroups: 1, events: [], dialogs: 1 }
+					: { returnedSource: false, mainGroupCount: mainGroupCount + 1, targetGroups: 1, events: [], dialogs: 0 });
+			});
+		}
 
 		test('copying a group into an auxiliary window that is not compact still asks its editors', async () => {
 			const { parts, dialogs, instantiationService } = await createServices();

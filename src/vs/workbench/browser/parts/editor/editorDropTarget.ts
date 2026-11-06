@@ -20,7 +20,7 @@ import { IThemeService, Themable } from '../../../../platform/theme/common/theme
 import { isTemporaryWorkspace, IWorkspaceContextService } from '../../../../platform/workspace/common/workspace.js';
 import { CodeDataTransfers, containsDragType, Extensions as DragAndDropExtensions, IDragAndDropContributionRegistry, LocalSelectionTransfer } from '../../../../platform/dnd/browser/dnd.js';
 import { DraggedEditorGroupIdentifier, DraggedEditorIdentifier, extractTreeDropData, getInputDropTargetClipPath, isContentDropTarget, isInputDropTarget, ResourcesDropHandler } from '../../dnd.js';
-import { DEFAULT_EDITOR_MIN_DIMENSIONS, IEditorGroupsView, IEditorGroupView, prepareMoveCopyEditors } from './editor.js';
+import { DEFAULT_EDITOR_MIN_DIMENSIONS, GroupTransferKind, IEditorGroupsView, IEditorGroupView, prepareMoveCopyEditors } from './editor.js';
 import { EditorInputCapabilities, IEditorIdentifier, IUntypedEditorInput } from '../../../common/editor.js';
 import { EditorInput } from '../../../common/editor/editorInput.js';
 import { EDITOR_DRAG_AND_DROP_BACKGROUND, EDITOR_DROP_INTO_PROMPT_BACKGROUND, EDITOR_DROP_INTO_PROMPT_BORDER, EDITOR_DROP_INTO_PROMPT_FOREGROUND } from '../../../common/theme.js';
@@ -506,7 +506,8 @@ class DropOverlay extends Themable {
 
 					// Into another part only when its editors can go there, before any group is added or moved. A split copies the
 					// group with its editors themselves (see `copyGroup`), so all are asked; a merge copies each editor
-					if (this.isTransferVetoed(sourceGroup.editors, sourceGroup, this.isCopyOperation(event) && typeof splitDirection !== 'number', splitDirection)) {
+					const kind = typeof splitDirection === 'number' ? (this.isCopyOperation(event) ? GroupTransferKind.CopyGroup : GroupTransferKind.MoveGroup) : GroupTransferKind.Merge;
+					if (this.isTransferVetoed(sourceGroup.editors, sourceGroup, this.isCopyOperation(event) && kind === GroupTransferKind.Merge, kind)) {
 						this.groupTransfer.clearData(DraggedEditorGroupIdentifier.prototype);
 						return;
 					}
@@ -554,16 +555,19 @@ class DropOverlay extends Themable {
 					const sourcePart = this.editorGroupService.getPart(sourceGroup);
 					let targetGroup: IEditorGroup | undefined = undefined;
 
+					// Optimization: if we move the last editor of an editor group
+					// and we are configured to close empty editor groups, we can
+					// rather move the entire editor group according to the direction
+					const moveGroup = this.groupView.groupsView.partOptions.closeEmptyGroups && sourceGroup.count === 1 && typeof splitDirection === 'number' && !copyEditor;
+
 					// Into another part only when the dragged editors can go there, before any group is added or moved
-					if (this.isTransferVetoed(draggedEditors.map(editor => editor.identifier.editor), sourceGroup, copyEditor, splitDirection)) {
+					const kind = moveGroup ? GroupTransferKind.MoveGroup : typeof splitDirection === 'number' ? GroupTransferKind.AddGroup : GroupTransferKind.Merge;
+					if (this.isTransferVetoed(draggedEditors.map(editor => editor.identifier.editor), sourceGroup, copyEditor, kind)) {
 						this.editorTransfer.clearData(DraggedEditorIdentifier.prototype);
 						return;
 					}
 
-					// Optimization: if we move the last editor of an editor group
-					// and we are configured to close empty editor groups, we can
-					// rather move the entire editor group according to the direction
-					if (this.groupView.groupsView.partOptions.closeEmptyGroups && sourceGroup.count === 1 && typeof splitDirection === 'number' && !copyEditor) {
+					if (moveGroup) {
 						targetGroup = this.editorGroupService.moveGroup(sourceGroup, this.groupView, splitDirection);
 						splitEvenly(targetGroup);
 					}
@@ -628,10 +632,10 @@ class DropOverlay extends Themable {
 	 * Whether `editors` of `sourceGroup`, dropped into another part, cannot go there, telling the user why. A group of
 	 * the part they are dropped in stands for the group a split adds.
 	 */
-	private isTransferVetoed(editors: readonly EditorInput[], sourceGroup: IEditorGroup, copy: boolean, splitDirection: GroupDirection | undefined): boolean {
+	private isTransferVetoed(editors: readonly EditorInput[], sourceGroup: IEditorGroup, copy: boolean, kind: GroupTransferKind): boolean {
 
-		// A split adds a group where the part of this group adds groups, such as the main window for a compact auxiliary window
-		const target = typeof splitDirection === 'number' ? this.groupView.groupsView.getAddGroupLocation(this.groupView) : this.groupView;
+		// Where the operation puts them, such as the main window for a group added to a compact auxiliary window
+		const target = this.groupView.groupsView.getTransferTarget(kind, sourceGroup.id, this.groupView);
 		if (this.editorGroupService.getPart(sourceGroup) === this.editorGroupService.getPart(target)) {
 			return false;
 		}

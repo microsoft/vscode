@@ -221,6 +221,18 @@ export interface IEditorPartsView {
 /**
  * A helper to access and mutate editor groups within an editor part.
  */
+/** How editors are transferred to a group, which decides where they land (see `IEditorGroupsView.getTransferTarget`). */
+export const enum GroupTransferKind {
+	/** Into the group itself, such as merging a group or dropping editors into it. */
+	Merge,
+	/** As `moveGroup` moves a group beside it: in its grid within a part, else the target part adds it. */
+	MoveGroup,
+	/** As `copyGroup` copies a group beside it: the part of the group adds the copy. */
+	CopyGroup,
+	/** Into a group that the part of the group adds beside it, such as a split for dropped editors. */
+	AddGroup
+}
+
 export interface IEditorGroupsView {
 
 	readonly windowId: number;
@@ -246,6 +258,12 @@ export interface IEditorGroupsView {
 	 * adds its groups elsewhere, such as a compact auxiliary window, which adds them to the main window.
 	 */
 	getAddGroupLocation(location: IEditorGroupView): IEditorGroupView;
+
+	/**
+	 * The group where a transfer of the editors of `source` to `location` puts them, as the operation of `kind` runs:
+	 * `location` itself, or the group beside which the part that adds the group adds it (see {@link getAddGroupLocation}).
+	 */
+	getTransferTarget(kind: GroupTransferKind, source: IEditorGroupView | GroupIdentifier, location: IEditorGroupView): IEditorGroupView;
 	mergeGroup(group: IEditorGroupView | GroupIdentifier, target: IEditorGroupView | GroupIdentifier, options?: IMergeGroupOptions): boolean;
 
 	moveGroup(group: IEditorGroupView | GroupIdentifier, location: IEditorGroupView | GroupIdentifier, direction: GroupDirection): IEditorGroupView;

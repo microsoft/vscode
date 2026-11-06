@@ -14,7 +14,7 @@ import { IView, orthogonal, LayoutPriority, IViewSize, Direction, SerializableGr
 import { GroupIdentifier, EditorInputWithOptions, IEditorPartOptions, IEditorPartOptionsChangeEvent, GroupModelChangeKind } from '../../../common/editor.js';
 import { EDITOR_GROUP_BORDER, EDITOR_PANE_BACKGROUND } from '../../../common/theme.js';
 import { distinct, coalesce } from '../../../../base/common/arrays.js';
-import { IEditorGroupView, getEditorPartOptions, impactsEditorPartOptions, IEditorPartCreationOptions, IEditorPartsView, IEditorGroupsView, IEditorGroupViewOptions } from './editor.js';
+import { IEditorGroupView, getEditorPartOptions, impactsEditorPartOptions, IEditorPartCreationOptions, IEditorPartsView, IEditorGroupsView, IEditorGroupViewOptions, GroupTransferKind } from './editor.js';
 import { EditorGroupView } from './editorGroupView.js';
 import { IConfigurationService, IConfigurationChangeEvent } from '../../../../platform/configuration/common/configuration.js';
 import { IDisposable, dispose, toDisposable, DisposableStore } from '../../../../base/common/lifecycle.js';
@@ -63,6 +63,23 @@ interface IEditorPartMemento {
  * another part or none (see `EditorPart.vetoGroupTransfer`). Closing a part merges back what can go, as it always
  * did: each editor is asked as it moves, and one that cannot go stays.
  */
+/**
+ * The group beside which `receiver.addGroup(location, …)` adds a group: each part that is handed the location resolves it
+ * (see `EditorPart.addGroup`), until one adds the group in its own grid.
+ */
+function resolveAddGroupLocation(receiver: IEditorGroupsView, location: IEditorGroupView): IEditorGroupView {
+	for (let hops = 0; hops < 8; hops++) {
+		const resolved = receiver.getAddGroupLocation(location);
+		if (resolved.groupsView === receiver) {
+			return resolved;
+		}
+		receiver = resolved.groupsView;
+		location = resolved;
+	}
+
+	return location;
+}
+
 const enum GroupMergeReason {
 	Transfer,
 	Close
@@ -638,6 +655,22 @@ export class EditorPart extends Part<IEditorPartMemento> implements IEditorPart,
 		return location;
 	}
 
+	getTransferTarget(kind: GroupTransferKind, source: IEditorGroupView | GroupIdentifier, location: IEditorGroupView): IEditorGroupView {
+		const sourceView = this.assertGroupView(source);
+		switch (kind) {
+			case GroupTransferKind.MoveGroup:
+				// Within a part, the group moves in its grid; into another part, that part adds it (see `moveGroup`)
+				return sourceView.groupsView === location.groupsView ? location : resolveAddGroupLocation(location.groupsView, location);
+			case GroupTransferKind.CopyGroup:
+				// The part of the group adds its copy (see `copyGroup`)
+				return resolveAddGroupLocation(sourceView.groupsView, location);
+			case GroupTransferKind.AddGroup:
+				return resolveAddGroupLocation(location.groupsView, location);
+			case GroupTransferKind.Merge:
+				return location;
+		}
+	}
+
 	addGroup(location: IEditorGroupView | GroupIdentifier, direction: GroupDirection, groupToCopy?: IEditorGroupView): IEditorGroupView {
 		const locationView = this.getAddGroupLocation(this.assertGroupView(location));
 
@@ -932,9 +965,8 @@ export class EditorPart extends Part<IEditorPartMemento> implements IEditorPart,
 			throw new Error('Cannot move group into its own');
 		}
 
-		// Into another part, unless an editor cannot go: then the group stays, and nothing changes. The group goes where
-		// that part adds groups, such as the main window for a compact auxiliary window
-		if (this.vetoGroupTransfer([sourceView], targetView.groupsView.getAddGroupLocation(targetView), false)) {
+		// Into another part, unless an editor cannot go: then the group stays, and nothing changes
+		if (this.vetoGroupTransfer([sourceView], this.getTransferTarget(GroupTransferKind.MoveGroup, sourceView, targetView), false)) {
 			return sourceView;
 		}
 
@@ -976,9 +1008,8 @@ export class EditorPart extends Part<IEditorPartMemento> implements IEditorPart,
 		const groupView = this.assertGroupView(group);
 		const locationView = this.assertGroupView(location);
 
-		// Into another part, the copy shares the editors of the group (its model is cloned), so all are asked, as for a move,
-		// where that part adds groups
-		if (this.vetoGroupTransfer([groupView], locationView.groupsView.getAddGroupLocation(locationView), false)) {
+		// Into another part, the copy shares the editors of the group (its model is cloned), so all are asked, as for a move
+		if (this.vetoGroupTransfer([groupView], this.getTransferTarget(GroupTransferKind.CopyGroup, groupView, locationView), false)) {
 			return groupView;
 		}
 

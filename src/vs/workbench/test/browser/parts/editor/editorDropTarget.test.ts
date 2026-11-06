@@ -20,9 +20,9 @@ import { IThemeService } from '../../../../../platform/theme/common/themeService
 import { TestThemeService } from '../../../../../platform/theme/test/common/testThemeService.js';
 import { IWorkspaceContextService } from '../../../../../platform/workspace/common/workspace.js';
 import { DraggedEditorGroupIdentifier, DraggedEditorIdentifier, registerContentDropTarget, registerInputDropTarget } from '../../../../browser/dnd.js';
-import { DEFAULT_EDITOR_MIN_DIMENSIONS, DEFAULT_EDITOR_PART_OPTIONS, IEditorGroupsView, IEditorGroupView } from '../../../../browser/parts/editor/editor.js';
+import { DEFAULT_EDITOR_MIN_DIMENSIONS, DEFAULT_EDITOR_PART_OPTIONS, GroupTransferKind, IEditorGroupsView, IEditorGroupView } from '../../../../browser/parts/editor/editor.js';
 import { EditorDropTarget } from '../../../../browser/parts/editor/editorDropTarget.js';
-import { EditorInputWithOptions } from '../../../../common/editor.js';
+import { EditorInputWithOptions, GroupIdentifier } from '../../../../common/editor.js';
 import { EditorInput } from '../../../../common/editor/editorInput.js';
 import { GroupDirection, IEditorGroup, IEditorGroupsService, IEditorPart, IMergeGroupOptions, MergeGroupMode } from '../../../../services/editor/common/editorGroupsService.js';
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
@@ -38,10 +38,13 @@ suite('EditorDropTarget', () => {
 		readonly content: HTMLElement;
 		readonly input: HTMLElement;
 		readonly operations: string[];
+		/** How the drop transfers editors, as it asks the part of the target group where they land. */
+		readonly transferKinds: GroupTransferKind[];
 	}
 
 	function setup(options?: { readonly contentCoversGroup?: boolean; readonly inputAtBottomEdge?: boolean; readonly dragEditor?: boolean; readonly groupWidth?: number; readonly groupMinimumWidth?: number; readonly fromOtherPart?: boolean; readonly moveVeto?: string; readonly closeEmptyGroups?: boolean; readonly sourceCount?: number; readonly dragGroup?: boolean; readonly addsGroupsToSourcePart?: boolean }): ITestSetup {
 		const operations: string[] = [];
+		const transferKinds: GroupTransferKind[] = [];
 
 		// A 300x300 group at the viewport origin with a registered input drop target in its lower center
 		// (or at its bottom edge), optionally inside registered content that covers the group, like a chat view
@@ -74,7 +77,10 @@ suite('EditorDropTarget', () => {
 		}();
 		const groupsView = new class extends mock<IEditorGroupsView>() {
 			override readonly partOptions = { ...DEFAULT_EDITOR_PART_OPTIONS, allowDropIntoGroup: true, splitOnDragAndDrop: true, openSideBySideDirection: 'right' as const, closeEmptyGroups: options?.closeEmptyGroups ?? false };
-			override getAddGroupLocation(location: IEditorGroupView): IEditorGroupView { return options?.addsGroupsToSourcePart ? addGroupsHere : location; }
+			override getTransferTarget(kind: GroupTransferKind, _source: IEditorGroupView | GroupIdentifier, location: IEditorGroupView): IEditorGroupView {
+				transferKinds.push(kind);
+				return options?.addsGroupsToSourcePart && kind !== GroupTransferKind.Merge ? addGroupsHere : location;
+			}
 		}();
 		const groupView = new class extends mock<IEditorGroupView>() {
 			override readonly element = groupElement;
@@ -154,7 +160,7 @@ suite('EditorDropTarget', () => {
 			store.add(toDisposable(() => editorTransfer.clearData(DraggedEditorIdentifier.prototype)));
 		}
 
-		return { groupElement, content, input, operations };
+		return { groupElement, content, input, operations, transferKinds };
 	}
 
 	function dispatch(target: Element, type: string, clientX: number, clientY: number, dataTransfer = new DataTransfer(), copy = false): void {
@@ -261,6 +267,34 @@ suite('EditorDropTarget', () => {
 		dispatch(groupElement, 'dragend', 5, 150, undefined, true);
 
 		assert.deepStrictEqual(operations.filter(operation => !operation.startsWith('size')), [`copy group ${GroupDirection.LEFT}`, 'activate']);
+	});
+
+	test('a drop asks the part of the group where the editors land as the operation it runs puts them', () => {
+		const drop = (options: Parameters<typeof setup>[0], x: number, y: number, copy: boolean) => {
+			const { groupElement, transferKinds } = setup({ fromOtherPart: true, ...options });
+			dispatch(groupElement, 'dragenter', x, y, undefined, copy);
+			const overlay = getOverlay(groupElement);
+			dispatch(overlay!, 'dragover', x, y, undefined, copy);
+			dispatch(overlay!, 'drop', x, y, undefined, copy);
+			dispatch(groupElement, 'dragend', x, y, undefined, copy);
+			return transferKinds;
+		};
+
+		assert.deepStrictEqual({
+			groupCopiedOnEdge: drop({ dragGroup: true }, 5, 150, true),
+			groupMovedOnEdge: drop({ dragGroup: true }, 5, 150, false),
+			groupMergedIntoGroup: drop({ dragGroup: true }, 150, 100, false),
+			editorOnEdge: drop({}, 5, 150, false),
+			lastEditorOnEdge: drop({ closeEmptyGroups: true, sourceCount: 1 }, 5, 150, false),
+			editorIntoGroup: drop({}, 150, 100, false),
+		}, {
+			groupCopiedOnEdge: [GroupTransferKind.CopyGroup],
+			groupMovedOnEdge: [GroupTransferKind.MoveGroup],
+			groupMergedIntoGroup: [GroupTransferKind.Merge],
+			editorOnEdge: [GroupTransferKind.AddGroup],
+			lastEditorOnEdge: [GroupTransferKind.MoveGroup],
+			editorIntoGroup: [GroupTransferKind.Merge],
+		});
 	});
 
 	test('a group copied by a drop into a group of another part copies each editor, so an editor that is not a singleton is not asked', () => {
