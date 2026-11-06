@@ -942,10 +942,12 @@ suite('CopilotSessionLauncher sandbox policy', () => {
 			const fixture = setup(kind, false);
 			fixture.configuration.updateSessionConfig(fixture.owner, { sandboxEnabled: 'on' });
 			store.add(await fixture.launcher.launch(fixture.plan, fixture.runtime));
-			const initial = { envVars: {
-				env_name1: { injectHosts: ['google.com'] },
-				env_name2: { injectHosts: ['yahoo.com'] },
-			} };
+			const initial = {
+				envVars: {
+					env_name1: { injectHosts: ['google.com'] },
+					env_name2: { injectHosts: ['yahoo.com'] },
+				}
+			};
 			const changed = { envVars: { env_name1: { injectHosts: ['other.example.com'] } } };
 			for (const credentials of [initial, changed, { envVars: {} }, {}]) {
 				fixture.configuration.updateRootConfig({ sandbox: { enabled: 'on', credentials } });

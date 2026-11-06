@@ -288,10 +288,12 @@ suite('buildSandboxConfigForSdk', () => {
 			assert.deepStrictEqual([
 				{},
 				{ envVars: {} },
-				{ envVars: {
-					env_name1: { injectHosts: ['google.com'] },
-					env_name2: { injectHosts: ['yahoo.com'] },
-				} },
+				{
+					envVars: {
+						env_name1: { injectHosts: ['google.com'] },
+						env_name2: { injectHosts: ['yahoo.com'] },
+					}
+				},
 				{ envVars: { MY_API_TOKEN: { injectHosts: [] } } },
 				{ envVars: { MY_API_TOKEN: { injectHosts: ['*'] } } },
 				null,
@@ -305,10 +307,12 @@ suite('buildSandboxConfigForSdk', () => {
 				{ envVars: { MY_API_TOKEN: {} } },
 				{ envVars: { MY_API_TOKEN: { injectHosts: 'api.example.com' } } },
 				{ envVars: { MY_API_TOKEN: { injectHosts: [123] } } },
-				{ envVars: {
-					env_name1: { injectHosts: ['google.com'] },
-					env_name2: { injectHosts: [null] },
-				} },
+				{
+					envVars: {
+						env_name1: { injectHosts: ['google.com'] },
+						env_name2: { injectHosts: [null] },
+					}
+				},
 			].map(maskedCredentials => sandboxConfigSchema.validate(AgentHostSandboxConfigKey.Sandbox, { credentials: maskedCredentials })),
 				[true, true, true, true, true, false, false, false, false, false, false, false, false, false, false, false, false]);
 		});
