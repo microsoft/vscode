@@ -16,6 +16,61 @@ suite('Search focus-only command', () => {
 		assert.deepStrictEqual(calls, [[true, false, true]]);
 	});
 
+
+	test('does not set a stale suppression flag when the Search input is already focused', () => {
+		const calls: unknown[][] = [];
+		let suppressionFlag = false;
+		const widget = {
+			focus: (_select = true, _focusReplace = false, suppressGlobalSearchBuffer = false) => {
+				calls.push([_select, _focusReplace, suppressGlobalSearchBuffer]);
+				// An already-focused input does not emit another focus event to
+				// consume this flag.
+				suppressionFlag = suppressGlobalSearchBuffer;
+			}
+		};
+
+		focusSearchInputPreservingQuery(widget, true);
+		assert.deepStrictEqual(calls, [[true, false, false]]);
+		assert.strictEqual(suppressionFlag, false);
+
+		// A later ordinary focus still imports a newly changed global buffer.
+		const shouldImportClipboardOnNextFocus = !suppressionFlag;
+		assert.strictEqual(shouldImportClipboardOnNextFocus, true);
+	});
+
+	test('a newly focused Search input still suppresses the global clipboard import', () => {
+		const calls: unknown[][] = [];
+		let query = 'keep this query';
+		const clipboardQuery = 'different global Find text';
+		const widget = {
+			focus: (select = true, focusReplace = false, suppressGlobalSearchBuffer = false) => {
+				calls.push([select, focusReplace, suppressGlobalSearchBuffer]);
+				// Model the focus handler that reads the macOS Find buffer unless
+				// this focus specifically requested suppression.
+				if (!suppressGlobalSearchBuffer) {
+					query = clipboardQuery;
+				}
+			}
+		};
+
+		focusSearchInputPreservingQuery(widget, false);
+		assert.deepStrictEqual(calls, [[true, false, true]]);
+		assert.strictEqual(query, 'keep this query');
+	});
+
+	test('a second focus-only invocation can clear a previously pending suppression', () => {
+		const flags: boolean[] = [];
+		const widget = {
+			focus: (_select = true, _replace = false, suppressGlobalSearchBuffer = false) => {
+				flags.push(suppressGlobalSearchBuffer);
+			}
+		};
+
+		focusSearchInputPreservingQuery(widget, false);
+		focusSearchInputPreservingQuery(widget, true);
+		assert.deepStrictEqual(flags, [true, false]);
+	});
+
 	test('preserves the query when the widget would otherwise import a new clipboard value', () => {
 		let query = 'existing search';
 		const globalFindClipboard = 'replacement from clipboard';
