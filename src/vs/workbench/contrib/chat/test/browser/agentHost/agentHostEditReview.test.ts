@@ -539,7 +539,7 @@ suite('AgentHostEditReview', () => {
 	test('hiding review releases editor restrictions and re-enabling reviews the latest host changes', async () => {
 		review.dispose();
 		const enabled = observableValue('reviewEnabled', true);
-		const controller = store.add(new AgentHostSnapshotController(chatSessionResource, connectionAuthority, undefined, new NullLogService(), new class extends mock<IFileService>() { }(), store.add(new WorkingCopyService())));
+		const controller = store.add(new AgentHostSnapshotController(chatSessionResource, host, connectionAuthority, undefined, new NullLogService(), new class extends mock<IFileService>() { }(), store.add(new WorkingCopyService())));
 		controller.attachReview(enabled, () => review = createReview());
 		hostWrites('/a.ts', 'A\nb\n');
 		const first = workingSetFile('/a.ts', 'a\nb\n', 'A\nb\n', 'tc1');
@@ -754,7 +754,7 @@ suite('AgentHostEditReview', () => {
 			host.setWorkingSet([file]);
 			await waitForEntries('/dirty.ts');
 			await getChanges(getEntry('/dirty.ts'));
-			const controller = store.add(new AgentHostSnapshotController(chatSessionResource, connectionAuthority, {
+			const controller = store.add(new AgentHostSnapshotController(chatSessionResource, host, connectionAuthority, {
 				getChanges: () => undefined,
 				resolve: async () => [file.edit],
 			}, new NullLogService(), files, workingCopyService));

@@ -3075,7 +3075,7 @@ suite('AgentHostSessionInputPills', () => {
 		const { harness, setOperations } = createSessionWorkingSetPills();
 		setOperations([acceptChanges(ChangesetOperationStatus.Idle), discardWorkingSetChanges(ChangesetOperationStatus.Idle)], 'shown');
 		await harness.setWorkingSetEnabled(true);
-		const controller = store.add(new AgentHostSnapshotController(harness.sessionResource, 'remote-test', undefined, new NullLogService(), upcastPartial<IFileService>({
+		const controller = store.add(new AgentHostSnapshotController(harness.sessionResource, harness.connection, 'remote-test', undefined, new NullLogService(), upcastPartial<IFileService>({
 			readFile: async () => upcastPartial<IFileContent>({ value: VSBuffer.fromString('baseline') }),
 		}), store.add(new WorkingCopyService())));
 		harness.showModel(upcastPartial<IChatModel>({}));
