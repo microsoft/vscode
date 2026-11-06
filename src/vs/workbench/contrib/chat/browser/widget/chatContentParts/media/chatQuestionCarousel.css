@@ -131,10 +131,12 @@
 		padding: 8px 16px 16px;
 	}
 
+	.chat-question-message,
 	.chat-question-detailed-message {
 		padding: 8px 16px 0;
 	}
 
+	.chat-question-message + .chat-question-answers,
 	.chat-question-detailed-message + .chat-question-answers {
 		padding-top: 0;
 	}
@@ -378,6 +380,7 @@
 }
 
 /* user-select: text for elicitation dialog text areas */
+.interactive-session .chat-question-carousel-container .chat-question-message,
 .interactive-session .chat-question-carousel-container .chat-question-detailed-message,
 .interactive-session .chat-question-carousel-container .chat-question-description {
 	user-select: text;

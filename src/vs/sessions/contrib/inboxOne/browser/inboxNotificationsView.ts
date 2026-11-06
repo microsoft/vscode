@@ -1749,6 +1749,7 @@ export class InboxNotificationsView extends Disposable implements IWindowCanvas 
 			this.createChatContentPartRenderContext(),
 			{
 				shouldAutoFocus: false,
+				sessionResource: part.chatResource,
 				onSubmit: answers => {
 					this.logInboxInteraction('submitQuestionCarousel', 'inlineQuestionCarousel', item);
 					void this.submitQuestionCarouselPart(item, part, answers);

@@ -11,6 +11,7 @@ import { IMarkdownString, MarkdownString, isMarkdownString } from '../../../../.
 import { KeyCode } from '../../../../../../base/common/keyCodes.js';
 import { Disposable, DisposableStore, MutableDisposable, toDisposable } from '../../../../../../base/common/lifecycle.js';
 import { ThemeIcon } from '../../../../../../base/common/themables.js';
+import { URI } from '../../../../../../base/common/uri.js';
 import { generateUuid } from '../../../../../../base/common/uuid.js';
 import { hasKey } from '../../../../../../base/common/types.js';
 import { localize } from '../../../../../../nls.js';
@@ -55,6 +56,8 @@ const MAX_CAROUSEL_VIEWPORT_RATIO = 0.45;
 const ANSWERS_VISIBLE_THRESHOLD = 24;
 /** How much of the content preceding the answers stays visible when scrolling them into view. */
 const ANSWERS_REVEAL_CONTEXT = 32;
+/** How far the scroll body moves for one arrow key press. */
+const BODY_SCROLL_LINE_HEIGHT = 20;
 
 /**
  * Whether the question is a yes/no choice, the shape MCP elicitation and the agent host emit for boolean fields.
@@ -89,6 +92,8 @@ export interface IChatQuestionCarouselOptions {
 	shouldAutoSelectFirstOption?: boolean;
 	/** Node hosting the answer editors' overflow widgets (e.g. suggest) so they aren't clipped by the carousel. */
 	editorOverflowWidgetsDomNode?: HTMLElement;
+	/** Session the answers belong to, for hosts whose render context has no response element. */
+	sessionResource?: URI;
 }
 
 class ChatQuestionAnswerCollapsiblePart extends ChatCollapsibleContentPart {
@@ -350,17 +355,32 @@ export class ChatQuestionCarouselPart extends Disposable implements IChatContent
 		// Register event listeners
 		interactiveStore.add(collapseButton.onDidClick(() => this.toggleCollapsed()));
 		interactiveStore.add(maximizeButton.onDidClick(() => this.toggleMaximized()));
-		// Button consumes Escape itself, so restore from here too rather than only from the container handler.
-		interactiveStore.add(maximizeButton.onDidEscape(() => {
-			if (this._isMaximized) {
-				this.toggleMaximized();
-				maximizeButton.focus();
-			}
-		}));
 
 		if (this._skipAllButton) {
 			interactiveStore.add(this._skipAllButton.onDidClick(() => this.ignore()));
 		}
+
+		// Capture phase, because buttons consume Escape themselves and would otherwise leave the card maximized.
+		interactiveStore.add(dom.addDisposableListener(this.domNode, dom.EventType.KEY_DOWN, (e: KeyboardEvent) => {
+			if (new StandardKeyboardEvent(e).keyCode !== KeyCode.Escape || !this._isMaximized) {
+				return;
+			}
+			const answerEditor = this.getAnswerEditorForTarget(e.target);
+			if (answerEditor?.isSuggestWidgetVisible()) {
+				// Escape closes the suggest widget; leave it to the editor.
+				return;
+			}
+			if (answerEditor && isBooleanQuestion(this.carousel.questions[this._currentIndex])) {
+				// Handled below by leaving the custom answer first.
+				return;
+			}
+			e.preventDefault();
+			e.stopPropagation();
+			this.toggleMaximized();
+			if (!dom.isAncestorOfActiveElement(this.domNode)) {
+				maximizeButton.focus();
+			}
+		}, true));
 
 		// Register keyboard navigation
 		interactiveStore.add(dom.addDisposableListener(this.domNode, dom.EventType.KEY_DOWN, (e: KeyboardEvent) => {
@@ -375,10 +395,6 @@ export class ChatQuestionCarouselPart extends Disposable implements IChatContent
 				e.preventDefault();
 				e.stopPropagation();
 				this.domNode.focus();
-			} else if (event.keyCode === KeyCode.Escape && this._isMaximized) {
-				e.preventDefault();
-				e.stopPropagation();
-				this.toggleMaximized();
 			} else if (event.keyCode === KeyCode.Escape && this.carousel.allowSkip) {
 				e.preventDefault();
 				e.stopPropagation();
@@ -922,17 +938,19 @@ export class ChatQuestionCarouselPart extends Disposable implements IChatContent
 			bodyContent.appendChild(carouselMessage);
 		}
 
-		const questionText = getDisplayedQuestionText(question);
-		const rawValue = isMarkdownString(questionText) ? questionText.value : questionText;
-		if (questionText) {
+		// Only the short heading is pinned; a long message scrolls with the body so it can't crowd out the answers.
+		const headingText = question.title || getDisplayedQuestionText(question);
+		const rawValue = isMarkdownString(headingText) ? headingText.value : headingText;
+		const shownTexts = [rawValue.trim()];
+		if (headingText) {
 			const title = dom.$(`.chat-question-title.${CHAT_CARD_TITLE_CLASS}`);
-			const messageContent = this.getQuestionText(questionText);
+			const messageContent = this.getQuestionText(getDisplayedQuestionText(question));
 			title.setAttribute('aria-label', messageContent);
 
 			const titleValue = escapeLeadingMarkdownBlockSyntax(rawValue);
 			const suffixed = question.required ? `${titleValue} *` : titleValue;
-			const md = isMarkdownString(questionText)
-				? MarkdownString.lift({ ...questionText, value: suffixed })
+			const md = isMarkdownString(headingText)
+				? MarkdownString.lift({ ...headingText, value: suffixed })
 				: new MarkdownString(suffixed);
 			const rendered = questionRenderStore.add(this._markdownRenderer.render(md));
 			title.appendChild(rendered.element);
@@ -958,6 +976,19 @@ export class ChatQuestionCarouselPart extends Disposable implements IChatContent
 			titleRow.appendChild(this._headerActionsContainer);
 		}
 
+		// Render the full message in the body when the pinned heading is only a short title
+		if (question.message) {
+			const messageValue = isMarkdownString(question.message) ? question.message.value : question.message;
+			if (messageValue.trim() && !shownTexts.includes(messageValue.trim())) {
+				shownTexts.push(messageValue.trim());
+				const messageMd = isMarkdownString(question.message) ? MarkdownString.lift(question.message) : new MarkdownString(question.message);
+				const messageEl = dom.$('.chat-question-message');
+				const renderedMessage = questionRenderStore.add(this._markdownRenderer.render(messageMd));
+				messageEl.appendChild(renderedMessage.element);
+				bodyContent.appendChild(messageEl);
+			}
+		}
+
 		// Render description if present
 		if (question.description) {
 			const descriptionEl = dom.$('.chat-question-description');
@@ -967,8 +998,8 @@ export class ChatQuestionCarouselPart extends Disposable implements IChatContent
 
 		// Render detailed markdown message
 		const detailedValue = isMarkdownString(question.detailedMessage) ? question.detailedMessage.value : question.detailedMessage;
-		// Agents often repeat the title as the message; showing it twice adds nothing.
-		if (question.detailedMessage && detailedValue?.trim() !== rawValue.trim()) {
+		// Agents often repeat the title or message; showing it twice adds nothing.
+		if (question.detailedMessage && !shownTexts.includes(detailedValue?.trim() ?? '')) {
 			const detailedMd = isMarkdownString(question.detailedMessage)
 				? MarkdownString.lift(question.detailedMessage)
 				: new MarkdownString(question.detailedMessage);
@@ -995,6 +1026,28 @@ export class ChatQuestionCarouselPart extends Disposable implements IChatContent
 		bodyScrollableNode.setAttribute('role', 'group');
 		bodyScrollableNode.setAttribute('aria-label', localize('chat.questionCarousel.details', "Question details"));
 		this._questionContainer.appendChild(bodyScrollableNode);
+
+		// The scrollable element has no keyboard support of its own, so scroll when the wrapper itself has focus.
+		questionRenderStore.add(dom.addDisposableListener(bodyScrollableNode, dom.EventType.KEY_DOWN, (e: KeyboardEvent) => {
+			if (e.target !== bodyScrollableNode) {
+				return;
+			}
+			const { height, scrollHeight } = bodyScrollable.getScrollDimensions();
+			const { scrollTop } = bodyScrollable.getScrollPosition();
+			let newScrollTop: number;
+			switch (new StandardKeyboardEvent(e).keyCode) {
+				case KeyCode.UpArrow: newScrollTop = scrollTop - BODY_SCROLL_LINE_HEIGHT; break;
+				case KeyCode.DownArrow: newScrollTop = scrollTop + BODY_SCROLL_LINE_HEIGHT; break;
+				case KeyCode.PageUp: newScrollTop = scrollTop - Math.max(height - BODY_SCROLL_LINE_HEIGHT, BODY_SCROLL_LINE_HEIGHT); break;
+				case KeyCode.PageDown: newScrollTop = scrollTop + Math.max(height - BODY_SCROLL_LINE_HEIGHT, BODY_SCROLL_LINE_HEIGHT); break;
+				case KeyCode.Home: newScrollTop = 0; break;
+				case KeyCode.End: newScrollTop = scrollHeight; break;
+				default: return;
+			}
+			e.preventDefault();
+			e.stopPropagation();
+			bodyScrollable.setScrollPosition({ scrollTop: newScrollTop });
+		}));
 
 		// Validation message element below the scrollable area (not inside it)
 		this._validationMessageElement = dom.$('.chat-question-validation-message');
@@ -1136,6 +1189,11 @@ export class ChatQuestionCarouselPart extends Disposable implements IChatContent
 			return;
 		}
 
+		// Re-rendering drops the focused control, so remember where focus was to restore it.
+		const focusedIndex = dom.isAncestorOfActiveElement(container)
+			? Array.from(container.children).findIndex(child => dom.isAncestorOfActiveElement(child))
+			: -1;
+
 		this.cancelPrimaryAnimations();
 		this._footerPrimaryStore.clear();
 		dom.clearNode(container);
@@ -1147,6 +1205,15 @@ export class ChatQuestionCarouselPart extends Disposable implements IChatContent
 			this.renderBooleanButtons(container, question, this._footerPrimaryStore);
 		} else {
 			this.renderPrimaryButton(container, this._footerPrimaryStore);
+		}
+
+		if (focusedIndex >= 0) {
+			const focusTarget = container.children[Math.min(focusedIndex, container.children.length - 1)];
+			if (dom.isHTMLElement(focusTarget)) {
+				focusTarget.focus();
+			} else {
+				this.domNode.focus();
+			}
 		}
 
 		if (animate && !this._accessibilityService.isMotionReduced()) {
@@ -1337,8 +1404,8 @@ export class ChatQuestionCarouselPart extends Disposable implements IChatContent
 
 	private renderInput(container: HTMLElement, question: IChatQuestion): void {
 		if (isBooleanQuestion(question)) {
-			// Answered with the footer Yes/No buttons, unless the user opts into a custom answer.
-			if (question.allowFreeformInput === true) {
+			// Answered with the footer Yes/No buttons, with an optional custom answer unless free-form input is disallowed.
+			if (question.allowFreeformInput !== false) {
 				this.renderBooleanFreeform(container, question);
 			}
 			return;
@@ -1365,7 +1432,7 @@ export class ChatQuestionCarouselPart extends Disposable implements IChatContent
 			idlePlaceholder: overrides?.idlePlaceholder,
 			ariaLabel: overrides?.ariaLabel ?? placeholder,
 			initialValue,
-			sessionResource: this._context?.element?.sessionResource,
+			sessionResource: this._options.sessionResource ?? this._context?.element?.sessionResource,
 			overflowWidgetsDomNode: this._options.editorOverflowWidgetsDomNode,
 		}));
 		this._inputBoxes.add(editor.onDidChangeHeight(() => this._onDidChangeHeight.fire()));
@@ -1808,6 +1875,10 @@ export class ChatQuestionCarouselPart extends Disposable implements IChatContent
 						return { selectedValue: undefined, freeformValue: customAnswer } satisfies IChatSingleSelectAnswer;
 					}
 					const recorded = this._answers.get(question.id);
+					if (recorded === undefined) {
+						// The footer highlights the default, so it counts as the answer until the user picks.
+						return this.getDefaultAnswerForQuestion(question);
+					}
 					// A custom answer that was cleared is no longer an answer.
 					return typeof recorded === 'object' && recorded !== null && hasKey(recorded, { selectedValue: true }) && (recorded as IChatSingleSelectAnswer).freeformValue
 						? undefined

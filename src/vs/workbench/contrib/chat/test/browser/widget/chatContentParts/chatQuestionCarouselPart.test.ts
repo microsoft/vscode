@@ -173,9 +173,9 @@ suite('ChatQuestionCarouselPart', () => {
 			]);
 			createWidget(carousel);
 
-			const title = widget.domNode.querySelector('.chat-question-title');
-			assert.ok(title, 'title element should exist');
-			assert.ok(title?.querySelector('.rendered-markdown'), 'markdown content should be rendered');
+			const message = widget.domNode.querySelector('.chat-question-message');
+			assert.ok(message, 'message element should exist');
+			assert.ok(message?.querySelector('.rendered-markdown'), 'markdown content should be rendered');
 		});
 
 		for (const { name, question, expectedDetail } of [
@@ -184,7 +184,8 @@ suite('ChatQuestionCarouselPart', () => {
 			{ name: 'duplicate markdown with surrounding whitespace', question: { title: 'Layout', message: new MarkdownString('Layout choice'), detailedMessage: new MarkdownString('  Layout choice\n') }, expectedDetail: undefined },
 			{ name: 'duplicate required heading', question: { title: 'Accent color', required: true, detailedMessage: 'Accent color' }, expectedDetail: undefined },
 			{ name: 'different explanation', question: { title: 'Accent color', detailedMessage: 'Choose the accent used by buttons.' }, expectedDetail: 'Choose the accent used by buttons.' },
-			{ name: 'title different from displayed message', question: { title: 'Accent color', message: 'Choose a color', detailedMessage: 'Accent color' }, expectedDetail: 'Accent color' },
+			{ name: 'duplicate title with a different message', question: { title: 'Accent color', message: 'Choose a color', detailedMessage: 'Accent color' }, expectedDetail: undefined },
+			{ name: 'different from title and message', question: { title: 'Accent color', message: 'Choose a color', detailedMessage: 'Choose the accent used by buttons.' }, expectedDetail: 'Choose the accent used by buttons.' },
 			{ name: 'distinct links with identical labels', question: { title: 'Docs', message: new MarkdownString('[Docs](https://example.com/question)'), detailedMessage: new MarkdownString('[Docs](https://example.com/details)') }, expectedDetail: 'Docs' },
 		]) {
 			test(`question details: ${name}`, () => {
@@ -196,6 +197,23 @@ suite('ChatQuestionCarouselPart', () => {
 				}, { headings: 1, detail: expectedDetail, inputs: 1 });
 			});
 		}
+
+		test('pins only the short title and scrolls the full message in the body', () => {
+			createWidget(createMockCarousel([{ id: 'q1', type: 'text', title: 'Region', message: 'Which region should this deploy to?' }]));
+			const body = widget.domNode.querySelector('.chat-question-body-scrollable')!;
+			const message = widget.domNode.querySelector('.chat-question-message');
+			assert.deepStrictEqual({
+				title: widget.domNode.querySelector('.chat-question-title')?.textContent?.trim(),
+				message: message?.textContent?.trim(),
+				messageInBody: body.contains(message),
+				ariaLabel: widget.domNode.getAttribute('aria-label'),
+			}, {
+				title: 'Region',
+				message: 'Which region should this deploy to?',
+				messageInBody: true,
+				ariaLabel: 'Chat question: Which region should this deploy to?',
+			});
+		});
 
 		test('renders titles that start with list markers as inline text', () => {
 			const titles = ['6. Timeframe', '- Option', '# Heading'];
@@ -280,11 +298,11 @@ suite('ChatQuestionCarouselPart', () => {
 					];
 					assert.deepStrictEqual({
 						message: linkDecorations('.chat-question-carousel-message'),
-						title: linkDecorations('.chat-question-title'),
+						question: linkDecorations('.chat-question-message'),
 						details: linkDecorations('.chat-question-detailed-message'),
 					}, {
 						message: expected,
-						title: expected,
+						question: expected,
 						details: expected,
 					});
 				});
@@ -306,7 +324,7 @@ suite('ChatQuestionCarouselPart', () => {
 
 			assert.deepStrictEqual({
 				carouselMessageImages: widget.domNode.querySelectorAll('.chat-question-carousel-message img').length,
-				questionMessageImages: widget.domNode.querySelectorAll('.chat-question-title img').length,
+				questionMessageImages: widget.domNode.querySelectorAll('.chat-question-message img').length,
 				detailedMessageImages: widget.domNode.querySelectorAll('.chat-question-detailed-message img').length,
 			}, {
 				carouselMessageImages: 0,
@@ -326,9 +344,9 @@ suite('ChatQuestionCarouselPart', () => {
 			]);
 			createWidget(carousel);
 
-			const title = widget.domNode.querySelector('.chat-question-title');
-			assert.ok(title, 'title element should exist');
-			assert.ok(title?.textContent?.includes('details'), 'content should be rendered');
+			const message = widget.domNode.querySelector('.chat-question-message');
+			assert.ok(message, 'message element should exist');
+			assert.ok(message?.textContent?.includes('details'), 'content should be rendered');
 		});
 
 		test('option labels inherit the selected row foreground', () => {
@@ -604,6 +622,20 @@ suite('ChatQuestionCarouselPart', () => {
 				});
 			});
 		}
+
+		test('Page Down scrolls the focused overflowing body', async () => {
+			const carousel = createMockCarousel([{ id: 'q1', type: 'text', title: 'Choose a deployment strategy' }]);
+			carousel.message = 'Review the deployment requirements before choosing an option. '.repeat(80);
+			createLayoutWidget(carousel);
+			await settleLayout();
+
+			const bodyNode = widget.domNode.querySelector<HTMLElement>('.chat-question-body-scrollable')!;
+			const body = widget.domNode.querySelector<HTMLElement>('.chat-question-input-container')!;
+			const before = body.scrollTop;
+			bodyNode.dispatchEvent(new KeyboardEvent('keydown', { key: 'PageDown', keyCode: 34, bubbles: true, cancelable: true }));
+
+			assert.deepStrictEqual({ before, scrolled: body.scrollTop > before }, { before: 0, scrolled: true });
+		});
 
 		test('primary button points at the answers while they are below the fold and becomes the action once revealed', async () => {
 			const carousel = createMockCarousel([{
