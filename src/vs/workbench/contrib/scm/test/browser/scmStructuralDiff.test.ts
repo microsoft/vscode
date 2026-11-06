@@ -49,6 +49,7 @@ import { ContextKeys, SCMAccessibilityProvider, SCMTreeDataSource, SCMTreeKeyboa
 import { SCMStructuralDiffRenderer, openSCMStructuralDiff } from '../../browser/scmStructuralDiffRenderer.js';
 import { ISCMProvider, ISCMResource, ISCMResourceGroup, ISCMViewService, ViewMode } from '../../common/scm.js';
 import { SCMStructuralDiffElement, SCMStructuralDiffModel, SCMStructuralDiffNode } from '../../common/scmStructuralDiff.js';
+import '../../../modernUI/browser/media/padding.css';
 
 class TestCodeEditor extends mock<ICodeEditor>() {
 	readonly selections: IRange[] = [];
@@ -579,15 +580,18 @@ suite('SCM structural diff tree', () => {
 		});
 	});
 
-	for (const width of [220, 420]) {
-		test(`aligns structural status boxes with file badge boxes at ${width}px, including diagnostic counts`, () => {
-			const container = $('.monaco-workbench.scm-view.monaco-list');
+	for (const [width, modernUI] of [[220, false], [420, false], [220, true], [420, true]] as const) {
+		test(`aligns and dims structural status boxes like file badge boxes at ${width}px${modernUI ? ' in the Modern UI' : ''}, including diagnostic counts`, () => {
+			const root = $('.monaco-workbench');
+			root.classList.toggle('modern-ui', modernUI);
+			const container = append(root, $('.scm-view.monaco-list'));
 			container.style.width = `${width}px`;
+			container.style.setProperty('--vscode-spacing-size40', '4px');
 			container.style.setProperty('--vscode-spacing-size160', '16px');
 			container.style.setProperty('--vscode-fontSize-label2', '11px');
 			container.style.setProperty('--vscode-fontWeight-semiBold', '600');
-			mainWindow.document.body.appendChild(container);
-			store.add(toDisposable(() => container.remove()));
+			mainWindow.document.body.appendChild(root);
+			store.add(toDisposable(() => root.remove()));
 			const instantiationService = workbenchInstantiationService(undefined, store);
 			const decorations = store.add(instantiationService.createInstance(DecorationsService));
 			instantiationService.stub(IDecorationsService, decorations);
@@ -617,8 +621,8 @@ suite('SCM structural diff tree', () => {
 				contents.style.paddingLeft = `${indent}px`;
 				return contents;
 			};
-			// The tree contents' 12px right padding plus the badges' 3px right margin.
-			const expectedRight = container.getBoundingClientRect().right - 15;
+			// The tree contents' right padding plus the badges' right margin: 12px and 3px, or 4px each in the Modern UI.
+			const expectedRight = container.getBoundingClientRect().right - (modernUI ? 8 : 15);
 			const results = cases.map(({ letter, count, uri }) => {
 				const fileRow = append(createRow(0), $('.resource'));
 				const fileLabel = labels.create(append(fileRow, $('.name')));
@@ -648,6 +652,7 @@ suite('SCM structural diff tree', () => {
 					rightEdgesAligned: Math.abs(fileRight - structuralRight) < 1 && Math.abs(fileRight - expectedRight) < 1,
 					justifyContent: [fileStyle.justifyContent, structuralStyle.justifyContent],
 					minWidth: [fileStyle.minWidth, structuralStyle.minWidth],
+					opacity: [fileStyle.opacity, structuralStyle.opacity],
 					sameTypography: fileStyle.fontSize === structuralStyle.fontSize && fileStyle.fontWeight === structuralStyle.fontWeight,
 					badgeFits: template.status.scrollWidth <= template.status.clientWidth,
 				};
@@ -655,7 +660,7 @@ suite('SCM structural diff tree', () => {
 			assert.deepStrictEqual(results, cases.map(({ letter, count }) => ({
 				fileText: JSON.stringify(count ? `${count}, ${letter}` : letter),
 				structuralText: letter,
-				rightEdgesAligned: true, justifyContent: ['center', 'center'], minWidth: ['16px', '16px'], sameTypography: true, badgeFits: true,
+				rightEdgesAligned: true, justifyContent: ['center', 'center'], minWidth: ['16px', '16px'], opacity: ['0.75', '0.75'], sameTypography: true, badgeFits: true,
 			})));
 		});
 	}
