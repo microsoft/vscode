@@ -657,6 +657,8 @@ suite('Sessions - Workbench', () => {
 		const editor = createPart('editor');
 		const auxiliaryBar = createPart('auxiliarybar');
 		const panel = createPart('panel');
+		const activityBar = createPart('session-activity-bar-column').appendChild(document.createElement('div'));
+		activityBar.className = 'session-activity-bar docked';
 		const connectedTabs = 'modern-ui-tabs modern-ui-connected-editor-tabs';
 		const corners = (part: HTMLElement, classes: string, pseudoElement?: string) => {
 			root.className = `monaco-workbench agent-sessions-workbench mac macos-tahoe ${classes}`;
@@ -694,6 +696,12 @@ suite('Sessions - Workbench', () => {
 			centeredPanelWithoutSidebar: corners(panel, 'panel-alignment-center dock-detail-panel nosidebar'),
 			centeredEditor: corners(editor, 'panel-alignment-center dock-detail-panel'),
 			centeredPanelWithoutSidePane: corners(panel, 'panel-alignment-center dock-detail-panel noeditorpane'),
+			activityBar: corners(activityBar, 'nopanel noeditorpane session-activity-bar-column-visible'),
+			activityBarBesidePanel: corners(activityBar, 'session-activity-bar-column-visible'),
+			sessionsBesideActivityBar: corners(sessions, 'nopanel noeditorpane session-activity-bar-column-visible'),
+			sessionViewBesideActivityBar: corners(sessionView, `${connectedTabs} nopanel noeditorpane session-activity-bar-column-visible`),
+			editorBesideActivityBar: corners(editor, 'nopanel noauxiliarybar session-activity-bar-column-visible'),
+			panelBesideActivityBar: corners(panel, 'session-activity-bar-column-visible'),
 		}, {
 			sessions: ['8px', '8px', '12px', '8px'],
 			sessionsWithoutSidebar: ['8px', '8px', '12px', '12px'],
@@ -722,6 +730,12 @@ suite('Sessions - Workbench', () => {
 			centeredPanelWithoutSidebar: ['8px', '8px', '8px', '12px'],
 			centeredEditor: ['8px', '8px', '12px', '8px'],
 			centeredPanelWithoutSidePane: ['8px', '8px', '12px', '8px'],
+			activityBar: ['8px', '8px', '12px', '8px'],
+			activityBarBesidePanel: ['8px', '8px', '12px', '8px'],
+			sessionsBesideActivityBar: ['8px', '8px', '8px', '8px'],
+			sessionViewBesideActivityBar: ['7px', '7px', '7px', '7px'],
+			editorBesideActivityBar: ['8px', '8px', '8px', '8px'],
+			panelBesideActivityBar: ['8px', '8px', '8px', '8px'],
 		});
 	});
 
@@ -1334,9 +1348,10 @@ suite('Sessions - Workbench', () => {
 		column.setGap(8);
 		let visible = false;
 		let maximized = false;
+		const mainContainer = document.createElement('div');
 		const host = {
 			sessionActivityBarColumn: column,
-			mainContainer: mainWindow.document.body,
+			mainContainer,
 			_register: <T extends IDisposable>(disposable: T) => store.add(disposable),
 			workbenchGrid: {
 				hasMaximizedView: () => maximized,
@@ -1358,6 +1373,7 @@ suite('Sessions - Workbench', () => {
 		const beforeFrame = [...changes];
 		await nextFrame();
 		const shown = [...changes];
+		const classWhileShown = mainContainer.classList.contains('session-activity-bar-column-visible');
 		maximized = true;
 		column.setOccupied(second, false);
 		await nextFrame();
@@ -1367,8 +1383,10 @@ suite('Sessions - Workbench', () => {
 
 		column.dispose();
 
-		assert.deepStrictEqual({ beforeFrame, shown, whileMaximized, restored: changes, widths }, {
+		assert.deepStrictEqual({ beforeFrame, shown, whileMaximized, restored: changes, widths, classWhileShown, classWhenHidden: mainContainer.classList.contains('session-activity-bar-column-visible') }, {
 			widths: [8 + 34],
+			classWhileShown: true,
+			classWhenHidden: false,
 			beforeFrame: [],
 			shown: [true],
 			whileMaximized: [true],

@@ -91,6 +91,8 @@ import { AgentWorkbenchLayout, ISessionsHostLayoutService, ISessionsHostSidePane
 
 const PHONE_NOTIFICATION_ROW_HEIGHT = 44;
 const SESSIONS_SIDE_PANE_DIVIDER_CLASS = 'sessions-side-pane-divider';
+/** On the main container while the Session Activity Bar column shows. */
+const SESSION_ACTIVITY_BAR_COLUMN_VISIBLE_CLASS = 'session-activity-bar-column-visible';
 
 type SessionsWindowLayoutEvent = {
 	layout: string;
@@ -1752,6 +1754,8 @@ export abstract class Workbench extends Disposable implements IAgentWorkbenchLay
 			const visible = column.occupied.get();
 			if (!this.workbenchGrid.hasMaximizedView() && this.workbenchGrid.isViewVisible(column) !== visible) {
 				this.workbenchGrid.setViewVisible(column, visible);
+				// It is then the card in the bottom-right corner of the window; see `media/workbench.css`.
+				this.mainContainer.classList.toggle(SESSION_ACTIVITY_BAR_COLUMN_VISIBLE_CLASS, visible);
 				// It shows at the width it had when it hid, which the gap may have changed since.
 				if (visible) {
 					this.workbenchGrid.resizeView(column, { width: column.minimumWidth, height: this.workbenchGrid.getViewSize(column).height });
