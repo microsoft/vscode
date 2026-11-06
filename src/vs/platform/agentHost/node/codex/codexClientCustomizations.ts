@@ -13,7 +13,7 @@ import { AGENT_HOST_FILE_SCHEME, getAgentPluginCacheRevision, type ISyncedCustom
 import { CustomizationEnablementKind, type AgentSelection } from '../../common/state/protocol/state.js';
 import { CustomizationType, type ChildCustomization, type ClientPluginCustomization, type McpServerCustomization, type PluginCustomization } from '../../common/state/sessionState.js';
 import { readClientPluginMcpDefaultCwd, readClientPluginSourceUris } from '../../common/meta/clientPluginCustomizationMeta.js';
-import { getCustomizationSourceUri, toSourceCustomizations, withClientCustomizationUriOwners } from '../../common/syncedCustomizationUris.js';
+import { withClientCustomizationUriOwners } from '../../common/syncedCustomizationUris.js';
 import { isCustomizationEnabled } from '../../common/customizationEnablement.js';
 import { AGENT_HOST_FILE_LINK_INSTRUCTIONS } from '../shared/fileLinkInstructions.js';
 import { toCodexMcpServerJson, type ICodexMcpServerConfigJson } from './codexMcpServers.js';
@@ -157,7 +157,7 @@ export class CodexClientCustomizationStore {
 				...base,
 				clientId: plugin.clientId,
 				...(this._enablement.has(base.id) ? { enablement: [{ kind: CustomizationEnablementKind.Session, enabled: this._enablement.get(base.id)! }] } : {}),
-				...(children ? { children: toSourceCustomizations(children, plugin.synced, plugin.clientId!) } : {}),
+				...(children ? { children } : {}),
 			};
 		};
 		const contributions = [...this._byClient.values()].flatMap(plugins => plugins.map(project));
@@ -242,12 +242,12 @@ export async function codexCustomizationConfig(
 	let selectedAgentMatch = SelectedAgentMatch.None;
 	const selectedAgentUri = selectedAgent?.uri;
 	const pluginAgentMatches = new Map(plugins.flatMap(plugin => (plugin.parsed?.agents ?? []).map(agent =>
-		[agent, selectedAgentUri ? matchSelectedAgent(plugin, agent.uri, selectedAgentUri) : SelectedAgentMatch.None] as const)));
+		[agent, selectedAgentUri ? matchSelectedAgent(plugin, agent, selectedAgentUri) : SelectedAgentMatch.None] as const)));
 	const ambiguousFallback = [...pluginAgentMatches.values()].filter(match => match === SelectedAgentMatch.SyntheticBundleSource).length > 1;
 
 	const addAgent = async (agent: IParsedAgent, match: SelectedAgentMatch): Promise<void> => {
 		try {
-			const content = (await fileService.readFile(agent.uri)).value.toString();
+			const content = (await fileService.readFile(agent.materializedUri ?? agent.uri)).value.toString();
 			const frontmatter = parseFrontMatter(content);
 			const name = frontmatter?.getStringValue('name')?.trim() || agent.name;
 			const description = frontmatter?.getStringValue('description')?.trim() || agent.description || name;
@@ -286,11 +286,12 @@ export async function codexCustomizationConfig(
 
 		for (const instruction of plugin.parsed?.instructions ?? []) {
 			try {
-				const rule = await parseRuleFile(instruction.uri, fileService);
+				const materializedUri = instruction.materializedUri ?? instruction.uri;
+				const rule = await parseRuleFile(materializedUri, fileService);
 				if (!isAlwaysOnRule(rule.globs, rule.alwaysApply)) {
 					continue;
 				}
-				const content = (await fileService.readFile(instruction.uri)).value.toString();
+				const content = (await fileService.readFile(materializedUri)).value.toString();
 				const frontmatter = parseFrontMatter(content);
 				const body = frontmatter?.body ?? content;
 				if (body.trim()) {
@@ -326,11 +327,12 @@ const enum SelectedAgentMatch {
 	Exact,
 }
 
-function matchSelectedAgent(plugin: ICodexClientPlugin, agentUri: URI, selectedAgentUri: string): SelectedAgentMatch {
+function matchSelectedAgent(plugin: ICodexClientPlugin, agent: IParsedAgent, selectedAgentUri: string): SelectedAgentMatch {
 	const selectedUri = URI.parse(selectedAgentUri);
-	if (extUri.isEqual(getCustomizationSourceUri(agentUri, plugin.synced), selectedUri)) {
+	if (extUri.isEqual(agent.uri, selectedUri)) {
 		return SelectedAgentMatch.Exact;
 	}
+	const agentUri = agent.materializedUri ?? agent.uri;
 	if (extUri.isEqual(agentUri, selectedUri)) {
 		return SelectedAgentMatch.Legacy;
 	}
@@ -386,7 +388,7 @@ export function codexClientSkillInstructions(plugins: readonly ICodexClientPlugi
 	for (const plugin of plugins) {
 		for (const skill of plugin.parsed?.skills ?? []) {
 			if (!skill.disableModelInvocation) {
-				skillDescriptions.set(skill.uri.toString(), `- ${skill.name}: ${skill.description ?? skill.name} (file: ${skill.uri.fsPath})`);
+				skillDescriptions.set(skill.uri.toString(), `- ${skill.name}: ${skill.description ?? skill.name} (file: ${(skill.materializedUri ?? skill.uri).fsPath})`);
 			}
 		}
 	}

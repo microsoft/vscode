@@ -1846,7 +1846,7 @@ suite('getCopilotAgentSelectionName', () => {
 			format: PluginFormat.OpenPlugin, sourceUri, nonce: 'current', pluginDir: root,
 			agents: [
 				toParsedAgent({ uri: URI.joinPath(root, 'agents', 'Solo.agent.md'), name: 'Case-distinct Solo' }),
-				toParsedAgent({ uri, name: 'Solo' }),
+				{ ...toParsedAgent({ uri: URI.joinPath(sourceUri, 'agents/solo.agent.md'), name: 'Solo' }), materializedUri: uri },
 				...['first', 'second'].map(key => toParsedAgent({ uri: URI.joinPath(root, 'agents', key, 'reviewer.agent.md'), name: 'Reviewer' })),
 			],
 			skills: [], hooks: [], instructions: [], mcpServers: [],
@@ -1868,13 +1868,14 @@ suite('getCopilotAgentSelectionName', () => {
 				...snapshot,
 				plugins: [plugin, {
 					...plugin, nonce: 'another', pluginDir: secondRoot,
-					agents: [toParsedAgent({ uri: URI.joinPath(secondRoot, 'agents', 'solo.agent.md'), name: 'Solo' })],
+					sourceUri: URI.parse('client-customizations:/other-bundle'),
+					agents: [{ ...toParsedAgent({ uri: URI.parse('client-customizations:/other-bundle/agents/solo.agent.md'), name: 'Solo' }), materializedUri: URI.joinPath(secondRoot, 'agents/solo.agent.md') }],
 				}],
 			}, old, true),
 			outside: getCopilotAgentSelectionName(snapshot, URI.file('/cache/bundle/../agents/solo.agent.md').toString(), true),
 			opaqueHost: getCopilotAgentSelectionName(snapshot, 'other-host:/cache/bundle/previous/agents/solo.agent.md', true),
 		}, {
-			restored: { uri: URI.joinPath(sourceUri, 'agents/solo.agent.md').toString(), name: getSdkCustomAgentName(uri, plugin) },
+			restored: { uri: URI.joinPath(sourceUri, 'agents/solo.agent.md').toString(), name: getSdkCustomAgentName(URI.joinPath(sourceUri, 'agents/solo.agent.md')) },
 			liveChange: undefined, anotherSource: undefined, directHost: undefined, canonicalHost: undefined, ambiguousFile: undefined, ambiguousRevision: undefined,
 			outside: undefined, opaqueHost: undefined,
 		});
@@ -1901,7 +1902,7 @@ suite('getCopilotAgentSelectionName', () => {
 			const uri = URI.joinPath(root, 'agents/reviewer.agent.md');
 			const plugin = {
 				format: PluginFormat.OpenPlugin, sourceUri, nonce, pluginDir: root,
-				agents: [toParsedAgent({ uri, name: 'Reviewer' })],
+				agents: [{ ...toParsedAgent({ uri: URI.joinPath(sourceUri, 'agents/reviewer.agent.md'), name: 'Reviewer' }), materializedUri: uri }],
 				skills: [], hooks: [], instructions: [], mcpServers: [],
 			};
 			const snapshot = { plugins: [plugin], discoveredAgents: [], additionalRootInstructions: [] };
@@ -1914,7 +1915,7 @@ suite('getCopilotAgentSelectionName', () => {
 				old.with({ fragment: 'other' }),
 				old.with({ authority: 'other-host' }),
 			].map(selection => getCopilotAgentSelection(snapshot, selection.toString(), true)), [
-				{ uri: URI.joinPath(sourceUri, 'agents/reviewer.agent.md').toString(), name: getSdkCustomAgentName(uri, plugin) },
+				{ uri: URI.joinPath(sourceUri, 'agents/reviewer.agent.md').toString(), name: getSdkCustomAgentName(URI.joinPath(sourceUri, 'agents/reviewer.agent.md')) },
 				undefined, undefined, undefined, undefined, undefined,
 			]);
 		});
@@ -1931,7 +1932,7 @@ suite('getCopilotAgentSelectionName', () => {
 					format: PluginFormat.OpenPlugin, sourceUri, nonce: revision,
 					pluginDir: standalone ? undefined : root,
 					resourceDir: standalone ? root : undefined,
-					agents: [toParsedAgent({ uri, name: 'Friendly Reviewer' })],
+					agents: [{ ...toParsedAgent({ uri: URI.joinPath(sourceUri, 'agents/shared.agent.md'), name: 'Friendly Reviewer' }), materializedUri: uri }],
 					skills: [], hooks: [], instructions: [], mcpServers: [],
 				}],
 				discoveredAgents: [], additionalRootInstructions: [],
@@ -1952,9 +1953,8 @@ suite('getCopilotAgentSelectionName', () => {
 			const snapshot = {
 				plugins: [{
 					format: PluginFormat.OpenPlugin, sourceUri: URI.parse('synced:/bundle'),
-					sourceUris: Object.fromEntries(paths.map((path, index) => [path, sources[index]])),
 					nonce: revision, pluginDir: root,
-					agents: paths.map(path => toParsedAgent({ uri: URI.joinPath(root, path), name: 'Reviewer' })),
+					agents: paths.map((path, index) => ({ ...toParsedAgent({ uri: sources[index], name: 'Reviewer' }), materializedUri: URI.joinPath(root, path) })),
 					skills: [], hooks: [], instructions: [], mcpServers: [],
 				}],
 				discoveredAgents: [], additionalRootInstructions: [],

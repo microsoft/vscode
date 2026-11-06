@@ -50,7 +50,7 @@ import { IByokLmProxyService, type IByokLmProxyHandle } from './byokLmProxyServi
 import type { ICopilotMcpServerInfo, ICopilotPluginInfo } from './copilotAgent.js';
 import { CopilotGitHubSessionCredentials } from './copilotGitHubCredentials.js';
 import { reconcileCopilotConnectors, type ICopilotConnectorServers } from './copilotConnectors.js';
-import { getPluginResourceSourceUri, getSdkCustomAgentName, mapCopilotCustomAgentTools, toSdkClientToolName, toSdkCustomAgents, toSdkHooks, toSdkInstructionDirectories, toSdkMcpServers, toSdkMcpServersFromConfigMap, toSdkSkillDirectories, type ISdkCustomAgentResource } from './copilotPluginConverters.js';
+import { getSdkCustomAgentName, mapCopilotCustomAgentTools, toSdkClientToolName, toSdkCustomAgents, toSdkHooks, toSdkInstructionDirectories, toSdkMcpServers, toSdkMcpServersFromConfigMap, toSdkSkillDirectories, type ISdkCustomAgentResource } from './copilotPluginConverters.js';
 import { buildCopilotBuiltinAgents, COPILOT_BUILTIN_AGENT_NAMES } from './copilotBuiltinAgents.js';
 import { createCopilotSkillProvider } from './copilotBuiltinSkills.js';
 import { CopilotSessionWrapper, type ICopilotByokSessionConfig } from './copilotSessionWrapper.js';
@@ -248,7 +248,7 @@ function clientToolRegistrationNames(tools: readonly ToolDefinition[]): Readonly
 
 export function getCopilotCustomAgents(customizations: ICopilotAppliedCustomizations): readonly (IParsedAgent & ISdkCustomAgentResource)[] {
 	return [
-		...customizations.plugins.flatMap(plugin => plugin.agents.map(agent => ({ ...agent, sourceUri: getPluginResourceSourceUri(agent.uri, plugin), sdkName: getSdkCustomAgentName(agent.uri, plugin) }))),
+		...customizations.plugins.flatMap(plugin => plugin.agents.map(agent => ({ ...agent, sdkName: getSdkCustomAgentName(agent.uri) }))),
 		...customizations.discoveredAgents,
 	].filter(agent => !COPILOT_BUILTIN_AGENT_NAMES.has(agent.name));
 }
@@ -260,9 +260,9 @@ export function getCopilotAgentSelection(customizations: ICopilotAppliedCustomiz
 		return { uri, name: native.id };
 	}
 	const agents = getCopilotCustomAgents(customizations);
-	const forwarded = agents.find(agent => isEqual(agent.sourceUri ?? agent.uri, resource) || isEqual(agent.uri, resource));
+	const forwarded = agents.find(agent => isEqual(agent.uri, resource) || isEqual(agent.materializedUri, resource));
 	if (forwarded) {
-		return { uri: (forwarded.sourceUri ?? forwarded.uri).toString(), name: forwarded.sdkName ?? getSdkCustomAgentName(forwarded.uri) };
+		return { uri: forwarded.uri.toString(), name: forwarded.sdkName ?? getSdkCustomAgentName(forwarded.uri) };
 	}
 	if (!restoreLegacyFlatSelection || resource.scheme !== Schemas.file || resource.query || resource.fragment) {
 		return undefined;
@@ -281,10 +281,10 @@ export function getCopilotAgentSelection(customizations: ICopilotAppliedCustomiz
 			continue;
 		}
 		const current = joinPath(root, ...parts.slice(1));
-		const agent = agents.find(candidate => isEqual(candidate.uri, current));
+		const agent = plugin.agents.find(candidate => isEqual(candidate.materializedUri ?? candidate.uri, current));
 		if (agent) {
 			matches.set(getComparisonKey(agent.uri), {
-				uri: (agent.sourceUri ?? agent.uri).toString(), name: agent.sdkName ?? getSdkCustomAgentName(agent.uri),
+				uri: agent.uri.toString(), name: getSdkCustomAgentName(agent.uri),
 			});
 		}
 	}

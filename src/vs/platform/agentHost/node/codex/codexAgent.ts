@@ -57,7 +57,7 @@ import { applyMcpServerRuntimeStates, McpCustomizationController } from '../shar
 import { buildCodexMcpReadResult, CodexMcpInventory, codexMcpListToInventory, codexMcpServersFromConfig, codexMcpToolsChanged, codexStartupErrorNeedsAuth, injectCodexMcpAuthTokens, inventoryToSdkServers, normalizeCodexMcpResourceUrl, toCodexMcpServerJson, translateCodexMcpStartupState, type ICodexMcpAuthToken, type ICodexMcpServerConfigJson } from './codexMcpServers.js';
 import { codexHooksToContainers, codexSelectedCapabilityRootCandidates, codexSkillsToContainers, discoverCodexWorkspaceAgents, discoverCodexWorkspaceInstructions, discoverCodexWorkspaceSkills, excludeCodexWorkspaceSkillDuplicates } from './codexCustomizations.js';
 import { CodexClientCustomizationStore, codexAgentRoleToml, codexClientSkillInstructions, codexCustomizationConfig, codexMcpServersFromDefinitions, codexMcpServersFromPlugins, codexPluginMcpServerSources, parsedPluginChildren, type ICodexClientPlugin } from './codexClientCustomizations.js';
-import { toSourceCustomizations } from '../../common/syncedCustomizationUris.js';
+import { parseSyncedPlugin } from '../../common/syncedCustomizationUris.js';
 import { IAgentHostCustomizationEnablementService, targetForUnownedMcpServer } from '../agentHostCustomizationEnablementService.js';
 import { isCustomizationSdkEligible, resolveCustomizationEnablement, targetForMcpServer } from '../shared/customizationEnablementGate.js';
 import { isCustomizationEnabled } from '../../common/customizationEnablement.js';
@@ -71,7 +71,6 @@ import { computeFolderPickerDecisionForRoots } from '../shared/folderPickerDecis
 import { codexDirectoryHasHooks } from './codexFolderPickerCriteria.js';
 import { INativeEnvironmentService } from '../../../environment/common/environment.js';
 import { IAgentPluginManager, type ISyncedCustomization } from '../../common/agentPluginManager.js';
-import { parsePlugin } from '../../../agentPlugins/common/pluginParsers.js';
 import { SessionMcpDiscovery } from '../shared/sessionMcpDiscovery.js';
 import { IAgentHostGitHubEndpointService } from '../agentHostGitHubEndpointService.js';
 import { IAgentHostSessionTitleSignal } from '../agentHostSessionTitleSignal.js';
@@ -2266,7 +2265,7 @@ export class CodexAgent extends Disposable implements IAgent {
 		const plugins = session.clientCustomizations.plugins();
 		const candidates = plugins.map(plugin => ({
 			...plugin.synced.customization,
-			...(plugin.parsed ? { children: toSourceCustomizations(parsedPluginChildren(plugin.parsed), plugin.synced, plugin.clientId!) } : {}),
+			...(plugin.parsed ? { children: parsedPluginChildren(plugin.parsed) } : {}),
 		}));
 		const clientPlugins = new Map<string, ClientPluginCustomization>();
 		const childEnablement = new Map<string, NonNullable<ClientPluginCustomization['childEnablement']>>();
@@ -8430,8 +8429,8 @@ export class CodexAgent extends Disposable implements IAgent {
 			return { synced, parsed: undefined, input };
 		}
 		try {
-			const parsed = await parsePlugin(synced.pluginDir, this._fileService, session.workingDirectory, this._environmentService.userHome, synced.pluginDir);
-			const candidate = { ...synced.customization, children: toSourceCustomizations(parsedPluginChildren(parsed), synced, clientId) };
+			const parsed = await parseSyncedPlugin(synced, clientId, this._fileService, session.workingDirectory, this._environmentService.userHome);
+			const candidate = { ...synced.customization, children: parsedPluginChildren(parsed) };
 			const clientPlugins = input ? new Map([[input.uri, input]]) : undefined;
 			const resolution = resolveCustomizationEnablement(this._customizationEnablementService, session.owner.get(), [candidate], input?.childEnablement ? new Map([[input.uri, input.childEnablement]]) : undefined, clientPlugins);
 			const resolved = resolution.customizations[0];

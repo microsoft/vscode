@@ -21,7 +21,6 @@ import { CLAUDE_BUILTIN_AGENTS, buildClaudeBuiltinSkillsContainer, buildSdkBuilt
 import { distinctClaudeWorkingDirectories } from './claudeMultiRootCustomizationDiscovery.js';
 import { findMostSpecificClaudeWorkspaceRoot } from './claudeCustomizationPolicy.js';
 import type { ISyncedCustomization } from '../../../common/agentPluginManager.js';
-import { getCustomizationSourceUri } from '../../../common/syncedCustomizationUris.js';
 
 /**
  * The Claude SDK's built-in default agent. Hidden from the picker:
@@ -216,13 +215,12 @@ export async function resolveClaudeAgentName(
 	if (!agent) {
 		return undefined;
 	}
-	let uri = URI.parse(agent.uri);
+	const uri = URI.parse(agent.uri);
 	for (const item of synced) {
 		const child = item.customization.children?.find(child => child.type === CustomizationType.Agent
-			&& isEqual(getCustomizationSourceUri(URI.parse(child.uri), item), uri));
+			&& isEqual(URI.parse(child.uri), uri));
 		if (child) {
-			uri = URI.parse(child.uri);
-			break;
+			return child.name;
 		}
 	}
 

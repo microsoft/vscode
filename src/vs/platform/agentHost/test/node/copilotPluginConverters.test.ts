@@ -18,6 +18,8 @@ import { toCopilotMcpServerConfiguration } from '../../../mcp/common/mcpCopilotC
 import { getSdkCustomAgentName, mapCopilotCustomAgentTools, toSdkInstructionDirectories, toSdkMcpServers, toSdkCustomAgents, toSdkSessionCustomAgents, toSdkSkillDirectories, findRelocatedAgentName, parsedPluginsEqual, toSdkHooks, type IPluginAgentsForSdk } from '../../node/copilot/copilotPluginConverters.js';
 import { PluginFormat, toParsedAgent, type IMcpServerDefinition, type INamedPluginResource, type IParsedHookGroup, type IParsedPlugin, type IParsedSkill } from '../../../agentPlugins/common/pluginParsers.js';
 import { CustomizationType, McpServerStatus, type HookCustomization, type McpServerCustomization, type SkillCustomization } from '../../common/state/protocol/state.js';
+import { parseSyncedPlugin } from '../../common/syncedCustomizationUris.js';
+import { toClientPluginSourceUrisMeta } from '../../common/meta/clientPluginCustomizationMeta.js';
 
 function stubMcpCustomization(name = 'test'): McpServerCustomization {
 	return { type: CustomizationType.McpServer, id: `mcp:${name}`, uri: 'file:///plugin', name, state: { kind: McpServerStatus.Starting } };
@@ -36,6 +38,36 @@ suite('copilotPluginConverters', () => {
 
 	setup(() => {
 		fileService = createInMemoryFileService(disposables, Schemas.inMemory);
+	});
+
+	test('reads parsed materialized files while keeping canonical SDK agent identity', async () => {
+		const root = URI.from({ scheme: Schemas.inMemory, path: '/cache/plugin' });
+		const source = URI.parse('vscode-remote://client/plugins/review');
+		await fileService.writeFile(URI.joinPath(root, 'plugin.json'), VSBuffer.fromString('{}'));
+		await fileService.writeFile(URI.joinPath(root, 'agents/reviewer.md'), VSBuffer.fromString('---\nname: Reviewer\n---\nReview the changes'));
+		await fileService.writeFile(URI.joinPath(root, 'skills/review/SKILL.md'), VSBuffer.fromString('Review changes'));
+		await fileService.writeFile(URI.joinPath(root, 'rules/review.instructions.md'), VSBuffer.fromString('Be thorough'));
+		const parsed = await parseSyncedPlugin({
+			pluginDir: root,
+			customization: {
+				type: CustomizationType.Plugin, id: 'plugin', uri: 'synced:/plugin', name: 'Plugin',
+				_meta: toClientPluginSourceUrisMeta({ root: source, files: {} }),
+			},
+		}, 'owner', fileService, undefined, URI.file('/home'));
+		const agents = await toSdkCustomAgents(parsed.agents, fileService);
+		assert.deepStrictEqual({
+			source: parsed.agents[0].uri.toString(),
+			name: agents[0]?.name,
+			prompt: agents[0]?.prompt,
+			skills: toSdkSkillDirectories(parsed.skills),
+			instructions: toSdkInstructionDirectories(parsed.instructions),
+		}, {
+			source: URI.joinPath(source, 'agents/reviewer.md').toString(),
+			name: getSdkCustomAgentName(URI.joinPath(source, 'agents/reviewer.md')),
+			prompt: 'Review the changes',
+			skills: [URI.joinPath(root, 'skills/review').fsPath],
+			instructions: [URI.joinPath(root, 'rules').fsPath],
+		});
 	});
 
 
@@ -1108,7 +1140,7 @@ suite('copilotPluginConverters', () => {
 
 		function relocatedPlugin(path: string) {
 			const pluginDir = URI.file(path);
-			const resource = (name: string) => ({ uri: URI.joinPath(pluginDir, name), name });
+			const resource = (name: string) => ({ uri: URI.joinPath(URI.parse('client-plugin:/logical-source'), name), materializedUri: URI.joinPath(pluginDir, name), name });
 			return {
 				...makePlugin(),
 				pluginDir,
@@ -1176,7 +1208,7 @@ suite('copilotPluginConverters', () => {
 				findRelocatedAgentName([applied], [{ ...published, nonce: 'changed-resource-body' }], agentUri),
 				findRelocatedAgentName([applied], [published], 'file:///unknown.agent.md'),
 				findRelocatedAgentName([applied], [{ ...makePlugin(), pluginDir: URI.file('/workspace') }, published], agentUri),
-			], [getSdkCustomAgentName(applied.agents[0].uri, applied), undefined, undefined, getSdkCustomAgentName(applied.agents[0].uri, applied)]);
+			], [getSdkCustomAgentName(applied.agents[0].uri), undefined, undefined, getSdkCustomAgentName(applied.agents[0].uri)]);
 		});
 
 		test('does not confuse different plugin sources with identical content during relocation', () => {
@@ -1186,7 +1218,7 @@ suite('copilotPluginConverters', () => {
 			assert.deepStrictEqual({
 				equal: parsedPluginsEqual([first], [second]),
 				selected: findRelocatedAgentName([first, second], [published], published.agents[0].uri.toString()),
-			}, { equal: false, selected: getSdkCustomAgentName(second.agents[0].uri, second) });
+			}, { equal: false, selected: getSdkCustomAgentName(second.agents[0].uri) });
 		});
 
 		test('does not normalize logical agent identities that also match the materialized root', () => {

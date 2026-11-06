@@ -11,7 +11,7 @@ import { URI } from '../../../../../base/common/uri.js';
 import { autorun, IObservable, ISettableObservable, observableValueOpts } from '../../../../../base/common/observable.js';
 import type { ISyncedCustomization } from '../../../common/agentPluginManager.js';
 import type { ClientPluginCustomization } from '../../../common/state/sessionState.js';
-import { toSourceCustomizations, withClientCustomizationUriOwners } from '../../../common/syncedCustomizationUris.js';
+import { withClientCustomizationUriOwners } from '../../../common/syncedCustomizationUris.js';
 
 /**
  * Per-session **client-pushed** customization snapshot. Server-side
@@ -73,7 +73,6 @@ export class SessionClientCustomizationsModel {
 		const contributions = [...this._byClient].flatMap(([clientId, items]) => items.map(item => ({
 			...item.customization,
 			clientId,
-			...(item.customization.children ? { children: toSourceCustomizations(item.customization.children, item, clientId) } : {}),
 		})));
 		const sources = result.map((item, index) => {
 			const customization = contributions.find(candidate => candidate.id === item.customization.id && candidate.clientId === clientIds[index])!;

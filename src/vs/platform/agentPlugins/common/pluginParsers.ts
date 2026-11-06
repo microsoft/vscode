@@ -64,8 +64,15 @@ export namespace IParsedHookCommand {
 	}
 }
 
+interface IPluginResourceLocation {
+	/** Source identity, never a synced cache path. */
+	readonly uri: URI;
+	/** Local file used for SDK reads; never the public customization identity. */
+	readonly materializedUri?: URI;
+}
+
 /** A group of hooks for a single lifecycle event. */
-export interface IParsedHookGroup {
+export interface IParsedHookGroup extends IPluginResourceLocation {
 	/** Canonical hook type identifier (e.g. `'SessionStart'`, `'PreToolUse'`). */
 	readonly type: string;
 	/** The commands to execute for this hook type. */
@@ -82,7 +89,7 @@ export interface IParsedHookGroup {
 	readonly customization: HookCustomization;
 }
 
-export interface IMcpServerDefinition {
+export interface IMcpServerDefinition extends IPluginResourceLocation {
 	readonly name: string;
 	readonly configuration: IMcpServerConfiguration;
 	readonly defaultCwd?: URI;
@@ -92,8 +99,7 @@ export interface IMcpServerDefinition {
 }
 
 /** A named resource (skill, agent, command, or instruction) within a plugin. */
-export interface INamedPluginResource {
-	readonly uri: URI;
+export interface INamedPluginResource extends IPluginResourceLocation {
 	readonly name: string;
 	/**
 	 * Optional short description, populated for resources whose readers

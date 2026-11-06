@@ -9,6 +9,44 @@ import { AGENT_HOST_FILE_SCHEME, AUTOMATION_ACTIVE_CLIENT_ID, type ISyncedCustom
 import { Schemas } from '../../../base/common/network.js';
 import { readClientPluginSourceUris, readCustomizationUriClientIds, toCustomizationUriClientIdsMeta, toCustomizationUriClientMeta, type IClientPluginSourceUris } from './meta/clientPluginCustomizationMeta.js';
 import { CustomizationType, type ChildCustomization, type Customization } from './state/sessionState.js';
+import { parsePlugin, type IParsedPlugin } from '../../agentPlugins/common/pluginParsers.js';
+import { IFileService } from '../../files/common/files.js';
+
+/** Parses materialized content once, retaining local paths only for SDK operations. */
+export async function parseSyncedPlugin(synced: ISyncedCustomization, clientId: string, fileService: IFileService, workspaceRoot: URI | undefined, userHome: URI, options?: { readonly deduplicateAgentsByName?: boolean }): Promise<IParsedPlugin> {
+	const pluginDir = synced.pluginDir;
+	if (!pluginDir) {
+		throw new Error(`Plugin '${synced.customization.uri}' has not been materialized`);
+	}
+	const parsed = await parsePlugin(pluginDir, fileService, workspaceRoot, userHome, pluginDir, options);
+	if (clientId === AUTOMATION_ACTIVE_CLIENT_ID) {
+		return parsed;
+	}
+	const sources = readClientPluginSourceUris(synced.customization);
+	const project = <T extends { readonly uri: URI; readonly customization: ChildCustomization }>(resource: T): T => {
+		if (!isEqualOrParent(resource.uri, pluginDir, true)) {
+			return resource;
+		}
+		return {
+			...resource,
+			uri: sourceUri(resource.uri, synced, sources),
+			materializedUri: resource.uri,
+			customization: {
+				...resource.customization,
+				uri: sourceUri(URI.parse(resource.customization.uri), synced, sources).toString(),
+				_meta: { ...resource.customization._meta, ...toCustomizationUriClientMeta(clientId) },
+			},
+		};
+	};
+	return {
+		...parsed,
+		agents: parsed.agents.map(project),
+		skills: parsed.skills.map(project),
+		instructions: parsed.instructions.map(project),
+		hooks: parsed.hooks.map(project),
+		mcpServers: parsed.mcpServers.map(project),
+	};
+}
 
 /** Resolves a materialized file to its source identity, without exposing the cache location. */
 export function getCustomizationSourceUri(resource: URI, synced: ISyncedCustomization): URI {
@@ -29,25 +67,6 @@ function sourceUri(resource: URI, synced: ISyncedCustomization, sources: IClient
 	}
 	const source = Object.hasOwn(sources.files, path) ? sources.files[path] : joinPath(root, path);
 	return resource.fragment ? source.with({ fragment: resource.fragment }) : source;
-}
-
-/** Publishes source identities only for files actually contained in the materialized plugin. */
-export function toSourceCustomizations(children: readonly ChildCustomization[], synced: ISyncedCustomization, clientId: string): ChildCustomization[] {
-	if (clientId === AUTOMATION_ACTIVE_CLIENT_ID) {
-		return [...children];
-	}
-	const sources = readClientPluginSourceUris(synced.customization);
-	return children.map(child => {
-		const resource = URI.parse(child.uri);
-		if (!synced.pluginDir || !isEqualOrParent(resource, synced.pluginDir, true)) {
-			return child;
-		}
-		return {
-			...child,
-			uri: sourceUri(resource, synced, sources).toString(),
-			_meta: { ...child._meta, ...toCustomizationUriClientMeta(clientId) },
-		};
-	});
 }
 
 /** Retains explicit source ownership when runtime deduplication chooses another client's copy. */

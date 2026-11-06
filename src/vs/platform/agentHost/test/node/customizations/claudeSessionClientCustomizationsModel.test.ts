@@ -10,7 +10,7 @@ import type { ISyncedCustomization } from '../../../common/agentPluginManager.js
 import { CustomizationLoadStatus, CustomizationType, customizationId } from '../../../common/state/sessionState.js';
 import { CustomizationEnablementKind, type CustomizationEnablement } from '../../../common/state/protocol/state.js';
 import { SessionClientCustomizationsDiff } from '../../../node/claude/customizations/claudeSessionClientCustomizationsModel.js';
-import { readCustomizationUriClientId, readCustomizationUriClientIds, toClientPluginSourceUrisMeta } from '../../../common/meta/clientPluginCustomizationMeta.js';
+import { readCustomizationUriClientId, readCustomizationUriClientIds, toClientPluginSourceUrisMeta, toCustomizationUriClientMeta } from '../../../common/meta/clientPluginCustomizationMeta.js';
 
 function synced(uri: string, opts: { dir?: string; enabled?: boolean; nonce?: string; name?: string; enablement?: readonly CustomizationEnablement[]; childEnablement?: Readonly<Record<string, readonly CustomizationEnablement[]>> } = {}): ISyncedCustomization {
 	return {
@@ -32,6 +32,13 @@ function synced(uri: string, opts: { dir?: string; enabled?: boolean; nonce?: st
 	};
 }
 
+function withClientOwner(item: ISyncedCustomization, clientId: string): ISyncedCustomization {
+	return {
+		...item,
+		customization: { ...item.customization, children: item.customization.children?.map(child => ({ ...child, _meta: toCustomizationUriClientMeta(clientId) })) },
+	};
+}
+
 suite('SessionClientCustomizationsDiff', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
@@ -41,7 +48,7 @@ suite('SessionClientCustomizationsDiff', () => {
 		assert.strictEqual(diff.hasDifference, false);
 	});
 
-	test('publishes canonical client source children while retaining runtime paths and enablement', () => {
+	test('publishes already-canonical parsed children while retaining runtime directories and enablement', () => {
 		const diff = disposables.add(new SessionClientCustomizationsDiff());
 		const item = synced('vscode-synced-customization:/bundle', { dir: '/cache/plugin' });
 		const source = URI.file('/workspace/.github/agents/reviewer.md');
@@ -49,22 +56,22 @@ suite('SessionClientCustomizationsDiff', () => {
 			type: CustomizationType.Agent as const,
 			id: 'agent:reviewer',
 			name: 'Reviewer',
-			uri: URI.file('/cache/plugin/agents/reviewer.md').toString(),
+			uri: source.toString(),
 			enabled: false,
 		};
 		item.customization.children = [child];
 		item.customization._meta = toClientPluginSourceUrisMeta({ files: { 'agents/reviewer.md': source } });
-		diff.model.setSyncedCustomizations('owner', [item]);
+		diff.model.setSyncedCustomizations('owner', [withClientOwner(item, 'owner')]);
 		const published = diff.model.getSourceCustomizations()[0].customization.children![0];
 
 		assert.deepStrictEqual({
 			published: { ...published, _meta: undefined },
 			owner: readCustomizationUriClientId(published),
-			runtime: diff.model.state.get().synced[0].customization.children,
+			runtime: diff.model.state.get().synced[0].pluginDir?.toString(),
 		}, {
 			published: { ...child, uri: source.toString(), _meta: undefined },
 			owner: 'owner',
-			runtime: [child],
+			runtime: URI.file('/cache/plugin').toString(),
 		});
 	});
 
@@ -89,8 +96,8 @@ suite('SessionClientCustomizationsDiff', () => {
 		const diff = disposables.add(new SessionClientCustomizationsDiff());
 		const item = synced('https://plugin', { dir: '/cache/plugin' });
 		item.customization.children = [{ type: CustomizationType.Agent, id: 'agent', name: 'Agent', uri: URI.file('/cache/plugin/agents/a.md').toString() }];
-		diff.model.setSyncedCustomizations('first', [item]);
-		diff.model.setSyncedCustomizations('second', [item]);
+		diff.model.setSyncedCustomizations('first', [withClientOwner(item, 'first')]);
+		diff.model.setSyncedCustomizations('second', [withClientOwner(item, 'second')]);
 		diff.consume([]);
 		diff.model.removeClient('first');
 		const child = diff.model.getSourceCustomizations()[0].customization.children![0];
@@ -102,9 +109,9 @@ suite('SessionClientCustomizationsDiff', () => {
 		const diff = disposables.add(new SessionClientCustomizationsDiff());
 		const item = synced('synced:/bundle', { dir: '/cache/plugin' });
 		item.customization.children = [{ type: CustomizationType.Agent, id: 'agent', name: 'Agent', uri: URI.file('/cache/plugin/agents/a.md').toString() }];
-		diff.model.setSyncedCustomizations('first', [item]);
+		diff.model.setSyncedCustomizations('first', [withClientOwner(item, 'first')]);
 		diff.consume([]);
-		diff.model.setSyncedCustomizations('second', [item]);
+		diff.model.setSyncedCustomizations('second', [withClientOwner(item, 'second')]);
 		const published = diff.model.getSourceCustomizations();
 		assert.deepStrictEqual({
 			changed: diff.hasDifference,

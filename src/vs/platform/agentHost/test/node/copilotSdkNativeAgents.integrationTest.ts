@@ -114,7 +114,7 @@ suite('Copilot SDK - native agent launch', function () {
 					before, after: (await wrapper.session.rpc.agent.getCurrent()).agent?.id, opens,
 					restoredResource: getCopilotAgentSelection(snapshot, savedUri, true)?.uri,
 				}, {
-					before: 'Reviewer', after: getSdkCustomAgentName(uri, snapshot.plugins[0]), opens: ['create', 'resume'],
+					before: 'Reviewer', after: getSdkCustomAgentName(uri), opens: ['create', 'resume'],
 					restoredResource: uri.toString(),
 				});
 			} finally {
@@ -179,7 +179,7 @@ suite('Copilot SDK - native agent launch', function () {
 					})),
 					additionalRootInstructions: [], tools: [], mcpServers: {},
 				};
-				const sdkNames = uris.map((uri, index) => getSdkCustomAgentName(uri, snapshot.plugins[sharedBundle ? 0 : index]));
+				const sdkNames = uris.map(uri => getSdkCustomAgentName(uri));
 				const shared = {
 					client, sessionId, workingDirectory: URI.file(home), snapshot,
 					resolvedAgentName: getCopilotAgentSelectionName(snapshot, uris[0].toString()),

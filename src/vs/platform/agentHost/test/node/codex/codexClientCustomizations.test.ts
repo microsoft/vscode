@@ -14,7 +14,7 @@ import { createInMemoryFileService } from '../../../../files/test/common/inMemor
 import { PluginFormat, type IMcpServerDefinition, type IParsedAgent, type IParsedPlugin, type IParsedRule, type IParsedSkill } from '../../../../agentPlugins/common/pluginParsers.js';
 import { McpServerType, type IMcpServerConfiguration } from '../../../../mcp/common/mcpPlatformTypes.js';
 import { SYNCED_CUSTOMIZATION_SCHEME } from '../../../common/agentHostFileSystemService.js';
-import { readCustomizationUriClientId, readCustomizationUriClientIds, toClientPluginMcpDefaultCwdsMeta, toClientPluginSourceUrisMeta } from '../../../common/meta/clientPluginCustomizationMeta.js';
+import { readCustomizationUriClientId, readCustomizationUriClientIds, toClientPluginMcpDefaultCwdsMeta, toClientPluginSourceUrisMeta, toCustomizationUriClientMeta } from '../../../common/meta/clientPluginCustomizationMeta.js';
 import type { ISyncedCustomization } from '../../../common/agentPluginManager.js';
 import { CustomizationType, McpServerStatus, type PluginCustomization } from '../../../common/state/protocol/channels-session/state.js';
 import { CODEX_FILE_LINK_INSTRUCTIONS, CodexClientCustomizationStore, codexAgentRoleToml, codexClientSkillInstructions, codexCustomizationConfig, codexMcpServersFromPlugins, type ICodexClientPlugin } from '../../../node/codex/codexClientCustomizations.js';
@@ -41,8 +41,8 @@ suite('codexClientCustomizations', () => {
 		return { uri, name, description: `${name} desc`, customization: { type: CustomizationType.Skill, id: `skill:${name}`, uri: uri.toString(), name } };
 	}
 
-	function agentDef(uri: URI, name: string): IParsedAgent {
-		return { uri, name, customization: { type: CustomizationType.Agent, id: `agent:${name}`, uri: uri.toString(), name } };
+	function agentDef(uri: URI, name: string, materializedUri?: URI, clientId?: string): IParsedAgent {
+		return { uri, name, materializedUri, customization: { type: CustomizationType.Agent, id: `agent:${name}`, uri: uri.toString(), name, ...(clientId ? { _meta: toCustomizationUriClientMeta(clientId) } : {}) } };
 	}
 
 	function instructionDef(uri: URI, name: string): IParsedRule {
@@ -93,9 +93,9 @@ suite('codexClientCustomizations', () => {
 
 	test('publishes canonical client source children without changing parsed runtime paths', () => {
 		const store = new CodexClientCustomizationStore();
-		const agent = agentDef(URI.file('/cache/plugin/agents/agent.md'), 'Agent');
-		const clientPlugin = plugin('p', '/cache/plugin', parsed({ agents: [agent] }));
 		const source = URI.file('/workspace/.github/agents/original.md');
+		const agent = agentDef(source, 'Agent', URI.file('/cache/plugin/agents/agent.md'), 'owner');
+		const clientPlugin = plugin('p', '/cache/plugin', parsed({ agents: [agent] }));
 		clientPlugin.synced.customization._meta = toClientPluginSourceUrisMeta({ files: { 'agents/agent.md': source } });
 		store.setClient('owner', [clientPlugin]);
 		store.setEnabled('p', false);
@@ -105,20 +105,21 @@ suite('codexClientCustomizations', () => {
 			enabled: isCustomizationEnabled(published),
 			uri: published.children![0].uri,
 			owner: readCustomizationUriClientId(published.children![0]),
-			runtime: store.plugins()[0].parsed!.agents[0].uri,
+			runtime: store.plugins()[0].parsed!.agents[0].materializedUri,
 		}, {
 			enabled: false,
 			uri: source.toString(),
 			owner: 'owner',
-			runtime: agent.uri,
+			runtime: agent.materializedUri,
 		});
 	});
 
 	test('deduplicates runtime plugins without losing a second client source owner', () => {
 		const store = new CodexClientCustomizationStore();
-		const shared = plugin('shared', '/cache/plugin', parsed({ agents: [agentDef(URI.file('/cache/plugin/agents/a.md'), 'Agent')] }));
-		store.setClient('first', [shared]);
-		store.setClient('second', [shared]);
+		for (const owner of ['first', 'second']) {
+			const shared = plugin('shared', '/cache/plugin', parsed({ agents: [agentDef(URI.file('/source/agents/a.md'), 'Agent', URI.file('/cache/plugin/agents/a.md'), owner)] }));
+			store.setClient(owner, [shared]);
+		}
 		const published = store.toCustomizations();
 		const owners = readCustomizationUriClientIds(published[0].children![0]);
 		store.removeClient('first');
@@ -372,12 +373,12 @@ suite('codexClientCustomizations', () => {
 						_meta: toClientPluginSourceUrisMeta({ files: { 'agents/reviewer.agent.md': source } }),
 					},
 				},
-				parsed: parsed({ agents: [agentDef(agentUri, id)] }),
+				parsed: parsed({ agents: [agentDef(source, id, agentUri, 'owner')] }),
 			});
 		}
 		const results = await Promise.all([
 			selectedUri,
-			plugins[1].parsed!.agents[0].uri,
+			plugins[1].parsed!.agents[0].materializedUri!,
 			URI.file('/unrelated/reviewer.agent.md'),
 		].map(async uri => (await codexCustomizationConfig([], plugins, { uri: uri.toString() }, fileService)).developerInstructions));
 		assert.deepStrictEqual(results, [

@@ -49,7 +49,8 @@ import { discoverClaudeMultiRootCustomizations } from './customizations/claudeMu
 import { resolvePromptToContentBlocks } from './claudePromptResolver.js';
 import type { ClaudeTransport } from './claudeProxyService.js';
 import { SessionMcpDiscovery } from '../shared/sessionMcpDiscovery.js';
-import { parsePlugin, type IMcpServerDefinition } from '../../../agentPlugins/common/pluginParsers.js';
+import { type IMcpServerDefinition } from '../../../agentPlugins/common/pluginParsers.js';
+import { parseSyncedPlugin } from '../../common/syncedCustomizationUris.js';
 import { hasClientPluginMcpDefaultCwds, readClientPluginMcpDefaultCwd } from '../../common/meta/clientPluginCustomizationMeta.js';
 import { ClaudeSdkPipeline, IRematerializer, type ISdkResolvedCustomizations } from './claudeSdkPipeline.js';
 import { SubagentRegistry } from './claudeSubagentRegistry.js';
@@ -925,7 +926,7 @@ export class ClaudeAgentSession extends Disposable implements IRematerializer {
 				continue;
 			}
 			try {
-				const parsed = await parsePlugin(synced.pluginDir, this._fileService, primaryCwd, this._environmentService.userHome, synced.pluginDir);
+				const parsed = await parseSyncedPlugin(synced, synced.customization.clientId!, this._fileService, primaryCwd, this._environmentService.userHome);
 				if (gitHubMcpServerConfiguration && parsed.mcpServers.some(definition => isGitHubMcpServerDefinition(definition, gitHubMcpServerConfiguration))) {
 					hasGitHubMcpServer = true;
 				}
@@ -1628,7 +1629,7 @@ export class ClaudeAgentSession extends Disposable implements IRematerializer {
 		const desiredById = new Map(resolved.customizations
 			.filter(customization => isCustomizationSdkEligible(resolved, customization))
 			.map(customization => [customization.id, customization.type === CustomizationType.Directory ? customization.enabled : isCustomizationEnabled(customization)]));
-		return this.clientCustomizationsDiff.model.state.get().synced.filter(synced =>
+		return this.clientCustomizationsDiff.model.getSourceCustomizations().filter(synced =>
 			(desiredById.get(synced.customization.id) ?? isCustomizationEnabled(synced.customization)) !== false
 		);
 	}

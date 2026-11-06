@@ -18,6 +18,7 @@ import { customizationId, type PluginCustomization } from '../../../common/state
 import type { ISdkResolvedCustomizations } from '../../../node/claude/claudeSdkPipeline.js';
 import { ClaudeCustomizationWatcher, buildDiscoveredCustomizations, mapDiscoveredCustomizations, resolveClaudeAgentName } from '../../../node/claude/customizations/claudeSessionCustomizationDiscovery.js';
 import { toClientPluginSourceUrisMeta } from '../../../common/meta/clientPluginCustomizationMeta.js';
+import { parseSyncedPlugin } from '../../../common/syncedCustomizationUris.js';
 import { CLAUDE_BUILTIN_AGENTS } from '../../../node/claude/customizations/claudeBuiltinCommands.js';
 import type { IResolvedNativePlugin } from '../../../node/claude/customizations/scan/claudeNativePluginScan.js';
 import { claudeTestUserHome as userHome, claudeTestWorkspace as workspace, seedFile } from './claudeCustomizationTestUtils.js';
@@ -546,7 +547,7 @@ suite('claudeSessionCustomizationDiscovery', () => {
 			assert.strictEqual(await resolveClaudeAgentName(sel(file.toString()), fileService, log, 'sid'), 'my-real-agent');
 		});
 
-		test('canonical client source selection reads the materialized agent frontmatter', async () => {
+		test('canonical client source selection uses the parsed name without reading the client filesystem', async () => {
 			const file = await seed('/cache/plugin/agents/renamed.md', '---\nname: actual-sdk-name\ndescription: d\n---\nbody');
 			const source = URI.file('/client/.github/agents/original.agent.md');
 			const customization = {
@@ -555,11 +556,12 @@ suite('claudeSessionCustomizationDiscovery', () => {
 				uri: 'vscode-synced-customization:/bundle',
 				name: 'Client Plugin',
 				_meta: toClientPluginSourceUrisMeta({ files: { 'agents/renamed.md': source } }),
-				children: [{ type: CustomizationType.Agent as const, id: 'agent', name: 'Renamed', uri: file.toString() }],
 			};
+			const pluginDir = URI.joinPath(file, '..', '..');
+			const parsed = await parseSyncedPlugin({ customization, pluginDir }, 'owner', fileService, undefined, userHome);
 			assert.strictEqual(await resolveClaudeAgentName(sel(source.toString()), fileService, log, 'sid', [{
-				customization,
-				pluginDir: URI.joinPath(file, '..', '..'),
+				customization: { ...customization, children: parsed.agents.map(agent => agent.customization) },
+				pluginDir,
 			}]), 'actual-sdk-name');
 		});
 

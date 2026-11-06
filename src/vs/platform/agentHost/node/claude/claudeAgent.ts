@@ -18,7 +18,7 @@ import { URI } from '../../../../base/common/uri.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
 import { localize } from '../../../../nls.js';
 import { IInstantiationService } from '../../../instantiation/common/instantiation.js';
-import { parsePlugin } from '../../../agentPlugins/common/pluginParsers.js';
+import { parseSyncedPlugin } from '../../common/syncedCustomizationUris.js';
 import { INativeEnvironmentService } from '../../../environment/common/environment.js';
 import { ILogService } from '../../../log/common/log.js';
 import { IAgentHostStartupPerformance } from '../agentHostStartupPerformance.js';
@@ -2636,7 +2636,7 @@ export class ClaudeAgent extends Disposable implements IAgent {
 						return item;
 					}
 					try {
-						const parsed = await parsePlugin(item.pluginDir, this._fileService, target.workingDirectory, this._environmentService.userHome, item.pluginDir);
+						const parsed = await parseSyncedPlugin(item, clientId, this._fileService, target.workingDirectory, this._environmentService.userHome);
 						const children = [
 							...parsed.agents,
 							...parsed.skills,

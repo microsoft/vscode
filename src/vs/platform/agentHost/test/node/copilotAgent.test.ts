@@ -30657,7 +30657,7 @@ suite('CopilotAgent', () => {
 			assert.deepStrictEqual({
 				containers: snapshot.plugins.map(plugin => plugin.customizationUri?.toString()),
 				sources: snapshot.plugins.map(plugin => plugin.sourceUri?.toString()),
-				agents: getCopilotCustomAgents(snapshot).map(agent => ({ source: agent.sourceUri?.toString(), name: agent.sdkName })),
+				agents: getCopilotCustomAgents(snapshot).map(agent => ({ source: agent.uri.toString(), name: agent.sdkName })),
 				selection: getCopilotAgentSelectionName(snapshot, agentUri.toString()),
 				mcp: snapshot.plugins.flatMap(plugin => plugin.mcpServers.map(server => server.name)),
 			}, {
