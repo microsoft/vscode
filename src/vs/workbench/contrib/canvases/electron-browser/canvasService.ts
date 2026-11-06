@@ -23,7 +23,8 @@ import { IChatEntitlementService } from '../../../services/chat/common/chatEntit
 import { IEditorGroup, IEditorGroupsService } from '../../../services/editor/common/editorGroupsService.js';
 import { IEditorService } from '../../../services/editor/common/editorService.js';
 import { IBrowserViewModel, IBrowserViewWorkbenchService } from '../../browserView/common/browserView.js';
-import { CanvasInput, canvasOwnerKey, getCanvasReferenceKey, ICanvas, ICanvasContextService, ICanvasModelResolution, ICanvasOwner, ICanvasReference, ICanvasReopenTarget, ICanvasService, ICanvasWorkingSetOwner, ICanvasWorkingSetState, isCanvasOwner } from '../common/canvas.js';
+import { CanvasInput, ICanvasContextService, ICanvasModelResolution, ICanvasReopenTarget, ICanvasService, ICanvasWorkingSetOwner, ICanvasWorkingSetState, isCanvasOwner } from '../common/canvas.js';
+import { canvasOwnerKey, getCanvasReferenceKey, ICanvas, ICanvasOwner, ICanvasReference } from '../../../common/canvasReference.js';
 
 interface ICanvasPresentation {
 	readonly reference: ICanvasReference;

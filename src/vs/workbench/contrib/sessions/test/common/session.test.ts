@@ -11,8 +11,8 @@ import { constObservable, IObservable } from '../../../../../base/common/observa
 import { URI } from '../../../../../base/common/uri.js';
 import { upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { IChatSessionFileChange, IChatSessionFileChange2 } from '../../../chat/common/chatSessionsService.js';
 import { getChatHarness, getSessionFolderGitHubRepository, getSessionOwnedGitHubPullRequestRefs, hasMixedChatHarnesses, IChat, ISession, getSessionPresentationWorkspace, getSessionStatusMessage, getSessionWorkspaceKind, getUntitledSessionTitle, IGitHubInfo, isActiveSessionStatus, ISessionFolder, ISessionTurnFileChange, ISessionWorkspace, sessionFileChangesEqual, sessionTurnFileChangesEqual, SessionStatus, SessionWorkspaceKind, sessionWorkspaceEqual } from '../../common/session.js';
+import { IChatSessionFileChange, IChatSessionFileChange2 } from '../../../../common/chatSessionFileChange.js';
 
 suite('getSessionFolderGitHubRepository', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();

@@ -20,7 +20,6 @@ import { IListService, ListService } from '../../../../../platform/list/browser/
 import { IWorkspace, IWorkspaceContextService } from '../../../../../platform/workspace/common/workspace.js';
 import { IViewPaneOptions } from '../../../../browser/parts/views/viewPane.js';
 import { IViewContainerModel, IViewDescriptor, IViewDescriptorService, IViewPaneContainer, ViewContainer, ViewContainerLocation } from '../../../../common/views.js';
-import { isIChatSessionFileChange2 } from '../../../../contrib/chat/common/chatSessionsService.js';
 import { IDecorationsService } from '../../../../services/decorations/common/decorations.js';
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
 import { IExtensionService } from '../../../../services/extensions/common/extensions.js';
@@ -44,6 +43,7 @@ import { IFocusedSessionHostService } from '../../../../contrib/sessions/browser
 import { focusedSessionHostServiceOf, ITestSessionWithChat, stubSessionHosts, testGridPanes } from '../../../../contrib/sessions/test/browser/sessionHostTestUtils.js';
 import { ISessionsService } from '../../../../contrib/sessions/browser/sessionsService.js';
 import { BRANCH_CHANGES_CHANGESET_ID, IChat, IGitHubInfo, ISessionCapabilities, ISessionChangeset, ISessionChangesetOperation, ISessionChangesSummary, ISessionFileChange, ISessionGitRepository, ISessionWorkspace, SessionStatus } from '../../../../contrib/sessions/common/session.js';
+import { isIChatSessionFileChange2 } from '../../../../common/chatSessionFileChange.js';
 
 interface IChangesViewFixtureOptions {
 	readonly viewMode: ChangesViewMode;

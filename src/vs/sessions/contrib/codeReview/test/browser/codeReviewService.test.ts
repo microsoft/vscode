@@ -19,7 +19,6 @@ import { DisposableStore, ImmortalReference, IReference } from '../../../../../b
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { mock, upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ILogService, NullLogService } from '../../../../../platform/log/common/log.js';
-import { IChatSessionFileChange, IChatSessionFileChange2 } from '../../../../../workbench/contrib/chat/common/chatSessionsService.js';
 import { ActiveEditorContext, IsAuxiliaryWindowContext, IsSessionsWindowContext, IsTopRightEditorGroupContext, MainEditorAreaVisibleContext } from '../../../../../workbench/common/contextkeys.js';
 import { Menus } from '../../../../../workbench/contrib/sessions/browser/menus.js';
 import { SessionHasChangesContext, SessionIsCreatedContext, DesktopLayoutContext } from '../../../../../workbench/contrib/sessions/common/contextkeys.js';
@@ -40,6 +39,7 @@ import { ChatContextKeys } from '../../../../../workbench/contrib/chat/common/ac
 import { ISessionChangesService } from '../../../../../workbench/contrib/sessionChanges/browser/sessionChangesService.js';
 import '../../browser/codeReview.contributions.js';
 import { ITestSessionWithChat, stubFocusedSessionHostFromSessionsService } from '../../../../../workbench/contrib/sessions/test/browser/sessionHostTestUtils.js';
+import { IChatSessionFileChange, IChatSessionFileChange2 } from '../../../../../workbench/common/chatSessionFileChange.js';
 
 suite('CodeReviewService', () => {
 

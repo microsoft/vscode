@@ -12,13 +12,13 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/tes
 import { ContextKeyValue, IContextKey, IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { MockContextKeyService } from '../../../../../platform/keybinding/test/common/mockKeybindingService.js';
 import { TestStorageService } from '../../../../test/common/workbenchTestServices.js';
-import { getCanvasReferenceKey } from '../../../canvases/common/canvas.js';
-import { IChatSessionFileChange } from '../../../chat/common/chatSessionsService.js';
 import { SessionActiveChatCanArchiveContext, SessionActiveChatCanvasReferenceKeysContext, SessionActiveChatHasSideChatsContext, SessionActiveChatResourceContext, SessionHasCachedChangesContext, SessionHasChangesContext, SessionHasGitRepositoryContext, SessionHasMultipleCommittedChatsContext, SessionHasWorkspaceContext, SessionIsActiveContext, SessionIsCreatedContext, SessionIsReadContext, SessionProviderIdContext, SessionSupportsSideChatContext, SessionWorkspaceIsVirtualContext } from '../../common/contextkeys.js';
 import { ChatInteractivity, ChatOriginKind, IChat, ISession, ISessionChangeset, ISessionWorkspace, SessionStatus } from '../../common/session.js';
 import { IPaneViewState } from '../../common/sessionsManagement.js';
 import { setHostSessionContextKeys, setSessionContextKeys } from '../../common/sessionContextKeys.js';
 import { ISessionChangesStatsCache, SessionChangesStatsCache } from '../../common/sessionChangesStatsCache.js';
+import { getCanvasReferenceKey } from '../../../../common/canvasReference.js';
+import { IChatSessionFileChange } from '../../../../common/chatSessionFileChange.js';
 
 /** What a pane shows: `chat` of `session`, with its tab strip of `tabs`, shown while `showTabs`. */
 function paneShowing(session: ISession, chat: IChat, tabs: readonly IChat[], showTabs: boolean): { readonly session: ISession; readonly chat: IChat; readonly state: IPaneViewState } {

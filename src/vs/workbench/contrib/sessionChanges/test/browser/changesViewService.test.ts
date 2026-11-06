@@ -13,7 +13,6 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/tes
 import { AGENT_HOST_CHECKOUT_CHANGESET_OPERATION_ID } from '../../../../../platform/agentHost/common/agentHostChangesetOperationService.js';
 import { MockContextKeyService } from '../../../../../platform/keybinding/test/common/mockKeybindingService.js';
 import { TestStorageService } from '../../../../test/common/workbenchTestServices.js';
-import { IChatSessionFileChange2 } from '../../../chat/common/chatSessionsService.js';
 import { IChatDeletedEvent, ISessionsManagementService } from '../../../sessions/common/sessionsManagement.js';
 import { BRANCH_CHANGES_CHANGESET_ID, IChat, ISession, ISessionChangeset, ISessionChangesetOperation, ISessionFileChange, ISessionFolder, ISessionGitRepository, ISessionWorkspace, SESSION_CHANGES_CHANGESET_ID, SessionChangesetOperationScope, SessionChangesetOperationStatus, TURN_CHANGES_CHANGESET_ID, UNCOMMITTED_CHANGES_CHANGESET_ID } from '../../../sessions/common/session.js';
 import { IAgentFeedbackService } from '../../../sessions/browser/agentFeedback.js';
@@ -23,6 +22,7 @@ import { ChangesetReviewedFilesContext, ChangesViewService } from '../../browser
 import { getChangesOfSession } from '../../../sessions/common/changesViewService.js';
 import { ChangesViewMode } from '../../../sessions/common/changes.js';
 import { ITestSessionWithChat, sessionHostServiceOf, withCreatedStatus } from '../../../sessions/test/browser/sessionHostTestUtils.js';
+import { IChatSessionFileChange2 } from '../../../../common/chatSessionFileChange.js';
 
 suite('ChangesViewService', () => {
 

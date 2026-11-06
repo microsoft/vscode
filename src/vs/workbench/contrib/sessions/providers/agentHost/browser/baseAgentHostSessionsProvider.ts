@@ -87,12 +87,11 @@ import { composeSessionActiveClient, IAgentCustomizationScope, IAgentHostActiveC
 import { IAgentHostMcpAppToolsService } from '../../../../chat/browser/agentSessions/agentHost/agentHostMcpAppToolsService.js';
 import { getAgentHostEffectiveChatConfig, hostAppliesSessionConfigToDefaultChat, hostPublishesCompleteChatConfig } from '../../../../chat/browser/agentSessions/agentHost/applyAgentHostSessionConfig.js';
 import { AgentHostBackgroundShellOutputs } from '../../../../chat/browser/agentSessions/agentHost/agentHostBackgroundShells.js';
-import type { IChatBackgroundShell } from '../../../../chat/common/sessionChatPills.js';
 import { IChatWidgetService } from '../../../../chat/browser/chat.js';
 import { AgentHostCanvas } from '../../../../canvases/common/agentHostCanvas.js';
 import { ChatMode } from '../../../../chat/common/chatModes.js';
 import { IChatSendRequestOptions, IChatService, type IChatModelReference } from '../../../../chat/common/chatService/chatService.js';
-import { IChatSessionFileChange, IChatSessionFileChange2, IChatSessionsService } from '../../../../chat/common/chatSessionsService.js';
+import { IChatSessionsService } from '../../../../chat/common/chatSessionsService.js';
 import { assertAutomationSessionTemplate, IAutomationSessionTemplate } from '../../../../chat/common/automations/automation.js';
 import { fromAgentHostFileUri, getAgentHostCustomizationUri } from '../../../../chat/common/agentHostSessionCustomizations.js';
 import { AutomationModelConfiguration } from '../../../browser/automationModelConfiguration.js';
@@ -128,6 +127,8 @@ import { createActiveSessionSubscriptionObs, createChangesets, createChatChanges
 import { createSessionOutputObs, ISessionOutputObs } from './agentHostSessionFiles.js';
 import { AgentHostSessionSandbox } from './agentHostSessionSandbox.js';
 import { getAgentHostSessionPermissionConfig, getAgentHostSessionPermissionId, getAgentHostSessionPermissionOptions } from './agentHostSessionPermissions.js';
+import type { IChatBackgroundShell } from '../../../../../common/chatBackgroundShell.js';
+import { IChatSessionFileChange, IChatSessionFileChange2 } from '../../../../../common/chatSessionFileChange.js';
 
 const STORAGE_KEY_REMEMBERED_SESSION_CONFIG_VALUES = 'sessions.agentHost.sessionConfigPicker.selectedValues';
 const STORAGE_KEY_REMEMBERED_WORKSPACE_ISOLATIONS = 'sessions.agentHost.sessionConfigPicker.workspaceIsolations';

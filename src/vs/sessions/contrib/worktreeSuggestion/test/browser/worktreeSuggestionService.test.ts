@@ -26,7 +26,6 @@ import { ISpotlightPayload } from '../../../../../workbench/contrib/onboarding/b
 import { onboardingScenarioRegistry } from '../../../../../workbench/contrib/onboarding/common/onboardingRegistry.js';
 import { OnboardingOutcome } from '../../../../../workbench/contrib/onboarding/common/onboardingScenario.js';
 import { IOnboardingScenarioService } from '../../../../../workbench/contrib/onboarding/common/onboardingScenarioService.js';
-import { IChatSessionFileChange2 } from '../../../../../workbench/contrib/chat/common/chatSessionsService.js';
 import { IView } from '../../../../../workbench/common/views.js';
 import { IChatEntitlementService, IChatSentiment } from '../../../../../workbench/services/chat/common/chatEntitlementService.js';
 import { IViewsService } from '../../../../../workbench/services/views/common/viewsService.js';
@@ -43,6 +42,7 @@ import { WORKTREE_SUGGESTION_SETTING, WORKTREE_SUGGESTION_TOUR_ID, WorktreeSugge
 import { getChangedFileLabel, getInlineHintMessage } from '../../../../../workbench/contrib/sessions/browser/worktreeSuggestion/worktreeSuggestionPresentation.js';
 import { IUncommittedChangesListItem, IWorktreeSuggestion, WorktreeSpotlightChoice, WorktreeSuggestionService } from '../../../../../workbench/contrib/sessions/browser/worktreeSuggestion/worktreeSuggestionService.js';
 import { ITestSessionWithChat } from '../../../../../workbench/contrib/sessions/test/browser/sessionHostTestUtils.js';
+import { IChatSessionFileChange2 } from '../../../../../workbench/common/chatSessionFileChange.js';
 
 class RecordingTelemetryService extends TestExperimentTriggerTelemetryService {
 	readonly events: unknown[] = [];

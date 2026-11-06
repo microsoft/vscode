@@ -26,7 +26,7 @@ import { MockContextKeyService, MockKeybindingService } from '../../../../../pla
 import { NullLogService } from '../../../../../platform/log/common/log.js';
 import { InMemoryStorageService } from '../../../../../platform/storage/common/storage.js';
 import { ActiveEditorContext, IsAuxiliaryWindowContext, MainEditorAreaVisibleContext } from '../../../../../workbench/common/contextkeys.js';
-import { CanvasInput, getCanvasReferenceKey, ICanvasContextService, ICanvasReference, ICanvasService } from '../../../../../workbench/contrib/canvases/common/canvas.js';
+import { CanvasInput, ICanvasContextService, ICanvasService } from '../../../../../workbench/contrib/canvases/common/canvas.js';
 import { AICustomizationManagementCommands, AICustomizationManagementSection } from '../../../../../workbench/contrib/chat/common/aiCustomizationWorkspaceService.js';
 import { Menus } from '../../../../../workbench/contrib/sessions/browser/menus.js';
 import { AgentsWindowMenus } from '../../../../browser/agentsWindowMenus.js';
@@ -39,6 +39,7 @@ import { getSessionCanvasDefinitionInstanceId, WindowCanvasesAvailableContext } 
 import { CREATE_SESSION_CANVAS_COMMAND_ID, DISCOVER_SESSION_CANVASES_COMMAND_ID, OPEN_SESSION_CANVAS_COMMAND_ID, registerSessionCanvasActions } from '../../electron-browser/sessionCanvasActions.js';
 import { SessionCanvasRegistryService } from '../../electron-browser/sessionCanvasService.js';
 import { focusedSessionHostServiceOf, ITestSessionWithChat } from '../../../../../workbench/contrib/sessions/test/browser/sessionHostTestUtils.js';
+import { getCanvasReferenceKey, ICanvasReference } from '../../../../../workbench/common/canvasReference.js';
 
 suite('SessionCanvasRegistryService', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
