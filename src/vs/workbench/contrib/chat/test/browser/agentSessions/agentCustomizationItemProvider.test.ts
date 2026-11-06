@@ -88,8 +88,8 @@ suite('AgentCustomizationItemProvider', () => {
 				override getCustomizations(): readonly Customization[] {
 					return [
 						{ ...server('top', [skill('Friendly'), skill('Disabled', false), skill('Not Invocable', true, false)]), _meta: withMcpServerDisplayNameMeta(withMcpServerSourceMeta(undefined, 'user'), 'Friendly Server') },
-						{ type: CustomizationType.Plugin, id: 'foreign-plugin', uri: 'file:///foreign/plugin', clientId: 'other-client', name: 'Plugin', _meta: { 'vscode.customization.scope': 'workspace' }, children: [server('nested', [skill('Nested')])] },
-						{ type: CustomizationType.Plugin, id: 'host-plugin', uri: 'other-host:/plugin', name: 'Host Plugin', _meta: { 'vscode.customization.scope': 'application' }, children: [server('host-nested', [skill('Host Nested')])] },
+						{ type: CustomizationType.Plugin, id: 'foreign-plugin', uri: 'file:///foreign/plugin', clientId: 'other-client', name: 'Plugin', _meta: withCustomizationDiscoveryMeta(undefined, { source: 'repository' }), children: [{ ...server('nested', [skill('Nested')]), _meta: withCustomizationDiscoveryMeta(withMcpServerSourceMeta(undefined, 'plugin'), { source: 'plugin' }) }] },
+						{ type: CustomizationType.Plugin, id: 'host-plugin', uri: 'other-host:/plugin', name: 'Host Plugin', _meta: withCustomizationDiscoveryMeta(undefined, { source: 'builtin' }), children: [server('host-nested', [skill('Host Nested')])] },
 						server('disabled', [skill('Disabled Server')], false),
 						{ ...server('workspace', [skill('Workspace')]), _meta: withMcpServerSourceMeta(undefined, 'workspace') },
 						{ type: CustomizationType.Plugin, id: 'disabled-plugin', uri: 'file:///disabled/plugin', name: 'Disabled Plugin', enablement: [{ kind: CustomizationEnablementKind.Global, enabled: false }], children: [server('disabled-parent', [skill('Disabled Parent')])] },
@@ -684,11 +684,13 @@ suite('AgentCustomizationItemProvider', () => {
 		]);
 	});
 
-	test('uses host-published scope for directory children instead of inferring it from the URI', async () => {
+	test('derives directory grouping from discovery source without interpreting opaque host URIs', async () => {
 		const customizations: Customization[] = [
-			{ type: CustomizationType.Directory, id: 'host-builtins', uri: 'other-host:/opaque/agents', name: 'agents', enabled: true, contents: CustomizationType.Agent, writable: false, _meta: { 'vscode.customization.scope': 'application' }, children: [{ type: CustomizationType.Agent, id: 'ask', uri: 'other-host:/opaque/agents/ask', name: 'Ask' }] },
+			{ type: CustomizationType.Directory, id: 'host-builtins', uri: 'other-host:/opaque/agents', name: 'agents', enabled: true, contents: CustomizationType.Agent, writable: false, _meta: withCustomizationDiscoveryMeta(undefined, { source: 'builtin' }), children: [{ type: CustomizationType.Agent, id: 'ask', uri: 'other-host:/opaque/agents/ask', name: 'Ask' }] },
+			{ type: CustomizationType.Directory, id: 'host-workspace', uri: 'other-host:/opaque/workspace-agents', name: 'agents', enabled: true, contents: CustomizationType.Agent, writable: true, _meta: withCustomizationDiscoveryMeta(undefined, { source: 'repository' }), children: [{ type: CustomizationType.Agent, id: 'reviewer', uri: 'other-host:/opaque/workspace-agents/reviewer', name: 'Reviewer' }] },
 			{ type: CustomizationType.Directory, id: 'unscoped', uri: 'other-host:/opaque/user-agents', name: 'agents', enabled: true, contents: CustomizationType.Agent, writable: true, children: [{ type: CustomizationType.Agent, id: 'planner', uri: 'other-host:/opaque/user-agents/planner', name: 'Planner' }] },
-			{ type: CustomizationType.Directory, id: 'invalid-scope', uri: 'other-host:/opaque/more-agents', name: 'agents', enabled: true, contents: CustomizationType.Agent, writable: true, _meta: { 'vscode.customization.scope': 'everyone' }, children: [{ type: CustomizationType.Agent, id: 'tester', uri: 'other-host:/opaque/more-agents/tester', name: 'Tester' }] },
+			{ type: CustomizationType.Directory, id: 'unknown-source', uri: 'other-host:/opaque/more-agents', name: 'agents', enabled: true, contents: CustomizationType.Agent, writable: false, _meta: withCustomizationDiscoveryMeta(undefined, { source: 'future-source' }), children: [{ type: CustomizationType.Agent, id: 'tester', uri: 'other-host:/opaque/more-agents/tester', name: 'Tester' }] },
+			{ type: CustomizationType.Directory, id: 'mixed', uri: 'other-host:/opaque/mixed-agents', name: 'agents', enabled: true, contents: CustomizationType.Agent, writable: false, _meta: withCustomizationDiscoveryMeta(undefined, { source: 'builtin' }), children: [{ type: CustomizationType.Agent, id: 'personal', uri: 'other-host:/opaque/mixed-agents/personal', name: 'Personal', _meta: withCustomizationDiscoveryMeta(undefined, { source: 'user' }) }] },
 		];
 		class TestCustomizationService extends NullAgentHostCustomizationService {
 			override getCustomizations(): readonly Customization[] {
@@ -704,9 +706,48 @@ suite('AgentCustomizationItemProvider', () => {
 
 		assert.deepStrictEqual(items.map(item => ({ name: item.name, source: item.source, scope: item.scope, origin: item.origin })), [
 			{ name: 'Ask', source: AICustomizationSources.builtin, scope: 'application', origin: { kind: 'harness' } },
+			{ name: 'Reviewer', source: AICustomizationSources.local, scope: 'workspace', origin: undefined },
 			{ name: 'Planner', source: AICustomizationSources.user, scope: undefined, origin: undefined },
 			{ name: 'Tester', source: AICustomizationSources.user, scope: undefined, origin: undefined },
+			{ name: 'Personal', source: AICustomizationSources.user, scope: 'user', origin: undefined },
 		]);
+	});
+
+	test('inherits plugin discovery grouping for expanded children, including cached expansions', async () => {
+		const fileService = createInMemoryFileService(disposables, Schemas.file);
+		const pluginUri = URI.file('/plugins/review');
+		await fileService.writeFile(URI.joinPath(pluginUri, 'skills', 'review', 'SKILL.md'), VSBuffer.fromString('---\nname: Review\n---\nReview code.'));
+		const plugin: PluginCustomization = {
+			type: CustomizationType.Plugin, id: 'review', uri: pluginUri.toString(), name: 'Review Plugin',
+			_meta: withCustomizationDiscoveryMeta(undefined, { source: 'repository' }),
+		};
+		class TestCustomizationService extends NullAgentHostCustomizationService {
+			override getCustomizations(): readonly Customization[] {
+				return [plugin];
+			}
+		}
+		const provider = disposables.add(new AgentCustomizationItemProvider(
+			{ clientId: 'vscode', resourceUris: agentHostConnectionKinds[0].resourceUris }, undefined, undefined, fileService,
+			new NullLogService(), new TestCustomizationService(), makePromptsService(), labelService,
+		));
+		const session = URI.parse('agent-host-copilot:/session');
+		const initial = await provider.provideChatSessionCustomizations(session, CancellationToken.None);
+		plugin._meta = withCustomizationDiscoveryMeta(plugin._meta, { source: 'builtin' });
+		const updated = await provider.provideChatSessionCustomizations(session, CancellationToken.None);
+		const project = (items: readonly ICustomizationSkillItem[]) => items.map(item => ({
+			name: item.name, source: item.source, scope: item.scope,
+		}));
+
+		assert.deepStrictEqual({ initial: project(initial), updated: project(updated) }, {
+			initial: [
+				{ name: 'Review Plugin', source: AICustomizationSources.plugin, scope: 'workspace' },
+				{ name: 'Review', source: AICustomizationSources.plugin, scope: 'workspace' },
+			],
+			updated: [
+				{ name: 'Review Plugin', source: AICustomizationSources.plugin, scope: 'application' },
+				{ name: 'Review', source: AICustomizationSources.plugin, scope: 'application' },
+			],
+		});
 	});
 
 	test('surfaces draft bundle agents skills and instructions before session state exists', async () => {

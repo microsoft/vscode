@@ -312,7 +312,7 @@ const agentHostCustomizations: readonly Customization[] = [
 	]),
 	directory(URI.from({ scheme: 'copilot-builtin', path: '/agents' }), CustomizationType.Agent, false, [
 		{ uri: URI.from({ scheme: 'copilot-builtin', path: '/agents/ask.agent.md' }), name: 'Ask', description: 'Answers questions about your code without making changes', meta: { 'vscode.chatMode': 'ask' } },
-	], { meta: { 'vscode.customization.scope': 'application' } }),
+	], { meta: { 'vscode.customizationDiscovery': { source: 'builtin' } } }),
 	plugin(hostAzurePlugin, 'azure'),
 	plugin(hostApifyPlugin, 'apify', { degraded: 'One skill could not be loaded' }),
 	plugin(clientPlaywrightPlugin, 'playwright', { clientId: CLIENT_ID }),
