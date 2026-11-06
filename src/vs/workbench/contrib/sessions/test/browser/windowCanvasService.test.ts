@@ -20,6 +20,7 @@ import { MockContextKeyService } from '../../../../../platform/keybinding/test/c
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import { InMemoryStorageService, IStorageService } from '../../../../../platform/storage/common/storage.js';
 import { EditorCloseContext, IEditorCloseEvent, ITextDiffEditorPane, IVisibleEditorPane } from '../../../../common/editor.js';
+import { getEditorsTransferVeto, transferToNewWindow } from '../../../../browser/parts/editor/editorTransferVeto.js';
 import { ICanvasWorkingSetState } from '../../../canvases/common/canvas.js';
 import { IEditorGroup, IEditorGroupsService } from '../../../../services/editor/common/editorGroupsService.js';
 import { IEditorService, isPreferredGroup } from '../../../../services/editor/common/editorService.js';
@@ -153,6 +154,23 @@ suite('WindowCanvasService', () => {
 			focus() { focused.fire(); },
 		};
 	}
+
+	test('a native canvas cannot go into a new window: moving or copying it into one creates no window', async () => {
+		const input = store.add(new WindowCanvasInput(descriptor, upcastPartial<IEditorGroupsService>({})));
+		const shown: string[] = [];
+		let created = 0;
+		for (const copy of [false, true]) {
+			await transferToNewWindow({
+				getVeto: target => getEditorsTransferVeto([input], 1, target, { copy }), // a singleton is asked for a copy too
+				showVeto: veto => shown.push(veto.message),
+				createPart: async () => { created++; return undefined; },
+				isSourceAlive: () => true,
+				transfer: () => { },
+			});
+		}
+
+		assert.deepStrictEqual({ created, shown }, { created: 0, shown: ['This canvas can only be shown in the main window.', 'This canvas can only be shown in the main window.'] });
+	});
 
 	test('repeated opens reuse one native canvas and its content without a chat owner', async () => {
 		const h = createHarness();

@@ -529,6 +529,11 @@ export interface IEditorPart extends IEditorGroupsContainer {
 export interface IAuxiliaryEditorPart extends IEditorPart {
 
 	/**
+	 * Fired right before the part closes.
+	 */
+	readonly onWillClose: Event<void>;
+
+	/**
 	 * Close this auxiliary editor part after moving all
 	 * dirty editors of all groups back to the main editor
 	 * part.

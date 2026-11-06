@@ -62,6 +62,7 @@ import { IEditorResolverService } from '../../../services/editor/common/editorRe
 import { IHostService } from '../../../services/host/browser/host.js';
 import { DiffEditorInput } from '../../../common/editor/diffEditorInput.js';
 import { FileSystemProviderCapabilities, IFileService } from '../../../../platform/files/common/files.js';
+import { getEditorTransferVetoDetail } from './editorTransferVeto.js';
 
 export class EditorGroupView extends Themable implements IEditorGroupView {
 
@@ -1527,7 +1528,7 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 		if (!keepCopy || editor.hasCapability(EditorInputCapabilities.Singleton) /* singleton editors will always move */) {
 			const canMoveVeto = editor.canMove(this.id, target.id);
 			if (typeof canMoveVeto === 'string') {
-				this.dialogService.error(canMoveVeto, localize('moveErrorDetails', "Try saving or reverting the editor first and then try again."));
+				this.dialogService.error(canMoveVeto, getEditorTransferVetoDetail({ dirty: editor.isDirty() }));
 
 				return false;
 			}
