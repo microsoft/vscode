@@ -99,14 +99,17 @@ export function getNavigableViewEntries(
 
 			usedLocations.add(location);
 			for (const view of container.views) {
-				if (!view.id || !view.visible || view.enabled === false || (!includeCollapsed && view.collapsed)) {
-					continue;
-				}
-				if (usedViewIds.has(view.id)) {
+				if (!view.id || !view.visible || view.enabled === false || usedViewIds.has(view.id)) {
 					continue;
 				}
 
+				// Claim the first visible occurrence before filtering collapsed views.
+				// Otherwise, an expanded duplicate in another container can be
+				// selected instead of the original collapsed view during a move.
 				usedViewIds.add(view.id);
+				if (!includeCollapsed && view.collapsed) {
+					continue;
+				}
 				entries.push({ viewId: view.id, containerId: container.id, location });
 			}
 		}
