@@ -497,6 +497,7 @@ export class TabbedModelPicker extends Disposable {
 				return context;
 			} : undefined,
 			tabLabels: 'active',
+			overflowLabel: localize('chat.modelPicker.moreProviders', "More Providers"),
 			filterInTabBar: true,
 			width: step ? COMPARISON_PICKER_WIDTH : PICKER_WIDTH,
 			createActionList: (activeTab, forSizing) => {
