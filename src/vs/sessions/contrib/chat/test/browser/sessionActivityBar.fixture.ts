@@ -27,6 +27,10 @@ import { IAgentWorkbenchLayoutService } from '../../../../browser/workbench.js';
 import { AgentWorkbenchLayout } from '../../../../../workbench/contrib/sessions/browser/sessionsHostLayoutService.js';
 import { AGENTS_CENTERED_CONTENT_MAX_WIDTH, AGENTS_FLOATING_PANEL_GAP } from '../../../../../workbench/contrib/sessions/common/layoutConstants.js';
 import { registerSessionActivityBarExternalHost, SESSION_ACTIVITY_BAR_COLUMN_WIDTH } from '../../../../../workbench/contrib/sessions/browser/parts/sessionActivityBarHost.js';
+import { Direction } from '../../../../../base/browser/ui/grid/grid.js';
+import { IPartGridView, PartGrid } from '../../../../../workbench/browser/parts/partGrid/partGrid.js';
+import { IEditorGroupsService } from '../../../../../workbench/services/editor/common/editorGroupsService.js';
+import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { SESSION_ACTIVITY_BAR_SETTING, SESSIONS_LIST_GROUP_EXTERNAL_SESSIONS_SETTING } from '../../../../../workbench/contrib/sessions/common/sessionConfig.js';
 import { ISessionActivityBarActivityService, SessionActivityBarActivityService } from '../../../../../workbench/contrib/sessions/common/sessionActivityBarActivityService.js';
 import { ISession } from '../../../../../workbench/contrib/sessions/common/session.js';
@@ -152,10 +156,10 @@ async function renderActivityBar(context: ComponentFixtureContext, options: IFix
 	container.style.width = `${width}px`;
 	container.style.height = `${HEIGHT}px`;
 	container.classList.add('agent-sessions-workbench');
-	const chatWindow = options.chatWindowColumn && renderChatWindowFrame(context, options.chatWindowColumn);
+	const chatWindow = options.chatWindowColumn && createChatWindowFrame(context, options.chatWindowColumn);
 
 	// The session view's DOM, so the header and chat take their production alignment.
-	const part = append(chatWindow?.card ?? container, $('.part.sessionspart'));
+	const part = append(chatWindow?.chat ?? container, $('.part.sessionspart'));
 	// The activity bar only shows in the active session, so render that session's styling.
 	const sessionView = append(part, $('.session-view.is-active'));
 	sessionView.classList.toggle('grid-layout', !!options.split);
@@ -165,8 +169,6 @@ async function renderActivityBar(context: ComponentFixtureContext, options: IFix
 	groups.classList.toggle('single-group', !options.split);
 	// Like `ChatGroupView` for the active group, whose header and timeline the session view keeps shown.
 	const chatGroup = append(groups, $('.chat-group-view.active-group'));
-	const chatHeight = chatWindow?.card.clientHeight ?? HEIGHT;
-	chatGroup.style.height = `${chatHeight}px`;
 	const bar = append(chatGroup, $('.chat-group-view-bar'));
 	bar.style.height = `${HEADER_HEIGHT}px`;
 	const header = append(bar, $('.chat-composite-bar.session-header-bar'));
@@ -200,9 +202,14 @@ async function renderActivityBar(context: ComponentFixtureContext, options: IFix
 				override readonly mainContainer = container;
 				override readonly onDidLayoutMainContainer = Event.None;
 			});
+			reg.defineInstance(IEditorGroupsService, new class extends mock<IEditorGroupsService>() { }());
 		},
 	});
 	menuService.commandService = instantiationService.get(ICommandService);
+	// The chat window's grid lays the chat out before it renders.
+	const chatSize = chatWindow?.mount(instantiationService) ?? { width, height: HEIGHT };
+	const chatHeight = chatSize.height;
+	chatGroup.style.height = `${chatHeight}px`;
 
 	const areaHeight = chatHeight - HEADER_HEIGHT;
 	const activityBar = disposableStore.add(instantiationService.createInstance(ChatViewSessionActivityBar, chatGroup));
@@ -215,7 +222,7 @@ async function renderActivityBar(context: ComponentFixtureContext, options: IFix
 	}))));
 	activityBar.layout(HEADER_HEIGHT);
 	// As the chat group lays it out: to the left of the strip's column.
-	const chatWidth = Math.max(0, (chatWindow?.card.clientWidth ?? width) - activityBar.reservedWidth.get());
+	const chatWidth = Math.max(0, chatSize.width - activityBar.reservedWidth.get());
 
 	const view = disposableStore.add(new FixtureChatView());
 	view.element.classList.add('chat-view-chat');
@@ -285,23 +292,41 @@ async function renderActivityBar(context: ComponentFixtureContext, options: IFix
 }
 
 /**
- * The frame of a chat window around the chat, as its grid lays it out: the chat's card, inside the window's outer insets
- * (none at the top, where the title row is) and half the gap beside the strip's column, and that column at the right,
- * where the strip of the active chat shows, as the chat window's strip host takes it.
+ * The grid of a chat window around the chat, on the real part grid, whose cards clip what they show: the chat's card and,
+ * at the right edge of the window, the strip's column, which the chat window's strip host takes, laid out with the chat
+ * window's gap and outer insets (none at the top, where the title row is, nor at the right, where the strip's column is).
  */
-function renderChatWindowFrame({ container, disposableStore }: ComponentFixtureContext, density: 'default' | 'compact'): { readonly card: HTMLElement } {
+function createChatWindowFrame({ container, disposableStore }: ComponentFixtureContext, density: 'default' | 'compact'): { readonly chat: HTMLElement; mount(instantiationService: IInstantiationService): { readonly width: number; readonly height: number } } {
 	const gap = density === 'compact' ? 0 : AGENTS_FLOATING_PANEL_GAP;
 	container.classList.toggle('modern-ui-compact', density === 'compact');
 	const frame = append(container, $('.agents-chat-window'));
-	frame.style.cssText = `display: flex; box-sizing: border-box; height: 100%; padding: 0 ${gap}px ${gap}px ${gap}px;`;
-	frame.style.setProperty('--chat-window-outer-inset-right', `${gap}px`);
-	const card = append(frame, $('.fixture-chat-window-card'));
-	const border = density === 'compact' ? '0' : 'var(--vscode-strokeThickness) solid var(--vscode-agentsCard-border, var(--vscode-agentsPanel-border, transparent))';
-	card.style.cssText = `flex: 1; position: relative; overflow: hidden; box-sizing: border-box; margin-right: ${Math.ceil(gap / 2)}px; border: ${border}; border-radius: var(--agents-part-corner-radius); background-color: var(--vscode-agentsPanel-background);`;
-	const column = append(frame, $('.chat-window-strip.session-activity-bar-column.session-activity-bar-host'));
-	column.style.cssText = `flex: none; width: ${SESSION_ACTIVITY_BAR_COLUMN_WIDTH - 2 * Math.floor(gap / 2)}px; margin-left: ${Math.floor(gap / 2)}px;`;
-	disposableStore.add(registerSessionActivityBarExternalHost(frame, { element: column, active: constObservable(true), setOccupied: () => { } }));
-	return { card };
+	frame.style.cssText = 'width: 100%; height: 100%;';
+	const chat = $('.fixture-chat-window-chat');
+	chat.style.cssText = 'position: relative; width: 100%; height: 100%;';
+	const strip = $('.chat-window-strip.session-activity-bar-column.session-activity-bar-host');
+	disposableStore.add(registerSessionActivityBarExternalHost(frame, { element: strip, active: constObservable(true), setOccupied: () => { } }));
+	let chatSize = { width: 0, height: 0 };
+	const view = (element: HTMLElement, width: number | undefined, onLayout?: (width: number, height: number) => void): IPartGridView => ({
+		element,
+		minimumWidth: width ?? 0,
+		maximumWidth: width ?? Number.POSITIVE_INFINITY,
+		minimumHeight: 0,
+		maximumHeight: Number.POSITIVE_INFINITY,
+		onDidChange: Event.None,
+		layout: (w, h) => onLayout?.(w, h),
+	});
+	return {
+		chat,
+		mount: instantiationService => {
+			const grid = disposableStore.add(instantiationService.createInstance(PartGrid, frame));
+			grid.addView('chat', view(chat, undefined, (w, h) => chatSize = { width: w, height: h }));
+			grid.addView('strip', view(strip, SESSION_ACTIVITY_BAR_COLUMN_WIDTH), { edge: Direction.Right }, SESSION_ACTIVITY_BAR_COLUMN_WIDTH, { edgeChrome: Direction.Right });
+			grid.setGap(gap);
+			grid.setOuterInsets({ top: 0, right: 0, bottom: gap, left: gap });
+			grid.layout(container.clientWidth, container.clientHeight);
+			return chatSize;
+		},
+	};
 }
 
 /**

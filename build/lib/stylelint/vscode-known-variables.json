@@ -1019,7 +1019,6 @@
 		"--chat-window-controls-right-width",
 		"--chat-window-controls-width",
 		"--chat-window-outer-inset-left",
-		"--chat-window-outer-inset-right",
 		"--session-header-actions-inset",
 		"--session-chat-base-height",
 		"--session-group-depth",

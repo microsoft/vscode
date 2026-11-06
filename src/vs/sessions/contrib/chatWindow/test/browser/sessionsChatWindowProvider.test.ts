@@ -23,6 +23,10 @@ import { IChatWindow, IChatWindowOpenOptions, IChatWindowService } from '../../.
 import { ChatWindowLayoutMode } from '../../../../../workbench/contrib/chatWindow/common/chatWindowLayout.js';
 import { IChatEntitlementService, IChatSentiment } from '../../../../../workbench/services/chat/common/chatEntitlementService.js';
 import { IContentPart, IEditorGroup, IEditorGroupsService, IEditorPart } from '../../../../../workbench/services/editor/common/editorGroupsService.js';
+import { ChatWindowGrid, ChatWindowGridCell } from '../../../../../workbench/contrib/chatWindow/browser/chatWindowGrid.js';
+import { MockContextKeyService } from '../../../../../platform/keybinding/test/common/mockKeybindingService.js';
+import { IInstantiationService, ServicesAccessor } from '../../../../../platform/instantiation/common/instantiation.js';
+import '../../../../../workbench/contrib/sessions/browser/parts/media/sessionActivityBar.css';
 import { IEditorService } from '../../../../../workbench/services/editor/common/editorService.js';
 import { IWorkbenchLayoutService } from '../../../../../workbench/services/layout/browser/layoutService.js';
 import { ServiceCollection } from '../../../../../platform/instantiation/common/serviceCollection.js';
@@ -32,6 +36,7 @@ import { ChatHostOpenerService, IChatHostOpenerService } from '../../../../../wo
 import { ChatInteractivity, IChat, ISession, ISessionChangeset, ISessionChangesetOperation, SessionChangesetOperationScope, SessionStatus } from '../../../../../workbench/contrib/sessions/common/session.js';
 import { IActiveSession, ISessionsChangeEvent, ISessionsManagementService } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import { CHAT_WINDOWS_ENABLED_SETTING } from '../../common/chatWindows.js';
+import { SESSION_ACTIVITY_BAR_SETTING } from '../../../../../workbench/contrib/sessions/common/sessionConfig.js';
 import { SessionChangesEditorFileListContext } from '../../../../../workbench/contrib/sessions/common/changes.js';
 import { SessionChangesetOperationsContext } from '../../../changes/browser/changesActions.js';
 import { ActiveSessionState, IChangesSessionObservables, IChangesViewService } from '../../../../../workbench/contrib/sessions/common/changesViewService.js';
@@ -487,8 +492,68 @@ suite('Sessions chat window provider', () => {
 			active: true,
 			classes: ['chat-window-strip', 'session-activity-bar-column', 'session-activity-bar-host'],
 			visible: true,
-			// The column, with the half of the gap the grid adds beside the cards
-			size: SESSION_ACTIVITY_BAR_COLUMN_WIDTH - 2,
+			// The main window's column; the grid adds the gap beside the cards
+			size: SESSION_ACTIVITY_BAR_COLUMN_WIDTH,
+		});
+	});
+
+	test('the strip of a chat window keeps the main window\'s distances, to the card beside it and to the right edge of the window, inside the card of its column, which clips what it shows, in Default and Compact density', () => {
+		const store = disposables.add(new DisposableStore());
+		const { provider, windowInstantiationService, configuration } = createProvider(store, []);
+		const part = (name: string) => new class extends mock<IContentPart>() {
+			override readonly element = $(`.${name}`);
+			override readonly minimumWidth = 100;
+			override readonly maximumWidth = Number.POSITIVE_INFINITY;
+			override readonly minimumHeight = 50;
+			override readonly maximumHeight = Number.POSITIVE_INFINITY;
+			override readonly onDidChange = Event.None;
+			override readonly groups = [new class extends mock<IEditorGroup>() { override readonly isEmpty = false; override readonly onDidModelChange = Event.None; }()];
+			override getGroups() { return this.groups; }
+			override findGroup() { return undefined; }
+			override readonly onDidAddGroup = Event.None;
+			override readonly onDidRemoveGroup = Event.None;
+			override readonly onDidMoveGroup = Event.None;
+			override readonly onWillClose = Event.None;
+			override layout() { }
+			override setVisible() { }
+		}();
+		const editorGroupsService = new class extends mock<IEditorGroupsService>() {
+			override getScopedInstantiationService(): IInstantiationService {
+				const contextKeyService = new MockContextKeyService();
+				return upcastPartial<IInstantiationService>({ invokeFunction: (<R>(fn: (accessor: ServicesAccessor) => R) => fn(upcastPartial<ServicesAccessor>({ get: <T>() => contextKeyService as T }))) as IInstantiationService['invokeFunction'] });
+			}
+		}();
+		const distances: Record<string, unknown> = {};
+		for (const density of ['default', 'compact']) {
+			// Each density in a window of its own, as the configuration here does not announce its changes
+			const windowStore = new DisposableStore();
+			configuration.setUserConfiguration('window.density.layout', density);
+			const workbench = append(mainWindow.document.body, $('.monaco-workbench.agent-sessions-workbench'));
+			windowStore.add(toDisposable(() => workbench.remove()));
+			workbench.classList.toggle('modern-ui-compact', density === 'compact');
+			// The size tokens the strip is positioned with, as the theme defines them
+			workbench.style.setProperty('--vscode-spacing-size20', '2px');
+			const host = append(workbench, $(`.${AGENTS_CHAT_WINDOW_CLASS}`));
+			host.style.cssText = 'position: fixed; top: 0; left: 0; width: 1000px; height: 600px;';
+			const stripElement = append(host, $('.chat-window-strip'));
+			const strip = windowStore.add(provider.chrome.createStrip!(window, stripElement, windowInstantiationService)!);
+			const grid = windowStore.add(new ChatWindowGrid(host, { main: part('main'), chat: part('chat'), strip: { element: stripElement, visible: strip.visible, size: strip.size, layout: (width, height) => strip.layout(width, height) } }, constObservable(ChatWindowLayoutMode.SideBySide), provider.look.gap, undefined, undefined, undefined, editorGroupsService));
+			grid.setOuterInsets(provider.look.outerInsets!.get());
+			grid.layout(1000, 600);
+			// The docked strip as the Session Activity Bar shows it in its host: as wide as its entries make it.
+			const docked = append(stripElement, $('.session-activity-bar.docked'));
+			docked.style.cssText = 'top: 0; width: 30px; height: 200px;';
+			const rect = (element: Element) => element.getBoundingClientRect();
+			const stripRect = rect(docked);
+			const card = rect(stripElement.closest('.part-grid-card')!);
+			const mainCard = rect(host.querySelector(`[data-part-grid-cell="${ChatWindowGridCell.Main}"] > .part-grid-card`)!);
+			distances[density] = { insideItsCard: stripRect.left >= card.left && stripRect.right <= card.right, toCard: stripRect.left - mainCard.right, toEdge: rect(host).right - stripRect.right };
+			windowStore.dispose();
+		}
+
+		assert.deepStrictEqual(distances, {
+			default: { insideItsCard: true, toCard: 6, toEdge: 2 },
+			compact: { insideItsCard: true, toCard: 2, toEdge: 2 },
 		});
 	});
 
@@ -546,11 +611,17 @@ suite('Sessions chat window provider', () => {
 		assert.deepStrictEqual({ inTitleRow, classOn, overChatColumn, fullScreen, leftAsOnMacOS, windowedAgain }, { inTitleRow: 'none x none', classOn: true, overChatColumn: '138px x 30px', fullScreen: 'none x none', leftAsOnMacOS: 'none x none', windowedAgain: '138px x 30px' });
 	});
 
-	test('the cards keep the main window\'s gaps: between them and to the edges of the window but its top, where the title row is', () => {
+	test('the cards keep the main window\'s gaps: between them and to the edges of the window but its top, where the title row is, and its right while the strip\'s column is there', () => {
 		const store = disposables.add(new DisposableStore());
-		const { provider } = createProvider(store, []);
+		const { provider, configuration } = createProvider(store, []);
+		const withStrip = provider.look.outerInsets?.get();
+		configuration.setUserConfiguration(SESSION_ACTIVITY_BAR_SETTING, false);
 
-		assert.deepStrictEqual({ gap: provider.look.gap.get(), outerInsets: provider.look.outerInsets?.get() }, { gap: 4, outerInsets: { top: 0, right: 4, bottom: 4, left: 4 } });
+		assert.deepStrictEqual({ gap: provider.look.gap.get(), withStrip, withoutStrip: provider.look.outerInsets?.get() }, {
+			gap: 4,
+			withStrip: { top: 0, right: 0, bottom: 4, left: 4 },
+			withoutStrip: { top: 0, right: 4, bottom: 4, left: 4 },
+		});
 	});
 
 	test('the title rows are as tall as the row of tabs of the main part, its card\'s frame included, in every layout: no measuring, so from the first frame', () => {

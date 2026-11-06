@@ -589,7 +589,7 @@ suite('Chat window grid', () => {
 		assert.deepStrictEqual({ intoTerminals: grid.partGrid!.mergeCell(ChatWindowGridCell.Main, ChatWindowGridCell.Terminals), intoChat: grid.partGrid!.mergeCell(ChatWindowGridCell.Main, ChatWindowGridCell.Chat) }, { intoTerminals: false, intoChat: false });
 	});
 
-	test('the terminals join the grid below the chat, below the main part or across the chat and the main part, the strip running past them, but in editor only, where they are below the strip', () => {
+	test('the terminals join the grid below the chat, below the main part or across the chat and the main part, the strip running past them in every mode', () => {
 		const { mode, position, grid, open } = setupWithTerminals();
 		const before = grid.partGrid!.describe();
 		open();
@@ -614,9 +614,9 @@ suite('Chat window grid', () => {
 				'stacked/fullWidth': 'column(titleRow, row(column(main, chat, terminals), strip))',
 				'stacked/underChat': 'column(titleRow, row(column(main, chat, terminals), strip))',
 				'stacked/underEditor': 'column(titleRow, row(column(main, chat, terminals), strip))',
-				'editorOnly/fullWidth': 'column(titleRow, row(column(main, chat), strip), terminals)',
-				'editorOnly/underChat': 'column(titleRow, row(column(main, chat), strip), terminals)',
-				'editorOnly/underEditor': 'column(titleRow, row(column(main, chat), strip), terminals)',
+				'editorOnly/fullWidth': 'column(titleRow, row(column(main, chat, terminals), strip))',
+				'editorOnly/underChat': 'column(titleRow, row(column(main, chat, terminals), strip))',
+				'editorOnly/underEditor': 'column(titleRow, row(column(main, chat, terminals), strip))',
 			},
 		});
 	});
@@ -680,6 +680,35 @@ suite('Chat window grid', () => {
 			chat: 300,
 			main: 666,
 			legacy: sizes[legacyKey],
+		});
+	});
+
+	test('a part moved or dropped at the top edge of the window goes above the parts, beside the strip, which keeps spanning the window below the title row, shown or merged into the chat\'s title', () => {
+		const editor = new class extends mock<EditorInput>() {
+			override readonly typeId = 'testEditor';
+			override readonly resource = undefined;
+			override getName() { return 'file'; }
+		}();
+		const results: Record<string, string> = {};
+		for (const title of ['shown', 'merged'] as const) {
+			const create = () => {
+				const grid = disposables.add(new ChatWindowGrid(createAttachedContainer(), { main: createPart('main'), chat: createPart('chat'), titleRow: { ...createChrome(30), visible: constObservable(title === 'shown') }, strip: createChrome(34) }, constObservable(ChatWindowLayoutMode.SideBySide), constObservable(4), undefined, undefined, { createPart: () => ({ id: 'created', part: createPart('created') }) }, editorGroupsService));
+				grid.layout(1000, 800);
+				return grid;
+			};
+			const moved = create();
+			moved.partGrid!.moveCell(ChatWindowGridCell.Main, { edge: Direction.Up });
+			results[`main moved to the top edge, title ${title}`] = moved.partGrid!.describe();
+			const dropped = create();
+			dropped.partGrid!.moveEditorsIntoNewPart([{ editor, groupId: 1 }], { edge: Direction.Up }, { dropped: true });
+			results[`editor dropped on the top edge, title ${title}`] = dropped.partGrid!.describe();
+		}
+
+		assert.deepStrictEqual(results, {
+			'main moved to the top edge, title shown': 'column(titleRow, row(column(main, chat), strip))',
+			'editor dropped on the top edge, title shown': 'column(titleRow, row(column(created, row(chat, main)), strip))',
+			'main moved to the top edge, title merged': 'column(titleRow, row(column(main, chat), strip))',
+			'editor dropped on the top edge, title merged': 'column(titleRow, row(column(created, row(chat, main)), strip))',
 		});
 	});
 

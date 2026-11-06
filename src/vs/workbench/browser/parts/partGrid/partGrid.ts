@@ -90,13 +90,13 @@ export interface IPartGridView {
 
 /**
  * Where a cell goes: beside another cell, or at an edge of the window. At an
- * edge, the views in `spanning` keep spanning the window beside the parts
- * and the cell: by default, the chrome along the sides of that edge, such as
- * a strip at the right of the window (see {@link IPartGridViewOptions.edgeChrome}).
+ * edge, the chrome along the sides of that edge, such as a strip at the right
+ * of the window, keeps spanning the window beside the parts and the cell (see
+ * {@link IPartGridViewOptions.edgeChrome}).
  */
 export type PartGridLocation =
 	{ readonly reference: string; readonly direction: Direction } |
-	{ readonly edge: Direction; readonly spanning?: readonly string[] };
+	{ readonly edge: Direction };
 
 /**
  * The state of a {@link PartGrid}: its topology and sizes, the cells hidden
@@ -1085,7 +1085,7 @@ export class PartGrid extends Disposable {
 		} else if (hasKey(location, { reference: true })) {
 			this.grid.addView(cell, size ?? Sizing.Split, this.getCell(location.reference), location.direction);
 		} else {
-			this.addAtEdge(cell, location.edge, size, donorId, location.spanning);
+			this.addAtEdge(cell, location.edge, size, donorId);
 		}
 
 		this.updateAllVisibility();
@@ -1208,8 +1208,8 @@ export class PartGrid extends Disposable {
 		return this.empty.has(id);
 	}
 
-	private addAtEdge(cell: PartGridCell, edge: Direction, size: number | undefined, donorId?: string, spanning?: readonly string[]): void {
-		addAtEdge(this.arrangement(), cell, edge, size, donorId, spanning);
+	private addAtEdge(cell: PartGridCell, edge: Direction, size: number | undefined, donorId?: string): void {
+		addAtEdge(this.arrangement(), cell, edge, size, donorId);
 	}
 
 	/**
@@ -1883,11 +1883,11 @@ export function getGridWithViewOnTop(state: ISerializedGrid, id: string): ISeria
 	return { root: { type: 'branch', data: [pinned, ...below], size: state.width }, orientation: Orientation.VERTICAL, width: state.width, height: state.height };
 }
 
-function addAtEdge<T extends IArrangedView>(arrangement: IArrangement<T>, cell: T, edge: Direction, size: number | undefined, donorId?: string, spanning?: readonly string[]): void {
+function addAtEdge<T extends IArrangedView>(arrangement: IArrangement<T>, cell: T, edge: Direction, size: number | undefined, donorId?: string): void {
 	const grid = arrangement.grid;
 	const orientation = edge === Direction.Up || edge === Direction.Down ? Orientation.VERTICAL : Orientation.HORIZONTAL;
 	const atEnd = edge === Direction.Right || edge === Direction.Down;
-	if (addBesideSpanningViews(arrangement, cell, orientation, atEnd, size, spanning)) {
+	if (addBesideSpanningViews(arrangement, cell, orientation, atEnd, size)) {
 		return;
 	}
 	if (addAtEdgeOfParts(arrangement, cell, orientation, atEnd, size, donorId)) {
@@ -1925,26 +1925,31 @@ function addAtEdge<T extends IArrangedView>(arrangement: IArrangement<T>, cell: 
 
 /**
  * Adds a cell at an edge of the window beside the parts, but not beside the
- * views that span the window at the ends of the row or column across that
- * edge, such as a strip along the side of the window: they keep spanning
- * past the cell. These are `spanning`, else the chrome along the edges
- * beside it. Returns whether it added the cell: not without such a view there.
+ * chrome along the edges beside it, such as a strip at the right of the
+ * window, at the ends of the row or column across that edge: the chrome keeps
+ * spanning past the cell. Returns whether it added the cell: not without such
+ * chrome there.
  */
-function addBesideSpanningViews<T extends IArrangedView>(arrangement: IArrangement<T>, cell: T, orientation: Orientation, atEnd: boolean, size: number | undefined, spanning: readonly string[] | undefined): boolean {
+function addBesideSpanningViews<T extends IArrangedView>(arrangement: IArrangement<T>, cell: T, orientation: Orientation, atEnd: boolean, size: number | undefined): boolean {
 	const state = arrangement.grid.serialize();
 	// Chrome along the left or right edge spans the window from top to bottom, beside cells at its top or bottom edge
 	const spansAlongEdge = (id: string) => {
 		const edge = arrangement.edgeChromeOf(id);
 		return edge !== undefined && (edge === Direction.Left || edge === Direction.Right) === (orientation === Orientation.VERTICAL);
 	};
-	const isSpanning = (node: ISerializedNode | undefined) => node?.type === 'leaf' && (spanning ? spanning.includes((node.data as { id: string }).id) : spansAlongEdge((node.data as { id: string }).id));
+	const isSpanning = (node: ISerializedNode | undefined) => node?.type === 'leaf' && spansAlongEdge((node.data as { id: string }).id);
 	const path: number[] = [];
 	let node = state.root;
 	let nodeOrientation = state.orientation;
 	let extent = orientation === Orientation.VERTICAL ? state.height : state.width;
-	// Along the edge's orientation, to what is at that edge: the row or column across the edge
+	// Along the edge's orientation, to what is at that edge: the row or column across the edge. Views that are not parts
+	// there, such as a title row pinned at the top of the window, also while it hides, stay where they are, past the cell.
+	const isView = (child: ISerializedNode) => child.type === 'leaf' && !arrangement.isPart((child.data as { id: string }).id);
 	while (node.type === 'branch' && nodeOrientation === orientation && node.data.length) {
-		const index = atEnd ? node.data.length - 1 : 0;
+		let index = atEnd ? node.data.length - 1 : 0;
+		while (isView(node.data[index]) && (atEnd ? index > 0 : index < node.data.length - 1)) {
+			index += atEnd ? -1 : 1;
+		}
 		path.push(index);
 		node = node.data[index];
 		extent = node.size ?? extent;
@@ -2152,7 +2157,7 @@ function moveInArrangement<T extends IArrangedView>(arrangement: IArrangement<T>
 		arrangement.grid.moveView(view, Sizing.Distribute, getView(location.reference), location.direction);
 	} else {
 		arrangement.grid.removeView(view);
-		addAtEdge(arrangement, view, location.edge, undefined, undefined, location.spanning);
+		addAtEdge(arrangement, view, location.edge, undefined);
 	}
 }
 
@@ -2178,7 +2183,7 @@ function placeInArrangement<T extends IArrangedView>(arrangement: IArrangement<T
 		if (!adding) {
 			arrangement.grid.removeView(view);
 		}
-		addAtEdge(arrangement, view, resolved.edge, undefined, undefined, resolved.spanning);
+		addAtEdge(arrangement, view, resolved.edge, undefined);
 	}
 
 	giveEvenShare(arrangement, view, before, getView);

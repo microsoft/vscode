@@ -87,7 +87,7 @@ function getEffectiveTerminalPosition(mode: ChatWindowLayoutMode, position: Chat
  *   across the bottom of the chat and the main part, as `cells.terminals` says (below the main part is across in chat
  *   only), the strip running past them;
  * - stacked (and editor only): the main part above the chat; the terminals across the bottom of the chat and the main
- *   part, the strip running past them while stacked, and stopping above them in editor only.
+ *   part, the strip running past them.
  * The cells a mode hides, the chat or the main part, stay in the grid, so that showing them is not a move.
  */
 export function getChatWindowTopology(mode: ChatWindowLayoutMode, cells: { readonly titleRow: boolean; readonly strip: boolean; readonly terminals?: ChatWindowTerminalPosition }): TopologyNode {
@@ -106,9 +106,7 @@ export function getChatWindowTopology(mode: ChatWindowLayoutMode, cells: { reado
 		}
 		return branch(Orientation.VERTICAL, ...titleRow, branch(Orientation.HORIZONTAL, parts, ...strip));
 	}
-	const parts = branch(Orientation.VERTICAL, main, chat, ...(mode === ChatWindowLayoutMode.Stacked ? terminals : []));
-	const row = branch(Orientation.HORIZONTAL, parts, ...strip);
-	return branch(Orientation.VERTICAL, ...titleRow, row, ...(mode === ChatWindowLayoutMode.EditorOnly ? terminals : []));
+	return branch(Orientation.VERTICAL, ...titleRow, branch(Orientation.HORIZONTAL, branch(Orientation.VERTICAL, main, chat, ...terminals), ...strip));
 }
 
 /** Where the terminals go in the grid of `mode`, beside a cell or at the bottom edge, as {@link getChatWindowTopology} places them. */
@@ -117,8 +115,8 @@ function getTerminalsLocation(mode: ChatWindowLayoutMode, position: ChatWindowTe
 		return { reference: ChatWindowGridCell.Chat, direction: Direction.Down };
 	}
 	if (mode === ChatWindowLayoutMode.EditorOnly) {
-		// Below the strip too
-		return { edge: Direction.Down, spanning: [] };
+		// Below the main part and the hidden chat, the strip running past them
+		return { edge: Direction.Down };
 	}
 	switch (getEffectiveTerminalPosition(mode, position)) {
 		case ChatWindowTerminalPosition.UnderChat: return { reference: ChatWindowGridCell.Chat, direction: Direction.Down };
@@ -717,9 +715,8 @@ export class ChatWindowGrid extends Disposable {
 	/** The room the grid keeps to the edges of the window, such as the main window's outer insets. */
 	setOuterInsets(insets: IGridEdgeInsets): void {
 		this._outerInsets = insets;
-		// For what reaches to the edge of the window, such as a title row in a card at its edge, or the strip at its right.
+		// For what reaches to the edge of the window, such as a title row in a card at its edge.
 		this._container.style.setProperty('--chat-window-outer-inset-left', `${insets.left}px`);
-		this._container.style.setProperty('--chat-window-outer-inset-right', `${insets.right}px`);
 		this._grid.value?.setOuterInsets(insets);
 		this._layoutOnceStylesApply();
 	}

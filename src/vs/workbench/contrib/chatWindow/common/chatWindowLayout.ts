@@ -37,8 +37,6 @@ export const enum ChatWindowColumnPlacement {
 	None = 'none',
 	/** A cell at the right of the editor and the chat, as tall as the window, past the terminals. */
 	Full = 'full',
-	/** A cell beside the editor, ending above the terminals. */
-	BesideEditor = 'besideEditor',
 }
 
 /** The layout state of a chat window that its layout is computed from. */
@@ -130,7 +128,7 @@ export function computeChatWindowLayout(state: IChatWindowLayoutState): IChatWin
 	const column: ChatWindowLayoutNode = { cell: ChatWindowLayoutCell.Column, visible: state.activityBar };
 
 	let root: ChatWindowLayoutNode;
-	let placement = state.activityBar ? ChatWindowColumnPlacement.Full : ChatWindowColumnPlacement.None;
+	const placement = state.activityBar ? ChatWindowColumnPlacement.Full : ChatWindowColumnPlacement.None;
 	switch (mode) {
 		case ChatWindowLayoutMode.ChatOnly:
 			// Without the editor the terminals are below the chat, whatever their position, and the column runs past them.
@@ -155,9 +153,8 @@ export function computeChatWindowLayout(state: IChatWindowLayoutState): IChatWin
 			root = branch('row', branch('column', sidePane, chat, terminals), column);
 			break;
 		case ChatWindowLayoutMode.EditorOnly:
-			// Without the chat the terminal position does not apply: the terminals are across the bottom and the column stops above them.
-			root = branch('column', branch('row', sidePane, column), terminals);
-			placement = state.activityBar ? ChatWindowColumnPlacement.BesideEditor : ChatWindowColumnPlacement.None;
+			// Without the chat the terminal position does not apply: the terminals are below the editor, and the column runs past them.
+			root = branch('row', branch('column', sidePane, terminals), column);
 			break;
 	}
 
