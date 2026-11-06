@@ -4,9 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { DeferredPromise } from '../../../../../base/common/async.js';
 import { CancellationError } from '../../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
-import { DisposableStore, toDisposable } from '../../../../../base/common/lifecycle.js';
+import { DisposableStore, IDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { constObservable, IObservable, ISettableObservable, observableValue } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { mock, upcastPartial } from '../../../../../base/test/common/mock.js';
@@ -14,11 +15,16 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/tes
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { INotificationHandle, INotificationService, NotificationMessage } from '../../../../../platform/notification/common/notification.js';
 import { TestNotificationService } from '../../../../../platform/notification/test/common/testNotificationService.js';
+import { ILogService, NullLogService } from '../../../../../platform/log/common/log.js';
+import { IStorageService, StorageScope, StorageTarget, WillSaveStateReason } from '../../../../../platform/storage/common/storage.js';
+import { TestStorageService } from '../../../../../workbench/test/common/workbenchTestServices.js';
+import { parse, stringify } from '../../../../../base/common/marshalling.js';
+import { Range } from '../../../../../editor/common/core/range.js';
 import { ISessionGroupsService } from '../../../../../workbench/contrib/sessions/browser/sessionGroupsService.js';
 import { ISessionsProvidersService } from '../../../../../workbench/contrib/sessions/browser/sessionsProvidersService.js';
 import { IChat, ISession, ISessionWorkspace, SessionStatus } from '../../../../../workbench/services/sessions/common/session.js';
 import { ICreateNewSessionSlotOptions, INewSessionDraftSlot, INewSessionRequestAcceptedEvent, INewSessionRequestEndedEvent, ISessionsManagementService } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
-import { ChatWindowComposerBackgroundSends, ChatWindowComposerModel, getChatWindowComposerTarget } from '../../browser/chatWindowComposer.js';
+import { CHAT_WINDOW_COMPOSERS_STORAGE_KEY, ChatWindowComposerBackgroundSends, ChatWindowComposerModel, ChatWindowComposers, getChatWindowComposerTarget } from '../../browser/chatWindowComposer.js';
 
 suite('Chat window composer', () => {
 
@@ -43,7 +49,7 @@ suite('Chat window composer', () => {
 		}();
 	}
 
-	function createServices(store: DisposableStore) {
+	function createServices(store: DisposableStore, sessions: readonly ISession[] = []) {
 		const events: string[] = [];
 		const onDidAccept = store.add(new Emitter<INewSessionRequestAcceptedEvent>());
 		const onDidEnd = store.add(new Emitter<INewSessionRequestEndedEvent>());
@@ -57,6 +63,9 @@ suite('Chat window composer', () => {
 		}();
 		const instantiationService = store.add(new TestInstantiationService());
 		instantiationService.stub(INotificationService, notifications);
+		const storageService = store.add(new TestStorageService());
+		instantiationService.stub(IStorageService, storageService);
+		instantiationService.stub(ILogService, new NullLogService());
 		instantiationService.stub(ISessionsProvidersService, new class extends mock<ISessionsProvidersService>() {
 			override getProvider() { return undefined; }
 		}());
@@ -72,6 +81,7 @@ suite('Chat window composer', () => {
 			override readonly onDidReplaceNewDraftSession = onDidReplace.event;
 			override readonly onDidReplaceSession = Event.None;
 			override getNewSessionTarget() { return undefined; }
+			override getSession(resource: URI) { return sessions.find(session => session.resource.toString() === resource.toString()); }
 			override isNewSessionTargetAvailable(_folder: URI, target: { readonly providerId: string }) { return target.providerId !== 'unavailable'; }
 			override createNewSessionSlot(options?: ICreateNewSessionSlotOptions) {
 				const id = `slot${slots.length + 1}`;
@@ -87,7 +97,7 @@ suite('Chat window composer', () => {
 		instantiationService.stub(ISessionsManagementService, sessionsManagementService);
 		const backgroundSends = store.add(instantiationService.createInstance(ChatWindowComposerBackgroundSends));
 		const createComposer = (target = { folderUri: URI.file('/repo'), providerId: 'provider', sessionTypeId: 'type' }) => instantiationService.createInstance(ChatWindowComposerModel, URI.parse('vscode-agents-composer:/1'), { target, groupId: 'group' }, backgroundSends, async () => { });
-		return { events, onDidAccept, onDidEnd, onDidReplace, slots, sessionsManagementService, backgroundSends, createComposer, sessionsProvidersService: instantiationService.get(ISessionsProvidersService) };
+		return { events, onDidAccept, onDidEnd, onDidReplace, slots, sessionsManagementService, backgroundSends, createComposer, sessionsProvidersService: instantiationService.get(ISessionsProvidersService), instantiationService, storageService };
 	}
 
 	test('a composer starts its session as the chat it opened from: the session\'s folder, provider and agent where they serve the folder, and the chat\'s model and mode; a quick chat\'s provider and agent with no workspace; nothing without a session or a workspace', () => {
@@ -195,5 +205,186 @@ suite('Chat window composer', () => {
 		onDidEnd.fire({ session: notDispatched.session, owner: slot, started: false, readopted: false, error: new Error('not dispatched') });
 
 		assert.deepStrictEqual(events, ['error: Couldn\'t start the session: no agent', 'error: Couldn\'t start the session: replaced failed']);
+	});
+
+	test('the composers of chat windows are stored as the state is saved, not as their input changes, with what they aim for, their group, their input and a send that did not end; they restore as a composer with that input or with what the send sent, or as the session a send started; a discarded composer and a malformed entry are not stored', async () => {
+		const store = disposables.add(new DisposableStore());
+		const started = createSession('started', { folder: '/repo', status: constObservable(SessionStatus.Completed) });
+		const { instantiationService, storageService } = createServices(store, [started]);
+		const read = () => storageService.get(CHAT_WINDOW_COMPOSERS_STORAGE_KEY, StorageScope.WORKSPACE);
+		const resource = (name: string) => URI.parse(`vscode-agents-composer:/${name}`);
+		const open = async () => { };
+		const file = { kind: 'file' as const, id: 'a', name: 'index.ts', value: URI.file('/repo/index.ts') };
+		const reference = { id: 'a', range: new Range(1, 1, 1, 21), data: file.value, isFile: true, isAttachmentReference: true };
+
+		const waitForSession = async (resource: URI) => resource.toString() === started.resource.toString() ? started : undefined;
+		const composers = instantiationService.createInstance(ChatWindowComposers, waitForSession);
+		const typed = composers.create(resource('typed'), { target: { folderUri: URI.file('/repo'), providerId: 'provider', sessionTypeId: 'type', modelId: 'model' }, groupId: 'group' }, open);
+		typed.input.set({ inputText: '#attachment:index.ts fix it', attachments: [file], references: [reference] });
+		const sending = composers.create(resource('sending'), {}, open);
+		sending.input.beginSendAttempt({ inputText: 'in flight', attachments: [] });
+		const sent = composers.create(resource('sent'), {}, open);
+		sent.input.beginSendAttempt({ inputText: 'started it', attachments: [] });
+		sent.input.setSendAttemptSession(started.resource);
+		composers.create(resource('discarded'), {}, open).dispose();
+		const beforeSave = read();
+		storageService.testEmitWillSaveState(WillSaveStateReason.NONE);
+		// The window closes, with a malformed entry stored beside its composers.
+		storageService.store(CHAT_WINDOW_COMPOSERS_STORAGE_KEY, stringify([...parse(read()!), { resource: 'not a composer', input: { inputText: 'x', attachments: [] } }]), StorageScope.WORKSPACE, StorageTarget.MACHINE);
+		composers.dispose();
+		[typed, sending, sent].forEach(composer => composer.dispose());
+
+		const reloaded = store.add(instantiationService.createInstance(ChatWindowComposers, waitForSession));
+		const stored = ['typed', 'sending', 'sent', 'discarded'].map(name => reloaded.hasStored(resource(name)));
+		const restoredTyped = await reloaded.restore(resource('typed'), open);
+		const restoredSending = await reloaded.restore(resource('sending'), open);
+		const restoredSent = await reloaded.restore(resource('sent'), open);
+		const composerOf = (restored: typeof restoredTyped) => restored?.kind === 'composer' ? store.add(restored.composer) : undefined;
+		const typedComposer = composerOf(restoredTyped);
+		const sendingComposer = composerOf(restoredSending);
+		const typedInput = typedComposer?.input.get();
+
+		assert.deepStrictEqual({
+			beforeSave,
+			stored,
+			typed: typedComposer && { target: { ...typedComposer.requestedTarget.get(), folderUri: typedComposer.requestedTarget.get()?.folderUri?.toString() }, groupId: typedComposer.groupId, text: typedInput?.input.inputText, attachments: typedInput?.input.attachments.map(attachment => URI.isUri(attachment.value) ? attachment.value.path : undefined), references: typedInput?.input.references?.map(ref => ref.id) },
+			sending: sendingComposer?.input.get(),
+			sent: restoredSent?.kind === 'session' ? restoredSent.session.sessionId : undefined,
+		}, {
+			beforeSave: undefined,
+			stored: [true, true, true, false],
+			typed: { target: { folderUri: URI.file('/repo').toString(), providerId: 'provider', sessionTypeId: 'type', modelId: 'model' }, groupId: 'group', text: '#attachment:index.ts fix it', attachments: ['/repo/index.ts'], references: ['a'] },
+			sending: { input: { inputText: 'in flight', attachments: [], references: undefined } },
+			sent: 'started',
+		});
+	});
+
+	test('the stored composers the restoration of the chat windows did not claim are forgotten, while open ones and claimed ones are stored again', () => {
+		const store = disposables.add(new DisposableStore());
+		const { instantiationService, storageService } = createServices(store);
+		const resource = (name: string) => URI.parse(`vscode-agents-composer:/${name}`);
+		const open = async () => { };
+		const composers = instantiationService.createInstance(ChatWindowComposers, async () => undefined);
+		const all = ['claimed', 'unclaimed', 'open'].map(name => composers.create(resource(name), {}, open));
+		storageService.testEmitWillSaveState(WillSaveStateReason.NONE);
+		composers.dispose();
+		all.forEach(composer => composer.dispose());
+
+		const reloaded = store.add(instantiationService.createInstance(ChatWindowComposers, async () => undefined));
+		const open2 = store.add(reloaded.create(resource('opened'), {}, open));
+		reloaded.didFinishRestore([resource('claimed')]);
+		storageService.testEmitWillSaveState(WillSaveStateReason.NONE);
+
+		assert.deepStrictEqual({ stored: (parse(storageService.get(CHAT_WINDOW_COMPOSERS_STORAGE_KEY, StorageScope.WORKSPACE)!) as { resource: URI }[]).map(entry => entry.resource.path), opened: open2.resource.path }, {
+			stored: ['/opened', '/claimed'],
+			opened: '/opened',
+		});
+	});
+
+	test('a stored composer stays stored while it restores, until the chat it restores as opens in a window: one whose window fails to open restores again with what it had; once open, what it has now is stored, and nothing once it is closed', async () => {
+		const store = disposables.add(new DisposableStore());
+		const { instantiationService, storageService } = createServices(store);
+		const resource = URI.parse('vscode-agents-composer:/typed');
+		const open = async () => { };
+		const save = () => {
+			storageService.testEmitWillSaveState(WillSaveStateReason.NONE);
+			const raw = storageService.get(CHAT_WINDOW_COMPOSERS_STORAGE_KEY, StorageScope.WORKSPACE);
+			return raw ? (parse(raw) as { input: { inputText: string } }[]).map(entry => entry.input.inputText) : [];
+		};
+		const composers = instantiationService.createInstance(ChatWindowComposers, async () => undefined);
+		const original = composers.create(resource, {}, open);
+		original.input.set({ inputText: 'unsent', attachments: [] });
+		save();
+		composers.dispose();
+		original.dispose();
+
+		const reloaded = store.add(instantiationService.createInstance(ChatWindowComposers, async () => undefined));
+		const first = await reloaded.restore(resource, open);
+		const whileRestored = { again: await reloaded.restore(resource, open), stored: reloaded.hasStored(resource) };
+		// Its window fails to open: the composer goes with it.
+		if (first?.kind === 'composer') {
+			first.composer.dispose();
+		}
+		const afterFailure = { stored: reloaded.hasStored(resource), saved: save() };
+		const second = await reloaded.restore(resource, open);
+		const composer = second?.kind === 'composer' ? second.composer : undefined;
+		const restoredInput = composer?.input.get().input.inputText;
+		reloaded.didOpen([resource]);
+		composer?.input.set({ inputText: 'edited', attachments: [] });
+		const whileOpen = { stored: reloaded.hasStored(resource), saved: save() };
+		composer?.dispose();
+
+		assert.deepStrictEqual({ whileRestored, afterFailure, restoredInput, whileOpen, afterClose: save() }, {
+			whileRestored: { again: undefined, stored: true },
+			afterFailure: { stored: true, saved: ['unsent'] },
+			restoredInput: 'unsent',
+			whileOpen: { stored: false, saved: ['edited'] },
+			afterClose: [],
+		});
+	});
+
+	test('a stored composer whose foreground send had gone out restores as its session once that is known, waiting for it, and as a composer with what was sent when it does not become known; one whose send was not accepted restores at once with what was sent', async () => {
+		const store = disposables.add(new DisposableStore());
+		const started = createSession('started', { folder: '/repo', status: constObservable(SessionStatus.Completed) });
+		const { instantiationService, storageService } = createServices(store);
+		const resource = (name: string) => URI.parse(`vscode-agents-composer:/${name}`);
+		const open = async () => { };
+		const waits: string[] = [];
+		const late = new DeferredPromise<ISession | undefined>();
+		const never = new DeferredPromise<ISession | undefined>();
+		const waitForSession = (session: URI) => {
+			waits.push(session.path);
+			return session.path === '/late' ? late.p : never.p;
+		};
+		const composers = instantiationService.createInstance(ChatWindowComposers, waitForSession);
+		const originals: IDisposable[] = [];
+		for (const [name, session] of [['late', 'test:/late'], ['unknown', 'test:/unknown'], ['unaccepted', undefined]] as const) {
+			const composer = composers.create(resource(name), {}, open);
+			originals.push(composer);
+			composer.input.beginSendAttempt({ inputText: `sent ${name}`, attachments: [] });
+			if (session) {
+				composer.input.setSendAttemptSession(URI.parse(session));
+			}
+		}
+		storageService.testEmitWillSaveState(WillSaveStateReason.NONE);
+		composers.dispose();
+		originals.forEach(composer => composer.dispose());
+
+		const reloaded = store.add(instantiationService.createInstance(ChatWindowComposers, waitForSession));
+		const restoring = ['late', 'unknown'].map(name => reloaded.restore(resource(name), open));
+		const unaccepted = await reloaded.restore(resource('unaccepted'), open);
+		late.complete(started);
+		never.complete(undefined);
+		const [lateRestored, unknownRestored] = await Promise.all(restoring);
+		const inputOf = (restored: typeof unaccepted) => restored?.kind === 'composer' ? store.add(restored.composer).input.get() : undefined;
+
+		assert.deepStrictEqual({
+			waits,
+			late: lateRestored?.kind === 'session' ? lateRestored.session.sessionId : undefined,
+			unknown: inputOf(unknownRestored),
+			unaccepted: inputOf(unaccepted),
+		}, {
+			waits: ['/late', '/unknown'],
+			late: 'started',
+			unknown: { input: { inputText: 'sent unknown', attachments: [], references: undefined } },
+			unaccepted: { input: { inputText: 'sent unaccepted', attachments: [], references: undefined } },
+		});
+	});
+
+	test('a background send that went out ends its send attempt, so a reload while the next draft is created restores neither; a send not accepted keeps it, so a reload restores what was sent', () => {
+		const store = disposables.add(new DisposableStore());
+		const { onDidAccept, slots, createComposer } = createServices(store);
+		const sentInBackground = store.add(createComposer());
+		const declined = store.add(createComposer());
+		for (const composer of [sentInBackground, declined]) {
+			composer.input.beginSendAttempt({ inputText: 'sent', attachments: [] });
+			composer.input.set({ inputText: '', attachments: [] });
+		}
+		onDidAccept.fire({ session: createSession('draft', { folder: '/repo' }), owner: slots[0].slot, background: true });
+
+		assert.deepStrictEqual({ sentInBackground: sentInBackground.toStored().attempt, declined: declined.toStored().attempt?.input.inputText }, {
+			sentInBackground: undefined,
+			declined: 'sent',
+		});
 	});
 });

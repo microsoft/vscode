@@ -10,7 +10,8 @@ import { disposableTimeout, SequencerByKey } from '../../../../base/common/async
 import { CancellationError, onUnexpectedError } from '../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { combinedDisposable, Disposable, DisposableMap, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
-import { autorun, derived, IObservable, observableValue, transaction } from '../../../../base/common/observable.js';
+import { autorun, derived, derivedOpts, IObservable, ITransaction, observableValue, transaction } from '../../../../base/common/observable.js';
+import { arrayEqualsC } from '../../../../base/common/equals.js';
 import { isEqual } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
 import { localize } from '../../../../nls.js';
@@ -183,7 +184,13 @@ export class ChatWindow extends Disposable implements IChatWindow {
 	 * stays open, empty, but they are not its chats, so they show elsewhere when asked to.
 	 */
 	private readonly _released = observableValue<ReadonlySet<IChatWindowChat>>(this, new Set());
+	/**
+	 * Chats it takes whose editors have not opened in it yet ({@link addChat}): among its {@link chats}, but not its
+	 * {@link openedChats} until they did, as opening them can fail.
+	 */
+	private readonly _adopting = observableValue<ReadonlySet<IChatWindowChat>>(this, new Set());
 	readonly chats: IObservable<readonly URI[]>;
+	readonly openedChats: IObservable<readonly URI[]>;
 	readonly chat: IObservable<URI>;
 	readonly title: IObservable<string>;
 
@@ -212,10 +219,11 @@ export class ChatWindow extends Disposable implements IChatWindow {
 			.map(({ input }) => input);
 	}
 
-	/** Its chats, not released, in the order its tabs show them. */
+	/** Its chats, not released and whose editors opened in it, in the order its tabs show them. */
 	chatsInTabOrder(): readonly URI[] {
 		const released = this._released.get();
-		return this.chatInputsInOrder.map(input => this._chatOf(input)).filter((chat): chat is IChatWindowChat => !!chat && !released.has(chat)).map(chat => chat.chat.get());
+		const adopting = this._adopting.get();
+		return this.chatInputsInOrder.map(input => this._chatOf(input)).filter((chat): chat is IChatWindowChat => !!chat && !released.has(chat) && !adopting.has(chat)).map(chat => chat.chat.get());
 	}
 
 	/** Its chats as the provider resolved them, in their order. */
@@ -231,13 +239,32 @@ export class ChatWindow extends Disposable implements IChatWindow {
 		return editor ? this._chats.get().find(chat => chat.input === editor) : undefined;
 	}
 
-	/** Adds `chat` to the chats it shows; its editor opens in its chat part separately. */
+	/**
+	 * Adds `chat` to the chats it shows; its editor opens in its chat part separately. Until {@link adoptChat} says its
+	 * editor opened there, it is not one of its {@link openedChats}.
+	 */
 	addChat(chat: IChatWindowChat): void {
 		if (this._chats.get().includes(chat)) {
 			return;
 		}
-		this._chats.set([...this._chats.get(), chat], undefined);
+		transaction(tx => {
+			this._adopting.set(new Set([...this._adopting.get(), chat]), tx);
+			this._chats.set([...this._chats.get(), chat], tx);
+		});
 		this._trackChat(chat);
+	}
+
+	/** `chat`, which it {@link addChat added}, is one of its {@link openedChats}: its editor opened in it. */
+	adoptChat(chat: IChatWindowChat): void {
+		this._forgetAdopting(chat);
+	}
+
+	private _forgetAdopting(chat: IChatWindowChat, tx?: ITransaction): void {
+		if (this._adopting.get().has(chat)) {
+			const adopting = new Set(this._adopting.get());
+			adopting.delete(chat);
+			this._adopting.set(adopting, tx);
+		}
 	}
 
 	private _trackChat(chat: IChatWindowChat): void {
@@ -272,7 +299,10 @@ export class ChatWindow extends Disposable implements IChatWindow {
 		if (!this.close()) {
 			this._closingForLastChat = false;
 			// It stays, showing no chat: the chat is released, with what it held for it, such as its model
-			this._released.set(new Set([...this._released.get(), chat]), undefined);
+			transaction(tx => {
+				this._forgetAdopting(chat, tx);
+				this._released.set(new Set([...this._released.get(), chat]), tx);
+			});
 			chat.dispose();
 		}
 	}
@@ -284,6 +314,7 @@ export class ChatWindow extends Disposable implements IChatWindow {
 			return;
 		}
 		transaction(tx => {
+			this._forgetAdopting(chat, tx);
 			this._chats.set(remaining, tx);
 			if (this._activeChat.get() === chat) {
 				this._activeChat.set(this._chatOf(this.chatPart.activeGroup.activeEditor) ?? remaining[0], tx);
@@ -347,6 +378,12 @@ export class ChatWindow extends Disposable implements IChatWindow {
 		this.chats = derived(this, reader => {
 			const released = this._released.read(reader);
 			return this._chats.read(reader).filter(chat => !released.has(chat)).map(chat => chat.chat.read(reader));
+		});
+		// The same chats, also as one it takes is added or dropped before its editor opened, do not change it
+		this.openedChats = derivedOpts({ owner: this, equalsFn: arrayEqualsC() }, reader => {
+			const released = this._released.read(reader);
+			const adopting = this._adopting.read(reader);
+			return this._chats.read(reader).filter(chat => !released.has(chat) && !adopting.has(chat)).map(chat => chat.chat.read(reader));
 		});
 		this.chat = derived(this, reader => this._activeChat.read(reader).chat.read(reader));
 		this.title = derived(this, reader => this._activeChat.read(reader).title.read(reader));
@@ -801,6 +838,7 @@ export class ChatWindowService extends Disposable implements IChatWindowService 
 	private async _openOrReveal(chat: URI, options?: IChatWindowOpenOptions): Promise<IChatWindow | undefined> {
 		const opened = this._windowOfChat(chat);
 		if (opened) {
+			await this._restoreChatsOnReveal(opened, chat, options);
 			if (options?.preserveFocus) {
 				opened.activateChat(chat);
 			} else {
@@ -853,6 +891,7 @@ export class ChatWindowService extends Disposable implements IChatWindowService 
 			// The window that shows the chat the provider resolved to shows it as its active chat
 			firstChat.dispose();
 			content.dispose();
+			await this._restoreChatsOnReveal(resolved, canonical, options);
 			if (options?.preserveFocus) {
 				resolved.activateChat(canonical);
 			} else {
@@ -864,6 +903,27 @@ export class ChatWindowService extends Disposable implements IChatWindowService 
 			opening.disposables.add(content);
 			return this._openWindow(provider, content, firstChat, options, opening.disposables, close => opening.close = close);
 		});
+	}
+
+	/**
+	 * Opens the other chats of a restored chat window in `window`, which shows its chat `root` already, when asked to
+	 * ({@link IChatWindowOpenOptions.restoreChatsOnReveal}): without focus, as tabs behind those of the group of `root`, in
+	 * their order, whatever side editors open on; each as it opens anywhere, so a chat another window shows stays there.
+	 * One that fails to open does not keep the others from opening.
+	 */
+	private async _restoreChatsOnReveal(window: ChatWindow, root: URI, options: IChatWindowOpenOptions | undefined): Promise<void> {
+		if (!options?.restoreChatsOnReveal) {
+			return;
+		}
+		const group = this._groupOfChat(window, root);
+		for (const other of options.chats ?? []) {
+			try {
+				// Behind the last tab of the group, which is the one restored before it once that opened there
+				await this._addChat(window, other, { preserveFocus: true }, group, false, undefined, undefined, group?.getEditors(EditorsOrder.SEQUENTIAL).at(-1));
+			} catch (error) {
+				onUnexpectedError(error);
+			}
+		}
 	}
 
 	/**
@@ -933,6 +993,7 @@ export class ChatWindowService extends Disposable implements IChatWindowService 
 			drop();
 			return undefined;
 		}
+		window.adoptChat(added);
 		return window;
 	}
 

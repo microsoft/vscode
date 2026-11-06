@@ -45,6 +45,11 @@ export interface IChatWindowOpenOptions {
 	readonly window?: IChatWindow;
 	/** The chats it shows besides the one it opens for, in their order after it, such as those it showed when it last closed. */
 	readonly chats?: readonly URI[];
+	/**
+	 * Whether {@link chats} also open, beside the chat, in a window that shows the chat already, which then shows instead of
+	 * a new window: as the chat windows open again that were open when the window last closed. Not by default.
+	 */
+	readonly restoreChatsOnReveal?: boolean;
 	/** Of its chats, the one whose remembered layout and part sizes the window uses, when not the one it opens for. */
 	readonly layoutChat?: URI;
 	/** With {@link window}: one of its chats, beside which the chat opens, in a group of its own to the right. */
@@ -179,6 +184,18 @@ export interface IChatWindowProvider {
 	 * to know, such as for the chat to load. A chat that is gone does not.
 	 */
 	canRestore(chat: URI): Promise<boolean>;
+	/**
+	 * Called once the chat windows open when the window last closed were restored, with the chats it restored or tried to
+	 * (`claimed`): those {@link canRestore} accepted, also in a window that failed to open, which stays stored to restore
+	 * next time. Not while restoring is pending ({@link restoreEnabled}).
+	 */
+	didFinishRestore?(claimed: readonly URI[]): void;
+	/**
+	 * The chat that `original`, a chat of a stored chat window, opens as when that is another chat: such as a session,
+	 * as chat windows were stored before they were built on parts, which opens as one of its chats. Synchronous, from what
+	 * is known now. Used to know when a stored chat shows, not how chats are stored or opened.
+	 */
+	canonicalChatOf?(original: URI): URI | undefined;
 	/** Whether chat windows are restored now; while not, the stored ones are kept for later. */
 	readonly restoreEnabled: IObservable<boolean>;
 	/** Fires with chats that are gone, so that their stored windows are forgotten before the next save. */
@@ -191,6 +208,11 @@ export interface IChatWindow {
 	readonly windowId: number;
 	/** The chats it shows, in the order they joined it. It closes once the last one leaves. */
 	readonly chats: IObservable<readonly URI[]>;
+	/**
+	 * Its {@link chats} whose editors opened in it: not one whose editor still opens, which can fail. What it keeps of its
+	 * chats beyond the window, such as across a reload, follows these.
+	 */
+	readonly openedChats: IObservable<readonly URI[]>;
 	/**
 	 * The active chat: the chat whose editor was last active in the window, whichever part shows it. It does not change as
 	 * focus moves to another editor, such as of the main part.

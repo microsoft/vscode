@@ -55,7 +55,7 @@ import { getSessionAgentMergeConfigurationObservable } from '../../../../workben
 import { ChatEditorContent, IChatEditorComposer } from '../../chatEditor/browser/chatEditorContent.js';
 import { localize } from '../../../../nls.js';
 import { ISessionGroupsService } from '../../../../workbench/contrib/sessions/browser/sessionGroupsService.js';
-import { ChatWindowComposerBackgroundSends, ChatWindowComposerModel, createChatWindowComposerResource, getChatWindowComposerTarget, IChatWindowComposerInit, isChatWindowComposerResource } from './chatWindowComposer.js';
+import { ChatWindowComposerModel, ChatWindowComposers, createChatWindowComposerResource, getChatWindowComposerTarget, IChatWindowComposerInit, isChatWindowComposerResource } from './chatWindowComposer.js';
 
 /** The class of the element of an Agents chat window. */
 export const AGENTS_CHAT_WINDOW_CLASS = 'agents-chat-window';
@@ -392,7 +392,14 @@ export class SessionsChatWindowContent extends Disposable implements IChatWindow
 		super.dispose();
 	}
 
+	/**
+	 * @param _didResolveAs Told when a chat resolves as another one, such as a session as one of its chats, so that a
+	 * stored chat window of it is known to show.
+	 */
 	constructor(
+		private readonly _composers: ChatWindowComposers,
+		private readonly _didResolveAs: (original: URI, canonical: URI) => void,
+		@IChatWindowService private readonly _chatWindowService: IChatWindowService,
 		@IChangesViewService private readonly _changesViewService: IChangesViewService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@IEditorGroupsService private readonly _editorGroupsService: IEditorGroupsService,
@@ -425,8 +432,17 @@ export class SessionsChatWindowContent extends Disposable implements IChatWindow
 	}
 
 	async resolveChat(resource: URI, exactChat?: boolean): Promise<IChatWindowChat | undefined> {
+		const chat = await this._resolveChat(resource, exactChat);
+		const canonical = chat?.chat.get();
+		if (canonical && !isEqual(canonical, resource)) {
+			this._didResolveAs(resource, canonical);
+		}
+		return chat;
+	}
+
+	private async _resolveChat(resource: URI, exactChat?: boolean): Promise<IChatWindowChat | undefined> {
 		if (isChatWindowComposerResource(resource)) {
-			return this._chats.get().find(candidate => isEqual(candidate.chat.get(), resource)) ?? this._addChat(resource, this._pendingComposers.deleteAndLeak(resource.toString()));
+			return await this._resolveComposer(resource);
 		}
 		const resolved = resolveChat(this._sessionsManagementService, resource);
 		if (!resolved) {
@@ -438,6 +454,44 @@ export class SessionsChatWindowContent extends Disposable implements IChatWindow
 			return existing;
 		}
 		return this._addChat(chatResource, undefined);
+	}
+
+	/**
+	 * The chat of the composer of `resource`: one it opened, or a stored one, which restores as a composer, or as the main
+	 * chat of the session that a send it had not seen end started.
+	 */
+	private async _resolveComposer(resource: URI): Promise<SessionsChatWindowChat | undefined> {
+		const existing = this._chats.get().find(candidate => isEqual(candidate.chat.get(), resource));
+		if (existing) {
+			return existing;
+		}
+		const opened = this._pendingComposers.deleteAndLeak(resource.toString());
+		if (opened) {
+			return this._addChat(resource, opened);
+		}
+		const restored = await this._composers.restore(resource, this._openStartedSession(resource));
+		if (!restored) {
+			return undefined;
+		}
+		// The window went away while the composer restored
+		if (this._store.isDisposed) {
+			if (restored.kind === 'composer') {
+				restored.composer.dispose();
+			}
+			return undefined;
+		}
+		if (restored.kind === 'composer') {
+			return this._addChat(resource, restored.composer);
+		}
+		const main = restored.session.mainChat.get().resource;
+		return this._chats.get().find(candidate => isEqual(candidate.chat.get(), main)) ?? this._addChat(main, undefined);
+	}
+
+	/** Opens a session that the composer of `resource` started in the background beside it, in its window. */
+	private _openStartedSession(resource: URI): (session: ISession) => Promise<void> {
+		return async started => {
+			await this._chatWindowService.open(started.mainChat.get().resource, { window: this.window.get(), tabOf: resource, exactChat: true });
+		};
 	}
 
 	private _addChat(chatResource: URI, composer: ChatWindowComposerModel | undefined): SessionsChatWindowChat | undefined {
@@ -457,10 +511,10 @@ export class SessionsChatWindowContent extends Disposable implements IChatWindow
 	 * the active chat's session is in. While the active chat is a composer that has not sent its session, it focuses it
 	 * instead. The composer's chat becomes its session's main chat once it sends it in the foreground.
 	 */
-	async openComposer(window: IChatWindow, chatWindowService: IChatWindowService, backgroundSends: ChatWindowComposerBackgroundSends): Promise<void> {
+	async openComposer(window: IChatWindow): Promise<void> {
 		const active = this.activeChat.get();
 		if (active?.isComposer) {
-			await chatWindowService.open(active.chat.get(), { window });
+			await this._chatWindowService.open(active.chat.get(), { window });
 			return;
 		}
 		const session = active?.session.get();
@@ -469,12 +523,9 @@ export class SessionsChatWindowContent extends Disposable implements IChatWindow
 			target: getChatWindowComposerTarget(this._sessionsManagementService, this._sessionsProvidersService, session, active?.shownChat.get()),
 			groupId: session && this._sessionGroupsService.getGroupOfSession(session.sessionId),
 		};
-		const openStartedSession = async (started: ISession) => {
-			await chatWindowService.open(started.mainChat.get().resource, { window, tabOf: resource, exactChat: true });
-		};
-		this._pendingComposers.set(resource.toString(), this._instantiationService.createInstance(ChatWindowComposerModel, resource, init, backgroundSends, openStartedSession));
+		this._pendingComposers.set(resource.toString(), this._composers.create(resource, init, this._openStartedSession(resource)));
 		try {
-			await chatWindowService.open(resource, { window, tabOf: active?.chat.get() });
+			await this._chatWindowService.open(resource, { window, tabOf: active?.chat.get() });
 		} finally {
 			// Not taken by a chat, such as when the window went away meanwhile
 			this._pendingComposers.deleteAndDispose(resource.toString());
@@ -569,8 +620,11 @@ function shownChatOfSession(sessionsService: ISessionsService, session: ISession
 export class SessionsChatWindowProvider extends Disposable implements IChatWindowProvider {
 
 	private readonly _contents = observableValue<readonly SessionsChatWindowContent[]>(this, []);
-	/** The background sends of the composers of its windows, followed also after their composer and window are gone. */
-	private readonly _composerBackgroundSends: ChatWindowComposerBackgroundSends;
+	/** The composers of its windows, and their background sends, which outlive them. */
+	private readonly _composers: ChatWindowComposers;
+	/** What the chats its windows restore resolved as, when another chat, until the restoration finished. */
+	private readonly _restoredAs = new Map<string, URI>();
+	private _restoreFinished = false;
 
 	readonly restoreEnabled: IObservable<boolean>;
 	readonly onDidRemoveChats: Event<readonly URI[]>;
@@ -597,7 +651,13 @@ export class SessionsChatWindowProvider extends Disposable implements IChatWindo
 		@IStorageService storageService: IStorageService,
 	) {
 		super();
-		this._composerBackgroundSends = this._register(_instantiationService.createInstance(ChatWindowComposerBackgroundSends));
+		this._composers = this._register(_instantiationService.createInstance(ChatWindowComposers, resource => this._waitForChat(resource).then(resolved => resolved?.session)));
+		// A stored composer restored once the chat it restored as shows in an open window, not before: opening it can fail.
+		this._register(autorun(reader => {
+			for (const window of this._chatWindowService.windows.read(reader)) {
+				this._composers.didOpen(window.openedChats.read(reader));
+			}
+		}));
 
 		// Opening a chat that a chat window shows reveals it there, and a chat opened beside one it shows opens beside it.
 		this._register(chatHostOpenerService.register({
@@ -650,10 +710,14 @@ export class SessionsChatWindowProvider extends Disposable implements IChatWindo
 	}
 
 	async resolveContent(resource: URI): Promise<SessionsChatWindowContent | undefined> {
-		if (!resolveChat(this._sessionsManagementService, resource)) {
+		if (isChatWindowComposerResource(resource) ? !this._composers.hasStored(resource) : !resolveChat(this._sessionsManagementService, resource)) {
 			return undefined;
 		}
-		const content = this._instantiationService.createInstance(SessionsChatWindowContent);
+		const content = this._instantiationService.createInstance(SessionsChatWindowContent, this._composers, (original: URI, canonical: URI) => {
+			if (!this._restoreFinished) {
+				this._restoredAs.set(original.toString(), canonical);
+			}
+		});
 		this._contents.set([...this._contents.get(), content], undefined);
 		Event.once(content.onWillDispose)(() => this._contents.set(this._contents.get().filter(candidate => candidate !== content), undefined));
 		return content;
@@ -682,18 +746,42 @@ export class SessionsChatWindowProvider extends Disposable implements IChatWindo
 		await this._editorService.openEditors(inputs.map(editor => ({ editor, options: { pinned: true, preserveFocus: true, inactive: editor !== active } })), this._editorGroupsService.mainPart.activeGroup);
 	}
 
+	didFinishRestore(claimed: readonly URI[]): void {
+		this._composers.didFinishRestore(claimed);
+		// The restoration knows what its stored chats opened as from now on: nothing else needs it.
+		this._restoreFinished = true;
+		this._restoredAs.clear();
+	}
+
+	canonicalChatOf(original: URI): URI | undefined {
+		// What it resolved as, while restoring
+		const resolved = this._restoredAs.get(original.toString());
+		if (resolved) {
+			return resolved;
+		}
+		// What it would resolve as now, from what is known: a stored composer as the session its send started, once that is
+		// known and created, a session as its main chat.
+		if (isChatWindowComposerResource(original)) {
+			const sent = this._composers.storedAttemptSessionOf(original);
+			const session = sent && this._sessionsManagementService.getSession(sent);
+			return session && isSessionCreated(session) ? session.mainChat.get().resource : undefined;
+		}
+		const chat = resolveChat(this._sessionsManagementService, original);
+		return chat && !chat.chat ? chat.session.mainChat.get().resource : undefined;
+	}
+
 	/** Opens a new-session composer in `window`, as {@link SessionsChatWindowContent.openComposer} does. */
 	async openComposer(window: IChatWindow): Promise<void> {
 		const content = this._contents.get().find(candidate => candidate.window.get() === window);
-		await content?.openComposer(window, this._chatWindowService, this._composerBackgroundSends);
+		await content?.openComposer(window);
 	}
 
 	async canRestore(resource: URI): Promise<boolean> {
-		if (isChatWindowComposerResource(resource)) {
-			return false;
-		}
 		// After the main window restored the sessions it shows, and their editors, so that these are not shown there again.
 		await waitForState(this._sessionsService.initialRestoreComplete);
+		if (isChatWindowComposerResource(resource)) {
+			return this._composers.hasStored(resource);
+		}
 		const resolved = await this._waitForChat(resource);
 		if (!resolved) {
 			return false;

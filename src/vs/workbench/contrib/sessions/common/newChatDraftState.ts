@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { parse, stringify } from '../../../../base/common/marshalling.js';
+import { URI } from '../../../../base/common/uri.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
 import { Range } from '../../../../editor/common/core/range.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
@@ -15,12 +16,30 @@ const STORAGE_KEY_DRAFT_STATE = 'sessions.draftState';
 
 export function readNewChatDraftState(storageService: IStorageService): IChatDraft | undefined {
 	const raw = storageService.get(STORAGE_KEY_DRAFT_STATE, StorageScope.WORKSPACE);
-	if (!raw) {
-		return undefined;
-	}
-	const draft: Partial<IChatDraft> | undefined = parse(raw);
+	return raw ? fromStoredChatDraft(parse(raw)) : undefined;
+}
+
+/** Saves the draft and returns a guard that stays true until another write replaces it. */
+export function writeNewChatDraftState(storageService: IStorageService, draft: IChatDraft): () => boolean {
+	const value = stringify({ revision: generateUuid(), ...toStoredChatDraft(draft) });
+	storageService.store(STORAGE_KEY_DRAFT_STATE, value, StorageScope.WORKSPACE, StorageTarget.MACHINE);
+	return () => storageService.get(STORAGE_KEY_DRAFT_STATE, StorageScope.WORKSPACE) === value;
+}
+
+/** What a draft stores, to be marshalled with `stringify`: its attachments as exported, never as their live objects. */
+export function toStoredChatDraft(draft: IChatDraft): object {
+	return {
+		inputText: draft.inputText,
+		attachments: draft.attachments.map(IChatRequestVariableEntry.toExport),
+		references: draft.references,
+	};
+}
+
+/** The draft that `value`, unmarshalled with `parse`, stores ({@link toStoredChatDraft}); throws when it is no draft. */
+export function fromStoredChatDraft(value: unknown): IChatDraft {
+	const draft = value as Partial<IChatDraft> | undefined;
 	const attachments = draft?.attachments ?? [];
-	if (!draft || typeof draft.inputText !== 'string' || !Array.isArray(attachments) || !attachments.every(isChatRequestVariableEntry)) {
+	if (!draft || typeof draft !== 'object' || typeof draft.inputText !== 'string' || !Array.isArray(attachments) || !attachments.every(isChatRequestVariableEntry)) {
 		throw new Error('Invalid new-session draft state.');
 	}
 	// Drafts saved before references were saved, or with invalid ones, keep their text and attachments.
@@ -28,23 +47,13 @@ export function readNewChatDraftState(storageService: IStorageService): IChatDra
 	return { inputText: draft.inputText, attachments: attachments.map(IChatRequestVariableEntry.fromExport), references };
 }
 
-/** Saves the draft and returns a guard that stays true until another write replaces it. */
-export function writeNewChatDraftState(storageService: IStorageService, draft: IChatDraft): () => boolean {
-	const value = stringify({
-		revision: generateUuid(),
-		inputText: draft.inputText,
-		attachments: draft.attachments.map(IChatRequestVariableEntry.toExport),
-		references: draft.references,
-	});
-	storageService.store(STORAGE_KEY_DRAFT_STATE, value, StorageScope.WORKSPACE, StorageTarget.MACHINE);
-	return () => storageService.get(STORAGE_KEY_DRAFT_STATE, StorageScope.WORKSPACE) === value;
-}
-
 /** A send of a composer whose input was cleared for it, until the send is rejected, fails or starts. */
 export interface IComposerSendAttempt {
 	readonly id: string;
 	/** The input as it was before the composer cleared it for the send. */
 	readonly input: IChatDraft;
+	/** The session the send went out with, once its request was accepted ({@link ComposerInputSnapshot.setSendAttemptSession}). */
+	readonly session?: URI;
 }
 
 /** What a composer outside the main window restores: its input, or the input of a send that has not ended. */
@@ -94,6 +103,13 @@ export class ComposerInputSnapshot implements IComposerInputSnapshot {
 	endSendAttempt(id: string): void {
 		if (this._attempt?.id === id) {
 			this._attempt = undefined;
+		}
+	}
+
+	/** Records the session the send of the current attempt went out with, such as once its request was accepted. */
+	setSendAttemptSession(session: URI): void {
+		if (this._attempt) {
+			this._attempt = { ...this._attempt, session };
 		}
 	}
 }

@@ -5,19 +5,23 @@
 
 import { isCancellationError } from '../../../../base/common/errors.js';
 import { toErrorMessage } from '../../../../base/common/errorMessage.js';
-import { Emitter } from '../../../../base/common/event.js';
+import { Emitter, Event } from '../../../../base/common/event.js';
 import { Disposable, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { derived, IObservable, observableValue } from '../../../../base/common/observable.js';
+import { parse, stringify } from '../../../../base/common/marshalling.js';
 import { URI } from '../../../../base/common/uri.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
 import { localize } from '../../../../nls.js';
+import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
+import { ILogService } from '../../../../platform/log/common/log.js';
 import { INotificationService } from '../../../../platform/notification/common/notification.js';
+import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { getInheritedNewSessionTarget } from '../../../../workbench/contrib/sessions/browser/chat/newSessionAction.js';
 import { INewSessionBackgroundSend, INewSessionDraftHost, INewSessionTarget } from '../../../../workbench/contrib/sessions/browser/parts/chatView.js';
 import { ISessionGroupsService } from '../../../../workbench/contrib/sessions/browser/sessionGroupsService.js';
 import { ISessionsProvidersService } from '../../../../workbench/contrib/sessions/browser/sessionsProvidersService.js';
-import { ComposerInputSnapshot, IComposerInputState } from '../../../../workbench/contrib/sessions/common/newChatDraftState.js';
-import { IChat, ISession } from '../../../../workbench/services/sessions/common/session.js';
+import { ComposerInputSnapshot, fromStoredChatDraft, IComposerInputState, toStoredChatDraft } from '../../../../workbench/contrib/sessions/common/newChatDraftState.js';
+import { IChat, ISession, isSessionCreated } from '../../../../workbench/services/sessions/common/session.js';
 import { INewSessionDraftSlot, ISessionsManagementService, trackNewSessionRequestEnd, WorkspaceNotTrustedError } from '../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 
 /** The scheme of the resource of a new-session composer in a chat window: its chat until it sends its session. */
@@ -132,6 +136,12 @@ export class ChatWindowComposerModel extends Disposable implements INewSessionDr
 	/** Fires with its session once a foreground request it sent started it. */
 	readonly onDidStart = this._onDidStart.event;
 
+	private readonly _onWillDispose = this._register(new Emitter<void>());
+	readonly onWillDispose = this._onWillDispose.event;
+
+	/** The custom group of the sessions list that the sessions it sends join. */
+	readonly groupId: string | undefined;
+
 	constructor(
 		readonly resource: URI,
 		init: IChatWindowComposerInit,
@@ -141,17 +151,39 @@ export class ChatWindowComposerModel extends Disposable implements INewSessionDr
 		@ISessionGroupsService sessionGroupsService: ISessionGroupsService,
 	) {
 		super();
+		this.groupId = init.groupId;
 		this._requestedTarget.set(init.target, undefined);
 		this.input = new ComposerInputSnapshot(init.input);
 		this.slot = this._register(_sessionsManagementService.createNewSessionSlot({ readoptOnFailure: session => this._isRequested(session) }));
 		this._register(sessionGroupsService.setDraftSlotGroup(this.slot.id, init.groupId));
 		this.session = derived(this, reader => this._sending.read(reader) ?? this.slot.newSession.read(reader));
 		this._register(_sessionsManagementService.onDidAcceptNewSessionRequest(({ session, owner, background }) => {
+			if (owner === this.slot && background) {
+				// Its send went out, so a reload restores neither it nor what was sent, also while its next draft is created.
+				const attempt = this.input.get().attempt;
+				if (attempt) {
+					this.input.endSendAttempt(attempt.id);
+				}
+				return;
+			}
 			if (owner === this.slot && !background) {
 				this._targetOfSend = { target: this._requestedTarget.get() };
+				// A reload before the request ends restores the session it started, or else what was sent.
+				this.input.setSendAttemptSession(session.resource);
 				this._followSend(session);
 			}
 		}));
+	}
+
+	override dispose(): void {
+		this._onWillDispose.fire();
+		super.dispose();
+	}
+
+	/** What it stores to be restored, such as after a reload: what it aims for, its group and its input. */
+	toStored(): IStoredChatWindowComposer {
+		const target = this._requestedTarget.get();
+		return { resource: this.resource, ...(target ? { target } : {}), ...(this.groupId ? { groupId: this.groupId } : {}), ...this.input.get() };
 	}
 
 	setRequestedTarget(target: INewSessionTarget): void {
@@ -182,6 +214,7 @@ export class ChatWindowComposerModel extends Disposable implements INewSessionDr
 		const follow = ({ from, to }: { readonly from: ISession; readonly to: ISession }) => {
 			if (from.sessionId === this._sending.get()?.sessionId) {
 				this._sending.set(to, undefined);
+				this.input.setSendAttemptSession(to.resource);
 			}
 		};
 		store.add(this._sessionsManagementService.onDidReplaceNewDraftSession(follow));
@@ -197,5 +230,200 @@ export class ChatWindowComposerModel extends Disposable implements INewSessionDr
 				this._sending.set(undefined, undefined);
 			}
 		}));
+	}
+}
+
+/** A composer of a chat window as it is stored ({@link ChatWindowComposerModel.toStored}). */
+export interface IStoredChatWindowComposer extends IComposerInputState {
+	readonly resource: URI;
+	readonly target?: INewSessionTarget;
+	readonly groupId?: string;
+}
+
+/** What a stored composer restores as: the session that a send it had not seen end started, or a composer. */
+export type RestoredChatWindowComposer = { readonly kind: 'session'; readonly session: ISession } | { readonly kind: 'composer'; readonly composer: ChatWindowComposerModel };
+
+/** The key of the composers of chat windows that were open when the window last closed. */
+export const CHAT_WINDOW_COMPOSERS_STORAGE_KEY = 'sessions.chatWindow.composers';
+
+function isOptionalString(value: unknown): value is string | undefined {
+	return value === undefined || typeof value === 'string';
+}
+
+/** The stored composer that `value` is, unmarshalled; throws when it is none. */
+function fromStoredComposer(value: unknown): IStoredChatWindowComposer {
+	const entry = value as { resource?: unknown; target?: Partial<Record<keyof INewSessionTarget, unknown>>; groupId?: unknown; input?: unknown; attempt?: { id?: unknown; input?: unknown; session?: unknown } } | undefined;
+	const target = entry?.target;
+	const attempt = entry?.attempt;
+	if (!entry || !URI.isUri(entry.resource) || !isChatWindowComposerResource(entry.resource) || !isOptionalString(entry.groupId)
+		|| (target !== undefined && (typeof target !== 'object' || target === null || (target.folderUri !== undefined && !URI.isUri(target.folderUri))
+			|| !isOptionalString(target.providerId) || !isOptionalString(target.sessionTypeId) || !isOptionalString(target.modelId) || !isOptionalString(target.modeId)))
+		|| (attempt !== undefined && (typeof attempt !== 'object' || attempt === null || typeof attempt.id !== 'string' || (attempt.session !== undefined && !URI.isUri(attempt.session))))) {
+		throw new Error('Invalid chat window composer.');
+	}
+	return {
+		resource: entry.resource,
+		...(target ? { target: target as INewSessionTarget } : {}),
+		...(entry.groupId ? { groupId: entry.groupId } : {}),
+		input: fromStoredChatDraft(entry.input),
+		...(attempt ? { attempt: { id: attempt.id as string, input: fromStoredChatDraft(attempt.input), ...(attempt.session ? { session: attempt.session as URI } : {}) } } : {}),
+	};
+}
+
+function toStoredComposer(composer: IStoredChatWindowComposer): unknown {
+	return {
+		resource: composer.resource,
+		target: composer.target,
+		groupId: composer.groupId,
+		input: toStoredChatDraft(composer.input),
+		attempt: composer.attempt && { id: composer.attempt.id, session: composer.attempt.session, input: toStoredChatDraft(composer.attempt.input) },
+	};
+}
+
+/**
+ * The composers of the chat windows: those open, and those stored when the window last closed until they restore. It
+ * stores them all as the state of the window is saved, never as their input changes, and forgets the stored ones that
+ * the restoration of the chat windows did not restore ({@link didFinishRestore}).
+ */
+export class ChatWindowComposers extends Disposable {
+
+	/** The background sends of the composers, followed also after their composer and window are gone. */
+	readonly backgroundSends: ChatWindowComposerBackgroundSends;
+
+	private readonly _stored = new Map<string, IStoredChatWindowComposer>();
+	private readonly _live = new Map<string, ChatWindowComposerModel>();
+	/** The stored composers restoring, until they are restored. */
+	private readonly _restoring = new Set<string>();
+	/** The stored composers restored, by the chat each restored as, until that chat opens in a window ({@link didOpen}). */
+	private readonly _restoredAs = new Map<string, string>();
+
+	/**
+	 * @param _waitForSession Waits a while for the session of a resource to be known, such as once its provider loaded
+	 * it; undefined when it does not become known.
+	 */
+	constructor(
+		private readonly _waitForSession: (resource: URI) => Promise<ISession | undefined>,
+		@IStorageService private readonly _storageService: IStorageService,
+		@IInstantiationService private readonly _instantiationService: IInstantiationService,
+		@ILogService private readonly _logService: ILogService,
+	) {
+		super();
+		this.backgroundSends = this._register(_instantiationService.createInstance(ChatWindowComposerBackgroundSends));
+		this._read();
+		this._register(_storageService.onWillSaveState(() => this._save()));
+	}
+
+	/** Creates a composer of `resource`, which it stores while it is open. */
+	create(resource: URI, init: IChatWindowComposerInit, openStartedSession: (session: ISession) => Promise<void>): ChatWindowComposerModel {
+		const key = resource.toString();
+		const composer = this._instantiationService.createInstance(ChatWindowComposerModel, resource, init, this.backgroundSends, openStartedSession);
+		this._live.set(key, composer);
+		Event.once(composer.onWillDispose)(() => {
+			if (this._live.get(key) === composer) {
+				this._live.delete(key);
+			}
+			// A restored composer that goes before its window opened, such as as opening the window failed, stays stored.
+			if (this._restoredAs.get(key) === key) {
+				this._restoredAs.delete(key);
+			}
+		});
+		return composer;
+	}
+
+	/** Whether the composer of `resource` was stored and was not restored in an open window yet. */
+	hasStored(resource: URI): boolean {
+		return this._stored.has(resource.toString());
+	}
+
+	/**
+	 * Restores the stored composer of `resource`: as the session that a foreground send it had sent started, once that
+	 * session is known, or else as a composer with its input, or with the input of a send that did not end, which it no
+	 * longer follows. It stays stored until the chat it restores as opens in a window ({@link didOpen}), so that a window
+	 * that fails to open loses nothing.
+	 */
+	async restore(resource: URI, openStartedSession: (session: ISession) => Promise<void>): Promise<RestoredChatWindowComposer | undefined> {
+		const key = resource.toString();
+		const stored = this._stored.get(key);
+		if (!stored || this._live.has(key) || this._restoring.has(key)) {
+			return undefined;
+		}
+		this._restoring.add(key);
+		let sent: ISession | undefined;
+		try {
+			sent = stored.attempt?.session && await this._waitForSession(stored.attempt.session);
+		} finally {
+			this._restoring.delete(key);
+		}
+		if (this._stored.get(key) !== stored) {
+			return undefined;
+		}
+		if (sent && isSessionCreated(sent)) {
+			this._restoredAs.set(sent.mainChat.get().resource.toString(), key);
+			return { kind: 'session', session: sent };
+		}
+		const input = stored.attempt?.input ?? stored.input;
+		this._restoredAs.set(key, key);
+		return { kind: 'composer', composer: this.create(resource, { target: stored.target, groupId: stored.groupId, input: { input } }, openStartedSession) };
+	}
+
+	/** The session that a foreground send of the stored composer of `resource` went out with, if any. */
+	storedAttemptSessionOf(resource: URI): URI | undefined {
+		return this._stored.get(resource.toString())?.attempt?.session;
+	}
+
+	/** Forgets the stored composers that restored as one of `chats`, which are open in a window now. */
+	didOpen(chats: readonly URI[]): void {
+		for (const chat of chats) {
+			const key = this._restoredAs.get(chat.toString());
+			if (key !== undefined) {
+				this._restoredAs.delete(chat.toString());
+				this._stored.delete(key);
+			}
+		}
+	}
+
+	/**
+	 * Forgets the stored composers that the restoration of the chat windows did not claim (`claimed`): the windows it
+	 * restored, and those whose opening failed, which it keeps to restore next time.
+	 */
+	didFinishRestore(claimed: readonly URI[]): void {
+		const keep = new Set(claimed.map(resource => resource.toString()));
+		for (const key of [...this._stored.keys()]) {
+			if (!keep.has(key)) {
+				this._stored.delete(key);
+			}
+		}
+	}
+
+	private _read(): void {
+		const raw = this._storageService.get(CHAT_WINDOW_COMPOSERS_STORAGE_KEY, StorageScope.WORKSPACE);
+		if (!raw) {
+			return;
+		}
+		let entries: unknown;
+		try {
+			entries = parse(raw);
+		} catch (error) {
+			this._logService.error('[ChatWindow] Could not read the stored composers of chat windows', error);
+			return;
+		}
+		for (const entry of Array.isArray(entries) ? entries : []) {
+			try {
+				const stored = fromStoredComposer(entry);
+				this._stored.set(stored.resource.toString(), stored);
+			} catch (error) {
+				this._logService.warn('[ChatWindow] Not restoring a stored composer of a chat window', error);
+			}
+		}
+	}
+
+	private _save(): void {
+		// A composer that restored and is open stores what it has now rather than what it restored from.
+		const composers = [...[...this._live.values()].map(composer => composer.toStored()), ...[...this._stored.entries()].filter(([key]) => !this._live.has(key)).map(([, stored]) => stored)];
+		if (composers.length) {
+			this._storageService.store(CHAT_WINDOW_COMPOSERS_STORAGE_KEY, stringify(composers.map(toStoredComposer)), StorageScope.WORKSPACE, StorageTarget.MACHINE);
+		} else {
+			this._storageService.remove(CHAT_WINDOW_COMPOSERS_STORAGE_KEY, StorageScope.WORKSPACE);
+		}
 	}
 }
