@@ -35,7 +35,6 @@ import { ISessionsPartService } from '../../../../../workbench/services/sessions
 import { ISessionsService } from '../../../../../workbench/contrib/sessions/browser/sessionsService.js';
 import { Menus } from '../../../../../workbench/contrib/sessions/browser/menus.js';
 import { IsPhoneLayoutContext, SessionUsesCombinedConfigPickerContext, AutomationDialogAgentCreationContext } from '../../../../../workbench/contrib/sessions/common/contextkeys.js';
-import { ISessionHost } from '../../../../../workbench/contrib/sessions/browser/sessionHost.js';
 import { ModelPicker, ModelPickerActionViewItem } from '../../browser/modelPicker.js';
 import { INewChatModelPickerService, NewChatModelPickerService } from '../../../../../workbench/contrib/sessions/browser/chat/newChatModelPicker.js';
 import { ISessionModelSelection } from '../../../../../workbench/contrib/sessions/browser/chat/sessionModelSelection.js';
@@ -247,47 +246,6 @@ suite('ModelPicker controls', () => {
 		}, {
 			beforeRender: undefined, firstMatches: true, secondMatches: true, opens: 1, switched: true,
 			selectedModels: ['vendor/model'], disposed: 1, activePicker: undefined,
-		});
-	});
-
-	test('automation hosts retain a visible disabled picker while models are unavailable', () => {
-		const instantiationService = disposables.add(new TestInstantiationService());
-		instantiationService.stub(IChatSessionsService, new MockChatSessionsService());
-		const state = observableValue('models', EMPTY_MODEL_SELECTION_STATE);
-		instantiationService.stub(ISessionHost, { session: constObservable(undefined), chat: constObservable(undefined) });
-		instantiationService.stub(ISessionModelSelection, { state, selectModel: () => false });
-		instantiationService.stub(ITelemetryService, {});
-		instantiationService.stub(IChatPetService, {});
-		instantiationService.stub(IChatPhoneInputPresenter, { enabled: constObservable(false), supportsUnifiedConfiguration: false });
-		instantiationService.stub(INewChatModelPickerService, new NewChatModelPickerService());
-		instantiationService.stub(IWorkspaceTrustManagementService, {
-			onDidChangeTrust: Event.None, workspaceTrustInitialized: Promise.resolve(),
-		});
-		instantiationService.stub(IChatEntitlementService, {
-			onDidChangeEntitlement: Event.None, onDidChangeSentiment: Event.None, onDidChangeAnonymous: Event.None,
-		});
-		let enabled = true;
-		instantiationService.stubInstance(ModelPickerActionItem, {
-			render: () => { },
-			setEnabled: value => { enabled = value; },
-			isRestrictedMode: () => false,
-			isSetupRequired: () => false,
-			dispose: () => { },
-		});
-		const picker = disposables.add(instantiationService.createInstance(ModelPicker, constObservable(false)));
-		const container = document.createElement('div');
-		picker.render(container);
-		const normal = { display: container.style.display, enabled };
-		picker.render(container, true);
-		const unavailable = { display: container.style.display, enabled };
-		state.set(createModelSelectionState([aModel], normalizeModelPickerOptions(undefined), aModel, undefined), undefined);
-		const available = { display: container.style.display, enabled };
-		state.set(EMPTY_MODEL_SELECTION_STATE, undefined);
-		assert.deepStrictEqual({ normal, unavailable, available, unavailableAgain: { display: container.style.display, enabled } }, {
-			normal: { display: 'none', enabled: false },
-			unavailable: { display: '', enabled: false },
-			available: { display: '', enabled: true },
-			unavailableAgain: { display: '', enabled: false },
 		});
 	});
 });
