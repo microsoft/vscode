@@ -19,6 +19,7 @@ import { AgentHostAutoReplyAnswer } from '../../../../../../platform/agentHost/c
 import type { ChatInputRequestWithPlanReview } from '../../../../../../platform/agentHost/common/agentHostPlanReview.js';
 import { isCopilotHydraFusionModelId } from '../../../../../../platform/agentHost/common/copilotCliConfig.js';
 import { toAgentMessageDelegationMeta } from '../../../../../../platform/agentHost/common/meta/agentMessageDelegationMeta.js';
+import { ChatInputRequestPurpose, withChatInputRequestPurpose } from '../../../../../../platform/agentHost/common/meta/agentChatInputRequestMeta.js';
 import { toToolCallMeta } from '../../../../../../platform/agentHost/common/meta/agentToolCallMeta.js';
 import { compactContextAttribution } from '../../../../../../platform/agentHost/common/meta/agentUsageMeta.js';
 import { buildOpenSessionLinkUri, parseOpenSessionLinkChatId, parseOpenSessionLinkConnectionAuthority, parseOpenSessionLinkUri } from '../../../../../../platform/agentHost/common/openSessionLink.js';
@@ -429,6 +430,42 @@ suite('stateToProgressAdapter', () => {
 		});
 	});
 
+	test('preserves completion and resource mention ranges when restoring attachments', () => {
+		const text = '/skill first\r\nthen /command and #file';
+		const attachments = [{
+			type: MessageAttachmentKind.Simple as const,
+			label: 'Skill',
+			displayKind: 'skill',
+			range: { start: { line: 0, character: 0 }, end: { line: 0, character: 6 } },
+			_meta: { uri: 'custom-skill:/selected' },
+		}, {
+			type: MessageAttachmentKind.Simple as const,
+			label: 'Command',
+			displayKind: 'command',
+			range: { start: { line: 1, character: 5 }, end: { line: 1, character: 13 } },
+		}, {
+			type: MessageAttachmentKind.Resource as const,
+			label: 'File',
+			uri: 'file:///workspace/file.ts',
+			range: { start: { line: 1, character: 18 }, end: { line: 1, character: 23 } },
+		}];
+		assert.deepStrictEqual([
+			messageAttachmentsToVariableData(attachments, 'local', text),
+			messageAttachmentsToVariableData(attachments, 'local'),
+		].map(data => data?.variables.map(variable => variable.range && {
+			start: variable.range.start,
+			endExclusive: variable.range.endExclusive,
+			text: text.slice(variable.range.start, variable.range.endExclusive),
+		})), [
+			[
+				{ start: 0, endExclusive: 6, text: '/skill' },
+				{ start: 19, endExclusive: 27, text: '/command' },
+				{ start: 32, endExclusive: 37, text: '#file' },
+			],
+			[undefined, undefined, undefined],
+		]);
+	});
+
 	test('restores embedded resources with invalid base64 data without throwing', () => {
 		const restored = messageAttachmentsToVariableData([{
 			type: MessageAttachmentKind.EmbeddedResource,
@@ -530,6 +567,15 @@ suite('stateToProgressAdapter', () => {
 
 	suite('turnsToHistory', () => {
 
+		test('marks only cancelled turns\' responses as cancelled', () => {
+			const history = turnsToHistory(URI.parse('ahp-session:/cancel'), [
+				createTurn({ state: TurnState.Cancelled }),
+				createTurn({ state: TurnState.Complete }),
+			], 'participant');
+
+			assert.deepStrictEqual(history.filter(item => item.type === 'response').map(item => item.isCanceled), [true, undefined]);
+		});
+
 		const planDecisions: { response?: ChatInputResponseKind; answers?: Record<string, ChatInputAnswer>; expected?: IChatPlanReviewResult }[] = [
 			{ response: ChatInputResponseKind.Accept, answers: { selectedAction: { state: ChatInputAnswerState.Submitted, value: { kind: ChatInputAnswerValueKind.Selected, value: 'interactive' } } }, expected: { rejected: false, action: 'Implement Plan', actionId: 'interactive' } },
 			{ response: ChatInputResponseKind.Decline, answers: { feedback: { state: ChatInputAnswerState.Submitted, value: { kind: ChatInputAnswerValueKind.Text, value: 'Please add tests' } } }, expected: { rejected: false, feedback: 'Please add tests', feedbackOverall: 'Please add tests' } },
@@ -607,6 +653,35 @@ suite('stateToProgressAdapter', () => {
 				planUri: createAgentHostResourceUriMapper('local').fromAgentHost(URI.file('/session/plan.md')).toString(),
 				data: { rejected: false, actionId: 'autopilot', action: 'Native Label' },
 			});
+		});
+
+		test('restores empty MCP forms as confirmation cards instead of fallback text questions', () => {
+			const responses = [ChatInputResponseKind.Accept, ChatInputResponseKind.Decline, ChatInputResponseKind.Cancel];
+			const turn = createTurn({
+				responseParts: responses.map(response => ({
+					kind: ResponsePartKind.InputRequest as const,
+					request: withChatInputRequestPurpose({
+						id: `empty-form-${response}`,
+						message: '**Proceed** with this operation?',
+						questions: [],
+						...(response === ChatInputResponseKind.Accept ? { answers: {} } : {}),
+					}, ChatInputRequestPurpose.Elicitation),
+					response,
+				})),
+			});
+			const parts = turnsToHistory(URI.parse('ahp-session:/opaque-host-identity'), [JSON.parse(JSON.stringify(turn))], 'participant').find(item => item.type === 'response')?.parts ?? [];
+
+			assert.deepStrictEqual(parts.map(part => part.kind === 'elicitationSerialized' ? {
+				kind: part.kind,
+				title: part.title,
+				message: typeof part.message === 'string' ? part.message : part.message.value,
+				state: part.state,
+			} : { kind: part.kind }), responses.map(response => ({
+				kind: 'elicitationSerialized',
+				title: 'Confirmation Required',
+				message: '**Proceed** with this operation?',
+				state: response === ChatInputResponseKind.Accept ? ElicitationState.Accepted : ElicitationState.Rejected,
+			})));
 		});
 
 		test('restores a Computer Use setup request as a settled card instead of the plugin\'s questions', () => {
@@ -1061,6 +1136,24 @@ suite('stateToProgressAdapter', () => {
 			assert.strictEqual(thinking.kind, 'thinking');
 			assert.strictEqual(thinking.value, 'Let me think about this...');
 			assert.strictEqual(thinking.id, 'r-1');
+		});
+
+		test('restores producer reasoning timing without inventing timing for older hosts', () => {
+			const history = turnsToHistory(URI.parse('external:/opaque/session'), [createTurn({
+				responseParts: [
+					{ kind: ResponsePartKind.Reasoning, id: 'timed', content: 'Measured', startedAt: '1970-01-01T00:00:01.000Z', duration: 45_000 },
+					{ kind: ResponsePartKind.Reasoning, id: 'zero', content: 'Immediate', duration: 0 },
+					{ kind: ResponsePartKind.Reasoning, id: 'unknown', content: 'Older host' },
+					{ kind: ResponsePartKind.Reasoning, id: 'invalid', content: 'Invalid metadata', startedAt: 'invalid', duration: -1 },
+				],
+			})], 'participant');
+
+			assert.deepStrictEqual(history[1].type === 'response' ? history[1].parts : undefined, [
+				{ kind: 'thinking', id: 'timed', value: 'Measured', reasoningTimingSource: 'provider', reasoningStartedAt: 1000, reasoningDurationMs: 45_000 },
+				{ kind: 'thinking', id: 'zero', value: 'Immediate', reasoningTimingSource: 'provider', reasoningDurationMs: 0 },
+				{ kind: 'thinking', id: 'unknown', value: 'Older host', reasoningTimingSource: 'provider' },
+				{ kind: 'thinking', id: 'invalid', value: 'Invalid metadata', reasoningTimingSource: 'provider' },
+			]);
 		});
 
 		test('generic completed tool call in history includes input/output details', () => {
@@ -1613,39 +1706,6 @@ suite('stateToProgressAdapter', () => {
 				input: '{"prompt":"Draw a fox"}',
 				output: [{ type: 'embed', value: 'aW1hZ2U=', mimeType: 'image/png' }],
 			});
-		});
-
-		test('terminal tool call in history carries autoApproveRuleResolvable only when stamped', () => {
-			const turn = createTurn({
-				responseParts: [
-					{
-						kind: ResponsePartKind.ToolCall, toolCall: createCompletedToolCall({
-							toolCallId: 'tc-marked',
-							toolInput: 'my-custom-script',
-							_meta: { toolKind: 'terminal', autoApproveRuleResolvable: true },
-							content: [{ type: ToolResultContentType.Terminal, resource: 'agenthost-terminal:///marked', title: 'Terminal' }],
-							success: true,
-						})
-					} as ToolCallResponsePart,
-					{
-						kind: ResponsePartKind.ToolCall, toolCall: createCompletedToolCall({
-							toolCallId: 'tc-unmarked',
-							toolInput: 'echo hello',
-							content: [{ type: ToolResultContentType.Terminal, resource: 'agenthost-terminal:///unmarked', title: 'Terminal' }],
-							success: true,
-						})
-					} as ToolCallResponsePart,
-				],
-			});
-
-			const history = turnsToHistory(URI.file('/'), [turn], 'p');
-			const response = history[1];
-			assert.strictEqual(response.type, 'response');
-			if (response.type !== 'response') { return; }
-			assert.deepStrictEqual(
-				response.parts.map(part => getSerializedTerminalData(part as IChatToolInvocationSerialized).autoApproveRuleResolvable),
-				[true, undefined],
-				'flag is copied from tool call meta and absent otherwise');
 		});
 
 		test('terminal tool call in history carries the LM intention', () => {
@@ -4294,7 +4354,7 @@ suite('stateToProgressAdapter', () => {
 			]), undefined);
 
 			assert.deepStrictEqual(result, [
-				{ kind: 'thinking', id: 'reasoning', value: 'Assessing final output steps' },
+				{ kind: 'thinking', id: 'reasoning', value: 'Assessing final output steps', reasoningTimingSource: 'provider' },
 				{ kind: 'thinking', value: '' },
 			]);
 		});
@@ -4362,18 +4422,14 @@ suite('stateToProgressAdapter', () => {
 			const warning = result[0];
 			assert.ok(warning.kind === 'warning');
 
-			const rendered = renderMarkdown(warning.content);
-			try {
-				assert.deepStrictEqual({
-					links: [...rendered.element.querySelectorAll('a')].map(anchor => anchor.dataset.href),
-					text: rendered.element.textContent,
-				}, {
-					links: ['command:aiCustomization.openManagementEditor?%5B%22tools%22%5D'],
-					text: `Some tools were dropped. <${injected}> <a href="${injected}">hooks</a> &lt;b&gt; Configure Tools`,
-				});
-			} finally {
-				rendered.dispose();
-			}
+			const rendered = store.add(renderMarkdown(warning.content));
+			assert.deepStrictEqual({
+				links: [...rendered.element.querySelectorAll('a')].map(anchor => anchor.dataset.href),
+				text: rendered.element.textContent,
+			}, {
+				links: ['command:aiCustomization.openManagementEditor?%5B%22tools%22%5D'],
+				text: `Some tools were dropped. <${injected}> <a href="${injected}">hooks</a> &lt;b&gt; Configure Tools`,
+			});
 		});
 
 		test('keeps a managed plugin preparation failure visible and its host text inert', () => {
@@ -4389,22 +4445,18 @@ suite('stateToProgressAdapter', () => {
 			const warning = result[0];
 			assert.ok(warning.kind === 'warning');
 
-			const rendered = renderMarkdown(warning.content);
-			try {
-				assert.deepStrictEqual({
-					keepVisibleWhenCollapsed: warning.keepVisibleWhenCollapsed,
-					links: rendered.element.querySelectorAll('a').length,
-					text: rendered.element.textContent,
-					plaintext: renderAsPlaintext(warning.content, { useLinkFormatter: true }),
-				}, {
-					keepVisibleWhenCollapsed: true,
-					links: 0,
-					text,
-					plaintext: text,
-				});
-			} finally {
-				rendered.dispose();
-			}
+			const rendered = store.add(renderMarkdown(warning.content));
+			assert.deepStrictEqual({
+				keepVisibleWhenCollapsed: warning.keepVisibleWhenCollapsed,
+				links: rendered.element.querySelectorAll('a').length,
+				text: rendered.element.textContent,
+				plaintext: renderAsPlaintext(warning.content, { useLinkFormatter: true }),
+			}, {
+				keepVisibleWhenCollapsed: true,
+				links: 0,
+				text,
+				plaintext: text,
+			});
 		});
 
 		test('ends a managed plugin preparation failure with a trusted Retry link for its chat', () => {
@@ -4421,23 +4473,19 @@ suite('stateToProgressAdapter', () => {
 			const warning = result[0];
 			assert.ok(warning.kind === 'warning');
 
-			const rendered = renderMarkdown(warning.content);
-			try {
-				const links = [...rendered.element.querySelectorAll('a')].map(anchor => URI.parse(anchor.dataset.href!));
-				assert.deepStrictEqual({
-					isTrusted: warning.content.isTrusted,
-					keepVisibleWhenCollapsed: warning.keepVisibleWhenCollapsed,
-					links: links.map(link => ({ scheme: link.scheme, command: link.path, args: JSON.parse(link.query) })),
-					text: rendered.element.textContent,
-				}, {
-					isTrusted: { enabledCommands: [AGENT_HOST_RETRY_MANAGED_PLUGINS_COMMAND_ID] },
-					keepVisibleWhenCollapsed: true,
-					links: [{ scheme: 'command', command: AGENT_HOST_RETRY_MANAGED_PLUGINS_COMMAND_ID, args: [target] }],
-					text: `${text} Retry`,
-				});
-			} finally {
-				rendered.dispose();
-			}
+			const rendered = store.add(renderMarkdown(warning.content));
+			const links = [...rendered.element.querySelectorAll('a')].map(anchor => URI.parse(anchor.dataset.href!));
+			assert.deepStrictEqual({
+				isTrusted: warning.content.isTrusted,
+				keepVisibleWhenCollapsed: warning.keepVisibleWhenCollapsed,
+				links: links.map(link => ({ scheme: link.scheme, command: link.path, args: JSON.parse(link.query) })),
+				text: rendered.element.textContent,
+			}, {
+				isTrusted: { enabledCommands: [AGENT_HOST_RETRY_MANAGED_PLUGINS_COMMAND_ID] },
+				keepVisibleWhenCollapsed: true,
+				links: [{ scheme: 'command', command: AGENT_HOST_RETRY_MANAGED_PLUGINS_COMMAND_ID, args: [target] }],
+				text: `${text} Retry`,
+			});
 		});
 
 		test('styles workspace transitions as accessible transcript boundaries', () => {
@@ -4543,6 +4591,18 @@ suite('stateToProgressAdapter', () => {
 			assert.strictEqual(result.length, 1);
 			assert.strictEqual(result[0].kind, 'thinking');
 			assert.strictEqual((result[0] as IChatThinkingPart).id, 'r-1');
+		});
+
+		test('preserves completed and unfinished reasoning timing on reconnect', () => {
+			const result = activeTurnToProgress(URI.parse('external:/opaque/session'), createActiveTurnState([
+				{ kind: ResponsePartKind.Reasoning, id: 'completed', content: 'Already thought', startedAt: '1970-01-01T00:00:01.000Z', duration: 45_000 },
+				{ kind: ResponsePartKind.Reasoning, id: 'active', content: 'Still thinking', startedAt: '1970-01-01T00:01:00.000Z' },
+			]), 'remote-host');
+
+			assert.deepStrictEqual(result, [
+				{ kind: 'thinking', id: 'completed', value: 'Already thought', reasoningTimingSource: 'provider', reasoningStartedAt: 1000, reasoningDurationMs: 45_000 },
+				{ kind: 'thinking', id: 'active', value: 'Still thinking', reasoningTimingSource: 'provider', reasoningStartedAt: 60_000 },
+			]);
 		});
 
 		test('reasoning comes before streamed text when ordered that way', () => {
@@ -4731,6 +4791,32 @@ suite('stateToProgressAdapter', () => {
 				status: 'complete',
 				explanation: 'This command modifies protected files.',
 				safety: 0.1,
+			});
+		});
+
+		test('explains a request Assisted permissions did not review in the confirmation disclaimer', () => {
+			const confirmationMessages = (meta: Record<string, unknown> | undefined) => {
+				const state = toolCallStateToInvocation({
+					toolCallId: 'tc-unreviewed',
+					toolName: 'bash',
+					displayName: 'Bash',
+					invocationMessage: 'Run command',
+					status: ToolCallStatus.PendingConfirmation,
+					confirmationTitle: 'Run command',
+					toolInput: 'echo hello',
+					...(meta ? { _meta: meta } : {}),
+				}).state.get();
+				return state.type === IChatToolInvocation.StateKind.WaitingForConfirmation ? state.confirmationMessages : undefined;
+			};
+
+			assert.deepStrictEqual({
+				notice: confirmationMessages({ 'vscode.assistedApprovalNotice': 'Assisted permissions couldn\'t review this request in time.' })?.disclaimer,
+				blank: confirmationMessages({ 'vscode.assistedApprovalNotice': ' ' })?.disclaimer,
+				absent: confirmationMessages(undefined)?.disclaimer,
+			}, {
+				notice: 'Assisted permissions couldn\'t review this request in time.',
+				blank: undefined,
+				absent: undefined,
 			});
 		});
 

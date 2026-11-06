@@ -993,6 +993,14 @@ export class AgentHostStateManager extends Disposable {
 		}
 	}
 
+	/** Seeds the default chat's draft of a session being created, before any client subscribes. */
+	seedDefaultChatDraft(session: URI, draft: Message): void {
+		const chatState = this.getDefaultChatState(session);
+		if (chatState) {
+			chatState.draft = draft;
+		}
+	}
+
 	get serverSeq(): number {
 		return this._serverSeq;
 	}

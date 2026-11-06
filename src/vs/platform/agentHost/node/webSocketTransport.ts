@@ -13,7 +13,6 @@ import { ILogService } from '../../log/common/log.js';
 import { AgentHostTransportKind } from '../common/agentHostTelemetry.js';
 import { JSON_RPC_PARSE_ERROR, type AhpServerNotification, type JsonRpcNotification, type JsonRpcParseErrorResponse, type JsonRpcRequest, type JsonRpcResponse, type ProtocolMessage } from '../common/state/sessionProtocol.js';
 import { parseProtocolMessage, type IProtocolServer, type IProtocolTransport } from '../common/state/sessionTransport.js';
-import { authenticateAgentHostTransport } from './agentHostTransportAuthentication.js';
 import type * as wsTypes from 'ws';
 import type * as httpTypes from 'http';
 
@@ -218,9 +217,6 @@ export class WebSocketProtocolServer extends Disposable implements IProtocolServ
 		this._wss.on('connection', (wsConn) => {
 			this._logService.trace('[WebSocketProtocol] New client connection');
 			const transport = new WebSocketProtocolTransport(wsConn, this._WebSocket);
-			if (opts.connectionTokenValidate) {
-				authenticateAgentHostTransport(transport);
-			}
 			this._onConnection.fire(transport);
 		});
 

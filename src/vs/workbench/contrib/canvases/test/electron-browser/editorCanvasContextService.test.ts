@@ -22,7 +22,7 @@ import { IChatService } from '../../../chat/common/chatService/chatService.js';
 import { ChatAgentLocation } from '../../../chat/common/constants.js';
 import { IChatModel } from '../../../chat/common/model/chatModel.js';
 import { IChatViewModel } from '../../../chat/common/model/chatViewModel.js';
-import { CanvasInput, ICanvas, ICanvasContext, ICanvasOwner } from '../../common/canvas.js';
+import { CanvasInput, ICanvasContextService, ICanvas, ICanvasContext, ICanvasOwner } from '../../common/canvas.js';
 import { EditorCanvasContextService } from '../../electron-browser/editorCanvasContextService.js';
 
 class TestChatInput extends EditorInput {
@@ -103,7 +103,7 @@ suite('EditorCanvasContextService', () => {
 			models.set([...models.get(), model], undefined);
 			widgets.push(widget);
 			widgetAdded.fire(widget);
-			const input = store.add(new CanvasInput({ ...owner, canvas: canvas.resource }, canvas, groupsService, upcastPartial<IWorkbenchEnvironmentService>({ isSessionsWindow: false })));
+			const input = store.add(new CanvasInput({ ...owner, canvas: canvas.resource }, canvas, groupsService, upcastPartial<IWorkbenchEnvironmentService>({ isSessionsWindow: false }), upcastPartial<ICanvasContextService>({})));
 			return {
 				owner, input, widget, model, canvases, canvasContext,
 				setVisible: (value: boolean) => { visible = value; visibilityChanged.fire(widget); },

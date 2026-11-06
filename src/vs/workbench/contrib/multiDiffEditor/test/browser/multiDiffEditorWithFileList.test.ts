@@ -11,7 +11,7 @@ import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { errorHandler, setUnexpectedErrorHandler } from '../../../../../base/common/errors.js';
 import { KeyCode } from '../../../../../base/common/keyCodes.js';
 import { KeyCodeChord, ResolvedKeybinding } from '../../../../../base/common/keybindings.js';
-import { toDisposable } from '../../../../../base/common/lifecycle.js';
+import { DisposableStore, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { constObservable, IObservable, observableValue, waitForState } from '../../../../../base/common/observable.js';
 import { OperatingSystem } from '../../../../../base/common/platform.js';
 import { basename } from '../../../../../base/common/resources.js';
@@ -51,7 +51,10 @@ import { MultiDiffEditor } from '../../browser/multiDiffEditor.js';
 import { MultiDiffEditorInput } from '../../browser/multiDiffEditorInput.js';
 import { IMultiDiffSourceResolverService, MultiDiffEditorItem } from '../../browser/multiDiffSourceResolverService.js';
 import { MultiDiffEditorWithFileListWidget } from '../../browser/multiDiffEditorWithFileListWidget.js';
-import { MultiDiffEditorFileListAvailableContext, MultiDiffEditorFileListPosition, MultiDiffEditorFileListViewMode, MultiDiffEditorFileListVisibleContext, multiDiffEditorExperimentalFileListSetting, setMultiDiffEditorFileListViewMode } from '../../common/multiDiffEditor.js';
+import { isMultiDiffEditorFileListHost, MultiDiffEditorFileListAvailableContext, observableMultiDiffEditorFileListHidden, observableMultiDiffEditorFileListVisible, toggleMultiDiffEditorFileList, MultiDiffEditorFileListPosition, MultiDiffEditorFileListViewMode, MultiDiffEditorFileListVisibleContext, multiDiffEditorExperimentalFileListSetting, setMultiDiffEditorFileListViewMode } from '../../common/multiDiffEditor.js';
+import { FocusFileListAction } from '../../browser/actions.js';
+import { IEditorService } from '../../../../services/editor/common/editorService.js';
+import { IVisibleEditorPane } from '../../../../common/editor.js';
 
 class TestMultiDiffEditor extends MultiDiffEditor {
 	override createEditor(parent: HTMLElement): void {
@@ -118,6 +121,35 @@ suite('MultiDiffEditorWithFileListWidget', () => {
 			}, { hasDiffEditor: true, hasComposite: enabled, hasFiles: enabled, fileListAvailable: enabled, fileListVisible: enabled });
 		});
 	}
+
+	test('Focus File List stays in the Command Palette after the user hides the list, and shows the list before focusing it', () => {
+		instantiationService.stub(IConfigurationService, new TestConfigurationService({
+			[multiDiffEditorExperimentalFileListSetting]: true,
+		}));
+		const container = document.createElement('div');
+		document.body.appendChild(container);
+		disposables.add(toDisposable(() => container.remove()));
+		const editor = disposables.add(instantiationService.createInstance(TestMultiDiffEditor, new TestEditorGroupView(1)));
+		editor.createEditor(container);
+		editor.layout(new Dimension(1000, 100));
+		const contextKeyService = instantiationService.get(IContextKeyService);
+		const precondition = new FocusFileListAction().desc.precondition;
+		const state = () => ({
+			listVisible: contextKeyService.getContextKeyValue(MultiDiffEditorFileListVisibleContext.key) === true,
+			inCommandPalette: !!precondition?.evaluate({ getValue: key => contextKeyService.getContextKeyValue(key) }),
+			focused: !!container.querySelector('.multi-diff-editor-with-file-list-files')?.contains(document.activeElement),
+		});
+
+		toggleMultiDiffEditorFileList(instantiationService.get(IStorageService));
+		const hidden = state();
+		editor.focusFileList();
+		const focused = state();
+
+		assert.deepStrictEqual({ hidden, focused }, {
+			hidden: { listVisible: false, inCommandPalette: true, focused: false },
+			focused: { listVisible: true, inCommandPalette: true, focused: true },
+		});
+	});
 
 	test('orders the diffs of an input like the file list while it is used', async () => {
 		instantiationService.stub(ITextModelService, new class extends InMemoryTextModelService {
@@ -568,6 +600,36 @@ suite('MultiDiffEditorWithFileListWidget', () => {
 			hidden: { position: 'left', visible: false, diffWidth: 1000 },
 			shown: { position: 'left', visible: true, diffWidth: 700 },
 			rightAgain: { position: 'right', visible: true, diffWidth: 700 },
+		});
+	});
+});
+
+suite('Multi diff editor file list of any host', () => {
+	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('Focus File List focuses the list of any editor that hosts one, such as the Agents window\'s Changes editor, and the hidden state of the list does not depend on the experimental setting', async () => {
+		const instantiationService = workbenchInstantiationService(undefined, disposables);
+		const focused: string[] = [];
+		const host = { focusFileList: () => { focused.push('host'); } };
+		instantiationService.stub(IEditorService, new class extends mock<IEditorService>() {
+			override get activeEditorPane() { return host as unknown as IVisibleEditorPane; }
+		}());
+		await instantiationService.invokeFunction(accessor => new FocusFileListAction().run(accessor));
+		const storageService = instantiationService.get(IStorageService);
+		const owner = {};
+		const hidden = observableMultiDiffEditorFileListHidden(owner, storageService, disposables.add(new DisposableStore()));
+		const visibleWithSetting = observableMultiDiffEditorFileListVisible(owner, instantiationService.get(IConfigurationService), storageService, disposables.add(new DisposableStore()));
+		const states = [hidden.get()];
+		toggleMultiDiffEditorFileList(storageService);
+		states.push(hidden.get());
+		toggleMultiDiffEditorFileList(storageService);
+
+		assert.deepStrictEqual({ focused, precondition: new FocusFileListAction().desc.precondition?.serialize(), hiddenStates: states, visibleWithSettingOff: visibleWithSetting.get(), isHost: isMultiDiffEditorFileListHost(host) }, {
+			focused: ['host'],
+			precondition: MultiDiffEditorFileListAvailableContext.key,
+			hiddenStates: [false, true],
+			visibleWithSettingOff: false,
+			isHost: true,
 		});
 	});
 });

@@ -8,6 +8,22 @@ import { ExtensionIdentifier } from '../../../../../../platform/extensions/commo
 import { IProductService } from '../../../../../../platform/product/common/productService.js';
 import { IAgentSource, PromptsStorage } from '../service/promptsService.js';
 
+const slashCommandNameCharacters = String.raw`\p{L}\p{N}\p{M}\p{P}\p{S}\p{Co}`;
+
+/** Matches a nonempty prompt command name, excluding path separators and whitespace. */
+export const slashCommandNamePattern = `(?:(?!/)[${slashCommandNameCharacters}])+`;
+
+const validSlashCommandName = new RegExp(`^${slashCommandNamePattern}$`, 'u');
+const invalidSlashCommandNameCharacters = new RegExp(`(?:/|[^${slashCommandNameCharacters}])+`, 'gu');
+
+export function isValidSlashCommandName(name: string): boolean {
+	return validSlashCommandName.test(name);
+}
+
+export function sanitizeSlashCommandName(name: string): string {
+	return name.replace(invalidSlashCommandNameCharacters, '-');
+}
+
 /**
  * Checks if a prompt file is organization-provided.
  * Organization-provided prompt files come from the built-in chat extension

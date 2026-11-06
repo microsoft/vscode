@@ -38,6 +38,7 @@ import { identityAgentHostResourceUriMapper } from '../common/agentHostUri.js';
 import { AgentHostStartupTelemetry } from '../common/agentHostStartupTelemetry.js';
 import type { IAgentHostMcpAuthenticationRequest } from '../common/agentHostExtensionProtocol.js';
 import type { IAgentHostSavedChat, IAgentHostSavedChatContinuation, IAgentHostSavedChatContinuationResult } from '../common/agentHostSavedChat.js';
+import type { AgentProvider, AgentSandboxCertificateOperation, IAgentCustomizationInstallationApplyRequest, IAgentCustomizationInstallationPreparation } from '../common/agent.js';
 import { AgentHostClientConnectionKind } from '../common/agentHostTelemetry.js';
 import type { IAgentHostFirstResponseDiagnostic } from '../common/otel/agentHostTiming.js';
 import type { IChatUserInteractionTiming } from '../../otel/common/chatUserInteraction.js';
@@ -58,7 +59,6 @@ import {
 	IAgentCustomizationInstallation,
 	IAgentCustomizationInstallationApplyResult,
 	IAgentCustomizationInstallationRequest,
-	IAgentCustomizationInstallationReview,
 	IAgentCustomizationMarketplaceSearchRequest,
 	IAgentCustomizationMarketplaceSearchResult,
 	type IAgentExtensionInventory,
@@ -85,6 +85,7 @@ import {
 	IMcpNotification,
 	readAgentHostOTelPolicySettings,
 	type IAgentHostDebugLogsChunk,
+	type IAgentImportSessionOptions,
 } from '../common/agentService.js';
 import type { AgentChatMoveDestination } from '../common/agentHostChatMove.js';
 import type { IRemoteWatchHandle } from '../common/agentHostFileSystemProvider.js';
@@ -544,6 +545,11 @@ export class LocalAgentHostServiceClient extends Disposable implements IAgentHos
 	readonly sandboxCertificateInstallationSupported = constObservable(true);
 	readonly sandboxCertificateRotationSupported = constObservable(true);
 	readonly sandboxCertificateRemovalSupported = constObservable(true);
+	readonly sandboxCertificateRefreshSupported = constObservable(true);
+
+	manageHostSandboxCertificate(provider: AgentProvider, operation: AgentSandboxCertificateOperation): Promise<void> {
+		return this._getManagementService().manageHostSandboxCertificate(provider, operation);
+	}
 
 	installSandboxCertificate(chat: string, scopeId: string): Promise<void> {
 		return this._getManagementService().installSandboxCertificate(chat, scopeId);
@@ -557,8 +563,12 @@ export class LocalAgentHostServiceClient extends Disposable implements IAgentHos
 		return this._getManagementService().removeSandboxCertificate(chat, scopeId);
 	}
 
-	importSession(session: URI): Promise<void> {
-		return this._requireClient().importSession(session);
+	refreshSandboxCertificate(chat: string, scopeId: string): Promise<void> {
+		return this._getManagementService().refreshSandboxCertificate(chat, scopeId);
+	}
+
+	importSession(session: URI, options?: IAgentImportSessionOptions): Promise<URI | void> {
+		return this._requireClient().importSession(session, options);
 	}
 
 	dispatchBackgroundChatAction(chat: string, action: ArtifactChatAction): Promise<void> {
@@ -673,12 +683,12 @@ export class LocalAgentHostServiceClient extends Disposable implements IAgentHos
 		return this._getManagementService().listCustomizationInstallations(provider, session);
 	}
 
-	prepareCustomizationInstallation(provider: string, session: URI, request: IAgentCustomizationInstallationRequest | { readonly installationId: string }): Promise<IAgentCustomizationInstallationReview> {
+	prepareCustomizationInstallation(provider: string, session: URI, request: IAgentCustomizationInstallationRequest | { readonly installationId: string }): Promise<IAgentCustomizationInstallationPreparation> {
 		return this._getManagementService().prepareCustomizationInstallation(provider, session, request);
 	}
 
-	applyCustomizationInstallation(provider: string, operationId: string): Promise<IAgentCustomizationInstallationApplyResult | undefined> {
-		return this._getManagementService().applyCustomizationInstallation(provider, operationId);
+	applyCustomizationInstallation(provider: string, request: IAgentCustomizationInstallationApplyRequest): Promise<IAgentCustomizationInstallationApplyResult | undefined> {
+		return this._getManagementService().applyCustomizationInstallation(provider, request);
 	}
 
 	recoverCustomizationInstallations(provider: string, session: URI): Promise<readonly IAgentCustomizationInstallation[]> {

@@ -18,18 +18,20 @@ import { IQuickInputService } from '../../../../../../platform/quickinput/common
 import { IViewsService } from '../../../../../../workbench/services/views/common/viewsService.js';
 import { ComponentFixtureContext, createEditorServices, defineComponentFixture, defineThemedFixtureGroup, registerWorkbenchServices } from '../../../../../../workbench/test/browser/componentFixtures/fixtureUtils.js';
 import { IAgentWorkbenchLayoutService } from '../../../../../browser/workbench.js';
-import { IAgentHostSessionsProvider, LOCAL_AGENT_HOST_PROVIDER_ID } from '../../../../../common/agentHostSessionsProvider.js';
-import { ISessionsProvidersService } from '../../../../../services/sessions/browser/sessionsProvidersService.js';
-import { IChat } from '../../../../../services/sessions/common/session.js';
-import { ISessionInputPickerVisibility, SessionInputPickerVisibility } from '../../../../../services/sessions/common/sessionPickerVisibility.js';
-import { IActiveSession } from '../../../../../services/sessions/common/sessionsManagement.js';
-import { ISessionsProvider } from '../../../../../services/sessions/common/sessionsProvider.js';
-import { ISessionChangesService } from '../../../../changes/browser/sessionChangesService.js';
-import { AgentHostSessionConfigPicker } from '../../browser/agentHostSessionConfigPicker.js';
-import { IWorktreeSuggestionService } from '../../../../worktreeSuggestion/browser/worktreeSuggestionService.js';
-import { NullWorktreeSuggestionService } from '../../../../worktreeSuggestion/test/browser/worktreeSuggestionTestUtils.js';
-import '../../../../chat/browser/media/chatWidget.css';
+import { ISessionsHostLayoutService } from '../../../../../../workbench/contrib/sessions/browser/sessionsHostLayoutService.js';
+import { IAgentHostSessionsProvider, LOCAL_AGENT_HOST_PROVIDER_ID } from '../../../../../../workbench/contrib/sessions/common/agentHostSessionsProvider.js';
+import { ISessionsProvidersService } from '../../../../../../workbench/contrib/sessions/browser/sessionsProvidersService.js';
+import { IChat } from '../../../../../../workbench/contrib/sessions/common/session.js';
+import { ISessionInputPickerVisibility, SessionInputPickerVisibility } from '../../../../../../workbench/contrib/sessions/common/sessionPickerVisibility.js';
+import { IActiveSession } from '../../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
+import { ISessionsProvider } from '../../../../../../workbench/contrib/sessions/common/sessionsProvider.js';
+import { ISessionChangesService } from '../../../../../../workbench/contrib/sessions/browser/changes/sessionChangesService.js';
+import { AgentHostSessionConfigPicker } from '../../../../../../workbench/contrib/sessions/providers/agentHost/browser/agentHostSessionConfigPicker.js';
+import { IWorktreeSuggestionService } from '../../../../../../workbench/contrib/sessions/browser/worktreeSuggestion/worktreeSuggestionService.js';
+import { NullWorktreeSuggestionService } from '../../../../../../workbench/contrib/sessions/test/browser/worktreeSuggestion/worktreeSuggestionTestUtils.js';
+import '../../../../../../workbench/contrib/sessions/browser/chat/media/chatWidget.css';
 import '../../../../../browser/media/style.css';
+import { sessionChatSourceOf } from '../../../../../../workbench/contrib/sessions/browser/sessionHost.js';
 
 async function renderIsolationPicker({ container, disposableStore, theme }: ComponentFixtureContext, value: 'worktree' | 'folder', devContainer = false): Promise<void> {
 	container.classList.add('monaco-workbench', 'agent-sessions-workbench');
@@ -80,6 +82,7 @@ async function renderIsolationPicker({ container, disposableStore, theme }: Comp
 		getProvider: <T extends ISessionsProvider>(id: string) => providers.find(candidate => candidate.id === id) as T | undefined,
 	});
 	instantiationService.stub(IAgentWorkbenchLayoutService, { mainContainer: container });
+	instantiationService.stub(ISessionsHostLayoutService, {});
 	instantiationService.stub(ISessionChangesService, {});
 	instantiationService.stub(IViewsService, {});
 	instantiationService.stub(IWorktreeSuggestionService, new NullWorktreeSuggestionService());
@@ -93,7 +96,7 @@ async function renderIsolationPicker({ container, disposableStore, theme }: Comp
 	instantiationService.set(IContextViewService, disposableStore.add(instantiationService.createInstance(ContextViewService)));
 	instantiationService.set(IActionWidgetService, disposableStore.add(instantiationService.createInstance(ActionWidgetService)));
 	const row = dom.append(container, dom.$('.new-chat-session-options'));
-	const picker = disposableStore.add(instantiationService.createInstance(AgentHostSessionConfigPicker, session, SessionConfigKey.Isolation));
+	const picker = disposableStore.add(instantiationService.createInstance(AgentHostSessionConfigPicker, sessionChatSourceOf(session), SessionConfigKey.Isolation));
 	const trigger = picker.render(row);
 	picker.setFocusable(true);
 	trigger?.click();

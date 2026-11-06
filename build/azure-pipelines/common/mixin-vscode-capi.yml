@@ -36,6 +36,7 @@ steps:
       $CapiPath = Join-Path '$(Build.SourcesDirectory)' '.build/vscode-capi'
       Push-Location $CapiPath
 
+      # microsoft/vscode-capi is a separate repository that installs with npm.
       try {
         $env:BUILD_SOURCESDIRECTORY = '$(Build.SourcesDirectory)'
         Invoke-CheckedCommand { npm run mixin_vscode }

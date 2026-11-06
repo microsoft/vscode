@@ -436,7 +436,7 @@ export abstract class DevContainerAgentHostService extends Disposable implements
 				name: config.name,
 				remoteWorkspaceFolder: upResult.remoteWorkspaceFolder,
 				sandboxSupported,
-				...await this._shouldForwardCertificates(tokenSource.token) ? { forwardClientCertificates: true } : {},
+				...await this._sharesClientNetwork(tokenSource.token) ? { sharesClientNetwork: true } : {},
 				...(repository ? { repository } : {}),
 				...(hasKey(config, { workspaceFolder: true }) ? { hostWorkspaceFolder: config.workspaceFolder } : {}),
 			};
@@ -878,7 +878,7 @@ export abstract class DevContainerAgentHostService extends Disposable implements
 		return true;
 	}
 
-	protected async _shouldForwardCertificates(_token: CancellationToken): Promise<boolean> {
+	protected async _sharesClientNetwork(_token: CancellationToken): Promise<boolean> {
 		return false;
 	}
 
@@ -1118,7 +1118,7 @@ export class DevContainerAgentHostMainService extends DevContainerAgentHostServi
 		return this._configurationService.getValue<boolean>('http.systemCertificates') !== false;
 	}
 
-	protected override async _shouldForwardCertificates(token: CancellationToken): Promise<boolean> {
+	protected override async _sharesClientNetwork(token: CancellationToken): Promise<boolean> {
 		try {
 			const environment = await this._resolveShellEnvironment();
 			if (environment.VSCODE_DOCKER_HOST) {
@@ -1129,7 +1129,7 @@ export class DevContainerAgentHostMainService extends DevContainerAgentHostServi
 			if (!host) {
 				const result = await this._runDocker(['context', 'inspect', '--format', '{{.Endpoints.docker.Host}}'], token);
 				if (result.code !== 0 || !result.stdout.trim()) {
-					this._mainLogService.warn(`${LOG_PREFIX} Cannot determine whether Docker is local; not forwarding certificates`, result.stderr);
+					this._mainLogService.warn(`${LOG_PREFIX} Cannot determine whether Docker is local; treating it as remote`, result.stderr);
 					return false;
 				}
 				host = result.stdout.trim();
@@ -1139,7 +1139,7 @@ export class DevContainerAgentHostMainService extends DevContainerAgentHostServi
 			if (isCancellationError(error)) {
 				throw error;
 			}
-			this._mainLogService.warn(`${LOG_PREFIX} Cannot determine whether Docker is local; not forwarding certificates`, getErrorMessage(error));
+			this._mainLogService.warn(`${LOG_PREFIX} Cannot determine whether Docker is local; treating it as remote`, getErrorMessage(error));
 			return false;
 		}
 	}

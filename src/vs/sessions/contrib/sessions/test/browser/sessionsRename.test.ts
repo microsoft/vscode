@@ -25,19 +25,23 @@ import { NullTelemetryService } from '../../../../../platform/telemetry/common/t
 import { IUriIdentityService } from '../../../../../platform/uriIdentity/common/uriIdentity.js';
 import { IViewsService } from '../../../../../workbench/services/views/common/viewsService.js';
 import { IWorkbenchLayoutService } from '../../../../../workbench/services/layout/browser/layoutService.js';
+import { ISessionsHostLayoutService } from '../../../../../workbench/contrib/sessions/browser/sessionsHostLayoutService.js';
 import { IChatEntitlementService } from '../../../../../workbench/services/chat/common/chatEntitlementService.js';
-import { ARCHIVE_SESSION_COMMAND_ID, RENAME_CHAT_COMMAND_ID, RENAME_SESSION_COMMAND_ID } from '../../../../common/sessionCommands.js';
-import { SessionView } from '../../../../browser/parts/sessionView.js';
-import { IAgentHostFilterService } from '../../../../services/agentHostFilter/common/agentHostFilter.js';
-import { ISessionsPartService } from '../../../../services/sessions/browser/sessionsPartService.js';
-import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
-import { IActiveSession, ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
-import { ChatInteractivity, IChat, ISession, SessionStatus } from '../../../../services/sessions/common/session.js';
+import { ARCHIVE_SESSION_COMMAND_ID, RENAME_CHAT_COMMAND_ID, RENAME_SESSION_COMMAND_ID } from '../../../../../workbench/contrib/sessions/common/sessionCommands.js';
+import { SessionView } from '../../../../../workbench/contrib/sessions/browser/parts/sessionView.js';
+import { IAgentHostFilterService } from '../../../../../workbench/contrib/sessions/common/agentHostFilter.js';
+import { ISessionsListPresentation, SessionNameKind } from '../../../../../workbench/contrib/sessions/browser/sessionsListPresentation.js';
+import { ISessionGroupsService } from '../../../../../workbench/contrib/sessions/browser/sessionGroupsService.js';
+import { ISessionsPartService } from '../../../../../workbench/contrib/sessions/browser/sessionsPartService.js';
+import { ISessionsService } from '../../../../../workbench/contrib/sessions/browser/sessionsService.js';
+import { IActiveSession, ISessionsManagementService } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
+import { ChatInteractivity, IChat, ISession, SessionStatus } from '../../../../../workbench/contrib/sessions/common/session.js';
 import { SessionsChatAccessibilityHelp } from '../../../chat/browser/sessionsChatAccessibilityHelp.js';
-import { SessionsFlatList, SessionsGrouping, SessionsList, SessionsSorting } from '../../browser/views/sessionsList.js';
+import { SessionsFlatList, SessionsGrouping, SessionsList, SessionsSorting } from '../../../../../workbench/contrib/sessions/browser/views/sessionsList.js';
 import { createListHarness, createTestSession, TestCommandService, TestSessionsManagementService } from './sessionsListTestUtils.js';
 import '../../browser/sessionsActions.js';
 import '../../browser/views/sessionsViewActions.js';
+import { stubMissingSessionHostsFromSessionsService } from '../../../../../workbench/contrib/sessions/test/browser/sessionHostTestUtils.js';
 
 class TestQuickInputService extends mock<IQuickInputService>() {
 	result: string | undefined;
@@ -568,6 +572,97 @@ suite('Sessions rename', () => {
 		});
 	});
 
+	suite('list presentation', () => {
+		function createPresentationHarness() {
+			const baseSession = createTestSession('Session').session;
+			const mainChat = baseSession.mainChat.get();
+			const peerChat = new class extends mock<IChat>() {
+				override readonly resource = URI.parse('test-chat:///peer');
+				override readonly workspace = constObservable(undefined);
+				override readonly title = constObservable('Peer chat');
+				override readonly updatedAt = constObservable(new Date());
+				override readonly status = constObservable(SessionStatus.Completed);
+				override readonly description = constObservable(undefined);
+				override readonly interactivity = constObservable(ChatInteractivity.Full);
+				override readonly isArchived = constObservable(false);
+				override readonly isRead = constObservable(true);
+				override readonly capabilities = constObservable({ canRename: true, canArchive: true, canDelete: true });
+			}();
+			const session: ISession = { ...baseSession, chats: constObservable([mainChat, peerChat]) };
+			const group = { id: 'group', name: 'Group', createdAt: 1 };
+			const harness = createListHarness(disposables, [session], { groups: [group] });
+			const renamedGroups: { groupId: string; name: string }[] = [];
+			harness.instantiationService.stub(ISessionGroupsService, 'renameGroup', (groupId: string, name: string) => {
+				renamedGroups.push({ groupId, name });
+			});
+			const pending = new Map<SessionNameKind, (value: string) => void | Promise<void>>();
+			const editName: ISessionsListPresentation['editName'] = (kind, _value, _editInline, accept) => {
+				pending.set(kind, accept);
+				return true;
+			};
+			harness.instantiationService.stub(ISessionsListPresentation, 'editName', editName);
+			const list = harness.store.add(harness.instantiationService.createInstance(SessionsList, harness.createContainer(), {
+				grouping: () => SessionsGrouping.Date,
+				sorting: () => SessionsSorting.Created,
+				onSessionOpen: () => { },
+			}));
+			list.layout(300, 400);
+			list.createSubgroup(group.id);
+			list.beginRenameGroup(group.id);
+			list.beginRenameSession(session);
+			list.beginRenameChat({ session, chat: peerChat });
+
+			return {
+				list,
+				async accept(value: string) {
+					assert.deepStrictEqual([...pending.keys()], ['newGroup', 'group', 'session', 'chat']);
+					for (const complete of pending.values()) {
+						await complete(value);
+					}
+				},
+				snapshot: () => ({
+					createdGroups: harness.createdGroups,
+					renamedGroups,
+					renamedSessions: harness.managementService.renamed.map(({ title }) => title),
+					renamedChats: harness.managementService.renamedChats.map(({ title }) => title),
+				}),
+			};
+		}
+
+		for (const { label, input, expected } of [
+			{ label: 'trims surrounding whitespace', input: ' \tRenamed title \n ', expected: 'Renamed title' },
+			{ label: 'rejects whitespace-only renames and defaults new group names', input: ' \t\n ', expected: undefined },
+			{ label: 'rejects empty renames and defaults new group names', input: '', expected: undefined },
+		]) {
+			test(label, async () => {
+				const harness = createPresentationHarness();
+
+				await harness.accept(input);
+
+				assert.deepStrictEqual(harness.snapshot(), {
+					createdGroups: [{ name: expected ?? 'New Group', sessionIds: [], parentId: 'group' }],
+					renamedGroups: expected ? [{ groupId: 'group', name: expected }] : [],
+					renamedSessions: expected ? [expected] : [],
+					renamedChats: expected ? [expected] : [],
+				});
+			});
+		}
+
+		test('ignores prompted names after the list is disposed', async () => {
+			const harness = createPresentationHarness();
+			harness.list.dispose();
+
+			await harness.accept(' Renamed title ');
+
+			assert.deepStrictEqual(harness.snapshot(), {
+				createdGroups: [],
+				renamedGroups: [],
+				renamedSessions: [],
+				renamedChats: [],
+			});
+		});
+	});
+
 	suite('action', () => {
 		function createActionHarness(title = 'Existing', supportsRename = true) {
 			const instantiationService = disposables.add(new TestInstantiationService());
@@ -683,8 +778,9 @@ suite('Sessions rename', () => {
 			instantiationService.stub(IQuickInputService, quickInputService);
 			instantiationService.stub(ISessionsManagementService, managementService);
 			instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() {
-				override readonly activeSession = constObservable<IActiveSession | undefined>(activeSession);
+				readonly activeSession = constObservable<IActiveSession | undefined>(activeSession);
 			}());
+			stubMissingSessionHostsFromSessionsService(instantiationService);
 			instantiationService.stub(ISessionsPartService, new class extends mock<ISessionsPartService>() {
 				override getFocusedSessionView(): SessionView {
 					return upcastPartial<SessionView>({ getSession: () => activeSession, getFocusedChat: () => focusedChat.get() });
@@ -826,9 +922,11 @@ suite('Sessions rename', () => {
 			let inlineRenameCalls = 0;
 			instantiationService.stub(ICommandService, commandService);
 			instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() {
-				override readonly activeSession = constObservable<IActiveSession | undefined>(session);
+				readonly activeSession = constObservable<IActiveSession | undefined>(session);
 			});
+			stubMissingSessionHostsFromSessionsService(instantiationService);
 			instantiationService.stub(ISessionsPartService, new class extends mock<ISessionsPartService>() {
+				override getActiveSessionView() { return upcastPartial<SessionView>({ getSession: () => session }); }
 				override getSessionView() {
 					if (inlineRename === undefined) {
 						return undefined;
@@ -891,10 +989,12 @@ suite('Sessions rename', () => {
 			};
 			instantiationService.stub(ISessionsPartService, new class extends mock<ISessionsPartService>() {
 				override getSessionView() { return fallbackView; }
+				override getActiveSessionView() { return fallbackView; }
 			});
 			instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() {
-				override readonly activeSession = constObservable<IActiveSession | undefined>(activeSession);
+				readonly activeSession = constObservable<IActiveSession | undefined>(activeSession);
 			});
+			stubMissingSessionHostsFromSessionsService(instantiationService);
 			instantiationService.stub(IAgentHostFilterService, { selectedHost: undefined });
 			const configurationService = new TestConfigurationService();
 			instantiationService.stub(IConfigurationService, configurationService);
@@ -902,6 +1002,7 @@ suite('Sessions rename', () => {
 			const mainContainer = mainWindow.document.createElement('div');
 			mainContainer.classList.toggle('phone-layout', phoneLayout);
 			instantiationService.stub(IWorkbenchLayoutService, { mainContainer });
+			instantiationService.stub(ISessionsHostLayoutService, {});
 
 			mainWindow.document.body.appendChild(origin);
 			disposables.add({ dispose: () => origin.remove() });

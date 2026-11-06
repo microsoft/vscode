@@ -11,8 +11,8 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/tes
 import { IConfigurationChangeEvent } from '../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { IChatEntitlementService, IChatSentiment } from '../../../../../workbench/services/chat/common/chatEntitlementService.js';
-import { IWindowCanvasDescriptor, IWindowCanvasService } from '../../../../services/canvas/browser/windowCanvasService.js';
-import { CHAT_INBOX_ENABLED_SETTING, INBOX_CANVAS_ID } from '../../browser/inboxNotificationsConstants.js';
+import { IWindowCanvasDescriptor, IWindowCanvasService } from '../../../../../workbench/contrib/sessions/browser/windowCanvas.js';
+import { CHAT_INBOX_ENABLED_SETTING, INBOX_CANVAS_ID } from '../../../../../workbench/contrib/sessions/browser/inboxNotificationsConstants.js';
 import { InboxNotificationsCanvasContribution } from '../../browser/inboxOne.contribution.js';
 
 suite('InboxNotificationsCanvasContribution', () => {
@@ -56,11 +56,12 @@ suite('InboxNotificationsCanvasContribution', () => {
 	test('registers a native canvas only while enabled', async () => {
 		const fixture = createFixture(true);
 		const enabled = [...fixture.registered.keys()];
+		const retainFocusOnRestore = fixture.registered.get(INBOX_CANVAS_ID)?.retainFocusOnRestore;
 		await fixture.setEnabled(false);
 		const disabled = [...fixture.registered.keys()];
 		await fixture.setEnabled(true);
-		assert.deepStrictEqual({ enabled, disabled, reenabled: [...fixture.registered.keys()], closed: fixture.closed }, {
-			enabled: [INBOX_CANVAS_ID], disabled: [], reenabled: [INBOX_CANVAS_ID], closed: [INBOX_CANVAS_ID],
+		assert.deepStrictEqual({ enabled, retainFocusOnRestore, disabled, reenabled: [...fixture.registered.keys()], closed: fixture.closed }, {
+			enabled: [INBOX_CANVAS_ID], retainFocusOnRestore: true, disabled: [], reenabled: [INBOX_CANVAS_ID], closed: [INBOX_CANVAS_ID],
 		});
 	});
 

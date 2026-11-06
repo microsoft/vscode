@@ -65,33 +65,45 @@ export function isAutoModeTier(value: unknown): value is AutoModeTier {
 
 export const DynamicAutoTiersFeatureFlag = 'DYNAMIC_AUTO_TIERS';
 
-/** Only populated in the agent host process. */
-let advertisedAutoModeTiers: ReadonlySet<string> | undefined;
-let advertisedAsFusion = false;
-
 /**
- * `undefined` means no provider metadata, so the built-in tiers apply; `[]` accepts nothing. `fusion` records
- * whether the provider's tiers present Auto as Fusion.
+ * The Auto tiers one model catalog accepts. `tiers` is `undefined` while the catalog's provider metadata is unknown, for
+ * example before its first discovery completes: any tier is then left to the runtime, which validates it against its own
+ * catalog. `fusion` records whether the provider's tiers present Auto as Fusion.
  */
-export function setAdvertisedAutoModeTiers(tiers: Iterable<string> | undefined, fusion = false): void {
-	advertisedAutoModeTiers = tiers ? new Set(tiers) : undefined;
+export interface IAutoModeTierSupport {
+	readonly tiers: ReadonlySet<string> | undefined;
+	readonly fusion: boolean;
+}
+
+export function createAutoModeTierSupport(tiers: Iterable<string> | undefined, fusion = false): IAutoModeTierSupport {
+	const accepted = tiers ? new Set(tiers) : undefined;
 	// No runnable tiers can't present Auto as Fusion.
-	advertisedAsFusion = fusion && !!advertisedAutoModeTiers?.size;
+	return { tiers: accepted, fusion: fusion && !!accepted?.size };
+}
+
+/** Only populated in the agent host process: the host-wide catalog's tiers, for chats without a catalog of their own. */
+let advertisedAutoModeTierSupport = createAutoModeTierSupport(undefined);
+
+export function setAdvertisedAutoModeTiers(tiers: Iterable<string> | undefined, fusion = false): void {
+	advertisedAutoModeTierSupport = createAutoModeTierSupport(tiers, fusion);
+}
+
+export function getAdvertisedAutoModeTierSupport(): IAutoModeTierSupport {
+	return advertisedAutoModeTierSupport;
 }
 
 /** Whether the provider's advertised tiers present Auto as Fusion. */
-export function isAutoAdvertisedAsFusion(): boolean {
-	return advertisedAsFusion;
+export function isAutoAdvertisedAsFusion(support = advertisedAutoModeTierSupport): boolean {
+	return support.fusion;
 }
 
-export function isSupportedAutoModeTier(value: unknown): value is string {
-	return advertisedAutoModeTiers
-		? typeof value === 'string' && advertisedAutoModeTiers.has(value)
-		: isAutoModeTier(value);
+/** Whether the catalog's provider tiers include the tier. Until they are known, any tier is left to the runtime to validate. */
+export function isSupportedAutoModeTier(value: unknown, support = advertisedAutoModeTierSupport): value is string {
+	return typeof value === 'string' && (!support.tiers || support.tiers.has(value));
 }
 
-export function getSupportedAutoModeTiers(): readonly string[] {
-	return advertisedAutoModeTiers ? [...advertisedAutoModeTiers] : autoModeTiers;
+export function getSupportedAutoModeTiers(support = advertisedAutoModeTierSupport): readonly string[] {
+	return support.tiers ? [...support.tiers] : [];
 }
 
 /** Maps retired picker and override values to the current runtime names, matching the Copilot extension. */

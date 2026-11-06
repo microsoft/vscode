@@ -1037,10 +1037,6 @@
 	padding: 0 var(--vscode-spacing-size40);
 }
 
-.automation-cron-segment:nth-last-child(-n + 2) {
-	flex-grow: 2;
-}
-
 .automation-cron-segment > .monaco-inputbox {
 	width: 100%;
 	height: 100%;
@@ -1068,10 +1064,9 @@
 	left: 50%;
 	bottom: 0;
 	transform: translate(-50%, 50%);
-	padding: 0 var(--vscode-spacing-size40);
 	background: var(--vscode-input-background);
 	color: var(--vscode-descriptionForeground);
-	font-size: var(--vscode-fontSize-body2, 11px);
+	font-size: var(--vscode-fontSize-label3, 10px);
 	line-height: 1;
 }
 

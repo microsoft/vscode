@@ -26,8 +26,8 @@ import { OPEN_AGENTS_WINDOW_COMMAND_ID } from '../../../../../workbench/contrib/
 import { IKeybindingEditingService } from '../../../../../workbench/services/keybinding/common/keybindingEditing.js';
 import { ENABLE_OPEN_AGENTS_WINDOW_SYSTEM_WIDE_KEYBINDING_COMMAND_ID, OPEN_AGENTS_WINDOW_SYSTEM_WIDE_KEYBINDING, OpenAgentsWindowSystemWideKeybindingTip } from '../../electron-browser/openAgentsWindowKeybindingTip.js';
 
-function resolveOpenAgentsWindowKeybinding(): ResolvedKeybinding {
-	const resolved = createUSLayoutResolvedKeybinding(KeyMod.CtrlCmd | KeyMod.WinCtrl | KeyCode.KeyA, OperatingSystem.Macintosh);
+function resolveOpenAgentsWindowKeybinding(keyCode = KeyCode.KeyA): ResolvedKeybinding {
+	const resolved = createUSLayoutResolvedKeybinding(KeyMod.CtrlCmd | KeyMod.WinCtrl | keyCode, OperatingSystem.Macintosh);
 	assert.ok(resolved);
 	return resolved;
 }
@@ -43,8 +43,11 @@ class TestKeybindingService extends mock<IKeybindingService>() {
 	}
 
 	override resolveUserBinding(userBinding: string): ResolvedKeybinding[] {
-		assert.strictEqual(userBinding, OPEN_AGENTS_WINDOW_SYSTEM_WIDE_KEYBINDING);
-		return [resolveOpenAgentsWindowKeybinding()];
+		if (userBinding === OPEN_AGENTS_WINDOW_SYSTEM_WIDE_KEYBINDING) {
+			return [resolveOpenAgentsWindowKeybinding()];
+		}
+		assert.strictEqual(userBinding, 'ctrl+cmd+b');
+		return [resolveOpenAgentsWindowKeybinding(KeyCode.KeyB)];
 	}
 
 	update(keybindings: readonly ResolvedKeybindingItem[]): void {
@@ -60,9 +63,11 @@ class TestKeybindingService extends mock<IKeybindingService>() {
 class RecordingKeybindingEditingService extends mock<IKeybindingEditingService>() {
 
 	readonly additions: { readonly item: ResolvedKeybindingItem; readonly key: string; readonly when: string | undefined }[] = [];
+	completion: Promise<void> = Promise.resolve();
 
 	override async addKeybinding(item: ResolvedKeybindingItem, key: string, when: string | undefined): Promise<void> {
 		this.additions.push({ item, key, when });
+		await this.completion;
 	}
 }
 
@@ -112,8 +117,8 @@ suite('OpenAgentsWindowSystemWideKeybindingTip', () => {
 		return { tip, provider: chatTipService.provider!, chatTipService, keybindingService, keybindingEditingService, storageService, notificationService };
 	}
 
-	function systemWideKeybinding(command: string): ResolvedKeybindingItem {
-		return new ResolvedKeybindingItem(resolveOpenAgentsWindowKeybinding(), command, undefined, undefined, false, null, false, true);
+	function systemWideKeybinding(command: string, keyCode = KeyCode.KeyA): ResolvedKeybindingItem {
+		return new ResolvedKeybindingItem(resolveOpenAgentsWindowKeybinding(keyCode), command, undefined, undefined, false, null, false, true);
 	}
 
 	test('offers the macOS Enable action until a user system-wide binding exists', () => {
@@ -129,7 +134,7 @@ suite('OpenAgentsWindowSystemWideKeybindingTip', () => {
 			unsupported: createTip(false).provider.provideTip(),
 		}, {
 			tipId: 'sessions.openAgentsWindowSystemWideKeybinding',
-			content: '**Tip:** Open the Agents window while VS Code is running with `⌃⌘A`, even when another app is active. [Enable](command:sessions.action.enableOpenAgentsWindowSystemWideKeybinding)',
+			content: '**Tip:** [Enable ⌃⌘A](command:sessions.action.enableOpenAgentsWindowSystemWideKeybinding) to open the Agents Window from any app while VS Code is running.',
 			enabledCommands: [ENABLE_OPEN_AGENTS_WINDOW_SYSTEM_WIDE_KEYBINDING_COMMAND_ID],
 			afterBinding: undefined,
 			unsupported: undefined,
@@ -179,13 +184,15 @@ suite('OpenAgentsWindowSystemWideKeybindingTip', () => {
 		});
 	});
 
-	test('Enable adds the system-wide user keybinding and hides tips for the session', async () => {
+	test('Enable adds the system-wide user keybinding and confirms it for the current session', async () => {
 		const fixture = createTip();
 		const command = CommandsRegistry.getCommand(ENABLE_OPEN_AGENTS_WINDOW_SYSTEM_WIDE_KEYBINDING_COMMAND_ID);
 		assert.ok(command);
 		const instantiationService = store.add(new TestInstantiationService());
 
 		await instantiationService.invokeFunction(accessor => command.handler(accessor));
+		const confirmation = fixture.provider.provideTip();
+		fixture.provider.resetSession?.();
 
 		assert.deepStrictEqual({
 			additions: fixture.keybindingEditingService.additions.map(addition => ({
@@ -196,7 +203,12 @@ suite('OpenAgentsWindowSystemWideKeybindingTip', () => {
 				systemWide: addition.item.systemWide,
 			})),
 			hideTipsForSessionCount: fixture.chatTipService.hideTipsForSessionCount,
-			tip: fixture.provider.provideTip(),
+			confirmation: {
+				id: confirmation?.id,
+				content: confirmation?.content.value,
+				enabledCommands: confirmation?.enabledCommands,
+			},
+			afterReset: fixture.provider.provideTip(),
 		}, {
 			additions: [{
 				key: OPEN_AGENTS_WINDOW_SYSTEM_WIDE_KEYBINDING,
@@ -205,7 +217,53 @@ suite('OpenAgentsWindowSystemWideKeybindingTip', () => {
 				args: { source: AgentsWindowOpenSource.KeyboardShortcut },
 				systemWide: true,
 			}],
-			hideTipsForSessionCount: 1,
+			hideTipsForSessionCount: 0,
+			confirmation: {
+				id: 'sessions.openAgentsWindowSystemWideKeybinding',
+				content: '**Shortcut enabled:** Press `⌃⌘A` from any app to open the Agents Window. [Manage Shortcut](command:workbench.action.openGlobalKeybindings?%5B%22%40command%3Aworkbench.action.openAgentsWindow%22%5D)',
+				enabledCommands: ['workbench.action.openGlobalKeybindings'],
+			},
+			afterReset: undefined,
+		});
+	});
+
+	test('confirmation follows changes to the effective system-wide keybinding', async () => {
+		const fixture = createTip();
+		const command = CommandsRegistry.getCommand(ENABLE_OPEN_AGENTS_WINDOW_SYSTEM_WIDE_KEYBINDING_COMMAND_ID);
+		assert.ok(command);
+		const instantiationService = store.add(new TestInstantiationService());
+
+		await instantiationService.invokeFunction(accessor => command.handler(accessor));
+		const initialContent = fixture.provider.provideTip()?.content.value;
+		fixture.keybindingService.update([systemWideKeybinding(OPEN_AGENTS_WINDOW_COMMAND_ID, KeyCode.KeyB)]);
+
+		assert.deepStrictEqual({
+			initialContent,
+			updatedContent: fixture.provider.provideTip()?.content.value,
+		}, {
+			initialContent: '**Shortcut enabled:** Press `⌃⌘A` from any app to open the Agents Window. [Manage Shortcut](command:workbench.action.openGlobalKeybindings?%5B%22%40command%3Aworkbench.action.openAgentsWindow%22%5D)',
+			updatedContent: '**Shortcut enabled:** Press `⌃⌘B` from any app to open the Agents Window. [Manage Shortcut](command:workbench.action.openGlobalKeybindings?%5B%22%40command%3Aworkbench.action.openAgentsWindow%22%5D)',
+		});
+	});
+
+	test('pending Enable completion does not restore confirmation after a session reset', async () => {
+		const fixture = createTip();
+		let completeEnablement: (() => void) | undefined;
+		fixture.keybindingEditingService.completion = new Promise<void>(resolve => completeEnablement = resolve);
+		const command = CommandsRegistry.getCommand(ENABLE_OPEN_AGENTS_WINDOW_SYSTEM_WIDE_KEYBINDING_COMMAND_ID);
+		assert.ok(command);
+		const instantiationService = store.add(new TestInstantiationService());
+
+		const enablement = instantiationService.invokeFunction(accessor => command.handler(accessor));
+		fixture.provider.resetSession?.();
+		completeEnablement?.();
+		await enablement;
+
+		assert.deepStrictEqual({
+			additionCount: fixture.keybindingEditingService.additions.length,
+			tip: fixture.provider.provideTip(),
+		}, {
+			additionCount: 1,
 			tip: undefined,
 		});
 	});

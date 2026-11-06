@@ -100,7 +100,7 @@ export function getPermissionLevelBadge(level: string, disabled = false, organiz
 	}] : undefined;
 	return {
 		...(level === ChatPermissionLevel.Assisted && !disabled ? {
-			badge: localize('agentHostModePicker.new', "New"),
+			badge: localize('agentHostModePicker.recommended', "Recommended"),
 			className: 'agent-host-assisted-permissions',
 		} : {}),
 		...(additionalBadges ? { additionalBadges } : {}),

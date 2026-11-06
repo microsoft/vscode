@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { agentHostConnectionKinds } from '../../../../../../platform/agentHost/test/common/testAgentHostResourceUriMappers.js';
 import * as dom from '../../../../../../base/browser/dom.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { Disposable, toDisposable } from '../../../../../../base/common/lifecycle.js';
@@ -29,19 +30,20 @@ import { IChatViewModel } from '../../../../../../workbench/contrib/chat/common/
 import { IChatService } from '../../../../../../workbench/contrib/chat/common/chatService/chatService.js';
 import { ILifecycleService } from '../../../../../../workbench/services/lifecycle/common/lifecycle.js';
 import { TestStorageService } from '../../../../../../workbench/test/common/workbenchTestServices.js';
-import { Menus } from '../../../../../browser/menus.js';
-import { IAgentHostSessionsProvider, LOCAL_AGENT_HOST_PROVIDER_ID } from '../../../../../common/agentHostSessionsProvider.js';
-import { IsPhoneLayoutContext, SessionProviderIdContext, SessionUsesCombinedConfigPickerContext } from '../../../../../common/contextkeys.js';
-import { IChat, ISession, SessionStatus } from '../../../../../services/sessions/common/session.js';
-import { IActiveSession } from '../../../../../services/sessions/common/sessionsManagement.js';
-import { ISessionsService } from '../../../../../services/sessions/browser/sessionsService.js';
-import { SessionsProvidersService } from '../../../../../services/sessions/browser/sessionsProvidersService.js';
-import { AGENTS_PICKER_IN_ATTACH_CONTEXT_MENU_SETTING } from '../../../../chat/common/constants.js';
-import { AgentHostAgentPickerContribution, AgentHostModePickerActionViewItem, createAgentContextPick, isCustomAgentSelected } from '../../browser/agentHostAgentPicker.js';
-import { ModePicker } from '../../../copilotChatSessions/browser/modePicker.js';
-import '../../browser/agentHostSessionConfigPicker.js';
-import '../../browser/mobile/mobileChatInputConfigPicker.js';
+import { Menus } from '../../../../../../workbench/contrib/sessions/browser/menus.js';
+import { IAgentHostSessionsProvider, LOCAL_AGENT_HOST_PROVIDER_ID } from '../../../../../../workbench/contrib/sessions/common/agentHostSessionsProvider.js';
+import { IsPhoneLayoutContext, SessionProviderIdContext, SessionUsesCombinedConfigPickerContext } from '../../../../../../workbench/contrib/sessions/common/contextkeys.js';
+import { IChat, ISession, SessionStatus } from '../../../../../../workbench/contrib/sessions/common/session.js';
+import { IActiveSession } from '../../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
+import { SessionsProvidersService } from '../../../../../../workbench/contrib/sessions/browser/sessionsProvidersService.js';
+import { AGENTS_PICKER_IN_ATTACH_CONTEXT_MENU_SETTING } from '../../../../../../workbench/contrib/sessions/common/chatConstants.js';
+import { AgentHostAgentPickerContribution, AgentHostModePickerActionViewItem, createAgentContextPick, isCustomAgentSelected } from '../../../../../../workbench/contrib/sessions/providers/agentHost/browser/agentHostAgentPicker.js';
+import { ModePicker } from '../../../../../../workbench/contrib/sessions/providers/copilotChatSessions/browser/modePicker.js';
+import '../../browser/agentHostAgentPicker.contribution.js';
+import '../../browser/agentHostSessionConfigPicker.contribution.js';
+import '../../browser/mobile/mobileChatInputConfigPicker.contribution.js';
 import '../../../../chat/browser/modelPicker.js';
+import { focusedSessionHostServiceOf } from '../../../../../../workbench/contrib/sessions/test/browser/sessionHostTestUtils.js';
 
 suite('agentHostAgentPicker', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
@@ -77,6 +79,7 @@ suite('agentHostAgentPicker', () => {
 			const telemetryService = new TestExperimentTriggerTelemetryService();
 			const pick = createAgentContextPick({
 				getActiveSession: () => session,
+				getActiveChat: () => session?.activeChat.get(),
 				isEligible: () => options.eligible ?? true,
 				openPicker: anchor => opened.push(anchor?.className ?? ''),
 			}, new TestConfigurationService({ [AGENTS_PICKER_IN_ATTACH_CONTEXT_MENU_SETTING]: treatment }), telemetryService);
@@ -207,15 +210,19 @@ suite('agentHostAgentPicker', () => {
 		});
 	});
 
-	for (const scheme of ['agent-host-copilotcli', 'custom-host']) {
-		for (const rememberedSource of [false, true]) {
-			test(`restores the last-used agent after an automatic fallback for ${scheme}${rememberedSource ? ' using its draft source' : ''}`, () => {
+	for (const kind of agentHostConnectionKinds) {
+		for (const [scheme, clientId, rememberedSource] of ([['agent-host-copilotcli', undefined], ['custom-host', undefined], ['custom-host', 'vscode'], ['custom-host', 'foreign']] as const).flatMap(([scheme, clientId]) => [[scheme, clientId, false], [scheme, clientId, true]] as const)) {
+			test(`restores the last-used agent after an automatic fallback for ${scheme}${rememberedSource ? ' using its draft source' : ''} (${clientId ?? 'host'}, ${kind.name})`, () => {
 				const storage = disposables.add(new TestStorageService());
+				const fromHost = (uri: URI) => kind.resourceUris.fromAgentHost(uri);
+				const alpha = { ...agents[0], uri: 'file:///agents/alpha.agent.md' };
+				const beta = { ...agents[1], uri: 'file:///agents/beta.agent.md' };
+				const clientAlpha = kind.toClient(URI.parse(alpha.uri)).toString();
 				const key = agentHostAgentPickerStorageKey(scheme);
 				const rememberedUri = rememberedSource ? 'client-agent:/alpha' : alpha.uri;
 				storage.store(key, rememberedUri, StorageScope.PROFILE, StorageTarget.MACHINE);
 				const createSession = (id: string, agent: AgentCustomization | undefined, status: SessionStatus) => {
-					const mode = observableValue<ReturnType<ISession['mode']['get']>>('mode', agent ? { id: agent.uri, kind: 'agent' } : undefined);
+					const mode = observableValue<ReturnType<ISession['mode']['get']>>('mode', agent ? { id: kind.toClient(URI.parse(agent.uri)).toString(), kind: 'agent' } : undefined);
 					const session = upcastPartial<IActiveSession>({
 						sessionId: id,
 						resource: URI.from({ scheme, path: `/${id}` }),
@@ -235,6 +242,10 @@ suite('agentHostAgentPicker', () => {
 					id: LOCAL_AGENT_HOST_PROVIDER_ID,
 					getCustomAgents: () => availableAgents,
 					resolveCustomAgent: (_id, uri) => rememberedSource && uri === rememberedUri ? availableAgents.find(agent => agent.uri === alpha.uri) : undefined,
+					getCustomizations: () => clientId !== undefined
+						? [{ type: CustomizationType.Plugin, id: 'plugin', uri: 'file:///client/plugin', name: 'Plugin', clientId, children: [...availableAgents] }]
+						: [{ type: CustomizationType.Directory, id: 'agents', uri: 'file:///agents', name: 'Agents', contents: CustomizationType.Agent, enabled: true, writable: true, children: [...availableAgents] }],
+					mapAgentHostResource: fromHost,
 					onDidChangeCustomAgents: agentsChanged.event,
 					setAgent: (id, agent) => sessions.get(id)?.mode.set(agent ? { id: agent.uri, kind: 'agent' } : undefined, undefined),
 				});
@@ -244,7 +255,7 @@ suite('agentHostAgentPicker', () => {
 				disposables.add(providers.registerProvider(provider));
 				disposables.add(new AgentHostAgentPickerContribution(
 					new NullActionViewItemService(),
-					upcastPartial<ISessionsService>({ activeSession }),
+					focusedSessionHostServiceOf(activeSession),
 					providers,
 					upcastPartial<IChatService>({ getSession: () => undefined }),
 					upcastPartial<IChatWidgetService>({
@@ -266,13 +277,13 @@ suite('agentHostAgentPicker', () => {
 				const afterFallback = snapshot();
 				activeSession.set(draft.session, undefined);
 				const beforeDiscovery = snapshot();
-				availableAgents = agents;
+				availableAgents = [alpha, beta];
 				agentsChanged.fire();
 
 				assert.deepStrictEqual({ afterFallback, beforeDiscovery, afterDiscovery: snapshot() }, {
 					afterFallback: { mode: undefined, remembered: rememberedUri },
 					beforeDiscovery: { mode: undefined, remembered: rememberedUri },
-					afterDiscovery: { mode: alpha.uri, remembered: rememberedUri },
+					afterDiscovery: { mode: clientAlpha, remembered: rememberedUri },
 				});
 			});
 		}

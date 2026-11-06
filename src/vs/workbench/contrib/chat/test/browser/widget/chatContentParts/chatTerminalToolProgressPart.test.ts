@@ -25,7 +25,7 @@ import { TestConfigurationService } from '../../../../../../../platform/configur
 import type { IResourceEditorInput } from '../../../../../../../platform/editor/common/editor.js';
 import { TestInstantiationService } from '../../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { ITelemetryService } from '../../../../../../../platform/telemetry/common/telemetry.js';
-import { NullTelemetryServiceShape } from '../../../../../../../platform/telemetry/common/telemetryUtils.js';
+import { TestTelemetryService } from '../../../../../../../platform/telemetry/test/common/testTelemetryService.js';
 import { IAccessibleViewService } from '../../../../../../../platform/accessibility/browser/accessibleView.js';
 import type { IAgentConnection } from '../../../../../../../platform/agentHost/common/agentService.js';
 import type { IAgentSubscription } from '../../../../../../../platform/agentHost/common/state/agentSubscription.js';
@@ -1404,14 +1404,7 @@ suite('ChatTerminalToolProgressPart Auto-Expand Logic', () => {
 				currentWidth: observableValue('testWidth', 500),
 				onDidChangeVisibility: Event.None,
 			};
-			const telemetryService = new class extends NullTelemetryServiceShape {
-				readonly events: { readonly name: string; readonly data: unknown }[] = [];
-				override publicLog2(eventName?: string, data?: unknown): void {
-					if (eventName) {
-						this.events.push({ name: eventName, data });
-					}
-				}
-			}();
+			const telemetryService = new TestTelemetryService();
 			const instantiationService = workbenchInstantiationService(undefined, store);
 			instantiationService.stub(ITelemetryService, telemetryService);
 			const thinkingStyle = instantiationService.get(IConfigurationService).getValue<string>(ChatConfiguration.ThinkingStyle) ?? 'unknown';

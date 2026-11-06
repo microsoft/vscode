@@ -201,7 +201,10 @@ export class AgentsWindow {
 		await this.selectRemoteFolder(name, workspacePath);
 	}
 
-	async connectWSLHost(distro: string, workspacePath: string): Promise<void> {
+	/**
+	 * @param expectedFolderEntry an entry of `workspacePath` whose listing shows that the folder picker has loaded it.
+	 */
+	async connectWSLHost(distro: string, workspacePath: string, expectedFolderEntry = '.devcontainer'): Promise<void> {
 		const page = this.code.driver.currentPage;
 		this.code.logger.log(`[agentsWindow] WSL connection: executing Connect via WSL for ${distro}`);
 		const distroPicker = page.locator('.quick-input-widget:visible').filter({ has: page.locator('.quick-input-title', { hasText: 'Connect via WSL' }) });
@@ -215,7 +218,7 @@ export class AgentsWindow {
 			}).click({ timeout: 30_000 });
 		}
 		this.code.logger.log(`[agentsWindow] WSL connection: selecting folder on ${distro}`);
-		await this.selectRemoteFolder(distro, workspacePath);
+		await this.selectRemoteFolder(distro, workspacePath, expectedFolderEntry);
 		this.code.logger.log('[agentsWindow] WSL connection: folder selected');
 	}
 
@@ -282,7 +285,7 @@ export class AgentsWindow {
 		throw lastError instanceof Error ? lastError : new Error(`Timed out waiting for quick input after running ${commandId}`);
 	}
 
-	private async selectRemoteFolder(hostName: string, workspacePath: string): Promise<void> {
+	private async selectRemoteFolder(hostName: string, workspacePath: string, expectedFolderEntry = '.devcontainer'): Promise<void> {
 		const page = this.code.driver.currentPage;
 		const widget = page.locator('.quick-input-widget:visible').filter({
 			has: page.locator('.quick-input-title', { hasText: `Select Folder on ${hostName}` }),
@@ -290,7 +293,7 @@ export class AgentsWindow {
 		const input = widget.locator('.quick-input-box input');
 		await widget.locator('.quick-input-list .monaco-list-row').first().waitFor({ timeout: 30_000 });
 		await input.fill(workspacePath.replace(/\\/g, '/') + '/', { timeout: 120_000 });
-		await widget.getByText('.devcontainer', { exact: true }).waitFor({ timeout: 30_000 });
+		await widget.getByText(expectedFolderEntry, { exact: true }).waitFor({ timeout: 30_000 });
 		await widget.locator('.quick-input-progress[aria-hidden="true"]').waitFor({ state: 'attached', timeout: 30_000 });
 		await input.press('Enter');
 		await widget.waitFor({ state: 'hidden', timeout: 30_000 });

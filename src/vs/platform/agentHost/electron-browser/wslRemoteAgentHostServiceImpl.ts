@@ -23,6 +23,7 @@ import { ReconnectingRelayTransport } from '../common/relayTransport.js';
 import { AgentHostTransportFailureReason, NonReconnectableTransportError } from '../common/state/sessionTransport.js';
 import { AgentHostProtocolClient } from '../browser/agentHostProtocolClient.js';
 import { agentsWindowAgentHostClientInfo } from '../common/agentHostClientInfo.js';
+import { AgentHostClientProxy } from '../browser/agentHostClientProxy.js';
 import {
 	IWSLRemoteAgentHostService,
 	WSL_REMOTE_AGENT_HOST_CHANNEL,
@@ -135,6 +136,8 @@ export class WSLRelayClientFactory implements IWSLRelayClientFactory {
 				isEnabled: () => this._configurationService.getValue<boolean>('http.systemCertificates') !== false,
 				loadCertificates: () => this._requestService.loadCertificates(),
 			},
+			// WSL shares the Windows network, so its agent host may use this client's proxy configuration and tickets.
+			clientProxy: this._instantiationService.createInstance(AgentHostClientProxy, () => true),
 			onDispose: () => {
 				disposed = true;
 				void releaseRelay(activeConnectionId);

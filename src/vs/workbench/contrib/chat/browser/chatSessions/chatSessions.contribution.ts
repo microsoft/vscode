@@ -32,13 +32,13 @@ import { ExtensionsRegistry } from '../../../../services/extensions/common/exten
 import { ChatEditorInput } from '../widgetHosts/editor/chatEditorInput.js';
 import { IChatAgentAttachmentCapabilities, IChatAgentData, IChatAgentService } from '../../common/participants/chatAgents.js';
 import { ChatContextKeys } from '../../common/actions/chatContextKeys.js';
-import { ChatSessionOptionsMap, ChatSessionStatus, ChatSessionsExtensions, IAsyncChatSessionActivationRegistry, IChatNewSessionRequest, IChatSession, IChatSessionCommitEvent, IChatSessionContentProvider, IChatSessionCustomizationItemGroup, IChatSessionCustomizationsProvider, IChatSessionForkOptions, IChatSessionHistoryItem, IChatSessionItem, IChatSessionItemController, IChatSessionItemsDelta, IChatSessionOptionsChangeEvent, IChatSessionProviderOptionGroup, IChatSessionProviderOptionItem, IChatSessionRequestHistoryItem, IChatSessionsExtensionPoint, IChatSessionsService, IChatInputCompletionsParams, IChatInputCompletionsResult, isSessionInProgressStatus, localChatSessionType, ReadonlyChatSessionOptionsMap, ResolvedChatSessionsExtensionPoint, SessionType } from '../../common/chatSessionsService.js';
+import { ChatSessionOptionsMap, ChatSessionRefreshReason, ChatSessionStatus, ChatSessionsExtensions, IAsyncChatSessionActivationRegistry, IChatNewSessionRequest, IChatSession, IChatSessionCommitEvent, IChatSessionContentProvider, IChatSessionCustomizationItemGroup, IChatSessionCustomizationsProvider, IChatSessionForkOptions, IChatSessionHistoryItem, IChatSessionItem, IChatSessionItemArchiveProvider, IChatSessionItemArchiveState, IChatSessionItemController, IChatSessionItemsDelta, IChatSessionOptionsChangeEvent, IChatSessionProviderOptionGroup, IChatSessionProviderOptionItem, IChatSessionRequestHistoryItem, IChatSessionsExtensionPoint, IChatSessionsService, IChatInputCompletionsParams, IChatInputCompletionsResult, isSessionInProgressStatus, localChatSessionType, ReadonlyChatSessionOptionsMap, ResolvedChatSessionsExtensionPoint, SessionType } from '../../common/chatSessionsService.js';
 import { IChatSideChatOrigin, IChatSideChatSelection } from '../../common/chatSideChatService.js';
 import { ChatAgentLocation, ChatModeKind } from '../../common/constants.js';
 import { CHAT_CATEGORY } from '../actions/chatActions.js';
 import { IChatEditorOptions } from '../widgetHosts/editor/chatEditor.js';
 import { IChatService, ResponseModelState } from '../../common/chatService/chatService.js';
-import { autorun, derived, IObservable, observableFromEvent, observableSignal } from '../../../../../base/common/observable.js';
+import { autorun, derived, IObservable, observableFromEvent, observableSignal, observableValue } from '../../../../../base/common/observable.js';
 import { IChatRequestVariableEntry, PromptFileVariableKind, toPromptFileVariableEntry } from '../../common/attachments/chatVariableEntries.js';
 import { IViewsService } from '../../../../services/views/common/viewsService.js';
 import { ChatViewId } from '../chat.js';
@@ -320,6 +320,43 @@ interface IPendingSessionResolution {
 
 export class ChatSessionsService extends Disposable implements IChatSessionsService {
 	readonly _serviceBrand: undefined;
+
+	private readonly _archiveProviders = observableValue<readonly IChatSessionItemArchiveProvider[]>(this, []);
+	private _archiveRequests = 0;
+	readonly archivedSessionItems = derived<IChatSessionItemArchiveState>(this, reader => {
+		const providers = this._archiveProviders.read(reader);
+		const states = providers.map(provider => provider.state.read(reader));
+		return {
+			available: providers.length > 0,
+			state: states.includes('loading') ? 'loading' : states.includes('error') ? 'error' : states.includes('idle') ? 'idle' : 'loaded',
+		};
+	});
+
+	registerChatSessionItemArchiveProvider(provider: IChatSessionItemArchiveProvider): IDisposable {
+		this._archiveProviders.set([...this._archiveProviders.get(), provider], undefined);
+		if (this._archiveRequests > 0) {
+			provider.setRequested(true);
+		}
+		return toDisposable(() => {
+			provider.setRequested(false);
+			this._archiveProviders.set(this._archiveProviders.get().filter(candidate => candidate !== provider), undefined);
+		});
+	}
+
+	acquireArchivedSessionItems(): IDisposable {
+		if (this._archiveRequests++ === 0) {
+			for (const provider of this._archiveProviders.get()) {
+				provider.setRequested(true);
+			}
+		}
+		return toDisposable(() => {
+			if (--this._archiveRequests === 0) {
+				for (const provider of this._archiveProviders.get()) {
+					provider.setRequested(false);
+				}
+			}
+		});
+	}
 
 	private readonly _itemControllers = new Map</* type */ string, { readonly controller: IChatSessionItemController; readonly initialRefresh: Promise<void> }>();
 	private readonly _asyncActivationRegistry = Registry.as<IAsyncChatSessionActivationRegistry>(ChatSessionsExtensions.AsyncActivation);
@@ -1143,7 +1180,7 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 		});
 	}
 
-	public async refreshChatSessionItems(providersToResolve: readonly string[] | undefined, token: CancellationToken, onError?: (error: unknown) => void): Promise<void> {
+	public async refreshChatSessionItems(providersToResolve: readonly string[] | undefined, token: CancellationToken, onError?: (error: unknown) => void, reason: ChatSessionRefreshReason = 'manual'): Promise<void> {
 		await this.tryActivateControllers(providersToResolve);
 
 		await Promise.all(Array.from(this._itemControllers).map(async ([chatSessionType, controllerEntry]) => {
@@ -1153,7 +1190,7 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 			}
 
 			try {
-				await controllerEntry.controller.refresh(token);
+				await controllerEntry.controller.refresh(token, reason);
 			} catch (err) {
 				if (!isCancellationError(err)) {
 					// Log error but continue with other providers
@@ -1174,7 +1211,7 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 
 		// Register and trigger an initial refresh to populate the provider's items
 		const initialRefreshCts = disposables.add(new CancellationTokenSource());
-		this._itemControllers.set(chatSessionType, { controller, initialRefresh: controller.refresh(initialRefreshCts.token) });
+		this._itemControllers.set(chatSessionType, { controller, initialRefresh: controller.refresh(initialRefreshCts.token, 'initial') });
 		this._onDidChangeItemsProviders.fire({ chatSessionType });
 
 		disposables.add(controller.onDidChangeChatSessionItems(e => {

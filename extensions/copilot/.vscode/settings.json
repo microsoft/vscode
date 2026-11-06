@@ -76,29 +76,12 @@
 	"typescript.format.insertSpaceBeforeFunctionParenthesis": false,
 	"typescript.format.placeOpenBraceOnNewLineForFunctions": false,
 	"typescript.format.placeOpenBraceOnNewLineForControlBlocks": false,
-	"json.schemas": [
-		{
-			"fileMatch": [
-				"**/*.conversation.json"
-			],
-			"url": "./.vscode/conversation.schema.json"
-		},
-		{
-			"fileMatch": [
-				"**/*.state.json"
-			],
-			"url": "./.vscode/state.schema.json"
-		}
-	],
 	"git.detectSubmodules": false,
 	"githubPullRequests.upstreamRemote": "never",
 	"extension-test-runner.debugOptions": {
 		"outFiles": [
 			"${workspaceFolder}/dist/**/*.js"
 		]
-	},
-	"files.associations": {
-		"**/*.conversation.json": "jsonc"
 	},
 	"workbench.editorAssociations": {
 		// Use the default diff editor instead of the default custom editor view.

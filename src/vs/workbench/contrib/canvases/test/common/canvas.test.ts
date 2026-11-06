@@ -10,7 +10,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/tes
 import { Verbosity } from '../../../../common/editor.js';
 import { IEditorGroup, IEditorGroupsService, IEditorPart } from '../../../../services/editor/common/editorGroupsService.js';
 import { IWorkbenchEnvironmentService } from '../../../../services/environment/common/environmentService.js';
-import { CanvasInput, ICanvas } from '../../common/canvas.js';
+import { CanvasInput, canPresentCanvasInGroup, ICanvas, ICanvasContextService } from '../../common/canvas.js';
 
 suite('CanvasInput', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -19,6 +19,7 @@ suite('CanvasInput', () => {
 		getGroup: id => upcastPartial<IEditorGroup>({ windowId: id === 1 ? 1 : 2 }),
 	});
 	const environmentService = (isSessionsWindow = false) => upcastPartial<IWorkbenchEnvironmentService>({ isSessionsWindow });
+	const contextService = (canPresentInGroup?: ICanvasContextService['canPresentInGroup']) => upcastPartial<ICanvasContextService>({ canPresentInGroup });
 
 	test('keeps transient sources out of editor identity and does not restore', () => {
 		const source = 'https://secret.example/canvas?token=sensitive';
@@ -33,7 +34,7 @@ suite('CanvasInput', () => {
 			session: URI.parse('agent-host-session:/session'),
 			chat: URI.parse('agent-host-chat:/session/main'),
 			canvas: URI.parse('agent-host-canvas:/preview'),
-		}, canvas('Preview'), editorGroupsService, environmentService()));
+		}, canvas('Preview'), editorGroupsService, environmentService(), contextService()));
 		const labels: string[] = [];
 		store.add(input.onDidChangeLabel(() => labels.push(input.getName())));
 
@@ -63,9 +64,27 @@ suite('CanvasInput', () => {
 			instanceId: 'preview',
 			title: 'Preview',
 			source: URI.parse('https://example.test'),
-		}, editorGroupsService, environmentService()));
+		}, editorGroupsService, environmentService(), contextService()));
 
 		assert.deepStrictEqual({ main: input.canMove(1, 1), auxiliary: typeof input.canMove(1, 2) }, { main: true, auxiliary: 'string' });
+	});
+
+	test('moves to a window outside the main window only where its context service presents canvases of its owner, as a canvas editor shows it only there', () => {
+		const owner = { providerId: 'local', session: URI.parse('session:/owner'), chat: URI.parse('chat:/owner') };
+		// A window of its own that shows the owning chat, such as a chat window: window 2.
+		const presenting = contextService((candidate, group) => candidate.chat.toString() === owner.chat.toString() && group.windowId === 2);
+		const input = store.add(new CanvasInput({ ...owner, canvas: URI.parse('canvas:/preview') }, undefined, editorGroupsService, environmentService(), presenting));
+		const otherChat = store.add(new CanvasInput({ ...owner, chat: URI.parse('chat:/other'), canvas: URI.parse('canvas:/preview') }, undefined, editorGroupsService, environmentService(), presenting));
+		const group = (windowId: number) => upcastPartial<IEditorGroup>({ windowId });
+
+		assert.deepStrictEqual({
+			main: input.canMove(1, 1),
+			ownersWindow: input.canMove(1, 2),
+			otherChat: typeof otherChat.canMove(1, 2),
+			editorShowsInOwnersWindow: canPresentCanvasInGroup(input.reference, group(2), editorGroupsService, presenting),
+			editorShowsInAnotherWindow: canPresentCanvasInGroup(input.reference, group(3), editorGroupsService, presenting),
+			editorShowsOtherChat: canPresentCanvasInGroup(otherChat.reference, group(2), editorGroupsService, presenting),
+		}, { main: true, ownersWindow: true, otherChat: 'string', editorShowsInOwnersWindow: true, editorShowsInAnotherWindow: false, editorShowsOtherChat: false });
 	});
 
 	test('shows reopen instructions only in the long title', () => {
@@ -75,7 +94,7 @@ suite('CanvasInput', () => {
 				session: URI.parse('session:/owner'),
 				chat: URI.parse('chat:/owner'),
 				canvas: URI.parse('canvas:/preview'),
-			}, undefined, editorGroupsService, environmentService(isSessionsWindow)));
+			}, undefined, editorGroupsService, environmentService(isSessionsWindow), contextService()));
 			return {
 				description: input.getDescription(),
 				shortTitle: input.getTitle(Verbosity.SHORT),

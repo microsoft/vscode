@@ -40,6 +40,8 @@ jobs:
     - template: ../common/checkout.yml@self
 
     - template: ../common/setup-node.yml@self
+      parameters:
+        os: macOS
 
     - task: AzureKeyVault@2
       displayName: "Azure Key Vault: Get GitHub token"

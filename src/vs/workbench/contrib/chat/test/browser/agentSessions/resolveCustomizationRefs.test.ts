@@ -4,15 +4,17 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { agentHostConnectionKinds } from '../../../../../../platform/agentHost/test/common/testAgentHostResourceUriMappers.js';
 import { VSBuffer } from '../../../../../../base/common/buffer.js';
 import { CancellationToken } from '../../../../../../base/common/cancellation.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { ResourceSet } from '../../../../../../base/common/map.js';
 import { observableValue } from '../../../../../../base/common/observable.js';
 import { URI } from '../../../../../../base/common/uri.js';
+import { toAgentHostFileUri } from '../../../../../../platform/agentHost/common/agentPluginManager.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
-import { PluginFormat } from '../../../../../../platform/agentPlugins/common/pluginParsers.js';
-import { CustomizationEnablementKind, CustomizationType, type CustomizationEnablement } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
+import { parseHooksJson, PluginFormat } from '../../../../../../platform/agentPlugins/common/pluginParsers.js';
+import { CustomizationEnablementKind, CustomizationType, type CustomizationEnablement, type ClientPluginCustomization } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
 import { ConfigurationTarget } from '../../../../../../platform/configuration/common/configuration.js';
 import { ExtensionIdentifier } from '../../../../../../platform/extensions/common/extensions.js';
 import { IFileService } from '../../../../../../platform/files/common/files.js';
@@ -23,6 +25,7 @@ import { BUILTIN_STORAGE } from '../../../common/aiCustomizationWorkspaceService
 import { type ICustomizationSyncProvider } from '../../../common/customizationHarnessService.js';
 import { ContributionEnablementState } from '../../../common/enablement.js';
 import { type IAgentPlugin, type IAgentPluginService } from '../../../common/plugins/agentPluginService.js';
+import { HookType } from '../../../common/promptSyntax/hookTypes.js';
 import { PromptFileSource, PromptsType } from '../../../common/promptSyntax/promptTypes.js';
 import { type IPromptPath, type IPromptsService, PromptsStorage } from '../../../common/promptSyntax/service/promptsService.js';
 import { type IMcpServer, type IMcpService, McpCollectionDefinition, McpCollectionProvenance, McpServerLaunch, McpServerTransportType } from '../../../../mcp/common/mcpTypes.js';
@@ -30,6 +33,8 @@ import { ExternalDiscoverySource } from '../../../../mcp/common/mcpConfiguration
 import { IConfigurationResolverService } from '../../../../../services/configurationResolver/common/configurationResolver.js';
 import { ConfigurationResolverExpression } from '../../../../../services/configurationResolver/common/configurationResolverExpression.js';
 import { SessionType } from '../../../common/chatSessionsService.js';
+import { identityAgentHostResourceUriMapper } from '../../../../../../platform/agentHost/common/agentHostUri.js';
+import { getAgentHostCustomizationUri, toAgentHostClientCustomization } from '../../../common/agentHostSessionCustomizations.js';
 
 function makePromptPath(uri: URI, type: PromptsType, storage: PromptsStorage): IPromptPath {
 	return { uri, type, storage } as IPromptPath;
@@ -213,8 +218,39 @@ function toMcpBundlers(standalone: FakeBundler): ISyncedCustomizationBundlers {
 }
 
 suite('resolveCustomizationRefs - configured locations', () => {
-
 	ensureNoDisposablesAreLeakedInTestSuite();
+
+	for (const kind of agentHostConnectionKinds) {
+		test(`publishes only same-host plugins in place and preserves client identity (${kind.name})`, () => {
+			const connection = { clientId: 'vscode', resourceUris: kind.resourceUris };
+			const plugin: ClientPluginCustomization = {
+				type: CustomizationType.Plugin, id: 'stable-client-id', name: 'Plugin',
+				uri: kind.toClient(URI.file('/workspace/plugin')).toString(), nonce: '123',
+				enablement: [{ kind: CustomizationEnablementKind.Global, enabled: false }],
+				childEnablement: { child: [{ kind: CustomizationEnablementKind.Global, enabled: false }] },
+			};
+			const published = toAgentHostClientCustomization(plugin, connection.resourceUris);
+			const local = { ...plugin, uri: 'file:///workspace/plugin' };
+			const other = { ...plugin, uri: 'vscode-remote://ssh-remote%2Bother/workspace/plugin' };
+			assert.deepStrictEqual({
+				published,
+				local: toAgentHostClientCustomization(local, connection.resourceUris),
+				other: toAgentHostClientCustomization(other, connection.resourceUris),
+				identity: toAgentHostClientCustomization(plugin, identityAgentHostResourceUriMapper),
+				restored: getAgentHostCustomizationUri(URI.parse(published.uri), connection, { clientId: connection.clientId })?.toString(),
+				clientLocal: getAgentHostCustomizationUri(URI.parse(local.uri), connection, { clientId: connection.clientId })?.toString(),
+				foreign: getAgentHostCustomizationUri(URI.parse(published.uri), connection, { clientId: 'foreign' }),
+			}, {
+				published: { ...plugin, uri: kind.name === 'local' ? plugin.uri : toAgentHostFileUri(URI.file('/workspace/plugin')).toString() },
+				local,
+				other,
+				identity: plugin,
+				restored: plugin.uri,
+				clientLocal: local.uri,
+				foreign: undefined,
+			});
+		});
+	}
 
 	test('bundles configured agents and skills as standalone customizations and instructions as synced data', async () => {
 		const files = new Map<string, readonly IPromptPath[]>();
@@ -502,6 +538,32 @@ suite('resolveCustomizationRefs - built-in skills', () => {
 
 		assert.deepStrictEqual(refs.map(ref => ({ uri: ref.uri, name: ref.name })), [
 			{ uri: pluginUri.toString(), name: 'Agent Only' },
+		]);
+	});
+
+	test('forwards a userPromptTransformed-only plugin without prompt files', async () => {
+		const pluginUri = URI.file('/plugins/prompt-transform');
+		const groups = parseHooksJson(URI.joinPath(pluginUri, 'com.github.copilot/hooks/hooks.json'), {
+			hooks: { userPromptTransformed: [{ type: 'command', command: 'echo context' }] },
+		}, undefined, URI.file('/home'));
+		const plugin: IAgentPlugin = {
+			...makePlugin(pluginUri, { label: 'Prompt Transform' }),
+			hooks: observableValue('hooks', groups.map(group => ({ type: group.type as HookType, hooks: group.commands, uri: group.uri, originalId: group.originalId }))),
+		};
+		const refs = await resolveCustomizationRefs(
+			makeFileService(),
+			makePromptsService(new Map()),
+			new FakeSyncProvider(),
+			makeAgentPluginService([plugin]),
+			makeMcpService(),
+			makeConfigurationResolverService(),
+			toBundlers(new FakeBundler()),
+			SessionType.CopilotCLI,
+			undefined,
+		);
+
+		assert.deepStrictEqual(refs.map(ref => ({ uri: ref.uri, name: ref.name })), [
+			{ uri: pluginUri.toString(), name: 'Prompt Transform' },
 		]);
 	});
 

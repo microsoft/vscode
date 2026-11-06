@@ -8,13 +8,62 @@ import * as sinon from 'sinon';
 import { mainWindow } from '../../../../../../../base/browser/window.js';
 import { Separator } from '../../../../../../../base/common/actions.js';
 import { Emitter } from '../../../../../../../base/common/event.js';
+import { DeferredPromise } from '../../../../../../../base/common/async.js';
+import { URI } from '../../../../../../../base/common/uri.js';
 import { MarkdownString } from '../../../../../../../base/common/htmlContent.js';
 import { toDisposable } from '../../../../../../../base/common/lifecycle.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../../base/test/common/utils.js';
 import { IMarkdownRendererService } from '../../../../../../../platform/markdown/browser/markdownRenderer.js';
+import { INotificationService } from '../../../../../../../platform/notification/common/notification.js';
 import { workbenchInstantiationService } from '../../../../../../test/browser/workbenchTestServices.js';
 import { ChatCustomConfirmationWidget, ChatQueryTitlePart, type IChatConfirmationButton } from '../../../../browser/widget/chatContentParts/chatConfirmationWidget.js';
 import type { IChatContentPartRenderContext } from '../../../../browser/widget/chatContentParts/chatContentParts.js';
+import { ChatTerminalToolExplanation } from '../../../../browser/widget/chatContentParts/toolInvocationParts/chatTerminalToolExplanation.js';
+import { IChatSideChatService } from '../../../../common/chatSideChatService.js';
+
+suite('ChatTerminalToolExplanation', () => {
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('uses the current command and originating turn, disabling repeated requests while pending', async () => {
+		const instantiationService = workbenchInstantiationService(undefined, store);
+		const pending = new DeferredPromise<void>();
+		const ask = sinon.spy(() => pending.p);
+		instantiationService.stub(IChatSideChatService, { canAskInSideChat: () => true, askInSideChat: ask });
+		let command = 'original';
+		const resource = URI.parse('test:///secondary');
+		const explanation = store.add(instantiationService.createInstance(ChatTerminalToolExplanation, resource, 'turn', () => command));
+		const disabled: boolean[] = [];
+		store.add(explanation.button!.onDidChangeDisablement!(value => disabled.push(value)));
+		command = '  edited command  ';
+		const first = explanation.explain();
+		await explanation.explain();
+		const disabledWhilePending = explanation.button!.disabled;
+		await pending.complete();
+		await first;
+		assert.deepStrictEqual({
+			calls: ask.getCalls().map(call => call.args),
+			disabled, disabledWhilePending, disabledAfter: explanation.button!.disabled,
+		}, {
+			calls: [[resource, 'Explain what this terminal command will do.', { text: 'edited command' }, { sourceTurnId: 'turn' }]],
+			disabled: [true, false], disabledWhilePending: true, disabledAfter: false,
+		});
+	});
+
+	test('omits unsupported explanations and reports failures without leaving the action disabled', async () => {
+		const instantiationService = workbenchInstantiationService(undefined, store);
+		let supported = false;
+		instantiationService.stub(IChatSideChatService, { canAskInSideChat: () => supported, askInSideChat: async () => { throw new Error('Unavailable'); } });
+		const error = sinon.spy();
+		instantiationService.stub(INotificationService, 'error', error);
+		const explanation = store.add(instantiationService.createInstance(ChatTerminalToolExplanation, URI.parse('test:///chat'), undefined, () => 'command'));
+		const unsupported = explanation.button;
+		supported = true;
+		await explanation.explain();
+		assert.deepStrictEqual({ unsupported, disabled: explanation.button!.disabled, errors: error.getCalls().map(call => call.args[0]) }, {
+			unsupported: undefined, disabled: false, errors: ['The side chat could not be started: Unavailable'],
+		});
+	});
+});
 
 suite('ChatQueryTitlePart', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();

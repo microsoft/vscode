@@ -138,6 +138,7 @@ function changesetEditToEntryDiff(edit: ISessionFileDiff, connectionAuthority: s
 		return undefined;
 	}
 
+	// eslint-disable-next-line local/code-agent-host-uri-mapping -- TODO(agent-host-uri): changeset file identity needs the owning mapper available on the calling resolver
 	const modifiedURI = toAgentHostUri(normalized.resource, connectionAuthority);
 	const originalURI = normalized.beforeContentUri
 		? toAgentHostContentUri(normalized.beforeContentUri, connectionAuthority, normalized.beforeUri)
@@ -556,6 +557,7 @@ export class AgentHostResponseFileChangesProvider extends Disposable implements 
 		}
 		const resource = normalized.resource;
 
+		// eslint-disable-next-line local/code-agent-host-uri-mapping -- TODO(agent-host-uri): response file identity bypasses this._connection.resourceUris.fromAgentHost
 		const modifiedURI = toAgentHostUri(resource, this._connectionAuthority);
 		const originalURI = normalized.kind === FileEditKind.Create || !normalized.beforeContentUri
 			? modifiedURI

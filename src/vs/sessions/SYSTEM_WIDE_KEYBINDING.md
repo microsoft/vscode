@@ -21,8 +21,8 @@ system-wide Open Agents Window binding exists and the tip has not been dismissed
 Its **Enable** action appends the binding to the user's `keybindings.json`, including the system-wide
 flag and the keyboard-shortcut open source. If another effective system-wide binding already owns
 that accelerator, the action reports the conflict and leaves the tip visible. The action is
-serialized while in flight, reports editing failures in the Agents Window, and hides chat tips for
-the current session after a successful write.
+serialized while in flight, reports editing failures in the Agents Window, and confirms the enabled
+shortcut for the remainder of the current chat session after a successful write.
 
 The command handler is registered during the Sessions desktop entry point. The keybinding owner is
 started after workbench restoration, synchronizes immediately when instantiated, and debounces

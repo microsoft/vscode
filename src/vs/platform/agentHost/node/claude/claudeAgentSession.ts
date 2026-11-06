@@ -19,7 +19,7 @@ import { IAgentConfigurationService } from '../agentConfigurationService.js';
 import { ISyncedCustomization } from '../../common/agentPluginManager.js';
 import { ClaudePermissionMode } from '../../common/claudeSessionConfigKeys.js';
 import { ClaudeRuntimeEffortLevel, toRuntimeEffortLevel, resolveClaudeEffort } from '../../common/claudeModelConfig.js';
-import { AgentSignal, IAgentSessionProjectInfo, type IAgentChatOwnerRef } from '../../common/agent.js';
+import { AgentPermissionKind, AgentSignal, IAgentSessionProjectInfo, type IAgentChatOwnerRef } from '../../common/agent.js';
 import type { IAgentHostClientTelemetryContext } from '../../common/agentHostTelemetry.js';
 import type { IAgentServerToolHost } from '../../common/agentServerTools.js';
 import { PendingRequestRegistry } from '../../common/pendingRequestRegistry.js';
@@ -53,7 +53,6 @@ import { parsePlugin, type IMcpServerDefinition } from '../../../agentPlugins/co
 import { hasClientPluginMcpDefaultCwds, readClientPluginMcpDefaultCwd } from '../../common/meta/clientPluginCustomizationMeta.js';
 import { ClaudeSdkPipeline, IRematerializer, type ISdkResolvedCustomizations } from './claudeSdkPipeline.js';
 import { SubagentRegistry } from './claudeSubagentRegistry.js';
-import { ClaudePermissionKind } from './claudeToolDisplay.js';
 import { getSdkMcpServerEnablement, isCustomizationSdkEligible, resolveCustomizationEnablement } from '../shared/customizationEnablementGate.js';
 import { McpServerType, type IMcpServerConfiguration } from '../../../mcp/common/mcpPlatformTypes.js';
 import { AgentHostGitHubMcpServerEnabledConfigKey, platformRootSchema } from '../../common/agentHostSchema.js';
@@ -1145,17 +1144,14 @@ export class ClaudeAgentSession extends Disposable implements IRematerializer {
 		this._onDidCustomizationsChange.fire();
 	}
 
-	/**
-	 * Cancel the in-flight SDK turn. Mirrors the production reference;
-	 * see {@link ClaudeSdkPipeline.abort}. Also denies any parked
-	 * permission / user-input requests so the SDK's `canUseTool`
-	 * callback (and any interactive tool waiting on user input) unwinds
-	 * with a deny / cancel result instead of leaving stale UI behind.
-	 */
-	abort(): void {
-		this._pendingPermissions.denyAll(false);
-		this._pendingUserInputs.denyAll({ response: ChatInputResponseKind.Cancel });
-		this._requirePipeline().abort();
+	/** Cancels the SDK turn before releasing any remaining permission or input requests. */
+	async abort(): Promise<void> {
+		try {
+			await this._requirePipeline().abort();
+		} finally {
+			this._pendingPermissions.denyAll(false);
+			this._pendingUserInputs.denyAll({ response: ChatInputResponseKind.Cancel });
+		}
 	}
 
 	/**
@@ -1309,8 +1305,11 @@ export class ClaudeAgentSession extends Disposable implements IRematerializer {
 	requestPermission(args: {
 		readonly toolUseID: string;
 		readonly state: ToolCallPendingConfirmationState;
-		readonly permissionKind: ClaudePermissionKind;
+		readonly permissionKind: AgentPermissionKind;
 		readonly permissionPath?: string;
+		readonly permissionUrl?: string;
+		readonly shellLanguage?: 'bash';
+		readonly shellCommand?: string;
 		/** Phase 12 step 5 — when the confirmation belongs to a subagent context, route it to the subagent session. */
 		readonly parentToolCallId?: string;
 	}): Promise<boolean> {
@@ -1324,6 +1323,9 @@ export class ClaudeAgentSession extends Disposable implements IRematerializer {
 				state: args.state,
 				permissionKind: args.permissionKind,
 				...(args.permissionPath !== undefined ? { permissionPath: args.permissionPath } : {}),
+				...(args.permissionUrl !== undefined ? { permissionUrl: args.permissionUrl } : {}),
+				...(args.shellLanguage !== undefined ? { shellLanguage: args.shellLanguage } : {}),
+				...(args.shellCommand !== undefined ? { shellCommand: args.shellCommand } : {}),
 				...(args.parentToolCallId !== undefined ? { parentToolCallId: args.parentToolCallId } : {}),
 			});
 		});

@@ -14,14 +14,14 @@ steps:
   - ${{ if eq(parameters.VSCODE_COMPILE_TEST_SUITES, true) }}:
     - script: |
         set -e
-        npm run compile --prefix test/smoke
-        npm run compile --prefix test/integration/browser
+        pnpm -C test/smoke run compile
+        pnpm -C test/integration/browser run compile
       displayName: Compile test suites (non-OSS)
       condition: and(succeeded(), eq(variables['VSCODE_STEP_ON_IT'], 'false'))
 
   - template: ../../common/restore-playwright-browsers.yml@self
 
-  - script: npm exec -- npm-run-all2 -lp "electron $(VSCODE_ARCH)" "playwright-install"
+  - script: pnpm exec npm-run-all2 -lp "electron $(VSCODE_ARCH)" "playwright-install"
     env:
       GITHUB_TOKEN: "$(github-token-code-oss)"
       AZURE_DEVOPS_EXT_PAT: $(System.AccessToken)
@@ -29,7 +29,7 @@ steps:
     retryCountOnTaskFailure: 3
 
   - ${{ if or(containsValue(parameters.VSCODE_TEST_IDS, 'integration-remote'), containsValue(parameters.VSCODE_TEST_IDS, 'smoke-remote')) }}:
-    - script: npm run gulp node
+    - script: pnpm run gulp node
       env:
         AZURE_DEVOPS_EXT_PAT: $(System.AccessToken)
       displayName: Download Node.js
@@ -54,7 +54,7 @@ steps:
           script: |
             set -e
             mkdir -p .build/crashes
-            npm run test-node -- --build
+            pnpm run test-node --build
           env:
             NODE_OPTIONS: "--report-on-fatalerror --report-uncaught-exception --report-directory=.build/crashes"
           displayName: 🧪 Run unit tests (node.js)
@@ -65,7 +65,7 @@ steps:
       parameters:
         testId: unit-browser-webkit
         testStep:
-          script: npm run test-browser-no-install -- --build --browser webkit --tfs "Browser Unit Tests"
+          script: pnpm run test-browser-no-install --build --browser webkit --tfs "Browser Unit Tests"
           env:
             DEBUG: "*browser*"
           displayName: 🧪 Run unit tests (Browser, Webkit)
@@ -73,7 +73,7 @@ steps:
 
   - script: |
       set -e
-      npm run gulp \
+      pnpm run gulp \
         compile-extension:configuration-editing \
         compile-extension:css-language-features-server \
         compile-extension:emmet \
@@ -184,7 +184,7 @@ steps:
             set -e
             APP_ROOT=$(agent.builddirectory)/VSCode-darwin-$(VSCODE_ARCH)
             APP_NAME="`ls $APP_ROOT | head -n 1`"
-            npm run smoketest-no-compile -- --tracing --build "$APP_ROOT/$APP_NAME"
+            pnpm run smoketest-no-compile --tracing --build "$APP_ROOT/$APP_NAME"
           env:
             VSCODE_SMOKE_TEST_POLICY: '1'
           timeoutInMinutes: 30
@@ -225,7 +225,7 @@ steps:
       parameters:
         testId: smoke-browser-chromium
         testStep:
-          script: npm run smoketest-no-compile -- --web --tracing --headless
+          script: pnpm run smoketest-no-compile --web --tracing --headless
           env:
             VSCODE_REMOTE_SERVER_PATH: $(agent.builddirectory)/vscode-server-darwin-$(VSCODE_ARCH)-web
           timeoutInMinutes: 30
@@ -238,10 +238,10 @@ steps:
         testStep:
           script: |
             set -e
-            npm run gulp compile-extension:vscode-test-resolver
+            pnpm run gulp compile-extension:vscode-test-resolver
             APP_ROOT=$(agent.builddirectory)/VSCode-darwin-$(VSCODE_ARCH)
             APP_NAME="`ls $APP_ROOT | head -n 1`"
-            npm run smoketest-no-compile -- --tracing --remote --build "$APP_ROOT/$APP_NAME"
+            pnpm run smoketest-no-compile --tracing --remote --build "$APP_ROOT/$APP_NAME"
           env:
             VSCODE_REMOTE_SERVER_PATH: $(agent.builddirectory)/vscode-server-darwin-$(VSCODE_ARCH)
           timeoutInMinutes: 30

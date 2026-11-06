@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { createAgentHostResourceUriMapper } from '../../../../../../platform/agentHost/common/agentHostUri.js';
 import { CancellationToken } from '../../../../../../base/common/cancellation.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { ResourceSet } from '../../../../../../base/common/map.js';
@@ -198,6 +199,7 @@ function createTestCustomAgentsService(connection: MockAgentConnection, rootCust
 		getClientWorkingDirectoryUris(_sessionResource: URI): readonly URI[] {
 			return [];
 		},
+		getClientPluginUri: () => undefined,
 		getMcpServers(_sessionResource: URI) {
 			return [];
 		},
@@ -270,7 +272,7 @@ suite('RemoteAgentHostCustomizationHarness', () => {
 		};
 
 		const provider = disposables.add(new AgentCustomizationItemProvider(
-			'test-authority',
+			{ clientId: 'test-client', resourceUris: createAgentHostResourceUriMapper('test-authority') },
 			() => { },
 			undefined,
 			fileService,
@@ -288,7 +290,7 @@ suite('RemoteAgentHostCustomizationHarness', () => {
 		const connection = disposables.add(new MockAgentConnection());
 		const fileService = new class extends mock<IFileService>() { };
 		const provider = disposables.add(new AgentCustomizationItemProvider(
-			'test-authority',
+			{ clientId: 'test-client', resourceUris: createAgentHostResourceUriMapper('test-authority') },
 			undefined,
 			undefined,
 			fileService,
@@ -329,7 +331,7 @@ suite('RemoteAgentHostCustomizationHarness', () => {
 		};
 
 		const provider = disposables.add(new AgentCustomizationItemProvider(
-			'test-authority',
+			{ clientId: 'test-client', resourceUris: createAgentHostResourceUriMapper('test-authority') },
 			() => { },
 			undefined,
 			fileService,
@@ -371,7 +373,7 @@ suite('RemoteAgentHostCustomizationHarness', () => {
 		};
 
 		const provider = disposables.add(new AgentCustomizationItemProvider(
-			'test-authority',
+			{ clientId: 'test-client', resourceUris: createAgentHostResourceUriMapper('test-authority') },
 			() => { },
 			undefined,
 			fileService,
@@ -455,7 +457,7 @@ suite('RemoteAgentHostCustomizationHarness', () => {
 		};
 
 		const provider = disposables.add(new AgentCustomizationItemProvider(
-			'test-authority',
+			{ clientId: 'test-client', resourceUris: createAgentHostResourceUriMapper('test-authority') },
 			() => { },
 			undefined,
 			fileService,
@@ -500,7 +502,7 @@ suite('RemoteAgentHostCustomizationHarness', () => {
 		};
 
 		const provider = disposables.add(new AgentCustomizationItemProvider(
-			'test-authority',
+			{ clientId: 'test-client', resourceUris: createAgentHostResourceUriMapper('test-authority') },
 			() => { },
 			undefined,
 			fileService,
@@ -546,7 +548,7 @@ suite('RemoteAgentHostCustomizationHarness', () => {
 		};
 
 		const provider = disposables.add(new AgentCustomizationItemProvider(
-			'test-authority',
+			{ clientId: 'test-client', resourceUris: createAgentHostResourceUriMapper('test-authority') },
 			() => { },
 			undefined,
 			fileService,
@@ -584,7 +586,7 @@ suite('RemoteAgentHostCustomizationHarness', () => {
 		};
 
 		const provider = disposables.add(new AgentCustomizationItemProvider(
-			'test-authority',
+			{ clientId: 'test-client', resourceUris: createAgentHostResourceUriMapper('test-authority') },
 			() => { },
 			undefined,
 			fileService,
@@ -666,7 +668,7 @@ suite('RemoteAgentHostCustomizationHarness', () => {
 		};
 
 		const provider = disposables.add(new AgentCustomizationItemProvider(
-			'test-authority',
+			{ clientId: 'test-client', resourceUris: createAgentHostResourceUriMapper('test-authority') },
 			() => { },
 			undefined,
 			fileService,
@@ -720,7 +722,7 @@ suite('RemoteAgentHostCustomizationHarness', () => {
 		connection.setRootState({ agents: [createAgentInfo([container])] });
 
 		const provider = disposables.add(new AgentCustomizationItemProvider(
-			'test-authority',
+			{ clientId: 'test-client', resourceUris: createAgentHostResourceUriMapper('test-authority') },
 			() => { },
 			undefined,
 			new class extends mock<IFileService>() { }(),
@@ -776,7 +778,7 @@ suite('RemoteAgentHostCustomizationHarness', () => {
 		};
 
 		const provider = disposables.add(new AgentCustomizationItemProvider(
-			'test-authority',
+			{ clientId: 'test-client', resourceUris: createAgentHostResourceUriMapper('test-authority') },
 			() => { },
 			undefined,
 			fileService,
@@ -834,7 +836,7 @@ suite('RemoteAgentHostCustomizationHarness', () => {
 
 		const originUri = URI.parse('file:///home/user/.config/rules/my-rule.md');
 		const provider = disposables.add(new AgentCustomizationItemProvider(
-			'test-authority',
+			{ clientId: 'test-client', resourceUris: createAgentHostResourceUriMapper('test-authority') },
 			() => { },
 			syncedUri => syncedUri.toString() === ruleResource.toString()
 				? { uri: originUri, source: 'extension', extensionId: 'pub.ext', pluginUri: undefined }
@@ -886,7 +888,7 @@ suite('RemoteAgentHostCustomizationHarness', () => {
 		};
 		const originUri = URI.parse('file:///home/user/.copilot/instructions/user-rule.instructions.md');
 		const provider = disposables.add(new AgentCustomizationItemProvider(
-			'test-authority',
+			{ clientId: 'test-client', resourceUris: createAgentHostResourceUriMapper('test-authority') },
 			() => { },
 			syncedUri => syncedUri.toString() === ruleResource.toString()
 				? { uri: originUri, source: 'user', extensionId: undefined, pluginUri: undefined }
@@ -949,7 +951,7 @@ suite('RemoteAgentHostCustomizationHarness', () => {
 
 		// No resolver wired: children keep their synced URI and default source.
 		const provider = disposables.add(new AgentCustomizationItemProvider(
-			'test-authority',
+			{ clientId: 'test-client', resourceUris: createAgentHostResourceUriMapper('test-authority') },
 			() => { },
 			undefined,
 			fileService,
@@ -1003,7 +1005,7 @@ suite('RemoteAgentHostCustomizationHarness', () => {
 		};
 
 		const provider = disposables.add(new AgentCustomizationItemProvider(
-			'test-authority',
+			{ clientId: 'test-client', resourceUris: createAgentHostResourceUriMapper('test-authority') },
 			() => { },
 			undefined,
 			fileService,

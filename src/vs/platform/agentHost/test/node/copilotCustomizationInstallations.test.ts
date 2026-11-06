@@ -5,10 +5,17 @@
 
 import type { CopilotClient, InstallationConfirmationRequest, McpInstallationReview } from '@github/copilot-sdk';
 import assert from 'assert';
-import { CancellationToken } from '../../../../base/common/cancellation.js';
+import { createHash } from 'crypto';
+import { DeferredPromise, timeout } from '../../../../base/common/async.js';
+import { runWithFakedTimers } from '../../../../base/test/common/virtualScheduling/index.js';
+import { bufferToStream, VSBuffer } from '../../../../base/common/buffer.js';
+import { Disposable } from '../../../../base/common/lifecycle.js';
+import { stableStringify } from '../../../../base/common/objects.js';
 import { mock } from '../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { McpServerType } from '../../../mcp/common/mcpPlatformTypes.js';
+import { IRequestService } from '../../../request/common/request.js';
+import type { IAgentCustomizationInstallationAnswers, IAgentCustomizationInstallationApplyRequest, IAgentCustomizationInstallationConfigurationRequest, IAgentCustomizationInstallationHandle, IAgentCustomizationInstallationReview } from '../../common/agent.js';
 import { CopilotCustomizationInstallations } from '../../node/copilot/customizations/copilotCustomizationInstallations.js';
 
 type CatalogSearchSucceeded = Extract<Awaited<ReturnType<CopilotClient['rpc']['catalog']['search']>>, { readonly kind: 'succeeded' }>;
@@ -26,6 +33,28 @@ type CustomizationClient = Awaited<ReturnType<ConstructorParameters<typeof Copil
 type GetSavedFeed = CopilotClient['rpc']['catalog']['getSavedFeed'];
 
 type PolicySessionFactory = ConstructorParameters<typeof CopilotCustomizationInstallations>[1];
+
+const reviewHandles = new WeakMap<IAgentCustomizationInstallationReview, IAgentCustomizationInstallationHandle>();
+
+/** Prepares an owned review and keeps its ownership handle out of review snapshots. */
+async function prepareReview(service: CopilotCustomizationInstallations, request: Parameters<CopilotCustomizationInstallations['prepare']>[0]): Promise<IAgentCustomizationInstallationReview> {
+	const prepared = await service.prepare(request);
+	if (prepared.kind !== 'review') {
+		throw new Error('Expected a review');
+	}
+	reviewHandles.set(prepared.review, prepared);
+	return prepared.review;
+}
+
+function applyReview(service: CopilotCustomizationInstallations, review: IAgentCustomizationInstallationReview) {
+	const handle = reviewHandles.get(review)!;
+	return service.apply({ operationId: review.operationId, hostGeneration: handle.hostGeneration, ownershipToken: handle.ownershipToken });
+}
+
+const cancellationToken: Parameters<CopilotCustomizationInstallations['confirmationHandler']>[1] = {
+	isCancellationRequested: false,
+	onCancellationRequested: () => Disposable.None,
+};
 
 /**
  * Records the hidden policy sessions a {@link CopilotCustomizationInstallations}
@@ -126,7 +155,7 @@ suite('CopilotCustomizationInstallations', () => {
 			const result = await fixture.service.search({ query: '', feedId: 'feed_editorial', limit: 1 });
 			assert.ok(result.kind === 'page');
 			const item = result.items[0];
-			await assert.rejects(fixture.service.prepare({
+			await assert.rejects(prepareReview(fixture.service, {
 				identifier: item.identifier!, displayName: item.displayName, description: item.description ?? '',
 				mediaType: candidate.mediaType, itemUrl: item.itemUrl, selectionId: item.selectionId, installation: { kind: 'mcp' },
 			}), /Reached SDK installation planning/);
@@ -270,7 +299,7 @@ suite('CopilotCustomizationInstallations', () => {
 						expiresAt,
 						reviewFingerprint: `fingerprint-${decisions.length}`,
 						review: { resource: 'plugin', review },
-					}, CancellationToken.None));
+					}, cancellationToken));
 				}
 				return {
 					kind: 'outcome',
@@ -333,9 +362,9 @@ suite('CopilotCustomizationInstallations', () => {
 			catalogIdentity: item.catalogIdentity,
 			installation: { kind: 'plugin' },
 		} as const;
-		await service.prepare(request);
-		const review = await service.prepare(request);
-		const applyResult = await service.apply(review.operationId);
+		await prepareReview(service, request);
+		const review = await prepareReview(service, request);
+		const applyResult = await applyReview(service, review);
 
 		assert.deepStrictEqual({
 			item: {
@@ -597,7 +626,7 @@ suite('CopilotCustomizationInstallations', () => {
 		await service.list();
 		await service.recover();
 		await service.search({ query: 'demo', limit: 10 });
-		const uninstall = await service.prepare({ installationId: 'missing' }).then(() => undefined, error => error instanceof Error ? error.message : String(error));
+		const uninstall = await prepareReview(service, { installationId: 'missing' }).then(() => undefined, error => error instanceof Error ? error.message : String(error));
 		await service.releasePolicySession(client);
 
 		const hidden = policySessions.created[0];
@@ -613,7 +642,7 @@ suite('CopilotCustomizationInstallations', () => {
 				`skills.list:${hidden}`,
 				`mcp.list:${hidden}`,
 			],
-			uninstall: 'The SDK no longer owns this customization installation.',
+			uninstall: 'This customization installation is no longer available.',
 		});
 	});
 
@@ -696,18 +725,70 @@ suite('CopilotCustomizationInstallations', () => {
 		const service = store.add(new CopilotCustomizationInstallations(async () => client, policySessions.create));
 		const message = (error: unknown) => error instanceof Error ? error.message : String(error);
 
-		const sdkReview = await service.prepare({ installationId: installation.installationId });
-		const configurationReview = await service.prepare({ installationId: 'mcp-config:demo' });
+		const sdkReview = await prepareReview(service, { installationId: installation.installationId });
+		const configurationReview = await prepareReview(service, { installationId: 'mcp-config:demo' });
 		await service.releasePolicySession(client);
-		const sdkApply = await service.apply(sdkReview.operationId).then(() => undefined, message);
-		const sdkRetry = await service.apply(sdkReview.operationId).then(() => undefined, message);
-		await service.apply(configurationReview.operationId);
+		const sdkApply = await applyReview(service, sdkReview).then(() => undefined, message);
+		const sdkRetry = await applyReview(service, sdkReview).then(() => undefined, message);
+		await applyReview(service, configurationReview);
 
 		assert.deepStrictEqual({ sdkApply, sdkRetry, applies }, {
 			sdkApply: 'The customization runtime restarted. Start the operation again.',
 			sdkRetry: 'This customization installation review expired. Start the operation again.',
 			applies: ['mcp.config.remove:demo'],
 		});
+	});
+
+	test('reports an unfinished skill removal as a removal', async () => {
+		const expiresAt = new Date(Date.now() + 60_000).toISOString();
+		const negotiated = { runtimeProtocolVersion: 3, grantedCapabilities: [] };
+		const catalogue = { resourceId: 'urn:air:github.test:skill:demo', displayName: 'Demo Skill', source: 'https://agentfinder.github.com' };
+		const installation = {
+			installationId: 'skill-installation',
+			operationId: 'skill-operation',
+			name: 'demo-skill',
+			target: { scope: 'personal' as const, relativePath: 'skills/demo', displayLabel: '~/.copilot/skills/demo' },
+			configuredEnabled: false,
+			sessionState: 'loaded-disabled' as const,
+			source: {
+				resourceId: catalogue.resourceId, catalogRevisionId: 'catalog-revision', repositoryId: 'repository-id', repository: 'owner/repository',
+				revision: 'a'.repeat(40), root: 'skills/demo', descriptorDigest: 'b'.repeat(64), bundleDigest: 'c'.repeat(64),
+			},
+			catalogue,
+			installedAt: new Date().toISOString(),
+			ownershipState: 'intact' as const,
+		};
+		const results: string[] = [];
+		for (const kind of ['cancelled', 'declined', 'recovery-required'] as const) {
+			const client = {
+				rpc: {
+					catalog: new class extends mock<CopilotClient['rpc']['catalog']>() { }(),
+					skills: new class extends mock<CopilotClient['rpc']['skills']>() {
+						override readonly installations = new class extends mock<CopilotClient['rpc']['skills']['installations']>() {
+							override readonly list: CopilotClient['rpc']['skills']['installations']['list'] = async () => ({ kind: 'outcome' as const, negotiated, outcome: { kind: 'listed' as const, installations: [installation] } });
+						}();
+						override readonly planUninstall: CopilotClient['rpc']['skills']['planUninstall'] = async () => ({
+							kind: 'outcome' as const,
+							negotiated,
+							outcome: {
+								kind: 'uninstall-planned' as const,
+								plan: { planHandle: 'skill-plan', operationId: 'skill-uninstall', expiresAt, installation, review: { action: 'uninstall' as const, installation, filesModified: false, files: [], totalBytes: 0, catalogue } },
+							},
+						});
+						override readonly applyUninstall: CopilotClient['rpc']['skills']['applyUninstall'] = async () => ({ kind: 'outcome', negotiated, outcome: { kind, operationId: 'skill-uninstall' } } as Awaited<ReturnType<CopilotClient['rpc']['skills']['applyUninstall']>>);
+					}(),
+					mcp: new class extends mock<CopilotClient['rpc']['mcp']>() {
+						override readonly installations = new class extends mock<CopilotClient['rpc']['mcp']['installations']>() {
+							override readonly list: CopilotClient['rpc']['mcp']['installations']['list'] = async () => ({ kind: 'outcome' as const, negotiated, outcome: { kind: 'listed' as const, installations: [] } });
+						}();
+					}(),
+				},
+			};
+			const service = store.add(new CopilotCustomizationInstallations(async () => client, new TestPolicySessions().create));
+			const review = await prepareReview(service, { installationId: installation.installationId });
+			results.push(await applyReview(service, review).then(() => 'removed', error => error instanceof Error ? error.message : String(error)));
+		}
+		assert.deepStrictEqual([...new Set(results)], ['The customization removal did not complete.']);
 	});
 
 	test('adds a raw MCP configuration through the SDK', async () => {
@@ -1184,7 +1265,7 @@ suite('CopilotCustomizationInstallations', () => {
 					['valid', sdkReview.effectiveConfiguration!],
 				];
 				for (const [id, effectiveConfiguration] of configurations) {
-					decisions.push(await serviceRef.value!.confirmationHandler(confirmation(id, effectiveConfiguration), CancellationToken.None));
+					decisions.push(await serviceRef.value!.confirmationHandler(confirmation(id, effectiveConfiguration), cancellationToken));
 				}
 				installed = true;
 				return {
@@ -1235,7 +1316,7 @@ suite('CopilotCustomizationInstallations', () => {
 						},
 					},
 				};
-				const decision = await serviceRef.value!.confirmationHandler(request, CancellationToken.None);
+				const decision = await serviceRef.value!.confirmationHandler(request, cancellationToken);
 				uninstallDecisions.push(decision);
 				installed = decision !== 'confirm';
 				return {
@@ -1288,7 +1369,7 @@ suite('CopilotCustomizationInstallations', () => {
 		const service = store.add(new CopilotCustomizationInstallations(async () => client, policySessions.create));
 		serviceRef.value = service;
 
-		const review = await service.prepare({
+		const review = await prepareReview(service, {
 			mediaType: candidate.mediaType,
 			identifier: itemUrl,
 			displayName: candidate.displayName,
@@ -1297,11 +1378,11 @@ suite('CopilotCustomizationInstallations', () => {
 			selectionId: 'expired-selection',
 			installation: { kind: 'mcp' },
 		});
-		await service.apply(review.operationId);
-		const uninstallReview = await service.prepare({
+		await applyReview(service, review);
+		const uninstallReview = await prepareReview(service, {
 			installationId: installation.installationId,
 		});
-		await service.apply(uninstallReview.operationId);
+		await applyReview(service, uninstallReview);
 
 		assert.deepStrictEqual({ review, decisions, uninstallReview, uninstallDecisions, installed, searchCapabilities }, {
 			review: {
@@ -1367,7 +1448,7 @@ suite('CopilotCustomizationInstallations', () => {
 		const policySessions = new TestPolicySessions();
 		const service = store.add(new CopilotCustomizationInstallations(async () => client, policySessions.create));
 
-		await assert.rejects(service.prepare({
+		await assert.rejects(prepareReview(service, {
 			mediaType: 'application/mcp-server+json',
 			identifier: 'default:io.example/demo',
 			displayName: 'Demo MCP',
@@ -1387,7 +1468,6 @@ suite('CopilotCustomizationInstallations', () => {
 					protocolVersion: 3,
 					requiredCapabilities: [
 						'catalog-search-credential-required',
-						'catalog-search-session-bound',
 						'catalog-selection',
 						'mcp-install-planning',
 						'multiple-transport-choice',
@@ -1486,7 +1566,7 @@ suite('CopilotCustomizationInstallations', () => {
 		const policySessions = new TestPolicySessions();
 		const service = store.add(new CopilotCustomizationInstallations(async () => client, policySessions.create));
 
-		const review = await service.prepare({
+		const review = await prepareReview(service, {
 			mediaType: 'application/mcp-server+json',
 			identifier: 'default:io.example/demo',
 			displayName: 'Demo MCP',
@@ -1497,10 +1577,10 @@ suite('CopilotCustomizationInstallations', () => {
 				source: { kind: 'url', mediaType: 'application/mcp-server+json', url: cardUrl },
 			},
 		});
-		await service.apply(review.operationId);
+		await applyReview(service, review);
 		const inventory = await service.list();
-		const uninstallReview = await service.prepare({ installationId: inventory[0].installationId });
-		await service.apply(uninstallReview.operationId);
+		const uninstallReview = await prepareReview(service, { installationId: inventory[0].installationId });
+		await applyReview(service, uninstallReview);
 		const finalInventory = await service.list();
 
 		assert.deepStrictEqual({ prepared, review, added, inventory, uninstallReview, removed, finalInventory }, {
@@ -1544,6 +1624,237 @@ suite('CopilotCustomizationInstallations', () => {
 			removed: [{ name: 'demo' }],
 			finalInventory: [],
 		});
+	});
+
+	function createLocalMcpCardFixture(options: { readonly expiresInMs?: number } = {}) {
+		const document = {
+			_meta: {},
+			server: {
+				name: 'microsoft/markitdown',
+				description: 'Convert documents to Markdown.',
+				version: '1.0.0',
+				packages: [{
+					registryType: 'pypi',
+					identifier: 'markitdown-mcp',
+					version: '0.0.1a4',
+					transport: { type: 'stdio' },
+					packageArguments: [{ type: 'positional', value: '--verbose' }],
+					environmentVariables: [{ name: 'MODE', value: 'stdio' }],
+				}],
+			},
+		};
+		const plan: McpInstallPlan = {
+			planHandle: 'local-plan',
+			planHandleExpiresAt: new Date(Date.now() + (options.expiresInMs ?? 60_000)).toISOString(),
+			identity: { canonicalName: document.server.name, serverName: document.server.name, version: document.server.version },
+			provenance: {
+				authority: 'api.mcp.github.com',
+				validatedAt: new Date().toISOString(),
+				cardDigest: { algorithm: 'sha256-rfc8785', value: createHash('sha256').update(stableStringify(document)).digest('hex') },
+				mediaType: 'application/mcp-server+json',
+			},
+			transportChoices: [{
+				choiceId: 'package:0',
+				transport: 'stdio',
+				installMethod: 'package',
+				packageType: 'pypi',
+				packageIdentifier: 'markitdown-mcp',
+				requiredValues: [],
+				secretPlaceholders: [],
+			}],
+			target: { scope: 'user', configKey: document.server.name },
+			policy: { decision: 'allowed', source: 'none' },
+			configurationChanges: [{
+				operation: 'add',
+				scope: 'user',
+				configKey: document.server.name,
+				changedFields: ['args', 'command', 'env', 'tools', 'type'],
+				secretReferences: [],
+			}],
+			reloadRequired: true,
+			requiresInteractiveConfiguration: false,
+		};
+		const added: Parameters<CopilotClient['rpc']['mcp']['config']['add']>[0][] = [];
+		const requests: { url: string | undefined; followRedirects: number | undefined }[] = [];
+		const response = { statusCode: 200, text: JSON.stringify(document) };
+		const client = {
+			rpc: {
+				catalog: new class extends mock<CopilotClient['rpc']['catalog']>() { }(),
+				skills: new class extends mock<CopilotClient['rpc']['skills']>() { }(),
+				mcp: new class extends mock<CopilotClient['rpc']['mcp']>() {
+					override readonly planInstall: CopilotClient['rpc']['mcp']['planInstall'] = async () => ({
+						kind: 'planned', plan, negotiated: { runtimeProtocolVersion: 3, grantedCapabilities: [] },
+					});
+					override readonly config = new class extends mock<CopilotClient['rpc']['mcp']['config']>() {
+						override readonly add: CopilotClient['rpc']['mcp']['config']['add'] = async request => { added.push(request); };
+					}();
+				}(),
+			},
+		};
+		const requestService = new class extends mock<IRequestService>() {
+			override readonly request: IRequestService['request'] = async options => {
+				requests.push({ url: options.url, followRedirects: options.followRedirects });
+				return {
+					res: { statusCode: response.statusCode, headers: {} },
+					stream: bufferToStream(VSBuffer.fromString(response.text)),
+				};
+			};
+		}();
+		const policySessions = new TestPolicySessions();
+		// Tests hold client admission to interleave expiry and duplicate applies before effects start.
+		const clientGate: { value?: Promise<void> } = {};
+		const service = store.add(new CopilotCustomizationInstallations(async () => { await clientGate.value; return client; }, policySessions.create, requestService));
+		const request = {
+			mediaType: 'application/mcp-server+json',
+			identifier: 'default:microsoft/markitdown',
+			displayName: 'Markitdown',
+			description: document.server.description,
+			installation: {
+				kind: 'mcp' as const,
+				source: {
+					kind: 'url' as const,
+					mediaType: 'application/mcp-server+json' as const,
+					url: 'https://api.mcp.github.com/v0.1/servers/microsoft%2Fmarkitdown/versions/latest',
+				},
+			},
+		};
+		return { service, request, document, plan, added, requests, response, clientGate };
+	}
+
+	test('parses the SDK-validated local MCP card in the host and writes only after review', async () => {
+		const { service, request, added, requests } = createLocalMcpCardFixture();
+		const review = await prepareReview(service, request);
+		assert.deepStrictEqual(added, []);
+		await applyReview(service, review);
+		await assert.rejects(applyReview(service, review), /review expired/);
+		assert.deepStrictEqual({ review, added, requests }, {
+			review: {
+				operationId: review.operationId, action: 'install', kind: 'mcp', displayName: 'Markitdown',
+				serverName: 'microsoft/markitdown', target: 'microsoft/markitdown',
+				command: 'uvx', args: ['markitdown-mcp@0.0.1a4', '--verbose'], env: { MODE: 'stdio' },
+				configurationFields: ['args', 'command', 'env', 'tools', 'type'],
+			},
+			added: [{
+				name: 'microsoft/markitdown',
+				config: { type: 'stdio', command: 'uvx', args: ['markitdown-mcp@0.0.1a4', '--verbose'], env: { MODE: 'stdio' }, tools: ['*'] },
+			}],
+			requests: [{ url: request.installation.source.url, followRedirects: 0 }],
+		});
+	});
+
+	suite('apply admission', () => {
+		const errorMessage = (error: unknown) => error instanceof Error ? error.message : String(error);
+
+		test('expiry while the client is admitted prevents the provisional configuration write', () => runWithFakedTimers({}, async () => {
+			// Virtual time only advances once preparation is idle, so setup time can't expire the plan early.
+			const { service, request, added, clientGate } = createLocalMcpCardFixture({ expiresInMs: 30 });
+			const prepared = await service.prepare(request);
+			assert.strictEqual(prepared.kind, 'review');
+			const gate = new DeferredPromise<void>();
+			clientGate.value = gate.p;
+			const applying = service.apply({ operationId: prepared.review.operationId, hostGeneration: prepared.hostGeneration, ownershipToken: prepared.ownershipToken }).then(() => 'applied', errorMessage);
+			await timeout(60);
+			gate.complete();
+			assert.deepStrictEqual({ result: await applying, added }, {
+				result: 'This customization installation review expired. Start the operation again.',
+				added: [],
+			});
+		}));
+
+		test('a concurrent duplicate apply is refused and effects run once', async () => {
+			const { service, request, added, clientGate } = createLocalMcpCardFixture();
+			const prepared = await service.prepare(request);
+			assert.strictEqual(prepared.kind, 'review');
+			const gate = new DeferredPromise<void>();
+			clientGate.value = gate.p;
+			const handle = { operationId: prepared.review.operationId, hostGeneration: prepared.hostGeneration, ownershipToken: prepared.ownershipToken };
+			const first = service.apply(handle).then(() => 'applied', errorMessage);
+			const second = service.apply(handle).then(() => 'applied', errorMessage);
+			gate.complete();
+			assert.deepStrictEqual({ results: await Promise.all([first, second]), writes: added.length }, {
+				results: ['applied', 'This customization installation review expired. Start the operation again.'],
+				writes: 1,
+			});
+		});
+	});
+
+	test('refuses changed local cards, redirects, invalid JSON, and mismatched planned fields without writing', async () => {
+		for (const scenario of ['digest', 'redirect', 'json', 'fields', 'identity', 'update'] as const) {
+			const { service, request, plan, added, response } = createLocalMcpCardFixture();
+			switch (scenario) {
+				case 'digest': response.text = response.text.replace('Convert documents', 'Changed documents'); break;
+				case 'redirect': response.statusCode = 302; break;
+				case 'json': response.text = '{'; break;
+				case 'fields': plan.configurationChanges[0].changedFields = ['args', 'command', 'tools', 'type']; break;
+				case 'identity': plan.identity.canonicalName = 'another/server'; break;
+				case 'update': plan.configurationChanges[0].operation = 'update'; break;
+			}
+			await assert.rejects(prepareReview(service, request), /changed|HTTP 302|invalid JSON|does not match|cannot preserve/, scenario);
+			assert.deepStrictEqual(added, [], scenario);
+		}
+	});
+
+	test('uses an input-free local package when the recommended remote card requires values', async () => {
+		const { service, request, plan, added } = createLocalMcpCardFixture();
+		plan.transportChoices.push({
+			choiceId: 'remote:0',
+			transport: 'streamable-http',
+			installMethod: 'remote',
+			endpoint: 'https://example.com/mcp',
+			requiredValues: [{ kind: 'scalar', key: 'region', category: 'header', valueType: 'string', required: true, isRepeated: false }],
+			secretPlaceholders: [],
+		});
+		plan.recommendedTransportChoiceId = 'remote:0';
+		const review = await prepareReview(service, request);
+		await applyReview(service, review);
+		assert.deepStrictEqual(added, [{
+			name: 'microsoft/markitdown',
+			config: { type: 'stdio', command: 'uvx', args: ['markitdown-mcp@0.0.1a4', '--verbose'], env: { MODE: 'stdio' }, tools: ['*'] },
+		}]);
+	});
+
+	test('refuses blocked local plans and package secrets before fetching a card', async () => {
+		for (const scenario of ['policy', 'secret'] as const) {
+			const { service, request, plan, added, requests } = createLocalMcpCardFixture();
+			if (scenario === 'policy') {
+				plan.policy = { decision: 'blocked', source: 'enterprise-allowlist', reason: 'Blocked by test policy' };
+			} else {
+				plan.transportChoices[0].secretPlaceholders.push({ key: 'token', placeholder: '${secret:token}', title: 'Token' });
+			}
+			await assert.rejects(prepareReview(service, request), /Blocked by test policy|additional values/);
+			assert.deepStrictEqual({ added, requests }, { added: [], requests: [] });
+		}
+	});
+
+	test('bounds local MCP card reads at five mebibytes', async () => {
+		for (const excess of [0, 1]) {
+			const { service, request, added, response } = createLocalMcpCardFixture();
+			response.text = response.text.padEnd(5 * 1024 * 1024 + excess, ' ');
+			if (excess) {
+				await assert.rejects(prepareReview(service, request), /too large/);
+			} else {
+				await prepareReview(service, request);
+			}
+			assert.deepStrictEqual(added, []);
+		}
+	});
+
+	test('refuses local parser inputs even when the SDK advertises an input-free choice', async () => {
+		const { service, request, document, plan, added, response } = createLocalMcpCardFixture();
+		const inputDocument = {
+			...document,
+			server: {
+				...document.server,
+				packages: [{
+					...document.server.packages[0],
+					environmentVariables: [{ name: 'TOKEN', isRequired: true, isSecret: true }],
+				}],
+			},
+		};
+		response.text = JSON.stringify(inputDocument);
+		plan.provenance.cardDigest.value = createHash('sha256').update(stableStringify(inputDocument)).digest('hex');
+		await assert.rejects(prepareReview(service, request), /additional configuration/);
+		assert.deepStrictEqual(added, []);
 	});
 
 	test('uses receipt inventory and confirms only the reviewed pending Skill operation', async () => {
@@ -1631,7 +1942,7 @@ suite('CopilotCustomizationInstallations', () => {
 					reviewFingerprint: 'fingerprint',
 					review: { resource: 'skill', review: sdkReview },
 				};
-				const decision = await serviceRef.value!.confirmationHandler(request, CancellationToken.None);
+				const decision = await serviceRef.value!.confirmationHandler(request, cancellationToken);
 				decisions.push(decision);
 				return {
 					kind: 'outcome' as const,
@@ -1689,7 +2000,7 @@ suite('CopilotCustomizationInstallations', () => {
 			limit: 10,
 		});
 		assert.strictEqual(firstSearch.kind, 'page');
-		const versionMismatch = await service.prepare({
+		const versionMismatch = await prepareReview(service, {
 			mediaType: 'application/ai-skill',
 			identifier: catalogue.resourceId,
 			displayName: catalogue.displayName,
@@ -1698,7 +2009,7 @@ suite('CopilotCustomizationInstallations', () => {
 			selectionId: firstSearch.kind === 'page' ? firstSearch.items[0].selectionId : undefined,
 			installation: { kind: 'skill' },
 		}).then(() => undefined, error => error instanceof Error ? error.message : String(error));
-		const review = await service.prepare({
+		const review = await prepareReview(service, {
 			mediaType: 'application/ai-skill',
 			identifier: catalogue.resourceId,
 			displayName: catalogue.displayName,
@@ -1715,8 +2026,8 @@ suite('CopilotCustomizationInstallations', () => {
 			expiresAt,
 			reviewFingerprint: 'premature-fingerprint',
 			review: { resource: 'skill', review: sdkReview },
-		}, CancellationToken.None);
-		await service.apply(review.operationId);
+		}, cancellationToken);
+		await applyReview(service, review);
 
 		assert.deepStrictEqual({
 			inventory,
@@ -1757,7 +2068,7 @@ suite('CopilotCustomizationInstallations', () => {
 				fileCount: 1,
 				totalBytes: 12,
 			},
-			versionMismatch: 'The SDK catalog version changed after discovery. Refresh Browse and try again.',
+			versionMismatch: 'The catalog version changed after discovery. Refresh Browse and try again.',
 			prematureDecision: 'cancel',
 			decisions: ['confirm'],
 		});
@@ -1806,7 +2117,7 @@ suite('CopilotCustomizationInstallations', () => {
 			const error = await service.list().then(() => undefined, error => error instanceof Error ? error.message : String(error));
 
 			assert.deepStrictEqual({ error, calls: calls.sort() }, {
-				error: 'The SDK could not list installed MCP servers. (refused: lifecycle-unavailable)',
+				error: 'Could not list installed MCP servers. (refused: lifecycle-unavailable)',
 				calls: ['mcp.list', 'skills.list'],
 			});
 		});
@@ -1847,8 +2158,574 @@ suite('CopilotCustomizationInstallations', () => {
 			const error = await service.list().then(() => undefined, error => error instanceof Error ? error.message : String(error));
 
 			assert.deepStrictEqual({ error, calls: calls.sort() }, {
-				error: 'The SDK could not list installed MCP servers. (recovery-required)',
+				error: 'Could not list installed MCP servers. (recovery-required)',
 				calls: ['mcp.list', 'mcp.recover', 'skills.list'],
+			});
+		});
+	});
+	suite('local package MCP installation from the catalog', () => {
+		const errorMessage = (error: unknown) => error instanceof Error ? error.message : String(error);
+		const cardUrl = 'https://api.mcp.github.com/v0.1/servers/io.github.example%2Flocal/versions/latest';
+
+		const remoteValues: McpInstallPlan['transportChoices'][number]['requiredValues'] = [
+			{ kind: 'enum', key: 'region', category: 'url-variable', valueType: 'enum', required: true, enumValues: ['us', 'eu'], isRepeated: false },
+			{ kind: 'scalar', key: 'X-Tenant', category: 'header', valueType: 'string', required: true, isRepeated: false },
+			{ kind: 'scalar', key: 'X-Debug', category: 'header', valueType: 'boolean', required: false, defaultValue: 'false', isRepeated: false },
+			{ kind: 'scalar', key: 'path', category: 'url-variable', valueType: 'string', required: false, isRepeated: false },
+		];
+
+		function createPackageFixture(options: { readonly requiredValues?: McpInstallPlan['transportChoices'][number]['requiredValues']; readonly secret?: boolean; readonly remote?: boolean; readonly sse?: boolean; readonly packageArguments?: readonly object[] } = {}) {
+			const expiresAt = new Date(Date.now() + 60_000).toISOString();
+			const observedAt = new Date().toISOString();
+			const secretHeader = { name: 'Authorization', value: 'Bearer {api_key}', isRequired: true, variables: { api_key: { isRequired: true, isSecret: true } } };
+			const document = {
+				_meta: {},
+				server: {
+					name: 'io.github.example/local',
+					description: 'Local MCP',
+					version: '1.0.0',
+					...(options.remote ? {
+						remotes: [{
+							type: options.sse ? 'sse' : 'streamable-http',
+							url: 'https://example.test/{region}/{path}/mcp',
+							variables: { region: { isRequired: true, choices: ['us', 'eu'] }, path: { description: 'Optional path' } },
+							// A header template whose variable is fixed by the card is not a value the user supplies.
+							headers: [{ name: 'X-Tenant', isRequired: true }, { name: 'X-Debug', format: 'boolean', default: 'false' }, { name: 'X-Region', value: 'r-{fixed}', variables: { fixed: { value: 'us' } } }, ...(options.secret ? [secretHeader] : [])],
+						}],
+					} : {
+						packages: [{
+							registryType: 'npm',
+							identifier: '@example/local',
+							version: '1.2.3',
+							transport: { type: 'stdio' },
+							packageArguments: options.packageArguments ?? (options.requiredValues ? [
+								{ type: 'positional', valueHint: 'directory', description: 'Root directory' },
+								{ type: 'named', name: '--port', description: 'Port', default: '3000' },
+								{ type: 'named', name: '--headless', description: 'Run headless' },
+								{ type: 'named', name: '--verbose', description: 'Verbose logging' },
+							] : [{ type: 'named', name: '--headless' }]),
+							environmentVariables: options.packageArguments ? [] : options.requiredValues ? [
+								{ name: 'LOG_LEVEL', description: 'Log level', choices: ['info', 'debug'] },
+								{ name: 'OPTIONAL_TAG', description: 'Optional tag' },
+							] : [{ name: 'MODE', value: 'stdio' }],
+						}],
+					}),
+				},
+			};
+			const candidate: McpCatalogCandidate = {
+				handle: 'candidate-handle', handleExpiresAt: expiresAt, kind: 'mcp-server', mediaType: 'application/mcp-server+json', installability: 'installable',
+				displayName: 'Local MCP', description: 'Local MCP', source: { kind: 'url', url: cardUrl },
+				provenance: { authority: 'api.mcp.github.com', observedAt, mediaType: 'application/mcp-server+json' },
+				trust: { schemaVersion: 'v1', status: 'absent', eligibility: 'unknown', provenance: { source: 'agent-finder', observedAt } },
+			};
+			const plan: McpInstallPlan = {
+				planHandle: 'plan-handle',
+				planHandleExpiresAt: expiresAt,
+				identity: { canonicalName: document.server.name, serverName: document.server.name, version: document.server.version },
+				provenance: { authority: 'api.mcp.github.com', validatedAt: observedAt, cardDigest: { algorithm: 'sha256-rfc8785', value: createHash('sha256').update(stableStringify(document)).digest('hex') }, mediaType: 'application/mcp-server+json' },
+				transportChoices: [options.remote ? {
+					choiceId: 'remote:0', transport: options.sse ? 'sse' : 'streamable-http', installMethod: 'remote', endpoint: 'https://example.test/{region}/{path}/mcp',
+					requiredValues: remoteValues,
+					secretPlaceholders: options.secret ? [{ key: 'api_key', placeholder: '${secret:abc}' }] : [],
+				} : {
+					choiceId: 'package:0', transport: 'stdio', installMethod: 'package', packageType: 'npm', packageIdentifier: '@example/local',
+					requiredValues: options.requiredValues ?? [],
+					secretPlaceholders: options.secret ? [{ key: 'API_KEY', placeholder: '${secret:abc}' }] : [],
+				}],
+				// The configuration key the runtime planned can differ from the server name.
+				target: { scope: 'user', configKey: options.remote ? 'local-alias' : document.server.name },
+				policy: { decision: 'allowed', source: 'none' },
+				configurationChanges: [options.remote
+					? { operation: 'add', scope: 'user', configKey: 'local-alias', changedFields: ['headers', 'tools', 'type', 'url'], secretReferences: options.secret ? ['${secret:abc}'] : [] }
+					: { operation: 'add', scope: 'user', configKey: document.server.name, changedFields: ['args', 'command', 'env', 'tools', 'type'], secretReferences: [] }],
+				reloadRequired: true,
+				requiresInteractiveConfiguration: !!options.requiredValues?.length,
+			};
+			const negotiated = { runtimeProtocolVersion: 3, grantedCapabilities: [] };
+			const added: Parameters<CopilotClient['rpc']['mcp']['config']['add']>[0][] = [];
+			const client = {
+				rpc: {
+					catalog: new class extends mock<CopilotClient['rpc']['catalog']>() {
+						override readonly search: CopilotClient['rpc']['catalog']['search'] = async () => ({ kind: 'succeeded', searchId: 'search', candidates: [candidate], truncated: false, negotiated });
+					}(),
+					skills: new class extends mock<CopilotClient['rpc']['skills']>() { }(),
+					mcp: new class extends mock<CopilotClient['rpc']['mcp']>() {
+						override readonly planInstall: CopilotClient['rpc']['mcp']['planInstall'] = async () => ({ kind: 'planned', plan, negotiated });
+						override readonly config = new class extends mock<CopilotClient['rpc']['mcp']['config']>() {
+							override readonly add: CopilotClient['rpc']['mcp']['config']['add'] = async request => { added.push(request); };
+						}();
+					}(),
+				},
+			};
+			const requestService = new class extends mock<IRequestService>() {
+				override readonly request: IRequestService['request'] = async () => ({ res: { statusCode: 200, headers: {} }, stream: bufferToStream(VSBuffer.fromString(JSON.stringify(document))) });
+			}();
+			const service = store.add(new CopilotCustomizationInstallations(async () => client, new TestPolicySessions().create, requestService));
+			const request = { mediaType: candidate.mediaType, identifier: cardUrl, displayName: 'Local MCP', description: 'Local MCP', itemUrl: cardUrl, installation: { kind: 'mcp' as const } };
+			return { service, request, added };
+		}
+
+		const declaredValues: McpInstallPlan['transportChoices'][number]['requiredValues'] = [
+			{ kind: 'scalar', key: 'directory', category: 'package-argument', valueType: 'path', required: true, isRepeated: false },
+			{ kind: 'scalar', key: '--port', category: 'package-argument', valueType: 'number', required: false, defaultValue: '3000', isRepeated: false },
+			{ kind: 'scalar', key: '--headless', category: 'package-argument', valueType: 'boolean', required: true, isRepeated: false },
+			{ kind: 'scalar', key: '--verbose', category: 'package-argument', valueType: 'boolean', required: false, isRepeated: false },
+			{ kind: 'enum', key: 'LOG_LEVEL', category: 'environment-variable', valueType: 'enum', required: true, enumValues: ['info', 'debug'], isRepeated: false },
+			{ kind: 'scalar', key: 'OPTIONAL_TAG', category: 'environment-variable', valueType: 'string', required: false, isRepeated: false },
+		];
+		const submitted: IAgentCustomizationInstallationAnswers['inputs'] = [
+			{ category: 'package-argument', key: 'directory', value: 'C:\\work' },
+			{ category: 'package-argument', key: '--headless', value: 'true' },
+			{ category: 'package-argument', key: '--verbose', value: 'false' },
+			{ category: 'environment-variable', key: 'LOG_LEVEL', value: 'debug' },
+		];
+
+		test('installs an input-free catalog package after review', async () => {
+			const { service, request, added } = createPackageFixture();
+			const review = await prepareReview(service, request);
+			assert.deepStrictEqual(added, []);
+			await applyReview(service, review);
+			assert.deepStrictEqual({ review: review.kind === 'mcp' ? [review.command, review.args, review.env] : undefined, added }, {
+				review: ['npx', ['@example/local@1.2.3', '--headless'], { MODE: 'stdio' }],
+				added: [{ name: 'io.github.example/local', config: { type: 'stdio', command: 'npx', args: ['@example/local@1.2.3', '--headless'], env: { MODE: 'stdio' }, tools: ['*'] } }],
+			});
+		});
+
+		test('collects non-secret package values and writes them once into the local configuration', async () => {
+			const { service, request, added } = createPackageFixture({ requiredValues: declaredValues });
+			const configuration = await service.prepare(request);
+			assert.strictEqual(configuration.kind, 'configuration');
+			const apply = { hostGeneration: configuration.hostGeneration, ownershipToken: configuration.ownershipToken, operationId: configuration.operationId, answers: { choiceId: 'package:0', inputs: submitted, secrets: [] } };
+			await service.apply(apply);
+			const duplicate = await service.apply(apply).then(() => 'accepted', errorMessage);
+			assert.deepStrictEqual({ choice: { ...configuration.choices[0], values: configuration.choices[0].values.map(value => `${value.category}:${value.key}`) }, added, duplicate }, {
+				choice: {
+					choiceId: 'package:0', transport: 'stdio',
+					command: 'npx @example/local@1.2.3 ${input:directory} --port ${input:port} --headless ${input:headless} --verbose ${input:verbose}',
+					env: { LOG_LEVEL: '${input:LOG_LEVEL}', OPTIONAL_TAG: '${input:OPTIONAL_TAG}' },
+					configurationFields: ['args', 'command', 'env', 'tools', 'type'],
+					values: ['package-argument:directory', 'package-argument:--port', 'package-argument:--headless', 'package-argument:--verbose', 'environment-variable:LOG_LEVEL', 'environment-variable:OPTIONAL_TAG'],
+					secrets: [],
+				},
+				added: [{ name: 'io.github.example/local', config: { type: 'stdio', command: 'npx', args: ['@example/local@1.2.3', 'C:\\work', '--port', '3000', '--headless'], env: { LOG_LEVEL: 'debug' }, tools: ['*'] } }],
+				duplicate: 'This customization installation review expired. Start the operation again.',
+			});
+		});
+
+		test('configures an MCP Gallery remote with non-secret values and refuses one that needs a secret', async () => {
+			const galleryCard = { kind: 'mcp' as const, source: { kind: 'url' as const, mediaType: 'application/mcp-server+json' as const, url: cardUrl } };
+			const install = async (fixture: ReturnType<typeof createPackageFixture>) => {
+				const configuration = await fixture.service.prepare({ ...fixture.request, installation: galleryCard });
+				assert.strictEqual(configuration.kind, 'configuration');
+				await fixture.service.apply({
+					hostGeneration: configuration.hostGeneration, ownershipToken: configuration.ownershipToken, operationId: configuration.operationId,
+					answers: { choiceId: 'remote:0', inputs: [{ category: 'url-variable', key: 'region', value: 'eu' }, { category: 'header', key: 'X-Tenant', value: 'contoso' }, { category: 'url-variable', key: 'path', value: 'v1' }], secrets: [] },
+				});
+				return configuration;
+			};
+			const streamable = createPackageFixture({ remote: true });
+			const configuration = await install(streamable);
+			const sse = createPackageFixture({ remote: true, sse: true });
+			await install(sse);
+			const withSecret = createPackageFixture({ remote: true, secret: true });
+			const refused = await withSecret.service.prepare({ ...withSecret.request, installation: galleryCard }).then(prepared => prepared.kind, errorMessage);
+			const headers = { 'X-Tenant': 'contoso', 'X-Debug': 'false', 'X-Region': 'r-us' };
+			assert.deepStrictEqual({
+				choice: configuration.choices.map(choice => [choice.choiceId, choice.endpointSummary, choice.command, choice.values.map(value => `${value.key}:${value.required}`)]),
+				added: [...streamable.added, ...sse.added], refused, secretAdded: withSecret.added,
+			}, {
+				// The optional URL variable has no default and sits inside the URL template, so it must be answered.
+				choice: [['remote:0', 'https://example.test/{region}/{path}/mcp', undefined, ['region:true', 'X-Tenant:true', 'X-Debug:false', 'path:true']]],
+				added: [
+					{ name: 'local-alias', config: { type: 'http', url: 'https://example.test/eu/v1/mcp', headers, tools: ['*'] } },
+					{ name: 'local-alias', config: { type: 'sse', url: 'https://example.test/eu/v1/mcp', headers, tools: ['*'] } },
+				],
+				refused: 'This MCP server requires an installation choice or additional values that Browse cannot collect yet.',
+				secretAdded: [],
+			});
+		});
+
+		test('refuses an input-free catalog package after its policy session was released', async () => {
+			const { service, request, added } = createPackageFixture();
+			const review = await prepareReview(service, request);
+			await service.releasePolicySession();
+			const result = await applyReview(service, review).then(() => 'applied', errorMessage);
+			assert.deepStrictEqual({ result, added }, { result: 'The customization runtime restarted. Start the operation again.', added: [] });
+		});
+
+		test('collects package values for an MCP Gallery card the same way', async () => {
+			const { service, request, added } = createPackageFixture({ requiredValues: declaredValues });
+			const configuration = await service.prepare({ ...request, installation: { kind: 'mcp', source: { kind: 'url', mediaType: 'application/mcp-server+json', url: cardUrl } } });
+			assert.strictEqual(configuration.kind, 'configuration');
+			await service.apply({ hostGeneration: configuration.hostGeneration, ownershipToken: configuration.ownershipToken, operationId: configuration.operationId, answers: { choiceId: 'package:0', inputs: submitted, secrets: [] } });
+			assert.deepStrictEqual(added.map(entry => entry.config), [{ type: 'stdio', command: 'npx', args: ['@example/local@1.2.3', 'C:\\work', '--port', '3000', '--headless'], env: { LOG_LEVEL: 'debug' }, tools: ['*'] }]);
+		});
+
+		test('writes a repeated package argument once per submitted value', async () => {
+			const { service, request, added } = createPackageFixture({
+				requiredValues: [
+					{ kind: 'scalar', key: '--include', category: 'package-argument', valueType: 'string', required: true, isRepeated: true },
+					{ kind: 'scalar', key: 'path', category: 'package-argument', valueType: 'path', required: false, defaultValue: '.', isRepeated: true },
+				],
+				packageArguments: [
+					{ type: 'named', name: '--include', isRepeated: true, isRequired: true, description: 'Folder to include' },
+					{ type: 'positional', valueHint: 'path', isRepeated: true, default: '.', description: 'Path' },
+				],
+			});
+			const configuration = await service.prepare(request);
+			assert.strictEqual(configuration.kind, 'configuration');
+			const handle = { hostGeneration: configuration.hostGeneration, ownershipToken: configuration.ownershipToken, operationId: configuration.operationId };
+			const include = (value: string) => ({ category: 'package-argument' as const, key: '--include', value });
+			await service.apply({ ...handle, answers: { choiceId: 'package:0', inputs: [include('src'), include('test')], secrets: [] } });
+			assert.deepStrictEqual(added.map(entry => entry.config), [{ type: 'stdio', command: 'npx', args: ['@example/local@1.2.3', '--include', 'src', '--include', 'test', '.'], tools: ['*'] }]);
+		});
+
+		test('fails closed for package secrets, variable references and values the card cannot place', async () => {
+			const results: string[] = [];
+			const withSecret = createPackageFixture({ requiredValues: declaredValues, secret: true });
+			results.push(await withSecret.service.prepare(withSecret.request).then(prepared => prepared.kind, errorMessage));
+			const cases: [McpInstallPlan['transportChoices'][number]['requiredValues'], IAgentCustomizationInstallationAnswers['inputs']][] = [
+				[declaredValues, submitted.map(input => input.key === 'directory' ? { ...input, value: '${env:HOME}' } : input)],
+				[[...declaredValues, { kind: 'scalar', key: 'UNPLACED', category: 'environment-variable', valueType: 'string', required: false, defaultValue: 'x', isRepeated: false }], submitted],
+			];
+			for (const [requiredValues, inputs] of cases) {
+				const { service, request, added } = createPackageFixture({ requiredValues });
+				const configuration = await service.prepare(request);
+				assert.strictEqual(configuration.kind, 'configuration');
+				results.push(await service.apply({ hostGeneration: configuration.hostGeneration, ownershipToken: configuration.ownershipToken, operationId: configuration.operationId, answers: { choiceId: 'package:0', inputs, secrets: [] } }).then(() => 'accepted', errorMessage));
+				assert.deepStrictEqual(added, []);
+			}
+			assert.deepStrictEqual(results, [
+				'This MCP server requires an installation choice or additional values that Browse cannot collect yet.',
+				'The value for \'directory\' is invalid.',
+				'This MCP package requires additional configuration that Browse cannot collect yet.',
+			]);
+		});
+	});
+
+	suite('configured remote MCP installation', () => {
+		const sentinel = {
+			region: 'SENTINEL-REGION-7f3a',
+			tenant: 'SENTINEL-TENANT-91bd',
+			secret: 'SENTINEL-SECRET-c04e',
+		};
+		const placeholder = '${secret:abc}';
+
+		function createConfiguredFixture(options: { readonly granted?: boolean; readonly repeated?: boolean; readonly prepareInstall?: CopilotClient['rpc']['mcp']['prepareInstall']; readonly applyInstall?: CopilotClient['rpc']['mcp']['applyInstall'] } = {}) {
+			const expiresAtEpochMs = Date.now() + 60_000;
+			const expiresAt = new Date(expiresAtEpochMs).toISOString();
+			const itemUrl = 'https://agentfinder.github.com/items/configured';
+			const observedAt = new Date().toISOString();
+			const trust = { schemaVersion: 'v1' as const, status: 'absent' as const, eligibility: 'unknown' as const, provenance: { source: 'agent-finder' as const, observedAt } };
+			const catalogue = { displayName: 'Configured MCP', description: 'Configured', source: 'agentfinder.github.com' };
+			const candidate: McpCatalogCandidate = {
+				handle: 'candidate-handle', handleExpiresAt: expiresAt, kind: 'mcp-server', mediaType: 'application/mcp-server+json', installability: 'installable',
+				displayName: catalogue.displayName, description: catalogue.description, source: { kind: 'url', url: itemUrl },
+				provenance: { authority: 'agentfinder.github.com', observedAt, mediaType: 'application/mcp-server+json' }, trust,
+			};
+			const identity = { canonicalName: 'io.github.example/configured', serverName: 'io.github.example/configured' };
+			const provenance = { authority: 'api.mcp.github.com', validatedAt: observedAt, cardDigest: { algorithm: 'sha256-rfc8785' as const, value: 'b'.repeat(64) }, mediaType: 'application/mcp-server+json' as const };
+			const target = { scope: 'user' as const, configKey: identity.serverName };
+			const policy = { decision: 'allowed' as const, source: 'none' as const };
+			const choice: McpInstallPlan['transportChoices'][number] = {
+				choiceId: 'remote:0', transport: 'streamable-http', installMethod: 'remote', endpoint: 'https://example.test/eu/mcp',
+				requiredValues: [
+					{ kind: 'enum', key: 'X-Region', category: 'header', valueType: 'enum', required: true, enumValues: ['eu', 'us'], isRepeated: !!options.repeated },
+					{ kind: 'scalar', key: 'TENANT', category: 'url-variable', valueType: 'string', required: false, defaultValue: 'common', title: 'Tenant', isRepeated: false },
+				],
+				secretPlaceholders: [{ key: 'API_KEY', placeholder, title: 'API key' }],
+			};
+			const configuration = { operation: 'add' as const, scope: 'user' as const, configKey: identity.serverName, changedFields: ['headers', 'tools', 'type', 'url'], secretReferences: [placeholder] };
+			const plan: McpInstallPlan = {
+				planHandle: 'plan-handle', planHandleExpiresAt: expiresAt, identity, provenance, transportChoices: [choice], recommendedTransportChoiceId: choice.choiceId,
+				target, policy, configurationChanges: [configuration], reloadRequired: true, requiresInteractiveConfiguration: true,
+			};
+			const negotiated = { runtimeProtocolVersion: 3, grantedCapabilities: [] };
+			const prepared: Parameters<CopilotClient['rpc']['mcp']['prepareInstall']>[0][] = [];
+			const cancelled: string[] = [];
+			const decisions: string[] = [];
+			const serviceRef: { value?: CopilotCustomizationInstallations } = {};
+			const policySessions = new TestPolicySessions();
+			const effective: McpEffectiveConfiguration = { transport: 'http', url: `https://example.test/${sentinel.tenant}/mcp`, headers: { 'X-Region': 'us', Authorization: 'Bearer ${installation-secret:abc}' }, tools: ['*'] };
+			const confirmation = (id: string, review: McpInstallReview): InstallationConfirmationRequest => ({
+				policySessionId: policySessions.sessionId, confirmationId: id, operationId: 'sdk-operation', expiresAt, reviewFingerprint: id, review: { resource: 'mcp', review },
+			});
+			const mcp = new class extends mock<CopilotClient['rpc']['mcp']>() {
+				override readonly installations = new class extends mock<CopilotClient['rpc']['mcp']['installations']>() {
+					override readonly list: CopilotClient['rpc']['mcp']['installations']['list'] = async request => request.contract.requiredCapabilities.includes('mcp-configured-remote-installation') && options.granted === false
+						? { kind: 'negotiation-refused', reason: 'unsupported-capability', message: 'refused', runtimeProtocolVersion: 3, minimumSupportedProtocolVersion: 3, supportedCapabilities: [], unsupportedCapabilities: ['mcp-configured-remote-installation'] }
+						: { kind: 'outcome', outcome: { kind: 'listed', installations: [] }, negotiated: { runtimeProtocolVersion: 3, grantedCapabilities: [...request.contract.requiredCapabilities] as typeof negotiated.grantedCapabilities } };
+					override readonly cancel: CopilotClient['rpc']['mcp']['installations']['cancel'] = async request => {
+						cancelled.push(request.operationId);
+						return { kind: 'outcome', outcome: { kind: 'operation', operation: { operationId: request.operationId, cancellationRequested: true, phase: 'prepared' } }, negotiated };
+					};
+				}();
+				override readonly planInstall: CopilotClient['rpc']['mcp']['planInstall'] = async () => ({ kind: 'planned', plan, negotiated });
+				override readonly prepareInstall: CopilotClient['rpc']['mcp']['prepareInstall'] = options.prepareInstall ?? (async request => {
+					prepared.push(request);
+					return { kind: 'outcome', outcome: { kind: 'install-prepared', operation: { operationId: 'sdk-operation', expiresAtEpochMs } }, negotiated };
+				});
+				override readonly applyInstall: CopilotClient['rpc']['mcp']['applyInstall'] = options.applyInstall ?? (async () => {
+					const request = prepared.at(-1)!;
+					const review: McpInstallReview = {
+						action: 'install', identity, provenance, catalogueTrust: trust, catalogue, target, policy, selectedChoice: choice, configurationChange: configuration,
+						inputs: request.inputs, suppliedSecrets: request.secrets.map(secret => secret.placeholder), secretStorage: 'keychain', effectiveConfiguration: effective,
+					};
+					const variants: [string, McpInstallReview][] = [
+						['tampered-inputs', { ...review, inputs: [...review.inputs, { category: 'header', key: 'X-Extra', value: 'x' }] }],
+						['added-default', { ...review, inputs: [...review.inputs, { category: 'url-variable', key: 'TENANT', value: 'common' }] }],
+						['foreign-secret', { ...review, effectiveConfiguration: { ...effective, headers: { ...effective.headers, Other: '${installation-secret:other}' } } }],
+						['unexpanded-url', { ...review, effectiveConfiguration: { ...effective, url: 'https://example.test/${TENANT}/mcp' } }],
+						['missing-secret', { ...review, effectiveConfiguration: { ...effective, headers: { 'X-Region': 'us' } } }],
+						['private-file', { ...review, secretStorage: 'private-file' }],
+						['valid', review],
+					];
+					for (const [id, variant] of variants) {
+						decisions.push(`${id}:${await serviceRef.value!.confirmationHandler(confirmation(id, variant), cancellationToken)}`);
+					}
+					return { kind: 'outcome', outcome: { kind: 'installed', installation: { installationId: 'installed', operationId: 'sdk-operation', identity, choiceId: choice.choiceId, state: 'active', installedAt: observedAt }, cleanupPending: false }, negotiated };
+				});
+			}();
+			const client = {
+				rpc: {
+					catalog: new class extends mock<CopilotClient['rpc']['catalog']>() {
+						override readonly search: CopilotClient['rpc']['catalog']['search'] = async () => ({ kind: 'succeeded', searchId: 'search', candidates: [candidate], truncated: false, negotiated });
+					}(),
+					skills: new class extends mock<CopilotClient['rpc']['skills']>() { }(),
+					mcp,
+				},
+			};
+			let current = client;
+			const service = store.add(new CopilotCustomizationInstallations(async () => current, policySessions.create));
+			serviceRef.value = service;
+			const request = { mediaType: candidate.mediaType, identifier: itemUrl, displayName: candidate.displayName, description: catalogue.description, itemUrl, installation: { kind: 'mcp' as const } };
+			return { service, request, prepared, cancelled, decisions, swapClient: () => { current = { rpc: client.rpc }; }, confirm: (id: string) => serviceRef.value!.confirmationHandler(confirmation(id, { action: 'install', identity, provenance, catalogueTrust: trust, catalogue, target, policy, selectedChoice: choice, configurationChange: configuration, inputs: prepared.at(-1)!.inputs, suppliedSecrets: [placeholder], secretStorage: 'keychain', effectiveConfiguration: effective }), cancellationToken) };
+		}
+
+		async function prepareConfiguration(service: CopilotCustomizationInstallations, request: Parameters<CopilotCustomizationInstallations['prepare']>[0]) {
+			const prepared = await service.prepare(request);
+			assert.strictEqual(prepared.kind, 'configuration');
+			return prepared as IAgentCustomizationInstallationConfigurationRequest;
+		}
+
+		function answers(configuration: IAgentCustomizationInstallationConfigurationRequest, overrides: Partial<IAgentCustomizationInstallationAnswers & IAgentCustomizationInstallationApplyRequest> = {}): IAgentCustomizationInstallationApplyRequest {
+			const { hostGeneration = configuration.hostGeneration, ownershipToken = configuration.ownershipToken, operationId = configuration.operationId, ...answerOverrides } = overrides;
+			return {
+				hostGeneration, ownershipToken, operationId,
+				answers: {
+					choiceId: 'remote:0',
+					inputs: [{ category: 'header', key: 'X-Region', value: 'us' }, { category: 'url-variable', key: 'TENANT', value: sentinel.tenant }],
+					secrets: [{ placeholder, value: sentinel.secret }],
+					...answerOverrides,
+				},
+			};
+		}
+
+		function assertNoSentinels(value: unknown): void {
+			const text = JSON.stringify(value) ?? '';
+			for (const secret of Object.values(sentinel)) {
+				assert.ok(!text.includes(secret), `leaked ${secret}`);
+			}
+		}
+
+		const errorMessage = (error: unknown) => error instanceof Error ? error.message : String(error);
+
+		test('applies an owned request once with its answers and confirms only the exact submission', async () => {
+			const { service, request, prepared, decisions } = createConfiguredFixture();
+			const configuration = await prepareConfiguration(service, request);
+			const applied = await service.apply(answers(configuration));
+			const duplicate = await service.apply(answers(configuration)).then(() => 'accepted', errorMessage);
+
+			assertNoSentinels(configuration);
+			assert.deepStrictEqual({
+				target: configuration.target,
+				choices: configuration.choices,
+				recommendedChoiceId: configuration.recommendedChoiceId,
+				sent: prepared.map(({ inputs, secrets, secretStorage, choiceId, contract }) => ({ inputs, secrets, secretStorage, choiceId, configured: contract.requiredCapabilities.includes('mcp-configured-remote-installation') })),
+				decisions,
+				applied,
+				duplicate,
+			}, {
+				target: 'io.github.example/configured',
+				choices: [{
+					choiceId: 'remote:0', transport: 'streamable-http', endpointSummary: 'https://example.test/eu/mcp', configurationFields: ['headers', 'tools', 'type', 'url'],
+					values: [
+						{ key: 'X-Region', category: 'header', valueType: 'enum', required: true, isRepeated: false, enumValues: ['eu', 'us'] },
+						{ key: 'TENANT', category: 'url-variable', valueType: 'string', required: false, isRepeated: false, defaultValue: 'common', title: 'Tenant' },
+					],
+					secrets: [{ key: 'API_KEY', placeholder, title: 'API key' }],
+				}],
+				recommendedChoiceId: 'remote:0',
+				sent: [{
+					inputs: [{ category: 'header', key: 'X-Region', value: 'us' }, { category: 'url-variable', key: 'TENANT', value: sentinel.tenant }],
+					secrets: [{ placeholder, value: sentinel.secret }], secretStorage: 'keychain', choiceId: 'remote:0', configured: true,
+				}],
+				decisions: ['tampered-inputs:cancel', 'added-default:cancel', 'foreign-secret:cancel', 'unexpanded-url:cancel', 'missing-secret:cancel', 'private-file:cancel', 'valid:confirm'],
+				applied: { kind: 'receipt', installationId: 'installed' },
+				duplicate: 'This customization installation review expired. Start the operation again.',
+			});
+		});
+
+		test('treats foreign tokens and generations as unknown and leaves the request usable by its owner', async () => {
+			const { service, request, prepared } = createConfiguredFixture();
+			const configuration = await prepareConfiguration(service, request);
+			const failures: string[] = [];
+			failures.push(await service.apply(answers(configuration, { ownershipToken: 'learned-id-without-token' })).then(() => 'accepted', errorMessage));
+			failures.push(await service.apply(answers(configuration, { hostGeneration: 'restarted' })).then(() => 'accepted', errorMessage));
+			const applied = await service.apply(answers(configuration));
+
+			assert.deepStrictEqual({ failures: [...new Set(failures)], prepared: prepared.length, applied }, {
+				failures: ['This customization installation review expired. Start the operation again.'],
+				prepared: 1,
+				applied: { kind: 'receipt', installationId: 'installed' },
+			});
+		});
+
+		test('revalidates submissions before consuming the request, naming keys but never values', async () => {
+			const { service, request, prepared } = createConfiguredFixture();
+			const configuration = await prepareConfiguration(service, request);
+			const region = { category: 'header' as const, key: 'X-Region', value: 'eu' };
+			const invalid: Partial<IAgentCustomizationInstallationAnswers>[] = [
+				{ inputs: [region, { ...region }] },
+				{ inputs: [region, { category: 'header', key: 'Unknown', value: sentinel.tenant }] },
+				{ inputs: [{ ...region, value: sentinel.region }] },
+				{ inputs: [] },
+				{ inputs: [region, { category: 'url-variable', key: 'TENANT', value: `$${sentinel.tenant}` }] },
+				{ inputs: [region, { category: 'url-variable', key: 'TENANT', value: `\0${sentinel.tenant}` }] },
+				{ inputs: [region, { category: 'url-variable', key: 'TENANT', value: '' }] },
+				{ inputs: [region], secrets: [] },
+				{ inputs: [region], secrets: [{ placeholder, value: '' }] },
+				{ inputs: [region], secrets: [{ placeholder: '${secret:other}', value: sentinel.secret }] },
+				{ inputs: [region], choiceId: 'other' },
+			];
+			const messages: string[] = [];
+			for (const overrides of invalid) {
+				messages.push(await service.apply(answers(configuration, { secrets: [{ placeholder, value: sentinel.secret }], ...overrides })).then(() => 'accepted', errorMessage));
+			}
+			assertNoSentinels(messages);
+			// An omitted default stays omitted, and the request was never consumed.
+			const applied = await service.apply(answers(configuration, { inputs: [region] }));
+			assert.deepStrictEqual({ messages, sentInputs: prepared.map(request => request.inputs), applied }, {
+				messages: [
+					`The value for 'X-Region' is invalid.`,
+					`The value for 'Unknown' is invalid.`,
+					`The value for 'X-Region' is invalid.`,
+					`A value for 'X-Region' is required.`,
+					`The value for 'TENANT' is invalid.`,
+					`The value for 'TENANT' is invalid.`,
+					`The value for 'TENANT' is invalid.`,
+					`A secret for 'API_KEY' is required.`,
+					`The value for 'API_KEY' is invalid.`,
+					`The value for '' is invalid.`,
+					'The selected installation choice is unavailable. Start the installation again.',
+				],
+				sentInputs: [[region]],
+				applied: { kind: 'receipt', installationId: 'installed' },
+			});
+		});
+
+		test('a concurrent duplicate apply is refused and values are sent once', async () => {
+			const release = new DeferredPromise<void>();
+			const sent: string[] = [];
+			const { service, request } = createConfiguredFixture({
+				prepareInstall: async preparedRequest => {
+					sent.push(preparedRequest.choiceId);
+					await release.p;
+					return { kind: 'outcome', outcome: { kind: 'refused', reason: 'secret-store-unavailable' }, negotiated: { runtimeProtocolVersion: 3, grantedCapabilities: [] } };
+				},
+			});
+			const configuration = await prepareConfiguration(service, request);
+			const first = service.apply(answers(configuration)).then(() => 'accepted', errorMessage);
+			const second = service.apply(answers(configuration)).then(() => 'accepted', errorMessage);
+			release.complete();
+			assert.deepStrictEqual({ results: await Promise.all([first, second]), sent }, {
+				results: ['The secret store is unavailable.', 'This customization installation review expired. Start the operation again.'],
+				sent: ['remote:0'],
+			});
+		});
+
+		test('refuses apply without answers for a configuration request and leaves it usable', async () => {
+			const { service, request, prepared } = createConfiguredFixture();
+			const configuration = await prepareConfiguration(service, request);
+			const { answers: _, ...withoutAnswers } = answers(configuration);
+			const results = [await service.apply(withoutAnswers).then(() => 'accepted', errorMessage)];
+			const applied = await service.apply(answers(configuration));
+			assert.deepStrictEqual({ results, prepared: prepared.length, applied }, {
+				results: ['This customization installation review expired. Start the operation again.'],
+				prepared: 1,
+				applied: { kind: 'receipt', installationId: 'installed' },
+			});
+		});
+
+		test('sends no values or secrets after the runtime client or policy session changed during prompting', async () => {
+			const results: unknown[] = [];
+			for (const change of ['policy-session', 'client'] as const) {
+				const { service, request, prepared, swapClient } = createConfiguredFixture();
+				const configuration = await prepareConfiguration(service, request);
+				if (change === 'client') {
+					swapClient();
+				} else {
+					await service.releasePolicySession();
+				}
+				results.push(await service.apply(answers(configuration)).then(() => 'accepted', errorMessage), prepared.length);
+			}
+			assert.deepStrictEqual(results, [
+				'The customization runtime restarted. Start the operation again.', 0,
+				'The customization runtime restarted. Start the operation again.', 0,
+			]);
+		});
+
+		test('fails closed for repeated values and runtimes without configured installation', async () => {
+			const results: string[] = [];
+			for (const options of [{ repeated: true }, { granted: false }]) {
+				const { service, request } = createConfiguredFixture(options);
+				results.push(await service.prepare(request).then(prepared => prepared.kind, errorMessage));
+			}
+			// Direct cards (MCP Gallery) plan without a session binding, which configured preparation requires.
+			const card = createConfiguredFixture();
+			const cardUrl = 'https://api.mcp.github.com/v0.1/servers/io.github.example%2Fconfigured/versions/latest';
+			results.push(await card.service.prepare({ ...card.request, itemUrl: cardUrl, installation: { kind: 'mcp', source: { kind: 'url', mediaType: 'application/mcp-server+json', url: cardUrl } } }).then(prepared => prepared.kind, errorMessage));
+			assert.deepStrictEqual({ results, cardPrepared: card.prepared.length }, {
+				results: [
+					'This MCP server requires an installation choice or additional values that Browse cannot collect yet.',
+					'This MCP server requires an installation choice or additional values that Browse cannot collect yet.',
+					'This MCP server requires an installation choice or additional values that Browse cannot collect yet.',
+				],
+				cardPrepared: 0,
+			});
+		});
+
+		test('reports failures from typed reasons without runtime text or values, and never replays', async () => {
+			const results: string[] = [];
+			const responses: Awaited<ReturnType<CopilotClient['rpc']['mcp']['prepareInstall']>>[] = [
+				{ kind: 'outcome', outcome: { kind: 'refused', reason: 'secret-store-unavailable' }, negotiated: { runtimeProtocolVersion: 3, grantedCapabilities: [] } },
+			];
+			for (const response of [...responses, undefined]) {
+				const { service, request } = createConfiguredFixture({
+					prepareInstall: async () => {
+						if (!response) {
+							throw new Error(`transport failed while sending ${sentinel.secret}`);
+						}
+						return response;
+					},
+				});
+				const configuration = await prepareConfiguration(service, request);
+				results.push(await service.apply(answers(configuration)).then(() => 'accepted', errorMessage));
+			}
+			// The runtime prepared the operation but applying it failed ambiguously.
+			const ambiguous = createConfiguredFixture({ applyInstall: async () => { throw new Error(`apply failed with ${sentinel.secret}`); } });
+			const configuration = await prepareConfiguration(ambiguous.service, ambiguous.request);
+			results.push(await ambiguous.service.apply(answers(configuration)).then(() => 'accepted', errorMessage));
+			results.push(await ambiguous.service.apply(answers(configuration)).then(() => 'accepted', errorMessage));
+			assertNoSentinels(results);
+			assert.deepStrictEqual({ results, ambiguousPrepared: ambiguous.prepared.length }, {
+				results: [
+					'The secret store is unavailable.',
+					'Could not prepare this MCP server installation. Start the installation again.',
+					'The installation result is unknown. Refresh the installed customizations before trying again.',
+					'This customization installation review expired. Start the operation again.',
+				],
+				ambiguousPrepared: 1,
 			});
 		});
 	});

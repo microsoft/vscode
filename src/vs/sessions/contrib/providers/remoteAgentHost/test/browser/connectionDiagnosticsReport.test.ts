@@ -26,8 +26,7 @@ import { IContextKeyService } from '../../../../../../platform/contextkey/common
 import { Context } from '../../../../../../platform/contextkey/browser/contextKeyService.js';
 import { CommandsRegistry, ICommandService } from '../../../../../../platform/commands/common/commands.js';
 import { IContextMenuService } from '../../../../../../platform/contextview/browser/contextView.js';
-import { IHoverService } from '../../../../../../platform/hover/browser/hover.js';
-import { IManagedHover } from '../../../../../../base/browser/ui/hover/hover.js';
+import { NullHoverService } from '../../../../../../platform/hover/test/browser/nullHoverService.js';
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { IKeybindingService } from '../../../../../../platform/keybinding/common/keybinding.js';
 import { MockContextKeyService } from '../../../../../../platform/keybinding/test/common/mockKeybindingService.js';
@@ -42,13 +41,13 @@ import { IsSessionsWindowContext } from '../../../../../../workbench/common/cont
 import { ChatContextKeys } from '../../../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
 import { AccessibilityVerbositySettingId } from '../../../../../../workbench/contrib/accessibility/browser/accessibilityConfiguration.js';
 import { IChatEntitlementService } from '../../../../../../workbench/services/chat/common/chatEntitlementService.js';
-import { AgentHostFilterConnectionStatus, IAgentHostFilterService } from '../../../../../services/agentHostFilter/common/agentHostFilter.js';
-import { ConnectionHostManagementAction, IConnectionDiagnosticsService, IConnectionDiagnosticsSnapshot, IConnectionHostManagementEntry, IConnectionHostManagementState, ShowConnectionDiagnosticsCommandId } from '../../browser/connectionDiagnostics.js';
-import { ConnectionDiagnosticsReport, showConnectionDiagnosticsSheet } from '../../browser/connectionDiagnosticsReport.js';
+import { AgentHostFilterConnectionStatus, IAgentHostFilterService } from '../../../../../../workbench/contrib/sessions/common/agentHostFilter.js';
+import { ConnectionHostManagementAction, IConnectionDiagnosticsService, IConnectionDiagnosticsSnapshot, IConnectionHostManagementEntry, IConnectionHostManagementState, ShowConnectionDiagnosticsCommandId } from '../../../../../../workbench/contrib/sessions/providers/remoteAgentHost/browser/connectionDiagnostics.js';
+import { ConnectionDiagnosticsReport, showConnectionDiagnosticsSheet } from '../../../../../../workbench/contrib/sessions/providers/remoteAgentHost/browser/connectionDiagnosticsReport.js';
 import { ConnectionDiagnosticsContribution } from '../../browser/connectionDiagnostics.contribution.js';
 import { SessionsChatAccessibilityHelp } from '../../../../chat/browser/sessionsChatAccessibilityHelp.js';
-import { HostFilterActionViewItem } from '../../browser/hostFilterActionViewItem.js';
-import { MobileHostFilterActionViewItem } from '../../browser/mobileHostFilterActionViewItem.js';
+import { HostFilterActionViewItem } from '../../../../../../workbench/contrib/sessions/providers/remoteAgentHost/browser/hostFilterActionViewItem.js';
+import { MobileHostFilterActionViewItem } from '../../../../../../workbench/contrib/sessions/providers/remoteAgentHost/browser/mobileHostFilterActionViewItem.js';
 
 suite('ConnectionDiagnosticsReport', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -746,16 +745,7 @@ suite('ConnectionDiagnosticsReport', () => {
 					override readonly isDiscovering = false;
 				}(),
 				new class extends mock<IContextMenuService>() { }(),
-				new class extends mock<IHoverService>() {
-					override setupManagedHover(): IManagedHover {
-						return {
-							dispose() { },
-							show() { },
-							hide() { },
-							update() { },
-						};
-					}
-				}(),
+				{ ...NullHoverService },
 				new class extends mock<ICommandService>() {
 					override async executeCommand<T>(id: string): Promise<T> {
 						commands.push({ id, pickerOpen: !!container.querySelector('[role="dialog"]') });
@@ -945,16 +935,7 @@ suite('ConnectionDiagnosticsReport', () => {
 					override readonly isDiscovering = false;
 				}(),
 				new class extends mock<IContextMenuService>() { }(),
-				new class extends mock<IHoverService>() {
-					override setupManagedHover(): IManagedHover {
-						return {
-							dispose() { },
-							show() { },
-							hide() { },
-							update() { },
-						};
-					}
-				}(),
+				{ ...NullHoverService },
 				new class extends mock<ICommandService>() {
 					override async executeCommand<T>(id: string): Promise<T> {
 						commands.push(id);

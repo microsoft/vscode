@@ -369,11 +369,19 @@ export class CustomizationMarketplaceService implements ICustomizationMarketplac
 
 	private readonly continuations = new LRUCache<string, IMarketplaceContinuation>(maxContinuations);
 	private readonly browseCache = new LRUCache<string, IMarketplaceBrowseCacheEntry>(maxBrowseCacheEntries);
+	private readonly prioritizedProviderIndexes: ReadonlyMap<string, number>;
 
-	constructor(private readonly sources: readonly ICustomizationMarketplaceProvider[]) {
+	constructor(
+		private readonly sources: readonly ICustomizationMarketplaceProvider[],
+		prioritizedProviderIds: readonly string[] = [],
+	) {
 		if (sources.some(source => !source.id || source.sourceId === '') || new Set(sources.map(source => source.id)).size !== sources.length) {
 			throw new Error('Marketplace sources must have unique, nonempty identifiers.');
 		}
+		if (new Set(prioritizedProviderIds).size !== prioritizedProviderIds.length || prioritizedProviderIds.some(id => !sources.some(source => source.id === id))) {
+			throw new Error('Prioritized marketplace providers must have unique registered identifiers.');
+		}
+		this.prioritizedProviderIndexes = new Map(prioritizedProviderIds.map((id, index) => [id, index]));
 	}
 
 	/** Clears cached Browse pages for the given sources, or for every source when `sourceIds` is undefined. */
@@ -397,6 +405,12 @@ export class CustomizationMarketplaceService implements ICustomizationMarketplac
 		}
 		const requestedSourceIds = new Set(options.sourceIds);
 		const sources = this.sources.filter(source => requestedSourceIds.has(source.sourceId ?? source.id));
+		const providerQueryIndexes = sources
+			.map((_, index) => index)
+			.sort((first, second) =>
+				(this.prioritizedProviderIndexes.get(sources[first].id) ?? Number.MAX_SAFE_INTEGER) -
+				(this.prioritizedProviderIndexes.get(sources[second].id) ?? Number.MAX_SAFE_INTEGER) ||
+				first - second);
 		const selectedSourceIds = new Set(sources.map(source => source.sourceId ?? source.id));
 		const query = options.query?.trim() ?? '';
 		const requestedPageSize = options.pageSize ?? defaultPageSize;
@@ -473,7 +487,8 @@ export class CustomizationMarketplaceService implements ICustomizationMarketplac
 		try {
 			const items: ICustomizationMarketplaceResource[] = [];
 			while (items.length < pageSize) {
-				await raceCancellationError(Promise.all(states.map(async (state, index) => {
+				await raceCancellationError(Promise.all(providerQueryIndexes.map(async index => {
+					const state = states[index];
 					if (state.items.length || state.exhausted) {
 						return;
 					}

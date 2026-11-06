@@ -60,6 +60,7 @@
 		"**/node_modules/**/*.*": true,
 		"**/yarn.lock": true,
 		"**/package-lock.json": true,
+		"**/pnpm-lock.yaml": true,
 		"**/Cargo.lock": true,
 		"out/**": true,
 		"out-build/**": true,
@@ -149,9 +150,6 @@
 		".build/typings/electron.d.ts",
 		"product.overrides.json"
 	],
-	"git.worktreeSymlinkFolders": [
-		"node_modules/"
-	],
 	// --- GitHub ---
 	"githubPullRequests.experimental.createView": true,
 	"githubPullRequests.assignCreated": "${user}",
@@ -191,6 +189,7 @@
 	],
 	// --- Tools ---
 	"npm.exclude": "**/extensions/**",
+	"npm.packageManager": "pnpm",
 	"eslint.useFlatConfig": true,
 	"emmet.excludeLanguages": [],
 	"gulp.autoDetect": "off",
