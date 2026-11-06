@@ -678,6 +678,35 @@ suite('Chat window', () => {
 		});
 	});
 
+	test('an exact open of a chat does not share the pending open that resolves the same resource by default', async () => {
+		const { service } = createService(['a']);
+		const resolved: (boolean | undefined)[] = [];
+		const gate = new DeferredPromise<void>();
+		disposables.add(service.registerProvider(upcastPartial<IChatWindowProvider>({
+			onDidRemoveChats: Event.None,
+			restoreEnabled: constObservable(false),
+			resolveContent: async () => {
+				await gate.p;
+				return new class extends mock<IChatWindowContent>() {
+					override async resolveChat(_resource: URI, exactChat?: boolean) {
+						resolved.push(exactChat);
+						return undefined;
+					}
+					override dispose() { }
+				}();
+			},
+		})));
+		const session = URI.parse('test:/session');
+
+		const generic = service.open(session);
+		const exact = service.open(session, { exactChat: true });
+		const duplicate = service.open(session, { exactChat: true });
+		gate.complete();
+		await Promise.all([generic, exact, duplicate]);
+
+		assert.deepStrictEqual({ resolved, exactShared: exact === duplicate }, { resolved: [undefined, true], exactShared: true });
+	});
+
 	test('a click in the chat of a group that is not the active one makes that chat the active chat of the window, so a link opens as a tab of its group', async () => {
 		const { service, events, windows: [target] } = createService(['a']);
 		await service.open(URI.parse('test:/c'), { window: target.window });

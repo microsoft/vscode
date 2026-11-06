@@ -831,7 +831,7 @@ export class ChatWindowService extends Disposable implements IChatWindowService 
 	}
 
 	open(chat: URI, options?: IChatWindowOpenOptions): Promise<IChatWindow | undefined> {
-		return this._opening.run(chat.toString(), () => this._openOrReveal(chat, options));
+		return this._opening.run(`${options?.exactChat ? 'exact' : 'default'}:${chat.toString()}`, () => this._openOrReveal(chat, options));
 	}
 
 	/** The window that shows `chat`: not one that is going away, nor `leaving`, such as the window the chat moves out of. */
