@@ -10,11 +10,9 @@ import { Emitter, Event } from '../../../../../../../base/common/event.js';
 import { isCancellationError } from '../../../../../../../base/common/errors.js';
 import { constObservable, derived, observableValue } from '../../../../../../../base/common/observable.js';
 import { isWindows } from '../../../../../../../base/common/platform.js';
-import { URI } from '../../../../../../../base/common/uri.js';
 import { mock } from '../../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../../base/test/common/utils.js';
 import { runWithFakedTimers } from '../../../../../../../base/test/common/virtualScheduling/index.js';
-import { IDiscoveredDevContainer } from '../../../../../../../platform/agentHost/common/devContainerAgentHost.js';
 import { cloudSandboxAddress } from '../../../../../../../platform/agentHost/common/cloudSandboxAgentHost.js';
 import { GitHubEnvironmentsEnabledSettingId, IMissionControlAvailabilityService, IMissionControlEnvironmentService, IMissionControlHost } from '../../../../../../../platform/agentHost/common/missionControlEnvironment.js';
 import { addSSHRemoteAgentHostEntry, IRemoteAgentHostConnectionInfo, IRemoteAgentHostService, readSSHRemoteAgentHostEntries, removeSSHRemoteAgentHostEntry, RemoteAgentHostConnectionStatus, RemoteAgentHostEntryType, RemoteAgentHostsEnabledSettingId } from '../../../../../../../platform/agentHost/common/remoteAgentHostService.js';
@@ -39,7 +37,6 @@ import { TestProgressService } from '../../../../../../test/browser/workbenchTes
 import { IInputOptions, IQuickInputService } from '../../../../../../../platform/quickinput/common/quickInput.js';
 import { InMemoryStorageService, IStorageService } from '../../../../../../../platform/storage/common/storage.js';
 import { IAgentHostSessionsProvider, LocalAgentHostRegistration } from '../../../../common/agentHostSessionsProvider.js';
-import { DevContainerAgentHostEnabledSettingId, IDevContainerAgentHostService } from '../../../../common/devContainerAgentHostService.js';
 import { ISessionsProvidersService } from '../../../../browser/sessionsProvidersService.js';
 import { IRemoteRefreshProgress, RemotesModel, remoteKinds } from '../../browser/remotesModel.js';
 import { getRemoteAgentHostPickerKey, RemoteAgentHostPickerVisibility } from '../../browser/remoteAgentHostPickerVisibility.js';
@@ -54,17 +51,15 @@ suite('RemotesModel', () => {
 		connection: { type: RemoteAgentHostEntryType.SSH as const, address: 'ssh:removed', sshConfigHost: 'removed', hostName: 'removed.example', user: undefined, port: undefined },
 	};
 
-	function setup(discover: (token: CancellationToken) => Promise<readonly IDiscoveredDevContainer[]> = async () => [{ id: 'container', name: 'Project', workspaceFolder: '/project' }], restoreProvidersDuringInitialization = false, initialConnections: readonly IRemoteAgentHostConnectionInfo[] = [], initialTunnelStatus?: Promise<TunnelStatus>) {
+	function setup(initialConnections: readonly IRemoteAgentHostConnectionInfo[] = [], initialTunnelStatus?: Promise<TunnelStatus>) {
 		const instantiationService = store.add(new TestInstantiationService());
 		const storage = store.add(new InMemoryStorageService());
 		const configuration = new TestConfigurationService({
 			[RemoteAgentHostsEnabledSettingId]: true,
-			[DevContainerAgentHostEnabledSettingId]: true,
 		});
 		store.add(configuration.onDidChangeConfigurationEmitter);
 		let distros: IWSLCachedDistro[] = [{ distro: 'Ubuntu', name: 'Ubuntu' }];
 		let tunnels: ICachedTunnel[] = [];
-		let workspaces: { workspaceUri: URI; name: string }[] = [];
 		const providersChanged = store.add(new Emitter<{ added: []; removed: [] }>());
 		const connectionsChanged = store.add(new Emitter<void>());
 		const tunnelsChanged = store.add(new Emitter<void>());
@@ -72,9 +67,6 @@ suite('RemotesModel', () => {
 		const tunnelState: { canDelete: boolean; pendingDeletion?: DeferredPromise<void>; failure?: Error } = { canDelete: true };
 		const deletedTunnels: { tunnel: ITunnelInfo; authProvider?: 'github' | 'microsoft' }[] = [];
 		let connections = initialConnections;
-		let workspacesInitialized = false;
-		let initializingWorkspaces = false;
-		let initializationReentered = false;
 		const dismissed = new Set<string>();
 		const removals: string[] = [];
 		const sshDisconnects: string[] = [];
@@ -245,23 +237,6 @@ suite('RemotesModel', () => {
 			},
 			signIn: async provider => { signIns.push(provider); },
 		});
-		instantiationService.stub(IDevContainerAgentHostService, {
-			onDidChangeAvailability: Event.None,
-			getWorkspaces: () => {
-				if (restoreProvidersDuringInitialization) {
-					initializationReentered ||= initializingWorkspaces;
-					if (!workspacesInitialized) {
-						workspacesInitialized = true;
-						initializingWorkspaces = true;
-						providersChanged.fire({ added: [], removed: [] });
-						initializingWorkspaces = false;
-					}
-				}
-				return workspaces;
-			},
-			addWorkspace: (workspaceUri, name) => { workspaces = [{ workspaceUri, name }]; },
-			removeWorkspace: async () => { workspaces = []; removals.push('container'); },
-		});
 		const pickerVisibility = store.add(new RemoteAgentHostPickerVisibility(storage));
 		const createProvider = (address: string, preferenceKey?: string) => new class extends mock<IAgentHostSessionsProvider>() {
 			override readonly id = `agenthost-${address}`;
@@ -313,7 +288,7 @@ suite('RemotesModel', () => {
 			onDidChangeProviders: providersChanged.event,
 			getProviders: () => [...providers.values()],
 		});
-		const model = store.add(instantiationService.createInstance(RemotesModel, discover));
+		const model = store.add(instantiationService.createInstance(RemotesModel));
 		const addProvider = (address: string, localRegistration?: LocalAgentHostRegistration) => {
 			const provider = createProvider(address);
 			Object.assign(provider, { localRegistration: constObservable(localRegistration) });
@@ -322,7 +297,7 @@ suite('RemotesModel', () => {
 			return provider;
 		};
 		return {
-			model, storage, configuration, removals, sshDisconnects, removedConnections, logEntries, initializationReentered, providers, providersChanged, connectionChanges, reconnects, signIns,
+			model, storage, configuration, removals, sshDisconnects, removedConnections, logEntries, providers, providersChanged, connectionChanges, reconnects, signIns,
 			copiedAddresses, locationPromptResult, locationPreferences, notifications, upgrades, upgrade,
 			setConnections: (value: readonly IRemoteAgentHostConnectionInfo[]) => { connections = value; connectionsChanged.fire(); },
 			createProvider, setCachedDistros: (cached: IWSLCachedDistro[]) => { distros = cached; },
@@ -348,14 +323,6 @@ suite('RemotesModel', () => {
 		};
 	}
 
-	test('does not re-enter a lazy inventory service while it restores providers', () => {
-		const { model, initializationReentered } = setup(undefined, true);
-		assert.deepStrictEqual({
-			initializationReentered,
-			registered: model.remotes.get().map(remote => remote.id),
-		}, { initializationReentered: false, registered: ['wsl:Ubuntu'] });
-	});
-
 	test('merges discovery and registered remotes, deduplicates and groups in the requested order', async () => {
 		const { model } = setup();
 		await model.refresh(CancellationToken.None);
@@ -370,7 +337,7 @@ suite('RemotesModel', () => {
 		const connection: IRemoteAgentHostConnectionInfo = {
 			address: 'ssh:build', name: 'Build', status: RemoteAgentHostConnectionStatus.connecting, lastConnectionError: 'First failure',
 		};
-		const { model, providers, setConnections } = setup(undefined, false, [connection]);
+		const { model, providers, setConnections } = setup([connection]);
 		await model.refresh(CancellationToken.None);
 		const provider = providers.get('ssh:build')!;
 		const snapshot = () => {
@@ -945,24 +912,13 @@ suite('RemotesModel', () => {
 
 	test('does not discover or mutate when AI is disabled', async () => {
 		let calls = 0;
-		const { model, configuration } = setup(async () => { calls++; return []; });
+		const { model, configuration, setSSHDiscovery } = setup();
+		setSSHDiscovery(async () => { calls++; return []; });
 		await configuration.setUserConfiguration('chat.disableAIFeatures', true);
 		await model.refresh(CancellationToken.None);
 		await assert.rejects(model.remove('wsl:Ubuntu'), /no longer available/);
 		await assert.rejects(model.rename('wsl:Ubuntu'), /no longer available/);
 		assert.strictEqual(calls, 0);
-	});
-
-	test('does not discover hidden Dev Containers even when the feature is enabled', async () => {
-		let calls = 0;
-		const { model } = setup(async () => {
-			calls++;
-			throw new Error('Docker unavailable');
-		});
-		const failures = await model.refresh(CancellationToken.None);
-		assert.deepStrictEqual({ calls, failures, containers: model.remotes.get().filter(remote => remote.kind === 'devContainer') }, {
-			calls: 0, failures: [], containers: [],
-		});
 	});
 
 	test('WSL discovery follows the platform', async () => {
@@ -1345,7 +1301,7 @@ suite('RemotesModel', () => {
 
 	test('initial hosted tunnel status cannot overwrite a newer event', async () => {
 		const initialStatus = new DeferredPromise<TunnelStatus>();
-		const { model, setTunnelStatus } = setup(undefined, false, [], initialStatus.p);
+		const { model, setTunnelStatus } = setup([], initialStatus.p);
 		await model.refresh(CancellationToken.None);
 		const loading = model.remotes.get().find(remote => remote.id === 'tunnel:laptop')!.canDelete;
 		await assert.rejects(model.deleteTunnel('tunnel:laptop'), /hosting status is not available/);

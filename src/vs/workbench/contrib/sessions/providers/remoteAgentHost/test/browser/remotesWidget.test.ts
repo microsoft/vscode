@@ -44,7 +44,6 @@ class TestRemotesModel extends Disposable implements IRemotesModel {
 		{ id: 'ssh:build', kind: 'ssh', name: 'Build server', detail: 'build.example.com', canRemove: true, connectionStatus: RemoteAgentHostConnectionStatus.connected },
 		{ id: 'wsl:Ubuntu', kind: 'wsl', name: 'Ubuntu', detail: 'Ubuntu', canRemove: true, connectionStatus: RemoteAgentHostConnectionStatus.disconnected },
 		{ id: 'tunnel:laptop', kind: 'tunnel', name: 'Laptop', detail: 'work-laptop', canRemove: false, canDelete: true, connectionStatus: RemoteAgentHostConnectionStatus.disconnected },
-		{ id: 'container:project', kind: 'devContainer', name: 'Project', detail: '/project', canRemove: true, connectionStatus: RemoteAgentHostConnectionStatus.connected },
 	]);
 	readonly managementChanges: { id: string; action: 'rename' | 'remove' }[] = [];
 	readonly connectionChanges: { id: string; connected: boolean }[] = [];
@@ -1014,8 +1013,7 @@ suite('RemotesWidget', () => {
 
 	test('shows refresh warnings on the failed groups, with simple tooltips and accessible labels', async () => {
 		const { parent, model, widget, hoverContents } = createWidget();
-		model.remotes.set(model.remotes.get().filter(remote => remote.kind !== 'devContainer'), undefined);
-		model.failedKinds = ['ssh', 'tunnel', 'devContainer'];
+		model.failedKinds = ['ssh', 'tunnel'];
 		widget.setVisible(true);
 		await timeout(0);
 		const warnings = [...parent.querySelectorAll<HTMLElement>('.remotes-refresh-warning:not([hidden])')].map(icon => {
@@ -1189,7 +1187,7 @@ suite('RemotesWidget', () => {
 		await timeout(0);
 		const canceled = parent.querySelectorAll('.remotes-refresh-warning:not([hidden])').length;
 		model.pendingRefresh = undefined;
-		model.failedKinds = ['wsl', 'devContainer'];
+		model.failedKinds = ['wsl'];
 		widget.setVisible(true);
 		await timeout(0);
 		assert.deepStrictEqual({
