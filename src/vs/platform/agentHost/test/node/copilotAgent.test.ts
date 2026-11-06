@@ -98,7 +98,7 @@ import { parseSessionAdditionalWorktrees } from '../../node/shared/sessionAdditi
 import { createTestSessionStateStore, createTestWorktreeCleanupService, seedSessionAdditionalWorktrees } from './chatMetadataTestHelpers.js';
 import { AgentHostCatalogSourceResolver } from '../../node/agentHostCatalogSourceResolver.js';
 import { SESSION_WORKING_DIRECTORIES_KEY } from '../../node/shared/persistSessionMetadata.js';
-import { createTestAgentService, getTestAgentStateManager, registerTestAgentProvider } from './agentServiceTestUtils.js';
+import { createTestAgentService, getTestAgentServiceComposition, getTestAgentStateManager, registerTestAgentProvider } from './agentServiceTestUtils.js';
 import { AgentSessionRegistry } from '../../node/agentSessionRegistry.js';
 import { AgentHostManagedSettingsService, IAgentHostManagedSettingsService } from '../../node/agentHostManagedSettingsService.js';
 import { AgentHostMacAccessibilityTrustService, IAgentHostMacAccessibilityTrustService } from '../../node/agentHostMacAccessibilityTrustService.js';
@@ -32641,6 +32641,81 @@ suite('CopilotAgent', () => {
 				},
 			);
 		});
+
+		for (const outcome of ['repaired', 'different failure'] as const) {
+			test(`preparing a recovered chat stays blocked on invalid workspace metadata, then handles ${outcome}`, async () => {
+				const userHome = URI.file(await fs.mkdtemp(`${os.tmpdir()}/adopt-home-`));
+				const workingDirectory = await fs.mkdtemp(`${os.tmpdir()}/adopt-cwd-`);
+				const sessionId = 'legacy-workspace-recovery';
+				const session = AgentSession.uri('copilotcli', sessionId);
+				const chat = defaultChatUri(session);
+				const sessionDataService = disposables.add(new TestSessionDataService());
+				const client = new TestCopilotClient([sdkSession(sessionId, workingDirectory)]);
+				const history: SessionEvent[] = [
+					{ id: '11111111-1111-4111-8111-111111111111', timestamp: '2026-03-01T00:00:00.000Z', parentId: null, type: 'user.message', data: { content: 'Recovered prompt' } },
+					{ id: '22222222-2222-4222-8222-222222222222', timestamp: '2026-03-01T00:00:01.000Z', parentId: '11111111-1111-4111-8111-111111111111', type: 'assistant.message', data: { messageId: 'm1', content: 'Recovered reply', toolRequests: [] } },
+					{ id: '33333333-3333-4333-8333-333333333333', timestamp: '2026-03-01T00:00:02.000Z', parentId: '22222222-2222-4222-8222-222222222222', type: 'session.idle', ephemeral: true, data: {} },
+				];
+				const workspaceError = new Error(`Failed to load workspace from ${workingDirectory}/workspace.yaml: Invalid datetime`);
+				const nextError = new Error('Authentication failed after repairing workspace metadata');
+				let resumeError: Error | undefined = workspaceError;
+				let resumeCalls = 0;
+				client.rpc.sessions.readPersistedEvents = async () => ({ events: history, cursor: 'end', hasMore: false, cursorStatus: 'ok' });
+				client.resumeSession = async () => {
+					resumeCalls++;
+					if (resumeError) {
+						throw resumeError;
+					}
+					const runtime = new MockCopilotSession(sessionId);
+					runtime.historyEvents.push(...history);
+					return runtime as unknown as CopilotSession;
+				};
+				const { agent, fileService } = createTestAgentContext(disposables, {
+					sessionDataService, copilotClient: client, userHome, useRealResumePath: true,
+				});
+				registerAgentCleanup(agent, userHome, workingDirectory);
+				await agent.authenticate('https://api.github.com', 'token');
+				await writeExtensionHostMarker(userHome, sessionId, { origin: 'vscode', workspacePath: workingDirectory });
+
+				const host = disposables.add(createTestAgentService(new NullLogService(), fileService, sessionDataService, TEST_PRODUCT_SERVICE, new TestAgentHostGitService()));
+				registerTestAgentProvider(host, agent);
+				getTestAgentServiceComposition(host).configurationService.updateRootConfig({ [AgentHostMigrateLegacyCopilotCliEnabledConfigKey]: true });
+				await host.restoreSession(session);
+				const stateManager = getTestAgentStateManager(host);
+				const readInput = () => ({
+					input: readChatInputState(stateManager.getSessionState(session.toString()), chat.toString()),
+					interactivity: stateManager.getChatState(chat.toString())?.interactivity,
+				});
+
+				await host.subscribe(chat, 'client-invalid');
+				const stillInvalid = { ...readInput(), restriction: agent.chats.getInputRestriction?.(chat) };
+				resumeError = outcome === 'repaired' ? undefined : nextError;
+				await host.subscribe(chat, 'client-retry');
+
+				const restriction = { errorType: 'invalidWorkspaceMetadata', message: workspaceError.message };
+				assert.deepStrictEqual({
+					stillInvalid,
+					retried: readInput(),
+					hasProviderRestriction: !!agent.chats.getInputRestriction?.(chat),
+					resumeCalls,
+				}, {
+					stillInvalid: {
+						input: { kind: 'blocked', error: restriction },
+						interactivity: ChatInteractivity.ReadOnly,
+						restriction,
+					},
+					retried: outcome === 'repaired' ? {
+						input: undefined,
+						interactivity: ChatInteractivity.Full,
+					} : {
+						input: { kind: 'blocked', error: { errorType: 'ChatPreparationFailed', message: nextError.message } },
+						interactivity: ChatInteractivity.ReadOnly,
+					},
+					hasProviderRestriction: outcome !== 'repaired',
+					resumeCalls: 3,
+				});
+			});
+		}
 
 		test('restores an adopted legacy session when SDK getSessionMetadata returns undefined without advancing its modifiedTime on refresh', async () => {
 			const userHome = URI.file(await fs.mkdtemp(`${os.tmpdir()}/adopt-home-`));

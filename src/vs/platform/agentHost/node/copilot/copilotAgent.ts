@@ -8619,7 +8619,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 					this._readOnlyChatInputErrors.set(context.chatKey, error);
 					return { error };
 				}
-				return { error: recordedError };
+				throw err;
 			}
 		});
 	}
