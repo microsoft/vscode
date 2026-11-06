@@ -22,6 +22,7 @@ import { IContextViewService } from '../../../../../platform/contextview/browser
 import { IKeybindingService } from '../../../../../platform/keybinding/common/keybinding.js';
 import { IProductService } from '../../../../../platform/product/common/productService.js';
 import { IQuickInputService } from '../../../../../platform/quickinput/common/quickInput.js';
+import { InMemoryStorageService, IStorageService } from '../../../../../platform/storage/common/storage.js';
 import { MenuActivityBarSize } from '../../../../../workbench/browser/parts/activitybar/menuActivityBar.js';
 import { CONNECTED_EDITOR_TABS_CLASS } from '../../../../../workbench/browser/parts/editor/editor.js';
 import { IPartGridView, PartGrid } from '../../../../../workbench/browser/parts/partGrid/partGrid.js';
@@ -31,7 +32,7 @@ import { IAgentHostFilterService } from '../../../../../workbench/contrib/sessio
 import { BlockedSessions } from '../../../../../workbench/contrib/sessions/browser/blockedSessions.js';
 import { Menus, SessionActivityBarGroup } from '../../../../../workbench/contrib/sessions/browser/menus.js';
 import { ChatViewSessionActivityBar } from '../../../../../workbench/contrib/sessions/browser/parts/sessionActivityBar.js';
-import { registerSessionActivityBarExternalHost } from '../../../../../workbench/contrib/sessions/browser/parts/sessionActivityBarHost.js';
+import { registerSessionActivityBarExternalHost, setSessionActivityBarSize } from '../../../../../workbench/contrib/sessions/browser/parts/sessionActivityBarHost.js';
 import { AgentWorkbenchLayout } from '../../../../../workbench/contrib/sessions/browser/sessionsHostLayoutService.js';
 import { ISessionsProvidersService } from '../../../../../workbench/contrib/sessions/browser/sessionsProvidersService.js';
 import { ISessionsService } from '../../../../../workbench/contrib/sessions/browser/sessionsService.js';
@@ -73,6 +74,8 @@ import '../../browser/media/chatWindow.css';
 interface IFixtureOptions {
 	readonly mode: ChatWindowLayoutMode;
 	readonly density: ModernUIDensity;
+	/** The size chosen for the Session Activity Bar, which its column follows. Compact unless chosen. */
+	readonly size?: MenuActivityBarSize;
 }
 
 const WIDTH = 960;
@@ -93,6 +96,9 @@ export default defineThemedFixtureGroup({ path: 'sessions/chatWindow/titleBar/' 
 	ChatOnlyCompact: titleBarFixture({ mode: ChatWindowLayoutMode.ChatOnly, density: ModernUIDensity.Compact }),
 	StackedCompact: titleBarFixture({ mode: ChatWindowLayoutMode.Stacked, density: ModernUIDensity.Compact }),
 	EditorOnlyCompact: titleBarFixture({ mode: ChatWindowLayoutMode.EditorOnly, density: ModernUIDensity.Compact }),
+	// The Session Activity Bar at the normal size: its column is wider, the title bar spans the window as at any size.
+	SideBySideNormalSize: titleBarFixture({ mode: ChatWindowLayoutMode.SideBySide, density: ModernUIDensity.Default, size: MenuActivityBarSize.Normal }),
+	StackedCompactNormalSize: titleBarFixture({ mode: ChatWindowLayoutMode.Stacked, density: ModernUIDensity.Compact, size: MenuActivityBarSize.Normal }),
 });
 
 interface IMenuEntry {
@@ -184,6 +190,9 @@ function renderChatWindow(context: ComponentFixtureContext, options: IFixtureOpt
 	container.classList.toggle('modern-ui-compact', compact);
 	const session = createSession();
 	const menuService = new ChatWindowMenuService();
+	const size = options.size ?? MenuActivityBarSize.Compact;
+	const storage = disposableStore.add(new InMemoryStorageService());
+	setSessionActivityBarSize(storage, size);
 	const contextViewService = new FixtureContextViewService(container);
 	disposableStore.add(toDisposable(() => contextViewService.hideContextView()));
 
@@ -193,6 +202,7 @@ function renderChatWindow(context: ComponentFixtureContext, options: IFixtureOpt
 			registerWorkbenchServices(reg);
 			reg.defineInstance(IConfigurationService, new TestConfigurationService({ [LayoutSettings.MODERN_UI_DENSITY]: options.density, [SESSION_ACTIVITY_BAR_SETTING]: true }));
 			reg.defineInstance(IMenuService, menuService);
+			reg.defineInstance(IStorageService, storage);
 			reg.defineInstance(ISessionActivityBarActivityService, disposableStore.add(new SessionActivityBarActivityService()));
 			reg.defineInstance(IKeybindingService, new FixtureKeybindingService(ACTIVITY_BAR_ENTRIES));
 			reg.defineInstance(IContextViewService, contextViewService);
@@ -301,7 +311,7 @@ function renderChatWindow(context: ComponentFixtureContext, options: IFixtureOpt
 	grid.addView(stacked ? 'chat' : 'main', view(stacked ? chat : main), { reference: stacked ? 'main' : 'chat', direction: stacked ? Direction.Down : Direction.Right }, stacked ? 130 : 540);
 	grid.setCellVisible('chat', showsChat);
 	grid.setCellVisible('main', showsMain);
-	const stripWidth = getChatWindowStripWidth(compact, MenuActivityBarSize.Compact);
+	const stripWidth = getChatWindowStripWidth(compact, size);
 	// The strip's column, which the window registers as the host of its chats' Session Activity Bar, at full size.
 	const strip = $('.chat-window-strip.session-activity-bar-host');
 	disposableStore.add(registerSessionActivityBarExternalHost(frame, { element: strip, active: constObservable(true), fullSize: true, setOccupied: () => { } }));
