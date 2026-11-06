@@ -27480,6 +27480,41 @@ suite('CopilotAgent', () => {
 			});
 		}).timeout(30_000);
 
+		test('reports whether importing a conversation succeeded, and the step and error code it failed at', async () => {
+			const userHome = URI.file(await fs.mkdtemp(`${os.tmpdir()}/import-telemetry-home-`));
+			const workingDirectory = URI.file(await fs.mkdtemp(`${os.tmpdir()}/import-telemetry-cwd-`));
+			const telemetryService = new RecordingTelemetryService();
+			const client = new TestCopilotClient([]);
+			let resumeError: Error | undefined = undefined;
+			client.resumeSession = async () => {
+				if (resumeError) {
+					throw resumeError;
+				}
+				return new MockCopilotSession() as unknown as CopilotSession;
+			};
+			const agent = createTestAgent(disposables, { copilotClient: client, useRealResumePath: true, sessionDataService: createSessionDataService(new InMemorySessionDatabase()), userHome, telemetryService });
+			afterTest(async () => {
+				await fs.rm(userHome.fsPath, { recursive: true, force: true });
+				await fs.rm(workingDirectory.fsPath, { recursive: true, force: true });
+				await disposeAgent(agent);
+			});
+			await agent.authenticate('https://api.github.com', 'token');
+			const turns: Turn[] = [{ id: generateUuid(), state: TurnState.Complete, message: { text: 'q', origin: { kind: MessageKind.User } }, responseParts: [{ kind: ResponsePartKind.Markdown, id: 'response', content: 'ready' }], usage: undefined }];
+
+			await provisionSession(agent, { session: AgentSession.uri('copilotcli', 'import-succeeded'), workingDirectories: [workingDirectory], importConversation: { turns } });
+			// Only an error's code is reported, never its message.
+			resumeError = Object.assign(new Error('The session /private/path could not be resumed'), { code: 'ESESSIONLOCKED' });
+			await assert.rejects(provisionSession(agent, { session: AgentSession.uri('copilotcli', 'import-failed'), workingDirectories: [workingDirectory], importConversation: { turns } }));
+
+			assert.deepStrictEqual(telemetryService.events.filter(event => event.eventName === 'agentHost.conversationImport').map(event => {
+				const { durationMs, ...data } = event.data as Record<string, unknown>;
+				return { ...data, timed: typeof durationMs === 'number' && durationMs >= 0 };
+			}), [
+				{ outcome: 'succeeded', failedStep: 'none', errorCode: 'none', turns: 1, timed: true },
+				{ outcome: 'failed', failedStep: 'resume', errorCode: 'ESESSIONLOCKED', turns: 1, timed: true },
+			]);
+		}).timeout(30_000);
+
 		test('createChat mints a provisional session', async () => {
 			const agent = createTestAgent(disposables, { copilotClient: new TestCopilotClient([]) });
 			afterTest(() => disposeAgent(agent));
