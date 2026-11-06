@@ -239,10 +239,7 @@ export class SessionWorktreeCleanupEditor extends EditorPane {
 
 		const intro = dom.append(controlsContent, dom.$('.session-worktree-cleanup-intro'));
 		dom.append(intro, dom.$('h2', undefined, localize('sessionWorktreeCleanup.introHeading', "Free up local disk space")));
-		const instructions = dom.append(intro, dom.$('ul'));
-		dom.append(instructions, dom.$('li', undefined, localize('sessionWorktreeCleanup.introSelection', "Select the sessions whose worktrees you want to clean up. Nothing is selected automatically.")));
-		dom.append(instructions, dom.$('li', undefined, localize('sessionWorktreeCleanup.introPreservation', "Cleanup saves changes and keeps branches and session history.")));
-		dom.append(instructions, dom.$('li', undefined, localize('sessionWorktreeCleanup.introLocal', "Only local worktrees are listed. Remote sessions are not included.")));
+		dom.append(intro, dom.$('p', undefined, localize('sessionWorktreeCleanup.introSelection', "Select sessions to clean up their worktrees.")));
 
 		const controls = dom.append(controlsContent, dom.$('.session-worktree-cleanup-controls'));
 		const ageLabel = dom.append(controls, dom.$('label', undefined, localize('sessionWorktreeCleanup.ageLabel', "Untouched for")));

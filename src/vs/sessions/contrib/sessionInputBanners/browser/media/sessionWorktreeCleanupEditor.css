@@ -38,13 +38,8 @@
 	margin: 0 0 var(--vscode-spacing-size80);
 }
 
-.session-worktree-cleanup-intro ul {
+.session-worktree-cleanup-intro p {
 	margin: 0;
-	padding-left: var(--vscode-spacing-size200);
-}
-
-.session-worktree-cleanup-intro li {
-	margin-bottom: var(--vscode-spacing-size40);
 	line-height: 1.4;
 }
 

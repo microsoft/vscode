@@ -2606,16 +2606,14 @@ suite('SessionWorktreeCleanupEditor', () => {
 		assert.deepStrictEqual({
 			introParagraphs: container.querySelectorAll('.session-worktree-cleanup-intro').length,
 			heading: container.querySelector('.session-worktree-cleanup-intro h2')?.textContent,
-			instructions: [...container.querySelectorAll('.session-worktree-cleanup-intro li')].map(item => item.textContent),
+			instructions: [...container.querySelectorAll('.session-worktree-cleanup-intro p')].map(item => item.textContent),
 			settingsCollapsed: !settings.open,
 			settingsBeforeInventory: !!(settings.compareDocumentPosition(inventory) & mainWindow.Node.DOCUMENT_POSITION_FOLLOWING),
 		}, {
 			introParagraphs: 1,
 			heading: 'Free up local disk space',
 			instructions: [
-				'Select the sessions whose worktrees you want to clean up. Nothing is selected automatically.',
-				'Cleanup saves changes and keeps branches and session history.',
-				'Only local worktrees are listed. Remote sessions are not included.',
+				'Select sessions to clean up their worktrees.',
 			],
 			settingsCollapsed: true,
 			settingsBeforeInventory: true,
