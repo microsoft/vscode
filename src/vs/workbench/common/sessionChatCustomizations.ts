@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { URI } from '../../../../base/common/uri.js';
+import { URI } from '../../base/common/uri.js';
 
 /** The kinds of customization a chat can use. */
 export const enum SessionCustomizationKind {

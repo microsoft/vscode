@@ -16,12 +16,12 @@ import { getGitHubRepositoryId, getPullRequestUrlKey, parseGitHubIssueUrl, parse
 import { localize } from '../../../../nls.js';
 import { getHighestPriorityPullRequestIcon } from '../../../common/chatPullRequest.js';
 import { IChatSessionFileChange, IChatSessionFileChange2, isIChatSessionFileChange2 } from '../../chat/common/chatSessionsService.js';
-import { ISessionChatCustomization } from '../../chat/common/sessionChatCustomizations.js';
+import { ISessionChatCustomization } from '../../../common/sessionChatCustomizations.js';
 import type { IChatBackgroundShell } from '../../chat/common/sessionChatPills.js';
 import { ICanvas as ISessionCanvas } from '../../canvases/common/canvas.js';
 
 export { getHighestPriorityPullRequestIcon };
-export { type ISessionChatCustomization, SessionCustomizationKind } from '../../chat/common/sessionChatCustomizations.js';
+export { type ISessionChatCustomization, SessionCustomizationKind } from '../../../common/sessionChatCustomizations.js';
 export { type ICanvas as ISessionCanvas } from '../../canvases/common/canvas.js';
 
 export interface ISessionType {

@@ -28,7 +28,7 @@ import { ISessionsService } from '../../../../contrib/sessions/browser/sessionsS
 import { ComponentFixtureContext, defineComponentFixture, defineThemedFixtureGroup, registerFixtureHoverService, waitForFixtureCondition, waitForFixtureDomCondition } from '../fixtureUtils.js';
 import { createMockSession, renderPills } from './sessionChatInputToolbar.fixture.js';
 import { createFixtureGitHubService, createFixtureWorkbenchGitHubService } from './githubFixtureUtils.js';
-import { SessionCustomizationKind } from '../../../../contrib/chat/common/sessionChatCustomizations.js';
+import { SessionCustomizationKind } from '../../../../common/sessionChatCustomizations.js';
 
 const pullRequests: readonly IGitHubPullRequest[] = [{
 	number: 335583,
