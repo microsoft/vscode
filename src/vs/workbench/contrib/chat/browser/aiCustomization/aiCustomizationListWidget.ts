@@ -1161,7 +1161,7 @@ export class AICustomizationListWidget extends Disposable {
 				break;
 			case AICustomizationManagementSection.Hooks:
 				title = localize('hooks', "Hooks");
-				description = localize('hooksDescription', "Prompts executed at specific points during an agentic lifecycle.");
+				description = localize('hooksDescription', "Commands that run at specific points in an agent session.");
 				docsUrl = 'https://code.visualstudio.com/docs/agent-customization/hooks?referrer=in-product';
 				learnMoreLabel = localize('learnMoreHooks', "Learn more about hooks");
 				break;
