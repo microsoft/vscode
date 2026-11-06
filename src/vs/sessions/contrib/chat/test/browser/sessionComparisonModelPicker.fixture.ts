@@ -21,7 +21,7 @@ function renderComparisonPicker(context: ComponentFixtureContext, state: Compari
 	context.disposableStore.add(configurationService.onDidChangeConfigurationEmitter);
 	instantiationService.stub(IConfigurationService, configurationService);
 	instantiationService.stub(IStorageService, context.disposableStore.add(new InMemoryStorageService()));
-	const selection = context.disposableStore.add(instantiationService.createInstance(SessionComparisonModelSelection, constObservable(true), constObservable(false), undefined, constObservable(state !== 'folderless'), constObservable(true)));
+	const selection = context.disposableStore.add(instantiationService.createInstance(SessionComparisonModelSelection, constObservable(true), undefined, constObservable(state !== 'folderless'), constObservable(true)));
 	if (state !== 'single') {
 		selection.start();
 	}

@@ -72,6 +72,7 @@ import { ChatContextKeys } from '../../../../workbench/contrib/chat/common/actio
 import { ChatModeKind } from '../../../../workbench/contrib/chat/common/constants.js';
 import { ILanguageModelsService } from '../../../../workbench/contrib/chat/common/languageModels.js';
 import { IOpenerService } from '../../../../platform/opener/common/opener.js';
+import { Link } from '../../../../platform/opener/browser/link.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { logSettingExperimentTrigger } from '../../../../platform/telemetry/common/experimentTrigger.js';
@@ -86,7 +87,7 @@ import { ICommandService } from '../../../../platform/commands/common/commands.j
 import { getSessionComparisonWorkspaceError, ISessionComparisonHarness, ISessionComparisonService } from '../../../services/sessions/common/sessionComparison.js';
 import { OPEN_SESSION_COMPARISON_COMMAND_ID } from '../../sessionComparison/common/sessionComparison.js';
 import { SessionComparisonModelSelection } from './sessionComparisonModelSelection.js';
-import { isAutoModel, isHydraFusionModel } from '../../../../workbench/contrib/chat/browser/widget/input/modelPicker/modelPickerPresentation.js';
+import { isModelComparisonSupported } from '../../../../workbench/contrib/chat/browser/widget/input/modelPicker/modelPickerPresentation.js';
 import { IAgentsWindowDraft } from '../../../../platform/window/common/window.js';
 import { reviveChatDraft } from '../../../../workbench/contrib/chat/common/attachments/chatDraft.js';
 import { NewChatMigrationNotice } from './newChatMigrationNotice.js';
@@ -151,6 +152,7 @@ export class NewChatWidget extends Disposable {
 	private readonly _preserveCustomView: boolean;
 	private readonly _backgroundSend: boolean;
 	private readonly _backgroundSendStatus = observableValue<string | undefined>(this, undefined);
+	private _lastBackgroundSentSessionResource: URI | undefined;
 	private _lastBackgroundSendOptions: ISendRequestOptions | undefined;
 	private readonly _pickedEnvironment = observableValue<ISessionCreationEnvironment | undefined>(this, undefined);
 	private readonly _environmentWorkspaces = new Map<string, URI>();
@@ -443,7 +445,7 @@ export class NewChatWidget extends Disposable {
 			session?.loading.read(reader);
 			session?.isQuickChat?.read(reader);
 			return this._shouldShowComparisonAction();
-		}), comparisonConfigResolving, modelId => this.languageModelsService.lookupLanguageModel(modelId)?.name,
+		}), modelId => this.languageModelsService.lookupLanguageModel(modelId)?.name,
 			derived(this, reader => !this._isQuickChatComposer.read(reader)),
 			observableFromEvent(this, Event.filter(this.configurationService.onDidChangeConfiguration, event => event.affectsConfiguration(COMPARE_AGENTS_SHOW_PICKER_HINT_SETTING)),
 				() => this.configurationService.getValue<boolean>(COMPARE_AGENTS_SHOW_PICKER_HINT_SETTING))));
@@ -549,19 +551,7 @@ export class NewChatWidget extends Disposable {
 		this._register(toDisposable(() => newChatInput.saveState()));
 		this._newChatInput = this._register(newChatInput);
 		this._register(this._trackSessionPreparation());
-		let comparisonHarness: string | undefined;
-		this._register(autorun(reader => {
-			const session = this._session.read(reader);
-			const harness = session ? JSON.stringify([session.providerId, session.sessionType, session.isQuickChat?.read(reader)]) : undefined;
-			if (harness !== comparisonHarness) {
-				this._comparisonSelection.reset();
-				comparisonHarness = harness;
-			}
-			newChatInput.selectedModelState.read(reader);
-			if (!session?.loading.read(reader) && !comparisonConfigResolving.read(reader)) {
-				this._comparisonSelection.retainModels(this._getComparisonModelIds());
-			}
-		}));
+		this._register(this._trackComparisonSelection(comparisonConfigResolving));
 		this.pickerVisibility = derived(this, reader => this._activeEmptyState.read(reader)
 			? noSessionPickerVisibility
 			: newChatInput.pickerVisibility.visibility.read(reader));
@@ -700,6 +690,24 @@ export class NewChatWidget extends Disposable {
 		});
 	}
 
+	private _trackComparisonSelection(configurationResolving: IObservable<boolean>): IDisposable {
+		let comparisonHarness: string | undefined;
+		return autorun(reader => {
+			const session = this._session.read(reader);
+			const harness = session ? JSON.stringify([session.providerId, session.sessionType]) : undefined;
+			if (!this._compareAgentsEnabled.read(reader) || harness !== undefined && comparisonHarness !== undefined && harness !== comparisonHarness) {
+				this._comparisonSelection.reset();
+			}
+			if (harness !== undefined) {
+				comparisonHarness = harness;
+			}
+			this._newChatInput.selectedModelState.read(reader);
+			if (session && !session.loading.read(reader) && !configurationResolving.read(reader) && this._comparisonSelection.available.read(reader)) {
+				this._comparisonSelection.retainModels(this._getComparisonModelIds());
+			}
+		});
+	}
+
 	private _syncWorkspacePickerFromSessionWorkspace(workspace: ISessionWorkspace | undefined): void {
 		const folderUri = workspace?.folders[0]?.root;
 		if (folderUri && !this._workspacePicker.matchesSelectedWorkspace(workspace)) {
@@ -823,6 +831,7 @@ export class NewChatWidget extends Disposable {
 			});
 		}));
 
+		this._renderBackgroundSendStatus(chatWidgetContent);
 		const workspacePickerContainer = dom.append(chatWidgetContent, dom.$('.new-session-workspace-picker-container'));
 		// On web (vscode.dev / insiders.vscode.dev) the workspace picker is
 		// scoped to the currently selected agent host. When no hosts are
@@ -851,7 +860,6 @@ export class NewChatWidget extends Disposable {
 			);
 		}));
 		const belowInputSurfaces = dom.append(chatWidgetContent, dom.$(`.new-session-below-input-surfaces.${chatInputSurfaceStackClass}`));
-		this._renderBackgroundSendStatus(belowInputSurfaces);
 		const updateBelowInputSurfacesHeight = () => {
 			if (chatWidgetContainer.closest('.phone-layout')) {
 				belowInputSurfaces.style.removeProperty('max-height');
@@ -1683,7 +1691,7 @@ export class NewChatWidget extends Disposable {
 
 	private _getComparisonModelIds(): Set<string> {
 		return new Set(this._newChatInput.getComparisonModels()
-			.filter(model => !isAutoModel(model) && !isHydraFusionModel(model))
+			.filter(isModelComparisonSupported)
 			.map(model => model.identifier));
 	}
 
@@ -1980,6 +1988,7 @@ export class NewChatWidget extends Disposable {
 	private async _send(query: string, attachedContext?: IChatRequestVariableEntry[], background?: boolean, userInteraction?: NewChatUserInteraction): Promise<boolean> {
 		background = this._backgroundSend || background;
 		if (this._backgroundSend) {
+			this._lastBackgroundSentSessionResource = undefined;
 			this._backgroundSendStatus.set(undefined, undefined);
 			this._lastBackgroundSendOptions = undefined;
 		}
@@ -2048,10 +2057,11 @@ export class NewChatWidget extends Disposable {
 			}
 			this._pendingBackgroundSends.set(sendOptions, Event.once(
 				Event.filter(this.sessionsManagementService.onDidSendRequest, event => event.options === sendOptions)
-			)(() => {
+			)(event => {
 				clearFeedback();
 				restoreWorkspace();
 				if (this._backgroundSend && this._lastBackgroundSendOptions === sendOptions && !this._newChatInput.hasInput) {
+					this._lastBackgroundSentSessionResource = event.session.resource;
 					this._backgroundSendStatus.set(localize('newSession.messageSent', "Message sent"), undefined);
 				}
 				this._pendingBackgroundSends.deleteAndDispose(sendOptions);
@@ -2165,16 +2175,52 @@ export class NewChatWidget extends Disposable {
 		this._register(autorun(reader => {
 			const message = this._backgroundSendStatus.read(reader);
 			dom.clearNode(status);
+			status.style.visibility = message ? '' : 'hidden';
 			if (message) {
 				const checkmark = renderIcon(Codicon.check);
 				checkmark.setAttribute('aria-hidden', 'true');
-				dom.append(status, dom.$('span', undefined, message), checkmark);
+				dom.append(status, dom.$('span.new-session-send-status-message', undefined, message), checkmark);
 				this.accessibilityService.status(message);
-				reader.store.add(disposableTimeout(() => this._backgroundSendStatus.set(undefined, undefined), 5000));
+				const sessionResource = this._lastBackgroundSentSessionResource;
+				if (sessionResource) {
+					reader.store.add(this.instantiationService.createInstance(Link, status, {
+						label: localize('newSession.openSentSession', "Open Session"),
+						href: sessionResource.toString(),
+					}, {
+						opener: () => { void this.sessionsService.openSession(sessionResource, { source: 'inbox', forceMainChat: true }).catch(onUnexpectedError); },
+					}));
+					const dismissal = reader.store.add(new MutableDisposable<IDisposable>());
+					let remaining = 8000;
+					let startedAt = Date.now();
+					let hovered = false;
+					let focused = false;
+					const updateDismissal = () => {
+						if (hovered || focused) {
+							if (dismissal.value) {
+								remaining -= Date.now() - startedAt;
+								dismissal.clear();
+							}
+						} else if (!dismissal.value) {
+							startedAt = Date.now();
+							dismissal.value = disposableTimeout(() => {
+								this._lastBackgroundSentSessionResource = undefined;
+								this._backgroundSendStatus.set(undefined, undefined);
+							}, Math.max(0, remaining));
+						}
+					};
+					reader.store.add(dom.addDisposableListener(status, dom.EventType.MOUSE_ENTER, () => { hovered = true; updateDismissal(); }));
+					reader.store.add(dom.addDisposableListener(status, dom.EventType.MOUSE_LEAVE, () => { hovered = false; updateDismissal(); }));
+					reader.store.add(dom.addDisposableListener(status, dom.EventType.FOCUS_IN, () => { focused = true; updateDismissal(); }));
+					reader.store.add(dom.addDisposableListener(status, dom.EventType.FOCUS_OUT, () => { focused = false; updateDismissal(); }));
+					updateDismissal();
+				} else {
+					reader.store.add(disposableTimeout(() => this._backgroundSendStatus.set(undefined, undefined), 5000));
+				}
 			}
 		}));
 		this._register(this._newChatInput.onDidChangeInput(() => {
 			if (this._newChatInput.hasInput) {
+				this._lastBackgroundSentSessionResource = undefined;
 				this._backgroundSendStatus.set(undefined, undefined);
 				this._lastBackgroundSendOptions = undefined;
 			}
@@ -2238,9 +2284,6 @@ export class NewChatWidget extends Disposable {
 			this._preferredDevContainerFolderUri = undefined;
 		}
 		const currentFolderUri = this._session.get()?.workspace.get()?.folders[0]?.root;
-		if (!folderUri || !currentFolderUri || !this.uriIdentityService.extUri.isEqual(currentFolderUri, folderUri)) {
-			this._comparisonSelection.reset();
-		}
 		const refreshingPromptOptions = !!currentFolderUri
 			&& (!folderUri || !this.uriIdentityService.extUri.isEqual(currentFolderUri, folderUri))
 			&& this._newChatInput.preparePromptOptionsRefresh();
