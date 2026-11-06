@@ -3567,6 +3567,16 @@ suite('CopilotAgentSession', () => {
 		});
 	});
 
+	test('exposes the active turn sender and clears it on completion', async () => {
+		const { session, mockSession } = await createAgentSession(disposables);
+		session.resetTurnState('turn-1', 'client-a');
+		const first = session.currentTurnClientId;
+		session.resetTurnState('turn-2', 'client-b');
+		const second = session.currentTurnClientId;
+		mockSession.fire('session.idle', {} as SessionEventPayload<'session.idle'>['data']);
+		assert.deepStrictEqual([first, second, session.currentTurnClientId], ['client-a', 'client-b', undefined]);
+	});
+
 	test('settles idle waiters on turn completion and disposal, including already-idle or disposed sessions', async () => {
 		const { session, mockSession } = await createAgentSession(disposables);
 		const idle = session.waitForIdle();
