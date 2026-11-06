@@ -20,7 +20,7 @@ import { SymbolInformation, SymbolKind } from '../../../vs/workbench/api/common/
 import { EndOfLine, TextEdit } from '../../../vs/workbench/api/common/extHostTypes/textEdit';
 import { AISearchKeyword, ChatErrorLevel, ChatInputNotificationSeverity, ChatQuestion, ChatQuestionType, ChatReferenceBinaryData, ChatReferenceDiagnostic, ChatRequestEditedFileEventKind, ChatRequestEditorData, ChatRequestNotebookData, ChatRequestTurn, ChatRequestTurn2, ChatResponseAnchorPart, ChatResponseAutoModeResolutionPart, ChatResponseClearToPreviousToolInvocationReason, ChatResponseCodeblockUriPart, ChatResponseCodeCitationPart, ChatResponseCommandButtonPart, ChatResponseConfirmationPart, ChatResponseExtensionsPart, ChatResponseExternalEditPart, ChatResponseFileTreePart, ChatResponseHookPart, ChatResponseInfoPart, ChatResponseMarkdownPart, ChatResponseMarkdownWithVulnerabilitiesPart, ChatResponseMovePart, ChatResponseNotebookEditPart, ChatResponseProgressPart, ChatResponseProgressPart2, ChatResponsePullRequestPart, ChatResponseQuestionCarouselPart, ChatResponseReferencePart, ChatResponseReferencePart2, ChatResponseTextEditPart, ChatResponseThinkingProgressPart, ChatResponseTurn, ChatResponseTurn2, ChatResponseVoiceProgressPart, ChatResponseWarningPart, ChatResponseWorkspaceEditPart, ChatSessionStatus, ChatSubagentToolInvocationData, ChatToolInvocationPart, ExcludeSettingOptions, LanguageModelChatApiType, LanguageModelChatMessage, LanguageModelChatMessageRole, LanguageModelChatToolMode, LanguageModelDataPart, LanguageModelDataPart2, LanguageModelError, LanguageModelPartAudience, LanguageModelPromptTsxPart, LanguageModelTextPart, LanguageModelTextPart2, LanguageModelThinkingPart, LanguageModelToolCallPart, LanguageModelToolExtensionSource, LanguageModelToolMCPSource, LanguageModelToolResult, LanguageModelToolResult2, LanguageModelToolResultPart, LanguageModelToolResultPart2, McpHttpServerDefinition, McpStdioServerDefinition, McpToolInvocationContentData, TextSearchMatch2 } from './chatTypes';
 import { TextDocumentChangeReason, TextEditorSelectionChangeKind, WorkspaceEdit } from './editing';
-import { ChatLocation, ChatVariableLevel, DiagnosticSeverity, ExtensionMode, FileType, TextEditorCursorStyle, TextEditorLineNumbersStyle, TextEditorRevealType } from './enums';
+import { ChatLocation, ChatVariableLevel, DiagnosticSeverity, ExtensionMode, FileType, StructuralDiffClassification, StructuralDiffTag, TextEditorCursorStyle, TextEditorLineNumbersStyle, TextEditorRevealType } from './enums';
 import { t } from './l10n';
 import { NewSymbolName, NewSymbolNameTag, NewSymbolNameTriggerKind } from './newSymbolName';
 import { TerminalShellExecutionCommandLineConfidence } from './terminal';
@@ -129,6 +129,8 @@ const shim: typeof vscodeTypes = {
 	ChatRequestTurn2,
 	LanguageModelError: LanguageModelError as any, // Some difference in the definition of Error is breaking this
 	SymbolKind,
+	StructuralDiffClassification,
+	StructuralDiffTag,
 	SnippetString,
 	SnippetTextEdit,
 	FileType,

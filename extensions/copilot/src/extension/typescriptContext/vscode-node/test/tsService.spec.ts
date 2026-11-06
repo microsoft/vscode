@@ -13,11 +13,13 @@ vi.mock('vscode', () => ({}));
 import { TypeScript } from '../tsService';
 
 suite('TypeScript service', () => {
-	test('prefers the current TS7 extension and falls back to the legacy extension', () => {
+	test('prefers the current TS7 extension and falls back to the nightly and the legacy extension', () => {
 		const currentExtensionId = 'typescriptteam.vscode-typescript';
+		const nightlyExtensionId = 'typescriptteam.vscode-typescript-nightly';
 		const legacyExtensionId = 'typescriptteam.native-preview';
 		const scenarios = [
 			[currentExtensionId, legacyExtensionId],
+			[nightlyExtensionId, legacyExtensionId],
 			[legacyExtensionId],
 			[],
 		];
@@ -37,8 +39,9 @@ suite('TypeScript service', () => {
 
 		assert.deepStrictEqual(actual, [
 			{ selected: currentExtensionId, lookups: [currentExtensionId] },
-			{ selected: legacyExtensionId, lookups: [currentExtensionId, legacyExtensionId] },
-			{ selected: undefined, lookups: [currentExtensionId, legacyExtensionId] },
+			{ selected: nightlyExtensionId, lookups: [currentExtensionId, nightlyExtensionId] },
+			{ selected: legacyExtensionId, lookups: [currentExtensionId, nightlyExtensionId, legacyExtensionId] },
+			{ selected: undefined, lookups: [currentExtensionId, nightlyExtensionId, legacyExtensionId] },
 		]);
 	});
 });
