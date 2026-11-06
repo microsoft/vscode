@@ -210,7 +210,8 @@ export class CopilotModelRouter {
 			candidates: routes.map(route => ({ id: route.model.id, name: route.model.name, when: route.route.when, examples: route.route.examples })),
 		};
 		const last = lastSelectionOf(request.previousTurns);
-		const current = routes.find(route => route.model.id === last?.model);
+		// Only this router's own pick is a model to keep: picking a router, or another one, asks for a fresh route.
+		const current = last?.router === router.name ? routes.find(route => route.model.id === last.model) : undefined;
 		return current
 			? this._routeFollowUp(context, current, last?.effort)
 			: this._routeFresh(context, last?.model);
@@ -233,12 +234,12 @@ export class CopilotModelRouter {
 	private async _routeFresh(context: IRouteContext, previousId: string | undefined): Promise<IAgentTurnModelResolution> {
 		const { request, routes, router } = context;
 		const fallback = routes[0];
-		const switchedFrom = previousId ? { switchedFrom: previousId } : {};
+		const switchedFrom = (route: IResolvedModelRoute) => previousId && previousId !== route.model.id ? { switchedFrom: previousId } : {};
 		if (routes.length === 1) {
-			return decision(router, fallback, { ...switchedFrom, ...preferenceOf(fallback) }, [], this._effortFor(context, fallback, undefined));
+			return decision(router, fallback, { ...switchedFrom(fallback), ...preferenceOf(fallback) }, [], this._effortFor(context, fallback, undefined));
 		}
 		if (!request.text.trim()) {
-			return decision(router, fallback, { ...switchedFrom, defaulted: true }, [], this._effortFor(context, fallback, undefined));
+			return decision(router, fallback, { ...switchedFrom(fallback), defaulted: true }, [], this._effortFor(context, fallback, undefined));
 		}
 		let pick: IModelRouterPick;
 		try {
@@ -248,16 +249,16 @@ export class CopilotModelRouter {
 			pick = await request.picker.pick({ text: request.text, candidates: context.candidates, guidance: router.guidance, askEffort: this._asksEffort(context), chat: request.chat });
 		} catch (error) {
 			this._logService.warn(`[ModelRouter] ${request.chat}: pick failed; using ${fallback.model.id}`, error);
-			return decision(router, fallback, { ...switchedFrom, defaulted: true }, [describeFailure(router.name, error, fallback.model.name)], this._effortFor(context, fallback, undefined));
+			return decision(router, fallback, { ...switchedFrom(fallback), defaulted: true }, [describeFailure(router.name, error, fallback.model.name)], this._effortFor(context, fallback, undefined));
 		}
 		const picked = routes.find(route => route.model.id === pick.model);
 		if (!picked || pick.confidence < MIN_PICK_CONFIDENCE) {
 			this._logService.info(`[ModelRouter] ${request.chat}: no confident pick (${pick.model}, ${pick.confidence}); using ${fallback.model.id}`);
-			return decision(router, fallback, { ...switchedFrom, defaulted: true }, [], this._effortFor(context, fallback, pick.effortScore));
+			return decision(router, fallback, { ...switchedFrom(fallback), defaulted: true }, [], this._effortFor(context, fallback, pick.effortScore));
 		}
 		const effort = this._effortFor(context, picked, pick.effortScore);
 		this._logService.info(`[ModelRouter] ${request.chat}: picked ${picked.model.id} (${pick.confidence}) effort=${effort}`);
-		return decision(router, picked, { ...switchedFrom, ...preferenceOf(picked) }, [], effort);
+		return decision(router, picked, { ...switchedFrom(picked), ...preferenceOf(picked) }, [], effort);
 	}
 
 	/** Keeps the chat on its model unless the work has clearly moved on and a switch is worth losing the cache. */
@@ -356,12 +357,12 @@ function finalResponseText(turn: Turn): string {
 	return '';
 }
 
-/** The model and effort the chat last ran on: what the router chose, or what the user picked by hand. */
-function lastSelectionOf(turns: readonly Turn[]): { readonly model: string; readonly effort: string | undefined } | undefined {
+/** The model and effort the chat last ran on, and the router that chose it, if one did. */
+function lastSelectionOf(turns: readonly Turn[]): { readonly model: string; readonly effort: string | undefined; readonly router?: string } | undefined {
 	for (let i = turns.length - 1; i >= 0; i--) {
 		const routed = readUsageInfoMeta(turns[i].usage).modelRouted;
 		if (routed) {
-			return { model: routed.chosenModel, effort: routed.effort };
+			return { model: routed.chosenModel, effort: routed.effort, router: routed.router };
 		}
 		const requested = turns[i].message.model;
 		if (requested && !modelRouterNameFromModelId(requested.id)) {

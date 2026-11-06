@@ -21,6 +21,11 @@ export class ChatAutoModeResolutionContentPart extends ChatThinkingStyleContentP
 
 	private readonly isRouting: boolean;
 
+	/** Whether this is a resolved model-router line, which stays out of the completed-steps disclosure. */
+	get keepVisible(): boolean {
+		return !!this.content.router && !this.isRouting;
+	}
+
 	protected override get collapsibleKind(): string {
 		return 'autoModeResolution';
 	}

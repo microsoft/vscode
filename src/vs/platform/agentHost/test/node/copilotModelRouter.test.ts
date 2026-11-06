@@ -112,4 +112,16 @@ suite('CopilotModelRouter', () => {
 			decideModelRouterSwitch({ currentModel: 'opus', pick, addedContextTokens: 0, turnsSinceSwitch: 1, switches: 1 }),
 		], ['switch', 'hold', 'stay', 'stay']);
 	});
+
+	test('switching to this router, from another router or a hand-picked model, routes afresh', async () => {
+		const picker = new FakePicker({ model: 'opus', confidence: 0.9, probabilities: { opus: 0.9, haiku: 0.1 } });
+		const handPicked = { ...routedTurn({ router: 'x', chosenModel: 'x' }), usage: { inputTokens: 10, outputTokens: 1 }, message: { text: 'earlier', origin: { kind: MessageKind.User }, model: { id: 'haiku' } } } as Turn;
+		const fromOtherRouter = await resolve({ file: routerFile(), picker, previousTurns: [routedTurn({ router: 'other', chosenModel: 'haiku' })] });
+		const fromHandPicked = await resolve({ file: routerFile(), picker, previousTurns: [handPicked] });
+		assert.deepStrictEqual({
+			selections: [fromOtherRouter.selection?.id, fromHandPicked.selection?.id],
+			switchedFrom: [fromOtherRouter.routed?.switchedFrom, fromHandPicked.routed?.switchedFrom],
+			followUps: picker.requests.map(r => !!r.followUp),
+		}, { selections: ['opus', 'opus'], switchedFrom: ['haiku', 'haiku'], followUps: [false, false] });
+	});
 });

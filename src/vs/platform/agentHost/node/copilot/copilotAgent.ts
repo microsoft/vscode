@@ -67,7 +67,7 @@ import { DecisionsGate } from '../../common/decisionsGate.js';
 import { DecisionsModelRouterPicker } from './copilotModelRouterPicker.js';
 import { ModelRouterEnabledConfigKey } from '../../common/modelRouterConfig.js';
 import { CopilotModelRouter } from './copilotModelRouter.js';
-import { CopilotModelRouterCatalog, findModelRouter, UserModelRouterSource } from './copilotModelRouterCatalog.js';
+import { CopilotModelRouterCatalog, findModelRouter, firstModelRouterError, UserModelRouterSource } from './copilotModelRouterCatalog.js';
 import { createCopilotModelRouterTools } from './copilotModelRouterTools.js';
 import { getReasoningEffortDescription, getReasoningEffortLabel, resolveDefaultReasoningEffort } from '../../common/reasoningEffort.js';
 import { createAutoModeTierSupport, DynamicAutoTiersFeatureFlag, getAdvertisedAutoModeTierSupport, getAutoModeTierLabel, getFusionAutoModeTierLabel, setAdvertisedAutoModeTiers, type IAutoModeTierSupport } from '../../common/autoModeTiers.js';
@@ -4087,15 +4087,29 @@ export class CopilotAgent extends Disposable implements IAgent {
 		}
 	}
 
-	/** Adds a row for each valid router, when there are models to route between. Without routers the list is returned as is. */
+	/**
+	 * Adds a row for each router, when there are models to route between. A router with errors
+	 * keeps its row, with a warning, so a typo doesn't silently move chats that use it to another
+	 * model. Without routers the list is returned as is.
+	 */
 	private _withModelRouterRows(models: readonly IAgentModelInfo[]): readonly IAgentModelInfo[] {
 		const files = this._modelRouterCatalog.value?.snapshot?.files;
-		if (!files?.some(file => file.router) || models.length < 2) {
+		if (!files?.length || models.length < 2) {
 			return models;
 		}
-		const rows = files.flatMap(file => file.router
-			? [{ provider: this.id, id: modelRouterModelId(file.name), name: file.name, supportsVision: true, _meta: createModelRouterModelMeta(file.router.description) } satisfies IAgentModelInfo]
-			: []);
+		const rows = files.map((file): IAgentModelInfo => {
+			const error = file.router ? undefined : firstModelRouterError(file);
+			return {
+				provider: this.id,
+				id: modelRouterModelId(file.name),
+				name: file.name,
+				supportsVision: true,
+				_meta: {
+					...createModelRouterModelMeta(file.router?.description ?? localize('modelRouter.rowInvalid', "This router has errors, so chats using it keep their current model. Ask /model-router to fix it.")),
+					...(file.router ? {} : { rowWarning: localize('modelRouter.rowWarning', "{0} has errors: {1}", resourceBasename(file.uri), error ?? '') }),
+				},
+			};
+		});
 		return [...models, ...rows];
 	}
 

@@ -708,7 +708,7 @@ export function systemNotificationToChatPart(content: StringOrMarkdown | undefin
 					: localize('agentHost.workspaceTransition.folder', "Workspace changed. This session is now working directly in {0}.", meta.workspaceName),
 			};
 		case AgentSystemNotificationKind.ModelRouterSuggestion:
-			return { kind: 'systemNotification', content: markdown, icon: Codicon.lightbulb };
+			return { kind: 'systemNotification', content: markdown, icon: Codicon.lightbulb, alwaysVisible: true };
 		case AgentSystemNotificationKind.AutomaticApprovalReviewTimedOut:
 			return { kind: 'systemNotification', content: markdown, icon: Codicon.clock, collapsible: true };
 		case AgentSystemNotificationKind.AutomaticApprovalReviewAborted:
