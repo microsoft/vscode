@@ -5910,7 +5910,7 @@ suite('CopilotAgent', () => {
 		]);
 	});
 
-	test('routes exact legacy targets exclusively and falls back to generic forwarding', async () => {
+	test('routes exact restricted targets and only forwards standard fallback events', async () => {
 		const client = new TestCopilotClient([]);
 		const copilotApiService = new TestCopilotApiService();
 		copilotApiService.restrictedTelemetryContexts.set('restricted-token', {
@@ -5966,6 +5966,7 @@ suite('CopilotAgent', () => {
 		await forward(notification('engine.messages.length', true));
 		await forward(notification('engine.messages', false));
 		await forward(notification('unknown_restricted', true));
+		await forward(notification('tool_call_executed', true));
 		await forward(notification('tool_call_executed', false));
 
 		assert.deepStrictEqual({
@@ -5973,7 +5974,7 @@ suite('CopilotAgent', () => {
 			enhanced: telemetryService.enhancedEvents,
 			internal: telemetryService.internalEvents,
 		}, {
-			generic: ['copilotSdk/unknown_restricted', 'copilotSdk/tool_call_executed'],
+			generic: ['copilotSdk/tool_call_executed'],
 			enhanced: ['engine.messages.length'],
 			internal: ['engine.messages.length'],
 		});

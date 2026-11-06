@@ -101,6 +101,7 @@ export class AgentHostGitHubService extends GitHubService implements IAgentHostG
 		this._synchronizeRepositoryAccount = synchronizeRepositoryAccount;
 		this._register(onDidChangeRepositoryAccount);
 		this._register(onDidChangeRepositoryAccount.event(() => this._resetRepositoryClient()));
+		this._register((_authenticationService.onDidChangeSessionCredentials ?? Event.None)(() => this._resetRepositoryClient()));
 		this._register(_endpointService.onDidChange(() => {
 			hasRepositoryToken = false;
 			repositoryAccountId = selectedAccount();
@@ -139,11 +140,11 @@ export class AgentHostGitHubService extends GitHubService implements IAgentHostG
 
 	/** An explicit operation sponsor takes precedence; otherwise monitoring follows the chat's execution sponsor. */
 	getAgentMergeCredentialSource(chat: string): IAgentHostCredentialSource | undefined {
-		return this.getAgentMergeCredentialBinding(chat) ?? this._authenticationService.getSessionCredentialSource(chat);
+		return this._authenticationService.getSessionCredentialSource(chat, 'agentMerge') ?? this._authenticationService.getSessionCredentialSource(chat);
 	}
 
 	getAgentMergeCredentialBinding(chat: string): IAgentHostCredentialSource | undefined {
-		return this._authenticationService.getSessionCredentialSource(chat, 'agentMerge');
+		return this._authenticationService.getSessionCredentialBinding(chat, 'agentMerge');
 	}
 
 	bindAgentMergeCredentialSource(session: string, chat: string, source: IAgentHostCredentialSource | undefined): void {
@@ -237,6 +238,9 @@ export class AgentHostGitHubService extends GitHubService implements IAgentHostG
 			getCredential: request => source.getCredential({ ...request, session }),
 		}, [resource]);
 		const credential = captured.getCredential({ resource: resource.resource, scopes: resource.scopes_supported, session });
+		if (!credential) {
+			throw new ProtocolError(AhpErrorCodes.AuthRequired, 'GitHub repository authentication is required', { resources: [resource] });
+		}
 		const sourceId = this._credentialSourceIds.get(source) ?? ++this._nextCredentialSourceId;
 		this._credentialSourceIds.set(source, sourceId);
 		const key = JSON.stringify([sourceId, session, credential?.revision, credential?.expiresAt]);
@@ -246,7 +250,7 @@ export class AgentHostGitHubService extends GitHubService implements IAgentHostG
 				onDidChange: Event.map(this._endpointService.onDidChange, () => ({ providerId: 'agent-host-isolated' })),
 				getToken: (context, signal) => {
 					signal.throwIfAborted();
-					if (source.principal && source.principal.apiOrigin !== new URL(this._endpointService.getApiBaseUri()).origin) {
+					if (!this._authenticationService.useLocalCredentials && source.principal && source.principal.apiOrigin !== new URL(this._endpointService.getApiBaseUri()).origin) {
 						return undefined;
 					}
 					const credential = captured.getCredential({ resource: context.sessionId, scopes: context.scopes, session });
@@ -268,7 +272,7 @@ export class AgentHostGitHubService extends GitHubService implements IAgentHostG
 				providerId: 'agent-host-isolated',
 				sessionId: resource.resource,
 				scopes: resource.scopes_supported ?? [],
-				...(source.principal ? { accountId: source.principal.userId } : {}),
+				...(source.principal && !this._authenticationService.useLocalCredentials ? { accountId: source.principal.userId } : {}),
 			},
 			apiBaseUri: this._endpointService.getApiBaseUri(),
 			graphQlUri: this._endpointService.getGraphQlUri(),

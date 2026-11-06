@@ -52,6 +52,34 @@ suite('Agent Host GitHub clients', () => {
 		}, { sameClient: true, sameAccount: true, aborted: true, generation: 2, requests: 2 });
 	});
 
+	test('expiring a shared token preserves the host repository account and client selection', () => runWithFakedTimers({}, async () => {
+		const endpoint = createTestGitHubEndpointService();
+		const resource = endpoint.getRepoResource();
+		const authentication = store.add(new AgentHostAuthenticationService(new NullLogService(), async () => assert.fail('Unexpected identity validation'), {
+			isEnabled: () => true, getResources: () => [resource], onDidChange: Event.None,
+		}));
+		const provider = new class extends mock<IAgent>() {
+			override getProtectedResources() { return [resource]; }
+			override async authenticate() { return true; }
+		}();
+		const account = { providerId: 'github', accountId: '101' };
+		await authentication.authenticate({
+			resource: resource.resource, scopes: resource.scopes_supported, token: 'host-token', expiresIn: 1,
+			_meta: authenticationAccountMeta(account),
+		}, [provider]);
+		const service = store.add(new AgentHostGitHubService({}, authentication, endpoint, new NullLogService(), NullTelemetryService));
+		const signal = new AbortController().signal;
+		const client = store.add(service.acquireRepositoryClient(signal)).object;
+		let resets = 0;
+		store.add(service.onDidChangeRepositoryClient(() => resets++));
+		await timeout(1_001);
+		assert.deepStrictEqual({
+			account: authentication.getAuthAccount({ resource: resource.resource, scopes: resource.scopes_supported }),
+			sameClient: store.add(service.acquireRepositoryClient(signal)).object === client,
+			resets,
+		}, { account, sameClient: true, resets: 0 });
+	}));
+
 	test('concurrent peer chats preserve their exact credential sources', async () => {
 		const endpoint = createTestGitHubEndpointService();
 		const authentication = store.add(new AgentHostAuthenticationService(new NullLogService()));
@@ -68,6 +96,41 @@ suite('Agent Host GitHub clients', () => {
 			return (await client.credentials.getCredential(signal)).token;
 		}));
 		assert.deepStrictEqual(tokens, ['chat-a', 'chat-b']);
+	});
+
+	test('local repository clients use the shared token account rather than the persisted session owner', async () => {
+		const endpoint = createTestGitHubEndpointService();
+		const resource = endpoint.getRepoResource();
+		const authentication = store.add(new AgentHostAuthenticationService(new NullLogService(), async () => assert.fail('Shared token selection must not validate the session owner'), {
+			isEnabled: () => true,
+			getResources: () => [resource, endpoint.getCopilotResource()],
+			onDidChange: Event.None,
+		}));
+		const provider = new class extends mock<IAgent>() {
+			override getProtectedResources() { return [resource]; }
+			override async authenticate() { return true; }
+		}();
+		await authentication.authenticate({ resource: resource.resource, scopes: resource.scopes_supported, token: 'host-token' }, [provider]);
+		authentication.restoreSessionCredentialPrincipal('agent:/restored', { apiOrigin: 'https://api.github.com', userId: '101' });
+		const requests: string[] = [];
+		const service = store.add(new AgentHostGitHubService({
+			fetch: async (url, init) => {
+				requests.push(new Headers(init?.headers).get('authorization')!);
+				return Response.json(new URL(String(url)).pathname === '/user' ? { id: 202 } : createTestGitHubIssue(1));
+			},
+		}, authentication, endpoint, new NullLogService(), NullTelemetryService));
+		const signal = new AbortController().signal;
+		const source = service.captureSessionCredentialSource('agent:/restored');
+		const client = store.add(service.acquireRepositoryClient(signal, source, 'agent:/restored')).object;
+		const credential = await client.credentials.getCredential(signal);
+		const api = store.add(service.acquireRepositoryApiClient(signal, source, 'agent:/restored'));
+		const issue = await api.issues.get({ owner: 'o', repo: 'r' }, 1, signal);
+		assert.deepStrictEqual({
+			token: credential.token,
+			accountId: credential.account.accountId,
+			issue: issue.number,
+			requests,
+		}, { token: 'host-token', accountId: '202', issue: 1, requests: ['Bearer host-token', 'Bearer host-token', 'Bearer host-token'] });
 	});
 
 	test('portable clients isolate sponsors and sessions while sharing live leases', async () => {

@@ -158,7 +158,7 @@ suite('Agent Host PR test selection', () => {
 		]);
 	});
 
-	test('Linux and Windows run Agent Host E2E in their own jobs, macOS in the Electron job; all propagate the profile and fail open when detection is unavailable', () => {
+	test('Linux and Windows run Agent Host E2E in their own jobs, pr-darwin-test.yml in its Electron job; all propagate the profile and fail open when detection is unavailable', () => {
 		interface IStep { id?: string; name?: string; if?: string; run?: string; uses?: string; with?: Record<string, string>; env?: Record<string, string> }
 		interface IJob { name?: string; needs?: string; if?: string; uses?: string; with?: Record<string, unknown>; env?: Record<string, unknown>; outputs?: Record<string, string>; steps?: IStep[] }
 		const action = load(readFileSync(path.join(repositoryRoot, '.github/actions/detect-agent-host-e2e-changes/action.yml'), 'utf8')) as {
@@ -170,7 +170,8 @@ suite('Agent Host PR test selection', () => {
 		const checkout = changes.steps?.find(step => step.uses?.startsWith('actions/checkout@'));
 		const profile = '${{ needs.changes.outputs.agent-host-test-profile || \'full\' }}';
 		const reason = '${{ needs.changes.outputs.agent-host-test-profile-reason || \'Change detection unavailable\' }}';
-		const callers = [['linux-tests', 'linux'], ['macos-tests', 'darwin'], ['windows-tests', 'win32']].map(([id, platform]) => {
+		// pr.yml does not call pr-darwin-test.yml while its macos-tests job is commented out.
+		const callers = [['linux-tests', 'linux'], ['windows-tests', 'win32']].map(([id, platform]) => {
 			const caller = pr.jobs[id];
 			const { jobs } = load(readFileSync(path.join(repositoryRoot, `.github/workflows/pr-${platform}-test.yml`), 'utf8')) as { jobs: Record<string, IJob> };
 			// A value of a job of the reusable workflow or, when it is an input of the workflow, the value that the calling job passes.
@@ -249,7 +250,6 @@ suite('Agent Host PR test selection', () => {
 				affected: changes.outputs?.['agent-host-e2e'],
 				profile: changes.outputs?.['agent-host-test-profile'],
 				reason: changes.outputs?.['agent-host-test-profile-reason'],
-				electronTests: changes.outputs?.['electron-tests'],
 			},
 			callers,
 			platforms,
@@ -261,10 +261,8 @@ suite('Agent Host PR test selection', () => {
 				affected: '${{ steps.detect-agent-host-e2e.outputs.affected }}',
 				profile: '${{ steps.detect-agent-host-e2e.outputs.profile }}',
 				reason: '${{ steps.detect-agent-host-e2e.outputs.reason }}',
-				// The macOS Electron job runs when either its integration tests or Agent Host E2E can be affected.
-				electronTests: '${{ steps.detect.outputs.product-tests == \'true\' || steps.detect-agent-host-e2e.outputs.affected == \'true\' }}',
 			},
-			callers: ['linux', 'darwin', 'win32'].map(platform => {
+			callers: ['linux', 'win32'].map(platform => {
 				const agentHostJob = (shard?: string) => ({
 					// Runs when detection fails.
 					affected: '${{ needs.changes.result != \'success\' || needs.changes.outputs.selected-agent-host-e2e == \'true\' }}',
@@ -277,29 +275,18 @@ suite('Agent Host PR test selection', () => {
 					if: '${{ !cancelled() }}',
 					profile,
 					reason,
-					...platform === 'darwin' ? {
-						// macOS runs Agent Host E2E in its Electron job when the plan also selects one of its suites.
-						agentHost: {},
-						integration: {
-							affected: '${{ needs.changes.result != \'success\' || needs.changes.outputs.electron-tests == \'true\' }}',
-							agentHostTests: '${{ needs.changes.result != \'success\' || needs.changes.outputs.selected-agent-host-e2e == \'true\' }}',
-							integrationTests: 'true',
-							shard: undefined,
-						},
-					} : {
-						// Linux runs it in its own job, Windows in three shards, when the plan also selects one of its suites.
-						agentHost: platform === 'linux' ? { 'Agent-Host-E2E': agentHostJob() } : {
-							'Agent-Host-E2E (shard 1/3)': agentHostJob('1/3'),
-							'Agent-Host-E2E (shard 2/3)': agentHostJob('2/3'),
-							'Agent-Host-E2E (shard 3/3)': agentHostJob('3/3'),
-						},
-						integration: {
-							// Linux and Windows skip their node.js integration tests job when the plan selects none of them.
-							affected: '${{ needs.changes.result != \'success\' || needs.changes.outputs.selected-node-integration-tests == \'true\' }}',
-							agentHostTests: undefined,
-							integrationTests: 'true',
-							shard: undefined,
-						},
+					// Linux runs it in its own job, Windows in three shards, when the plan also selects one of its suites.
+					agentHost: platform === 'linux' ? { 'Agent-Host-E2E': agentHostJob() } : {
+						'Agent-Host-E2E (shard 1/3)': agentHostJob('1/3'),
+						'Agent-Host-E2E (shard 2/3)': agentHostJob('2/3'),
+						'Agent-Host-E2E (shard 3/3)': agentHostJob('3/3'),
+					},
+					integration: {
+						// Linux and Windows skip their node.js integration tests job when the plan selects none of them.
+						affected: '${{ needs.changes.result != \'success\' || needs.changes.outputs.selected-node-integration-tests == \'true\' }}',
+						agentHostTests: undefined,
+						integrationTests: 'true',
+						shard: undefined,
 					},
 				};
 			}),

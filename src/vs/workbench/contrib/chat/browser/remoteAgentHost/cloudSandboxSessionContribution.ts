@@ -36,6 +36,7 @@ import {
 	type ICloudSandboxPreparedReservation,
 	type ICloudSandboxDiscoveryResult,
 	type ICloudSandboxDiscoveryOptions,
+	type ICloudSandboxDiscoveryDiagnostics,
 	type ICloudSandboxDiscoveredSession,
 } from '../../../../../platform/agentHost/common/cloudSandboxAgentHost.js';
 import { AgentSession, type IAgentSessionMetadata } from '../../../../../platform/agentHost/common/agent.js';
@@ -190,6 +191,7 @@ export abstract class CloudSandboxSessionContribution<T extends ICloudSandboxSes
 	/** Serializes discovery so overlapping triggers can't interleave reconciliation. */
 	private _discoveryInFlight: Promise<void> | undefined;
 	private _discoveryQueued: Promise<void> | undefined;
+	private _discoveryDiagnostics: { coalescedRequestCount: number; coalescedTrigger?: CloudSandboxDiscoveryTrigger | 'multiple' } | undefined;
 	private _queuedDiscoveryRequest: ICloudSandboxDiscoveryRequest | undefined;
 	private _taskRefreshInFlight: Promise<void> | undefined;
 	private _taskRefreshQueued: Promise<void> | undefined;
@@ -356,11 +358,24 @@ export abstract class CloudSandboxSessionContribution<T extends ICloudSandboxSes
 		if (this._discoveryInFlight) {
 			if (!retry && this._discoveryToken === this._enabledCts.token && (incremental || !this._discoveryIncremental)
 				&& (!this._archivesRequested || this._discoveryIncludesArchived)) {
+				if (this._discoveryDiagnostics) {
+					this._discoveryDiagnostics.coalescedRequestCount++;
+					const previous = this._discoveryDiagnostics.coalescedTrigger;
+					this._discoveryDiagnostics.coalescedTrigger = previous === undefined || previous === trigger ? trigger : 'multiple';
+				}
 				return this._discoveryQueued ?? this._discoveryInFlight;
 			}
+			const coalescedRequestCount = this._queuedDiscoveryRequest ? (this._queuedDiscoveryRequest.diagnostics?.coalescedRequestCount ?? 0) + 1 : 0;
+			const previousTrigger = this._queuedDiscoveryRequest?.diagnostics?.coalescedTrigger;
+			const mergedTrigger = this._queuedDiscoveryRequest ? incremental ? trigger : this._queuedDiscoveryRequest.trigger ?? 'manual' : undefined;
+			const coalescedTrigger = previousTrigger === undefined || previousTrigger === mergedTrigger ? mergedTrigger : 'multiple';
 			if (!this._queuedDiscoveryRequest || !incremental) {
 				this._queuedDiscoveryRequest = request;
 			}
+			this._queuedDiscoveryRequest = {
+				...this._queuedDiscoveryRequest,
+				diagnostics: { queued: true, coalescedRequestCount, coalescedTrigger },
+			};
 			this._discoveryQueued ??= this._discoveryInFlight.then(() => {
 				const queued = this._queuedDiscoveryRequest;
 				this._discoveryQueued = undefined;
@@ -370,13 +385,28 @@ export abstract class CloudSandboxSessionContribution<T extends ICloudSandboxSes
 			return this._discoveryQueued;
 		}
 		const now = Date.now();
+		const previousInventoryAgeMs = this._lastDiscoveryAttempt === undefined ? undefined : Math.max(0, now - this._lastDiscoveryAttempt);
+		const lastFullAgeMs = this._lastFullDiscovery === undefined ? undefined : Math.max(0, now - this._lastFullDiscovery);
 		this._lastDiscoveryAttempt = now;
 		this._discoveryIncremental = incremental && this._lastFullDiscovery !== undefined
 			&& now - this._lastFullDiscovery < FULL_DISCOVERY_INTERVAL_MS;
 		this._discoveryToken = this._enabledCts.token;
 		this._discoveryIncludesArchived = this._archivesRequested;
-		this._discoveryInFlight = this._doDiscoverAndSeed(this._discoveryToken, this._discoveryIncremental, trigger, taskIds).finally(() => {
+		const diagnostics = {
+			intentMode: incremental ? 'incremental' : 'full',
+			fullScanReason: this._discoveryIncremental ? 'notFull'
+				: incremental ? this._lastFullDiscovery === undefined ? 'initial' : 'reconciliationDue'
+					: trigger === 'startup' ? 'initial' : trigger === 'feedReconnect' ? 'reconnectPolicy'
+						: trigger === 'accountChange' || trigger === 'configurationChange' ? trigger : 'requestedFull',
+			previousInventoryAgeMs, lastFullAgeMs,
+			queued: request.diagnostics?.queued ?? false,
+			coalescedRequestCount: request.diagnostics?.coalescedRequestCount ?? 0,
+			coalescedTrigger: request.diagnostics?.coalescedTrigger,
+		} satisfies ICloudSandboxDiscoveryDiagnostics;
+		this._discoveryDiagnostics = diagnostics;
+		this._discoveryInFlight = this._doDiscoverAndSeed(this._discoveryToken, this._discoveryIncremental, trigger, taskIds, diagnostics).finally(() => {
 			this._discoveryInFlight = undefined;
+			this._discoveryDiagnostics = undefined;
 			this._discoveryToken = undefined;
 			this._rearmDiscoveryPoll();
 		});
@@ -435,7 +465,7 @@ export abstract class CloudSandboxSessionContribution<T extends ICloudSandboxSes
 		return this._taskRefreshInFlight;
 	}
 
-	private async _doDiscoverAndSeed(token: CancellationToken, incremental: boolean, trigger: CloudSandboxDiscoveryTrigger, taskIds?: readonly string[]): Promise<void> {
+	private async _doDiscoverAndSeed(token: CancellationToken, incremental: boolean, trigger: CloudSandboxDiscoveryTrigger, taskIds?: readonly string[], diagnostics?: ICloudSandboxDiscoveryDiagnostics): Promise<void> {
 		let result: ICloudSandboxDiscoveryResult;
 		// Keep the scope fixed across authentication so it matches the in-flight coalescing flag.
 		const includeArchived = this._archivesRequested;
@@ -452,6 +482,9 @@ export abstract class CloudSandboxSessionContribution<T extends ICloudSandboxSes
 				token = this._enabledCts.token;
 				this._discoveryToken = token;
 				this._discoveryIncremental = incremental = false;
+				if (diagnostics && trigger !== 'startup') {
+					Object.assign(diagnostics, { fullScanReason: 'accountChange' });
+				}
 				taskIds = undefined;
 				this._lastDiscoveryAttempt = Date.now();
 			}
@@ -473,7 +506,7 @@ export abstract class CloudSandboxSessionContribution<T extends ICloudSandboxSes
 				this._discoveryPoll.schedule(this._nextPollDelay());
 			}
 			const mutationVersion = this._sessionMutationVersion;
-			result = await this._apiService.listSessions(token, { incremental, includeArchived, trigger, ...(taskIds ? { taskIds } : {}) });
+			result = await this._apiService.listSessions(token, { incremental, includeArchived, trigger, ...(taskIds ? { taskIds } : {}), ...(diagnostics ? { diagnostics } : {}) });
 			const retryTaskIds = taskIds && (result.kind === 'failed' ? taskIds : result.kind === 'partial' ? result.failedTaskIds : undefined);
 			if (retryTaskIds?.length && !token.isCancellationRequested && this._isEnabled()
 				&& this._configurationService.getValue<boolean>(CloudSandboxSessionFeedEnabledSettingId) === true) {
