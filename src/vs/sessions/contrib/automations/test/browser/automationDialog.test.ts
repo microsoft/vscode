@@ -22,6 +22,7 @@ import { DisposableStore, toDisposable } from '../../../../../base/common/lifecy
 import { autorun, constObservable, IObservable, observableValue, transaction } from '../../../../../base/common/observable.js';
 import { isEqual, joinPath } from '../../../../../base/common/resources.js';
 import { ResourceSet } from '../../../../../base/common/map.js';
+import { hasKey } from '../../../../../base/common/types.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { mock, upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
@@ -544,7 +545,7 @@ suite('Automation dialog creation', () => {
 		};
 		edit.cancelButton.click();
 		await edit.result;
-		assert.deepStrictEqual({ template, editing, queries: dialog.requests.map(request => request.options.query), commits }, {
+		assert.deepStrictEqual({ template, editing, queries: dialog.requests.map(({ options }) => hasKey(options, { query: true }) ? options.query : options.kind), commits }, {
 			template: { guided: false, nameFocused: true }, editing: { guided: false, modeSwitch: null },
 			queries: ['/automate Review changes'], commits: 0,
 		});
@@ -565,7 +566,7 @@ suite('Automation dialog creation', () => {
 		dialog.setSendError(undefined);
 		dialog.saveButton.click();
 		await dialog.result;
-		assert.deepStrictEqual({ failure, queries: dialog.requests.map(request => request.options.query), opened: dialog.opened }, {
+		assert.deepStrictEqual({ failure, queries: dialog.requests.map(({ options }) => hasKey(options, { query: true }) ? options.query : options.kind), opened: dialog.opened }, {
 			failure: { open: true, message: 'The selected harness is unavailable.', canRetry: true, opened: [] },
 			queries: ['/automate Review changes', '/automate Review changes'],
 			opened: [{ resource: dialog.session.resource, dialogOpen: false, inputDisposed: true }],
