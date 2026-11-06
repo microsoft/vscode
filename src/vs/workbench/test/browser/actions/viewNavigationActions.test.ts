@@ -330,6 +330,61 @@ suite('Workbench view navigation: command integration', () => {
 		}), { id: 'f', focus: true });
 	});
 
+
+	test('hidden sidebar part is not navigated even if its view container stays active', async () => {
+		const harness = createFocusHarness();
+		harness.setPartVisible(ViewContainerLocation.Sidebar, false);
+		harness.setFocused(undefined);
+		assert.deepStrictEqual(await navigate(harness, {
+			direction: 'next', scope: 'workbench'
+		}), { id: 'd', focus: true });
+		assert.deepStrictEqual(harness.headerFocusCalls, []);
+	});
+
+	test('hidden auxiliary bar part is skipped during workbench traversal', async () => {
+		const harness = createFocusHarness();
+		harness.setPartVisible(ViewContainerLocation.AuxiliaryBar, false);
+		harness.setFocused('c');
+		assert.deepStrictEqual(await navigate(harness, {
+			direction: 'next', scope: 'workbench'
+		}), { id: 'f', focus: true });
+	});
+
+	test('hidden panel part is excluded from wraparound navigation', async () => {
+		const harness = createFocusHarness();
+		harness.setPartVisible(ViewContainerLocation.Panel, false);
+		harness.setFocused('e');
+		assert.deepStrictEqual(await navigate(harness, {
+			direction: 'next', scope: 'workbench'
+		}), { id: 'a', focus: true });
+	});
+
+	test('all hidden layout parts leave navigation focus unchanged', async () => {
+		const harness = createFocusHarness();
+		for (const location of [
+			ViewContainerLocation.Sidebar,
+			ViewContainerLocation.AuxiliaryBar,
+			ViewContainerLocation.Panel
+		]) {
+			harness.setPartVisible(location, false);
+		}
+		await navigate(harness, { direction: 'next', scope: 'workbench' });
+		assert.deepStrictEqual(harness.calls, []);
+		assert.deepStrictEqual(harness.headerFocusCalls, []);
+	});
+
+	test('collapsed headers inside a hidden auxiliary bar are not focus targets', async () => {
+		const harness = createFocusHarness();
+		harness.setPartVisible(ViewContainerLocation.AuxiliaryBar, false);
+		harness.setCollapsed('d', true);
+		harness.setFocused('c');
+		assert.deepStrictEqual(await navigate(harness, {
+			direction: 'next', scope: 'workbench'
+		}), { id: 'f', focus: true });
+		assert.deepStrictEqual(harness.headerFocusCalls, []);
+		assert.strictEqual(harness.isCollapsed('d'), true);
+	});
+
 	test('a hidden container does not appear in the navigation sequence', async () => {
 		const harness = createFocusHarness();
 		harness.setVisible(ViewContainerLocation.AuxiliaryBar, false);
