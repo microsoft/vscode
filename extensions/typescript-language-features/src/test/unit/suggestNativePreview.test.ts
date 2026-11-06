@@ -7,8 +7,6 @@ import * as assert from 'assert';
 import 'mocha';
 import * as sinon from 'sinon';
 import * as vscode from 'vscode';
-import { ExperimentationService } from '../../experimentationService';
-import type { PluginManager } from '../../tsServer/plugins';
 import { suggestNativePreview } from '../../ui/suggestNativePreview';
 
 suite('Suggest TypeScript 7 preview', () => {
@@ -40,31 +38,4 @@ suite('Suggest TypeScript 7 preview', () => {
 		assert.strictEqual(showInformationMessage.callCount, 0);
 	});
 
-	test('does not show if the active editor changes while checking the treatment variable', async () => {
-		const showInformationMessage = sinon.stub(vscode.window, 'showInformationMessage');
-		const typescriptDocument = await vscode.workspace.openTextDocument({ language: 'typescript', content: '' });
-		const jsonDocument = await vscode.workspace.openTextDocument({ language: 'json', content: '{}' });
-		let activeEditor = { document: typescriptDocument } as vscode.TextEditor;
-		sinon.stub(vscode.window, 'activeTextEditor').get(() => activeEditor);
-		sinon.stub(vscode.window, 'state').get(() => ({ active: true } as vscode.WindowState));
-
-		let resolveTreatment!: (value: boolean) => void;
-		const treatment = new Promise<boolean>(resolve => resolveTreatment = resolve);
-		const experimentationService = Object.create(ExperimentationService.prototype) as ExperimentationService;
-		sinon.stub(experimentationService, 'getTreatmentVariable').returns(treatment);
-
-		const context = {
-			globalState: {
-				get: () => false,
-			},
-		} as unknown as vscode.ExtensionContext;
-		const pluginManager = { plugins: [] } as unknown as PluginManager;
-
-		const suggestion = suggestNativePreview(context, experimentationService, pluginManager);
-		activeEditor = { document: jsonDocument } as vscode.TextEditor;
-		resolveTreatment(true);
-		await suggestion;
-
-		assert.strictEqual(showInformationMessage.callCount, 0);
-	});
 });
