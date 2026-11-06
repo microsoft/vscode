@@ -20,9 +20,10 @@ suite('CopilotAgent.askDecisions', () => {
 
 	const askDecisions = (CopilotAgent.prototype as unknown as { askDecisions: AskDecisions }).askDecisions;
 
-	function agentWith(rpc: object) {
+	function agentWith(rpc: object, hostToken: string | undefined = 'host') {
 		const client = { rpc };
 		return {
+			_githubCredentials: { token: hostToken },
 			_ensureClient: async () => client,
 			_decisionsGates: new WeakMap(),
 			_gitHubEndpointService: { getCopilotResource: () => ({ resource: 'https://api.github.com', scopes_supported: [] }) },
@@ -36,7 +37,12 @@ suite('CopilotAgent.askDecisions', () => {
 		assert.deepStrictEqual(agentDecisionErrorData(error), { kind: 'unavailable' });
 	});
 
-	test('asks as the caller\'s account, with one gate per account', async () => {
+	test('is unauthenticated without a host or caller token', async () => {
+		const error = await askDecisions.call(agentWith({ decisions: { ask: async () => answer } }, ''), request, undefined, CancellationToken.None).catch(e => e);
+		assert.deepStrictEqual(agentDecisionErrorData(error), { kind: 'unauthenticated' });
+	});
+
+	test('asks as the caller\'s account, or the host\'s, with one gate per account', async () => {
 		const asked: (string | undefined)[] = [];
 		const agent = agentWith({
 			decisions: {
@@ -56,6 +62,6 @@ suite('CopilotAgent.askDecisions', () => {
 			await call(credentials('limited')),
 			await call(credentials('other')),
 		], ['ok', 'rateLimited', 'rateLimited', 'ok']);
-		assert.deepStrictEqual(asked, [undefined, 'limited', 'other'], 'the rate-limited account\'s second call never reached the runtime');
+		assert.deepStrictEqual(asked, ['host', 'limited', 'other'], 'the rate-limited account\'s second call never reached the runtime');
 	});
 });

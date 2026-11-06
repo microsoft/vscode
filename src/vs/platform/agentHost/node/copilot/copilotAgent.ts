@@ -4139,6 +4139,12 @@ export class CopilotAgent extends Disposable implements IAgent {
 				throw new AgentDecisionsUnavailableError({ kind: 'unauthenticated' });
 			}
 			gitHubToken = credential.token;
+		} else {
+			// The runtime has no account of its own; sessions get the host's token, and so do decisions.
+			gitHubToken = this._githubCredentials.token;
+		}
+		if (!gitHubToken) {
+			throw new AgentDecisionsUnavailableError({ kind: 'unauthenticated' });
 		}
 		const client = await raceCancellationError(this._ensureClient(), token);
 		// Feature-detected until the SDK in use ships `decisions.ask`.
@@ -4152,11 +4158,11 @@ export class CopilotAgent extends Disposable implements IAgent {
 			gates = new LRUCache<string, DecisionsGate>(20);
 			this._decisionsGates.set(client, gates);
 		}
-		const key = gitHubToken ?? '';
-		let gate = gates.get(key);
+		let gate = gates.get(gitHubToken);
 		if (!gate) {
-			gate = new DecisionsGate(decisionsRequest => ask({ ...decisionsRequest, ...(gitHubToken !== undefined ? { gitHubToken } : {}) }));
-			gates.set(key, gate);
+			const accountToken = gitHubToken;
+			gate = new DecisionsGate(decisionsRequest => ask({ ...decisionsRequest, gitHubToken: accountToken }));
+			gates.set(gitHubToken, gate);
 		}
 		return gate.ask(request, token);
 	}
