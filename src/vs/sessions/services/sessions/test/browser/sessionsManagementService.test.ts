@@ -4793,9 +4793,10 @@ suite('SessionsManagementService', () => {
 			disposables.add(canvasService.registerCanvas(upcastPartial<IWindowCanvasDescriptor>({ id: 'inbox' })));
 			await view.openSession(session.resource);
 			const active = view.activePane.get();
+			const activeSession = activeSessionOf(view);
 			await canvasService.openCanvas('inbox');
 			focusPane.fire(view.activePane.get()!.id);
-			const unchanged = active === view.activePane.get() && active?.session.get() === activeSessionOf(view);
+			const unchanged = !!active && active === view.activePane.get() && activeSession === activeSessionOf(view);
 			await view.openPreviousSession();
 			assert.deepStrictEqual({ unchanged, canvas: canvasService.activeCanvasOpen.get()?.id }, { unchanged: true, canvas: 'inbox' });
 		});
