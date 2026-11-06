@@ -4937,7 +4937,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 				toolbarMenuId: Menus.SessionItemToolbar,
 				toolbarTelemetrySource: 'sessionsList.row',
 				getAdditionalContextKeys: (session, reader) => [[SessionItemInboxStateContext.key,
-					this.options.grouping() === SessionsGrouping.Inbox ? this._sessionsListModelService.getInboxState(session, reader)?.kind ?? '' : '']],
+				this.options.grouping() === SessionsGrouping.Inbox ? this._sessionsListModelService.getInboxState(session, reader)?.kind ?? '' : '']],
 				inlineRename: true,
 				contextViewService: this.contextViewService,
 				onDidDoubleClickRename: session => this.preservePendingOpenFocus(session),
@@ -9891,12 +9891,12 @@ export function groupSessionsForList(
 				|| b.updatedAt.get().getTime() - a.updatedAt.get().getTime()),
 		}))
 		: grouping === SessionsGrouping.Workspace
-		? groupByWorkspace(regular)
-		: grouping === SessionsGrouping.Repository
-			? groupByRepository(regular)
-			: grouping === SessionsGrouping.Environment
-				? groupByEnvironment(regular, normalizedEnvironments)
-				: groupByDate(regular, sorting, getSortKey)));
+			? groupByWorkspace(regular)
+			: grouping === SessionsGrouping.Repository
+				? groupByRepository(regular)
+				: grouping === SessionsGrouping.Environment
+					? groupByEnvironment(regular, normalizedEnvironments)
+					: groupByDate(regular, sorting, getSortKey)));
 
 	if (external.length > 0) {
 		sections.push({ id: EXTERNAL_SESSIONS_SECTION_ID, label: localize('externalSessionsSection', "External"), sessions: external });
