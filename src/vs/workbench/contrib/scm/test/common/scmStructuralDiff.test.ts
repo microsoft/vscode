@@ -419,14 +419,14 @@ suite('SCM structural diff model', () => {
 		}, { current: true, released: [], changes: [] });
 	});
 
-	for (const invalidate of ['release', 'group', 'provider', 'clear'] as const) {
+	for (const invalidate of ['release', 'group', 'provider', 'hide'] as const) {
 		test(`disposes model references and invalidates previous results on ${invalidate}`, async () => {
 			const children = await model.getChildren(resource);
 			switch (invalidate) {
 				case 'release': model.release(resource); break;
 				case 'group': model.invalidateGroup(group); break;
 				case 'provider': model.invalidateProvider(group.provider); break;
-				case 'clear': model.clear(); break;
+				case 'hide': model.setVisible(false); model.setVisible(true); break;
 			}
 			const previousIsCurrent = model.isCurrent(children[0]);
 			const next = await model.getChildren(resource);
@@ -584,14 +584,29 @@ suite('SCM structural diff model', () => {
 		});
 	});
 
-	test('disposes late model references after the view is cleared', async () => {
+	test('disposes late model references after the view is hidden', async () => {
 		resolver.blockOriginal = new DeferredPromise<void>();
 		const pending = model.getChildren(resource);
-		model.clear();
+		model.setVisible(false);
 		await resolver.blockOriginal.complete();
 		assert.deepStrictEqual({
 			children: await pending, requested: resolver.requested, released: resolver.released, calls: provider.calls,
 		}, { children: [], requested: [original.uri], released: [original.uri], calls: 0 });
+	});
+
+	test('analyzes no files while the view is hidden, even when its tree asks for children, and keeps them expandable', async () => {
+		await model.getChildren(resource);
+		model.setVisible(false);
+		const hidden = {
+			children: await model.getChildren(resource), expandable: model.hasChildren(resource),
+			requested: resolver.requested.length, released: [...resolver.released], calls: provider.calls,
+		};
+		model.setVisible(true);
+		const shown = await model.getChildren(resource);
+		assert.deepStrictEqual({ hidden, shown: shown.map(getSCMStructuralDiffLabel), requested: resolver.requested.length, calls: provider.calls }, {
+			hidden: { children: [], expandable: true, requested: 2, released: [original.uri, modified.uri], calls: 1 },
+			shown: ['Calculator'], requested: 4, calls: 2,
+		});
 	});
 
 	test('surfaces resolution errors as a status row and releases acquired models', async () => {
