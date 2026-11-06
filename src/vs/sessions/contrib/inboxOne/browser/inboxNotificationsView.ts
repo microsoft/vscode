@@ -1743,7 +1743,6 @@ export class InboxNotificationsView extends Disposable implements IWindowCanvas 
 			this.createChatContentPartRenderContext(),
 			{
 				shouldAutoFocus: false,
-				hideDuplicateDetailedMessage: true,
 				onSubmit: answers => {
 					this.logInboxInteraction('submitQuestionCarousel', 'inlineQuestionCarousel', item);
 					void this.submitQuestionCarouselPart(item, part, answers);
