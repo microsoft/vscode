@@ -44,7 +44,7 @@ import { TestNotificationService } from '../../../../../../platform/notification
 import { isIMenuItem, MenuRegistry } from '../../../../../../platform/actions/common/actions.js';
 import { MenuService } from '../../../../../../platform/actions/common/menuService.js';
 import { Menus } from '../../../../../../workbench/contrib/sessions/browser/menus.js';
-import '../../../../../../workbench/contrib/sessions/providers/remoteAgentHost/browser/missionControlAgentHostContribution.js';
+import '../../browser/missionControlAgentHost.contribution.js';
 import { getSessionCreationEnvironments } from '../../../../../../workbench/contrib/sessions/browser/chat/sessionEnvironmentPicker.js';
 import { IWSLRemoteAgentHostService } from '../../../../../../platform/agentHost/common/wslRemoteAgentHost.js';
 import { IQuickInputService } from '../../../../../../platform/quickinput/common/quickInput.js';

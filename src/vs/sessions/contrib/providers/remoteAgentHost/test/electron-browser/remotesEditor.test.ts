@@ -24,7 +24,6 @@ import { ContextKeyValue } from '../../../../../../platform/contextkey/common/co
 import { IEditorOptions } from '../../../../../../platform/editor/common/editor.js';
 import { ConfigurationTarget } from '../../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
-import { ISharedProcessService } from '../../../../../../platform/ipc/electron-browser/services.js';
 import { INACTIVE_TUNNEL_MODE, IRemoteTunnelService, TunnelMode, TunnelStatus } from '../../../../../../platform/remoteTunnel/common/remoteTunnel.js';
 import { ITelemetryService } from '../../../../../../platform/telemetry/common/telemetry.js';
 import { TestExperimentTriggerTelemetryService } from '../../../../../../platform/telemetry/test/common/experimentTriggerTestUtils.js';
@@ -100,7 +99,6 @@ suite('RemotesEditor', () => {
 		instantiation.stub(ITelemetryService, telemetry);
 		instantiation.stub(ISSHRemoteAgentHostService, {});
 		instantiation.stub(IPreferencesService, {});
-		instantiation.stub(ISharedProcessService, { getChannel: () => ({ call: async (): Promise<never> => { throw new Error('Unexpected IPC call'); }, listen: () => Event.None }) });
 		const tunnel = store.add(new TestRemoteTunnelService());
 		instantiation.stub(IRemoteTunnelService, tunnel);
 		instantiation.stub(IMissionControlSharingService, new class extends mock<IMissionControlSharingService>() {
