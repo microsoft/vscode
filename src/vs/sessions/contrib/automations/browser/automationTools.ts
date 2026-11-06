@@ -697,7 +697,7 @@ The change uses the current tool-approval policy. When approval is required, the
 					expectedAutomationId: proposal.existing.id,
 					expectedEditableState: serializeAutomationEditableState(proposal.existing),
 				}
-				: undefined,
+				: { kind: 'input', rawInput: context.parameters, editable: false },
 		};
 	}
 

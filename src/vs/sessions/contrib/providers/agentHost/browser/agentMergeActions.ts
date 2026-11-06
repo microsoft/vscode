@@ -183,7 +183,7 @@ abstract class AgentMergeActionBase extends Action2 {
 		}
 		const target = resolveSessionCommandTarget(accessor, [sessionArg]);
 		const session = target?.session;
-		const provider = session && accessor.get(ISessionsProvidersService).getProvider(session.providerId);
+		const provider = session && accessor.get(ISessionsProvidersService).getProvider(session.providerId, session.sessionId);
 		return session && provider && isAgentHostProvider(provider) ? { session, provider, chat: (target.chat ?? session.mainChat.get()).resource } : undefined;
 	}
 

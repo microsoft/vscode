@@ -16,8 +16,8 @@ import { bindContextKey } from '../../../../../platform/observable/common/platfo
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
 import { getMainWindowHost, ISessionHost, ISessionHostService } from '../sessionHost.js';
 import { ServicesAccessor } from '../../../../../platform/instantiation/common/instantiation.js';
-import { BRANCH_CHANGES_CHANGESET_ID, IChat, ISession, ISessionChangeset, ISessionChangesetOperation, ISessionChangesSummary, ISessionFileChange, ISessionWorkspace, sessionFileChangesEqual, SESSION_CHANGES_CHANGESET_ID, SessionChangesetOperationScope, SessionStatus } from '../../common/session.js';
-import { IActiveSession, IHostSession, ISessionsManagementService } from '../../common/sessionsManagement.js';
+import { BRANCH_CHANGES_CHANGESET_ID, IChat, ISession, ISessionChangeset, ISessionChangesetOperation, ISessionChangesSummary, ISessionFileChange, ISessionWorkspace, isSessionCreated, sessionFileChangesEqual, SESSION_CHANGES_CHANGESET_ID, SessionChangesetOperationScope } from '../../common/session.js';
+import { ISessionsManagementService } from '../../common/sessionsManagement.js';
 import { AGENT_FEEDBACK_NEW_SESSION_RESOURCE, IAgentFeedbackService } from '../agentFeedback.js';
 import { AgentFeedbackState } from '../agentFeedbackModel.js';
 import { ICodeReviewService, PRReviewStateKind } from '../codeReviewService.js';
@@ -134,7 +134,7 @@ export class ChangesViewService extends Disposable implements IChangesViewServic
 	private readonly _changesetSelectionsBySession = new ResourceMap<ISessionChangesetSelections>();
 	private readonly _changesetSelectionChanged = observableSignal('changesView.changesetSelectionChanged');
 
-	setChangesetId(changesetId: string | undefined, session?: IHostSession, chat?: IChat): void {
+	setChangesetId(changesetId: string | undefined, session?: ISession, chat?: IChat): void {
 		const activeSession = session ?? this._mainWindowHost.session.get();
 		const activeChat = session ? chat : this._mainWindowHost.chat.get();
 		if (!activeSession || !activeChat) {
@@ -158,7 +158,7 @@ export class ChangesViewService extends Disposable implements IChangesViewServic
 		});
 	}
 
-	showChangeset(changeset: ISessionChangeset, session?: IHostSession, chat?: IChat): void {
+	showChangeset(changeset: ISessionChangeset, session?: ISession, chat?: IChat): void {
 		const activeSession = session ?? this._mainWindowHost.session.get();
 		const activeChat = session ? chat : this._mainWindowHost.chat.get();
 		if (!activeSession || !activeChat) {
@@ -292,10 +292,7 @@ export class ChangesViewService extends Disposable implements IChangesViewServic
 		const reviewCommentCountByFileObs = this._getReviewComments(resourceObs);
 		const feedbackResourceObs = derived(reader => {
 			const session = sessionObs.read(reader);
-			// A session shown in a window is created once its status is not untitled; a session is, as the window shows it.
-			const isCreatedObs = (session as Partial<IActiveSession> | undefined)?.isCreated;
-			const isCreated = session && (isCreatedObs ? isCreatedObs.read(reader) : session.status.read(reader) !== SessionStatus.Untitled);
-			return !session || !isCreated ? AGENT_FEEDBACK_NEW_SESSION_RESOURCE : session.resource;
+			return !session || !isSessionCreated(session, reader) ? AGENT_FEEDBACK_NEW_SESSION_RESOURCE : session.resource;
 		});
 		const agentFeedbackCountByFileObs = this._getAgentFeedback(feedbackResourceObs);
 
@@ -814,7 +811,7 @@ export function bindChangesetContextKeys(changes: Pick<IChangesSessionObservable
 }
 
 /** What the main window's Changes show: the session and the chat of the main window, which its cached changes are of. */
-export function mainWindowChangesOwner(accessor: ServicesAccessor): { readonly session: IHostSession | undefined; readonly chat: IChat | undefined } {
+export function mainWindowChangesOwner(accessor: ServicesAccessor): { readonly session: ISession | undefined; readonly chat: IChat | undefined } {
 	const host = getMainWindowHost(accessor.get(ISessionHostService));
 	return { session: host.session.get(), chat: host.chat.get() };
 }

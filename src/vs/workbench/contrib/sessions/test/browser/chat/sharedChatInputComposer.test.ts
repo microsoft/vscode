@@ -14,6 +14,7 @@ import { runWithFakedTimers } from '../../../../../../base/test/common/virtualSc
 import { mock, upcastPartial } from '../../../../../../base/test/common/mock.js';
 import { Range } from '../../../../../../editor/common/core/range.js';
 import { NullLogService } from '../../../../../../platform/log/common/log.js';
+import { InMemoryStorageService, IStorageService } from '../../../../../../platform/storage/common/storage.js';
 import { ChatDynamicVariableModel } from '../../../../chat/browser/attachments/chatDynamicVariables.js';
 import { IChatAgentService } from '../../../../chat/common/participants/chatAgents.js';
 import { IChatVariablesService, IDynamicVariable } from '../../../../chat/common/attachments/chatVariables.js';
@@ -26,7 +27,8 @@ import { ChatRequestParser } from '../../../../chat/common/requestParser/chatReq
 import { INewChatComposerInputOptions, INewChatInputSendRequest } from '../../../browser/chat/newChatComposerInput.js';
 import { SharedChatInputComposer } from '../../../browser/chat/sharedChatInputComposer.js';
 import { IChat } from '../../../common/session.js';
-import { IActiveSession } from '../../../common/sessionsManagement.js';
+import { readNewChatDraftState } from '../../../common/newChatDraftState.js';
+import { ITestSessionWithChat } from '../sessionHostTestUtils.js';
 
 suite('SharedChatInputComposer', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -34,7 +36,7 @@ suite('SharedChatInputComposer', () => {
 	const context = toPasteVariableEntry('Context', 'Pasted context', { id: 'context' });
 
 	/** A composer over a fake chat widget, recording what the host is asked to send and the commands it runs. */
-	function createComposer(options: { sendResult?: boolean | Error; disposeDuringSend?: boolean; canSendRequest?: boolean; text?: string; attachments?: IChatRequestVariableEntry[]; references?: IDynamicVariable[]; confirmSend?: DeferredPromise<boolean>; focused?: boolean; preserveInputFocusOnSend?: boolean } = {}) {
+	function createComposer(options: { sendResult?: boolean | Error; disposeDuringSend?: boolean; canSendRequest?: boolean; text?: string; attachments?: IChatRequestVariableEntry[]; references?: IDynamicVariable[]; confirmSend?: DeferredPromise<boolean>; focused?: boolean; preserveInputFocusOnSend?: boolean; storageService?: IStorageService; onSend?: () => void } = {}) {
 		let text = options.text ?? 'Build it';
 		let attachments: IChatRequestVariableEntry[] = options.attachments ?? [context];
 		let references = options.references ?? [];
@@ -102,6 +104,7 @@ suite('SharedChatInputComposer', () => {
 				preserveInputFocusOnSend: options.preserveInputFocusOnSend,
 				sendRequest: async (request: INewChatInputSendRequest) => {
 					requests.push({ query: request.query, attachments: request.attachments?.map(entry => entry.range ? `${entry.id}@${entry.range.start}-${entry.range.endExclusive}` : entry.id) ?? [], background: !!request.background });
+					options.onSend?.();
 					if (options.disposeDuringSend) {
 						// Leaving the composer disposes its chat widget, whose input part is then gone.
 						widget.input = undefined;
@@ -112,7 +115,7 @@ suite('SharedChatInputComposer', () => {
 					return options.sendResult ?? true;
 				},
 			},
-			storageService: { store: () => { } },
+			storageService: options.storageService ?? store.add(new InMemoryStorageService()),
 			logService: new NullLogService(),
 			chatSlashCommandService: slashCommands,
 			instantiationService: { createInstance: (ctor: unknown) => ctor === ChatRequestParser ? parser : { cancel: () => { }, disposeSource: () => { } } },
@@ -149,12 +152,51 @@ suite('SharedChatInputComposer', () => {
 		});
 	});
 
+	for (const sendResult of [true, false, new Error('send failed')]) {
+		for (const nextInput of ['Next request', '']) {
+			test(`a composer handoff preserves the next saved draft (${sendResult === true ? 'sent' : sendResult instanceof Error ? 'error' : 'declined'}, ${nextInput ? 'nonempty' : 'empty'})`, async () => {
+				const storageService = store.add(new InMemoryStorageService());
+				let restored: ReturnType<SharedChatInputComposer['getDraft']> | undefined;
+				const { composer, state } = createComposer({
+					storageService,
+					sendResult,
+					onSend: () => {
+						const next = createComposer({ storageService, text: '', attachments: [] }).composer;
+						Reflect.get(SharedChatInputComposer.prototype, '_restoreDraftState').call(next);
+						restored = next.getDraft();
+						next.setInputValue(nextInput);
+						next.saveState();
+					},
+				});
+				composer.saveState();
+
+				const sent = await composer.submit(true);
+
+				const nextDraft = readNewChatDraftState(storageService);
+				assert.deepStrictEqual({ sent, restored, nextInput: nextDraft?.inputText, input: state().input }, {
+					sent: sendResult === true,
+					restored: { inputText: '', attachments: [] },
+					nextInput,
+					input: { text: sent ? '' : 'Build it', attachments: sent ? [] : ['context'], enabled: true },
+				});
+			});
+		}
+	}
+
 	for (const background of [false, true]) {
 		for (const sendResult of [false, new Error('send failed')]) {
 			test(`restores the prompt when the host does not send (${background ? 'background' : 'foreground'}, ${sendResult instanceof Error ? 'error' : 'declined'})`, async () => {
-				const { composer, state } = createComposer({ sendResult });
+				const storageService = store.add(new InMemoryStorageService());
+				const { composer, state } = createComposer({ sendResult, storageService });
+				composer.saveState();
 				const sent = await composer.submit(background);
-				assert.deepStrictEqual({ sent, input: state().input }, { sent: false, input: { text: 'Build it', attachments: ['context'], enabled: true } });
+				const draft = readNewChatDraftState(storageService);
+				const savedDraft = { inputText: draft?.inputText, attachments: draft?.attachments.map(entry => entry.id) };
+				assert.deepStrictEqual({ sent, input: state().input, savedDraft }, {
+					sent: false,
+					input: { text: 'Build it', attachments: ['context'], enabled: true },
+					savedDraft: { inputText: 'Build it', attachments: ['context'] },
+				});
 			});
 		}
 	}
@@ -227,9 +269,11 @@ suite('SharedChatInputComposer', () => {
 		});
 	});
 
-	test('binds the host\'s chat when it has one, otherwise the session\'s active chat', () => {
+	test('binds the host\'s chat when it has one, otherwise the session\'s main chat', () => {
+		const mainChat = upcastPartial<IChat>({ resource: URI.parse('chat:/main') });
+		// The active chat of a session fake is not the chat of a composer that is given none.
 		const activeChat = upcastPartial<IChat>({ resource: URI.parse('chat:/active') });
-		const session = constObservable(upcastPartial<IActiveSession>({ activeChat: constObservable(activeChat) }));
+		const session = constObservable(upcastPartial<ITestSessionWithChat>({ mainChat: constObservable(mainChat), activeChat: constObservable(activeChat) }));
 		const bindings = (options: Pick<INewChatComposerInputOptions, 'session' | 'chat'>, update?: () => void) => {
 			const bound: (string | undefined)[] = [];
 			const composer = Object.assign(Object.create(SharedChatInputComposer.prototype), {
@@ -247,7 +291,7 @@ suite('SharedChatInputComposer', () => {
 			draft: bindings({ session }),
 			hostChat: bindings({ session, chat: hostChat }, () => hostChat.set(upcastPartial<IChat>({ resource: URI.parse('chat:/composer') }), undefined)),
 		}, {
-			draft: ['chat:/active'],
+			draft: ['chat:/main'],
 			hostChat: [undefined, 'chat:/composer'],
 		});
 	});

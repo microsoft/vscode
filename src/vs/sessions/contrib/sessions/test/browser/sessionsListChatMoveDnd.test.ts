@@ -16,7 +16,7 @@ import { TestConfigurationService } from '../../../../../platform/configuration/
 import { IConfirmation, IConfirmationResult, IDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
 import { INotificationService } from '../../../../../platform/notification/common/notification.js';
 import { ChatInteractivity, ChatOriginKind, IChat, ISession, SessionStatus } from '../../../../../workbench/contrib/sessions/common/session.js';
-import { IActiveSession, ISessionChatMoveTarget, ISessionsManagementService } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
+import { ISessionChatMoveTarget, ISessionsManagementService } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import { IChatMovedEvent, ISessionChangeEvent, SessionMoveRefusedError } from '../../../../../workbench/contrib/sessions/common/sessionsProvider.js';
 import { NullLogService } from '../../../../../platform/log/common/log.js';
 import { canMoveIntoSession, getChatMoveAnchorBefore, isCrossAgentChatMoveEnabled, getChatMoveAppendAnchor, getChatMoveDestinations, getSessionMoveDestinations, getSessionsListChatDrop, getSessionsListSessionDrop, ISessionsListChatDropTarget, ISessionsListMoveDestination, runSessionsListMove, SessionsListChatDrop, SessionsListMove } from '../../../../../workbench/contrib/sessions/browser/views/sessionsListChatMove.js';
@@ -46,6 +46,7 @@ import { CommandsRegistry } from '../../../../../platform/commands/common/comman
 import { IViewsService } from '../../../../../workbench/services/views/common/viewsService.js';
 import { IView } from '../../../../../workbench/common/views.js';
 import { ChatProvidersSettingId } from '../../../../../platform/agentHost/common/agentHostChatProviders.js';
+import { ITestSessionWithChat } from '../../../../../workbench/contrib/sessions/test/browser/sessionHostTestUtils.js';
 
 
 function multiChatSession(title: string, options?: { readonly providerId?: string; readonly status?: SessionStatus; readonly isArchived?: boolean; readonly chats?: readonly IChat[] }): ITestSession {
@@ -593,7 +594,7 @@ suite('Move Chats Drag and Drop - sessions list feedback', () => {
 	 * With `cappedGroup`, the group shows its first sessions behind "Show more", as after the user chose "Show less".
 	 * With `realGroups`, the `grouped` sessions are in a group of the real groups service.
 	 */
-	function render(sessions: ISession[], options?: { readonly pinned?: readonly string[]; readonly grouped?: readonly string[]; readonly cappedGroup?: boolean; readonly grouping?: SessionsGrouping; readonly sorting?: SessionsSorting; readonly height?: number; readonly simulateMoves?: boolean; readonly fixed?: readonly string[]; readonly realListModel?: boolean; readonly realGroups?: boolean; readonly activeSession?: IObservable<IActiveSession | undefined> }) {
+	function render(sessions: ISession[], options?: { readonly pinned?: readonly string[]; readonly grouped?: readonly string[]; readonly cappedGroup?: boolean; readonly grouping?: SessionsGrouping; readonly sorting?: SessionsSorting; readonly height?: number; readonly simulateMoves?: boolean; readonly fixed?: readonly string[]; readonly realListModel?: boolean; readonly realGroups?: boolean; readonly activeSession?: IObservable<ITestSessionWithChat | undefined> }) {
 		const moves: string[] = [];
 		const group = { id: 'group', name: 'Move Demo', createdAt: 1 };
 		const harness = createListHarness(disposables, sessions, {
@@ -1264,7 +1265,7 @@ suite('Move Chats Drag and Drop - sessions list feedback', () => {
 		const open = listSession('Open', []);
 		const single = listSession('Single', [], listChat('Moved'));
 		const tree = listSession('Tree', ['t1']);
-		const activeSession = observableValue<IActiveSession | undefined>('active-session', upcastPartial<IActiveSession>({ ...open, activeChat: constObservable(open.mainChat.get()) }));
+		const activeSession = observableValue<ITestSessionWithChat | undefined>('active-session', upcastPartial<ITestSessionWithChat>({ ...open, activeChat: constObservable(open.mainChat.get()) }));
 		const list = render([open, single, tree], { simulateMoves: true, activeSession });
 		list.setExpanded('Tree', true);
 		await settle();
@@ -1283,12 +1284,12 @@ suite('Move Chats Drag and Drop - sessions list feedback', () => {
 	test('after the open chat is moved, the list selects it where it went', async () => {
 		const single = listSession('Single', [], listChat('Moved'));
 		const tree = listSession('Tree', ['t1']);
-		const activeSession = observableValue<IActiveSession | undefined>('active-session', upcastPartial<IActiveSession>({ ...single, activeChat: constObservable(single.mainChat.get()) }));
+		const activeSession = observableValue<ITestSessionWithChat | undefined>('active-session', upcastPartial<ITestSessionWithChat>({ ...single, activeChat: constObservable(single.mainChat.get()) }));
 		const list = render([single, tree], { simulateMoves: true, activeSession });
 		list.setExpanded('Tree', true);
 		await settle();
 		// The sessions service follows the open chat into the session it moved to.
-		activeSession.set(upcastPartial<IActiveSession>({ ...tree, activeChat: constObservable(listChat('Moved')) }), undefined);
+		activeSession.set(upcastPartial<ITestSessionWithChat>({ ...tree, activeChat: constObservable(listChat('Moved')) }), undefined);
 
 		await list.dragOver('Single', 'Tree', 0.5).drop();
 		await settle();

@@ -321,7 +321,7 @@ export class SessionsTelemetryContribution extends Disposable implements IWorkbe
 		}
 
 		const allSessions = this._sessionsManagementService.getSessions();
-		const visibleSessionsCount = this._sessionsService.visibleSessions.get().filter(s => s !== undefined).length;
+		const visibleSessionsCount = this._sessionsService.slotPanes.get().filter(pane => pane.session.get() !== undefined).length;
 		const nonArchivedSessionListCount = getNonArchivedSessionListCount(allSessions);
 		// Snapshot all synchronous fields now so the event reflects the state at
 		// the time of the send, not when the async file-count fetch resolves.

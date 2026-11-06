@@ -417,13 +417,13 @@ suite('ModelEvaluationTools', () => {
 		}, { stale: true, unprepared: true, recursive: true, launches: 0 });
 	});
 
-	test('validates counts, folderless roles, model IDs, and supported model configurations before side effects', async () => {
+	test('validates counts, folderless branches, model IDs, and supported model configurations before side effects', async () => {
 		const fixture = setup();
 		const tool = fixture.tool('createModelComparison');
 		for (const input of [
 			{ ...launchInput(), attempts: [selection] },
 			{ ...launchInput(), attempts: Array.from({ length: 11 }, () => selection) },
-			{ ...launchInput(), workspaceMode: 'folderless' },
+			{ ...launchInput(), workspaceMode: 'folderless', branch: 'main' },
 			{ ...launchInput(), judge: undefined, synthesizer: selection },
 			{ ...launchInput(), attempts: [selection, { ...selection, modelId: 'missing' }] },
 			{ ...launchInput(), attempts: [selection, { ...selection, modelConfiguration: { thinkingLevel: 'max' } }] },
@@ -521,6 +521,22 @@ suite('ModelEvaluationTools', () => {
 			workspace: fixture.launches[0].workspace, judge: fixture.launches[0].judgeHarness,
 			cancelled: !!cancelled.toolResultError, disabled: !!disabled.toolResultError, launches: fixture.launches.length,
 		}, { workspace: undefined, judge: undefined, cancelled: true, disabled: true, launches: 1 });
+	});
+
+	test('creates folderless comparisons with the selected Judge and Synthesizer', async () => {
+		const fixture = setup({ quickChat: true });
+		fixture.chatWorkspace.set(undefined, undefined);
+		const result = await invoke(fixture.tool('createModelComparison'), { ...launchInput(), synthesizer: selection }, true);
+		assert.deepStrictEqual({
+			error: result.toolResultError,
+			workspace: fixture.launches[0]?.workspace,
+			branch: fixture.launches[0]?.branch,
+			judge: fixture.launches[0]?.judgeHarness?.modelId,
+			synthesizer: fixture.launches[0]?.synthesisHarness?.modelId,
+			workspaceConfigRequests: fixture.workspaceConfigRequests,
+		}, {
+			error: undefined, workspace: undefined, branch: undefined, judge: 'model', synthesizer: 'model', workspaceConfigRequests: [],
+		});
 	});
 
 	test('returns survivor identities on an insufficient-success launch failure', async () => {

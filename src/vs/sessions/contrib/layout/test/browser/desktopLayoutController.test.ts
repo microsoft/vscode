@@ -29,7 +29,6 @@ import { IViewsService } from '../../../../../workbench/services/views/common/vi
 import { Parts } from '../../../../../workbench/services/layout/browser/layoutService.js';
 import { IAgentWorkbenchLayoutService } from '../../../../browser/workbench.js';
 import { ISessionFileChange, ISessionWorkspace, SessionStatus } from '../../../../../workbench/contrib/sessions/common/session.js';
-import { IActiveSession } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import { DesktopChangesEditorTransitionContext } from '../../../../../workbench/contrib/sessions/common/contextkeys.js';
 import { DesktopChangesTabAvailableContext, DesktopChangesTabMissingContext, HasDockedDetailsContext, DesktopFilesTabAvailableContext, DesktopFilesTabMissingContext } from '../../../../common/agentsWindowContextKeys.js';
 import { BrowserEditorInput } from '../../../../../workbench/contrib/browserView/common/browserEditorInput.js';
@@ -52,7 +51,7 @@ import { SESSIONS_FILES_CONTAINER_ID } from '../../../files/browser/files.contri
 import { NewChangesTabAction, NewFileTabAction } from '../../../editor/browser/addTabActions.js';
 import { ISessionsService } from '../../../../../workbench/contrib/sessions/browser/sessionsService.js';
 import { IFocusedSessionHostService, ISessionHostService } from '../../../../../workbench/contrib/sessions/browser/sessionHost.js';
-import { focusedSessionHostServiceOf, sessionHostServiceOf } from '../../../../../workbench/contrib/sessions/test/browser/sessionHostTestUtils.js';
+import { focusedSessionHostServiceOf, ITestSessionWithChat, sessionHostServiceOf, testGridPanes } from '../../../../../workbench/contrib/sessions/test/browser/sessionHostTestUtils.js';
 import { addPeerChat, createTestHarness, ICreateOptions, ITestLayoutHarness, makeChange, makeSession, setActiveChat, TestStubEditorInput } from './layoutControllerTestUtils.js';
 import '../../../editor/browser/editor.contribution.js';
 
@@ -76,7 +75,7 @@ suite('DesktopLayoutController', () => {
 			const shown = this._shownByMainWindow();
 			return shown && { session: shown.session.resource.toString(), chat: shown.chat.resource.toString() };
 		}
-		getComposition(session: IActiveSession) {
+		getComposition(session: ITestSessionWithChat) {
 			const key = this._ownerKeyFor({ session, chat: session.activeChat.get() });
 			return key && this._compositionStore?.get(key);
 		}
@@ -118,10 +117,11 @@ suite('DesktopLayoutController', () => {
 		// sessions service's active session would see B.
 		harness.instaService.stub(ISessionsService, new class extends mock<ISessionsService>() {
 			readonly activeSession = constObservable(sessionB);
-			override readonly visibleSessions = harness.visibleSessionsObs;
+			readonly gridShown = harness.visibleSessionsObs;
+			override readonly slotPanes = testGridPanes(harness.visibleSessionsObs);
 			readonly windowSessions = constObservable([]);
 		});
-		harness.instaService.stub(ISessionHostService, sessionHostServiceOf(store, { mainWindowActiveSession: harness.activeSessionObs, visibleSessions: constObservable([]), windowSessions: constObservable([sessionB]) }));
+		harness.instaService.stub(ISessionHostService, sessionHostServiceOf(store, { mainWindowActiveSession: harness.activeSessionObs, gridShown: constObservable([]), windowSessions: constObservable([sessionB]) }));
 		harness.instaService.stub(IFocusedSessionHostService, focusedSessionHostServiceOf(constObservable(sessionB)));
 		const controller = store.add(harness.instaService.createInstance(TestDesktopController));
 		harness.activeSessionObs.set(sessionA, undefined);
@@ -227,7 +227,7 @@ suite('DesktopLayoutController', () => {
 					const hiddenBeforeSubmit = !harness.layoutService.isVisible(Parts.AUXILIARYBAR_PART);
 					const committed = replaceResource ? makeSession(URI.parse('session:submitted-empty')) : draft;
 					transaction(tx => {
-						(draft.isCreated as ISettableObservable<boolean>).set(true, tx);
+						(draft.status as ISettableObservable<SessionStatus>).set(SessionStatus.Completed, tx);
 						harness.activeSessionObs.set(committed, tx);
 						harness.visibleSessionsObs.set([committed], tx);
 					});
@@ -1172,7 +1172,7 @@ suite('DesktopLayoutController', () => {
 				harness.onDidChangePartVisibility.fire({ partId: Parts.AUXILIARYBAR_PART, visible: false });
 			}
 
-			(draft.isCreated as ISettableObservable<boolean>).set(true, undefined);
+			(draft.status as ISettableObservable<SessionStatus>).set(SessionStatus.Completed, undefined);
 			await settle();
 			harness.activeSessionObs.set(existing, undefined);
 			await settle();
@@ -1336,7 +1336,7 @@ suite('DesktopLayoutController', () => {
 
 		harness.setPartHiddenCalls = [];
 		transaction(tx => {
-			(draft.isCreated as ISettableObservable<boolean>).set(true, tx);
+			(draft.status as ISettableObservable<SessionStatus>).set(SessionStatus.Completed, tx);
 			harness.activeSessionObs.set(created, tx);
 		});
 		harness.onDidReplaceSession.fire({ from: draft, to: created });
@@ -1790,7 +1790,7 @@ suite('DesktopLayoutController', () => {
 		await timeout(0);
 		harness.activeSessionObs.set(quickChat, undefined);
 		await timeout(0);
-		(draft.isCreated as ISettableObservable<boolean>).set(true, undefined);
+		(draft.status as ISettableObservable<SessionStatus>).set(SessionStatus.Completed, undefined);
 		harness.activeSessionObs.set(committed, undefined);
 		await timeout(0);
 
@@ -2258,7 +2258,7 @@ suite('DesktopLayoutController', () => {
 		harness.activeSessionObs.set(session, undefined);
 		await settle();
 
-		(session.isCreated as ISettableObservable<boolean>).set(true, undefined);
+		(session.status as ISettableObservable<SessionStatus>).set(SessionStatus.Completed, undefined);
 		(session.mainChat.get().changes as ISettableObservable<readonly ISessionFileChange[]>).set([makeChange('/plan.md')], undefined);
 		await settle();
 		assert.strictEqual(harness.activeGroupEditors.length, 0);
@@ -2414,7 +2414,7 @@ suite('DesktopLayoutController', () => {
 
 			// Submit from the Files tab: visibility and the active tab stay unchanged.
 			harness.activeEditorInput = harness.activeGroupEditors.find(e => e instanceof EmptyFileEditorInput);
-			(session.isCreated as ISettableObservable<boolean>).set(true, undefined);
+			(session.status as ISettableObservable<SessionStatus>).set(SessionStatus.Completed, undefined);
 			await settle();
 
 			const changesResource = harness.sessionChangesService.getChangesEditorResource(session.resource);
@@ -2437,7 +2437,7 @@ suite('DesktopLayoutController', () => {
 		const session = makeSession(URI.parse('session:pending-submit'), { status: SessionStatus.Untitled, isCreated: false });
 		harness.activeSessionObs.set(session, undefined);
 		await settle();
-		(session.isCreated as ISettableObservable<boolean>).set(true, undefined);
+		(session.status as ISettableObservable<SessionStatus>).set(SessionStatus.Completed, undefined);
 		await settle();
 		const peer = addPeerChat(session, URI.parse('chat:pending-submit-peer'));
 		setActiveChat(session, peer);
@@ -2467,7 +2467,7 @@ suite('DesktopLayoutController', () => {
 		const committedResource = URI.parse('session:committed');
 		const committed = makeSession(committedResource, { isCreated: true });
 		transaction(tx => {
-			(draft.isCreated as ISettableObservable<boolean>).set(true, tx);
+			(draft.status as ISettableObservable<SessionStatus>).set(SessionStatus.Completed, tx);
 			harness.activeSessionObs.set(committed, tx);
 		});
 		await settle();
@@ -2511,7 +2511,7 @@ suite('DesktopLayoutController', () => {
 				const committed = makeSession(URI.parse('session:committed'), { status: SessionStatus.InProgress });
 				const switchToCommitted = () => {
 					transaction(tx => {
-						(draft.isCreated as ISettableObservable<boolean>).set(true, tx);
+						(draft.status as ISettableObservable<SessionStatus>).set(SessionStatus.Completed, tx);
 						harness.activeSessionObs.set(committed, tx);
 					});
 					harness.visibleSessionsObs.set([committed], undefined);
@@ -2558,7 +2558,7 @@ suite('DesktopLayoutController', () => {
 
 		// Submit A: this queues a reconcile that opens the Changes tab *active*; it
 		// stalls awaiting the gated open.
-		(sessionA.isCreated as ISettableObservable<boolean>).set(true, undefined);
+		(sessionA.status as ISettableObservable<SessionStatus>).set(SessionStatus.Completed, undefined);
 		(sessionA.mainChat.get().changes as ISettableObservable<readonly ISessionFileChange[]>).set([makeChange('/file.ts')], undefined);
 		await settle();
 		const aActiveCalls = harness.openChangesEditorCalls.filter(c => isEqual(c.sessionResource, sessionA.resource) && c.active);

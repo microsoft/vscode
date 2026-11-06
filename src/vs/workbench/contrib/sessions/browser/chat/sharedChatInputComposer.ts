@@ -11,8 +11,6 @@ import { IAction, Separator } from '../../../../../base/common/actions.js';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { isCancellationError } from '../../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
-import { KeyCode } from '../../../../../base/common/keyCodes.js';
-import { isMacintosh } from '../../../../../base/common/platform.js';
 import { Disposable, MutableDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { autorun, constObservable, derived, IObservable, IReader, observableValue, transaction } from '../../../../../base/common/observable.js';
 import { isEqual } from '../../../../../base/common/resources.js';
@@ -35,6 +33,7 @@ import { combineVoiceInput } from '../../../chat/browser/voiceClient/voiceInputU
 import { ChatDynamicVariableModel } from '../../../chat/browser/attachments/chatDynamicVariables.js';
 import { getDynamicVariablesForWidget, getInputDynamicVariablesForWidget, getSelectedToolAndToolSetsForWidget } from '../../../chat/browser/attachments/chatVariables.js';
 import { IChatExecuteActionContext } from '../../../chat/browser/actions/chatExecuteActions.js';
+import { IChatWidget } from '../../../chat/browser/chat.js';
 import { compactCodiconsIn } from '../../../chat/browser/chatIcons.js';
 import { ChatWidget } from '../../../chat/browser/widget/chatWidget.js';
 import { ChatInputNoticeHost } from '../../../chat/browser/widget/input/chatInputNoticeHost.js';
@@ -56,7 +55,10 @@ import { Menus } from '../menus.js';
 import { activeSessionViewBackground, activeSessionViewForeground, agentsPanelBackground, inactiveSessionViewBackground } from '../../common/theme.js';
 import { IWorkspaceSelectionSnapshot } from '../../common/workspaceSelection.js';
 import { ISessionsProvidersService, observeSessionSandboxToggle } from '../sessionsProvidersService.js';
-import { ActiveSessionHost, ISessionHost, ISessionHostService, SessionHostKind } from '../sessionHost.js';
+import { ISessionHost, ISessionHostService, SessionHost, SessionHostKind } from '../sessionHost.js';
+import { IChat } from '../../common/session.js';
+import { ChatInputSupportsBackgroundContext } from '../../common/contextkeys.js';
+import { shownChatOf } from '../../common/sessionsManagement.js';
 import { ISessionInputPickerVisibility, SessionInputPickerVisibility } from '../../common/sessionPickerVisibility.js';
 import { WorkbenchHoverDelegate } from '../../../../../platform/hover/browser/hover.js';
 import { HoverStyle } from '../../../../../base/browser/ui/hover/hover.js';
@@ -157,12 +159,20 @@ class RepositoryConfigSeparatorActionViewItem extends ActionViewItem {
  */
 export class SharedChatInputComposer extends Disposable implements INewSessionComposer, INewChatVoiceComposer {
 
+	private static readonly _backgroundComposers = new WeakMap<IChatWidget, SharedChatInputComposer>();
+
+	static getBackgroundComposer(widget: IChatWidget): SharedChatInputComposer | undefined {
+		return SharedChatInputComposer._backgroundComposers.get(widget);
+	}
+
 	readonly sessionTypePicker: SessionTypePicker;
 	readonly pickerVisibility: SessionInputPickerVisibility;
 	readonly pickerHoverDelegate: WorkbenchHoverDelegate;
 	readonly sessionResource: IObservable<URI | undefined>;
 
 	private readonly _modelSelection: SessionModelSelection;
+	/** The chat the input binds to: the composer's chat, else the session's shown chat. */
+	private readonly _shownChat: IObservable<IChat | undefined>;
 	private readonly _newChatModelPickerService = new NewChatModelPickerService(() => this.focus());
 	private readonly _scopedInstantiationService: IInstantiationService;
 	private readonly _canSendRequest: IObservable<boolean>;
@@ -219,7 +229,10 @@ export class SharedChatInputComposer extends Disposable implements INewSessionCo
 		this.pickerHoverDelegate = this._register(this.instantiationService.createInstance(WorkbenchHoverDelegate, 'element', { instantHover: true }, { style: HoverStyle.Pointer }));
 		this.pickerVisibility = this._register(new SessionInputPickerVisibility());
 		this.sessionResource = derived(this, reader => this.options.session.read(reader)?.resource);
-		this._modelSelection = this._register(this.instantiationService.createInstance(SessionModelSelection, this.options.session, {
+		// The model of the chat the input binds to, not of the session's active chat elsewhere.
+		const shownChat = this._shownChat = shownChatOf(this.options.session, this.options.chat);
+		const modelSource = { session: this.options.session, chat: shownChat };
+		this._modelSelection = this._register(this.instantiationService.createInstance(SessionModelSelection, modelSource, {
 			comparison: this.options.modelPickerComparison,
 			comparisonBusy: this._sending,
 			modelConfiguration: true,
@@ -235,7 +248,7 @@ export class SharedChatInputComposer extends Disposable implements INewSessionCo
 		// disposing it restores the input text.
 		this._promptOptions = this._register(this.instantiationService.createInstance(NewSessionPromptOptionsPresenter, () => this.focus()));
 		// Its keys are bound on the context of its widget once it renders.
-		const host = new ActiveSessionHost({ kind: SessionHostKind.Composer, parent: parentHost, session: this.options.session, chat: this.options.chat, contextKeyService: () => this._widgetContextKeyService ?? this.contextKeyService });
+		const host = new SessionHost({ kind: SessionHostKind.Composer, parent: parentHost, session: this.options.session, chat: shownChat, contextKeyService: () => this._widgetContextKeyService ?? this.contextKeyService });
 		this._register(sessionHostService.registerHost(host));
 		this._scopedInstantiationService = this._register(this.instantiationService.createChild(new ServiceCollection(
 			[INewChatModelPickerService, this._newChatModelPickerService],
@@ -262,6 +275,7 @@ export class SharedChatInputComposer extends Disposable implements INewSessionCo
 		const widgetContainer = dom.append(container, dom.$('.sessions-shared-chat-widget'));
 		const widgetContextKeyService = this._widgetContextKeyService = this._register(this.contextKeyService.createScoped(widgetContainer));
 		const busyContextKey = SharedChatInputComposerBusyContext.bindTo(widgetContextKeyService);
+		ChatInputSupportsBackgroundContext.bindTo(widgetContextKeyService).set(!!this.options.supportsBackground);
 		const comparisonAvailable = ModelComparisonAvailableContext.bindTo(widgetContextKeyService);
 		this._register(autorun(reader => comparisonAvailable.set(this.options.modelPickerComparison?.available.read(reader) ?? false)));
 		// Tracked on the whole widget, so commands scoped to the composer also apply
@@ -340,15 +354,8 @@ export class SharedChatInputComposer extends Disposable implements INewSessionCo
 		}));
 		this._register(this.instantiationService.createInstance(SessionReferenceCompletions, widget, () => this.options.session.get()));
 		if (this.options.supportsBackground) {
-			this._register(widget.inputEditor.onKeyDown(e => {
-				const backgroundModifier = e.altKey && !e.ctrlKey && !e.metaKey
-					|| !e.altKey && (isMacintosh ? e.metaKey && !e.ctrlKey : e.ctrlKey && !e.metaKey);
-				if (e.keyCode === KeyCode.Enter && !e.shiftKey && backgroundModifier) {
-					e.preventDefault();
-					e.stopPropagation();
-					void this.submit(true);
-				}
-			}));
+			SharedChatInputComposer._backgroundComposers.set(widget, this);
+			this._register(toDisposable(() => SharedChatInputComposer._backgroundComposers.delete(widget)));
 		}
 		if (this.options.inputVisible) {
 			const inputVisible = this.options.inputVisible;
@@ -461,6 +468,7 @@ export class SharedChatInputComposer extends Disposable implements INewSessionCo
 			hostRepositoryControls = this._register(this.options.renderRepositoryControls(repositoryControlsContainer, this.pickerHoverDelegate));
 		} else if (this.options.renderRepositoryControls !== false) {
 			const session = this.options.session;
+			const shownChat = this._shownChat;
 			repositoryToolbar = this._repositoryToolbar = this._register(this._scopedInstantiationService.createInstance(MenuWorkbenchToolBar, repositoryControlsContainer, Menus.NewSessionRepositoryConfig, {
 				hiddenItemStrategy: HiddenItemStrategy.NoHide,
 				hoverDelegate: this.pickerHoverDelegate,
@@ -473,8 +481,8 @@ export class SharedChatInputComposer extends Disposable implements INewSessionCo
 					? new RepositoryConfigSeparatorActionViewItem(undefined, action, options)
 					: undefined,
 				menuOptions: {
-					// Capture the originating session before command activation can yield.
-					get arg() { return { session: session.get() }; },
+					// Capture the originating session and the chat it shows before command activation can yield.
+					get arg() { return { session: session.get(), chat: shownChat.get() }; },
 				},
 			}));
 		}
@@ -558,7 +566,7 @@ export class SharedChatInputComposer extends Disposable implements INewSessionCo
 	}
 
 	private _getChatResource(reader: IReader): URI | undefined {
-		return (this.options.chat ? this.options.chat.read(reader) : this.options.session.read(reader)?.activeChat.read(reader))?.resource;
+		return (this.options.chat ? this.options.chat.read(reader) : this.options.session.read(reader)?.mainChat.read(reader))?.resource;
 	}
 
 	private async _bindModel(resource: URI | undefined): Promise<void> {
@@ -964,12 +972,16 @@ export class SharedChatInputComposer extends Disposable implements INewSessionCo
 		// The send can dispose the input widget, e.g. when the composer is left while a workspace is
 		// applied or the send waits; the send itself completes and only the gone input is skipped.
 		const isInputAlive = () => this._widget === widget && !!widget.input;
+		let ownsClearedDraft: (() => boolean) | undefined;
 		const restoreInput = () => {
 			if (isInputAlive() && !this.getInputValue() && !widget.attachmentModel.attachments.length) {
 				this.setInputValue(rawQuery);
 				widget.attachmentModel.addContext(...attachments);
 				// The send cleared the inline references along with the text.
 				widget.getContrib<ChatDynamicVariableModel>(ChatDynamicVariableModel.ID)?.setInputState({ [ChatDynamicVariableModel.ID]: references });
+				if (ownsClearedDraft?.()) {
+					this.saveState();
+				}
 			}
 		};
 		try {
@@ -990,6 +1002,8 @@ export class SharedChatInputComposer extends Disposable implements INewSessionCo
 			// host sends, so the draft must not carry the sent prompt.
 			await widget.input.acceptInput(true, true);
 			this._modelRef.value?.object.inputModel.setState({ inputText: '', attachments: [] });
+			// The host can create another composer before the send completes.
+			ownsClearedDraft = writeNewChatDraftState(this.storageService, { inputText: '', attachments: [] });
 			// Prompt ranges, such as those of inline references, refer to the untrimmed input.
 			const queryOffset = rawQuery.length - rawQuery.trimStart().length;
 			const sentAttachments = attachments.map(entry => entry.range && queryOffset
@@ -1000,9 +1014,6 @@ export class SharedChatInputComposer extends Disposable implements INewSessionCo
 				userInteraction?.cancel('notDispatched');
 				restoreInput();
 				return false;
-			}
-			if (isInputAlive()) {
-				this.saveState();
 			}
 			return true;
 		} catch (error) {

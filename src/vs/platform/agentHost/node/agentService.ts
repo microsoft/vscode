@@ -1115,6 +1115,8 @@ export class AgentService extends Disposable implements IAgentService {
 	private readonly _chatWatchOwners = new ResourceMap<string>();
 	/** External histories waiting for their chat's turn to end; delivered when its current owner goes idle (Block 4: the owner is read then). */
 	private readonly _pendingChatHistories = new Map<string, { readonly provider: IAgent; readonly chat: URI; readonly turns: readonly Turn[] }>();
+	/** Chats a provider reloaded on import whose turns wait for a running turn to end before they are replaced ({@link _replaceReloadedChatTurns}). */
+	private readonly _pendingChatReloads = new Map<string, IAgent>();
 	private readonly _authService: AgentHostAuthenticationService;
 	/** Shared side-effect handler for action dispatch and session lifecycle. */
 	private readonly _sideEffects: AgentSideEffects;
@@ -1508,6 +1510,12 @@ export class AgentService extends Disposable implements IAgentService {
 						});
 					}
 				}
+				for (const [key, provider] of this._pendingChatReloads) {
+					if (this._chatOwnership.getChatOwner(key) === session) {
+						this._pendingChatReloads.delete(key);
+						this._queueReloadedChatTurns(provider, URI.parse(key));
+					}
+				}
 			}
 		}));
 		this._register(this._stateManager.onDidRemoveSession(session => {
@@ -1520,6 +1528,13 @@ export class AgentService extends Disposable implements IAgentService {
 				const owner = this._chatOwnership.getChatOwner(chat);
 				if (owner === undefined || owner === session) {
 					this._pendingChatNotices.delete(chat);
+				}
+			}
+			// A removed session restores from storage, with the turns a reload would have brought.
+			for (const chat of [...this._pendingChatReloads.keys()]) {
+				const owner = this._chatOwnership.getChatOwner(chat);
+				if (owner === undefined || owner === session) {
+					this._pendingChatReloads.delete(chat);
 				}
 			}
 		}));
@@ -2457,6 +2472,8 @@ export class AgentService extends Disposable implements IAgentService {
 	}
 
 	async importSession(session: URI, options?: IAgentImportSessionOptions): Promise<URI> {
+		// A session the host already has loaded may lack turns another client ran since it was loaded.
+		const loaded = !!this._stateManager.getSessionState(this._orchestratorDatabase.toRuntimeSession(session.toString()));
 		await this._registerSessionForImport(session);
 		await this.restoreSession(session);
 		// A provider backing can be admitted under another address, such as `ahp-session:` for an unseen Copilot session.
@@ -2464,8 +2481,11 @@ export class AgentService extends Disposable implements IAgentService {
 		const provider = this._providerService.getProviderForSession(session);
 		if (provider?.importChat) {
 			const chat = URI.parse(this._requireDefaultChat(runtimeSession));
-			const imported = await provider.importChat(chat, this._chatContext(runtimeSession, chat, this._chatStorageResource(runtimeSession, chat)), options);
+			const imported = await provider.importChat(chat, this._chatContext(runtimeSession, chat, this._chatStorageResource(runtimeSession, chat)), { ...options, ...(loaded ? { reloadIfStale: true } : {}) });
 			if (imported) {
+				if (imported.reloaded) {
+					await this._replaceReloadedChatTurns(provider, chat);
+				}
 				await this._offerImportedChatSelection(runtimeSession, chat, imported);
 			}
 		}
@@ -2473,6 +2493,47 @@ export class AgentService extends Disposable implements IAgentService {
 			throw new ProtocolError(AHP_SESSION_NOT_FOUND, `Session not found: ${session.toString()}`);
 		}
 		return runtimeSession;
+	}
+
+	/**
+	 * Replaces the turns of a loaded chat that its provider reloaded from storage. They are replaced rather than merged:
+	 * turns that ran live have host-generated ids, while turns rebuilt from storage take the provider's ids. When a turn
+	 * runs meanwhile, the replacement waits for it to end and then reads the provider's turns again, which include it.
+	 */
+	private async _replaceReloadedChatTurns(provider: IAgent, chat: URI): Promise<void> {
+		const chatKey = chat.toString();
+		const owner = this._chatOwnership.getChatOwner(chatKey);
+		const previous = this._stateManager.getChatState(chatKey);
+		if (owner === undefined || !previous || this._store.isDisposed) {
+			return;
+		}
+		const session = URI.parse(owner);
+		if (this._providerService.getProviderForChat(session, chat) !== provider) {
+			return;
+		}
+		if (!previous.activeTurn) {
+			const storage = URI.parse(this._chatStorageResource(session, chat));
+			const turns = await this._interleaveLocalTurns(owner, chatKey, await this._getChatMessages(provider, chat, session, this._chatOwnership.isDefaultChat(owner, chatKey), storage));
+			if (this._stateManager.refreshChatHistory(chatKey, previous.turns, turns)) {
+				return;
+			}
+			const current = this._stateManager.getChatState(chatKey);
+			if (!current || this._store.isDisposed || (current.turns === previous.turns && !current.activeTurn)) {
+				return;
+			}
+			if (!current.activeTurn) {
+				this._queueReloadedChatTurns(provider, chat);
+				return;
+			}
+		}
+		this._logService.trace(`[AgentService] Replacing the turns of reloaded chat ${chatKey} once its running turn ends`);
+		this._pendingChatReloads.set(chatKey, provider);
+	}
+
+	private _queueReloadedChatTurns(provider: IAgent, chat: URI): void {
+		void this._chatHistoryRefreshes.queue(chat.toString(), () => this._replaceReloadedChatTurns(provider, chat)).catch(error => {
+			this._logService.warn('[AgentService] Failed to replace the turns of a reloaded chat', error);
+		});
 	}
 
 	async manageHostSandboxCertificate(provider: AgentProvider, operation: Parameters<NonNullable<IAgent['manageHostSandboxCertificate']>>[0]): Promise<void> {

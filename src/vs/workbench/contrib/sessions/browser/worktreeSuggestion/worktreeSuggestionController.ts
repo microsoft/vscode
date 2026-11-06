@@ -20,16 +20,16 @@ import { IInstantiationService } from '../../../../../platform/instantiation/com
 import { Link } from '../../../../../platform/opener/browser/link.js';
 import { defaultButtonStyles } from '../../../../../platform/theme/browser/defaultStyles.js';
 import { ISessionInputPickerVisibility } from '../../common/sessionPickerVisibility.js';
-import { IActiveSession } from '../../common/sessionsManagement.js';
 import { NewSessionBannerPriority, NewSessionBanners } from '../../common/newSessionBanners.js';
 import { WorktreeSuggestionVariant } from '../../common/worktreeSuggestion.js';
 import { getInlineHintMessage, getShowChangesLabel, getUseWorktreeLabel } from './worktreeSuggestionPresentation.js';
 import { IWorktreeSuggestion, IWorktreeSuggestionService, worktreeSuggestionEquals, WorktreeSpotlightChoice } from './worktreeSuggestionService.js';
+import { ISession } from '../../common/session.js';
 
 /** The parts of a new-session composer that the worktree suggestion reads. */
 export interface IWorktreeSuggestionComposer {
 	/** The new session the composer configures. */
-	readonly session: IObservable<IActiveSession | undefined>;
+	readonly session: IObservable<ISession | undefined>;
 	/** The composer's pickers. A session needs an interactive isolation picker to be offered a worktree. */
 	readonly pickerVisibility: ISessionInputPickerVisibility;
 	/** Whether the composer is shown. */

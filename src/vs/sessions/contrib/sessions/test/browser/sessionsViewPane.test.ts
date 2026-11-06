@@ -9,9 +9,10 @@ import { mainWindow } from '../../../../../base/browser/window.js';
 import { SplitView, Sizing } from '../../../../../base/browser/ui/splitview/splitview.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
-import { IObservable, observableValue } from '../../../../../base/common/observable.js';
+import { constObservable, IObservable, observableValue } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { upcastPartial } from '../../../../../base/test/common/mock.js';
+import { ISessionGridPane } from '../../../../../workbench/contrib/sessions/browser/sessionGridPane.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
@@ -35,7 +36,7 @@ const registerEditorTabHeightClass = Reflect.get(Workbench.prototype, 'registerE
 }) => void;
 const handleSessionOpened = Reflect.get(SessionsView.prototype, '_handleSessionOpened') as (this: {
 	readonly sessionComparisonService: { getComparisonForSession(resource: URI): ISessionComparison | undefined };
-	readonly sessionsService: { readonly visibleSessions: IObservable<readonly (ISession | undefined)[]> };
+	readonly sessionsService: { readonly slotPanes: IObservable<readonly ISessionGridPane[]> };
 	readonly layoutService: { mainContainer: HTMLElement; setPartHidden(hidden: boolean, part: string): void };
 	readonly hostLayoutService: { readonly sidePane?: { hideSidePane(): void } };
 }, session: ISession) => void;
@@ -415,7 +416,7 @@ suite('Sessions - SessionsViewPane', () => {
 			sessionComparisonService: {
 				getComparisonForSession: () => currentComparison,
 			},
-			sessionsService: { visibleSessions },
+			sessionsService: { slotPanes: visibleSessions.map(sessions => sessions.map(session => upcastPartial<ISessionGridPane>({ session: constObservable(session) }))) },
 			layoutService: {
 				mainContainer: mainWindow.document.createElement('div'),
 				setPartHidden: () => { },

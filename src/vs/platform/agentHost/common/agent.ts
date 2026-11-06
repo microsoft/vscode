@@ -207,6 +207,12 @@ export interface IAgentImportChatOptions {
 	 * otherwise block the chat for good.
 	 */
 	readonly takeOver?: boolean;
+	/**
+	 * The host already had the chat loaded, so the provider's copy may predate
+	 * turns another client ran since. Reload the chat from storage when that
+	 * may be the case.
+	 */
+	readonly reloadIfStale?: boolean;
 }
 
 /** The selection an imported chat continues with, as its provider's runtime restored it. */
@@ -214,6 +220,8 @@ export interface IAgentImportedChat {
 	readonly model: ModelSelection | undefined;
 	/** `undefined` when the chat runs without a custom agent, or with one this host does not offer. */
 	readonly agent: AgentSelection | undefined;
+	/** The provider reloaded the chat from storage, so the turns the host has for it may be out of date. */
+	readonly reloaded?: boolean;
 }
 
 /** A fresh provider transcript for a chat being observed without running a host turn. */
@@ -1657,6 +1665,8 @@ export interface IAgentToolPendingConfirmationSignal {
 	 * The runtime currently sets it for managed Shell, Read, Edit, and Domain selector asks.
 	 */
 	readonly managedApprovalRequired?: boolean;
+	/** Host-only requirement for an explicit user decision instead of host auto-approval. */
+	readonly requiresUserConfirmation?: true;
 	/**
 	 * Host-only flag indicating that the runtime requested sandbox escalation.
 	 */
@@ -2256,7 +2266,10 @@ export interface IAgent {
 	 * chat off may still be exiting. A provider may also align
 	 * the chat's configuration with the state its runtime persisted for the chat,
 	 * and returns the model and agent the chat continues with so the host can
-	 * offer them for the next turn.
+	 * offer them for the next turn. With {@link IAgentImportChatOptions.reloadIfStale},
+	 * a provider whose loaded copy of the chat may be out of date reloads it from
+	 * storage and reports {@link IAgentImportedChat.reloaded}, so the host rebuilds
+	 * the chat's turns.
 	 */
 	importChat?(chat: URI, context: IAgentChatContext, options?: IAgentImportChatOptions): Promise<IAgentImportedChat | void>;
 

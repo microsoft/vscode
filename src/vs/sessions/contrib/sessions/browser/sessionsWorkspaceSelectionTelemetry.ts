@@ -17,6 +17,7 @@ import { ISessionsManagementService } from '../../../../workbench/contrib/sessio
 import { ISendRequestOptions } from '../../../../workbench/contrib/sessions/common/sessionsProvider.js';
 import { INewSessionComposerService } from '../../../../workbench/contrib/sessions/browser/newSessionComposerService.js';
 import { FIRST_TIME_WINDOW_OPEN_DURATION_LIMIT_MS, ISessionsWindowOpenContext } from './sessionsWindowOpenTelemetry.js';
+import { isSessionCreated } from '../../../../workbench/contrib/sessions/common/session.js';
 
 type ObservationReason = 'firstRequest' | 'timer' | 'close' | 'quit' | 'reload' | 'otherShutdown';
 
@@ -94,7 +95,7 @@ export class SessionsWorkspaceSelectionTelemetry extends Disposable {
 			const version = composerService.userWorkspaceSelectionVersion.read(reader);
 			const selection = composerService.workspaceSelection.read(reader);
 			const session = focusedSessionHostService.focusedHost.read(reader).session.read(reader);
-			const created = session?.isCreated.read(reader);
+			const created = isSessionCreated(session, reader);
 			const loading = session?.loading.read(reader);
 			const folderUri = session?.workspace.read(reader)?.folders[0]?.root;
 			if (version !== this._initialSelectionVersion || created || selection?.state !== 'selected'

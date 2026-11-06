@@ -46,13 +46,13 @@ import { IEditorService } from '../../../../../workbench/services/editor/common/
 import { IViewsService } from '../../../../../workbench/services/views/common/viewsService.js';
 import { Menus } from '../../../../../workbench/contrib/sessions/browser/menus.js';
 import { AgentsWindowMenus } from '../../../../browser/agentsWindowMenus.js';
-import { setActiveSessionContextKeys } from '../../../../../workbench/contrib/sessions/common/sessionContextKeys.js';
+import { setHostSessionContextKeys } from '../../../../../workbench/contrib/sessions/common/sessionContextKeys.js';
 import { createTestActiveSession } from '../../../../test/browser/sessionViewTestUtils.js';
 import { IFocusedSessionHostService } from '../../../../../workbench/contrib/sessions/browser/sessionHost.js';
-import { stubSessionHosts, stubSessionHostsFromSessionsService } from '../../../../../workbench/contrib/sessions/test/browser/sessionHostTestUtils.js';
+import { ITestSessionWithChat, stubSessionHosts, stubSessionHostsFromSessionsService, testGridPanes, withCreatedStatus, testPaneContentOf } from '../../../../../workbench/contrib/sessions/test/browser/sessionHostTestUtils.js';
 import { ISessionsService } from '../../../../../workbench/contrib/sessions/browser/sessionsService.js';
 import { IChat, ISessionChangeset, ISessionChangesSummary, ISessionFolder, ISessionWorkspace } from '../../../../../workbench/contrib/sessions/common/session.js';
-import { IActiveSession, ISessionsManagementService } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
+import { ISessionsManagementService } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import { ActiveSessionContextKeys, ChangesContextKeys, ChangesViewMode } from '../../../../../workbench/contrib/sessions/common/changes.js';
 import { IChangesSessionObservables, IChangesSessionScope, IChangesViewService } from '../../../../../workbench/contrib/sessions/common/changesViewService.js';
 import { IsPhoneLayoutContext, SessionHasChangesContext, SessionHasWorkspaceContext, SessionIsCreatedContext, SessionWorkspaceIsVirtualContext, DesktopChangesEditorTransitionContext, DesktopDiffEditorInputActiveContext, DesktopLayoutContext } from '../../../../../workbench/contrib/sessions/common/contextkeys.js';
@@ -105,7 +105,7 @@ suite('Changes View Actions', () => {
 	});
 
 	test('Open Pull Request delegates to the shared GitHub action', async () => {
-		const activeSession = new class extends mock<IActiveSession>() { };
+		const activeSession = new class extends mock<ITestSessionWithChat>() { };
 		const calls: { readonly commandId: string; readonly args: readonly unknown[] }[] = [];
 		const instantiationService = new TestInstantiationService();
 		instantiationService.stub(ICommandService, new class extends mock<ICommandService>() {
@@ -116,7 +116,7 @@ suite('Changes View Actions', () => {
 		});
 
 		instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() {
-			readonly activeSession = constObservable<IActiveSession | undefined>(activeSession);
+			readonly activeSession = constObservable<ITestSessionWithChat | undefined>(activeSession);
 		});
 		stubSessionHostsFromSessionsService(instantiationService);
 
@@ -135,18 +135,19 @@ suite('Changes View Actions', () => {
 		const sessionResource = URI.parse('test-session:/session');
 		const otherSessionResource = URI.parse('test-session:/other');
 
-		async function openChanges(sessionArg: URI, visible: readonly IActiveSession[]): Promise<{ readonly original: string | undefined; readonly modified: string | undefined }[]> {
+		async function openChanges(sessionArg: URI, visible: readonly ITestSessionWithChat[]): Promise<{ readonly original: string | undefined; readonly modified: string | undefined }[]> {
 			const opened: { readonly original: string | undefined; readonly modified: string | undefined }[] = [];
 			const activeChat = upcastPartial<IChat>({});
-			const activeSession = upcastPartial<IActiveSession>({ sessionId: 'active', resource: sessionResource, mainChat: constObservable(activeChat), activeChat: constObservable(activeChat) });
+			const activeSession = upcastPartial<ITestSessionWithChat>({ sessionId: 'active', resource: sessionResource, mainChat: constObservable(activeChat), activeChat: constObservable(activeChat) });
 			const instantiationService = disposables.add(new TestInstantiationService());
 			instantiationService.stub(ILogService, new NullLogService());
 			const { mainHost } = stubSessionHosts(instantiationService, disposables);
 			instantiationService.stub(IFocusedSessionHostService, upcastPartial<IFocusedSessionHostService>({ getFocusedHost: () => mainHost }));
 			instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() {
-				readonly activeSession = constObservable<IActiveSession | undefined>(activeSession);
-				readonly windowSessions = constObservable<readonly IActiveSession[]>([]);
-				override readonly visibleSessions = constObservable<readonly (IActiveSession | undefined)[]>(visible);
+				readonly activeSession = constObservable<ITestSessionWithChat | undefined>(activeSession);
+				readonly windowSessions = constObservable<readonly ITestSessionWithChat[]>([]);
+				readonly gridShown = constObservable<readonly (ITestSessionWithChat | undefined)[]>(visible);
+				override readonly slotPanes = testGridPanes(this.gridShown);
 			});
 			stubSessionHostsFromSessionsService(instantiationService);
 			instantiationService.stub(ISessionsManagementService, upcastPartial<ISessionsManagementService>({
@@ -192,7 +193,7 @@ suite('Changes View Actions', () => {
 		});
 
 		test('opens the changes of a visible non-active session', async () => {
-			const other = upcastPartial<IActiveSession>({ sessionId: 'other', resource: otherSessionResource, mainChat: constObservable(upcastPartial<IChat>({})) });
+			const other = upcastPartial<ITestSessionWithChat>({ sessionId: 'other', resource: otherSessionResource, mainChat: constObservable(upcastPartial<IChat>({})) });
 			assert.deepStrictEqual(await openChanges(otherSessionResource, [other]), [{
 				original: 'readonly-content:/other/before.ts',
 				modified: 'readonly-content:/other/after.ts',
@@ -236,8 +237,8 @@ suite('Changes View Actions', () => {
 		const folder = URI.file('/repo.worktrees/feature');
 		const workspace = observableValue<ISessionWorkspace | undefined>('activeChatWorkspace', undefined);
 		const chat = upcastPartial<IChat>({ workspace });
-		const session = upcastPartial<IActiveSession>({
-			isCreated: constObservable(true),
+		const session = upcastPartial<ITestSessionWithChat>({
+			...withCreatedStatus(constObservable(true)),
 			isQuickChat: constObservable(false),
 			activeChat: constObservable(chat),
 		});
@@ -563,16 +564,16 @@ suite('Changes View Actions', () => {
 		const createChangeset = (id: string, label: string) => upcastPartial<ISessionChangeset>({ id, label, isEnabled: constObservable(true), isDefault: constObservable(true) });
 		const activeChangeset = createChangeset('active', 'Active Changes');
 		const otherChangeset = createChangeset('other', 'Other Changes');
-		const otherSession = upcastPartial<IActiveSession>({});
+		const otherSession = upcastPartial<ITestSessionWithChat>({});
 		const otherResource = URI.parse('test-session:/other');
-		const selections: [string | undefined, IActiveSession | undefined][] = [];
+		const selections: [string | undefined, ITestSessionWithChat | undefined][] = [];
 		const changesViewService = new class extends mock<IChangesViewService>() {
 			override readonly activeSessionChangesetsObs = constObservable([activeChangeset]);
 			override readonly activeSessionChangesetsLoadingObs = constObservable(false);
 			override readonly activeSessionChangesetObs = constObservable(activeChangeset);
 			override readonly activeSessionChangesSummaryObs = constObservable<ISessionChangesSummary | undefined>({ files: 1, additions: 1, deletions: 1 });
 			override readonly activeSessionResourceObs = constObservable(URI.parse('test-session:/active'));
-			override setChangesetId(id: string | undefined, session?: IActiveSession): void { selections.push([id, session]); }
+			override setChangesetId(id: string | undefined, session?: ITestSessionWithChat): void { selections.push([id, session]); }
 		}();
 		const scope: IChangesSessionScope = {
 			session: constObservable(otherSession),
@@ -1311,11 +1312,12 @@ suite('Changes View Actions', () => {
 		IsAuxiliaryWindowContext.bindTo(chatWindowContextKeyService).set(true);
 		// As the chat window's provider binds them for the session it shows.
 		CustomViewVisibleContext.bindTo(chatWindowContextKeyService).set(false);
-		setActiveSessionContextKeys(createTestActiveSession('chat'), chatWindowContextKeyService, undefined);
+		const chatWindowSession = createTestActiveSession('chat');
+		setHostSessionContextKeys(chatWindowSession, chatWindowSession.activeChat.get(), testPaneContentOf(chatWindowSession, () => { }).state, chatWindowContextKeyService, undefined);
 		// An editor window's title bar, an auxiliary window's, which binds no session.
 		const editorWindowContextKeyService = disposables.add(mainContextKeyService.createScoped(document.createElement('div')));
 		IsAuxiliaryWindowContext.bindTo(editorWindowContextKeyService).set(true);
-		setActiveSessionContextKeys(undefined, editorWindowContextKeyService, undefined);
+		setHostSessionContextKeys(undefined, undefined, undefined, editorWindowContextKeyService, undefined);
 		const visible = () => [mainContextKeyService, chatWindowContextKeyService, editorWindowContextKeyService].map(contextKeyService => contextKeyService.contextMatchesRules(item.when));
 		const whileMainShowsCustomView = visible();
 		customView.set(false);

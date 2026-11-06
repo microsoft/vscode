@@ -14,7 +14,8 @@ import { CanGoBackContext, CanGoForwardContext } from '../common/contextkeys.js'
 import { IWindowCanvasService } from './windowCanvas.js';
 import { ICustomViewOpenRequest, ICustomViewService } from './customView.js';
 import { ISession, SessionStatus } from '../common/session.js';
-import { ISessionsChangeEvent, ISessionsManagementService, IActiveSession } from '../common/sessionsManagement.js';
+import { ISessionsChangeEvent, ISessionsManagementService } from '../common/sessionsManagement.js';
+import { ISessionGridPane } from './sessionGridPane.js';
 import { getRecencyEntryKey, SessionRecencyEntry, SessionsRecencyHistory } from './sessionsRecencyHistory.js';
 
 export type SessionNavigationIntent = 'explicit' | 'history' | 'automatic';
@@ -53,7 +54,7 @@ export class SessionsNavigation extends Disposable {
 
 	constructor(
 		private readonly _opener: ISessionOpener,
-		private readonly _activeSession: IObservable<IActiveSession | undefined>,
+		private readonly _activePane: IObservable<Pick<ISessionGridPane, 'session' | 'chat'> | undefined>,
 		private readonly _customViewService: ICustomViewService,
 		private readonly _windowCanvasService: IWindowCanvasService,
 		private readonly _sessionsManagementService: ISessionsManagementService,
@@ -173,12 +174,13 @@ export class SessionsNavigation extends Disposable {
 			return getCustomViewEntry(customViewOpen);
 		}
 
-		const session = this._activeSession.read(reader);
-		if (!session || session.status.read(reader) === SessionStatus.Untitled) {
+		const pane = this._activePane.read(reader);
+		const session = pane?.session.read(reader);
+		if (!pane || !session || session.status.read(reader) === SessionStatus.Untitled) {
 			return { kind: 'newSession' };
 		}
 
-		const chat = session.activeChat.read(reader);
+		const chat = pane.chat.read(reader);
 		return {
 			kind: 'session',
 			sessionResource: session.resource,

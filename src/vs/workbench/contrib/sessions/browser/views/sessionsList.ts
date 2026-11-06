@@ -79,7 +79,7 @@ import { createSessionActionViewItemProvider, getSessionArchiveActionViewItemOpt
 import { HoverStyle, IDelayedHoverOptions } from '../../../../../base/browser/ui/hover/hover.js';
 import { HoverPosition } from '../../../../../base/browser/ui/hover/hoverWidget.js';
 import { getDefaultHoverDelegate } from '../../../../../base/browser/ui/hover/hoverDelegateFactory.js';
-import { inheritableSessionTarget, ISessionsManagementService, IActiveSession, IShownChat } from '../../common/sessionsManagement.js';
+import { inheritableSessionTarget, ISessionsManagementService, IShownChat } from '../../common/sessionsManagement.js';
 import { getMainWindowHost, ISessionHostService, shownChatOf } from '../sessionHost.js';
 import { getSessionComparisonChat, getSessionComparisonHarnessLabel, getSessionComparisonParticipantsInDisplayOrder, ISessionComparison, ISessionComparisonService, SessionComparisonParticipantRole } from '../../common/sessionComparison.js';
 import { ISessionsService } from '../sessionsService.js';
@@ -129,7 +129,7 @@ import { IOpenAICustomizationsCommandOptions, OPEN_AI_CUSTOMIZATIONS_COMMAND_ID 
 import { NEW_SESSION_ACTION_ID } from '../../common/chatConstants.js';
 import { Menus } from '../menus.js';
 import { getSessionConversationStatusAriaLabel } from '../sessionConversationGroups.js';
-import { getAgentMergeAwarePullRequestIcon, getSessionAgentMergeConfigurationObservable, ISessionAgentMergeConfiguration, isAgentMergePullRequestIcon } from '../sessionAgentMerge.js';
+import { getAgentMergeAwarePullRequestIcon, getChatCompletedStateIcon, getSessionAgentMergeConfigurationObservable, ISessionAgentMergeConfiguration, isAgentMergePullRequestIcon } from '../sessionAgentMerge.js';
 import { BlockedSessionReason, BlockedSessions } from '../blockedSessions.js';
 import { ChatInboxEnabledContext, INBOX_CANVAS_ID, SHOW_INBOX_NOTIFICATIONS_COMMAND_ID } from '../inboxNotificationsConstants.js';
 import { WindowCanvasInput } from '../windowCanvas.js';
@@ -139,6 +139,7 @@ import { KeybindingLabel } from '../../../../../base/browser/ui/keybindingLabel/
 import { IPinnedCanvas, IPinnedCanvasService, PINNED_CANVAS_PAGE_ID, PinnedCanvasConnectedContext, PinnedCanvasState } from '../pinnedCanvases.js';
 import { logSessionsInteraction } from '../../common/sessionsTelemetry.js';
 import { getSessionInboxPriority, getSessionInboxSection, SessionInboxSection, sessionInboxSections } from '../../common/sessionInbox.js';
+import { ISessionGridPane } from '../sessionGridPane.js';
 
 const $ = DOM.$;
 
@@ -1074,19 +1075,7 @@ class SessionChatItemRenderer implements ITreeRenderer<SessionListItem, FuzzySco
 			const status = element.chat.status.read(reader);
 			const isArchived = element.chat.isArchived.read(reader);
 			const isRead = element.chat.isRead.read(reader);
-			const pullRequestIcon = element.chat.completedStateIcon
-				? element.chat.completedStateIcon.read(reader)
-				// Without provider attribution, only a multi-folder session's chats have pull requests of their own.
-				: (element.session.workspace.read(reader)?.folders.length ?? 0) > 1
-					? getHighestPriorityPullRequestIcon(
-						element.chat.workspace.read(reader)?.folders.flatMap(folder =>
-							getGitHubPullRequestRefs(folder.gitRepository?.gitHubInfo.read(reader)).map(pullRequest => pullRequest.icon)
-						) ?? []
-					)
-					: undefined;
-			const completedStateIcon = pullRequestIcon && isAgentMergePullRequestIcon(pullRequestIcon)
-				? getAgentMergeAwarePullRequestIcon(pullRequestIcon, (agentMergeConfiguration ??= this.getAgentMergeConfiguration(element)).read(reader))
-				: pullRequestIcon;
+			const completedStateIcon = getChatCompletedStateIcon(element.session, element.chat, reader, () => agentMergeConfiguration ??= this.getAgentMergeConfiguration(element));
 			const capabilities = getChatCapabilities(element.chat, element.session, reader);
 			template.canArchiveContext.set(capabilities.canArchive);
 			template.canDeleteContext.set(capabilities.canDelete);
@@ -1689,7 +1678,7 @@ class SessionItemRenderer implements ITreeRenderer<SessionListItem, FuzzyScore, 
 
 	constructor(
 		private readonly options: {
-			grouping: () => SessionsGrouping; isPinned: (session: ISession) => boolean; isRenderedInCustomGroup?: (session: ISession) => boolean; getGroupConnectorPosition?: (session: ISession) => SessionGroupConnectorPosition | undefined; getComparisonAttemptLabel?: (session: ISession) => string | undefined; shouldShowComparisonAttemptStatus?: (session: ISession, reader: IReader) => boolean; visibleSessions: IObservable<readonly (IActiveSession | undefined)[]>; getMultiSelectedSessions: (session: ISession) => ISession[]; showHover: boolean; useCompactQuickChatRows: boolean; compact: () => boolean; approvalRowMaxLines: number; aggregateChatApprovals: boolean; toolbarMenuId: MenuId | undefined; toolbarTelemetrySource: string; inlineRename: boolean; contextViewService?: IContextViewService; handleToolbarAction?: (action: IAction, session: ISession) => boolean | Promise<boolean>; onDidDoubleClickRename?: (session: ISession) => void; onDidFinishRename?: () => void; onDidRequestRename?: (session: ISession) => void; activeGuideSessionIds?: IObservable<ReadonlySet<string>>;
+			grouping: () => SessionsGrouping; isPinned: (session: ISession) => boolean; isRenderedInCustomGroup?: (session: ISession) => boolean; getGroupConnectorPosition?: (session: ISession) => SessionGroupConnectorPosition | undefined; getComparisonAttemptLabel?: (session: ISession) => string | undefined; shouldShowComparisonAttemptStatus?: (session: ISession, reader: IReader) => boolean; slotPanes: IObservable<readonly ISessionGridPane[]>; getMultiSelectedSessions: (session: ISession) => ISession[]; showHover: boolean; useCompactQuickChatRows: boolean; compact: () => boolean; approvalRowMaxLines: number; aggregateChatApprovals: boolean; toolbarMenuId: MenuId | undefined; toolbarTelemetrySource: string; inlineRename: boolean; contextViewService?: IContextViewService; handleToolbarAction?: (action: IAction, session: ISession) => boolean | Promise<boolean>; onDidDoubleClickRename?: (session: ISession) => void; onDidFinishRename?: () => void; onDidRequestRename?: (session: ISession) => void; activeGuideSessionIds?: IObservable<ReadonlySet<string>>;
 			/** Whether status presentation derives from the main chat instead of the aggregate session. */
 			deriveStatusFromMainChat?: boolean;
 			/** The chat the main window shows, whose row is the open one. */
@@ -2005,10 +1994,10 @@ class SessionItemRenderer implements ITreeRenderer<SessionListItem, FuzzyScore, 
 			template.container.classList.toggle('session-hierarchy-guides-visible', showGuides);
 		}));
 
-		// Sticky styling — reactive on the wrapper's sticky observable
+		// Sticky styling — reactive on the sticky observable of the session's slot
 		template.elementDisposables.add(autorun(reader => {
-			const wrapper = this.options.visibleSessions.read(reader).find(s => s?.sessionId === element.sessionId);
-			const isSticky = wrapper ? wrapper.sticky.read(reader) : false;
+			const pane = this.options.slotPanes.read(reader).find(candidate => candidate.session.read(reader)?.sessionId === element.sessionId);
+			const isSticky = pane ? pane.sticky.read(reader) : false;
 			template.container.classList.toggle('sticky', isSticky);
 		}));
 
@@ -4938,7 +4927,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 				shouldShowComparisonAttemptStatus: (s, reader) => this.shouldShowComparisonAttemptStatus(s, reader),
 				isRenderedInExternalSection: s => this.isRenderedInExternalSection(s),
 				getEnvironmentBadgeLabel: s => this.getEnvironmentBadgeLabel(s),
-				visibleSessions: this._sessionsService.visibleSessions,
+				slotPanes: this._sessionsService.slotPanes,
 				getMultiSelectedSessions: s => this.getMultiSelectedSessions(s),
 				showHover: true,
 				useCompactQuickChatRows: true,
@@ -8996,7 +8985,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 		if (session.environment === 'local' || !getSessionRepository(session)) {
 			return undefined;
 		}
-		return this._sessionsProvidersService.getProvider(session.providerId)?.environment.label;
+		return this._sessionsProvidersService.getProvider(session.providerId, session.sessionId)?.environment.label;
 	}
 
 	/**
@@ -9156,7 +9145,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 			add('pullRequest', pullRequest);
 		}
 		if (session.environment !== 'local' && session.environment !== 'cloud') {
-			add('host', this._sessionsProvidersService.getProvider(session.providerId)?.environment.label);
+			add('host', this._sessionsProvidersService.getProvider(session.providerId, session.sessionId)?.environment.label);
 		}
 		return {
 			title: this.getComparisonAttemptLabel(session) ?? session.title.get(),
@@ -10085,7 +10074,7 @@ export function getNewSessionSources(sessions: readonly ISession[], sessionsProv
 		if (!canStartNewSessionLike(session, sessionsManagementService)) {
 			continue;
 		}
-		const environment = sessionsProvidersService.getProvider(session.providerId)?.environment;
+		const environment = sessionsProvidersService.getProvider(session.providerId, session.sessionId)?.environment;
 		if (!environment || environment.isConnected?.get() === false) {
 			continue;
 		}
@@ -10267,7 +10256,7 @@ export class SessionsFlatList extends Disposable {
 			{
 				grouping: () => SessionsGrouping.Date,
 				isPinned: s => this._sessionsListModelService.isSessionPinned(s),
-				visibleSessions: this._sessionsService.visibleSessions,
+				slotPanes: this._sessionsService.slotPanes,
 				getMultiSelectedSessions: s => [s],
 				showHover: this.options.showSessionHover ?? true,
 				useCompactQuickChatRows,

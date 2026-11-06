@@ -29,7 +29,7 @@ import { IChatWidget, IChatWidgetService } from '../../../../workbench/contrib/c
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { IFeedbackPullRequest } from '../../../../platform/agentHost/common/meta/agentFeedbackAnnotations.js';
 import { ICodeReviewSuggestion } from '../../../../workbench/contrib/sessions/browser/codeReviewService.js';
-import { ISession, ISessionFileChange, ISessionWorkspace, SessionStatus } from '../../../../workbench/contrib/sessions/common/session.js';
+import { ISession, ISessionFileChange, ISessionWorkspace, isSessionCreated, SessionStatus } from '../../../../workbench/contrib/sessions/common/session.js';
 import { isAgentHostProviderId } from '../../../../workbench/contrib/sessions/common/agentHostSessionsProvider.js';
 import { AnnotationsAgentFeedbackItemsBackend, IAgentFeedbackItemsBackend, InMemoryAgentFeedbackItemsBackend } from './agentFeedbackItemsBackend.js';
 import { ATTACHMENT_ID_PREFIX, createAgentFeedbackVariableEntry } from '../../../../workbench/contrib/sessions/browser/agentFeedbackAttachmentEntry.js';
@@ -121,7 +121,7 @@ export class AgentFeedbackService extends Disposable implements IAgentFeedbackSe
 
 		this.activeFeedbackSessionResource = derived(this, reader => {
 			const activeSession = this._focusedSessionHostService.focusedHost.read(reader).session.read(reader);
-			return !activeSession || !activeSession.isCreated.read(reader)
+			return !activeSession || !isSessionCreated(activeSession, reader)
 				? AGENT_FEEDBACK_NEW_SESSION_RESOURCE
 				: activeSession.resource;
 		});
@@ -143,7 +143,7 @@ export class AgentFeedbackService extends Disposable implements IAgentFeedbackSe
 		// draft swap (which briefly drops the workspace) does not discard them.
 		this._newSessionWorkspaceKey = derived(this, reader => {
 			const activeSession = this._focusedSessionHostService.focusedHost.read(reader).session.read(reader);
-			if (!activeSession || activeSession.isCreated.read(reader)) {
+			if (!activeSession || isSessionCreated(activeSession, reader)) {
 				return undefined;
 			}
 			return workspaceFoldersKey(activeSession.workspace.read(reader));
@@ -328,7 +328,7 @@ export class AgentFeedbackService extends Disposable implements IAgentFeedbackSe
 
 		if (!hostSession) {
 			const activeSession = this._focusedSessionHostService.focusedHost.get().session.get();
-			if (!activeSession || !activeSession.isCreated.get()) {
+			if (!activeSession || !isSessionCreated(activeSession)) {
 				return AGENT_FEEDBACK_NEW_SESSION_RESOURCE;
 			}
 		}

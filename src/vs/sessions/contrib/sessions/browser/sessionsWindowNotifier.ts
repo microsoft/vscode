@@ -232,12 +232,12 @@ export class SessionsWindowNotifier extends Disposable implements IWorkbenchCont
 		if (status !== SessionStatus.NeedsInput || mode !== ChatNotificationMode.WindowNotFocused || !this._hostService.hasFocus) {
 			return false;
 		}
-		const visibleSessions = this._sessionsService.visibleSessionPanes.get();
+		const panes = this._sessionsService.panes.get();
 		const focusedHost = this._focusedSessionHostService.focusedHost.get();
 		const activeSession = focusedHost.session.get();
 		const activeChat = focusedHost.chat.get();
-		return visibleSessions.length > 1
-			&& visibleSessions.some(candidate => candidate?.sessionId === session.sessionId && (!chat || isEqual(candidate.activeChat.get().resource, chat.resource)))
+		return panes.length > 1
+			&& panes.some(candidate => candidate.session.get()?.sessionId === session.sessionId && (!chat || isEqual(candidate.chat.get()?.resource, chat.resource)))
 			&& (chat ? !isEqual(activeChat?.resource, chat.resource) : activeSession?.sessionId !== session.sessionId)
 			&& !!activeSession
 			&& this._sessionComparisonService.comparisons.get().some(comparison => comparison.archivedAt === undefined
