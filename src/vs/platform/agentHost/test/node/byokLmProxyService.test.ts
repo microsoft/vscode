@@ -1284,6 +1284,15 @@ suite('ByokLmProxyService', () => {
 		);
 	});
 
+	test('rejects invalid requests even when no renderer is connected', async () => {
+		const service = store.add(new ByokLmProxyService(new NullLogService(), new ByokLmBridgeRegistry()));
+		const handle = store.add(await service.start());
+		const response = await fetch(responsesUrl(handle, 'acme'), {
+			method: 'POST', headers: authHeaders(handle), body: JSON.stringify({ input: [] }),
+		});
+		assert.strictEqual(response.status, 400);
+	});
+
 	test('returns a 503 when no renderer bridge is connected', async () => {
 		const registry = new ByokLmBridgeRegistry();
 		const service = store.add(new ByokLmProxyService(new NullLogService(), registry));
@@ -1321,6 +1330,44 @@ suite('ByokLmProxyService', () => {
 			routedToServing: (await res.text()).includes('from serving'),
 			calls,
 		}, { routedToServing: true, calls: ['serving'] });
+	});
+
+	test('routes each session to its initiating client and does not fall back if it disconnects', async () => {
+		const registry = new ByokLmBridgeRegistry();
+		const calls: string[] = [];
+		store.add(registry.register('first', servingConnection(async () => { calls.push('first'); return { output: [] }; })));
+		const second = registry.register('second', servingConnection(async () => { calls.push('second'); return { output: [] }; }));
+		const service = store.add(new ByokLmProxyService(new NullLogService(), registry));
+		store.add(service.registerClientResolver(id => id === 'second-session' ? 'second' : undefined));
+		const handle = store.add(await service.start());
+		const request = (id: string) => fetch(responsesUrl(handle, 'acme'), {
+			method: 'POST', headers: authHeaders(handle, id),
+			body: JSON.stringify({ model: 'm', input: [] }),
+		});
+		const selected = await request('second-session');
+		second.dispose();
+		const disconnected = await request('second-session');
+		const fallback = await request('background-session');
+		assert.deepStrictEqual({ selected: selected.status, disconnected: disconnected.status, fallback: fallback.status, calls },
+			{ selected: 200, disconnected: 503, fallback: 200, calls: ['second', 'first'] });
+	});
+
+	test('does not recover a provider continuation from another window', async () => {
+		const registry = new ByokLmBridgeRegistry();
+		const captured: IByokLmChatRequest[] = [];
+		store.add(registry.register('first', servingConnection(async () => ({ responseId: 'first-response', output: [{ type: 'function_call', callId: 'call-1', name: 'tool', argumentsJson: '{}' }] }))));
+		store.add(registry.register('second', servingConnection(async request => { captured.push(request); return { output: [] }; })));
+		const service = store.add(new ByokLmProxyService(new NullLogService(), registry));
+		let client = 'first';
+		store.add(service.registerClientResolver(() => client));
+		const handle = store.add(await service.start());
+		const post = (input: object[]) => fetch(responsesUrl(handle, 'acme'), {
+			method: 'POST', headers: authHeaders(handle), body: JSON.stringify({ model: 'm', input }),
+		});
+		await (await post([])).text();
+		client = 'second';
+		await (await post([{ type: 'function_call_output', call_id: 'call-1', output: 'result' }])).text();
+		assert.strictEqual(captured[0]?.previousResponseId, undefined);
 	});
 
 	test('rebinds with a fresh nonce after every handle is disposed', async () => {
