@@ -216,6 +216,14 @@
 				return process.getProcessMemoryInfo();
 			},
 
+			getHeapStatistics(): Electron.HeapStatistics {
+				return process.getHeapStatistics();
+			},
+
+			getBlinkMemoryInfo(): Electron.BlinkMemoryInfo {
+				return process.getBlinkMemoryInfo();
+			},
+
 			on(type: string, callback: (...args: unknown[]) => void): void {
 				process.on(type, callback);
 			}

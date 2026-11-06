@@ -126,6 +126,19 @@ export interface IOSStatistics {
 	loadavg: number[];
 }
 
+/**
+ * Memory of a process in kilobytes, as reported by the operating system.
+ */
+export interface IProcessMemory {
+	readonly workingSetSize: number;
+	readonly peakWorkingSetSize: number;
+
+	/**
+	 * Only reported on Windows.
+	 */
+	readonly privateBytes?: number;
+}
+
 export interface IOSProxy {
 	readonly kind: 'direct' | 'http' | 'socks';
 	readonly host?: string;
@@ -405,6 +418,11 @@ export interface ICommonNativeHostService {
 
 	// Process
 	getProcessId(): Promise<number | undefined>;
+	/**
+	 * Memory of the process of the window, measured by the main process because
+	 * `process.getProcessMemoryInfo()` can crash on shutdown.
+	 */
+	getProcessMemory(): Promise<IProcessMemory | undefined>;
 	killProcess(pid: number, code: string): Promise<void>;
 
 	// Clipboard

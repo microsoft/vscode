@@ -162,6 +162,35 @@ export interface ProcessMemoryInfo {
 	shared: number;
 }
 
+export interface HeapStatistics {
+
+	// Docs: https://electronjs.org/docs/api/process#processgetheapstatistics
+
+	totalHeapSize: number;
+	totalHeapSizeExecutable: number;
+	totalPhysicalSize: number;
+	totalAvailableSize: number;
+	usedHeapSize: number;
+	heapSizeLimit: number;
+	mallocedMemory: number;
+	peakMallocedMemory: number;
+	doesZapGarbage: boolean;
+}
+
+export interface BlinkMemoryInfo {
+
+	// Docs: https://electronjs.org/docs/api/process#processgetblinkmemoryinfo
+
+	/**
+	 * Size of all allocated objects in Kilobytes.
+	 */
+	allocated: number;
+	/**
+	 * Total allocated space in Kilobytes.
+	 */
+	total: number;
+}
+
 /**
  * Additional information around a `app.on('login')` event.
  */

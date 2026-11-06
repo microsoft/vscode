@@ -26,7 +26,7 @@ import { InMemoryFileSystemProvider } from '../../../platform/files/common/inMem
 import { IInstantiationService } from '../../../platform/instantiation/common/instantiation.js';
 import { ISharedProcessService } from '../../../platform/ipc/electron-browser/services.js';
 import { NullLogService } from '../../../platform/log/common/log.js';
-import { IApplicationBadge, INativeHostOptions, INativeHostService, INativeSystemWideKeybinding, INativeSystemWideKeybindingResult, INativeZipFile, INativeZipResult, IOSProperties, IOSStatistics, IToastOptions, IToastResult, PowerSaveBlockerType, SystemIdleState, ThermalState } from '../../../platform/native/common/native.js';
+import { IApplicationBadge, INativeHostOptions, INativeHostService, INativeSystemWideKeybinding, INativeSystemWideKeybindingResult, INativeZipFile, INativeZipResult, IOSProperties, IOSStatistics, IProcessMemory, IToastOptions, IToastResult, PowerSaveBlockerType, SystemIdleState, ThermalState } from '../../../platform/native/common/native.js';
 import { IProductService } from '../../../platform/product/common/productService.js';
 import { AuthInfo, Credentials } from '../../../platform/request/common/request.js';
 import { IStorageService } from '../../../platform/storage/common/storage.js';
@@ -156,6 +156,7 @@ export class TestNativeHostService implements INativeHostService {
 	async getOSColorScheme(): Promise<IColorScheme> { return { dark: true, highContrast: false }; }
 	async hasWSLFeatureInstalled(): Promise<boolean> { return false; }
 	async getProcessId(): Promise<number> { throw new Error('Method not implemented.'); }
+	async getProcessMemory(): Promise<IProcessMemory | undefined> { return undefined; }
 	async killProcess(): Promise<void> { }
 	async setDocumentEdited(edited: boolean): Promise<void> { }
 	async setApplicationBadge(badge: IApplicationBadge | undefined): Promise<void> { }
