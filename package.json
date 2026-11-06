@@ -184,7 +184,7 @@
     "@eslint/compat": "^2.1.0",
     "@modelcontextprotocol/sdk": "^1.29.0",
     "@openai/codex": "0.163.0",
-    "@playwright/cli": "^0.1.9",
+    "@playwright/cli": "^0.1.22",
     "@playwright/test": "^1.61.1",
     "@stylistic/eslint-plugin": "^5.10.0",
     "@types/chrome-remote-interface": "^0.33.0",
