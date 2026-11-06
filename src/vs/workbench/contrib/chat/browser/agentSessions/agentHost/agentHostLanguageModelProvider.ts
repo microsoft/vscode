@@ -22,6 +22,7 @@ import { readAgentManagedModelDefaults, readAgentModelConfigurationDefaults } fr
 import { readAgentModelByokIdentifier } from '../../../../../../platform/agentHost/common/agentModelByokMeta.js';
 import { readAgentModelGroupId, readAgentModelSourceId } from '../../../../../../platform/agentHost/common/agentModelSource.js';
 import { getReasoningEffortDescription, getReasoningEffortLabel } from '../../../../../../platform/agentHost/common/reasoningEffort.js';
+import { readModelRouterDescription } from '../../../../../../platform/agentHost/common/modelRouter.js';
 import { nullExtensionDescription } from '../../../../../services/extensions/common/extensions.js';
 import { AUTO_RAW_MODEL_ID, COPILOT_VENDOR_ID, ILanguageModelChatMetadata, ILanguageModelChatMetadataAndIdentifier, ILanguageModelChatProvider, ILanguageModelConfigurationSchema, ILanguageModelsService } from '../../../common/languageModels.js';
 
@@ -246,7 +247,8 @@ export class AgentHostLanguageModelProvider extends Disposable implements ILangu
 
 	/**
 	 * The picker detail and description of a model that routes across others: Auto advertises its
-	 * discount, and HydraFusion that it is a research preview. Other models have neither.
+	 * discount, HydraFusion that it is a research preview, and a model router its own description.
+	 * Other models have neither.
 	 */
 	private _routingPresentationFor(model: SessionModelInfo, discountPercent: number | undefined): { detail?: string; description?: string } {
 		if (model.id === AUTO_RAW_MODEL_ID) {
@@ -258,6 +260,10 @@ export class AgentHostLanguageModelProvider extends Disposable implements ILangu
 				// The discount is carried by `autoModelDiscountPercent` and described by the picker.
 				description: ILanguageModelChatMetadata.getAutoModelDescription(fusion),
 			};
+		}
+		const routerDescription = readModelRouterDescription(model);
+		if (routerDescription !== undefined) {
+			return { detail: localize('agentHost.modelRouter.preview', "Model router"), description: routerDescription };
 		}
 		if (model.provider === COPILOT_CLI_AGENT_PROVIDER_ID && isCopilotHydraFusionModelId(model.id)) {
 			return {

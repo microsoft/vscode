@@ -6,7 +6,7 @@
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { IHoverService } from '../../../../../../platform/hover/browser/hover.js';
 import { ITelemetryService } from '../../../../../../platform/telemetry/common/telemetry.js';
-import { autoModeRoutingTitle } from '../../../common/chatAutoModeExplainability.js';
+import { autoModeRoutingHover, autoModeRoutingTitle } from '../../../common/chatAutoModeExplainability.js';
 import { IChatAutoModeResolutionPart } from '../../../common/chatService/chatService.js';
 import { IChatRendererContent } from '../../../common/model/chatViewModel.js';
 import { ChatTreeItem } from '../../chat.js';
@@ -41,6 +41,14 @@ export class ChatAutoModeResolutionContentPart extends ChatThinkingStyleContentP
 		if (this.isRouting) {
 			this.setShimmerTitle(autoModeRoutingTitle(content));
 		}
+		const reason = autoModeRoutingHover(content);
+		const button = this._collapseButton?.element;
+		if (reason && button) {
+			// The hover holds the reason, so the line joins the tab order and Enter or Space can show it.
+			button.tabIndex = 0;
+			button.setAttribute('aria-label', `${autoModeRoutingTitle(content)}. ${reason}`);
+			this._register(hoverService.setupDelayedHover(button, { content: reason, appearance: { showPointer: true } }, { setupKeyboardEvents: true }));
+		}
 	}
 
 	protected override shouldPrepareContentAnimation(): boolean {
@@ -62,6 +70,9 @@ export class ChatAutoModeResolutionContentPart extends ChatThinkingStyleContentP
 			return false;
 		}
 		return other.resolved?.id === this.content.resolved?.id
-			&& other.resolved?.reason === this.content.resolved?.reason;
+			&& other.resolved?.reason === this.content.resolved?.reason
+			&& other.preference === this.content.preference
+			&& other.effort === this.content.effort
+			&& other.switchedFrom === this.content.switchedFrom;
 	}
 }

@@ -35,10 +35,6 @@ import { PolicyState } from './state/protocol/channels-root/state.js';
  * shared YAML parser is lenient about malformed input.
  */
 
-/** Root config key: whether model routers are offered in the model picker. */
-export const ModelRouterEnabledConfigKey = 'modelRouter.enabled';
-export const ModelRouterEnabledSettingId = 'chat.agentHost.modelRouter.enabled';
-
 /** The decision model that routes turns. */
 export const MODEL_ROUTER_DECISION_MODEL = 'gpt-6-luna-decisions';
 /** The runtime flag that turns on `decisions.ask`. */
@@ -132,6 +128,20 @@ export function modelRouterModelId(name: string): string {
 
 export function isModelRouterModelId(modelId: string | undefined): boolean {
 	return !!modelId?.startsWith(MODEL_ROUTER_MODEL_ID_PREFIX);
+}
+
+const MODEL_ROUTER_DESCRIPTION_META_KEY = 'modelRouterDescription';
+
+/** The `_meta` of a router's model row, which carries its description for the model picker. */
+export function createModelRouterModelMeta(description: string): Record<string, unknown> {
+	return { [MODEL_ROUTER_DESCRIPTION_META_KEY]: description };
+}
+
+/** A router row's description, or `undefined` for other models. */
+export function readModelRouterDescription(model: { readonly _meta?: Record<string, unknown> }): string | undefined {
+	const meta = model._meta;
+	const value = meta ? meta[MODEL_ROUTER_DESCRIPTION_META_KEY] : undefined;
+	return typeof value === 'string' ? value : undefined;
 }
 
 /** The router name a picker model id selects, if it selects one. */

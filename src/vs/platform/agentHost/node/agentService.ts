@@ -167,6 +167,7 @@ import { AgentHostPeerChatStore, CHAT_PROVIDER_DATA_METADATA_KEY, CHAT_WORKING_D
 import { chatCatalogAwaitsReprojection, migrateChatCatalogV2 } from './agentHostChatCatalogMigration.js';
 import { IAgentHostChatContributions } from '../common/agentHostChatContributionsService.js';
 import { IAgentHostTurnService, type IDeferredAgentHostTurn } from './agentHostTurnService.js';
+import { isModelRouterModelId } from '../common/modelRouter.js';
 
 /**
  * Grace period before an empty, unsubscribed session is garbage-collected
@@ -6355,6 +6356,10 @@ export class AgentService extends Disposable implements IAgentService {
 	}
 
 	private async _createSession(config: IAgentServiceCreateSessionConfig | undefined, origin?: SessionOrigin): Promise<URI> {
+		// A model router is chosen per turn when it is sent; a session starts on the provider's default.
+		if (config && isModelRouterModelId(config.model?.id)) {
+			config = { ...config, model: undefined };
+		}
 		const provider = this._providerService.resolveProvider(config?.provider);
 		const isEphemeral = config ? readEphemeralSessionMeta(config).isEphemeral === true : false;
 		if (!provider) {
@@ -6975,6 +6980,9 @@ export class AgentService extends Disposable implements IAgentService {
 	}
 
 	async createChat(session: URI, chat: URI, options?: IAgentCreateChatRequestOptions, credentials?: IAgentHostCredentialSource, initialMessageContext?: IAgentCreateChatInitialMessageContext): Promise<void> {
+		if (isModelRouterModelId(options?.model?.id)) {
+			options = { ...options, model: undefined };
+		}
 		const reservations = new DisposableStore();
 		const { workspace, ...requestOptions } = options ?? {};
 		// The requested workspace is host-owned: it resolves into the chat's working directories and never reaches providers.

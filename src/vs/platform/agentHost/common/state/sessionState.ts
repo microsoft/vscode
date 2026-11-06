@@ -261,6 +261,23 @@ export interface ITurnTokenTotal {
 	readonly outputTokens: number;
 }
 
+export interface IModelRoutedInfo {
+	readonly router: string;
+	readonly chosenModel: string;
+	/** The user's note on the chosen model, when it decided the pick. */
+	readonly preference?: string;
+	/** The thinking effort the router chose for this turn. */
+	readonly effort?: string;
+	/** The model the router moved off on this turn. */
+	readonly switchedFrom?: string;
+	/** The router had no confident pick and used the user's first model. */
+	readonly defaulted?: boolean;
+	/** The chat stayed on the model it was already running. */
+	readonly kept?: boolean;
+	/** A model the router would have moved to, but held back because switching would cost too much. */
+	readonly heldSwitchTo?: string;
+}
+
 export interface IAutoModeResolvedInfo {
 	readonly chosenModel: string;
 	readonly reasoningBucket?: 'low' | 'medium' | 'high';
