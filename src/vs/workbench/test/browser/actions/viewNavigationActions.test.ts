@@ -28,6 +28,7 @@ interface IFocusTestHarness {
 	setViews(containerId: string, views: readonly string[]): void;
 	setCollapsed(viewId: string, collapsed: boolean): void;
 	setHeaderAvailable(viewId: string, available: boolean): void;
+	setHeaderVisible(viewId: string, visible: boolean): void;
 	setHidden(viewId: string, hidden: boolean): void;
 }
 
@@ -54,6 +55,7 @@ function createFocusHarness(): IFocusTestHarness {
 	]);
 	const collapsed = new Set<string>();
 	const unavailableHeaders = new Set<string>();
+	const hiddenHeaders = new Set<string>();
 	const hidden = new Set<string>();
 	const calls: IFocusCall[] = [];
 	const headerFocusCalls: string[] = [];
@@ -69,6 +71,7 @@ function createFocusHarness(): IFocusTestHarness {
 			return container && visibleContainers.has(container.id) ? container as ViewContainer : null;
 		},
 		getActiveViewWithId: (id: string) => unavailableHeaders.has(id) ? null : ({
+			headerVisible: !hiddenHeaders.has(id),
 			draggableElement: {
 				focus: () => {
 					headerFocusCalls.push(id);
@@ -125,6 +128,9 @@ function createFocusHarness(): IFocusTestHarness {
 		},
 		setHeaderAvailable(viewId, available) {
 			if (available) { unavailableHeaders.delete(viewId); } else { unavailableHeaders.add(viewId); }
+		},
+		setHeaderVisible(viewId, visible) {
+			if (visible) { hiddenHeaders.delete(viewId); } else { hiddenHeaders.add(viewId); }
 		},
 		setHidden(viewId, isHidden) {
 			if (isHidden) { hidden.add(viewId); } else { hidden.delete(viewId); }
