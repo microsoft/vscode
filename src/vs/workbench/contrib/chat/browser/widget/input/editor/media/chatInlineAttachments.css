@@ -22,6 +22,10 @@
 	width: 0;
 }
 
+.monaco-editor .chat-inline-attachment-drop-target {
+	border-left: 2px solid var(--vscode-editorCursor-foreground);
+}
+
 /*
  * The pill is a content widget, which is absolutely positioned and would
  * shrink to fit next to the right edge of the editor. It keeps its natural

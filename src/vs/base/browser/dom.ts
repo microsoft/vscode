@@ -2112,6 +2112,12 @@ export class DragAndDropObserver extends Disposable {
 		this.registerListeners();
 	}
 
+	/** Resets tracking when a nested drop target consumes the end of a drag. */
+	reset(): void {
+		this.counter = 0;
+		this.dragStartTime = 0;
+	}
+
 	private registerListeners(): void {
 		if (this.callbacks.onDragStart) {
 			this._register(addDisposableListener(this.element, EventType.DRAG_START, (e: DragEvent) => {
@@ -2149,16 +2155,12 @@ export class DragAndDropObserver extends Disposable {
 		}));
 
 		this._register(addDisposableListener(this.element, EventType.DRAG_END, (e: DragEvent) => {
-			this.counter = 0;
-			this.dragStartTime = 0;
-
+			this.reset();
 			this.callbacks.onDragEnd?.(e);
 		}));
 
 		this._register(addDisposableListener(this.element, EventType.DROP, (e: DragEvent) => {
-			this.counter = 0;
-			this.dragStartTime = 0;
-
+			this.reset();
 			this.callbacks.onDrop?.(e);
 		}));
 	}
