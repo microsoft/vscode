@@ -6,7 +6,7 @@
 import { $, addDisposableListener, append, EventType, getActiveWindow } from '../../../../base/browser/dom.js';
 import { Direction } from '../../../../base/browser/ui/grid/grid.js';
 import { mainWindow } from '../../../../base/browser/window.js';
-import { disposableTimeout, Sequencer } from '../../../../base/common/async.js';
+import { disposableTimeout, SequencerByKey } from '../../../../base/common/async.js';
 import { CancellationError, onUnexpectedError } from '../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { combinedDisposable, Disposable, DisposableMap, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
@@ -776,8 +776,8 @@ export class ChatWindowService extends Disposable implements IChatWindowService 
 	readonly hasProvider: IObservable<boolean>;
 
 	private readonly _opening = new InFlightOperations<IChatWindow | undefined>();
-	/** Opens run one after the other, so the lookup of a window that shows a chat sees the windows opened before it. */
-	private readonly _openQueue = new Sequencer();
+	/** Opens of one resolved chat run one after the other, so the lookup of the window that shows it sees the window opened before. */
+	private readonly _openByChat = new SequencerByKey<string>();
 	private readonly _chatLayouts: ChatWindowChatLayouts;
 	private readonly _chatSizes: ChatWindowChatSizes;
 	/** The grid of each open window, which arranges its parts. */
@@ -833,7 +833,7 @@ export class ChatWindowService extends Disposable implements IChatWindowService 
 	}
 
 	open(chat: URI, options?: IChatWindowOpenOptions): Promise<IChatWindow | undefined> {
-		return this._opening.run(`${options?.exactChat ? 'exact' : 'default'}:${chat.toString()}`, () => this._openQueue.queue(() => this._openOrReveal(chat, options)));
+		return this._opening.run(`${options?.exactChat ? 'exact' : 'default'}:${chat.toString()}`, () => this._openOrReveal(chat, options));
 	}
 
 	/** The window that shows `chat`: not one that is going away, nor `leaving`, such as the window the chat moves out of. */
@@ -864,25 +864,29 @@ export class ChatWindowService extends Disposable implements IChatWindowService 
 			return undefined;
 		}
 		const firstChat = await content.resolveChat(chat, options?.exactChat);
-		// The chat the provider resolved to may show already, such as the main chat of a session.
-		const resolved = firstChat && this._windowOfChat(firstChat.chat.get());
-		if (!firstChat || resolved) {
-			// The window that shows the chat the provider resolved to shows it as its active chat
-			const canonical = firstChat?.chat.get();
-			firstChat?.dispose();
+		if (!firstChat) {
 			content.dispose();
-			if (resolved && canonical) {
+			return undefined;
+		}
+		return this._openByChat.queue(firstChat.chat.get().toString(), async () => {
+			// The chat the provider resolved to may show already, such as the main chat of a session, or in the window another open of it just created.
+			const canonical = firstChat.chat.get();
+			const resolved = this._windowOfChat(canonical);
+			if (resolved) {
+				// The window that shows the chat the provider resolved to shows it as its active chat
+				firstChat.dispose();
+				content.dispose();
 				if (options?.preserveFocus) {
 					resolved.activateChat(canonical);
 				} else {
 					resolved.revealChat(canonical);
 				}
+				return resolved;
 			}
-			return resolved;
-		}
-		return openCleaningUpOnFailure(async opening => {
-			opening.disposables.add(content);
-			return this._openWindow(provider, content, firstChat, options, opening.disposables, close => opening.close = close);
+			return openCleaningUpOnFailure(async opening => {
+				opening.disposables.add(content);
+				return this._openWindow(provider, content, firstChat, options, opening.disposables, close => opening.close = close);
+			});
 		});
 	}
 

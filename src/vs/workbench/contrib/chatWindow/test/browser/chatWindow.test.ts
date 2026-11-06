@@ -749,6 +749,40 @@ suite('Chat window', () => {
 		assert.deepStrictEqual({ events, same: first === created && second === created }, { events: ['create', 'reveal'], same: true });
 	});
 
+	test('a chat that opens slowly does not hold back the reveal of another chat that a window shows already', async () => {
+		const { service } = createService(['a', 'b']);
+		const gate = new DeferredPromise<void>();
+		const events: string[] = [];
+		Reflect.set(service, '_openWindow', async (_provider: unknown, _content: unknown, _firstChat: unknown, _options: unknown, store: DisposableStore) => {
+			disposables.add(store);
+			events.push('create x');
+			await gate.p;
+			return undefined;
+		});
+		disposables.add(service.registerProvider(upcastPartial<IChatWindowProvider>({
+			onDidRemoveChats: Event.None,
+			restoreEnabled: constObservable(false),
+			resolveContent: async () => new class extends mock<IChatWindowContent>() {
+				// A session resolves to a chat of its own: the one that a window shows
+				override async resolveChat(resource: URI) {
+					return new class extends mock<IChatWindowChat>() {
+						override readonly chat = constObservable(resource.path === '/session-b' ? URI.parse('test:/b') : resource);
+						override dispose() { }
+					}();
+				}
+				override dispose() { }
+			}(),
+		})));
+
+		const slow = service.open(URI.parse('test:/x'));
+		await timeout(0);
+		const revealed = await Promise.race([service.open(URI.parse('test:/session-b')).then(() => true), timeout(10).then(() => false)]);
+		gate.complete();
+		await slow;
+
+		assert.deepStrictEqual({ events, revealedWhileSlowOpens: revealed }, { events: ['create x'], revealedWhileSlowOpens: true });
+	});
+
 	test('a click in the chat of a group that is not the active one makes that chat the active chat of the window, so a link opens as a tab of its group', async () => {
 		const { service, events, windows: [target] } = createService(['a']);
 		await service.open(URI.parse('test:/c'), { window: target.window });
