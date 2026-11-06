@@ -217,6 +217,16 @@ async function renderSessionsGrid(context: ComponentFixtureContext, options: { b
 		activate(session: ITestSessionWithChat | undefined): void {
 			this.activeSession.set(session, undefined);
 		}
+		// The pane commands, such as Maximize, activate the pane they act on first.
+		override activatePane(pane: ISessionGridPane | undefined): void {
+			const session = pane?.session.get();
+			this.activate(sessions.find(candidate => candidate.sessionId === session?.sessionId));
+		}
+		// Close closes the pane of the group it closes last.
+		override closePane(pane: ISessionGridPane): void {
+			const session = pane.session.get();
+			this.closeSession(this.gridShown.get().find(candidate => candidate.sessionId === session?.sessionId));
+		}
 		// Its panes are the grid's slots, whose ids are their sessions' ids: none is detached. A pane's host stands for the pane
 		// whose session it shows.
 		override getPaneOfHost(host: ISessionHost): ISessionGridPane | undefined {

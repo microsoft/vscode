@@ -45,7 +45,7 @@ import { ISessionsPartService } from '../../../../../workbench/contrib/sessions/
 import { ISessionsService } from '../../../../../workbench/contrib/sessions/browser/sessionsService.js';
 import { chatOfShown, focusedSessionHostServiceOf, ITestSessionsGridState, stubSessionHosts } from '../../../../../workbench/contrib/sessions/test/browser/sessionHostTestUtils.js';
 import { ISessionGridPane } from '../../../../../workbench/contrib/sessions/browser/sessionGridPane.js';
-import { IFocusedSessionHostService } from '../../../../../workbench/contrib/sessions/browser/sessionHost.js';
+import { IFocusedSessionHostService, ISessionHost } from '../../../../../workbench/contrib/sessions/browser/sessionHost.js';
 import { createSessionViewTestServices } from '../../../../test/browser/sessionViewTestUtils.js';
 import { AccountWidgetContribution } from '../../../accountMenu/browser/account.contribution.js';
 import { BaseLayoutController } from '../../../layout/browser/baseSessionLayoutController.js';
@@ -220,6 +220,9 @@ export function createSessionsWorkbenchFixture(context: ComponentFixtureContext,
 	const part = disposableStore.add(instantiationService.createInstance(SessionsPart));
 	instantiationService.stub(ISessionsPartService, new class extends mock<ISessionsPartService>() {
 		override getSessionView(id: string | undefined) { return part.getSessionView(id); }
+		// The pane commands resolve the view of the host their menu passes.
+		override getSessionViewOfHost(host: ISessionHost) { return part.getSessionViewOfHost(host); }
+		override getActiveSessionView() { return part.getActiveSessionView(); }
 		override toggleMaximizePane(pane: ISessionGridPane) { part.toggleMaximizePane(pane); }
 		override focusNewSessionSlot() { part.focusNewSessionSlot(); }
 	}());
