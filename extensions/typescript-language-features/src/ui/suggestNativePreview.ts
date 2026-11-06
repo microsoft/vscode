@@ -50,6 +50,11 @@ export async function suggestNativePreview(
 		return;
 	}
 
+	const currentEditor = vscode.window.activeTextEditor;
+	if (!currentEditor || !isSupportedLanguageMode(currentEditor.document)) {
+		return;
+	}
+
 	const install: vscode.MessageItem = { title: vscode.l10n.t("Install") };
 	const learnMore: vscode.MessageItem = { title: vscode.l10n.t("Learn More") };
 	const dismiss: vscode.MessageItem = { title: vscode.l10n.t("Don't Show Again") };
