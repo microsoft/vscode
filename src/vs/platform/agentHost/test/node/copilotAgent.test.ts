@@ -536,7 +536,7 @@ class TestCopilotApiService implements ICopilotApiService {
 class TestSessionDatabase extends SessionDatabase {
 	private _metadataWriteFailure: { readonly key: string; readonly error: Error } | undefined;
 	private _metadataWriteGate: { readonly key: string; readonly wait: Promise<void>; readonly entered: DeferredPromise<void> } | undefined;
-	readonly metadataWrites: { readonly key: string; readonly value: string }[] = [];
+	readonly metadataWrites: { readonly key: string; readonly value: string; readonly turnId?: string }[] = [];
 	private _metadataReadGate: { readonly wait: Promise<void>; readonly entered: DeferredPromise<void> } | undefined;
 
 	gateNextMetadataRead(wait: Promise<void>, entered: DeferredPromise<void>): void {
@@ -546,21 +546,23 @@ class TestSessionDatabase extends SessionDatabase {
 	readonly metadataReadKeys: string[] = [];
 	mirror: Record<string, string> | undefined;
 
-	override async deleteMetadata(keys: readonly string[]): Promise<void> {
-		for (const key of keys) {
-			delete this.mirror?.[key];
+	override async deleteMetadata(keys: readonly string[], turnId?: string): Promise<void> {
+		if (turnId === undefined) {
+			for (const key of keys) {
+				delete this.mirror?.[key];
+			}
 		}
-		return super.deleteMetadata(keys);
+		return super.deleteMetadata(keys, turnId);
 	}
 
-	override async getMetadata(key: string): Promise<string | undefined> {
+	override async getMetadata(key: string, turnId?: string): Promise<string | undefined> {
 		this.metadataReadKeys.push(key);
-		return super.getMetadata(key);
+		return super.getMetadata(key, turnId);
 	}
 
-	override async getMetadataObject<T extends Record<string, unknown>>(obj: T): Promise<{ [K in keyof T]: string | undefined }> {
+	override async getMetadataObject<T extends Record<string, unknown>>(obj: T, turnId?: string): Promise<{ [K in keyof T]: string | undefined }> {
 		this.metadataReadKeys.push(...Object.keys(obj));
-		const result = await super.getMetadataObject(obj);
+		const result = await super.getMetadataObject(obj, turnId);
 		if (this._metadataReadGate) {
 			const gate = this._metadataReadGate;
 			this._metadataReadGate = undefined;
@@ -577,31 +579,35 @@ class TestSessionDatabase extends SessionDatabase {
 		this._metadataWriteGate = { key, wait, entered };
 	}
 
-	override async setMetadata(key: string, value: string): Promise<void> {
-		this.metadataWrites.push({ key, value });
-		if (this.mirror) {
+	override async setMetadata(key: string, value: string, turnId?: string): Promise<void> {
+		this.metadataWrites.push({ key, value, ...(turnId === undefined ? {} : { turnId }) });
+		if (this.mirror && turnId === undefined) {
 			this.mirror[key] = value;
 		}
 		await this._beforeMetadataWrite([key]);
-		await super.setMetadata(key, value);
+		await super.setMetadata(key, value, turnId);
 	}
 
-	override applyMetadataChanges(set: Readonly<Record<string, string>>, remove: readonly string[]): Promise<void> {
+	override applyMetadataChanges(set: Readonly<Record<string, string>>, remove: readonly string[], turnId?: string): Promise<void> {
 		// Session state mirrored by the session state store lands in the session database too.
-		this.metadataWrites.push(...Object.entries(set).map(([key, value]) => ({ key, value })), ...remove.map(key => ({ key, value: '<removed>' })));
-		Object.assign(this.mirror ?? {}, set);
-		for (const key of remove) {
-			delete this.mirror?.[key];
+		this.metadataWrites.push(...Object.entries(set).map(([key, value]) => ({ key, value, ...(turnId === undefined ? {} : { turnId }) })), ...remove.map(key => ({ key, value: '<removed>', ...(turnId === undefined ? {} : { turnId }) })));
+		if (turnId === undefined) {
+			Object.assign(this.mirror ?? {}, set);
+			for (const key of remove) {
+				delete this.mirror?.[key];
+			}
 		}
-		return super.applyMetadataChanges(set, remove);
+		return super.applyMetadataChanges(set, remove, turnId);
 	}
 
-	override async setMetadataValues(values: Readonly<Record<string, string>>): Promise<void> {
+	override async setMetadataValues(values: Readonly<Record<string, string>>, turnId?: string): Promise<void> {
 		const entries = Object.entries(values);
-		this.metadataWrites.push(...entries.map(([key, value]) => ({ key, value })));
-		Object.assign(this.mirror ?? {}, values);
+		this.metadataWrites.push(...entries.map(([key, value]) => ({ key, value, ...(turnId === undefined ? {} : { turnId }) })));
+		if (turnId === undefined) {
+			Object.assign(this.mirror ?? {}, values);
+		}
 		await this._beforeMetadataWrite(entries.map(([key]) => key));
-		await super.setMetadataValues(values);
+		await super.setMetadataValues(values, turnId);
 	}
 
 	private async _beforeMetadataWrite(keys: readonly string[]): Promise<void> {
@@ -3555,6 +3561,7 @@ suite('CopilotAgent', () => {
 				await fileService.writeFile(source, VSBuffer.fromString('{"mcpServers":{"native":{"command":"native-server"}}}'));
 				const client = new TestCopilotClient([]);
 				let discovered = false;
+				client.pluginInstallations = [{ id: 'opaque-plugin', rootPath: plugin.fsPath, name: 'native', marketplace: '', enabled: true }];
 				client.discoverMcp = async () => ({
 					servers: discovered ? [{
 						name: 'native', type: 'stdio', source: 'plugin', enabled: true,
@@ -3613,6 +3620,7 @@ suite('CopilotAgent', () => {
 			const client = new TestCopilotClient([]);
 			let discovered = false;
 			let hostDecision: boolean | undefined;
+			client.pluginInstallations = [{ id: 'opaque-plugin', rootPath: plugin.fsPath, name: 'native', marketplace: '', enabled: true }];
 			client.discoverMcp = async () => ({
 				servers: discovered ? [{
 					name: 'native', type: 'stdio', source: 'plugin', enabled: false,
@@ -3701,15 +3709,16 @@ suite('CopilotAgent', () => {
 					await fileService.writeFile(skill, VSBuffer.fromString('---\nname: native\ndescription: Native skill\n---\n'));
 				}
 				const client = new TestCopilotClient([]);
+				client.pluginInstallations = [{ id: 'opaque-plugin', rootPath: plugin.fsPath, name: 'native', marketplace: '', enabled: true }];
 				client.discoverMcp = async () => ({
 					servers: [{
 						name: 'native', type: 'stdio', source: 'plugin', enabled: true,
-						effectiveSource: { kind: 'plugin', id: 'opaque', editability: 'read-only', file: { uri: source.toString() } },
+						effectiveSource: { kind: 'plugin', id: 'opaque', editability: 'read-only', plugin: { id: 'opaque-plugin', name: 'native' }, file: { uri: source.toString() } },
 					}]
 				});
 				client.discoverSkills = async () => ({
 					skills: hasSkill ? [{
-						name: 'native', description: 'Native skill', path: skill.fsPath, source: 'plugin', enabled: true, userInvocable: true,
+						name: 'native', description: 'Native skill', path: skill.fsPath, source: 'plugin', pluginId: 'opaque-plugin', enabled: true, userInvocable: true,
 					}] : []
 				});
 				const { agent } = createTestAgentContext(disposables, { fileService, copilotClient: client, rootConfig: { [AgentHostGitHubMcpServerEnabledConfigKey]: false } });
@@ -3815,7 +3824,7 @@ suite('CopilotAgent', () => {
 				let installed = true;
 				const client = new TestCopilotClient([]);
 				client.discoverSkills = async () => ({
-					skills: installed ? [{ name: 'session-timeline', description: 'Timeline', path: skill.fsPath, source: 'plugin', enabled: true, userInvocable: true }] : [],
+					skills: installed ? [{ name: 'session-timeline', description: 'Timeline', path: skill.fsPath, source: 'plugin', pluginId: 'opaque-plugin', enabled: true, userInvocable: true }] : [],
 				});
 				const { agent } = createTestAgentContext(disposables, { copilotClient: client, fileService });
 				const names = (customizations: readonly Customization[]) => customizations
@@ -3839,7 +3848,7 @@ suite('CopilotAgent', () => {
 					installed = false;
 				});
 				const list = stub(client.rpc.plugins, 'list').callsFake(async () => ({
-					plugins: [{ name: 'session-timeline', marketplace: 'test', version: '1.0.0', enabled: installed }],
+					plugins: [{ id: 'opaque-plugin', rootPath: plugin.fsPath, name: 'session-timeline', marketplace: 'test', version: '1.0.0', enabled: installed }],
 				}));
 				const enable = stub(client.rpc.plugins, 'enable').callsFake(async () => { installed = true; });
 				const disable = stub(client.rpc.plugins, 'disable').callsFake(async () => { installed = false; });
@@ -3902,9 +3911,10 @@ suite('CopilotAgent', () => {
 			let installed = true;
 			let scanIndex = 0;
 			const client = new TestCopilotClient([]);
+			client.pluginInstallations = [{ id: 'opaque-plugin', rootPath: plugin.fsPath, name: 'session-timeline', marketplace: 'test', enabled: true }];
 			client.discoverSkills = async () => {
 				if (installed) {
-					return { skills: [{ name: 'session-timeline', description: 'Timeline', path: skill.fsPath, source: 'plugin', enabled: true, userInvocable: true }] };
+					return { skills: [{ name: 'session-timeline', description: 'Timeline', path: skill.fsPath, source: 'plugin', pluginId: 'opaque-plugin', enabled: true, userInvocable: true }] };
 				}
 				const scan = scans[scanIndex++];
 				scan.started.complete();
@@ -21257,16 +21267,20 @@ suite('CopilotAgent', () => {
 
 			const sessionDataService = disposables.add(new TestSessionDataService());
 			const client = new TestCopilotClient([]);
+			client.pluginInstallations = [
+				{ id: 'source-plugin', rootPath: sourcePlugin.fsPath, name: 'Azure exp', marketplace: '', enabled: true },
+				{ id: 'other-plugin', rootPath: sameNamedPlugin.fsPath, name: 'Azure exp', marketplace: '', enabled: true },
+			];
 			client.discoverAgents = async () => ({
 				agents: [
-					{ id: 'source-agent', name: 'discovered-agent', displayName: 'discovered-agent', description: 'discovered', path: sourceAgent.fsPath, source: 'plugin' },
-					{ id: 'other-agent', name: 'discovered-agent', displayName: 'discovered-agent', description: 'discovered', path: sameNamedAgent.fsPath, source: 'plugin' },
+					{ id: 'source-agent', name: 'discovered-agent', displayName: 'discovered-agent', description: 'discovered', path: sourceAgent.fsPath, source: 'plugin', pluginId: 'source-plugin' },
+					{ id: 'other-agent', name: 'discovered-agent', displayName: 'discovered-agent', description: 'discovered', path: sameNamedAgent.fsPath, source: 'plugin', pluginId: 'other-plugin' },
 				],
 			});
 			client.discoverMcp = async () => ({
 				servers: [{
 					name: 'cached-server', type: 'stdio', source: 'plugin', enabled: true,
-					effectiveSource: { kind: 'plugin', id: 'source-server', editability: 'read-only', file: { uri: URI.joinPath(sourcePlugin, '.mcp.json').toString() } },
+					effectiveSource: { kind: 'plugin', id: 'source-server', editability: 'read-only', plugin: { id: 'source-plugin', name: 'Azure exp' }, file: { uri: URI.joinPath(sourcePlugin, '.mcp.json').toString() } },
 				}]
 			});
 			const { agent, stateManager } = createTestAgentContext(disposables, {
@@ -23976,6 +23990,98 @@ suite('CopilotAgent', () => {
 				await disposeAgent(h.agent);
 			}
 		});
+
+		for (const promotion of ['user.message', 'session.idle'] as const) {
+			test(`admits sequential steering after ${promotion} promotes the previous steering`, async () => {
+				const h = await createHarness();
+				const sends: Array<{ prompt: string; mode?: string }> = [];
+				const promotedMessageIds: string[] = [];
+				const promotedTurnIds: string[] = [];
+				const responseTurnIds: string[] = [];
+				const send = stub(h.newRuntime, 'send').callsFake(async (options?: Parameters<CopilotSession['send']>[0]) => {
+					assert.ok(options);
+					sends.push({ prompt: options.prompt, mode: options.mode });
+					return '';
+				});
+				const listener = disposables.add(h.agent.onDidChatProgress(signal => {
+					if (signal.kind === 'action' && signal.action.type === ActionType.ChatTurnStarted && signal.action.queuedMessageId) {
+						promotedMessageIds.push(signal.action.queuedMessageId);
+						promotedTurnIds.push(signal.action.turnId);
+					} else if (signal.kind === 'action' && signal.action.type === ActionType.ChatResponsePart) {
+						responseTurnIds.push(signal.action.turnId);
+					}
+				}));
+				const echoSteering = (id: string) => h.newRuntime.emit({
+					id: `${id}-user-message`, timestamp: new Date().toISOString(), parentId: null,
+					type: 'user.message',
+					data: { content: `${id} steering`, messageId: `sdk-${id}`, turnId: 'sdk-turn', delivery: 'steering' },
+				});
+				const respondToSteering = (id: string) => h.newRuntime.emit({
+					id: `${id}-response`, timestamp: new Date().toISOString(), parentId: null, ephemeral: true,
+					type: 'assistant.message_delta',
+					data: { messageId: `${id}-response`, deltaContent: `continuing after ${id}` },
+				});
+				try {
+					await h.agent.chats.sendMessage(h.chat, 'original', undefined, undefined, 'turn-original', undefined, h.context);
+					h.newRuntime.emit({
+						id: 'original-user-message', timestamp: new Date().toISOString(), parentId: null,
+						type: 'user.message',
+						data: { content: 'original', messageId: 'sdk-original', turnId: 'sdk-turn' },
+					});
+					const initiallyReady = h.live().hasRunningTurn;
+					const firstAdmitted = await h.agent.sendSteeringMessage(h.chat, {
+						id: 'steer-first', message: { text: 'first steering', origin: { kind: MessageKind.User } },
+					});
+					if (promotion === 'session.idle') {
+						h.newRuntime.emit({
+							id: 'original-idle', timestamp: new Date().toISOString(), parentId: null,
+							type: 'session.idle', ephemeral: true, data: {},
+						});
+					} else {
+						echoSteering('first');
+					}
+					const readyAfterPromotion = h.live().hasRunningTurn;
+					const secondAdmitted = await h.agent.sendSteeringMessage(h.chat, {
+						id: 'steer-second', message: { text: 'second steering', origin: { kind: MessageKind.User } },
+					});
+					if (promotion === 'session.idle') {
+						echoSteering('first');
+					}
+					respondToSteering('first');
+					echoSteering('second');
+					respondToSteering('second');
+					const readyAfterSecondPromotion = h.live().hasRunningTurn;
+					const thirdAdmitted = await h.agent.sendSteeringMessage(h.chat, {
+						id: 'steer-third', message: { text: 'third steering', origin: { kind: MessageKind.User } },
+					});
+					echoSteering('third');
+					respondToSteering('third');
+
+					assert.deepStrictEqual({
+						admitted: [firstAdmitted, secondAdmitted, thirdAdmitted],
+						ready: [initiallyReady, readyAfterPromotion, readyAfterSecondPromotion, h.live().hasRunningTurn],
+						promotedMessageIds,
+						responseTurnIndices: responseTurnIds.map(id => promotedTurnIds.indexOf(id)),
+						sends,
+					}, {
+						admitted: [true, true, true],
+						ready: [true, true, true, true],
+						promotedMessageIds: ['steer-first', 'steer-second', 'steer-third'],
+						responseTurnIndices: [0, 1, 2],
+						sends: [
+							{ prompt: 'original', mode: undefined },
+							{ prompt: 'first steering', mode: 'immediate' },
+							{ prompt: 'second steering', mode: 'immediate' },
+							{ prompt: 'third steering', mode: 'immediate' },
+						],
+					});
+				} finally {
+					listener.dispose();
+					send.restore();
+					await disposeAgent(h.agent);
+				}
+			});
+		}
 
 		for (const phase of ['prepare', 'create', 'disconnect', 'resume', 'continue'] as const) {
 			test(`delivers steering after send preparation ${phase} to the current runtime`, async () => {

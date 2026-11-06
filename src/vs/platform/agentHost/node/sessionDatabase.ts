@@ -1428,6 +1428,10 @@ export class SessionDatabase implements ISessionDatabase {
 	}
 
 	applyMetadataChanges(set: Readonly<Record<string, string>>, remove: readonly string[], turnId?: string): Promise<void> {
+		return this._applyMetadataChanges(set, remove, turnId);
+	}
+
+	private _applyMetadataChanges(set: Readonly<Record<string, string>>, remove: readonly string[], turnId?: string): Promise<void> {
 		return this._mutateMetadata(async db => {
 			const entries = Object.entries(set);
 			if (turnId !== undefined && entries.length > 0) {
@@ -1443,7 +1447,7 @@ export class SessionDatabase implements ISessionDatabase {
 	}
 
 	setMetadata(key: string, value: string, turnId?: string): Promise<void> {
-		return this.setMetadataValues({ [key]: value }, turnId);
+		return this._applyMetadataChanges({ [key]: value }, [], turnId);
 	}
 
 	updateMetadata(key: string, update: (value: string | undefined) => string, turnId?: string): Promise<void> {
@@ -1458,14 +1462,14 @@ export class SessionDatabase implements ISessionDatabase {
 	}
 
 	setMetadataValues(values: Readonly<Record<string, string>>, turnId?: string): Promise<void> {
-		return this.applyMetadataChanges(values, [], turnId);
+		return this._applyMetadataChanges(values, [], turnId);
 	}
 
 	deleteMetadata(keys: readonly string[], turnId?: string): Promise<void> {
 		if (keys.length === 0) {
 			return Promise.resolve();
 		}
-		return this.applyMetadataChanges({}, keys, turnId);
+		return this._applyMetadataChanges({}, keys, turnId);
 	}
 
 	async setMetadataValuesAndCatalogSyncSnapshot(values: Readonly<Record<string, string>>, snapshot: ISessionCatalogSyncPendingSnapshot, validate?: SessionCatalogSyncWriteValidator): Promise<SessionCatalogSyncWriteResult> {
