@@ -25,7 +25,8 @@ import { AbstractChatView } from '../../../../../workbench/contrib/sessions/brow
 import { ChatViewSessionActivityBar } from '../../../../../workbench/contrib/sessions/browser/parts/sessionActivityBar.js';
 import { IAgentWorkbenchLayoutService } from '../../../../browser/workbench.js';
 import { AgentWorkbenchLayout } from '../../../../../workbench/contrib/sessions/browser/sessionsHostLayoutService.js';
-import { AGENTS_CENTERED_CONTENT_MAX_WIDTH } from '../../../../../workbench/contrib/sessions/common/layoutConstants.js';
+import { AGENTS_CENTERED_CONTENT_MAX_WIDTH, AGENTS_FLOATING_PANEL_GAP } from '../../../../../workbench/contrib/sessions/common/layoutConstants.js';
+import { registerSessionActivityBarExternalHost, SESSION_ACTIVITY_BAR_COLUMN_WIDTH } from '../../../../../workbench/contrib/sessions/browser/parts/sessionActivityBarHost.js';
 import { SESSION_ACTIVITY_BAR_SETTING, SESSIONS_LIST_GROUP_EXTERNAL_SESSIONS_SETTING } from '../../../../../workbench/contrib/sessions/common/sessionConfig.js';
 import { ISessionActivityBarActivityService, SessionActivityBarActivityService } from '../../../../../workbench/contrib/sessions/common/sessionActivityBarActivityService.js';
 import { ISession } from '../../../../../workbench/contrib/sessions/common/session.js';
@@ -40,6 +41,7 @@ import '../../../../../workbench/contrib/sessions/browser/parts/media/chatCompos
 import '../../../../../workbench/contrib/sessions/browser/parts/media/chatGroupsView.css';
 import '../../../../../workbench/contrib/sessions/browser/parts/media/sessionView.css';
 import '../../../../../workbench/contrib/sessions/browser/parts/media/sessionsPart.css';
+import '../../../chatWindow/browser/media/chatWindow.css';
 
 interface IFixtureOptions {
 	readonly entries?: readonly IFixtureEntry[];
@@ -54,6 +56,11 @@ interface IFixtureOptions {
 	/** Shows the external-session banner above the chat. */
 	readonly externalBanner?: boolean;
 	readonly openSubmenu?: boolean;
+	/**
+	 * Renders the chat as the card of a chat window, with the strip in the window's column beside it, as the chat window
+	 * shows it in every layout, in the given Layout Density.
+	 */
+	readonly chatWindowColumn?: 'default' | 'compact';
 	/** Badges the Changes entry, as new changes do. */
 	readonly newChanges?: boolean;
 	readonly githubReferenceCount?: number;
@@ -97,6 +104,11 @@ export default defineThemedFixtureGroup({ path: 'sessions/sessionActivityBar/' }
 	GitHubReferences: activityBarFixture({ githubReferenceCount: 1 }, highContrastThemes),
 	MultipleGitHubReferences: activityBarFixture({ githubReferenceCount: 2 }, highContrastThemes),
 	CheckedGitHubReferences: activityBarFixture({ githubReferenceCount: 2, githubChecked: true }, highContrastThemes),
+	// A chat window: the strip in a column of its own beside the chat's card, framed like the main window's.
+	ChatWindowColumn: activityBarFixture({ chatWindowColumn: 'default' }, highContrastThemes),
+	ChatWindowColumnCompact: activityBarFixture({ chatWindowColumn: 'compact' }, highContrastThemes),
+	ChatWindowColumnNewChanges: activityBarFixture({ chatWindowColumn: 'default', newChanges: true }),
+	ChatWindowColumnWithoutLayoutActions: activityBarFixture({ chatWindowColumn: 'default', entries: [...sidePanelGroup([fixtureChanges, fixtureFiles, fixtureBrowser, fixtureCanvas]), fixtureTerminal] }),
 });
 
 const HEIGHT = 500;
@@ -140,9 +152,10 @@ async function renderActivityBar(context: ComponentFixtureContext, options: IFix
 	container.style.width = `${width}px`;
 	container.style.height = `${HEIGHT}px`;
 	container.classList.add('agent-sessions-workbench');
+	const chatWindow = options.chatWindowColumn && renderChatWindowFrame(context, options.chatWindowColumn);
 
 	// The session view's DOM, so the header and chat take their production alignment.
-	const part = append(container, $('.part.sessionspart'));
+	const part = append(chatWindow?.card ?? container, $('.part.sessionspart'));
 	// The activity bar only shows in the active session, so render that session's styling.
 	const sessionView = append(part, $('.session-view.is-active'));
 	sessionView.classList.toggle('grid-layout', !!options.split);
@@ -152,7 +165,8 @@ async function renderActivityBar(context: ComponentFixtureContext, options: IFix
 	groups.classList.toggle('single-group', !options.split);
 	// Like `ChatGroupView` for the active group, whose header and timeline the session view keeps shown.
 	const chatGroup = append(groups, $('.chat-group-view.active-group'));
-	chatGroup.style.height = `${HEIGHT}px`;
+	const chatHeight = chatWindow?.card.clientHeight ?? HEIGHT;
+	chatGroup.style.height = `${chatHeight}px`;
 	const bar = append(chatGroup, $('.chat-group-view-bar'));
 	bar.style.height = `${HEADER_HEIGHT}px`;
 	const header = append(bar, $('.chat-composite-bar.session-header-bar'));
@@ -190,7 +204,7 @@ async function renderActivityBar(context: ComponentFixtureContext, options: IFix
 	});
 	menuService.commandService = instantiationService.get(ICommandService);
 
-	const areaHeight = HEIGHT - HEADER_HEIGHT;
+	const areaHeight = chatHeight - HEADER_HEIGHT;
 	const activityBar = disposableStore.add(instantiationService.createInstance(ChatViewSessionActivityBar, chatGroup));
 	activityBar.setChatActions(constObservable(githubEntries.map(entry => toAction({
 		id: entry.id,
@@ -201,7 +215,7 @@ async function renderActivityBar(context: ComponentFixtureContext, options: IFix
 	}))));
 	activityBar.layout(HEADER_HEIGHT);
 	// As the chat group lays it out: to the left of the strip's column.
-	const chatWidth = Math.max(0, width - activityBar.reservedWidth.get());
+	const chatWidth = Math.max(0, (chatWindow?.card.clientWidth ?? width) - activityBar.reservedWidth.get());
 
 	const view = disposableStore.add(new FixtureChatView());
 	view.element.classList.add('chat-view-chat');
@@ -268,6 +282,26 @@ async function renderActivityBar(context: ComponentFixtureContext, options: IFix
 		submenuEntry?.dispatchEvent(new MouseEvent('mouseenter'));
 		await waitForFixtureCondition(() => !!container.querySelector('.fixture-context-view .monaco-menu .action-item'), 'The hovered Canvas entry did not open its submenu');
 	}
+}
+
+/**
+ * The frame of a chat window around the chat, as its grid lays it out: the chat's card, inside the window's outer insets
+ * (none at the top, where the title row is) and half the gap beside the strip's column, and that column at the right,
+ * where the strip of the active chat shows, as the chat window's strip host takes it.
+ */
+function renderChatWindowFrame({ container, disposableStore }: ComponentFixtureContext, density: 'default' | 'compact'): { readonly card: HTMLElement } {
+	const gap = density === 'compact' ? 0 : AGENTS_FLOATING_PANEL_GAP;
+	container.classList.toggle('modern-ui-compact', density === 'compact');
+	const frame = append(container, $('.agents-chat-window'));
+	frame.style.cssText = `display: flex; box-sizing: border-box; height: 100%; padding: 0 ${gap}px ${gap}px ${gap}px;`;
+	frame.style.setProperty('--chat-window-outer-inset-right', `${gap}px`);
+	const card = append(frame, $('.fixture-chat-window-card'));
+	const border = density === 'compact' ? '0' : 'var(--vscode-strokeThickness) solid var(--vscode-agentsCard-border, var(--vscode-agentsPanel-border, transparent))';
+	card.style.cssText = `flex: 1; position: relative; overflow: hidden; box-sizing: border-box; margin-right: ${Math.ceil(gap / 2)}px; border: ${border}; border-radius: var(--agents-part-corner-radius); background-color: var(--vscode-agentsPanel-background);`;
+	const column = append(frame, $('.chat-window-strip.session-activity-bar-column.session-activity-bar-host'));
+	column.style.cssText = `flex: none; width: ${SESSION_ACTIVITY_BAR_COLUMN_WIDTH - 2 * Math.floor(gap / 2)}px; margin-left: ${Math.floor(gap / 2)}px;`;
+	disposableStore.add(registerSessionActivityBarExternalHost(frame, { element: column, active: constObservable(true), setOccupied: () => { } }));
+	return { card };
 }
 
 /**

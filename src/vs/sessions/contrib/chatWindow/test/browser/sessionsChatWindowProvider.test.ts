@@ -37,9 +37,9 @@ import { SessionChangesetOperationsContext } from '../../../changes/browser/chan
 import { ActiveSessionState, IChangesSessionObservables, IChangesViewService } from '../../../../../workbench/contrib/sessions/common/changesViewService.js';
 import { IGitHubService } from '../../../../../workbench/contrib/sessions/browser/github/githubService.js';
 import { GitHubPullRequestCIModel } from '../../../../../workbench/contrib/sessions/browser/github/models/githubPullRequestCIModel.js';
-import { SESSION_ACTIVITY_BAR_COLUMN_WIDTH } from '../../../../../workbench/contrib/sessions/browser/parts/sessionActivityBarHost.js';
+import { findSessionActivityBarExternalHost, SESSION_ACTIVITY_BAR_COLUMN_WIDTH } from '../../../../../workbench/contrib/sessions/browser/parts/sessionActivityBarHost.js';
 import { AGENTS_CHAT_WINDOW_CLASS } from '../../browser/chatWindowTitleDoubleClick.js';
-import { alignChatWindowHeaderActions, CHAT_WINDOW_MAIN_PART_GROUP_VIEW_OPTIONS, focusChatWindowUnlessFocused, getChatWindowMainPartOptions, getChatWindowTitleHeight, isChatWindowStripInColumn, setChatWindowTitleInChatColumn, SessionsChatWindowContent, SessionsChatWindowProvider } from '../../browser/sessionsChatWindowProvider.js';
+import { alignChatWindowHeaderActions, CHAT_WINDOW_MAIN_PART_GROUP_VIEW_OPTIONS, focusChatWindowUnlessFocused, getChatWindowMainPartOptions, getChatWindowTitleHeight, setChatWindowTitleInChatColumn, SessionsChatWindowContent, SessionsChatWindowProvider } from '../../browser/sessionsChatWindowProvider.js';
 import { DesktopMainEditorPart } from '../../../../browser/parts/desktopEditorPart.js';
 import { IEditorGroupViewOptions } from '../../../../../workbench/browser/parts/editor/editor.js';
 import { EditorInputCapabilities, GroupModelChangeKind } from '../../../../../workbench/common/editor.js';
@@ -470,8 +470,26 @@ suite('Sessions chat window provider', () => {
 		]);
 	});
 
-	test('the Session Activity Bar has a column of its own while the chat is below the main part or hidden, and shows beside the chat otherwise', () => {
-		assert.deepStrictEqual([ChatWindowLayoutMode.SideBySide, ChatWindowLayoutMode.ChatOnly, ChatWindowLayoutMode.Stacked, ChatWindowLayoutMode.EditorOnly].map(isChatWindowStripInColumn), [false, false, true, true]);
+	test('the Session Activity Bar of a chat window shows in a column of its own at the right of the window, framed like the main window\'s, whatever the layout mode, never inside the chat', () => {
+		const store = disposables.add(new DisposableStore());
+		const { provider, windowInstantiationService } = createProvider(store, []);
+		const container = append(mainWindow.document.body, $('.chat-window-strip'));
+		store.add(toDisposable(() => container.remove()));
+		const strip = provider.chrome.createStrip!(window, container, windowInstantiationService)!;
+		store.add(strip);
+		// A chat view of the window looks for the host among its ancestors.
+		const chatView = append(mainWindow.document.body, $('div'));
+		store.add(toDisposable(() => chatView.remove()));
+		const host = findSessionActivityBarExternalHost(chatView);
+
+		assert.deepStrictEqual({ hostedInStrip: host?.element === container, active: host?.active.get(), classes: [...container.classList], visible: strip.visible.get(), size: strip.size.get() }, {
+			hostedInStrip: true,
+			active: true,
+			classes: ['chat-window-strip', 'session-activity-bar-column', 'session-activity-bar-host'],
+			visible: true,
+			// The column, with the half of the gap the grid adds beside the cards
+			size: SESSION_ACTIVITY_BAR_COLUMN_WIDTH - 2,
+		});
 	});
 
 	test('focuses its window only while that window does not have focus, so that a focused chat window is not focused again', () => {
@@ -500,7 +518,7 @@ suite('Sessions chat window provider', () => {
 		assert.deepStrictEqual({ column: SESSION_ACTIVITY_BAR_COLUMN_WIDTH, insets }, { column: 34, insets: ['20: 7px', '22: 6px', '0: none'] });
 	});
 
-	test('the tab row at the top right of a chat window keeps the room of the window controls only while they float above it, beside the chat\'s own title: not while they are in the title row, hidden as in full screen, or at the left as on macOS', () => {
+	test('the tab row at the top right of a chat window, and the strip, keep the room of the window controls only while they float above them, beside the chat\'s own title: not while they are in the title row, hidden as in full screen, or at the left as on macOS', () => {
 		const chatWindow = append(mainWindow.document.body, $(`.${AGENTS_CHAT_WINDOW_CLASS}`));
 		disposables.add({ dispose: () => chatWindow.remove() });
 		const titlebar = append(chatWindow, $('div'));
@@ -510,7 +528,8 @@ suite('Sessions chat window provider', () => {
 		let inChatColumn = false;
 		const reserved = (windowControls: HTMLElement | undefined) => {
 			setChatWindowTitleInChatColumn(titlebar, windowControls, inChatColumn);
-			return chatWindow.style.getPropertyValue('--chat-window-controls-right-width') || 'none';
+			// The width for the tab row below them, the height for the strip below them
+			return `${chatWindow.style.getPropertyValue('--chat-window-controls-right-width') || 'none'} x ${chatWindow.style.getPropertyValue('--chat-window-controls-right-height') || 'none'}`;
 		};
 
 		const inTitleRow = reserved(controls);
@@ -524,7 +543,7 @@ suite('Sessions chat window provider', () => {
 		const leftAsOnMacOS = reserved(undefined);
 		const windowedAgain = reserved(controls);
 
-		assert.deepStrictEqual({ inTitleRow, classOn, overChatColumn, fullScreen, leftAsOnMacOS, windowedAgain }, { inTitleRow: 'none', classOn: true, overChatColumn: '138px', fullScreen: 'none', leftAsOnMacOS: 'none', windowedAgain: '138px' });
+		assert.deepStrictEqual({ inTitleRow, classOn, overChatColumn, fullScreen, leftAsOnMacOS, windowedAgain }, { inTitleRow: 'none x none', classOn: true, overChatColumn: '138px x 30px', fullScreen: 'none x none', leftAsOnMacOS: 'none x none', windowedAgain: '138px x 30px' });
 	});
 
 	test('the cards keep the main window\'s gaps: between them and to the edges of the window but its top, where the title row is', () => {

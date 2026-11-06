@@ -150,3 +150,13 @@
 .monaco-workbench .agents-chat-window .part-grid-cell-top-edge.part-grid-cell-right-edge .editor-group-container.part-grid-top-right-group > .title {
 	padding-right: var(--chat-window-controls-right-width, 0px);
 }
+
+/*
+ * The strip at the right of the window keeps the main window's distances: to the window's edge, in the window's inset
+ * beside its column, and so to the card beside it. It starts below the window controls floating above its column
+ * (Windows, Linux); its `top` is its host's.
+ */
+.monaco-workbench .agents-chat-window .chat-window-strip > .session-activity-bar.docked {
+	right: calc(var(--vscode-spacing-size20) - var(--chat-window-outer-inset-right, 0px));
+	margin-top: var(--chat-window-controls-right-height, 0px);
+}

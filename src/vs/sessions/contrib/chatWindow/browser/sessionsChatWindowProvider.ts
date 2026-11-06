@@ -7,7 +7,7 @@ import './media/chatWindow.css';
 import { raceTimeout, timeout } from '../../../../base/common/async.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { Disposable, DisposableMap, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
-import { autorun, derived, disposableObservableValue, IObservable, IReader, ISettableObservable, observableFromEvent, observableSignalFromEvent, observableValue, waitForState } from '../../../../base/common/observable.js';
+import { autorun, constObservable, derived, disposableObservableValue, IObservable, IReader, ISettableObservable, observableFromEvent, observableSignalFromEvent, observableValue, waitForState } from '../../../../base/common/observable.js';
 import { isNative } from '../../../../base/common/platform.js';
 import { isEqual } from '../../../../base/common/resources.js';
 import { DeepPartial } from '../../../../base/common/types.js';
@@ -22,7 +22,6 @@ import { IEditorGroupView, IEditorGroupViewOptions } from '../../../../workbench
 import { GroupModelChangeKind, IEditorPartOptions } from '../../../../workbench/common/editor.js';
 import { IChatService } from '../../../../workbench/contrib/chat/common/chatService/chatService.js';
 import { IChatWindow, IChatWindowChat, IChatWindowChrome, IChatWindowChromeElement, IChatWindowContent, IChatWindowEditors, IChatWindowLook, IChatWindowProvider, IChatWindowService } from '../../../../workbench/contrib/chatWindow/browser/chatWindow.js';
-import { ChatWindowColumnPlacement, ChatWindowLayoutMode, ChatWindowTerminalPosition, computeChatWindowLayout } from '../../../../workbench/contrib/chatWindow/common/chatWindowLayout.js';
 import { IChatEntitlementService } from '../../../../workbench/services/chat/common/chatEntitlementService.js';
 import { IEditorGroup, IEditorGroupsService } from '../../../../workbench/services/editor/common/editorGroupsService.js';
 import { IEditorService } from '../../../../workbench/services/editor/common/editorService.js';
@@ -114,21 +113,28 @@ const CHAT_COLUMN_TITLE_CLASS = 'header-chat-column';
 /** The room the tab row at the top right of a chat window keeps for the window controls floating above it. */
 const WINDOW_CONTROLS_WIDTH_PROPERTY = '--chat-window-controls-right-width';
 
+/** The room the strip at the right of a chat window keeps above it for the window controls floating there. */
+const WINDOW_CONTROLS_HEIGHT_PROPERTY = '--chat-window-controls-right-height';
+
 /**
  * Lets the tab row at the top right of the chat window that `titlebar` is in keep the room of its window controls at the
- * right, `controls`, while they float at the top right of the window over the part beside the chat (Windows, Linux):
- * none while they are in the title row, hidden as in full screen, or at the left, as the traffic lights of macOS are.
+ * right, `controls`, while they float at the top right of the window over the part beside the chat (Windows, Linux), and
+ * the strip below them start below them: none while they are in the title row, hidden as in full screen, or at the
+ * left, as the traffic lights of macOS are.
  */
 export function reserveChatWindowControls(titlebar: HTMLElement, controls: HTMLElement | undefined): void {
 	const host = titlebar.closest<HTMLElement>(`.${AGENTS_CHAT_WINDOW_CLASS}`);
 	if (!host) {
 		return;
 	}
-	const width = controls && titlebar.classList.contains(CHAT_COLUMN_TITLE_CLASS) ? controls.offsetWidth : 0;
-	if (width > 0) {
+	const floating = controls && titlebar.classList.contains(CHAT_COLUMN_TITLE_CLASS) ? controls : undefined;
+	const width = floating?.offsetWidth ?? 0;
+	if (floating && width > 0) {
 		host.style.setProperty(WINDOW_CONTROLS_WIDTH_PROPERTY, `${width}px`);
+		host.style.setProperty(WINDOW_CONTROLS_HEIGHT_PROPERTY, `${floating.offsetHeight}px`);
 	} else {
 		host.style.removeProperty(WINDOW_CONTROLS_WIDTH_PROPERTY);
+		host.style.removeProperty(WINDOW_CONTROLS_HEIGHT_PROPERTY);
 	}
 }
 
@@ -149,11 +155,6 @@ export function alignChatWindowHeaderActions(titlebar: HTMLElement, actionsHost:
 	} else {
 		titlebar.style.setProperty('--session-header-actions-inset', `${inset}px`);
 	}
-}
-
-/** Whether the Session Activity Bar of a chat window shows in a column of its own: while the chat is below the main part or hidden. */
-export function isChatWindowStripInColumn(mode: ChatWindowLayoutMode): boolean {
-	return computeChatWindowLayout({ mode, terminalPosition: ChatWindowTerminalPosition.FullWidth, terminalsVisible: false, activityBar: true, inputOnly: false }).column !== ChatWindowColumnPlacement.None;
 }
 
 /** A session and the chat of it that a resource names: a session names its own; a chat its session. */
@@ -601,7 +602,7 @@ export class SessionsChatWindowProvider extends Disposable implements IChatWindo
 		};
 		this.chrome = {
 			createTitleRow: (window, container, instantiationService) => this._createTitleRow(window, container, instantiationService),
-			createStrip: (window, container) => this._createStrip(window, container),
+			createStrip: (_window, container) => this._createStrip(container),
 		};
 
 	}
@@ -752,13 +753,14 @@ export class SessionsChatWindowProvider extends Disposable implements IChatWindo
 	}
 
 	/**
-	 * The strip: the column the Session Activity Bar of the chat shows in while the chat is below the main part or hidden;
-	 * beside the chat otherwise, as in the main window.
+	 * The strip: the column the Session Activity Bar of the chat shows in, at the right of the window in every layout, as
+	 * the main window's column is, and framed like it.
 	 */
-	private _createStrip(window: IChatWindow, container: HTMLElement): IChatWindowChromeElement {
+	private _createStrip(container: HTMLElement): IChatWindowChromeElement {
+		container.classList.add('session-activity-bar-column', 'session-activity-bar-host');
 		const registration = registerSessionActivityBarExternalHost(container.ownerDocument.body, {
 			element: container,
-			active: derived(reader => isChatWindowStripInColumn(window.layoutMode.read(reader))),
+			active: constObservable(true),
 			setOccupied: () => { },
 		});
 		return {

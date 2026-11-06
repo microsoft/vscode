@@ -89,11 +89,14 @@ export interface IPartGridView {
 }
 
 /**
- * Where a cell goes: beside another cell, or at an edge of the window.
+ * Where a cell goes: beside another cell, or at an edge of the window. At an
+ * edge, the views in `spanning` keep spanning the window beside the parts
+ * and the cell: by default, the chrome along the sides of that edge, such as
+ * a strip at the right of the window (see {@link IPartGridViewOptions.edgeChrome}).
  */
 export type PartGridLocation =
 	{ readonly reference: string; readonly direction: Direction } |
-	{ readonly edge: Direction };
+	{ readonly edge: Direction; readonly spanning?: readonly string[] };
 
 /**
  * The state of a {@link PartGrid}: its topology and sizes, the cells hidden
@@ -134,6 +137,14 @@ export interface IPartGridViewOptions {
 	 * it, such as a title row of the window above the cards.
 	 */
 	readonly keepsNoGap?: boolean;
+
+	/**
+	 * The edge of the window the cell is chrome along, such as a strip at its
+	 * right: the cells beside it, on its other side, are at that edge too, as
+	 * far as the edge classes of the cells say, and it keeps spanning the
+	 * window along that edge as cells go to the edges beside it.
+	 */
+	readonly edgeChrome?: Direction;
 }
 
 /**
@@ -164,6 +175,12 @@ class PartGridLayout extends SerializableGrid<PartGridCell> {
 	static fromState(state: ISerializedGrid, deserializer: { fromJSON(data: { id: string }): PartGridCell }, options: { proportionalLayout: boolean }): PartGridLayout {
 		return new PartGridLayout(GridView.deserialize(state, deserializer, options), options);
 	}
+
+	/**
+	 * The size a restored grid was arranged at, which it is laid out at first: until then, the sizes of its rows and
+	 * columns, which the sizes kept as it is laid out are read from, are not known.
+	 */
+	restoredSize: IViewSize | undefined;
 
 	/**
 	 * Resizes the node at `location` along the row or column it is in, of
@@ -864,6 +881,7 @@ export class PartGrid extends Disposable {
 			const arrangement: IArrangement<PreviewView> = {
 				get grid() { return grid; },
 				isPart: cellId => cellId === added?.id || !!this.cells.get(cellId)?.part,
+				edgeChromeOf: cellId => this.cells.get(cellId)?.options.edgeChrome,
 				replace: serialized => {
 					const next = deserialize(serialized);
 					grid.dispose();
@@ -1067,7 +1085,7 @@ export class PartGrid extends Disposable {
 		} else if (hasKey(location, { reference: true })) {
 			this.grid.addView(cell, size ?? Sizing.Split, this.getCell(location.reference), location.direction);
 		} else {
-			this.addAtEdge(cell, location.edge, size, donorId);
+			this.addAtEdge(cell, location.edge, size, donorId, location.spanning);
 		}
 
 		this.updateAllVisibility();
@@ -1190,8 +1208,8 @@ export class PartGrid extends Disposable {
 		return this.empty.has(id);
 	}
 
-	private addAtEdge(cell: PartGridCell, edge: Direction, size: number | undefined, donorId?: string): void {
-		addAtEdge(this.arrangement(), cell, edge, size, donorId);
+	private addAtEdge(cell: PartGridCell, edge: Direction, size: number | undefined, donorId?: string, spanning?: readonly string[]): void {
+		addAtEdge(this.arrangement(), cell, edge, size, donorId, spanning);
 	}
 
 	/**
@@ -1204,6 +1222,7 @@ export class PartGrid extends Disposable {
 			// The grid as it is now: a change can replace it
 			get grid() { return partGrid.grid!; },
 			isPart: id => !!this.cells.get(id)?.part,
+			edgeChromeOf: id => this.cells.get(id)?.options.edgeChrome,
 			replace: state => this.setGrid(this.deserialize(state))
 		};
 	}
@@ -1541,7 +1560,11 @@ export class PartGrid extends Disposable {
 		grid.element.style.width = `${width}px`;
 		grid.element.style.height = `${height}px`;
 
-		// Once the grid knows its neighbors, the look applies before the layout, so that it lays out once
+		// Once the grid knows its neighbors, the look applies before the layout, so that it lays out once. A restored grid
+		// knows the sizes of its rows and columns once laid out: first at the size it was arranged at, for the sizes kept below.
+		if (!this.laidOut && grid.restoredSize) {
+			grid.layout(grid.restoredSize.width, grid.restoredSize.height);
+		}
 		const kept = this.keptSizes(grid);
 		if (this.laidOut) {
 			this.applyLook(false);
@@ -1684,9 +1707,11 @@ export class PartGrid extends Disposable {
 		cells.forEach((cell, index) => {
 			const insets = cell.options.keepsNoGap ? NO_GRID_EDGE_INSETS : getGridEdgeInsets(grid, cell, this.gap, neighbor => grid.isViewVisible(neighbor) && !neighbor.options.keepsNoGap);
 			changed = cell.setLook(insets, frames[index]) || changed;
-			// At the top edge of the grid: no visible cell above it, such as a row of the window's chrome.
-			cell.element.classList.toggle(PART_GRID_TOP_EDGE_CLASS, !grid.getNeighborViews(cell, Direction.Up, false).some(neighbor => grid.isViewVisible(neighbor)));
-			cell.element.classList.toggle(PART_GRID_RIGHT_EDGE_CLASS, !grid.getNeighborViews(cell, Direction.Right, false).some(neighbor => grid.isViewVisible(neighbor)));
+			// At the top edge of the grid: no visible cell above it, such as a row of the window's chrome. Chrome along an
+			// edge, such as a strip at the right, leaves the cells beside it at that edge.
+			const isEdgeNeighbor = (edge: Direction) => (neighbor: PartGridCell) => grid.isViewVisible(neighbor) && neighbor.options.edgeChrome !== edge;
+			cell.element.classList.toggle(PART_GRID_TOP_EDGE_CLASS, !grid.getNeighborViews(cell, Direction.Up, false).some(isEdgeNeighbor(Direction.Up)));
+			cell.element.classList.toggle(PART_GRID_RIGHT_EDGE_CLASS, !grid.getNeighborViews(cell, Direction.Right, false).some(isEdgeNeighbor(Direction.Right)));
 			this.markTopEdgeGroups(cell);
 		});
 
@@ -1740,7 +1765,9 @@ export class PartGrid extends Disposable {
 			}
 		}
 
-		partGrid.setGrid(partGrid.deserialize(state.grid));
+		const grid = partGrid.deserialize(state.grid);
+		grid.restoredSize = { width: state.grid.width, height: state.grid.height };
+		partGrid.setGrid(grid);
 		partGrid.updateAllVisibility();
 
 		return partGrid;
@@ -1769,6 +1796,8 @@ interface IArrangedView extends ISerializableView {
 interface IArrangement<T extends IArrangedView> {
 	readonly grid: SerializableGrid<T>;
 	isPart(id: string): boolean;
+	/** The edge of the window the view is chrome along, if it is; see {@link IPartGridViewOptions.edgeChrome}. */
+	edgeChromeOf(id: string): Direction | undefined;
 	replace(state: ISerializedGrid): void;
 }
 
@@ -1854,10 +1883,13 @@ export function getGridWithViewOnTop(state: ISerializedGrid, id: string): ISeria
 	return { root: { type: 'branch', data: [pinned, ...below], size: state.width }, orientation: Orientation.VERTICAL, width: state.width, height: state.height };
 }
 
-function addAtEdge<T extends IArrangedView>(arrangement: IArrangement<T>, cell: T, edge: Direction, size: number | undefined, donorId?: string): void {
+function addAtEdge<T extends IArrangedView>(arrangement: IArrangement<T>, cell: T, edge: Direction, size: number | undefined, donorId?: string, spanning?: readonly string[]): void {
 	const grid = arrangement.grid;
 	const orientation = edge === Direction.Up || edge === Direction.Down ? Orientation.VERTICAL : Orientation.HORIZONTAL;
 	const atEnd = edge === Direction.Right || edge === Direction.Down;
+	if (addBesideSpanningViews(arrangement, cell, orientation, atEnd, size, spanning)) {
+		return;
+	}
 	if (addAtEdgeOfParts(arrangement, cell, orientation, atEnd, size, donorId)) {
 		return;
 	}
@@ -1889,6 +1921,75 @@ function addAtEdge<T extends IArrangedView>(arrangement: IArrangement<T>, cell: 
 		newRoot = { type: 'branch', data: atEnd ? [rest, added] : [added, rest], size: orientation === Orientation.VERTICAL ? state.width : state.height };
 	}
 	arrangement.replace({ root: newRoot, orientation, width: state.width, height: state.height });
+}
+
+/**
+ * Adds a cell at an edge of the window beside the parts, but not beside the
+ * views that span the window at the ends of the row or column across that
+ * edge, such as a strip along the side of the window: they keep spanning
+ * past the cell. These are `spanning`, else the chrome along the edges
+ * beside it. Returns whether it added the cell: not without such a view there.
+ */
+function addBesideSpanningViews<T extends IArrangedView>(arrangement: IArrangement<T>, cell: T, orientation: Orientation, atEnd: boolean, size: number | undefined, spanning: readonly string[] | undefined): boolean {
+	const state = arrangement.grid.serialize();
+	// Chrome along the left or right edge spans the window from top to bottom, beside cells at its top or bottom edge
+	const spansAlongEdge = (id: string) => {
+		const edge = arrangement.edgeChromeOf(id);
+		return edge !== undefined && (edge === Direction.Left || edge === Direction.Right) === (orientation === Orientation.VERTICAL);
+	};
+	const isSpanning = (node: ISerializedNode | undefined) => node?.type === 'leaf' && (spanning ? spanning.includes((node.data as { id: string }).id) : spansAlongEdge((node.data as { id: string }).id));
+	const path: number[] = [];
+	let node = state.root;
+	let nodeOrientation = state.orientation;
+	let extent = orientation === Orientation.VERTICAL ? state.height : state.width;
+	// Along the edge's orientation, to what is at that edge: the row or column across the edge
+	while (node.type === 'branch' && nodeOrientation === orientation && node.data.length) {
+		const index = atEnd ? node.data.length - 1 : 0;
+		path.push(index);
+		node = node.data[index];
+		extent = node.size ?? extent;
+		nodeOrientation = orthogonal(nodeOrientation);
+	}
+	if (node.type !== 'branch') {
+		return false;
+	}
+
+	let start = 0;
+	while (start < node.data.length && isSpanning(node.data[start])) {
+		start++;
+	}
+	let end = node.data.length;
+	while (end > start && isSpanning(node.data[end - 1])) {
+		end--;
+	}
+	const parts = node.data.slice(start, end);
+	if (!parts.length || (start === 0 && end === node.data.length)) {
+		return false;
+	}
+
+	const cellSize = Math.min(size ?? Math.round(extent / 2), extent);
+	const rest = Math.max(0, extent - cellSize);
+	const added: ISerializedNode = { type: 'leaf', data: cell.toJSON(), size: cellSize };
+	let beside: ISerializedNode;
+	const [only] = parts;
+	if (parts.length === 1 && only.type === 'branch') {
+		// A column (or row) along the edge already: the cell joins it at that end, and what is in it makes room
+		const total = only.data.reduce((sum, child) => sum + (child.size ?? 0), 0);
+		const factor = total ? rest / total : 1;
+		const data = only.data.map(child => ({ ...child, size: Math.round((child.size ?? 0) * factor) }));
+		beside = { ...only, data: atEnd ? [...data, added] : [added, ...data] };
+	} else {
+		const inner: ISerializedNode = parts.length === 1 ? { ...only, size: rest } : { type: 'branch', data: parts, size: rest };
+		beside = { type: 'branch', data: atEnd ? [inner, added] : [added, inner], size: parts.reduce((sum, child) => sum + (child.size ?? 0), 0) };
+	}
+	const replacement: ISerializedNode = { ...node, data: [...node.data.slice(0, start), beside, ...node.data.slice(end)] };
+
+	const replace = (current: ISerializedNode, depth: number): ISerializedNode => depth === path.length || current.type !== 'branch'
+		? replacement
+		: { ...current, data: current.data.map((child, childIndex) => childIndex === path[depth] ? replace(child, depth + 1) : child) };
+	arrangement.replace({ ...state, root: replace(state.root, 0) });
+
+	return true;
 }
 
 /**
@@ -2051,7 +2152,7 @@ function moveInArrangement<T extends IArrangedView>(arrangement: IArrangement<T>
 		arrangement.grid.moveView(view, Sizing.Distribute, getView(location.reference), location.direction);
 	} else {
 		arrangement.grid.removeView(view);
-		addAtEdge(arrangement, view, location.edge, undefined);
+		addAtEdge(arrangement, view, location.edge, undefined, undefined, location.spanning);
 	}
 }
 
@@ -2077,7 +2178,7 @@ function placeInArrangement<T extends IArrangedView>(arrangement: IArrangement<T
 		if (!adding) {
 			arrangement.grid.removeView(view);
 		}
-		addAtEdge(arrangement, view, resolved.edge, undefined);
+		addAtEdge(arrangement, view, resolved.edge, undefined, undefined, resolved.spanning);
 	}
 
 	giveEvenShare(arrangement, view, before, getView);
