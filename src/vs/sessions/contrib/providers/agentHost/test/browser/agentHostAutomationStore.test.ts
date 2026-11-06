@@ -940,34 +940,45 @@ suite('AgentHostAutomationStore', () => {
 		assert.deepStrictEqual(action.definition.session.agent, { uri: source.toString() });
 	});
 
-	test('retargeting migrates a metadata-free saved bundle agent through the current origin', async () => {
-		const activeClient = new TestActiveClientService();
-		const first = plugin('vscode-synced-customization:/scope-one');
-		const second = plugin('vscode-synced-customization:/scope-two');
-		const source = URI.file('/user/prompts/review.agent.md');
-		const relative = 'agents/review.agent.md';
-		activeClient.customizations.set([first], undefined);
-		const { store } = reconnectable(true, activeClient);
-		const connection = customizationConnection();
-		store.setConnection(connection);
-		const automation = await store.createAutomation({
-			...createOptions(), sessionTemplate: { agent: { uri: URI.joinPath(URI.parse(first.uri), relative).toString() } },
+	for (const mapping of ['origin', 'source map', 'ambiguous', 'shared source'] as const) {
+		test(`retargeting resolves a metadata-free saved bundle agent with ${mapping} replacements`, async () => {
+			const activeClient = new TestActiveClientService();
+			const first = plugin('vscode-synced-customization:/scope-one');
+			const source = URI.file('/user/prompts/review.agent.md');
+			const relative = 'agents/review.agent.md';
+			const previousAgent = { uri: URI.joinPath(URI.parse(first.uri), relative).toString() };
+			activeClient.customizations.set([first], undefined);
+			const { store } = reconnectable(true, activeClient);
+			const connection = customizationConnection();
+			store.setConnection(connection);
+			const automation = await store.createAutomation({
+				...createOptions(), sessionTemplate: { agent: previousAgent },
+			});
+			const replacements = (mapping === 'ambiguous' || mapping === 'shared source' ? ['two', 'three'] : ['two']).map((id, index) => {
+				const sourceUri = mapping === 'ambiguous' && index === 1 ? URI.file('/different/review.agent.md') : source;
+				const replacement = plugin(`vscode-synced-customization:/scope-${id}`);
+				if (mapping !== 'source map') {
+					activeClient.syncedUris.set(sourceUri, URI.joinPath(URI.parse(replacement.uri), relative));
+				}
+				return mapping === 'origin' ? replacement : {
+					...replacement, _meta: { 'vscode.sourceUris': { [relative]: sourceUri.toString() } },
+				};
+			});
+			activeClient.customizations.set(replacements, undefined);
+			await store.updateAutomation(automation.id, {
+				target: { kind: 'workspace', providerId: 'host', sessionTypeId: 'copilotcli', folderUri: URI.file('/workspace'), isolation: { kind: 'default' } },
+			});
+			const create = connection.dispatched[0].action;
+			const update = connection.dispatched[1].action;
+			assert.ok(create.type === ActionType.AutomationCreateRequested && update.type === ActionType.AutomationUpdateRequested);
+			assert.deepStrictEqual({
+				previous: create.definition.session.agent, agent: update.changes.session?.agent, customizations: update.changes.session?.customizations,
+			}, {
+				previous: previousAgent,
+				agent: mapping === 'ambiguous' ? previousAgent : { uri: source.toString() }, customizations: replacements,
+			});
 		});
-		activeClient.customizations.set([second], undefined);
-		activeClient.syncedUris.set(source, URI.joinPath(URI.parse(second.uri), relative));
-		await store.updateAutomation(automation.id, {
-			target: { kind: 'workspace', providerId: 'host', sessionTypeId: 'copilotcli', folderUri: URI.file('/workspace'), isolation: { kind: 'default' } },
-		});
-		const create = connection.dispatched[0].action;
-		const update = connection.dispatched[1].action;
-		assert.ok(create.type === ActionType.AutomationCreateRequested && update.type === ActionType.AutomationUpdateRequested);
-		assert.deepStrictEqual({
-			previous: create.definition.session.agent, agent: update.changes.session?.agent, customizations: update.changes.session?.customizations,
-		}, {
-			previous: { uri: URI.joinPath(URI.parse(first.uri), relative).toString() },
-			agent: { uri: source.toString() }, customizations: [second],
-		});
-	});
+	}
 
 	test('disconnected, initializing, unsupported and disabled hosts never use browser ledgers', async () => {
 		const reasons = {

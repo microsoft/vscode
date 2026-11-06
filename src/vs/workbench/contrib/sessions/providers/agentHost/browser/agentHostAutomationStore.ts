@@ -8,6 +8,7 @@ import { CancellationToken } from '../../../../../../base/common/cancellation.js
 import { CancellationError } from '../../../../../../base/common/errors.js';
 import { Event } from '../../../../../../base/common/event.js';
 import { Disposable, DisposableMap, DisposableStore, toDisposable, type IReference } from '../../../../../../base/common/lifecycle.js';
+import { ResourceSet } from '../../../../../../base/common/map.js';
 import { stableStringify } from '../../../../../../base/common/objects.js';
 import { derived, type IObservable, observableSignal, observableSignalFromEvent, observableValue } from '../../../../../../base/common/observable.js';
 import { basename, isEqual, isEqualOrParent, joinPath, relativePath } from '../../../../../../base/common/resources.js';
@@ -782,13 +783,15 @@ export class AgentHostAutomationStore extends Disposable implements ISessionsPro
 			if (path === undefined) {
 				continue;
 			}
-			// Older saved bundles lack source metadata; only a current captured bundle can validate the relative file.
-			for (const currentPlugin of customizations) {
-				const source = this._activeClientService.getOrigin(joinPath(URI.parse(currentPlugin.uri), path))?.uri;
-				if (source) {
-					definition.session.agent = { uri: source.toString() };
-					return;
-				}
+			// Older saved bundles need an unambiguous source in the replacement capture.
+			const matches = new ResourceSet(customizations.flatMap(currentPlugin => {
+				const source = readClientPluginSourceUris(currentPlugin).files[path]
+					?? this._activeClientService.getOrigin(joinPath(URI.parse(currentPlugin.uri), path))?.uri;
+				return source ? [source] : [];
+			}));
+			if (matches.size === 1) {
+				definition.session.agent = { uri: [...matches][0].toString() };
+				return;
 			}
 		}
 	}

@@ -19,11 +19,9 @@ import { withClientCustomizationUriOwners } from '../../../common/syncedCustomiz
  */
 export interface ISessionCustomizationsState {
 	readonly synced: readonly ISyncedCustomization[];
-	readonly clientIds: readonly string[];
-	readonly sources: readonly ISyncedCustomization[];
 }
 
-const INITIAL_STATE: ISessionCustomizationsState = { synced: [], clientIds: [], sources: [] };
+const INITIAL_STATE: ISessionCustomizationsState = { synced: [] };
 
 /**
  * Pure observable state holder for the **client-pushed**
@@ -56,7 +54,7 @@ export class SessionClientCustomizationsModel {
 	 * customization `id` with the first-inserted client winning. Order
 	 * follows client insertion order.
 	 */
-	private _mergedState(): ISessionCustomizationsState {
+	private _mergedSynced(): readonly ISyncedCustomization[] {
 		const seen = new Set<string>();
 		const result: ISyncedCustomization[] = [];
 		const clientIds: string[] = [];
@@ -74,21 +72,16 @@ export class SessionClientCustomizationsModel {
 			...item.customization,
 			clientId,
 		})));
-		const sources = result.map((item, index) => {
+		return result.map((item, index) => {
 			const customization = contributions.find(candidate => candidate.id === item.customization.id && candidate.clientId === clientIds[index])!;
 			return { ...item, customization: withClientCustomizationUriOwners(customization, contributions) };
 		});
-		return { synced: result, clientIds, sources };
 	}
 
 	/** Replace a single client's pushed customization snapshot for this session. */
 	setSyncedCustomizations(clientId: string, synced: readonly ISyncedCustomization[]): void {
 		this._byClient.set(clientId, synced);
-		this._state.set(this._mergedState(), undefined);
-	}
-
-	getSourceCustomizations(): readonly ISyncedCustomization[] {
-		return this._state.get().sources;
+		this._state.set({ synced: this._mergedSynced() }, undefined);
 	}
 
 	/** Remove a client's pushed customizations from this session. */
@@ -96,7 +89,7 @@ export class SessionClientCustomizationsModel {
 		if (!this._byClient.delete(clientId)) {
 			return;
 		}
-		this._state.set(this._mergedState(), undefined);
+		this._state.set({ synced: this._mergedSynced() }, undefined);
 	}
 }
 
@@ -186,7 +179,7 @@ export class SessionClientCustomizationsDiff extends Disposable {
 }
 
 function stateEqual(a: ISessionCustomizationsState, b: ISessionCustomizationsState): boolean {
-	return arraysEqual(a.clientIds, b.clientIds) && syncedListEqual(a.synced, b.synced) && syncedListEqual(a.sources, b.sources);
+	return syncedListEqual(a.synced, b.synced);
 }
 
 function syncedListEqual(a: readonly ISyncedCustomization[], b: readonly ISyncedCustomization[]): boolean {
@@ -200,6 +193,9 @@ function syncedListEqual(a: readonly ISyncedCustomization[], b: readonly ISynced
 			return false;
 		}
 		if (ai.uri !== bi.uri) {
+			return false;
+		}
+		if (ai.clientId !== bi.clientId) {
 			return false;
 		}
 		if (ai.nonce !== bi.nonce) {

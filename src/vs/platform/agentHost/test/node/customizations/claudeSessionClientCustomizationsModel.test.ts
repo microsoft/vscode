@@ -62,15 +62,17 @@ suite('SessionClientCustomizationsDiff', () => {
 		item.customization.children = [child];
 		item.customization._meta = toClientPluginSourceUrisMeta({ files: { 'agents/reviewer.md': source } });
 		diff.model.setSyncedCustomizations('owner', [withClientOwner(item, 'owner')]);
-		const published = diff.model.getSourceCustomizations()[0].customization.children![0];
+		const published = diff.model.state.get().synced[0].customization.children![0];
 
 		assert.deepStrictEqual({
 			published: { ...published, _meta: undefined },
 			owner: readCustomizationUriClientId(published),
+			containerOwner: diff.model.state.get().synced[0].customization.clientId,
 			runtime: diff.model.state.get().synced[0].pluginDir?.toString(),
 		}, {
 			published: { ...child, uri: source.toString(), _meta: undefined },
 			owner: 'owner',
+			containerOwner: 'owner',
 			runtime: URI.file('/cache/plugin').toString(),
 		});
 	});
@@ -100,7 +102,7 @@ suite('SessionClientCustomizationsDiff', () => {
 		diff.model.setSyncedCustomizations('second', [withClientOwner(item, 'second')]);
 		diff.consume([]);
 		diff.model.removeClient('first');
-		const child = diff.model.getSourceCustomizations()[0].customization.children![0];
+		const child = diff.model.state.get().synced[0].customization.children![0];
 
 		assert.deepStrictEqual({ changed: diff.hasDifference, owner: readCustomizationUriClientId(child) }, { changed: true, owner: 'second' });
 	});
@@ -112,13 +114,16 @@ suite('SessionClientCustomizationsDiff', () => {
 		diff.model.setSyncedCustomizations('first', [withClientOwner(item, 'first')]);
 		diff.consume([]);
 		diff.model.setSyncedCustomizations('second', [withClientOwner(item, 'second')]);
-		const published = diff.model.getSourceCustomizations();
+		const published = diff.model.state.get().synced;
+		const changed = diff.hasDifference;
+		diff.model.removeClient('first');
 		assert.deepStrictEqual({
-			changed: diff.hasDifference,
+			changed,
 			runtimeCount: diff.model.state.get().synced.length,
 			publishedCount: published.length,
 			owners: readCustomizationUriClientIds(published[0].customization.children![0]),
-		}, { changed: true, runtimeCount: 1, publishedCount: 1, owners: ['first', 'second'] });
+			afterDisconnect: readCustomizationUriClientIds(diff.model.state.get().synced[0].customization.children![0]),
+		}, { changed: true, runtimeCount: 1, publishedCount: 1, owners: ['first', 'second'], afterDisconnect: ['second'] });
 	});
 
 	test('setSyncedCustomizations flips dirty and fires onDidChange', () => {

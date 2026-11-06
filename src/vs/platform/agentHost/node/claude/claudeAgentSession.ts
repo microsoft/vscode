@@ -1508,7 +1508,7 @@ export class ClaudeAgentSession extends Disposable implements IRematerializer {
 	 * still returned, so a transient SDK hiccup doesn't blank the UI.
 	 */
 	async getSessionCustomizations(): Promise<readonly Customization[]> {
-		const synced = this.clientCustomizationsDiff.model.getSourceCustomizations();
+		const { synced } = this.clientCustomizationsDiff.model.state.get();
 		const userHome = this._environmentService.userHome;
 		const [multiRoot, rules, mcpServers, hooks] = await Promise.all([
 			discoverClaudeMultiRootCustomizations(this.workingDirectories, userHome, this._fileService, this._logService),
@@ -1629,7 +1629,7 @@ export class ClaudeAgentSession extends Disposable implements IRematerializer {
 		const desiredById = new Map(resolved.customizations
 			.filter(customization => isCustomizationSdkEligible(resolved, customization))
 			.map(customization => [customization.id, customization.type === CustomizationType.Directory ? customization.enabled : isCustomizationEnabled(customization)]));
-		return this.clientCustomizationsDiff.model.getSourceCustomizations().filter(synced =>
+		return this.clientCustomizationsDiff.model.state.get().synced.filter(synced =>
 			(desiredById.get(synced.customization.id) ?? isCustomizationEnabled(synced.customization)) !== false
 		);
 	}
