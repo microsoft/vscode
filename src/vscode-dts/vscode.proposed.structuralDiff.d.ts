@@ -45,11 +45,14 @@ declare module 'vscode' {
 	export interface StructuralDiffContext {
 		/**
 		 * Textual changes computed by the editor, ordered by source position and
-		 * non-overlapping in each document. Unchanged context is excluded.
+		 * non-overlapping in each document. As in the diff editor, a change can
+		 * include short unchanged text that makes it easier to read, such as the
+		 * rest of a changed word or short text that would otherwise separate two
+		 * changes.
 		 *
-		 * Providers classify these changes rather than computing another textual
-		 * diff. Changes can be smaller than a line. Array indices identify changes
-		 * within this request.
+		 * Providers classify these changes, including such unchanged text, rather
+		 * than computing another textual diff. Changes can be smaller than a line.
+		 * Array indices identify changes within this request.
 		 */
 		readonly changes: readonly StructuralDiffTextChange[];
 	}
