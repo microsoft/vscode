@@ -19,7 +19,7 @@ import { IMicCaptureService } from '../../../../workbench/contrib/chat/browser/v
 import { ITtsPlaybackService } from '../../../../workbench/contrib/chat/browser/voiceClient/ttsPlaybackService.js';
 import { IVoiceSessionController } from '../../../../workbench/contrib/chat/browser/voiceClient/voiceSessionController.js';
 import { ILanguageModelChatMetadataAndIdentifier } from '../../../../workbench/contrib/chat/common/languageModels.js';
-import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
+import { IFocusedSessionHostService } from '../../../services/sessions/browser/sessionHost.js';
 import { setupVoiceInputDecorations } from './voiceInputDecorations.js';
 
 /**
@@ -85,7 +85,7 @@ export class NewChatVoiceTargetService extends Disposable implements INewChatVoi
 	readonly currentVoiceInputResource: IObservable<URI | undefined>;
 
 	constructor(
-		@ISessionsService private readonly sessionsService: ISessionsService,
+		@IFocusedSessionHostService private readonly _focusedSessionHostService: IFocusedSessionHostService,
 		@IChatWidgetService private readonly chatWidgetService: IChatWidgetService,
 	) {
 		super();
@@ -96,8 +96,8 @@ export class NewChatVoiceTargetService extends Disposable implements INewChatVoi
 
 		this.currentVoiceInputResource = derivedOpts({ owner: this, equalsFn: isEqual }, reader => {
 			const composer = this._activeComposer.read(reader);
-			const active = this.sessionsService.activeSession.read(reader);
-			const created = active?.isCreated.read(reader) ? active.activeChat.read(reader)?.resource : undefined;
+			const active = this._focusedSessionHostService.focusedHost.read(reader).session.read(reader);
+			const created = active?.isCreated.read(reader) ? this._focusedSessionHostService.focusedHost.read(reader).chat.read(reader)?.resource : undefined;
 			// The composer wins while it opts in (or before a session exists),
 			// matching `_chat.voice.getCurrentSession` routing.
 			if (composer && (composer.routesWhileSessionActive || !created)) {

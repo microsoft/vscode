@@ -47,6 +47,8 @@ import { ChatOriginKind, type IGitHubInfo, type IGitHubPullRequestRef, ISessionA
 // eslint-disable-next-line local/code-import-patterns
 import { IActiveSession, ISessionsManagementService } from '../../../../../sessions/services/sessions/common/sessionsManagement.js';
 // eslint-disable-next-line local/code-import-patterns
+import { ISessionHost, SessionHostKind } from '../../../../../sessions/services/sessions/browser/sessionHost.js';
+// eslint-disable-next-line local/code-import-patterns
 import { ISessionsProvidersService } from '../../../../../sessions/services/sessions/browser/sessionsProvidersService.js';
 import { ComponentFixtureContext, createEditorServices, defineComponentFixture, defineThemedFixtureGroup, type ServiceRegistration } from '../fixtureUtils.js';
 import { registerChatFixtureServices } from '../chat/chatFixtureUtils.js';
@@ -310,7 +312,7 @@ export async function renderPills(ctx: ComponentFixtureContext, sessionMock: IMo
 	container.style.width = options?.width ?? 'auto';
 	container.style.backgroundColor = 'var(--vscode-sideBar-background)';
 
-	const pills = disposableStore.add(instantiationService.createInstance(SessionChatInputToolbar, options?.compact ?? false, undefined));
+	const pills = disposableStore.add(instantiationService.createInstance(SessionChatInputToolbar, options?.compact ?? false, undefined, undefined));
 	// Mount and size the row before it gets pills, so it measures its overflow synchronously
 	// instead of on a later native ResizeObserver callback that can escape virtual time.
 	container.appendChild(pills.element);
@@ -325,6 +327,13 @@ export async function renderPills(ctx: ComponentFixtureContext, sessionMock: IMo
 	pills.setSession(sessionMock.session, sessionMock.chat);
 	pills.setDebugData(options?.debugData);
 	if (options?.debugData) {
+		// The banners show the session and chat of their window.
+		instantiationService.stub(ISessionHost, new class extends mock<ISessionHost>() {
+			override readonly kind = SessionHostKind.MainWindow;
+			override readonly parent = undefined;
+			override readonly session = constObservable<IActiveSession | undefined>(sessionMock.session);
+			override readonly chat = constObservable<IChat | undefined>(sessionMock.chat);
+		}());
 		const banners = disposableStore.add(instantiationService.createInstance(SessionInputBanners));
 		banners.setDebugData(options.debugData);
 		container.appendChild(banners.domNode);
@@ -345,7 +354,7 @@ async function renderChatViewWithPills(ctx: ComponentFixtureContext, mock: IMock
 			}
 			: undefined,
 		decorateInputPart: (inputPart, instantiationService) => {
-			const pills = ctx.disposableStore.add(instantiationService.createInstance(SessionChatInputToolbar, false, undefined));
+			const pills = ctx.disposableStore.add(instantiationService.createInstance(SessionChatInputToolbar, false, undefined, undefined));
 			const updateChatPillsVisibility = (visible: boolean) => {
 				inputPart.persistentContentContainerElement.classList.toggle(chatPersistentContentVisibleClass, visible);
 			};
@@ -666,7 +675,7 @@ export default defineThemedFixtureGroup({ path: 'sessions/' }, {
 				persistentContentHeight: SESSION_CHAT_INPUT_TOOLBAR_HEIGHT,
 				additionalServices: registration => registerSessionChatPillFixtureServices(registration, mock),
 				decorateInputPart: (inputPart, instantiationService) => {
-					const pills = ctx.disposableStore.add(instantiationService.createInstance(SessionChatInputToolbar, false, undefined));
+					const pills = ctx.disposableStore.add(instantiationService.createInstance(SessionChatInputToolbar, false, undefined, undefined));
 					pills.setSession(mock.session, mock.chat);
 					inputPart.persistentContentContainerElement.appendChild(pills.element);
 				},

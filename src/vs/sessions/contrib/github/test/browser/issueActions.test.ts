@@ -22,6 +22,7 @@ import { ISessionsService } from '../../../../services/sessions/browser/sessions
 import { IActiveSession } from '../../../../services/sessions/common/sessionsManagement.js';
 import { ISession, ISessionWorkspace } from '../../../../services/sessions/common/session.js';
 import '../../browser/issueActions.js';
+import { stubSessionHostsFromSessionsService } from '../../../../services/sessions/test/browser/sessionHostTestUtils.js';
 
 function createSessionWithIssue(issueUri: URI, issues?: readonly { readonly owner: string; readonly repo: string; readonly number: number; readonly uri: URI }[]): ISession {
 	const workspaceUri = URI.from({ scheme: 'test', path: '/workspace' });
@@ -99,8 +100,9 @@ suite('Issue Actions', () => {
 			}
 		});
 		instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() {
-			override readonly activeSession = constObservable(upcastPartial<IActiveSession>({ workspace: session.workspace }));
+			readonly activeSession = constObservable(upcastPartial<IActiveSession>({ workspace: session.workspace }));
 		});
+		stubSessionHostsFromSessionsService(instantiationService);
 
 		await instantiationService.invokeFunction(accessor => CommandsRegistry.getCommand('workbench.agentSessions.action.openIssue')!.handler(accessor));
 
@@ -121,8 +123,9 @@ suite('Issue Actions', () => {
 		instantiationService.stub(IOpenerService, openerService);
 		instantiationService.stub(IURLService, urlService);
 		instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() {
-			override readonly activeSession = constObservable(undefined);
+			readonly activeSession = constObservable(undefined);
 		});
+		stubSessionHostsFromSessionsService(instantiationService);
 
 		await instantiationService.invokeFunction(accessor => CommandsRegistry.getCommand('workbench.agentSessions.action.openIssue')!.handler(accessor, session));
 
@@ -149,8 +152,9 @@ suite('Issue Actions', () => {
 		instantiationService.stub(IOpenerService, openerService);
 		instantiationService.stub(IURLService, urlService);
 		instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() {
-			override readonly activeSession = constObservable(undefined);
+			readonly activeSession = constObservable(undefined);
 		});
+		stubSessionHostsFromSessionsService(instantiationService);
 
 		await instantiationService.invokeFunction(accessor => CommandsRegistry.getCommand('workbench.agentSessions.action.openIssue')!.handler(accessor, session));
 
@@ -191,8 +195,9 @@ suite('Issue Actions', () => {
 		};
 		instantiationService.stub(IClipboardService, clipboardService);
 		instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() {
-			override readonly activeSession = constObservable<IActiveSession | undefined>(session as IActiveSession);
+			readonly activeSession = constObservable<IActiveSession | undefined>(session as IActiveSession);
 		});
+		stubSessionHostsFromSessionsService(instantiationService);
 
 		await instantiationService.invokeFunction(accessor => CommandsRegistry.getCommand('workbench.agentSessions.action.copyIssueUrl')!.handler(accessor));
 
@@ -211,8 +216,9 @@ suite('Issue Actions', () => {
 		};
 		instantiationService.stub(IClipboardService, clipboardService);
 		instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() {
-			override readonly activeSession = constObservable(undefined);
+			readonly activeSession = constObservable(undefined);
 		});
+		stubSessionHostsFromSessionsService(instantiationService);
 
 		await instantiationService.invokeFunction(accessor => CommandsRegistry.getCommand('workbench.agentSessions.action.copyIssueUrl')!.handler(accessor, { issue: secondIssue }));
 

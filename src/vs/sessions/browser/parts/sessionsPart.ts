@@ -4,14 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import './media/sessionsPart.css';
-import { triggerConfettiAnimation } from '../../../base/browser/ui/animations/animations.js';
 import { IContextKey, IContextKeyService } from '../../../platform/contextkey/common/contextkey.js';
 import { IInstantiationService } from '../../../platform/instantiation/common/instantiation.js';
 import { IStorageService } from '../../../platform/storage/common/storage.js';
 import { IThemeService } from '../../../platform/theme/common/themeService.js';
-import { IAccessibilityService } from '../../../platform/accessibility/common/accessibility.js';
-import { ITelemetryService } from '../../../platform/telemetry/common/telemetry.js';
-import { localize } from '../../../nls.js';
 import { agentsPanelBorder } from '../../common/theme.js';
 import { Parts } from '../../../workbench/services/layout/browser/layoutService.js';
 import { assertReturnsDefined } from '../../../base/common/types.js';
@@ -21,6 +17,7 @@ import { Part } from '../../../workbench/browser/part.js';
 import { ActiveSessionsContext, MultipleSessionsVisibleContext, SessionsFocusContext } from '../../common/contextkeys.js';
 import { $, addDisposableGenericMouseDownListener, addDisposableListener, EventType, isAncestor, isAncestorOfActiveElement, isHTMLElement, trackFocus } from '../../../base/browser/dom.js';
 import { IActiveSession } from '../../services/sessions/common/sessionsManagement.js';
+import { ISession } from '../../services/sessions/common/session.js';
 import { SessionView } from './sessionView.js';
 import { DisposableStore, MutableDisposable } from '../../../base/common/lifecycle.js';
 import { autorun, derived, observableSignal } from '../../../base/common/observable.js';
@@ -35,8 +32,7 @@ import { AbstractProgressScope, ScopedProgressIndicator } from '../../../workben
 import { IAgentWorkbenchLayoutService } from '../workbench.js';
 import { applyAgentsPartCardStyles, getAgentsPartCardContentSize, getSessionsPartCardMarginRight } from './agentsPartCard.js';
 import { isPhoneLayout } from './mobile/mobileLayout.js';
-import { SessionsChatBackgroundRenderer } from '../../services/chatBackground/browser/chatBackgroundRenderer.js';
-import { ISessionsChatBackgroundService } from '../../services/chatBackground/browser/chatBackgroundService.js';
+import { SessionsChatSurface } from '../../services/chatBackground/browser/sessionsChatSurface.js';
 import { noSessionPickerVisibility, SessionPickerVisibilityContextKeys } from '../../services/sessions/common/sessionPickerVisibility.js';
 import { ISessionGridSlot, SessionGridRequest } from '../../services/sessions/browser/sessionsPartService.js';
 import { SessionGridLayout } from './sessionGridLayout.js';
@@ -51,13 +47,6 @@ interface IGridSlot {
 	boundSessionId: string | undefined;
 	session?: IActiveSession;
 }
-
-type CodiconConfettiActivationEvent = {};
-
-type CodiconConfettiActivationClassification = {
-	owner: 'tyleonha';
-	comment: 'Tracks how often users discover and activate the Codicon background confetti button.';
-};
 
 export class SessionsPart extends Part {
 
@@ -82,6 +71,7 @@ export class SessionsPart extends Part {
 
 	/** Stable model slots in depth-first grid order, including the empty composer. */
 	private readonly _slots: IGridSlot[] = [];
+	private _activeSlot: IGridSlot | undefined;
 	private readonly _slotsChanged = observableSignal(this);
 	readonly shownChatCount = derived(this, reader => {
 		this._slotsChanged.read(reader);
@@ -124,9 +114,6 @@ export class SessionsPart extends Part {
 		@IAgentWorkbenchLayoutService private readonly agentWorkbenchLayoutService: IAgentWorkbenchLayoutService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
-		@ISessionsChatBackgroundService private readonly chatBackgroundService: ISessionsChatBackgroundService,
-		@IAccessibilityService private readonly accessibilityService: IAccessibilityService,
-		@ITelemetryService private readonly telemetryService: ITelemetryService,
 	) {
 		super(
 			Parts.SESSIONS_PART,
@@ -151,11 +138,7 @@ export class SessionsPart extends Part {
 	}
 
 	protected override createContentArea(parent: HTMLElement): HTMLElement {
-		const backgroundRenderer = this._register(new SessionsChatBackgroundRenderer(parent, true));
-		this._register(backgroundRenderer.onDidActivateCodicon(element => this.activateCodicon(element)));
-		const updateBackground = () => backgroundRenderer.setBackground(this.chatBackgroundService.getBackground());
-		this._register(this.chatBackgroundService.onDidChangeBackground(updateBackground));
-		updateBackground();
+		this._register(this.instantiationService.createInstance(SessionsChatSurface, parent));
 
 		const contentArea = $('.content');
 		parent.appendChild(contentArea);
@@ -199,14 +182,6 @@ export class SessionsPart extends Part {
 		return contentArea;
 	}
 
-	private activateCodicon(element: HTMLElement): void {
-		if (!this.accessibilityService.isMotionReduced()) {
-			triggerConfettiAnimation(element);
-		}
-		this.accessibilityService.status(localize('sessionsChatBackground.confetti', "Confetti!"));
-		this.telemetryService.publicLog2<CodiconConfettiActivationEvent, CodiconConfettiActivationClassification>('vscodeAgents.codiconBackground/confetti', {});
-	}
-
 	private _findTargetView(child: HTMLElement): { readonly sessionId: string | undefined; readonly gridSlotId: string; readonly chatResource?: URI; readonly element: HTMLElement } | undefined {
 		for (const slot of this._slots) {
 			if (isAncestor(child, slot.view.element)) {
@@ -243,6 +218,7 @@ export class SessionsPart extends Part {
 		const activeSlot = this._slots.find(slot => slot.session === active)
 			?? this._slots.find(slot => slot.boundSessionId === activeId)
 			?? (this._slots.length === 1 ? this._slots[0] : undefined);
+		this._activeSlot = activeSlot;
 		for (const slot of this._slots) {
 			const isActive = slot === activeSlot;
 			slot.view.element.classList.toggle('is-active', isActive);
@@ -362,6 +338,11 @@ export class SessionsPart extends Part {
 		return this._findSessionSlot(sessionId)?.view;
 	}
 
+	/** The view of exactly `session`, of those it shows, such as one of a chat it shows in a pane of its own. */
+	getViewOfSession(session: ISession): SessionView | undefined {
+		return this._slots.find(slot => slot.session === session)?.view;
+	}
+
 	private _findSessionSlot(sessionId: string | undefined): IGridSlot | undefined {
 		return this._slots.find(slot => slot.boundSessionId === sessionId && slot.view.element.classList.contains('is-active'))
 			?? this._slots.find(slot => slot.boundSessionId === sessionId && !slot.session?.scopedChatResource);
@@ -371,6 +352,10 @@ export class SessionsPart extends Part {
 		return this._slots.find(slot => isAncestorOfActiveElement(slot.view.element))?.view;
 	}
 
+	getActiveSessionView(): SessionView | undefined {
+		return this._activeSlot && this._slots.includes(this._activeSlot) ? this._activeSlot.view : undefined;
+	}
+
 	/**
 	 * Moves keyboard focus into the session view hosting the given session id (or
 	 * the placeholder view when `sessionId` is `undefined`), first revealing it in
@@ -378,6 +363,16 @@ export class SessionsPart extends Part {
 	 */
 	focusSession(sessionId: string | undefined, chatResource?: URI): void {
 		const slot = this._slots.find(s => s.boundSessionId === sessionId && s.session?.scopedChatResource?.toString() === chatResource?.toString());
+		if (!slot) {
+			return;
+		}
+		this._revealView(slot.view);
+		slot.view.focus();
+	}
+
+	/** Moves keyboard focus into the view of exactly `session`, of those the grid shows, first revealing it like {@link focusSession}. */
+	focusSessionView(session: ISession): void {
+		const slot = this._slots.find(candidate => candidate.session === session);
 		if (!slot) {
 			return;
 		}
@@ -429,7 +424,7 @@ export class SessionsPart extends Part {
 
 	private _createSlot(id: string): IGridSlot {
 		const disposables = new DisposableStore();
-		const view = disposables.add(this.instantiationService.createInstance(SessionView));
+		const view = disposables.add(this.instantiationService.createInstance(SessionView, undefined));
 		view.setPartVisible(this._sessionViewsVisible);
 		const slot: IGridSlot = { id, view, disposables, boundSessionId: undefined };
 		// Pointer-down also activates non-focusable chrome and the empty new-session slot.

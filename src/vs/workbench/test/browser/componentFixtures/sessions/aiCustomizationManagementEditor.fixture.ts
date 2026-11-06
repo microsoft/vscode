@@ -3779,6 +3779,43 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 		},
 	}),
 
+	// Sessions variant whose contributed section after the separator is selected in the navigation list.
+	SessionsContributedSectionSelected: defineComponentFixture({
+		labels: { kind: 'screenshot', blocksCi: false },
+		expectedVisualDescriptions: [
+			'In the navigation list, a thin divider separates Hooks from the selected Extensions entry. The divider is not inside the selection background of Extensions, which has the same height and the same space above and below its label as the backgrounds of the other entries.',
+		],
+		render: ctx => {
+			ctx.disposableStore.add(aiCustomizationManagementSectionRegistry.register({
+				id: AICustomizationManagementSection.Extensions,
+				label: 'Extensions',
+				icon: Codicon.extensions,
+				description: 'Choose which installed extensions run in the Agents window.',
+				separatorBefore: true,
+				supportsHarness: () => true,
+				create: () => ({ dispose: () => { } }),
+			}));
+			return renderEditor(ctx, {
+				sessionResource: localSessionResource,
+				isSessionsWindow: true,
+				selectedSection: AICustomizationManagementSection.Extensions,
+				availableHarnesses: [
+					createVSCodeHarnessDescriptor(),
+				],
+				managementSections: [
+					AICustomizationManagementSection.Plugins,
+					AICustomizationManagementSection.McpServers,
+					AICustomizationManagementSection.Skills,
+					AICustomizationManagementSection.Instructions,
+					AICustomizationManagementSection.Agents,
+					AICustomizationManagementSection.Hooks,
+					AICustomizationManagementSection.Tools,
+					AICustomizationManagementSection.Extensions,
+				],
+			});
+		},
+	}),
+
 	// Sessions Skills tab showing UI Integration badges on built-in skills
 	SessionsSkillsTab: defineComponentFixture({
 		labels: { kind: 'screenshot', blocksCi: false },

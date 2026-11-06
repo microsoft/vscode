@@ -22,6 +22,8 @@ import { ISessionsService } from '../../../../services/sessions/browser/sessions
 import { INewSessionComposer, INewSessionComposerPicker, INewSessionComposerService, NewSessionComposerService } from '../../browser/newSessionComposerService.js';
 import { NewSessionPickerTryoutContribution } from '../../browser/newSessionPickerTryout.js';
 import { NewSessionOnboardingTargets } from '../../browser/newSessionOnboardingTargets.js';
+import { ITestSessionsService } from '../../../../services/sessions/test/browser/sessionHostTestUtils.js';
+import { upcastPartial } from '../../../../../base/test/common/mock.js';
 
 suite('New session picker tryout adapter', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
@@ -50,7 +52,7 @@ suite('New session picker tryout adapter', () => {
 	) {
 		const instantiationService = disposables.add(new TestInstantiationService());
 		const composerService = disposables.add(new NewSessionComposerService());
-		instantiationService.stub(ISessionsService, { activeSession: constObservable(undefined), openNewSession });
+		instantiationService.stub(ISessionsService, upcastPartial<ITestSessionsService>({ activeSession: constObservable(undefined), openNewSession }));
 		instantiationService.stub(INewSessionComposerService, composerService);
 		instantiationService.stub(IOnboardingTryoutService, { getAvailability });
 		const construction = sinon.spy(instantiationService, 'createInstance');

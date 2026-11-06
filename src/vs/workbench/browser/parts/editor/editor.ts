@@ -284,8 +284,20 @@ export interface IEditorGroupViewOptions {
 	/** Reserves the enabled group header for an editor even when its breadcrumbs and actions are empty. */
 	readonly reserveHeaderSpace?: (editor: EditorInput | undefined) => boolean;
 
+	/**
+	 * Whether the enabled group header shows for the active editor, such as not for a terminal in a group that shows its
+	 * header only for other editors. When unset, it shows for every editor.
+	 */
+	readonly showHeaderFor?: (editor: EditorInput | undefined) => boolean;
+
 	/** Uses the modern UI presentation for editor tabs. */
 	readonly useModernUITabs?: boolean;
+
+	/**
+	 * Hides the actions that lock and unlock the group, such as for a group its owner keeps locked so that other editors
+	 * do not open in it.
+	 */
+	readonly hideLockActions?: boolean;
 }
 
 export interface IEditorGroupMenuIds {

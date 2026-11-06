@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { $, append, isHTMLElement } from '../../../base/browser/dom.js';
+import { IAction, Separator } from '../../../base/common/actions.js';
 import { Codicon } from '../../../base/common/codicons.js';
 import { Event } from '../../../base/common/event.js';
 import { decodeKeybinding, ResolvedKeybinding } from '../../../base/common/keybindings.js';
@@ -22,12 +23,19 @@ import { SessionActivityBarGroup } from '../../browser/menus.js';
 
 // Shared fixture data and services for the Add Tab surfaces (empty editor group list, session activity bar).
 
+/** A submenu entry in a menu group with a title. */
+export interface IFixtureSubmenuEntry {
+	readonly label: string;
+	readonly groupTitle: string;
+}
+
 export interface IFixtureEntry {
 	readonly id: string;
 	readonly title: string;
 	readonly icon: ThemeIcon;
 	readonly keybinding?: number;
-	readonly submenu?: readonly string[];
+	/** Submenu entries; a `Separator` starts the next group. */
+	readonly submenu?: readonly (string | IFixtureSubmenuEntry | Separator)[];
 	/** Renders the entry disabled, as when its precondition does not hold. */
 	readonly disabled?: boolean;
 	/** The menu group, `navigation` by default. Groups render in the order their first entry appears. */
@@ -38,9 +46,15 @@ export const fixtureChanges: IFixtureEntry = { id: 'sessions.fixture.addTab.chan
 export const fixtureFiles: IFixtureEntry = { id: 'sessions.fixture.addTab.files', title: 'Files', icon: Codicon.files, keybinding: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KeyE };
 export const fixtureBrowser: IFixtureEntry = { id: 'sessions.fixture.addTab.browser', title: 'Browser', icon: Codicon.globe, keybinding: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KeyB };
 export const fixtureCanvas: IFixtureEntry = { id: 'sessions.fixture.addTab.canvas', title: 'Canvas', icon: Codicon.preview, submenu: ['Kusto'] };
+export const fixtureCanvasWithDiscover: IFixtureEntry = { ...fixtureCanvas, submenu: ['Kusto', new Separator(), discoverEntry('Create a Canvas...'), discoverEntry('Browse Canvases')] };
+export const fixtureCanvasWithTitledGroups: IFixtureEntry = { ...fixtureCanvas, submenu: [{ label: 'Kusto', groupTitle: 'Available' }, new Separator(), discoverEntry('Create a Canvas...'), discoverEntry('Browse Canvases')] };
 export const fixtureTogglePanel: IFixtureEntry = { id: 'sessions.fixture.layout.panel', title: 'Show Panel', icon: Codicon.layoutPanelOff, keybinding: KeyMod.CtrlCmd | KeyCode.KeyJ, group: SessionActivityBarGroup.Panel };
 export const fixtureToggleSidePanel: IFixtureEntry = { id: 'sessions.fixture.layout.sidePanel', title: 'Toggle Side Panel', icon: Codicon.layoutSidebarRightOff, keybinding: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.KeyB, group: SessionActivityBarGroup.SidePanel };
 export const fixtureTerminal: IFixtureEntry = { id: 'sessions.fixture.terminal', title: 'Terminal', icon: Codicon.terminal, group: SessionActivityBarGroup.Panel };
+
+function discoverEntry(label: string): IFixtureSubmenuEntry {
+	return { label, groupTitle: 'Discover More' };
+}
 
 export class FixtureMenuService extends mock<IMenuService>() {
 
@@ -67,9 +81,16 @@ export class FixtureMenuService extends mock<IMenuService>() {
 
 	private toAction(entry: IFixtureEntry, contextKeyService: IContextKeyService, options: IMenuActionOptions | undefined): MenuItemAction | SubmenuItemAction {
 		if (entry.submenu) {
-			return new SubmenuItemAction({ submenu: MenuId.for(entry.id), title: entry.title, icon: entry.icon }, undefined, entry.submenu.map((label, index) => ({
-				id: `${entry.id}.${index}`, label, tooltip: '', class: undefined, enabled: true, run: () => { },
-			})));
+			return new SubmenuItemAction({ submenu: MenuId.for(entry.id), title: entry.title, icon: entry.icon }, undefined, entry.submenu.map((submenuEntry, index): IAction => {
+				const id = `${entry.id}.${index}`;
+				if (typeof submenuEntry === 'string') {
+					return { id, label: submenuEntry, tooltip: '', class: undefined, enabled: true, run: () => { } };
+				}
+				if (submenuEntry instanceof Separator) {
+					return submenuEntry;
+				}
+				return new MenuItemAction({ id, title: submenuEntry.label }, undefined, { ...options, groupTitle: submenuEntry.groupTitle }, undefined, undefined, contextKeyService, this.commandService!);
+			}));
 		}
 		return new MenuItemAction({ id: entry.id, title: entry.title, icon: entry.icon, precondition: entry.disabled ? ContextKeyExpr.false() : undefined }, undefined, options, undefined, undefined, contextKeyService, this.commandService!);
 	}

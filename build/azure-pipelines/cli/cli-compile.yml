@@ -35,12 +35,13 @@ steps:
     - pwsh: |
         $version = "0.14.0"
         $url = "https://github.com/mozilla/sccache/releases/download/v$version/sccache-v$version-x86_64-pc-windows-msvc.zip"
-        Invoke-WebRequest -Uri $url -OutFile "$env:TEMP\sccache.zip"
+        Invoke-WebRequest -Uri $url -OutFile "$env:TEMP\sccache.zip" -MaximumRetryCount 5 -RetryIntervalSec 10 -TimeoutSec 300
         Expand-Archive -Path "$env:TEMP\sccache.zip" -DestinationPath "$env:TEMP\sccache" -Force
         $sccacheDir = Get-ChildItem -Path "$env:TEMP\sccache" -Directory | Select-Object -First 1
         Copy-Item "$($sccacheDir.FullName)\sccache.exe" -Destination "$env:USERPROFILE\.cargo\bin\sccache.exe"
         sccache --version
       displayName: Install sccache
+      retryCountOnTaskFailure: 2
   - ${{ else }}:
     - script: |
         set -e
@@ -59,12 +60,13 @@ steps:
         FILENAME="sccache-v${SCCACHE_VERSION}-${TARGET}"
         URL="https://github.com/mozilla/sccache/releases/download/v${SCCACHE_VERSION}/${FILENAME}.tar.gz"
         echo "Downloading sccache from $URL"
-        curl -fsSL "$URL" -o /tmp/sccache.tar.gz
+        curl -fsSL --retry 5 --retry-all-errors --connect-timeout 30 "$URL" -o /tmp/sccache.tar.gz
         tar -xzf /tmp/sccache.tar.gz -C /tmp
         sudo cp "/tmp/${FILENAME}/sccache" /usr/local/bin/sccache
         sudo chmod +x /usr/local/bin/sccache
         sccache --version
       displayName: Install sccache
+      retryCountOnTaskFailure: 2
 
   - ${{ if parameters.VSCODE_CHECK_ONLY }}:
     # clippy occasionally hangs on Windows until the job times out (#344111). A

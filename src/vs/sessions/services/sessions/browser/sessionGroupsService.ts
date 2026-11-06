@@ -249,9 +249,10 @@ export interface ISessionGroupsService {
 	 * Delete a group and its subgroups at any depth, removing their sessions'
 	 * membership and returning their grouping sections to the top level. Returns
 	 * what was deleted so that {@link restoreGroups} can bring it back, or
-	 * `undefined` when the group does not exist.
+	 * `undefined` when the group does not exist. Automatic deletion does not record
+	 * its former members as deliberately ungrouped by the user.
 	 */
-	deleteGroup(groupId: string): IDeletedSessionGroups | undefined;
+	deleteGroup(groupId: string, options?: { readonly automatic?: boolean }): IDeletedSessionGroups | undefined;
 
 	/**
 	 * Restore deleted groups with their ids and positions, and the membership of
@@ -677,7 +678,7 @@ export class SessionGroupsService extends Disposable implements ISessionGroupsSe
 		return true;
 	}
 
-	deleteGroup(groupId: string): IDeletedSessionGroups | undefined {
+	deleteGroup(groupId: string, options?: { readonly automatic?: boolean }): IDeletedSessionGroups | undefined {
 		const groups = this.getTree().getSubtree(groupId);
 		if (groups.length === 0) {
 			return undefined;
@@ -710,7 +711,9 @@ export class SessionGroupsService extends Disposable implements ISessionGroupsSe
 			if (deletedIds.has(gid)) {
 				membership.set(sessionId, gid);
 				this._membership.delete(sessionId);
-				this.markExplicitlyUngrouped(sessionId);
+				if (!options?.automatic) {
+					this.markExplicitlyUngrouped(sessionId);
+				}
 			}
 		}
 		const sectionMembership = new Map([...this._sectionMembership].filter(([, parentId]) => deletedIds.has(parentId)));

@@ -1634,6 +1634,24 @@ suite('SessionPermissionManager', () => {
 		assert.strictEqual(result, undefined);
 	});
 
+	test('auto-approves reads and writes whose resolved permission resource is inside a virtual working directory', async () => {
+		const virtualSessionUri = URI.from({ scheme: 'copilot', path: '/virtual' }).toString();
+		const root = URI.parse('vscode-vfs://github/microsoft/vscode');
+		manager.createSession(makeSummary(virtualSessionUri, root.toString()));
+		const event = (permissionKind: AgentPermissionKind, path: string): IToolApprovalEvent => ({
+			toolCallId: 'tc-virtual', session: URI.parse(virtualSessionUri), permissionKind,
+			permissionPath: `/vscode-vfs/github/microsoft/vscode${path}`, permissionResource: URI.joinPath(root, path),
+		});
+
+		const results = await Promise.all([
+			permissions.getAutoApproval(event(AgentPermissionKind.Read, '/src/a.ts'), virtualSessionUri),
+			permissions.getAutoApproval(event(AgentPermissionKind.Write, '/src/a.ts'), virtualSessionUri),
+			permissions.getAutoApproval({ ...event(AgentPermissionKind.Read, '/a.ts'), permissionResource: URI.parse('vscode-vfs://github/other/repo/a.ts') }, virtualSessionUri),
+		]);
+
+		assert.deepStrictEqual(results, [ToolCallConfirmationReason.NotNeeded, ToolCallConfirmationReason.NotNeeded, undefined]);
+	});
+
 	test('requires confirmation when a symlinked read ancestor redirects outside the working directory', async () => {
 		mkdirSync(join(workDir, 'nested'));
 		symlinkSync(outsideDir, join(workDir, 'nested', 'link'), directoryLinkType);

@@ -26,6 +26,7 @@ import { InstantiationType, registerSingleton } from '../../platform/instantiati
 import { IEditorGroupsService } from '../../workbench/services/editor/common/editorGroupsService.js';
 import { AgentWorkbenchLayout, IAgentWorkbenchLayoutService } from './workbench.js';
 import { DesktopMainEditorPart } from './parts/desktopEditorPart.js';
+import { createMainWindowInstantiationService } from '../services/sessions/browser/sessionHost.js';
 
 export class AgenticPaneCompositePartService extends Disposable implements IPaneCompositePartService {
 
@@ -50,14 +51,19 @@ export class AgenticPaneCompositePartService extends Disposable implements IPane
 			? layoutService.initialViewportClass === 'phone'
 			: getClientArea(mainWindow.document.body).width < 640;
 
-		this.registerPart(ViewContainerLocation.Panel, instantiationService.createInstance(isPhoneLayout ? MobilePanelPart : PanelPart));
-		this.registerPart(ViewContainerLocation.Sidebar, instantiationService.createInstance(isPhoneLayout ? MobileSidebarPart : SidebarPart));
+		// Each main part has a child scope of its own, owned with the part.
+		const createMainPart = <T extends IPaneCompositePart>(ctor: new (...args: never[]) => T): T => {
+			const scope = this._register(createMainWindowInstantiationService(instantiationService));
+			return scope.createInstance(ctor);
+		};
+		this.registerPart(ViewContainerLocation.Panel, createMainPart(isPhoneLayout ? MobilePanelPart : PanelPart));
+		this.registerPart(ViewContainerLocation.Sidebar, createMainPart(isPhoneLayout ? MobileSidebarPart : SidebarPart));
 
 		// In the desktop layout the auxiliary bar is owned by (docked inside)
 		// the editor part; share that instance instead of creating a separate one.
 		const auxiliaryBarPart = layoutService.agentWorkbenchLayout === AgentWorkbenchLayout.Desktop
 			? (editorGroupsService.mainPart as DesktopMainEditorPart).auxiliaryBar
-			: instantiationService.createInstance(isPhoneLayout ? MobileAuxiliaryBarPart : AuxiliaryBarPart);
+			: createMainPart(isPhoneLayout ? MobileAuxiliaryBarPart : AuxiliaryBarPart);
 		this.registerPart(ViewContainerLocation.AuxiliaryBar, auxiliaryBarPart);
 	}
 

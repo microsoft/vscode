@@ -30,13 +30,13 @@ import { CanvasInput, getCanvasReferenceKey, ICanvasContextService, ICanvasRefer
 import { AICustomizationManagementCommands, AICustomizationManagementSection } from '../../../../../workbench/contrib/chat/common/aiCustomizationWorkspaceService.js';
 import { Menus } from '../../../../browser/menus.js';
 import { ActiveSessionCanvasReferenceContext, SessionActiveChatCanvasReferenceKeysContext } from '../../../../common/contextkeys.js';
-import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
 import { IChat, ISessionCanvas, ISessionCanvasDefinition, ISessionCapabilities } from '../../../../services/sessions/common/session.js';
 import { IActiveSession, ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
 import { NEW_SESSION_ACTION_ID } from '../../../chat/common/constants.js';
 import { getSessionCanvasDefinitionInstanceId, WindowCanvasesAvailableContext } from '../../common/sessionCanvas.js';
 import { CREATE_SESSION_CANVAS_COMMAND_ID, DISCOVER_SESSION_CANVASES_COMMAND_ID, OPEN_SESSION_CANVAS_COMMAND_ID, registerSessionCanvasActions } from '../../electron-browser/sessionCanvasActions.js';
 import { SessionCanvasRegistryService } from '../../electron-browser/sessionCanvasService.js';
+import { focusedSessionHostServiceOf } from '../../../../services/sessions/test/browser/sessionHostTestUtils.js';
 
 suite('SessionCanvasRegistryService', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -56,7 +56,6 @@ suite('SessionCanvasRegistryService', () => {
 			capabilities,
 		});
 		const activeSession = observableValue<IActiveSession | undefined>('activeSession', session);
-		const sessionsService = upcastPartial<ISessionsService>({ activeSession });
 		const listedChats: URI[] = [];
 		const didListCanvases = store.add(new Emitter<URI>());
 		const opened: Array<{ chat: URI; canvas: ISessionCanvasDefinition; instanceId: string }> = [];
@@ -96,7 +95,7 @@ suite('SessionCanvasRegistryService', () => {
 			}),
 		});
 		const registryService = store.add(new SessionCanvasRegistryService(
-			sessionsService,
+			focusedSessionHostServiceOf(activeSession),
 			sessionsManagementService,
 			canvasService,
 			new NullLogService(),
@@ -159,10 +158,10 @@ suite('SessionCanvasRegistryService', () => {
 			afterCanvasRemoved,
 			afterDispose: { entries: getEntries(), canvasEntries: getCanvasTitles() },
 		}, {
-			withoutCanvas: { entries: [`submenu:${Menus.SessionActivityBarCanvas.id}:Canvas`], canvasEntries: ['1_available:Plan', '3_discover:Create a Canvas...', '3_discover:Discover More Canvases'] },
+			withoutCanvas: { entries: [`submenu:${Menus.SessionActivityBarCanvas.id}:Canvas`], canvasEntries: ['2_available:Plan', '3_discover:Create a Canvas...', '3_discover:Browse Canvases'] },
 			opened: ['plan'],
 			withCanvas: { entries: [`command:${Menus.SessionActivityBarCanvas.id}`], canvasEntries: ['navigation:Plan'] },
-			afterCanvasRemoved: { entries: [`submenu:${Menus.SessionActivityBarCanvas.id}:Canvas`], canvasEntries: ['1_available:Plan', '3_discover:Create a Canvas...', '3_discover:Discover More Canvases'] },
+			afterCanvasRemoved: { entries: [`submenu:${Menus.SessionActivityBarCanvas.id}:Canvas`], canvasEntries: ['2_available:Plan', '3_discover:Create a Canvas...', '3_discover:Browse Canvases'] },
 			afterDispose: { entries: [], canvasEntries: [] },
 		});
 	});
@@ -366,7 +365,7 @@ suite('SessionCanvasRegistryService', () => {
 		harness.activeSession.set(undefined, undefined);
 		const noSession = snapshot();
 		registration.dispose();
-		const discoverOnly = { title: 'Canvas', children: ['Create a Canvas...', 'Discover More Canvases'] };
+		const discoverOnly = { title: 'Canvas', children: ['Create a Canvas...', 'Browse Canvases'] };
 		assert.deepStrictEqual({ multiple, single, otherChat, disabled, enabled, unsettled, noSession, disposed: snapshot() }, {
 			multiple: [{ title: 'Canvas', children: ['Board (first)', 'Board (second)'] }],
 			single: ['Renamed Board'],
@@ -571,7 +570,7 @@ suite('SessionCanvasRegistryService', () => {
 		}, {
 			submenuTitles: ['Canvas'],
 			titles: ['Counter (Project Counter)', 'Counter (User Counter)'],
-			groups: ['1_available', '1_available'],
+			groups: ['2_available', '2_available'],
 			opened: [{
 				chat: 'agent-host-chat:/session/main',
 				extensionId: 'user:counter',
@@ -625,7 +624,7 @@ suite('SessionCanvasRegistryService', () => {
 		await run(DISCOVER_SESSION_CANVASES_COMMAND_ID, false);
 		registration.dispose();
 
-		const discoverEntries = ['3_discover:0:add:Create a Canvas...', '3_discover:1:search:Discover More Canvases'];
+		const discoverEntries = ['3_discover:0:add:Create a Canvas...', '3_discover:1:search:Browse Canvases'];
 		assert.deepStrictEqual({ withoutCanvasTypes, withLiveCanvas, unsupported, executed, disposed: snapshot() }, {
 			withoutCanvasTypes: { addTab: 1, canvas: discoverEntries, activityBar: discoverEntries },
 			withLiveCanvas: { addTab: 1, canvas: discoverEntries, activityBar: [] },

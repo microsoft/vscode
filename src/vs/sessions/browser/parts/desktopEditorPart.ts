@@ -18,7 +18,7 @@ import { GroupIdentifier } from '../../../workbench/common/editor.js';
 import { EditorGroupLayout, GroupDirection, GroupLayoutArgument, IEditorDropTargetDelegate } from '../../../workbench/services/editor/common/editorGroupsService.js';
 import { Parts } from '../../../workbench/services/layout/browser/layoutService.js';
 import { IHostService } from '../../../workbench/services/host/browser/host.js';
-import { DockedEditorInput } from '../../common/dockedEditorInput.js';
+import { DockedEditorInput } from '../dockedEditorInput.js';
 import { DockedAuxiliaryBarController } from '../dockedAuxiliaryBarController.js';
 import { Menus } from '../menus.js';
 import { IAgentWorkbenchLayoutService } from '../workbench.js';

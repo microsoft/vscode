@@ -34,7 +34,7 @@ import '../../browser/media/chatInput.css';
 function sessionsWindowContext(context: ComponentFixtureContext, withBackground = false): ComponentFixtureContext {
 	context.container.classList.add('agent-sessions-workbench');
 	const sessionsPart = document.createElement('div');
-	sessionsPart.classList.add('part', 'sessionspart');
+	sessionsPart.classList.add('part', 'sessionspart', 'sessions-chat-surface');
 	context.container.appendChild(sessionsPart);
 	if (!withBackground) {
 		return { ...context, container: sessionsPart };

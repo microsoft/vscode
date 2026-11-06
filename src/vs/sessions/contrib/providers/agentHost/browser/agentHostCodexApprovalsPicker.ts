@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Codicon } from '../../../../../base/common/codicons.js';
-import { IObservable } from '../../../../../base/common/observable.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { isEqual } from '../../../../../base/common/resources.js';
 import { URI } from '../../../../../base/common/uri.js';
@@ -20,7 +19,7 @@ import { IOpenerService } from '../../../../../platform/opener/common/opener.js'
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { IChatWidgetService } from '../../../../../workbench/contrib/chat/browser/chat.js';
 import { ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
-import { IActiveSession } from '../../../../services/sessions/common/sessionsManagement.js';
+import { ISessionChatSource } from '../../../../services/sessions/browser/sessionHost.js';
 import { SessionStatus } from '../../../../services/sessions/common/session.js';
 import { AgentHostSessionEnumPicker, IAgentHostSessionEnumPickerItem } from './agentHostModePicker.js';
 import { isWellKnownCodexApprovalsSchema } from './agentHostPermissionPickerDelegate.js';
@@ -50,7 +49,7 @@ export class AgentHostCodexApprovalsPicker extends AgentHostSessionEnumPicker {
 	protected readonly _telemetryId = 'NewChatAgentHostCodexApprovalsPicker';
 
 	constructor(
-		session: IObservable<IActiveSession | undefined>,
+		source: ISessionChatSource,
 		@IActionWidgetService actionWidgetService: IActionWidgetService,
 		@ISessionsProvidersService sessionsProvidersService: ISessionsProvidersService,
 		@ITelemetryService telemetryService: ITelemetryService,
@@ -59,7 +58,7 @@ export class AgentHostCodexApprovalsPicker extends AgentHostSessionEnumPicker {
 		@IDialogService private readonly _dialogService: IDialogService,
 		@IChatWidgetService private readonly _chatWidgetService: IChatWidgetService,
 	) {
-		super(session, actionWidgetService, sessionsProvidersService, telemetryService, hoverService);
+		super(source, actionWidgetService, sessionsProvidersService, telemetryService, hoverService);
 	}
 
 	protected _isWellKnownSchema(schema: SessionConfigPropertySchema): boolean {
@@ -83,7 +82,7 @@ export class AgentHostCodexApprovalsPicker extends AgentHostSessionEnumPicker {
 	}
 
 	protected override async _onDidSelectValue(previousValue: string, selectedValue: string, chat: URI): Promise<void> {
-		const activeChat = this._session.get()?.activeChat.get();
+		const activeChat = this._chat.get();
 		if (!activeChat || !isEqual(activeChat.resource, chat)) {
 			return;
 		}
@@ -94,7 +93,7 @@ export class AgentHostCodexApprovalsPicker extends AgentHostSessionEnumPicker {
 			const requestId = viewModel?.model.lastRequest?.id;
 			const message = await showCodexPermissionsChangeNotice(this._dialogService, previousValue, selectedValue);
 			if (message && widget && viewModel && !this._store.isDisposed
-				&& this._session.get()?.activeChat.get() === activeChat
+				&& this._chat.get() === activeChat
 				&& this._getActiveContext()?.currentValue === selectedValue
 				&& widget.viewModel === viewModel && isEqual(viewModel.sessionResource, chat)
 				&& viewModel.model.lastRequest?.id === requestId) {

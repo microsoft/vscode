@@ -21,6 +21,7 @@ import { ComponentFixtureContext, createEditorServices, defineComponentFixture, 
 import { activeSessionViewBackground } from '../../../../common/theme.js';
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
 import { ISession } from '../../../../services/sessions/common/session.js';
+import { ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
 import { ISessionComparison, ISessionComparisonAttemptVerdict, ISessionComparisonHarness, ISessionComparisonParticipant, ISessionComparisonService, SessionComparisonParticipantRole, SessionComparisonValidationEvidence, SessionComparisonValidationSource, SessionComparisonValidationState } from '../../../../services/sessions/common/sessionComparison.js';
 import { SessionComparisonResult } from '../../browser/sessionComparisonResult.js';
 
@@ -215,6 +216,7 @@ function renderResult(context: ComponentFixtureContext, options: IRenderOptions 
 			reg.defineInstance(ISessionsService, new class extends mock<ISessionsService>() {
 				override async openSession(): Promise<void> { }
 			}());
+			reg.defineInstance(ISessionsManagementService, new class extends mock<ISessionsManagementService>() { }());
 		},
 	});
 	const result = disposableStore.add(instantiationService.createInstance(
@@ -222,6 +224,7 @@ function renderResult(context: ComponentFixtureContext, options: IRenderOptions 
 		constObservable(upcastPartial<ISession>({ resource: judgeResource })),
 		() => { },
 		instantiationService.invokeFunction(accessor => accessor.get(IMarkdownRendererService)),
+		undefined,
 	));
 	dom.append(container, result.domNode);
 	result.layout(width);

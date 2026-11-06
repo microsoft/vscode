@@ -8,6 +8,7 @@ import { StandardKeyboardEvent } from '../../../../../base/browser/keyboardEvent
 import { status } from '../../../../../base/browser/ui/aria/aria.js';
 import { ActionViewItem } from '../../../../../base/browser/ui/actionbar/actionViewItems.js';
 import { createInstantHoverDelegate } from '../../../../../base/browser/ui/hover/hoverDelegateFactory.js';
+import { renderIcon } from '../../../../../base/browser/ui/iconLabel/iconLabels.js';
 import { InputBox } from '../../../../../base/browser/ui/inputbox/inputBox.js';
 import { DomScrollableElement } from '../../../../../base/browser/ui/scrollbar/scrollableElement.js';
 import { Action } from '../../../../../base/common/actions.js';
@@ -20,10 +21,11 @@ import { autorun } from '../../../../../base/common/observable.js';
 import { OperatingSystem } from '../../../../../base/common/platform.js';
 import { ScrollbarVisibility } from '../../../../../base/common/scrollable.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
+import { generateUuid } from '../../../../../base/common/uuid.js';
 import { localize } from '../../../../../nls.js';
 import { WorkbenchToolBar } from '../../../../../platform/actions/browser/toolbar.js';
 import { RemoteAgentHostConnectionStatus } from '../../../../../platform/agentHost/common/remoteAgentHostService.js';
-import { GitHubEnvironmentsEnabledSettingId } from '../../../../../platform/agentHost/common/missionControlEnvironment.js';
+import { GITHUB_ENVIRONMENTS_DOCS_URL, GitHubEnvironmentsEnabledSettingId } from '../../../../../platform/agentHost/common/missionControlEnvironment.js';
 import { ISSHRemoteAgentHostService } from '../../../../../platform/agentHost/common/sshRemoteAgentHost.js';
 import { WSL_INSTALL_DOCS_URL } from '../../../../../platform/agentHost/common/wslRemoteAgentHost.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
@@ -61,7 +63,7 @@ const remoteSetup: Record<RemoteKind, { readonly label: string; readonly descrip
 	environment: {
 		label: localize('remotes.empty.environments', "No GitHub environments available."),
 		description: localize('remotes.empty.environments.description', "Sign in to GitHub and enable environment sharing on another machine."),
-		documentation: { label: localize('remotes.docs.environments', "GitHub Environments Setup Guide"), href: 'https://aka.ms/vscode-agent-environments' },
+		documentation: { label: localize('remotes.docs.environments', "GitHub Environments Setup Guide"), href: GITHUB_ENVIRONMENTS_DOCS_URL },
 	},
 	devContainer: {
 		label: localize('remotes.empty.devContainers', "No Dev Containers found."),
@@ -80,6 +82,9 @@ export class RemotesWidget extends Disposable {
 	private readonly tableScrollable: DomScrollableElement;
 	private readonly tableMinWidth: number;
 	private readonly message: HTMLElement;
+	private readonly searchRow: HTMLElement;
+	private readonly heading: HTMLElement;
+	private readonly headingTitle: HTMLElement;
 	private readonly searchInput: InputBox;
 	private readonly clearSearchAction: Action;
 	private readonly collapseAllAction: Action;
@@ -116,7 +121,12 @@ export class RemotesWidget extends Disposable {
 		this._register(model);
 		this.kinds = getVisibleRemoteKinds(operatingSystem);
 		this.domNode = dom.append(container, dom.$('.remotes-widget'));
-		const searchRow = dom.append(this.domNode, dom.$('.remotes-search-row'));
+		const searchRow = this.searchRow = dom.append(this.domNode, dom.$('.remotes-search-row'));
+		this.heading = dom.append(searchRow, dom.$('.remotes-heading'));
+		this.heading.hidden = true;
+		dom.append(this.heading, renderIcon(Codicon.remoteExplorer)).setAttribute('aria-hidden', 'true');
+		this.headingTitle = dom.append(this.heading, dom.$('h2.remotes-heading-title', { id: generateUuid() }));
+		const searchControls = dom.append(searchRow, dom.$('.remotes-search-controls'));
 		const actionHoverDelegate = this._register(createInstantHoverDelegate());
 		this.clearSearchAction = this._register(new Action('remotes.clearSearch', localize('remotes.clearSearch', "Clear Search"), ThemeIcon.asClassName(Codicon.clearAll), false, () => {
 			this.setSearchQuery('');
@@ -128,7 +138,7 @@ export class RemotesWidget extends Disposable {
 			}
 			this.render();
 		}));
-		this.searchInput = this._register(new InputBox(dom.append(searchRow, dom.$('.remotes-search-container')), contextViewService, {
+		this.searchInput = this._register(new InputBox(dom.append(searchControls, dom.$('.remotes-search-container')), contextViewService, {
 			placeholder: localize('remotes.searchPlaceholder', "Type to search..."),
 			ariaLabel: localize('remotes.searchLabel', "Search remotes"),
 			inputBoxStyles: defaultInputBoxStyles,
@@ -137,7 +147,7 @@ export class RemotesWidget extends Disposable {
 		}));
 		this._register(this.searchInput.onDidChange(query => this.setSearchQuery(query)));
 		this.refreshAction = this._register(new Action('remotes.refresh', localize('remotes.refresh', "Refresh"), ThemeIcon.asClassName(Codicon.refresh), true, () => this.refresh()));
-		const toolbar = this._register(instantiationService.createInstance(WorkbenchToolBar, dom.append(searchRow, dom.$('.remotes-header-actions')), { ariaLabel: localize('remotes.actions', "Remotes actions") }));
+		const toolbar = this._register(instantiationService.createInstance(WorkbenchToolBar, dom.append(searchControls, dom.$('.remotes-header-actions')), { ariaLabel: localize('remotes.actions', "Remotes actions") }));
 		toolbar.setActions([this.refreshAction]);
 		this.message = dom.append(this.domNode, dom.$('.remotes-message', { role: 'status' }));
 		this.tableContainer = dom.append(this.domNode, dom.$('.remotes-table-container'));
@@ -174,7 +184,7 @@ export class RemotesWidget extends Disposable {
 		this.table = this._register(instantiationService.createInstance(WorkbenchTable<IRemoteTableRow>,
 			'RemotesTable', this.tableInner, {
 			headerRowHeight: 31, // Includes the header's bottom border.
-			getHeight: row => row.entry.type === 'group' ? 30 : row.entry.type === 'empty' ? 76 : 26,
+			getHeight: row => row.entry.type === 'group' ? 30 : row.entry.type === 'empty' ? row.entry.documentation ? 76 : 54 : 26,
 		}, columns, renderers, {
 			identityProvider: { getId: row => row.id },
 			keyboardNavigationLabelProvider: { getKeyboardNavigationLabel: row => row.entry.type === 'remote' ? row.entry.remote.name : row.entry.label },
@@ -426,14 +436,17 @@ export class RemotesWidget extends Disposable {
 			&& `${remote.name} ${remote.detail} ${remoteKindLabels[remote.kind]}`.toLowerCase().includes(this.query));
 	}
 
-	private getEmptyEntry(kind: RemoteKind): IRemoteEmptyEntry {
+	private getEmptyEntry(kind: RemoteKind, hasRemotes = false): IRemoteEmptyEntry {
 		const id = `remote-empty-${kind}`;
 		if (kind === 'tunnel' && this.model.tunnelAuthenticationRequired.get()) {
 			return {
 				type: 'empty', id,
-				label: localize('remotes.tunnels.signInRequired', "Sign in to allow access to your tunnels."),
+				label: hasRemotes
+					? localize('remotes.tunnels.signInToRefresh', "Sign in to refresh your tunnels.")
+					: localize('remotes.tunnels.signInRequired', "Sign in to allow access to your tunnels."),
 				action: { label: localize('remotes.tunnels.signIn', "Sign In"), enabled: !this.signingInToTunnels },
-				documentation: remoteSetup.tunnel.documentation,
+				// Setup guidance only helps while the group is empty; the group's info action still opens it.
+				...(hasRemotes ? {} : { documentation: remoteSetup.tunnel.documentation }),
 			};
 		}
 		if (this.failedKinds.includes(kind)) {
@@ -463,7 +476,7 @@ export class RemotesWidget extends Disposable {
 			});
 			if (!collapsed) {
 				if (kind === 'tunnel' && this.model.tunnelAuthenticationRequired.get()) {
-					entries.push(this.getEmptyEntry(kind));
+					entries.push(this.getEmptyEntry(kind, groupRemotes.length > 0));
 				}
 				entries.push(...(groupRemotes.length ? groupRemotes.map((remote): RemoteTableEntry => ({
 					type: 'remote', remote,
@@ -608,7 +621,29 @@ export class RemotesWidget extends Disposable {
 		}
 	}
 
+	/**
+	 * Shows a section heading before the search field and names the widget as a region after it,
+	 * or removes both when `label` is undefined. Call {@link layout} afterwards.
+	 */
+	setHeading(label: string | undefined): void {
+		this.heading.hidden = !label;
+		this.headingTitle.textContent = label ?? '';
+		this.searchRow.classList.toggle('with-heading', !!label);
+		if (label) {
+			this.domNode.setAttribute('role', 'region');
+			this.domNode.setAttribute('aria-labelledby', this.headingTitle.id);
+		} else {
+			this.domNode.removeAttribute('role');
+			this.domNode.removeAttribute('aria-labelledby');
+		}
+	}
+
 	getAccessibilityContent(): string {
+		const content = this.getRemotesAccessibilityContent();
+		return this.heading.hidden ? content : `${this.headingTitle.textContent}\n${content}`;
+	}
+
+	private getRemotesAccessibilityContent(): string {
 		const remotes = this.getFilteredRemotes();
 		if (this.query && remotes.length === 0) {
 			return localize('remotes.empty.filtered', "No matching remotes.");
@@ -620,7 +655,7 @@ export class RemotesWidget extends Disposable {
 				return [];
 			}
 			const empty = kind === 'tunnel' && this.model.tunnelAuthenticationRequired.get()
-				? this.getEmptyEntry(kind) : entries.length || !this.hasRefreshed && !warning ? undefined : this.getEmptyEntry(kind);
+				? this.getEmptyEntry(kind, entries.length > 0) : entries.length || !this.hasRefreshed && !warning ? undefined : this.getEmptyEntry(kind);
 			const documentation = remoteSetup[kind].documentation;
 			return [
 				remoteKindLabels[kind],

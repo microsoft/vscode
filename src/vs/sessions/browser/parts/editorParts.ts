@@ -4,7 +4,13 @@
  *--------------------------------------------------------------------------------------------*/
 
 import './media/editorPart.css';
+import { IContextKeyService } from '../../../platform/contextkey/common/contextkey.js';
 import { InstantiationType, registerSingleton } from '../../../platform/instantiation/common/extensions.js';
+import { IInstantiationService } from '../../../platform/instantiation/common/instantiation.js';
+import { IStorageService } from '../../../platform/storage/common/storage.js';
+import { IThemeService } from '../../../platform/theme/common/themeService.js';
+import { IAuxiliaryWindowService } from '../../../workbench/services/auxiliaryWindow/browser/auxiliaryWindowService.js';
+import { ILifecycleService } from '../../../workbench/services/lifecycle/common/lifecycle.js';
 import { IEditorGroupView } from '../../../workbench/browser/parts/editor/editor.js';
 import { EditorParts as EditorPartsBase } from '../../../workbench/browser/parts/editor/editorParts.js';
 import { GroupIdentifier } from '../../../workbench/common/editor.js';
@@ -12,14 +18,32 @@ import { GroupDirection, IEditorGroupsService } from '../../../workbench/service
 import { AgentWorkbenchLayout, IAgentWorkbenchLayoutService } from '../workbench.js';
 import { MainEditorPart } from './editorPart.js';
 import { DesktopMainEditorPart } from './desktopEditorPart.js';
+import { createMainWindowInstantiationService } from '../../services/sessions/browser/sessionHost.js';
 
 export class EditorParts extends EditorPartsBase {
+
+	/**
+	 * The editor parts' scope is the main window's: the main part, floating editor windows and modal editors show the
+	 * main window's session host. A part created with services of its own, such as a chat window's, provides its own host.
+	 */
+	constructor(
+		@IInstantiationService instantiationService: IInstantiationService,
+		@IStorageService storageService: IStorageService,
+		@IThemeService themeService: IThemeService,
+		@IAuxiliaryWindowService auxiliaryWindowService: IAuxiliaryWindowService,
+		@IContextKeyService contextKeyService: IContextKeyService,
+		@ILifecycleService lifecycleService: ILifecycleService,
+	) {
+		const mainWindowInstantiationService = createMainWindowInstantiationService(instantiationService);
+		super(mainWindowInstantiationService, storageService, themeService, auxiliaryWindowService, contextKeyService, lifecycleService);
+		this._register(mainWindowInstantiationService);
+	}
+
 	protected override createMainEditorPart(): MainEditorPart {
 		const layoutService = this.instantiationService.invokeFunction(accessor => accessor.get(IAgentWorkbenchLayoutService));
-		const editorPart = layoutService.agentWorkbenchLayout === AgentWorkbenchLayout.Desktop
+		return layoutService.agentWorkbenchLayout === AgentWorkbenchLayout.Desktop
 			? this.instantiationService.createInstance(DesktopMainEditorPart, this)
 			: this.instantiationService.createInstance(MainEditorPart, this);
-		return editorPart;
 	}
 
 	override moveGroup(group: IEditorGroupView | GroupIdentifier, location: IEditorGroupView | GroupIdentifier, direction: GroupDirection): IEditorGroupView {

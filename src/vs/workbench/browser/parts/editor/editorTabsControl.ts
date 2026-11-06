@@ -6,7 +6,7 @@
 import './media/editortabscontrol.css';
 import { localize } from '../../../../nls.js';
 import { DataTransfers } from '../../../../base/browser/dnd.js';
-import { $, Dimension, getActiveWindow, getWindow, isMouseEvent, setVisibility } from '../../../../base/browser/dom.js';
+import { $, Dimension, getWindow, isMouseEvent, setVisibility } from '../../../../base/browser/dom.js';
 import { StandardMouseEvent } from '../../../../base/browser/mouseEvent.js';
 import { ActionsOrientation, IActionViewItem, prepareActions } from '../../../../base/browser/ui/actionbar/actionbar.js';
 import { IAction, ActionRunner } from '../../../../base/common/actions.js';
@@ -21,7 +21,7 @@ import { IKeybindingService } from '../../../../platform/keybinding/common/keybi
 import { INotificationService } from '../../../../platform/notification/common/notification.js';
 import { IQuickInputService } from '../../../../platform/quickinput/common/quickInput.js';
 import { IThemeService, Themable } from '../../../../platform/theme/common/themeService.js';
-import { DraggedEditorGroupIdentifier, DraggedEditorIdentifier, fillEditorsDragData, isWindowDraggedOver } from '../../dnd.js';
+import { DraggedEditorGroupIdentifier, DraggedEditorIdentifier, fillEditorsDragData, getNewWindowBoundsAtDragEnd, isWindowDraggedOver } from '../../dnd.js';
 import { EditorPane } from './editorPane.js';
 import { CONNECTED_EDITOR_TABS_SELECTOR, IEditorGroupMenuIds, IEditorGroupsView, IEditorGroupView, IEditorPartsView, IInternalEditorOpenOptions } from './editor.js';
 import { IEditorCommandsContext, EditorResourceAccessor, IEditorPartOptions, SideBySideEditor, EditorsOrder, EditorInputCapabilities, IToolbarActions, GroupIdentifier, Verbosity } from '../../../common/editor.js';
@@ -113,6 +113,14 @@ export abstract class EditorTabsControl extends Themable implements IEditorTabsC
 		connected: 28 as const,
 		connectedCompact: 24 as const,
 	};
+
+	/**
+	 * The height of a row of modern UI editor tabs, `compact` or not: what lines up with the tabs of an editor part, such as
+	 * a title row beside them.
+	 */
+	static getModernUITabRowHeight(compact: boolean): number {
+		return compact ? EditorTabsControl.EDITOR_TAB_HEIGHT.modernUICompact : EditorTabsControl.EDITOR_TAB_HEIGHT.modernUI;
+	}
 
 	protected editorActionsToolbarContainer: HTMLElement | undefined;
 	private editorActionsToolbar: WorkbenchToolBar | undefined;
@@ -221,9 +229,11 @@ export abstract class EditorTabsControl extends Themable implements IEditorTabsC
 	}
 
 	protected createAddTabControl(parent: HTMLElement, menuId: MenuId, before?: HTMLElement, onDidChangeVisibility?: () => void): HTMLElement {
+		const context: IEditorCommandsContext = { groupId: this.groupView.id };
 		const control = this._register(this.instantiationService.createInstance(EditorAddTabControl, parent, menuId, this.contextKeyService, {
 			before,
-			keybindingProvider: action => this.getKeybinding(action)
+			keybindingProvider: action => this.getKeybinding(action),
+			context
 		}));
 		if (onDidChangeVisibility) {
 			this._register(control.onDidChangeVisibility(onDidChangeVisibility));
@@ -504,30 +514,9 @@ export abstract class EditorTabsControl extends Themable implements IEditorTabsC
 	}
 
 	protected async maybeCreateAuxiliaryEditorPartAt(e: DragEvent, offsetElement: HTMLElement): Promise<IAuxiliaryEditorPart | undefined> {
-		const { point, display } = await this.hostService.getCursorScreenPoint() ?? { point: { x: e.screenX, y: e.screenY } };
-		const window = getActiveWindow();
-		if (window.document.visibilityState === 'visible' && window.document.hasFocus()) {
-			if (point.x >= window.screenX && point.x <= window.screenX + window.outerWidth && point.y >= window.screenY && point.y <= window.screenY + window.outerHeight) {
-				return; // refuse to create as long as the mouse was released over active focused window to reduce chance of opening by accident
-			}
-		}
-
-		const offsetX = offsetElement.offsetWidth / 2;
-		const offsetY = 30/* take title bar height into account (approximation) */ + offsetElement.offsetHeight / 2;
-
-		const bounds = {
-			x: point.x - offsetX,
-			y: point.y - offsetY
-		};
-
-		if (display) {
-			if (bounds.x < display.x) {
-				bounds.x = display.x; // prevent overflow to the left
-			}
-
-			if (bounds.y < display.y) {
-				bounds.y = display.y; // prevent overflow to the top
-			}
+		const bounds = await getNewWindowBoundsAtDragEnd(this.hostService, e, offsetElement);
+		if (!bounds) {
+			return;
 		}
 
 		return this.editorPartsView.createAuxiliaryEditorPart({ bounds });
@@ -615,7 +604,7 @@ export abstract class EditorTabsControl extends Themable implements IEditorTabsC
 			if (usesModernMultiTabHeight && this.parent.closest(CONNECTED_EDITOR_TABS_SELECTOR)) {
 				return (isCompact ? EditorTabsControl.EDITOR_TAB_HEIGHT.connectedCompact : EditorTabsControl.EDITOR_TAB_HEIGHT.connected) + 1;
 			}
-			return isCompact ? EditorTabsControl.EDITOR_TAB_HEIGHT.modernUICompact : EditorTabsControl.EDITOR_TAB_HEIGHT.modernUI;
+			return EditorTabsControl.getModernUITabRowHeight(isCompact);
 		}
 		return isCompact ? EditorTabsControl.EDITOR_TAB_HEIGHT.compact : EditorTabsControl.EDITOR_TAB_HEIGHT.normal;
 	}

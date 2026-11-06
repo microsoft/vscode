@@ -12,11 +12,13 @@ import { SessionsPart } from './sessionsPart.js';
 import { MobileSessionsPart } from './mobile/mobileSessionsPart.js';
 import { SessionView } from './sessionView.js';
 import { IActiveSession } from '../../services/sessions/common/sessionsManagement.js';
+import { ISession } from '../../services/sessions/common/session.js';
 import { IProgressIndicator } from '../../../platform/progress/common/progress.js';
 import { Emitter, Event } from '../../../base/common/event.js';
 import { ISessionGridSlot, ISessionsPartService, IToggleMaximizeSessionEvent, SessionGridRequest } from '../../services/sessions/browser/sessionsPartService.js';
 import { Direction } from '../../../base/browser/ui/grid/grid.js';
 import { IAgentWorkbenchLayoutService } from '../workbench.js';
+import { createMainWindowInstantiationService } from '../../services/sessions/browser/sessionHost.js';
 
 /**
  * Owns the lifecycle of the {@link SessionsPart}. Selects the mobile vs. desktop
@@ -55,7 +57,8 @@ export class SessionsParts extends Disposable implements ISessionsPartService {
 			? layoutService.initialViewportClass === 'phone'
 			: getClientArea(mainWindow.document.body).width < 640;
 
-		this._mainPart = this._register(instantiationService.createInstance(isPhoneLayout ? MobileSessionsPart : SessionsPart));
+		const mainWindowInstantiationService = this._register(createMainWindowInstantiationService(instantiationService));
+		this._mainPart = this._register(mainWindowInstantiationService.createInstance(isPhoneLayout ? MobileSessionsPart : SessionsPart));
 	}
 
 	updateVisibleSessions(visible: readonly (IActiveSession | undefined)[], active: IActiveSession | undefined, slots?: readonly ISessionGridSlot[], request?: SessionGridRequest): void {
@@ -88,12 +91,32 @@ export class SessionsParts extends Disposable implements ISessionsPartService {
 		this._mainPart.focusSession(session?.sessionId, session?.scopedChatResource);
 	}
 
-	getSessionView(sessionId: string | undefined): SessionView | undefined {
+	getSessionView(session: string | ISession | undefined): SessionView | undefined {
+		if (typeof session === 'object') {
+			const shown = this._mainPart.getViewOfSession(session);
+			if (shown) {
+				return shown;
+			}
+			// A session scoped to a chat that no part shows a view of, such as one of a chat window's editors: none, not the
+			// main window's view of another chat of its session.
+			if ((session as Partial<IActiveSession>).scopedChatResource) {
+				return undefined;
+			}
+		}
+		const sessionId = typeof session === 'object' ? session.sessionId : session;
 		return this._mainPart.getSessionView(sessionId);
 	}
 
 	getFocusedSessionView(): SessionView | undefined {
 		return this._mainPart.getFocusedSessionView();
+	}
+
+	focusSessionView(session: ISession): void {
+		this._mainPart.focusSessionView(session);
+	}
+
+	getActiveSessionView(): SessionView | undefined {
+		return this._mainPart.getActiveSessionView();
 	}
 
 	getProgressIndicator(): IProgressIndicator {

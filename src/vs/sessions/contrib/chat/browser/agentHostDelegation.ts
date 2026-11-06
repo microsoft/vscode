@@ -8,6 +8,8 @@ import { CommandsRegistry } from '../../../../platform/commands/common/commands.
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { CHAT_DELEGATE_TO_AGENT_HOST_SESSION_COMMAND_ID, IAgentHostDelegationRequest } from '../../../../workbench/contrib/chat/browser/agentSessions/agentSessions.js';
 import { LOCAL_AGENT_HOST_PROVIDER_ID } from '../../../common/agentHostSessionsProvider.js';
+import { resolveSessionCommandTarget } from '../../../services/sessions/browser/sessionCommandTarget.js';
+import { ISessionsPartService } from '../../../services/sessions/browser/sessionsPartService.js';
 import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
 import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
 
@@ -29,7 +31,13 @@ CommandsRegistry.registerCommand(CHAT_DELEGATE_TO_AGENT_HOST_SESSION_COMMAND_ID,
 	const sessionsService = accessor.get(ISessionsService);
 	const sessionsManagementService = accessor.get(ISessionsManagementService);
 
-	const sourceSession = sessionsService.activeSession.get();
+	// The session the user delegates from: the focused host's.
+	const sourceSession = resolveSessionCommandTarget(accessor, [])?.session;
+	// The new session opens beside it when the grid shows it, else beside the grid's active pane.
+	const gridSessions = sessionsService.visibleSessions.get();
+	const anchorSessionId = sourceSession && gridSessions.some(visible => visible?.sessionId === sourceSession.sessionId)
+		? sourceSession.sessionId
+		: accessor.get(ISessionsPartService).getActiveSessionView()?.getSession()?.sessionId;
 	if (!sourceSession) {
 		logService.warn('[Sessions] Agent host delegation skipped: no active session');
 		return;
@@ -52,7 +60,7 @@ CommandsRegistry.registerCommand(CHAT_DELEGATE_TO_AGENT_HOST_SESSION_COMMAND_ID,
 
 	try {
 		const session = sessionsManagementService.createNewSession(folderUri, { providerId, sessionTypeId });
-		sessionsService.insertAt(session, sourceSession.sessionId, 'right', true);
+		sessionsService.insertAt(session, anchorSessionId, 'right', true);
 		await sessionsManagementService.sendNewChatRequest(session, { query: request.prompt, attachedContext: request.attachedContext });
 	} catch (e) {
 		logService.error(`[Sessions] Agent host delegation to '${sessionTypeId}' failed`, e);

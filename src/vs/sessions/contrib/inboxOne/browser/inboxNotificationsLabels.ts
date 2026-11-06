@@ -6,6 +6,23 @@
 import { localize } from '../../../../nls.js';
 import { IInboxNotificationItem, IInboxSessionRow, InboxNotificationKind, InboxNotificationPriority, InboxTab } from '../common/inboxNotificationsService.js';
 
+export function getInboxEmptyMessage(name: string | undefined, working: boolean, index: number): string {
+	const messages = name ? [
+		working
+			? localize('inbox.empty.named.working', "All caught up, {0}. Your agents are working.", name)
+			: localize('inbox.empty.named.caughtUp', "All caught up, {0}. Enjoy a little breathing room.", name),
+		localize('inbox.empty.named.clear', "Nothing needs your attention, {0}. Take a moment for yourself.", name),
+		localize('inbox.empty.named.ready', "You're in a good place, {0}. We'll be here when you're ready.", name),
+	] : [
+		working
+			? localize('inbox.empty.working', "All caught up. Your agents are working.")
+			: localize('inbox.empty.caughtUp', "All caught up. Enjoy a little breathing room."),
+		localize('inbox.empty.clear', "Nothing needs your attention. Take a moment for yourself."),
+		localize('inbox.empty.ready', "You're in a good place. We'll be here when you're ready."),
+	];
+	return messages[index % messages.length];
+}
+
 export function getInboxTabLabel(tab: InboxTab): string {
 	switch (tab) {
 		case InboxTab.ReadyForYou: return localize('inbox.tab.readyForYou', "Ready for you");

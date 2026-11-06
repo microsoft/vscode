@@ -12,6 +12,7 @@ import { IAction, IActionRunner } from '../../../base/common/actions.js';
 import { KeyCode } from '../../../base/common/keyCodes.js';
 import { ResolvedKeybinding } from '../../../base/common/keybindings.js';
 import { Disposable, DisposableStore, MutableDisposable, toDisposable } from '../../../base/common/lifecycle.js';
+import { getMenuActionGroupTitle } from '../../../platform/actions/common/actions.js';
 import { IContextViewService } from '../../../platform/contextview/browser/contextView.js';
 import { defaultMenuStyles } from '../../../platform/theme/browser/defaultStyles.js';
 
@@ -20,6 +21,8 @@ export interface ISubmenuFlyoutOptions {
 	readonly anchor: HTMLElement;
 	readonly getActions: () => readonly IAction[];
 	readonly getActionRunner: () => IActionRunner;
+	/** The context the actions of the flyout run with, as the actions of the entry that opens it do. */
+	readonly getActionsContext?: () => unknown;
 	readonly lookupKeybinding: (commandId: string) => ResolvedKeybinding | undefined;
 	/** Keys on the anchor that open the flyout and move focus into it. */
 	readonly openKeys: readonly KeyCode[];
@@ -113,6 +116,8 @@ export class SubmenuFlyout extends Disposable {
 				const menu = this.menu = disposables.add(new Menu(container, actions, {
 					actionRunner,
 					getKeyBinding: action => this.options.lookupKeybinding(action.id),
+					context: this.options.getActionsContext?.(),
+					getGroupTitle: getMenuActionGroupTitle,
 				}, defaultMenuStyles));
 				disposables.add(toDisposable(() => this.menu = undefined));
 

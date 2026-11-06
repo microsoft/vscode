@@ -13,7 +13,7 @@ import { AgentsWindowUsage } from '../../../../workbench/contrib/chat/common/age
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../../workbench/common/contributions.js';
 import { onboardingScenarioRegistry } from '../../../../workbench/contrib/onboarding/common/onboardingRegistry.js';
 import { isOnboardingDeveloperModeEnabled, IOnboardingScenarioService } from '../../../../workbench/contrib/onboarding/common/onboardingScenarioService.js';
-import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
+import { IFocusedSessionHostService } from '../../../services/sessions/browser/sessionHost.js';
 import { SessionHarnessPickerVisibleContext, SessionIsolationPickerVisibleContext, SessionWorkspacePickerVisibleContext } from '../../../common/contextkeys.js';
 import { createNewSessionViewTour, NEW_SESSION_VIEW_TOUR_ID } from './tours/newSessionViewTour.js';
 
@@ -67,7 +67,7 @@ class NewSessionViewTourContribution extends Disposable implements IWorkbenchCon
 
 	constructor(
 		@IOnboardingScenarioService private readonly onboardingScenarioService: IOnboardingScenarioService,
-		@ISessionsService private readonly sessionsService: ISessionsService,
+		@IFocusedSessionHostService private readonly _focusedSessionHostService: IFocusedSessionHostService,
 		@IStorageService storageService: IStorageService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
@@ -93,7 +93,7 @@ class NewSessionViewTourContribution extends Disposable implements IWorkbenchCon
 				this._pendingCheck.clear();
 				return;
 			}
-			const activeSession = this.sessionsService.activeSession.read(reader);
+			const activeSession = this._focusedSessionHostService.focusedHost.read(reader).session.read(reader);
 			const newSessionViewOpen = !activeSession || !activeSession.isCreated.read(reader);
 			if (!newSessionViewOpen) {
 				this._pendingCheck.clear();
@@ -132,7 +132,7 @@ class NewSessionViewTourContribution extends Disposable implements IWorkbenchCon
 				this._pendingCheck.clear();
 				return;
 			}
-			const activeSession = this.sessionsService.activeSession.get();
+			const activeSession = this._focusedSessionHostService.focusedHost.get().session.get();
 			const newSessionViewOpen = !activeSession || !activeSession.isCreated.get();
 			if (!newSessionViewOpen) {
 				// The view closed while we waited. The autorun re-arms if it reopens.

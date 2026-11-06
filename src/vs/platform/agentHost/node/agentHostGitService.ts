@@ -6,6 +6,7 @@
 import * as cp from 'child_process';
 import * as fsPromises from 'fs/promises';
 import { cp as copyFile } from '@vscode/fs-copyfile';
+import { Schemas } from '../../../base/common/network.js';
 import * as path from '../../../base/common/path.js';
 import { extUriBiasedIgnorePathCase } from '../../../base/common/resources.js';
 import { URI } from '../../../base/common/uri.js';
@@ -229,6 +230,10 @@ export class AgentHostGitService implements IAgentHostGitService {
 	}
 
 	async getRepositoryRoot(workingDirectory: URI, options?: { readonly refreshIfNone?: boolean }): Promise<URI | undefined> {
+		if (workingDirectory.scheme !== Schemas.file) {
+			return undefined;
+		}
+
 		const workingDirectoryKey = extUriBiasedIgnorePathCase.getComparisonKey(workingDirectory);
 
 		return this._repositoryRootSequencer.queue(workingDirectoryKey, async () => {

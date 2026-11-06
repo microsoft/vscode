@@ -27,7 +27,9 @@ import { SessionConfigPropertySchema } from '../../../../../platform/agentHost/c
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { getSessionConfigProvider } from '../../../../common/agentHostSessionsProvider.js';
 import { ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
-import { IActiveSession } from '../../../../services/sessions/common/sessionsManagement.js';
+import { IHostSession } from '../../../../services/sessions/common/sessionsManagement.js';
+import { IChat } from '../../../../services/sessions/common/session.js';
+import { ISessionChatSource } from '../../../../services/sessions/browser/sessionHost.js';
 import { type ISessionConfigProvider, type ISessionsProvider } from '../../../../services/sessions/common/sessionsProvider.js';
 import { reportNewChatPickerClosed } from '../../../chat/browser/newChatPickerTelemetry.js';
 import { ChatPetAchievementIds, didExplicitlyEnableChatPetAutopilot } from '../../../../../workbench/contrib/chat/browser/chatPetAchievements.js';
@@ -67,18 +69,25 @@ export abstract class AgentHostSessionEnumPicker extends Disposable {
 	protected abstract readonly _pickerId: string;
 	protected abstract readonly _telemetryId: string;
 
+	protected readonly _session: IObservable<IHostSession | undefined>;
+	/** The chat of {@link _session} whose value the picker shows and sets. */
+	protected readonly _chat: IObservable<IChat | undefined>;
+
 	constructor(
-		protected readonly _session: IObservable<IActiveSession | undefined>,
+		source: ISessionChatSource,
 		@IActionWidgetService private readonly _actionWidgetService: IActionWidgetService,
 		@ISessionsProvidersService private readonly _sessionsProvidersService: ISessionsProvidersService,
 		@ITelemetryService private readonly _telemetryService: ITelemetryService,
 		@IHoverService private readonly _hoverService: IHoverService,
 	) {
 		super();
+		this._session = source.session;
+		this._chat = source.chat;
 
 		this._register(autorun(reader => {
-			// The value shown is the active chat's.
-			this._session.read(reader)?.activeChat.read(reader);
+			// The value shown is the chat's.
+			this._session.read(reader);
+			this._chat.read(reader);
 			this._updateTrigger();
 		}));
 
@@ -188,7 +197,8 @@ export abstract class AgentHostSessionEnumPicker extends Disposable {
 	 */
 	protected _isCurrentlyResolvingConfig(): boolean {
 		const session = this._session.get();
-		if (!session) {
+		const chat = this._chat.get();
+		if (!session || !chat) {
 			return false;
 		}
 		const provider = this._sessionsProvidersService.getProvider(session.providerId);
@@ -196,7 +206,7 @@ export abstract class AgentHostSessionEnumPicker extends Disposable {
 		if (!configProvider) {
 			return false;
 		}
-		return configProvider.isSessionConfigResolving(session.sessionId, session.activeChat.get().resource).get();
+		return configProvider.isSessionConfigResolving(session.sessionId, chat.resource).get();
 	}
 
 	showPicker(anchor: HTMLElement, onHide?: () => void): boolean {
@@ -205,7 +215,8 @@ export abstract class AgentHostSessionEnumPicker extends Disposable {
 
 	protected _getActiveContext(): { provider: ISessionConfigProvider; sessionId: string; chat: URI; currentValue: string; items: readonly IAgentHostSessionEnumPickerItem[]; tooltip: string } | undefined {
 		const session = this._session.get();
-		if (!session) {
+		const chat = this._chat.get()?.resource;
+		if (!session || !chat) {
 			return undefined;
 		}
 		const provider = this._sessionsProvidersService.getProvider(session.providerId);
@@ -213,7 +224,6 @@ export abstract class AgentHostSessionEnumPicker extends Disposable {
 		if (!rawProvider) {
 			return undefined;
 		}
-		const chat = session.activeChat.get().resource;
 		const config = rawProvider.getSessionConfig(session.sessionId, chat);
 		const schema = config?.schema.properties[this._property];
 		if (!schema || !this._isWellKnownSchema(schema) || !isSessionConfigWritable(schema, rawProvider.getCreateSessionConfig(session.sessionId) !== undefined)) {
@@ -370,7 +380,7 @@ export class AgentHostModePicker extends AgentHostSessionEnumPicker {
 	protected readonly _telemetryId = 'NewChatAgentHostModePicker';
 
 	constructor(
-		session: IObservable<IActiveSession | undefined>,
+		source: ISessionChatSource,
 		@IActionWidgetService actionWidgetService: IActionWidgetService,
 		@ISessionsProvidersService sessionsProvidersService: ISessionsProvidersService,
 		@ITelemetryService telemetryService: ITelemetryService,
@@ -380,11 +390,12 @@ export class AgentHostModePicker extends AgentHostSessionEnumPicker {
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@IPreferencesService private readonly _preferencesService: IPreferencesService,
 	) {
-		super(session, actionWidgetService, sessionsProvidersService, telemetryService, hoverService);
-		this._permissionDelegate = this._register(instantiationService.createInstance(AgentHostPermissionPickerDelegate, session));
+		super(source, actionWidgetService, sessionsProvidersService, telemetryService, hoverService);
+		this._permissionDelegate = this._register(instantiationService.createInstance(AgentHostPermissionPickerDelegate, source));
 		this._permissionPicker = this._register(instantiationService.createInstance(PermissionPicker, this._permissionDelegate));
 		this._register(autorun(reader => {
-			session.read(reader)?.activeChat.read(reader);
+			source.session.read(reader);
+			source.chat.read(reader);
 			this._permissionDelegate.isModePickerCombined.read(reader);
 			this._permissionDelegate.currentPermissionLevel.read(reader);
 			this._permissionDelegate.isResolving.read(reader);

@@ -30,6 +30,7 @@ import { IWorktreeSuggestionService } from '../../../../worktreeSuggestion/brows
 import { NullWorktreeSuggestionService } from '../../../../worktreeSuggestion/test/browser/worktreeSuggestionTestUtils.js';
 import '../../../../chat/browser/media/chatWidget.css';
 import '../../../../../browser/media/style.css';
+import { sessionChatSourceOf } from '../../../../../services/sessions/browser/sessionHost.js';
 
 async function renderIsolationPicker({ container, disposableStore, theme }: ComponentFixtureContext, value: 'worktree' | 'folder', devContainer = false): Promise<void> {
 	container.classList.add('monaco-workbench', 'agent-sessions-workbench');
@@ -93,7 +94,7 @@ async function renderIsolationPicker({ container, disposableStore, theme }: Comp
 	instantiationService.set(IContextViewService, disposableStore.add(instantiationService.createInstance(ContextViewService)));
 	instantiationService.set(IActionWidgetService, disposableStore.add(instantiationService.createInstance(ActionWidgetService)));
 	const row = dom.append(container, dom.$('.new-chat-session-options'));
-	const picker = disposableStore.add(instantiationService.createInstance(AgentHostSessionConfigPicker, session, SessionConfigKey.Isolation));
+	const picker = disposableStore.add(instantiationService.createInstance(AgentHostSessionConfigPicker, sessionChatSourceOf(session), SessionConfigKey.Isolation));
 	const trigger = picker.render(row);
 	picker.setFocusable(true);
 	trigger?.click();

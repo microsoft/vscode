@@ -22,6 +22,7 @@ import { ChatContextKeys } from '../../../../../workbench/contrib/chat/common/ac
 import { IGitService } from '../../../../../workbench/contrib/git/common/gitService.js';
 import { IWorkbenchLayoutService } from '../../../../../workbench/services/layout/browser/layoutService.js';
 import { registerChatFixtureServices } from '../../../../../workbench/test/browser/componentFixtures/chat/chatFixtureUtils.js';
+import { stubSessionHosts } from '../../../../services/sessions/test/browser/sessionHostTestUtils.js';
 import { ComponentFixtureContext, createEditorServices, defineComponentFixture, defineThemedFixtureGroup } from '../../../../../workbench/test/browser/componentFixtures/fixtureUtils.js';
 import { IAgentHostFilterService } from '../../../../services/agentHostFilter/common/agentHostFilter.js';
 import { ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
@@ -94,6 +95,7 @@ function renderAutomationForm({ container, disposableStore, theme }: ComponentFi
 			}());
 		},
 	});
+	stubSessionHosts(instantiationService, disposableStore);
 	const contextKeyService = instantiationService.get(IContextKeyService);
 	ChatContextKeys.enabled.bindTo(contextKeyService).set(true);
 	const state: IFormState = {

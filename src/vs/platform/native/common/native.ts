@@ -312,6 +312,12 @@ export interface ICommonNativeHostService {
 	isFullScreen(options?: INativeHostOptions): Promise<boolean>;
 	toggleFullScreen(options?: INativeHostOptions): Promise<void>;
 
+	/**
+	 * Does what a double-click on the title bar of the window does: on macOS as the system settings say, such as to zoom
+	 * or minimize the window, else maximizes or restores it. For a title area the window does not drag itself.
+	 */
+	handleTitleDoubleClick(options?: INativeHostOptions): Promise<void>;
+
 	getCursorScreenPoint(): Promise<{ readonly point: IPoint; readonly display: IRectangle }>;
 
 	isMaximized(options?: INativeHostOptions): Promise<boolean>;

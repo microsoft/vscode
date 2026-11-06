@@ -18,7 +18,7 @@ import { IsAuxiliaryWindowContext, IsSessionsWindowContext, IsTopRightEditorGrou
 import { EditorExtensions } from '../../../../workbench/common/editor.js';
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../../workbench/common/contributions.js';
 import { ChatContextKeys } from '../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
-import { Menus, SessionActivityBarGroup } from '../../../browser/menus.js';
+import { Menus, SessionActivityBarGroup, SessionCanvasMenuGroup } from '../../../browser/menus.js';
 import { IAgentWorkbenchLayoutService } from '../../../browser/workbench.js';
 import { IWindowCanvasService, WindowCanvasInput, WindowCanvasService } from '../../../services/canvas/browser/windowCanvasService.js';
 import { ISessionEditorWorkingSetService } from '../../layout/common/sessionEditorWorkingSet.js';
@@ -32,6 +32,13 @@ Registry.as<IEditorPaneRegistry>(EditorExtensions.EditorPane).registerEditorPane
 	EditorPaneDescriptor.create(WindowCanvasEditor, WindowCanvasInput.EDITOR_ID, localize('windowCanvas.editor', "Canvas")),
 	[new SyncDescriptor(WindowCanvasInput)],
 );
+
+// Registered here, on every platform, because the window's canvases share the Available group with the active chat's canvases
+for (const menu of [Menus.SessionsEditorTabsBarAddTabCanvas, Menus.SessionActivityBarCanvas]) {
+	MenuRegistry.appendMenuGroup(menu, { group: SessionCanvasMenuGroup.Running, title: localize('canvasMenu.running', "Running") });
+	MenuRegistry.appendMenuGroup(menu, { group: SessionCanvasMenuGroup.Available, title: localize('canvasMenu.available', "Available") });
+	MenuRegistry.appendMenuGroup(menu, { group: SessionCanvasMenuGroup.Discover, title: localize('canvasMenu.discover', "Discover More") });
+}
 
 class WindowCanvasesContribution extends Disposable implements IWorkbenchContribution {
 	static readonly ID = 'sessions.contrib.windowCanvases';
@@ -58,7 +65,7 @@ class WindowCanvasesContribution extends Disposable implements IWorkbenchContrib
 				const command = { id: `sessions.windowCanvas.open.${canvas.id}`, title: canvas.title, icon: canvas.icon };
 				registrations.add(CommandsRegistry.registerCommand(command.id, () => canvasService.openCanvas(canvas.id)));
 				for (const menu of [Menus.SessionsEditorTabsBarAddTabCanvas, Menus.SessionActivityBarCanvas]) {
-					registrations.add(MenuRegistry.appendMenuItem(menu, { command, group: '1_available', when: ChatContextKeys.enabled }));
+					registrations.add(MenuRegistry.appendMenuItem(menu, { command, group: SessionCanvasMenuGroup.Available, when: ChatContextKeys.enabled }));
 				}
 			}
 		}));

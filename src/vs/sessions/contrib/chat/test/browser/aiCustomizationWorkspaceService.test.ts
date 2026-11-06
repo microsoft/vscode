@@ -19,7 +19,7 @@ import { GitCommitOptions, IGitRepository, IGitService } from '../../../../../wo
 import { SessionsAICustomizationWorkspaceService } from '../../browser/aiCustomizationWorkspaceService.js';
 import { IChat, ISessionWorkspace } from '../../../../services/sessions/common/session.js';
 import { IActiveSession } from '../../../../services/sessions/common/sessionsManagement.js';
-import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
+import { focusedSessionHostServiceOf } from '../../../../services/sessions/test/browser/sessionHostTestUtils.js';
 
 suite('SessionsAICustomizationWorkspaceService', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
@@ -27,7 +27,7 @@ suite('SessionsAICustomizationWorkspaceService', () => {
 	test('uses the repository label for virtual workspaces', () => {
 		const activeSession = observableValue<IActiveSession | undefined>('activeSession', undefined);
 		const service = new SessionsAICustomizationWorkspaceService(
-			upcastPartial<ISessionsService>({ activeSession }),
+			focusedSessionHostServiceOf(activeSession),
 			upcastPartial<IInstantiationService>({}),
 			upcastPartial<IPromptsService>({}),
 			upcastPartial<IGitService>({}),
@@ -87,7 +87,7 @@ suite('SessionsAICustomizationWorkspaceService', () => {
 				isVirtualWorkspace: false,
 			}));
 			return new SessionsAICustomizationWorkspaceService(
-				upcastPartial<ISessionsService>({ activeSession }),
+				focusedSessionHostServiceOf(activeSession),
 				upcastPartial<IInstantiationService>({}),
 				upcastPartial<IPromptsService>({}),
 				upcastPartial<IGitService>({ openRepository: options.openRepository ?? (async () => undefined) }),

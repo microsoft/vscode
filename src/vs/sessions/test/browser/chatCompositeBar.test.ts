@@ -31,7 +31,7 @@ import { IEditorGroupsService } from '../../../workbench/services/editor/common/
 import { workbenchInstantiationService } from '../../../workbench/test/browser/workbenchTestServices.js';
 import { ChatCompositeBar, IChatCompositeBarDelegate } from '../../browser/parts/chatCompositeBar.js';
 import { Menus } from '../../browser/menus.js';
-import { getSessionChatDragData, isSessionChatDrag } from '../../browser/dnd.js';
+import { getSessionChatDragData, isSessionChatDrag, registerSessionChatDragEndHandler } from '../../browser/dnd.js';
 import { LOCAL_AGENT_HOST_PROVIDER_ID } from '../../common/agentHostSessionsProvider.js';
 import { ARCHIVE_CHAT_COMMAND_ID, CLOSE_CHAT_COMMAND_ID, MARK_SESSION_UNREAD_COMMAND_ID, RENAME_CHAT_COMMAND_ID, RENAME_SESSION_COMMAND_ID, UNARCHIVE_CHAT_COMMAND_ID } from '../../common/sessionCommands.js';
 import { ISessionsProvidersService } from '../../services/sessions/browser/sessionsProvidersService.js';
@@ -105,9 +105,16 @@ class TestContextMenuService extends mock<IContextMenuService>() {
 
 class TestSessionsService extends mock<ISessionsService>() {
 	readonly openedChats: URI[] = [];
+	readonly closedSessions: string[] = [];
 
 	override async openChat(_session: ISession, chatUri: URI): Promise<void> {
 		this.openedChats.push(chatUri);
+	}
+
+	override closeSession(session: ISession | undefined): void {
+		if (session) {
+			this.closedSessions.push(session.sessionId);
+		}
 	}
 }
 
@@ -550,7 +557,7 @@ suite('Sessions - ChatCompositeBar', () => {
 		root.style.setProperty('--part-border-color', '#abcdef');
 		root.style.setProperty('--vscode-agentsCard-border', '#abcdef');
 		const card = mainWindow.document.createElement('div');
-		card.className = 'part sessionspart agents-part-card agents-card-surface';
+		card.className = 'part sessionspart sessions-chat-surface agents-part-card agents-card-surface';
 		card.style.transition = 'none';
 		const cardContent = mainWindow.document.createElement('div');
 		cardContent.className = 'content';
@@ -637,7 +644,7 @@ suite('Sessions - ChatCompositeBar', () => {
 		root.style.setProperty('--vscode-cornerRadius-large', '8px');
 		root.style.setProperty('--vscode-strokeThickness', '1px');
 		root.style.setProperty('--vscode-agents-background', '#102030');
-		const part = append(root, $('.part.sessionspart.has-chat-background'));
+		const part = append(root, $('.part.sessionspart.sessions-chat-surface.has-chat-background'));
 		const session = append(part, $('.session-view'));
 		const groups = append(session, $('.chat-groups-view.chat-groups-view-has-gaps'));
 		const group = append(groups, $('.chat-group-view'));
@@ -957,6 +964,26 @@ suite('Sessions - ChatCompositeBar', () => {
 			}
 		}
 		assert.deepStrictEqual(results, expected);
+	});
+
+	test('the end of a chat tab\'s drag goes to the chat drag end handler with its session and chat', async () => {
+		const { tabs, session, chats } = createHarness(disposables);
+		const ended: { session: boolean; chat: string; name: string; offset: boolean }[] = [];
+		const handler = registerSessionChatDragEndHandler(async (e, offsetElement, endedSession, chat, name) => {
+			ended.push({ session: endedSession === session, chat: String(chat), name, offset: offsetElement === tabs[1] });
+			return false;
+		});
+
+		try {
+			const dataTransfer = new DataTransfer();
+			tabs[1].dispatchEvent(new DragEvent('dragstart', { bubbles: true, cancelable: true, dataTransfer }));
+			tabs[1].dispatchEvent(new DragEvent('dragend', { bubbles: true, dataTransfer }));
+		} finally {
+			handler.dispose();
+		}
+
+		const secondary = chats.get()[1];
+		assert.deepStrictEqual(ended, [{ session: true, chat: secondary.resource.toString(), name: secondary.title.get(), offset: true }]);
 	});
 
 	test('creates scoped chat tab presentation elements', () => {
@@ -1480,8 +1507,8 @@ suite('Sessions - ChatCompositeBar', () => {
 		}]);
 	});
 
-	test('middle-click does not close the main chat and other auxiliary clicks are ignored', () => {
-		const { store, commandService, bar, tabs } = createHarness(disposables);
+	test('middle-click closes the main chat session and other auxiliary clicks are ignored', () => {
+		const { store, commandService, sessionsService, bar, tabs } = createHarness(disposables);
 		let bubbled = 0;
 		store.add(addDisposableListener(bar.element, EventType.AUXCLICK, () => bubbled++));
 		const mainMiddleClick = new MouseEvent(EventType.AUXCLICK, { bubbles: true, button: 1, cancelable: true });
@@ -1492,11 +1519,13 @@ suite('Sessions - ChatCompositeBar', () => {
 
 		assert.deepStrictEqual({
 			commandCalls: commandService.calls,
+			closedSessions: sessionsService.closedSessions,
 			mainDefaultPrevented: mainMiddleClick.defaultPrevented,
 			secondaryDefaultPrevented: secondaryRightClick.defaultPrevented,
 			bubbled,
 		}, {
 			commandCalls: [],
+			closedSessions: ['session'],
 			mainDefaultPrevented: true,
 			secondaryDefaultPrevented: false,
 			bubbled: 1,
@@ -1603,11 +1632,15 @@ suite('Sessions - ChatCompositeBar', () => {
 			isSameSessionDrag: isSessionChatDrag(dragStart, session.sessionId),
 			isOtherSessionDrag: isSessionChatDrag(dragStart, 'other-session'),
 			payload: getSessionChatDragData(dragStart),
+			// Like an editor tab's new-window drag, only `vnd.code` types: other apps such as Finder
+			// reject the drop (no text clipping is created), so dropping it there opens a chat window.
+			externalTypes: [...dataTransfer.types].filter(type => !type.startsWith('application/vnd.code.')),
 		}, {
 			isChatDrag: true,
 			isSameSessionDrag: true,
 			isOtherSessionDrag: false,
 			payload: { sessionId: session.sessionId, resource: secondaryChat.resource.toString() },
+			externalTypes: [],
 		});
 	});
 

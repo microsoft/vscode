@@ -40,6 +40,7 @@ import { SessionsFlatList, SessionsGrouping, SessionsList, SessionsSorting } fro
 import { createListHarness, createTestSession, TestCommandService, TestSessionsManagementService } from './sessionsListTestUtils.js';
 import '../../browser/sessionsActions.js';
 import '../../browser/views/sessionsViewActions.js';
+import { stubMissingSessionHostsFromSessionsService } from '../../../../services/sessions/test/browser/sessionHostTestUtils.js';
 
 class TestQuickInputService extends mock<IQuickInputService>() {
 	result: string | undefined;
@@ -776,8 +777,9 @@ suite('Sessions rename', () => {
 			instantiationService.stub(IQuickInputService, quickInputService);
 			instantiationService.stub(ISessionsManagementService, managementService);
 			instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() {
-				override readonly activeSession = constObservable<IActiveSession | undefined>(activeSession);
+				readonly activeSession = constObservable<IActiveSession | undefined>(activeSession);
 			}());
+			stubMissingSessionHostsFromSessionsService(instantiationService);
 			instantiationService.stub(ISessionsPartService, new class extends mock<ISessionsPartService>() {
 				override getFocusedSessionView(): SessionView {
 					return upcastPartial<SessionView>({ getSession: () => activeSession, getFocusedChat: () => focusedChat.get() });
@@ -919,9 +921,11 @@ suite('Sessions rename', () => {
 			let inlineRenameCalls = 0;
 			instantiationService.stub(ICommandService, commandService);
 			instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() {
-				override readonly activeSession = constObservable<IActiveSession | undefined>(session);
+				readonly activeSession = constObservable<IActiveSession | undefined>(session);
 			});
+			stubMissingSessionHostsFromSessionsService(instantiationService);
 			instantiationService.stub(ISessionsPartService, new class extends mock<ISessionsPartService>() {
+				override getActiveSessionView() { return upcastPartial<SessionView>({ getSession: () => session }); }
 				override getSessionView() {
 					if (inlineRename === undefined) {
 						return undefined;
@@ -984,10 +988,12 @@ suite('Sessions rename', () => {
 			};
 			instantiationService.stub(ISessionsPartService, new class extends mock<ISessionsPartService>() {
 				override getSessionView() { return fallbackView; }
+				override getActiveSessionView() { return fallbackView; }
 			});
 			instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() {
-				override readonly activeSession = constObservable<IActiveSession | undefined>(activeSession);
+				readonly activeSession = constObservable<IActiveSession | undefined>(activeSession);
 			});
+			stubMissingSessionHostsFromSessionsService(instantiationService);
 			instantiationService.stub(IAgentHostFilterService, { selectedHost: undefined });
 			const configurationService = new TestConfigurationService();
 			instantiationService.stub(IConfigurationService, configurationService);

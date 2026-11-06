@@ -897,6 +897,7 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 		// Sessions Control
 		this.sessionsControlContainer = append(sessionsContainer, $('.agent-sessions-control-container'));
 		const sessionsControl = this.sessionsControl = this._register(this.instantiationService.createInstance(AgentSessionsControl, this.sessionsControlContainer, {
+			initiallyVisible: false,
 			source: 'chatViewPane',
 			filter: sessionsFilter,
 			overrideStyles: this.getLocationBasedColors().listOverrideStyles,
@@ -912,7 +913,7 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 				return openEvent;
 			},
 		}));
-		this._register(this.onDidChangeBodyVisibility(visible => sessionsControl.setVisible(visible)));
+		this._register(this.onDidChangeBodyVisibility(() => sessionsControl.setVisible(this.isBodyVisible() && this.sessionsViewerVisible)));
 
 		sessionsToolbar.context = sessionsControl;
 
@@ -998,6 +999,7 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 		const sessionsContainerVisible = this.sessionsContainer.style.display !== 'none';
 		setVisibility(newSessionsContainerVisible, this.sessionsContainer);
 		this.sessionsViewerVisible = newSessionsContainerVisible;
+		this.sessionsControl?.setVisible(this.isBodyVisible() && newSessionsContainerVisible);
 		this.sessionsViewerVisibilityContext.set(newSessionsContainerVisible);
 
 		return {

@@ -13,7 +13,7 @@ import { IContextViewService } from '../../../platform/contextview/browser/conte
 import { IKeybindingService } from '../../../platform/keybinding/common/keybinding.js';
 import { ComponentFixtureContext, createEditorServices, defineComponentFixture, defineThemedFixtureGroup, registerWorkbenchServices, waitForFixtureCondition } from '../../../workbench/test/browser/componentFixtures/fixtureUtils.js';
 import { EmptyEditorGroupAddTab } from '../../browser/parts/emptyEditorGroupAddTab.js';
-import { FixtureContextViewService, FixtureKeybindingService, FixtureMenuService, fixtureBrowser, fixtureCanvas, fixtureChanges, fixtureFiles, IFixtureEntry } from './addTabFixtureUtils.js';
+import { FixtureContextViewService, FixtureKeybindingService, FixtureMenuService, fixtureBrowser, fixtureCanvas, fixtureCanvasWithDiscover, fixtureCanvasWithTitledGroups, fixtureChanges, fixtureFiles, IFixtureEntry } from './addTabFixtureUtils.js';
 
 const addTabMenu = MenuId.for('sessions.fixture.emptyEditorGroupAddTab');
 const addTabListMenu = MenuId.for('sessions.fixture.emptyEditorGroupAddTabList');
@@ -42,6 +42,16 @@ export default defineThemedFixtureGroup({ path: 'sessions/emptyEditorGroupAddTab
 		labels: { kind: 'screenshot' },
 		additionalThemes: ['darkHighContrast', 'lightHighContrast'],
 		render: context => renderEmptyGroup(context, { entries: [fixtureChanges, fixtureFiles, fixtureBrowser, fixtureCanvas], width: 720, openSubmenu: true }),
+	}),
+	SubmenuWithGroupHeader: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		additionalThemes: ['darkHighContrast', 'lightHighContrast'],
+		render: context => renderEmptyGroup(context, { entries: [fixtureChanges, fixtureFiles, fixtureBrowser, fixtureCanvasWithDiscover], width: 960, openSubmenu: true }),
+	}),
+	SubmenuWithTitledGroups: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		additionalThemes: ['darkHighContrast', 'lightHighContrast'],
+		render: context => renderEmptyGroup(context, { entries: [fixtureChanges, fixtureFiles, fixtureBrowser, fixtureCanvasWithTitledGroups], width: 960, openSubmenu: true }),
 	}),
 	DetailPanelDocked: defineComponentFixture({
 		labels: { kind: 'screenshot' },
@@ -95,6 +105,7 @@ async function renderEmptyGroup({ container, disposableStore, theme, focus }: Co
 	menuService.commandService = instantiationService.get(ICommandService);
 
 	disposableStore.add(instantiationService.createInstance(EmptyEditorGroupAddTab, {
+		id: 1,
 		element: groupElement,
 		scopedContextKeyService: instantiationService.get(IContextKeyService),
 		isEmpty: true,

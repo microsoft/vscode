@@ -16,7 +16,7 @@ import { EditorPane } from '../../../browser/parts/editor/editorPane.js';
 import { IEditorOpenContext } from '../../../common/editor.js';
 import { IEditorGroup, IEditorGroupsService } from '../../../services/editor/common/editorGroupsService.js';
 import { IWorkbenchEnvironmentService } from '../../../services/environment/common/environmentService.js';
-import { CanvasInput } from '../common/canvas.js';
+import { CanvasInput, canPresentCanvasInGroup, ICanvasContextService } from '../common/canvas.js';
 import { CanvasView } from './canvasView.js';
 
 export class CanvasEditor extends EditorPane {
@@ -32,6 +32,7 @@ export class CanvasEditor extends EditorPane {
 		@IStorageService storageService: IStorageService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IEditorGroupsService private readonly editorGroupsService: IEditorGroupsService,
+		@ICanvasContextService private readonly canvasContextService: ICanvasContextService,
 		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService,
 	) {
 		super(CanvasEditor.ID, group, telemetryService, themeService, storageService);
@@ -47,7 +48,7 @@ export class CanvasEditor extends EditorPane {
 	}
 
 	override async setInput(input: CanvasInput, options: IEditorOptions | undefined, context: IEditorOpenContext, token: CancellationToken): Promise<void> {
-		if (this.group.windowId !== this.editorGroupsService.mainPart.windowId) {
+		if (!canPresentCanvasInGroup(input.reference, this.group, this.editorGroupsService, this.canvasContextService)) {
 			throw new Error(localize('canvas.mainWindowOnly', "Canvases can only be shown in the main window beside their owning conversation."));
 		}
 		this.view.setInput(undefined);

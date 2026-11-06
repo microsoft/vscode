@@ -8,7 +8,7 @@ import { DeferredPromise, timeout } from '../../../../../../base/common/async.js
 import { CancellationToken, CancellationTokenSource } from '../../../../../../base/common/cancellation.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { isCancellationError } from '../../../../../../base/common/errors.js';
-import { derived, observableValue } from '../../../../../../base/common/observable.js';
+import { constObservable, derived, observableValue } from '../../../../../../base/common/observable.js';
 import { isWindows } from '../../../../../../base/common/platform.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { mock } from '../../../../../../base/test/common/mock.js';
@@ -38,7 +38,7 @@ import { IRemoteTunnelService, TunnelStatus } from '../../../../../../platform/r
 import { TestProgressService } from '../../../../../../workbench/test/browser/workbenchTestServices.js';
 import { IInputOptions, IQuickInputService } from '../../../../../../platform/quickinput/common/quickInput.js';
 import { InMemoryStorageService, IStorageService } from '../../../../../../platform/storage/common/storage.js';
-import { IAgentHostSessionsProvider } from '../../../../../common/agentHostSessionsProvider.js';
+import { IAgentHostSessionsProvider, LocalAgentHostRegistration } from '../../../../../common/agentHostSessionsProvider.js';
 import { DevContainerAgentHostEnabledSettingId, IDevContainerAgentHostService } from '../../../../../common/devContainerAgentHostService.js';
 import { ISessionsProvidersService } from '../../../../../services/sessions/browser/sessionsProvidersService.js';
 import { IRemoteRefreshProgress, RemotesModel, remoteKinds } from '../../browser/remotesModel.js';
@@ -314,6 +314,13 @@ suite('RemotesModel', () => {
 			getProviders: () => [...providers.values()],
 		});
 		const model = store.add(instantiationService.createInstance(RemotesModel, discover));
+		const addProvider = (address: string, localRegistration?: LocalAgentHostRegistration) => {
+			const provider = createProvider(address);
+			Object.assign(provider, { localRegistration: constObservable(localRegistration) });
+			providers.set(address, provider);
+			providersChanged.fire({ added: [], removed: [] });
+			return provider;
+		};
 		return {
 			model, storage, configuration, removals, sshDisconnects, removedConnections, logEntries, initializationReentered, providers, providersChanged, connectionChanges, reconnects, signIns,
 			copiedAddresses, locationPromptResult, locationPreferences, notifications, upgrades, upgrade,
@@ -336,13 +343,8 @@ suite('RemotesModel', () => {
 					change: { keys: [key], overrides: [] }, affectsConfiguration: section => section === key,
 				});
 			},
-			addEnvironmentProvider: (id: string) => {
-				const address = cloudSandboxAddress(id);
-				const provider = createProvider(address);
-				providers.set(address, provider);
-				providersChanged.fire({ added: [], removed: [] });
-				return provider;
-			},
+			addEnvironmentProvider: (id: string, localRegistration?: LocalAgentHostRegistration) => addProvider(cloudSandboxAddress(id), localRegistration),
+			addProvider,
 		};
 	}
 
@@ -1493,6 +1495,30 @@ suite('RemotesModel', () => {
 		await model.setConnected(id, false);
 		assert.deepStrictEqual({ environmentConnections, connectionChanges, retained: model.remotes.get().some(remote => remote.id === id) }, {
 			environmentConnections: ['desktop'], connectionChanges: [{ id, connected: true }, { id, connected: false }], retained: true,
+		});
+	});
+
+	test('omits this computer\'s own registrations', async () => {
+		const { model, configuration, environmentAvailable, environmentHosts, addEnvironmentProvider, addProvider } = setup();
+		await configuration.setUserConfiguration(GitHubEnvironmentsEnabledSettingId, true);
+		environmentAvailable.set(true, undefined);
+		environmentHosts.set([
+			{ id: 'self', name: 'Workstation', kind: 'user-local', status: 'online' },
+			{ id: 'desktop', name: 'Desktop', kind: 'user-local', status: 'offline' },
+		], undefined);
+		addEnvironmentProvider('self', 'githubEnvironment');
+		addEnvironmentProvider('desktop');
+		const names = () => model.remotes.get()
+			.filter(remote => remote.kind === 'environment' || remote.kind === 'tunnel')
+			.map(remote => remote.name);
+		const cached = names();
+		await model.refresh(CancellationToken.None);
+		const discovered = names();
+		addProvider('tunnel:laptop', 'devTunnel');
+		assert.deepStrictEqual({ cached, discovered, ownTunnel: names() }, {
+			cached: ['Desktop'],
+			discovered: ['Laptop', 'Desktop'],
+			ownTunnel: ['Desktop'],
 		});
 	});
 

@@ -27,6 +27,7 @@ import { IActiveSession, ISessionsChangeEvent, ISessionsManagementService } from
 import { ISessionsProvider } from '../../../../services/sessions/common/sessionsProvider.js';
 import { AnnotationsAgentFeedbackItemsBackend } from '../../browser/agentFeedbackItemsBackend.js';
 import { AgentFeedbackKind, AgentFeedbackState } from '../../browser/agentFeedbackService.js';
+import { stubFocusedSessionHostFromSessionsService } from '../../../../services/sessions/test/browser/sessionHostTestUtils.js';
 
 suite('AnnotationsAgentFeedbackItemsBackend', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -42,10 +43,11 @@ suite('AnnotationsAgentFeedbackItemsBackend', () => {
 		activeSession: IObservable<IActiveSession | undefined> = constObservable(undefined),
 	): void {
 		instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() {
-			override readonly activeSession = activeSession;
+			readonly activeSession = activeSession;
 			override readonly visibleSessions = visibleSessions;
 			override readonly visibleSessionPanes = visibleSessionPanes;
 		}());
+		stubFocusedSessionHostFromSessionsService(instantiationService);
 	}
 
 	/**

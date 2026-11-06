@@ -18,11 +18,11 @@
 	box-sizing: border-box;
 }
 
-.monaco-workbench.agent-sessions-workbench .part.sessionspart.has-chat-background .chat-composite-bar.session-header-bar {
+.monaco-workbench.agent-sessions-workbench :is(.part.sessionspart, .sessions-chat-surface).has-chat-background .chat-composite-bar.session-header-bar {
 	background-color: color-mix(in srgb, var(--session-view-background) 85%, transparent);
 }
 
-:is(.hc-black, .hc-light).monaco-workbench.agent-sessions-workbench .part.sessionspart.has-chat-background .chat-composite-bar.session-header-bar {
+:is(.hc-black, .hc-light).monaco-workbench.agent-sessions-workbench :is(.part.sessionspart, .sessions-chat-surface).has-chat-background .chat-composite-bar.session-header-bar {
 	background-color: var(--session-view-background);
 }
 
@@ -36,6 +36,27 @@
 
 .session-view.grid-layout .session-header-bar > .chat-composite-bar-header {
 	max-width: none;
+}
+
+/* The top row of its window, in the title bar: centered in it, after the window controls; its empty space moves the window. */
+.session-header-bar.window-chrome {
+	flex: 1 1 auto;
+	min-width: 0;
+	height: 100%;
+	display: flex;
+	flex-direction: column;
+	justify-content: center;
+	-webkit-app-region: drag;
+}
+
+.session-header-bar.window-chrome > .chat-composite-bar-header {
+	max-width: none;
+	margin: 0;
+}
+
+.session-header-bar.window-chrome .chat-composite-bar-session-title,
+.session-header-bar.window-chrome .chat-composite-bar-title-actions {
+	-webkit-app-region: no-drag;
 }
 
 /* Tabs host: the chat tab strip, shown only when the session has multiple chats. */
@@ -601,12 +622,12 @@
 
 /* Default-density sessions own their individual frames in both tab styles.
  * Connected tabs retain the same ownership in compact density. */
-.monaco-workbench.agent-sessions-workbench.modern-ui-tabs:not(.phone-layout):is(.modern-ui-connected-editor-tabs, :not(.modern-ui-compact)) .part.sessionspart.agents-part-card {
+.monaco-workbench.agent-sessions-workbench.modern-ui-tabs:not(.phone-layout):is(.modern-ui-connected-editor-tabs, :not(.modern-ui-compact)) :is(.part.sessionspart.agents-part-card, .sessions-chat-surface.agents-card-surface) {
 	border-color: transparent;
 	background-clip: padding-box;
 }
 
-.monaco-workbench.agent-sessions-workbench.modern-ui-tabs:not(.phone-layout):is(.modern-ui-connected-editor-tabs, :not(.modern-ui-compact)) .part.sessionspart.agents-part-card::after {
+.monaco-workbench.agent-sessions-workbench.modern-ui-tabs:not(.phone-layout):is(.modern-ui-connected-editor-tabs, :not(.modern-ui-compact)) :is(.part.sessionspart.agents-part-card, .sessions-chat-surface.agents-card-surface)::after {
 	content: none;
 }
 

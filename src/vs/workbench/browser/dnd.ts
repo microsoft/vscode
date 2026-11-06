@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { DataTransfers, IDragAndDropData } from '../../base/browser/dnd.js';
-import { DragAndDropObserver, EventType, addDisposableListener, onDidRegisterWindow } from '../../base/browser/dom.js';
+import { DragAndDropObserver, EventType, addDisposableListener, getActiveWindow, onDidRegisterWindow } from '../../base/browser/dom.js';
 import { DragMouseEvent } from '../../base/browser/mouseEvent.js';
 import { IListDragAndDrop } from '../../base/browser/ui/list/list.js';
 import { ElementsDragAndDropData, ListViewTargetSector } from '../../base/browser/ui/list/listView.js';
@@ -25,7 +25,7 @@ import { IInstantiationService, ServicesAccessor } from '../../platform/instanti
 import { ILabelService } from '../../platform/label/common/label.js';
 import { extractSelection, withSelection } from '../../platform/opener/common/opener.js';
 import { Registry } from '../../platform/registry/common/platform.js';
-import { IWindowOpenable } from '../../platform/window/common/window.js';
+import { IRectangle, IWindowOpenable } from '../../platform/window/common/window.js';
 import { IWorkspaceContextService, hasWorkspaceFileExtension, isTemporaryWorkspace } from '../../platform/workspace/common/workspace.js';
 import { IWorkspaceFolderCreationData, IWorkspacesService } from '../../platform/workspaces/common/workspaces.js';
 import { EditorResourceAccessor, GroupIdentifier, IEditorIdentifier, isEditorIdentifier, isResourceDiffEditorInput, isResourceMergeEditorInput, isResourceSideBySideEditorInput } from '../common/editor.js';
@@ -53,13 +53,36 @@ export function registerInputDropTarget(element: HTMLElement): IDisposable {
  * over the main editor area, does not.
  */
 export function isInputDropTarget(element: HTMLElement, point?: { readonly clientX: number; readonly clientY: number }, scope?: HTMLElement): boolean {
+	return isRegisteredDropTarget(inputDropTargets, element, point, scope);
+}
+
+const contentDropTargets = new Set<HTMLElement>();
+
+/**
+ * Registers the content of an editor, such as a view shown as an editor, that handles the drops in its center: editors
+ * and groups dragged over it still split its group at the edges, and every other drop is the content's.
+ */
+export function registerContentDropTarget(element: HTMLElement): IDisposable {
+	contentDropTargets.add(element);
+	return toDisposable(() => contentDropTargets.delete(element));
+}
+
+/**
+ * Whether `element` is (in) registered content that handles drops, or `point` is over it; see {@link isInputDropTarget}
+ * for `scope`.
+ */
+export function isContentDropTarget(element: HTMLElement, point?: { readonly clientX: number; readonly clientY: number }, scope?: HTMLElement): boolean {
+	return isRegisteredDropTarget(contentDropTargets, element, point, scope);
+}
+
+function isRegisteredDropTarget(targets: ReadonlySet<HTMLElement>, element: HTMLElement, point: { readonly clientX: number; readonly clientY: number } | undefined, scope: HTMLElement | undefined): boolean {
 	for (let target: HTMLElement | null = element; target; target = target.parentElement) {
-		if (inputDropTargets.has(target)) {
+		if (targets.has(target)) {
 			return true;
 		}
 	}
 	if (point) {
-		return [...inputDropTargets].some(target => {
+		return [...targets].some(target => {
 			if (scope && !scope.contains(target)) {
 				return false;
 			}
@@ -809,4 +832,40 @@ const globalDraggedOverTracker = new GlobalWindowDraggedOverTracker();
  */
 export function isWindowDraggedOver(): boolean {
 	return globalDraggedOverTracker.isDraggedOver;
+}
+
+/**
+ * Where to open a new window for a drag that ended outside of the windows:
+ * centered on the dragged element at the mouse, kept on its display. It is
+ * `undefined` when the drag ended over the focused window, so that a new
+ * window does not open by accident.
+ */
+export async function getNewWindowBoundsAtDragEnd(hostService: IHostService, e: DragEvent, offsetElement: HTMLElement): Promise<Partial<IRectangle> | undefined> {
+	const { point, display } = await hostService.getCursorScreenPoint() ?? { point: { x: e.screenX, y: e.screenY } };
+	const window = getActiveWindow();
+	if (window.document.visibilityState === 'visible' && window.document.hasFocus()) {
+		if (point.x >= window.screenX && point.x <= window.screenX + window.outerWidth && point.y >= window.screenY && point.y <= window.screenY + window.outerHeight) {
+			return undefined; // refuse to create as long as the mouse was released over active focused window to reduce chance of opening by accident
+		}
+	}
+
+	const offsetX = offsetElement.offsetWidth / 2;
+	const offsetY = 30/* take title bar height into account (approximation) */ + offsetElement.offsetHeight / 2;
+
+	const bounds = {
+		x: point.x - offsetX,
+		y: point.y - offsetY
+	};
+
+	if (display) {
+		if (bounds.x < display.x) {
+			bounds.x = display.x; // prevent overflow to the left
+		}
+
+		if (bounds.y < display.y) {
+			bounds.y = display.y; // prevent overflow to the top
+		}
+	}
+
+	return bounds;
 }

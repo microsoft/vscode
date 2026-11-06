@@ -6,8 +6,7 @@
 import { Codicon } from '../../base/common/codicons.js';
 import { IReader } from '../../base/common/observable.js';
 import { ThemeIcon } from '../../base/common/themables.js';
-import { getSessionWorkspaceKind, SessionWorkspaceKind } from '../services/sessions/common/session.js';
-import { IActiveSession } from '../services/sessions/common/sessionsManagement.js';
+import { getSessionWorkspaceKind, IChat, ISession, SessionWorkspaceKind } from '../services/sessions/common/session.js';
 
 export interface ISessionWorkspaceDisplayInfo {
 	readonly label: string;
@@ -21,8 +20,8 @@ export interface ISessionWorkspaceDisplayInfo {
  * Returns the workspace presentation shared by the command center and Files
  * pill, for the active chat's workspace, which may differ from the session's.
  */
-export function getSessionWorkspaceDisplayInfo(session: IActiveSession | undefined, reader: IReader): ISessionWorkspaceDisplayInfo | undefined {
-	const workspace = session?.activeChat.read(reader).workspace.read(reader);
+export function getSessionWorkspaceDisplayInfo(session: ISession | undefined, chat: IChat | undefined, reader: IReader): ISessionWorkspaceDisplayInfo | undefined {
+	const workspace = chat?.workspace.read(reader);
 	if (!workspace?.label) {
 		return undefined;
 	}

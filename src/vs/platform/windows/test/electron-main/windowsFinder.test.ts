@@ -68,6 +68,7 @@ suite('WindowsFinder', () => {
 			send(channel: string, ...args: unknown[]): void { throw new Error('Method not implemented.'); }
 			sendWhenReady(channel: string, token: CancellationToken, ...args: unknown[]): void { throw new Error('Method not implemented.'); }
 			toggleFullScreen(): void { throw new Error('Method not implemented.'); }
+			handleTitleDoubleClick(): void { throw new Error('Method not implemented.'); }
 			setRepresentedFilename(name: string): void { throw new Error('Method not implemented.'); }
 			getRepresentedFilename(): string | undefined { throw new Error('Method not implemented.'); }
 			setDocumentEdited(edited: boolean): void { throw new Error('Method not implemented.'); }

@@ -102,7 +102,7 @@ function renderHeader(ctx: ComponentFixtureContext, session: IActiveSession, wit
 	if (withBackground) {
 		container.classList.add('agent-sessions-workbench');
 		const sessionsPart = document.createElement('div');
-		sessionsPart.classList.add('part', 'sessionspart', 'has-chat-background');
+		sessionsPart.classList.add('part', 'sessionspart', 'sessions-chat-surface', 'has-chat-background');
 		sessionsPart.style.backgroundImage = 'linear-gradient(135deg, var(--vscode-editor-background), var(--vscode-textLink-foreground))';
 		container.appendChild(sessionsPart);
 		headerHost = sessionsPart;

@@ -29,6 +29,7 @@ import { IViewsService } from '../../../../workbench/services/views/common/views
 import { ICustomViewService } from '../../../services/customView/browser/customViewService.js';
 import { ISessionsRecentWorkspacesService } from '../../../services/sessions/browser/sessionsRecentWorkspacesService.js';
 import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
+import { IFocusedSessionHostService } from '../../../services/sessions/browser/sessionHost.js';
 import { ISession, SessionStatus } from '../../../services/sessions/common/session.js';
 import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
 import { SessionChangesEditorInput } from '../../changes/browser/sessionChangesEditorInput.js';
@@ -70,6 +71,7 @@ export class GetStartedTourRunner extends Disposable {
 		@IOnboardingScenarioService private readonly _onboardingService: IOnboardingScenarioService,
 		@IViewsService private readonly _viewsService: IViewsService,
 		@ISessionsService private readonly _sessionsService: ISessionsService,
+		@IFocusedSessionHostService private readonly _focusedSessionHostService: IFocusedSessionHostService,
 		@ISessionsManagementService private readonly _sessionsManagementService: ISessionsManagementService,
 		@IChangesViewService private readonly _changesViewService: IChangesViewService,
 		@ISessionChangesService private readonly _sessionChangesService: ISessionChangesService,
@@ -146,7 +148,7 @@ export class GetStartedTourRunner extends Disposable {
 			},
 			showNewSession: async () => {
 				this._customViewService.hideCustomView();
-				if (this._sessionsService.activeSession.get()?.isCreated.get()) {
+				if (this._focusedSessionHostService.focusedHost.get().session.get()?.isCreated.get()) {
 					await this._sessionsService.openNewSession();
 				}
 			},
@@ -167,7 +169,7 @@ export class GetStartedTourRunner extends Disposable {
 			},
 		};
 		return {
-			onNewSessionView: !this._sessionsService.activeSession.get()?.isCreated.get(),
+			onNewSessionView: !this._focusedSessionHostService.focusedHost.get().session.get()?.isCreated.get(),
 			currentProject: item === GetStartedItemId.SecondProject ? await this._revealCurrentProject(sessions, store) : undefined,
 			suggestedProjects: item === GetStartedItemId.SecondProject ? await this._getSuggestedProjects(sessions) : [],
 			sessionWithChanges: sessionWithChanges && { fileCount: sessionWithChanges.fileCount },
@@ -212,7 +214,7 @@ export class GetStartedTourRunner extends Disposable {
 
 	/** The active session when it has changes, otherwise the most recently updated session with changes. */
 	private _findSessionWithChanges(sessions: readonly ISession[]): ISessionWithChanges | undefined {
-		const active = this._sessionsService.activeSession.get();
+		const active = this._focusedSessionHostService.focusedHost.get().session.get();
 		if (active?.isCreated.get() && !active.isArchived.get()) {
 			const fileCount = this._changesViewService.activeSessionChangesSummaryObs.get()?.files ?? active.changesSummary?.get()?.files ?? 0;
 			if (fileCount > 0) {
@@ -230,7 +232,7 @@ export class GetStartedTourRunner extends Disposable {
 
 	private async _showSession(session: ISession): Promise<void> {
 		this._customViewService.hideCustomView();
-		if (!isEqual(this._sessionsService.activeSession.get()?.resource, session.resource)) {
+		if (!isEqual(this._focusedSessionHostService.focusedHost.get().session.get()?.resource, session.resource)) {
 			await this._sessionsService.openSession(session.resource);
 		}
 	}

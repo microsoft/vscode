@@ -5,9 +5,9 @@
 
 import assert from 'assert';
 import { agentHostConnectionKinds } from '../../../../../../platform/agentHost/test/common/testAgentHostResourceUriMappers.js';
-import { DeferredPromise } from '../../../../../../base/common/async.js';
+import { DeferredPromise, raceCancellation } from '../../../../../../base/common/async.js';
 import { VSBuffer } from '../../../../../../base/common/buffer.js';
-import { CancellationToken } from '../../../../../../base/common/cancellation.js';
+import { CancellationToken, CancellationTokenSource } from '../../../../../../base/common/cancellation.js';
 import { CancellationError, isCancellationError } from '../../../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { ResourceSet } from '../../../../../../base/common/map.js';
@@ -352,9 +352,12 @@ suite('AgentCustomizationItemProvider', () => {
 			upcastPartial<IFileService>({}), new NullLogService(), new TestCustomizationService(), makePromptsService(files), labelService,
 		));
 		const result = await provider.provideCustomAgents(URI.parse('other-session:/opaque'), CancellationToken.None);
-		assert.deepStrictEqual(result.map(agent => ({ id: agent.id, name: agent.name, source: agent.source.label })), [
-			{ id: createAgentHostResourceUriMapper('remote').fromAgentHost(URI.parse(agents[0].uri)).toString(), name: 'Reviewer', source: 'Extension: First Extension' },
-			{ id: createAgentHostResourceUriMapper('remote').fromAgentHost(URI.parse(agents[1].uri)).toString(), name: 'Reviewer', source: 'Extension: second' },
+		assert.deepStrictEqual(result.map(agent => {
+			const mode = new CustomChatMode(agent);
+			return { id: mode.id, name: mode.name.get(), source: mode.source?.label, storage: mode.source?.storage };
+		}), [
+			{ id: createAgentHostResourceUriMapper('remote').fromAgentHost(URI.parse(agents[0].uri)).toString(), name: 'Reviewer', source: 'Extension: First Extension', storage: PromptsStorage.extension },
+			{ id: createAgentHostResourceUriMapper('remote').fromAgentHost(URI.parse(agents[1].uri)).toString(), name: 'Reviewer', source: 'Extension: second', storage: PromptsStorage.extension },
 		]);
 	});
 
@@ -368,7 +371,9 @@ suite('AgentCustomizationItemProvider', () => {
 			{ type: CustomizationType.Agent, id: file.uri.toString(), uri: file.uri.toString(), name: 'Reviewer' },
 		]));
 		const result = await provider.provideCustomAgents(URI.parse('agent-host-copilotcli:/draft'), CancellationToken.None);
-		assert.deepStrictEqual(result.map(agent => agent.source.label), ['Extension: Draft Extension']);
+		assert.deepStrictEqual(result.map(agent => ({ label: agent.source.label, storage: agent.source.storage })), [
+			{ label: 'Extension: Draft Extension', storage: PromptsStorage.extension },
+		]);
 	});
 
 	for (const sourceUri of [undefined, 42, 'relative/agent.md', 'other-source:/unmapped/agent.md']) {
@@ -542,6 +547,55 @@ suite('AgentCustomizationItemProvider', () => {
 			cancelledInventory: undefined,
 			inventoryReads: 1,
 		});
+	});
+
+	test('waits for the first snapshot before reading the tool inventory', async () => {
+		const ready = new DeferredPromise<void>();
+		const waiting = new DeferredPromise<void>();
+		let reads = 0;
+		class TestCustomizationService extends NullAgentHostCustomizationService {
+			override async whenCustomizationsReady(_session: URI, token = CancellationToken.None) {
+				waiting.complete();
+				await raceCancellation(ready.p, token);
+				return !token.isCancellationRequested;
+			}
+			override getAgentFileToolInventory() {
+				reads++;
+				return [{ name: 'custom/tool', availability: 'available' as const }];
+			}
+		}
+		const provider = disposables.add(new AgentCustomizationItemProvider(
+			{ clientId: 'vscode', resourceUris: createAgentHostResourceUriMapper('remote') }, undefined, undefined, upcastPartial<IFileService>({}),
+			new NullLogService(), new TestCustomizationService(), makePromptsService(), labelService,
+		));
+		const operation = provider.provideAgentFileTools(URI.parse('remote-agent-host-test-copilot:/session'), CancellationToken.None);
+		await waiting.p;
+		assert.strictEqual(reads, 0);
+		await ready.complete();
+		assert.deepStrictEqual({ inventory: await operation, reads }, { inventory: [{ name: 'custom/tool', availability: 'available' }], reads: 1 });
+	});
+
+	test('cancels a tool inventory readiness wait without reading unresolved state', async () => {
+		const waiting = new DeferredPromise<void>();
+		const ready = new DeferredPromise<void>();
+		const tokenSource = disposables.add(new CancellationTokenSource());
+		let reads = 0;
+		class TestCustomizationService extends NullAgentHostCustomizationService {
+			override async whenCustomizationsReady(_session: URI, token = CancellationToken.None) {
+				waiting.complete();
+				await raceCancellation(ready.p, token);
+				return !token.isCancellationRequested;
+			}
+			override getAgentFileToolInventory() { reads++; return undefined; }
+		}
+		const provider = disposables.add(new AgentCustomizationItemProvider(
+			{ clientId: 'vscode', resourceUris: createAgentHostResourceUriMapper('remote') }, undefined, undefined, upcastPartial<IFileService>({}),
+			new NullLogService(), new TestCustomizationService(), makePromptsService(), labelService,
+		));
+		const operation = provider.provideAgentFileTools(URI.parse('remote-agent-host-test-copilot:/session'), tokenSource.token);
+		await waiting.p;
+		tokenSource.cancel();
+		assert.deepStrictEqual({ inventory: await operation, reads }, { inventory: undefined, reads: 0 });
 	});
 
 	test('maps explicit Ask semantics without relying on host names or URI conventions', async () => {

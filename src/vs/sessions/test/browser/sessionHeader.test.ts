@@ -4,14 +4,14 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { $, EventType } from '../../../base/browser/dom.js';
+import { $, addDisposableListener, EventType } from '../../../base/browser/dom.js';
 import { mainWindow } from '../../../base/browser/window.js';
 import { Codicon } from '../../../base/common/codicons.js';
 import { Event } from '../../../base/common/event.js';
 import { DisposableStore, toDisposable } from '../../../base/common/lifecycle.js';
 import { constObservable, IObservable, observableValue } from '../../../base/common/observable.js';
 import { URI } from '../../../base/common/uri.js';
-import { mock } from '../../../base/test/common/mock.js';
+import { mock, upcastPartial } from '../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../base/test/common/utils.js';
 import { ThemeIcon } from '../../../base/common/themables.js';
 import { IAccessibilityService } from '../../../platform/accessibility/common/accessibility.js';
@@ -19,6 +19,8 @@ import { IMenu, IMenuService, MenuId, MenuItemAction } from '../../../platform/a
 import { IContextKeyService } from '../../../platform/contextkey/common/contextkey.js';
 import { LocalSelectionTransfer } from '../../../platform/dnd/browser/dnd.js';
 import { DraggedSessionIdentifier, getSessionChatDragData, SessionsDataTransfers } from '../../browser/dnd.js';
+import { DraggedEditorIdentifier } from '../../../workbench/browser/dnd.js';
+import { IEditorIdentifier } from '../../../workbench/common/editor.js';
 import { workbenchInstantiationService } from '../../../workbench/test/browser/workbenchTestServices.js';
 import { MenuWorkbenchToolBar } from '../../../platform/actions/browser/toolbar.js';
 import { ToggleMenuAction } from '../../../base/browser/ui/toolbar/toolbar.js';
@@ -178,6 +180,35 @@ suite('Sessions - Headers', () => {
 		return dragEvent;
 	}
 
+	test('a drag from the title of a header in the title bar of its window, the chat editor\'s drag handle, stays the editor\'s drag, and also carries the session and its chat, so that it drops as an editor and as a chat', () => {
+		const { header, session, mainChat } = createHarness(disposables);
+		header.setWindowChrome(true);
+		const title = header.titleElement;
+		title.draggable = true;
+		// As the editor's drag handle does, before the drag reaches the header
+		const editorTransfer = LocalSelectionTransfer.getInstance<DraggedEditorIdentifier>();
+		disposables.add(toDisposable(() => editorTransfer.clearData(DraggedEditorIdentifier.prototype)));
+		disposables.add(addDisposableListener(title, EventType.DRAG_START, () => editorTransfer.setData([new DraggedEditorIdentifier(upcastPartial<IEditorIdentifier>({ groupId: 1 }))], DraggedEditorIdentifier.prototype)));
+
+		title.dispatchEvent(new MouseEvent(EventType.MOUSE_DOWN, { bubbles: true, cancelable: true }));
+		const dragEvent = new DragEvent(EventType.DRAG_START, { bubbles: true, cancelable: true, dataTransfer: new DataTransfer() });
+		title.dispatchEvent(dragEvent);
+		const editorDrag = editorTransfer.hasData(DraggedEditorIdentifier.prototype);
+		header.element.dispatchEvent(new DragEvent(EventType.DRAG_END));
+
+		assert.deepStrictEqual({
+			prevented: dragEvent.defaultPrevented,
+			editorDrag,
+			session: JSON.parse(dragEvent.dataTransfer!.getData(SessionsDataTransfers.SESSION) || '{}').sessionId,
+			chat: getSessionChatDragData(dragEvent),
+		}, {
+			prevented: false,
+			editorDrag: true,
+			session: session.sessionId,
+			chat: { sessionId: session.sessionId, resource: mainChat.resource.toString() },
+		});
+	});
+
 	test('a small pointer move over the title actions toolbar does not start a session drag', () => {
 		const { header } = createHarness(disposables);
 
@@ -189,12 +220,13 @@ suite('Sessions - Headers', () => {
 		assert.strictEqual(dragEvent.defaultPrevented, true);
 	});
 
-	test('a drag starting elsewhere in the header still initiates a session drag', () => {
-		const { header } = createHarness(disposables);
+	test('a drag starting elsewhere in the header, of a pane of the grid, still initiates a session drag, on the shared transfer as before', () => {
+		const { header, session } = createHarness(disposables);
 
 		const dragEvent = simulateDragFrom(header, header.element);
+		const dragged = LocalSelectionTransfer.getInstance<DraggedSessionIdentifier>().getData(DraggedSessionIdentifier.prototype);
 
-		assert.strictEqual(dragEvent.defaultPrevented, false);
+		assert.deepStrictEqual({ prevented: dragEvent.defaultPrevented, dragged: dragged?.map(identifier => identifier.sessionId) }, { prevented: false, dragged: [session.sessionId] });
 	});
 
 	for (const paneClass of ['session-view', 'chat-group-view']) {
@@ -256,14 +288,21 @@ suite('Sessions - Headers', () => {
 		const chatDrag = simulateDragFrom(chatHeader, chatHeader.element);
 		const sessionDrag = simulateDragFrom(header, header.element);
 		header.element.dispatchEvent(new DragEvent(EventType.DRAG_END));
+		// Like an editor tab's new-window drag, only `vnd.code` types: other apps such as Finder
+		// reject the drop (no text clipping is created), so dropping it there opens a chat window.
+		const externalTypes = (e: DragEvent) => [...e.dataTransfer!.types].filter(type => !type.startsWith('application/vnd.code.'));
 		assert.deepStrictEqual({
 			chat: getSessionChatDragData(chatDrag),
 			session: JSON.parse(sessionDrag.dataTransfer!.getData(SessionsDataTransfers.SESSION)),
 			cleaned: !LocalSelectionTransfer.getInstance<DraggedSessionIdentifier>().hasData(DraggedSessionIdentifier.prototype),
+			chatExternalTypes: externalTypes(chatDrag),
+			sessionExternalTypes: externalTypes(sessionDrag),
 		}, {
 			chat: { sessionId: session.sessionId, resource: mainChat.resource.toString() },
 			session: { sessionId: session.sessionId, resource: session.resource.toString() },
 			cleaned: true,
+			chatExternalTypes: [],
+			sessionExternalTypes: [],
 		});
 	});
 
@@ -826,7 +865,7 @@ suite('Sessions - Headers', () => {
 		workbench.classList.add('monaco-workbench', 'agent-sessions-workbench');
 		workbench.style.setProperty('--session-view-background', '#202020');
 		const part = mainWindow.document.createElement('div');
-		part.classList.add('part', 'sessionspart', 'has-chat-background');
+		part.classList.add('part', 'sessionspart', 'sessions-chat-surface', 'has-chat-background');
 		part.appendChild(header.element.parentElement!);
 		workbench.appendChild(part);
 		mainWindow.document.body.appendChild(workbench);

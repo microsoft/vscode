@@ -91,8 +91,13 @@ function createStrategyTestContext(store: DisposableStore, harness: ITestLayoutH
 		completeChangesEditorTransition: () => { },
 		chatLayoutActive: () => false,
 		chatLayoutSuspended: () => false,
-		ownerKeyFor: session => session.resource,
-		compositionKeyFor: session => session.resource,
+		shownByMainWindow: reader => {
+			const session = reader ? harness.activeSessionObs.read(reader) : harness.activeSessionObs.get();
+			return session && { session, chat: reader ? session.activeChat.read(reader) : session.activeChat.get() };
+		},
+		mainWindowSession: harness.activeSessionObs,
+		ownerKeyFor: shown => shown.session.resource,
+		compositionKeyFor: shown => shown.session.resource,
 		sharedChatLayout: false,
 		compositionStore: harness.instaService.createInstance(DesktopOwnerCompositionStore, false),
 	};
@@ -437,7 +442,7 @@ suite('Desktop layout strategies', () => {
 		harness.activeEditorInput = emptyFiles;
 		harness.partVisibility.set(Parts.EDITOR_PART, true);
 		harness.partVisibility.set(Parts.AUXILIARYBAR_PART, false);
-		ctx.compositionStore.set(ctx.ownerKeyFor(draft)!, { editor: false, auxiliaryBar: true });
+		ctx.compositionStore.set(ctx.ownerKeyFor({ session: draft, chat: draft.activeChat.get() })!, { editor: false, auxiliaryBar: true });
 		createDraftStrategy(ctx);
 
 		harness.visibleSessionsObs.set([draft, other], undefined);
@@ -530,7 +535,7 @@ suite('Desktop layout strategies', () => {
 		harness.onDidChangePartVisibility.fire({ partId: Parts.AUXILIARYBAR_PART, visible: false });
 
 		assert.deepStrictEqual(
-			ctx.compositionStore.get(ctx.ownerKeyFor(draft)!),
+			ctx.compositionStore.get(ctx.ownerKeyFor({ session: draft, chat: draft.activeChat.get() })!),
 			undefined,
 			'a visibility change must not overwrite the focused draft owner while another chat is simultaneously visible'
 		);
@@ -955,7 +960,7 @@ suite('Desktop layout strategies', () => {
 		harness.activeSessionObs.set(initialSession, undefined);
 		harness.partVisibility.set(Parts.EDITOR_PART, true);
 		harness.partVisibility.set(Parts.AUXILIARYBAR_PART, false);
-		ctx.compositionStore.set(ctx.compositionKeyFor(restoredSession)!, { editor: false, auxiliaryBar: true });
+		ctx.compositionStore.set(ctx.compositionKeyFor({ session: restoredSession, chat: restoredSession.activeChat.get() })!, { editor: false, auxiliaryBar: true });
 
 		harness.activeSessionObs.set(restoredSession, undefined);
 

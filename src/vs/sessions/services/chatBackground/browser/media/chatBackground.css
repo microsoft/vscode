@@ -3,15 +3,15 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-.monaco-workbench .part.sessionspart.has-chat-background .session-view,
-.monaco-workbench .part.sessionspart.has-chat-background .session-view .session-view-content,
-.monaco-workbench .part.sessionspart.has-chat-background .chat-group-view {
+.monaco-workbench :is(.part.sessionspart, .sessions-chat-surface).has-chat-background .session-view,
+.monaco-workbench :is(.part.sessionspart, .sessions-chat-surface).has-chat-background .session-view .session-view-content,
+.monaco-workbench :is(.part.sessionspart, .sessions-chat-surface).has-chat-background .chat-group-view {
 	background-color: transparent;
 }
 
 /* Keep each corner mask inside its frame so it cannot paint over neighboring panels. */
-.monaco-workbench.agent-sessions-workbench.modern-ui-tabs:not(.phone-layout):is(.modern-ui-connected-editor-tabs, :not(.modern-ui-compact)) .part.sessionspart.has-chat-background .session-view,
-.monaco-workbench.agent-sessions-workbench.modern-ui-tabs:not(.phone-layout):is(.modern-ui-connected-editor-tabs, :not(.modern-ui-compact)) .part.sessionspart.has-chat-background .chat-groups-view-has-gaps .chat-group-view-surface {
+.monaco-workbench.agent-sessions-workbench.modern-ui-tabs:not(.phone-layout):is(.modern-ui-connected-editor-tabs, :not(.modern-ui-compact)) :is(.part.sessionspart, .sessions-chat-surface).has-chat-background .session-view,
+.monaco-workbench.agent-sessions-workbench.modern-ui-tabs:not(.phone-layout):is(.modern-ui-connected-editor-tabs, :not(.modern-ui-compact)) :is(.part.sessionspart, .sessions-chat-surface).has-chat-background .chat-groups-view-has-gaps .chat-group-view-surface {
 	box-shadow: 0 0 0 var(--agents-part-corner-radius) var(--vscode-agents-background);
 	clip-path: inset(0);
 }
@@ -99,7 +99,7 @@
 	place-items: center;
 }
 
-.monaco-workbench .part.sessionspart > .sessions-chat-codicon-hit-target {
+.monaco-workbench :is(.part.sessionspart, .sessions-chat-surface) > .sessions-chat-codicon-hit-target {
 	width: var(--vscode-spacing-size240);
 	height: var(--vscode-spacing-size240);
 	z-index: 3;
@@ -113,11 +113,11 @@
 	line-height: 1;
 }
 
-.monaco-workbench .part.sessionspart > .sessions-chat-codicon-hit-target:hover ~ .sessions-chat-background .sessions-chat-codicon-button-active {
+.monaco-workbench :is(.part.sessionspart, .sessions-chat-surface) > .sessions-chat-codicon-hit-target:hover ~ .sessions-chat-background .sessions-chat-codicon-button-active {
 	background-color: var(--vscode-toolbar-hoverBackground);
 }
 
-.monaco-workbench .part.sessionspart > .sessions-chat-codicon-hit-target:focus-visible ~ .sessions-chat-background .sessions-chat-codicon-button-active {
+.monaco-workbench :is(.part.sessionspart, .sessions-chat-surface) > .sessions-chat-codicon-hit-target:focus-visible ~ .sessions-chat-background .sessions-chat-codicon-button-active {
 	background-color: var(--vscode-toolbar-hoverBackground);
 	outline: var(--vscode-strokeThickness) solid var(--vscode-focusBorder);
 	outline-offset: calc(-1 * var(--vscode-strokeThickness));

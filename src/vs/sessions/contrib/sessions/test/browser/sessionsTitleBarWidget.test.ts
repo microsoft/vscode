@@ -17,6 +17,7 @@ import { ISessionsManagementService } from '../../../../services/sessions/common
 import { IOpenSessionOptions, ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
 import { ISession } from '../../../../services/sessions/common/session.js';
 import { SessionsTitleBarWidget } from '../../browser/sessionsTitleBarWidget.js';
+import { ISessionHost } from '../../../../services/sessions/browser/sessionHost.js';
 
 suite('SessionsTitleBarWidget', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
@@ -49,7 +50,7 @@ suite('SessionsTitleBarWidget', () => {
 	test('uses only the workspace context in the command center', () => {
 		const widget = Object.create(SessionsTitleBarWidget.prototype) as SessionsTitleBarWidget;
 		Reflect.set(widget, '_workspaceInfo', { label: 'vscode-tools' });
-		Reflect.set(widget, 'sessionsService', upcastPartial<ISessionsService>({ activeSession: constObservable(undefined) }));
+		Reflect.set(widget, '_windowHost', upcastPartial<ISessionHost>({ session: constObservable(undefined) }));
 		Reflect.set(widget, '_isQuickChat', false);
 		Reflect.set(widget, '_sessionTitle', undefined);
 		const workspaceTitle = getCommandCenterTitle.call(widget);

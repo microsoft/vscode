@@ -15,18 +15,23 @@ import { IChatService } from '../../../../../workbench/contrib/chat/common/chatS
 import { ChatSessionForkError, IChatSessionRequestHistoryItem } from '../../../../../workbench/contrib/chat/common/chatSessionsService.js';
 import { isAgentHostProviderId } from '../../../../common/agentHostSessionsProvider.js';
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
+import { IFocusedSessionHostService } from '../../../../services/sessions/browser/sessionHost.js';
 import { ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
 import type { IForkChatOptions } from '../../../../services/sessions/common/sessionsProvider.js';
 
 registerAction2(class extends ForkConversationAction {
 	protected override _captureForkNavigation(accessor: ServicesAccessor): () => boolean {
 		const sessionsService = accessor.get(ISessionsService);
+		const focusedSessionHostService = accessor.get(IFocusedSessionHostService);
 		const navigationRequest = sessionsService.navigationRequest.get();
-		const activeSession = sessionsService.activeSession.get();
-		const activeChat = activeSession?.activeChat.get();
+		const focusedHost = focusedSessionHostService.focusedHost.get();
+		const activeSession = focusedHost.session.get();
+		const activeChat = focusedHost.chat.get();
+		// Opens the fork only while the focused host still shows the session and chat it was forked from.
 		return () => sessionsService.navigationRequest.get() === navigationRequest
-			&& sessionsService.activeSession.get() === activeSession
-			&& activeSession?.activeChat.get() === activeChat;
+			&& focusedSessionHostService.focusedHost.get() === focusedHost
+			&& focusedHost.session.get() === activeSession
+			&& focusedHost.chat.get() === activeChat;
 	}
 
 	protected override async _tryForkAsChat(instantiationService: IInstantiationService, sourceSessionResource: URI, request: IChatSessionRequestHistoryItem | undefined, options?: IForkConversationOptions, canOpenFork: () => boolean = () => true): Promise<boolean> {

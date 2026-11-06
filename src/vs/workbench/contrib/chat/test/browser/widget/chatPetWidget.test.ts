@@ -1667,6 +1667,42 @@ suite('ChatPetWidget', () => {
 		});
 	});
 
+	test('keeps the resting pet above pinned progress without blocking the other controls', () => {
+		const { root, firstParent, button } = createHostTransitionHarness(true);
+		root.classList.add('interactive-session');
+		firstParent.classList.add('interactive-input-part');
+		const persistentContent = mainWindow.document.createElement('div');
+		persistentContent.className = 'chat-input-persistent-content chat-persistent-content-visible';
+		const progress = mainWindow.document.createElement('div');
+		progress.className = 'chat-sticky-progress interactive-item-container chat-persistent-progress';
+		progress.textContent = 'Working';
+		persistentContent.append(progress);
+		const input = mainWindow.document.createElement('button');
+		input.style.cssText = 'width:100%;height:100%';
+		input.textContent = 'Chat input';
+		firstParent.append(persistentContent, input);
+
+		const hitTest = () => {
+			const petBounds = button.getBoundingClientRect();
+			const progressBounds = progress.getBoundingClientRect();
+			const inputBounds = input.getBoundingClientRect();
+			const overlapTop = Math.max(petBounds.top, progressBounds.top);
+			const overlapBottom = Math.min(petBounds.bottom, progressBounds.bottom);
+			const overlapY = (overlapTop + overlapBottom) / 2;
+			return {
+				progressOverlapsPet: overlapTop < overlapBottom,
+				petOnTop: button.contains(mainWindow.document.elementFromPoint(petBounds.left + petBounds.width / 2, overlapY)),
+				progressClickable: progress.contains(mainWindow.document.elementFromPoint(progressBounds.left + 4, overlapY)),
+				inputClickable: mainWindow.document.elementFromPoint(inputBounds.left + 4, inputBounds.top + inputBounds.height / 2) === input,
+			};
+		};
+		const inFlow = hitTest();
+		root.classList.add('chat-floating-persistent-content');
+		const floating = hitTest();
+		const expected = { progressOverlapsPet: true, petOnTop: true, progressClickable: true, inputClickable: true };
+		assert.deepStrictEqual({ inFlow, floating }, { inFlow: expected, floating: { ...expected } });
+	});
+
 	test('moves one pet instance between chat hosts without respawning it', () => {
 		const firstParent = mainWindow.document.createElement('div');
 		const firstBounds = mainWindow.document.createElement('div');

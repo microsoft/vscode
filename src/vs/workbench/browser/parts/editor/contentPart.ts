@@ -10,7 +10,8 @@ import { IContextKeyService } from '../../../../platform/contextkey/common/conte
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { IStorageService } from '../../../../platform/storage/common/storage.js';
 import { IThemeService } from '../../../../platform/theme/common/themeService.js';
-import { ICreateEditorPartOptions, IContentPart } from '../../../services/editor/common/editorGroupsService.js';
+import { GroupDirection, ICreateEditorPartOptions, IContentPart } from '../../../services/editor/common/editorGroupsService.js';
+import { GroupIdentifier } from '../../../common/editor.js';
 import { IHostService } from '../../../services/host/browser/host.js';
 import { IWorkbenchLayoutService } from '../../../services/layout/browser/layoutService.js';
 import { IEditorGroupView, IEditorGroupViewOptions, IEditorPartsView } from './editor.js';
@@ -27,6 +28,9 @@ export class ContentPart extends EditorPart implements IContentPart {
 
 	private readonly _onWillClose = this._register(new Emitter<void>());
 	readonly onWillClose = this._onWillClose.event;
+
+	private readonly _onWillMoveGroupOut = this._register(new Emitter<IEditorGroupView>());
+	readonly onWillMoveGroupOut = this._onWillMoveGroupOut.event;
 
 	private readonly _onDidClose = this._register(new Emitter<void>());
 	/**
@@ -79,6 +83,16 @@ export class ContentPart extends EditorPart implements IContentPart {
 		}
 
 		super.removeGroup(group, preserveFocus);
+	}
+
+	override moveGroup(group: IEditorGroupView | GroupIdentifier, location: IEditorGroupView | GroupIdentifier, direction: GroupDirection): IEditorGroupView {
+		const sourceView = this.assertGroupView(group);
+		const targetView = typeof location === 'number' ? this.editorPartsView.getGroup(location) : location;
+		if (targetView && targetView.groupsView !== sourceView.groupsView) {
+			this._onWillMoveGroupOut.fire(sourceView);
+		}
+
+		return super.moveGroup(group, location, direction);
 	}
 
 	protected override getGroupViewOptions(): IEditorGroupViewOptions | undefined {
