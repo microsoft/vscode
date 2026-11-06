@@ -25,6 +25,7 @@ import { isEqual } from '../../../../../base/common/resources.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { localize } from '../../../../../nls.js';
+import { readCustomizationScopeMeta } from '../../../../../platform/agentHost/common/meta/customizationScopeMeta.js';
 import { CustomizationType, McpServerStatus, type PluginCustomization } from '../../../../../platform/agentHost/common/state/protocol/state.js';
 import { ExtensionIdentifier } from '../../../../../platform/extensions/common/extensions.js';
 import { IContextMenuService, IContextViewService } from '../../../../../platform/contextview/browser/contextView.js';
@@ -41,6 +42,7 @@ import { IEditorService } from '../../../../services/editor/common/editorService
 import { ExtensionState, IExtension, IExtensionsWorkbenchService } from '../../../extensions/common/extensions.js';
 import { ILanguageModelToolsService, IToolData, IToolSet } from '../../common/tools/languageModelToolsService.js';
 import { ICustomizationHarnessService } from '../../common/customizationHarnessService.js';
+import { AICustomizationScopes } from '../../common/aiCustomizationWorkspaceService.js';
 import { IAgentPluginService } from '../../common/plugins/agentPluginService.js';
 import { matchesCustomizationSearchQuery } from '../../common/aiCustomizationSearch.js';
 import { IAgentPluginItem } from '../agentPluginEditor/agentPluginItems.js';
@@ -61,6 +63,13 @@ const $ = DOM.$;
 
 export function isToolsTreeKeyboardTarget(target: HTMLElement, row: HTMLElement): boolean {
 	return target === row;
+}
+
+export function getPluginToolsGroup(plugin: PluginCustomization): 'user' | 'workspace' | 'application' {
+	const scope = readCustomizationScopeMeta(plugin);
+	return scope === AICustomizationScopes.workspace ? 'workspace'
+		: scope === AICustomizationScopes.application ? 'application'
+			: 'user';
 }
 
 interface IToolViewModel {
@@ -998,14 +1007,14 @@ export class ToolsListWidget extends Disposable {
 	 */
 	private _computeConnectedEntriesByScope(query: string): Map<'user' | 'workspace' | 'application', IToolsConnectedRowEntry[]> {
 		const grouped = new Map<'user' | 'workspace' | 'application', IToolsConnectedRowEntry[]>([['user', []], ['workspace', []], ['application', []]]);
-		const entries = grouped.get('user')!;
 		for (const plugin of this._connectedPlugins) {
 			const servers = this._connectedServers.filter(server => server.pluginId === plugin.id);
 			if (servers.length === 0) {
 				continue;
 			}
 			const pluginMatches = !!matchesCustomizationSearchQuery(query, plugin.name);
-			entries.push(...servers.flatMap(server => this._computeConnectedServerEntries(server, 0, query, !query || pluginMatches)));
+			const group = getPluginToolsGroup(plugin);
+			grouped.get(group)!.push(...servers.flatMap(server => this._computeConnectedServerEntries(server, 0, query, !query || pluginMatches)));
 		}
 		for (const server of this._connectedServers) {
 			if (server.pluginId === undefined || !this._connectedPlugins.some(plugin => plugin.id === server.pluginId)) {

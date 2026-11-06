@@ -444,7 +444,11 @@ export class AgentCustomizationItemProvider extends Disposable implements ICusto
 			if (!plugin && source === undefined) {
 				hostConfiguredMcpServers ??= new Set(this._customAgentsService.getMcpServers(sessionResource).filter(server => server.hostConfiguration !== undefined).map(server => server.name));
 			}
-			const groupKey = plugin ? this.toBadge(plugin, plugin.clientId !== undefined).groupKey : getMcpCustomizationSource(source, hostConfiguredMcpServers?.has(container.name));
+			const customizationSource = plugin ? AICustomizationSources.plugin : getMcpCustomizationSource(source, hostConfiguredMcpServers?.has(container.name));
+			const scope = readCustomizationScopeMeta(container)
+				?? (plugin ? readCustomizationScopeMeta(plugin) : undefined)
+				?? AICustomizationScopes.fromSource(customizationSource);
+			const groupKey = plugin ? this.toBadge(plugin, plugin.clientId !== undefined).groupKey : customizationSource;
 			items.set(skill.id, {
 				itemKey: skill.id,
 				uri: getAgentHostCustomizationUri(URI.parse(skill.uri), this._connection)!,
@@ -453,6 +457,7 @@ export class AgentCustomizationItemProvider extends Disposable implements ICusto
 				description: skill.description,
 				// MCP resource content stays read-only regardless of its server's configuration scope.
 				source: AICustomizationSources.plugin,
+				scope,
 				groupKey,
 				skillBundle: {
 					id: container.id,

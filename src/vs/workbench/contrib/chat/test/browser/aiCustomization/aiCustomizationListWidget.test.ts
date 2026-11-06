@@ -134,8 +134,8 @@ suite('aiCustomizationListWidget', () => {
 			},
 		] as unknown as IAICustomizationListItem[];
 		const filter = (searchQuery: string) => (AICustomizationListWidget.prototype as unknown as {
-			applySearchFilter(this: { searchQuery: string }, items: readonly IAICustomizationListItem[]): IAICustomizationListItem[];
-		}).applySearchFilter.call({ searchQuery }, items).map(item => [item.name, item.nameMatches]);
+			applySearchFilter(this: { searchQuery: string; getContributionSource(): undefined }, items: readonly IAICustomizationListItem[]): IAICustomizationListItem[];
+		}).applySearchFilter.call({ searchQuery, getContributionSource: () => undefined }, items).map(item => [item.name, item.nameMatches]);
 
 		assert.deepStrictEqual({
 			spaced: filter('typescript setup'),
@@ -746,7 +746,8 @@ suite('aiCustomizationListWidget', () => {
 			normalize({ uri: URI.file('/home/.copilot/plugins/azure/agents/a.agent.md'), source: PromptsStorage.plugin, pluginUri: URI.file('/home/.copilot/plugins/azure'), pluginLabel: 'azure', groupKey: 'remote-host' }),
 			normalize({ uri: URI.file('/ext/acme/agents/a.agent.md'), source: PromptsStorage.extension, extensionId: 'acme.tools', extensionLabel: 'Acme Tools' }),
 			normalize({ uri: URI.file('/ext/copilot/agents/Plan.agent.md'), source: PromptsStorage.extension, extensionId: 'GitHub.copilot-chat' }),
-			normalize({ uri: URI.file('/storage/github.copilot-chat/github/contoso/agents/a.agent.md'), source: PromptsStorage.extension, extensionId: 'GitHub.copilot-chat' }),
+			normalize({ uri: URI.file('/home/dev/github/vscode/extensions/copilot-chat/agents/Plan.agent.md'), source: PromptsStorage.extension, extensionId: 'GitHub.copilot-chat' }),
+			normalize({ uri: URI.file('/home/dev/.config/Code/User/globalStorage/github.copilot-chat/github/contoso/agents/a.agent.md'), source: PromptsStorage.extension, extensionId: 'GitHub.copilot-chat' }),
 			normalize({ uri: URI.parse('copilot-builtin:/agents/ask.agent.md'), source: AICustomizationSources.builtin, origin: { kind: 'harness' } }),
 			normalize({ uri: URI.file('/host/agents/a.agent.md'), source: PromptsStorage.user, scope: AICustomizationScopes.application }),
 		], [
@@ -754,6 +755,7 @@ suite('aiCustomizationListWidget', () => {
 			{ scope: 'user', origin: undefined, groupKey: undefined },
 			{ scope: 'user', origin: { kind: 'plugin', id: 'plugin:file:///home/.copilot/plugins/azure', label: 'azure' }, groupKey: undefined },
 			{ scope: 'user', origin: { kind: 'extension', id: 'extension:acme.tools', label: 'Acme Tools' }, groupKey: undefined },
+			{ scope: 'application', origin: { kind: 'vscode', id: 'vscode:' }, groupKey: 'builtin' },
 			{ scope: 'application', origin: { kind: 'vscode', id: 'vscode:' }, groupKey: 'builtin' },
 			{ scope: 'user', origin: { kind: 'account', id: 'account:contoso', label: 'contoso' }, groupKey: 'builtin' },
 			{ scope: 'application', origin: { kind: 'harness', id: 'harness:', label: undefined }, groupKey: 'builtin' },
@@ -1582,6 +1584,12 @@ suite('aiCustomizationListWidget', () => {
 					{ text: 'Organization: contoso', linked: false },
 				],
 			});
+
+			widget.setSearchQuery('Acme Tools');
+			assert.deepStrictEqual(
+				Array.from(widget.element.querySelectorAll('.item-name'), item => item.textContent),
+				['acme-lint'],
+			);
 		});
 	});
 });

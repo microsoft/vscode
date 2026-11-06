@@ -206,9 +206,17 @@ export async function expandHookFileItems(
 							description: truncatedCmd || localize('hookUnset', "(unset)"),
 							enabled: item.enabled,
 							groupKey: item.groupKey,
+							scope: item.scope,
+							origin: item.origin,
+							delivery: item.delivery,
 							source: item.source,
 							extensionId: item.extensionId,
+							extensionLabel: item.extensionLabel,
 							pluginUri: item.pluginUri,
+							pluginLabel: item.pluginLabel,
+							status: item.status,
+							statusMessage: item.statusMessage,
+							disabledReason: item.disabledReason,
 							userInvocable: item.userInvocable,
 						});
 					}

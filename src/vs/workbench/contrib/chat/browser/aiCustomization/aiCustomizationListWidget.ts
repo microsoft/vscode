@@ -1582,10 +1582,14 @@ export class AICustomizationListWidget extends Disposable {
 			const secondaryTextMatches = matchesCustomizationSearchQuery(query, secondaryText);
 			const descriptionMatches = item.description && item.description !== secondaryText ? matchesCustomizationSearchQuery(query, item.description) : null;
 			const badgeMatches = item.badge ? matchesCustomizationSearchQuery(query, item.badge) : null;
+			const contributionSource = this.getContributionSource(item);
+			const contributionMatches = contributionSource
+				? matchesCustomizationSearchQuery(query, getCustomizationContributionSourceLabel(contributionSource.kind, contributionSource.name))
+				: null;
 
 			const bundleMatches = item.skillBundle && (matchesCustomizationSearchQuery(query, item.skillBundle.name)
 				|| matchesCustomizationSearchQuery(query, item.skillBundle.description));
-			if (nameMatches || secondaryTextMatches || descriptionMatches || badgeMatches || bundleMatches) {
+			if (nameMatches || secondaryTextMatches || descriptionMatches || badgeMatches || contributionMatches || bundleMatches) {
 				matched.push({
 					...item,
 					nameMatches: nameMatches || undefined,

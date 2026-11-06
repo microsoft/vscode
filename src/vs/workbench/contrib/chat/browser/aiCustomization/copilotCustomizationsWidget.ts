@@ -1496,18 +1496,21 @@ export class CopilotCanvasesWidget extends Disposable implements IAICustomizatio
 			);
 		}
 		const unavailableMessage = this.getCanvasOpenUnavailableMessage(entry.item);
+		const sourceDetail = this.getCanvasDetail(entry.item);
 		return unavailableMessage
 			? localize(
 				'copilotCanvases.unavailableRowAriaLabel',
-				"{0}. {1}. {2}",
+				"{0}. {1}. {2}. {3}",
 				entry.item.canvas.displayName,
+				sourceDetail,
 				this.getCanvasStateLabel(entry.item),
 				unavailableMessage,
 			)
 			: localize(
 				'copilotCanvases.rowAriaLabel',
-				"{0}. {1}.",
+				"{0}. {1}. {2}.",
 				entry.item.canvas.displayName,
+				sourceDetail,
 				this.getCanvasStateLabel(entry.item),
 			);
 	}
