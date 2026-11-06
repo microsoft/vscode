@@ -163,7 +163,7 @@ suite('AgentHostSnapshotController', () => {
 			{ before: { uri: destination, content: { uri: beforeDestination } }, after: { uri: destination, content: { uri: afterDestination } } },
 			{ after: { uri: created, content: { uri: afterCreated } } },
 		];
-		const changes = constObservable(edits.map(edit => agentHostChangesetFileToEntryDiff({ id: (edit.after ?? edit.before)!.uri, edit }, 'local')!));
+		const changes = constObservable(edits.map(edit => agentHostChangesetFileToEntryDiff({ id: (edit.after ?? edit.before)!.uri, edit }, { resourceUris: identityAgentHostResourceUriMapper }, 'local')!));
 		let turnRemoved = false;
 		const controller = createController(store, contentMap, {
 			getChanges: () => changes,
