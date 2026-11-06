@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
-import { isSupportedLanguageMode } from '../configuration/languageIds';
+import { isTypeScriptDocument } from '../configuration/languageIds';
 import { getTsNativeExtension, tsNativeExtensionOldId } from '../commands/useTsgo';
 import { ExperimentationService } from '../experimentationService';
 import type { PluginManager } from '../tsServer/plugins.js';
@@ -19,7 +19,7 @@ export async function suggestNativePreview(
 	pluginManager: PluginManager
 ): Promise<void> {
 	const activeEditor = vscode.window.activeTextEditor;
-	if (!activeEditor || !isSupportedLanguageMode(activeEditor.document)) {
+	if (!activeEditor || !isTypeScriptDocument(activeEditor.document)) {
 		return;
 	}
 
@@ -51,7 +51,7 @@ export async function suggestNativePreview(
 	}
 
 	const currentEditor = vscode.window.activeTextEditor;
-	if (!currentEditor || !isSupportedLanguageMode(currentEditor.document)) {
+	if (!currentEditor || !isTypeScriptDocument(currentEditor.document)) {
 		return;
 	}
 

@@ -22,7 +22,7 @@ suite('Suggest TypeScript 7 preview', () => {
 		assert.strictEqual(showInformationMessage.callCount, 0);
 	});
 
-	test('does not show for a non-JavaScript or TypeScript active editor', async () => {
+	test('does not show for a JSON active editor', async () => {
 		const showInformationMessage = sinon.stub(vscode.window, 'showInformationMessage');
 		const document = await vscode.workspace.openTextDocument({ language: 'json', content: '{}' });
 		sinon.stub(vscode.window, 'activeTextEditor').get(() => ({ document } as vscode.TextEditor));
@@ -31,11 +31,20 @@ suite('Suggest TypeScript 7 preview', () => {
 		assert.strictEqual(showInformationMessage.callCount, 0);
 	});
 
+	test('does not show for a JavaScript active editor', async () => {
+		const showInformationMessage = sinon.stub(vscode.window, 'showInformationMessage');
+		const document = await vscode.workspace.openTextDocument({ language: 'javascript', content: '' });
+		sinon.stub(vscode.window, 'activeTextEditor').get(() => ({ document } as vscode.TextEditor));
+
+		await suggestNativePreview(undefined!, undefined!, undefined!);
+		assert.strictEqual(showInformationMessage.callCount, 0);
+	});
+
 	test('does not show if the active editor changes while checking the treatment variable', async () => {
 		const showInformationMessage = sinon.stub(vscode.window, 'showInformationMessage');
-		const javascriptDocument = await vscode.workspace.openTextDocument({ language: 'javascript', content: '' });
+		const typescriptDocument = await vscode.workspace.openTextDocument({ language: 'typescript', content: '' });
 		const jsonDocument = await vscode.workspace.openTextDocument({ language: 'json', content: '{}' });
-		let activeEditor = { document: javascriptDocument } as vscode.TextEditor;
+		let activeEditor = { document: typescriptDocument } as vscode.TextEditor;
 		sinon.stub(vscode.window, 'activeTextEditor').get(() => activeEditor);
 		sinon.stub(vscode.window, 'state').get(() => ({ active: true } as vscode.WindowState));
 
