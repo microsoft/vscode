@@ -265,17 +265,16 @@ export class EditorCloudSandboxSessionContribution extends CloudSandboxSessionCo
 		this._updateRegistration();
 		this._register(Registry.as<IAsyncChatSessionActivationRegistry>(ChatSessionsExtensions.AsyncActivation).register({
 			priority: 2,
-			matchSessionType: isRemoteAgentHostSessionType,
+			matchSessionType: sessionType => isRemoteAgentHostSessionType(sessionType)
+				&& (this._findAddressForSessionType(sessionType) !== undefined || this._hasCachedSessionType(sessionType)),
 			waitForActivation: async (_accessor, sessionType) => {
 				if (!this._isEnabled()) {
 					return false;
 				}
-				const accountKey = await this._apiService.getAccountKey();
+				await this._restoreInventory();
 				if (!this._isEnabled()) {
 					return false;
 				}
-				// Legacy conversation resources need their cached, account-scoped binding before activation.
-				this._restoreAccount(accountKey);
 				return this._findAddressForSessionType(sessionType) !== undefined && this._waitForActivation(sessionType);
 			},
 		}));
@@ -305,6 +304,13 @@ export class EditorCloudSandboxSessionContribution extends CloudSandboxSessionCo
 		}
 		this._discoveryRequested = true;
 		return this._discoverAndSeed({ trigger: 'startup' });
+	}
+
+	private async _restoreInventory(): Promise<void> {
+		const accountKey = await this._apiService.getAccountKey();
+		if (this._isEnabled() && this._restoreAccount(accountKey)) {
+			void this._discoverAndSeed({ trigger: 'accountChange', retry: true });
+		}
 	}
 
 	protected override async _waitForActivation(sessionType: string): Promise<boolean> {
@@ -354,9 +360,10 @@ export class EditorCloudSandboxSessionContribution extends CloudSandboxSessionCo
 	}
 
 	override async connect(options: ICloudSandboxConnectOptions): Promise<string> {
-		if (!this._discoveryRequested) {
-			await this._requestDiscovery();
+		if (!this.accountKey && this._isEnabled()) {
+			await this._restoreInventory();
 		}
+		void this._requestDiscovery();
 		return super.connect(options);
 	}
 
@@ -472,9 +479,7 @@ export class EditorCloudSandboxSessionContribution extends CloudSandboxSessionCo
 					if (!isUntitledChatSession(sessionResource)) {
 						throw new Error(`Sandbox session ${sessionResource.toString()} is served by its environment's session type.`);
 					}
-					if (!this._discoveryRequested) {
-						await this._requestDiscovery();
-					}
+					void this._requestDiscovery();
 					draftModels.load();
 					// Blocked while the first turn provisions, so no follow-up can queue on a draft that is
 					// about to be replaced; the Agents window keeps its placeholder read-only the same way.
@@ -647,7 +652,6 @@ export class EditorCloudSandboxSessionContribution extends CloudSandboxSessionCo
 		if (token.isCancellationRequested) {
 			throw new CancellationError();
 		}
-		await this._requestDiscovery();
 		// The draft may be sent before a slow Git lookup has settled.
 		await waitForState(this._workspaceRepositoryChoices, choices => choices !== undefined, undefined, token);
 		const draftOptions = this._editorChatSessionsService.getSessionOptions(draftResource);
@@ -666,6 +670,18 @@ export class EditorCloudSandboxSessionContribution extends CloudSandboxSessionCo
 		const inputBlocked = this._draftInputBlocked.get(draftResource);
 		inputBlocked?.set(true, undefined);
 		try {
+			if (!this.accountKey && this._isEnabled()) {
+				try {
+					await this._restoreInventory();
+				} catch (error) {
+					if (isCancellationError(error) || token.isCancellationRequested) {
+						throw new CancellationError();
+					}
+					this._editorLogService.error('[CloudSandbox] Could not restore the cloud account before creation.', error);
+					throw this._instantiationService.createInstance(CloudSandboxStartupError, error, 'preparation');
+				}
+			}
+			void this._requestDiscovery();
 			const { sessionResource, sessionType } = await this._provisionForDraft(draftResource, repoNwo, request.message, readCloudSandboxDraftConfig(draftOptions, this._draftConfig.get()), { report }, token, request);
 			// Session-option lookups for the new session resolve to the draft's picks.
 			this._editorChatSessionsService.registerSessionResourceAlias(draftResource, sessionResource);

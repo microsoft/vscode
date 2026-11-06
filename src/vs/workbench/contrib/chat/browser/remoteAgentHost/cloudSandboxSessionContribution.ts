@@ -1238,6 +1238,16 @@ export abstract class CloudSandboxSessionContribution<T extends ICloudSandboxSes
 		return authority ? byAuthority.get(authority) : undefined;
 	}
 
+	protected _hasCachedSessionType(sessionType: string): boolean {
+		for (const key of this._storageService.keys(StorageScope.PROFILE, StorageTarget.MACHINE)) {
+			if (key.startsWith(INVENTORY_STORAGE_PREFIX) && this._readInventory(key).some(task =>
+				task.environmentId && remoteAgentHostSessionTypeId(agentHostAuthority(cloudSandboxAddress(task.environmentId)), CLOUD_SANDBOX_AGENT_PROVIDER) === sessionType)) {
+				return true;
+			}
+		}
+		return false;
+	}
+
 	/** Whether the chat surface can hand off persisted history and offline drafts to a live connection. */
 	protected get supportsBackgroundConnection(): boolean { return false; }
 
