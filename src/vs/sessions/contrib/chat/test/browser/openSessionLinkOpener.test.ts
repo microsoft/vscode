@@ -229,6 +229,7 @@ suite('OpenSessionLinkOpenerContribution', () => {
 				return [session];
 			}
 		};
+		let unresolved = false;
 		const log: string[] = [];
 		const sessionsService = new class extends mock<ISessionsService>() {
 			override async openChat(_session: ISession, resource: URI): Promise<void> {
@@ -243,8 +244,8 @@ suite('OpenSessionLinkOpenerContribution', () => {
 			}
 
 			override async open(resource: URI, options?: IChatWindowOpenOptions): Promise<IChatWindow | undefined> {
-				log.push(`window:${resource.toString()}:tabOf=${options?.tabOf?.toString()}:beside=${options?.beside?.toString()}:in=${options?.window === chatWindow}`);
-				return undefined;
+				log.push(`window:${resource.toString()}:tabOf=${options?.tabOf?.toString()}:beside=${options?.beside?.toString()}:in=${options?.window === chatWindow}:exact=${options?.exactChat}`);
+				return unresolved ? undefined : chatWindow;
 			}
 		};
 		const connectionsService = new class extends mock<IAgentHostConnectionsService>() {
@@ -302,20 +303,26 @@ suite('OpenSessionLinkOpenerContribution', () => {
 		await registeredOpener.open(mainLink, { fromUserGesture: true, sourceWindowId: 42 });
 		chats.set([mainChat, chat], undefined);
 		loading.set(false, undefined);
+		// A chat the chat window cannot resolve yet opens in the main window
+		unresolved = true;
+		await registeredOpener.open(link, { fromUserGesture: true, sourceWindowId: 42 });
+		unresolved = false;
 		// A link of a chat window while chat windows are off
 		await configurationService.setUserConfiguration(CHAT_WINDOWS_ENABLED_SETTING, false);
 		await registeredOpener.open(link, { fromUserGesture: true, sourceWindowId: 42 });
 
 		assert.deepStrictEqual(log, [
-			`window:copilotcli:/session-1#chat-2:tabOf=${clickedChat}:beside=undefined:in=true`,
-			`window:copilotcli:/session-1#chat-2:tabOf=undefined:beside=${clickedChat}:in=true`,
-			`window:copilotcli:/session-1:tabOf=${clickedChat}:beside=undefined:in=true`,
+			`window:copilotcli:/session-1#chat-2:tabOf=${clickedChat}:beside=undefined:in=true:exact=true`,
+			`window:copilotcli:/session-1#chat-2:tabOf=undefined:beside=${clickedChat}:in=true:exact=true`,
+			`window:copilotcli:/session-1:tabOf=${clickedChat}:beside=undefined:in=true:exact=true`,
 			'main:copilotcli:/session-1#chat-2',
 			'main:copilotcli:/session-1#chat-2',
 			'main:copilotcli:/session-1#chat-2',
 			'main:copilotcli:/session-1#chat-2',
 			'main:copilotcli:/session-1',
-			`window:copilotcli:/session-1:tabOf=${clickedChat}:beside=undefined:in=true`,
+			`window:copilotcli:/session-1:tabOf=${clickedChat}:beside=undefined:in=true:exact=true`,
+			`window:copilotcli:/session-1#chat-2:tabOf=${clickedChat}:beside=undefined:in=true:exact=true`,
+			'main:copilotcli:/session-1#chat-2',
 			'main:copilotcli:/session-1#chat-2',
 		]);
 	});
@@ -364,7 +371,7 @@ suite('OpenSessionLinkOpenerContribution', () => {
 				override getWindow(): IChatWindow | undefined { return chatWindow; }
 				override async open(resource: URI, options?: IChatWindowOpenOptions): Promise<IChatWindow | undefined> {
 					log.push(`${resource.fragment}:tabOf=${options?.tabOf?.path}:beside=${options?.beside?.path}`);
-					return undefined;
+					return chatWindow;
 				}
 			},
 			new TestConfigurationService({ [CHAT_WINDOWS_ENABLED_SETTING]: true }),

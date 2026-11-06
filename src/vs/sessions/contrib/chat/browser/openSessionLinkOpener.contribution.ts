@@ -126,10 +126,14 @@ export class OpenSessionLinkOpenerContribution extends Disposable implements IWo
 		const chatId = parseOpenSessionLinkChatId(resource);
 		const chatResource = chatId && !await this._isDefaultChatId(session, chatId) ? session.resource.with({ fragment: chatId }) : session.mainChat.get().resource;
 		// A chat window ends a chat that is archived or gone, so the main window opens it as it does for a click there.
-		if (source && !isChatWindowChatGone(session, chatResource, undefined)) {
-			// Shown in another chat window, it is revealed there; in the main window's grid, it moves into this one.
-			await this._chatWindowService.open(chatResource, openToSide ? { window: source.window, beside: source.chat } : { window: source.window, tabOf: source.chat });
-		} else if (openToSide) {
+		// Shown in another chat window, it is revealed there; in the main window's grid, it moves into this one.
+		// The chat window cannot resolve a chat of a session that still loads: the main window path waits for it.
+		const openedInWindow = source && !isChatWindowChatGone(session, chatResource, undefined)
+			&& await this._chatWindowService.open(chatResource, { window: source.window, exactChat: true, ...(openToSide ? { beside: source.chat } : { tabOf: source.chat }) });
+		if (openedInWindow) {
+			return true;
+		}
+		if (openToSide) {
 			if (chatId) {
 				await this._sessionsService.openChatToSide(session, chatResource);
 			} else {
