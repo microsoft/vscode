@@ -68,6 +68,8 @@ import { NullWorktreeSuggestionService, TestWorktreeSuggestionService } from '..
 import { WorktreeSuggestionVariant } from '../../../../../../../workbench/contrib/sessions/common/worktreeSuggestion.js';
 import { IChatSessionFileChange2 } from '../../../../../../../workbench/contrib/chat/common/chatSessionsService.js';
 import '../../../../../../../workbench/contrib/sessions/browser/chat/media/chatWidget.css';
+// The actions and menu items of the pickers, which the tests of their placement read, as the workbench registers them
+import '../../../browser/agentHostSessionConfigPicker.contribution.js';
 import { InSessionHostScopeContext, ISessionHost, sessionChatSourceOf } from '../../../../../../../workbench/contrib/sessions/browser/sessionHost.js';
 
 const SESSION_ID = 'local-agent-host:s1';
