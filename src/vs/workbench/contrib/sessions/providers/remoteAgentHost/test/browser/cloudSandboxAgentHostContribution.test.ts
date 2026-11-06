@@ -3176,10 +3176,22 @@ suite('CloudSandboxAgentHostContribution discovery refresh', () => {
 		]);
 	});
 
-	test('a connected feed still processes task hints and renewal and reconnect catch-up', async () => {
+	test('a connected feed remains active without editor catalogue demand and processes hints and catch-up', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
 		const requests: (ICloudSandboxDiscoveryOptions | undefined)[] = [];
+		let starts = 0;
+		let stops = 0;
+		let started = false;
 		const harness = await createContribution(store, [discoveredSession()], {
-			sessionFeed: { connected: true, start: async () => { }, dispose: () => { } },
+			sessionFeed: {
+				connected: true,
+				start: async () => {
+					if (!started) {
+						started = true;
+						starts++;
+					}
+				},
+				dispose: () => { stops++; },
+			},
 			listSessions: async (_token, options) => {
 				requests.push(options);
 				return options?.incremental
@@ -3187,17 +3199,21 @@ suite('CloudSandboxAgentHostContribution discovery refresh', () => {
 					: { kind: 'complete', sessions: [discoveredSession()] };
 			},
 		});
+		await timeout(2 * 60_000);
 		await harness.contribution.refreshTasks(['changed-task']);
 		await harness.contribution.refreshFeed('renewal');
 		await harness.contribution.refreshFeed('reconnect');
 
-		assert.deepStrictEqual(requests.map(({ diagnostics, ...options } = {}) => options), [
-			{ incremental: false, includeArchived: false, trigger: 'startup' },
-			{ incremental: true, includeArchived: false, trigger: 'feedChange', taskIds: ['changed-task'] },
-			{ incremental: true, includeArchived: false, trigger: 'feedRenewal' },
-			{ incremental: true, includeArchived: false, trigger: 'feedReconnect' },
-		]);
-	});
+		assert.deepStrictEqual({ starts, stops, requests: requests.map(({ diagnostics, ...options } = {}) => options) }, {
+			starts: 1, stops: 0,
+			requests: [
+				{ incremental: false, includeArchived: false, trigger: 'startup' },
+				{ incremental: true, includeArchived: false, trigger: 'feedChange', taskIds: ['changed-task'] },
+				{ incremental: true, includeArchived: false, trigger: 'feedRenewal' },
+				{ incremental: true, includeArchived: false, trigger: 'feedReconnect' },
+			],
+		});
+	}));
 
 	test('feed catch-up stays incremental without postponing periodic full reconciliation', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
 		const requests: (ICloudSandboxDiscoveryOptions | undefined)[] = [];

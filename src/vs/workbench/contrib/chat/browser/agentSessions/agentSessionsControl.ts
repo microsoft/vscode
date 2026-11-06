@@ -82,6 +82,7 @@ type AgentSessionOpenedEvent = {
 };
 
 export class AgentSessionsControl extends Disposable implements IAgentSessionsControl {
+	private readonly catalogueDemand = this._register(new MutableDisposable());
 	private readonly archiveDemand = this._register(new MutableDisposable());
 
 	private sessionsContainer: HTMLElement | undefined;
@@ -134,6 +135,7 @@ export class AgentSessionsControl extends Disposable implements IAgentSessionsCo
 	) {
 		super();
 		this.visible = options.initiallyVisible ?? true;
+		this.updateCatalogueDemand();
 
 		this.focusedAgentSessionArchivedContextKey = ChatContextKeys.isArchivedAgentSession.bindTo(this.contextKeyService);
 		this.focusedAgentSessionPinnedContextKey = ChatContextKeys.isPinnedAgentSession.bindTo(this.contextKeyService);
@@ -928,10 +930,19 @@ export class AgentSessionsControl extends Disposable implements IAgentSessionsCo
 		}
 
 		this.visible = visible;
+		this.updateCatalogueDemand();
 		this.updateArchiveDemand();
 
 		if (this.visible) {
 			this.update();
+		}
+	}
+
+	private updateCatalogueDemand(): void {
+		if (this.visible && !this.catalogueDemand.value) {
+			this.catalogueDemand.value = this.chatSessionsService.acquireSessionItems();
+		} else if (!this.visible) {
+			this.catalogueDemand.clear();
 		}
 	}
 

@@ -39,6 +39,7 @@ suite('ChatViewPane sessions refresh', () => {
 		const visibility: boolean[] = [];
 		const configuration = new TestConfigurationService({ [ChatConfiguration.ChatViewSessionsEnabled]: true });
 		let bodyVisible = false;
+		let empty = false;
 		const host = {
 			sessionsContainer: document.createElement('div'),
 			viewPaneContainer: document.createElement('div'),
@@ -49,7 +50,7 @@ suite('ChatViewPane sessions refresh', () => {
 			sessionsViewerVisibilityContext: { set: () => { } },
 			isBodyVisible: () => bodyVisible,
 			chatEntitlementService: { sentiment: { completed: true } },
-			_widget: { isEmpty: () => false },
+			_widget: { isEmpty: () => empty, viewModel: { model: { title: '' } } },
 			_sessionsListSuppressionCount: 0,
 		};
 		const update = Reflect.get(ChatViewPane.prototype, 'updateSessionsControlVisibility') as (this: typeof host) => void;
@@ -65,7 +66,18 @@ suite('ChatViewPane sessions refresh', () => {
 		await configuration.setUserConfiguration(ChatConfiguration.ChatViewSessionsEnabled, true);
 		host.sessionsViewerOrientation = AgentSessionsViewerOrientation.Stacked;
 		update.call(host);
-		assert.deepStrictEqual(visibility, [false, true, false, true, false, false]);
+		empty = true;
+		update.call(host);
+		host._sessionsListSuppressionCount++;
+		update.call(host);
+		host._sessionsListSuppressionCount--;
+		host._widget.viewModel.model.title = 'Restored conversation';
+		update.call(host);
+		host._widget.viewModel.model.title = '';
+		update.call(host);
+		bodyVisible = false;
+		update.call(host);
+		assert.deepStrictEqual(visibility, [false, true, false, true, false, false, true, false, false, true, false]);
 	});
 
 	test('window focus refreshes automatically while the toolbar retains explicit refresh intent', async () => {

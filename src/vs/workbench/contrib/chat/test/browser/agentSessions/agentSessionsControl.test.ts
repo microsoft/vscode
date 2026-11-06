@@ -104,6 +104,7 @@ suite('AgentSessionsControl', () => {
 			control.layout(300, 400);
 			await control.update();
 			const before = requests;
+			const catalogueBefore = service.sessionItemsRequested.get();
 			const treeAvailable = container.querySelector<HTMLElement>('.monaco-list')?.style.display !== 'none';
 			if (initiallyVisible) {
 				control.focus();
@@ -114,14 +115,20 @@ suite('AgentSessionsControl', () => {
 			}
 			await timeout(0);
 			const expanded = requests;
+			const catalogueExpanded = service.sessionItemsRequested.get();
 			control.setVisible(false);
 			const hidden = requests;
+			const catalogueHidden = service.sessionItemsRequested.get();
 			control.setVisible(true);
 			await control.update();
 			const reopened = requests;
 			control.dispose();
-			assert.deepStrictEqual({ before, treeAvailable, expanded, hidden, reopened, disposed: requests }, {
+			assert.deepStrictEqual({
+				before, treeAvailable, expanded, hidden, reopened, disposed: requests,
+				catalogue: [catalogueBefore, catalogueExpanded, catalogueHidden, service.sessionItemsRequested.get()],
+			}, {
 				before: 0, treeAvailable: true, expanded: 1, hidden: 0, reopened: 1, disposed: 0,
+				catalogue: [initiallyVisible, true, false, false],
 			});
 		});
 	}
