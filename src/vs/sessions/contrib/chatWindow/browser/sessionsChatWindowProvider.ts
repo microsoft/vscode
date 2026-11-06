@@ -30,7 +30,9 @@ import { ITitleService } from '../../../../workbench/services/title/browser/titl
 import { Menus } from '../../../../workbench/contrib/sessions/browser/menus.js';
 import { AgentsWindowMenus } from '../../../browser/agentsWindowMenus.js';
 import { EmptyEditorGroupAddTab } from '../../../../workbench/contrib/sessions/browser/parts/emptyEditorGroupAddTab.js';
-import { registerSessionActivityBarExternalHost, SESSION_ACTIVITY_BAR_COLUMN_WIDTH } from '../../../../workbench/contrib/sessions/browser/parts/sessionActivityBarHost.js';
+import { observeSessionActivityBarSize, registerSessionActivityBarExternalHost } from '../../../../workbench/contrib/sessions/browser/parts/sessionActivityBarHost.js';
+import { MenuActivityBar, MenuActivityBarSize } from '../../../../workbench/browser/parts/activitybar/menuActivityBar.js';
+import { IStorageService } from '../../../../platform/storage/common/storage.js';
 import { TitlebarPart } from '../../../browser/parts/titlebarPart.js';
 import { CustomViewVisibleContext } from '../../../common/agentsWindowContextKeys.js';
 import { AGENTS_FLOATING_PANEL_GAP } from '../../../../workbench/contrib/sessions/common/layoutConstants.js';
@@ -58,6 +60,24 @@ const RESTORE_SESSION_TIMEOUT = 30_000;
 
 /** The width of the frame of the cards of a chat window. */
 const CARD_FRAME_WIDTH = 1;
+
+/**
+ * The width of the strip's column at the right of a chat window, as the main window's Session Activity Bar column is
+ * (`SessionActivityBarColumn`): the gap between cards, none with compact layout density, which it keeps to the cards to
+ * its left, and a {@link MenuActivityBar} at the size chosen for the Session Activity Bar, which fills the rest.
+ */
+export function getChatWindowStripWidth(compact: boolean, size: MenuActivityBarSize): number {
+	return (compact ? 0 : AGENTS_FLOATING_PANEL_GAP) + MenuActivityBar.getWidth(compact, size);
+}
+
+/**
+ * How far the strip is from the right of its column (`chatWindow.css`): moved toward the cards beside it by the inset of
+ * the frames they show within them, as the main window's is beside its chat, so that the gap between them shows as wide
+ * as the gap between cards. Compact layout density has neither.
+ */
+function getChatWindowStripInset(compact: boolean): number {
+	return compact ? 0 : CARD_FRAME_WIDTH;
+}
 
 /** A title row of a chat window, and where the session header shows in it. */
 interface IChatWindowTitle extends IDisposable {
@@ -156,9 +176,13 @@ export function setChatWindowTitleInChatColumn(titlebar: HTMLElement, controls: 
 	reserveChatWindowControls(titlebar, controls);
 }
 
-export function alignChatWindowHeaderActions(titlebar: HTMLElement, actionsHost: HTMLElement): void {
+/**
+ * Centers the session header's actions, last at the right of `titlebar`, above the entries of the strip below, at the
+ * right of the window as the title bar's right is, whatever their width.
+ */
+export function alignChatWindowHeaderActions(titlebar: HTMLElement, actionsHost: HTMLElement, compact: boolean, size: MenuActivityBarSize): void {
 	const actions = actionsHost.firstElementChild?.getBoundingClientRect().width ?? 0;
-	const inset = actions ? Math.max(0, Math.round((SESSION_ACTIVITY_BAR_COLUMN_WIDTH - actions) / 2)) : undefined;
+	const inset = actions ? Math.max(0, Math.round(getChatWindowStripInset(compact) + (MenuActivityBar.getWidth(compact, size) - actions) / 2)) : undefined;
 	if (inset === undefined) {
 		titlebar.style.removeProperty('--session-header-actions-inset');
 	} else {
@@ -548,6 +572,9 @@ export class SessionsChatWindowProvider extends Disposable implements IChatWindo
 	readonly chrome: IChatWindowChrome;
 	/** The height of the title rows of chat windows. */
 	private readonly _titleHeight: IObservable<number>;
+	private readonly _compact: IObservable<boolean>;
+	/** The size chosen for the Session Activity Bar, which it shows at in the strip, as in the main window's column. */
+	private readonly _stripSize: IObservable<MenuActivityBarSize>;
 
 	constructor(
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
@@ -563,6 +590,7 @@ export class SessionsChatWindowProvider extends Disposable implements IChatWindo
 		@IChatWindowService private readonly _chatWindowService: IChatWindowService,
 		@IChatHostOpenerService chatHostOpenerService: IChatHostOpenerService,
 		@ISessionHostService private readonly _sessionHostService: ISessionHostService,
+		@IStorageService storageService: IStorageService,
 	) {
 		super();
 
@@ -595,7 +623,9 @@ export class SessionsChatWindowProvider extends Disposable implements IChatWindo
 		const density = observableConfigValue<ModernUIDensity>(LayoutSettings.MODERN_UI_DENSITY, ModernUIDensity.Default, _configurationService);
 		const showTabs = observableConfigValue<string | undefined>('workbench.editor.showTabs', undefined, _configurationService);
 		const tabHeight = observableConfigValue<string | undefined>('workbench.editor.tabHeight', undefined, _configurationService);
-		this._titleHeight = derived(this, reader => getChatWindowTitleHeight(tabHeight.read(reader) === 'compact', density.read(reader) !== ModernUIDensity.Compact));
+		this._compact = derived(this, reader => density.read(reader) === ModernUIDensity.Compact);
+		this._stripSize = observeSessionActivityBarSize(this, storageService, this._register(new DisposableStore()));
+		this._titleHeight = derived(this, reader => getChatWindowTitleHeight(tabHeight.read(reader) === 'compact', !this._compact.read(reader)));
 		this.look = {
 			// The parts are cards, as the main window's are, unless Layout Density is compact, which keeps them flush.
 			gap: derived(reader => density.read(reader) === ModernUIDensity.Compact ? 0 : AGENTS_FLOATING_PANEL_GAP),
@@ -750,7 +780,7 @@ export class SessionsChatWindowProvider extends Disposable implements IChatWindo
 					return;
 				}
 				if (titlebar instanceof TitlebarPart) {
-					alignChatWindowHeaderActions(titlebar.element, titlebar.getSessionHeaderActionsHost());
+					alignChatWindowHeaderActions(titlebar.element, titlebar.getSessionHeaderActionsHost(), this._compact.get(), this._stripSize.get());
 				}
 				titlebar.layout(width, height, 0, 0);
 				if (overChat && titlebar instanceof TitlebarPart) {
@@ -763,19 +793,21 @@ export class SessionsChatWindowProvider extends Disposable implements IChatWindo
 
 	/**
 	 * The strip: the column the Session Activity Bar of the chat shows in, at the right of the window in every layout, as
-	 * the main window's column is, and framed like it.
+	 * the main window's column is, at the size chosen for it as in that column. Not with the classes of the main window's column, whose rules
+	 * follow the state of the main window, which the workbench element of a chat window mirrors the classes of.
 	 */
 	private _createStrip(container: HTMLElement): IChatWindowChromeElement {
-		container.classList.add('session-activity-bar-column', 'session-activity-bar-host');
+		container.classList.add('session-activity-bar-host');
 		const registration = registerSessionActivityBarExternalHost(container.ownerDocument.body, {
 			element: container,
 			active: constObservable(true),
+			fullSize: true,
 			setOccupied: () => { },
 		});
 		return {
 			visible: observableConfigValue<boolean>(SESSION_ACTIVITY_BAR_SETTING, true, this._configurationService),
-			// The main window's column, right beside the cards, as the strip keeps its own distance to them; see the grid.
-			size: constObservable(SESSION_ACTIVITY_BAR_COLUMN_WIDTH),
+			// Right beside the cards, the gap to them in the column, as in the main window's column; see the grid.
+			size: derived(reader => getChatWindowStripWidth(this._compact.read(reader), this._stripSize.read(reader))),
 			layout: () => { },
 			dispose: () => registration.dispose(),
 		};

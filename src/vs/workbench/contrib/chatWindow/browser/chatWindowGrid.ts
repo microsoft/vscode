@@ -754,7 +754,7 @@ export class ChatWindowGrid extends Disposable {
 			// Above the cards, as the title bar of a window is.
 			case ChatWindowGridCell.TitleRow: return { view: this._titleRow!, options: { keepsNoGap: true } };
 			case ChatWindowGridCell.Terminals: return { part: this._cells.terminals!.get()!, options: TERMINALS_OPTIONS };
-			// Right beside the cards, without a gap, as the main window's column is: the strip in it keeps its own distance.
+			// Right beside the cards, without a gap of the grid's: as the main window's column, it keeps the gap to them itself.
 			default: return { view: this._strip!, options: { edgeChrome: Direction.Right, keepsNoGap: true } };
 		}
 	}

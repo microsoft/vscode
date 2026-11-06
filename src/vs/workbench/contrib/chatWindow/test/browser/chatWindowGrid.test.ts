@@ -648,6 +648,26 @@ suite('Chat window grid', () => {
 		]);
 	});
 
+	test('the strip\'s column takes the width its size says, as the layout density changes it, while it shows and while it does not, the cards beside it taking or giving the rest', () => {
+		const size = observableValue('size', 48);
+		const shown = observableValue('shown', true);
+		const grid = disposables.add(new ChatWindowGrid($('div'), { main: createPart('main'), chat: createPart('chat'), titleRow: createChrome(30), strip: { ...createChrome(0), size, visible: shown } }, constObservable(ChatWindowLayoutMode.SideBySide), constObservable(0), undefined, undefined, undefined, editorGroupsService));
+		grid.layout(1000, 800);
+		const widths = () => {
+			const width = (cell: ChatWindowGridCell) => grid.partGrid!.getCellSize(cell).width;
+			return `${width(ChatWindowGridCell.Chat) + width(ChatWindowGridCell.Main)} + ${shown.get() ? width(ChatWindowGridCell.Strip) : 'hidden'}`;
+		};
+		const states = [widths()];
+		size.set(40, undefined);
+		states.push(widths());
+		shown.set(false, undefined);
+		size.set(48, undefined);
+		shown.set(true, undefined);
+		states.push(widths());
+
+		assert.deepStrictEqual(states, ['952 + 48', '960 + 40', '952 + 48']);
+	});
+
 	test('the strip takes no room in any mode while it does not show, such as while the Session Activity Bar is off', () => {
 		const mode = observableValue<ChatWindowLayoutMode>('mode', ChatWindowLayoutMode.SideBySide);
 		const shown = observableValue('shown', false);

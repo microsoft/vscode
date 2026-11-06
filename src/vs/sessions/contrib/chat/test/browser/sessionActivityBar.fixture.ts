@@ -26,7 +26,9 @@ import { ChatViewSessionActivityBar } from '../../../../../workbench/contrib/ses
 import { IAgentWorkbenchLayoutService } from '../../../../browser/workbench.js';
 import { AgentWorkbenchLayout } from '../../../../../workbench/contrib/sessions/browser/sessionsHostLayoutService.js';
 import { AGENTS_CENTERED_CONTENT_MAX_WIDTH, AGENTS_FLOATING_PANEL_GAP } from '../../../../../workbench/contrib/sessions/common/layoutConstants.js';
-import { registerSessionActivityBarExternalHost, SESSION_ACTIVITY_BAR_COLUMN_WIDTH } from '../../../../../workbench/contrib/sessions/browser/parts/sessionActivityBarHost.js';
+import { registerSessionActivityBarExternalHost, SessionActivityBarColumn, setSessionActivityBarSize } from '../../../../../workbench/contrib/sessions/browser/parts/sessionActivityBarHost.js';
+import { MenuActivityBarSize } from '../../../../../workbench/browser/parts/activitybar/menuActivityBar.js';
+import { IStorageService, InMemoryStorageService } from '../../../../../platform/storage/common/storage.js';
 import { Direction } from '../../../../../base/browser/ui/grid/grid.js';
 import { IPartGridView, PartGrid } from '../../../../../workbench/browser/parts/partGrid/partGrid.js';
 import { IEditorGroupsService } from '../../../../../workbench/services/editor/common/editorGroupsService.js';
@@ -65,6 +67,8 @@ interface IFixtureOptions {
 	 * shows it in every layout, in the given Layout Density.
 	 */
 	readonly chatWindowColumn?: 'default' | 'compact';
+	/** The size chosen for the Session Activity Bar, which it shows at in a column of its own. Compact unless chosen. */
+	readonly size?: MenuActivityBarSize;
 	/** Badges the Changes entry, as new changes do. */
 	readonly newChanges?: boolean;
 	readonly githubReferenceCount?: number;
@@ -108,9 +112,11 @@ export default defineThemedFixtureGroup({ path: 'sessions/sessionActivityBar/' }
 	GitHubReferences: activityBarFixture({ githubReferenceCount: 1 }, highContrastThemes),
 	MultipleGitHubReferences: activityBarFixture({ githubReferenceCount: 2 }, highContrastThemes),
 	CheckedGitHubReferences: activityBarFixture({ githubReferenceCount: 2, githubChecked: true }, highContrastThemes),
-	// A chat window: the strip in a column of its own beside the chat's card, framed like the main window's.
+	// A chat window: the strip in a column of its own beside the chat's card, as the main window's, at the compact size unless the normal one is chosen.
 	ChatWindowColumn: activityBarFixture({ chatWindowColumn: 'default' }, highContrastThemes),
 	ChatWindowColumnCompact: activityBarFixture({ chatWindowColumn: 'compact' }, highContrastThemes),
+	ChatWindowColumnNormalSize: activityBarFixture({ chatWindowColumn: 'default', size: MenuActivityBarSize.Normal }),
+	ChatWindowColumnNormalSizeCompact: activityBarFixture({ chatWindowColumn: 'compact', size: MenuActivityBarSize.Normal }),
 	ChatWindowColumnNewChanges: activityBarFixture({ chatWindowColumn: 'default', newChanges: true }),
 	ChatWindowColumnWithoutLayoutActions: activityBarFixture({ chatWindowColumn: 'default', entries: [...sidePanelGroup([fixtureChanges, fixtureFiles, fixtureBrowser, fixtureCanvas]), fixtureTerminal] }),
 });
@@ -156,7 +162,10 @@ async function renderActivityBar(context: ComponentFixtureContext, options: IFix
 	container.style.width = `${width}px`;
 	container.style.height = `${HEIGHT}px`;
 	container.classList.add('agent-sessions-workbench');
-	const chatWindow = options.chatWindowColumn && createChatWindowFrame(context, options.chatWindowColumn);
+	const size = options.size ?? MenuActivityBarSize.Compact;
+	const chatWindow = options.chatWindowColumn && createChatWindowFrame(context, options.chatWindowColumn, size);
+	const storage = disposableStore.add(new InMemoryStorageService());
+	setSessionActivityBarSize(storage, size);
 
 	// The session view's DOM, so the header and chat take their production alignment.
 	const part = append(chatWindow?.chat ?? container, $('.part.sessionspart'));
@@ -203,6 +212,7 @@ async function renderActivityBar(context: ComponentFixtureContext, options: IFix
 				override readonly onDidLayoutMainContainer = Event.None;
 			});
 			reg.defineInstance(IEditorGroupsService, new class extends mock<IEditorGroupsService>() { }());
+			reg.defineInstance(IStorageService, storage);
 		},
 	});
 	menuService.commandService = instantiationService.get(ICommandService);
@@ -293,18 +303,20 @@ async function renderActivityBar(context: ComponentFixtureContext, options: IFix
 
 /**
  * The grid of a chat window around the chat, on the real part grid, whose cards clip what they show: the chat's card and,
- * right beside it, the strip's column, which the chat window's strip host takes, laid out with the chat window's gap and
- * outer insets (none at the top, where the title row is).
+ * right beside it, the strip's column, as wide as the main window's, which the chat window's strip host takes at full
+ * size, laid out with the chat window's gap and outer insets (none at the top, where the title row is).
  */
-function createChatWindowFrame({ container, disposableStore }: ComponentFixtureContext, density: 'default' | 'compact'): { readonly chat: HTMLElement; mount(instantiationService: IInstantiationService): { readonly width: number; readonly height: number } } {
+function createChatWindowFrame({ container, disposableStore }: ComponentFixtureContext, density: 'default' | 'compact', size: MenuActivityBarSize): { readonly chat: HTMLElement; mount(instantiationService: IInstantiationService): { readonly width: number; readonly height: number } } {
 	const gap = density === 'compact' ? 0 : AGENTS_FLOATING_PANEL_GAP;
 	container.classList.toggle('modern-ui-compact', density === 'compact');
 	const frame = append(container, $('.agents-chat-window'));
 	frame.style.cssText = 'width: 100%; height: 100%;';
 	const chat = $('.fixture-chat-window-chat');
 	chat.style.cssText = 'position: relative; width: 100%; height: 100%;';
-	const strip = $('.chat-window-strip.session-activity-bar-column.session-activity-bar-host');
-	disposableStore.add(registerSessionActivityBarExternalHost(frame, { element: strip, active: constObservable(true), setOccupied: () => { } }));
+	const strip = $('.chat-window-strip.session-activity-bar-host');
+	disposableStore.add(registerSessionActivityBarExternalHost(frame, { element: strip, active: constObservable(true), fullSize: true, setOccupied: () => { } }));
+	const column = disposableStore.add(new SessionActivityBarColumn(constObservable(true)));
+	column.setLayout(gap, density === 'compact', size);
 	let chatSize = { width: 0, height: 0 };
 	const view = (element: HTMLElement, width: number | undefined, onLayout?: (width: number, height: number) => void): IPartGridView => ({
 		element,
@@ -320,7 +332,7 @@ function createChatWindowFrame({ container, disposableStore }: ComponentFixtureC
 		mount: instantiationService => {
 			const grid = disposableStore.add(instantiationService.createInstance(PartGrid, frame));
 			grid.addView('chat', view(chat, undefined, (w, h) => chatSize = { width: w, height: h }));
-			grid.addView('strip', view(strip, SESSION_ACTIVITY_BAR_COLUMN_WIDTH), { edge: Direction.Right }, SESSION_ACTIVITY_BAR_COLUMN_WIDTH, { edgeChrome: Direction.Right, keepsNoGap: true });
+			grid.addView('strip', view(strip, column.minimumWidth), { edge: Direction.Right }, column.minimumWidth, { edgeChrome: Direction.Right, keepsNoGap: true });
 			grid.setGap(gap);
 			grid.setOuterInsets({ top: 0, right: gap, bottom: gap, left: gap });
 			grid.layout(container.clientWidth, container.clientHeight);

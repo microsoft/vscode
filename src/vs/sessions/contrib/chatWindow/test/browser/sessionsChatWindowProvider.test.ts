@@ -27,6 +27,8 @@ import { ChatWindowGrid, ChatWindowGridCell } from '../../../../../workbench/con
 import { MockContextKeyService } from '../../../../../platform/keybinding/test/common/mockKeybindingService.js';
 import { IInstantiationService, ServicesAccessor } from '../../../../../platform/instantiation/common/instantiation.js';
 import '../../../../../workbench/contrib/sessions/browser/parts/media/sessionActivityBar.css';
+import '../../../../../workbench/browser/parts/activitybar/media/menuActivityBar.css';
+import '../../../../browser/media/workbench.css';
 import { IEditorService } from '../../../../../workbench/services/editor/common/editorService.js';
 import { IWorkbenchLayoutService } from '../../../../../workbench/services/layout/browser/layoutService.js';
 import { ServiceCollection } from '../../../../../platform/instantiation/common/serviceCollection.js';
@@ -42,7 +44,11 @@ import { SessionChangesetOperationsContext } from '../../../changes/browser/chan
 import { ActiveSessionState, IChangesSessionObservables, IChangesViewService } from '../../../../../workbench/contrib/sessions/common/changesViewService.js';
 import { IGitHubService } from '../../../../../workbench/contrib/sessions/browser/github/githubService.js';
 import { GitHubPullRequestCIModel } from '../../../../../workbench/contrib/sessions/browser/github/models/githubPullRequestCIModel.js';
-import { findSessionActivityBarExternalHost, SESSION_ACTIVITY_BAR_COLUMN_WIDTH } from '../../../../../workbench/contrib/sessions/browser/parts/sessionActivityBarHost.js';
+import { findSessionActivityBarExternalHost, getSessionActivityBarSize, SessionActivityBarColumn, setSessionActivityBarSize } from '../../../../../workbench/contrib/sessions/browser/parts/sessionActivityBarHost.js';
+import { MenuActivityBar, MenuActivityBarSize } from '../../../../../workbench/browser/parts/activitybar/menuActivityBar.js';
+import { IStorageService } from '../../../../../platform/storage/common/storage.js';
+import { TestStorageService } from '../../../../../workbench/test/common/workbenchTestServices.js';
+import { AGENTS_FLOATING_PANEL_GAP } from '../../../../../workbench/contrib/sessions/common/layoutConstants.js';
 import { AGENTS_CHAT_WINDOW_CLASS } from '../../browser/chatWindowTitleDoubleClick.js';
 import { alignChatWindowHeaderActions, CHAT_WINDOW_MAIN_PART_GROUP_VIEW_OPTIONS, focusChatWindowUnlessFocused, getChatWindowMainPartOptions, getChatWindowTitleHeight, setChatWindowTitleInChatColumn, SessionsChatWindowContent, SessionsChatWindowProvider } from '../../browser/sessionsChatWindowProvider.js';
 import { DesktopMainEditorPart } from '../../../../browser/parts/desktopEditorPart.js';
@@ -97,6 +103,8 @@ suite('Sessions chat window provider', () => {
 		const instantiationService = store.add(new TestInstantiationService());
 		stubSessionHosts(instantiationService, store);
 		instantiationService.stub(IConfigurationService, configuration);
+		const storage = store.add(new TestStorageService());
+		instantiationService.stub(IStorageService, storage);
 		const editorGroups: IEditorGroup[] = [];
 		instantiationService.stub(IEditorGroupsService, new class extends mock<IEditorGroupsService>() {
 			override get groups() { return editorGroups; }
@@ -178,7 +186,7 @@ suite('Sessions chat window provider', () => {
 			}),
 		}));
 		const provider = store.add(instantiationService.createInstance(SessionsChatWindowProvider));
-		return { provider, events, window, windowInstantiationService: store.add(instantiationService.createChild(new ServiceCollection([IContextKeyService, store.add(new ContextKeyService(configuration))]))), onDidChangeSessions, sentiment, configuration, editorGroups, activeChat, chatHostOpenerService, visibleSessions };
+		return { provider, storage, events, window, windowInstantiationService: store.add(instantiationService.createChild(new ServiceCollection([IContextKeyService, store.add(new ContextKeyService(configuration))]))), onDidChangeSessions, sentiment, configuration, editorGroups, activeChat, chatHostOpenerService, visibleSessions };
 	}
 
 	/** The window the chats show in: its active chat is `activeChat`. */
@@ -475,9 +483,9 @@ suite('Sessions chat window provider', () => {
 		]);
 	});
 
-	test('the Session Activity Bar of a chat window shows in a column of its own at the right of the window, framed like the main window\'s, whatever the layout mode, never inside the chat', () => {
+	test('the Session Activity Bar of a chat window shows in a column of its own at the right of the window, at the size chosen for it and as wide as the main window\'s, whatever the layout mode, never inside the chat', () => {
 		const store = disposables.add(new DisposableStore());
-		const { provider, windowInstantiationService } = createProvider(store, []);
+		const { provider, storage, windowInstantiationService } = createProvider(store, []);
 		const container = append(mainWindow.document.body, $('.chat-window-strip'));
 		store.add(toDisposable(() => container.remove()));
 		const strip = provider.chrome.createStrip!(window, container, windowInstantiationService)!;
@@ -486,20 +494,33 @@ suite('Sessions chat window provider', () => {
 		const chatView = append(mainWindow.document.body, $('div'));
 		store.add(toDisposable(() => chatView.remove()));
 		const host = findSessionActivityBarExternalHost(chatView);
+		// The main window's column at the default layout density, the gap between its cards included, at each size chosen
+		const mainColumn = store.add(new SessionActivityBarColumn(constObservable(true)));
+		const sizes: Record<string, { chatWindow: number; mainWindow: number }> = {};
+		for (const size of [getSessionActivityBarSize(storage), MenuActivityBarSize.Normal, MenuActivityBarSize.Compact]) {
+			setSessionActivityBarSize(storage, size);
+			mainColumn.setLayout(AGENTS_FLOATING_PANEL_GAP, false, size);
+			sizes[`${Object.keys(sizes).length ? 'then ' : 'initially '}${size}`] = { chatWindow: strip.size.get(), mainWindow: mainColumn.minimumWidth };
+		}
 
-		assert.deepStrictEqual({ hostedInStrip: host?.element === container, active: host?.active.get(), classes: [...container.classList], visible: strip.visible.get(), size: strip.size.get() }, {
+		assert.deepStrictEqual({ hostedInStrip: host?.element === container, active: host?.active.get(), fullSize: host?.fullSize, classes: [...container.classList], visible: strip.visible.get() }, {
 			hostedInStrip: true,
 			active: true,
-			classes: ['chat-window-strip', 'session-activity-bar-column', 'session-activity-bar-host'],
+			fullSize: true,
+			// Not the main window's column's: their rules follow the main window's state, whose classes a chat window mirrors
+			classes: ['chat-window-strip', 'session-activity-bar-host'],
 			visible: true,
-			// The main window's column; the grid adds the gap beside the cards
-			size: SESSION_ACTIVITY_BAR_COLUMN_WIDTH,
 		});
+		// Compact unless the normal size is chosen, from the context menu of either window's bar
+		assert.deepStrictEqual(Object.keys(sizes), ['initially compact', 'then normal', 'then compact']);
+		for (const [key, { chatWindow, mainWindow }] of Object.entries(sizes)) {
+			assert.strictEqual(chatWindow, mainWindow, key);
+		}
 	});
 
-	test('the strip of a chat window keeps the main window\'s distances, to the card beside it and to the right edge of the window, inside the card of its column, which clips what it shows, in Default and Compact density', () => {
+	test('the strip of a chat window fills its column and keeps the main window\'s distances, to the card beside it and to the right edge of the window, inside the card of its column, which clips what it shows, in Default and Compact density, whatever the main window\'s state', () => {
 		const store = disposables.add(new DisposableStore());
-		const { provider, windowInstantiationService, configuration } = createProvider(store, []);
+		const { provider, storage, windowInstantiationService, configuration } = createProvider(store, []);
 		const part = (name: string) => new class extends mock<IContentPart>() {
 			override readonly element = $(`.${name}`);
 			override readonly minimumWidth = 100;
@@ -523,46 +544,92 @@ suite('Sessions chat window provider', () => {
 				return upcastPartial<IInstantiationService>({ invokeFunction: (<R>(fn: (accessor: ServicesAccessor) => R) => fn(upcastPartial<ServicesAccessor>({ get: <T>() => contextKeyService as T }))) as IInstantiationService['invokeFunction'] });
 			}
 		}();
-		const distances: Record<string, unknown> = {};
-		for (const density of ['default', 'compact']) {
-			// Each density in a window of its own, as the configuration here does not announce its changes
-			const windowStore = new DisposableStore();
-			configuration.setUserConfiguration('window.density.layout', density);
-			const workbench = append(mainWindow.document.body, $('.monaco-workbench.agent-sessions-workbench'));
-			windowStore.add(toDisposable(() => workbench.remove()));
-			workbench.classList.toggle('modern-ui-compact', density === 'compact');
-			// The size tokens the strip is positioned with, as the theme defines them
-			workbench.style.setProperty('--vscode-spacing-size20', '2px');
-			const host = append(workbench, $(`.${AGENTS_CHAT_WINDOW_CLASS}`));
-			host.style.cssText = 'position: fixed; top: 0; left: 0; width: 1000px; height: 600px;';
-			const stripElement = append(host, $('.chat-window-strip'));
-			const strip = windowStore.add(provider.chrome.createStrip!(window, stripElement, windowInstantiationService)!);
-			const grid = windowStore.add(new ChatWindowGrid(host, { main: part('main'), chat: part('chat'), strip: { element: stripElement, visible: strip.visible, size: strip.size, layout: (width, height) => strip.layout(width, height) } }, constObservable(ChatWindowLayoutMode.SideBySide), provider.look.gap, undefined, undefined, undefined, editorGroupsService));
-			grid.setOuterInsets(provider.look.outerInsets!.get());
-			grid.layout(1000, 600);
-			// The docked strip as the Session Activity Bar shows it in its host: as wide as its entries make it.
-			const docked = append(stripElement, $('.session-activity-bar.docked'));
-			docked.style.cssText = 'top: 0; width: 30px; height: 200px;';
-			const rect = (element: Element) => element.getBoundingClientRect();
-			const stripRect = rect(docked);
-			const card = rect(stripElement.closest('.part-grid-card')!);
-			const mainCard = rect(host.querySelector(`[data-part-grid-cell="${ChatWindowGridCell.Main}"] > .part-grid-card`)!);
-			// The column shows the window behind the strip, as the main window's column does
-			const columnBackground = mainWindow.getComputedStyle(stripElement.closest('.part-grid-card')!).backgroundColor;
-			distances[density] = { insideItsCard: stripRect.left >= card.left && stripRect.right <= card.right, toCard: stripRect.left - mainCard.right, toEdge: rect(host).right - stripRect.right, columnBackground };
-			windowStore.dispose();
+		const windowWidth = 1000;
+		const windowHeight = 600;
+		const rect = (element: Element) => element.getBoundingClientRect();
+		// The Agents window's workbench element, with the classes and the theme's tokens its cards and the strip are styled with
+		const createWorkbench = (store: DisposableStore, compact: boolean, mainWindowState: readonly string[]) => {
+			const workbench = append(mainWindow.document.body, $('.monaco-workbench.agent-sessions-workbench.modern-ui-tabs.modern-ui-connected-editor-tabs.dock-detail-panel.mac'));
+			store.add(toDisposable(() => workbench.remove()));
+			workbench.classList.toggle('modern-ui-compact', compact);
+			workbench.classList.add(...mainWindowState);
+			workbench.style.cssText = `--vscode-agents-layout-floatingPanelGap: ${AGENTS_FLOATING_PANEL_GAP}px; --vscode-strokeThickness: 1px; --vscode-spacing-size20: 2px; --vscode-spacing-size40: 4px; --vscode-spacing-size60: 6px; --vscode-spacing-size80: 8px; --vscode-spacing-size240: 24px; --vscode-cornerRadius-large: 8px; --window-corner-radius: 10px;`;
+			return workbench;
+		};
+		// The strip as the Session Activity Bar docks it in a host that it fills, at the size chosen for it
+		const dock = (host: HTMLElement, size: MenuActivityBarSize) => {
+			const docked = append(host, $('.menu-activity-bar.session-activity-bar.docked'));
+			docked.classList.toggle('size-compact', size === MenuActivityBarSize.Compact);
+			docked.style.top = '0px';
+			return docked;
+		};
+		// Between the boxes, and as they show: a card that leaves its frame to what it holds shows it inside its border
+		const distances = (strip: HTMLElement, column: HTMLElement, card: HTMLElement, frameInset: number) => {
+			const stripRect = rect(strip);
+			// As wide as the bar says it is, in both windows
+			assert.strictEqual(stripRect.width, MenuActivityBar.getWidth(strip.closest('.modern-ui-compact') !== null, strip.classList.contains('size-compact') ? MenuActivityBarSize.Compact : MenuActivityBarSize.Normal));
+			const columnCard = column.closest('.part-grid-card') ?? column;
+			return {
+				width: stripRect.width,
+				fillsColumn: stripRect.top === rect(column).top && stripRect.bottom === rect(column).bottom,
+				insideItsCard: stripRect.left >= rect(columnCard).left && stripRect.right <= rect(columnCard).right,
+				toCard: stripRect.left - rect(card).right,
+				visibleToCard: stripRect.left - rect(card).right + frameInset,
+				toEdge: windowWidth - stripRect.right,
+			};
+		};
+
+		const actual: Record<string, unknown> = {};
+		const expected: Record<string, unknown> = {};
+		for (const [compact, size] of [false, true].flatMap(compact => [MenuActivityBarSize.Normal, MenuActivityBarSize.Compact].map(size => [compact, size] as const))) {
+			const density = `${compact ? 'compact' : 'default'} density, ${size} size`;
+			setSessionActivityBarSize(storage, size);
+
+			// The main window, with the side pane closed: as its workbench lays out its grid (`_gridGutter`, `_layoutGrid`), which ends
+			// the gap before the right edge of the window, its column at the right of it, right beside the chat's card.
+			const mainStore = new DisposableStore();
+			const main = createWorkbench(mainStore, compact, ['noeditorpane']);
+			const gridGutter = compact ? 0 : AGENTS_FLOATING_PANEL_GAP;
+			const mainColumn = mainStore.add(new SessionActivityBarColumn(constObservable(true)));
+			mainColumn.setLayout(gridGutter, compact, size);
+			const columnLeft = windowWidth - gridGutter - mainColumn.minimumWidth;
+			const chatCard = append(main, $('div'));
+			chatCard.style.cssText = `position: fixed; top: 0; left: 0; width: ${columnLeft}px; height: ${windowHeight}px;`;
+			append(main, mainColumn.element).style.cssText = `position: fixed; top: 0; left: ${columnLeft}px; width: ${mainColumn.minimumWidth}px; height: ${windowHeight}px;`;
+			// Its chat shows its frame inset within its card (`--agents-session-frame-inset`)
+			const sessionFrameInset = parseFloat(mainWindow.getComputedStyle(main).getPropertyValue('--agents-session-frame-inset')) || 0;
+			expected[density] = distances(dock(mainColumn.element, size), mainColumn.element, chatCard, sessionFrameInset);
+			mainStore.dispose();
+
+			// A chat window beside the chat, and beside its main part, whatever the state of the main window, whose classes it mirrors
+			configuration.setUserConfiguration('window.density.layout', compact ? 'compact' : 'default');
+			for (const [mode, neighbor] of [[ChatWindowLayoutMode.ChatOnly, ChatWindowGridCell.Chat], [ChatWindowLayoutMode.SideBySide, ChatWindowGridCell.Main]] as const) {
+				for (const mainWindowState of [['noeditorpane'], ['session-activity-bar-column-visible']]) {
+					const windowStore = new DisposableStore();
+					const workbench = createWorkbench(windowStore, compact, mainWindowState);
+					const host = append(workbench, $(`.${AGENTS_CHAT_WINDOW_CLASS}`));
+					host.style.cssText = `position: fixed; top: 0; left: 0; width: ${windowWidth}px; height: ${windowHeight}px;`;
+					const stripElement = append(host, $('.chat-window-strip'));
+					const strip = windowStore.add(provider.chrome.createStrip!(window, stripElement, windowInstantiationService)!);
+					const grid = windowStore.add(new ChatWindowGrid(host, { main: part('main'), chat: part('chat'), strip: { element: stripElement, visible: strip.visible, size: strip.size, layout: (width, height) => strip.layout(width, height) } }, constObservable(mode), provider.look.gap, undefined, undefined, undefined, editorGroupsService));
+					grid.setOuterInsets(provider.look.outerInsets!.get());
+					grid.layout(windowWidth, windowHeight);
+					const card = host.querySelector<HTMLElement>(`[data-part-grid-cell="${neighbor}"] > .part-grid-card`)!;
+					const cardStyle = mainWindow.getComputedStyle(card);
+					// A card that leaves its frame to what it holds has a transparent border, inside which that frame shows
+					const frameInset = cardStyle.borderRightColor === 'rgba(0, 0, 0, 0)' ? parseFloat(cardStyle.borderRightWidth) : 0;
+					const docked = dock(stripElement, size);
+					// Its corners are its own, as the other cards of a chat window keep theirs, not the main window's rounded corner
+					const corners = mainWindow.getComputedStyle(docked).borderBottomRightRadius === mainWindow.getComputedStyle(docked).borderTopRightRadius ? 'its own' : 'the main window\'s';
+					actual[`${density}, beside the ${neighbor}, main window ${mainWindowState}`] = { ...distances(docked, stripElement, card, frameInset), corners };
+					expected[`${density}, beside the ${neighbor}, main window ${mainWindowState}`] = { ...expected[density] as object, corners: 'its own' };
+					windowStore.dispose();
+				}
+			}
+			delete expected[density];
 		}
 
-		// The main window's geometry, between the boxes of the strip and of the card beside it: its grid ends the gap before
-		// the right edge of the window (`gridGutterW`), its column is right beside the card (no right margin there), and the
-		// strip is docked 2px inside the right of its column. A card shows its frame 1px inside its box in Default density,
-		// in both windows (the frame its content draws, inset by the stroke), so the visible distance to the card is 1px more.
-		const stripWidth = 30;
-		const strip = { toCard: SESSION_ACTIVITY_BAR_COLUMN_WIDTH - stripWidth - 2 };
-		assert.deepStrictEqual(distances, {
-			default: { insideItsCard: true, toCard: strip.toCard, toEdge: 4 + 2, columnBackground: 'rgba(0, 0, 0, 0)' },
-			compact: { insideItsCard: true, toCard: strip.toCard, toEdge: 0 + 2, columnBackground: 'rgba(0, 0, 0, 0)' },
-		});
+		assert.deepStrictEqual(actual, expected);
 	});
 
 	test('focuses its window only while that window does not have focus, so that a focused chat window is not focused again', () => {
@@ -573,22 +640,33 @@ suite('Sessions chat window provider', () => {
 		assert.deepStrictEqual(focused, [false]);
 	});
 
-	test('the header\'s actions, last at the right of the title bar, are centered above the Session Activity Bar\'s column below, whatever their width', () => {
+	test('the header\'s actions, last at the right of the title bar, are centered above the entries of the Session Activity Bar below, whatever their width, in Default and Compact density', () => {
 		const titlebar = $('div');
 		const host = append(titlebar, $('div'));
 		mainWindow.document.body.appendChild(titlebar);
 		disposables.add({ dispose: () => titlebar.remove() });
-		const insets: string[] = [];
-		for (const width of [20, 22, 0]) {
-			host.replaceChildren();
-			if (width) {
-				append(host, $('div')).style.cssText = `display: inline-block; width: ${width}px; height: 16px;`;
+		const insets: Record<string, string[]> = {};
+		for (const compact of [false, true]) {
+			for (const size of [MenuActivityBarSize.Normal, MenuActivityBarSize.Compact]) {
+				insets[`${compact ? 'compact' : 'default'} density, ${size} size`] = [20, 22, 0].map(width => {
+					host.replaceChildren();
+					if (width) {
+						append(host, $('div')).style.cssText = `display: inline-block; width: ${width}px; height: 16px;`;
+					}
+					alignChatWindowHeaderActions(titlebar, host, compact, size);
+					return `${width}: ${titlebar.style.getPropertyValue('--session-header-actions-inset') || 'none'}`;
+				});
 			}
-			alignChatWindowHeaderActions(titlebar, host);
-			insets.push(`${width}: ${titlebar.style.getPropertyValue('--session-header-actions-inset') || 'none'}`);
 		}
-		// The column is SESSION_ACTIVITY_BAR_COLUMN_WIDTH (34px) wide: an action that wide is centered with half the rest after it.
-		assert.deepStrictEqual({ column: SESSION_ACTIVITY_BAR_COLUMN_WIDTH, insets }, { column: 34, insets: ['20: 7px', '22: 6px', '0: none'] });
+		// The strip ends where the title bar does, at the right of the grid, 1px from it at the default density (moved toward the
+		// cards by their frame's inset). The bar is 44px wide at the normal size (36px entries, 8px lane), 40px with compact
+		// density (a 4px lane), and 30px at the compact size (24px entries, 6px lane): an action is centered above it.
+		assert.deepStrictEqual(insets, {
+			'default density, normal size': ['20: 13px', '22: 12px', '0: none'],
+			'default density, compact size': ['20: 6px', '22: 5px', '0: none'],
+			'compact density, normal size': ['20: 10px', '22: 9px', '0: none'],
+			'compact density, compact size': ['20: 5px', '22: 4px', '0: none'],
+		});
 	});
 
 	test('the tab row at the top right of a chat window, and the strip, keep the room of the window controls only while they float above them, beside the chat\'s own title: not while they are in the title row, hidden as in full screen, or at the left as on macOS', () => {
