@@ -22,6 +22,7 @@ import { isAgentHostProvider } from '../../../common/agentHostSessionsProvider.j
 import { IHostSession } from '../../../common/sessionsManagement.js';
 import { ISessionHostService, SessionHostKind } from '../../../browser/sessionHost.js';
 import { IChat } from '../../../common/session.js';
+import { readPaneSessions } from '../../../browser/sessionGridPane.js';
 
 export { OpenSubagentChatActionViewItem, shouldShowSubagentModel };
 
@@ -82,7 +83,7 @@ function createSubagentChatLookup(sessionsService: ISessionsService, sessionHost
 	// The sessions other hosts show too, such as of a link in a chat window's chat.
 	// The main window's session first, as the one the user most likely links from.
 	const hosts = sessionHostService.hosts.read(reader);
-	const sessions: (IHostSession | undefined)[] = [...hosts.filter(host => host.kind === SessionHostKind.MainWindow).map(host => host.session.read(reader)), ...sessionsService.visibleSessions.read(reader), ...hosts.map(host => host.session.read(reader))];
+	const sessions: (IHostSession | undefined)[] = [...hosts.filter(host => host.kind === SessionHostKind.MainWindow).map(host => host.session.read(reader)), ...readPaneSessions(sessionsService.slotPanes, reader), ...hosts.map(host => host.session.read(reader))];
 	let order = 0;
 	for (const session of sessions) {
 		if (!session || bySession.has(session.resource)) {
