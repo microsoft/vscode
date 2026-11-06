@@ -169,6 +169,7 @@ suite('Sessions chat window provider', () => {
 		const chatHostOpenerService = new ChatHostOpenerService();
 		instantiationService.stub(IChatHostOpenerService, chatHostOpenerService);
 		instantiationService.stub(ISessionsProvidersService, new class extends mock<ISessionsProvidersService>() {
+			override readonly onDidChangeProviders = Event.None;
 			override getProvider() { return undefined; }
 		}());
 		instantiationService.stub(IChatService, new class extends mock<IChatService>() {
