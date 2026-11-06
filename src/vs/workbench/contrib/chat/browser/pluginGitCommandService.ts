@@ -58,9 +58,9 @@ export class BrowserPluginGitCommandService implements IPluginGitService {
 		const repo = this._parseOrThrow(cloneUrl);
 		const cancel = token ?? CancellationToken.None;
 		const clone = async (content: IContentClient, signal: AbortSignal): Promise<void> => {
-			const sha = await content.resolveRef(repo.owner, repo.name, ref || 'HEAD', signal, { caller: 'pluginGit.resolveSha' });
+			const sha = await content.resolveRef(repo, ref || 'HEAD', signal, { caller: 'pluginGit.resolveSha' });
 			await fetchAndExtractGitHubRepo(content, this._fileService, this._logService, repo, sha, targetDir, signal);
-			this._setCacheEntry(targetDir, { owner: repo.owner, repo: repo.name, ref, sha, fetchedAt: Date.now() });
+			this._setCacheEntry(targetDir, { ...repo, ref, sha, fetchedAt: Date.now() });
 		};
 
 		const initialSession = await getExistingGitHubAuthenticationSession(this._authenticationService, this._logService);
@@ -89,7 +89,7 @@ export class BrowserPluginGitCommandService implements IPluginGitService {
 		throw new Error(localize(
 			'pluginsBrowserGitHubAccessRequired',
 			"GitHub authentication is required to install '{0}'. Sign in with an account that has access to this repository, then try again.",
-			`${repo.owner}/${repo.name}`,
+			`${repo.owner}/${repo.repo}`,
 		));
 	}
 
@@ -100,13 +100,12 @@ export class BrowserPluginGitCommandService implements IPluginGitService {
 		}
 		const cancel = token ?? CancellationToken.None;
 		const session = await getExistingGitHubAuthenticationSession(this._authenticationService, this._logService);
-		const repo: RepositoryRef = { owner: entry.owner, name: entry.repo };
-		return this._withContentClient(repo, session, cancel, async (content, signal) => {
-			const newSha = await content.resolveRef(repo.owner, repo.name, entry.ref || 'HEAD', signal, { caller: 'pluginGit.resolveSha' });
+		return this._withContentClient(entry, session, cancel, async (content, signal) => {
+			const newSha = await content.resolveRef(entry, entry.ref || 'HEAD', signal, { caller: 'pluginGit.resolveSha' });
 			if (newSha === entry.sha) {
 				return false;
 			}
-			await fetchAndExtractGitHubRepo(content, this._fileService, this._logService, repo, newSha, repoDir, signal);
+			await fetchAndExtractGitHubRepo(content, this._fileService, this._logService, entry, newSha, repoDir, signal);
 			this._setCacheEntry(repoDir, { ...entry, sha: newSha, fetchedAt: Date.now() });
 			return true;
 		});
@@ -120,7 +119,6 @@ export class BrowserPluginGitCommandService implements IPluginGitService {
 
 		const cancel = token ?? CancellationToken.None;
 		const session = await getExistingGitHubAuthenticationSession(this._authenticationService, this._logService);
-		const repo: RepositoryRef = { owner: entry.owner, name: entry.repo };
 		const requestedRef = treeish.trim();
 
 		// 40-hex SHA refs skip the resolveSha round-trip (clone pins to the SHA already).
@@ -128,10 +126,10 @@ export class BrowserPluginGitCommandService implements IPluginGitService {
 		if (isFullSha && requestedRef.toLowerCase() === entry.sha.toLowerCase()) {
 			return;
 		}
-		await this._withContentClient(repo, session, cancel, async (content, signal) => {
+		await this._withContentClient(entry, session, cancel, async (content, signal) => {
 			const requestedSha = isFullSha
 				? requestedRef.toLowerCase()
-				: await content.resolveRef(repo.owner, repo.name, requestedRef || 'HEAD', signal, { caller: 'pluginGit.resolveSha' });
+				: await content.resolveRef(entry, requestedRef || 'HEAD', signal, { caller: 'pluginGit.resolveSha' });
 			await this._materializeCommit(content, repoDir, entry, requestedSha, isFullSha ? entry.ref : requestedRef, signal);
 		});
 	}
@@ -152,9 +150,8 @@ export class BrowserPluginGitCommandService implements IPluginGitService {
 
 		const cancel = token ?? CancellationToken.None;
 		const session = await getExistingGitHubAuthenticationSession(this._authenticationService, this._logService);
-		const repo: RepositoryRef = { owner: entry.owner, name: entry.repo };
-		await this._withContentClient(repo, session, cancel, async (content, signal) => {
-			const resolvedCommit = (await content.resolveRef(repo.owner, repo.name, expectedCommit, signal, { caller: 'pluginGit.resolveSha' })).toLowerCase();
+		await this._withContentClient(entry, session, cancel, async (content, signal) => {
+			const resolvedCommit = (await content.resolveRef(entry, expectedCommit, signal, { caller: 'pluginGit.resolveSha' })).toLowerCase();
 			if (resolvedCommit !== expectedCommit) {
 				throw new Error(localize('pluginsPinnedCommitResolutionMismatch', "Pinned plugin commit '{0}' resolved to a different commit '{1}'.", commit, resolvedCommit));
 			}
@@ -201,8 +198,7 @@ export class BrowserPluginGitCommandService implements IPluginGitService {
 			return;
 		}
 
-		const repo: RepositoryRef = { owner: entry.owner, name: entry.repo };
-		await fetchAndExtractGitHubRepo(content, this._fileService, this._logService, repo, commit, repoDir, signal);
+		await fetchAndExtractGitHubRepo(content, this._fileService, this._logService, entry, commit, repoDir, signal);
 		this._setCacheEntry(repoDir, { ...entry, ref, sha: commit, fetchedAt: Date.now() });
 	}
 
@@ -250,14 +246,14 @@ export class BrowserPluginGitCommandService implements IPluginGitService {
 			return;
 		}
 		if (isGitHubAuthenticationError(err)) {
-			this._logService.warn(`[BrowserPluginGitCommandService] GitHub auth required for ${repo.owner}/${repo.name}: ${err.message}`);
+			this._logService.warn(`[BrowserPluginGitCommandService] GitHub auth required for ${repo.owner}/${repo.repo}: ${err.message}`);
 		} else if (err instanceof GitHubRequestError && err.kind === 'rateLimit') {
-			this._logService.warn(`[BrowserPluginGitCommandService] GitHub rate limit hit for ${repo.owner}/${repo.name}: ${err.message}`);
+			this._logService.warn(`[BrowserPluginGitCommandService] GitHub rate limit hit for ${repo.owner}/${repo.repo}: ${err.message}`);
 		} else if (err instanceof Error) {
 			// Surface the URL + cause so opaque `TypeError: Failed to fetch` errors
 			// (CORS, DNS, offline) don't reach the user without context.
 			const cause = err.cause instanceof Error ? ` (cause: ${err.cause.name}: ${err.cause.message})` : '';
-			this._logService.error(`[BrowserPluginGitCommandService] Clone failed for ${repo.owner}/${repo.name}: ${err.message}${cause}`);
+			this._logService.error(`[BrowserPluginGitCommandService] Clone failed for ${repo.owner}/${repo.repo}: ${err.message}${cause}`);
 		}
 	}
 
@@ -269,7 +265,7 @@ export class BrowserPluginGitCommandService implements IPluginGitService {
 			throw new Error(localize(
 				'pluginsBrowserGitHubSignInRequired',
 				"Sign in to GitHub with an account that has access to '{0}' to install this plugin.",
-				`${repo.owner}/${repo.name}`,
+				`${repo.owner}/${repo.repo}`,
 			));
 		}
 	}

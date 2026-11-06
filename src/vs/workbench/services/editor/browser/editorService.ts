@@ -16,7 +16,7 @@ import { joinPath } from '../../../../base/common/resources.js';
 import { DiffEditorInput } from '../../../common/editor/diffEditorInput.js';
 import { SideBySideEditor as SideBySideEditorPane } from '../../../browser/parts/editor/sideBySideEditor.js';
 import { IEditorGroupsService, IEditorGroup, GroupsOrder, IEditorReplacement, isEditorReplacement, ICloseEditorOptions, IEditorGroupsContainer } from '../common/editorGroupsService.js';
-import { IUntypedEditorReplacement, IEditorService, ISaveEditorsOptions, ISaveAllEditorsOptions, IRevertAllEditorsOptions, IBaseSaveRevertAllEditorOptions, IOpenEditorsOptions, PreferredGroup, isPreferredGroup, IEditorsChangeEvent, ISaveEditorsResult, IVisibleEditorsChangeEvent } from '../common/editorService.js';
+import { IUntypedEditorReplacement, IEditorService, ISaveEditorsOptions, ISaveAllEditorsOptions, IRevertAllEditorsOptions, IBaseSaveRevertAllEditorOptions, IOpenEditorsOptions, PreferredGroup, isPreferredGroup, IEditorsChangeEvent, ISaveEditorsResult, IVisibleEditorsChangeEvent, ACTIVE_GROUP, SIDE_GROUP } from '../common/editorService.js';
 import { IConfigurationChangeEvent, IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { Disposable, IDisposable, dispose, DisposableStore } from '../../../../base/common/lifecycle.js';
 import { coalesce, distinct } from '../../../../base/common/arrays.js';
@@ -546,6 +546,19 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 			preferredGroup = optionsOrPreferredGroup;
 		}
 
+		// Scoped: resolve the group within the scope
+		const scopedResolution = this.resolveScopedPreferredGroup(isEditorInput(editor) ? { editor, options } : editor, preferredGroup);
+		if (scopedResolution) {
+			const scoped = await scopedResolution;
+			preferredGroup = scoped.preferredGroup;
+			if (scoped.options !== options) {
+				options = scoped.options;
+				if (!isEditorInput(editor)) {
+					editor = { ...editor, options };
+				}
+			}
+		}
+
 		// Resolve override unless disabled
 		if (!isEditorInput(editor)) {
 			const resolvedEditor = await this.editorResolverService.resolveEditor(editor, preferredGroup);
@@ -596,6 +609,39 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 		return group.openEditor(typedEditor, options);
 	}
 
+	/**
+	 * A scoped editor service opens an editor without a specific group (the
+	 * active group or to the side) in its own groups. While one of its groups
+	 * is the active group, that is what the editor groups service resolves
+	 * anyway, so nothing is done then: `undefined` is returned synchronously,
+	 * so that opening is as synchronous as before.
+	 */
+	private resolveScopedPreferredGroup(editor: EditorInputWithOptions | IUntypedEditorInput, preferredGroup: PreferredGroup | undefined): Promise<{ preferredGroup: PreferredGroup | undefined; options: IEditorOptions | undefined }> | undefined {
+		if (
+			!this.isScoped ||
+			(preferredGroup !== undefined && preferredGroup !== ACTIVE_GROUP && preferredGroup !== SIDE_GROUP) ||
+			this.editorGroupsContainer.groups.some(group => group.id === this.editorGroupService.activeGroup.id)
+		) {
+			return undefined;
+		}
+
+		return this.doResolveScopedPreferredGroup(editor, preferredGroup);
+	}
+
+	private async doResolveScopedPreferredGroup(editor: EditorInputWithOptions | IUntypedEditorInput, preferredGroup: PreferredGroup | undefined): Promise<{ preferredGroup: PreferredGroup | undefined; options: IEditorOptions | undefined }> {
+		const options = editor.options;
+
+		let [group, activation] = await this.instantiationService.invokeFunction(findGroup, editor, preferredGroup, this.editorGroupsContainer);
+
+		// Keep the activation of an editor opened to the side: the group is
+		// restored but not activated when focus is preserved
+		if (!activation && preferredGroup === SIDE_GROUP && options?.preserveFocus && !options.inactive && typeof options.activation !== 'number') {
+			activation = EditorActivation.RESTORE;
+		}
+
+		return { preferredGroup: group, options: activation ? { ...options, activation } : options };
+	}
+
 	//#endregion
 
 	//#region openEditors()
@@ -617,13 +663,19 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 
 		// Find target groups for editors to open
 		const mapGroupToTypedEditors = new Map<IEditorGroup, Array<EditorInputWithOptions>>();
-		for (const editor of editors) {
+		for (const candidateEditor of editors) {
 			let typedEditor: EditorInputWithOptions | undefined = undefined;
 			let group: IEditorGroup | undefined = undefined;
 
+			// Scoped: resolve the group within the scope
+			const scopedResolution = this.resolveScopedPreferredGroup(candidateEditor, preferredGroup);
+			const scoped = scopedResolution ? await scopedResolution : undefined;
+			const editorPreferredGroup = scoped ? scoped.preferredGroup : preferredGroup;
+			const editor = scoped && scoped.options !== candidateEditor.options ? { ...candidateEditor, options: scoped.options } : candidateEditor;
+
 			// Resolve override unless disabled
 			if (!isEditorInputWithOptions(editor)) {
-				const resolvedEditor = await this.editorResolverService.resolveEditor(editor, preferredGroup);
+				const resolvedEditor = await this.editorResolverService.resolveEditor(editor, editorPreferredGroup);
 
 				if (resolvedEditor === ResolvedStatus.ABORT) {
 					continue; // skip editor if override is aborted
@@ -643,7 +695,7 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 
 			// If group still isn't defined because of a disabled override we resolve it
 			if (!group) {
-				const findGroupResult = this.instantiationService.invokeFunction(findGroup, typedEditor, preferredGroup);
+				const findGroupResult = this.instantiationService.invokeFunction(findGroup, typedEditor, editorPreferredGroup);
 				if (findGroupResult instanceof Promise) {
 					([group] = await findGroupResult);
 				} else {

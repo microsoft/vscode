@@ -18,6 +18,10 @@ import { parseMissionControlErrorCode, MissionControlErrorMetadata } from './mis
 export interface ApiEndpoint {
 	/** The complete HTTPS base, including the Mission Control route prefix. */
 	readonly apiBaseUri: string;
+	/** Approved feed gateway; the Copilot-hosted task proxy does not serve feed negotiation. */
+	readonly feedApiBaseUri?: string;
+	/** Approved credential gateway; the task proxy does not serve identity-token exchanges. */
+	readonly identityApiBaseUri?: string;
 	/** The integration identity supplied by the hosting application. */
 	readonly integrationId: string;
 	/** The optional GitHub API version; omitted unless explicitly configured. */
@@ -129,7 +133,7 @@ export class MissionControlClient {
 
 export const parseMissionControlOptions = parse.object<MissionControlClientOptions>({
 	endpoint: parse.object<ApiEndpoint>({
-		apiBaseUri: parse.nonEmptyString, integrationId: parse.nonEmptyString, apiVersion: parse.optional(parse.string),
+		apiBaseUri: parse.nonEmptyString, feedApiBaseUri: parse.optional(parse.nonEmptyString), identityApiBaseUri: parse.optional(parse.nonEmptyString), integrationId: parse.nonEmptyString, apiVersion: parse.optional(parse.string),
 	}),
 });
 
@@ -142,7 +146,7 @@ export function missionControlRequestPolicy(request: Pick<ApiRequest, 'method' |
 		throw new GitHubRequestError('Invalid Mission Control path encoding', 'validation');
 	}
 	const environment = path === '/environments' || path.startsWith('/environments/');
-	const credential = request.policy?.credential === true || environment && /\/(?:connect|reconnect)$/.test(path);
+	const credential = request.policy?.credential === true || path === '/feed/connect' || environment && /\/(?:connect|reconnect)$/.test(path);
 	const mutation = request.method !== 'GET' || credential;
 	return {
 		mutation,
@@ -162,8 +166,7 @@ export const parseUser = parse.object<User>({
 	url: parse.optional(parse.string),
 });
 
-/** Parses activation trace metadata and validates the version and canonical positive uint64 sequence. */
-export const parseActivationContext = parse.object<ActivationContext>({
+const activationContextSchema: parse.ObjectSchema<ActivationContext> = {
 	version: parse.exact(2),
 	sequence: parse.refine(
 		parse.string,
@@ -172,20 +175,23 @@ export const parseActivationContext = parse.object<ActivationContext>({
 	),
 	traceparent: parse.string,
 	tracestate: parse.optional(parse.string),
-});
+};
 
-/** Parses the API's structured error response. */
-export const parseApiError: parse.Parser<ApiErrorResponse | CodedApiErrorResponse> = parse.object({
+/** Parses activation trace metadata and validates the version and canonical positive uint64 sequence. */
+export const parseActivationContext = parse.object(activationContextSchema);
+
+/** Retains only documented diagnostics from the API's structured error response. */
+export const parseApiError: parse.Parser<ApiErrorResponse | CodedApiErrorResponse> = parse.copyObject({
 	message: parse.string,
 	code: value => parseMissionControlErrorCode(value),
 	error_code: value => parseMissionControlErrorCode(value),
 	limited_resource: value => parseMissionControlErrorCode(value),
 	documentation_url: parse.string,
-	errors: parse.optional(parse.arrayOf(parse.object({
+	errors: parse.optional(parse.arrayOf(parse.copyObject({
 		code: parse.oneOf('missing', 'missing_field', 'invalid', 'already_exists', 'unprocessable', 'active_limit_reached', 'revision_limit_reached', 'custom'),
 		message: parse.optional(parse.string),
 	}))),
-	activation_context: parse.optional(parseActivationContext),
+	activation_context: parse.optional(parse.copyObject(activationContextSchema)),
 });
 
 function normalizeEndpoint(endpoint: ApiEndpoint): ApiEndpoint {
@@ -194,7 +200,11 @@ function normalizeEndpoint(endpoint: ApiEndpoint): ApiEndpoint {
 		|| endpoint.apiVersion !== undefined && !/^\d{4}-\d{2}-\d{2}$/.test(endpoint.apiVersion)) {
 		throw new GitHubRequestError('Invalid API endpoint or headers', 'validation');
 	}
-	return Object.freeze({ apiBaseUri, integrationId: endpoint.integrationId, apiVersion: endpoint.apiVersion });
+	return Object.freeze({
+		apiBaseUri, integrationId: endpoint.integrationId, apiVersion: endpoint.apiVersion,
+		...(endpoint.feedApiBaseUri ? { feedApiBaseUri: normalizeReadApiBaseUri(endpoint.feedApiBaseUri) } : {}),
+		...(endpoint.identityApiBaseUri ? { identityApiBaseUri: normalizeReadApiBaseUri(endpoint.identityApiBaseUri) } : {}),
+	});
 }
 
 /** Combines page data with pagination and server-time metadata. */

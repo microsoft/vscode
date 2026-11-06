@@ -117,6 +117,7 @@ export class TestNativeHostService implements INativeHostService {
 	async syncSystemWideKeybindings(_keybindings: INativeSystemWideKeybinding[]): Promise<INativeSystemWideKeybindingResult> { return { failed: [] }; }
 
 	async toggleFullScreen(): Promise<void> { }
+	async handleTitleDoubleClick(): Promise<void> { }
 	async isMaximized(): Promise<boolean> { return true; }
 	async isFullScreen(): Promise<boolean> { return true; }
 	async maximizeWindow(): Promise<void> { }
@@ -142,12 +143,14 @@ export class TestNativeHostService implements INativeHostService {
 	async pickFolderAndOpen(options: INativeOpenDialogOptions): Promise<void> { }
 	async pickWorkspaceAndOpen(options: INativeOpenDialogOptions): Promise<void> { }
 	async showItemInFolder(path: string): Promise<void> { }
+	async startFileDrag(path: string): Promise<void> { }
 	async setRepresentedFilename(path: string): Promise<void> { }
 	async isAdmin(): Promise<boolean> { return false; }
 	async writeElevated(source: URI, target: URI): Promise<void> { }
 	async isRunningUnderARM64Translation(): Promise<boolean> { return false; }
 	async getOSProperties(): Promise<IOSProperties> { return Object.create(null); }
 	async getOSStatistics(): Promise<IOSStatistics> { return Object.create(null); }
+	async getFreeDiskSpace(): Promise<number> { throw new Error('Method not implemented.'); }
 	async getOSVirtualMachineHint(): Promise<number> { return 0; }
 	async isGPUCompositingEnabled(): Promise<boolean> { return false; }
 	async getOSColorScheme(): Promise<IColorScheme> { return { dark: true, highContrast: false }; }
@@ -160,6 +163,7 @@ export class TestNativeHostService implements INativeHostService {
 	async updateTouchBar(): Promise<void> { }
 	async moveItemToTrash(): Promise<void> { }
 	async getMediaAccessStatus(_mediaType: 'microphone' | 'camera' | 'screen'): Promise<'not-determined' | 'granted' | 'denied' | 'restricted' | 'unknown'> { return 'granted'; }
+	async requestScreenCaptureAccess(): Promise<boolean> { return true; }
 	async newWindowTab(): Promise<void> { }
 	async showPreviousWindowTab(): Promise<void> { }
 	async showNextWindowTab(): Promise<void> { }

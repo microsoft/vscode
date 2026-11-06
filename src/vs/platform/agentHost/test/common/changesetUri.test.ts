@@ -65,7 +65,7 @@ suite('changesetUri', () => {
 			...state(),
 			_meta: withSessionGitState(undefined, { branchName: 'feature', baseBranchName: 'stale-base', upstreamBranchName: 'origin/feature' }),
 		};
-		const description = (baseBranch: string | undefined) => buildDefaultChangesetCatalog(chat, true, readyState, chat, undefined, baseBranch)
+		const description = (baseBranch: string | undefined) => buildDefaultChangesetCatalog(chat, true, false, readyState, chat, undefined, baseBranch)
 			.find(changeset => changeset.changeKind === ChangesetKind.Branch)?.description;
 
 		assert.deepStrictEqual({
@@ -262,12 +262,13 @@ suite('changesetUri', () => {
 		const peerChatUri = buildChatUri(sessionUri, 'peer');
 
 		assert.deepStrictEqual({
-			creatingSession: buildDefaultChangesetCatalog(sessionUri, false, creatingState),
-			creatingChat: buildDefaultChangesetCatalog(defaultChatUri, true, creatingState),
-			readySession: buildDefaultChangesetCatalog(sessionUri, false, readyState),
-			readyChat: buildDefaultChangesetCatalog(defaultChatUri, true, readyState),
-			readyPeerChat: buildDefaultChangesetCatalog(peerChatUri, false, readyState),
-			workspacelessPeerChat: buildDefaultChangesetCatalog(peerChatUri, false, { ...readyState, _meta: withSessionWorkspaceless(undefined, true) })
+			creatingSession: buildDefaultChangesetCatalog(sessionUri, false, false, creatingState),
+			creatingChat: buildDefaultChangesetCatalog(defaultChatUri, true, false, creatingState),
+			readySession: buildDefaultChangesetCatalog(sessionUri, false, false, readyState),
+			readyChat: buildDefaultChangesetCatalog(defaultChatUri, true, false, readyState),
+			readyPeerChat: buildDefaultChangesetCatalog(peerChatUri, false, false, readyState),
+			workspacelessPeerChat: buildDefaultChangesetCatalog(peerChatUri, false, true, { ...readyState, _meta: withSessionWorkspaceless(undefined, true) }).map(changeset => changeset.changeKind),
+			foldedPeerChatInWorkspacelessSession: buildDefaultChangesetCatalog(peerChatUri, false, false, { ...readyState, _meta: withSessionWorkspaceless(undefined, true) })
 				.map(changeset => changeset.changeKind),
 		}, {
 			creatingSession: [],
@@ -306,6 +307,7 @@ suite('changesetUri', () => {
 				changeKind: ChangesetKind.Turn,
 			}],
 			workspacelessPeerChat: [ChangesetKind.Turn],
+			foldedPeerChatInWorkspacelessSession: [ChangesetKind.Session, ChangesetKind.Turn],
 		});
 	});
 
@@ -375,8 +377,8 @@ suite('changesetUri', () => {
 
 	test('does not project the session Working Set entry into chat catalogues', () => {
 		const defaultChatUri = buildDefaultChatUri(sessionUri);
-		const sessionCatalogue = buildDefaultChangesetCatalog(sessionUri, false, state());
-		const chatCatalogue = buildDefaultChangesetCatalog(defaultChatUri, true, state());
+		const sessionCatalogue = buildDefaultChangesetCatalog(sessionUri, false, false, state());
+		const chatCatalogue = buildDefaultChangesetCatalog(defaultChatUri, true, false, state());
 		const project = (chat: typeof chatCatalogue | undefined) => resolveChatChangesetCatalogue(defaultChatUri, chat, sessionCatalogue, defaultChatUri)
 			?.map(({ changeset, owner }) => ({ kind: changeset.changeKind, owner }));
 
@@ -404,7 +406,7 @@ suite('changesetUri', () => {
 				baseBranchName: 'main',
 			}),
 		};
-		const catalogue = buildDefaultChangesetCatalog(peerChatUri, false, readyState, sessionUri);
+		const catalogue = buildDefaultChangesetCatalog(peerChatUri, false, false, readyState, sessionUri);
 
 		assert.deepStrictEqual(
 			catalogue.map(changeset => ({ kind: changeset.changeKind, label: changeset.label, uri: changeset.uriTemplate })),
@@ -461,7 +463,7 @@ suite('changesetUri', () => {
 			resolvedFor.push([folderKey, recordedChat]);
 			return owner;
 		};
-		const hasAgentMerge = (chat: string) => buildDefaultChangesetCatalog(chat, false, sharedState, chat, resolveOwner)
+		const hasAgentMerge = (chat: string) => buildDefaultChangesetCatalog(chat, false, false, sharedState, chat, resolveOwner)
 			.some(changeset => changeset.changeKind === AGENT_MERGE_CHANGESET_ID);
 
 		assert.deepStrictEqual({ owner: hasAgentMerge(owner), other: hasAgentMerge(other), resolvedFor }, {
@@ -475,8 +477,8 @@ suite('changesetUri', () => {
 		const defaultChatUri = buildDefaultChatUri(sessionUri);
 		const peerChatUri = buildChatUri(sessionUri, 'peer');
 		const peerFolder = 'file:///work/peer';
-		const enabledCatalog = buildDefaultChangesetCatalog(defaultChatUri, true, state(true));
-		const peerEnabledCatalog = buildDefaultChangesetCatalog(peerChatUri, false, state(undefined, [], undefined, [peerFolder], {
+		const enabledCatalog = buildDefaultChangesetCatalog(defaultChatUri, true, false, state(true));
+		const peerEnabledCatalog = buildDefaultChangesetCatalog(peerChatUri, false, false, state(undefined, [], undefined, [peerFolder], {
 			[SessionConfigKey.AgentMergeFolders]: { [peerFolder]: { enabled: true } },
 		}));
 		const enabledNotice = turn('notice', MessageKind.SystemNotification);
@@ -490,14 +492,14 @@ suite('changesetUri', () => {
 			catalog.find(changeset => changeset.changeKind === AGENT_MERGE_CHANGESET_ID);
 
 		assert.deepStrictEqual({
-			session: findAgentMerge(buildDefaultChangesetCatalog(sessionUri, false, state(true))),
+			session: findAgentMerge(buildDefaultChangesetCatalog(sessionUri, false, false, state(true))),
 			peerChat: findAgentMerge(peerEnabledCatalog),
-			neverEnabled: findAgentMerge(buildDefaultChangesetCatalog(defaultChatUri, true, state())),
-			configuredWhileDisabled: findAgentMerge(buildDefaultChangesetCatalog(defaultChatUri, true, state(false))),
+			neverEnabled: findAgentMerge(buildDefaultChangesetCatalog(defaultChatUri, true, false, state())),
+			configuredWhileDisabled: findAgentMerge(buildDefaultChangesetCatalog(defaultChatUri, true, false, state(false))),
 			enabled: findAgentMerge(enabledCatalog),
-			disabledAfterEnable: findAgentMerge(buildDefaultChangesetCatalog(defaultChatUri, true, state(false, [], enabledCatalog))),
-			restoredFromRepairTurn: findAgentMerge(buildDefaultChangesetCatalog(defaultChatUri, true, state(undefined, [turn('repair', MessageKind.SystemNotification, true)]))),
-			restoredFromEnabledNotice: findAgentMerge(buildDefaultChangesetCatalog(defaultChatUri, true, state(undefined, [enabledNotice]))),
+			disabledAfterEnable: findAgentMerge(buildDefaultChangesetCatalog(defaultChatUri, true, false, state(false, [], enabledCatalog))),
+			restoredFromRepairTurn: findAgentMerge(buildDefaultChangesetCatalog(defaultChatUri, true, false, state(undefined, [turn('repair', MessageKind.SystemNotification, true)]))),
+			restoredFromEnabledNotice: findAgentMerge(buildDefaultChangesetCatalog(defaultChatUri, true, false, state(undefined, [enabledNotice]))),
 		}, {
 			session: undefined,
 			peerChat: {

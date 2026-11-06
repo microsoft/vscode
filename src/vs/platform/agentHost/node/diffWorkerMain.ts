@@ -5,12 +5,14 @@
 
 import { parentPort } from 'worker_threads';
 import { IArcTextReplacement } from '../../../base/common/editArcTracker.js';
+import { StopWatch } from '../../../base/common/stopwatch.js';
 import { DefaultLinesDiffComputer } from '../../../editor/common/diff/defaultLinesDiffComputer/defaultLinesDiffComputer.js';
 import type { ILinesDiffComputerOptions } from '../../../editor/common/diff/linesDiffComputer.js';
 import type { RangeMapping } from '../../../editor/common/diff/rangeMapping.js';
 import type { IDetailedDiffResult, IDiffCountResult, IDiffHunk, IDiffHunksResult } from '../common/diffComputeService.js';
 
 export function computeDiffCounts(originalText: string, modifiedText: string, timeoutMs: number): IDiffCountResult {
+	const stopwatch = StopWatch.create();
 	const originalLines = originalText.split(/\r\n|\r|\n/);
 	const modifiedLines = modifiedText.split(/\r\n|\r|\n/);
 	const diffComputer = new DefaultLinesDiffComputer();
@@ -19,29 +21,45 @@ export function computeDiffCounts(originalText: string, modifiedText: string, ti
 		maxComputationTimeMs: timeoutMs,
 		computeMoves: false,
 	};
-	const result = diffComputer.computeDiff(originalLines, modifiedLines, options);
+	const result = diffComputer.computeDiffWithRawChanges(originalLines, modifiedLines, options);
 
 	let added = 0;
 	let removed = 0;
-	for (const change of result.changes) {
+	for (const change of result.diff.changes) {
 		removed += change.original.length;
 		added += change.modified.length;
 	}
 
 	const originalLineStarts = getLineStarts(originalText);
 	const modifiedLineStarts = getLineStarts(modifiedText);
-	const changes = result.changes.flatMap(change => {
-		const rangeMappings = change.innerChanges ?? [change.toRangeMapping2(originalLines, modifiedLines)];
-		return rangeMappings.map(mapping => ({
-			startOffset: getOffset(mapping.originalRange, originalLineStarts, false),
-			endOffsetExclusive: getOffset(mapping.originalRange, originalLineStarts, true),
-			newText: modifiedText.substring(
-				getOffset(mapping.modifiedRange, modifiedLineStarts, false),
-				getOffset(mapping.modifiedRange, modifiedLineStarts, true),
-			),
-		}));
-	});
-	return { added, removed, changes };
+	const toChanges = (diff: typeof result) => diff.rawChanges.map(mapping => ({
+		startOffset: getOffset(mapping.originalRange, originalLineStarts, false),
+		endOffsetExclusive: getOffset(mapping.originalRange, originalLineStarts, true),
+		newText: modifiedText.substring(
+			getOffset(mapping.modifiedRange, modifiedLineStarts, false),
+			getOffset(mapping.modifiedRange, modifiedLineStarts, true),
+		),
+	}));
+	let changes = toChanges(result);
+	let hitTimeout = result.diff.hitTimeout;
+	let offset = 0;
+	const reconstructed: string[] = [];
+	for (const change of changes) {
+		reconstructed.push(originalText.substring(offset, change.startOffset), change.newText);
+		offset = change.endOffsetExclusive;
+	}
+	reconstructed.push(originalText.substring(offset));
+	if (reconstructed.join('') !== modifiedText) {
+		// Only repeat the diff when whitespace ignored by the line counts is needed for attribution.
+		const characterResult = diffComputer.computeDiffWithRawChanges(originalLines, modifiedLines, {
+			...options,
+			ignoreTrimWhitespace: false,
+			maxComputationTimeMs: timeoutMs === 0 ? 0 : Math.max(1, timeoutMs - stopwatch.elapsed()),
+		});
+		changes = toChanges(characterResult);
+		hitTimeout = characterResult.diff.hitTimeout;
+	}
+	return { added, removed, changes, hitTimeout };
 }
 
 function getLineStarts(content: string): number[] {

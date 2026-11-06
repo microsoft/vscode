@@ -22,6 +22,7 @@ import { IAgentHostGitStateService } from '../common/agentHostGitStateService.js
 import { IAgentConfigurationService } from './agentConfigurationService.js';
 import { resolveChangesetSubscriptions } from './agentHostChangesetSummary.js';
 import { IAgentHostChatOwnershipService } from './agentHostChatOwnershipService.js';
+import { IAgentHostFileEditCoordinator } from './agentHostFileEditCoordinator.js';
 
 /**
  * Whether operations on a changeset of `kind` wait for the session's Git
@@ -57,6 +58,7 @@ export class AgentHostChangesetOperationService extends Disposable implements IA
 		@IAgentHostChangesetSubscriptionService private readonly _changesetSubscriptions: IAgentHostChangesetSubscriptionService,
 		@IAgentConfigurationService private readonly _configurationService: IAgentConfigurationService,
 		@IAgentHostChatOwnershipService private readonly _chatOwnership: IAgentHostChatOwnershipService,
+		@IAgentHostFileEditCoordinator private readonly _fileEditCoordinator: IAgentHostFileEditCoordinator,
 	) {
 		super();
 
@@ -203,17 +205,33 @@ export class AgentHostChangesetOperationService extends Disposable implements IA
 			: operations;
 
 		// Operations are disabled while a turn is active so the working tree /
-		// branch state can't be mutated mid-request.
+		// branch state can't be mutated mid-request. The Working Set's changes
+		// can still be reviewed: see `_isAvailableDuringTurn`.
 		const parsedChangeset = parseChangesetUri(context.changesetUri);
 		const sessionKey = (parsedChangeset && this._containingSession(parsedChangeset)) ?? context.sessionKey;
 		if (this._stateManager.hasActiveTurn(sessionKey)) {
-			return scopedOperations.map(operation => ({
+			return scopedOperations.map(operation => this._isAvailableDuringTurn(context.changesetKind, operation.id, sessionKey) ? operation : {
 				...operation,
 				status: ChangesetOperationStatus.Disabled
-			}));
+			});
 		}
 
 		return scopedOperations;
+	}
+
+	/**
+	 * Whether an operation on a changeset of `kind` can run while a turn of
+	 * `sessionKey` is active. Accepting Working Set changes only records them,
+	 * and names the changes the client showed, so it can. Discarding them
+	 * changes the files the agent edits, so it can only when the provider's
+	 * edit tool calls wait for it (see {@link IAgentHostFileEditCoordinator}).
+	 */
+	private _isAvailableDuringTurn(kind: ChangesetKind | undefined, operationId: string, sessionKey: string): boolean {
+		if (kind !== ChangesetKind.WorkingSet) {
+			return false;
+		}
+		return operationId === AGENT_HOST_ACCEPT_CHANGES_OPERATION_ID
+			|| (operationId === AGENT_HOST_DISCARD_CHANGES_OPERATION_ID && this._fileEditCoordinator.isCoordinatedProvider(this._stateManager.getSessionSummary(sessionKey)?.provider));
 	}
 
 	updateOperations(sessionKey: string, changeset?: string, gitState?: ISessionGitState, gitHubState?: ISessionGitHubState): void {
@@ -378,7 +396,7 @@ export class AgentHostChangesetOperationService extends Disposable implements IA
 		// branch state be mutated.
 		const parsed = parseChangesetUri(params.channel);
 		const containingSession = parsed && this._containingSession(parsed);
-		if (containingSession && this._stateManager.hasActiveTurn(containingSession)) {
+		if (containingSession && this._stateManager.hasActiveTurn(containingSession) && !this._isAvailableDuringTurn(parsed.kind, params.operationId, containingSession)) {
 			throw new ProtocolError(JsonRpcErrorCodes.InvalidParams, `Operation '${params.operationId}' is disabled while a turn is active on changeset ${params.channel}`);
 		}
 

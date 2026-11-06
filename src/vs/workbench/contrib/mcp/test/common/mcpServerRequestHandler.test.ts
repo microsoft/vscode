@@ -28,6 +28,7 @@ class TestMcpHostDelegate extends Disposable implements IMcpHostDelegate {
 	private readonly _transport: TestMcpMessageTransport;
 
 	priority = 0;
+	resolvePolicyVariables = async () => ({});
 
 	constructor() {
 		super();

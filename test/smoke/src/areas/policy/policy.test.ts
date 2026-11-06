@@ -51,7 +51,7 @@ export function setup(logger: Logger) {
 				await app.code.waitForElements(
 					indicatorSelector,
 					false,
-					elements => elements.some(element => element.textContent.includes('Managed by organization'))
+					elements => elements.some(element => element.textContent.includes('Managed by your organization'))
 						=== (testCase.policyValue !== undefined)
 				);
 			});

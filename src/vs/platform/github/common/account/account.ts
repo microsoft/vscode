@@ -5,6 +5,7 @@
 
 import { Event } from '../../../../base/common/event.js';
 import { IGitHubAnonymousClient } from '../anonymous/anonymous.js';
+import { IConnectorsClient } from '../connectors/connectors.js';
 import { IActionsClient } from '../core/actions.js';
 import { IChecksClient } from '../core/checks.js';
 import { IIssuesClient } from '../core/issues.js';
@@ -29,6 +30,8 @@ export interface IGitHubAccountClient extends IGitHubAnonymousClient {
 	readonly onDidInvalidate: Event<void>;
 	/** Fires when credentials for the selected grant are replaced or invalidated. */
 	readonly onDidChangeCredentials: Event<void>;
+	/** Copilot Connector catalog and connection management. */
+	readonly connectors: IConnectorsClient;
 	/** Mission Control automation management and run requests. */
 	readonly automations: IAutomationsClient;
 	/** Mission Control environment discovery and connection credentials. */

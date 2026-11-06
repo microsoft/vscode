@@ -11,7 +11,7 @@ import { computeDetailedDiff, computeDiffCounts, computeDiffHunks } from '../../
 suite('Agent Host Diff Worker', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
 
-	test('returns line counts and character edits from one diff', () => {
+	test('returns line counts and character edits', () => {
 		const result = computeDiffCounts('alpha\nbeta\ngamma', 'alpha\nBETA\ngamma\nomega', 5_000);
 
 		assert.deepStrictEqual({
@@ -25,6 +25,35 @@ suite('Agent Host Diff Worker', () => {
 			applied: 'alpha\nBETA\ngamma\nomega',
 			changeCount: 2,
 		});
+	});
+
+	test('preserves short character matches without changing line counts', () => {
+		const before = 'a a a a';
+		const after = 'b b b b';
+		const result = computeDiffCounts(before, after, 5_000);
+		assert.deepStrictEqual({
+			...result,
+			applied: applyChanges(before, result.changes),
+		}, {
+			added: 1,
+			removed: 1,
+			changes: [0, 2, 4, 6].map(offset => ({ startOffset: offset, endOffsetExclusive: offset + 1, newText: 'b' })),
+			hitTimeout: false,
+			applied: after,
+		});
+	});
+
+	test('does not sacrifice short matches for a longer consecutive display match', () => {
+		const before = 'abcdXYZ';
+		const after = 'XYZ a b c d';
+		const result = computeDiffCounts(before, after, 5000);
+		assert.deepStrictEqual({
+			added: result.added,
+			removed: result.removed,
+			inserted: result.changes.reduce((sum, change) => sum + change.newText.length, 0),
+			applied: applyChanges(before, result.changes),
+			hitTimeout: result.hitTimeout,
+		}, { added: 1, removed: 1, inserted: 7, applied: after, hitTimeout: false });
 	});
 
 	test('detailed diff preserves line endings and whitespace changes', () => {
@@ -77,9 +106,52 @@ suite('Agent Host Diff Worker', () => {
 		assert.deepStrictEqual(computeDiffCounts('first  \n', 'first \n', 5000), {
 			added: 0,
 			removed: 0,
-			changes: [],
+			changes: [{ startOffset: 6, endOffsetExclusive: 7, newText: '' }],
+			hitTimeout: false,
 		});
 	});
+
+	for (const eol of ['\n', '\r\n']) {
+		test(`character edits preserve separated indentation changes with ${JSON.stringify(eol)}`, () => {
+			const original = ['const first = 1;', '// unchanged \u{1f600}', 'const last = 2;'].join(eol);
+			const modified = ['\tconst first = 1;', '// unchanged \u{1f600}', '\tconst last = 2;'].join(eol);
+			const result = computeDiffCounts(original, modified, 5000);
+			assert.deepStrictEqual({
+				added: result.added,
+				removed: result.removed,
+				changes: result.changes,
+				applied: applyChanges(original, result.changes),
+			}, {
+				added: 0,
+				removed: 0,
+				changes: [
+					{ startOffset: 0, endOffsetExclusive: 0, newText: '\t' },
+					{ startOffset: original.indexOf('const last'), endOffsetExclusive: original.indexOf('const last'), newText: '\t' },
+				],
+				applied: modified,
+			});
+		});
+
+		test(`character edits include whitespace-only hunks alongside content changes with ${JSON.stringify(eol)}`, () => {
+			const original = ['const first = 1;', '// unchanged', 'const last = 2;'].join(eol);
+			const modified = ['\tconst first = 1;', '// unchanged', 'const last = 3;'].join(eol);
+			const result = computeDiffCounts(original, modified, 5000);
+			assert.deepStrictEqual({
+				added: result.added,
+				removed: result.removed,
+				changes: result.changes,
+				applied: applyChanges(original, result.changes),
+			}, {
+				added: 1,
+				removed: 1,
+				changes: [
+					{ startOffset: 0, endOffsetExclusive: 0, newText: '\t' },
+					{ startOffset: original.indexOf('2'), endOffsetExclusive: original.indexOf('2') + 1, newText: '3' },
+				],
+				applied: modified,
+			});
+		});
+	}
 
 	test('hunks are the changed line ranges, each of which can be applied or undone on its own', () => {
 		const original = 'one\ntwo\nthree\nfour\nfive\nsix\n';

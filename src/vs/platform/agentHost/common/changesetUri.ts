@@ -10,7 +10,7 @@ import { readAgentMergeFolderState } from './agentMerge.js';
 import { getWorkingDirectoryKey } from './agentHostWorkingDirectories.js';
 import { isAgentMergeMessage } from './meta/agentMergeMessageMeta.js';
 import { AgentSystemNotificationKind, readAgentSystemNotificationMeta } from './meta/agentSystemNotificationMeta.js';
-import { isAhpChatChannel, MessageKind, readSessionGitState, readSessionWorkspaceless, ResponsePartKind, SessionLifecycle, type Changeset, type ISessionWithDefaultChat, type URI } from './state/sessionState.js';
+import { isAhpChatChannel, MessageKind, readSessionGitState, ResponsePartKind, SessionLifecycle, type Changeset, type ISessionWithDefaultChat, type URI } from './state/sessionState.js';
 
 /**
  * Helpers for building / parsing the URI clients subscribe to in order to
@@ -427,16 +427,17 @@ export function parseCompareTurnsChangesetUri(uri: URI): { ownerUri: URI; origin
  * whose transcript the repairs run in.
  * `branchChangesetOwnerUri` lets matching chat catalogues share one repository-level Branch Changes resource.
  * `isDefaultChat` is whether `ownerUri` is its session's recorded default chat.
+ * `workspaceless` is the owner's own decision: the per-chat decision for a chat channel, the session marker for the session channel.
  * `branchChangesetBaseBranch` is resolved by the host using the same precedence as the branch diff.
  */
-export function buildDefaultChangesetCatalog(ownerUri: URI, isDefaultChat: boolean, state?: ISessionWithDefaultChat, branchChangesetOwnerUri: URI = ownerUri, resolveAgentMergeOwner?: (folderKey: string, recordedChat: URI | undefined) => URI | undefined, branchChangesetBaseBranch?: string): Changeset[] {
+export function buildDefaultChangesetCatalog(ownerUri: URI, isDefaultChat: boolean, workspaceless: boolean, state?: ISessionWithDefaultChat, branchChangesetOwnerUri: URI = ownerUri, resolveAgentMergeOwner?: (folderKey: string, recordedChat: URI | undefined) => URI | undefined, branchChangesetBaseBranch?: string): Changeset[] {
 	// Session that failed to create
 	if (!state || state.lifecycle === SessionLifecycle.Failed) {
 		return [];
 	}
 
 	if (!isAhpChatChannel(ownerUri.toString())) {
-		if (state.lifecycle === SessionLifecycle.Creating || readSessionWorkspaceless(state._meta)) {
+		if (state.lifecycle === SessionLifecycle.Creating || workspaceless) {
 			return [];
 		}
 		return [{
@@ -454,7 +455,7 @@ export function buildDefaultChangesetCatalog(ownerUri: URI, isDefaultChat: boole
 
 	// New Session
 	if (state.lifecycle === SessionLifecycle.Creating) {
-		if (readSessionWorkspaceless(state._meta)) {
+		if (workspaceless) {
 			// Quick chat
 			return [];
 		}
@@ -477,7 +478,7 @@ export function buildDefaultChangesetCatalog(ownerUri: URI, isDefaultChat: boole
 			changeKind: AGENT_MERGE_CHANGESET_ID,
 		}] satisfies Changeset[]
 		: [];
-	const chatSessionChangeset = !isDefaultChat && !readSessionWorkspaceless(state._meta)
+	const chatSessionChangeset = !isDefaultChat && !workspaceless
 		? [{
 			label: sessionChangesetLabel(),
 			description: sessionChangesetDescription(),

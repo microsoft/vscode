@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { DeferredPromise, timeout } from '../../../../../base/common/async.js';
 import { Event } from '../../../../../base/common/event.js';
 import { DisposableStore, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { ITunnelApplicationConfig } from '../../../../../base/common/product.js';
@@ -18,7 +19,6 @@ import { MockContextKeyService } from '../../../../../platform/keybinding/test/c
 import { NullLoggerService } from '../../../../../platform/log/common/log.js';
 import { INotificationService } from '../../../../../platform/notification/common/notification.js';
 import { IProductService } from '../../../../../platform/product/common/productService.js';
-import { IProgress, IProgressService, IProgressStep } from '../../../../../platform/progress/common/progress.js';
 import { IQuickInputService, IQuickPick, IQuickPickItem } from '../../../../../platform/quickinput/common/quickInput.js';
 import { INACTIVE_TUNNEL_MODE, IRemoteTunnelService, type ActiveTunnelMode, type TunnelStatus } from '../../../../../platform/remoteTunnel/common/remoteTunnel.js';
 import { InMemoryStorageService, IStorageService } from '../../../../../platform/storage/common/storage.js';
@@ -28,6 +28,7 @@ import { CommandsRegistry, ICommandService } from '../../../../../platform/comma
 import { IExtensionService } from '../../../../services/extensions/common/extensions.js';
 import { RemoteTunnelCommandIds, RemoteTunnelWorkbenchContribution } from '../../electron-browser/remoteTunnel.contribution.js';
 import { NotificationService } from '../../../../services/notification/common/notificationService.js';
+import { TestProgressService } from '../../../../test/browser/workbenchTestServices.js';
 
 const tunnelApplicationConfig: ITunnelApplicationConfig = {
 	authenticationProviders: {
@@ -132,12 +133,6 @@ class TestExtensionService extends mock<IExtensionService>() {
 	}
 }
 
-class TestProgressService extends mock<IProgressService>() {
-	override async withProgress<R>(_options: Parameters<IProgressService['withProgress']>[0], task: (progress: IProgress<IProgressStep>) => Promise<R>): Promise<R> {
-		return task({ report() { } });
-	}
-}
-
 class TestDialogService extends mock<IDialogService>() {
 	override async confirm() { return { confirmed: true }; }
 }
@@ -234,6 +229,26 @@ suite('RemoteTunnelWorkbenchContribution', () => {
 			});
 		});
 	}
+
+	test('turn off waits for the tunnel to stop', async () => {
+		const stopped = new DeferredPromise<void>();
+		const remoteTunnelService = new class extends TestRemoteTunnelService {
+			override stopTunnel(): Promise<void> {
+				return stopped.p;
+			}
+		};
+		createContribution(store, new TestAuthenticationService([githubSession]), new TestQuickInputService(), remoteTunnelService);
+		const instantiation = store.add(new TestInstantiationService());
+		let resolved = false;
+		const turnOff = Promise.resolve(instantiation.invokeFunction(CommandsRegistry.getCommand(RemoteTunnelCommandIds.turnOff)!.handler)).then(() => { resolved = true; });
+
+		await timeout(0);
+		const beforeStop = resolved;
+		stopped.complete();
+		await turnOff;
+
+		assert.deepStrictEqual({ beforeStop, afterStop: resolved }, { beforeStop: false, afterStop: true });
+	});
 
 	test('starts Agents remote access with an existing GitHub session without an authentication quick pick', async () => {
 		const authenticationService = new TestAuthenticationService([githubSession]);

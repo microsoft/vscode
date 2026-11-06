@@ -8,10 +8,12 @@ import * as dom from '../../../../../../base/browser/dom.js';
 import { renderIcon } from '../../../../../../base/browser/ui/iconLabel/iconLabels.js';
 import { Gesture, EventType as TouchEventType } from '../../../../../../base/browser/touch.js';
 import { BaseActionViewItem } from '../../../../../../base/browser/ui/actionbar/actionViewItems.js';
+import type { IActionViewItem } from '../../../../../../base/browser/ui/actionbar/actionbar.js';
 import { IAction } from '../../../../../../base/common/actions.js';
 import { Disposable, DisposableStore, IDisposable, toDisposable } from '../../../../../../base/common/lifecycle.js';
 import { autorun, derived, IObservable, observableValue } from '../../../../../../base/common/observable.js';
 import { URI } from '../../../../../../base/common/uri.js';
+import { isEqual } from '../../../../../../base/common/resources.js';
 import { localize } from '../../../../../../nls.js';
 import { InstantiationType, registerSingleton } from '../../../../../../platform/instantiation/common/extensions.js';
 import { createDecorator } from '../../../../../../platform/instantiation/common/instantiation.js';
@@ -27,17 +29,26 @@ export interface IChatPhoneInputSessionContext {
 	readonly modelId: string | undefined;
 }
 
+export interface IChatPhoneSessionModelPicker {
+	readonly getSessionContext: () => IChatPhoneInputSessionContext | undefined;
+	readonly selectModel: (identifier: string) => boolean;
+	readonly modelDelegate?: IModelPickerDelegate;
+}
+
 export type ChatPhoneInputPresenterRequest =
-	| {
+	({
 		readonly kind: 'delegates';
 		readonly modeDelegate: IModePickerDelegate;
 		readonly modelDelegate: IModelPickerDelegate;
 	}
-	| {
-		readonly kind: 'session';
-		readonly getSessionContext: () => IChatPhoneInputSessionContext | undefined;
-		readonly selectModel: (modelIdentifier: string) => boolean;
-	};
+		| {
+			readonly kind: 'session';
+			readonly getSessionContext: () => IChatPhoneInputSessionContext | undefined;
+			readonly selectModel?: (modelIdentifier: string) => boolean;
+			readonly modelDelegate?: IModelPickerDelegate;
+		}) & {
+			readonly initialSection?: 'mode' | 'model' | 'permissions' | 'agent' | 'modelConfiguration';
+		};
 
 /**
  * Implementation of the phone-only chat-input picker presenter, registered
@@ -52,6 +63,8 @@ export interface IChatPhonePresenterImpl {
 	 * presentation. Drives a `_updateToolbar()` refresh on flips.
 	 */
 	readonly enabled: IObservable<boolean>;
+	readonly supportsUnifiedConfiguration?: boolean;
+	createActionViewItem?(action: IAction, mode: IModePickerDelegate, model: IModelPickerDelegate): IActionViewItem;
 
 	/**
 	 * Show a unified bottom sheet listing both Mode and Model rows for the
@@ -87,6 +100,10 @@ export interface IChatPhoneInputPresenter {
 
 	/** `true` when an impl is registered AND it reports phone layout. */
 	readonly enabled: IObservable<boolean>;
+	readonly supportsUnifiedConfiguration?: boolean;
+	createActionViewItem?(action: IAction, mode: IModePickerDelegate, model: IModelPickerDelegate): IActionViewItem | undefined;
+	registerSessionModelPicker(picker: IChatPhoneSessionModelPicker): IDisposable;
+	getSessionModelPicker(context: IChatPhoneInputSessionContext): IChatPhoneSessionModelPicker | undefined;
 
 	/**
 	 * Show the unified phone-layout Mode + Model sheet. No-ops when
@@ -110,11 +127,34 @@ class ChatPhoneInputPresenterService extends Disposable implements IChatPhoneInp
 	declare readonly _serviceBrand: undefined;
 
 	private readonly _impl = observableValue<IChatPhonePresenterImpl | undefined>(this, undefined);
+	private readonly _sessionModelPickers = new Set<IChatPhoneSessionModelPicker>();
 
 	readonly enabled: IObservable<boolean> = derived(this, reader => {
 		const impl = this._impl.read(reader);
 		return impl ? impl.enabled.read(reader) : false;
 	});
+
+	get supportsUnifiedConfiguration(): boolean {
+		const impl = this._impl.get();
+		return !!impl?.enabled.get() && impl.supportsUnifiedConfiguration === true;
+	}
+
+	createActionViewItem(action: IAction, mode: IModePickerDelegate, model: IModelPickerDelegate): IActionViewItem | undefined {
+		const impl = this._impl.get();
+		return impl?.enabled.get() ? impl.createActionViewItem?.(action, mode, model) : undefined;
+	}
+
+	registerSessionModelPicker(picker: IChatPhoneSessionModelPicker): IDisposable {
+		this._sessionModelPickers.add(picker);
+		return toDisposable(() => this._sessionModelPickers.delete(picker));
+	}
+
+	getSessionModelPicker(context: IChatPhoneInputSessionContext): IChatPhoneSessionModelPicker | undefined {
+		return [...this._sessionModelPickers].find(picker => {
+			const candidate = picker.getSessionContext();
+			return candidate?.providerId === context.providerId && candidate.sessionId === context.sessionId && isEqual(candidate.chatResource, context.chatResource);
+		});
+	}
 
 	showCombinedModeAndModelSheet(
 		target: HTMLElement,
@@ -131,6 +171,11 @@ class ChatPhoneInputPresenterService extends Disposable implements IChatPhoneInp
 				this._impl.set(undefined, undefined);
 			}
 		});
+	}
+
+	override dispose(): void {
+		this._sessionModelPickers.clear();
+		super.dispose();
 	}
 }
 

@@ -7,7 +7,6 @@ import assert from 'assert';
 import { readdirSync, readFileSync } from 'fs';
 import { join } from '../../../../base/common/path.js';
 import { FileAccess } from '../../../../base/common/network.js';
-import { DisposableStore } from '../../../../base/common/lifecycle.js';
 import { URI } from '../../../../base/common/uri.js';
 import { hasKey } from '../../../../base/common/types.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
@@ -43,7 +42,7 @@ import type { IAgentHostCredentialSource } from '../../common/agentHostCredentia
 
 suite('Agent Host provider seams', () => {
 
-	const disposables = new DisposableStore();
+	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 	const session = AgentSession.uri('copilot', 'seam-session');
 	const sessionKey = session.toString();
 	const defaultChat = URI.parse(buildDefaultChatUri(sessionKey));
@@ -82,8 +81,6 @@ suite('Agent Host provider seams', () => {
 		authenticationService = disposables.add(new AgentHostAuthenticationService(new NullLogService()));
 	});
 
-	teardown(() => disposables.clear());
-	ensureNoDisposablesAreLeakedInTestSuite();
 
 	// ---- Exhaustive origin + customizations on every context ---------------
 
@@ -109,6 +106,39 @@ suite('Agent Host provider seams', () => {
 			}, {
 				customizationDirectory: 'file:///f2',
 				additionalCustomizationDirectories: ['file:///f3'],
+			});
+		});
+
+		test('decides workspaceless per chat from recorded folders: scratch folder, session marker or own folder', () => {
+			manager.createSession(summary());
+			manager.addChat(sessionKey, peerChat.toString(), creationTimeChatStorageResource(sessionKey, peerChat.toString(), buildDefaultChatUri(sessionKey)), {});
+			const chatEntry = (isDefault: boolean, launchWorkingDirectories: readonly string[] | undefined) => ({
+				isDefault, storage: undefined, title: undefined, titleSource: undefined, isRead: undefined, workingDirectories: undefined, launchWorkingDirectories, changes: undefined,
+			});
+			const snapshot = (marker: boolean, peerFolders: readonly string[] | undefined) => ({
+				session: sessionKey,
+				authority: 2 as const,
+				revision: 1,
+				values: new Map(marker ? [['agentHost.workspaceless', 'true']] : []),
+				folders: new Map(),
+				chats: new Map([[defaultChat.toString(), chatEntry(true, ['file:///chats/a'])], [peerChat.toString(), chatEntry(false, peerFolders)]]),
+			});
+			const read = (state: ReturnType<typeof snapshot>) => createAgentChatContext(manager, authenticationService, session, peerChat, manager.resolveChatStorageResource(session.toString(), peerChat.toString()), state).workspaceless;
+			manager.setScratchFolder('file:///chats/c1', true);
+			assert.deepStrictEqual({
+				ownScratchFolder: read(snapshot(true, ['file:///chats/c1'])),
+				ownScratchFolderInForeignSession: read(snapshot(false, ['file:///chats/c1'])),
+				sharesDefaultFolderOfMarkedSession: read(snapshot(true, ['file:///chats/a'])),
+				folderedChatInMarkedSession: read(snapshot(true, ['file:///work/repo'])),
+				markedSessionNoFolder: read(snapshot(true, undefined)),
+				unmarkedNoFolder: read(snapshot(false, undefined)),
+			}, {
+				ownScratchFolder: true,
+				ownScratchFolderInForeignSession: true,
+				sharesDefaultFolderOfMarkedSession: true,
+				folderedChatInMarkedSession: false,
+				markedSessionNoFolder: true,
+				unmarkedNoFolder: false,
 			});
 		});
 
@@ -307,7 +337,7 @@ suite('Agent Host provider seams', () => {
 
 		test('resolveSessionBackedStorage reports a session database only for a chat stored outside its own resource', () => {
 			manager.createSession(summary());
-			const base = { sessionSettings: undefined, launchWorkingDirectories: undefined, owner: fixedChatOwnerRef(session) };
+			const base = { sessionSettings: undefined, launchWorkingDirectories: undefined, workspaceless: false, owner: fixedChatOwnerRef(session) };
 			assert.deepStrictEqual({
 				sessionBacked: resolveSessionBackedStorage({ ...base, resource: session }, defaultChat)?.toString(),
 				ownStorage: resolveSessionBackedStorage({ ...base, resource: peerChat }, peerChat),
@@ -341,14 +371,14 @@ suite('Agent Host provider seams', () => {
 		test('resolveSubagentChatParent only reports tool spawn edges', () => {
 			const fork: IAgentChatContext = {
 				sessionSettings: undefined,
-				launchWorkingDirectories: undefined,
+				launchWorkingDirectories: undefined, workspaceless: false,
 				resource: peerChat,
 				owner: fixedChatOwnerRef(session),
 				origin: { kind: ChatOriginKind.Fork, chat: buildDefaultChatUri(sessionKey), turnId: 'turn-1' },
 			};
 			const tool: IAgentChatContext = {
 				sessionSettings: undefined,
-				launchWorkingDirectories: undefined,
+				launchWorkingDirectories: undefined, workspaceless: false,
 				resource: subagentChat,
 				owner: fixedChatOwnerRef(session),
 				origin: { kind: ChatOriginKind.Tool, chat: buildDefaultChatUri(sessionKey), toolCallId: 'tool-9' },

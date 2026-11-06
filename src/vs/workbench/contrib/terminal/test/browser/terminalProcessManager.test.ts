@@ -4,10 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { deepStrictEqual, ok, strictEqual } from 'assert';
+import { DeferredPromise, timeout } from '../../../../../base/common/async.js';
+import { encodeHex, VSBuffer } from '../../../../../base/common/buffer.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { Schemas } from '../../../../../base/common/network.js';
 import { getCaseInsensitive } from '../../../../../base/common/objects.js';
-import { OperatingSystem, type IProcessEnvironment } from '../../../../../base/common/platform.js';
+import { isWindows, OperatingSystem, type IProcessEnvironment } from '../../../../../base/common/platform.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { upcastPartial } from '../../../../../base/test/common/mock.js';
@@ -19,6 +21,7 @@ import { ITerminalInstanceService, ITerminalService } from '../../browser/termin
 import { TerminalProcessManager } from '../../browser/terminalProcessManager.js';
 import { IEnvironmentVariableService } from '../../common/environmentVariable.js';
 import { IRemoteAgentService } from '../../../../services/remote/common/remoteAgentService.js';
+import { IHostService } from '../../../../services/host/browser/host.js';
 import { IRemoteAgentEnvironment } from '../../../../../platform/remote/common/remoteAgentEnvironment.js';
 import { workbenchInstantiationService } from '../../../../test/browser/workbenchTestServices.js';
 
@@ -28,6 +31,7 @@ function listenerCount(emitter: Emitter<unknown>): number {
 
 class TestTerminalChildProcess implements ITerminalChildProcess {
 	id: number = 0;
+	readonly calls: string[] = [];
 	private readonly _onProcessReady = new Emitter<IProcessReadyEvent>();
 	get capabilities() { return []; }
 	constructor(
@@ -51,12 +55,13 @@ class TestTerminalChildProcess implements ITerminalChildProcess {
 	onProcessReady = this._onProcessReady.event;
 	onProcessTitleChanged = Event.None;
 	onProcessShellTypeChanged = Event.None;
-	async start(): Promise<undefined> { return undefined; }
+	async start(): Promise<undefined> { this.calls.push('start'); return undefined; }
 	shutdown(immediate: boolean): void { }
 	input(data: string): void { }
 	sendSignal(signal: string): void { }
 	resize(cols: number, rows: number): void { }
 	clearBuffer(): void { }
+	setParentWindow(handle: VSBuffer): void { this.calls.push(`setParentWindow ${encodeHex(handle)}`); }
 	acknowledgeDataEvent(charCount: number): void { }
 	async setUnicodeVersion(version: '6' | '11'): Promise<void> { }
 	async getInitialCwd(): Promise<string> { return ''; }
@@ -385,6 +390,118 @@ suite('Workbench - TerminalProcessManager', () => {
 				{ containsCursorHome: data.includes('\x1b[H') },
 				{ containsCursorHome: false }
 			);
+		});
+	});
+
+	suite('parent window', () => {
+		function windowHandle(low: number, high: number = 0): VSBuffer {
+			const handle = VSBuffer.alloc(8);
+			handle.writeUInt32LE(low, 0);
+			handle.writeUInt32LE(high, 4);
+			return handle;
+		}
+
+		function sent(windowId: number): string {
+			return `setParentWindow ${encodeHex(windowHandle(windowId))}`;
+		}
+
+		async function setReparentConsoleWindow(enabled: boolean): Promise<void> {
+			const configurationService = instantiationService.get(IConfigurationService) as TestConfigurationService;
+			const terminalConfig = configurationService.getValue<{ integrated?: object } | undefined>('terminal');
+			await configurationService.setUserConfiguration('terminal', { integrated: { ...terminalConfig?.integrated, windowsReparentConsoleWindow: enabled } });
+			configurationService.onDidChangeConfigurationEmitter.fire({
+				affectsConfiguration: () => true,
+			} satisfies Partial<IConfigurationChangeEvent> as unknown as IConfigurationChangeEvent);
+		}
+
+		setup(async () => {
+			await setReparentConsoleWindow(true);
+			instantiationService.stub(IHostService, 'getNativeWindowHandle', async (windowId: number) => windowHandle(windowId));
+		});
+
+		test('sets the parent window before the process starts', async () => {
+			await manager.setParentWindow(4);
+			await manager.createProcess({}, 80, 24, false);
+			deepStrictEqual(terminalInstanceService.createdProcesses.map(p => p.calls), [isWindows ? [sent(4), 'start'] : ['start']]);
+		});
+
+		test('updates the parent window only when the terminal moves to another window', async () => {
+			await manager.setParentWindow(4);
+			await manager.createProcess({}, 80, 24, false);
+			await manager.setParentWindow(4);
+			await manager.setParentWindow(5);
+			deepStrictEqual(terminalInstanceService.createdProcesses.map(p => p.calls), [isWindows ? [sent(4), 'start', sent(5)] : ['start']]);
+		});
+
+		test('waits for the latest window before starting when the terminal moves during startup', async () => {
+			const lookups = new Map<number, DeferredPromise<VSBuffer>>();
+			instantiationService.stub(IHostService, 'getNativeWindowHandle', (windowId: number) => {
+				let lookup = lookups.get(windowId);
+				if (!lookup) {
+					lookup = new DeferredPromise<VSBuffer>();
+					lookups.set(windowId, lookup);
+				}
+				return lookup.p;
+			});
+			manager.setParentWindow(4);
+			manager.setParentWindow(5);
+			const created = manager.createProcess({}, 80, 24, false);
+			await lookups.get(4)?.complete(windowHandle(4));
+			await timeout(0);
+			ok(!isWindows || terminalInstanceService.createdProcesses.every(p => !p.calls.includes('start')), 'must not start before the latest window handle is known');
+			await lookups.get(5)?.complete(windowHandle(5));
+			await created;
+			deepStrictEqual(terminalInstanceService.createdProcesses.map(p => p.calls), [isWindows ? [sent(5), 'start'] : ['start']]);
+		});
+
+		test('passes all bytes of the window handle through unchanged', async () => {
+			instantiationService.stub(IHostService, 'getNativeWindowHandle', async () => windowHandle(0x80001234, 0x00000001));
+			await manager.setParentWindow(4);
+			await manager.createProcess({}, 80, 24, false);
+			deepStrictEqual(terminalInstanceService.createdProcesses.map(p => p.calls), [isWindows ? ['setParentWindow 3412008001000000', 'start'] : ['start']]);
+		});
+
+		test('does nothing when the setting is disabled', async () => {
+			await setReparentConsoleWindow(false);
+			await manager.setParentWindow(4);
+			await manager.createProcess({}, 80, 24, false);
+			deepStrictEqual(terminalInstanceService.createdProcesses.map(p => p.calls), [['start']]);
+		});
+
+		test('does not set the parent window of a process relaunched after the setting is disabled', async () => {
+			await manager.setParentWindow(4);
+			await manager.createProcess({}, 80, 24, false);
+			await setReparentConsoleWindow(false);
+			await manager.relaunch({}, 80, 24, false);
+			deepStrictEqual(terminalInstanceService.createdProcesses.map(p => p.calls), [isWindows ? [sent(4), 'start'] : ['start'], ['start']]);
+		});
+
+		test('sets the parent window of a process relaunched after the setting is enabled', async () => {
+			await setReparentConsoleWindow(false);
+			await manager.setParentWindow(4);
+			await manager.createProcess({}, 80, 24, false);
+			await setReparentConsoleWindow(true);
+			await manager.relaunch({}, 80, 24, false);
+			deepStrictEqual(terminalInstanceService.createdProcesses.map(p => p.calls), [['start'], isWindows ? [sent(4), 'start'] : ['start']]);
+		});
+
+		test('uses the window the terminal moved to while the setting was disabled', async () => {
+			await manager.setParentWindow(4);
+			await manager.createProcess({}, 80, 24, false);
+			await setReparentConsoleWindow(false);
+			await manager.setParentWindow(5);
+			await setReparentConsoleWindow(true);
+			await manager.relaunch({}, 80, 24, false);
+			deepStrictEqual(terminalInstanceService.createdProcesses.map(p => p.calls), isWindows ? [[sent(4), 'start'], [sent(5), 'start']] : [['start'], ['start']]);
+		});
+
+		test('does not send the previous window\'s handle when the new window\'s handle is not found', async () => {
+			instantiationService.stub(IHostService, 'getNativeWindowHandle', async (windowId: number) => windowId === 5 ? undefined : windowHandle(windowId));
+			await manager.setParentWindow(4);
+			await manager.createProcess({}, 80, 24, false);
+			await manager.setParentWindow(5);
+			await manager.relaunch({}, 80, 24, false);
+			deepStrictEqual(terminalInstanceService.createdProcesses.map(p => p.calls), [isWindows ? [sent(4), 'start'] : ['start'], ['start']]);
 		});
 	});
 });

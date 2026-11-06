@@ -177,28 +177,14 @@ export class LocalFileSearchWorker implements ILocalFileSearchWorker, IWebWorker
 
 		const ignoreGlobCase = queryProps.ignoreGlobCase || folderQuery.ignoreGlobCase;
 		const globOptions = { trimForExclusions: true, ignoreCase: ignoreGlobCase };
-		const folderExcludes = folderQuery.excludePattern?.map(excludePattern => glob.parse(excludePattern.pattern ?? {}, globOptions) as glob.ParsedExpression);
+		const folderExcludes = folderQuery.excludePattern?.map(excludePattern => glob.parseExcludeExpression(excludePattern.pattern ?? {}, globOptions)) ?? [];
+		const queryExclude = queryProps.excludePattern && glob.parseExcludeExpression(queryProps.excludePattern, { ignoreCase: queryProps.ignoreGlobCase });
+		const excludes = queryExclude ? [...folderExcludes, queryExclude] : folderExcludes;
 
-		const evalFolderExcludes = (path: string, basename: string, hasSibling: (query: string) => boolean) => {
-			return folderExcludes?.some(folderExclude => {
-				return folderExclude(path, basename, hasSibling);
-			});
-
-		};
-		// For folders, only check if the folder is explicitly excluded so walking continues.
-		const isFolderExcluded = (path: string, basename: string, hasSibling: (query: string) => boolean) => {
-			path = path.slice(1);
-			if (evalFolderExcludes(path, basename, hasSibling)) { return true; }
-			if (pathExcludedInQuery(queryProps, path)) { return true; }
-			return false;
-		};
-
-		// For files ensure the full check takes place.
-		const isFileIncluded = (path: string, basename: string, hasSibling: (query: string) => boolean) => {
-			path = path.slice(1);
-			if (evalFolderExcludes(path, basename, hasSibling)) { return false; }
-			if (!pathIncludedInQuery(queryProps, path, extUri)) { return false; }
-			return true;
+		const excludeEvaluator: glob.IExcludeTreeEvaluator = {
+			matchesExclude: (path, basename, hasSibling) => excludes.some(exclude => exclude.matchesExclude(path, basename, hasSibling)),
+			isExcepted: (path, basename) => excludes.some(exclude => exclude.isExcepted(path, basename)),
+			couldExceptionMatchBeneath: path => excludes.some(exclude => exclude.couldExceptionMatchBeneath(path)),
 		};
 
 		const processFile = (file: FileSystemFileHandle, prior: string): FileNode => {
@@ -221,7 +207,7 @@ export class LocalFileSearchWorker implements ILocalFileSearchWorker, IWebWorker
 			return handle.kind === 'file';
 		};
 
-		const processDirectory = async (directory: IWorkerFileSystemDirectoryHandle, prior: string, ignoreFile?: IgnoreFile): Promise<DirNode> => {
+		const processDirectory = async (directory: IWorkerFileSystemDirectoryHandle, prior: string, ignoreFile?: IgnoreFile, isParentExcluded = false): Promise<DirNode> => {
 
 			if (!folderQuery.disregardIgnoreFiles) {
 				const ignoreFiles = await Promise.all([
@@ -255,16 +241,23 @@ export class LocalFileSearchWorker implements ILocalFileSearchWorker, IWebWorker
 					}
 
 					const path = prior + basename;
-
-					if (ignoreFile && !ignoreFile.isPathIncludedInTraversal(path, handle.kind === 'directory')) {
+					const relativePath = path.slice(1);
+					const isDirectory = isFileSystemDirectoryHandle(handle);
+					const { isExcluded, isVisited } = glob.evaluateExcludeTreeEntry(excludeEvaluator, {
+						path: relativePath,
+						basename,
+						isDirectory,
+						isParentExcluded,
+						isHidden: () => !!ignoreFile && !ignoreFile.isPathIncludedInTraversal(path, isDirectory),
+						hasSibling: query => sibilings.has(query),
+					});
+					if (!isVisited) {
 						continue;
 					}
 
-					const hasSibling = (query: string) => sibilings.has(query);
-
-					if (isFileSystemDirectoryHandle(handle) && !isFolderExcluded(path, basename, hasSibling)) {
-						dirs.push(processDirectory(handle, path + '/', ignoreFile));
-					} else if (isFileSystemFileHandle(handle) && isFileIncluded(path, basename, hasSibling)) {
+					if (isFileSystemDirectoryHandle(handle)) {
+						dirs.push(processDirectory(handle, path + '/', ignoreFile, isExcluded));
+					} else if (isFileSystemFileHandle(handle) && !isExcluded && isIncludedByQuery(queryProps, relativePath, extUri)) {
 						files.push(processFile(handle, path));
 					}
 				}
@@ -327,20 +320,11 @@ function reviveQueryProps(queryProps: ICommonQueryProps<UriComponents>): ICommon
 }
 
 
-function pathExcludedInQuery(queryProps: ICommonQueryProps<URI>, fsPath: string): boolean {
+/**
+ * Checks the include patterns and search paths of the query. Excludes are evaluated during the walk.
+ */
+function isIncludedByQuery(queryProps: ICommonQueryProps<URI>, path: string, extUri: ExtUri): boolean {
 	const globOptions = queryProps.ignoreGlobCase ? { ignoreCase: true } : undefined;
-	if (queryProps.excludePattern && glob.match(queryProps.excludePattern, fsPath, globOptions)) {
-		return true;
-	}
-	return false;
-}
-
-function pathIncludedInQuery(queryProps: ICommonQueryProps<URI>, path: string, extUri: ExtUri): boolean {
-	const globOptions = queryProps.ignoreGlobCase ? { ignoreCase: true } : undefined;
-	if (queryProps.excludePattern && glob.match(queryProps.excludePattern, path, globOptions)) {
-		return false;
-	}
-
 	if (queryProps.includePattern || queryProps.usingSearchPaths) {
 		if (queryProps.includePattern && glob.match(queryProps.includePattern, path, globOptions)) {
 			return true;

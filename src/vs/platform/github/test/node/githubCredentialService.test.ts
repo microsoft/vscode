@@ -88,6 +88,44 @@ suite('GitHubCredentialService', () => {
 		}
 	}
 
+	test('notifies consumers when a missing credential becomes available before identity was resolved', async () => {
+		await withServer(async server => {
+			server.enqueue(...resolvedUserSteps(1));
+			const tokenProvider = disposables.add(new TestTokenProvider());
+			const transport = disposables.add(new GitHubTransport(nodeFetch));
+			const credentials = disposables.add(new GitHubCredentialService(undefined, undefined, transport, tokenProvider, server.createEndpointService()));
+			await assert.rejects(credentials.getCredential(signal()), error => error instanceof GitHubRequestError && error.kind === 'authentication');
+			const invalidations: string[] = [];
+			disposables.add(credentials.onDidInvalidate(event => invalidations.push(event.reason)));
+
+			tokenProvider.setToken('signed-in');
+			const resolved = await credentials.getCredential(signal());
+
+			assert.deepStrictEqual({ invalidations, accountId: resolved.account.accountId, requestCount: server.requests.length },
+				{ invalidations: ['replacement'], accountId: '101', requestCount: 1 });
+			server.assertSatisfied();
+		});
+	});
+
+	test('invalidates a reauthorized token even when its value and account are unchanged', async () => {
+		await withServer(async server => {
+			server.enqueue(...resolvedUserSteps(2));
+			const tokenProvider = disposables.add(new TestTokenProvider());
+			tokenProvider.setToken('same-token');
+			const transport = disposables.add(new GitHubTransport(nodeFetch));
+			const credentials = disposables.add(new GitHubCredentialService(undefined, undefined, transport, tokenProvider, server.createEndpointService()));
+			const first = await credentials.getCredential(signal());
+			tokenProvider.setToken('same-token');
+			const second = await credentials.getCredential(signal());
+
+			assert.deepStrictEqual({
+				aborted: first.signal.aborted, sameAccount: first.account.accountId === second.account.accountId,
+				generation: second.generation, requestCount: server.requests.length,
+			}, { aborted: true, sameAccount: true, generation: 2, requestCount: 2 });
+			server.assertSatisfied();
+		});
+	});
+
 	test('resolves a stable account once per accepted token generation', async () => {
 		await withServer(async server => {
 			server.enqueue(

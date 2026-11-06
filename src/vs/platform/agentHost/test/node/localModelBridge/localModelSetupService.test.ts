@@ -35,12 +35,21 @@ suite('LocalModelSetupService', () => {
 		const configurationService = store.add(new AgentConfigurationService(stateManager, logService));
 		const proxyResolver: IAgentHostProxyResolver = {
 			_serviceBrand: undefined,
+			clientCertificates: [],
+			registerCertificateProvider: () => toDisposable(() => { }),
+			loadClientCertificates: async () => [],
+			setClientCertificates: () => { },
+			loadCertificates: async () => [],
 			onDidRegisterConnection: Event.None,
 			onDidChangeConfiguration: Event.None,
 			register: () => toDisposable(() => { }),
+			registerSharedNetworkClient: () => toDisposable(() => { }),
+			notifySharedNetworkClientChanged: () => { },
+			lookupClientKerberosAuthorization: async () => undefined,
 			getConfigurationValue: () => undefined,
 			resolveProxy: async () => undefined,
 			fetch: () => Promise.reject(new Error('not used')),
+			createWebSocket: () => { throw new Error('not used'); },
 		};
 		const service = store.add(new LocalModelSetupService(
 			configurationService,

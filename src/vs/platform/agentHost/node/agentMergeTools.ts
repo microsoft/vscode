@@ -14,6 +14,7 @@ import { IGitHubClient } from '../../github/common/githubService.js';
 import { GitHubWorkflowRerunOptions, PullRequestReplyAndResolveResult } from '../../github/common/githubPullRequestMutationService.js';
 import { PullRequestCheck, PullRequestRef, PullRequestSnapshot } from '../../github/common/githubPullRequestService.js';
 import { GitHubRequestError } from '../../github/common/githubTransport.js';
+import { isUnreportedCheckSuite } from '../../github/common/pullRequestRequiredChecks.js';
 import { ILogService } from '../../log/common/log.js';
 import { AgentMergeAction, AgentMergeConfiguration, AgentMergeSessionOverrides, classifyAgentMergeRequiredChecks, isAgentMergeFeedbackAuthor, readAgentMergeFolderState } from '../common/agentMerge.js';
 import { IAgentConfigurationService } from './agentConfigurationService.js';
@@ -159,7 +160,7 @@ export class AgentMergeTools extends Disposable implements IAgentMergeToolAccess
 		if (!hasKnownRunAttempt(run)) {
 			return [];
 		}
-		const { jobs } = await context.apiClient.actions.listJobsForAttempt({ owner: context.ref.owner, name: context.ref.repo }, run.id, run.run_attempt, context.signal, {
+		const { jobs } = await context.apiClient.actions.listJobsForAttempt(context.ref, run.id, run.run_attempt, context.signal, {
 			caller: 'agentHost.agentMerge', maxPages: 100, query: { per_page: 100 },
 		});
 		this._assertCurrentCIContext(context);
@@ -234,7 +235,9 @@ export class AgentMergeTools extends Disposable implements IAgentMergeToolAccess
 			let evidenceId: string | undefined;
 			if (index < checks.length) {
 				const check = checks[index];
-				const annotations = check.type === 'checkRun' ? await context.apiClient.checks.listAnnotations({ owner: context.ref.owner, name: context.ref.repo }, Number(check.id), context.signal, {
+				// A check suite that reported no check run has no check run ID to read annotations by.
+				const unreported = isUnreportedCheckSuite(check);
+				const annotations = check.type === 'checkRun' && !unreported ? await context.apiClient.checks.listAnnotations(context.ref, Number(check.id), context.signal, {
 					caller: 'agentHost.agentMerge', maxPages: 100, query: { per_page: 100 },
 				}) : [];
 				const shown = annotations.slice(0, 3).map(annotation => ({
@@ -248,10 +251,11 @@ export class AgentMergeTools extends Disposable implements IAgentMergeToolAccess
 					runAttempt: run && hasKnownRunAttempt(run) ? run.run_attempt : null,
 					annotationLimit: annotations.length > shown.length || annotations.some(annotation => (annotation.message?.length ?? 0) > 300 || (annotation.raw_details?.length ?? 0) > 0)
 						? 'Annotation detail limit: only three bounded annotation summaries are exposed; additional annotation content is unavailable through this tool.' : null,
-					logAvailability: !run ? 'No workflow run is available for this check on the authorized head.'
-						: !hasKnownRunAttempt(run) ? 'The workflow attempt is unknown. Pinned log evidence is unavailable.'
-							: jobs.some(candidate => candidate.run.id === run.id) ? 'See corresponding job entries.'
-								: 'No failed jobs are available for this workflow attempt.',
+					logAvailability: unreported ? 'This check suite failed without reporting a check run, so it has no logs or annotations. A GitHub Actions workflow does that when it fails to start, such as with an invalid workflow file.'
+						: !run ? 'No workflow run is available for this check on the authorized head.'
+							: !hasKnownRunAttempt(run) ? 'The workflow attempt is unknown. Pinned log evidence is unavailable.'
+								: jobs.some(candidate => candidate.run.id === run.id) ? 'See corresponding job entries.'
+									: 'No failed jobs are available for this workflow attempt.',
 				};
 			} else {
 				const { run, job, runAttempt } = jobs[index - checks.length];
@@ -437,7 +441,8 @@ function failedRequiredChecks(context: IAgentMergeTurnContext, deferredCheckIds 
 	return checks?.kind === 'ready' ? checks.failed.filter(check => !deferredCheckIds.has(check.id)) : [];
 }
 
-function workflowRunId(check: PullRequestCheck): string | undefined {
+/** The workflow run that reported a check, by the run ID in its details URL. */
+export function workflowRunId(check: PullRequestCheck): string | undefined {
 	return /\/actions\/runs\/(?<runId>\d+)/.exec(check.detailsUrl ?? '')?.groups?.runId;
 }
 
@@ -451,7 +456,7 @@ function hasKnownRunAttempt(run: WorkflowRun): run is WorkflowRun & { readonly r
 
 /** Reads the complete bounded workflow inventory used by CI evidence and deferred reruns. */
 export async function getWorkflowRuns(client: IGitHubAccountClient, ref: PullRequestRef, headSha: string, signal: AbortSignal, options?: ApiRequestOptions): Promise<readonly WorkflowRun[]> {
-	const { workflow_runs } = await client.actions.listRuns({ owner: ref.owner, name: ref.repo }, signal, {
+	const { workflow_runs } = await client.actions.listRuns(ref, signal, {
 		caller: 'agentHost.agentMerge', ...options, maxPages: 100, query: { head_sha: headSha, per_page: 100 },
 	});
 	return workflow_runs;

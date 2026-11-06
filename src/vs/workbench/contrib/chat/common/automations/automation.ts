@@ -5,14 +5,16 @@
 
 import { URI } from '../../../../../base/common/uri.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
+import type { AutomationTrigger } from '../../../../../platform/github/common/missionControl/automations.js';
 import type { JsonPrimitive } from '../../../../../platform/agentHost/common/state/protocol/state.js';
 
 /**
  * How often an automation runs. `hourly` fires every hour from creation/update;
  * `daily`/`weekly` fire at the configured hour/minute (and day-of-week);
- * `weekdays` fires Monday-Friday at the configured local wall-clock hour/minute.
+ * `weekdays` fires Monday-Friday at the configured local wall-clock hour/minute;
+ * `cron` uses the Agent Host's five-field cron grammar.
  */
-export type AutomationInterval = 'manual' | 'hourly' | 'daily' | 'weekdays' | 'weekly' | 'custom';
+export type AutomationInterval = 'manual' | 'hourly' | 'daily' | 'weekdays' | 'weekly' | 'cron' | 'custom';
 
 /**
  * Describes the cadence at which an automation should fire.
@@ -25,10 +27,16 @@ export interface IAutomationSchedule {
 	/** Absent for Agent Host local-time semantics. */
 	readonly timeZone?: 'UTC';
 
-	/** Hour-of-day, 0-23. Ignored for `manual` and `hourly`. */
+	/** Five-field AHP cron expression. Required for `cron`. */
+	readonly cronExpression?: string;
+
+	/** Preserved host time zone for `cron`; defaults to the local time zone on creation. */
+	readonly cronTimeZone?: string;
+
+	/** Hour-of-day, 0-23. Ignored for `manual`, `hourly` and `cron`. */
 	readonly scheduleHour: number;
 
-	/** Minute-of-hour, 0-59. Ignored for `manual` and `hourly`. */
+	/** Minute-of-hour, 0-59. Ignored for `manual`, `hourly` and `cron`. */
 	readonly scheduleMinute: number;
 
 	/** Day-of-week, 0 (Sunday) through 6 (Saturday). Only used for `weekly`. */
@@ -68,10 +76,13 @@ export interface IAutomationSessionTemplate {
 	readonly config?: Readonly<Record<string, unknown>>;
 }
 
-export function isAutomationModelConfiguration(value: unknown): value is NonNullable<IAutomationSessionTemplate['modelConfiguration']> {
+export function isAutomationModelConfiguration(value: unknown, allowUndefined?: false): value is NonNullable<IAutomationSessionTemplate['modelConfiguration']>;
+export function isAutomationModelConfiguration(value: unknown, allowUndefined: true): value is Readonly<Record<string, JsonPrimitive | undefined>>;
+export function isAutomationModelConfiguration(value: unknown, allowUndefined = false): value is Readonly<Record<string, JsonPrimitive | undefined>> {
 	return !!value && typeof value === 'object' && !Array.isArray(value)
 		&& (Object.getPrototypeOf(value) === Object.prototype || Object.getPrototypeOf(value) === null)
 		&& Object.values(value).every(entry => entry === null
+			|| (allowUndefined && entry === undefined)
 			|| typeof entry === 'string'
 			|| typeof entry === 'boolean'
 			|| (typeof entry === 'number' && Number.isFinite(entry)));
@@ -89,22 +100,27 @@ export function assertAutomationSessionTemplate(template: IAutomationSessionTemp
 	}
 }
 
-/**
- * A single scheduled automation. Identity is the immutable `id`; everything
- * else may be edited by the user.
- */
+/** Cloud-owned event configuration, retained independently of its schedule projection. */
+export interface IAutomationCloudTrigger {
+	readonly triggers: Readonly<Record<string, AutomationTrigger>>;
+	readonly requireActorWritePermission?: boolean;
+}
+
+/** A single automation with immutable identity and provider-owned execution configuration. */
 export interface IAutomationDescriptor {
 	/** Opaque identifier, unique across concrete providers as well as within one host. */
 	readonly id: string;
 	readonly name: string;
 	readonly prompt: string;
 	readonly schedule: IAutomationSchedule;
+	readonly cloudTrigger?: IAutomationCloudTrigger;
 
 	/** Explicit workspace-backed or workspace-less execution target. */
 	readonly target: AutomationTarget;
 	/** Provider-owned display metadata for targets whose URI basename is not a useful label. */
 	readonly targetDisplay?: { readonly label: string; readonly icon: ThemeIcon };
 	readonly externalResource?: URI;
+	readonly ownership?: 'user' | 'repository';
 
 	/** Complete provider-owned session template. */
 	readonly sessionTemplate?: IAutomationSessionTemplate;

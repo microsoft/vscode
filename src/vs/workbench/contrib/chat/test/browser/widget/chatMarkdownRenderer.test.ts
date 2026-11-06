@@ -6,19 +6,20 @@
 import assert from 'assert';
 import sinon from 'sinon';
 import { allowedMarkdownHtmlAttributes } from '../../../../../../base/browser/markdownRenderer.js';
-import { DeferredPromise } from '../../../../../../base/common/async.js';
+import { DeferredPromise, timeout } from '../../../../../../base/common/async.js';
 import { MarkdownString } from '../../../../../../base/common/htmlContent.js';
 import { OperatingSystem } from '../../../../../../base/common/platform.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { assertSnapshot } from '../../../../../../base/test/common/snapshot.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { OpenerService } from '../../../../../../editor/browser/services/openerService.js';
-import { AGENT_HOST_LABEL_FORMATTER, agentHostAuthority, agentHostLabelFormatter, toAgentHostUri } from '../../../../../../platform/agentHost/common/agentHostUri.js';
+import { AGENT_HOST_LABEL_FORMATTER, agentHostAuthority, agentHostLabelFormatter, registerLocalAgentHostWindowScheme, toAgentHostUri } from '../../../../../../platform/agentHost/common/agentHostUri.js';
 import { ICommandService } from '../../../../../../platform/commands/common/commands.js';
 import { IHoverService } from '../../../../../../platform/hover/browser/hover.js';
 import { NullHoverService } from '../../../../../../platform/hover/test/browser/nullHoverService.js';
 import { ILabelService } from '../../../../../../platform/label/common/label.js';
 import { IMarkdownRendererService, MarkdownRendererService } from '../../../../../../platform/markdown/browser/markdownRenderer.js';
+import { ServiceCollection } from '../../../../../../platform/instantiation/common/serviceCollection.js';
 import { IOpenerService } from '../../../../../../platform/opener/common/opener.js';
 import { MarkedKatexSupport } from '../../../../markdown/browser/markedKatexSupport.js';
 import { allowedChatMarkdownHtmlTags, ChatContentMarkdownRenderer, getChatMarkdownRenderOptions } from '../../../browser/widget/chatContentMarkdownRenderer.js';
@@ -93,6 +94,48 @@ suite('ChatMarkdownRenderer', () => {
 
 			assert.deepStrictEqual(executeCommand.args, [[commandId, 'marker']]);
 		});
+	});
+
+	test('keeps links with a scheme the window reads for the local agent host only while it is registered', () => {
+		const href = 'vscode-vfs://github/microsoft/vscode/src/a.ts';
+		const links = () => {
+			const result = store.add(testRenderer.render(new MarkdownString(`[a.ts](${href})`)));
+			return Array.from(result.element.querySelectorAll('a'), link => link.dataset.href);
+		};
+		const before = links();
+		const registration = registerLocalAgentHostWindowScheme('vscode-vfs');
+		const registered = links();
+		registration.dispose();
+
+		assert.deepStrictEqual({ before, registered }, { before: [], registered: [href] });
+	});
+
+	test('links open with the opener of the renderer\'s scope, such as of the window that shows the chat, not the global one', async () => {
+		const globalOpened: string[] = [];
+		const scopeOpened: string[] = [];
+		instantiationService.stub(IOpenerService, { open: async (target: URI | string) => { globalOpened.push(target.toString()); return true; } });
+		instantiationService.stub(IMarkdownRendererService, instantiationService.createInstance(MarkdownRendererService));
+		const scopedInstantiationService = store.add(instantiationService.createChild(new ServiceCollection([IOpenerService, { open: async (target: URI | string) => { scopeOpened.push(target.toString()); return true; } }])));
+		const renderer = scopedInstantiationService.createInstance(ChatContentMarkdownRenderer);
+		const result = store.add(renderer.render(new MarkdownString('[notes](file:///workspace/notes.ts)')));
+
+		result.element.querySelector<HTMLAnchorElement>('a[data-href]')!.click();
+		await timeout(0);
+
+		assert.deepStrictEqual({ globalOpened, scopeOpened }, { globalOpened: [], scopeOpened: ['file:///workspace/notes.ts'] });
+	});
+
+	test('a link clicked in the chat output is a user gesture, which lets a chat window open it in itself', async () => {
+		const opened: { target: string; fromUserGesture: boolean | undefined }[] = [];
+		instantiationService.stub(IOpenerService, { open: async (target: URI | string, options?: { fromUserGesture?: boolean }) => { opened.push({ target: target.toString(), fromUserGesture: options?.fromUserGesture }); return true; } });
+		instantiationService.stub(IMarkdownRendererService, instantiationService.createInstance(MarkdownRendererService));
+		const renderer = instantiationService.createInstance(ChatContentMarkdownRenderer);
+		const result = store.add(renderer.render(new MarkdownString('[chat](file:///workspace/session-1)')));
+
+		result.element.querySelector<HTMLAnchorElement>('a[data-href]')!.click();
+		await timeout(0);
+
+		assert.deepStrictEqual(opened, [{ target: 'file:///workspace/session-1', fromUserGesture: true }]);
 	});
 
 	test('workspace edits render canonical file links without trusting imported content', () => {
@@ -232,6 +275,29 @@ suite('ChatMarkdownRenderer', () => {
 			outerHTML: '<div class="rendered-markdown"><p>Keep ~single tildes~ but strike <del>double tildes</del>.</p></div>',
 			textContent: 'Keep ~single tildes~ but strike double tildes.',
 		});
+	});
+
+	test('renders <br> inside table cells as line breaks', () => {
+		const md = new MarkdownString([
+			'| Country | Demographics |',
+			'| --- | --- |',
+			'| Japan | • Population: 123M<br>• Median age: **49<BR/>years**<br />• `<br>` stays code |',
+			'',
+			'Outside tables <br> stays text',
+		].join('\n'));
+		const render = (fillInIncompleteTokens: boolean) => {
+			const result = store.add(testRenderer.render(md, { fillInIncompleteTokens, markedOptions: { gfm: true, breaks: true } }));
+			return {
+				cell: result.element.querySelector('tbody td:last-child')?.innerHTML,
+				paragraph: result.element.querySelector('p')?.innerHTML,
+			};
+		};
+
+		const expected = {
+			cell: '• Population: 123M<br>• Median age: <strong>49<br>years</strong><br>• <code>&lt;br&gt;</code> stays code',
+			paragraph: 'Outside tables &lt;br&gt; stays text',
+		};
+		assert.deepStrictEqual({ complete: render(false), streaming: render(true) }, { complete: expected, streaming: expected });
 	});
 
 	test('supportHtml with one-line markdown', async () => {

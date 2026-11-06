@@ -16,7 +16,7 @@ import { ContributionEnablementState } from '../../../chat/common/enablement.js'
 import { IExtensionsWorkbenchService } from '../../../extensions/common/extensions.js';
 import { IViewsService } from '../../../../services/views/common/viewsService.js';
 import { findLocalMcpServer, McpBrowseCommand, McpBrowsePageCommand, ShowInstalledMcpServersCommand } from '../../browser/mcpCommands.js';
-import { IMcpServer, IMcpService, InstalledMcpServersViewId } from '../../common/mcpTypes.js';
+import { IMcpServer, IMcpService, IMcpWorkbenchService, InstalledMcpServersViewId } from '../../common/mcpTypes.js';
 
 type AgentHostMcpServer = ReturnType<IAgentHostCustomizationService['getMcpServers']>[number];
 
@@ -95,19 +95,18 @@ suite('MCP commands', () => {
 		}]);
 	});
 
-	test('extensions browse action searches for MCP servers', async () => {
+	test('extensions browse action uses the MCP workbench search routing', async () => {
 		const instantiationService = store.add(new TestInstantiationService());
 		const searches: string[] = [];
-		instantiationService.stub(IExtensionsWorkbenchService, new class extends mock<IExtensionsWorkbenchService>() {
-			override openSearch(searchValue: string): Promise<void> {
+		instantiationService.stub(IMcpWorkbenchService, new class extends mock<IMcpWorkbenchService>() {
+			override async openSearch(searchValue: string): Promise<void> {
 				searches.push(searchValue);
-				return Promise.resolve();
 			}
 		}());
 
 		await instantiationService.invokeFunction(accessor => new McpBrowsePageCommand().run(accessor));
 
-		assert.deepStrictEqual(searches, ['@mcp ']);
+		assert.deepStrictEqual(searches, ['']);
 	});
 
 	test('show installed resets the Extensions search before opening the view', async () => {

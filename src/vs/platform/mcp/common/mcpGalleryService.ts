@@ -13,7 +13,7 @@ import { URI } from '../../../base/common/uri.js';
 import { localize } from '../../../nls.js';
 import { IFileService } from '../../files/common/files.js';
 import { ILogService } from '../../log/common/log.js';
-import { asJson, asText, isSuccess, IRequestService, readBoundedResponse } from '../../request/common/request.js';
+import { asJson, asText, isSuccess, IRequestService, readBoundedResponse, retryAfterFromHeaders } from '../../request/common/request.js';
 import { GalleryMcpServerStatus, IGalleryMcpServer, IMcpGalleryQueryPage, IMcpGalleryQueryPageOptions, IMcpGalleryServerResolveResult, IMcpGalleryService, IMcpServerArgument, IMcpServerInput, IMcpServerKeyValueInput, IMcpServerPackage, IQueryOptions, McpGalleryResolveStatus, RegistryType, RemoteTransport, Transport, TransportType } from './mcpManagement.js';
 import { IMcpGalleryManifestService, McpGalleryManifestStatus, getMcpGalleryManifestResourceUri, McpGalleryResourceType, IMcpGalleryManifest } from './mcpGalleryManifest.js';
 import { IIterativePager, IIterativePage } from '../../../base/common/paging.js';
@@ -70,6 +70,12 @@ const mcpServerRequestTimeout = 30_000;
 export class UnsupportedMcpGalleryPackageError extends Error {
 	constructor(readonly repositoryUrl: URI | undefined) {
 		super('The MCP server has no supported package or remote endpoint.');
+	}
+}
+
+export class McpGalleryServerUrlError extends Error {
+	constructor() {
+		super('Cannot fetch MCP server from outside the configured MCP gallery');
 	}
 }
 
@@ -708,7 +714,7 @@ namespace McpServerSchemaVersion_v0_1 {
 				return undefined;
 			}
 
-			const { 'io.modelcontextprotocol.registry/official': registryInfo, ...apicInfo } = from._meta;
+			const { 'io.modelcontextprotocol.registry/official': registryInfo, ...apicInfo } = from._meta ?? {};
 			const githubInfo = from.server._meta?.['io.modelcontextprotocol.registry/publisher-provided']?.github as IGitHubInfo | undefined;
 			const packages = filterMcpPackages(
 				from.server.packages,
@@ -794,6 +800,27 @@ namespace McpServerSchemaVersion_v0 {
 
 const DefaultPageSize = 50;
 
+/** Reads the configuration and identity using the same schema adapters as Gallery discovery. */
+export function parseMcpGalleryServerConfiguration(data: unknown): Pick<IGalleryMcpServer, 'name' | 'version' | 'configuration'> | undefined {
+	const server = McpServerSchemaVersion_v0.SERIALIZER.toRawGalleryMcpServer(data);
+	return server ? {
+		name: server.name,
+		version: server.version,
+		configuration: { packages: server.packages, remotes: server.remotes },
+	} : undefined;
+}
+
+const maxMcpGalleryErrorResponseBytes = 1024;
+
+/**
+ * The registry rejected a continuation cursor that it previously issued.
+ */
+export class McpGalleryInvalidCursorError extends Error {
+	constructor() {
+		super(localize('mcpGalleryInvalidCursor', "The MCP gallery could not continue loading because the registry rejected its pagination cursor. Retry to refresh the results."));
+	}
+}
+
 interface IQueryState {
 	readonly searchText?: string;
 	readonly cursor?: string;
@@ -826,6 +853,7 @@ export class McpGalleryService extends Disposable implements IMcpGalleryService 
 	_serviceBrand: undefined;
 
 	private galleryMcpServerDataSerializers: Map<string, IGalleryMcpServerDataSerializer>;
+	private readonly rateLimits = new Map<string, { until: number; retryAfterSeconds: number | undefined }>();
 
 	constructor(
 		@IRequestService private readonly requestService: IRequestService,
@@ -1103,6 +1131,12 @@ export class McpGalleryService extends Disposable implements IMcpGalleryService 
 		};
 	}
 
+	private createRateLimitError(retryAfterSeconds: number | undefined): Error {
+		return retryAfterSeconds === undefined
+			? new Error(localize('mcpGalleryRateLimited', "The MCP gallery is temporarily rate limited. Try again later."))
+			: new Error(localize('mcpGalleryRateLimitedWithRetry', "The MCP gallery is temporarily rate limited. Try again in {0} seconds.", retryAfterSeconds));
+	}
+
 	private async queryRawGalleryMcpServers(query: Query, mcpGalleryManifest: IMcpGalleryManifest, token: CancellationToken, strict = false): Promise<IRawGalleryMcpServersResult> {
 		const mcpGalleryUrl = this.getMcpGalleryUrl(mcpGalleryManifest);
 		if (!mcpGalleryUrl) {
@@ -1124,6 +1158,18 @@ export class McpGalleryService extends Disposable implements IMcpGalleryService 
 					throw error;
 				}
 			}
+		}
+
+		const rateLimit = this.rateLimits.get(mcpGalleryUrl);
+		const rateLimitRemaining = (rateLimit?.until ?? 0) - Date.now();
+		if (rateLimitRemaining > 0) {
+			if (strict) {
+				throw this.createRateLimitError(rateLimit?.retryAfterSeconds === undefined ? undefined : Math.ceil(rateLimitRemaining / 1000));
+			}
+			return { servers: [], metadata: { count: 0 } };
+		}
+		if (rateLimit) {
+			this.rateLimits.delete(mcpGalleryUrl);
 		}
 
 		let url = `${mcpGalleryUrl}?limit=${query.pageSize}&version=latest`;
@@ -1154,13 +1200,39 @@ export class McpGalleryService extends Disposable implements IMcpGalleryService 
 		}
 
 		if (!isSuccess(context)) {
-			this.logService.error(`Failed to query MCP gallery: Server returned ${context.res.statusCode}`);
+			if (context.res.statusCode === 429) {
+				const retryAfterSeconds = retryAfterFromHeaders(context.res.headers);
+				const backoffSeconds = Math.min(retryAfterSeconds ?? 60, 60 * 60);
+				const until = Date.now() + backoffSeconds * 1000;
+				const current = this.rateLimits.get(mcpGalleryUrl);
+				if (!current || until > current.until) {
+					this.rateLimits.set(mcpGalleryUrl, {
+						until,
+						retryAfterSeconds: retryAfterSeconds === undefined ? undefined : backoffSeconds,
+					});
+				}
+				this.logService.warn(`Failed to query MCP gallery: Server returned 429; retrying is blocked for ${backoffSeconds} seconds.`);
+				if (strict) {
+					throw this.createRateLimitError(retryAfterSeconds === undefined ? undefined : backoffSeconds);
+				}
+				return { servers: [], metadata: { count: 0 } };
+			}
+			if (context.res.statusCode === 400 && query.cursor) {
+				const response = await readBoundedResponse(context, maxMcpGalleryErrorResponseBytes, () => new Error('MCP gallery error response exceeded the size limit.')).catch(() => undefined);
+				if (response?.trim() === 'Invalid cursor parameter') {
+					this.logService.error('Failed to query MCP gallery: Server rejected its pagination cursor.');
+					if (strict) {
+						throw new McpGalleryInvalidCursorError();
+					}
+					return { servers: [], metadata: { count: 0 } };
+				}
+			}
+			this.logService.error(`Failed to query MCP gallery: Server returned ${context.res.statusCode}.`);
 			if (strict) {
 				throw new Error(localize('mcpGalleryQueryFailed', "The MCP gallery returned HTTP {0}.", context.res.statusCode));
 			}
 			return { servers: [], metadata: { count: 0 } };
 		}
-
 		const data = await asJson(context);
 
 		if (!data) {
@@ -1186,23 +1258,36 @@ export class McpGalleryService extends Disposable implements IMcpGalleryService 
 		}
 		const validatedMcpServerUrl = getMcpServerUrlInGallery(mcpServerUrl, manifest);
 		if (!validatedMcpServerUrl) {
-			throw new Error('Cannot fetch MCP server from outside the configured MCP gallery');
+			throw new McpGalleryServerUrlError();
 		}
 
-		const context = await this.requestService.request({
+		const options = {
 			type: 'GET',
 			url: validatedMcpServerUrl,
 			followRedirects: 0,
 			...(mcpGalleryManifest ? { timeout: mcpServerRequestTimeout } : {}),
 			callSite: 'mcpGalleryService.getMcpServer'
-		}, token);
+		};
+		let context = await this.requestService.request(options, token);
 
 		try {
-			// A definitive 404 means the registry authoritatively does not contain this
-			// server. Any other error status (e.g. 401/403/429/5xx) is transient or
-			// undetermined and must throw so callers do not treat it as a "not found".
+			// Only a 404 from the requested endpoint proves absence; the slash-terminated URL below is a guess.
 			if (context.res.statusCode === 404) {
 				return undefined;
+			}
+
+			// Browser fetch hides manual redirects behind status 0; probe only the same URL with a trailing slash.
+			if (context.res.statusCode !== undefined && [0, 301, 302, 303, 307, 308].includes(context.res.statusCode)) {
+				const url = new URL(validatedMcpServerUrl);
+				if (!url.pathname.endsWith('/')) {
+					url.pathname += '/';
+					const canonicalUrl = getMcpServerUrlInGallery(url.href, manifest);
+					if (!canonicalUrl) {
+						throw new McpGalleryServerUrlError();
+					}
+					context.stream.destroy();
+					context = await this.requestService.request({ ...options, url: canonicalUrl }, token);
+				}
 			}
 
 			if (!isSuccess(context)) {

@@ -310,16 +310,19 @@ suite('Agents Window draft handoff and Copilot introduction', () => {
 		const banner = properties[ChatConfiguration.AgentsWindowBannerEnabled];
 		const developer = properties[ChatConfiguration.AgentsWindowBannerDeveloperMode];
 		const reveal = properties[ChatConfiguration.AgentsWindowBannerRevealCurrentSession];
+		const transferDraft = properties[ChatConfiguration.OpenInAgentsWindowTransferDraft];
 		const introduction = properties[ChatConfiguration.CopilotHarnessIntroductionMode];
 		assert.deepStrictEqual({
 			banner: { default: banner.default, experiment: banner.experiment },
 			developer: { default: developer.default, tags: developer.tags, experiment: Object.hasOwn(developer, 'experiment') },
 			reveal: { type: reveal.type, default: reveal.default, scope: reveal.scope, tags: reveal.tags, experiment: reveal.experiment },
+			transferDraft: { type: transferDraft.type, default: transferDraft.default, tags: transferDraft.tags, experiment: { present: Object.hasOwn(transferDraft, 'experiment'), value: transferDraft.experiment } },
 			introduction: { enum: introduction.enum, tags: introduction.tags },
 		}, {
 			banner: { default: false, experiment: { mode: 'auto' } },
 			developer: { default: false, tags: ['experimental', 'advanced'], experiment: false },
 			reveal: { type: 'boolean', default: true, scope: ConfigurationScope.APPLICATION, tags: ['experimental', 'advanced'], experiment: { mode: 'auto' } },
+			transferDraft: { type: 'boolean', default: true, tags: ['experimental'], experiment: { present: true, value: { mode: 'auto' } } },
 			introduction: {
 				enum: [CopilotHarnessIntroductionMode.Off, CopilotHarnessIntroductionMode.NewSession, CopilotHarnessIntroductionMode.AfterRequest],
 				tags: ['experimental'],

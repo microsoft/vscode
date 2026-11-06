@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { isSafari } from '../../../../base/common/platform.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { cancelResponseBody, parseResponseJson, readBoundedResponse } from '../../common/responseReader.js';
 import { RequestError } from '../../common/types.js';
@@ -25,7 +26,7 @@ suite('Response readers', () => {
 		});
 		const result = await readBoundedResponse(new Response(body), 4, new AbortController().signal);
 		assert.deepStrictEqual({ bytes: [...result.bytes], truncated: result.truncated, cancellations, locked: body.locked }, {
-			bytes: [1, 2, 3, 4], truncated: false, cancellations: 0, locked: false,
+			bytes: [1, 2, 3, 4], truncated: false, cancellations: 0, locked: isSafari,
 		});
 	});
 
@@ -42,10 +43,23 @@ suite('Response readers', () => {
 			});
 			const result = await readBoundedResponse(new Response(body), limit, new AbortController().signal);
 			assert.deepStrictEqual({ bytes: [...result.bytes], truncated: result.truncated, cancellations, locked: body.locked }, {
-				bytes: [1, 2, 3].slice(0, limit), truncated: true, cancellations: 1, locked: false,
+				bytes: [1, 2, 3].slice(0, limit), truncated: true, cancellations: 1, locked: isSafari,
 			});
 		});
 	}
+
+	test('releases the reader lock after complete or truncated reads, except in WebKit', async () => {
+		// releaseLock() can hang WebKit (regressed by https://bugs.webkit.org/show_bug.cgi?id=309882).
+		const read = async (maximumBytes: number) => {
+			const response = new Response('hello');
+			const { bytes, truncated } = await readBoundedResponse(response, maximumBytes, new AbortController().signal);
+			return { text: new TextDecoder().decode(bytes), truncated, locked: response.body?.locked };
+		};
+		assert.deepStrictEqual([await read(5), await read(2)], [
+			{ text: 'hello', truncated: false, locked: isSafari },
+			{ text: 'he', truncated: true, locked: isSafari },
+		]);
+	});
 
 	test('a missing response body is empty unless the caller already cancelled', async () => {
 		const controller = new AbortController();
@@ -65,14 +79,14 @@ suite('Response readers', () => {
 		const reason = new Error('Cancelled');
 		controller.abort(reason);
 		await assert.rejects(pending, error => error === reason);
-		assert.deepStrictEqual({ cancellations, locked: body.locked }, { cancellations: 1, locked: false });
+		assert.deepStrictEqual({ cancellations, locked: body.locked }, { cancellations: 1, locked: isSafari });
 	});
 
-	test('read errors propagate without retaining the reader lock', async () => {
+	test('read errors propagate without retaining the reader lock outside WebKit', async () => {
 		const error = new Error('Body read failed');
 		const body = new ReadableStream<Uint8Array>({ start: controller => controller.error(error) });
 		await assert.rejects(readBoundedResponse(new Response(body), 10, new AbortController().signal), actual => actual === error);
-		assert.strictEqual(body.locked, false);
+		assert.strictEqual(body.locked, isSafari);
 	});
 
 	test('body cancellation failures are logged without rejecting the caller', async () => {

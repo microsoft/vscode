@@ -19,6 +19,7 @@ import { FetcherService } from '../../networking/vscode-node/fetcherServiceImpl'
 import { IExperimentationTelemetry, ITelemetryService } from '../common/telemetry';
 import { BaseExperimentationService, RevocationGate, UserInfoStore } from '../node/baseExperimentationService';
 import { createTasFetch } from './tasFetch';
+import { INTEGRATION_ID } from '../../endpoint/common/licenseAgreement';
 
 function getTargetPopulation(isPreRelease: boolean): TargetPopulation {
 	if (isPreRelease) {
@@ -224,7 +225,7 @@ class WindowKindFilterProvider implements IExperimentationFilterProvider {
 }
 
 /**
- * Emits Copilot account, Chat extension version, and environment userParams for the new TAS assignments API.
+ * Emits integrator, Copilot account, Chat extension version, and environment userParams for the new TAS assignments API.
  * Reads the token fresh on each call; generic app/build/extension-identity/target filters come from `vscode-tas-client`.
  */
 export class CopilotAssignmentsFilterProvider implements IExperimentationFilterProvider {
@@ -244,6 +245,7 @@ export class CopilotAssignmentsFilterProvider implements IExperimentationFilterP
 			: undefined;
 
 		const filters = new Map<string, string | undefined>();
+		filters.set('integratorid', INTEGRATION_ID);
 		filters.set('vscode_core_platform', PlatformToString(platform));
 		if (this._releaseDate) {
 			filters.set('vscode_core_releasedate', this._releaseDate);

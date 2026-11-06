@@ -4,8 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'node:assert/strict';
-import { globSync, mkdtempSync, readFileSync, rmSync } from 'node:fs';
-import os from 'node:os';
+import { globSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 import { suite, test } from 'node:test';
 import { load } from 'js-yaml';
@@ -124,19 +123,33 @@ suite('Product test checkpoint templates', () => {
 		});
 	});
 
-	test('wrapper copies the test step and records and publishes its checkpoint on the same condition', () => {
+	test('wrapper copies the test step and records its checkpoint only when nothing in the job failed', () => {
 		// Step parameters arrive normalized (e.g. `powershell:` as `task: PowerShell@2`), so the test step must be copied as is
-		const condition = 'and(${{ coalesce(parameters.testStep.condition, \'succeeded()\') }}, ne(variables[\'TEST_CHECKPOINT_${{ upper(replace(parameters.testId, \'-\', \'_\')) }}_HIT\'], \'true\'))';
+		const hit = 'ne(variables[\'TEST_CHECKPOINT_${{ upper(replace(parameters.testId, \'-\', \'_\')) }}_HIT\'], \'true\')';
 		assert.deepStrictEqual({ parameters: wrapper.parameters, steps: wrapper.steps }, {
 			parameters: [{ name: 'testId', type: 'string' }, { name: 'testStep', type: 'step' }],
 			steps: [
 				{
 					'${{ each pair in parameters.testStep }}': { '${{ if ne(pair.key, \'condition\') }}': { '${{ pair.key }}': '${{ pair.value }}' } },
-					condition,
+					condition: `and(\${{ coalesce(parameters.testStep.condition, 'succeeded()') }}, ${hit})`,
 				},
-				{ template: './publish-test-checkpoint.yml@self', parameters: { testId: '${{ parameters.testId }}', condition } },
+				// Not the test's own condition: a test that runs after a failure (succeededOrFailed())
+				// and then fails itself must not be recorded as passed
+				{ template: './publish-test-checkpoint.yml@self', parameters: { testId: '${{ parameters.testId }}', condition: `and(succeeded(), ${hit})` } },
 			],
 		});
+	});
+
+	test('the record condition does not depend on the test step\'s own condition', () => {
+		// No checkpointed test sets its own condition today, but one that runs after a failure
+		// (succeededOrFailed()) would still only be recorded when it passes
+		const conditions = (['win32', 'linux', 'darwin'] as const).flatMap(os => allCalls({ win32: windowsTestFile, linux: linuxTestFile, darwin: darwinTestFile }[os], os)
+			.filter(call => call.testStep.condition !== undefined)
+			.map(call => `${call.testId}: ${call.testStep.condition}`));
+		assert.deepStrictEqual({
+			conditions,
+			record: (wrapper.steps[1] as { parameters: { condition: string } }).parameters.condition.startsWith('and(succeeded(), '),
+		}, { conditions: [], record: true });
 	});
 
 	test('restore never resets an already initialized job', () => {
@@ -187,11 +200,11 @@ suite('Product test checkpoint templates', () => {
 		}]);
 	});
 
-	test('every test task is registered, independently published and gated', async t => {
+	test('every test task is registered, independently recorded and gated', async () => {
 		const windowsExpected = [
 			'unit-electron', 'unit-node', 'unit-browser-chromium',
 			'integration-agent-host-e2e', 'integration-electron', 'integration-browser-firefox', 'integration-remote',
-			'smoke-electron', 'smoke-browser-chromium', 'smoke-remote',
+			'smoke-electron', 'smoke-wsl-kerberos-proxy', 'smoke-browser-chromium', 'smoke-remote',
 			'copilot-extension', 'copilot-completions-core', 'copilot-sanity',
 		];
 		const linuxExpected = [
@@ -209,13 +222,13 @@ suite('Product test checkpoint templates', () => {
 		const allExpected = [
 			'unit-electron', 'unit-node', 'unit-browser-chromium', 'unit-browser-webkit',
 			'integration-agent-host-e2e', 'integration-electron', 'integration-browser-chromium', 'integration-browser-firefox', 'integration-browser-webkit', 'integration-remote',
-			'smoke-electron', 'smoke-agents-pac-proxy', 'smoke-agents-kerberos-pac-proxy', 'smoke-browser-chromium', 'smoke-remote',
+			'smoke-electron', 'smoke-agents-pac-proxy', 'smoke-agents-kerberos-pac-proxy', 'smoke-wsl-kerberos-proxy', 'smoke-browser-chromium', 'smoke-remote',
 			'copilot-extension', 'copilot-completions-core', 'copilot-sanity',
 		];
 		const targets = [
-			{ file: windowsTestFile, os: 'win32' as const, expected: windowsExpected, agentOS: 'Windows_NT', arch: 'x64', target: 'win32-x64', stage: 'Windows', job: 'Windows_x64_Test' },
-			{ file: linuxTestFile, os: 'linux' as const, expected: linuxExpected, agentOS: 'Linux', arch: 'x64', target: 'linux-x64', stage: 'LinuxX64', job: 'Linux_x64_Test' },
-			{ file: darwinTestFile, os: 'darwin' as const, expected: darwinExpected, agentOS: 'Darwin', arch: 'arm64', target: 'darwin-arm64', stage: 'macOSARM64', job: 'macOS_arm64_Test' },
+			{ file: windowsTestFile, os: 'win32' as const, expected: windowsExpected, target: 'win32-x64' },
+			{ file: linuxTestFile, os: 'linux' as const, expected: linuxExpected, target: 'linux-x64' },
+			{ file: darwinTestFile, os: 'darwin' as const, expected: darwinExpected, target: 'darwin-arm64' },
 		];
 		const publishedIds = readTemplate('common/publish-test-checkpoint.yml').parameters?.find(parameter => parameter.name === 'testId')?.values;
 		assert.deepStrictEqual({
@@ -255,26 +268,25 @@ suite('Product test checkpoint templates', () => {
 			scriptIds: allExpected,
 		});
 
-		const temp = mkdtempSync(path.join(os.tmpdir(), 'checkpoint-inventory-'));
-		t.after(() => rmSync(temp, { recursive: true, force: true }));
+		// A retry reuses every test whose record step succeeded in the earlier attempt
 		const restoredTargets: { target: string; hits: string[] }[] = [];
 		for (const target of targets) {
+			const jobId = '11111111-1111-1111-1111-111111111111';
+			const previous = { timelineId: '22222222-2222-2222-2222-222222222222', recordId: '33333333-3333-3333-3333-333333333333' };
 			const env: NodeJS.ProcessEnv = {
-				AGENT_OS: target.agentOS, VSCODE_ARCH: target.arch, BUILD_BUILDID: '123',
-				SYSTEM_STAGENAME: target.stage, SYSTEM_JOBNAME: target.job, SYSTEM_JOBATTEMPT: '1', SYSTEM_STAGEATTEMPT: '1',
-				BUILD_SOURCEVERSION: 'source', AGENT_TEMPDIRECTORY: temp,
+				BUILD_BUILDID: '123', SYSTEM_JOBID: jobId, SYSTEM_JOBATTEMPT: '2',
 				SYSTEM_COLLECTIONURI: 'https://dev.azure.com/organization/', SYSTEM_TEAMPROJECTID: 'project', SYSTEM_ACCESSTOKEN: 'test-token',
 			};
-			const artifacts: { name: string; resource: { type: string } }[] = [];
-			for (const id of target.expected) {
-				const messages: string[] = [];
-				await testCheckpoint(['record', id], env, fetch, message => messages.push(message));
-				const artifact = messages.find(message => message.includes('_ARTIFACT]'))?.split(']')[1];
-				assert.ok(artifact && messages.some(message => message.endsWith('_READY]true')), id);
-				artifacts.push({ name: artifact, resource: { type: 'PipelineArtifact' } });
-			}
+			const recordSteps = target.expected.map(id => ({
+				id: crypto.randomUUID(), parentId: previous.recordId, type: 'Task',
+				name: readTemplate('common/publish-test-checkpoint.yml').steps[0].displayName?.replace('${{ parameters.testId }}', id),
+				result: 'succeeded',
+			}));
 			const restored: string[] = [];
-			await testCheckpoint(['restore'], { ...env, SYSTEM_JOBATTEMPT: '2' }, async () => Response.json({ value: artifacts }), message => restored.push(message));
+			await testCheckpoint(['restore'], env, async url => Response.json(String(url).includes(`/timeline/${previous.timelineId}?`)
+				? { records: recordSteps }
+				: { records: [{ id: jobId, parentId: null, type: 'Job', name: 'Tests', result: null, previousAttempts: [previous] }] }
+			), message => restored.push(message));
 			restoredTargets.push({
 				target: target.target,
 				hits: restored.filter(message => message.endsWith('_HIT]true')).sort(),
@@ -645,18 +657,45 @@ suite('Product test checkpoint templates', () => {
 		});
 	});
 
-	test('the WSL Dev Container setup is skipped together with the Electron smoke tests', () => {
-		const smoke = readTemplate(windowsTestFile).steps.flatMap(step =>
-			Object.entries(step)
-				.filter(([key]) => key === '${{ if containsValue(parameters.VSCODE_TEST_IDS, \'smoke-electron\') }}')
-				.flatMap(([, branch]) => branch as ScriptStep[])
-		);
-		const wsl = smoke.flatMap(step => (step['${{ if eq(parameters.VSCODE_ARCH, \'x64\') }}'] ?? []) as ScriptStep[]);
-		const gated = 'and(succeeded(), ne(variables[\'TEST_CHECKPOINT_SMOKE_ELECTRON_HIT\'], \'true\'))';
-		assert.deepStrictEqual(wsl.map(step => ({ displayName: step.displayName, condition: step.condition })), [
-			{ displayName: 'Restore WSL installer cache', condition: gated },
-			{ displayName: 'Prepare WSL Dev Container smoke tests', condition: gated },
-			{ displayName: 'Clean up WSL Dev Container smoke tests', condition: 'and(always(), ne(variables[\'WSL_SMOKE_ROOT\'], \'\'))' },
-		]);
+	test('the WSL Dev Container setup is skipped together with the smoke tests that use it', () => {
+		const wslKey = '${{ if and(eq(parameters.VSCODE_ARCH, \'x64\'), or(containsValue(parameters.VSCODE_TEST_IDS, \'smoke-electron\'), containsValue(parameters.VSCODE_TEST_IDS, \'smoke-wsl-kerberos-proxy\'))) }}';
+		const wslTestKeys = [
+			wslKey,
+			'${{ if containsValue(parameters.VSCODE_TEST_IDS, \'smoke-electron\') }}',
+			'${{ if and(eq(parameters.VSCODE_ARCH, \'x64\'), containsValue(parameters.VSCODE_TEST_IDS, \'smoke-wsl-kerberos-proxy\')) }}',
+		];
+		type SequenceEntry = { displayName?: string; condition?: string } | { testId: string };
+		const sequence = (items: unknown): SequenceEntry[] => (Array.isArray(items) ? items : [items]).flatMap((item: Record<string, unknown>) => {
+			if (typeof item.template === 'string' && item.template.endsWith('/run-test-with-checkpoint.yml@self')) {
+				return [{ testId: (item.parameters as CheckpointParameters).testId }];
+			}
+			if (typeof item.displayName === 'string') {
+				return [{ displayName: item.displayName, condition: item.condition as string | undefined }];
+			}
+			return Object.entries(item).filter(([key]) => key.startsWith('${{ ')).flatMap(([, branch]) => sequence(branch));
+		});
+		const steps = readTemplate(windowsTestFile).steps.flatMap(step => Object.entries(step).filter(([key]) => wslTestKeys.includes(key)).flatMap(([, branch]) => branch as unknown[]));
+		const linuxServerFlags = ['product-build.yml', 'product-build-template.yml'].map(file => records(readTemplate(file))
+			.filter(record => typeof record.template === 'string' && record.template.endsWith('win32/product-build-win32-test.yml@self'))
+			.flatMap(record => {
+				const parameters = record.parameters as { VSCODE_JOB_NAME: string; VSCODE_LINUX_X64_COMPILATION_ARTIFACT?: string };
+				return parameters.VSCODE_LINUX_X64_COMPILATION_ARTIFACT ? [`${parameters.VSCODE_JOB_NAME}: ${parameters.VSCODE_LINUX_X64_COMPILATION_ARTIFACT}`] : [];
+			}));
+		const gated = 'and(succeeded(), or(ne(variables[\'TEST_CHECKPOINT_SMOKE_ELECTRON_HIT\'], \'true\'), ne(variables[\'TEST_CHECKPOINT_SMOKE_WSL_KERBEROS_PROXY_HIT\'], \'true\')))';
+		const kerberosGated = 'and(succeeded(), ne(variables[\'TEST_CHECKPOINT_SMOKE_WSL_KERBEROS_PROXY_HIT\'], \'true\'))';
+		assert.deepStrictEqual({ sequence: sequence(steps), linuxServerFlags }, {
+			sequence: [
+				{ displayName: 'Restore WSL installer cache', condition: gated },
+				{ displayName: 'Prepare WSL Dev Container smoke tests', condition: gated },
+				{ testId: 'smoke-electron' },
+				{ displayName: 'Wait for the Linux x64 compilation artifact', condition: kerberosGated },
+				{ displayName: 'Download the Linux x64 compilation artifact', condition: kerberosGated },
+				{ displayName: 'Add the Linux x64 server to the WSL distribution', condition: kerberosGated },
+				{ testId: 'smoke-wsl-kerberos-proxy' },
+				{ displayName: 'Clean up WSL Dev Container smoke tests', condition: 'and(always(), ne(variables[\'WSL_SMOKE_ROOT\'], \'\'))' },
+			],
+			// Only the product build's smoke job opens an editor window with the server of this run's Linux x64 compile job
+			linuxServerFlags: [0, 1].map(() => ['Smoke: ${{ eq(variables[\'VSCODE_BUILD_STAGE_LINUX_X64\'], true) }}']),
+		});
 	});
 });

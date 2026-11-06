@@ -178,7 +178,28 @@ export interface IAgentProviderTurnTelemetryContext {
 	 * {@link IAgentChatContext.reportPrewarmedSession}; absent otherwise.
 	 */
 	readonly prewarmedSessionDiscardReason?: string;
+	/**
+	 * Why this turn's send materialized a deferred provider session without a
+	 * pre-warmed one to claim or discard, reported through
+	 * {@link IAgentChatContext.reportPrewarmSkipped}; absent otherwise.
+	 */
+	readonly prewarmSkipReason?: AgentHostPrewarmSkipReason;
 }
+
+/**
+ * Why a draft had no pre-warmed provider session when its first send
+ * materialized it:
+ * - `notRequested`: the host never considered warming the draft;
+ * - `awaitingActiveClient`, `customizationsPending`: the send arrived while
+ *   the warm gate still waited for the client's tools or the customization
+ *   enablement, or enablement stayed pending (as for a worktree draft);
+ * - `untrustedFolder`: one of the draft's folders is not trusted;
+ * - `disabled`: the prewarm experiment setting is off;
+ * - `warmFailed`: the warm launch failed;
+ * - `expired`: the warm launch stayed unclaimed for its lifetime;
+ * - `released`: the runtime that held the warm launch was torn down.
+ */
+export type AgentHostPrewarmSkipReason = 'notRequested' | 'awaitingActiveClient' | 'customizationsPending' | 'untrustedFolder' | 'disabled' | 'warmFailed' | 'expired' | 'released';
 
 export function createUnknownAgentHostClientTelemetryContext(clientType: AgentHostClientType): IAgentHostClientTelemetryContext {
 	return {

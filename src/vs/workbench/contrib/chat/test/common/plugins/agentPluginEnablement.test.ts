@@ -11,14 +11,15 @@ import { PluginFormat } from '../../../../../../platform/agentPlugins/common/plu
 import { InMemoryStorageService, StorageScope, StorageTarget } from '../../../../../../platform/storage/common/storage.js';
 import { ContributionEnablementState, IEnablementModel, isContributionEnabled } from '../../../common/enablement.js';
 import { AgentPluginCollisionEnablementModel, AgentPluginEnablementService, getCanonicalAgentPluginCollisionGroups, getSortedAgentPlugins, IDiscoveredAgentPlugins, isAgentPluginBlockedByPolicy, isAgentPluginForceEnabledByPolicy } from '../../../common/plugins/agentPluginEnablement.js';
-import { AgentPluginDiscoveryPriority, IAgentPlugin } from '../../../common/plugins/agentPluginService.js';
+import { AgentPluginDiscoveryPriority, IAgentPlugin, setAgentPluginEnablement } from '../../../common/plugins/agentPluginService.js';
 import { IMarketplacePlugin, MarketplaceType, parseMarketplaceReference, PluginSourceKind } from '../../../common/plugins/pluginMarketplaceService.js';
+import { TestUserDataProfileService } from '../../../../../test/common/workbenchTestServices.js';
 
 suite('AgentPlugin enablement', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('layers stored decisions over discovered defaults', () => {
-		const service = store.add(new AgentPluginEnablementService(store.add(new InMemoryStorageService())));
+		const service = store.add(new AgentPluginEnablementService(store.add(new InMemoryStorageService()), new TestUserDataProfileService()));
 		const plugin = URI.file('/plugins/copilot-cli').toString();
 
 		service.setDefaultEnabled(plugin, false);
@@ -47,8 +48,8 @@ suite('AgentPlugin enablement', () => {
 	test('preserves another workspace override through multiple updates and reopening', () => {
 		const storageA = store.add(new InMemoryStorageService());
 		const storageB = store.add(new InMemoryStorageService());
-		const workspaceA = store.add(new AgentPluginEnablementService(storageA));
-		const workspaceB = store.add(new AgentPluginEnablementService(storageB));
+		const workspaceA = store.add(new AgentPluginEnablementService(storageA, new TestUserDataProfileService()));
+		const workspaceB = store.add(new AgentPluginEnablementService(storageB, new TestUserDataProfileService()));
 		const original = URI.file('/plugins/original');
 		const intermediate = URI.file('/plugins/intermediate');
 		const current = URI.file('/plugins/current');
@@ -56,10 +57,10 @@ suite('AgentPlugin enablement', () => {
 
 		workspaceA.copyEnablement(original, intermediate);
 		workspaceA.copyEnablement(intermediate, current);
-		for (const key of storageA.keys(StorageScope.PROFILE, StorageTarget.MACHINE)) {
-			storageB.store(key, storageA.get(key, StorageScope.PROFILE), StorageScope.PROFILE, StorageTarget.MACHINE);
+		for (const key of storageA.keys(StorageScope.APPLICATION, StorageTarget.MACHINE)) {
+			storageB.store(key, storageA.get(key, StorageScope.APPLICATION), StorageScope.APPLICATION, StorageTarget.MACHINE);
 		}
-		const reopenedB = store.add(new AgentPluginEnablementService(storageB));
+		const reopenedB = store.add(new AgentPluginEnablementService(storageB, new TestUserDataProfileService()));
 		const before = reopenedB.readEnabled(current.toString());
 		reopenedB.setEnabled(current.toString(), ContributionEnablementState.EnabledWorkspace);
 		reopenedB.copyEnablement(current, original);
@@ -85,14 +86,14 @@ suite('AgentPlugin enablement', () => {
 	]) {
 		test(`persists enablement across install location changes (${state})`, () => {
 			const storage = store.add(new InMemoryStorageService());
-			const service = store.add(new AgentPluginEnablementService(storage));
+			const service = store.add(new AgentPluginEnablementService(storage, new TestUserDataProfileService()));
 			const oldUri = URI.file('/plugins/old-revision');
 			const newUri = URI.file('/plugins/new-revision');
 			service.setEnabled(oldUri.toString(), ContributionEnablementState.DisabledProfile);
 			service.setEnabled(oldUri.toString(), state);
 
 			service.copyEnablement(oldUri, newUri);
-			const restored = store.add(new AgentPluginEnablementService(storage));
+			const restored = store.add(new AgentPluginEnablementService(storage, new TestUserDataProfileService()));
 
 			assert.deepStrictEqual({
 				profileEnabled: restored.readProfileEnabled(newUri.toString()),
@@ -105,23 +106,23 @@ suite('AgentPlugin enablement', () => {
 	}
 
 	for (const state of [ContributionEnablementState.DisabledProfile, ContributionEnablementState.DisabledWorkspace]) {
-		test(`keeps copied identities when profile storage changes (${state})`, () => {
+		test(`keeps copied identities when stored identities are cleared (${state})`, () => {
 			const storage = store.add(new class extends InMemoryStorageService {
-				clearProfileIdentities(): void {
-					this.getStorage(StorageScope.PROFILE).delete('agentPlugins.enablementIdentities', true);
+				clearIdentities(): void {
+					this.getStorage(StorageScope.APPLICATION).delete('agentPlugins.enablementIdentities', true);
 				}
 			}());
-			const service = store.add(new AgentPluginEnablementService(storage));
+			const service = store.add(new AgentPluginEnablementService(storage, new TestUserDataProfileService()));
 			const original = URI.file('/plugins/original');
 			const intermediate = URI.file('/plugins/intermediate');
 			const current = URI.file('/plugins/current');
 			service.setEnabled(original.toString(), state);
 			service.copyEnablement(original, intermediate);
 			service.copyEnablement(intermediate, current);
-			const reopened = store.add(new AgentPluginEnablementService(storage));
+			const reopened = store.add(new AgentPluginEnablementService(storage, new TestUserDataProfileService()));
 			reopened.copyEnablement(current, original);
 
-			storage.clearProfileIdentities();
+			storage.clearIdentities();
 			const afterSwitch = service.readEnabled(current.toString());
 			const originalAfterSwitch = reopened.readEnabled(original.toString());
 			const profileEnabled = service.readProfileEnabled(current.toString());
@@ -162,6 +163,42 @@ suite('AgentPlugin enablement', () => {
 			fromMarketplace,
 		};
 	}
+
+	test('persists runtime enablement before the local decision and leaves workspace overrides local', async () => {
+		const service = store.add(new AgentPluginEnablementService(store.add(new InMemoryStorageService()), new TestUserDataProfileService()));
+		const plugin = makePlugin(URI.file('/plugins/direct'), 'direct');
+		service.setDefaultEnabled(plugin.uri.toString(), false);
+		const calls: { enabled: boolean; local: ContributionEnablementState }[] = [];
+		plugin.setEnabled = async enabled => { calls.push({ enabled, local: service.readEnabled(plugin.uri.toString()) }); };
+		await setAgentPluginEnablement(plugin, service, ContributionEnablementState.EnabledProfile);
+		await setAgentPluginEnablement(plugin, service, ContributionEnablementState.DisabledWorkspace);
+		await setAgentPluginEnablement(plugin, service, ContributionEnablementState.DisabledProfile);
+		assert.deepStrictEqual({ calls, local: service.readEnabled(plugin.uri.toString()) }, {
+			calls: [
+				{ enabled: true, local: ContributionEnablementState.DisabledProfile },
+				{ enabled: false, local: ContributionEnablementState.DisabledWorkspace },
+			],
+			local: ContributionEnablementState.DisabledProfile,
+		});
+	});
+
+	test('does not publish local success when runtime enablement fails', async () => {
+		const service = store.add(new AgentPluginEnablementService(store.add(new InMemoryStorageService()), new TestUserDataProfileService()));
+		const plugin = makePlugin(URI.file('/plugins/direct'), 'direct');
+		service.setDefaultEnabled(plugin.uri.toString(), false);
+		plugin.setEnabled = async () => { throw new Error('runtime refused'); };
+		await assert.rejects(setAgentPluginEnablement(plugin, service, ContributionEnablementState.EnabledProfile), /runtime refused/);
+		assert.strictEqual(service.readEnabled(plugin.uri.toString()), ContributionEnablementState.DisabledProfile);
+	});
+
+	test('does not invoke the runtime for policy-managed plugins', async () => {
+		const service = store.add(new AgentPluginEnablementService(store.add(new InMemoryStorageService()), new TestUserDataProfileService()));
+		let calls = 0;
+		const plugin = { ...makePlugin(URI.file('/plugins/managed'), 'managed'), policyEnablement: observableValue('policy', false) };
+		plugin.setEnabled = async () => { calls++; };
+		await assert.rejects(setAgentPluginEnablement(plugin, service, ContributionEnablementState.EnabledProfile), /managed by your organization/);
+		assert.strictEqual(calls, 0);
+	});
 
 	function makeMarketplacePlugin(): IMarketplacePlugin {
 		const marketplaceReference = parseMarketplaceReference('microsoft/vscode-team-kit');
@@ -363,6 +400,51 @@ suite('AgentPlugin enablement', () => {
 			storedUnmanaged: ContributionEnablementState.DisabledProfile,
 		});
 	});
+
+	for (const policyTiming of ['before runtime enablement', 'during runtime enablement'] as const) {
+		test(`rejects a forced plugin collision ${policyTiming}`, async () => {
+			const plugin = makePlugin(URI.file('/plugins/direct'), 'direct');
+			const key = plugin.uri.toString();
+			const required = URI.file('/plugins/required').toString();
+			const base = store.add(new AgentPluginEnablementService(store.add(new InMemoryStorageService()), new TestUserDataProfileService()));
+			base.setDefaultEnabled(key, false);
+			const policy = observableValue<ReadonlyMap<string, boolean>>('policy', new Map(policyTiming === 'before runtime enablement' ? [[required, true]] : []));
+			const group = [required, key];
+			const groups = observableValue<ReadonlyMap<string, readonly string[]>>('groups', new Map([[required, group], [key, group]]));
+			const model = new AgentPluginCollisionEnablementModel(base, groups, policy);
+			const calls: boolean[] = [];
+			plugin.setEnabled = async enabled => {
+				calls.push(enabled);
+				policy.set(new Map([[required, true]]), undefined);
+			};
+			await assert.rejects(setAgentPluginEnablement(plugin, model, ContributionEnablementState.EnabledProfile), /rejected by the local enablement model/);
+			assert.deepStrictEqual({ calls, state: model.readEnabled(key) }, {
+				calls: policyTiming === 'before runtime enablement' ? [] : [true, false],
+				state: ContributionEnablementState.DisabledProfile,
+			});
+		});
+	}
+
+	for (const rollbackFails of [false, true]) {
+		test(`reports a rejected local commit and ${rollbackFails ? 'failed' : 'successful'} runtime rollback`, async () => {
+			const plugin = makePlugin(URI.file('/plugins/direct'), 'direct');
+			const calls: boolean[] = [];
+			const model: IEnablementModel = {
+				readEnabled: () => ContributionEnablementState.DisabledProfile,
+				readProfileEnabled: () => false,
+				setEnabled: () => { },
+				remove: () => { },
+			};
+			plugin.setEnabled = async enabled => {
+				calls.push(enabled);
+				if (!enabled && rollbackFails) {
+					throw new Error('rollback refused');
+				}
+			};
+			await assert.rejects(setAgentPluginEnablement(plugin, model, ContributionEnablementState.EnabledProfile), rollbackFails ? /runtime state could not be restored/ : /rejected by the local enablement model/);
+			assert.deepStrictEqual(calls, [true, false]);
+		});
+	}
 
 	test('same-URI duplicates collapse before collision grouping', () => {
 		const sharedUri = URI.file('/Users/test/.copilot/installed-plugins/team/model-council');

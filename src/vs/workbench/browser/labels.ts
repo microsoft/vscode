@@ -25,6 +25,7 @@ import { IInstantiationService } from '../../platform/instantiation/common/insta
 import { normalizeDriveLetter } from '../../base/common/labels.js';
 import { IRange } from '../../editor/common/core/range.js';
 import { ThemeIcon } from '../../base/common/themables.js';
+import { asCssVariable } from '../../platform/theme/common/colorUtils.js';
 import { INotebookDocumentService, extractCellOutputDetails } from '../services/notebook/common/notebookDocumentService.js';
 
 export interface IResourceLabelProps {
@@ -77,6 +78,12 @@ export interface IResourceLabelOptions extends IIconLabelValueOptions {
 	 * Uses the provided icon instead of deriving a resource icon.
 	 */
 	readonly icon?: ThemeIcon | URI;
+
+	/**
+	 * Leaves the label without a hover of its own, for hosts that show their
+	 * own hover for the resource. Nested managed hovers would otherwise compete.
+	 */
+	readonly hideHover?: boolean;
 }
 
 export interface IFileLabelOptions extends IResourceLabelOptions {
@@ -670,12 +677,18 @@ class ResourceLabelWidget extends IconLabel {
 		}
 
 		if (this.options && !this.options.hideIcon) {
+			// A theme icon with a modifier, such as a spinning one, shows in an element of its own, which the modifier
+			// applies to rather than to the whole label.
+			const ownIconElement = URI.isUri(this.options.icon) || (!!this.options.icon && !!ThemeIcon.getModifier(this.options.icon));
 			if (!this.computedIconClasses) {
-				this.computedIconClasses = getIconClasses(this.modelService, this.languageService, resource, this.options.fileKind, this.options.icon);
+				this.computedIconClasses = ownIconElement ? [] : getIconClasses(this.modelService, this.languageService, resource, this.options.fileKind, this.options.icon);
 			}
 
-			if (URI.isUri(this.options.icon)) {
+			if (ownIconElement) {
 				iconLabelOptions.iconPath = this.options.icon;
+			}
+			if (ThemeIcon.isThemeIcon(this.options.icon) && this.options.icon.color) {
+				iconLabelOptions.iconColor = asCssVariable(this.options.icon.color.id);
 			}
 
 			iconLabelOptions.extraClasses = this.computedIconClasses.slice(0);
@@ -724,6 +737,10 @@ class ResourceLabelWidget extends IconLabel {
 			iconLabelOptions.suffix = this.label.range.startLineNumber !== this.label.range.endLineNumber ?
 				`:${this.label.range.startLineNumber}-${this.label.range.endLineNumber}` :
 				`:${this.label.range.startLineNumber}`;
+		}
+
+		if (this.options?.hideHover) {
+			iconLabelOptions.title = undefined;
 		}
 
 		this.setLabel(this.label.name ?? '', this.label.description, iconLabelOptions);

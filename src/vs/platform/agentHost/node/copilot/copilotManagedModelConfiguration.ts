@@ -6,18 +6,72 @@
 import type { CopilotClient, CopilotSession } from '@github/copilot-sdk';
 import type { IAgentModelInfo } from '../../common/agent.js';
 import { isModelConfigurationDefault, modelConfigurationSourceKey, type IAgentModelConfigurationReport, type IAgentModelConfigurationOptions } from '../../common/agentModelConfiguration.js';
+import { COPILOT_HYDRA_FUSION_MAX_MODEL_ID, COPILOT_HYDRA_FUSION_MODEL_ID } from '../../common/copilotCliConfig.js';
+import { readAgentModelAutoTiersMeta } from '../../common/meta/agentModelMeta.js';
 import { readAgentManagedModelDefaults, withAgentManagedModelDefaults, withAgentModelConfigurationDefaults } from '../../common/meta/agentModelConfigurationMeta.js';
 import type { JsonPrimitive, ModelSelection } from '../../common/state/protocol/state.js';
 import type { ILogService } from '../../../log/common/log.js';
+import { normalizeManagedModelId } from '../../../policy/common/copilotManagedSettings.js';
 
 type ResolvedManagedSettings = Awaited<ReturnType<CopilotClient['rpc']['managedSettings']['resolve']>>;
-export type CopilotManagedModelPolicy = Pick<ResolvedManagedSettings, 'values' | 'meta'>;
+/** `layers` carries each source's delivered document, which distinguishes a configured `fusionTier` from the runtime's legacy alias. */
+export type CopilotManagedModelPolicy = Pick<ResolvedManagedSettings, 'values' | 'meta'> & { readonly layers?: ResolvedManagedSettings['layers'] };
 
 const modelOptionKeys = ['thinkingLevel', 'contextSize', 'tier'] as const;
 
-/** Reads the runtime-composed Auto startup default. */
-export function getCopilotManagedAutoPreference(policy: CopilotManagedModelPolicy): string | undefined {
-	return policy.values?.autoTier;
+/** The managed default model as a catalog id, with Copilot Fusion read as `auto`. */
+function getManagedModelId(policy: CopilotManagedModelPolicy): string | undefined {
+	return normalizeManagedModelId(policy.values?.model);
+}
+
+const fusionTierKey = 'fusionTier';
+
+/**
+ * The runtime's managed Fusion bindings (github/copilot-agent-runtime#27725), most specific first. High falls back to
+ * Intelligence when HydraFusion is not offered; Max has no fallback. The catalog's own binding takes precedence.
+ */
+const fusionTierRoutingIds: Readonly<Record<string, readonly string[]>> = {
+	standard: ['balance'],
+	high: [COPILOT_HYDRA_FUSION_MODEL_ID, 'intelligence'],
+	max: [COPILOT_HYDRA_FUSION_MAX_MODEL_ID],
+};
+
+/**
+ * The managed Auto policy as the runtime applies it. A `fusionTier` in any source supersedes legacy `autoTier`
+ * everywhere, and `unmanaged` withdraws both. The runtime also reports a `fusionTier` alias for legacy policy,
+ * so only a source document containing the key counts as Fusion policy, and only once the runtime reports an
+ * effective value: an older runtime that drops the key keeps applying legacy `autoTier`.
+ */
+function getManagedAutoPolicy(policy: CopilotManagedModelPolicy): { readonly kind: 'fusion' | 'legacy'; readonly tier: string } | undefined {
+	const fusionTier = policy.values?.fusionTier;
+	const configured = policy.layers
+		? policy.layers.some(({ settings }) => typeof settings === 'object' && settings !== null && !Array.isArray(settings) && Object.hasOwn(settings, fusionTierKey))
+		: fusionTier !== undefined && policy.values?.autoTier === undefined;
+	if (configured && fusionTier !== undefined) {
+		return Object.hasOwn(fusionTierRoutingIds, fusionTier) ? { kind: 'fusion', tier: fusionTier } : undefined;
+	}
+	const autoTier = policy.values?.autoTier;
+	return autoTier ? { kind: 'legacy', tier: autoTier } : undefined;
+}
+
+/** Whether runtime policy supplies the Auto startup default, so an implicit choice should be left to the runtime. */
+export function hasCopilotManagedAutoPreference(policy: CopilotManagedModelPolicy): boolean {
+	return getManagedAutoPolicy(policy) !== undefined;
+}
+
+/**
+ * Reads the runtime-composed Auto startup default as one of `model`'s routing tiers. A Fusion tier resolves to
+ * the offered tier the runtime binds it to; an unresolvable one is returned as its preferred id so callers can diagnose it.
+ */
+function getCopilotManagedAutoPreference(policy: CopilotManagedModelPolicy, model: IAgentModelInfo): string | undefined {
+	const managed = getManagedAutoPolicy(policy);
+	if (managed?.kind !== 'fusion') {
+		return managed?.tier;
+	}
+	const offered = model.configSchema?.properties.tier?.enum ?? [];
+	const bound = readAgentModelAutoTiersMeta(model)?.tiers.find(tier => tier.fusionTier === managed.tier)?.id;
+	const candidates = bound ? [bound, ...fusionTierRoutingIds[managed.tier]] : fusionTierRoutingIds[managed.tier];
+	return candidates.find(id => offered.includes(id)) ?? candidates[0];
 }
 
 /** Keeps per-chat policy and the applied runtime model out of the shared catalog and preference store. */
@@ -77,14 +131,15 @@ export function createCopilotModelConfigurationReport(
 /** Projects runtime-composed startup defaults without inferring locks from server-normalized values. */
 export function projectCopilotManagedModelConfiguration(model: IAgentModelInfo, policy: CopilotManagedModelPolicy, logService: ILogService): IAgentModelInfo {
 	const schema = model.configSchema;
-	const managedModel = policy.values?.model === model.id;
+	const managedModelId = getManagedModelId(policy);
+	const managedModel = managedModelId === model.id;
 	if (!schema) {
 		return managedModel ? { ...model, _meta: withAgentManagedModelDefaults(model._meta, { model: true, keys: [] }) } : model;
 	}
 	const properties = { ...schema.properties };
 	const values = policy.values;
-	const concreteModel = values?.model === model.id && model.id !== 'auto';
-	const autoPreference = model.id === 'auto' ? getCopilotManagedAutoPreference(policy) : undefined;
+	const concreteModel = !!values && managedModelId === model.id && model.id !== 'auto';
+	const autoPreference = model.id === 'auto' ? getCopilotManagedAutoPreference(policy, model) : undefined;
 	const entries = [
 		{ key: 'thinkingLevel', value: concreteModel ? values.effortLevel : undefined },
 		{
@@ -125,12 +180,11 @@ export function omitCopilotManagedModelDefaults(model: ModelSelection | undefine
 		return model;
 	}
 	const values = policy.values;
-	const concreteModel = values?.model === model.id && model.id !== 'auto';
-	const autoPreference = model.id === 'auto' ? getCopilotManagedAutoPreference(policy) : undefined;
+	const concreteModel = !!values && getManagedModelId(policy) === model.id && model.id !== 'auto';
 	const options = [
 		['thinkingLevel', concreteModel && values.effortLevel !== undefined],
 		['contextSize', concreteModel && values.contextTier !== undefined],
-		['tier', autoPreference !== undefined],
+		['tier', model.id === 'auto' && hasCopilotManagedAutoPreference(policy)],
 	] as const;
 	const config = { ...model.config };
 	for (const [key, managed] of options) {

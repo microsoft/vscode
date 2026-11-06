@@ -9,6 +9,7 @@ import { toErrorMessage } from '../../../../../base/common/errorMessage.js';
 import { CancellationError, isCancellationError } from '../../../../../base/common/errors.js';
 import { Disposable, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { equals } from '../../../../../base/common/objects.js';
+import { generateUuid } from '../../../../../base/common/uuid.js';
 import {
 	CLOUD_SANDBOX_SEALED_TOKEN_PREFIX,
 	CloudSandboxRequestError,
@@ -22,6 +23,7 @@ import {
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import { MISSION_CONTROL_RETRY_BUDGET_MS, missionControlMaxRetries, missionControlRetryDelay } from '../../../../../platform/github/common/missionControl/missionControlError.js';
 import { ICloudSandboxTelemetryService, type CloudSandboxRefreshStopReason } from './cloudSandboxTelemetry.js';
+import { type CloudSandboxLifecycleFailurePoint, type CloudSandboxLifecycleOperation, type ICloudSandboxLifecycleContext } from './cloudSandboxLifecycleTelemetry.js';
 
 const LOG_PREFIX = '[CloudSandboxAgentHost]';
 
@@ -105,13 +107,30 @@ export class CloudSandboxCredentialRefresher extends Disposable {
 
 	/** Renew authentication without falling back to the previously used sealed envelope. */
 	async refreshAuthenticationCredentials(): Promise<string> {
-		const previousToken = this._creds.token.encrypted_github_token;
-		await this.refreshConnectionCredentials();
-		const sealedToken = this._creds.token.encrypted_github_token;
-		if (!sealedToken || !isCloudSandboxSealedToken(sealedToken) || sealedToken === previousToken) {
-			throw new Error('Sandbox authentication refresh did not provide a new sealed token.');
+		const operation = this._telemetry.lifecycle.start('credentials.authentication', this._lifecycleContext);
+		try {
+			const previousToken = this._creds.token.encrypted_github_token;
+			await this.refreshConnectionCredentials();
+			const sealedToken = this._creds.token.encrypted_github_token;
+			if (!sealedToken || !isCloudSandboxSealedToken(sealedToken) || sealedToken === previousToken) {
+				const error = new Error('Sandbox authentication refresh did not provide a new sealed token.');
+				operation.complete('failed', { failurePoint: 'credentialRefresh.authenticationTokenUnchanged' }, error);
+				throw error;
+			}
+			operation.complete('succeeded');
+			return sealedToken;
+		} catch (error) {
+			operation.failed(error);
+			throw error;
 		}
-		return sealedToken;
+	}
+
+	private get _lifecycleContext(): ICloudSandboxLifecycleContext {
+		return {
+			environmentKind: this._request.environmentKind,
+			environmentId: this._request.environmentId, agentSessionId: this._request.sessionId, connectionId: this._clientId,
+			consecutiveFailures: this._refreshState.unhealthyCycles,
+		};
 	}
 
 	private async _ensureCredentials(refreshConnection: boolean): Promise<void> {
@@ -126,7 +145,7 @@ export class CloudSandboxCredentialRefresher extends Disposable {
 		while (!this._refreshInFlight) {
 			if (!this._refreshState.stopped && this._refreshState.requestFailureStartedAt !== undefined
 				&& Date.now() - this._refreshState.requestFailureStartedAt >= MISSION_CONTROL_RETRY_BUDGET_MS) {
-				this._stop('consecutiveFailures', 'Mission Control request retry budget exhausted');
+				this._stop('consecutiveFailures', 'Mission Control request retry budget exhausted', undefined, { failurePoint: 'credentialRefresh.retryBudget' });
 			}
 			if (this._refreshState.stopped) {
 				throw new Error('Sandbox credential refresh is stopped.');
@@ -142,7 +161,14 @@ export class CloudSandboxCredentialRefresher extends Disposable {
 				break;
 			}
 			waited = true;
-			await timeout(Math.min(MAX_CREDENTIAL_RETRY_WAIT_MS, delay), this._cts.token);
+			const wait = this._telemetry.lifecycle.start('credentials.retryWait', { ...this._lifecycleContext, recoveryAction: 'waiting', retryDelayMs: delay });
+			try {
+				await timeout(Math.min(MAX_CREDENTIAL_RETRY_WAIT_MS, delay), this._cts.token);
+				wait.complete('succeeded', { recoveryAction: 'deferred', retryDelayMs: Math.max(0, Math.max(retryAt, rateLimitAt) - Date.now()) });
+			} catch (error) {
+				wait.complete(isCancellationError(error) ? 'cancelled' : 'failed', { recoveryAction: isCancellationError(error) ? 'cancelled' : undefined }, error);
+				throw error;
+			}
 		}
 		const refreshed = await raceCancellationError(this._refresh(), this._cts.token);
 		if (!this._hasUnexpiredCredentials()) {
@@ -157,19 +183,31 @@ export class CloudSandboxCredentialRefresher extends Disposable {
 		return Date.parse(this._creds.token.expires_at) > Date.now();
 	}
 
-	private _stop(reason: CloudSandboxRefreshStopReason, detail: string, error?: unknown): void {
+	private _stop(reason: CloudSandboxRefreshStopReason, detail: string, error?: unknown, diagnostic?: { failurePoint: CloudSandboxLifecycleFailurePoint; operation?: CloudSandboxLifecycleOperation; error?: unknown }): void {
 		this._refreshState.stopped = true;
 		this._telemetry.reportCredentialRefreshStopped(reason, this._refreshState.unhealthyCycles, error);
+		const lifecycleError = diagnostic?.error ?? error;
+		const context: ICloudSandboxLifecycleContext = { ...this._lifecycleContext, failurePoint: diagnostic?.failurePoint, refreshStopReason: reason, recoveryAction: 'stopped' };
+		diagnostic?.operation?.complete('failed', context, lifecycleError);
+		this._telemetry.lifecycle.record({
+			...context, parentOperationId: diagnostic?.operation?.id,
+			phase: 'credentials.stopped', outcome: 'failed', operationId: generateUuid(),
+			error: lifecycleError,
+		});
 		this._logService.error(`${LOG_PREFIX} Stopped refreshing credentials for ${this._address}: ${detail}. Further credential acquisition requires a new connection attempt; an established Web PubSub socket is not closed by token expiry.`);
 	}
 
 	/** Record a failed acquisition and its earliest retry time without scheduling a request. */
-	private _recordFailure(delayMs: number, reason: CloudSandboxRefreshStopReason, detail: string): void {
+	private _recordFailure(delayMs: number, reason: CloudSandboxRefreshStopReason, detail: string, operation: CloudSandboxLifecycleOperation, failurePoint: CloudSandboxLifecycleFailurePoint, error?: unknown): void {
 		if (++this._refreshState.unhealthyCycles >= MAX_CONSECUTIVE_CREDENTIAL_REFRESH_FAILURES) {
-			this._stop(reason, `${detail} across ${this._refreshState.unhealthyCycles} consecutive attempts`);
+			this._stop(reason, `${detail} across ${this._refreshState.unhealthyCycles} consecutive attempts`, undefined, { failurePoint, operation, error });
 			return;
 		}
-		this._refreshState.nextRetryAt = Date.now() + Math.max(MIN_CREDENTIAL_REFRESH_DELAY_MS, delayMs);
+		const retryDelayMs = Math.max(MIN_CREDENTIAL_REFRESH_DELAY_MS, delayMs);
+		this._refreshState.nextRetryAt = Date.now() + retryDelayMs;
+		operation.complete(reason === 'environmentWaking' ? 'waking' : 'failed', {
+			...this._lifecycleContext, failurePoint, recoveryAction: 'deferred', retryDelayMs,
+		}, error, reason === 'environmentWaking' ? 202 : undefined);
 	}
 
 	private async _refresh(): Promise<boolean> {
@@ -177,16 +215,22 @@ export class CloudSandboxCredentialRefresher extends Disposable {
 			return this._refreshInFlight;
 		}
 		this._refreshState.lastRefreshAt = Date.now();
-		const pending = this._doRefresh();
+		const operation = this._telemetry.lifecycle.start('credentials.acquire', {
+			...this._lifecycleContext, recoveryAction: 'attempting', attemptNumber: this._refreshState.unhealthyCycles + 1,
+		});
+		const pending = this._doRefresh(operation);
 		this._refreshInFlight = pending;
 		try {
 			return await pending;
+		} catch (error) {
+			operation.failed(error);
+			throw error;
 		} finally {
 			this._refreshInFlight = undefined;
 		}
 	}
 
-	private async _doRefresh(): Promise<boolean> {
+	private async _doRefresh(operation: CloudSandboxLifecycleOperation): Promise<boolean> {
 		let result: CloudSandboxConnectResult;
 		const previousToken = this._creds.token;
 		try {
@@ -196,6 +240,7 @@ export class CloudSandboxCredentialRefresher extends Disposable {
 			// failure: counting it would log a warning for an ordinary disconnect and could report
 			// the loop as having given up when it was simply torn down.
 			if (this._cts.token.isCancellationRequested || isCancellationError(err) || err instanceof CancellationError) {
+				operation.complete('cancelled', { recoveryAction: 'cancelled' });
 				return false;
 			}
 			// A rejected request (deleted environment, revoked token) fails identically however
@@ -203,7 +248,7 @@ export class CloudSandboxCredentialRefresher extends Disposable {
 			if (!isRetryableCloudSandboxError(err)) {
 				this._refreshState.permanentFailure = true;
 				this._refreshState.permanentFailureStatus = err instanceof CloudSandboxRequestError ? err.statusCode : undefined;
-				this._stop('permanentError', toErrorMessage(err), err);
+				this._stop('permanentError', toErrorMessage(err), err, { failurePoint: 'credentialRefresh.request', operation });
 				return false;
 			}
 			this._logService.warn(`${LOG_PREFIX} Credential refresh failed for ${this._address}; retrying`, err);
@@ -215,42 +260,47 @@ export class CloudSandboxCredentialRefresher extends Disposable {
 				if (failures > missionControlMaxRetries(err.code)
 					|| Date.now() + delayMs - this._refreshState.requestFailureStartedAt >= MISSION_CONTROL_RETRY_BUDGET_MS) {
 					this._refreshState.unhealthyCycles++;
-					this._stop('consecutiveFailures', 'Mission Control request retry budget exhausted', err);
+					this._stop('consecutiveFailures', 'Mission Control request retry budget exhausted', err, { failurePoint: 'credentialRefresh.retryBudget', operation });
 					return false;
 				}
 			}
-			this._recordFailure(delayMs, 'consecutiveFailures', 'credential refresh kept failing');
+			this._recordFailure(delayMs, 'consecutiveFailures', 'credential refresh kept failing', operation, 'credentialRefresh.request', err);
 			return false;
 		}
 
 		// The connection went away while the request was in flight; its credentials are moot.
 		if (this._cts.token.isCancellationRequested) {
+			operation.complete('cancelled', { recoveryAction: 'cancelled' });
 			return false;
 		}
 		if (this._creds.token !== previousToken) {
 			this._logService.trace(`${LOG_PREFIX} Ignoring a superseded credential refresh for ${this._address}`);
+			operation.complete('observed', { recoveryAction: 'superseded' });
 			return true;
 		}
 
 		if (result.kind === 'waking') {
 			this._refreshState.requestFailures = 0;
 			this._refreshState.requestFailureStartedAt = undefined;
-			this._recordFailure(result.waking.retryAfterSeconds * 1000, 'environmentWaking', 'environment kept reporting waking');
+			this._recordFailure(result.waking.retryAfterSeconds * 1000, 'environmentWaking', 'environment kept reporting waking', operation, 'credentialRefresh.environmentWaking');
 			return false;
 		}
 
 		const refreshedToken = mergeCloudSandboxConnectionToken(previousToken, result.token);
 		if (!refreshedToken) {
 			this._logService.warn(`${LOG_PREFIX} Credential refresh for ${this._address} returned inconsistent host credentials; retrying`);
-			this._recordFailure(MIN_CREDENTIAL_REFRESH_DELAY_MS, 'unusableToken', 'refreshed host keys did not match the sealed credentials');
+			this._recordFailure(MIN_CREDENTIAL_REFRESH_DELAY_MS, 'unusableToken', 'refreshed host keys did not match the sealed credentials', operation, 'credentialRefresh.inconsistentCredentials');
 			return false;
 		}
 		if (!(Date.parse(refreshedToken.expires_at) > Date.now())) {
 			this._logService.warn(`${LOG_PREFIX} Credential refresh for ${this._address} returned no usable future expiry; retrying`);
-			this._recordFailure(MIN_CREDENTIAL_REFRESH_DELAY_MS, 'unusableToken', 'refreshed tokens did not have a usable future expiry');
+			this._recordFailure(MIN_CREDENTIAL_REFRESH_DELAY_MS, 'unusableToken', 'refreshed tokens did not have a usable future expiry', operation, 'credentialRefresh.invalidExpiry');
 			return false;
 		}
 		this._creds.token = refreshedToken;
+		operation.complete('succeeded', {
+			...this._lifecycleContext, recoveryAction: this._refreshState.unhealthyCycles > 0 ? 'recovered' : 'acquired',
+		});
 
 		this._logService.trace(`${LOG_PREFIX} Refreshed Web PubSub credentials for ${this._address}`);
 		this._refreshState.unhealthyCycles = 0;

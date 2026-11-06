@@ -54,13 +54,17 @@ import { Lazy } from '../../../../base/common/lazy.js';
 import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
 import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { Registry } from '../../../../platform/registry/common/platform.js';
+import { KeyCode, KeyMod } from '../../../../base/common/keyCodes.js';
+import { decodeKeybinding } from '../../../../base/common/keybindings.js';
+import { OS } from '../../../../base/common/platform.js';
 import { ASK_QUICK_QUESTION_ACTION_ID } from '../../chat/browser/actions/chatQuickInputActions.js';
 import { IChatWidgetService, IQuickChatService } from '../../chat/browser/chat.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { ICustomEditorLabelService } from '../../../services/editor/common/customEditorLabelService.js';
-import { IOpenerService } from '../../../../platform/opener/common/opener.js';
+import { IOpenerService, OpenInternalOptions } from '../../../../platform/opener/common/opener.js';
 import { INotificationService } from '../../../../platform/notification/common/notification.js';
 import { IEditorGroupsService } from '../../../services/editor/common/editorGroupsService.js';
+import { IExternalUriOpenerService, ILinkHandler } from '../../externalUriOpener/common/externalUriOpenerService.js';
 
 export interface IAnythingQuickPickItem extends IPickerQuickAccessItem, IQuickPickItemWithResource {
 	readonly editor?: EditorInput | IResourceEditorInput;
@@ -151,7 +155,8 @@ export class AnythingQuickAccessProvider extends PickerQuickAccessProvider<IAnyt
 		@IChatWidgetService private readonly chatWidgetService: IChatWidgetService,
 		@IOpenerService private readonly _openerService: IOpenerService,
 		@INotificationService private readonly _notificationService: INotificationService,
-		@IEditorGroupsService private readonly _editorGroupsService: IEditorGroupsService
+		@IEditorGroupsService private readonly _editorGroupsService: IEditorGroupsService,
+		@IExternalUriOpenerService private readonly _externalUriOpenerService: IExternalUriOpenerService
 	) {
 		super(AnythingQuickAccessProvider.PREFIX, {
 			canAcceptInBackground: true,
@@ -307,13 +312,14 @@ export class AnythingQuickAccessProvider extends PickerQuickAccessProvider<IAnyt
 		}
 
 		if (this._supportsLinks(runOptions)) {
-			const linkPick = this._getLinkPick(originalFilter);
-			if (linkPick) {
+			const linkPicks = this._getLinkPicks(originalFilter, token);
+			if (linkPicks) {
 				this.pickState.lastOriginalFilter = undefined;
 				this.pickState.lastFilter = undefined;
 				this.pickState.lastRange = undefined;
 				this.pickState.lastGlobalPicks = undefined;
-				return !runOptions?.filter || runOptions.filter(linkPick) ? [linkPick] : [];
+				const filter = runOptions?.filter;
+				return filter ? linkPicks.then(picks => picks.filter(pick => pick.type !== 'separator' && filter(pick))) : linkPicks;
 			}
 		}
 
@@ -385,7 +391,7 @@ export class AnythingQuickAccessProvider extends PickerQuickAccessProvider<IAnyt
 		return !runOptions?.filesOnly && !runOptions?.fileSearchDelegate && !runOptions?.handleAccept && !this.pickState.isQuickNavigating;
 	}
 
-	private _getLinkPick(filter: string): IAnythingQuickPickItem | undefined {
+	private _getLinkPicks(filter: string, token: CancellationToken): Promise<(IAnythingQuickPickItem | IQuickPickSeparator)[]> | undefined {
 		// Require an explicit hierarchical URI, not a drive letter, file query, or Quick Access prefix.
 		if (!/^[a-z][a-z0-9+.-]+:\/\//i.test(filter)) {
 			return undefined;
@@ -404,15 +410,14 @@ export class AnythingQuickAccessProvider extends PickerQuickAccessProvider<IAnyt
 				}
 			}
 		} catch {
-			return {
+			return Promise.resolve([{
 				label: localize('invalidQuickOpenLink', "Invalid Link"),
 				description: localize('invalidQuickOpenLinkDescription', "Enter a valid link to open it from Quick Open.")
-			};
+			}]);
 		}
 
 		const sourceGroup = this._linkSourceGroup ?? this._editorGroupsService.activeGroup.id;
-		const openToSideLabel = localize('openLinkToSide', "Open to the Side");
-		const open = async (keyMods: IKeyMods, inBackground: boolean, forceOpenSideBySide = false): Promise<void> => {
+		const open = async (openWith: (options: OpenInternalOptions) => Promise<boolean>, keyMods: IKeyMods, inBackground: boolean, forceOpenSideBySide = false): Promise<void> => {
 			try {
 				const openToSide = keyMods.alt || (this.configuration.openEditorPinned && keyMods.ctrlCmd) || forceOpenSideBySide;
 				if (openToSide) {
@@ -422,9 +427,8 @@ export class AnythingQuickAccessProvider extends PickerQuickAccessProvider<IAnyt
 					}
 				}
 
-				const handled = await this._openerService.open(filter, {
+				const handled = await openWith({
 					fromUserGesture: true,
-					allowContributedOpeners: true,
 					openToSide,
 					editorOptions: {
 						preserveFocus: inBackground,
@@ -439,21 +443,42 @@ export class AnythingQuickAccessProvider extends PickerQuickAccessProvider<IAnyt
 			}
 		};
 
-		return {
+		const openToSideKeybinding = this.keybindingService.resolveKeybinding(decodeKeybinding(KeyMod.Alt | KeyCode.Enter, OS)!).at(0)?.getLabel();
+		const openToSideButton: IQuickInputButton = {
+			iconClass: ThemeIcon.asClassName(this.configuration.openSideBySideDirection === 'right' ? Codicon.splitHorizontal : Codicon.splitVertical),
+			tooltip: this.configuration.openSideBySideDirection === 'right'
+				? localize({ key: 'openLinkToSide', comment: ['{0} is a keyboard shortcut, such as Alt+Enter'] }, "Open to the Side ({0})", openToSideKeybinding)
+				: localize({ key: 'openLinkToBottom', comment: ['{0} is a keyboard shortcut, such as Alt+Enter'] }, "Open to the Bottom ({0})", openToSideKeybinding)
+		};
+		const createPick = (label: string, description: string | undefined, openWith: (options: OpenInternalOptions) => Promise<boolean>): IAnythingQuickPickItem => ({
 			resource,
-			label: `$(link-external) ${localize('openQuickOpenLink', "Open Link")}`,
-			description: filter,
-			detail: localize('openQuickOpenLinkHint', "Hold Alt while accepting to open to the side."),
-			buttons: [{
-				iconClass: ThemeIcon.asClassName(this.configuration.openSideBySideDirection === 'right' ? Codicon.splitHorizontal : Codicon.splitVertical),
-				tooltip: openToSideLabel
-			}],
-			accept: (keyMods, event) => open(keyMods, event.inBackground),
+			label: `$(link-external) ${label}`,
+			description,
+			buttons: [openToSideButton],
+			accept: (keyMods, event) => open(openWith, keyMods, event.inBackground),
 			trigger: async (_buttonIndex, keyMods) => {
-				await open(keyMods, false, true);
+				await open(openWith, keyMods, false, true);
 				return TriggerAction.CLOSE_PICKER;
 			}
+		});
+
+		const getPicks = async (): Promise<(IAnythingQuickPickItem | IQuickPickSeparator)[]> => {
+			let handlers: readonly ILinkHandler[] = [];
+			try {
+				handlers = await this._externalUriOpenerService.getLinkHandlers(filter, token);
+			} catch (error) {
+				this.logService.error(error);
+			}
+
+			if (handlers.length === 0) {
+				return [createPick(localize('openQuickOpenLink', "Open Link"), filter, options => this._openerService.open(filter, { ...options, allowContributedOpeners: true }))];
+			}
+			return [
+				{ type: 'separator', label: localize('openQuickOpenLinkWith', "open link") },
+				...handlers.map(handler => createPick(handler.label, handler.isDefault ? localize('openQuickOpenLinkDefault', "Default") : undefined, options => handler.open(options))),
+			];
 		};
+		return getPicks();
 	}
 
 	private doGetPicks(

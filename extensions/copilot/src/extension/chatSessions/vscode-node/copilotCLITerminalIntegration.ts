@@ -34,8 +34,8 @@ const COPILOT_ICON = new ThemeIcon('copilot');
 const COPILOT_CLI_COMMAND_ENABLED_SETTING = 'chat.copilotCliCommand.enabled';
 
 /**
- * Directory in global storage where earlier versions wrote script shims, and where a local development build of the
- * shim is published when this build doesn't ship one.
+ * Directory in global storage where earlier versions wrote script shims, and where a build from source publishes a
+ * local development build of the shim.
  */
 const STORED_SHIM_DIRECTORY = 'copilotCli';
 
@@ -91,7 +91,8 @@ export class CopilotCLITerminalIntegration extends Disposable implements ICopilo
 	 */
 	private copilotCommand: string = COPILOT_CLI_COMMAND;
 	/**
-	 * The native shim that ships with this build, or a local development build published in global storage.
+	 * The native shim that ships with this build, or, in a build from source, a local development build published in
+	 * global storage.
 	 */
 	private nativeShimPath: string | undefined;
 	private readonly pythonTerminalService: PythonTerminalService;
@@ -171,13 +172,20 @@ export class CopilotCLITerminalIntegration extends Disposable implements ICopilo
 
 	/**
 	 * Returns the shim that ships next to the `code` command. A build from source doesn't ship one; it can use a local
-	 * development build instead (see `copilotCLINativeShim.ts`).
+	 * development build instead (see `copilotCLINativeShim.ts`). Production builds never use a development build.
 	 */
 	private async findNativeShim(): Promise<string | undefined> {
 		const shippedPath = getNativeCopilotShimPath(process.platform, process.execPath, this.envService.appRoot);
 		if (await isFile(shippedPath)) {
 			await this.removeStoredShims();
 			return shippedPath;
+		}
+
+		if (this.envService.isProduction()) {
+			// Also removes a development build that an earlier build published, so restored terminals can't run it.
+			await this.removeStoredShims();
+			this.logService.info(`[CopilotCLITerminalIntegration] The native copilot shim was not found at ${shippedPath}; terminals run copilot from PATH.`);
+			return undefined;
 		}
 
 		const globalStorageUri = this.context.globalStorageUri;

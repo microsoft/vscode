@@ -495,7 +495,7 @@ suite('Sessions - Panel Part', () => {
 				bottom: '-1px',
 				borderTopColor: 'rgb(52, 86, 120)',
 				borderBottomWidth: '0px',
-				radius: '7px 7px 0px 0px',
+				radius: '0px 7px 0px 0px',
 				leftShoulder: 'none',
 				rightShoulder: '""',
 				firstTabOmitsLeftShoulder: true,
@@ -530,5 +530,52 @@ suite('Sessions - Panel Part', () => {
 			},
 			workbenchBorderTopWidth: '1px',
 		});
+	});
+
+	test('lets the panel frame own only the first connected tab leading edge', () => {
+		const root = mainWindow.document.createElement('div');
+		root.className = 'monaco-workbench agent-sessions-workbench modern-ui-tabs modern-ui-connected-editor-tabs';
+		root.style.cssText = '--vscode-strokeThickness: 1px; --vscode-cornerRadius-medium: 6px';
+		mainWindow.document.body.appendChild(root);
+		disposables.add({ dispose: () => root.remove() });
+		const { actionItem, indicator, secondActionItem, secondIndicator } = createPanelTab(root);
+
+		for (const compact of [false, true]) {
+			root.classList.toggle('modern-ui-compact', compact);
+			for (const direction of ['ltr', 'rtl']) {
+				root.dir = direction;
+				const getLeadingEdge = (element: HTMLElement) => {
+					const style = mainWindow.getComputedStyle(element);
+					return {
+						color: style.borderInlineStartColor,
+						width: style.borderInlineStartWidth,
+						radius: style.borderStartStartRadius,
+						backgroundClip: style.backgroundClip,
+					};
+				};
+
+				actionItem.classList.add('checked');
+				secondActionItem.classList.remove('checked');
+				const firstTab = getLeadingEdge(indicator);
+				actionItem.classList.remove('checked');
+				secondActionItem.classList.add('checked');
+				const secondTab = getLeadingEdge(secondIndicator);
+
+				assert.deepStrictEqual({ firstTab, secondTab }, {
+					firstTab: {
+						color: 'rgba(0, 0, 0, 0)',
+						width: '1px',
+						radius: '0px',
+						backgroundClip: 'border-box',
+					},
+					secondTab: {
+						color: 'rgb(52, 86, 120)',
+						width: '1px',
+						radius: '7px',
+						backgroundClip: 'border-box',
+					},
+				}, `${direction}, compact: ${compact}`);
+			}
+		}
 	});
 });

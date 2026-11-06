@@ -3,11 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { Disposable, IDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { ResourceMap } from '../../../../base/common/map.js';
 import { derived, IObservable, observableValue } from '../../../../base/common/observable.js';
 import { URI } from '../../../../base/common/uri.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
+import { IChatRequestVariableEntry } from './attachments/chatVariableEntries.js';
 
 /**
  * Source text a side chat is anchored to, so the side chat can be given the
@@ -32,15 +34,14 @@ export interface IChatSideChatOrigin {
 	readonly selection?: IChatSideChatSelection;
 }
 
-/**
- * Supplies the ability to branch a conversation into a side chat — a question
- * answered alongside the conversation without being added to it.
- *
- * Implemented today by the Agents window (`vs/sessions`), which owns side chat
- * creation. The workbench declares the capability so chat UI can offer it
- * without depending on that layer; when the workbench gains native side chats it
- * registers a provider of its own.
- */
+export interface IChatSideChatRequestOptions {
+	readonly attachedContext?: IChatRequestVariableEntry[];
+	readonly token?: CancellationToken;
+	/** Branch from this source request instead of the latest request. */
+	readonly sourceTurnId?: string;
+}
+
+/** Supplies window-specific side chat creation and origin navigation. */
 export interface IChatSideChatProvider {
 	/**
 	 * Whether a side chat can be branched from `sessionResource` right now, e.g.
@@ -49,16 +50,12 @@ export interface IChatSideChatProvider {
 	canAskInSideChat(sessionResource: URI): boolean;
 
 	/**
-	 * Branches a side chat from the conversation's latest turn, reveals it, and
+	 * Branches a side chat from the chosen or latest turn, reveals it, and
 	 * sends `query` on it. Rejects if the side chat could not be created.
 	 */
-	askInSideChat(sessionResource: URI, query: string, selection?: IChatSideChatSelection): Promise<void>;
+	askInSideChat(sessionResource: URI, query: string, selection?: IChatSideChatSelection, options?: IChatSideChatRequestOptions): Promise<void>;
 
-	/**
-	 * Observes how `sessionResource` came to exist as a side chat, or `undefined`
-	 * when it is not a side chat. Observable because the source chat's title and
-	 * the origin itself settle asynchronously as session state loads.
-	 */
+	/** Observes a side chat's origin as it loads. */
 	observeSideChatOrigin(sessionResource: URI): IObservable<IChatSideChatOrigin | undefined>;
 
 	/**
@@ -79,7 +76,7 @@ export interface IChatSideChatService {
 	canAskInSideChat(sessionResource: URI): boolean;
 
 	/** @see IChatSideChatProvider.askInSideChat */
-	askInSideChat(sessionResource: URI, query: string, selection?: IChatSideChatSelection): Promise<void>;
+	askInSideChat(sessionResource: URI, query: string, selection?: IChatSideChatSelection, options?: IChatSideChatRequestOptions): Promise<void>;
 
 	/** @see IChatSideChatProvider.observeSideChatOrigin */
 	observeSideChatOrigin(sessionResource: URI): IObservable<IChatSideChatOrigin | undefined>;
@@ -114,12 +111,12 @@ export class ChatSideChatService extends Disposable implements IChatSideChatServ
 		return !!this._findProvider(sessionResource);
 	}
 
-	async askInSideChat(sessionResource: URI, query: string, selection?: IChatSideChatSelection): Promise<void> {
+	async askInSideChat(sessionResource: URI, query: string, selection?: IChatSideChatSelection, options?: IChatSideChatRequestOptions): Promise<void> {
 		const provider = this._findProvider(sessionResource);
 		if (!provider) {
 			throw new Error(`No side chat provider for ${sessionResource.toString()}`);
 		}
-		await provider.askInSideChat(sessionResource, query, selection);
+		await provider.askInSideChat(sessionResource, query, selection, options);
 	}
 
 	observeSideChatOrigin(sessionResource: URI): IObservable<IChatSideChatOrigin | undefined> {

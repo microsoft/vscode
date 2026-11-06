@@ -17,6 +17,8 @@ import { ADDITIONAL_WORKTREES_METADATA_KEY } from './shared/sessionAdditionalWor
 /** Migration version of the pending worktree removal table. */
 export const WORKTREE_REMOVAL_MIGRATION_VERSION = 18;
 
+export const WORKTREE_REMOVAL_STATUS_MIGRATION_VERSION = 22;
+
 export const WORKTREE_REMOVAL_SCHEMA_SQL = `
 CREATE TABLE IF NOT EXISTS pending_worktree_removals (
 	kind            TEXT NOT NULL CHECK (kind IN ('session', 'detached', 'coOwned')),
@@ -143,6 +145,12 @@ export interface IPendingWorktreeRemoval extends IWorktreeRemovalRequest {
 	readonly attempts: number;
 	/** Earliest time of the next attempt after a failure; `0` when due. */
 	readonly nextAttemptAt: number;
+	readonly lastAttempt?: IWorktreeRemovalAttemptStatus;
+}
+
+export interface IWorktreeRemovalAttemptStatus {
+	readonly state: 'failed' | 'skipped';
+	readonly message?: string;
 }
 
 export interface IAgentHostWorktreeRemovalDatabase {
@@ -156,7 +164,7 @@ export interface IAgentHostWorktreeRemovalDatabase {
 	readPendingWorktreeRemoval(kind: WorktreeRemovalKind, owner: string): Promise<IPendingWorktreeRemoval | undefined>;
 	listPendingWorktreeRemovals(): Promise<readonly IPendingWorktreeRemoval[]>;
 	/** Counts a failed attempt of the request, when it is still pending. Returns the attempts recorded. */
-	recordPendingWorktreeRemovalFailure(request: Pick<IWorktreeRemovalRequest, 'kind' | 'owner' | 'mode' | 'requestedAt'>, nextAttemptAt: number): Promise<number | undefined>;
+	recordPendingWorktreeRemovalFailure(request: Pick<IWorktreeRemovalRequest, 'kind' | 'owner' | 'mode' | 'requestedAt'>, nextAttemptAt: number, status: IWorktreeRemovalAttemptStatus): Promise<number | undefined>;
 	/**
 	 * Whether a non-archived, non-deleted session or chat other than those of
 	 * `excludedSession` has a working directory at or inside `worktreePath`,
@@ -200,6 +208,7 @@ export interface IAgentHostWorktreeRemovalDatabase {
 }
 
 const columns = 'kind, owner, owner_session, worktree_path, repository_root, branch, mode, owner_deleted, attempts, requested_at, next_attempt_at';
+const statusColumns = 'last_attempt_state, last_attempt_message';
 
 /** Writes removal requests inside the caller's transaction. */
 export async function insertPendingWorktreeRemovals(connection: Pick<ISessionStateSqlConnection, 'run'>, requests: readonly IWorktreeRemovalRequest[]): Promise<void> {
@@ -208,7 +217,7 @@ export async function insertPendingWorktreeRemovals(connection: Pick<ISessionSta
 			ON CONFLICT(kind, owner) DO UPDATE SET
 				owner_session = excluded.owner_session, worktree_path = excluded.worktree_path, repository_root = excluded.repository_root,
 				branch = excluded.branch, mode = excluded.mode, owner_deleted = excluded.owner_deleted, attempts = 0,
-				requested_at = excluded.requested_at, next_attempt_at = 0
+				requested_at = excluded.requested_at, next_attempt_at = 0, last_attempt_state = NULL, last_attempt_message = NULL
 			WHERE excluded.owner_deleted = 1 OR pending_worktree_removals.owner_deleted = 0`,
 			[request.kind, request.owner, request.ownerSession ?? null, request.worktreePath, request.repositoryRoot, request.branch ?? null, request.mode, request.ownerDeleted ? 1 : 0, request.requestedAt]);
 	}
@@ -227,6 +236,9 @@ function toRemoval(row: Record<string, unknown>): IPendingWorktreeRemoval {
 		attempts: row.attempts as number,
 		requestedAt: row.requested_at as number,
 		nextAttemptAt: row.next_attempt_at as number,
+		lastAttempt: row.last_attempt_state === 'failed' || row.last_attempt_state === 'skipped'
+			? { state: row.last_attempt_state, ...(typeof row.last_attempt_message === 'string' ? { message: row.last_attempt_message } : {}) }
+			: undefined,
 	};
 }
 
@@ -238,30 +250,34 @@ function toRemoval(row: Record<string, unknown>): IPendingWorktreeRemoval {
  * own uses its session's. A peer chat's backing provider session is not a
  * session (its chat counts instead). Archived sessions are filtered by the caller.
  */
-const centralWorkingDirectoriesSql = `
-	SELECT p.session_uri AS session_uri, j.value AS directory
+export function centralWorkingDirectoriesSql(includeArchivedChats = false): string {
+	const liveChat = includeArchivedChats ? 'c.tombstoned = 0' : 'c.tombstoned = 0 AND c.archived = 0';
+	const notArchivedCatalogChat = includeArchivedChats ? '' : `
+			AND NOT EXISTS (SELECT 1 FROM session_chats l WHERE l.session_uri = s.session_uri AND l.chat_uri = s.chat_uri AND l.archived = 1)`;
+	const notArchivedOrDeleted = includeArchivedChats ? 'n.tombstoned = 1' : '(n.archived = 1 OR n.tombstoned = 1)';
+	return `
+	SELECT p.session_uri AS session_uri, j.value AS directory, NULL AS chat_uri
 		FROM sessions_v2 p, json_each(p.payload, '$.data.workingDirectories') j
 		WHERE p.is_chat_backing = 0 AND instr(lower(p.payload), lower(?1)) > 0 AND json_valid(p.payload)
 	UNION ALL
-	SELECT v.session_uri, j.value
+	SELECT v.session_uri, j.value, NULL
 		FROM session_state_values v, json_each(v.value) j
 		WHERE v.key = '${SESSION_WORKING_DIRECTORIES_KEY}' AND instr(lower(v.value), lower(?1)) > 0 AND json_valid(v.value)
 	UNION ALL
-	SELECT c.owner_session_uri, j.value
+	SELECT c.owner_session_uri, j.value, c.chat_uri
 		FROM chats_v2 c, json_each(c.working_directories) j
-		WHERE c.tombstoned = 0 AND c.archived = 0 AND instr(lower(c.working_directories), lower(?1)) > 0 AND json_valid(c.working_directories)
+		WHERE ${liveChat} AND instr(lower(c.working_directories), lower(?1)) > 0 AND json_valid(c.working_directories)
 	UNION ALL
-	SELECT s.session_uri, j.value
+	SELECT s.session_uri, j.value, s.chat_uri
 		FROM session_chat_state s, json_each(s.working_directories) j
-		WHERE instr(lower(s.working_directories), lower(?1)) > 0 AND json_valid(s.working_directories)
-			AND NOT EXISTS (SELECT 1 FROM session_chats l WHERE l.session_uri = s.session_uri AND l.chat_uri = s.chat_uri AND l.archived = 1)
-			AND NOT EXISTS (SELECT 1 FROM chats_v2 n WHERE n.chat_uri = s.chat_uri AND (n.archived = 1 OR n.tombstoned = 1))
+		WHERE instr(lower(s.working_directories), lower(?1)) > 0 AND json_valid(s.working_directories)${notArchivedCatalogChat}
+			AND NOT EXISTS (SELECT 1 FROM chats_v2 n WHERE n.chat_uri = s.chat_uri AND ${notArchivedOrDeleted})
 	UNION ALL
-	SELECT s.session_uri, j.value
+	SELECT s.session_uri, j.value, s.chat_uri
 		FROM session_chat_state s, json_each(s.launch_working_directories) j
-		WHERE instr(lower(s.launch_working_directories), lower(?1)) > 0 AND json_valid(s.launch_working_directories)
-			AND NOT EXISTS (SELECT 1 FROM session_chats l WHERE l.session_uri = s.session_uri AND l.chat_uri = s.chat_uri AND l.archived = 1)
-			AND NOT EXISTS (SELECT 1 FROM chats_v2 n WHERE n.chat_uri = s.chat_uri AND (n.archived = 1 OR n.tombstoned = 1))`;
+		WHERE instr(lower(s.launch_working_directories), lower(?1)) > 0 AND json_valid(s.launch_working_directories)${notArchivedCatalogChat}
+			AND NOT EXISTS (SELECT 1 FROM chats_v2 n WHERE n.chat_uri = s.chat_uri AND ${notArchivedOrDeleted})`;
+}
 
 /**
  * Whether the session `uri` is archived: its central session state wins when
@@ -280,7 +296,7 @@ function sessionArchivedSql(uri: string): string {
  * a folder longer. A column is parsed only when it contains the folder.
  */
 const worktreeInUseSql = `
-	WITH directories(session_uri, directory) AS (${centralWorkingDirectoriesSql})
+	WITH directories(session_uri, directory, chat_uri) AS (${centralWorkingDirectoriesSql()})
 	SELECT 1 AS present FROM directories d
 	WHERE d.session_uri <> ?2
 		AND (lower(d.directory) = lower(?1) OR substr(lower(d.directory), 1, length(?1) + 1) = lower(?1) || '/')
@@ -302,7 +318,7 @@ function sessionLiveSql(uri: string): string {
 }
 
 /** Whether `directory` is the folder `?1` (no trailing slash) or inside it, case-insensitively. */
-function withinFolderSql(directory: string): string {
+export function withinFolderSql(directory: string): string {
 	return `(lower(${directory}) = lower(?1) OR substr(lower(${directory}), 1, length(?1) + 1) = lower(?1) || '/')`;
 }
 
@@ -374,19 +390,19 @@ export class AgentHostWorktreeRemovalTables implements IAgentHostWorktreeRemoval
 
 	readPendingWorktreeRemoval(kind: WorktreeRemovalKind, owner: string): Promise<IPendingWorktreeRemoval | undefined> {
 		return this._host.read(async connection => {
-			const row = await connection.get(`SELECT ${columns} FROM pending_worktree_removals WHERE kind = ? AND owner = ?`, [kind, owner]);
+			const row = await connection.get(`SELECT ${columns}, ${statusColumns} FROM pending_worktree_removals WHERE kind = ? AND owner = ?`, [kind, owner]);
 			return row ? toRemoval(row) : undefined;
 		});
 	}
 
 	listPendingWorktreeRemovals(): Promise<readonly IPendingWorktreeRemoval[]> {
-		return this._host.read(async connection => (await connection.all(`SELECT ${columns} FROM pending_worktree_removals ORDER BY requested_at, kind, owner`, [])).map(toRemoval));
+		return this._host.read(async connection => (await connection.all(`SELECT ${columns}, ${statusColumns} FROM pending_worktree_removals ORDER BY requested_at, kind, owner`, [])).map(toRemoval));
 	}
 
-	recordPendingWorktreeRemovalFailure(request: Pick<IWorktreeRemovalRequest, 'kind' | 'owner' | 'mode' | 'requestedAt'>, nextAttemptAt: number): Promise<number | undefined> {
+	recordPendingWorktreeRemovalFailure(request: Pick<IWorktreeRemovalRequest, 'kind' | 'owner' | 'mode' | 'requestedAt'>, nextAttemptAt: number, status: IWorktreeRemovalAttemptStatus): Promise<number | undefined> {
 		return this._host.write('Failed to record a worktree removal attempt', async connection => {
-			const changed = await connection.run(`UPDATE pending_worktree_removals SET attempts = attempts + 1, next_attempt_at = ?
-				WHERE kind = ? AND owner = ? AND mode = ? AND requested_at = ?`, [nextAttemptAt, request.kind, request.owner, request.mode, request.requestedAt]);
+			const changed = await connection.run(`UPDATE pending_worktree_removals SET attempts = attempts + 1, next_attempt_at = ?, last_attempt_state = ?, last_attempt_message = ?
+				WHERE kind = ? AND owner = ? AND mode = ? AND requested_at = ?`, [nextAttemptAt, status.state, status.message ?? null, request.kind, request.owner, request.mode, request.requestedAt]);
 			if (!changed) {
 				return undefined;
 			}

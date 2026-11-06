@@ -137,6 +137,13 @@ function convertNode(node: Node): string {
 		case 'strike':
 			return `~~${convertChildren(el)}~~`;
 
+		// Their text is code, never content the reader saw.
+		case 'noscript':
+		case 'script':
+		case 'style':
+		case 'template':
+			return '';
+
 		default:
 			return convertChildren(el);
 	}

@@ -8,7 +8,7 @@ export type RequestFetch = typeof globalThis.fetch;
 
 /** Fixed API domains for request attribution, independent of callers and quota identities. */
 export const gitHubRequestDomains = [
-	'actions', 'automations', 'capabilities', 'checks', 'content', 'credentials', 'environments',
+	'actions', 'automations', 'capabilities', 'checks', 'connectors', 'content', 'credentials', 'environments',
 	'gists', 'issues', 'notifications', 'organizations', 'pullRequests', 'repositories', 'reviews',
 	'search', 'tasks', 'users', 'other',
 ] as const;

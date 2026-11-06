@@ -37,15 +37,17 @@ import { ChatContextKeys } from '../../../../../workbench/contrib/chat/common/ac
 import { ContributionEnablementState } from '../../../../../workbench/contrib/chat/common/enablement.js';
 import { IAgentPlugin, IAgentPluginService } from '../../../../../workbench/contrib/chat/common/plugins/agentPluginService.js';
 import { IVoicePlaybackService } from '../../../../../workbench/contrib/chat/common/voicePlaybackService.js';
+import { stubSessionHosts, testGridPanes } from '../../../../../workbench/contrib/sessions/test/browser/sessionHostTestUtils.js';
 import { ComponentFixtureContext, createEditorServices, defineComponentFixture, defineThemedFixtureGroup, registerWorkbenchServices } from '../../../../../workbench/test/browser/componentFixtures/fixtureUtils.js';
 import { CustomViewNode } from '../../../../browser/parts/customViewNode.js';
-import { CustomViewService, ICustomViewService } from '../../../../services/customView/browser/customViewService.js';
-import { ISessionsListModelService } from '../../../../services/sessions/browser/sessionsListModelService.js';
-import { ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
-import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
-import { IChat, ISession, SessionStatus } from '../../../../services/sessions/common/session.js';
-import { ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
-import { AUTOMATIONS_CUSTOM_VIEW_ID } from '../../browser/automationsConstants.js';
+import { CustomViewService } from '../../../../services/customView/browser/customViewService.js';
+import { ICustomViewService } from '../../../../../workbench/contrib/sessions/browser/customView.js';
+import { ISessionsListModelService } from '../../../../../workbench/contrib/sessions/browser/sessionsListModelService.js';
+import { ISessionsProvidersService } from '../../../../../workbench/contrib/sessions/browser/sessionsProvidersService.js';
+import { ISessionsService } from '../../../../../workbench/contrib/sessions/browser/sessionsService.js';
+import { IChat, ISession, SessionStatus } from '../../../../../workbench/contrib/sessions/common/session.js';
+import { ISessionsManagementService } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
+import { AUTOMATIONS_CUSTOM_VIEW_ID } from '../../../../../workbench/contrib/sessions/browser/automationsConstants.js';
 import { AutomationsCustomViewContribution } from '../../browser/views/automationsView.js';
 
 const WORKSPACE = URI.parse('file:///workspaces/vscode');
@@ -188,6 +190,7 @@ interface IAutomationsFixtureOptions {
 	readonly pluginTemplate?: boolean;
 	readonly showDropTarget?: boolean;
 	readonly cloud?: boolean;
+	readonly repositoryOnly?: boolean;
 	readonly nativeCloud?: boolean;
 	readonly followUp?: boolean;
 	readonly historyState?: AutomationCatalogueState;
@@ -207,6 +210,11 @@ export default defineThemedFixtureGroup({ path: 'sessions/automations/' }, {
 		labels: { kind: 'screenshot' },
 		additionalThemes: ['darkHighContrast'],
 		render: ctx => renderAutomations(ctx, { width: 1000, height: 720, populated: true }),
+	}),
+	RepositoryOnly: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		additionalThemes: ['darkHighContrast'],
+		render: ctx => renderAutomations(ctx, { width: 1000, height: 720, populated: true, repositoryOnly: true }),
 	}),
 	Empty: defineComponentFixture({
 		labels: { kind: 'screenshot' },
@@ -300,7 +308,7 @@ export default defineThemedFixtureGroup({ path: 'sessions/automations/' }, {
 });
 
 function renderAutomations(ctx: ComponentFixtureContext, options: IAutomationsFixtureOptions): void {
-	const data = options.cloud ? createCloudData() : options.populated ? createPopulatedData() : { automations: [], runs: [] };
+	const data = options.repositoryOnly ? createRepositoryOnlyData() : options.cloud ? createCloudData() : options.populated ? createPopulatedData() : { automations: [], runs: [] };
 	const configurationService = new TestConfigurationService({
 		chat: { automations: { enabled: true } },
 	});
@@ -356,8 +364,9 @@ function renderAutomations(ctx: ComponentFixtureContext, options: IAutomationsFi
 			reg.defineInstance(ICustomViewService, customViewService);
 			reg.defineInstance(ISessionsManagementService, sessionsManagementService);
 			reg.defineInstance(ISessionsService, new class extends mock<ISessionsService>() {
-				override readonly visibleSessions = constObservable([]);
-				override readonly activeSession = constObservable(undefined);
+				readonly gridShown = constObservable([]);
+				override readonly slotPanes = testGridPanes(this.gridShown);
+				readonly activeSession = constObservable(undefined);
 				override async openSession(): Promise<void> { }
 			}());
 			reg.defineInstance(ISessionsListModelService, new class extends mock<ISessionsListModelService>() {
@@ -390,6 +399,7 @@ function renderAutomations(ctx: ComponentFixtureContext, options: IAutomationsFi
 			});
 		},
 	});
+	stubSessionHosts(instantiationService, ctx.disposableStore);
 
 	ctx.disposableStore.add(instantiationService.createInstance(AutomationsCustomViewContribution));
 	customViewService.showCustomView(AUTOMATIONS_CUSTOM_VIEW_ID);
@@ -437,6 +447,17 @@ function createCloudData(): IAutomationsFixtureData {
 		...(status === 'failed' ? { errorMessage: 'Cancelled' } : {}),
 	}));
 	return { automations, runs };
+}
+
+function createRepositoryOnlyData(): IAutomationsFixtureData {
+	return {
+		automations: createPopulatedData().automations.slice(0, 2).map(automation => ({
+			...automation,
+			ownership: 'repository',
+			targetDisplay: { label: 'example/private-project', icon: Codicon.cloud },
+		})),
+		runs: [],
+	};
 }
 
 function createPopulatedData(): IAutomationsFixtureData {

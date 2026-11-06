@@ -35,11 +35,15 @@ const moveSessionInputSchema: ToolDefinition['inputSchema'] = {
 	},
 };
 
+/** `move_session`'s sentence on agents, and its wording where chats of the session may use their own agents. */
+const moveSessionSameAgentSentence = 'A moved session keeps its history, folders and running work, including a session without a workspace; both sessions must use the same agent.';
+const moveSessionOwnAgentSentence = 'A moved session keeps its history, folders, running work and agent, including a session without a workspace; it can move into a session of another agent when that agent supports multiple chats.';
+
 /** The `move_session` tool, offered only while moving chats is enabled. */
 export const moveSessionToolDefinition: IAgentServerToolDefinition = {
 	name: SessionServerToolName.MoveSession,
 	title: 'Move Session',
-	description: 'Move a nested session or a whole session when the user asks to reorganize sessions: reorder a nested session within its session, move it into another session, make it its own session (`independent`), or move a session that has no nested sessions into another session as a nested session. Pass `into` for every move except `independent`, which takes neither `into` nor `after`. Use this only when the user asks to move or reorganize sessions; never to tidy up sessions on your own. To start new work, use `create_session` instead. A moved session keeps its history, folders and running work; both sessions must use the same agent. Get links from `list_sessions` or `get_current_session`: a session\'s `openLink`, or for a nested session the `openLink` listed for it in the session\'s `chats`. The user is asked to confirm every move. When it moves the chat this tool runs in, the move happens after this turn ends: make it your final tool call.',
+	description: 'Move a nested session or a whole session when the user asks to reorganize sessions: reorder a nested session within its session, move it into another session, make it its own session (`independent`), or move a session that has no nested sessions into another session as a nested session. Pass `into` for every move except `independent`, which takes neither `into` nor `after`. Use this only when the user asks to move or reorganize sessions; never to tidy up sessions on your own. To start new work, use `create_session` instead. A moved session keeps its history, folders and running work, including a session without a workspace; both sessions must use the same agent. Get links from `list_sessions` or `get_current_session`: a session\'s `openLink`, or for a nested session the `openLink` listed for it in the session\'s `chats`. The user is asked to confirm every move. When it moves the chat this tool runs in, the move happens after this turn ends: make it your final tool call.',
 	inputSchema: moveSessionInputSchema,
 	annotations: { readOnlyHint: false },
 	topLevelChatOnly: true,
@@ -205,15 +209,18 @@ const refusalMessages: { readonly [K in AgentChatMoveRefusal]: string } = {
 	[AgentChatMoveRefusal.SessionQuarantined]: 'One of the sessions is changing its workspace or can\'t run turns; try again after that finishes.',
 	[AgentChatMoveRefusal.ConversionInProgress]: 'This nested session is changing its workspace; try again after that finishes.',
 	[AgentChatMoveRefusal.WorktreeFolder]: 'This nested session works in its own worktree that a nested session staying behind also uses; move that one too, or leave both.',
-	[AgentChatMoveRefusal.Workspaceless]: 'Sessions without a workspace, and nested sessions without a folder, can\'t be moved.',
+	[AgentChatMoveRefusal.Workspaceless]: 'This can\'t be moved: its folder is also used by a nested session that stays behind, or it has no folder; move those nested sessions too, or leave this one.',
 	[AgentChatMoveRefusal.AgentMergeOwner]: 'This runs Agent Merge for a folder of its session; ask the user to turn Agent Merge off first.',
 	[AgentChatMoveRefusal.DestinationSingleFolder]: 'The destination\'s agent supports one folder per session and this works in another folder; pick a destination in the same folder.',
 	[AgentChatMoveRefusal.LegacyCatalog]: 'One of the sessions can\'t be reorganized right now because its nested sessions can\'t be verified; try again later.',
 	[AgentChatMoveRefusal.Conflict]: 'The sessions changed while moving; check them with `list_sessions` and try again.',
 	[AgentChatMoveRefusal.Unsupported]: 'This nested session has no conversation of its own yet, so it can\'t become its own session.',
 	[AgentChatMoveRefusal.NotSingleChat]: 'This session has nested sessions; move them out first, or move each nested session on its own.',
-	[AgentChatMoveRefusal.NotStarted]: 'This nested session has no messages yet; it can become its own session after its first message.',
+	[AgentChatMoveRefusal.NotStarted]: 'This session has no messages yet; it can be moved after its first message.',
 	[AgentChatMoveRefusal.DifferentCredentialOwner]: 'Sessions with different credential owners can\'t be combined; pick a destination that uses the same account, or move it to its own session.',
+	[AgentChatMoveRefusal.AgentUnavailable]: 'The agent of this session is unknown or disabled on this host, so it can\'t move to a session of another agent or become its own session; ask the user to enable that agent.',
+	[AgentChatMoveRefusal.AgentWithoutChats]: 'The destination session\'s agent can\'t host sessions of another agent, or this session\'s agent can\'t join one; pick a destination session whose agent supports multiple chats, or one of the same agent.',
+	[AgentChatMoveRefusal.AgentConfigUnavailable]: 'The agent of this session couldn\'t describe its settings for the move; try again.',
 };
 
 /** For a whole session, `notMovable` means it isn't a session of its own anymore or couldn't be opened, not the reasons a nested session stays. */
@@ -400,6 +407,10 @@ export function createSessionMoveToolGroup(accessor: ISessionServerToolAccessor,
 		getDisplay: (_toolName, args, result) => getMoveSessionDisplay(args, result, (session, chatId) => accessor.isKnownSessionLink(session, chatId)),
 		isEnabled: toolName => toolName === SessionServerToolName.MoveSession && accessor.isChatMoveEnabled(),
 		isEnabledForSession: (_toolName, sessionUri) => accessor.supportsChatMoves(URI.parse(sessionUri)),
+		// Mentions moves across agents only while chats of the session may use their own agents; otherwise it reads as before.
+		getDefinitionForSession: (definition, sessionUri) => definition.name === SessionServerToolName.MoveSession && accessor.getChatHarnesses?.(URI.parse(sessionUri)) !== undefined
+			? { ...definition, description: definition.description?.replace(moveSessionSameAgentSentence, moveSessionOwnAgentSentence) }
+			: definition,
 		canRequireConfirmation: toolName => sessionToolRequiresConfirmation(toolName),
 		async execute(_stateManager, context, _toolName, rawArgs): Promise<string> {
 			if (!accessor.isChatMoveEnabled()) {

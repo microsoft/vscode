@@ -121,8 +121,8 @@ export class GitTimelineProvider implements TimelineProvider, WorkspaceTimelineP
 	private readonly _onDidChangeWorkspaceTimeline = new EventEmitter<void>();
 	readonly onDidChangeWorkspaceTimeline = this._onDidChangeWorkspaceTimeline.event;
 
-	readonly id = 'git-history';
-	readonly label = l10n.t('Git History');
+	private readonly id = 'git-history';
+	private readonly label = l10n.t('Git History');
 
 	private readonly disposable: Disposable;
 	private providerDisposable: Disposable | undefined;
@@ -433,8 +433,8 @@ export class GitTimelineProvider implements TimelineProvider, WorkspaceTimelineP
 	private ensureProviderRegistration() {
 		if (this.providerDisposable === undefined) {
 			this.providerDisposable = Disposable.from(
-				workspace.registerTimelineProvider(['file', 'git', 'vscode-remote', 'vscode-local-history'], this),
-				workspace.registerWorkspaceTimelineProvider(this)
+				workspace.registerTimelineProvider(this.id, this.label, ['file', 'git', 'vscode-remote', 'vscode-local-history'], this),
+				workspace.registerWorkspaceTimelineProvider(this.id, this.label, this)
 			);
 		}
 	}

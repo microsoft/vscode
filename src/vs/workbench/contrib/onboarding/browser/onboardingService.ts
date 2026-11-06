@@ -3,15 +3,16 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { DeferredPromise } from '../../../../base/common/async.js';
+import { DeferredPromise, raceCancellationError } from '../../../../base/common/async.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
 import { CancellationError, isCancellationError, onUnexpectedError } from '../../../../base/common/errors.js';
-import { Emitter } from '../../../../base/common/event.js';
+import { Emitter, Event } from '../../../../base/common/event.js';
 import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.js';
-import { autorun, IReader, observableSignal } from '../../../../base/common/observable.js';
+import { autorun, IObservable, IReader, observableSignal, observableValue } from '../../../../base/common/observable.js';
 import { mainWindow } from '../../../../base/browser/window.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
+import { IDialogService } from '../../../../platform/dialogs/common/dialogs.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { ILifecycleService } from '../../../services/lifecycle/common/lifecycle.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
@@ -71,6 +72,8 @@ export class OnboardingScenarioService extends Disposable implements IOnboarding
 
 	/** Scenario ids currently queued or running (prevents double-scheduling). */
 	private readonly _pending = new Set<string>();
+	private readonly _isPresenting = observableValue(this, false);
+	readonly isPresenting: IObservable<boolean> = this._isPresenting;
 	private readonly _queue: IScenarioRun[] = [];
 	/** Scenarios that have been dequeued and are currently running, keyed by id. */
 	private readonly _inflight = new Map<string, IScenarioRun>();
@@ -104,6 +107,7 @@ export class OnboardingScenarioService extends Disposable implements IOnboarding
 		@ILifecycleService private readonly lifecycleService: ILifecycleService,
 		@IWorkbenchAssignmentService private readonly assignmentService: IWorkbenchAssignmentService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
+		@IDialogService private readonly dialogService: IDialogService,
 	) {
 		super();
 
@@ -137,8 +141,13 @@ export class OnboardingScenarioService extends Disposable implements IOnboarding
 		let entry: IScenarioRun | undefined;
 		while ((entry = this._queue.shift())) {
 			this._pending.delete(entry.scenario.id);
+			this._updatePresenting();
 			entry.deferred.complete(OnboardingOutcome.Aborted);
 		}
+	}
+
+	private _updatePresenting(): void {
+		this._isPresenting.set(this._pending.size > 0, undefined);
 	}
 
 	start(): void {
@@ -154,6 +163,7 @@ export class OnboardingScenarioService extends Disposable implements IOnboarding
 		}));
 
 		this._register(this.contextKeyService.onDidChangeContext(() => this._evaluate()));
+		this._register(this.dialogService.onDidShowDialog(() => this._evaluate()));
 
 		this._register(this.assignmentService.onDidRefetchAssignments(() => this._resolveExperiments()));
 
@@ -187,6 +197,7 @@ export class OnboardingScenarioService extends Disposable implements IOnboarding
 				if (index >= 0) {
 					const [entry] = this._queue.splice(index, 1);
 					this._pending.delete(id);
+					this._updatePresenting();
 					entry.deferred.complete(OnboardingOutcome.Aborted);
 				} else if (this._inflight.has(id)) {
 					this._activeAbort?.fire();
@@ -270,7 +281,7 @@ export class OnboardingScenarioService extends Disposable implements IOnboarding
 	 * scorecard regardless of which arm the developer happens to be assigned to.
 	 */
 	private _evaluate(): void {
-		if (!this._enabled || this._stopped) {
+		if (!this._enabled || this._stopped || this.dialogService.hasDialog) {
 			return;
 		}
 
@@ -360,6 +371,7 @@ export class OnboardingScenarioService extends Disposable implements IOnboarding
 
 	private _isStillEligible(scenario: IOnboardingScenario): boolean {
 		return this._enabled
+			&& !this.dialogService.hasDialog
 			&& (!scenario.when || this.contextKeyService.contextMatchesRules(scenario.when))
 			&& (scenario.trigger.kind !== 'observable' || scenario.trigger.signal.get() === true);
 	}
@@ -380,6 +392,7 @@ export class OnboardingScenarioService extends Disposable implements IOnboarding
 
 		const deferred = new DeferredPromise<OnboardingOutcome>();
 		this._pending.add(scenario.id);
+		this._updatePresenting();
 		this._queue.push({ scenario, deferred, automatic });
 		// Highest priority first; stable for equal priorities.
 		this._queue.sort((a, b) => (b.scenario.priority ?? 0) - (a.scenario.priority ?? 0));
@@ -416,6 +429,7 @@ export class OnboardingScenarioService extends Disposable implements IOnboarding
 				} finally {
 					this._inflight.delete(scenario.id);
 					this._pending.delete(scenario.id);
+					this._updatePresenting();
 				}
 				deferred.complete(outcome);
 			}
@@ -444,6 +458,10 @@ export class OnboardingScenarioService extends Disposable implements IOnboarding
 		this._activeAbort = abort;
 		try {
 			return await runWithOnboardingPresentation(mainWindow, cancellation.token, async () => {
+				// A modal can open while this run waits for the presentation slot.
+				while (run.automatic && this.dialogService.hasDialog) {
+					await raceCancellationError(Event.toPromise(this.dialogService.onDidShowDialog, store), cancellation.token);
+				}
 				// An automatic run can wait behind other presentations, so it only starts if it is still eligible.
 				if (this._stopped || run.automatic && !this._isStillEligible(scenario)) {
 					throw new CancellationError();

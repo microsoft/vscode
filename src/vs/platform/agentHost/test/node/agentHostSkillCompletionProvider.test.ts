@@ -9,13 +9,18 @@ import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { NullLogService } from '../../../log/common/log.js';
 import { SYNCED_CUSTOMIZATION_SCHEME } from '../../common/agentHostFileSystemService.js';
+import type { ISessionDatabase } from '../../common/sessionDataService.js';
+import { createSessionDataService, TestSessionDatabase } from '../common/sessionTestHelpers.js';
+import { MCP_SKILLS_METADATA_KEY, type ICachedMcpSkill } from '../../node/shared/mcpSkillCache.js';
 import { CompletionItemKind } from '../../common/state/protocol/commands.js';
-import { buildDefaultChatUri, CustomizationLoadStatus, CustomizationType, MessageAttachmentKind, type DirectoryCustomization, type PluginCustomization, type PromptCustomization, type SkillCustomization } from '../../common/state/sessionState.js';
-import { CustomizationEnablementKind } from '../../common/state/protocol/state.js';
+import { buildDefaultChatUri, CustomizationLoadStatus, CustomizationType, MessageAttachmentKind, type McpServerCustomization, type DirectoryCustomization, type PluginCustomization, type PromptCustomization, type SkillCustomization } from '../../common/state/sessionState.js';
+import { CustomizationEnablementKind, McpServerStatus } from '../../common/state/protocol/state.js';
 import { AgentHostCompletions, CompletionTriggerCharacter } from '../../node/agentHostCompletions.js';
 import { AgentHostSkillCompletionProvider } from '../../node/agentHostSkillCompletionProvider.js';
 import { AgentHostStateManager } from '../../node/agentHostStateManager.js';
 import { MockAgent } from './mockAgent.js';
+import { buildMcpResourceUri } from '../../common/mcpResourceUri.js';
+import { withMcpServerDisplayNameMeta } from '../../common/meta/mcpCustomizationMeta.js';
 import { createTestAgentChatContext } from './agentChatContextTestUtils.js';
 
 suite('AgentHostSkillCompletionProvider', () => {
@@ -93,8 +98,13 @@ suite('AgentHostSkillCompletionProvider', () => {
 		};
 	}
 
-	function createProvider(agent: MockAgent): AgentHostSkillCompletionProvider {
-		return disposables.add(new AgentHostSkillCompletionProvider(() => agent, async session => ({ chat: URI.parse(buildDefaultChatUri(session)), context: createTestAgentChatContext(session, session) })));
+	function createProvider(agent: MockAgent | undefined, database: ISessionDatabase = disposables.add(new TestSessionDatabase())): AgentHostSkillCompletionProvider {
+		return disposables.add(new AgentHostSkillCompletionProvider(
+			() => agent,
+			async session => ({ chat: URI.parse(buildDefaultChatUri(session)), context: createTestAgentChatContext(session, session) }),
+			undefined,
+			createSessionDataService(database),
+		));
 	}
 
 	async function run(provider: AgentHostSkillCompletionProvider, text: string, offset = text.length) {
@@ -103,7 +113,7 @@ suite('AgentHostSkillCompletionProvider', () => {
 
 	test('announces slash as a trigger character', () => {
 		const completions = disposables.add(new AgentHostCompletions(new NullLogService(), disposables.add(new AgentHostStateManager(new NullLogService()))));
-		const provider = disposables.add(new AgentHostSkillCompletionProvider(() => undefined, async session => ({ chat: URI.parse(buildDefaultChatUri(session)), context: createTestAgentChatContext(session, session) })));
+		const provider = createProvider(undefined);
 		disposables.add(completions.registerProvider(provider));
 		assert.deepStrictEqual([...completions.triggerCharacters], [CompletionTriggerCharacter.Slash]);
 	});
@@ -185,6 +195,158 @@ suite('AgentHostSkillCompletionProvider', () => {
 			'/plugin:model-disabled ',
 			'/visible ',
 		]);
+	});
+
+	test('offers enabled user-invocable MCP skills by their published server-prefixed names', async () => {
+		const resource = buildMcpResourceUri('opaque-mcp-channel:skills', 'skill://server/friendly/SKILL.md', 'Friendly Skill');
+		const mcpSkill = (name: string, options?: SkillOptions): SkillCustomization => skillAt(name, resource, 'Skill description', options);
+		const server = (name: string, children: SkillCustomization[], enabled = true): McpServerCustomization => ({
+			type: CustomizationType.McpServer, id: `mcp:${name}`, uri: `mcp-config:/${name}`, name,
+			state: { kind: McpServerStatus.Ready }, children,
+			enablement: [{ kind: CustomizationEnablementKind.Session, enabled }],
+			_meta: withMcpServerDisplayNameMeta(undefined, 'Friendly Server'),
+		});
+		const agent = new MockAgent('mock');
+		agent.getSessionCustomizations = async () => [
+			server('top', [
+				mcpSkill('top:friendly'),
+				mcpSkill('top:disabled', { enabled: false }),
+				mcpSkill('top:hidden', { disableUserInvocation: true }),
+			]),
+			{ ...plugin('plugin'), children: [server('nested', [mcpSkill('nested:skill')])] },
+			server('disabled', [mcpSkill('disabled:skill')], false),
+			{ ...plugin('disabled-plugin', undefined, false), children: [server('disabled-parent', [mcpSkill('disabled-parent:skill')])] },
+			server('model-hidden', [mcpSkill('model-hidden:skill', { disableModelInvocation: true })]),
+		];
+		const provider = createProvider(agent);
+
+		const summarize = async (text: string) => (await run(provider, text)).map(item => ({ insertText: item.insertText, label: item.attachment.label, meta: item.attachment._meta }));
+		const expected = (name: string) => ({
+			insertText: `/${name} `, label: `/${name}`,
+			meta: { uri: resource, name, displayName: name, description: 'Skill description (MCP: Friendly Server)' },
+		});
+		assert.deepStrictEqual({ all: await summarize('/'), top: await summarize('/top:') }, {
+			all: [expected('top:friendly'), expected('nested:skill'), expected('model-hidden:skill')],
+			top: [expected('top:friendly')],
+		});
+	});
+
+	suite('cached MCP skills', () => {
+		const rawUri = 'agent-discovery://server/friendly/SKILL.md';
+		class CacheDatabase extends TestSessionDatabase {
+			readCalls = 0;
+			failRead = false;
+			override async getMetadata(key: string): Promise<string | undefined> {
+				if (key === MCP_SKILLS_METADATA_KEY) {
+					this.readCalls++;
+					if (this.failRead) {
+						throw new Error('Read failed');
+					}
+				}
+				return super.getMetadata(key);
+			}
+		}
+
+		function server(name: string, children?: SkillCustomization[], enabled = true): McpServerCustomization {
+			return {
+				type: CustomizationType.McpServer, id: name, uri: name, name, state: { kind: McpServerStatus.Stopped },
+				_meta: withMcpServerDisplayNameMeta(undefined, 'Friendly Server'),
+				...(children === undefined ? {} : { children }),
+				...(enabled ? {} : { enablement: [{ kind: CustomizationEnablementKind.Session, enabled: false }] }),
+			};
+		}
+
+		function cachedSkill(name: string, options?: Partial<Pick<ICachedMcpSkill, 'enabled' | 'userInvocable'>>): ICachedMcpSkill {
+			return { name, description: 'Skill description', userInvocable: true, enabled: true, uri: rawUri, ...options };
+		}
+
+		test('offers cached top-level and plugin-child skills exactly like live skills without publishing children', async () => {
+			const database = disposables.add(new CacheDatabase());
+			await database.setMetadata(MCP_SKILLS_METADATA_KEY, JSON.stringify({ top: [cachedSkill('top:friendly')], nested: [cachedSkill('nested:skill')] }));
+			const agent = new MockAgent('mock');
+			const top = server('top');
+			const nested = server('nested');
+			let customizations = [top, { ...plugin('plugin'), children: [nested] }];
+			agent.getSessionCustomizations = async () => customizations;
+			const provider = createProvider(agent, database);
+			const cached = await run(provider, '/');
+			const unpublished = [top.children, nested.children];
+			customizations = [
+				server('top', [skillAt('top:friendly', rawUri, 'Skill description')]),
+				{ ...plugin('plugin'), children: [server('nested', [skillAt('nested:skill', rawUri, 'Skill description')])] },
+			];
+			const live = await run(provider, '/');
+			const expected = ['top:friendly', 'nested:skill'].map(name => ({
+				insertText: `/${name} `, rangeStart: 0, rangeEnd: 1,
+				attachment: {
+					type: MessageAttachmentKind.Simple, label: `/${name}`,
+					_meta: { uri: 'agent-discovery://server/friendly/SKILL.md', name, displayName: name, description: 'Skill description (MCP: Friendly Server)' },
+				},
+			}));
+			assert.deepStrictEqual({ cached, live, unpublished, reads: database.readCalls }, { cached: expected, live: expected, unpublished: [undefined, undefined], reads: 1 });
+		});
+
+		for (const empty of [false, true]) {
+			test(`ignores cached skills once live children are ${empty ? 'empty' : 'present'}`, async () => {
+				const database = disposables.add(new CacheDatabase());
+				await database.setMetadata(MCP_SKILLS_METADATA_KEY, JSON.stringify({ fs: [cachedSkill('fs:stale')], nested: [cachedSkill('nested:stale')] }));
+				const agent = new MockAgent('mock');
+				agent.getSessionCustomizations = async () => [
+					server('fs', empty ? [] : [skillAt('fs:live', rawUri)]),
+					{ ...plugin('plugin'), children: [server('nested', empty ? [] : [skillAt('nested:live', rawUri)])] },
+				];
+				const items = await run(createProvider(agent, database), '/');
+				assert.deepStrictEqual({ items: items.map(item => item.insertText), reads: database.readCalls }, { items: empty ? [] : ['/fs:live ', '/nested:live '], reads: 0 });
+			});
+		}
+
+		test('uses cache only for servers whose skills are still undiscovered', async () => {
+			const database = disposables.add(new CacheDatabase());
+			await database.setMetadata(MCP_SKILLS_METADATA_KEY, JSON.stringify({ fs: [cachedSkill('fs:stale')], nested: [cachedSkill('nested:skill')] }));
+			const agent = new MockAgent('mock');
+			agent.getSessionCustomizations = async () => [server('fs', []), { ...plugin('plugin'), children: [server('nested')] }];
+			const items = await run(createProvider(agent, database), '/');
+			assert.deepStrictEqual({ items: items.map(item => item.insertText), reads: database.readCalls }, { items: ['/nested:skill '], reads: 1 });
+		});
+
+		test('excludes disabled and non-invocable cached skills, disabled servers and disabled parent plugins', async () => {
+			const database = disposables.add(new CacheDatabase());
+			await database.setMetadata(MCP_SKILLS_METADATA_KEY, JSON.stringify({
+				top: [cachedSkill('top:visible'), cachedSkill('top:disabled', { enabled: false }), cachedSkill('top:hidden', { userInvocable: false })],
+				disabled: [cachedSkill('disabled:skill')], parent: [cachedSkill('parent:skill')], child: [cachedSkill('child:skill')], removed: [cachedSkill('removed:skill')],
+			}));
+			const agent = new MockAgent('mock');
+			agent.getSessionCustomizations = async () => [
+				server('top'), server('disabled', undefined, false),
+				{ ...plugin('disabled-plugin', undefined, false), children: [server('parent')] },
+				{ ...plugin('enabled-plugin'), children: [server('child', undefined, false)] },
+			];
+			const items = await run(createProvider(agent, database), '/');
+			assert.deepStrictEqual(items.map(item => item.insertText), ['/top:visible ']);
+		});
+
+		test('keeps live completions when the cache cannot be read', async () => {
+			const database = disposables.add(new CacheDatabase());
+			database.failRead = true;
+			const agent = new MockAgent('mock');
+			agent.getSessionCustomizations = async () => [server('fs'), directory('.github', 'file:///skills', [skill('local')])];
+			const items = await run(createProvider(agent, database), '/');
+			assert.deepStrictEqual({ items: items.map(item => item.insertText), reads: database.readCalls }, { items: ['/local '], reads: 1 });
+		});
+
+		test('reads the latest cached snapshot on each completion request', async () => {
+			const database = disposables.add(new CacheDatabase());
+			const agent = new MockAgent('mock');
+			agent.getSessionCustomizations = async () => [server('fs')];
+			const provider = createProvider(agent, database);
+			await database.setMetadata(MCP_SKILLS_METADATA_KEY, JSON.stringify({ fs: [cachedSkill('fs:first')] }));
+			const first = await run(provider, '/');
+			await database.setMetadata(MCP_SKILLS_METADATA_KEY, JSON.stringify({ fs: [cachedSkill('fs:second')] }));
+			const second = await run(provider, '/');
+			assert.deepStrictEqual({ first: first.map(item => item.insertText), second: second.map(item => item.insertText), reads: database.readCalls }, {
+				first: ['/fs:first '], second: ['/fs:second '], reads: 2,
+			});
+		});
 	});
 
 	test('complete skills from a plugin with the same name as the skill', async () => {

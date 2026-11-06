@@ -13,9 +13,10 @@ import { IMenuService, MenuId } from '../../../../../platform/actions/common/act
 import { ActionWidgetService, IActionWidgetService } from '../../../../../platform/actionWidget/browser/actionWidget.js';
 import { ResolveSessionConfigResult } from '../../../../../platform/agentHost/common/state/protocol/commands.js';
 import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
-import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
+import { ConfigurationTarget, IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
-import { IContextViewService } from '../../../../../platform/contextview/browser/contextView.js';
+import { IContextMenuService, IContextViewService } from '../../../../../platform/contextview/browser/contextView.js';
+import { ContextMenuService } from '../../../../../platform/contextview/browser/contextMenuService.js';
 import { ContextViewService } from '../../../../../platform/contextview/browser/contextViewService.js';
 import { ILayoutService } from '../../../../../platform/layout/browser/layoutService.js';
 import { IChatWidget } from '../../../../contrib/chat/browser/chat.js';
@@ -28,6 +29,7 @@ import { IChatViewModel } from '../../../../contrib/chat/common/model/chatViewMo
 import { IArtifactSourceGroup } from '../../../../contrib/chat/common/tools/chatArtifactsService.js';
 import { IChatInputNotification } from '../../../../contrib/chat/browser/widget/input/chatInputNotificationService.js';
 import { IChatEditingSession } from '../../../../contrib/chat/common/editing/chatEditingService.js';
+import { IChatSessionReviewPreferencesService } from '../../../../contrib/chat/common/editing/chatSessionReviewPreferences.js';
 import { IChatTodo } from '../../../../contrib/chat/common/tools/chatTodoListService.js';
 import { ILanguageModelChatMetadataAndIdentifier, ILanguageModelsService } from '../../../../contrib/chat/common/languageModels.js';
 import { NullLanguageModelsService } from '../../../../contrib/chat/test/common/languageModels.js';
@@ -44,6 +46,8 @@ import { IVoiceSessionController } from '../../../../contrib/chat/browser/voiceC
 import { IMicCaptureService } from '../../../../contrib/chat/browser/voiceClient/micCaptureService.js';
 import { ITtsPlaybackService } from '../../../../contrib/chat/browser/voiceClient/ttsPlaybackService.js';
 import { ChatSpeechToTextState, IChatSpeechToTextService } from '../../../../contrib/chat/browser/speechToText/chatSpeechToTextService.js';
+import { PlaceholderTextContribution } from '../../../../../editor/contrib/placeholderText/browser/placeholderTextContribution.js';
+import '../../../../../editor/contrib/placeholderText/browser/placeholderText.css';
 
 /** Room above the input for the pet, which stands outside it. */
 const PET_HEADROOM = 64;
@@ -106,6 +110,8 @@ export interface ChatInputFixtureOptions {
 	readonly artifacts?: readonly { label: string; uri: string; type: 'devServer' | 'screenshot' | 'plan' | undefined }[];
 	readonly editingSession?: IChatEditingSession;
 	readonly sessionWorkingSet?: boolean;
+	readonly sessionWorkingSetReviewEnabled?: boolean;
+	readonly focusInput?: boolean;
 	readonly todos?: IChatTodo[];
 	/** Enables the agent sandbox setting so the permission picker renders its sandboxed state. */
 	readonly sandboxingEnabled?: boolean;
@@ -128,6 +134,7 @@ export interface ChatInputFixtureOptions {
 	readonly models?: readonly ILanguageModelChatMetadataAndIdentifier[];
 	/** Renders the production Copilot Agent Host mode and permissions pickers. */
 	readonly agentHostSessionConfig?: ResolveSessionConfigResult;
+	readonly placeholder?: string;
 	/** Combines the Agent Host mode and permissions controls in the composer. */
 	readonly combinedModePermissionsPicker?: boolean;
 	/** Renders a standalone dictation / Voice Mode control in the given state. */
@@ -167,6 +174,7 @@ export async function renderChatInput(context: ComponentFixtureContext, fixtureO
 			registerChatFixtureServices(reg, { artifactGroups: artifactsObs, todos, notification, agentHostSessionConfig });
 			reg.define(IActionWidgetService, ActionWidgetService);
 			reg.define(IContextViewService, ContextViewService);
+			reg.define(IContextMenuService, ContextMenuService);
 			reg.defineInstance(ILayoutService, new class extends mock<ILayoutService>() {
 				override readonly mainContainer = container;
 				override readonly activeContainer = container;
@@ -238,6 +246,16 @@ export async function renderChatInput(context: ComponentFixtureContext, fixtureO
 	if (fixtureOptions.sessionWorkingSet) {
 		const configService = instantiationService.get(IConfigurationService) as TestConfigurationService;
 		await configService.setUserConfiguration(ChatConfiguration.EditorWorkingSetEnabled, true);
+		configService.updateValue = async (key: string, value: unknown) => {
+			await configService.setUserConfiguration(key, value);
+			configService.onDidChangeConfigurationEmitter.fire({
+				source: ConfigurationTarget.USER,
+				affectedKeys: new Set([key]),
+				change: { keys: [key], overrides: [] },
+				affectsConfiguration: setting => setting === key,
+			});
+		};
+		instantiationService.get(IChatSessionReviewPreferencesService).setKeepUndoEnabled(fixtureOptions.sessionWorkingSetReviewEnabled ?? true);
 	}
 
 	if (artifacts.length > 0) {
@@ -319,13 +337,21 @@ export async function renderChatInput(context: ComponentFixtureContext, fixtureO
 	const inputPart = disposableStore.add(instantiationService.createInstance(ChatInputPart, ChatAgentLocation.Chat, options, styles, false));
 	const mockWidget = new class extends mock<IChatWidget>() {
 		override readonly onDidChangeViewModel = new Emitter<never>().event;
-		override readonly viewModel = sessionResource ? createFixtureChatViewModel(sessionResource) : undefined;
+		override readonly viewModel = sessionResource ? Object.assign(createFixtureChatViewModel(sessionResource), { inputPlaceholder: fixtureOptions.placeholder }) : undefined;
 		override readonly contribs = [];
 		override readonly location = ChatAgentLocation.Chat;
 		override readonly viewContext = {};
 	}();
 
 	inputPart.render(session, '', mockWidget);
+	if (fixtureOptions.placeholder) {
+		// Keep the placeholder renderer local: registering it globally changes unrelated editor fixtures.
+		if (!PlaceholderTextContribution.get(inputPart.inputEditor)) {
+			container.style.setProperty('--vscode-editor-placeholder-foreground', 'var(--vscode-editorGhostText-foreground)');
+			disposableStore.add(new PlaceholderTextContribution(inputPart.inputEditor));
+		}
+		inputPart.inputEditor.updateOptions({ placeholder: fixtureOptions.placeholder });
+	}
 
 	if (pet) {
 		// The same host `ChatWidget` registers, so the platform comes from the input part.
@@ -337,6 +363,7 @@ export async function renderChatInput(context: ComponentFixtureContext, fixtureO
 			hasInput: constObservable(false),
 			inputChanged: inputPart.inputEditor.onDidChangeModelContent,
 			getPlatformTop: petCenterX => inputPart.getChatPetPlatformTop(petCenterX),
+			getPlatforms: () => inputPart.getChatPetPlatforms(),
 			onDidChangePlatform: inputPart.onDidChangeChatPetHorizontalPlatforms,
 		})));
 	}
@@ -365,7 +392,13 @@ export async function renderChatInput(context: ComponentFixtureContext, fixtureO
 
 	if (editingSession) {
 		if (fixtureOptions.sessionWorkingSet) {
-			disposableStore.add(inputPart.registerSessionFileChanges(editingSession.getDiffsForFilesInSession()));
+			disposableStore.add(inputPart.registerSessionFileChanges(editingSession.getDiffsForFilesInSession(), constObservable({
+				enabled: constObservable(true),
+				undo: async diffs => {
+					await editingSession.reject(...diffs.map(diff => diff.modifiedURI));
+					return true;
+				},
+			})));
 		}
 		inputPart.renderChatEditingSessionState(editingSession);
 		await new Promise(r => setTimeout(r, 50));
@@ -401,6 +434,14 @@ export async function renderChatInput(context: ComponentFixtureContext, fixtureO
 			throw new Error('Expected a visible voice control to focus.');
 		}
 		context.focus(focusTarget);
+	}
+
+	if (fixtureOptions.focusInput) {
+		const input = inputPart.inputEditor.getDomNode()?.querySelector<HTMLElement>('.native-edit-context, textarea.inputarea');
+		if (!input) {
+			throw new Error('Chat input fixture: no input to focus.');
+		}
+		context.focus(input);
 	}
 
 	if (pet) {
