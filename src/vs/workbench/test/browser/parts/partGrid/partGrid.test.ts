@@ -5,11 +5,11 @@
 
 import assert from 'assert';
 import { setARIAContainer } from '../../../../../base/browser/ui/aria/aria.js';
-import { $, append, registerWindow } from '../../../../../base/browser/dom.js';
+import { $, addDisposableListener, append, registerWindow } from '../../../../../base/browser/dom.js';
 import { ensureCodeWindow, mainWindow } from '../../../../../base/browser/window.js';
 import { timeout } from '../../../../../base/common/async.js';
 import { errorHandler } from '../../../../../base/common/errors.js';
-import { Direction } from '../../../../../base/browser/ui/grid/grid.js';
+import { Direction, Orientation } from '../../../../../base/browser/ui/grid/grid.js';
 import { Event } from '../../../../../base/common/event.js';
 import { DisposableStore, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { isMacintosh } from '../../../../../base/common/platform.js';
@@ -23,8 +23,7 @@ import { IContextKeyService } from '../../../../../platform/contextkey/common/co
 import { MockScopableContextKeyService } from '../../../../../platform/keybinding/test/common/mockKeybindingService.js';
 import { LocalSelectionTransfer } from '../../../../../platform/dnd/browser/dnd.js';
 import { Registry } from '../../../../../platform/registry/common/platform.js';
-import { IPartGridRect, IPartGridView, PART_GRID_TOP_EDGE_CLASS, PART_GRID_TOP_EDGE_GROUP_CLASS, PART_GRID_TOP_RIGHT_GROUP_CLASS, PartGrid } from '../../../../browser/parts/partGrid/partGrid.js';
-import { IEditorGroupView } from '../../../../browser/parts/editor/editor.js';
+import { getGridWithViewOnTop, IPartGridRect, IPartGridView, PartGrid } from '../../../../browser/parts/partGrid/partGrid.js';
 import { DraggedEditorGroupIdentifier, DraggedEditorIdentifier } from '../../../../browser/dnd.js';
 import { ContentPart } from '../../../../browser/parts/editor/contentPart.js';
 import { MoveEditorIntoNewPartBelowAction, MovePartRightAction } from '../../../../browser/parts/partGrid/partGridActions.js';
@@ -49,6 +48,16 @@ suite('Part Grid', () => {
 
 	setup(() => {
 		disposables.add(registerTestEditor(TEST_EDITOR_ID, [new SyncDescriptor(TestFileEditorInput), new SyncDescriptor(SideBySideEditorInput)], TEST_EDITOR_INPUT_ID));
+		// The tests move a synthetic pointer, which the grid follows through listeners on the document. A real pointer
+		// that rests over the test window (Linux Electron under Xvfb) gets pointer events of its own as the layout changes
+		// under it, and would move the grabber to the part under it. The window sees them first, in the capture phase.
+		for (const type of ['pointerover', 'pointerout', 'pointerenter', 'pointerleave', 'pointermove', 'pointerdown', 'pointerup', 'mouseover', 'mouseout', 'mouseenter', 'mouseleave', 'mousemove', 'mousedown', 'mouseup']) {
+			disposables.add(addDisposableListener(mainWindow, type, e => {
+				if (e.isTrusted) {
+					e.stopImmediatePropagation();
+				}
+			}, true));
+		}
 	});
 
 	teardown(() => {
@@ -149,77 +158,6 @@ suite('Part Grid', () => {
 			'column(title, side, row(chat, bottom))',
 			'column(title, chat, row(side, bottom))'
 		]);
-	});
-
-	test('the groups whose title is at the top edge of the grid are marked, as parts move, split, show and hide, below a row of chrome or not', async () => {
-		const parts = await createParts();
-		const grid = createGrid();
-		const main = createPart(parts);
-		const chat = createPart(parts);
-		const terminals = createPart(parts);
-		await Promise.all([openEditor(main, '/main.txt'), openEditor(chat, '/chat.txt'), openEditor(terminals, '/terminals.txt')]);
-		grid.addPart('chat', chat);
-		grid.addPart('main', main, { reference: 'chat', direction: Direction.Right });
-		grid.addPart('terminals', terminals, { edge: Direction.Down });
-		const lowerMainGroup = main.addGroup(main.activeGroup, GroupDirection.DOWN);
-		const topEdge = () => ({
-			cells: ['chat', 'main', 'terminals'].filter(id => mainWindow.document.querySelector(`[data-part-grid-cell="${id}"]`)?.classList.contains(PART_GRID_TOP_EDGE_CLASS)),
-			groups: [['chat', chat], ['main', main], ['terminals', terminals]].flatMap(([name, part]) => (part as IContentPart).groups
-				.filter(group => (group as IEditorGroupView).element.classList.contains(PART_GRID_TOP_EDGE_GROUP_CLASS))
-				.map(group => `${name}${group === lowerMainGroup ? ' (lower)' : ''}`)),
-		});
-
-		const sideBySide = topEdge();
-		// Move Part Up: the terminals across the top.
-		grid.moveCell('terminals', { edge: Direction.Up });
-		const terminalsMovedUp = topEdge();
-		grid.setCellVisible('terminals', false);
-		const terminalsHidden = topEdge();
-		// A row of chrome across the top, such as the title row of the window.
-		grid.addView('title', createView(), { edge: Direction.Up });
-		const belowTitleRow = topEdge();
-
-		assert.deepStrictEqual({ sideBySide, terminalsMovedUp, terminalsHidden, belowTitleRow }, {
-			sideBySide: { cells: ['chat', 'main'], groups: ['chat', 'main'] },
-			terminalsMovedUp: { cells: ['terminals'], groups: ['terminals'] },
-			terminalsHidden: { cells: ['chat', 'main'], groups: ['chat', 'main'] },
-			belowTitleRow: { cells: [], groups: [] },
-		});
-	});
-
-	test('the group whose title is at the top right corner of the grid is marked, as parts move, split, show and hide, below a row of chrome or not', async () => {
-		const parts = await createParts();
-		const grid = createGrid();
-		const main = createPart(parts);
-		const chat = createPart(parts);
-		const terminals = createPart(parts);
-		await Promise.all([openEditor(main, '/main.txt'), openEditor(chat, '/chat.txt'), openEditor(terminals, '/terminals.txt')]);
-		grid.addPart('chat', chat);
-		grid.addPart('main', main, { reference: 'chat', direction: Direction.Right });
-		grid.addPart('terminals', terminals, { edge: Direction.Down });
-		const topRight = () => [['chat', chat], ['main', main], ['terminals', terminals]].flatMap(([name, part]) => (part as IContentPart).groups
-			.filter(group => (group as IEditorGroupView).element.classList.contains(PART_GRID_TOP_RIGHT_GROUP_CLASS))
-			.map(group => `${name}${group === (part as IContentPart).groups[0] ? '' : ' (split)'}`));
-
-		const sideBySide = topRight();
-		// The main part split to the right: its right group is at the corner, and a group below it is not.
-		const split = main.addGroup(main.activeGroup, GroupDirection.RIGHT);
-		main.addGroup(split, GroupDirection.DOWN);
-		const mainSplit = topRight();
-		grid.moveCell('terminals', { edge: Direction.Up });
-		const terminalsMovedUp = topRight();
-		grid.setCellVisible('terminals', false);
-		const terminalsHidden = topRight();
-		grid.addView('title', createView(), { edge: Direction.Up });
-		const belowTitleRow = topRight();
-
-		assert.deepStrictEqual({ sideBySide, mainSplit, terminalsMovedUp, terminalsHidden, belowTitleRow }, {
-			sideBySide: ['main'],
-			mainSplit: ['main (split)'],
-			terminalsMovedUp: ['terminals'],
-			terminalsHidden: ['main (split)'],
-			belowTitleRow: [],
-		});
 	});
 
 	test('a part shows while it has editors; once no part has editors, the grid says so', async () => {
@@ -895,7 +833,7 @@ suite('Part Grid', () => {
 		});
 	});
 
-	test('the empty space of the title of a group below the top edge of the window drags its part; at the top edge, which moves the window, it drags the group as before', async () => {
+	test('the empty space of the title of a group drags its part, also at the top edge of the window; its tab drags the editor', async () => {
 		const parts = await createParts();
 		const container = boxAt(0, 0, 900, 600);
 		const grid = disposables.add(new PartGrid(container, parts));
@@ -910,8 +848,9 @@ suite('Part Grid', () => {
 		const editorTransfer = LocalSelectionTransfer.getInstance<DraggedEditorIdentifier>();
 		const lifted = () => container.classList.contains('part-grid-card-dragging');
 		const press = (element: Element, to: readonly [number, number]) => {
-			const rect = element.getBoundingClientRect();
-			const [x, y] = [rect.left + rect.width - 4, rect.top + rect.height / 2];
+			// From the top right of the cell, where its title is: the rect of the title itself depends on styles, which browser tests do not load
+			const cell = element.closest<HTMLElement>('[data-part-grid-cell]')!.getBoundingClientRect();
+			const [x, y] = [cell.left + cell.width - 4, cell.top + 4];
 			pointer(element, 'pointerdown', x, y);
 			pointer(element, 'pointermove', x + 10, y + 10);
 			pointer(element, 'pointermove', ...to);
@@ -933,7 +872,7 @@ suite('Part Grid', () => {
 		const fromBelow = press(cellOf('below').querySelector('.title .tabs-container')!, point);
 
 		assert.deepStrictEqual({ fromTop, fromTab, shapeBefore, fromBelow, shape: grid.describe(), afterEnd: lifted() || groupTransfer.hasData(DraggedEditorGroupIdentifier.prototype) }, {
-			fromTop: { lifted: false, nativeDrag: true, group: true, editor: false },
+			fromTop: { lifted: true, nativeDrag: false, group: false, editor: false },
 			fromTab: { lifted: false, nativeDrag: true, group: false, editor: true },
 			shapeBefore: 'column(top, below)',
 			fromBelow: { lifted: true, nativeDrag: false, group: false, editor: false },
@@ -977,7 +916,7 @@ suite('Part Grid', () => {
 	test('a dragged card finds where the cards go once for each place, in zones where the cards show, and drops there once', async () => {
 		const { grid, container, cellOf, translates, start, shownLeft, middleY: y, previews, arrangementChanges } = await createRowOfThree(true);
 		// c takes an even third of the row (300 of 900), as every part put somewhere; a and b make room in proportion
-		const makeWay = { a: 300, b: 380 };
+		const makeWay = { a: 300, b: 300 };
 
 		// c, its center, over the left side of a, by small moves: the others make way at once, with one dry run
 		dragCard(container, 'c', [[30, y], [32, y + 2], [28, y - 2], [31, y + 5]], { hold: true });
@@ -1007,7 +946,7 @@ suite('Part Grid', () => {
 	test('a dragged card goes beside a part by where its center is, and to an edge of the window where the pointer pushes it, also over its own slot once it left it', async () => {
 		const { grid, container, translates, start, arrangementChanges } = await createRowOfThree(true);
 		// c takes an even third of the row (300 of 900), as every part put somewhere; a and b make room in proportion
-		const makeWay = { a: 300, b: 380 };
+		const makeWay = { a: 300, b: 300 };
 
 		// The pointer over the top of a, the center of the card, below it, over its left side: c goes left of a
 		dragCard(container, 'c', [[start.a.left + start.a.width * 0.2, 60]], { hold: true });
@@ -1166,7 +1105,7 @@ suite('Part Grid', () => {
 		const { grid, container, translates, middleY: y, arrangementChanges } = await createRowOfThree(true);
 		const before = grid.describe();
 		// c takes an even third of the row (300 of 900), as every part put somewhere; a and b make room in proportion
-		const makeWay = { a: 300, b: 380 };
+		const makeWay = { a: 300, b: 300 };
 
 		dragCard(container, 'c', [[30, y]], { hold: true });
 		const dragging = translates();
@@ -1204,6 +1143,8 @@ suite('Part Grid', () => {
 		grid.addPart('left', left);
 		grid.addPart('right', right, { reference: 'left', direction: Direction.Right });
 		grid.layout(1000, 800);
+		// Wider than the even share right gets beside it, for the slot not to be the whole of left
+		grid.resizeCell('left', { width: 600, height: 800 });
 
 		const cellOf = (id: string) => container.querySelector<HTMLElement>(`[data-part-grid-cell="${id}"]`)!;
 		const rectOf = (element: HTMLElement) => { const r = element.getBoundingClientRect(); return [r.left, r.top, r.width, r.height].map(Math.round); };
@@ -1298,6 +1239,60 @@ suite('Part Grid', () => {
 			movedDown: { shape: 'column(title, main, terminals, chat)', chat: 385, terminals: 385 },
 			up: true,
 			movedUp: { shape: 'column(title, main, chat, terminals)', chat: 385, terminals: 385 }
+		});
+	});
+
+	test('as the grid is resized, its parts keep their shares of it, views that are not parts, such as a title row, keep their sizes, and the way back gives the sizes it had', async () => {
+		const parts = await createParts();
+		const grid = createGrid();
+		const [left, right, bottom] = [createPart(parts), createPart(parts), createPart(parts)];
+		await Promise.all([openEditor(left, '/left.txt'), openEditor(right, '/right.txt'), openEditor(bottom, '/bottom.txt')]);
+		grid.addPart('left', left);
+		grid.addPart('right', right, { reference: 'left', direction: Direction.Right });
+		grid.addPart('bottom', bottom, { edge: Direction.Down });
+		grid.addView('title', createView(), { edge: Direction.Up });
+		grid.resizeCell('left', { width: 300 });
+		grid.resizeCell('bottom', { height: 200 });
+		const sizes = () => ({ left: grid.getCellSize('left').width, right: grid.getCellSize('right').width, row: grid.getCellSize('left').height, bottom: grid.getCellSize('bottom').height, title: grid.getCellSize('title').height });
+		const at1000 = sizes();
+		grid.layout(1600, 1200);
+		const at1600 = sizes();
+		grid.layout(800, 600);
+		const at800 = sizes();
+		grid.layout(1000, 800);
+
+		assert.deepStrictEqual({ at1000, at1600, at800, back: sizes() }, {
+			at1000: { left: 300, right: 700, row: 570, bottom: 200, title: 30 },
+			at1600: { left: 480, right: 1120, row: 866, bottom: 304, title: 30 },
+			at800: { left: 240, right: 560, row: 422, bottom: 148, title: 30 },
+			back: { left: 300, right: 700, row: 570, bottom: 200, title: 30 }
+		});
+	});
+
+	test('as the grid is resized, beside a part that keeps its size, a row of columns only keeps its share as every other part does', async () => {
+		const parts = await createParts();
+		const grid = createGrid();
+		const created = [createPart(parts), createPart(parts), createPart(parts), createPart(parts), createPart(parts), createPart(parts), createPart(parts)];
+		await Promise.all(created.map((part, index) => openEditor(part, `/${index}.txt`)));
+		const [a, b, c, d, f, e, kept] = created;
+		grid.addPart('a', a);
+		grid.addPart('b', b, { reference: 'a', direction: Direction.Right });
+		grid.addPart('c', c, { reference: 'a', direction: Direction.Down });
+		grid.addPart('d', d, { reference: 'b', direction: Direction.Down });
+		grid.addPart('f', f, { reference: 'd', direction: Direction.Down });
+		grid.addPart('e', e, { edge: Direction.Down });
+		grid.addPart('kept', kept, { edge: Direction.Down }, undefined, { keepsSize: true });
+		grid.resizeCell('e', { height: 150 });
+		grid.resizeCell('kept', { height: 200 });
+		const heights = () => `${grid.getCellSize('a').height + grid.getCellSize('c').height}/${grid.getCellSize('e').height}/${grid.getCellSize('kept').height}`;
+		const resized = [800, 1200, 700, 800].map(height => {
+			grid.layout(1000, height);
+			return heights();
+		});
+
+		assert.deepStrictEqual({ shape: grid.describe(), resized }, {
+			shape: 'column(row(column(a, c), column(b, d, f)), e, kept)',
+			resized: ['266/334/200', '443/557/200', '222/278/200', '266/334/200'],
 		});
 	});
 
@@ -1734,5 +1729,134 @@ suite('Part Grid', () => {
 		instantiationService.invokeFunction(accessor => new MoveEditorIntoNewPartBelowAction().run(accessor));
 
 		assert.deepStrictEqual({ shape: grid.describe(), inSide: side.activeGroup.contains(file) }, { shape: 'column(side, new)', inSide: false });
+	});
+	/** A title row at the top of a grid of two parts, side by side, as a window shows them. */
+	async function createTitledGrid(pinned: boolean) {
+		const parts = await createParts();
+		const grid = createGrid();
+		const [main, chat, other] = [createPart(parts), createPart(parts), createPart(parts)];
+		await Promise.all([openEditor(main, '/main.txt'), openEditor(chat, '/chat.txt'), openEditor(other, '/other.txt')]);
+		grid.addPart('chat', chat);
+		grid.addPart('main', main, { edge: Direction.Right });
+		const title = createView();
+		grid.addView('title', title, { edge: Direction.Up });
+		if (pinned) {
+			grid.setPinnedTopView('title');
+		}
+		const shapes: string[] = [];
+		const record = () => shapes.push(grid.describe());
+		const walk = () => {
+			grid.moveCell('chat', { edge: Direction.Right });
+			record();
+			grid.moveCell('main', { edge: Direction.Right });
+			record();
+			grid.moveCell('main', { edge: Direction.Down });
+			record();
+			grid.moveCell('chat', { reference: 'main', direction: Direction.Down });
+			record();
+			grid.addPart('other', other, { edge: Direction.Up });
+			record();
+			grid.moveCell('other', { reference: 'chat', direction: Direction.Left });
+			record();
+			grid.removeCell('other');
+			record();
+		};
+		return { grid, shapes, walk, parts, title };
+	}
+
+	test('a view pinned to the top of the grid spans it through every move of a part to an edge or beside another part, and as parts come and go', async () => {
+		const { grid, shapes, walk } = await createTitledGrid(true);
+
+		walk();
+
+		assert.deepStrictEqual({ shapes, title: grid.getCellSize('title') }, {
+			shapes: [
+				'column(title, row(main, chat))',
+				'column(title, row(chat, main))',
+				'column(title, chat, main)',
+				'column(title, main, chat)',
+				'column(title, other, main, chat)',
+				'column(title, main, row(other, chat))',
+				'column(title, main, chat)',
+			],
+			title: { width: 1000, height: 30 },
+		});
+	});
+
+	test('without a pinned view, the arrangement is as the moves make it: a part at an edge goes beside what the row of chrome is in', async () => {
+		const { shapes, walk } = await createTitledGrid(false);
+
+		walk();
+
+		assert.deepStrictEqual(shapes[0], 'row(column(title, main), chat)');
+	});
+
+	test('a grid restored with its pinned view elsewhere, such as from a state saved before, has it back at the top, across the grid, as soon as it is pinned', async () => {
+		const { grid, parts } = await createTitledGrid(false);
+		grid.moveCell('chat', { edge: Direction.Right });
+		const state = grid.createState();
+		const restored = disposables.add(PartGrid.restore(createContainer(), state, (id, partState) => id === 'title' ? { view: createView() } : { part: createPart(parts, partState) }, parts));
+		restored.layout(1000, 800);
+		const before = restored.describe();
+
+		restored.setPinnedTopView('title');
+
+		assert.deepStrictEqual({ before, after: restored.describe(), title: restored.getCellSize('title') }, {
+			before: 'row(column(title, main), chat)',
+			after: 'column(title, row(main, chat))',
+			title: { width: 1000, height: 30 },
+		});
+	});
+
+	test('with its pinned view on top, the grid is not rebuilt as cells show and hide or it is laid out: only a change that moves the view puts it back', async () => {
+		const { grid, title } = await createTitledGrid(true);
+		const gridElement = () => title.element.closest('.part-grid');
+		const before = gridElement();
+
+		grid.setCellVisible('title', false);
+		grid.setCellVisible('title', true);
+		grid.setCellVisible('chat', false);
+		grid.setCellVisible('chat', true);
+		grid.layout(900, 700);
+		const unchanged = gridElement() === before;
+		grid.moveCell('chat', { edge: Direction.Right });
+
+		assert.deepStrictEqual({ unchanged, rebuiltForTheMove: gridElement() !== before, shape: grid.describe() }, { unchanged: true, rebuiltForTheMove: true, shape: 'column(title, row(main, chat))' });
+	});
+
+	test('the preview of a move shows the pinned view where the move leaves it: across the top of the grid', async () => {
+		const { grid } = await createTitledGrid(true);
+
+		const preview = round(grid.previewArrangement('chat', { location: { edge: Direction.Right } }));
+		grid.moveCell('chat', { edge: Direction.Right });
+
+		const [left, top, width, height] = preview.title;
+		const topOfOthers = Math.min(...Object.entries(preview).filter(([id]) => id !== 'title').map(([, rect]) => rect[1]));
+		assert.deepStrictEqual({ title: { left, width, height, aboveTheOthers: top + height <= topOfOthers }, shape: grid.describe() }, { title: { left: 0, width: 1000, height: 30, aboveTheOthers: true }, shape: 'column(title, row(main, chat))' });
+	});
+
+	test('moving a view to the top of a grid keeps the sizes of the others: the cell beside it takes its room, and what is below it shares the rest in proportion', () => {
+		const leaf = (id: string, size: number, visible?: boolean) => ({ type: 'leaf' as const, data: { id }, size, ...(visible === false ? { visible } : {}) });
+		// row(column(title, main), chat), the title row in the column of the main part
+		const nested = { root: { type: 'branch' as const, size: 800, data: [{ type: 'branch' as const, size: 600, data: [leaf('title', 30), leaf('main', 770)] }, leaf('chat', 400)] }, orientation: Orientation.HORIZONTAL, width: 1000, height: 800 };
+		// column(main, title, chat), hidden: it takes no room
+		const hidden = { root: { type: 'branch' as const, size: 1000, data: [leaf('main', 400), leaf('title', 30, false), leaf('chat', 400)] }, orientation: Orientation.VERTICAL, width: 1000, height: 800 };
+		// row(column(title, a, b), chat) with a and b hidden: without the title, the column holds nothing visible
+		const allHidden = { root: { type: 'branch' as const, size: 800, data: [{ type: 'branch' as const, size: 600, data: [leaf('title', 30), leaf('a', 385, false), leaf('b', 385, false)] }, leaf('chat', 400)] }, orientation: Orientation.HORIZONTAL, width: 1000, height: 800 };
+		const onTop = { root: { type: 'branch' as const, size: 1000, data: [leaf('title', 30), leaf('main', 770)] }, orientation: Orientation.VERTICAL, width: 1000, height: 800 };
+
+		assert.deepStrictEqual({
+			nested: getGridWithViewOnTop(nested, 'title'),
+			hidden: getGridWithViewOnTop(hidden, 'title'),
+			allHidden: getGridWithViewOnTop(allHidden, 'title'),
+			alreadyOnTop: getGridWithViewOnTop(onTop, 'title'),
+			absent: getGridWithViewOnTop(onTop, 'none'),
+		}, {
+			nested: { root: { type: 'branch', size: 1000, data: [leaf('title', 30), { type: 'branch', size: 770, data: [leaf('main', 600), leaf('chat', 400)] }] }, orientation: Orientation.VERTICAL, width: 1000, height: 800 },
+			hidden: { root: { type: 'branch', size: 1000, data: [leaf('title', 30, false), leaf('main', 400), leaf('chat', 400)] }, orientation: Orientation.VERTICAL, width: 1000, height: 800 },
+			allHidden: { root: { type: 'branch', size: 1000, data: [leaf('title', 30), { type: 'branch', size: 770, data: [{ type: 'branch', size: 600, visible: false, data: [leaf('a', 399, false), leaf('b', 371, false)] }, leaf('chat', 400)] }] }, orientation: Orientation.VERTICAL, width: 1000, height: 800 },
+			alreadyOnTop: undefined,
+			absent: undefined,
+		});
 	});
 });

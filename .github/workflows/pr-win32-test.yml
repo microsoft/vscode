@@ -41,6 +41,10 @@ on:
         description: Reason for selecting the Agent Host test profile
         type: string
         default: Change detection unavailable
+      workspace_image_branch:
+        description: The branch whose workspace images the jobs use (see .github/workflows/workspace_image/README.md)
+        type: string
+        default: main
 
 env:
   NPM_ARCH: x64
@@ -62,6 +66,8 @@ env:
 #   shard to run, and the number of shards
 # - SMOKE_SHARD_INDEX and SMOKE_SHARD_TOTAL: the 1-based index of the Electron or remote smoke test
 #   shard to run, and the number of shards
+# - WSL_SMOKE_TESTS: with ELECTRON_TESTS and SMOKE_TESTS, provision WSL and run only the WSL Dev Container
+#   smoke suite and the WSL Kerberos proxy smoke tests, instead of a shard of the smoke tests
 # - ARTIFACT_NAME: identifies the job in the names of the artifacts that it publishes
 jobs:
   electron-unit:
@@ -74,15 +80,69 @@ jobs:
       UNIT_TESTS: 'true'
       TEST_SELECTION: 'true'
     steps: &steps
+      # A workspace image of main holds a workspace whose dependencies, Electron and Playwright browsers
+      # are installed, which the checkout updates (see .github/workflows/workspace_image/README.md). Its
+      # scripts run before the checkout, so they come from the API, at the commit that the job tests, as
+      # in pr-workspace-images.yml. The WSL smoke test job keeps its workspace on drive C (see the Dev
+      # Drive step below), and sets up without an image.
+      - name: Download the workspace image scripts
+        id: image-scripts
+        if: ${{ env.WSL_SMOKE_TESTS != 'true' }}
+        continue-on-error: true
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          dir="$RUNNER_TEMP/workspace-image"
+          mkdir -p "$dir"
+          echo '{ "type": "module" }' > "$dir/package.json"
+          # The scripts keep their folders below workspace_image, such as win32/vhd.ps1
+          files=(.nvmrc .github/workflows/workspace_image/{image.ts,win32/vhd.ps1,win32/Vhd.cs})
+          args=()
+          for file in "${files[@]}"; do
+            args+=(-o "$dir/${file#.github/workflows/workspace_image/}" "$GITHUB_API_URL/repos/$GITHUB_REPOSITORY/contents/$file?ref=$GITHUB_SHA")
+          done
+          curl -fsSL --retry 3 --parallel --create-dirs -H "Authorization: Bearer $GH_TOKEN" -H 'Accept: application/vnd.github.raw' "${args[@]}"
+          for file in "${files[@]}"; do
+            [ -s "$dir/${file#.github/workflows/workspace_image/}" ]
+          done
+          echo "node-version=$(tr -d '[:space:]' < "$dir/.nvmrc")" >> "$GITHUB_OUTPUT"
+
+      - name: Setup Node.js
+        if: steps.image-scripts.outcome == 'success'
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: ${{ steps.image-scripts.outputs.node-version }}
+
+      # The image is a Dev Drive in a VHDX, mounted at the parent of the workspace like the Dev Drive
+      # below, which the job creates without an image. The first PowerShell of a job takes seconds to
+      # start, so this step runs in bash, and the PowerShell that attaches the image (vhd.ps1) starts
+      # while the image downloads. image.ts gives up before the timeout of the step, which could stop it
+      # with the image half attached, and then detaches the image as after any other error, so that the
+      # job sets up as without an image. Pull requests to release branches look for images of their own
+      # branch, which pr-workspace-images.yml doesn't build.
+      - name: Restore the workspace image
+        id: image
+        if: steps.image-scripts.outcome == 'success'
+        continue-on-error: true
+        timeout-minutes: 5
+        shell: bash
+        working-directory: ${{ runner.temp }}
+        run: node "$RUNNER_TEMP/workspace-image/image.ts" restore --name workspace-image-win32-x64.img --branch "$WORKSPACE_IMAGE_BRANCH" --timeout-seconds 240
+        env:
+          GH_TOKEN: ${{ github.token }}
+          WORKSPACE_IMAGE_BRANCH: ${{ inputs.workspace_image_branch }}
+
       # The larger runners keep the workspace on the OS disk, where creating many small files, such as
       # extracting node_modules, takes twice as long as on the 1ES runners' temporary disk. A Dev Drive in
       # a VHDX on the same disk is faster than both. It is mounted at the parent of the workspace, so that
       # the workspace keeps its path and is an ordinary, empty folder for actions/checkout, which cannot
-      # clear the root of a volume. The smoke test shard with the WSL suite runs on the 1ES pool (see the
-      # runs-on of electron-smoke-1), and WSL cannot open folders on a volume that is mounted in a folder of
-      # drive C: anyway.
+      # clear the root of a volume. The WSL smoke test job runs on the 1ES pool (see the runs-on of
+      # electron-smoke-wsl), and WSL cannot open folders on a volume that is mounted in a folder of drive C:
+      # anyway.
       - name: Move the workspace to a Dev Drive
-        if: ${{ !(env.ELECTRON_TESTS == 'true' && env.SMOKE_TESTS == 'true' && env.SMOKE_SHARD_INDEX == '1') }}
+        if: ${{ steps.image.outputs.used != 'true' && env.WSL_SMOKE_TESTS != 'true' }}
         shell: pwsh
         working-directory: ${{ runner.temp }}
         run: |
@@ -119,23 +179,65 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           lfs: true
+          # With a workspace image, keeps its untracked files, such as node_modules, and reuses its .git
+          clean: ${{ steps.image.outputs.used != 'true' }}
 
-      # The WSL steps only run in shard 1, which is where test/smoke/src/shard.ts pins the WSL suite.
+      # The WSL steps only run in the WSL smoke test job (electron-smoke-wsl).
       # pr-node-modules.yml fills this cache on main, so pull requests don't download the installer.
       - name: Restore WSL installer
-        if: ${{ env.ELECTRON_TESTS == 'true' && env.SMOKE_TESTS == 'true' && env.SMOKE_SHARD_INDEX == '1' }}
+        if: ${{ env.WSL_SMOKE_TESTS == 'true' }}
         uses: ./.github/actions/restore-wsl-installer
 
-      - name: Prepare WSL Dev Container smoke tests
-        id: wsl-dev-container
-        if: ${{ env.ELECTRON_TESTS == 'true' && env.SMOKE_TESTS == 'true' && env.SMOKE_SHARD_INDEX == '1' }}
-        timeout-minutes: 15
+      # The wsl-distro job of pr-workspace-images.yml prepares the WSL distribution on main every day, so that the
+      # setup imports it instead of building it. Its key hashes the files that define it, and the restore key finds the
+      # newest one. Without one, or when it cannot be used, wslDevContainer.ps1 builds the distribution.
+      - name: Restore prepared WSL distribution
+        if: ${{ env.WSL_SMOKE_TESTS == 'true' }}
+        continue-on-error: true
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: .build/wsl-distro
+          key: "wsl-distro-v1-${{ runner.os }}-${{ hashFiles('test/smoke/wslDevContainer.ps1', 'build/checksums/wsl.txt') }}"
+          restore-keys: "wsl-distro-v1-${{ runner.os }}-${{ hashFiles('test/smoke/wslDevContainer.ps1', 'build/checksums/wsl.txt') }}-"
+
+      # The WSL setup takes 2 to 4 minutes, mostly downloads and package installs, so it runs in the background
+      # while the steps below install and build, and "Wait for the WSL Dev Container smoke test setup" waits for
+      # it before the smoke tests. The setup writes its step outputs, log and exit code to files. Start-Process
+      # without redirection doesn't pass the output handles of this step to the setup, so the step ends at once.
+      - name: Start the WSL Dev Container smoke test setup
+        id: wsl-dev-container-start
+        if: ${{ env.WSL_SMOKE_TESTS == 'true' }}
         shell: pwsh
-        run: .\test\smoke\wslDevContainer.ps1
+        run: |
+          $state = Join-Path $env:RUNNER_TEMP 'wsl-dev-container'
+          $logDirectory = Join-Path $env:GITHUB_WORKSPACE '.build\logs\wsl-dev-container'
+          New-Item -ItemType Directory -Force -Path $state, $logDirectory | Out-Null
+          $env:GITHUB_OUTPUT = Join-Path $state 'outputs.txt'
+          $env:WSL_SMOKE_SETUP_LOG = Join-Path $logDirectory 'setup.log'
+          $env:WSL_SMOKE_SETUP_EXIT_CODE = Join-Path $state 'exit-code.txt'
+          New-Item -ItemType File -Force -Path $env:GITHUB_OUTPUT | Out-Null
+          Set-Content -LiteralPath (Join-Path $state 'setup.ps1') -Value @'
+          $ErrorActionPreference = 'Stop'
+          $code = 1
+          try {
+            & "$env:GITHUB_WORKSPACE\test\smoke\wslDevContainer.ps1" *> $env:WSL_SMOKE_SETUP_LOG
+            $code = if (Test-Path variable:\LASTEXITCODE) { $LASTEXITCODE } else { 0 }
+          } catch {
+            $_ | Out-String | Add-Content -LiteralPath $env:WSL_SMOKE_SETUP_LOG
+          } finally {
+            Set-Content -LiteralPath $env:WSL_SMOKE_SETUP_EXIT_CODE -Value $code
+          }
+          '@
+          $process = Start-Process pwsh -ArgumentList '-NoProfile', '-NonInteractive', '-File', (Join-Path $state 'setup.ps1') -WorkingDirectory $env:GITHUB_WORKSPACE -WindowStyle Hidden -PassThru
+          # The start time tells the setup apart from a later process with the same ID.
+          Set-Content -LiteralPath (Join-Path $state 'process.txt') -Value "$($process.Id) $($process.StartTime.ToFileTimeUtc())"
+          Set-Content -LiteralPath (Join-Path $state 'deadline.txt') -Value ([DateTime]::UtcNow.AddMinutes(15).ToString('o'))
         env:
           WSL_INSTALLER_CACHE_DIR: ${{ github.workspace }}\.build\wsl-installer
+          WSL_PREPARED_DISTRO_VHD: ${{ github.workspace }}\.build\wsl-distro\vscode-wsl-smoke.vhdx
 
       - name: Setup Node.js
+        if: steps.image-scripts.outcome != 'success'
         uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version-file: .nvmrc
@@ -143,13 +245,16 @@ jobs:
       - name: Setup pnpm
         uses: ./.github/actions/setup-pnpm
 
+      # A workspace image holds the node_modules of its commit, which the install step updates
       - name: Restore node_modules cache
         id: cache-node-modules
+        if: steps.image.outputs.used != 'true'
         uses: ./.github/actions/restore-node-modules
         with:
           key-prefix: node_modules-windows
           key-args: "win32 ${{ env.VSCODE_ARCH }} $(node -p process.arch)"
 
+      # On a workspace image, pnpm installs only what changed since the commit of the image
       - name: Install dependencies
         if: steps.cache-node-modules.outputs.cache-hit != 'true'
         shell: pwsh
@@ -159,7 +264,7 @@ jobs:
 
           # Run preinstall script before root dependencies are installed
           # so that Electron/v8 headers are patched correctly for native modules.
-          exec { node build/npm/preinstall.ts }
+          exec { pnpm run preinstall }
 
           for ($i = 1; $i -le 5; $i++) {
             try {
@@ -222,8 +327,10 @@ jobs:
         run: pnpm run compile
 
       # pr-node-modules.yml fills this cache on main, so pull requests don't download the browsers.
+      # A workspace image holds them already, and points PLAYWRIGHT_BROWSERS_PATH at them, which this
+      # action would point into the workspace.
       - name: Restore Playwright browsers
-        if: ${{ env.BROWSER_TESTS == 'true' }}
+        if: ${{ env.BROWSER_TESTS == 'true' && steps.image.outputs.used != 'true' }}
         uses: ./.github/actions/restore-playwright
         with:
           browsers: --only-shell chromium
@@ -330,7 +437,7 @@ jobs:
         if: ${{ env.ELECTRON_TESTS == 'true' && env.AGENT_HOST_E2E_TESTS == 'true' }}
         timeout-minutes: 30
         shell: pwsh
-        run: .\scripts\test-agent-host-e2e.bat --tfs "Integration Tests" --rerun-failed-files 2${{ env.AGENT_HOST_E2E_SHARD_TOTAL > 1 && format(' --shard {0}/{1}', env.AGENT_HOST_E2E_SHARD_INDEX, env.AGENT_HOST_E2E_SHARD_TOTAL) || '' }} ${{ hashFiles('.build/test-plan/integration.txt') != '' && '--runList .build/test-plan/integration.txt' || '' }}
+        run: .\scripts\test-agent-host-e2e.bat --rerun-failed-files 2${{ env.AGENT_HOST_E2E_SHARD_TOTAL > 1 && format(' --shard {0}/{1}', env.AGENT_HOST_E2E_SHARD_INDEX, env.AGENT_HOST_E2E_SHARD_TOTAL) || '' }} --tfs "Integration Tests" ${{ hashFiles('.build/test-plan/integration.txt') != '' && '--runList .build/test-plan/integration.txt' || '' }}
         env:
           AGENT_HOST_TEST_PROFILE: ${{ inputs.agent_host_test_profile }}
           AGENT_HOST_TEST_PROFILE_REASON: ${{ inputs.agent_host_test_profile_reason }}
@@ -343,7 +450,7 @@ jobs:
         if: ${{ env.ELECTRON_TESTS == 'true' && env.INTEGRATION_TESTS == 'true' && env.INTEGRATION_TEST_SUITE != 'extension-host' && !cancelled() && (success() || steps.agent-host-e2e.outcome == 'failure') }}
         timeout-minutes: 25
         shell: pwsh
-        run: .\scripts\test-integration.bat --only-node-tests --tfs "Integration Tests" --rerun-failed-files 2 ${{ hashFiles('.build/test-plan/integration.txt') != '' && '--runList .build/test-plan/integration.txt' || '' }}
+        run: .\scripts\test-integration.bat --only-node-tests --rerun-failed-files 2 --tfs "Integration Tests" ${{ hashFiles('.build/test-plan/integration.txt') != '' && '--runList .build/test-plan/integration.txt' || '' }}
         env:
           AGENT_HOST_TEST_PROFILE: ${{ inputs.agent_host_test_profile }}
           AGENT_HOST_TEST_PROFILE_REASON: ${{ inputs.agent_host_test_profile_reason }}
@@ -398,6 +505,44 @@ jobs:
         working-directory: extensions/copilot
         run: pnpm run compile
 
+      # Reports the outputs of the setup as its own, which the WSL steps below read. The setup has 15 minutes
+      # from its start, as when it ran in the foreground.
+      - name: Wait for the WSL Dev Container smoke test setup
+        id: wsl-dev-container
+        if: ${{ steps.wsl-dev-container-start.outcome == 'success' }}
+        timeout-minutes: 15
+        shell: pwsh
+        run: |
+          $state = Join-Path $env:RUNNER_TEMP 'wsl-dev-container'
+          $exitCodeFile = Join-Path $state 'exit-code.txt'
+          $id, $startTime = (Get-Content -LiteralPath (Join-Path $state 'process.txt')) -split ' '
+          $deadline = [DateTime]::Parse((Get-Content -LiteralPath (Join-Path $state 'deadline.txt')), $null, 'RoundtripKind')
+          $timedOut = $false
+          while (-not (Test-Path -LiteralPath $exitCodeFile)) {
+            $process = Get-Process -Id $id -ErrorAction SilentlyContinue
+            if (-not $process -or $process.StartTime.ToFileTimeUtc() -ne $startTime) {
+              break
+            }
+            if ([DateTime]::UtcNow -gt $deadline) {
+              taskkill /PID $id /T /F | Out-Host
+              $timedOut = $true
+              break
+            }
+            Start-Sleep -Seconds 2
+          }
+          Get-Content -LiteralPath (Join-Path $env:GITHUB_WORKSPACE '.build\logs\wsl-dev-container\setup.log') -ErrorAction SilentlyContinue
+          Get-Content -LiteralPath (Join-Path $state 'outputs.txt') | Add-Content -LiteralPath $env:GITHUB_OUTPUT
+          if ($timedOut) {
+            throw 'The WSL Dev Container smoke test setup did not finish within 15 minutes.'
+          }
+          if (-not (Test-Path -LiteralPath $exitCodeFile)) {
+            throw 'The WSL Dev Container smoke test setup stopped without reporting its result.'
+          }
+          $code = [int](Get-Content -LiteralPath $exitCodeFile)
+          if ($code -ne 0) {
+            throw "The WSL Dev Container smoke test setup failed with exit code $code. See its log above."
+          }
+
       - name: Diagnostics before smoke test run
         if: ${{ env.SMOKE_TESTS == 'true' && always() }}
         shell: pwsh
@@ -405,13 +550,21 @@ jobs:
         continue-on-error: true
 
       - name: 🧪 Run smoke tests (Electron)
-        if: ${{ env.ELECTRON_TESTS == 'true' && env.SMOKE_TESTS == 'true' }}
+        if: ${{ env.ELECTRON_TESTS == 'true' && env.SMOKE_TESTS == 'true' && env.WSL_SMOKE_TESTS != 'true' }}
         timeout-minutes: 20
         shell: pwsh
         run: pnpm run smoketest-no-compile --tracing --shard ${{ env.SMOKE_SHARD_INDEX }}/${{ env.SMOKE_SHARD_TOTAL }}
         env:
           VSCODE_SMOKE_TEST_POLICY: '1'
-          # Set in every shard so all shards register the WSL suite and compute the same split
+
+      # Only the WSL smoke test job runs the WSL suite, which needs its WSL setup. The shards don't set the
+      # WSL variables, so they skip the suite.
+      - name: 🧪 Run WSL Dev Container smoke tests (Electron)
+        if: ${{ env.WSL_SMOKE_TESTS == 'true' }}
+        timeout-minutes: 20
+        shell: pwsh
+        run: pnpm run smoketest-no-compile --tracing -g 'Agents Window \(WSL Dev Container AgentHost\)'
+        env:
           VSCODE_SMOKE_TEST_WSL_REQUIRED: '1'
           VSCODE_SMOKE_TEST_WSL_DISTRO: ${{ steps.wsl-dev-container.outputs.distro }}
           VSCODE_SMOKE_TEST_WSL_SERVER_PATH: ${{ steps.wsl-dev-container.outputs.serverPath }}
@@ -419,7 +572,7 @@ jobs:
       # Configures a test Kerberos realm, CA and PAC on the elevated agent and reverts them afterwards. The pinned server
       # refuses a client built from source, so the editor window suite only runs in the Azure product build.
       - name: 🧪 Run WSL Kerberos proxy smoke tests (Electron)
-        if: ${{ env.ELECTRON_TESTS == 'true' && env.SMOKE_TESTS == 'true' && env.SMOKE_SHARD_INDEX == '1' }}
+        if: ${{ env.WSL_SMOKE_TESTS == 'true' }}
         timeout-minutes: 20
         shell: pwsh
         run: .\test\smoke\scripts\run-agents-window-wsl-kerberos-proxy.ps1 -Distribution $env:WSL_SMOKE_DISTRO -WslServerPath $env:WSL_SMOKE_SERVER_PATH -Suites AgentsWindow
@@ -427,14 +580,27 @@ jobs:
           WSL_SMOKE_DISTRO: ${{ steps.wsl-dev-container.outputs.distro }}
           WSL_SMOKE_SERVER_PATH: ${{ steps.wsl-dev-container.outputs.serverPath }}
 
+      # Reads the outputs of the setup from its file, as the wait step doesn't run when a step before it fails,
+      # and first stops the setup if it is still running.
       - name: Clean up WSL Dev Container smoke tests
-        if: ${{ always() && steps.wsl-dev-container.outputs.root != '' }}
+        if: ${{ always() && steps.wsl-dev-container-start.outcome == 'success' }}
         timeout-minutes: 5
         shell: pwsh
-        env:
-          WSL_SMOKE_DISTRO: ${{ steps.wsl-dev-container.outputs.distro }}
-          WSL_SMOKE_ROOT: ${{ steps.wsl-dev-container.outputs.root }}
-        run: .\test\smoke\wslDevContainer.ps1 -Operation Cleanup -Distribution $env:WSL_SMOKE_DISTRO -Root $env:WSL_SMOKE_ROOT
+        run: |
+          $state = Join-Path $env:RUNNER_TEMP 'wsl-dev-container'
+          $id, $startTime = (Get-Content -LiteralPath (Join-Path $state 'process.txt')) -split ' '
+          $process = Get-Process -Id $id -ErrorAction SilentlyContinue
+          if ($process -and $process.StartTime.ToFileTimeUtc() -eq $startTime) {
+            taskkill /PID $id /T /F | Out-Host
+          }
+          $outputs = @{}
+          foreach ($line in Get-Content -LiteralPath (Join-Path $state 'outputs.txt')) {
+            $name, $value = $line -split '=', 2
+            $outputs[$name] = $value
+          }
+          if ($outputs.root) {
+            .\test\smoke\wslDevContainer.ps1 -Operation Cleanup -Distribution $outputs.distro -Root $outputs.root
+          }
 
       - name: 🧪 Run smoke tests (Browser, Chromium)
         if: ${{ env.BROWSER_TESTS == 'true' && env.SMOKE_TESTS == 'true' }}
@@ -555,17 +721,12 @@ jobs:
 
   # Running every Electron smoke test takes one machine up to about 20 minutes, the timeout of the
   # step, so the shards split them over parallel machines (see .github/skills/smoke-tests/SKILL.md).
-  # The WSL setup makes the first shard one of the slowest jobs of the workflow, so the smoke tests run
-  # in three shards on Windows, and in two on Linux and macOS.
+  # The WSL Dev Container suite runs in its own job (electron-smoke-wsl), so that the shards use the
+  # workspace images on the larger runners.
   electron-smoke-1:
     name: Electron-Smoke (shard 1/3)
     if: ${{ inputs.electron_smoke_affected }}
-    # GitHub-hosted Windows runners intermittently freeze while WSL2 provisions a distribution
-    # (https://github.com/actions/runner-images/issues/14938): the step timeout never fires, no log is
-    # kept, and the job only fails when GitHub notices that it lost the runner, about 45 minutes later.
-    # That happened in 3 of about 90 runs of the WSL smoke test shard on the larger runners, and in none
-    # of about 740 on the 1ES pool, so this shard runs on the 1ES pool. JobId must be unique per job.
-    runs-on: [ self-hosted, 1ES.Pool=1es-vscode-oss-windows-2022-x64, "JobId=windows-test-wsl-smoke-${{ github.run_id }}-${{ github.run_number }}-${{ github.run_attempt }}" ]
+    runs-on: vscode-large-runners-windows-8-core
     env:
       ARTIFACT_NAME: electron-smoke-shard1
       ELECTRON_TESTS: 'true'
@@ -596,6 +757,24 @@ jobs:
       SMOKE_TESTS: 'true'
       SMOKE_SHARD_INDEX: '3'
       SMOKE_SHARD_TOTAL: '3'
+    steps: *steps
+
+  # The WSL Dev Container suite and the WSL Kerberos proxy smoke tests. The WSL setup runs in the
+  # background while the job installs and builds. GitHub-hosted Windows runners intermittently freeze
+  # while WSL2 provisions a distribution (https://github.com/actions/runner-images/issues/14938): the
+  # step timeout never fires, no log is kept, and the job only fails when GitHub notices that it lost
+  # the runner, about 45 minutes later. That happened in 3 of about 90 runs of the WSL smoke tests on
+  # the larger runners, and in none of about 740 on the 1ES pool, so this job runs on the 1ES pool.
+  # JobId must be unique per job.
+  electron-smoke-wsl:
+    name: Electron-Smoke (WSL)
+    if: ${{ inputs.electron_smoke_affected }}
+    runs-on: [ self-hosted, 1ES.Pool=1es-vscode-oss-windows-2022-x64, "JobId=windows-test-wsl-smoke-${{ github.run_id }}-${{ github.run_number }}-${{ github.run_attempt }}" ]
+    env:
+      ARTIFACT_NAME: electron-smoke-wsl
+      ELECTRON_TESTS: 'true'
+      SMOKE_TESTS: 'true'
+      WSL_SMOKE_TESTS: 'true'
     steps: *steps
 
   browser-unit:

@@ -41,13 +41,13 @@ import { IEditorService } from '../../../../../../services/editor/common/editorS
 import { DEFAULT_EDITOR_ASSOCIATION } from '../../../../../../common/editor.js';
 import { ILanguageModelChatMetadata, ILanguageModelChatMetadataAndIdentifier, ILanguageModelsService, IModelControlEntry, isUserProvidedModel } from '../../../../common/languageModels.js';
 import { ChatConfiguration } from '../../../../common/constants.js';
-import { getModelConfigDescription, getModelConfigProperty, getModelConfigSummary, IModelConfigurationAccess, MODEL_CONFIG_GROUP_EFFORT, ModelConfigChangeListener } from './modelPickerModelConfig.js';
+import { getModelConfigDescription, getModelConfigProperty, getModelConfigSummary, IModelConfigurationAccess, MODEL_CONFIG_GROUP_CONTEXT, MODEL_CONFIG_GROUP_EFFORT, ModelConfigChangeListener } from './modelPickerModelConfig.js';
 import { IModelCardOptions, IPricingDisclosure, ModelCard } from './modelPickerCard.js';
 import { getPreferredSpeedVariant, IModelSpeedVariants } from './modelPickerVariants.js';
 import { getModelBadge, getOrganizationDefaultDescription, getOrganizationDefaultModel, organizationDefaultLabel } from './modelPickerBadges.js';
-import { buildModelToProviderGroupMap, createModelAction, createUnavailableModelItem, getUnavailableReason, IProviderGroupInfo, requiresNewerVSCode } from './modelPickerItemPrimitives.js';
+import { buildModelToProviderGroupMap, createModelAction, createUnavailableModelItem, getUnavailableReason, IModelPickerOrganizationSupport, IProviderGroupInfo, requiresNewerVSCode } from './modelPickerItemPrimitives.js';
 import { getModelPickerAccessibilityProvider, getModelPickerControlModels } from './modelPickerItems.js';
-import { filterModelPickerControlModelsForEntitlement, filterModelPickerModelsForEntitlement, getFusionDiscountPercent, getFusionTierLabel, getHydraFusionTierLabel, getRoutingModelBadge, isAutoModel, isHydraFusionModel, isHydraFusionUpgradeOnly } from './modelPickerPresentation.js';
+import { filterModelPickerControlModelsForEntitlement, filterModelPickerModelsForEntitlement, getFusionDiscountPercent, getFusionTierLabel, getHydraFusionTierLabel, getRoutingModelBadge, isAutoModel, isHydraFusionModel, isHydraFusionUpgradeOnly, isModelComparisonSupported } from './modelPickerPresentation.js';
 import { buildModelPickerDestinations, buildModelPickerSections, getModelProviderLabel, hasPromotedModels, IModelPickerDestination, IModelPickerProviderPlaceholder, IModelPickerSections, IModelPickerUnavailableEntry, MODEL_PICKER_BUILT_IN_DESTINATION, MODEL_PICKER_ON_DEVICE_DESTINATION } from './modelPickerTabs.js';
 import { ModelPickerWelcome } from './modelPickerWelcome.js';
 import { IAgentModelPreferences, resolveAgentModelPreferences } from '../../../../common/promptSyntax/languageProviders/promptModelResolver.js';
@@ -77,7 +77,6 @@ export interface ITabbedModelPickerContext {
 	/** Models from every harness that can participate in a comparison. */
 	readonly comparisonModels?: readonly ILanguageModelChatMetadataAndIdentifier[];
 	readonly selectedModelId: string | undefined;
-	readonly recentModelIds: readonly string[];
 	readonly pinnedModelIds: readonly string[];
 	readonly controlModels: IStringDictionary<IModelControlEntry>;
 	readonly configurationAccess: IModelConfigurationAccess;
@@ -94,6 +93,8 @@ export interface ITabbedModelPickerContext {
 		readonly show: boolean;
 		readonly currentVSCodeVersion: string;
 		readonly manageSettingsUrl: string | undefined;
+		/** When set, "Contact Admin" opens the organization's help page instead of GitHub's settings. */
+		readonly organizationSupport?: IModelPickerOrganizationSupport;
 		readonly updateStateType: StateType;
 	};
 	/** Reports a click on an upgrade or contact-admin link in an unavailable model row. */
@@ -496,6 +497,7 @@ export class TabbedModelPicker extends Disposable {
 				return context;
 			} : undefined,
 			tabLabels: 'active',
+			overflowLabel: localize('chat.modelPicker.moreProviders', "More Providers"),
 			filterInTabBar: true,
 			width: step ? COMPARISON_PICKER_WIDTH : PICKER_WIDTH,
 			createActionList: (activeTab, forSizing) => {
@@ -555,7 +557,7 @@ export class TabbedModelPicker extends Disposable {
 					? { ...baseListOptions, anchorPosition: AnchorPosition.BELOW }
 					: { ...baseListOptions, preferredAnchorPosition: AnchorPosition.ABOVE };
 				return {
-					items: step ? items.filter(item => !item.item || !current.models.some(model => model.identifier === item.item?.id && (isAutoModel(model) || isHydraFusionModel(model)))) : items,
+					items: step ? items.filter(item => !item.item || !current.models.some(model => model.identifier === item.item?.id && !isModelComparisonSupported(model))) : items,
 					listOptions,
 				};
 			},
@@ -779,7 +781,6 @@ export class TabbedModelPicker extends Disposable {
 			models: destination.models,
 			selectedModelId: context.selectedModelId,
 			organizationDefaultModelId: this._getOrganizationDefaultModel(context)?.identifier,
-			recentModelIds: context.recentModelIds,
 			pinnedModelIds: context.pinnedModelIds,
 			controlModels: context.controlModels,
 			preferredSpeedVariants: this._preferredSpeedVariants,
@@ -846,6 +847,9 @@ export class TabbedModelPicker extends Disposable {
 				alignEnd: true,
 				useManagedHover: true,
 				checked: !!comparison.state.get(),
+				render: !comparison.state.get() && !comparison.summary.get() && comparison.renderToggle
+					? button => comparison.renderToggle!(button)
+					: undefined,
 				run: () => {
 					// Starting or leaving a comparison supersedes a pending selection.
 					this._selectionVersion++;
@@ -986,9 +990,7 @@ export class TabbedModelPicker extends Disposable {
 
 	private _buildItems(destination: IModelPickerDestination, sections: IModelPickerSections, context: ITabbedModelPickerContext): IActionListItem<IActionWidgetDropdownAction>[] {
 		const isBuiltIn = destination.id === MODEL_PICKER_BUILT_IN_DESTINATION;
-		// Auto leads the built-in provider's list, ahead of any section. Guided selection
-		// compares individual models, so it leaves routing out.
-		const items: IActionListItem<IActionWidgetDropdownAction>[] = isBuiltIn && !context.comparison?.state.get() ? this._buildRoutingItems(context) : [];
+		const items: IActionListItem<IActionWidgetDropdownAction>[] = isBuiltIn ? this._buildRoutingItems(context) : [];
 		// A plan that grants only Auto still lists the models it could unlock, so the
 		// welcome body is reserved for having genuinely nothing to say.
 		if (!items.length && !destination.models.length && !sections.unavailable.length) {
@@ -1017,6 +1019,7 @@ export class TabbedModelPicker extends Disposable {
 					unavailableEntry.entry,
 					this._getUnavailableReason(unavailableEntry, context),
 					unavailableContext.manageSettingsUrl,
+					unavailableContext.organizationSupport,
 					unavailableContext.updateStateType,
 					this._entitlementService,
 				));
@@ -1198,7 +1201,8 @@ export class TabbedModelPicker extends Disposable {
 	private _buildRoutingItems(context: ITabbedModelPickerContext): IActionListItem<IActionWidgetDropdownAction>[] {
 		const items: IActionListItem<IActionWidgetDropdownAction>[] = [];
 		const auto = this._autoModel(context);
-		if (auto) {
+		const comparing = !!context.comparison?.state.get();
+		if (auto && (!comparing || isModelComparisonSupported(auto))) {
 			const item = this._createModelItem(auto, context);
 			// Copilot Fusion leads the list at twice the height of the other rows, with a line saying what it does.
 			const fusionDetail = auto.metadata.autoModelFusion ? localize('chat.modelPicker.fusionDetail', "Picks or combines the best models for your task") : undefined;
@@ -1213,7 +1217,7 @@ export class TabbedModelPicker extends Disposable {
 				}
 				: item);
 		}
-		if (this._hostsHydraFusion(context)) {
+		if (comparing || this._hostsHydraFusion(context)) {
 			return items;
 		}
 		for (const hydra of this._hydraFusionRowModels(context)) {
@@ -1321,8 +1325,12 @@ export class TabbedModelPicker extends Disposable {
 				: getModelConfigDescription(model, context.configurationAccess, useModelConfigurationSchema);
 		const defaultModel = this._getOrganizationDefaultForModel(model, context);
 		const defaultDescription = defaultModel && getOrganizationDefaultDescription(defaultModel.metadata.name);
-		// Auto opens its tiers like any model's details; HydraFusion only when it has tiers of its own.
-		const hasDetails = !isHydraFusionModel(model) || !!ownTierLabel;
+		// Auto opens its tiers like any model's details; HydraFusion only when it has tiers of its own, and
+		// Copilot Fusion only when it offers something to configure, which it does not in inline chat.
+		const fusionWithoutConfiguration = !!model.metadata.autoModelFusion
+			&& !getModelConfigProperty(model, context.configurationAccess, MODEL_CONFIG_GROUP_EFFORT, useModelConfigurationSchema)
+			&& !getModelConfigProperty(model, context.configurationAccess, MODEL_CONFIG_GROUP_CONTEXT, useModelConfigurationSchema);
+		const hasDetails = (!isHydraFusionModel(model) || !!ownTierLabel) && !fusionWithoutConfiguration;
 		return {
 			item: {
 				...action,
@@ -1422,7 +1430,7 @@ export class TabbedModelPicker extends Disposable {
 		const isCheckedAttempt = !!(context.comparison && comparisonStep?.multiple && comparisonStep.selectedModelIds.includes(model.identifier));
 		// The provider's tiers decide which HydraFusion tiers Fusion offers, including hidden ones, so its
 		// models are not added beside them unless the chat is on one.
-		const hydraFusionModels = isAutoModel(model) && this._hostsHydraFusion(context)
+		const hydraFusionModels = !comparisonStep && isAutoModel(model) && this._hostsHydraFusion(context)
 			? this._hydraFusionModels(context).filter(hydraFusion => !model.metadata.autoModelProviderTiers || hydraFusion.identifier === context.selectedModelId)
 			: [];
 		const hydraFusionTiers = this._hydraFusionTiers(context);
@@ -1617,8 +1625,7 @@ export class TabbedModelPicker extends Disposable {
 			&& !isUserProvidedModel(model, this._languageModelsService)
 			&& !requiresNewerVSCode(model, context.controlModels, context.unavailableContext.currentVSCodeVersion)
 			&& !context.localModels?.getDirectModel(model);
-		const candidates = [...context.recentModelIds, ...context.pinnedModelIds];
-		for (const id of candidates) {
+		for (const id of context.pinnedModelIds) {
 			const model = context.models.find(candidate => candidate.identifier === id);
 			if (model && isCandidate(model)) {
 				return model;

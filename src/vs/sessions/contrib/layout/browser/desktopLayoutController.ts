@@ -10,9 +10,9 @@ import { URI } from '../../../../base/common/uri.js';
 import { IEditorWorkingSet } from '../../../../workbench/services/editor/common/editorGroupsService.js';
 import { LifecyclePhase } from '../../../../workbench/services/lifecycle/common/lifecycle.js';
 import { Parts } from '../../../../workbench/services/layout/browser/layoutService.js';
-import { DesktopChangesEditorTransitionContext } from '../../../common/contextkeys.js';
+import { DesktopChangesEditorTransitionContext } from '../../../../workbench/contrib/sessions/common/contextkeys.js';
 import { ISidePaneState } from '../../../browser/workbench.js';
-import { IActiveSession } from '../../../services/sessions/common/sessionsManagement.js';
+import { IShownChat } from '../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import { BaseLayoutController } from './baseSessionLayoutController.js';
 import { IDesktopLayoutContext } from './desktop/desktopLayoutStrategy.js';
 import { DesktopDetailPanelCoordinator } from './desktop/desktopDetailPanelCoordinator.js';
@@ -21,6 +21,7 @@ import { DesktopDraftSessionStrategy } from './desktop/desktopDraftSessionStrate
 import { DesktopExistingSessionStrategy } from './desktop/desktopExistingSessionStrategy.js';
 import { DesktopOwnerCompositionStore } from './desktop/desktopOwnerCompositionStore.js';
 import { DesktopVisibilityProfileStore } from './desktop/desktopVisibilityProfileStore.js';
+import { isSessionCreated, ISession } from '../../../../workbench/contrib/sessions/common/session.js';
 
 export { TOGGLE_DETAILS_COMMAND_ID } from './desktop/desktopExistingSessionStrategy.js';
 
@@ -72,19 +73,19 @@ export class DesktopLayoutController extends BaseLayoutController {
 		return this._chatLayoutEnabled && this._layoutService.chatLayoutPresentation.configured === 'chat-shared';
 	}
 
-	private _compositionKeyFor(session: IActiveSession, reader?: IReader): URI | undefined {
-		const ownerKey = this._ownerKeyFor(session, reader);
-		return ownerKey && this._sharedChatLayout && session.isCreated.read(reader)
-			&& !session.isQuickChat?.read(reader) && session.activeChat.read(reader).workspace.read(reader)
+	private _compositionKeyFor(shown: IShownChat, reader?: IReader): URI | undefined {
+		const ownerKey = this._ownerKeyFor(shown, reader);
+		return ownerKey && this._sharedChatLayout && isSessionCreated(shown.session, reader)
+			&& !shown.session.isQuickChat?.read(reader) && shown.chat.workspace.read(reader)
 			? SHARED_EXISTING_VISIBILITY_KEY : ownerKey;
 	}
 
-	protected override _panelVisibilityKeyFor(session: IActiveSession, reader?: IReader): URI | undefined {
-		return this._compositionKeyFor(session, reader);
+	protected override _panelVisibilityKeyFor(shown: IShownChat, reader?: IReader): URI | undefined {
+		return this._compositionKeyFor(shown, reader);
 	}
 
-	protected override _isPanelVisibilitySharedAcrossChats(session: IActiveSession, reader?: IReader): boolean {
-		return this._compositionKeyFor(session, reader) === SHARED_EXISTING_VISIBILITY_KEY;
+	protected override _isPanelVisibilitySharedAcrossChats(shown: IShownChat, reader?: IReader): boolean {
+		return this._compositionKeyFor(shown, reader) === SHARED_EXISTING_VISIBILITY_KEY;
 	}
 
 	protected override _defaultPanelVisibility(key: URI): boolean {
@@ -119,9 +120,9 @@ export class DesktopLayoutController extends BaseLayoutController {
 				hasSavedWorkingSet: sessionResource => that._workingSets.has(sessionResource),
 				completeChangesEditorTransition: () => {
 					if (that._changesEditorTransitionPhase === 'reconciling') {
-						const session = that._sessionsService.mainWindowActiveSession.get();
+						const session = that._mainWindowSession.get();
 						// An uncreated workspace-less composer has no Changes editor to await.
-						if (session?.isCreated.get() && session.isQuickChat?.get() !== true && !session.workspace.get()) {
+						if (session && isSessionCreated(session) && session.isQuickChat?.get() !== true && !session.workspace.get()) {
 							return;
 						}
 						that._setChangesEditorTransitionPhase('idle');
@@ -130,8 +131,10 @@ export class DesktopLayoutController extends BaseLayoutController {
 				chatLayoutActive: reader => that._chatLayoutActive(reader),
 				chatLayoutSuspended: reader => that._chatLayoutSuspended(reader),
 				get sharedChatLayout() { return that._sharedChatLayout; },
-				ownerKeyFor: (session, reader) => that._ownerKeyFor(session, reader),
-				compositionKeyFor: (session, reader) => that._compositionKeyFor(session, reader),
+				shownByMainWindow: reader => that._shownByMainWindow(reader),
+				get mainWindowSession() { return that._mainWindowSession; },
+				ownerKeyFor: (shown, reader) => that._ownerKeyFor(shown, reader),
+				compositionKeyFor: (shown, reader) => that._compositionKeyFor(shown, reader),
 				get compositionStore() { return that._compositionStore!; },
 			};
 		}
@@ -230,16 +233,16 @@ export class DesktopLayoutController extends BaseLayoutController {
 	protected override _onWillApplyWorkingSet(workingSet: IEditorWorkingSet | 'empty'): void {
 		this._managedTabs?.prepareWorkingSetRestore(workingSet !== 'empty');
 		if ((this._changesEditorTransitionPhase ?? 'idle') !== 'idle'
-			|| this._shouldPreserveChangesEditor(this._sessionsService.mainWindowActiveSession.get())) {
+			|| this._shouldPreserveChangesEditor(this._mainWindowSession.get())) {
 			this._setChangesEditorTransitionPhase('restoringWorkingSet');
 		}
 	}
 
-	protected override _onActiveSessionSwitched(_previousSession: IActiveSession, session: IActiveSession | undefined): void {
-		this._setChangesEditorTransitionPhase(this._shouldPreserveChangesEditor(session) ? 'awaitingWorkingSet' : 'idle');
+	protected override _onActiveSessionSwitched(_previous: IShownChat, shown: IShownChat | undefined): void {
+		this._setChangesEditorTransitionPhase(this._shouldPreserveChangesEditor(shown?.session) ? 'awaitingWorkingSet' : 'idle');
 	}
 
-	private _shouldPreserveChangesEditor(session: IActiveSession | undefined): boolean {
+	private _shouldPreserveChangesEditor(session: ISession | undefined): boolean {
 		const editorResource = this._editorGroupsService.mainPart.activeGroup.activeEditor?.resource;
 		return !!session
 			&& session.isQuickChat?.get() !== true

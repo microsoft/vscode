@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { DisposableMap, DisposableStore, combinedDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
-import { autorun, IObservable, observableFromEvent, observableSignalFromEvent } from '../../../../base/common/observable.js';
+import { autorun, derived, IObservable, observableFromEvent, observableSignalFromEvent } from '../../../../base/common/observable.js';
 import { Event } from '../../../../base/common/event.js';
 import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
@@ -14,16 +14,16 @@ import { EditorGroupView } from '../../../../workbench/browser/parts/editor/edit
 import { ViewEditorInput } from '../../../../workbench/browser/parts/editor/viewEditorInput.js';
 import { IEditorGroup, IEditorGroupsService } from '../../../../workbench/services/editor/common/editorGroupsService.js';
 import { AgentEditorCommentsOverlayWidget } from '../../../../workbench/services/agentEditorComments/browser/agentEditorCommentsOverlayWidget.js';
-import { IAgentFeedbackService, shouldIncludeRawPRReviewComments } from './agentFeedbackService.js';
+import { shouldIncludeRawPRReviewComments } from './agentFeedbackService.js';
+import { IAgentFeedbackService } from '../../../../workbench/contrib/sessions/browser/agentFeedback.js';
 import { hasUnsubmittedAgentFeedback, hasSessionEditorComments, navigateNextFeedbackActionId, navigatePreviousFeedbackActionId, navigationBearingFakeActionId, submitFeedbackActionId } from './agentFeedbackEditorActions.js';
 import { getActiveResourceCandidates, getFeedbackSessionCandidates } from './agentFeedbackEditorUtils.js';
-import { Menus } from '../../../browser/menus.js';
-import { ICodeReviewService } from '../../codeReview/browser/codeReviewService.js';
-import { EmptyFileEditorInput } from '../../editor/browser/emptyFileEditorInput.js';
+import { Menus } from '../../../../workbench/contrib/sessions/browser/menus.js';
+import { ICodeReviewService } from '../../../../workbench/contrib/sessions/browser/codeReviewService.js';
+import { EmptyFileEditorInput } from '../../../../workbench/contrib/sessions/browser/emptyFileEditorInput.js';
 import { getAcceptedAgentFeedbackCommentCount, getSessionEditorComments } from './sessionEditorComments.js';
-import { ISessionScope } from '../../../services/sessions/browser/sessionScope.js';
-import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
-import { ISession } from '../../../services/sessions/common/session.js';
+import { ISessionHostService, SessionHostKind } from '../../../../workbench/contrib/sessions/browser/sessionHost.js';
+import { ISession } from '../../../../workbench/contrib/sessions/common/session.js';
 
 export interface IAgentFeedbackOverlayEditorGroup extends IEditorGroup {
 	readonly editorPaneContainer: HTMLElement;
@@ -148,7 +148,7 @@ export class AgentFeedbackEditorOverlay implements IWorkbenchContribution {
 	constructor(
 		@IEditorGroupsService editorGroupsService: IEditorGroupsService,
 		@IInstantiationService instantiationService: IInstantiationService,
-		@ISessionsService sessionsService: ISessionsService,
+		@ISessionHostService sessionHostService: ISessionHostService,
 	) {
 		const editorGroups = observableFromEvent(
 			this,
@@ -174,11 +174,12 @@ export class AgentFeedbackEditorOverlay implements IWorkbenchContribution {
 						new ServiceCollection([IContextKeyService, group.scopedContextKeyService])
 					);
 
-					// The session of the window that owns a part other than the main one, if it shows a session of its own, such
-					// as a chat window: not the main window's session scope, which floating editor windows have too.
-					const part = editorGroupsService.getPart(group);
-					const hostScope = part === editorGroupsService.mainPart ? undefined : editorGroupsService.getScopedInstantiationService(part).invokeFunction(accessor => accessor.get(ISessionScope));
-					const hostSession = hostScope && hostScope.session !== sessionsService.mainWindowActiveSession ? hostScope.session : undefined;
+					// The session of the window of the group, if it shows a session of its own, such as a chat window: not the
+					// main window, which floating editor windows belong to too.
+					const hostSession = derived(reader => {
+						const host = sessionHostService.getHostOfGroup(group, reader);
+						return host && host.kind !== SessionHostKind.MainWindow ? host.session.read(reader) : undefined;
+					});
 					const ctrl = scopedInstaService.createInstance(AgentFeedbackOverlayController, group, hostSession);
 					overlayWidgets.set(group, combinedDisposable(ctrl, scopedInstaService));
 				}

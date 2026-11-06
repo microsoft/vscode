@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { $, addDisposableGenericMouseDownListener, addDisposableListener, animate, append, EventType, getActiveElement, getWindow, isHTMLElement, scheduleAtNextAnimationFrame } from '../../../../../base/browser/dom.js';
+import { $, addDisposableGenericMouseDownListener, addDisposableListener, animate, append, EventType, getActiveElement, getWindow, isHTMLElement, scheduleAtNextAnimationFrame, setParentFlowTo } from '../../../../../base/browser/dom.js';
 import { StandardKeyboardEvent } from '../../../../../base/browser/keyboardEvent.js';
 import { status } from '../../../../../base/browser/ui/aria/aria.js';
 import { Button } from '../../../../../base/browser/ui/button/button.js';
@@ -11,6 +11,7 @@ import { KeyCode, KeyMod } from '../../../../../base/common/keyCodes.js';
 import { Disposable, DisposableStore, IDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { IMarkdownString, isMarkdownString } from '../../../../../base/common/htmlContent.js';
+import { generateUuid } from '../../../../../base/common/uuid.js';
 import { AnchorAlignment, AnchorAxisAlignment, AnchorPosition, IRect, layout2d } from '../../../../../base/common/layout.js';
 import { renderMarkdown } from '../../../../../base/browser/markdownRenderer.js';
 import { defaultButtonStyles } from '../../../../../platform/theme/browser/defaultStyles.js';
@@ -192,6 +193,9 @@ export class SpotlightOverlay extends Disposable {
 
 		// Rebuild the per-step re-layout listeners.
 		this._stepListeners.clear();
+		// Keep focus in the target's logical subtree when the callout is rendered outside its popup.
+		target.id ||= `spotlight-target-${generateUuid()}`;
+		setParentFlowTo(this._root, target);
 		const targetWindow = getWindow(this._container);
 		const focusElement = options.focusTarget?.element ?? target;
 

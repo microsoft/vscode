@@ -131,6 +131,7 @@ import { IAgentHostActiveClientService } from '../agentSessions/agentHost/agentH
 import { type CustomizationSourceFolderReadiness, ICustomizationHarnessService, type ICustomizationSourceFolder } from '../../common/customizationHarnessService.js';
 import { ChatConfiguration } from '../../common/constants.js';
 import { getChatSessionType, isUntitledChatSession } from '../../common/model/chatUri.js';
+import { openCustomizationChat } from '../actions/chatActions.js';
 import { AICustomizationWelcomePage, type ICustomizationMarketplaceOrigin, type ICustomizationMigrationCategorySummary, type IInstalledCustomizationTarget } from './aiCustomizationWelcomePage.js';
 import { ICustomizationMarketplaceInstallService } from '../../common/customizationMarketplaceInstallService.js';
 import { createCustomizationMigrationAgentPrompt, getCustomizationMigrationConflictTarget, type CustomizationMigrationTargetFolders, type ICustomizationMigrationFailure, type ICustomizationMigrationNameConflict, type IMigratedCustomizationsWithFailureReasonsResult, migrateCustomizations, resolveWorkspaceMigrationTargetFolder } from './customizationMigration.js';
@@ -346,6 +347,9 @@ class SectionItemRenderer implements IListRenderer<ISectionItem, ISectionItemTem
 	renderElement(element: ISectionItem, index: number, templateData: ISectionItemTemplateData): void {
 		templateData.templateDisposables.clear();
 		templateData.container.classList.toggle('section-separator-before', element.separatorBefore === true);
+		// Leaves the separator's spacing above the row's box, so the row's hover, selection, and focus look like the other rows'.
+		templateData.container.style.marginTop = element.separatorBefore ? `${SECTION_ITEM_SEPARATOR_SPACING}px` : '';
+		templateData.container.style.maxHeight = element.separatorBefore ? `${SECTION_ITEM_HEIGHT}px` : '';
 		templateData.label.textContent = element.label;
 		templateData.badge.style.display = element.badge ? '' : 'none';
 		if (element.count > 0) {
@@ -1130,7 +1134,11 @@ export class AICustomizationManagementEditor extends EditorPane {
 							if (options?.newChat) {
 								await this.commandService.executeCommand('workbench.action.chat.newChat');
 							}
-							await this.commandService.executeCommand('workbench.action.chat.open', { query, isPartialQuery: options?.isPartialQuery ?? false });
+							if (options?.generateCustomizations) {
+								await this.instantiationService.invokeFunction(openCustomizationChat, 'init', undefined, query);
+							} else {
+								await this.commandService.executeCommand('workbench.action.chat.open', { query, isPartialQuery: options?.isPartialQuery ?? false });
+							}
 						}
 					} catch (err) {
 						onUnexpectedError(err);

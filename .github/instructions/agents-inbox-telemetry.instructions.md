@@ -40,7 +40,7 @@ Existing session, automation, PR-action, and feedback events can be correlated w
 
 `agentSessionId` is the **unsalted SHA‑1** of the session id, produced by the shared
 `hashSessionIdForTelemetry` in
-[sessionsTelemetry.ts](../../src/vs/sessions/common/sessionsTelemetry.ts). This is the repo‑wide norm
+[sessionsTelemetry.ts](../../src/vs/workbench/contrib/sessions/common/sessionsTelemetry.ts). This is the repo‑wide norm
 for correlating session‑scoped events; do not introduce a different scheme for `agents/*` events
 without changing that shared primitive (and getting privacy/security sign‑off).
 

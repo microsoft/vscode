@@ -23,27 +23,33 @@ runs:
         key-prefix: ${{ runner.os == 'macOS' && 'node_modules-macos' || runner.os == 'Windows' && 'copilot-node_modules-windows' || 'copilot-node_modules-linux' }}
         key-args: ${{ runner.os == 'macOS' && 'darwin $(node -p process.arch) $(node -p process.arch)' || '$(node -p process.platform) $(node -p process.arch)' }}
 
-    # extensions/copilot is a separate install root.
+    # extensions/copilot is a separate install root; chat-lib is a member of its workspace.
     - name: Install Copilot dependencies
       if: steps.cache-node-modules.outputs.cache-hit != 'true'
       shell: bash
       working-directory: extensions/copilot
       run: pnpm install --frozen-lockfile
 
-    # Remove the node_modules of every ancestor folder (some are restored from the cache) so that
-    # chat-lib only resolves its own dependencies.
+    # The extraction sets chat-lib's dependencies to Copilot's versions, in its package.json and in
+    # Copilot's pnpm-lock.yaml. Remove the node_modules of the folders above extensions/copilot (some
+    # are restored from the cache) so that chat-lib only resolves the dependencies of Copilot's
+    # workspace.
     - name: Extract chat-lib
       shell: bash
       working-directory: extensions/copilot
       run: |
         pnpm run extract-chat-lib
-        rm -rf node_modules ../node_modules ../../node_modules
+        rm -rf ../node_modules ../../node_modules
 
-    # chat-lib is a separate install root with its own lockfile.
+    # Installs chat-lib's dependencies for the versions that the extraction set, then runs chat-lib's
+    # postinstall, which copies static files next to the extracted sources: pnpm doesn't run it again
+    # when the workspace is already up to date.
     - name: Install chat-lib dependencies
       shell: bash
-      working-directory: extensions/copilot/chat-lib
-      run: pnpm install --frozen-lockfile
+      working-directory: extensions/copilot
+      run: |
+        pnpm install --frozen-lockfile
+        pnpm --dir chat-lib run postinstall
 
     - name: Build chat-lib
       shell: bash

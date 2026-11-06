@@ -54,7 +54,7 @@ import { TelemetryLevel } from '../../../telemetry/common/telemetry.js';
 import { CapturingTelemetryService } from '../../../telemetry/test/common/testTelemetryService.js';
 import { AgentPolicyError, type IAgent, type IAgentCreateChatRequestOptions, type IAgentCreateChatWorkspace, type IAgentCreateSessionConfig, type IAgentExtensionInventory, type IAgentModelInfo, type IAgentResolveSessionConfigParams, type IAgentSessionConfigCompletionsParams, type IAgentSessionMetadata, type AuthenticateParams, type AuthenticateResult } from '../../common/agent.js';
 import { type IAgentCreateChatInitialMessageContext, type IAgentHostManagedSettingsDiagnostics, type IAgentHostNetworkDiagnosticsInfo, type IAgentHostNetworkFetchResult, type IAgentService } from '../../common/agentService.js';
-import { DevContainerConnectExtensionMethod, DevContainerDisconnectExtensionMethod, DevContainerIsDockerAvailableExtensionMethod, DevContainerOutputNotification, ListAgentExtensionsExtensionMethod, RemoveSessionArtifactExtensionMethod, RequestAgentHostMcpAuthenticationExtensionMethod, RequestAgentHostWorkspaceTrustExtensionMethod, SetAgentExtensionEnabledExtensionMethod, StopBackgroundWorkExtensionMethod, supportsAgentHostArtifactRemoval, supportsAgentHostDevContainers, type IAgentHostMcpAuthenticationRequest, RegisterClientArtifactIntegrationsExtensionMethod } from '../../common/agentHostExtensionProtocol.js';
+import { DevContainerConnectExtensionMethod, DevContainerDisconnectExtensionMethod, DevContainerIsDockerAvailableExtensionMethod, DevContainerOutputNotification, ListAgentExtensionsExtensionMethod, RemoveSessionArtifactExtensionMethod, RequestAgentHostMcpAuthenticationExtensionMethod, RequestAgentHostWorkspaceTrustExtensionMethod, SetAgentExtensionEnabledExtensionMethod, StopBackgroundWorkExtensionMethod, supportsAgentHostArtifactRemoval, supportsAgentHostChatStateFile, supportsAgentHostDevContainers, type IAgentHostMcpAuthenticationRequest, RegisterClientArtifactIntegrationsExtensionMethod } from '../../common/agentHostExtensionProtocol.js';
 import { supportsAgentHostCopilotExtensions } from '../../common/meta/agentHostCopilotExtensionsMeta.js';
 import { supportsAgentHostSavedChat, supportsAgentHostSavedChatContinuation } from '../../common/meta/agentHostSavedChatMeta.js';
 import { ChatSourceKind, CompletionsParams, CompletionsResult, ContentEncoding, CreateTerminalParams, ListSessionsResult, ResourceReadResult, ResolveSessionConfigResult, SessionConfigCompletionsResult, ResourceMkdirParams, ResourceMkdirResult, ResourceResolveParams, ResourceResolveResult, ResourceCopyParams, ResourceCopyResult, ResourceType } from '../../common/state/protocol/commands.js';
@@ -1839,6 +1839,48 @@ suite('ProtocolServerHandler', () => {
 			calls: [{ session: 'copilotcli:/session-1', chat }],
 		});
 	});
+
+	for (const { enabled, passive } of [{ enabled: true, passive: false }, { enabled: false, passive: false }, { enabled: true, passive: true }]) {
+		test(`relay chat state files with extension methods ${enabled ? 'enabled' : 'disabled'} on ${passive ? 'passive' : 'active'} connections`, async () => {
+			const relay = disposables.add(new MockProtocolServer());
+			disposables.add(new ProtocolServerHandler(
+				agentService, stateManager, relay, { allowExtensionMethods: enabled, relayRootMeta: {} },
+				disposables.add(new AgentHostFileSystemProvider()), logService, NullTelemetryService,
+				managedSettingsService, clientConnections, devContainerService, NullAgentHostOTelService,
+				new TestHandlerChatOwnership(stateManager, agentService.chatOwners), proxyResolver,
+			));
+			const transport = disposables.add(new MockProtocolTransport(AgentHostTransportKind.WebSocket, 'state-file-relay', passive));
+			transport.relayAuthenticated = true;
+			relay.simulateConnection(transport);
+			transport.simulateMessage(request(1, 'initialize', { protocolVersions: [PROTOCOL_VERSION], clientId: 'state-file-relay' }));
+			const initialized = findResponse(transport.sent, 1);
+			assert.ok(initialized && hasKey(initialized, { result: true }));
+			const session = 'copilotcli:/session-1';
+			const chat = buildChatUri(session, 'peer-1');
+			agentService.chatOwners.set(chat, session);
+			const response = waitForResponse(transport, 2);
+			transport.simulateMessage(request(2, 'vscode/getAgentHostSessionStateFile', { session, chat }));
+
+			assert.deepStrictEqual({
+				supported: supportsAgentHostChatStateFile(initialized.result as InitializeResult),
+				response: await response,
+				calls: agentService.getSessionStateFileCalls,
+			}, {
+				supported: enabled && !passive,
+				response: enabled && !passive
+					? { jsonrpc: '2.0', id: 2, result: { resource: 'file:///state/sdk-session/events.jsonl' } }
+					: {
+						jsonrpc: '2.0', id: 2, error: {
+							code: passive ? JsonRpcErrorCodes.InvalidRequest : JsonRpcErrorCodes.MethodNotFound,
+							message: passive
+								? 'This connection is read-only. You can view sessions, but you cannot create sessions, send messages, or make changes.'
+								: 'Method not found: vscode/getAgentHostSessionStateFile',
+						}
+					},
+				calls: enabled && !passive ? [{ session, chat }] : [],
+			});
+		});
+	}
 
 	test('advertises host wire-log resources without enabling host-management methods', async () => {
 		const localServer = disposables.add(new MockProtocolServer());
@@ -5033,7 +5075,7 @@ suite('ProtocolServerHandler', () => {
 
 		test('only listener configuration can delegate execution to a local credential source', async () => {
 			const resolutions: { owner: string; resource: string }[] = [];
-			const f = await fixture(undefined, async (principal, resource) => {
+			const f = await fixture(undefined, (principal, resource) => {
 				resolutions.push({ owner: principal.userId, resource });
 				return {
 					principal,
@@ -5050,7 +5092,7 @@ suite('ProtocolServerHandler', () => {
 			}));
 			await f.scopedHandler.whenIdle();
 			assert.deepStrictEqual({
-				resolutions,
+				resolutions: resolutions[0],
 				executionToken: agentService.createSessionConfigs[0]?.credentials?.getCredential({ resource })?.token,
 				sourceForwarded: agentService.createSessionConfigs[0]?.credentials === scope,
 				desktop: f.authentication.getAuthToken({ resource }),
@@ -5058,7 +5100,7 @@ suite('ProtocolServerHandler', () => {
 				changedTokens: f.changedTokens,
 				tokenPublished: JSON.stringify(transport.sent).includes('delegated-desktop-token'),
 			}, {
-				resolutions: [{ owner: '123', resource }],
+				resolutions: { owner: '123', resource },
 				executionToken: 'delegated-desktop-token',
 				sourceForwarded: true,
 				desktop: 'desktop-token',
@@ -5067,6 +5109,39 @@ suite('ProtocolServerHandler', () => {
 				tokenPublished: false,
 			});
 		});
+
+		for (const local of [false, true]) {
+			test(`a live changeset operation ${local ? 'uses host repository credentials' : 'does not inherit host repository credentials'} without client repository authentication`, async () => {
+				const repository = `${resource}/repos`;
+				const f = await fixture(undefined, (principal, target) => local && target === repository ? {
+					principal,
+					getCredential: request => request.resource === repository
+						? { resource: repository, token: 'host-repository-token', revision: 1, expiresAt: undefined }
+						: undefined,
+				} : undefined);
+				const transport = f.connect('changeset-client');
+				const scope = await f.authenticate(transport, 'client-token');
+				const tokens: (string | undefined)[] = [];
+				agentService.invokeChangesetOperation = async (_params, source) => {
+					tokens.push(source?.getCredential({ resource: repository })?.token);
+					return {};
+				};
+				transport.simulateMessage(request(3, 'invokeChangesetOperation', { channel: sessionUri, operationId: 'test' }));
+				await f.scopedHandler.whenIdle();
+				const response = findResponse(transport.sent, 3);
+				transport.relayAuthenticated = false;
+				assert.throws(() => scope.getCredential({ resource: repository }), { code: AHP_AUTH_REQUIRED });
+				assert.deepStrictEqual({
+					tokens,
+					authenticatedResources: f.authentications.map(authentication => authentication.params.resource),
+					succeeded: !!response && hasKey(response, { result: true }),
+				}, {
+					tokens: [local ? 'host-repository-token' : undefined],
+					authenticatedResources: [resource],
+					succeeded: true,
+				});
+			});
+		}
 
 		test('forwards the exact connection source to session creation, dispatch, changesets and listener extensions', async () => {
 			const extensionSources: (IAgentHostCredentialSource | undefined)[] = [];

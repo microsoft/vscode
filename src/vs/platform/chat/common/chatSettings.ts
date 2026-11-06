@@ -113,6 +113,10 @@ export const ALWAYS_CHECKED_EDIT_PATTERNS: ChatEditAutoApprovePatterns = {
 	'**/.mcp.json': false,
 	'**/.npmrc': false,
 	'**/.vscode/*.json': false,
+	// Dev Container configurations can run commands on the host whenever the container starts.
+	'**/.devcontainer.json': false,
+	'**/.devcontainer/devcontainer.json': false,
+	'**/.devcontainer/*/devcontainer.json': false,
 	'**/.github/agents/**': false,
 	'**/.github/hooks/**': false,
 	'**/.github/copilot/settings.json': false,

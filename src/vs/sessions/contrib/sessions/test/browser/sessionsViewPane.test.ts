@@ -9,18 +9,19 @@ import { mainWindow } from '../../../../../base/browser/window.js';
 import { SplitView, Sizing } from '../../../../../base/browser/ui/splitview/splitview.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
-import { IObservable, observableValue } from '../../../../../base/common/observable.js';
+import { constObservable, IObservable, observableValue } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { upcastPartial } from '../../../../../base/test/common/mock.js';
+import { ISessionGridPane } from '../../../../../workbench/contrib/sessions/browser/sessionGridPane.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { Workbench } from '../../../../browser/workbench.js';
-import { ISession } from '../../../../services/sessions/common/session.js';
-import { ISessionComparison, SessionComparisonParticipantRole } from '../../../../services/sessions/common/sessionComparison.js';
-import { AICustomizationShortcutsWidget } from '../../browser/aiCustomizationShortcutsWidget.js';
-import { getCustomizationsPresentation, SessionsView } from '../../browser/views/sessionsView.js';
-import { SessionsGrouping, SessionsSorting } from '../../browser/views/sessionsList.js';
-import '../../browser/media/sessionsViewPane.css';
+import { ISession } from '../../../../../workbench/contrib/sessions/common/session.js';
+import { ISessionComparison, SessionComparisonParticipantRole } from '../../../../../workbench/contrib/sessions/common/sessionComparison.js';
+import { AICustomizationShortcutsWidget } from '../../../../../workbench/contrib/sessions/browser/aiCustomizationShortcutsWidget.js';
+import { getCustomizationsPresentation, SessionsView } from '../../../../../workbench/contrib/sessions/browser/views/sessionsView.js';
+import { SessionsGrouping, SessionsSorting } from '../../../../../workbench/contrib/sessions/browser/views/sessionsList.js';
+import '../../../../../workbench/contrib/sessions/browser/media/sessionsViewPane.css';
 
 const registerEditorTabHeightClass = Reflect.get(Workbench.prototype, 'registerEditorTabHeightClass') as (this: {
 	readonly mainContainer: HTMLElement;
@@ -32,8 +33,9 @@ const registerEditorTabHeightClass = Reflect.get(Workbench.prototype, 'registerE
 }) => void;
 const handleSessionOpened = Reflect.get(SessionsView.prototype, '_handleSessionOpened') as (this: {
 	readonly sessionComparisonService: { getComparisonForSession(resource: URI): ISessionComparison | undefined };
-	readonly sessionsService: { readonly visibleSessions: IObservable<readonly (ISession | undefined)[]> };
-	readonly layoutService: { hideSidePane(): void; mainContainer: HTMLElement; setPartHidden(hidden: boolean, part: string): void };
+	readonly sessionsService: { readonly slotPanes: IObservable<readonly ISessionGridPane[]> };
+	readonly layoutService: { mainContainer: HTMLElement; setPartHidden(hidden: boolean, part: string): void };
+	readonly hostLayoutService: { readonly sidePane?: { hideSidePane(): void } };
 }, session: ISession) => void;
 const updateHeaderLayout = Reflect.get(SessionsView.prototype, 'updateHeaderLayout') as (this: {
 	readonly sessionsHeaders: ReadonlySet<{
@@ -345,11 +347,13 @@ suite('Sessions - SessionsViewPane', () => {
 			sessionComparisonService: {
 				getComparisonForSession: () => currentComparison,
 			},
-			sessionsService: { visibleSessions },
+			sessionsService: { slotPanes: visibleSessions.map(sessions => sessions.map(session => upcastPartial<ISessionGridPane>({ session: constObservable(session) }))) },
 			layoutService: {
-				hideSidePane: () => hideSidePaneCalls++,
 				mainContainer: mainWindow.document.createElement('div'),
 				setPartHidden: () => { },
+			},
+			hostLayoutService: {
+				sidePane: { hideSidePane: () => hideSidePaneCalls++ },
 			},
 		};
 

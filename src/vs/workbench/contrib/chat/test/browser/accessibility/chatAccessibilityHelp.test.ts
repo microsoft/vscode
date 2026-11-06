@@ -15,6 +15,17 @@ import { isResponseSelectionSupported } from '../../../browser/chat.js';
 suite('Chat Accessibility Help', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
 
+	test('documents paste choices only on the supported workbench chat surfaces', () => {
+		assert.deepStrictEqual([
+			getAccessibilityHelpText('panelChat', new MockKeybindingService(), true),
+			getAccessibilityHelpText('agentView', new MockKeybindingService(), true),
+			getAccessibilityHelpText('editsView', new MockKeybindingService(), true),
+			getAccessibilityHelpText('agentView', new MockKeybindingService(), true, true),
+			getAccessibilityHelpText('inlineChat', new MockKeybindingService(), true),
+			getAccessibilityHelpText('quickChat', new MockKeybindingService(), true),
+		].map(help => help.includes('<keybinding:editor.changePasteType>')), [true, true, true, false, false, true]);
+	});
+
 	test('documents read-only remote sandbox certificate refresh and keyboard access', () => {
 		assert.deepStrictEqual([
 			getAccessibilityHelpText('panelChat', new MockKeybindingService(), true),
@@ -702,6 +713,18 @@ suite('Chat Accessibility Help', () => {
 			supported: true,
 			unsupported: false,
 		});
+	});
+
+	test('documents pill dragging and keyboard movement only when inline attachments are enabled', () => {
+		const keybindings = new MockKeybindingService();
+		const help = getAccessibilityHelpText('agentView', keybindings, true, false, false, true, false, ChatSessionArchiveActionWording.Archive, false, false, undefined, false, false, true, true);
+		assert.deepStrictEqual({
+			drag: help.includes('Drag a pill to move it within the same chat input'),
+			cancel: help.includes('Press Escape or drop outside the input to cancel'),
+			cut: help.includes('<keybinding:editor.action.clipboardCutAction>'),
+			paste: help.includes('<keybinding:editor.action.clipboardPasteAction>'),
+			disabled: getAccessibilityHelpText('agentView', keybindings, true).includes('Drag a pill'),
+		}, { drag: true, cancel: true, cut: true, paste: true, disabled: false });
 	});
 
 	test('describes long pasted text attachments regardless of line count', () => {

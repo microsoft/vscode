@@ -19,6 +19,9 @@ import { FileService } from '../../../../../platform/files/common/fileService.js
 import { InMemoryFileSystemProvider } from '../../../../../platform/files/common/inMemoryFilesystemProvider.js';
 import { NullLogService } from '../../../../../platform/log/common/log.js';
 import { IQuickInputService, IQuickPick, IQuickPickItem, ItemActivation } from '../../../../../platform/quickinput/common/quickInput.js';
+import { IAccessibilityService } from '../../../../../platform/accessibility/common/accessibility.js';
+import { TestAccessibilityService } from '../../../../../platform/accessibility/test/common/testAccessibilityService.js';
+import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { IOpenDialogOptions } from '../../../../../platform/dialogs/common/dialogs.js';
 import { workbenchInstantiationService } from '../../../../test/browser/workbenchTestServices.js';
 import { SimpleFileDialog } from '../../browser/simpleFileDialog.js';
@@ -71,6 +74,67 @@ suite('SimpleFileDialog', () => {
 			assert.ok(picker && !picker.busy);
 			return { picker, result };
 		}
+
+		suite('initial selection', () => {
+			async function openWith(setting: string, screenReader: boolean, mode: 'open' | 'save', defaultUri: URI) {
+				const instantiationService = workbenchInstantiationService({ fileService: () => fileService }, disposables);
+				instantiationService.get(IConfigurationService).getValue = (() => setting) as IConfigurationService['getValue'];
+				instantiationService.stub(IAccessibilityService, new class extends TestAccessibilityService {
+					override isScreenReaderOptimized() { return screenReader; }
+				}());
+				const quickInputService = instantiationService.get(IQuickInputService);
+				const dialog = disposables.add(instantiationService.createInstance(SimpleFileDialog));
+				const result = mode === 'open'
+					? dialog.showOpenDialog({ defaultUri, canSelectFiles: true, canSelectFolders: false, canSelectMany: false })
+					: dialog.showSaveDialog({ defaultUri });
+				await timeout(0);
+				const picker = quickInputService.currentQuickInput as IQuickPick<ResourceItem>;
+				const state = { value: picker.value, selection: picker.valueSelection };
+				picker.hide();
+				await result;
+				return state;
+			}
+
+			setup(async () => {
+				await fileService.createFolder(childFolder);
+				await fileService.createFile(textFile, VSBuffer.fromString('notes'));
+			});
+
+			test('open dialog with folder default', async () => {
+				const results = {
+					off: await openWith('off', true, 'open', root),
+					on: await openWith('on', false, 'open', root),
+					autoScreenReader: await openWith('auto', true, 'open', root),
+					autoNoScreenReader: await openWith('auto', false, 'open', root),
+				};
+				assert.deepStrictEqual(
+					Object.values(results).map(r => r.selection),
+					[
+						[results.off.value.length, results.off.value.length],
+						[0, results.on.value.length],
+						[0, results.autoScreenReader.value.length],
+						[results.autoNoScreenReader.value.length, results.autoNoScreenReader.value.length],
+					]);
+			});
+
+			test('open dialog with file default', async () => {
+				const on = await openWith('on', false, 'open', textFile);
+				const autoScreenReader = await openWith('auto', true, 'open', textFile);
+				const off = await openWith('off', true, 'open', textFile);
+				assert.deepStrictEqual(
+					[on.selection, autoScreenReader.selection, off.selection],
+					[
+						[0, on.value.length],
+						[0, autoScreenReader.value.length],
+						[off.value.length - 'notes.txt'.length, off.value.length - '.txt'.length],
+					]);
+			});
+
+			test('save dialog selects the file name stem', async () => {
+				const save = await openWith('on', true, 'save', textFile);
+				assert.deepStrictEqual(save.selection, [save.value.length - 'notes.txt'.length, save.value.length - '.txt'.length]);
+			});
+		});
 
 		test('returns all checked files through the real quick pick', async () => {
 			const { picker, result } = await openDialog();

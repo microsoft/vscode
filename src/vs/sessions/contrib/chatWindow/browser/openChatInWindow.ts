@@ -15,12 +15,14 @@ import { ChatContextKeys } from '../../../../workbench/contrib/chat/common/actio
 import { IChatWindowOpenOptions, IChatWindowService } from '../../../../workbench/contrib/chatWindow/browser/chatWindow.js';
 import { resolveChatWindow } from '../../../../workbench/contrib/chatWindow/browser/chatWindowLayoutActions.js';
 import { IEditorGroupsService } from '../../../../workbench/services/editor/common/editorGroupsService.js';
-import { Menus, SessionHeaderMenus } from '../../../browser/menus.js';
+import { Menus, SessionHeaderMenus } from '../../../../workbench/contrib/sessions/browser/menus.js';
 import { IAgentWorkbenchLayoutService } from '../../../browser/workbench.js';
-import { SessionsCategories } from '../../../common/categories.js';
-import { SessionIsCreatedContext, SessionItemIsMultiSelectionContext } from '../../../common/contextkeys.js';
-import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
-import { IChat, ISession } from '../../../services/sessions/common/session.js';
+import { SessionsCategories } from '../../../../workbench/contrib/sessions/common/categories.js';
+import { SessionIsCreatedContext, SessionItemIsMultiSelectionContext } from '../../../../workbench/contrib/sessions/common/contextkeys.js';
+import { ISessionsService } from '../../../../workbench/contrib/sessions/browser/sessionsService.js';
+import { getMainWindowHost, ISessionHostService } from '../../../../workbench/contrib/sessions/browser/sessionHost.js';
+import { resolveSessionCommandTarget } from '../../../../workbench/contrib/sessions/browser/sessionCommandTarget.js';
+import { IChat, ISession } from '../../../../workbench/contrib/sessions/common/session.js';
 import { CHAT_WINDOWS_ENABLED_SETTING } from '../common/chatWindows.js';
 
 export const OPEN_CHAT_IN_WINDOW_COMMAND_ID = 'sessions.chatWindow.openChat';
@@ -60,12 +62,13 @@ export async function openChatInWindow(accessor: ServicesAccessor, session: ISes
 	const editorGroupsService = accessor.get(IEditorGroupsService);
 	const layoutService = accessor.get(IAgentWorkbenchLayoutService);
 
-	const shown = sessionsService.visibleSessions.get().find(candidate => candidate?.sessionId === session.sessionId && !candidate.scopedChatResource);
-	const chatResource = chat ?? shown?.activeChat.get().resource;
+	// The session's own slot, not a detached pane of one of its chats.
+	const shown = sessionsService.slotPanes.get().find(pane => pane.session.get()?.sessionId === session.sessionId);
+	const chatResource = chat ?? shown?.chat.get()?.resource;
 	// The main window's editors are the chat's while the main window is laid out for it and shows it as its active chat.
-	const mainActive = sessionsService.mainWindowActiveSession.get();
-	const ownsEditors = mainActive?.sessionId === session.sessionId
-		&& (!chatResource || isEqual(mainActive.activeChat.get().resource, chatResource));
+	const mainWindowHost = getMainWindowHost(accessor.get(ISessionHostService));
+	const ownsEditors = mainWindowHost.session.get()?.sessionId === session.sessionId
+		&& (!chatResource || isEqual(mainWindowHost.chat.get()?.resource, chatResource));
 	// The editors moving out empty the main window's editor part: that is not the user closing them, so the main window
 	// keeps its side pane as it is, for the session it shows next, as when it switches sessions.
 	const suppression = ownsEditors ? layoutService.suppressEditorPartAutoVisibility() : undefined;
@@ -134,9 +137,10 @@ registerAction2(class OpenActiveChatInChatWindowAction extends Action2 {
 	}
 
 	override async run(accessor: ServicesAccessor): Promise<void> {
-		const session = accessor.get(ISessionsService).mainWindowActiveSession.get();
-		if (session) {
-			await openChatInWindow(accessor, session);
+		// The chat of the focused host: the main window's, as the command is enabled there only.
+		const target = resolveSessionCommandTarget(accessor, []);
+		if (target?.session) {
+			await openChatInWindow(accessor, target.session, target.chat?.resource);
 		}
 	}
 });

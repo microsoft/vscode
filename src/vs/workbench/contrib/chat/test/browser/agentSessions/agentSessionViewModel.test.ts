@@ -235,6 +235,33 @@ suite('AgentSessions', () => {
 			});
 		});
 
+		test('keeps rows of a provider that registered while a sibling provider was still activating', async () => {
+			return runWithFakedTimers({}, async () => {
+				const activated = new DeferredPromise<void>();
+				disposables.add(mockChatSessionsService.registerChatSessionItemController('type-cloud', {
+					onDidChangeChatSessionItems: Event.None,
+					items: [],
+					refresh: () => activated.p,
+				}));
+				viewModel = createViewModel();
+				// Registration reads the provider's items once its initial refresh completes, which
+				// waits for its extension to activate.
+				mockChatSessionsService.fireDidChangeItemsProviders({ chatSessionType: 'type-cloud' });
+				await timeout(1_000);
+				disposables.add(mockChatSessionsService.registerChatSessionItemController('type-agenthost', new StaticChatSessionItemController([makeSimpleSessionItem('ah-1', { resource: URI.parse('type-agenthost://ah-1') })])));
+				await viewModel.resolve('type-agenthost');
+				const beforeActivation = viewModel.sessions.map(s => s.resource.toString());
+
+				activated.complete();
+				await viewModel.resolve('type-cloud');
+
+				assert.deepStrictEqual({ beforeActivation, afterActivation: viewModel.sessions.map(s => s.resource.toString()) }, {
+					beforeActivation: ['type-agenthost://ah-1'],
+					afterActivation: ['type-agenthost://ah-1'],
+				});
+			});
+		});
+
 		test('should preserve change summaries when lazy refresh omits changes', async () => {
 			return runWithFakedTimers({}, async () => {
 				const controller = new StaticChatSessionItemController([
@@ -2081,6 +2108,26 @@ suite('AgentSessions', () => {
 
 				// Sanity: no infinite loop, falls back to provider value.
 				assert.strictEqual(viewModel.sessions[0].isArchived(), false);
+			});
+		});
+
+		test('migrates cross-scheme state only through an explicit controller-owned identity', async () => {
+			return runWithFakedTimers({}, async () => {
+				const { newUri } = uris();
+				const previous = URI.parse('previous-provider:/conversation');
+				mockChatSessionsService.registerChatSessionItemController(chatSessionTestType, new StaticChatSessionItemController([makeItem(previous)]));
+				viewModel = disposables.add(instantiationService.createInstance(AgentSessionsModel));
+				await viewModel.resolve(undefined);
+				viewModel.sessions[0].setPinned(true);
+				viewModel.sessions[0].setRead(false);
+				mockChatSessionsService.registerChatSessionItemController(chatSessionTestType, new class extends StaticChatSessionItemController {
+					getPreviousSessionResource(): URI { return previous; }
+				}([makeItem(newUri)]));
+				await viewModel.resolve(undefined);
+				const session = viewModel.sessions[0];
+				assert.deepStrictEqual({ resource: session.resource.toString(), pinned: session.isPinned(), read: session.isRead() }, {
+					resource: newUri.toString(), pinned: true, read: false,
+				});
 			});
 		});
 

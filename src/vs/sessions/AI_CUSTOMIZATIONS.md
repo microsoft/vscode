@@ -23,6 +23,10 @@ The Agents Window contributes:
 
 Shared workbench code owns reusable discovery and management behavior. Sessions code adapts active-session context and provider-backed harnesses without adding Sessions dependencies to `vs/workbench`.
 
+Harness-specific built-in skills belong to their provider. Copilot Agent Host supplies `troubleshoot` through the SDK skill provider on both create and resume, enriching its Markdown lazily with the exact host-local SDK conversation log and session-state directory. Explicit session-reference attachments take precedence over the current conversation. The extension troubleshooting skill handles extension debug logs and is registered only for Local sessions. SDK-provided invocation names take precedence over same-named disk skills under the SDK catalog contract. Virtual-workspace Copilot sessions retain their disabled skill discovery.
+
+The host-owned troubleshooting Markdown is defined in code and loaded through the SDK skill provider, without a separate packaged skill asset. Its customization entry is discovery-only, like Claude's built-in skills, and has no openable source. Session-reference trajectory attachments retain their existing Copilot CLI path handling; this skill does not change how referenced sessions are resolved.
+
 ## Service boundary
 
 ### `IAICustomizationWorkspaceService`
@@ -151,7 +155,7 @@ Contributed management sections can declare `enablementSettings` to gate visibil
 
 ## Active-session context
 
-In the Agents Window, the customization harness and project root track `ISessionsService.activeSession`. Opening the editor synchronizes it with the currently active session, and switching the active session can update the editor's harness and project context. A transient project-root override takes precedence while it is set.
+In the Agents Window, the customization harness and project root track the chat of the focused session host (`IFocusedSessionHostService`). Opening the editor synchronizes it with that chat, and focusing another chat or window can update the editor's harness and project context. A transient project-root override takes precedence while it is set.
 
 The management-editor command may select a section, target a session type, reveal a URI-addressable customization, and open migration mode for a targeted migration category. Operations that migrate files bind destination resolution and confirmation to their initiating session and stop if the active session changes.
 

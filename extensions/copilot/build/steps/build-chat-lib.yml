@@ -14,8 +14,9 @@ steps:
 
   - template: ../../../../build/azure-pipelines/common/install-pnpm.yml@self
 
-  # extensions/copilot and chat-lib are separate pnpm install roots with their own lockfiles.
-  - bash: pnpm install --frozen-lockfile && pnpm run extract-chat-lib && rm -rf node_modules
+  # chat-lib is a member of the extensions/copilot pnpm workspace. The extraction sets its
+  # dependencies to Copilot's versions, in its package.json and in Copilot's pnpm-lock.yaml.
+  - bash: pnpm install --frozen-lockfile && pnpm run extract-chat-lib
     displayName: 📂 Extract chat-lib
     workingDirectory: extensions/copilot
     env:
@@ -34,9 +35,13 @@ steps:
     displayName: 📋 Sync chat-lib version
     workingDirectory: extensions/copilot/chat-lib
 
-  - script: pnpm install --frozen-lockfile
+  # pnpm doesn't run chat-lib's postinstall again when the workspace is already up to date; it
+  # copies static files next to the extracted sources.
+  - script: pnpm install --frozen-lockfile && pnpm --dir chat-lib run postinstall
     displayName: 📦 Install chat-lib dependencies
-    workingDirectory: extensions/copilot/chat-lib
+    workingDirectory: extensions/copilot
+    env:
+      PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: 1
 
   - script: pnpm run build
     displayName: 🔨 Build chat-lib
