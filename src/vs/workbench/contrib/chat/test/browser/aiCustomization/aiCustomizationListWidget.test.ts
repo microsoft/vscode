@@ -1499,12 +1499,12 @@ suite('aiCustomizationListWidget', () => {
 				groups,
 				rowCount,
 			}, {
-				groups: ['User', 'Workspace'],
+				groups: ['Workspace', 'User'],
 				rowCount: 6,
 			});
 		});
 
-		test('groups items by scope and nests each plugin, extension, and organization', async () => {
+		test('renders contributed customizations as flat rows with source descriptions', async () => {
 			const listItem = (id: string, source: IAICustomizationListItem['source'], extra: Partial<IAICustomizationListItem> = {}): IAICustomizationListItem => ({
 				id,
 				uri: URI.file(`/${id}/SKILL.md`),
@@ -1519,9 +1519,10 @@ suite('aiCustomizationListWidget', () => {
 				listItem('triage', PromptsStorage.user),
 				listItem('review', PromptsStorage.user),
 				listItem('azure-deploy', PromptsStorage.plugin, { origin: { kind: 'plugin', id: 'plugin:azure', label: 'azure' } }),
+				listItem('azure-review', PromptsStorage.plugin, { origin: { kind: 'plugin', id: 'plugin:azure', label: 'azure' } }),
 				listItem('workspace-review', PromptsStorage.local),
 				listItem('release', AICustomizationSources.extension, { scope: AICustomizationScopes.user, origin: { kind: 'account', id: 'account:contoso', label: 'contoso' } }),
-				listItem('acme-lint', AICustomizationSources.extension, { origin: { kind: 'extension', id: 'extension:acme.tools', label: 'Acme Tools' } }),
+				listItem('acme-lint', AICustomizationSources.extension, { origin: { kind: 'extension', id: 'extension:acme.tools', label: 'Acme Tools' }, extensionId: 'acme.tools' }),
 				listItem('init', AICustomizationSources.builtin, { scope: AICustomizationScopes.application, origin: { kind: 'vscode', id: 'vscode:' } }),
 				listItem('ask', AICustomizationSources.builtin, { scope: AICustomizationScopes.application, origin: { kind: 'harness', id: 'harness:' } }),
 			]);
@@ -1539,35 +1540,48 @@ suite('aiCustomizationListWidget', () => {
 			await widget.setSection(AICustomizationManagementSection.Skills);
 			widget.layout(1000, 800);
 
-			const visibleText = (element: HTMLElement | null) => element && element.style.display !== 'none' ? element.textContent : undefined;
 			const rows = Array.from(widget.element.querySelectorAll<HTMLElement>('.list-container .monaco-list-row'), row => {
 				const group = row.querySelector('.group-label')?.textContent;
 				if (group) {
 					return `# ${group}`;
 				}
-				const source = row.querySelector('.customization-source-node-label')?.textContent;
-				if (source) {
-					return `> ${source} (${row.querySelector('.customization-source-node-kind')?.textContent})`;
-				}
-				const tag = visibleText(row.querySelector('.item-tag'));
-				return [row.querySelector('.item-name')?.textContent, ...(tag ? [`[${tag}]`] : [])].join(' ');
+				const sourceDescription = row.querySelector('.item-description')?.textContent?.trim();
+				return [
+					row.querySelector('.item-name')?.textContent,
+					...(sourceDescription?.includes(':') ? [`— ${sourceDescription}`] : []),
+				].join(' ');
 			});
-			assert.deepStrictEqual(rows, [
-				'# User',
-				'review',
-				'triage',
-				'> Acme Tools (Extension)',
-				'acme-lint',
-				'> azure (Plugin)',
-				'azure-deploy',
-				'> contoso (Organization)',
-				'release',
-				'# Workspace',
-				'workspace-review',
-				'# Built-in',
-				'init',
-				'ask [Test]',
-			]);
+			const ariaLabelFor = (name: string) => Array.from(widget.element.querySelectorAll<HTMLElement>('.list-container .monaco-list-row'))
+				.find(row => row.querySelector('.item-name')?.textContent === name)?.getAttribute('aria-label');
+			assert.deepStrictEqual({
+				rows,
+				contributionAriaLabels: [ariaLabelFor('acme-lint'), ariaLabelFor('azure-deploy')],
+				sourceLinks: Array.from(widget.element.querySelectorAll<HTMLAnchorElement>('.item-source'))
+					.filter(link => !!link.textContent)
+					.map(link => ({ text: link.textContent, linked: link.classList.contains('source-link') })),
+			}, {
+				rows: [
+					'# Workspace',
+					'workspace-review',
+					'# User',
+					'review',
+					'triage',
+					'acme-lint — Extension: Acme Tools',
+					'azure-deploy — Plugin: azure',
+					'azure-review — Plugin: azure',
+					'release — Organization: contoso',
+					'# Built-in',
+					'init',
+					'ask',
+				],
+				contributionAriaLabels: ['acme-lint. Extension: Acme Tools', 'azure-deploy. Plugin: azure'],
+				sourceLinks: [
+					{ text: 'Extension: Acme Tools', linked: true },
+					{ text: 'Plugin: azure', linked: false },
+					{ text: 'Plugin: azure', linked: false },
+					{ text: 'Organization: contoso', linked: false },
+				],
+			});
 		});
 	});
 });

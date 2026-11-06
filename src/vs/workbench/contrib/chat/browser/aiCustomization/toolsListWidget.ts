@@ -464,9 +464,7 @@ class ToolsConnectedRowRenderer implements IListRenderer<IToolsConnectedRowEntry
 			const source = entry.source;
 			if (source.open) {
 				const link = $('a.source-link', { href: '#', tabIndex: -1, 'aria-label': source.ariaLabel ?? source.label }, source.label);
-				// Split the localized sentence around its placeholder so the source can be a link.
-				const [before, after = ''] = localize('toolsConnectedServerSource', "MCP server from {0}", '\u0000').split('\u0000');
-				DOM.reset(data.subtext, before, link, after);
+				DOM.reset(data.subtext, link);
 				data.elementDisposables.add(DOM.addDisposableGenericMouseDownListener(link, event => DOM.EventHelper.stop(event, true)));
 				data.elementDisposables.add(DOM.addDisposableListener(link, DOM.EventType.CLICK, event => {
 					DOM.EventHelper.stop(event, true);
@@ -917,8 +915,8 @@ export class ToolsListWidget extends Disposable {
 		const builtinSets = [...vscodeSets, ...agentSets];
 		const scopeDescription = localize('connectedToolsScopeDescription', "Plugins, MCP servers, and extension tools available to the agent.");
 		const groups = [
-			this._createConnectedTreeGroup('user', localize('userToolsGroup', "User"), userIcon, scopeDescription, userEntries, connected.get('user')!.filter(entry => entry.depth === 0).length + extensionSets.length, true),
 			this._createConnectedTreeGroup('workspace', localize('workspaceToolsGroup', "Workspace"), workspaceIcon, scopeDescription, connected.get('workspace')!, connected.get('workspace')!.filter(entry => entry.depth === 0).length, false),
+			this._createConnectedTreeGroup('user', localize('userToolsGroup', "User"), userIcon, scopeDescription, userEntries, connected.get('user')!.filter(entry => entry.depth === 0).length + extensionSets.length, true),
 			this._createTreeGroupFromEntries(
 				'builtin',
 				localize('builtinToolsGroup', "Built-in"),
@@ -1001,24 +999,13 @@ export class ToolsListWidget extends Disposable {
 	private _computeConnectedEntriesByScope(query: string): Map<'user' | 'workspace' | 'application', IToolsConnectedRowEntry[]> {
 		const grouped = new Map<'user' | 'workspace' | 'application', IToolsConnectedRowEntry[]>([['user', []], ['workspace', []], ['application', []]]);
 		const entries = grouped.get('user')!;
-		// Every plugin is a row with its servers nested beneath, even when it supplies one.
 		for (const plugin of this._connectedPlugins) {
 			const servers = this._connectedServers.filter(server => server.pluginId === plugin.id);
 			if (servers.length === 0) {
 				continue;
 			}
-			if (servers.length === 1) {
-				entries.push(...this._computeConnectedServerEntries(servers[0], 0, query, !query || !!matchesCustomizationSearchQuery(query, plugin.name)));
-				continue;
-			}
-			const id = `connected-plugin:${plugin.id}`;
-			const nameMatches = matchesCustomizationSearchQuery(query, plugin.name) ?? undefined;
-			const expanded = this._expanded.get().has(id) || !!query;
-			const serverEntries = expanded ? servers.flatMap(server => this._computeConnectedServerEntries(server, 1, query, !query || !!nameMatches)) : [];
-			if (query && !nameMatches && serverEntries.length === 0) {
-				continue;
-			}
-			entries.push({ type: 'connected', id, depth: 0, label: plugin.name, description: localize('connectedToolsPluginSource', "Plugin"), expandable: true, nameMatches }, ...serverEntries);
+			const pluginMatches = !!matchesCustomizationSearchQuery(query, plugin.name);
+			entries.push(...servers.flatMap(server => this._computeConnectedServerEntries(server, 0, query, !query || pluginMatches)));
 		}
 		for (const server of this._connectedServers) {
 			if (server.pluginId === undefined || !this._connectedPlugins.some(plugin => plugin.id === server.pluginId)) {
@@ -1057,7 +1044,7 @@ export class ToolsListWidget extends Disposable {
 			file => void this._editorService.openEditor({ resource: file.uri, options: { selection: file.range, pinned: true } }),
 			plugin ? this._agentHostCustomizationService.getClientPluginUri(this._harnessService.activeSessionResource.get(), plugin) : undefined,
 		);
-		const description = source ? localize('toolsConnectedServerSource', "MCP server from {0}", source.label) : undefined;
+		const description = source?.label;
 		const entries: IToolsConnectedRowEntry[] = [{ type: 'connected', id, depth, label: serverLabel, description, source, server, expandable, nameMatches }];
 		if (expanded) {
 			if (toolEntries.length > 0) {

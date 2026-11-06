@@ -3693,7 +3693,7 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 
 	CanvasesTab: defineComponentFixture({
 		labels: { kind: 'screenshot', blocksCi: false },
-		expectedVisualDescriptions: ['Canvases literally reuses the shared Tools content container, including its recessed panel background, border, padding, title/search alignment, and source-group tree styling. Its header includes secondary Create a Canvas and Browse actions for guided authoring and filtered discovery. It groups every supported inventory extension under User and Workspace sections, including extensions that report no Canvases; extensions supplied by a plugin are listed under User after the others and name their plugin. Extension rows do not repeat source icons; User and Plugin parents have enablement switches, while Workspace parents are read-only.'],
+		expectedVisualDescriptions: ['Canvases reuses the shared Tools content container, including its recessed panel background, border, padding, title/search alignment, and scope-group styling. Workspace appears before User. Every Canvas renders directly in a flat scope list with "Plugin: name" or "Extension: name" secondary text. Source controls remain available on each Canvas row, and Workspace-provided Canvases remain read-only.'],
 		render: ctx => renderEditor(ctx, {
 			sessionResource: agentHostCopilotSessionResource,
 			selectedSection: AICustomizationManagementSection.Canvases,
@@ -3869,7 +3869,7 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 	// MCP Servers page with many servers to verify scrollable list layout
 	McpServersTab: defineComponentFixture({
 		labels: { kind: 'screenshot', blocksCi: false },
-		expectedVisualDescriptions: ['The MCP Servers page uses a classic tree with separate collapsible User and Workspace groups, followed by source-specific and Available groups when applicable. The tree edges align with the title and search field.'],
+		expectedVisualDescriptions: ['The MCP Servers page uses a classic tree ordered Workspace, User, then Built-in, followed by Available when applicable. Plugin-, extension-, and organization-contributed servers render directly in flat scope lists with "Plugin: name", "Extension: name", or "Organization: name" secondary text. The tree edges align with the title and search field.'],
 		render: ctx => renderEditor(ctx, {
 			sessionResource: localSessionResource,
 			selectedSection: AICustomizationManagementSection.McpServers,
@@ -4463,7 +4463,7 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 	// Plugins tab
 	AgentHostPluginsTab: defineComponentFixture({
 		labels: { kind: 'screenshot', blocksCi: false },
-		expectedVisualDescriptions: ['Plugins installed on the agent host are listed in the scope they apply to: user and organization plugins under User, with the organization plugin tagged contoso, and a plugin built into the agent under Built-in, tagged Copilot. Browse replaces the Available group.'],
+		expectedVisualDescriptions: ['Plugins installed on the agent host are listed in flat scope groups ordered Workspace, User, then Built-in. Organization-contributed plugins show "Organization: name" as their secondary text, and the Built-in plugin has no Copilot tag. Browse replaces the Available group.'],
 		render: ctx => renderEditor(ctx, {
 			sessionResource: agentHostCopilotSessionResource,
 			selectedSection: AICustomizationManagementSection.Plugins,
@@ -4479,7 +4479,7 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 	PluginsTab: defineComponentFixture({
 		labels: { kind: 'screenshot', blocksCi: false },
 		additionalThemes: ['darkHighContrast', 'lightHighContrast'],
-		expectedVisualDescriptions: ['The Plugins page uses a classic tree with separate collapsible User and Workspace groups, plus Account, agent, and Available groups when applicable. Header action buttons use the standard gap. The add split button has a borderless, narrow compact-chevron segment and matches the Agents run split button resting and segment hover states.'],
+		expectedVisualDescriptions: ['The Plugins page uses a classic tree ordered Workspace, User, then Built-in, followed by Available when applicable. Header action buttons use the standard gap. The add split button has a borderless, narrow compact-chevron segment and matches the Agents run split button resting and segment hover states.'],
 		render: ctx => renderEditor(ctx, {
 			sessionResource: localSessionResource,
 			selectedSection: AICustomizationManagementSection.Plugins,

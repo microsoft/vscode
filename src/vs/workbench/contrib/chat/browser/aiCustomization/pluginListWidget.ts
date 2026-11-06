@@ -59,6 +59,7 @@ import { status } from '../../../../../base/browser/ui/aria/aria.js';
 import { createCustomizationCardPrimaryAction, CustomizationCardListController, focusFirstCustomizationTreeItem, getVirtualizedSectionMinimumHeight, layoutVirtualizedSectionList, layoutVirtualizedSections, setVirtualizedRowActionsTabbable, stopListRowActionKeyDownPropagation, trackCustomizationCardPrimaryActionFocus } from './customizationCardList.js';
 import { DomScrollableElement } from '../../../../../base/browser/ui/scrollbar/scrollableElement.js';
 import { ScrollbarVisibility } from '../../../../../base/common/scrollable.js';
+import { getCustomizationContributionSourceLabel } from './customizationContributionSource.js';
 import { asTreeRenderer, customizationTreeStyles, getCustomizationTreeContentHeight, ICustomizationTreeGroup } from './customizationTree.js';
 import { CustomizationToggle } from './customizationToggle.js';
 import { affectsCustomizationDiscoveryAvailability, isCustomizationDiscoveryAvailable } from './customizationMarketplaceConfiguration.js';
@@ -362,7 +363,6 @@ interface IPluginRemoteItemTemplateData {
 	readonly container: HTMLElement;
 	readonly name: HTMLElement;
 	readonly badge: HTMLElement;
-	readonly tag: HTMLElement;
 	readonly description: HTMLElement;
 	readonly metadata: HTMLElement;
 	readonly status: HTMLElement;
@@ -372,6 +372,14 @@ interface IPluginRemoteItemTemplateData {
 	currentItemId: string | undefined;
 }
 
+function getRemotePluginDescription(item: ICustomizationItem): string | undefined {
+	if (item.origin?.kind !== 'account') {
+		return item.description;
+	}
+	const sourceLabel = item.origin.label ?? localize('pluginOrganizationSource', "Organization");
+	return getCustomizationContributionSourceLabel('organization', sourceLabel);
+}
+
 class PluginRemoteItemRenderer implements IListRenderer<IPluginRemoteItemEntry, IPluginRemoteItemTemplateData> {
 	readonly templateId = 'pluginRemoteItem';
 	private readonly _templates = new Set<IPluginRemoteItemTemplateData>();
@@ -379,7 +387,6 @@ class PluginRemoteItemRenderer implements IListRenderer<IPluginRemoteItemEntry, 
 
 	constructor(
 		private readonly _renderActions: (item: ICustomizationItem, actions: HTMLElement, disposables: DisposableStore) => void,
-		private readonly _getTag: (item: ICustomizationItem) => { readonly label: string; readonly detail: string } | undefined,
 	) { }
 
 	renderTemplate(container: HTMLElement): IPluginRemoteItemTemplateData {
@@ -389,7 +396,6 @@ class PluginRemoteItemRenderer implements IListRenderer<IPluginRemoteItemEntry, 
 		const nameRow = DOM.append(details, $('.plugin-list-item-name-row'));
 		const name = DOM.append(nameRow, $('span.plugin-list-item-name'));
 		const badge = DOM.append(nameRow, $('.inline-badge.item-badge'));
-		const tag = DOM.append(nameRow, $('.inline-badge.item-tag'));
 		const description = DOM.append(details, $('.plugin-list-item-description'));
 		const metadata = DOM.append(details, $('.plugin-list-item-metadata'));
 		const status = DOM.append(container, $('.plugin-list-item-status'));
@@ -397,7 +403,7 @@ class PluginRemoteItemRenderer implements IListRenderer<IPluginRemoteItemEntry, 
 		const templateDisposables = new DisposableStore();
 		templateDisposables.add(stopListRowActionKeyDownPropagation(actions));
 
-		const template = { container, name, badge, tag, description, metadata, status, actions, templateDisposables, disposables: new DisposableStore(), currentItemId: undefined };
+		const template = { container, name, badge, description, metadata, status, actions, templateDisposables, disposables: new DisposableStore(), currentItemId: undefined };
 		this._templates.add(template);
 		return template;
 	}
@@ -417,13 +423,9 @@ class PluginRemoteItemRenderer implements IListRenderer<IPluginRemoteItemEntry, 
 			templateData.badge.title = '';
 		}
 
-		const tag = this._getTag(element.item);
-		templateData.tag.textContent = tag?.label ?? '';
-		templateData.tag.title = tag?.detail ?? '';
-		templateData.tag.style.display = tag ? '' : 'none';
-
-		if (element.item.description) {
-			templateData.description.textContent = truncateToFirstLine(element.item.description);
+		const description = getRemotePluginDescription(element.item);
+		if (description) {
+			templateData.description.textContent = truncateToFirstLine(description);
 			templateData.description.style.display = '';
 		} else {
 			templateData.description.textContent = '';
@@ -1065,7 +1067,7 @@ export class PluginListWidget extends Disposable {
 		);
 		const searchHeaderRenderer = new PluginSearchHeaderRenderer();
 		const installedRenderer = new PluginInstalledItemRenderer(this.harnessService, (item, container, actions, disposables) => this.renderInstalledListActions(item, container, actions, disposables), false);
-		const remoteRenderer = new PluginRemoteItemRenderer((item, actions, disposables) => this.renderRemoteListActions(item, actions, disposables), item => this.getRemotePluginTag(item));
+		const remoteRenderer = new PluginRemoteItemRenderer((item, actions, disposables) => this.renderRemoteListActions(item, actions, disposables));
 		const marketplaceRenderer = new PluginMarketplaceItemRenderer(this.pluginInstallService, this.agentPluginService, this.pluginMarketplaceService, this.notificationService);
 
 		this.list = this._register(this.instantiationService.createInstance(
@@ -1353,7 +1355,8 @@ export class PluginListWidget extends Disposable {
 				? localize('pluginInstalledItemAriaLabelEnabled', "{0}. Enabled", withDetails)
 				: localize('pluginInstalledItemAriaLabelDisabled', "{0}. Disabled", withDetails));
 		}
-		const description = element.item.description ? truncateToFirstLine(element.item.description) : undefined;
+		const itemDescription = element.type === 'remote-item' ? getRemotePluginDescription(element.item) : element.item.description;
+		const description = itemDescription ? truncateToFirstLine(itemDescription) : undefined;
 		const nameAndDescription = description ? localize('pluginItemAriaLabel', "{0}. {1}", name, description) : name;
 		if (element.type === 'remote-item') {
 			const statusLabel = getRemotePluginStatusLabel(element.item);
@@ -1437,21 +1440,6 @@ export class PluginListWidget extends Disposable {
 			DOM.EventHelper.stop(event, true);
 			this.showInstalledPluginActions(item, more.element);
 		}));
-	}
-
-	/** Names the organization that requires a host plugin, or the agent a built-in one belongs to. */
-	private getRemotePluginTag(item: ICustomizationItem): { readonly label: string; readonly detail: string } | undefined {
-		if (item.origin?.kind === 'account') {
-			return item.origin.label
-				? { label: item.origin.label, detail: localize('pluginOrganizationTag', "Required by the {0} organization", item.origin.label) }
-				: { label: localize('pluginOrganizationTagLabel', "Organization"), detail: localize('pluginOrganizationTagDetail', "Required by your organization") };
-		}
-		if ((item.scope ?? AICustomizationScopes.user) === AICustomizationScopes.application) {
-			const descriptor = this.harnessService.getActiveDescriptor();
-			const agentLabel = descriptor.agentLabel ?? descriptor.label;
-			return { label: agentLabel, detail: localize('pluginAgentTag', "Built into {0}", agentLabel) };
-		}
-		return undefined;
 	}
 
 	private renderRemoteListActions(item: ICustomizationItem, actions: HTMLElement, disposables: DisposableStore): void {
@@ -1544,13 +1532,6 @@ export class PluginListWidget extends Disposable {
 			? this.marketplaceItems : this.getUninstalledMarketplaceItems(this.marketplaceSnapshot.items);
 		const availableEntries = availableItems.map(item => ({ type: 'marketplace-item' as const, item }));
 		const definitions = [
-			{
-				id: 'user',
-				label: localize('userPluginsGroup', "User"),
-				description: localize('userPluginsGroupDescription', "Plugins installed for your profile and available across workspaces."),
-				icon: Codicon.account,
-				children: userEntries,
-			},
 			...workspaceDefinitions,
 			...(workspaceGroups.length > 0 ? [{
 				id: 'workspace',
@@ -1559,6 +1540,13 @@ export class PluginListWidget extends Disposable {
 				icon: Codicon.folder,
 				children: workspaceHostEntries,
 			}] : []),
+			{
+				id: 'user',
+				label: localize('userPluginsGroup', "User"),
+				description: localize('userPluginsGroupDescription', "Plugins installed for your profile and available across workspaces."),
+				icon: Codicon.account,
+				children: userEntries,
+			},
 			...(builtinEntries.length > 0 ? [{
 				id: 'builtin',
 				label: localize('builtinPluginsGroup', "Built-in"),
@@ -1875,14 +1863,8 @@ export class PluginListWidget extends Disposable {
 		const nameRow = DOM.append(details, $('.plugin-list-item-name-row'));
 		const name = DOM.append(nameRow, $('.plugin-list-item-name'));
 		name.textContent = formatDisplayName(item.name);
-		const tag = this.getRemotePluginTag(item);
-		if (tag) {
-			const tagElement = DOM.append(nameRow, $('.inline-badge.item-tag'));
-			tagElement.textContent = tag.label;
-			tagElement.title = tag.detail;
-		}
 		const description = DOM.append(details, $('.plugin-list-item-description'));
-		description.textContent = item.description || localize('pluginNoDescription', "No description provided.");
+		description.textContent = getRemotePluginDescription(item) || localize('pluginNoDescription', "No description provided.");
 		const metadata = DOM.append(details, $('.plugin-list-item-metadata'));
 		metadata.textContent = localize('sessionPluginConfigurationSource', "Configured on the active agent host");
 

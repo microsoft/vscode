@@ -618,7 +618,7 @@ suite('mcpListWidget', () => {
 		]);
 	});
 
-	test('renders User before Workspace even when User has no servers', () => {
+	test('renders Workspace before User even when User has no servers', () => {
 		const localEntry = (scope: LocalMcpServerScope): IMcpInstalledEntry => ({
 			type: 'server-item',
 			server: { id: scope, local: { scope } as IWorkbenchLocalMcpServer } as IWorkbenchMcpServer,
@@ -658,8 +658,8 @@ suite('mcpListWidget', () => {
 			]),
 			userEmpty: renderGroupLabels([localEntry(LocalMcpServerScope.Workspace)]),
 		}, {
-			bothGroupsPopulated: ['User', 'Workspace'],
-			userEmpty: ['User', 'Workspace'],
+			bothGroupsPopulated: ['Workspace', 'User'],
+			userEmpty: ['Workspace', 'User'],
 		});
 	});
 
@@ -709,9 +709,9 @@ suite('mcpListWidget', () => {
 			label: group.element.label,
 			servers: group.children?.map(child => child.element.type === 'server-item' ? child.element.server.id : ''),
 		})), [
-			{ label: 'User', servers: [] },
 			{ label: 'Workspace · First', servers: ['first'] },
 			{ label: 'Workspace · Second', servers: ['second'] },
+			{ label: 'User', servers: [] },
 		]);
 	});
 
@@ -2364,7 +2364,6 @@ suite('mcpListWidget', () => {
 				() => migrationAvailable,
 				plugin => openedPlugins.push(plugin.label),
 				() => migrationRequests++,
-				() => false,
 				bundleId => shownSkillBundles.push(bundleId),
 				{ isSessionsWindow } as IAICustomizationWorkspaceService,
 				agentPluginService,
