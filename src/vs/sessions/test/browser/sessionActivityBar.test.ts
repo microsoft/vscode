@@ -11,7 +11,7 @@ import { timeout } from '../../../base/common/async.js';
 import { Codicon } from '../../../base/common/codicons.js';
 import { Emitter, Event } from '../../../base/common/event.js';
 import { DisposableStore, toDisposable } from '../../../base/common/lifecycle.js';
-import { toAction } from '../../../base/common/actions.js';
+import { Separator, toAction } from '../../../base/common/actions.js';
 import { derived, observableValue } from '../../../base/common/observable.js';
 import { AnchorAlignment } from '../../../base/common/layout.js';
 import { ThemeIcon } from '../../../base/common/themables.js';
@@ -90,15 +90,22 @@ suite('Sessions - Session Activity Bar', () => {
 			override isScreenReaderOptimized(): boolean { return false; }
 		});
 
+		// Entries can be shown and hidden from the context menu, as menu items are.
+		const hideActions = (entry: ITestEntry) => ({
+			isHidden: false,
+			isModifiedFromDefault: false,
+			hide: toAction({ id: `hide.${entry.id}`, label: `Hide '${entry.title}'`, run: () => { } }),
+			toggle: toAction({ id: `toggle.${entry.id}`, label: entry.title, checked: true, run: () => { } }),
+		});
 		const createEntryAction = (entry: ITestEntry, options: IMenuActionOptions | undefined) => {
 			if (!entry.checked) {
-				return instantiationService.createInstance(MenuItemAction, { id: entry.id, title: entry.title, icon: entry.icon }, undefined, options, undefined, undefined);
+				return instantiationService.createInstance(MenuItemAction, { id: entry.id, title: entry.title, icon: entry.icon }, undefined, options, hideActions(entry), undefined);
 			}
 			// The entry's toggled condition holds, as when the side pane shows its editor.
 			const contextKeyService = new class extends mock<IContextKeyService>() {
 				override contextMatchesRules(rules: ContextKeyExpression | undefined): boolean { return !!rules?.evaluate({ getValue: () => undefined }); }
 			};
-			return instantiationService.invokeFunction(accessor => new MenuItemAction({ id: entry.id, title: entry.title, icon: entry.icon, toggled: ContextKeyExpr.true() }, undefined, options, undefined, undefined, contextKeyService, accessor.get(ICommandService)));
+			return instantiationService.invokeFunction(accessor => new MenuItemAction({ id: entry.id, title: entry.title, icon: entry.icon, toggled: ContextKeyExpr.true() }, undefined, options, hideActions(entry), undefined, contextKeyService, accessor.get(ICommandService)));
 		};
 
 		let entries = initialEntries;
@@ -141,11 +148,13 @@ suite('Sessions - Session Activity Bar', () => {
 		instantiationService.stub(IContextViewService, contextViewService);
 
 		const contextMenus: string[] = [];
+		const contextMenuActions: string[][] = [];
 		instantiationService.stub(IContextMenuService, new class extends mock<IContextMenuService>() {
 			override readonly onDidShowContextMenu = Event.None;
 			override readonly onDidHideContextMenu = Event.None;
 			override showContextMenu(delegate: IContextMenuMenuDelegate): void {
 				contextMenus.push(delegate.menuId?.id ?? 'none');
+				contextMenuActions.push((delegate.getActions?.() ?? []).map(action => action instanceof Separator ? '---' : `${action.checked ? '✓ ' : ''}${action.label}${action.enabled ? '' : ' (disabled)'}`));
 			}
 		});
 
@@ -177,6 +186,7 @@ suite('Sessions - Session Activity Bar', () => {
 			contextKeyService,
 			contextViewService,
 			contextMenus,
+			contextMenuActions,
 			label: (title: string) => activityBar.element.querySelector<HTMLElement>(`.action-label[aria-label^="${title}"]`)!,
 			setEntries: (newEntries: readonly ITestEntry[]) => {
 				entries = newEntries;
@@ -533,8 +543,8 @@ suite('Sessions - Session Activity Bar', () => {
 		});
 	});
 
-	test('right-clicking an entry or the rest of the strip offers to hide the activity bar', () => {
-		const { createDocked, contextMenus } = createActivityBar(store, [changes, browser]);
+	test('right-clicking an entry or the rest of the strip offers to hide the activity bar and lists the entries to show, the rest of the strip without the actions of an entry', () => {
+		const { createDocked, contextMenus, contextMenuActions } = createActivityBar(store, [changes, browser]);
 		const docked = createDocked();
 		docked.layout(0);
 		docked.setActive(true);
@@ -549,10 +559,15 @@ suite('Sessions - Session Activity Bar', () => {
 			entry: rightClick(element.querySelector<HTMLElement>('.action-label[aria-label^="Browser"]')!),
 			strip: rightClick(element),
 			menus: contextMenus,
+			actions: contextMenuActions,
 		}, {
 			entry: true,
 			strip: true,
 			menus: ['SessionActivityBarContext', 'SessionActivityBarContext'],
+			actions: [
+				['Configure Keybinding (disabled)', 'Hide \'Browser\'', '---', '✓ Changes', '✓ Browser'],
+				['✓ Changes', '✓ Browser'],
+			],
 		});
 	});
 

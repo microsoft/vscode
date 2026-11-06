@@ -18,7 +18,7 @@ import { Action, ActionRunner, IAction, toAction } from '../../../base/common/ac
 import { localize } from '../../../nls.js';
 import { HiddenItemStrategy, MenuWorkbenchToolBar } from '../../../platform/actions/browser/toolbar.js';
 import { IMenuEntryActionViewItemOptions, MenuEntryActionViewItem } from '../../../platform/actions/browser/menuEntryActionViewItem.js';
-import { isIMenuItem, MenuItemAction, MenuRegistry, SubmenuItemAction } from '../../../platform/actions/common/actions.js';
+import { IMenuService, isIMenuItem, MenuItemAction, MenuRegistry, SubmenuItemAction } from '../../../platform/actions/common/actions.js';
 import { IAccessibilityService } from '../../../platform/accessibility/common/accessibility.js';
 import { INotificationService } from '../../../platform/notification/common/notification.js';
 import { IThemeService } from '../../../platform/theme/common/themeService.js';
@@ -66,12 +66,15 @@ export class SessionActivityBar extends Disposable {
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IContextMenuService contextMenuService: IContextMenuService,
 		@IContextKeyService contextKeyService: IContextKeyService,
+		@IMenuService menuService: IMenuService,
 	) {
 		super();
 
 		this.element = append(container, $('.session-activity-bar'));
 		const scopedContextKeyService = this._register(contextKeyService.createScoped(this.element));
 		const scopedInstantiationService = this._register(instantiationService.createChild(new ServiceCollection([IContextKeyService, scopedContextKeyService])));
+		// The entries' show and hide toggles, which the context menu of the rest of the strip lists like an entry's does.
+		const menu = this._register(menuService.createMenu(Menus.SessionActivityBar, scopedContextKeyService));
 		let actionsById = new Map<string, IAction>();
 		const renderedChatActions = this._register(new DisposableMap<string, Action>());
 
@@ -160,12 +163,15 @@ export class SessionActivityBar extends Disposable {
 			}
 			update();
 		}));
-		// Entries show the toolbar's own context menu, which appends these actions; this covers the rest of the strip.
+		// Entries show the toolbar's own context menu: their own actions, then the toggles of all entries, then these actions.
+		// The rest of the strip shows the same menu without the actions of an entry.
 		this._register(addDisposableListener(this.element, EventType.CONTEXT_MENU, (e: MouseEvent) => {
 			EventHelper.stop(e, true);
 			contextMenuService.showContextMenu({
 				getAnchor: () => new StandardMouseEvent(getWindow(this.element), e),
+				getActions: () => getEntryToggles(menu.getActions({ shouldForwardArgs: true }).flatMap(([, actions]) => actions)),
 				menuId: Menus.SessionActivityBarContext,
+				menuActionOptions: { renderShortTitle: true, shouldForwardArgs: true },
 				contextKeyService,
 			});
 		}));
@@ -179,6 +185,19 @@ export class SessionActivityBar extends Disposable {
 	setChatActions(actions: IObservable<readonly IAction[]> | undefined): void {
 		this.chatActions.set(actions, undefined);
 	}
+}
+
+/**
+ * The show and hide toggles of the strip's entries, as the toolbar lists them in an entry's context menu: the last entry
+ * shown cannot be hidden, as the strip has no other place to show it again.
+ */
+function getEntryToggles(actions: readonly IAction[]): IAction[] {
+	const toggles = actions.flatMap(action => (action instanceof MenuItemAction || action instanceof SubmenuItemAction) && action.hideActions ? [action.hideActions.toggle] : []);
+	const checked = toggles.filter(toggle => toggle.checked);
+	if (checked.length !== 1) {
+		return toggles;
+	}
+	return toggles.map(toggle => toggle === checked[0] ? toAction({ id: toggle.id, label: toggle.label, checked: true, enabled: false, run: () => { } }) : toggle);
 }
 
 /** Runs the entries of the strip with the context it supplies to those that run without one of their own. */
