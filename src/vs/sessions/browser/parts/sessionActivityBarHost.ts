@@ -5,7 +5,7 @@
 
 import { $ } from '../../../base/browser/dom.js';
 import { ISerializableView } from '../../../base/browser/ui/grid/grid.js';
-import { Event } from '../../../base/common/event.js';
+import { Emitter } from '../../../base/common/event.js';
 import { IDisposable, toDisposable } from '../../../base/common/lifecycle.js';
 import { IObservable, observableValue } from '../../../base/common/observable.js';
 
@@ -80,7 +80,8 @@ export function findSessionActivityBarExternalHost(element: HTMLElement): ISessi
 /**
  * The fixed-width column at the right of the main window's grid that the Session Activity Bar of the active chat shows
  * in, to the right of the side pane, or of the chat while the side pane is closed. The workbench shows it while a strip
- * is in it: see {@link occupied}.
+ * is in it: see {@link occupied}. Its width includes the gap between it and the cards to its left, the same as the gap
+ * between those cards; see {@link setGap}.
  */
 export class SessionActivityBarColumn implements ISerializableView, ISessionActivityBarExternalHost {
 
@@ -88,11 +89,21 @@ export class SessionActivityBarColumn implements ISerializableView, ISessionActi
 
 	readonly element = $('.session-activity-bar-column.session-activity-bar-host');
 
-	readonly minimumWidth = SESSION_ACTIVITY_BAR_COLUMN_WIDTH;
-	readonly maximumWidth = SESSION_ACTIVITY_BAR_COLUMN_WIDTH;
+	private gap = 0;
+
+	get minimumWidth(): number {
+		return this.gap + SESSION_ACTIVITY_BAR_COLUMN_WIDTH;
+	}
+
+	get maximumWidth(): number {
+		return this.minimumWidth;
+	}
+
 	readonly minimumHeight = 0;
 	readonly maximumHeight = Number.POSITIVE_INFINITY;
-	readonly onDidChange = Event.None;
+
+	private readonly _onDidChange = new Emitter<undefined>();
+	readonly onDidChange = this._onDidChange.event;
 
 	private readonly occupancy = new SessionActivityBarHostOccupancy();
 	/** Whether a shown strip is in the column. */
@@ -102,6 +113,18 @@ export class SessionActivityBarColumn implements ISerializableView, ISessionActi
 
 	setOccupied(occupant: object, occupied: boolean): void {
 		this.occupancy.set(occupant, occupied);
+	}
+
+	/** Sets the gap between the cards of the window, which the column keeps to the left of the strip. */
+	setGap(gap: number): void {
+		if (this.gap !== gap) {
+			this.gap = gap;
+			this._onDidChange.fire(undefined);
+		}
+	}
+
+	dispose(): void {
+		this._onDidChange.dispose();
 	}
 
 	layout(): void { }

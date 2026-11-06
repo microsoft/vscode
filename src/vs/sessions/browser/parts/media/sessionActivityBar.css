@@ -16,13 +16,19 @@
 }
 
 /* Beside the cards of the main window, the strip is a card of its own: it fills the column from top to bottom, so the
- * whole column is the activity bar and offers its context menu anywhere, framed like the cards beside it. */
+ * whole column is the activity bar and offers its context menu anywhere, framed like the cards beside it. The column
+ * keeps the gap between cards to its left (`SessionActivityBarColumn`). */
 .monaco-workbench .session-activity-bar-column .session-activity-bar.docked {
-	inset: 0;
+	inset: 0 0 0 var(--agents-floating-panel-gap);
 	border-color: var(--vscode-agentsPanel-border, transparent);
 	border-radius: var(--agents-part-corner-radius);
 	background-color: var(--vscode-agentsPanel-background);
 	box-shadow: none;
+}
+
+/* Beside the chat while the side pane is closed, whose visible frame is inset within its part. */
+.monaco-workbench.noeditorpane .session-activity-bar-column .session-activity-bar.docked {
+	left: calc(var(--agents-floating-panel-gap) - var(--agents-session-frame-inset));
 }
 
 .monaco-workbench .session-activity-bar.docked {

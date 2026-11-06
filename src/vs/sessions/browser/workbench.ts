@@ -1636,7 +1636,8 @@ export abstract class Workbench extends Disposable implements IAgentWorkbenchLay
 		};
 
 		if (this.agentWorkbenchLayout === AgentWorkbenchLayout.Desktop) {
-			const column = this.sessionActivityBarColumn = new SessionActivityBarColumn(this._isSessionActivityBarColumnActive());
+			const column = this.sessionActivityBarColumn = this._register(new SessionActivityBarColumn(this._isSessionActivityBarColumnActive()));
+			column.setGap(this._gridGutter());
 			viewMap[SessionActivityBarColumn.ID] = column;
 			this._register(registerSessionActivityBarExternalHost(this.mainContainer, column));
 		}
@@ -1754,6 +1755,10 @@ export abstract class Workbench extends Disposable implements IAgentWorkbenchLay
 			const visible = column.occupied.get();
 			if (!this.workbenchGrid.hasMaximizedView() && this.workbenchGrid.isViewVisible(column) !== visible) {
 				this.workbenchGrid.setViewVisible(column, visible);
+				// It shows at the width it had when it hid, which the gap may have changed since.
+				if (visible) {
+					this.workbenchGrid.resizeView(column, { width: column.minimumWidth, height: this.workbenchGrid.getViewSize(column).height });
+				}
 			}
 		};
 		this._register(autorun(reader => {
@@ -2091,12 +2096,17 @@ export abstract class Workbench extends Disposable implements IAgentWorkbenchLay
 		this.handleContainerDidLayout(this.mainContainer, this._mainContainerDimension);
 	}
 
+	/** The gap at the edges of the grid, which is also the gap between its cards. */
+	private _gridGutter(): number {
+		return this.layoutPolicy.viewportClass.get() === 'phone' || this.isModernUICompact() ? 0 : AGENTS_FLOATING_PANEL_GAP;
+	}
+
 	protected _layoutGrid(): void {
 		const mobileTopBarHeight = this.mobileTopBarElement?.offsetHeight ?? 0;
 		// Keep the desktop grid margin stable when sidebar visibility changes.
-		const isPhone = this.layoutPolicy.viewportClass.get() === 'phone';
-		const gridGutterW = isPhone || this.isModernUICompact() ? 0 : AGENTS_FLOATING_PANEL_GAP;
+		const gridGutterW = this._gridGutter();
 		const gridGutterH = gridGutterW;
+		this.sessionActivityBarColumn?.setGap(gridGutterW);
 		this.workbenchGrid.layout(
 			this._mainContainerDimension.width - gridGutterW,
 			this._mainContainerDimension.height - mobileTopBarHeight - gridGutterH

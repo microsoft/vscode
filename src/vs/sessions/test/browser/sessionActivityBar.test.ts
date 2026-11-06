@@ -508,10 +508,10 @@ suite('Sessions - Session Activity Bar', () => {
 		});
 	});
 
-	test('in the main window\'s column, fills the column from top to bottom, which offers the context menu anywhere', () => {
+	test('in the main window\'s column, fills the column from top to bottom after the gap between cards, which offers the context menu anywhere', () => {
 		const { createDocked, root, contextMenus } = createActivityBar(store, [changes, browser]);
 		const hostElement = append(root, $('.session-activity-bar-column.session-activity-bar-host'));
-		hostElement.style.cssText = 'position: relative; width: 34px; height: 200px;';
+		hostElement.style.cssText = '--agents-floating-panel-gap: 8px; position: relative; width: 42px; height: 200px;';
 		store.add(registerSessionActivityBarExternalHost(root, { element: hostElement, active: observableValue('active', true), setOccupied: () => { } }));
 		const docked = createDocked();
 		docked.layout(40);
@@ -527,7 +527,7 @@ suite('Sessions - Session Activity Bar', () => {
 			bottomIsStrip: element.contains(nearBottom),
 			menus: contextMenus,
 		}, {
-			fills: [hostBounds.top, hostBounds.bottom, hostBounds.left, hostBounds.right].map(Math.round),
+			fills: [hostBounds.top, hostBounds.bottom, hostBounds.left + 8, hostBounds.right].map(Math.round),
 			bottomIsStrip: true,
 			menus: ['SessionActivityBarContext'],
 		});
