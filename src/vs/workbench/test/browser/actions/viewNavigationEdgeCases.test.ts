@@ -159,6 +159,58 @@ suite('Workbench view navigation: visibility and focus transitions', () => {
 
 
 
+
+	test('preferred location disambiguates a moving container with no focused view', () => {
+		const containers = [
+			makeContainer('moving', 'sidebar', ['a', 'b']),
+			makeContainer('moving', 'panel', ['c', 'd'])
+		];
+		const preferredPanel = makeSnapshot(containers, undefined, 'moving', 'panel');
+		const preferredSidebar = makeSnapshot(containers, undefined, 'moving', 'sidebar');
+
+		assert.strictEqual(targetId(preferredPanel, {
+			direction: 'next', scope: 'container'
+		}), 'c');
+		assert.strictEqual(targetId(preferredPanel, {
+			direction: 'previous', scope: 'container'
+		}), 'd');
+		assert.strictEqual(targetId(preferredSidebar, {
+			direction: 'next', scope: 'container'
+		}), 'a');
+		assert.strictEqual(targetId(preferredSidebar, {
+			direction: 'previous', scope: 'container'
+		}), 'b');
+	});
+
+	test('unknown preferred location retains preferred container precedence', () => {
+		const state = makeSnapshot([
+			makeContainer('moving', 'sidebar', ['a', 'b']),
+			makeContainer('moving', 'panel', ['c', 'd']),
+			makeContainer('different', 'auxiliarybar', ['e'])
+		], undefined, 'moving', 'auxiliarybar');
+
+		assert.strictEqual(targetId(state, {
+			direction: 'next', scope: 'container'
+		}), 'a');
+		assert.strictEqual(targetId(state, {
+			direction: 'previous', scope: 'container'
+		}), 'd');
+	});
+
+	test('workbench-scoped preferred location selects the matching duplicate as its starting point', () => {
+		const state = makeSnapshot([
+			makeContainer('moving', 'sidebar', ['a', 'b']),
+			makeContainer('moving', 'panel', ['c', 'd'])
+		], undefined, 'moving', 'panel');
+
+		assert.strictEqual(targetId(state, {
+			direction: 'next', scope: 'workbench'
+		}), 'c');
+		assert.strictEqual(targetId(state, {
+			direction: 'previous', scope: 'workbench'
+		}), 'd');
+	});
+
 	test('container-scoped traversal does not cross locations that share a container ID', () => {
 		const state = makeSnapshot([
 			makeContainer('moving', 'sidebar', ['a', 'b']),
