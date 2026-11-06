@@ -662,6 +662,21 @@ suite('Chat window', () => {
 		return { service, events, windows: created, parts, instantiationService, setMainPart: (part: IContentPart) => mainPart = part };
 	}
 
+	test('a new chat opens in a window as its provider opens one, as asked: beside its active chat, without focus; without a provider that offers new chats, nothing opens', async () => {
+		const { service, windows: [a] } = createService(['a']);
+		const opened: string[] = [];
+
+		await service.openNewChat(a.window);
+		disposables.add(service.registerProvider(upcastPartial<IChatWindowProvider>({
+			onDidRemoveChats: Event.None,
+			restoreEnabled: constObservable(false),
+			openNewChat: async (window, options) => { opened.push(`${window.windowId}${options?.beside ? ' beside' : ''}${options?.preserveFocus ? ' preserving focus' : ''}`); },
+		})));
+		await service.openNewChat(a.window, { beside: true, preserveFocus: true });
+
+		assert.deepStrictEqual(opened, ['2 beside preserving focus']);
+	});
+
 	test('moving the chats of a window to the main window that its provider vetoes, such as for a chat that cannot leave it yet, says why and leaves the window and its chats as they are; without a veto they move', async () => {
 		const { service, events, windows: [kept, moved] } = createService(['a', 'b'], chats => chats.some(chat => chat.path === '/a') ? 'Send it first.' : undefined);
 

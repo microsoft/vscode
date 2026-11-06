@@ -31,7 +31,7 @@ import { IHostService } from '../../../services/host/browser/host.js';
 import { ILifecycleService } from '../../../services/lifecycle/common/lifecycle.js';
 import { ChatWindowLayoutMode, ChatWindowSplitLayout, ChatWindowTerminalPosition } from '../common/chatWindowLayout.js';
 import { ChatWindowChatLayouts, ChatWindowChatSizes, ChatWindowDefaults, ChatWindowState } from '../common/chatWindowState.js';
-import { IChatWindow, IChatWindowChat, IChatWindowChatPart, IChatWindowContent, IChatWindowEditors, IChatWindowOpenOptions, IChatWindowProvider, IChatWindowService } from './chatWindow.js';
+import { IChatWindow, IChatWindowChat, IChatWindowChatPart, IChatWindowContent, IChatWindowEditors, IChatWindowNewChatOptions, IChatWindowOpenOptions, IChatWindowProvider, IChatWindowService } from './chatWindow.js';
 import { bindWindowLayoutContext, bindWindowTerminalsContext } from './chatWindowContextKeys.js';
 import { captureChatPart, deserializeChatWindowEditors, getRestoredChatGroup, reopenChatWindow, serializeChatWindowEditorsBesideChat } from './chatWindowEditors.js';
 import { InFlightOperations, openCleaningUpOnFailure } from './chatWindowOpening.js';
@@ -1343,6 +1343,10 @@ export class ChatWindowService extends Disposable implements IChatWindowService 
 		} else {
 			await this.open(chat);
 		}
+	}
+
+	async openNewChat(window: IChatWindow, options?: IChatWindowNewChatOptions): Promise<void> {
+		await this._provider.get()?.openNewChat?.(window, options);
 	}
 
 	async moveToMainWindow(window: IChatWindow): Promise<void> {

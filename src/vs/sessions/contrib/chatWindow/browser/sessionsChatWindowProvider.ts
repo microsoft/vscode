@@ -20,7 +20,7 @@ import { observableConfigValue } from '../../../../platform/observable/common/pl
 import { IEditorGroupView, IEditorGroupViewOptions } from '../../../../workbench/browser/parts/editor/editor.js';
 import { GroupModelChangeKind, IEditorPartOptions } from '../../../../workbench/common/editor.js';
 import { IChatService } from '../../../../workbench/contrib/chat/common/chatService/chatService.js';
-import { IChatWindow, IChatWindowChat, IChatWindowChrome, IChatWindowChromeElement, IChatWindowContent, IChatWindowEditors, IChatWindowLook, IChatWindowProvider, IChatWindowService } from '../../../../workbench/contrib/chatWindow/browser/chatWindow.js';
+import { IChatWindow, IChatWindowChat, IChatWindowChrome, IChatWindowChromeElement, IChatWindowContent, IChatWindowEditors, IChatWindowLook, IChatWindowNewChatOptions, IChatWindowProvider, IChatWindowService } from '../../../../workbench/contrib/chatWindow/browser/chatWindow.js';
 import { IChatEntitlementService } from '../../../../workbench/services/chat/common/chatEntitlementService.js';
 import { IEditorGroup, IEditorGroupsService } from '../../../../workbench/services/editor/common/editorGroupsService.js';
 import { IEditorService } from '../../../../workbench/services/editor/common/editorService.js';
@@ -518,15 +518,15 @@ export class SessionsChatWindowContent extends Disposable implements IChatWindow
 	}
 
 	/**
-	 * Opens a new-session composer as a tab of the window's active chat, in its group, which starts its session as the
-	 * active chat's (see {@link getChatWindowComposerTarget}), and whose sessions join the custom group of the sessions list
-	 * the active chat's session is in. While the active chat is a composer that has not sent its session, it focuses it
-	 * instead. The composer's chat becomes its session's main chat once it sends it in the foreground.
+	 * Opens a new-session composer as a tab of the window's active chat, in its group, or beside it, which starts its session
+	 * as the active chat's (see {@link getChatWindowComposerTarget}), and whose sessions join the custom group of the sessions
+	 * list the active chat's session is in. While the active chat is a composer that has not sent its session, it shows that
+	 * one instead. The composer's chat becomes its session's main chat once it sends it in the foreground.
 	 */
-	async openComposer(window: IChatWindow): Promise<void> {
+	async openNewChat(window: IChatWindow, options?: IChatWindowNewChatOptions): Promise<void> {
 		const active = this.activeChat.get();
 		if (active?.isComposer) {
-			await this._chatWindowService.open(active.chat.get(), { window });
+			await this._chatWindowService.open(active.chat.get(), { window, preserveFocus: options?.preserveFocus });
 			return;
 		}
 		const session = active?.session.get();
@@ -537,7 +537,8 @@ export class SessionsChatWindowContent extends Disposable implements IChatWindow
 		};
 		this._pendingComposers.set(resource.toString(), this._composers.create(resource, init, this._openStartedSession(resource)));
 		try {
-			await this._chatWindowService.open(resource, { window, tabOf: active?.chat.get() });
+			const reference = active?.chat.get();
+			await this._chatWindowService.open(resource, { window, preserveFocus: options?.preserveFocus, ...(options?.beside ? { beside: reference } : { tabOf: reference }) });
 		} finally {
 			// Not taken by a chat, such as when the window went away meanwhile
 			this._pendingComposers.deleteAndDispose(resource.toString());
@@ -795,10 +796,10 @@ export class SessionsChatWindowProvider extends Disposable implements IChatWindo
 		return chat && !chat.chat ? chat.session.mainChat.get().resource : undefined;
 	}
 
-	/** Opens a new-session composer in `window`, as {@link SessionsChatWindowContent.openComposer} does. */
-	async openComposer(window: IChatWindow): Promise<void> {
+	/** Opens a new-session composer in `window`, as {@link SessionsChatWindowContent.openNewChat} does. */
+	async openNewChat(window: IChatWindow, options?: IChatWindowNewChatOptions): Promise<void> {
 		const content = this._contents.get().find(candidate => candidate.window.get() === window);
-		await content?.openComposer(window);
+		await content?.openNewChat(window, options);
 	}
 
 	async canRestore(resource: URI): Promise<boolean> {

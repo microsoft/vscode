@@ -215,7 +215,7 @@ suite('Sessions chat window provider', () => {
 			instantiationService.stub(IChatWindowService, new class extends mock<IChatWindowService>() {
 				override readonly windows = constObservable([window]);
 				override async open(chat: URI, options?: IChatWindowOpenOptions) {
-					events.push(`window open ${chat.scheme === 'test' ? chat.path : chat.scheme}${options?.window ? ` in ${options.window.windowId}` : ''}${options?.beside ? ` beside ${options.beside.path}` : ''}${options?.tabOf ? ` tab of ${options.tabOf.scheme === 'test' ? options.tabOf.path : options.tabOf.scheme}` : ''}`);
+					events.push(`window open ${chat.scheme === 'test' ? chat.path : chat.scheme}${options?.window ? ` in ${options.window.windowId}` : ''}${options?.beside ? ` beside ${options.beside.path}` : ''}${options?.tabOf ? ` tab of ${options.tabOf.scheme === 'test' ? options.tabOf.path : options.tabOf.scheme}` : ''}${options?.preserveFocus ? ' preserving focus' : ''}`);
 					await opening.onOpen?.(chat);
 					return undefined;
 				}
@@ -420,7 +420,7 @@ suite('Sessions chat window provider', () => {
 		const closed = await opener.close(URI.parse('test:/subagent'));
 		await closed?.restore();
 
-		assert.deepStrictEqual({ closed: !!closed, events: events.filter(event => event.startsWith('window')) }, { closed: true, events: ['window open /subagent in 42'] });
+		assert.deepStrictEqual({ closed: !!closed, events: events.filter(event => event.startsWith('window')) }, { closed: true, events: ['window open /subagent in 42 preserving focus'] });
 	});
 
 	test('a chat whose close its window vetoes is not closed: there is nothing to show it there again', async () => {
@@ -864,12 +864,12 @@ suite('Sessions chat window provider', () => {
 		const session = Object.assign(createSession('grouped', [main]), { providerId: 'provider', sessionType: 'type', workspace: constObservable(upcastPartial<ISessionWorkspace>({ uri: URI.file('/repo'), folders: [] })), isQuickChat: constObservable(false) });
 		const { provider, events, opened, slots } = await openWindowWithComposers(store, [session]);
 
-		await provider.openComposer(window);
+		await provider.openNewChat(window);
 		const composer = asComposerChat(opened[0]);
 		const draftHost = composer.composer.get()!.draftHost;
 		const shown = { scheme: composer.chat.get().scheme, title: composer.title.get(), target: draftHost.requestedTarget?.get(), session: composer.session.get(), content: composer.content.get(), ownSlot: draftHost.slot === slots[0] };
 		activeChat.set(composer.chat.get(), undefined);
-		await provider.openComposer(window);
+		await provider.openNewChat(window);
 		const again = { opened: opened.length, same: opened[1] === composer, slots: slots.length };
 		composer.dispose();
 		activeChat.set(URI.parse('test:/main'), undefined);
@@ -881,13 +881,31 @@ suite('Sessions chat window provider', () => {
 		});
 	});
 
+	test('New Session in a chat window opens its composer beside the active chat rather than as its tab when asked to, and without focus when asked to; while the active chat is that composer, it shows it, without focus too', async () => {
+		const store = disposables.add(new DisposableStore());
+		const main = Object.assign(createChat('main'), { modelId: constObservable('model'), mode: constObservable({ id: 'agent', kind: 'agent' }) });
+		const session = Object.assign(createSession('session', [main]), { providerId: 'provider', sessionType: 'type', workspace: constObservable(upcastPartial<ISessionWorkspace>({ uri: URI.file('/repo'), folders: [] })), isQuickChat: constObservable(false) });
+		const { provider, events, opened } = await openWindowWithComposers(store, [session]);
+
+		await provider.openNewChat(window, { beside: true, preserveFocus: true });
+		activeChat.set(opened[0].chat.get(), undefined);
+		await provider.openNewChat(window, { beside: true, preserveFocus: true });
+		opened[0].dispose();
+		activeChat.set(URI.parse('test:/main'), undefined);
+
+		assert.deepStrictEqual(events.filter(event => event.startsWith('window open')), [
+			'window open vscode-agents-composer in 42 beside /main preserving focus',
+			'window open vscode-agents-composer in 42 preserving focus',
+		]);
+	});
+
 	test('a composer shows its draft without a chat, and the session of its foreground send once created; its chat becomes that session\'s main chat in the same editor once the send started it, only then held out of the grid, and the composer and its slot go', async () => {
 		const store = disposables.add(new DisposableStore());
 		const status = observableValue('status', SessionStatus.Untitled);
 		const draft = Object.assign(createSession('draft', [createChat('draft-main')]), { status });
 		const sessions = [createSession('session', [createChat('main')])];
 		const { provider, events, opened, slots, onDidAcceptNewSessionRequest, onDidEndNewSessionRequest } = await openWindowWithComposers(store, sessions);
-		await provider.openComposer(window);
+		await provider.openNewChat(window);
 		const composer = asComposerChat(opened[0]);
 		const input = composer.input;
 		events.length = 0;
@@ -927,7 +945,7 @@ suite('Sessions chat window provider', () => {
 		const { provider, content, events, opened, opening } = await openWindowWithComposers(store, [createSession('session', [createChat('main')])]);
 		events.length = 0;
 		opening.onOpen = undefined;
-		await provider.openComposer(window);
+		await provider.openNewChat(window);
 		const unknown = await content.resolveChat(URI.parse('vscode-agents-composer:/unknown'));
 		const canRestore = await provider.canRestore(URI.parse('vscode-agents-composer:/unknown'));
 
@@ -1019,7 +1037,7 @@ suite('Sessions chat window provider', () => {
 		};
 		const first = disposables.add(new DisposableStore());
 		const opening = await openWindowWithComposers(first, sessions);
-		await opening.provider.openComposer(window);
+		await opening.provider.openNewChat(window);
 		const resource = opening.opened[0].chat.get();
 		asComposerChat(opening.opened[0]).composer.get()!.draftHost.input!.set({ inputText: 'unsent', attachments: [] });
 		storedInputs(opening.storage);
@@ -1202,8 +1220,8 @@ suite('Sessions chat window provider', () => {
 		const started = createSession('started', [createChat('started-main')]);
 		const sessions = [createSession('session', [createChat('main')]), started];
 		const { provider, opened, storage, onDidAcceptNewSessionRequest, slots } = await openWindowWithComposers(store, sessions);
-		await provider.openComposer(window);
-		await provider.openComposer(window);
+		await provider.openNewChat(window);
+		await provider.openNewChat(window);
 		const [typing, sending] = opened.map(chat => asComposerChat(chat).composer.get()!.draftHost);
 		typing.input!.set({ inputText: 'draft', attachments: [] });
 		sending.input!.beginSendAttempt({ inputText: 'sent', attachments: [] });
@@ -1237,7 +1255,7 @@ suite('Sessions chat window provider', () => {
 		const sessions = [createSession('session', [createChat('main')])];
 		const { provider, opened, slots, editorGroups, windowInstantiationService, onDidAcceptNewSessionRequest, onDidEndNewSessionRequest } = await openWindowWithComposers(store, sessions);
 		editorGroups.push(upcastPartial<IEditorGroup>({ id: 7, windowId: window.windowId, contains: () => false }), upcastPartial<IEditorGroup>({ id: 8, windowId: window.windowId + 1, contains: () => false }));
-		await provider.openComposer(window);
+		await provider.openNewChat(window);
 		const composer = asComposerChat(opened[0]);
 		const resource = composer.chat.get();
 		const hasUnsent = () => windowInstantiationService.invokeFunction(accessor => accessor.get(IContextKeyService)).getContextKeyValue('chatWindowHasUnsentComposer');

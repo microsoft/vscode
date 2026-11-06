@@ -182,6 +182,8 @@ export interface IChatWindowProvider {
 	 * yet; undefined when they can. Closing the window is not affected.
 	 */
 	moveVeto?(chats: readonly URI[]): string | undefined;
+	/** Opens a new chat of the provider's in `window`, such as one that starts a new session, as {@link IChatWindowService.openNewChat} does. */
+	openNewChat?(window: IChatWindow, options?: IChatWindowNewChatOptions): Promise<void>;
 	/** Shows `chats` in the main window again, with `editors`, once they left their chat window, such as as it closed; the first is the one that was active there. */
 	moveToMainWindow(chats: readonly URI[], editors: IChatWindowEditors): Promise<void>;
 	/**
@@ -321,4 +323,18 @@ export interface IChatWindowService {
 
 	/** Closes `window`, and shows its chats in the main window again, with the editors of its main part. */
 	moveToMainWindow(window: IChatWindow): Promise<void>;
+
+	/**
+	 * Opens a new chat in `window`, as its provider defines one, such as one that starts a new session: a tab of its active
+	 * chat, or beside it. Does nothing without a provider that offers new chats.
+	 */
+	openNewChat(window: IChatWindow, options?: IChatWindowNewChatOptions): Promise<void>;
+}
+
+/** How {@link IChatWindowService.openNewChat} opens a new chat in a window. */
+export interface IChatWindowNewChatOptions {
+	/** Beside the window's active chat, in a group of its own to the side, rather than as a tab of it. */
+	readonly beside?: boolean;
+	/** Without moving focus to it, such as when opened in the background. */
+	readonly preserveFocus?: boolean;
 }

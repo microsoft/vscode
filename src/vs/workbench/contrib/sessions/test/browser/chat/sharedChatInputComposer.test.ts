@@ -6,7 +6,7 @@
 import assert from 'assert';
 import { DeferredPromise, timeout } from '../../../../../../base/common/async.js';
 import { CancellationToken } from '../../../../../../base/common/cancellation.js';
-import { Emitter } from '../../../../../../base/common/event.js';
+import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { DisposableStore, IDisposable, MutableDisposable } from '../../../../../../base/common/lifecycle.js';
 import { constObservable, observableValue, transaction } from '../../../../../../base/common/observable.js';
 import { URI } from '../../../../../../base/common/uri.js';
@@ -14,7 +14,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/
 import { runWithFakedTimers } from '../../../../../../base/test/common/virtualScheduling/index.js';
 import { mock, upcastPartial } from '../../../../../../base/test/common/mock.js';
 import { Range } from '../../../../../../editor/common/core/range.js';
-import { NullLogService } from '../../../../../../platform/log/common/log.js';
+import { ILogService, NullLogService } from '../../../../../../platform/log/common/log.js';
 import { InMemoryStorageService, IStorageService, StorageScope } from '../../../../../../platform/storage/common/storage.js';
 import { ChatDynamicVariableModel } from '../../../../chat/browser/attachments/chatDynamicVariables.js';
 import { IChatAgentService } from '../../../../chat/common/participants/chatAgents.js';
@@ -27,6 +27,14 @@ import { IPromptsService } from '../../../../chat/common/promptSyntax/service/pr
 import { ChatRequestParser } from '../../../../chat/common/requestParser/chatRequestParser.js';
 import { INewChatComposerInputOptions, INewChatInputSendRequest } from '../../../browser/chat/newChatComposerInput.js';
 import { SharedChatInputComposer } from '../../../browser/chat/sharedChatInputComposer.js';
+import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
+import { ILayoutService } from '../../../../../../platform/layout/browser/layoutService.js';
+import { IEditorGroupsService } from '../../../../../services/editor/common/editorGroupsService.js';
+import { IEditorService } from '../../../../../services/editor/common/editorService.js';
+import { IViewsService } from '../../../../../services/views/common/viewsService.js';
+import { IChatWidget, IQuickChatService } from '../../../../chat/browser/chat.js';
+import { ChatWidgetService } from '../../../../chat/browser/widget/chatWidgetService.js';
+import { IChatService } from '../../../../chat/common/chatService/chatService.js';
 import { ComposerInputSnapshot, IComposerInputSnapshot, IComposerSendAttempt, readNewChatDraftState } from '../../../common/newChatDraftState.js';
 import { IChat } from '../../../../../services/sessions/common/session.js';
 import { ITestSessionWithChat } from '../sessionHostTestUtils.js';
@@ -241,6 +249,34 @@ suite('SharedChatInputComposer', () => {
 			});
 		});
 	}
+
+	test('focused as it opens, such as by New Session in a chat window, its input is the chat widget that has focus last, so Enter sends it, not the chat focused before', () => {
+		const instantiationService = store.add(new TestInstantiationService());
+		instantiationService.stub(IEditorGroupsService, {});
+		instantiationService.stub(IViewsService, {});
+		instantiationService.stub(IQuickChatService, {});
+		instantiationService.stub(ILayoutService, {});
+		instantiationService.stub(IEditorService, {});
+		instantiationService.stub(IChatService, {});
+		instantiationService.stub(ILogService, new NullLogService());
+		const widgets = store.add(instantiationService.createInstance(ChatWidgetService));
+		// As a chat widget does: focusing its input counts as its focus.
+		const createWidget = () => {
+			const onDidFocus = store.add(new Emitter<void>());
+			const widget = upcastPartial<IChatWidget>({ onDidFocus: onDidFocus.event, onDidShow: Event.None, onDidHide: Event.None, onDidChangeViewModel: Event.None, focusInput: () => onDidFocus.fire() });
+			store.add(widgets.register(widget));
+			return widget;
+		};
+		const previous = createWidget();
+		previous.focusInput();
+		const widget = createWidget();
+		const composer = Object.assign(Object.create(SharedChatInputComposer.prototype), { _widget: widget }) as SharedChatInputComposer;
+		const before = widgets.lastFocusedWidget === previous;
+
+		composer.focus();
+
+		assert.deepStrictEqual({ before, after: widgets.lastFocusedWidget === widget }, { before: true, after: true });
+	});
 
 	suite('with an input snapshot of its host', () => {
 

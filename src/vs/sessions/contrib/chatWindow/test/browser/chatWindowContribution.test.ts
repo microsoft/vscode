@@ -20,19 +20,19 @@ import { IAgentWorkbenchLayoutService } from '../../../../browser/workbench.js';
 import { ISessionsService } from '../../../../../workbench/contrib/sessions/browser/sessionsService.js';
 import { IChat, ISession } from '../../../../../workbench/services/sessions/common/session.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { IMenuItem, isIMenuItem, ISubmenuItem, isISubmenuItem, MenuRegistry, registerAction2 } from '../../../../../platform/actions/common/actions.js';
+import { IMenuItem, isIMenuItem, ISubmenuItem, isISubmenuItem, MenuId, MenuRegistry, registerAction2 } from '../../../../../platform/actions/common/actions.js';
 import { CommandsRegistry, ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { ConfigurationScope, Extensions as ConfigurationExtensions, IConfigurationRegistry } from '../../../../../platform/configuration/common/configurationRegistry.js';
 import { ContextKeyExpression, ContextKeyValue, IContext, IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { Registry } from '../../../../../platform/registry/common/platform.js';
-import { EditorTabsVisibleContext, IsAuxiliaryWindowContext, IsSessionsWindowContext, IsTopRightEditorGroupContext, LayoutModeContext, SplitLayoutContext } from '../../../../../workbench/common/contextkeys.js';
+import { EditorAreaFocusContext, EditorTabsVisibleContext, IsAuxiliaryWindowContext, IsSessionsWindowContext, IsTopRightEditorGroupContext, LayoutModeContext, SplitLayoutContext } from '../../../../../workbench/common/contextkeys.js';
 import { KeybindingsRegistry } from '../../../../../platform/keybinding/common/keybindingsRegistry.js';
 import product from '../../../../../platform/product/common/product.js';
 import { ChatContextKeys } from '../../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
 import { ChatWindowLayoutMode } from '../../../../../workbench/contrib/chatWindow/common/chatWindowLayout.js';
 import { Menus } from '../../../../../workbench/contrib/sessions/browser/menus.js';
 import { AgentsWindowMenus } from '../../../../browser/agentsWindowMenus.js';
-import { DesktopLayoutContext, IsQuickChatSessionContext, SessionHasWorkspaceContext } from '../../../../../workbench/contrib/sessions/common/contextkeys.js';
+import { DesktopLayoutContext, IsQuickChatSessionContext, SessionHasWorkspaceContext, SessionInChatEditorContext } from '../../../../../workbench/contrib/sessions/common/contextkeys.js';
 import { DesktopChangesTabAvailableContext, DesktopFilesTabAvailableContext, SessionsTitleBarNewSessionEnabledContext } from '../../../../common/agentsWindowContextKeys.js';
 import { CHAT_WINDOW_OPEN_BROWSER_COMMAND_ID, CHAT_WINDOW_OPEN_CHANGES_COMMAND_ID, CHAT_WINDOW_OPEN_FILES_COMMAND_ID, NEW_FILE_TAB_COMMAND_ID } from '../../../../../workbench/contrib/sessions/common/sessionCommands.js';
 import { ISessionHostService, SessionHost, SessionHostKind } from '../../../../../workbench/services/sessions/browser/sessionHost.js';
@@ -47,6 +47,14 @@ import { appendNewSessionTitleBarMenuItem } from '../../../chat/browser/newSessi
 import { SESSION_ACTIVITY_BAR_LAYOUT_ACTIONS_SETTING, SESSION_ACTIVITY_BAR_SETTING } from '../../../../../workbench/contrib/sessions/common/sessionConfig.js';
 import { CHAT_WINDOWS_ENABLED_SETTING } from '../../common/chatWindows.js';
 import '../../browser/chatWindow.contribution.js';
+import { NEW_SESSION_IN_CHAT_WINDOW_COMMAND_ID } from '../../browser/chatWindowActions.js';
+import { NewChatInSessionsWindowAction } from '../../../../../workbench/contrib/sessions/browser/chat/newSessionAction.js';
+import { NEW_SESSION_ACTION_ID } from '../../../../../workbench/contrib/sessions/common/chatConstants.js';
+import { EmptyFileEditorSearchPickerFocusedContext } from '../../../editor/browser/emptyFileEditorSearch.js';
+import { KeybindingResolver, ResultKind } from '../../../../../platform/keybinding/common/keybindingResolver.js';
+import { ResolvedKeybindingItem } from '../../../../../platform/keybinding/common/resolvedKeybindingItem.js';
+import { USLayoutResolvedKeybinding } from '../../../../../platform/keybinding/common/usLayoutResolvedKeybinding.js';
+import { OperatingSystem } from '../../../../../base/common/platform.js';
 import { MOVE_CHAT_TO_MAIN_WINDOW_COMMAND_ID, OPEN_ACTIVE_CHAT_IN_WINDOW_COMMAND_ID, OPEN_CHAT_IN_WINDOW_COMMAND_ID, OPEN_SESSION_IN_WINDOW_COMMAND_ID, openChatInWindow } from '../../browser/openChatInWindow.js';
 import { ITestSessionsService, ITestSessionWithChat, LegacyFakePaneState, stubMissingSessionHostsFromSessionsService, testGridPanes, withCreatedStatus } from '../../../../../workbench/contrib/sessions/test/browser/sessionHostTestUtils.js';
 import { stubSessionsHostLayout } from '../../../../test/browser/sessionsHostLayoutTestUtils.js';
@@ -176,7 +184,7 @@ suite('Chat window contribution', () => {
 		});
 	});
 
-	test('the title bar of a chat window shows the command center, with the session of its active chat, and the actions of its session, as the main window\'s does; not the main window\'s navigation, nor what applies to the whole app', () => {
+	test('the title bar of a chat window shows the command center, with the session of its active chat, and the actions of its session, as the main window\'s does; not the main window\'s navigation, nor a New Session button, nor what applies to the whole app', () => {
 		disposables.add(registerSessionsTitleBarMenus());
 		disposables.add(appendNewSessionTitleBarMenuItem());
 		const menus = {
@@ -200,10 +208,84 @@ suite('Chat window contribution', () => {
 
 		assert.deepStrictEqual({
 			mainWindow: shown({ [IsSessionsWindowContext.key]: true, [ChatContextKeys.enabled.key]: true, ...newSessionShows }),
-			chatWindow: shown({ ...chatWindowKeys, ...newSessionShows }),
+			chatWindow: shown({ ...chatWindowKeys, ...newSessionShows, [`config.${CHAT_WINDOWS_ENABLED_SETTING}`]: true }),
 		}, {
 			mainWindow: { left: ['New Session', 'Toggle Side Bar'], centerLeft: ['Go Back', 'Go Forward'], commandCenter: ['Agent Sessions'], centerRight: ['Run'], right: ['Agents Account and Status'] },
+			// No New Session button: its command, key and the Sessions picker start one in the window
 			chatWindow: { left: [], centerLeft: [], commandCenter: ['Agent Sessions'], centerRight: ['Run'], right: [] },
+		});
+	});
+
+	test('in a chat window, Cmd/Ctrl+N starts a new session in that window while its chat, a new session there or its title bar has focus; not in its other editors, nor in the search picker of an empty file editor, nor with AI features disabled or chat windows turned off; in the main window it stays New Session there', () => {
+		// The main window's New Session, unless the test run registered it already
+		if (!CommandsRegistry.getCommand(NEW_SESSION_ACTION_ID)) {
+			disposables.add(registerAction2(NewChatInSessionsWindowAction));
+		}
+		const rules = KeybindingsRegistry.getDefaultKeybindings();
+		const ownRule = rules.find(rule => rule.command === NEW_SESSION_IN_CHAT_WINDOW_COMMAND_ID)!;
+		const [ownKeybinding] = USLayoutResolvedKeybinding.resolveKeybinding(ownRule.keybinding!, OperatingSystem.Macintosh);
+		const resolver = new KeybindingResolver(rules.flatMap(rule => rule.keybinding && rule.command
+			? USLayoutResolvedKeybinding.resolveKeybinding(rule.keybinding, OperatingSystem.Macintosh).map(resolved => new ResolvedKeybindingItem(resolved, rule.command, rule.commandArgs, rule.when ?? undefined, true, null, false))
+			: []), [], () => { });
+		const resolve = (values: Record<string, ContextKeyValue>) => {
+			const result = resolver.resolve({ getValue: <T extends ContextKeyValue>(key: string) => values[key] as T | undefined }, [], ownKeybinding.getDispatchChords()[0]!);
+			return result.kind === ResultKind.KbFound ? result.commandId : undefined;
+		};
+		const inWindow = (values: Record<string, ContextKeyValue>) => resolve(values) === NEW_SESSION_IN_CHAT_WINDOW_COMMAND_ID;
+		const chatWindow = { ...chatWindowKeys, [`config.${CHAT_WINDOWS_ENABLED_SETTING}`]: true };
+		const chat = { ...chatWindow, [EditorAreaFocusContext.key]: true, [SessionInChatEditorContext.key]: true, [ChatContextKeys.inChatSession.key]: true };
+
+		assert.deepStrictEqual({
+			key: ownKeybinding.getUserSettingsLabel(),
+			chat: inWindow(chat),
+			newSession: inWindow({ ...chatWindow, [EditorAreaFocusContext.key]: true, [SessionInChatEditorContext.key]: true }),
+			titleBar: inWindow({ ...chatWindow, [EditorAreaFocusContext.key]: false }),
+			otherEditor: inWindow({ ...chatWindow, [EditorAreaFocusContext.key]: true }),
+			emptyFileEditorPicker: inWindow({ ...chatWindow, [EditorAreaFocusContext.key]: false, [EmptyFileEditorSearchPickerFocusedContext.key]: true }),
+			// Its rule does not claim the key there at all, whichever rule of the same weight registered last
+			ownRuleInEmptyFileEditorPicker: evaluate(ownRule.when ?? undefined, { ...chatWindow, [EditorAreaFocusContext.key]: false, [EmptyFileEditorSearchPickerFocusedContext.key]: true }),
+			aiDisabled: inWindow({ ...chat, [ChatContextKeys.enabled.key]: false }),
+			chatWindowsOff: inWindow({ ...chat, [`config.${CHAT_WINDOWS_ENABLED_SETTING}`]: false }),
+			mainWindow: resolve({ [IsSessionsWindowContext.key]: true, [ChatContextKeys.enabled.key]: true, [`config.${CHAT_WINDOWS_ENABLED_SETTING}`]: true, [EditorAreaFocusContext.key]: false }),
+		}, {
+			key: 'cmd+n',
+			chat: true,
+			newSession: true,
+			titleBar: true,
+			otherEditor: false,
+			emptyFileEditorPicker: false,
+			ownRuleInEmptyFileEditorPicker: false,
+			aiDisabled: false,
+			chatWindowsOff: false,
+			mainWindow: NEW_SESSION_ACTION_ID,
+		});
+	});
+
+	test('New Session in a chat window opens a new chat in the window it runs for, and is offered in the Command Palette only while chat windows are on and AI features are enabled', async () => {
+		const opened: string[] = [];
+		const window = upcastPartial<IChatWindow>({ windowId: 7 });
+		const instantiationService = disposables.add(new TestInstantiationService());
+		instantiationService.stub(IChatWindowService, upcastPartial<IChatWindowService>({
+			activeWindow: window,
+			openNewChat: async (target, options) => { opened.push(`${target.windowId}${options ? ' with options' : ''}`); },
+		}));
+		await CommandsRegistry.getCommand(NEW_SESSION_IN_CHAT_WINDOW_COMMAND_ID)!.handler(instantiationService);
+		const commandPalette = MenuRegistry.getMenuItems(MenuId.CommandPalette).filter(isIMenuItem).find(candidate => candidate.command.id === NEW_SESSION_IN_CHAT_WINDOW_COMMAND_ID);
+		const offered = (values: Record<string, ContextKeyValue>) => !!commandPalette && evaluate(commandPalette.when, values) && evaluate(commandPalette.command.precondition, values);
+		const chatWindow = { ...chatWindowKeys, [`config.${CHAT_WINDOWS_ENABLED_SETTING}`]: true };
+
+		assert.deepStrictEqual({
+			opened,
+			chatWindow: offered(chatWindow),
+			chatWindowsOff: offered({ ...chatWindow, [`config.${CHAT_WINDOWS_ENABLED_SETTING}`]: false }),
+			aiDisabled: offered({ ...chatWindow, [ChatContextKeys.enabled.key]: false }),
+			mainWindow: offered({ [IsSessionsWindowContext.key]: true, [ChatContextKeys.enabled.key]: true, [`config.${CHAT_WINDOWS_ENABLED_SETTING}`]: true }),
+		}, {
+			opened: ['7'],
+			chatWindow: true,
+			chatWindowsOff: false,
+			aiDisabled: false,
+			mainWindow: false,
 		});
 	});
 
