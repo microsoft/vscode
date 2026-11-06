@@ -382,16 +382,16 @@ export function toAgentCanvasRegistry(canvases: readonly IAgentCanvasInfo[]): Ca
 		let extension = extensions.get(canvas.extensionId);
 		if (!extension) {
 			const newExtension: CanvasRegistry['extensions'][number] = {
-				extensionId: canvas.extensionId,
-				...(canvas.extensionName !== undefined ? { extensionName: canvas.extensionName } : {}),
+				id: canvas.extensionId,
+				...(canvas.extensionName !== undefined ? { label: canvas.extensionName } : {}),
 				canvases: [],
 			};
 			extensions.set(canvas.extensionId, newExtension);
 			extension = newExtension;
 		}
 		extension.canvases.push({
-			canvasId: canvas.canvasId,
-			title: canvas.displayName,
+			id: canvas.canvasId,
+			label: canvas.displayName,
 			description: canvas.description,
 			requiresInput: canvas.requiresInput,
 		});

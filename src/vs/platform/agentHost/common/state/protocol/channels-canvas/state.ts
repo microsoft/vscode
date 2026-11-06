@@ -9,38 +9,32 @@
 import type { URI } from '../common/state.js';
 
 /**
- * One namespace that declares canvas types for a chat.
- *
- * `extensionId` is opaque. Clients MUST NOT infer management behavior by
- * parsing it.
+ * One extension or provider that declares canvas types for a chat.
  *
  * @category Canvas State
  */
-export interface CanvasExtensionDeclaration {
-	/** Stable opaque declaration namespace. */
-	extensionId: string;
-	/** Human-readable namespace title, when available. */
-	extensionName?: string;
+export interface CanvasExtension {
+	/** Stable opaque identifier. */
+	id: string;
+	/** Human-readable label, when available. */
+	label?: string;
 	/**
-	 * Canvas types declared by this extension/provider. `canvasId` MUST be
+	 * Canvas types declared by this extension/provider. `id` MUST be
 	 * unique within this array.
 	 */
-	canvases: CanvasTypeDeclaration[];
+	canvases: CanvasType[];
 }
 
 /**
  * One canvas type currently available to open.
  *
- * This experimental object may gain optional discovery metadata. Clients
- * SHOULD ignore fields they do not understand.
- *
  * @category Canvas State
  */
-export interface CanvasTypeDeclaration {
+export interface CanvasType {
 	/** Provider-local canvas type identifier. */
-	canvasId: string;
-	/** Human-readable canvas type title. */
-	title: string;
+	id: string;
+	/** Human-readable canvas type label. */
+	label: string;
 	/** Description of what the canvas type does. */
 	description: string;
 	/** Whether opening this canvas requires an input flow. */
@@ -54,10 +48,11 @@ export interface CanvasTypeDeclaration {
  */
 export interface CanvasRegistry {
 	/**
-	 * Declaring namespaces. `extensionId` MUST be unique within this
-	 * array. An empty array is an authoritative loaded registry with no types.
+	 * Extensions and providers that declare canvas types. `id` MUST be unique
+	 * within this array. An empty array is an authoritative loaded registry with
+	 * no types.
 	 */
-	extensions: CanvasExtensionDeclaration[];
+	extensions: CanvasExtension[];
 }
 
 /**

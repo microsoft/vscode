@@ -3987,10 +3987,10 @@ suite('AgentService (node dispatcher)', () => {
 				}],
 				registry: {
 					extensions: [{
-						extensionId: 'project:preview',
+						id: 'project:preview',
 						canvases: [{
-							canvasId: 'preview',
-							title: 'Preview',
+							id: 'preview',
+							label: 'Preview',
 							description: 'Preview generated content.',
 							requiresInput: false,
 						}],

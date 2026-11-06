@@ -28692,8 +28692,8 @@ suite('CopilotAgent', () => {
 			}],
 			canvasRegistry: {
 				extensions: [{
-					extensionId: 'project:preview',
-					canvases: [{ canvasId: 'preview', title: 'Preview', description: 'Preview canvas.', requiresInput: false }],
+					id: 'project:preview',
+					canvases: [{ id: 'preview', label: 'Preview', description: 'Preview canvas.', requiresInput: false }],
 				}],
 			},
 		};

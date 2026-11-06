@@ -32,7 +32,6 @@ import type { ChatState } from '../channels-chat/state.js';
  * @direction Client → Server
  * @messageType Request
  * @version 1
- * @stability 1.0
  */
 export interface OpenCanvasParams extends BaseParams {
 	/**
@@ -65,7 +64,6 @@ export interface OpenCanvasParams extends BaseParams {
  * @direction Client → Server
  * @messageType Request
  * @version 1
- * @stability 1.0
  */
 export interface DisposeCanvasParams extends BaseParams {
 	/** URI of the canvas resource to dispose. */

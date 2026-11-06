@@ -132,11 +132,11 @@ export function getAgentHostCanvasDefinitions(registry: CanvasRegistry | undefin
 		return undefined;
 	}
 	return registry.extensions.flatMap(extension => extension.canvases.map(canvas => ({
-		canvasId: canvas.canvasId,
-		extensionId: extension.extensionId,
+		canvasId: canvas.id,
+		extensionId: extension.id,
 		extensionSource: 'unknown',
-		...(extension.extensionName !== undefined ? { extensionName: extension.extensionName } : {}),
-		displayName: canvas.title,
+		...(extension.label !== undefined ? { extensionName: extension.label } : {}),
+		displayName: canvas.label,
 		description: canvas.description,
 		requiresInput: canvas.requiresInput,
 	})));

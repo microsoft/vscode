@@ -90,11 +90,11 @@ suite('AgentHost canvases', () => {
 		const chat = constObservable<ChatState | undefined>(upcastPartial<ChatState>({
 			canvasRegistry: {
 				extensions: [{
-					extensionId: 'project:preview',
-					extensionName: 'Preview Extension',
+					id: 'project:preview',
+					label: 'Preview Extension',
 					canvases: [{
-						canvasId: 'preview',
-						title: 'Preview',
+						id: 'preview',
+						label: 'Preview',
 						description: 'A preview canvas.',
 						requiresInput: false,
 					}],
@@ -154,8 +154,8 @@ suite('AgentHost canvases', () => {
 		const chat = constObservable<ChatState | undefined>(upcastPartial<ChatState>({
 			canvasRegistry: {
 				extensions: [{
-					extensionId: state.extensionId,
-					canvases: [{ canvasId: state.canvasId, title: 'Preview', description: 'Preview.', requiresInput: false }],
+					id: state.extensionId,
+					canvases: [{ id: state.canvasId, label: 'Preview', description: 'Preview.', requiresInput: false }],
 				}],
 			},
 		}));
