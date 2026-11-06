@@ -1009,6 +1009,38 @@ suite('ChatInputModelSelectionController', () => {
 		});
 	});
 
+	test('keeps the user-selection reason for a republished pick while its original stays remembered', () => {
+		const modelChanges = disposables.add(new Emitter<string>());
+		const picked = hostModel('agent-host-copilotcli:custom/my-model', 'custom/my-model');
+		const republished: ILanguageModelChatMetadataAndIdentifier = {
+			identifier: 'agent-host-copilotcli:custom/my-model-v2',
+			metadata: { ...picked.metadata, id: 'agent-host-copilotcli:custom/my-model-v2', name: 'agent-host-copilotcli:custom/my-model-v2' },
+		};
+		const state: IRuntimeState = { models: [picked], sessionType: 'agent-host-copilotcli' };
+		const applied: string[] = [];
+		const controller = disposables.add(new ChatInputModelSelectionController(createRuntime(state, modelChanges, applied)));
+
+		controller.applySelection(picked, () => { }, true, false);
+		state.models = [republished];
+		modelChanges.fire('republished');
+
+		assert.deepStrictEqual({
+			substitute: controller.currentModel.get()?.identifier,
+			reason: controller.selectionReason,
+			awaitingRemembered: controller.isAwaitingRememberedModel(),
+			applied,
+		}, {
+			// The pool republished the pick under a new identifier. The substitute still speaks for
+			// the user's own pick, so a send must not be treated as code overriding a conversation's
+			// model. The conversation goes on remembering the original id, which wins again if the
+			// exact model ever comes back.
+			substitute: republished.identifier,
+			reason: ModelSelectionReason.UserSelection,
+			awaitingRemembered: true,
+			applied: [republished.identifier],
+		});
+	});
+
 	test('conversation restore cancels startup remembered intent', () => {
 		const modelChanges = disposables.add(new Emitter<string>());
 		const fallback = model('test/fallback');
