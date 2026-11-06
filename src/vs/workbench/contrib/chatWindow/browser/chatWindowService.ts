@@ -810,6 +810,12 @@ export class ChatWindowService extends Disposable implements IChatWindowService 
 		}
 		const target = options?.window && this._windows.get().find(window => window === options.window && !window.isGoingAway);
 		if (target) {
+			// The main window's editors move in before the window's content takes the chat, which takes its session out of
+			// the main window, and with it the editors the main window shows for it, as when a window opens for the chat.
+			const moveFrom = options?.editors?.moveFrom;
+			if (moveFrom?.length) {
+				moveEditorsToChatWindow(moveFrom, target.mainPart.activeGroup);
+			}
 			return this._addChat(target, chat, options);
 		}
 		const provider = this._provider.get();

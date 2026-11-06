@@ -14,13 +14,13 @@ import { URI } from '../../../../../base/common/uri.js';
 import { mock, upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { InMemoryStorageService } from '../../../../../platform/storage/common/storage.js';
-import { EditorCloseContext, GroupModelChangeKind, IActiveEditorChangeEvent, IEditorCloseEvent, IEditorWillMoveEvent, IMatchEditorOptions, IUntypedEditorInput } from '../../../../common/editor.js';
+import { EditorCloseContext, GroupIdentifier, GroupModelChangeKind, IActiveEditorChangeEvent, IEditorCloseEvent, IEditorWillMoveEvent, IMatchEditorOptions, IUntypedEditorInput } from '../../../../common/editor.js';
 import { IGroupModelChangeEvent } from '../../../../common/editor/editorGroupModel.js';
 import { EditorInput } from '../../../../common/editor/editorInput.js';
 import { MenuId } from '../../../../../platform/actions/common/actions.js';
 import { IContentPart, IEditorGroup, IEditorGroupsService, IEditorPart } from '../../../../services/editor/common/editorGroupsService.js';
 import { workbenchInstantiationService } from '../../../../test/browser/workbenchTestServices.js';
-import { IChatWindowChat, IChatWindowContent, IChatWindowProvider } from '../../browser/chatWindow.js';
+import { IChatWindowChat, IChatWindowContent, IChatWindowOpenOptions, IChatWindowProvider } from '../../browser/chatWindow.js';
 import { showChatInsteadOfEmptyMainPart } from '../../browser/chatWindowParts.js';
 import { TERMINAL_EDITOR_TYPE_ID } from '../../browser/chatWindowGrid.js';
 import { ChatWindow, ChatWindowService, findGroupShowing, getChatPartGroupViewOptions, getLastChatDestination, getTerminalsPartGroupViewOptions } from '../../browser/chatWindowService.js';
@@ -38,6 +38,11 @@ class ChatViewInput extends TestInput {
 	override matches(other: EditorInput | IUntypedEditorInput): boolean {
 		return other instanceof ChatViewInput && isEqual(other.chatResource, this.chatResource);
 	}
+}
+
+/** An editor that shows only in the main window, such as a canvas: it cannot move to a chat window. */
+class MainWindowOnlyInput extends TestInput {
+	override canMove(): true | string { return 'shows only in the main window'; }
 }
 
 /** An editor that cannot move to another window, such as one whose model only that window has. */
@@ -565,7 +570,18 @@ suite('Chat window', () => {
 		const instantiationService = workbenchInstantiationService(undefined, store);
 		const windows: ChatWindow[] = [];
 		const parts: IContentPart[] = [];
-		instantiationService.stub(IEditorGroupsService, upcastPartial<IEditorGroupsService>({ get parts() { return parts as unknown as IEditorPart[]; }, get groups() { return parts.flatMap(part => part.groups); } }));
+		instantiationService.stub(IEditorGroupsService, upcastPartial<IEditorGroupsService>({
+			get parts() { return parts as unknown as IEditorPart[]; },
+			get groups() { return parts.flatMap(part => part.groups); },
+			// A group split off to the right of `reference`, in its part, as opening beside a chat does
+			addGroup: (reference: IEditorGroup | GroupIdentifier) => {
+				const referenceGroup = reference as TestGroup;
+				const added = new TestGroup(events, 'beside');
+				added.windowId = referenceGroup.windowId;
+				(parts.find(part => part.groups.includes(referenceGroup))!.groups as IEditorGroup[]).push(added);
+				return added;
+			},
+		}));
 		const service = store.add(instantiationService.createInstance(ChatWindowService));
 		store.add(service.registerProvider(upcastPartial<IChatWindowProvider>({
 			onDidRemoveChats: Event.None,
@@ -667,6 +683,36 @@ suite('Chat window', () => {
 			targetChats: ['/a', '/c', '/d'],
 			otherChats: ['/b'],
 			otherEditors: ['/b'],
+		});
+	});
+
+	test('a chat opened in a window with the editors the main window shows for it takes them along into the window\'s main part, before the window takes the chat: as a tab, beside, and in the background; those that cannot move there stay', async () => {
+		const opened = async (options: IChatWindowOpenOptions) => {
+			const { service, events, windows: [target] } = createService(['a']);
+			const mainWindow = createPart(events, 'main window');
+			const canvas = disposables.add(new MainWindowOnlyInput());
+			const file = editor();
+			mainWindow.group.open(canvas);
+			mainWindow.group.open(file);
+			await service.open(URI.parse('test:/c'), { ...options, window: target.window, editors: { moveFrom: [mainWindow.group] } });
+			const name = (input: EditorInput) => input === file ? 'file' : input === canvas ? 'canvas' : (input as ChatViewInput).chatResource.path;
+			return {
+				events: events.filter(event => event.startsWith('move') || event.includes(' takes ')),
+				mainWindow: mainWindow.group.testEditors.map(name),
+				windowMainPart: target.main.group.testEditors.map(name),
+				windowMainPartActive: target.main.group.activeEditor && name(target.main.group.activeEditor),
+				chatGroups: target.chat.part.groups.map(group => (group as TestGroup).testEditors.map(name)),
+			};
+		};
+
+		assert.deepStrictEqual({
+			tab: await opened({}),
+			beside: await opened({ beside: URI.parse('test:/a') }),
+			background: await opened({ preserveFocus: true }),
+		}, {
+			tab: { events: ['move to a main', 'a takes /c'], mainWindow: ['canvas'], windowMainPart: ['file'], windowMainPartActive: 'file', chatGroups: [['/a', '/c']] },
+			beside: { events: ['move to a main', 'a takes /c'], mainWindow: ['canvas'], windowMainPart: ['file'], windowMainPartActive: 'file', chatGroups: [['/a'], ['/c']] },
+			background: { events: ['move to a main', 'a takes /c'], mainWindow: ['canvas'], windowMainPart: ['file'], windowMainPartActive: 'file', chatGroups: [['/a', '/c']] },
 		});
 	});
 

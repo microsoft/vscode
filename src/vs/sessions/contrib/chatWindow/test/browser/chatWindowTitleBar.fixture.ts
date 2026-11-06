@@ -7,7 +7,7 @@ import { $, append } from '../../../../../base/browser/dom.js';
 import { Direction } from '../../../../../base/browser/ui/grid/grid.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { Event } from '../../../../../base/common/event.js';
-import { Disposable } from '../../../../../base/common/lifecycle.js';
+import { Disposable, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { constObservable, IObservable } from '../../../../../base/common/observable.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { URI } from '../../../../../base/common/uri.js';
@@ -18,17 +18,26 @@ import { ICommandService } from '../../../../../platform/commands/common/command
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
+import { IContextViewService } from '../../../../../platform/contextview/browser/contextView.js';
+import { IKeybindingService } from '../../../../../platform/keybinding/common/keybinding.js';
 import { IProductService } from '../../../../../platform/product/common/productService.js';
 import { IQuickInputService } from '../../../../../platform/quickinput/common/quickInput.js';
 import { MenuActivityBarSize } from '../../../../../workbench/browser/parts/activitybar/menuActivityBar.js';
+import { CONNECTED_EDITOR_TABS_CLASS } from '../../../../../workbench/browser/parts/editor/editor.js';
 import { IPartGridView, PartGrid } from '../../../../../workbench/browser/parts/partGrid/partGrid.js';
 import { ChatWindowLayoutMode } from '../../../../../workbench/contrib/chatWindow/common/chatWindowLayout.js';
 import { AgentSessionApprovalModel } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentSessionApprovalModel.js';
 import { IAgentHostFilterService } from '../../../../../workbench/contrib/sessions/common/agentHostFilter.js';
 import { BlockedSessions } from '../../../../../workbench/contrib/sessions/browser/blockedSessions.js';
+import { Menus, SessionActivityBarGroup } from '../../../../../workbench/contrib/sessions/browser/menus.js';
+import { ChatViewSessionActivityBar } from '../../../../../workbench/contrib/sessions/browser/parts/sessionActivityBar.js';
+import { registerSessionActivityBarExternalHost } from '../../../../../workbench/contrib/sessions/browser/parts/sessionActivityBarHost.js';
+import { AgentWorkbenchLayout } from '../../../../../workbench/contrib/sessions/browser/sessionsHostLayoutService.js';
 import { ISessionsProvidersService } from '../../../../../workbench/contrib/sessions/browser/sessionsProvidersService.js';
 import { ISessionsService } from '../../../../../workbench/contrib/sessions/browser/sessionsService.js';
 import { AGENTS_FLOATING_PANEL_GAP } from '../../../../../workbench/contrib/sessions/common/layoutConstants.js';
+import { ISessionActivityBarActivityService, SessionActivityBarActivityService } from '../../../../../workbench/contrib/sessions/common/sessionActivityBarActivityService.js';
+import { SESSION_ACTIVITY_BAR_SETTING } from '../../../../../workbench/contrib/sessions/common/sessionConfig.js';
 import { IChat, ISession, ISessionWorkspace } from '../../../../../workbench/contrib/sessions/common/session.js';
 import { IActiveSession, ISessionsManagementService } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import { stubSessionHosts } from '../../../../../workbench/contrib/sessions/test/browser/sessionHostTestUtils.js';
@@ -37,13 +46,17 @@ import { IHostService } from '../../../../../workbench/services/host/browser/hos
 import { IWorkbenchLayoutService, LayoutSettings, ModernUIDensity } from '../../../../../workbench/services/layout/browser/layoutService.js';
 import { ComponentFixtureContext, createEditorServices, defineComponentFixture, defineThemedFixtureGroup, registerWorkbenchServices } from '../../../../../workbench/test/browser/componentFixtures/fixtureUtils.js';
 import { AgentsWindowMenus } from '../../../../browser/agentsWindowMenus.js';
+import { IAgentWorkbenchLayoutService } from '../../../../browser/workbench.js';
 import { AuxiliaryTitlebarPart, TitlebarPart } from '../../../../browser/parts/titlebarPart.js';
+import { FixtureContextViewService, FixtureKeybindingService, FixtureMenuService, fixtureBrowser, fixtureCanvas, fixtureChanges, fixtureFiles, fixtureTerminal, fixtureTogglePanel, fixtureToggleSidePanel, IFixtureEntry } from '../../../../test/browser/addTabFixtureUtils.js';
 import { BlockedSessionsCIFixModel } from '../../../sessions/browser/blockedSessionsCIFixModel.js';
 import { BlockedSessionsIndicatorModel } from '../../../sessions/browser/blockedSessionsIndicatorModel.js';
 import { SessionActionFeedback } from '../../../sessions/browser/sessionActionFeedback.js';
 import { SessionsTitleBarWidget } from '../../../sessions/browser/sessionsTitleBarWidget.js';
 import { AGENTS_CHAT_WINDOW_CLASS, getChatWindowStripWidth } from '../../browser/sessionsChatWindowProvider.js';
+import '../../../../../workbench/contrib/modernUI/browser/media/connectedEditorTabs.css';
 import '../../../../../workbench/contrib/modernUI/browser/media/titlebar.css';
+import '../../../../browser/parts/media/editorPart.css';
 import '../../../../../workbench/contrib/sessions/browser/parts/media/chatCompositeBar.css';
 import '../../../../../workbench/contrib/sessions/browser/parts/media/chatGroupsView.css';
 import '../../../../../workbench/contrib/sessions/browser/parts/media/sessionView.css';
@@ -53,7 +66,8 @@ import '../../browser/media/chatWindow.css';
 /**
  * A chat window as it shows the Agents window's title bar across its top, in each layout mode and density: the real title
  * bar of its window, with its command center showing the session of the window's active chat and the actions of the window,
- * above the cards of its parts, laid out on the real part grid, and the strip's column at the right.
+ * above the cards of its parts, laid out on the real part grid and framed as in production, and the real Session Activity
+ * Bar of its chat in the strip's column at the right, starting below the title bar.
  */
 
 interface IFixtureOptions {
@@ -96,19 +110,32 @@ const CHAT_WINDOW_MENUS = new Map<MenuId, readonly IMenuEntry[]>([
 	[AgentsWindowMenus.TitleBarWindowLayout, [{ id: 'workbench.action.chatWindow.toggleEditor', title: 'Show Editor', icon: Codicon.layoutSidebarRight }, { id: 'layout', title: 'Layout', icon: Codicon.layout, submenu: AgentsWindowMenus.WindowLayout }]],
 ]);
 
-/** Each title bar menu of the window shows its own entries, as the menus of a chat window do. */
+/** The entries of the chat's Session Activity Bar, as the strip's chat-window fixtures show them. */
+const sidePanelGroup = (entries: readonly IFixtureEntry[]) => entries.map(entry => ({ ...entry, group: SessionActivityBarGroup.SidePanel }));
+const ACTIVITY_BAR_ENTRIES: readonly IFixtureEntry[] = [fixtureToggleSidePanel, ...sidePanelGroup([fixtureChanges, fixtureFiles, fixtureBrowser, fixtureCanvas]), fixtureTerminal, fixtureTogglePanel];
+
+/** Each title bar menu of the window shows its own entries, as the menus of a chat window do, and the strip its entries. */
 class ChatWindowMenuService extends mock<IMenuService>() {
 
-	commandService: ICommandService | undefined;
+	private readonly activityBarMenus = new FixtureMenuService(ACTIVITY_BAR_ENTRIES);
+	private _commandService: ICommandService | undefined;
+
+	setCommandService(commandService: ICommandService): void {
+		this._commandService = commandService;
+		this.activityBarMenus.commandService = commandService;
+	}
 
 	override createMenu(id: MenuId, contextKeyService: IContextKeyService): IMenu {
+		if (id.id === Menus.SessionActivityBar.id) {
+			return this.activityBarMenus.createMenu(id, contextKeyService);
+		}
 		const entries = CHAT_WINDOW_MENUS.get(id) ?? [];
 		return {
 			onDidChange: Event.None,
 			dispose: () => { },
 			getActions: () => entries.length ? [['navigation', entries.map(entry => entry.submenu
 				? new SubmenuItemAction({ submenu: entry.submenu, title: entry.title, icon: entry.icon }, undefined, [])
-				: new MenuItemAction({ id: entry.id, title: entry.title, icon: entry.icon }, undefined, undefined, undefined, undefined, contextKeyService, this.commandService!))]] : [],
+				: new MenuItemAction({ id: entry.id, title: entry.title, icon: entry.icon }, undefined, undefined, undefined, undefined, contextKeyService, this._commandService!))]] : [],
 		};
 	}
 
@@ -153,19 +180,27 @@ function renderChatWindow(context: ComponentFixtureContext, options: IFixtureOpt
 	const compact = options.density === ModernUIDensity.Compact;
 	container.style.width = `${WIDTH}px`;
 	container.style.height = `${HEIGHT}px`;
-	container.classList.add('agent-sessions-workbench', 'modern-ui-tabs');
+	container.classList.add('agent-sessions-workbench', 'modern-ui-tabs', CONNECTED_EDITOR_TABS_CLASS, 'dock-detail-panel');
 	container.classList.toggle('modern-ui-compact', compact);
 	const session = createSession();
 	const menuService = new ChatWindowMenuService();
+	const contextViewService = new FixtureContextViewService(container);
+	disposableStore.add(toDisposable(() => contextViewService.hideContextView()));
 
 	const instantiationService = createEditorServices(disposableStore, {
 		colorTheme: theme,
 		additionalServices: reg => {
 			registerWorkbenchServices(reg);
-			reg.defineInstance(IConfigurationService, new TestConfigurationService({ [LayoutSettings.MODERN_UI_DENSITY]: options.density }));
+			reg.defineInstance(IConfigurationService, new TestConfigurationService({ [LayoutSettings.MODERN_UI_DENSITY]: options.density, [SESSION_ACTIVITY_BAR_SETTING]: true }));
 			reg.defineInstance(IMenuService, menuService);
+			reg.defineInstance(ISessionActivityBarActivityService, disposableStore.add(new SessionActivityBarActivityService()));
+			reg.defineInstance(IKeybindingService, new FixtureKeybindingService(ACTIVITY_BAR_ENTRIES));
+			reg.defineInstance(IContextViewService, contextViewService);
 			reg.defineInstance(IEditorGroupsService, new class extends mock<IEditorGroupsService>() { }());
-			reg.defineInstance(IWorkbenchLayoutService, new class extends mock<IWorkbenchLayoutService>() {
+			reg.defineInstance(IWorkbenchLayoutService, new class extends mock<IAgentWorkbenchLayoutService>() {
+				override readonly agentWorkbenchLayout = AgentWorkbenchLayout.Desktop;
+				override readonly mainContainer = container;
+				override readonly onDidLayoutMainContainer = Event.None;
 				override readonly onDidChangePartVisibility = Event.None;
 				override registerPart() { return Disposable.None; }
 				override getContainer() { return container; }
@@ -196,6 +231,7 @@ function renderChatWindow(context: ComponentFixtureContext, options: IFixtureOpt
 			}());
 			reg.defineInstance(IProductService, new class extends mock<IProductService>() {
 				override readonly quality = 'insider';
+				override readonly nameShort = 'Code - OSS';
 			}());
 			// The command center renders the session of the window, as the Agents window's title bar contribution does.
 			reg.defineInstance(IActionViewItemService, new class extends mock<IActionViewItemService>() {
@@ -210,7 +246,7 @@ function renderChatWindow(context: ComponentFixtureContext, options: IFixtureOpt
 			}());
 		},
 	});
-	menuService.commandService = instantiationService.get(ICommandService);
+	menuService.setCommandService(instantiationService.get(ICommandService));
 	// The host of the window: the session of its active chat.
 	stubSessionHosts(instantiationService, disposableStore, { session: constObservable(session) });
 	const sessionActionFeedback = new class extends mock<SessionActionFeedback>() {
@@ -229,11 +265,13 @@ function renderChatWindow(context: ComponentFixtureContext, options: IFixtureOpt
 	));
 
 	const frame = append(container, $(`.${AGENTS_CHAT_WINDOW_CLASS}`));
-	frame.style.cssText = 'width: 100%; height: 100%;';
+	frame.style.cssText = 'position: relative; width: 100%; height: 100%;';
 
 	// The title bar of the window, created into its title row as the title service creates the title bars of auxiliary
-	// windows.
-	const titleRow = $('.chat-window-title-row');
+	// windows. As the window's grid lays it out: first in the window, across it from edge to edge, over the cell that keeps
+	// its room in the grid.
+	const titleRow = append(frame, $('.chat-window-title-row'));
+	titleRow.style.cssText = 'position: absolute; top: 0; left: 0; z-index: 1;';
 	const titleBarElement = append(titleRow, $('.part.titlebar', { role: 'none' }));
 	titleBarElement.style.position = 'relative';
 	const titleBar = disposableStore.add(instantiationService.createInstance(AuxiliaryTitlebarPart, titleBarElement, new class extends mock<TitlebarPart>() {
@@ -253,7 +291,7 @@ function renderChatWindow(context: ComponentFixtureContext, options: IFixtureOpt
 		layout: (width, height) => onLayout?.(width, height),
 	});
 	const grid = disposableStore.add(instantiationService.createInstance(PartGrid, frame));
-	const chat = createChatCard();
+	const { card: chat, sessionView } = createChatCard();
 	const main = createMainCard();
 	const stacked = options.mode === ChatWindowLayoutMode.Stacked || options.mode === ChatWindowLayoutMode.EditorOnly;
 	const showsChat = options.mode !== ChatWindowLayoutMode.EditorOnly;
@@ -264,30 +302,50 @@ function renderChatWindow(context: ComponentFixtureContext, options: IFixtureOpt
 	grid.setCellVisible('chat', showsChat);
 	grid.setCellVisible('main', showsMain);
 	const stripWidth = getChatWindowStripWidth(compact, MenuActivityBarSize.Compact);
-	grid.addView('strip', view($('.chat-window-strip.session-activity-bar-host'), { width: stripWidth }), { edge: Direction.Right }, stripWidth, { edgeChrome: Direction.Right, keepsNoGap: true });
-	grid.addView('titleRow', view(titleRow, { height: titleBar.height }, (width, height) => titleBar.layout(width, height)), { edge: Direction.Up }, titleBar.height, { keepsNoGap: true });
+	// The strip's column, which the window registers as the host of its chats' Session Activity Bar, at full size.
+	const strip = $('.chat-window-strip.session-activity-bar-host');
+	disposableStore.add(registerSessionActivityBarExternalHost(frame, { element: strip, active: constObservable(true), fullSize: true, setOccupied: () => { } }));
+	grid.addView('strip', view(strip, { width: stripWidth }), { edge: Direction.Right }, stripWidth, { edgeChrome: Direction.Right, keepsNoGap: true });
+	grid.addView('titleRow', view($('.chat-window-title-row-cell'), { height: titleBar.height }, (_width, height) => {
+		titleRow.style.width = `${WIDTH}px`;
+		titleRow.style.height = `${height}px`;
+		titleBar.layout(WIDTH, height);
+	}), { edge: Direction.Up }, titleBar.height, { keepsNoGap: true });
 	grid.setPinnedTopView('titleRow');
 	const gap = compact ? 0 : AGENTS_FLOATING_PANEL_GAP;
 	grid.setGap(gap);
 	grid.setOuterInsets({ top: 0, right: gap, bottom: gap, left: gap });
-	frame.style.setProperty('--chat-window-outer-inset-left', `${gap}px`);
 	grid.layout(WIDTH, HEIGHT);
+
+	// The Session Activity Bar of the window's active chat, as its session view creates it: it shows in the strip's column,
+	// also while the window shows only its editor and hides the chat.
+	const activityBar = disposableStore.add(instantiationService.createInstance(ChatViewSessionActivityBar, sessionView));
+	activityBar.setActive(true, !showsChat);
 }
 
-/** The chat's card: its session header at the top, as in the main window, above the chat. */
-function createChatCard(): HTMLElement {
-	const card = $('.fixture-chat-window-chat');
+/** The chat's card: the chat's editor part, whose session view frames the chat and shows its session header at the top, as in the main window. */
+function createChatCard(): { readonly card: HTMLElement; readonly sessionView: HTMLElement } {
+	const card = $('.fixture-chat-window-chat.part.editor');
 	card.style.cssText = 'position: relative; width: 100%; height: 100%;';
-	const sessionView = append(append(card, $('.part.sessionspart')), $('.session-view.is-active'));
+	const group = append(append(card, $('.content')), $('.editor-group-container.active'));
+	const host = append(group, $('.session-chat-view-editor.sessions-window-host'));
+	const sessionView = append(host, $('.session-view.chat-editor-content.modern-ui-editor-tab-group.is-active'));
+	for (const element of [group.parentElement!, group, host, sessionView]) {
+		element.style.width = element.style.height = '100%';
+	}
 	const header = append(append(append(sessionView, $('.session-view-centered-content')), $('.chat-composite-bar.session-header-bar')), $('.chat-composite-bar-header'));
 	append(header, $('.chat-composite-bar-header-main')).textContent = SESSION_TITLE;
-	return card;
+	return { card, sessionView };
 }
 
-/** The main part's card, with an editor open in it. */
+/** The main part's card: its editor group, which frames it, with an editor open in it. */
 function createMainCard(): HTMLElement {
-	const card = $('.fixture-chat-window-main.part.editor');
+	const card = $('.fixture-chat-window-main.part.editor.editor-tabs-multiple');
 	card.style.cssText = 'position: relative; width: 100%; height: 100%;';
-	append(append(card, $('.title.tabs')), $('.tab.active')).textContent = 'authService.ts';
+	const group = append(append(card, $('.content')), $('.editor-group-container.active'));
+	for (const element of [group.parentElement!, group]) {
+		element.style.width = element.style.height = '100%';
+	}
+	append(append(group, $('.title.tabs')), $('.tab.active')).textContent = 'authService.ts';
 	return card;
 }

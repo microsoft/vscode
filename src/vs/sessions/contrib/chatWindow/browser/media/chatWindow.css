@@ -88,11 +88,6 @@
 	content: none;
 }
 
-/* The title row of the window starts at the edge of the window, as the main window's title bar does: its window controls take the room of the window's inset there, so that what follows them clears the traffic lights of macOS as in the main window. */
-.monaco-workbench .agents-chat-window .chat-window-title-row > .part.titlebar .titlebar-left > .window-controls-container {
-	margin-left: calc(-1 * var(--chat-window-outer-inset-left, 0px));
-}
-
 /*
  * The strip fills its column from top to bottom, as the main window's does (`sessionActivityBar.css`), to the right of
  * the gap the column keeps to the cards (`getChatWindowStripWidth`). By rules of its own: those of the main window's

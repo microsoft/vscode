@@ -216,10 +216,37 @@ suite('Chat window grid', () => {
 		mode.set(ChatWindowLayoutMode.Stacked, undefined);
 		const stacked = { chatAndMain: width(ChatWindowGridCell.Main), strip: width(ChatWindowGridCell.Strip), chatHeight: grid.partGrid!.getCellSize(ChatWindowGridCell.Chat).height + grid.partGrid!.getCellSize(ChatWindowGridCell.Main).height };
 
-		assert.deepStrictEqual({ sideBySide, stacked, leftInset: container.style.getPropertyValue('--chat-window-outer-inset-left') }, {
+		assert.deepStrictEqual({ sideBySide, stacked }, {
 			sideBySide: { chat: 378, main: 568 },
 			stacked: { chatAndMain: 946, strip: 34, chatHeight: 760 },
-			leftInset: '10px',
+		});
+	});
+
+	test('the title row spans the window from edge to edge, as the main window\'s title bar does, with its window controls at the corner, while the cards below it keep the outer insets: in Default and Compact density', () => {
+		const measure = (inset: number) => {
+			const container = createAttachedContainer();
+			const titleRow = createChrome(30);
+			const controls = titleRow.element.appendChild($('.window-controls'));
+			controls.style.cssText = 'position: absolute; top: 0; right: 0; width: 138px; height: 30px;';
+			const laidOut: number[] = [];
+			const grid = disposables.add(new ChatWindowGrid(container, { main: createPart('main'), chat: createPart('chat'), titleRow: { ...titleRow, layout: width => laidOut.push(width) }, strip: createChrome(34) }, constObservable(ChatWindowLayoutMode.SideBySide), constObservable(inset), undefined, undefined, undefined, editorGroupsService));
+			grid.setOuterInsets({ top: 0, right: inset, bottom: inset, left: inset });
+			grid.layout(1200, 800);
+			const window = container.getBoundingClientRect();
+			const title = titleRow.element.getBoundingClientRect();
+			const chat = container.querySelector(`[data-part-grid-cell="${ChatWindowGridCell.Chat}"]`)!.getBoundingClientRect();
+			return {
+				title: { left: title.left - window.left, top: title.top - window.top, width: title.width, height: title.height },
+				laidOutWidth: laidOut.at(-1),
+				controlsRight: controls.getBoundingClientRect().right - window.left,
+				chatLeft: chat.left - window.left,
+				firstInWindow: container.firstElementChild === titleRow.element,
+			};
+		};
+
+		assert.deepStrictEqual({ default: measure(4), compact: measure(0) }, {
+			default: { title: { left: 0, top: 0, width: 1200, height: 30 }, laidOutWidth: 1200, controlsRight: 1200, chatLeft: 4, firstInWindow: true },
+			compact: { title: { left: 0, top: 0, width: 1200, height: 30 }, laidOutWidth: 1200, controlsRight: 1200, chatLeft: 0, firstInWindow: true },
 		});
 	});
 

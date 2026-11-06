@@ -23,7 +23,10 @@ export const IChatWindowService = createDecorator<IChatWindowService>('chatWindo
 
 /** The editors a chat window's main part starts with. */
 export interface IChatWindowEditors {
-	/** Groups whose editors move into the main part as the window opens, such as the main window's for its chat. */
+	/**
+	 * Groups whose editors move into the main part as the window opens, such as the main window's for its chat; or, with
+	 * {@link IChatWindowOpenOptions.window}, as the chat opens in that window.
+	 */
 	readonly moveFrom?: readonly IEditorGroup[];
 	/** Editors that open in the main part as the window opens, such as those it showed when it last closed. */
 	readonly editors?: readonly EditorInput[];

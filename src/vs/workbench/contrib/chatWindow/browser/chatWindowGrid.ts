@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { addDisposableListener, EventType, getWindow, isHTMLElement, scheduleAtNextAnimationFrame } from '../../../../base/browser/dom.js';
+import { $, addDisposableListener, EventType, getWindow, isHTMLElement, scheduleAtNextAnimationFrame } from '../../../../base/browser/dom.js';
 import { Direction, ISerializedGrid, ISerializedNode, IViewSize, Orientation } from '../../../../base/browser/ui/grid/grid.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { combinedDisposable, Disposable, DisposableMap, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
@@ -160,7 +160,7 @@ class ChromeView implements IPartGridView {
 
 	private readonly _listener: { dispose(): void };
 
-	constructor(private readonly _chrome: IChatWindowGridChrome, private readonly _orientation: 'row' | 'column') {
+	constructor(protected readonly _chrome: IChatWindowGridChrome, private readonly _orientation: 'row' | 'column') {
 		this._listener = autorun(reader => {
 			_chrome.size.read(reader);
 			this._onDidChange.fire(undefined);
@@ -181,6 +181,48 @@ class ChromeView implements IPartGridView {
 	dispose(): void {
 		this._listener.dispose();
 		this._onDidChange.dispose();
+	}
+}
+
+/**
+ * The title row of the window, the first row of its grid: its cell keeps the row's room there, inside the outer insets of
+ * the window that the cards keep, while the title row spans the window from edge to edge over it, as the main window's
+ * title bar does, so that the window's controls are at its corners. It stays first in the window, before the grid, as the
+ * main window's title bar is first in the focus order.
+ */
+class TitleRowView extends ChromeView {
+
+	private readonly _cell = $('.chat-window-title-row-cell');
+	private readonly _visibility: { dispose(): void };
+
+	constructor(chrome: IChatWindowGridChrome, container: HTMLElement, private readonly _insets: () => IGridEdgeInsets) {
+		super(chrome, 'row');
+		const element = chrome.element;
+		if (element.parentElement !== container) {
+			container.prepend(element);
+		}
+		// Over the grid, whose cells come after it
+		element.style.position = 'absolute';
+		element.style.left = '0';
+		element.style.zIndex = '1';
+		this._visibility = autorun(reader => element.style.display = chrome.visible.read(reader) ? '' : 'none');
+	}
+
+	override get element(): HTMLElement { return this._cell; }
+
+	override layout(width: number, height: number): void {
+		const insets = this._insets();
+		const spanned = width + insets.left + insets.right;
+		const element = this._chrome.element;
+		element.style.top = `${insets.top}px`;
+		element.style.width = `${spanned}px`;
+		element.style.height = `${height}px`;
+		super.layout(spanned, height);
+	}
+
+	override dispose(): void {
+		this._visibility.dispose();
+		super.dispose();
 	}
 }
 
@@ -274,7 +316,7 @@ export class ChatWindowGrid extends Disposable {
 				return created;
 			}
 		};
-		this._titleRow = _cells.titleRow && this._register(new ChromeView(_cells.titleRow, 'row'));
+		this._titleRow = _cells.titleRow && this._register(new TitleRowView(_cells.titleRow, _container, () => this._outerInsets));
 		this._strip = _cells.strip && this._register(new ChromeView(_cells.strip, 'column'));
 
 		this._register(autorun(reader => {
@@ -665,8 +707,6 @@ export class ChatWindowGrid extends Disposable {
 	/** The room the grid keeps to the edges of the window, such as the main window's outer insets. */
 	setOuterInsets(insets: IGridEdgeInsets): void {
 		this._outerInsets = insets;
-		// For what reaches to the edge of the window, such as a title row in a card at its edge.
-		this._container.style.setProperty('--chat-window-outer-inset-left', `${insets.left}px`);
 		this._grid.value?.setOuterInsets(insets);
 		this._layoutOnceStylesApply();
 	}
