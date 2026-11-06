@@ -419,12 +419,12 @@ export class SessionsChatWindowContent extends Disposable implements IChatWindow
 		this._register(toDisposable(() => this._chats.get().forEach(chat => chat.dispose())));
 	}
 
-	async resolveChat(resource: URI): Promise<IChatWindowChat | undefined> {
+	async resolveChat(resource: URI, exactChat?: boolean): Promise<IChatWindowChat | undefined> {
 		const resolved = resolveChat(this._sessionsManagementService, resource);
 		if (!resolved) {
 			return undefined;
 		}
-		const chatResource = resolved.chat ?? shownChatOfSession(this._sessionsService, resolved.session);
+		const chatResource = resolved.chat ?? (exactChat ? resolved.session.mainChat.get().resource : shownChatOfSession(this._sessionsService, resolved.session));
 		const existing = this._chats.get().find(candidate => isEqual(candidate.chat.get(), chatResource));
 		if (existing) {
 			return existing;

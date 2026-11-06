@@ -861,7 +861,7 @@ export class ChatWindowService extends Disposable implements IChatWindowService 
 		if (!content) {
 			return undefined;
 		}
-		const firstChat = await content.resolveChat(chat);
+		const firstChat = await content.resolveChat(chat, options?.exactChat);
 		// The chat the provider resolved to may show already, such as the main chat of a session.
 		const resolved = firstChat && this._windowOfChat(firstChat.chat.get());
 		if (!firstChat || resolved) {
@@ -890,7 +890,7 @@ export class ChatWindowService extends Disposable implements IChatWindowService 
 	 * it: the two are views of the same chat, so the group would otherwise keep that one rather than open the window's own.
 	 */
 	private async _addChat(window: ChatWindow, chat: URI, options: IChatWindowOpenOptions | undefined, group?: IEditorGroup, opening = false, leaving?: ChatWindow, replacing?: EditorInput, after?: EditorInput): Promise<IChatWindow | undefined> {
-		const added = await window.content.resolveChat(chat);
+		const added = await window.content.resolveChat(chat, options?.exactChat);
 		if (!added) {
 			return undefined;
 		}
