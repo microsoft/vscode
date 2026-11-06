@@ -113,6 +113,10 @@ export interface IChatPillEntry {
 	open(): void;
 }
 
+/**
+ * An action of a pill entry. Its `id` is reported in telemetry when it runs from a menu, such as the pill's context
+ * menu, so it must not carry user data, such as a pull request, a path or a host: that data stays in its closure.
+ */
 export interface IChatPillAction extends IAction {
 	/** Concise label used in the hover footer; the full label remains the row-action tooltip. */
 	readonly hoverLabel?: string;

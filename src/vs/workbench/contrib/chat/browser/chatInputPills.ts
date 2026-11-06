@@ -166,7 +166,7 @@ export class ChatInputPillPins extends Disposable {
 	/** The action that pins an entry into a pill of its own, or unpins it back into its dropdown. */
 	createPinAction(entry: Pick<IChatPillEntry, 'id' | 'label'>, kind: SessionChatPillKind, scope: string, pinned: boolean): IChatPillAction {
 		return withChatPillHoverLabel(toAction({
-			id: `chatInputPills.${kind}.${pinned ? 'unpin' : 'pin'}.${entry.id}`,
+			id: `chatInputPills.${kind}.${pinned ? 'unpin' : 'pin'}`,
 			label: pinned
 				? localize('chatInputPills.unpinEntry', "Unpin {0}", entry.label)
 				: localize('chatInputPills.pinEntry', "Pin {0}", entry.label),
@@ -192,7 +192,7 @@ class PinnedChatPillModel {
 	) {
 		this.entry = observableValue(this, entry);
 		const action = toAction({
-			id: `chatInputPills.${kind}.pinned.${entry.id}`,
+			id: `chatInputPills.${kind}.pinned`,
 			label: entry.label,
 			run: () => this.entry.get().open(),
 		});

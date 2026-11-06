@@ -1673,7 +1673,7 @@ suite('SessionChatInputToolbar', () => {
 			sections.set(build(title), undefined);
 		}
 		const updatedEntry = sections.get()[0].entries[0];
-		const copyAction = (entry: IChatPillEntry) => entry.toolbarActions?.find(action => action.id.startsWith('sessionChatPills.copyPullRequest.'));
+		const copyAction = (entry: IChatPillEntry) => entry.toolbarActions?.find(action => action.id === 'sessionChatPills.copyPullRequest');
 		await copyAction(firstEntry)?.run();
 		await firstEntry.promotedAction?.run();
 		const snapshot = {
@@ -2627,7 +2627,9 @@ suite('SessionChatInputToolbar', () => {
 					pill.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', keyCode: 13, bubbles: true }));
 				}
 				pill.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true }));
-				const remove = menu.find(action => action.id === (isArtifact ? `sessionChatPills.remove${isPullRequest ? 'PullRequest' : 'Issue'}.recorded` : 'sessions.artifacts.remove.recorded'));
+				// Action IDs are reported in telemetry, so they must not carry the repository or number.
+				const entryActionIds = menu.filter(action => ['sessionChatPills.', 'sessions.artifacts.'].some(prefix => action.id.startsWith(prefix))).map(action => action.id);
+				const remove = menu.find(action => action.id === (isArtifact ? `sessionChatPills.remove${isPullRequest ? 'PullRequest' : 'Issue'}.recorded` : 'sessions.artifacts.remove'));
 				assert.ok(remove);
 				const removeLabel = remove.label;
 				await remove.run();
@@ -2636,11 +2638,14 @@ suite('SessionChatInputToolbar', () => {
 					title: 'Recorded title', recordedReferenceId: 'recorded',
 				};
 				assert.deepStrictEqual({
-					initial, opened, removeLabel, removed, modelRequests: [...modelRequests], unrelatedArtifactModelRequests,
+					initial, opened, entryActionIds, removeLabel, removed, modelRequests: [...modelRequests], unrelatedArtifactModelRequests,
 					remainingPills: toolbar.element.querySelectorAll('.chat-dropdown-pill-button, .chat-resource-pill-button').length,
 				}, isArtifact ? {
 					initial: { label: `Open ${isPullRequest ? 'Pull Request #42' : 'Issue #337297'}: Recorded title`, genericPills: 0 },
 					opened: [isPullRequest ? { pullRequest: { ...ref, createdByThisSession: true } } : { issue: ref }],
+					entryActionIds: isPullRequest
+						? ['sessionChatPills.openPullRequestChanges', 'sessionChatPills.copyPullRequest', 'sessionChatPills.removePullRequest.recorded']
+						: ['sessionChatPills.copyIssue', 'sessionChatPills.removeIssue.recorded'],
 					removeLabel: `Remove ${isPullRequest ? 'Pull Request' : 'Issue'} Artifact from Session`,
 					removed: [{ owningSession: true, id: 'recorded' }],
 					modelRequests: [`microsoft/vscode/${isPullRequest ? 'pull/42' : 'issues/337297'}`],
@@ -2650,6 +2655,9 @@ suite('SessionChatInputToolbar', () => {
 					// A reference never reaches the dedicated pill, so no live GitHub model is requested for it.
 					initial: { label: 'Show 1 reference', genericPills: 0 },
 					opened: [],
+					entryActionIds: isPullRequest
+						? ['sessionChatPills.openPullRequestChanges', 'sessions.artifacts.copyLink', 'sessions.artifacts.remove']
+						: ['sessions.artifacts.copyLink', 'sessions.artifacts.remove'],
 					removeLabel: 'Remove Reference Recorded title from Session',
 					removed: [{ owningSession: true, id: 'recorded' }],
 					modelRequests: [],
@@ -2742,10 +2750,10 @@ suite('SessionChatInputToolbar', () => {
 			artifactsGrouped: !!toolbar.element.querySelector('[aria-label="Show 3 artifacts"]'),
 		};
 		group.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true }));
-		const groupRemovalIds = menu.filter(action => action.id.startsWith('sessions.artifacts.remove.')).map(action => action.id);
+		const groupRemovalIds = menu.filter(action => action.id === 'sessions.artifacts.remove').map(action => action.id);
 		integrated[0].dispatchEvent(new MouseEvent('contextmenu', { bubbles: true }));
-		const removalIds = menu.filter(action => action.id.startsWith('sessions.artifacts.remove.')).map(action => action.id);
-		await menu.find(action => action.id === 'sessions.artifacts.remove.reference')!.run();
+		const removalIds = menu.filter(action => action.id === 'sessions.artifacts.remove').map(action => action.id);
+		await menu.find(action => action.id === 'sessions.artifacts.remove')!.run();
 		snapshots.get('two')!.set({ ...snapshots.get('two')!.get(), contributions: [], mainIntegrationId: undefined }, undefined);
 		assert.deepStrictEqual({
 			initial, promoted, groupRemovalIds, removalIds, removed,
@@ -2755,7 +2763,7 @@ suite('SessionChatInputToolbar', () => {
 		}, {
 			initial: { integrated: 0, grouped: true, acquired: 0 },
 			promoted: { labels: ['reference'], group: 'Experiments (2)', referencesGrouped: false, artifactsGrouped: false },
-			groupRemovalIds: [], removalIds: ['sessions.artifacts.remove.reference'], removed: ['reference'],
+			groupRemovalIds: [], removalIds: ['sessions.artifacts.remove'], removed: ['reference'],
 			remaining: ['one'], groupRemaining: false, regrouped: true,
 		});
 		await setEnabled(false);
@@ -2838,7 +2846,7 @@ suite('SessionChatInputToolbar', () => {
 		await timeout(0);
 		const pinned = { ...describe(), dropdownRows: [...host.querySelectorAll('.artifact-group-row .artifact-group-row-label')].map(label => label.textContent) };
 		toolbar.element.querySelector<HTMLElement>('.artifact-integration-pill.has-promoted-action')!.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true }));
-		await menu.find(action => action.id.startsWith('chatInputPills.artifacts.unpin.'))!.run();
+		await menu.find(action => action.id === 'chatInputPills.artifacts.unpin')!.run();
 		await timeout(0);
 		assert.deepStrictEqual({ grouped, pinned, unpinned: describe() }, {
 			grouped: { group: '3 Experiments', groupIcon: true, singles: [] },
@@ -3244,7 +3252,7 @@ suite('SessionChatInputToolbar', () => {
 				artifactRemovable: (() => {
 					const target = toolbar.element.querySelector<HTMLElement>('.chat-resource-pill-button');
 					target?.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true }));
-					return menu.some(action => action.id === 'sessions.artifacts.remove.durable-artifact');
+					return menu.some(action => action.id === 'sessions.artifacts.remove');
 				})(),
 				artifacts: artifacts.get().map(artifact => artifact.id),
 				label: toolbar.element.querySelector('.chat-pill-label')?.textContent,
@@ -3326,7 +3334,7 @@ suite('SessionChatInputToolbar', () => {
 		}, {
 			renderedPills: true,
 			// Only the recorded artifact is removable; the browser and the file diff are not.
-			removeActionIds: ['sessions.artifacts.remove.durable-artifact'],
+			removeActionIds: ['sessions.artifacts.remove'],
 			removeCalls: ['durable-artifact'],
 		});
 	});

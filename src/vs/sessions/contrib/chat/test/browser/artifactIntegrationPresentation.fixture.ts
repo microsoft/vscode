@@ -680,7 +680,7 @@ async function renderGroup(
 	}]);
 	const pinnedPill = options.pinned === undefined ? undefined : presentations[options.pinned].createPill(constObservable(action(
 		`fixture.unpin.${data[options.pinned].artifact.id}`, `Unpin ${data[options.pinned].artifact.label}`, Codicon.unpin, 'Unpin', 'the artifact was not unpinned.')));
-	const group = disposableStore.add(instantiationService.createInstance(ArtifactIntegrationGroup, 'fixture', constObservable(members), controller));
+	const group = disposableStore.add(instantiationService.createInstance(ArtifactIntegrationGroup, constObservable(members), controller));
 	const pills = derived(reader => {
 		// Decorating gives each artifact's details the entry actions of its pill.
 		entries.forEach((entry, index) => presentations[index].decorate(entry, reader));

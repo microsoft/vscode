@@ -191,12 +191,12 @@ function isRemoteFileUri(uri: URI): boolean {
  * The action that takes a file or folder artifact into the OS: revealing it
  * when it is on this device, or downloading it when it lives on a remote one.
  */
-function getFileLocationAction(artifact: ISessionArtifact, uri: URI, name: string, actions: ISessionArtifactActions): IChatPillAction | undefined {
+function getFileLocationAction(uri: URI, name: string, actions: ISessionArtifactActions): IChatPillAction | undefined {
 	const localUri = toLocalFileUri(uri);
 	const revealInOS = actions.revealInOS;
 	if (localUri && revealInOS) {
 		return toAction({
-			id: `sessions.artifacts.revealInOS.${artifact.id}`,
+			id: 'sessions.artifacts.revealInOS',
 			label: revealInOSLabel,
 			class: ThemeIcon.asClassName(Codicon.folderOpened),
 			run: () => revealInOS(localUri),
@@ -205,7 +205,7 @@ function getFileLocationAction(artifact: ISessionArtifact, uri: URI, name: strin
 	const downloadResource = actions.downloadResource;
 	if (downloadResource && isRemoteFileUri(uri)) {
 		return toAction({
-			id: `sessions.artifacts.download.${artifact.id}`,
+			id: 'sessions.artifacts.download',
 			label: downloadLabel,
 			class: ThemeIcon.asClassName(Codicon.cloudDownload),
 			run: () => downloadResource(uri, name),
@@ -261,7 +261,7 @@ function withRemoveAction(artifact: ISessionArtifactPresentation, entry: IChatPi
 	return {
 		...entry,
 		promotedAction: withChatPillHoverLabel(toAction({
-			id: `sessions.artifacts.remove.${artifact.id}`,
+			id: 'sessions.artifacts.remove',
 			label: artifact.isArtifact
 				? localize('sessionArtifacts.removeArtifact', "Remove Artifact {0} from Session", artifact.label)
 				: localize('sessionArtifacts.removeReference', "Remove Reference {0} from Session", artifact.label),
@@ -277,9 +277,9 @@ function openArtifact(artifact: ISessionArtifactPresentation, actions: ISessionA
 }
 
 /** The row action opening a pull request's changes, shared by the pull requests pill and recorded pull request rows. */
-export function createOpenPullRequestChangesAction(pullRequest: Pick<IGitHubPullRequestRef, 'owner' | 'repo' | 'number'>, run: () => unknown): IChatPillAction {
+export function createOpenPullRequestChangesAction(run: () => unknown): IChatPillAction {
 	return withChatPillHoverLabel(toAction({
-		id: `sessionChatPills.openPullRequestChanges.${pullRequest.owner.toLowerCase()}.${pullRequest.repo.toLowerCase()}.${pullRequest.number}`,
+		id: 'sessionChatPills.openPullRequestChanges',
 		label: localize('sessionChatPills.openPullRequestChanges', "Open Pull Request Changes"),
 		class: ThemeIcon.asClassName(Codicon.diffMultiple),
 		run,
@@ -295,7 +295,7 @@ function toEntry(artifact: ISessionArtifact, actions: ISessionArtifactActions, l
 		const label = basename(uri);
 		const fullPath = labelService.getUriLabel(uri, { noPrefix: true });
 		const relativePath = labelService.getUriLabel(uri, { relative: true, noPrefix: true });
-		const locationAction = getFileLocationAction(artifact, uri, label, actions);
+		const locationAction = getFileLocationAction(uri, label, actions);
 		const videoMimeType = getVideoMimeType(uri);
 		return withRemoveAction(artifact, {
 			id: artifact.id,
@@ -303,13 +303,13 @@ function toEntry(artifact: ISessionArtifact, actions: ISessionArtifactActions, l
 			resource: uri,
 			...(videoMimeType ? { videoPreview: { resource: uri, mimeType: videoMimeType } } : {}),
 			toolbarActions: [...(locationAction ? [locationAction] : []), toAction({
-				id: `sessions.artifacts.copyFilePath.${artifact.id}`,
+				id: 'sessions.artifacts.copyFilePath',
 				label: localize('sessionArtifacts.copyFilePath', "Copy Path"),
 				class: ThemeIcon.asClassName(Codicon.copy),
 				run: () => actions.copy(fullPath),
 			})],
 			hoverActions: [toAction({
-				id: `sessions.artifacts.copyFileRelativePath.${artifact.id}`,
+				id: 'sessions.artifacts.copyFileRelativePath',
 				label: localize('sessionArtifacts.copyFileRelativePath', "Copy Relative Path"),
 				class: ThemeIcon.asClassName(Codicon.copy),
 				run: () => actions.copy(relativePath),
@@ -342,14 +342,14 @@ function toEntry(artifact: ISessionArtifact, actions: ISessionArtifactActions, l
 			label,
 			icon,
 			toolbarActions: [withChatPillHoverLabel(toAction({
-				id: `sessions.artifacts.copyCommitUrl.${artifact.id}`,
+				id: 'sessions.artifacts.copyCommitUrl',
 				label: localize('sessionArtifacts.copyCommitUrl', "Copy Commit URL"),
 				class: ThemeIcon.asClassName(Codicon.copy),
 				run: () => actions.copy(link.toString(true)),
 			}), chatPillCopyUrlHoverLabel)],
 			...((artifact.commitHash || commit?.sha) ? {
 				hoverActions: [withChatPillHoverLabel(toAction({
-					id: `sessions.artifacts.copyCommitHash.${artifact.id}`,
+					id: 'sessions.artifacts.copyCommitHash',
 					label: localize('sessionArtifacts.copyCommitHash', "Copy Commit Hash"),
 					class: ThemeIcon.asClassName(Codicon.copy),
 					run: () => actions.copy(artifact.commitHash ?? commit!.sha),
@@ -367,13 +367,13 @@ function toEntry(artifact: ISessionArtifact, actions: ISessionArtifactActions, l
 			return undefined;
 		}
 		const uri = artifact.uri;
-		const locationAction = getFileLocationAction(artifact, uri, basename(uri) || artifact.label, actions);
+		const locationAction = getFileLocationAction(uri, basename(uri) || artifact.label, actions);
 		return withRemoveAction(artifact, {
 			id: artifact.id,
 			label: artifact.label,
 			icon,
 			toolbarActions: [...(locationAction ? [locationAction] : []), withChatPillHoverLabel(toAction({
-				id: `sessions.artifacts.copyResourceUri.${artifact.id}`,
+				id: 'sessions.artifacts.copyResourceUri',
 				label: localize('sessionArtifacts.copyResourceUri', "Copy URI"),
 				class: ThemeIcon.asClassName(Codicon.copy),
 				run: () => actions.copy(uri.toString(true)),
@@ -428,7 +428,7 @@ function toEntry(artifact: ISessionArtifact, actions: ISessionArtifactActions, l
 	const location = sessionArtifactLocationText(link, labelService);
 	const pullRequest = artifact.kind === SessionArtifactKind.PullRequest ? parseGitHubArtifactLink(artifact) : undefined;
 	const pullRequestChangesAction = pullRequest
-		? [createOpenPullRequestChangesAction(pullRequest, () => actions.openPullRequestChanges({
+		? [createOpenPullRequestChangesAction(() => actions.openPullRequestChanges({
 			...pullRequest,
 			uri: link,
 			...(artifact.label ? { title: artifact.label } : {}),
@@ -504,24 +504,24 @@ export function buildSessionArtifactSections(artifacts: readonly ISessionArtifac
 				const fullPath = labelService.getUriLabel(uri, { noPrefix: true });
 				const relativePath = labelService.getUriLabel(uri, { relative: true, noPrefix: true });
 				// Images on this device are revealed like other files; anywhere else they download, including web and generated images.
-				const localImageAction = toLocalFileUri(uri) ? getFileLocationAction(artifact, uri, label, actions) : undefined;
+				const localImageAction = toLocalFileUri(uri) ? getFileLocationAction(uri, label, actions) : undefined;
 				const entry = withRemoveAction(artifact, {
 					id: artifact.id,
 					label,
 					resource: uri,
 					toolbarActions: [localImageAction ?? toAction({
-						id: `sessions.artifacts.downloadImage.${artifact.id}`,
+						id: 'sessions.artifacts.downloadImage',
 						label: downloadLabel,
 						class: ThemeIcon.asClassName(Codicon.cloudDownload),
 						run: () => actions.downloadImage(uri, label),
 					}), toAction({
-						id: `sessions.artifacts.copyFilePath.${artifact.id}`,
+						id: 'sessions.artifacts.copyFilePath',
 						label: localize('sessionArtifacts.copyFilePath', "Copy Path"),
 						class: ThemeIcon.asClassName(Codicon.copy),
 						run: () => actions.copy(fullPath),
 					})],
 					hoverActions: [toAction({
-						id: `sessions.artifacts.copyFileRelativePath.${artifact.id}`,
+						id: 'sessions.artifacts.copyFileRelativePath',
 						label: localize('sessionArtifacts.copyFileRelativePath', "Copy Relative Path"),
 						class: ThemeIcon.asClassName(Codicon.copy),
 						run: () => actions.copy(relativePath),

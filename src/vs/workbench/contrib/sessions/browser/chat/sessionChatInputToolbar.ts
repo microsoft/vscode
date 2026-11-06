@@ -87,7 +87,7 @@ function buildDebugArtifactSections(debugData: ISessionChatPillsDebugData, copy:
 			label: name,
 			resource,
 			toolbarActions: [toAction({
-				id: `sessions.debug.chatPills.copyArtifactPath.${name}`,
+				id: 'sessions.debug.chatPills.copyArtifactPath',
 				label: localize('sessions.debug.chatPills.copyArtifactPath', "Copy Path"),
 				class: ThemeIcon.asClassName(Codicon.copy),
 				run: () => copy(resource.path),
@@ -179,7 +179,7 @@ export function buildSessionPullRequestSections(pullRequests: readonly IResolved
 				class: ThemeIcon.asClassName(Codicon.close),
 				run: () => artifactActions.remove?.([recordedReferenceId], resourceLabel),
 			}), chatPillRemoveArtifactHoverLabel) : undefined,
-			toolbarActions: [createOpenPullRequestChangesAction(ref, () => {
+			toolbarActions: [createOpenPullRequestChangesAction(() => {
 				if (session) {
 					activatePane?.();
 				}
@@ -189,7 +189,7 @@ export function buildSessionPullRequestSections(pullRequests: readonly IResolved
 				localize('sessionChatPills.copyPullRequest', "Copy pull request URL"),
 				() => clipboardService.writeText(ref.uri.toString(true)),
 			) ?? toAction({
-				id: `sessionChatPills.copyPullRequest.${ref.owner}.${ref.repo}.${ref.number}`,
+				id: 'sessionChatPills.copyPullRequest',
 				label: localize('sessionChatPills.copyPullRequest', "Copy pull request URL"),
 				class: ThemeIcon.asClassName(Codicon.copy),
 				run: () => clipboardService.writeText(ref.uri.toString(true)),
@@ -265,7 +265,7 @@ export function buildSessionIssueSections(issues: readonly IResolvedSessionIssue
 				localize('sessionChatPills.copyIssue', "Copy issue URL"),
 				() => clipboardService.writeText(uri.toString(true)),
 			) ?? toAction({
-				id: `sessionChatPills.copyIssue.${ref.owner}.${ref.repo}.${ref.number}`,
+				id: 'sessionChatPills.copyIssue',
 				label: localize('sessionChatPills.copyIssue', "Copy issue URL"),
 				class: ThemeIcon.asClassName(Codicon.copy),
 				run: () => clipboardService.writeText(uri.toString(true)),
@@ -382,14 +382,19 @@ class CopyFeedbackAction extends Action {
 	}
 }
 
+/** Keeps one copy action per entry, so the "Copied" feedback survives rebuilding the entry. */
 class CopyFeedbackActionCache extends Disposable {
 
 	private readonly _actions = new Map<string, CopyFeedbackAction>();
 
+	constructor(private readonly _actionId: string) {
+		super();
+	}
+
 	get(key: string, label: string, copy: () => Promise<void>): IAction {
 		let action = this._actions.get(key);
 		if (!action) {
-			action = new CopyFeedbackAction(`sessionChatPills.copy.${key}`, label, copy);
+			action = new CopyFeedbackAction(this._actionId, label, copy);
 			this._actions.set(key, action);
 			this._register(action);
 		} else {
@@ -429,8 +434,8 @@ export class SessionChatInputToolbar extends Disposable {
 	private readonly _backgroundActivities: SessionBackgroundActivitiesControl;
 	private readonly _pullRequestHoverCache = this._register(new ChatPillHoverCache());
 	private readonly _issueHoverCache = this._register(new ChatPillHoverCache());
-	private readonly _pullRequestCopyActions = this._register(new CopyFeedbackActionCache());
-	private readonly _issueCopyActions = this._register(new CopyFeedbackActionCache());
+	private readonly _pullRequestCopyActions = this._register(new CopyFeedbackActionCache('sessionChatPills.copyPullRequest'));
+	private readonly _issueCopyActions = this._register(new CopyFeedbackActionCache('sessionChatPills.copyIssue'));
 	private readonly _activityBarOpenerCheck = this._register(new MutableDisposable());
 
 	/** The session that owns the reflected chat, from an explicit override or resolved from the chat. */

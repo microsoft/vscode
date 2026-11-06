@@ -232,7 +232,7 @@ suite('Artifact Integration Groups', () => {
 			member(snapshot('1', { groupLabel: 'Experiments', group: { icon: 'git-pull-request', priority: 1 }, sections: [{ id: 'checks', label: '3/5', icon: 'error' }] })),
 			member(snapshot('2', { groupLabel: 'Experiments', group: { icon: 'git-pull-request-error', priority: 2 }, automation: true })),
 		]);
-		const group = store.add(instantiation.createInstance(ArtifactIntegrationGroup, 'experiments', members, detailsHost));
+		const group = store.add(instantiation.createInstance(ArtifactIntegrationGroup, members, detailsHost));
 		const widget = store.add(instantiation.createInstance(ChatPillsWidget, { pills: derived(reader => [group.pill]) }, undefined));
 		const row = append(host, $('.chat-pills-row'));
 		row.style.cssText = 'position:absolute;left:20px;bottom:40px;';
@@ -407,7 +407,7 @@ suite('Artifact Integration Groups', () => {
 		assert.deepStrictEqual({ grouped, shrunk, pinned, unpinned: labels() }, {
 			grouped: ['3 Experiments', 'Recorded ref'],
 			shrunk: { labels: ['2 Experiments', 'Recorded ref'], samePill: true },
-			pinned: { labels: ['Recorded 1', 'Recorded ref', 'Recorded 2'], menu: ['chatInputPills.artifacts.unpin.2', 'remove.2'] },
+			pinned: { labels: ['Recorded 1', 'Recorded ref', 'Recorded 2'], menu: ['chatInputPills.artifacts.unpin', 'remove.2'] },
 			unpinned: ['2 Experiments', 'Recorded ref'],
 		});
 	});
@@ -485,7 +485,7 @@ suite('Artifact Integration Groups', () => {
 		items.set([...items.get(), item(bound('withAutopilot', 'step', true))], undefined);
 		assert.deepStrictEqual({ grouped, pinned, unpinned, withAutopilot: labels() }, {
 			grouped: ['2 Experiments'],
-			pinned: { labels: ['Recorded a', 'Recorded c'], menu: ['chatInputPills.artifacts.unpin.a', 'remove.a'] },
+			pinned: { labels: ['Recorded a', 'Recorded c'], menu: ['chatInputPills.artifacts.unpin', 'remove.a'] },
 			unpinned: { labels: ['2 Experiments'], saved: [] },
 			withAutopilot: ['3 Experiments'],
 		});

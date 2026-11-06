@@ -553,10 +553,15 @@ suite('Sessions - View Menu', () => {
 			buildTestSession({ id: 'cloud-cli', title: 'CLI', environment: 'cloud', application: 'github/cli' }).session,
 		];
 		const { snapshot } = createMenu(sessions, [{ id: 'remote-z', label: 'Z Host' }, { id: 'remote-a', label: 'A Host' }]);
+		// Command IDs are reported in telemetry, and environment IDs can name remote hosts.
+		const commandIdsNamingHosts = [Menus.SessionsViewEnvironment, Menus.SessionsViewSource]
+			.flatMap(menu => MenuRegistry.getMenuItems(menu).filter(isIMenuItem).map(item => item.command.id))
+			.filter(id => id.includes('remote-'));
 		assert.deepStrictEqual({
 			environments: snapshot(Menus.SessionsViewEnvironment),
 			sources: snapshot(Menus.SessionsViewSource),
 			harnesses: snapshot(Menus.SessionsViewHarness),
+			commandIdsNamingHosts,
 		}, {
 			environments: [
 				{ title: 'This Computer', group: '2_environments', checked: true },
@@ -584,6 +589,7 @@ suite('Sessions - View Menu', () => {
 				{ title: 'Claude', group: '1_harnesses', checked: true },
 				{ title: 'Codex', group: '1_harnesses', checked: true },
 			],
+			commandIdsNamingHosts: [],
 		});
 	});
 

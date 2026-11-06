@@ -319,7 +319,7 @@ suite('StandardChatInputPillSources', () => {
 		assert.deepStrictEqual({
 			stable: descriptor === updatedDescriptor,
 			labels: pills.labels(),
-			unpin: contextActions.find(action => action.id.includes('.unpin.'))?.label,
+			unpin: contextActions.find(action => action.id === 'chatInputPills.browsers.unpin')?.label,
 		}, {
 			stable: true,
 			labels: ['Documentation', 'Other'],
@@ -368,7 +368,7 @@ suite('StandardChatInputPillSources', () => {
 		const pinned = pills.inputPills.getPillElements()[0];
 		const unpin = pinned.closest('.chat-pill-item')?.querySelector<HTMLElement>('.chat-pill-promoted-action');
 		assert.ok(unpin);
-		const contextActions = pills.openContextMenu(pinned).filter(action => ['copy', 'remove'].includes(action.id) || action.id.includes('.unpin.'));
+		const contextActions = pills.openContextMenu(pinned).filter(action => ['copy', 'remove', 'chatInputPills.artifacts.unpin'].includes(action.id));
 		unpin.click();
 		await timeout(0);
 

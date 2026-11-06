@@ -396,7 +396,7 @@ export class ModePicker extends Disposable {
 					group: { title: '', icon: selectedModeId === mode.id ? Codicon.check : Codicon.blank },
 					item: { kind: 'mode', mode },
 					toolbarActions: resource && hasReadableCustomizationContent(resource) && this.fileService.hasProvider(resource) ? [{
-						id: `${isExtension ? 'viewAgent' : 'editAgent'}:${mode.id}`,
+						id: isExtension ? 'viewAgent' : 'editAgent',
 						label: openLabel,
 						tooltip: openLabel,
 						class: ThemeIcon.asClassName(isExtension ? Codicon.file : Codicon.edit),

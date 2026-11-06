@@ -310,6 +310,8 @@ export class WorkspacePicker extends Disposable {
 	private readonly _renderDisposables = this._register(new DisposableStore());
 	private readonly _additionalRepositorySelections = new Map<string, IAttachedRepositorySelection>();
 	private readonly _additionalFolderSelections = new Map<string, IResolvedFolderWorkspace>();
+	/** Opaque IDs that keep a folder's or host's row the same across refreshes without carrying its path or address. */
+	private readonly _itemIds = new Map<string, string>();
 	private readonly _devContainerAvailability = new Map<string, boolean | 'error' | Promise<boolean | 'error'>>();
 	private readonly _onDidChangeDevContainerAvailability = this._register(new Emitter<void>());
 	readonly onDidChangeDevContainerAvailability = this._onDidChangeDevContainerAvailability.event;
@@ -1750,6 +1752,17 @@ export class WorkspacePicker extends Disposable {
 		return this._directPickerGroup ?? (this._directPickerAttachesContext !== undefined ? this._activeTab : undefined);
 	}
 
+	/** The opaque ID of the row or action with the given prefix that stands for `key`, such as a folder or a host. */
+	private _getItemId(prefix: string, key: string): string {
+		const itemKey = JSON.stringify([prefix, key]);
+		let id = this._itemIds.get(itemKey);
+		if (id === undefined) {
+			id = `${prefix}.${this._itemIds.size}`;
+			this._itemIds.set(itemKey, id);
+		}
+		return id;
+	}
+
 	/**
 	 * Builds the picker items list from recent workspaces.
 	 *
@@ -1800,7 +1813,7 @@ export class WorkspacePicker extends Disposable {
 				return undefined;
 			}
 			const usingDevContainer = !!this._selectedDevContainerFolderUri && this.uriIdentityService.extUri.isEqual(this._selectedDevContainerFolderUri, folderUri);
-			const actionId = `workspacePicker.devContainer.${providerId}.${devContainerActionIndex++}`;
+			const actionId = `workspacePicker.devContainer.${devContainerActionIndex++}`;
 			const selectMode = (preferDevContainer: boolean): void => {
 				item.preferDevContainer = preferDevContainer;
 			};
@@ -1892,7 +1905,7 @@ export class WorkspacePicker extends Disposable {
 			const attached = this._additionalFolderSelections.has(this.uriIdentityService.extUri.getComparisonKey(folderUri))
 				|| (repositoryId !== undefined && this._additionalRepositorySelections.has(repositoryId));
 			const item: IWorkspacePickerItem = {
-				id: `workspacePicker.workspace.${this.uriIdentityService.extUri.getComparisonKey(folderUri)}`,
+				id: this._getItemId('workspacePicker.workspace', this.uriIdentityService.extUri.getComparisonKey(folderUri)),
 				folderUri,
 				providerId: environmentProvider ? environmentProvider.id : providerId,
 				checked: selected || attached || undefined,
@@ -1906,7 +1919,7 @@ export class WorkspacePicker extends Disposable {
 			previousRecentWorkspaceIsRepository = recentWorkspaceIsRepository;
 			const submenuActions = modeActions
 				? [new SubmenuAction(
-					`workspacePicker.devContainer.${providerId}.${devContainerActionIndex}.options`,
+					`workspacePicker.devContainer.${devContainerActionIndex}.options`,
 					'',
 					modeActions,
 				)]
@@ -2056,7 +2069,7 @@ export class WorkspacePicker extends Disposable {
 				const status = provider.connectionStatus!.get();
 				const statusDescription = getRemoteHostStatusDescription(provider, status);
 				const action = toAction({
-					id: `workspacePicker.remote.${provider.id}`,
+					id: this._getItemId('workspacePicker.remote', provider.id),
 					label: provider.label,
 					tooltip: statusDescription,
 					enabled: true,
@@ -2253,7 +2266,7 @@ export class WorkspacePicker extends Disposable {
 	getEnvironmentActions(environment: ISessionCreationEnvironment): IAction[] {
 		const provider = environment.kind === 'remote' && this.sessionsProvidersService.getProvider(environment.providerIds[0]);
 		return provider && isAgentHostProvider(provider) ? [toAction({
-			id: `environmentPicker.manage.${provider.id}`,
+			id: 'environmentPicker.manage',
 			label: localize('workspacePicker.manageRemoteHost', "Manage {0}", provider.label),
 			run: () => {
 				this.actionWidgetService.hide();

@@ -206,7 +206,7 @@ export class ArtifactIntegrationPillSources extends Disposable {
 					? group.items.map((item): IArtifactIntegrationGroupMember => ({ presentation: item.presentation, entry: item.entry, pinAction: pinAction(item, scope, false) }))
 					: [];
 			});
-			return { key, group: store.add(instantiationService.createInstance(ArtifactIntegrationGroup, key, members, detailsHost)) };
+			return { key, group: store.add(instantiationService.createInstance(ArtifactIntegrationGroup, members, detailsHost)) };
 		});
 		// A lone artifact keeps one pill whether or not it is pinned, which offers Unpin while it is.
 		const singleKeys = derivedOpts<readonly ArtifactIntegrationPresentation[]>({ owner: this, equalsFn: equals }, reader =>

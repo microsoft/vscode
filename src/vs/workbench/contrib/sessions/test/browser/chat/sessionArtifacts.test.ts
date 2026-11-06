@@ -1611,4 +1611,26 @@ suite('Session Artifacts', () => {
 		});
 	});
 
+	test('keeps record IDs, repositories, numbers and paths out of action IDs', () => {
+		// Hosts choose record IDs, which can embed the resource they record, like a linked issue's URL.
+		const remote = (path: string) => URI.parse(`vscode-remote://ssh-remote+build-host/home/alice/${path}`);
+		const artifacts: readonly ISessionArtifact[] = [
+			{ id: 'linked:https://github.com/octo-org/secret-repo/pull/42', kind: SessionArtifactKind.PullRequest, label: 'PR', isArtifact: true, isGitHub: true, link: URI.parse('https://github.com/octo-org/secret-repo/pull/42') },
+			{ id: 'commit:octo-org/secret-repo@abc123', kind: SessionArtifactKind.Commit, label: 'Commit', isArtifact: true, link: URI.parse('https://github.com/octo-org/secret-repo/commit/abc123'), commitHash: 'abc123' },
+			{ id: 'image:/home/alice/secret-repo/screenshot.png', kind: SessionArtifactKind.File, label: 'screenshot.png', isArtifact: true, uri: remote('secret-repo/screenshot.png') },
+			{ id: 'file:/home/alice/secret-repo/notes.md', kind: SessionArtifactKind.File, label: 'notes.md', isArtifact: true, uri: URI.file('/home/alice/secret-repo/notes.md') },
+			{ id: 'resource:/home/alice/report', kind: SessionArtifactKind.Resource, label: 'Report', isArtifact: true, uri: remote('report') },
+		];
+
+		const entries = buildSessionArtifactSections(artifacts, { ...actions, revealInOS() { }, async downloadResource() { }, async remove() { } }, labelService, true, new Set()).flatMap(section => section.entries);
+
+		assert.deepStrictEqual(entries.map(entry => [entry.label, getChatPillEntryHoverActions(entry).map(action => action.id)]), [
+			['PR', ['sessionChatPills.openPullRequestChanges', 'sessions.artifacts.copyLink', 'sessions.artifacts.remove']],
+			['Commit', ['sessions.artifacts.copyCommitUrl', 'sessions.artifacts.copyCommitHash', 'sessions.artifacts.remove']],
+			['screenshot.png', ['sessions.artifacts.downloadImage', 'sessions.artifacts.copyFilePath', 'sessions.artifacts.copyFileRelativePath', 'sessions.artifacts.remove']],
+			['notes.md', ['sessions.artifacts.revealInOS', 'sessions.artifacts.copyFilePath', 'sessions.artifacts.copyFileRelativePath', 'sessions.artifacts.remove']],
+			['Report', ['sessions.artifacts.download', 'sessions.artifacts.copyResourceUri', 'sessions.artifacts.remove']],
+		]);
+	});
+
 });

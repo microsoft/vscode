@@ -94,14 +94,13 @@ export class ArtifactIntegrationGroup extends Disposable {
 	readonly summary: IObservable<IArtifactIntegrationGroupSummary>;
 
 	constructor(
-		id: string,
 		readonly members: IObservable<readonly IArtifactIntegrationGroupMember[]>,
 		readonly detailsHost: IArtifactDetailsHost,
 		@IInstantiationService instantiationService: IInstantiationService,
 	) {
 		super();
 		this.summary = derived(this, reader => getArtifactIntegrationGroupSummary(members.read(reader).map(member => member.presentation.snapshot.read(reader))));
-		const action = this._register(new Action(`artifactIntegrationGroup.${id}`, this.summary.get().label));
+		const action = this._register(new Action('artifactIntegrationGroup.toggleDropdown', this.summary.get().label));
 		this._register(autorun(reader => {
 			action.label = this.summary.read(reader).label;
 		}));

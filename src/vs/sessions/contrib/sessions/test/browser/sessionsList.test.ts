@@ -4687,7 +4687,7 @@ suite('Sessions - SessionsList', () => {
 				const environmentActions = (label: string) => {
 					const menuCount = contextMenus.length;
 					rowOf(label).querySelector('.monaco-dropdown .dropdown-label')?.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, button: 0 }));
-					return (contextMenus[menuCount] ?? []).filter(action => action.id.startsWith(`${NEW_SESSION_IN_ENVIRONMENT_ACTION_ID}.`));
+					return (contextMenus[menuCount] ?? []).filter(action => action.id === NEW_SESSION_IN_ENVIRONMENT_ACTION_ID);
 				};
 				// The section toolbars update after their menus' debounced change events.
 				await timeout(100);
@@ -4736,7 +4736,7 @@ suite('Sessions - SessionsList', () => {
 				await timeout(100);
 				const menuCount = contextMenus.length;
 				rowOf('vscode').querySelector('.monaco-dropdown .dropdown-label')?.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, button: 0 }));
-				const actions = (contextMenus[menuCount] ?? []).filter(action => action.id.startsWith(`${NEW_SESSION_IN_ENVIRONMENT_ACTION_ID}.`));
+				const actions = (contextMenus[menuCount] ?? []).filter(action => action.id === NEW_SESSION_IN_ENVIRONMENT_ACTION_ID);
 				await actions.find(action => action.label === 'New Session in Cloud')?.run();
 				list.dispose();
 

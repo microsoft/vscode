@@ -487,7 +487,7 @@ export class HostFilterActionViewItem extends BaseActionViewItem {
 					? localize('agentHostFilter.hostConnecting', "{0} (connecting…)", host.label)
 					: localize('agentHostFilter.hostDisconnected', "{0} (disconnected)", host.label);
 			actions.push(toAction({
-				id: `agentHostFilter.host.${host.id}`,
+				id: 'agentHostFilter.host',
 				label,
 				tooltip: host.description ?? '',
 				class: selectedId === host.id ? 'codicon codicon-check' : undefined,

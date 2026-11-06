@@ -35,7 +35,7 @@ import { SessionsList, SessionsGrouping, SessionsSorting } from './sessionsList.
 import { ISession } from '../../../../services/sessions/common/session.js';
 import { ISessionComparisonService } from '../../common/sessionComparison.js';
 import { ISessionsProvidersService } from '../sessionsProvidersService.js';
-import { getSessionFilterOptions, ISessionFilterOption, sessionFilterKey } from './sessionsListFilters.js';
+import { getSessionFilterOptions, ISessionFilterOption } from './sessionsListFilters.js';
 import { AICustomizationShortcutsWidget } from '../aiCustomizationShortcutsWidget.js';
 import { AgentHostShortcutsWidget } from '../agentHostShortcutsWidget.js';
 import { Action2, IMenuService, MenuRegistry, registerAction2, SubmenuItemAction } from '../../../../../platform/actions/common/actions.js';
@@ -719,7 +719,8 @@ export class SessionsView extends ViewPane {
 				const menuId = option.filter.kind === 'environment' ? Menus.SessionsViewEnvironment
 					: option.filter.kind === 'application' ? Menus.SessionsViewSource
 						: Menus.SessionsViewHarness;
-				const id = `sessionsViewPane.filter.${encodeURIComponent(sessionFilterKey(option.filter))}`;
+				// Unique per registration, but never the filter's ID: environment IDs can name remote hosts.
+				const id = `sessionsViewPane.filter.${option.filter.kind}.${index}`;
 				const contextKey = new RawContextKey(id, option.checked).bindTo(this.scopedContextKeyService);
 				contextKey.set(option.checked);
 				reader.store.add(toDisposable(() => contextKey.reset()));

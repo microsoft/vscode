@@ -46,7 +46,7 @@ export function countEnabledArtifactAutomations(snapshot: ArtifactSnapshot): num
 /** Opens an artifact's resource from a list where activating the artifact opens its details instead. */
 export function createArtifactOpenAction(entry: IChatPillEntry): IChatPillAction {
 	return toAction({
-		id: `artifactIntegration.open.${entry.id}`,
+		id: 'artifactIntegration.open',
 		label: entry.ariaLabel ?? localize('artifactOpen', "Open {0}", entry.label),
 		class: ThemeIcon.asClassName(Codicon.linkExternal),
 		run: () => entry.open(),
@@ -119,7 +119,7 @@ export class ArtifactIntegrationPresentation extends Disposable {
 				})),
 			};
 		});
-		this.action = this._register(new Action(`artifactIntegration.${model.snapshot.get().artifact.id}`, model.snapshot.get().artifact.label, undefined, true,
+		this.action = this._register(new Action('artifactIntegration.toggleDetails', model.snapshot.get().artifact.label, undefined, true,
 			async target => {
 				if (!isHTMLElement(target)) {
 					throw new Error(localize('artifactDetailsTargetUnavailable', "The artifact details button is no longer available."));

@@ -2320,8 +2320,8 @@ suite('WorkspacePicker - Connection Status', () => {
 			triggerAriaLabel: container.querySelector('.action-label')?.getAttribute('aria-label'),
 		}, {
 			stableItemIds: [
-				'workspacePicker.workspace.file:///agent-host/project',
-				'workspacePicker.workspace.file:///agent-host/project',
+				'workspacePicker.workspace.0',
+				'workspacePicker.workspace.0',
 			],
 			initialSubmenu: [
 				{ label: 'Use This Computer', tooltip: '', checked: true },

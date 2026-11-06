@@ -153,6 +153,15 @@ suite('AgentHostFilterContribution', () => {
 		assert.deepStrictEqual({ selected: filterService.selectedHostId, operations }, { selected: 'First', operations: ['rediscover'] });
 	});
 
+	test('host entries keep the host out of their action ID', async () => {
+		const { container, getMenuActions } = await createPicker(Menus.SidebarAgentHost);
+		container.querySelector<HTMLElement>('.agent-host-filter-button')?.click();
+		assert.deepStrictEqual(getMenuActions().filter(action => action.label === 'First' || action.label === 'Second').map(action => [action.label, action.id]), [
+			['First', 'agentHostFilter.host'],
+			['Second', 'agentHostFilter.host'],
+		]);
+	});
+
 	test('sidebar menu survives host and discovery updates and still selects a host', async () => {
 		const { container, contextView, filterService, updateStatus, setDiscovering } = await createPicker(Menus.SidebarAgentHost);
 		const button = container.querySelector<HTMLElement>('.agent-host-filter-button');

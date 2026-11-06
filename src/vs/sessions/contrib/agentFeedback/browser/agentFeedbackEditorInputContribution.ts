@@ -506,7 +506,7 @@ export class AgentFeedbackEditorInputContribution extends Disposable implements 
 	private _setInputPRCommentActions(widget: AgentFeedbackInputWidget, pullRequests: readonly IGitHubPullRequestRef[]): void {
 		const actions = pullRequests.map(pullRequest => {
 			return {
-				id: `agentFeedback.input.pullRequest.${pullRequest.owner}.${pullRequest.repo}.${pullRequest.number}`,
+				id: 'agentFeedback.input.pullRequest',
 				label: pullRequests.length === 1
 					? localize('agentFeedback.addPRCommentAction', "Add PR Comment")
 					: localize('agentFeedback.addPRCommentActionWithPR', "Add PR Comment ({0}/{1}#{2})", pullRequest.owner, pullRequest.repo, pullRequest.number),
@@ -601,7 +601,7 @@ export class AgentFeedbackEditorInputContribution extends Disposable implements 
 					run: () => resolve(null),
 				}),
 				...pullRequests.map(pullRequest => toAction({
-					id: `agentFeedback.commentTarget.pullRequest.${pullRequest.owner}.${pullRequest.repo}.${pullRequest.number}`,
+					id: 'agentFeedback.commentTarget.pullRequest',
 					label: pullRequests.length === 1
 						? localize('agentFeedback.prCommentTarget', "Pull Request Comment")
 						: localize('agentFeedback.prCommentTargetWithPR', "Pull Request ({0}/{1}#{2}) Comment", pullRequest.owner, pullRequest.repo, pullRequest.number),

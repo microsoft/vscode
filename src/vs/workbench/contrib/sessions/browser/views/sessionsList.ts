@@ -9047,7 +9047,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 			return [];
 		}
 		return sources.map(({ environment }) => toAction({
-			id: `${NEW_SESSION_IN_ENVIRONMENT_ACTION_ID}.${environment.id}`,
+			id: NEW_SESSION_IN_ENVIRONMENT_ACTION_ID,
 			label: environment.id === 'cloud'
 				? localize('newSessionInCloud', "New Session in {0}", environment.label)
 				: localize('newSessionOnEnvironment', "New Session on {0}", environment.label),
