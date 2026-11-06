@@ -534,8 +534,7 @@ suite('SessionsManagementService', () => {
 				disposables.add(view.hideChatFromGrid(b, b.mainChat.get().resource));
 				if (focusAfterMove === 'removed') {
 					// Detached focus: reported as the list only by the recorded reference.
-					const detached = mainWindow.document.createElement('input');
-					list.replaceWith(detached);
+					list.remove();
 				}
 				sessionsPartService.focusedSessions.length = 0;
 
