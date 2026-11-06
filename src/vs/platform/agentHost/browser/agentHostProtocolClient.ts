@@ -36,6 +36,9 @@ import { AgentHostChannelError, AgentHostChannelErrorCode, reportAgentHostChanne
 import { AgentHostTcpBudget, AgentHostTcpConnection, agentHostTcpReceiveLimits, type IAgentHostTcpConnection } from '../common/agentHostTcpConnection.js';
 import { LoadClientCertificatesExtensionMethod, type IAgentHostClientCertificatesProvider } from '../common/clientCertificatesProtocol.js';
 import { AgentHostClientCertificatesCapabilityMetaKey } from '../common/meta/agentHostClientCertificatesMeta.js';
+import { createAgentHostByokLmModelSnapshotEvent } from '../common/agentHostClientByokLmChannel.js';
+import { byokLmChatRequestValidator, byokLmChatResultValidator, RegisterClientByokLmModelsExtensionMethod, RequestAgentHostByokLmChatExtensionMethod, UnregisterClientByokLmModelsExtensionMethod } from '../common/agentHostByokLmProtocol.js';
+import type { IAgentHostByokLmHandler } from '../common/agentHostByokLm.js';
 import { ClientProxyChangedExtensionMethod, LookupClientProxyKerberosAuthorizationExtensionMethod, lookupClientProxyKerberosAuthorizationParamsValidator, ResolveClientProxyExtensionMethod, resolveClientProxyParamsValidator, type IAgentHostClientProxyProvider } from '../common/clientProxyProtocol.js';
 import { AgentHostClientProxyCapabilityMetaKey, servesAgentHostClientProxy } from '../common/meta/agentHostClientProxyMeta.js';
 import { localize } from '../../../nls.js';
@@ -48,7 +51,7 @@ import { AGENT_HOST_DEBUG_LOGS_CHUNK_BYTES, AGENT_HOST_DEBUG_LOGS_MAX_ENTRIES, I
 import { readAgentHostAuthenticationEncryption, type IAgentHostAuthenticationEncryption } from '../common/meta/agentHostAuthenticationEncryption.js';
 import { sealAgentHostCredential } from './agentHostCredentialSealing.js';
 import { supportsAgentHostDebugLogsCancellation } from '../common/meta/agentHostDebugLogsMeta.js';
-import { AcknowledgeAutomationDeletionExtensionMethod, CancelWorktreeDiskUsageExtensionMethod, MeasureWorktreeDiskUsageExtensionMethod, AgentHostSessionMoveUnsupportedError, MoveAgentHostSessionExtensionMethod, supportsAgentHostSessionMove, CompleteSavedChatContinuationExtensionMethod, CancelAgentHostDebugLogsExtensionMethod, ClaimAgentHostDetachedWorktreeExtensionMethod, CollectAgentHostDebugLogsExtensionMethod, CreateAgentHostDetachedWorktreeExtensionMethod, DeleteAgentHostDetachedWorktreeExtensionMethod, GetAgentHostSessionStateFileExtensionMethod, ImportSessionExtensionMethod, ListAgentExtensionsExtensionMethod, ReadAgentHostDebugLogsChunkExtensionMethod, ReconcileAgentHostDetachedWorktreesExtensionMethod, RemoveSessionArtifactExtensionMethod, ReportAgentHostFirstResponseExtensionMethod, ReportChatUserInteractionExtensionMethod, RequestAgentHostMcpAuthenticationExtensionMethod, RequestAgentHostWorkspaceTrustExtensionMethod, SetAgentExtensionEnabledExtensionMethod, SetAgentHostDetachedWorktreeArchivedExtensionMethod, SetChatWorkspaceExtensionMethod, StopBackgroundWorkExtensionMethod, DeleteAutomationExtensionMethod, supportsAgentHostChatStateFile, supportsAgentHostCreateChatWorkspace, supportsAgentHostDevContainers, type IAgentHostExtensionCommandMap, type IAgentHostExtensionInitializeResult, type IAgentHostExtensionServerCommandMap, type IAgentHostMcpAuthenticationRequest, ReadSavedChatExtensionMethod, ArtifactIntegrationExtensionMethod, ArtifactIntegrationUpdateNotification, ClientArtifactIntegrationExtensionMethod, ClientArtifactIntegrationUpdateExtensionMethod, RegisterClientArtifactIntegrationsExtensionMethod } from '../common/agentHostExtensionProtocol.js';
+import { AcknowledgeAutomationDeletionExtensionMethod, CancelWorktreeDiskUsageExtensionMethod, MeasureWorktreeDiskUsageExtensionMethod, AgentHostSessionMoveUnsupportedError, MoveAgentHostSessionExtensionMethod, supportsAgentHostSessionMove, CompleteSavedChatContinuationExtensionMethod, CancelAgentHostDebugLogsExtensionMethod, ClaimAgentHostDetachedWorktreeExtensionMethod, CollectAgentHostDebugLogsExtensionMethod, CreateAgentHostDetachedWorktreeExtensionMethod, DeleteAgentHostDetachedWorktreeExtensionMethod, GetAgentHostSessionStateFileExtensionMethod, ImportSessionExtensionMethod, ListAgentExtensionsExtensionMethod, ReadAgentHostDebugLogsChunkExtensionMethod, ReconcileAgentHostDetachedWorktreesExtensionMethod, RemoveSessionArtifactExtensionMethod, ReportAgentHostFirstResponseExtensionMethod, ReportChatUserInteractionExtensionMethod, RequestAgentHostMcpAuthenticationExtensionMethod, RequestAgentHostWorkspaceTrustExtensionMethod, SetAgentExtensionEnabledExtensionMethod, SetAgentHostDetachedWorktreeArchivedExtensionMethod, SetChatWorkspaceExtensionMethod, StopBackgroundWorkExtensionMethod, DeleteAutomationExtensionMethod, supportsAgentHostByokLmBridge, supportsAgentHostChatStateFile, supportsAgentHostCreateChatWorkspace, supportsAgentHostDevContainers, type IAgentHostExtensionCommandMap, type IAgentHostExtensionInitializeResult, type IAgentHostExtensionServerCommandMap, type IAgentHostMcpAuthenticationRequest, ReadSavedChatExtensionMethod, ArtifactIntegrationExtensionMethod, ArtifactIntegrationUpdateNotification, ClientArtifactIntegrationExtensionMethod, ClientArtifactIntegrationUpdateExtensionMethod, RegisterClientArtifactIntegrationsExtensionMethod } from '../common/agentHostExtensionProtocol.js';
 import { supportsAgentHostAutomationHistory } from '../common/meta/agentHostAutomationsMeta.js';
 import { supportsAgentHostCopilotExtensions } from '../common/meta/agentHostCopilotExtensionsMeta.js';
 import { supportsAgentHostSavedChat, supportsAgentHostSavedChatContinuation } from '../common/meta/agentHostSavedChatMeta.js';
@@ -358,6 +361,8 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 	private readonly _tcpBudget = new AgentHostTcpBudget();
 	private readonly _channelScheduler = this._register(new MutableDisposable<AgentHostChannelScheduler>());
 	private _mcpAuthenticationHandler: ((request: IAgentHostMcpAuthenticationRequest) => Promise<boolean>) | undefined;
+	private readonly _byokLmHandlerRegistration = this._register(new MutableDisposable<IDisposable>());
+	private _byokLmHandler: IAgentHostByokLmHandler | undefined;
 	private _authenticationTokenSealer: ((request: IMissionControlCredentialSealingRequest) => Promise<string>) | undefined;
 	private readonly _trustedAuthenticationTokenSealer: IAgentHostProtocolClientOptions['sealAuthenticationToken'];
 
@@ -1988,6 +1993,43 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 		return registration;
 	}
 
+	registerByokLmHandler(handler: IAgentHostByokLmHandler): IDisposable {
+		if (this._byokLmHandler) {
+			throw new Error('BYOK Language Model handler is already registered');
+		}
+		this._byokLmHandler = handler;
+		const registration = new DisposableStore();
+		this._byokLmHandlerRegistration.value = registration;
+		registration.add(autorun(reader => {
+			if (this._byokLmHandler !== handler || !this.connectionAvailable.read(reader) || !supportsAgentHostByokLmBridge(this._initializeResult.read(reader))) {
+				return;
+			}
+			reader.store.add(createAgentHostByokLmModelSnapshotEvent(handler, this._logService)(models => {
+				if (this._byokLmHandler === handler && this._state.kind === AgentHostClientState.Connected) {
+					this._sendExtensionRequest(RegisterClientByokLmModelsExtensionMethod, { models })
+						.catch(error => this._logService.warn('[ByokLmBridge] Could not publish renderer BYOK models to the agent host', error));
+				}
+			}));
+		}));
+		registration.add(toDisposable(() => {
+			if (this._byokLmHandler !== handler) {
+				return;
+			}
+			this._byokLmHandler = undefined;
+			if (this._state.kind === AgentHostClientState.Connected && supportsAgentHostByokLmBridge(this._initializeResult.get())) {
+				this._sendExtensionRequest(UnregisterClientByokLmModelsExtensionMethod, {})
+					.catch(error => this._logService.warn('[ByokLmBridge] Could not withdraw renderer BYOK models from the agent host', error));
+			}
+		}));
+		return toDisposable(() => {
+			if (this._byokLmHandlerRegistration.value === registration) {
+				this._byokLmHandlerRegistration.clear();
+			} else {
+				registration.dispose();
+			}
+		});
+	}
+
 	/**
 	 * Subscribe to state at a URI. Returns the current state snapshot.
 	 *
@@ -3469,6 +3511,18 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 							this._logService.error('[AgentHostProtocolClient] Failed to silently authenticate MCP server', err);
 						}
 						sendResult({ authenticated } satisfies IAgentHostExtensionServerCommandMap[typeof RequestAgentHostMcpAuthenticationExtensionMethod]['result']);
+						return;
+					}
+					case RequestAgentHostByokLmChatExtensionMethod: {
+						const request = byokLmChatRequestValidator.validateOrThrow(params);
+						const handler = this._byokLmHandler;
+						// Refuse before serving even if a handler was registered while the
+						// host never advertised the bridge (mirrors the publish gate above).
+						if (!handler || !supportsAgentHostByokLmBridge(this._initializeResult.get())) {
+							throw new Error('This client is not serving BYOK Language Models');
+						}
+						const result = await handler.chat(request, CancellationToken.None);
+						sendResult(byokLmChatResultValidator.validateOrThrow(result) satisfies IAgentHostExtensionServerCommandMap[typeof RequestAgentHostByokLmChatExtensionMethod]['result']);
 						return;
 					}
 					case RequestAgentHostWorkspaceTrustExtensionMethod: {

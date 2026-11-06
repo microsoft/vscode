@@ -149,7 +149,7 @@ async function startAgentHost(): Promise<void> {
 	// Hoisted out of the `try` below so the protocol handlers (constructed
 	// after the block) can forward agent-SDK download progress to clients.
 	let sdkDownloadProgress: Event<IAgentSdkDownloadProgress> | undefined;
-	let byokLmBridgeRegistry: ByokLmBridgeRegistry;
+	let byokLmBridgeRegistry!: ByokLmBridgeRegistry;
 	let proxyResolver!: IAgentHostProxyResolver;
 	const hostLaunchKind = readAgentHostLaunchKind(process.env[AgentHostLaunchKindEnvVar]);
 	try {
@@ -431,6 +431,7 @@ async function startAgentHost(): Promise<void> {
 					completionTriggerCharacters,
 					terminalCommandPrefix: BANG_COMMAND_PREFIX,
 					otlpLogEmitter,
+					byokLmBridgeRegistry,
 				},
 				clientFileSystemProvider,
 			));
@@ -529,6 +530,7 @@ async function startAgentHost(): Promise<void> {
 		instantiationService,
 		logService,
 		otlpLogEmitter,
+		byokLmBridgeRegistry,
 		protocolIngressDisposables,
 		hostLaunchKind,
 		count => connectionCountEmitter.fire(count),
@@ -625,6 +627,7 @@ async function startWebSocketServer(
 	instantiationService: IInstantiationService,
 	logService: ILogService,
 	otlpLogEmitter: OtlpLogEmitter,
+	byokLmBridgeRegistry: ByokLmBridgeRegistry,
 	disposables: DisposableStore,
 	hostLaunchKind: AgentHostLaunchKind,
 	onConnectionCountChanged: (count: number) => void,
@@ -674,6 +677,7 @@ async function startWebSocketServer(
 			completionTriggerCharacters,
 			terminalCommandPrefix: BANG_COMMAND_PREFIX,
 			otlpLogEmitter,
+			byokLmBridgeRegistry,
 		},
 		clientFileSystemProvider,
 	));
