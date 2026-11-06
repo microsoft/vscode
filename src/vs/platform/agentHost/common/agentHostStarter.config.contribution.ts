@@ -277,7 +277,6 @@ configurationRegistry.registerConfiguration({
 			default: false,
 			scope: ConfigurationScope.APPLICATION,
 			tags: ['preview', 'advanced', 'experimental'],
-			// Hidden from the Settings editor while routers are being tried out; set it in settings.json.
 			included: false,
 			agentHost: { key: ModelRouterEnabledConfigKey },
 		},

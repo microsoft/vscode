@@ -4658,7 +4658,6 @@ export class CopilotAgent extends Disposable implements IAgent {
 
 			// Auto's tiers, including Fusion's, come from the service. This also moves the runtime's whole model catalog to CAPI `/meta`.
 			addCopilotFeatureFlag(env, DynamicAutoTiersFeatureFlag);
-			// Model routers ask a decision model.
 			if (startupConfig.decisionsApi) {
 				addCopilotFeatureFlag(env, DecisionsApiFeatureFlag);
 				this._logService.info(`[Copilot] Enabled runtime feature flag ${DecisionsApiFeatureFlag}`);
