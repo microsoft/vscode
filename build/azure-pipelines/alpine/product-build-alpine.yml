@@ -124,6 +124,7 @@ jobs:
           azureContainerRegistry: vscodehub.azurecr.io
           command: "Run an image"
           imageName: "vscode-linux-build-agent:alpine-$(VSCODE_ARCH)"
+          arguments: --pull=always
           containerCommand: uname
         displayName: "Pull image"
         condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'))
