@@ -1628,6 +1628,8 @@ export class CopilotAgentSession extends Disposable {
 	 * replacing or clearing it disposes the old turn.
 	 */
 	private readonly _currentTurn = this._register(new MutableDisposable<CopilotTurn>());
+	/** Client of the latest root turn; keeps routing background subagent inference after that turn ends. */
+	private _lastTurnClientId: string | undefined;
 	private readonly _idleWaiters = new Set<DeferredPromise<boolean>>();
 	private readonly _completedTokenUsage = new Map<string, IAgentTurnTokenUsage>();
 	private _hasCompletedTurn = false;
@@ -2080,7 +2082,9 @@ export class CopilotAgentSession extends Disposable {
 			providerSessionState: this._wrapper.lifecycleState,
 		};
 	}
-	get currentTurnClientId(): string | undefined { return this._currentTurn.value?.senderClientId; }
+	get currentTurnClientId(): string | undefined {
+		return this._currentTurn.value?.senderClientId ?? (this.hasActiveSubagents ? this._lastTurnClientId : undefined);
+	}
 	get currentTurnClientType(): AgentHostClientType { return this._currentTurn.value?.clientType ?? AgentHostClientType.Unknown; }
 	get currentTurnClientContext(): IAgentHostClientTelemetryContext | undefined { return this._currentTurn.value?.clientContext; }
 
@@ -3934,6 +3938,7 @@ export class CopilotAgentSession extends Disposable {
 			toolSearchActive: this._isToolSearchActive(),
 			configuredServerCount: new Set([...this._getConfiguredMcpRoutingServers().keys(), ...this._copilotConnectorServers.keys()]).size,
 		}, this._telemetryService);
+		this._lastTurnClientId = senderClientId ?? this._lastTurnClientId;
 		this._currentTurn.value = new CopilotTurn(turnId, this._nextTurnOrdinal++, senderClientId, clientContext, this._getTelemetryContext(), providerInitiated, mcpUsage);
 		this.turnInteractionCorrelation.startTurn(turnId);
 		this._beginLocalModelTurn(turnId);
