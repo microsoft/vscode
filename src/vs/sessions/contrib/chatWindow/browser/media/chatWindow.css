@@ -57,6 +57,11 @@
 	--part-grid-card-radius: 0;
 }
 
+/* The strip's column shows the window behind the strip, as the main window's column does: only the strip is framed. */
+.monaco-workbench .agents-chat-window .part-grid-cell[data-part-grid-cell="strip"] > .part-grid-card {
+	--part-grid-card-background: transparent;
+}
+
 /* Compact density keeps the cards flush, without frames. */
 .monaco-workbench.modern-ui-compact .agents-chat-window .part-grid-cell > .part-grid-card {
 	--part-grid-card-border-width: 0;

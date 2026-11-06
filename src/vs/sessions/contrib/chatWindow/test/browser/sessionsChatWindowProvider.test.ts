@@ -547,13 +547,21 @@ suite('Sessions chat window provider', () => {
 			const stripRect = rect(docked);
 			const card = rect(stripElement.closest('.part-grid-card')!);
 			const mainCard = rect(host.querySelector(`[data-part-grid-cell="${ChatWindowGridCell.Main}"] > .part-grid-card`)!);
-			distances[density] = { insideItsCard: stripRect.left >= card.left && stripRect.right <= card.right, toCard: stripRect.left - mainCard.right, toEdge: rect(host).right - stripRect.right };
+			// The column shows the window behind the strip, as the main window's column does
+			const columnBackground = mainWindow.getComputedStyle(stripElement.closest('.part-grid-card')!).backgroundColor;
+			distances[density] = { insideItsCard: stripRect.left >= card.left && stripRect.right <= card.right, toCard: stripRect.left - mainCard.right, toEdge: rect(host).right - stripRect.right, columnBackground };
 			windowStore.dispose();
 		}
 
+		// The main window's geometry, between the boxes of the strip and of the card beside it: its grid ends the gap before
+		// the right edge of the window (`gridGutterW`), its column is right beside the card (no right margin there), and the
+		// strip is docked 2px inside the right of its column. A card shows its frame 1px inside its box in Default density,
+		// in both windows (the frame its content draws, inset by the stroke), so the visible distance to the card is 1px more.
+		const stripWidth = 30;
+		const strip = { toCard: SESSION_ACTIVITY_BAR_COLUMN_WIDTH - stripWidth - 2 };
 		assert.deepStrictEqual(distances, {
-			default: { insideItsCard: true, toCard: 6, toEdge: 2 },
-			compact: { insideItsCard: true, toCard: 2, toEdge: 2 },
+			default: { insideItsCard: true, toCard: strip.toCard, toEdge: 4 + 2, columnBackground: 'rgba(0, 0, 0, 0)' },
+			compact: { insideItsCard: true, toCard: strip.toCard, toEdge: 0 + 2, columnBackground: 'rgba(0, 0, 0, 0)' },
 		});
 	});
 
@@ -611,7 +619,7 @@ suite('Sessions chat window provider', () => {
 		assert.deepStrictEqual({ inTitleRow, classOn, overChatColumn, fullScreen, leftAsOnMacOS, windowedAgain }, { inTitleRow: 'none x none', classOn: true, overChatColumn: '138px x 30px', fullScreen: 'none x none', leftAsOnMacOS: 'none x none', windowedAgain: '138px x 30px' });
 	});
 
-	test('the cards keep the main window\'s gaps: between them and to the edges of the window but its top, where the title row is, and its right while the strip\'s column is there', () => {
+	test('the cards keep the main window\'s gaps: between them and to the edges of the window but its top, where the title row is, with the strip\'s column or without it', () => {
 		const store = disposables.add(new DisposableStore());
 		const { provider, configuration } = createProvider(store, []);
 		const withStrip = provider.look.outerInsets?.get();
@@ -619,7 +627,7 @@ suite('Sessions chat window provider', () => {
 
 		assert.deepStrictEqual({ gap: provider.look.gap.get(), withStrip, withoutStrip: provider.look.outerInsets?.get() }, {
 			gap: 4,
-			withStrip: { top: 0, right: 0, bottom: 4, left: 4 },
+			withStrip: { top: 0, right: 4, bottom: 4, left: 4 },
 			withoutStrip: { top: 0, right: 4, bottom: 4, left: 4 },
 		});
 	});

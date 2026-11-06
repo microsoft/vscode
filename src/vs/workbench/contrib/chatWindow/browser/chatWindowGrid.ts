@@ -754,16 +754,9 @@ export class ChatWindowGrid extends Disposable {
 			// Above the cards, as the title bar of a window is.
 			case ChatWindowGridCell.TitleRow: return { view: this._titleRow!, options: { keepsNoGap: true } };
 			case ChatWindowGridCell.Terminals: return { part: this._cells.terminals!.get()!, options: TERMINALS_OPTIONS };
-			default: return { view: this._strip!, options: { edgeChrome: Direction.Right } };
+			// Right beside the cards, without a gap, as the main window's column is: the strip in it keeps its own distance.
+			default: return { view: this._strip!, options: { edgeChrome: Direction.Right, keepsNoGap: true } };
 		}
-	}
-
-	/**
-	 * The width of the strip's cell: the strip, and the half of the gap the grid keeps on its left, to the cell beside it,
-	 * so that the cells beside it do not make that room once arranged, each losing a share of it, rounded.
-	 */
-	private _stripCellWidth(): number {
-		return (this._strip?.minimumWidth ?? 0) + Math.max(0, Math.floor(this._gap.get() / 2));
 	}
 
 	private _holdsMain(node: TopologyNode): boolean {
@@ -784,7 +777,7 @@ export class ChatWindowGrid extends Disposable {
 				return terminals ? (horizontal ? terminals.minimumWidth : terminals.minimumHeight) : 0;
 			}
 			case ChatWindowGridCell.TitleRow: return horizontal ? 0 : this._titleRow?.minimumHeight ?? 0;
-			default: return horizontal ? this._stripCellWidth() : 0;
+			default: return horizontal ? this._strip?.minimumWidth ?? 0 : 0;
 		}
 	}
 
@@ -825,7 +818,7 @@ export class ChatWindowGrid extends Disposable {
 				return horizontal ? undefined : this._titleRow?.minimumHeight ?? 0;
 			}
 			if (child.cell === ChatWindowGridCell.Strip) {
-				return horizontal ? this._stripCellWidth() : undefined;
+				return horizontal ? this._strip?.minimumWidth ?? 0 : undefined;
 			}
 			if (child.cell === ChatWindowGridCell.Terminals) {
 				return horizontal ? undefined : Math.min(total, this._terminalsHeight());

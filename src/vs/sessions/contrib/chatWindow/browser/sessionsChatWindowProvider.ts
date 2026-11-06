@@ -584,18 +584,16 @@ export class SessionsChatWindowProvider extends Disposable implements IChatWindo
 		this.onDidRemoveChats = Event.filter(Event.map(_sessionsManagementService.onDidChangeSessions, e => e.removed.flatMap(session => [session.resource, ...session.chats.get().map(chat => chat.resource)])), chats => chats.length > 0);
 
 		const density = observableConfigValue<ModernUIDensity>(LayoutSettings.MODERN_UI_DENSITY, ModernUIDensity.Default, _configurationService);
-		const stripShows = observableConfigValue<boolean>(SESSION_ACTIVITY_BAR_SETTING, true, _configurationService);
 		const showTabs = observableConfigValue<string | undefined>('workbench.editor.showTabs', undefined, _configurationService);
 		const tabHeight = observableConfigValue<string | undefined>('workbench.editor.tabHeight', undefined, _configurationService);
 		this._titleHeight = derived(this, reader => getChatWindowTitleHeight(tabHeight.read(reader) === 'compact', density.read(reader) !== ModernUIDensity.Compact));
 		this.look = {
 			// The parts are cards, as the main window's are, unless Layout Density is compact, which keeps them flush.
 			gap: derived(reader => density.read(reader) === ModernUIDensity.Compact ? 0 : AGENTS_FLOATING_PANEL_GAP),
-			// The cards keep the gap to the edges of the window as the main window's do; the title row is at the top. The
-			// strip's column takes the right edge, as the main window's does, keeping its own distance to it.
+			// The cards keep the gap to the edges of the window as the main window's do; the title row is at the top.
 			outerInsets: derived(reader => {
 				const gap = density.read(reader) === ModernUIDensity.Compact ? 0 : AGENTS_FLOATING_PANEL_GAP;
-				return { top: 0, right: stripShows.read(reader) ? 0 : gap, bottom: gap, left: gap };
+				return { top: 0, right: gap, bottom: gap, left: gap };
 			}),
 			className: AGENTS_CHAT_WINDOW_CLASS,
 			paintChatBackground: element => this._instantiationService.createInstance(SessionsChatSurface, element),
@@ -767,7 +765,7 @@ export class SessionsChatWindowProvider extends Disposable implements IChatWindo
 		});
 		return {
 			visible: observableConfigValue<boolean>(SESSION_ACTIVITY_BAR_SETTING, true, this._configurationService),
-			// The main window's column, at the right edge of the window; the grid adds the gap to the cards beside it.
+			// The main window's column, right beside the cards, as the strip keeps its own distance to them; see the grid.
 			size: constObservable(SESSION_ACTIVITY_BAR_COLUMN_WIDTH),
 			layout: () => { },
 			dispose: () => registration.dispose(),

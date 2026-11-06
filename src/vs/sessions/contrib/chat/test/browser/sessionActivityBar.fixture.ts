@@ -293,8 +293,8 @@ async function renderActivityBar(context: ComponentFixtureContext, options: IFix
 
 /**
  * The grid of a chat window around the chat, on the real part grid, whose cards clip what they show: the chat's card and,
- * at the right edge of the window, the strip's column, which the chat window's strip host takes, laid out with the chat
- * window's gap and outer insets (none at the top, where the title row is, nor at the right, where the strip's column is).
+ * right beside it, the strip's column, which the chat window's strip host takes, laid out with the chat window's gap and
+ * outer insets (none at the top, where the title row is).
  */
 function createChatWindowFrame({ container, disposableStore }: ComponentFixtureContext, density: 'default' | 'compact'): { readonly chat: HTMLElement; mount(instantiationService: IInstantiationService): { readonly width: number; readonly height: number } } {
 	const gap = density === 'compact' ? 0 : AGENTS_FLOATING_PANEL_GAP;
@@ -320,9 +320,9 @@ function createChatWindowFrame({ container, disposableStore }: ComponentFixtureC
 		mount: instantiationService => {
 			const grid = disposableStore.add(instantiationService.createInstance(PartGrid, frame));
 			grid.addView('chat', view(chat, undefined, (w, h) => chatSize = { width: w, height: h }));
-			grid.addView('strip', view(strip, SESSION_ACTIVITY_BAR_COLUMN_WIDTH), { edge: Direction.Right }, SESSION_ACTIVITY_BAR_COLUMN_WIDTH, { edgeChrome: Direction.Right });
+			grid.addView('strip', view(strip, SESSION_ACTIVITY_BAR_COLUMN_WIDTH), { edge: Direction.Right }, SESSION_ACTIVITY_BAR_COLUMN_WIDTH, { edgeChrome: Direction.Right, keepsNoGap: true });
 			grid.setGap(gap);
-			grid.setOuterInsets({ top: 0, right: 0, bottom: gap, left: gap });
+			grid.setOuterInsets({ top: 0, right: gap, bottom: gap, left: gap });
 			grid.layout(container.clientWidth, container.clientHeight);
 			return chatSize;
 		},

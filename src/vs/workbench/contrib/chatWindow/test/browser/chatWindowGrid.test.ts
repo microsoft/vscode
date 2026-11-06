@@ -948,7 +948,7 @@ suite('Chat window grid', () => {
 
 		assert.deepStrictEqual({ heights, split: `${grid.partGrid!.getCellSize(ChatWindowGridCell.Chat).width}/${grid.partGrid!.getCellSize(ChatWindowGridCell.Main).width}` }, {
 			heights: ['stacked 199', 'sideBySide 199', 'chatOnly 199', 'sideBySide 199', 'editorOnly 199', 'sideBySide 199'],
-			split: '476/680',
+			split: '476/682',
 		});
 	});
 
@@ -980,7 +980,7 @@ suite('Chat window grid', () => {
 		walk.push(read());
 		const restarted = create(grid.exportSizes());
 
-		assert.deepStrictEqual({ walk, restarted: restarted.read() }, { walk: ['476/680, terminals 105', '476/680, terminals 105'], restarted: '476/680, terminals 105' });
+		assert.deepStrictEqual({ walk, restarted: restarted.read() }, { walk: ['476/682, terminals 105', '476/682, terminals 105'], restarted: '476/682, terminals 105' });
 	});
 
 	test('a density round trip, default to compact and back, gives the chat and the main part back their exact widths', () => {
@@ -1001,7 +1001,7 @@ suite('Chat window grid', () => {
 		grid.setOuterInsets({ top: 0, left: 4, right: 4, bottom: 4 });
 
 		// Compact, the chat and the main part keep their shares of the room the insets leave
-		assert.deepStrictEqual({ before, compact, after: split() }, { before: '476/680', compact: '479/687', after: '476/680' });
+		assert.deepStrictEqual({ before, compact, after: split() }, { before: '476/682', compact: '479/687', after: '476/682' });
 	});
 
 	test('a change of density lays the grid out again once its styles apply, so that the cards read the frames of the new density', async () => {
@@ -1043,7 +1043,7 @@ suite('Chat window grid', () => {
 		assert.deepStrictEqual({ shown, heights, split: `${grid.partGrid!.getCellSize(ChatWindowGridCell.Chat).width}/${grid.partGrid!.getCellSize(ChatWindowGridCell.Main).width}` }, {
 			shown: '239',
 			heights: ['dragged 199', 'stacked 199', 'sideBySide 199', 'chatOnly 199', 'sideBySide 199', 'editorOnly 199', 'sideBySide 199'],
-			split: '476/680',
+			split: '476/682',
 		});
 	});
 
@@ -1110,7 +1110,7 @@ suite('Chat window grid', () => {
 		chatMinimumWidth = 280;
 		onDidChangeChat.fire(undefined);
 
-		assert.deepStrictEqual({ user, forced, again: roundTrip() }, { user: '476/680', forced: '505/651', again: '476/680' });
+		assert.deepStrictEqual({ user, forced, again: roundTrip() }, { user: '476/682', forced: '505/653', again: '476/682' });
 	});
 
 	test('closing the editor area, which shows only the chat, with the terminals under the editor keeps the terminals, across the window and as tall, and they go back under the editor as it shows again', () => {
