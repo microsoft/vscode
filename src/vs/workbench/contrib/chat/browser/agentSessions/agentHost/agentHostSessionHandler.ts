@@ -37,7 +37,8 @@ import { IChatSideChatOrigin, IChatSideChatSelection } from '../../../common/cha
 import { getTelemetryChatId } from '../../../../../../platform/agentHost/common/agentTelemetryCorrelation.js';
 import { IAgentHostConnectionsService } from '../../../../../../platform/agentHost/common/agentHostConnectionsService.js';
 import { IPosition } from '../../../../../../editor/common/core/position.js';
-import type { IRange } from '../../../../../../editor/common/core/range.js';
+import { Range, type IRange } from '../../../../../../editor/common/core/range.js';
+import { PositionOffsetTransformer } from '../../../../../../editor/common/core/text/positionToOffset.js';
 import { isLocation, type Location } from '../../../../../../editor/common/languages.js';
 import type { ITextModel } from '../../../../../../editor/common/model.js';
 import { IModelService } from '../../../../../../editor/common/services/model.js';
@@ -118,6 +119,7 @@ import {
 	type IElementVariableEntry,
 	type IImageVariableEntry
 } from '../../../common/attachments/chatVariableEntries.js';
+import { toAttachedContextDynamicVariable, type IDynamicVariable } from '../../../common/attachments/chatVariables.js';
 import { coerceImageBuffer } from '../../../common/chatImageExtraction.js';
 import { ChatErrorLevel, ChatRequestQueueKind, ConfirmedReason, ElicitationState, IChatProgress, IChatQuestionAnswers, IChatService, IChatToolInvocation, IRemotePendingRequest, ToolConfirmKind, type IChatAutoModeResolutionPart, type IChatMcpAuthenticationRequired, type IChatMcpAuthenticationRequiredServer, type IChatMcpStartingServer, type IChatMultiSelectAnswer, type IChatPlanReviewResult, type IChatResponseErrorDetails, type IChatSingleSelectAnswer, type IChatSubagentToolInvocationData, type IChatTerminalToolInvocationData, type IChatToolInvocationSerialized } from '../../../common/chatService/chatService.js';
 import { isInConversationModelChoice } from '../../../common/modelSelection.js';
@@ -142,6 +144,8 @@ import { getChatSessionType, isUntitledChatSession } from '../../../common/model
 import { IChatAgentData, IChatAgentImplementation, IChatAgentRequest, IChatAgentResult, IChatAgentService } from '../../../common/participants/chatAgents.js';
 import { ILanguageModelToolsService, IToolData, IToolResult, stringifyPromptTsxPart, ToolInvocationPresentation } from '../../../common/tools/languageModelToolsService.js';
 import { IChatWidgetService } from '../../chat.js';
+import { ChatDynamicVariableModel } from '../../attachments/chatDynamicVariables.js';
+import { ChatRequestDynamicVariablePart } from '../../../common/requestParser/chatParserTypes.js';
 import { AgentHostLocalModelSupport } from './agentHostLocalModelSupport.js';
 import { resolveAgentHostToolResultImage } from './agentHostToolResultImages.js';
 import { getComputerUseActivationCardText, getComputerUseSetupCardText, IComputerUseSetupService } from './computerUseSetup.js';
@@ -7400,6 +7404,46 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		if (draftState.synced && !hasLocalDraft) {
 			this._applyRemoteDraft(inputModel, sessionResource, draftState.synced);
 		}
+		const inputContent = (state: IChatModelInputState | undefined) => {
+			const references = state?.contrib[ChatDynamicVariableModel.ID] as readonly IDynamicVariable[] | undefined;
+			const positions = new PositionOffsetTransformer(state?.inputText ?? '');
+			return {
+				text: state?.inputText ?? '',
+				// Parsing adds reference ranges and materializes ordinary references as attachments.
+				attachments: state?.attachments.flatMap(attachment => {
+					const reference = attachment.range && references?.find(reference => {
+						if (reference.id !== attachment.id) {
+							return false;
+						}
+						const range = positions.getOffsetRange(Range.lift(reference.range));
+						return range.start === attachment.range?.start && range.endExclusive === attachment.range.endExclusive;
+					});
+					if (reference && !reference.isAttachmentReference && equals(reference.data, attachment.value) && equals(reference._meta, attachment._meta)) {
+						return [];
+					}
+					return [{ ...attachment, range: reference?.isAttachmentReference ? undefined : attachment.range }];
+				}) ?? [],
+				mode: state?.mode.id ?? ChatMode.Agent.id,
+				references: (references ?? []).map(reference => ({
+					...reference,
+					fullName: reference.fullName,
+					icon: reference.icon,
+					modelDescription: reference.modelDescription,
+					promptText: reference.promptText,
+					isFile: !!reference.isFile,
+					isDirectory: !!reference.isDirectory,
+					isAttachmentReference: !!reference.isAttachmentReference,
+					_meta: reference._meta,
+				})).sort((a, b) => Range.compareRangesUsingStarts(a.range, b.range) || a.id.localeCompare(b.id)),
+			};
+		};
+		let initialDraft = hasLocalDraft ? this._inputStateToDraft(sessionResource, initialInputState) : undefined;
+		if (initialDraft && draftState.remoteModel && !isInConversationModelChoice(initialInputState?.selectedModelReason)) {
+			initialDraft = { ...initialDraft, model: draftState.remoteModel };
+		}
+		let syncedInputState = !hasLocalDraft || equals(draftState.synced, initialDraft)
+			? inputModel.state.get()
+			: undefined;
 		// The last `draft` object seen on the chat channel. Protocol state is
 		// immutable, so an identical reference means the draft did not change —
 		// letting the listener bail on a reference check instead of a deep
@@ -7411,6 +7455,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 				return;
 			}
 			let draft = this._inputStateToDraft(sessionResource, state);
+			syncedInputState = state;
 			const chosen = isInConversationModelChoice(state?.selectedModelReason);
 			// Don't overwrite the channel's model with one we only fell back to.
 			if (draft && draftState.remoteModel && !chosen) {
@@ -7438,13 +7483,22 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			if (equals(draftState.synced, remoteDraft)) {
 				return;
 			}
-			const localDraft = this._inputStateToDraft(sessionResource, inputModel.state.get());
-			if (!equals(draftState.synced, localDraft)) {
+			const localState = inputModel.state.get();
+			const modelChanged = isInConversationModelChoice(localState?.selectedModelReason) && (
+				!isInConversationModelChoice(syncedInputState?.selectedModelReason)
+				|| !equals(
+					this._createModelSelection(syncedInputState?.selectedModel?.identifier, syncedInputState?.modelConfiguration),
+					this._createModelSelection(localState?.selectedModel?.identifier, localState?.modelConfiguration),
+				)
+			);
+			// Compare the applied input, not a potentially lossy protocol round trip.
+			if (modelChanged || !equals(inputContent(syncedInputState), inputContent(localState))) {
 				// The pending outbound debounce will publish the local edit (last writer wins).
 				return;
 			}
 			draftState.applyRemote(remoteDraft);
 			this._applyRemoteDraft(inputModel, sessionResource, remoteDraft);
+			syncedInputState = inputModel.state.get();
 		}));
 		store.add(toDisposable(() => {
 			delayer.cancel();
@@ -7459,6 +7513,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 				inputText: '',
 				selections: [],
 				attachments: [],
+				contrib: { ...inputModel.state.get()?.contrib, [ChatDynamicVariableModel.ID]: [] },
 				origin: ChatInputStateOrigin.Remote,
 			});
 			return;
@@ -7472,6 +7527,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			inputText: state.inputText,
 			selections: state.selections,
 			attachments: state.attachments,
+			contrib: { ...inputModel.state.get()?.contrib, ...state.contrib },
 			mode: state.mode,
 			origin: ChatInputStateOrigin.Remote,
 		};
@@ -7488,7 +7544,37 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		}
 		const model = this._createModelSelection(state.selectedModel?.identifier, state.modelConfiguration);
 		const agentUri = [ChatMode.Agent.id, ChatMode.Ask.id, ChatMode.Edit.id].includes(state.mode.id) ? undefined : this._config.connection.resourceUris.toAgentHost(URI.parse(state.mode.id)).toString();
-		const attachments = this._variableEntriesToAttachments(state.attachments, sessionResource, state.inputText, false);
+		const references = state.contrib[ChatDynamicVariableModel.ID] as readonly IDynamicVariable[] | undefined;
+		const positions = new PositionOffsetTransformer(state.inputText);
+		const variables = [...state.attachments];
+		for (const reference of references ?? []) {
+			const editorRange = Range.lift(reference.range);
+			const range = positions.getOffsetRange(editorRange);
+			if (range.isEmpty || !Range.equalsRange(positions.getRange(range), editorRange)) {
+				continue;
+			}
+			const attachment = reference.isAttachmentReference ? state.attachments.find(attachment => attachment.id === reference.id) : undefined;
+			if (reference.isAttachmentReference && !attachment) {
+				continue;
+			}
+			const part = new ChatRequestDynamicVariablePart(
+				range, editorRange, state.inputText.slice(range.start, range.endExclusive), reference.id,
+				reference.modelDescription, reference.data, reference.fullName, reference.icon,
+				reference.isFile, reference.isDirectory, reference._meta, reference.isAttachmentReference, reference.promptText,
+			);
+			const variable = attachment ? { ...attachment, range } : part.toVariableEntry();
+			const attachmentIndex = variables.findIndex(candidate => candidate.id === variable.id && (
+				(attachment && !candidate.range)
+				|| (candidate.range?.start === range.start && candidate.range.endExclusive === range.endExclusive
+					&& equals(candidate.value, variable.value) && equals(candidate._meta, variable._meta))
+			));
+			if (attachmentIndex >= 0) {
+				variables[attachmentIndex] = variable;
+			} else {
+				variables.push(variable);
+			}
+		}
+		const attachments = this._variableEntriesToAttachments(variables, sessionResource, state.inputText, false);
 		if (!state.inputText && !model && !agentUri && attachments.length === 0) {
 			return undefined;
 		}
@@ -7545,12 +7631,44 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		const modelId = this._toLanguageModelId(sessionResource, draft.model?.id);
 		const metadata = modelId ? this._languageModelsService.lookupLanguageModel(modelId) : undefined;
 		const variableData = messageAttachmentsToVariableData(draft.attachments, this._config.connectionAuthority, draft.text, this._config.connection.resourceUris);
+		const attachments: IChatRequestVariableEntry[] = [];
+		const references: IDynamicVariable[] = [];
+		const positions = new PositionOffsetTransformer(draft.text);
+		for (const variable of variableData?.variables ?? []) {
+			if (!variable.range) {
+				attachments.push(variable);
+				continue;
+			}
+			const range = Range.fromPositions(positions.getPosition(variable.range.start), positions.getPosition(variable.range.endExclusive));
+			if (range.startLineNumber !== range.endLineNumber) {
+				// Without a matching dynamic reference, the composer removes attachments that retain a parsed-reference range.
+				attachments.push({ ...variable, range: undefined });
+				continue;
+			}
+			if (variable.kind === 'file' || variable.kind === 'directory' || getAgentHostCompletionReferenceKind(variable)) {
+				references.push({
+					id: variable.id,
+					range,
+					fullName: variable.fullName ?? variable.name,
+					icon: variable.icon,
+					modelDescription: variable.modelDescription,
+					isFile: variable.kind === 'file',
+					isDirectory: variable.kind === 'directory',
+					data: variable.value,
+					_meta: variable._meta,
+				});
+			} else {
+				const attachment = { ...variable, range: undefined };
+				attachments.push(attachment);
+				references.push(toAttachedContextDynamicVariable(attachment, range));
+			}
+		}
 		const cursor = offsetToPosition(draft.text, draft.text.length);
 		const draftAgentUri = draft.agent ? URI.parse(draft.agent.uri) : undefined;
 		const agent = draftAgentUri && this._customizationService.getCustomAgents(sessionResource).find(agent => isEqual(URI.parse(agent.uri), draftAgentUri));
 		return {
-			attachments: variableData?.variables ?? [],
-			contrib: {},
+			attachments,
+			contrib: { [ChatDynamicVariableModel.ID]: references },
 			inputText: draft.text,
 			mode: {
 				id: draft.agent ? this._config.connection.resourceUris.fromAgentHost(URI.parse(draft.agent.uri)).toString() : ChatMode.Agent.id,

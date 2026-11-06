@@ -88,12 +88,13 @@ export const cacheWarmingJobs: Readonly<Record<string, ICacheWarmingJob>> = {
 		electron: { arch: 'x64' },
 		playwright: { arch: 'X64', browsers: '--only-shell chromium' },
 	},
-	'macOS': {
-		os: 'macOS',
-		nodeModules: { prefix: 'node_modules-macos', args: ['darwin', 'arm64', 'arm64'] },
-		electron: { arch: 'arm64' },
-		playwright: { arch: 'ARM64', browsers: '--only-shell chromium webkit' },
-	},
+	// Commented out with the macOS job of pr-node-modules.yml (see there).
+	// 'macOS': {
+	// 	os: 'macOS',
+	// 	nodeModules: { prefix: 'node_modules-macos', args: ['darwin', 'arm64', 'arm64'] },
+	// 	electron: { arch: 'arm64' },
+	// 	playwright: { arch: 'ARM64', browsers: '--only-shell chromium webkit' },
+	// },
 	'windows': {
 		os: 'Windows',
 		nodeModules: { prefix: 'node_modules-windows', args: ['win32', 'x64', 'x64'] },

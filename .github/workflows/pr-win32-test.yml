@@ -712,7 +712,7 @@ jobs:
   # Running every Electron smoke test takes one machine up to about 20 minutes, the timeout of the
   # step, so the shards split them over parallel machines (see .github/skills/smoke-tests/SKILL.md).
   # The WSL setup makes the first shard one of the slowest jobs of the workflow, so the smoke tests run
-  # in three shards on Windows, and in two on Linux and macOS.
+  # in three shards on Windows.
   electron-smoke-1:
     name: Electron-Smoke (shard 1/3)
     if: ${{ inputs.electron_smoke_affected }}

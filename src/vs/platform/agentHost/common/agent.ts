@@ -515,6 +515,91 @@ export type IAgentCustomizationInstallationApplyResult =
 	| { readonly kind: 'receipt'; readonly installationId: string }
 	| { readonly kind: 'plugin'; readonly name: string; readonly repository: string; readonly ref: string; readonly path: string };
 
+/** Where a configured MCP value is applied. Only remote categories reach prompts. */
+export type AgentCustomizationInstallationValueCategory = 'header' | 'url-variable';
+
+/** One non-secret value a transport choice needs. All text fields are untrusted plain text. */
+export interface IAgentCustomizationInstallationValuePrompt {
+	readonly key: string;
+	readonly category: AgentCustomizationInstallationValueCategory;
+	readonly valueType: 'string' | 'number' | 'boolean' | 'path' | 'enum';
+	readonly required: boolean;
+	readonly isRepeated: boolean;
+	/** Present means a default exists. */
+	readonly defaultValue?: string;
+	readonly title?: string;
+	readonly description?: string;
+	/** Non-empty for enum values only. */
+	readonly enumValues?: readonly string[];
+}
+
+/** One secret a transport choice needs, referenced by its exact plan placeholder. */
+export interface IAgentCustomizationInstallationSecretPrompt {
+	readonly key: string;
+	readonly placeholder: string;
+	readonly title?: string;
+}
+
+/** One remote transport choice a configuration request offers. */
+export interface IAgentCustomizationInstallationChoice {
+	readonly choiceId: string;
+	readonly transport: string;
+	/** The plan's endpoint summary, which may already include substituted defaults. Not a template. */
+	readonly endpointSummary?: string;
+	/** Names of the configuration fields this choice would set, without their values. */
+	readonly configurationFields: readonly string[];
+	readonly values: readonly IAgentCustomizationInstallationValuePrompt[];
+	readonly secrets: readonly IAgentCustomizationInstallationSecretPrompt[];
+}
+
+/** Identifies an owned installation record. The ownership token is only returned to its creating client. */
+export interface IAgentCustomizationInstallationHandle {
+	readonly hostGeneration: string;
+	readonly ownershipToken: string;
+}
+
+/** A prepared review bound to its creating client. */
+export interface IAgentCustomizationInstallationOwnedReview extends IAgentCustomizationInstallationHandle {
+	readonly kind: 'review';
+	readonly review: IAgentCustomizationInstallationReview;
+}
+
+/**
+ * The host needs a transport choice, values and secrets before it can install.
+ * The client collects them, shows the user what will be configured, and only
+ * then sends them once with the apply request.
+ */
+export interface IAgentCustomizationInstallationConfigurationRequest extends IAgentCustomizationInstallationHandle {
+	readonly kind: 'configuration';
+	readonly operationId: string;
+	readonly displayName: string;
+	readonly serverName: string;
+	/** The configuration destination. */
+	readonly target: string;
+	readonly recommendedChoiceId?: string;
+	readonly choices: readonly IAgentCustomizationInstallationChoice[];
+}
+
+export type IAgentCustomizationInstallationPreparation = IAgentCustomizationInstallationOwnedReview | IAgentCustomizationInstallationConfigurationRequest;
+
+/** The user's answers to a configuration request. The only DTO that carries submitted values or secrets. */
+export interface IAgentCustomizationInstallationAnswers {
+	readonly choiceId: string;
+	/** At most one entry per `(category, key)`. */
+	readonly inputs: readonly { readonly key: string; readonly category: AgentCustomizationInstallationValueCategory; readonly value: string }[];
+	/** One entry per exact plan placeholder. */
+	readonly secrets: readonly { readonly placeholder: string; readonly value: string }[];
+}
+
+/**
+ * Applies an exact owned operation once, after the user confirmed. Answers are
+ * required for a configuration request and refused for a review.
+ */
+export interface IAgentCustomizationInstallationApplyRequest extends IAgentCustomizationInstallationHandle {
+	readonly operationId: string;
+	readonly answers?: IAgentCustomizationInstallationAnswers;
+}
+
 export interface IAgentPluginInstallRequest {
 	readonly source: string;
 }
@@ -1928,11 +2013,11 @@ export interface IAgent {
 	/** List receipt-owned Skill and MCP installations through the provider SDK. */
 	listCustomizationInstallations?(session: URI): Promise<readonly IAgentCustomizationInstallation[]>;
 
-	/** Prepare an exact receipt-owned install or uninstall for explicit review. */
-	prepareCustomizationInstallation?(session: URI, request: IAgentCustomizationInstallationRequest | { readonly installationId: string }): Promise<IAgentCustomizationInstallationReview>;
+	/** Prepare an exact receipt-owned install or uninstall for its owner, or request configuration first. */
+	prepareCustomizationInstallation?(session: URI, request: IAgentCustomizationInstallationRequest | { readonly installationId: string }): Promise<IAgentCustomizationInstallationPreparation>;
 
-	/** Apply an exact operation previously returned for explicit review. */
-	applyCustomizationInstallation?(operationId: string): Promise<IAgentCustomizationInstallationApplyResult | undefined>;
+	/** Apply an exact owned review or configuration request once, with answers for the latter. Never retried. */
+	applyCustomizationInstallation?(request: IAgentCustomizationInstallationApplyRequest): Promise<IAgentCustomizationInstallationApplyResult | undefined>;
 
 	/** Reconcile receipt-owned installations and return the refreshed inventory. */
 	recoverCustomizationInstallations?(session: URI): Promise<readonly IAgentCustomizationInstallation[]>;
