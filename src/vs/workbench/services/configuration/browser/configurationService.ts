@@ -1360,6 +1360,8 @@ interface IKeyedExperimentalSetting {
 	readonly pending: Set<string>;
 	/** Keys with a real ExP assignment. */
 	readonly assigned: Set<string>;
+	/** The latest read of each key, to ignore older reads that finish after newer ones. */
+	readonly requests: Map<string, object>;
 	/** The resolved experiment value of each key. */
 	readonly values: Map<string, unknown>;
 }
@@ -1537,7 +1539,7 @@ export class ConfigurationDefaultOverridesContribution extends Disposable implem
 		const isAutoExperiment = experiment.mode === 'auto';
 		let setting = this.keyedExperimentalSettings.get(property);
 		if (setting?.schema !== schema) {
-			setting = { schema, processed: new Set(), pending: new Set(), assigned: new Set(), values: new Map() };
+			setting = { schema, processed: new Set(), pending: new Set(), assigned: new Set(), requests: new Map(), values: new Map() };
 			this.keyedExperimentalSettings.set(property, setting);
 		}
 		const current = setting;
@@ -1549,9 +1551,14 @@ export class ConfigurationDefaultOverridesContribution extends Disposable implem
 
 		const keys = [...this.experimentalSettingsService.getRequestedKeys(property)].filter(key => !current.processed.has(key) || (autoRefetch && (isAutoExperiment || current.pending.has(key))));
 		if (keys.length) {
-			for (const key of keys) {
+			// An `auto` key can be read again while an earlier read, such as the first read of a key requested late, is still
+			// resolving outside the refetch throttler.
+			const requests = keys.map(key => {
+				const request = {};
 				current.processed.add(key);
-			}
+				current.requests.set(key, request);
+				return request;
+			});
 			const treatments = await Promise.all(keys.map(async key => {
 				try {
 					return await this.workbenchAssignmentService.getTreatmentWithAssignment<string | number | boolean>(getConfigurationKeyExperimentName(property, experiment, key));
@@ -1567,6 +1574,10 @@ export class ConfigurationDefaultOverridesContribution extends Disposable implem
 				return;
 			}
 			keys.forEach((key, index) => {
+				const request = requests[index];
+				if (current.requests.get(key) !== request) {
+					return;
+				}
 				const treatment = treatments[index];
 				if (treatment?.value !== undefined) {
 					current.pending.delete(key);
@@ -1579,7 +1590,7 @@ export class ConfigurationDefaultOverridesContribution extends Disposable implem
 				}
 				if (treatment) {
 					assignmentUpdates.push(treatment.hasAssignment.then(assigned => {
-						if (!this._store.isDisposed && this.keyedExperimentalSettings.get(property) === current) {
+						if (!this._store.isDisposed && this.keyedExperimentalSettings.get(property) === current && current.requests.get(key) === request) {
 							if (assigned) {
 								current.assigned.add(key);
 							} else {

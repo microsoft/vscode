@@ -1007,6 +1007,32 @@ suite('ConfigurationDefaultOverridesContribution', () => {
 		});
 	});
 
+	test('ignores an older read of a keyed auto experiment key that finishes after a newer read', async () => {
+		const contribution = createTestContribution({});
+		const readDefault = registerKeyedConfiguration('auto');
+		const olderRead = new DeferredPromise<{ value: unknown; hasAssignment: Promise<boolean> }>();
+		const reads = [olderRead.p, Promise.resolve({ value: undefined, hasAssignment: Promise.resolve(false) })];
+		let read = 0;
+		contribution.workbenchAssignmentService = {
+			getTreatmentWithAssignment: async <T extends string | number | boolean>() => {
+				const { value, hasAssignment } = await reads[read++];
+				return { value: value as T | undefined, hasAssignment };
+			},
+		};
+
+		// The first read of a key that is requested late overlaps a refetch, which ends the key's assignment.
+		contribution.experimentalSettingsService.requestKeys(keyedSetting, ['first']);
+		const lateRequest = contribution.processExperimentalSettings([keyedSetting], false);
+		await contribution.processExperimentalSettings([keyedSetting], true);
+		olderRead.complete({ value: true, hasAssignment: Promise.resolve(true) });
+		await lateRequest;
+
+		assert.deepStrictEqual({ default: readDefault(), assigned: contribution.experimentalSettingsService.hasAssignment(keyedSetting) }, {
+			default: {},
+			assigned: false,
+		});
+	});
+
 	test('resolves the keys of a keyed experiment setting when they are requested after startup', async () => {
 		const treatments: Record<string, unknown> = { 'testKeyedExperimentalSetting.first': true, 'testKeyedExperimentalSetting.second': false };
 		const readDefault = registerKeyedConfiguration('startup');
