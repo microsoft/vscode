@@ -1979,6 +1979,42 @@ suite('SessionsManagementService', () => {
 			});
 		});
 
+		test('a stored grid of slots and a detached chat restores and saves back byte for byte (v1)', async () => {
+			const [a, b] = ['a', 'b'].map(created);
+			const main = a.mainChat.get();
+			const child: IChat = { ...main, resource: URI.parse('test:///a/child') };
+			const parent = { ...a, chats: constObservable([main, child]) };
+			const storage = disposables.add(new InMemoryStorageService());
+			const first = harness([parent, b], { storage });
+			await first.view.openSessionsInGrid([parent, b]);
+			first.view.toggleSessionStickiness(b);
+			await first.view.moveChatToGrid(parent.sessionId, child.resource, (Reflect.get(first.view, '_visibility') as VisibleSessions).getGridSlots()[1].id, 'down');
+			await storage.flush();
+			const stored = storage.get('agentSessions.gridState', StorageScope.WORKSPACE)!;
+			first.view.dispose();
+
+			const restored = harness([parent, b], { storage });
+			await restored.view.restoreVisibleSessions();
+			await storage.flush();
+			const state = JSON.parse(stored) as ISessionGridState;
+
+			assert.deepStrictEqual({
+				bindings: state.sessions.map(binding => ({ resource: binding.resource, chat: binding.chatResource, sticky: binding.sticky })),
+				panes: restored.view.panes.get().map(pane => ({ id: pane.id, kind: pane.kind, chat: detachedChatOf(pane)?.toString() })),
+				active: restored.view.activePane.get()?.id,
+				saved: storage.get('agentSessions.gridState', StorageScope.WORKSPACE) === stored,
+			}, {
+				bindings: [
+					{ resource: parent.resource.toString(), chat: undefined, sticky: false },
+					{ resource: b.resource.toString(), chat: undefined, sticky: true },
+					{ resource: parent.resource.toString(), chat: child.resource.toString(), sticky: false },
+				],
+				panes: state.sessions.map(binding => ({ id: binding.id, kind: binding.chatResource ? SessionGridPaneKind.Detached : SessionGridPaneKind.Slot, chat: binding.chatResource })),
+				active: state.active,
+				saved: true,
+			});
+		});
+
 		test('directional batch moves deduplicate, preserve pins, and retain created chat inputs', async () => {
 			const [a, b, c] = ['a', 'b', 'c'].map(created);
 			const { view, part, chatViews } = harness([a, b, c]);

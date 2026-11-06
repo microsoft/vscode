@@ -154,8 +154,8 @@ export class ClosedItemHistory extends Disposable {
 		}
 
 		if (!item.replacedBy && (!item.placement || !this._visibility.getSlot(item.placement.sessionId))) {
-			const active = this._visibility.setActive(session);
-			if (item.sticky && !active?.sticky.get()) {
+			this._visibility.setActive(session);
+			if (item.sticky && !this._visibility.getSlot(session.sessionId)?.sticky) {
 				this._visibility.toggleStickiness(session);
 			}
 			return;

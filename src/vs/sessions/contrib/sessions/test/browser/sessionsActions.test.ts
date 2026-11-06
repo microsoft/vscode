@@ -79,7 +79,7 @@ import { ChatContextKeys } from '../../../../../workbench/contrib/chat/common/ac
 import { resolveOnboardingTarget } from '../../../../../workbench/contrib/onboarding/browser/spotlight/onboardingTarget.js';
 import { ICustomViewService, ICustomViewDescriptor } from '../../../../../workbench/contrib/sessions/browser/customView.js';
 import { WindowCanvasInput, IWindowCanvasService } from '../../../../../workbench/contrib/sessions/browser/windowCanvas.js';
-import { ITestSessionsService, ITestSessionWithChat, stubMissingSessionHostsFromSessionsService, stubPaneHost, testGridPane, testGridPanes, withCreatedStatus } from '../../../../../workbench/contrib/sessions/test/browser/sessionHostTestUtils.js';
+import { ITestSessionsService, ITestSessionWithChat, ITestShownChat, stubMissingSessionHostsFromSessionsService, stubPaneHost, testGridPane, testGridPanes, withCreatedStatus } from '../../../../../workbench/contrib/sessions/test/browser/sessionHostTestUtils.js';
 import { ISessionGridPane, SessionGridPaneKind } from '../../../../../workbench/contrib/sessions/browser/sessionGridPane.js';
 
 suite('Sessions - Actions', () => {
@@ -1241,11 +1241,12 @@ suite('Sessions - Actions', () => {
 		grid.restoreGrid([{ session, sticky: false }], 0);
 		// A chat window shows the main chat: the slot stays for the unshown tool chat, and falls back to the main chat.
 		disposables.add(grid.hideChatFromGrid(session.sessionId, mainChat.resource));
-		const pane = grid.visibleSessions.get()[0]!;
+		const slot = grid.slotPanes.get()[0];
+		const pane: ITestShownChat = { session, chat: slot.chat.get()! };
 		const calls: string[] = [];
 		const instantiationService = disposables.add(new TestInstantiationService());
 		instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() {
-			readonly activeSession = constObservable<ITestSessionWithChat | undefined>(pane);
+			readonly activeSession = constObservable<ITestShownChat | undefined>(pane);
 			override closePane() { calls.push('grid closeSession'); }
 			override toggleSessionStickiness() { calls.push('grid pin'); }
 			override focusActiveSession() { }
@@ -1274,7 +1275,7 @@ suite('Sessions - Actions', () => {
 			await CommandsRegistry.getCommand(id)!.handler(instantiationService, ...paneArgs);
 		}
 
-		assert.deepStrictEqual({ fallenBackTo: pane.activeChat.get().resource.toString(), calls }, {
+		assert.deepStrictEqual({ fallenBackTo: slot.chat.get()?.resource.toString(), calls }, {
 			fallenBackTo: mainChat.resource.toString(),
 			calls: ['grid closeSession', 'grid pin'],
 		});

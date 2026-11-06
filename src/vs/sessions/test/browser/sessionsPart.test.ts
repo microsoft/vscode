@@ -67,7 +67,7 @@ suite('Sessions - Sessions Part', () => {
 		const others = ['first', 'second', 'third'].map(id => createTestActiveSession(id));
 		grid.restoreGrid([session, ...others].map(candidate => ({ session: candidate, sticky: false })), 0);
 		grid.moveChatToGrid(session, session.chats.get()[1], grid.getGridSlots()[3].id, Direction.Right);
-		grid.setActive(grid.gridSessions.get()[0]);
+		grid.setActive(grid.panes.get()[0]);
 		const [slot, detached] = [grid.panes.get()[0], grid.panes.get().at(-1)!];
 		part.updatePanes(grid.panes.get(), grid.activePane.get(), grid.getRenderedGridSlots());
 		part.layout(500, 600, 0, 0);

@@ -7,7 +7,7 @@ import { Disposable, DisposableMap, DisposableStore, IDisposable, toDisposable }
 import { IObservable, IReader, ISettableObservable, ITransaction, autorun, derived, observableValue, subtransaction, transaction } from '../../../../base/common/observable.js';
 import { URI } from '../../../../base/common/uri.js';
 import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
-import { IActiveSession, IHostSession, ISessionPaneTabs } from '../common/sessionsManagement.js';
+import { IActiveSession, ISessionPaneTabs } from '../common/sessionsManagement.js';
 import { ChatInteractivity, ChatOriginKind, IChat, ISession, SessionStatus } from '../common/session.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
 import { Direction } from '../../../../base/browser/ui/grid/grid.js';
@@ -371,6 +371,10 @@ class SessionGridPane implements ISessionGridPane {
 	}
 }
 
+function isGridPane(target: ISession | ISessionGridPane | undefined): target is ISessionGridPane {
+	return !!target && typeof (target as Partial<ISessionGridPane>).kind === 'string' && !!(target as Partial<ISessionGridPane>).tabs;
+}
+
 /**
  * Sentinel used to distinguish "no slot tracked" from the empty slot
  * (which is itself represented by `undefined` in the visible list).
@@ -397,8 +401,7 @@ const NO_RECENT = Symbol('no-recent');
 export class VisibleSessions extends Disposable {
 	private readonly _detached = new Map<string, { readonly slot: ISessionGridSlot; readonly wrapper: VisibleSession }>();
 	private readonly _detachedDisposables = this._register(new DisposableMap<string, DisposableStore>());
-	private readonly _gridSessions = observableValue<readonly (IActiveSession | undefined)[]>(this, [undefined]);
-	readonly gridSessions: IObservable<readonly (IActiveSession | undefined)[]> = this._gridSessions;
+	private readonly _gridSessions = observableValue<readonly (VisibleSession | undefined)[]>(this, [undefined]);
 
 	private readonly _panesById = new Map<string, SessionGridPane>();
 	private readonly _panes = observableValue<readonly SessionGridPane[]>(this, []);
@@ -411,28 +414,10 @@ export class VisibleSessions extends Disposable {
 		return [...this.getGridSlots(), ...[...this._detached.values()].map(entry => entry.slot)];
 	}
 
-	getGridSession(id: string): IActiveSession | undefined {
-		return [...this._detached.values()].find(entry => entry.slot.id === id)?.wrapper;
-	}
-
-	/** Whether `pane`, a pane's own session, is the active pane. */
-	isActivePane(pane: IHostSession | undefined): boolean {
-		return !!pane && this._activeSession.get() === pane;
-	}
-
-	/** Whether `pane`, a pane's own session, is a detached pane: one that shows a chat of its session apart from its slot. */
-	isDetachedPane(pane: IHostSession | undefined): boolean {
-		return !!pane && [...this._detached.values()].some(entry => entry.wrapper === pane);
-	}
-
-	/** Whether `pane`, a pane's own session, is one of the grid's panes: a slot or a detached pane. */
-	isGridPane(pane: IHostSession | undefined): boolean {
-		return !!pane && this._gridSessions.get().some(candidate => candidate === pane);
-	}
-
-	getChatPane(sessionId: string, resource: URI): IActiveSession | undefined {
-		const pane = this._detached.get(resource.toString())?.wrapper;
-		return pane?.sessionId === sessionId ? pane : undefined;
+	/** The detached pane of the chat `resource` of the session `sessionId`, if the grid shows that chat apart from its slot. */
+	getChatPane(sessionId: string, resource: URI): ISessionGridPane | undefined {
+		const entry = this._detached.get(resource.toString());
+		return entry?.wrapper.sessionId === sessionId ? this._panesById.get(entry.slot.id) : undefined;
 	}
 
 	insertAtGridSlot(session: ISession | undefined, reference: string, side: 'left' | 'right' | 'up' | 'down', activate: boolean, transaction?: ITransaction): void {
@@ -590,10 +575,10 @@ export class VisibleSessions extends Disposable {
 		}
 	}
 
-	private readonly _activeSession = observableValue<IActiveSession | undefined>(this, undefined);
-	readonly activeSession: IObservable<IActiveSession | undefined> = this._activeSession;
+	/** The adapter of the session incarnation the active pane shows; `undefined` while the new-session slot, or no pane, is. */
+	private readonly _activeSession = observableValue<VisibleSession | undefined>(this, undefined);
 
-	/** The pane of {@link activeSession}: the new-session slot's while that is active; `undefined` while no pane is. */
+	/** The active pane: the new-session slot's while that is active; `undefined` while no pane is. */
 	readonly activePane: IObservable<ISessionGridPane | undefined> = derived(this, reader => {
 		const active = this._activeSession.read(reader);
 		return this._panes.read(reader).find(pane => active
@@ -611,8 +596,12 @@ export class VisibleSessions extends Disposable {
 	private readonly _activePreserveFocus = observableValue<boolean>(this, false);
 	readonly activePreserveFocus: IObservable<boolean> = this._activePreserveFocus;
 
-	private readonly _visibleSessions = observableValue<readonly (IActiveSession | undefined)[]>(this, [undefined]);
-	readonly visibleSessions: IObservable<readonly (IActiveSession | undefined)[]> = this._visibleSessions;
+	/**
+	 * The sessions of the grid's slots, in order: the provider's sessions, and `undefined` for the new-session slot. Unlike
+	 * {@link slotPanes}, empty while the grid has no slot of its own yet.
+	 */
+	private readonly _slotSessions = observableValue<readonly (ISession | undefined)[]>(this, [undefined]);
+	readonly slotSessions: IObservable<readonly (ISession | undefined)[]> = this._slotSessions;
 
 	private readonly _wrappers = this._register(new DisposableMap<string, VisibleSession>());
 	/**
@@ -655,7 +644,7 @@ export class VisibleSessions extends Disposable {
 	 * guarantees the two observables are always consistent and that the intent
 	 * never goes stale (callers that do not preserve focus pass `false`).
 	 */
-	private _setActiveSession(session: IActiveSession | undefined, preserveFocus: boolean, tsx: ITransaction): void {
+	private _setActiveSession(session: VisibleSession | undefined, preserveFocus: boolean, tsx: ITransaction): void {
 		this._activeSession.set(session, tsx);
 		this._activePreserveFocus.set(preserveFocus, tsx);
 	}
@@ -663,6 +652,9 @@ export class VisibleSessions extends Disposable {
 	/**
 	 * Set the active session, updating the visibility model accordingly.
 	 *
+	 * - Passing a pane of this grid makes that pane active: a detached pane, a
+	 *   slot (as passing its session), or the new-session slot (as passing
+	 *   `undefined`). A pane that is not this grid's is ignored.
 	 * - Passing `undefined` places (or keeps) the single empty slot in the
 	 *   grid and makes it active. The empty slot is always non-sticky.
 	 * - If the session is already in the grid, its slot is preserved and only
@@ -673,15 +665,21 @@ export class VisibleSessions extends Disposable {
 	 *   - Else if a non-sticky slot exists, the most-recently opened
 	 *     non-sticky is replaced.
 	 *   - Else the session is appended at the end of the grid.
-	 *
-	 * Returns the wrapper for the active session, or `undefined` when the
-	 * active slot is the empty slot.
 	 */
-	setActive(session: ISession | undefined, preserveFocus: boolean = false): VisibleSession | undefined {
-		const detached = [...this._detached.values()].find(entry => entry.wrapper === session);
-		if (detached) {
-			transaction(tx => this._setActiveSession(detached.wrapper, preserveFocus, tx));
-			return detached.wrapper;
+	setActive(target: ISession | ISessionGridPane | undefined, preserveFocus: boolean = false): void {
+		let session: ISession | undefined;
+		if (isGridPane(target)) {
+			if (!(target instanceof SessionGridPane) || this._panesById.get(target.id) !== target) {
+				return;
+			}
+			const adapter = target.adapter.get();
+			if (adapter && target.kind === SessionGridPaneKind.Detached) {
+				transaction(tx => this._setActiveSession(adapter, preserveFocus, tx));
+				return;
+			}
+			session = adapter?.session;
+		} else {
+			session = target;
 		}
 		const targetId: string | undefined = session?.sessionId;
 		const targetHasVisibleSlot = this._visibleList.includes(targetId);
@@ -729,7 +727,6 @@ export class VisibleSessions extends Disposable {
 				this._refresh(tsx);
 			}
 		});
-		return visibleSession;
 	}
 
 	/**
@@ -923,12 +920,12 @@ export class VisibleSessions extends Disposable {
 	 * current grid size, so a stale index appends instead of failing. No-op
 	 * when the session is already visible.
 	 */
-	insertAtIndex(session: ISession, index: number, sticky: boolean): VisibleSession | undefined {
+	insertAtIndex(session: ISession, index: number, sticky: boolean): void {
 		const id = session.sessionId;
 		if (this._visibleList.includes(id)) {
 			const existing = this._wrappers.get(id);
 			transaction(tsx => this._setActiveSession(existing, false, tsx));
-			return existing;
+			return;
 		}
 
 		const destIdx = Math.max(0, Math.min(index, this._visibleList.length));
@@ -944,7 +941,6 @@ export class VisibleSessions extends Disposable {
 			this._setActiveSession(wrapper, false, tsx);
 			this._refresh(tsx);
 		});
-		return wrapper;
 	}
 
 	/**
@@ -952,13 +948,13 @@ export class VisibleSessions extends Disposable {
 	 * slot) with `session`, and make it active. Used to undo a grid
 	 * replacement, so the restored session lands exactly where it was and the
 	 * session that took its place leaves the grid. No-op when the slot is not
-	 * visible or the session is already visible elsewhere.
+	 * visible or the session is already visible elsewhere. Returns whether it replaced the slot.
 	 */
-	replaceSlot(slotId: string | undefined, session: ISession, sticky: boolean): VisibleSession | undefined {
+	replaceSlot(slotId: string | undefined, session: ISession, sticky: boolean): boolean {
 		const id = session.sessionId;
 		const idx = this._visibleList.indexOf(slotId);
 		if (idx < 0 || this._visibleList.includes(id)) {
-			return undefined;
+			return false;
 		}
 
 		this._visibleList.splice(idx, 1, id);
@@ -979,7 +975,7 @@ export class VisibleSessions extends Disposable {
 			this._setActiveSession(wrapper, false, tsx);
 			this._refresh(tsx);
 		});
-		return wrapper;
+		return true;
 	}
 
 	/**
@@ -1246,7 +1242,7 @@ export class VisibleSessions extends Disposable {
 			}
 		}
 		this.getGridSlots();
-		const wrappers: (IActiveSession | undefined)[] = [];
+		const wrappers: (VisibleSession | undefined)[] = [];
 		for (const id of this._visibleList) {
 			if (id === undefined) {
 				wrappers.push(undefined);
@@ -1258,7 +1254,7 @@ export class VisibleSessions extends Disposable {
 				wrappers.push(visibleSession);
 			}
 		}
-		this._visibleSessions.set(wrappers, tsx);
+		this._slotSessions.set(wrappers.map(wrapper => wrapper?.session), tsx);
 		this._gridSessions.set([...wrappers, ...[...this._detached.values()].map(entry => entry.wrapper)], tsx);
 		this._updatePanes(tsx);
 	}
@@ -1294,15 +1290,6 @@ export class VisibleSessions extends Disposable {
 	/** The pane of the grid slot `id`. */
 	getPane(id: string, reader?: IReader): ISessionGridPane | undefined {
 		return this._panes.read(reader).find(pane => pane.id === id);
-	}
-
-	/**
-	 * The adapter of the session incarnation `pane` shows, which the grid's `IActiveSession` members take; `undefined` for
-	 * the new-session slot and a pane that is not the grid's.
-	 */
-	getAdapterOfPane(pane: ISessionGridPane | undefined): VisibleSession | undefined {
-		const own = pane && this._panesById.get(pane.id);
-		return own === pane ? own?.adapter.get() : undefined;
 	}
 
 	private _getOrCreateVisibleSession(session: ISession): VisibleSession {

@@ -11687,7 +11687,7 @@ suite('LocalAgentHostSessionsProvider', () => {
 			visibility.setActive(session);
 			const activeChatFragments: string[] = [];
 			disposables.add(autorun(reader => {
-				activeChatFragments.push(visibility.activeSession.read(reader)!.activeChat.read(reader).resource.fragment);
+				activeChatFragments.push(visibility.activePane.read(reader)!.chat.read(reader)!.resource.fragment);
 			}));
 			const catalogFragments: string[][] = [];
 			disposables.add(autorun(reader => {
