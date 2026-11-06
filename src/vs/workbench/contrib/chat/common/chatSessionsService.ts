@@ -8,11 +8,11 @@ import { IStringDictionary } from '../../../../base/common/collections.js';
 import { Event } from '../../../../base/common/event.js';
 import { IMarkdownString } from '../../../../base/common/htmlContent.js';
 import { IDisposable } from '../../../../base/common/lifecycle.js';
-import { IObservable } from '../../../../base/common/observable.js';
+import { IObservable, IReader } from '../../../../base/common/observable.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { URI } from '../../../../base/common/uri.js';
 import { IPosition } from '../../../../editor/common/core/position.js';
-import { isCopilotAgentHostSessionType, isRemoteAgentHostSessionType } from '../../../../platform/agentHost/common/agentHostSessionType.js';
+import { CLOUD_SANDBOX_TASK_SCHEME, isCopilotAgentHostSessionType, isRemoteAgentHostSessionType } from '../../../../platform/agentHost/common/agentHostSessionType.js';
 import type { IAgentModelConfigurationReport } from '../../../../platform/agentHost/common/agentModelConfiguration.js';
 import { createDecorator, ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
 import { Registry } from '../../../../platform/registry/common/platform.js';
@@ -211,6 +211,8 @@ export interface IChatSessionsExtensionPoint {
 	 */
 	readonly customAgentTarget?: Target;
 	readonly requiresCustomModels?: boolean;
+	/** Resolves the model pool for a catalog conversation without acquiring its runtime. Undefined keeps the pool unavailable. */
+	readonly modelSessionType?: (resource: URI, reader?: IReader) => string | undefined;
 	/**
 	 * Whether this session type supports the synthetic "Auto" model fallback.
 	 * Defaults to true. When false and no models are available, the picker
@@ -292,7 +294,7 @@ export interface IChatSessionItem {
 	 * Resource identifier the item was previously known by. When set, host-stored
 	 * per-resource state (archive, pin, read) recorded under that URI is adopted
 	 * forward onto {@link resource} on first state read, and the legacy entry is
-	 * removed. Scheme must match {@link resource}'s scheme; otherwise ignored.
+	 * removed. Cross-scheme migration requires the controller's explicit previous-resource mapping.
 	 */
 	readonly legacyResource?: URI;
 }
@@ -366,6 +368,8 @@ export type IChatSessionHistoryItem = {
 	details?: string;
 	elapsedMs?: number;
 	completedAt?: number;
+	/** Whether the response was cancelled rather than completed. */
+	isCanceled?: boolean;
 	/**
 	 * Error details for a failed response. Rendered as a proper chat error
 	 * (including the quota-exceeded upgrade affordance), mirroring the live
@@ -462,7 +466,7 @@ export function isRemoteAgentHostTarget(target: string): boolean {
  * Matches the local agent host (`agent-host-*`) and remote agent hosts (`remote-*`).
  */
 export function isAgentHostTarget(target: string): boolean {
-	return isLocalAgentHostTarget(target) || isRemoteAgentHostTarget(target);
+	return target === CLOUD_SANDBOX_TASK_SCHEME || isLocalAgentHostTarget(target) || isRemoteAgentHostTarget(target);
 }
 
 export function isAgentHostSessionResource(resource: URI): boolean {
@@ -475,7 +479,7 @@ export function isAgentHostSessionResource(resource: URI): boolean {
  * either a remote agent host session type, or the Copilot harness of a remote editor window.
  */
 export function getAddModelsUnavailableReason(sessionType: string | undefined, remoteAuthority: string | undefined): string | undefined {
-	if (sessionType && isCopilotAgentHostSessionType(sessionType) && (isRemoteAgentHostSessionType(sessionType) || !!remoteAuthority)) {
+	if (sessionType && isCopilotAgentHostSessionType(sessionType) && (sessionType === CLOUD_SANDBOX_TASK_SCHEME || isRemoteAgentHostSessionType(sessionType) || !!remoteAuthority)) {
 		return localize('chat.addModels.remoteCopilotUnsupported', "BYOK models aren't supported in remote Copilot sessions");
 	}
 	return undefined;
@@ -633,6 +637,13 @@ export interface IChatSession extends IDisposable {
 	transferredState?: {
 		readonly editingSession: IChatEditingSession | undefined;
 		readonly inputState: ISerializableChatModelInputState | undefined;
+		/**
+		 * The language model the transferred draft selects. Set even when
+		 * {@link inputState} has no `selectedModel` because the model's metadata
+		 * is not available yet (cold restore), so the restore can wait for that
+		 * model instead of falling back to the request history's.
+		 */
+		readonly selectedModelId?: string;
 	};
 
 	requestHandler?: (
@@ -686,6 +697,8 @@ export interface IChatSessionContentProvider {
 	 * sessions handled by this content provider.
 	 */
 	provideChatInputCompletionTriggerCharacters?(): Promise<readonly string[]>;
+	/** Fires when the provider's announced completion trigger characters change. */
+	readonly onDidChangeChatInputCompletionTriggerCharacters?: Event<void>;
 }
 
 /**
@@ -866,6 +879,21 @@ export interface IChatSessionItemsDelta {
 /** Automatic refreshes may reuse fresh data instead of starting another fetch. */
 export type ChatSessionRefreshReason = 'initial' | 'automatic' | 'manual';
 
+export type ChatSessionArchiveDiscoveryState = 'idle' | 'loading' | 'loaded' | 'error';
+
+/** Optional inventory capability, independent of the controllers created for discovered sessions. */
+export interface IChatSessionItemArchiveProvider {
+	/** Initial discovery state; cached results remain loaded during refreshes. */
+	readonly state: IObservable<ChatSessionArchiveDiscoveryState>;
+	/** Requests archived discovery while at least one archive-history surface needs it. */
+	setRequested(requested: boolean): void;
+}
+
+export interface IChatSessionItemArchiveState {
+	readonly available: boolean;
+	readonly state: ChatSessionArchiveDiscoveryState;
+}
+
 export interface IChatSessionItemController {
 
 	readonly onDidChangeChatSessionItems: Event<IChatSessionItemsDelta>;
@@ -873,6 +901,8 @@ export interface IChatSessionItemController {
 	get items(): readonly IChatSessionItem[];
 
 	refresh(token: CancellationToken, reason?: ChatSessionRefreshReason): Promise<void>;
+	/** Returns a previously owned identity without resolving or connecting its execution. */
+	getPreviousSessionResource?(resource: URI): URI | undefined;
 
 	newChatSessionItem?(request: IChatNewSessionRequest, token: CancellationToken): Promise<IChatSessionItem | undefined>;
 
@@ -994,6 +1024,10 @@ export interface IChatSessionCommitEvent {
 export const IChatSessionsService = createDecorator<IChatSessionsService>('chatSessionsService');
 
 export interface IChatSessionsService {
+	readonly archivedSessionItems: IObservable<IChatSessionItemArchiveState>;
+	registerChatSessionItemArchiveProvider(provider: IChatSessionItemArchiveProvider): IDisposable;
+	/** Acquire while archived history is expanded or otherwise explicitly requested. */
+	acquireArchivedSessionItems(): IDisposable;
 	readonly _serviceBrand: undefined;
 
 	// #region Chat session item provider support
@@ -1051,6 +1085,8 @@ export interface IChatSessionsService {
 	 * Returns the resolved item, or undefined if no resolve handler is available.
 	 */
 	resolveChatSessionItem(chatSessionType: string, resource: URI, token: CancellationToken): Promise<IChatSessionItem | undefined>;
+	/** Explicit controller-owned identity migration, independent of untrusted item metadata. */
+	getPreviousChatSessionResource?(resource: URI): URI | undefined;
 
 	/**
 	 * Whether the registered item controller owns archived state for the session.
@@ -1075,7 +1111,8 @@ export interface IChatSessionsService {
 	// #endregion
 
 	// #region Content provider support
-	readonly onDidChangeContentProviderSchemes: Event<{ readonly added: string[]; readonly removed: string[] }>;
+	/** Content-provider registrations and completion capability changes, identified by scheme. */
+	readonly onDidChangeContentProviderSchemes: Event<{ readonly added: string[]; readonly removed: string[]; readonly changed?: readonly string[] }>;
 
 	getContentProviderSchemes(): string[];
 

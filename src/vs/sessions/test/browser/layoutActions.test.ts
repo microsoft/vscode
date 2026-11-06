@@ -18,9 +18,10 @@ import { LayoutDensityMenu } from '../../../workbench/browser/actions/layoutDens
 import { SecondarySideBarVisibleContext } from '../../../workbench/common/contextkeys.js';
 import { TogglePanelAction } from '../../../workbench/browser/parts/panel/panelActions.js';
 import { LayoutSettings, Parts } from '../../../workbench/services/layout/browser/layoutService.js';
-import { Menus } from '../../browser/menus.js';
+import { Menus } from '../../../workbench/contrib/sessions/browser/menus.js';
+import { AgentsWindowMenus } from '../../browser/agentsWindowMenus.js';
 import { TOGGLE_SESSION_ACTIVITY_BAR_COMMAND_ID, TOGGLE_SESSION_ACTIVITY_BAR_LAYOUT_ACTIONS_COMMAND_ID } from '../../browser/layoutActions.js';
-import { SESSION_ACTIVITY_BAR_LAYOUT_ACTIONS_SETTING, SESSION_ACTIVITY_BAR_SETTING } from '../../common/sessionConfig.js';
+import { SESSION_ACTIVITY_BAR_LAYOUT_ACTIONS_SETTING, SESSION_ACTIVITY_BAR_SETTING } from '../../../workbench/contrib/sessions/common/sessionConfig.js';
 import { TestConfigurationService } from '../../../platform/configuration/test/common/testConfigurationService.js';
 import { upcastPartial } from '../../../base/test/common/mock.js';
 
@@ -52,7 +53,7 @@ suite('Sessions - Layout Actions', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('offers shared layout density commands in the title bar menu and the desktop View > Appearance menu', () => {
-		const parents = [Menus.TitleBarContext, MenuId.MenubarAppearanceMenu, MenuId.MenubarViewMenu].map(menu =>
+		const parents = [AgentsWindowMenus.TitleBarContext, MenuId.MenubarAppearanceMenu, MenuId.MenubarViewMenu].map(menu =>
 			MenuRegistry.getMenuItems(menu).filter(isISubmenuItem).find(item => item.submenu === LayoutDensityMenu));
 		const options = MenuRegistry.getMenuItems(LayoutDensityMenu).filter(isIMenuItem);
 
@@ -190,7 +191,7 @@ suite('Sessions - Layout Actions', () => {
 
 	test('shows the panel toggle below the tab entries of the session activity bar only while it can show there', () => {
 		const find = (menu: MenuId) => MenuRegistry.getMenuItems(menu).filter(isIMenuItem).filter(item => item.command.id === TogglePanelAction.ID);
-		const titleBar = find(Menus.TitleBarSessionMenu).find(item => item.command.title === 'Show Panel');
+		const titleBar = find(AgentsWindowMenus.TitleBarSessionMenu).find(item => item.command.title === 'Show Panel');
 		const activityBar = find(Menus.SessionActivityBar).find(item => item.command.title === 'Show Panel');
 		// Where the toggle shows in each layout, for a hidden panel and a closed welcome view in the main window.
 		const base: Record<string, ContextKeyValue> = { agentSessionsDesktopLayout: true, [`config.${SESSION_ACTIVITY_BAR_SETTING}`]: true, [`config.${SESSION_ACTIVITY_BAR_LAYOUT_ACTIONS_SETTING}`]: true };
@@ -222,7 +223,7 @@ suite('Sessions - Layout Actions', () => {
 	});
 
 	test('always-on-top toggle action is contributed to TitleBarRight', () => {
-		const items = MenuRegistry.getMenuItems(Menus.TitleBarRightLayout);
+		const items = MenuRegistry.getMenuItems(AgentsWindowMenus.TitleBarRightLayout);
 		const menuItems = items.filter(isIMenuItem);
 
 		const toggleAlwaysOnTop = menuItems.find(item => item.command.id === 'workbench.action.toggleWindowAlwaysOnTop');
@@ -232,7 +233,7 @@ suite('Sessions - Layout Actions', () => {
 	});
 
 	test('screen reader optimized action uses a title bar toolbar menu', () => {
-		const item = MenuRegistry.getMenuItems(Menus.TitleBarAccessibility)
+		const item = MenuRegistry.getMenuItems(AgentsWindowMenus.TitleBarAccessibility)
 			.filter(isIMenuItem)
 			.find(item => item.command.id === 'editor.action.toggleScreenReaderAccessibilityMode');
 
@@ -248,7 +249,7 @@ suite('Sessions - Layout Actions', () => {
 	});
 
 	test('bottom panel layout action replaces the terminal action in the session title bar', () => {
-		const items = MenuRegistry.getMenuItems(Menus.TitleBarSessionMenu).filter(isIMenuItem);
+		const items = MenuRegistry.getMenuItems(AgentsWindowMenus.TitleBarSessionMenu).filter(isIMenuItem);
 		const panelActions = items
 			.filter(item => item.command.id === TOGGLE_PANEL_ACTION_ID)
 			.map(item => ({
@@ -291,7 +292,7 @@ suite('Sessions - Layout Actions', () => {
 		const alignmentItems = MenuRegistry.getMenuItems(MenuId.ViewTitle)
 			.filter(isIMenuItem)
 			.filter(item => item.command.id === LEGACY_TOGGLE_PANEL_ALIGNMENT_ACTION_ID);
-		const panelTitleAlignmentItems = MenuRegistry.getMenuItems(Menus.PanelTitle)
+		const panelTitleAlignmentItems = MenuRegistry.getMenuItems(AgentsWindowMenus.PanelTitle)
 			.filter(isIMenuItem)
 			.filter(item => item.command.id === LEGACY_TOGGLE_PANEL_ALIGNMENT_ACTION_ID);
 

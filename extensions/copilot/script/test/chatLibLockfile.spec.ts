@@ -4,109 +4,98 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { expect, suite, test } from 'vitest';
-import { copyLockedDependencies, DependencyKind, PnpmLockfile } from '../build/chatLibLockfile';
+import { DependencyKind, lockChatLibDependencies, PnpmLockfile } from '../build/chatLibLockfile';
 
 type Importer = PnpmLockfile['importers'][string];
 
 /**
- * Creates a lockfile with the given importer and a package and snapshot entry for each of the given
- * snapshot keys (`name@version`, optionally with resolved peers), mapped to their dependencies.
+ * Creates Copilot's lockfile with Copilot's project (`.`), chat-lib's project (`chat-lib`) and a
+ * package and snapshot entry for each of the given snapshot keys (`name@version`, optionally with
+ * resolved peers), mapped to their dependencies.
  */
-function lockfile(importer: Importer, entries: Record<string, Record<string, string>>): PnpmLockfile {
+function lockfile(copilot: Importer, chatLib: Importer, entries: Record<string, Record<string, string>>): PnpmLockfile {
 	return {
-		importers: { '.': importer },
-		packages: Object.fromEntries(Object.keys(entries).map(key => [key.replace(/\(.*$/, ''), { resolution: { integrity: `sha512-${key}` } }])),
+		importers: { '.': copilot, 'chat-lib': chatLib },
+		packages: Object.fromEntries(Object.keys(entries).map(key => [key.replace(/\(.*$/, ''), { resolution: { integrity: `sha512-${key.replace(/\(.*$/, '')}` } }])),
 		snapshots: Object.fromEntries(Object.entries(entries).map(([key, dependencies]) => [key, Object.keys(dependencies).length > 0 ? { dependencies } : {}])),
 	};
 }
 
-function update(copilot: PnpmLockfile, chatLib: PnpmLockfile, changed: Record<string, DependencyKind>, removed: string[] = []) {
-	const copied = copyLockedDependencies(copilot, chatLib, new Map(Object.entries(changed)), new Set(removed));
-	return { copied, chatLib };
+function update(input: PnpmLockfile, changed: Record<string, DependencyKind>, removed: string[] = []) {
+	const locked = lockChatLibDependencies(input, 'chat-lib', new Map(Object.entries(changed)), new Set(removed));
+	return { locked, lockfile: input };
 }
 
-suite('copyLockedDependencies', () => {
-	test('a rollback within a compatible range selects Copilot\'s version', () => {
-		const copilot = lockfile({ dependencies: { 'jsonc-parser': { specifier: '^3.1.0', version: '3.1.0' } } }, { 'jsonc-parser@3.1.0': {} });
-		const chatLib = lockfile({ dependencies: { 'jsonc-parser': { specifier: '^3.2.0', version: '3.2.0' } } }, { 'jsonc-parser@3.2.0': {} });
-		expect(update(copilot, chatLib, { 'jsonc-parser': 'dependencies' })).toEqual({
-			copied: 1,
-			chatLib: lockfile({ dependencies: { 'jsonc-parser': { specifier: '^3.1.0', version: '3.1.0' } } }, { 'jsonc-parser@3.1.0': {} }),
+suite('lockChatLibDependencies', () => {
+	test('a rollback within a compatible range selects Copilot\'s version and drops chat-lib\'s', () => {
+		const copilot = { dependencies: { 'jsonc-parser': { specifier: '^3.1.0', version: '3.1.0' } } };
+		expect(update(lockfile(copilot, {
+			dependencies: { 'jsonc-parser': { specifier: '^3.2.0', version: '3.2.0' } },
+		}, { 'jsonc-parser@3.1.0': {}, 'jsonc-parser@3.2.0': {} }), { 'jsonc-parser': 'dependencies' })).toEqual({
+			locked: 1,
+			lockfile: lockfile(copilot, {
+				dependencies: { 'jsonc-parser': { specifier: '^3.1.0', version: '3.1.0' } },
+			}, { 'jsonc-parser@3.1.0': {} }),
 		});
 	});
 
-	test('an upgrade copies Copilot\'s subtree, replacing shared entries, and drops unused ones', () => {
-		const copilot = lockfile({
+	test('an upgrade uses Copilot\'s entries, with resolved peers, and drops the ones no project uses', () => {
+		const copilot = {
 			dependencies: { a: { specifier: '^2.0.0', version: '2.0.0(p@1.0.0)' }, b: { specifier: '^1.0.0', version: '1.0.0' }, p: { specifier: '^1.0.0', version: '1.0.0' } },
-		}, {
+		};
+		const entries = {
 			'a@2.0.0(p@1.0.0)': { c: '1.0.0', p: '1.0.0' },
 			'b@1.0.0': { c: '1.0.0' },
-			'c@1.0.0': { d: '1.1.0' },
-			'd@1.1.0': {},
+			'c@1.0.0': {},
 			'p@1.0.0': {},
-		});
-		const chatLib = lockfile({
+		};
+		expect(update(lockfile(copilot, {
 			dependencies: { a: { specifier: '^1.0.0', version: '1.0.0' }, b: { specifier: '^1.0.0', version: '1.0.0' } },
-		}, {
-			'a@1.0.0': { e: '1.0.0' },
-			'b@1.0.0': { c: '1.0.0' },
-			'c@1.0.0': { d: '1.0.0' },
-			'd@1.0.0': {},
-			'e@1.0.0': {},
-		});
-		expect(update(copilot, chatLib, { a: 'dependencies' })).toEqual({
-			copied: 4,
-			chatLib: lockfile({
+		}, { ...entries, 'a@1.0.0': { e: '1.0.0' }, 'e@1.0.0': {} }), { a: 'dependencies' })).toEqual({
+			locked: 1,
+			lockfile: lockfile(copilot, {
 				dependencies: { a: { specifier: '^2.0.0', version: '2.0.0(p@1.0.0)' }, b: { specifier: '^1.0.0', version: '1.0.0' } },
-			}, {
-				'a@2.0.0(p@1.0.0)': { c: '1.0.0', p: '1.0.0' },
-				'b@1.0.0': { c: '1.0.0' },
-				'c@1.0.0': { d: '1.1.0' },
-				'd@1.1.0': {},
-				'p@1.0.0': {},
-			}),
+			}, entries),
 		});
 	});
 
-	test('an npm alias is locked to the aliased package', () => {
-		const copilot = lockfile({
+	test('an npm alias is locked to the aliased package, also when it moves to another section', () => {
+		const copilot = {
 			devDependencies: { typescript: { specifier: 'npm:@typescript/typescript6@^6.0.2', version: '@typescript/typescript6@6.0.2' } },
-		}, {
-			'@typescript/typescript6@6.0.2': { '@typescript/old': 'typescript@6.0.3' },
-			'typescript@6.0.3': {},
-		});
-		const chatLib = lockfile({ devDependencies: { typescript: { specifier: '^5.8.3', version: '5.8.3' } } }, { 'typescript@5.8.3': {} });
-		expect(update(copilot, chatLib, { typescript: 'devDependencies' })).toEqual({
-			copied: 2,
-			chatLib: lockfile({
+		};
+		expect(update(lockfile(copilot, {
+			dependencies: { typescript: { specifier: '^5.8.3', version: '5.8.3' } },
+		}, { '@typescript/typescript6@6.0.2': {}, 'typescript@5.8.3': {} }), { typescript: 'devDependencies' })).toEqual({
+			locked: 1,
+			lockfile: lockfile(copilot, {
 				devDependencies: { typescript: { specifier: 'npm:@typescript/typescript6@^6.0.2', version: '@typescript/typescript6@6.0.2' } },
-			}, {
-				'@typescript/typescript6@6.0.2': { '@typescript/old': 'typescript@6.0.3' },
-				'typescript@6.0.3': {},
-			}),
+			}, { '@typescript/typescript6@6.0.2': {} }),
 		});
 	});
 
-	test('a removed dependency and its entries are dropped', () => {
-		const copilot = lockfile({ dependencies: { a: { specifier: '^1.0.0', version: '1.0.0' } } }, { 'a@1.0.0': {} });
-		const chatLib = lockfile({
+	test('a removed dependency is dropped; its entries stay while Copilot uses them', () => {
+		const copilot = { dependencies: { a: { specifier: '^1.0.0', version: '1.0.0' }, c: { specifier: '^1.0.0', version: '1.0.0' } } };
+		expect(update(lockfile(copilot, {
 			dependencies: { a: { specifier: '^1.0.0', version: '1.0.0' } },
 			devDependencies: { b: { specifier: '^1.0.0', version: '1.0.0' } },
-		}, { 'a@1.0.0': {}, 'b@1.0.0': { c: '1.0.0' }, 'c@1.0.0': {} });
-		expect(update(copilot, chatLib, {}, ['b'])).toEqual({
-			copied: 0,
-			chatLib: lockfile({ dependencies: { a: { specifier: '^1.0.0', version: '1.0.0' } } }, { 'a@1.0.0': {} }),
+		}, { 'a@1.0.0': {}, 'b@1.0.0': { c: '1.0.0', d: '1.0.0' }, 'c@1.0.0': {}, 'd@1.0.0': {} }), {}, ['b'])).toEqual({
+			locked: 0,
+			lockfile: lockfile(copilot, {
+				dependencies: { a: { specifier: '^1.0.0', version: '1.0.0' } },
+			}, { 'a@1.0.0': {}, 'c@1.0.0': {} }),
 		});
 	});
 
-	test('fails instead of resolving when an entry is missing', () => {
-		const chatLib = () => lockfile({ dependencies: { a: { specifier: '^1.0.0', version: '1.0.0' } } }, { 'a@1.0.0': {} });
+	test('fails instead of resolving when a version or an entry is missing', () => {
+		const chatLib = { dependencies: { a: { specifier: '^1.0.0', version: '1.0.0' } } };
 		expect([
-			() => update(lockfile({}, {}), chatLib(), { a: 'dependencies' }),
-			() => update(lockfile({ dependencies: { a: { specifier: '^2.0.0', version: '2.0.0' } } }, { 'a@2.0.0': { b: '1.0.0' } }), chatLib(), { a: 'dependencies' }),
+			() => update(lockfile({}, chatLib, { 'a@1.0.0': {} }), { a: 'dependencies' }),
+			() => update(lockfile({ dependencies: { a: { specifier: '^2.0.0', version: '2.0.0' } } }, chatLib, { 'a@1.0.0': {}, 'a@2.0.0': { b: '1.0.0' } }), { a: 'dependencies' }),
+			() => lockChatLibDependencies(lockfile({}, {}, {}), 'other', new Map(), new Set()),
 		].map(fn => { try { fn(); return 'no error'; } catch (error) { return (error as Error).message; } })).toEqual([
 			'Copilot\'s pnpm-lock.yaml doesn\'t lock a version of a that chat-lib can use.',
-			'Copilot\'s pnpm-lock.yaml has no entry for b@1.0.0.',
+			'Copilot\'s pnpm-lock.yaml has no entries for b@1.0.0.',
+			'Copilot\'s pnpm-lock.yaml has no project other.',
 		]);
 	});
 });

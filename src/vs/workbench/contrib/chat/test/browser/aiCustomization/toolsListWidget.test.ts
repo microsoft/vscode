@@ -5,8 +5,9 @@
 
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
+import { CustomizationType, type PluginCustomization } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
 import { CustomizationToggle } from '../../../browser/aiCustomization/customizationToggle.js';
-import { isToolsTreeKeyboardTarget, ToolsListWidget } from '../../../browser/aiCustomization/toolsListWidget.js';
+import { getPluginToolsGroup, isToolsTreeKeyboardTarget, ToolsListWidget } from '../../../browser/aiCustomization/toolsListWidget.js';
 import { IToolData, IToolSet } from '../../../common/tools/languageModelToolsService.js';
 
 suite('toolsListWidget', () => {
@@ -41,6 +42,23 @@ suite('toolsListWidget', () => {
 			mixedRole: 'switch',
 			mixedChecked: 'mixed',
 		});
+	});
+
+	test('groups plugin tools by advertised scope', () => {
+		const plugin = (scope?: 'user' | 'workspace' | 'application'): PluginCustomization => ({
+			type: CustomizationType.Plugin,
+			id: scope ?? 'default',
+			uri: `file:///${scope ?? 'default'}`,
+			name: scope ?? 'default',
+			_meta: scope ? { 'vscode.customization.scope': scope } : undefined,
+		});
+
+		assert.deepStrictEqual([
+			getPluginToolsGroup(plugin()),
+			getPluginToolsGroup(plugin('user')),
+			getPluginToolsGroup(plugin('workspace')),
+			getPluginToolsGroup(plugin('application')),
+		], ['user', 'user', 'workspace', 'application']);
 	});
 
 	test('search treats dashes and spaces as equivalent separators with highlights', () => {

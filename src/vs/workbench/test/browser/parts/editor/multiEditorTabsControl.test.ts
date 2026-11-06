@@ -16,6 +16,9 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/tes
 import { TreeViewsDnDService } from '../../../../../editor/common/services/treeViewsDnd.js';
 import { ITreeViewsDnDService } from '../../../../../editor/common/services/treeViewsDndService.js';
 import { IMenu, IMenuService, MenuId, MenuItemAction } from '../../../../../platform/actions/common/actions.js';
+import { IContextMenuDelegate } from '../../../../../base/browser/contextmenu.js';
+import { ICommandService } from '../../../../../platform/commands/common/commands.js';
+import { IContextMenuService } from '../../../../../platform/contextview/browser/contextView.js';
 import { ColorScheme } from '../../../../../platform/theme/common/theme.js';
 import { IThemeService } from '../../../../../platform/theme/common/themeService.js';
 import { TestColorTheme, TestThemeService } from '../../../../../platform/theme/test/common/testThemeService.js';
@@ -30,6 +33,8 @@ import { IDecorationsService } from '../../../../services/decorations/common/dec
 import { IHostService } from '../../../../services/host/browser/host.js';
 import { INotebookDocumentService, NotebookDocumentWorkbenchService } from '../../../../services/notebook/common/notebookDocumentService.js';
 import { createEditorPart, TestFileEditorInput, TestHostService, TestMenuService, workbenchInstantiationService } from '../../workbenchTestServices.js';
+import { IEditorTransferVeto } from '../../../../browser/parts/editor/editorTransferVeto.js';
+import { IAuxiliaryEditorPart, IEditorGroup } from '../../../../services/editor/common/editorGroupsService.js';
 import '../../../../contrib/modernUI/browser/media/tabs.css';
 import '../../../../contrib/modernUI/browser/connectedEditorTabs.js';
 
@@ -49,10 +54,13 @@ suite('MultiEditorTabsControl', () => {
 	let editorPartsView: IEditorPartsView;
 	let addMenuVisible: boolean;
 	let addMenuChange: Emitter<void>;
+	/** What drags of tabs out of the window did: the editors that moved, the windows created, the vetoes shown. */
+	let newWindowTransfers: string[];
 
 	setup(() => {
 		disposables = new DisposableStore();
 		partOptions = { ...DEFAULT_EDITOR_PART_OPTIONS };
+		newWindowTransfers = [];
 		addMenuVisible = true;
 		addMenuChange = disposables.add(new Emitter<void>());
 
@@ -94,6 +102,14 @@ suite('MultiEditorTabsControl', () => {
 			override createEditorActions() { return { actions: { primary: [], secondary: [] }, onDidChange: Event.None }; }
 			override relayout() { }
 			override readonly onDidActiveEditorChange = Event.None;
+			override get disposed() { return false; }
+			override moveEditors(editors: { editor: EditorInput }[]): boolean {
+				newWindowTransfers.push(`move ${editors.map(({ editor }) => editor.getName()).join(', ')}`);
+				return true;
+			}
+			override copyEditors(editors: { editor: EditorInput }[]): void {
+				newWindowTransfers.push(`copy ${editors.map(({ editor }) => editor.getName()).join(', ')}`);
+			}
 		};
 
 		groupsView = new class extends mock<IEditorGroupsView>() {
@@ -107,6 +123,22 @@ suite('MultiEditorTabsControl', () => {
 		editorPartsView = new class extends mock<IEditorPartsView>() {
 			override get count() { return 1; }
 			override getGroup() { return groupView; }
+			override async createAuxiliaryEditorPart(): Promise<IAuxiliaryEditorPart> {
+				newWindowTransfers.push('new window');
+				const targetGroup = new class extends mock<IEditorGroup>() {
+					override readonly id = 4242;
+					override readonly isEmpty = true;
+					override focus(): void { }
+				}();
+				return new class extends mock<IAuxiliaryEditorPart>() {
+					override readonly onWillClose = Event.None;
+					override readonly activeGroup = targetGroup;
+					override readonly groups = [targetGroup];
+				}();
+			}
+			override showTransferVeto(veto: IEditorTransferVeto): void {
+				newWindowTransfers.push(`veto: ${veto.message}`);
+			}
 		};
 
 		container = $('.title.tabs');
@@ -212,6 +244,32 @@ suite('MultiEditorTabsControl', () => {
 				: indicator.getBoundingClientRect().top - fill.getBoundingClientRect().top,
 		};
 	}
+
+	/** Drags the tab at `tabIndex` and releases it outside the window, which opens a new window for the dragged editors. */
+	async function dragTabOutOfWindow(tabIndex: number): Promise<void> {
+		const tab = container.querySelectorAll('.tabs-container > .tab')[tabIndex];
+		// Not over a window of the workbench, which tests that dispatch drag events over it may have left behind
+		mainWindow.dispatchEvent(new DragEvent(EventType.DRAG_LEAVE));
+		tab.dispatchEvent(new DragEvent(EventType.DRAG_START, { dataTransfer: new DataTransfer(), bubbles: true }));
+		tab.dispatchEvent(new DragEvent(EventType.DRAG_END, { dataTransfer: new DataTransfer(), bubbles: true, screenX: 100000, screenY: 100000 }));
+		await timeout(0);
+	}
+
+	test('a tab dragged out of the window moves its editor, while an inactive editor of the group that cannot go stays', async () => {
+		(model.getEditorByIndex(1) as TestFileEditorInput).setMoveDisabled('Cannot leave');
+
+		await dragTabOutOfWindow(0);
+
+		assert.deepStrictEqual(newWindowTransfers, ['new window', 'move file0.txt']);
+	});
+
+	test('a tab dragged out of the window, whose editor cannot go, opens no window', async () => {
+		(model.getEditorByIndex(0) as TestFileEditorInput).setMoveDisabled('Cannot leave');
+
+		await dragTabOutOfWindow(0);
+
+		assert.deepStrictEqual(newWindowTransfers, ['veto: Cannot leave']);
+	});
 
 	test('modern tab scrollbars overlay the top edge without changing header or body geometry', async () => {
 		const group = connectedGroup();
@@ -2488,6 +2546,38 @@ suite('MultiEditorTabsControl', () => {
 		});
 	});
 
+	test('Connected tabs join the surface their part sets where the active tab meets its editor, as the theme joins them to the editor, also in an unfocused group; a theme accent below the active tab stays', async () => {
+		const group = connectedGroup();
+		group.style.setProperty('--modern-ui-connected-tab-surface', '#333333');
+		const themeService = instantiationService.get(IThemeService);
+		assert.ok(themeService instanceof TestThemeService);
+		const active = model.getEditorByIndex(1)!;
+		model.openEditor(active, { active: true });
+		const read = async (colors: { [id: string]: string }, active = true) => {
+			themeService.setTheme(new TestColorTheme(colors));
+			control.setActive(active);
+			control.openEditors(model.getEditors(EditorsOrder.SEQUENTIAL));
+			await layoutConnectedGroup(group, 600);
+			const tab = container.querySelector<HTMLElement>('.tab.active')!;
+			return {
+				belowActiveTab: mainWindow.getComputedStyle(tab.querySelector<HTMLElement>('.tab-border-bottom-container')!).backgroundColor,
+				title: mainWindow.getComputedStyle(group.querySelector<HTMLElement>(':scope > .title')!).backgroundColor,
+			};
+		};
+
+		assert.deepStrictEqual({
+			joinsEditor: await read({ 'tab.activeBorder': '#121314', 'editor.background': '#121314' }),
+			accent: await read({ 'tab.activeBorder': '#22d3ee', 'editor.background': '#121314' }),
+			unfocusedJoinsEditor: await read({ 'tab.activeBorder': '#22d3ee', 'tab.unfocusedActiveBorder': '#12131480', 'editor.background': '#121314' }, false),
+			unfocusedAccent: await read({ 'tab.activeBorder': '#121314', 'tab.unfocusedActiveBorder': '#22d3ee', 'editor.background': '#121314' }, false),
+		}, {
+			joinsEditor: { belowActiveTab: 'rgb(51, 51, 51)', title: 'rgb(51, 51, 51)' },
+			accent: { belowActiveTab: 'rgb(34, 211, 238)', title: 'rgb(51, 51, 51)' },
+			unfocusedJoinsEditor: { belowActiveTab: 'rgb(51, 51, 51)', title: 'rgb(51, 51, 51)' },
+			unfocusedAccent: { belowActiveTab: 'rgb(34, 211, 238)', title: 'rgb(51, 51, 51)' },
+		});
+	});
+
 	test('regular-theme Connected multi-selection shares a top accent without coloring the document frame', async () => {
 		const group = connectedGroup();
 		const root = group.closest<HTMLElement>('.monaco-workbench')!;
@@ -4560,6 +4650,28 @@ suite('MultiEditorTabsControl', () => {
 			['closeOthers', 'close'],
 			['close', 'close']
 		]);
+	});
+
+	test('runs the Add Tab entries with the group of its tabs bar, so that they act on that group rather than on the active one', async () => {
+		const ran: unknown[][] = [];
+		instantiationService.stub(ICommandService, new class extends mock<ICommandService>() {
+			override async executeCommand<R>(_id: string, ...args: unknown[]): Promise<R> { ran.push(args); return undefined as R; }
+		}());
+		let shownMenu: IContextMenuDelegate | undefined;
+		instantiationService.stub(IContextMenuService, new class extends mock<IContextMenuService>() {
+			override readonly onDidShowContextMenu = Event.None;
+			override readonly onDidHideContextMenu = Event.None;
+			override showContextMenu(delegate: IContextMenuDelegate): void { shownMenu = delegate; }
+		}());
+		control.dispose();
+		reset(container);
+		control = createControl({ tabsBarAddTab: MenuId.for('test.addTab.context') });
+
+		container.querySelector<HTMLElement>('.tabs-bar-add-tab .action-label')!.dispatchEvent(new MouseEvent(EventType.MOUSE_DOWN, { button: 0, detail: 1, bubbles: true }));
+		const [entry] = shownMenu?.getActions() ?? [];
+		await entry?.run(shownMenu?.getActionsContext?.());
+
+		assert.deepStrictEqual(ran, [[{ groupId: groupView.id }]]);
 	});
 
 	ensureNoDisposablesAreLeakedInTestSuite();

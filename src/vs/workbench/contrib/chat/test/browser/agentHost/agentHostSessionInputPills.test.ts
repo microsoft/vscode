@@ -27,10 +27,12 @@ import { ChangesetKind, DefaultChangesetKind } from '../../../../../../platform/
 import { IAgentSubscription } from '../../../../../../platform/agentHost/common/state/agentSubscription.js';
 import { ISessionArtifact, SessionArtifactType, withSessionArtifacts } from '../../../../../../platform/agentHost/common/sessionArtifacts.js';
 import { AgentHostArtifactRemovalCapabilityMetaKey } from '../../../../../../platform/agentHost/common/meta/agentHostArtifactRemovalMeta.js';
+import { buildMcpResourceUri } from '../../../../../../platform/agentHost/common/mcpResourceUri.js';
 import { AgentHostNativeImplementationMetaKey } from '../../../../../../platform/agentHost/common/meta/agentHostSessionUrisMeta.js';
 import { toCopilotBackgroundShellMeta } from '../../../../../../platform/agentHost/common/meta/copilotBackgroundWorkMeta.js';
 import { BackgroundWorkKind, type BackgroundShellWork } from '../../../../../../platform/agentHost/common/state/protocol/channels-chat/state.js';
 import { buildDefaultChatUri, buildSubagentChatUri, Changeset, ChangesetOperation, ChangesetOperationScope, ChangesetOperationStatus, ChangesetOperationTargetKind, ChangesetState, ChangesetStatus, ChatOriginKind, ChatState, ChatSummary, ChildCustomization, ComponentToState, Customization, CustomizationType, FileEditKind, ResponsePartKind, SessionLifecycle, SessionState, SessionStatus, StateComponents, ToolCallConfirmationReason, ToolCallStatus, Turn, withSessionGitHubState } from '../../../../../../platform/agentHost/common/state/sessionState.js';
+import { CustomizationEnablementKind, McpServerStatus } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
 import type { InitializeResult } from '../../../../../../platform/agentHost/common/state/protocol/commands.js';
 import type { InvokeChangesetOperationParams, InvokeChangesetOperationResult } from '../../../../../../platform/agentHost/common/state/protocol/channels-changeset/commands.js';
 import { IClipboardService } from '../../../../../../platform/clipboard/common/clipboardService.js';
@@ -1077,6 +1079,34 @@ suite('AgentHostSessionInputPills', () => {
 			withoutCanvasContext: [],
 		});
 	});
+
+	for (const kind of agentHostConnectionKinds) {
+		test(`resolves top-level and plugin MCP skills by published server-prefixed name (${kind.name})`, () => {
+			const resource = URI.parse(buildMcpResourceUri('opaque-mcp-channel:skills', 'skill://server/friendly/SKILL.md', 'Friendly'));
+			const customizations: Customization[] = [{
+				type: CustomizationType.McpServer, id: 'opaque-top-level-server', uri: 'mcp-config:/top', name: 'top',
+				state: { kind: McpServerStatus.Ready },
+				children: [{ type: CustomizationType.Skill, id: 'opaque-top-level-skill', uri: resource.toString(), name: 'top:friendly' }],
+			}, {
+				type: CustomizationType.Plugin, id: 'foreign-plugin', uri: 'file:///foreign/plugin', name: 'Plugin', clientId: 'other-client',
+				enablement: [{ kind: CustomizationEnablementKind.Session, enabled: false }],
+				children: [{
+					type: CustomizationType.McpServer, id: 'opaque-nested-server', uri: 'mcp-config:/nested', name: 'nested', state: { kind: McpServerStatus.Ready },
+					children: [{ type: CustomizationType.Skill, id: 'opaque-nested-skill', uri: resource.toString(), name: 'nested:skill' }],
+				}],
+			}];
+			const index = new CustomizationIndex(customizations, [], uri => kind.resourceUris.fromAgentHost(uri), undefined, 'vscode');
+			const clientResource = kind.name === 'remote agent host' ? toAgentHostUri(resource, 'remote-test')
+				: kind.name === 'editor remote' ? toAgentHostUri(resource, 'editor-remote-test') : resource;
+			assert.deepStrictEqual(['TOP:FRIENDLY', 'nested:skill'].map(value => {
+				const resolved = index.resolve({ kind: CustomizationRefKind.Skill, value });
+				return { id: resolved?.id, name: resolved?.name, uri: resolved?.uri?.toString() };
+			}), [
+				{ id: 'opaque-top-level-skill', name: 'top:friendly', uri: clientResource.toString() },
+				{ id: 'opaque-nested-skill', name: 'nested:skill', uri: clientResource.toString() },
+			]);
+		});
+	}
 
 	test('does not repeat customization path resolution for equivalent pill inputs', () => {
 		const createCustomizations = (enabled = true, reverse = false): readonly Customization[] => [{

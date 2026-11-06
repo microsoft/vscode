@@ -6,7 +6,7 @@
 import { URI } from '../../../../base/common/uri.js';
 import { isCustomizationEnabled } from '../../common/customizationEnablement.js';
 import { readCustomizationDiscoveryMeta } from '../../common/meta/customizationDiscoveryMeta.js';
-import { CustomizationEnablementKind, CustomizationType, type ChildCustomization, type ClientPluginCustomization, type Customization, type CustomizationEnablement, type McpServerCustomization, type PluginCustomization } from '../../common/state/protocol/channels-session/state.js';
+import { CustomizationEnablementKind, CustomizationType, type ChildCustomization, type ClientPluginCustomization, type Customization, type CustomizationEnablement, type McpServerCustomization, type PluginCustomization, type SkillCustomization } from '../../common/state/protocol/channels-session/state.js';
 import { IAgentHostCustomizationEnablementService, type CustomizationEnablementResolution, type ICustomizationEnablementTarget } from '../agentHostCustomizationEnablementService.js';
 
 export interface IResolvedCustomizationEnablement {
@@ -34,6 +34,16 @@ export function targetForMcpServer(server: McpServerCustomization, owningPluginU
 		isClientBundled,
 		defaultEnabled: readCustomizationDiscoveryMeta(server)?.defaultEnabled,
 		...(owningPluginUri ? { owningPluginSource: URI.parse(owningPluginUri) } : {}),
+	};
+}
+
+export function targetForMcpSkill(skill: SkillCustomization): ICustomizationEnablementTarget {
+	return {
+		id: skill.id,
+		type: CustomizationType.Skill,
+		name: skill.name,
+		source: URI.parse(skill.uri),
+		defaultEnabled: skill.enabled ?? true,
 	};
 }
 

@@ -3620,7 +3620,8 @@ suite('CodexAgent exact chat routing', () => {
 			resourceTemplates: [],
 		}]]));
 
-		const calling = agent.handleMcpRequest(chat, 'test-server', 'tools/call', { name: 'test-tool', arguments: {} });
+		const meta = { 'com.example/correlation-id': 'correlation-1', 'com.example/context': { enabled: false, value: null } };
+		const calling = agent.handleMcpRequest(chat, 'test-server', 'tools/call', { name: 'test-tool', arguments: {}, _meta: meta });
 		const resume = await readNextRequest(peer.outbound);
 		peer.push({ id: resume.id, result: { thread: { id: entry.threadId, cwd: folder.fsPath }, cwd: folder.fsPath } });
 		const inventory = await readNextRequest(peer.outbound);
@@ -3632,11 +3633,11 @@ suite('CodexAgent exact chat routing', () => {
 		assert.deepStrictEqual([
 			{ method: resume.method, threadId: resume.params.threadId },
 			{ method: inventory.method, threadId: inventory.params.threadId },
-			{ method: toolCall.method, threadId: toolCall.params.threadId },
+			{ method: toolCall.method, params: toolCall.params },
 		], [
 			{ method: 'thread/resume', threadId: 'resume-before-mcp-thread' },
 			{ method: 'mcpServerStatus/list', threadId: 'resume-before-mcp-thread' },
-			{ method: 'mcpServer/tool/call', threadId: 'resume-before-mcp-thread' },
+			{ method: 'mcpServer/tool/call', params: { threadId: 'resume-before-mcp-thread', server: 'test-server', tool: 'test-tool', arguments: {}, _meta: meta } },
 		]);
 	});
 

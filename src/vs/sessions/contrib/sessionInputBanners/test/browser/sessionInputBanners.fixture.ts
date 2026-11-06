@@ -5,7 +5,7 @@
 
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { ComponentFixtureContext, createEditorServices, defineComponentFixture, defineThemedFixtureGroup, registerWorkbenchServices } from '../../../../../workbench/test/browser/componentFixtures/fixtureUtils.js';
-import { ISessionInputBanner, SessionInputBannerWidget } from '../../browser/sessionInputBannerWidget.js';
+import { ISessionInputBanner, SessionInputBannerWidget } from '../../../../../workbench/contrib/sessions/browser/sessionInputBanners/sessionInputBannerWidget.js';
 
 export default defineThemedFixtureGroup({ path: 'sessions/inputBanners/' }, {
 	CIFailures: defineComponentFixture({

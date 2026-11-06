@@ -68,4 +68,4 @@ Test each trigger in every arm with `TestExperimentTriggerTelemetryService`. Aft
 
 ## Reporting results
 
-Scorecard results are internal data. When a pull request ships, changes or removes an experiment, describe the outcome without numbers, for example "the treatment improved the primary metric without regressing any guardrail" (see "Public Content" in [copilot-instructions.md](../../copilot-instructions.md)).
+Scorecard results are internal data. A pull request, commit or issue that ships, changes, graduates or removes an experiment describes only the code change. Don't explain the change with the experiment, its rollout or its results, even without numbers, such as "the treatment improved the primary metric" or "the experiment showed no regression"; link its tracking issue instead (see "Public Content" in [copilot-instructions.md](../../copilot-instructions.md)).
