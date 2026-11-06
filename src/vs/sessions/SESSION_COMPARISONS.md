@@ -60,6 +60,8 @@ The Judge result uses the persisted structured verdict and provider-neutral part
 
 `readAttemptComparison` is intentionally a bounded manifest rather than a second transcript API. Agent Host already owns transcript retrieval through `get_session_context`, including summary, digest, and full detail levels. For attempts owned by the same provider authority as the Judge, the manifest maps provider-neutral participant records to exact provider-owned targets accepted by that existing tool. Cross-provider or cross-host attempts remain comparable through their bounded change, worktree, and validation evidence, but do not advertise an unusable transcript target.
 
+Every transcript detail level returns bounded excerpts. Shortened completed assistant replies expose `assistantTruncated` and a stable `responseTurnId`; the same context tool accepts that ID and a `responseOffset` to retrieve contiguous response pages. Judge and synthesis participants must follow `nextResponseOffset` until `truncated` is false before treating a shortened answer as fully reviewed. Unsupported pagination, unfinished replies, and otherwise unavailable evidence remain explicit limitations.
+
 The participant tools and evaluator tools are registered as ordinary workbench language-model tools and members of hidden internal tool sets. This follows the same client-tool publication path as other workbench-provided Agent Host tools: `AgentHostActiveClientService` publishes enabled tool-set members through `SessionActiveClient.tools`, and the owning VS Code client executes their implementations. Registering a tool without adding it to a tool set does not make it available to Agent Host sessions.
 
 ## End-to-end flow

@@ -1242,7 +1242,7 @@
     },
     {
       "name": "get_session_context",
-      "description": "Read the recent conversation of an existing session or chat and your pending messages there. Use this to see what a session you created is doing, recover message IDs and revisions before replacing or cancelling pending work, or gather context before sending a message. Returns a compacted summary by default (`detail: \"summary\"`); request `digest` or `full` for more detail. For session metadata (status, working directory, changes, …) use `list_sessions` with the `session` argument.",
+      "description": "Read the recent conversation of an existing session or chat and your pending messages there. Use this to see what a session you created is doing, recover message IDs and revisions before replacing or cancelling pending work, or gather context before sending a message. Returns bounded excerpts at every detail level. For a shortened assistant reply, pass its responseTurnId and follow nextResponseOffset until truncated is false to read the complete reply. For session metadata (status, working directory, changes, …) use `list_sessions` with the `session` argument.",
       "parameters": {
         "type": "object",
         "properties": {
@@ -1257,11 +1257,19 @@
               "digest",
               "full"
             ],
-            "description": "How much conversation detail to return. `summary` (default): status and a short per-turn gist (the message plus a compact snippet of the reply). `digest`: adds the full assistant reply text and tool-call names. `full`: adds tool-call inputs. Higher levels return more tokens."
+            "description": "How much conversation detail to return. `summary` (default): status and a short per-turn gist. `digest`: longer reply excerpts and tool-call names. `full`: longer excerpts and tool-call inputs. All levels are bounded; use responseTurnId to page through a shortened reply."
           },
           "transcriptLimit": {
             "type": "number",
             "description": "Maximum number of most-recent turns to include. Defaults to 10; capped at 50."
+          },
+          "responseTurnId": {
+            "type": "string",
+            "description": "Read one completed turn's complete assistant reply in pages of up to 8000 characters instead of a transcript. Use the exact responseTurnId returned for a shortened reply. Follow nextResponseOffset until truncated is false before treating the reply as fully read."
+          },
+          "responseOffset": {
+            "type": "integer",
+            "description": "Character offset for responseTurnId, initially 0. Continue with the returned nextResponseOffset. Requires responseTurnId.\n\n{minimum: 0}"
           }
         },
         "required": [

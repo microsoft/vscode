@@ -123,10 +123,12 @@ suite('SessionComparisonTool', () => {
 			readsResponses: manifest.next?.includes('Read every completed attempt response using get_session_context'),
 			noDiffRequired: manifest.next?.includes('No worktree or Git diff is required'),
 			noFabricatedResponse: manifest.next?.includes('without guessing its content'),
+			pagesCompleteResponse: manifest.next?.includes('follow nextResponseOffset until truncated is false'),
+			noPartialReview: manifest.next?.includes('Do not treat an excerpt as a fully reviewed answer'),
 			inapplicableValidation: manifest.next?.includes('notApplicable for both state and source'),
 		}, {
 			target: 'agent-host-session://copilot/attempt', worktree: undefined, readsResponses: true,
-			noDiffRequired: true, noFabricatedResponse: true, inapplicableValidation: true,
+			noDiffRequired: true, noFabricatedResponse: true, pagesCompleteResponse: true, noPartialReview: true, inapplicableValidation: true,
 		});
 	});
 
