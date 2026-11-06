@@ -5,6 +5,7 @@
 
 import '../../browser/media/aquarium.css';
 import '../../../../../workbench/contrib/sessions/browser/parts/media/sessionsPart.css';
+import '../../../../../workbench/contrib/sessions/browser/parts/media/sessionsGridContent.css';
 import assert from 'assert';
 import { getWindow } from '../../../../../base/browser/dom.js';
 import { toDisposable } from '../../../../../base/common/lifecycle.js';

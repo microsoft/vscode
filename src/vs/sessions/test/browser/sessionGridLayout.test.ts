@@ -18,6 +18,7 @@ import '../../../workbench/browser/media/style.css';
 import '../../browser/media/workbench.css';
 import '../../../workbench/contrib/sessions/browser/parts/media/chatCompositeBar.css';
 import '../../../workbench/contrib/sessions/browser/parts/media/sessionsPart.css';
+import '../../../workbench/contrib/sessions/browser/parts/media/sessionsGridContent.css';
 
 suite('Sessions - Grid Layout', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();

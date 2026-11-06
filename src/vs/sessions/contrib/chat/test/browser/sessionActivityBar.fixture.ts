@@ -47,6 +47,7 @@ import '../../../../../workbench/contrib/sessions/browser/parts/media/chatCompos
 import '../../../../../workbench/contrib/sessions/browser/parts/media/chatGroupsView.css';
 import '../../../../../workbench/contrib/sessions/browser/parts/media/sessionView.css';
 import '../../../../../workbench/contrib/sessions/browser/parts/media/sessionsPart.css';
+import '../../../../../workbench/contrib/sessions/browser/parts/media/sessionsGridContent.css';
 import '../../../chatWindow/browser/media/chatWindow.css';
 
 interface IFixtureOptions {

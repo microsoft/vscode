@@ -45,6 +45,7 @@ import { ITestSessionWithChat } from '../../../workbench/contrib/sessions/test/b
 import { ISessionsProvider } from '../../../workbench/contrib/sessions/common/sessionsProvider.js';
 import '../../../workbench/contrib/sessions/browser/parts/media/chatGroupsView.css';
 import '../../../workbench/contrib/sessions/browser/parts/media/sessionsPart.css';
+import '../../../workbench/contrib/sessions/browser/parts/media/sessionsGridContent.css';
 import '../../../workbench/contrib/sessions/browser/parts/media/sessionView.css';
 import '../../browser/media/workbench.css';
 import '../../../workbench/contrib/sessions/browser/media/chatBackground.css';

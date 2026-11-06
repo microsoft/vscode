@@ -98,6 +98,7 @@ import '../../../../../workbench/contrib/sessions/browser/parts/media/chatCompos
 import '../../../../../workbench/contrib/sessions/browser/parts/media/chatGroupsView.css';
 import '../../../../../workbench/contrib/sessions/browser/parts/media/sessionView.css';
 import '../../../../../workbench/contrib/sessions/browser/parts/media/sessionsPart.css';
+import '../../../../../workbench/contrib/sessions/browser/parts/media/sessionsGridContent.css';
 import '../../../../../workbench/contrib/sessions/browser/chat/media/externalSessionBanner.css';
 import '../../../../../workbench/contrib/sessions/browser/chat/media/chatWidget.css';
 import '../../../../../workbench/contrib/sessions/browser/chat/media/chatView.css';

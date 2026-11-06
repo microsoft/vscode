@@ -1,0 +1,59 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+.monaco-workbench .part.sessionspart > .title,
+.monaco-workbench :is(.part.sessionspart, .sessions-chat-surface) > .content {
+	position: relative;
+	z-index: 2;
+}
+
+.monaco-workbench :is(.part.sessionspart, .sessions-chat-surface) > .content .monaco-editor,
+.monaco-workbench :is(.part.sessionspart, .sessions-chat-surface) > .content .monaco-editor .margin,
+.monaco-workbench :is(.part.sessionspart, .sessions-chat-surface) > .content .monaco-editor .monaco-editor-background {
+	background-color: var(--vscode-agentsPanel-background);
+}
+
+.monaco-workbench :is(.part.sessionspart, .sessions-window-host) .session-view,
+.monaco-workbench :is(.part.sessionspart, .sessions-window-host) .session-view .session-view-content {
+	background-color: var(--session-view-background);
+	color: var(--session-view-foreground);
+	position: relative;
+}
+
+.monaco-workbench :is(.part.sessionspart, .sessions-window-host) .session-view .interactive-session {
+	--vscode-interactive-session-foreground: var(--session-view-foreground) !important;
+}
+
+/* Each grid leaf surfaces its own load progress on a bar pinned to its top, mirroring how each editor group owns its own ProgressBar.
+ * The chat view spans the full leaf width (so the transcript scrollbar stays at the right edge), so the progress bar is centered and
+ * capped to the centered-content width (set as a CSS variable in `SessionView`) to align with the header/content band rather than
+ * starting in the empty side gutters. */
+.monaco-workbench :is(.part.sessionspart, .sessions-window-host) .chat-view {
+	position: relative;
+}
+
+.monaco-workbench :is(.part.sessionspart, .sessions-window-host) .chat-view > .monaco-progress-container {
+	position: absolute;
+	top: 0;
+	left: 0;
+	right: 0;
+	margin: 0 auto;
+	max-width: var(--session-view-centered-content-max-width);
+	z-index: 10;
+}
+
+.monaco-workbench :is(.part.sessionspart, .sessions-window-host) .title-actions .actions-container {
+	justify-content: flex-end;
+}
+
+.monaco-workbench :is(.part.sessionspart, .sessions-window-host) .title-actions .action-item {
+	margin-right: 4px;
+}
+
+/* Nudge icon position to ensure it looks optically aligned within the button */
+.monaco-workbench :is(.part.sessionspart, .sessions-window-host) .interactive-session .chat-input-toolbars > .chat-execute-toolbar .monaco-action-bar .action-item > .action-label.codicon-arrow-up-compact::before {
+	display: inline-block;
+	transform: translateY(0.5px);
+}
