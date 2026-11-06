@@ -2137,10 +2137,12 @@ export class SessionsService extends Disposable implements ISessionsService {
 		if (gridSessions.length && onlyChat) {
 			this._cancelRestore();
 			this._startOpenSession();
-			const wasActive = this._visibility.activeSession.get()?.sessionId === session.sessionId;
+			const activeBefore = this._visibility.activeSession.get();
 			this._visibility.removeMany([session.sessionId], true, true);
+			// An active pane that stays, such as a detached child of the session, is not removed: no focus was skipped
+			const wasActive = activeBefore !== undefined && this._visibility.activeSession.get() !== activeBefore;
 			if (wasActive) {
-				// Only an active session's removal skips focus that would otherwise move into the next session
+				// Only a removal that changes the active pane skips focus that would otherwise move into the next one
 				this._skipMainWindowFocus();
 			}
 			if (wasActive && this._visibility.activeSession.get() === undefined && !this._visibility.visibleSessions.get().includes(undefined)) {
