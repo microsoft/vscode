@@ -2261,6 +2261,20 @@ suite('SessionsManagementService', () => {
 			}, { visible: ['c', 'b'], active: 'b', sticky: [true, false], views: [true, true], disposals: [1, 0, 0] });
 		});
 
+		test('a session opened over the one the active slot shows takes over its chat view, without building a view in between', async () => {
+			const [a, b] = ['a', 'b'].map(created);
+			const { view, chatViews } = harness([a, b]);
+			await view.openSession(a.resource);
+			const shown = chatViews.filter(chat => chat.kind === 'chat' && !chat.disposed);
+			const before = chatViews.length;
+			await view.openSession(b.resource);
+			assert.deepStrictEqual({
+				created: chatViews.slice(before).map(chat => chat.kind),
+				reused: shown.length === 1 && !shown[0].disposed,
+				chat: shown[0]?.chat?.resource.toString(),
+			}, { created: [], reused: true, chat: b.mainChat.get().resource.toString() });
+		});
+
 		test('ordinary external opening replaces only its leaf without resetting nested geometry', async () => {
 			const [a, b, c, d] = ['a', 'b', 'c', 'd'].map(created);
 			const { view, part } = harness([a, b, c, d]);

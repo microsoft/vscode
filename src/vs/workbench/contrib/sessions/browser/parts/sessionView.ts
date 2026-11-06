@@ -25,7 +25,7 @@ import { SessionHeader, SessionViewFloatingToolbar } from './sessionHeader.js';
 import { ChatViewSessionActivityBar } from './sessionActivityBar.js';
 import { createSessionHostServices, ISessionHost, ISessionHostService, SessionHost, SessionHostKind } from '../sessionHost.js';
 import { autorun, derived, disposableObservableValue, IObservable, observableValue, runOnChange, transaction } from '../../../../../base/common/observable.js';
-import { ISessionGridPane, paneViewStateOf } from '../sessionGridPane.js';
+import { ISessionGridPane, paneShownOfSession } from '../sessionGridPane.js';
 import { ISessionsService } from '../sessionsService.js';
 import { SessionIsMaximizedContext } from '../../common/contextkeys.js';
 import { AGENTS_CENTERED_CONTENT_MAX_WIDTH } from '../../common/layoutConstants.js';
@@ -252,7 +252,9 @@ export class SessionView extends Disposable implements ISerializableView, ISessi
 		if (this._bound && this._bound.pane === pane && this._bound.session === session) {
 			return;
 		}
-		this._bind(pane, session, pane?.chat, pane && paneViewStateOf(pane), options);
+		// What the pane shows of this session: a session opened over it in the pane changes neither until it is bound.
+		const shown = pane && session ? paneShownOfSession(pane, session) : undefined;
+		this._bind(pane, session, shown?.chat ?? pane?.chat, shown?.state, options);
 	}
 
 	private _bind(pane: ISessionGridPane | undefined, session: ISession | undefined, chat: IObservable<IChat | undefined> | undefined, state: IPaneViewState | undefined, options: ISessionViewOptions): void {

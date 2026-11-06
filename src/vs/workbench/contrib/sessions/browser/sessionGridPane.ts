@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IObservable, IReader } from '../../../../base/common/observable.js';
+import { derived, IObservable, IReader } from '../../../../base/common/observable.js';
 import { IChat, ISession } from '../common/session.js';
 import { IPaneViewState, ISessionPaneTabs } from '../common/sessionsManagement.js';
 
@@ -35,6 +35,39 @@ export interface ISessionGridPane {
 /** The state of `pane` that the views and context keys of its host show: its pin, its tab strip, and whether it is detached. */
 export function paneViewStateOf(pane: ISessionGridPane): IPaneViewState {
 	return { sticky: pane.sticky, tabs: pane.tabs, isDetached: pane.kind === SessionGridPaneKind.Detached };
+}
+
+/**
+ * The chat and state of `pane` while it shows `session`, as a view that binds that session shows them: they follow the pane
+ * until it shows another session, such as one opened over it, and then keep what they last were. A view of the pane keeps
+ * showing `session` until it binds the next one, instead of briefly showing `session` with the next session's tabs.
+ */
+export function paneShownOfSession(pane: ISessionGridPane, session: ISession): { readonly chat: IObservable<IChat | undefined>; readonly state: IPaneViewState } {
+	const shows = (reader: IReader | undefined) => (reader ? pane.session.read(reader) : pane.session.get()) === session;
+	const whileShown = <T>(source: IObservable<T>): IObservable<T> => {
+		let last: { readonly value: T } | undefined;
+		return derived(pane, reader => {
+			if (!last || shows(reader)) {
+				last = { value: source.read(reader) };
+			}
+			return last.value;
+		});
+	};
+	const tabs = pane.tabs;
+	return {
+		chat: whileShown(pane.chat),
+		state: {
+			sticky: whileShown(pane.sticky),
+			isDetached: pane.kind === SessionGridPaneKind.Detached,
+			tabs: {
+				openChats: whileShown(tabs.openChats),
+				closedChats: whileShown(tabs.closedChats),
+				get lastClosedChat() { return shows(undefined) ? tabs.lastClosedChat : undefined; },
+				visibleChatTabs: whileShown(tabs.visibleChatTabs),
+				shouldShowChatTabs: whileShown(tabs.shouldShowChatTabs),
+			},
+		},
+	};
 }
 
 /** The sessions `panes` show, in order, without the new-session slot; read with `reader`, also each pane's session. */
