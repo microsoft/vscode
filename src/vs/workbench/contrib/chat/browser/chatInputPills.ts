@@ -57,6 +57,8 @@ export interface IStandardChatInputPillSections {
 	/** Keeps configuration reachable when the source filters out all its entries. */
 	readonly hasData?: IObservable<boolean>;
 	readonly icon?: ThemeIcon | IObservable<ThemeIcon>;
+	/** Whether an entry can be pinned out of the pill's dropdown into a pill of its own. Defaults to `true`. */
+	isPinnable?(entry: IChatPillEntry): boolean;
 	getContextMenuActions?(): readonly IAction[];
 	getContextMenuPrimaryActions?(): readonly IAction[];
 }
@@ -306,7 +308,7 @@ export class StandardChatInputPillSources extends Disposable {
 					sections: pinAvailable
 						? unpinnedSections.map(section => ({
 							...section,
-							entries: section.entries.map(entry => this.withPinAction(entry, kind, scope, false)),
+							entries: section.entries.map(entry => source.isPinnable?.(entry) === false ? entry : this.withPinAction(entry, kind, scope, false)),
 						}))
 						: unpinnedSections,
 				};
@@ -472,7 +474,7 @@ export class ChatInputPills extends Disposable {
 		});
 		const showContextMenu = (anchor: HTMLElement | StandardMouseEvent, target?: { readonly source: IChatInputPillSource; readonly pill: IChatPill }) => {
 			const kinds = kindsWithData.get();
-			if (kinds.size === 0) {
+			if (kinds.size === 0 && !target) {
 				return;
 			}
 			this._contextMenuService.showContextMenu({
@@ -580,6 +582,10 @@ export class ChatInputPills extends Disposable {
 		});
 		const targetActions: IAction[] = [];
 		const optionsActions: IAction[] = [];
+		// Sources without a kind, such as chat resources, still offer actions on their own pills.
+		if (target && !target.source.kind) {
+			targetActions.push(...(target.source.getContextMenuPrimaryActions?.(target.pill) ?? []).map(withFocusRestoration));
+		}
 		for (const source of this._options.sources.get()) {
 			if (!source.kind || !this._options.offeredKinds.includes(source.kind)) {
 				continue;

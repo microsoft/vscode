@@ -459,6 +459,9 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	private readonly _editingDisposables = this._register(new MutableDisposable<DisposableStore>());
 
 	private welcomeMessageContainer!: HTMLElement;
+	/** Content stacked above the transcript, which shrinks the transcript; see {@link setTopContentHeight}. */
+	private topContentContainer!: HTMLElement;
+	private _topContentHeight = 0;
 	private readonly welcomePart: MutableDisposable<ChatViewWelcomePart> = this._register(new MutableDisposable());
 
 	private readonly _gettingStartedTip = this._register(new MutableDisposable<ChatInputTipPresenter>());
@@ -1184,6 +1187,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			this.editorOverflowWidgetsDomNode = editorOverflowWidgetsDomNode;
 			this._register(toDisposable(() => editorOverflowWidgetsDomNode.remove()));
 		}
+		this.topContentContainer = dom.append(this.container, $('.chat-top-content'));
 		this.welcomeMessageContainer = dom.append(this.container, $('.chat-welcome-view-container', { style: 'display: none' }));
 		this._register(dom.addStandardDisposableListener(this.welcomeMessageContainer, dom.EventType.CLICK, () => this.focusInput()));
 
@@ -3074,6 +3078,20 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		}
 	}
 
+	/** Hosts content stacked above the transcript, such as resources shown at the top of the chat. */
+	get topContentContainerElement(): HTMLElement {
+		return this.topContentContainer;
+	}
+
+	/** The height of the content in {@link topContentContainerElement}, which the transcript gives up. */
+	setTopContentHeight(height: number): void {
+		const topContentHeight = Math.max(0, height);
+		if (topContentHeight !== this._topContentHeight) {
+			this._topContentHeight = topContentHeight;
+			this._layoutListForInputHeight();
+		}
+	}
+
 	setPersistentContentHeight(height: number | undefined): void {
 		const persistentContentHeight = Math.max(0, height ?? 0);
 		if (persistentContentHeight === this._persistentContentHeight) {
@@ -4477,7 +4495,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			? undefined
 			: this.inputPartMaxHeightOverride !== undefined
 				? Math.max(0, this.inputPartMaxHeightOverride - chatSuggestNextWidgetHeight - MIN_LIST_HEIGHT)
-				: Math.max(0, height - chatSuggestNextWidgetHeight - MIN_LIST_HEIGHT);
+				: Math.max(0, height - this._topContentHeight - chatSuggestNextWidgetHeight - MIN_LIST_HEIGHT);
 		this.inputPart.setMaxHeight(inputMaxHeight);
 		this.inputPart.layout(width);
 
@@ -4515,7 +4533,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		const lastElementVisible = this.listWidget.isScrolledToBottom;
 		const lastItem = this.listWidget.lastItem;
 
-		const contentHeight = Math.max(0, height - inputHeight - readOnlyBannerHeight - chatSuggestNextWidgetHeight);
+		const contentHeight = Math.max(0, height - this._topContentHeight - inputHeight - readOnlyBannerHeight - chatSuggestNextWidgetHeight);
 		this.listWidget.layout(contentHeight, width);
 		this.flushPendingListRerender();
 
