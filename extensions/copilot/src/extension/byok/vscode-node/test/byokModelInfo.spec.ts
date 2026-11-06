@@ -22,7 +22,7 @@ describe('byokKnownModelToAPIInfoWithEffort', () => {
 		expect((info as { configurationSchema?: unknown }).configurationSchema).toBeUndefined();
 	});
 
-	it('builds a Thinking Effort picker with non-Claude default `medium` for non-Claude families', () => {
+	it('builds an Effort Level picker with non-Claude default `medium` for non-Claude families', () => {
 		const info = byokKnownModelToAPIInfoWithEffort('TestProvider', 'gpt-5', {
 			...baseCapabilities,
 			supportsReasoningEffort: ['minimal', 'low', 'medium', 'high'],

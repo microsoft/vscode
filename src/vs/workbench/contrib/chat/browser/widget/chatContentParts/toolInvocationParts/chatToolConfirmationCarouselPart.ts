@@ -5,12 +5,13 @@
 
 import * as dom from '../../../../../../../base/browser/dom.js';
 import { StandardKeyboardEvent } from '../../../../../../../base/browser/keyboardEvent.js';
+import { renderAsPlaintext } from '../../../../../../../base/browser/markdownRenderer.js';
 import { Button } from '../../../../../../../base/browser/ui/button/button.js';
 import { Codicon } from '../../../../../../../base/common/codicons.js';
 import { Emitter } from '../../../../../../../base/common/event.js';
-import { IMarkdownString } from '../../../../../../../base/common/htmlContent.js';
+import { IMarkdownString, MarkdownString } from '../../../../../../../base/common/htmlContent.js';
 import { KeyCode } from '../../../../../../../base/common/keyCodes.js';
-import { Disposable, DisposableStore, MutableDisposable, toDisposable } from '../../../../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../../../../base/common/lifecycle.js';
 import { autorun } from '../../../../../../../base/common/observable.js';
 import { generateUuid } from '../../../../../../../base/common/uuid.js';
 import { localize } from '../../../../../../../nls.js';
@@ -35,9 +36,10 @@ interface ICarouselToolItem {
 	readonly toolCallId: string;
 	readonly disposables: DisposableStore;
 	readonly subAgentInvocationId?: string;
-	readonly agentName?: string;
+	readonly subagentTitle?: string;
 	readonly revealSubagent?: RevealSubagentCallback;
 	readonly revealSubagentLabel?: string;
+	readonly toolPartFactory: ToolInvocationPartFactory;
 	ownsToolPart: boolean;
 	toolPart?: ChatToolInvocationPart;
 }
@@ -76,7 +78,7 @@ export class ChatToolConfirmationCarouselPart extends Disposable {
 		private readonly revealSubagent?: RevealSubagentCallback,
 		private readonly initialRevealSubagentLabel?: string,
 		private readonly initialSubAgentInvocationId?: string,
-		private readonly initialAgentName?: string,
+		private readonly initialSubagentTitle?: string,
 	) {
 		super();
 
@@ -158,7 +160,7 @@ export class ChatToolConfirmationCarouselPart extends Disposable {
 		this._register(dom.addDisposableListener(this.domNode, 'keydown', e => this.onKeydown(e)));
 
 		for (const tool of initialTools) {
-			this.addToolInvocation(tool, this.initialSubAgentInvocationId, this.initialAgentName, this.revealSubagent, this.initialRevealSubagentLabel);
+			this.addToolInvocation(tool, this.initialSubAgentInvocationId, this.initialSubagentTitle, this.revealSubagent, this.initialRevealSubagentLabel);
 		}
 	}
 
@@ -170,6 +172,18 @@ export class ChatToolConfirmationCarouselPart extends Disposable {
 		return this.items[this.activeIndex]?.subAgentInvocationId;
 	}
 
+	get activeToolConfirmation(): IChatToolInvocation | undefined {
+		return this.items[this.activeIndex]?.tool;
+	}
+
+	acceptActiveConfirmation(): void {
+		this.items[this.activeIndex]?.toolPart?.acceptConfirmation();
+	}
+
+	addDisposable(disposable: IDisposable): void {
+		this._register(disposable);
+	}
+
 	setMaxHeight(maxHeight: number | undefined): void {
 		this.maxHeight = maxHeight;
 		this.updateContentExpansionState();
@@ -179,7 +193,7 @@ export class ChatToolConfirmationCarouselPart extends Disposable {
 		return this.toolCallIds.has(toolCallId);
 	}
 
-	addToolInvocation(tool: IChatToolInvocation, subAgentInvocationId?: string, agentName?: string, revealSubagent?: RevealSubagentCallback, revealSubagentLabel?: string, toolPart?: ChatToolInvocationPart): void {
+	addToolInvocation(tool: IChatToolInvocation, subAgentInvocationId?: string, subagentTitle?: string, revealSubagent?: RevealSubagentCallback, revealSubagentLabel?: string, toolPart?: ChatToolInvocationPart, toolPartFactory: ToolInvocationPartFactory = this.toolPartFactory): void {
 		if (this.toolCallIds.has(tool.toolCallId)) {
 			const existing = this.items.find(item => item.toolCallId === tool.toolCallId);
 			if (existing && toolPart && !existing.toolPart) {
@@ -197,9 +211,10 @@ export class ChatToolConfirmationCarouselPart extends Disposable {
 			toolCallId: tool.toolCallId,
 			disposables,
 			subAgentInvocationId,
-			agentName,
+			subagentTitle,
 			revealSubagent,
 			revealSubagentLabel,
+			toolPartFactory,
 			ownsToolPart: !toolPart,
 			toolPart,
 		};
@@ -219,6 +234,12 @@ export class ChatToolConfirmationCarouselPart extends Disposable {
 
 		if (this.items.length === 1) {
 			this.setActiveIndex(0);
+		}
+	}
+
+	removeToolInvocation(tool: IChatToolInvocation): void {
+		if (this.items.some(item => item.tool === tool)) {
+			this.removeItem(tool.toolCallId);
 		}
 	}
 
@@ -377,10 +398,10 @@ export class ChatToolConfirmationCarouselPart extends Disposable {
 		this.collapsedTitle.textContent = this.getToolTitle(item) ?? '';
 		dom.setVisibility(!!this.collapsedTitle.textContent, this.collapsedTitle);
 
-		if (item?.agentName) {
-			this.agentLabel.textContent = `\u2014 ${item.agentName}`;
+		if (item?.subagentTitle) {
+			this.agentLabel.textContent = `\u2014 ${item.subagentTitle}`;
 			this.agentLabel.disabled = !item.subAgentInvocationId || !item.revealSubagent;
-			this.agentLabel.title = item.revealSubagentLabel ?? localize('scrollToSubagent', "Scroll to {0}", item.agentName);
+			this.agentLabel.title = item.revealSubagentLabel ?? localize('scrollToSubagent', "Scroll to {0}", item.subagentTitle);
 			this.agentLabel.setAttribute('aria-label', this.agentLabel.title);
 			dom.show(this.agentLabel);
 		} else {
@@ -420,7 +441,7 @@ export class ChatToolConfirmationCarouselPart extends Disposable {
 		}
 
 		if (!item.toolPart) {
-			item.toolPart = this.toolPartFactory(item.tool);
+			item.toolPart = item.toolPartFactory(item.tool);
 			if (item.ownsToolPart) {
 				item.disposables.add(item.toolPart);
 			}
@@ -546,7 +567,7 @@ export class ChatToolConfirmationCarouselPart extends Disposable {
 
 	private skipAll(): void {
 		for (const item of [...this.items]) {
-			IChatToolInvocation.confirmWith(item.tool, { type: ToolConfirmKind.Skipped });
+			IChatToolInvocation.confirmWith(item.tool, { type: ToolConfirmKind.Skipped, source: 'user' });
 		}
 	}
 
@@ -568,23 +589,8 @@ export class ChatToolConfirmationCarouselPart extends Disposable {
 	}
 
 	private toPlainText(message: string | IMarkdownString): string {
-		const markdown = typeof message === 'string' ? message : message.value;
-		return markdown
-			.replace(/\[([^\]]*)\]\(([^)]+)\)/g, (_match, text, url) => text || this.basename(url))
-			.replace(/\*\*([^*]+)\*\*/g, '$1')
-			.replace(/__([^_]+)__/g, '$1')
-			.replace(/`([^`]+)`/g, '$1')
-			.replace(/[\\*_#>]/g, '');
-	}
-
-	private basename(url: string): string {
-		try {
-			const path = decodeURIComponent(url.split('?')[0].split('#')[0]);
-			const segments = path.split('/').filter(Boolean);
-			return segments.at(-1) ?? url;
-		} catch {
-			return url;
-		}
+		// Titles are markdown even as strings (e.g. "Run `zsh` command?"); empty link labels show the target's name.
+		return renderAsPlaintext(typeof message === 'string' ? new MarkdownString(message) : message, { useLinkFormatter: true });
 	}
 
 	private revealActiveSubagent(): void {

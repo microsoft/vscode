@@ -27,7 +27,7 @@ import { StringEdit, StringReplacement } from '../../../util/vs/editor/common/co
 import { OffsetRange } from '../../../util/vs/editor/common/core/ranges/offsetRange';
 import { ensureDependenciesAreSet } from '../../../util/vs/editor/common/core/text/positionToOffset';
 import { DiagnosticSeverity, Range } from '../../../vscodeTypes';
-import { createNESProvider, ILogTarget, ITelemetrySender, LogLevel } from '../../node/chatLibMain';
+import { createNESProvider, type INESProviderCapabilities, ILogTarget, ITelemetrySender, LogLevel } from '../../node/chatLibMain';
 
 
 class TestFetcher implements IFetcher {
@@ -102,8 +102,10 @@ class TestCopilotTokenManager implements ICopilotTokenManager {
 	_serviceBrand: undefined;
 
 	onDidCopilotTokenRefresh = new Emitter<void>().event;
+	getCopilotTokenCallCount = 0;
 
 	async getCopilotToken(force?: boolean): Promise<CopilotToken> {
+		this.getCopilotTokenCallCount++;
 		return new CopilotToken(createTestExtendedTokenInfo({ token: 'fixedToken' }));
 	}
 
@@ -128,6 +130,212 @@ class TestLogTarget implements ILogTarget {
 }
 
 describe('NESProvider Facade', () => {
+	it('reports when the selected model supports unified completions', async () => {
+		const fetcher = new TestFetcher({
+			'/models': JSON.stringify({
+				models: [{
+					serviceType: 'NESChat',
+					name: 'unified-model',
+					provider: 'test',
+					capabilities: { promptStrategy: 'patchBased02Unified' },
+				}]
+			}),
+		});
+		const copilotTokenManager = new TestCopilotTokenManager();
+		const nextEditProvider = createNESProvider({
+			workspace: new MutableObservableWorkspace(),
+			fetcher,
+			copilotTokenManager,
+			telemetrySender: new TestTelemetrySender(),
+			terminalService: new NullTerminalService(),
+			logTarget: new TestLogTarget(),
+			editorInfo: { name: 'my-editor', version: '1.2.3' },
+			editorPluginInfo: { name: 'my-plugin', version: '4.5.6' },
+		});
+		const requestsBeforeQuery = fetcher.requests.length;
+		const tokenRequestsBeforeQuery = copilotTokenManager.getCopilotTokenCallCount;
+		const capabilityChanges: INESProviderCapabilities[] = [];
+		const listener = nextEditProvider.onDidChangeCapabilities(capabilities => capabilityChanges.push(capabilities));
+
+		try {
+			const capabilities = await nextEditProvider.getCapabilities();
+
+			assert.deepStrictEqual({
+				requestsBeforeQuery,
+				tokenRequestsBeforeQuery,
+				tokenRequestsAfterQuery: copilotTokenManager.getCopilotTokenCallCount,
+				modelRequests: fetcher.requests.filter(request => request.url.endsWith('/models')).length,
+				capabilities,
+				capabilityChanges,
+			}, {
+				requestsBeforeQuery: 0,
+				tokenRequestsBeforeQuery: 0,
+				tokenRequestsAfterQuery: 1,
+				modelRequests: 1,
+				capabilities: { inlineCompletions: true },
+				capabilityChanges: [{ inlineCompletions: true }],
+			});
+		} finally {
+			listener.dispose();
+			nextEditProvider.dispose();
+		}
+	});
+
+	it('reports no inline completion support for a non-unified model', async () => {
+		const fetcher = new TestFetcher({
+			'/models': JSON.stringify({
+				models: [{
+					serviceType: 'NESChat',
+					name: 'nes-model',
+					provider: 'test',
+					capabilities: { promptStrategy: 'xtab275' },
+				}]
+			}),
+		});
+		const nextEditProvider = createNESProvider({
+			workspace: new MutableObservableWorkspace(),
+			fetcher,
+			copilotTokenManager: new TestCopilotTokenManager(),
+			telemetrySender: new TestTelemetrySender(),
+			terminalService: new NullTerminalService(),
+			logTarget: new TestLogTarget(),
+			editorInfo: { name: 'my-editor', version: '1.2.3' },
+			editorPluginInfo: { name: 'my-plugin', version: '4.5.6' },
+		});
+		nextEditProvider.updateTreatmentVariables({
+			'config.github.copilot.chat.advanced.inlineEdits.xtabProvider.defaultModelConfigurationString': JSON.stringify({
+				modelName: 'default-unified-model',
+				promptingStrategy: 'patchBased02Unified',
+				includeTagsInCurrentFile: false,
+			}),
+		});
+		const capabilityChanges: INESProviderCapabilities[] = [];
+		const listener = nextEditProvider.onDidChangeCapabilities(capabilities => capabilityChanges.push(capabilities));
+
+		try {
+			const capabilities = await nextEditProvider.getCapabilities();
+			assert.deepStrictEqual({
+				modelRequests: fetcher.requests.filter(request => request.url.endsWith('/models')).length,
+				capabilities,
+				capabilityChanges,
+			}, {
+				modelRequests: 1,
+				capabilities: { inlineCompletions: false },
+				capabilityChanges: [{ inlineCompletions: false }],
+			});
+		} finally {
+			listener.dispose();
+			nextEditProvider.dispose();
+		}
+	});
+
+	it('applies the unification treatment to reported capabilities', async () => {
+		const fetcher = new TestFetcher({
+			'/models': JSON.stringify({
+				models: [{
+					serviceType: 'NESChat',
+					name: 'nes-model',
+					provider: 'test',
+					capabilities: { promptStrategy: 'xtab275' },
+				}]
+			}),
+		});
+		const nextEditProvider = createNESProvider({
+			workspace: new MutableObservableWorkspace(),
+			fetcher,
+			copilotTokenManager: new TestCopilotTokenManager(),
+			telemetrySender: new TestTelemetrySender(),
+			terminalService: new NullTerminalService(),
+			logTarget: new TestLogTarget(),
+			editorInfo: { name: 'my-editor', version: '1.2.3' },
+			editorPluginInfo: { name: 'my-plugin', version: '4.5.6' },
+		});
+		nextEditProvider.updateTreatmentVariables({
+			'config.github.copilot.chat.advanced.inlineEdits.unification': true,
+		});
+
+		try {
+			assert.deepStrictEqual(await nextEditProvider.getCapabilities(), { inlineCompletions: true });
+		} finally {
+			nextEditProvider.dispose();
+		}
+	});
+
+	it('does not discover server models for a locally configured model', async () => {
+		const copilotTokenManager = new TestCopilotTokenManager();
+		const fetcher = new TestFetcher({});
+		const nextEditProvider = createNESProvider({
+			workspace: new MutableObservableWorkspace(),
+			fetcher,
+			copilotTokenManager,
+			telemetrySender: new TestTelemetrySender(),
+			terminalService: new NullTerminalService(),
+			logTarget: new TestLogTarget(),
+			editorInfo: { name: 'my-editor', version: '1.2.3' },
+			editorPluginInfo: { name: 'my-plugin', version: '4.5.6' },
+		});
+		await nextEditProvider.setConfigs(new Map([[
+			'chat.inlineEdits.xtabProvider.modelConfiguration',
+			{
+				modelName: 'local-unified-model',
+				promptingStrategy: 'patchBased02Unified',
+				includeTagsInCurrentFile: false,
+			}
+		]]));
+
+		try {
+			assert.deepStrictEqual({
+				capabilities: await nextEditProvider.getCapabilities(),
+				tokenRequests: copilotTokenManager.getCopilotTokenCallCount,
+				modelRequests: fetcher.requests.filter(request => request.url.endsWith('/models')).length,
+			}, {
+				capabilities: { inlineCompletions: true },
+				tokenRequests: 0,
+				modelRequests: 0,
+			});
+		} finally {
+			nextEditProvider.dispose();
+		}
+	});
+
+	it('rejects capability discovery when the model list cannot be loaded', async () => {
+		const nextEditProvider = createNESProvider({
+			workspace: new MutableObservableWorkspace(),
+			fetcher: new TestFetcher({}),
+			copilotTokenManager: new TestCopilotTokenManager(),
+			telemetrySender: new TestTelemetrySender(),
+			terminalService: new NullTerminalService(),
+			logTarget: new TestLogTarget(),
+			editorInfo: { name: 'my-editor', version: '1.2.3' },
+			editorPluginInfo: { name: 'my-plugin', version: '4.5.6' },
+		});
+
+		try {
+			await expect(nextEditProvider.getCapabilities()).rejects.toThrow('Failed to fetch model list: 404 Not Found');
+		} finally {
+			nextEditProvider.dispose();
+		}
+	});
+
+	it('cancels capability discovery when the provider is disposed', async () => {
+		const nextEditProvider = createNESProvider({
+			workspace: new MutableObservableWorkspace(),
+			fetcher: new TestFetcher({}),
+			copilotTokenManager: new TestCopilotTokenManager(),
+			telemetrySender: new TestTelemetrySender(),
+			terminalService: new NullTerminalService(),
+			logTarget: new TestLogTarget(),
+			editorInfo: { name: 'my-editor', version: '1.2.3' },
+			editorPluginInfo: { name: 'my-plugin', version: '4.5.6' },
+			waitForTreatmentVariables: true,
+		});
+
+		const capabilities = nextEditProvider.getCapabilities();
+		nextEditProvider.dispose();
+
+		await expect(capabilities).rejects.toThrow('Canceled');
+	});
+
 	it('should handle getNextEdit call with a document URI', async () => {
 		const workspace = new MutableObservableWorkspace();
 		const doc = workspace.addDocument({

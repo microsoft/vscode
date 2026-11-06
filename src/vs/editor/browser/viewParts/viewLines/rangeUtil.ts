@@ -88,6 +88,21 @@ export class RangeUtil {
 		return this._mergeAdjacentRanges(result);
 	}
 
+	/**
+	 * Reads the horizontal range occupied by a single child element. Unlike a collapsed text
+	 * range, this reports the edges of the element's box rather than the edges of its glyphs.
+	 */
+	public static readHorizontalRangeForElement(domNode: HTMLElement, childIndex: number, context: DomReadingContext): FloatHorizontalRange | null {
+		const child = domNode.children[childIndex];
+		if (!child) {
+			return null;
+		}
+		const clientRects = child.getClientRects();
+		context.markDidDomLayout();
+		const ranges = this._createHorizontalRangesFromClientRects(clientRects, context.clientRectDeltaLeft, context.clientRectScale);
+		return ranges && ranges.length > 0 ? ranges[0] : null;
+	}
+
 	public static readHorizontalRanges(domNode: HTMLElement, startChildIndex: number, startOffset: number, endChildIndex: number, endOffset: number, context: DomReadingContext): FloatHorizontalRange[] | null {
 		// Panic check
 		const min = 0;

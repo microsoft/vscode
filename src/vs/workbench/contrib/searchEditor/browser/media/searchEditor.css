@@ -10,9 +10,11 @@
 
 .search-editor .search-results {
 	flex: 1;
+	min-height: 0;
 }
 
 .search-editor .query-container {
+	--search-editor-query-layout-offset: 28px;
 	margin: 0px 12px 12px 19px;
 	padding-top: 6px;
 }

@@ -12,7 +12,7 @@ import type { StringOrMarkdown, FileEdit, ErrorInfo } from '../common/state.js';
 
 /**
  * Catalogue entry describing one changeset the server can produce for a
- * session.
+ * session or chat.
  *
  * Catalogue entries are intentionally lightweight — just enough to render a
  * chip or list row without subscribing. Full per-changeset detail
@@ -35,8 +35,8 @@ export interface Changeset {
 	 *
 	 * | Variables in template                       | Meaning                                                                              |
 	 * | ------------------------------------------- | ------------------------------------------------------------------------------------ |
-	 * | _(none)_                                    | A static, session-wide changeset. The template is itself a subscribable URI.         |
-	 * | `{turnId}`                                  | Per-turn slice. Expand with a `Turn.id` from the session.                            |
+	 * | _(none)_                                    | A static changeset scoped to the advertising session or chat. The template is itself a subscribable URI. |
+	 * | `{turnId}`                                  | Per-turn slice. Expand with a `Turn.id` from the advertising chat or session.        |
 	 * | `{originalTurnId}` and `{modifiedTurnId}`   | Diff between two turns. Both variables MUST be present.                              |
 	 *
 	 * Future protocol versions MAY add new well-known variables.
@@ -68,11 +68,11 @@ export interface Changeset {
 	 * Optional capability declarations for this changeset. Absent (or an empty
 	 * object) means the changeset advertises no optional capabilities.
 	 *
-	 * Because the catalogue entry is delivered up-front on
-	 * {@link ChangesetState | the session's changeset list}, clients can decide
-	 * whether to surface capability-gated UI (such as review checkboxes) without
-	 * first subscribing to the changeset URI. Mirrors the presence-flag
-	 * convention of `ClientCapabilities`.
+	 * Because the catalogue entry is delivered up-front on the advertising
+	 * session or chat's changeset list, clients can decide whether to surface
+	 * capability-gated UI (such as review checkboxes) without first subscribing
+	 * to the changeset URI. Mirrors the presence-flag convention of
+	 * `ClientCapabilities`.
 	 */
 	capabilities?: ChangesetCapabilities;
 }
@@ -102,10 +102,17 @@ export interface ChangesetCapabilities {
  * Computation lifecycle of a {@link ChangesetState}.
  *
  * @category Changesets
+ * @nonexhaustive
  */
 export const enum ChangesetStatus {
-	/** The server is still computing the contents of this changeset. */
+	/** The server is computing this changeset for the first time. */
 	Computing = 'computing',
+	/**
+	 * The server is recomputing this changeset. {@link ChangesetState.files}
+	 * remains the previous completed result while recomputation is in progress,
+	 * including when that result is an empty array.
+	 */
+	Recomputing = 'recomputing',
 	/** The changeset has been fully computed and is up-to-date. */
 	Ready = 'ready',
 	/**
@@ -167,8 +174,8 @@ export interface ChangesetFile {
 	 * the server MAY also originate it (e.g. an agent self-reviewing its own
 	 * output).
 	 *
-	 * There is no content version in the protocol, so review is **not** reset
-	 * automatically when a file's contents change under a stable id. The server,
+	 * Review is **not** reset automatically when a file's contents or nonce
+	 * change under a stable id. The server,
 	 * which is the authority on what changed, resets review explicitly — either
 	 * by re-emitting the file (via {@link ChangesetFileSetAction} or
 	 * {@link ChangesetContentChangedAction}) without `reviewed: true`, or by
@@ -180,6 +187,17 @@ export interface ChangesetFile {
 	 * but not interpreted by the protocol.
 	 */
 	_meta?: Record<string, unknown>;
+	/**
+	 * Optional host-issued token for this reviewable change, which clients MAY
+	 * echo in {@link ChangesetOperationTarget.nonce}.
+	 * Hosts SHOULD update a published nonce whenever contents of the file change.
+	 */
+	nonce?: string;
+	/**
+	 * Whether the host reports an ongoing edit to this file.
+	 * This is advisory; false or absent does not guarantee that modifying the file is safe.
+	 */
+	isEditing?: boolean;
 }
 
 /**
@@ -191,6 +209,7 @@ export interface ChangesetFile {
  * Pull Request" button, or an inline error after a failed "revert").
  *
  * @category Changesets
+ * @nonexhaustive
  */
 export const enum ChangesetOperationStatus {
 	/**
@@ -215,6 +234,7 @@ export const enum ChangesetOperationStatus {
  * Where a {@link ChangesetOperation} can be invoked.
  *
  * @category Changesets
+ * @nonexhaustive
  */
 export const enum ChangesetOperationScope {
 	/** Applies to the whole changeset. */

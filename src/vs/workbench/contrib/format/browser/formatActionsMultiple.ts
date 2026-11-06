@@ -348,6 +348,15 @@ async function showFormatterPick(accessor: ServicesAccessor, model: ITextModel, 
 
 }
 
+
+interface FormatDocumentMultipleArgs {
+	formatter: string;
+}
+
+function isFormatDocumentMultipleArgs(args: unknown): args is FormatDocumentMultipleArgs {
+	return typeof args === 'object' && args !== null && 'formatter' in args && typeof args.formatter === 'string';
+}
+
 registerEditorAction(class FormatDocumentMultipleAction extends EditorAction {
 
 	constructor() {
@@ -370,11 +379,23 @@ registerEditorAction(class FormatDocumentMultipleAction extends EditorAction {
 		const instaService = accessor.get(IInstantiationService);
 		const languageFeaturesService = accessor.get(ILanguageFeaturesService);
 		const model = editor.getModel();
-		const provider = getRealAndSyntheticDocumentFormattersOrdered(languageFeaturesService.documentFormattingEditProvider, languageFeaturesService.documentRangeFormattingEditProvider, model);
-		const pick = await instaService.invokeFunction(showFormatterPick, model, provider);
-		if (typeof pick === 'number') {
-			await instaService.invokeFunction(formatDocumentWithProvider, provider[pick], editor, FormattingMode.Explicit, CancellationToken.None);
+		const providers = getRealAndSyntheticDocumentFormattersOrdered(languageFeaturesService.documentFormattingEditProvider, languageFeaturesService.documentRangeFormattingEditProvider, model);
+
+		let provider;
+		if (isFormatDocumentMultipleArgs(args)) {
+			provider = providers.find(provider => ExtensionIdentifier.equals(provider.extensionId, args.formatter));
+			if (!provider) {
+				return;
+			}
+		} else {
+			const pick = await instaService.invokeFunction(showFormatterPick, model, providers);
+			if (typeof pick !== 'number') {
+				return;
+			}
+			provider = providers[pick];
 		}
+
+		await instaService.invokeFunction(formatDocumentWithProvider, provider, editor, FormattingMode.Explicit, CancellationToken.None);
 	}
 });
 

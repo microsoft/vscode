@@ -31,11 +31,14 @@ export function agentSdkSetupStatusKey(agent: string): string {
 /**
  * Whether the agent's SDK can be loaded without a network fetch.
  *
+ * `downloadOnUse` means the SDK is absent, but this host remembers consent and
+ * will fetch it only when an agent turn needs it.
+ *
  * Deliberately the *only* thing on the wire: account state is derivable from the
  * model list, which already flows over AHP — `ready` plus zero models means "no
  * account" — and publishing it too would be two sources for one truth.
  */
-export type AgentSdkDownloadStatus = 'notDownloaded' | 'downloading' | 'ready';
+export type AgentSdkDownloadStatus = 'notDownloaded' | 'downloadOnUse' | 'downloading' | 'ready';
 
 /**
  * What an agent declares about its own setup. Capabilities, never UI: no
@@ -79,7 +82,7 @@ function readOne(value: unknown, agent: string): IAgentSdkSetupInfo | undefined 
 		return undefined;
 	}
 	const info: Partial<IAgentSdkSetupInfo> = value;
-	if (info.download !== 'notDownloaded' && info.download !== 'downloading' && info.download !== 'ready') {
+	if (info.download !== 'notDownloaded' && info.download !== 'downloadOnUse' && info.download !== 'downloading' && info.download !== 'ready') {
 		return undefined;
 	}
 	return {
@@ -119,50 +122,4 @@ export function readAgentSdkSetupInfos(state: RootState | undefined): readonly I
 		}
 	}
 	return infos;
-}
-
-/**
- * The agents whose SDK the user has agreed to fetch, decoded from storage. A
- * malformed or absent record reads as "nobody consented", which costs at worst
- * one extra press of a button the user was about to press anyway.
- */
-export function readConsentedSdkAgents(stored: string | undefined): ReadonlySet<string> {
-	if (!stored) {
-		return new Set();
-	}
-	try {
-		const parsed: unknown = JSON.parse(stored);
-		return new Set(Array.isArray(parsed) ? parsed.filter(agent => typeof agent === 'string') : []);
-	} catch {
-		return new Set();
-	}
-}
-
-export function writeConsentedSdkAgents(agents: ReadonlySet<string>): string {
-	return JSON.stringify([...agents]);
-}
-
-/**
- * Which agents should be asked to fetch their SDK without being offered a
- * button, given standing consent. The SDK version is pinned per build
- * and the cache keyed by version, so every update invalidates it — daily on
- * Insiders. Consent is to "this product downloads the Claude SDK", not to one
- * tarball, so re-asking would nag people who already said yes.
- *
- * It does not carry to a *different* agent: the button says "we need to
- * download the Codex Agent SDK", and pressing it is not permission to fetch
- * Claude's.
- *
- * `alreadyRequested` stops a failing download retrying forever: a failed fetch
- * republishes `notDownloaded`, and every status change re-runs this. A window is
- * the retry unit.
- */
-export function resolveConsentedSdkDownloads(
-	consentedAgents: ReadonlySet<string>,
-	setups: readonly IAgentSdkSetupInfo[],
-	alreadyRequested: ReadonlySet<string>,
-): readonly string[] {
-	return setups
-		.filter(setup => setup.download === 'notDownloaded' && consentedAgents.has(setup.agent) && !alreadyRequested.has(setup.agent))
-		.map(setup => setup.agent);
 }

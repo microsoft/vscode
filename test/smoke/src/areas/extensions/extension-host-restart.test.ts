@@ -54,7 +54,7 @@ export function setup(logger: Logger) {
 			logger.log(`Old extension host PID: ${pid}`);
 
 			// Reload window while extension host is blocked
-			await app.code.reloadWindow(() => app.workbench.quickaccess.runCommand('Developer: Reload Window', { keepOpen: true }));
+			await app.code.reloadWindow(() => app.workbench.quickaccess.runCommand('Developer: Reload Window', { match: 'exactLabel', keepOpen: true }));
 			logger.log('Window reloaded');
 
 			// Verify old process is gone, allowing for slower teardown on busy machines
@@ -107,7 +107,7 @@ export function setup(logger: Logger) {
 			logger.log(`Extension host PID for graceful deactivation test: ${pid}`);
 
 			// Reload window - this should trigger graceful deactivation
-			await app.code.reloadWindow(() => app.workbench.quickaccess.runCommand('Developer: Reload Window', { keepOpen: true }));
+			await app.code.reloadWindow(() => app.workbench.quickaccess.runCommand('Developer: Reload Window', { match: 'exactLabel', keepOpen: true }));
 			logger.log('Window reloaded');
 
 			// Wait for the process to exit and marker file to be written
@@ -169,7 +169,7 @@ export function setup(logger: Logger) {
 				fs.unlinkSync(activationPidFile);
 			}
 
-			await app.workbench.quickaccess.runCommand('Developer: Restart Extension Host', { keepOpen: true });
+			await app.workbench.quickaccess.runCommand('Developer: Restart Extension Host', { match: 'exactLabel', keepOpen: true });
 
 			const maxWaitMs = 10_000;
 			const pollIntervalMs = 500;

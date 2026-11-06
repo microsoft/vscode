@@ -27,11 +27,7 @@ rounds:
           type: session/ready
       - channel: ${chat_0}
         action:
-          type: chat/responsePart
-          turnId: ${turn_0}
-          part:
-            kind: markdown
-            content: I'll read the file.
+          type: chat/changesetsChanged
       - channel: ${chat_0}
         action:
           type: chat/toolCallStart
@@ -56,3 +52,6 @@ rounds:
         action:
           type: chat/turnComplete
           turnId: ${turn_0}
+      - channel: ${chat_0}
+        action:
+          type: chat/isReadChanged

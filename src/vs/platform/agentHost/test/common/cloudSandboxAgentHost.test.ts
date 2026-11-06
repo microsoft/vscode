@@ -9,6 +9,7 @@ import {
 	buildWpsUrl,
 	cloudSandboxAddress,
 	CloudSandboxAuthenticationRequiredError,
+	CloudSandboxNetworkError,
 	CloudSandboxRequestError,
 	ICloudSandboxClientToken,
 	isRetryableCloudSandboxError,
@@ -62,30 +63,29 @@ suite('isRetryableCloudSandboxError', () => {
 		const statuses = [200, 400, 401, 403, 404, 408, 409, 410, 422, 429, 500, 502, 503];
 		const retryable = statuses.filter(status => isRetryableCloudSandboxError(new CloudSandboxRequestError(status, `HTTP ${status}`)));
 
-		assert.deepStrictEqual(retryable, [200, 408, 429, 500, 502, 503]);
+		assert.deepStrictEqual(retryable, [408, 429, 500, 502, 503]);
 	});
 
 	test('errors without a status are retryable, including a not-yet-available sign-in', () => {
 		assert.deepStrictEqual(
 			{
 				transport: isRetryableCloudSandboxError(new Error('socket hang up')),
+				connectionNetwork: isRetryableCloudSandboxError(new CloudSandboxNetworkError('network unavailable')),
 				statusless: isRetryableCloudSandboxError(new CloudSandboxRequestError(undefined, 'no status')),
 				// Raised before any request goes out, and covers the auth provider not having
 				// registered yet — so callers bound it with their own ceiling rather than here.
 				authNotReady: isRetryableCloudSandboxError(new CloudSandboxAuthenticationRequiredError()),
 			},
-			{ transport: true, statusless: true, authNotReady: true },
+			{ transport: true, connectionNetwork: true, statusless: true, authNotReady: true },
 		);
 	});
 
 	test('an answered request is distinguishable from an unanswered one', () => {
-		// `_throwForStatus` is the sole source of CloudSandboxRequestError and always carries the
-		// replied status, so the type alone separates "Mission Control refused" from "no answer" —
-		// which is what lets a caller report a refusal rather than an inconclusive timeout.
+		// A network failure must not look like an explicit HTTP rejection.
 		assert.deepStrictEqual(
 			{
 				refused: new CloudSandboxRequestError(500, 'HTTP 500') instanceof CloudSandboxRequestError,
-				transport: new Error('Fetch timeout: 10000ms') instanceof CloudSandboxRequestError,
+				transport: new CloudSandboxNetworkError('Fetch timeout: 30000ms') instanceof CloudSandboxRequestError,
 			},
 			{ refused: true, transport: false },
 		);

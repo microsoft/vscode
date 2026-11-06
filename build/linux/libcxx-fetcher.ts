@@ -8,8 +8,7 @@ import path from 'path';
 import debug from 'debug';
 import extract from 'extract-zip';
 import { downloadArtifact } from '@electron/get';
-
-const root = path.dirname(path.dirname(import.meta.dirname));
+import { getElectronVersion } from '../lib/electronVersion.ts';
 
 const d = debug('libcxx-fetcher');
 
@@ -57,8 +56,7 @@ async function main(): Promise<void> {
 	const libcxxHeadersDownloadDir = process.env['VSCODE_LIBCXX_HEADERS_DIR'];
 	const libcxxabiHeadersDownloadDir = process.env['VSCODE_LIBCXXABI_HEADERS_DIR'];
 	const arch = process.env['VSCODE_ARCH'];
-	const packageJSON = JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf8'));
-	const electronVersion = packageJSON.devDependencies.electron;
+	const { electronVersion } = getElectronVersion();
 
 	if (!libcxxObjectsDirPath || !libcxxHeadersDownloadDir || !libcxxabiHeadersDownloadDir) {
 		throw new Error('Required build env not set');

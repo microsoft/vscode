@@ -320,6 +320,23 @@ export const TIP_CATALOG: readonly ITipDefinition[] = [
 		excludeWhenCommandsExecuted: ['workbench.action.chat.queueMessage', 'workbench.action.chat.steerWithMessage'],
 	},
 	{
+		id: 'tip.btw',
+		tier: ChatTipTier.Qol,
+		buildMessage() {
+			return new MarkdownString(
+				localize('tip.btw', "Use `/btw <question>` to ask a side question without adding it to the current conversation.")
+			);
+		},
+		when: ContextKeyExpr.and(
+			ContextKeyExpr.equals(`config.${ChatConfiguration.BtwTipEnabled}`, true),
+			IsSessionsWindowContext,
+			ContextKeyExpr.has('sessionIsCreated'),
+			ContextKeyExpr.not('sessionIsArchived'),
+			ContextKeyExpr.has('sessionSupportsSideChat'),
+		),
+		excludeWhenCommandsExecuted: [TipTrackingCommands.BtwUsed],
+	},
+	{
 		id: 'tip.forkConversation',
 		tier: ChatTipTier.Qol,
 		buildMessage(ctx) {
@@ -439,25 +456,6 @@ export const TIP_CATALOG: readonly ITipDefinition[] = [
 			OPEN_AGENTS_WINDOW_COMMAND_ID,
 			OPEN_WORKSPACE_IN_AGENTS_WINDOW_COMMAND_ID,
 		],
-	},
-	{
-		id: 'tip.copilotCli',
-		tier: ChatTipTier.Qol,
-		buildMessage() {
-			return new MarkdownString(
-				localize(
-					'tip.copilotCli',
-					"Run agents in parallel with [Copilot CLI](command:workbench.action.chat.openNewChatSessionInPlace.copilotcli?%5B%22sidebar%22%5D \"Switch to Copilot CLI\")."
-				)
-			);
-		},
-		when: ContextKeyExpr.and(
-			IsSessionsWindowContext.negate(),
-			ChatContextKeys.chatSessionType.isEqualTo(localChatSessionType),
-			ChatContextKeys.chatModeKind.isEqualTo(ChatModeKind.Agent),
-			ChatContextKeys.hasCanDelegateProviders,
-		),
-		excludeWhenCommandsExecuted: ['workbench.action.chat.openNewChatSessionInPlace.copilotcli'],
 	},
 	{
 		id: 'tip.defaultPermissions',

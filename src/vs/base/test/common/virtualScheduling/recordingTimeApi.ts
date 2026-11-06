@@ -33,10 +33,10 @@ export interface RecordedTimerEvent {
 export function createRecordingRealTimeApi(history: RecordedTimerEvent[]): TimeApi {
 	const realSetTimeout = realTimeApi.setTimeout;
 
-	function record(label: string, stack: string | undefined, trace: Trace): void {
+	function record(label: string, stack: Error, trace: Trace): void {
 		history.push({
 			time: realTimeApi.Date.now(),
-			source: { toString: () => label, stackTrace: stack },
+			source: { toString: () => label, get stackTrace() { return stack.stack; } },
 			trace,
 		});
 	}
@@ -49,7 +49,7 @@ export function createRecordingRealTimeApi(history: RecordedTimerEvent[]): TimeA
 
 	const api: TimeApi = {
 		setTimeout(handler, ms = 0) {
-			const stack = new Error().stack;
+			const stack = new Error();
 			const trace = TraceContext.instance.currentTrace().child(`setTimeout(${ms}ms)`, stack);
 			return realTimeApi.setTimeout(() => {
 				record('setTimeout', stack, trace);
@@ -58,7 +58,7 @@ export function createRecordingRealTimeApi(history: RecordedTimerEvent[]): TimeA
 		},
 		clearTimeout: realTimeApi.clearTimeout,
 		setInterval(handler, ms) {
-			const stack = new Error().stack;
+			const stack = new Error();
 			const baseTrace = TraceContext.instance.currentTrace().child(`setInterval(${ms}ms)`, stack);
 			let iter = 0;
 			return realTimeApi.setInterval(() => {
@@ -70,7 +70,7 @@ export function createRecordingRealTimeApi(history: RecordedTimerEvent[]): TimeA
 		},
 		clearInterval: realTimeApi.clearInterval,
 		setImmediate: realTimeApi.setImmediate ? handler => {
-			const stack = new Error().stack;
+			const stack = new Error();
 			const trace = TraceContext.instance.currentTrace().child('setImmediate', stack);
 			return realTimeApi.setImmediate!(() => {
 				record('setImmediate', stack, trace);
@@ -79,7 +79,7 @@ export function createRecordingRealTimeApi(history: RecordedTimerEvent[]): TimeA
 		} : undefined,
 		clearImmediate: realTimeApi.clearImmediate,
 		requestAnimationFrame: realTimeApi.requestAnimationFrame ? (cb => {
-			const stack = new Error().stack;
+			const stack = new Error();
 			const trace = TraceContext.instance.currentTrace().child('requestAnimationFrame', stack);
 			return realTimeApi.requestAnimationFrame!(t => {
 				record('requestAnimationFrame', stack, trace);

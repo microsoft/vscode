@@ -112,7 +112,16 @@ suite('StorageMainService', function () {
 		strictEqual(storageDidClose, true);
 	}
 
-	teardown(() => {
+	const storageMainServices: TestStorageMainService[] = [];
+
+	teardown(async () => {
+
+		// The storage main service warms up application storage in the background once
+		// a window has opened, which `TestLifecycleMainService` reports immediately. Await
+		// that warm-up before disposing, otherwise it can complete after the service is
+		// disposed and leak disposables into whatever test runs next.
+		await Promise.all(storageMainServices.splice(0).flatMap(service => [service.applicationStorage.init(), service.applicationSharedStorage.init()]));
+
 		disposables.clear();
 	});
 
@@ -121,6 +130,7 @@ suite('StorageMainService', function () {
 		const fileService = disposables.add(new FileService(new NullLogService()));
 		const uriIdentityService = disposables.add(new UriIdentityService(fileService));
 		const testStorageService = disposables.add(new TestStorageMainService(new NullLogService(), environmentService, disposables.add(new UserDataProfilesMainService(disposables.add(new StateService(SaveStrategy.DELAYED, environmentService, new NullLogService(), fileService)), disposables.add(uriIdentityService), environmentService, fileService, new NullLogService(), productService)), lifecycleMainService, fileService, uriIdentityService));
+		storageMainServices.push(testStorageService);
 
 		disposables.add(testStorageService.applicationStorage);
 
@@ -368,6 +378,18 @@ suite('StorageMainService', function () {
 		await lifecycleMainService.fireOnWillShutdown();
 
 		strictEqual(didCloseApplicationSharedStorage, true);
+	});
+
+	test('disposing the service before warm-up completes does not leak', async function () {
+		const storageMainService = createStorageService();
+
+		const applicationStorage = storageMainService.applicationStorage;
+		const applicationSharedStorage = storageMainService.applicationSharedStorage;
+
+		storageMainService.dispose();
+
+		await Promise.all([applicationStorage.init(), applicationSharedStorage.init()]);
+		await Promise.all([applicationStorage.whenInit, applicationSharedStorage.whenInit]);
 	});
 
 	ensureNoDisposablesAreLeakedInTestSuite();

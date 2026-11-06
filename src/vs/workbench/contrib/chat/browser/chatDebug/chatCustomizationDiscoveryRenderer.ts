@@ -21,6 +21,7 @@ import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
 import { ILabelService } from '../../../../../platform/label/common/label.js';
 import { IOpenerService } from '../../../../../platform/opener/common/opener.js';
 import { IChatDebugCustomizationLogEntry, IChatDebugEventCustomizationSummaryContent, IChatDebugEventFileListContent } from '../../common/chatDebugService.js';
+import { getCompactCodicon } from '../chatIcons.js';
 import { InlineAnchorWidget } from '../widget/chatContentParts/chatInlineAnchorWidget.js';
 import { setupCollapsibleToggle } from './chatDebugCollapsible.js';
 
@@ -189,7 +190,7 @@ export function renderCustomizationDiscoveryContent(content: IChatDebugEventFile
 
 			for (const file of files) {
 				const row = DOM.append(listEl, $('div.chat-debug-file-list-row'));
-				DOM.append(row, $(`span.chat-debug-file-list-icon${ThemeIcon.asCSSSelector(Codicon.check)}`));
+				DOM.append(row, $(`span.chat-debug-file-list-icon${ThemeIcon.asCSSSelector(Codicon.checkCompact)}`));
 				row.appendChild(createInlineFileLink(file.uri, file.name ?? file.uri.path, FileKind.FILE, openerService, modelService, languageService, hoverService, labelService, disposables));
 				const relativeLabel = labelService.getUriLabel(file.uri, { relative: true });
 				row.setAttribute('aria-label', relativeLabel);
@@ -231,7 +232,7 @@ export function renderCustomizationDiscoveryContent(content: IChatDebugEventFile
 
 			for (const file of files) {
 				const row = DOM.append(listEl, $('div.chat-debug-file-list-row'));
-				DOM.append(row, $(`span.chat-debug-file-list-icon${ThemeIcon.asCSSSelector(Codicon.close)}`));
+				DOM.append(row, $(`span.chat-debug-file-list-icon${ThemeIcon.asCSSSelector(Codicon.closeCompact)}`));
 
 				// Build per-file detail (error message / duplicate info)
 				let detail = '';
@@ -477,7 +478,7 @@ export function renderCustomizationSummaryContent(content: IChatDebugEventCustom
 				}
 				for (const entry of groupEntries) {
 					const row = DOM.append(listEl, $('div.chat-debug-file-list-row'));
-					DOM.append(row, $(`span.chat-debug-file-list-icon${ThemeIcon.asCSSSelector(icon)}`));
+					DOM.append(row, $(`span.chat-debug-file-list-icon${ThemeIcon.asCSSSelector(getCompactCodicon(icon))}`));
 
 					if (entry.uri) {
 						row.appendChild(createInlineFileLink(
@@ -495,7 +496,7 @@ export function renderCustomizationSummaryContent(content: IChatDebugEventCustom
 		} else {
 			for (const entry of entries) {
 				const row = DOM.append(listEl, $('div.chat-debug-file-list-row'));
-				DOM.append(row, $(`span.chat-debug-file-list-icon${ThemeIcon.asCSSSelector(icon)}`));
+				DOM.append(row, $(`span.chat-debug-file-list-icon${ThemeIcon.asCSSSelector(getCompactCodicon(icon))}`));
 
 				// Hide the reason for skills (e.g. "local") and custom-agents — it's noise in the UI.
 				const showReason = entry.category !== 'skill' && entry.category !== 'custom-agent';

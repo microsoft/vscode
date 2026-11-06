@@ -1,0 +1,69 @@
+{
+	"name": "fixture-root",
+	"version": "1.0.0",
+	"lockfileVersion": 3,
+	"requires": true,
+	"packages": {
+		"": {
+			"name": "fixture-root",
+			"version": "1.0.0",
+			"dependencies": {
+				"a": "^1.0.0",
+				"mock": "file:./mocks/mock"
+			},
+			"devDependencies": {
+				"ts": "npm:@scope/ts6@^6.0.0",
+				"tool": "latest"
+			}
+		},
+		"mocks/mock": {
+			"version": "2.0.0"
+		},
+		"node_modules/a": {
+			"version": "1.2.0",
+			"resolved": "https://registry.npmjs.org/a/-/a-1.2.0.tgz",
+			"dependencies": {
+				"b": "^2.0.0",
+				"mock": "^2.0.0",
+				"tagged": "next"
+			}
+		},
+		"node_modules/b": {
+			"version": "2.1.0",
+			"resolved": "https://registry.npmjs.org/b/-/b-2.1.0.tgz"
+		},
+		"node_modules/mock": {
+			"resolved": "mocks/mock",
+			"link": true
+		},
+		"node_modules/tagged": {
+			"version": "0.0.2-20",
+			"resolved": "https://registry.npmjs.org/tagged/-/tagged-0.0.2-20.tgz"
+		},
+		"node_modules/tool": {
+			"version": "0.1.1",
+			"resolved": "https://registry.npmjs.org/tool/-/tool-0.1.1.tgz",
+			"dev": true
+		},
+		"node_modules/ts": {
+			"name": "@scope/ts6",
+			"version": "6.0.2",
+			"resolved": "https://registry.npmjs.org/@scope/ts6/-/ts6-6.0.2.tgz",
+			"dev": true,
+			"dependencies": {
+				"@old/ts": "npm:ts-real@^6"
+			}
+		},
+		"node_modules/ts/node_modules/@old/ts": {
+			"name": "ts-real",
+			"version": "6.0.3",
+			"resolved": "https://registry.npmjs.org/ts-real/-/ts-real-6.0.3.tgz",
+			"dev": true
+		},
+		"node_modules/ts/node_modules/b": {
+			"version": "2.0.0",
+			"resolved": "https://registry.npmjs.org/b/-/b-2.0.0.tgz",
+			"dev": true
+		}
+	}
+}

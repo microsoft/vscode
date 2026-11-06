@@ -17,6 +17,7 @@ description: "<required>"    # For agent picker and subagent discovery
 name: "Agent Name"           # Optional, defaults to filename
 tools: [search, web]         # Optional: aliases, MCP (<server>/*), extension tools
 model: "Claude Sonnet 4"     # Optional, uses picker default; supports array for fallback
+reasoning-effort: "high"     # Optional: low, medium, high, xhigh, or max
 argument-hint: "Task..."     # Optional, input guidance
 agents: [agent1, agent2]     # Optional, restrict allowed subagents by name (omit = all, [] = none)
 user-invocable: true         # Optional, show in agent picker (default: true)
@@ -44,6 +45,16 @@ hooks:                       # Optional, inline hooks for this agent's lifecycle
 ```yaml
 model: ['Claude Sonnet 4.5 (copilot)', 'GPT-5 (copilot)']  # First available model is used
 ```
+
+### Reasoning Effort
+
+Use `reasoning-effort` to set the reasoning level for the custom agent's model:
+
+```yaml
+reasoning-effort: high  # low, medium, high, xhigh, or max
+```
+
+The selected model must support the configured level. If omitted, the runtime resolves the effort from the model configuration and, when applicable, the parent agent.
 
 ## Tools
 

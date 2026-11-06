@@ -23,6 +23,7 @@ import { IEditorPane } from '../../../../common/editor.js';
 import { IFilesConfigurationService } from '../../../../services/filesConfiguration/common/filesConfigurationService.js';
 import { stringToSnapshot } from '../../../../services/textfile/common/textfiles.js';
 import { IAiEditTelemetryService } from '../../../editTelemetry/browser/telemetry/aiEditTelemetry/aiEditTelemetryService.js';
+import { IAgentHostConnectionsService } from '../../../../../platform/agentHost/common/agentHostConnectionsService.js';
 import { ICellEditOperation } from '../../../notebook/common/notebookCommon.js';
 import { IChatService } from '../../common/chatService/chatService.js';
 import { ChatEditKind, IModifiedEntryTelemetryInfo, IModifiedFileEntry, IModifiedFileEntryEditorIntegration, ISnapshotEntry, ModifiedFileEntryState } from '../../common/editing/chatEditingService.js';
@@ -83,6 +84,7 @@ export class ChatEditingDeletedFileEntry extends AbstractChatEditingModifiedFile
 		@IUndoRedoService undoRedoService: IUndoRedoService,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IAiEditTelemetryService aiEditTelemetryService: IAiEditTelemetryService,
+		@IAgentHostConnectionsService agentHostConnectionsService: IAgentHostConnectionsService,
 	) {
 		super(
 			resource,
@@ -95,6 +97,7 @@ export class ChatEditingDeletedFileEntry extends AbstractChatEditingModifiedFile
 			undoRedoService,
 			instantiationService,
 			aiEditTelemetryService,
+			agentHostConnectionsService,
 		);
 
 		this._originalContent = originalContent;

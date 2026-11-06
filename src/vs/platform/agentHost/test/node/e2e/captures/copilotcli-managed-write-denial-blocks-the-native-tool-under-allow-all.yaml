@@ -1,0 +1,40 @@
+version: 1
+dialect: anthropic
+exchanges:
+  - request:
+      model: claude-sonnet-5
+      system: ${system}
+      messages:
+        - role: user
+          content: Use create exactly once to create managed-write-blocked.txt containing exactly MANAGED_WRITE_CONTENT. Do not use a shell. If denied, stop and reply denied without retrying or using another tool.
+    response:
+      content:
+        - type: tool_use
+          id: toolcall_0
+          name: create
+          input:
+            path: ${workdir}/managed-write-blocked.txt
+            file_text: MANAGED_WRITE_CONTENT
+      stopReason: tool_use
+  - request:
+      model: claude-sonnet-5
+      system: ${system}
+      messages:
+        - role: user
+          content: Use create exactly once to create managed-write-blocked.txt containing exactly MANAGED_WRITE_CONTENT. Do not use a shell. If denied, stop and reply denied without retrying or using another tool.
+        - role: assistant
+          content:
+            - type: thinking
+            - type: tool_use
+              name: create
+              input:
+                path: ${workdir}/managed-write-blocked.txt
+                file_text: MANAGED_WRITE_CONTENT
+        - role: user
+          content:
+            - type: tool_result
+              tool_use_id: toolcall_0
+              content: 'Permission to run this tool was denied due to the following rules: `Write`'
+    response:
+      content: denied
+      stopReason: end_turn

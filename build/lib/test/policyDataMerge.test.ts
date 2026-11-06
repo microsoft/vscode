@@ -65,6 +65,23 @@ suite('Policy data merge', () => {
 		});
 	});
 
+	test('emits the same key order regardless of which entrypoint declares references', () => {
+		// Mirrors the export, which adds `agentHost` after linking references.
+		const withReferences: PolicyDto = { ...policy('chat.shared', 'SharedPolicy', ['a.setting']), agentHost: { status: 'enforced' } };
+		const withoutReferences: PolicyDto = { ...policy('chat.shared', 'SharedPolicy'), agentHost: { status: 'enforced' } };
+		const keysWhenFirst = Object.keys(mergePolicyData([
+			{ source: 'Workbench', data: catalog([withReferences]) },
+			{ source: 'Agents window', data: catalog([withoutReferences]) },
+		]).policies[0]);
+		const keysWhenSecond = Object.keys(mergePolicyData([
+			{ source: 'Workbench', data: catalog([withoutReferences]) },
+			{ source: 'Agents window', data: catalog([withReferences]) },
+		]).policies[0]);
+
+		// Key order determines the serialized policyData.jsonc.
+		assert.deepStrictEqual(keysWhenFirst, keysWhenSecond);
+	});
+
 	test('rejects conflicting policy metadata', () => {
 		const conflicting = { ...policy('chat.shared', 'SharedPolicy'), default: false };
 

@@ -12,10 +12,9 @@ import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { Extensions, IConfigurationNode, IConfigurationRegistry } from '../../../../../platform/configuration/common/configurationRegistry.js';
 import { DefaultConfiguration, PolicyConfiguration } from '../../../../../platform/configuration/common/configurations.js';
-import { IDefaultAccountProvider, IDefaultAccountService } from '../../../../../platform/defaultAccount/common/defaultAccount.js';
+import { IDefaultAccountProvider, IDefaultAccountService, MANAGED_SETTINGS_FRESHNESS_NOT_REQUIRED } from '../../../../../platform/defaultAccount/common/defaultAccount.js';
 import { IFileService } from '../../../../../platform/files/common/files.js';
-import { FileService } from '../../../../../platform/files/common/fileService.js';
-import { InMemoryFileSystemProvider } from '../../../../../platform/files/common/inMemoryFilesystemProvider.js';
+import { createInMemoryFileService } from '../../../../../platform/files/test/common/inMemoryFileService.js';
 import { NullLogService } from '../../../../../platform/log/common/log.js';
 import { FilePolicyService } from '../../../../../platform/policy/common/filePolicyService.js';
 import { PolicyValueSource } from '../../../../../platform/policy/common/policy.js';
@@ -47,6 +46,8 @@ class DefaultAccountProvider implements IDefaultAccountProvider {
 	readonly managedSettingsRawResponse: unknown = null;
 	readonly managedSettingsCompatibilityError = null;
 	readonly onDidChangeManagedSettingsCompatibilityError = Event.None;
+	readonly managedSettingsFreshness = MANAGED_SETTINGS_FRESHNESS_NOT_REQUIRED;
+	readonly onDidChangeManagedSettingsFreshness = Event.None;
 
 	constructor(
 		readonly defaultAccount: IDefaultAccount,
@@ -180,9 +181,7 @@ suite('MultiplexPolicyService', () => {
 		const defaultConfiguration = disposables.add(new DefaultConfiguration(new NullLogService()));
 		await defaultConfiguration.initialize();
 
-		fileService = disposables.add(new FileService(new NullLogService()));
-		const diskFileSystemProvider = disposables.add(new InMemoryFileSystemProvider());
-		disposables.add(fileService.registerProvider(policyFile.scheme, diskFileSystemProvider));
+		fileService = createInMemoryFileService(disposables, policyFile.scheme);
 
 		defaultAccountService = disposables.add(new DefaultAccountService(TestProductService));
 		policyService = disposables.add(new MultiplexPolicyService([

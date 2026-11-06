@@ -18,6 +18,7 @@ import { ILogService } from '../../../platform/log/common/logService';
 import { IAlternativeNotebookContentService } from '../../../platform/notebook/common/alternativeContent';
 import { IAlternativeNotebookContentEditGenerator, NotebookEditGenerationTelemtryOptions, NotebookEditGenrationSource } from '../../../platform/notebook/common/alternativeContentEditGenerator';
 import { getDefaultLanguage } from '../../../platform/notebook/common/helpers';
+import { gitHubCopilotRequestTeProperty } from '../../../platform/networking/common/fetch';
 import { INotebookService } from '../../../platform/notebook/common/notebookService';
 import { emitEditSurvivalEvent } from '../../../platform/otel/common/genAiEvents';
 import { GenAiMetrics } from '../../../platform/otel/common/genAiMetrics';
@@ -38,6 +39,7 @@ import { URI } from '../../../util/vs/base/common/uri';
 import { IInstantiationService } from '../../../util/vs/platform/instantiation/common/instantiation';
 import { ChatRequestEditorData, ChatResponseTextEditPart, ExtendedLanguageModelToolResult, LanguageModelPromptTsxPart, LanguageModelTextPart, LanguageModelToolResult, MarkdownString, Position, Range, WorkspaceEdit } from '../../../vscodeTypes';
 import { IBuildPromptContext } from '../../prompt/common/intents';
+import { getGitHubCopilotRequestTeForToolCall } from '../../prompt/common/toolCallRound';
 import { ApplyPatchFormatInstructions } from '../../prompts/node/agent/defaultAgentInstructions';
 import { PromptRenderer, renderPromptElementJSON } from '../../prompts/node/base/promptRenderer';
 import { Tag } from '../../prompts/node/base/tag';
@@ -116,16 +118,14 @@ export class ApplyPatchTool implements ICopilotTool<IApplyPatchToolParams> {
 		return trailingEmptyLines;
 	}
 
-	private async generateUpdateTextDocumentEdit(textDocument: TextDocumentSnapshot, file: string, change: FileChange, workspaceEdit: WorkspaceEdit) {
-		const uri = resolveToolInputPath(file, this.promptPathRepresentationService);
+	private async generateUpdateTextDocumentEdit(textDocument: TextDocumentSnapshot, uri: URI, movePath: URI | undefined, file: string, change: FileChange, workspaceEdit: WorkspaceEdit) {
 		const newContent = removeLeadingFilepathComment(change.newContent ?? '', textDocument.languageId, file);
 
 		const lines = newContent?.split('\n') ?? [];
 		let path = uri;
-		if (change.movePath) {
-			const newPath = resolveToolInputPath(change.movePath, this.promptPathRepresentationService);
-			workspaceEdit.renameFile(path, newPath, { overwrite: true });
-			path = newPath;
+		if (movePath) {
+			workspaceEdit.renameFile(path, movePath, { overwrite: true });
+			path = movePath;
 		}
 		workspaceEdit.replace(path, new Range(
 			new Position(0, 0),
@@ -150,7 +150,7 @@ export class ApplyPatchTool implements ICopilotTool<IApplyPatchToolParams> {
 		return path;
 	}
 
-	private async generateUpdateNotebookDocumentEdit(altDoc: NotebookDocumentSnapshot, uri: URI, file: string, change: FileChange) {
+	private async generateUpdateNotebookDocumentEdit(altDoc: NotebookDocumentSnapshot, uri: URI, movePath: URI | undefined, file: string, change: FileChange) {
 		// Notebooks can have various formats, it could be JSON, XML, Jupytext (which is a format that depends on the code cell language).
 		// Lets generate new content based on multiple formats.
 		const cellLanguage = getDefaultLanguage(altDoc.document) || 'python';
@@ -164,11 +164,10 @@ export class ApplyPatchTool implements ICopilotTool<IApplyPatchToolParams> {
 		].reduce((a, b) => a.length < b.length ? a : b);
 
 		const edits: (vscode.NotebookEdit | [vscode.Uri, vscode.TextEdit[]])[] = [];
-		if (change.movePath) {
-			const newPath = resolveToolInputPath(change.movePath, this.promptPathRepresentationService);
-			// workspaceEdit.renameFile(path, newPath, { overwrite: true });
+		if (movePath) {
+			// workspaceEdit.renameFile(path, movePath, { overwrite: true });
 			// TODO@joyceerhl: this is a hack, it doesnt't work for regular text files either.
-			uri = newPath;
+			uri = movePath;
 		}
 
 		const telemetryOptions: NotebookEditGenerationTelemtryOptions = {
@@ -271,6 +270,37 @@ export class ApplyPatchTool implements ICopilotTool<IApplyPatchToolParams> {
 		}
 
 		try {
+			const fileChanges = Object.entries(commit.changes).map(([file, changes]) => ({
+				file,
+				changes,
+				path: resolveToolInputPath(file, this.promptPathRepresentationService),
+				movePath: changes.movePath ? resolveToolInputPath(changes.movePath, this.promptPathRepresentationService) : undefined,
+			}));
+			for (const { file, changes, path, movePath } of fileChanges) {
+				const affectedUris = movePath
+					? [{ uri: path, contents: undefined }, { uri: movePath, contents: changes.newContent ?? '' }]
+					: [{ uri: path, contents: undefined }];
+				for (const { uri, contents } of affectedUris) {
+					const disallowedUriError = getDisallowedEditUriError(uri, this._promptContext?.allowedEditUris, this.promptPathRepresentationService);
+					if (disallowedUriError) {
+						const result = new ExtendedLanguageModelToolResult([
+							new LanguageModelTextPart(disallowedUriError),
+						]);
+						result.hasError = true;
+						return result;
+					}
+					if (!movePath && changes.type === ActionType.ADD) {
+						const fileExists = await this.fileSystemService.stat(uri).then(() => true, () => false);
+						if (fileExists) {
+							throw new Error(`Add File Error: File already exists: ${file}`);
+						}
+						// Match create_file: model-created files skip content exclusion checks.
+						continue;
+					}
+					await this.instantiationService.invokeFunction(accessor => assertFileNotContentExcluded(accessor, uri, undefined, contents));
+				}
+			}
+
 			// Map to track edit survival sessions by document URI
 			const editSurvivalTrackers = new ResourceMap<IEditSurvivalTrackingSession>();
 
@@ -291,18 +321,8 @@ export class ApplyPatchTool implements ICopilotTool<IApplyPatchToolParams> {
 			const workspaceEdit = new WorkspaceEdit();
 			const notebookEdits = new ResourceMap<(vscode.NotebookEdit | [vscode.Uri, vscode.TextEdit[]])[]>();
 			const deletedFiles = new ResourceSet();
-			for (const [file, changes] of Object.entries(commit.changes)) {
-				let path = resolveToolInputPath(file, this.promptPathRepresentationService);
-				const disallowedUriError = getDisallowedEditUriError(path, this._promptContext?.allowedEditUris, this.promptPathRepresentationService);
-				if (disallowedUriError) {
-					const result = new ExtendedLanguageModelToolResult([
-						new LanguageModelTextPart(disallowedUriError),
-					]);
-					result.hasError = true;
-					return result;
-				}
-				await this.instantiationService.invokeFunction(accessor => assertFileNotContentExcluded(accessor, path));
-
+			for (const { file, changes, path: sourcePath, movePath } of fileChanges) {
+				let path = sourcePath;
 				switch (changes.type) {
 					case ActionType.ADD: {
 						if (changes.newContent) {
@@ -325,7 +345,7 @@ export class ApplyPatchTool implements ICopilotTool<IApplyPatchToolParams> {
 							// We have found issues with the patches generated by Model for XML, Jupytext
 							// Possible there are other issues with other formats as well.
 							try {
-								const result = await this.generateUpdateNotebookDocumentEdit(document, path, file, changes);
+								const result = await this.generateUpdateNotebookDocumentEdit(document, path, movePath, file, changes);
 								notebookEdits.set(result.path, result.edits);
 								path = result.path;
 								if (changes.newContent) {
@@ -340,7 +360,7 @@ export class ApplyPatchTool implements ICopilotTool<IApplyPatchToolParams> {
 							}
 						}
 						else {
-							path = await this.generateUpdateTextDocumentEdit(document, file, changes, workspaceEdit);
+							path = await this.generateUpdateTextDocumentEdit(document, path, movePath, file, changes, workspaceEdit);
 							if (changes.newContent) {
 								updated = TextDocumentSnapshot.fromNewText(changes.newContent, document);
 							}
@@ -423,6 +443,7 @@ export class ApplyPatchTool implements ICopilotTool<IApplyPatchToolParams> {
 				files[0].healed = healed;
 			}
 
+			const gitHubCopilotRequestTe = getGitHubCopilotRequestTeForToolCall(this._promptContext.toolCallRounds, options.chatStreamToolCallId);
 			timeout(2000).then(() => {
 				// The tool can't wait for edits to be applied, so just wait before starting the survival tracker.
 				// TODO@roblourens see if this improves the survival metric, find a better fix.
@@ -462,6 +483,7 @@ export class ApplyPatchTool implements ICopilotTool<IApplyPatchToolParams> {
 						});
 						res.telemetryService.sendGHTelemetryEvent('applyPatch/trackEditSurvival', {
 							headerRequestId: this._promptContext?.requestId,
+							...gitHubCopilotRequestTeProperty(gitHubCopilotRequestTe),
 							requestSource: 'agent',
 							mapper: 'applyPatchTool',
 							headBranchName: res.workspace?.headBranchName,
@@ -663,6 +685,7 @@ export class ApplyPatchTool implements ICopilotTool<IApplyPatchToolParams> {
 			completionTextJson: options.input.input,
 			postProcessingOutcome: outcome,
 			healed: String(healed),
+			...gitHubCopilotRequestTeProperty(getGitHubCopilotRequestTeForToolCall(this._promptContext?.toolCallRounds, options.chatStreamToolCallId)),
 		}).then(properties => this.telemetryService.sendEnhancedGHTelemetryEvent('applyPatchTool', properties)).catch(() => { /* best-effort telemetry */ });
 	}
 

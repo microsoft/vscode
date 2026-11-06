@@ -12,6 +12,7 @@ import { ChatLocation } from '../../../chat/common/commonTypes';
 import { ConfigKey, IConfigurationService } from '../../../configuration/common/configurationService';
 import { ILogService } from '../../../log/common/logService';
 import { FinishedCallback, IResponseDelta, isOpenAIContextManagementResponse } from '../../../networking/common/fetch';
+import { withMessageContentMetadata } from '../../../networking/common/messageTelemetry';
 import { IChatEndpoint, ICreateEndpointBodyOptions } from '../../../networking/common/networking';
 import { ChatCompletion, FilterReason, FinishedCompletionReason, openAIContextManagementCompactionType, OpenAIContextManagementResponse } from '../../../networking/common/openai';
 import { IToolDeferralService } from '../../../networking/common/toolDeferralService';
@@ -20,10 +21,10 @@ import { TelemetryData } from '../../../telemetry/common/telemetryData';
 import { SpyingTelemetryService } from '../../../telemetry/node/spyingTelemetryService';
 import { createFakeStreamResponse } from '../../../test/node/fetcher';
 import { createPlatformServices } from '../../../test/node/services';
-import type { ThinkingData } from '../../../thinking/common/thinking';
+import type { ThinkingData, ThinkingOriginApi } from '../../../thinking/common/thinking';
 import { CacheType, CustomDataPartMimeTypes } from '../../common/endpointTypes';
 import { MISSING_STATEFUL_TOOL_RESULT } from '../../common/statefulMarkerContainer';
-import { createResponsesRequestBody, getResponsesApiCompactionThresholdFromBody, OpenAIResponsesProcessor, processResponseFromChatEndpoint, responseApiInputToRawMessagesForLogging } from '../responsesApi';
+import { createResponsesRequestBody, getResponsesApiCompactionThresholdFromBody, OpenAIResponsesProcessor, processResponseFromChatEndpoint, responseApiInputToRawMessagesForLogging, responseApiInputToTelemetryMessages } from '../responsesApi';
 
 const testEndpoint: IChatEndpoint = {
 	urlOrRequestMetadata: 'https://example.test/chat',
@@ -101,12 +102,12 @@ const createCompactionAssistantMessage = (compaction: OpenAIContextManagementRes
 	}]
 });
 
-const createThinkingAssistantMessage = (thinking: ThinkingData): Raw.ChatMessage => ({
+const createThinkingAssistantMessage = (thinking: ThinkingData, originApi?: ThinkingOriginApi): Raw.ChatMessage => ({
 	role: Raw.ChatRole.Assistant,
 	content: [
 		{
 			type: Raw.ChatCompletionContentPartKind.Opaque,
-			value: { type: CustomDataPartMimeTypes.ThinkingData, thinking },
+			value: { type: CustomDataPartMimeTypes.ThinkingData, thinking, originApi },
 		},
 		{ type: Raw.ChatCompletionContentPartKind.Text, text: 'answer' },
 	],
@@ -123,6 +124,54 @@ function isFunctionCallInputItem(item: OpenAI.Responses.ResponseInputItem, name:
 }
 
 describe('responseApiInputToRawMessagesForLogging', () => {
+
+	it('retains native reasoning fields for telemetry without changing debug logging', () => {
+		const reasoning: OpenAI.Responses.ResponseReasoningItem = {
+			type: 'reasoning',
+			id: 'rs_test',
+			content: [{ type: 'reasoning_text', text: 'Detailed reasoning' }],
+			summary: [{ type: 'summary_text', text: 'A summary with "quotes"\n and \\slashes' }],
+			encrypted_content: 'opaque',
+		};
+		const body: OpenAI.Responses.ResponseCreateParams = { model: 'gpt-5-mini', input: [reasoning] };
+		expect({
+			telemetry: responseApiInputToTelemetryMessages(body).map(withMessageContentMetadata),
+			debug: responseApiInputToRawMessagesForLogging(body),
+			input: body.input,
+		}).toEqual({
+			telemetry: [{
+				...reasoning, role: 'assistant',
+				content_metadata: [
+					{ path: '/content/0/text', purpose: 'reasoning', visibility: 'unknown', format: 'text' },
+					{ path: '/encrypted_content', purpose: 'reasoning', visibility: 'opaque', format: 'opaque' },
+					{ path: '/summary/0/text', purpose: 'reasoning_summary', visibility: 'unknown', format: 'text' },
+				],
+			}],
+			debug: [{ role: Raw.ChatRole.Assistant, content: [{ type: Raw.ChatCompletionContentPartKind.Text, text: `Reasoning summary: ${reasoning.summary[0].text}` }] }],
+			input: [reasoning],
+		});
+	});
+
+	it('retains empty reasoning summaries rather than generating a text-only placeholder', () => {
+		const reasoning: OpenAI.Responses.ResponseReasoningItem = { type: 'reasoning', id: 'rs_empty', summary: [], encrypted_content: 'opaque' };
+		expect(responseApiInputToTelemetryMessages({ model: 'gpt-5-mini', input: [reasoning] })).toEqual([
+			{ ...reasoning, role: 'assistant' },
+		]);
+	});
+
+	it('preserves refusal text and generated images in output telemetry', () => {
+		const input: OpenAI.Responses.ResponseOutputItem[] = [
+			{
+				type: 'message', id: 'message', role: 'assistant', status: 'completed',
+				content: [{ type: 'refusal', refusal: 'Cannot answer' }],
+			},
+			{ type: 'image_generation_call', id: 'image', status: 'completed', result: 'image-data' },
+		];
+		expect(responseApiInputToTelemetryMessages({ model: 'gpt-5-mini', input })).toEqual([
+			{ role: 'assistant', content: 'Cannot answer' },
+			{ role: 'assistant', content: [{ type: 'image_url', image_url: { url: 'image-data' } }] },
+		]);
+	});
 
 	it('converts simple string input to user message', () => {
 		const body: OpenAI.Responses.ResponseCreateParams = {
@@ -379,29 +428,73 @@ describe('createResponsesRequestBody', () => {
 		})).toBe(1234);
 	});
 
-	it('round-trips a genuine Responses reasoning item (id begins with "rs")', () => {
+	it.each(['rs_abc123', 'CzDhIBSZ31VSyW6rYILnFerwKDkArecaC'])('round-trips Responses reasoning regardless of ID format: %s', id => {
+		// Regression: CAPI's production /responses endpoint issues reasoning ids that are long
+		// opaque blobs with no `rs` prefix. Gating the round-trip on the id silently dropped that
+		// reasoning between tool calls, so the model re-derived work it had already done.
 		const services = createPlatformServices();
 		const accessor = services.createTestingAccessor();
 		const instantiationService = accessor.get(IInstantiationService);
-		const messages = [createThinkingAssistantMessage({ id: 'rs_abc123', text: 'reasoning', encrypted: 'enc_blob' })];
+		const messages = [createThinkingAssistantMessage(
+			{ id, text: 'reasoning', encrypted: 'enc_blob' },
+			'responses',
+		)];
 
 		const body = instantiationService.invokeFunction(servicesAccessor => createResponsesRequestBody(servicesAccessor, createRequestOptions(messages, false), testEndpoint.model, testEndpoint));
 
-		expect(body.input).toContainEqual({ type: 'reasoning', id: 'rs_abc123', summary: [], encrypted_content: 'enc_blob' });
+		expect(body.input).toContainEqual({ type: 'reasoning', id, summary: [], encrypted_content: 'enc_blob' });
 
 		accessor.dispose();
 		services.dispose();
 	});
 
-	it('drops foreign thinking (Messages API "thinking_N" id) so it cannot 400 the Responses request', () => {
-		// Reproduces "400 invalid_request_body: Invalid 'input[N].id': 'thinking_0'. Expected an
-		// ID that begins with 'rs'." Anthropic Messages-API thinking leaks into a Responses
-		// request (e.g. via the vscode.lm path); its id and encrypted payload are foreign and
-		// must not be round-tripped.
+	it.each(['messages', 'chatCompletions'] as const)('drops %s thinking even when its id looks like a Responses reasoning id', originApi => {
+		// Provenance decides, not the id: an Anthropic signature is not a valid Responses
+		// reasoning blob regardless of what the id happens to look like.
 		const services = createPlatformServices();
 		const accessor = services.createTestingAccessor();
 		const instantiationService = accessor.get(IInstantiationService);
-		const messages = [createThinkingAssistantMessage({ id: 'thinking_0', text: '', encrypted: 'sig_from_anthropic' })];
+		const messages = [createThinkingAssistantMessage(
+			{ id: 'rs_looks_legit', text: '', encrypted: 'sig_from_anthropic' },
+			originApi,
+		)];
+
+		const body = instantiationService.invokeFunction(servicesAccessor => createResponsesRequestBody(servicesAccessor, createRequestOptions(messages, false), testEndpoint.model, testEndpoint));
+
+		expect(body.input?.some(item => item.type === 'reasoning')).toBe(false);
+
+		accessor.dispose();
+		services.dispose();
+	});
+
+	it('preserves the legacy ID-prefix behavior when the API type is unset', () => {
+		const services = createPlatformServices();
+		const accessor = services.createTestingAccessor();
+		const instantiationService = accessor.get(IInstantiationService);
+		const messages = [
+			createThinkingAssistantMessage({ id: 'rs_abc123', text: 'reasoning', encrypted: 'enc_blob' }),
+			createThinkingAssistantMessage({ id: 'thinking_0', text: '', encrypted: 'sig_from_anthropic' }),
+			createThinkingAssistantMessage({ id: 'rs_summary', text: 'summary only' }),
+		];
+
+		const body = instantiationService.invokeFunction(servicesAccessor => createResponsesRequestBody(servicesAccessor, createRequestOptions(messages, false), testEndpoint.model, testEndpoint));
+
+		expect(body.input?.filter(item => item.type === 'reasoning')).toEqual([
+			{ type: 'reasoning', id: 'rs_abc123', summary: [], encrypted_content: 'enc_blob' },
+		]);
+
+		accessor.dispose();
+		services.dispose();
+	});
+
+	it('drops thinking that carries no encrypted payload', () => {
+		const services = createPlatformServices();
+		const accessor = services.createTestingAccessor();
+		const instantiationService = accessor.get(IInstantiationService);
+		const messages = [createThinkingAssistantMessage(
+			{ id: 'rs_abc123', text: 'summary only' },
+			'responses',
+		)];
 
 		const body = instantiationService.invokeFunction(servicesAccessor => createResponsesRequestBody(servicesAccessor, createRequestOptions(messages, false), testEndpoint.model, testEndpoint));
 
@@ -995,10 +1088,12 @@ describe('createResponsesRequestBody prompt_cache_breakpoint markers', () => {
 		cacheType: CacheType,
 	});
 
-	const buildBody = (messages: Raw.ChatMessage[], endpoint = cacheBreakpointEndpoint, enablePromptCacheBreakpoint = true) => {
+	const buildBody = (messages: Raw.ChatMessage[], endpoint = cacheBreakpointEndpoint, enablePromptCacheBreakpoint: boolean | 'unset' = true) => {
 		const services = createPlatformServices();
 		const accessor = services.createTestingAccessor();
-		accessor.get(IConfigurationService).setConfig(ConfigKey.ResponsesApiPromptCacheBreakpointEnabled, enablePromptCacheBreakpoint);
+		if (enablePromptCacheBreakpoint !== 'unset') {
+			accessor.get(IConfigurationService).setConfig(ConfigKey.ResponsesApiPromptCacheBreakpointEnabled, enablePromptCacheBreakpoint);
+		}
 		const instantiationService = accessor.get(IInstantiationService);
 		const body = instantiationService.invokeFunction(servicesAccessor => createResponsesRequestBody(servicesAccessor, createRequestOptions(messages, false), endpoint.model, endpoint));
 		accessor.dispose();
@@ -1232,10 +1327,70 @@ describe('createResponsesRequestBody prompt_cache_breakpoint markers', () => {
 		expect(body.prompt_cache_options).toBeUndefined();
 		expect((body.input?.[0] as { content: unknown[] }).content[0]).not.toHaveProperty('prompt_cache_breakpoint');
 	});
+
+	it('does not leak markers through opaque content into subsequent implicit or unsupported requests', () => {
+		const inputText = { type: 'input_text', text: 'replayed user input' };
+		const messages: Raw.ChatMessage[] = [{
+			role: Raw.ChatRole.User,
+			content: [
+				{ type: Raw.ChatCompletionContentPartKind.Opaque, value: inputText },
+				cacheBreakpoint(),
+			],
+		}];
+
+		expect(buildBody(messages).input?.[0]).toMatchObject({
+			content: [{ ...inputText, prompt_cache_breakpoint: expectedPromptCacheBreakpoint }],
+		});
+		expect(inputText).not.toHaveProperty('prompt_cache_breakpoint');
+		for (const body of [buildBody(messages, cacheBreakpointEndpoint, false), buildBody(messages, testEndpoint)]) {
+			expect(body.input?.[0]).toEqual({
+				type: 'message',
+				role: 'user',
+				content: [{ type: 'input_text', text: 'replayed user input' }],
+			});
+		}
+	});
+
+	it('uses explicit prompt caching for opt-in endpoints only when the user explicitly enables it', () => {
+		const byokEndpoint: IChatEndpoint = { ...cacheBreakpointEndpoint, promptCacheBreakpointsRequireOptIn: true };
+		const messages: Raw.ChatMessage[] = [{
+			role: Raw.ChatRole.User,
+			content: [
+				{ type: Raw.ChatCompletionContentPartKind.Text, text: 'hello' },
+				cacheBreakpoint(),
+			],
+		}];
+		const summarize = (setting: boolean | 'unset') => {
+			const body = buildBody(messages, byokEndpoint, setting);
+			return { setting, options: body.prompt_cache_options, content: (body.input?.[0] as { content: unknown[] }).content };
+		};
+
+		expect([summarize('unset'), summarize(true), summarize(false)]).toEqual([
+			{ setting: 'unset', options: { mode: 'implicit' }, content: [{ type: 'input_text', text: 'hello' }] },
+			{ setting: true, options: { mode: 'explicit' }, content: [{ type: 'input_text', text: 'hello', prompt_cache_breakpoint: expectedPromptCacheBreakpoint }] },
+			{ setting: false, options: { mode: 'implicit' }, content: [{ type: 'input_text', text: 'hello' }] },
+		]);
+	});
+
+	it('uses implicit prompt caching by default for endpoints that do not require opt-in', () => {
+		const messages: Raw.ChatMessage[] = [{
+			role: Raw.ChatRole.User,
+			content: [
+				{ type: Raw.ChatCompletionContentPartKind.Text, text: 'hello' },
+				cacheBreakpoint(),
+			],
+		}];
+
+		const body = buildBody(messages, cacheBreakpointEndpoint, 'unset');
+		expect({ options: body.prompt_cache_options, input: body.input }).toEqual({
+			options: { mode: 'implicit' },
+			input: [{ type: 'message', role: 'user', content: [{ type: 'input_text', text: 'hello' }] }],
+		});
+	});
 });
 
 describe('processResponseFromChatEndpoint telemetry', () => {
-	it('emits engine.messages for Responses API assistant output', async () => {
+	it.each([false, true])('emits engine.messages for Responses API assistant output (reasoning: %s)', async withReasoning => {
 		const services = createPlatformServices();
 		const accessor = services.createTestingAccessor();
 		const instantiationService = accessor.get(IInstantiationService);
@@ -1256,8 +1411,16 @@ describe('processResponseFromChatEndpoint telemetry', () => {
 					output_tokens_details: { reasoning_tokens: 0 },
 				},
 				output: [
+					...(withReasoning ? [{
+						type: 'reasoning',
+						id: 'rs_output',
+						content: [{ type: 'reasoning_text', text: 'Detailed output reasoning' }],
+						summary: [{ type: 'summary_text', text: 'Summary' }],
+						encrypted_content: 'opaque',
+					}] : []),
 					{
 						type: 'message',
+						role: 'assistant',
 						content: [{ type: 'output_text', text: 'final assistant reply' }],
 					}
 				],
@@ -1277,8 +1440,9 @@ describe('processResponseFromChatEndpoint telemetry', () => {
 			telemetryData
 		);
 
-		for await (const _ of stream) {
-			// consume all completions to flush telemetry side effects
+		const returnedMessages: Raw.ChatMessage[] = [];
+		for await (const completion of stream) {
+			returnedMessages.push(completion.message);
 		}
 
 		const events = telemetryService.getEvents().telemetryServiceEvents.filter(e => e.eventName === 'engine.messages');
@@ -1286,9 +1450,24 @@ describe('processResponseFromChatEndpoint telemetry', () => {
 
 		const outputEvent = events[events.length - 1];
 		const messagesJson = JSON.parse(String((outputEvent.properties as Record<string, string>)?.messagesJson));
-		expect(messagesJson).toHaveLength(1);
-		expect(messagesJson[0].role).toBe('assistant');
-		expect(messagesJson[0].content).toBe('final assistant reply');
+		expect(messagesJson).toHaveLength(withReasoning ? 2 : 1);
+		expect(messagesJson.at(-1).role).toBe('assistant');
+		expect(messagesJson.at(-1).content).toBe('final assistant reply');
+		if (withReasoning) {
+			expect(messagesJson[0]).toEqual({
+				role: 'assistant', content: [{ type: 'reasoning_text', text: 'Detailed output reasoning' }], type: 'reasoning', id: 'rs_output',
+				summary: [{ type: 'summary_text', text: 'Summary' }], encrypted_content: 'opaque',
+				content_metadata: [
+					{ path: '/content/0/text', purpose: 'reasoning', visibility: 'unknown', format: 'text' },
+					{ path: '/encrypted_content', purpose: 'reasoning', visibility: 'opaque', format: 'opaque' },
+					{ path: '/summary/0/text', purpose: 'reasoning_summary', visibility: 'unknown', format: 'text' },
+				],
+			});
+		}
+		expect(returnedMessages).toEqual([{
+			role: Raw.ChatRole.Assistant,
+			content: [{ type: Raw.ChatCompletionContentPartKind.Text, text: 'final assistant reply' }],
+		}]);
 
 		accessor.dispose();
 		services.dispose();
@@ -2099,6 +2278,7 @@ describe('processResponseFromChatEndpoint terminal events', () => {
 				new SpyingTelemetryService(),
 				'req-1',
 				'gh-req-1',
+				'svc-req-1',
 				'',
 				undefined,
 			);

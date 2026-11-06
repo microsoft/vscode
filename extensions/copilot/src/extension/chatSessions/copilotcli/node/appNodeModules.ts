@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { existsSync, promises as fs } from 'fs';
+import { promises as fs } from 'fs';
 import * as path from 'path';
 
 /**
@@ -26,19 +26,6 @@ export const APP_NODE_MODULES_ROOTS = ['node_modules.asar.unpacked', 'node_modul
  * the plain `node_modules` (dev) and `node_modules.asar.unpacked` (packaged)
  * roots. Returns the first existing path, or the plain `node_modules` path when
  * neither exists so callers still get a stable default.
- */
-export function resolveAppModulePathSync(appRoot: string, ...segments: string[]): string {
-	for (const root of APP_NODE_MODULES_ROOTS) {
-		const candidate = path.join(appRoot, root, ...segments);
-		if (existsSync(candidate)) {
-			return candidate;
-		}
-	}
-	return path.join(appRoot, 'node_modules', ...segments);
-}
-
-/**
- * Async variant of {@link resolveAppModulePathSync}.
  */
 export async function resolveAppModulePath(appRoot: string, ...segments: string[]): Promise<string> {
 	for (const root of APP_NODE_MODULES_ROOTS) {

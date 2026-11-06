@@ -84,7 +84,7 @@ suite('Event utils dispose', function () {
 		const store = new DisposableStore();
 		const emitter = ds.add(new Emitter<number>());
 		const evens = Event.filter(emitter.event, n => n % 2 === 0, store);
-		assertDisposablesCount(1); // snaphot only listen when `evens` is being listened on
+		assertDisposablesCount(1); // snapshot only listens when `evens` is being listened to
 
 		let all = 0;
 		const leaked = evens(n => all += n);
@@ -111,6 +111,14 @@ suite('Event utils dispose', function () {
 		store.dispose();
 
 		assertDisposablesCount([leaked]); // leaked is still there
+	});
+
+	test('debounce-util can be disposed without listeners', function () {
+		const store = new DisposableStore();
+		const emitter = ds.add(new Emitter<number>());
+		Event.debounce(emitter.event, l => 0, undefined, undefined, undefined, undefined, store);
+
+		store.dispose();
 	});
 });
 
@@ -979,7 +987,7 @@ suite('PausableEmitter', function () {
 		assert.deepStrictEqual(data, [1, 1]); // paused after first event
 
 		emitter.resume();
-		assert.deepStrictEqual(data, [1, 1, 2, 2]); // remaing event delivered
+		assert.deepStrictEqual(data, [1, 1, 2, 2]); // remaining event delivered
 
 		emitter.fire(3);
 		assert.deepStrictEqual(data, [1, 1, 2, 2, 3, 3]);

@@ -1661,15 +1661,17 @@ export class DebugModel extends Disposable implements IDebugModel {
 						this.schedulers.set(thread.getId(), {
 							completeDeferred: deferred,
 							scheduler: new RunOnceScheduler(() => {
+								const wasCallStackComplete = thread.reachedEndOfCallStack;
 								thread.fetchCallStack(19).then(() => {
 									const stale = thread.getStaleCallStack();
 									const current = thread.getCallStack();
-									let bottomOfCallStackChanged = stale.length !== current.length;
-									for (let i = 1; i < stale.length && !bottomOfCallStackChanged; i++) {
-										bottomOfCallStackChanged = !stale[i].equals(current[i]);
+									// A thread's call stack can become complete without adding frames, so fire the change event to notify consumers.
+									let callStackChanged = stale.length !== current.length || wasCallStackComplete !== thread.reachedEndOfCallStack;
+									for (let i = 1; i < stale.length && !callStackChanged; i++) {
+										callStackChanged = !stale[i].equals(current[i]);
 									}
 
-									if (bottomOfCallStackChanged) {
+									if (callStackChanged) {
 										this._onDidChangeCallStack.fire();
 									}
 								}).finally(() => {

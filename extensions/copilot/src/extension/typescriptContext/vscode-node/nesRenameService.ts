@@ -9,7 +9,7 @@ import { ITelemetryService } from '../../../platform/telemetry/common/telemetry'
 import { DisposableStore } from '../../../util/vs/base/common/lifecycle';
 import * as protocol from '../common/serverProtocol';
 import { TS7NesRenameService } from './ts7/nesRenameService';
-import { TS6NesRenameService } from './tsc6/nesRenameService';
+import { TS6NesRenameService } from './ts6/nesRenameService';
 import { TypeScript } from './tsService';
 
 type TextChange = {

@@ -17,6 +17,7 @@ import type { BaseParams } from '../common/commands.js';
  * `Changeset` scope has no target.
  *
  * @category Commands
+ * @nonexhaustive
  */
 export const enum ChangesetOperationTargetKind {
 	/** Operation acts on a single file. */
@@ -30,12 +31,15 @@ export const enum ChangesetOperationTargetKind {
  *
  * The `kind` MUST match one of the operation's declared
  * {@link ChangesetOperation.scopes}.
+ * Clients MAY echo {@link ChangesetFile.nonce} from the displayed file.
+ * If both nonces are present, a mismatch MUST fail with {@link AhpErrorCodes.Conflict};
+ * omission on either side adds no nonce precondition.
  *
  * @category Commands
  */
 export type ChangesetOperationTarget =
-	| { kind: ChangesetOperationTargetKind.Resource; resource: URI; side?: 'before' | 'after' }
-	| { kind: ChangesetOperationTargetKind.Range; resource: URI; side?: 'before' | 'after'; range: TextRange };
+	| { kind: ChangesetOperationTargetKind.Resource; resource: URI; side?: 'before' | 'after'; nonce?: string }
+	| { kind: ChangesetOperationTargetKind.Range; resource: URI; side?: 'before' | 'after'; range: TextRange; nonce?: string };
 
 /**
  * Optional follow-up surfaced by the server after an operation completes —

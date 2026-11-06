@@ -58,6 +58,7 @@ import { ContextKeyValue, IContextKey, IContextKeyService } from '../../../../pl
 import { IInstantiationService, ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
 import { ServiceCollection } from '../../../../platform/instantiation/common/serviceCollection.js';
 import { INotificationService, Severity } from '../../../../platform/notification/common/notification.js';
+import { NotificationText } from '../../../../platform/notification/common/notificationMessage.js';
 import { editorErrorForeground, editorHintForeground, editorInfoForeground, editorWarningForeground } from '../../../../platform/theme/common/colorRegistry.js';
 import { IThemeService, registerThemingParticipant } from '../../../../platform/theme/common/themeService.js';
 import { MenuId } from '../../../../platform/actions/common/actions.js';
@@ -1134,7 +1135,7 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 				}
 				case editorCommon.Handler.Paste: {
 					const args = <Partial<editorBrowser.PastePayload>>payload;
-					this._paste(source, args.text || '', args.pasteOnNewLine || false, args.multicursorText || null, args.mode || null, args.clipboardEvent);
+					this._paste(source, args.text || '', args.pasteOnNewLine || false, args.multicursorText || null, args.mode || null, args.isBlock || false, args.clipboardEvent);
 					return;
 				}
 				case editorCommon.Handler.Cut:
@@ -1204,13 +1205,13 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 		this._modelData.viewModel.compositionType(text, replacePrevCharCnt, replaceNextCharCnt, positionDelta, source);
 	}
 
-	private _paste(source: string | null | undefined, text: string, pasteOnNewLine: boolean, multicursorText: string[] | null, mode: string | null, clipboardEvent?: ClipboardEvent): void {
+	private _paste(source: string | null | undefined, text: string, pasteOnNewLine: boolean, multicursorText: string[] | null, mode: string | null, isBlock: boolean, clipboardEvent?: ClipboardEvent): void {
 		if (!this._modelData) {
 			return;
 		}
 		const viewModel = this._modelData.viewModel;
 		const startPosition = viewModel.getSelection().getStartPosition();
-		viewModel.paste(text, pasteOnNewLine, multicursorText, source);
+		viewModel.paste(text, pasteOnNewLine, multicursorText, source, isBlock);
 		const endPosition = viewModel.getSelection().getStartPosition();
 		if (source === 'keyboard') {
 			this._onDidPaste.fire({
@@ -1813,7 +1814,11 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 					if (e.reachedMaxCursorCount) {
 
 						const multiCursorLimit = this.getOption(EditorOption.multiCursorLimit);
-						const message = nls.localize('cursors.maximum', "The number of cursors has been limited to {0}. Consider using [find and replace](https://code.visualstudio.com/docs/editor/codebasics#_find-and-replace) for larger changes or increase the editor multi cursor limit setting.", multiCursorLimit);
+						const message = NotificationText.format(
+							nls.localize('cursors.maximumLinked', "The number of cursors has been limited to {0}. Consider using {1} for larger changes or increase the editor multi cursor limit setting."),
+							String(multiCursorLimit),
+							NotificationText.link(nls.localize('cursors.findAndReplaceLink', "find and replace"), 'https://code.visualstudio.com/docs/editor/codebasics#_find-and-replace'),
+						);
 						this._notificationService.prompt(Severity.Warning, message, [
 							{
 								label: 'Find and Replace',
@@ -1924,8 +1929,8 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 		let commandDelegate: ICommandDelegate;
 		if (this.isSimpleWidget) {
 			commandDelegate = {
-				paste: (text: string, pasteOnNewLine: boolean, multicursorText: string[] | null, mode: string | null) => {
-					this._paste('keyboard', text, pasteOnNewLine, multicursorText, mode);
+				paste: (text: string, pasteOnNewLine: boolean, multicursorText: string[] | null, mode: string | null, isBlock: boolean) => {
+					this._paste('keyboard', text, pasteOnNewLine, multicursorText, mode, isBlock);
 				},
 				type: (text: string) => {
 					this._type('keyboard', text);
@@ -1945,8 +1950,8 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 			};
 		} else {
 			commandDelegate = {
-				paste: (text: string, pasteOnNewLine: boolean, multicursorText: string[] | null, mode: string | null) => {
-					const payload: editorBrowser.PastePayload = { text, pasteOnNewLine, multicursorText, mode };
+				paste: (text: string, pasteOnNewLine: boolean, multicursorText: string[] | null, mode: string | null, isBlock: boolean) => {
+					const payload: editorBrowser.PastePayload = { text, pasteOnNewLine, multicursorText, mode, isBlock };
 					this._commandService.executeCommand(editorCommon.Handler.Paste, payload);
 				},
 				type: (text: string) => {

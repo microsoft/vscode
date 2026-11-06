@@ -722,6 +722,8 @@ declare module 'vscode' {
 		};
 		readonly maxInputTokens?: number;
 		readonly maxOutputTokens?: number;
+		/** The total context window, independent of the input and output token limits. */
+		readonly maxContextWindowTokens?: number;
 		readonly capabilities?: {
 			readonly vision?: boolean;
 			readonly toolCalling?: boolean;

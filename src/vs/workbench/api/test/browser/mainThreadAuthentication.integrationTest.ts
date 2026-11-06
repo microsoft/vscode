@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { URI } from '../../../../base/common/uri.js';
 import { IDialogService } from '../../../../platform/dialogs/common/dialogs.js';
 import { TestDialogService } from '../../../../platform/dialogs/test/common/testDialogService.js';
 import { TestInstantiationService } from '../../../../platform/instantiation/test/common/instantiationServiceMock.js';
@@ -14,7 +15,8 @@ import { IStorageService } from '../../../../platform/storage/common/storage.js'
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { NullTelemetryService } from '../../../../platform/telemetry/common/telemetryUtils.js';
 import { MainThreadAuthentication } from '../../browser/mainThreadAuthentication.js';
-import { ExtHostContext, MainContext } from '../../common/extHost.protocol.js';
+import { ExtHostAuthenticationShape, ExtHostContext, MainContext } from '../../common/extHost.protocol.js';
+import { upcastPartial } from '../../../../base/test/common/mock.js';
 import { IActivityService } from '../../../services/activity/common/activity.js';
 import { AuthenticationService } from '../../../services/authentication/browser/authenticationService.js';
 import { IAuthenticationExtensionsService, IAuthenticationService } from '../../../services/authentication/common/authentication.js';
@@ -104,6 +106,36 @@ suite('MainThreadAuthentication', () => {
 		assert.ok(true, 'Registration and unregistration completed successfully');
 	});
 
+	test('uses an explicit dynamic provider ID for registration and persisted tokens', async () => {
+		const authorizationServer = URI.parse('https://auth.example.com');
+		const resource = { resource: 'https://resource.example.com/mcp' };
+		const providerId = 'https://auth.example.com/ https://resource.example.com/mcp client:configured-client';
+		const tokens = [{ access_token: 'stored-token', token_type: 'Bearer', created_at: 0 }];
+		const registrations: Parameters<ExtHostAuthenticationShape['$registerDynamicAuthProvider']>[] = [];
+		rpcProtocol.set(ExtHostContext.ExtHostAuthentication, upcastPartial<ExtHostAuthenticationShape>({
+			$registerDynamicAuthProvider: async (...args) => {
+				registrations.push(args);
+				const id = args[6] ?? 'unexpected-legacy-id';
+				await mainThreadAuthentication.$registerAuthenticationProvider({ id, label: 'Test', supportsMultipleAccounts: false });
+				return id;
+			},
+			$onDidChangeDynamicAuthProviderTokens: async () => { },
+		}));
+		const storage = instantiationService.get(IDynamicAuthenticationProviderStorageService);
+		await storage.storeClientRegistration(providerId, authorizationServer.toString(true), 'configured-client', 'configured-secret');
+		await storage.setSessionsForDynamicAuthProvider(providerId, 'configured-client', tokens);
+		const metadata = { issuer: authorizationServer.toString(true), response_types_supported: ['code'] };
+
+		const provider = await instantiationService.get(IAuthenticationService).createDynamicAuthenticationProvider(authorizationServer, metadata, resource, undefined, undefined, providerId);
+		await mainThreadAuthentication.$unregisterAuthenticationProvider(providerId);
+		await rpcProtocol.sync();
+
+		assert.deepStrictEqual({ providerId: provider?.id, registrations }, {
+			providerId,
+			registrations: [[authorizationServer.toJSON(), metadata, resource, 'configured-client', 'configured-secret', tokens, providerId]],
+		});
+	});
+
 	test('event suppression during explicit unregistration', async () => {
 		let unregisterEventFired = false;
 		let eventProviderId: string | undefined;
@@ -181,5 +213,27 @@ suite('MainThreadAuthentication', () => {
 
 		// Success if we reach here without timeout
 		assert.ok(true, 'Concurrent registrations and unregistrations completed successfully');
+	});
+
+	test('never lets an extension send workbench-only session options to a provider', async () => {
+		const received: unknown[] = [];
+		rpcProtocol.set(ExtHostContext.ExtHostAuthentication, upcastPartial<ExtHostAuthenticationShape>({
+			$getSessions: (_id, _scopes, options) => {
+				received.push(options);
+				return Promise.resolve([]);
+			},
+		}));
+		await mainThreadAuthentication.$registerAuthenticationProvider({ id: 'test-reserved', label: 'Test Reserved', supportsMultipleAccounts: false });
+
+		await mainThreadAuthentication.$getSession('test-reserved', ['scope'], 'publisher.extension', 'Extension', {
+			silent: true,
+			clientId: 'client',
+			_workbenchIncludeUnapprovedAccounts: true,
+			_workbenchEntraExchangeProbe: { subjectTokens: ['token'] }
+		});
+		await mainThreadAuthentication.$unregisterAuthenticationProvider('test-reserved');
+
+		// Undefined options do not survive the trip to the extension host.
+		assert.deepStrictEqual(received, [{ clientId: 'client', silent: true }]);
 	});
 });

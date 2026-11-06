@@ -140,6 +140,14 @@ export class MainThreadSpeech implements MainThreadSpeechShape {
 		});
 	}
 
+	$registerVoiceLiveSessionProvider(handle: number, identifier: string, metadata: ISpeechProviderMetadata): void {
+		const registration = this.speechService.registerVoiceLiveSessionProvider(identifier, {
+			metadata,
+			createVoiceLiveSession: (sdp, token) => this.proxy.$createVoiceLiveSession(handle, sdp, token)
+		});
+		this.providerRegistrations.set(handle, registration);
+	}
+
 	$unregisterProvider(handle: number): void {
 		const registration = this.providerRegistrations.get(handle);
 		if (registration) {

@@ -6,18 +6,24 @@
 import type { LinkPresentation } from '@vscode/markdown-editor';
 import type { IObservable } from '@vscode/observables';
 import * as vscode from 'vscode';
+import { buildGitCommitLookupFailurePresentation, buildGitCommitPresentation, buildLoadingLinkPresentation, type GitCommitPresentationData } from './linkPresentationBuilders';
 import { createAsyncLinkPresentation, decodeUrlPathSegments, ImmutableLinkPresentationCache, type LinkPresentationResolver, type LinkPresentationResolverContext } from './linkPresentationResolver';
 
 export class GitLinkPresentationResolver implements LinkPresentationResolver {
 	readonly refreshOnInterval = false;
 	readonly #cache: ImmutableLinkPresentationCache;
+	readonly #activateGit: () => Promise<GitExtension | undefined>;
 	readonly #onDidChangeRepositories = new vscode.EventEmitter<void>();
 	#gitApi: Promise<GitApi | undefined> | undefined;
 	#gitApiSubscriptions: vscode.Disposable | undefined;
 	#isDisposed = false;
 
-	constructor(cache: ImmutableLinkPresentationCache) {
+	constructor(
+		cache: ImmutableLinkPresentationCache,
+		activateGit: () => Promise<GitExtension | undefined> = async () => vscode.extensions.getExtension<GitExtension>('vscode.git')?.activate(),
+	) {
 		this.#cache = cache;
+		this.#activateGit = activateGit;
 	}
 
 	resolve(href: string, context: LinkPresentationResolverContext): IObservable<LinkPresentation> | undefined {
@@ -28,18 +34,13 @@ export class GitLinkPresentationResolver implements LinkPresentationResolver {
 
 		return createAsyncLinkPresentation(
 			href,
-			{
-				kind: 'commit',
-				status: { kind: 'pending', label: 'Loading' },
-			},
+			{ ...buildLoadingLinkPresentation('commit'), title: target.sha.slice(0, 7) },
 			context,
 			() => this.#cache.get(href, () => this.#resolve(target)),
-			error => ({
-				kind: 'commit',
-				status: { kind: 'error', label: 'Not available' },
-				tooltip: error instanceof Error ? error.message : 'The Git commit could not be resolved.',
-				ariaLabel: `Git commit ${target.sha.slice(0, 7)} could not be resolved`,
-			}),
+			error => buildGitCommitLookupFailurePresentation(
+				target.sha.slice(0, 7),
+				error instanceof Error ? error.message : 'The Git commit could not be resolved.',
+			),
 			[context.onDidRequestRefresh, this.#onDidChangeRepositories.event],
 		);
 	}
@@ -52,21 +53,18 @@ export class GitLinkPresentationResolver implements LinkPresentationResolver {
 
 		try {
 			const result = await this.#findCommit(target);
-			const revealed = await vscode.commands.executeCommand<boolean>(
-				'_workbench.scm.revealHistoryItem',
+			await vscode.commands.executeCommand(
+				'git.viewCommit',
 				result.repository.rootUri,
 				result.commit.hash,
 			);
-			if (!revealed) {
-				await vscode.window.showWarningMessage(vscode.l10n.t("The commit could not be revealed in the Source Control Graph."));
-			}
 			return true;
 		} catch (error) {
-			if (target.repository) {
+			if (target.repository && !target.pathHint) {
 				return false;
 			}
 			await vscode.window.showWarningMessage(vscode.l10n.t(
-				"The commit could not be found in an open Git repository. {0}",
+				"The commit could not be opened. {0}",
 				error instanceof Error ? error.message : '',
 			));
 			return true;
@@ -80,11 +78,37 @@ export class GitLinkPresentationResolver implements LinkPresentationResolver {
 	}
 
 	async #resolve(target: GitCommitTarget): Promise<LinkPresentation> {
-		return getGitCommitPresentation((await this.#findCommit(target)).commit);
+		return buildGitCommitPresentation((await this.#findCommit(target)).commit);
 	}
 
 	async #findCommit(target: GitCommitTarget): Promise<GitCommitResult> {
 		const api = await this.#getGitApi();
+		if (target.pathHint) {
+			if (!api) {
+				throw new Error('The Git extension is not available.');
+			}
+			const uri = resolveGitRepositoryHint(target.pathHint);
+			if (!uri || (uri.scheme !== 'file' && uri.scheme !== 'vscode-remote')) {
+				throw new Error('The repository path must resolve to a local or remote file URI.');
+			}
+			let repository = api.getRepository(uri);
+			if (!repository) {
+				if (!vscode.workspace.isTrusted) {
+					throw new Error('Trust the workspace before opening a repository from a commit link.');
+				}
+				const root = await api.getRepositoryRoot(uri);
+				repository = root ? await api.openRepository(root) : null;
+			}
+			if (!repository) {
+				throw new Error(`No Git repository was found at ${uri.fsPath}.`);
+			}
+			if (target.repository && !repository.state.remotes.some(remote => (
+				[remote.fetchUrl, remote.pushUrl].some(url => url && normalizeGitRemoteUrl(url) === target.repository)
+			))) {
+				throw new Error(`The repository at ${uri.fsPath} does not match ${target.repository}.`);
+			}
+			return { repository, commit: await repository.getCommit(target.sha) };
+		}
 		const repositories = api?.repositories.filter(repository => !target.repository || repository.state.remotes.some(remote => (
 			[remote.fetchUrl, remote.pushUrl].some(url => url && normalizeGitRemoteUrl(url) === target.repository)
 		))) ?? [];
@@ -110,8 +134,7 @@ export class GitLinkPresentationResolver implements LinkPresentationResolver {
 
 	#getGitApi(): Promise<GitApi | undefined> {
 		this.#gitApi ??= (async () => {
-			const extension = vscode.extensions.getExtension<GitExtension>('vscode.git');
-			const git = await extension?.activate();
+			const git = await this.#activateGit();
 			if (!git?.enabled) {
 				return undefined;
 			}
@@ -133,6 +156,7 @@ export class GitLinkPresentationResolver implements LinkPresentationResolver {
 
 interface GitCommitTarget {
 	readonly repository?: string;
+	readonly pathHint?: string;
 	readonly sha: string;
 }
 
@@ -145,7 +169,7 @@ function parseGitCommitTarget(href: string): GitCommitTarget | undefined {
 	}
 	if (uri.protocol === 'commit:') {
 		const sha = uri.hostname || uri.pathname.replace(/^\/+/, '');
-		return isGitCommitSha(sha) ? { sha } : undefined;
+		return isGitCommitSha(sha) ? { sha, pathHint: uri.searchParams.get('path') ?? undefined } : undefined;
 	}
 	if (uri.protocol !== 'https:' && uri.protocol !== 'http:') {
 		return undefined;
@@ -171,8 +195,35 @@ function parseGitCommitTarget(href: string): GitCommitTarget | undefined {
 	}
 	return {
 		repository: `${uri.hostname.toLowerCase()}/${repositorySegments.join('/').replace(/\.git$/i, '')}`,
+		pathHint: uri.searchParams.get('path') ?? undefined,
 		sha,
 	};
+}
+
+export function resolveGitCommitHref(href: string, fromResource?: vscode.Uri): string {
+	const target = parseGitCommitTarget(href);
+	if (!target?.pathHint) {
+		return href;
+	}
+	const repositoryUri = resolveGitRepositoryHint(target.pathHint, fromResource);
+	if (!repositoryUri) {
+		return href;
+	}
+	const uri = new URL(href);
+	uri.searchParams.set('path', repositoryUri.toString());
+	return uri.toString();
+}
+
+function resolveGitRepositoryHint(hint: string, fromResource?: vscode.Uri): vscode.Uri | undefined {
+	return /^[a-z]:[\\/]/i.test(hint) || hint.startsWith('\\\\')
+		? vscode.Uri.file(hint)
+		: /^[a-z][a-z\d+.-]*:/i.test(hint)
+			? vscode.Uri.parse(hint)
+			: fromResource
+				? hint.startsWith('/')
+					? fromResource.with({ path: hint, query: '', fragment: '' })
+					: vscode.Uri.joinPath(fromResource, '..', hint.replace(/\\/g, '/')).with({ query: '', fragment: '' })
+				: undefined;
 }
 
 function isGitCommitSha(value: string): boolean {
@@ -209,6 +260,9 @@ interface GitApi {
 	readonly repositories: readonly GitRepository[];
 	readonly onDidOpenRepository: vscode.Event<GitRepository>;
 	readonly onDidCloseRepository: vscode.Event<GitRepository>;
+	getRepository(uri: vscode.Uri): GitRepository | null;
+	getRepositoryRoot(uri: vscode.Uri): Promise<vscode.Uri | null>;
+	openRepository(uri: vscode.Uri): Promise<GitRepository | null>;
 }
 
 interface GitRepository {
@@ -224,30 +278,11 @@ interface GitRemote {
 	readonly pushUrl?: string;
 }
 
-interface GitCommit {
-	readonly hash: string;
-	readonly message: string;
-	readonly shortStat?: {
-		readonly insertions: number;
-		readonly deletions: number;
-	};
-}
+interface GitCommit extends GitCommitPresentationData { }
 
 interface GitCommitResult {
 	readonly repository: GitRepository;
 	readonly commit: GitCommit;
 }
 
-export function getGitCommitPresentation(commit: GitCommit): LinkPresentation {
-	const title = commit.message.split(/\r?\n/, 1)[0];
-	const insertions = commit.shortStat?.insertions ?? 0;
-	const deletions = commit.shortStat?.deletions ?? 0;
-	const shortHash = commit.hash.slice(0, 7);
-	return {
-		kind: 'commit',
-		detail: title,
-		// TODO: Include insertion and deletion counts once the Markdown editor package supports them.
-		tooltip: `${shortHash} · ${title} · ${insertions} insertions, ${deletions} deletions`,
-		ariaLabel: `Commit ${shortHash}, ${insertions} insertions and ${deletions} deletions: ${title}`,
-	};
-}
+export { buildGitCommitPresentation as getGitCommitPresentation } from './linkPresentationBuilders';

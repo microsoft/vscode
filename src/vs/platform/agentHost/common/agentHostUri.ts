@@ -4,9 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { decodeBase64, encodeBase64, encodeHex, VSBuffer } from '../../../base/common/buffer.js';
+import { Disposable, IDisposable, toDisposable } from '../../../base/common/lifecycle.js';
 import { Schemas } from '../../../base/common/network.js';
 import { OperatingSystem } from '../../../base/common/platform.js';
+import { isEqualAuthority } from '../../../base/common/resources.js';
 import { URI } from '../../../base/common/uri.js';
+import { createURITransformer } from '../../../base/common/uriTransformer.js';
 import type { ResourceLabelFormatter } from '../../label/common/label.js';
 
 /**
@@ -14,7 +17,7 @@ import type { ResourceLabelFormatter } from '../../label/common/label.js';
  *
  * The original file path is kept verbatim as the URI path so resource
  * labels, language detection, and path comparisons see a real path. The
- * original scheme, authority, and query are carried in a single
+ * original scheme, authority, query, and content path (when different) are carried in a single
  * url-safe-base64 `_ah` query parameter so any remote resource can be
  * represented without assuming `file://`:
  *
@@ -35,6 +38,19 @@ import type { ResourceLabelFormatter } from '../../label/common/label.js';
 export const AGENT_HOST_SCHEME = 'vscode-agent-host';
 
 /**
+ * Maps resource URIs between the Agent Host and its client.
+ */
+export interface IAgentHostResourceUriMapper {
+	fromAgentHost(resource: URI): URI;
+	toAgentHost(resource: URI): URI;
+}
+
+export const identityAgentHostResourceUriMapper: IAgentHostResourceUriMapper = {
+	fromAgentHost: resource => resource,
+	toAgentHost: resource => resource,
+};
+
+/**
  * Query parameter that carries the {@link IAgentHostUriMeta} payload.
  */
 const AGENT_HOST_META_PARAM = '_ah';
@@ -48,8 +64,18 @@ interface IAgentHostUriMeta {
 	readonly scheme: string;
 	/** Original URI authority, omitted when empty. */
 	readonly authority?: string;
+	/** Original content URI path when the wrapper displays the file's path instead. */
+	readonly path?: string;
 	/** Original URI query, omitted when empty. */
 	readonly query?: string;
+	/**
+	 * Set when the wrapped URI came from a protocol `ContentRef` rather than
+	 * from the host's filesystem. Omitted otherwise. See
+	 * {@link toAgentHostContentUri}.
+	 */
+	readonly contentRef?: true;
+	/** Full file identity, so snapshots for same-path files remain distinct. */
+	readonly fileUri?: string;
 }
 
 /**
@@ -62,24 +88,99 @@ interface IAgentHostUriMeta {
  *   the URI authority (from {@link agentHostAuthority}).
  */
 export function toAgentHostUri(originalUri: URI, connectionAuthority: string): URI {
-	if (connectionAuthority === 'local' && originalUri.scheme === Schemas.file) {
+	return wrapAgentHostUri(originalUri, connectionAuthority, false);
+}
+
+/**
+ * Wraps a `ContentRef` for `resourceRead`, optionally displaying its file's path
+ * while preserving the original content URI. Directly resolvable local filesystem URIs stay unchanged.
+ */
+export function toAgentHostContentUri(originalUri: URI, connectionAuthority: string, fileUri?: URI): URI {
+	return wrapAgentHostUri(originalUri, connectionAuthority, true, fileUri);
+}
+
+/**
+ * Maps a host-side URI into client space.
+ *
+ * Content references use {@link toAgentHostContentUri}, with `fileUri` providing
+ * the file identity for labels and comparisons when available.
+ */
+export type AgentHostUriMapper = (uri: URI, options?: { readonly contentRef?: boolean; readonly fileUri?: URI }) => URI;
+
+/** Schemes this window reads directly, so the local agent host's URIs with them stay unwrapped. */
+const localWindowSchemes = new Set<string>([Schemas.file, Schemas.vscodeRemote]);
+
+/**
+ * Lets this window read the local agent host's URIs with `scheme` directly,
+ * for example the scheme of an open virtual workspace whose files a local
+ * session reports.
+ */
+export function registerLocalAgentHostWindowScheme(scheme: string): IDisposable {
+	if (localWindowSchemes.has(scheme)) {
+		return Disposable.None;
+	}
+	localWindowSchemes.add(scheme);
+	return toDisposable(() => localWindowSchemes.delete(scheme));
+}
+
+/** The schemes the local agent host's URIs keep unwrapped, so chat must also allow them as links. */
+export function getLocalAgentHostWindowSchemes(): readonly string[] {
+	return [...localWindowSchemes];
+}
+
+function wrapAgentHostUri(originalUri: URI, connectionAuthority: string, contentRef: boolean, fileUri?: URI): URI {
+	if (connectionAuthority === LOCAL_AGENT_HOST_AUTHORITY && localWindowSchemes.has(originalUri.scheme)) {
 		return originalUri;
 	}
 
+	const displayPath = fileUri?.path ?? originalUri.path;
+	const path = displayPath && !displayPath.startsWith('/') ? `/${displayPath}` : displayPath;
 	const meta: IAgentHostUriMeta = {
 		scheme: originalUri.scheme,
 		...(originalUri.authority ? { authority: originalUri.authority } : {}),
+		...(path !== originalUri.path ? { path: originalUri.path } : {}),
 		...(originalUri.query ? { query: originalUri.query } : {}),
+		...(contentRef ? { contentRef: true } as const : {}),
+		...(fileUri ? { fileUri: fileUri.toString() } : {}),
 	};
 	const params = new URLSearchParams();
 	params.set(AGENT_HOST_META_PARAM, encodeBase64(VSBuffer.fromString(JSON.stringify(meta)), false, true));
 	return URI.from({
 		scheme: AGENT_HOST_SCHEME,
 		authority: connectionAuthority,
-		path: originalUri.path || '/',
+		path: path || '/',
 		query: params.toString(),
 		fragment: originalUri.fragment,
 	});
+}
+
+/**
+ * Reads the {@link IAgentHostUriMeta} payload off a {@link AGENT_HOST_SCHEME}
+ * URI, or `undefined` when it is absent or malformed.
+ */
+function readAgentHostUriMeta(agentHostUri: URI): Partial<IAgentHostUriMeta> | undefined {
+	const encoded = agentHostUri.query ? new URLSearchParams(agentHostUri.query).get(AGENT_HOST_META_PARAM) : null;
+	if (!encoded) {
+		return undefined;
+	}
+	try {
+		return JSON.parse(decodeBase64(encoded).toString()) as Partial<IAgentHostUriMeta>;
+	} catch {
+		return undefined;
+	}
+}
+
+/**
+ * Whether the URI wraps a protocol `ContentRef` — content read with
+ * `resourceRead`, never resolved with `resourceResolve`.
+ *
+ * See {@link toAgentHostContentUri}.
+ */
+export function isAgentHostContentRefUri(agentHostUri: URI): boolean {
+	if (agentHostUri.scheme !== AGENT_HOST_SCHEME) {
+		return false;
+	}
+	return readAgentHostUriMeta(agentHostUri)?.contentRef === true;
 }
 
 /**
@@ -92,15 +193,7 @@ export function fromAgentHostUri(agentHostUri: URI): URI {
 		return agentHostUri;
 	}
 
-	let meta: Partial<IAgentHostUriMeta> | undefined;
-	const encoded = agentHostUri.query ? new URLSearchParams(agentHostUri.query).get(AGENT_HOST_META_PARAM) : null;
-	if (encoded) {
-		try {
-			meta = JSON.parse(decodeBase64(encoded).toString()) as Partial<IAgentHostUriMeta>;
-		} catch {
-			meta = undefined;
-		}
-	}
+	const meta = readAgentHostUriMeta(agentHostUri);
 
 	if (!meta || typeof meta.scheme !== 'string') {
 		// Missing/invalid metadata — fall back to treating the path as a
@@ -111,10 +204,40 @@ export function fromAgentHostUri(agentHostUri: URI): URI {
 	return URI.from({
 		scheme: meta.scheme,
 		authority: meta.authority || undefined,
-		path: agentHostUri.path,
+		path: typeof meta.path === 'string' ? meta.path : agentHostUri.path,
 		query: meta.query || '',
 		fragment: agentHostUri.fragment,
 	});
+}
+
+export function createAgentHostResourceUriMapper(connectionAuthority: string): IAgentHostResourceUriMapper {
+	return {
+		fromAgentHost: resource => toAgentHostUri(resource, connectionAuthority),
+		toAgentHost: resource => unwrapOwnAgentHostUri(resource, connectionAuthority),
+	};
+}
+
+/** Unwraps resources of this connection only; another connection's wrapped resources name files on that host, not this one. */
+function unwrapOwnAgentHostUri(resource: URI, connectionAuthority: string): URI {
+	return resource.scheme === AGENT_HOST_SCHEME && !isEqualAuthority(resource.authority, connectionAuthority) ? resource : fromAgentHostUri(resource);
+}
+
+/**
+ * Maps the editor's remote filesystem to host-local files while retaining the window's workspace identities.
+ */
+export function createEditorRemoteAgentHostResourceUriMapper(remoteAuthority: string, connectionAuthority: string): IAgentHostResourceUriMapper {
+	const transformer = createURITransformer(remoteAuthority);
+	return {
+		toAgentHost: resource => resource.scheme === Schemas.vscodeRemote && isEqualAuthority(resource.authority, remoteAuthority)
+			? URI.revive(transformer.transformIncoming(resource))
+			: unwrapOwnAgentHostUri(resource, connectionAuthority),
+		fromAgentHost: resource => {
+			if (resource.scheme === Schemas.file) {
+				return URI.revive(transformer.transformOutgoing(resource));
+			}
+			return resource.scheme === Schemas.vscodeRemote ? resource : toAgentHostUri(resource, connectionAuthority);
+		},
+	};
 }
 
 /**

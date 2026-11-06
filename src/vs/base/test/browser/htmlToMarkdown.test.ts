@@ -25,6 +25,13 @@ suite('htmlToMarkdown', () => {
 		);
 	});
 
+	test('drops the text of non-content elements', () => {
+		assert.strictEqual(
+			convertHtmlToMarkdown('<div><p>Kept</p><style>.list:focus { color: red; }</style><script>alert(1)</script><template>Template</template><noscript>Noscript</noscript></div>'),
+			'Kept'
+		);
+	});
+
 	test('strips dangerous schemes from links', () => {
 		assert.strictEqual(
 			convertHtmlToMarkdown('<a href="javascript:alert(1)">click</a>'),

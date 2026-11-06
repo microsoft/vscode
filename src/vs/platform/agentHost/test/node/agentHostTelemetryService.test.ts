@@ -14,45 +14,26 @@ import { FileService } from '../../../files/common/fileService.js';
 import { InMemoryFileSystemProvider } from '../../../files/common/inMemoryFilesystemProvider.js';
 import { NullLoggerService, NullLogService } from '../../../log/common/log.js';
 import type { IProductService } from '../../../product/common/productService.js';
-import { ITelemetryData, ITelemetryService, TelemetryLevel } from '../../../telemetry/common/telemetry.js';
+import { ITelemetryData, TelemetryLevel } from '../../../telemetry/common/telemetry.js';
+import { CapturingTelemetryService } from '../../../telemetry/test/common/testTelemetryService.js';
 import { AgentHostTelemetryLevelConfigKey, telemetryLevelToAgentHostConfigValue } from '../../common/agentHostSchema.js';
 import { AgentHostRestrictedTelemetrySender, IAgentHostRestrictedTelemetry, IAgentHostInternalTelemetryContext, IAgentHostRestrictedTelemetryContext, TelemetryProps } from '../../node/agentHostRestrictedTelemetry.js';
 import { AgentHostTelemetryService, createAgentHostTelemetryService, type IAgentHostTelemetryService, updateAgentHostTelemetryLevelFromConfig } from '../../node/agentHostTelemetryService.js';
 import { AgentHostInternalTelemetrySender } from '../../node/agentHostMicrosoftTelemetry.js';
 
-class TestTelemetryService implements ITelemetryService {
-	declare readonly _serviceBrand: undefined;
-
-	telemetryLevel = TelemetryLevel.USAGE;
-	sendErrorTelemetry = true;
-	sessionId = 'sessionId';
-	machineId = 'machineId';
-	sqmId = 'sqmId';
-	devDeviceId = 'devDeviceId';
-	firstSessionDate = 'firstSessionDate';
-	readonly events: { eventName: string; data: ITelemetryData | undefined }[] = [];
-	readonly errorEvents: { eventName: string; data: ITelemetryData | undefined }[] = [];
-	readonly commonProperties: Record<string, string | boolean> = {};
-
-	publicLog(eventName: string, data?: ITelemetryData): void {
-		this.events.push({ eventName, data });
-	}
-
-	publicLogError(eventName: string, data?: ITelemetryData): void {
-		this.errorEvents.push({ eventName, data });
-	}
-
-	publicLog2(eventName: string, data?: ITelemetryData): void {
-		this.events.push({ eventName, data });
-	}
-
-	publicLogError2(eventName: string, data?: ITelemetryData): void {
-		this.errorEvents.push({ eventName, data });
-	}
-
-	setExperimentProperty(): void { }
-	setCommonProperty(name: string, value: string | boolean): void {
-		this.commonProperties[name] = value;
+class TestTelemetryService extends CapturingTelemetryService<ITelemetryData | undefined> {
+	constructor() {
+		super({
+			captureLegacyEvents: true,
+			captureErrors: true,
+			separateErrors: true,
+			sendErrorTelemetry: true,
+			sessionId: 'sessionId',
+			machineId: 'machineId',
+			sqmId: 'sqmId',
+			devDeviceId: 'devDeviceId',
+			firstSessionDate: 'firstSessionDate',
+		});
 	}
 }
 
@@ -93,8 +74,12 @@ class TestRestrictedSink implements IAgentHostRestrictedTelemetry {
 	setInternalTelemetryContext(context: IAgentHostInternalTelemetryContext | undefined): void {
 		this.internalContexts.push(context);
 	}
-	setCommonProperty(name: string, value: string | boolean): void {
-		this.commonProperties[name] = value;
+	setCommonProperty(name: string, value: string | boolean | undefined): void {
+		if (value === undefined) {
+			delete this.commonProperties[name];
+		} else {
+			this.commonProperties[name] = value;
+		}
 	}
 }
 
@@ -216,8 +201,11 @@ suite('AgentHostTelemetryService', () => {
 	test('uses the launch telemetry level before a client connects and only becomes more restrictive', () => {
 		const delegate = new TestTelemetryService();
 		const service = disposables.add(new AgentHostTelemetryService(delegate, undefined, undefined, undefined, TelemetryLevel.USAGE));
+		const levelChanges: TelemetryLevel[] = [];
+		disposables.add(service.onDidChangeTelemetryLevel(level => levelChanges.push(level)));
 
 		service.publicLog('beforeClientLevel', { count: 1 });
+		service.updateTelemetryLevel(TelemetryLevel.ERROR);
 		service.updateTelemetryLevel(TelemetryLevel.ERROR);
 		service.publicLog('afterClientLevel', { count: 2 });
 		service.publicLogError('afterClientLevelError', { count: 3 });
@@ -229,26 +217,54 @@ suite('AgentHostTelemetryService', () => {
 		assert.deepStrictEqual({
 			telemetryLevel: service.telemetryLevel,
 			sendErrorTelemetry: service.sendErrorTelemetry,
+			levelChanges,
 			events: delegate.events,
 			errorEvents: delegate.errorEvents,
 		}, {
 			telemetryLevel: TelemetryLevel.NONE,
 			sendErrorTelemetry: false,
+			levelChanges: [TelemetryLevel.ERROR, TelemetryLevel.NONE],
 			events: [{ eventName: 'beforeClientLevel', data: { count: 1 } }],
 			errorEvents: [{ eventName: 'afterClientLevelError', data: { count: 3 } }],
 		});
 	});
 
-	test('forwards common properties to standard and restricted telemetry', () => {
+	test('forwards setting and clearing common properties to standard and restricted telemetry', () => {
 		const delegate = new TestTelemetryService();
 		const sink = new TestRestrictedSink();
 		const service = disposables.add(new AgentHostTelemetryService(delegate, sink));
 
 		service.setCommonProperty('copilotSku', 'copilot_for_business_seat');
+		const afterSet = { delegate: { ...delegate.commonProperties }, restricted: { ...sink.commonProperties } };
+		service.setCommonProperty('copilotSku', undefined);
 
-		assert.deepStrictEqual({ delegate: delegate.commonProperties, restricted: sink.commonProperties }, {
-			delegate: { copilotSku: 'copilot_for_business_seat' },
-			restricted: { copilotSku: 'copilot_for_business_seat' },
+		assert.deepStrictEqual({ afterSet, afterClear: { delegate: delegate.commonProperties, restricted: sink.commonProperties } }, {
+			afterSet: {
+				delegate: { copilotSku: 'copilot_for_business_seat' },
+				restricted: { copilotSku: 'copilot_for_business_seat' },
+			},
+			afterClear: {
+				delegate: {},
+				restricted: {},
+			},
+		});
+	});
+
+	test('marks msftInternal for an internal account and clears it again on account change', () => {
+		const delegate = new TestTelemetryService();
+		const service = disposables.add(new AgentHostTelemetryService(delegate, new TestRestrictedSink()));
+		const account = (isInternal: boolean) => ({ isInternal, trackingId: 'tid', userName: 'user', isVscodeTeamMember: false });
+
+		service.setInternalTelemetryContext(undefined);
+		const beforeSignIn = { ...delegate.commonProperties };
+		service.setInternalTelemetryContext(account(true));
+		const afterInternalAccount = { ...delegate.commonProperties };
+		service.setInternalTelemetryContext(account(false));
+
+		assert.deepStrictEqual({ beforeSignIn, afterInternalAccount, afterExternalAccount: delegate.commonProperties }, {
+			beforeSignIn: {},
+			afterInternalAccount: { 'common.msftInternal': true },
+			afterExternalAccount: { 'common.msftInternal': false },
 		});
 	});
 

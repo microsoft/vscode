@@ -5,7 +5,7 @@
 
 import { IThemeService } from '../../../../platform/theme/common/themeService.js';
 import { Part } from '../../part.js';
-import { Dimension, $, EventHelper, addDisposableGenericMouseDownListener, getWindow, isAncestorOfActiveElement, getActiveElement, isHTMLElement } from '../../../../base/browser/dom.js';
+import { Dimension, $, EventHelper, addDisposableGenericMouseDownListener, getWindow, isAncestorOfActiveElement, getActiveElement, isHTMLElement, computeScreenAwareSize } from '../../../../base/browser/dom.js';
 import { Event, Emitter, Relay, PauseableEmitter } from '../../../../base/common/event.js';
 import { contrastBorder, editorBackground } from '../../../../platform/theme/common/colorRegistry.js';
 import { GroupDirection, GroupsArrangement, GroupOrientation, IMergeGroupOptions, MergeGroupMode, GroupsOrder, GroupLocation, IFindGroupScope, EditorGroupLayout, GroupLayoutArgument, IEditorSideGroup, IEditorDropTargetDelegate, IEditorPart, GroupActivationReason, IEditorGroupActivationEvent } from '../../../services/editor/common/editorGroupsService.js';
@@ -24,7 +24,7 @@ import { EditorDropTarget } from './editorDropTarget.js';
 import { Color } from '../../../../base/common/color.js';
 import { CenteredViewLayout, CenteredViewState } from '../../../../base/browser/ui/centered/centeredViewLayout.js';
 import { onUnexpectedError } from '../../../../base/common/errors.js';
-import { Parts, IWorkbenchLayoutService, Position, FLOATING_PANEL_INNER_MARGIN, FLOATING_PANEL_MARGIN, getFloatingOuterEdgeOwners, getFloatingEditorVerticalMargins } from '../../../services/layout/browser/layoutService.js';
+import { Parts, IWorkbenchLayoutService, Position, getFloatingEditorVerticalMargins, getFloatingEditorVerticalOuterEdges, getFloatingOuterEdgeOwners, getFloatingPaneCompositeHorizontalMargins } from '../../../services/layout/browser/layoutService.js';
 import { DeepPartial, assertType } from '../../../../base/common/types.js';
 import { CompositeDragAndDropObserver } from '../../dnd.js';
 import { DeferredPromise, Promises } from '../../../../base/common/async.js';
@@ -38,7 +38,7 @@ import { EditorAreaFocusContext, EditorPartMaximizedEditorGroupContext, EditorPa
 import { mainWindow } from '../../../../base/browser/window.js';
 
 /**
- * The width (in pixels) of the editor card border drawn on every side when the
+ * The width (in pixels) of each visible editor card border when the
  * Modern UI Update experiment is enabled (`modernUI/media/editorBorder.css`).
  * The editor reserves this thickness when laying out its contents so they sit
  * inside the frame instead of overflowing (and being clipped by) the border.
@@ -243,9 +243,9 @@ export class EditorPart extends Part<IEditorPartMemento> implements IEditorPart,
 	private _contentRightInset = 0;
 
 	/**
-	 * Reserves an inset (px) on the right of the editor content of the group(s) at the
-	 * right edge of the editor part, while the title stays full width, so a docked panel
-	 * can sit beside the editor content under one full-width tab bar. Only the right-edge
+	 * Reserves an inset (px) on the right of the editor header and content of the group(s)
+	 * at the right edge of the editor part, while tabs stay full width, so a docked panel
+	 * can sit beside the editor under one full-width tab bar. Only the right-edge
 	 * groups (no neighbor to the right) are inset; interior groups in a split layout keep
 	 * full-width content. Recomputed when the group topology changes. `0` (default)
 	 * restores full-width content for all groups.
@@ -314,6 +314,13 @@ export class EditorPart extends Part<IEditorPartMemento> implements IEditorPart,
 	get hasRestorableState(): boolean {
 		return !!this.workspaceMemento[EditorPart.EDITOR_PART_UI_STATE_STORAGE_KEY];
 	}
+
+	/**
+	 * Whether the part is owned by someone else than the editor parts service:
+	 * it is not restored, not part of working sets and does not affect the
+	 * labels of other parts. Its owner is responsible for its lifecycle.
+	 */
+	get isTransient(): boolean { return false; }
 
 	private _willRestoreState = false;
 	get willRestoreState(): boolean { return this._willRestoreState; }
@@ -902,8 +909,10 @@ export class EditorPart extends Part<IEditorPartMemento> implements IEditorPart,
 		// Different groups view: move via groups view API
 		else {
 			movedView = targetView.groupsView.addGroup(targetView, direction, sourceView);
-			sourceView.closeAllEditors({ force: true });
-			this.removeGroup(sourceView, restoreFocus);
+			sourceView.closeAllEditors({ excludeConfirming: true, force: true });
+			if (!sourceView.disposed /* could have been removed already by closing its last editor via the `workbench.editor.closeEmptyGroups` setting */) {
+				this.removeGroup(sourceView, restoreFocus);
+			}
 		}
 
 		// Restore focus if we had it previously after completing the grid
@@ -1011,6 +1020,40 @@ export class EditorPart extends Part<IEditorPartMemento> implements IEditorPart,
 		return result;
 	}
 
+	/**
+	 * Merges all editors of this part into the most recently active
+	 * unlocked group of `targetPart` (by default, the main part),
+	 * without changing the editors that are already there.
+	 */
+	protected mergeGroupsToMainPart(targetPart: IEditorGroupsView = this.editorPartsView.mainPart): boolean {
+		if (!this.groups.some(group => group.count > 0)) {
+			return true; // skip if we have no editors opened
+		}
+
+		// Find the most recent group that is not locked
+		let targetGroup: IEditorGroupView | undefined = undefined;
+		for (const group of targetPart.getGroups(GroupsOrder.MOST_RECENTLY_ACTIVE)) {
+			if (!group.isLocked) {
+				targetGroup = group;
+				break;
+			}
+		}
+
+		if (!targetGroup) {
+			targetGroup = targetPart.addGroup(targetPart.activeGroup, this.partOptions.openSideBySideDirection === 'right' ? GroupDirection.RIGHT : GroupDirection.DOWN);
+		}
+
+		const result = this.mergeAllGroups(targetGroup, {
+			// Try to reduce the impact of closing this part
+			// as much as possible by not changing existing
+			// editors in the main part.
+			preserveExistingIndex: true
+		});
+		targetGroup.focus();
+
+		return result;
+	}
+
 	protected assertGroupView(group: IEditorGroupView | GroupIdentifier): IEditorGroupView {
 		let groupView: IEditorGroupView | undefined;
 		if (typeof group === 'number') {
@@ -1061,6 +1104,9 @@ export class EditorPart extends Part<IEditorPartMemento> implements IEditorPart,
 
 		// Container
 		this.element = parent;
+		const updateEditorTabsClass = () => parent.classList.toggle('editor-tabs-multiple', this.partOptions.showTabs === 'multiple');
+		updateEditorTabsClass();
+		this._register(this.onDidChangeEditorPartOptions(updateEditorTabsClass));
 		if (this.windowId !== mainWindow.vscodeWindowId) {
 			this.container.classList.add('auxiliary');
 		}
@@ -1419,14 +1465,17 @@ export class EditorPart extends Part<IEditorPartMemento> implements IEditorPart,
 		this.centeredLayoutWidget.boundarySashes = sashes;
 	}
 
+	protected getFloatingBorderWidth(): number {
+		return computeScreenAwareSize(mainWindow, EDITOR_FRAME_BORDER_WIDTH);
+	}
+
 	override layout(width: number, height: number, top: number, left: number): void {
 		this.top = top;
 		this.left = left;
 
 		// When the floating panels experiment is enabled, reserve a margin around the
-		// main editor so it floats like the side bar and panel cards. Scope to the main
-		// window (auxiliary editor windows do not apply the matching CSS).
-		if (this.windowId === mainWindow.vscodeWindowId && this.layoutService.isFloatingPanelsEnabled()) {
+		// main editor so it floats like the side bar and panel cards.
+		if (this === this.editorPartsView.mainPart && this.layoutService.isFloatingPanelsEnabled()) {
 
 			// When the editor becomes the outermost card on a side (no floating part
 			// sits between it and the window edge) it adopts the same doubled gutter the
@@ -1435,24 +1484,29 @@ export class EditorPart extends Part<IEditorPartMemento> implements IEditorPart,
 			const owners = getFloatingOuterEdgeOwners(this.layoutService);
 			const outerLeft = owners.left === Parts.EDITOR_PART;
 			const outerRight = owners.right === Parts.EDITOR_PART;
+			const verticalOuterEdges = getFloatingEditorVerticalOuterEdges(this.layoutService);
 
-			const leftMargin = outerLeft ? FLOATING_PANEL_MARGIN * 2 : FLOATING_PANEL_MARGIN;
-			const rightMargin = outerRight ? FLOATING_PANEL_MARGIN * 2 : FLOATING_PANEL_INNER_MARGIN;
+			const { left: leftMargin, right: rightMargin } = getFloatingPaneCompositeHorizontalMargins(this.layoutService, Parts.EDITOR_PART);
 
 			width = Math.max(0, width - leftMargin - rightMargin);
 			const { top, bottom } = getFloatingEditorVerticalMargins(this.layoutService, mainWindow);
+			// Fill the grid cell after margins so fractional-scale rounding cannot widen vertical gaps.
+			this.element.style.height = `calc(100% - ${top + bottom}px)`;
 			height = Math.max(0, height - top - bottom);
 
 			// Reserve space for the Modern UI editor border (modernUI/media/editorBorder.css) so content doesn't get clipped.
-			if (!this.element.classList.contains('modal-editor-part')) {
-				width = Math.max(0, width - EDITOR_FRAME_BORDER_WIDTH * 2);
-				height = Math.max(0, height - EDITOR_FRAME_BORDER_WIDTH * 2);
-			}
+			const borderWidth = this.getFloatingBorderWidth();
+			const leftBorderWidth = this.layoutService.isModernUICompact() && !outerLeft ? 0 : borderWidth;
+			width = Math.max(0, width - (leftBorderWidth + borderWidth));
+			height = Math.max(0, height - borderWidth * 2);
 
 			this.element.classList.toggle('floating-editor-outer-left', outerLeft);
 			this.element.classList.toggle('floating-editor-outer-right', outerRight);
+			this.element.classList.toggle('floating-editor-outer-top', verticalOuterEdges.top);
+			this.element.classList.toggle('floating-editor-outer-bottom', verticalOuterEdges.bottom);
 		} else {
-			this.element.classList.remove('floating-editor-outer-left', 'floating-editor-outer-right');
+			this.element.style.height = '';
+			this.element.classList.remove('floating-editor-outer-left', 'floating-editor-outer-right', 'floating-editor-outer-top', 'floating-editor-outer-bottom');
 		}
 
 		// Layout contents

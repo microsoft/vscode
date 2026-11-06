@@ -5,35 +5,37 @@
 
 import { mainWindow } from '../../../../base/browser/window.js';
 import { decodeBase64 } from '../../../../base/common/buffer.js';
+import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../base/common/codicons.js';
+import { isCancellationError } from '../../../../base/common/errors.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import { URI } from '../../../../base/common/uri.js';
 import { localize } from '../../../../nls.js';
-import { ConfigurationTarget, IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
+import { COPILOT_CLI_AGENT_PROVIDER_ID } from '../../../../platform/agentHost/common/agent.js';
+import { ICommandService } from '../../../../platform/commands/common/commands.js';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IDialogService } from '../../../../platform/dialogs/common/dialogs.js';
-import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
-import { INotificationService, Severity } from '../../../../platform/notification/common/notification.js';
+import { INotificationService } from '../../../../platform/notification/common/notification.js';
 import { IURLHandler, IURLService } from '../../../../platform/url/common/url.js';
-import { IEditorService } from '../../../services/editor/common/editorService.js';
+import { IChatEntitlementService } from '../../../services/chat/common/chatEntitlementService.js';
 import { IHostService } from '../../../services/host/browser/host.js';
+import { IWorkbenchEnvironmentService } from '../../../services/environment/common/environmentService.js';
 import { IWorkbenchContribution } from '../../../common/contributions.js';
-import { IExtensionsWorkbenchService } from '../../extensions/common/extensions.js';
-import { AgentPluginEditorInput } from './agentPluginEditor/agentPluginEditorInput.js';
-import { AgentPluginItemKind, IMarketplacePluginItem } from './agentPluginEditor/agentPluginItems.js';
+import { AICustomizationManagementCommands } from '../common/aiCustomizationWorkspaceService.js';
+import { IChatSessionsService, INewSessionInAgentsWindowOptions, NEW_SESSION_IN_AGENTS_WINDOW_COMMAND_ID, SessionType } from '../common/chatSessionsService.js';
 import { ChatConfiguration } from '../common/constants.js';
-import { MarketplaceReferenceKind, parseMarketplaceReference, parseMarketplaceReferences, readConfiguredMarketplaces } from '../common/plugins/marketplaceReference.js';
-import { IPluginInstallService } from '../common/plugins/pluginInstallService.js';
+import { ICustomizationHarnessService } from '../common/customizationHarnessService.js';
+import { isUntitledChatSession } from '../common/model/chatUri.js';
+import { MarketplaceReferenceKind, parseMarketplaceReference, parseProviderMarketplaceReference } from '../common/plugins/marketplaceReference.js';
+import { IAgentSessionsService } from './agentSessions/agentSessionsService.js';
+import { IAgentHostNewSessionFolderService } from './agentSessions/agentHost/agentHostNewSessionFolderService.js';
+import { IAgentHostUntitledProvisionalSessionService } from './agentSessions/agentHost/agentHostUntitledProvisionalSessionService.js';
+import { getProviderMarketplaceSourceId } from './aiCustomization/customizationMarketplaceWorkbenchService.js';
 
 /**
- * Handles `vscode://chat-plugin/install?source=<base64>[&plugin=<base64>]` and
- * `vscode://chat-plugin/add-marketplace?ref=<base64>` URLs.
- *
- * The `source` / `ref` query parameter is a base64-encoded `owner/repo` or
- * git clone URL. A confirmation dialog is always shown before any install
- * action, regardless of whether `plugin` is provided. When `plugin` is given
- * on the `/install` route, the handler targets that specific plugin within the
- * marketplace and opens its details in the editor after install.
+ * Handles confirmed Copilot Agent Host marketplace links: `/add-marketplace?ref=owner/repo`
+ * and `/install?source=owner/repo&plugin=name` under `vscode://chat-plugin`.
  */
 export class PluginUrlHandler extends Disposable implements IWorkbenchContribution, IURLHandler {
 
@@ -41,204 +43,170 @@ export class PluginUrlHandler extends Disposable implements IWorkbenchContributi
 
 	constructor(
 		@IURLService urlService: IURLService,
-		@IPluginInstallService private readonly _pluginInstallService: IPluginInstallService,
-		@IDialogService private readonly _dialogService: IDialogService,
-		@IConfigurationService private readonly _configurationService: IConfigurationService,
-		@IExtensionsWorkbenchService private readonly _extensionsWorkbenchService: IExtensionsWorkbenchService,
-		@IHostService private readonly _hostService: IHostService,
-		@ILogService private readonly _logService: ILogService,
-		@INotificationService private readonly _notificationService: INotificationService,
-		@IEditorService private readonly _editorService: IEditorService,
-		@IInstantiationService private readonly _instantiationService: IInstantiationService,
+		@ICustomizationHarnessService private readonly harnessService: ICustomizationHarnessService,
+		@IAgentSessionsService private readonly sessionsService: IAgentSessionsService,
+		@IChatSessionsService private readonly chatSessionsService: IChatSessionsService,
+		@IAgentHostUntitledProvisionalSessionService private readonly provisionalSessionService: IAgentHostUntitledProvisionalSessionService,
+		@IAgentHostNewSessionFolderService private readonly newSessionFolderService: IAgentHostNewSessionFolderService,
+		@IDialogService private readonly dialogService: IDialogService,
+		@IConfigurationService private readonly configurationService: IConfigurationService,
+		@IChatEntitlementService private readonly entitlementService: IChatEntitlementService,
+		@ICommandService private readonly commandService: ICommandService,
+		@IHostService private readonly hostService: IHostService,
+		@ILogService private readonly logService: ILogService,
+		@INotificationService private readonly notificationService: INotificationService,
+		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService,
 	) {
 		super();
 		this._register(urlService.registerHandler(this));
 	}
 
 	async handleURL(uri: URI): Promise<boolean> {
-		if (uri.authority !== 'chat-plugin') {
+		if (uri.authority !== 'chat-plugin' || (uri.path !== '/install' && uri.path !== '/add-marketplace')) {
 			return false;
 		}
 
-		switch (uri.path) {
-			case '/install':
-				return this._handleInstall(uri);
-			case '/add-marketplace':
-				return this._handleAddMarketplace(uri);
-			default:
-				return false;
-		}
-	}
-
-	// --- install a plugin from source ---
-
-	private async _handleInstall(uri: URI): Promise<boolean> {
-		const source = this._decodeQueryParam(uri, 'source');
-		if (!source) {
-			this._logService.warn('[PluginUrlHandler] Missing or invalid "source" query parameter');
-			return true;
-		}
-
-		const ref = parseMarketplaceReference(source);
-		if (!ref) {
-			this._logService.warn(`[PluginUrlHandler] Invalid plugin source: ${source}`);
-			return true;
-		}
-
-		if (ref.kind === MarketplaceReferenceKind.LocalFileUri) {
-			this._logService.warn('[PluginUrlHandler] Local file URIs are not supported for install');
-			return true;
-		}
-
-		await this._hostService.focus(mainWindow);
-
-		const pluginName = this._decodeStringParam(uri, 'plugin');
-
-		const { confirmed } = await this._dialogService.confirm({
-			type: 'question',
-			message: pluginName
-				? localize('confirmInstallTargetedPlugin', "Install Plugin '{0}' from '{1}'?", pluginName, ref.displayLabel)
-				: localize('confirmInstallPlugin', "Install Plugin from '{0}'?", ref.displayLabel),
-			detail: localize('confirmInstallPluginDetail', "An external application wants to install a plugin from this source. Plugins can run code on your machine. Only install plugins from sources you trust.\n\nSource: {0}", ref.rawValue),
-			primaryButton: localize({ key: 'installButton', comment: ['&& denotes a mnemonic'] }, "&&Install"),
-			custom: { icon: Codicon.shield },
-		});
-
-		if (!confirmed) {
-			return true;
-		}
-
-		if (pluginName) {
-			return this._handleInstallTargetedPlugin(source, ref.displayLabel, pluginName);
-		}
-
-		const result = await this._pluginInstallService.installPluginFromSource(source);
-		if (!result.success && result.message) {
-			this._notificationService.notify({ severity: Severity.Error, message: result.message });
-		}
-		this._extensionsWorkbenchService.openSearch(`@agentPlugins ${ref.displayLabel}`);
-		return true;
-	}
-
-	/**
-	 * Handles the case where a specific plugin is targeted within a
-	 * marketplace. Delegates trust and discovery to the install service,
-	 * then opens the plugin details in a modal editor.
-	 */
-	private async _handleInstallTargetedPlugin(source: string, displayLabel: string, pluginName: string): Promise<boolean> {
-		const result = await this._pluginInstallService.installPluginFromSource(source, { plugin: pluginName });
-
-		if (!result.success) {
-			if (result.message) {
-				this._logService.warn(`[PluginUrlHandler] ${result.message}`);
-			}
-			this._extensionsWorkbenchService.openSearch(`@agentPlugins ${displayLabel}`);
-			return true;
-		}
-
-		if (!result.matchedPlugin) {
-			this._extensionsWorkbenchService.openSearch(`@agentPlugins ${displayLabel}`);
-			return true;
-		}
-
-		const plugin = result.matchedPlugin;
-		const item: IMarketplacePluginItem = {
-			kind: AgentPluginItemKind.Marketplace,
-			name: plugin.name,
-			description: plugin.description,
-			source: plugin.source,
-			sourceDescriptor: plugin.sourceDescriptor,
-			marketplace: plugin.marketplace,
-			marketplaceReference: plugin.marketplaceReference,
-			marketplaceType: plugin.marketplaceType,
-			readmeUri: plugin.readmeUri,
-		};
-
-		const input = this._instantiationService.createInstance(AgentPluginEditorInput, item);
-		await this._editorService.openEditor(input);
-
-		return true;
-	}
-
-	// --- add a marketplace ---
-
-	private async _handleAddMarketplace(uri: URI): Promise<boolean> {
-		const refValue = this._decodeQueryParam(uri, 'ref');
-		if (!refValue) {
-			this._logService.warn('[PluginUrlHandler] Missing or invalid "ref" query parameter');
-			return true;
-		}
-
-		const ref = parseMarketplaceReference(refValue);
-		if (!ref) {
-			this._logService.warn(`[PluginUrlHandler] Invalid marketplace reference: ${refValue}`);
-			return true;
-		}
-
-		await this._hostService.focus(mainWindow);
-
-		const { confirmed } = await this._dialogService.confirm({
-			type: 'question',
-			message: localize('confirmAddMarketplace', "Add Plugin Marketplace '{0}'?", ref.displayLabel),
-			detail: localize('confirmAddMarketplaceDetail', "An external application wants to add a plugin marketplace. Plugins from this marketplace will appear in the plugin catalog and can be installed.\n\nSource: {0}", ref.rawValue),
-			primaryButton: localize({ key: 'addMarketplaceButton', comment: ['&& denotes a mnemonic'] }, "&&Add Marketplace"),
-			custom: { icon: Codicon.shield },
-		});
-
-		if (!confirmed) {
-			return true;
-		}
-
-		const { userValues, effectiveValues } = readConfiguredMarketplaces(this._configurationService);
-		const existingRefs = parseMarketplaceReferences(effectiveValues);
-		if (!existingRefs.some(e => e.canonicalId === ref.canonicalId)) {
-			await this._configurationService.updateValue(
-				ChatConfiguration.PluginMarketplaces,
-				[...userValues, refValue],
-				ConfigurationTarget.USER,
-			);
-		}
-
-		this._extensionsWorkbenchService.openSearch(`@agentPlugins ${ref.displayLabel}`);
-		return true;
-	}
-
-	// --- helpers ---
-
-	/**
-	 * Reads a query parameter and attempts to parse it as a marketplace
-	 * reference. Tries base64-decoding first, then falls back to the raw
-	 * value so that plain-text `owner/repo` values also work in URLs.
-	 */
-	private _decodeQueryParam(uri: URI, key: string): string | undefined {
-		const params = new URLSearchParams(uri.query);
-		const raw = params.get(key);
-		if (!raw) {
-			return undefined;
-		}
-
-		const decoded = this._tryBase64Decode(raw);
-		if (decoded && parseMarketplaceReference(decoded)) {
-			return decoded;
-		}
-		return parseMarketplaceReference(raw) ? raw : undefined;
-	}
-
-	/**
-	 * Reads a query parameter and decodes it. Tries base64-decoding first,
-	 * then falls back to the raw value.
-	 */
-	private _decodeStringParam(uri: URI, key: string): string | undefined {
-		const params = new URLSearchParams(uri.query);
-		return params.get(key) ?? undefined;
-	}
-
-	private _tryBase64Decode(raw: string): string | undefined {
 		try {
-			const decoded = decodeBase64(raw).toString();
-			return decoded || undefined;
-		} catch {
+			if (this.entitlementService.sentiment.hidden || this.entitlementService.sentiment.disabledInWorkspace ||
+				this.configurationService.getValue<boolean>(ChatConfiguration.PluginsEnabled) !== true) {
+				throw new Error(localize('pluginLinksDisabled', "Plugin links are unavailable because chat or plugins are disabled."));
+			}
+
+			const params = new URLSearchParams(uri.query);
+			const sourceKey = uri.path === '/install' ? 'source' : 'ref';
+			const source = params.get(sourceKey);
+			const ref = source && this.parseReference(source);
+			if (!ref || params.getAll(sourceKey).length !== 1 || ref.kind === MarketplaceReferenceKind.LocalFileUri) {
+				throw new Error(localize('invalidPluginLinkSource', "The plugin link must specify a valid remote marketplace source."));
+			}
+			const pluginName = uri.path === '/install' ? params.get('plugin') : undefined;
+			if (uri.path === '/install' && (!pluginName || params.getAll('plugin').length !== 1 || /[@\u0000-\u001f\u007f]/.test(pluginName))) {
+				throw new Error(localize('invalidPluginLinkName', "The plugin link must specify a plugin name."));
+			}
+
+			await this.hostService.focus(mainWindow);
+			const { confirmed } = await this.dialogService.confirm({
+				type: 'warning',
+				message: pluginName
+					? localize('confirmAddMarketplaceAndPlugin', "Add Marketplace '{0}' and Install Plugin '{1}'?", ref.displayLabel, pluginName)
+					: localize('confirmAddMarketplace', "Add Plugin Marketplace '{0}'?", ref.displayLabel),
+				detail: pluginName
+					? localize('confirmMarketplacePluginLinkDetail', "An external application wants to add this marketplace and install a plugin. Plugins can run code on your machine. Continue only if you initiated this request and trust this source.\n\nSource: {0}", ref.rawValue)
+					: localize('confirmMarketplaceLinkDetail', "An external application wants to add this plugin marketplace. Continue only if you initiated this request and trust this source.\n\nSource: {0}", ref.rawValue),
+				primaryButton: pluginName
+					? localize('addMarketplaceAndInstallButton', "&&Add Marketplace and Install")
+					: localize('addMarketplaceButton', "&&Add Marketplace"),
+				custom: { icon: Codicon.shield },
+			});
+			if (!confirmed) {
+				return true;
+			}
+
+			const session = await this.resolveSession();
+			if (!session) {
+				return true;
+			}
+			const descriptor = this.harnessService.getDescriptorForSession(session.resource);
+			const managementProvider = descriptor?.marketplaceManagementProvider;
+			const installProvider = descriptor?.marketplaceInstallProvider;
+			if (!managementProvider || (pluginName && !installProvider)) {
+				throw new Error(localize('pluginLinkHarnessUnavailable', "The selected Copilot Agent Host session does not support marketplace management or plugin installation."));
+			}
+
+			const marketplaces = await managementProvider.list(session.backendResource);
+			const existingMarketplace = marketplaces.find(marketplace => parseProviderMarketplaceReference(marketplace.source)?.canonicalId === ref.canonicalId);
+			const marketplace = existingMarketplace ?? await managementProvider.add(session.backendResource, ref.rawValue);
+			if (pluginName && installProvider) {
+				let cursor: string | undefined;
+				const seenCursors = new Set<string>();
+				while (true) {
+					const page = await managementProvider.queryMarketplace(session.backendResource, marketplace, { query: pluginName, cursor }, CancellationToken.None);
+					const plugin = page.items.find(item => item.installation?.kind === 'providerPlugin' && item.installation.name === pluginName);
+					if (plugin) {
+						await installProvider.install(session.backendResource, {
+							...plugin,
+							sourceId: getProviderMarketplaceSourceId(marketplace.name),
+						}, CancellationToken.None);
+						break;
+					}
+					if (!page.nextCursor || seenCursors.has(page.nextCursor)) {
+						throw new Error(localize('pluginLinkPluginNotFound', "Marketplace '{0}' was added, but plugin '{1}' was not found. No plugin was installed.", marketplace.name, pluginName));
+					}
+					cursor = page.nextCursor;
+					seenCursors.add(cursor);
+				}
+			}
+
+			await this.commandService.executeCommand(AICustomizationManagementCommands.OpenEditor, {
+				showDiscover: true,
+				sessionResource: session.resource,
+				searchQuery: pluginName ?? '',
+			});
+		} catch (error) {
+			if (!isCancellationError(error)) {
+				this.logService.error('[PluginUrlHandler] Failed to handle plugin link', error);
+				this.notificationService.error(localize('pluginLinkFailed', "Unable to complete the plugin link: {0}", error instanceof Error ? error.message : String(error)));
+			}
+		}
+		return true;
+	}
+
+	private async resolveSession(): Promise<{ resource: URI; backendResource: URI } | undefined> {
+		let resource = this.harnessService.activeSessionResource.get();
+		if (resource.scheme === SessionType.AgentHostCopilot) {
+			const provisional = this.provisionalSessionService.get(resource);
+			if (provisional) {
+				return { resource, backendResource: provisional };
+			}
+			if (!isUntitledChatSession(resource)) {
+				return { resource, backendResource: resource };
+			}
+		}
+
+		if (!await this.chatSessionsService.canResolveChatSession(SessionType.AgentHostCopilot)) {
+			throw new Error(localize('pluginLinkCopilotUnavailable', "Plugin links require Copilot on the Agent Host."));
+		}
+		await this.sessionsService.model.resolve(SessionType.AgentHostCopilot, error => { throw error; });
+		const existing = this.sessionsService.model.sessions.find(session => session.providerType === SessionType.AgentHostCopilot && !session.isArchived());
+		if (existing) {
+			return { resource: existing.resource, backendResource: existing.resource };
+		}
+
+		const { confirmed } = await this.dialogService.confirm({
+			type: 'question',
+			message: localize('createPluginLinkSession', "Create a Copilot Agent Host Session for This Link?"),
+			detail: localize('createPluginLinkSessionDetail', "Adding a marketplace requires a Copilot Agent Host session. No existing session is available."),
+			primaryButton: localize('createPluginLinkSessionButton', "&&Create Session"),
+		});
+		if (!confirmed) {
 			return undefined;
 		}
+		const options: INewSessionInAgentsWindowOptions = { noWorkspace: true, agentHostProvider: COPILOT_CLI_AGENT_PROVIDER_ID };
+		const created = this.environmentService.isSessionsWindow
+			? await this.commandService.executeCommand<URI | undefined>(NEW_SESSION_IN_AGENTS_WINDOW_COMMAND_ID, options)
+			: await this.commandService.executeCommand<URI | undefined>(`workbench.action.chat.openNewSessionEditor.${SessionType.AgentHostCopilot}`);
+		if (!URI.isUri(created) || created.scheme !== SessionType.AgentHostCopilot) {
+			throw new Error(localize('pluginLinkSessionCreationFailed', "Could not create a Copilot Agent Host session for this link."));
+		}
+		resource = created;
+		if (this.environmentService.isSessionsWindow) {
+			// Agents-window drafts already own their backend session; do not create a second provisional one.
+			return { resource, backendResource: resource };
+		}
+		const backendResource = await this.provisionalSessionService.getOrCreate(resource, COPILOT_CLI_AGENT_PROVIDER_ID, this.newSessionFolderService.resolveNewSessionPrimary(resource));
+		if (!backendResource) {
+			throw new Error(localize('pluginLinkSessionCreationFailed', "Could not create a Copilot Agent Host session for this link."));
+		}
+		return { resource, backendResource };
+	}
+
+	private parseReference(raw: string) {
+		let decoded: string | undefined;
+		try {
+			decoded = decodeBase64(raw).toString();
+		} catch {
+			// Marketplace references also support plain-text owner/repo and Git URLs.
+		}
+		return (decoded && parseMarketplaceReference(decoded)) || parseMarketplaceReference(raw);
 	}
 }

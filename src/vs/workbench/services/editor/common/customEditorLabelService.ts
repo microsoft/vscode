@@ -34,7 +34,7 @@ export class CustomEditorLabelService extends Disposable implements ICustomEdito
 	static readonly SETTING_ID_PATTERNS = 'workbench.editor.customLabels.patterns';
 	static readonly SETTING_ID_ENABLED = 'workbench.editor.customLabels.enabled';
 
-	private readonly _onDidChange = this._register(new Emitter<void>());
+	private readonly _onDidChange = this._register(new Emitter<void>({ leakWarningThreshold: 500, leakWarningName: 'CustomEditorLabelService._onDidChange' /* increased for users with hundreds of inputs opened */ }));
 	readonly onDidChange = this._onDidChange.event;
 
 	private patterns: ICustomEditorLabelPattern[] = [];

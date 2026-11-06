@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { dirname } from '../../../../base/common/path.js';
 import { basename, extUri, joinPath, relativePath } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
 import { parseFrontMatter } from '../../../../base/common/yaml.js';
@@ -15,7 +14,18 @@ import { CustomizationEnablementKind, type AgentSelection } from '../../common/s
 import { CustomizationType, type ChildCustomization, type ClientPluginCustomization, type McpServerCustomization, type PluginCustomization } from '../../common/state/sessionState.js';
 import { readClientPluginMcpDefaultCwd } from '../../common/meta/clientPluginCustomizationMeta.js';
 import { isCustomizationEnabled } from '../../common/customizationEnablement.js';
+import { AGENT_HOST_FILE_LINK_INSTRUCTIONS } from '../shared/fileLinkInstructions.js';
 import { toCodexMcpServerJson, type ICodexMcpServerConfigJson } from './codexMcpServers.js';
+
+export const CODEX_FILE_LINK_INSTRUCTIONS = [
+	AGENT_HOST_FILE_LINK_INSTRUCTIONS,
+	'',
+	'<file_link_path_format>',
+	'- Use the actual filesystem path. Example prefixes such as `/path/to` or `/abs/path` are placeholders, not text to prepend to a path.',
+	'- On Windows, drive-letter paths are already absolute: [foo.ts](C:/project/foo.ts). Do not add a leading `/` or prepend the working directory.',
+	'- For UNC paths, preserve the server and share: [foo.ts](//server/share/foo.ts).',
+	'</file_link_path_format>',
+].join('\n');
 
 /**
  * Codex ingests **client-pushed** plugin customizations (the "Open Plugins"
@@ -23,17 +33,17 @@ import { toCodexMcpServerJson, type ICodexMcpServerConfigJson } from './codexMcp
  * from the `.agents`/`.codex` files it discovers itself. This module holds the
  * per-session store for those synced+parsed plugins plus the pure mappers that
  * project them into (a) the AHP {@link PluginCustomization} surface, (b) codex
- * per-thread `thread/start.config.mcp_servers`, and (c) process-global
- * `skills/extraRoots/set` roots.
+ * per-thread `thread/start.config.mcp_servers`, and (c) per-turn
+ * application context containing the client skill catalog.
  *
  * Feeding strategy (see the phase investigation):
  *  - MCP servers are attached **per session** via `thread/start.config`
  *    (verified: codex starts the server for that thread only), so a plugin's
  *    server only runs for sessions that enable it.
- *  - Skills are process-global in codex (`skills/extraRoots/set` replaces a
- *    single shared root list), so the store exposes the union of enabled skill
- *    roots and the agent sets it across all live sessions. This matches the
- *    semantics of client customizations, which are global user choices.
+ *  - Skills are advertised **per session** through `turn/start.additionalContext`,
+ *    so additions and removals also apply to an existing thread.
+ *    Registering the synced copies as process-global extra roots would expose
+ *    other sessions' bundles and revisions and duplicate the native catalog.
  */
 
 /** A single client-pushed plugin: its sync result plus the parsed components (when the sync succeeded). */
@@ -53,7 +63,7 @@ export interface ICodexAgentRoleSource {
 
 export interface ICodexCustomizationConfig {
 	readonly agentRoles: readonly ICodexAgentRoleSource[];
-	readonly developerInstructions?: string;
+	readonly developerInstructions: string;
 }
 
 /**
@@ -211,24 +221,6 @@ export function codexMcpServersFromDefinitions(definitions: readonly IMcpServerD
 }
 
 /**
- * Derives the codex skill roots (absolute fsPaths) for a set of client
- * plugins: the parent directory of each skill's `<name>/SKILL.md`, i.e. the
- * plugin's `skills` root, which codex scans for `<name>/SKILL.md` entries.
- * De-duplicated and sorted for a stable `skills/extraRoots/set` payload.
- */
-export function codexSkillRootsFromPlugins(plugins: readonly ICodexClientPlugin[]): string[] {
-	const roots = new Set<string>();
-	for (const plugin of plugins) {
-		for (const skill of plugin.parsed?.skills ?? []) {
-			// skill.uri === <pluginDir>/<skillsDir>/<name>/SKILL.md
-			// dirname twice === <pluginDir>/<skillsDir> (the root codex scans).
-			roots.add(dirname(dirname(skill.uri.fsPath)));
-		}
-	}
-	return [...roots].sort();
-}
-
-/**
  * Builds Codex's launch-time roles and developer instructions. Workspace
  * agents are processed first so the session's own repository wins a role-name
  * collision with a global client plugin.
@@ -302,11 +294,12 @@ export async function codexCustomizationConfig(
 	const developerInstructions = [
 		...pluginInstructions,
 		...(selectedAgentInstructions ? [selectedAgentInstructions.trim()] : []),
+		CODEX_FILE_LINK_INSTRUCTIONS,
 	].filter(Boolean).join('\n\n');
 
 	return {
 		agentRoles: [...agentRoles.values()],
-		...(developerInstructions ? { developerInstructions } : {}),
+		developerInstructions,
 	};
 }
 
@@ -367,6 +360,22 @@ export function codexAgentRoleToml(role: ICodexAgentRoleSource): string {
 	].join('\n');
 }
 
-export function codexSkillCapabilityRoots(plugins: readonly ICodexClientPlugin[]): URI[] {
-	return codexSkillRootsFromPlugins(plugins).map(path => URI.file(path));
+export function codexClientSkillInstructions(plugins: readonly ICodexClientPlugin[]): string {
+	const skillDescriptions = new Map<string, string>();
+	for (const plugin of plugins) {
+		for (const skill of plugin.parsed?.skills ?? []) {
+			if (!skill.disableModelInvocation) {
+				skillDescriptions.set(skill.uri.toString(), `- ${skill.name}: ${skill.description ?? skill.name} (file: ${skill.uri.fsPath})`);
+			}
+		}
+	}
+	return [
+		'<client_skills>',
+		'This is the current client skill catalog for this session and replaces any earlier client skill catalog. Native skills are separate.',
+		...(skillDescriptions.size > 0 ? [
+			'When a task matches a skill, read its SKILL.md using file-reading tools before following its instructions. Resolve relative references from the skill directory.',
+			...skillDescriptions.values(),
+		] : ['No client skills are currently available.']),
+		'</client_skills>',
+	].join('\n');
 }

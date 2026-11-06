@@ -4,28 +4,60 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { Event } from '../../../../../base/common/event.js';
-import { constObservable } from '../../../../../base/common/observable.js';
+import { Disposable, DisposableStore } from '../../../../../base/common/lifecycle.js';
+import { ISessionsService } from '../../../../../workbench/contrib/sessions/browser/sessionsService.js';
+import { IFocusedSessionHostService, ISessionHostService } from '../../../../../workbench/contrib/sessions/browser/sessionHost.js';
+import { focusedSessionHostServiceOf, ITestSessionsService, sessionHostServiceOf } from '../../../../../workbench/contrib/sessions/test/browser/sessionHostTestUtils.js';
+import { IActiveSession } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
+import { constObservable, observableValue } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { mock, upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { DocumentDiffItemViewModel, MultiDiffEditorViewModel } from '../../../../../editor/browser/widget/multiDiffEditor/multiDiffEditorViewModel.js';
-import { IMultiDiffEditorOptions } from '../../../../../editor/browser/widget/multiDiffEditor/multiDiffEditorWidgetImpl.js';
+import { IMultiDiffEditorOptions } from '../../../../../editor/common/multiDiffEditor.js';
 import { ServiceCollection } from '../../../../../platform/instantiation/common/serviceCollection.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
+import { NullLogService } from '../../../../../platform/log/common/log.js';
 import { ITextDiffEditorPane, isResourceMultiDiffEditorInput } from '../../../../../workbench/common/editor.js';
 import { MultiDiffEditorInput } from '../../../../../workbench/contrib/multiDiffEditor/browser/multiDiffEditorInput.js';
+import { IDecorationsProvider, IDecorationsService } from '../../../../../workbench/services/decorations/common/decorations.js';
 import { IEditorGroup } from '../../../../../workbench/services/editor/common/editorGroupsService.js';
 import { IEditorService } from '../../../../../workbench/services/editor/common/editorService.js';
 import { IWorkbenchLayoutService } from '../../../../../workbench/services/layout/browser/layoutService.js';
 import { IAgentWorkbenchLayoutService } from '../../../../browser/workbench.js';
-import { ISessionChangeset, TURN_CHANGES_CHANGESET_ID } from '../../../../services/sessions/common/session.js';
-import { SessionChangesEditorInput } from '../../browser/sessionChangesEditorInput.js';
-import { SessionChangesService } from '../../browser/sessionChangesService.js';
-import { IChangesViewService } from '../../common/changesViewService.js';
+import { AgentWorkbenchLayout } from '../../../../../workbench/contrib/sessions/browser/sessionsHostLayoutService.js';
+import { IChat, ISessionChangeset, ISessionFileChange, TURN_CHANGES_CHANGESET_ID, UNCOMMITTED_CHANGES_CHANGESET_ID } from '../../../../../workbench/contrib/sessions/common/session.js';
+import { SessionChangesEditorInput } from '../../../../../workbench/contrib/sessions/browser/changes/sessionChangesEditorInput.js';
+import { ISessionChangesService, SessionChangesService } from '../../../../../workbench/contrib/sessions/browser/changes/sessionChangesService.js';
+import { IChangesViewService } from '../../../../../workbench/contrib/sessions/common/changesViewService.js';
+
+/** The host lookups and the focused host for the state of `sessionsService`, as {@link SessionChangesService} takes them. */
+function hostsOf(store: Pick<DisposableStore, 'add'>, sessionsService: Partial<ITestSessionsService>): [ISessionHostService, IFocusedSessionHostService, ISessionsService] {
+	// A grid without panes of its own: no pane is its active or a detached one.
+	const gridPanes = upcastPartial<ISessionsService>({ isActivePane: () => false, isDetachedPane: () => false });
+	return [sessionHostServiceOf(store, sessionsService), focusedSessionHostServiceOf(sessionsService.activeSession ?? constObservable(undefined)), gridPanes];
+}
+
+function noSessions(active?: IActiveSession): ISessionsService {
+	return new class extends mock<ISessionsService>() {
+		readonly activeSession = constObservable<IActiveSession | undefined>(active);
+		readonly mainWindowActiveSession = constObservable<IActiveSession | undefined>(active);
+		readonly windowSessions = constObservable<readonly IActiveSession[]>([]);
+		override readonly visibleSessions = constObservable<readonly (IActiveSession | undefined)[]>([]);
+	}();
+}
 
 suite('SessionChangesService', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
+	const noActiveSessionResource = constObservable<URI | undefined>(undefined);
+	const noChanges = constObservable<readonly ISessionFileChange[]>([]);
+	const emptyDecorationsService = new class extends mock<IDecorationsService>() {
+		override registerDecorationsProvider() {
+			return Disposable.None;
+		}
+	};
 
 	test('expands a revealed file in both Changes editor layouts', async () => {
 		const originalUri = URI.file('/workspace/file.original.ts');
@@ -56,9 +88,9 @@ suite('SessionChangesService', () => {
 			},
 		};
 
-		for (const isSinglePaneLayoutEnabled of [true, false]) {
+		for (const desktop of [true, false]) {
 			const layoutService = new class extends mock<IAgentWorkbenchLayoutService>() {
-				override readonly isSinglePaneLayoutEnabled = isSinglePaneLayoutEnabled;
+				override readonly agentWorkbenchLayout = desktop ? AgentWorkbenchLayout.Desktop : AgentWorkbenchLayout.Mobile;
 				override readonly onDidChangePartVisibility = Event.None;
 				override isVisible(): boolean { return true; }
 			}();
@@ -81,17 +113,136 @@ suite('SessionChangesService', () => {
 					}();
 				}
 			}();
-			const service = new SessionChangesService(
+			const changesViewService = new class extends mock<IChangesViewService>() {
+				override readonly activeSessionResourceObs = noActiveSessionResource;
+				override readonly activeSessionChangesetObs = constObservable<ISessionChangeset | undefined>(undefined);
+				override readonly activeSessionChangesObs = noChanges;
+			};
+			instantiationService.stub(IChangesViewService, changesViewService);
+			const service = disposables.add(new SessionChangesService(
 				editorService,
 				instantiationService,
 				layoutService,
-				new class extends mock<IChangesViewService>() { },
-			);
+				changesViewService,
+				...hostsOf(disposables, noSessions()),
+				emptyDecorationsService,
+				new NullLogService(),
+			));
+			instantiationService.stub(ISessionChangesService, service);
 
 			await service.openChangesEditor(URI.parse('test-session:/session'), options);
 		}
 
 		assert.deepStrictEqual(expandedItems.map(item => item === targetItem ? 'target' : 'other'), ['target', 'target']);
+	});
+
+	test('selects the changeset of the visible non-active session the editor opens for', async () => {
+		const selections: { readonly changesetId: string | undefined; readonly session: IActiveSession | undefined }[] = [];
+		const otherSession = upcastPartial<IActiveSession>({ sessionId: 'other', resource: URI.parse('agent-host:other-session'), activeChat: constObservable(upcastPartial<IChat>({})) });
+		const sessionsService = new class extends mock<ISessionsService>() {
+			readonly activeSession = constObservable<IActiveSession | undefined>(upcastPartial<IActiveSession>({ sessionId: 'active', resource: URI.parse('agent-host:active-session'), activeChat: constObservable(upcastPartial<IChat>({})) }));
+			readonly mainWindowActiveSession = constObservable<IActiveSession | undefined>(undefined);
+			readonly windowSessions = constObservable<readonly IActiveSession[]>([]);
+			override readonly visibleSessions = constObservable<readonly (IActiveSession | undefined)[]>([otherSession]);
+		}();
+		const changesViewService = new class extends mock<IChangesViewService>() {
+			override readonly activeSessionResourceObs = noActiveSessionResource;
+			override readonly activeSessionChangesObs = noChanges;
+			override setChangesetId(changesetId: string | undefined, session?: IActiveSession): void {
+				selections.push({ changesetId, session });
+			}
+		}();
+		const service = disposables.add(new SessionChangesService(
+			new class extends mock<IEditorService>() { override async openEditor(): Promise<undefined> { return undefined; } }(),
+			disposables.add(new TestInstantiationService()),
+			new class extends mock<IAgentWorkbenchLayoutService>() { override readonly agentWorkbenchLayout = AgentWorkbenchLayout.Mobile; }(),
+			changesViewService,
+			...hostsOf(disposables, sessionsService),
+			emptyDecorationsService,
+			new NullLogService(),
+		));
+
+		await service.openChangesEditor(otherSession.resource, { changesetSelection: { kind: 'id', id: TURN_CHANGES_CHANGESET_ID } });
+
+		assert.deepStrictEqual(selections, [{ changesetId: TURN_CHANGES_CHANGESET_ID, session: otherSession }]);
+	});
+
+	test('opens the Changes editor of the chat of a window of its own, whichever chat of its session is active', async () => {
+		const selections: { readonly changesetId: string | undefined; readonly session: IActiveSession | undefined }[] = [];
+		const opened: { readonly resource: URI; readonly options: object | undefined }[] = [];
+		const sessionResource = URI.parse('agent-host:test-session');
+		const firstChat = URI.parse('agent-host:test-session/first');
+		const secondChat = URI.parse('agent-host:test-session/second');
+		const first = upcastPartial<IActiveSession>({ sessionId: 'session', resource: sessionResource, scopedChatResource: firstChat, activeChat: constObservable(upcastPartial<IChat>({})) });
+		const second = upcastPartial<IActiveSession>({ sessionId: 'session', resource: sessionResource, scopedChatResource: secondChat, activeChat: constObservable(upcastPartial<IChat>({})) });
+		const sessionsService = new class extends mock<ISessionsService>() {
+			readonly activeSession = constObservable<IActiveSession | undefined>(first);
+			readonly mainWindowActiveSession = constObservable<IActiveSession | undefined>(undefined);
+			readonly windowSessions = constObservable<readonly IActiveSession[]>([first, second]);
+			override readonly visibleSessions = constObservable<readonly (IActiveSession | undefined)[]>([]);
+		}();
+		const changesViewService = new class extends mock<IChangesViewService>() {
+			override readonly activeSessionResourceObs = noActiveSessionResource;
+			override readonly activeSessionChangesObs = noChanges;
+			override setChangesetId(changesetId: string | undefined, session?: IActiveSession): void {
+				selections.push({ changesetId, session });
+			}
+		}();
+		const service = disposables.add(new SessionChangesService(
+			new class extends mock<IEditorService>() {
+				override async openEditor(...args: unknown[]): Promise<undefined> {
+					const editor = args[0] as { readonly multiDiffSource: URI; readonly options?: object };
+					opened.push({ resource: editor.multiDiffSource, options: editor.options });
+					return undefined;
+				}
+			}(),
+			disposables.add(new TestInstantiationService()),
+			new class extends mock<IAgentWorkbenchLayoutService>() { override readonly agentWorkbenchLayout = AgentWorkbenchLayout.Mobile; }(),
+			changesViewService,
+			...hostsOf(disposables, sessionsService),
+			emptyDecorationsService,
+			new NullLogService(),
+		));
+
+		await service.openChangesEditor(sessionResource, { changesetSelection: { kind: 'id', id: TURN_CHANGES_CHANGESET_ID }, chatResource: secondChat, preserveFocus: true });
+
+		assert.deepStrictEqual({
+			selections,
+			options: opened.map(editor => editor.options),
+			session: opened.map(editor => service.getSessionResource(editor.resource)?.toString()),
+			chat: opened.map(editor => service.getChatResource(editor.resource)?.toString()),
+			unscopedChat: service.getChatResource(service.getChangesEditorResource(sessionResource))?.toString(),
+		}, {
+			selections: [{ changesetId: TURN_CHANGES_CHANGESET_ID, session: second }],
+			options: [{ preserveFocus: true }],
+			session: [sessionResource.toString()],
+			chat: [secondChat.toString()],
+			unscopedChat: undefined,
+		});
+	});
+
+	test('does not select a changeset on the active session when the target session is not shown', async () => {
+		const selections: object[] = [];
+		const changesViewService = new class extends mock<IChangesViewService>() {
+			override readonly activeSessionResourceObs = noActiveSessionResource;
+			override readonly activeSessionChangesObs = noChanges;
+			override setChangesetId(changesetId: string | undefined, session?: IActiveSession): void {
+				selections.push({ changesetId, session });
+			}
+		}();
+		const service = disposables.add(new SessionChangesService(
+			new class extends mock<IEditorService>() { override async openEditor(): Promise<undefined> { return undefined; } }(),
+			disposables.add(new TestInstantiationService()),
+			new class extends mock<IAgentWorkbenchLayoutService>() { override readonly agentWorkbenchLayout = AgentWorkbenchLayout.Mobile; }(),
+			changesViewService,
+			...hostsOf(disposables, noSessions(upcastPartial<IActiveSession>({ sessionId: 'active', resource: URI.parse('agent-host:active-session'), activeChat: constObservable(upcastPartial<IChat>({})) }))),
+			emptyDecorationsService,
+			new NullLogService(),
+		));
+
+		await service.openChangesEditor(URI.parse('agent-host:gone'), { changesetSelection: { kind: 'id', id: TURN_CHANGES_CHANGESET_ID } });
+
+		assert.deepStrictEqual(selections, []);
 	});
 
 	test('selects the requested changeset before opening the editor', async () => {
@@ -110,9 +261,11 @@ suite('SessionChangesService', () => {
 			}
 		}();
 		const layoutService = new class extends mock<IAgentWorkbenchLayoutService>() {
-			override readonly isSinglePaneLayoutEnabled = false;
+			override readonly agentWorkbenchLayout = AgentWorkbenchLayout.Mobile;
 		}();
 		const changesViewService = new class extends mock<IChangesViewService>() {
+			override readonly activeSessionResourceObs = noActiveSessionResource;
+			override readonly activeSessionChangesObs = noChanges;
 			override setChangesetId(changesetId: string | undefined): void {
 				selections.push({ changesetId });
 			}
@@ -120,12 +273,15 @@ suite('SessionChangesService', () => {
 				selections.push({ transientChangesetId: changeset.id });
 			}
 		}();
-		const service = new SessionChangesService(
+		const service = disposables.add(new SessionChangesService(
 			editorService,
 			disposables.add(new TestInstantiationService()),
 			layoutService,
 			changesViewService,
-		);
+			...hostsOf(disposables, noSessions(upcastPartial<IActiveSession>({ sessionId: 'active', resource: URI.parse('agent-host:test-session'), activeChat: constObservable(upcastPartial<IChat>({})) }))),
+			emptyDecorationsService,
+			new NullLogService(),
+		));
 		const sessionResource = URI.parse('agent-host:test-session');
 
 		await service.openChangesEditor(sessionResource, {
@@ -160,7 +316,7 @@ suite('SessionChangesService', () => {
 		});
 	});
 
-	test('selects the requested changeset in the single-pane layout', async () => {
+	test('selects the requested changeset in the desktop layout', async () => {
 		const selections: string[] = [];
 		const instantiationService = disposables.add(new TestInstantiationService());
 		instantiationService.stub(IWorkbenchLayoutService, new class extends mock<IWorkbenchLayoutService>() {
@@ -179,18 +335,111 @@ suite('SessionChangesService', () => {
 			}
 		}();
 		const layoutService = new class extends mock<IAgentWorkbenchLayoutService>() {
-			override readonly isSinglePaneLayoutEnabled = true;
+			override readonly agentWorkbenchLayout = AgentWorkbenchLayout.Desktop;
+			override readonly onDidChangePartVisibility = Event.None;
+			override isVisible(): boolean {
+				return true;
+			}
 		}();
 		const changesViewService = new class extends mock<IChangesViewService>() {
+			override readonly activeSessionResourceObs = noActiveSessionResource;
+			override readonly activeSessionChangesetObs = constObservable<ISessionChangeset | undefined>(undefined);
+			override readonly activeSessionChangesObs = noChanges;
 			override showChangeset(changeset: ISessionChangeset): void {
 				selections.push(changeset.id);
 			}
 		}();
-		const service = new SessionChangesService(editorService, instantiationService, layoutService, changesViewService);
+		instantiationService.stub(IWorkbenchLayoutService, layoutService);
+		instantiationService.stub(IChangesViewService, changesViewService);
+		const service = disposables.add(new SessionChangesService(editorService, instantiationService, layoutService, changesViewService, ...hostsOf(disposables, noSessions(upcastPartial<IActiveSession>({ sessionId: 'active', resource: URI.parse('agent-host:test-session'), activeChat: constObservable(upcastPartial<IChat>({})) }))), emptyDecorationsService, new NullLogService()));
+		instantiationService.stub(ISessionChangesService, service);
 
 		await service.openChangesEditor(URI.parse('agent-host:test-session'), {
 			changesetSelection: { kind: 'transient', changeset: upcastPartial<ISessionChangeset>({ id: 'turn:request' }) },
 		});
 		assert.deepStrictEqual(selections, ['turn:request']);
+	});
+
+	test('decorates only when the uncommitted changeset is selected', async () => {
+		const sessionResource = URI.parse('agent-host:test-session');
+		const activeSessionResource = observableValue<URI | undefined>('activeSessionResource', undefined);
+		const activeChangeset = observableValue<ISessionChangeset | undefined>('activeChangeset', upcastPartial<ISessionChangeset>({
+			id: UNCOMMITTED_CHANGES_CHANGESET_ID,
+		}));
+		const changes = observableValue<readonly ISessionFileChange[]>('changes', []);
+		const changesViewService = new class extends mock<IChangesViewService>() {
+			override readonly activeSessionResourceObs = activeSessionResource;
+			override readonly activeSessionChangesetObs = activeChangeset;
+			override readonly activeSessionChangesObs = changes;
+		};
+		const providers: IDecorationsProvider[] = [];
+		const decorationsService = new class extends mock<IDecorationsService>() {
+			override registerDecorationsProvider(provider: IDecorationsProvider) {
+				providers.push(provider);
+				return Disposable.None;
+			}
+		};
+		const layoutService = new class extends mock<IAgentWorkbenchLayoutService>() {
+			override readonly agentWorkbenchLayout = AgentWorkbenchLayout.Desktop;
+			override readonly onDidChangePartVisibility = Event.None;
+			override isVisible(): boolean {
+				return true;
+			}
+		};
+		const instantiationService = disposables.add(new TestInstantiationService(new ServiceCollection(
+			[IWorkbenchLayoutService, layoutService],
+			[IChangesViewService, changesViewService],
+		)));
+		const editorService = new class extends mock<IEditorService>() {
+			override async openEditor(...args: unknown[]): Promise<undefined> {
+				const input = args[0];
+				if (input instanceof SessionChangesEditorInput) {
+					disposables.add(input);
+				}
+				return undefined;
+			}
+		};
+		const service = disposables.add(new SessionChangesService(
+			editorService,
+			instantiationService,
+			layoutService,
+			changesViewService,
+			...hostsOf(disposables, noSessions()),
+			decorationsService,
+			new NullLogService(),
+		));
+		instantiationService.stub(ISessionChangesService, service);
+		activeSessionResource.set(sessionResource, undefined);
+		changes.set([{
+			uri: URI.file('/workspace/file.ts'),
+			insertions: 1,
+			deletions: 0,
+		}], undefined);
+
+		await service.openChangesEditor(sessionResource);
+		await service.openChangesEditor(sessionResource);
+		await service.openChangesEditor(sessionResource);
+
+		const editorResource = service.getChangesEditorResource(sessionResource);
+		const uncommittedChangesDecoration = providers[0].provideDecorations(editorResource, CancellationToken.None);
+		const uncommittedChangesCount = service.activeSessionUncommittedChangesCountObs.get();
+		activeChangeset.set(upcastPartial<ISessionChangeset>({ id: TURN_CHANGES_CHANGESET_ID }), undefined);
+		const turnChangesCount = service.activeSessionUncommittedChangesCountObs.get();
+
+		assert.deepStrictEqual({
+			providerCount: providers.length,
+			uncommittedChangesDecoration,
+			uncommittedChangesCount,
+			turnChangesCount,
+		}, {
+			providerCount: 1,
+			uncommittedChangesDecoration: {
+				weight: 100,
+				letter: '1',
+				tooltip: '1 file',
+			},
+			uncommittedChangesCount: 1,
+			turnChangesCount: undefined,
+		});
 	});
 });

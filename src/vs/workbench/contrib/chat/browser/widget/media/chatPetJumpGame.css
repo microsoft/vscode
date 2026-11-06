@@ -1,0 +1,171 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+.chat-pet-overlay.chat-pet-jump-game,
+.chat-pet-jump-effects {
+	position: fixed;
+	inset: 0;
+	z-index: 14;
+}
+
+.chat-pet-jump-effects {
+	pointer-events: none;
+}
+
+.chat-pet-jump-game > .chat-pet-button {
+	cursor: pointer;
+	transition: none;
+}
+
+.chat-pet-jump-effects.keyboard-focused .chat-pet-jump-charge {
+	background: var(--vscode-focusBorder);
+}
+
+.chat-pet-jump-backdrop {
+	position: absolute;
+	background-color: var(--vscode-activeSessionView-background, var(--vscode-editor-background));
+}
+
+.chat-pet-jump-stage {
+	position: absolute;
+	overflow: hidden;
+	pointer-events: none;
+}
+
+.chat-pet-jump-platform {
+	position: absolute;
+	height: var(--vscode-spacing-size40);
+	box-sizing: content-box;
+	padding-inline: var(--vscode-spacing-size40);
+	border: var(--vscode-strokeThickness) solid var(--vscode-contrastBorder, transparent);
+	border-radius: var(--vscode-cornerRadius-circle);
+	background-color: var(--vscode-descriptionForeground);
+	transform: translate(-50%, -50%);
+}
+
+.chat-pet-jump-platform.moving::before,
+.chat-pet-jump-platform.moving::after {
+	content: '';
+	position: absolute;
+	top: var(--vscode-spacing-size80);
+	width: var(--vscode-spacing-size40);
+	height: var(--vscode-spacing-size40);
+	border: solid var(--vscode-descriptionForeground);
+	border-width: 0 var(--vscode-strokeThickness) var(--vscode-strokeThickness) 0;
+}
+
+.chat-pet-jump-platform.moving::before {
+	left: calc(50% - var(--vscode-spacing-size80));
+	transform: rotate(135deg);
+}
+
+.chat-pet-jump-platform.moving::after {
+	right: calc(50% - var(--vscode-spacing-size80));
+	transform: rotate(-45deg);
+}
+
+.chat-pet-jump-platform.crumbling {
+	background: repeating-linear-gradient(to right, var(--vscode-descriptionForeground) 0 var(--vscode-spacing-size80), transparent var(--vscode-spacing-size80) var(--vscode-spacing-size120));
+}
+
+.chat-pet-jump-platform-integrity {
+	display: none;
+	position: absolute;
+	top: var(--vscode-spacing-size80);
+	left: 0;
+	width: 100%;
+	height: var(--vscode-spacing-size20);
+	background: var(--vscode-foreground);
+	transform-origin: left;
+}
+
+.chat-pet-jump-platform.crumbling-active .chat-pet-jump-platform-integrity {
+	display: block;
+}
+
+.chat-pet-jump-wall {
+	position: absolute;
+	box-sizing: border-box;
+	border: var(--vscode-strokeThickness) solid var(--vscode-contrastBorder, transparent);
+	border-radius: var(--vscode-cornerRadius-circle);
+	background: var(--vscode-descriptionForeground);
+}
+
+.chat-pet-jump-score {
+	position: absolute;
+	top: var(--vscode-spacing-size160);
+	right: var(--vscode-spacing-size160);
+	left: var(--vscode-spacing-size160);
+	text-align: right;
+	color: var(--vscode-foreground);
+	font-size: var(--vscode-fontSize-body1);
+	font-weight: var(--vscode-fontWeight-semiBold);
+	font-variant-numeric: tabular-nums;
+	line-height: 1.5;
+	overflow-wrap: anywhere;
+}
+
+.chat-pet-jump-high-score {
+	color: var(--vscode-descriptionForeground);
+	font-size: var(--vscode-fontSize-body2);
+	font-weight: var(--vscode-fontWeight-regular);
+}
+
+.chat-pet-jump-charge {
+	position: absolute;
+	width: 76px;
+	height: 20px;
+	background: var(--vscode-foreground);
+	clip-path: polygon(4px 0, 72px 0, 72px 4px, 76px 4px, 76px 16px, 72px 16px, 72px 20px, 4px 20px, 4px 16px, 0 16px, 0 4px, 4px 4px);
+}
+
+.chat-pet-jump-charge-track {
+	position: absolute;
+	inset: 4px;
+	display: flex;
+	align-items: center;
+	gap: var(--vscode-spacing-size40);
+	padding: 0 var(--vscode-spacing-size40);
+	background: var(--vscode-editor-background);
+}
+
+.chat-pet-jump-charge-cell {
+	width: 4px;
+	height: 8px;
+	flex-shrink: 0;
+	background: var(--vscode-descriptionForeground);
+	opacity: 0.25;
+}
+
+.chat-pet-jump-charge-cell.filled {
+	background: var(--vscode-progressBar-background);
+	opacity: 1;
+}
+
+.chat-pet-jump-charge.full .chat-pet-jump-charge-cell {
+	background: var(--vscode-charts-yellow);
+}
+
+.chat-pet-jump-hint {
+	position: absolute;
+	bottom: var(--vscode-spacing-size160);
+	left: var(--vscode-spacing-size160);
+	right: var(--vscode-spacing-size160);
+	color: var(--vscode-descriptionForeground);
+	font-size: var(--vscode-fontSize-body2);
+	line-height: 1.5;
+	text-align: center;
+	text-wrap: balance;
+}
+
+.chat-pet-jump-hint .monaco-keybinding {
+	display: inline-flex;
+	vertical-align: middle;
+}
+
+.hc-black .chat-pet-jump-charge-cell,
+.hc-light .chat-pet-jump-charge-cell {
+	opacity: 1;
+}

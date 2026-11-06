@@ -14,6 +14,10 @@ import { parseChangesetUri } from '../common/changesetUri.js';
 import type { InvokeChangesetOperationParams, InvokeChangesetOperationResult } from '../common/state/protocol/channels-changeset/commands.js';
 import { AHP_SESSION_NOT_FOUND, JsonRpcErrorCodes, ProtocolError } from '../common/state/sessionProtocol.js';
 import { hasSessionPullRequestForBranch, readSessionGitHubState, readSessionGitState, type SessionState } from '../common/state/sessionState.js';
+import { resolveChangesetOwnerScope } from './agentHostBranchChangesetScope.js';
+import { AgentHostStateManager, IAgentHostStateManager } from './agentHostStateManager.js';
+import type { IAgentHostCredentialSource } from '../common/agentHostCredentials.js';
+import { IAgentHostGitHubService } from './agentHostGitHubService.js';
 
 export class AgentHostMergeOperationHandler implements IChangesetOperationHandler {
 
@@ -22,28 +26,38 @@ export class AgentHostMergeOperationHandler implements IChangesetOperationHandle
 	constructor(
 		private readonly _getSessionState: (sessionKey: string) => SessionState | undefined,
 		private readonly _resolveBaseBranchName: (sessionKey: string) => Promise<string | undefined>,
-		private readonly _onGitStateChanged: (sessionKey: string) => Promise<void>,
+		private readonly _onGitStateChanged: (sessionKey: string, source?: IAgentHostCredentialSource) => Promise<void>,
 		private readonly _onMerged: (sessionKey: string, commit: string) => Promise<void>,
 		@IAgentHostGitService private readonly _gitService: IAgentHostGitService,
 		@ILogService private readonly _logService: ILogService,
+		@IAgentHostStateManager private readonly _stateManager: AgentHostStateManager,
+		@IAgentHostGitHubService private readonly _gitHubService: IAgentHostGitHubService,
 	) { }
 
-	async invoke(params: InvokeChangesetOperationParams, token: CancellationToken): Promise<InvokeChangesetOperationResult> {
+	captureCredentialSource(params: InvokeChangesetOperationParams, source?: IAgentHostCredentialSource): IAgentHostCredentialSource | undefined {
+		const parsed = parseChangesetUri(params.channel);
+		const scope = parsed ? resolveChangesetOwnerScope(this._stateManager, parsed.ownerUri) : undefined;
+		return scope ? this._gitHubService.captureSessionCredentialSource(scope.sourceUri, source, scope.sessionUri, true) : source;
+	}
+
+	async invoke(params: InvokeChangesetOperationParams, token: CancellationToken, source?: IAgentHostCredentialSource): Promise<InvokeChangesetOperationResult> {
+		source = this.captureCredentialSource(params, source);
 		const parsed = parseChangesetUri(params.channel);
 		if (!parsed) {
 			throw new ProtocolError(JsonRpcErrorCodes.InvalidParams, `Not a changeset URI: ${params.channel}`);
 		}
 		this._throwIfCancelled(token);
 
-		const sessionUri = parsed.sessionUri;
-		const sessionState = this._getSessionState(sessionUri);
+		const scope = resolveChangesetOwnerScope(this._stateManager, parsed.ownerUri);
+		const sessionUri = scope.sessionUri;
+		const sessionState = this._getSessionState(scope.sourceUri);
 		if (!sessionState) {
 			throw new ProtocolError(AHP_SESSION_NOT_FOUND, `Session not found: ${sessionUri}`);
 		}
 
-		const workingDirectoryValue = sessionState.workingDirectories?.[0];
+		const workingDirectoryValue = scope.workingDirectories[0];
 		if (!workingDirectoryValue) {
-			throw new ProtocolError(JsonRpcErrorCodes.InternalError, `Session has no working directory: ${sessionUri}`);
+			throw new ProtocolError(JsonRpcErrorCodes.InternalError, `Changeset owner has no working directory: ${parsed.ownerUri}`);
 		}
 		const workingDirectory = URI.parse(workingDirectoryValue);
 		const worktreeRoot = await this._gitService.getRepositoryRoot(workingDirectory);
@@ -54,7 +68,7 @@ export class AgentHostMergeOperationHandler implements IChangesetOperationHandle
 		this._throwIfCancelled(token);
 
 		const storedGitState = readSessionGitState(sessionState._meta);
-		const targetBranch = await this._resolveBaseBranchName(sessionUri);
+		const targetBranch = await this._resolveBaseBranchName(scope.sourceUri);
 		if (!targetBranch) {
 			throw new ProtocolError(JsonRpcErrorCodes.InternalError, localize('agentHost.changeset.merge.targetBranchMissing', "Could not determine the branch to merge into."));
 		}
@@ -99,7 +113,7 @@ export class AgentHostMergeOperationHandler implements IChangesetOperationHandle
 			this._throwIfCancelled(token);
 			this._throwIfPullRequestExists(sessionUri, sourceBranch);
 
-			this._logService.info(`[AgentHostMergeOperationHandler] Merging ${sourceBranch} into ${targetBranch} for session ${sessionUri}`);
+			this._logService.info(`[AgentHostMergeOperationHandler] Merging ${sourceBranch} into ${targetBranch} for ${parsed.ownerUri}`);
 			try {
 				await this._gitService.mergeBranch(repositoryRoot, sourceBranch);
 			} catch (error) {
@@ -126,9 +140,9 @@ export class AgentHostMergeOperationHandler implements IChangesetOperationHandle
 		} finally {
 			if (shouldRefresh) {
 				try {
-					await this._onGitStateChanged(sessionUri);
+					await this._onGitStateChanged(parsed.ownerUri, source);
 				} catch (error) {
-					this._logService.warn(`[AgentHostMergeOperationHandler] Post-merge refresh failed for session ${sessionUri}: ${error instanceof Error ? error.message : String(error)}`);
+					this._logService.warn(`[AgentHostMergeOperationHandler] Post-merge refresh failed for ${parsed.ownerUri}: ${error instanceof Error ? error.message : String(error)}`);
 				}
 			}
 		}
@@ -137,7 +151,8 @@ export class AgentHostMergeOperationHandler implements IChangesetOperationHandle
 	}
 
 	private _throwIfPullRequestExists(sessionUri: string, branchName: string): void {
-		const gitHubState = readSessionGitHubState(this._getSessionState(sessionUri)?._meta);
+		const sessionState = this._getSessionState(sessionUri);
+		const gitHubState = readSessionGitHubState(sessionState?._meta, sessionState?.workingDirectories?.[0]);
 		if (hasSessionPullRequestForBranch(gitHubState, branchName)) {
 			throw new ProtocolError(JsonRpcErrorCodes.InvalidParams, localize('agentHost.changeset.merge.pullRequestExists', "Merge Changes is no longer available because a pull request exists for branch '{0}'.", branchName));
 		}

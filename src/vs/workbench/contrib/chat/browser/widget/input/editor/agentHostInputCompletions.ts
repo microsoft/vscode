@@ -14,7 +14,7 @@ import { Range } from '../../../../../../../editor/common/core/range.js';
 import { CompletionItem, CompletionItemKind } from '../../../../../../../editor/common/languages.js';
 import { ITextModel } from '../../../../../../../editor/common/model.js';
 import { ILanguageFeaturesService } from '../../../../../../../editor/common/services/languageFeatures.js';
-import { CommandsRegistry } from '../../../../../../../platform/commands/common/commands.js';
+import { CommandsRegistry, ICommandService } from '../../../../../../../platform/commands/common/commands.js';
 import { IConfigurationService } from '../../../../../../../platform/configuration/common/configuration.js';
 import { IDialogService } from '../../../../../../../platform/dialogs/common/dialogs.js';
 import { IStorageService } from '../../../../../../../platform/storage/common/storage.js';
@@ -29,10 +29,12 @@ import { IChatInputCompletionItem, IChatSessionsService, isAgentHostTarget } fro
 import { getChatSessionType } from '../../../../common/model/chatUri.js';
 import { IChatWidget, IChatWidgetService } from '../../../chat.js';
 import { applyAgentHostCompletionAction, isPolicyBlockedCompletionAction } from '../../../agentHostCompletionAction.js';
-import { applyAgentHostSessionConfigChange } from '../../../agentSessions/agentHost/applyAgentHostSessionConfig.js';
+import { applyAgentHostSessionConfigChange, getAgentHostSessionConfig } from '../../../agentSessions/agentHost/applyAgentHostSessionConfig.js';
+import { IAgentHostConnectionsService } from '../../../../../../../platform/agentHost/common/agentHostConnectionsService.js';
 import { IAgentHostSessionWorkingDirectoryResolver } from '../../../agentSessions/agentHost/agentHostSessionWorkingDirectoryResolver.js';
 import { IAgentHostUntitledProvisionalSessionService } from '../../../agentSessions/agentHost/agentHostUntitledProvisionalSessionService.js';
 import { AgentHostInputCompletionsBase } from './agentHostInputCompletionsBase.js';
+import { getPromptSlashCommandFilterText } from './chatInputCompletionUtils.js';
 /**
  * Completion provider that delegates `@`-mention (and other server-defined)
  * completions to the agent host for AHP-backed chat sessions.
@@ -62,10 +64,12 @@ export class AgentHostInputCompletions extends AgentHostInputCompletionsBase<ICh
 		@IChatWidgetService private readonly _chatWidgetService: IChatWidgetService,
 		@IChatSessionsService chatSessionsService: IChatSessionsService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
+		@IAgentHostConnectionsService private readonly _connectionsService: IAgentHostConnectionsService,
+		@IAgentHostUntitledProvisionalSessionService private readonly _provisionalService: IAgentHostUntitledProvisionalSessionService,
 	) {
 		super(languageFeaturesService, chatSessionsService);
 
-		this._register(CommandsRegistry.registerCommand(AgentHostInputCompletions.addReferenceCommand, (_services, arg) => {
+		this._register(CommandsRegistry.registerCommand(AgentHostInputCompletions.addReferenceCommand, async (accessor, arg) => {
 			assertType(arg instanceof AgentHostReferenceArgument);
 			arg.widget.getContrib<ChatDynamicVariableModel>(ChatDynamicVariableModel.ID)?.addReference({
 				id: arg.id,
@@ -76,6 +80,11 @@ export class AgentHostInputCompletions extends AgentHostInputCompletionsBase<ICh
 				data: arg.data,
 				_meta: arg._meta,
 			});
+			if (arg.submitOnAccept) {
+				await arg.widget.acceptInput();
+			} else if (arg.retriggerSuggestions) {
+				await accessor.get(ICommandService).executeCommand('editor.action.triggerSuggest');
+			}
 		}));
 
 		// Accept handler for config-action completions (permission/mode toggles).
@@ -92,12 +101,14 @@ export class AgentHostInputCompletions extends AgentHostInputCompletionsBase<ICh
 			const storageService = accessor.get(IStorageService);
 			const services = {
 				agentHostService: accessor.get(IAgentHostService),
+				connectionsService: accessor.get(IAgentHostConnectionsService),
 				provisionalService: accessor.get(IAgentHostUntitledProvisionalSessionService),
 				workingDirectoryResolver: accessor.get(IAgentHostSessionWorkingDirectoryResolver),
 				workspaceContextService: accessor.get(IWorkspaceContextService),
 				configurationService: accessor.get(IConfigurationService),
 			};
-			const applied = await applyAgentHostCompletionAction(arg.action, dialogService, storageService, async config => { await applyAgentHostSessionConfigChange(sessionResource, config, services); });
+			const applied = await applyAgentHostCompletionAction(arg.action, dialogService, storageService, async config => { await applyAgentHostSessionConfigChange(sessionResource, config, services); },
+				getAgentHostSessionConfig(sessionResource, this._provisionalService, this._connectionsService));
 			if (applied && arg.reference) {
 				arg.widget.getContrib<ChatDynamicVariableModel>(ChatDynamicVariableModel.ID)?.addReference({
 					id: arg.reference.id,
@@ -169,13 +180,14 @@ export class AgentHostInputCompletions extends AgentHostInputCompletionsBase<ICh
 		const replaceRange = AgentHostInputCompletions.computeRange(position, item);
 		const attachment = item.attachment;
 		switch (attachment.kind) {
+			case 'text':
+				return AgentHostInputCompletions.buildTextCompletionItem(position, item);
 			case 'command': {
 				const action = getCompletionAction(attachment._meta);
 				if (action) {
-					// Omit an elevated auto-approve toggle (Allow all / Assisted)
-					// when enterprise policy disables global auto-approval, rather
-					// than offering an item that would warn then clamp to Default.
-					if (isPolicyBlockedCompletionAction(action, this._configurationService)) {
+					const resource = widget.viewModel?.model.sessionResource;
+					const config = resource ? getAgentHostSessionConfig(resource, this._provisionalService, this._connectionsService) : undefined;
+					if (isPolicyBlockedCompletionAction(action, this._configurationService, config)) {
 						return undefined;
 					}
 					// Config-action completion (permission/mode toggle). Keep-text
@@ -210,7 +222,7 @@ export class AgentHostInputCompletions extends AgentHostInputCompletionsBase<ICh
 					command: {
 						id: AgentHostInputCompletions.addReferenceCommand,
 						title: '',
-						arguments: [AgentHostReferenceArgument.forCommand(widget, attachment.command, attachment.description, AgentHostInputCompletions._insertedTokenRange(replaceRange, item.insertText), attachment._meta)],
+						arguments: [AgentHostReferenceArgument.forCommand(widget, attachment.command, attachment.description, AgentHostInputCompletions._insertedTokenRange(replaceRange, item.insertText), attachment._meta, attachment.retriggerSuggestions, attachment.submitOnAccept)],
 					},
 				};
 			}
@@ -219,7 +231,7 @@ export class AgentHostInputCompletions extends AgentHostInputCompletionsBase<ICh
 				return {
 					label: { label, description: attachment.description },
 					insertText: item.insertText,
-					filterText: item.insertText,
+					filterText: label.startsWith('/') ? getPromptSlashCommandFilterText(label.slice(1)) ?? item.insertText : item.insertText,
 					range: replaceRange,
 					kind: CompletionItemKind.Text,
 					detail: attachment.description,
@@ -283,6 +295,8 @@ class AgentHostReferenceArgument {
 		readonly isDirectory: boolean,
 		readonly range: Range,
 		readonly _meta: Record<string, unknown> | undefined,
+		readonly retriggerSuggestions: boolean = false,
+		readonly submitOnAccept: boolean = false,
 	) { }
 
 	static forResource(widget: IChatWidget, uri: URI, displayName: string | undefined, isDirectory: boolean, range: Range, _meta: Record<string, unknown> | undefined): AgentHostReferenceArgument {
@@ -294,9 +308,9 @@ class AgentHostReferenceArgument {
 		return new AgentHostReferenceArgument(widget, entry.id, entry.value, displayName, false, false, range, _meta);
 	}
 
-	static forCommand(widget: IChatWidget, command: string, description: string | undefined, range: Range, _meta: Record<string, unknown> | undefined): AgentHostReferenceArgument {
+	static forCommand(widget: IChatWidget, command: string, description: string | undefined, range: Range, _meta: Record<string, unknown> | undefined, retriggerSuggestions = false, submitOnAccept = false): AgentHostReferenceArgument {
 		const entry = toAgentHostCompletionVariableEntry(AgentHostCompletionReferenceKind.Command, description ?? command, command, _meta);
-		return new AgentHostReferenceArgument(widget, entry.id, entry.value, description, false, false, range, _meta);
+		return new AgentHostReferenceArgument(widget, entry.id, entry.value, description, false, false, range, _meta, retriggerSuggestions, submitOnAccept);
 	}
 
 	static forChat(widget: IChatWidget, uri: URI, endTurn: string | undefined, title: string, displayName: string | undefined, range: Range, _meta: Record<string, unknown> | undefined): AgentHostReferenceArgument {
