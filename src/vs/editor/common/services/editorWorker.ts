@@ -5,7 +5,7 @@
 
 import { URI } from '../../../base/common/uri.js';
 import { IRange } from '../core/range.js';
-import { IDocumentDiff, IDocumentDiffProviderOptions } from '../diff/documentDiffProvider.js';
+import { DiffFallbackReason, IDocumentDiff, IDocumentDiffProviderOptions } from '../diff/documentDiffProvider.js';
 import { LinesDiffValidity } from '../diff/verifyLinesDiff.js';
 import { IChange } from '../diff/legacyLinesDiffComputer.js';
 import { IColorInformation, IInplaceReplaceSupportResult, TextEdit } from '../languages.js';
@@ -32,7 +32,7 @@ export interface IEditorWorkerService {
 	computedUnicodeHighlights(uri: URI, options: UnicodeHighlighterOptions, range?: IRange): Promise<IUnicodeHighlightsResult>;
 
 	/**
-	 * Implementation in {@link EditorWorker.computeDiff}.
+	 * Implementation in {@link EditorWorker.$computeDiff}.
 	 * If `verify` is set, the worker also checks that the diff reproduces the modified text, see {@link IDocumentDiff.validity}.
 	 * This is linear in the document size, so it should only be requested for a sample of diffs.
 	 */
@@ -66,6 +66,8 @@ export interface IDiffComputationResult {
 	moves: ITextMove[];
 	/** Only set if verification was requested. */
 	validity?: LinesDiffValidity;
+	/** Set if the result of the built-in algorithm was used instead of the requested one. */
+	fallback?: DiffFallbackReason;
 }
 
 export type ILineChange = [
