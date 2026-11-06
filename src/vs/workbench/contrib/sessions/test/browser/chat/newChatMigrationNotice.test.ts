@@ -380,22 +380,41 @@ suite('NewChatMigrationNotice', () => {
 		const notice = env.create();
 		await timeout(0);
 
-		const pending = new DeferredPromise<ICustomizationMigrationHint | undefined>();
-		env.migrations.result = async () => pending.p;
+		const earlyResult = new DeferredPromise<ICustomizationMigrationHint | undefined>();
+		env.migrations.result = async () => earlyResult.p;
+		env.changed.fire();
 		loading.set(true, undefined);
 		const whileLoading = snapshot(notice).visible;
 		env.session.set(draft('replacement'), undefined);
 		const whileReplacing = snapshot(notice).visible;
+		await earlyResult.complete(undefined);
+		await timeout(0);
+		const afterEarlyDiscovery = snapshot(notice).visible;
+		const requestsWhileLoading = env.migrations.requests.length;
+
+		const pending = new DeferredPromise<ICustomizationMigrationHint | undefined>();
+		env.migrations.result = async () => pending.p;
 		loading.set(false, undefined);
 		const afterLoading = snapshot(notice).visible;
 		await pending.complete(undefined);
 		await timeout(0);
 
-		assert.deepStrictEqual({ whileLoading, whileReplacing, afterLoading, afterDiscovery: snapshot(notice).visible }, {
+		assert.deepStrictEqual({
+			whileLoading,
+			whileReplacing,
+			afterEarlyDiscovery,
+			requestsWhileLoading,
+			afterLoading,
+			afterDiscovery: snapshot(notice).visible,
+			requests: env.migrations.requests.map(request => request.resource.path),
+		}, {
 			whileLoading: true,
 			whileReplacing: true,
+			afterEarlyDiscovery: true,
+			requestsWhileLoading: 2,
 			afterLoading: true,
 			afterDiscovery: false,
+			requests: ['/first', '/first', '/replacement'],
 		});
 	});
 
