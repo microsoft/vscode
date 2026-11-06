@@ -192,6 +192,7 @@ class TestProvider extends mock<RemoteAgentHostSessionsProvider>() {
 	disposed = false;
 	clearConnectionCalls = 0;
 	sandboxSupported: boolean | undefined;
+	readonly labels: string[] = [];
 
 	constructor(readonly config: IRemoteAgentHostSessionsProviderConfig) {
 		super();
@@ -205,6 +206,10 @@ class TestProvider extends mock<RemoteAgentHostSessionsProvider>() {
 
 	override setConnectionStatus(status: RemoteAgentHostConnectionStatus): void {
 		this.status = status;
+	}
+
+	override setLabel(name: string): void {
+		this.labels.push(name);
 	}
 
 	override setDevContainerSandboxSupported(supported: boolean | undefined): void {
@@ -617,7 +622,7 @@ suite('Dev Container Agent Host Service', () => {
 			provider: {
 				config: {
 					address,
-					name: 'Source Dev Container',
+					name: 'source [Dev Container]',
 					devContainerWorktreeScope: getComparisonKey(sourceWorkspace),
 					workspaceHostLabel: 'Dev Container',
 					connectOnDemand: true,
@@ -976,11 +981,13 @@ suite('Dev Container Agent Host Service', () => {
 				remoteWorktree: !!service.provider?.config.resolveDevContainerWorktreeConnection,
 				worktreeScope: service.provider?.config.devContainerWorktreeScope,
 				workspaceHostLabels,
+				providerLabels: [service.provider?.config.name, ...service.provider?.labels ?? []],
 			}, {
 				connection: { type: RemoteAgentHostEntryType.DevContainer, address: devContainerAddress(source), hostPath: '/native/project', hostAuthority },
 				remoteWorktree: true,
 				worktreeScope: getComparisonKey(URI.file('/project')),
 				workspaceHostLabels: [`Dev Container on ${entry.name}`, 'Dev Container on Renamed'],
+				providerLabels: [`project [Dev Container on ${entry.name}]`, 'project [Dev Container on Renamed]'],
 			});
 			await target.release();
 		});
