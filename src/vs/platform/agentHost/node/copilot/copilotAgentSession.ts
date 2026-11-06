@@ -1786,6 +1786,7 @@ export class CopilotAgentSession extends Disposable {
 			providerSessionState: this._wrapper.lifecycleState,
 		};
 	}
+	get currentTurnClientId(): string | undefined { return this._currentTurn.value?.senderClientId; }
 	get currentTurnClientType(): AgentHostClientType { return this._currentTurn.value?.clientType ?? AgentHostClientType.Unknown; }
 	get currentTurnClientContext(): IAgentHostClientTelemetryContext | undefined { return this._currentTurn.value?.clientContext; }
 

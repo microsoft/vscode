@@ -12,7 +12,7 @@ import { useFakeTimers } from 'sinon';
 import { DeferredPromise } from '../../../../base/common/async.js';
 import { VSBuffer } from '../../../../base/common/buffer.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
-import { DisposableStore } from '../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.js';
 import { isLinux } from '../../../../base/common/platform.js';
 import { URI } from '../../../../base/common/uri.js';
 import { mock, upcastPartial } from '../../../../base/test/common/mock.js';
@@ -1529,6 +1529,7 @@ suite('CopilotSessionLauncher BYOK proxy lifecycle', () => {
 		const service: IByokLmProxyService = {
 			_serviceBrand: undefined,
 			onDidCapTools: Event.None,
+			registerClientResolver: () => Disposable.None,
 			start: async (): Promise<IByokLmProxyHandle> => {
 				const nonce = `NONCE-${++starts}`;
 				return {
