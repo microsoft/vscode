@@ -1138,13 +1138,13 @@ suite('copilotPluginConverters', () => {
 			assert.strictEqual(parsedPluginsEqual([a], [b]), false);
 		});
 
-		function relocatedPlugin(path: string) {
+		function relocatedPlugin(path: string, sourceUri = URI.parse('client-plugin:/logical-source')) {
 			const pluginDir = URI.file(path);
-			const resource = (name: string) => ({ uri: URI.joinPath(URI.parse('client-plugin:/logical-source'), name), materializedUri: URI.joinPath(pluginDir, name), name });
+			const resource = (name: string) => ({ uri: URI.joinPath(sourceUri, name), materializedUri: URI.joinPath(pluginDir, name), name });
 			return {
 				...makePlugin(),
 				pluginDir,
-				sourceUri: URI.parse('client-plugin:/logical-source'),
+				sourceUri,
 				nonce: 'same-content',
 				hooks: [{
 					type: 'SessionStart',
@@ -1243,6 +1243,12 @@ suite('copilotPluginConverters', () => {
 			assert.strictEqual(parsedPluginsEqual([first], [second]), true);
 		});
 
+		test('ignores canonical skill and instruction URI changes for identical agentless plugin content', () => {
+			const first = { ...relocatedPlugin('/cache/first', URI.parse('client-plugin:/first')), agents: [] };
+			const second = { ...relocatedPlugin('/cache/second', URI.parse('client-plugin:/second')), agents: [] };
+			assert.strictEqual(parsedPluginsEqual([first], [second]), true);
+		});
+
 		test('preserves content changes when plugin roots differ', () => {
 			const a = relocatedPlugin('/cache/old/revision');
 			const b = relocatedPlugin('/cache/new/revision');
@@ -1264,8 +1270,9 @@ suite('copilotPluginConverters', () => {
 			assert.deepStrictEqual([
 				parsedPluginsEqual([a, second], [first, b]),
 				parsedPluginsEqual([a], [{ ...b, skills: a.skills }]),
-				parsedPluginsEqual([a], [{ ...b, skills: [{ ...b.skills[0], uri: URI.file('/cache/second-extra/skills/a/SKILL.md') }] }]),
-			], [false, false, false]);
+				parsedPluginsEqual([a], [{ ...b, skills: [{ ...b.skills[0], materializedUri: URI.file('/cache/second-extra/skills/a/SKILL.md') }] }]),
+				parsedPluginsEqual([a], [{ ...b, instructions: [{ ...b.instructions[0], materializedUri: URI.file('/cache/second-extra/rules/a.instructions.md') }] }]),
+			], [false, false, false, false]);
 		});
 
 		test('returns false for different skill invocation metadata', () => {

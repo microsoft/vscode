@@ -95,6 +95,16 @@ suite('Agent Host customization URI', () => {
 		}, { files: {}, uri: URI.joinPath(root, 'hooks/hooks.json').with({ fragment: 'hook-id' }).toString() });
 	});
 
+	test('projects serialized Windows drive paths without exposing the materialized URI', () => {
+		const pluginDir = URI.file('C:/cache/plugin');
+		const resource = URI.joinPath(pluginDir, 'agents/review.md');
+		const serialized = URI.parse(resource.toString());
+		const customization = { type: CustomizationType.Plugin, id: 'plugin', uri: 'synced:/bundle', name: 'Plugin' } as const;
+		assert.deepStrictEqual([resource, serialized, serialized.with({ fragment: 'hook' })].map(uri =>
+			getCustomizationSourceUri(uri, { pluginDir, customization }).toString()),
+			['synced:/bundle/agents/review.md', 'synced:/bundle/agents/review.md', 'synced:/bundle/agents/review.md#hook']);
+	});
+
 	test('recognizes raw and client-wrapped built-in customizations', () => {
 		const builtIn = URI.from({ scheme: AGENT_BUILTIN_CUSTOMIZATION_SCHEME, path: '/skill/init' });
 

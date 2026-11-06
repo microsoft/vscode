@@ -57,7 +57,10 @@ function sourceUri(resource: URI, synced: ISyncedCustomization, sources: IClient
 	if (synced.customization.clientId === AUTOMATION_ACTIVE_CLIENT_ID) {
 		return resource;
 	}
-	const path = synced.pluginDir && isEqualOrParent(resource, synced.pluginDir, true) ? relativePath(synced.pluginDir, resource) : undefined;
+	// Match serialized protocol paths and parser resources with the same drive-letter casing.
+	const pluginDir = synced.pluginDir && URI.parse(synced.pluginDir.toString());
+	const materializedUri = URI.parse(resource.toString());
+	const path = pluginDir && isEqualOrParent(materializedUri, pluginDir, true) ? relativePath(pluginDir, materializedUri) : undefined;
 	if (path === undefined) {
 		return resource;
 	}

@@ -629,8 +629,8 @@ export function toSdkHooks(
 type ComparablePlugin = IParsedPlugin & PluginSource & { readonly nonce?: string };
 
 /**
- * Compares SDK configuration, preserving plugin order. A plugin with a content nonce compares relative to its own
- * materialized root, since the nonce covers resource bodies that parsed metadata does not; others compare by absolute path.
+ * Compares SDK configuration and forwarded agent identities, preserving plugin order.
+ * SDK paths compare relative to their materialized root only with a content nonce covering the resource bodies.
  */
 export function parsedPluginsEqual(a: readonly ComparablePlugin[], b: readonly ComparablePlugin[]): boolean {
 	const serialize = (plugins: typeof a) => {
@@ -648,14 +648,13 @@ export function parsedPluginsEqual(a: readonly ComparablePlugin[], b: readonly C
 					hooks: p.hooks.map(h => ({ type: h.type, commands: h.commands.map(c => ({ command: c.command, windows: c.windows, linux: c.linux, osx: c.osx, cwd: c.cwd?.toString(), env: c.env, timeout: c.timeout })) })),
 					mcpServers: p.mcpServers.map(m => ({ name: m.name, configuration: m.configuration, defaultCwd: m.defaultCwd?.toString() })),
 					skills: p.skills.map(s => ({
-						uri: s.uri.toString(),
-						materializedUri: s.materializedUri?.toString(),
+						uri: (s.materializedUri ?? s.uri).toString(),
 						name: s.name,
 						disableModelInvocation: s.disableModelInvocation,
 						disableUserInvocation: s.disableUserInvocation,
 					})),
 					agents: p.agents.map(a => ({ uri: a.uri.toString(), materializedUri: a.materializedUri?.toString(), name: a.name })),
-					instructions: p.instructions.map(i => ({ uri: i.uri.toString(), materializedUri: i.materializedUri?.toString(), name: i.name })),
+					instructions: p.instructions.map(i => ({ uri: (i.materializedUri ?? i.uri).toString(), name: i.name })),
 				}, (_key, value) => {
 					// Tagged segments distinguish a relocated root from literal placeholder text.
 					if (rootPattern && typeof value === 'string') {

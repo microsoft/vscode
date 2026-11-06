@@ -395,8 +395,11 @@ suite('Agent Host Provider Integration — Codex Customizations', function () {
 		assert.strictEqual(latestCatalog(added).split(SKILL_MARKER).length - 1, 1, 'the added skill must be advertised once');
 		const skill = parsedPlugin.children?.find(child => child.type === CustomizationType.Skill);
 		assert.ok(skill);
-		assert.ok(latestCatalog(added).includes(JSON.stringify(URI.parse(skill.uri).fsPath).slice(1, -1)), 'the catalog must point to the synced skill file');
-		const skillFile = URI.parse(skill.uri).fsPath;
+		assert.strictEqual(skill.uri, URI.file(join(pluginDir, 'skills', 'client-skill', 'SKILL.md')).toString(), 'the published skill must identify its original source');
+		const catalogPath = latestCatalog(added).match(/CODEX_PLUGIN_SKILL_DESCRIPTION_MARKER \(file: (.+?)\)/)?.[1];
+		assert.ok(catalogPath, 'the catalog must point to the materialized skill file');
+		const skillFile: string = JSON.parse(`"${catalogPath}"`);
+		assert.ok((await readFile(skillFile, 'utf8')).includes(SKILL_BODY_MARKER), 'the SDK skill path must contain the synced skill content');
 		const readSkillCommand = `cat ${JSON.stringify(skillFile)}`;
 		if (process.platform !== 'win32') {
 			const unrelatedFile = join(userHomeDir, 'unrelated.txt');

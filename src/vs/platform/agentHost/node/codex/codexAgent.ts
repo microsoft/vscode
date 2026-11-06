@@ -2218,7 +2218,7 @@ export class CodexAgent extends Disposable implements IAgent {
 			(entry.skills ?? []).filter(skill => skill.enabled).map(skill => dirname(skill.path))));
 		const pluginRoots = plugins.flatMap(plugin => plugin.synced.pluginDir
 			? [plugin.synced.pluginDir.fsPath]
-			: plugin.parsed?.skills.map(skill => dirname(skill.uri.fsPath)) ?? []);
+			: plugin.parsed?.skills.map(skill => dirname((skill.materializedUri ?? skill.uri).fsPath)) ?? []);
 		const launchOwner = this._launchOwner(session);
 		const config = this._readSessionConfig(launchOwner, session.chatChannel);
 		const { sandboxMode } = this._resolveSessionPermissions(launchOwner, session.chatChannel);
