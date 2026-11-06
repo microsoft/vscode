@@ -11,7 +11,7 @@ import { promisify } from 'util';
 import { join } from '../../../../base/common/path.js';
 import { decodeBase64 } from '../../../../base/common/buffer.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
-import { createShellInitScript, isShellInitScriptList } from '../../common/shellInitScript.js';
+import { createShellInitScript, isShellInitScriptList, withAgentTerminalPath } from '../../common/shellInitScript.js';
 
 const execFileAsync = promisify(execFile);
 
@@ -66,6 +66,39 @@ suite('shellInitScript', () => {
 		}, {
 			decoded: activation,
 			rawPayloadEmbedded: false,
+		});
+	});
+
+	suite('agent terminal PATH', () => {
+		const path = { prepend: [`/opt/o'brien`, '/opt/b'], append: ['/opt/z'] };
+
+		test('returns the client scripts unchanged without entries', () => {
+			const scripts = [{ shell: 'bash' as const, script: 'x' }];
+			assert.strictEqual(withAgentTerminalPath(scripts, { prepend: [], append: [] }, 'bash'), scripts);
+		});
+
+		test('puts the PATH prelude before the client script and keeps its shell', () => {
+			const [result] = withAgentTerminalPath([{ shell: 'powershell', script: 'client' }], path, 'bash');
+			assert.deepStrictEqual({ shell: result.shell, preludeFirst: result.script.indexOf('$env:PATH') < result.script.indexOf('client') }, { shell: 'powershell', preludeFirst: true });
+		});
+
+		(process.platform === 'win32' ? suite.skip : suite)('bash behavior', () => {
+			test('adds missing entries once, in order', async () => {
+				const [{ script }] = withAgentTerminalPath([], path, 'bash');
+				const { stdout } = await execFileAsync('bash', ['--norc', '--noprofile', '-c', `${script}\n${script}\nbuiltin echo "$PATH"`], {
+					env: { ...process.env, PATH: '/usr/bin:/bin:/opt/z' },
+				});
+				assert.strictEqual(stdout.trim(), `/opt/o'brien:/opt/b:/usr/bin:/bin:/opt/z`);
+			});
+		});
+
+		(process.platform === 'win32' ? suite : suite.skip)('PowerShell behavior', () => {
+			test('adds missing entries once, in order', async () => {
+				const windowsPath = { prepend: [`C:\\o'brien`, 'C:\\b'], append: ['C:\\z'] };
+				const [{ script }] = withAgentTerminalPath([], windowsPath, 'powershell');
+				const { stdout } = await execFileAsync('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command', `$env:PATH = 'C:\\x;C:\\z'\n${script}\n${script}\nWrite-Output $env:PATH`]);
+				assert.strictEqual(stdout.trim(), `C:\\o'brien;C:\\b;C:\\x;C:\\z`);
+			}).timeout(10_000);
 		});
 	});
 
