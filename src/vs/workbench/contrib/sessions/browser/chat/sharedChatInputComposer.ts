@@ -206,6 +206,8 @@ export class SharedChatInputComposer extends Disposable implements INewSessionCo
 	readonly onDidChangeAttachments = this._onDidChangeAttachments.event;
 	private readonly _onDidFocus = this._register(new Emitter<void>());
 	readonly onDidFocus = this._onDidFocus.event;
+	/** Fires with the model the user selects for the session, once applied: not as the session's model changes otherwise. */
+	get onDidSelectModel(): Event<string> { return this._modelSelection.onDidSelectModel; }
 
 	private _widgetContextKeyService: IContextKeyService | undefined;
 

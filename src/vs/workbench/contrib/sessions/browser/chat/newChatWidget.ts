@@ -32,7 +32,7 @@ import { RemoteAgentHostConnectionStatus } from '../../../../../platform/agentHo
 import { getSessionWorkspaceProperties } from '../../../../../platform/agentHost/common/sessionConfigProperties.js';
 import { localize } from '../../../../../nls.js';
 import { ICreateNewSessionOptions, INewSessionDraftSlot, ISendRequestOptions, ISessionsManagementService, trackNewSessionRequestEnd, WorkspaceNotTrustedError } from '../../common/sessionsManagement.js';
-import { GITHUB_REMOTE_FILE_SCHEME, ISession, ISessionWorkspace, isSessionCreated, SESSION_WORKSPACE_GROUP_GITHUB } from '../../../../services/sessions/common/session.js';
+import { ChatModelSource, GITHUB_REMOTE_FILE_SCHEME, ISession, ISessionWorkspace, isSessionCreated, SESSION_WORKSPACE_GROUP_GITHUB } from '../../../../services/sessions/common/session.js';
 import { IOpenNewSessionResult, ISessionsService } from '../sessionsService.js';
 import { getMainWindowHost, ISessionHostService } from '../../../../services/sessions/browser/sessionHost.js';
 import { ISessionsProvidersService } from '../sessionsProvidersService.js';
@@ -40,7 +40,7 @@ import { ISessionsProvider } from '../../common/sessionsProvider.js';
 import { getNoWorkspaceDescription, getQuickChatProviderLabel, getRemoteQuickChatSelectedLabel } from './noWorkspaceChoice.js';
 import { shouldShowGitHubWorkspaceGroupSignIn } from '../../../../services/sessions/browser/sessionsAuthGate.js';
 import { AGENTIC_SIGN_IN_COMMAND_ID, FOCUS_NEW_SESSION_ENVIRONMENT_PICKER_COMMAND_ID, FOCUS_NEW_SESSION_HARNESS_PICKER_COMMAND_ID, FOCUS_NEW_SESSION_WORKSPACE_PICKER_COMMAND_ID } from '../../common/sessionCommands.js';
-import { isAgentHostEnvironmentAvailable, isAgentHostProvider, LOCAL_AGENT_HOST_PROVIDER_ID } from '../../common/agentHostSessionsProvider.js';
+import { IAgentHostSessionsProvider, isAgentHostEnvironmentAvailable, isAgentHostProvider, LOCAL_AGENT_HOST_PROVIDER_ID } from '../../common/agentHostSessionsProvider.js';
 import { NewSessionComposerFocusContext, NewSessionCreationProviderIdContext } from '../../common/contextkeys.js';
 import { IAquariumService, IMountedToggleHandle } from '../aquarium.js';
 import { IWorkspacePickerNoWorkspaceOption, IWorkspacePickerTrigger, WorkspacePicker } from './sessionWorkspacePicker.js';
@@ -54,7 +54,7 @@ import { getDefaultSessionCreationEnvironment, getEnvironmentWorkspaceProvider, 
 import { NoAgentHostEmptyState } from './noAgentHostEmptyState.js';
 import { IChatRequestVariableEntry } from '../../../chat/common/attachments/chatVariableEntries.js';
 import { IAgentHostFilterService } from '../../common/agentHostFilter.js';
-import { IChatViewOptions, INewSessionDraftHost } from '../parts/chatView.js';
+import { IChatViewOptions, INewSessionDraftHost, INewSessionTarget } from '../parts/chatView.js';
 import { NewChatUserInteraction } from './newChatUserInteraction.js';
 import { WorkspaceSelectionOrigin, ISelectNoWorkspaceOptions, ISelectWorkspaceOptions, WorkspaceSelectionResult } from '../../../../services/sessions/common/workspaceSelection.js';
 import { ISessionPickerFocusOptions, ISessionPickerVisibility, noSessionPickerVisibility } from '../../common/sessionPickerVisibility.js';
@@ -177,6 +177,8 @@ export class NewChatWidget extends Disposable {
 	/** Recreates the draft once a better/late-registering provider can serve the folder (see {@link _createNewSession}). */
 	private readonly _pendingPreferredUpgrade = new MutableDisposable<IDisposable>();
 	private readonly _newSessionCreation = new MutableDisposable<IDisposable>();
+	/** Waits until a hosted composer's draft offers the requested custom agent ({@link _applyRequestedSelection}). */
+	private readonly _pendingRequestedAgent = this._register(new MutableDisposable<IDisposable>());
 	private readonly _noWorkspaceRestore = this._register(new MutableDisposable<IDisposable>());
 	private _pendingWorkspaceCreation: Promise<IOpenNewSessionResult> | undefined;
 	private _createdSessionId: string | undefined;
@@ -407,6 +409,7 @@ export class NewChatWidget extends Disposable {
 				return undefined;
 			},
 			getNoWorkspaceOption: () => this._getNoWorkspaceOption(),
+			ownNoWorkspaceSelection: !!this._draftHost,
 		}));
 		this._register(this._workspacePicker.onDidChangeSelection(() => this._environmentWorkspaceChanged.trigger(undefined)));
 		this._register(this._workspacePicker.onDidChangeDevContainerAvailability(() => this._environmentWorkspaceChanged.trigger(undefined)));
@@ -660,9 +663,11 @@ export class NewChatWidget extends Disposable {
 		}));
 		this._register(this._newChatInput.sessionTypePicker.onDidSelectSessionType(async pick => {
 			this.newSessionComposerService.notifyUserWorkspaceSelection();
+			this._requestTarget(target => ({ ...target, providerId: pick?.providerId, sessionTypeId: pick?.sessionTypeId }));
 			// A quick chat has no folder: re-create the draft with the picked
 			// type via openQuickChat (mirrors the folder path's draft recreation).
 			if (this._isQuickChatComposer.get()) {
+				this._pendingPreferredUpgrade.clear();
 				this._openQuickChat(pick ? { providerId: pick.providerId, sessionTypeId: pick.sessionTypeId } : undefined);
 				this._newChatInput.focus();
 				return;
@@ -671,6 +676,10 @@ export class NewChatWidget extends Disposable {
 			this._newChatInput.focus();
 		}));
 		this._register(this.sessionsManagementService.onDidChangeSessionTypes(() => this._restoreNoWorkspaceDraft()));
+		if (this._draftHost?.setRequestedTarget) {
+			this._register(this._trackUserModelSelections());
+			this._register(this._trackUserAgentSelections());
+		}
 
 		// Comment 2: Re-evaluate the tip when the selected model changes, because
 		// some tips (e.g. tip.switchToAuto) are only eligible for specific models.
@@ -1133,6 +1142,16 @@ export class NewChatWidget extends Disposable {
 	private _seedWorkspaceDraft(): void {
 		const restoredFolderUri = this._workspacePicker.selectedFolderUri;
 		if (this._syncWorkspacePickerFromActiveSession()) {
+			if (this._draftHost) {
+				this._resumeRequestedTargetUpgrade();
+			}
+			return;
+		}
+		// A hosted composer starts from what its host requests, such as another chat's defaults, not from the main
+		// composer's last workspace.
+		const requested = this._draftHost?.requestedTarget?.get();
+		if (requested) {
+			this._seedRequestedTarget(requested);
 			return;
 		}
 		if (restoredFolderUri) {
@@ -1142,7 +1161,291 @@ export class NewChatWidget extends Disposable {
 		}
 	}
 
+	private _seedRequestedTarget(target: INewSessionTarget): void {
+		const pick = target.sessionTypeId ? { providerId: target.providerId, sessionTypeId: target.sessionTypeId } : undefined;
+		if (target.folderUri) {
+			// Not persisted: the main composer's last workspace stays its own.
+			this._workspacePicker.setSelectedWorkspace(target.folderUri, { fireEvent: false, providerId: target.providerId, persist: false, origin: WorkspaceSelectionOrigin.RestoredDraft });
+			void this._createNewSession(target.folderUri, pick);
+		} else {
+			this._selectRequestedNoWorkspace(target);
+		}
+	}
+
+	/** Whether `session` is a draft of the agent `target` requests. */
+	private _isRequestedAgent(session: ISession, target: INewSessionTarget): boolean {
+		return (target.providerId === undefined || session.providerId === target.providerId)
+			&& (target.sessionTypeId === undefined || session.sessionType === target.sessionTypeId);
+	}
+
+	/**
+	 * Creates the workspace-less draft of the requested agent, with its model and mode; while that agent is unavailable, a
+	 * draft of the agent available instead, which is replaced once the requested agent becomes available.
+	 */
+	private _selectRequestedNoWorkspace(target: INewSessionTarget): void {
+		const requested: ICreateNewSessionOptions | undefined = target.sessionTypeId
+			? { providerId: target.providerId, sessionTypeId: target.sessionTypeId }
+			: target.providerId ? { providerId: target.providerId } : undefined;
+		const available = !requested || this.sessionsManagementService.isQuickChatTargetAvailable({ providerId: requested.providerId, sessionTypeId: requested.sessionTypeId });
+		const session = this.selectNoWorkspace(available ? requested : undefined, { userSelection: false, preserveNavigation: true });
+		if (!session || !this._isRequestedAgent(session, target)) {
+			this._scheduleRequestedNoWorkspaceUpgrade();
+		}
+	}
+
+	/**
+	 * Watches for the requested agent of a workspace-less draft as agents change, and creates its draft once it is
+	 * available, or a draft of the agent available instead while there is none. What it creates follows the requested
+	 * target at that time, so a choice the user made since wins; the user's own choices stop it.
+	 */
+	private _scheduleRequestedNoWorkspaceUpgrade(): void {
+		const store = new DisposableStore();
+		store.add(this.sessionsManagementService.onDidChangeSessionTypes(() => {
+			const target = this._draftHost?.requestedTarget?.get();
+			const session = this._session.get();
+			if (!target || target.folderUri || (session && (isSessionCreated(session) || this._isRequestedAgent(session, target)))) {
+				if (this._pendingPreferredUpgrade.value === store) {
+					this._pendingPreferredUpgrade.clear();
+				}
+				return;
+			}
+			const available = this.sessionsManagementService.isQuickChatTargetAvailable({ providerId: target.providerId, sessionTypeId: target.sessionTypeId });
+			// A draft of another agent stays until the requested one is available.
+			if (available || !session) {
+				this._selectRequestedNoWorkspace(target);
+			}
+		}));
+		this._pendingPreferredUpgrade.value = store;
+	}
+
+	/**
+	 * Resumes waiting for the requested agent when the composer shows again with the draft of another agent it kept, such
+	 * as after its view was recreated: its draft stays until that agent is available. A kept draft of the requested agent
+	 * gets what it still lacks of the requested selection, such as a custom agent that its agent lists only now or later.
+	 * A kept draft of another workspace than the requested one is replaced first.
+	 */
+	private _resumeRequestedTargetUpgrade(): void {
+		const target = this._draftHost?.requestedTarget?.get();
+		const session = this._session.get();
+		if (!target || !session || isSessionCreated(session)) {
+			return;
+		}
+		const keptWorkspace = session.isQuickChat?.get() ? undefined : session.workspace.get();
+		const keptFolderUri = keptWorkspace?.folders[0]?.root;
+		if (target.folderUri && (!keptWorkspace || !this._workspacePicker.isWorkspaceOfFolder(keptWorkspace, target.folderUri))) {
+			void this._reopenRequestedWorkspace(target.folderUri, target, session, keptFolderUri);
+			return;
+		}
+		if (this._isRequestedAgent(session, target)) {
+			// What the composer still applies to it, such as a custom agent its agent did not list yet.
+			this._applyRequestedSelection(session);
+			return;
+		}
+		if (!target.folderUri) {
+			if (session.isQuickChat?.get()) {
+				this._scheduleRequestedNoWorkspaceUpgrade();
+				if (this.sessionsManagementService.isQuickChatTargetAvailable({ providerId: target.providerId, sessionTypeId: target.sessionTypeId })) {
+					this._selectRequestedNoWorkspace(target);
+				}
+			}
+			return;
+		}
+		// The kept draft is of the requested folder, maybe as its repository, such as a cloud agent's: the requested agent
+		// creates its draft of the requested folder.
+		if (target.sessionTypeId) {
+			this._scheduleRecreateOnProviderChange(target.folderUri, { providerId: target.providerId, sessionTypeId: target.sessionTypeId }, session, true);
+		}
+	}
+
+	/**
+	 * Applies what the host requests to a new draft of the requested agent: its custom agent, the mode its chat shows,
+	 * and its model, each only when the draft's agent offers it, so that it otherwise starts as the agent's default. A
+	 * draft is created without them: a creation's mode is the agent's session mode, not its custom agent, and a model
+	 * is taken only with its configuration. The custom agent goes first, as selecting it can choose its own model.
+	 */
+	private _applyRequestedSelection(session: ISession | undefined): void {
+		const target = this._draftHost?.requestedTarget?.get();
+		this._pendingRequestedAgent.clear();
+		if (!session || !target || isSessionCreated(session) || !this._isRequestedAgent(session, target)) {
+			return;
+		}
+		const provider = this.sessionsProvidersService.getProvider(session.providerId, session.sessionId);
+		if (!provider) {
+			return;
+		}
+		try {
+			if (target.modeId && isAgentHostProvider(provider) && !this._isSameCustomAgent(session, session.mode.get()?.id, target.modeId)) {
+				if (!this._applyRequestedAgent(provider, session, target.modeId)) {
+					this._waitForRequestedAgent(provider, session, target.modeId);
+				}
+			}
+			this._applyRequestedModel(provider, session, target.modelId);
+		} catch (error) {
+			this.logService.error('Failed to apply the requested selection:', error);
+		}
+	}
+
+	/** Whether `a` and `b` name the same custom agent of `session`, such as in the client's and its agent host's URIs. */
+	private _isSameCustomAgent(session: ISession, a: string | undefined, b: string | undefined): boolean {
+		if (a === b) {
+			return true;
+		}
+		if (!a || !b) {
+			return false;
+		}
+		const provider = this.sessionsProvidersService.getProvider(session.providerId, session.sessionId);
+		if (!provider || !isAgentHostProvider(provider)) {
+			return false;
+		}
+		const agentOf = (uri: string) => provider.resolveCustomAgent?.(session.sessionId, uri)?.uri;
+		const agent = agentOf(a);
+		return !!agent && agent === agentOf(b);
+	}
+
+	/** Selects the custom agent `uri` for `session` when its agent offers it; whether it did. */
+	private _applyRequestedAgent(provider: IAgentHostSessionsProvider, session: ISession, uri: string): boolean {
+		const agent = provider.resolveCustomAgent?.(session.sessionId, uri) ?? provider.getCustomAgents(session.sessionId).find(candidate => candidate.uri === uri);
+		if (!agent) {
+			return false;
+		}
+		provider.setAgent?.(session.sessionId, { uri, name: agent.name });
+		return true;
+	}
+
+	/**
+	 * Applies the requested custom agent once the draft's agent lists it, as its customizations arrive after the draft is
+	 * created. What the draft selects meanwhile is what it starts with. The first list without it means it is not
+	 * offered, and the draft keeps its selection; so it also stops once the draft is replaced, sent or created.
+	 */
+	private _waitForRequestedAgent(provider: IAgentHostSessionsProvider, session: ISession, uri: string): void {
+		const store = new DisposableStore();
+		store.add(provider.onDidChangeCustomAgents(() => {
+			const current = this._session.get();
+			if (current?.sessionId !== session.sessionId || isSessionCreated(current) || this._draftHost?.requestedTarget?.get()?.modeId !== uri) {
+				this._pendingRequestedAgent.clear();
+				return;
+			}
+			if (provider.getCustomAgents(session.sessionId).length === 0) {
+				return;
+			}
+			this._pendingRequestedAgent.clear();
+			try {
+				if (this._applyRequestedAgent(provider, session, uri)) {
+					// Selecting the agent can choose its own model: the requested model stays.
+					this._applyRequestedModel(provider, session, this._draftHost?.requestedTarget?.get()?.modelId);
+				}
+			} catch (error) {
+				this.logService.error('Failed to apply the requested custom agent:', error);
+			}
+		}));
+		this._pendingRequestedAgent.value = store;
+	}
+
+	/** Applies the requested model to `session`, as chosen for its chat, when the draft's agent offers it. */
+	private _applyRequestedModel(provider: ISessionsProvider, session: ISession, modelId: string | undefined): void {
+		const chat = session.mainChat.get();
+		if (!modelId || chat.modelId.get() === modelId) {
+			return;
+		}
+		const folderUri = session.workspace.get()?.folders[0]?.root;
+		if (provider.getModelsSnapshotForCreation?.(folderUri, session.sessionType, modelId).desiredModelResolution.kind !== 'available') {
+			return;
+		}
+		provider.setModel(session.sessionId, chat.resource, modelId, ChatModelSource.Chosen);
+	}
+
+	/** Replaces the host's requested target with what `change` makes of it, for a change by the user. */
+	private _requestTarget(change: (target: INewSessionTarget) => INewSessionTarget): void {
+		const host = this._draftHost;
+		if (host?.setRequestedTarget) {
+			host.setRequestedTarget(change(host.requestedTarget?.get() ?? {}), 'user');
+		}
+	}
+
+	/**
+	 * Keeps the model the user selects for a draft as the requested one, with the draft's agent, also when that is not the
+	 * requested agent, such as one available instead of it: the composer then stops waiting for the requested agent. Only
+	 * the composer's report of the user's choice counts, not the draft's model changing, which its agent also does on its
+	 * own, such as with the model of a custom agent it selects.
+	 */
+	private _trackUserModelSelections(): IDisposable {
+		return this._newChatInput.onDidSelectModel(modelId => {
+			const session = this._session.get();
+			if (!session || isSessionCreated(session)) {
+				return;
+			}
+			const target = this._draftHost?.requestedTarget?.get() ?? {};
+			const sameAgent = this._isRequestedAgent(session, target);
+			const next: INewSessionTarget = {
+				...target,
+				providerId: session.providerId,
+				sessionTypeId: session.sessionType,
+				modelId,
+				modeId: sameAgent ? target.modeId : session.mode.get()?.id,
+			};
+			if (next.providerId === target.providerId && next.sessionTypeId === target.sessionTypeId && next.modelId === target.modelId && next.modeId === target.modeId) {
+				return;
+			}
+			this._pendingPreferredUpgrade.clear();
+			this._draftHost?.setRequestedTarget?.(next, 'user');
+		});
+	}
+
+	/**
+	 * Keeps the custom agent the user selects for a draft in a picker as the requested one, also the agent's default when
+	 * the user clears it, with the draft's agent: the composer then stops waiting for the requested custom agent, or for
+	 * the requested agent. Only the picker's report of the user's choice counts, not the draft's agent changing, which a
+	 * picker or the draft's agent also do on their own.
+	 */
+	private _trackUserAgentSelections(): IDisposable {
+		return this.newSessionComposerService.onDidSelectAgent(({ sessionId, agent }) => {
+			const session = this._session.get();
+			if (!session || session.sessionId !== sessionId || isSessionCreated(session)) {
+				return;
+			}
+			this._pendingRequestedAgent.clear();
+			this._pendingPreferredUpgrade.clear();
+			const target = this._draftHost?.requestedTarget?.get() ?? {};
+			const sameAgent = this._isRequestedAgent(session, target);
+			const modelId = session.modelId.get();
+			const chosen = session.mainChat.get().modelSource.get() === ChatModelSource.Chosen;
+			this._draftHost?.setRequestedTarget?.({
+				...target,
+				providerId: session.providerId,
+				sessionTypeId: session.sessionType,
+				modelId: sameAgent ? target.modelId : chosen ? modelId : undefined,
+				modeId: agent?.uri,
+			}, 'user');
+		});
+	}
+
+	/**
+	 * Creates the draft of the requested workspace `folderUri` for a composer that kept a draft of another workspace, such
+	 * as when its view went while the trust of the workspace the user chose was asked. The trust is asked again; when the
+	 * user declines it, the composer stays with its draft, which it requests again, rather than asking once more.
+	 */
+	private async _reopenRequestedWorkspace(folderUri: URI, target: INewSessionTarget, kept: ISession, keptFolderUri: URI | undefined): Promise<void> {
+		this._workspacePicker.setSelectedWorkspace(folderUri, { fireEvent: false, providerId: target.providerId, persist: false, origin: WorkspaceSelectionOrigin.RestoredDraft });
+		const result = await this._createNewSession(folderUri, target.sessionTypeId ? { providerId: target.providerId, sessionTypeId: target.sessionTypeId } : undefined);
+		if (!result.trustDeclined || this._session.get()?.sessionId !== kept.sessionId) {
+			return;
+		}
+		const requested = this._draftHost?.requestedTarget?.get();
+		if (requested?.folderUri && this.uriIdentityService.extUri.isEqual(requested.folderUri, folderUri)) {
+			this._draftHost?.setRequestedTarget?.({ ...requested, folderUri: keptFolderUri }, 'user');
+		}
+		if (keptFolderUri) {
+			this._workspacePicker.setSelectedWorkspace(keptFolderUri, { fireEvent: false, providerId: kept.providerId, persist: false, origin: WorkspaceSelectionOrigin.RestoredDraft });
+		} else {
+			this._workspacePicker.selectNoWorkspace(false, false);
+		}
+	}
+
 	private async _restoreNoWorkspaceDraft(): Promise<void> {
+		// A hosted composer creates the drafts of what its host requests, and waits for its agent itself.
+		if (this._draftHost?.requestedTarget?.get()) {
+			return;
+		}
 		if (this._workspaceSelectionCleared && !this._workspacePicker.isNoWorkspaceSelected()) {
 			return;
 		}
@@ -1207,9 +1510,12 @@ export class NewChatWidget extends Disposable {
 			return false;
 		}
 
-		const folderUri = this._syncWorkspacePickerDevContainerMode(activeSession, true, WorkspaceSelectionOrigin.RestoredDraft);
+		// A hosted composer's draft does not become the main composer's workspace.
+		const folderUri = this._syncWorkspacePickerDevContainerMode(activeSession, !this._draftHost, WorkspaceSelectionOrigin.RestoredDraft);
 		if (folderUri) {
 			this._replaceDraftOnUnservableHarness(folderUri, activeSession);
+		} else if (this._draftHost && activeSession.isQuickChat?.get()) {
+			this._workspacePicker.selectNoWorkspace(false, false);
 		}
 
 		return true;
@@ -1356,7 +1662,7 @@ export class NewChatWidget extends Disposable {
 			return { session: undefined, trustDeclined: false };
 		}
 		try {
-			return await this.sessionsService.openNewSession({
+			const result = await this.sessionsService.openNewSession({
 				folderUri,
 				preserveNavigation: true,
 				...(this._draftHost ? { draftSlot: this._draftHost.slot } : this._preserveCustomView ? { preserveCustomView: true } : {}),
@@ -1367,6 +1673,10 @@ export class NewChatWidget extends Disposable {
 						? { providerId: fallbackProviderId }
 						: undefined),
 			}, token);
+			if (this._draftHost) {
+				this._applyRequestedSelection(result.session);
+			}
+			return result;
 		} catch (e) {
 			this.logService.error('Failed to create new session:', e);
 			return { session: undefined, trustDeclined: false };
@@ -1388,12 +1698,17 @@ export class NewChatWidget extends Disposable {
 			if (active?.sessionId !== created.sessionId || isSessionCreated(active)) {
 				return; // the draft was sent or is no longer the active session
 			}
+			// The draft can be of another folder, such as the one a composer kept while no provider could serve this one:
+			// it is not a draft of this folder, whatever it runs. A draft of the folder's repository, such as a cloud
+			// agent's, is.
+			const activeWorkspace = active.workspace.get();
+			const inFolder = !!activeWorkspace && this._workspacePicker.isWorkspaceOfFolder(activeWorkspace, folderUri);
 			if (userPick) {
 				if (!this._isPreferredServable(folderUri, userPick)) {
 					return; // the preferred provider still cannot serve the folder
 				}
 				// Already running the pick: nothing left to upgrade to, so stop watching.
-				if (userPick.sessionTypeId === active.sessionType
+				if (inFolder && userPick.sessionTypeId === active.sessionType
 					&& (userPick.providerId === undefined || userPick.providerId === active.providerId)) {
 					this._pendingPreferredUpgrade.clear();
 					return;
@@ -1402,7 +1717,7 @@ export class NewChatWidget extends Disposable {
 				// No explicit pick: keep the draft on the preferred (first)
 				// type. Recreate only when that preferred actually changed.
 				const preferred = this._newChatInput.sessionTypePicker.getPreferredSessionType(folderUri);
-				if (!preferred || (preferred.providerId === active.providerId && preferred.sessionTypeId === active.sessionType)) {
+				if (!preferred || (inFolder && preferred.providerId === active.providerId && preferred.sessionTypeId === active.sessionType)) {
 					return;
 				}
 			}
@@ -1413,7 +1728,9 @@ export class NewChatWidget extends Disposable {
 	selectNoWorkspace(options?: ICreateNewSessionOptions, selectionOptions?: ISelectNoWorkspaceOptions): ISession | undefined {
 		this._pendingPreferredUpgrade.clear();
 		this._newSessionCreation.clear();
-		this._workspacePicker.selectNoWorkspace(selectionOptions?.userSelection !== false);
+		const userSelection = selectionOptions?.userSelection !== false;
+		// What a hosted composer selects on its own is not the main composer's selection.
+		this._workspacePicker.selectNoWorkspace(userSelection, userSelection || !this._draftHost);
 		const environment = this._environment.get();
 		const session = environment?.kind === 'cloud' || environment?.kind === 'container'
 			? this._createQuickChat(options ?? this._workspaceOptOutTarget.get(), selectionOptions?.preserveNavigation)
@@ -1439,7 +1756,10 @@ export class NewChatWidget extends Disposable {
 	private _createQuickChat(options?: ICreateNewSessionOptions, preserveNavigation?: boolean): ISession | undefined {
 		if (this._detached) {
 			try {
-				this._draftSlot.createQuickChat(options);
+				const session = this._draftSlot.createQuickChat(options);
+				if (this._draftHost) {
+					this._applyRequestedSelection(session);
+				}
 				return this._session.get();
 			} catch (error) {
 				this.logService.error('Failed to prepare quick chat:', error);
@@ -1447,6 +1767,19 @@ export class NewChatWidget extends Disposable {
 			}
 		}
 		return this.sessionsService.openQuickChat(options, preserveNavigation);
+	}
+
+	/**
+	 * The user selects No Workspace, of the given agent: a hosted composer requests it, with the agent its draft has, and
+	 * with the model and custom agent requested before when that is the same agent, which its draft got as it was created.
+	 */
+	private _selectNoWorkspaceByUser(options: ICreateNewSessionOptions | undefined): void {
+		const session = this.selectNoWorkspace(options);
+		this._requestTarget(target => {
+			const agent = session ? { providerId: session.providerId, sessionTypeId: session.sessionType } : { providerId: options?.providerId, sessionTypeId: options?.sessionTypeId };
+			const sameAgent = agent.providerId === target.providerId && agent.sessionTypeId === target.sessionTypeId;
+			return { ...(sameAgent ? target : {}), ...agent, folderUri: undefined };
+		});
 	}
 
 	private _getWorkspaceOptOutTarget(environment: ISessionCreationEnvironment | undefined, session: ISession | undefined): ICreateNewSessionOptions | undefined {
@@ -1503,7 +1836,12 @@ export class NewChatWidget extends Disposable {
 					checked: provider.id === activeProviderId,
 					run: () => {
 						if (isAvailable(provider) && provider.id !== activeProviderId) {
-							this.selectNoWorkspace({ providerId: provider.id });
+							const options = { providerId: provider.id };
+							if (this._draftHost) {
+								this._selectNoWorkspaceByUser(options);
+							} else {
+								this.selectNoWorkspace(options);
+							}
 						}
 					},
 				});
@@ -1520,7 +1858,12 @@ export class NewChatWidget extends Disposable {
 				if (!isWorkspacePickerQuickChat) {
 					const provider = providers.length === 1 ? providers[0] : undefined;
 					if (!provider || isAvailable(provider)) {
-						this.selectNoWorkspace(provider ? { providerId: provider.id } : undefined);
+						const options = provider ? { providerId: provider.id } : undefined;
+						if (this._draftHost) {
+							this._selectNoWorkspaceByUser(options);
+						} else {
+							this.selectNoWorkspace(options);
+						}
 					}
 				}
 			},
@@ -2142,10 +2485,16 @@ export class NewChatWidget extends Disposable {
 		// session and this new draft coexist. This restores the
 		// session-type/model pickers for the next message.
 		if (background) {
+			// A hosted composer's next draft aims for the selection the send had, also once a provider arrives later.
+			const reseed = this._draftHost?.setRequestedTarget ? { folderUri: reseedFolderUri, providerId: session.providerId, sessionTypeId: session.sessionType, modelId: session.modelId.get(), modeId: session.mode.get()?.id } : undefined;
+			if (reseed) {
+				this._draftHost?.setRequestedTarget?.(reseed, 'background');
+			}
+			const reseedPick = reseed && { providerId: reseed.providerId, sessionTypeId: reseed.sessionTypeId };
 			if (wasQuickChat) {
-				this._openQuickChat();
+				this._openQuickChat(reseedPick);
 			} else if (reseedFolderUri) {
-				await this._createNewSession(reseedFolderUri);
+				await this._createNewSession(reseedFolderUri, reseedPick);
 			}
 		}
 		return true;
@@ -2321,6 +2670,10 @@ export class NewChatWidget extends Disposable {
 	}
 
 	private async _handleWorkspaceSelection(folderUri: URI | undefined): Promise<void> {
+		const host = this._draftHost;
+		if (host?.setRequestedTarget) {
+			host.setRequestedTarget({ ...host.requestedTarget?.get(), folderUri }, 'user');
+		}
 		if (!this._isCurrentWorkspaceSelection(folderUri)) {
 			await this._onWorkspaceSelected(folderUri);
 		}

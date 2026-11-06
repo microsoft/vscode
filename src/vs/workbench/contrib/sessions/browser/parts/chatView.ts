@@ -78,6 +78,16 @@ export interface INewSessionDraftHost {
 	readonly slot: INewSessionDraftSlot;
 	/** Keeps the composer's input, instead of the main composer's saved draft. */
 	readonly input?: IComposerInputSnapshot;
+	/**
+	 * What the composer creates its drafts for, such as the defaults inherited from another chat, instead of the main
+	 * composer's last workspace. The composer aims for it also when an agent becomes available only later.
+	 */
+	readonly requestedTarget?: IObservable<INewSessionTarget | undefined>;
+	/**
+	 * Replaces {@link requestedTarget}: the user changed the composer's workspace, agent, model or mode, or the composer
+	 * starts its next draft from the selection of a background send.
+	 */
+	setRequestedTarget?(target: INewSessionTarget, reason: 'user' | 'background'): void;
 	/** Opens a session the composer started in the background, in the composer's own window. */
 	openStartedSession(session: ISession): Promise<void>;
 	/**
@@ -87,6 +97,21 @@ export interface INewSessionDraftHost {
 	 * the send is rejected before it is dispatched.
 	 */
 	trackBackgroundSend(send: INewSessionBackgroundSend): IDisposable;
+}
+
+/** What a hosted composer creates its drafts for ({@link INewSessionDraftHost.requestedTarget}). */
+export interface INewSessionTarget {
+	/** The folder of the drafts; none for a workspace-less quick chat. */
+	readonly folderUri?: URI;
+	readonly providerId?: string;
+	readonly sessionTypeId?: string;
+	/** Applied when the session type offers it; otherwise the agent's default model. */
+	readonly modelId?: string;
+	/**
+	 * The mode the chat shows (`IChat.mode`): for an Agent Host agent, its custom agent's URI, which is selected when the
+	 * agent offers it. Not the session mode a creation takes. Undefined for the agent's default selection.
+	 */
+	readonly modeId?: string;
 }
 
 /** A background send of a composer ({@link INewSessionDraftHost.trackBackgroundSend}). */
