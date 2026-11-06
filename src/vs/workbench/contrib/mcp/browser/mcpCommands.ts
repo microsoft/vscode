@@ -55,7 +55,7 @@ import { IRemoteUserDataProfilesService } from '../../../services/userDataProfil
 import { IUserDataProfileService } from '../../../services/userDataProfile/common/userDataProfile.js';
 import { IViewsService } from '../../../services/views/common/viewsService.js';
 import { IChatWidgetService } from '../../chat/browser/chat.js';
-import { getMcpServerDisplayLabel, IAgentHostCustomizationService, isWorkspaceClassGatedMcpServer } from '../../chat/browser/agentSessions/agentHost/agentHostCustomizationService.js';
+import { getMcpServerDisplayLabel, IAgentHostCustomizationService } from '../../chat/browser/agentSessions/agentHost/agentHostCustomizationService.js';
 import { setAgentHostPluginEnablement } from '../../chat/browser/agentPluginActions.js';
 import { AICustomizationManagementCommands, AICustomizationManagementSection, IAICustomizationWorkspaceService } from '../../chat/common/aiCustomizationWorkspaceService.js';
 import { IAgentPluginService } from '../../chat/common/plugins/agentPluginService.js';
@@ -544,7 +544,7 @@ export class McpAgentHostServerOptionsCommand extends Action2 {
 			});
 		} else {
 			// A Global decision cannot pierce the class gate of `chat.mcp.workspaceServersEnabled`.
-			const hostScopes: readonly ('global' | 'workspace' | 'session')[] = isWorkspaceClassGatedMcpServer(agentHostCustomizations, agentHostSession, server) ? ['workspace', 'session'] : ['global', 'workspace', 'session'];
+			const hostScopes: readonly ('global' | 'workspace' | 'session')[] = server.isWorkspaceClassGated ? ['workspace', 'session'] : ['global', 'workspace', 'session'];
 			items.push(
 				...(localServer
 					? [

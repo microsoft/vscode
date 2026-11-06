@@ -15,7 +15,8 @@ import { IAgentHostConnectionsService } from '../../../../../../platform/agentHo
 import { IAgentConnection } from '../../../../../../platform/agentHost/common/agentService.js';
 import { ActionType, type SessionAction } from '../../../../../../platform/agentHost/common/state/sessionActions.js';
 import { IAgentSubscription } from '../../../../../../platform/agentHost/common/state/agentSubscription.js';
-import { CustomizationEnablementKind, CustomizationType, McpServerStatus, SessionState } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
+import { withSessionWorkspaceMcpServers } from '../../../../../../platform/agentHost/common/meta/vscode/agentHostWorkspaceMcpServersMeta.js';
+import { CustomizationEnablementKind, CustomizationType, McpServerStatus, SessionState, type CustomizationEnablement } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
 import { buildChatUri, buildDefaultChatUri, withSessionFolderPickerDecision } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { IFileService } from '../../../../../../platform/files/common/files.js';
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
@@ -66,6 +67,7 @@ suite('WorkbenchAgentHostCustomizationService', () => {
 				onDidError: subscriptionError.event,
 			} as unknown as IAgentSubscription<SessionState> & { value: SessionState | Error | undefined; verifiedValue: SessionState | undefined };
 			const dispatched: SessionAction[] = [];
+			const classEnablementCalls: { session: string; enablement: readonly CustomizationEnablement[] }[] = [];
 			const connection = {
 				dispatch: (_channel: string, action: SessionAction) => dispatched.push(action),
 				onDidAction: Event.None,
@@ -73,6 +75,7 @@ suite('WorkbenchAgentHostCustomizationService', () => {
 				rootState: { value: undefined },
 				resourceUris: kind.resourceUris,
 				getSubscription: () => ({ object: subscription, dispose: () => { } }),
+				setWorkspaceMcpServersEnablement: async (session: URI, enablement: readonly CustomizationEnablement[]) => { classEnablementCalls.push({ session: session.toString(), enablement }); },
 			} as unknown as IAgentConnection;
 			let backend = URI.parse('agent-host:/provisional-a');
 			let provisionalRoots = [kind.toClient(snapshotRoot('/provisional'))];
@@ -117,7 +120,10 @@ suite('WorkbenchAgentHostCustomizationService', () => {
 			const backendPeerChat = buildChatUri('copilot:/session', 'peer');
 			subscription.verifiedValue = {
 				workingDirectories: [snapshotRoot('/verified').toString(), snapshotRoot('/second workspace').toString()],
-				_meta: withSessionFolderPickerDecision(undefined, { hidden: true, primary: snapshotRoot('/verified').toString() }),
+				_meta: withSessionWorkspaceMcpServers(
+					withSessionFolderPickerDecision(undefined, { hidden: true, primary: snapshotRoot('/verified').toString() }),
+					{ enabled: false, enablement: [{ kind: CustomizationEnablementKind.Global, enabled: false }] },
+				),
 				defaultChat: backendDefaultChat,
 				chats: [
 					{ resource: backendDefaultChat },
@@ -149,6 +155,8 @@ suite('WorkbenchAgentHostCustomizationService', () => {
 			const verified = readRoots();
 			const folderPickerDecision = service.getFolderPickerDecision(session);
 			service.setCustomizationEnablement(session, 'playwright', [{ kind: CustomizationEnablementKind.Workspace, uri: kind.toClient(snapshotRoot('/verified')).toString(), enabled: false }], CustomizationEnablementKind.Session, true);
+			const workspaceMcpServers = service.getWorkspaceMcpServers(session);
+			await service.setWorkspaceMcpServersEnablement(session, CustomizationEnablementKind.Workspace, true);
 			const backendChats = {
 				default: service.getBackendChatResource(session)?.toString(),
 				peer: service.getBackendChatResource(session.with({ fragment: 'peer' }))?.toString(),
@@ -192,6 +200,8 @@ suite('WorkbenchAgentHostCustomizationService', () => {
 				verified,
 				folderPickerDecision,
 				toggle: dispatched.find(action => action.type === ActionType.SessionCustomizationToggled),
+				workspaceMcpServers,
+				classEnablementCalls,
 				backendChats,
 				optimistic,
 				afterError,
@@ -206,6 +216,11 @@ suite('WorkbenchAgentHostCustomizationService', () => {
 				verified: expectedRoots('/verified', '/second workspace'),
 				folderPickerDecision: { hidden: true, primary: kind.toClient(snapshotRoot('/verified')).toString() },
 				toggle: { type: ActionType.SessionCustomizationToggled, id: 'playwright', enablement: [{ kind: CustomizationEnablementKind.Session, enabled: true }, { kind: CustomizationEnablementKind.Workspace, uri: 'file:///verified', enabled: false }] },
+				workspaceMcpServers: { enabled: false, enablement: [{ kind: CustomizationEnablementKind.Global, enabled: false }] },
+				classEnablementCalls: [{
+					session: 'agent-host:/provisional-a',
+					enablement: [{ kind: CustomizationEnablementKind.Workspace, uri: 'file:///verified', enabled: true }, { kind: CustomizationEnablementKind.Global, enabled: false }],
+				}],
 				backendChats: {
 					default: backendDefaultChat,
 					peer: backendPeerChat,

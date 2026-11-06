@@ -413,7 +413,7 @@ suite('AbstractAgentHostCustomizationService', () => {
 	});
 
 	for (const authority of ['local', 'remote-test']) {
-		test(`maps ordered ${authority} roots without changing workspace enablement URIs`, () => {
+		test(`maps ordered ${authority} roots and hands the target client-space workspace enablement`, () => {
 			const sut = createSut();
 			const session = URI.parse('vscode-agent-session:///session-1');
 			const roots = [URI.file('/workspace'), URI.file('/second workspace')];
@@ -436,7 +436,8 @@ suite('AbstractAgentHostCustomizationService', () => {
 				hostRoots,
 				clientRoots: roots.map(root => resourceUris.fromAgentHost(root).toString()),
 				roundTrip: hostRoots,
-				enablementChanges: [{ rawId: 'server-1', enablement: [{ kind: CustomizationEnablementKind.Workspace, uri: hostRoots[0], enabled: false }] }],
+				// The target maps client-space entries to host space, like the ones the UI hands back.
+				enablementChanges: [{ rawId: 'server-1', enablement: [{ kind: CustomizationEnablementKind.Workspace, uri: resourceUris.fromAgentHost(roots[0]).toString(), enabled: false }] }],
 			});
 		});
 	}
@@ -477,7 +478,7 @@ suite('AbstractAgentHostCustomizationService', () => {
 			sut.setCustomizationEnablement(session, host.id, undefined, CustomizationEnablementKind.Workspace, false);
 			assert.deepStrictEqual({ sources: sut.getMcpServers(session).map(server => server.sourceUri?.toString()), enablement: target.enablementChanges }, {
 				sources: [kind.toClient(URI.file('/workspace/.mcp.json')).toString(), kind.toClient(URI.file('/client/.mcp.json')).toString()],
-				enablement: [{ rawId: host.id, enablement: [{ kind: CustomizationEnablementKind.Workspace, uri: 'file:///workspace', enabled: false }] }],
+				enablement: [{ rawId: host.id, enablement: [{ kind: CustomizationEnablementKind.Workspace, uri: kind.toClient(URI.file('/workspace')).toString(), enabled: false }] }],
 			});
 		});
 	}

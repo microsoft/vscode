@@ -152,6 +152,12 @@ export interface IAgentHostMcpServer {
 	readonly isClientBundled?: boolean;
 	readonly owningPluginClientId?: string;
 	readonly disabledReason?: CustomizationDisabledReason;
+	/**
+	 * True while the host withholds the workspace-configured servers of this session as a class
+	 * (`chat.mcp.workspaceServersEnabled`). The class is this server's Global decision, which a
+	 * per-server Global decision cannot override; only a Workspace or Session decision changes it.
+	 */
+	readonly isWorkspaceClassGated?: boolean;
 	readonly status: McpServerStatus;
 	/**
 	 * True while the server is `AuthRequired` but VS Code is silently authenticating it (or has done so

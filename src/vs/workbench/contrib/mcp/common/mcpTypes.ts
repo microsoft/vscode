@@ -409,8 +409,6 @@ export namespace IAutostartResult {
  * current workspace overrides it.
  */
 export interface IWorkspaceMcpServersEnablement {
-	/** Whether `serverDefinitionId` identifies a server discovered from workspace configuration. */
-	isWorkspaceServer(serverDefinitionId: string, reader?: IReader): boolean;
 	/** The effective decision: an explicit workspace decision wins, otherwise the setting decides. */
 	readWorkspaceServersEnabled(reader?: IReader): ContributionEnablementState;
 	/** Overrides the setting for the current workspace; `undefined` clears the override. */

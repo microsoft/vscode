@@ -63,7 +63,7 @@ import { AICustomizationManagementSection, IAICustomizationWorkspaceService } fr
 import { CustomizationOrganizationPolicyNotice } from './customizationOrganizationPolicy.js';
 import { AgentPluginItemKind, IAgentPluginItem } from '../agentPluginEditor/agentPluginItems.js';
 import { CustomizationMcpServerCompatibilityKind, getCustomizationDisabledLabel, ICustomizationHarnessService } from '../../common/customizationHarnessService.js';
-import { getMcpServerDisplayLabel, IAgentHostCustomizationService, isWorkspaceClassGatedMcpServer } from '../agentSessions/agentHost/agentHostCustomizationService.js';
+import { getMcpServerDisplayLabel, IAgentHostCustomizationService } from '../agentSessions/agentHost/agentHostCustomizationService.js';
 import { CustomizationEnablementKind, CustomizationLoadStatus, CustomizationType, McpServerStatus } from '../../../../../platform/agentHost/common/state/protocol/state.js';
 import { IOutputService } from '../../../../services/output/common/output.js';
 import { ChatConfiguration } from '../../common/constants.js';
@@ -1732,7 +1732,7 @@ export function getAgentHostMcpServerEnablementActions(agentHostCustomizations: 
 	const enablement = getCustomizationScopeEnablement(server);
 	const actions: IAction[] = [];
 	// A Global decision cannot pierce the class gate, so offering it would be a silent no-op.
-	if (scopes.includes('global') && !isWorkspaceClassGatedMcpServer(agentHostCustomizations, sessionResource, server)) {
+	if (scopes.includes('global') && !server.isWorkspaceClassGated) {
 		actions.push(createAgentHostMcpServerEnablementAction(agentHostCustomizations, sessionResource, server, !enablement.global, 'global'));
 	}
 	if (scopes.includes('workspace') && agentHostCustomizations.getWorkingDirectories(sessionResource).length > 0) {
@@ -1762,13 +1762,27 @@ export function setPrimaryMcpServerEnablement(
 		);
 		return;
 	}
+	if (activeSessionServer?.isWorkspaceClassGated) {
+		// The class gate is the server's Global decision, so the switch moves the decisive override
+		// scope in both directions, or opens one the gate yields to when the gate itself decides.
+		const decision = getCustomizationEnablementDecision(activeSessionServer);
+		const scope = decision && decision.kind !== CustomizationEnablementKind.Global
+			? decision.kind
+			: getWorkspaceClassOverrideScope(agentHostCustomizations, sessionResource);
+		agentHostCustomizations.setCustomizationEnablement(sessionResource, activeSessionServer.id, activeSessionServer.enablement, scope, enabled);
+		const localTwinId = getLocalEnablementServerId(localServerId, activeSessionServer);
+		if (localTwinId) {
+			// The local twin is what the switch reads; its gate is the same class, so mirror the override there.
+			mcpService.enablementModel.setEnabled(localTwinId, enabled
+				? ContributionEnablementState.EnabledWorkspace
+				: mcpService.enablementModel.readProfileEnabled(localTwinId) ? ContributionEnablementState.EnabledProfile : ContributionEnablementState.DisabledProfile);
+		}
+		return;
+	}
 	if (activeSessionServer && !activeSessionServer.enabled && enabled) {
-		// The class gate publishes itself as a Global decision; re-enabling one server needs a scope the gate yields to.
-		const scope = isWorkspaceClassGatedMcpServer(agentHostCustomizations, sessionResource, activeSessionServer)
-			? getWorkspaceClassOverrideScope(agentHostCustomizations, sessionResource)
-			: activeSessionServer.disabledReason?.source === 'scope'
-				? activeSessionServer.disabledReason.scope
-				: getCustomizationEnablementDecision(activeSessionServer)?.kind ?? CustomizationEnablementKind.Global;
+		const scope = activeSessionServer.disabledReason?.source === 'scope'
+			? activeSessionServer.disabledReason.scope
+			: getCustomizationEnablementDecision(activeSessionServer)?.kind ?? CustomizationEnablementKind.Global;
 		agentHostCustomizations.setCustomizationEnablement(
 			sessionResource,
 			activeSessionServer.id,
@@ -1820,7 +1834,8 @@ export function isPrimaryMcpServerEnabled(
 		return isContributionEnabled(mcpService.enablementModel.readEnabled(localEnablementServerId));
 	}
 	if (activeSessionServer) {
-		return getCustomizationScopeEnablement(activeSessionServer).global;
+		// Under the class gate the Global decision is the gate itself, so the switch shows the override that enables the server.
+		return activeSessionServer.isWorkspaceClassGated || getCustomizationScopeEnablement(activeSessionServer).global;
 	}
 	return true;
 }

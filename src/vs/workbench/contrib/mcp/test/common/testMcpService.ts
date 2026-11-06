@@ -19,9 +19,6 @@ export class TestEnablementModel implements IEnablementModel {
 }
 
 export class TestWorkspaceMcpServersEnablement implements IWorkspaceMcpServersEnablement {
-	isWorkspaceServer(_serverDefinitionId: string): boolean {
-		return false;
-	}
 	readWorkspaceServersEnabled(): ContributionEnablementState {
 		return ContributionEnablementState.EnabledProfile;
 	}
