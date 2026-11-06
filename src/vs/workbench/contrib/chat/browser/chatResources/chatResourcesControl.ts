@@ -11,6 +11,7 @@ import { Codicon } from '../../../../../base/common/codicons.js';
 import { toErrorMessage } from '../../../../../base/common/errorMessage.js';
 import { Disposable, DisposableStore, MutableDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { autorun, constObservable, derived, IObservable, IReader, ISettableObservable, mapObservableArrayCached, observableValue } from '../../../../../base/common/observable.js';
+import { Schemas } from '../../../../../base/common/network.js';
 import { isEqual } from '../../../../../base/common/resources.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { URI } from '../../../../../base/common/uri.js';
@@ -122,7 +123,14 @@ export class ChatResourcesControl extends Disposable {
 			exists: this._observeExists(resource.resource, store),
 		}), resource => `${resource.id}\u0000${resource.resource.toString()}`);
 		const contributed = derived(this, reader => withExistence.read(reader).filter(entry => entry.exists.read(reader)).map(entry => entry.resource));
-		this.resources = derived(this, reader => [...contributed.read(reader), ...recorded.read(reader)]);
+		// A recorded file can be missing: the agent can record it before writing it, or delete it later.
+		const recordedTargets = derived(this, reader => [...new Set(recorded.read(reader).map(resource => resource.resource.toString()))]);
+		const recordedExistence = mapObservableArrayCached(this, recordedTargets, (target, store) => [target, this._observeRecordedExists(URI.parse(target), store)] as const);
+		const existingRecorded = derived(this, reader => {
+			const existence = new Map(recordedExistence.read(reader));
+			return recorded.read(reader).filter(resource => existence.get(resource.resource.toString())?.read(reader) ?? false);
+		});
+		this.resources = derived(this, reader => [...contributed.read(reader), ...existingRecorded.read(reader)]);
 		this.listedContributions = derived(this, reader => contributed.read(reader).filter(resource => this.getMode(resource, reader) === 'none'));
 		const shownIn = (area: ChatResourceArea) => derived(this, reader => {
 			const chat = this._chatKey.read(reader);
@@ -222,9 +230,9 @@ export class ChatResourcesControl extends Disposable {
 				run: () => this._openInEditor(resource, true),
 			}),
 			new Separator(),
-			showAction('pinned', localize('chatResources.showAsPill', "Show as Pill")),
-			showAction('embedded', localize('chatResources.showAboveInput', "Show Above Chat Input")),
 			showAction('top', localize('chatResources.showAtTop', "Show at Top of Chat")),
+			showAction('embedded', localize('chatResources.showAboveInput', "Show Above Chat Input")),
+			showAction('pinned', localize('chatResources.showOnlyAsPill', "Show Only as Pill")),
 			new Separator(),
 			toAction({
 				id: 'chatResources.unpin',
@@ -367,7 +375,18 @@ export class ChatResourcesControl extends Disposable {
 		};
 	}
 
-	private _observeExists(resource: URI, store: DisposableStore): IObservable<boolean> {
+	/**
+	 * Whether a recorded resource exists. Websites always do, and so do resources no file system provides, such as settings,
+	 * because nothing can tell whether they exist.
+	 */
+	private _observeRecordedExists(resource: URI, store: DisposableStore): IObservable<boolean> {
+		if (resource.scheme === Schemas.http || resource.scheme === Schemas.https) {
+			return constObservable(true);
+		}
+		return this._observeExists(resource, store, true);
+	}
+
+	private _observeExists(resource: URI, store: DisposableStore, existsWithoutProvider = false): IObservable<boolean> {
 		const exists = observableValue(this, false);
 		let version = 0;
 		const refresh = async () => {
@@ -375,7 +394,7 @@ export class ChatResourcesControl extends Disposable {
 			let result = false;
 			try {
 				await this._fileService.activateProvider(resource.scheme);
-				result = await this._fileService.exists(resource);
+				result = existsWithoutProvider && !this._fileService.hasProvider(resource) ? true : await this._fileService.exists(resource);
 			} catch {
 				result = false;
 			}

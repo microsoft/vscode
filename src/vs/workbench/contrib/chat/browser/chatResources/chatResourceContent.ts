@@ -76,7 +76,7 @@ export function getChatResourceContentProvider(target: IChatResourceTarget): ICh
 /**
  * Renders a resource with the editor that opens it by default: its custom editor when that is the default (such as an
  * extension's view or an image preview), and a text editor otherwise, both editable like in an editor unless the resource
- * is readonly; or as a readonly diff when it has an original.
+ * is readonly. A text resource with an original shows as a readonly diff.
  */
 export async function createChatResourceContent(
 	target: IChatResourceTarget,
@@ -85,9 +85,6 @@ export async function createChatResourceContent(
 	instantiationService: IInstantiationService,
 ): Promise<IChatResourceContent> {
 	return instantiationService.invokeFunction(async accessor => {
-		if (target.originalResource) {
-			return instantiationService.createInstance(ChatResourceDiffContent, target.originalResource, target.resource, body).ready();
-		}
 		const provider = getChatResourceContentProvider(target);
 		if (provider) {
 			return provider.create(target, body, getClippingContainer, instantiationService);
@@ -95,8 +92,12 @@ export async function createChatResourceContent(
 		const defaultEditor = accessor.get(IEditorResolverService).getEditorMatches(target.resource).defaultRule.editor.id;
 		const viewType = defaultEditor === DEFAULT_EDITOR_ASSOCIATION.id ? undefined : defaultEditor;
 		if (viewType) {
+			// A custom editor shows the resource as it is; only text editors show changes, as a diff.
 			await accessor.get(IExtensionService).activateByEvent(`onCustomEditor:${viewType}`);
 			return instantiationService.createInstance(ChatResourceWebviewContent, target, viewType, body, getClippingContainer).ready();
+		}
+		if (target.originalResource) {
+			return instantiationService.createInstance(ChatResourceDiffContent, target.originalResource, target.resource, body).ready();
 		}
 		return instantiationService.createInstance(ChatResourceTextContent, target.resource, body).ready();
 	});

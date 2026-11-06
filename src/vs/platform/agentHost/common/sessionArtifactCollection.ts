@@ -68,15 +68,21 @@ function requireWebLink(value: unknown, field: string, toolName: string): string
  * all. Parsing it the same way here gives the agent an error it can act on
  * instead. A single-letter scheme is a Windows drive path (`C:\repo\plan.md`),
  * which parses into a nonsense URI rather than failing, so it is rejected too.
+ * So is a file URI with two slashes before a drive letter (`file://C:/repo/plan.md`), which names a file
+ * on a host called `C:`.
  */
 function requireUri(value: unknown, field: string, toolName: string): string {
 	const uri = requireString(value, field, toolName);
-	let scheme: string | undefined;
+	let parsed: URI | undefined;
 	try {
-		scheme = URI.parse(uri, /*strict*/ true).scheme;
+		parsed = URI.parse(uri, /*strict*/ true);
 	} catch {
-		scheme = undefined;
+		parsed = undefined;
 	}
+	if (parsed?.scheme === 'file' && /^[a-z]:$/i.test(parsed.authority)) {
+		throw new Error(`Invalid ${toolName} input: ${field} puts the drive letter where a host name goes; use three slashes: 'file:///${parsed.authority}${parsed.path}'.`);
+	}
+	const scheme = parsed?.scheme;
 	if (!scheme || scheme.length === 1) {
 		throw new Error(`Invalid ${toolName} input: ${field} must be an absolute URI including its scheme, such as 'file:///path/to/file' — not a plain file system path.`);
 	}
