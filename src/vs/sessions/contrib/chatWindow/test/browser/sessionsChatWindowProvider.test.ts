@@ -619,6 +619,42 @@ suite('Sessions chat window provider', () => {
 		assert.deepStrictEqual({ inTitleRow, classOn, overChatColumn, fullScreen, leftAsOnMacOS, windowedAgain }, { inTitleRow: 'none x none', classOn: true, overChatColumn: '138px x 30px', fullScreen: 'none x none', leftAsOnMacOS: 'none x none', windowedAgain: '138px x 30px' });
 	});
 
+	test('reserving the room of the window controls measures them before it writes any style, and writes nothing while their room is unchanged: no layout forced on every layout of the title', () => {
+		const chatWindow = append(mainWindow.document.body, $(`.${AGENTS_CHAT_WINDOW_CLASS}`));
+		disposables.add({ dispose: () => chatWindow.remove() });
+		const titlebar = append(chatWindow, $('div'));
+		const controls = append(titlebar, $('div'));
+		controls.style.cssText = 'display: block; width: 138px; height: 30px;';
+		const calls: string[] = [];
+		const style = chatWindow.style;
+		const setProperty = style.setProperty;
+		const removeProperty = style.removeProperty;
+		style.setProperty = (name: string, value: string | null) => { calls.push(`set ${name}`); setProperty.call(style, name, value); };
+		style.removeProperty = (name: string) => { calls.push(`remove ${name}`); return removeProperty.call(style, name); };
+		const traceRead = (name: 'offsetWidth' | 'offsetHeight', label: string) => {
+			const read = Object.getOwnPropertyDescriptor(HTMLElement.prototype, name)?.get;
+			Object.defineProperty(controls, name, { get: () => { calls.push(label); return read?.call(controls); } });
+		};
+		traceRead('offsetWidth', 'read width');
+		traceRead('offsetHeight', 'read height');
+		const reserve = () => {
+			calls.length = 0;
+			setChatWindowTitleInChatColumn(titlebar, controls, true);
+			return calls.join(', ');
+		};
+
+		const first = reserve();
+		const unchanged = reserve();
+		controls.style.height = '32px';
+		const taller = reserve();
+
+		assert.deepStrictEqual({ first, unchanged, taller }, {
+			first: 'read width, read height, set --chat-window-controls-right-width, set --chat-window-controls-right-height',
+			unchanged: 'read width, read height',
+			taller: 'read width, read height, set --chat-window-controls-right-height',
+		});
+	});
+
 	test('the cards keep the main window\'s gaps: between them and to the edges of the window but its top, where the title row is, with the strip\'s column or without it', () => {
 		const store = disposables.add(new DisposableStore());
 		const { provider, configuration } = createProvider(store, []);

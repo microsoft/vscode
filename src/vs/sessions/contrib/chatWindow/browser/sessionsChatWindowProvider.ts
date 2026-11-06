@@ -127,14 +127,23 @@ export function reserveChatWindowControls(titlebar: HTMLElement, controls: HTMLE
 	if (!host) {
 		return;
 	}
+	// Both sizes are read before any style is written, which would make the second read lay the window out again.
 	const floating = controls && titlebar.classList.contains(CHAT_COLUMN_TITLE_CLASS) ? controls : undefined;
 	const width = floating?.offsetWidth ?? 0;
-	if (floating && width > 0) {
-		host.style.setProperty(WINDOW_CONTROLS_WIDTH_PROPERTY, `${width}px`);
-		host.style.setProperty(WINDOW_CONTROLS_HEIGHT_PROPERTY, `${floating.offsetHeight}px`);
+	const height = width > 0 ? floating?.offsetHeight ?? 0 : 0;
+	setStyleProperty(host, WINDOW_CONTROLS_WIDTH_PROPERTY, width > 0 ? `${width}px` : undefined);
+	setStyleProperty(host, WINDOW_CONTROLS_HEIGHT_PROPERTY, width > 0 ? `${height}px` : undefined);
+}
+
+/** Sets or removes (`undefined`) an inline style property of `element`, unless it already has that value. */
+function setStyleProperty(element: HTMLElement, name: string, value: string | undefined): void {
+	if (element.style.getPropertyValue(name) === (value ?? '')) {
+		return;
+	}
+	if (value === undefined) {
+		element.style.removeProperty(name);
 	} else {
-		host.style.removeProperty(WINDOW_CONTROLS_WIDTH_PROPERTY);
-		host.style.removeProperty(WINDOW_CONTROLS_HEIGHT_PROPERTY);
+		element.style.setProperty(name, value);
 	}
 }
 
