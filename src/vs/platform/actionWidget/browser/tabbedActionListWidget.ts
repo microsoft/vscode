@@ -550,6 +550,15 @@ export class TabbedActionListWidget extends Disposable {
 						}
 					}
 				};
+				if (overflowButton) {
+					// The window can narrow or widen the popup, e.g. against its maximum width, without laying it out
+					// again. Refitting resizes the bar, so it waits for the next frame rather than reentering the observer.
+					const scheduledFit = renderDisposables.add(new MutableDisposable());
+					const tabBarObserver = renderDisposables.add(new dom.DisposableResizeObserver('TabbedActionListWidget.tabBar', () => {
+						scheduledFit.value = dom.scheduleAtNextAnimationFrame(dom.getWindow(tabBar), () => fitTabs());
+					}, dom.getWindow(tabBar)));
+					renderDisposables.add(tabBarObserver.observe(tabBar));
+				}
 				for (const tabAction of options.tabBarActions ?? []) {
 					const container = tabAction.alignEnd ? tabBar : tabStrip;
 					const button = dom.append(container, dom.$('button.tabbed-action-list-tabbar-action'));

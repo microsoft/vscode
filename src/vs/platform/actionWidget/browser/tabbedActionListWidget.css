@@ -48,6 +48,15 @@
 	width: auto;
 }
 
+/* Lays the overflow button and other strip actions out beside the tabs, on the same row. */
+.can-overflow-tabs > .tabbed-action-list-tabstrip {
+	display: flex;
+	flex: 0 1 auto;
+	align-items: center;
+	gap: 4px;
+	min-width: 0;
+}
+
 .action-widget .tabbed-action-list-tabbar .monaco-custom-radio .monaco-button:not(.active) {
 	color: var(--vscode-descriptionForeground);
 }

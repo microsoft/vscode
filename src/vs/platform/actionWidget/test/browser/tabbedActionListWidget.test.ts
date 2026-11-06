@@ -1736,12 +1736,16 @@ suite('TabbedActionListWidget', () => {
 				.filter(tab => tab.style.display !== 'none')
 				.map(tab => tab.ariaLabel);
 			const fits = tabBar.scrollWidth <= tabBar.clientWidth;
+			// The widget's own styling keeps the button on the tab row rather than wrapping it below.
+			const radioRect = popup.querySelector<HTMLElement>('.monaco-custom-radio')!.getBoundingClientRect();
+			const overflowRect = overflow.getBoundingClientRect();
+			const overflowBesideTabs = overflowRect.left >= radioRect.right - 1 && overflowRect.top < radioRect.bottom;
 			// Opened from the keyboard, so the first hidden tab takes focus.
 			overflow.click();
 			const menu = [...popup.querySelectorAll<HTMLElement>('.tabbed-action-list-overflow-menu .action-label')].map(label => label.textContent);
 			const focusInMenu = !!document.activeElement?.closest('.tabbed-action-list-overflow-menu');
 			key('Escape', 27);
-			return { visible, menu, fits, focusInMenu, focusAfterEscape: document.activeElement === overflow, menuClosed: !popup.querySelector('.tabbed-action-list-overflow-menu') };
+			return { visible, menu, fits, overflowBesideTabs, focusInMenu, focusAfterEscape: document.activeElement === overflow, menuClosed: !popup.querySelector('.tabbed-action-list-overflow-menu') };
 		};
 		const { visible: barBefore, menu: menuBefore, ...stateBefore } = describe();
 
@@ -1752,7 +1756,7 @@ suite('TabbedActionListWidget', () => {
 		const { visible: barAfter, menu: menuAfter, ...stateAfter } = describe();
 
 		const labels = tabs.map(tab => tab.label);
-		const keyboard = { fits: true, focusInMenu: true, focusAfterEscape: true, menuClosed: true };
+		const keyboard = { fits: true, overflowBesideTabs: true, focusInMenu: true, focusAfterEscape: true, menuClosed: true };
 		assert.deepStrictEqual({
 			stateBefore,
 			stateAfter,
@@ -1802,6 +1806,47 @@ suite('TabbedActionListWidget', () => {
 		last.click();
 
 		assert.deepStrictEqual({ switched: last.ariaLabel !== 'Provider Zero', bar: visible().map(tab => tab.ariaLabel) }, { switched: true, bar: before });
+		widget.hide();
+	});
+
+	test('resizing the popup refits its tabs to the bar', async () => {
+		const { widget, contextView } = createWidget(disposables);
+		const anchor = document.createElement('div');
+		document.body.appendChild(anchor);
+		disposables.add({ dispose: () => anchor.remove() });
+		widget.show<ITestItem>({
+			user: 'test',
+			anchor,
+			tabs: Array.from({ length: 12 }, (_, index) => ({ id: `provider${index}`, label: `Provider ${index}`, icon: Codicon.sparkle })),
+			initialTab: 'provider0',
+			tabLabels: 'active',
+			overflowLabel: 'More Providers',
+			width: 240,
+			createActionList: () => ({ items: [action('a')] }),
+			delegate: { onSelect: () => { }, onHide: () => { } },
+		});
+		await settleLayout();
+
+		const popup = contextView.getContextViewElement().querySelector<HTMLElement>('.action-widget')!;
+		const tabBar = popup.querySelector<HTMLElement>('.tabbed-action-list-tabbar')!;
+		const describe = () => ({
+			bar: [...popup.querySelectorAll<HTMLElement>('.monaco-custom-radio > .monaco-button')].filter(tab => tab.style.display !== 'none').map(tab => tab.ariaLabel),
+			fits: tabBar.scrollWidth <= tabBar.clientWidth,
+		});
+		const initial = describe();
+		// The refit runs on the frame after the resize is observed.
+		const settleRefit = async () => {
+			await settleLayout();
+			await settleLayout();
+		};
+		// Narrowed by the window, as its maximum width does, rather than by the popup laying itself out.
+		popup.style.maxWidth = '140px';
+		await settleRefit();
+		const narrowed = describe();
+		popup.style.removeProperty('max-width');
+		await settleRefit();
+
+		assert.deepStrictEqual({ narrowedFits: narrowed.fits, narrowedHidesMore: narrowed.bar.length < initial.bar.length, widened: describe() }, { narrowedFits: true, narrowedHidesMore: true, widened: initial });
 		widget.hide();
 	});
 
