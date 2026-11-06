@@ -4072,11 +4072,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 			return;
 		}
 		if (enabled) {
-			const userHome = this._environmentService.userHome;
-			const source = this._instantiationService.createInstance(UserModelRouterSource, [
-				resourceJoinPath(userHome, '.agents', MODEL_ROUTER_FOLDER),
-				resourceJoinPath(this._copilotHomeService.home, MODEL_ROUTER_FOLDER),
-			], userHome);
+			const source = this._instantiationService.createInstance(UserModelRouterSource, this._modelRouterFolders(), this._environmentService.userHome);
 			const catalog = this._instantiationService.createInstance(CopilotModelRouterCatalog, [source]);
 			catalog.onDidChange(() => this._publishModels());
 			this._modelRouterCatalog.value = catalog;
@@ -4085,6 +4081,14 @@ export class CopilotAgent extends Disposable implements IAgent {
 			this._modelRouterCatalog.clear();
 			this._publishModels();
 		}
+	}
+
+	/** Where user routers live, in priority order. */
+	private _modelRouterFolders(): URI[] {
+		return [
+			resourceJoinPath(this._environmentService.userHome, '.agents', MODEL_ROUTER_FOLDER),
+			resourceJoinPath(this._copilotHomeService.home, MODEL_ROUTER_FOLDER),
+		];
 	}
 
 	/**
@@ -4118,6 +4122,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 		return createCopilotModelRouterTools(this._isModelRouterEnabled(), {
 			isEnabled: () => this._isModelRouterEnabled(),
 			listRouters: async () => (await this._modelRouterCatalog.value?.whenSettled())?.files ?? [],
+			folders: this._modelRouterFolders(),
 			readFile: async uri => (await this._fileService.readFile(uri)).value.toString(),
 			models: () => {
 				const credentials = this._credentialSources.get(chat.toString());
@@ -4132,7 +4137,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 			return { selection: undefined, notices: [localize('modelRouter.disabled', "Model routers are turned off, so this chat kept its current model.")] };
 		}
 		const snapshot = await catalog.whenSettled(token);
-		const models = context.credentials ? await this.getModelsForCredentials(context.credentials, token) : this._models.get();
+		const models = context.credentials ? await this._getTurnModels(chat, context.credentials, token) : this._models.get();
 		return this._modelRouter.resolve({
 			chat: chat.toString(),
 			modelId: request.selection.id,
@@ -4142,6 +4147,20 @@ export class CopilotAgent extends Disposable implements IAgent {
 			previousTurns: request.previousTurns,
 			picker: new DecisionsModelRouterPicker(decisionsRequest => this.askDecisions(decisionsRequest, context.credentials, token)),
 		});
+	}
+
+	/** Each send captures a new credential source, so reuse the chat's model list while the credential is the same, as `_captureChatCredential` does. */
+	private _getTurnModels(chat: URI, credentials: IAgentHostCredentialSource, token: CancellationToken): Promise<readonly IAgentModelInfo[]> {
+		const previous = this._credentialSources.get(chat.toString());
+		const previousCatalog = previous && previous !== credentials ? this._scopedModelCatalogs.get(previous) : undefined;
+		if (previousCatalog && !this._scopedModelCatalogs.has(credentials)) {
+			const resource = this._gitHubEndpointService.getCopilotResource();
+			const credential = credentials.getCredential({ resource: resource.resource, scopes: resource.scopes_supported });
+			if (credential && previousCatalog.credentials.isCurrentCredential(credential)) {
+				this._scopedModelCatalogs.set(credentials, previousCatalog);
+			}
+		}
+		return this.getModelsForCredentials(credentials, token);
 	}
 
 	async askDecisions(request: IAgentDecisionsRequest, credentials: IAgentHostCredentialSource | undefined, token: CancellationToken): Promise<IAgentDecisionsResult> {

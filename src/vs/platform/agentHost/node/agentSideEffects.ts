@@ -2442,7 +2442,10 @@ export class AgentSideEffects extends Disposable {
 		if (action.type !== ActionType.ChatUsage) {
 			return action;
 		}
-		const modelRouted = this._routedTurns.get(this._routedTurnKey(channel, action.turnId));
+		const activeTurn = this._stateManager.getChatState(channel)?.activeTurn;
+		// The cache is bounded, so a long-paused turn falls back to what its usage already carries.
+		const modelRouted = this._routedTurns.get(this._routedTurnKey(channel, action.turnId))
+			?? (activeTurn?.id === action.turnId ? readUsageInfoMeta(activeTurn.usage).modelRouted : undefined);
 		return modelRouted ? { ...action, usage: { ...action.usage, _meta: { ...action.usage._meta, modelRouted } } } : action;
 	}
 

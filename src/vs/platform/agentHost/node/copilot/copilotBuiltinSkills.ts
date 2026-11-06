@@ -8,6 +8,7 @@ import { joinPath } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
 import { localize } from '../../../../nls.js';
 import { AGENT_BUILTIN_CUSTOMIZATION_SCHEME } from '../../common/agentHostCustomizationUri.js';
+import { MODEL_ROUTER_FOLDER } from '../../common/modelRouter.js';
 import { CustomizationType } from '../../common/state/protocol/state.js';
 import { CustomizationLoadStatus, customizationId, type DirectoryCustomization } from '../../common/state/sessionState.js';
 
@@ -67,7 +68,7 @@ export function createCopilotSkillProvider(sdkConversationId: string, copilotHom
 		listSkills: () => isModelRouterEnabled() ? [troubleshootDescriptor(), modelRouterDescriptor()] : [troubleshootDescriptor()],
 		readSkill: (name, { signal }) => {
 			if (name === modelRouterName) {
-				return isModelRouterEnabled() ? modelRouterSkillContent : undefined;
+				return isModelRouterEnabled() ? modelRouterSkillContent.replace('{{COPILOT_MODEL_ROUTERS}}', () => joinPath(copilotHome, MODEL_ROUTER_FOLDER).fsPath) : undefined;
 			}
 			if (name !== troubleshootName) {
 				return undefined;
@@ -288,7 +289,7 @@ A model router is a YAML file that VS Code lists as a model in the model picker.
 
 ## Where routers live
 
-- \`~/.agents/model-routers/<name>.model-router.yaml\` (preferred), or \`~/.copilot/model-routers/\`.
+- \`~/.agents/model-routers/<name>.model-router.yaml\` (preferred), or \`{{COPILOT_MODEL_ROUTERS}}\`. Routers anywhere else are not used or checked.
 - The file name is the router's name: lowercase letters, digits and single hyphens, like \`daily-driver.model-router.yaml\`. It shows in the picker as \`daily-driver\`.
 - These are the agent host's own folders, so on a remote host they are on the remote machine.
 
@@ -301,8 +302,8 @@ ${modelRouterExample}
 - \`model\` is a Copilot model id, or \`<vendor>/<id>\` for a model on the user's own key (for example \`anthropic/claude-haiku-4-5\`; add the group, \`<vendor>/<group>/<id>\`, if two match). A list is tried in order and the first available model is used. Each model may appear in only one route.
 - \`when\` says which requests the route is for. The decision model sees only the user's message, so describe **the work a request involves**, not just its topic: "Building or changing things over many steps, such as …" routes far better than "Planning and design". Name concrete kinds of requests, and add 2 or 3 \`examples\` in the user's own words, including short ones like "prototype this". Avoid a catch-all first route ("explanations", "questions"): short messages often start long investigations.
 - Keep \`guidance\` for rules that apply to every request; a line like "prefer the cheapest model" pulls almost every request to the first route.
-- \`effort\` levels: none, minimal, low, medium, high, xhigh, max, ultra. Only levels the model supports work; the check reports the rest. \`auto\` lets the router choose per request; \`off\` leaves each model's default.
-- \`switching: first-turn\` picks a model on the first turn and keeps it; \`auto\` may switch later when the work clearly changes.
+- \`effort\` levels: none, minimal, low, medium, high, xhigh, max, ultra. Only levels the model supports work; the check reports the rest. \`auto\` lets the router choose per request; \`off\` leaves each model's default and ignores route \`effort\`.
+- \`switching: first-turn\` picks a model and effort on the first turn and keeps them; \`auto\` may switch later when the work clearly changes.
 - Keys \`subagents\`, \`phases\` and \`mid-turn\` are reserved for later versions and ignored.
 
 ## YAML rules

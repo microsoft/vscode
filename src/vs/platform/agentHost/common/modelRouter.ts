@@ -69,7 +69,7 @@ export interface IModelRouterRoute {
 	readonly models: readonly string[];
 	readonly when: string;
 	readonly examples: readonly string[];
-	/** A fixed effort for this route, overriding the router's. */
+	/** A fixed effort for this route, overriding the router's unless that is `off`. */
 	readonly effort?: ModelRouterEffortLevel;
 }
 
@@ -255,6 +255,9 @@ export function parseModelRouter(content: string, fileName: string): IModelRoute
 			const route = parseRoute(item, index, report);
 			if (!route) {
 				return;
+			}
+			if (effort === 'off' && route.effort) {
+				report.warning(`Route ${index + 1}'s \`effort\` is ignored because the router's \`effort\` is \`off\`.`, item);
 			}
 			for (const model of route.models) {
 				const key = normalizeModelReference(model);
@@ -505,7 +508,10 @@ export function splitModelReference(reference: string): { readonly vendor: strin
 	return slash < 0 ? { vendor: COPILOT_VENDOR, id: reference } : { vendor: reference.slice(0, slash).toLowerCase(), id: reference.slice(slash + 1) };
 }
 
-/** Whether `model` is the one `reference` names. BYOK models are matched by vendor and id, ignoring the user's group name. */
+/**
+ * Whether `model` is the one `reference` names. BYOK models are matched by vendor and id, ignoring the user's group name.
+ * Not handled yet: groups that differ only in case or dots, an exact id that is also another group's shorthand, and on-device models.
+ */
 function modelMatchesReference(model: IAgentModelInfo, reference: string): boolean {
 	const { vendor, id } = splitModelReference(reference);
 	const byok = readAgentModelByokIdentifier(model);
@@ -612,7 +618,7 @@ export function resolveModelRouter(router: IModelRouter, models: readonly IAgent
 			warning(`${label} uses \`${match.reference}\` because \`${route.models[0]}\` is not available.`);
 		}
 		const supportedEfforts = supportedModelEfforts(match.model);
-		const fixedEffort = route.effort ?? (router.effort !== 'auto' && router.effort !== 'off' ? router.effort : undefined);
+		const fixedEffort = router.effort === 'off' ? undefined : route.effort ?? (router.effort !== 'auto' ? router.effort : undefined);
 		let effort: ModelRouterEffortLevel | undefined;
 		if (fixedEffort) {
 			if (supportedEfforts.includes(fixedEffort)) {

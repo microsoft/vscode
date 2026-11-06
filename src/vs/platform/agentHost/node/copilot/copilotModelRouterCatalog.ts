@@ -7,6 +7,7 @@ import { RunOnceScheduler, raceCancellation } from '../../../../base/common/asyn
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { Disposable, DisposableStore, MutableDisposable, type IDisposable } from '../../../../base/common/lifecycle.js';
+import { ResourceMap } from '../../../../base/common/map.js';
 import { basename, dirname, extUriBiasedIgnorePathCase, isEqual } from '../../../../base/common/resources.js';
 import type { URI } from '../../../../base/common/uri.js';
 import { IFileService } from '../../../files/common/files.js';
@@ -50,6 +51,8 @@ export class UserModelRouterSource extends Disposable implements IModelRouterSou
 
 	private readonly _watchers = this._register(new MutableDisposable<DisposableStore>());
 	private readonly _rewatch = this._register(new RunOnceScheduler(() => this._watch(), RESCAN_DELAY_MS));
+	/** The `name` each file last parsed with, so a router keeps its id while an edit has errors. */
+	private readonly _lastNames = new ResourceMap<string>();
 
 	constructor(
 		private readonly _folders: readonly URI[],
@@ -88,7 +91,10 @@ export class UserModelRouterSource extends Disposable implements IModelRouterSou
 					continue;
 				}
 				const result = parseModelRouter(content, fileName);
-				const name = result.router?.name ?? modelRouterNameFromFileName(fileName)!;
+				const name = result.router?.name ?? this._lastNames.get(child.resource) ?? modelRouterNameFromFileName(fileName)!;
+				if (result.router) {
+					this._lastNames.set(child.resource, result.router.name);
+				}
 				const shadowing = seen.get(name);
 				if (shadowing) {
 					this._logService.warn(`[ModelRouter] ${child.resource.toString()} is ignored: ${shadowing.toString()} has the same name`);
@@ -170,6 +176,8 @@ export class CopilotModelRouterCatalog extends Disposable {
 	/** The snapshot after the latest scan, following any scan that starts in the meantime. */
 	async whenSettled(token: CancellationToken = CancellationToken.None): Promise<IModelRouterSnapshot | undefined> {
 		while (!token.isCancellationRequested) {
+			// A change already seen should be in the result, so don't wait out the rescan delay.
+			this._rescan.flush();
 			const generation = this._generation;
 			const snapshot = await raceCancellation(this._scan, token);
 			if (generation === this._generation || snapshot === undefined) {

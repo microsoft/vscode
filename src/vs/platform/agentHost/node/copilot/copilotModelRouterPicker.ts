@@ -94,17 +94,18 @@ export function truncateToEscapedBytes(text: string, maxBytes: number): string {
 export function buildModelRouterDecisionsRequest(request: IModelRouterPickRequest): IAgentDecisionsRequest {
 	const { followUp } = request;
 	const routes = request.candidates.map(candidate => `${candidate.name}: ${describeRoute(candidate)}`).join('\n');
+	const guidance = request.guidance ? `\n\nThe user's guidance for every request:\n${request.guidance}` : '';
 	const questions: IAgentDecisionQuestion[] = [{
 		kind: 'choice',
 		name: 'model',
-		instructions: `${agentFraming}\n\nPick the model the user would want for this request, going by the routes they wrote for when to use each model. Follow the routes over your own view of the models.${request.guidance ? `\n\nThe user's guidance for every request:\n${request.guidance}` : ''}`,
+		instructions: `${agentFraming}\n\nPick the model the user would want for this request, going by the routes they wrote for when to use each model. Follow the routes over your own view of the models.${guidance}`,
 		options: rotateForRequest(request.candidates, request.text).map(candidate => ({ value: candidate.id, description: `${candidate.name}. Use for: ${describeRoute(candidate)}` })),
 	}];
 	if (request.askEffort) {
 		questions.push({
 			kind: 'score',
 			name: 'effort',
-			instructions: `${agentFraming}\n\nHow much reasoning effort does this request need? If one of the routes below covers this kind of request and says what effort to use, follow it.\n\n${routes}`,
+			instructions: `${agentFraming}\n\nHow much reasoning effort does this request need? If one of the routes below covers this kind of request and says what effort to use, follow it.\n\n${routes}${guidance}`,
 			levels: effortCriteria.map(criterion => ({ label: criterion.slice(0, criterion.indexOf(':')), description: criterion })),
 		});
 	}

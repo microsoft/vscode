@@ -35,6 +35,7 @@ suite('check_model_router', () => {
 		const host: IModelRouterToolHost = {
 			isEnabled: enabled,
 			listRouters: async (): Promise<IModelRouterFile[]> => [{ uri: URI.file(goodPath), scope: 'user', name: 'daily', router: parsed.router, diagnostics: parsed.diagnostics }],
+			folders: [URI.file('/home/.agents/model-routers')],
 			readFile: async uri => {
 				const content = files[uri.fsPath];
 				if (content === undefined) {
@@ -60,6 +61,12 @@ suite('check_model_router', () => {
 		assert.strictEqual(createTool().name, CheckModelRouterToolName);
 		enabled = false;
 		assert.strictEqual((await call({}, () => enabled)).resultType, 'failure');
+	});
+
+	test('does not read files outside the router folders', async () => {
+		const result = JSON.parse((await call({ path: '/elsewhere/daily.model-router.yaml' })).textResultForLlm);
+		assert.strictEqual(result.router.valid, false);
+		assert.match(result.router.diagnostics[0].message, /read only from/);
 	});
 
 	test('checks a file against the account\'s models, with line numbers', async () => {

@@ -5,7 +5,7 @@
 
 import type { Tool, ToolResultObject } from '@github/copilot-sdk';
 import { getErrorMessage } from '../../../../base/common/errors.js';
-import { basename } from '../../../../base/common/resources.js';
+import { basename, dirname, extUriBiasedIgnorePathCase } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
 import type { ILogService } from '../../../log/common/log.js';
 import type { IAgentModelInfo } from '../../common/agent.js';
@@ -25,6 +25,8 @@ export interface IModelRouterToolHost {
 	isEnabled(): boolean;
 	/** The routers found in the user's folders. */
 	listRouters(): Promise<readonly IModelRouterFile[]>;
+	/** The folders routers are read from. The tool checks no file outside them. */
+	readonly folders: readonly URI[];
 	readFile(uri: URI): Promise<string>;
 	/** The models the chat's account can use. */
 	models(): Promise<readonly IAgentModelInfo[]>;
@@ -88,6 +90,9 @@ async function checkFile(host: IModelRouterToolHost, uri: URI, models: readonly 
 	const fileName = basename(uri);
 	if (modelRouterNameFromFileName(fileName) === undefined) {
 		return { name: fileName, path: uri.fsPath, valid: false, diagnostics: [{ severity: 'error', message: 'A model router file name ends with .model-router.yaml or .model-router.yml.' }] };
+	}
+	if (!host.folders.some(folder => extUriBiasedIgnorePathCase.isEqual(dirname(uri), folder))) {
+		return { name: fileName, path: uri.fsPath, valid: false, diagnostics: [{ severity: 'error', message: `Model routers are read only from ${host.folders.map(folder => folder.fsPath).join(' and ')}.` }] };
 	}
 	const content = await host.readFile(uri);
 	const parsed = parseModelRouter(content, fileName);
