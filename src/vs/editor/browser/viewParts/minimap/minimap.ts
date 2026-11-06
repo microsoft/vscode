@@ -1402,6 +1402,13 @@ class InnerMinimap extends Disposable {
 		this._domNode.setLeft(this._model.options.minimapLeft);
 		this._domNode.setWidth(this._model.options.minimapWidth);
 		this._domNode.setHeight(this._model.options.minimapHeight);
+		// The minimap is drawn on top of the editor contents, and its canvas can be narrower than the
+		// minimap (at fractional pixel ratios) and is styled slightly translucent. When the minimap
+		// background is opaque, paint it behind the canvas too, so the text and line highlights
+		// underneath don't show through. A translucent `minimap.background` is a deliberate choice
+		// to see the code underneath, so it is left as is.
+		const background = this._model.options.backgroundColor;
+		this._domNode.setBackgroundColor(background.a === 255 ? `rgb(${background.r}, ${background.g}, ${background.b})` : '');
 		this._shadow.setHeight(this._model.options.minimapHeight);
 
 		this._canvas.setWidth(this._model.options.canvasOuterWidth);
@@ -1863,11 +1870,19 @@ class InnerMinimap extends Disposable {
 		const fitWidth = InnerMinimap._fitSectionHeader.bind(null, canvasContext,
 			labelAreaWidth - MINIMAP_GUTTER_WIDTH);
 
+		// Headers on nearby lines (e.g. nested regions) would get labels drawn on top of each other.
+		// Stack such labels below one another instead, so that every header stays readable.
+		let nextLabelY = Number.NEGATIVE_INFINITY;
 		for (const decoration of decorations) {
-			const y = layout.getYForLineNumber(decoration.range.startLineNumber, minimapLineHeight) + sectionHeaderFontSize;
-			const backgroundFillY = y - sectionHeaderFontSize;
-			const separatorY = backgroundFillY + 2;
 			const headerText = this._model.getSectionHeaderText(decoration, fitWidth);
+			const lineY = layout.getYForLineNumber(decoration.range.startLineNumber, minimapLineHeight);
+			const backgroundFillY = headerText ? Math.max(lineY, nextLabelY) : lineY;
+			const y = backgroundFillY + sectionHeaderFontSize;
+			const separatorY = backgroundFillY + 2;
+
+			if (headerText) {
+				nextLabelY = backgroundFillY + backgroundFillHeight;
+			}
 
 			InnerMinimap._renderSectionLabel(
 				canvasContext,

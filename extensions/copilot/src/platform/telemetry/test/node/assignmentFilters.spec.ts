@@ -12,6 +12,7 @@ import { CopilotToken, createTestExtendedTokenInfo } from '../../../authenticati
 import { CopilotTokenStore } from '../../../authentication/common/copilotTokenStore';
 import { packageJson } from '../../../env/common/packagejson';
 import { ILogService } from '../../../log/common/logService';
+import { INTEGRATION_ID } from '../../../endpoint/common/licenseAgreement';
 import { CopilotAssignmentsFilterProvider } from '../../vscode-node/microsoftExperimentationService';
 
 vi.mock('vscode', async importOriginal => ({
@@ -47,6 +48,7 @@ describe('CopilotAssignmentsFilterProvider', () => {
 		}));
 
 		expect(Object.fromEntries(provider.getFilters())).toEqual({
+			integratorid: INTEGRATION_ID,
 			vscode_core_platform: PlatformToString(platform),
 			vscode_core_windowkind: 'editor',
 			devdeviceid: 'test-device',

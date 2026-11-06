@@ -11,11 +11,11 @@ import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase 
 import { AgentsWindowUsage } from '../../../../workbench/contrib/chat/common/agentsWindowUsage.js';
 import { onboardingScenarioRegistry } from '../../../../workbench/contrib/onboarding/common/onboardingRegistry.js';
 import { IViewsService } from '../../../../workbench/services/views/common/viewsService.js';
-import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
-import { IFocusedSessionHostService } from '../../../services/sessions/browser/sessionHost.js';
-import { SessionStatus } from '../../../services/sessions/common/session.js';
-import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
-import { SessionsView, SessionsViewId } from '../../sessions/browser/views/sessionsView.js';
+import { ISessionsService } from '../../../../workbench/contrib/sessions/browser/sessionsService.js';
+import { IFocusedSessionHostService } from '../../../../workbench/contrib/sessions/browser/sessionHost.js';
+import { isSessionCreated, SessionStatus } from '../../../../workbench/contrib/sessions/common/session.js';
+import { ISessionsManagementService } from '../../../../workbench/contrib/sessions/common/sessionsManagement.js';
+import { SessionsView, SessionsViewId } from '../../../../workbench/contrib/sessions/browser/views/sessionsView.js';
 import { createParallelTasksTour } from './tours/parallelTasksTour.js';
 
 const SESSION_COUNT_LIMIT = 3;
@@ -51,7 +51,7 @@ export class ParallelTasksTourContribution extends Disposable implements IWorkbe
 				&& createdSessionCount.read(reader) < SESSION_COUNT_LIMIT
 				&& session !== undefined
 				&& session.sessionId === startedSessionId
-				&& session.isCreated.read(reader)
+				&& isSessionCreated(session, reader)
 				&& !session.isArchived.read(reader)
 				&& !session.isAutomation?.read(reader)
 				&& session.status.read(reader) === SessionStatus.InProgress;

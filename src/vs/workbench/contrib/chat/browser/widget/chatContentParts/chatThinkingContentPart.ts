@@ -417,7 +417,6 @@ export class ChatThinkingContentPart extends ChatThinkingStyleContentPart implem
 	private textContainer!: HTMLElement;
 	private readonly _markdownResult = this._register(new MutableDisposable<IRenderedMarkdown>());
 	private readonly renderedThinkingHeaders = new Map<HTMLElement, { title: string; element: HTMLElement }>();
-	private readonly renderedThinkingParts = new Map<HTMLElement, { part: IChatThinkingPart; label?: HTMLElement }>();
 	private readonly reasoningDurationSnapshots = new Map<string | IChatThinkingPart, number>();
 	private summaryRowItems: HTMLElement[] = [];
 	private summaryRowResults: (IRenderedMarkdown | undefined)[] = [];
@@ -1182,21 +1181,12 @@ export class ChatThinkingContentPart extends ChatThinkingStyleContentPart implem
 		}
 		const cleanedContent = content.trim();
 		if (!cleanedContent) {
-			this.renderedThinkingParts.delete(this.textContainer);
 			this._markdownResult.clear();
 			this.clearSummaryRows();
 			if (this.textContainer) {
 				clearNode(this.textContainer);
 			}
 			return;
-		}
-		if (this.textContainer) {
-			const rendered = this.renderedThinkingParts.get(this.textContainer);
-			if (rendered) {
-				rendered.part = this.content;
-			} else {
-				this.renderedThinkingParts.set(this.textContainer, { part: this.content });
-			}
 		}
 
 		const headers = getThinkingHeaders(cleanedContent);
@@ -1516,7 +1506,6 @@ export class ChatThinkingContentPart extends ChatThinkingStyleContentPart implem
 				this.showFinalizedTitle(title);
 			}
 		}
-		this.updateReasoningDurationLabels();
 		this.updateToolChainVisibility();
 		if (this.isVerboseToolChain) {
 			return;
@@ -1696,10 +1685,6 @@ export class ChatThinkingContentPart extends ChatThinkingStyleContentPart implem
 				}
 				this.allThinkingParts[index] = content;
 			}
-		}
-		const rendered = this.renderedThinkingParts.get(this.textContainer);
-		if (rendered) {
-			rendered.part = content;
 		}
 		this.content = content;
 
@@ -2054,40 +2039,6 @@ export class ChatThinkingContentPart extends ChatThinkingStyleContentPart implem
 		return totalDuration !== undefined && Number.isFinite(totalDuration) ? totalDuration : undefined;
 	}
 
-	private updateReasoningDurationLabels(): void {
-		if (!this.renderedThinkingParts.size) {
-			return;
-		}
-		const durationInTitle = this.getGeneratedTitleDuration() !== undefined;
-		const sources = new Set([...this.renderedThinkingParts.values()].map(({ part }) => this.thinkingPartSources?.get(part) ?? part));
-		const shown = new Set<IChatThinkingPart>();
-		for (const [container, rendered] of this.renderedThinkingParts) {
-			const part = rendered.part;
-			const source = this.thinkingPartSources?.get(part) ?? part;
-			const duration = source.reasoningDurationMs;
-			let label = rendered.label;
-			if (durationInTitle || duration === undefined || !Number.isFinite(duration) || duration < 0 || shown.has(source)) {
-				label?.remove();
-				continue;
-			}
-			shown.add(source);
-			const text = getReasoningDurationLabel(duration);
-			if (sources.size === 1 && this.currentTitle === text) {
-				label?.remove();
-				continue;
-			}
-			if (!label) {
-				label = rendered.label = $('.chat-thinking-run-duration');
-			}
-			if (label.parentElement !== container) {
-				container.prepend(label);
-			}
-			if (label.textContent !== text) {
-				label.textContent = text;
-			}
-		}
-	}
-
 	private setFallbackTitle(): void {
 		const finalLabel = this.getFallbackTitle();
 		this.currentTitle = finalLabel;
@@ -2112,7 +2063,6 @@ export class ChatThinkingContentPart extends ChatThinkingStyleContentPart implem
 
 	/** Shows a finished section's title, which a conversation section wipes in after its last activity. */
 	private showFinalizedTitle(title: string): void {
-		this.updateReasoningDurationLabels();
 		if (this.isConversation) {
 			this.showConversationTitle({ title, key: conversationFinishedKey, finished: true }, true);
 		} else {
@@ -2993,7 +2943,6 @@ export class ChatThinkingContentPart extends ChatThinkingStyleContentPart implem
 
 	override dispose(): void {
 		this.reasoningDurationSnapshots.clear();
-		this.renderedThinkingParts.clear();
 		this.isActive = false;
 		this.thinkingPartSources = undefined;
 		if (this.workingSpinnerElement) {

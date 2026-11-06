@@ -47,7 +47,7 @@ import { getPreferredSpeedVariant, IModelSpeedVariants } from './modelPickerVari
 import { getModelBadge, getOrganizationDefaultDescription, getOrganizationDefaultModel, organizationDefaultLabel } from './modelPickerBadges.js';
 import { buildModelToProviderGroupMap, createModelAction, createUnavailableModelItem, getUnavailableReason, IModelPickerOrganizationSupport, IProviderGroupInfo, requiresNewerVSCode } from './modelPickerItemPrimitives.js';
 import { getModelPickerAccessibilityProvider, getModelPickerControlModels } from './modelPickerItems.js';
-import { filterModelPickerControlModelsForEntitlement, filterModelPickerModelsForEntitlement, getFusionDiscountPercent, getFusionTierLabel, getHydraFusionTierLabel, getRoutingModelBadge, isAutoModel, isHydraFusionModel, isHydraFusionUpgradeOnly } from './modelPickerPresentation.js';
+import { filterModelPickerControlModelsForEntitlement, filterModelPickerModelsForEntitlement, getFusionDiscountPercent, getFusionTierLabel, getHydraFusionTierLabel, getRoutingModelBadge, isAutoModel, isHydraFusionModel, isHydraFusionUpgradeOnly, isModelComparisonSupported } from './modelPickerPresentation.js';
 import { buildModelPickerDestinations, buildModelPickerSections, getModelProviderLabel, hasPromotedModels, IModelPickerDestination, IModelPickerProviderPlaceholder, IModelPickerSections, IModelPickerUnavailableEntry, MODEL_PICKER_BUILT_IN_DESTINATION, MODEL_PICKER_ON_DEVICE_DESTINATION } from './modelPickerTabs.js';
 import { ModelPickerWelcome } from './modelPickerWelcome.js';
 import { IAgentModelPreferences, resolveAgentModelPreferences } from '../../../../common/promptSyntax/languageProviders/promptModelResolver.js';
@@ -77,7 +77,6 @@ export interface ITabbedModelPickerContext {
 	/** Models from every harness that can participate in a comparison. */
 	readonly comparisonModels?: readonly ILanguageModelChatMetadataAndIdentifier[];
 	readonly selectedModelId: string | undefined;
-	readonly recentModelIds: readonly string[];
 	readonly pinnedModelIds: readonly string[];
 	readonly controlModels: IStringDictionary<IModelControlEntry>;
 	readonly configurationAccess: IModelConfigurationAccess;
@@ -498,6 +497,7 @@ export class TabbedModelPicker extends Disposable {
 				return context;
 			} : undefined,
 			tabLabels: 'active',
+			overflowLabel: localize('chat.modelPicker.moreProviders', "More Providers"),
 			filterInTabBar: true,
 			width: step ? COMPARISON_PICKER_WIDTH : PICKER_WIDTH,
 			createActionList: (activeTab, forSizing) => {
@@ -557,7 +557,7 @@ export class TabbedModelPicker extends Disposable {
 					? { ...baseListOptions, anchorPosition: AnchorPosition.BELOW }
 					: { ...baseListOptions, preferredAnchorPosition: AnchorPosition.ABOVE };
 				return {
-					items: step ? items.filter(item => !item.item || !current.models.some(model => model.identifier === item.item?.id && (isAutoModel(model) || isHydraFusionModel(model)))) : items,
+					items: step ? items.filter(item => !item.item || !current.models.some(model => model.identifier === item.item?.id && !isModelComparisonSupported(model))) : items,
 					listOptions,
 				};
 			},
@@ -781,7 +781,6 @@ export class TabbedModelPicker extends Disposable {
 			models: destination.models,
 			selectedModelId: context.selectedModelId,
 			organizationDefaultModelId: this._getOrganizationDefaultModel(context)?.identifier,
-			recentModelIds: context.recentModelIds,
 			pinnedModelIds: context.pinnedModelIds,
 			controlModels: context.controlModels,
 			preferredSpeedVariants: this._preferredSpeedVariants,
@@ -991,9 +990,7 @@ export class TabbedModelPicker extends Disposable {
 
 	private _buildItems(destination: IModelPickerDestination, sections: IModelPickerSections, context: ITabbedModelPickerContext): IActionListItem<IActionWidgetDropdownAction>[] {
 		const isBuiltIn = destination.id === MODEL_PICKER_BUILT_IN_DESTINATION;
-		// Auto leads the built-in provider's list, ahead of any section. Guided selection
-		// compares individual models, so it leaves routing out.
-		const items: IActionListItem<IActionWidgetDropdownAction>[] = isBuiltIn && !context.comparison?.state.get() ? this._buildRoutingItems(context) : [];
+		const items: IActionListItem<IActionWidgetDropdownAction>[] = isBuiltIn ? this._buildRoutingItems(context) : [];
 		// A plan that grants only Auto still lists the models it could unlock, so the
 		// welcome body is reserved for having genuinely nothing to say.
 		if (!items.length && !destination.models.length && !sections.unavailable.length) {
@@ -1204,7 +1201,8 @@ export class TabbedModelPicker extends Disposable {
 	private _buildRoutingItems(context: ITabbedModelPickerContext): IActionListItem<IActionWidgetDropdownAction>[] {
 		const items: IActionListItem<IActionWidgetDropdownAction>[] = [];
 		const auto = this._autoModel(context);
-		if (auto) {
+		const comparing = !!context.comparison?.state.get();
+		if (auto && (!comparing || isModelComparisonSupported(auto))) {
 			const item = this._createModelItem(auto, context);
 			// Copilot Fusion leads the list at twice the height of the other rows, with a line saying what it does.
 			const fusionDetail = auto.metadata.autoModelFusion ? localize('chat.modelPicker.fusionDetail', "Picks or combines the best models for your task") : undefined;
@@ -1219,7 +1217,7 @@ export class TabbedModelPicker extends Disposable {
 				}
 				: item);
 		}
-		if (this._hostsHydraFusion(context)) {
+		if (comparing || this._hostsHydraFusion(context)) {
 			return items;
 		}
 		for (const hydra of this._hydraFusionRowModels(context)) {
@@ -1432,7 +1430,7 @@ export class TabbedModelPicker extends Disposable {
 		const isCheckedAttempt = !!(context.comparison && comparisonStep?.multiple && comparisonStep.selectedModelIds.includes(model.identifier));
 		// The provider's tiers decide which HydraFusion tiers Fusion offers, including hidden ones, so its
 		// models are not added beside them unless the chat is on one.
-		const hydraFusionModels = isAutoModel(model) && this._hostsHydraFusion(context)
+		const hydraFusionModels = !comparisonStep && isAutoModel(model) && this._hostsHydraFusion(context)
 			? this._hydraFusionModels(context).filter(hydraFusion => !model.metadata.autoModelProviderTiers || hydraFusion.identifier === context.selectedModelId)
 			: [];
 		const hydraFusionTiers = this._hydraFusionTiers(context);
@@ -1627,8 +1625,7 @@ export class TabbedModelPicker extends Disposable {
 			&& !isUserProvidedModel(model, this._languageModelsService)
 			&& !requiresNewerVSCode(model, context.controlModels, context.unavailableContext.currentVSCodeVersion)
 			&& !context.localModels?.getDirectModel(model);
-		const candidates = [...context.recentModelIds, ...context.pinnedModelIds];
-		for (const id of candidates) {
+		for (const id of context.pinnedModelIds) {
 			const model = context.models.find(candidate => candidate.identifier === id);
 			if (model && isCandidate(model)) {
 				return model;

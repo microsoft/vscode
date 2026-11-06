@@ -5,48 +5,11 @@
 
 import { Disposable, IDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { derived, IObservable, ITransaction, observableValue } from '../../../../base/common/observable.js';
-import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
-import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
-import { ICustomViewDescriptor } from './customView.js';
+import { ICustomViewDescriptor, ICustomViewService, ICustomViewOpenRequest } from '../../../../workbench/contrib/sessions/browser/customView.js';
 
-export const ICustomViewService = createDecorator<ICustomViewService>('customViewService');
 const ACTIVE_CUSTOM_VIEW_STORAGE_KEY = 'sessions.activeCustomView';
-
-export interface ICustomViewOpenRequest {
-	readonly descriptor: ICustomViewDescriptor;
-	readonly source: 'explicit' | 'history' | 'restore';
-	/** Identifies what this opening shows, such as one of several items, so navigation history can return to it. */
-	readonly state?: string;
-}
-
-/**
- * Owns which custom view (if any) should be rendered in place of the sessions
- * grid. Only one view can be shown at a time. The Agents workbench observes
- * {@link activeCustomView} and, while it is set, renders the custom view grid
- * and hides the sessions grid, the side panel and the bottom panel.
- */
-export interface ICustomViewService {
-
-	readonly _serviceBrand: undefined;
-
-	/** The view that should currently be rendered, or `undefined` for none. */
-	readonly activeCustomView: IObservable<ICustomViewDescriptor | undefined>;
-
-	/** The current opening, including repeated explicit opens of the same view. */
-	readonly activeCustomViewOpen: IObservable<ICustomViewOpenRequest | undefined>;
-
-	registerCustomView(descriptor: ICustomViewDescriptor, options?: { readonly restore?: boolean }): IDisposable;
-
-	/**
-	 * Shows the registered view with the given id, replacing any shown view. `state` identifies
-	 * what this opening shows; history records it and passes it back when it reopens the view.
-	 */
-	showCustomView(id: string, options?: { readonly source?: 'history'; readonly state?: string }): void;
-
-	hideCustomView(tx?: ITransaction): void;
-}
 
 export class CustomViewService extends Disposable implements ICustomViewService {
 
@@ -114,5 +77,3 @@ export class CustomViewService extends Disposable implements ICustomViewService 
 		this._activeCustomViewOpen.set(undefined, tx);
 	}
 }
-
-registerSingleton(ICustomViewService, CustomViewService, InstantiationType.Delayed);

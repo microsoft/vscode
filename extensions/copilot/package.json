@@ -6680,15 +6680,13 @@
       {
         "path": "./assets/prompts/skills/troubleshoot/SKILL.md",
         "sessionTypes": [
-          "local",
-          "copilotcli"
+          "local"
         ]
       },
       {
         "path": "./assets/prompts/skills/agent-customization/SKILL.md",
         "sessionTypes": [
-          "local",
-          "copilotcli"
+          "local"
         ]
       },
       {
@@ -6836,6 +6834,7 @@
     "@typescript-eslint/typescript-estree": "^8.26.1",
     "@typescript/native": "npm:typescript@7.1.0-dev.20261027.1",
     "@vitest/snapshot": "^1.5.0",
+    "@vscode/l10n-dev": "0.0.35",
     "@vscode/test-cli": "^0.0.11",
     "@vscode/test-electron": "^2.5.2",
     "@vscode/test-web": "^0.0.81",

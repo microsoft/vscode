@@ -47,19 +47,19 @@ import { acceptAndAwaitSentRequest, ChatWidget, computeChatSessionStateIndicator
 import { IChatListItemTemplate } from '../../../browser/widget/chatListRenderer.js';
 import { ChatViewPaneTarget, IChatAcceptInputOptions, IChatListItemRendererOptions, IChatScrollAnchor, IChatWidget, IChatWidgetService, IChatWidgetViewModelChangeEvent, IChatWidgetViewOptions } from '../../../browser/chat.js';
 import { ChatInputPart } from '../../../browser/widget/input/chatInputPart.js';
-import { ChatRequestVariableSet } from '../../../common/attachments/chatVariableEntries.js';
+import { ChatRequestVariableSet, ChatSessionReferenceVariableId } from '../../../common/attachments/chatVariableEntries.js';
 import { ChatOpenDiagnosticsService } from '../../../common/chatOpenDiagnosticsService.js';
 import { clearChatMarks } from '../../../common/chatPerf.js';
 import { CloudSandboxSessionTrace } from '../../../common/cloudSandboxSessionTrace.js';
 import { ChatRequestQueueKind, ChatSendResult, ChatSendResultSent, IChatSendRequestData, IChatSendRequestOptions, IChatService } from '../../../common/chatService/chatService.js';
-import { ChatAgentLocation, ChatConfiguration, ChatModeKind } from '../../../common/constants.js';
+import { ChatAgentLocation, ChatConfiguration, ChatModeKind, ChatPermissionLevel } from '../../../common/constants.js';
 import { IChatMode } from '../../../common/chatModes.js';
 import { ICustomizationHarnessService } from '../../../common/customizationHarnessService.js';
 import { ChatResponseModelChangeReason, IChatChangeEvent, IChatModel, IChatRequestModel, IChatRequestNeedsInputInfo, IChatResponseModel } from '../../../common/model/chatModel.js';
 import { computeChatModelIsIdle } from '../../../common/model/chatModelIdle.js';
 import { ChatViewModel, IChatRequestViewModel } from '../../../common/model/chatViewModel.js';
 import { IIntendedModelSelection, ModelSelectionReason } from '../../../common/modelSelection.js';
-import { ChatRequestAgentPart, ChatRequestSlashCommandPart, ChatRequestSlashPromptPart, ChatRequestTextPart, IParsedChatRequest } from '../../../common/requestParser/chatParserTypes.js';
+import { ChatRequestAgentPart, ChatRequestDynamicVariablePart, ChatRequestSlashCommandPart, ChatRequestSlashPromptPart, ChatRequestTextPart, IParsedChatRequest } from '../../../common/requestParser/chatParserTypes.js';
 import { IChatAgentData, IChatAgentService } from '../../../common/participants/chatAgents.js';
 import { IChatVariablesService, IDynamicVariable } from '../../../common/attachments/chatVariables.js';
 import { IChatSlashCommandService } from '../../../common/participants/chatSlashCommands.js';
@@ -79,6 +79,7 @@ import { createChatUserInteractionTestHarness } from '../chatUserInteractionTest
 import { getChatSessionType, LocalChatSessionUri } from '../../../common/model/chatUri.js';
 import { IChatSessionsService, ResolvedChatSessionsExtensionPoint, SessionType } from '../../../common/chatSessionsService.js';
 import { IsSessionsWindowContext } from '../../../../../common/contextkeys.js';
+import { createTextModel } from '../../../../../../editor/test/common/testTextModel.js';
 
 suite('ChatWidget', () => {
 
@@ -848,7 +849,7 @@ suite('ChatWidget', () => {
 		}]);
 	});
 
-	function createStartEditingWidget(input: object, request: IChatRequestViewModel, configurationService: TestConfigurationService) {
+	function createStartEditingWidget(input: object, request: IChatRequestViewModel, configurationService: TestConfigurationService, dynamicVariableModel?: ChatDynamicVariableModel) {
 		let editing: IChatRequestViewModel | undefined;
 		const widget = Object.create(ChatWidget.prototype) as ChatWidget;
 		Object.defineProperties(widget, {
@@ -867,7 +868,7 @@ suite('ChatWidget', () => {
 			},
 			input: { value: input },
 			inputPart: { value: input },
-			contribs: { value: [] },
+			contribs: { value: dynamicVariableModel ? [dynamicVariableModel] : [] },
 			onDidChangeItems: { value: () => { } },
 			listWidget: {
 				value: {
@@ -908,6 +909,46 @@ suite('ChatWidget', () => {
 		widget.startEditing(request.id);
 
 		assert.deepStrictEqual(input.requestModelByIdentifier.firstCall.args, [modelId, modelConfiguration]);
+	});
+
+	test('inline session references preserve their kind, title and metadata when edited and resent', async () => {
+		const text = 'Compare #session:Target';
+		const target = URI.parse('opaque-host-session:/target');
+		const references: IDynamicVariable[] = [{
+			id: ChatSessionReferenceVariableId, fullName: 'Target', data: target, range: new Range(1, 9, 1, 24), _meta: { source: 'test' },
+		}];
+		const parser = new ChatRequestParser(
+			upcastPartial<IChatAgentService>({}),
+			upcastPartial<IChatVariablesService>({ getDynamicVariables: () => references, getSelectedToolAndToolSets: () => ToolAndToolSetEnablementMap.fromEntries([]) }),
+			upcastPartial<IChatSlashCommandService>({}),
+			upcastPartial<IPromptsService>({}),
+		);
+		const session = URI.parse('agent-host-copilot:/session');
+		const first = parser.parseChatRequest(session, text);
+		const variables = first.parts.filter((part): part is ChatRequestDynamicVariablePart => part instanceof ChatRequestDynamicVariablePart).map(part => part.toVariableEntry());
+		const model = store.add(createTextModel(text));
+		const input = mockObject<ChatInputPart>()({
+			element: mainWindow.document.createElement('div'),
+			inputEditor: upcastPartial<ChatInputPart['inputEditor']>({ getValue: () => text, getModel: () => model, focus: () => { } }),
+			attachmentModel: upcastPartial<ChatInputPart['attachmentModel']>({ getAttachmentIDs: () => new Set(), addContext: () => { } }),
+			dnd: upcastPartial<ChatInputPart['dnd']>({ setDisabledOverlay: () => { } }),
+			onDidClickOverlay: Event.None,
+		});
+		const configurationService = new TestConfigurationService();
+		await configurationService.setUserConfiguration('chat.editRequests', 'input');
+		const request = upcastPartial<IChatRequestViewModel>({ id: 'request', message: first, messageText: text, variables });
+		const dynamicVariableModel = upcastPartial<ChatDynamicVariableModel>({
+			id: ChatDynamicVariableModel.ID, addReference: reference => { references.push(reference); },
+		});
+		const widget = createStartEditingWidget(input, request, configurationService, dynamicVariableModel);
+		references.length = 0;
+
+		widget.startEditing(request.id);
+
+		const resent = parser.parseChatRequest(session, text).parts
+			.filter((part): part is ChatRequestDynamicVariablePart => part instanceof ChatRequestDynamicVariablePart)
+			.map(part => part.toVariableEntry());
+		assert.deepStrictEqual(resent, variables);
 	});
 
 	function createFakeInputPart(name: string) {
@@ -2437,6 +2478,8 @@ suite('ChatWidget - acceptInput submission', () => {
 				flush: async () => ({ schemaVersion: 1, started: 0, completed: 0, failed: 0 }),
 			}, upcastPartial<ILanguageModelsService>({ lookupLanguageModel: () => undefined }))) : parser);
 		const viewOptions: IChatWidgetViewOptions = {};
+		const configurationService = new TestConfigurationService();
+		const inputPartDisposable = store.add(new MutableDisposable<ChatInputPart>());
 		const widget = Object.create(ChatWidget.prototype) as ChatWidget;
 		Object.defineProperties(widget, {
 			_store: { value: widgetStore },
@@ -2448,12 +2491,12 @@ suite('ChatWidget - acceptInput submission', () => {
 			onDidChangeViewModel: { value: onDidChangeViewModel.event },
 			onDidHide: { value: Event.None },
 			visible: { value: true },
-			input: { value: input },
-			inputPartDisposable: { value: store.add(new MutableDisposable<ChatInputPart>()) },
+			input: { value: input, configurable: true },
+			inputPartDisposable: { value: inputPartDisposable },
 			contribs: { value: contribs },
 			parsedChatRequest: { value: parsedInput },
 			viewOptions: { value: viewOptions },
-			configurationService: { value: new TestConfigurationService() },
+			configurationService: { value: configurationService },
 			editorService: { value: editorService },
 			chatService: { value: chatService },
 			chatWidgetService: { value: chatWidgetService },
@@ -2472,12 +2515,150 @@ suite('ChatWidget - acceptInput submission', () => {
 			chatAccessibilityService: { value: { acceptRequest: () => { }, acceptResponse: () => { } } },
 			logService: { value: { debug: () => { } } },
 			telemetryService: { value: NullTelemetryService },
-			listWidget: { value: { domNode: dom.$('div'), setScrollLock: () => { }, updateRendererOptions: () => { }, rerender: () => { } } },
+			listWidget: { value: { domNode: dom.$('div'), setScrollLock: () => { }, updateRendererOptions: () => { }, rerender: () => { }, getTemplateDataForRequestId: () => undefined } },
 			updateChatViewVisibility: { value: () => { } },
 			_maybeStartGoalSummary: { value: () => { } },
 		});
 		const options: IChatAcceptInputOptions = { preserveInput: true };
-		return { widget, viewOptions, options, original, input, editorService, chatService, chatWidgetService, chatSessionsService, customizationHarnessService, parser, parts, policyRequiresAgentHost, contextKeyService, attachments, contribs, response, sent, acceptedRequests };
+		return { widget, viewOptions, options, original, input, inputPartDisposable, configurationService, editorService, chatService, chatWidgetService, chatSessionsService, customizationHarnessService, parser, parts, policyRequiresAgentHost, contextKeyService, attachments, contribs, response, sent, acceptedRequests };
+	}
+
+	for (const changeModel of [true, false]) {
+		test(`inline edits submit their own picker settings without changing the main composer (${changeModel ? 'different model' : 'same model'})`, async () => {
+			const fixture = createSubmissionWidget();
+			await fixture.configurationService.setUserConfiguration('chat.editRequests', 'inline');
+			const mainModelId = 'agent-host-copilot:gpt-5.6-sol-fast';
+			const editedModelId = changeModel ? 'agent-host-copilot:claude-haiku-5.5' : mainModelId;
+			const mainConfiguration = { thinkingLevel: 'medium', contextSize: 272000 };
+			const editedConfiguration = { thinkingLevel: 'high', contextSize: 1000000 };
+			const mainModeInfo: ChatInputPart['currentModeInfo'] = {
+				kind: ChatModeKind.Ask,
+				isBuiltin: true,
+				modeInstructions: undefined,
+				telemetryModeId: 'ask',
+				applyCodeBlockSuggestionId: undefined,
+			};
+			const editedModeInfo: ChatInputPart['currentModeInfo'] = {
+				kind: ChatModeKind.Agent,
+				isBuiltin: false,
+				modeInstructions: { uri: URI.file('/agents/edited.agent.md'), name: 'Edited Agent', content: 'Edited instructions', toolReferences: [] },
+				telemetryModeId: 'custom',
+				applyCodeBlockSuggestionId: undefined,
+				permissionLevel: ChatPermissionLevel.Assisted,
+			};
+			const mainMode = constObservable(upcastPartial<IChatMode>({ id: 'ask' }));
+			const editedMode = constObservable(upcastPartial<IChatMode>({ id: 'edited-agent', agents: constObservable(['edited-subagent']) }));
+			const editedTools = { editedTool: true, otherTool: false };
+			const intendedModel: IIntendedModelSelection = { modelId: mainModelId, reason: ModelSelectionReason.UserSelection };
+			Object.defineProperties(fixture.input, {
+				currentLanguageModel: { value: mainModelId },
+				currentModeInfo: { value: mainModeInfo },
+				currentModeObs: { value: mainMode },
+				dnd: { value: { setDisabledOverlay: () => { } } },
+			});
+			fixture.input.getModelConfiguration.returns(mainConfiguration);
+			fixture.inputPartDisposable.value = upcastPartial<ChatInputPart>({
+				dnd: upcastPartial<ChatInputPart['dnd']>({ setDisabledOverlay: () => { } }),
+				clearToolConfirmationCarousel: fixture.input.clearToolConfirmationCarousel,
+				toggleChatInputOverlay: fixture.input.toggleChatInputOverlay,
+				setEditing: fixture.input.setEditing,
+				setCurrentLanguageModel: fixture.input.setCurrentLanguageModel,
+				requestModelByIdentifier: fixture.input.requestModelByIdentifier,
+				setChatMode: fixture.input.setChatMode,
+				setPermissionLevel: fixture.input.setPermissionLevel,
+				focus: fixture.input.focus,
+				dispose: () => { },
+			});
+			Object.defineProperty(fixture.original.model.inputModel, 'intendedModel', { value: intendedModel });
+			Object.defineProperty(fixture.original.model, 'setCheckpoint', { value: () => { } });
+
+			const inlineInput = store.add(new MutableDisposable<ChatInputPart>());
+			inlineInput.value = upcastPartial<ChatInputPart>({
+				inputEditor: fixture.input.inputEditor,
+				getAttachedContext: fixture.input.getAttachedContext,
+				getAttachedAndImplicitContext: fixture.input.getAttachedAndImplicitContext,
+				currentLanguageModel: editedModelId,
+				getModelConfiguration: () => editedConfiguration,
+				currentModeKind: ChatModeKind.Agent,
+				currentModeInfo: editedModeInfo,
+				currentModeObs: editedMode,
+				selectedToolsModel: upcastPartial<ChatInputPart['selectedToolsModel']>({
+					userSelectedTools: constObservable(editedTools),
+				}),
+				getPromptText: () => 'Edited request',
+				dispose: () => { },
+			});
+			let editing: IChatRequestViewModel | undefined = upcastPartial<IChatRequestViewModel>({ id: 'existing-request' });
+			Object.defineProperties(fixture.original.viewModel, {
+				editing: { get: () => editing },
+				setEditing: { value: (request: IChatRequestViewModel | undefined) => { editing = request; } },
+			});
+			Object.defineProperties(fixture.widget, {
+				input: { get: () => editing ? inlineInput.value! : fixture.input },
+				inputContainer: { value: dom.$('div'), writable: true },
+				inlineInputPartDisposable: { value: inlineInput },
+				inlinePasteTargetRegistration: { value: store.add(new MutableDisposable()) },
+				_editingAutoScrollHold: { value: store.add(new MutableDisposable()) },
+				_editingDisposables: { value: store.add(new MutableDisposable()) },
+				_onDidChangeActiveInputEditor: { value: store.add(new Emitter<void>()) },
+				onDidChangeItems: { value: () => { } },
+				_lockedAgent: { value: { id: 'agent-host-copilot', agentHostProviderId: 'copilot' } },
+				_attachmentCapabilities: { value: {} },
+				_viewModelObs: { value: constObservable(fixture.original.viewModel) },
+				_requestToolsWidget: { value: constObservable(fixture.widget) },
+				_requestToolsSources: { value: new WeakMap() },
+			});
+
+			await fixture.widget.acceptInput();
+			await fixture.widget.acceptInput('Follow up', { preserveInput: true });
+
+			const requests = fixture.chatService.sendRequest.getCalls().map(call => {
+				const options: IChatSendRequestOptions = call.args[2];
+				return {
+					input: call.args[1],
+					model: options.userSelectedModelId,
+					configuration: options.userSelectedModelConfiguration,
+					mode: options.parserContext?.mode,
+					modeInfo: options.modeInfo,
+					tools: options.userSelectedTools?.get(),
+					instructions: options.instructionContext,
+				};
+			});
+			assert.deepStrictEqual({
+				requests,
+				mainSelection: fixture.widget.getSelectedModelRequestOptions(),
+				mainMode: fixture.widget.input.currentModeInfo,
+				intendedModel: fixture.original.model.inputModel.intendedModel,
+				mainPickerWrites: [
+					fixture.input.setCurrentLanguageModel.callCount,
+					fixture.input.requestModelByIdentifier.callCount,
+					fixture.input.setChatMode.callCount,
+					fixture.input.setPermissionLevel.callCount,
+				],
+			}, {
+				requests: [{
+					input: 'Edited request',
+					model: editedModelId,
+					configuration: editedConfiguration,
+					mode: ChatModeKind.Agent,
+					modeInfo: editedModeInfo,
+					tools: editedTools,
+					instructions: { modeKind: ChatModeKind.Agent, enabledTools: editedTools, enabledSubAgents: ['edited-subagent'] },
+				}, {
+					input: 'Follow up',
+					model: mainModelId,
+					configuration: mainConfiguration,
+					mode: ChatModeKind.Ask,
+					modeInfo: mainModeInfo,
+					tools: {},
+					instructions: { modeKind: ChatModeKind.Ask, enabledTools: undefined, enabledSubAgents: undefined },
+				}],
+				mainSelection: { userSelectedModelId: mainModelId, userSelectedModelConfiguration: mainConfiguration },
+				mainMode: mainModeInfo,
+				intendedModel,
+				mainPickerWrites: [0, 0, 0, 0],
+			});
+		});
 	}
 
 	test('invoking a Unicode prompt attaches its original file URI', async () => {

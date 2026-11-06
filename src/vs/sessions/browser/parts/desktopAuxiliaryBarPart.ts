@@ -5,7 +5,7 @@
 
 import { AbstractPaneCompositePart } from '../../../workbench/browser/parts/paneCompositePart.js';
 import { Parts } from '../../../workbench/services/layout/browser/layoutService.js';
-import { agentsDetailBackground } from '../../common/theme.js';
+import { agentsDetailBackground } from '../../../workbench/contrib/sessions/common/theme.js';
 import { AuxiliaryBarPart } from './auxiliaryBarPart.js';
 
 /**

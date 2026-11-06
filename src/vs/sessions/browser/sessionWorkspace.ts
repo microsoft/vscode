@@ -6,7 +6,7 @@
 import { Codicon } from '../../base/common/codicons.js';
 import { IReader } from '../../base/common/observable.js';
 import { ThemeIcon } from '../../base/common/themables.js';
-import { getSessionWorkspaceKind, IChat, ISession, SessionWorkspaceKind } from '../services/sessions/common/session.js';
+import { getSessionWorkspaceKind, IChat, ISession, SessionWorkspaceKind } from '../../workbench/contrib/sessions/common/session.js';
 
 export interface ISessionWorkspaceDisplayInfo {
 	readonly label: string;

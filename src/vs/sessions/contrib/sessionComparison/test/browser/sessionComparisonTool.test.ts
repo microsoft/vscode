@@ -14,10 +14,10 @@ import { IConfigurationChangeEvent } from '../../../../../platform/configuration
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { ILanguageModelToolsService, IToolData, IToolResult, ToolProgress, ToolSet } from '../../../../../workbench/contrib/chat/common/tools/languageModelToolsService.js';
-import { IChat, ISession, ISessionWorkspace, SessionStatus } from '../../../../services/sessions/common/session.js';
-import { COMPARE_AGENTS_ENABLED_SETTING, ISessionComparison, ISessionComparisonService, ISessionComparisonVerdict, SessionComparisonParticipantRole, SessionComparisonValidationSource, SessionComparisonValidationState } from '../../../../services/sessions/common/sessionComparison.js';
-import { ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
-import { hashSessionIdForTelemetry } from '../../../../common/sessionsTelemetry.js';
+import { IChat, ISession, ISessionWorkspace, SessionStatus } from '../../../../../workbench/contrib/sessions/common/session.js';
+import { COMPARE_AGENTS_ENABLED_SETTING, ISessionComparison, ISessionComparisonService, ISessionComparisonVerdict, SessionComparisonParticipantRole, SessionComparisonValidationSource, SessionComparisonValidationState } from '../../../../../workbench/contrib/sessions/common/sessionComparison.js';
+import { ISessionsManagementService } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
+import { hashSessionIdForTelemetry } from '../../../../../workbench/contrib/sessions/common/sessionsTelemetry.js';
 import { CompleteSessionComparisonTool, ReadSessionComparisonTool, SessionComparisonToolContribution } from '../../browser/sessionComparisonTool.js';
 
 const progress: ToolProgress = { report: () => { } };
@@ -96,10 +96,39 @@ suite('SessionComparisonTool', () => {
 
 		assert.deepStrictEqual({
 			referenceName: tool.getToolData().toolReferenceName,
-			description: tool.getToolData().modelDescription,
+			manifestFirst: tool.getToolData().modelDescription.includes('before inspecting individual transcripts'),
+			folderlessResponses: tool.getToolData().modelDescription.includes('read and compare responses using get_session_context with the exact manifest targets'),
+			worktreeEvidence: tool.getToolData().modelDescription.includes('Read implementation code only from the listed worktrees'),
+			validationReuse: tool.getToolData().modelDescription.includes('never rerun a validation category with a clear reported result'),
 		}, {
 			referenceName: 'readAttemptComparison',
-			description: 'Read the bounded manifest for an active implementation-attempt comparison. Use this when judging or synthesizing that comparison, before inspecting individual transcripts. It returns the original task, every attempt with a semantic lifecycle status, changed-file evidence status, change summaries, authoritative worktree locations, exact targets for get_session_context, the Judge verdict mapped to attempt numbers when available, and any additional synthesis instructions. Attempt status is one of untitled, inProgress, needsInput, completed, error, or unavailable; only completed means the attempt finished successfully. Terminal commands start in the Judge or synthesis worktree, so explicitly cd to an attempt\'s listed workingDirectory in every command that inspects or validates it. Read implementation code only from the listed worktrees; transcripts are for rationale or validation evidence. A Judge must review every attempt diff, use get_session_context to identify validation the attempt already completed, never rerun a validation category with a clear reported result, and run only missing targeted validation when needed. If dependencies or build artifacts are unavailable, it must record validation as unavailable without installing dependencies or substituting another validation category. A synthesis agent must resolve the verdict\'s conflicts and treat additional synthesis instructions as user requirements. It does not return full transcripts or submit a verdict.',
+			manifestFirst: true,
+			folderlessResponses: true,
+			worktreeEvidence: true,
+			validationReuse: true,
+		});
+	});
+
+	test('folderless manifests direct response review through exact transcript targets', () => {
+		const attempt = stubAttemptSession();
+		const session = { ...attempt, workspace: constObservable(undefined) };
+		const tool = new ReadSessionComparisonTool(stubComparisonService({}), upcastPartial<ISessionsManagementService>({
+			getSession: resource => resource.toString() === attemptResource.toString() ? session : undefined,
+			getSessionContextReference: () => 'agent-host-session://copilot/attempt',
+		}));
+		const manifest = tool.getManifest({ ...stubComparison(), workspace: undefined, branch: undefined }, session);
+		assert.deepStrictEqual({
+			target: manifest.attempts[0].sessionContextTarget,
+			worktree: manifest.attempts[0].worktree,
+			readsResponses: manifest.next?.includes('Read every completed attempt response using get_session_context'),
+			noDiffRequired: manifest.next?.includes('No worktree or Git diff is required'),
+			noFabricatedResponse: manifest.next?.includes('without guessing its content'),
+			pagesCompleteResponse: manifest.next?.includes('follow nextResponseOffset until truncated is false'),
+			noPartialReview: manifest.next?.includes('Do not treat an excerpt as a fully reviewed answer'),
+			inapplicableValidation: manifest.next?.includes('notApplicable for both state and source'),
+		}, {
+			target: 'agent-host-session://copilot/attempt', worktree: undefined, readsResponses: true,
+			noDiffRequired: true, noFabricatedResponse: true, pagesCompleteResponse: true, noPartialReview: true, inapplicableValidation: true,
 		});
 	});
 

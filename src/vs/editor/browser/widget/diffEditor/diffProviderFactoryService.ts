@@ -131,6 +131,7 @@ export class WorkerBasedDocumentDiffProvider implements IDocumentDiffProvider, I
 			diffAlgorithm: string;
 			ignoreTrimWhitespace: boolean;
 			validity: string;
+			fallback: string;
 		}, {
 			owner: 'hediet';
 
@@ -139,7 +140,8 @@ export class WorkerBasedDocumentDiffProvider implements IDocumentDiffProvider, I
 			detectedMoves: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'To understand how often the new diff algorithm detects moves' };
 			diffAlgorithm: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The diff algorithm that computed the diff, to compare algorithms.' };
 			ignoreTrimWhitespace: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Whether leading/trailing whitespace changes were ignored.' };
-			validity: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Whether the diff reproduces the modified text (valid, invalid, unverified, or notChecked if not sampled), to measure how often an algorithm produces incorrect diffs. Includes verification time in timeMs when checked.' };
+			validity: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Whether the diff reproduces the modified text (valid, invalid, unverified, or notChecked if not sampled), to measure how often an algorithm produces incorrect diffs. Includes verification time in timeMs when checked. After a fallback, this is the validity of the built-in algorithm\'s diff.' };
+			fallback: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Whether the result of the built-in algorithm was shown instead of the @vscode/diff result, and why (none, error, invalid), to measure how often the package fails. Includes the time of the fallback computation in timeMs.' };
 
 			comment: 'This event gives insight about the performance of the new diff algorithm.';
 		}>('diffEditor.computeDiff', {
@@ -149,6 +151,7 @@ export class WorkerBasedDocumentDiffProvider implements IDocumentDiffProvider, I
 			diffAlgorithm: this.diffAlgorithm,
 			ignoreTrimWhitespace: options.ignoreTrimWhitespace,
 			validity: result?.validity ?? 'notChecked',
+			fallback: result?.fallback ?? 'none',
 		});
 
 		if (cancellationToken.isCancellationRequested) {

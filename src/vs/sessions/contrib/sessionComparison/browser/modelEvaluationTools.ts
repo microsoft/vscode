@@ -22,14 +22,15 @@ import { observableConfigValue } from '../../../../platform/observable/common/pl
 import { IWorkbenchContribution } from '../../../../workbench/common/contributions.js';
 import { IsSessionsWindowContext } from '../../../../workbench/common/contextkeys.js';
 import { ChatContextKeys } from '../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
+import { isModelComparisonSupported } from '../../../../workbench/contrib/chat/browser/widget/input/modelPicker/modelPickerPresentation.js';
 import { CountTokensCallback, ILanguageModelToolsService, IPreparedToolInvocation, IToolData, IToolImpl, IToolInvocation, IToolInvocationPreparationContext, IToolResult, ToolDataSource, ToolProgress } from '../../../../workbench/contrib/chat/common/tools/languageModelToolsService.js';
 import { IChatEntitlementService } from '../../../../workbench/services/chat/common/chatEntitlementService.js';
-import { isAgentHostProvider } from '../../../common/agentHostSessionsProvider.js';
-import { createSessionComparisonHarness, isFixedSessionComparisonModel } from '../../../services/sessions/browser/sessionComparisonConfiguration.js';
-import { ISessionsProvidersService } from '../../../services/sessions/browser/sessionsProvidersService.js';
-import { IChat, ISession } from '../../../services/sessions/common/session.js';
-import { getSessionComparisonChat, getSessionComparisonWorkspaceError, ISessionComparison, ISessionComparisonService, IStartSessionComparisonOptions, COMPARE_AGENTS_ENABLED_SETTING, COMPARE_AGENTS_TOOLS_ENABLED_SETTING, SESSION_COMPARISON_MAX_ATTEMPTS, SESSION_COMPARISON_MIN_ATTEMPTS, SessionComparisonLaunchError, SessionComparisonParticipantRole } from '../../../services/sessions/common/sessionComparison.js';
-import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
+import { isAgentHostProvider } from '../../../../workbench/contrib/sessions/common/agentHostSessionsProvider.js';
+import { createSessionComparisonHarness } from '../../../../workbench/contrib/sessions/browser/sessionComparisonConfiguration.js';
+import { ISessionsProvidersService } from '../../../../workbench/contrib/sessions/browser/sessionsProvidersService.js';
+import { IChat, ISession } from '../../../../workbench/contrib/sessions/common/session.js';
+import { getSessionComparisonChat, getSessionComparisonWorkspaceError, ISessionComparison, ISessionComparisonService, IStartSessionComparisonOptions, COMPARE_AGENTS_ENABLED_SETTING, COMPARE_AGENTS_TOOLS_ENABLED_SETTING, SESSION_COMPARISON_MAX_ATTEMPTS, SESSION_COMPARISON_MIN_ATTEMPTS, SessionComparisonLaunchError, SessionComparisonParticipantRole } from '../../../../workbench/contrib/sessions/common/sessionComparison.js';
+import { ISessionsManagementService } from '../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import { getManifestSessionStatus, ReadSessionComparisonTool } from './sessionComparisonTool.js';
 
 type EvaluationToolName = 'getComparisonModels' | 'createModelComparison' | 'listModelComparisons' | 'readModelComparison';
@@ -53,7 +54,7 @@ const definitions: Record<EvaluationToolName, { displayName: string; description
 	},
 	createModelComparison: {
 		displayName: localize('evaluation.create', "Create Model Comparison"),
-		description: 'Launch one scenario against two to ten fixed model configurations for a model evaluation. Use getComparisonModels first. This creates isolated worktrees on the calling chat\'s host and project, or independent folderless chats when requested, and inherits the calling chat\'s permissions without elevation. An optional Judge evaluates terminal attempts; a configured Synthesizer remains user-initiated. Folderless comparisons cannot have a Judge or Synthesizer. Returns launch outcomes and a comparison ID, not finished model results; use listModelComparisons or readModelComparison later. Comparison participants cannot launch further comparisons. Follow tool approval; after cancellation or an uncertain launch, list existing comparisons before considering another call. Do not retry a denied request or poll continuously.',
+		description: 'Launch one scenario against two to ten fixed model configurations for a model evaluation. Use getComparisonModels first. This creates isolated worktrees on the calling chat\'s host and project, or independent folderless chats when requested, and inherits the calling chat\'s permissions without elevation. An optional Judge evaluates terminal attempts; a configured Synthesizer remains user-initiated and requires a Judge. For folderless comparisons, the Judge compares responses and synthesis combines them into a new answer. Returns launch outcomes and a comparison ID, not finished model results; use listModelComparisons or readModelComparison later. Comparison participants cannot launch further comparisons. Follow tool approval; after cancellation or an uncertain launch, list existing comparisons before considering another call. Do not retry a denied request or poll continuously.',
 		schema: {
 			type: 'object',
 			properties: {
@@ -206,7 +207,7 @@ export class ModelEvaluationTool implements IToolImpl {
 							sessionTypeId: type.id,
 							label: type.label,
 							permissions: provider.getComparisonPermissionOptionForSession?.(caller.session.sessionId, type.id, caller.chat.resource),
-							models: provider.getModelsSnapshotForCreation?.(workspace, type.id).models.filter(isFixedSessionComparisonModel).map(model => ({
+							models: provider.getModelsSnapshotForCreation?.(workspace, type.id).models.filter(isModelComparisonSupported).map(model => ({
 								modelId: model.identifier,
 								label: model.metadata.name,
 								configurationSchema: provider.supportsModelConfigurationForCreation ? model.metadata.configurationSchema : undefined,
@@ -278,7 +279,7 @@ export class ModelEvaluationTool implements IToolImpl {
 		if (input.workspaceMode !== undefined && input.workspaceMode !== 'caller' && input.workspaceMode !== 'folderless') {
 			throw new EvaluationInputError('workspaceMode must be caller or folderless.');
 		}
-		const provider = this.providers.getProvider(caller.session.providerId);
+		const provider = this.providers.getProvider(caller.session.providerId, caller.session.sessionId);
 		if (!provider || !isAgentHostProvider(provider) || provider.environment.isConnected?.get() === false
 			|| !provider.supportsPermissionsForCreation || !provider.getModelsSnapshotForCreation
 			|| provider.isDevContainerRequested?.(caller.session.sessionId)) {
@@ -334,9 +335,9 @@ export class ModelEvaluationTool implements IToolImpl {
 			}
 		}
 		const { provider, workspace, types } = await this.creationContext(input, caller, store, token, selectedTypes);
-		if ((!workspace && (input.judge !== undefined || input.synthesizer !== undefined || input.branch !== undefined))
+		if ((!workspace && input.branch !== undefined)
 			|| (input.synthesizer !== undefined && input.judge === undefined)) {
-			throw new EvaluationInputError('Folderless comparisons cannot use a branch, Judge, or Synthesizer. A Synthesizer requires a Judge.');
+			throw new EvaluationInputError('Folderless comparisons cannot use a branch. A Synthesizer requires a Judge.');
 		}
 		const repository = caller.chat.workspace.get()?.folders[0]?.gitRepository;
 		const branch = workspace ? input.branch ?? repository?.baseBranchName ?? repository?.branchName : undefined;
