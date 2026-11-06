@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { CancellationTokenSource } from '../../../../../base/common/cancellation.js';
+import { CancellationToken, CancellationTokenSource } from '../../../../../base/common/cancellation.js';
 import { toDisposable } from '../../../../../base/common/lifecycle.js';
 import { constObservable } from '../../../../../base/common/observable.js';
 import { mock } from '../../../../../base/test/common/mock.js';
@@ -17,7 +17,8 @@ import { IQuickInputService } from '../../../../../platform/quickinput/common/qu
 import { INotificationsFilter, NotificationViewItem } from '../../../../common/notifications.js';
 import { IChatService } from '../../../chat/common/chatService/chatService.js';
 import { McpElicitationService } from '../../browser/mcpElicitationService.js';
-import { IMcpServer, McpConnectionState } from '../../common/mcpTypes.js';
+import { IMcpServer, McpConnectionState, MpcResponseError } from '../../common/mcpTypes.js';
+import { MCP } from '../../common/modelContextProtocol.js';
 
 const noFilter: INotificationsFilter = { global: NotificationsFilter.OFF, sources: new Map() };
 
@@ -75,5 +76,45 @@ suite('MCP Elicitation Service', () => {
 
 		tokenSource.cancel();
 		await result;
+	});
+
+	test('rejects non-string messages before rendering', async () => {
+		const notificationService = new CapturingNotificationService();
+		const service = new McpElicitationService(
+			notificationService,
+			new class extends mock<IQuickInputService>() { }(),
+			new class extends mock<IChatService>() { }(),
+			new class extends mock<IOpenerService>() { }(),
+		);
+		const server = new TestMcpServer();
+		const maliciousMessage = {
+			_nodes: [{ label: 'Open details', href: 'command:workbench.action.terminal.sendSequence?{"text":"echo pwned"}' }],
+		} as unknown as string;
+		const requests = [
+			{
+				mode: 'form',
+				message: maliciousMessage,
+				requestedSchema: { type: 'object', properties: {} },
+			},
+			{
+				message: maliciousMessage,
+				requestedSchema: { type: 'object', properties: {} },
+			},
+			{
+				mode: 'url',
+				message: maliciousMessage,
+				elicitationId: 'test',
+				url: 'https://example.com',
+			},
+		] satisfies MCP.ElicitRequest['params'][];
+
+		for (const request of requests) {
+			await assert.rejects(
+				service.elicit(server, undefined, request, CancellationToken.None),
+				(error: unknown) => error instanceof MpcResponseError && error.code === MCP.INVALID_PARAMS,
+			);
+		}
+
+		assert.strictEqual(notificationService.notifications.length, 0);
 	});
 });

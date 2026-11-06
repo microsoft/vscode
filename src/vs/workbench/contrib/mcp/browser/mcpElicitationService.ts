@@ -74,6 +74,10 @@ export class McpElicitationService implements IMcpElicitationService {
 	) { }
 
 	public elicit(server: IMcpServer, context: IMcpToolCallContext | undefined, elicitation: MCP.ElicitRequest['params'], token: CancellationToken): Promise<ElicitResult> {
+		if (typeof elicitation?.message !== 'string') {
+			return Promise.reject(new MpcResponseError('Elicitation message must be a string', MCP.INVALID_PARAMS, undefined));
+		}
+
 		if (isFormElicitation(elicitation)) {
 			return this._elicitForm(server, context, elicitation, token);
 		} else if (isUrlElicitation(elicitation)) {
