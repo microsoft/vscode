@@ -122,8 +122,8 @@ export function getAgentHostResourceAuthority(resolution: IAgentHostSessionResol
 }
 
 /** Maps one Agent Host changeset file into the diff shape used by chat editors. */
-export function agentHostChangesetFileToEntryDiff(file: ChangesetFile, connectionAuthority: string): IEditSessionEntryDiff | undefined {
-	return changesetEditToEntryDiff(file.edit, connectionAuthority);
+export function agentHostChangesetFileToEntryDiff(file: ChangesetFile, connectionAuthority: string, resourceUris: IAgentHostResourceUriMapper = createAgentHostResourceUriMapper(connectionAuthority)): IEditSessionEntryDiff | undefined {
+	return changesetEditToEntryDiff(file.edit, connectionAuthority, resourceUris);
 }
 
 /** Result of converting one immutable file edit, independent of the workspace roots it is later classified against. */
@@ -132,7 +132,7 @@ interface IConvertedFileEdit {
 	readonly diff: Omit<IChatResponseFileEdit, 'isOutsideWorkspace'>;
 }
 
-function changesetEditToEntryDiff(edit: ISessionFileDiff, connectionAuthority: string): IEditSessionEntryDiff | undefined {
+function changesetEditToEntryDiff(edit: ISessionFileDiff, connectionAuthority: string, resourceUris: IAgentHostResourceUriMapper = createAgentHostResourceUriMapper(connectionAuthority)): IEditSessionEntryDiff | undefined {
 	const normalized = normalizeFileEdit(edit);
 	if (!normalized) {
 		return undefined;
@@ -327,7 +327,7 @@ export class AgentHostResponseFileChangesProvider extends Disposable implements 
 	private _changesetEditToEntryDiff(edit: ISessionFileDiff): IEditSessionEntryDiff | undefined {
 		let diff = this._convertedChangesetEdits.get(edit);
 		if (diff === undefined) {
-			diff = changesetEditToEntryDiff(edit, this._connectionAuthority) ?? null;
+			diff = changesetEditToEntryDiff(edit, this._connectionAuthority, this._connection.resourceUris) ?? null;
 			this._convertedChangesetEdits.set(edit, diff);
 		}
 		return diff ?? undefined;
@@ -555,7 +555,7 @@ export class AgentHostResponseFileChangesProvider extends Disposable implements 
 		if (!normalized) {
 			return undefined;
 		}
-		const resource = normalized.resource;
+		const resource = this._connection.resourceUris.fromAgentHost(normalized.resource);
 
 		// eslint-disable-next-line local/code-agent-host-uri-mapping -- TODO(agent-host-uri): response file identity bypasses this._connection.resourceUris.fromAgentHost
 		const modifiedURI = toAgentHostUri(resource, this._connectionAuthority);
