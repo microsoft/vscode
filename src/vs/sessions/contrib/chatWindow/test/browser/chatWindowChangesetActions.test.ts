@@ -5,6 +5,7 @@
 
 import assert from 'assert';
 import { IAction } from '../../../../../base/common/actions.js';
+import { Event } from '../../../../../base/common/event.js';
 import { Disposable } from '../../../../../base/common/lifecycle.js';
 import { constObservable, observableValue } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
@@ -82,7 +83,7 @@ suite('Chat window changeset actions', () => {
 				pullRequestCIObs: constObservable(upcastPartial<GitHubPullRequestCIModel>({ checks: constObservable([]), requiredChecks: constObservable(undefined), fixRequested: observableValue('fixRequested', false) })),
 			}),
 		}));
-		instantiationService.stub(ISessionsProvidersService, upcastPartial<ISessionsProvidersService>({ getProvider: () => undefined }));
+		instantiationService.stub(ISessionsProvidersService, upcastPartial<ISessionsProvidersService>({ onDidChangeProviders: Event.None, getProvider: () => undefined }));
 		instantiationService.stub(IActionViewItemService, upcastPartial<IActionViewItemService>({ register: () => Disposable.None }));
 		instantiationService.stub(IEditorService, upcastPartial<IEditorService>({ activeEditorPane: undefined }));
 		instantiationService.stub(ISessionsService, upcastPartial<ITestSessionsService>({ mainWindowActiveSession: constObservable(main), activeSession: constObservable(main) }));
