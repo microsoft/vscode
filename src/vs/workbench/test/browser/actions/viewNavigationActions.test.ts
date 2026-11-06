@@ -168,6 +168,62 @@ suite('Workbench view navigation: command integration', () => {
 		assert.strictEqual(harness.isCollapsed('b'), true);
 	});
 
+
+	test('a collapsed target still focuses its header when its descriptor lookup disappears', async () => {
+		const harness = createFocusHarness();
+		harness.setCollapsed('b', true);
+		const descriptors = {
+			getViewContainerByViewId: (id: string) =>
+				id === 'b' ? null : harness.descriptors.getViewContainerByViewId(id),
+			getViewContainerModel: (container: ViewContainer) => harness.descriptors.getViewContainerModel(container)
+		} as unknown as IViewDescriptorService;
+
+		await focusNavigableView(harness.views, descriptors, harness.layout, {
+			direction: 'next', scope: 'container'
+		});
+		assert.deepStrictEqual(harness.headerFocusCalls, ['b']);
+		assert.deepStrictEqual(harness.calls, [], 'a stale descriptor must not cause openView to expand b');
+		assert.strictEqual(harness.isCollapsed('b'), true);
+	});
+
+	test('a collapsed target retains snapshot state when a stale descriptor reports it expanded', async () => {
+		const harness = createFocusHarness();
+		harness.setCollapsed('b', true);
+		const moved = { id: 'moving' } as ViewContainer;
+		const descriptors = {
+			getViewContainerByViewId: (id: string) =>
+				id === 'b' ? moved : harness.descriptors.getViewContainerByViewId(id),
+			getViewContainerModel: (container: ViewContainer) => container === moved
+				? { isCollapsed: () => false } as unknown as IViewContainerModel
+				: harness.descriptors.getViewContainerModel(container)
+		} as unknown as IViewDescriptorService;
+
+		await focusNavigableView(harness.views, descriptors, harness.layout, {
+			direction: 'next', scope: 'container'
+		});
+		assert.deepStrictEqual(harness.headerFocusCalls, ['b']);
+		assert.deepStrictEqual(harness.calls, []);
+		assert.strictEqual(harness.isCollapsed('b'), true);
+	});
+
+	test('an expanded target uses openView despite a stale descriptor reporting it collapsed', async () => {
+		const harness = createFocusHarness();
+		const moved = { id: 'moving' } as ViewContainer;
+		const descriptors = {
+			getViewContainerByViewId: (id: string) =>
+				id === 'b' ? moved : harness.descriptors.getViewContainerByViewId(id),
+			getViewContainerModel: (container: ViewContainer) => container === moved
+				? { isCollapsed: () => true } as unknown as IViewContainerModel
+				: harness.descriptors.getViewContainerModel(container)
+		} as unknown as IViewDescriptorService;
+
+		await focusNavigableView(harness.views, descriptors, harness.layout, {
+			direction: 'next', scope: 'container'
+		});
+		assert.deepStrictEqual(harness.calls, [{ id: 'b', focus: true }]);
+		assert.deepStrictEqual(harness.headerFocusCalls, []);
+	});
+
 	test('skips a collapsed pane when rendering produced no header', async () => {
 		const harness = createFocusHarness();
 		harness.setCollapsed('b', true);
