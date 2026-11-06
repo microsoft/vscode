@@ -359,6 +359,31 @@ suite('Workbench view navigation: command integration', () => {
 		}), { id: 'a', focus: true });
 	});
 
+
+	test('container-scoped navigation leaves a hidden focused view for the next visible part', async () => {
+		const harness = createFocusHarness();
+		harness.setPartVisible(ViewContainerLocation.Sidebar, false);
+		harness.setFocused('b');
+		assert.deepStrictEqual(await navigate(harness, {
+			direction: 'next', scope: 'container'
+		}), { id: 'd', focus: true });
+	});
+
+	test('navigation immediately observes a workbench part becoming visible again', async () => {
+		const harness = createFocusHarness();
+		harness.setPartVisible(ViewContainerLocation.AuxiliaryBar, false);
+		harness.setFocused('c');
+		assert.deepStrictEqual(await navigate(harness, {
+			direction: 'next', scope: 'workbench'
+		}), { id: 'f', focus: true });
+
+		harness.setPartVisible(ViewContainerLocation.AuxiliaryBar, true);
+		harness.setFocused('c');
+		assert.deepStrictEqual(await navigate(harness, {
+			direction: 'next', scope: 'workbench'
+		}), { id: 'd', focus: true });
+	});
+
 	test('all hidden layout parts leave navigation focus unchanged', async () => {
 		const harness = createFocusHarness();
 		for (const location of [
