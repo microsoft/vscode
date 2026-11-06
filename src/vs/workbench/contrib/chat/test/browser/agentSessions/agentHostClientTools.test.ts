@@ -16,12 +16,14 @@ import { ResourceMap, ResourceSet } from '../../../../../../base/common/map.js';
 import { extUriBiasedIgnorePathCase } from '../../../../../../base/common/resources.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { hasKey } from '../../../../../../base/common/types.js';
-import { constObservable, observableValue, autorun, type IObservable } from '../../../../../../base/common/observable.js';
+import { constObservable, observableValue, autorun, waitForState, type IObservable } from '../../../../../../base/common/observable.js';
 import { mock } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { runWithFakedTimers } from '../../../../../../base/test/common/timeTravelScheduler.js';
 import { ILogService, NullLogService } from '../../../../../../platform/log/common/log.js';
-import { ConfigurationTarget, IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
+import { ConfigurationTarget, IConfigurationService, type IConfigurationChangeEvent } from '../../../../../../platform/configuration/common/configuration.js';
+import { COPILOT_ALLOW_MANAGED_HOOKS_ONLY_CONFIG } from '../../../../../../platform/policy/common/copilotManagedSettings.js';
+import { PluginFormat } from '../../../../../../platform/agentPlugins/common/pluginParsers.js';
 import { ContextKeyExpr } from '../../../../../../platform/contextkey/common/contextkey.js';
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { AgentSession, IAgentHostService } from '../../../../../../platform/agentHost/common/agentService.js';
@@ -87,7 +89,8 @@ import { IChatSessionsService } from '../../../common/chatSessionsService.js';
 import { IChatWidgetService } from '../../../browser/chat.js';
 import { IChatInputNotification, IChatInputNotificationService } from '../../../browser/widget/input/chatInputNotificationService.js';
 import { ICustomizationHarnessService } from '../../../common/customizationHarnessService.js';
-import { IAgentPluginService } from '../../../common/plugins/agentPluginService.js';
+import { IAgentPluginService, type IAgentPlugin } from '../../../common/plugins/agentPluginService.js';
+import { ChatConfiguration } from '../../../common/constants.js';
 import { IOutputService } from '../../../../../services/output/common/output.js';
 import { IDefaultAccountService } from '../../../../../../platform/defaultAccount/common/defaultAccount.js';
 import { IAuthenticationService, type AuthenticationSession } from '../../../../../services/authentication/common/authentication.js';
@@ -181,8 +184,63 @@ suite('AgentHostClientTools', () => {
 		});
 
 		const service = disposables.add(instantiationService.createInstance(AgentHostActiveClientService));
-		return { service };
+		return { service, instantiationService };
 	}
+
+	test('refreshes forwarded plugin directories when managed-only hook policies change', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		const { service, instantiationService } = createActiveClientService();
+		const policy = new TestConfigurationService();
+		const configuration = new class extends TestConfigurationService {
+			override inspect<T>(key: string) {
+				return { ...super.inspect<T>(key), policyValue: policy.inspect<T>(key).value };
+			}
+		}({
+			[ChatConfiguration.EnabledPlugins]: { 'example@company': true },
+		});
+		const pluginUri = URI.file('/home/.copilot/installed-plugins/company/example');
+		const plugin = new class extends mock<IAgentPlugin>() {
+			override readonly uri = pluginUri;
+			override readonly label = 'Example';
+			override readonly format = PluginFormat.Copilot;
+			override readonly enablement = constObservable(ContributionEnablementState.EnabledProfile);
+			override readonly hooks = constObservable([]);
+			override readonly commands = constObservable([]);
+			override readonly skills = constObservable([]);
+			override readonly agents = constObservable([{ uri: URI.joinPath(pluginUri, 'agents/example.agent.md'), name: 'Example' }]);
+			override readonly instructions = constObservable([]);
+			override readonly mcpServerDefinitions = constObservable([]);
+		}();
+		instantiationService.stub(IConfigurationService, configuration);
+		instantiationService.stub(IAgentPluginService, {
+			plugins: constObservable([plugin]),
+			enablementModel: new class extends mock<IEnablementModel>() {
+				override readProfileEnabled() { return true; }
+			}(),
+		});
+		disposables.add(configuration.onDidChangeConfigurationEmitter);
+		disposables.add(policy.onDidChangeConfigurationEmitter);
+		const scope = disposables.add(service.acquireScope(AGENT_HOST_COPILOT_CLI_SESSION_TYPE, []));
+		await scope.whenResolved();
+		const publications = [scope.customizations.get().map(ref => ref.uri)];
+		const refresh = async (key: string, expectedCount: number) => {
+			configuration.onDidChangeConfigurationEmitter.fire(new class extends mock<IConfigurationChangeEvent>() {
+				override affectsConfiguration(section: string) { return section === key; }
+			}());
+			const refs = await waitForState(scope.customizations, refs => refs.length === expectedCount);
+			publications.push(refs.map(ref => ref.uri));
+		};
+
+		await configuration.setUserConfiguration(COPILOT_ALLOW_MANAGED_HOOKS_ONLY_CONFIG, true);
+		await refresh(COPILOT_ALLOW_MANAGED_HOOKS_ONLY_CONFIG, 0);
+		await policy.setUserConfiguration(ChatConfiguration.EnabledPlugins, { 'example@company': true });
+		await refresh(ChatConfiguration.EnabledPlugins, 1);
+		await policy.setUserConfiguration(ChatConfiguration.EnabledPlugins, undefined);
+		await refresh(ChatConfiguration.EnabledPlugins, 0);
+		await configuration.setUserConfiguration(COPILOT_ALLOW_MANAGED_HOOKS_ONLY_CONFIG, false);
+		await refresh(COPILOT_ALLOW_MANAGED_HOOKS_ONLY_CONFIG, 1);
+
+		assert.deepStrictEqual(publications, [[pluginUri.toString()], [], [pluginUri.toString()], [], [pluginUri.toString()]]);
+	}));
 
 	test('lazily creates scopes and shares them for equivalent root sets', async () => {
 		const { service } = createActiveClientService();

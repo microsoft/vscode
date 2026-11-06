@@ -16,6 +16,7 @@ import { PromptFileSource, PromptsType } from '../../../common/promptSyntax/prom
 import { IPromptsService, isUserToggleableCustomization, matchesSessionType, PromptsStorage } from '../../../common/promptSyntax/service/promptsService.js';
 import { type ICustomizationSyncProvider } from '../../../common/customizationHarnessService.js';
 import { IAgentPlugin, IAgentPluginService } from '../../../common/plugins/agentPluginService.js';
+import { isAgentPluginForceEnabledByPolicy } from '../../../common/plugins/agentPluginEnablement.js';
 import { IMcpService } from '../../../../mcp/common/mcpTypes.js';
 import { IConfigurationResolverService } from '../../../../../services/configurationResolver/common/configurationResolver.js';
 import { SYNCED_CUSTOMIZATION_SCHEME, type ISyncableFile, type ISyncableMcpServer, type SyncedCustomizationBundler } from './syncedCustomizationBundler.js';
@@ -53,6 +54,14 @@ export const SYNCABLE_STORAGE_SOURCES: readonly PromptsStorage[] = [
 
 export interface ILocalCustomizationSyncOptions {
 	readonly includeUserStorage?: boolean;
+	/** Withhold whole unmanaged plugin directories because native discovery cannot exclude only their hooks. */
+	readonly managedHooksOnly?: {
+		readonly enabledPluginsPolicy: Record<string, boolean> | undefined;
+	};
+}
+
+function canForwardPlugin(plugin: IAgentPlugin, options: ILocalCustomizationSyncOptions | undefined): boolean {
+	return !options?.managedHooksOnly || isAgentPluginForceEnabledByPolicy(plugin, options.managedHooksOnly.enabledPluginsPolicy);
 }
 
 export interface ILocalCustomizationFile {
@@ -160,7 +169,7 @@ export async function resolveLocalCustomAgents(
 		const plugin = agent.source === AICustomizationSources.plugin
 			? plugins.find(candidate => isEqualOrParent(agent.uri, candidate.uri))
 			: undefined;
-		if (agent.source === AICustomizationSources.plugin && !plugin) {
+		if (agent.source === AICustomizationSources.plugin && (!plugin || !canForwardPlugin(plugin, options))) {
 			continue;
 		}
 		const pluginAgent = plugin?.agents.get().find(candidate => candidate.uri.toString() === agent.uri.toString());
@@ -268,6 +277,9 @@ export async function resolveCustomizationRefs(
 	const looseFiles: ISyncableFile[] = [];
 
 	const addPluginRef = (plugin: IAgentPlugin) => {
+		if (!canForwardPlugin(plugin, options)) {
+			return;
+		}
 		const key = plugin.uri.toString();
 		if (!pluginRefs.has(key)) {
 			const promise = (async (): Promise<ClientPluginCustomization> => {

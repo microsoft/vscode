@@ -19,12 +19,15 @@ import type { AgentCustomization, SessionActiveClient, ToolDefinition } from '..
 import type { ClientPluginCustomization } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { CLIENT_SEMANTIC_SEARCH_REFERENCE_NAME, CLIENT_SEMANTIC_SEARCH_TOOL_ID, SEMANTIC_SEARCH_TOOL_NAME } from '../../../../../../platform/agentHost/common/semanticSearchConstants.js';
 import { IFileService } from '../../../../../../platform/files/common/files.js';
+import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
+import { COPILOT_ALLOW_MANAGED_HOOKS_ONLY_CONFIG } from '../../../../../../platform/policy/common/copilotManagedSettings.js';
 import { InstantiationType, registerSingleton } from '../../../../../../platform/instantiation/common/extensions.js';
 import { createDecorator, IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { IStorageService } from '../../../../../../platform/storage/common/storage.js';
 import { IUriIdentityService } from '../../../../../../platform/uriIdentity/common/uriIdentity.js';
 import type { ICustomizationSyncProvider } from '../../../common/customizationHarnessService.js';
 import { IAgentPluginService } from '../../../common/plugins/agentPluginService.js';
+import { ChatConfiguration } from '../../../common/constants.js';
 import { IPromptsService } from '../../../common/promptSyntax/service/promptsService.js';
 import { ILanguageModelToolsService, IToolData, IToolSet } from '../../../common/tools/languageModelToolsService.js';
 import { RenameToolId } from '../../tools/renameTool.js';
@@ -144,6 +147,7 @@ class AgentCustomizationScope extends Disposable {
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IMcpService private readonly _mcpService: IMcpService,
 		@IConfigurationResolverService private readonly _configurationResolverService: IConfigurationResolverService,
+		@IConfigurationService private readonly _configurationService: IConfigurationService,
 	) {
 		super();
 		const preserveAgentFileCollisions = isCopilotCliSessionType(_sessionType);
@@ -155,6 +159,9 @@ class AgentCustomizationScope extends Disposable {
 			const seq = ++this._updateSeq;
 			let completedInitialResolution = false;
 			try {
+				const options: ILocalCustomizationSyncOptions | undefined = this._configurationService.getValue<boolean>(COPILOT_ALLOW_MANAGED_HOOKS_ONLY_CONFIG) === true
+					? { ...this._options, managedHooksOnly: { enabledPluginsPolicy: this._configurationService.inspect<Record<string, boolean>>(ChatConfiguration.EnabledPlugins).policyValue } }
+					: this._options;
 				const [refs, agents] = await Promise.all([
 					resolveCustomizationRefs(
 						this._fileService,
@@ -165,11 +172,11 @@ class AgentCustomizationScope extends Disposable {
 						this._configurationResolverService,
 						{ synced: this._bundler, standalone: this._standaloneBundler },
 						this._sessionType,
-						this._options,
+						options,
 						this._roots,
 						this._windowRemoteAuthority,
 					),
-					resolveLocalCustomAgents(this._fileService, this._promptsService, this._syncProvider, this._agentPluginService, this._sessionType, this._options),
+					resolveLocalCustomAgents(this._fileService, this._promptsService, this._syncProvider, this._agentPluginService, this._sessionType, options),
 				]);
 				if (seq !== this._updateSeq) {
 					return;
@@ -201,6 +208,11 @@ class AgentCustomizationScope extends Disposable {
 		};
 
 		this._register(this._syncProvider.onDidChange(() => scheduleUpdate()));
+		this._register(this._configurationService.onDidChangeConfiguration(event => {
+			if (event.affectsConfiguration(COPILOT_ALLOW_MANAGED_HOOKS_ONLY_CONFIG) || event.affectsConfiguration(ChatConfiguration.EnabledPlugins)) {
+				void updateCustomizations();
+			}
+		}));
 		this._register(Event.any(
 			this._promptsService.onDidChangeCustomAgents,
 			this._promptsService.onDidChangeSlashCommands,
