@@ -113,7 +113,7 @@ import { ISessionsManagementService } from '../../../contrib/sessions/common/ses
 import { ISessionsService } from '../../../contrib/sessions/browser/sessionsService.js';
 import { ISessionsHostLayoutService } from '../../../contrib/sessions/browser/sessionsHostLayoutService.js';
 import { IWorkbenchLayoutService } from '../../../services/layout/browser/layoutService.js';
-import { ActiveSessionHost, SessionHostKind } from '../../../contrib/sessions/browser/sessionHost.js';
+import { SessionHost, SessionHostKind } from '../../../contrib/sessions/browser/sessionHost.js';
 import { ISessionChangesStatsCache, SessionChangesStatsCache } from '../../../contrib/sessions/common/sessionChangesStatsCache.js';
 import { ICodeReviewService, PRReviewStateKind } from '../../../contrib/sessions/browser/codeReviewService.js';
 import { constObservable } from '../../../../base/common/observable.js';
@@ -820,10 +820,10 @@ export function createEditorServices(disposables: DisposableStore, options?: Cre
 	definePartialInstance(ISessionsService, {
 		_serviceBrand: undefined,
 		// The main window's host, which shows no session.
-		gridHost: new ActiveSessionHost({
+		gridHost: new SessionHost({
 			kind: SessionHostKind.MainWindow,
 			parent: undefined,
-			session: constObservable(undefined),
+			session: constObservable(undefined), chat: constObservable(undefined),
 			contextKeyService: () => { throw new Error('The fixture grid host binds no context keys'); },
 			windowId: constObservable(mainWindow.vscodeWindowId),
 		}),

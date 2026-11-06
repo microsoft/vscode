@@ -23,7 +23,6 @@ import { IAgentHostSessionsProvider, LOCAL_AGENT_HOST_PROVIDER_ID } from '../../
 import { ISessionsProvidersService } from '../../../../../../workbench/contrib/sessions/browser/sessionsProvidersService.js';
 import { IChat } from '../../../../../../workbench/contrib/sessions/common/session.js';
 import { ISessionInputPickerVisibility, SessionInputPickerVisibility } from '../../../../../../workbench/contrib/sessions/common/sessionPickerVisibility.js';
-import { IActiveSession } from '../../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import { ISessionsProvider } from '../../../../../../workbench/contrib/sessions/common/sessionsProvider.js';
 import { ISessionChangesService } from '../../../../../../workbench/contrib/sessions/browser/changes/sessionChangesService.js';
 import { AgentHostSessionConfigPicker } from '../../../../../../workbench/contrib/sessions/providers/agentHost/browser/agentHostSessionConfigPicker.js';
@@ -31,7 +30,7 @@ import { IWorktreeSuggestionService } from '../../../../../../workbench/contrib/
 import { NullWorktreeSuggestionService } from '../../../../../../workbench/contrib/sessions/test/browser/worktreeSuggestion/worktreeSuggestionTestUtils.js';
 import '../../../../../../workbench/contrib/sessions/browser/chat/media/chatWidget.css';
 import '../../../../../browser/media/style.css';
-import { sessionChatSourceOf } from '../../../../../../workbench/contrib/sessions/browser/sessionHost.js';
+import { ITestSessionWithChat, testChatSourceOf } from '../../../../../../workbench/contrib/sessions/test/browser/sessionHostTestUtils.js';
 
 async function renderIsolationPicker({ container, disposableStore, theme }: ComponentFixtureContext, value: 'worktree' | 'folder', devContainer = false): Promise<void> {
 	container.classList.add('monaco-workbench', 'agent-sessions-workbench');
@@ -65,7 +64,7 @@ async function renderIsolationPicker({ container, disposableStore, theme }: Comp
 		}
 		override trackSessionConfigOperation(): void { }
 	}();
-	const session = constObservable<IActiveSession | undefined>(new class extends mock<IActiveSession>() {
+	const session = constObservable<ITestSessionWithChat | undefined>(new class extends mock<ITestSessionWithChat>() {
 		override readonly sessionId = 'fixture';
 		override readonly providerId = provider.id;
 		override readonly workspace = constObservable(undefined);
@@ -96,7 +95,7 @@ async function renderIsolationPicker({ container, disposableStore, theme }: Comp
 	instantiationService.set(IContextViewService, disposableStore.add(instantiationService.createInstance(ContextViewService)));
 	instantiationService.set(IActionWidgetService, disposableStore.add(instantiationService.createInstance(ActionWidgetService)));
 	const row = dom.append(container, dom.$('.new-chat-session-options'));
-	const picker = disposableStore.add(instantiationService.createInstance(AgentHostSessionConfigPicker, sessionChatSourceOf(session), SessionConfigKey.Isolation));
+	const picker = disposableStore.add(instantiationService.createInstance(AgentHostSessionConfigPicker, testChatSourceOf(session), SessionConfigKey.Isolation));
 	const trigger = picker.render(row);
 	picker.setFocusable(true);
 	trigger?.click();

@@ -10,8 +10,8 @@ import { IInstantiationService } from '../../../../../platform/instantiation/com
 import { ChatCustomizationMigrationNotice, IChatCustomizationMigrationNoticeContext } from '../../../chat/browser/aiCustomization/chatCustomizationMigrationNotice.js';
 import { IAICustomizationWorkspaceService } from '../../../chat/common/aiCustomizationWorkspaceService.js';
 import { isAgentHostSessionResource } from '../../../chat/common/chatSessionsService.js';
-import { IActiveSession } from '../../common/sessionsManagement.js';
 import { NewSessionBannerPriority, NewSessionBanners } from '../../common/newSessionBanners.js';
+import { ISession, isSessionCreated } from '../../common/session.js';
 
 export class NewChatMigrationNotice extends Disposable {
 	readonly element: HTMLElement;
@@ -19,7 +19,7 @@ export class NewChatMigrationNotice extends Disposable {
 	constructor(
 		container: HTMLElement,
 		banners: NewSessionBanners,
-		session: IObservable<IActiveSession | undefined>,
+		session: IObservable<ISession | undefined>,
 		focusInput: () => void,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IAICustomizationWorkspaceService workspaceService: IAICustomizationWorkspaceService,
@@ -28,7 +28,7 @@ export class NewChatMigrationNotice extends Disposable {
 		const context = derived<IChatCustomizationMigrationNoticeContext | undefined>(this, reader => {
 			const currentSession = session.read(reader);
 			if (!currentSession
-				|| currentSession.isCreated.read(reader)
+				|| isSessionCreated(currentSession, reader)
 				|| currentSession.loading.read(reader)
 				|| !isAgentHostSessionResource(currentSession.resource)) {
 				return undefined;

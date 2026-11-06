@@ -23,10 +23,9 @@ import { NEW_CHANGES_TAB_COMMAND_ID } from '../../../editor/browser/addTabAction
 import { SessionActivityBarActivityService } from '../../../../../workbench/contrib/sessions/common/sessionActivityBarActivityService.js';
 import { IChat, ISessionChangesSummary, ISessionFileChange, ISessionWorkspace } from '../../../../../workbench/contrib/sessions/common/session.js';
 import { ISessionChangesStatsCache } from '../../../../../workbench/contrib/sessions/common/sessionChangesStatsCache.js';
-import { IActiveSession } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import { ChangesActivityContribution, hasNewChanges, MAX_SEEN_CHANGES_CHATS, SeenChangesStore } from '../../browser/changesActivity.js';
 import { ISessionChangesService } from '../../../../../workbench/contrib/sessions/browser/changes/sessionChangesService.js';
-import { focusedSessionHostServiceOf } from '../../../../../workbench/contrib/sessions/test/browser/sessionHostTestUtils.js';
+import { focusedSessionHostServiceOf, ITestSessionWithChat } from '../../../../../workbench/contrib/sessions/test/browser/sessionHostTestUtils.js';
 
 suite('Sessions - Changes Activity', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -85,7 +84,7 @@ suite('Sessions - Changes Activity Contribution', () => {
 			changesets: constObservable([]),
 			changes,
 		});
-		const session = upcastPartial<IActiveSession>({
+		const session = upcastPartial<ITestSessionWithChat>({
 			resource: sessionResource,
 			sessionId: 'provider:session',
 			activeChat: constObservable(chat),

@@ -35,14 +35,14 @@ import { AgentWorkbenchLayout } from '../../../../../workbench/contrib/sessions/
 import { IAgentHostSessionsProvider, LOCAL_AGENT_HOST_PROVIDER_ID } from '../../../../../workbench/contrib/sessions/common/agentHostSessionsProvider.js';
 import { IsPhoneLayoutContext } from '../../../../../workbench/contrib/sessions/common/contextkeys.js';
 import { ISessionsProvidersService } from '../../../../../workbench/contrib/sessions/browser/sessionsProvidersService.js';
-import { IChat, ISessionChangeset, ISessionFileChange, ISessionWorkspace, UNCOMMITTED_CHANGES_CHANGESET_ID } from '../../../../../workbench/contrib/sessions/common/session.js';
-import { IActiveSession } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
+import { IChat, ISessionChangeset, ISessionFileChange, ISessionWorkspace, SessionStatus, UNCOMMITTED_CHANGES_CHANGESET_ID } from '../../../../../workbench/contrib/sessions/common/session.js';
 import { ISessionsProvider } from '../../../../../workbench/contrib/sessions/common/sessionsProvider.js';
 import { CHANGES_VIEW_ID } from '../../../../../workbench/contrib/sessions/common/changes.js';
 import { ISessionChangesEditorOptions, ISessionChangesService } from '../../../../../workbench/contrib/sessions/common/sessionChangesService.js';
 import { WORKTREE_SUGGESTION_SETTING, WORKTREE_SUGGESTION_TOUR_ID, WorktreeSuggestionVariant } from '../../../../../workbench/contrib/sessions/common/worktreeSuggestion.js';
 import { getChangedFileLabel, getInlineHintMessage } from '../../../../../workbench/contrib/sessions/browser/worktreeSuggestion/worktreeSuggestionPresentation.js';
 import { IUncommittedChangesListItem, IWorktreeSuggestion, WorktreeSpotlightChoice, WorktreeSuggestionService } from '../../../../../workbench/contrib/sessions/browser/worktreeSuggestion/worktreeSuggestionService.js';
+import { ITestSessionWithChat } from '../../../../../workbench/contrib/sessions/test/browser/sessionHostTestUtils.js';
 
 class RecordingTelemetryService extends TestExperimentTriggerTelemetryService {
 	readonly events: unknown[] = [];
@@ -65,7 +65,7 @@ interface ISessionOptions {
 	readonly changes?: readonly ISessionFileChange[];
 }
 
-function createSession({ id = 'draft', isCreated = false, worktree = false, uncommittedChanges = 3, providerId = LOCAL_AGENT_HOST_PROVIDER_ID, changes }: ISessionOptions = {}): IActiveSession {
+function createSession({ id = 'draft', isCreated = false, worktree = false, uncommittedChanges = 3, providerId = LOCAL_AGENT_HOST_PROVIDER_ID, changes }: ISessionOptions = {}): ITestSessionWithChat {
 	const workspace: ISessionWorkspace = {
 		label: 'repo',
 		icon: { id: 'folder' },
@@ -89,13 +89,14 @@ function createSession({ id = 'draft', isCreated = false, worktree = false, unco
 	const chat = new class extends mock<IChat>() {
 		override readonly changesets = constObservable([changeset]);
 	}();
-	return new class extends mock<IActiveSession>() {
+	return new class extends mock<ITestSessionWithChat>() {
 		override readonly sessionId = id;
 		override readonly resource = URI.parse(`test-session:/${id}`);
 		override readonly activeChat = constObservable(chat);
 		override readonly mainChat = constObservable(chat);
 		override readonly providerId = providerId;
 		override readonly isCreated = constObservable(isCreated);
+		override readonly status = this.isCreated.map(created => created ? SessionStatus.Completed : SessionStatus.Untitled);
 		override readonly loading = constObservable(false);
 		override readonly worktreePending = constObservable(worktree);
 		override readonly workspace = constObservable(workspace);

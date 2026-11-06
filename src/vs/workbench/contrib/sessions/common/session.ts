@@ -124,6 +124,14 @@ export function isActiveSessionStatus(status: SessionStatus): boolean {
 	return status === SessionStatus.InProgress || status === SessionStatus.NeedsInput;
 }
 
+/**
+ * Whether `session` is created: it has been sent at least once, so it is no longer a draft of the new-session composer.
+ * `false` for no session.
+ */
+export function isSessionCreated(session: Pick<ISession, 'status'> | undefined, reader?: IReader): boolean {
+	return !!session && (reader ? session.status.read(reader) : session.status.get()) !== SessionStatus.Untitled;
+}
+
 export function getSessionStatusMessage(status: SessionStatus, description: IMarkdownString | undefined): IMarkdownString | string | undefined {
 	switch (status) {
 		case SessionStatus.InProgress:

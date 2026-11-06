@@ -24,13 +24,13 @@ import { AgentsWindowMenus } from '../../../../browser/agentsWindowMenus.js';
 import { IAgentHostSessionsProvider, LOCAL_AGENT_HOST_PROVIDER_ID } from '../../../../../workbench/contrib/sessions/common/agentHostSessionsProvider.js';
 import { ISessionsProvidersChangeEvent, ISessionsProvidersService } from '../../../../../workbench/contrib/sessions/browser/sessionsProvidersService.js';
 import { IChat, ISessionWorkspace } from '../../../../../workbench/contrib/sessions/common/session.js';
-import { IActiveSession, ISessionsManagementService } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
+import { ISessionsManagementService } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import { BlockedSessionsIndicatorModel } from '../../browser/blockedSessionsIndicatorModel.js';
 import { SessionActionFeedback } from '../../browser/sessionActionFeedback.js';
 import { SessionsTitleBarWidget } from '../../browser/sessionsTitleBarWidget.js';
 import { ISessionHost } from '../../../../../workbench/contrib/sessions/browser/sessionHost.js';
 import { IChatWindowService } from '../../../../../workbench/contrib/chatWindow/browser/chatWindow.js';
-import { ITestSessionsService } from '../../../../../workbench/contrib/sessions/test/browser/sessionHostTestUtils.js';
+import { ITestSessionsService, ITestSessionWithChat } from '../../../../../workbench/contrib/sessions/test/browser/sessionHostTestUtils.js';
 
 suite('SessionsTitleBarWidget - Remote Host', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -44,8 +44,8 @@ suite('SessionsTitleBarWidget - Remote Host', () => {
 		label: 'Local',
 	});
 
-	function createSession(providerId: string, workspace?: ISessionWorkspace): IActiveSession {
-		return upcastPartial<IActiveSession>({
+	function createSession(providerId: string, workspace?: ISessionWorkspace): ITestSessionWithChat {
+		return upcastPartial<ITestSessionWithChat>({
 			providerId,
 			workspace: constObservable(workspace),
 			activeChat: constObservable(upcastPartial<IChat>({ workspace: constObservable(workspace) })),
@@ -53,8 +53,8 @@ suite('SessionsTitleBarWidget - Remote Host', () => {
 		});
 	}
 
-	function createHarness(session: IActiveSession | undefined, sessionTitle?: string, remoteHost = remoteProvider) {
-		const activeSession = observableValue<IActiveSession | undefined>('activeSession', session);
+	function createHarness(session: ITestSessionWithChat | undefined, sessionTitle?: string, remoteHost = remoteProvider) {
+		const activeSession = observableValue<ITestSessionWithChat | undefined>('activeSession', session);
 		const providers = new Map([remoteHost, localProvider].map(provider => [provider.id, provider]));
 		const onDidChangeProviders = store.add(new Emitter<ISessionsProvidersChangeEvent>());
 		const onDidChangeSessionTypes = store.add(new Emitter<void>());

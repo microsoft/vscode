@@ -18,7 +18,7 @@ import { ISessionsHostLayoutService } from '../../../../workbench/contrib/sessio
 import { getMainWindowHost, getWindowHost, IFocusedSessionHostService, ISessionHost, ISessionHostService, SessionHostKind } from '../../../../workbench/contrib/sessions/browser/sessionHost.js';
 import { ICustomViewService } from '../../../../workbench/contrib/sessions/browser/customView.js';
 import { IChat, ISession, ISessionCanvasDefinition } from '../../../../workbench/contrib/sessions/common/session.js';
-import { IHostSession, ISessionsManagementService } from '../../../../workbench/contrib/sessions/common/sessionsManagement.js';
+import { ISessionsManagementService } from '../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import { ISessionEditorWorkingSetService } from '../../layout/common/sessionEditorWorkingSet.js';
 import { createSessionCanvasReference, getSessionCanvasDefinitionInstanceId, ISessionCanvasRegistryService } from '../common/sessionCanvas.js';
 import { IPinnedCanvasService } from '../../../../workbench/contrib/sessions/browser/pinnedCanvases.js';
@@ -116,7 +116,7 @@ export class SessionCanvasContextService extends Disposable implements ICanvasCo
 	 * The window that shows the session of the owner: the chat window that shows its chat, else the main window while it
 	 * shows the session.
 	 */
-	private getShowingWindow(owner: ICanvasOwner, reader: IReader | undefined): { readonly host: ISessionHost; readonly windowHost: ISessionHost; readonly session: IHostSession } | undefined {
+	private getShowingWindow(owner: ICanvasOwner, reader: IReader | undefined): { readonly host: ISessionHost; readonly windowHost: ISessionHost; readonly session: ISession } | undefined {
 		const chatHost = this.sessionHostService.getHostOfChat(owner.chat, reader);
 		const chatWindowHost = chatHost && getWindowHost(chatHost);
 		if (chatHost && chatWindowHost?.kind === SessionHostKind.ChatWindow) {

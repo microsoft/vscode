@@ -8,7 +8,7 @@ import { $, append } from '../../../../../base/browser/dom.js';
 import { mainWindow } from '../../../../../base/browser/window.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { DisposableStore, toDisposable } from '../../../../../base/common/lifecycle.js';
-import { constObservable, derived, IObservable, observableValue } from '../../../../../base/common/observable.js';
+import { constObservable, derived, IObservable, observableValue, transaction } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { mock, upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
@@ -19,7 +19,7 @@ import { IContextKeyService } from '../../../../../platform/contextkey/common/co
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { ILogService, NullLogService } from '../../../../../platform/log/common/log.js';
 import { IChatService } from '../../../../../workbench/contrib/chat/common/chatService/chatService.js';
-import { IChatWindow, IChatWindowOpenOptions, IChatWindowService } from '../../../../../workbench/contrib/chatWindow/browser/chatWindow.js';
+import { IChatWindow, IChatWindowChat, IChatWindowOpenOptions, IChatWindowService } from '../../../../../workbench/contrib/chatWindow/browser/chatWindow.js';
 import { ChatWindowLayoutMode } from '../../../../../workbench/contrib/chatWindow/common/chatWindowLayout.js';
 import { IChatEntitlementService, IChatSentiment } from '../../../../../workbench/services/chat/common/chatEntitlementService.js';
 import { IContentPart, IEditorGroup, IEditorGroupsService, IEditorPart } from '../../../../../workbench/services/editor/common/editorGroupsService.js';
@@ -36,7 +36,7 @@ import { ISessionsProvidersService } from '../../../../../workbench/contrib/sess
 import { ISessionsService } from '../../../../../workbench/contrib/sessions/browser/sessionsService.js';
 import { ChatHostOpenerService, IChatHostOpenerService } from '../../../../../workbench/contrib/sessions/browser/chatHostOpener.js';
 import { ChatInteractivity, IChat, ISession, ISessionChangeset, ISessionChangesetOperation, SessionChangesetOperationScope, SessionStatus } from '../../../../../workbench/contrib/sessions/common/session.js';
-import { IActiveSession, ISessionsChangeEvent, ISessionsManagementService } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
+import { ISessionPaneContent, ISessionsChangeEvent, ISessionsManagementService } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import { CHAT_WINDOWS_ENABLED_SETTING } from '../../common/chatWindows.js';
 import { SESSION_ACTIVITY_BAR_SETTING } from '../../../../../workbench/contrib/sessions/common/sessionConfig.js';
 import { SessionChangesEditorFileListContext } from '../../../../../workbench/contrib/sessions/common/changes.js';
@@ -55,7 +55,7 @@ import { IEditorGroupViewOptions } from '../../../../../workbench/browser/parts/
 import { EditorInputCapabilities, GroupModelChangeKind } from '../../../../../workbench/common/editor.js';
 import { EditorInput } from '../../../../../workbench/common/editor/editorInput.js';
 import { IGroupModelChangeEvent } from '../../../../../workbench/common/editor/editorGroupModel.js';
-import { stubSessionHosts } from '../../../../../workbench/contrib/sessions/test/browser/sessionHostTestUtils.js';
+import { ITestSessionWithChat, stubSessionHosts, testGridPanes } from '../../../../../workbench/contrib/sessions/test/browser/sessionHostTestUtils.js';
 import { ISessionHost } from '../../../../../workbench/contrib/sessions/browser/sessionHost.js';
 import { ITitleService } from '../../../../../workbench/services/title/browser/titleService.js';
 import { IAuxiliaryTitlebarPart } from '../../../../../workbench/browser/parts/titlebar/titlebarPart.js';
@@ -93,12 +93,17 @@ suite('Sessions chat window provider', () => {
 		}();
 	}
 
+	/** The chat window chat behind `chat`: what its editor shows of the provider's session. */
+	function asWindowChat(chat: IChatWindowChat): IChatWindowChat & { readonly session: IObservable<ISession | undefined>; readonly shownChat: IObservable<IChat | undefined>; readonly content: IObservable<ISessionPaneContent | undefined> } {
+		return chat as IChatWindowChat & { readonly session: IObservable<ISession | undefined>; readonly shownChat: IObservable<IChat | undefined>; readonly content: IObservable<ISessionPaneContent | undefined> };
+	}
+
 	function createProvider(store: DisposableStore, sessions: ISession[]) {
 		const events: string[] = [];
 		// The main window shows another session than those that move into it, such as one whose opening was cancelled
-		const mainWindowActiveSession = constObservable<IActiveSession | undefined>(undefined);
+		const mainWindowActiveSession = constObservable<ITestSessionWithChat | undefined>(undefined);
 		const onDidChangeSessions = store.add(new Emitter<ISessionsChangeEvent>());
-		const visibleSessions = observableValue<readonly (IActiveSession | undefined)[]>('visibleSessions', []);
+		const visibleSessions = observableValue<readonly (ITestSessionWithChat | undefined)[]>('visibleSessions', []);
 		const configuration = new TestConfigurationService({ [CHAT_WINDOWS_ENABLED_SETTING]: true });
 		const sentiment = observableValue<IChatSentiment>('sentiment', {});
 		const instantiationService = store.add(new TestInstantiationService());
@@ -137,7 +142,8 @@ suite('Sessions chat window provider', () => {
 			}
 		}());
 		instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() {
-			override readonly visibleSessions = visibleSessions;
+			readonly gridShown = visibleSessions;
+			override readonly slotPanes = testGridPanes(this.gridShown);
 			override readonly initialRestoreComplete = constObservable(true);
 			readonly mainWindowActiveSession = mainWindowActiveSession;
 			override async openMovedChats(chats: readonly { readonly session: ISession; readonly chatResource: URI }[]) {
@@ -222,7 +228,7 @@ suite('Sessions chat window provider', () => {
 		override readonly chats = derived(reader => [activeChat.read(reader)]);
 	}();
 
-	test('a chat window shows each chat as a session of its own scoped to the chat, also of a session by its main chat; it keeps the chat out of the main window\'s grid while it shows it, acts on its active chat and binds its keys, without making its session the active session', async () => {
+	test('a chat window shows each chat of the provider\'s session itself, also of a session by its main chat; it keeps the chat out of the main window\'s grid while it shows it, acts on its active chat and binds its keys, without making its session the active session', async () => {
 		const store = disposables.add(new DisposableStore());
 		const session = createSession('session', [createChat('main'), createChat('second')]);
 		const { provider, events, windowInstantiationService } = createProvider(store, [session]);
@@ -231,12 +237,13 @@ suite('Sessions chat window provider', () => {
 		const content = (await provider.resolveContent(session.resource))!;
 		const ofSession = (await content.resolveChat(session.resource))!;
 		const second = (await content.resolveChat(URI.parse('test:/second')))!;
+		const shownOf = (chat: IChatWindowChat) => { const shown = asWindowChat(chat); return { session: shown.session.get()?.sessionId, providerSession: shown.session.get() === session, shownChat: shown.shownChat.get()?.resource.path }; };
 		store.add(content.bind!(window, windowInstantiationService));
 		activeChat.set(URI.parse('test:/second'), undefined);
 		const host = content.services!.get(ISessionHost) as ISessionHost;
 		const contextKeyService = windowInstantiationService.invokeFunction(accessor => accessor.get(IContextKeyService));
 		const shown = {
-			chats: [ofSession, second].map(chat => ({ chat: chat.chat.get().path, title: chat.title.get(), scopedTo: (chat as unknown as { session: IObservable<IActiveSession | undefined> }).session.get()?.scopedChatResource?.path })),
+			chats: [ofSession, second].map(chat => ({ chat: chat.chat.get().path, title: chat.title.get(), ...shownOf(chat) })),
 			host: { session: host.session.get()?.sessionId, chat: host.chat.get()?.resource.path },
 			changesetOperations: contextKeyService.getContextKeyValue(SessionChangesetOperationsContext.key),
 			changesFileList: contextKeyService.getContextKeyValue(SessionChangesEditorFileListContext.key),
@@ -247,7 +254,7 @@ suite('Sessions chat window provider', () => {
 		assert.deepStrictEqual({ unknown, shown, events }, {
 			unknown: undefined,
 			shown: {
-				chats: [{ chat: '/main', title: 'main', scopedTo: '/main' }, { chat: '/second', title: 'second', scopedTo: '/second' }],
+				chats: [{ chat: '/main', title: 'main', session: 'session', providerSession: true, shownChat: '/main' }, { chat: '/second', title: 'second', session: 'session', providerSession: true, shownChat: '/second' }],
 				host: { session: 'session', chat: '/second' },
 				changesetOperations: ['resource:discard'],
 				changesFileList: true,
@@ -272,7 +279,7 @@ suite('Sessions chat window provider', () => {
 		const store = disposables.add(new DisposableStore());
 		const session = createSession('session', [createChat('main'), createChat('peer')]);
 		const { provider, visibleSessions } = createProvider(store, [session]);
-		visibleSessions.set([upcastPartial<IActiveSession>({ sessionId: 'session', activeChat: constObservable(session.chats.get()[1]) })], undefined);
+		visibleSessions.set([upcastPartial<ITestSessionWithChat>({ sessionId: 'session', activeChat: constObservable(session.chats.get()[1]) })], undefined);
 		const content = store.add((await provider.resolveContent(session.resource))!);
 
 		const exact = await content.resolveChat(session.resource, true);
@@ -407,15 +414,102 @@ suite('Sessions chat window provider', () => {
 		const { provider } = createProvider(store, [session]);
 		const content = store.add((await provider.resolveContent(session.resource))!);
 		const ended: string[] = [];
-		const shown = (await content.resolveChat(URI.parse('test:/main')))! as unknown as { session: IObservable<IActiveSession | undefined> };
+		const shown = asWindowChat((await content.resolveChat(URI.parse('test:/main')))!);
 		const deleted = (await content.resolveChat(URI.parse('test:/deleted')))!;
 		store.add(deleted.onDidEnd(() => ended.push('/deleted')));
-		const before = shown.session.get()?.activeChat.get();
+		const before = shown.shownChat.get();
 
 		const replacement = createChat('main');
 		chats.set([replacement], undefined);
 
-		assert.deepStrictEqual({ ended, before: before === main, after: shown.session.get()?.activeChat.get() === replacement }, { ended: ['/deleted'], before: true, after: true });
+		assert.deepStrictEqual({ ended, before: before === main, after: shown.shownChat.get() === replacement }, { ended: ['/deleted'], before: true, after: true });
+	});
+
+	test('a chat window observes the provider\'s session without owning it: as its chat moves to another session, or its window closes, it disposes neither session, and moves its hold on the grid to the session the chat is in', async () => {
+		const store = disposables.add(new DisposableStore());
+		const disposed: string[] = [];
+		const moved = createChat('moved');
+		const fromChats = observableValue<IChat[]>('fromChats', [createChat('main'), moved]);
+		const toChats = observableValue<IChat[]>('toChats', [createChat('other')]);
+		const from = Object.assign(createSession('from', fromChats.get()), { chats: fromChats, dispose: () => disposed.push('from') });
+		const to = Object.assign(createSession('to', toChats.get()), { chats: toChats, dispose: () => disposed.push('to') });
+		const sessions = [from, to];
+		const { provider, events, onDidChangeSessions } = createProvider(store, sessions);
+		const content = (await provider.resolveContent(URI.parse('test:/moved')))!;
+		const chat = asWindowChat((await content.resolveChat(URI.parse('test:/moved')))!);
+		const before = chat.session.get() === from;
+
+		transaction(tx => {
+			fromChats.set([fromChats.get()[0]], tx);
+			toChats.set([...toChats.get(), moved], tx);
+		});
+		onDidChangeSessions.fire({ added: [], changed: [from, to], removed: [] });
+		const after = chat.session.get() === to;
+		content.dispose();
+
+		assert.deepStrictEqual({ before, after, disposed, events }, { before: true, after: true, disposed: [], events: ['hide from /moved', 'hide to /moved', 'show from /moved', 'show to /moved'] });
+	});
+
+	test('a chat editor\'s pane closes its chat in its window, through the window\'s opener, only while its chat still shows that chat of that session: a content kept past the chat being replaced, or ending, closes nothing', async () => {
+		const store = disposables.add(new DisposableStore());
+		const isArchived = observableValue('archived', false);
+		const main = Object.assign(createChat('main'), { isArchived });
+		const chats = observableValue<IChat[]>('chats', [main]);
+		const session = Object.assign(createSession('session', chats.get()), { chats });
+		const { provider, onDidChangeSessions, chatHostOpenerService } = createProvider(store, [session]);
+		const closed: string[] = [];
+		store.add(chatHostOpenerService.register({
+			showsChat: shown => shown.path === '/main',
+			reveal: async () => { },
+			openBeside: async () => { },
+			close: async shown => { closed.push(shown.path); return undefined; },
+		}));
+		const content = store.add((await provider.resolveContent(session.resource))!);
+		const chat = asWindowChat((await content.resolveChat(URI.parse('test:/main')))!);
+		const first = chat.content.get()!;
+		first.close();
+		const closedFirst = [...closed];
+
+		const replacement = Object.assign(createChat('main'), { isArchived });
+		chats.set([replacement], undefined);
+		const second = chat.content.get()!;
+		first.close();
+		const afterStale = [...closed];
+		second.close();
+		const afterSecond = [...closed];
+		isArchived.set(true, undefined);
+		onDidChangeSessions.fire({ added: [], changed: [session], removed: [] });
+		second.close();
+
+		assert.deepStrictEqual({ closedFirst, replaced: second !== first, detached: second.state.isDetached, afterStale, afterSecond, afterEnded: closed }, {
+			closedFirst: ['/main'], replaced: true, detached: true, afterStale: ['/main'], afterSecond: ['/main', '/main'], afterEnded: ['/main', '/main'],
+		});
+	});
+
+	test('a chat editor\'s pane kept past its window letting go of its chat, as the window closes or the chat moves to another window, closes nothing: not the chat that a window shows again', async () => {
+		const store = disposables.add(new DisposableStore());
+		const session = createSession('session', [createChat('main')]);
+		const { provider, chatHostOpenerService } = createProvider(store, [session]);
+		const closed: string[] = [];
+		store.add(chatHostOpenerService.register({
+			showsChat: shown => shown.path === '/main',
+			reveal: async () => { },
+			openBeside: async () => { },
+			close: async shown => { closed.push(shown.path); return undefined; },
+		}));
+		const first = (await provider.resolveContent(session.resource))!;
+		const released = asWindowChat((await first.resolveChat(URI.parse('test:/main')))!);
+		const kept = released.content.get()!;
+		released.dispose();
+		first.dispose();
+		const second = store.add((await provider.resolveContent(session.resource))!);
+		const shownAgain = asWindowChat((await second.resolveChat(URI.parse('test:/main')))!);
+
+		kept.close();
+		const afterKept = [...closed];
+		shownAgain.content.get()!.close();
+
+		assert.deepStrictEqual({ afterKept, afterShownAgain: closed }, { afterKept: [], afterShownAgain: ['/main'] });
 	});
 
 	test('the tab of the last chat of a window, while another editor is beside it in its group, shows the chat\'s title and offers no close action; alone again, it closes as before', async () => {

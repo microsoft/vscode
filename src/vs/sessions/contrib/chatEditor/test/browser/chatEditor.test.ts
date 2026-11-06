@@ -17,6 +17,7 @@ import { Event } from '../../../../../base/common/event.js';
 import { upcastPartial } from '../../../../../base/test/common/mock.js';
 import { IChatWindow } from '../../../../../workbench/contrib/chatWindow/browser/chatWindow.js';
 import { IContentPart, IEditorGroup } from '../../../../../workbench/services/editor/common/editorGroupsService.js';
+import { testPaneContentOf } from '../../../../../workbench/contrib/sessions/test/browser/sessionHostTestUtils.js';
 import { createSessionViewTestServices, createTestActiveSession } from '../../../../test/browser/sessionViewTestUtils.js';
 import { ChatEditorView, IInputOnlySessionView, ISessionChatViewHost, SESSION_CHAT_VIEW_HOST_OPTIONS, SESSION_CHAT_VIEW_MINIMUM_HEIGHT, SESSION_CHAT_VIEW_TYPE, SessionChatViewInputOnly } from '../../browser/chatEditor.js';
 
@@ -192,7 +193,7 @@ suite('Session chat view editor', () => {
 	test('a chat editor shows exactly one chat, with no tabs of chats in it, also of a session of several chats: its chats are editors of their own', () => {
 		const { instantiationService, chatViews } = createSessionViewTestServices(disposables);
 		const host: ISessionChatViewHost = {
-			session: constObservable(createTestActiveSession('session', true, { chatCount: 3 })),
+			content: constObservable(testPaneContentOf(createTestActiveSession('session', true, { chatCount: 3 }), () => { })),
 			window: constObservable(undefined),
 			active: constObservable(true),
 			attach: () => Disposable.None,
@@ -208,7 +209,7 @@ suite('Session chat view editor', () => {
 	test('before its editor moves, the chat saves what it shows, such as where it is scrolled to, for the view where it moves to', () => {
 		const { instantiationService, chatViews } = createSessionViewTestServices(disposables);
 		const host: ISessionChatViewHost = {
-			session: constObservable(createTestActiveSession('session')),
+			content: constObservable(testPaneContentOf(createTestActiveSession('session'), () => { })),
 			window: constObservable(undefined),
 			active: constObservable(true),
 			attach: () => Disposable.None,
@@ -233,7 +234,7 @@ suite('Session chat view editor', () => {
 			mainPart: upcastPartial<IContentPart>({ activeGroup: upcastPartial<IEditorGroup>({ activeEditorPane: undefined, onDidActiveEditorChange: Event.None }), onDidChangeActiveGroup: Event.None }),
 		});
 		const createView = (sessionId: string, active: boolean) => disposables.add(instantiationService.createInstance(ChatEditorView, {
-			session: constObservable(createTestActiveSession(sessionId)),
+			content: constObservable(testPaneContentOf(createTestActiveSession(sessionId), () => { })),
 			window: constObservable(window),
 			active: constObservable(active),
 			attach: () => Disposable.None,
@@ -268,7 +269,7 @@ suite('Session chat view editor', () => {
 			mainPart: upcastPartial<IContentPart>({ activeGroup: upcastPartial<IEditorGroup>({ activeEditorPane: undefined, onDidActiveEditorChange: Event.None }), onDidChangeActiveGroup: Event.None }),
 		});
 		const view = disposables.add(instantiationService.createInstance(ChatEditorView, {
-			session: constObservable(createTestActiveSession('session')),
+			content: constObservable(testPaneContentOf(createTestActiveSession('session'), () => { })),
 			window: constObservable(window),
 			active: constObservable(true),
 			attach: () => Disposable.None,

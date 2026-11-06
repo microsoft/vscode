@@ -35,8 +35,7 @@ import { SessionWithWorkspaceContext } from '../../../../workbench/contrib/sessi
 import { SessionActivityBarLayoutActionsContext } from '../../../common/agentsWindowContextKeys.js';
 import { CHAT_WINDOW_OPEN_BROWSER_COMMAND_ID, CHAT_WINDOW_OPEN_CHANGES_COMMAND_ID, CHAT_WINDOW_OPEN_FILES_COMMAND_ID } from '../../../../workbench/contrib/sessions/common/sessionCommands.js';
 import { ISessionHostService, SessionHostKind } from '../../../../workbench/contrib/sessions/browser/sessionHost.js';
-import { IChat } from '../../../../workbench/contrib/sessions/common/session.js';
-import { IHostSession } from '../../../../workbench/contrib/sessions/common/sessionsManagement.js';
+import { IChat, ISession } from '../../../../workbench/contrib/sessions/common/session.js';
 import { SessionChangesEditorInput } from '../../../../workbench/contrib/sessions/browser/changes/sessionChangesEditorInput.js';
 import { ISessionChangesService } from '../../../../workbench/contrib/sessions/common/sessionChangesService.js';
 import { EmptyFileEditorInput } from '../../../../workbench/contrib/sessions/browser/emptyFileEditorInput.js';
@@ -221,7 +220,7 @@ interface IChatWindowTabEntry {
 	readonly order: number;
 	readonly when?: ContextKeyExpression;
 	/** Opens the tab for the session and chat the window shows, if it shows one. */
-	open(accessor: ServicesAccessor, shown: { readonly session: IHostSession; readonly chat: IChat | undefined } | undefined, group: IEditorGroup): Promise<void>;
+	open(accessor: ServicesAccessor, shown: { readonly session: ISession; readonly chat: IChat | undefined } | undefined, group: IEditorGroup): Promise<void>;
 }
 
 export const chatWindowTabEntries: readonly IChatWindowTabEntry[] = [{

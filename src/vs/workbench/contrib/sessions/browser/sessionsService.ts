@@ -12,7 +12,7 @@ import { Disposable, DisposableMap, DisposableStore, IDisposable, MutableDisposa
 import { ResourceMap } from '../../../../base/common/map.js';
 import { mainWindow } from '../../../../base/browser/window.js';
 import { IHostService } from '../../../services/host/browser/host.js';
-import { IObservable, autorun, constObservable, observableValue, transaction } from '../../../../base/common/observable.js';
+import { IObservable, IReader, autorun, constObservable, derived, observableValue, transaction } from '../../../../base/common/observable.js';
 import { URI } from '../../../../base/common/uri.js';
 import { createDecorator, IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
@@ -20,29 +20,30 @@ import { IStorageService, StorageScope, StorageTarget } from '../../../../platfo
 import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
 import { IWorkspaceTrustManagementService, IWorkspaceTrustRequestService } from '../../../../platform/workspace/common/workspaceTrust.js';
 import { localize } from '../../../../nls.js';
-import { ChatInteractivity, ChatOriginKind, IChat, ISession, SessionStatus } from '../common/session.js';
-import { IActiveSession, ICreateNewChatInSessionOptions, IHostSession, ICreateNewSessionOptions, inheritableSessionTarget, IRecentlyOpenedSessions, ISessionsChangeEvent, ISessionsManagementService, IToggleSessionStickinessEvent } from '../common/sessionsManagement.js';
+import { ChatInteractivity, ChatOriginKind, IChat, ISession, isSessionCreated, SessionStatus } from '../common/session.js';
+import { ICreateNewChatInSessionOptions, ICreateNewSessionOptions, inheritableSessionTarget, IRecentlyOpenedSessions, ISessionsChangeEvent, ISessionsManagementService, IToggleSessionStickinessEvent } from '../common/sessionsManagement.js';
 import { IChatMovedEvent } from '../common/sessionsProvider.js';
 import { ISessionsProvidersService } from './sessionsProvidersService.js';
 import { ensureSessionWorktreesTrusted } from './worktreeTrust.js';
 import { ClosedItemHistory } from './closedItemHistory.js';
 import { SessionNavigationIntent, SessionsNavigation } from './sessionNavigation.js';
 import { SessionsRecencyHistory } from './sessionsRecencyHistory.js';
-import { VisibleSession, VisibleSessions } from './visibleSessions.js';
+import { VisibleSessions } from './visibleSessions.js';
 import { IContextKey, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { ISessionsPartService, SessionGridRequest } from './sessionsPartService.js';
 import { IChatHostClosedChat, IChatHostOpenerService } from './chatHostOpener.js';
 import { ICustomViewService } from './customView.js';
 import { IWindowCanvasService } from './windowCanvas.js';
 import { IsNewChatSessionContext } from '../common/contextkeys.js';
-import { setActiveSessionContextKeys } from '../common/sessionContextKeys.js';
+import { setHostSessionContextKeys } from '../common/sessionContextKeys.js';
 import { ISessionChangesStatsCache } from '../common/sessionChangesStatsCache.js';
 import { ISessionOpenTelemetryAttempt, ISessionOpenTelemetryService, SessionOpenSource } from './sessionOpenTelemetryService.js';
 import { isAgentHostProvider } from '../common/agentHostSessionsProvider.js';
 import { Direction } from '../../../../base/browser/ui/grid/grid.js';
 import { ISessionGridState, isSessionGridState, projectSessionGrid } from './sessionGridState.js';
 import { IWorkbenchLayoutService, Parts } from '../../../services/layout/browser/layoutService.js';
-import { ActiveSessionHost, ISessionGridPanes, ISessionHost, SessionHostKind } from './sessionHost.js';
+import { ISessionGridPanes, ISessionHost, SessionHost, SessionHostKind } from './sessionHost.js';
+import { ISessionGridPane, paneViewStateOf, SessionGridPaneKind } from './sessionGridPane.js';
 
 const ACTIVE_SESSION_STATES_KEY = 'agentSessions.activeSessionStates';
 const SESSION_GRID_STATE_KEY = 'agentSessions.gridState';
@@ -51,6 +52,11 @@ export type SessionGridDirection = 'left' | 'right' | 'up' | 'down';
 
 export function toSessionGridDirection(direction: Direction): SessionGridDirection {
 	return direction === Direction.Left ? 'left' : direction === Direction.Right ? 'right' : direction === Direction.Up ? 'up' : 'down';
+}
+
+/** The chat `pane` shows apart from its session's slot: a detached pane's chat; `undefined` for a slot. */
+function detachedChatOf(pane: ISessionGridPane | undefined): URI | undefined {
+	return pane?.kind === SessionGridPaneKind.Detached ? pane.chat.get()?.resource : undefined;
 }
 
 /** Upper bound on redirecting every persisted slot before the grid is restored. */
@@ -131,6 +137,20 @@ export interface IOpenSessionOptions {
 	readonly forceMainChat?: boolean;
 }
 
+/** Where a navigation to a chat or a new chat of a session comes from. */
+export interface INavigationOrigin {
+	/**
+	 * The host it comes from, such as a view of a pane or the host a command names. The views of a detached pane of the
+	 * session navigate within that pane, as its chat picker and New Chat do. Without one, or from a host that stands for no
+	 * such pane, it opens in the session's slot, as from the sessions list.
+	 */
+	readonly from?: ISessionHost;
+}
+
+export interface IOpenChatOptions extends IOpenSessionOptions, INavigationOrigin { }
+
+export interface IOpenNewChatInSessionOptions extends ICreateNewChatInSessionOptions, INavigationOrigin { }
+
 export interface IOpenSessionsOptions extends IOpenSessionOptions {
 	readonly activate?: 'first' | 'last' | false;
 	/** Target a specific pane, including a standalone child of the reference session. */
@@ -191,21 +211,36 @@ export interface ISessionsService extends ISessionGridPanes {
 	 */
 	readonly gridHost: ISessionHost;
 
+	/** The panes of the grid: its slots, including the new-session slot, then its detached panes, in binding order. */
+	readonly panes: IObservable<readonly ISessionGridPane[]>;
+
+	/** The slots of the grid, without its detached panes: one per session it shows, and the new-session slot. */
+	readonly slotPanes: IObservable<readonly ISessionGridPane[]>;
+
+	/** The active pane of the grid, which the grid host shows: the new-session slot's while that is active. */
+	readonly activePane: IObservable<ISessionGridPane | undefined>;
+
 	/**
-	 * Observable list of main-session slots, excluding standalone child panes.
-	 * Each entry is either an
-	 * {@link IActiveSession} or `undefined` for the empty (new-session)
-	 * placeholder. At most one entry is `undefined` at a time. Sessions
-	 * pinned via {@link toggleSessionStickiness} are sticky; the remaining
-	 * non-sticky entries get replaced when new sessions are opened.
+	 * Makes `pane` the active pane, the new-session slot's for `undefined`, and moves focus into it unless `preserveFocus`.
+	 * No-op for a pane the grid does not show, such as one that has left it: this and the other members that take a pane.
 	 */
-	readonly visibleSessions: IObservable<readonly (IActiveSession | undefined)[]>;
+	activatePane(pane: ISessionGridPane | undefined, preserveFocus?: boolean): void;
 
-	/** All rendered panes, including standalone children, in binding order rather than visual grid order. */
-	readonly visibleSessionPanes: IObservable<readonly (IActiveSession | undefined)[]>;
+	/**
+	 * Closes `pane`: a detached pane returns its chat to its session's slot; a slot leaves the grid with its session, keeping
+	 * the session's detached panes, like {@link closeSession}; the new-session slot leaves while other panes remain.
+	 */
+	closePane(pane: ISessionGridPane): void;
 
-	/** The id of the active pane of the grid, as {@link getSessionPaneId} gives it; `undefined` while its new-session slot is. */
-	readonly activePaneId: IObservable<string | undefined>;
+	/** Removes every pane except `pane`, without starting or cancelling navigation. */
+	collapseToPane(pane: ISessionGridPane): void;
+
+	/** Moves focus to the pane next to `pane` in `direction`, and makes it the active pane. */
+	focusPaneInDirection(pane: ISessionGridPane, direction: Direction): void;
+	/** Moves `pane` next to its neighbor in `direction`. */
+	movePaneInDirection(pane: ISessionGridPane, direction: Direction): void;
+	/** Resizes `pane` in `direction`. */
+	resizePaneInDirection(pane: ISessionGridPane, direction: Direction): void;
 
 	/** Whether the initial persisted visible-session restore has settled. */
 	readonly initialRestoreComplete: IObservable<boolean>;
@@ -258,11 +293,11 @@ export interface ISessionsService extends ISessionGridPanes {
 	 * When `options.preserveFocus` is set, the chat is shown without moving
 	 * keyboard focus into it.
 	 */
-	openChat(session: ISession, chatUri: URI, options?: IOpenSessionOptions): Promise<void>;
+	openChat(session: ISession, chatUri: URI, options?: IOpenChatOptions): Promise<void>;
 	/** Place a child chat in the outer grid without changing its owning session. */
 	moveChatToGrid(sessionId: string, chatResource: URI, referenceSlotId: string, direction: SessionGridDirection): Promise<void>;
-	/** Place a chat beside its current pane without changing provider ownership. */
-	detachChat(session: IActiveSession, chatResource: URI): Promise<void>;
+	/** Place a chat of the session of `pane` beside `pane` without changing provider ownership. */
+	detachChat(pane: ISessionGridPane, chatResource: URI): Promise<void>;
 	/** Return a standalone chat to its owning session's chat grid. */
 	attachChat(session: ISession, chatResource: URI): void;
 
@@ -270,7 +305,7 @@ export interface ISessionsService extends ISessionGridPanes {
 	 * Close a chat from the session view. The chat is hidden from the tab strip
 	 * and can be reopened from the session header's chats dropdown.
 	 */
-	closeChat(session: IActiveSession, chat: IChat, options?: ICloseChatOptions): Promise<void>;
+	closeChat(session: ISession, chat: IChat, options?: ICloseChatOptions): Promise<void>;
 
 	/**
 	 * Reopen the single most recently closed chat or session and focus it.
@@ -310,7 +345,7 @@ export interface ISessionsService extends ISessionGridPanes {
 	 * active session. Returns the activated session, or `undefined` when no
 	 * provider supports quick chats. Automatic fallbacks preserve pending navigation.
 	 */
-	openQuickChat(options?: ICreateNewSessionOptions, preserveNavigation?: boolean, preserveFocus?: boolean): IActiveSession | undefined;
+	openQuickChat(options?: ICreateNewSessionOptions, preserveNavigation?: boolean, preserveFocus?: boolean): ISession | undefined;
 
 	/**
 	 * Switch to the new-chat-in-session view.
@@ -319,7 +354,7 @@ export interface ISessionsService extends ISessionGridPanes {
 	 * {@link ICreateNewChatInSessionOptions.forceNew} to always create a fresh
 	 * chat (e.g. when resetting the composer right after a background send).
 	 */
-	openNewChatInSession(session: ISession, options?: ICreateNewChatInSessionOptions): Promise<void>;
+	openNewChatInSession(session: ISession, options?: IOpenNewChatInSessionOptions): Promise<void>;
 
 	/**
 	 * Discard the pending new session and clear the active session, returning
@@ -348,9 +383,6 @@ export interface ISessionsService extends ISessionGridPanes {
 	 */
 	openMovedChats(chats: readonly { readonly session: ISession; readonly chatResource: URI }[]): Promise<void>;
 	arrangeSessions(): void;
-	focusSessionInDirection(session: IActiveSession | undefined, direction: Direction): void;
-	moveSessionInDirection(session: IActiveSession | undefined, direction: Direction): void;
-	resizeSession(session: IActiveSession | undefined, direction: Direction): void;
 
 	/**
 	 * Toggle a session's stickiness in the grid. The session keeps its grid
@@ -368,23 +400,10 @@ export interface ISessionsService extends ISessionGridPanes {
 	closeSession(session: ISession | undefined): void;
 
 	/**
-	 * Remove every visible slot except `session` without starting or cancelling
-	 * navigation. No-op when `session` is not currently visible.
-	 */
-	collapseToSession(session: IActiveSession | undefined): void;
-
-	/**
 	 * Close all sessions currently shown in the grid and land on the
 	 * new-session view. No-op when no session is currently visible.
 	 */
 	closeAllSessions(): void;
-
-	/**
-	 * Make the given (already visible) session the active session, and move focus into it unless `preserveFocus`, such as
-	 * when its window gains focus elsewhere than in its session. No-op for the session of a chat that another surface,
-	 * such as a chat editor, shows.
-	 */
-	setActive(session: IActiveSession | undefined, preserveFocus?: boolean): void;
 
 	/** Moves focus into the grid's active pane: its session's chat, or the new-session composer. */
 	focusActiveSession(): void;
@@ -416,11 +435,6 @@ export interface ISessionsService extends ISessionGridPanes {
 	openNextSession(): Promise<void>;
 }
 
-/** The id of a pane of the grid: the chat it shows of its own, else its session. */
-export function getSessionPaneId(pane: IActiveSession | undefined): string | undefined {
-	return pane?.scopedChatResource?.toString() ?? pane?.sessionId;
-}
-
 export const ISessionsService = createDecorator<ISessionsService>('sessionsService');
 
 export class SessionsService extends Disposable implements ISessionsService {
@@ -430,18 +444,18 @@ export class SessionsService extends Disposable implements ISessionsService {
 	private readonly _onDidToggleSessionStickiness = this._register(new Emitter<IToggleSessionStickinessEvent>());
 	readonly onDidToggleSessionStickiness: Event<IToggleSessionStickinessEvent> = this._onDidToggleSessionStickiness.event;
 
-	/** Owns the active/sticky/transient visibility model and the {@link IActiveSession} wrappers. */
+	/** Owns the active/sticky/transient visibility model and the panes of the grid. */
 	private readonly _visibility: VisibleSessions;
 	private readonly _gridRequest = observableValue<SessionGridRequest | undefined>(this, undefined);
-	readonly visibleSessions: IObservable<readonly (IActiveSession | undefined)[]>;
-	readonly visibleSessionPanes: IObservable<readonly (IActiveSession | undefined)[]>;
-	readonly activePaneId: IObservable<string | undefined>;
+	/** The sessions of the grid's slots, in order; `undefined` for the new-session slot. */
+	private readonly _slotSessions: IObservable<readonly (ISession | undefined)[]>;
+	readonly panes: IObservable<readonly ISessionGridPane[]>;
+	readonly slotPanes: IObservable<readonly ISessionGridPane[]>;
+	readonly activePane: IObservable<ISessionGridPane | undefined>;
 
 	/** Remembers the single most recently closed chat or session for {@link reopenLastClosedItem}. */
 	private readonly _closedItems: ClosedItemHistory;
 
-	/** The grid's selection: the session of its active pane. Not part of {@link ISessionsService}: others read {@link gridHost}. */
-	readonly activeSession: IObservable<IActiveSession | undefined>;
 	readonly gridHost: ISessionHost;
 	private readonly _initialRestoreComplete = observableValue<boolean>(this, false);
 	readonly initialRestoreComplete: IObservable<boolean> = this._initialRestoreComplete;
@@ -480,8 +494,8 @@ export class SessionsService extends Disposable implements ISessionsService {
 	 */
 	private readonly _recencyHistory: SessionsRecencyHistory;
 
-	/** Tracks wrapper identity so same-ID replacements restore focus but unrelated visibility changes do not. */
-	private _focusedActiveSession: IActiveSession | undefined;
+	/** The active pane, and the session it showed, that focus last moved into: focus moves again when either changes. */
+	private _focusedActive: { readonly pane: ISessionGridPane | undefined; readonly session: ISession | undefined } | undefined;
 	/** The window that last gained focus; sticky, so the app being in the background doesn't change it. */
 	private _focusedWindowId = mainWindow.vscodeWindowId;
 	/** A focus the main window skipped while another window was focused; applied once when the main window next becomes active. */
@@ -518,7 +532,7 @@ export class SessionsService extends Disposable implements ISessionsService {
 		// Load persisted state
 		this._sessionStates = this._loadSessionStates();
 
-		// Visibility model — owns wrappers, active/sticky/transient state, and
+		// Visibility model — owns the panes, active/sticky/transient state, and
 		// observables exposed to the UI.
 		this._visibility = this._register(this.instantiationService.createInstance(
 			VisibleSessions,
@@ -527,14 +541,15 @@ export class SessionsService extends Disposable implements ISessionsService {
 			session => this._restoreShownRelatedChats(session),
 			(replaced, index, sticky, replacedBySessionId) => this._closedItems.recordReplacedSlot(replaced, index, sticky, replacedBySessionId),
 		));
-		this.visibleSessions = this._visibility.visibleSessions;
-		this.visibleSessionPanes = this._visibility.gridSessions;
-		this.activePaneId = this._visibility.activeSession.map(getSessionPaneId);
-		this.activeSession = this._visibility.activeSession;
-		this.gridHost = new ActiveSessionHost({
+		this._slotSessions = this._visibility.slotSessions;
+		this.panes = this._visibility.panes;
+		this.slotPanes = this._visibility.slotPanes;
+		this.activePane = this._visibility.activePane;
+		this.gridHost = new SessionHost({
 			kind: SessionHostKind.MainWindow,
 			parent: undefined,
-			session: this._visibility.activeSession,
+			session: derived(reader => this._visibility.activePane.read(reader)?.session.read(reader)),
+			chat: derived(reader => this._visibility.activePane.read(reader)?.chat.read(reader)),
 			contextKeyService: this.contextKeyService,
 			windowId: constObservable(mainWindow.vscodeWindowId),
 		});
@@ -567,7 +582,7 @@ export class SessionsService extends Disposable implements ISessionsService {
 				openChat: (session, resource) => this._openChatSession(session, resource, { source: 'navigation' }, 'history'),
 				openNewSession: async () => { await this._openNewSession({ cancelRestore: true }, CancellationToken.None, 'history'); },
 			},
-			this.activeSession,
+			this.activePane,
 			this.customViewService,
 			this.windowCanvasService,
 			this.sessionsManagementService,
@@ -597,22 +612,25 @@ export class SessionsService extends Disposable implements ISessionsService {
 		// observable properties via `reader`, so this autorun re-applies the keys
 		// whenever any of them change.
 		this._register(autorun(reader => {
-			const activeSession = this.activeSession.read(reader);
+			const activePane = this.activePane.read(reader);
+			const activeSession = activePane?.session.read(reader);
 			const newSession = this.sessionsManagementService.newSession.read(reader);
 			// `isNewChatSession` is true when no active session exists, OR when the
 			// active session is still the in-progress new session (created but not yet
 			// sent for the first time). Scoping to the active session avoids flipping
 			// into "new chat" mode while viewing a different established session.
 			this._isNewChatSessionContext.set(activeSession === undefined || activeSession.sessionId === newSession?.sessionId);
-			setActiveSessionContextKeys(activeSession, this.contextKeyService, reader, this.changesStatsCache);
+			setHostSessionContextKeys(activeSession, activePane?.chat.read(reader), activePane && paneViewStateOf(activePane), this.contextKeyService, reader, this.changesStatsCache);
 		}));
 
 		// Per-active-session view reactions (archived → new-session view,
 		// active-chat removed → fallback chat, persist the active chat).
+		// They rebind for a new session of the same pane, such as a draft graduating, as for another pane.
 		this._register(autorun(reader => {
-			const activeSession = this.activeSession.read(reader);
-			if (activeSession) {
-				reader.store.add(this._activeSessionViewListeners(activeSession));
+			const activePane = this._visibility.activePane.read(reader);
+			const activeSession = activePane?.session.read(reader);
+			if (activePane && activeSession) {
+				reader.store.add(this._activePaneViewListeners(activePane, activeSession));
 			}
 		}));
 
@@ -636,23 +654,34 @@ export class SessionsService extends Disposable implements ISessionsService {
 
 		// Drive the part: reconcile the grid and move focus into the active
 		// session whenever the visible sessions or the active session change.
+		// Focus does not move into the grid's initial pane.
+		this._focusedActive = { pane: this._visibility.activePane.get(), session: this._visibility.activePane.get()?.session.get() };
 		this._register(autorun(reader => {
-			const visible = this._visibility.gridSessions.read(reader);
-			const active = this._visibility.activeSession.read(reader);
+			// The grid publishes its panes again with every incarnation of a session it shows, as do its panes' sessions: the
+			// views of the panes bind to a replacement as the part renders the panes again.
+			const panes = this._visibility.panes.read(reader);
+			for (const pane of panes) {
+				pane.session.read(reader);
+			}
+			const activePane = this._visibility.activePane.read(reader);
+			const activePaneSession = activePane?.session.read(reader);
 			const preserveFocus = this._visibility.activePreserveFocus.read(reader);
 			const canvasNavigation = this.windowCanvasService.navigationRequest.read(reader);
 			const request = this._gridRequest.read(reader);
-			this.sessionsPartService.updateVisibleSessions(visible, active, this._visibility.getRenderedGridSlots(), request);
+			this.sessionsPartService.updatePanes(panes, activePane, this._visibility.getRenderedGridSlots(), request);
 
-			if (active !== this._focusedActiveSession) {
-				this._focusedActiveSession = active;
+			// A replacement keeps the pane but changes its session, such as a draft graduating: focus moves into it again.
+			if (activePane !== this._focusedActive?.pane || activePaneSession !== this._focusedActive?.session) {
+				this._focusedActive = { pane: activePane, session: activePaneSession };
 				// Startup restoration may populate the grid underneath an open or opening canvas.
 				if (!preserveFocus && !canvasNavigation) {
 					// Another window of the app holding focus (e.g. a chat window a chat just moved into) must not be pulled back to the main window.
-					if (this._focusedWindowId === mainWindow.vscodeWindowId) {
-						this.sessionsPartService.focusSession(active);
-					} else {
+					if (this._focusedWindowId !== mainWindow.vscodeWindowId) {
 						this._skipMainWindowFocus();
+					} else if (activePane) {
+						this.sessionsPartService.focusPane(activePane);
+					} else {
+						this.sessionsPartService.focusNewSessionSlot();
 					}
 				}
 			}
@@ -660,11 +689,10 @@ export class SessionsService extends Disposable implements ISessionsService {
 
 		// When a session view in the grid receives focus, promote that session
 		// to the active session.
-		this._register(this.sessionsPartService.onDidFocusSession(sessionId => {
-			const session = (sessionId ? this._visibility.getGridSession(sessionId) : undefined)
-				?? this.visibleSessions.get().find(s => s?.sessionId === sessionId);
-			if (sessionId === undefined || session) {
-				this.setActive(session);
+		this._register(this.sessionsPartService.onDidFocusPane(paneId => {
+			const pane = this._visibility.getPane(paneId);
+			if (pane) {
+				this.activatePane(pane);
 			}
 		}));
 		this._register(this.sessionsPartService.onDidInteractWithGrid(() => {
@@ -686,11 +714,11 @@ export class SessionsService extends Disposable implements ISessionsService {
 	 */
 	private _rememberDepartedSession(session: ISession): void {
 		const slot = this._visibility.getSlot(session.sessionId);
-		const visible = this.visibleSessions.get().find(candidate => candidate?.sessionId === session.sessionId);
+		const visible = this._slotPaneOf(session.sessionId);
 		if (!slot || !visible) {
 			return;
 		}
-		this._departedSessions.set(session.resource, { index: slot.index, sticky: slot.sticky, activeChat: visible.activeChat.get()?.resource, newSessionSlots: this._getNewSessionSlots() });
+		this._departedSessions.set(session.resource, { index: slot.index, sticky: slot.sticky, activeChat: visible.chat.get()?.resource, newSessionSlots: this._getNewSessionSlots() });
 		this._departedSessionTimeouts.set(session.resource, disposableTimeout(() => {
 			this._departedSessions.delete(session.resource);
 			this._departedSessionTimeouts.deleteAndDispose(session.resource);
@@ -700,18 +728,18 @@ export class SessionsService extends Disposable implements ISessionsService {
 	private _onDidMoveChat(event: IChatMovedEvent): void {
 		const extUri = this.uriIdentityService.extUri;
 		const { from, to } = event;
-		const shown = this.visibleSessions.get().find(session => session && extUri.isEqual(session.resource, from.session.resource));
+		const shown = this._slotSessions.get().find(session => session && extUri.isEqual(session.resource, from.session.resource));
 		if (!shown) {
 			this._onDidMoveChatFromDepartedSession(event);
 			return;
 		}
 		// The view may already have fallen back when the session dropped the chat before the move was known.
-		if (!extUri.isEqual(shown.activeChat.get()?.resource, from.chat) && !extUri.isEqual(this._visibility.getChatFallenBackFrom(shown), from.chat)) {
+		if (!extUri.isEqual(this._slotPaneOf(shown.sessionId)?.chat.get()?.resource, from.chat) && !extUri.isEqual(this._visibility.getChatFallenBackFrom(shown), from.chat)) {
 			return;
 		}
-		const wasActive = this.activeSession.get()?.sessionId === shown.sessionId;
+		const wasActive = this._activeGridSession()?.sessionId === shown.sessionId;
 		const preserveFocus = this.sessionsPartService.getFocusedSessionView() !== this.sessionsPartService.getSessionView(shown.sessionId);
-		if (!this.visibleSessions.get().some(session => session && extUri.isEqual(session.resource, to.session.resource))) {
+		if (!this._slotSessions.get().some(session => session && extUri.isEqual(session.resource, to.session.resource))) {
 			this._visibility.updateSession(shown, to.session, preserveFocus);
 		}
 		if (wasActive) {
@@ -729,7 +757,7 @@ export class SessionsService extends Disposable implements ISessionsService {
 	/** The grid slots showing the new-session composer: the empty slot (`undefined`) and the new-session draft's. */
 	private _getNewSessionSlots(): (string | undefined)[] {
 		const slots: (string | undefined)[] = [];
-		if (this.visibleSessions.get().some(session => session === undefined)) {
+		if (this._slotSessions.get().some(session => session === undefined)) {
 			slots.push(undefined);
 		}
 		const draft = this.sessionsManagementService.newSession.get();
@@ -748,11 +776,11 @@ export class SessionsService extends Disposable implements ISessionsService {
 		}
 		this._departedSessions.delete(from.session.resource);
 		this._departedSessionTimeouts.deleteAndDispose(from.session.resource);
-		if (!this.visibleSessions.get().some(session => session && extUri.isEqual(session.resource, to.session.resource))) {
+		if (!this._slotSessions.get().some(session => session && extUri.isEqual(session.resource, to.session.resource))) {
 			// Its removal may have opened the new-session fallback (the empty slot or the new-session draft) in its
 			// slot: the moved chat's session takes that slot over instead of adding another.
 			const fallback = this._getNewSessionSlots().filter(slotId => !departed.newSessionSlots.includes(slotId) && this._visibility.getSlot(slotId)?.index === departed.index);
-			const replaced = fallback.length ? this._visibility.replaceSlot(fallback[0], to.session, departed.sticky) : undefined;
+			const replaced = fallback.length ? this._visibility.replaceSlot(fallback[0], to.session, departed.sticky) : false;
 			if (!replaced) {
 				this._visibility.insertAtIndex(to.session, departed.index, departed.sticky);
 			}
@@ -760,14 +788,17 @@ export class SessionsService extends Disposable implements ISessionsService {
 		void this._openChatSession(to.session, to.chat, { preserveFocus: true }, 'automatic').catch(onUnexpectedError);
 	}
 
-	private _activeSessionViewListeners(activeSession: IActiveSession): IDisposable {
+	/** The reactions to the active pane `pane` showing `activeSession`, the session it shows. */
+	private _activePaneViewListeners(pane: ISessionGridPane, activeSession: ISession): IDisposable {
 		const disposables = new DisposableStore();
-		const initialChatResource = activeSession.activeChat.get()?.resource;
+		// The chat the pane shows of this session: none once the pane shows another, as these reactions go with this session.
+		const paneChat = derived(reader => pane.session.read(reader) === activeSession ? pane.chat.read(reader) : undefined);
+		const initialChatResource = paneChat.get()?.resource;
 		let pendingRestoredChatResource: URI | undefined;
 		this._pendingRestoredChatResources.delete(activeSession.resource);
 		const storedResource = this._sessionStates.get(activeSession.resource)?.activeChatResource;
-		const storedActiveChatResource = !activeSession.scopedChatResource
-			&& !this._visibility.gridSessions.get().some(session => session?.sessionId === activeSession.sessionId && session.scopedChatResource?.toString() === storedResource)
+		const storedActiveChatResource = !detachedChatOf(pane)
+			&& !this._visibility.panes.get().some(candidate => candidate.session.get()?.sessionId === activeSession.sessionId && detachedChatOf(candidate)?.toString() === storedResource)
 			? storedResource : undefined;
 		if (storedActiveChatResource) {
 			try {
@@ -803,7 +834,7 @@ export class SessionsService extends Disposable implements ISessionsService {
 		if (activeSession.status.get() !== SessionStatus.Untitled) {
 			disposables.add(autorun(reader => {
 				const chats = activeSession.chats.read(reader);
-				const activeChat = activeSession.activeChat.read(reader);
+				const activeChat = paneChat.read(reader);
 				if (activeChat && !chats.some(c => this.uriIdentityService.extUri.isEqual(c.resource, activeChat.resource))) {
 					// Fall back to the last visible (non-hidden) chat, or the main chat.
 					const visible = chats.filter(c => c.interactivity.read(reader) !== ChatInteractivity.Hidden);
@@ -839,7 +870,7 @@ export class SessionsService extends Disposable implements ISessionsService {
 		// chat visibility is persisted deterministically in `closeChat`/`openChat`
 		// instead, so it never depends on chats being loaded or on autorun timing.
 		disposables.add(autorun(reader => {
-			const chat = activeSession.activeChat.read(reader);
+			const chat = paneChat.read(reader);
 			if (chat && chat.status.read(undefined) !== SessionStatus.Untitled) {
 				if (pendingRestoredChatResource && initialChatResource && this.uriIdentityService.extUri.isEqual(chat.resource, initialChatResource)) {
 					return;
@@ -864,7 +895,7 @@ export class SessionsService extends Disposable implements ISessionsService {
 				lastReadRequest = undefined;
 				return;
 			}
-			const chat = activeSession.activeChat.read(reader);
+			const chat = paneChat.read(reader);
 			const mainChat = activeSession.mainChat.read(reader);
 			const activeChatChanged = !chat || !previousActiveChat || !this.uriIdentityService.extUri.isEqual(chat.resource, previousActiveChat);
 			previousActiveChat = chat?.resource;
@@ -914,10 +945,10 @@ export class SessionsService extends Disposable implements ISessionsService {
 	}
 
 	private _onDidChangeSessions(e: ISessionsChangeEvent): void {
-		const currentActive = this._visibility.activeSession.get();
+		const currentActive = this._activeGridSession();
 
 		// Clean removed sessions out of the visibility model (drops their grid
-		// slot and disposes their wrapper). If the active session is among the
+		// slot and disposes their slot state). If the active session is among the
 		// removed, removeMany picks a fallback active session (or clears it when
 		// no slot remains); drive the open flow below so the fallback is fully
 		// opened.
@@ -934,10 +965,12 @@ export class SessionsService extends Disposable implements ISessionsService {
 		}
 
 		if (e.removed.length && e.removed.some(r => r.sessionId === currentActive.sessionId)) {
-			const fallback = this._visibility.activeSession.get();
+			const fallbackPane = this._visibility.activePane.get();
+			const fallback = fallbackPane?.session.get();
+			const fallbackChat = detachedChatOf(fallbackPane);
 			if (fallback && this.sessionsManagementService.getSession(fallback.resource)) {
-				if (fallback.scopedChatResource) {
-					void this._openChatSession(fallback, fallback.scopedChatResource, { source: 'fallback' }, 'automatic').catch(onUnexpectedError);
+				if (fallbackChat) {
+					void this._openChatSession(fallback, fallbackChat, { source: 'fallback' }, 'automatic').catch(onUnexpectedError);
 				} else {
 					void this._openSession(fallback.resource, { source: 'fallback' }, 'automatic').catch(onUnexpectedError);
 				}
@@ -958,9 +991,10 @@ export class SessionsService extends Disposable implements ISessionsService {
 			}
 		}));
 		store.add(autorun(reader => {
-			const active = this._visibility.activeSession.read(reader);
-			if (active && active.sessionId === followId) {
-				const chats = active.visibleChatTabs.read(reader);
+			const activePane = this._visibility.activePane.read(reader);
+			const active = activePane?.session.read(reader);
+			if (activePane && active && active.sessionId === followId) {
+				const chats = activePane.tabs.visibleChatTabs.read(reader);
 				const lastChat = chats[chats.length - 1];
 				if (lastChat) {
 					this._visibility.setActiveChat(active, lastChat);
@@ -970,16 +1004,131 @@ export class SessionsService extends Disposable implements ISessionsService {
 		this._sendFollow.value = store;
 	}
 
-	isActivePane(pane: IHostSession | undefined): boolean {
-		return this._visibility.isActivePane(pane);
+	getPaneOfHost(host: ISessionHost, reader?: IReader): ISessionGridPane | undefined {
+		if (host === this.gridHost) {
+			return this._visibility.activePane.read(reader);
+		}
+		const id = this.sessionsPartService.getPaneIdOfHost(host);
+		return id === undefined ? undefined : this._visibility.getPane(id, reader);
 	}
 
-	isDetachedPane(pane: IHostSession | undefined): boolean {
-		return this._visibility.isDetachedPane(pane);
+	isActivePane(host: ISessionHost): boolean {
+		if (host === this.gridHost) {
+			return true;
+		}
+		const pane = this.getPaneOfHost(host);
+		return !!pane && pane === this._visibility.activePane.get();
 	}
 
-	isGridPane(pane: IHostSession | undefined): boolean {
-		return this._visibility.isGridPane(pane);
+	isDetachedPane(host: ISessionHost): boolean {
+		return this.getPaneOfHost(host)?.kind === SessionGridPaneKind.Detached;
+	}
+
+	activatePane(pane: ISessionGridPane | undefined, preserveFocus?: boolean): void {
+		if (!pane || this._isLivePane(pane)) {
+			this._setActivePane(pane, preserveFocus);
+		}
+	}
+
+	closePane(pane: ISessionGridPane): void {
+		if (!this._isLivePane(pane)) {
+			return;
+		}
+		const session = pane.session.get();
+		const chat = detachedChatOf(pane);
+		if (session && chat) {
+			// A detached pane closes by attaching its chat back to its session's slot.
+			this._cancelRestore();
+			this._startOpenSession();
+			this._visibility.attachChat(session, chat);
+			return;
+		}
+		this.closeSession(session);
+	}
+
+	collapseToPane(pane: ISessionGridPane): void {
+		if (this._isLivePane(pane)) {
+			this._collapseToPane(pane);
+		}
+	}
+
+	focusPaneInDirection(pane: ISessionGridPane, direction: Direction): void {
+		if (!this._isLivePane(pane)) {
+			return;
+		}
+		this._cancelRestore();
+		this._startOpenSession();
+		const neighbor = this.sessionsPartService.getNeighborPane(pane, direction);
+		if (neighbor) {
+			this.activatePane(neighbor);
+			this.sessionsPartService.focusPane(neighbor);
+		}
+	}
+
+	movePaneInDirection(pane: ISessionGridPane, direction: Direction): void {
+		if (!this._isLivePane(pane)) {
+			return;
+		}
+		this._cancelRestore();
+		this._startOpenSession();
+		const neighbor = this.sessionsPartService.getNeighborPane(pane, direction);
+		if (!neighbor) {
+			return;
+		}
+		const session = pane.session.get();
+		const chat = pane.chat.get();
+		if (pane.kind === SessionGridPaneKind.Detached && session && chat) {
+			void this.moveChatToGrid(session.sessionId, chat.resource, neighbor.id, toSessionGridDirection(direction)).catch(onUnexpectedError);
+			return;
+		}
+		this._visibility.insertAtGridSlot(session, neighbor.id, toSessionGridDirection(direction), true);
+	}
+
+	resizePaneInDirection(pane: ISessionGridPane, direction: Direction): void {
+		if (!this._isLivePane(pane)) {
+			return;
+		}
+		this._cancelRestore();
+		this._startOpenSession();
+		this.sessionsPartService.resizePane(pane, direction, 40);
+	}
+
+	/** Moves focus into the view of the active pane. */
+	private _focusActivePane(): void {
+		const pane = this._visibility.activePane.get();
+		if (pane) {
+			this.sessionsPartService.focusPane(pane);
+		} else {
+			this.sessionsPartService.focusNewSessionSlot();
+		}
+	}
+
+	/**
+	 * What a navigation of `session` from `from` activates: the detached pane of `session` that `from` stands for, so that
+	 * it navigates within that pane and a slot for the session goes beside it; else `session`, which opens in the session's
+	 * slot, replacing another slot when it has none.
+	 */
+	private _navigationTarget(session: ISession, from: ISessionHost | undefined): ISession | ISessionGridPane {
+		const pane = from && this.getPaneOfHost(from);
+		return pane?.kind === SessionGridPaneKind.Detached && pane.session.get()?.sessionId === session.sessionId ? pane : session;
+	}
+
+	/** The session of the grid's active pane: `undefined` while the new-session slot, or no pane, is active. */
+	private _activeGridSession(reader?: IReader): ISession | undefined {
+		return this._visibility.activePane.read(reader)?.session.read(reader);
+	}
+
+	/** The slot pane of the session `sessionId`, if the grid shows the session in a slot. */
+	private _slotPaneOf(sessionId: string): ISessionGridPane | undefined {
+		return this._visibility.slotPanes.get().find(pane => pane.session.get()?.sessionId === sessionId);
+	}
+
+	/**
+	 * Whether `pane` is a pane the grid shows now: a pane that has left the grid, or another grid's, must not reach the
+	 * members that act on a pane.
+	 */
+	private _isLivePane(pane: ISessionGridPane): boolean {
+		return this._visibility.getPane(pane.id) === pane;
 	}
 
 	getRecentlyOpenedSessions(): IRecentlyOpenedSessions {
@@ -1059,10 +1208,10 @@ export class SessionsService extends Disposable implements ISessionsService {
 	 * with the active session by the visibility model, and the model's
 	 * canonical active session is updated reactively by the mirror autorun.
 	 */
-	private _activate(session: ISession | undefined, preserveFocus?: boolean, intent: SessionNavigationIntent = 'automatic'): IActiveSession | undefined {
-		const previousActive = this.activeSession.get();
+	private _activate(target: ISession | ISessionGridPane | undefined, preserveFocus?: boolean, intent: SessionNavigationIntent = 'automatic'): ISession | undefined {
+		const previousPane = this._visibility.activePane.get();
+		const previousSession = previousPane?.session.get();
 		const leavingCanvas = intent !== 'automatic' && !!this.windowCanvasService.activeCanvasOpen.get();
-		let active: IActiveSession | undefined;
 		transaction(tx => {
 			// Dismiss the custom view atomically so its covered session is not recorded as a visit.
 			if (intent !== 'automatic') {
@@ -1070,19 +1219,22 @@ export class SessionsService extends Disposable implements ISessionsService {
 				this.windowCanvasService.deactivateCanvas(tx);
 				this.layoutService.setPartHidden(false, Parts.SESSIONS_PART);
 			}
-			active = this._visibility.setActive(session, preserveFocus);
+			this._visibility.setActive(target, preserveFocus);
 		});
-		if (leavingCanvas && !preserveFocus && active === previousActive) {
-			this.sessionsPartService.focusSession(active);
+		const activePane = this._visibility.activePane.get();
+		const active = activePane?.session.get();
+		// Activating what was active already moves no focus by itself: move it out of the canvas being left.
+		if (leavingCanvas && !preserveFocus && active === previousSession && (!active || activePane === previousPane)) {
+			this._focusActivePane();
 		}
 		return active;
 	}
 
-	openChat(session: ISession, chatUri: URI, options?: IOpenSessionOptions): Promise<void> {
+	openChat(session: ISession, chatUri: URI, options?: IOpenChatOptions): Promise<void> {
 		return this._openChatSession(session, chatUri, options, 'explicit');
 	}
 
-	private async _openChatSession(session: ISession, chatUri: URI, options: IOpenSessionOptions | undefined, intent: SessionNavigationIntent): Promise<void> {
+	private async _openChatSession(session: ISession, chatUri: URI, options: IOpenChatOptions | undefined, intent: SessionNavigationIntent): Promise<void> {
 		const t0 = Date.now();
 		this._cancelRestore();
 		this._beginNavigation(intent);
@@ -1109,20 +1261,20 @@ export class SessionsService extends Disposable implements ISessionsService {
 						telemetryAttempt,
 						session.resource,
 						session.providerId,
-						this.activeSession.get()?.sessionId === session.sessionId,
+						this._activeGridSession()?.sessionId === session.sessionId,
 						session.loading.get(),
 					);
-					await this._openChat(session, chatUri, options.preserveFocus, token, t0, telemetryAttempt, intent);
+					await this._openChat(session, chatUri, options.preserveFocus, token, t0, telemetryAttempt, intent, options.from);
 				});
 				return;
 			}
-			await this._openChat(session, chatUri, options?.preserveFocus, token, t0, undefined, intent);
+			await this._openChat(session, chatUri, options?.preserveFocus, token, t0, undefined, intent, options?.from);
 		} finally {
 			navigation.cancel();
 		}
 	}
 
-	private async _openChat(session: ISession, chatUri: URI, preserveFocus: boolean | undefined, token: CancellationToken, startTime: number, telemetryAttempt?: ISessionOpenTelemetryAttempt, intent: SessionNavigationIntent = 'explicit'): Promise<void> {
+	private async _openChat(session: ISession, chatUri: URI, preserveFocus: boolean | undefined, token: CancellationToken, startTime: number, telemetryAttempt?: ISessionOpenTelemetryAttempt, intent: SessionNavigationIntent = 'explicit', from?: ISessionHost): Promise<void> {
 		const pendingOpen = { chatResource: chatUri, token };
 		this._pendingExplicitChatOpens.set(session.resource, pendingOpen);
 		const navigation = this._navigation.beginSessionOpen(intent, token);
@@ -1131,7 +1283,7 @@ export class SessionsService extends Disposable implements ISessionsService {
 				this.sessionOpenTelemetryService.sessionActivated(telemetryAttempt, chatUri);
 			}
 			this.logService.trace(`[SessionsView] openChat start uri=${chatUri.toString()} provider=${session.providerId}`);
-			const opened = this._activate(this._visibility.getChatPane(session.sessionId, chatUri) ?? session, preserveFocus, intent);
+			const opened = this._activate(this._visibility.getChatPane(session.sessionId, chatUri) ?? this._navigationTarget(session, from), preserveFocus, intent);
 			if (!await this._waitForSessionToLoad(session, token)) {
 				this.logService.trace(`[SessionsView] openChat cancelled while waiting for session to load uri=${chatUri.toString()}`);
 				return;
@@ -1140,7 +1292,7 @@ export class SessionsService extends Disposable implements ISessionsService {
 			// Find the chat and update active chat: in the session opened, also once focus moved into another window,
 			// whose session is then active.
 			let chat: IChat | undefined;
-			const current = this._visibility.activeSession.get();
+			const current = this._activeGridSession();
 			const activeSession = current?.sessionId === session.sessionId ? current : opened;
 			if (activeSession) {
 				chat = activeSession.chats.get().find(c => this.uriIdentityService.extUri.isEqual(c.resource, chatUri));
@@ -1180,7 +1332,7 @@ export class SessionsService extends Disposable implements ISessionsService {
 		}
 	}
 
-	async closeChat(session: IActiveSession, chat: IChat, options?: ICloseChatOptions): Promise<void> {
+	async closeChat(session: ISession, chat: IChat, options?: ICloseChatOptions): Promise<void> {
 		// A chat another surface shows, such as a chat editor, closes there: the grid does not show it.
 		const shownBy = this.chatHostOpenerService.getOpenerOf(chat.resource);
 		if (shownBy) {
@@ -1213,7 +1365,7 @@ export class SessionsService extends Disposable implements ISessionsService {
 			return;
 		}
 		let prepared: ISession[] | undefined;
-		if (!this._visibility.gridSessions.get().some(visible => visible?.sessionId === sessionId)) {
+		if (!this._visibility.panes.get().some(pane => pane.session.get()?.sessionId === sessionId)) {
 			const resolved = await this._resolveSessionForOpen(session, chatResource);
 			session = resolved.session;
 			chatResource = resolved.chatUri ?? chatResource;
@@ -1243,8 +1395,8 @@ export class SessionsService extends Disposable implements ISessionsService {
 		if (this.uriIdentityService.extUri.isEqual(chat.resource, session.mainChat.get().resource)) {
 			const slots = this._visibility.getRenderedGridSlots();
 			const index = slots.findIndex(slot => slot.id === referenceSlotId);
-			const target = this._visibility.gridSessions.get()[index];
-			const placed = () => this._visibility.gridSessions.get().some(visible => visible?.sessionId === session.sessionId);
+			const target = this._visibility.panes.get()[index]?.session.get();
+			const placed = () => this._visibility.panes.get().some(pane => pane.session.get()?.sessionId === session.sessionId);
 			// The chat it closed shows again where it showed unless the grid took it, such as when the target went away or
 			// the opening was cancelled meanwhile
 			let failure: unknown;
@@ -1263,20 +1415,19 @@ export class SessionsService extends Disposable implements ISessionsService {
 		}
 		this._visibility.moveChatToGrid(session, chat, referenceSlotId,
 			direction === 'left' ? Direction.Left : direction === 'right' ? Direction.Right : direction === 'up' ? Direction.Up : Direction.Down);
-		this.sessionsPartService.focusSession(this.activeSession.get());
+		this._focusActivePane();
 	}
 
-	async detachChat(session: IActiveSession, chatResource: URI): Promise<void> {
-		if (this.uriIdentityService.extUri.isEqual(chatResource, session.mainChat.get().resource)
-			|| this.uriIdentityService.extUri.isEqual(chatResource, session.scopedChatResource)) {
+	async detachChat(pane: ISessionGridPane, chatResource: URI): Promise<void> {
+		const session = pane.session.get();
+		if (!session || this.uriIdentityService.extUri.isEqual(chatResource, session.mainChat.get().resource)
+			|| (pane.kind === SessionGridPaneKind.Detached && this.uriIdentityService.extUri.isEqual(chatResource, pane.chat.get()?.resource))) {
 			return;
 		}
-		const index = this._visibility.gridSessions.get().indexOf(session);
-		const reference = this._visibility.getRenderedGridSlots()[index];
-		if (!reference) {
+		if (!this._isLivePane(pane)) {
 			throw new Error(`Cannot detach a chat from unavailable pane '${session.sessionId}'`);
 		}
-		await this.moveChatToGrid(session.sessionId, chatResource, reference.id, 'right');
+		await this.moveChatToGrid(session.sessionId, chatResource, pane.id, 'right');
 	}
 
 	attachChat(session: ISession, chatResource: URI): void {
@@ -1292,7 +1443,7 @@ export class SessionsService extends Disposable implements ISessionsService {
 	/**
 	 * Persist a chat's closed/open state into the session's stored view state so
 	 * it survives switching the session out of the grid (which disposes its
-	 * wrapper) and reloads. Done synchronously on the close/open action rather
+	 * slot state) and reloads. Done synchronously on the close/open action rather
 	 * than reactively from `closedChats`, which would depend on the session's
 	 * chats being loaded. The main chat can never be closed and is ignored.
 	 */
@@ -1353,8 +1504,7 @@ export class SessionsService extends Disposable implements ISessionsService {
 		if (options?.forceMainChat || (options?.restoreOnlySideOrToolChat && origin !== ChatOriginKind.SideChat && origin !== ChatOriginKind.Tool)) {
 			return session.mainChat.get().resource;
 		}
-		const shown = this._visibility.visibleSessions.get().find(candidate => candidate?.sessionId === session.sessionId && !candidate.scopedChatResource);
-		return (shown?.activeChat.get() ?? this._restoreInitialChat(session)).resource;
+		return (this._slotPaneOf(session.sessionId)?.chat.get() ?? this._restoreInitialChat(session)).resource;
 	}
 
 	private async _openSession(sessionResource: URI, options: IOpenSessionOptions | undefined, intent: SessionNavigationIntent): Promise<void> {
@@ -1387,7 +1537,7 @@ export class SessionsService extends Disposable implements ISessionsService {
 					telemetryAttempt,
 					sessionData.resource,
 					sessionData.providerId,
-					this.activeSession.get()?.sessionId === sessionData.sessionId,
+					this._activeGridSession()?.sessionId === sessionData.sessionId,
 					sessionData.loading.get(),
 				);
 				// Mount before connecting so existing loading and recovery UI can render.
@@ -1395,9 +1545,10 @@ export class SessionsService extends Disposable implements ISessionsService {
 				if (intent !== 'history') {
 					navigation.complete();
 				}
-				const activeSession = this.activeSession.get();
-				const reopening = intent === 'explicit' && activeSession?.sessionId === sessionData.sessionId && !token.isCancellationRequested
-					? this.sessionsPartService.getSessionView(sessionData.sessionId)?.reopenChat(activeSession.activeChat.get().resource)
+				const activePane = this._visibility.activePane.get();
+				const activeChat = activePane?.session.get()?.sessionId === sessionData.sessionId ? activePane.chat.get() : undefined;
+				const reopening = intent === 'explicit' && activeChat && !token.isCancellationRequested
+					? this.sessionsPartService.getSessionView(sessionData.sessionId)?.reopenChat(activeChat.resource)
 					: undefined;
 				await Promise.all([
 					reopening ? raceCancellation(reopening, token) : undefined,
@@ -1429,7 +1580,7 @@ export class SessionsService extends Disposable implements ISessionsService {
 
 	async canOpenSession(session: ISession): Promise<boolean> {
 		// Re-focusing the already-active session is not a new open, so never gate it.
-		if (this.activeSession.get()?.sessionId === session.sessionId) {
+		if (this._activeGridSession()?.sessionId === session.sessionId) {
 			return true;
 		}
 		const workspace = session.workspace.get();
@@ -1494,7 +1645,7 @@ export class SessionsService extends Disposable implements ISessionsService {
 		if (token.isCancellationRequested || !this.areGridSessionsCurrent([session])) {
 			return;
 		}
-		const visible = this.visibleSessions.get();
+		const visible = this._slotSessions.get();
 		if (referenceWasVisible && !this._visibility.getSlot(options?.referenceSessionId)) {
 			return;
 		}
@@ -1509,7 +1660,7 @@ export class SessionsService extends Disposable implements ISessionsService {
 				if (token.isCancellationRequested || !this.areGridSessionsCurrent([session])) {
 					return;
 				}
-				this.sessionOpenTelemetryService.sessionResolved(attempt, session.resource, session.providerId, this.activeSession.get()?.sessionId === session.sessionId, session.loading.get());
+				this.sessionOpenTelemetryService.sessionResolved(attempt, session.resource, session.providerId, this._activeGridSession()?.sessionId === session.sessionId, session.loading.get());
 				transaction(() => {
 					if (reference && reference.sessionId !== session.sessionId) {
 						this._visibility.insertAt(session, reference.sessionId, 'right', false);
@@ -1568,9 +1719,9 @@ export class SessionsService extends Disposable implements ISessionsService {
 		this._cancelRestore();
 		this._beginNavigation('explicit');
 		const token = this._startOpenSession();
-		const activeSession = this.activeSession.get();
-		const referenceSlotId = options?.referenceSlotId ?? (activeSession?.scopedChatResource && activeSession.sessionId === referenceSessionId
-			? this._visibility.getRenderedGridSlots()[this._visibility.gridSessions.get().indexOf(activeSession)]?.id
+		const activePane = this._visibility.activePane.get();
+		const referenceSlotId = options?.referenceSlotId ?? (activePane && detachedChatOf(activePane) && activePane.session.get()?.sessionId === referenceSessionId
+			? activePane.id
 			: undefined);
 		const prepared = await this.prepareGridSessions(sessions, token);
 		const hasReference = referenceSlotId
@@ -1585,14 +1736,14 @@ export class SessionsService extends Disposable implements ISessionsService {
 		}
 		const splitMainChat = !referenceSlotId && options?.activate !== false && options?.forceMainChat && !!this._visibility.getSlot(primary.sessionId);
 		const entries = prepared.filter(session => (referenceSlotId
-			? this._visibility.getGridSlots()[this.visibleSessions.get().findIndex(visible => visible?.sessionId === session.sessionId)]?.id !== referenceSlotId
+			? this._visibility.getGridSlots()[this._slotSessions.get().findIndex(visible => visible?.sessionId === session.sessionId)]?.id !== referenceSlotId
 			: session.sessionId !== referenceSessionId) && (!splitMainChat || session !== primary));
 		const open = async (attempt?: ISessionOpenTelemetryAttempt): Promise<void> => {
 			if (token.isCancellationRequested || !this.areGridSessionsCurrent(prepared)) {
 				return;
 			}
 			if (attempt) {
-				this.sessionOpenTelemetryService.sessionResolved(attempt, primary.resource, primary.providerId, this.activeSession.get()?.sessionId === primary.sessionId, primary.loading.get());
+				this.sessionOpenTelemetryService.sessionResolved(attempt, primary.resource, primary.providerId, this._activeGridSession()?.sessionId === primary.sessionId, primary.loading.get());
 			}
 			const navigation = splitMainChat ? this._navigation.beginSessionOpen('explicit', token) : undefined;
 			try {
@@ -1622,7 +1773,7 @@ export class SessionsService extends Disposable implements ISessionsService {
 					navigation?.complete();
 				}
 				if (options?.activate !== false && !options?.preserveFocus) {
-					this.sessionsPartService.focusSession(this.activeSession.get());
+					this._focusActivePane();
 				}
 				if (attempt) {
 					await this._waitForOpenSessionToLoad(primary, token, attempt);
@@ -1698,7 +1849,9 @@ export class SessionsService extends Disposable implements ISessionsService {
 		if (!prepared || token.isCancellationRequested || !prepared.length || !this.areGridSessionsCurrent(prepared)) {
 			return;
 		}
-		const active = this.activeSession.get();
+		const activePane = this._visibility.activePane.get();
+		const active = activePane?.session.get();
+		const activeChat = activePane?.chat.get();
 		const keys = new Set<string>();
 		const candidates = hasChats ? resolved : prepared.map(session => ({ session, chatResource: undefined }));
 		const slots = candidates.filter(({ session, chatResource }) => {
@@ -1717,7 +1870,7 @@ export class SessionsService extends Disposable implements ISessionsService {
 			this.windowCanvasService.deactivateCanvas(tx);
 			this.layoutService.setPartHidden(false, Parts.SESSIONS_PART);
 			this._visibility.restoreGrid(slots, Math.max(0, slots.findIndex(({ session, chatResource }) => session.sessionId === active?.sessionId
-				&& (!chatResource || this.uriIdentityService.extUri.isEqual(chatResource, active?.activeChat.get().resource)))), tx);
+				&& (!chatResource || this.uriIdentityService.extUri.isEqual(chatResource, activeChat?.resource)))), tx);
 			this._gridRequest.set({ type: 'arrange' }, tx);
 		});
 	}
@@ -1726,40 +1879,6 @@ export class SessionsService extends Disposable implements ISessionsService {
 		this._cancelRestore();
 		this._startOpenSession();
 		this._gridRequest.set({ type: 'arrange' }, undefined);
-	}
-
-	focusSessionInDirection(session: IActiveSession | undefined, direction: Direction): void {
-		this._cancelRestore();
-		this._startOpenSession();
-		const neighbor = this.sessionsPartService.getNeighborSession(session?.sessionId, direction);
-		if (neighbor !== undefined) {
-			this.setActive(neighbor ?? undefined);
-			this.sessionsPartService.focusSession(neighbor ?? undefined);
-		}
-	}
-
-	moveSessionInDirection(session: IActiveSession | undefined, direction: Direction): void {
-		this._cancelRestore();
-		this._startOpenSession();
-		const neighbor = this.sessionsPartService.getNeighborSession(session?.sessionId, direction);
-		if (neighbor !== undefined) {
-			const index = this._visibility.gridSessions.get().indexOf(neighbor ?? undefined);
-			const reference = this._visibility.getRenderedGridSlots()[index];
-			if (!reference) {
-				return;
-			}
-			if (session?.scopedChatResource) {
-				void this.moveChatToGrid(session.sessionId, session.scopedChatResource, reference.id, toSessionGridDirection(direction)).catch(onUnexpectedError);
-				return;
-			}
-			this._visibility.insertAtGridSlot(session, reference.id, toSessionGridDirection(direction), true);
-		}
-	}
-
-	resizeSession(session: IActiveSession | undefined, direction: Direction): void {
-		this._cancelRestore();
-		this._startOpenSession();
-		this.sessionsPartService.resizeSession(session?.sessionId, direction, 40);
 	}
 
 	/**
@@ -1851,8 +1970,8 @@ export class SessionsService extends Disposable implements ISessionsService {
 			return;
 		}
 
-		const activeSession = this.activeSession.get();
-		const activeChat = activeSession?.sessionId === sessionData.sessionId ? activeSession.activeChat.get() : undefined;
+		const activePane = this._visibility.activePane.get();
+		const activeChat = activePane?.session.get()?.sessionId === sessionData.sessionId ? activePane.chat.get() : undefined;
 		if (activeChat) {
 			this.sessionOpenTelemetryService.sessionActivated(telemetryAttempt, activeChat.resource);
 		}
@@ -1947,7 +2066,7 @@ export class SessionsService extends Disposable implements ISessionsService {
 		if (!folderUri) {
 			this._beginNavigation(intent, token, options?.preserveNavigation);
 		}
-		if (this._visibility.activeSession.get() === undefined && !options?.toSide) {
+		if (!this._activeGridSession() && !options?.toSide) {
 			if (intent !== 'automatic') {
 				if (!folderUri && !options?.preserveNavigation) {
 					this._startOpenSession();
@@ -1970,7 +2089,7 @@ export class SessionsService extends Disposable implements ISessionsService {
 		// active session (first time / after send).
 		const newSession = this.sessionsManagementService.newSession.get();
 
-		const activeSession = this._visibility.activeSession.get();
+		const activeSession = this._activeGridSession();
 		const targetSession = options?.toSide && newSession?.sessionId === activeSession?.sessionId
 			? undefined
 			: newSession;
@@ -1983,14 +2102,12 @@ export class SessionsService extends Disposable implements ISessionsService {
 
 	/** Open or move beside the active session when requested, keeping a single empty slot. */
 	private _activateOrInsert(session: ISession | undefined, toSide: boolean | undefined, intent: SessionNavigationIntent, preserveFocus?: boolean): void {
-		const activeSession = this._visibility.activeSession.get();
-		const activeSessionId = activeSession?.sessionId;
+		const activePane = this._visibility.activePane.get();
+		const activeSessionId = activePane?.session.get()?.sessionId;
 		const sessionId = session?.sessionId;
 		if (toSide && activeSessionId !== sessionId) {
-			const visible = this.visibleSessions.get();
-			const reference = activeSession?.scopedChatResource
-				? this._visibility.getRenderedGridSlots()[this._visibility.gridSessions.get().indexOf(activeSession)]
-				: undefined;
+			const visible = this._slotSessions.get();
+			const reference = activePane && detachedChatOf(activePane) ? activePane.id : undefined;
 			// An empty active slot has no id; fall back to the rightmost session.
 			const anchorId = activeSessionId ?? visible[visible.length - 1]?.sessionId;
 			if (reference || anchorId && anchorId !== sessionId) {
@@ -2001,7 +2118,7 @@ export class SessionsService extends Disposable implements ISessionsService {
 						this.layoutService.setPartHidden(false, Parts.SESSIONS_PART);
 					}
 					if (reference) {
-						this._visibility.insertAtGridSlot(session, reference.id, 'right', true);
+						this._visibility.insertAtGridSlot(session, reference, 'right', true);
 					} else {
 						this.insertAt(session, anchorId, 'right', true);
 					}
@@ -2012,11 +2129,11 @@ export class SessionsService extends Disposable implements ISessionsService {
 		this._activate(session, preserveFocus, intent);
 	}
 
-	openQuickChat(options?: ICreateNewSessionOptions, preserveNavigation = false, preserveFocus?: boolean): IActiveSession | undefined {
+	openQuickChat(options?: ICreateNewSessionOptions, preserveNavigation = false, preserveFocus?: boolean): ISession | undefined {
 		return this._openQuickChat(options, preserveNavigation ? 'automatic' : 'explicit', preserveFocus);
 	}
 
-	private _openQuickChat(options: ICreateNewSessionOptions | undefined, intent: SessionNavigationIntent, preserveFocus?: boolean): IActiveSession | undefined {
+	private _openQuickChat(options: ICreateNewSessionOptions | undefined, intent: SessionNavigationIntent, preserveFocus?: boolean): ISession | undefined {
 		this._beginNavigation(intent);
 		this._startOpenSession();
 		try {
@@ -2030,18 +2147,19 @@ export class SessionsService extends Disposable implements ISessionsService {
 		}
 	}
 
-	async openNewChatInSession(session: ISession, options?: ICreateNewChatInSessionOptions): Promise<void> {
+	async openNewChatInSession(session: ISession, options?: IOpenNewChatInSessionOptions): Promise<void> {
 		this._cancelRestore();
 		this._beginNavigation('explicit');
 		const token = this._startOpenSession();
-		const chat = await this.sessionsManagementService.createNewChatInSession(session, options);
+		const { from, ...createOptions } = options ?? {};
+		const chat = await this.sessionsManagementService.createNewChatInSession(session, Object.keys(createOptions).length ? createOptions : undefined);
 		if (!chat || token.isCancellationRequested) {
 			return;
 		}
 
 		const navigation = this._navigation.beginSessionOpen('explicit', token);
 		try {
-			this._activate(session, undefined, 'explicit');
+			this._activate(this._navigationTarget(session, from), undefined, 'explicit');
 			this._visibility.setActiveChat(session, chat);
 			navigation.complete();
 		} finally {
@@ -2050,30 +2168,25 @@ export class SessionsService extends Disposable implements ISessionsService {
 	}
 
 	focusActiveSession(): void {
-		this.sessionsPartService.focusSession(this.activeSession.get());
+		this._focusActivePane();
 	}
 
-	setActive(session: IActiveSession | undefined, preserveFocus?: boolean): void {
-		// The session of a chat another surface shows, such as a chat editor's, is that surface's, not the grid's: activating
-		// it, such as before an action of its chat's pills, leaves the grid, its active session and the canvas as they are.
-		if (session?.scopedChatResource && this.chatHostOpenerService.getOpenerOf(session.scopedChatResource)) {
-			return;
-		}
-		const active = this.activeSession.get();
-		if (this.windowCanvasService.activeCanvasOpen.get() || session?.sessionId !== active?.sessionId) {
+	/** Makes `pane` of the grid the active pane, the new-session slot for `undefined`. */
+	private _setActivePane(pane: ISessionGridPane | undefined, preserveFocus?: boolean): void {
+		if (this.windowCanvasService.activeCanvasOpen.get() || pane?.session.get()?.sessionId !== this._activeGridSession()?.sessionId) {
 			this._cancelRestore();
 			this._startOpenSession();
 			this._recordNavigation();
 		}
 		transaction(tx => {
 			this.windowCanvasService.deactivateCanvas(tx);
-			this._activate(session, preserveFocus);
+			this._activate(pane, preserveFocus);
 		});
 	}
 
 	async submitNewSessionInput(): Promise<boolean> {
-		let activeSession = this.activeSession.get();
-		if (activeSession?.isCreated.get()) {
+		let activeSession = this._activeGridSession();
+		if (isSessionCreated(activeSession)) {
 			return false;
 		}
 
@@ -2081,8 +2194,8 @@ export class SessionsService extends Disposable implements ISessionsService {
 		// holds a created session), so open it before submitting into it.
 		if (!this.sessionsPartService.getSessionView(activeSession)) {
 			await this.openNewSession();
-			activeSession = this.activeSession.get();
-			if (activeSession?.isCreated.get()) {
+			activeSession = this._activeGridSession();
+			if (isSessionCreated(activeSession)) {
 				return false;
 			}
 		}
@@ -2118,7 +2231,7 @@ export class SessionsService extends Disposable implements ISessionsService {
 		// Where focus would have gone, unless the user moved it meanwhile: it is not there only when the element that held it went away or did not move since.
 		const focused = mainWindow.document.activeElement;
 		if (!focused || focused === mainWindow.document.body || !focused.isConnected || focused === skippedAt) {
-			this.sessionsPartService.focusSession(this._visibility.activeSession.get());
+			this._focusActivePane();
 		}
 	}
 
@@ -2131,20 +2244,22 @@ export class SessionsService extends Disposable implements ISessionsService {
 		const hold = this._visibility.hideChatFromGrid(session.sessionId, chat);
 		// The session leaves the grid too when that was the only chat it shows there. Subagent chats it does not show as
 		// tabs do not keep it there: they open on demand. Only its own slot leaves: its chats in panes of their own stay.
-		const gridSessions = this._visibility.gridSessions.get().filter(candidate => candidate?.sessionId === session.sessionId && !candidate.scopedChatResource);
-		const onlyChat = gridSessions.every(candidate => candidate!.visibleChatTabs.get().every(tab => this.uriIdentityService.extUri.isEqual(tab.resource, chat)));
-		if (gridSessions.length && onlyChat) {
+		const slot = this._slotPaneOf(session.sessionId);
+		const onlyChat = !!slot && slot.tabs.visibleChatTabs.get().every(tab => this.uriIdentityService.extUri.isEqual(tab.resource, chat));
+		if (onlyChat) {
 			this._cancelRestore();
 			this._startOpenSession();
-			const activeBefore = this._visibility.activeSession.get();
+			const activeBefore = this._visibility.activePane.get();
+			const activeSessionBefore = activeBefore?.session.get();
 			this._visibility.removeMany([session.sessionId], true, true);
 			// An active pane that stays, such as a detached child of the session, is not removed: no focus was skipped
-			const wasActive = activeBefore !== undefined && this._visibility.activeSession.get() !== activeBefore;
+			const activeAfter = this._visibility.activePane.get();
+			const wasActive = activeSessionBefore !== undefined && (activeAfter !== activeBefore || activeAfter?.session.get() !== activeSessionBefore);
 			if (wasActive) {
 				// Only a removal that changes the active pane skips focus that would otherwise move into the next one
 				this._skipMainWindowFocus();
 			}
-			if (wasActive && this._visibility.activeSession.get() === undefined && !this._visibility.visibleSessions.get().includes(undefined)) {
+			if (wasActive && !this._activeGridSession() && !this._slotSessions.get().includes(undefined)) {
 				// The grid shows the new-session composer instead, without taking focus from the window.
 				this._visibility.setActive(undefined, true);
 			}
@@ -2153,21 +2268,10 @@ export class SessionsService extends Disposable implements ISessionsService {
 	}
 
 	closeSession(session: ISession | undefined): void {
-		// The session of a chat another surface shows, such as a chat editor's, closes there, not in the grid.
-		const scopedChat = (session as Partial<IActiveSession> | undefined)?.scopedChatResource;
-		const shownBy = scopedChat && this.chatHostOpenerService.getOpenerOf(scopedChat);
-		if (shownBy) {
-			void shownBy.close(scopedChat).catch(onUnexpectedError);
-			return;
-		}
 		this._cancelRestore();
 		this._startOpenSession();
-		if (session instanceof VisibleSession && session.scopedChatResource) {
-			this._visibility.attachChat(session, session.scopedChatResource);
-			return;
-		}
 		const sessionId = session?.sessionId;
-		const visible = this._visibility.visibleSessions.get();
+		const visible = this._slotSessions.get();
 		if (!visible.some(s => s?.sessionId === sessionId)) {
 			return;
 		}
@@ -2176,7 +2280,7 @@ export class SessionsService extends Disposable implements ISessionsService {
 		// session" are reported by activeSession as undefined. Since we already
 		// confirmed the slot is present in `visible`, undefined === undefined
 		// here means the empty slot is active.
-		const activeSessionId = this._visibility.activeSession.get()?.sessionId;
+		const activeSessionId = this._activeGridSession()?.sessionId;
 		const wasActive = activeSessionId === sessionId;
 
 		// Remember the slot so Reopen Closed Chat or Session can put it back
@@ -2197,33 +2301,34 @@ export class SessionsService extends Disposable implements ISessionsService {
 
 		// removeMany already picked a fallback active session (or cleared the
 		// active observable when no slot remains); drive the full open flow.
-		const fallback = this._visibility.activeSession.get();
-		if (fallback === undefined) {
+		if (!this._activeGridSession()) {
 			this.openNewSession();
 		}
 	}
 
-	collapseToSession(session: IActiveSession | undefined): void {
-		const visible = this._visibility.gridSessions.get();
-		const survivor = visible.find(candidate => candidate?.sessionId === session?.sessionId
-			&& this.uriIdentityService.extUri.isEqual(candidate?.scopedChatResource, session?.scopedChatResource));
-		if (!survivor && (session || !visible.includes(undefined))) {
+	/** Removes every pane of the grid but `pane`, a live pane, without starting or cancelling navigation. */
+	private _collapseToPane(pane: ISessionGridPane): void {
+		const session = pane.session.get();
+		if (!session && !this._slotSessions.get().includes(undefined)) {
 			return;
 		}
+		const chatResource = detachedChatOf(pane);
 		this._visibility.restoreGrid([{
-			session: survivor,
-			sticky: survivor?.sticky.get() ?? false,
-			chatResource: survivor?.scopedChatResource,
-			gridId: survivor ? this._visibility.getRenderedGridSlots().find(slot => this._visibility.getGridSession(slot.id) === survivor)?.id : undefined,
+			session,
+			sticky: pane.sticky.get(),
+			chatResource,
+			// A slot keeps its grid slot by session; a detached pane keeps its own.
+			gridId: chatResource ? pane.id : undefined,
 		}], 0);
 	}
 
 	closeAllSessions(): void {
 		this._cancelRestore();
 		this._startOpenSession();
-		const ids = this._visibility.gridSessions.get()
-			.filter((s): s is IActiveSession => !!s)
-			.map(s => s.sessionId);
+		const ids = this._visibility.panes.get().flatMap(pane => {
+			const session = pane.session.get();
+			return session ? [session.sessionId] : [];
+		});
 		if (ids.length === 0) {
 			return;
 		}
@@ -2349,18 +2454,21 @@ export class SessionsService extends Disposable implements ISessionsService {
 		}
 		const grid = this.sessionsPartService.getGridLayout();
 		if (grid) {
-			const visible = this._visibility.gridSessions.get();
+			// The panes of the grid, in the order of its rendered slots: its slots, then its detached panes.
+			const panes = this._visibility.panes.get();
+			const visible = panes.map(pane => pane.session.get());
 			const slots = this._visibility.getRenderedGridSlots();
-			const activeIndex = Math.max(0, visible.findIndex(session => session === this.activeSession.get()));
-			const composerIndex = !visible[activeIndex]?.isCreated.get() ? activeIndex : visible.findIndex(session => !session?.isCreated.get());
+			const activePane = this._visibility.activePane.get();
+			const activeIndex = Math.max(0, panes.findIndex(pane => pane === activePane));
+			const composerIndex = !isSessionCreated(visible[activeIndex]) ? activeIndex : visible.findIndex(session => !isSessionCreated(session));
 			const bindings: ISessionGridState['sessions'][number][] = [];
 			for (let index = 0; index < slots.length; index++) {
 				const session = visible[index];
-				const resource = session?.isCreated.get() ? session.resource.toString() : undefined;
+				const resource = session && isSessionCreated(session) ? session.resource.toString() : undefined;
 				if (!resource && index !== composerIndex) {
 					continue;
 				}
-				bindings.push({ id: slots[index].id, resource, chatResource: session?.scopedChatResource?.toString(), sticky: resource ? session!.sticky.get() : false });
+				bindings.push({ id: slots[index].id, resource, chatResource: detachedChatOf(panes[index])?.toString(), sticky: resource ? panes[index].sticky.get() : false });
 			}
 			const projected = projectSessionGrid(grid, id => bindings.some(binding => binding.id === id) ? id : undefined);
 			const active = slots[activeIndex].id;
@@ -2389,8 +2497,8 @@ export class SessionsService extends Disposable implements ISessionsService {
 	}
 
 	private _snapshotVisibleSessionStates(): ISessionState[] {
-		const activeId = this._visibility.activeSession.get()?.sessionId;
-		const visible = this._visibility.visibleSessions.get();
+		const activeId = this._activeGridSession()?.sessionId;
+		const visible = this._slotSessions.get();
 		const entries: ISessionState[] = [];
 		visible.forEach((session, index) => {
 			if (!session) {
@@ -2407,14 +2515,16 @@ export class SessionsService extends Disposable implements ISessionsService {
 			// Chat visibility is maintained deterministically by open/close; prefer
 			// persisted state over live, loaded-chat-only observables.
 			const existing = this._sessionStates.get(session.resource);
+			const slot = this._slotPaneOf(session.sessionId);
+			const activeChat = slot?.chat.get();
 			const state: ISessionState = {
 				sessionResource: session.resource.toString(),
-				activeChatResource: this._pendingRestoredChatResources.get(session.resource)?.toString() ?? session.activeChat.get()?.resource.toString() ?? existing?.activeChatResource,
-				activeChatOrigin: session.activeChat.get()?.origin?.kind ?? existing?.activeChatOrigin,
-				closedChatResources: existing?.closedChatResources ?? session.closedChats.get().map(c => c.resource.toString()),
+				activeChatResource: this._pendingRestoredChatResources.get(session.resource)?.toString() ?? activeChat?.resource.toString() ?? existing?.activeChatResource,
+				activeChatOrigin: activeChat?.origin?.kind ?? existing?.activeChatOrigin,
+				closedChatResources: existing?.closedChatResources ?? slot?.tabs.closedChats.get().map(c => c.resource.toString()) ?? [],
 				openedChatResources: existing?.openedChatResources,
 				visibleOrder: index,
-				isSticky: session.sticky.get(),
+				isSticky: slot?.sticky.get() ?? false,
 				isActive: session.sessionId === activeId,
 			};
 			this._sessionStates.set(session.resource, state);
@@ -2583,14 +2693,15 @@ export class SessionsService extends Disposable implements ISessionsService {
 		const restoreResolved = (preserveActive: boolean): void => {
 			const slots: { session: ISession | undefined; sticky: boolean; gridId?: string; chatResource?: URI }[] = [];
 			let activeIndex = -1;
-			const activeId = this.activeSession.get()?.sessionId;
+			const activePane = this._visibility.activePane.get();
+			const activeId = activePane?.session.get()?.sessionId;
 			for (let index = 0; index < targets.length; index++) {
 				const session = resolved[index];
 				if (session === undefined) {
 					continue;
 				}
 				if (preserveActive ? session?.sessionId === activeId
-					&& this.uriIdentityService.extUri.isEqual(targets[index].chatResource, this.activeSession.get()?.scopedChatResource) : index === activeIdx) {
+					&& this.uriIdentityService.extUri.isEqual(targets[index].chatResource, detachedChatOf(activePane)) : index === activeIdx) {
 					activeIndex = slots.length;
 				}
 				slots.push({ session: session ?? undefined, sticky: targets[index].isSticky, gridId: targets[index].gridId, chatResource: targets[index].chatResource });

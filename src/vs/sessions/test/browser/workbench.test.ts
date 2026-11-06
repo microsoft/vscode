@@ -508,7 +508,7 @@ suite('Sessions - Workbench', () => {
 			customViewGridPartService: { setView: (descriptor: object | undefined) => { renderedCustomViews.push(descriptor); }, focusActiveView: () => { } },
 			_customViewVisibleKey: { set: () => { } },
 			sessionsPartService: {
-				focusSession: () => { focusedSessions++; },
+				focusNewSessionSlot: () => { focusedSessions++; },
 				setContentVisible: (visible: boolean) => {
 					if (sessionsContentVisible !== visible) {
 						sessionsContentVisible = visible;
