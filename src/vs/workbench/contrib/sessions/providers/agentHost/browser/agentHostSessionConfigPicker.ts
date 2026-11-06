@@ -788,12 +788,6 @@ export class AgentHostSessionConfigPicker extends Disposable {
 		// non-mutable properties like `isolation` must remain visible and
 		// interactive there.
 		const isNewSession = provider.getCreateSessionConfig(session.sessionId) !== undefined;
-		// Disable interactions while a resolve is in flight. Schema is
-		// preserved so chips stay visible. Not `session.loading` —
-		// that also covers the required-values-missing state where
-		// chips must remain interactive.
-		const isLoading = provider.isSessionConfigResolving(session.sessionId, chat.resource).get();
-
 		const properties = this._orderProperties(Object.entries(resolvedConfig.schema.properties));
 		let renderedIsolationCheckbox = false;
 
@@ -809,8 +803,8 @@ export class AgentHostSessionConfigPicker extends Disposable {
 			}
 			const value = resolvedConfig.values[property] ?? schema.default;
 			const presentation = getSessionConfigPresentationKey(property, resolvedConfig.schema);
-			const isReadOnly = this._isReadOnlyChip(property, schema, isNewSession)
-				|| (this._requiresBranchCheckout(provider, session.sessionId, property) && !this._getCheckoutChangeset(session.sessionId));
+			const isReadOnly = this._isReadOnlyChip(property, schema, isNewSession);
+			const isLoading = this._isPickerDisabled(provider, session.sessionId, property);
 			if (presentation === SessionConfigKey.Isolation && !isNewSession && this._shouldRenderIsolationAsCheckbox(schema)) {
 				this._renderIsolationCheckbox(provider, session.sessionId, schema, value, isReadOnly, !isReadOnly && isLoading);
 				this._focusableElement = this._isolationCheckbox.value?.checkbox.domNode;
@@ -1032,9 +1026,11 @@ export class AgentHostSessionConfigPicker extends Disposable {
 		return chat && provider.getSessionConfig(sessionId, chat);
 	}
 
-	protected _isSessionConfigResolving(provider: IAgentHostSessionsProvider, sessionId: string): boolean {
+	protected _isPickerDisabled(provider: IAgentHostSessionsProvider, sessionId: string, property: string): boolean {
 		const chat = this._getChat(provider, sessionId);
-		return !!chat && provider.isSessionConfigResolving(sessionId, chat).get();
+		// Checkout operations hydrate after the draft config; their absence does not make the schema read-only.
+		return (!!chat && provider.isSessionConfigResolving(sessionId, chat).get())
+			|| (this._requiresBranchCheckout(provider, sessionId, property) && !this._getCheckoutChangeset(sessionId));
 	}
 
 	protected _getCheckoutChangeset(sessionId: string): ISessionChangeset | undefined {
@@ -1296,7 +1292,7 @@ export class AgentHostSessionConfigPicker extends Disposable {
 		}
 		// Mobile bottom-sheet override dispatches through this entry
 		// point, so guard here for both invocation paths.
-		if (this._isSessionConfigResolving(provider, sessionId)) {
+		if (this._isPickerDisabled(provider, sessionId, property)) {
 			return;
 		}
 
@@ -1373,7 +1369,7 @@ export class AgentHostSessionConfigPicker extends Disposable {
 					item.run();
 					return;
 				}
-				if (item.disabled || !this._isCurrentSession(provider, sessionId) || this._isSessionConfigResolving(provider, sessionId)) {
+				if (item.disabled || !this._isCurrentSession(provider, sessionId) || this._isPickerDisabled(provider, sessionId, property)) {
 					return;
 				}
 				if (presentation === SessionConfigKey.Isolation && item.value === 'worktree'
@@ -1725,7 +1721,7 @@ class MobileAgentHostSessionConfigPicker extends AgentHostSessionConfigPicker {
 
 		// Mirror the base `_showPicker` guard (the repo-sheet path below bypasses
 		// it): bail while resolving so injected disabled chips don't open a sheet.
-		if (this._isSessionConfigResolving(provider, sessionId)) {
+		if (this._isPickerDisabled(provider, sessionId, property)) {
 			return;
 		}
 
