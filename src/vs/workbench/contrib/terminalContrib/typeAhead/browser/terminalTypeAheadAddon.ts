@@ -57,6 +57,9 @@ const PREDICTION_OMIT_RE = /^(?:(?:\x1b\[|\x9b)(?:\?(?:25|12)[hl]|\??[0-9;]+n))+
 /** Carriage returns or absolute positioning indicate that a shell may be repainting the line. */
 const REPAINT_HINT_RE = /\r|\x1b\[[0-9;]*H/;
 
+/** Replies xterm.js sends for terminal queries, such as device status, device attribute and color reports. */
+const TERMINAL_REPLY_RE = /^\x1b(?:\[(?:[?>]?[0-9;]*[cnR]|[IO]|[0-9;]+t|\??[0-9;]+\$y|\?[0-9]*u)|[\]P][^\x1b]*\x1b\\)$/;
+
 const core = (terminal: Terminal): IXtermCore => {
 	interface XtermWithCore extends Terminal {
 		_core: IXtermCore;
@@ -370,6 +373,18 @@ class EscapeSequenceScanner {
 		}
 		return this.isIncomplete ? start : -1;
 	}
+
+	/**
+	 * Scans the rest of a sequence that is in progress and returns where it
+	 * ends in the input.
+	 */
+	scanContinuation(input: string): number {
+		let end = 0;
+		while (end < input.length && this.isIncomplete) {
+			this.scan(input[end++]);
+		}
+		return end;
+	}
 }
 
 class StringReader {
@@ -490,7 +505,8 @@ class HardBoundary implements IPrediction {
 
 /**
  * Boundary for input that reached the pty without a prediction. Predictions
- * made after it wait for that input's echo, which is not a misprediction.
+ * made after it stay hidden and are discarded when the next output arrives,
+ * normally that input's echo, which is not counted as a misprediction.
  */
 class UnpredictedInputBoundary extends HardBoundary { }
 
@@ -1201,6 +1217,13 @@ export class PredictionTimeline extends Disposable {
 		if (!hasPendingWrites(this.terminal)) {
 			this._pendingAttributes = undefined;
 		}
+		// Nothing is drawn while an unpredicted input boundary is at the head, so the rest of an escape sequence
+		// that was already streaming passes through, and the boundary waits for the output after it.
+		if (this._escapeScanner.isIncomplete && !this._incompleteEscapeChunks.length && isUnpredictedInputBoundary(this._expected[0]?.p)) {
+			const end = this._escapeScanner.scanContinuation(input);
+			return input.slice(0, end) + (end < input.length ? this.beforeServerInput(input.slice(end)) : '');
+		}
+
 		const originalInput = input;
 		const incompleteEscape = this._escapeScanner.scan(input);
 		if (!this._expected.length) {
@@ -1825,11 +1848,11 @@ export class TypeAheadAddon extends Disposable implements ITerminalAddon {
 
 	/**
 	 * Input sent without a prediction still reaches the pty, so later
-	 * predictions must wait for its echo.
+	 * predictions stay hidden until the next output, normally its echo.
 	 */
 	private _waitForUnpredictedInput(timeline: PredictionTimeline, data: string) {
 		// Terminal replies, like cursor position reports, are escape sequences the shell consumes without echoing.
-		if (data.startsWith(VT.Esc)) {
+		if (TERMINAL_REPLY_RE.test(data)) {
 			return;
 		}
 		timeline.addBoundary(timeline.terminal.buffer.active, new UnpredictedInputBoundary());
@@ -1898,10 +1921,7 @@ export class TypeAheadAddon extends Disposable implements ITerminalAddon {
 			return;
 		}
 		if (this._timeline.hasIncompleteInput) {
-			// Without predictions, partial escape sequences stream through, and a boundary would hold them back until they complete.
-			if (this._timeline.length) {
-				this._waitForUnpredictedInput(this._timeline, data);
-			}
+			this._waitForUnpredictedInput(this._timeline, data);
 			return;
 		}
 

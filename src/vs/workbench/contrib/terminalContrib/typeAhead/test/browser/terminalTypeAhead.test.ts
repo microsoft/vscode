@@ -828,6 +828,52 @@ suite('Workbench - Terminal Typeahead', () => {
 			]);
 		});
 
+		test('waits for the echo of a key typed while an escape sequence is incomplete', async () => {
+			await input('b');
+			await server('b');
+			await server(`${CSI}0`);
+			await input('c');
+			await server('m');
+			await input('d');
+			const beforeEcho = state();
+			await server('c');
+			await server('d');
+			assert.deepStrictEqual([beforeEcho, { ...state(), accuracy: addon.stats?.accuracy }], [
+				{ lines: ['$ ab', '', ''], cursorX: 4, cursorY: 0, baseY: 0 },
+				{ lines: ['$ abcd', '', ''], cursorX: 6, cursorY: 0, baseY: 0, accuracy: 1 }
+			]);
+		});
+
+		test('waits for the echo of a cursor key typed while output is unparsed', async () => {
+			await input('b');
+			queueServer('b');
+			terminal.input(`${CSI}D`, false);
+			await writeP(terminal, '');
+			await input('X');
+			const beforeEcho = state();
+			await server('\b');
+			await server('Xb\b');
+			assert.deepStrictEqual([beforeEcho, { ...state(), accuracy: addon.stats?.accuracy }], [
+				{ lines: ['$ ab', '', ''], cursorX: 4, cursorY: 0, baseY: 0 },
+				{ lines: ['$ aXb', '', ''], cursorX: 4, cursorY: 0, baseY: 0, accuracy: 1 }
+			]);
+		});
+
+		test('waits for the echo of a paste while output is unparsed', async () => {
+			await input('b');
+			queueServer('b');
+			terminal.input(`${CSI}200~xyz${CSI}201~`, false);
+			await writeP(terminal, '');
+			await input('W');
+			const beforeEcho = state();
+			await server('xyz');
+			await server('W');
+			assert.deepStrictEqual([beforeEcho, { ...state(), accuracy: addon.stats?.accuracy }], [
+				{ lines: ['$ ab', '', ''], cursorX: 4, cursorY: 0, baseY: 0 },
+				{ lines: ['$ abxyzW', '', ''], cursorX: 8, cursorY: 0, baseY: 0, accuracy: 1 }
+			]);
+		});
+
 		test('does not wait for a terminal reply sent while output is unparsed', async () => {
 			await server(`${CSI}6n`);
 			await input('b');
