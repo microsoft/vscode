@@ -17353,6 +17353,43 @@ suite('AgentHostChatContribution', () => {
 					{ type: MessageAttachmentKind.EmbeddedResource, label: 'foo.ts', displayKind: 'selection', data: encodeBase64(VSBuffer.fromString('second line\nthird line\nfourth li')), contentType: 'text/plain', selection: { range: { start: { line: 1, character: 0 }, end: { line: 3, character: 9 } } }, _meta: { provider: 'fs', score: 0.42 } },
 				]);
 			}));
+
+			for (const uri of [URI.file('/workspace/foo.ts'), URI.from({ scheme: Schemas.untitled, path: '/Untitled-1' })]) {
+				test(`symbol completions embed selected live text from an unsaved ${uri.scheme} buffer for ${provider}`, async () => {
+					const { sessionHandler, agentHostService, chatAgentService, modelService, workingCopyService } = createContribution(disposables, { provider });
+					modelService.setModelContent(uri, 'before\nfunction run() {}\nafter');
+					workingCopyService.setDirty(uri, true);
+					const location = { uri, range: new Range(2, 1, 2, 18) };
+					const { turnPromise, session, turnId, fire } = await startTurn(sessionHandler, agentHostService, chatAgentService, disposables, {
+						message: 'explain #sym:run',
+						variables: {
+							variables: [{
+								kind: 'generic',
+								id: `vscode.symbol/${JSON.stringify(location)}`,
+								name: 'sym:run',
+								fullName: 'run',
+								value: location,
+								range: { start: 8, endExclusive: 16 },
+								_meta: { source: 'symbol' },
+							}],
+						},
+					});
+					fire({ type: 'chat/turnComplete', endedAt: '2025-01-01T00:00:00.000Z', session, turnId } as ChatAction);
+					await turnPromise;
+
+					const turnAction = agentHostService.turnActions[0].action as ITurnStartedAction;
+					assert.deepStrictEqual(turnAction.message.attachments, [{
+						type: MessageAttachmentKind.EmbeddedResource,
+						label: 'run',
+						displayKind: 'selection',
+						data: encodeBase64(VSBuffer.fromString('function run() {}')),
+						contentType: 'text/plain',
+						selection: { range: { start: { line: 1, character: 0 }, end: { line: 1, character: 17 } } },
+						range: { start: { line: 0, character: 8 }, end: { line: 0, character: 16 } },
+						_meta: { source: 'symbol' },
+					}]);
+				});
+			}
 		}
 
 		test('dirty non-file resource that cannot be inlined is dropped for the Copilot CLI backend', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
