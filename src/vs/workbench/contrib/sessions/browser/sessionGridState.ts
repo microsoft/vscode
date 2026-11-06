@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ISerializedGrid, ISerializedLeafNode, ISerializedNode } from '../../../../base/browser/ui/grid/grid.js';
+import { ISerializedGrid, ISerializedLeafNode, ISerializedNode, Direction } from '../../../../base/browser/ui/grid/grid.js';
 import { Orientation } from '../../../../base/browser/ui/sash/sash.js';
 import { URI } from '../../../../base/common/uri.js';
 
@@ -131,4 +131,9 @@ export function projectSessionGrid(grid: ISerializedGrid, map: (id: string) => s
 	};
 	const root = project(grid.root);
 	return root ? { ...grid, root } : undefined;
+}
+
+export interface ISessionGridPlacement {
+	readonly reference: string;
+	readonly direction: Direction;
 }

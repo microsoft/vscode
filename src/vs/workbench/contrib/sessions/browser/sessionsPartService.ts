@@ -15,11 +15,7 @@ import { Direction, ISerializedGrid } from '../../../../base/browser/ui/grid/gri
 import { IObservable } from '../../../../base/common/observable.js';
 import type { ISessionHost } from './sessionHost.js';
 import type { ISessionGridPane } from './sessionGridPane.js';
-
-export interface ISessionGridPlacement {
-	readonly reference: string;
-	readonly direction: Direction;
-}
+import { ISessionGridPlacement } from './sessionGridState.js';
 
 export interface ISessionGridSlot {
 	readonly id: string;

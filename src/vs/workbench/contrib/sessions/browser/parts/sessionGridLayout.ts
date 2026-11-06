@@ -8,8 +8,7 @@ import { Direction, GridNode, IGridStyles, ISerializableView, ISerializedGrid, I
 import { Orientation } from '../../../../../base/browser/ui/sash/sash.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { Disposable, IDisposable, MutableDisposable } from '../../../../../base/common/lifecycle.js';
-import { ISessionGridPlacement } from '../sessionsPartService.js';
-import { isSessionGridLeafData, projectSessionGrid } from '../sessionGridState.js';
+import { isSessionGridLeafData, projectSessionGrid, ISessionGridPlacement } from '../sessionGridState.js';
 import { Color } from '../../../../../base/common/color.js';
 import { getGridBottomCornerViews, getGridEdgeInsets, IGridEdgeInsets, NO_GRID_EDGE_INSETS, updateGridGapSashes } from '../../../../browser/parts/partGrid/partGridGap.js';
 
