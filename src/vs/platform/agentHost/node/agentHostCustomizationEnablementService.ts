@@ -73,9 +73,9 @@ export interface ICustomizationEnablementTarget {
 	/** Provider-discovered enablement inherited when no host or client decision exists. */
 	readonly defaultEnabled?: boolean;
 	/**
-	 * Whether the workspace configures this MCP server (`.mcp.json`,
-	 * `.github/mcp.json`, or a runtime-reported workspace source). Such a server
-	 * is gated by the class decision of {@link targetForWorkspaceMcpServers}.
+	 * Whether the workspace configures this MCP server (`.mcp.json`, a forwarded
+	 * `.vscode/mcp.json` entry, or a runtime-reported workspace source). Such a
+	 * server is gated by the class decision of {@link targetForWorkspaceMcpServers}.
 	 */
 	readonly isWorkspaceConfigured?: boolean;
 	/**
@@ -101,8 +101,8 @@ export const WORKSPACE_MCP_SERVERS_TARGET_ID = 'vscode.workspaceMcpServers';
 
 /**
  * The target that gates every MCP server a workspace configures (`.mcp.json`,
- * `.github/mcp.json`, and runtime discovery that reports a workspace source).
- * Its Global decision is the mirrored `chat.mcp.workspaceServersEnabled`
+ * forwarded `.vscode/mcp.json` entries, and runtime discovery that reports a
+ * workspace source). Its Global decision is the mirrored `chat.mcp.workspaceServersEnabled`
  * setting, passed as `defaultEnabled`; Workspace and Session decisions are
  * recorded by the host like those of a single server.
  */

@@ -13,7 +13,7 @@ import { TestStorageService } from '../../../../test/common/workbenchTestService
 import { ContributionEnablementState, EnablementModel } from '../../../chat/common/enablement.js';
 import { IMcpRegistry } from '../../common/mcpRegistryTypes.js';
 import { McpCollectionDefinition, McpServerDefinition, McpServerTransportType, McpServerTrust } from '../../common/mcpTypes.js';
-import { WORKSPACE_MCP_SERVERS_ENABLEMENT_KEY, WorkspaceMcpServersEnablementModel } from '../../common/mcpWorkspaceServersEnablement.js';
+import { LOCAL_WORKSPACE_MCP_SERVERS_ENABLEMENT_KEY, WorkspaceMcpServersEnablementModel } from '../../common/mcpWorkspaceServersEnablement.js';
 
 suite('MCP - WorkspaceMcpServersEnablementModel', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -139,7 +139,7 @@ suite('MCP - WorkspaceMcpServersEnablementModel', () => {
 	test('the class decision is stored under its reserved key in workspace storage', () => {
 		const { model, base } = createModel(true);
 		model.setWorkspaceServersEnabled(false);
-		assert.strictEqual(base.readEnabled(WORKSPACE_MCP_SERVERS_ENABLEMENT_KEY), ContributionEnablementState.DisabledWorkspace);
-		assert.strictEqual(base.readProfileEnabled(WORKSPACE_MCP_SERVERS_ENABLEMENT_KEY), true);
+		assert.strictEqual(base.readEnabled(LOCAL_WORKSPACE_MCP_SERVERS_ENABLEMENT_KEY), ContributionEnablementState.DisabledWorkspace);
+		assert.strictEqual(base.readProfileEnabled(LOCAL_WORKSPACE_MCP_SERVERS_ENABLEMENT_KEY), true);
 	});
 });

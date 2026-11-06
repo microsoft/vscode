@@ -9461,21 +9461,28 @@ suite('ClaudeAgent — Phase 11 customizations', () => {
 
 		const options = sdk.capturedStartupOptions[0];
 		const uniqueTargets = new Map(resolvedTargets.filter(target => target.name === 'project' || target.name === 'personal').map(target => [target.name, target.isWorkspaceConfigured]));
+		const describe = (list: readonly Customization[]) => list
+			.filter(customization => customization.type === CustomizationType.McpServer)
+			.map(customization => customization.type === CustomizationType.McpServer ? { name: customization.name, source: readMcpServerSource(customization), enabled: isCustomizationEnabled(customization), status: customization.state.kind } : undefined);
+		// The live session reports neither server: the denied declaration stays listed, stopped, so its gate stays reversible.
+		const afterStart = describe(await agent.getChatCustomizations!(chat, chatContext(chat), hostCustomizations(stateManager, created.session)));
 		assert.deepStrictEqual({
-			servers: customizations
-				.filter(customization => customization.type === CustomizationType.McpServer)
-				.map(customization => ({ name: customization.name, source: readMcpServerSource(customization), enabled: isCustomizationEnabled(customization) })),
+			servers: describe(customizations),
 			resolvedTargets: [...uniqueTargets].sort(([a], [b]) => a.localeCompare(b)),
 			explicitServers: Object.keys(options.mcpServers ?? {}).sort(),
 			deniedServers: typeof options.settings === 'string' ? undefined : options.settings?.deniedMcpServers,
+			afterStart,
 		}, {
 			servers: [
-				{ name: 'personal', source: 'user', enabled: true },
-				{ name: 'project', source: 'workspace', enabled: false },
+				{ name: 'personal', source: 'user', enabled: true, status: McpCustomizationServerStatus.Stopped },
+				{ name: 'project', source: 'workspace', enabled: false, status: McpCustomizationServerStatus.Stopped },
 			],
 			resolvedTargets: [['personal', undefined], ['project', true]],
 			explicitServers: ['github-mcp-server'],
 			deniedServers: [{ serverName: 'project' }],
+			afterStart: [
+				{ name: 'project', source: 'workspace', enabled: false, status: McpCustomizationServerStatus.Stopped },
+			],
 		});
 	});
 

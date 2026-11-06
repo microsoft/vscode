@@ -73,9 +73,9 @@ import { agentModelCatalogStatusKey } from '../../common/agentModelCatalogStatus
 import { isAgentModelFusion, readAgentModelAutoTierPromotionsMeta, readAgentModelAutoTiersMeta, readAgentModelFusionInlineChatTier } from '../../common/meta/agentModelMeta.js';
 import { AgentHostConfigKey } from '../../common/agentHostCustomizationConfig.js';
 import { buildAgentHostOTelEnv } from '../../common/agentService.js';
-import { AgentHostAutoApprovePolicyRestrictedConfigKey, AgentHostByokModelsEnabledConfigKey, AgentHostCanvasesEnabledConfigKey, AgentHostGitHubMcpServerEnabledConfigKey, AgentHostComputerUseEnabledConfigKey, AgentHostGlobalAutoApproveEnabledConfigKey, AgentHostMcpConnectorsEnabledConfigKey, AgentHostMcpServersConfigKey, AgentHostMigrateLegacyCopilotCliEnabledConfigKey, AgentHostProxyConfigKey, AgentHostSystemProxyEnabledConfigKey, AgentHostTelemetryLevelConfigKey, AgentHostWorkspaceTrustConfigKey, platformSessionSchema, telemetryLevelToAgentHostConfigValue } from '../../common/agentHostSchema.js';
+import { AgentHostAutoApprovePolicyRestrictedConfigKey, AgentHostByokModelsEnabledConfigKey, AgentHostCanvasesEnabledConfigKey, AgentHostGitHubMcpServerEnabledConfigKey, AgentHostComputerUseEnabledConfigKey, AgentHostGlobalAutoApproveEnabledConfigKey, AgentHostMcpConnectorsEnabledConfigKey, AgentHostMcpServersConfigKey, AgentHostMigrateLegacyCopilotCliEnabledConfigKey, AgentHostProxyConfigKey, AgentHostSystemProxyEnabledConfigKey, AgentHostTelemetryLevelConfigKey, AgentHostWorkspaceMcpServersEnabledConfigKey, AgentHostWorkspaceTrustConfigKey, platformSessionSchema, telemetryLevelToAgentHostConfigValue } from '../../common/agentHostSchema.js';
 import { IAgentPluginManager, ISyncedCustomization } from '../../common/agentPluginManager.js';
-import { toClientPluginMcpDefaultCwdsMeta, toClientPluginStandaloneMeta } from '../../common/meta/clientPluginCustomizationMeta.js';
+import { toClientPluginMcpDefaultCwdsMeta, toClientPluginMcpServerSourcesMeta, toClientPluginStandaloneMeta } from '../../common/meta/clientPluginCustomizationMeta.js';
 import { getTelemetryChatSessionId } from '../../common/agentTelemetryCorrelation.js';
 import { AgentSession, GITHUB_COPILOT_PROTECTED_RESOURCE, type AgentSignal, type AuthenticateParams, type IAgentCanvasInfo, type IAgentChatAdoptionResult, type IAgentChatSessionSettings, type IAgentChatContext, type IAgentChatMetadata, type IAgentCreateChatForkSource, type IAgentCreateChatOptions, type IAgentCreateChatResult, type IAgentCreateSessionConfig, type IAgentDiscoveredChat, type IAgentMaterializeChatEvent, type IAgentSpawnChatEvent, fixedChatOwnerRef, type IAgentChatOwnerRef } from '../../common/agent.js';
 import { AgentHostClientType } from '../../common/agentHostClientInfo.js';
@@ -84,7 +84,8 @@ import { AgentHostClientConnectionKind, AgentHostLaunchKind, AgentHostTransportK
 import { ISessionDataService, type StoredAssistantResponsePart } from '../../common/sessionDataService.js';
 import { buildNonPtyShellTerminalUri } from '../../common/nonPtyShellTerminalUri.js';
 import { buildDefaultChatUri, buildChatUri, buildSubagentChatUri, buildSubagentSessionUri, CustomizationLoadStatus, MessageKind, readSessionEhcliAdoptable, readSessionWorkspaceless, ResponsePartKind, ToolCallCancellationReason, ToolCallStatus, ToolResultContentType, TurnState, customizationId, AH_META_EHCLI_ADOPTED_DB_KEY, AH_META_EHCLI_LAST_TURN_DB_KEY, AH_META_IS_ARCHIVED_DB_KEY, AH_META_IS_READ_DB_KEY, AH_META_WORKSPACELESS_DB_KEY, type ClientPluginCustomization, type Customization, type PluginCustomization, type ToolCallResult, type Turn, RuleCustomization } from '../../common/state/sessionState.js';
-import { ChatOriginKind, CustomizationEnablementKind, CustomizationType, McpServerStatus, SessionStatus, ToolCallContributorKind, type AgentSelection, type ModelSelection, type ProtectedResourceMetadata, type ToolDefinition } from '../../common/state/protocol/state.js';
+import { ChatOriginKind, CustomizationEnablementKind, CustomizationType, McpServerStatus, SessionStatus, ToolCallContributorKind, type AgentSelection, type McpServerCustomization, type ModelSelection, type ProtectedResourceMetadata, type ToolDefinition } from '../../common/state/protocol/state.js';
+import { getMcpServerCustomizations } from '../../node/shared/mcpCustomizationController.js';
 import { ActionType, AuthRequiredReason, type ChatAction, type SessionAction } from '../../common/state/sessionActions.js';
 
 import { AgentConfigurationService, IAgentConfigurationService } from '../../node/agentConfigurationService.js';
@@ -30868,6 +30869,96 @@ suite('CopilotAgent', () => {
 				],
 				builtinAgents: buildCopilotBuiltinAgents([]),
 				mcpServers: ['my-server'],
+			});
+		});
+
+		test('withholds workspace-configured MCP servers from the SDK while chat.mcp.workspaceServersEnabled is off, including forwarded .vscode/mcp.json entries', async () => {
+			const fileService = createInMemoryFileService(disposables, Schemas.file);
+			const standaloneDir = URI.file('/synced/standalone');
+			const workingDirectory = URI.file('/workspace');
+			await fileService.writeFile(URI.joinPath(standaloneDir, '.plugin', 'plugin.json'), VSBuffer.fromString(JSON.stringify({ name: 'VS Code Standalone Customizations' })));
+			await fileService.writeFile(URI.joinPath(standaloneDir, '.mcp.json'), VSBuffer.fromString(JSON.stringify({ mcpServers: { 'repo-tools': { command: 'repo-tools' }, 'my-server': { command: 'my-server' } } })));
+			await fileService.writeFile(URI.joinPath(workingDirectory, '.mcp.json'), VSBuffer.fromString(JSON.stringify({ mcpServers: { 'workspace-tools': { command: 'workspace-tools' } } })));
+
+			class PluginManager extends TestAgentPluginManager {
+				override async syncCustomizations(_clientId: string, customizations: ClientPluginCustomization[]): Promise<ISyncedCustomization[]> {
+					return customizations.map(customization => ({
+						customization: { ...customization, load: { kind: CustomizationLoadStatus.Loaded } },
+						pluginDir: URI.parse(customization.uri),
+					}));
+				}
+			}
+
+			const client = new TestCopilotClient([], [{ id: 'claude-sonnet', name: 'Claude Sonnet' }]);
+			const launchConfigs: (Parameters<ITestCopilotClient['createSession']>[0] | Parameters<ITestCopilotClient['resumeSession']>[1])[] = [];
+			client.createSession = async config => {
+				launchConfigs.push(config);
+				return new MockCopilotSession() as unknown as CopilotSession;
+			};
+			client.resumeSession = async (_sessionId, config) => {
+				launchConfigs.push(config);
+				return new MockCopilotSession() as unknown as CopilotSession;
+			};
+			const { agent, stateManager, instantiationService } = createTestAgentContext(disposables, {
+				copilotClient: client,
+				sessionDataService: disposables.add(new TestSessionDataService()),
+				pluginManager: new PluginManager(),
+				fileService,
+				useRealCustomizationEnablementService: true,
+				rootConfig: { [AgentHostWorkspaceMcpServersEnabledConfigKey]: false, [AgentHostGitHubMcpServerEnabledConfigKey]: false },
+			});
+			let published: readonly Customization[] = [];
+			try {
+				await agent.authenticate('https://api.github.com', 'token');
+				const session = AgentSession.uri('copilotcli', 'workspace-servers-gated');
+				const chat = defaultChatUri(session);
+				// The real enablement service resolves against the session's recorded working directory.
+				const now = new Date().toISOString();
+				stateManager.createSession({
+					resource: session.toString(), provider: 'copilotcli', title: 'Test', status: SessionStatus.Idle,
+					createdAt: now, modifiedAt: now, workingDirectories: [workingDirectory.toString()],
+					defaultChat: buildDefaultChatUri(session.toString()),
+				});
+				await instantiationService.invokeFunction(accessor => accessor.get(IAgentHostCustomizationEnablementService)).initializeSession(session.toString());
+				const result = await provisionSession(agent, { session, workingDirectories: [workingDirectory] });
+				const context = exactChatContext(result.session, chat, result.session);
+				const activeClient = agent.getOrCreateActiveClient(chat, result.session, { clientId: 'client-1' });
+				activeClient.customizations = [{
+					type: CustomizationType.Plugin,
+					id: standaloneDir.toString(),
+					uri: standaloneDir.toString(),
+					name: 'VS Code Standalone Customizations',
+					enablement: [{ kind: CustomizationEnablementKind.Global, enabled: true }],
+					childEnablement: {
+						'repo-tools': [{ kind: CustomizationEnablementKind.Global, enabled: true }],
+						'my-server': [{ kind: CustomizationEnablementKind.Global, enabled: true }],
+					},
+					_meta: {
+						...toClientPluginStandaloneMeta(),
+						...toClientPluginMcpDefaultCwdsMeta({ 'repo-tools': null, 'my-server': null }),
+						...toClientPluginMcpServerSourcesMeta({ 'repo-tools': 'workspace', 'my-server': 'user' }),
+					},
+				}];
+				await agent.chats.sendMessage(chat, 'hello', [workingDirectory], undefined, 'turn-1', undefined, context);
+				published = await getDefaultChatCustomizations(agent, result.session);
+			} finally {
+				await disposeAgent(agent);
+			}
+
+			const config = launchConfigs.at(-1);
+			const describe = (server: McpServerCustomization) => ({ name: server.name, source: readMcpServerSource(server), enabled: isCustomizationEnabled(server) });
+			assert.deepStrictEqual({
+				mcpServers: Object.keys(config?.mcpServers ?? {}).sort(),
+				disabledMcpServers: [...(config?.disabledMcpServers ?? [])].sort(),
+				published: getMcpServerCustomizations(published).map(describe).sort((a, b) => a.name.localeCompare(b.name)),
+			}, {
+				mcpServers: ['my-server'],
+				disabledMcpServers: ['repo-tools', 'workspace-tools'],
+				published: [
+					{ name: 'my-server', source: 'user', enabled: true },
+					{ name: 'repo-tools', source: 'workspace', enabled: false },
+					{ name: 'workspace-tools', source: 'workspace', enabled: false },
+				],
 			});
 		});
 	});

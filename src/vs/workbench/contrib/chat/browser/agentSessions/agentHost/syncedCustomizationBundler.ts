@@ -17,7 +17,8 @@ import { ILogService } from '../../../../../../platform/log/common/log.js';
 import { IMcpServerConfiguration } from '../../../../../../platform/mcp/common/mcpPlatformTypes.js';
 import { PromptsType } from '../../../common/promptSyntax/promptTypes.js';
 import { AICustomizationSource } from '../../../common/aiCustomizationWorkspaceService.js';
-import { toClientPluginMcpDefaultCwdsMeta, toClientPluginStandaloneMeta, type ClientPluginMcpDefaultCwds } from '../../../../../../platform/agentHost/common/meta/clientPluginCustomizationMeta.js';
+import { toClientPluginMcpDefaultCwdsMeta, toClientPluginMcpServerSourcesMeta, toClientPluginStandaloneMeta, type ClientPluginMcpDefaultCwds, type ClientPluginMcpServerSources } from '../../../../../../platform/agentHost/common/meta/clientPluginCustomizationMeta.js';
+import type { McpServerSource } from '../../../../../../platform/agentHost/common/meta/mcpCustomizationMeta.js';
 import { withCustomizationEnablement } from '../../../../../../platform/agentHost/common/customizationEnablement.js';
 import { customizationId, type ClientPluginCustomization } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { CustomizationEnablementKind, CustomizationType, type CustomizationEnablement, type URI as ProtocolURI } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
@@ -169,6 +170,8 @@ export interface ISyncableMcpServer {
 	readonly configuration: IMcpServerConfiguration;
 	readonly defaultCwd?: URI;
 	readonly enablement: readonly CustomizationEnablement[];
+	/** Where VS Code read the configuration; a workspace server stays gated by `chat.mcp.workspaceServersEnabled` on the host. */
+	readonly source?: McpServerSource;
 }
 
 export interface ISyncedCustomizationBundlerOptions {
@@ -354,18 +357,24 @@ export class SyncedCustomizationBundler extends Disposable {
 		// sorted by name so the serialized content (and nonce) is stable.
 		let mcpContent: string | undefined;
 		let mcpDefaultCwds: ClientPluginMcpDefaultCwds | undefined;
+		let mcpServerSources: ClientPluginMcpServerSources | undefined;
 		const childEnablement: Record<string, CustomizationEnablement[]> = {};
 		if (mcpServers.length > 0) {
 			const servers: Record<string, IMcpServerConfiguration> = {};
 			const defaultCwds: Record<string, URI | null> = {};
+			const sources: Record<string, McpServerSource> = {};
 			for (const server of [...mcpServers].sort((a, b) => a.name.localeCompare(b.name))) {
 				// Deliberately retain disabled servers: step 4's host gate must
 				// apply childEnablement before the SDK discovers this `.mcp.json`.
 				servers[server.name] = server.configuration;
 				defaultCwds[server.name] = server.defaultCwd ?? null;
 				childEnablement[server.name] = server.enablement.slice();
+				if (server.source !== undefined) {
+					sources[server.name] = server.source;
+				}
 			}
 			mcpDefaultCwds = defaultCwds;
+			mcpServerSources = Object.keys(sources).length > 0 ? sources : undefined;
 			mcpContent = JSON.stringify({ mcpServers: servers }, null, '\t');
 		}
 
@@ -383,6 +392,9 @@ export class SyncedCustomizationBundler extends Disposable {
 		}
 		if (mcpDefaultCwds !== undefined) {
 			contentHashParts.push(`mcpDefaultCwds:${JSON.stringify(toClientPluginMcpDefaultCwdsMeta(mcpDefaultCwds))}`);
+		}
+		if (mcpServerSources !== undefined) {
+			contentHashParts.push(`mcpServerSources:${JSON.stringify(toClientPluginMcpServerSourcesMeta(mcpServerSources))}`);
 		}
 		contentHashParts.sort();
 		const nonce = String(hash(contentHashParts.join('\n')));
@@ -430,7 +442,7 @@ export class SyncedCustomizationBundler extends Disposable {
 		this._lastNonce = nonce;
 
 		const rootUriString = this._rootUri.toString() as ProtocolURI;
-		const meta = this._toMeta(mcpDefaultCwds);
+		const meta = this._toMeta(mcpDefaultCwds, mcpServerSources);
 		const result: IBundleResult = {
 			ref: {
 				type: CustomizationType.Plugin,
@@ -450,13 +462,14 @@ export class SyncedCustomizationBundler extends Disposable {
 		return result;
 	}
 
-	private _toMeta(mcpDefaultCwds: ClientPluginMcpDefaultCwds | undefined): Record<string, unknown> | undefined {
-		if (!this._standalone && !mcpDefaultCwds) {
+	private _toMeta(mcpDefaultCwds: ClientPluginMcpDefaultCwds | undefined, mcpServerSources: ClientPluginMcpServerSources | undefined): Record<string, unknown> | undefined {
+		if (!this._standalone && !mcpDefaultCwds && !mcpServerSources) {
 			return undefined;
 		}
 		return {
 			...(this._standalone ? toClientPluginStandaloneMeta() : {}),
 			...(mcpDefaultCwds ? toClientPluginMcpDefaultCwdsMeta(mcpDefaultCwds) : {}),
+			...(mcpServerSources ? toClientPluginMcpServerSourcesMeta(mcpServerSources) : {}),
 		};
 	}
 

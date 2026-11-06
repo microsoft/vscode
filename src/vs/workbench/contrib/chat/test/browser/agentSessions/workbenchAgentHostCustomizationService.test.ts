@@ -69,6 +69,7 @@ suite('WorkbenchAgentHostCustomizationService', () => {
 			const connection = {
 				dispatch: (_channel: string, action: SessionAction) => dispatched.push(action),
 				onDidAction: Event.None,
+				onDidNotification: Event.None,
 				rootState: { value: undefined },
 				resourceUris: kind.resourceUris,
 				getSubscription: () => ({ object: subscription, dispose: () => { } }),

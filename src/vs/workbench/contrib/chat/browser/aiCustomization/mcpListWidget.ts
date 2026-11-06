@@ -63,7 +63,7 @@ import { ILogService } from '../../../../../platform/log/common/log.js';
 import { IAICustomizationWorkspaceService } from '../../common/aiCustomizationWorkspaceService.js';
 import { AgentPluginItemKind, IAgentPluginItem } from '../agentPluginEditor/agentPluginItems.js';
 import { CustomizationMcpServerCompatibilityKind, getCustomizationDisabledLabel, ICustomizationHarnessService } from '../../common/customizationHarnessService.js';
-import { getMcpServerDisplayLabel, IAgentHostCustomizationService } from '../agentSessions/agentHost/agentHostCustomizationService.js';
+import { getMcpServerDisplayLabel, IAgentHostCustomizationService, isWorkspaceClassGatedMcpServer } from '../agentSessions/agentHost/agentHostCustomizationService.js';
 import { CustomizationEnablementKind, CustomizationLoadStatus, CustomizationType, McpServerStatus } from '../../../../../platform/agentHost/common/state/protocol/state.js';
 import { IOutputService } from '../../../../services/output/common/output.js';
 import { ChatConfiguration } from '../../common/constants.js';
@@ -259,8 +259,8 @@ function getWorkspaceMcpServersToggleTitle(state: IWorkspaceMcpServersState): st
 	switch (state.decidedBy) {
 		case 'session':
 			return state.enabled
-				? localize('workspaceMcpServers.enabled.session', "Workspace MCP servers are enabled for this session. Click to disable them for this workspace.")
-				: localize('workspaceMcpServers.disabled.session', "Workspace MCP servers are disabled for this session. Click to enable them for this workspace.");
+				? localize('workspaceMcpServers.enabled.session', "Workspace MCP servers are enabled for this session. Click to disable them for this session.")
+				: localize('workspaceMcpServers.disabled.session', "Workspace MCP servers are disabled for this session. Click to enable them for this session.");
 		case 'workspace':
 			return state.enabled
 				? localize('workspaceMcpServers.enabled.workspace', "Workspace MCP servers are enabled for this workspace. Click to disable them for this workspace.")
@@ -1622,6 +1622,11 @@ const agentHostMcpServerEnablementActionInfo = {
 	readonly disableLabel: () => string;
 }>;
 
+/** The scope that re-enables a class-gated workspace server: the workspace when the session has one, else the session. */
+function getWorkspaceClassOverrideScope(agentHostCustomizations: IAgentHostCustomizationService, sessionResource: URI): CustomizationEnablementKind {
+	return agentHostCustomizations.getWorkingDirectories(sessionResource).length > 0 ? CustomizationEnablementKind.Workspace : CustomizationEnablementKind.Session;
+}
+
 /** Creates enablement actions for an agent-host server. */
 export function getAgentHostMcpServerEnablementActions(agentHostCustomizations: IAgentHostCustomizationService, agentPluginService: IAgentPluginService, sessionResource: URI, server: AgentHostMcpServer, scopes: readonly AgentHostMcpServerEnablementScope[] = ['global', 'workspace', 'session']): IAction[] {
 	if (server.disabledReason?.source === 'plugin') {
@@ -1634,7 +1639,8 @@ export function getAgentHostMcpServerEnablementActions(agentHostCustomizations: 
 	}
 	const enablement = getCustomizationScopeEnablement(server);
 	const actions: IAction[] = [];
-	if (scopes.includes('global')) {
+	// A Global decision cannot pierce the class gate, so offering it would be a silent no-op.
+	if (scopes.includes('global') && !isWorkspaceClassGatedMcpServer(agentHostCustomizations, sessionResource, server)) {
 		actions.push(createAgentHostMcpServerEnablementAction(agentHostCustomizations, sessionResource, server, !enablement.global, 'global'));
 	}
 	if (scopes.includes('workspace') && agentHostCustomizations.getWorkingDirectories(sessionResource).length > 0) {
@@ -1665,9 +1671,12 @@ export function setPrimaryMcpServerEnablement(
 		return;
 	}
 	if (activeSessionServer && !activeSessionServer.enabled && enabled) {
-		const scope = activeSessionServer.disabledReason?.source === 'scope'
-			? activeSessionServer.disabledReason.scope
-			: getCustomizationEnablementDecision(activeSessionServer)?.kind ?? CustomizationEnablementKind.Global;
+		// The class gate publishes itself as a Global decision; re-enabling one server needs a scope the gate yields to.
+		const scope = isWorkspaceClassGatedMcpServer(agentHostCustomizations, sessionResource, activeSessionServer)
+			? getWorkspaceClassOverrideScope(agentHostCustomizations, sessionResource)
+			: activeSessionServer.disabledReason?.source === 'scope'
+				? activeSessionServer.disabledReason.scope
+				: getCustomizationEnablementDecision(activeSessionServer)?.kind ?? CustomizationEnablementKind.Global;
 		agentHostCustomizations.setCustomizationEnablement(
 			sessionResource,
 			activeSessionServer.id,
@@ -1680,7 +1689,11 @@ export function setPrimaryMcpServerEnablement(
 	const localEnablementServerId = getLocalEnablementServerId(localServerId, activeSessionServer);
 	if (localEnablementServerId) {
 		const current = mcpService.enablementModel.readEnabled(localEnablementServerId);
-		const next = getToggledMcpEnablementState(current);
+		let next = getToggledMcpEnablementState(current);
+		if (next === ContributionEnablementState.EnabledProfile && mcpService.enablementModel.canSetEnabled?.(localEnablementServerId, next) === false) {
+			// The class gate of `chat.mcp.workspaceServersEnabled` ignores a Profile decision; a Workspace decision overrides it.
+			next = ContributionEnablementState.EnabledWorkspace;
+		}
 		if (isContributionEnabled(next) !== enabled) {
 			throw new Error(`Unexpected MCP enablement transition for ${localEnablementServerId}.`);
 		}
@@ -3100,11 +3113,21 @@ export class McpListWidget extends Disposable {
 				return undefined;
 			}
 			const decision = published.enablement[0];
+			const workingDirectories = this.agentHostCustomizationService.getClientWorkingDirectoryUris(sessionResource);
+			// A Session decision outranks a Workspace one, so while it decides the toggle changes it.
+			const scope = decision?.kind === CustomizationEnablementKind.Session ? CustomizationEnablementKind.Session : CustomizationEnablementKind.Workspace;
 			return {
 				enabled: published.enabled,
 				decidedBy: decision?.kind === CustomizationEnablementKind.Workspace ? 'workspace' : decision?.kind === CustomizationEnablementKind.Session ? 'session' : 'setting',
-				canOverride: this.agentHostCustomizationService.getWorkingDirectories(sessionResource).length > 0,
-				setEnabled: enabled => this.agentHostCustomizationService.setWorkspaceMcpServersEnablement(sessionResource, CustomizationEnablementKind.Workspace, enabled),
+				canOverride: scope === CustomizationEnablementKind.Session || workingDirectories.length > 0,
+				setEnabled: async enabled => {
+					await this.agentHostCustomizationService.setWorkspaceMcpServersEnablement(sessionResource, scope, enabled);
+					// The window forwards its own workspace servers to a session in one of its folders, and
+					// the local model gates those; one workspace toggle decides for every server of the workspace.
+					if (scope === CustomizationEnablementKind.Workspace && workingDirectories.some(directory => this.workspaceContextService.getWorkspaceFolder(directory) !== undefined)) {
+						this.mcpService.workspaceServersEnablement.setWorkspaceServersEnabled(enabled);
+					}
+				},
 			};
 		}
 		const state = this.mcpService.workspaceServersEnablement.readWorkspaceServersEnabled(reader);

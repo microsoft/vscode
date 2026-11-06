@@ -3628,14 +3628,21 @@ suite('CodexAgent prewarm eviction', () => {
 			await send;
 
 			const uniqueTargets = new Map(resolvedTargets.filter(target => target.name === 'workspace' || target.name === 'root').map(target => [target.name, target.isWorkspaceConfigured]));
+			const chat = URI.parse(buildDefaultChatUri(session));
+			const listed = (await agent.getChatCustomizations(chat, chatContext(session, chat)))
+				.filter(customization => customization.type === CustomizationType.McpServer)
+				.map(customization => customization.type === CustomizationType.McpServer ? { name: customization.name, source: readMcpServerSource(customization), enabled: isCustomizationEnabled(customization), status: customization.state.kind } : undefined);
 			assert.deepStrictEqual({
 				startMethod: start.method,
 				mcp: start.params.config?.['mcp_servers'],
 				resolvedTargets: [...uniqueTargets].sort(([a], [b]) => a.localeCompare(b)),
+				// The withheld declaration stays listed, disabled, so the Workspace override remains reachable.
+				listed,
 			}, {
 				startMethod: 'thread/start',
 				mcp: { root: { command: 'node', args: ['root.js'] } },
 				resolvedTargets: [['root', undefined], ['workspace', true]],
+				listed: [{ name: 'workspace', source: 'workspace', enabled: false, status: McpServerStatus.Stopped }],
 			});
 		} finally {
 			peer.exit();
@@ -3643,7 +3650,7 @@ suite('CodexAgent prewarm eviction', () => {
 		}
 	});
 
-	test('inventory servers discovered from .mcp.json publish their workspace source unless enablement withheld them', async () => {
+	test('lists .mcp.json declarations with their workspace source before codex reports them and keeps it when the gate closes', async () => {
 		let workspaceServersEnabled = true;
 		const customizationEnablementService: IAgentHostCustomizationEnablementService = {
 			...createNoopCustomizationEnablementService(),
@@ -3654,40 +3661,54 @@ suite('CodexAgent prewarm eviction', () => {
 		};
 		const agent = await createAgent(disposables, { customizationEnablementService });
 		agent['_schedulePrewarm'] = () => { };
+		agent['_refreshSkillHookCustomizations'] = async () => { };
 		const repo = URI.file('/repo');
 		await agent['_fileService'].writeFile(URI.joinPath(repo, '.mcp.json'), VSBuffer.fromString(JSON.stringify({
 			mcpServers: { workspace: { command: 'node', args: ['workspace.js'] } },
 		})));
 		const { session } = await createSession(agent, { workingDirectories: [repo] });
+		const chat = URI.parse(buildDefaultChatUri(session));
 		const entry = agent['_sessions'].get(AgentSession.id(session))!;
-		await agent['_refreshSessionMcpDiscovery'](entry);
 		const signals: AgentSignal[] = [];
 		disposables.add(agent.onDidChatProgress(signal => signals.push(signal)));
+		const describe = (customization: Customization) => customization.type === CustomizationType.McpServer
+			? { name: customization.name, uri: customization.uri, source: readMcpServerSource(customization), enabled: isCustomizationEnabled(customization), status: customization.state.kind }
+			: undefined;
 		const publishedServers = () => signals.flatMap(signal => signal.kind === 'action' && signal.action.type === ActionType.SessionCustomizationUpdated && signal.action.customization.type === CustomizationType.McpServer
-			? [{ name: signal.action.customization.name, uri: signal.action.customization.uri, source: readMcpServerSource(signal.action.customization), enabled: isCustomizationEnabled(signal.action.customization) }]
+			? [describe(signal.action.customization)]
 			: []);
+
+		// Before codex starts anything, the declaration is listed as stopped, with its source.
+		const beforeStart = (await agent.getChatCustomizations(chat, chatContext(session, chat))).filter(customization => customization.type === CustomizationType.McpServer).map(describe);
+		signals.length = 0;
 
 		const controller = agent['_getOrCreateMcpController'](entry);
 		assert.ok(controller);
 		controller.applyAll([
+			...agent['_sessionSdkMcpServers'](entry).filter(server => server.name !== 'workspace'),
 			{ name: 'workspace', state: { kind: McpServerStatus.Ready } },
 			{ name: 'elsewhere', state: { kind: McpServerStatus.Ready } },
 		]);
-		const admitted = publishedServers();
+		const running = publishedServers();
 		signals.length = 0;
 
-		// The withheld definition never reached codex, so a same-named inventory server is another source's.
+		// Closing the gate does not rewrite where the still-running server came from; it is published disabled.
 		workspaceServersEnabled = false;
-		controller.applyAll([{ name: 'workspace', state: { kind: McpServerStatus.Ready } }], true);
+		controller.applyAll([{ name: 'workspace', state: { kind: McpServerStatus.Ready } }, { name: 'elsewhere', state: { kind: McpServerStatus.Ready } }], true);
 
+		const declarationUri = URI.joinPath(repo, '.mcp.json').toString();
 		const mintedUri = (name: string) => buildMcpTopLevelCustomizationId(agent.id, AgentSession.id(session), name);
-		assert.deepStrictEqual({ admitted, withheld: publishedServers() }, {
-			admitted: [
-				{ name: 'workspace', uri: URI.joinPath(repo, '.mcp.json').toString(), source: 'workspace', enabled: true },
-				{ name: 'elsewhere', uri: mintedUri('elsewhere'), source: undefined, enabled: true },
+		assert.deepStrictEqual({ beforeStart, running, gated: publishedServers() }, {
+			beforeStart: [
+				{ name: 'workspace', uri: declarationUri, source: 'workspace', enabled: true, status: McpServerStatus.Stopped },
 			],
-			withheld: [
-				{ name: 'workspace', uri: mintedUri('workspace'), source: undefined, enabled: true },
+			running: [
+				{ name: 'workspace', uri: declarationUri, source: 'workspace', enabled: true, status: McpServerStatus.Ready },
+				{ name: 'elsewhere', uri: mintedUri('elsewhere'), source: undefined, enabled: true, status: McpServerStatus.Ready },
+			],
+			gated: [
+				{ name: 'workspace', uri: declarationUri, source: 'workspace', enabled: false, status: McpServerStatus.Ready },
+				{ name: 'elsewhere', uri: mintedUri('elsewhere'), source: undefined, enabled: true, status: McpServerStatus.Ready },
 			],
 		});
 	});

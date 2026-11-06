@@ -22,6 +22,7 @@ import { COPILOT_STRICT_PLUGIN_ONLY_CUSTOMIZATION_CONFIG } from '../../../../../
 import { StorageScope } from '../../../../../../platform/storage/common/storage.js';
 import { AgentHostMcpServerApplicability, AgentHostMcpServerDelivery, AgentHostMcpServerEnablementState, AgentHostMcpServerSourceKind, AgentHostMcpSupportReason, assessMcpServersForCopilotAgentHost, COPILOT_CHAT_GITHUB_MCP_COLLECTION_ID, IAgentHostInstalledMcpServer, IAgentHostMcpServerSupport, IAgentHostMcpServerSupportSnapshot, mergeInstalledMcpServersIntoAgentHostSupportAssessment, resolveMcpServersForAgentHostDelivery } from '../../../browser/agentSessions/agentHost/agentHostMcpServerSupport.js';
 import { AgentHostMcpServerSupportScope, createCustomizationMcpServerCompatibilityScope, getMcpCompatibilityDetail, IAgentHostMcpServerSupportScope } from '../../../browser/agentSessions/agentHost/agentHostMcpServerSupportScope.js';
+import { collectNonPluginMcpServers } from '../../../browser/agentSessions/agentHost/agentHostLocalCustomizations.js';
 import { ContributionEnablementState } from '../../../common/enablement.js';
 import { AICustomizationSources } from '../../../common/aiCustomizationWorkspaceService.js';
 import { ExternalDiscoverySource } from '../../../../mcp/common/mcpConfiguration.js';
@@ -256,6 +257,44 @@ suite('agentHostMcpServerSupport', () => {
 			{ name: 'plugin.test/server', source: AgentHostMcpServerSourceKind.AgentPlugin, delivery: AgentHostMcpServerDelivery.AgentPlugin, compatibility: 'supported' },
 			{ name: 'extension.server', source: AgentHostMcpServerSourceKind.Extension, delivery: AgentHostMcpServerDelivery.ClientForwarded, compatibility: 'supported' },
 			{ name: 'github', source: AgentHostMcpServerSourceKind.Extension, delivery: AgentHostMcpServerDelivery.ProviderBuiltIn, compatibility: 'supported' },
+		]);
+	});
+
+	test('forwards each server with the source it was read from so the host keeps gating workspace servers', async () => {
+		const root = URI.file('/workspace');
+		const servers = [
+			makeMcpServer({
+				id: 'mcp.config.usrlocal.user',
+				collectionId: 'mcp.config.usrlocal',
+				provenance: McpCollectionProvenance.UserProfile,
+			}),
+			makeMcpServer({
+				id: 'mcp.config.ws0.repo',
+				collectionId: 'mcp.config.ws0',
+				provenance: McpCollectionProvenance.WorkspaceFolderConfiguration,
+				configTarget: ConfigurationTarget.WORKSPACE_FOLDER,
+				collectionOrigin: URI.joinPath(root, '.vscode', 'mcp.json'),
+				// The class gate disables the server locally; the host applies the same gate from the source.
+				enablement: ContributionEnablementState.DisabledProfile,
+			}),
+			makeMcpServer({
+				id: 'extension.server',
+				collectionId: 'publisher.extension/provider',
+				provenance: McpCollectionProvenance.Extension,
+				collectionSource: new ExtensionIdentifier('publisher.extension'),
+			}),
+		];
+		const mcpService = {
+			servers: observableValue('servers', servers),
+			enablementModel: { readProfileEnabled: () => true },
+		} as unknown as IMcpService;
+
+		const forwarded = await collectNonPluginMcpServers(mcpService, makeConfigurationResolverService(), 'agent-host-copilotcli', [root], null);
+
+		assert.deepStrictEqual(forwarded.map(server => ({ name: server.name, source: server.source, enabled: server.enablement[0]?.enabled })), [
+			{ name: 'mcp.config.usrlocal.user', source: 'user', enabled: true },
+			{ name: 'mcp.config.ws0.repo', source: 'workspace', enabled: true },
+			{ name: 'extension.server', source: undefined, enabled: true },
 		]);
 	});
 
