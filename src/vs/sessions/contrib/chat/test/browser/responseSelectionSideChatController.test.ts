@@ -38,8 +38,8 @@ import { SessionsSideChatProviderContribution } from '../../browser/sideChatProv
 import { ISessionsPartService } from '../../../../../workbench/contrib/sessions/browser/sessionsPartService.js';
 import { ISessionsService } from '../../../../../workbench/contrib/sessions/browser/sessionsService.js';
 import { ChatInteractivity, IChat, SessionStatus } from '../../../../../workbench/contrib/sessions/common/session.js';
-import { IActiveSession, ISessionsManagementService } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
-import { ITestSessionsService, stubMissingSessionHostsFromSessionsService } from '../../../../../workbench/contrib/sessions/test/browser/sessionHostTestUtils.js';
+import { ISessionsManagementService } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
+import { ITestSessionsService, ITestSessionWithChat, stubMissingSessionHostsFromSessionsService } from '../../../../../workbench/contrib/sessions/test/browser/sessionHostTestUtils.js';
 
 class RecordingNotificationService extends TestNotificationService {
 	readonly notifications: { severity: Severity; message: string }[] = [];
@@ -293,7 +293,7 @@ suite('ResponseSelectionSideChatController', () => {
 
 		const sideChat = upcastPartial<IChat>({ resource: URI.parse('test:///chat/side') });
 		const chat = createChat(URI.parse('test:///chat/source'), options?.chatInteractivity);
-		const session = upcastPartial<IActiveSession>({
+		const session = upcastPartial<ITestSessionWithChat>({
 			sessionId: 'session',
 			resource: URI.parse('test:///session'),
 			status: constObservable(SessionStatus.Completed),
@@ -322,7 +322,7 @@ suite('ResponseSelectionSideChatController', () => {
 			}),
 		}));
 		instantiationService.stub(ISessionsService, upcastPartial<ITestSessionsService>({
-			visibleSessions: constObservable([session]),
+			gridShown: constObservable([session]),
 			activeSession: constObservable(session),
 			navigationRequest: constObservable(undefined),
 			openChat: async (_session, chatUri) => {

@@ -22,9 +22,9 @@ import { IChatResponseModel, serializeSendOptions } from '../../../../chat/commo
 import { ToolInvocationPresentation } from '../../../../chat/common/tools/languageModelToolsService.js';
 import { createChatUserInteractionTestHarness } from '../../../../chat/test/browser/chatUserInteractionTestUtils.js';
 import { ISessionsService } from '../../../browser/sessionsService.js';
-import { testGridPanes } from '../sessionHostTestUtils.js';
+import { ITestSessionsService, ITestSessionWithChat, testGridPanes } from '../sessionHostTestUtils.js';
 import { IChat, ISession, SessionStatus } from '../../../common/session.js';
-import { IActiveSession, ISendRequestOptions, ISessionsManagementService, shownChatOf } from '../../../common/sessionsManagement.js';
+import { ISendRequestOptions, ISessionsManagementService, shownChatOf } from '../../../common/sessionsManagement.js';
 import { SharedChatInputComposer } from '../../../browser/chat/sharedChatInputComposer.js';
 import { INewChatInputSendRequest } from '../../../browser/chat/newChatComposerInput.js';
 import { NewChatInSessionWidget } from '../../../browser/chat/newChatInSessionWidget.js';
@@ -41,16 +41,16 @@ suite('Sessions - New chat user-perceived TTFP', () => {
 		const chat = upcastPartial<IChat>({ resource: URI.parse('test-chat:/first') });
 		const activeChat = observableValue('activeChat', chat);
 		const preparing = observableValue('preparing', newSession);
-		const session = upcastPartial<IActiveSession>({
+		const session = upcastPartial<ITestSessionWithChat>({
 			sessionId: 'source-session', resource: URI.parse('test-session:/source'), providerId: 'test', sessionType: 'test-chat',
 			status: constObservable(newSession ? SessionStatus.Untitled : SessionStatus.Completed),
 			mainChat: constObservable(chat), activeChat, isNewSessionRequestInProgress: preparing,
 		});
-		const visibleSessions = observableValue<readonly (IActiveSession | undefined)[]>('visibleSessions', [session]);
+		const visibleSessions = observableValue<readonly (ITestSessionWithChat | undefined)[]>('visibleSessions', [session]);
 		const replaced = disposables.add(new Emitter<{ from: ISession; to: ISession }>());
 		const replacedDraft = disposables.add(new Emitter<{ from: ISession; to: ISession }>());
 		h.instantiationService.stub(ISessionsManagementService, { onDidReplaceSession: replaced.event, onDidReplaceNewDraftSession: replacedDraft.event });
-		h.instantiationService.stub(ISessionsService, { visibleSessions, slotPanes: testGridPanes(visibleSessions) });
+		h.instantiationService.stub(ISessionsService, upcastPartial<ITestSessionsService>({ gridShown: visibleSessions, slotPanes: testGridPanes(visibleSessions) }));
 		const added = disposables.add(new Emitter<IChatWidget>());
 		const removed = disposables.add(new Emitter<IChatWidget>());
 		const widgets: IChatWidget[] = [];

@@ -29,7 +29,6 @@ import { IsQuickChatSessionContext, SessionHasWorkspaceContext, SessionsWelcomeV
 import { ISessionHostService, SessionHost, SessionHostKind } from '../../../../../workbench/contrib/sessions/browser/sessionHost.js';
 import { ISessionsService } from '../../../../../workbench/contrib/sessions/browser/sessionsService.js';
 import { IChat } from '../../../../../workbench/contrib/sessions/common/session.js';
-import { IActiveSession } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import { ISessionChangesEditorOptions, ISessionChangesService } from '../../../../../workbench/contrib/sessions/common/sessionChangesService.js';
 import { CLOSE_CHAT_WINDOW_COMMAND_ID, CLOSE_CHAT_WINDOW_EDITOR_AREA_COMMAND_ID, chatWindowTabEntries } from '../../browser/chatWindowActions.js';
 import { KeybindingsRegistry } from '../../../../../platform/keybinding/common/keybindingsRegistry.js';
@@ -37,7 +36,7 @@ import { TestEditorInput } from '../../../../../workbench/test/browser/workbench
 import '../../../sessions/browser/sessionsActions.js';
 import '../../../../browser/actions/vscodeActions.js';
 import '../../../chat/browser/runScriptAction.js';
-import { withCreatedStatus } from '../../../../../workbench/contrib/sessions/test/browser/sessionHostTestUtils.js';
+import { ITestSessionWithChat, LegacyFakePaneState, withCreatedStatus } from '../../../../../workbench/contrib/sessions/test/browser/sessionHostTestUtils.js';
 
 function evaluate(expression: ContextKeyExpression | undefined, values: Record<string, ContextKeyValue>): boolean {
 	return expression?.evaluate({ getValue: <T extends ContextKeyValue>(key: string) => values[key] as T | undefined } satisfies IContext) !== false;
@@ -70,17 +69,17 @@ suite('Chat window editor area', () => {
 		}();
 	}
 
-	function createInstantiationService(activeWindow: IChatWindow | undefined, session?: IActiveSession): TestInstantiationService {
+	function createInstantiationService(activeWindow: IChatWindow | undefined, session?: LegacyFakePaneState): TestInstantiationService {
 		const instantiationService = disposables.add(new TestInstantiationService());
 		instantiationService.stub(IChatWindowService, new class extends mock<IChatWindowService>() {
 			override get activeWindow() { return activeWindow; }
 		}());
 		// The window acts on the session of its host, whichever session is active.
 		instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() {
-			readonly activeSession = observableValue<IActiveSession | undefined>('active', undefined);
+			readonly activeSession = observableValue<ITestSessionWithChat | undefined>('active', undefined);
 		}());
 		// It shows the chat `session` names as its own.
-		const shown = session && upcastPartial<IActiveSession>({ ...session, ...withCreatedStatus(constObservable(true)) });
+		const shown = session && upcastPartial<ITestSessionWithChat>({ ...session, ...withCreatedStatus(constObservable(true)) });
 		const chat = session?.scopedChatResource && upcastPartial<IChat>({ resource: session.scopedChatResource });
 		const windowHost = new SessionHost({ kind: SessionHostKind.ChatWindow, parent: undefined, session: constObservable(shown), chat: constObservable(chat), contextKeyService: upcastPartial<IContextKeyService>({}) });
 		instantiationService.stub(ISessionHostService, upcastPartial<ISessionHostService>({ getHostOfWindow: () => windowHost }));
@@ -143,7 +142,7 @@ suite('Chat window editor area', () => {
 
 	test('the tab entries of the Session Activity Bar and of Add Tab act on the chat window that has focus, and its session', async () => {
 		const events: string[] = [];
-		const session = { sessionId: 'session-2', resource: URI.parse('test:/session-2'), scopedChatResource: URI.parse('test:/chat-2') } as IActiveSession;
+		const session = { sessionId: 'session-2', resource: URI.parse('test:/session-2'), scopedChatResource: URI.parse('test:/chat-2') } as LegacyFakePaneState;
 		const instantiationService = createInstantiationService(createWindow(2, events), session);
 		instantiationService.stub(ISessionChangesService, new class extends mock<ISessionChangesService>() {
 			override getChangesEditorResource(resource: URI) { return resource; }
@@ -162,7 +161,7 @@ suite('Chat window editor area', () => {
 
 	test('the Changes entry activates a Changes tab of the session the main part shows, such as one that moved in with the chat or was restored, rather than opening another', async () => {
 		const events: string[] = [];
-		const session = { sessionId: 'session-2', resource: URI.parse('test:/session-2'), scopedChatResource: URI.parse('test:/chat-2') } as IActiveSession;
+		const session = { sessionId: 'session-2', resource: URI.parse('test:/session-2'), scopedChatResource: URI.parse('test:/chat-2') } as LegacyFakePaneState;
 		// Of the session, not of its chat, and of another session.
 		const ofSession = new class extends mock<EditorInput>() { override readonly typeId = 'changes'; override readonly resource = URI.parse('changes:/session-2'); }();
 		const ofOther = new class extends mock<EditorInput>() { override readonly typeId = 'changes'; override readonly resource = URI.parse('changes:/other'); }();

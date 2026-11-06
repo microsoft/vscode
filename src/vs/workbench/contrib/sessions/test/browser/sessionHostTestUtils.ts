@@ -13,7 +13,7 @@ import { IContextKeyService } from '../../../../../platform/contextkey/common/co
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { ServiceIdentifier } from '../../../../../platform/instantiation/common/instantiation.js';
 import { IEditorGroupsService } from '../../../../services/editor/common/editorGroupsService.js';
-import { IFocusedSessionHostService, ISessionHost, ISessionHostService, SessionHost, SessionHostKind } from '../../browser/sessionHost.js';
+import { IFocusedSessionHostService, ISessionChatSource, ISessionHost, ISessionHostService, SessionHost, SessionHostKind } from '../../browser/sessionHost.js';
 import { SessionHostService } from '../../browser/sessionHostService.js';
 import { ISessionsService } from '../../browser/sessionsService.js';
 import { ISessionsPartService, ISessionView } from '../../browser/sessionsPartService.js';
@@ -66,6 +66,11 @@ export function chatOfShown(shown: TestShown | undefined, reader: IReader | unde
 	// A legacy fake of a view scoped to one chat shows that chat.
 	const scopedChatResource = (shown as { readonly scopedChatResource?: URI }).scopedChatResource;
 	return scopedChatResource ? upcastPartial<IChat>({ resource: scopedChatResource }) : shown.activeChat?.read(reader);
+}
+
+/** A source of the session and the chat `shown` shows, for UI a test gives a source rather than a host. */
+export function testChatSourceOf(shown: IObservable<TestShown | undefined>): ISessionChatSource {
+	return { session: derived(reader => sessionOfShown(shown.read(reader))), chat: derived(reader => chatOfShown(shown.read(reader), reader)) };
 }
 
 /**

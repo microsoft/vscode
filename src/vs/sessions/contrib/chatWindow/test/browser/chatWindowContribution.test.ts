@@ -18,7 +18,6 @@ import { IChatWindow, IChatWindowService } from '../../../../../workbench/contri
 import { IEditorGroup, IEditorGroupsService } from '../../../../../workbench/services/editor/common/editorGroupsService.js';
 import { IAgentWorkbenchLayoutService } from '../../../../browser/workbench.js';
 import { ISessionsService } from '../../../../../workbench/contrib/sessions/browser/sessionsService.js';
-import { IActiveSession } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import { IChat, ISession } from '../../../../../workbench/contrib/sessions/common/session.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { IMenuItem, isIMenuItem, ISubmenuItem, isISubmenuItem, MenuRegistry, registerAction2 } from '../../../../../platform/actions/common/actions.js';
@@ -49,7 +48,7 @@ import { SESSION_ACTIVITY_BAR_LAYOUT_ACTIONS_SETTING, SESSION_ACTIVITY_BAR_SETTI
 import { CHAT_WINDOWS_ENABLED_SETTING } from '../../common/chatWindows.js';
 import '../../browser/chatWindow.contribution.js';
 import { MOVE_CHAT_TO_MAIN_WINDOW_COMMAND_ID, OPEN_ACTIVE_CHAT_IN_WINDOW_COMMAND_ID, OPEN_CHAT_IN_WINDOW_COMMAND_ID, OPEN_SESSION_IN_WINDOW_COMMAND_ID, openChatInWindow } from '../../browser/openChatInWindow.js';
-import { ITestSessionsService, stubMissingSessionHostsFromSessionsService, testGridPanes, withCreatedStatus } from '../../../../../workbench/contrib/sessions/test/browser/sessionHostTestUtils.js';
+import { ITestSessionsService, ITestSessionWithChat, LegacyFakePaneState, stubMissingSessionHostsFromSessionsService, testGridPanes, withCreatedStatus } from '../../../../../workbench/contrib/sessions/test/browser/sessionHostTestUtils.js';
 import { stubSessionsHostLayout } from '../../../../test/browser/sessionsHostLayoutTestUtils.js';
 
 function evaluate(expression: ContextKeyExpression | undefined, values: Record<string, ContextKeyValue>): boolean {
@@ -218,14 +217,14 @@ suite('Chat window contribution', () => {
 			}));
 			stubSessionsHostLayout(instantiationService);
 			const chat = (id: string) => ({ resource: URI.parse(`test:/chat/${id}`) });
-			const active = new class extends mock<IActiveSession>() {
+			const active = new class extends mock<ITestSessionWithChat>() {
 				override readonly sessionId = mainWindowShows;
-				override readonly activeChat = constObservable(chat(mainWindowShows)) as IActiveSession['activeChat'];
+				override readonly activeChat = constObservable(chat(mainWindowShows)) as ITestSessionWithChat['activeChat'];
 			}();
 			instantiationService.stub(ISessionsService, upcastPartial<ITestSessionsService>({
-				visibleSessions: constObservable([active]),
+				gridShown: constObservable([active]),
 				slotPanes: testGridPanes(constObservable([active])),
-				mainWindowActiveSession: constObservable<IActiveSession | undefined>(active),
+				mainWindowActiveSession: constObservable<ITestSessionWithChat | undefined>(active),
 			}));
 			stubMissingSessionHostsFromSessionsService(instantiationService);
 			instantiationService.stub(IEditorGroupsService, upcastPartial<IEditorGroupsService>({ mainPart: upcastPartial<IEditorGroupsService['mainPart']>({ groups: [] }) }));
@@ -313,10 +312,10 @@ suite('Chat window contribution', () => {
 				showEditor: () => { editorShown = true; },
 			});
 			// The session of the window, which its host shows, differs from the active session of the main window.
-			const windowSession = constObservable<IActiveSession | undefined>(upcastPartial<IActiveSession>({ resource: URI.parse('test:/window'), scopedChatResource: URI.parse('test:/window/chat'), ...withCreatedStatus(constObservable(true)) }));
+			const windowSession = constObservable<LegacyFakePaneState | undefined>(upcastPartial<LegacyFakePaneState>({ resource: URI.parse('test:/window'), scopedChatResource: URI.parse('test:/window/chat'), ...withCreatedStatus(constObservable(true)) }));
 			const scoped = disposables.add(new TestInstantiationService());
 			const windowHost = new SessionHost({ kind: SessionHostKind.ChatWindow, parent: undefined, session: windowSession, chat: constObservable(upcastPartial<IChat>({ resource: URI.parse('test:/window/chat') })), contextKeyService: upcastPartial<IContextKeyService>({}), windowId: constObservable(window.windowId) });
-			const mainSession = constObservable<IActiveSession | undefined>(upcastPartial<IActiveSession>({ resource: URI.parse('test:/main'), ...withCreatedStatus(constObservable(true)), activeChat: constObservable(upcastPartial<IChat>({ resource: URI.parse('test:/main/chat') })) }));
+			const mainSession = constObservable<ITestSessionWithChat | undefined>(upcastPartial<ITestSessionWithChat>({ resource: URI.parse('test:/main'), ...withCreatedStatus(constObservable(true)), activeChat: constObservable(upcastPartial<IChat>({ resource: URI.parse('test:/main/chat') })) }));
 			const mainHost = new SessionHost({ kind: SessionHostKind.MainWindow, parent: undefined, session: mainSession, chat: derived(reader => mainSession.read(reader)?.activeChat.read(reader)), contextKeyService: upcastPartial<IContextKeyService>({}), windowId: constObservable(mainWindowId) });
 			instantiationService.stub(ISessionHostService, upcastPartial<ISessionHostService>({ getHostOfWindow: windowId => windowId === window.windowId ? windowHost : windowId === mainWindowId ? mainHost : undefined }));
 			instantiationService.stub(IChatWindowService, upcastPartial<IChatWindowService>({
@@ -328,7 +327,7 @@ suite('Chat window contribution', () => {
 				mainPart: upcastPartial<IEditorGroupsService['mainPart']>({ activeGroup: mainGroup }),
 				getScopedInstantiationService: () => scoped,
 			}));
-			instantiationService.stub(ISessionsService, upcastPartial<ITestSessionsService>({ activeSession: constObservable<IActiveSession | undefined>(upcastPartial<IActiveSession>({ resource: URI.parse('test:/main') })) }));
+			instantiationService.stub(ISessionsService, upcastPartial<ITestSessionsService>({ activeSession: constObservable<ITestSessionWithChat | undefined>(upcastPartial<ITestSessionWithChat>({ resource: URI.parse('test:/main') })) }));
 			stubMissingSessionHostsFromSessionsService(instantiationService);
 			instantiationService.stub(ISessionChangesService, upcastPartial<ISessionChangesService>({
 				getChangesEditorResource: resource => resource,
