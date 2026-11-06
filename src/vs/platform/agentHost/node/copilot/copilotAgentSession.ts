@@ -102,6 +102,7 @@ import { parseLeadingSlashCommand } from '../../common/agentHostSlashCommand.js'
 import type { IUnsandboxedCommandConfirmationRequest, ShellManager } from './copilotShellTools.js';
 import { NonPtyShellTerminalStreams, type INonPtyShellToolCompletion } from './copilotNonPtyShellTerminals.js';
 import { readCopilotSessionEvents, restoreStoredShellOutputs } from './copilotSessionHistory.js';
+import { CopilotGrepSearchNudge } from './copilotGrepSearchNudge.js';
 import { CopilotSessionSandbox } from './copilotSessionSandbox.js';
 import { reportCopilotRuntimeRestart, type CopilotRuntimeMutation, type CopilotRuntimeRestartEvent } from './copilotRuntimeRestartTelemetry.js';
 import type { CopilotSandboxCertificate } from './copilotSandboxCertificate.js';
@@ -1373,6 +1374,7 @@ export class CopilotAgentSession extends Disposable {
 	>();
 	/** File edit tracker for this session. */
 	private readonly _editTracker: FileEditTracker;
+	private readonly _grepSearchNudge: CopilotGrepSearchNudge;
 	private readonly _pendingOutputCaptures = new Set<Promise<void>>();
 	/**
 	 * The current protocol turn and its per-turn bookkeeping, or `undefined`
@@ -2225,6 +2227,7 @@ export class CopilotAgentSession extends Disposable {
 		this._storageUri = this.resourceUri;
 		this._mcpSkillCacheWriter = this._instantiationService.createInstance(McpSkillCacheWriter, this._storageUri);
 		const sandboxPolicyDisplay = this._instantiationService.createInstance(CopilotSandboxPolicyDisplay, this.sessionId, this._storageUri);
+		this._grepSearchNudge = this._register(this._instantiationService.createInstance(CopilotGrepSearchNudge, options.launchPlan.kind === 'create'));
 		this._slashCommandProvider = new CopilotSlashCommandProvider(
 			() => this._wrapper.session.rpc.commands.list({ includeBuiltins: true, includeSkills: true, includeClientCommands: true }).then(c => c.commands),
 			{ getCommandHandler: command => sandboxPolicyDisplay.getHandler(command) ?? getCopilotCustomizationCommandHandler(command, { api: this._wrapper.session.rpc.plugins, reload: reason => this.reloadPlugins(reason) }, options.getInstalledPlugins, name => this._getMcpCommandServer(name)) },
@@ -7342,9 +7345,9 @@ export class CopilotAgentSession extends Disposable {
 
 	private async _computeMappedEvents(agentScope: 'primary' | 'all'): Promise<IMappedSessionEvents> {
 		this._logService.trace(`[Copilot:${this.sessionId}] Reading persisted session events: scope=${agentScope}`);
-		const events = await readCopilotSessionEvents(cursor => this._awaitControlPlaneRpc('rpc.eventLog.read', this._wrapper.session.rpc.eventLog.read({
+		const events = await this._grepSearchNudge.trackHistory(readCopilotSessionEvents(cursor => this._awaitControlPlaneRpc('rpc.eventLog.read', this._wrapper.session.rpc.eventLog.read({
 			cursor, max: 1000, direction: 'backward', agentScope, includeEphemeral: false,
-		})), this._lifetimeCts.token);
+		})), this._lifetimeCts.token));
 		this._seedSubagentDisplayNames(events);
 		this._logService.trace(`[Copilot:${this.sessionId}] Read ${events.length} persisted event(s); reconstructing turns`);
 		return this._withDatabase(async db => {
@@ -9817,6 +9820,10 @@ export class CopilotAgentSession extends Disposable {
 					additionalContext: restriction,
 				};
 			}
+			const nudge = this._wrapper && await this._grepSearchNudge.evaluate(input, this._wrapper.session, this._lifetimeCts.token);
+			if (nudge) {
+				return nudge;
+			}
 			if (isEditTool(input.toolName, getToolCommand(input))) {
 				const filePaths = this._getEditFilePaths(input.toolArgs);
 				const mode = this._getConfiguredAgentMode();
@@ -10019,6 +10026,7 @@ export class CopilotAgentSession extends Disposable {
 
 		// Route child messages before matching root steering or recording its SDK history boundary.
 		store.add(wrapper.onUserMessage(e => {
+			this._grepSearchNudge.recordUserMessage(e);
 			if (isSyntheticUserMessage(e)) {
 				return;
 			}
@@ -13242,6 +13250,7 @@ export class CopilotAgentSession extends Disposable {
 		}));
 
 		store.add(wrapper.onSessionSnapshotRewind(e => {
+			this._grepSearchNudge.resetHistory();
 			this._logService.trace(`[Copilot:${sessionId}] Snapshot rewind: upTo=${e.data.upToEventId}, eventsRemoved=${e.data.eventsRemoved}`);
 		}));
 
@@ -13592,6 +13601,7 @@ export class CopilotAgentSession extends Disposable {
 	async truncateAtEventId(eventId: string, keepTurnId?: string): Promise<void> {
 		this._logService.info(`[Copilot:${this.sessionId}] Truncating via SDK RPC at eventId=${eventId}`);
 		const result = await this._awaitControlPlaneRpc('rpc.history.truncate', this._wrapper.session.rpc.history.truncate({ eventId }));
+		this._grepSearchNudge.resetHistory();
 		this._logService.info(`[Copilot:${this.sessionId}] SDK truncation removed ${result.eventsRemoved} events`);
 
 		// Clean up stale turns from our DB so getNextTurnEventId doesn't
