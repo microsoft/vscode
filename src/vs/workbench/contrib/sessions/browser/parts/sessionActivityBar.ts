@@ -4,9 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import './media/sessionActivityBar.css';
-import { $, addDisposableListener, append, EventHelper, EventLike, EventType, getActiveElement, getWindow, isHTMLElement, scheduleAtNextAnimationFrame } from '../../../../../base/browser/dom.js';
-import { StandardMouseEvent } from '../../../../../base/browser/mouseEvent.js';
-import { ActionsOrientation } from '../../../../../base/browser/ui/actionbar/actionbar.js';
+import { EventHelper, EventLike, getActiveElement, getWindow, isHTMLElement, scheduleAtNextAnimationFrame } from '../../../../../base/browser/dom.js';
 import { ActionViewItem, IActionViewItemOptions } from '../../../../../base/browser/ui/actionbar/actionViewItems.js';
 import { AnchorAlignment } from '../../../../../base/browser/ui/contextview/contextview.js';
 import { HoverPosition } from '../../../../../base/browser/ui/hover/hoverWidget.js';
@@ -14,24 +12,21 @@ import { KeyCode } from '../../../../../base/common/keyCodes.js';
 import { Disposable, DisposableMap, MutableDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { autorun, constObservable, derived, IObservable, observableFromEvent, observableValue } from '../../../../../base/common/observable.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
-import { Action, ActionRunner, IAction, toAction } from '../../../../../base/common/actions.js';
+import { Action, IAction, toAction } from '../../../../../base/common/actions.js';
 import { localize } from '../../../../../nls.js';
-import { HiddenItemStrategy, MenuWorkbenchToolBar } from '../../../../../platform/actions/browser/toolbar.js';
-import { IMenuEntryActionViewItemOptions, MenuEntryActionViewItem } from '../../../../../platform/actions/browser/menuEntryActionViewItem.js';
-import { IMenuService, isIMenuItem, MenuItemAction, MenuRegistry, SubmenuItemAction } from '../../../../../platform/actions/common/actions.js';
+import { IMenuEntryActionViewItemOptions } from '../../../../../platform/actions/browser/menuEntryActionViewItem.js';
+import { isIMenuItem, MenuItemAction, MenuRegistry, SubmenuItemAction } from '../../../../../platform/actions/common/actions.js';
 import { IAccessibilityService } from '../../../../../platform/accessibility/common/accessibility.js';
 import { INotificationService } from '../../../../../platform/notification/common/notification.js';
 import { IThemeService } from '../../../../../platform/theme/common/themeService.js';
-import { IBadge, NumberBadge } from '../../../../services/activity/common/activity.js';
 import { TogglePanelAction } from '../../../../browser/parts/panel/panelActions.js';
 import { ISessionActivityBarActivityService } from '../../common/sessionActivityBarActivityService.js';
+import { MenuActivityBar, MenuActivityBarActionViewItem } from '../../../../browser/parts/activitybar/menuActivityBar.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { IContextKey, IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IContextMenuService } from '../../../../../platform/contextview/browser/contextView.js';
-import { WorkbenchHoverDelegate } from '../../../../../platform/hover/browser/hover.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
-import { ServiceCollection } from '../../../../../platform/instantiation/common/serviceCollection.js';
 import { IKeybindingService } from '../../../../../platform/keybinding/common/keybinding.js';
 import { Menus, SessionActivityBarGroup } from '../menus.js';
 import { IWorkbenchLayoutService } from '../../../../services/layout/browser/layoutService.js';
@@ -46,7 +41,8 @@ import { findSessionActivityBarExternalHost, ISessionActivityBarExternalHost, SE
 import { SubmenuFlyout } from './submenuFlyout.js';
 
 /**
- * A vertical activity bar of icon-only actions that open session tabs and toggle the panel and side panel, docked by {@link ChatViewSessionActivityBar}.
+ * A vertical activity bar of icon-only actions that open session tabs and toggle the panel and side panel, docked by {@link ChatViewSessionActivityBar}:
+ * a {@link MenuActivityBar} of {@link Menus.SessionActivityBar} and the actions of its chat.
  * Each entry opens or activates its side pane tab, revealing the side pane
  * through the regular reveal-on-open path when it is closed. Users can turn the
  * strip off with the `sessions.showSessionActivityBar` setting.
@@ -55,49 +51,36 @@ export class SessionActivityBar extends Disposable {
 
 	readonly element: HTMLElement;
 
-	private readonly _visible = observableValue(this, false);
 	/** Whether the strip is enabled and has entries. */
-	readonly visible: IObservable<boolean> = this._visible;
+	readonly visible: IObservable<boolean>;
 
 	private readonly chatActions = observableValue<IObservable<readonly IAction[]> | undefined>(this, undefined);
 
 	constructor(
 		container: HTMLElement,
-		@IConfigurationService private readonly configurationService: IConfigurationService,
+		@IConfigurationService configurationService: IConfigurationService,
 		@IInstantiationService instantiationService: IInstantiationService,
-		@IContextMenuService contextMenuService: IContextMenuService,
-		@IContextKeyService contextKeyService: IContextKeyService,
-		@IMenuService menuService: IMenuService,
+		@ISessionActivityBarActivityService activityService: ISessionActivityBarActivityService,
 	) {
 		super();
 
-		this.element = append(container, $('.session-activity-bar'));
-		const scopedContextKeyService = this._register(contextKeyService.createScoped(this.element));
-		const scopedInstantiationService = this._register(instantiationService.createChild(new ServiceCollection([IContextKeyService, scopedContextKeyService])));
-		// The entries' show and hide toggles, which the context menu of the rest of the strip lists like an entry's does.
-		const menu = this._register(menuService.createMenu(Menus.SessionActivityBar, scopedContextKeyService));
 		let actionsById = new Map<string, IAction>();
 		const renderedChatActions = this._register(new DisposableMap<string, Action>());
-
-		// Like the workbench activity bar, once an entry's hover has shown, moving to another entry shows its hover instantly.
-		const hoverDelegate = this._register(instantiationService.createInstance(WorkbenchHoverDelegate, 'element', { instantHover: true }, { position: { hoverPosition: HoverPosition.LEFT } }));
-		// The entries act on the window the strip is in, which the window that has focus is not yet as a click activates it:
-		// a chat window, or the main window, such as for an entry that would otherwise act on a chat window that has focus.
-		// Read as an entry runs: the strip is created before it is in its window.
-		const actionRunner = this._register(new SessionActivityBarActionRunner(() => ({ windowId: getWindow(this.element).vscodeWindowId } satisfies IWindowCommandContext)));
-		const toolbar = this._register(scopedInstantiationService.createInstance(MenuWorkbenchToolBar, this.element, Menus.SessionActivityBar, {
-			orientation: ActionsOrientation.VERTICAL,
+		const enabled = observableFromEvent(this, configurationService.onDidChangeConfiguration, () => !!configurationService.getValue<boolean>(SESSION_ACTIVITY_BAR_SETTING));
+		const activityBar = this._register(instantiationService.createInstance(MenuActivityBar, container, {
+			menuId: Menus.SessionActivityBar,
+			contextMenuId: Menus.SessionActivityBarContext,
 			ariaLabel: localize('sessionActivityBar', "Session Activity Bar"),
 			telemetrySource: 'sessionActivityBar',
-			hoverDelegate,
-			actionRunner,
-			// Entries hidden from the context menu leave the strip; a vertical strip has no overflow menu.
-			hiddenItemStrategy: HiddenItemStrategy.Ignore,
-			contextMenu: Menus.SessionActivityBarContext,
-			menuOptions: { shouldForwardArgs: true },
-			// Every group shows in the strip: the side panel toggle and tab entries, then the terminal and panel toggle.
-			toolbarOptions: { primaryGroup: () => true, useSeparatorsInPrimaryActions: true },
-			actionViewItemProvider: (action, options) => {
+			enabled,
+			// The strip sits at the right edge.
+			hoverPosition: HoverPosition.LEFT,
+			// The entries act on the window the strip is in, which the window that has focus is not yet as a click activates it:
+			// a chat window, or the main window, such as for an entry that would otherwise act on a chat window that has focus.
+			// Read as an entry runs: the strip is created before it is in its window.
+			getActionsContext: () => ({ windowId: getWindow(this.element).vscodeWindowId } satisfies IWindowCommandContext),
+			activities: activityService,
+			actionViewItemProvider: (action, options, scopedInstantiationService) => {
 				const chatAction = renderedChatActions.get(action.id);
 				if (chatAction) {
 					return new ActionViewItem(undefined, chatAction, { ...options, icon: true, label: false });
@@ -106,21 +89,17 @@ export class SessionActivityBar extends Disposable {
 					return scopedInstantiationService.createInstance(SessionActivityBarSubmenuViewItem, action, { ...options, icon: true, label: false });
 				}
 				if (action instanceof MenuItemAction) {
-					return instantiationService.createInstance(SessionActivityBarActionViewItem, action, options);
+					return scopedInstantiationService.createInstance(SessionActivityBarActionViewItem, action, options);
 				}
 				return undefined;
 			},
 		}));
+		const scopedContextKeyService = activityBar.contextKeyService;
+		this.element = activityBar.element;
+		this.element.classList.add('session-activity-bar');
+		this.visible = activityBar.visible;
 
-		const update = () => {
-			const visible = !!this.configurationService.getValue<boolean>(SESSION_ACTIVITY_BAR_SETTING) && toolbar.getItemsLength() > 0;
-			this.element.classList.toggle('hidden', !visible);
-			this._visible.set(visible, undefined);
-		};
-		update();
-		this._register(toolbar.onDidChangeMenuItems(update));
 		const keys = new Map<string, IContextKey<boolean>>();
-		const enabled = observableFromEvent(this, this.configurationService.onDidChangeConfiguration, () => !!this.configurationService.getValue<boolean>(SESSION_ACTIVITY_BAR_SETTING));
 		this._register(autorun(reader => {
 			const actions = enabled.read(reader) ? this.chatActions.read(reader)?.read(reader) ?? [] : [];
 			actionsById = new Map(actions.map(action => [action.id, action]));
@@ -160,56 +139,13 @@ export class SessionActivityBar extends Disposable {
 				}
 			});
 			if (changed) {
-				toolbar.refresh();
-			}
-			update();
-		}));
-		// Entries show the toolbar's own context menu: their own actions, then the toggles of all entries, then these actions.
-		// The rest of the strip shows the same menu without the actions of an entry.
-		this._register(addDisposableListener(this.element, EventType.CONTEXT_MENU, (e: MouseEvent) => {
-			EventHelper.stop(e, true);
-			contextMenuService.showContextMenu({
-				getAnchor: () => new StandardMouseEvent(getWindow(this.element), e),
-				getActions: () => getEntryToggles(menu.getActions({ shouldForwardArgs: true }).flatMap(([, actions]) => actions)),
-				menuId: Menus.SessionActivityBarContext,
-				menuActionOptions: { renderShortTitle: true, shouldForwardArgs: true },
-				contextKeyService,
-			});
-		}));
-		this._register(this.configurationService.onDidChangeConfiguration(e => {
-			if (e.affectsConfiguration(SESSION_ACTIVITY_BAR_SETTING)) {
-				update();
+				activityBar.refresh();
 			}
 		}));
 	}
 
 	setChatActions(actions: IObservable<readonly IAction[]> | undefined): void {
 		this.chatActions.set(actions, undefined);
-	}
-}
-
-/**
- * The show and hide toggles of the strip's entries, as the toolbar lists them in an entry's context menu: the last entry
- * shown cannot be hidden, as the strip has no other place to show it again.
- */
-function getEntryToggles(actions: readonly IAction[]): IAction[] {
-	const toggles = actions.flatMap(action => (action instanceof MenuItemAction || action instanceof SubmenuItemAction) && action.hideActions ? [action.hideActions.toggle] : []);
-	const checked = toggles.filter(toggle => toggle.checked);
-	if (checked.length !== 1) {
-		return toggles;
-	}
-	return toggles.map(toggle => toggle === checked[0] ? toAction({ id: toggle.id, label: toggle.label, checked: true, enabled: false, run: () => { } }) : toggle);
-}
-
-/** Runs the entries of the strip with the context it supplies to those that run without one of their own. */
-class SessionActivityBarActionRunner extends ActionRunner {
-
-	constructor(private readonly getContext: () => unknown) {
-		super();
-	}
-
-	protected override runAction(action: IAction, context?: unknown): Promise<void> {
-		return super.runAction(action, context ?? this.getContext());
 	}
 }
 
@@ -325,6 +261,8 @@ export class ChatViewSessionActivityBar extends Disposable {
 		const host = this.externalHost.get();
 		const hostedIn = host && this.active && host.active.get() ? host : undefined;
 		this.element?.classList.toggle('inactive', !this.isShown(hostedIn));
+		// Beside a chat, and in hosts that keep a slim column for it, the strip is slimmer than a workbench activity bar.
+		this.element?.classList.toggle('slim', !hostedIn?.fullSize);
 		const parent = hostedIn?.element ?? this.container;
 		const element = activityBar.element;
 		if (element.parentElement !== parent) {
@@ -382,17 +320,13 @@ export class ChatViewSessionActivityBar extends Disposable {
 }
 
 /**
- * An entry of the strip that shows the activity reported for its command through
- * {@link ISessionActivityBarActivityService}, using the most recent activity: a count
- * for a number badge, and a dot for other badges since the strip's entries are too
- * small to carry an icon. The badge description is appended to the entry's hover and
- * accessible label.
+ * An entry of the strip, which shows the activity reported for its command through
+ * {@link ISessionActivityBarActivityService} like any {@link MenuActivityBarActionViewItem}, and whose checked entries
+ * hide what they show when clicked, like the workbench activity bar's.
  * Contributions that customize an entry with `IActionViewItemService` can extend
  * this to keep its activity.
  */
-export class SessionActivityBarActionViewItem extends MenuEntryActionViewItem {
-
-	private badgeElement: HTMLElement | undefined;
+export class SessionActivityBarActionViewItem extends MenuActivityBarActionViewItem {
 
 	/** The entry's group in the menu, which its action does not carry. */
 	private readonly group: string | undefined;
@@ -406,31 +340,12 @@ export class SessionActivityBarActionViewItem extends MenuEntryActionViewItem {
 		@IThemeService themeService: IThemeService,
 		@IContextMenuService contextMenuService: IContextMenuService,
 		@IAccessibilityService accessibilityService: IAccessibilityService,
-		@ISessionActivityBarActivityService private readonly activityService: ISessionActivityBarActivityService,
+		@ISessionActivityBarActivityService activityService: ISessionActivityBarActivityService,
 		@ICommandService private readonly commandService: ICommandService,
 	) {
-		super(action, options, keybindingService, notificationService, contextKeyService, themeService, contextMenuService, accessibilityService);
+		super(action, options, activityService, keybindingService, notificationService, contextKeyService, themeService, contextMenuService, accessibilityService);
 
 		this.group = MenuRegistry.getMenuItems(Menus.SessionActivityBar).find(item => isIMenuItem(item) && item.command.id === action.id)?.group;
-
-		this._register(activityService.onDidChangeActivity(commandId => {
-			if (commandId === this._menuItemAction.id) {
-				this.updateActivity();
-			}
-		}));
-		this._register(themeService.onDidColorThemeChange(() => this.updateActivity()));
-	}
-
-	override render(container: HTMLElement): void {
-		super.render(container);
-		// The entry's label and tooltip announce the activity.
-		this.badgeElement = append(container, $('.session-activity-bar-badge', { 'aria-hidden': 'true' }));
-		this.updateActivity();
-	}
-
-	/** The badge of the most recent activity reported for the entry's command, which the entry shows. */
-	protected getBadge(): IBadge | undefined {
-		return this.activityService.getActivity(this._menuItemAction.id).at(-1)?.badge;
 	}
 
 	/**
@@ -470,32 +385,6 @@ export class SessionActivityBarActionViewItem extends MenuEntryActionViewItem {
 		} catch (error) {
 			this._notificationService.error(error);
 		}
-	}
-
-	protected override getTooltip(): string {
-		const title = super.getTooltip();
-		const description = this.getBadge()?.getDescription();
-		return description ? localize('sessionActivityBar.titleWithActivity', "{0} - {1}", title, description) : title;
-	}
-
-	private updateActivity(): void {
-		const badgeElement = this.badgeElement;
-		if (!badgeElement) {
-			return;
-		}
-
-		const badge = this.getBadge();
-		const count = badge instanceof NumberBadge ? badge.number : 0;
-		badgeElement.classList.toggle('visible', !!badge && (!(badge instanceof NumberBadge) || count > 0));
-		badgeElement.classList.toggle('count', count > 0);
-		badgeElement.textContent = count > 99 ? '99+' : count > 0 ? `${count}` : '';
-
-		const colors = badge?.getColors(this._themeService.getColorTheme());
-		badgeElement.style.backgroundColor = colors?.badgeBackground?.toString() ?? '';
-		badgeElement.style.color = colors?.badgeForeground?.toString() ?? '';
-		badgeElement.style.borderColor = colors?.badgeBorder?.toString() ?? '';
-
-		this.updateTooltip();
 	}
 }
 

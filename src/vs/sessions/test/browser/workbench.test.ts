@@ -730,8 +730,8 @@ suite('Sessions - Workbench', () => {
 			centeredPanelWithoutSidebar: ['8px', '8px', '8px', '12px'],
 			centeredEditor: ['8px', '8px', '12px', '8px'],
 			centeredPanelWithoutSidePane: ['8px', '8px', '12px', '8px'],
-			activityBar: ['8px', '8px', '12px', '8px'],
-			activityBarBesidePanel: ['8px', '8px', '12px', '8px'],
+			activityBar: ['0px', '0px', '12px', '0px'],
+			activityBarBesidePanel: ['0px', '0px', '12px', '0px'],
 			sessionsBesideActivityBar: ['8px', '8px', '8px', '8px'],
 			sessionViewBesideActivityBar: ['7px', '7px', '7px', '7px'],
 			editorBesideActivityBar: ['8px', '8px', '8px', '8px'],
@@ -1340,12 +1340,12 @@ suite('Sessions - Workbench', () => {
 		assert.deepStrictEqual({ desktop, customViewOpen, customViewClosed, phone }, { desktop: true, customViewOpen: false, customViewClosed: true, phone: false });
 	});
 
-	test('shows the Session Activity Bar column on the next frame while a strip is in it, as wide as the workbench activity bar and the gap between cards, and not while a view is maximized', async () => {
+	test('shows the Session Activity Bar column on the next frame while a strip is in it, as wide as an activity bar and the gap between cards, and not while a view is maximized', async () => {
 		const column = new SessionActivityBarColumn(constObservable(true));
 		const onDidChangeViewMaximized = store.add(new Emitter<boolean>());
 		const changes: boolean[] = [];
 		const widths: number[] = [];
-		column.setGap(8);
+		column.setLayout(8, false);
 		let visible = false;
 		let maximized = false;
 		const mainContainer = document.createElement('div');
@@ -1384,7 +1384,7 @@ suite('Sessions - Workbench', () => {
 		column.dispose();
 
 		assert.deepStrictEqual({ beforeFrame, shown, whileMaximized, restored: changes, widths, classWhileShown, classWhenHidden: mainContainer.classList.contains('session-activity-bar-column-visible') }, {
-			widths: [8 + 48],
+			widths: [8 + 44],
 			classWhileShown: true,
 			classWhenHidden: false,
 			beforeFrame: [],

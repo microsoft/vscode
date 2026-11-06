@@ -318,7 +318,7 @@ suite('Sessions - Session Activity Bar', () => {
 	test('shows the activity reported for an entry as a badge and in its label', () => {
 		const { activityBar, activityService } = createActivityBar(store, [changes, browser]);
 		const state = () => [...activityBar.element.querySelectorAll<HTMLElement>('.action-item')].map(item => {
-			const badge = item.querySelector<HTMLElement>('.session-activity-bar-badge')!;
+			const badge = item.querySelector<HTMLElement>('.menu-activity-bar-badge')!;
 			return {
 				ariaLabel: item.querySelector('.action-label')!.getAttribute('aria-label'),
 				badge: mainWindow.getComputedStyle(badge).display === 'none' ? undefined : badge.classList.contains('count') ? badge.textContent : 'dot',
@@ -328,13 +328,13 @@ suite('Sessions - Session Activity Bar', () => {
 		const initial = state();
 		const dot = activityService.showActivity(changes.id, { badge: new IconBadge(Codicon.circleFilled, () => 'New changes') });
 		const withDot = state();
-		// Like the workbench activity bar, the badge overlaps the bottom-right corner of the 16px icon centered in the 24px entry.
-		for (const [token, value] of [['spacing-size20', '2px'], ['spacing-size80', '8px'], ['spacing-size120', '12px'], ['spacing-size240', '24px'], ['strokeThickness', '1px']]) {
+		// Like the workbench activity bar, the badge overlaps the bottom-right corner of the 24px icon centered in the 36px entry.
+		for (const [token, value] of [['spacing-size20', '2px'], ['spacing-size60', '6px'], ['spacing-size80', '8px'], ['spacing-size120', '12px'], ['spacing-size200', '20px'], ['spacing-size240', '24px'], ['strokeThickness', '1px']]) {
 			activityBar.element.style.setProperty(`--vscode-${token}`, value);
 		}
 		const changesItem = activityBar.element.querySelector<HTMLElement>('.action-item')!;
 		const itemBounds = changesItem.getBoundingClientRect();
-		const badgeBounds = changesItem.querySelector('.session-activity-bar-badge')!.getBoundingClientRect();
+		const badgeBounds = changesItem.querySelector('.menu-activity-bar-badge')!.getBoundingClientRect();
 		const centerX = (badgeBounds.left + badgeBounds.right) / 2;
 		const centerY = (badgeBounds.top + badgeBounds.bottom) / 2;
 		const dotPlacement = {
@@ -521,11 +521,11 @@ suite('Sessions - Session Activity Bar', () => {
 		});
 	});
 
-	test('in the main window\'s column, fills the column from top to bottom after the gap between cards, with entries the size of the workbench activity bar\'s, and offers the context menu anywhere', () => {
+	test('in the main window\'s column, fills the column from top to bottom after the gap between cards, with entries the size of the Modern UI workbench activity bar\'s, and offers the context menu anywhere', () => {
 		const { createDocked, root, contextMenus } = createActivityBar(store, [changes, browser]);
 		const hostElement = append(root, $('.session-activity-bar-column.session-activity-bar-host'));
 		hostElement.style.cssText = '--agents-floating-panel-gap: 8px; position: relative; width: 56px; height: 200px;';
-		store.add(registerSessionActivityBarExternalHost(root, { element: hostElement, active: observableValue('active', true), setOccupied: () => { } }));
+		store.add(registerSessionActivityBarExternalHost(root, { element: hostElement, active: observableValue('active', true), fullSize: true, setOccupied: () => { } }));
 		const docked = createDocked();
 		docked.layout(40);
 		docked.setActive(true);
@@ -543,8 +543,7 @@ suite('Sessions - Session Activity Bar', () => {
 			menus: contextMenus,
 		}, {
 			fills: [hostBounds.top, hostBounds.bottom, hostBounds.left + 8, hostBounds.right].map(Math.round),
-			// The whole width of the strip, whose border, from the theme's stroke thickness, is not set here.
-			entry: [48, 48],
+			entry: [36, 36],
 			iconSize: '24px',
 			bottomIsStrip: true,
 			menus: ['SessionActivityBarContext'],
