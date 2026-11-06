@@ -625,8 +625,8 @@ export interface IProtocolServerExtension {
  */
 export interface IProtocolServerConfig {
 	readonly scopedRelayCredentials?: boolean;
-	/** Trusted listener-owned delegation, applied only after validating the relay credential. */
-	readonly resolveRelayCredentials?: (principal: IAgentHostCredentialPrincipal, resource: string) => Promise<IAgentHostCredentialSource | undefined>;
+	/** Trusted listener-owned delegation, available only to an authorized relay caller. */
+	readonly resolveRelayCredentials?: (principal: IAgentHostCredentialPrincipal, resource: string) => IAgentHostCredentialSource | undefined;
 	/** Process launcher that owns this agent host. */
 	readonly hostLaunchKind?: AgentHostLaunchKind;
 

@@ -905,7 +905,6 @@ export class AgentMergeController extends Disposable {
 					return;
 				}
 				if (isAuthRequiredError(error)) {
-					this._requestGitHubAuthorization(session, 'authentication', error.message);
 					this._logService.trace(`[AgentMergeController] Evaluation needs an execution sponsor: key=${key}`);
 				} else {
 					if (error instanceof GitHubRequestError && (error.kind === 'authentication' || error.kind === 'authorization')) {

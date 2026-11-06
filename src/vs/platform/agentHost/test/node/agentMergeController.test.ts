@@ -34,7 +34,9 @@ import { AgentConfigurationService } from '../../node/agentConfigurationService.
 import { AgentHostAuthenticationService } from '../../node/agentHostAuthenticationService.js';
 import { AgentHostGitHubEndpointService } from '../../node/agentHostGitHubEndpointService.js';
 import { AgentMergeController } from '../../node/agentMergeController.js';
-import type { IAgentHostGitHubService } from '../../node/agentHostGitHubService.js';
+import { AgentHostGitHubService, type IAgentHostGitHubService } from '../../node/agentHostGitHubService.js';
+import { NullTelemetryService } from '../../../telemetry/common/telemetryUtils.js';
+import { createTestGitHubEndpointService } from './testGitHubEndpointService.js';
 import { AgentMergeTools } from '../../node/agentMergeTools.js';
 import { captureCredentialSource, type IAgentHostCredentialSource } from '../../common/agentHostCredentials.js';
 import type { IAgentHostProviderService } from '../../node/agentHostProviderService.js';
@@ -424,6 +426,38 @@ suite('AgentMergeController', () => {
 			explicit: gitHubService.getAgentMergeCredentialBinding(chat),
 			effectiveToken: gitHubService.getAgentMergeCredentialSource(chat)?.getCredential({ resource: principal.apiOrigin })?.token,
 		}, { explicit: undefined, effectiveToken: 'second' });
+	});
+
+	test('configuration rollback restores the original binding before local credentials are disabled', () => {
+		const changed = disposables.add(new Emitter<void>());
+		let local = true;
+		const endpoint = createTestGitHubEndpointService();
+		const authentication = disposables.add(new AgentHostAuthenticationService(new NullLogService(), async () => assert.fail('Unexpected identity validation'), {
+			isEnabled: () => local,
+			getResources: () => [endpoint.getRepoResource(), endpoint.getCopilotResource()],
+			onDidChange: changed.event,
+		}));
+		const github = disposables.add(new AgentHostGitHubService({}, authentication, endpoint, new NullLogService(), NullTelemetryService));
+		const { stateManager, controller, session } = createControllerHarness(disposables, undefined, Event.None, github);
+		const chat = buildDefaultChatUri(session);
+		const principal = { apiOrigin: endpoint.getApiBaseUri(), userId: '1' };
+		const first: IAgentHostCredentialSource = {
+			principal, getCredential: request => ({ resource: request.resource, token: 'original-token', revision: 1, expiresAt: undefined }),
+		};
+		const second: IAgentHostCredentialSource = {
+			principal, getCredential: request => ({ resource: request.resource, token: 'replacement-token', revision: 2, expiresAt: undefined }),
+		};
+		stateManager.dispatchServerAction(session, { type: ActionType.SessionReady });
+		github.bindAgentMergeCredentialSource(session, chat, first);
+		assert.throws(() => controller.dispatchConfigurationWithCredentials(session, {
+			[SessionConfigKey.AgentMerge]: { enabled: true },
+		}, second, () => { throw new Error('Configuration rejected'); }), /Configuration rejected/);
+		local = false;
+		changed.fire();
+		assert.deepStrictEqual({
+			sameBinding: github.getAgentMergeCredentialBinding(chat) === first,
+			token: github.getAgentMergeCredentialSource(chat)?.getCredential({ resource: endpoint.getRepoResource().resource })?.token,
+		}, { sameBinding: true, token: 'original-token' });
 	});
 
 	test('elevates a multi-root chat for any of its folders, and session-wide for a folder no chat has', () => {
@@ -999,7 +1033,7 @@ suite('AgentMergeController', () => {
 		}
 	}));
 
-	test('requests authentication rather than logging an error when isolated monitoring has no sponsor', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+	test('waits without prompting when isolated monitoring has no sponsor', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 		const gitHubService = createTestGitHubService();
 		gitHubService.captureSessionCredentialSource = () => {
 			throw new ProtocolError(AhpErrorCodes.AuthRequired, 'The monitor sponsor must authenticate');
@@ -1021,7 +1055,72 @@ suite('AgentMergeController', () => {
 		h.configurationService.updateSessionConfig(h.session, { [SessionConfigKey.AgentMerge]: { enabled: true } });
 		h.stateManager.dispatchServerAction(h.session, { type: ActionType.SessionReady });
 		await timeout(1);
-		assert.deepStrictEqual({ authenticationRequests, errors: h.errors }, { authenticationRequests: ['auth/required'], errors: [] });
+		for (let i = 0; i < 6; i++) {
+			h.controller.refresh();
+			await timeout(1);
+		}
+		await timeout(60_001);
+		assert.deepStrictEqual({ authenticationRequests, errors: h.errors }, { authenticationRequests: [], errors: [] });
+	}));
+
+	test('a restored monitor uses the shared host credential source when local sign-in becomes available', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		const endpoint = createTestGitHubEndpointService();
+		const resources = [endpoint.getCopilotResource(), endpoint.getRepoResource()];
+		const authentication = disposables.add(new AgentHostAuthenticationService(new NullLogService(), async () => assert.fail('Restored monitoring must use shared host credentials directly'), {
+			isEnabled: () => true, getResources: () => resources, onDidChange: Event.None,
+		}));
+		const github = disposables.add(new AgentHostGitHubService({}, authentication, endpoint, new NullLogService(), NullTelemetryService));
+		const snapshot = repairSnapshot();
+		const subscribed = new DeferredPromise<void>();
+		const tokens: (string | undefined)[] = [];
+		const service = createTestGitHubService(new class extends mock<IGitHubClient>() {
+			override readonly credentials = new class extends mock<IGitHubCredentials>() {
+				override async getCredential(signal: AbortSignal): Promise<GitHubCredential> {
+					return { account: snapshot.ref, token: 'host-repo', generation: 1, signal };
+				}
+			}();
+			override readonly pullRequests = new class extends mock<IPullRequestResources>() {
+				override subscribePullRequest(): PullRequestSubscription {
+					subscribed.complete();
+					return {
+						resource: { ref: snapshot.ref, snapshot: constObservable(snapshot) },
+						refresh: async () => { }, update: () => { }, dispose: () => { },
+					};
+				}
+			}();
+		}(), github.onDidChangeRepositoryClient);
+		service.getAgentMergeCredentialSource = chat => github.getAgentMergeCredentialSource(chat);
+		service.captureSessionCredentialSource = (...args) => github.captureSessionCredentialSource(...args);
+		const acquire = service.acquireRepositoryClient;
+		service.acquireRepositoryClient = (signal, source, session) => {
+			disposables.add(github.acquireRepositoryClient(signal, source, session));
+			tokens.push(source?.getCredential({ resource: endpoint.getRepoResource().resource })?.token);
+			return acquire(signal, source, session);
+		};
+		const h = createControllerHarness(disposables, snapshot, Event.None, service);
+		const chat = buildDefaultChatUri(h.session);
+		authentication.restoreSessionCredentialPrincipal(h.session, { apiOrigin: 'https://api.github.com', userId: '1' }, chat);
+		const prompts: string[] = [];
+		disposables.add(h.stateManager.onDidEmitNotification(notification => {
+			if (notification.type === 'auth/required') {
+				prompts.push(notification.type);
+			}
+		}));
+		h.stateManager.setSessionMeta(h.session, withSessionGitHubState(withSessionGitState(undefined, { branchName: 'feature' }), REPOSITORY, {
+			pullRequestUrls: ['https://github.com/octo/repo/pull/1'], pullRequestBranchName: 'feature',
+		}));
+		h.configurationService.updateSessionConfig(h.session, { [SessionConfigKey.AgentMerge]: { enabled: true } });
+		h.stateManager.dispatchServerAction(h.session, { type: ActionType.SessionReady });
+		await timeout(1);
+		const provider = new class extends mock<IAgent>() {
+			override getProtectedResources() { return resources; }
+			override async authenticate() { return true; }
+		}();
+		await authentication.authenticate({ resource: endpoint.getRepoResource().resource, token: 'host-repo', scopes: ['repo'] }, [provider]);
+		await subscribed.p;
+		assert.deepStrictEqual({ tokens, prompts, errors: h.errors, explicitMonitorBinding: authentication.getSessionCredentialSource(chat, 'agentMerge') }, {
+			tokens: ['host-repo'], prompts: [], errors: [], explicitMonitorBinding: undefined,
+		});
 	}));
 
 	test('rechecks peer folder options after attachment without blocking on another chat', () => runWithFakedTimers({ useFakeTimers: true }, async () => {

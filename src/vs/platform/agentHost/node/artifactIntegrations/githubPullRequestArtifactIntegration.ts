@@ -25,7 +25,7 @@ import { ApiRequestError, MutationUncertainError } from '../../../github/common/
 import { isPullRequestFeedbackAuthor } from '../../../github/common/pullRequestFeedback.js';
 import { ILogService } from '../../../log/common/log.js';
 import { IAgentHostGitService } from '../../common/agentHostGitService.js';
-import { getCapturedCredentialSourceKey, IAgentHostCredentialSource } from '../../common/agentHostCredentials.js';
+import { getCapturedCredentialSourceKey, IAgentHostCredentialSource, isAuthRequiredError } from '../../common/agentHostCredentials.js';
 import { AgentHostGitHubArtifactIgnoredChecksConfigKey, platformRootSchema } from '../../common/agentHostSchema.js';
 import { getPullRequestArtifactChecks, getPullRequestArtifactCheckState, getPullRequestArtifactFailedChecks, getPullRequestArtifactThreads, GitHubPullRequestArtifactTarget, gitHubPullRequestArtifactIntegrationId, gitHubPullRequestArtifactOptions, gitHubPullRequestArtifactWorkspaceSettingsKey, isArtifactDataObject, isCurrentPullRequestFragment, isPullRequestArtifactMergeable, isPullRequestArtifactReadyForReview, parseGitHubPullRequestArtifact, readGitHubPullRequestArtifactWorkspaceSettings } from '../../common/githubPullRequestArtifact.js';
 import { AuthRequiredReason } from '../../common/state/sessionActions.js';
@@ -57,6 +57,12 @@ async function withAuthenticationRecovery<T>(operation: () => Promise<T>, owner:
 	} catch (error) {
 		if (token.isCancellationRequested) {
 			throw new CancellationError();
+		}
+		if (isAuthRequiredError(error)) {
+			if (!isArtifactDataObject(error.data) || !Array.isArray(error.data.resources) || error.data.resources.length === 0) {
+				throw new Error(localize('prArtifact.sessionCredentialsUnavailable', "Resume this session or reconnect its client to restore access to this pull request."));
+			}
+			throw new GitHubRequestError(authenticationRequiredMessage(owner, error.message), 'authentication');
 		}
 		if (error instanceof GitHubRequestError && (error.kind === 'authentication' || error.kind === 'authorization')) {
 			const ssoAuthorizationUrl = error.responseMetadata?.ssoAuthorizationUrl;
@@ -221,11 +227,11 @@ export class GitHubPullRequestArtifactIntegration implements IArtifactIntegratio
 			return undefined;
 		}
 		const chat = artifact.origin?.chat;
-		const source = chat ? this.github.captureSessionCredentialSource(chat, undefined, this.stateManager.getChatOwner(chat)) : undefined;
-		return withSignal(token, async signal => {
+		return this.withAuthentication(target, token, () => withSignal(token, async signal => {
+			const source = chat ? this.github.captureSessionCredentialSource(chat, undefined, this.stateManager.getChatOwner(chat)) : undefined;
 			const client = this.github.acquireRepositoryClient(signal, source, chat);
 			try {
-				const credential = await this.getCredential(target, token, client.object);
+				const credential = await client.object.credentials.getCredential(signal);
 				if (credential.account.host.toLowerCase() !== target.apiHost) {
 					throw new Error(localize('prArtifact.accountHost', "The GitHub account does not belong to this pull request's host."));
 				}
@@ -239,7 +245,7 @@ export class GitHubPullRequestArtifactIntegration implements IArtifactIntegratio
 			} finally {
 				client.dispose();
 			}
-		});
+		}));
 	}
 
 	async createResource(match: ArtifactResourceMatch, _context: IArtifactResourceContext, token: CancellationToken): Promise<GitHubPullRequestArtifactResource> {
@@ -251,10 +257,10 @@ export class GitHubPullRequestArtifactIntegration implements IArtifactIntegratio
 		if (!context) {
 			throw new Error('The pull request credential context is unavailable');
 		}
-		return withSignal(token, async signal => {
+		return this.withAuthentication(target, token, () => withSignal(token, async signal => {
 			const client = this.github.acquireRepositoryClient(signal, context.source, context.chat);
 			try {
-				const credential = await this.getCredential(target, token, client.object);
+				const credential = await client.object.credentials.getCredential(signal);
 				if (credentialScope(credential.account, context.source) !== match.credentialScope || credential.account.host.toLowerCase() !== target.apiHost) {
 					throw new Error(localize('prArtifact.accountChanged', "The GitHub account or host changed while loading this pull request."));
 				}
@@ -274,7 +280,7 @@ export class GitHubPullRequestArtifactIntegration implements IArtifactIntegratio
 				client.dispose();
 				throw error;
 			}
-		});
+		}));
 	}
 
 	getAuthenticationRequest(resource: URI, token: CancellationToken, artifact: ArtifactRecord): ArtifactAuthenticationRequest {
@@ -288,10 +294,10 @@ export class GitHubPullRequestArtifactIntegration implements IArtifactIntegratio
 		return { resource: metadata.resource, authorizationServers: metadata.authorization_servers, scopes: metadata.scopes_supported };
 	}
 
-	private async getCredential(target: GitHubPullRequestArtifactTarget, token: CancellationToken, client: IGitHubClient) {
+	private async withAuthentication<T>(target: GitHubPullRequestArtifactTarget, token: CancellationToken, operation: () => Promise<T>): Promise<T> {
 		try {
 			return await withAuthenticationRecovery(
-				() => withSignal(token, signal => client.credentials.getCredential(signal)),
+				operation,
 				target.owner,
 				token,
 				error => this.requestAuthentication(target, error),

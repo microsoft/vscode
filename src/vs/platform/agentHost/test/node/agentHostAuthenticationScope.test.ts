@@ -5,12 +5,13 @@
 
 import assert from 'assert';
 import { DeferredPromise, timeout } from '../../../../base/common/async.js';
+import { Emitter, Event } from '../../../../base/common/event.js';
 import { mock } from '../../../../base/test/common/mock.js';
 import { runWithFakedTimers } from '../../../../base/test/common/timeTravelScheduler.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { NullLogService } from '../../../log/common/log.js';
 import type { AuthenticateParams, IAgent } from '../../common/agent.js';
-import { captureCredentialSource, parseCredentialPrincipal, type IAgentHostCredentialSource } from '../../common/agentHostCredentials.js';
+import { captureCredentialSource, parseCredentialPrincipal } from '../../common/agentHostCredentials.js';
 import { AhpErrorCodes, AuthenticateTargetKind, JsonRpcErrorCodes, ProtocolError } from '../../common/state/sessionProtocol.js';
 import { AgentHostAuthenticationScope } from '../../node/agentHostAuthenticationScope.js';
 import { AgentHostAuthenticationService } from '../../node/agentHostAuthenticationService.js';
@@ -26,6 +27,157 @@ suite('AgentHostAuthenticationScope', () => {
 	function createScope(validator = validate, checkAuthorization = () => { }) {
 		return store.add(new AgentHostAuthenticationScope(validator, checkAuthorization, principal));
 	}
+
+	for (const local of [false, true]) {
+		test(`session credentials use ${local ? 'host' : 'client'} tokens for Copilot and repository work`, async () => {
+			const service = store.add(new AgentHostAuthenticationService(new NullLogService(), async () => assert.fail('Shared token selection must not validate the session owner'), {
+				isEnabled: () => local,
+				getResources: () => resources.map(resource => ({ resource })),
+				onDidChange: Event.None,
+			}));
+			const provider = new class extends mock<IAgent>() {
+				override getProtectedResources() { return resources.map(resource => ({ resource })); }
+				override async authenticate() { return true; }
+			}();
+			for (const resource of resources) {
+				await service.authenticate({ resource, token: resource === repository ? 'host-repo' : 'host-copilot' }, [provider]);
+			}
+			const remote = createScope();
+			for (const resource of resources) {
+				await remote.authenticate({ resource, token: resource === repository ? 'client-repo' : 'client-copilot' }, resources);
+			}
+			service.bindSessionCredentials('agent:/active', remote);
+			service.restoreSessionCredentialPrincipal('agent:/restored', principal);
+			const active = resources.map(resource => service.getAuthToken({ session: 'agent:/active', resource }));
+			if (!local) {
+				assert.throws(() => service.getAuthToken({ session: 'agent:/restored', resource: repository }), { code: AhpErrorCodes.AuthRequired });
+			}
+			assert.deepStrictEqual({
+				active,
+				restored: local ? resources.map(resource => service.getAuthToken({ session: 'agent:/restored', resource })) : undefined,
+				ordinaryLocal: service.getAuthToken({ resource }),
+			}, {
+				active: local ? ['host-copilot', 'host-repo'] : ['client-copilot', 'client-repo'],
+				restored: local ? ['host-copilot', 'host-repo'] : undefined,
+				ordinaryLocal: 'host-copilot',
+			});
+		});
+	}
+
+	test('shared captures use the same advertised scope slots as ordinary host requests', async () => {
+		const configured = [{ resource, scopes_supported: ['read:user'] }, { resource: repository, scopes_supported: ['repo'] }];
+		const service = store.add(new AgentHostAuthenticationService(new NullLogService(), async () => assert.fail('Unexpected identity validation'), {
+			isEnabled: () => true, getResources: () => configured, onDidChange: Event.None,
+		}));
+		const provider = new class extends mock<IAgent>() {
+			override getProtectedResources() { return configured; }
+			override async authenticate() { return true; }
+		}();
+		for (const metadata of configured) {
+			await service.authenticate({ resource: metadata.resource, token: 'unscoped-token' }, [provider]);
+			await service.authenticate({ resource: metadata.resource, scopes: ['other-scope'], token: 'other-scope-token' }, [provider]);
+			await service.authenticate({ resource: metadata.resource, scopes: metadata.scopes_supported, token: `${metadata.resource}-selected` }, [provider]);
+		}
+		service.restoreSessionCredentialPrincipal('agent:/restored', principal);
+		const captured = captureCredentialSource(service.getSessionCredentialSource('agent:/restored')!, configured);
+		assert.deepStrictEqual({
+			captured: configured.map(metadata => captured.getCredential({ resource: metadata.resource })?.token),
+			host: configured.map(metadata => service.getAuthToken({ resource: metadata.resource, scopes: metadata.scopes_supported })),
+		}, {
+			captured: [`${resource}-selected`, `${repository}-selected`],
+			host: [`${resource}-selected`, `${repository}-selected`],
+		});
+	});
+
+	test('restored local sources use the shared token regardless of the recorded owner', async () => {
+		const service = store.add(new AgentHostAuthenticationService(new NullLogService(), async () => assert.fail('Shared token selection must not validate the session owner'), {
+			isEnabled: () => true,
+			getResources: () => [{ resource: repository }],
+			onDidChange: Event.None,
+		}));
+		const provider = new class extends mock<IAgent>() {
+			override getProtectedResources() { return [{ resource: repository }]; }
+			override async authenticate() { return true; }
+		}();
+		const session = 'agent:/restored';
+		service.restoreSessionCredentialPrincipal(session, principal);
+		const beforeSignIn = service.getAuthToken({ session, resource: repository });
+		await service.authenticate({ resource: repository, token: 'first-token' }, [provider]);
+		const first = captureCredentialSource(service.getSessionCredentialSource(session)!, [{ resource: repository }]);
+		await service.authenticate({ resource: repository, token: 'rotated-token' }, [provider]);
+		const current = service.getAuthToken({ session, resource: repository });
+		const capturedBeforeSignOut = first.getCredential({ resource: repository })?.token;
+		await service.authenticate({ resource: repository, token: '' }, [provider]);
+		const capturedAfterSignOut = first.getCredential({ resource: repository });
+		service.restoreSessionCredentialPrincipal('agent:/other-owner', { ...principal, userId: '2' });
+		await service.authenticate({ resource: repository, token: 'other-account-token' }, [provider]);
+		const tokens = [session, 'agent:/other-owner'].map(session => service.getAuthToken({ session, resource: repository }));
+		assert.deepStrictEqual({ beforeSignIn, current, capturedBeforeSignOut, capturedAfterSignOut, tokens }, {
+			beforeSignIn: undefined, current: 'rotated-token', capturedBeforeSignOut: 'first-token', capturedAfterSignOut: undefined,
+			tokens: ['other-account-token', 'other-account-token'],
+		});
+	});
+
+	test('changing local credential mode changes new session captures without rebinding the remote source', async () => {
+		const changed = store.add(new Emitter<void>());
+		let enabled = false;
+		const service = store.add(new AgentHostAuthenticationService(new NullLogService(), async () => assert.fail('Changing local mode must not validate credentials'), {
+			isEnabled: () => enabled, getResources: () => [{ resource: repository }], onDidChange: changed.event,
+		}));
+		const provider = new class extends mock<IAgent>() {
+			override getProtectedResources() { return [{ resource: repository }]; }
+			override async authenticate() { return true; }
+		}();
+		await service.authenticate({ resource: repository, token: 'host-token' }, [provider]);
+		const remote = createScope();
+		await remote.authenticate({ resource: repository, token: 'client-token' }, resources);
+		service.bindSessionCredentials('agent:/active', remote);
+		const read = () => service.getAuthToken({ session: 'agent:/active', resource: repository });
+		const before = read();
+		const refreshed = Event.toPromise(service.onDidChangeSessionCredentials);
+		enabled = true;
+		changed.fire();
+		await refreshed;
+		const during = read();
+		const captured = captureCredentialSource(service.getSessionCredentialSource('agent:/active')!, [{ resource: repository }]);
+		enabled = false;
+		changed.fire();
+		const after = read();
+		const refreshedAgain = Event.toPromise(service.onDidChangeSessionCredentials);
+		enabled = true;
+		changed.fire();
+		await refreshedAgain;
+		assert.deepStrictEqual({ before, during, after, reenabled: read(), oldCapture: captured.getCredential({ resource: repository }) }, {
+			before: 'client-token', during: 'host-token', after: 'client-token', reenabled: 'host-token', oldCapture: undefined,
+		});
+	});
+
+	test('local session sources keep execution and monitoring MCP credentials separate across rebinding', async () => {
+		const service = store.add(new AgentHostAuthenticationService(new NullLogService(), async () => assert.fail('Shared token selection must not validate the session owner'), {
+			isEnabled: () => true, getResources: () => resources.map(resource => ({ resource })), onDidChange: Event.None,
+		}));
+		const mcp = 'https://mcp.example.test';
+		const execution = createScope();
+		const monitor = createScope();
+		const replacement = createScope();
+		await execution.authenticate({ resource: mcp, token: 'execution-mcp' }, [mcp]);
+		await monitor.authenticate({ resource: mcp, token: 'monitor-mcp' }, [mcp]);
+		await replacement.authenticate({ resource: mcp, token: 'replacement-mcp' }, [mcp]);
+		const session = 'agent:/parent';
+		const chat = 'agent:/chat';
+		service.bindSessionCredentials(session, execution, chat);
+		service.bindSessionCredentials(session, monitor, chat, 'agentMerge');
+		const read = () => (['execution', 'agentMerge'] as const).map(usage => service.getSessionCredentialSource(chat, usage)?.getCredential({ resource: mcp })?.token);
+		const before = read();
+		service.bindSessionCredentials(session, replacement, chat, 'agentMerge');
+		const after = read();
+		service.bindSessionCredentials(session, undefined, chat, 'agentMerge');
+		assert.deepStrictEqual({ before, after, monitorRemoved: read() }, {
+			before: ['execution-mcp', 'monitor-mcp'],
+			after: ['execution-mcp', 'replacement-mcp'],
+			monitorRemoved: ['execution-mcp', undefined],
+		});
+	});
 
 	test('scoped authentication never mutates legacy credentials, notifies legacy consumers or replays remotely supplied tokens', async () => {
 		const service = store.add(new AgentHostAuthenticationService(new NullLogService()));
@@ -135,7 +287,7 @@ suite('AgentHostAuthenticationScope', () => {
 			async () => { throw new ProtocolError(JsonRpcErrorCodes.InvalidParams, 'Wrong relay owner'); },
 			() => { },
 			principal,
-			async resource => { resolutions.push(resource); return undefined; },
+			resource => { resolutions.push(resource); return undefined; },
 		));
 		await assert.rejects(scope.authenticate({ resource, token: 'foreign-client' }, resources), { code: JsonRpcErrorCodes.InvalidParams });
 		assert.deepStrictEqual(resolutions, []);
@@ -144,29 +296,29 @@ suite('AgentHostAuthenticationScope', () => {
 	test('delegation failures never fall back to the client credential', async () => {
 		const scope = store.add(new AgentHostAuthenticationScope(
 			validate, () => { }, principal,
-			async () => ({ principal, getCredential: () => undefined }),
+			() => ({ principal, getCredential: () => undefined }),
 		));
 		await assert.rejects(scope.authenticate({ resource, token: 'ios-token' }, resources), { code: AhpErrorCodes.AuthRequired });
 		assert.strictEqual(scope.getCredential({ resource }), undefined);
 	});
 
-	test('disconnect during delegated credential resolution cannot resurrect authentication', async () => {
-		const gate = new DeferredPromise<IAgentHostCredentialSource>();
-		const started = new DeferredPromise<void>();
+	test('disconnect during validation cannot enable delegated credential lookup', async () => {
+		const gate = new DeferredPromise<AuthenticateParams>();
+		const resolutions: string[] = [];
 		const scope = store.add(new AgentHostAuthenticationScope(
-			validate, () => { }, principal,
-			async () => { started.complete(); return gate.p; },
+			() => gate.p, () => { }, principal,
+			resource => {
+				resolutions.push(resource);
+				return { principal, getCredential: () => ({ resource, token: 'desktop-token', revision: 1, expiresAt: undefined }) };
+			},
 		));
 		const pending = scope.authenticate({ resource, token: 'ios-token' }, resources);
 		const rejection = assert.rejects(pending, { code: AhpErrorCodes.AuthRequired });
-		await started.p;
 		scope.dispose();
-		gate.complete({
-			principal,
-			getCredential: () => ({ resource, token: 'desktop-token', revision: 1, expiresAt: undefined }),
-		});
+		gate.complete({ resource, token: 'ios-token' });
 		await rejection;
 		assert.throws(() => scope.getCredential({ resource }), { code: AhpErrorCodes.AuthRequired });
+		assert.deepStrictEqual(resolutions, []);
 	});
 
 	test('a late validation cannot overwrite a newer rotation', async () => {

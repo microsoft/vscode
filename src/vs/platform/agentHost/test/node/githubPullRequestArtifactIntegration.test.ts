@@ -27,13 +27,17 @@ import { GitHubRequestError } from '../../../github/common/githubTransport.js';
 import { PullRequestMutationApi } from '../../../github/common/githubPullRequestMutationService.js';
 import { IPullRequestResources } from '../../../github/common/pullRequestResourceService.js';
 import { NullLogService } from '../../../log/common/log.js';
+import { NullTelemetryService } from '../../../telemetry/common/telemetryUtils.js';
 import { IAgentHostGitService } from '../../common/agentHostGitService.js';
 import { AgentHostConfigKey } from '../../common/agentHostCustomizationConfig.js';
 import { AgentHostGitHubArtifactIgnoredChecksConfigKey, platformSessionSchema } from '../../common/agentHostSchema.js';
 import { arePullRequestArtifactChecksReady, gitHubPullRequestArtifactIntegrationId, gitHubPullRequestArtifactWorkspaceSettingsKey } from '../../common/githubPullRequestArtifact.js';
 import { AuthRequiredParams, AuthRequiredReason, NotificationType } from '../../common/state/sessionActions.js';
+import { AhpErrorCodes, ProtocolError } from '../../common/state/sessionProtocol.js';
 import { buildChatUri, buildDefaultChatUri, SessionStatus } from '../../common/state/sessionState.js';
 import { AgentConfigurationService } from '../../node/agentConfigurationService.js';
+import { AgentHostAuthenticationService } from '../../node/agentHostAuthenticationService.js';
+import { AgentHostGitHubService } from '../../node/agentHostGitHubService.js';
 import { AgentHostGitHubEndpointService } from '../../node/agentHostGitHubEndpointService.js';
 import { AgentHostStateManager } from '../../node/agentHostStateManager.js';
 import { AgentHostArtifactEventService } from '../../node/artifactIntegrations/agentHostArtifactRuntime.js';
@@ -41,7 +45,7 @@ import { getPullRequestGroupPresentation, GitHubPullRequestArtifactIntegration }
 import { createPullRequestArtifactSnapshot } from '../common/githubPullRequestArtifactTestUtils.js';
 import { createTestGitHubService } from './testGitHubService.js';
 
-async function fixture(store: DisposableStore, initial = createPullRequestArtifactSnapshot(), options: { credentialError?: GitHubRequestError; enterpriseUri?: string; storage?: IArtifactIntegrationStorage } = {}) {
+async function fixture(store: DisposableStore, initial = createPullRequestArtifactSnapshot(), options: { credentialError?: GitHubRequestError; acquireError?: 'match' | 'createResource'; missingSponsor?: boolean; enterpriseUri?: string; storage?: IArtifactIntegrationStorage } = {}) {
 	const session = 'copilot:/pull-request-artifact';
 	const chat = buildDefaultChatUri(session);
 	const directory = URI.file('/workspace').toString();
@@ -173,6 +177,22 @@ async function fixture(store: DisposableStore, initial = createPullRequestArtifa
 			}
 		}(),
 	});
+	let acquireError = options.acquireError;
+	let acquisitions = 0;
+	const acquire = github.acquireRepositoryClient;
+	github.acquireRepositoryClient = (...args) => {
+		if (acquireError && ++acquisitions >= (acquireError === 'match' ? 1 : 2)) {
+			throw new ProtocolError(AhpErrorCodes.AuthRequired, 'GitHub repository authentication is required', { resources: [endpoint.getRepoResource()] });
+		}
+		return acquire(...args);
+	};
+	const principal = { apiOrigin: endpoint.getApiBaseUri(), userId: '1' };
+	const authentication = options.missingSponsor ? store.add(new AgentHostAuthenticationService(logService)) : undefined;
+	if (authentication) {
+		authentication.restoreSessionCredentialPrincipal(session, principal, chat);
+		const isolatedGithub = store.add(new AgentHostGitHubService({}, authentication, endpoint, logService, NullTelemetryService));
+		github.captureSessionCredentialSource = (...args) => isolatedGithub.captureSessionCredentialSource(...args);
+	}
 	const integration = new GitHubPullRequestArtifactIntegration(github, git, stateManager, configuration, events, logService, endpoint);
 	const registry = store.add(new ArtifactIntegrationRegistry());
 	store.add(registry.register(integration, 'test'));
@@ -227,7 +247,11 @@ async function fixture(store: DisposableStore, initial = createPullRequestArtifa
 			configuration.updateSessionConfig(session, { checkoutRevision: ++request });
 		},
 		setAccount: (id: string) => { accountId = id; invalidated.fire({ reason: 'account' }); },
-		reauthenticate: () => { credentialError = undefined; invalidated.fire({ reason: 'replacement' }); },
+		reauthenticate: () => {
+			credentialError = undefined;
+			acquireError = undefined;
+			invalidated.fire({ reason: 'replacement' });
+		},
 		onRefresh: (hook: () => void | Promise<void>) => { refreshHook = hook; },
 		onMutation: (hook: () => void | Promise<void>) => { mutationHook = hook; },
 		onPrepareMerge: (hook: () => Promise<void>) => { prepareMergeHook = hook; },
@@ -507,6 +531,42 @@ suite('GitHub pull request artifact integration', () => {
 			retry: recovery,
 			requests: [{ resource: f.endpoint.getRepoResource(), reason: AuthRequiredReason.Required }],
 			after: { kind: 'available' }, prompts: [], mutations: [],
+		});
+	}));
+
+	for (const stage of ['match', 'createResource'] as const) {
+		test(`offers repository sign-in when the session source is unavailable during ${stage}`, () => run(async store => {
+			const f = await fixture(store, undefined, { acquireError: stage });
+			const before = f.model.snapshot.get().contributions[0].view.availability;
+			const recovery = await f.model.requestAuthentication(gitHubPullRequestArtifactIntegrationId);
+			f.reauthenticate();
+			await waitForState(f.model.snapshot, snapshot => snapshot.contributions[0]?.view.availability.kind === 'available');
+			assert.deepStrictEqual({
+				before,
+				recovery,
+				requests: f.authenticationRequests,
+				after: f.model.snapshot.get().contributions[0].view.availability,
+			}, {
+				before: { kind: 'authenticationRequired', reason: 'Sign in to GitHub to see the state of this pull request.' },
+				recovery: { resource: f.endpoint.getRepoResource().resource, authorizationServers: f.endpoint.getRepoResource().authorization_servers, scopes: f.endpoint.getRepoResource().scopes_supported },
+				requests: [],
+				after: { kind: 'available' },
+			});
+		}));
+	}
+
+	test('a client-mode session without a sponsor asks to resume or reconnect instead of offering repository sign-in', () => run(async store => {
+		const f = await fixture(store, undefined, { missingSponsor: true });
+		const before = f.model.snapshot.get().contributions[0].view.availability;
+		const authentication = f.model.snapshot.get().contributions[0].authentication;
+		assert.deepStrictEqual({
+			before,
+			authentication,
+			requests: f.authenticationRequests,
+		}, {
+			before: { kind: 'error', reason: 'Resume this session or reconnect its client to restore access to this pull request.' },
+			authentication: undefined,
+			requests: [],
 		});
 	}));
 
