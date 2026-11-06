@@ -128,7 +128,7 @@ suite('WebviewElement', () => {
 		}
 		channel.port2.start();
 		return {
-			webview, instantiationService, port: channel.port2, errorNotification, frame, container, configurationService, createReadyEvent,
+			webview, instantiationService, port: channel.port2, errorNotification, frame, container, configurationService, createReadyEvent, setSource,
 			remount: async () => {
 				initialized = new DeferredPromise<string>();
 				webview.reinitializeAfterDismount();
@@ -328,6 +328,34 @@ suite('WebviewElement', () => {
 			});
 		}
 	}
+
+	test('ignores an earlier mount whose origin hash finishes after a remount', async () => {
+		const { webview, container, setSource } = await createWebview(undefined, 'browser', false);
+		const realDigest = crypto.subtle.digest.bind(crypto.subtle);
+		const firstDigest = new DeferredPromise<void>();
+		const secondDigest = new DeferredPromise<void>();
+		let digestCalls = 0;
+		sinon.stub(crypto.subtle, 'digest').callsFake(async (...args: Parameters<typeof realDigest>) => {
+			if (digestCalls++ === 0) {
+				await firstDigest.p;
+			}
+			const result = await realDigest(...args);
+			if (digestCalls === 2 && !secondDigest.isSettled) {
+				secondDigest.complete();
+			}
+			return result;
+		});
+		const before = setSource.callCount;
+
+		webview.mountTo(container, mainWindow);
+		webview.mountTo(container, mainWindow);
+		await secondDigest.p;
+		await timeout(0);
+		firstDigest.complete();
+		await timeout(10);
+
+		assert.strictEqual(setSource.callCount - before, 1);
+	});
 
 	test('remount rejects the old handshake and key token', async () => {
 		const { webview, frame, createReadyEvent, remount } = await createWebview();
