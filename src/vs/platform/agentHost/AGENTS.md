@@ -118,6 +118,16 @@ SDK-discovered plugin agents retain their SDK selection `id`, which can differ f
 
 **File organization rule:** `common/agent.ts` holds the *provider model* — `IAgent` and every type/helper/signal reachable from it (chat lifecycle, create/materialize/legacy-migration payloads, config-resolution parameters, `AgentSignal`/`AgentSession`). `common/agentService.ts` holds the *orchestrator-facing service surface* — `IAgentService`, `IAgentConnection`, `IAgentHostService`, settings/env constants, and diagnostics types. The dependency is one-directional: `agentService.ts` may import from `agent.ts`, but `agent.ts` must never import from `agentService.ts`. `agentService.ts` re-exports the public provider types from `agent.ts` for call-site compatibility; new provider code should import directly from `agent.ts`.
 
+### Customization installation (Skills, MCP servers, catalog plugins)
+
+Installation is local-only: the workbench calls `IAgentHostService`, which routes through Management IPC to `CopilotCustomizationInstallations`. Remote Agent Hosts expose no installation methods.
+
+Prepare returns a review, or a configuration request when values or secrets are needed. Records are bound to a host generation, an expiry and a random ownership token; a mismatch behaves like an unknown ID. The client sends any `answers` once on `apply`, which is one-shot and never resent. There is no client cancel; unused records expire.
+
+Submitted values and secrets must never appear in reviews, errors or logs. The runtime owns URL/header expansion and configuration validation; shared value rules live in `common/customizationInstallationValues.ts`.
+
+The runtime does not own local package (stdio) installs, or remote installs from MCP Gallery cards (their plans are not session-bound), yet. For those the host writes the configuration with `mcp.config.add` after verifying the card against the plan's digest. Only non-secret values are supported on this path; anything needing a secret fails closed until the runtime can store it.
+
 ### SDK hook and MCP discovery
 
 `SessionCustomizationDiscovery` publishes `hooks.discover` and `mcp.discover` from the selected host's SDK client and primary working directory. Hook actions retain their opaque IDs and individual enablement; warnings and partial errors produce a degraded inventory, and RPC failures remain visible without discarding successful discovery of other kinds. Filesystem hook locations remain writable creation targets and refresh triggers, not an independent action inventory.
@@ -257,7 +267,7 @@ Because listing never opens session storage, migrations the provider/session fal
 
 **I6 — Route through `IAgentHostProviderService`.** Creation, registry listing and restoration populate explicit provider associations from durable identity. Only unregistered legacy provider-native resources may fall back to their scheme; `ahp-session` never identifies a provider. Do not read the association map directly.
 
-**Native identities are mixed and immutable.** Negotiate `vscode.ahpSessionUris` only for new allocations; preserve existing registry URIs, SDK backings, storage directories and frontend identities. Use explicit provider metadata and owning-connection address records, not a provider-wide URI alias. See the [session identity contract](../../sessions/contrib/providers/agentHost/AGENT_HOST_SESSIONS_PROVIDER.md#identity).
+**Native identities are mixed and immutable.** Negotiate `vscode.ahpSessionUris` only for new allocations; preserve existing registry URIs, SDK backings, storage directories and frontend identities. Use explicit provider metadata and owning-connection address records, not a provider-wide URI alias. See the [session identity contract](../../workbench/contrib/sessions/providers/agentHost/AGENT_HOST_SESSIONS_PROVIDER.md#identity).
 
 Telemetry provider dimensions use the owning agent's id or the session's explicit `provider` metadata, never the standard session URI scheme. Changeset telemetry preserves URI-scheme provider categories for legacy sessions and scoped owners (`ahp-chat:`, `ahp-folder-changeset:`); provider-neutral root sessions capture the explicit provider when computation is queued. Automation run telemetry retains the linked session provider in host-private storage, independently of protocol state, so it survives session removal and host restart. Preserve the existing provider values (`copilotcli`, `claude`, `codex`, or an advertised provider id) independently of addressing.
 
@@ -921,7 +931,7 @@ Every tool definition the model can see is input tokens on every request of ever
 
 "It is handy", "it is read-only", "it is small", "the model will not find it otherwise" and "the previous tool in this group was eager" are not reasons. A quality-of-life tool is exactly the kind that should load on demand. If the model does not find a deferred tool, fix its description so tool search ranks it, not its deferral.
 
-Tool search is only active for models that support it (`agentHostModelSupportsToolSearch`) and when `chat.agentHost.copilot.toolSearch.enabled` is on. On every other session **everything is eager**, so an eager-by-default tool is an eager tool everywhere. Do not reason as if deferral were the common case.
+Tool search is only active for models that support it (`agentHostModelSupportsToolSearch`) and when the client forwards its `toolSearch` tool, which users turn off with the Search Tools toggle in Chat Customizations. On every other session **everything is eager**, so an eager-by-default tool is an eager tool everywhere. Do not reason as if deferral were the common case.
 
 ### Where each kind of tool is controlled
 

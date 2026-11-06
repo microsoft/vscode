@@ -12,13 +12,13 @@ import { TestConfigurationService } from '../../../../../platform/configuration/
 import { ContextKeyService } from '../../../../../platform/contextkey/browser/contextKeyService.js';
 import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { workbenchInstantiationService } from '../../../../../workbench/test/browser/workbenchTestServices.js';
-import { SessionPrimaryPullRequestOperationContext } from '../../../../common/contextkeys.js';
-import { ISessionChangeset, ISessionChangesetOperation } from '../../../../services/sessions/common/session.js';
-import { GitHubPullRequestCIModel } from '../../../github/browser/models/githubPullRequestCIModel.js';
-import { IGitHubService } from '../../../github/browser/githubService.js';
-import { ActiveSessionState, IChangesSessionObservables, IChangesSessionScope } from '../../common/changesViewService.js';
-import { createSessionActionsInstantiationService } from '../../browser/sessionActionsHost.js';
-import { hasWorktreeAndRepositoryContextKey } from '../../../../services/sessions/browser/sessionScopedContextKeys.js';
+import { SessionPrimaryPullRequestOperationContext } from '../../../../../workbench/contrib/sessions/common/contextkeys.js';
+import { ISessionChangeset, ISessionChangesetOperation } from '../../../../../workbench/contrib/sessions/common/session.js';
+import { GitHubPullRequestCIModel } from '../../../../../workbench/contrib/sessions/browser/github/models/githubPullRequestCIModel.js';
+import { IGitHubService } from '../../../../../workbench/contrib/sessions/browser/github/githubService.js';
+import { ActiveSessionState, IChangesSessionObservables, IChangesSessionScope } from '../../../../../workbench/contrib/sessions/common/changesViewService.js';
+import { createSessionActionsInstantiationService } from '../../../../../workbench/contrib/sessions/browser/changes/sessionActionsHost.js';
+import { hasWorktreeAndRepositoryContextKey } from '../../../../../workbench/contrib/sessions/browser/sessionScopedContextKeys.js';
 
 suite('Session Actions Host', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();

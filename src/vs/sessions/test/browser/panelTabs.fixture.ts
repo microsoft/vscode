@@ -15,7 +15,7 @@ import { NumberBadge } from '../../../workbench/services/activity/common/activit
 import { ICompositeDragAndDrop } from '../../../workbench/browser/dnd.js';
 import { CompositeActionViewItem, CompositeBarAction, ICompositeBar, ICompositeBarColors } from '../../../workbench/browser/parts/compositeBarActions.js';
 import { PANEL_ACTIVE_TITLE_BORDER, PANEL_ACTIVE_TITLE_FOREGROUND, PANEL_DRAG_AND_DROP_BORDER, PANEL_INACTIVE_TITLE_FOREGROUND } from '../../../workbench/common/theme.js';
-import { agentsBadgeBackground, agentsBadgeForeground, agentsPanelBackground } from '../../common/theme.js';
+import { agentsBadgeBackground, agentsBadgeForeground, agentsPanelBackground } from '../../../workbench/contrib/sessions/common/theme.js';
 import { ComponentFixtureContext, createEditorServices, defineComponentFixture, defineThemedFixtureGroup, registerWorkbenchServices } from '../../../workbench/test/browser/componentFixtures/fixtureUtils.js';
 
 import '../../../workbench/browser/media/part.css';

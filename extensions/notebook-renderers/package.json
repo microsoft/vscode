@@ -48,9 +48,11 @@
 	},
 	"devDependencies": {
 		"@types/jsdom": "^21.1.0",
+		"@types/mocha": "^10.0.10",
 		"@types/node": "24.x",
 		"@types/vscode-notebook-renderer": "^1.60.0",
-		"jsdom": "^28.1.0"
+		"jsdom": "^28.1.0",
+		"mocha": "^10.8.2"
 	},
 	"repository": {
 		"type": "git",

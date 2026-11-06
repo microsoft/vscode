@@ -33,13 +33,13 @@ import { getChatSessionType } from '../../../../workbench/contrib/chat/common/mo
 import { ChatMessageRole, ILanguageModelsService } from '../../../../workbench/contrib/chat/common/languageModels.js';
 import { IChatUtilityModelRequest, IChatUtilityModelService } from '../../../../workbench/contrib/chat/common/chatUtilityModelService.js';
 import { ConfirmationOptionKind } from '../../../../platform/agentHost/common/state/protocol/state.js';
-import { IGitHubService } from '../../github/browser/githubService.js';
-import { getPullRequestKey } from '../../github/common/utils.js';
-import { computePullRequestIcon, GitHubCIOverallStatus, GitHubPullRequestState, IGitHubPullRequestReviewThread } from '../../github/common/types.js';
-import { ISessionsProvidersService } from '../../../services/sessions/browser/sessionsProvidersService.js';
-import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
-import { getGitHubPullRequestRefs, getSessionStatusMessage, IGitHubPullRequestRef, SessionStatus, type ISession } from '../../../services/sessions/common/session.js';
-import { getSessionGitHubReferences } from '../../github/common/sessionGitHubReferences.js';
+import { IGitHubService } from '../../../../workbench/contrib/sessions/browser/github/githubService.js';
+import { getPullRequestKey } from '../../../../workbench/contrib/sessions/common/github/utils.js';
+import { computePullRequestIcon, GitHubCIOverallStatus, GitHubPullRequestState, IGitHubPullRequestReviewThread } from '../../../../workbench/contrib/sessions/common/github/types.js';
+import { ISessionsProvidersService } from '../../../../workbench/contrib/sessions/browser/sessionsProvidersService.js';
+import { ISessionsManagementService } from '../../../../workbench/contrib/sessions/common/sessionsManagement.js';
+import { getGitHubPullRequestRefs, getSessionStatusMessage, IGitHubPullRequestRef, SessionStatus, type ISession } from '../../../../workbench/contrib/sessions/common/session.js';
+import { getSessionGitHubReferences } from '../../../../workbench/contrib/sessions/common/github/sessionGitHubReferences.js';
 import {
 	compareInboxNotificationsByRecency,
 	compareInboxNotifications,
@@ -66,10 +66,10 @@ import {
 	InboxNotificationKind,
 	InboxNotificationPriority,
 	InboxNotificationsSortMode,
-} from '../common/inboxNotificationsService.js';
-import { getSessionsTelemetryProviderId, hashSessionIdForTelemetry } from '../../../common/sessionsTelemetry.js';
-import { isAgentHostProviderId } from '../../../common/agentHostSessionsProvider.js';
-import { CHAT_INBOX_ENABLED_SETTING } from './inboxNotificationsConstants.js';
+} from '../../../../workbench/contrib/sessions/common/inboxNotificationsService.js';
+import { getSessionsTelemetryProviderId, hashSessionIdForTelemetry } from '../../../../workbench/contrib/sessions/common/sessionsTelemetry.js';
+import { isAgentHostProviderId } from '../../../../workbench/contrib/sessions/common/agentHostSessionsProvider.js';
+import { CHAT_INBOX_ENABLED_SETTING } from '../../../../workbench/contrib/sessions/browser/inboxNotificationsConstants.js';
 import { collectInboxCommandEvidence, collectInboxEvidence, IInboxEvidenceCommand } from '../common/inboxEvidence.js';
 
 const DISMISSED_NOTIFICATION_IDS_STORAGE_KEY = 'sessions.inboxNotifications.dismissedIds';

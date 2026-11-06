@@ -12,10 +12,10 @@ import { CustomEditorInput } from '../../../../../workbench/contrib/customEditor
 import { WebviewInput } from '../../../../../workbench/contrib/webviewPanel/browser/webviewEditorInput.js';
 import { IEditorGroupsService } from '../../../../../workbench/services/editor/common/editorGroupsService.js';
 import { CanvasInput } from '../../../../../workbench/contrib/canvases/common/canvas.js';
-import { ISessionChangesService } from '../../../changes/browser/sessionChangesService.js';
-import { EmptyFileEditorInput } from '../../../editor/browser/emptyFileEditorInput.js';
-import { ISessionWorkspace } from '../../../../services/sessions/common/session.js';
-import { WindowCanvasInput } from '../../../../services/canvas/browser/windowCanvasService.js';
+import { ISessionChangesService } from '../../../../../workbench/contrib/sessions/browser/changes/sessionChangesService.js';
+import { EmptyFileEditorInput } from '../../../../../workbench/contrib/sessions/browser/emptyFileEditorInput.js';
+import { ISessionWorkspace } from '../../../../../workbench/contrib/sessions/common/session.js';
+import { WindowCanvasInput } from '../../../../../workbench/contrib/sessions/browser/windowCanvas.js';
 
 const PULL_REQUEST_OVERVIEW_VIEW_TYPE = 'PullRequestOverview';
 const ISSUE_OVERVIEW_VIEW_TYPE = 'IssueOverview';

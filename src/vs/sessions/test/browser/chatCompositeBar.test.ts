@@ -29,27 +29,29 @@ import { DEFAULT_EDITOR_PART_OPTIONS } from '../../../workbench/browser/parts/ed
 import { IEditorPartOptions, IEditorPartOptionsChangeEvent } from '../../../workbench/common/editor.js';
 import { IEditorGroupsService } from '../../../workbench/services/editor/common/editorGroupsService.js';
 import { workbenchInstantiationService } from '../../../workbench/test/browser/workbenchTestServices.js';
-import { ChatCompositeBar, IChatCompositeBarDelegate } from '../../browser/parts/chatCompositeBar.js';
-import { Menus } from '../../browser/menus.js';
-import { getSessionChatDragData, isSessionChatDrag, registerSessionChatDragEndHandler } from '../../browser/dnd.js';
-import { LOCAL_AGENT_HOST_PROVIDER_ID } from '../../common/agentHostSessionsProvider.js';
-import { ARCHIVE_CHAT_COMMAND_ID, CLOSE_CHAT_COMMAND_ID, MARK_SESSION_UNREAD_COMMAND_ID, RENAME_CHAT_COMMAND_ID, RENAME_SESSION_COMMAND_ID, UNARCHIVE_CHAT_COMMAND_ID } from '../../common/sessionCommands.js';
-import { ISessionsProvidersService } from '../../services/sessions/browser/sessionsProvidersService.js';
-import { ISessionsListModelService } from '../../services/sessions/browser/sessionsListModelService.js';
-import { ISessionsPartService } from '../../services/sessions/browser/sessionsPartService.js';
-import { ISessionsService } from '../../services/sessions/browser/sessionsService.js';
-import { ChatInteractivity, ChatOriginKind, IChat, ISession, ISessionCapabilities, SessionStatus } from '../../services/sessions/common/session.js';
-import { IActiveSession, ISessionsManagementService } from '../../services/sessions/common/sessionsManagement.js';
-import { ISessionsProvider } from '../../services/sessions/common/sessionsProvider.js';
-import '../../browser/parts/media/chatGroupsView.css';
-import '../../browser/parts/media/sessionsPart.css';
-import '../../browser/parts/media/sessionView.css';
+import { ChatCompositeBar, IChatCompositeBarDelegate } from '../../../workbench/contrib/sessions/browser/parts/chatCompositeBar.js';
+import { Menus } from '../../../workbench/contrib/sessions/browser/menus.js';
+import { getSessionChatDragData, isSessionChatDrag, registerSessionChatDragEndHandler } from '../../../workbench/contrib/sessions/browser/dnd.js';
+import { LOCAL_AGENT_HOST_PROVIDER_ID } from '../../../workbench/contrib/sessions/common/agentHostSessionsProvider.js';
+import { ARCHIVE_CHAT_COMMAND_ID, CLOSE_CHAT_COMMAND_ID, MARK_SESSION_UNREAD_COMMAND_ID, RENAME_CHAT_COMMAND_ID, RENAME_SESSION_COMMAND_ID, UNARCHIVE_CHAT_COMMAND_ID } from '../../../workbench/contrib/sessions/common/sessionCommands.js';
+import { ISessionsProvidersService } from '../../../workbench/contrib/sessions/browser/sessionsProvidersService.js';
+import { ISessionsListModelService } from '../../../workbench/contrib/sessions/browser/sessionsListModelService.js';
+import { ISessionsPartService } from '../../../workbench/contrib/sessions/browser/sessionsPartService.js';
+import { ISessionsService } from '../../../workbench/contrib/sessions/browser/sessionsService.js';
+import { ChatInteractivity, ChatOriginKind, IChat, ISession, ISessionCapabilities, SessionStatus } from '../../../workbench/contrib/sessions/common/session.js';
+import { ISessionPaneTabs, ISessionsManagementService } from '../../../workbench/contrib/sessions/common/sessionsManagement.js';
+import { ITestSessionWithChat } from '../../../workbench/contrib/sessions/test/browser/sessionHostTestUtils.js';
+import { ISessionsProvider } from '../../../workbench/contrib/sessions/common/sessionsProvider.js';
+import '../../../workbench/contrib/sessions/browser/parts/media/chatGroupsView.css';
+import '../../../workbench/contrib/sessions/browser/parts/media/sessionsPart.css';
+import '../../../workbench/contrib/sessions/browser/parts/media/sessionView.css';
 import '../../browser/media/workbench.css';
-import '../../services/chatBackground/browser/media/chatBackground.css';
+import '../../../workbench/contrib/sessions/browser/media/chatBackground.css';
 // eslint-disable-next-line local/code-import-patterns -- Test the presentation supplied by the editor contribution.
 import '../../../workbench/contrib/modernUI/browser/media/tabs.css';
 // eslint-disable-next-line local/code-import-patterns -- Test the presentation supplied by the editor contribution.
 import '../../../workbench/contrib/modernUI/browser/connectedEditorTabs.js';
+import { ISessionHost } from '../../../workbench/contrib/sessions/browser/sessionHost.js';
 
 class TestResizeObserver implements ResizeObserver {
 	static instance: TestResizeObserver | undefined;
@@ -81,6 +83,9 @@ class TestResizeObserver implements ResizeObserver {
 		}], this);
 	}
 }
+
+/** The command context of the pane the bar is in, which its menus and tab actions pass. */
+const testPaneContext = { sessionHostId: 'test-pane' };
 
 class TestCommandService extends mock<ICommandService>() {
 	readonly calls: { readonly commandId: string; readonly args: readonly unknown[] }[] = [];
@@ -152,23 +157,25 @@ function createChat(id: string, title: string, status: SessionStatus = SessionSt
 	}();
 }
 
-function createSession(chats: readonly IChat[], activeChat: IChat, isQuickChat = false, supportsRename = true): IActiveSession {
+/** A session fake that carries the chat its pane shows and its tab strip. */
+function createSession(chats: readonly IChat[], activeChat: IChat, isQuickChat = false, supportsRename = true): ITestSessionWithChat & Omit<ISessionPaneTabs, 'lastClosedChat'> {
 	const resource = URI.parse('test-session://session');
-	return new class extends mock<IActiveSession>() {
+	return new class extends mock<ISession>() {
 		override readonly sessionId = 'session';
 		override readonly harness = 'copilot';
 		override readonly resource = resource;
 		override readonly providerId = 'test';
 		override readonly title = observableValue(this, 'Parent Session');
 		override readonly chats: IObservable<readonly IChat[]> = constObservable(chats);
-		override readonly openChats: IObservable<readonly IChat[]> = constObservable(chats);
-		override readonly closedChats: IObservable<readonly IChat[]> = constObservable([]);
-		override readonly visibleChatTabs: IObservable<readonly IChat[]> = constObservable(chats);
-		override readonly shouldShowChatTabs: IObservable<boolean> = constObservable(true);
+		readonly openChats: IObservable<readonly IChat[]> = constObservable(chats);
+		readonly closedChats: IObservable<readonly IChat[]> = constObservable([]);
+		readonly visibleChatTabs: IObservable<readonly IChat[]> = constObservable(chats);
+		readonly shouldShowChatTabs: IObservable<boolean> = constObservable(true);
 		override readonly mainChat: IObservable<IChat> = constObservable(chats[0]);
-		override readonly activeChat: IObservable<IChat> = constObservable(activeChat);
+		readonly activeChat: IObservable<IChat> = constObservable(activeChat);
 		override readonly capabilities: IObservable<ISessionCapabilities> = constObservable({ supportsMultipleChats: true, supportsRename });
-		override readonly isCreated: IObservable<boolean> = constObservable(true);
+		readonly isCreated: IObservable<boolean> = constObservable(true);
+		override readonly status = this.isCreated.map(created => created ? SessionStatus.Completed : SessionStatus.Untitled);
 		override readonly isArchived: IObservable<boolean> = constObservable(false);
 		override readonly isQuickChat: IObservable<boolean> = constObservable(isQuickChat);
 	}();
@@ -183,7 +190,7 @@ interface IChatCompositeBarHarness {
 	readonly editorGroupsService: TestEditorGroupsService;
 	readonly bar: ChatCompositeBar;
 	readonly container: HTMLElement;
-	readonly session: IActiveSession;
+	readonly session: ReturnType<typeof createSession>;
 	readonly tabs: readonly HTMLElement[];
 	readonly chats: ISettableObservable<readonly IChat[]>;
 	readonly activeChatResource: ISettableObservable<string>;
@@ -194,6 +201,8 @@ interface IChatCompositeBarHarness {
 function createHarness(disposables: Pick<DisposableStore, 'add'>, options?: { readonly isAgentHost?: boolean; readonly isQuickChat?: boolean; readonly standaloneChat?: boolean; readonly resizeObserverCtor?: typeof ResizeObserver; readonly mainIsRead?: boolean; readonly secondaryIsRead?: boolean; readonly secondaryArchived?: boolean; readonly secondaryCanArchive?: boolean; readonly terminalControls?: boolean; readonly sessionSupportsRename?: boolean; readonly secondaryHarness?: string; readonly knownHarnesses?: IObservable<readonly string[]>; readonly accessibilityService?: IAccessibilityService }): IChatCompositeBarHarness {
 	const store = disposables.add(new DisposableStore());
 	const instantiationService = workbenchInstantiationService(undefined, store);
+	// The pane the bar is in, whose command context its menus pass.
+	instantiationService.stub(ISessionHost, upcastPartial<ISessionHost>({ commandContext: testPaneContext }));
 	const commandService = new TestCommandService();
 	const contextMenuService = new TestContextMenuService();
 	const sessionsService = new TestSessionsService();
@@ -201,7 +210,7 @@ function createHarness(disposables: Pick<DisposableStore, 'add'>, options?: { re
 	const mainChat = createChat('main', 'Main Chat', SessionStatus.Completed, { isRead: options?.mainIsRead });
 	const secondaryChat = createChat('secondary', 'Secondary Chat', SessionStatus.Completed, { isArchived: options?.secondaryArchived, isRead: options?.secondaryIsRead, canArchive: options?.secondaryCanArchive, harness: options?.secondaryHarness });
 	const baseSession = createSession([mainChat, secondaryChat], mainChat, options?.isQuickChat, options?.sessionSupportsRename);
-	const session = options?.standaloneChat ? { ...baseSession, scopedChatResource: secondaryChat.resource } : baseSession;
+	const session = baseSession;
 	const chats = observableValue<readonly IChat[]>('test.chats', [mainChat, secondaryChat]);
 	const activeChatResource = observableValue('test.activeChatResource', mainChat.resource.toString());
 	const mainChatResource = observableValue('test.mainChatResource', mainChat.resource.toString());
@@ -259,6 +268,8 @@ function createHarness(disposables: Pick<DisposableStore, 'add'>, options?: { re
 	const bar = store.add(instantiationService.createInstance(ChatCompositeBar, options?.resizeObserverCtor));
 	const delegate: IChatCompositeBarDelegate = {
 		session,
+		isDetached: !!options?.standaloneChat,
+		closePane: () => sessionsService.closeSession(session),
 		chats,
 		activeChatResource,
 		mainChatResource,
@@ -934,7 +945,7 @@ suite('Sessions - ChatCompositeBar', () => {
 				const removed = chats.at(-1)!;
 				const replacement = chats.at(-2)!;
 				harness.commandService.onExecute = (commandId, args) => {
-					assert.deepStrictEqual({ commandId, args }, { commandId: CLOSE_CHAT_COMMAND_ID, args: [harness.session, removed] });
+					assert.deepStrictEqual({ commandId, args }, { commandId: CLOSE_CHAT_COMMAND_ID, args: [harness.session, removed, testPaneContext] });
 					transaction(tx => {
 						harness.chats.set(chats.slice(0, -1), tx);
 						harness.activeChatResource.set(replacement.resource.toString(), tx);
@@ -1211,7 +1222,7 @@ suite('Sessions - ChatCompositeBar', () => {
 					session,
 					chat: session.visibleChatTabs.get()[1],
 					inline: true,
-				}],
+				}, undefined, testPaneContext],
 			}],
 		});
 	});
@@ -1248,7 +1259,7 @@ suite('Sessions - ChatCompositeBar', () => {
 
 		assert.deepStrictEqual(commandService.calls, [
 			{ commandId: MARK_SESSION_UNREAD_COMMAND_ID, args: [{ session, chat: session.visibleChatTabs.get()[0] }] },
-			{ commandId: CLOSE_CHAT_COMMAND_ID, args: [session, session.visibleChatTabs.get()[1]] },
+			{ commandId: CLOSE_CHAT_COMMAND_ID, args: [session, session.visibleChatTabs.get()[1], testPaneContext] },
 		]);
 	});
 
@@ -1484,7 +1495,7 @@ suite('Sessions - ChatCompositeBar', () => {
 		}, {
 			commandCalls: [{
 				commandId: CLOSE_CHAT_COMMAND_ID,
-				args: [session, session.visibleChatTabs.get()[1]],
+				args: [session, session.visibleChatTabs.get()[1], testPaneContext],
 			}],
 			openedChats: [],
 			defaultPrevented: true,
@@ -1503,7 +1514,7 @@ suite('Sessions - ChatCompositeBar', () => {
 
 		assert.deepStrictEqual(commandService.calls, [{
 			commandId: CLOSE_CHAT_COMMAND_ID,
-			args: [session, session.visibleChatTabs.get()[1]],
+			args: [session, session.visibleChatTabs.get()[1], testPaneContext],
 		}]);
 	});
 
@@ -1720,9 +1731,9 @@ suite('Sessions - ChatCompositeBar', () => {
 		const parent = { ...chats.get()[1], title: parentTitle };
 		const child = { ...parent, resource: URI.parse('test-chat://nested'), title: constObservable('Nested Chat'), origin: { kind: ChatOriginKind.SideChat, parentChat: parent.resource } };
 		const sessionTitle = observableValue('sessionTitle', 'Parent Session');
-		const session = { ...original, scopedChatResource: child.resource, title: sessionTitle, chats: constObservable([chats.get()[0], parent, child]) };
+		const session = { ...original, title: sessionTitle, chats: constObservable([chats.get()[0], parent, child]) };
 		bar.setGroup({
-			session, chats: session.chats, activeChatResource, mainChatResource: constObservable(chats.get()[0].resource.toString()),
+			session, isDetached: true, closePane: () => { }, chats: session.chats, activeChatResource, mainChatResource: constObservable(chats.get()[0].resource.toString()),
 			visible, showSessionActions, openChat: () => { },
 		});
 		const nestedTab = bar.element.querySelector<HTMLElement>('[data-chat-resource="test-chat://nested"]')!;

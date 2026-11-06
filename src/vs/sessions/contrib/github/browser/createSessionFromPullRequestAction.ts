@@ -19,13 +19,13 @@ import { IQuickInputService } from '../../../../platform/quickinput/common/quick
 import { ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
 import { toErrorMessage } from '../../../../base/common/errorMessage.js';
 import { ChatContextKeys } from '../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
-import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
-import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
+import { ISessionsManagementService } from '../../../../workbench/contrib/sessions/common/sessionsManagement.js';
+import { ISessionsService } from '../../../../workbench/contrib/sessions/browser/sessionsService.js';
 import { CLOSE_MOBILE_SIDEBAR_DRAWER_COMMAND_ID } from '../../../browser/workbench.js';
-import { Menus } from '../../../browser/menus.js';
-import { ISessionSection, SessionSectionHasGitHubRepositoryContext, SessionSectionHasNonCloudRepositoryContext, SessionSectionTypeContext } from '../../sessions/browser/views/sessionsList.js';
-import { IGitHubService } from './githubService.js';
-import { IGitHubPullRequestSummary } from '../common/types.js';
+import { Menus } from '../../../../workbench/contrib/sessions/browser/menus.js';
+import { ISessionSection, SessionSectionHasGitHubRepositoryContext, SessionSectionHasNonCloudRepositoryContext, SessionSectionTypeContext } from '../../../../workbench/contrib/sessions/browser/views/sessionsList.js';
+import { IGitHubService } from '../../../../workbench/contrib/sessions/browser/github/githubService.js';
+import { IGitHubPullRequestSummary } from '../../../../workbench/contrib/sessions/common/github/types.js';
 import { createPullRequestBootstrapPrompt, createPullRequestContextAttachment, createPullRequestQuickPickItems, createPullRequestUrl, getExistingPullRequests, IPullRequestQuickPickItem, isPullRequestAvailable, mergePullRequestSummaries, pullRequestMatchesQuery, resolvePullRequestSessionRepository } from './pullRequestPicker.js';
 import { createAndOpenPullRequestSession } from './pullRequestSessionCreation.js';
 

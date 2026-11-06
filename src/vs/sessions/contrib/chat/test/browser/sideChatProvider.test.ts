@@ -9,8 +9,8 @@ import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { DisposableStore, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { constObservable, derived, observableValue } from '../../../../../base/common/observable.js';
-import { ISessionHostService } from '../../../../services/sessions/browser/sessionHost.js';
-import { ITestSessionsService, sessionHostServiceOf } from '../../../../services/sessions/test/browser/sessionHostTestUtils.js';
+import { ISessionHostService } from '../../../../../workbench/contrib/sessions/browser/sessionHost.js';
+import { ITestSessionsService, ITestSessionWithChat, sessionHostServiceOf, testGridPanes } from '../../../../../workbench/contrib/sessions/test/browser/sessionHostTestUtils.js';
 import { extUri } from '../../../../../base/common/resources.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { upcastPartial } from '../../../../../base/test/common/mock.js';
@@ -26,10 +26,10 @@ import { IChatModel, IChatRequestModel } from '../../../../../workbench/contrib/
 import { IChatRequestViewModel, IChatViewModel } from '../../../../../workbench/contrib/chat/common/model/chatViewModel.js';
 import { IWorkbenchEnvironmentService } from '../../../../../workbench/services/environment/common/environmentService.js';
 import { SessionsSideChatProviderContribution } from '../../browser/sideChatProvider.contribution.js';
-import { ISessionsPartService } from '../../../../services/sessions/browser/sessionsPartService.js';
-import { ISessionNavigationRequest, ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
-import { ChatInteractivity, ChatOriginKind, IChat, SessionStatus } from '../../../../services/sessions/common/session.js';
-import { IActiveSession, ISendRequestOptions, ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
+import { ISessionsPartService } from '../../../../../workbench/contrib/sessions/browser/sessionsPartService.js';
+import { ISessionNavigationRequest, ISessionsService } from '../../../../../workbench/contrib/sessions/browser/sessionsService.js';
+import { ChatInteractivity, ChatOriginKind, IChat, SessionStatus } from '../../../../../workbench/contrib/sessions/common/session.js';
+import { ISendRequestOptions, ISessionsManagementService } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 
 suite('SessionsSideChatProviderContribution', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
@@ -61,7 +61,7 @@ suite('SessionsSideChatProviderContribution', () => {
 		const parentChat = options.parentChat ?? sourceChat;
 		const activeChat = observableValue<IChat>(store, chat);
 
-		const session = upcastPartial<IActiveSession>({
+		const session = upcastPartial<ITestSessionWithChat>({
 			sessionId: 'session',
 			resource: URI.parse('test:///session'),
 			status: constObservable(options.status ?? SessionStatus.Completed),
@@ -70,13 +70,13 @@ suite('SessionsSideChatProviderContribution', () => {
 			chats: constObservable([parentChat, chat]),
 			activeChat,
 		});
-		const activeSession = observableValue<IActiveSession | undefined>(store, session);
+		const activeSession = observableValue<ITestSessionWithChat | undefined>(store, session);
 		const navigationRequest = observableValue<ISessionNavigationRequest | undefined>(store, undefined);
-		const gridSession = upcastPartial<IActiveSession>({ sessionId: 'grid', resource: URI.parse('test:///grid'), chats: constObservable([]), activeChat: constObservable(upcastPartial<IChat>({ resource: URI.parse('test:///grid/chat') })) });
-		const mainWindowSession = options.inChatWindow ? observableValue<IActiveSession | undefined>(store, gridSession) : activeSession;
+		const gridSession = upcastPartial<ITestSessionWithChat>({ sessionId: 'grid', resource: URI.parse('test:///grid'), chats: constObservable([]), activeChat: constObservable(upcastPartial<IChat>({ resource: URI.parse('test:///grid/chat') })) });
+		const mainWindowSession = options.inChatWindow ? observableValue<ITestSessionWithChat | undefined>(store, gridSession) : activeSession;
 		instantiationService.stub(ISessionHostService, sessionHostServiceOf(store, {
 			mainWindowActiveSession: mainWindowSession,
-			visibleSessions: options.inChatWindow ? derived(reader => [mainWindowSession.read(reader)]) : constObservable([session]),
+			gridShown: options.inChatWindow ? derived(reader => [mainWindowSession.read(reader)]) : constObservable([session]),
 			windowSessions: constObservable(options.inChatWindow ? [session] : []),
 		}));
 
@@ -121,7 +121,8 @@ suite('SessionsSideChatProviderContribution', () => {
 			sendRequestInBackground: (session, chat, requestOptions) => sendRequest(session, chat, { ...requestOptions, background: true }),
 		}));
 		instantiationService.stub(ISessionsService, upcastPartial<ITestSessionsService>({
-			visibleSessions: constObservable([session]),
+			gridShown: constObservable([session]),
+			slotPanes: testGridPanes(constObservable([session])),
 			activeSession,
 			navigationRequest,
 			openChat: async (_session, chatUri) => {

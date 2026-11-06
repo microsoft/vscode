@@ -73,6 +73,32 @@ suite('Isolation check', () => {
 			filler.remove();
 		}
 	});
+
+	test('puts back the scroll position from before the suite', () => {
+		const body = mainWindow.document.body;
+		const filler = mainWindow.document.createElement('div');
+		filler.style.height = '10000px';
+		body.append(filler);
+		const scrollTop = body.scrollTop;
+		const rootScrollTop = mainWindow.document.documentElement.scrollTop;
+		const scroll = (top: number) => {
+			body.scrollTop = top;
+			mainWindow.document.documentElement.scrollTop = top;
+		};
+		try {
+			scroll(0);
+			const before = scrollDetector.snapshot();
+			scroll(120);
+			const scrolled = scrollDetector.check(before).length > 0;
+			scrollDetector.reset!(before);
+			assert.deepStrictEqual({ scrolled, reset: scrollDetector.check(before) }, { scrolled: true, reset: [] });
+		} finally {
+			body.scrollTop = scrollTop;
+			mainWindow.document.documentElement.scrollTop = rootScrollTop;
+			filler.remove();
+		}
+	});
+
 	test('reports fake timers that a suite installed and did not restore', () => {
 		const realSetTimeout = globalThis.setTimeout;
 		const realDate = globalThis.Date;

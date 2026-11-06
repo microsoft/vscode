@@ -999,7 +999,8 @@ export function getChatPetThrowRotation(rotation: number, horizontalDistance: nu
 
 export function advanceChatPetThrow(motion: ChatPetThrowMotion, elapsed: number, bounds: ChatPetThrowBounds, maximumFallSpeed?: number): ChatPetThrowStep {
 	const duration = Math.max(0, elapsed) / 1_000;
-	const projectedLeft = motion.left + motion.x * duration;
+	const startLeft = getChatPetHorizontalPosition(motion.left, bounds.minimumLeft, bounds.maximumLeft);
+	const projectedLeft = startLeft + motion.x * duration;
 	const hasHorizontalRange = bounds.maximumLeft > bounds.minimumLeft;
 	let wall: ChatPetWall | undefined;
 	let motionDuration = duration;
@@ -1007,11 +1008,11 @@ export function advanceChatPetThrow(motion: ChatPetThrowMotion, elapsed: number,
 
 	if (hasHorizontalRange && projectedLeft < bounds.minimumLeft) {
 		wall = 'left';
-		motionDuration *= (bounds.minimumLeft - motion.left) / (projectedLeft - motion.left);
+		motionDuration *= (bounds.minimumLeft - startLeft) / (projectedLeft - startLeft);
 		left = bounds.minimumLeft;
 	} else if (hasHorizontalRange && projectedLeft > bounds.maximumLeft) {
 		wall = 'right';
-		motionDuration *= (bounds.maximumLeft - motion.left) / (projectedLeft - motion.left);
+		motionDuration *= (bounds.maximumLeft - startLeft) / (projectedLeft - startLeft);
 		left = bounds.maximumLeft;
 	}
 
@@ -2375,7 +2376,7 @@ export class ChatPetWidget extends Disposable {
 		const maximumFallSpeed = getChatPetThrowMaximumFallSpeed(this._hasAnimatedPropeller());
 		const buttonBounds = this._button.element.getBoundingClientRect();
 		let motion: ChatPetThrowMotion = {
-			left: buttonBounds.left - geometry.overlayLeft,
+			left: getChatPetHorizontalPosition(buttonBounds.left - geometry.overlayLeft, geometry.bounds.minimumLeft, geometry.bounds.maximumLeft),
 			top: buttonBounds.top - geometry.overlayTop,
 			x: velocity.x,
 			y: velocity.y,
