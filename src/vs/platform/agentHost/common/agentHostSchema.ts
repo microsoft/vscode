@@ -585,6 +585,9 @@ export const AgentHostGitHubMcpServerEnabledConfigKey = 'githubMcpServerEnabled'
 /** Root config key forwarded from the renderer for GitHub's Computer Use plugin. */
 export const AgentHostComputerUseEnabledConfigKey = 'computerUseEnabled';
 
+/** Root config key forwarded from the renderer for GitHub's Browser Use plugin. */
+export const AgentHostBrowserUseEnabledConfigKey = 'browserUseEnabled';
+
 /** Root config key forwarded from the renderer for cached MCP tool routing. */
 export const AgentHostMcpToolRoutingEnabledConfigKey = 'mcpToolRoutingEnabled';
 
@@ -956,6 +959,12 @@ export const platformRootSchema = createSchema({
 		type: 'boolean',
 		title: localize('agentHost.config.computerUseEnabled.title', "Computer Use"),
 		description: localize('agentHost.config.computerUseEnabled.description', "Whether local Copilot agent sessions on macOS and Windows offer GitHub's Computer Use plugin."),
+		default: false,
+	}),
+	[AgentHostBrowserUseEnabledConfigKey]: schemaProperty<boolean>({
+		type: 'boolean',
+		title: localize('agentHost.config.browserUseEnabled.title', "Browser Use"),
+		description: localize('agentHost.config.browserUseEnabled.description', "Whether local Copilot agent sessions offer GitHub's Browser Use plugin."),
 		default: false,
 	}),
 	[AgentHostMcpToolRoutingEnabledConfigKey]: schemaProperty<boolean>({
