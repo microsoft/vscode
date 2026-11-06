@@ -315,13 +315,6 @@ export class AgentSessionResidency extends Disposable {
 			&& (this._idleReleaseDue.has(sessionKey) || this._residentCount() > this._limit);
 	}
 
-	/** Whether `session` is held in use while no client observes it and no turn runs, so it should be released soon. */
-	private _isHeldInUseUnobserved(session: URI): boolean {
-		return !this._hasResidencySubscribers(session)
-			&& !this._stateManager.hasActiveTurn(session.toString())
-			&& this._delegate.isHeldInUse(session);
-	}
-
 	private _scheduleIdleRelease(sessionKey: string): void {
 		if (this._idleReleaseTimers.has(sessionKey) || this._idleReleaseDue.has(sessionKey)) {
 			return;
@@ -369,15 +362,18 @@ export class AgentSessionResidency extends Disposable {
 		const processed = new Set<string>();
 		for (const session of residents) {
 			const sessionKey = session.toString();
-			if (!this._isHeldInUseUnobserved(session)) {
+			if (this._hasResidencySubscribers(session) || this._stateManager.hasActiveTurn(sessionKey)) {
 				this._cancelIdleRelease(sessionKey);
-			} else if (!this._idleReleaseDue.has(sessionKey)) {
-				this._scheduleIdleRelease(sessionKey);
-			} else {
+			} else if (this._idleReleaseDue.has(sessionKey)) {
+				// A due release stays due after its provider lets go of the session: a failed release may already have.
 				processed.add(sessionKey);
 				if (await this._tryRelease(session, this._recency.get(sessionKey))) {
 					residentCount--;
 				}
+			} else if (this._delegate.isHeldInUse(session)) {
+				this._scheduleIdleRelease(sessionKey);
+			} else {
+				this._idleReleaseTimers.deleteAndDispose(sessionKey);
 			}
 		}
 		for (const session of [...archived.values(), ...residents]) {

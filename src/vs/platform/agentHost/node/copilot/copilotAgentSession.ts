@@ -2748,6 +2748,8 @@ export class CopilotAgentSession extends Disposable {
 			this._logService.warn(`[Copilot:${this.sessionId}] Ignoring provider-initiated user.message without messageId and turnId`);
 			return;
 		}
+		// The runtime holds a resumed session in use from its first execution, whoever starts it.
+		this._hasSentTurn = true;
 
 		const turnId = generateUuid();
 		this._emitAction({

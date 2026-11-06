@@ -316,6 +316,32 @@ suite('AgentSessionResidency', () => {
 		});
 	}));
 
+	test('retries a due release that failed after its provider let go of the session', async () => {
+		residency.dispose();
+		const held = new Set<string>();
+		delegate.isHeldInUse = session => held.has(session.toString());
+		let attempts = 0;
+		delegate.createRelease = session => ({
+			canRelease: async () => true,
+			release: async () => {
+				attempts++;
+				held.delete(session.toString());
+				if (attempts === 1) {
+					throw new Error('transient');
+				}
+				released.push(session.toString());
+			},
+		});
+		residency = createResidency(10, 10, 0);
+		const session = createUsedSession('let-go');
+		held.add(session.toString());
+
+		await residency.reconcile();
+		await waitForEviction(session);
+
+		assert.deepStrictEqual({ attempts, released }, { attempts: 2, released: [session.toString()] });
+	});
+
 	test('keeps state after a failed release and retries', async () => {
 		residency.dispose();
 		let attempts = 0;

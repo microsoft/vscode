@@ -2048,6 +2048,15 @@ suite('CopilotAgentSession', () => {
 		});
 	});
 
+	test('the runtime holds a resumed session in use once a provider-initiated turn runs in it', async () => {
+		const { session, mockSession } = await createAgentSession(disposables, { resume: true });
+		const before = session.isHeldInUse;
+		mockSession.fire('user.message', { content: 'Play one move.', messageId: 'provider-message', turnId: 'provider-sdk-turn' } as SessionEventPayload<'user.message'>['data']);
+		mockSession.fire('session.idle', {} as SessionEventPayload<'session.idle'>['data']);
+		await timeout(0);
+		assert.deepStrictEqual({ before, after: session.isHeldInUse }, { before: false, after: true });
+	});
+
 	suite('image generation preference', () => {
 		for (const resume of [false, true]) {
 			for (const enabled of [false, true]) {
