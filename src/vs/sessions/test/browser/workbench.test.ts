@@ -27,6 +27,7 @@ import { AgentWorkbenchLayout } from '../../../workbench/contrib/sessions/browse
 import { DesktopWorkbench, DockedEditorSizeMemento } from '../../browser/desktopWorkbench.js';
 import { AGENTS_SIDE_PANE_MULTIPLE_TABS_CLASS } from '../../../workbench/contrib/sessions/browser/parts/agentsPartCard.js';
 import { SessionActivityBarColumn } from '../../../workbench/contrib/sessions/browser/parts/sessionActivityBarHost.js';
+import { MenuActivityBarSize } from '../../../workbench/browser/parts/activitybar/menuActivityBar.js';
 import { DesktopMainEditorPart } from '../../browser/parts/desktopEditorPart.js';
 import { MainEditorPart } from '../../browser/parts/editorPart.js';
 import { EditorParts } from '../../browser/parts/editorParts.js';
@@ -1345,7 +1346,7 @@ suite('Sessions - Workbench', () => {
 		const onDidChangeViewMaximized = store.add(new Emitter<boolean>());
 		const changes: boolean[] = [];
 		const widths: number[] = [];
-		column.setLayout(8, false);
+		column.setLayout(8, false, MenuActivityBarSize.Default);
 		let visible = false;
 		let maximized = false;
 		const mainContainer = document.createElement('div');

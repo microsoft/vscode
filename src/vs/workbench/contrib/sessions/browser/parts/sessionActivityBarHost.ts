@@ -6,9 +6,10 @@
 import { $ } from '../../../../../base/browser/dom.js';
 import { ISerializableView } from '../../../../../base/browser/ui/grid/grid.js';
 import { Emitter } from '../../../../../base/common/event.js';
-import { IDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
-import { IObservable, observableValue } from '../../../../../base/common/observable.js';
-import { MenuActivityBar } from '../../../../browser/parts/activitybar/menuActivityBar.js';
+import { DisposableStore, IDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
+import { IObservable, observableFromEvent, observableValue } from '../../../../../base/common/observable.js';
+import { MenuActivityBar, MenuActivityBarSize } from '../../../../browser/parts/activitybar/menuActivityBar.js';
+import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
 
 /** Width of the strip itself: 24px buttons, 2px padding and a 1px border on each side, in `sessionActivityBar.css`. */
 const STRIP_WIDTH = 30;
@@ -84,6 +85,23 @@ export function findSessionActivityBarExternalHost(element: HTMLElement): ISessi
 	return undefined;
 }
 
+/** The profile state of the size of the Session Activity Bar in the main window's column, chosen from its context menu. */
+const SESSION_ACTIVITY_BAR_SIZE_STORAGE_KEY = 'workbench.sessions.sessionActivityBarSize';
+
+/** The size of the Session Activity Bar in the main window's column. */
+export function getSessionActivityBarSize(storageService: IStorageService): MenuActivityBarSize {
+	return storageService.get(SESSION_ACTIVITY_BAR_SIZE_STORAGE_KEY, StorageScope.PROFILE) === MenuActivityBarSize.Compact ? MenuActivityBarSize.Compact : MenuActivityBarSize.Default;
+}
+
+export function setSessionActivityBarSize(storageService: IStorageService, size: MenuActivityBarSize): void {
+	storageService.store(SESSION_ACTIVITY_BAR_SIZE_STORAGE_KEY, size, StorageScope.PROFILE, StorageTarget.USER);
+}
+
+/** {@link getSessionActivityBarSize}, as it changes. */
+export function observeSessionActivityBarSize(owner: object, storageService: IStorageService, store: DisposableStore): IObservable<MenuActivityBarSize> {
+	return observableFromEvent(owner, storageService.onDidChangeValue(StorageScope.PROFILE, SESSION_ACTIVITY_BAR_SIZE_STORAGE_KEY, store), () => getSessionActivityBarSize(storageService));
+}
+
 /**
  * The fixed-width column at the right of the main window's grid that the Session Activity Bar of the active chat shows
  * in, to the right of the side pane, or of the chat while the side pane is closed. The workbench shows it while a strip
@@ -99,10 +117,11 @@ export class SessionActivityBarColumn implements ISerializableView, ISessionActi
 	readonly fullSize = true;
 
 	private gap = 0;
-	private compact = false;
+	private compactDensity = false;
+	private size = MenuActivityBarSize.Default;
 
 	get minimumWidth(): number {
-		return this.gap + MenuActivityBar.getWidth(this.compact);
+		return this.gap + MenuActivityBar.getWidth(this.compactDensity, this.size);
 	}
 
 	get maximumWidth(): number {
@@ -126,13 +145,14 @@ export class SessionActivityBarColumn implements ISerializableView, ISessionActi
 	}
 
 	/**
-	 * Sets the gap between the cards of the window, which the column keeps to the left of the strip, and whether the
-	 * window has the compact layout density, which narrows the strip.
+	 * Sets the gap between the cards of the window, which the column keeps to the left of the strip, whether the window
+	 * has the compact layout density, and the size of the strip, which both set the strip's width.
 	 */
-	setLayout(gap: number, compact: boolean): void {
-		if (this.gap !== gap || this.compact !== compact) {
+	setLayout(gap: number, compactDensity: boolean, size: MenuActivityBarSize): void {
+		if (this.gap !== gap || this.compactDensity !== compactDensity || this.size !== size) {
 			this.gap = gap;
-			this.compact = compact;
+			this.compactDensity = compactDensity;
+			this.size = size;
 			this._onDidChange.fire(undefined);
 		}
 	}

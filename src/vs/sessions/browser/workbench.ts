@@ -69,14 +69,15 @@ import { SyncDescriptor } from '../../platform/instantiation/common/descriptors.
 import { TitleService } from './parts/titlebarPart.js';
 import { EDITOR_PART_DEFAULT_WIDTH, EDITOR_PART_MINIMUM_WIDTH } from '../../workbench/contrib/sessions/browser/parts/editorPartSizing.js';
 import { IContextKey, IContextKeyService } from '../../platform/contextkey/common/contextkey.js';
-import { IsPhoneLayoutContext, DesktopLayoutContext } from '../../workbench/contrib/sessions/common/contextkeys.js';
+import { IsPhoneLayoutContext, DesktopLayoutContext, SessionActivityBarSizeContext } from '../../workbench/contrib/sessions/common/contextkeys.js';
+import { MenuActivityBarSize } from '../../workbench/browser/parts/activitybar/menuActivityBar.js';
 import { CustomViewVisibleContext, EditorMaximizedContext } from '../common/agentsWindowContextKeys.js';
 import { SessionsLayoutPolicy, ViewportClass } from './layoutPolicy.js';
 import { ChatLayoutPresentation } from '../common/chatLayout.js';
 import { AGENTS_CARD_SURFACE_CLASS, AGENTS_PART_CARD_CLASS } from '../../workbench/contrib/sessions/browser/parts/agentsPartCard.js';
 import { MobileNavigationStack } from './mobileNavigationStack.js';
 import { MobileTitlebarPart } from './parts/mobile/mobileTitlebarPart.js';
-import { registerSessionActivityBarExternalHost, SessionActivityBarColumn } from '../../workbench/contrib/sessions/browser/parts/sessionActivityBarHost.js';
+import { observeSessionActivityBarSize, registerSessionActivityBarExternalHost, SessionActivityBarColumn } from '../../workbench/contrib/sessions/browser/parts/sessionActivityBarHost.js';
 import { getMobileViewportDimension, IMobileVisualViewport } from './parts/mobile/mobileVisualViewport.js';
 import { autorun, derived, IObservable } from '../../base/common/observable.js';
 import { ISessionsService } from '../../workbench/contrib/sessions/browser/sessionsService.js';
@@ -442,6 +443,9 @@ export abstract class Workbench extends Disposable implements IAgentWorkbenchLay
 	protected customViewGridPartView!: ISerializableView;
 	/** The column at the right of the side pane that the Session Activity Bar of the active chat shows in, in the desktop layout. */
 	private sessionActivityBarColumn: SessionActivityBarColumn | undefined;
+	/** The size of the Session Activity Bar in {@link sessionActivityBarColumn}, chosen from its context menu. */
+	private sessionActivityBarSize: IObservable<MenuActivityBarSize> | undefined;
+	private sessionActivityBarSizeKey: IContextKey<string> | undefined;
 	private _sessionsSidePaneDivider: HTMLElement | undefined;
 
 	/** The editor part container; the auxiliary bar is docked inside it. */
@@ -1309,6 +1313,7 @@ export abstract class Workbench extends Disposable implements IAgentWorkbenchLay
 		// A custom view replaces the sessions grid (and the editor, side panel and
 		// bottom panel) for as long as it is shown.
 		this._customViewVisibleKey = CustomViewVisibleContext.bindTo(accessor.get(IContextKeyService));
+		this.sessionActivityBarSizeKey = SessionActivityBarSizeContext.bindTo(accessor.get(IContextKeyService));
 		this._register(autorun(reader => {
 			this._applyCustomViewGridVisibility(this.customViewService.activeCustomViewOpen.read(reader)?.descriptor);
 		}));
@@ -1636,7 +1641,12 @@ export abstract class Workbench extends Disposable implements IAgentWorkbenchLay
 
 		if (this.agentWorkbenchLayout === AgentWorkbenchLayout.Desktop) {
 			const column = this.sessionActivityBarColumn = this._register(new SessionActivityBarColumn(this._isSessionActivityBarColumnActive()));
-			column.setLayout(this._gridGutter(), this.isModernUICompact());
+			const size = this.sessionActivityBarSize = observeSessionActivityBarSize(this, this.storageService, this._register(new DisposableStore()));
+			this._register(autorun(reader => {
+				const value = size.read(reader);
+				this.sessionActivityBarSizeKey?.set(value);
+				column.setLayout(this._gridGutter(), this.isModernUICompact(), value);
+			}));
 			viewMap[SessionActivityBarColumn.ID] = column;
 			this._register(registerSessionActivityBarExternalHost(this.mainContainer, column));
 		}
@@ -2107,7 +2117,7 @@ export abstract class Workbench extends Disposable implements IAgentWorkbenchLay
 		// Keep the desktop grid margin stable when sidebar visibility changes.
 		const gridGutterW = this._gridGutter();
 		const gridGutterH = gridGutterW;
-		this.sessionActivityBarColumn?.setLayout(gridGutterW, this.isModernUICompact());
+		this.sessionActivityBarColumn?.setLayout(gridGutterW, this.isModernUICompact(), this.sessionActivityBarSize?.get() ?? MenuActivityBarSize.Default);
 		this.workbenchGrid.layout(
 			this._mainContainerDimension.width - gridGutterW,
 			this._mainContainerDimension.height - mobileTopBarHeight - gridGutterH

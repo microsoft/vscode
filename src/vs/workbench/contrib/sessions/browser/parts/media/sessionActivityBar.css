@@ -45,51 +45,19 @@
 	display: none;
 }
 
-/* Beside a chat, the strip floats over it, slimmer than a workbench activity bar: minimum-size buttons around
- * base-size icons, framed like a widget, with toolbar hover and active colors. */
-.monaco-workbench .menu-activity-bar.session-activity-bar.slim {
-	/* The minimum target size (WCAG 2.5.8) around a base-size codicon. */
-	--menu-activity-bar-item-size: var(--vscode-spacing-size240);
-	--menu-activity-bar-icon-size: var(--vscode-codiconFontSize);
-	--menu-activity-bar-gap: 0px;
-	--menu-activity-bar-highlight-inset: 0px;
+/* Beside a chat, the strip floats over it at the compact size, framed like a widget, with toolbar hover and active
+ * colors. */
+.monaco-workbench .menu-activity-bar.session-activity-bar.floating {
 	--menu-activity-bar-foreground: currentColor;
 	--menu-activity-bar-hover-foreground: currentColor;
 	--menu-activity-bar-hover-background: var(--vscode-toolbar-hoverBackground);
 	--menu-activity-bar-hover-outline: var(--vscode-toolbar-hoverOutline);
 	--menu-activity-bar-active-foreground: currentColor;
 	--menu-activity-bar-active-background: var(--vscode-toolbar-activeBackground);
-	--menu-activity-bar-separator-color: var(--vscode-disabledForeground);
-	width: auto;
-	padding: var(--vscode-spacing-size20);
 	border-color: var(--vscode-editorWidget-border, transparent);
 	border-radius: var(--vscode-cornerRadius-large);
 	background-color: var(--vscode-editorWidget-background);
 	box-shadow: var(--vscode-shadow-md);
-}
-
-.monaco-workbench .menu-activity-bar.session-activity-bar.slim .monaco-action-bar.vertical .action-item:has(> .action-label.separator) {
-	height: auto;
-}
-
-.monaco-workbench .menu-activity-bar.session-activity-bar.slim .monaco-action-bar.vertical .action-label.separator {
-	width: var(--vscode-spacing-size160);
-	margin: var(--vscode-spacing-size20) auto !important;
-}
-
-/* Sized for the slim strip's compact entries. */
-.monaco-workbench .menu-activity-bar.session-activity-bar.slim .menu-activity-bar-badge {
-	top: var(--vscode-spacing-size120);
-	right: var(--vscode-spacing-size20);
-}
-
-.monaco-workbench .menu-activity-bar.session-activity-bar.slim .menu-activity-bar-badge.count {
-	top: var(--vscode-spacing-size100);
-	right: 0;
-	min-width: var(--vscode-spacing-size120);
-	height: var(--vscode-spacing-size120);
-	padding: 0 var(--vscode-spacing-size20);
-	line-height: calc(var(--vscode-spacing-size120) - 2 * var(--vscode-strokeThickness));
 }
 
 /* Like the title bar's toggles, the side panel toggle shows its state through its icon, not as a checked entry. */

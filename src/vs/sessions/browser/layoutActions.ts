@@ -20,7 +20,10 @@ import { TogglePanelAction } from '../../workbench/browser/parts/panel/panelActi
 import { LayoutDensityMenu } from '../../workbench/browser/actions/layoutDensityActions.js';
 import { IsAuxiliaryWindowContext, IsWindowAlwaysOnTopContext, LayoutModeContext, PanelVisibleContext, SideBarVisibleContext } from '../../workbench/common/contextkeys.js';
 import { IWorkbenchLayoutService, Parts } from '../../workbench/services/layout/browser/layoutService.js';
-import { SessionsWelcomeVisibleContext, DesktopLayoutContext, IsPhoneLayoutContext } from '../../workbench/contrib/sessions/common/contextkeys.js';
+import { SessionsWelcomeVisibleContext, DesktopLayoutContext, IsPhoneLayoutContext, SessionActivityBarSizeContext } from '../../workbench/contrib/sessions/common/contextkeys.js';
+import { MenuActivityBarSize } from '../../workbench/browser/parts/activitybar/menuActivityBar.js';
+import { setSessionActivityBarSize } from '../../workbench/contrib/sessions/browser/parts/sessionActivityBarHost.js';
+import { IStorageService } from '../../platform/storage/common/storage.js';
 import { CustomViewVisibleContext, SessionActivityBarLayoutActionsContext } from '../common/agentsWindowContextKeys.js';
 import { IConfigurationService } from '../../platform/configuration/common/configuration.js';
 import { SESSION_ACTIVITY_BAR_LAYOUT_ACTIONS_SETTING, SESSION_ACTIVITY_BAR_SETTING } from '../../workbench/contrib/sessions/common/sessionConfig.js';
@@ -118,6 +121,35 @@ MenuRegistry.appendMenuItem(Menus.SessionActivityBarContext, {
 	group: 'navigation',
 	order: 0,
 });
+
+MenuRegistry.appendMenuItem(Menus.SessionActivityBarContext, {
+	title: localize('sessionActivityBarSize', "Size"),
+	submenu: Menus.SessionActivityBarSize,
+	group: 'navigation',
+	order: -1,
+	when: DesktopLayoutContext,
+});
+
+for (const [size, order, title] of [
+	[MenuActivityBarSize.Default, 0, localize2('sessionActivityBarSize.default', "Default")],
+	[MenuActivityBarSize.Compact, 1, localize2('sessionActivityBarSize.compact', "Compact")],
+] as const) {
+	registerAction2(class extends Action2 {
+		constructor() {
+			super({
+				id: `workbench.action.agentSessions.setSessionActivityBarSize.${size}`,
+				title,
+				precondition: DesktopLayoutContext,
+				toggled: SessionActivityBarSizeContext.isEqualTo(size),
+				menu: { id: Menus.SessionActivityBarSize, order },
+			});
+		}
+
+		override run(accessor: ServicesAccessor): void {
+			setSessionActivityBarSize(accessor.get(IStorageService), size);
+		}
+	});
+}
 
 // Register Icons
 const panelCloseIcon = registerIcon('agent-panel-close', Codicon.close, localize('agentPanelCloseIcon', "Icon to close the panel."));

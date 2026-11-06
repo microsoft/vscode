@@ -87,6 +87,8 @@ export const Menus = {
 	SessionActivityBar: new MenuId('SessionActivityBar'),
 	/** The Session Activity Bar's context menu, shown after the activity bar's own entry actions. */
 	SessionActivityBarContext: new MenuId('SessionActivityBarContext'),
+	/** The sizes of the Session Activity Bar, a submenu of {@link SessionActivityBarContext}. */
+	SessionActivityBarSize: new MenuId('SessionActivityBarSize'),
 	ChangesFilesView: new MenuId('SessionsChangesFilesView'),
 	ChangesFilesViewAndPosition: new MenuId('SessionsChangesFilesViewAndPosition'),
 	/**

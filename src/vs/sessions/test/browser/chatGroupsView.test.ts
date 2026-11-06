@@ -827,7 +827,7 @@ suite('Sessions - ChatGroupsView', () => {
 			const workbench = append(mainWindow.document.body, $('.monaco-workbench.agent-sessions-workbench'));
 			store.add(toDisposable(() => workbench.remove()));
 			workbench.classList.toggle('modern-ui-compact', density === 'compact');
-			for (const [token, value] of [['spacing-size20', '2px'], ['spacing-size120', '12px'], ['spacing-size240', '24px'], ['strokeThickness', '1px']]) {
+			for (const [token, value] of [['spacing-size20', '2px'], ['spacing-size60', '6px'], ['spacing-size120', '12px'], ['spacing-size240', '24px'], ['strokeThickness', '1px']]) {
 				workbench.style.setProperty(`--vscode-${token}`, value);
 			}
 			workbench.appendChild(view.element);

@@ -9,7 +9,7 @@ import { ActionViewItem, IActionViewItemOptions } from '../../../../../base/brow
 import { AnchorAlignment } from '../../../../../base/browser/ui/contextview/contextview.js';
 import { HoverPosition } from '../../../../../base/browser/ui/hover/hoverWidget.js';
 import { KeyCode } from '../../../../../base/common/keyCodes.js';
-import { Disposable, DisposableMap, MutableDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
+import { Disposable, DisposableMap, DisposableStore, MutableDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { autorun, constObservable, derived, IObservable, observableFromEvent, observableValue } from '../../../../../base/common/observable.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { Action, IAction, toAction } from '../../../../../base/common/actions.js';
@@ -21,7 +21,8 @@ import { INotificationService } from '../../../../../platform/notification/commo
 import { IThemeService } from '../../../../../platform/theme/common/themeService.js';
 import { TogglePanelAction } from '../../../../browser/parts/panel/panelActions.js';
 import { ISessionActivityBarActivityService } from '../../common/sessionActivityBarActivityService.js';
-import { MenuActivityBar, MenuActivityBarActionViewItem } from '../../../../browser/parts/activitybar/menuActivityBar.js';
+import { MenuActivityBar, MenuActivityBarActionViewItem, MenuActivityBarSize } from '../../../../browser/parts/activitybar/menuActivityBar.js';
+import { IStorageService } from '../../../../../platform/storage/common/storage.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { IContextKey, IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
@@ -37,7 +38,7 @@ import { sessionActivityBarChatActionContext } from '../../common/contextkeys.js
 import { LayoutModeContext } from '../../../../common/contextkeys.js';
 import { IWindowCommandContext } from '../../../../common/windowCommandContext.js';
 import { isPhoneLayout } from '../mobileLayout.js';
-import { findSessionActivityBarExternalHost, ISessionActivityBarExternalHost, SESSION_ACTIVITY_BAR_COLUMN_WIDTH } from './sessionActivityBarHost.js';
+import { findSessionActivityBarExternalHost, ISessionActivityBarExternalHost, observeSessionActivityBarSize, SESSION_ACTIVITY_BAR_COLUMN_WIDTH } from './sessionActivityBarHost.js';
 import { SubmenuFlyout } from './submenuFlyout.js';
 
 /**
@@ -56,13 +57,20 @@ export class SessionActivityBar extends Disposable {
 
 	private readonly chatActions = observableValue<IObservable<readonly IAction[]> | undefined>(this, undefined);
 
+	/** Whether the strip floats beside a chat, where it is always compact, rather than filling a column of its own. */
+	private readonly floating = observableValue(this, true);
+
 	constructor(
 		container: HTMLElement,
 		@IConfigurationService configurationService: IConfigurationService,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@ISessionActivityBarActivityService activityService: ISessionActivityBarActivityService,
+		@IStorageService storageService: IStorageService,
 	) {
 		super();
+
+		const chosenSize = observeSessionActivityBarSize(this, storageService, this._register(new DisposableStore()));
+		const size = derived(this, reader => this.floating.read(reader) ? MenuActivityBarSize.Compact : chosenSize.read(reader));
 
 		let actionsById = new Map<string, IAction>();
 		const renderedChatActions = this._register(new DisposableMap<string, Action>());
@@ -73,6 +81,7 @@ export class SessionActivityBar extends Disposable {
 			ariaLabel: localize('sessionActivityBar', "Session Activity Bar"),
 			telemetrySource: 'sessionActivityBar',
 			enabled,
+			size,
 			// The strip sits at the right edge.
 			hoverPosition: HoverPosition.LEFT,
 			// The entries act on the window the strip is in, which the window that has focus is not yet as a click activates it:
@@ -146,6 +155,12 @@ export class SessionActivityBar extends Disposable {
 
 	setChatActions(actions: IObservable<readonly IAction[]> | undefined): void {
 		this.chatActions.set(actions, undefined);
+	}
+
+	/** Sets whether the strip floats beside a chat, or fills a column of its own at the size chosen for it. */
+	setFloating(floating: boolean): void {
+		this.element.classList.toggle('floating', floating);
+		this.floating.set(floating, undefined);
 	}
 }
 
@@ -261,8 +276,8 @@ export class ChatViewSessionActivityBar extends Disposable {
 		const host = this.externalHost.get();
 		const hostedIn = host && this.active && host.active.get() ? host : undefined;
 		this.element?.classList.toggle('inactive', !this.isShown(hostedIn));
-		// Beside a chat, and in hosts that keep a slim column for it, the strip is slimmer than a workbench activity bar.
-		this.element?.classList.toggle('slim', !hostedIn?.fullSize);
+		// Beside a chat, and in hosts that keep a narrow column for it, the strip floats at the compact size.
+		this.activityBar?.setFloating(!hostedIn?.fullSize);
 		const parent = hostedIn?.element ?? this.container;
 		const element = activityBar.element;
 		if (element.parentElement !== parent) {

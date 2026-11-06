@@ -34,6 +34,14 @@ export interface IMenuActivityBarActivities {
 	getActivity(commandId: string): readonly IActivity[];
 }
 
+/** The size of a {@link MenuActivityBar}. */
+export const enum MenuActivityBarSize {
+	/** Like the workbench activity bar of the Modern UI, at the layout density of the window. */
+	Default = 'default',
+	/** Minimum-size entries around base-size icons, whatever the layout density. */
+	Compact = 'compact',
+}
+
 export interface IMenuActivityBarOptions {
 	/** The menu whose entries the bar shows; each of its groups is set apart by a separator. */
 	readonly menuId: MenuId;
@@ -41,6 +49,8 @@ export interface IMenuActivityBarOptions {
 	readonly contextMenuId: MenuId;
 	readonly ariaLabel: string;
 	readonly telemetrySource: string;
+	/** The size of the bar. Defaults to {@link MenuActivityBarSize.Default}. */
+	readonly size?: IObservable<MenuActivityBarSize>;
 	/** Whether the bar shows; it also shows only while it has entries. Defaults to always. */
 	readonly enabled?: IObservable<boolean>;
 	/** Where the hovers of the entries show, away from the edge the bar is at. Defaults to the right. */
@@ -67,14 +77,19 @@ export class MenuActivityBar extends Disposable {
 
 	/** The size of an entry, and the width of the column of entries. */
 	static readonly ITEM_SIZE = 36;
+	static readonly COMPACT_ITEM_SIZE = 24;
 
 	/** The space beside the column of entries, inside the bar's border, at the default and compact layout densities. */
 	static readonly LANE = 8;
-	static readonly COMPACT_LANE = 4;
+	static readonly COMPACT_DENSITY_LANE = 4;
+	static readonly COMPACT_SIZE_LANE = 6;
 
-	/** The width of the bar at a layout density, its border included. */
-	static getWidth(compact: boolean): number {
-		return MenuActivityBar.ITEM_SIZE + (compact ? MenuActivityBar.COMPACT_LANE : MenuActivityBar.LANE);
+	/** The width of the bar at a size and layout density, its border included. */
+	static getWidth(compactDensity: boolean, size = MenuActivityBarSize.Default): number {
+		if (size === MenuActivityBarSize.Compact) {
+			return MenuActivityBar.COMPACT_ITEM_SIZE + MenuActivityBar.COMPACT_SIZE_LANE;
+		}
+		return MenuActivityBar.ITEM_SIZE + (compactDensity ? MenuActivityBar.COMPACT_DENSITY_LANE : MenuActivityBar.LANE);
 	}
 
 	readonly element: HTMLElement;
@@ -134,6 +149,10 @@ export class MenuActivityBar extends Disposable {
 		}));
 
 		this._register(toolbar.onDidChangeMenuItems(() => this.itemsChanged.trigger(undefined)));
+		if (options.size) {
+			const size = options.size;
+			this._register(autorun(reader => this.element.classList.toggle('size-compact', size.read(reader) === MenuActivityBarSize.Compact)));
+		}
 		this._register(autorun(reader => {
 			this.itemsChanged.read(reader);
 			const visible = (options.enabled?.read(reader) ?? true) && toolbar.getItemsLength() > 0;

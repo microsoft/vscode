@@ -13,6 +13,9 @@ export function sessionActivityBarChatActionContext(commandId: string): RawConte
 
 //#region < --- Active Session --- >
 
+/** The size of the Session Activity Bar in the main window's column: `default` or `compact`, a `MenuActivityBarSize`. */
+export const SessionActivityBarSizeContext = new RawContextKey<string>('sessionActivityBarSize', 'default');
+
 export const IsNewChatSessionContext = new RawContextKey<boolean>('isNewChatSession', true);
 export const NewSessionComposerFocusContext = new RawContextKey<boolean>('newSessionComposerFocus', false, localize('newSessionComposerFocus', "Whether focus is within the new-session composer or its pickers"));
 export const SessionIdContext = new RawContextKey<string>('sessionId', '', localize('sessionId', "The identifier of the session in scope (the active session globally, or a specific session within an isolated component such as the session view or a context menu overlay)"));

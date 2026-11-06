@@ -30,8 +30,9 @@ import { TestConfigurationService } from '../../../platform/configuration/test/c
 import { IContextMenuMenuDelegate, IContextMenuService, IContextViewService } from '../../../platform/contextview/browser/contextView.js';
 import { workbenchInstantiationService } from '../../../workbench/test/browser/workbenchTestServices.js';
 import { ChatViewSessionActivityBar, SessionActivityBar } from '../../../workbench/contrib/sessions/browser/parts/sessionActivityBar.js';
-import { MenuActivityBar } from '../../../workbench/browser/parts/activitybar/menuActivityBar.js';
-import { registerSessionActivityBarExternalHost, SESSION_ACTIVITY_BAR_COLUMN_WIDTH } from '../../../workbench/contrib/sessions/browser/parts/sessionActivityBarHost.js';
+import { MenuActivityBar, MenuActivityBarSize } from '../../../workbench/browser/parts/activitybar/menuActivityBar.js';
+import { IStorageService } from '../../../platform/storage/common/storage.js';
+import { registerSessionActivityBarExternalHost, SESSION_ACTIVITY_BAR_COLUMN_WIDTH, setSessionActivityBarSize } from '../../../workbench/contrib/sessions/browser/parts/sessionActivityBarHost.js';
 import { Menus, SessionActivityBarGroup } from '../../../workbench/contrib/sessions/browser/menus.js';
 import { TogglePanelAction } from '../../../workbench/browser/parts/panel/panelActions.js';
 import { IAgentWorkbenchLayoutService } from '../../browser/workbench.js';
@@ -171,6 +172,7 @@ suite('Sessions - Session Activity Bar', () => {
 		instantiationService.stub(ISessionActivityBarActivityService, activityService);
 
 		const activityBar = testStore.add(instantiationService.createInstance(SessionActivityBar, container));
+		const storageService = instantiationService.get(IStorageService);
 		return {
 			root,
 			activityBar,
@@ -178,7 +180,7 @@ suite('Sessions - Session Activity Bar', () => {
 			createDocked: () => {
 				const host = append(root, $('.host'));
 				host.style.cssText = 'width: 800px; height: 600px;';
-				for (const [token, value] of [['spacing-size20', '2px'], ['spacing-size40', '4px'], ['spacing-size120', '12px'], ['spacing-size240', '24px'], ['strokeThickness', '1px']]) {
+				for (const [token, value] of [['spacing-size20', '2px'], ['spacing-size40', '4px'], ['spacing-size60', '6px'], ['spacing-size120', '12px'], ['spacing-size240', '24px'], ['strokeThickness', '1px']]) {
 					host.style.setProperty(`--vscode-${token}`, value);
 				}
 				return testStore.add(instantiationService.createInstance(ChatViewSessionActivityBar, host));
@@ -191,6 +193,7 @@ suite('Sessions - Session Activity Bar', () => {
 			contextViewService,
 			contextMenus,
 			contextMenuActions,
+			setSize: (size: MenuActivityBarSize) => setSessionActivityBarSize(storageService, size),
 			label: (title: string) => activityBar.element.querySelector<HTMLElement>(`.action-label[aria-label^="${title}"]`)!,
 			setEntries: (newEntries: readonly ITestEntry[]) => {
 				entries = newEntries;
@@ -549,6 +552,36 @@ suite('Sessions - Session Activity Bar', () => {
 			iconSize: '24px',
 			bottomIsStrip: true,
 			menus: ['SessionActivityBarContext'],
+		});
+	});
+
+	test('in the main window\'s column, takes the size chosen for it, and beside a chat is always compact', () => {
+		const { createDocked, root, setSize } = createActivityBar(store, [changes, browser]);
+		const hostElement = append(root, $('.session-activity-bar-column.session-activity-bar-host'));
+		const inColumn = observableValue('inColumn', true);
+		store.add(registerSessionActivityBarExternalHost(root, { element: hostElement, active: inColumn, fullSize: true, setOccupied: () => { } }));
+		const docked = createDocked();
+		docked.layout(0);
+		docked.setActive(true);
+		const element = docked.element!;
+		const state = () => ({ compact: element.classList.contains('size-compact'), floating: element.classList.contains('floating') });
+
+		const initial = state();
+		setSize(MenuActivityBarSize.Compact);
+		const compact = state();
+		inColumn.set(false, undefined);
+		const besideChat = state();
+		setSize(MenuActivityBarSize.Default);
+		const besideChatAfterDefault = state();
+		inColumn.set(true, undefined);
+		const backInColumn = state();
+
+		assert.deepStrictEqual({ initial, compact, besideChat, besideChatAfterDefault, backInColumn }, {
+			initial: { compact: false, floating: false },
+			compact: { compact: true, floating: false },
+			besideChat: { compact: true, floating: true },
+			besideChatAfterDefault: { compact: true, floating: true },
+			backInColumn: { compact: false, floating: false },
 		});
 	});
 

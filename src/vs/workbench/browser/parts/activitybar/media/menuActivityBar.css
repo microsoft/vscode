@@ -7,7 +7,7 @@
  * `MenuActivityBar`: sized and colored like the workbench activity bar of the Modern UI (`floatingPanels.css`,
  * `modernUI/browser/media/activityBar.css`). 36px entries with 24px icons in a card whose lane, the space beside them,
  * is 8px at the default layout density and 4px at the compact one, which also tightens the gap between entries. Keep
- * the sizes in sync with `MenuActivityBar.ITEM_SIZE`, `LANE` and `COMPACT_LANE`. Hosts that need another size or look,
+ * the sizes in sync with `MenuActivityBar.ITEM_SIZE`, `LANE` and `COMPACT_DENSITY_LANE`. Hosts that need another size or look,
  * such as a slimmer bar, set these custom properties.
  */
 .monaco-workbench .menu-activity-bar {
@@ -41,6 +41,40 @@
 	--menu-activity-bar-lane: var(--vscode-spacing-size40);
 	--menu-activity-bar-gap: var(--vscode-spacing-size40);
 	border-radius: 0;
+}
+
+/* Compact size: the minimum target size (WCAG 2.5.8) around base-size icons, whatever the layout density. Keep the sizes in sync
+ * with `MenuActivityBar.COMPACT_ITEM_SIZE` and `COMPACT_SIZE_LANE`. */
+.monaco-workbench .menu-activity-bar.size-compact {
+	--menu-activity-bar-item-size: var(--vscode-spacing-size240);
+	--menu-activity-bar-icon-size: var(--vscode-codiconFontSize);
+	--menu-activity-bar-lane: var(--vscode-spacing-size60);
+	--menu-activity-bar-gap: 0px;
+	--menu-activity-bar-highlight-inset: 0px;
+}
+
+/* Without a gap between entries, the separator takes room of its own. */
+.monaco-workbench .menu-activity-bar.size-compact .monaco-action-bar.vertical .action-item:has(> .action-label.separator) {
+	height: auto;
+}
+
+.monaco-workbench .menu-activity-bar.size-compact .monaco-action-bar.vertical .action-label.separator {
+	width: var(--vscode-spacing-size160);
+	margin: var(--vscode-spacing-size20) auto !important;
+}
+
+.monaco-workbench .menu-activity-bar.size-compact .menu-activity-bar-badge {
+	top: var(--vscode-spacing-size120);
+	right: var(--vscode-spacing-size20);
+}
+
+.monaco-workbench .menu-activity-bar.size-compact .menu-activity-bar-badge.count {
+	top: var(--vscode-spacing-size100);
+	right: 0;
+	min-width: var(--vscode-spacing-size120);
+	height: var(--vscode-spacing-size120);
+	padding: 0 var(--vscode-spacing-size20);
+	line-height: calc(var(--vscode-spacing-size120) - 2 * var(--vscode-strokeThickness));
 }
 
 .monaco-workbench .menu-activity-bar.hidden {
