@@ -45,6 +45,7 @@ suite('Untitled text editors', () => {
 	});
 
 	teardown(() => {
+		sinon.restore();
 		disposables.clear();
 	});
 
