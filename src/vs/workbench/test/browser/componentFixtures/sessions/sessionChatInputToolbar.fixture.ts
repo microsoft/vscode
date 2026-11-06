@@ -201,6 +201,13 @@ function registerSessionChatPillFixtureServices(registration: ServiceRegistratio
 	}());
 	registration.defineInstance(IGitHubService, createFixtureGitHubService([]));
 	registration.defineInstance(IWorkbenchGitHubService, createFixtureWorkbenchGitHubService({}));
+	// The pills and banners show the session and chat of their window.
+	registration.defineInstance(ISessionHost, new class extends mock<ISessionHost>() {
+		override readonly kind = SessionHostKind.MainWindow;
+		override readonly parent = undefined;
+		override readonly session = constObservable<IActiveSession | undefined>(sessionMock.session);
+		override readonly chat = constObservable<IChat | undefined>(sessionMock.chat);
+	}());
 	if (sessionMock.session.capabilities.get().supportsRemoveArtifacts || sessionMock.session.capabilities.get().supportsCanvases) {
 		registration.defineInstance(ISessionsManagementService, new class extends mock<ISessionsManagementService>() {
 			override async removeSessionArtifact(_session: IActiveSession, artifactId: string): Promise<void> {
@@ -315,13 +322,6 @@ export async function renderPills(ctx: ComponentFixtureContext, sessionMock: IMo
 	pills.setSession(sessionMock.session, sessionMock.chat);
 	pills.setDebugData(options?.debugData);
 	if (options?.debugData) {
-		// The banners show the session and chat of their window.
-		instantiationService.stub(ISessionHost, new class extends mock<ISessionHost>() {
-			override readonly kind = SessionHostKind.MainWindow;
-			override readonly parent = undefined;
-			override readonly session = constObservable<IActiveSession | undefined>(sessionMock.session);
-			override readonly chat = constObservable<IChat | undefined>(sessionMock.chat);
-		}());
 		const banners = disposableStore.add(instantiationService.createInstance(SessionInputBanners));
 		banners.setDebugData(options.debugData);
 		container.appendChild(banners.domNode);
