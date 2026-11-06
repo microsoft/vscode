@@ -23,7 +23,7 @@ import { URI } from '../../../../../base/common/uri.js';
 import { mock, upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { runWithFakedTimers } from '../../../../../base/test/common/timeTravelScheduler.js';
-import { IChat, ISession, ISessionGitRepository, ISessionWorkspace, SESSION_WORKSPACE_GROUP_GITHUB, SessionStatus, SessionTypeAuthRequirement } from '../../../../../workbench/contrib/sessions/common/session.js';
+import { IChat, ISession, ISessionGitRepository, ISessionWorkspace, SESSION_WORKSPACE_GROUP_GITHUB, SessionStatus, SessionTypeAuthRequirement } from '../../../../../workbench/services/sessions/common/session.js';
 import { ICreateNewSessionOptions, ISendRequestOptions, ISendRequestSentEvent, ISessionsManagementService, WorkspaceNotTrustedError } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import { ISessionsProvider } from '../../../../../workbench/contrib/sessions/common/sessionsProvider.js';
 import { IOpenNewSessionOptions, IOpenNewSessionResult, IOpenSessionOptions } from '../../../../../workbench/contrib/sessions/browser/sessionsService.js';
@@ -46,7 +46,7 @@ import { Codicon } from '../../../../../base/common/codicons.js';
 import { getAdditionalFolderContextId, getAdditionalRepositoryContextId } from '../../../../../workbench/contrib/sessions/common/newChatContextIds.js';
 import { IAgentHostSessionsProvider, LOCAL_AGENT_HOST_PROVIDER_ID } from '../../../../../workbench/contrib/sessions/common/agentHostSessionsProvider.js';
 import { IWorkspacePickerNoWorkspaceOption, WorkspacePicker } from '../../../../../workbench/contrib/sessions/browser/chat/sessionWorkspacePicker.js';
-import { IWorkspaceSelectionSnapshot, WorkspaceSelectionOrigin, ISelectNoWorkspaceOptions, ISelectWorkspaceOptions } from '../../../../../workbench/contrib/sessions/common/workspaceSelection.js';
+import { IWorkspaceSelectionSnapshot, WorkspaceSelectionOrigin, ISelectNoWorkspaceOptions, ISelectWorkspaceOptions } from '../../../../../workbench/services/sessions/common/workspaceSelection.js';
 import { TOTAL_SESSIONS_KEY } from '../../../sessions/browser/sessionsLifecycleTracker.js';
 import { SharedChatInputComposer } from '../../../../../workbench/contrib/sessions/browser/chat/sharedChatInputComposer.js';
 import { ISessionComparisonAttemptConfiguration, IStartSessionComparisonOptions, SessionComparisonParticipantRole } from '../../../../../workbench/contrib/sessions/common/sessionComparison.js';
@@ -67,7 +67,7 @@ import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
 import { NullHoverService } from '../../../../../platform/hover/test/browser/nullHoverService.js';
 import { IOpenerService } from '../../../../../platform/opener/common/opener.js';
 import { SessionConfigSchema } from '../../../../../platform/agentHost/common/state/protocol/commands.js';
-import { ISessionHost, ISessionHostService } from '../../../../../workbench/contrib/sessions/browser/sessionHost.js';
+import { ISessionHost, ISessionHostService } from '../../../../../workbench/services/sessions/browser/sessionHost.js';
 import { stubSessionsHostLayout } from '../../../../test/browser/sessionsHostLayoutTestUtils.js';
 import { ITestSessionWithChat, withCreatedStatus } from '../../../../../workbench/contrib/sessions/test/browser/sessionHostTestUtils.js';
 
@@ -203,11 +203,11 @@ const restoreSessionOptionsExpanded = Reflect.get(NewChatWidget.prototype, '_res
 const setSessionOptionsExpandedFromUser = Reflect.get(NewChatWidget.prototype, '_setSessionOptionsExpandedFromUser') as (this: ISessionOptionsPersistenceHarness, expanded: boolean) => void;
 const send = Reflect.get(NewChatWidget.prototype, '_send') as (this: ISendHarness, query: string, attachedContext?: IChatRequestVariableEntry[], background?: boolean) => Promise<boolean>;
 const updateWelcomeMessage = Reflect.get(NewChatWidget.prototype, '_updateWelcomeMessage') as (container: HTMLElement, title: HTMLElement, visible: boolean, phrases: readonly string[], phraseIndex: number) => string | undefined;
-const getComparisonBranch = Reflect.get(NewChatWidget.prototype, '_getComparisonBranch') as (this: IGetComparisonBranchHarness, session?: ISession) => string | undefined;
+const getComparisonBranch = Reflect.get(NewChatWidget.prototype, '_getComparisonBranch') as (this: IGetComparisonBranchHarness, session?: ISession, reader?: IReader) => string | undefined;
 const getComparisonModelIds = Reflect.get(NewChatWidget.prototype, '_getComparisonModelIds') as (this: {
 	readonly _newChatInput: { getComparisonModels(): readonly ILanguageModelChatMetadataAndIdentifier[] };
 }) => Set<string>;
-const shouldShowComparisonAction = Reflect.get(NewChatWidget.prototype, '_shouldShowComparisonAction') as (this: IComparisonActionVisibilityHarness) => boolean;
+const shouldShowComparisonAction = Reflect.get(NewChatWidget.prototype, '_shouldShowComparisonAction') as (this: IComparisonActionVisibilityHarness, reader?: IReader) => boolean;
 const announceWelcomeMessage = Reflect.get(NewChatWidget.prototype, '_announceWelcomeMessage') as (this: IWelcomeAnnouncementHarness, phrase: string | undefined, inputVisible: boolean) => void;
 const getWelcomeName = Reflect.get(WelcomeName.prototype, '_getWelcomeName') as (this: { _getFirstName(name: string | undefined): string | undefined }, gitHubName: string | undefined, configuredName?: string) => string | undefined;
 const getFirstName = Reflect.get(WelcomeName.prototype, '_getFirstName') as (name: string | undefined) => string | undefined;
@@ -348,7 +348,7 @@ interface IComparisonActionVisibilityHarness extends IGetComparisonBranchHarness
 	readonly _compareAgentsEnabled: IObservable<boolean>;
 	readonly _pendingPreferredUpgrade: { readonly value: IDisposable | undefined };
 	readonly _newSessionCreation: { readonly value: IDisposable | undefined };
-	_getComparisonBranch(session?: ISession): string | undefined;
+	_getComparisonBranch(session?: ISession, reader?: IReader): string | undefined;
 }
 
 interface IRenderSessionTypePickerHarness {
@@ -4391,7 +4391,7 @@ suite('NewChatWidget', () => {
 				isQuickChat: constObservable(isQuickChat),
 			});
 			const session = observableValue<ISession | undefined>('session', draft('first-workspace'));
-			const selection = disposables.add(new SessionComparisonModelSelection(available, undefined, undefined, undefined, disposables.add(new InMemoryStorageService()), disposables.add(new TestInstantiationService())));
+			const selection = disposables.add(new SessionComparisonModelSelection(available, undefined, undefined, undefined, undefined, disposables.add(new InMemoryStorageService()), disposables.add(new TestInstantiationService())));
 			const harness = {
 				_session: session,
 				_compareAgentsEnabled: enabled,
@@ -4461,7 +4461,7 @@ suite('NewChatWidget', () => {
 		test(`launches ${runs} repeated attempts with independent IDs and the draft permissions (quick chat: ${quickChat}, Inbox: ${backgroundSend}, interruption: ${interruption})`, async () => {
 			const resolving = observableValue('resolving', false);
 			const environment = observableValue<ISessionCreationEnvironment | undefined>('environment', undefined);
-			const selection = disposables.add(new SessionComparisonModelSelection(derived(reader => !resolving.read(reader)), undefined, undefined, undefined, disposables.add(new InMemoryStorageService()), disposables.add(new TestInstantiationService())));
+			const selection = disposables.add(new SessionComparisonModelSelection(derived(reader => !resolving.read(reader)), undefined, undefined, undefined, resolving, disposables.add(new InMemoryStorageService()), disposables.add(new TestInstantiationService())));
 			selection.start();
 			selection.select('claude-model');
 			for (let i = 1; i < runs; i++) {
@@ -4745,7 +4745,8 @@ suite('NewChatWidget', () => {
 		});
 	});
 
-	test('hides comparison action when selected folder has no git repository', () => {
+	test('hides comparison despite default branch configuration until the folder is initialized as a repository', () => {
+		const isRepository = observableValue('isRepository', false);
 		const workspace = upcastPartial<ISessionWorkspace>({
 			folders: [{
 				root: URI.file('/workspace'),
@@ -4753,7 +4754,8 @@ suite('NewChatWidget', () => {
 				name: 'workspace',
 				description: undefined,
 				gitRepository: upcastPartial<ISessionGitRepository>({
-					isRepository: constObservable(false),
+					isRepository,
+					hasGitRemote: false,
 				}),
 			}],
 		});
@@ -4761,8 +4763,10 @@ suite('NewChatWidget', () => {
 			sessionId: 'session',
 			mainChat: constObservable(upcastPartial<IChat>({ resource: URI.parse('agent-host-copilot:/session') })),
 			providerId: LOCAL_AGENT_HOST_PROVIDER_ID,
+			sessionType: 'copilotcli',
 			workspace: constObservable(workspace),
 		});
+		const values = { isolation: 'folder', branch: 'main' };
 		const harness: IComparisonActionVisibilityHarness = {
 			_environment: constObservable(undefined),
 			_compareAgentsEnabled: constObservable(true),
@@ -4770,17 +4774,88 @@ suite('NewChatWidget', () => {
 			_newSessionCreation: { value: undefined },
 			_session: constObservable(session),
 			_workspacePicker: { selectedFolderUri: URI.file('/workspace'), selectedResolved: { workspace } },
+			sessionsManagementService: {
+				getSessionTypesForFolder: () => [{
+					providerId: LOCAL_AGENT_HOST_PROVIDER_ID,
+					sessionType: { id: 'copilotcli', label: 'Copilot', supportsWorktreeConfiguration: true },
+				}],
+			},
 			sessionsProvidersService: {
 				getProvider: () => ({
 					id: LOCAL_AGENT_HOST_PROVIDER_ID,
-					getCreateSessionConfig: () => undefined,
+					getCreateSessionConfig: () => values,
+					getSessionConfig: () => ({
+						schema: {
+							type: 'object',
+							properties: {
+								isolation: { type: 'string', title: 'Isolation', enum: ['folder', 'worktree'] },
+								branch: { type: 'string', title: 'Branch', enumDynamic: true },
+							},
+						},
+						values,
+					}),
 					isSessionConfigResolving: () => constObservable(false),
 				}),
 			},
 			_getComparisonBranch: getComparisonBranch,
 		};
 
-		assert.strictEqual(shouldShowComparisonAction.call(harness), false);
+		const states: boolean[] = [];
+		disposables.add(autorun(reader => {
+			states.push(shouldShowComparisonAction.call(harness, reader));
+		}));
+		isRepository.set(true, undefined);
+		isRepository.set(false, undefined);
+		assert.deepStrictEqual(states, [false, true, false]);
+	});
+
+	test('sends a single-model request while a retained comparison is unavailable', async () => {
+		const available = observableValue('available', true);
+		const selection = disposables.add(new SessionComparisonModelSelection(available, undefined, undefined, undefined, undefined, disposables.add(new InMemoryStorageService()), disposables.add(new TestInstantiationService())));
+		selection.start();
+		selection.select('one');
+		selection.select('two');
+		selection.finish();
+		available.set(false, undefined);
+		const folder = URI.file('/plain-folder');
+		const session = upcastPartial<ISession>({ sessionId: 'draft' });
+		let sentOptions: ISendRequestOptions | undefined;
+		const result = await send.call({
+			notificationService: { error: () => assert.fail('Unexpected send failure') },
+			_pendingBackgroundSends: { set: () => { }, deleteAndDispose: () => { } },
+			_session: constObservable(session),
+			_feedbackItems: constObservable([]),
+			_workspacePicker: {
+				selectedFolderUri: folder,
+				validateSelectedWorkspace: async () => true,
+				clearAttachedContext: () => { },
+				showPicker: () => { },
+			},
+			_isQuickChatComposer: constObservable(false),
+			_comparisonSelection: selection,
+			agentFeedbackService: { removeFeedback: () => { } },
+			recentWorkspacesService: { restoreDismissedWorkspace: () => { } },
+			newSessionComposerService: { notifyWillSendRequest: () => { } },
+			sessionsManagementService: {
+				onDidSendRequest: Event.None,
+				sendNewChatRequest: async (_session, options) => { sentOptions = options; },
+			},
+			logService: { error: () => assert.fail('Unexpected send failure') },
+			_getWorkspaceRoots: () => [folder],
+		}, 'hello');
+		assert.deepStrictEqual({
+			result,
+			query: sentOptions?.query,
+			enabled: selection.enabled.get(),
+			summary: selection.summary.get(),
+			retainedAttempts: selection.attemptModelIds.get(),
+		}, {
+			result: true,
+			query: 'hello',
+			enabled: false,
+			summary: undefined,
+			retainedAttempts: ['one', 'two'],
+		});
 	});
 
 	test('hides comparison action when selected folder differs from draft repository', () => {
@@ -4948,7 +5023,7 @@ suite('NewChatWidget', () => {
 			environment.read(reader);
 			return shouldShowComparisonAction.call(harness);
 		});
-		const selection = disposables.add(new SessionComparisonModelSelection(available, undefined, undefined, undefined, disposables.add(new InMemoryStorageService()), disposables.add(new TestInstantiationService())));
+		const selection = disposables.add(new SessionComparisonModelSelection(available, undefined, undefined, undefined, undefined, disposables.add(new InMemoryStorageService()), disposables.add(new TestInstantiationService())));
 		selection.start();
 		selection.select('model-a');
 		selection.select('model-b');
@@ -5078,7 +5153,7 @@ suite('NewChatWidget', () => {
 				name: 'workspace',
 				description: undefined,
 				gitRepository: upcastPartial<ISessionGitRepository>({
-					isRepository: constObservable(false),
+					isRepository: constObservable(true),
 					hasGitRemote: true,
 				}),
 			}],

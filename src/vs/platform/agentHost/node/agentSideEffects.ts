@@ -2310,6 +2310,7 @@ export class AgentSideEffects extends Disposable {
 			const contribution = await this._chatContributions.outgoingTurn({ session: sessionChannel, chat, message, turnId, workingDirectories: resolvedWorkingDirectories });
 			const sendContext = {
 				...clientOperationContext,
+				originalMessageText: message.text,
 				turnTelemetryCorrelation: { agentSessionId: AgentSession.id(sessionChannel), chatSessionId: getTelemetryChatSessionId(turnChannel), turnId },
 				reportCodexModelProvider: (provider: CodexModelProvider) => this._turnTracker.setCodexModelProvider(turnChannel, turnId, provider),
 				...prewarmReporters,

@@ -19,7 +19,7 @@ import { AgentHostByokLmHandler } from '../../../../workbench/contrib/chat/brows
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../../workbench/common/contributions.js';
 import { ISessionsManagementService } from '../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import { ISessionsService } from '../../../../workbench/contrib/sessions/browser/sessionsService.js';
-import { IFocusedSessionHostService } from '../../../../workbench/contrib/sessions/browser/sessionHost.js';
+import { IFocusedSessionHostService } from '../../../../workbench/services/sessions/browser/sessionHost.js';
 import { ISessionsProvidersService } from '../../../../workbench/contrib/sessions/browser/sessionsProvidersService.js';
 import { ILifecycleService, LifecyclePhase } from '../../../../workbench/services/lifecycle/common/lifecycle.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
@@ -27,7 +27,7 @@ import { INotificationService } from '../../../../platform/notification/common/n
 import { IProductService } from '../../../../platform/product/common/productService.js';
 import { INativeHostService } from '../../../../platform/native/common/native.js';
 import { ISessionsSetUpService } from '../../../browser/sessionsSetUpService.js';
-import { ISessionsPartService } from '../../../../workbench/contrib/sessions/browser/sessionsPartService.js';
+import { ISessionsPartService } from '../../../../workbench/services/sessions/browser/sessionsPartService.js';
 import { SessionsCopilotConfigSlashSubmitHandlerContribution } from '../browser/copilotConfigSlashSubmitHandler.js';
 import { AgentsWindowOpenSource, IAgentsWindowDraft, isAgentsWindowDraft, isAgentsWindowOpenSource } from '../../../../platform/window/common/window.js';
 import { IStorageService } from '../../../../platform/storage/common/storage.js';
@@ -50,7 +50,7 @@ import { getChatSessionType } from '../../../../workbench/contrib/chat/common/mo
 import '../../../../workbench/contrib/chat/browser/aiCustomization/copilotCanvases.contribution.js';
 import './chatBackgroundTool.contribution.js';
 import { ScreenshotWindowToolContribution } from '../browser/screenshotWindowTool.js';
-import { ISession, isSessionCreated } from '../../../../workbench/contrib/sessions/common/session.js';
+import { ISession, isSessionCreated } from '../../../../workbench/services/sessions/common/session.js';
 
 /** Revokes editor request ownership when the next request is submitted here. */
 export class AgentsWindowRequestActivity extends Disposable implements IWorkbenchContribution {

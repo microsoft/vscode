@@ -11,7 +11,7 @@ import { isEqual } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
-import { IWorkspaceSelectionSnapshot } from '../common/workspaceSelection.js';
+import { IWorkspaceSelectionSnapshot } from '../../../services/sessions/common/workspaceSelection.js';
 import { ISendRequestOptions } from '../common/sessionsManagement.js';
 
 export const NEW_SESSION_PROMPT_TYPING_DURATION_MS = 2_500;

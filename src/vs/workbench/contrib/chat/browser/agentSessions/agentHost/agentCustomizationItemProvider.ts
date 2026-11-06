@@ -24,11 +24,10 @@ import { type CustomizationSourceFolderReadiness, ICustomizationItem, ICustomiza
 import { SYNCED_CUSTOMIZATION_SCHEME } from '../../../../../services/agentHost/common/agentHostFileSystemService.js';
 import { IFileService } from '../../../../../../platform/files/common/files.js';
 import { type IAgentConnection } from '../../../../../../platform/agentHost/common/agentService.js';
-import { getAgentHostCustomizationUri } from '../../../common/agentHostSessionCustomizations.js';
+import { getAgentHostCustomizationSource, getAgentHostCustomizationUri } from '../../../common/agentHostSessionCustomizations.js';
 import { readMcpServerDisplayName, readMcpServerSource } from '../../../../../../platform/agentHost/common/meta/mcpCustomizationMeta.js';
 import { readAgentCustomizationMeta } from '../../../../../../platform/agentHost/common/meta/agentCustomizationMeta.js';
 import { readCustomizationDiscoveryMeta } from '../../../../../../platform/agentHost/common/meta/customizationDiscoveryMeta.js';
-import { readCustomizationScopeMeta } from '../../../../../../platform/agentHost/common/meta/customizationScopeMeta.js';
 import { AICustomizationScope, AICustomizationScopes, AICustomizationSource, AICustomizationSources } from '../../../common/aiCustomizationWorkspaceService.js';
 import { PromptsType, Target } from '../../../common/promptSyntax/promptTypes.js';
 import { getAgentHookMetadata } from '../../../common/promptSyntax/hookTypes.js';
@@ -130,7 +129,7 @@ export class AgentCustomizationItemProvider extends Disposable implements ICusto
 			name: customization.name,
 			description: undefined,
 			source,
-			scope: readCustomizationScopeMeta(customization),
+			scope: AICustomizationScopes.fromSource(getAgentHostCustomizationSource(customization) ?? source),
 			delivery: clientId !== undefined ? SYNCED_FROM_CLIENT : undefined,
 			status: toStatusString(customization.load),
 			statusMessage: toStatusMessage(customization.load),
@@ -158,7 +157,7 @@ export class AgentCustomizationItemProvider extends Disposable implements ICusto
 			});
 		}
 		for (const child of customization.children ?? []) {
-			const childSource = source === AICustomizationSources.builtin ? source : getDirectoryChildSource(workingDirectories, child.uri, source);
+			const childSource = scope !== undefined || source === AICustomizationSources.builtin ? source : getDirectoryChildSource(workingDirectories, child.uri, source);
 			const item = this.toDirectoryChildItem(child, childSource, scope, isRemote);
 			if (item) {
 				items.push(item);
@@ -174,8 +173,8 @@ export class AgentCustomizationItemProvider extends Disposable implements ICusto
 		}
 		const discovery = readCustomizationDiscoveryMeta(child);
 		if (discovery) {
-			source = discovery.source === 'plugin' ? AICustomizationSources.plugin
-				: discovery.source === 'repository' ? AICustomizationSources.local : AICustomizationSources.user;
+			source = getAgentHostCustomizationSource(child) ?? AICustomizationSources.user;
+			scope = AICustomizationScopes.fromSource(source);
 		}
 		const hookMetadata = discovery?.hookType ? getAgentHookMetadata(Target.GitHubCopilot, discovery.hookType) : undefined;
 		let userInvocable: boolean | undefined = undefined;
@@ -266,7 +265,8 @@ export class AgentCustomizationItemProvider extends Disposable implements ICusto
 				continue;
 			}
 			const roots = workingDirectories;
-			const source = isUnderAnyRoot(roots, customization.uri) ? AICustomizationSources.local : AICustomizationSources.user;
+			const source = getAgentHostCustomizationSource(customization)
+				?? (isUnderAnyRoot(roots, customization.uri) ? AICustomizationSources.local : AICustomizationSources.user);
 			const workspaceFolderIndex = roots.findIndex(root => isParentOrEqual(root, customization.uri));
 			folders.push({
 				uri: this.toRemoteUri(customization.uri),
@@ -415,6 +415,7 @@ export class AgentCustomizationItemProvider extends Disposable implements ICusto
 				// Children inherit the parent plugin's status/enabled state.
 				items.set(enriched.uri.toString(), {
 					...enriched,
+					scope: p.isBundleItem ? enriched.scope : p.item.scope,
 					status: p.status,
 					statusMessage: p.statusMessage,
 					enabled: p.enabled,
@@ -424,10 +425,11 @@ export class AgentCustomizationItemProvider extends Disposable implements ICusto
 		}
 
 		for (const sessionCustomization of directoryCustomizations) {
-			const scope = readCustomizationScopeMeta(sessionCustomization);
-			const source = scope === AICustomizationScopes.application || isAgentBuiltinCustomizationUri(URI.parse(sessionCustomization.uri))
+			const discoveredSource = getAgentHostCustomizationSource(sessionCustomization);
+			const scope = discoveredSource !== undefined ? AICustomizationScopes.fromSource(discoveredSource) : undefined;
+			const source = discoveredSource ?? (isAgentBuiltinCustomizationUri(URI.parse(sessionCustomization.uri))
 				? AICustomizationSources.builtin
-				: isUnderAnyRoot(workingDirectories, sessionCustomization.uri) ? AICustomizationSources.local : AICustomizationSources.user;
+				: isUnderAnyRoot(workingDirectories, sessionCustomization.uri) ? AICustomizationSources.local : AICustomizationSources.user);
 			const isRemote = sessionCustomization.clientId !== undefined;
 			for (const child of this.toDirectoryItems(sessionCustomization, source, scope, isRemote, workingDirectories)) {
 				items.set(child.itemKey ?? child.uri.toString(), {
@@ -451,9 +453,9 @@ export class AgentCustomizationItemProvider extends Disposable implements ICusto
 				hostConfiguredMcpServers ??= new Set(this._customAgentsService.getMcpServers(sessionResource).filter(server => server.hostConfiguration !== undefined).map(server => server.name));
 			}
 			const customizationSource = plugin ? AICustomizationSources.plugin : getMcpCustomizationSource(source, hostConfiguredMcpServers?.has(container.name));
-			const scope = readCustomizationScopeMeta(container)
-				?? (plugin ? readCustomizationScopeMeta(plugin) : undefined)
-				?? AICustomizationScopes.fromSource(customizationSource);
+			const scope = AICustomizationScopes.fromSource(
+				(plugin ? getAgentHostCustomizationSource(plugin) : undefined)
+				?? customizationSource);
 			const groupKey = plugin ? this.toBadge(plugin, plugin.clientId !== undefined).groupKey : customizationSource;
 			items.set(skill.id, {
 				itemKey: skill.id,

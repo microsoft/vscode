@@ -926,6 +926,33 @@ type CopilotCliRecoveryEstimateClassification = {
 	migrationEnabled: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Whether legacy migration is enabled for this provider lifetime.' };
 };
 
+/** The step an imported conversation was at when importing it failed. */
+type ConversationImportStep = 'prepare' | 'startClient' | 'writeEventLog' | 'saveSessionData' | 'storeMetadata' | 'resume';
+
+type ConversationImportEvent = {
+	outcome: 'succeeded' | 'failed' | 'cancelled';
+	failedStep: ConversationImportStep | 'none';
+	errorCode: string;
+	turns: number;
+	durationMs: number;
+};
+
+type ConversationImportClassification = {
+	owner: 'vijayupadya';
+	comment: 'Tracks seeding a conversation moved from another chat (such as a Local chat) into a new Copilot agent-host session, to measure how often it fails and where.';
+	outcome: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Whether the import succeeded, failed or was cancelled.' };
+	failedStep: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'For a failed import, the code-defined step it failed at; otherwise none.' };
+	errorCode: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'For a failed import, the error\'s code (e.g. a file system code such as ENOENT) when it has one in the expected form; otherwise none or other. Never the error message.' };
+	turns: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Number of turns imported.' };
+	durationMs: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Time to import the conversation in milliseconds.' };
+};
+
+/** An error's code when it is a short code-like identifier, so only bounded values are reported. */
+function conversationImportErrorCode(error: unknown): string {
+	const code = getErrorCode(error);
+	return !code ? 'none' : /^[A-Za-z][A-Za-z0-9_.-]{0,39}$/.test(code) ? code : 'other';
+}
+
 /**
  * How many times `_ensureClient` re-acquires the SDK client after a cold-start
  * abort caused by a startup-config change. One extra attempt covers the common
@@ -6521,22 +6548,39 @@ export class CopilotAgent extends Disposable implements IAgent {
 
 	/** Mints the chat's backing from an imported conversation supplied by Agent Host. */
 	private async _importChatBacking(chat: URI, context: IAgentChatContext, options: IAgentCreateChatOptions): Promise<IAgentCreateChatResult> {
-		const session = context.owner.get();
-		const sessionId = AgentSession.id(session);
-		const credentialContext = this._resolveExplicitChatContext(chat, context);
-		await this._applyChatCredentialBoundary(credentialContext, this._captureChatCredential(credentialContext));
-		const workingDirectory = await this._resolveCreateWorkingDirectory(options, sessionId, options.workingDirectories === undefined);
-		await this._ensureClientForChat(chat, workingDirectory);
-		if (!this._findSessionBySdkId(sessionId) && !this._provisionalSessions.has(sessionId)) {
-			this._resetSessionLifetime(sessionId);
+		const startedAt = Date.now();
+		let step: ConversationImportStep = 'prepare';
+		const log = (outcome: ConversationImportEvent['outcome'], error?: unknown) => this._telemetryService.publicLog2<ConversationImportEvent, ConversationImportClassification>('agentHost.conversationImport', {
+			outcome,
+			failedStep: outcome === 'failed' ? step : 'none',
+			errorCode: outcome === 'failed' ? conversationImportErrorCode(error) : 'none',
+			turns: options.importConversation?.turns.length ?? 0,
+			durationMs: Math.max(0, Date.now() - startedAt),
+		});
+		try {
+			const session = context.owner.get();
+			const sessionId = AgentSession.id(session);
+			const credentialContext = this._resolveExplicitChatContext(chat, context);
+			await this._applyChatCredentialBoundary(credentialContext, this._captureChatCredential(credentialContext));
+			const workingDirectory = await this._resolveCreateWorkingDirectory(options, sessionId, options.workingDirectories === undefined);
+			step = 'startClient';
+			await this._ensureClientForChat(chat, workingDirectory);
+			if (!this._findSessionBySdkId(sessionId) && !this._provisionalSessions.has(sessionId)) {
+				this._resetSessionLifetime(sessionId);
+			}
+			// Thread the exact target `chat` through so the creation binds the
+			// imported conversation directly during resume.
+			const result = await this._importConversation(options, sessionId, workingDirectory, chat, current => { step = current; });
+			log('succeeded');
+			return result;
+		} catch (error) {
+			log(isCancellationError(error) ? 'cancelled' : 'failed', error);
+			throw error;
 		}
-		// Thread the exact target `chat` through so the creation binds the
-		// imported conversation directly during resume.
-		return this._importConversation(options, sessionId, workingDirectory, chat);
 	}
 
 	/** Seeds an imported conversation into the SDK store, then resumes it as a live editable chat. */
-	private async _importConversation(options: IAgentCreateChatOptions, sessionId: string, workingDirectory: URI, chat: URI): Promise<IAgentCreateChatResult> {
+	private async _importConversation(options: IAgentCreateChatOptions, sessionId: string, workingDirectory: URI, chat: URI, onStep: (step: ConversationImportStep) => void = () => { }): Promise<IAgentCreateChatResult> {
 		const importConfig = options.importConversation!;
 		const sessionUri = AgentSession.uri(this.id, sessionId);
 		return this._queueSession(sessionId, async () => {
@@ -6551,6 +6595,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 			const projectPromise = workingDirectory.scheme === Schemas.file ? projectFromCopilotContext({ cwd: workingDirectory.fsPath }, this._gitService) : Promise.resolve(undefined);
 			const eventsPath = resourceJoinPath(this._copilotHomeService.home, 'session-state', sessionId, 'events.jsonl').fsPath;
 			const responses: { turnId: string; responseId: string; parts: readonly StoredAssistantResponsePart[] }[] = [];
+			onStep('writeEventLog');
 			const jsonl = buildSessionEventLogFromTurns(importConfig.turns, {
 				sessionId,
 				workingDirectory: createCopilotSessionPathMapper(toCopilotWorkspace(workingDirectory), resourceJoinPath(this._copilotHomeService.home, 'session-state', sessionId)).rootSdkPath,
@@ -6571,6 +6616,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 			// A replay regenerates tool-call messages and confirmations, so record the originals.
 			const toolCalls = serializeImportedToolCalls(importConfig.turns);
 			if (responses.length || usages.length || durations || toolCalls) {
+				onStep('saveSessionData');
 				const reference = this._sessionDataService.openDatabase(this._resolveChatStorageScope(chat));
 				try {
 					for (const response of responses) {
@@ -6592,6 +6638,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 
 			// Persist metadata before resume so `_resumeSession` can resolve the
 			// working directory and model.
+			onStep('storeMetadata');
 			const project = await projectPromise;
 			await this._storeSessionMetadata(sessionMetadataScope(sessionUri), model, workingDirectory, options.workingDirectories ?? ([workingDirectory]), workingDirectory, project);
 			if (options.agent !== undefined) {
@@ -6601,6 +6648,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 			// Resume so the SDK loads the seeded history as editable turns. The
 			// seeded event log lives at the session's own SDK id, so the resume
 			// records that exact backing for the target chat.
+			onStep('resume');
 			const imported = await this._resumeSession(sessionId, chat, undefined);
 			this._logService.info(`[Copilot] Imported session created: ${sessionUri.toString()}`);
 			return {
@@ -8447,7 +8495,8 @@ export class CopilotAgent extends Disposable implements IAgent {
 
 	private async _sendMessageOnce(chat: URI, prompt: string, attachments?: readonly MessageAttachment[], turnId?: string, senderClientId?: string, clientType = AgentHostClientType.Unknown, workingDirectories?: readonly URI[], operationContext?: URI | IAgentChatContext, clientTelemetryContext?: IAgentHostClientTelemetryContext): Promise<void> {
 		const context = this._resolveSendChatContext(chat, operationContext);
-		const stageRecorder = operationContext && !URI.isUri(operationContext) ? operationContext.sendStageRecorder : undefined;
+		const sendContext = operationContext && !URI.isUri(operationContext) ? operationContext : undefined;
+		const stageRecorder = sendContext?.sendStageRecorder;
 		stageRecorder?.mark('queue');
 		await this._queueChatTurn(context, 'sendMessage', turnId, async (token, enterUnboundedPhase) => {
 			const beforePin = this._resolveSendChatContext(chat, operationContext);
@@ -8500,7 +8549,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 				const sdkMode = this._resolveSdkMode(current.ownerSession, current.chat);
 				enterUnboundedPhase();
 				stageRecorder?.mark('turnPrepare');
-				await entry.send(prompt, attachments, turnId, sdkMode, senderClientId, clientType, resolveAgentHostInstructions(operationContext), clientTelemetryContext, !!operationContext && !URI.isUri(operationContext) && operationContext.agentMergeTurn === true, stageRecorder);
+				await entry.send(prompt, attachments, turnId, sdkMode, senderClientId, clientType, resolveAgentHostInstructions(operationContext), clientTelemetryContext, sendContext?.agentMergeTurn === true, stageRecorder, sendContext?.originalMessageText);
 				if (!token.isCancellationRequested) {
 					this._deliverPendingSteering(chat, entry);
 				}

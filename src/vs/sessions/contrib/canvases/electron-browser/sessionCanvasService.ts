@@ -9,19 +9,20 @@ import { constObservable, derived, derivedOpts, IObservable, IReader } from '../
 import { isEqual } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
-import { CanvasInput, canvasOwnerKey, ICanvas, ICanvasContext, ICanvasContextService, ICanvasDefinition, ICanvasOwner, ICanvasReference, ICanvasService, ICanvasWorkingSets, isCanvasOwner } from '../../../../workbench/contrib/canvases/common/canvas.js';
+import { CanvasInput, ICanvasContext, ICanvasContextService, ICanvasDefinition, ICanvasService, ICanvasWorkingSets, isCanvasOwner } from '../../../../workbench/contrib/canvases/common/canvas.js';
 import { CanvasDefinitionStore } from '../../../../workbench/contrib/canvases/common/canvasDefinitionStore.js';
 import { IEditorGroup, IEditorGroupsService } from '../../../../workbench/services/editor/common/editorGroupsService.js';
 import { IChatService } from '../../../../workbench/contrib/chat/common/chatService/chatService.js';
 import { IChatWindowService } from '../../../../workbench/contrib/chatWindow/browser/chatWindow.js';
-import { ISessionsHostLayoutService } from '../../../../workbench/contrib/sessions/browser/sessionsHostLayoutService.js';
-import { getMainWindowHost, getWindowHost, IFocusedSessionHostService, ISessionHost, ISessionHostService, SessionHostKind } from '../../../../workbench/contrib/sessions/browser/sessionHost.js';
+import { ISessionsHostLayoutService } from '../../../../workbench/services/sessions/browser/sessionsHostLayoutService.js';
+import { getMainWindowHost, getWindowHost, IFocusedSessionHostService, ISessionHost, ISessionHostService, SessionHostKind } from '../../../../workbench/services/sessions/browser/sessionHost.js';
 import { ICustomViewService } from '../../../../workbench/contrib/sessions/browser/customView.js';
-import { IChat, ISession, ISessionCanvasDefinition } from '../../../../workbench/contrib/sessions/common/session.js';
+import { IChat, ISession, ISessionCanvasDefinition } from '../../../../workbench/services/sessions/common/session.js';
 import { ISessionsManagementService } from '../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import { ISessionEditorWorkingSetService } from '../../layout/common/sessionEditorWorkingSet.js';
 import { createSessionCanvasReference, getSessionCanvasDefinitionInstanceId, ISessionCanvasRegistryService } from '../common/sessionCanvas.js';
 import { IPinnedCanvasService } from '../../../../workbench/contrib/sessions/browser/pinnedCanvases.js';
+import { canvasOwnerKey, ICanvas, ICanvasOwner, ICanvasReference } from '../../../../workbench/common/canvasReference.js';
 
 export class SessionCanvasContextService extends Disposable implements ICanvasContextService {
 

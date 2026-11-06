@@ -18,6 +18,8 @@ import { TestInstantiationService } from '../../../../../platform/instantiation/
 import { ILogService, NullLogService } from '../../../../../platform/log/common/log.js';
 import { IProgressService } from '../../../../../platform/progress/common/progress.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
+import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
+import { IManagedSettingsService } from '../../../../../platform/policy/common/copilotManagedSettings.js';
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
 import { IEditorGroupsService } from '../../../../services/editor/common/editorGroupsService.js';
 import { IViewsService } from '../../../../services/views/common/viewsService.js';
@@ -93,19 +95,36 @@ suite('Continue in Copilot policy recovery', () => {
 				const preparation: string[] = [];
 				const telemetry: { event: string; data: object | undefined }[] = [];
 				const importEvents: (object | undefined)[] = [];
-				const assertTelemetry = (outcome: 'succeeded' | 'failed' | 'cancelled') => assert.deepStrictEqual(telemetry, ['started', outcome].map(outcome => ({
-					event: 'chat.enterprisePolicyRecovery',
-					data: { action: scenario === 'empty' ? 'newChat' : 'migrate', location: sidebar ? 'panel' : 'editor', outcome },
-				})));
+				const migrationEvents: object[] = [];
+				// A move of a Local chat is also reported as a Local chat migration; Claude and Codex chats are not.
+				const localSourceScenario = scenario !== SessionType.AgentHostClaude && scenario !== SessionType.AgentHostCodex;
+				const migrationKind = scenario === 'empty' ? 'newChat' : scenario === 'unsupported' || scenario === 'archived-unsupported' ? 'transcript' : 'migrate';
+				const expectedMigration = (outcome: 'succeeded' | 'failed' | 'cancelled', failureReason = 'none') => localSourceScenario ? (['started', outcome] as const).map(event => ({
+					entryPoint: 'move', trigger: sidebar ? 'automatic' : 'manual', policyRequired: false, kind: migrationKind,
+					target: SessionType.AgentHostCopilot, location: sidebar ? 'panel' : 'editor', turns: migrationKind === 'migrate' ? 1 : 0,
+					outcome: event, failureReason: event === 'started' ? 'none' : failureReason, timed: true,
+				})) : [];
+				const assertTelemetry = (outcome: 'succeeded' | 'failed' | 'cancelled', failureReason?: string) => assert.deepStrictEqual({ telemetry, migrationEvents }, {
+					telemetry: ['started', outcome].map(outcome => ({
+						event: 'chat.enterprisePolicyRecovery',
+						data: { action: scenario === 'empty' ? 'newChat' : 'migrate', location: sidebar ? 'panel' : 'editor', outcome },
+					})),
+					migrationEvents: expectedMigration(outcome, failureReason),
+				});
 				services.stub(ITelemetryService, {
 					publicLog2: (event, data) => {
 						if (event === 'chat.importConversation') {
 							importEvents.push(data);
+						} else if (event === 'chat.localChatMigration') {
+							const { durationMs, ...rest } = data as { durationMs: number };
+							migrationEvents.push({ ...rest, timed: typeof durationMs === 'number' && durationMs >= 0 });
 						} else {
 							telemetry.push({ event, data });
 						}
 					}
 				});
+				services.stub(IManagedSettingsService, { getManagedSettingValue: () => undefined });
+				services.stub(IConfigurationService, { inspect: () => ({}) });
 				let archived = scenario === 'archived' || scenario === 'archived-unsupported' || scenario === 'archived-remote';
 				let historyResolved = scenario !== 'unresolved-history';
 				const openStarted = new DeferredPromise<void>();
@@ -274,7 +293,8 @@ suite('Continue in Copilot policy recovery', () => {
 				}));
 				services.stub(IViewsService, { openView: views.openView });
 				const action = new ContinueChatInCopilotAction();
-				const execute = () => services.invokeFunction(accessor => action.run(accessor, { $mid: MarshalledId.ChatViewContext, sessionResource: source, inputUri }));
+				// The policy move runs on its own when the panel opens a chat, and when the user chooses it in an editor.
+				const execute = () => services.invokeFunction(accessor => action.run(accessor, { $mid: MarshalledId.ChatViewContext, sessionResource: source, inputUri, ...(sidebar ? { trigger: 'automatic' } : {}) }));
 				const run = execute();
 				if (cancelDuringMaterialization) {
 					await materializationStarted.p;
@@ -286,7 +306,7 @@ suite('Continue in Copilot policy recovery', () => {
 					materializing.complete();
 					const cleanupFailed = scenario === 'cleanup-failed';
 					await assert.rejects(run, cleanupFailed ? /Cleanup failed/ : CancellationError);
-					assertTelemetry(cleanupFailed ? 'failed' : 'cancelled');
+					assertTelemetry(cleanupFailed ? 'failed' : 'cancelled', cleanupFailed ? 'unexpected' : undefined);
 					assert.deepStrictEqual({
 						target, draft, archived, backendExists, listed, provisionalResource,
 						deleted, published, aliases, sourceRequests: model.getRequests().length, sourceDraft: widget.getInput(),
@@ -325,7 +345,11 @@ suite('Continue in Copilot policy recovery', () => {
 							: scenario === 'history-missing' || scenario === 'history-load-error' ? /didn't load the moved conversation/
 								: /Couldn't move this chat to Copilot/;
 					await assert.rejects(run, error);
-					assertTelemetry(scenario === 'cancelled' ? 'cancelled' : 'failed');
+					assertTelemetry(scenario === 'cancelled' ? 'cancelled' : 'failed', ({
+						'unavailable': 'targetUnavailable', 'prepare-failed': 'prepareFailed', 'import-failed': 'importFailed', 'import-missing': 'sessionNotCreated',
+						'history-missing': 'historyMissing', 'history-load-error': 'historyMissing', 'open-failed': 'openFailed', 'open-cancelled': 'openFailed',
+						'archived': 'sourceArchived', 'missing-history': 'sourceMissing', 'in-progress': 'requestInProgress',
+					} as Record<string, string>)[scenario]);
 					assert.deepStrictEqual({ target, draft: widget.getInput(), destinationDraft: draft, history: model.getRequests().length, preparation, archived, importEvents, chosenFolders: chosenFolders.size }, {
 						target: scenario === 'history-missing' || scenario === 'history-load-error' ? real : undefined, draft: 'Unsent follow-up', destinationDraft: undefined, history: 1, archived: scenario === 'archived',
 						preparation: scenario === 'unavailable' || scenario === 'archived' || scenario === 'missing-history' || scenario === 'cancelled' || scenario === 'in-progress' ? [] : scenario === 'prepare-failed' ? ['prepare', 'release draft']
@@ -344,6 +368,8 @@ suite('Continue in Copilot policy recovery', () => {
 				assert.deepStrictEqual(telemetry.map(entry => entry.data), ['started', 'succeeded'].map(outcome => ({
 					action: scenario === 'empty' ? 'newChat' : transcriptOnly ? 'transcript' : 'migrate', location: sidebar ? 'panel' : 'editor', outcome,
 				})));
+				// A concurrent duplicate attempt is counted once.
+				assert.deepStrictEqual(migrationEvents, expectedMigration('succeeded'));
 				assert.deepStrictEqual({
 					target: target && getChatSessionType(target),
 					title: imported?.title,

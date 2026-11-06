@@ -19,18 +19,18 @@ import { IStorageService, StorageScope, StorageTarget } from '../../../../../pla
 import { contrastBorder } from '../../../../../platform/theme/common/colorRegistry.js';
 import { IThemeService, Themable } from '../../../../../platform/theme/common/themeService.js';
 import { agentsPanelBorder } from '../../common/theme.js';
-import { ChatOriginKind, IChat, ISession, isSessionCreated } from '../../common/session.js';
-import { ISessionPaneContent } from '../../common/sessionsManagement.js';
+import { ChatOriginKind, IChat, ISession, isSessionCreated } from '../../../../services/sessions/common/session.js';
 import { ISessionsService } from '../sessionsService.js';
-import { IChatHostOpenerService } from '../chatHostOpener.js';
-import { getWindowHost, ISessionHost } from '../sessionHost.js';
-import { ISelectNoWorkspaceOptions, ISelectWorkspaceOptions, WorkspaceSelectionResult } from '../../common/workspaceSelection.js';
+import { IChatHostOpenerService } from '../../../../services/sessions/browser/chatHostOpener.js';
+import { getWindowHost, ISessionHost } from '../../../../services/sessions/browser/sessionHost.js';
+import { ISelectNoWorkspaceOptions, ISelectWorkspaceOptions, WorkspaceSelectionResult } from '../../../../services/sessions/common/workspaceSelection.js';
 import { AbstractChatView, IChatViewOptions, ISessionViewHostOptions } from './chatView.js';
 import { ChatGroupView, IChatGroupContext } from './chatGroupView.js';
 import { ChatDropZone, ChatGroupDropTarget, IChatGroupDropTargetDelegate } from './chatGroupDropTarget.js';
 import { DraggedSessionIdentifier, getSessionChatDragData, IDraggedSessionChat, isSessionChatDrag, SessionsDataTransfers } from '../dnd.js';
 import { SESSIONS_CHAT_TABS_DEFAULT, SESSIONS_CHAT_TABS_SETTING, SessionsChatTabsMode } from '../../common/sessionConfig.js';
 import { getGridBottomCornerViews, getGridEdgeInsets, NO_GRID_EDGE_INSETS, updateGridGapSashes } from '../../../../browser/parts/partGrid/partGridGap.js';
+import { ISessionPaneContent } from '../../../../services/sessions/common/sessionPane.js';
 
 interface IGroupEntry {
 	readonly id: number;

@@ -13,7 +13,7 @@ import { Emitter, Event } from '../../../../../../../base/common/event.js';
 import { Disposable, DisposableStore, IDisposable, toDisposable } from '../../../../../../../base/common/lifecycle.js';
 import { isWeb } from '../../../../../../../base/common/platform.js';
 import { mock, upcastPartial } from '../../../../../../../base/test/common/mock.js';
-import { getSessionApplication } from '../../../../common/sessionApplication.js';
+import { getSessionApplication } from '../../../../../../services/sessions/common/sessionApplication.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../../base/test/common/utils.js';
 import { runWithFakedTimers } from '../../../../../../../base/test/common/virtualScheduling/index.js';
 import { URI } from '../../../../../../../base/common/uri.js';
@@ -82,7 +82,7 @@ import { CloudSandboxStartupError } from '../../../../../chat/browser/remoteAgen
 import { CloudSandboxApiService } from '../../../../../chat/browser/remoteAgentHost/cloudSandboxApiService.js';
 import { IAgentHostGroup } from '../../../../common/agentHostSessionsProvider.js';
 import { IAgentHostFilterService } from '../../../../common/agentHostFilter.js';
-import { ISession } from '../../../../common/session.js';
+import { ISession } from '../../../../../../services/sessions/common/session.js';
 import { ISessionsProvider } from '../../../../common/sessionsProvider.js';
 import { ISessionsProvidersService, SessionsProvidersService } from '../../../../browser/sessionsProvidersService.js';
 import { CloudSandboxAgentHostContribution } from '../../browser/cloudSandboxAgentHostContribution.js';

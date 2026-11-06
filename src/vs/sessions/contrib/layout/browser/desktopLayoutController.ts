@@ -12,7 +12,6 @@ import { LifecyclePhase } from '../../../../workbench/services/lifecycle/common/
 import { Parts } from '../../../../workbench/services/layout/browser/layoutService.js';
 import { DesktopChangesEditorTransitionContext } from '../../../../workbench/contrib/sessions/common/contextkeys.js';
 import { ISidePaneState } from '../../../browser/workbench.js';
-import { IShownChat } from '../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import { BaseLayoutController } from './baseSessionLayoutController.js';
 import { IDesktopLayoutContext } from './desktop/desktopLayoutStrategy.js';
 import { DesktopDetailPanelCoordinator } from './desktop/desktopDetailPanelCoordinator.js';
@@ -21,7 +20,8 @@ import { DesktopDraftSessionStrategy } from './desktop/desktopDraftSessionStrate
 import { DesktopExistingSessionStrategy } from './desktop/desktopExistingSessionStrategy.js';
 import { DesktopOwnerCompositionStore } from './desktop/desktopOwnerCompositionStore.js';
 import { DesktopVisibilityProfileStore } from './desktop/desktopVisibilityProfileStore.js';
-import { isSessionCreated, ISession } from '../../../../workbench/contrib/sessions/common/session.js';
+import { isSessionCreated, ISession } from '../../../../workbench/services/sessions/common/session.js';
+import { IShownChat } from '../../../../workbench/services/sessions/common/sessionPane.js';
 
 export { TOGGLE_DETAILS_COMMAND_ID } from './desktop/desktopExistingSessionStrategy.js';
 

@@ -90,6 +90,7 @@ import { ActionType, AuthRequiredReason, type ChatAction, type SessionAction } f
 
 import { AgentConfigurationService, IAgentConfigurationService } from '../../node/agentConfigurationService.js';
 import { AgentHostAuthenticationService, IAgentHostAuthenticationService } from '../../node/agentHostAuthenticationService.js';
+import { AgentHostClientConnectionService, IAgentHostClientConnectionService } from '../../node/agentHostClientConnectionService.js';
 import { AgentHostAuthenticationScope } from '../../node/agentHostAuthenticationScope.js';
 import type { IAgentHostPullRequestResolver } from '../../node/shared/pullRequestResolver.js';
 import { detachedWorktreeRecordUri, IAgentHostWorktreeIsolation, NullAgentHostWorktreeIsolation, SessionWorkingDirectoryMissingError, WorktreeIsolation } from '../../node/shared/worktreeIsolation.js';
@@ -536,7 +537,7 @@ class TestCopilotApiService implements ICopilotApiService {
 class TestSessionDatabase extends SessionDatabase {
 	private _metadataWriteFailure: { readonly key: string; readonly error: Error } | undefined;
 	private _metadataWriteGate: { readonly key: string; readonly wait: Promise<void>; readonly entered: DeferredPromise<void> } | undefined;
-	readonly metadataWrites: { readonly key: string; readonly value: string }[] = [];
+	readonly metadataWrites: { readonly key: string; readonly value: string; readonly turnId?: string }[] = [];
 	private _metadataReadGate: { readonly wait: Promise<void>; readonly entered: DeferredPromise<void> } | undefined;
 
 	gateNextMetadataRead(wait: Promise<void>, entered: DeferredPromise<void>): void {
@@ -546,21 +547,23 @@ class TestSessionDatabase extends SessionDatabase {
 	readonly metadataReadKeys: string[] = [];
 	mirror: Record<string, string> | undefined;
 
-	override async deleteMetadata(keys: readonly string[]): Promise<void> {
-		for (const key of keys) {
-			delete this.mirror?.[key];
+	override async deleteMetadata(keys: readonly string[], turnId?: string): Promise<void> {
+		if (turnId === undefined) {
+			for (const key of keys) {
+				delete this.mirror?.[key];
+			}
 		}
-		return super.deleteMetadata(keys);
+		return super.deleteMetadata(keys, turnId);
 	}
 
-	override async getMetadata(key: string): Promise<string | undefined> {
+	override async getMetadata(key: string, turnId?: string): Promise<string | undefined> {
 		this.metadataReadKeys.push(key);
-		return super.getMetadata(key);
+		return super.getMetadata(key, turnId);
 	}
 
-	override async getMetadataObject<T extends Record<string, unknown>>(obj: T): Promise<{ [K in keyof T]: string | undefined }> {
+	override async getMetadataObject<T extends Record<string, unknown>>(obj: T, turnId?: string): Promise<{ [K in keyof T]: string | undefined }> {
 		this.metadataReadKeys.push(...Object.keys(obj));
-		const result = await super.getMetadataObject(obj);
+		const result = await super.getMetadataObject(obj, turnId);
 		if (this._metadataReadGate) {
 			const gate = this._metadataReadGate;
 			this._metadataReadGate = undefined;
@@ -577,31 +580,35 @@ class TestSessionDatabase extends SessionDatabase {
 		this._metadataWriteGate = { key, wait, entered };
 	}
 
-	override async setMetadata(key: string, value: string): Promise<void> {
-		this.metadataWrites.push({ key, value });
-		if (this.mirror) {
+	override async setMetadata(key: string, value: string, turnId?: string): Promise<void> {
+		this.metadataWrites.push({ key, value, ...(turnId === undefined ? {} : { turnId }) });
+		if (this.mirror && turnId === undefined) {
 			this.mirror[key] = value;
 		}
 		await this._beforeMetadataWrite([key]);
-		await super.setMetadata(key, value);
+		await super.setMetadata(key, value, turnId);
 	}
 
-	override applyMetadataChanges(set: Readonly<Record<string, string>>, remove: readonly string[]): Promise<void> {
+	override applyMetadataChanges(set: Readonly<Record<string, string>>, remove: readonly string[], turnId?: string): Promise<void> {
 		// Session state mirrored by the session state store lands in the session database too.
-		this.metadataWrites.push(...Object.entries(set).map(([key, value]) => ({ key, value })), ...remove.map(key => ({ key, value: '<removed>' })));
-		Object.assign(this.mirror ?? {}, set);
-		for (const key of remove) {
-			delete this.mirror?.[key];
+		this.metadataWrites.push(...Object.entries(set).map(([key, value]) => ({ key, value, ...(turnId === undefined ? {} : { turnId }) })), ...remove.map(key => ({ key, value: '<removed>', ...(turnId === undefined ? {} : { turnId }) })));
+		if (turnId === undefined) {
+			Object.assign(this.mirror ?? {}, set);
+			for (const key of remove) {
+				delete this.mirror?.[key];
+			}
 		}
-		return super.applyMetadataChanges(set, remove);
+		return super.applyMetadataChanges(set, remove, turnId);
 	}
 
-	override async setMetadataValues(values: Readonly<Record<string, string>>): Promise<void> {
+	override async setMetadataValues(values: Readonly<Record<string, string>>, turnId?: string): Promise<void> {
 		const entries = Object.entries(values);
-		this.metadataWrites.push(...entries.map(([key, value]) => ({ key, value })));
-		Object.assign(this.mirror ?? {}, values);
+		this.metadataWrites.push(...entries.map(([key, value]) => ({ key, value, ...(turnId === undefined ? {} : { turnId }) })));
+		if (turnId === undefined) {
+			Object.assign(this.mirror ?? {}, values);
+		}
 		await this._beforeMetadataWrite(entries.map(([key]) => key));
-		await super.setMetadataValues(values);
+		await super.setMetadataValues(values, turnId);
 	}
 
 	private async _beforeMetadataWrite(keys: readonly string[]): Promise<void> {
@@ -1610,6 +1617,7 @@ function createTestAgentContext(disposables: Pick<DisposableStore, 'add'>, optio
 	services.set(IAgentConfigurationService, configService);
 	services.set(IAgentHostManagedSettingsService, managedSettingsService);
 	services.set(IAgentHostStateManager, stateManager);
+	services.set(IAgentHostClientConnectionService, disposables.add(new AgentHostClientConnectionService()));
 	services.set(IAgentHostChatOwnershipService, createTestChatOwnershipService(stateManager));
 	// Narrow host seams the provider consumes instead of the state manager
 	// itself (see §8 of MULTI_CHAT_ARCHITECTURE.md). Both are constructed over
@@ -26092,18 +26100,27 @@ suite('CopilotAgent', () => {
 			const chatB = URI.parse(buildChatUri(session, 'peer-b'));
 			const a = makeFakeChatSession(session, 'sdk-a');
 			const b = makeFakeChatSession(session, 'sdk-b');
+			const send = spy(a.fake, 'send');
+			afterTest(async () => send.restore());
 			setPeerChatStub(agent, chatA, a.fake);
 			setPeerChatStub(agent, chatB, b.fake);
 
-			await agent.chats.sendMessage(chatA, 'hello-a', undefined, undefined, 'turn-a', 'client-1');
+			const originalMessageText = '/review';
+			const prompt = `<context>Host context.</context>\n${originalMessageText}`;
+			await agent.chats.sendMessage(chatA, prompt, undefined, undefined, 'turn-a', 'client-1', {
+				...exactChatContext(session, chatA),
+				originalMessageText,
+			});
 
 			assert.deepStrictEqual({
 				aSends: a.rec.sends.map(s => ({ prompt: s.prompt, turnId: s.turnId, senderClientId: s.senderClientId })),
+				originalMessageText: send.firstCall.args[10],
 				aResets: a.rec.resets,
 				bSends: b.rec.sends,
 				bResets: b.rec.resets,
 			}, {
-				aSends: [{ prompt: 'hello-a', turnId: 'turn-a', senderClientId: 'client-1' }],
+				aSends: [{ prompt, turnId: 'turn-a', senderClientId: 'client-1' }],
+				originalMessageText,
 				aResets: [{ turnId: 'turn-a', senderClientId: 'client-1' }],
 				bSends: [],
 				bResets: [],
@@ -27463,6 +27480,41 @@ suite('CopilotAgent', () => {
 				// Recorded so a replay restores how each tool call was shown, and that this one never ran.
 				toolCalls: { denied: { displayName: 'Run', invocationMessage: 'Running', cancelled: ToolCallCancellationReason.Denied } },
 			});
+		}).timeout(30_000);
+
+		test('reports whether importing a conversation succeeded, and the step and error code it failed at', async () => {
+			const userHome = URI.file(await fs.mkdtemp(`${os.tmpdir()}/import-telemetry-home-`));
+			const workingDirectory = URI.file(await fs.mkdtemp(`${os.tmpdir()}/import-telemetry-cwd-`));
+			const telemetryService = new RecordingTelemetryService();
+			const client = new TestCopilotClient([]);
+			let resumeError: Error | undefined = undefined;
+			client.resumeSession = async () => {
+				if (resumeError) {
+					throw resumeError;
+				}
+				return new MockCopilotSession() as unknown as CopilotSession;
+			};
+			const agent = createTestAgent(disposables, { copilotClient: client, useRealResumePath: true, sessionDataService: createSessionDataService(new InMemorySessionDatabase()), userHome, telemetryService });
+			afterTest(async () => {
+				await fs.rm(userHome.fsPath, { recursive: true, force: true });
+				await fs.rm(workingDirectory.fsPath, { recursive: true, force: true });
+				await disposeAgent(agent);
+			});
+			await agent.authenticate('https://api.github.com', 'token');
+			const turns: Turn[] = [{ id: generateUuid(), state: TurnState.Complete, message: { text: 'q', origin: { kind: MessageKind.User } }, responseParts: [{ kind: ResponsePartKind.Markdown, id: 'response', content: 'ready' }], usage: undefined }];
+
+			await provisionSession(agent, { session: AgentSession.uri('copilotcli', 'import-succeeded'), workingDirectories: [workingDirectory], importConversation: { turns } });
+			// Only an error's code is reported, never its message.
+			resumeError = Object.assign(new Error('The session /private/path could not be resumed'), { code: 'ESESSIONLOCKED' });
+			await assert.rejects(provisionSession(agent, { session: AgentSession.uri('copilotcli', 'import-failed'), workingDirectories: [workingDirectory], importConversation: { turns } }));
+
+			assert.deepStrictEqual(telemetryService.events.filter(event => event.eventName === 'agentHost.conversationImport').map(event => {
+				const { durationMs, ...data } = event.data as Record<string, unknown>;
+				return { ...data, timed: typeof durationMs === 'number' && durationMs >= 0 };
+			}), [
+				{ outcome: 'succeeded', failedStep: 'none', errorCode: 'none', turns: 1, timed: true },
+				{ outcome: 'failed', failedStep: 'resume', errorCode: 'ESESSIONLOCKED', turns: 1, timed: true },
+			]);
 		}).timeout(30_000);
 
 		test('createChat mints a provisional session', async () => {

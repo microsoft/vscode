@@ -10,7 +10,7 @@ import { autorun, constObservable, ISettableObservable, observableValue } from '
 import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { IStorageService, InMemoryStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
-import { IChat, ISession, SessionStatus } from '../../common/session.js';
+import { IChat, ISession, SessionStatus } from '../../../../services/sessions/common/session.js';
 import { ISessionsChangeEvent, ISessionsManagementService } from '../../common/sessionsManagement.js';
 import { ISessionListModelChangeEvent, SessionListModelChangeKind, SessionSortEntry, SessionsListModelService } from '../../browser/sessionsListModelService.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';

@@ -25,7 +25,6 @@ import { isEqual } from '../../../../../base/common/resources.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { localize } from '../../../../../nls.js';
-import { readCustomizationScopeMeta } from '../../../../../platform/agentHost/common/meta/customizationScopeMeta.js';
 import { CustomizationType, McpServerStatus, type PluginCustomization } from '../../../../../platform/agentHost/common/state/protocol/state.js';
 import { ExtensionIdentifier } from '../../../../../platform/extensions/common/extensions.js';
 import { IContextMenuService, IContextViewService } from '../../../../../platform/contextview/browser/contextView.js';
@@ -42,7 +41,8 @@ import { IEditorService } from '../../../../services/editor/common/editorService
 import { ExtensionState, IExtension, IExtensionsWorkbenchService } from '../../../extensions/common/extensions.js';
 import { ILanguageModelToolsService, IToolData, IToolSet } from '../../common/tools/languageModelToolsService.js';
 import { ICustomizationHarnessService } from '../../common/customizationHarnessService.js';
-import { AICustomizationScopes } from '../../common/aiCustomizationWorkspaceService.js';
+import { AICustomizationScopes, AICustomizationSources } from '../../common/aiCustomizationWorkspaceService.js';
+import { getAgentHostCustomizationSource } from '../../common/agentHostSessionCustomizations.js';
 import { IAgentPluginService } from '../../common/plugins/agentPluginService.js';
 import { matchesCustomizationSearchQuery } from '../../common/aiCustomizationSearch.js';
 import { IAgentPluginItem } from '../agentPluginEditor/agentPluginItems.js';
@@ -66,10 +66,7 @@ export function isToolsTreeKeyboardTarget(target: HTMLElement, row: HTMLElement)
 }
 
 export function getPluginToolsGroup(plugin: PluginCustomization): 'user' | 'workspace' | 'application' {
-	const scope = readCustomizationScopeMeta(plugin);
-	return scope === AICustomizationScopes.workspace ? 'workspace'
-		: scope === AICustomizationScopes.application ? 'application'
-			: 'user';
+	return AICustomizationScopes.fromSource(getAgentHostCustomizationSource(plugin) ?? AICustomizationSources.plugin);
 }
 
 interface IToolViewModel {

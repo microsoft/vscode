@@ -5,7 +5,7 @@
 
 import { IReader } from '../../../../base/common/observable.js';
 import { IInboxSessionAttention, InboxNotificationPriority, InboxTab } from './inboxNotificationsService.js';
-import { ISession, SessionStatus } from './session.js';
+import { ISession, SessionStatus } from '../../../services/sessions/common/session.js';
 
 export type SessionInboxState =
 	| { readonly kind: 'done' | 'untilActivity'; readonly activity: string; readonly notificationIds?: readonly string[] }

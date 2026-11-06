@@ -8,7 +8,7 @@ import { ONBOARDING_TARGET_ATTR } from '../../../../../workbench/contrib/onboard
 import { SpotlightOverlay } from '../../../../../workbench/contrib/onboarding/browser/spotlight/spotlightOverlay.js';
 import { ComponentFixtureContext, defineThemedFixtureGroup } from '../../../../../workbench/test/browser/componentFixtures/fixtureUtils.js';
 import { ExternalSessionApplicationBadgeMode, SESSIONS_LIST_EXTERNAL_APPLICATION_BADGE_SETTING, SESSIONS_LIST_EXTERNAL_APPLICATION_BADGE_SHOW_FROM_SETTING, SESSIONS_LIST_GROUP_EXTERNAL_SESSIONS_SETTING, SESSIONS_LIST_INBOX_ENABLED_SETTING, SESSIONS_LIST_INLINE_ACTIONS_SETTING } from '../../../../../workbench/contrib/sessions/common/sessionConfig.js';
-import { ISessionEnvironment, SessionStatus } from '../../../../../workbench/contrib/sessions/common/session.js';
+import { ISessionEnvironment, SessionStatus } from '../../../../../workbench/services/sessions/common/session.js';
 import { ISessionComparison, SessionComparisonParticipantRole } from '../../../../../workbench/contrib/sessions/common/sessionComparison.js';
 import { getTestSessionResource } from '../../../../../workbench/contrib/sessions/test/common/testSessionBuilder.js';
 import { createSessionArchiveTour } from '../../../../../workbench/contrib/sessions/browser/tours/sessionArchiveTour.js';

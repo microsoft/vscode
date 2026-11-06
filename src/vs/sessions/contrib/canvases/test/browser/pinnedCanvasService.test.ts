@@ -22,16 +22,17 @@ import { ILogService, NullLogService } from '../../../../../platform/log/common/
 import { INotificationHandle, INotificationService, NotificationMessage } from '../../../../../platform/notification/common/notification.js';
 import { TestNotificationService } from '../../../../../platform/notification/test/common/testNotificationService.js';
 import { InMemoryStorageService, IStorageService, StorageScope } from '../../../../../platform/storage/common/storage.js';
-import { getCanvasInputResource, ICanvas, ICanvasReference } from '../../../../../workbench/contrib/canvases/common/canvas.js';
+import { getCanvasInputResource } from '../../../../../workbench/contrib/canvases/common/canvas.js';
 import { IChatEntitlementService } from '../../../../../workbench/services/chat/common/chatEntitlementService.js';
 import { AbstractCustomView, ICustomViewService } from '../../../../../workbench/contrib/sessions/browser/customView.js';
 import { CustomViewService } from '../../../../services/customView/browser/customViewService.js';
 import { ISessionsService } from '../../../../../workbench/contrib/sessions/browser/sessionsService.js';
-import { IChat, ISession } from '../../../../../workbench/contrib/sessions/common/session.js';
+import { IChat, ISession } from '../../../../../workbench/services/sessions/common/session.js';
 import { IChatDeletedEvent, ISessionCanvasClosedEvent, ISessionsChangeEvent, ISessionsManagementService } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import { CanvasesPinnedToSidebarContext, IPinnedCanvas, MAX_PINNED_CANVASES, PINNED_CANVAS_PAGE_ID, PinnedCanvasState } from '../../../../../workbench/contrib/sessions/browser/pinnedCanvases.js';
 import { PinnedCanvasService } from '../../browser/pinnedCanvasService.js';
 import { ITestSessionsService, ITestSessionWithChat } from '../../../../../workbench/contrib/sessions/test/browser/sessionHostTestUtils.js';
+import { ICanvas, ICanvasReference } from '../../../../../workbench/common/canvasReference.js';
 
 const STORAGE_KEY = 'sessions.pinnedCanvases';
 

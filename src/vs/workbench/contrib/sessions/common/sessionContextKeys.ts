@@ -6,7 +6,6 @@
 import { IReader } from '../../../../base/common/observable.js';
 import { isEqual } from '../../../../base/common/resources.js';
 import { IContextKey, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
-import { getCanvasReferenceKey } from '../../canvases/common/canvas.js';
 import {
 	SessionHasChangesContext,
 	SessionHasCachedChangesContext,
@@ -40,9 +39,10 @@ import {
 	SessionActiveChatCanvasReferenceKeysContext,
 	SessionHasGitRepositoryContext,
 } from './contextkeys.js';
-import { ChatOriginKind, getChatCapabilities, IChat, isActiveSessionStatus, isSessionCreated, isSideChatOf, ISession, SessionStatus } from './session.js';
-import { ISessionChangesStatsCache, readChatChangesStats, readSessionChangesStats } from './sessionChangesStatsCache.js';
-import { IPaneViewState } from './sessionsManagement.js';
+import { ChatOriginKind, getChatCapabilities, IChat, isActiveSessionStatus, isSessionCreated, isSideChatOf, ISession, SessionStatus } from '../../../services/sessions/common/session.js';
+import { ISessionChangesStatsCache, readChatChangesStats, readSessionChangesStats } from '../../../services/sessions/common/sessionChangesStatsCache.js';
+import { getCanvasReferenceKey } from '../../../common/canvasReference.js';
+import { IPaneViewState } from '../../../services/sessions/common/sessionPane.js';
 
 /**
  * The set of session context keys bound to a single {@link IContextKeyService}.

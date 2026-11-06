@@ -53,12 +53,11 @@ import { ILanguageModelsService } from '../../../chat/common/languageModels.js';
 import { IWorkbenchLayoutService } from '../../../../services/layout/browser/layoutService.js';
 import { Menus } from '../menus.js';
 import { activeSessionViewBackground, activeSessionViewForeground, agentsPanelBackground, inactiveSessionViewBackground } from '../../common/theme.js';
-import { IWorkspaceSelectionSnapshot } from '../../common/workspaceSelection.js';
+import { IWorkspaceSelectionSnapshot } from '../../../../services/sessions/common/workspaceSelection.js';
 import { ISessionsProvidersService, observeSessionSandboxToggle } from '../sessionsProvidersService.js';
-import { ISessionHost, ISessionHostService, SessionHost, SessionHostKind } from '../sessionHost.js';
-import { IChat } from '../../common/session.js';
+import { ISessionHost, ISessionHostService, SessionHost, SessionHostKind } from '../../../../services/sessions/browser/sessionHost.js';
+import { IChat } from '../../../../services/sessions/common/session.js';
 import { ChatInputSupportsBackgroundContext } from '../../common/contextkeys.js';
-import { shownChatOf } from '../../common/sessionsManagement.js';
 import { ISessionInputPickerVisibility, SessionInputPickerVisibility } from '../../common/sessionPickerVisibility.js';
 import { WorkbenchHoverDelegate } from '../../../../../platform/hover/browser/hover.js';
 import { HoverStyle } from '../../../../../base/browser/ui/hover/hover.js';
@@ -76,8 +75,9 @@ import { SessionReferenceCompletions } from './sessionReferenceCompletions.js';
 import { SessionTypePicker } from './sessionTypePicker.js';
 import { ChatInputPickerResponsiveLayout } from '../../../chat/browser/widget/input/chatInputPickerResponsiveLayout.js';
 import { markOnboardingTarget } from '../../../onboarding/browser/spotlight/onboardingTarget.js';
-import { isPhoneLayout } from '../mobileLayout.js';
+import { isPhoneLayout } from '../../../../browser/parts/sessions/mobileLayout.js';
 import { installMobileChipLaneScroll } from '../mobile/mobileChipLaneScroll.js';
+import { shownChatOf } from '../../../../services/sessions/common/sessionPane.js';
 
 /** Body height the composer lays its chat widget out with; the transcript is hidden, so it only bounds the input. */
 const COMPOSER_LAYOUT_HEIGHT = 200;

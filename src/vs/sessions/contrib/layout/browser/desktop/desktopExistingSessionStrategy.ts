@@ -27,10 +27,9 @@ import { Parts } from '../../../../../workbench/services/layout/browser/layoutSe
 import { IAgentWorkbenchLayoutService, ISidePaneState, ISidePaneToggleEvent } from '../../../../browser/workbench.js';
 import { DesktopLayoutContext } from '../../../../../workbench/contrib/sessions/common/contextkeys.js';
 import { HasDockedDetailsContext } from '../../../../common/agentsWindowContextKeys.js';
-import { DockedEditorInput } from '../../../../../workbench/contrib/sessions/browser/dockedEditorInput.js';
-import { IShownChat } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
-import { ISessionWorkspace, isSessionCreated, SessionStatus, ISession } from '../../../../../workbench/contrib/sessions/common/session.js';
-import { ISessionChangesService } from '../../../../../workbench/contrib/sessions/browser/changes/sessionChangesService.js';
+import { DockedEditorInput } from '../../../../../workbench/browser/parts/editor/dockedEditorInput.js';
+import { ISessionWorkspace, isSessionCreated, SessionStatus, ISession } from '../../../../../workbench/services/sessions/common/session.js';
+import { ISessionChangesService } from '../../../../../workbench/contrib/sessionChanges/browser/sessionChangesService.js';
 import { EmptyFileEditorInput } from '../../../../../workbench/contrib/sessions/browser/emptyFileEditorInput.js';
 import { DetailPanelTarget, DesktopDetailPanelCoordinator } from './desktopDetailPanelCoordinator.js';
 import { DesktopDockedTabsCoordinator } from './desktopDockedTabsCoordinator.js';
@@ -38,6 +37,7 @@ import { FilesDetailsState, getFilesDetailsState, isChangesEditorInput, isEditor
 import { IDesktopLayoutContext, DesktopLayoutStrategy } from './desktopLayoutStrategy.js';
 import { ISidePaneVisibilityState, SessionVisibilityProfile, DesktopVisibilityProfileStore } from './desktopVisibilityProfileStore.js';
 import { ISessionEditorWorkingSetService } from '../../common/sessionEditorWorkingSet.js';
+import { IShownChat } from '../../../../../workbench/services/sessions/common/sessionPane.js';
 
 /** Command that toggles the desktop detail panel (auxiliary bar) from the editor header. */
 export const TOGGLE_DETAILS_COMMAND_ID = 'workbench.action.agentSessions.toggleDetails';

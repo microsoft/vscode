@@ -17,7 +17,8 @@ import { ICommandService } from '../../../../platform/commands/common/commands.j
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { INotificationService } from '../../../../platform/notification/common/notification.js';
 import { withChatPillHoverLabel, type IChatPillAction, type IChatPillSection } from '../../../browser/chatPills.js';
-import { getCanvasInstanceLabels, getCanvasReferenceKey, ICanvas, ICanvasContext, ICanvasReference, REVEAL_CANVAS_COMMAND_ID } from '../common/canvas.js';
+import { getCanvasInstanceLabels, ICanvasContext, REVEAL_CANVAS_COMMAND_ID } from '../common/canvas.js';
+import { getCanvasReferenceKey, ICanvas, ICanvasReference } from '../../../common/canvasReference.js';
 
 /**
  * Supplies the canvases pill of a chat input from the canvas context of the chat

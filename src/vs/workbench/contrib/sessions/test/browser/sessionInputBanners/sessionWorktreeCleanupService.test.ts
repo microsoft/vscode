@@ -24,8 +24,8 @@ import { IQuickInputService } from '../../../../../../platform/quickinput/common
 import { IProgress, IProgressOptions, IProgressService, IProgressStep } from '../../../../../../platform/progress/common/progress.js';
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { ISessionsListModelService } from '../../../browser/sessionsListModelService.js';
-import { ISessionHostService } from '../../../browser/sessionHost.js';
-import { DEFAULT_CHAT_CAPABILITIES, IChat, ISession, SessionStatus } from '../../../common/session.js';
+import { ISessionHostService } from '../../../../../services/sessions/browser/sessionHost.js';
+import { DEFAULT_CHAT_CAPABILITIES, IChat, ISession, SessionStatus } from '../../../../../services/sessions/common/session.js';
 import { IManagedSessionWorktree, ISessionsChangeEvent, ISessionsManagementService } from '../../../common/sessionsManagement.js';
 import { AGENT_SESSIONS_STORAGE_CLEANUP_SUGGESTION_SETTING, getWorktreeCleanupId, getWorktreeCleanupTitle, ISessionWorktree, SessionWorktreeCleanupProgress, SessionWorktreeCleanupService } from '../../../browser/sessionInputBanners/sessionWorktreeCleanupService.js';
 

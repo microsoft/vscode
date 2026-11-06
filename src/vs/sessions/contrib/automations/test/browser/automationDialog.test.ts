@@ -69,7 +69,7 @@ import { Menus } from '../../../../../workbench/contrib/sessions/browser/menus.j
 import { AgentsWindowMenus } from '../../../../browser/agentsWindowMenus.js';
 import { MobileSessionTypePicker } from '../../../../../workbench/contrib/sessions/browser/chat/mobile/mobileSessionTypePicker.js';
 import { SessionModelSelection } from '../../../../../workbench/contrib/sessions/browser/chat/sessionModelSelection.js';
-import { GITHUB_REMOTE_FILE_SCHEME, ISession, ISessionWorkspace, SessionTypeAuthRequirement } from '../../../../../workbench/contrib/sessions/common/session.js';
+import { GITHUB_REMOTE_FILE_SCHEME, ISession, ISessionWorkspace, SessionTypeAuthRequirement } from '../../../../../workbench/services/sessions/common/session.js';
 import { IAutomationSessionConfiguration, ISessionsProvider } from '../../../../../workbench/contrib/sessions/common/sessionsProvider.js';
 import { ISessionsManagementService } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import { ISessionsProvidersService } from '../../../../../workbench/contrib/sessions/browser/sessionsProvidersService.js';
@@ -77,7 +77,7 @@ import { AutomationDialogService } from '../../browser/automationDialogService.j
 import { AutomationCustomizationSelection, AutomationIsolationGroupActionViewItem, AutomationSessionDraftSynchronizer, canSelectAutomationWorkspace, getAutomationDialogProviders, IFormState, IValidationState, isAutomationDialogPopupTarget, MobileAutomationsWorkspacePicker, registerAutomationDialogKeyboardNavigation, renderForm, shouldPassThroughAutomationDialogCommand, updateSaveButtonState } from '../../browser/automationDialog.js';
 import { AutomationInputCompletions } from '../../browser/automationInputCompletions.js';
 import { AutomationIsolationModel } from '../../common/isolationGroupModel.js';
-import { SessionHostKind } from '../../../../../workbench/contrib/sessions/browser/sessionHost.js';
+import { SessionHostKind } from '../../../../../workbench/services/sessions/browser/sessionHost.js';
 import { stubSessionHosts } from '../../../../../workbench/contrib/sessions/test/browser/sessionHostTestUtils.js';
 import { createTestActiveSession } from '../../../../test/browser/sessionViewTestUtils.js';
 

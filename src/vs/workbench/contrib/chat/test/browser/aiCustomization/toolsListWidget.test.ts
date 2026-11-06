@@ -6,6 +6,7 @@
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { CustomizationType, type PluginCustomization } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
+import { withCustomizationDiscoveryMeta } from '../../../../../../platform/agentHost/common/meta/customizationDiscoveryMeta.js';
 import { CustomizationToggle } from '../../../browser/aiCustomization/customizationToggle.js';
 import { getPluginToolsGroup, isToolsTreeKeyboardTarget, ToolsListWidget } from '../../../browser/aiCustomization/toolsListWidget.js';
 import { IToolData, IToolSet } from '../../../common/tools/languageModelToolsService.js';
@@ -44,21 +45,22 @@ suite('toolsListWidget', () => {
 		});
 	});
 
-	test('groups plugin tools by advertised scope', () => {
-		const plugin = (scope?: 'user' | 'workspace' | 'application'): PluginCustomization => ({
+	test('derives plugin tool groups from discovery source', () => {
+		const plugin = (source?: string): PluginCustomization => ({
 			type: CustomizationType.Plugin,
-			id: scope ?? 'default',
-			uri: `file:///${scope ?? 'default'}`,
-			name: scope ?? 'default',
-			_meta: scope ? { 'vscode.customization.scope': scope } : undefined,
+			id: source ?? 'default',
+			uri: `other-host:/${source ?? 'default'}`,
+			name: source ?? 'default',
+			_meta: source ? withCustomizationDiscoveryMeta(undefined, { source }) : undefined,
 		});
 
 		assert.deepStrictEqual([
 			getPluginToolsGroup(plugin()),
 			getPluginToolsGroup(plugin('user')),
-			getPluginToolsGroup(plugin('workspace')),
-			getPluginToolsGroup(plugin('application')),
-		], ['user', 'user', 'workspace', 'application']);
+			getPluginToolsGroup(plugin('repository')),
+			getPluginToolsGroup(plugin('builtin')),
+			getPluginToolsGroup(plugin('future-source')),
+		], ['user', 'user', 'workspace', 'application', 'user']);
 	});
 
 	test('search treats dashes and spaces as equivalent separators with highlights', () => {

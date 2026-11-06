@@ -9,7 +9,7 @@ import { IConfigurationService } from '../../../../platform/configuration/common
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { IWorkbenchContribution } from '../../../../workbench/common/contributions.js';
 import { isAgentHostProviderId } from '../../../../workbench/contrib/sessions/common/agentHostSessionsProvider.js';
-import { ISession, SessionStatus } from '../../../../workbench/contrib/sessions/common/session.js';
+import { ISession, SessionStatus } from '../../../../workbench/services/sessions/common/session.js';
 import { ISessionsManagementService } from '../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import { TaskSettingId } from '../../../../workbench/contrib/tasks/common/tasks.js';
 import { ISessionsTasksService } from './sessionsTasksService.js';

@@ -38,7 +38,7 @@ import { getPullRequestKey } from '../../../../workbench/contrib/sessions/common
 import { computePullRequestIcon, GitHubCIOverallStatus, GitHubPullRequestState, IGitHubPullRequestReviewThread } from '../../../../workbench/contrib/sessions/common/github/types.js';
 import { ISessionsProvidersService } from '../../../../workbench/contrib/sessions/browser/sessionsProvidersService.js';
 import { ISessionsManagementService } from '../../../../workbench/contrib/sessions/common/sessionsManagement.js';
-import { getGitHubPullRequestRefs, getSessionStatusMessage, IGitHubPullRequestRef, SessionStatus, type ISession } from '../../../../workbench/contrib/sessions/common/session.js';
+import { getGitHubPullRequestRefs, getSessionStatusMessage, IGitHubPullRequestRef, SessionStatus, type ISession } from '../../../../workbench/services/sessions/common/session.js';
 import { getSessionGitHubReferences } from '../../../../workbench/contrib/sessions/common/github/sessionGitHubReferences.js';
 import {
 	compareInboxNotificationsByRecency,

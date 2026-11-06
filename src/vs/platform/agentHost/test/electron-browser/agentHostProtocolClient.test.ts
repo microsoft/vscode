@@ -4583,6 +4583,12 @@ suite('AgentHostProtocolClient', () => {
 		});
 	});
 
+	test('responds to host liveness pings without requiring a negotiated extension', () => {
+		const { transport } = createClient();
+		transport.fireMessage({ jsonrpc: '2.0', id: 100, method: 'ping', params: { channel: ROOT_STATE_URI } });
+		assert.deepStrictEqual(transport.sentMessages, [{ jsonrpc: '2.0', id: 100, result: null }]);
+	});
+
 	test('ping sends a JSON-RPC request and resolves on response', async () => {
 		const { client, transport } = createClient();
 		const resultPromise = client.ping();

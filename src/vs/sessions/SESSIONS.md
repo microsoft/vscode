@@ -103,7 +103,7 @@ A tab's network is fixed for its lifetime. Tabs opened from the composer follow 
 
 ## Domain model
 
-Provider-neutral interfaces live in `services/sessions/common/session.ts`.
+Provider-neutral interfaces live in `vs/workbench/services/sessions/common/session.ts`.
 
 ### Identity
 
@@ -190,7 +190,7 @@ Recorded GitHub issue and pull request artifacts are resolved from `ISession.art
 
 ## Provider contract
 
-`ISessionsProvider` is defined in `services/sessions/common/sessionsProvider.ts`. A logical provider represents a session destination and may manage several concrete compute environments through internal backends. A provider may advertise multiple session types, and multiple providers may advertise the same logical type. Session and chat resources, session IDs, and backend routing IDs remain stable when a backend belongs to a logical provider; ownership does not rekey existing conversations.
+`ISessionsProvider` is defined in `vs/workbench/contrib/sessions/common/sessionsProvider.ts`. A logical provider represents a session destination and may manage several concrete compute environments through internal backends. A provider may advertise multiple session types, and multiple providers may advertise the same logical type. Session and chat resources, session IDs, and backend routing IDs remain stable when a backend belongs to a logical provider; ownership does not rekey existing conversations.
 
 ### Discovery and catalog
 

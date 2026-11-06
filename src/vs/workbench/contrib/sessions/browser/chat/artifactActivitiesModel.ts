@@ -17,7 +17,7 @@ import { ArtifactRun, ArtifactRunState, ArtifactSnapshot, IArtifactModel, isArti
 import { IChatWidget, IChatWidgetService } from '../../../chat/browser/chat.js';
 import { IChatRequestViewModel, IChatResponseViewModel, isRequestVM, isResponseVM } from '../../../chat/common/model/chatViewModel.js';
 import { ISessionsService } from '../sessionsService.js';
-import { IFocusedSessionHostService } from '../sessionHost.js';
+import { IFocusedSessionHostService } from '../../../../services/sessions/browser/sessionHost.js';
 import { ISessionsManagementService } from '../../common/sessionsManagement.js';
 import { ArtifactDetailsViewState, IArtifactActivitiesViewData, IArtifactActivityViewData } from './artifactDetailsView.js';
 

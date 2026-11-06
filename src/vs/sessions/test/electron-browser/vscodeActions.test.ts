@@ -11,7 +11,7 @@ import { IOpenedMainWindow, IOpenEmptyWindowOptions, IOpenWindowOptions, IWindow
 import { constObservable } from '../../../base/common/observable.js';
 import { URI } from '../../../base/common/uri.js';
 import { getChatSessionToOpenInEditor, openSessionInVSCode, returnToVSCodeEditor, shouldShowReturnToVSCodeEditor } from '../../electron-browser/actions/vscodeActions.js';
-import { IChat, ISession, SessionStatus } from '../../../workbench/contrib/sessions/common/session.js';
+import { IChat, ISession, SessionStatus } from '../../../workbench/services/sessions/common/session.js';
 import { ISessionsProvidersService } from '../../../workbench/contrib/sessions/browser/sessionsProvidersService.js';
 import { IRemoteAgentHostEntry, IRemoteAgentHostService, RemoteAgentHostEntryType } from '../../../platform/agentHost/common/remoteAgentHostService.js';
 import { Codicon } from '../../../base/common/codicons.js';

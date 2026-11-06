@@ -11,7 +11,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/
 import { ServicesAccessor, ServiceIdentifier } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { ILogService, NullLogService } from '../../../../../../platform/log/common/log.js';
 import { IAgentHostDebugLogsExportService } from '../../../../../../workbench/contrib/chat/browser/actions/exportAgentHostDebugLogsAction.js';
-import { IFocusedSessionHostService, ISessionHost, ISessionHostService, SessionHostKind } from '../../../../../../workbench/contrib/sessions/browser/sessionHost.js';
+import { IFocusedSessionHostService, ISessionHost, ISessionHostService, SessionHostKind } from '../../../../../../workbench/services/sessions/browser/sessionHost.js';
 import { ISessionsProvidersService } from '../../../../../../workbench/contrib/sessions/browser/sessionsProvidersService.js';
 import { ISessionsManagementService } from '../../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import { ExportAgentHostDebugLogsAction } from '../../browser/exportDebugLogsAction.js';

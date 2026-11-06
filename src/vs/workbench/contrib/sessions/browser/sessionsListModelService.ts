@@ -17,7 +17,7 @@ import { createDecorator } from '../../../../platform/instantiation/common/insta
 import { observableConfigValue } from '../../../../platform/observable/common/platformObservableUtils.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { AutomationSessionsListMode, SESSIONS_LIST_SHOW_AUTOMATION_SESSIONS_SETTING } from '../common/sessionConfig.js';
-import { ISession, SessionStatus } from '../common/session.js';
+import { ISession, SessionStatus } from '../../../services/sessions/common/session.js';
 import { ISessionsManagementService } from '../common/sessionsManagement.js';
 import { getSessionInboxActivity, isSessionInboxStateCurrent, SessionInboxAction, SessionInboxState } from '../common/sessionInbox.js';
 import { IInboxNotificationsService } from '../common/inboxNotificationsService.js';

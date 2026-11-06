@@ -9,17 +9,17 @@ import { autorun, constObservable, derived, IObservable, observableValue } from 
 import { localize } from '../../../../nls.js';
 import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
-import { createSessionHostServices, ISessionHost, ISessionHostService, SessionHost, SessionHostKind } from '../../../../workbench/contrib/sessions/browser/sessionHost.js';
-import { IChat } from '../../../../workbench/contrib/sessions/common/session.js';
-import { ISessionChangesStatsCache } from '../../../../workbench/contrib/sessions/common/sessionChangesStatsCache.js';
+import { createSessionHostServices, ISessionHost, ISessionHostService, SessionHost, SessionHostKind } from '../../../../workbench/services/sessions/browser/sessionHost.js';
+import { IChat } from '../../../../workbench/services/sessions/common/session.js';
+import { ISessionChangesStatsCache } from '../../../../workbench/services/sessions/common/sessionChangesStatsCache.js';
 import { setHostSessionContextKeys } from '../../../../workbench/contrib/sessions/common/sessionContextKeys.js';
 import { SessionInChatEditorContext } from '../../../../workbench/contrib/sessions/common/contextkeys.js';
-import { ISessionPaneContent } from '../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import { ChatGroupView, IChatGroupContext } from '../../../../workbench/contrib/sessions/browser/parts/chatGroupView.js';
 import { AbstractChatView, ISessionViewHostOptions } from '../../../../workbench/contrib/sessions/browser/parts/chatView.js';
 import { SessionHeader } from '../../../../workbench/contrib/sessions/browser/parts/sessionHeader.js';
 import { Menus } from '../../../../workbench/contrib/sessions/browser/menus.js';
 import { IEditorPaneTitleMenu } from '../../../../workbench/browser/parts/editor/editor.js';
+import { ISessionPaneContent } from '../../../../workbench/services/sessions/common/sessionPane.js';
 
 /**
  * What a chat editor shows of one chat: the header of its session above the chat, with its Session Activity Bar, as a

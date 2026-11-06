@@ -28,20 +28,20 @@ import { IWorkbenchLayoutService, LayoutSettings, ModernUIDensity, Parts } from 
 import { ITitleService } from '../../../../workbench/services/title/browser/titleService.js';
 import { Menus } from '../../../../workbench/contrib/sessions/browser/menus.js';
 import { AgentsWindowMenus } from '../../../browser/agentsWindowMenus.js';
-import { EmptyEditorGroupAddTab } from '../../../../workbench/contrib/sessions/browser/parts/emptyEditorGroupAddTab.js';
-import { observeSessionActivityBarSize, registerSessionActivityBarExternalHost } from '../../../../workbench/contrib/sessions/browser/parts/sessionActivityBarHost.js';
+import { EmptyEditorGroupAddTab } from '../../../../workbench/browser/parts/sessions/emptyEditorGroupAddTab.js';
+import { observeSessionActivityBarSize, registerSessionActivityBarExternalHost } from '../../../../workbench/browser/parts/sessions/sessionActivityBarHost.js';
 import { MenuActivityBar, MenuActivityBarSize } from '../../../../workbench/browser/parts/activitybar/menuActivityBar.js';
 import { IStorageService } from '../../../../platform/storage/common/storage.js';
 import { CustomViewVisibleContext } from '../../../common/agentsWindowContextKeys.js';
 import { AGENTS_FLOATING_PANEL_GAP } from '../../../../workbench/contrib/sessions/common/layoutConstants.js';
 import { SESSION_ACTIVITY_BAR_SETTING } from '../../../../workbench/contrib/sessions/common/sessionConfig.js';
 import { SessionsChatSurface } from '../../../../workbench/contrib/sessions/browser/sessionsChatSurface.js';
-import { bindSessionHostScopeContext, getMainWindowHost, ISessionHost, ISessionHostService, SessionHost, SessionHostKind } from '../../../../workbench/contrib/sessions/browser/sessionHost.js';
+import { bindSessionHostScopeContext, getMainWindowHost, ISessionHost, ISessionHostService, SessionHost, SessionHostKind } from '../../../../workbench/services/sessions/browser/sessionHost.js';
 import { ISessionsService } from '../../../../workbench/contrib/sessions/browser/sessionsService.js';
-import { IChatHostOpenerService } from '../../../../workbench/contrib/sessions/browser/chatHostOpener.js';
-import { IChat, ISession } from '../../../../workbench/contrib/sessions/common/session.js';
-import { ISessionPaneContent, ISessionsManagementService } from '../../../../workbench/contrib/sessions/common/sessionsManagement.js';
-import { bindSessionScopeContextKeys } from '../../../../workbench/contrib/sessions/browser/changes/sessionActionsHost.js';
+import { IChatHostOpenerService } from '../../../../workbench/services/sessions/browser/chatHostOpener.js';
+import { IChat, ISession } from '../../../../workbench/services/sessions/common/session.js';
+import { ISessionsManagementService } from '../../../../workbench/contrib/sessions/common/sessionsManagement.js';
+import { bindSessionScopeContextKeys } from '../../../../workbench/contrib/sessionChanges/browser/sessionActionsHost.js';
 import { SessionChangesEditorFileListContext } from '../../../../workbench/contrib/sessions/common/changes.js';
 import { IChangesViewService } from '../../../../workbench/contrib/sessions/common/changesViewService.js';
 import { ISessionEditorWorkingSetService } from '../../layout/common/sessionEditorWorkingSet.js';
@@ -52,6 +52,7 @@ import { ISessionsListModelService } from '../../../../workbench/contrib/session
 import { ISessionsProvidersService } from '../../../../workbench/contrib/sessions/browser/sessionsProvidersService.js';
 import { getSessionAgentMergeConfigurationObservable } from '../../../../workbench/contrib/sessions/browser/sessionAgentMerge.js';
 import { ChatEditorContent } from '../../chatEditor/browser/chatEditorContent.js';
+import { ISessionPaneContent } from '../../../../workbench/services/sessions/common/sessionPane.js';
 
 /** The class of the element of an Agents chat window. */
 export const AGENTS_CHAT_WINDOW_CLASS = 'agents-chat-window';

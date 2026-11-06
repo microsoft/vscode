@@ -40,7 +40,7 @@ import { Menus } from '../../../../../workbench/contrib/sessions/browser/menus.j
 import { IsPhoneLayoutContext, SessionIsArchivedContext } from '../../../../../workbench/contrib/sessions/common/contextkeys.js';
 import { ARCHIVE_SESSION_COMMAND_ID, SHOW_SESSION_APPLICATION_FILTERS_COMMAND_ID } from '../../../../../workbench/contrib/sessions/common/sessionCommands.js';
 import { SESSIONS_LIST_INBOX_ENABLED_SETTING } from '../../../../../workbench/contrib/sessions/common/sessionConfig.js';
-import { ISession, ISessionEnvironment } from '../../../../../workbench/contrib/sessions/common/session.js';
+import { ISession, ISessionEnvironment } from '../../../../../workbench/services/sessions/common/session.js';
 import { buildTestSession } from '../../../../../workbench/contrib/sessions/test/common/testSessionBuilder.js';
 import { SessionItemContextMenuId, SessionItemInboxStateContext, SessionsGrouping, SessionsList, SessionsSorting } from '../../../../../workbench/contrib/sessions/browser/views/sessionsList.js';
 import { ISessionsListModelService, SessionsListModelService } from '../../../../../workbench/contrib/sessions/browser/sessionsListModelService.js';

@@ -24,16 +24,16 @@ import { decideStackedChatInputOnlyWhileDragging } from '../../../../workbench/c
 import { ChatWindowLayoutMode } from '../../../../workbench/contrib/chatWindow/common/chatWindowLayout.js';
 import { AbstractChatView, ISessionViewHostOptions } from '../../../../workbench/contrib/sessions/browser/parts/chatView.js';
 import { ChatEditorContent } from './chatEditorContent.js';
-import { ISessionPaneContent } from '../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { URI } from '../../../../base/common/uri.js';
 import { EditorInputCapabilities, Verbosity } from '../../../../workbench/common/editor.js';
-import { IChat, ISession, SessionStatus } from '../../../../workbench/contrib/sessions/common/session.js';
+import { IChat, ISession, SessionStatus } from '../../../../workbench/services/sessions/common/session.js';
 import { ISessionsListModelService } from '../../../../workbench/contrib/sessions/browser/sessionsListModelService.js';
 import { getChatCompletedStateIcon, ISessionAgentMergeConfiguration } from '../../../../workbench/contrib/sessions/browser/sessionAgentMerge.js';
 import { getSessionChatAncestors } from '../../../../workbench/contrib/sessions/browser/parts/sessionHeaderBar.js';
 import { getSessionConversationStatusAriaLabel } from '../../../../workbench/contrib/sessions/browser/sessionConversationGroups.js';
+import { ISessionPaneContent } from '../../../../workbench/services/sessions/common/sessionPane.js';
 
 /** The view type of the chat of a session, shown as an editor: the chat part of a chat window shows it. */
 export const SESSION_CHAT_VIEW_TYPE = 'sessions.chat';
