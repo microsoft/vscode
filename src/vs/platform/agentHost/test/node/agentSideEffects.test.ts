@@ -5865,6 +5865,65 @@ suite('AgentSideEffects', () => {
 			}, { status: ToolCallStatus.PendingConfirmation, permissions: [] });
 		});
 
+		for (const approved of [false, true]) {
+			test(`Assisted confirmation requirements override workspace edit auto-approval (${approved})`, async () => {
+				const workingDirectory = URI.file(resolve('/workspace'));
+				setupSession(workingDirectory.toString());
+				startTurn('turn-1');
+				disposables.add(sideEffects.registerProgressListener(agent));
+				agent.fireProgress({
+					kind: 'action', resource: URI.parse(defaultChatUri),
+					action: chatToolCallStart('turn-1', 'tc-assisted-edit', 'write', 'Write'),
+				});
+				agent.fireProgress({
+					kind: 'pending_confirmation', chat: URI.parse(defaultChatUri), requiresUserConfirmation: true,
+					state: {
+						status: ToolCallStatus.PendingConfirmation, toolCallId: 'tc-assisted-edit', toolName: 'write', displayName: 'Write',
+						invocationMessage: 'Delete README.md', confirmationTitle: 'Delete file?',
+					},
+					permissionKind: AgentPermissionKind.Write, permissionPath: URI.joinPath(workingDirectory, 'README.md').fsPath,
+				});
+				const toolCall = await waitForState(stateManager, () => {
+					const part = stateManager.getSessionState(defaultChatUri)?.activeTurn?.responseParts[0];
+					return part?.kind === ResponsePartKind.ToolCall && part.toolCall.status !== ToolCallStatus.Streaming ? part.toolCall : undefined;
+				});
+				assert.deepStrictEqual({ status: toolCall.status, responses: agent.respondToPermissionCalls }, {
+					status: ToolCallStatus.PendingConfirmation, responses: [],
+				});
+
+				const confirmation: ChatAction = approved
+					? { type: ActionType.ChatToolCallConfirmed, turnId: 'turn-1', toolCallId: 'tc-assisted-edit', approved: true, confirmed: ToolCallConfirmationReason.UserAction }
+					: { type: ActionType.ChatToolCallConfirmed, turnId: 'turn-1', toolCallId: 'tc-assisted-edit', approved: false, reason: ToolCallCancellationReason.Denied };
+				stateManager.dispatchClientAction(defaultChatUri, confirmation, { clientId: 'test', clientSeq: 2 });
+				sideEffects.handleAction(defaultChatUri, confirmation);
+				assert.deepStrictEqual(agent.respondToPermissionCalls, [{ requestId: 'tc-assisted-edit', approved }]);
+			});
+		}
+
+		test('Assisted confirmation requirements prevent unattended workspace edit auto-approval', async () => {
+			const workingDirectory = URI.file(resolve('/workspace'));
+			setupSession(workingDirectory.toString());
+			startTurn('turn-1');
+			disposables.add(sideEffects.registerProgressListener(agent));
+			const response = new DeferredPromise<{ approved: boolean; context: IAgentPermissionResponseContext | undefined }>();
+			agent.respondToPermissionRequest = (_requestId, approved, context) => { void response.complete({ approved, context }); };
+			agent.fireProgress({
+				kind: 'pending_confirmation', chat: URI.parse(defaultChatUri), requiresUserConfirmation: true, unattended: true,
+				state: {
+					status: ToolCallStatus.PendingConfirmation, toolCallId: 'tc-assisted-unattended', toolName: 'write', displayName: 'Write',
+					invocationMessage: 'Delete README.md', confirmationTitle: 'Delete file?',
+				},
+				permissionKind: AgentPermissionKind.Write, permissionPath: URI.joinPath(workingDirectory, 'README.md').fsPath,
+			});
+			assert.deepStrictEqual({
+				response: await response.p,
+				pendingConfirmations: stateManager.getSessionState(defaultChatUri)?.activeTurn?.responseParts.filter(part => part.kind === ResponsePartKind.ToolCall && part.toolCall.status === ToolCallStatus.PendingConfirmation).length,
+			}, {
+				response: { approved: false, context: { decisionSource: 'unattended_fallback', userNotAvailable: true } },
+				pendingConfirmations: 0,
+			});
+		});
+
 		for (const autoApproved of [false, true]) {
 			test(`unattended permission requests are never shown as confirmations (autoApproved=${autoApproved})`, async () => {
 				setupSession();

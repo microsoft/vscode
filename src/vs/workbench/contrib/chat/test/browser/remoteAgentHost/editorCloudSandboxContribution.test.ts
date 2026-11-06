@@ -233,6 +233,7 @@ function createHarness(store: Pick<DisposableStore, 'add'>, options?: {
 }) {
 	const instantiationService = store.add(new TestInstantiationService());
 	if (options?.sessionFeed) {
+		options.sessionFeed.takePendingTaskIds ??= () => [];
 		instantiationService.stubInstance(CloudSandboxSessionFeed, options.sessionFeed);
 	}
 	const configuration = new TestConfigurationService({
@@ -871,6 +872,23 @@ suite('Editor cloud sandbox discovery', () => {
 		assert.deepStrictEqual({ before, network: h.networkCalls }, {
 			before: [], network: ['feed', 'list'],
 		});
+	});
+
+	test('first demand after local cache publication starts a network pass', async () => {
+		const storageService = store.add(new InMemoryStorageService());
+		const first = createHarness(store, { storageService });
+		await Promise.all(first.initialRefreshes);
+		first.contribution.dispose();
+		const h = createHarness(store, { storageService, chatVisible: false, workspaceFolders: [], repositories: [] });
+		h.contribution.materializeTasks = false;
+		const shown = new DeferredPromise<void>();
+		store.add(Event.once(h.controllers.get(CLOUD_SANDBOX_TASK_SCHEME)!.onDidChangeChatSessionItems)(() => {
+			queueMicrotask(() => {
+				void h.setChatVisible(true).then(() => shown.complete(), error => shown.error(error));
+			});
+		}));
+		await shown.p;
+		assert.deepStrictEqual(h.networkCalls, ['feed', 'list']);
 	});
 
 	test('disposal before first presentation removes the demand listener', async () => {
