@@ -78,7 +78,7 @@ import { createSessionActionViewItemProvider, getSessionArchiveActionViewItemOpt
 import { HoverStyle, IDelayedHoverOptions } from '../../../../../base/browser/ui/hover/hover.js';
 import { HoverPosition } from '../../../../../base/browser/ui/hover/hoverWidget.js';
 import { getDefaultHoverDelegate } from '../../../../../base/browser/ui/hover/hoverDelegateFactory.js';
-import { ISessionsManagementService, IActiveSession, IShownChat } from '../../../../services/sessions/common/sessionsManagement.js';
+import { inheritableSessionTarget, ISessionsManagementService, IActiveSession, IShownChat } from '../../../../services/sessions/common/sessionsManagement.js';
 import { getMainWindowHost, ISessionHostService, shownChatOf } from '../../../../services/sessions/browser/sessionHost.js';
 import { getSessionComparisonChat, getSessionComparisonHarnessLabel, getSessionComparisonParticipantsInDisplayOrder, ISessionComparison, ISessionComparisonService, SessionComparisonParticipantRole } from '../../../../services/sessions/common/sessionComparison.js';
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
@@ -2665,6 +2665,13 @@ export class SessionSectionRenderer implements ITreeRenderer<SessionListItem, Fu
 	// TODO@BenV: Move automation-specific code into an AutomationSectionRenderer subclass.
 	readonly automationStatus = derived(this, reader => {
 		const automationSessions = this.automationSessions.read(reader);
+		const sessionsByResource = new Map<string, ISession>();
+		for (const session of automationSessions) {
+			const key = this.uriIdentityService.extUri.getComparisonKey(session.resource);
+			if (!sessionsByResource.has(key)) {
+				sessionsByResource.set(key, session);
+			}
+		}
 		const personalAutomationIds = new Set(this.automationService.automations.read(reader)
 			.filter(automation => automation.ownership !== 'repository')
 			.map(automation => automation.id));
@@ -2672,7 +2679,7 @@ export class SessionSectionRenderer implements ITreeRenderer<SessionListItem, Fu
 		// unless the row cannot: a cloud run can still be active while its session reports it finished.
 		const runs = this.automationService.runs.read(reader).map(run => {
 			const sessionResource = run.sessionResource;
-			const session = sessionResource && automationSessions.find(candidate => this.uriIdentityService.extUri.isEqual(candidate.resource, sessionResource));
+			const session = sessionResource && sessionsByResource.get(this.uriIdentityService.extUri.getComparisonKey(sessionResource));
 			return { automationId: run.automationId, status: run.status, session };
 		}).filter(({ status, session }) => {
 			if (!session || !this.isSessionListed(session, reader)) {
@@ -8689,7 +8696,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 	 * of its most recently created session there.
 	 */
 	private getNewSessionEnvironmentActions(section: ISessionSection): readonly IAction[] {
-		const sources = section.repository ? getNewSessionSources(section.sessions, this._sessionsProvidersService) : [];
+		const sources = section.repository ? getNewSessionSources(section.sessions, this._sessionsProvidersService, this._sessionsManagementService) : [];
 		if (sources.length < 2) {
 			return [];
 		}
@@ -9730,22 +9737,20 @@ export interface INewSessionSource {
 	readonly session: ISession;
 }
 
-/**
- * Whether a new session can start in a session's workspace. A folder that only names a repository
- * by URL, like a cloud sandbox session's before its sandbox connects, has no checkout to start in.
- */
-export function canStartNewSessionLike(session: ISession): boolean {
-	return !getGitHubRepositoryOfUrl(session.workspace.get()?.folders[0]?.root);
+/** Whether a session has a reusable workspace or an available provider-supplied creation workspace. */
+export function canStartNewSessionLike(session: ISession, sessionsManagementService: ISessionsManagementService): boolean {
+	const folderUri = session.workspace.get()?.folders[0]?.root;
+	return !getGitHubRepositoryOfUrl(folderUri) || inheritableSessionTarget(sessionsManagementService, session, folderUri).folderUri !== undefined;
 }
 
 /**
  * The most recently created session of each available environment among `sessions`, in
  * Environment filter order. New sessions in a repository section start in their workspaces.
  */
-export function getNewSessionSources(sessions: readonly ISession[], sessionsProvidersService: ISessionsProvidersService): INewSessionSource[] {
+export function getNewSessionSources(sessions: readonly ISession[], sessionsProvidersService: ISessionsProvidersService, sessionsManagementService: ISessionsManagementService): INewSessionSource[] {
 	const sources = new Map<string, INewSessionSource>();
 	for (const session of sessions) {
-		if (!canStartNewSessionLike(session)) {
+		if (!canStartNewSessionLike(session, sessionsManagementService)) {
 			continue;
 		}
 		const environment = sessionsProvidersService.getProvider(session.providerId)?.environment;

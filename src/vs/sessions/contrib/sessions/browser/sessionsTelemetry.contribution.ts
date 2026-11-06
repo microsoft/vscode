@@ -147,11 +147,11 @@ export class SessionsTelemetryContribution extends Disposable implements IWorkbe
 			this._trackProviderForReconciliation(provider);
 		}
 		this._register(sessionsProvidersService.onDidChangeProviders(e => {
-			for (const provider of e.added) {
-				this._trackProviderForReconciliation(provider);
-			}
 			for (const provider of e.removed) {
 				this._providerReconcileListeners.deleteAndDispose(provider.id);
+			}
+			for (const provider of e.added) {
+				this._trackProviderForReconciliation(provider);
 			}
 		}));
 

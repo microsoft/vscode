@@ -3,10 +3,24 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-/* Docked in the column the host keeps at the right of the chat, which the chat is laid out to the left of
- * (`SESSION_ACTIVITY_BAR_COLUMN_WIDTH`); `ChatViewSessionActivityBar` sets `top`. */
+/* Docked in the column the host keeps at the right of the chat, which the chat is laid out to the left of, or in a
+ * column of its own outside the chat (`SESSION_ACTIVITY_BAR_COLUMN_WIDTH`); `ChatViewSessionActivityBar` sets `top`. */
 .monaco-workbench .session-activity-bar-host {
 	position: relative;
+}
+
+/* The main window's column at the right of the side pane: takes the grid cell the workbench lays it out in. */
+.monaco-workbench .session-activity-bar-column {
+	width: 100%;
+	height: 100%;
+}
+
+/* Beside the cards of the main window, the strip is framed like them rather than floating over a chat. */
+.monaco-workbench .session-activity-bar-column .session-activity-bar {
+	border-color: var(--vscode-agentsPanel-border, transparent);
+	border-radius: var(--agents-part-corner-radius);
+	background-color: var(--vscode-agentsPanel-background);
+	box-shadow: none;
 }
 
 .monaco-workbench .session-activity-bar.docked {
@@ -28,43 +42,6 @@
 	border-radius: var(--vscode-cornerRadius-large);
 	background-color: var(--vscode-editorWidget-background);
 	box-shadow: var(--vscode-shadow-md);
-}
-
-.monaco-workbench .session-activity-bar-drag-handle {
-	display: flex;
-	align-items: center;
-	justify-content: center;
-	width: 100%;
-	height: var(--vscode-spacing-size120);
-	border-radius: var(--vscode-cornerRadius-small);
-	cursor: grab;
-	touch-action: none;
-}
-
-/* The gripper's dots run vertically; turn them to run along the top of the vertical strip. Dimmed on the icon
- * rather than the handle, so the hover feedback matches the actions'. */
-.monaco-workbench .session-activity-bar-drag-handle-icon {
-	transform: rotate(90deg);
-	opacity: 0.5;
-}
-
-.monaco-workbench.hc-black .session-activity-bar-drag-handle-icon,
-.monaco-workbench.hc-light .session-activity-bar-drag-handle-icon,
-.monaco-workbench .session-activity-bar-drag-handle:hover .session-activity-bar-drag-handle-icon,
-.monaco-workbench .session-activity-bar-drag-handle.dragging .session-activity-bar-drag-handle-icon {
-	opacity: 1;
-}
-
-/* Same hover and active feedback as the strip's actions. */
-.monaco-workbench .session-activity-bar-drag-handle:hover {
-	background-color: var(--vscode-toolbar-hoverBackground);
-	outline: var(--vscode-strokeThickness) dashed var(--vscode-toolbar-hoverOutline);
-	outline-offset: calc(-1 * var(--vscode-strokeThickness));
-}
-
-.monaco-workbench .session-activity-bar-drag-handle.dragging {
-	cursor: grabbing;
-	background-color: var(--vscode-toolbar-activeBackground);
 }
 
 .monaco-workbench .session-activity-bar.hidden,

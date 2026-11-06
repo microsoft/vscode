@@ -34,8 +34,9 @@
 	display: flex;
 	align-items: center;
 	gap: var(--vscode-spacing-size40);
-	min-height: 1.4em;
-	margin-top: var(--vscode-spacing-size80);
+	height: 1.4em;
+	flex: none;
+	margin-bottom: var(--vscode-spacing-size80);
 	color: var(--vscode-descriptionForeground);
 	font-size: var(--vscode-fontSize-label1);
 	line-height: 1.4;
@@ -43,6 +44,28 @@
 
 .new-session-send-status > .codicon {
 	font-size: var(--vscode-codiconFontSize-compact);
+}
+
+@media (prefers-reduced-motion: no-preference) {
+	.monaco-workbench:not(.monaco-reduce-motion) .new-session-send-status > .new-session-send-status-message,
+	.monaco-workbench:not(.monaco-reduce-motion) .new-session-send-status > .monaco-link {
+		animation: new-session-send-fade-in 180ms ease-out;
+	}
+
+	.monaco-workbench:not(.monaco-reduce-motion) .new-session-send-status > .codicon {
+		animation: new-session-send-check-pop 320ms ease-out;
+	}
+}
+
+@keyframes new-session-send-fade-in {
+	from { opacity: 0; }
+	to { opacity: 1; }
+}
+
+@keyframes new-session-send-check-pop {
+	0% { opacity: 0; transform: scale(0.7); }
+	65% { opacity: 1; transform: scale(1.15); }
+	100% { opacity: 1; transform: scale(1); }
 }
 
 .new-chat-widget-container.revealed .new-chat-input-container {
