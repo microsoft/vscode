@@ -41,6 +41,8 @@ export const RunAutomationToolId = 'vscode_runAutomation';
 export const DeleteAutomationToolId = 'vscode_deleteAutomation';
 
 const automationToolWhen = ContextKeyExpr.and(ChatContextKeys.enabled, ChatAutomationsEnabledContext);
+const createEnabledConfirmationId = 'create-enabled';
+const createDisabledConfirmationId = 'create-disabled';
 const deleteAutomationConfirmationId = 'delete';
 const automationIntervals: readonly AutomationInterval[] = ['manual', 'hourly', 'daily', 'weekdays', 'weekly'];
 const automationIsolationKinds: readonly AutomationWorkspaceIsolation['kind'][] = ['default', 'folder', 'worktree'];
@@ -506,13 +508,15 @@ Use "sessionTemplate" for provider-owned Model, Agent, Mode, Approvals, and othe
 
 Use "customizationIds" to preserve an explicit customization selection. An empty array selects none. Omission uses all enabled target customizations when creating, and preserves saved selections when updating. The selected provider must support the supplied selection.
 
-Cloud automations default to user-owned and require a private or internal GitHub.com repository with default isolation. Set "ownership": "repository" only when creating a shared automation: repository readers can view it and writers can manage it. Ownership cannot change after creation. Daily/weekly cloud schedules require "timeZone": "UTC" and minutes 0, 15, 30, or 45. "manual" removes the schedule. Creation defaults to enabled: scheduled work runs without VS Code and may consume credits. Set "enabled": false to save without scheduling.
+Cloud automations default to user-owned and require a private or internal GitHub.com repository with default isolation. Set "ownership": "repository" only when creating a shared automation: repository readers can view it and writers can manage it. Ownership cannot change after creation. Daily/weekly cloud schedules require "timeZone": "UTC" and minutes 0, 15, 30, or 45. "manual" removes the schedule. Scheduled cloud work runs without VS Code and may consume credits.
 
 For cloud event automations, set schedule.interval to "manual" and provide "cloudTrigger" from a ready provider trigger catalog. Set requireActorWritePermission explicitly; true is least privilege. Repository settings may require it. Event triggers can be set only during creation through this tool.
 
 For cloud, use "sessionTemplate.modelId" and "sessionTemplate.config" with an explicit "tools" array of IDs from the ready provider catalog and optional "reasoningEffort". Use an empty tools array for least privilege when no tools are needed. Preserve saved tool IDs outside that catalog on unrelated updates. Cloud template reset (null), custom agents, modelConfiguration, local mode/approval settings, and MCP management are not supported.
 
-The change uses the current tool-approval policy. When approval is required, the user sees a normal tool confirmation. If the user cancels or denies the request, do not retry unless they ask you to. An unknown result may already have changed remote state; refresh with listAutomations before considering another request.`,
+Use "enabled" only on updates. On creation, the user chooses Create Enabled or Create Disabled in the tool confirmation; do not provide "enabled". If approval is automatic, new automations are enabled.
+
+The change uses the current tool-approval policy. If the user cancels or denies the request, do not retry unless they ask you to. An unknown result may already have changed remote state; refresh with listAutomations before considering another request.`,
 			source: ToolDataSource.Internal,
 			when: automationToolWhen,
 			runsInWorkspace: false,
@@ -675,7 +679,7 @@ The change uses the current tool-approval policy. When approval is required, the
 					},
 					enabled: {
 						type: 'boolean',
-						description: 'Whether scheduled runs are enabled. Defaults to true when creating.',
+						description: 'Updates only: whether scheduled runs are enabled. Omit on create; the user chooses the initial state in the confirmation.',
 					},
 				},
 			},
@@ -723,6 +727,11 @@ The change uses the current tool-approval policy. When approval is required, the
 						"Create the automation **{0}**?",
 						proposal.initialValues.name,
 					)),
+				customOptions: existing ? undefined : [
+					{ id: createEnabledConfirmationId, label: localize('automation.tool.configure.create.enabled', "Create Enabled"), kind: ConfirmationOptionKind.Approve },
+					{ id: createDisabledConfirmationId, label: localize('automation.tool.configure.create.disabled', "Create Disabled"), kind: ConfirmationOptionKind.Approve },
+					{ id: 'cancel', label: localize('automation.tool.configure.create.cancel', "Cancel"), kind: ConfirmationOptionKind.Deny },
+				],
 			},
 			toolSpecificData: proposal.kind === 'update'
 				? {
@@ -755,10 +764,16 @@ The change uses the current tool-approval policy. When approval is required, the
 
 		try {
 			if (proposal.kind === 'create') {
+				if (invocation.selectedCustomButton !== undefined
+					&& invocation.selectedCustomButton !== createEnabledConfirmationId
+					&& invocation.selectedCustomButton !== createDisabledConfirmationId) {
+					return this.completeOperation('create', automationToolCancelled());
+				}
 				const target = proposal.validateTargetAvailability
 					? this.resolveAvailableTarget(proposal.initialValues.target)
 					: proposal.initialValues.target;
-				return this.completeOperation('create', await this.applyCreate({ ...proposal.initialValues, target }, token));
+				const enabled = invocation.selectedCustomButton !== createDisabledConfirmationId;
+				return this.completeOperation('create', await this.applyCreate({ ...proposal.initialValues, target, enabled }, token));
 			}
 
 			const prepared = invocation.toolSpecificData?.kind === 'automationConfiguration'
@@ -1024,6 +1039,9 @@ The change uses the current tool-approval policy. When approval is required, the
 			throw new AutomationToolInputError('Legacy "modelId", "mode", and "permissionLevel" aliases cannot update an automation with a canonical session template. Pass the complete updated "sessionTemplate" returned by listAutomations.');
 		}
 		const enabled = readOptionalBoolean(input, 'enabled');
+		if (!existing && enabled !== undefined) {
+			throw new AutomationToolInputError('"enabled" can only be set when updating an automation. The user chooses Create Enabled or Create Disabled in the creation confirmation.');
+		}
 
 		const proposedValues: IUpdateAutomationOptions = {
 			...(name !== undefined ? { name } : {}),
@@ -1064,7 +1082,6 @@ The change uses the current tool-approval policy. When approval is required, the
 				...(mode ? { mode } : {}),
 				...(permissionLevel ? { permissionLevel } : {}),
 				...(sessionTemplate ? { sessionTemplate } : {}),
-				...(enabled !== undefined ? { enabled } : {}),
 				...(ownership !== undefined ? { ownership } : {}),
 				...(customizationIds !== undefined ? { customizationIds } : {}),
 			},

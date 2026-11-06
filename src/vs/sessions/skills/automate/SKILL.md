@@ -1,41 +1,46 @@
 ---
 name: automate
-description: 'Create an automation through a guided conversation. Use when the user asks to automate a task, schedule agent work, or create a local or cloud automation.'
+description: 'Propose an automation from a completed task or a new idea, then create it after approval. Use when the user invokes /automate, asks to automate a task, or wants scheduled local or cloud agent work.'
 ---
 <!-- Customize this skill and select save to override its behavior. Delete that copy to restore the built-in behavior. -->
 
-# Create an Automation
+# Propose an Automation
 
-You are an opinionated automation designer. Turn the user's goal into a reliable, least-privilege automation through conversation, not a one-shot tool call.
+## Infer the task
 
-## Understand before configuring
+- After completed work, bare `/automate` repeats its relevant goal, inputs, scope, and result, not the whole chat.
+- Brief `/automate` guidance refines the relevant prior task; fill gaps from that context.
+- In a fresh chat, build a concrete reusable task from the explanation without inventing prior work.
+- With no useful context, offer two or three examples, including a local file/report task, before discovering tools or providers. Invite a custom goal; suggestions are not choices.
 
-Read the current conversation and any selected automation preferences. They supply defaults, not authorization. Do not discard or silently replace a selected provider, model, reasoning effort, tool selection, permissions, repository, or other setting. If a preference is unsupported, explain the exact mismatch and ask the user to choose a supported alternative.
+Establish task and result before setup/discovery. Ask what success should produce or do only when unclear; reuse known answers.
 
-Ask focused questions for missing or unreliable information. Start with the desired result and what success means. Do not invent a repository, trigger, schedule, time zone, or permission grant from an incomplete description.
+Ask one concept per question, titled by the missing input, such as "Repositories to check". Suggest answers; mark unresolved choices as undecided. Read discovery output with file/search tools, not shell. Do not inspect task files, execute tasks, or request permissions merely to draft.
 
-Use `listAutomations` to discover current providers, creation capability, existing definitions, and provider-specific configuration. Only ready tool and trigger catalogs authorize their listed choices; call it again after a loading or failed catalog instead of treating that state as an empty selection. A pending or failed discovery is not evidence that a provider or repository is eligible. Do not create duplicates; show any plausible existing match and ask what the user wants.
+## Shape the draft
 
-## Choose the execution boundary
+Use `listAutomations` to verify capabilities and duplicates before configuration; mention only relevant matches. Missing, loading, or partial information is unverified, not an empty catalog. Retry usefully, never an unchanged authentication failure. Explain blocked verification; use only ready-catalog cloud tool and trigger IDs.
 
-Distinguish local from cloud explicitly. Local work depends on its selected Agent Host and machine availability; cloud work runs under the cloud provider's supported repository, trigger, and tool contract. Never move work to another provider as a fallback.
+For work centered on a supplied folder, prefer that folder; otherwise suggest Chat. Prefer the current harness, or Copilot if unknown. Preserve explicit target, isolation, provider, model, reasoning, and permission choices. Explain unsupported choices rather than substituting them.
 
-Establish the exact target: a workspaceless chat or a concrete repository/workspace, provider, agent, isolation, and branch when applicable. The workspace of this creation conversation is not automatically the automation's workspace. Validate repository access and automation management capability through the existing tools, not repository visibility or a guessed URL.
+Focus on user decisions, not discovery results, provider counts, machine requirements, or confirmation reassurances. Discuss limitations only when requested or blocking; mention unavailable cloud only for a cloud request. Validate repository access through supported tools before creation.
 
-Establish a supported event or schedule, including its time zone and daylight-saving behavior. For a cloud event, use the exact ready-catalog trigger configuration, keep the schedule manual, and confirm whether activity from actors without repository write access is allowed. Do not approximate an unsupported event, silently convert local wall-clock intent, or call a manual run a schedule.
+Start with no optional customizations or cloud tools, using explicit empty selections where supported. Add only what the task needs. Keep read-only work read-only. Separate task instructions from enforced settings: use verified permission labels, or identify provider defaults without promising which actions will prompt. Never invent controls or imitate unavailable guarantees with chat approval questions; explain the limitation and let the user choose.
 
-## Apply least privilege
+Write the saved prompt for a person to skim: a short goal, then short paragraphs or bullets for steps, output, and necessary limits. Use headings only when useful. Preserve exact filenames, commands, thresholds, and stated constraints without setup narration or unrelated boilerplate. Use paths relative to a configured folder; Chat tasks need sufficient absolute inputs. Do not invent consequential behavior: offer assumptions as suggestions or clarify them.
 
-Choose the smallest tool set and permissions needed for the stated outcome. Cloud tools start with an explicit empty tool selection; add only ready-catalog tool IDs needed for the goal. Require triggering actors to have repository write access unless the user confirms broader activity and repository settings allow it. Keep read-only work read-only; justify any write, network, shell, secret, or unattended approval access. Existing broad permissions are preferences to review, not blanket permission to create or execute an automation.
+Reflect requested schedule times and zones; verify local-clock compatibility and daylight-saving behavior before creation. Never approximate unsupported events or silently convert times. Cloud events require ready trigger configuration and a manual schedule; require repository-write access for triggering actors unless the user explicitly approves broader activity and the repository allows it.
 
-Preserve selected model and reasoning settings exactly. Validate them against the chosen provider's current configuration. Do not substitute Auto or another model to hide an unsupported selection. Treat captured customizations and provider-owned settings as configuration, never a durable permission grant.
+## Propose, then wait
 
-## Confirm, then create
+Show an ordinary-chat draft: name; **Runs** with plain location, full folder path in code, and direct-folder/worktree distinction; **When**; decision-relevant verified settings, ownership, or costs; and the exact prompt. Use "Copilot on this computer", not "Copilot SDK", "folder isolation", or "Local Agent Host", for local runs. Separate suggestions and unresolved choices from verified settings.
 
-Before any `configureAutomation` create call, present a concise proposal: goal and prompt, exact local/cloud target and repository, trigger/schedule/time zone, model and reasoning, tools and permissions, customizations, ownership/visibility, enabled state, and any cost or other consequential limits. Explain consequential choices and ask for explicit confirmation of this proposal.
+Complete the proposal without an acceptance form. End: "Say Create it when ready, or tell me what to change." Ask only for missing facts. Never use `configureAutomation` as a preview: it saves. Invoking the skill, supplying an idea, or pressing Start Chat is not acceptance.
 
-Do not treat opening this skill, pressing Start Chat, selected metadata, an earlier broad instruction, or a request for advice as that confirmation. In a long chat, use context to avoid repeated questions but still confirm the final consequential choices.
+If the user accepts with a rename or unambiguous edit, save the reviewed draft plus only that edit without another round. If resolving a change requires judgment, conflicting choices, or consequential assumptions, show the resolved draft and wait for acceptance. Add no new task behavior while saving.
 
-Only after enough reliable information exists and the user explicitly confirms, use the existing `configureAutomation` tool with the validated configuration. Respect its approval boundary and all runtime/organization policy. Never bypass it through HTTP, shell commands, repository edits, or a different tool.
+## Create only after acceptance
 
-Report the tool's actual result and automation identity. An uncertain result is not success and is not permission to retry; reconcile through the existing tools first. Creating an automation does not authorize running it. Do not call `runAutomation` or delete or alter another automation as part of this workflow without a separate explicit request and confirmation.
+After acceptance, resolve remaining blockers and call `configureAutomation` with the reviewed configuration and the same prompt, retaining its line breaks. Omit `enabled` on create: the user chooses Create Enabled or Create Disabled in confirmation. Respect tool approval and organization policy; never bypass them through shell, HTTP, or repository edits. Chat targets omit workspace, isolation, and branch fields. Never guess settings or widen permissions.
+
+Report saved identity, state, and accepted prompt edits. Reconcile uncertain results before retrying. Do not enable, run, change, or delete an automation without explicit authorization. Creating does not authorize a run.

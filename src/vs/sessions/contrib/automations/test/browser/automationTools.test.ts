@@ -359,7 +359,7 @@ suite('AutomationTools', () => {
 			const service = new FakeAutomationService([existing]);
 			service.customizationChoices = [{ id: 'read-plugin', label: 'Read', selected: true, outdated: false }];
 			const tool = createConfigureAutomationTool(service, new FakeSessionsManagementService(createSession({ workspace: FOLDER })), createConfigurationService());
-			await invoke(tool, { name: 'New', prompt: 'Review', schedule: { interval: 'manual' }, customizationIds, enabled: false });
+			await invoke(tool, { name: 'New', prompt: 'Review', schedule: { interval: 'manual' }, customizationIds });
 			await invoke(tool, { automationId: existing.id, customizationIds });
 			assert.deepStrictEqual({
 				created: service.created.map(options => options.customizationIds),
@@ -373,7 +373,7 @@ suite('AutomationTools', () => {
 		service.configuration = upcastPartial<IAutomationProviderConfiguration>({ sessionTypes: ['cloud'] });
 		const tool = createConfigureAutomationTool(service, new FakeSessionsManagementService(undefined, false, [providerSessionType('cloud', 'cloud')]), createConfigurationService());
 		const parameters = {
-			name: 'Shared review', prompt: 'Review', schedule: { interval: 'manual' }, enabled: false,
+			name: 'Shared review', prompt: 'Review', schedule: { interval: 'manual' },
 			target: { kind: 'workspace', folderUri: FOLDER.toString(), providerId: 'cloud', sessionTypeId: 'cloud' },
 			ownership: 'repository',
 		};
@@ -421,13 +421,13 @@ suite('AutomationTools', () => {
 		const target = { kind: 'workspace', folderUri: FOLDER.toString(), providerId: 'cloud', sessionTypeId: 'cloud' };
 		const cloudTrigger = { triggers: { issues: { types: ['opened'] } }, requireActorWritePermission: true };
 		const selectedTemplate = { modelId: 'gpt-test', config: { tools: ['read'], reasoningEffort: 'high' } };
-		const base = { name: 'Issue review', prompt: 'Review the issue', schedule: { interval: 'manual' }, target, enabled: false };
+		const base = { name: 'Issue review', prompt: 'Review the issue', schedule: { interval: 'manual' }, target };
 
 		const missingTools = await invoke(tool, { ...base, cloudTrigger, sessionTemplate: { modelId: 'gpt-test', config: { reasoningEffort: 'high' } } });
 		const unsupportedTool = await invoke(tool, { ...base, cloudTrigger, sessionTemplate: { ...selectedTemplate, config: { ...selectedTemplate.config, tools: ['write'] } } });
 		const broadTrigger = await invoke(tool, { ...base, cloudTrigger: { ...cloudTrigger, requireActorWritePermission: false }, sessionTemplate: selectedTemplate });
 		const unsupportedTrigger = await invoke(tool, { ...base, cloudTrigger: { ...cloudTrigger, triggers: { issues: { types: ['closed'] } } }, sessionTemplate: selectedTemplate });
-		const result = await invoke(tool, { ...base, cloudTrigger, sessionTemplate: selectedTemplate });
+		const result = await invoke(tool, { ...base, cloudTrigger, sessionTemplate: selectedTemplate }, SESSION_RESOURCE, CancellationToken.None, 'create-disabled');
 		const created = service.created[0];
 		const returned = JSON.parse(getText(result)).automation;
 
@@ -513,7 +513,7 @@ suite('AutomationTools', () => {
 		assert.deepStrictEqual({
 			scope: description.includes('user-owned') && description.includes('private or internal'),
 			schedule: description.includes('"timeZone": "UTC"') && description.includes('"manual" removes'),
-			enabled: description.includes('Creation defaults to enabled'),
+			enabled: description.includes('Use "enabled" only on updates') && description.includes('Create Enabled or Create Disabled') && description.includes('If approval is automatic, new automations are enabled'),
 			catalog: description.includes('ready provider catalog'),
 			reset: description.includes('Cloud template reset (null)'),
 			credits: description.includes('may consume credits'),
@@ -1114,7 +1114,7 @@ suite('AutomationTools', () => {
 		});
 	});
 
-	test('configureAutomation prepares normal create and update confirmations', async () => {
+	test('configureAutomation offers creation state choices without changing update confirmation', async () => {
 		const existing = createAutomation();
 		const tool = createConfigureAutomationTool(
 			new FakeAutomationService([existing]),
@@ -1143,6 +1143,7 @@ suite('AutomationTools', () => {
 					? createPrepared.confirmationMessages.message
 					: createPrepared.confirmationMessages?.message?.value,
 				toolSpecificData: createPrepared.toolSpecificData,
+				options: createPrepared.confirmationMessages?.customOptions,
 			},
 			update: {
 				title: updatePrepared.confirmationMessages?.title,
@@ -1152,19 +1153,88 @@ suite('AutomationTools', () => {
 				expectedId: updatePrepared.toolSpecificData?.kind === 'automationConfiguration'
 					? updatePrepared.toolSpecificData.expectedAutomationId
 					: undefined,
+				options: updatePrepared.confirmationMessages?.customOptions,
 			},
 		}, {
 			create: {
 				title: 'Create Automation?',
 				message: 'Create the automation **Morning review**?',
 				toolSpecificData: undefined,
+				options: [
+					{ id: 'create-enabled', label: 'Create Enabled', kind: ConfirmationOptionKind.Approve },
+					{ id: 'create-disabled', label: 'Create Disabled', kind: ConfirmationOptionKind.Approve },
+					{ id: 'cancel', label: 'Cancel', kind: ConfirmationOptionKind.Deny },
+				],
 			},
 			update: {
 				title: 'Update Automation?',
 				message: 'Apply the proposed changes to **Daily review** (`automation-1`)?',
 				expectedId: existing.id,
+				options: undefined,
 			},
 		});
+	});
+
+	for (const { selection, enabled } of [
+		{ selection: undefined, enabled: true },
+		{ selection: 'create-enabled', enabled: true },
+		{ selection: 'create-disabled', enabled: false },
+	]) {
+		test(`configureAutomation creates ${enabled ? 'enabled' : 'disabled'} for ${selection ?? 'automatic approval'}`, async () => {
+			const service = new FakeAutomationService();
+			const tool = createConfigureAutomationTool(service, new FakeSessionsManagementService(createSession({ quickChat: true })), createConfigurationService());
+			const result = await invoke(tool, {
+				name: 'Review', prompt: 'Review changes', schedule: { interval: 'manual' },
+			}, SESSION_RESOURCE, CancellationToken.None, selection);
+			assert.deepStrictEqual({
+				requestedStates: service.created.map(options => options.enabled),
+				savedState: JSON.parse(getText(result)).automation.enabled,
+			}, { requestedStates: [enabled], savedState: enabled });
+		});
+	}
+
+	for (const selection of ['cancel', 'unknown-choice']) {
+		test(`configureAutomation does not create for ${selection}`, async () => {
+			const service = new FakeAutomationService();
+			const tool = createConfigureAutomationTool(service, new FakeSessionsManagementService(createSession({ quickChat: true })), createConfigurationService());
+			const result = await invoke(tool, {
+				name: 'Review', prompt: 'Review changes', schedule: { interval: 'manual' },
+			}, SESSION_RESOURCE, CancellationToken.None, selection);
+			assert.deepStrictEqual({
+				result: JSON.parse(getText(result)),
+				created: service.created,
+			}, { result: { status: 'cancelled', message: 'The automation change was cancelled. No changes were made.' }, created: [] });
+		});
+	}
+
+	for (const enabled of [true, false]) {
+		test(`configureAutomation rejects agent-selected enabled=${enabled} on create`, async () => {
+			const service = new FakeAutomationService();
+			const tool = createConfigureAutomationTool(service, new FakeSessionsManagementService(createSession({ quickChat: true })), createConfigurationService());
+			const parameters = { name: 'Review', prompt: 'Review changes', schedule: { interval: 'manual' }, enabled };
+			await assert.rejects(
+				tool.prepareToolInvocation!({ parameters, toolCallId: 'create-call', chatSessionResource: SESSION_RESOURCE }, CancellationToken.None),
+				/"enabled" can only be set when updating/,
+			);
+			const result = await invoke(tool, parameters, SESSION_RESOURCE, CancellationToken.None, enabled ? 'create-disabled' : 'create-enabled');
+			assert.deepStrictEqual({
+				error: result.toolResultError,
+				created: service.created,
+			}, {
+				error: '"enabled" can only be set when updating an automation. The user chooses Create Enabled or Create Disabled in the creation confirmation.',
+				created: [],
+			});
+		});
+	}
+
+	test('configureAutomation still accepts explicit enablement updates', async () => {
+		const existing = createAutomation();
+		const service = new FakeAutomationService([existing]);
+		const tool = createConfigureAutomationTool(service, new FakeSessionsManagementService(undefined), createConfigurationService());
+		for (const enabled of [false, true]) {
+			await invoke(tool, { automationId: existing.id, enabled });
+		}
+		assert.deepStrictEqual(service.updated.map(update => update.patch), [{ enabled: false }, { enabled: true }]);
 	});
 
 	test('configureAutomation schema offers local weekdays schedules', () => {
@@ -1260,7 +1330,6 @@ suite('AutomationTools', () => {
 			name: 'Morning review',
 			prompt: 'Review open pull requests',
 			schedule: { interval: 'daily', scheduleHour: 8, scheduleMinute: 30 },
-			enabled: true,
 		}, CHAT_RESOURCE);
 
 		assert.deepStrictEqual({
