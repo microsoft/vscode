@@ -35,7 +35,6 @@ import { ISessionsProvidersService } from '../../../../../../workbench/contrib/s
 import { ISessionsService } from '../../../../../../workbench/contrib/sessions/browser/sessionsService.js';
 import { ISessionsPartService } from '../../../../../../workbench/contrib/sessions/browser/sessionsPartService.js';
 import { IAgentHostSessionsProvider } from '../../../../../../workbench/contrib/sessions/common/agentHostSessionsProvider.js';
-import { IActiveSession } from '../../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import { SessionView } from '../../../../../../workbench/contrib/sessions/browser/parts/sessionView.js';
 import { ISessionWorkspace, SESSION_WORKSPACE_GROUP_REMOTE } from '../../../../../../workbench/contrib/sessions/common/session.js';
 import { SessionWorkspacePickerGroupContext } from '../../../../../../workbench/contrib/sessions/common/contextkeys.js';
@@ -53,7 +52,7 @@ import { IInstantiationService } from '../../../../../../platform/instantiation/
 import { ILogService, NullLogService } from '../../../../../../platform/log/common/log.js';
 import { ChatContextKeys } from '../../../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
 import { getVisibleRemoteKinds, RemoteKind } from '../../../../../../workbench/contrib/sessions/providers/remoteAgentHost/browser/remotesModel.js';
-import { ITestSessionsService } from '../../../../../../workbench/contrib/sessions/test/browser/sessionHostTestUtils.js';
+import { ITestSessionsService, ITestSessionWithChat } from '../../../../../../workbench/contrib/sessions/test/browser/sessionHostTestUtils.js';
 
 suite('Remote Agent Host actions', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -136,7 +135,7 @@ suite('Remote Agent Host actions', () => {
 			}());
 			instantiation.stub(ISessionsProvidersService, { getProviders: () => outcome === 'missing-provider' ? [] : [provider] });
 			instantiation.stub(ISessionsService, upcastPartial<ITestSessionsService>({
-				activeSession: observableValue<IActiveSession | undefined>('activeSession', undefined),
+				activeSession: observableValue<ITestSessionWithChat | undefined>('activeSession', undefined),
 				openNewSession: async () => {
 					calls.push({ openNewSession: true });
 					return { session: undefined, trustDeclined: false };
@@ -191,7 +190,7 @@ suite('Remote Agent Host actions', () => {
 		instantiation.stub(ILogService, new NullLogService());
 		instantiation.stub(ISessionsProvidersService, { getProviders: () => [provider] });
 		instantiation.stub(ISessionsService, upcastPartial<ITestSessionsService>({
-			activeSession: observableValue<IActiveSession | undefined>('activeSession', undefined),
+			activeSession: observableValue<ITestSessionWithChat | undefined>('activeSession', undefined),
 			openNewSession: async () => {
 				calls.push('open');
 				opening.complete();

@@ -35,7 +35,8 @@ export function createSessionActionsInstantiationService(instantiationService: I
  */
 export function bindSessionScopeContextKeys(instantiationService: IInstantiationService, scope: IChangesSessionScope, contextKeyService: IContextKeyService): IDisposable {
 	const store = new DisposableStore();
-	store.add(autorun(reader => setHostSessionContextKeys(scope.session.read(reader), scope.chat.read(reader), contextKeyService, reader)));
+	// The keys of the pane that shows the session, such as its pin, are those of the grid's views, not of these actions.
+	store.add(autorun(reader => setHostSessionContextKeys(scope.session.read(reader), scope.chat.read(reader), undefined, contextKeyService, reader)));
 	// Every key the host's menus read must be bound for the scoped session, or it is inherited from the active one.
 	store.add(bindHasWorktreeAndRepositoryContextKey(contextKeyService, scope.session));
 	store.add(instantiationService.invokeFunction(accessor => bindIsAgentHostSessionContextKey(contextKeyService, scope.session, accessor.get(ISessionsProvidersService))));

@@ -24,7 +24,7 @@ import { IChatService } from '../../../common/chatService/chatService.js';
 import { IChatSlashCommandService } from '../../../common/participants/chatSlashCommands.js';
 import { LocalChatSessionUri } from '../../../common/model/chatUri.js';
 import { IChatVariablesService } from '../../../common/attachments/chatVariables.js';
-import { AgentHostCompletionReferenceKind, chatReferenceVariableEntryId, toAgentHostCompletionVariableEntry, toChatReferenceDynamicVariableValue } from '../../../common/attachments/chatVariableEntries.js';
+import { AgentHostCompletionReferenceKind, ChatSessionReferenceVariableId, chatReferenceVariableEntryId, toAgentHostCompletionVariableEntry, toChatReferenceDynamicVariableValue } from '../../../common/attachments/chatVariableEntries.js';
 import { ChatAgentLocation, ChatModeKind } from '../../../common/constants.js';
 import { IToolData, ToolAndToolSetEnablementMap, ToolDataSource, ToolSet } from '../../../common/tools/languageModelToolsService.js';
 import { IPromptsService } from '../../../common/promptSyntax/service/promptsService.js';
@@ -61,6 +61,23 @@ suite('ChatRequestParser', () => {
 		parser = instantiationService.createInstance(ChatRequestParser);
 		const result = parser.parseChatRequest(testSessionUri, 'test');
 		await assertSnapshot(result);
+	});
+
+	test('inline session references become session attachments while unrelated URI variables remain generic', () => {
+		const target = URI.parse('opaque-host-session:/target');
+		const text = 'Compare #session:Target #custom:Target';
+		variableService.setDynamicVariables(testSessionUri, [
+			{ id: ChatSessionReferenceVariableId, fullName: 'Target', range: new Range(1, 9, 1, 24), data: target },
+			{ id: 'custom', range: new Range(1, 25, 1, 39), data: target },
+		]);
+		parser = instantiationService.createInstance(ChatRequestParser);
+		const entries = parser.parseChatRequest(testSessionUri, text).parts
+			.filter((part): part is ChatRequestDynamicVariablePart => part instanceof ChatRequestDynamicVariablePart)
+			.map(part => part.toVariableEntry());
+		assert.deepStrictEqual(entries.map(entry => ({ kind: entry.kind, id: entry.id, name: entry.name, value: entry.value })), [
+			{ kind: 'sessionReference', id: target.toString(), name: 'Target', value: target },
+			{ kind: 'generic', id: 'custom', name: 'custom:Target', value: target },
+		]);
 	});
 
 	test('plain text with newlines', async () => {

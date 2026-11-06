@@ -39,9 +39,9 @@ import { ISessionsService } from '../../../../../workbench/contrib/sessions/brow
 import { AGENTS_FLOATING_PANEL_GAP } from '../../../../../workbench/contrib/sessions/common/layoutConstants.js';
 import { ISessionActivityBarActivityService, SessionActivityBarActivityService } from '../../../../../workbench/contrib/sessions/common/sessionActivityBarActivityService.js';
 import { SESSION_ACTIVITY_BAR_SETTING } from '../../../../../workbench/contrib/sessions/common/sessionConfig.js';
-import { IChat, ISession, ISessionWorkspace } from '../../../../../workbench/contrib/sessions/common/session.js';
-import { IActiveSession, ISessionsManagementService } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
-import { stubSessionHosts } from '../../../../../workbench/contrib/sessions/test/browser/sessionHostTestUtils.js';
+import { IChat, ISession, ISessionWorkspace, SessionStatus } from '../../../../../workbench/contrib/sessions/common/session.js';
+import { ISessionsManagementService } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
+import { ITestSessionWithChat, stubSessionHosts, testGridPanes } from '../../../../../workbench/contrib/sessions/test/browser/sessionHostTestUtils.js';
 import { IEditorGroupsService } from '../../../../../workbench/services/editor/common/editorGroupsService.js';
 import { IHostService } from '../../../../../workbench/services/host/browser/host.js';
 import { IWorkbenchLayoutService, LayoutSettings, ModernUIDensity } from '../../../../../workbench/services/layout/browser/layoutService.js';
@@ -76,6 +76,10 @@ interface IFixtureOptions {
 	readonly density: ModernUIDensity;
 	/** The size chosen for the Session Activity Bar, which its column follows. Compact unless chosen. */
 	readonly size?: MenuActivityBarSize;
+	/** The chats of its chat part: with more than one, its group shows their tabs, and the chat hides its session header. */
+	readonly chats?: number;
+	/** Its parts show a single tab, as with `workbench.editor.showTabs` set to `single` or `none`: their groups draw no frames, their cards do. */
+	readonly singleTab?: boolean;
 }
 
 const WIDTH = 960;
@@ -99,6 +103,11 @@ export default defineThemedFixtureGroup({ path: 'sessions/chatWindow/titleBar/' 
 	// The Session Activity Bar at the normal size: its column is wider, the title bar spans the window as at any size.
 	SideBySideNormalSize: titleBarFixture({ mode: ChatWindowLayoutMode.SideBySide, density: ModernUIDensity.Default, size: MenuActivityBarSize.Normal }),
 	StackedCompactNormalSize: titleBarFixture({ mode: ChatWindowLayoutMode.Stacked, density: ModernUIDensity.Compact, size: MenuActivityBarSize.Normal }),
+	// Two chats in the chat part: its group frames its tabs and the chat as the main part's group frames its own, and its
+	// active tab flows into the chat, which shows no session header of its own.
+	SideBySideTwoChats: titleBarFixture({ mode: ChatWindowLayoutMode.SideBySide, density: ModernUIDensity.Default, chats: 2 }, highContrastThemes),
+	SideBySideTwoChatsCompact: titleBarFixture({ mode: ChatWindowLayoutMode.SideBySide, density: ModernUIDensity.Compact, chats: 2 }, highContrastThemes),
+	SideBySideSingleTab: titleBarFixture({ mode: ChatWindowLayoutMode.SideBySide, density: ModernUIDensity.Default, singleTab: true }, highContrastThemes),
 });
 
 interface IMenuEntry {
@@ -113,7 +122,7 @@ const CHAT_WINDOW_MENUS = new Map<MenuId, readonly IMenuEntry[]>([
 	[AgentsWindowMenus.CommandCenter, [{ id: AgentsWindowMenus.TitleBarSessionTitle.id, title: 'Agent Sessions', icon: Codicon.copilot, submenu: AgentsWindowMenus.TitleBarSessionTitle }]],
 	[AgentsWindowMenus.TitleBarCenterRight, [{ id: 'run', title: 'Run', icon: Codicon.play }, { id: 'sessions.openInVSCode', title: 'Open in Editor', icon: Codicon.vscodeInsiders }]],
 	[AgentsWindowMenus.TitleBarSessionMenu, [{ id: 'createPullRequest', title: 'Create Pull Request', icon: Codicon.gitPullRequestCreate }]],
-	[AgentsWindowMenus.TitleBarWindowLayout, [{ id: 'workbench.action.chatWindow.toggleEditor', title: 'Show Editor', icon: Codicon.layoutSidebarRight }, { id: 'layout', title: 'Layout', icon: Codicon.layout, submenu: AgentsWindowMenus.WindowLayout }]],
+	[AgentsWindowMenus.TitleBarWindowLayout, [{ id: 'workbench.action.chatWindow.toggleEditor', title: 'Show Editor', icon: Codicon.layoutSidebarRight }, { id: 'layout', title: 'Configure Layout', icon: Codicon.layout, submenu: AgentsWindowMenus.WindowLayout }]],
 ]);
 
 /** The entries of the chat's Session Activity Bar, as the strip's chat-window fixtures show them. */
@@ -149,7 +158,7 @@ class ChatWindowMenuService extends mock<IMenuService>() {
 }
 
 /** The session of the window's active chat. */
-function createSession(): IActiveSession {
+function createSession(): ITestSessionWithChat {
 	const workspace = new class extends mock<ISessionWorkspace>() {
 		override readonly label = 'vscode';
 		override readonly folders = [{
@@ -171,12 +180,13 @@ function createSession(): IActiveSession {
 		override readonly title: IObservable<string> = constObservable(SESSION_TITLE);
 		override readonly workspace: IObservable<ISessionWorkspace | undefined> = constObservable(workspace);
 	}();
-	return new class extends mock<IActiveSession>() {
+	return new class extends mock<ITestSessionWithChat>() {
 		override readonly icon = Codicon.copilot;
 		override readonly title: IObservable<string> = constObservable(SESSION_TITLE);
 		override readonly workspace: IObservable<ISessionWorkspace | undefined> = constObservable(workspace);
 		override readonly activeChat: IObservable<IChat> = constObservable(activeChat);
 		override readonly isCreated: IObservable<boolean> = constObservable(true);
+		override readonly status = this.isCreated.map(created => created ? SessionStatus.Completed : SessionStatus.Untitled);
 		override readonly isQuickChat: IObservable<boolean> = constObservable(false);
 	}();
 }
@@ -221,7 +231,8 @@ function renderChatWindow(context: ComponentFixtureContext, options: IFixtureOpt
 				override readonly onDidChangeActiveWindow = Event.None;
 			}());
 			reg.defineInstance(ISessionsService, new class extends mock<ISessionsService>() {
-				override readonly visibleSessions: IObservable<readonly (IActiveSession | undefined)[]> = constObservable<readonly (IActiveSession | undefined)[]>([]);
+				readonly gridShown: IObservable<readonly (ITestSessionWithChat | undefined)[]> = constObservable<readonly (ITestSessionWithChat | undefined)[]>([]);
+				override readonly slotPanes = testGridPanes(this.gridShown);
 			}());
 			reg.defineInstance(ISessionsManagementService, new class extends mock<ISessionsManagementService>() {
 				override readonly onDidChangeSessions = Event.None;
@@ -301,8 +312,12 @@ function renderChatWindow(context: ComponentFixtureContext, options: IFixtureOpt
 		layout: (width, height) => onLayout?.(width, height),
 	});
 	const grid = disposableStore.add(instantiationService.createInstance(PartGrid, frame));
-	const { card: chat, sessionView } = createChatCard();
+	const { card: chat, sessionView } = createChatCard(options.chats ?? 1);
 	const main = createMainCard();
+	if (options.singleTab) {
+		chat.classList.remove('editor-tabs-multiple');
+		main.classList.remove('editor-tabs-multiple');
+	}
 	const stacked = options.mode === ChatWindowLayoutMode.Stacked || options.mode === ChatWindowLayoutMode.EditorOnly;
 	const showsChat = options.mode !== ChatWindowLayoutMode.EditorOnly;
 	const showsMain = options.mode !== ChatWindowLayoutMode.ChatOnly;
@@ -333,18 +348,37 @@ function renderChatWindow(context: ComponentFixtureContext, options: IFixtureOpt
 	activityBar.setActive(true, !showsChat);
 }
 
-/** The chat's card: the chat's editor part, whose session view frames the chat and shows its session header at the top, as in the main window. */
-function createChatCard(): { readonly card: HTMLElement; readonly sessionView: HTMLElement } {
-	const card = $('.fixture-chat-window-chat.part.editor');
+/**
+ * The chat's card: the chat's editor part, whose group frames the chat. With one chat, the group shows no tabs, and the chat
+ * shows its session header at the top, as in the main window; with more, the group shows their tabs, and the chat does not.
+ */
+function createChatCard(chats: number): { readonly card: HTMLElement; readonly sessionView: HTMLElement } {
+	const card = $('.fixture-chat-window-chat.part.editor.editor-tabs-multiple');
 	card.style.cssText = 'position: relative; width: 100%; height: 100%;';
 	const group = append(append(card, $('.content')), $('.editor-group-container.active'));
-	const host = append(group, $('.session-chat-view-editor.sessions-window-host'));
+	group.style.display = 'flex';
+	group.style.flexDirection = 'column';
+	if (chats > 1) {
+		// Its tabs, as the main part's card shows its own
+		const tabs = append(group, $('.title.tabs'));
+		tabs.style.display = 'flex';
+		tabs.style.gap = '12px';
+		for (let index = 0; index < chats; index++) {
+			append(tabs, $(index === 0 ? '.tab.active' : '.tab')).textContent = index === 0 ? SESSION_TITLE : `Chat ${index + 1}`;
+		}
+	} else {
+		group.classList.add('title-provided-by-editor');
+	}
+	const host = append(append(group, $('.editor-container')), $('.session-chat-view-editor.sessions-window-host'));
 	const sessionView = append(host, $('.session-view.chat-editor-content.modern-ui-editor-tab-group.is-active'));
+	host.parentElement!.style.flex = '1';
 	for (const element of [group.parentElement!, group, host, sessionView]) {
 		element.style.width = element.style.height = '100%';
 	}
-	const header = append(append(append(sessionView, $('.session-view-centered-content')), $('.chat-composite-bar.session-header-bar')), $('.chat-composite-bar-header'));
-	append(header, $('.chat-composite-bar-header-main')).textContent = SESSION_TITLE;
+	if (chats === 1) {
+		const header = append(append(append(sessionView, $('.session-view-centered-content')), $('.chat-composite-bar.session-header-bar')), $('.chat-composite-bar-header'));
+		append(header, $('.chat-composite-bar-header-main')).textContent = SESSION_TITLE;
+	}
 	return { card, sessionView };
 }
 

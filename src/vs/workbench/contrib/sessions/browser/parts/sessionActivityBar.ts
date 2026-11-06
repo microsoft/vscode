@@ -8,6 +8,7 @@ import { EventHelper, EventLike, getActiveElement, getWindow, isHTMLElement, sch
 import { ActionViewItem, IActionViewItemOptions } from '../../../../../base/browser/ui/actionbar/actionViewItems.js';
 import { AnchorAlignment } from '../../../../../base/browser/ui/contextview/contextview.js';
 import { HoverPosition } from '../../../../../base/browser/ui/hover/hoverWidget.js';
+import { IManagedHoverContent } from '../../../../../base/browser/ui/hover/hover.js';
 import { KeyCode } from '../../../../../base/common/keyCodes.js';
 import { Disposable, DisposableMap, DisposableStore, MutableDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { autorun, constObservable, derived, IObservable, observableFromEvent, observableValue } from '../../../../../base/common/observable.js';
@@ -434,6 +435,14 @@ class SessionActivityBarSubmenuViewItem extends ActionViewItem {
 			// Opens toward the chat, matching the arrow keys, even when there is room to the right.
 			anchorAlignment: AnchorAlignment.RIGHT,
 		}));
+		this._register(this.submenuFlyout.onDidChangeOpen(() => {
+			this.hideHover();
+			this.updateTooltip();
+		}));
+	}
+
+	protected override getHoverContents(): IManagedHoverContent | undefined {
+		return this.submenuFlyout?.isOpen ? undefined : super.getHoverContents();
 	}
 
 	override onClick(event: EventLike): void {

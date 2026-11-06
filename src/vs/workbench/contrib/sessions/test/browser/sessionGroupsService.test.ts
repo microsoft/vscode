@@ -118,6 +118,28 @@ suite('SessionGroupsService', () => {
 		service = disposables.add(instantiationService.createInstance(SessionGroupsService));
 	});
 
+	test('migrates group membership from a previous identity once and preserves later ungrouping', () => {
+		const previous = createSession('previous');
+		const group = service.createGroup('Work', [previous.sessionId]);
+		const current: ISession = {
+			...createSession('task'),
+			previousIdentities: [{ sessionId: previous.sessionId, resource: previous.resource }],
+		};
+		sessions = [current];
+		sessionsChangedEmitter.fire({ added: [current], changed: [], removed: [] });
+		const migrated = service.getGroupOfSession(current.sessionId);
+		service.removeFromGroup(current.sessionId);
+		sessionsChangedEmitter.fire({ added: [], changed: [current], removed: [] });
+		service.dispose();
+		service = disposables.add(instantiationService.createInstance(SessionGroupsService));
+		assert.deepStrictEqual({
+			migrated,
+			previous: service.getGroupOfSession(previous.sessionId),
+			current: service.getGroupOfSession(current.sessionId),
+			ungrouped: service.isExplicitlyUngrouped(current.sessionId),
+		}, { migrated: group.id, previous: undefined, current: undefined, ungrouped: true });
+	});
+
 	test('create group with members and look up membership', () => {
 		const group = service.createGroup('Group A', ['s1', 's2']);
 

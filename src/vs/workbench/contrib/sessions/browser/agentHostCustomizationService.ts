@@ -15,7 +15,7 @@ import { IFocusedSessionHostService } from './sessionHost.js';
 import { ISessionsProvider } from '../common/sessionsProvider.js';
 import { AgentCustomization, CustomizationType } from '../../../../platform/agentHost/common/state/sessionState.js';
 import { type CustomizationEnablement } from '../../../../platform/agentHost/common/state/protocol/state.js';
-import { ISession } from '../common/session.js';
+import { IChat, ISession } from '../common/session.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { INotificationService } from '../../../../platform/notification/common/notification.js';
@@ -56,7 +56,7 @@ export class AgentHostCustomizationService extends AbstractAgentHostCustomizatio
 	}
 
 	private _getAHSProvider(session: ISession): IAgentHostSessionsProvider | undefined {
-		const provider = this._sessionsProvidersService.getProvider(session.providerId);
+		const provider = this._sessionsProvidersService.getProvider(session.providerId, session.sessionId);
 		if (provider && isAgentHostProvider(provider)) {
 			this._ensureProviderListener(provider);
 			return provider;
@@ -109,17 +109,28 @@ export class AgentHostCustomizationService extends AbstractAgentHostCustomizatio
 		};
 	}
 
-	override getCustomAgents(sessionResource: URI): readonly AgentCustomization[] {
-		const session = this._getSession(sessionResource);
-		if (session) {
-			const provider = this._getAHSProvider(session);
-			if (provider) {
-				const agents = provider.getCustomAgents(session.sessionId);
-				const activeMode = session.mode.get()?.id;
-				return agents.length === 0 && activeMode ? [this._agentFromMode(activeMode)] : agents;
-			}
+	override getCustomAgents(resource: URI): readonly AgentCustomization[] {
+		const directSession = this._getSession(resource);
+		const ownedChat = directSession ? undefined : this._sessionsManagementService.getSessionForChatResource(resource);
+		const session = directSession ?? ownedChat?.session;
+		const provider = session && this._getAHSProvider(session);
+		if (!session || !provider) {
+			return [];
 		}
-		return [];
+		const agents = provider.getCustomAgents(session.sessionId);
+		if (agents.length > 0) {
+			return agents;
+		}
+		// The mode of the chat the caller shows, which its resource names: a chat input passes its chat's resource. A session's
+		// resource names its main chat when that shares it, else the provider's mode of the session.
+		const chat = ownedChat?.chat ?? this._getChatOfSessionResource(session, resource);
+		const activeMode = (chat ? chat.mode.get() : session.mode.get())?.id;
+		return activeMode ? [this._agentFromMode(activeMode)] : agents;
+	}
+
+	private _getChatOfSessionResource(session: ISession, resource: URI): IChat | undefined {
+		const mainChat = session.mainChat.get();
+		return isEqual(mainChat.resource, resource) ? mainChat : session.chats.get().find(chat => isEqual(chat.resource, resource));
 	}
 
 	getBackendChatResource(sessionResource: URI): URI | undefined {
@@ -133,11 +144,14 @@ export class AgentHostCustomizationService extends AbstractAgentHostCustomizatio
 		if (!provider) {
 			return undefined;
 		}
-		const focusedHost = this._focusedSessionHostService.focusedHost.get();
-		const chat = ownedChat?.chat
-			?? (isEqual(focusedHost.session.get()?.resource, session.resource) ? focusedHost.chat.get() : undefined)
-			?? session.mainChat.get();
+		const chat = ownedChat?.chat ?? this._getFocusedChatOf(session) ?? session.mainChat.get();
 		return provider.getBackendChatResource(chat.resource);
+	}
+
+	/** The chat the focused host shows of `session`, if it shows the session. */
+	private _getFocusedChatOf(session: ISession): IChat | undefined {
+		const focusedHost = this._focusedSessionHostService.focusedHost.get();
+		return isEqual(focusedHost.session.get()?.resource, session.resource) ? focusedHost.chat.get() : undefined;
 	}
 
 	private _ensureProviderListener(provider: IAgentHostSessionsProvider): void {

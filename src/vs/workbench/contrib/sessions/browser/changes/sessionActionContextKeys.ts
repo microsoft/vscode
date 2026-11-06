@@ -12,8 +12,7 @@ import { ILogService } from '../../../../../platform/log/common/log.js';
 import { bindContextKey } from '../../../../../platform/observable/common/platformObservableUtils.js';
 import { AGENT_HOST_PULL_REQUEST_OPERATION_IDS } from '../../../../../platform/agentHost/common/agentHostChangesetOperationService.js';
 import { DesktopChangesEditorTransitionContext, SessionHasOpenPullRequestContext, SessionPrimaryPullRequestOperationContext } from '../../common/contextkeys.js';
-import { IHostSession } from '../../common/sessionsManagement.js';
-import { IChat } from '../../common/session.js';
+import { IChat, ISession } from '../../common/session.js';
 import { IGitHubSessionPullRequestObservables } from '../github/githubService.js';
 import { IChangesSessionObservables } from '../../common/changesViewService.js';
 import { SessionChangesReviewedFilesContext } from './changesMultiDiffSourceResolver.js';
@@ -21,7 +20,7 @@ import { bindSessionCIChecksContextKeys } from '../fixCIChecks.js';
 
 /** The session the session action context keys are derived from. */
 export interface ISessionActionContextKeysSource {
-	readonly session: IObservable<IHostSession | undefined>;
+	readonly session: IObservable<ISession | undefined>;
 	/** The chat the host shows of {@link session}. */
 	readonly chat: IObservable<IChat | undefined>;
 	readonly changes: Pick<IChangesSessionObservables, 'changesObs' | 'changesetsLoadingObs' | 'loadingObs' | 'changesetObs' | 'changesetOperationsObs' | 'stateObs'>;

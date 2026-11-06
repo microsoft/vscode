@@ -59,7 +59,7 @@ suite('SessionsTitleBarWidget', () => {
 		const opened: unknown[] = [];
 		const pending: Promise<unknown>[] = [];
 		const sessionsService = upcastPartial<ISessionsService>({
-			visibleSessions: constObservable([]),
+			slotPanes: constObservable([]),
 			openSession: async () => { opened.push('main window'); },
 			openSessionToSide: async () => { opened.push('main window to the side'); },
 		});

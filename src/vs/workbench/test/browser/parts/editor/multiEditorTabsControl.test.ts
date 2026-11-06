@@ -2546,6 +2546,38 @@ suite('MultiEditorTabsControl', () => {
 		});
 	});
 
+	test('Connected tabs join the surface their part sets where the active tab meets its editor, as the theme joins them to the editor, also in an unfocused group; a theme accent below the active tab stays', async () => {
+		const group = connectedGroup();
+		group.style.setProperty('--modern-ui-connected-tab-surface', '#333333');
+		const themeService = instantiationService.get(IThemeService);
+		assert.ok(themeService instanceof TestThemeService);
+		const active = model.getEditorByIndex(1)!;
+		model.openEditor(active, { active: true });
+		const read = async (colors: { [id: string]: string }, active = true) => {
+			themeService.setTheme(new TestColorTheme(colors));
+			control.setActive(active);
+			control.openEditors(model.getEditors(EditorsOrder.SEQUENTIAL));
+			await layoutConnectedGroup(group, 600);
+			const tab = container.querySelector<HTMLElement>('.tab.active')!;
+			return {
+				belowActiveTab: mainWindow.getComputedStyle(tab.querySelector<HTMLElement>('.tab-border-bottom-container')!).backgroundColor,
+				title: mainWindow.getComputedStyle(group.querySelector<HTMLElement>(':scope > .title')!).backgroundColor,
+			};
+		};
+
+		assert.deepStrictEqual({
+			joinsEditor: await read({ 'tab.activeBorder': '#121314', 'editor.background': '#121314' }),
+			accent: await read({ 'tab.activeBorder': '#22d3ee', 'editor.background': '#121314' }),
+			unfocusedJoinsEditor: await read({ 'tab.activeBorder': '#22d3ee', 'tab.unfocusedActiveBorder': '#12131480', 'editor.background': '#121314' }, false),
+			unfocusedAccent: await read({ 'tab.activeBorder': '#121314', 'tab.unfocusedActiveBorder': '#22d3ee', 'editor.background': '#121314' }, false),
+		}, {
+			joinsEditor: { belowActiveTab: 'rgb(51, 51, 51)', title: 'rgb(51, 51, 51)' },
+			accent: { belowActiveTab: 'rgb(34, 211, 238)', title: 'rgb(51, 51, 51)' },
+			unfocusedJoinsEditor: { belowActiveTab: 'rgb(51, 51, 51)', title: 'rgb(51, 51, 51)' },
+			unfocusedAccent: { belowActiveTab: 'rgb(34, 211, 238)', title: 'rgb(51, 51, 51)' },
+		});
+	});
+
 	test('regular-theme Connected multi-selection shares a top accent without coloring the document frame', async () => {
 		const group = connectedGroup();
 		const root = group.closest<HTMLElement>('.monaco-workbench')!;

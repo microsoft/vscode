@@ -56,6 +56,7 @@ import { getCopilotApprovalConfig, getCopilotApprovalPolicy } from './copilotApp
 import { AGENT_HOST_COPILOT_CLIENT_NAME, CopilotManagedSettingsResolver, resolveCopilotManagedSettings } from './copilotManagedSettings.js';
 import { hasCopilotManagedAutoPreference, omitCopilotManagedModelDefaults, projectCopilotManagedModelConfiguration } from './copilotManagedModelConfiguration.js';
 import { buildCopilotBuiltinAgentsContainer, COPILOT_BUILTIN_AGENT_NAMES_BY_URI, CopilotBuiltinAgentsStore, COPILOT_BUILTIN_AGENTS, getCopilotBuiltinAgentUri } from './copilotBuiltinAgents.js';
+import { buildCopilotBuiltinSkillsContainer } from './copilotBuiltinSkills.js';
 import { AUTOMATION_ACTIVE_CLIENT_ID, IAgentPluginManager, ISyncedCustomization } from '../../common/agentPluginManager.js';
 import { decodeProviderData, encodeProviderData, type IPersistedChat } from '../agentChatBackings.js';
 import { type AgentCanvasDefinitionSnapshot, AgentChatOperationContext, AgentSession, fixedChatOwnerRef, getChatSurfaceOptions, type IAgentChatOwnerRef, isAgentChatDefaultChat, resolveSessionBackedStorage, AgentSignal, AuthenticateParams, COPILOT_CLI_AGENT_PROVIDER_ID, IActiveClient, IAgent, IAgentChatAdoptionResult, type IAgentAdoptedWorktree, type IAgentCanvasCloseRequest, type IAgentCanvasOpenRequest, type IAgentChatCanvasWatchHost, IAgentChatConfigCompletionsParams, IAgentChatContext, type IAgentChatDiscoveryOptions, type IAgentChatMetadataOptions, type IAgentChatReleaseOptions, IAgentChatSessionSettings, IAgentChatDataChange, IAgentChatMetadata, IAgentChats, IAgentLegacyChat, IAgentCreateChatOptions, IAgentCreateChatResult, IAgentCustomizationInstallation, IAgentCustomizationInstallationApplyRequest, IAgentCustomizationInstallationApplyResult, IAgentCustomizationInstallationPreparation, IAgentCustomizationInstallationRequest, IAgentCustomizationMarketplaceSearchRequest, IAgentCustomizationMarketplaceSearchResult, IAgentDescriptor, IAgentDiscoveredChat, type IAgentExtensionInfo, type IAgentExtensionInventory, IAgentListedChat, IAgentHostManagedSettingsSnapshot, IAgentHostNetworkEndpoint, IAgentKnownSessionsFilter, type IAgentManagedPluginRetryEntry, IAgentMaterializeChatEvent, IAgentModelInfo, type IAgentPendingMessageSender, type IAgentPermissionResponseContext, type IAgentPluginInstallRequest, type IAgentPluginMarketplace, type IAgentPluginMarketplaceItem, type IAgentPluginMarketplaceRefreshResult, type IAgentPluginMarketplaceRemoveResult, type IAgentPluginUninstallRequest, type IAgentPrepareChatResult, IAgentResolveChatConfigParams, IAgentSessionProjectInfo, IAgentSpawnChatEvent, IMcpNotification, SubagentChatSignal, resolveAgentChatContext, resolveAgentHostCustomizations, resolveAgentHostInstructions, resolveSubagentChatParent, type IAgentTurnDiagnosticSnapshot, type IAgentTurnTokenUsage, type IAgentChatSessionEvent, type IAgentImportChatOptions, type IAgentImportedChat } from '../../common/agent.js';
@@ -1536,7 +1537,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 		this._updateVSCodeAssignmentContext();
 		this._slashCommandProvider = new CopilotSlashCommandProvider(() => this._ensureClient().then(c => c.rpc.commands.list().then(c => c.commands)), undefined, this._logService);
 		this._githubTelemetryRouter = isAgentHostTelemetryService(this._telemetryService)
-			? new AgentHostGitHubTelemetryRouter(this._telemetryService)
+			? new AgentHostGitHubTelemetryRouter(this._telemetryService, this._productService.copilotVersions?.sdk)
 			: undefined;
 		this._register(this._proxyResolver.onDidRegisterConnection(() => this._refreshProxy()));
 		this._register(this._proxyResolver.onDidChangeConfiguration(() => this._refreshProxy()));
@@ -5220,7 +5221,11 @@ export class CopilotAgent extends Disposable implements IAgent {
 		// and modes the chat continues with before anything is sent.
 		try {
 			return await this._queueChat(context.lifetimeId, context.sequencerKey, 'importChat', async () => {
-				const current = this._resolveChatContext(chat, operationContext);
+				let current = this._resolveChatContext(chat, operationContext);
+				const reloaded = !!options?.reloadIfStale && await this._releaseChatRunElsewhere(current, sdkSessionId, client);
+				if (reloaded) {
+					current = this._resolveChatContext(chat, operationContext);
+				}
 				const entry = current.target ?? await this._ensureResolvedChatSession(current);
 				if (!entry) {
 					return undefined;
@@ -5230,12 +5235,46 @@ export class CopilotAgent extends Disposable implements IAgent {
 				return {
 					model: this._modelSelectionFromRuntime(model),
 					agent: agentName ? this._findAgentSelectionByName(entry.appliedSnapshot, agentName) : undefined,
+					...(reloaded ? { reloaded } : {}),
 				};
 			});
 		} catch (err) {
 			this._logService.warn(`[Copilot:${context.ownerSessionId}] Imported chat ${chat.toString()} keeps the host's selection and modes because it could not be resumed`, err);
 			return undefined;
 		}
+	}
+
+	/**
+	 * Drops this host's copy of a chat that another client may have run since the host loaded it, so the chat resumes
+	 * from storage with that client's turns, modes and selection. The runtime records the client that last ran a session
+	 * (`lastClientName`). When it doesn't report one, the chat is reloaded anyway: an import is explicit, and a reload
+	 * costs one resume. Returns whether the chat must be rebuilt from storage.
+	 */
+	private async _releaseChatRunElsewhere(context: IResolvedCopilotChatContext, sdkSessionId: string, client: CopilotClient): Promise<boolean> {
+		const target = context.target;
+		if (target && (target.hasActiveTurn || target.hasActiveSubagents || await target.hasRunningDetachedShells())) {
+			this._logService.info(`[Copilot:${context.ownerSessionId}] Keeping the loaded copy of session ${sdkSessionId} because a turn or background work is running`);
+			return false;
+		}
+		let lastClientName: string | undefined;
+		try {
+			const metadata = await client.getSessionMetadata(sdkSessionId);
+			if (!metadata) {
+				return false;
+			}
+			lastClientName = metadata.lastClientName;
+		} catch (err) {
+			this._logService.warn(`[Copilot:${context.ownerSessionId}] Couldn't read which client last ran session ${sdkSessionId}; reloading it`, err);
+		}
+		if (lastClientName === AGENT_HOST_COPILOT_CLIENT_NAME) {
+			return false;
+		}
+		this._logService.info(`[Copilot:${context.ownerSessionId}] Reloading session ${sdkSessionId} from storage, last run by ${lastClientName ?? 'an unknown client'}`);
+		if (target) {
+			await this._destroyLiveSession(target, true);
+		}
+		this._persistedChatHistory.delete(context.chatKey);
+		return true;
 	}
 
 	/** The picker selection that keeps the model configuration the runtime runs with. */
@@ -11813,6 +11852,9 @@ class SessionPluginController extends Disposable {
 			result.push(this._projectForPublish(definition.customization));
 		}
 		result.push(buildCopilotBuiltinAgentsContainer());
+		if (!this._directory || this._directory.scheme === Schemas.file) {
+			result.push(buildCopilotBuiltinSkillsContainer());
+		}
 		const hasNativePluginMcp = result.some(customization => customization.type === CustomizationType.Plugin
 			&& customization.children?.some(child => child.type === CustomizationType.McpServer && readCustomizationDiscoveryMeta(child)?.source === 'plugin'));
 		const live = hasNativePluginMcp ? this._topLevelMcpServers() : undefined;

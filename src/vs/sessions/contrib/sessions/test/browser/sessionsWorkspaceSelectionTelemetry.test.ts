@@ -22,12 +22,12 @@ import { TestLifecycleService } from '../../../../../workbench/test/common/workb
 import { IWorkspaceSelectionSnapshot, WorkspaceSelectionOrigin } from '../../../../../workbench/contrib/sessions/common/workspaceSelection.js';
 import { ISessionsService } from '../../../../../workbench/contrib/sessions/browser/sessionsService.js';
 import { ISessionWorkspace } from '../../../../../workbench/contrib/sessions/common/session.js';
-import { IActiveSession, ISendRequestSentEvent, ISessionsManagementService } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
+import { ISendRequestSentEvent, ISessionsManagementService } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import { ISendRequestOptions } from '../../../../../workbench/contrib/sessions/common/sessionsProvider.js';
 import { INewSessionComposerService, NewSessionComposerService } from '../../../../../workbench/contrib/sessions/browser/newSessionComposerService.js';
 import { FIRST_TIME_WINDOW_OPEN_DURATION_LIMIT_MS } from '../../browser/sessionsWindowOpenTelemetry.js';
 import { SessionsWorkspaceSelectionTelemetry } from '../../browser/sessionsWorkspaceSelectionTelemetry.js';
-import { ITestSessionsService, stubFocusedSessionHostFromSessionsService } from '../../../../../workbench/contrib/sessions/test/browser/sessionHostTestUtils.js';
+import { ITestSessionsService, ITestSessionWithChat, stubFocusedSessionHostFromSessionsService, withCreatedStatus } from '../../../../../workbench/contrib/sessions/test/browser/sessionHostTestUtils.js';
 
 suite('SessionsWorkspaceSelectionTelemetry', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
@@ -39,7 +39,7 @@ suite('SessionsWorkspaceSelectionTelemetry', () => {
 		const lifecycleService = disposables.add(new TestLifecycleService());
 		const selectionChanged = disposables.add(new Emitter<void>());
 		const requestSent = disposables.add(new Emitter<ISendRequestSentEvent>());
-		const activeSession = observableValue<IActiveSession | undefined>('activeSession', undefined);
+		const activeSession = observableValue<ITestSessionWithChat | undefined>('activeSession', undefined);
 		const events: { name: string; data?: ITelemetryData }[] = [];
 		let selection: IWorkspaceSelectionSnapshot | undefined;
 		disposables.add(composerService.registerComposer({
@@ -68,8 +68,8 @@ suite('SessionsWorkspaceSelectionTelemetry', () => {
 				selectionChanged.fire();
 			},
 			setReady(folderUri: URI) {
-				activeSession.set(upcastPartial<IActiveSession>({
-					isCreated: observableValue('created', false),
+				activeSession.set(upcastPartial<ITestSessionWithChat>({
+					...withCreatedStatus(observableValue('created', false)),
 					loading: observableValue('loading', false),
 					workspace: observableValue<ISessionWorkspace>('workspace', {
 						uri: folderUri, label: 'workspace', icon: Codicon.folder,

@@ -11,6 +11,7 @@ import { toDisposable } from '../../../../../../base/common/lifecycle.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { mock, upcastDeepPartial, upcastPartial } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
+import { IAgentHostConnectionsService } from '../../../../../../platform/agentHost/common/agentHostConnectionsService.js';
 import { IExtensionDescription } from '../../../../../../platform/extensions/common/extensions.js';
 import { ISharedWebContentExtractorService } from '../../../../../../platform/webContentExtractor/common/webContentExtractor.js';
 import { IExtensionService } from '../../../../../services/extensions/common/extensions.js';
@@ -45,6 +46,9 @@ suite('Sessions - Chat Reference Drop Priority', () => {
 			services.stub(IExtensionService, new class extends mock<IExtensionService>() { }());
 			services.stub(ISharedWebContentExtractorService, new class extends mock<ISharedWebContentExtractorService>() { }());
 			services.stub(IChatAttachmentResolveService, new class extends mock<IChatAttachmentResolveService>() { }());
+			services.stub(IAgentHostConnectionsService, upcastPartial<IAgentHostConnectionsService>({
+				resolveSessionResourceIdentity: () => ({ connectionAuthority: 'local', backendSession: URI.parse('opaque-session:/session') }),
+			}));
 			const container = $('.session-view');
 			container.style.cssText = 'position:fixed;left:0;top:0;width:400px;height:300px;';
 			const group = $('.chat-group-view');

@@ -17,16 +17,17 @@ import { ChangesMultiDiffSourceResolver } from '../../../browser/changes/changes
 import { ChangesViewMode } from '../../../common/changes.js';
 import { ISessionChangesService } from '../../../common/sessionChangesService.js';
 import { ISessionsService } from '../../../browser/sessionsService.js';
-import { IActiveSession, ISessionsManagementService } from '../../../common/sessionsManagement.js';
+import { ISessionsManagementService } from '../../../common/sessionsManagement.js';
 import { IChangesSessionObservables, IChangesViewService } from '../../../common/changesViewService.js';
-import { sessionHostServiceOf } from '../sessionHostTestUtils.js';
+import { ITestSessionWithChat, sessionHostServiceOf, testGridPanes } from '../sessionHostTestUtils.js';
 
 function noSessions(): ISessionsService {
 	return new class extends mock<ISessionsService>() {
-		readonly activeSession = constObservable<IActiveSession | undefined>(undefined);
-		readonly mainWindowActiveSession = constObservable<IActiveSession | undefined>(undefined);
-		readonly windowSessions = constObservable<readonly IActiveSession[]>([]);
-		override readonly visibleSessions = constObservable<readonly (IActiveSession | undefined)[]>([]);
+		readonly activeSession = constObservable<ITestSessionWithChat | undefined>(undefined);
+		readonly mainWindowActiveSession = constObservable<ITestSessionWithChat | undefined>(undefined);
+		readonly windowSessions = constObservable<readonly ITestSessionWithChat[]>([]);
+		readonly gridShown = constObservable<readonly (ITestSessionWithChat | undefined)[]>([]);
+		override readonly slotPanes = testGridPanes(this.gridShown);
 	}();
 }
 
@@ -87,12 +88,13 @@ suite('ChangesMultiDiffSourceResolver', () => {
 		const sourceResource = URI.parse('changes-multi-diff-source:test-session');
 		const sessionChanges = observableValue<readonly ISessionFileChange[]>('sessionChanges', [createChange('/workspace/visible.ts')]);
 		let chainsCreated = 0;
-		const visibleSession = upcastPartial<IActiveSession>({ sessionId: 'visible', resource: sessionResource });
+		const visibleSession = upcastPartial<ITestSessionWithChat>({ sessionId: 'visible', resource: sessionResource });
 		const sessionsService = new class extends mock<ISessionsService>() {
-			readonly activeSession = constObservable<IActiveSession | undefined>(upcastPartial<IActiveSession>({ sessionId: 'active', resource: URI.parse('agent-host:active') }));
-			readonly mainWindowActiveSession = constObservable<IActiveSession | undefined>(undefined);
-			readonly windowSessions = constObservable<readonly IActiveSession[]>([]);
-			override readonly visibleSessions = constObservable<readonly (IActiveSession | undefined)[]>([visibleSession]);
+			readonly activeSession = constObservable<ITestSessionWithChat | undefined>(upcastPartial<ITestSessionWithChat>({ sessionId: 'active', resource: URI.parse('agent-host:active') }));
+			readonly mainWindowActiveSession = constObservable<ITestSessionWithChat | undefined>(undefined);
+			readonly windowSessions = constObservable<readonly ITestSessionWithChat[]>([]);
+			readonly gridShown = constObservable<readonly (ITestSessionWithChat | undefined)[]>([visibleSession]);
+			override readonly slotPanes = testGridPanes(this.gridShown);
 		}();
 		const changesViewService = new class extends mock<IChangesViewService>() {
 			override readonly viewModeObs = observableValue<ChangesViewMode>(this, ChangesViewMode.List);
@@ -179,17 +181,18 @@ suite('ChangesMultiDiffSourceResolver', () => {
 		const session = upcastPartial<ISession>({ sessionId: 'test-session', resource: sessionResource, chats: constObservable<readonly IChat[]>([chatX, chatY]) });
 		const changesOf = new Map([[chatX, observableValue<readonly ISessionFileChange[]>('x', [createChange('/workspace/x.ts')])], [chatY, observableValue<readonly ISessionFileChange[]>('y', [createChange('/workspace/y.ts')])]]);
 		/** A wrapper of the session that shows `chat`, as a window does. */
-		const wrapper = (activeChat: IChat) => upcastPartial<IActiveSession>({ sessionId: 'test-session', resource: sessionResource, activeChat: constObservable(activeChat) });
+		const wrapper = (activeChat: IChat) => upcastPartial<ITestSessionWithChat>({ sessionId: 'test-session', resource: sessionResource, activeChat: constObservable(activeChat) });
 		const mainWindowWrapper = wrapper(chatX);
-		const mainWindowActiveSession = observableValue<IActiveSession | undefined>('mainWindowActiveSession', mainWindowWrapper);
-		const activeSession = observableValue<IActiveSession | undefined>('activeSession', mainWindowWrapper);
-		const windowSessions = observableValue<readonly IActiveSession[]>('windowSessions', []);
-		const visibleSessions = observableValue<readonly (IActiveSession | undefined)[]>('visibleSessions', [mainWindowWrapper]);
+		const mainWindowActiveSession = observableValue<ITestSessionWithChat | undefined>('mainWindowActiveSession', mainWindowWrapper);
+		const activeSession = observableValue<ITestSessionWithChat | undefined>('activeSession', mainWindowWrapper);
+		const windowSessions = observableValue<readonly ITestSessionWithChat[]>('windowSessions', []);
+		const visibleSessions = observableValue<readonly (ITestSessionWithChat | undefined)[]>('visibleSessions', [mainWindowWrapper]);
 		const sessionsService = new class extends mock<ISessionsService>() {
 			readonly activeSession = activeSession;
 			readonly mainWindowActiveSession = mainWindowActiveSession;
 			readonly windowSessions = windowSessions;
-			override readonly visibleSessions = visibleSessions;
+			readonly gridShown = visibleSessions;
+			override readonly slotPanes = testGridPanes(this.gridShown);
 		}();
 		const management = new class extends mock<ISessionsManagementService>() {
 			override readonly onDidChangeSessions = Event.None;
@@ -204,7 +207,7 @@ suite('ChangesMultiDiffSourceResolver', () => {
 				return active ? changesOf.get(active)!.read(reader) : [];
 			});
 			override getSessionChanges(sessionObs: IObservable<ISession | undefined>, chatObs?: IObservable<IChat | undefined>): IChangesSessionObservables {
-				const chatOf = chatObs ?? derived(reader => (sessionObs.read(reader) as IActiveSession | undefined)?.activeChat.read(reader));
+				const chatOf = chatObs ?? derived(reader => (sessionObs.read(reader) as ITestSessionWithChat | undefined)?.activeChat.read(reader));
 				return upcastPartial<IChangesSessionObservables>({
 					resourceObs: derived(reader => sessionObs.read(reader)?.resource),
 					changesObs: derived(reader => {

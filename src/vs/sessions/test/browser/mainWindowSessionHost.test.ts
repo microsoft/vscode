@@ -25,7 +25,7 @@ import { EditorParts } from '../../browser/parts/editorParts.js';
 import { IAgentWorkbenchLayoutService } from '../../browser/workbench.js';
 import { AgentWorkbenchLayout } from '../../../workbench/contrib/sessions/browser/sessionsHostLayoutService.js';
 import { TestStorageService } from '../../../workbench/test/common/workbenchTestServices.js';
-import { ActiveSessionHost, createMainWindowInstantiationService, ISessionHost, ISessionHostService, SessionHostKind } from '../../../workbench/contrib/sessions/browser/sessionHost.js';
+import { createMainWindowInstantiationService, ISessionHost, ISessionHostService, SessionHost, SessionHostKind } from '../../../workbench/contrib/sessions/browser/sessionHost.js';
 import { stubSessionsHostLayout } from './sessionsHostLayoutTestUtils.js';
 
 const EDITOR_ID = 'test.mainWindowSessionHost.editor';
@@ -49,7 +49,7 @@ suite('Main window session host', () => {
 	setup(() => store = disposables.add(new DisposableStore()));
 
 	function hostOf(kind: SessionHostKind, parent?: ISessionHost): ISessionHost {
-		return new ActiveSessionHost({ kind, parent, session: constObservable(undefined), contextKeyService: upcastPartial<IContextKeyService>({}), windowId: kind === SessionHostKind.MainWindow ? constObservable(mainWindow.vscodeWindowId) : undefined });
+		return new SessionHost({ kind, parent, session: constObservable(undefined), chat: constObservable(undefined), contextKeyService: upcastPartial<IContextKeyService>({}), windowId: kind === SessionHostKind.MainWindow ? constObservable(mainWindow.vscodeWindowId) : undefined });
 	}
 
 	test('the main window\'s parts give their editors the grid host, and a scope nested in them its own host', async () => {

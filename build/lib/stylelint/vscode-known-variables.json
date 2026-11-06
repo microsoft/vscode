@@ -1086,6 +1086,7 @@
 		"--last-tab-margin-right",
 		"--list-scroll-right-offset",
 		"--monaco-custom-toggle-border-color",
+		"--monaco-icon-label-icon-color",
 		"--monaco-monospace-font",
 		"--monaco-monospace-font",
 		"--notebook-cell-input-preview-font-family",

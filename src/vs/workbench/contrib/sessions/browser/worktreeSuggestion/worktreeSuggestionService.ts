@@ -34,8 +34,7 @@ import { isAgentHostProvider } from '../../common/agentHostSessionsProvider.js';
 import { IsPhoneLayoutContext } from '../../common/contextkeys.js';
 import { isDevContainerWorktreeEnabled } from '../../common/devContainerAgentHostService.js';
 import { ISessionsProvidersService } from '../sessionsProvidersService.js';
-import { ISessionFileChange, UNCOMMITTED_CHANGES_CHANGESET_ID } from '../../common/session.js';
-import { IHostSession } from '../../common/sessionsManagement.js';
+import { ISessionFileChange, isSessionCreated, UNCOMMITTED_CHANGES_CHANGESET_ID, ISession } from '../../common/session.js';
 import { ISessionsProvider } from '../../common/sessionsProvider.js';
 import { CHANGES_VIEW_ID } from '../../common/changes.js';
 import { ISessionChangesService } from '../../common/sessionChangesService.js';
@@ -45,7 +44,7 @@ import { formatChangeStats, getChangedFileAriaDescription, getChangedFileLabel, 
 
 /** A new session that would start in a folder with uncommitted changes. */
 export interface IWorktreeSuggestion {
-	readonly session: IHostSession;
+	readonly session: ISession;
 	/** Number of files with uncommitted changes in the session's folder. */
 	readonly uncommittedChanges: number;
 	/** The folder's checked-out branch, when known. */
@@ -87,7 +86,7 @@ export interface IWorktreeSuggestionService {
 	 * available. It ignores state that only the treatments write, such as a closed hint or a spotlight
 	 * that was already shown, so it can decide the experiment trigger.
 	 */
-	getSuggestion(session: IHostSession | undefined, reader: IReader | undefined): IWorktreeSuggestion | undefined;
+	getSuggestion(session: ISession | undefined, reader: IReader | undefined): IWorktreeSuggestion | undefined;
 
 	/** Logs the experiment trigger once a suggestion would appear in any arm. */
 	reportWouldShow(): void;
@@ -256,7 +255,7 @@ export class WorktreeSuggestionService extends Disposable implements IWorktreeSu
 		watchProviders(_sessionsProvidersService.getProviders({ includeSessionBackends: true }));
 	}
 
-	getSuggestion(session: IHostSession | undefined, reader: IReader | undefined): IWorktreeSuggestion | undefined {
+	getSuggestion(session: ISession | undefined, reader: IReader | undefined): IWorktreeSuggestion | undefined {
 		if (!session || this._chatEntitlementService.sentimentObs.read(reader).hidden) {
 			return undefined;
 		}
@@ -267,12 +266,12 @@ export class WorktreeSuggestionService extends Disposable implements IWorktreeSu
 		if (this._phoneLayout.read(reader)) {
 			return undefined;
 		}
-		if (session.isCreated.read(reader) || session.loading.read(reader)
+		if (isSessionCreated(session, reader) || session.loading.read(reader)
 			|| session.isNewSessionRequestInProgress?.read(reader) || session.isQuickChat?.read(reader)) {
 			return undefined;
 		}
 		// Only providers that report the isolation pick of a draft can show and change it.
-		const provider = this._sessionsProvidersService.getProvider(session.providerId);
+		const provider = this._sessionsProvidersService.getProvider(session.providerId, session.sessionId);
 		if (!session.worktreePending || session.worktreePending.read(reader) || !provider?.setIsolationMode) {
 			return undefined;
 		}
@@ -325,7 +324,7 @@ export class WorktreeSuggestionService extends Disposable implements IWorktreeSu
 
 	async useWorktree(variant: WorktreeSuggestionVariant, suggestion: IWorktreeSuggestion): Promise<boolean> {
 		try {
-			const provider = this._sessionsProvidersService.getProvider(suggestion.session.providerId);
+			const provider = this._sessionsProvidersService.getProvider(suggestion.session.providerId, suggestion.session.sessionId);
 			if (!provider?.setIsolationMode) {
 				throw new Error(`Provider '${suggestion.session.providerId}' cannot change the isolation of a new session.`);
 			}

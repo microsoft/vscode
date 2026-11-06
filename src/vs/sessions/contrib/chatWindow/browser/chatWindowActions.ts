@@ -25,7 +25,7 @@ import { BrowserEditorInput } from '../../../../workbench/contrib/browserView/co
 import { IBrowserViewWorkbenchService } from '../../../../workbench/contrib/browserView/common/browserView.js';
 import { ChatContextKeys } from '../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
 import { IChatWindow } from '../../../../workbench/contrib/chatWindow/browser/chatWindow.js';
-import { ChatShownContext, ChatWindowCategory, ChatWindowLayoutCommandsContext, chatWindowLayoutModeChoices, EditorShownContext, resolveChatWindow, showChatWindowLayout, StackedContext, TOGGLE_CHAT_WINDOW_ARRANGEMENT_COMMAND_ID, TOGGLE_CHAT_WINDOW_CHAT_COMMAND_ID, TOGGLE_CHAT_WINDOW_EDITOR_COMMAND_ID } from '../../../../workbench/contrib/chatWindow/browser/chatWindowLayoutActions.js';
+import { ChatShownContext, ChatWindowCategory, ChatWindowLayoutCommandsContext, EditorShownContext, resolveChatWindow, showChatWindowLayout, StackedContext, TOGGLE_CHAT_WINDOW_ARRANGEMENT_COMMAND_ID, TOGGLE_CHAT_WINDOW_CHAT_COMMAND_ID, TOGGLE_CHAT_WINDOW_EDITOR_COMMAND_ID } from '../../../../workbench/contrib/chatWindow/browser/chatWindowLayoutActions.js';
 import { ChatWindowLayoutMode } from '../../../../workbench/contrib/chatWindow/common/chatWindowLayout.js';
 import { IEditorGroup, IEditorGroupsService } from '../../../../workbench/services/editor/common/editorGroupsService.js';
 import { IEditorService } from '../../../../workbench/services/editor/common/editorService.js';
@@ -35,8 +35,7 @@ import { SessionWithWorkspaceContext } from '../../../../workbench/contrib/sessi
 import { SessionActivityBarLayoutActionsContext } from '../../../common/agentsWindowContextKeys.js';
 import { CHAT_WINDOW_OPEN_BROWSER_COMMAND_ID, CHAT_WINDOW_OPEN_CHANGES_COMMAND_ID, CHAT_WINDOW_OPEN_FILES_COMMAND_ID } from '../../../../workbench/contrib/sessions/common/sessionCommands.js';
 import { ISessionHostService, SessionHostKind } from '../../../../workbench/contrib/sessions/browser/sessionHost.js';
-import { IChat } from '../../../../workbench/contrib/sessions/common/session.js';
-import { IHostSession } from '../../../../workbench/contrib/sessions/common/sessionsManagement.js';
+import { IChat, ISession } from '../../../../workbench/contrib/sessions/common/session.js';
 import { SessionChangesEditorInput } from '../../../../workbench/contrib/sessions/browser/changes/sessionChangesEditorInput.js';
 import { ISessionChangesService } from '../../../../workbench/contrib/sessions/common/sessionChangesService.js';
 import { EmptyFileEditorInput } from '../../../../workbench/contrib/sessions/browser/emptyFileEditorInput.js';
@@ -196,16 +195,14 @@ for (const target of chatWindowLayoutButtonsMenus) {
 			}
 		}
 	});
-	for (const choice of chatWindowLayoutModeChoices) {
-		MenuRegistry.appendMenuItem(target.menu, {
-			submenu: AgentsWindowMenus.WindowLayout,
-			title: localize('chatWindowLayoutMenu', "Layout: {0}", choice.shortTitle),
-			icon: Codicon.layout,
-			group: target.group,
-			order: target.order + chatWindowLayoutButtons.length,
-			when: ContextKeyExpr.and(shownIn, LayoutModeContext.isEqualTo(choice.mode)),
-		});
-	}
+	MenuRegistry.appendMenuItem(target.menu, {
+		submenu: AgentsWindowMenus.WindowLayout,
+		title: localize('chatWindowConfigureLayout', "Configure Layout"),
+		icon: Codicon.layout,
+		group: target.group,
+		order: target.order + chatWindowLayoutButtons.length,
+		when: shownIn,
+	});
 }
 
 //#endregion
@@ -221,7 +218,7 @@ interface IChatWindowTabEntry {
 	readonly order: number;
 	readonly when?: ContextKeyExpression;
 	/** Opens the tab for the session and chat the window shows, if it shows one. */
-	open(accessor: ServicesAccessor, shown: { readonly session: IHostSession; readonly chat: IChat | undefined } | undefined, group: IEditorGroup): Promise<void>;
+	open(accessor: ServicesAccessor, shown: { readonly session: ISession; readonly chat: IChat | undefined } | undefined, group: IEditorGroup): Promise<void>;
 }
 
 export const chatWindowTabEntries: readonly IChatWindowTabEntry[] = [{

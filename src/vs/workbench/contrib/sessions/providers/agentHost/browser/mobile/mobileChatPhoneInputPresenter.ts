@@ -99,7 +99,7 @@ class MobileChatPhoneInputPresenter extends Disposable implements IChatPhonePres
 
 		const sessionContext = this._getSessionContext(request);
 		const target = createChatPhoneInputTarget(sessionContext, this._uriIdentityService);
-		const rawProvider = sessionContext ? this._sessionsProvidersService.getProvider(sessionContext.providerId) : undefined;
+		const rawProvider = sessionContext ? this._sessionsProvidersService.getProvider(sessionContext.providerId, sessionContext.sessionId) : undefined;
 		const agentHostProvider = rawProvider && isAgentHostProvider(rawProvider) ? rawProvider : undefined;
 		let sheetItems: IMobilePickerSheetItem[];
 		if (sessionContext && agentHostProvider) {
@@ -226,7 +226,7 @@ class MobileChatPhoneInputPresenter extends Disposable implements IChatPhonePres
 		if (!matchesChatPhoneInputTarget(target, session, this._uriIdentityService)) {
 			return;
 		}
-		const provider = session ? this._sessionsProvidersService.getProvider(session.providerId) : undefined;
+		const provider = session ? this._sessionsProvidersService.getProvider(session.providerId, session.sessionId) : undefined;
 		const agentHostProvider = provider && isAgentHostProvider(provider) ? provider : undefined;
 
 		switch (action.kind) {

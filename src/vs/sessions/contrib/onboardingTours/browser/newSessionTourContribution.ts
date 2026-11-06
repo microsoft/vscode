@@ -19,6 +19,7 @@ import { ISession } from '../../../../workbench/contrib/sessions/common/session.
 import { ISessionsManagementService } from '../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import { ISessionsService } from '../../../../workbench/contrib/sessions/browser/sessionsService.js';
 import { createNewSessionTour, NEW_SESSION_TOUR_ID } from './tours/newSessionTour.js';
+import { readPaneSessions } from '../../../../workbench/contrib/sessions/browser/sessionGridPane.js';
 
 const NEW_SESSION_BUTTON_TARGET = 'sessions.newSession.button';
 
@@ -93,7 +94,7 @@ export class NewSessionTourContribution extends Disposable implements IWorkbench
 		this._pendingCheck.value = disposableTimeout(() => {
 			this._pendingCheck.value = autorun(reader => {
 				// Retry on assignment resolution, not when navigating back to a previously hidden session.
-				const stillVisible = this.sessionsService.visibleSessions.read(undefined).some(s => s?.sessionId === session.sessionId);
+				const stillVisible = readPaneSessions(this.sessionsService.slotPanes, undefined).some(s => s.sessionId === session.sessionId);
 				if (stillVisible) {
 					this._startNewSessionButtonPulse(reader);
 				}

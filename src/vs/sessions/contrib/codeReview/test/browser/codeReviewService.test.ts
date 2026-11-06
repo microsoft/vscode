@@ -34,12 +34,12 @@ import { IChat, IGitHubInfo, SessionStatus, ISession, ISessionWorkspace } from '
 import { commentableRightLines, mapCurrentLineToPullRequestLine, mapCurrentRangeToPullRequestRange, CodeReviewService } from '../../browser/codeReviewService.js';
 import { ICodeReviewService, PRReviewStateKind } from '../../../../../workbench/contrib/sessions/browser/codeReviewService.js';
 import { ISessionsService } from '../../../../../workbench/contrib/sessions/browser/sessionsService.js';
-import { ICreateNewChatInSessionOptions, IActiveSession, ISendRequestOptions, ISessionsChangeEvent, ISessionsManagementService } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
+import { ICreateNewChatInSessionOptions, ISendRequestOptions, ISessionsChangeEvent, ISessionsManagementService } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import { IChatWidgetService } from '../../../../../workbench/contrib/chat/browser/chat.js';
 import { ChatContextKeys } from '../../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
 import { ISessionChangesService } from '../../../../../workbench/contrib/sessions/browser/changes/sessionChangesService.js';
 import '../../browser/codeReview.contributions.js';
-import { stubFocusedSessionHostFromSessionsService } from '../../../../../workbench/contrib/sessions/test/browser/sessionHostTestUtils.js';
+import { ITestSessionWithChat, stubFocusedSessionHostFromSessionsService } from '../../../../../workbench/contrib/sessions/test/browser/sessionHostTestUtils.js';
 
 suite('CodeReviewService', () => {
 
@@ -53,9 +53,9 @@ suite('CodeReviewService', () => {
 
 	class MockSessionsManagementService extends mock<ISessionsManagementService>() {
 		private readonly _onDidChangeSessions: Emitter<ISessionsChangeEvent>;
-		private readonly _activeSession: ReturnType<typeof observableValue<IActiveSession | undefined>>;
+		private readonly _activeSession: ReturnType<typeof observableValue<ITestSessionWithChat | undefined>>;
 		override readonly onDidChangeSessions: Event<ISessionsChangeEvent>;
-		readonly activeSession: IObservable<IActiveSession | undefined>;
+		readonly activeSession: IObservable<ITestSessionWithChat | undefined>;
 
 		private readonly _sessions = new Map<string, ISession>();
 
@@ -63,7 +63,7 @@ suite('CodeReviewService', () => {
 			super();
 			this._onDidChangeSessions = disposables.add(new Emitter<ISessionsChangeEvent>());
 			this.onDidChangeSessions = this._onDidChangeSessions.event;
-			this._activeSession = observableValue<IActiveSession | undefined>('test.activeSession', undefined);
+			this._activeSession = observableValue<ITestSessionWithChat | undefined>('test.activeSession', undefined);
 			this.activeSession = this._activeSession;
 		}
 
@@ -122,7 +122,7 @@ suite('CodeReviewService', () => {
 		}
 
 		setActiveSession(session: ISession | undefined): void {
-			this._activeSession.set(session as IActiveSession | undefined, undefined);
+			this._activeSession.set(session as ITestSessionWithChat | undefined, undefined);
 		}
 
 		updateSessionChanges(resource: URI, changes: readonly IChatSessionFileChange2[] | undefined): void {

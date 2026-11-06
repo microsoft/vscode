@@ -125,7 +125,7 @@ export class RemoteSessionMessageRouter {
 	}
 
 	private resolveProvider(chat: IRemoteSessionChat, resource = chat.chat.resource): IResolvedRemoteChat {
-		const provider = this.providersService.getProvider(chat.session.providerId);
+		const provider = this.providersService.getProvider(chat.session.providerId, chat.session.sessionId);
 		if (!provider || !isAgentHostProvider(provider) || (provider.connectionStatus && provider.connectionStatus.get().kind !== 'connected')) {
 			throw new Error(localize('remoteMessage.unregisteredProvider', "The agent host provider for {0} is not registered and connected in this Agents window.", resource.toString()));
 		}

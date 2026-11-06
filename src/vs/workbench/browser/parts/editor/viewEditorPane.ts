@@ -16,7 +16,7 @@ import { Registry } from '../../../../platform/registry/common/platform.js';
 import { IStorageService } from '../../../../platform/storage/common/storage.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { IThemeService } from '../../../../platform/theme/common/themeService.js';
-import { DEFAULT_EDITOR_MAX_DIMENSIONS, DEFAULT_EDITOR_MIN_DIMENSIONS } from './editor.js';
+import { DEFAULT_EDITOR_MAX_DIMENSIONS, DEFAULT_EDITOR_MIN_DIMENSIONS, IEditorPaneTitleMenu } from './editor.js';
 import { GroupModelChangeKind, IEditorOpenContext } from '../../../common/editor.js';
 import { getWindowMainPart, IEditorGroup, IEditorGroupsService } from '../../../services/editor/common/editorGroupsService.js';
 import { IEditorService } from '../../../services/editor/common/editorService.js';
@@ -46,12 +46,16 @@ export class ViewEditorPane extends EditorPane {
 	private readonly _onDidChangeSizeConstraints = this._register(new Emitter<{ width: number; height: number } | undefined>());
 	override readonly onDidChangeSizeConstraints = this._onDidChangeSizeConstraints.event;
 
+	private readonly _onDidChangeTitleMenu = this._register(new Emitter<void>());
+	override readonly onDidChangeTitleMenu = this._onDidChangeTitleMenu.event;
+
 	private container: HTMLElement | undefined;
 	private dimension: Dimension | undefined;
 
 	private view: IViewEditorView | undefined;
 	private currentInput: ViewEditorInput | undefined;
 	private viewStateSaved = false;
+	private providedTitleVisible = true;
 	private readonly viewDisposables = this._register(new MutableDisposable<DisposableStore>());
 
 	/**
@@ -96,6 +100,15 @@ export class ViewEditorPane extends EditorPane {
 		return !!this.view?.providesTitle;
 	}
 
+	override setProvidedTitleVisible(visible: boolean): void {
+		this.providedTitleVisible = visible;
+		this.view?.setProvidedTitleVisible?.(visible);
+	}
+
+	override get titleMenu(): IEditorPaneTitleMenu | undefined {
+		return this.view?.titleMenu;
+	}
+
 	protected createEditor(parent: HTMLElement): void {
 		this.container = append(parent, $('.view-editor'));
 	}
@@ -122,6 +135,10 @@ export class ViewEditorPane extends EditorPane {
 		this.viewStateSaved = false;
 		this.currentInput = input;
 		this.viewDisposables.value = disposables;
+		if (view.providesTitle) {
+			view.setProvidedTitleVisible?.(this.providedTitleVisible);
+		}
+		this._onDidChangeTitleMenu.fire();
 
 		this.container?.appendChild(view.element);
 		this._onDidChangeSizeConstraints.fire(undefined);
@@ -239,6 +256,7 @@ export class ViewEditorPane extends EditorPane {
 
 	override clearInput(): void {
 		this.hideOrDisposeView();
+		this._onDidChangeTitleMenu.fire();
 
 		super.clearInput();
 	}

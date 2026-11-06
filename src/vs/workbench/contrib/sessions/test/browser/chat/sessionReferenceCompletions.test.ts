@@ -17,15 +17,12 @@ import { Range } from '../../../../../../editor/common/core/range.js';
 import { CompletionItem, CompletionItemLabel, CompletionItemProvider, CompletionList, CompletionTriggerKind } from '../../../../../../editor/common/languages.js';
 import { ITextModel } from '../../../../../../editor/common/model.js';
 import { ILanguageFeaturesService } from '../../../../../../editor/common/services/languageFeatures.js';
-import { CommandsRegistry } from '../../../../../../platform/commands/common/commands.js';
-import { ServicesAccessor } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { IChatWidget } from '../../../../chat/browser/chat.js';
 import { IDynamicVariable } from '../../../../chat/common/attachments/chatVariables.js';
 import { ChatRequestDynamicVariablePart } from '../../../../chat/common/requestParser/chatParserTypes.js';
-import { getSessionReferenceResource } from '../../../browser/sessionReference.js';
 import { ISession } from '../../../common/session.js';
 import { ISessionsManagementService } from '../../../common/sessionsManagement.js';
-import { SessionReferenceCompletions } from '../../../browser/chat/sessionReferenceCompletions.js';
+import { addSessionReference, IAddSessionReferenceArgs, SessionReferenceCompletions } from '../../../browser/chat/sessionReferenceCompletions.js';
 
 suite('SessionReferenceCompletions', () => {
 
@@ -113,24 +110,28 @@ suite('SessionReferenceCompletions', () => {
 		});
 	});
 
-	test('accepting a session adds an inline reference that troubleshooting resolves to that session', () => {
+	test('accepting a session adds a general session reference without a troubleshooting command', () => {
 		const { complete, added } = createCompletions();
-		const text = '/troubleshoot #sess';
+		const text = 'Compare #sess';
 		const item: CompletionItem = complete(text)!.suggestions[2];
-		CommandsRegistry.getCommand(item.command!.id)!.handler(upcastPartial<ServicesAccessor>({}), ...item.command!.arguments!);
+		addSessionReference(item.command!.arguments![0] as IAddSessionReferenceArgs);
 
 		// The input's request parser turns the inline reference into the request's attachment.
 		const [reference] = added;
 		const referenceText = '#session:Fix the bug';
-		const entry = new ChatRequestDynamicVariablePart(new OffsetRange(14, 14 + referenceText.length), reference.range, referenceText, reference.id, reference.modelDescription, reference.data, reference.fullName).toVariableEntry();
+		const entry = new ChatRequestDynamicVariablePart(new OffsetRange(8, 8 + referenceText.length), reference.range, referenceText, reference.id, reference.modelDescription, reference.data, reference.fullName).toVariableEntry();
 
 		assert.deepStrictEqual({
 			range: reference.range,
 			id: entry.id,
-			resolved: getSessionReferenceResource(entry)?.toString(),
+			kind: entry.kind,
+			name: entry.name,
+			resolved: URI.isUri(entry.value) ? entry.value.toString() : undefined,
 		}, {
-			range: new Range(1, 15, 1, 15 + referenceText.length),
-			id: 'session:older',
+			range: new Range(1, 9, 1, 9 + referenceText.length),
+			id: 'agent-host-copilotcli:/older',
+			kind: 'sessionReference',
+			name: 'Fix the bug',
 			resolved: 'agent-host-copilotcli:/older',
 		});
 	});
