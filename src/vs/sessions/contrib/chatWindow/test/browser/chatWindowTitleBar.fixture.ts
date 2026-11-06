@@ -78,6 +78,8 @@ interface IFixtureOptions {
 	readonly size?: MenuActivityBarSize;
 	/** The chats of its chat part: with more than one, its group shows their tabs, and the chat hides its session header. */
 	readonly chats?: number;
+	/** Its parts show a single tab, as with `workbench.editor.showTabs` set to `single` or `none`: their groups draw no frames, their cards do. */
+	readonly singleTab?: boolean;
 }
 
 const WIDTH = 960;
@@ -105,6 +107,7 @@ export default defineThemedFixtureGroup({ path: 'sessions/chatWindow/titleBar/' 
 	// active tab flows into the chat, which shows no session header of its own.
 	SideBySideTwoChats: titleBarFixture({ mode: ChatWindowLayoutMode.SideBySide, density: ModernUIDensity.Default, chats: 2 }, highContrastThemes),
 	SideBySideTwoChatsCompact: titleBarFixture({ mode: ChatWindowLayoutMode.SideBySide, density: ModernUIDensity.Compact, chats: 2 }, highContrastThemes),
+	SideBySideSingleTab: titleBarFixture({ mode: ChatWindowLayoutMode.SideBySide, density: ModernUIDensity.Default, singleTab: true }, highContrastThemes),
 });
 
 interface IMenuEntry {
@@ -311,6 +314,10 @@ function renderChatWindow(context: ComponentFixtureContext, options: IFixtureOpt
 	const grid = disposableStore.add(instantiationService.createInstance(PartGrid, frame));
 	const { card: chat, sessionView } = createChatCard(options.chats ?? 1);
 	const main = createMainCard();
+	if (options.singleTab) {
+		chat.classList.remove('editor-tabs-multiple');
+		main.classList.remove('editor-tabs-multiple');
+	}
 	const stacked = options.mode === ChatWindowLayoutMode.Stacked || options.mode === ChatWindowLayoutMode.EditorOnly;
 	const showsChat = options.mode !== ChatWindowLayoutMode.EditorOnly;
 	const showsMain = options.mode !== ChatWindowLayoutMode.ChatOnly;
