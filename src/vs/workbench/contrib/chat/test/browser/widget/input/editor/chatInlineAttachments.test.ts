@@ -22,6 +22,7 @@ import { MoveLinesCommand } from '../../../../../../../../editor/contrib/linesOp
 import { CopyLinesCommand } from '../../../../../../../../editor/contrib/linesOperations/browser/copyLinesCommand.js';
 import { createCodeEditorServices, instantiateTestCodeEditor } from '../../../../../../../../editor/test/browser/testCodeEditor.js';
 import { instantiateTextModel } from '../../../../../../../../editor/test/common/testTextModel.js';
+import { IAgentHostConnectionsService } from '../../../../../../../../platform/agentHost/common/agentHostConnectionsService.js';
 import { IConfigurationService } from '../../../../../../../../platform/configuration/common/configuration.js';
 import { IContextKeyService } from '../../../../../../../../platform/contextkey/common/contextkey.js';
 import { TestConfigurationService } from '../../../../../../../../platform/configuration/test/common/testConfigurationService.js';
@@ -80,6 +81,9 @@ suite('ChatInlineAttachments', () => {
 		});
 		instantiationService.stub(ISharedWebContentExtractorService, new class extends mock<ISharedWebContentExtractorService>() { });
 		instantiationService.stub(IChatAttachmentResolveService, new class extends mock<IChatAttachmentResolveService>() { });
+		instantiationService.stub(IAgentHostConnectionsService, upcastPartial<IAgentHostConnectionsService>({
+			resolveSessionResourceIdentity: () => undefined,
+		}));
 		instantiationService.stub(IExtensionService, new class extends mock<IExtensionService>() {
 			override readonly extensions = [];
 		});
