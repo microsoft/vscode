@@ -111,7 +111,7 @@ suite('ChatPetWidget', () => {
 		}
 	}
 
-	function createHostTransitionHarness(motionReduced = false, initialTransition: IChatPetWidgetHost['transition'] = 'teleport', color?: ChatPetColor, intersectionObserverCtor?: typeof IntersectionObserver, setPlatformOccupation?: IChatPetWidgetHost['setPlatformOccupation'], supportsJumpGame = false, initializeService?: (service: ChatPetService) => void) {
+	function createHostTransitionHarness(motionReduced = false, initialTransition: IChatPetWidgetHost['transition'] = 'teleport', color?: ChatPetColor, intersectionObserverCtor?: typeof IntersectionObserver, setPlatformOccupation?: IChatPetWidgetHost['setPlatformOccupation'], supportsJumpGame = false, initializeService?: (service: ChatPetService) => void, initialModel?: IChatModel) {
 		const root = mainWindow.document.createElement('div');
 		root.style.cssText = 'position:fixed;left:0;top:0;width:800px;height:640px';
 		if (supportsJumpGame) {
@@ -152,10 +152,12 @@ suite('ChatPetWidget', () => {
 			onDidChangePlatform: platformChanged.event,
 			setPlatformOccupation,
 		});
-		const firstHost = createHost(firstParent, initialTransition);
+		const firstHost = { ...createHost(firstParent, initialTransition), model: constObservable(initialModel) };
 		const secondHost: IChatPetWidgetHost = {
 			...createHost(secondParent, 'fall'),
 			model: constObservable(new class extends mock<IChatModel>() {
+				override readonly onDidChange = Event.None;
+				override getRequests(): IChatRequestModel[] { return []; }
 				override readonly hasActiveRequest = constObservable(true);
 				override readonly lastRequestObs = constObservable(undefined);
 			}()),
@@ -2253,6 +2255,297 @@ suite('ChatPetWidget', () => {
 		]);
 	});
 
+	function createSubagentTestModel(parts: IChatProgressResponseContent[], onDidChange: Event<ChatResponseModelChangeReason> = Event.None): IChatModel {
+		const response = new class extends mock<IChatResponseModel>() {
+			override readonly onDidChange = onDidChange;
+			override readonly isPendingConfirmation = constObservable(undefined);
+			override readonly response = new class extends mock<IResponse>() { override readonly value = parts; }();
+		}();
+		const request = new class extends mock<IChatRequestModel>() { override readonly id = 'request'; override readonly response = response; }();
+		return new class extends mock<IChatModel>() {
+			override readonly onDidChange = Event.None;
+			override readonly hasActiveRequest = constObservable(true);
+			override readonly lastRequestObs = constObservable(request);
+			override getRequests(): IChatRequestModel[] { return [request]; }
+		}();
+	}
+
+	test('shows one mini pet per active subagent and removes it when it stops', async () => {
+		const { widget, firstHost, button, overlay, service } = createHostTransitionHarness();
+		const responseChanged = disposables.add(new Emitter<ChatResponseModelChangeReason>());
+		const parts: IChatProgressResponseContent[] = [];
+		const modelValue = observableValue<IChatModel | undefined>('model', createSubagentTestModel(parts, responseChanged.event));
+		widget.setHost({ ...firstHost, model: modelValue });
+		service.unlockAchievement(getChatPetAchievementForAccessory(ChatPetAccessoryIds.CowboyHat).id);
+		service.setAccessory(ChatPetAccessoryIds.CowboyHat);
+		const createSubagent = (id: string) => {
+			const tool = new ChatToolInvocation(undefined, { id, displayName: id, modelDescription: 'Subagent', source: ToolDataSource.Internal }, id, undefined, {});
+			tool.toolSpecificData = { kind: 'subagent', isActive: true };
+			parts.push(tool);
+			responseChanged.fire({ reason: 'other' });
+			return tool;
+		};
+		button.style.left = '0px';
+		button.style.top = '-100px';
+		const mainPupils = button.querySelectorAll<HTMLElement>('.chat-pet-pupil');
+		for (const pupil of mainPupils) {
+			pupil.style.transform = 'translate(2px, -2px)';
+		}
+		const first = createSubagent('first');
+		const firstMini = overlay.querySelector<HTMLElement>('.chat-pet-subagent')!;
+		assert.deepStrictEqual([...firstMini.querySelectorAll<HTMLElement>('.chat-pet-pupil')].map(pupil => pupil.style.transform), ['', '']);
+		assert.deepStrictEqual([...mainPupils].map(pupil => pupil.style.transform), ['translate(2px, -2px)', 'translate(2px, -2px)']);
+		assert.ok(firstMini.offsetLeft >= button.offsetLeft + button.offsetWidth);
+		const miniSize = 48 * Number.parseFloat(firstMini.style.getPropertyValue('--chat-pet-subagent-scale'));
+		assert.strictEqual(Number.parseFloat(firstMini.style.top) + miniSize, 0);
+		const [bodyImage, accessoryImage] = firstMini.querySelectorAll<HTMLImageElement>('img');
+		assert.ok(accessoryImage?.src.includes('/accessories/'));
+		await Promise.all([bodyImage.decode(), accessoryImage.decode()]);
+		const miniCanvas = firstMini.querySelector<HTMLCanvasElement>('canvas')!;
+		const draws = sinon.spy(miniCanvas.getContext('2d')!, 'drawImage');
+		bodyImage.dispatchEvent(new mainWindow.Event('load'));
+		assert.ok(draws.calledWith(accessoryImage));
+		draws.restore();
+		button.dataset.state = 'idle';
+		const miniPupil = firstMini.querySelector<HTMLElement>('.chat-pet-pupil')!;
+		const mainPupil = button.querySelector<HTMLElement>('.chat-pet-pupil')!;
+		assert.strictEqual(mainWindow.getComputedStyle(miniPupil).height, mainWindow.getComputedStyle(mainPupil).height);
+		assert.strictEqual(mainWindow.getComputedStyle(miniPupil).height, '8px');
+		widget.setHost({ ...firstHost, transition: undefined, model: modelValue, getPlatforms: () => {
+			const bounds = overlay.getBoundingClientRect();
+			return [
+				{ left: bounds.left, right: bounds.right, top: bounds.top - 60 },
+				{ left: bounds.left, right: bounds.right, top: bounds.top, isDefault: true },
+			];
+		} });
+		button.style.left = '300px';
+		button.style.top = '-140px';
+		createSubagent('second');
+		const minis = overlay.querySelectorAll<HTMLElement>('.chat-pet-subagent');
+		assert.ok(minis[1].offsetLeft < button.offsetLeft);
+		assert.strictEqual(Number.parseFloat(minis[1].style.top) + miniSize, -60);
+		assert.strictEqual(overlay.querySelectorAll('.chat-pet-subagent').length, 2);
+		assert.strictEqual(overlay.querySelectorAll('.chat-pet-subagent.arriving').length, 2);
+		assert.strictEqual(button.querySelectorAll('.chat-pet-subagent').length, 0);
+		assert.ok(overlay.querySelector('.chat-pet-subagent img')?.getAttribute('src')?.includes('buddy-'));
+		const mini = overlay.querySelector<HTMLElement>('.chat-pet-subagent')!;
+		const position = mini.style.left;
+		button.style.left = '300px';
+		button.style.transform = 'rotate(45deg)';
+		assert.strictEqual(mini.style.left, position);
+		first.toolSpecificData = { kind: 'subagent', isActive: false };
+		responseChanged.fire({ reason: 'other' });
+		assert.strictEqual(overlay.querySelectorAll('.chat-pet-subagent').length, 1);
+		assert.ok(firstMini.classList.contains('chat-pet-subagent-despawning'));
+		assert.strictEqual(overlay.querySelector('.chat-pet-subagent'), minis[1]);
+		const third = createSubagent('third');
+		const thirdMini = overlay.querySelectorAll<HTMLElement>('.chat-pet-subagent')[1];
+		parts.splice(parts.indexOf(third), 1);
+		const replacement = new ChatToolInvocation(undefined, { id: 'replacement', displayName: 'Replacement', modelDescription: 'Subagent', source: ToolDataSource.Internal }, 'replacement', undefined, {});
+		replacement.toolSpecificData = { kind: 'subagent', isActive: true };
+		parts.push(replacement);
+		responseChanged.fire({ reason: 'other' });
+		assert.ok(thirdMini.classList.contains('chat-pet-subagent-despawning'));
+		assert.strictEqual(overlay.querySelector('.chat-pet-subagent'), minis[1]);
+		assert.strictEqual(overlay.querySelectorAll('.chat-pet-subagent').length, 2);
+		assert.ok(overlay.querySelector('.chat-pet-subagent-despawning img')?.getAttribute('src')?.includes('buddy-respawn-'));
+		modelValue.set(undefined, undefined);
+		assert.strictEqual(overlay.querySelectorAll('.chat-pet-subagent').length, 0);
+		await timeout(900);
+		assert.strictEqual(overlay.querySelectorAll('.chat-pet-subagent-despawning').length, 0);
+	});
+
+	test('mini pets use restored geometry when the initial model already has a subagent', () => {
+		const tool = new ChatToolInvocation(undefined, { id: 'subagent', displayName: 'Subagent', modelDescription: 'Subagent', source: ToolDataSource.Internal }, 'subagent', undefined, {});
+		tool.toolSpecificData = { kind: 'subagent', isActive: true };
+		const model = createSubagentTestModel([tool]);
+		const { button, overlay } = createHostTransitionHarness(true, 'teleport', undefined, undefined, undefined, false, service => {
+			service.setScale(2);
+			service.setHorizontalPosition(0.8);
+		}, model);
+		const pet = overlay.querySelector<HTMLElement>('.chat-pet-subagent')!;
+		assert.strictEqual(Number.parseFloat(pet.style.getPropertyValue('--chat-pet-subagent-scale')), 1);
+		assert.ok(pet.offsetLeft < button.offsetLeft);
+	});
+
+	test('mini pets stop when disabled and return for active subagents when re-enabled', async () => {
+		const { widget, firstHost, overlay, service } = createHostTransitionHarness();
+		const changed = disposables.add(new Emitter<ChatResponseModelChangeReason>());
+		const parts: IChatProgressResponseContent[] = [];
+		widget.setHost({ ...firstHost, model: constObservable(createSubagentTestModel(parts, changed.event)) });
+		const tool = new ChatToolInvocation(undefined, { id: 'first', displayName: 'First', modelDescription: 'Subagent', source: ToolDataSource.Internal }, 'first', undefined, {});
+		tool.toolSpecificData = { kind: 'subagent', isActive: true };
+		parts.push(tool);
+		changed.fire({ reason: 'other' });
+		const first = overlay.querySelector<HTMLElement>('.chat-pet-subagent')!;
+		await whenSpriteLoaded(first.querySelector<HTMLImageElement>('img')!);
+		service.toggle();
+		assert.strictEqual(first.isConnected, false);
+		const second = new ChatToolInvocation(undefined, { id: 'second', displayName: 'Second', modelDescription: 'Subagent', source: ToolDataSource.Internal }, 'second', undefined, {});
+		second.toolSpecificData = { kind: 'subagent', isActive: true };
+		parts.push(second);
+		changed.fire({ reason: 'other' });
+		assert.strictEqual(overlay.querySelectorAll('.chat-pet-subagent').length, 0);
+		service.toggle();
+		assert.strictEqual(overlay.querySelectorAll('.chat-pet-subagent').length, 2);
+	});
+
+	test('mini pets avoid existing positions when the main pet moves between subagents', () => {
+		const { widget, firstHost, button, overlay } = createHostTransitionHarness(true);
+		const changed = disposables.add(new Emitter<ChatResponseModelChangeReason>());
+		const parts: IChatProgressResponseContent[] = [];
+		widget.setHost({ ...firstHost, model: constObservable(createSubagentTestModel(parts, changed.event)) });
+		const add = (id: string) => {
+			const tool = new ChatToolInvocation(undefined, { id, displayName: id, modelDescription: 'Subagent', source: ToolDataSource.Internal }, id, undefined, {});
+			tool.toolSpecificData = { kind: 'subagent', isActive: true };
+			parts.push(tool);
+			changed.fire({ reason: 'other' });
+		};
+		button.style.left = '300px';
+		add('first');
+		button.style.left = '324px';
+		add('second');
+		const [first, second] = overlay.querySelectorAll<HTMLElement>('.chat-pet-subagent');
+		assert.ok(second.offsetLeft + 24 <= first.offsetLeft || first.offsetLeft + 24 <= second.offsetLeft);
+	});
+
+	test('mini pets update appearance and motion settings while active', async () => {
+		const { widget, firstHost, button, overlay, service, setReducedMotion } = createHostTransitionHarness();
+		const tool = new ChatToolInvocation(undefined, { id: 'subagent', displayName: 'Subagent', modelDescription: 'Subagent', source: ToolDataSource.Internal }, 'subagent', undefined, {});
+		tool.toolSpecificData = { kind: 'subagent', isActive: true };
+		widget.setHost({ ...firstHost, model: constObservable(createSubagentTestModel([tool])) });
+		const pet = overlay.querySelector<HTMLElement>('.chat-pet-subagent')!;
+		pet.classList.remove('arriving');
+		const body = pet.querySelector<HTMLImageElement>('img')!;
+		await whenSpriteLoaded(body);
+		setReducedMotion(true);
+		await whenSpriteLoaded(body);
+		assert.ok(body.getAttribute('src')?.endsWith('-96.png'));
+		setReducedMotion(false);
+		await whenSpriteLoaded(body);
+		assert.ok(body.getAttribute('src')?.endsWith('.spritesheet.png'));
+		service.unlockAchievement(ChatPetAchievementIds.Blobby);
+		service.setColor('stable');
+		await whenSpriteLoaded(body);
+		assert.ok(body.getAttribute('src')?.includes('buddy-idle-stable'));
+		service.setColor('#12abcd');
+		assert.strictEqual(pet.querySelector<HTMLElement>('.chat-pet-eyes')!.style.color, button.querySelector<HTMLElement>('.chat-pet-eyes')!.style.color);
+		service.unlockAchievement(getChatPetAchievementForAccessory(ChatPetAccessoryIds.CowboyHat).id);
+		service.setAccessory(ChatPetAccessoryIds.CowboyHat);
+		const hat = pet.querySelectorAll<HTMLImageElement>('img')[1];
+		assert.ok(hat?.src.includes('/accessories/'));
+		service.setAccessory(undefined);
+		assert.strictEqual(pet.querySelectorAll('img').length, 1);
+	});
+
+	test('mini pets stop squishing when reduced motion is enabled during landing', async () => {
+		const { widget, firstHost, overlay, setReducedMotion } = createHostTransitionHarness();
+		const tool = new ChatToolInvocation(undefined, { id: 'subagent', displayName: 'Subagent', modelDescription: 'Subagent', source: ToolDataSource.Internal }, 'subagent', undefined, {});
+		tool.toolSpecificData = { kind: 'subagent', isActive: true };
+		widget.setHost({ ...firstHost, model: constObservable(createSubagentTestModel([tool])) });
+		const pet = overlay.querySelector<HTMLElement>('.chat-pet-subagent')!;
+		const image = pet.querySelector<HTMLImageElement>('img')!;
+		await whenSpriteLoaded(image);
+		pet.dispatchEvent(new mainWindow.AnimationEvent('animationend', { animationName: 'chat-pet-subagent-fall' }));
+		await whenSpriteLoaded(image);
+		assert.ok(image.getAttribute('src')?.includes('buddy-splat-'));
+		setReducedMotion(true);
+		await whenSpriteLoaded(image);
+		assert.ok(image.getAttribute('src')?.includes('buddy-idle-'));
+		assert.ok(image.getAttribute('src')?.endsWith('-96.png'));
+		assert.ok(pet.querySelector('.chat-pet-eyes.tracking'));
+	});
+
+	test('mini pets squish on landing and return to their own idle animation', async () => {
+		const clock = sinon.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout', 'performance'] });
+		disposables.add(toDisposable(() => clock.restore()));
+		const { widget, firstHost, overlay } = createHostTransitionHarness();
+		const changed = disposables.add(new Emitter<ChatResponseModelChangeReason>());
+		const tools = ['first', 'second'].map(id => {
+			const tool = new ChatToolInvocation(undefined, { id, displayName: id, modelDescription: 'Subagent', source: ToolDataSource.Internal }, id, undefined, {});
+			tool.toolSpecificData = { kind: 'subagent', isActive: true };
+			return tool;
+		});
+		widget.setHost({ ...firstHost, model: constObservable(createSubagentTestModel(tools, changed.event)) });
+		const [first, second] = overlay.querySelectorAll<HTMLElement>('.chat-pet-subagent');
+		for (const pet of [first, second]) {
+			for (const animation of pet.getAnimations()) {
+				animation.pause();
+			}
+		}
+		const image = first.querySelector<HTMLImageElement>('img')!;
+		const secondImage = second.querySelector<HTMLImageElement>('img')!;
+		const eyes = first.querySelector<HTMLElement>('.chat-pet-eyes')!;
+		await Promise.all([whenSpriteLoaded(image), whenSpriteLoaded(secondImage)]);
+		const idleSource = image.getAttribute('src');
+		const land = (pet: HTMLElement) => pet.dispatchEvent(new mainWindow.AnimationEvent('animationend', { animationName: 'chat-pet-subagent-fall' }));
+		land(first);
+		await whenSpriteLoaded(image);
+		assert.deepStrictEqual({
+			squishing: image.getAttribute('src')?.includes('buddy-splat-'),
+			arriving: first.classList.contains('arriving'),
+			idleEyes: eyes.classList.contains('tracking'),
+			otherSource: secondImage.getAttribute('src'),
+		}, { squishing: true, arriving: false, idleEyes: false, otherSource: idleSource });
+		clock.tick(520);
+		await whenSpriteLoaded(image);
+		assert.deepStrictEqual({ source: image.getAttribute('src'), idleEyes: eyes.classList.contains('tracking') }, { source: idleSource, idleEyes: true });
+		land(second);
+		await whenSpriteLoaded(secondImage);
+		tools[1].toolSpecificData = { kind: 'subagent', isActive: false };
+		changed.fire({ reason: 'other' });
+		land(second);
+		clock.tick(900);
+		assert.deepStrictEqual({ active: [...overlay.querySelectorAll('.chat-pet-subagent')], removed: !second.isConnected }, { active: [first], removed: true });
+	});
+
+	test('mini pets use the reduced-motion disappearance sprite', () => {
+		const { widget, firstHost, overlay } = createHostTransitionHarness(true);
+		const changed = disposables.add(new Emitter<ChatResponseModelChangeReason>());
+		const tool = new ChatToolInvocation(undefined, { id: 'subagent', displayName: 'Subagent', modelDescription: 'Subagent', source: ToolDataSource.Internal }, 'subagent', undefined, {});
+		tool.toolSpecificData = { kind: 'subagent', isActive: true };
+		widget.setHost({ ...firstHost, model: constObservable(createSubagentTestModel([tool], changed.event)) });
+		assert.ok(overlay.querySelector('.chat-pet-subagent:not(.arriving)'));
+		const pet = overlay.querySelector<HTMLElement>('.chat-pet-subagent')!;
+		const image = pet.querySelector<HTMLImageElement>('img')!;
+		const idleSource = image.getAttribute('src');
+		pet.dispatchEvent(new mainWindow.AnimationEvent('animationend', { animationName: 'chat-pet-subagent-fall' }));
+		assert.strictEqual(image.getAttribute('src'), idleSource);
+		tool.toolSpecificData = { kind: 'subagent', isActive: false };
+		changed.fire({ reason: 'other' });
+		assert.ok(overlay.querySelector('.chat-pet-subagent-despawning img')?.getAttribute('src')?.endsWith('-96.png'));
+	});
+
+	test('mini pets blink and move their eyes with their own idle frames', async () => {
+		const clock = sinon.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout', 'performance'] });
+		disposables.add(toDisposable(() => clock.restore()));
+		sinon.stub(Math, 'random').returns(0);
+		const { widget, firstHost, overlay, setReducedMotion } = createHostTransitionHarness();
+		const tool = new ChatToolInvocation(undefined, { id: 'subagent', displayName: 'Subagent', modelDescription: 'Subagent', source: ToolDataSource.Internal }, 'subagent', undefined, {});
+		tool.toolSpecificData = { kind: 'subagent', isActive: true };
+		widget.setHost({ ...firstHost, model: constObservable(createSubagentTestModel([tool])) });
+		const pet = overlay.querySelector<HTMLElement>('.chat-pet-subagent')!;
+		// Exercise idle frames independently of the CSS arrival and landing animation.
+		pet.classList.remove('arriving');
+		const eyes = pet.querySelector<HTMLElement>('.chat-pet-eyes')!;
+		const pupil = pet.querySelector<HTMLElement>('.chat-pet-pupil')!;
+		await whenSpriteLoaded(pet.querySelector<HTMLImageElement>('img')!);
+		assert.ok(!eyes.classList.contains('bobbed'));
+		clock.tick(800);
+		assert.ok(eyes.classList.contains('bobbed'));
+		clock.tick(600);
+		assert.ok(eyes.classList.contains('blink'));
+		assert.strictEqual(mainWindow.getComputedStyle(pupil).animationName, 'chat-pet-tall-eye-blink');
+		pupil.dispatchEvent(new mainWindow.AnimationEvent('animationend', { animationName: 'chat-pet-tall-eye-blink' }));
+		assert.ok(!eyes.classList.contains('blink'));
+		clock.tick(600);
+		assert.ok(!eyes.classList.contains('bobbed'));
+		setReducedMotion(true);
+		clock.tick(3_400);
+		assert.ok(!eyes.classList.contains('blink'));
+		assert.ok(!eyes.classList.contains('bobbed'));
+	});
+
 	for (const variant of ['stable', 'insiders'] as const) {
 		for (const reducedMotion of [false, true]) {
 			test(`paints only while a visible image-generation tool is active (${variant}, ${reducedMotion ? 'reduced motion' : 'animated'})`, async () => {
@@ -2271,6 +2564,8 @@ suite('ChatPetWidget', () => {
 					override readonly response = response;
 				}();
 				const model = new class extends mock<IChatModel>() {
+					override readonly onDidChange = Event.None;
+					override getRequests(): IChatRequestModel[] { return [request]; }
 					override readonly hasActiveRequest = hasActiveRequest;
 					override readonly lastRequestObs = constObservable(request);
 				}();

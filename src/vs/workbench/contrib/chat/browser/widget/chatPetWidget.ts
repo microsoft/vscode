@@ -27,6 +27,7 @@ import { IInstantiationService } from '../../../../../platform/instantiation/com
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import { IHostService } from '../../../../services/host/browser/host.js';
 import { IChatModel } from '../../common/model/chatModel.js';
+import { getSubagentIsActive, IChatToolInvocation } from '../../common/chatService/chatService.js';
 import { CHAT_PET_OPEN_ACHIEVEMENTS_COMMAND_ID, ChatPetAccessoryId, getChatPetAccessory, getChatPetAchievement } from '../chatPetAchievements.js';
 import { CHAT_PET_DEFAULT_SCALE, ChatPetHorizontalAnchor, ChatPetHorizontalPosition, ChatPetVariant, IChatPetService } from '../chatPetService.js';
 import { CHAT_PET_CHANGE_COLOR_COMMAND_ID, ChatPetColor, getChatPetBodyColor, getChatPetColoredSprite, getChatPetColorVariant, getChatPetEyeColor, setChatPetImageSource } from '../chatPetColors.js';
@@ -211,6 +212,17 @@ interface ChatPetSpriteElement {
 	activeAccessory?: ChatPetAccessoryId;
 	activeAccessoryImage?: HTMLImageElement;
 	redrawFrame?: () => void;
+}
+
+interface ChatPetSubagent {
+	readonly element: HTMLElement;
+	readonly canvas: HTMLCanvasElement;
+	readonly image: HTMLImageElement;
+	readonly accessoryImage: HTMLImageElement | undefined;
+	readonly eyes: HTMLElement;
+	readonly disposables: DisposableStore;
+	readonly updateBlink: () => void;
+	readonly updateAppearance: (motionChanged: boolean, variantChanged: boolean, accessoryChanged: boolean) => void;
 }
 
 interface ChatPetPendingRender {
@@ -1245,6 +1257,10 @@ export class ChatPetHopController extends Disposable {
 
 export class ChatPetWidget extends Disposable {
 
+	private readonly _subagentPets = new Map<string, ChatPetSubagent>();
+	private _subagentModel: IChatModel | undefined;
+	private readonly _subagentEffects = this._register(new DisposableStore());
+	private readonly _subagentLayer: HTMLElement;
 	private parent: HTMLElement;
 	private dragBounds: HTMLElement;
 	private movementBounds: HTMLElement;
@@ -1408,6 +1424,7 @@ export class ChatPetWidget extends Disposable {
 		this.parent.classList.add('chat-pet-host');
 		this._overlay = dom.$(`.${CHAT_PET_OVERLAY_CLASS}`);
 		this.parent.prepend(this._overlay);
+		this._subagentLayer = dom.append(this._overlay, dom.$('.chat-pet-subagent-layer'));
 		this._register(toDisposable(() => {
 			this.parent.classList.remove('chat-pet-host');
 			this._overlay.remove();
@@ -1701,6 +1718,7 @@ export class ChatPetWidget extends Disposable {
 				this._setScale(scale);
 			}
 			const enabled = isChatPetVisible(serviceEnabled, isWindowActive);
+			this._subagentLayer.classList.toggle('hidden', !enabled);
 			const color = this.chatPetService.color.read(reader);
 			const colorChanged = color !== this._color;
 			this._color = color;
@@ -1775,8 +1793,22 @@ export class ChatPetWidget extends Disposable {
 					this._finishDisable();
 				}
 			}
+			for (const pet of this._subagentPets.values()) {
+				pet.updateBlink();
+				if (enabled && (wasMotionReduced !== this._motionReduced || colorChanged || accessoryChanged)) {
+					pet.updateAppearance(wasMotionReduced !== this._motionReduced, variantChanged, accessoryChanged);
+				}
+				if (this._motionReduced) {
+					pet.eyes.classList.remove('bobbed');
+				}
+			}
 
 			if (!enabled) {
+				for (const pet of this._subagentPets.values()) {
+					pet.element.remove();
+				}
+				this._subagentPets.clear();
+				this._subagentEffects.clear();
 				this._hopController.cancel();
 				this._idleScheduler.cancel();
 				this._transientScheduler.cancel();
@@ -1835,6 +1867,39 @@ export class ChatPetWidget extends Disposable {
 				this._hopController.cancel();
 			}
 			this._renderState(renderedState, variantChanged, isDragging);
+		}));
+
+		this._register(autorun(reader => {
+			const enabled = isChatPetVisible(this.chatPetService.enabled.read(reader), windowActive.read(reader));
+			const model = this._host.read(reader).model.read(reader);
+			if (model !== this._subagentModel) {
+				this._updateSubagentPets(new Set());
+				this._subagentModel = model;
+			}
+			if (!enabled || !model) {
+				return;
+			}
+			observableSignalFromEvent(this, model.onDidChange).read(reader);
+			const subagents = new Set<string>();
+			for (const request of model.getRequests()) {
+				const response = request.response;
+				if (!response) {
+					continue;
+				}
+				observableSignalFromEvent(this, response.onDidChange).read(reader);
+				for (const part of response.response.value) {
+					if (part.kind !== 'toolInvocation') {
+						continue;
+					}
+					part.toolSpecificDataKind.read(reader);
+					part.state.read(reader);
+					const data = part.toolSpecificData;
+					if (data?.kind === 'subagent' && data.presentation !== 'phase' && data.hasStarted !== false && (getSubagentIsActive(data) ?? !IChatToolInvocation.isComplete(part, reader))) {
+						subagents.add(JSON.stringify([request.id, part.toolCallId]));
+					}
+				}
+			}
+			this._updateSubagentPets(subagents);
 		}));
 
 		this._register(autorun(reader => {
@@ -2809,6 +2874,174 @@ export class ChatPetWidget extends Disposable {
 
 	private _getCurrentLeft(): number {
 		return this._button.element.offsetLeft;
+	}
+
+	private _updateSubagentPets(subagents: ReadonlySet<string>): void {
+		for (const [id, pet] of this._subagentPets) {
+			if (!subagents.has(id)) {
+				this._subagentPets.delete(id);
+				this._despawnSubagentPet(pet);
+			}
+		}
+		for (const id of subagents) {
+			if (this._subagentPets.has(id)) {
+				continue;
+			}
+			const element = dom.append(this._subagentLayer, dom.$('.chat-pet-subagent', { 'aria-hidden': 'true' }));
+			const miniScale = 0.5 * (this._scale || 1);
+			const petLeft = this._button.element.offsetLeft;
+			const bounds = this._getHorizontalBounds();
+			const midpoint = bounds ? (bounds.minimumLeft + bounds.maximumLeft) / 2 : (this._overlay.clientWidth - this._getDisplaySize()) / 2;
+			const miniWidth = 48 * miniScale;
+			const side = petLeft < midpoint ? 'right' : 'left';
+			let slot = 0;
+			const getLeft = () => side === 'right'
+				? petLeft + this._getDisplaySize() + miniWidth * slot
+				: petLeft - miniWidth * (slot + 1);
+			while ([...this._subagentPets.values()].some(pet => {
+				const otherLeft = Number.parseFloat(pet.element.style.left);
+				const otherWidth = 48 * Number.parseFloat(pet.element.style.getPropertyValue('--chat-pet-subagent-scale'));
+				return getLeft() < otherLeft + otherWidth && getLeft() + miniWidth > otherLeft;
+			})) {
+				slot++;
+			}
+			const left = getLeft();
+			const overlayBounds = this._overlay.getBoundingClientRect();
+			const landing = getChatPetFallTarget(overlayBounds.left + left, -miniWidth, miniWidth, miniWidth, this._getPlatforms(), this.movementBounds.getBoundingClientRect().bottom);
+			element.style.left = `${left}px`;
+			element.style.top = `${landing.top - overlayBounds.top}px`;
+			element.style.setProperty('--chat-pet-subagent-scale', String(miniScale));
+			const distance = Math.max(0, landing.top + miniWidth);
+			element.style.setProperty('--chat-pet-subagent-fall-distance', `${distance}px`);
+			element.style.setProperty('--chat-pet-subagent-fall-duration', `${getChatPetFallDuration(distance)}ms`);
+			if (!this._motionReduced) {
+				element.classList.add('arriving');
+			}
+			const canvas = dom.append(element, dom.$('canvas.chat-pet-subagent-canvas')) as HTMLCanvasElement;
+			canvas.width = CHAT_PET_SOURCE_SIZE;
+			canvas.height = CHAT_PET_SOURCE_SIZE;
+			const eyes = element.appendChild(this._eyes.cloneNode(true)) as HTMLElement;
+			eyes.classList.remove('blink', 'blinking', 'bobbed');
+			eyes.classList.add('tracking');
+			for (const eye of eyes.children) {
+				(eye.firstElementChild as HTMLElement | null)?.style.removeProperty('transform');
+			}
+			const disposables = this._subagentEffects.add(new DisposableStore());
+			let state: 'idle' | 'splat' = 'idle';
+			const blink = disposables.add(new ChatPetBlinkController(blinking => eyes.classList.toggle('blink', blinking)));
+			const updateBlink = () => blink.setEnabled(state === 'idle' && this._enabled && !this._motionReduced && this._isAnimationVisible(this._visual) && this._isAnimationVisible(element));
+			disposables.add(this._onDidChangeAnimationVisibility.event(updateBlink));
+			const firstPupil = eyes.firstElementChild?.firstElementChild;
+			if (firstPupil) {
+				disposables.add(dom.addDisposableListener(firstPupil, 'animationend', event => {
+					if ((event as AnimationEvent).animationName === 'chat-pet-tall-eye-blink') {
+						blink.onAnimationComplete();
+					}
+				}));
+			}
+			updateBlink();
+			const animation = disposables.add(new MutableDisposable<IDisposable>());
+			const image = dom.append(element, dom.$('img.chat-pet-spritesheet')) as HTMLImageElement;
+			image.alt = '';
+			const setState = (nextState: 'idle' | 'splat') => {
+				animation.clear();
+				state = nextState;
+				updateBlink();
+				const sources = getChatPetSpriteSources(this._variant)[state];
+				setChatPetImageSource(image, (this._motionReduced ? sources.reducedMotion : sources.animated).url);
+			};
+			const sprite: ChatPetSpriteElement = { container: element, canvas, image, color: this._color };
+			let accessory = this._selectedAccessory ? getChatPetAccessory(this._selectedAccessory) : undefined;
+			let accessoryImage: HTMLImageElement | undefined;
+			const accessoryListener = disposables.add(new MutableDisposable<IDisposable>());
+			const updateAccessory = () => {
+				accessory = this._selectedAccessory ? getChatPetAccessory(this._selectedAccessory) : undefined;
+				if (!accessory) {
+					accessoryListener.clear();
+					accessoryImage?.remove();
+					accessoryImage = undefined;
+				} else {
+					if (!accessoryImage) {
+						accessoryImage = dom.append(element, dom.$('img.chat-pet-spritesheet')) as HTMLImageElement;
+						accessoryImage.alt = '';
+						accessoryListener.value = dom.addDisposableListener(accessoryImage, 'load', () => sprite.redrawFrame?.());
+					}
+					setChatPetImageSource(accessoryImage, getChatPetAccessoryImageSource(accessory).url);
+				}
+				sprite.redrawFrame?.();
+			};
+			updateAccessory();
+			disposables.add(dom.addDisposableListener(image, 'load', () => {
+				if (state === 'splat' && this._motionReduced) {
+					setState('idle');
+					return;
+				}
+				const sources = getChatPetSpriteSources(this._variant)[state];
+				const source = this._motionReduced ? sources.reducedMotion : sources.animated;
+				eyes.classList.toggle('tracking', state === 'idle');
+				this._startSpriteAnimation(source, sprite, animation, state === 'splat' ? () => setState('idle') : undefined, false, frameIndex => {
+					eyes.classList.toggle('bobbed', state === 'idle' && !this._motionReduced && (source.accessoryRigFrame ?? frameIndex) >= 20);
+					if (accessoryImage?.complete && accessoryImage.naturalWidth > 0 && accessory) {
+						const context = canvas.getContext('2d');
+						if (context) {
+							drawChatPetComposite(context, image, accessoryImage, frameIndex, source.accessoryRigFrame ?? frameIndex, source.frameWidth, source.frameHeight ?? CHAT_PET_SOURCE_SIZE, 'right', state, source.fixedOrientationDecorations, true, accessory.eyeAccessoryMirrorsWithFacing !== false, accessory.coversAntennae === true, sprite.color);
+						}
+					}
+				});
+			}));
+			disposables.add(dom.addDisposableListener(element, 'animationend', event => {
+				if (event.target === element && (event as AnimationEvent).animationName === 'chat-pet-subagent-fall') {
+					element.classList.remove('arriving');
+					if (!this._motionReduced) {
+						setState('splat');
+					}
+				}
+			}));
+			const updateAppearance = (motionChanged: boolean, variantChanged: boolean, accessoryChanged: boolean) => {
+				sprite.color = this._color;
+				eyes.style.color = getChatPetEyeColor(this._color);
+				if (accessoryChanged) {
+					updateAccessory();
+				}
+				if (motionChanged || variantChanged) {
+					if (this._motionReduced) {
+						element.classList.remove('arriving');
+					}
+					setState(this._motionReduced ? 'idle' : state);
+				} else {
+					sprite.redrawFrame?.();
+				}
+			};
+			setState('idle');
+			this._subagentPets.set(id, { element, canvas, image, get accessoryImage() { return accessoryImage; }, eyes, disposables, updateBlink, updateAppearance });
+		}
+	}
+
+	private _despawnSubagentPet(pet: ChatPetSubagent): void {
+		this._subagentEffects.delete(pet.disposables);
+		pet.image.remove();
+		pet.accessoryImage?.remove();
+		pet.element.classList.remove('chat-pet-subagent', 'arriving');
+		pet.element.classList.add('chat-pet-subagent-despawning');
+		pet.eyes.remove();
+		const effects = this._subagentEffects.add(new DisposableStore());
+		const image = dom.append(pet.element, dom.$('img.chat-pet-spritesheet')) as HTMLImageElement;
+		image.alt = '';
+		const sources = getRespawnSpriteSources(this._variant);
+		const source = this._motionReduced ? sources.reducedMotion : sources.animated;
+		const animation = effects.add(new MutableDisposable<IDisposable>());
+		const sprite: ChatPetSpriteElement = { container: pet.element, canvas: pet.canvas, image, color: this._color };
+		const finish = () => {
+			pet.element.remove();
+			this._subagentEffects.delete(effects);
+		};
+		effects.add(toDisposable(() => pet.element.remove()));
+		effects.add(dom.addDisposableListener(image, 'load', () => this._startSpriteAnimation(source, sprite, animation, finish, true)));
+		effects.add(dom.addDisposableListener(image, 'error', finish));
+		const targetWindow = dom.getWindow(pet.element);
+		const timer = targetWindow.setTimeout(finish, this._motionReduced ? RESPAWN_EFFECT_REDUCED_MOTION_DURATION : RESPAWN_EFFECT_DURATION);
+		effects.add(toDisposable(() => targetWindow.clearTimeout(timer)));
+		setChatPetImageSource(image, source.url);
 	}
 
 	private _getDisplaySize(): number {
