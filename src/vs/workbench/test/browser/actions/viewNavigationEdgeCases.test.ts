@@ -157,6 +157,61 @@ suite('Workbench view navigation: visibility and focus transitions', () => {
 		assert.deepStrictEqual(getNavigableViewEntries(state).map(entry => entry.viewId), ['a', 'b', 'c']);
 	});
 
+
+	test('expanded-only navigation does not resurrect a collapsed duplicate in another container', () => {
+		const state = makeSnapshot([
+			makeContainer('explorer', 'sidebar', ['a', makeView('b', { collapsed: true })]),
+			makeContainer('problems', 'panel', ['b', 'c'])
+		], 'a');
+		assert.deepStrictEqual(getNavigableViewEntries(state).map(entry => entry.viewId), ['a', 'b', 'c']);
+		assert.deepStrictEqual(getNavigableViewEntries(state, false).map(entry => entry.viewId), ['a', 'c']);
+		const result = resolveViewNavigationTarget(state, {
+			direction: 'next', scope: 'workbench', includeCollapsed: false, wrap: false
+		});
+		assert.strictEqual(result?.viewId, 'c');
+		assert.strictEqual(result?.containerId, 'problems');
+		assert.strictEqual(result?.index, 1);
+		assert.strictEqual(result?.total, 2);
+	});
+
+	test('a later expanded duplicate in the same container cannot replace its collapsed owner', () => {
+		const state = makeSnapshot([
+			makeContainer('explorer', 'sidebar', [
+				'a', makeView('b', { collapsed: true }), 'b', 'c'
+			])
+		], 'a');
+		assert.deepStrictEqual(getNavigableViewEntries(state, false).map(entry => entry.viewId), ['a', 'c']);
+		assert.strictEqual(targetId(state, {
+			direction: 'next', scope: 'container', includeCollapsed: false, wrap: false
+		}), 'c');
+	});
+
+	test('only collapsed copies of a view cannot create a cross-container expanded target', () => {
+		const state = makeSnapshot([
+			makeContainer('explorer', 'sidebar', [makeView('b', { collapsed: true })]),
+			makeContainer('problems', 'panel', ['b'])
+		], 'b');
+		assert.deepStrictEqual(getNavigableViewEntries(state, false), []);
+		for (const direction of ['next', 'previous', 'first', 'last'] as const) {
+			assert.strictEqual(targetId(state, {
+				direction, scope: 'workbench', includeCollapsed: false
+			}), undefined);
+		}
+	});
+
+	test('expanded-only reverse traversal retains first-container ownership across duplicates', () => {
+		const state = makeSnapshot([
+			makeContainer('explorer', 'sidebar', ['a', makeView('b', { collapsed: true })]),
+			makeContainer('problems', 'panel', ['b', 'c'])
+		], 'c');
+		const result = resolveViewNavigationTarget(state, {
+			direction: 'previous', scope: 'workbench', includeCollapsed: false, wrap: false
+		});
+		assert.strictEqual(result?.viewId, 'a');
+		assert.strictEqual(result?.containerId, 'explorer');
+		assert.strictEqual(result?.total, 2);
+	});
+
 	test('empty view IDs are ignored', () => {
 		const state = makeSnapshot([
 			makeContainer('explorer', 'sidebar', ['', 'a', ''])
