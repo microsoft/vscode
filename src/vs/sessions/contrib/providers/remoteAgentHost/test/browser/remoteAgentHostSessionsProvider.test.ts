@@ -5007,6 +5007,28 @@ suite('RemoteAgentHostSessionsProvider', () => {
 		});
 	}));
 
+	test('non-web: workspaceHostLabel names the [host] suffix and refreshes existing workspaces when it changes', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+		connection.addSession(createSession('container-1', {
+			summary: 'Container Session',
+			project: { uri: URI.parse('vscode-agent-host://localhost__4321/workspaces/vscode'), displayName: 'vscode' },
+		}));
+		const workspaceHostLabel = observableValue('workspaceHostLabel', 'Dev Container');
+		const provider = createProvider(disposables, connection, { isWebPlatform: false }, { workspaceHostLabel });
+		provider.getSessions();
+		await timeout(0);
+		const labels = () => ({
+			session: provider.getSessions()[0].workspace.get()?.label,
+			browsed: provider.resolveWorkspace(URI.parse('vscode-agent-host://localhost__4321/workspaces/project'))?.label,
+		});
+		const initial = labels();
+		workspaceHostLabel.set('Dev Container on devbox', undefined);
+
+		assert.deepStrictEqual({ initial, changed: labels() }, {
+			initial: { session: 'vscode [Dev Container]', browsed: 'project [Dev Container]' },
+			changed: { session: 'vscode [Dev Container on devbox]', browsed: 'project [Dev Container on devbox]' },
+		});
+	}));
+
 	test('container source workspace is retained without a connection', () => {
 		const source = toAgentHostUri(URI.file('/project'), agentHostAuthority('wsl:Ubuntu'));
 		const provider = createProvider(disposables, connection, { noConnection: true, devContainerSourceWorkspace: source });

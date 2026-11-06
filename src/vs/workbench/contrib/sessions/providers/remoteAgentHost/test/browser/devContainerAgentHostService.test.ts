@@ -5,6 +5,7 @@
 
 import assert from 'assert';
 import { DeferredPromise } from '../../../../../../../base/common/async.js';
+import { autorun } from '../../../../../../../base/common/observable.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../../../../base/common/cancellation.js';
 import { CancellationError } from '../../../../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../../../../base/common/event.js';
@@ -52,6 +53,11 @@ class TestRemoteAgentHostService extends mock<IRemoteAgentHostService>() impleme
 	override configuredEntries: readonly IRemoteAgentHostEntry[] = [];
 	private readonly _onDidChangeConnections = new Emitter<void>();
 	override readonly onDidChangeConnections = this._onDidChangeConnections.event;
+	private readonly _onDidChangeConfiguredEntries = new Emitter<void>();
+	override readonly onDidChangeConfiguredEntries = this._onDidChangeConfiguredEntries.event;
+	private readonly _onDidChangeDisplayName = new Emitter<string>();
+	override readonly onDidChangeDisplayName = this._onDidChangeDisplayName.event;
+	private readonly _displayNames = new Map<string, string>();
 	private _connections: IRemoteAgentHostConnectionInfo[] = [];
 	private _factory: IRemoteAgentHostConnectionFactory | undefined;
 	private _pendingConnect: Promise<void> | undefined;
@@ -63,6 +69,19 @@ class TestRemoteAgentHostService extends mock<IRemoteAgentHostService>() impleme
 
 	override get connections(): readonly IRemoteAgentHostConnectionInfo[] {
 		return this._connections;
+	}
+
+	override getDisplayNameOverride(address: string): string | undefined {
+		return this._displayNames.get(address);
+	}
+
+	override setDisplayName(address: string, name: string | undefined): void {
+		if (name === undefined) {
+			this._displayNames.delete(address);
+		} else {
+			this._displayNames.set(address, name);
+		}
+		this._onDidChangeDisplayName.fire(address);
 	}
 
 	override getConnection(address: string): IAgentConnection | undefined {
@@ -128,6 +147,8 @@ class TestRemoteAgentHostService extends mock<IRemoteAgentHostService>() impleme
 
 	dispose(): void {
 		this._onDidChangeConnections.dispose();
+		this._onDidChangeConfiguredEntries.dispose();
+		this._onDidChangeDisplayName.dispose();
 	}
 }
 
@@ -558,7 +579,7 @@ suite('Dev Container Agent Host Service', () => {
 					address: service.provider.config.address,
 					name: service.provider.config.name,
 					devContainerWorktreeScope: service.provider.config.devContainerWorktreeScope,
-					omitHostFromWorkspaceLabel: service.provider.config.omitHostFromWorkspaceLabel,
+					workspaceHostLabel: service.provider.config.workspaceHostLabel?.get(),
 					connectOnDemand: !!service.provider.config.connectOnDemand,
 					disconnectOnDemand: !!service.provider.config.disconnectOnDemand,
 				},
@@ -598,7 +619,7 @@ suite('Dev Container Agent Host Service', () => {
 					address,
 					name: 'Source Dev Container',
 					devContainerWorktreeScope: getComparisonKey(sourceWorkspace),
-					omitHostFromWorkspaceLabel: true,
+					workspaceHostLabel: 'Dev Container',
 					connectOnDemand: true,
 					disconnectOnDemand: true,
 				},
@@ -942,14 +963,24 @@ suite('Dev Container Agent Host Service', () => {
 				}),
 			}));
 			const target = await service.connect(source, CancellationToken.None);
+			const workspaceHostLabels: string[] = [];
+			store.add(autorun(reader => {
+				const label = service.provider?.config.workspaceHostLabel?.read(reader);
+				if (label) {
+					workspaceHostLabels.push(label);
+				}
+			}));
+			remoteService.setDisplayName(getEntryAddress(entry), 'Renamed');
 			assert.deepStrictEqual({
 				connection: remoteService.stagedEntry?.connection,
 				remoteWorktree: !!service.provider?.config.resolveDevContainerWorktreeConnection,
 				worktreeScope: service.provider?.config.devContainerWorktreeScope,
+				workspaceHostLabels,
 			}, {
 				connection: { type: RemoteAgentHostEntryType.DevContainer, address: devContainerAddress(source), hostPath: '/native/project', hostAuthority },
 				remoteWorktree: true,
 				worktreeScope: getComparisonKey(URI.file('/project')),
+				workspaceHostLabels: [`Dev Container on ${entry.name}`, 'Dev Container on Renamed'],
 			});
 			await target.release();
 		});

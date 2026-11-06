@@ -486,6 +486,19 @@ export class DevContainerAgentHostService extends Disposable implements IDevCont
 		};
 	}
 
+	/** Names the container, and the source host for a remote source, in place of the container provider's label in its workspace labels. */
+	private _workspaceHostLabel(workspaceUri: URI): IObservable<string> {
+		return observableFromEvent(this, Event.any<unknown>(this._remoteAgentHostService.onDidChangeConfiguredEntries, this._remoteAgentHostService.onDidChangeDisplayName), () => {
+			const entry = getDevContainerSourceEntry(workspaceUri, this._remoteAgentHostService);
+			if (!entry) {
+				return localize('devContainerAgentHost.workspaceHost', "Dev Container");
+			}
+			const address = getEntryAddress(entry);
+			const host = this._remoteAgentHostService.getDisplayNameOverride(address) ?? (entry.name || address);
+			return localize('devContainerAgentHost.workspaceHostOnSource', "Dev Container on {0}", host);
+		});
+	}
+
 	private _ensureProvider(workspaceUri: URI, name: string, address = devContainerAddress(workspaceUri)): RemoteAgentHostSessionsProvider {
 		const key = getComparisonKey(workspaceUri);
 		const existing = this._providers.get(key);
@@ -506,7 +519,7 @@ export class DevContainerAgentHostService extends Disposable implements IDevCont
 			resolveDevContainerWorktreeConnection: workspaceUri.scheme === AGENT_HOST_SCHEME
 				? () => resolveDevContainerSourceConnection(workspaceUri, this._remoteAgentHostService, this._sessionsProvidersService, CancellationToken.None)
 				: undefined,
-			omitHostFromWorkspaceLabel: true,
+			workspaceHostLabel: this._workspaceHostLabel(workspaceUri),
 			devContainerLifecycle: {
 				connect: connectOnDemand,
 				stop: () => this._stopContainer(key),
