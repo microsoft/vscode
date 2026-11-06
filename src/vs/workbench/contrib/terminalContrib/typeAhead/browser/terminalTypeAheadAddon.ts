@@ -57,6 +57,9 @@ const PREDICTION_OMIT_RE = /^(?:(?:\x1b\[|\x9b)(?:\?(?:25|12)[hl]|\??[0-9;]+n))+
 /** Carriage returns or absolute positioning indicate that a shell may be repainting the line. */
 const REPAINT_HINT_RE = /\r|\x1b\[[0-9;]*H/;
 
+/** Input made only of printable ASCII, which a shell echoes one character per key. */
+const PRINTABLE_INPUT_RE = /^[\x20-\x7e]+$/;
+
 const core = (terminal: Terminal): IXtermCore => {
 	interface XtermWithCore extends Terminal {
 		_core: IXtermCore;
@@ -501,11 +504,32 @@ class HardBoundary implements IPrediction {
 }
 
 /**
- * Boundary for input that reached the pty without a prediction. Predictions
- * made after it stay hidden and are discarded when the next output arrives,
- * normally that input's echo, which is not counted as a misprediction.
+ * Boundary for input that reached the pty without a prediction. A printable
+ * key waits for its own echo, so keys typed before it arrives are matched in
+ * order; other input waits for the next output. Keys typed while it is pending
+ * are not predicted, and none of these count towards prediction accuracy.
  */
-class UnpredictedInputBoundary extends HardBoundary { }
+class UnpredictedInputBoundary implements IPrediction {
+	readonly clearAfterTimeout = false;
+
+	constructor(private readonly _echo?: CharacterPrediction) { }
+
+	apply() {
+		return '';
+	}
+
+	rollback() {
+		return '';
+	}
+
+	rollForwards() {
+		return '';
+	}
+
+	matches(input: StringReader, lookBehind?: IPrediction) {
+		return this._echo?.matches(input, lookBehind) ?? MatchResult.Failure;
+	}
+}
 
 /**
  * Wraps another prediction. Does not apply the prediction, but will pass
@@ -1105,6 +1129,11 @@ export class PredictionTimeline extends Disposable {
 		return !!this._inputBuffer || this._escapeScanner.isIncomplete;
 	}
 
+	/** Whether input sent without a prediction has not been echoed yet. */
+	get hasUnpredictedInput() {
+		return this._expected.some(({ p }) => isUnpredictedInputBoundary(p));
+	}
+
 	get canPredict() {
 		return !hasPendingWrites(this.terminal) || (this._expected.length > 0 && this._pendingAttributes === undefined);
 	}
@@ -1282,7 +1311,7 @@ export class PredictionTimeline extends Disposable {
 			const { p: prediction, gen } = this._expected[0];
 			const cursor = this.physicalCursor(buffer);
 			const beforeTestReaderIndex = reader.index;
-			// A repaint cannot confirm unpredicted input, so output reaching its boundary is never held back.
+			// A repaint cannot confirm unpredicted input.
 			const repaint = isUnpredictedInputBoundary(prediction) ? MatchResult.Failure : this._readRepaint(reader, cursor, attributes);
 			if (repaint === MatchResult.Buffer) {
 				this._inputBuffer = input.slice(beforeTestReaderIndex);
@@ -1314,7 +1343,11 @@ export class PredictionTimeline extends Disposable {
 					// the prediction and write the real character out.
 					const eaten = input.slice(beforeTestReaderIndex, reader.index);
 					attributes += getStyles(eaten);
-					if (gen === startingGen) {
+					if (isUnpredictedInputBoundary(prediction)) {
+						// The echo moves the cursor from a position that was never tracked.
+						output += eaten;
+						this.clearCursor();
+					} else if (gen === startingGen) {
 						output += prediction.rollForwards?.(cursor, eaten, this._lookBehind, attributes);
 					} else {
 						prediction.apply(buffer, this.physicalCursor(buffer)); // move cursor for additional apply
@@ -1359,7 +1392,7 @@ export class PredictionTimeline extends Disposable {
 		}
 
 		// If we passed a generation boundary, apply the current generation's predictions
-		if (this._expected.length && startingGen !== this._expected[0].gen) {
+		if (this._expected.length && startingGen !== this._expected[0].gen && !isUnpredictedInputBoundary(this._expected[0].p)) {
 			for (const { p, gen } of this._expected) {
 				if (gen !== this._expected[0].gen) {
 					break;
@@ -1367,6 +1400,11 @@ export class PredictionTimeline extends Disposable {
 				output += p.apply(buffer, this.physicalCursor(buffer));
 			}
 			output += attributes;
+		}
+
+		// Nothing is drawn while unpredicted input waits for its echo, so the cursor and pen are not known yet.
+		if (isUnpredictedInputBoundary(this._expected[0]?.p)) {
+			this.clearCursor();
 		}
 
 		if (!this._showPredictions) {
@@ -1852,14 +1890,24 @@ export class TypeAheadAddon extends Disposable implements ITerminalAddon {
 
 	/**
 	 * Input sent without a prediction still reaches the pty, so later
-	 * predictions stay hidden until the next output, normally its echo.
+	 * predictions stay hidden until its echo arrives.
 	 */
-	private _waitForUnpredictedInput(timeline: PredictionTimeline, isUserInput: boolean) {
+	private _waitForUnpredictedInput(timeline: PredictionTimeline, data: string, isUserInput: boolean) {
 		// Data the terminal sends on its own, like replies to terminal queries, is consumed by the shell without an echo.
 		if (!isUserInput) {
 			return;
 		}
-		timeline.addBoundary(timeline.terminal.buffer.active, new UnpredictedInputBoundary());
+		if (this._lastRow) {
+			this._lastRow.charState = CharPredictState.Unknown;
+		}
+		const buffer = timeline.terminal.buffer.active;
+		if (PRINTABLE_INPUT_RE.test(data)) {
+			for (const char of data) {
+				timeline.addBoundary(buffer, new UnpredictedInputBoundary(new CharacterPrediction(this._typeaheadStyle!, char)));
+			}
+		} else {
+			timeline.addBoundary(buffer, new UnpredictedInputBoundary());
+		}
 		this._deferClearingPredictions();
 	}
 
@@ -1927,8 +1975,8 @@ export class TypeAheadAddon extends Disposable implements ITerminalAddon {
 		if (this._timeline?.terminal.buffer.active.type !== 'normal') {
 			return;
 		}
-		if (this._timeline.hasIncompleteInput) {
-			this._waitForUnpredictedInput(this._timeline, isUserInput);
+		if (this._timeline.hasIncompleteInput || this._timeline.hasUnpredictedInput) {
+			this._waitForUnpredictedInput(this._timeline, data, isUserInput);
 			return;
 		}
 
@@ -1948,7 +1996,7 @@ export class TypeAheadAddon extends Disposable implements ITerminalAddon {
 
 		// A virtual cursor covers pending prediction writes, not unparsed authoritative cursor/style changes.
 		if (!this._timeline.canPredict) {
-			this._waitForUnpredictedInput(this._timeline, isUserInput);
+			this._waitForUnpredictedInput(this._timeline, data, isUserInput);
 			return;
 		}
 

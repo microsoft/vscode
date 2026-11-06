@@ -797,6 +797,52 @@ suite('Workbench - Terminal Typeahead', () => {
 			]);
 		});
 
+		test('resynchronizes after multiple keys are typed while output is unparsed', async () => {
+			await input('b');
+			queueServer('b');
+			terminal.input('c');
+			terminal.input('d');
+			await writeP(terminal, '');
+			await server('c');
+			await input('e');
+			const beforeRemainingEchoes = state();
+			await server('d');
+			await server('e');
+			await input('f');
+			const beforeResynchronizingEcho = state();
+			await server('f');
+			await input('g');
+			const afterResynchronizing = state();
+			await server('g');
+			assert.deepStrictEqual([beforeRemainingEchoes, beforeResynchronizingEcho, afterResynchronizing, { ...state(), accuracy: addon.stats?.accuracy }], [
+				{ lines: ['$ abc', '', ''], cursorX: 5, cursorY: 0, baseY: 0 },
+				{ lines: ['$ abcde', '', ''], cursorX: 7, cursorY: 0, baseY: 0 },
+				{ lines: ['$ abcdefg', '', ''], cursorX: 9, cursorY: 0, baseY: 0 },
+				{ lines: ['$ abcdefg', '', ''], cursorX: 9, cursorY: 0, baseY: 0, accuracy: 1 }
+			]);
+		});
+
+		test('waits for each echo of a repeated key typed while output is unparsed', async () => {
+			await input('b');
+			queueServer('b');
+			terminal.input('u');
+			terminal.input('l');
+			await writeP(terminal, '');
+			await server('u');
+			await input('l');
+			const beforeFirstL = state();
+			await server('l');
+			await input('x');
+			const beforeSecondL = state();
+			await server('l');
+			await server('x');
+			assert.deepStrictEqual([beforeFirstL, beforeSecondL, { ...state(), accuracy: addon.stats?.accuracy }], [
+				{ lines: ['$ abu', '', ''], cursorX: 5, cursorY: 0, baseY: 0 },
+				{ lines: ['$ abul', '', ''], cursorX: 6, cursorY: 0, baseY: 0 },
+				{ lines: ['$ abullx', '', ''], cursorX: 8, cursorY: 0, baseY: 0, accuracy: 1 }
+			]);
+		});
+
 		test('waits for the echo of a key typed while a reconciled echo is unparsed', async () => {
 			await input('bc');
 			queueServer('b');
