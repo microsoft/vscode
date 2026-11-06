@@ -60,6 +60,20 @@ suite('ChatTerminalToolExplanation', () => {
 		assert.strictEqual(ask.firstCall.args[1], 'Explain what this terminal command will do. Do not run it.\n\n`` echo `pwd` ``');
 	});
 
+	for (const [name, eol] of [['LF', '\n'], ['CRLF', '\r\n']]) {
+		test(`preserves multiline commands with ${name} line endings and embedded backtick fences`, async () => {
+			const instantiationService = workbenchInstantiationService(undefined, store);
+			const ask = sinon.spy(async (_resource: URI, _query: string) => { });
+			instantiationService.stub(IChatSideChatService, { canAskInSideChat: () => true, askInSideChat: ask });
+			const command = ['cat <<\'EOF\'', 'first line', '', '```', 'last line', 'EOF'].join(eol);
+			const explanation = store.add(instantiationService.createInstance(ChatTerminalToolExplanation, URI.parse('test:///chat'), 'turn', () => command));
+
+			await explanation.explain();
+
+			assert.strictEqual(ask.firstCall.args[1], `Explain what this terminal command will do. Do not run it.\n\n\`\`\`\`\n${command}\n\`\`\`\``);
+		});
+	}
+
 	test('omits unsupported explanations and reports failures without leaving the action disabled', async () => {
 		const instantiationService = workbenchInstantiationService(undefined, store);
 		let supported = false;

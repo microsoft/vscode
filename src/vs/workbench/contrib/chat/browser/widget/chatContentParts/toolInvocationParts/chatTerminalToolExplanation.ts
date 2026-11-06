@@ -5,7 +5,7 @@
 
 import { toErrorMessage } from '../../../../../../../base/common/errorMessage.js';
 import { Emitter } from '../../../../../../../base/common/event.js';
-import { appendEscapedMarkdownInlineCode } from '../../../../../../../base/common/htmlContent.js';
+import { appendEscapedMarkdownCodeBlockFence, appendEscapedMarkdownInlineCode } from '../../../../../../../base/common/htmlContent.js';
 import { Disposable } from '../../../../../../../base/common/lifecycle.js';
 import { URI } from '../../../../../../../base/common/uri.js';
 import { localize } from '../../../../../../../nls.js';
@@ -48,9 +48,11 @@ export class ChatTerminalToolExplanation extends Disposable {
 		this.isExplaining = true;
 		this.onDidChangeDisablement.fire(true);
 		try {
+			const command = this.getCommand().trim();
+			const formattedCommand = /[\r\n]/.test(command) ? appendEscapedMarkdownCodeBlockFence(command, '') : appendEscapedMarkdownInlineCode(command);
 			await this.sideChatService.askInSideChat(
 				this.sessionResource,
-				localize('tool.explain.query', "Explain what this terminal command will do. Do not run it.\n\n{0}", appendEscapedMarkdownInlineCode(this.getCommand().trim())),
+				localize('tool.explain.query', "Explain what this terminal command will do. Do not run it.\n\n{0}", formattedCommand),
 				undefined,
 				{ sourceTurnId: this.sourceTurnId, includeSourceContext: false },
 			);

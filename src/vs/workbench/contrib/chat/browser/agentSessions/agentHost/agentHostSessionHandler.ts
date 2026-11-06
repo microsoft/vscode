@@ -6928,6 +6928,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		if (sourceState?.activeTurn?.id !== turnId && !sourceState?.turns.some(turn => turn.id === turnId)) {
 			throw new Error(`Cannot create side chat: turn ${turnId} not found`);
 		}
+		const draft = !includeSourceContext && sourceState ? emptyDraftFromLastTurn(sourceState) : undefined;
 		const chat = URI.parse(newAgentHostChatUri(sessionUri, rawState.defaultChat, this._config.connection.initializeResult.get()));
 		await this._config.connection.createChat(backendSession, chat, {
 			model: lastTurnModelSelection(sourceState),
@@ -6945,6 +6946,9 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			undefined,
 			token,
 		);
+		if (draft) {
+			this._config.connection.dispatch(summary.resource, { type: ActionType.ChatDraftChanged, draft });
+		}
 		const now = Date.now();
 		return {
 			resource: sessionResource.with({ fragment: getAgentHostChatId(summary.resource) }),

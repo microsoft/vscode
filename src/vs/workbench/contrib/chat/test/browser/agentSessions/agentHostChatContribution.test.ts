@@ -97,7 +97,7 @@ import { chatToolCallComplete, chatToolCallReady, chatToolCallStart, chatTurnCom
 import { AhpErrorCodes, AHP_AUTH_REQUIRED, AHP_NOT_FOUND, JsonRpcErrorCodes, ProtocolError, type DispatchActionParams, type IStateSnapshot, type JsonRpcRequest, type ProtocolMessage } from '../../../../../../platform/agentHost/common/state/sessionProtocol.js';
 import { BackgroundWorkKind, ChatInteractivity, ConfirmationOptionKind, CustomizationEnablementKind, CustomizationType, McpAuthRequiredReason, McpServerStatus, SessionOriginKind, type AgentCustomization, type ChatInputAnswer, type ChatInputRequest, type ClientPluginCustomization, type ProtectedResourceMetadata, type SessionActiveClient, type ToolDefinition, type Turn, type UsageInfo } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
 import { ChatInputAnswerState, ChatInputAnswerValueKind, ChatInputQuestionKind, ChatInputResponseKind, ChatOriginKind, SessionLifecycle, SessionStatus, TurnState, ToolCallStatus, ToolCallConfirmationReason, ToolCallContributorKind, ToolCallRiskAssessmentKind, ToolCallRiskAssessmentStatus, createSessionState, createChatState, createDefaultChatSummary, createErrorResponsePart, buildChatUri, buildDefaultChatUri, parseChatUri, isAhpChatChannel, createActiveTurn, isAhpRootChannel, PolicyState, ResponsePartKind, ROOT_STATE_URI, StateComponents, buildSubagentChatUri, buildSubagentSessionUri, ToolResultContentType, MessageAttachmentKind, MessageKind, PendingMessageKind, withMessageRequestHiddenFromTranscript, withSessionMultiRootMetadata, SESSION_META_EHCLI_ADOPTABLE_KEY, SESSION_META_EHCLI_ADOPTED_KEY, type SessionState, type SessionSummary, type ChatState, type ISessionWithDefaultChat, RootState, type ToolCallState, type AgentInfo, type Message, type MessageAttachment, type MessageChatAttachment } from '../../../../../../platform/agentHost/common/state/sessionState.js';
-import { CompletionItemKind as AhpCompletionItemKind, type CompletionsParams, type CompletionsResult, type InitializeResult } from '../../../../../../platform/agentHost/common/state/protocol/commands.js';
+import { CompletionItemKind as AhpCompletionItemKind, type CompletionsParams, type CompletionsResult, type CreateChatParams, type InitializeResult } from '../../../../../../platform/agentHost/common/state/protocol/commands.js';
 import { sessionReducer, chatReducer } from '../../../../../../platform/agentHost/common/state/sessionReducers.js';
 import { IDefaultAccountService } from '../../../../../../platform/defaultAccount/common/defaultAccount.js';
 import { CommandsRegistry, ICommandService } from '../../../../../../platform/commands/common/commands.js';
@@ -1899,7 +1899,7 @@ suite('AgentHostChatContribution', () => {
 	});
 
 	suite('wire-to-feature', () => {
-		async function openWireSession(options?: { session?: Partial<SessionState>; chat?: Partial<ChatState>; languageModels?: ReadonlyMap<string, ILanguageModelChatMetadata>; resourceUris?: IAgentHostResourceUriMapper }) {
+		async function openWireSession(options?: { session?: Partial<SessionState>; chat?: Partial<ChatState>; languageModels?: ReadonlyMap<string, ILanguageModelChatMetadata>; resourceUris?: IAgentHostResourceUriMapper; agents?: AgentInfo[]; initializeMeta?: Record<string, unknown> }) {
 			const { instantiationService, chatAgentService, modelService, chatService } = createTestServices(disposables, undefined, undefined, options?.languageModels);
 			const quotaUpdates: Parameters<IChatEntitlementService['acceptQuotas']>[0][] = [];
 			instantiationService.get(IChatEntitlementService).acceptQuotas = quotas => { quotaUpdates.push(quotas); };
@@ -1927,7 +1927,7 @@ suite('AgentHostChatContribution', () => {
 			const connecting = client.connect();
 			peer.deliver({
 				jsonrpc: '2.0', id: (await initializeRequest).id,
-				result: { protocolVersion: PROTOCOL_VERSION, serverSeq: 0, snapshots: [{ resource: ROOT_STATE_URI, fromSeq: 0, state: { agents: [], activeSessions: 1 } }] },
+				result: { protocolVersion: PROTOCOL_VERSION, serverSeq: 0, _meta: options?.initializeMeta, snapshots: [{ resource: ROOT_STATE_URI, fromSeq: 0, state: { agents: options?.agents ?? [], activeSessions: 1 } }] },
 			});
 			await connecting;
 
@@ -1996,6 +1996,85 @@ suite('AgentHostChatContribution', () => {
 				};
 			};
 			return { startRequest, fire, echo, peer, client, handler, chatSession, sessionResource, backendSession, chatUri, modelService, quotaUpdates, implicitReadGrants, instantiationService, chatService };
+		}
+
+		for (const active of [false, true]) {
+			test(`isolated side chats preserve the ${active ? 'active' : 'last completed'} source model through the protocol and target draft`, async () => {
+				const modelConfiguration = { thinking: 'high', contextSize: 200000 };
+				const sourceMessage: Message = {
+					text: 'Unrelated parent request',
+					origin: { kind: MessageKind.User },
+					model: { id: 'source-model', config: modelConfiguration },
+					agent: { uri: 'agent://reviewer' },
+				};
+				const harness = await openWireSession({
+					agents: [{ provider: 'copilot', displayName: 'Copilot', description: 'test', models: [], capabilities: { multipleChats: { sideChat: true } } }],
+					initializeMeta: { 'vscode.sideChatWithoutContext': true },
+					languageModels: new Map([['agent-host-copilot:source-model', upcastPartial<ILanguageModelChatMetadata>({ id: 'source-model', vendor: 'agent-host-copilot', name: 'Source Model' })]]),
+					chat: {
+						draft: sourceMessage,
+						...(active
+							? { activeTurn: { id: 'source-turn', startedAt: '2026-09-30T12:00:00.000Z', message: sourceMessage, responseParts: [], usage: undefined } }
+							: { turns: [{ id: 'source-turn', state: TurnState.Complete, message: sourceMessage, responseParts: [], usage: undefined }] }),
+					},
+				});
+				const drafts: DispatchActionParams[] = [];
+				disposables.add(harness.peer.onDispatch(sent => {
+					if (sent.action.type === ActionType.ChatDraftChanged) {
+						drafts.push(sent);
+					}
+				}));
+				assert.ok(harness.chatSession.createSideChat);
+				const createRequest = harness.peer.nextRequest('createChat');
+				const creating = harness.chatSession.createSideChat('source-turn', CancellationToken.None, undefined, false);
+				const request = await createRequest;
+				const params = request.params as CreateChatParams;
+				assert.ok(typeof params.chat === 'string');
+				const chatUri = params.chat;
+				const summary = {
+					resource: chatUri, title: 'Side Chat', status: SessionStatus.Idle, modifiedAt: '2026-09-30T12:00:00.000Z',
+					origin: { kind: ChatOriginKind.SideChat, chat: harness.chatUri, turnId: 'source-turn' } as const,
+				};
+				harness.fire({ type: ActionType.SessionChatAdded, summary }, harness.backendSession.toString());
+				harness.peer.deliver({ jsonrpc: '2.0', id: request.id, result: null });
+				const target = await creating;
+				const sentDraft = drafts.find(sent => sent.channel === chatUri);
+				assert.ok(sentDraft?.action.type === ActionType.ChatDraftChanged, 'The target needs a model-bearing draft before it opens');
+				const draft = sentDraft.action.draft;
+				harness.echo(sentDraft);
+
+				const subscribe = harness.peer.nextRequest('subscribe');
+				const opening = harness.handler.provideChatSessionContent(target.resource, CancellationToken.None);
+				harness.peer.deliver({
+					jsonrpc: '2.0', id: (await subscribe).id,
+					result: { snapshot: { resource: chatUri, fromSeq: 2, state: { ...createChatState(summary), draft } } },
+				});
+				const targetSession = disposables.add(await opening);
+				const inputState = targetSession.transferredState?.inputState;
+				const restoredInput = inputState ? reviveSerializableInputState(inputState) : undefined;
+
+				assert.deepStrictEqual({
+					createParams: request.params,
+					draft,
+					inputText: inputState?.inputText,
+					attachments: inputState?.attachments,
+					model: restoredInput?.selectedModel?.identifier,
+					modelConfiguration: restoredInput?.modelConfiguration,
+					history: targetSession.history,
+				}, {
+					createParams: {
+						channel: harness.backendSession.toString(), chat: chatUri,
+						source: { kind: 'sideChat', chat: harness.chatUri, turnId: 'source-turn' },
+						_meta: { 'vscode.sideChatWithoutContext': true },
+					},
+					draft: { text: '', origin: { kind: MessageKind.User }, model: sourceMessage.model, agent: sourceMessage.agent },
+					inputText: '',
+					attachments: [],
+					model: 'agent-host-copilot:source-model',
+					modelConfiguration,
+					history: [],
+				});
+			});
 		}
 
 		for (const synchronous of [false, true]) {
