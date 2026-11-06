@@ -10,6 +10,7 @@ import { localize } from '../../../nls.js';
 import { ArtifactAutomationOption } from '../../artifactIntegrations/common/artifactIntegration.js';
 import { FragmentState, PullRequestCheck, PullRequestReviewThread, PullRequestSnapshot } from '../../github/common/githubPullRequestService.js';
 import { isPullRequestFeedbackAuthor } from '../../github/common/pullRequestFeedback.js';
+import { classifyRequiredPullRequestChecks, getPullRequestCheckState, PullRequestCheckState, toUnreportedCheckSuiteCheck } from '../../github/common/pullRequestRequiredChecks.js';
 import { deriveGitHubEndpoints } from '../../github/common/githubEndpoints.js';
 
 export const gitHubPullRequestArtifactIntegrationId = 'github.pullRequest';
@@ -25,7 +26,7 @@ export const gitHubPullRequestArtifactOptions: readonly ArtifactAutomationOption
 	{
 		id: 'fixCI', kind: 'boolean', defaultValue: false, actionIds: ['fixCI'], maxAttempts: 3,
 		label: localize('prArtifact.autoCI', "Automatically Fix CI"),
-		description: localize('prArtifact.autoCI.description', "Repair any failing check, including optional checks, then commit and push the repairs."),
+		description: localize('prArtifact.autoCI.description', "Repair failing required checks, including the jobs a required check waits for, then commit and push the repairs. When the base branch requires no checks, every check counts."),
 	},
 	{
 		id: 'resolveConflicts', kind: 'boolean', defaultValue: false, actionIds: ['resolveConflicts'], maxAttempts: 3,
@@ -35,12 +36,12 @@ export const gitHubPullRequestArtifactOptions: readonly ArtifactAutomationOption
 	{
 		id: 'markReady', kind: 'boolean', defaultValue: false, actionIds: ['markReady'], maxAttempts: 1,
 		label: localize('prArtifact.autoReady', "Automatically Mark Ready"),
-		description: localize('prArtifact.autoReady.description', "Mark the draft ready when checks pass and no qualifying unresolved review threads remain. The check-exclusion setting applies only to this action."),
+		description: localize('prArtifact.autoReady.description', "Mark the draft ready when required checks pass and no qualifying unresolved review threads remain. The check-exclusion setting applies only to this action."),
 	},
 	{
 		id: 'merge', kind: 'enum', defaultValue: 'never', disabledValue: 'never', actionIds: ['merge'], maxAttempts: 1,
 		label: localize('prArtifact.autoMerge', "Merge Automatically When Ready"),
-		description: localize('prArtifact.autoMerge.description', "Merge when every check passes, qualifying review threads are resolved, and GitHub permits it."),
+		description: localize('prArtifact.autoMerge.description', "Merge when every required check passes, qualifying review threads are resolved, and GitHub permits it."),
 		choices: [
 			{ value: 'never', label: localize('prArtifact.mergeOff', "Off") },
 			{ value: 'always', label: localize('prArtifact.mergeAlways', "Always") },
@@ -90,32 +91,40 @@ export function getPullRequestArtifactChecks(snapshot: PullRequestSnapshot): rea
 	const checks = snapshot.checks.value;
 	return checks ? [
 		...checks.checks,
-		...checks.expectedSuites.filter(suite => !suite.checkRunsReported).map(suite => ({
-			id: `suite:${suite.id}`, type: 'checkRun' as const, name: suite.name, status: suite.status, conclusion: suite.conclusion,
-		})),
+		...checks.expectedSuites.filter(suite => !suite.checkRunsReported).map(toUnreportedCheckSuiteCheck),
 	] : [];
 }
 
-export function getPullRequestArtifactCheckState(check: PullRequestCheck): 'passed' | 'pending' | 'failed' {
-	const status = check.status?.toUpperCase();
-	if (check.type === 'statusContext') {
-		return !status || status === 'PENDING' ? 'pending' : status === 'SUCCESS' ? 'passed' : 'failed';
-	}
-	if (status !== 'COMPLETED' || !check.conclusion) {
-		return 'pending';
-	}
-	return ['SUCCESS', 'NEUTRAL', 'SKIPPED'].includes(check.conclusion.toUpperCase()) ? 'passed' : 'failed';
+export function getPullRequestArtifactCheckState(check: PullRequestCheck): PullRequestCheckState {
+	return getPullRequestCheckState(check);
+}
+
+/**
+ * The failing checks Fix CI repairs: failed required checks, and the failed
+ * checks a required check that has not finished waits for. When the base
+ * branch requires no checks, every check counts.
+ */
+export function getPullRequestArtifactFailedChecks(snapshot: PullRequestSnapshot): readonly PullRequestCheck[] {
+	return snapshot.checks.value ? classifyRequiredPullRequestChecks(snapshot.checks.value).failed : [];
 }
 
 export function isPullRequestArtifactCheckExcluded(name: string, patterns: readonly string[]): boolean {
 	return patterns.some(pattern => new RegExp(`^${convertSimple2RegExpPattern(pattern)}$`).test(name));
 }
 
+/**
+ * Whether the checks that count pass (see `classifyRequiredPullRequestChecks`),
+ * leaving out those matching `ignoredChecks`. When every check counts, a check
+ * suite that has not reported yet may still add checks, so the suites must
+ * have been read.
+ */
 export function arePullRequestArtifactChecksReady(snapshot: PullRequestSnapshot, ignoredChecks: readonly string[] = []): boolean {
 	const headSha = snapshot.core.value?.headSha;
-	return !!headSha && isCurrentPullRequestFragment(snapshot.checks, headSha)
-		&& snapshot.checks.value.headSha === headSha && snapshot.checks.value.expectedSuitesComplete
-		&& getPullRequestArtifactChecks(snapshot).every(check => isPullRequestArtifactCheckExcluded(check.name, ignoredChecks) || getPullRequestArtifactCheckState(check) === 'passed');
+	if (!headSha || !isCurrentPullRequestFragment(snapshot.checks, headSha) || snapshot.checks.value.headSha !== headSha) {
+		return false;
+	}
+	const checks = classifyRequiredPullRequestChecks(snapshot.checks.value, name => isPullRequestArtifactCheckExcluded(name, ignoredChecks));
+	return (!checks.everyCheck || snapshot.checks.value.expectedSuitesComplete) && checks.failed.length === 0 && !checks.pending;
 }
 
 export function isPullRequestArtifactReadyForReview(snapshot: PullRequestSnapshot, ignoredChecks: readonly string[]): boolean {

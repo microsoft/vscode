@@ -59,6 +59,7 @@ import { isToolSet } from '../../../../common/tools/languageModelToolsService.js
 import { IChatSessionsService, isAgentHostTarget } from '../../../../common/chatSessionsService.js';
 import { ICustomizationHarnessService } from '../../../../common/customizationHarnessService.js';
 import { matchesSessionType } from '../../../../common/promptSyntax/service/promptsService.js';
+import { slashCommandNamePattern } from '../../../../common/promptSyntax/utils/promptsServiceUtils.js';
 import { ChatSubmitAction, IChatExecuteActionContext } from '../../../actions/chatExecuteActions.js';
 import { IChatWidget, IChatWidgetService } from '../../../chat.js';
 import { resizeImage } from '../../../chatImageUtils.js';
@@ -70,15 +71,14 @@ import { InputEditorCommandArgumentHint } from './chatInputCommandArgumentHint.j
 import { getAgentSessionProviderIcon, AgentSessionProviders } from '../../../agentSessions/agentSessions.js';
 
 /**
- * Regex matching a slash command word (e.g. `/foo`). Uses `\p{L}` for Unicode
- * letter matching, consistent with `isValidSlashCommandName`.
+ * Regex matching a slash command word (e.g. `/foo`) with Unicode characters.
  */
-const SlashCommandWord = /\/[\p{L}0-9_.:-]*/gu;
+const SlashCommandWord = new RegExp(`/(?:${slashCommandNamePattern})?`, 'gu');
 
 /**
  * Regex matching an agent-or-slash command word (e.g. `@agent` or `/cmd`).
  */
-const AgentOrSlashCommandWord = /(@|\/)[\p{L}0-9_.:-]*/gu;
+const AgentOrSlashCommandWord = new RegExp(String.raw`(@[\p{L}0-9_.:-]*|/(?:${slashCommandNamePattern})?)`, 'gu');
 const acceptCommandArgumentHintCommandId = '_chat.acceptCommandArgumentHint';
 
 interface IAcceptCommandArgumentHintContext {
@@ -92,9 +92,8 @@ interface IAcceptCommandArgumentHintContext {
 
 /**
  * Returns `true` when the widget's chat session is backed by an agent
- * host (local or remote). For these sessions, completions are delegated
- * to the agent host via `AgentHostInputCompletions`, and the workbench's
- * default in-process file/symbol/tool providers short-circuit.
+ * host (local or remote). Host-provided completions replace the workbench's
+ * file and tool completions; editor-side symbol completions remain available.
  */
 function isAgentHostBackedWidget(widget: IChatWidget): boolean {
 	const sessionResource = widget.viewModel?.model.sessionResource;
@@ -929,7 +928,7 @@ interface IVariableCompletionsDetails {
 	range: IChatCompletionRangeResult;
 }
 
-class BuiltinDynamicCompletions extends Disposable {
+export class BuiltinDynamicCompletions extends Disposable {
 	private static readonly addReferenceCommand = '_addReferenceCmd';
 	private static readonly VariableNameDef = new RegExp(`[${escapeForCharClass(chatVariableLeader)}${escapeForCharClass(chatAgentLeader)}][\\w:-]*`, 'g'); // MUST be using `g`-flag
 
@@ -1076,7 +1075,7 @@ class BuiltinDynamicCompletions extends Disposable {
 			}
 
 			return result;
-		});
+		}, BuiltinDynamicCompletions.VariableNameDef, true);
 
 		// Session Reference completion
 		const sessionWordPattern = new RegExp(`${chatVariableLeader}[^\\s]*`, 'g');

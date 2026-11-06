@@ -37,6 +37,8 @@ import { IUpdateService, StateType } from '../../../../../platform/update/common
 import { IUriIdentityService } from '../../../../../platform/uriIdentity/common/uriIdentity.js';
 import { ChatEntitlement, IChatEntitlementService } from '../../../../services/chat/common/chatEntitlementService.js';
 import { ILocalModelService } from '../../../../services/agentHost/common/localModelService.js';
+import { getOrganizationSupportActionTooltip } from '../../../../services/policies/common/organizationSupport.js';
+import { IEditorService } from '../../../../services/editor/common/editorService.js';
 import { ITerminalService } from '../../../../contrib/terminal/browser/terminal.js';
 import { ChatContextKeys } from '../../../../contrib/chat/common/actions/chatContextKeys.js';
 import { ILanguageModelChatMetadata, ILanguageModelChatMetadataAndIdentifier, ILanguageModelProviderDescriptor, ILanguageModelsService, IModelControlEntry } from '../../../../contrib/chat/common/languageModels.js';
@@ -51,6 +53,7 @@ import { IModelPickerComparison } from '../../../../contrib/chat/browser/widget/
 import { IModelPickerProviderPlaceholder } from '../../../../contrib/chat/browser/widget/input/modelPicker/modelPickerTabs.js';
 import { NullLanguageModelsService } from '../../../../contrib/chat/test/common/languageModels.js';
 import { TestChatEntitlementService } from '../../../common/workbenchTestServices.js';
+import { TestEditorService } from '../../workbenchTestServices.js';
 import { ComponentFixtureContext, createEditorServices, defineComponentFixture, defineThemedFixtureGroup, registerWorkbenchServices } from '../fixtureUtils.js';
 
 import '../../../../contrib/chat/browser/widget/media/chat.css';
@@ -254,6 +257,8 @@ const COPILOT_FUSION_MODEL: ILanguageModelChatMetadataAndIdentifier = (() => {
 	return { ...model, metadata: { ...model.metadata, autoModelFusion: true, autoModelProviderTiers: true, autoModelDiscountPercent: 10 } };
 })();
 const COPILOT_FUSION_MODELS = [COPILOT_FUSION_MODEL, ...RELAYED_MODELS.slice(1)];
+/** Copilot Fusion without a discount, which it marks as recommended instead. */
+const COPILOT_FUSION_FULL_PRICE_MODELS = [{ ...COPILOT_FUSION_MODEL, metadata: { ...COPILOT_FUSION_MODEL.metadata, autoModelDiscountPercent: undefined } }, ...RELAYED_MODELS.slice(1)];
 const ALL_MODELS = [...COPILOT_ONLY_MODELS, ...OLLAMA_MODELS];
 
 const GB = 1024 ** 3;
@@ -459,6 +464,8 @@ interface IPickerFixtureOptions {
 	readonly controlModels?: IStringDictionary<IModelControlEntry>;
 	/** The plan the account is on, which decides whether locked models offer upgrade or admin. */
 	readonly entitlement?: ChatEntitlement;
+	/** The organization's help page, which admin-locked models link to instead of GitHub's settings. */
+	readonly organizationSupportUrl?: string;
 	/** Settings to apply per model identifier, so rows can show what they were tuned to. */
 	readonly configured?: IStringDictionary<IStringDictionary<unknown>>;
 	readonly comparison?: IModelPickerComparison;
@@ -488,6 +495,7 @@ export async function renderPicker(context: ComponentFixtureContext, options: IP
 		colorTheme: context.theme,
 		additionalServices: registration => {
 			registerWorkbenchServices(registration);
+			registration.defineInstance(IEditorService, disposableStore.add(new TestEditorService()));
 			if (options.managedDefaultModel !== undefined) {
 				const configurationService = new class extends TestConfigurationService {
 					override inspect<T>(key: string): IConfigurationValue<T> {
@@ -554,7 +562,6 @@ export async function renderPicker(context: ComponentFixtureContext, options: IP
 		comparison: options.comparison,
 		models: [...options.models ?? ALL_MODELS, ...options.localModels?.families.map(family => createOnDeviceModel(family, options.onDeviceThinking?.[family.familyId])).filter(isDefined) ?? []],
 		selectedModelId: options.selectedModelId ?? 'copilot/gpt-5-5',
-		recentModelIds: ['copilot/gpt-5-3-codex', 'copilot/gemini-3-5-flash'],
 		pinnedModelIds: options.pinnedModelIds ?? ['copilot/claude-sonnet-5'],
 		controlModels: options.controlModels ?? CONTROL_MODELS,
 		configurationAccess,
@@ -575,6 +582,7 @@ export async function renderPicker(context: ComponentFixtureContext, options: IP
 			show: true,
 			currentVSCodeVersion: '1.100.0',
 			manageSettingsUrl: 'https://github.com/settings/copilot',
+			organizationSupport: options.organizationSupportUrl ? { url: options.organizationSupportUrl, tooltip: getOrganizationSupportActionTooltip(options.organizationSupportUrl) } : undefined,
 			updateStateType: StateType.Idle,
 		},
 		onUnavailableLinkClick: () => { },
@@ -920,13 +928,18 @@ export default defineThemedFixtureGroup({ path: 'chat/input/tabbedModelPicker' }
 	PickerWithHydraFusion: defineComponentFixture({
 		render: context => renderPicker(context, { models: [...RELAYED_MODELS, HYDRA_FUSION_MODEL], selectedModelId: 'agent-host-copilotcli/gpt-5-5', entitlement: ChatEntitlement.Pro }),
 	}),
-	/** Copilot Fusion leads the list on a row twice as tall, its discount in the Copilot brand gradient. */
+	/** Copilot Fusion leads the list on a row twice as tall, a line beneath its name saying what it does and its discount in a pill bordered by the Copilot brand gradient. */
 	PickerWithCopilotFusionDiscount: defineComponentFixture({
 		additionalThemes: ['darkHighContrast', 'lightHighContrast'],
 		render: context => renderPicker(context, { models: COPILOT_FUSION_MODELS, selectedModelId: 'agent-host-copilotcli/gpt-5-5', entitlement: ChatEntitlement.Pro }),
 	}),
 	PickerCopilotFusionSelected: defineComponentFixture({
 		render: context => renderPicker(context, { models: COPILOT_FUSION_MODELS, selectedModelId: COPILOT_FUSION_MODEL.identifier, entitlement: ChatEntitlement.Pro }),
+	}),
+	/** Copilot Fusion with no discount is badged Recommended, in the same pill bordered by the Copilot brand gradient. */
+	PickerWithCopilotFusionRecommended: defineComponentFixture({
+		additionalThemes: ['darkHighContrast', 'lightHighContrast'],
+		render: context => renderPicker(context, { models: COPILOT_FUSION_FULL_PRICE_MODELS, selectedModelId: 'agent-host-copilotcli/gpt-5-5', entitlement: ChatEntitlement.Pro }),
 	}),
 	/** HydraFusion's details, with Default and Max as its tiers, before either is chosen. */
 	PickerHydraFusionDetails: defineComponentFixture({
@@ -954,6 +967,9 @@ export default defineThemedFixtureGroup({ path: 'chat/input/tabbedModelPicker' }
 	}),
 	PickerLockedModelsBusiness: defineComponentFixture({
 		render: context => renderPicker(context, { models: COPILOT_ONLY_MODELS, controlModels: CONTROL_MODELS_WITH_LOCKED, entitlement: ChatEntitlement.Business }),
+	}),
+	PickerLockedModelsBusinessWithSupport: defineComponentFixture({
+		render: context => renderPicker(context, { models: COPILOT_ONLY_MODELS, controlModels: CONTROL_MODELS_WITH_LOCKED, entitlement: ChatEntitlement.Business, organizationSupportUrl: 'https://example.com/copilot-help' }),
 	}),
 	PickerBadges: defineComponentFixture({
 		render: context => renderPicker(context, { models: [AUTO_MODEL, ...COPILOT_NOTICE_MODELS], expandOther: true }),

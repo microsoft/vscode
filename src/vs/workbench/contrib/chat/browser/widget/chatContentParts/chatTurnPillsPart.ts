@@ -12,18 +12,24 @@ import { autorun, constObservable, derived, derivedObservableWithCache, IObserva
 import { isEqual } from '../../../../../../base/common/resources.js';
 import { ThemeIcon } from '../../../../../../base/common/themables.js';
 import { localize, localize2 } from '../../../../../../nls.js';
-import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { IHoverService } from '../../../../../../platform/hover/browser/hover.js';
-import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
-import { IEditorService } from '../../../../../services/editor/common/editorService.js';
 import { IEditSessionEntryDiff } from '../../../common/editing/chatEditingService.js';
 import { IChatRendererContent, IChatTurnPillsPart } from '../../../common/model/chatViewModel.js';
 import { ChatTreeItem } from '../../chat.js';
 import { AUTHORITATIVE_EMPTY_CHAT_RESPONSE_FILE_CHANGES, IChatResponseFileChangesService } from '../../chatResponseFileChangesService.js';
 import { EMPTY_DIFF_STATS, IDiffStats } from '../chatTurnPills.js';
-import { renderChangesSummaryFileList } from './chatChangesSummaryPart.js';
+import { ChangesSummaryFileListPool } from './chatChangesSummaryPart.js';
 import { ChatCollapsibleContentPart } from './chatCollapsibleContentPart.js';
 import { IChatContentPart, IChatContentPartRenderContext } from './chatContentParts.js';
+
+/**
+ * Whether a turn's changed-files disclosure is expanded. It is kept by the
+ * renderer and updated by the part, so a part rebuilt for the same turn
+ * (e.g. once it is no longer the last turn) keeps its expansion.
+ */
+export interface IChatTurnPillsDisclosureState {
+	open: boolean;
+}
 
 /**
  * Renders a single agent turn's changes as a checkpoint-style summary: a
@@ -39,11 +45,10 @@ export class ChatTurnPillsContentPart extends Disposable implements IChatContent
 	constructor(
 		private readonly _content: IChatTurnPillsPart,
 		_context: IChatContentPartRenderContext,
+		listPool: ChangesSummaryFileListPool,
+		disclosureState: IChatTurnPillsDisclosureState,
 		@IChatResponseFileChangesService private readonly _chatResponseFileChangesService: IChatResponseFileChangesService,
 		@IHoverService private readonly _hoverService: IHoverService,
-		@IConfigurationService private readonly _configurationService: IConfigurationService,
-		@IInstantiationService private readonly _instantiationService: IInstantiationService,
-		@IEditorService private readonly _editorService: IEditorService,
 	) {
 		super();
 
@@ -83,6 +88,8 @@ export class ChatTurnPillsContentPart extends Disposable implements IChatContent
 		const root = this.domNode.appendChild($('.checkpoint-file-changes-summary.checkpoint-file-changes-compact'));
 		const details = root.appendChild(document.createElement('details'));
 		details.classList.add('checkpoint-file-changes-disclosure');
+		details.open = disclosureState.open;
+		this._register(dom.addDisposableListener(details, 'toggle', () => disclosureState.open = details.open));
 		const header = details.appendChild(document.createElement('summary'));
 		header.classList.add('checkpoint-file-changes-summary-header');
 
@@ -91,7 +98,7 @@ export class ChatTurnPillsContentPart extends Disposable implements IChatContent
 		this._register(dom.addDisposableListener(header, 'click', () => {
 			this.domNode.dispatchEvent(new CustomEvent(ChatCollapsibleContentPart.userToggleEvent, { bubbles: true }));
 		}));
-		this._register(renderChangesSummaryFileList(details, this._diffs, this._instantiationService, this._editorService, this._configurationService));
+		this._register(listPool.renderOnFirstExpand(details, this._diffs));
 
 		this._register(autorun(reader => {
 			this.domNode.hidden = !showChanges.read(reader);

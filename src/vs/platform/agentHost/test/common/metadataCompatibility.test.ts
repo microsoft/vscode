@@ -9,7 +9,7 @@ import { readAttachmentDetail, withAttachmentDetail } from '../../common/meta/at
 import { isPolicyResolutionErrorData, readErrorDetail, toPolicyResolutionErrorData } from '../../common/meta/errorMeta.js';
 import { readAgentMessagePresentation, withMessageHiddenFromTranscript, withMessageRequestHiddenFromTranscript } from '../../common/meta/agentMessageMeta.js';
 import { readAgentModelCallDetail } from '../../common/meta/agentModelCallMeta.js';
-import { readAgentModelPricingMeta } from '../../common/meta/agentModelMeta.js';
+import { createPricingMetaFromBilling, normalizeCAPIBilling, readAgentModelPricingMeta } from '../../common/meta/agentModelMeta.js';
 import { AgentPermissionRequestKind, readAgentPermissionRequestMeta, withPermissionDiff } from '../../common/meta/agentPermissionRequestMeta.js';
 import { readAgentToolOutputDelta, readToolCallMeta, withAgentToolPreferences } from '../../common/meta/agentToolCallMeta.js';
 import { readAgentContextUsage, readUsageInfoMeta } from '../../common/meta/agentUsageMeta.js';
@@ -30,6 +30,21 @@ function readerMatrix<T>(name: string, read: (meta: Record<string, unknown> | un
 
 suite('Metadata compatibility', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('normalizes legacy nano-AIU, tiered credit and SDK prices to credits per million tokens', () => {
+		const prices = (billing: object) => createPricingMetaFromBilling(normalizeCAPIBilling(billing));
+		assert.deepStrictEqual([
+			prices({ token_prices: { batch_size: 1_000_000, input_price: 200_000_000_000, output_price: 1_000_000_000_000, cache_price: 10_000_000_000 } }),
+			prices({ token_prices: { batch_size: 1000, input_price: 200_000_000, output_price: 1_000_000_000, cache_price: 0 } }),
+			prices({ token_prices: { batch_size: 1_000_000, default: { input_price: 200, output_price: 1000, cache_read_price: 10, cache_write_price: 250 } } }),
+			prices({ tokenPrices: { inputPrice: 200, outputPrice: 1000, cacheReadPrice: 10, cacheWritePrice: 250 } }),
+		], [
+			{ inputCost: 200, outputCost: 1000, cacheCost: 10 },
+			{ inputCost: 200, outputCost: 1000, cacheCost: 0 },
+			{ inputCost: 200, outputCost: 1000, cacheCost: 10, cacheWriteCost: 250 },
+			{ inputCost: 200, outputCost: 1000, cacheCost: 10, cacheWriteCost: 250 },
+		]);
+	});
 
 	test('policy errors survive JSON without classifying absent or malformed metadata', () => {
 		const invalid = [undefined, null, {}, [], { _meta: null }, { _meta: [] }, { _meta: { 'vscode.policyResolutionFailed': 'true' } }, { _meta: { 'vscode.policyResolutionFailed': false } }];
@@ -134,6 +149,8 @@ suite('Metadata compatibility', () => {
 		{ name: 'projected read permission', meta: { promptRequest: { kind: 'read' } }, expected: { kind: AgentPermissionRequestKind.Read } },
 		{ name: 'projected write permission', meta: { promptRequest: { kind: 'write', fileName: '/workspace/file.ts' } }, expected: { kind: AgentPermissionRequestKind.Write, fileName: '/workspace/file.ts' } },
 		{ name: 'raw write permission', meta: { permissionRequest: { kind: 'write', fileName: '/workspace/file.ts' } }, expected: { kind: AgentPermissionRequestKind.Write, fileName: '/workspace/file.ts' } },
+		{ name: 'projected URL permission', meta: { promptRequest: { kind: 'url', url: 'https://example.com/docs' } }, expected: { kind: AgentPermissionRequestKind.Url, url: 'https://example.com/docs' } },
+		{ name: 'raw URL permission', meta: { permissionRequest: { kind: 'url', url: 'https://example.com/docs' } }, expected: { kind: AgentPermissionRequestKind.Url, url: 'https://example.com/docs' } },
 		{ name: 'projected request wins without borrowing a raw filename', meta: { promptRequest: { kind: 'write' }, permissionRequest: { kind: 'write', fileName: '/other.ts' } }, expected: { kind: AgentPermissionRequestKind.Write } },
 		{ name: 'malformed filename', meta: { promptRequest: { kind: 'write', fileName: 42 } }, expected: { kind: AgentPermissionRequestKind.Write } },
 		{ name: 'empty filename', meta: { promptRequest: { kind: 'write', fileName: ' ' } }, expected: { kind: AgentPermissionRequestKind.Write } },

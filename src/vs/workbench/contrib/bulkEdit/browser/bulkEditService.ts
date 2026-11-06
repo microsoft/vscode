@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { CancellationToken } from '../../../../base/common/cancellation.js';
-import { IDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
+import { Disposable, IDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { LinkedList } from '../../../../base/common/linkedList.js';
 import { ResourceMap, ResourceSet } from '../../../../base/common/map.js';
 import { URI } from '../../../../base/common/uri.js';
@@ -27,6 +27,7 @@ import { BulkFileEdits } from './bulkFileEdits.js';
 import { BulkTextEdits } from './bulkTextEdits.js';
 import { IEditorService } from '../../../services/editor/common/editorService.js';
 import { ILifecycleService, ShutdownReason } from '../../../services/lifecycle/common/lifecycle.js';
+import { IUnattendedRestartService } from '../../../services/lifecycle/common/unattendedRestart.js';
 import { IWorkingCopyService } from '../../../services/workingCopy/common/workingCopyService.js';
 import { OpaqueEdits, ResourceAttachmentEdit } from './opaqueEdits.js';
 import { TextModelEditSource } from '../../../../editor/common/textModelEditSource.js';
@@ -173,12 +174,13 @@ class BulkEdit {
 	}
 }
 
-export class BulkEditService implements IBulkEditService {
+export class BulkEditService extends Disposable implements IBulkEditService {
 
 	declare readonly _serviceBrand: undefined;
 
 	private readonly _activeUndoRedoGroups = new LinkedList<UndoRedoGroup>();
 	private _previewHandler?: IBulkEditPreviewHandler;
+	private _performingEdits = 0;
 
 	constructor(
 		@IInstantiationService private readonly _instaService: IInstantiationService,
@@ -188,7 +190,15 @@ export class BulkEditService implements IBulkEditService {
 		@IDialogService private readonly _dialogService: IDialogService,
 		@IWorkingCopyService private readonly _workingCopyService: IWorkingCopyService,
 		@IConfigurationService private readonly _configService: IConfigurationService,
-	) { }
+		@IUnattendedRestartService unattendedRestartService: IUnattendedRestartService,
+	) {
+		super();
+
+		// Shutting down while edits are performed asks for confirmation
+		this._register(unattendedRestartService.registerParticipant({
+			check: () => this._performingEdits > 0 ? 'bulkEdit.inProgress' : undefined
+		}));
+	}
 
 	setPreviewHandler(handler: IBulkEditPreviewHandler): IDisposable {
 		this._previewHandler = handler;
@@ -263,6 +273,7 @@ export class BulkEditService implements IBulkEditService {
 		);
 
 		let listener: IDisposable | undefined;
+		this._performingEdits++;
 		try {
 			listener = this._lifecycleService.onBeforeShutdown(e => e.veto(this._shouldVeto(label, e.reason), 'veto.blukEditService'));
 			const resources = await bulkEdit.perform(options?.reason);
@@ -280,6 +291,7 @@ export class BulkEditService implements IBulkEditService {
 			this._logService.error(err);
 			throw err;
 		} finally {
+			this._performingEdits--;
 			listener?.dispose();
 			undoRedoGroupRemove();
 		}

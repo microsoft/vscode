@@ -12,6 +12,8 @@ import { assertType } from '../../../../../base/common/types.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ServicesAccessor } from '../../../../../editor/browser/editorExtensions.js';
 import { EditorContextKeys } from '../../../../../editor/common/editorContextKeys.js';
+import { pasteWidgetVisibleCtx } from '../../../../../editor/contrib/dropOrPasteInto/browser/copyPasteController.js';
+import { dropWidgetVisibleCtx } from '../../../../../editor/contrib/dropOrPasteInto/browser/dropIntoEditorController.js';
 import { localize, localize2 } from '../../../../../nls.js';
 import { Action2, MenuId, registerAction2 } from '../../../../../platform/actions/common/actions.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
@@ -22,7 +24,6 @@ import { IInstantiationService } from '../../../../../platform/instantiation/com
 import { KeybindingWeight } from '../../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
-import { AgentHostAllowSignedOutWhenUsableSettingId } from '../../../../../platform/agentHost/common/agentService.js';
 import { AGENT_HOST_EXISTING_SESSION_HARNESS_PICKER_ENABLED_CONTEXT_KEY } from '../../../../../platform/agentHost/common/agentHostEnablementService.js';
 import { IsSessionsWindowContext } from '../../../../common/contextkeys.js';
 import { ChatContextKeyExprs, ChatContextKeys } from '../../common/actions/chatContextKeys.js';
@@ -33,7 +34,7 @@ import { ChatStopCancellationNoopClassification, ChatStopCancellationNoopEvent, 
 import { ChatAgentLocation, ChatConfiguration, ChatModeKind } from '../../common/constants.js';
 import { ILanguageModelChatMetadata } from '../../common/languageModels.js';
 import { ILanguageModelToolsService } from '../../common/tools/languageModelToolsService.js';
-import { getAgentHostProviderForTelemetry, IChatSessionsService, localChatSessionType } from '../../common/chatSessionsService.js';
+import { getAgentHostProviderForTelemetry, IChatSessionsService } from '../../common/chatSessionsService.js';
 import { getChatSessionType } from '../../common/model/chatUri.js';
 import { type IChatAcceptInputOptions, IChatWidget, IChatWidgetService } from '../chat.js';
 import { getAgentSessionProvider, AgentSessionProviders, AgentSessionTarget } from '../agentSessions/agentSessions.js';
@@ -404,16 +405,7 @@ export class OpenModelPickerAction extends Action2 {
 							ContextKeyExpr.equals(ChatContextKeys.location.key, ChatAgentLocation.Chat),
 							ContextKeyExpr.equals(ChatContextKeys.location.key, ChatAgentLocation.EditorInline),
 							ContextKeyExpr.equals(ChatContextKeys.location.key, ChatAgentLocation.Notebook),
-							ContextKeyExpr.equals(ChatContextKeys.location.key, ChatAgentLocation.Terminal)),
-						// Hide in welcome view when session type is not local
-						ContextKeyExpr.or(
-							ChatContextKeys.inAgentSessionsWelcome.negate(),
-							ChatContextKeys.chatSessionHasTargetedModels,
-							ChatContextKeys.agentSessionType.isEqualTo(AgentSessionProviders.Local),
-							ContextKeyExpr.and(
-								IsSessionsWindowContext,
-								ChatContextKeys.agentSessionType.isEqualTo(AgentSessionProviders.AgentHostCopilot),
-								ContextKeyExpr.equals(`config.${AgentHostAllowSignedOutWhenUsableSettingId}`, true)))
+							ContextKeyExpr.equals(ChatContextKeys.location.key, ChatAgentLocation.Terminal))
 					)
 			}
 		});
@@ -483,6 +475,8 @@ export class OpenModePickerAction extends Action2 {
 			keybinding: {
 				when: ContextKeyExpr.and(
 					ChatContextKeys.inChatInput,
+					pasteWidgetVisibleCtx.negate(),
+					dropWidgetVisibleCtx.negate(),
 					ChatContextKeys.location.isEqualTo(ChatAgentLocation.Chat)),
 				primary: KeyMod.CtrlCmd | KeyCode.Period,
 				weight: KeybindingWeight.EditorContrib
@@ -493,18 +487,14 @@ export class OpenModePickerAction extends Action2 {
 					order: 1,
 					when: ContextKeyExpr.and(
 						ChatContextKeys.enabled,
+						ChatContextKeys.agentPickerInAttachContext.negate(),
 						ChatContextKeys.location.isEqualTo(ChatAgentLocation.Chat),
 						ChatContextKeys.inQuickChat.negate(),
 						// Hide the agent picker while a delegation (continue in) target is pending
 						ChatContextKeys.hasPendingDelegationTarget.negate(),
 						ContextKeyExpr.or(
 							ChatContextKeys.lockedToCodingAgent.negate(),
-							ChatContextKeys.chatSessionHasCustomAgentTarget),
-						// Show in welcome view for local sessions or sessions with custom agent target
-						ContextKeyExpr.or(
-							ChatContextKeys.inAgentSessionsWelcome.negate(),
-							ChatContextKeys.chatSessionHasCustomAgentTarget,
-							ChatContextKeys.agentSessionType.isEqualTo(AgentSessionProviders.Local))),
+							ChatContextKeys.chatSessionHasCustomAgentTarget)),
 					group: 'navigation',
 				},
 			]
@@ -530,7 +520,7 @@ export class OpenSessionTargetPickerAction extends Action2 {
 			tooltip: localize('setSessionTarget', "Set Session Target"),
 			category: CHAT_CATEGORY,
 			f1: false,
-			precondition: ContextKeyExpr.and(ChatContextKeys.enabled, ContextKeyExpr.or(ChatContextKeys.chatSessionIsEmpty, ChatContextKeys.inAgentSessionsWelcome), ChatContextKeys.currentlyEditingInput.negate(), ChatContextKeys.currentlyEditing.negate()),
+			precondition: ContextKeyExpr.and(ChatContextKeys.enabled, ChatContextKeys.chatSessionIsEmpty, ChatContextKeys.currentlyEditingInput.negate(), ChatContextKeys.currentlyEditing.negate()),
 			menu: [
 				{
 					id: MenuId.ChatInput,
@@ -621,36 +611,6 @@ export class OpenDelegationPickerAction extends Action2 {
 	}
 }
 
-export class OpenWorkspacePickerAction extends Action2 {
-	static readonly ID = 'workbench.action.chat.openWorkspacePicker';
-
-	constructor() {
-		super({
-			id: OpenWorkspacePickerAction.ID,
-			title: localize2('interactive.openWorkspacePicker.label', "Open Workspace Picker"),
-			tooltip: localize('selectWorkspace', "Select Target Workspace"),
-			category: CHAT_CATEGORY,
-			f1: false,
-			precondition: ContextKeyExpr.and(ChatContextKeys.enabled, ChatContextKeys.inAgentSessionsWelcome),
-			menu: [
-				{
-					id: MenuId.ChatInputSecondary,
-					order: 0.6,
-					when: ContextKeyExpr.and(
-						ChatContextKeys.inAgentSessionsWelcome,
-						ChatContextKeys.chatSessionType.isEqualTo(localChatSessionType)
-					),
-					group: 'navigation',
-				},
-			]
-		});
-	}
-
-	override async run(accessor: ServicesAccessor, ...args: unknown[]): Promise<void> {
-		// The picker is opened via the action view item
-	}
-}
-
 export class ChatSessionPrimaryPickerAction extends Action2 {
 	static readonly ID = 'workbench.action.chat.chatSessionPrimaryPicker';
 	constructor() {
@@ -670,13 +630,7 @@ export class ChatSessionPrimaryPickerAction extends Action2 {
 						ContextKeyExpr.and(
 							ChatContextKeys.chatSessionHasModels,
 							ChatContextKeys.chatSessionType.isEqualTo(AgentSessionProviders.Cloud),
-							ContextKeyExpr.or(
-								ChatContextKeys.lockedToCodingAgent,
-								ContextKeyExpr.and(
-									ChatContextKeys.inAgentSessionsWelcome,
-									ChatContextKeys.chatSessionType.notEqualsTo('local')
-								)
-							)
+							ChatContextKeys.lockedToCodingAgent
 						)
 				},
 				{
@@ -695,13 +649,7 @@ export class ChatSessionPrimaryPickerAction extends Action2 {
 								IsSessionsWindowContext.negate(),
 								ChatContextKeys.chatSessionType.notEqualsTo(AgentSessionProviders.Background)
 							),
-							ContextKeyExpr.or(
-								ChatContextKeys.lockedToCodingAgent,
-								ContextKeyExpr.and(
-									ChatContextKeys.inAgentSessionsWelcome,
-									ChatContextKeys.chatSessionType.notEqualsTo('local')
-								)
-							)
+							ChatContextKeys.lockedToCodingAgent
 						)
 				},
 			]
@@ -1214,7 +1162,6 @@ export function registerChatExecuteActions(): DisposableStore {
 	store.add(registerAction2(OpenModePickerAction));
 	store.add(registerAction2(OpenSessionTargetPickerAction));
 	store.add(registerAction2(OpenDelegationPickerAction));
-	store.add(registerAction2(OpenWorkspacePickerAction));
 	store.add(registerAction2(ChatSessionPrimaryPickerAction));
 	store.add(registerAction2(ChangeChatModelAction));
 	store.add(registerAction2(CancelEdit));

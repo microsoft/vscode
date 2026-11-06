@@ -220,6 +220,6 @@ export function findMatchingMaliciousEntry(identifier: IExtensionIdentifier, mal
  */
 export function getExtensionBlockedMessage(blockingInfo: IExtensionBlockingInfo): IMarkdownString {
 	return new MarkdownString(blockingInfo.origin === ExtensionBlockingOrigin.Policy
-		? nls.localize('blocked by organization policy', "This extension is not permitted by your organization's policy.")
+		? nls.localize('blocked by organization policy', "This extension is not allowed by your organization.")
 		: nls.localize('blocked by marketplace', "This extension has been blocked by the Extension Marketplace and must not be used."));
 }

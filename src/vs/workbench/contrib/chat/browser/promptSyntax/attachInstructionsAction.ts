@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { IChatWidget } from '../chat.js';
 import { CHAT_CATEGORY } from '../actions/chatActions.js';
 import { localize, localize2 } from '../../../../../nls.js';
@@ -70,8 +71,11 @@ class ManageInstructionsFilesAction extends Action2 {
 /**
  * Helper to register the `Attach Prompt` action.
  */
-export function registerAttachPromptActions(): void {
-	registerAction2(ManageInstructionsFilesAction);
+export function registerAttachPromptActions(): DisposableStore {
+	const store = new DisposableStore();
+	store.add(registerAction2(ManageInstructionsFilesAction));
+
+	return store;
 }
 
 

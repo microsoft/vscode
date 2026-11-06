@@ -24,7 +24,7 @@ import { IPromptsService, ParsedPromptFile } from '../../../platform/promptFiles
 import { ITelemetryService } from '../../../platform/telemetry/common/telemetry';
 import { IWorkspaceService } from '../../../platform/workspace/common/workspaceService';
 import { isUri } from '../../../util/common/types';
-import { DeferredPromise, disposableTimeout, IntervalTimer, raceCancellation, SequencerByKey } from '../../../util/vs/base/common/async';
+import { DeferredPromise, disposableTimeout, IntervalTimer, Limiter, raceCancellation, SequencerByKey } from '../../../util/vs/base/common/async';
 import { CancellationToken } from '../../../util/vs/base/common/cancellation';
 import { isCancellationError } from '../../../util/vs/base/common/errors';
 import { Emitter, Event } from '../../../util/vs/base/common/event';
@@ -50,7 +50,7 @@ import { getCopilotCLISessionDir } from '../copilotcli/node/cliHelpers';
 import { COPILOT_CLI_CONTEXT_SIZE_PROPERTY, COPILOT_CLI_REASONING_EFFORT_PROPERTY, ICopilotCLIAgents, ICopilotCLIModels, ICopilotCLISDK, isWelcomeView, resolveContextTier } from '../copilotcli/node/copilotCli';
 import { CopilotCLIPromptResolver } from '../copilotcli/node/copilotcliPromptResolver';
 import { builtinSlashSCommands, CopilotCLICommand, copilotCLICommands, CopilotCLIQuotaExceededError, ICopilotCLISession } from '../copilotcli/node/copilotcliSession';
-import { ICopilotCLISessionItem, ICopilotCLISessionService } from '../copilotcli/node/copilotcliSessionService';
+import { CHAT_SESSION_ITEM_MAX_PARALLELISM, ICopilotCLISessionItem, ICopilotCLISessionService } from '../copilotcli/node/copilotcliSessionService';
 import { buildMcpServerMappings } from '../copilotcli/node/mcpHandler';
 import { ICopilotCLISessionTracker } from '../copilotcli/vscode-node/copilotCLISessionTracker';
 import { ICopilotCLIChatSessionItemProvider } from './copilotCLIChatSessions';
@@ -236,11 +236,12 @@ export class CopilotCLIChatSessionItemProvider extends Disposable implements vsc
 		// eagerly so the visible row reflects the latest diff info on this re-provide pass.
 		const pendingIds = new Set(this.pendingChangeIncludeIds);
 		this.pendingChangeIncludeIds.clear();
-		const diskSessions = await Promise.all(sessions.map(async session => this.toChatSessionItem(
+		const limiter = new Limiter<vscode.ChatSessionItem>(CHAT_SESSION_ITEM_MAX_PARALLELISM);
+		const diskSessions = await Promise.all(sessions.map(session => limiter.queue(() => this.toChatSessionItem(
 			session,
 			pendingIds.has(session.id) ? { includeChanges: true } : undefined,
 			token,
-		)));
+		))));
 
 		const count = diskSessions.length;
 		void this.commandExecutionService.executeCommand('setContext', 'github.copilot.chat.cliSessionsEmpty', count === 0);

@@ -11,6 +11,7 @@ import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { buildAnnotationsUri } from '../../common/annotationsUri.js';
 import { ActionType, type ActionEnvelope, type ChatTurnStartedAction, type ClientChangesetAction } from '../../common/state/sessionActions.js';
+import { chatToolCallStart, chatTurnComplete, chatTurnStarted } from './chatActionBuilders.js';
 import { AutomationOperation, AutomationRunOriginKind, AutomationRunStatus, ChangesetStatus, ChatInteractivity, MessageKind, ResponsePartKind, SessionLifecycle, SessionStatus, TerminalClaimKind, TerminalLifecycleStatus, TurnState, type AnnotationsState, type AutomationRunState, type AutomationState, type ChangesetState, type ErrorInfo, type RootState, type SessionState, type SessionSummary, type TerminalState, type Turn } from '../../common/state/protocol/state.js';
 import { AUTOMATION_CATALOG_URI, buildChatUri, buildDefaultChatUri, createChatState, createDefaultChatSummary, getTurnError, ROOT_STATE_URI, StateComponents, type ChatState } from '../../common/state/sessionState.js';
 import { AgentSubscriptionManager, AutomationCatalogSubscription, AutomationRunSubscription, CanvasStateSubscription, ChangesetStateSubscription, ChatStateSubscription, isActionEnvelopeRelevantToSubscriptionUris, RootStateSubscription, SessionStateSubscription, TerminalStateSubscription } from '../../common/state/agentSubscription.js';
@@ -318,17 +319,7 @@ suite('CanvasStateSubscription', () => {
 
 suite('RootStateSubscription', () => {
 
-	let disposables: DisposableStore;
-
-	setup(() => {
-		disposables = new DisposableStore();
-	});
-
-	teardown(() => {
-		disposables.dispose();
-	});
-
-	ensureNoDisposablesAreLeakedInTestSuite();
+	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('value is undefined before snapshot', () => {
 		const sub = disposables.add(new RootStateSubscription('c1', noop));
@@ -471,19 +462,12 @@ suite('RootStateSubscription', () => {
 
 suite('SessionStateSubscription', () => {
 
-	let disposables: DisposableStore;
+	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 	let seq: number;
 
 	setup(() => {
-		disposables = new DisposableStore();
 		seq = 0;
 	});
-
-	teardown(() => {
-		disposables.dispose();
-	});
-
-	ensureNoDisposablesAreLeakedInTestSuite();
 
 	function createSub(uri: string = sessionUri, clientId: string = 'c1'): SessionStateSubscription {
 		return disposables.add(new SessionStateSubscription(uri, clientId, () => ++seq, noop));
@@ -592,7 +576,7 @@ suite('SessionStateSubscription', () => {
 		sub.handleSnapshot(state, 0);
 
 		sub.receiveEnvelope(makeEnvelope(
-			{ type: ActionType.ChatTurnComplete, turnId: 'turn-1', duration: 1000 },
+			chatTurnComplete('turn-1', 1000),
 			1,
 			undefined,
 		));
@@ -718,30 +702,19 @@ suite('SessionStateSubscription', () => {
 
 suite('ChatStateSubscription', () => {
 	test('session catalog interactivity updates the live chat without changing its draft', () => {
-		const sub = new ChatStateSubscription(chatUri, 'c1', () => 1, noop);
-		try {
-			const draft = { text: 'Draft', origin: { kind: MessageKind.User } };
-			sub.handleSnapshot({ ...createChatState(createDefaultChatSummary(makeSessionSummary(sessionUri), chatUri)), draft }, 0);
-			sub.receiveEnvelope(makeEnvelope({ type: ActionType.SessionChatUpdated, chat: chatUri, changes: { interactivity: ChatInteractivity.ReadOnly } }, 1));
-			assert.deepStrictEqual({ interactivity: (sub.value as ChatState).interactivity, draft: (sub.value as ChatState).draft }, { interactivity: ChatInteractivity.ReadOnly, draft });
-		} finally {
-			sub.dispose();
-		}
+		const sub = disposables.add(new ChatStateSubscription(chatUri, 'c1', () => 1, noop));
+		const draft = { text: 'Draft', origin: { kind: MessageKind.User } };
+		sub.handleSnapshot({ ...createChatState(createDefaultChatSummary(makeSessionSummary(sessionUri), chatUri)), draft }, 0);
+		sub.receiveEnvelope(makeEnvelope({ type: ActionType.SessionChatUpdated, chat: chatUri, changes: { interactivity: ChatInteractivity.ReadOnly } }, 1));
+		assert.deepStrictEqual({ interactivity: (sub.value as ChatState).interactivity, draft: (sub.value as ChatState).draft }, { interactivity: ChatInteractivity.ReadOnly, draft });
 	});
 
-	let disposables: DisposableStore;
+	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 	let seq: number;
 
 	setup(() => {
-		disposables = new DisposableStore();
 		seq = 0;
 	});
-
-	teardown(() => {
-		disposables.dispose();
-	});
-
-	ensureNoDisposablesAreLeakedInTestSuite();
 
 	function createSub(uri: string = chatUri, clientId: string = 'c1'): ChatStateSubscription {
 		return disposables.add(new ChatStateSubscription(uri, clientId, () => ++seq, noop));
@@ -866,25 +839,14 @@ suite('ChatStateSubscription', () => {
 	for (const bufferedAcknowledgement of [false, true]) {
 		test(`initial snapshot confirms an optimistic turn start (${bufferedAcknowledgement ? 'buffered' : 'missing'} acknowledgement)`, () => {
 			const sub = createSub();
-			const start: ChatTurnStartedAction = {
-				type: ActionType.ChatTurnStarted,
-				turnId: 'turn-1',
-				startedAt: '2025-01-01T00:00:00.000Z',
-				message: { text: 'hello', origin: { kind: MessageKind.User } },
-			};
+			const start: ChatTurnStartedAction = chatTurnStarted('turn-1', 'hello', '2025-01-01T00:00:00.000Z');
 			const clientSeq = sub.applyOptimistic(start);
 			if (bufferedAcknowledgement) {
 				sub.receiveEnvelope(makeEnvelope(start, 1, { clientId: 'c1', clientSeq }));
 			}
 			const snapshot = chatReducer(makeChatState(chatUri), start, noop);
 			sub.handleSnapshot(snapshot, 1);
-			const progress = {
-				type: ActionType.ChatToolCallStart,
-				turnId: start.turnId,
-				toolCallId: 'tool-1',
-				toolName: 'reply',
-				displayName: 'Reply',
-			} as const;
+			const progress = chatToolCallStart(start.turnId, 'tool-1', 'reply', 'Reply');
 			sub.receiveEnvelope(makeEnvelope(progress, 2));
 
 			assert.deepStrictEqual({
@@ -899,18 +861,9 @@ suite('ChatStateSubscription', () => {
 
 	test('snapshot confirms a completed optimistic turn without restarting it', () => {
 		const sub = createSub();
-		const start: ChatTurnStartedAction = {
-			type: ActionType.ChatTurnStarted,
-			turnId: 'turn-1',
-			startedAt: '2025-01-01T00:00:00.000Z',
-			message: { text: 'hello', origin: { kind: MessageKind.User } },
-		};
+		const start: ChatTurnStartedAction = chatTurnStarted('turn-1', 'hello', '2025-01-01T00:00:00.000Z');
 		sub.applyOptimistic(start);
-		const snapshot = chatReducer(chatReducer(makeChatState(chatUri), start, noop), {
-			type: ActionType.ChatTurnComplete,
-			turnId: start.turnId,
-			duration: 1000,
-		}, noop);
+		const snapshot = chatReducer(chatReducer(makeChatState(chatUri), start, noop), chatTurnComplete(start.turnId, 1000), noop);
 		sub.handleSnapshot(snapshot, 2);
 
 		assert.deepStrictEqual({ value: sub.value, pending: sub.getPendingActions() }, { value: snapshot, pending: [] });
@@ -918,12 +871,7 @@ suite('ChatStateSubscription', () => {
 
 	test('snapshot confirming a turn start preserves its pending cancellation', () => {
 		const sub = createSub();
-		const start: ChatTurnStartedAction = {
-			type: ActionType.ChatTurnStarted,
-			turnId: 'turn-1',
-			startedAt: '2025-01-01T00:00:00.000Z',
-			message: { text: 'hello', origin: { kind: MessageKind.User } },
-		};
+		const start: ChatTurnStartedAction = chatTurnStarted('turn-1', 'hello', '2025-01-01T00:00:00.000Z');
 		sub.applyOptimistic(start);
 		const cancellation = {
 			type: ActionType.ChatTurnCancelled,
@@ -945,12 +893,7 @@ suite('ChatStateSubscription', () => {
 
 	test('snapshot without the optimistic turn preserves its pending start', () => {
 		const sub = createSub();
-		const start: ChatTurnStartedAction = {
-			type: ActionType.ChatTurnStarted,
-			turnId: 'turn-1',
-			startedAt: '2025-01-01T00:00:00.000Z',
-			message: { text: 'hello', origin: { kind: MessageKind.User } },
-		};
+		const start: ChatTurnStartedAction = chatTurnStarted('turn-1', 'hello', '2025-01-01T00:00:00.000Z');
 		const clientSeq = sub.applyOptimistic(start);
 		const snapshot = makeChatState(chatUri);
 		sub.handleSnapshot(snapshot, 0);
@@ -968,17 +911,12 @@ suite('ChatStateSubscription', () => {
 		const sub = createSub();
 		sub.handleSnapshot(makeChatState(chatUri), 0);
 
-		sub.applyOptimistic({
-			type: ActionType.ChatTurnStarted,
-			turnId: 'turn-1',
-			startedAt: '2025-01-01T00:00:00.000Z',
-			message: { text: 'hello', origin: { kind: MessageKind.User } },
-		});
+		sub.applyOptimistic(chatTurnStarted('turn-1', 'hello', '2025-01-01T00:00:00.000Z'));
 
 		assert.strictEqual((sub.value as ChatState | undefined)?.activeTurn?.id, 'turn-1');
 
 		sub.receiveEnvelope(makeEnvelope(
-			{ type: ActionType.ChatTurnComplete, turnId: 'turn-1', duration: 1000 },
+			chatTurnComplete('turn-1', 1000),
 			1,
 			undefined,
 		));
@@ -997,17 +935,7 @@ suite('ChatStateSubscription', () => {
 
 suite('TerminalStateSubscription', () => {
 
-	let disposables: DisposableStore;
-
-	setup(() => {
-		disposables = new DisposableStore();
-	});
-
-	teardown(() => {
-		disposables.dispose();
-	});
-
-	ensureNoDisposablesAreLeakedInTestSuite();
+	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('accepts terminal actions matching its URI', () => {
 		const sub = disposables.add(new TerminalStateSubscription(terminalUri, 'c1', noop));
@@ -1319,6 +1247,49 @@ suite('AgentSubscriptionManager', () => {
 
 		ref.dispose();
 		assert.ok(unsubscribedResources.includes(sessionUri));
+	});
+
+	test('a subscribe that resolves after its last ref was released is unsubscribed again, unless the resource is held again', async () => {
+		const hostSubscribed = new Set<string>();
+		const pending: { resource: string; resolve: () => void }[] = [];
+		const mgr = disposables.add(new AgentSubscriptionManager('c1', () => ++seq, noop, resource => new Promise<IStateSnapshot>(resolve => {
+			const key = resource.toString();
+			// The host subscribes when it answers, after any unsubscribe that overtook this subscribe on the wire.
+			pending.push({ resource: key, resolve: () => { hostSubscribed.add(key); resolve({ resource: key, state: makeSessionState(key), fromSeq: 0 }); } });
+		}), resource => { hostSubscribed.delete(resource.toString()); }));
+		const released = URI.parse('copilot:/released');
+		const reacquired = URI.parse('copilot:/reacquired');
+
+		mgr.getSubscription<SessionState>(StateComponents.Session, released, 'test').dispose();
+		mgr.getSubscription<SessionState>(StateComponents.Session, reacquired, 'test').dispose();
+		const held = mgr.getSubscription<SessionState>(StateComponents.Session, reacquired, 'test');
+		for (const request of pending) {
+			request.resolve();
+		}
+		await new Promise(r => setTimeout(r, 0));
+
+		assert.deepStrictEqual({ hostSubscribed: [...hostSubscribed].sort(), heldTitle: held.object.value instanceof Error ? undefined : held.object.value?.title !== undefined }, { hostSubscribed: [reacquired.toString()], heldTitle: true });
+		held.dispose();
+	});
+
+	test('a refresh that resolves after its last ref was released is unsubscribed again', async () => {
+		const hostSubscribed = new Set<string>();
+		const pending: (() => void)[] = [];
+		const mgr = disposables.add(new AgentSubscriptionManager('c1', () => ++seq, noop, resource => new Promise<IStateSnapshot>(resolve => {
+			const key = resource.toString();
+			pending.push(() => { hostSubscribed.add(key); resolve({ resource: key, state: makeSessionState(key), fromSeq: 0 }); });
+		}), resource => { hostSubscribed.delete(resource.toString()); }));
+		const resource = URI.parse('copilot:/refreshed');
+		const ref = mgr.getSubscription<SessionState>(StateComponents.Session, resource, 'test');
+		pending.shift()!();
+		await new Promise(r => setTimeout(r, 0));
+
+		const refresh = mgr.refreshSubscription(resource);
+		ref.dispose();
+		pending.shift()!();
+		await refresh;
+
+		assert.deepStrictEqual([...hostSubscribed], []);
 	});
 
 	test('receiveEnvelope routes to root and all active subscriptions', async () => {

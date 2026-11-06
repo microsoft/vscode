@@ -7,6 +7,7 @@ import assert from 'assert';
 import * as DOM from '../../../../../../base/browser/dom.js';
 import { timeout } from '../../../../../../base/common/async.js';
 import { bufferToStream, VSBuffer } from '../../../../../../base/common/buffer.js';
+import { CancellationError } from '../../../../../../base/common/errors.js';
 import { Emitter } from '../../../../../../base/common/event.js';
 import { Disposable, IDisposable } from '../../../../../../base/common/lifecycle.js';
 import { URI } from '../../../../../../base/common/uri.js';
@@ -44,6 +45,7 @@ suite('EmbeddedMarketplaceDetail', () => {
 		let installCount = 0;
 		let repairCount = 0;
 		let uninstallCount = 0;
+		let cancelCount = 0;
 		const openedExternal: Array<URI | string> = [];
 		const queryHovers: string[] = [];
 		instantiationService.stub(IHoverService, new class extends mock<IHoverService>() {
@@ -71,6 +73,7 @@ suite('EmbeddedMarketplaceDetail', () => {
 				}
 			}
 			override async uninstall() { uninstallCount++; }
+			override cancelConnectorOperation() { cancelCount++; }
 		}());
 		instantiationService.stub(IRequestService, new class extends mock<IRequestService>() {
 			override async request(): Promise<IRequestContext> {
@@ -98,8 +101,13 @@ suite('EmbeddedMarketplaceDetail', () => {
 			detail,
 			parent,
 			fireInstallChange: () => installChangeEmitter.fire(),
+			setInstallState: (state: CustomizationMarketplaceInstallState) => {
+				installState = state;
+				installChangeEmitter.fire();
+			},
 			getRequestCount: () => requestCount,
 			getActionCounts: () => ({ installCount, repairCount, uninstallCount }),
+			getCancelCount: () => cancelCount,
 			getOpenedExternal: () => openedExternal.map(resource => typeof resource === 'string' ? resource : resource.toString()),
 			getErrors: () => errors,
 			getQueryHovers: () => queryHovers,
@@ -296,6 +304,67 @@ suite('EmbeddedMarketplaceDetail', () => {
 			installedAction: 'Disconnect',
 			availableCounts: { installCount: 1, repairCount: 0, uninstallCount: 0 },
 			installedCounts: { installCount: 0, repairCount: 0, uninstallCount: 1 },
+		});
+	});
+
+	test('offers Cancel while a Copilot connector is connecting', async () => {
+		const resource: ICustomizationMarketplaceResource = {
+			sourceId: 'connectors',
+			identifier: 'mail',
+			displayName: 'Mail',
+			description: 'Search mail.',
+			mediaType: CustomizationMarketplaceMediaType.McpServer,
+			publisher: 'GitHub Copilot',
+			tags: [],
+			capabilities: [],
+			representativeQueries: [],
+			installation: { kind: 'copilotConnector', name: 'mail' },
+		};
+		const { detail, parent, setInstallState, getCancelCount, getErrors } = render(resource, undefined, { installState: { kind: 'installing' } });
+		const getButtons = () => [...parent.querySelectorAll<HTMLElement>('.embedded-detail-title-actions .monaco-button')].map(button => ({
+			label: button.textContent,
+			enabled: !button.classList.contains('disabled'),
+		}));
+
+		const connecting = getButtons();
+		const primaryAction = detail.primaryAction?.label;
+		parent.querySelectorAll<HTMLElement>('.embedded-detail-title-actions .monaco-button')[1]?.click();
+		const cancelCount = getCancelCount();
+		setInstallState({ kind: 'available' });
+		await timeout(0);
+
+		assert.deepStrictEqual({ connecting, primaryAction, cancelCount, afterCancel: getButtons(), errors: getErrors() }, {
+			connecting: [{ label: 'Connecting...', enabled: false }, { label: 'Cancel', enabled: true }],
+			primaryAction: 'Cancel',
+			cancelCount: 1,
+			afterCancel: [{ label: 'Connect', enabled: true }],
+			errors: [],
+		});
+	});
+
+	test('does not report an error when connecting a Copilot connector is cancelled', async () => {
+		const resource: ICustomizationMarketplaceResource = {
+			sourceId: 'connectors',
+			identifier: 'mail',
+			displayName: 'Mail',
+			description: 'Search mail.',
+			mediaType: CustomizationMarketplaceMediaType.McpServer,
+			publisher: 'GitHub Copilot',
+			tags: [],
+			capabilities: [],
+			representativeQueries: [],
+			installation: { kind: 'copilotConnector', name: 'mail' },
+		};
+		const { parent, getActionCounts, getErrors } = render(resource, undefined, {
+			install: async () => { throw new CancellationError(); },
+		});
+
+		parent.querySelector<HTMLElement>('.embedded-detail-title-actions .monaco-button')?.click();
+		await timeout(0);
+
+		assert.deepStrictEqual({ counts: getActionCounts(), errors: getErrors() }, {
+			counts: { installCount: 1, repairCount: 0, uninstallCount: 0 },
+			errors: [],
 		});
 	});
 

@@ -12,7 +12,6 @@ import { connectionTokenQueryName } from '../../../../base/common/network.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { NullLogService } from '../../../log/common/log.js';
 import { WebSocketProtocolServer } from '../../node/webSocketTransport.js';
-import { isAuthenticatedAgentHostTransport } from '../../node/agentHostTransportAuthentication.js';
 import { getProtocolMessageSize } from '../../common/state/sessionTransport.js';
 
 suite('WebSocketProtocolServer', () => {
@@ -35,21 +34,37 @@ suite('WebSocketProtocolServer', () => {
 		const accepted = store.add(await transport);
 
 		assert.deepStrictEqual(validatedTokens, ['valid token']);
-		assert.strictEqual(isAuthenticatedAgentHostTransport(accepted), true);
 		const message = Event.toPromise(accepted.onMessage);
 		const text = '{ "jsonrpc":"2.0", "method":"tcp/data", "params": { "channel":"ahp-tcp:/test", "data":"\\u005aA==" } }';
 		socket.send(text);
 		assert.strictEqual(getProtocolMessageSize(await message), text.length * 2);
 	});
 
-	test('does not grant host-network access to an unauthenticated WebSocket', async () => {
+	test('accepts connections without a token when no validator is configured', async () => {
 		const server = store.add(await WebSocketProtocolServer.create({ port: 0 }, new NullLogService()));
 		await server.whenListening;
 		const transport = Event.toPromise(server.onConnection);
 		const socket = await connect(`ws://127.0.0.1:${server.boundPort}/`);
 		store.add(toDisposable(() => socket.close()));
-		assert.strictEqual(isAuthenticatedAgentHostTransport(store.add(await transport)), false);
+		const accepted = store.add(await transport);
+		const message = Event.toPromise(accepted.onMessage);
+		const text = '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"clientId":"test","protocolVersions":["1.0.0"]}}';
+		socket.send(text);
+		assert.deepStrictEqual(await message, JSON.parse(text));
 	});
+
+	for (const query of ['', `?${connectionTokenQueryName}=wrong`]) {
+		test(`rejects ${query ? 'invalid' : 'missing'} connection tokens when a validator is configured`, async () => {
+			const server = store.add(await WebSocketProtocolServer.create({
+				port: 0,
+				connectionTokenValidate: token => token === 'valid',
+			}, new NullLogService()));
+			await server.whenListening;
+
+			const response = await sendUpgradeRequest(server.boundPort!, `/${query}`);
+			assert.strictEqual(response.split('\r\n', 1)[0], 'HTTP/1.1 403 Forbidden');
+		});
+	}
 
 	test('rejects a malformed request URL without stopping the server', async () => {
 		const server = store.add(await WebSocketProtocolServer.create({

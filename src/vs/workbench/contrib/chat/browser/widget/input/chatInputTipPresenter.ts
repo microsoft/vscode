@@ -54,8 +54,16 @@ export class ChatInputTipPresenter extends Disposable {
 		// gone, so disposal never depends on a stand-down that will not arrive.
 		this._register(toDisposable(() => this._clearContent()));
 		this._register(this._chatTipService.onDidChangeTip(() => {
+			const hadFocus = this._partRef?.hasFocus() ?? false;
 			this._clearContent();
 			this.update();
+			if (hadFocus) {
+				if (this._partRef) {
+					this._partRef.focus();
+				} else {
+					this._options.focusInput();
+				}
+			}
 		}));
 
 		this.update();

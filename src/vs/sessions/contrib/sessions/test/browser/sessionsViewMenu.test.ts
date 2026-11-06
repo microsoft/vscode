@@ -35,15 +35,15 @@ import { NullTelemetryService } from '../../../../../platform/telemetry/common/t
 import { ChatConfiguration } from '../../../../../workbench/contrib/chat/common/constants.js';
 import { ChatContextKeys } from '../../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
 import { IViewsService } from '../../../../../workbench/services/views/common/viewsService.js';
-import { Menus } from '../../../../browser/menus.js';
-import { IsPhoneLayoutContext } from '../../../../common/contextkeys.js';
-import { SHOW_SESSION_APPLICATION_FILTERS_COMMAND_ID } from '../../../../common/sessionCommands.js';
-import { ISession, ISessionEnvironment } from '../../../../services/sessions/common/session.js';
-import { buildTestSession } from '../../../../services/sessions/test/common/testSessionBuilder.js';
-import { SessionsGrouping, SessionsList, SessionsSorting } from '../../browser/views/sessionsList.js';
-import { SessionsListFilters } from '../../browser/views/sessionsListFilters.js';
-import { ISessionsListNotice, SessionsListNotification } from '../../browser/views/sessionsListNotification.js';
-import { IsWorkspaceGroupCappedContext, SessionsView, SessionsViewCompactContext, SessionsViewGroupingContext, SessionsViewSortingContext } from '../../browser/views/sessionsView.js';
+import { Menus } from '../../../../../workbench/contrib/sessions/browser/menus.js';
+import { IsPhoneLayoutContext } from '../../../../../workbench/contrib/sessions/common/contextkeys.js';
+import { SHOW_SESSION_APPLICATION_FILTERS_COMMAND_ID } from '../../../../../workbench/contrib/sessions/common/sessionCommands.js';
+import { ISession, ISessionEnvironment } from '../../../../../workbench/contrib/sessions/common/session.js';
+import { buildTestSession } from '../../../../../workbench/contrib/sessions/test/common/testSessionBuilder.js';
+import { SessionsGrouping, SessionsList, SessionsSorting } from '../../../../../workbench/contrib/sessions/browser/views/sessionsList.js';
+import { SessionsListFilters } from '../../../../../workbench/contrib/sessions/browser/views/sessionsListFilters.js';
+import { ISessionsListNotice, SessionsListNotification } from '../../../../../workbench/contrib/sessions/browser/views/sessionsListNotification.js';
+import { IsWorkspaceGroupCappedContext, SessionsView, SessionsViewCompactContext, SessionsViewGroupingContext, SessionsViewSortingContext } from '../../../../../workbench/contrib/sessions/browser/views/sessionsView.js';
 import { TestCommandService } from './sessionsListTestUtils.js';
 import '../../browser/views/sessionsViewActions.js';
 
@@ -83,6 +83,7 @@ suite('Sessions - View Menu', () => {
 		let workspaceGroupCapped = true;
 		const sessionsControl = upcastPartial<SessionsList>({
 			filters,
+			isSessionListed: (session, reader) => !session.isAutomation?.read(reader),
 			isExcludeArchived: () => excludeArchived,
 			setExcludeArchived: excluded => { excludeArchived = excluded; },
 			isWorkspaceGroupCapped: () => workspaceGroupCapped,
@@ -116,14 +117,16 @@ suite('Sessions - View Menu', () => {
 				getProviders: () => environments.map(environment => ({ environment })),
 			},
 			_register: <T extends IDisposable>(disposable: T): T => store.add(disposable),
+			sessionsControl,
 			registerSessionFilters: Reflect.get(SessionsView.prototype, 'registerSessionFilters') as (control: SessionsList) => void,
 			registerArchivedFilter: Reflect.get(SessionsView.prototype, 'registerArchivedFilter') as (control: SessionsList) => void,
-			registerResetFiltersAction: Reflect.get(SessionsView.prototype, 'registerResetFiltersAction') as (control: SessionsList) => void,
+			registerResetFiltersAction: Reflect.get(SessionsView.prototype, 'registerResetFiltersAction') as () => void,
+			resetFilters: SessionsView.prototype.resetFilters,
 			syncFilterContextKeys: Reflect.get(SessionsView.prototype, 'syncFilterContextKeys') as (control: SessionsList) => void,
 		};
 		host.registerSessionFilters(sessionsControl);
 		host.registerArchivedFilter(sessionsControl);
-		host.registerResetFiltersAction(sessionsControl);
+		host.registerResetFiltersAction();
 
 		const snapshot = (menu: MenuId) => MenuRegistry.getMenuItems(menu)
 			.filter(item => contextKeyService.contextMatchesRules(item.when))
@@ -166,7 +169,7 @@ suite('Sessions - View Menu', () => {
 	}
 
 	test('keeps Open to the Side without Open in Grid in the session context menu', () => {
-		const items = MenuRegistry.getMenuItems(Menus.SessionItemContextMenu);
+		const items = MenuRegistry.getMenuItems(Menus.SessionItemOpenIn);
 		assert.deepStrictEqual({
 			openToTheSide: items.filter(isIMenuItem).some(item => item.command.id === 'sessionsViewPane.openToTheSide'),
 			openInGridSubmenu: items.filter(isISubmenuItem).some(item => item.submenu.id === 'SessionsGridOpen'),
@@ -249,8 +252,12 @@ suite('Sessions - View Menu', () => {
 		]);
 	});
 
-	test('places Compact View and Collapse All Groups in their own header overflow group', () => {
+	test('places Compact View and Collapse All Groups before the management overflow group', () => {
 		const { snapshot, contextKeyService } = createMenu();
+		store.add(MenuRegistry.appendMenuItem(Menus.SidebarSessionsHeader, {
+			command: { id: 'test.manage', title: 'Manage' },
+			group: '2_manage',
+		}));
 		const menuService = store.add(new MenuService(new TestCommandService(), new MockKeybindingService(), store.add(new InMemoryStorageService())));
 		const { primary, secondary } = getActionBarActions(
 			menuService.getMenuActions(Menus.SidebarSessionsHeader, contextKeyService),
@@ -258,24 +265,24 @@ suite('Sessions - View Menu', () => {
 		);
 		const viewActionIds = ['sessionsViewPane.toggleCompact', 'sessionsViewPane.collapseAllGroups'];
 		assert.deepStrictEqual({
-			group: snapshot(Menus.SidebarSessionsHeader).filter(item => item.group === 'view'),
+			group: snapshot(Menus.SidebarSessionsHeader).filter(item => item.group === '1_view'),
 			primary: primary.filter(action => viewActionIds.includes(action.id)).map(action => action.id),
-			secondary: secondary.filter(action => viewActionIds.includes(action.id)).map(action => action.id),
+			secondary: secondary.filter(action => [...viewActionIds, 'test.manage'].includes(action.id)).map(action => action.id),
 			filter: snapshot(Menus.SessionsViewFilter).filter(item => item.title === 'Compact View' || item.title === 'Collapse All Groups'),
 		}, {
 			group: [
-				{ title: 'Compact View', group: 'view', checked: false },
-				{ title: 'Collapse All Groups', group: 'view' },
+				{ title: 'Compact View', group: '1_view', checked: false },
+				{ title: 'Collapse All Groups', group: '1_view' },
 			],
 			primary: [],
-			secondary: viewActionIds,
+			secondary: [...viewActionIds, 'test.manage'],
 			filter: [],
 		});
 	});
 
 	test('preserves the Compact View toggle and hides header view actions when AI is disabled', () => {
 		const { snapshot, compact, contextKeyService } = createMenu();
-		const viewActions = () => snapshot(Menus.SidebarSessionsHeader).filter(item => item.group === 'view');
+		const viewActions = () => snapshot(Menus.SidebarSessionsHeader).filter(item => item.group === '1_view');
 		compact.set(true);
 		const checked = viewActions();
 		IsPhoneLayoutContext.bindTo(contextKeyService).set(true);
@@ -283,10 +290,10 @@ suite('Sessions - View Menu', () => {
 		ChatContextKeys.enabled.bindTo(contextKeyService).set(false);
 		assert.deepStrictEqual({ checked, phone, disabled: viewActions() }, {
 			checked: [
-				{ title: 'Compact View', group: 'view', checked: true },
-				{ title: 'Collapse All Groups', group: 'view' },
+				{ title: 'Compact View', group: '1_view', checked: true },
+				{ title: 'Collapse All Groups', group: '1_view' },
 			],
-			phone: [{ title: 'Collapse All Groups', group: 'view' }],
+			phone: [{ title: 'Collapse All Groups', group: '1_view' }],
 			disabled: [],
 		});
 	});
@@ -342,11 +349,18 @@ suite('Sessions - View Menu', () => {
 		grouping.set(SessionsGrouping.Repository);
 		const repositoryTitles = snapshot(Menus.SessionsViewFilter).filter(item => item.group === '1_presentation').map(item => item.title);
 		const repositoryShow = snapshot(Menus.SessionsViewShow);
+		grouping.set(SessionsGrouping.Environment);
+		const environmentTitles = snapshot(Menus.SessionsViewFilter).filter(item => item.group === '1_presentation').map(item => item.title);
+		const environmentGrouping = snapshot(Menus.SessionsViewGrouping);
+		const environmentShow = snapshot(Menus.SessionsViewShow);
 		grouping.set(SessionsGrouping.Date);
 
 		assert.deepStrictEqual({
 			workspaceTitles,
 			repositoryTitles,
+			environmentTitles,
+			environmentGrouping,
+			environmentShow,
 			timeTitles: snapshot(Menus.SessionsViewFilter).filter(item => item.group === '1_presentation').map(item => item.title),
 			ordering: snapshot(Menus.SessionsViewOrdering),
 			grouping: snapshot(Menus.SessionsViewGrouping),
@@ -355,6 +369,17 @@ suite('Sessions - View Menu', () => {
 		}, {
 			workspaceTitles: ['Ordering', 'Grouping', 'Show'],
 			repositoryTitles: ['Ordering', 'Grouping', 'Show'],
+			environmentTitles: ['Ordering', 'Grouping', 'Show'],
+			environmentGrouping: [
+				{ title: 'Time', group: '1_group', checked: false },
+				{ title: 'Workspace', group: '1_group', checked: false },
+				{ title: 'Repository', group: '1_group', checked: false },
+				{ title: 'Environment', group: '1_group', checked: true },
+			],
+			environmentShow: [
+				{ title: 'Recent', group: '1_show', checked: false },
+				{ title: 'All', group: '1_show', checked: true },
+			],
 			timeTitles: ['Ordering', 'Grouping'],
 			ordering: [
 				{ title: 'Created', group: '1_sort', checked: false },
@@ -364,6 +389,7 @@ suite('Sessions - View Menu', () => {
 				{ title: 'Time', group: '1_group', checked: true },
 				{ title: 'Workspace', group: '1_group', checked: false },
 				{ title: 'Repository', group: '1_group', checked: false },
+				{ title: 'Environment', group: '1_group', checked: false },
 			],
 			show: [
 				{ title: 'Recent', group: '1_show', checked: false },

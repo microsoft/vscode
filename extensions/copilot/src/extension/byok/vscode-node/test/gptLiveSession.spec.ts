@@ -8,7 +8,7 @@ import { Event } from '../../../../util/vs/base/common/event';
 import { mock } from '../../../../util/common/test/simpleMock';
 import { FetchOptions, IFetcherService, Response } from '../../../../platform/networking/common/fetcherService';
 import { createFakeResponse } from '../../../../platform/test/node/fetcher';
-import { createGptLiveSession, isGptLiveModelAvailable } from '../gptLiveSession';
+import { createGptLiveSession, GptLiveModelAvailability, isGptLiveModelAvailable } from '../gptLiveSession';
 import { CancellationToken, CancellationTokenSource } from '../../../../util/vs/base/common/cancellation';
 
 class TestFetcherService extends mock<IFetcherService>() {
@@ -83,6 +83,56 @@ describe('isGptLiveModelAvailable', () => {
 			source.cancel();
 			await expect(isGptLiveModelAvailable(fetcher, 'secret-key', 'gpt-live-1', source.token)).rejects.toThrow('Canceled');
 			expect(fetcher.fetch).not.toHaveBeenCalled();
+		} finally {
+			source.dispose();
+		}
+	});
+});
+
+describe('GptLiveModelAvailability', () => {
+	it('caches successful checks for one minute, scoped to the current key and model', async () => {
+		vi.useFakeTimers({ toFake: ['Date'] });
+		try {
+			const fetcher = new TestFetcherService();
+			fetcher.fetch.mockImplementation(async () => createFakeResponse(200, { data: [{ id: 'live-a' }, { id: 'live-b' }] }));
+			const availability = new GptLiveModelAvailability(fetcher);
+			const counts: number[] = [];
+			for (const [key, model] of [['first-key', 'live-a'], ['first-key', 'live-a'], ['second-key', 'live-a'], ['second-key', 'live-b']]) {
+				await availability.isAvailable(key, model, CancellationToken.None);
+				counts.push(fetcher.fetch.mock.calls.length);
+			}
+			vi.advanceTimersByTime(60_000);
+			await availability.isAvailable('second-key', 'live-b', CancellationToken.None);
+			counts.push(fetcher.fetch.mock.calls.length);
+			expect(counts).toEqual([1, 1, 2, 3, 4]);
+		} finally {
+			vi.useRealTimers();
+		}
+	});
+
+	it('does not cache unavailable models or failures', async () => {
+		const fetcher = new TestFetcherService();
+		fetcher.fetch
+			.mockResolvedValueOnce(createFakeResponse(200, { data: [] }))
+			.mockRejectedValueOnce(new Error('offline'))
+			.mockResolvedValueOnce(createFakeResponse(200, { data: [{ id: 'live' }] }));
+		const availability = new GptLiveModelAvailability(fetcher);
+		const unavailable = await availability.isAvailable('key', 'live', CancellationToken.None);
+		await expect(availability.isAvailable('key', 'live', CancellationToken.None)).rejects.toThrow('offline');
+		const available = await availability.isAvailable('key', 'live', CancellationToken.None);
+		expect({ unavailable, available, requests: fetcher.fetch.mock.calls.length }).toEqual({ unavailable: false, available: true, requests: 3 });
+	});
+
+	it('honors cancellation even on a cache hit', async () => {
+		const fetcher = new TestFetcherService();
+		fetcher.fetch.mockResolvedValue(createFakeResponse(200, { data: [{ id: 'live' }] }));
+		const availability = new GptLiveModelAvailability(fetcher);
+		await availability.isAvailable('key', 'live', CancellationToken.None);
+		const source = new CancellationTokenSource();
+		try {
+			source.cancel();
+			await expect(availability.isAvailable('key', 'live', source.token)).rejects.toThrow('Canceled');
+			expect(fetcher.fetch).toHaveBeenCalledTimes(1);
 		} finally {
 			source.dispose();
 		}

@@ -10,7 +10,6 @@ export default defineThemedFixtureGroup({ path: 'sessions/artifactDetails' }, {
 	Attention: defineComponentFixture({ render: context => renderArtifactDetails(context, 'attention') }),
 	TitleHover: defineComponentFixture({ render: context => renderArtifactDetails(context, 'titleHover') }),
 	Comments: defineComponentFixture({ render: context => renderArtifactDetails(context, 'comments') }),
-	CommentsInformation: defineComponentFixture({ render: context => renderArtifactDetails(context, 'tabInfo') }),
 	AutopilotCollapsed: defineComponentFixture({ render: context => renderArtifactDetails(context, 'autopilotCollapsed') }),
 	AutopilotExpanded: defineComponentFixture({ render: context => renderArtifactDetails(context, 'autopilotExpanded') }),
 	KeyboardFocus: defineComponentFixture({ render: context => renderArtifactDetails(context, 'tabFocus'), additionalThemes: ['darkHighContrast', 'lightHighContrast'] }),

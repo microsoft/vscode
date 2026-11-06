@@ -10,7 +10,7 @@ import { ContextView, ContextViewDOMPosition } from '../../../../base/browser/ui
 import { Radio } from '../../../../base/browser/ui/radio/radio.js';
 import { toAction } from '../../../../base/common/actions.js';
 import { Emitter } from '../../../../base/common/event.js';
-import { DisposableStore } from '../../../../base/common/lifecycle.js';
+import { DisposableStore, toDisposable } from '../../../../base/common/lifecycle.js';
 import { upcastPartial } from '../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { IContextViewDelegate, IContextViewService } from '../../../contextview/browser/contextView.js';
@@ -255,6 +255,78 @@ suite('TabbedActionListWidget', () => {
 		}, {
 			managedHovers: [{ action: 'workflow', content: 'Compare Models', nativeTitle: null }],
 			searchTitle: 'Search Models',
+		});
+	});
+
+	test('tab bar action behavior is disposed when the popup closes', () => {
+		const { widget, contextView } = createWidget(disposables);
+		let renderedButton: HTMLElement | undefined;
+		let disposed = false;
+		widget.show<ITestItem>({
+			user: 'test',
+			anchor: document.body,
+			tabs: [{ id: 'Models' }],
+			initialTab: 'Models',
+			tabBarActions: [{
+				id: 'comparison', icon: Codicon.compare, tooltip: 'Compare Models', run: () => { },
+				render: button => {
+					renderedButton = button;
+					return toDisposable(() => disposed = true);
+				},
+			}],
+			createActionList: () => ({ items: [] }),
+			delegate: { onSelect: () => { }, onHide: () => { } },
+		});
+		const attached = renderedButton === contextView.getContextViewElement().querySelector('[data-id="comparison"]');
+		widget.hide();
+		assert.deepStrictEqual({ attached, disposed }, { attached: true, disposed: true });
+	});
+
+	test('a disabled tab bar action explains why and does not run', () => {
+		const setupManagedHover = sinon.spy(NullHoverService.setupManagedHover);
+		const hoverService: IHoverService = { ...NullHoverService, setupManagedHover };
+		const { widget } = createWidget(disposables, true, undefined, hoverService);
+		const anchor = document.createElement('div');
+		document.body.appendChild(anchor);
+		document.body.style.setProperty('--vscode-toolbar-hoverBackground', 'rgb(1, 2, 3)');
+		disposables.add({ dispose: () => { anchor.remove(); document.body.style.removeProperty('--vscode-toolbar-hoverBackground'); } });
+		let runs = 0;
+		widget.show<ITestItem>({
+			user: 'test',
+			anchor,
+			tabs: [{ id: 'Models' }],
+			initialTab: 'Models',
+			tabBarActions: [
+				{ id: 'add', icon: Codicon.add, tooltip: 'Add Models...', checked: true, disabledReason: 'Not supported here', run: () => runs++ },
+				{ id: 'search', icon: Codicon.search, tooltip: 'Search Models', checked: true, run: () => { } },
+			],
+			createActionList: () => ({ items: [] }),
+			delegate: { onSelect: () => { }, onHide: () => { } },
+		});
+		const button = document.querySelector<HTMLElement>('[data-id="add"]')!;
+		button.click();
+		assert.deepStrictEqual({
+			label: button.getAttribute('aria-label'),
+			disabled: button.getAttribute('aria-disabled'),
+			description: button.getAttribute('aria-description'),
+			nativeTitle: button.getAttribute('title'),
+			managedHovers: setupManagedHover.getCalls().map(call => ({ action: call.args[1].dataset.id, content: call.args[2] })),
+			disabledClass: button.classList.contains('disabled'),
+			iconOpacity: mainWindow.getComputedStyle(button.querySelector('.codicon')!).opacity,
+			checkedBackground: mainWindow.getComputedStyle(button).backgroundColor,
+			enabledCheckedBackground: mainWindow.getComputedStyle(document.querySelector<HTMLElement>('[data-id="search"]')!).backgroundColor,
+			runs,
+		}, {
+			label: 'Add Models...',
+			disabled: 'true',
+			description: 'Not supported here',
+			nativeTitle: null,
+			managedHovers: [{ action: 'add', content: 'Not supported here' }],
+			disabledClass: true,
+			iconOpacity: '0.4',
+			checkedBackground: 'rgba(0, 0, 0, 0)',
+			enabledCheckedBackground: 'rgb(1, 2, 3)',
+			runs: 0,
 		});
 	});
 
@@ -651,7 +723,7 @@ suite('TabbedActionListWidget', () => {
 			tabs: [{ id: 'Models' }],
 			initialTab: 'Models',
 			createActionList: () => ({
-				items: [{ ...action('model'), inlineToggle: { label: 'Use in Auto', checked: true, onChange: checked => changes.push(checked) } }],
+				items: [{ ...action('model'), inlineToggle: { label: 'Use in Auto', checked: true, onChange: checked => { changes.push(checked); } } }],
 			}),
 			delegate: { onSelect: () => assert.fail('The switch must not select the row'), onHide: () => { } },
 		});

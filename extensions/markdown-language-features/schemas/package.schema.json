@@ -186,7 +186,8 @@
 										"resizable": { "type": "boolean", "description": "Allow users to resize the editor height." },
 										"fullWidth": { "type": "boolean", "description": "Offer a toggle to use the available document width." },
 										"fullView": { "type": "boolean", "description": "Offer a toggle to fill the Markdown editor viewport." },
-										"minHeight": { "type": "number", "exclusiveMinimum": 0, "maximum": 10000, "description": "Minimum inline content height in CSS pixels." }
+										"minHeight": { "type": "number", "exclusiveMinimum": 0, "maximum": 10000, "description": "Minimum inline content height in CSS pixels." },
+										"maxAutomaticHeight": { "type": "number", "exclusiveMinimum": 0, "maximum": 10000, "description": "Maximum height in CSS pixels the editor initially takes from the height its content needs. Users can still resize beyond it." }
 									}
 								},
 								"sandbox": {

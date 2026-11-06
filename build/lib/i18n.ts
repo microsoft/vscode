@@ -409,6 +409,9 @@ export function getResource(sourceFile: string): Resource {
 		return { name: 'vs/code', project: workbenchProject };
 	} else if (/^vs\/server/.test(sourceFile)) {
 		return { name: 'vs/server', project: serverProject };
+	} else if (/^vs\/workbench\/contrib\/sessions\//.test(sourceFile)) {
+		// The shared sessions code moved here from vs/sessions; its strings stay in the Agents window's project.
+		return { name: 'vs/workbench/contrib/sessions', project: sessionsProject };
 	} else if (/^vs\/workbench\/contrib/.test(sourceFile)) {
 		resource = sourceFile.split('/', 4).join('/');
 		return { name: resource, project: workbenchProject };

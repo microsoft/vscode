@@ -102,7 +102,7 @@ const RUNTIME_TOOL_NAMES = ['bash', 'read_bash', 'stop_bash', 'list_bash', 'view
 const RUNTIME_PATCH_PROFILE_TOOL_NAMES = ['bash', 'read_bash', 'stop_bash', 'list_bash', 'apply_patch', 'view', 'web_fetch', 'skill', 'ask_user', 'sql', 'session_store_sql', 'read_agent', 'list_agents', 'write_agent', 'rg', 'glob', 'task'] as const;
 const HOST_SERVER_TOOL_NAMES = [
 	'addComment', 'listComments', 'replyToComment', 'deleteComments', 'resolveComments', 'viewUnreviewedComments',
-	'list_sessions', 'get_current_session', 'set_workspace', 'create_session', 'send_message', 'get_session_context', 'delete_session',
+	'list_sessions', 'get_current_session', 'set_workspace', 'create_session', 'archive_chat', 'send_message', 'get_session_context', 'delete_session',
 	'isolate_session',
 ] as const;
 

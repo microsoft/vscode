@@ -51,6 +51,7 @@ import { IJSONSchema } from '../../../../../base/common/jsonSchema.js';
 import { formatTokenCount } from '../../../../../base/common/numbers.js';
 import { IDefaultAccountService } from '../../../../../platform/defaultAccount/common/defaultAccount.js';
 import { CHAT_SETUP_ACTION_ID } from '../actions/chatActions.js';
+import { getAddModelsUnavailableReason } from '../../common/chatSessionsService.js';
 
 const $ = DOM.$;
 
@@ -1147,6 +1148,7 @@ export class ChatModelsWidget extends Disposable {
 	private addButton!: Button;
 	private dropdownActions: IAction[] = [];
 	private defaultAccountResolved = false;
+	private sessionType: string | undefined;
 	private viewModel: ChatModelsViewModel;
 	private delayedFiltering: Delayer<void>;
 
@@ -1644,6 +1646,14 @@ export class ChatModelsWidget extends Disposable {
 	}
 
 	private updateAddModelsButton(): void {
+		const unavailableReason = getAddModelsUnavailableReason(this.sessionType, this.environmentService.remoteAuthority);
+		if (unavailableReason) {
+			this.dropdownActions = [];
+			this.addButton.enabled = false;
+			this.addButton.setTitle(unavailableReason);
+			return;
+		}
+
 		const configurableVendors = this.languageModelsService.getVendors().filter(vendor => vendor.managementCommand || vendor.configuration);
 
 		const entitlement = this.chatEntitlementService.entitlement;
@@ -1718,7 +1728,9 @@ export class ChatModelsWidget extends Disposable {
 	 * Pass `undefined` to list every model.
 	 */
 	public setSessionType(sessionType: string | undefined): void {
+		this.sessionType = sessionType;
 		this.viewModel.setSessionType(sessionType);
+		this.updateAddModelsButton();
 	}
 
 	public render(): void {

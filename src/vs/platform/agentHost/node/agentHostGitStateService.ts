@@ -8,7 +8,7 @@ import { isEqual } from '../../../base/common/resources.js';
 import { URI } from '../../../base/common/uri.js';
 import { Emitter } from '../../../base/common/event.js';
 import { ILogService } from '../../log/common/log.js';
-import { IAgentHostGitStateService, IRecordedPullRequestAssociationResult, META_GIT_DATA_STATE, META_GIT_STATE, META_GITHUB_DATA_STATE, META_PENDING_RECORDED_PULL_REQUESTS, META_SOURCE_CONTROL_STATE } from '../common/agentHostGitStateService.js';
+import { IAgentHostGitStateService, IPullRequestLookupFailure, IRecordedPullRequestAssociationResult, META_GIT_DATA_STATE, META_GIT_STATE, META_GITHUB_DATA_STATE, META_PENDING_RECORDED_PULL_REQUESTS, META_SOURCE_CONTROL_STATE } from '../common/agentHostGitStateService.js';
 import { AgentHostAutoAttachPullRequestsConfigKey, platformRootSchema } from '../common/agentHostSchema.js';
 import { AgentHostAutoAttachPullRequestsSettingId } from '../common/agentService.js';
 import { CopilotCliVSCodeAssignmentContextKey } from '../common/copilotCliConfig.js';
@@ -21,6 +21,7 @@ import { IAgentHostSessionStateStore, SessionStateMirrorFlush } from '../common/
 import { IAgentConfigurationService } from './agentConfigurationService.js';
 import { PullRequestSummary } from '../../github/common/core/pullRequests.js';
 import { getPullRequestUrlKey } from '../../github/common/githubUrls.js';
+import { GitHubRequestError } from '../../github/common/githubTypes.js';
 import { IAgentHostGitHubService } from './agentHostGitHubService.js';
 import { IAgentHostGitHubEndpointService } from './agentHostGitHubEndpointService.js';
 import { Disposable, toDisposable } from '../../../base/common/lifecycle.js';
@@ -131,18 +132,17 @@ export class AgentHostGitStateService extends Disposable implements IAgentHostGi
 		}));
 	}
 
-	async attachSessionGitHubPullRequest(sessionKey: string, workingDirectory: URI | undefined, source?: IAgentHostCredentialSource): Promise<void> {
+	async attachSessionGitHubPullRequest(sessionKey: string, workingDirectory: URI | undefined, source?: IAgentHostCredentialSource): Promise<IPullRequestLookupFailure | void> {
 		const credentials = this._captureCredentials(sessionKey, source);
 		await this._refreshSessionGitState(sessionKey, workingDirectory, credentials);
 		if (isAhpChatChannel(sessionKey) && !this._chatOwnership.isRegisteredDefaultChat(sessionKey)) {
 			const folder = resolveGitHubStateFolder(this._stateManager, sessionKey);
 			if (folder.folderKey !== undefined) {
-				await this._queueFolderPullRequestLookup(folder, credentials);
-				return;
+				return this._queueFolderPullRequestLookup(folder, credentials);
 			}
 		}
 		const sessionUri = isAhpChatChannel(sessionKey) ? resolveGitHubStateFolder(this._stateManager, sessionKey).sessionUri : sessionKey;
-		await this._queuePullRequestLookup(sessionUri, credentials);
+		return this._queuePullRequestLookup(sessionUri, credentials);
 	}
 
 	/**
@@ -150,11 +150,11 @@ export class AgentHostGitStateService extends Disposable implements IAgentHostGi
 	 * triggers (turn completion, session restore, a refresh observing a branch
 	 * change) issue at most one GitHub request at a time.
 	 */
-	private _queuePullRequestLookup(sessionKey: string, credentials = this._captureCredentials(sessionKey)): Promise<void> {
+	private _queuePullRequestLookup(sessionKey: string, credentials = this._captureCredentials(sessionKey)): Promise<IPullRequestLookupFailure | void> {
 		return this._pullRequestSequencer.queue(sessionKey, () => this._attachSessionGitHubPullRequest(sessionKey, credentials));
 	}
 
-	private async _attachSessionGitHubPullRequest(sessionKey: string, credentials: IRepositoryCredentialContext): Promise<void> {
+	private async _attachSessionGitHubPullRequest(sessionKey: string, credentials: IRepositoryCredentialContext): Promise<IPullRequestLookupFailure | void> {
 		if (credentials.sponsorUnavailable) {
 			return;
 		}
@@ -208,9 +208,11 @@ export class AgentHostGitStateService extends Disposable implements IAgentHostGi
 				}
 				if (result.kind === 'failed') {
 					this._logService.warn(`[AgentHostGitStateService][attachSessionGitHubPullRequest] Failed to reconcile artifact pull requests for ${sessionKey}`, result.error);
+					return toPullRequestLookupFailure(result.error);
 				}
 			} catch (error) {
 				this._logService.warn(`[AgentHostGitStateService][attachSessionGitHubPullRequest] Failed to reconcile artifact pull requests for ${sessionKey}`, error);
+				return toPullRequestLookupFailure(error);
 			}
 			return;
 		}
@@ -268,11 +270,12 @@ export class AgentHostGitStateService extends Disposable implements IAgentHostGi
 			await this.setSessionGitHubState(sessionKey, nextGitHubState);
 		} catch (error) {
 			this._logService.warn(`[AgentHostGitStateService][attachSessionGitHubPullRequest] Failed to find pull request for ${sessionKey}`, error);
+			return toPullRequestLookupFailure(error);
 		}
 	}
 
 	/** Queues a pull request lookup for a folder other than the session folder. */
-	private _queueFolderPullRequestLookup(folder: IGitHubStateFolder, credentials = this._captureCredentials(folder.sessionUri)): Promise<void> {
+	private _queueFolderPullRequestLookup(folder: IGitHubStateFolder, credentials = this._captureCredentials(folder.sessionUri)): Promise<IPullRequestLookupFailure | void> {
 		return this._pullRequestSequencer.queue(`${folder.sessionUri}#${folder.folderKey}`, () => this._attachFolderGitHubPullRequest(folder, credentials));
 	}
 
@@ -281,7 +284,7 @@ export class AgentHostGitStateService extends Disposable implements IAgentHostGi
 	 * the session folder. Restricted mode reconciles only the session folder;
 	 * other folders rely on the pull requests created from them.
 	 */
-	private async _attachFolderGitHubPullRequest(folder: IGitHubStateFolder, credentials: IRepositoryCredentialContext): Promise<void> {
+	private async _attachFolderGitHubPullRequest(folder: IGitHubStateFolder, credentials: IRepositoryCredentialContext): Promise<IPullRequestLookupFailure | void> {
 		if (credentials.sponsorUnavailable) {
 			return;
 		}
@@ -325,6 +328,7 @@ export class AgentHostGitStateService extends Disposable implements IAgentHostGi
 			await this.setSessionGitHubState(folder.sourceUri, nextGitHubState);
 		} catch (error) {
 			this._logService.warn(`[AgentHostGitStateService][attachFolderGitHubPullRequest] Failed to find pull request for ${folder.sourceUri}`, error);
+			return toPullRequestLookupFailure(error);
 		}
 	}
 
@@ -999,4 +1003,12 @@ export class AgentHostGitStateService extends Disposable implements IAgentHostGi
 			this._logService.warn(`[AgentHostGitStateService][_deleteSessionState] Failed to delete ${keys.join(', ')}`, error);
 		}
 	}
+}
+
+function toPullRequestLookupFailure(error: unknown): IPullRequestLookupFailure {
+	if (error instanceof GitHubRequestError) {
+		const ssoAuthorizationUrl = error.responseMetadata?.ssoAuthorizationUrl;
+		return { kind: error.kind, message: error.message, ...(ssoAuthorizationUrl ? { ssoAuthorizationUrl } : {}) };
+	}
+	return { kind: 'unknown', message: error instanceof Error ? error.message : String(error) };
 }

@@ -197,6 +197,8 @@ export class EditTelemetryReportEditArcForChatOrInlineChatSender extends Disposa
 					editSessionId: data.props.$$sessionId,
 					requestId: data.props.$$requestId,
 					modelId: data.props.$modelId,
+					autoTier: data.props.$autoTier,
+					fusionModel: data.props.$fusionModel,
 					languageId: data.props.$$languageId,
 					mode: data.props.$$mode,
 					uniqueEditId,

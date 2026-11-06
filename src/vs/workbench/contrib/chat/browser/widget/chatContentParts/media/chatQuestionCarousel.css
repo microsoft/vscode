@@ -13,7 +13,7 @@
 .interactive-session .chat-question-carousel-container {
 	margin: 8px 0;
 	container-type: inline-size;
-	max-height: min(420px, 45vh);
+	max-height: var(--chat-question-carousel-max-height);
 	position: relative;
 }
 
@@ -50,7 +50,6 @@
 	.chat-question-header-row {
 		display: flex;
 		flex-direction: column;
-		flex-shrink: 0;
 
 		.chat-question-title-row {
 			min-width: 0;
@@ -328,10 +327,21 @@
 	flex-shrink: 0;
 }
 
+.interactive-session .chat-question-carousel-container .chat-question-header-row,
 .interactive-session .chat-question-carousel-container .chat-question-input-scrollable {
 	flex: 0 1 auto;
 	min-height: 0;
 	overscroll-behavior: contain;
+}
+
+.interactive-session .chat-question-carousel-container .chat-question-header-row,
+.interactive-session .chat-question-carousel-container .chat-question-input-scrollable,
+.interactive-session .chat-question-carousel-container .chat-question-input-container {
+	box-sizing: border-box;
+}
+
+.interactive-session .chat-question-carousel-container .chat-question-header-row {
+	overflow-y: auto;
 }
 
 /* footer with nav arrows, step indicator, and submit */
@@ -398,9 +408,7 @@
 	padding: 8px 16px 0;
 	font-size: var(--vscode-chat-font-size-body-s);
 	color: var(--vscode-descriptionForeground);
-	max-height: min(220px, 25vh);
-	overflow-y: auto;
-	overscroll-behavior: contain;
+	flex-shrink: 0;
 	user-select: text;
 	-webkit-user-select: text;
 
@@ -414,6 +422,7 @@
 	padding: 4px 16px;
 	font-size: var(--vscode-chat-font-size-body-s);
 	color: var(--vscode-descriptionForeground);
+	flex-shrink: 0;
 }
 
 /* validation error message below input area */

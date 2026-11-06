@@ -1501,9 +1501,14 @@ export class ConfigurationDefaultOverridesContribution extends Disposable implem
 		await Promise.all(assignmentUpdates);
 	}
 
-	/** TAS carries array settings as JSON strings; native arrays from developer overrides pass through. */
+	/**
+	 * TAS carries array settings as JSON strings; native arrays from developer overrides pass through. Settings that also
+	 * accept other types, such as booleans, keep values of those types.
+	 */
 	private parseExperimentalSettingValue(property: string, value: unknown, schema: IConfigurationPropertySchema): unknown {
-		if (schema.type !== 'array' || isUndefined(value)) {
+		const types = Array.isArray(schema.type) ? schema.type : [schema.type];
+		const hasOtherType = (candidate: unknown) => types.some(type => type === typeof candidate);
+		if (!types.includes('array') || isUndefined(value) || hasOtherType(value)) {
 			return value;
 		}
 		if (typeof value === 'string') {
@@ -1513,7 +1518,7 @@ export class ConfigurationDefaultOverridesContribution extends Disposable implem
 				value = undefined;
 			}
 		}
-		if (Array.isArray(value)) {
+		if (Array.isArray(value) || hasOtherType(value)) {
 			return value;
 		}
 		this.logService.error('ConfigurationService#processExperimentalSettings', property, 'Expected an array or a JSON-encoded array treatment.');

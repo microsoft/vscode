@@ -168,7 +168,7 @@ export class QueueDrainContribution extends Disposable implements IAgentHostChat
 			return;
 		}
 		const session = this._chatOwnership.getChatOwner(channel);
-		const provider = session !== undefined ? this._providerService.getProviderForSession(session) : undefined;
+		const provider = session !== undefined ? this._providerService.getProviderForChat(session, channel) : undefined;
 		provider?.withdrawSteeringMessage?.(URI.parse(channel), id);
 	}
 
@@ -185,7 +185,7 @@ export class QueueDrainContribution extends Disposable implements IAgentHostChat
 		if (session === undefined) {
 			return;
 		}
-		const provider = this._providerService.getProviderForSession(session);
+		const provider = this._providerService.getProviderForChat(session, channel);
 		const pending = getPendingSteeringMessages(state);
 		const submitted = this._context.memento(SubmittedSteering, channel);
 		const pendingIds = new Set(pending.map(message => message.id));

@@ -14,7 +14,7 @@ suite('LocalModel RouteTable', () => {
 
 	function record(clock: FakeClock, overrides: Partial<IRouteRecordInit> = {}): IRouteRecordInit {
 		return {
-			fallback: { id: 'cloud-model' },
+			fallback: { id: 'cloud-model', endpoint: 'chatCompletions' },
 			serving: MAI_IDENTITY,
 			capiOrigin: 'https://api.githubcopilot.com',
 			accountGeneration: 1,

@@ -19,7 +19,7 @@ import { IConfigurationService } from '../../../../../../platform/configuration/
 import { Registry } from '../../../../../../platform/registry/common/platform.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { applyCodexAgentHostPreference, ChatSessionsService } from '../../../browser/chatSessions/chatSessions.contribution.js';
-import { ChatSessionOptionsMap, ChatSessionStatus, ChatSessionsExtensions, IAsyncChatSessionActivationRegistry, IChatSession, IChatSessionHistoryItem, IChatSessionItem, IChatSessionItemController, IChatSessionItemsDelta, IChatSessionOptionsChangeEvent, IChatSessionsExtensionPoint, ReadonlyChatSessionOptionsMap, SessionType } from '../../../common/chatSessionsService.js';
+import { ChatSessionOptionsMap, ChatSessionRefreshReason, ChatSessionStatus, ChatSessionsExtensions, IAsyncChatSessionActivationRegistry, IChatSession, IChatSessionHistoryItem, IChatSessionItem, IChatSessionItemController, IChatSessionItemsDelta, IChatSessionOptionsChangeEvent, IChatSessionsExtensionPoint, ReadonlyChatSessionOptionsMap, SessionType } from '../../../common/chatSessionsService.js';
 import { IChatSideChatOrigin } from '../../../common/chatSideChatService.js';
 import { workbenchInstantiationService } from '../../../../../test/browser/workbenchTestServices.js';
 import { AGENT_HOST_ENABLED_CONTEXT_KEY, IAgentHostEnablementService } from '../../../../../../platform/agentHost/common/agentHostEnablementService.js';
@@ -497,6 +497,29 @@ suite('ChatSessionsService - policy history activation', () => {
 		await timeout(0);
 		store.add(service.registerChatSessionContentProvider(sessionType, contentProvider));
 		assert.strictEqual(await activation, true);
+	});
+});
+
+suite('ChatSessionsService - refresh reasons', () => {
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('distinguishes initial, automatic and manual controller refreshes', async () => {
+		const instantiationService = store.add(workbenchInstantiationService(undefined, store));
+		const service = store.add(instantiationService.createInstance(ChatSessionsService));
+		const reasons: (ChatSessionRefreshReason | undefined)[] = [];
+		const sessionType = 'test-refresh-reasons';
+		store.add(service.registerChatSessionItemController(sessionType, {
+			onDidChangeChatSessionItems: Event.None,
+			items: [],
+			async refresh(_token, reason) {
+				reasons.push(reason);
+			},
+		}));
+
+		await service.refreshChatSessionItems([sessionType], CancellationToken.None, undefined, 'automatic');
+		await service.refreshChatSessionItems([sessionType], CancellationToken.None);
+
+		assert.deepStrictEqual(reasons, ['initial', 'automatic', 'manual']);
 	});
 });
 
@@ -1640,6 +1663,33 @@ suite('ChatSessionsService - archive capability', () => {
 	setup(() => {
 		const instantiationService = store.add(workbenchInstantiationService(undefined, store));
 		service = store.add(instantiationService.createInstance(ChatSessionsService));
+	});
+
+	test('archive discovery is opt-in and demand is shared across surfaces and provider lifetimes', () => {
+		const calls: { provider: string; requested: boolean }[] = [];
+		const state = observableValue<'idle' | 'loading' | 'loaded' | 'error'>('archive', 'idle');
+		const registration = store.add(service.registerChatSessionItemArchiveProvider({
+			state, setRequested: requested => calls.push({ provider: 'first', requested }),
+		}));
+		const before = [...calls];
+		const first = store.add(service.acquireArchivedSessionItems());
+		const second = store.add(service.acquireArchivedSessionItems());
+		state.set('loading', undefined);
+		const loading = service.archivedSessionItems.get();
+		first.dispose();
+		registration.dispose();
+		store.add(service.registerChatSessionItemArchiveProvider({
+			state: constObservable('loaded'),
+			setRequested: requested => calls.push({ provider: 'replacement', requested }),
+		}));
+		second.dispose();
+		assert.deepStrictEqual({ before, loading, calls }, {
+			before: [], loading: { available: true, state: 'loading' },
+			calls: [
+				{ provider: 'first', requested: true }, { provider: 'first', requested: false },
+				{ provider: 'replacement', requested: true }, { provider: 'replacement', requested: false },
+			],
+		});
 	});
 
 	test('delegates to the registered controller', () => {

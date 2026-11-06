@@ -1,0 +1,152 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+/* The window behind the cards of a chat window, as behind the main window's. */
+.monaco-workbench .agents-chat-window {
+	background-color: var(--vscode-agents-background);
+}
+
+/* The parts of a chat window are cards, as the main window's are. */
+.monaco-workbench .agents-chat-window .part-grid-cell > .part-grid-card {
+	--part-grid-card-background: var(--vscode-agentsPanel-background);
+	--part-grid-card-border-color: var(--vscode-agentsCard-border, var(--vscode-agentsPanel-border, transparent));
+	--part-grid-card-border-width: 1px;
+	--part-grid-card-radius: var(--agents-part-corner-radius);
+}
+
+/* The main part's card has the background of the main window's side pane: the editor's. So do the cards of the parts the grid creates, which are like the main part. */
+.monaco-workbench .agents-chat-window .part-grid-cell:is([data-part-grid-cell="main"], [data-part-grid-created]) > .part-grid-card {
+	--part-grid-card-background: var(--vscode-editor-background);
+}
+
+/* With connected tabs, the groups of the main part draw their frames, as those of the main window's side pane do: its card leaves its frame to them. */
+.monaco-workbench.agent-sessions-workbench.modern-ui-tabs.modern-ui-connected-editor-tabs.dock-detail-panel:not(.phone-layout) .agents-chat-window .part-grid-cell:is([data-part-grid-cell="main"], [data-part-grid-created]) > .part-grid-card {
+	--part-grid-card-frame-owner: content;
+	--part-grid-card-border-color: transparent;
+}
+
+/* The terminals' card draws its frame at its edges, as the main window's panel does, and is as wide as the cards beside it, as the panel is as wide as the chat above it. */
+.monaco-workbench.agent-sessions-workbench.modern-ui-tabs.modern-ui-connected-editor-tabs.dock-detail-panel:not(.phone-layout) .agents-chat-window .part-grid-cell[data-part-grid-cell="terminals"] > .part-grid-card {
+	--part-grid-card-frame-owner: content;
+}
+
+/* The cards draw the frames of the parts in them, which draw none of their own, as they do in the main window. */
+.monaco-workbench .agents-chat-window .part-grid-card > .part.editor:not(.modal-editor-part) {
+	border: 0;
+}
+
+/* The chat draws its frame, as in the main window: the chat's card leaves its frame to it, the session view's, or, while the chat shows its own title row, the frame around both. */
+.monaco-workbench.agent-sessions-workbench.modern-ui-tabs:not(.phone-layout):is(.modern-ui-connected-editor-tabs, :not(.modern-ui-compact)) .agents-chat-window .part-grid-cell[data-part-grid-cell="chat"] > .part-grid-card {
+	--part-grid-card-frame-owner: content;
+	--part-grid-card-border-color: transparent;
+	/* The room for the frame shows the window, as around the main window's session view. */
+	background-clip: padding-box;
+}
+
+/* The chat's card is the chat's surface, as the main window's is: the editor part that holds the chat, and its editor, show it through. */
+.monaco-workbench .agents-chat-window .part-grid-cell[data-part-grid-cell="chat"] > .part-grid-card :is(.part.editor, .part.editor > .content, .editor-container) {
+	/* Over the inline backgrounds of the part and of its editor. */
+	background-color: transparent !important;
+}
+
+/* The title row and the strip are not cards: they take the chat's background. */
+.monaco-workbench .agents-chat-window .part-grid-cell:is([data-part-grid-cell="titleRow"], [data-part-grid-cell="strip"]) > .part-grid-card {
+	--part-grid-card-border-width: 0;
+	--part-grid-card-radius: 0;
+}
+
+/* Compact density keeps the cards flush, without frames. */
+.monaco-workbench.modern-ui-compact .agents-chat-window .part-grid-cell > .part-grid-card {
+	--part-grid-card-border-width: 0;
+	--part-grid-card-radius: 0;
+}
+
+/*
+ * The chat's own title row (side by side and in chat only, with a single chat) is the header of its card, as the main
+ * window's session header is: one surface with the chat, which shows through it, with no edge between them; the card
+ * draws the frame around both, and the session view, whose header is in the title row, none.
+ */
+.monaco-workbench .agents-chat-window .session-chat-view-editor.shows-title > .part.titlebar,
+.monaco-workbench .agents-chat-window .session-chat-view-editor.shows-title > .part.titlebar > .titlebar-container {
+	/* Over the inline background of the title bar. */
+	background-color: transparent !important;
+}
+
+/* From the top left of the window, over the frame of the card and the gaps beside it, as the title row of the window is: its window controls, title and actions line up with those of the other title rows. */
+.monaco-workbench .agents-chat-window .session-chat-view-editor.shows-title > .part.titlebar {
+	/* Moved rather than given a negative top margin, which would move the view with it. */
+	top: calc(-1 * var(--part-grid-card-border-width, 0px));
+	margin-left: calc(-1 * (var(--part-grid-card-border-width, 0px) + var(--part-grid-card-inset-left, 0px) + var(--chat-window-outer-inset-left, 0px)));
+	/* Over the inline width of the title bar. */
+	width: calc(100% + 2 * var(--part-grid-card-border-width, 0px) + var(--part-grid-card-inset-left, 0px) + var(--part-grid-card-inset-right, 0px) + var(--chat-window-outer-inset-left, 0px)) !important;
+	/* Below the frame around it: what it shows above its own content stays inside it. */
+	z-index: 0;
+}
+
+.monaco-workbench.agent-sessions-workbench.modern-ui-tabs:not(.phone-layout):is(.modern-ui-connected-editor-tabs, :not(.modern-ui-compact)) .agents-chat-window .session-chat-view-editor.shows-title {
+	position: relative;
+	border-radius: max(0px, calc(var(--agents-part-corner-radius, var(--vscode-cornerRadius-large)) - var(--vscode-strokeThickness)));
+}
+
+/* The frame of the session view, around the title row too. */
+.monaco-workbench.agent-sessions-workbench.modern-ui-tabs:not(.phone-layout):is(.modern-ui-connected-editor-tabs, :not(.modern-ui-compact)) .agents-chat-window .session-chat-view-editor.shows-title::after {
+	content: '';
+	position: absolute;
+	inset: 0;
+	border: var(--vscode-strokeThickness) solid var(--modern-ui-connected-tab-border, var(--part-border-color, transparent));
+	border-width: var(--agents-part-frame-border-width, var(--vscode-strokeThickness));
+	border-radius: inherit;
+	box-sizing: border-box;
+	pointer-events: none;
+	z-index: 10;
+}
+
+.monaco-workbench.agent-sessions-workbench.modern-ui-tabs:not(.phone-layout):is(.modern-ui-connected-editor-tabs, :not(.modern-ui-compact)) .agents-chat-window .session-chat-view-editor.shows-title .session-view::after {
+	content: none;
+}
+
+/* The cards of the chat and of the terminals frame them, and the groups of their parts, as groups of the main window's editor area would, draw none. */
+.monaco-workbench.agent-sessions-workbench.modern-ui-tabs.modern-ui-connected-editor-tabs.dock-detail-panel:not(.phone-layout) .agents-chat-window .part-grid-cell:is([data-part-grid-cell="chat"], [data-part-grid-cell="terminals"]) .part.editor.editor-tabs-multiple:not(.modal-editor-part) > .content .editor-group-container::after {
+	content: none;
+}
+
+/*
+ * A part split into groups is one card, as editor groups are one editor area in VS Code: its card frames all its groups
+ * once, and the part divides them; its groups, and the chat in one of them, draw no frames of their own.
+ */
+.monaco-workbench.agent-sessions-workbench.modern-ui-tabs:not(.phone-layout):not(.modern-ui-compact) .agents-chat-window .part-grid-cell[data-part-grid-split]:is([data-part-grid-cell]) > .part-grid-card {
+	--part-grid-card-frame-owner: card;
+	--part-grid-card-border-color: var(--vscode-agentsCard-border, var(--vscode-agentsPanel-border, transparent));
+	background-clip: border-box;
+}
+
+.monaco-workbench.agent-sessions-workbench.modern-ui-tabs:not(.phone-layout):not(.modern-ui-compact) .agents-chat-window .part-grid-cell[data-part-grid-split] .part.editor:not(.modal-editor-part) > .content .editor-group-container::after,
+.monaco-workbench.agent-sessions-workbench.modern-ui-tabs:not(.phone-layout):not(.modern-ui-compact) .agents-chat-window .part-grid-cell[data-part-grid-split] .session-chat-view-editor.shows-title::after,
+.monaco-workbench.agent-sessions-workbench.modern-ui-tabs:not(.phone-layout):not(.modern-ui-compact) .agents-chat-window .part-grid-cell[data-part-grid-split] .session-view::after {
+	content: none;
+}
+
+/* The title row of the window starts at the edge of the window, as the main window's title bar does: its window controls take the room of the window's inset there, so that its title and actions line up with those of the other title rows. */
+.monaco-workbench .agents-chat-window .chat-window-title-row > .part.titlebar .titlebar-left > .window-controls-container {
+	margin-left: calc(-1 * var(--chat-window-outer-inset-left, 0px));
+}
+
+/*
+ * The tab rows at the top edge of the window: their empty space moves the window, as the title row of the window does.
+ * Their tabs and actions take clicks and drags; while an editor is dragged, the whole row takes it, as a drop target.
+ */
+.monaco-workbench .agents-chat-window .part-grid-cell-top-edge .editor-group-container.part-grid-top-edge-group > .title {
+	-webkit-app-region: drag;
+}
+
+.monaco-workbench .agents-chat-window .part-grid-cell-top-edge .editor-group-container.part-grid-top-edge-group > .title :is(.tab, .action-item, .monaco-button, .monaco-breadcrumbs, .title-label, input, a),
+.monaco-workbench .agents-chat-window.dragging-editor .part-grid-cell-top-edge .editor-group-container.part-grid-top-edge-group > .title {
+	-webkit-app-region: no-drag;
+}
+
+/* The tab row at the top right of the window keeps the room of the window controls that float above it (Windows, Linux), as the title row would. */
+.monaco-workbench .agents-chat-window .part-grid-cell-top-edge.part-grid-cell-right-edge .editor-group-container.part-grid-top-right-group > .title {
+	padding-right: var(--chat-window-controls-right-width, 0px);
+}

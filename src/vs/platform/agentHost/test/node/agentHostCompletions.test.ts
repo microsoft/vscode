@@ -5,7 +5,6 @@
 
 import assert from 'assert';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
-import { DisposableStore } from '../../../../base/common/lifecycle.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { NullLogService } from '../../../log/common/log.js';
 import { CompletionItemKind, type CompletionsParams } from '../../common/state/protocol/commands.js';
@@ -15,9 +14,7 @@ import { AgentHostStateManager } from '../../node/agentHostStateManager.js';
 
 suite('AgentHostCompletions', () => {
 
-	const disposables = new DisposableStore();
-	teardown(() => disposables.clear());
-	ensureNoDisposablesAreLeakedInTestSuite();
+	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('tells providers the completing chat from recorded state', async () => {
 		const logService = new NullLogService();

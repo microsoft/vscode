@@ -77,6 +77,20 @@ suite('Session storage identity compatibility', () => {
 		};
 	}
 
+	test('worktree size caching uses the existing session storage identity', async () => {
+		const db = await database();
+		const session = 'ahp-session:/cached-size';
+		const worktree = 'file:///worktree';
+		await db.prepareSessionStorage(session, 'copilotcli');
+		await db.registerRuntimeSession(session, { provider: 'copilotcli', startTime: 1, source: 'explicit' }, { checkTombstone: true });
+		const revision = (await db.getWorktreeDiskUsageRevision(session, worktree))!;
+		await db.writeWorktreeDiskUsage(session, worktree, revision, 1234);
+		assert.deepStrictEqual({
+			runtime: await db.readWorktreeDiskUsage(session, worktree, revision),
+			storage: await db.raw.readWorktreeDiskUsage(db.identity.toStorage(session), worktree, revision),
+		}, { runtime: 1234, storage: 1234 });
+	});
+
 	test('maps only registered local identities and preserves chat IDs and arbitrary text', () => {
 		const codec = new SessionStorageIdentity();
 		codec.add({ runtime: 'ahp-session:/new', storage: 'copilotcli:/new', provider: 'copilotcli' });
@@ -210,6 +224,33 @@ suite('Session storage identity compatibility', () => {
 		});
 	}
 
+	test('hidden sessions persist in storage spelling and list in runtime spelling after reopening', async () => {
+		const db = await database();
+		const session = 'ahp-session:/hidden';
+		const storage = 'copilotcli:/hidden';
+		await db.prepareSessionStorage(session, 'copilotcli');
+		await db.hideSession(session, 'copilotcli');
+		await db.close();
+		const next = await database();
+		const hidden = {
+			runtime: await next.listHiddenSessions(),
+			storage: await next.raw.listHiddenSessions(),
+			isHidden: await next.isSessionHidden(session),
+			tombstoned: await next.isSessionTombstoned(session),
+			suppressed: await next.isSessionSuppressed(session),
+			stored: await next.raw.isSessionHidden(storage),
+			notRuntime: await next.raw.isSessionHidden(session),
+		};
+		await next.clearSessionTombstone(session);
+		assert.deepStrictEqual({ hidden, cleared: await next.listHiddenSessions(), tombstoned: await next.isSessionTombstoned(session) }, {
+			hidden: {
+				runtime: [{ session, provider: 'copilotcli' }], storage: [{ session: storage, provider: 'copilotcli' }],
+				isHidden: true, tombstoned: false, suppressed: true, stored: true, notRuntime: false,
+			},
+			cleared: [], tombstoned: false,
+		});
+	});
+
 	test('discovery does not allocate a compatibility identity over a deleted legacy backing', async () => {
 		const db = await database();
 		await db.raw.markSessionTombstoned('copilotcli:/deleted');
@@ -222,6 +263,27 @@ suite('Session storage identity compatibility', () => {
 			markers: await db.raw.readStorageIdentityMetadata('sessionStorageIdentity:'),
 		}, { registered: false, tombstoned: true, markers: [] });
 	});
+
+	for (const hidden of ['ahp-session:/hidden', 'copilotcli:/hidden']) {
+		test(`discovery does not allocate a compatibility identity over hidden ${hidden}`, async () => {
+			const db = await database();
+			const session = 'ahp-session:/hidden';
+			await db.raw.hideSession(hidden, 'copilotcli');
+			await db.prepareSessionStorage(session, 'copilotcli');
+			const registered = await db.registerRuntimeSession(session, {
+				provider: 'copilotcli', startTime: 2, source: 'discovery',
+			}, { checkTombstone: true, discoveryBackingSession: 'copilotcli:/hidden' });
+			assert.deepStrictEqual({
+				registered,
+				hidden: await db.raw.isSessionHidden(hidden),
+				tombstoned: await db.raw.isSessionTombstoned(hidden),
+				suppressed: await db.raw.isSessionSuppressed(hidden),
+				identity: db.identity.toStorage(session),
+				markers: await db.raw.readStorageIdentityMetadata('sessionStorageIdentity:'),
+				registrations: await db.listSessionV2Registrations(),
+			}, { registered: false, hidden: true, tombstoned: false, suppressed: true, identity: session, markers: [], registrations: [] });
+		});
+	}
 
 	test('preparing deleted native data cannot bypass explicit creation collision checks', async () => {
 		const db = await database();

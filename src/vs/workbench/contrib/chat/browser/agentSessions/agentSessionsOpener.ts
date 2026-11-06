@@ -8,7 +8,8 @@ import { AgentSessionStatus, IAgentSession, isLocalAgentSessionItem } from './ag
 import { getAgentSessionProviderIcon, getAgentSessionProviderName } from './agentSessions.js';
 import { ServicesAccessor } from '../../../../../editor/browser/editorExtensions.js';
 import { IChatEditorOptions } from '../widgetHosts/editor/chatEditor.js';
-import { ChatViewPaneTarget, IChatWidget, IChatWidgetService } from '../chat.js';
+import { ChatViewPaneTarget, IChatWidget, IChatWidgetService, isIChatViewViewContext } from '../chat.js';
+import { ChatConfiguration } from '../../common/constants.js';
 import { ACTIVE_GROUP, SIDE_GROUP } from '../../../../services/editor/common/editorService.js';
 import { IEditorOptions } from '../../../../../platform/editor/common/editor.js';
 import { IChatSessionsService, localChatSessionType } from '../../common/chatSessionsService.js';
@@ -209,6 +210,16 @@ export async function openSessionByResource(accessor: ServicesAccessor, resource
 	return instantiationService.invokeFunction(openSession, session, openOptions, /* alreadyResolved */ true);
 }
 
+/**
+ * With `chat.agentSessions.openInEditor`, sessions open like files: an existing
+ * editor is revealed, including an inactive tab without a widget, while a session
+ * shown in the Chat view opens in a new editor, which moves it out of the Chat view.
+ */
+export function shouldRevealSessionEditor(chatWidgetService: IChatWidgetService, sessionResource: URI): boolean {
+	const existingWidget = chatWidgetService.getWidgetBySessionResource(sessionResource);
+	return !existingWidget || !isIChatViewViewContext(existingWidget.viewContext);
+}
+
 export async function openSession(accessor: ServicesAccessor, session: IAgentSession, openOptions?: ISessionOpenOptions, alreadyResolved?: boolean): Promise<IChatWidget | undefined> {
 	const instantiationService = accessor.get(IInstantiationService);
 	const logService = accessor.get(ILogService);
@@ -248,6 +259,7 @@ export async function openSession(accessor: ServicesAccessor, session: IAgentSes
 async function openSessionDefault(accessor: ServicesAccessor, session: IAgentSession, openOptions?: ISessionOpenOptions): Promise<IChatWidget | undefined> {
 	const chatSessionsService = accessor.get(IChatSessionsService);
 	const chatWidgetService = accessor.get(IChatWidgetService);
+	const configurationService = accessor.get(IConfigurationService);
 	const notificationService = accessor.get(INotificationService);
 	const logService = accessor.get(ILogService);
 
@@ -271,7 +283,11 @@ async function openSessionDefault(accessor: ServicesAccessor, session: IAgentSes
 		logService.trace(`[AgentSessions] openSession: provider '${session.providerType}' activated for ${session.resource.toString()}`);
 
 		let target: typeof SIDE_GROUP | typeof ACTIVE_GROUP | typeof ChatViewPaneTarget | undefined;
-		if (openOptions?.sideBySide) {
+		if (configurationService.getValue<boolean>(ChatConfiguration.OpenSessionsInEditor)) {
+			// Like files: a click opens the session in the active group, a modifier-click to the side.
+			target = openOptions?.sideBySide ? SIDE_GROUP : ACTIVE_GROUP;
+			options = { ...options, revealIfOpened: !openOptions?.sideBySide && shouldRevealSessionEditor(chatWidgetService, session.resource) };
+		} else if (openOptions?.sideBySide) {
 			target = ACTIVE_GROUP;
 		} else {
 			target = ChatViewPaneTarget;

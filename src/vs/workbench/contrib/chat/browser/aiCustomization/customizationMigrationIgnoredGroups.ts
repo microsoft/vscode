@@ -8,7 +8,7 @@ import { URI } from '../../../../../base/common/uri.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
 import { ICustomizationMigrationIgnoredGroup } from '../../common/promptSyntax/service/customizationMigrationService.js';
 import { PromptsStorage } from '../../common/promptSyntax/service/promptsService.js';
-import { CustomizationMigrationCategoryId, getCustomizationMigrationCategory, homepageMigrationCategories } from './customizationMigrationCategories.js';
+import { CustomizationMigrationCategoryId, customizationMigrationGuidance, getCustomizationMigrationCategory, homepageMigrationCategories } from './customizationMigrationCategories.js';
 
 export const CUSTOMIZATION_MIGRATION_IGNORED_GROUPS_STORAGE_KEY = 'chat.customizationMigration.ignoredGroups';
 
@@ -22,7 +22,7 @@ export function getCustomizationMigrationGroupIgnoreKey(
 	storage: PromptsStorage,
 	project: URI | undefined,
 ): string {
-	if (storage === PromptsStorage.user) {
+	if (storage !== PromptsStorage.local) {
 		return `${harness}:${storage}:${id}`;
 	}
 	return `${harness}:${storage}:${project ? getComparisonKey(project) : ''}:${id}`;
@@ -52,9 +52,15 @@ export function getIgnoredCustomizationMigrationGroups(
 ): readonly ICustomizationMigrationIgnoredGroup[] {
 	const ignoredKeys = getIgnoredCustomizationMigrationGroupKeys(storageService);
 	const storages = project ? [PromptsStorage.user, PromptsStorage.local] : [PromptsStorage.user];
-	return storages.flatMap(storage => homepageMigrationCategories.flatMap(id =>
+	const migrationGroups = storages.flatMap(storage => homepageMigrationCategories.flatMap(id =>
 		ignoredKeys.has(getCustomizationMigrationGroupIgnoreKey(harness, id, storage, project))
 			? [{ type: getCustomizationMigrationCategory(id).migrationType, storage }]
 			: []
 	));
+	const guidanceGroups = [PromptsStorage.user, PromptsStorage.extension].flatMap(storage => customizationMigrationGuidance.flatMap(category =>
+		ignoredKeys.has(getCustomizationMigrationGroupIgnoreKey(harness, category.id, storage, project))
+			? [{ type: category.migrationType, storage }]
+			: []
+	));
+	return [...migrationGroups, ...guidanceGroups];
 }

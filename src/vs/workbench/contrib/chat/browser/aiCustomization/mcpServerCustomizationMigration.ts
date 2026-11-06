@@ -64,31 +64,25 @@ interface IMcpServerCustomizationMigrationExecutionOptions {
 }
 
 /**
- * Whether the migration planner can assess this server's projected configuration. Besides servers the
- * client forwards, this includes `.vscode/mcp.json` servers shadowed by a same-named server in another
- * workspace folder, since each moves into its own folder's `.mcp.json`.
- *
- * Servers whose only problem is their variables are also assessed, with their projected configuration
- * unresolved: user servers, which are forwarded as written, and `.vscode/mcp.json` servers, which are not
- * delivered because they use `${input:}` (the client stops before resolving anything). Since that also
- * covers `${command:}` and other variables, the planner then migrates only `${env:}`, declared
- * `${input:}` and `${config:}` references and rejects any other variable.
+ * Allows migration of forwarded servers, shadowed workspace servers, and undelivered user/workspace
+ * configurations with unresolved variables. The planner still validates which variables can migrate.
  */
 export function isMcpServerMigrationDeliverable(server: IAgentHostMcpServerSupport): server is IAgentHostMcpServerSupport & { readonly projectedConfiguration: IMcpServerConfiguration } {
 	if (server.applicability !== AgentHostMcpServerApplicability.Applicable || server.projectedConfiguration === undefined) {
 		return false;
 	}
 	const isSupported = server.compatibility.kind === 'supported' || server.compatibility.kind === 'partiallySupported';
+	const isUserSource = server.source.kind === AgentHostMcpServerSourceKind.UserProfile || server.source.kind === AgentHostMcpServerSourceKind.RemoteUser;
 	const onlyHasUnresolvedVariables = server.compatibility.kind === 'unsupported'
 		&& server.compatibility.reasons.length > 0
 		&& server.compatibility.reasons.every(reason => reason === AgentHostMcpSupportReason.UnresolvedConfiguration || reason === AgentHostMcpSupportReason.RequiresUserInteraction);
 	switch (server.delivery) {
 		case AgentHostMcpServerDelivery.ClientForwarded:
-			return isSupported
-				|| (onlyHasUnresolvedVariables && (server.source.kind === AgentHostMcpServerSourceKind.UserProfile || server.source.kind === AgentHostMcpServerSourceKind.RemoteUser));
+			return isSupported || (onlyHasUnresolvedVariables && isUserSource);
 		case AgentHostMcpServerDelivery.NotDelivered:
-			return server.source.kind === AgentHostMcpServerSourceKind.VscodeWorkspaceFolder
-				&& ((isSupported && server.shadowedBy !== undefined) || onlyHasUnresolvedVariables);
+			return (onlyHasUnresolvedVariables && isUserSource)
+				|| (server.source.kind === AgentHostMcpServerSourceKind.VscodeWorkspaceFolder
+					&& ((isSupported && server.shadowedBy !== undefined) || onlyHasUnresolvedVariables));
 		default:
 			return false;
 	}
@@ -1064,10 +1058,8 @@ function isAnalysisOfCandidate(analysis: IMcpServerSourceAnalysis, candidate: IM
 }
 
 /**
- * Whether a variable may remain in a projected configuration. A server with `${input:}`, or with a setting
- * the client can't resolve, is projected as written, so its `${input:}`, `${env:}`, `${config:}` and
- * portable variables remain. Otherwise, only user servers are forwarded unresolved, and only their
- * `${env:}` and `${config:}` are migrated.
+ * Projections kept as written may contain input, environment, setting, and portable variables.
+ * Other user projections may retain environment and setting references for migration.
  */
 function isForwardedUnresolved(replacement: Replacement, storage: PromptsStorage.local | PromptsStorage.user, projectedAsWritten: boolean): boolean {
 	if (projectedAsWritten) {

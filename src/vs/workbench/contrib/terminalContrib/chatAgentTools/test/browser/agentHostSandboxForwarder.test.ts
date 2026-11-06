@@ -413,8 +413,8 @@ suite('AgentHostSandboxForwarder', () => {
 		})));
 	});
 
-	test('forwards credentials to local and remote hosts on connection, change, and reset', async () => {
-		const key = AgentSandboxSettingId.AgentSandboxMaskedEnvironmentVariables;
+	test('does not forward the removed masked environment variables setting to local or remote hosts', async () => {
+		const key = 'chat.agent.sandbox.maskedEnvironmentVariables';
 		const initial = { envVars: { MY_API_TOKEN: { injectHosts: ['api.example.com'] } } };
 		const changed = { envVars: { MY_API_TOKEN: { injectHosts: ['other.example.com'] } } };
 		const { local, remote, configurationService } = setup(disposables, { [key]: initial });
@@ -430,11 +430,7 @@ suite('AgentHostSandboxForwarder', () => {
 				change: { keys: [key], overrides: [] },
 			});
 		}
-		const expected = [initial, changed, {}].map(maskedCredentials => ({
-			type: ActionType.RootConfigChanged,
-			config: { [AgentHostSandboxConfigKey.Sandbox]: { [AgentHostSandboxKey.MaskedCredentials]: maskedCredentials } },
-		}));
-		assert.deepStrictEqual([local.dispatched, remoteConnection.dispatched], [expected, expected]);
+		assert.deepStrictEqual([local.dispatched, remoteConnection.dispatched], [[], []]);
 	});
 
 	test('does not re-push to existing connections when a new remote appears', () => {

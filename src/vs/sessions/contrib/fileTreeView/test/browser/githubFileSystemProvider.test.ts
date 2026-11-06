@@ -26,7 +26,7 @@ import { GitHubRequestError } from '../../../../../platform/github/common/github
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { ILogService, NullLogService } from '../../../../../platform/log/common/log.js';
 import { IWorkbenchGitHubService } from '../../../../../workbench/services/github/common/githubService.js';
-import { GITHUB_REMOTE_FILE_SCHEME } from '../../../../services/sessions/common/session.js';
+import { GITHUB_REMOTE_FILE_SCHEME } from '../../../../../workbench/contrib/sessions/common/session.js';
 import { GitHubFileSystemProvider } from '../../browser/githubFileSystemProvider.js';
 
 const account: IDefaultAccount = {
@@ -77,6 +77,7 @@ suite('GitHubFileSystemProvider', () => {
 			override async signIn() { return assert.fail('Filesystem reads must not prompt for sign-in'); }
 		}());
 		instantiation.stub(IWorkbenchGitHubService, new class extends mock<IWorkbenchGitHubService>() {
+			override readonly onDidChangeDefaultClient = Event.map(changed.event, () => undefined);
 			override async acquireDefaultAccountApiClient(signal: AbortSignal): Promise<IGitHubAccountClient> {
 				const selected = selectedAccount;
 				acquisitions.push(signal);

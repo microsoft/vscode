@@ -18,6 +18,8 @@ import { INativeHostService } from '../../../../../platform/native/common/native
 import { RecordingState } from '../../browser/recordingService.js';
 import { NativeRecordingService } from '../../electron-browser/nativeRecordingService.js';
 
+const mp4RecordingMimeType = 'video/mp4;codecs=avc1.42001E';
+
 class TestTrack extends mock<MediaStreamTrack>() {
 	constructor(override readonly kind = 'video') { super(); }
 	override readyState: MediaStreamTrackState = 'live';
@@ -82,7 +84,7 @@ suite('NativeRecordingService', () => {
 		const recorders: TestRecorder[] = [];
 		const recorderCreated = new DeferredPromise<void>();
 		class TestRecorder extends mock<MediaRecorder>() {
-			static isTypeSupported(mimeType: string): boolean { return (options.formats ?? ['video/mp4', 'video/webm;codecs=vp9', 'video/webm']).includes(mimeType); }
+			static isTypeSupported(mimeType: string): boolean { return (options.formats ?? [mp4RecordingMimeType]).includes(mimeType); }
 			override state: 'inactive' | 'recording' | 'paused' = 'inactive';
 			override readonly mimeType: string;
 			override ondataavailable: MediaRecorder['ondataavailable'] = null;
@@ -163,7 +165,7 @@ suite('NativeRecordingService', () => {
 			override async requestScreenCaptureAccess(): Promise<boolean> { nativeCalls.push('request'); return true; }
 			override async openExternal(url: string): Promise<boolean> { nativeCalls.push(url); return true; }
 		}();
-		const service = store.add(new TestNativeRecordingService(devices, TestRecorder, nativeHost, options.playableFormats ?? options.formats ?? ['video/mp4', 'video/webm;codecs=vp9', 'video/webm']));
+		const service = store.add(new TestNativeRecordingService(devices, TestRecorder, nativeHost, options.playableFormats ?? options.formats ?? [mp4RecordingMimeType]));
 		return { service, tracks, recorders, devices, nativeCalls, recorderCreated };
 	}
 
@@ -206,27 +208,57 @@ suite('NativeRecordingService', () => {
 		assert.deepStrictEqual(snapshot(service, tracks, recorders), idleSnapshot);
 	});
 
-	for (const format of ['video/mp4', 'video/webm;codecs=vp9', 'video/webm']) {
-		test(`records and explicitly stops ${format} without an external stop event`, async () => {
-			const { service, tracks, recorders } = createService({ formats: [format] });
-			const states: RecordingState[] = [];
-			store.add(service.onDidChangeState(state => states.push(state)));
-			await service.startRecording('video/mp4');
-			const data = await service.stopRecording();
-			assert.deepStrictEqual({
-				...snapshot(service, tracks, recorders), states, mimeType: data?.mimeType, size: data?.sizeBytes, content: await data?.blob.text(),
-			}, { ...idleSnapshot, states: [RecordingState.Recording, RecordingState.Idle], mimeType: format, size: 10, content: 'videovideo' });
-		});
-	}
+	test('defaults to H.264 MP4 and explicitly stops without an external stop event', async () => {
+		const { service, tracks, recorders } = createService();
+		const states: RecordingState[] = [];
+		store.add(service.onDidChangeState(state => states.push(state)));
+		await service.startRecording();
+		const data = await service.stopRecording();
+		assert.deepStrictEqual({
+			...snapshot(service, tracks, recorders), states, mimeType: data?.mimeType, size: data?.sizeBytes, content: await data?.blob.text(),
+		}, { ...idleSnapshot, states: [RecordingState.Recording, RecordingState.Idle], mimeType: mp4RecordingMimeType, size: 10, content: 'videovideo' });
+	});
 
 	test('honors a supported format preference', async () => {
 		const { service } = createService();
-		await service.startRecording('video/webm');
-		assert.strictEqual((await service.stopRecording())?.mimeType, 'video/webm');
+		await service.startRecording(mp4RecordingMimeType);
+		assert.strictEqual((await service.stopRecording())?.mimeType, mp4RecordingMimeType);
+	});
+
+	test('resolves a container preference to an explicitly supported codec', async () => {
+		const { service } = createService({ formats: ['video/mp4', mp4RecordingMimeType] });
+		await service.startRecording('video/mp4');
+		assert.strictEqual((await service.stopRecording())?.mimeType, mp4RecordingMimeType);
+	});
+
+	test('does not advertise an unspecified MP4 codec when H.264 recording is unavailable', () => {
+		const { service } = createService({ formats: ['video/mp4'] });
+		assert.deepStrictEqual({ supported: service.isSupported, formats: service.getSupportedFormats() }, {
+			supported: false, formats: [],
+		});
+	});
+
+	test('does not select codecs outside the approved candidates', async () => {
+		const { service } = createService({ formats: [mp4RecordingMimeType, 'video/mp4;codecs=vp9', 'video/webm;codecs=vp9'], playableFormats: [mp4RecordingMimeType] });
+		await service.startRecording('video/mp4;codecs=vp9');
+		assert.strictEqual((await service.stopRecording())?.mimeType, mp4RecordingMimeType);
+	});
+
+	test('filters approved formats using both recording and playback support', () => {
+		const vp8 = 'video/webm;codecs=vp8';
+		const { service: recordableOnly } = createService({ formats: [mp4RecordingMimeType, vp8], playableFormats: [mp4RecordingMimeType] });
+		const { service: playableOnly } = createService({ formats: [mp4RecordingMimeType], playableFormats: [mp4RecordingMimeType, vp8] });
+		assert.deepStrictEqual({
+			recordableOnly: recordableOnly.getSupportedFormats(),
+			playableOnly: playableOnly.getSupportedFormats(),
+		}, {
+			recordableOnly: [{ mimeType: mp4RecordingMimeType, label: 'MP4', extension: 'mp4' }],
+			playableOnly: [{ mimeType: mp4RecordingMimeType, label: 'MP4', extension: 'mp4' }],
+		});
 	});
 
 	test('only uses formats that can also be decoded', async () => {
-		const { service } = createService({ playableFormats: ['video/mp4'] });
+		const { service } = createService({ playableFormats: [mp4RecordingMimeType] });
 		await service.startRecording('video/webm');
 		const data = await service.stopRecording();
 		const { service: unsupported } = createService({ playableFormats: [] });
@@ -238,8 +270,8 @@ suite('NativeRecordingService', () => {
 			unsupported: { isSupported: unsupported.isSupported, formats: unsupported.getSupportedFormats() },
 		}, {
 			supported: true,
-			formats: [{ mimeType: 'video/mp4', label: 'MP4', extension: 'mp4' }],
-			fallback: 'video/mp4',
+			formats: [{ mimeType: mp4RecordingMimeType, label: 'MP4', extension: 'mp4' }],
+			fallback: mp4RecordingMimeType,
 			unsupported: { isSupported: false, formats: [] },
 		});
 	});
@@ -438,9 +470,9 @@ suite('NativeRecordingService', () => {
 			: ['request']);
 	});
 
-	for (const mimeType of ['video/mp4', 'video/webm']) {
-		// The video/webm case: WebM can't be opened on the shipped (feed) Electron that product builds test with (`PipelineStatus::DEMUXER_ERROR_COULD_NOT_OPEN: FFmpegDemuxer: open context failed`), so this is skipped until https://github.com/microsoft/vscode/issues/343345 is fixed.
-		(mimeType === 'video/webm' ? test.skip : test)(`only advertises and round-trips playable ${mimeType} without OS capture`, async () => {
+	for (const mimeType of ['video/mp4', 'video/webm;codecs=vp8']) {
+		// TODO: Enable WebM/VP8 once the shipped FFmpeg supports WebM file demuxing: https://github.com/microsoft/vscode/issues/343345.
+		(mimeType.startsWith('video/webm') ? test.skip : test)(`only advertises and round-trips playable ${mimeType} without OS capture`, async () => {
 			const canvas = mainWindow.document.createElement('canvas');
 			const video = mainWindow.document.createElement('video');
 			canvas.width = 32;
@@ -469,7 +501,7 @@ suite('NativeRecordingService', () => {
 				override async getDisplayMedia(): Promise<MediaStream> { return stream; }
 			}();
 			const service = store.add(new TestNativeRecordingService(devices, ObservedMediaRecorder, new class extends mock<INativeHostService>() { }()));
-			const candidates = mimeType === 'video/webm' ? ['video/webm;codecs=vp9', 'video/webm'] : [mimeType];
+			const candidates = [mimeType === 'video/mp4' ? mp4RecordingMimeType : mimeType];
 			const capabilities = candidates.map(candidate => ({
 				mimeType: candidate,
 				recordable: typeof MediaRecorder !== 'undefined' && MediaRecorder.isTypeSupported(candidate),
@@ -481,9 +513,12 @@ suite('NativeRecordingService', () => {
 				return;
 			}
 			assert.ok(capabilities.some(capability => capability.mimeType === format.mimeType && capability.recordable && capability.playable));
-			await Promise.all([service.startRecording(format.mimeType), firstChunk.p]);
+			await Promise.all([service.startRecording(mimeType === 'video/mp4' ? undefined : format.mimeType), firstChunk.p]);
 			const data = await service.stopRecording();
 			assert.ok(data?.sizeBytes);
+			if (mimeType === 'video/mp4') {
+				assert.match(data.mimeType, /^video\/mp4;codecs=avc1\./);
+			}
 
 			const url = URL.createObjectURL(data.blob);
 			store.add(toDisposable(() => {
@@ -503,7 +538,7 @@ suite('NativeRecordingService', () => {
 			await video.play();
 			assert.deepStrictEqual({
 				state: service.state, width: video.videoWidth, height: video.videoHeight, mimeType: data.mimeType.split(';')[0],
-			}, { state: RecordingState.Idle, width: 32, height: 24, mimeType });
+			}, { state: RecordingState.Idle, width: 32, height: 24, mimeType: mimeType.split(';')[0] });
 		})?.timeout(10000); // `test.skip` returns nothing in this runner
 	}
 });

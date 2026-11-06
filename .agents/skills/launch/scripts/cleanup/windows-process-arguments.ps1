@@ -35,8 +35,35 @@ namespace LaunchSkill {
 '@
 }
 
-function Test-CommandLineHasArgument([string]$commandLine, [string]$expectedArgument) {
+if (-not ('LaunchSkill.NativePath' -as [type])) {
+	Add-Type -TypeDefinition @'
+using System.Runtime.InteropServices;
+using System.Text;
+
+namespace LaunchSkill {
+	public static class NativePath {
+		[DllImport("kernel32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
+		private static extern uint GetLongPathName(string shortPath, StringBuilder longPath, uint bufferLength);
+
+		public static string ToLongPath(string path) {
+			StringBuilder buffer = new StringBuilder(32768);
+			uint length = GetLongPathName(path, buffer, (uint)buffer.Capacity);
+			return length == 0 || length >= buffer.Capacity ? path : buffer.ToString();
+		}
+	}
+}
+'@
+}
+
+# Matches `--<name>=<path>` arguments by the path they refer to, so short (8.3)
+# and long spellings of the same existing directory compare equal.
+function Test-CommandLineHasPathArgument([string]$commandLine, [string]$argumentName, [string]$expectedPath) {
+	$prefix = "$argumentName="
+	$expected = [LaunchSkill.NativePath]::ToLongPath($expectedPath).TrimEnd('\')
 	return [LaunchSkill.NativeCommandLine]::Parse($commandLine) |
-		Where-Object { [string]::Equals($_, $expectedArgument, [StringComparison]::OrdinalIgnoreCase) } |
+		Where-Object {
+			$_.StartsWith($prefix, [StringComparison]::OrdinalIgnoreCase) -and
+			[string]::Equals([LaunchSkill.NativePath]::ToLongPath($_.Substring($prefix.Length)).TrimEnd('\'), $expected, [StringComparison]::OrdinalIgnoreCase)
+		} |
 		Select-Object -First 1
 }

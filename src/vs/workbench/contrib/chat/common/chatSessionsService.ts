@@ -12,7 +12,7 @@ import { IObservable } from '../../../../base/common/observable.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { URI } from '../../../../base/common/uri.js';
 import { IPosition } from '../../../../editor/common/core/position.js';
-import { isRemoteAgentHostSessionType } from '../../../../platform/agentHost/common/agentHostSessionType.js';
+import { isCopilotAgentHostSessionType, isRemoteAgentHostSessionType } from '../../../../platform/agentHost/common/agentHostSessionType.js';
 import type { IAgentModelConfigurationReport } from '../../../../platform/agentHost/common/agentModelConfiguration.js';
 import { createDecorator, ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
 import { Registry } from '../../../../platform/registry/common/platform.js';
@@ -26,6 +26,7 @@ import { IChatRequestOrigin } from './chatRequestOrigin.js';
 import { IChatProgress, IChatResponseErrorDetails, IChatSendRequestOptions, IChatSessionTiming } from './chatService/chatService.js';
 import { ChatAgentLocation } from './constants.js';
 import { Target } from './promptSyntax/promptTypes.js';
+import { localize } from '../../../../nls.js';
 import type { ICanvasContext } from '../../canvases/common/canvas.js';
 import type { IChatSessionHistoryStatus } from '../../../../platform/chat/common/chatSessionHistory.js';
 
@@ -278,6 +279,8 @@ export interface IChatSessionItem {
 		readonly deletions: number;
 	} | readonly IChatSessionFileChange[] | readonly IChatSessionFileChange2[];
 	readonly archived?: boolean;
+	/** Whether a child chat supports archiving independently of its parent. */
+	readonly canArchive?: boolean;
 	/**
 	 * Authoritative read state, set by controllers that own it (see
 	 * {@link IChatSessionItemController.setChatSessionItemRead}). Otherwise
@@ -363,6 +366,8 @@ export type IChatSessionHistoryItem = {
 	details?: string;
 	elapsedMs?: number;
 	completedAt?: number;
+	/** Whether the response was cancelled rather than completed. */
+	isCanceled?: boolean;
 	/**
 	 * Error details for a failed response. Rendered as a proper chat error
 	 * (including the quota-exceeded upgrade affordance), mirroring the live
@@ -403,6 +408,8 @@ export interface IChatSessionServerRequest {
 	readonly isTerminalRequest?: boolean;
 	/** Reopen the existing request with this id instead of adding another request. */
 	readonly resume?: boolean;
+	/** An earlier request that the provider removed and this request replaces; it is removed when this request is added. */
+	readonly replacesRequestId?: string;
 	readonly origin?: IChatRequestOrigin;
 }
 
@@ -462,6 +469,18 @@ export function isAgentHostTarget(target: string): boolean {
 
 export function isAgentHostSessionResource(resource: URI): boolean {
 	return isAgentHostTarget(resource.scheme);
+}
+
+/**
+ * Returns why models cannot be added for the given chat session type (harness), or `undefined` when they can.
+ * Added models are extension-provided BYOK models, which a remotely running Copilot agent host cannot reach:
+ * either a remote agent host session type, or the Copilot harness of a remote editor window.
+ */
+export function getAddModelsUnavailableReason(sessionType: string | undefined, remoteAuthority: string | undefined): string | undefined {
+	if (sessionType && isCopilotAgentHostSessionType(sessionType) && (isRemoteAgentHostSessionType(sessionType) || !!remoteAuthority)) {
+		return localize('chat.addModels.remoteCopilotUnsupported', "BYOK models aren't supported in remote Copilot sessions");
+	}
+	return undefined;
 }
 
 /** Returns the registered agent implementation handling the session. */
@@ -616,6 +635,13 @@ export interface IChatSession extends IDisposable {
 	transferredState?: {
 		readonly editingSession: IChatEditingSession | undefined;
 		readonly inputState: ISerializableChatModelInputState | undefined;
+		/**
+		 * The language model the transferred draft selects. Set even when
+		 * {@link inputState} has no `selectedModel` because the model's metadata
+		 * is not available yet (cold restore), so the restore can wait for that
+		 * model instead of falling back to the request history's.
+		 */
+		readonly selectedModelId?: string;
 	};
 
 	requestHandler?: (
@@ -846,13 +872,31 @@ export interface IChatSessionItemsDelta {
 	readonly removed?: readonly URI[];
 }
 
+/** Automatic refreshes may reuse fresh data instead of starting another fetch. */
+export type ChatSessionRefreshReason = 'initial' | 'automatic' | 'manual';
+
+export type ChatSessionArchiveDiscoveryState = 'idle' | 'loading' | 'loaded' | 'error';
+
+/** Optional inventory capability, independent of the controllers created for discovered sessions. */
+export interface IChatSessionItemArchiveProvider {
+	/** Initial discovery state; cached results remain loaded during refreshes. */
+	readonly state: IObservable<ChatSessionArchiveDiscoveryState>;
+	/** Requests archived discovery while at least one archive-history surface needs it. */
+	setRequested(requested: boolean): void;
+}
+
+export interface IChatSessionItemArchiveState {
+	readonly available: boolean;
+	readonly state: ChatSessionArchiveDiscoveryState;
+}
+
 export interface IChatSessionItemController {
 
 	readonly onDidChangeChatSessionItems: Event<IChatSessionItemsDelta>;
 
 	get items(): readonly IChatSessionItem[];
 
-	refresh(token: CancellationToken): Promise<void>;
+	refresh(token: CancellationToken, reason?: ChatSessionRefreshReason): Promise<void>;
 
 	newChatSessionItem?(request: IChatNewSessionRequest, token: CancellationToken): Promise<IChatSessionItem | undefined>;
 
@@ -974,6 +1018,10 @@ export interface IChatSessionCommitEvent {
 export const IChatSessionsService = createDecorator<IChatSessionsService>('chatSessionsService');
 
 export interface IChatSessionsService {
+	readonly archivedSessionItems: IObservable<IChatSessionItemArchiveState>;
+	registerChatSessionItemArchiveProvider(provider: IChatSessionItemArchiveProvider): IDisposable;
+	/** Acquire while archived history is expanded or otherwise explicitly requested. */
+	acquireArchivedSessionItems(): IDisposable;
 	readonly _serviceBrand: undefined;
 
 	// #region Chat session item provider support
@@ -1018,10 +1066,10 @@ export interface IChatSessionsService {
 	getChatSessionItems(providerTypeFilter: readonly string[] | undefined, token: CancellationToken, onError?: (error: unknown) => void): AsyncIterable<{ readonly chatSessionType: string; readonly items: readonly IChatSessionItem[] }>;
 
 	/**
-	 * Forces the controllers to refresh their session items, optionally filtered by provider type.
+	 * Refreshes the controllers' session items, optionally filtered by provider type; automatic refreshes may reuse fresh data.
 	 * The optional callback observes provider errors without changing failure isolation.
 	 */
-	refreshChatSessionItems(providerTypeFilter: readonly string[] | undefined, token: CancellationToken, onError?: (error: unknown) => void): Promise<void>;
+	refreshChatSessionItems(providerTypeFilter: readonly string[] | undefined, token: CancellationToken, onError?: (error: unknown) => void, reason?: ChatSessionRefreshReason): Promise<void>;
 
 	/** @deprecated Use `getChatSessionItems` */
 	getInProgress(): { chatSessionType: string; count: number }[];

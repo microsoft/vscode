@@ -11,30 +11,59 @@ import { DeferredPromise } from '../../../../../base/common/async.js';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
-import { constObservable, derived, observableValue } from '../../../../../base/common/observable.js';
+import { decodeKeybinding } from '../../../../../base/common/keybindings.js';
+import { KeyCode, KeyMod } from '../../../../../base/common/keyCodes.js';
+import { toDisposable } from '../../../../../base/common/lifecycle.js';
+import { constObservable, derived, IObservable, observableValue } from '../../../../../base/common/observable.js';
+import { isWeb, OS } from '../../../../../base/common/platform.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { mock, upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { ILocalizedString } from '../../../../../platform/action/common/action.js';
+import { IActionViewItemService } from '../../../../../platform/actions/browser/actionViewItemService.js';
+import { isIMenuItem, MenuId, MenuRegistry } from '../../../../../platform/actions/common/actions.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
+import { IContext } from '../../../../../platform/contextkey/common/contextkey.js';
+import { EXTENSIONS_AGENTS_WINDOW_MANAGEMENT } from '../../../../../platform/extensions/common/extensions.js';
+import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
+import { KeybindingsRegistry } from '../../../../../platform/keybinding/common/keybindingsRegistry.js';
+import { MockContextKeyService } from '../../../../../platform/keybinding/test/common/mockKeybindingService.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import { InMemoryStorageService } from '../../../../../platform/storage/common/storage.js';
 import { IAICustomizationItemsModel } from '../../../../../workbench/contrib/chat/browser/aiCustomization/aiCustomizationItemsModel.js';
 import { CustomizationMigrationCategoryId } from '../../../../../workbench/contrib/chat/browser/aiCustomization/customizationMigrationCategories.js';
 import { getCustomizationMigrationGroupIgnoreKey, storeIgnoredCustomizationMigrationGroupKeys } from '../../../../../workbench/contrib/chat/browser/aiCustomization/customizationMigrationIgnoredGroups.js';
 import { IAgentHostToolSetEnablementService } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostToolSetEnablementService.js';
-import { IAICustomizationWorkspaceService } from '../../../../../workbench/contrib/chat/common/aiCustomizationWorkspaceService.js';
+import { getCopilotCliBuiltinToolSet } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentHost/copilotCliBuiltinToolSet.js';
+import { AICustomizationManagementSection, IAICustomizationWorkspaceService } from '../../../../../workbench/contrib/chat/common/aiCustomizationWorkspaceService.js';
 import { ICustomizationHarnessService, IHarnessDescriptor } from '../../../../../workbench/contrib/chat/common/customizationHarnessService.js';
+import { ChatContextKeys } from '../../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
 import { CustomizationMigrationType, ICustomizationMigrationHint, ICustomizationMigrationIgnoredGroup, ICustomizationMigrationService } from '../../../../../workbench/contrib/chat/common/promptSyntax/service/customizationMigrationService.js';
 import { PromptsStorage } from '../../../../../workbench/contrib/chat/common/promptSyntax/service/promptsService.js';
 import { ILanguageModelToolsService, IToolData, IToolSet } from '../../../../../workbench/contrib/chat/common/tools/languageModelToolsService.js';
-import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
-import { IActiveSession } from '../../../../services/sessions/common/sessionsManagement.js';
-import { IAICustomizationMcpServerCountService } from '../../browser/customizationMcpServerCount.js';
-import { CustomizationLinkViewItem, readCustomizationCount } from '../../browser/customizationsToolbar.contribution.js';
-import { CustomizationsNavigationState } from '../../browser/customizationsNavigationState.js';
+import { IActiveSession } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
+import { IAICustomizationMcpServerCountService } from '../../../../../workbench/contrib/sessions/browser/customizationMcpServerCount.js';
+import { CustomizationLinkViewItem, CustomizationsToolbarContribution } from '../../browser/customizationsToolbar.contribution.js';
+import { CUSTOMIZATION_ITEMS, readCustomizationCount } from '../../../../../workbench/contrib/sessions/browser/customizationItems.js';
+import { CustomizationsNavigationState } from '../../../../../workbench/contrib/sessions/browser/customizationsNavigationState.js';
+import { IAgentsWindowExtensionSuggestionsService } from '../../../../../workbench/contrib/sessions/browser/agentsWindowExtensionSuggestions.js';
+import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
+import { NullHoverService } from '../../../../../platform/hover/test/browser/nullHoverService.js';
+import { focusedSessionHostServiceOf } from '../../../../../workbench/contrib/sessions/test/browser/sessionHostTestUtils.js';
+
+function createExtensionSuggestionsService(showBadge: IObservable<boolean>): IAgentsWindowExtensionSuggestionsService {
+	return new class extends mock<IAgentsWindowExtensionSuggestionsService>() {
+		override readonly showBadge = showBadge;
+	};
+}
 
 suite('Customizations toolbar', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
+	const copilotCliToolCount = [...getCopilotCliBuiltinToolSet().getTools()].length;
+
+	test('does not include standalone Remotes management in Customizations', () => {
+		assert.ok(CUSTOMIZATION_ITEMS.every(item => item.id !== 'sessions.customization.remotes'));
+	});
 
 	test('includes enabled Tools in customization totals', () => {
 		const toolSets = [
@@ -72,7 +101,83 @@ suite('Customizations toolbar', () => {
 			enablementService,
 		)).get();
 
-		assert.strictEqual(count, 1);
+		assert.strictEqual(count, 1 + copilotCliToolCount);
+	});
+
+	test('gates Canvases on desktop and the shared enablement setting', () => {
+		const canvases = CUSTOMIZATION_ITEMS.find(item => item.section === AICustomizationManagementSection.Canvases);
+		const evaluate = (enabled: boolean) => canvases?.when?.evaluate({
+			getValue: <T>(key: string) => ({ 'config.chat.canvases.enabled': enabled }[key] as T | undefined),
+		}) ?? true;
+
+		assert.deepStrictEqual({
+			enabled: evaluate(true),
+			disabled: evaluate(false),
+		}, {
+			enabled: !isWeb,
+			disabled: false,
+		});
+	});
+
+	test('keeps Canvases separate from the VS Code Extensions section', () => {
+		const sections = CUSTOMIZATION_ITEMS
+			.filter(item => item.section === AICustomizationManagementSection.Extensions || item.section === AICustomizationManagementSection.Canvases)
+			.map(item => ({ id: item.id, label: item.label, section: item.section }));
+
+		assert.deepStrictEqual(sections, [{
+			id: 'sessions.customization.canvases',
+			label: 'Canvases',
+			section: AICustomizationManagementSection.Canvases,
+		}, {
+			id: 'sessions.customization.extensions',
+			label: 'Extensions',
+			section: AICustomizationManagementSection.Extensions,
+		}]);
+	});
+
+	test('opens the Extensions section with Extensions: Manage Extensions... and the keybinding of the Extensions view in editor windows, where the sidebar offers it', () => {
+		disposables.add(new CustomizationsToolbarContribution(
+			new class extends mock<IActionViewItemService>() {
+				override register() { return toDisposable(() => { }); }
+			},
+			new class extends mock<IInstantiationService>() { },
+			new class extends mock<ICustomizationHarnessService>() {
+				override readonly activeHarness = constObservable('vscode');
+				override readonly availableHarnesses = constObservable<readonly IHarnessDescriptor[]>([]);
+				override getActiveDescriptor() { return upcastPartial<IHarnessDescriptor>({ hiddenSections: [] }); }
+			},
+			disposables.add(new MockContextKeyService()),
+		));
+		const commandId = 'sessions.customization.extensions';
+		const palette = MenuRegistry.getMenuItems(MenuId.CommandPalette).filter(isIMenuItem).find(item => item.command.id === commandId);
+		const keybinding = KeybindingsRegistry.getDefaultKeybindings().find(rule => rule.command === commandId);
+		const text = (value: string | ILocalizedString | undefined) => typeof value === 'string' ? value : value?.value;
+		const offered = (values: { chatEnabled: boolean; sectionVisible: boolean; managementEnabled: boolean }) => {
+			const context: IContext = {
+				getValue: <T>(key: string) => ({
+					[ChatContextKeys.enabled.key]: values.chatEnabled,
+					[`sessionsCustomizationSectionVisible.${AICustomizationManagementSection.Extensions}`]: values.sectionVisible,
+					[`config.${EXTENSIONS_AGENTS_WINDOW_MANAGEMENT}`]: values.managementEnabled,
+				}[key] as T | undefined),
+			};
+			return { commandPalette: palette?.when?.evaluate(context), keybinding: keybinding?.when?.evaluate(context) };
+		};
+
+		assert.deepStrictEqual({
+			title: `${text(palette?.command.category)}: ${text(palette?.command.title)}`,
+			keybinding: keybinding?.keybinding?.getHashCode() === decodeKeybinding(KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KeyX, OS)?.getHashCode(),
+			offered: offered({ chatEnabled: true, sectionVisible: true, managementEnabled: true }),
+			aiFeaturesDisabled: offered({ chatEnabled: false, sectionVisible: true, managementEnabled: true }),
+			hiddenByHarness: offered({ chatEnabled: true, sectionVisible: false, managementEnabled: true }),
+			managementDisabled: offered({ chatEnabled: true, sectionVisible: true, managementEnabled: false }),
+		}, {
+			title: 'Extensions: Manage Extensions...',
+			keybinding: true,
+			offered: { commandPalette: true, keybinding: true },
+			aiFeaturesDisabled: { commandPalette: false, keybinding: false },
+			hiddenByHarness: { commandPalette: false, keybinding: false },
+			managementDisabled: { commandPalette: false, keybinding: false },
+		});
 	});
 
 	test('tracks the active customization total and migration availability', async () => {
@@ -104,29 +209,23 @@ suite('Customizations toolbar', () => {
 		};
 		const customizationsChanged = disposables.add(new Emitter<void>());
 		const refreshedHint = new DeferredPromise<ICustomizationMigrationHint | undefined>();
+		const removedHint = new DeferredPromise<ICustomizationMigrationHint | undefined>();
 		const migrationHint: ICustomizationMigrationHint = { migrationFlowId: 'flow', message: 'Migrations available', counts: [] };
 		const ignoredGroupsSeen: ICustomizationMigrationIgnoredGroup[][] = [];
-		let migrationCheckCount = 0;
+		const migrationResponses = [migrationHint, refreshedHint.p, removedHint.p];
 		const migrationService = new class extends mock<ICustomizationMigrationService>() {
 			override readonly onDidChangeCustomizations = customizationsChanged.event;
-			override async computeMigrationHint(_resource: URI, _token?: CancellationToken, ignoredGroups: readonly ICustomizationMigrationIgnoredGroup[] = []): Promise<ICustomizationMigrationHint | undefined> {
+			override computeMigrationHint(_resource: URI, _token?: CancellationToken, ignoredGroups: readonly ICustomizationMigrationIgnoredGroup[] = []): Promise<ICustomizationMigrationHint | undefined> {
 				ignoredGroupsSeen.push([...ignoredGroups]);
-				if (migrationCheckCount++ === 0) {
-					return migrationHint;
-				}
-				if (migrationCheckCount === 2) {
-					return refreshedHint.p;
-				}
-				return ignoredGroups.length > 0 ? undefined : migrationHint;
+				return Promise.resolve(migrationResponses.shift() ?? (ignoredGroups.length > 0 ? undefined : migrationHint));
 			}
 		};
 		const activeProjectRoot = constObservable(URI.file('/worktrees/one'));
 		const storageService = disposables.add(new InMemoryStorageService());
+		const showExtensionSuggestionsBadge = observableValue(disposables, true);
 		const state = disposables.add(new CustomizationsNavigationState(
 			enabled,
-			new class extends mock<ISessionsService>() {
-				override readonly activeSession = activeSession;
-			},
+			focusedSessionHostServiceOf(activeSession),
 			itemsModel,
 			mcpServerCountService,
 			toolsService,
@@ -141,19 +240,30 @@ suite('Customizations toolbar', () => {
 			},
 			storageService,
 			new class extends mock<ILogService>() { },
+			createExtensionSuggestionsService(showExtensionSuggestionsBadge),
 		));
 		await Promise.resolve();
 
 		const enabledState = {
 			totalCount: state.totalCount.get(),
 			migrationAvailable: state.migrationAvailable.get(),
+			extensionSuggestionsAvailable: state.extensionSuggestionsAvailable.get(),
 		};
+		showExtensionSuggestionsBadge.set(false, undefined);
+		const seenSuggestionsState = state.extensionSuggestionsAvailable.get();
+		showExtensionSuggestionsBadge.set(true, undefined);
 		customizationsChanged.fire();
 		const refreshingState = state.migrationAvailable.get();
-		await refreshedHint.complete(undefined);
+		void refreshedHint.complete(migrationHint);
 		await refreshedHint.p;
 		await Promise.resolve();
 		const refreshedState = state.migrationAvailable.get();
+		customizationsChanged.fire();
+		const removingState = state.migrationAvailable.get();
+		void removedHint.complete(undefined);
+		await removedHint.p;
+		await Promise.resolve();
+		const removedState = state.migrationAvailable.get();
 		storeIgnoredCustomizationMigrationGroupKeys(storageService, new Set([
 			getCustomizationMigrationGroupIgnoreKey(
 				'agent-host-test',
@@ -171,25 +281,34 @@ suite('Customizations toolbar', () => {
 
 		assert.deepStrictEqual({
 			enabledState,
+			seenSuggestionsState,
 			refreshingState,
 			refreshedState,
+			removingState,
+			removedState,
 			ignoredState,
 			restoredState,
 			ignoredGroupsSeen,
 			disabledState: {
 				totalCount: state.totalCount.get(),
 				migrationAvailable: state.migrationAvailable.get(),
+				extensionSuggestionsAvailable: state.extensionSuggestionsAvailable.get(),
 			},
 		}, {
 			enabledState: {
-				totalCount: 9,
+				totalCount: 9 + copilotCliToolCount,
 				migrationAvailable: true,
+				extensionSuggestionsAvailable: true,
 			},
-			refreshingState: false,
-			refreshedState: false,
+			seenSuggestionsState: false,
+			refreshingState: true,
+			refreshedState: true,
+			removingState: true,
+			removedState: false,
 			ignoredState: false,
 			restoredState: true,
 			ignoredGroupsSeen: [
+				[],
 				[],
 				[],
 				[{ type: CustomizationMigrationType.PromptFiles, storage: PromptsStorage.local }],
@@ -198,6 +317,7 @@ suite('Customizations toolbar', () => {
 			disabledState: {
 				totalCount: 0,
 				migrationAvailable: false,
+				extensionSuggestionsAvailable: false,
 			},
 		});
 	});
@@ -215,6 +335,8 @@ suite('Customizations toolbar', () => {
 			new class extends mock<IAICustomizationMcpServerCountService>() { },
 			new class extends mock<ILanguageModelToolsService>() { },
 			new class extends mock<IAgentHostToolSetEnablementService>() { },
+			createExtensionSuggestionsService(constObservable(false)),
+			NullHoverService,
 		));
 		const container = mainWindow.document.createElement('div');
 		item.render(container);
@@ -233,6 +355,50 @@ suite('Customizations toolbar', () => {
 		});
 	});
 
+	test('badges links that show extension suggestions while suggestions are unseen', () => {
+		const showBadge = observableValue(disposables, true);
+		const hovers = new Set<{ readonly content: unknown }>();
+		const hoverService = new class extends mock<IHoverService>() {
+			override setupDelayedHover(_target: HTMLElement, options: Parameters<IHoverService['setupDelayedHover']>[1]) {
+				const hover = { content: (typeof options === 'function' ? options() : options).content };
+				hovers.add(hover);
+				return toDisposable(() => hovers.delete(hover));
+			}
+		};
+		const item = disposables.add(new CustomizationLinkViewItem(
+			disposables.add(new Action('test.extensions', 'Extensions')),
+			{},
+			{ id: 'test.extensions', label: 'Extensions', icon: Codicon.extensions, showsExtensionSuggestions: true },
+			new class extends mock<IAICustomizationItemsModel>() { },
+			new class extends mock<IAICustomizationMcpServerCountService>() { },
+			new class extends mock<ILanguageModelToolsService>() { },
+			new class extends mock<IAgentHostToolSetEnablementService>() { },
+			createExtensionSuggestionsService(showBadge),
+			hoverService,
+		));
+		const container = mainWindow.document.createElement('div');
+		item.render(container);
+		const badge = container.querySelector<HTMLElement>('.customization-link-button .ai-customization-suggestion-badge');
+		const readState = () => ({
+			visible: badge?.classList.contains('hidden') === false,
+			hovers: [...hovers].map(hover => hover.content),
+		});
+		const unseenState = readState();
+		showBadge.set(false, undefined);
+
+		assert.deepStrictEqual({
+			role: badge?.getAttribute('role'),
+			ariaLabel: badge?.getAttribute('aria-label'),
+			unseenState,
+			seenState: readState(),
+		}, {
+			role: 'img',
+			ariaLabel: 'Some installed extensions can be enabled in the Agents window.',
+			unseenState: { visible: true, hovers: ['Some installed extensions can be enabled in the Agents window.'] },
+			seenState: { visible: false, hovers: [] },
+		});
+	});
+
 	test('forwards ActionBar roving focus to the nested button', () => {
 		const container = mainWindow.document.createElement('div');
 		const createViewItem = (action: IAction) => new CustomizationLinkViewItem(
@@ -243,6 +409,8 @@ suite('Customizations toolbar', () => {
 			new class extends mock<IAICustomizationMcpServerCountService>() { },
 			new class extends mock<ILanguageModelToolsService>() { },
 			new class extends mock<IAgentHostToolSetEnablementService>() { },
+			createExtensionSuggestionsService(constObservable(false)),
+			NullHoverService,
 		);
 		const actionBar = disposables.add(new ActionBar(container, {
 			actionViewItemProvider: action => createViewItem(action),

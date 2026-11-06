@@ -3,9 +3,42 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ICustomizationHarnessService } from '../../customizationHarnessService.js';
-import { ILanguageModelChatMetadata, ILanguageModelsService } from '../../languageModels.js';
+import { ICustomizationHarnessService, type IHarnessDescriptor } from '../../customizationHarnessService.js';
+import { ILanguageModelChatMetadata, ILanguageModelChatMetadataAndIdentifier, ILanguageModelsService } from '../../languageModels.js';
 import { Target } from '../promptTypes.js';
+import { localize } from '../../../../../../nls.js';
+import { URI } from '../../../../../../base/common/uri.js';
+
+export interface IAgentModelPreferences {
+	readonly models: readonly string[];
+	readonly required: boolean;
+	readonly source?: { readonly name: string; readonly uri: URI };
+}
+
+/** Resolves every authored alternative against this chat's model pool. */
+export function resolveAgentModelPreferences(preferences: readonly string[], models: readonly ILanguageModelChatMetadataAndIdentifier[]): ILanguageModelChatMetadataAndIdentifier[] {
+	const catalogue = models.map(model => ({ id: model.metadata.id, metadata: model.metadata }));
+	const matches = new Set(preferences.flatMap(preference => {
+		const resolved = resolveAgentFileModelIdentifiers(preference, catalogue);
+		return resolved.length ? resolved.map(model => model.metadata)
+			: models.filter(model => model.metadata.vendor !== 'copilot' && ILanguageModelChatMetadata.matchesQualifiedName(preference, model.metadata)).map(model => model.metadata);
+	}));
+	return models.filter(model => matches.has(model.metadata));
+}
+
+export function getAgentModelPolicyError(preferences: IAgentModelPreferences | undefined, modelId: string | undefined, models: readonly ILanguageModelChatMetadataAndIdentifier[]): string | undefined {
+	if (!preferences?.required || preferences.models.length === 0) {
+		return undefined;
+	}
+	const allowed = resolveAgentModelPreferences(preferences.models, models);
+	if (allowed.length === 0) {
+		return localize('agent.requiredModelsUnavailable', "No model required by the selected agent is currently available. Wait for models to load or select a different agent.");
+	}
+	if (!allowed.some(model => model.identifier === modelId)) {
+		return localize('agent.requiredModelNotSelected', "Select one of the models required by the selected agent before sending.");
+	}
+	return undefined;
+}
 
 export interface IAgentFileModel {
 	readonly id: string;
@@ -18,15 +51,39 @@ export interface IAgentFileModelCatalogue {
 	readonly isResolved: boolean;
 }
 
+/** Resolves authored preferences against the current input's pool, preserving their order. */
+export function resolveAgentModelPreference(preferences: readonly string[], models: readonly ILanguageModelChatMetadataAndIdentifier[]): ILanguageModelChatMetadataAndIdentifier | undefined {
+	const catalogue = models.map(model => ({ id: model.metadata.id, metadata: model.metadata }));
+	for (const preference of preferences) {
+		const resolved = resolveAgentFileModelIdentifier(preference, catalogue);
+		const model = (resolved && models.find(model => model.metadata === resolved.metadata))
+			?? models.find(model => model.metadata.vendor !== 'copilot' && ILanguageModelChatMetadata.matchesQualifiedName(preference, model.metadata));
+		if (model) {
+			return model;
+		}
+	}
+	return undefined;
+}
+
+/** Uses the provider's configuration key and only offers reasoning values the model supports. */
+export function resolveAgentReasoningEffort(effort: string | undefined, metadata: ILanguageModelChatMetadata): Record<string, string> | undefined {
+	if (effort) {
+		for (const key of ['reasoningEffort', 'thinkingLevel']) {
+			const property = metadata.configurationSchema?.properties?.[key];
+			if (!property?.readOnly && property?.enum?.includes(effort)) {
+				return { [key]: effort };
+			}
+		}
+	}
+	return undefined;
+}
+
 export function resolveAgentFileModels(
 	target: Target,
 	harnessService: ICustomizationHarnessService,
 	languageModelsService: ILanguageModelsService,
 ): IAgentFileModelCatalogue {
-	const activeDescriptor = harnessService.getActiveDescriptor();
-	const descriptors = activeDescriptor.customAgentTarget === target
-		? [activeDescriptor]
-		: harnessService.availableHarnesses.get().filter(descriptor => descriptor.customAgentTarget === target);
+	const descriptors = resolveMatchingAgentFileHarnesses(target, harnessService);
 	const harnessIds = new Set(descriptors.map(descriptor => descriptor.id));
 	const models: IAgentFileModel[] = [];
 
@@ -36,6 +93,7 @@ export function resolveAgentFileModels(
 		if (!metadata || !harnessId || !harnessIds.has(harnessId) || metadata.isUserSelectable === false) {
 			continue;
 		}
+
 		models.push({ id: metadata.id, metadata, harnessId });
 	}
 
@@ -43,6 +101,13 @@ export function resolveAgentFileModels(
 		models,
 		isResolved: descriptors.length > 0 && descriptors.every(descriptor => descriptor.modelCatalogueStatus?.get() === 'ready'),
 	};
+}
+
+export function resolveMatchingAgentFileHarnesses(target: Target, harnessService: ICustomizationHarnessService): readonly IHarnessDescriptor[] {
+	const activeDescriptor = harnessService.getActiveDescriptor();
+	return activeDescriptor.customAgentTarget === target
+		? [activeDescriptor]
+		: harnessService.availableHarnesses.get().filter(descriptor => descriptor.customAgentTarget === target);
 }
 
 export function getAgentFileModelReasoningEfforts(model: IAgentFileModel): readonly string[] {
@@ -56,18 +121,18 @@ export function getAgentFileModelReasoningEfforts(model: IAgentFileModel): reado
 	return [];
 }
 
-export function resolveAgentFileModelIdentifier(authoredValue: string, models: readonly IAgentFileModel[]): IAgentFileModel | undefined {
+export function resolveAgentFileModelIdentifier<T extends Pick<IAgentFileModel, 'id' | 'metadata'>>(authoredValue: string, models: readonly T[]): T | undefined {
 	return resolveAgentFileModelIdentifiers(authoredValue, models)[0];
 }
 
-export function resolveAgentFileModelIdentifiers(authoredValue: string, models: readonly IAgentFileModel[]): readonly IAgentFileModel[] {
+export function resolveAgentFileModelIdentifiers<T extends Pick<IAgentFileModel, 'id' | 'metadata'>>(authoredValue: string, models: readonly T[]): readonly T[] {
 	const reference = parseAgentFileModelReference(authoredValue);
 	if (reference.qualifier && reference.qualifier !== 'copilot' && reference.qualifier !== 'auto') {
 		return [];
 	}
 
-	const exactMatches: IAgentFileModel[] = [];
-	const aliasMatches: IAgentFileModel[] = [];
+	const exactMatches: T[] = [];
+	const aliasMatches: T[] = [];
 	for (const model of models) {
 		if (!reference.qualifier && (model.id === reference.identifier || model.id === reference.normalizedIdentifier)) {
 			exactMatches.push(model);
@@ -104,6 +169,6 @@ function parseAgentFileModelReference(authoredValue: string): IAgentFileModelRef
 	};
 }
 
-function isByokModel(model: IAgentFileModel): boolean {
+function isByokModel(model: Pick<IAgentFileModel, 'metadata'>): boolean {
 	return model.metadata.isBYOK === true || model.metadata.byokModelIdentifier !== undefined;
 }

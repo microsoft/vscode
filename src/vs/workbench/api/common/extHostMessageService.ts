@@ -42,6 +42,10 @@ export class ExtHostMessageService {
 			options.modal = optionsOrFirstItem?.modal;
 			options.useCustom = optionsOrFirstItem?.useCustom;
 			options.detail = optionsOrFirstItem?.detail;
+			if (optionsOrFirstItem?.notificationId !== undefined) {
+				checkProposedApiEnabled(extension, 'notificationTelemetry');
+				options.notificationId = optionsOrFirstItem.notificationId;
+			}
 			items = rest;
 		}
 

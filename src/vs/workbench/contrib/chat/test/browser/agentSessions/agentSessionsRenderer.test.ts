@@ -8,7 +8,8 @@ import { $, append } from '../../../../../../base/browser/dom.js';
 import { mainWindow } from '../../../../../../base/browser/window.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
 import { FuzzyScore } from '../../../../../../base/common/filters.js';
-import { toDisposable } from '../../../../../../base/common/lifecycle.js';
+import { Event } from '../../../../../../base/common/event.js';
+import { DisposableStore, toDisposable } from '../../../../../../base/common/lifecycle.js';
 import { observableValue } from '../../../../../../base/common/observable.js';
 import { ThemeIcon } from '../../../../../../base/common/themables.js';
 import { URI } from '../../../../../../base/common/uri.js';
@@ -21,6 +22,12 @@ import { IVoicePlaybackService } from '../../../common/voicePlaybackService.js';
 import { AgentSessionChatRenderer, AgentSessionRenderer, AgentSessionSectionRenderer } from '../../../browser/agentSessions/agentSessionsViewer.js';
 import { AgentSessionStatus, IAgentSession } from '../../../browser/agentSessions/agentSessionsModel.js';
 import { AgentSessionProviders } from '../../../browser/agentSessions/agentSessions.js';
+import { MarkAgentSessionDoneAction, RestoreAgentSessionAction } from '../../../browser/agentSessions/agentSessionsActions.js';
+import { ChatContextKeys } from '../../../common/actions/chatContextKeys.js';
+import { IMenuService, registerAction2 } from '../../../../../../platform/actions/common/actions.js';
+import { MenuService } from '../../../../../../platform/actions/common/menuService.js';
+import { ContextKeyService } from '../../../../../../platform/contextkey/browser/contextKeyService.js';
+import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { workbenchInstantiationService } from '../../../../../test/browser/workbenchTestServices.js';
 
 suite('AgentSessionsRenderer', () => {
@@ -93,8 +100,12 @@ suite('AgentSessionsRenderer', () => {
 		]);
 	});
 
-	test('renders session chats as compact hierarchy rows', () => {
-		const instantiationService = workbenchInstantiationService(undefined, store);
+	test('renders session chats as compact hierarchy rows with independently scoped completion actions', async () => {
+		const listeners = store.add(new DisposableStore());
+		const instantiationService = workbenchInstantiationService({ contextKeyService: () => store.add(new ContextKeyService(new TestConfigurationService())) }, store);
+		instantiationService.stub(IMenuService, store.add(instantiationService.createInstance(MenuService)));
+		store.add(registerAction2(MarkAgentSessionDoneAction));
+		store.add(registerAction2(RestoreAgentSessionAction));
 		instantiationService.stub(IChatSessionsService, new class extends mock<IChatSessionsService>() { });
 		instantiationService.stub(IVoicePlaybackService, new class extends mock<IVoicePlaybackService>() { });
 		const sessionRenderer = store.add(instantiationService.createInstance(
@@ -110,6 +121,7 @@ suite('AgentSessionsRenderer', () => {
 		row.appendChild(document.createElement('div')).appendChild(contents);
 		const template = renderer.renderTemplate(contents);
 		store.add({ dispose: () => renderer.disposeTemplate(template) });
+		ChatContextKeys.enabled.bindTo(template.contextKeyService).set(true);
 
 		const parentResource = URI.parse('test://session/default');
 		const chat: IAgentSession = {
@@ -129,6 +141,7 @@ suite('AgentSessionsRenderer', () => {
 				resource: parentResource,
 				label: 'Parent session',
 			},
+			canArchive: true,
 			isArchived: () => false,
 			setArchived: () => { },
 			isPinned: () => false,
@@ -148,7 +161,19 @@ suite('AgentSessionsRenderer', () => {
 			visible: true,
 			filterData: undefined,
 		};
+		const changed = Event.toPromise(template.titleToolbar.onDidChangeMenuItems, listeners);
 		renderer.renderElement(node, 0, template);
+		await changed;
+		const actionLabels = () => [...template.element.querySelectorAll('.agent-session-title-toolbar .action-label')].map(action => action.getAttribute('aria-label'));
+		const completion = actionLabels();
+		const restoreChanged = Event.toPromise(template.titleToolbar.onDidChangeMenuItems, listeners);
+		const completedChat = { ...chat, isArchived: () => true };
+		renderer.renderElement({ ...node, element: completedChat }, 0, template);
+		await restoreChanged;
+		const restore = actionLabels();
+		const unsupportedChanged = Event.toPromise(template.titleToolbar.onDidChangeMenuItems, listeners);
+		renderer.renderElement({ ...node, element: { ...chat, canArchive: false } }, 0, template);
+		await unsupportedChanged;
 
 		assert.deepStrictEqual({
 			rowClasses: [...row.classList],
@@ -157,6 +182,9 @@ suite('AgentSessionsRenderer', () => {
 			hasChatIcon: !!template.element.querySelector('.agent-session-chat-icon'),
 			hasNeutralChatIcon: !!template.element.querySelector('.codicon-circle-small-filled'),
 			hasDetails: !!template.element.querySelector('.agent-session-details-row'),
+			completion,
+			restore,
+			unsupported: actionLabels(),
 		}, {
 			rowClasses: ['monaco-list-row', 'agent-session-list-row', 'agent-session-chat-row'],
 			itemClasses: ['agent-session-chat-item', 'last-chat'],
@@ -164,6 +192,9 @@ suite('AgentSessionsRenderer', () => {
 			hasChatIcon: true,
 			hasNeutralChatIcon: true,
 			hasDetails: false,
+			completion: ['Mark as Done'],
+			restore: ['Restore'],
+			unsupported: [],
 		});
 	});
 

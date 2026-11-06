@@ -23,6 +23,7 @@ import { IDiffComputeService, IOffsetEdit } from '../../common/diffComputeServic
 import { createFileEditContentDigest, IAgentEditAttribution, IAgentEditAttributionService, ICancelEditAttributionFlushParams, ICommitEditAttributionFlushParams, IEditAttributionCoverageGapAcknowledgement, IEditAttributionFlushResult, IFileEditAttributionMarker, IPrepareEditAttributionFlushParams, IPreparedEditAttributionFlush, ISkippedFileEditAttributionMarker, MAX_EDIT_ATTRIBUTION_FILE_SIZE } from '../../common/fileEditAttribution.js';
 import { isAhpChatChannel } from '../../common/state/sessionState.js';
 import { IAgentHostTelemetryService } from '../agentHostTelemetryService.js';
+import { toCopilotTelemetryData } from './copilotSkuTelemetry.js';
 
 const MAX_TOTAL_TRACKED_TEXT = 20 * 1024 * 1024;
 const MAX_TRACKED_RESOURCES = 100;
@@ -49,6 +50,7 @@ interface IAttributedInterval {
 
 interface ISourceStatistics {
 	readonly trackingKey: string;
+	readonly copilotTrackingId: string | undefined;
 	readonly groupKey: string;
 	readonly sourceKey: string;
 	readonly sourceKeyCleaned: string;
@@ -317,6 +319,7 @@ export class AgentEditAttributionService extends Disposable implements IAgentEdi
 		}
 
 		const provider = edit.provider ?? getSessionProvider(edit.ownerSessionUri);
+		const copilotTrackingId = provider === 'copilotcli' ? edit.copilotTrackingId || undefined : undefined;
 		const modelSegment = edit.modelId ? `-$modelId:${edit.modelId}` : '';
 		// Matches the workbench edit-source key order ($modelId, $autoTier, $fusionModel, ..., $harness, $origin).
 		const autoTierSegment = edit.autoTier ? `-$autoTier:${edit.autoTier}` : '';
@@ -328,11 +331,12 @@ export class AgentEditAttributionService extends Disposable implements IAgentEdi
 		const agentSessionId = AgentSession.id(edit.ownerSessionUri);
 		const chatSessionId = chatUri === undefined ? undefined : getTelemetryChatSessionId(chatUri);
 		const toTrackingKey = (key: string) => JSON.stringify([key, agentSessionId, conversationId, chatSessionId]);
-		const trackingKey = toTrackingKey(sourceKey);
+		const trackingKey = JSON.stringify([toTrackingKey(sourceKey), copilotTrackingId]);
 		let source = resource.sources.get(trackingKey);
 		if (!source) {
 			source = {
 				trackingKey,
+				copilotTrackingId,
 				groupKey: toTrackingKey(groupSourceKey),
 				sourceKey,
 				sourceKeyCleaned: `source:Chat.applyEdits-$harness:${provider}-$origin:agentHost`,
@@ -825,6 +829,7 @@ export class AgentEditAttributionService extends Disposable implements IAgentEdi
 		}
 		for (const source of prepared.sources) {
 			const data = {
+				...toCopilotTelemetryData({ copilotSku: undefined, copilotTrackingId: source.copilotTrackingId }),
 				mode: 'longterm',
 				sourceKey: source.sourceKey,
 				sourceKeyCleaned: source.sourceKeyCleaned,

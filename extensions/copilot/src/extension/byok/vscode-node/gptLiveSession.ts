@@ -23,6 +23,29 @@ export interface GptLiveSessionResult {
 	readonly session?: GptLiveSession;
 }
 
+/** Reuses successful key-and-model-scoped checks for one minute; failures and cancellations are not cached. */
+export class GptLiveModelAvailability {
+	private _cached: { apiKey: string; modelId: string; expiresAt: number } | undefined;
+
+	constructor(private readonly _fetcherService: IFetcherService) { }
+
+	async isAvailable(apiKey: string, modelId: string, token: CancellationToken): Promise<boolean> {
+		if (token.isCancellationRequested) {
+			throw new CancellationError();
+		}
+		const cached = this._cached;
+		if (cached?.apiKey === apiKey && cached.modelId === modelId && cached.expiresAt > Date.now()) {
+			return true;
+		}
+		this._cached = undefined;
+		const available = await isGptLiveModelAvailable(this._fetcherService, apiKey, modelId, token);
+		if (available && !token.isCancellationRequested) {
+			this._cached = { apiKey, modelId, expiresAt: Date.now() + 60_000 };
+		}
+		return available;
+	}
+}
+
 interface GptLiveSessionResponse {
 	readonly session?: {
 		readonly id?: unknown;

@@ -146,4 +146,18 @@ suite('AgentsWindowGraphic', () => {
 			{ drawings: 4, hidden: 4, clipPaths: 10, unique: 10 },
 		);
 	});
+
+	test('renders compact graphics with window titles only', () => {
+		const captions = (design: AgentsWindowGraphicDesign) => {
+			const element = renderAgentsWindowGraphic(design, { compact: true });
+			return { classes: [...element.classList], captions: [...element.querySelectorAll('figcaption')].map(caption => caption.textContent) };
+		};
+		assert.deepStrictEqual({
+			windowComparison: captions(AgentsWindowGraphicVariant.WindowComparison),
+			manyWindowsToOne: captions(AgentsWindowGraphicVariant.ManyWindowsToOne),
+		}, {
+			windowComparison: { classes: ['agents-window-graphic', 'window-comparison', 'compact'], captions: ['Editor window', 'Agents window'] },
+			manyWindowsToOne: { classes: ['agents-window-graphic', 'many-windows-to-one', 'compact'], captions: [] },
+		});
+	});
 });

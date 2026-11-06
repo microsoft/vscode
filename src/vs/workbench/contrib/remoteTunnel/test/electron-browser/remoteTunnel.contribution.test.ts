@@ -18,7 +18,6 @@ import { MockContextKeyService } from '../../../../../platform/keybinding/test/c
 import { NullLoggerService } from '../../../../../platform/log/common/log.js';
 import { INotificationService } from '../../../../../platform/notification/common/notification.js';
 import { IProductService } from '../../../../../platform/product/common/productService.js';
-import { IProgress, IProgressService, IProgressStep } from '../../../../../platform/progress/common/progress.js';
 import { IQuickInputService, IQuickPick, IQuickPickItem } from '../../../../../platform/quickinput/common/quickInput.js';
 import { INACTIVE_TUNNEL_MODE, IRemoteTunnelService, type ActiveTunnelMode, type TunnelStatus } from '../../../../../platform/remoteTunnel/common/remoteTunnel.js';
 import { InMemoryStorageService, IStorageService } from '../../../../../platform/storage/common/storage.js';
@@ -28,6 +27,7 @@ import { CommandsRegistry, ICommandService } from '../../../../../platform/comma
 import { IExtensionService } from '../../../../services/extensions/common/extensions.js';
 import { RemoteTunnelCommandIds, RemoteTunnelWorkbenchContribution } from '../../electron-browser/remoteTunnel.contribution.js';
 import { NotificationService } from '../../../../services/notification/common/notificationService.js';
+import { TestProgressService } from '../../../../test/browser/workbenchTestServices.js';
 
 const tunnelApplicationConfig: ITunnelApplicationConfig = {
 	authenticationProviders: {
@@ -129,12 +129,6 @@ class TestExtensionService extends mock<IExtensionService>() {
 
 	override async getExtension() {
 		return undefined;
-	}
-}
-
-class TestProgressService extends mock<IProgressService>() {
-	override async withProgress<R>(_options: Parameters<IProgressService['withProgress']>[0], task: (progress: IProgress<IProgressStep>) => Promise<R>): Promise<R> {
-		return task({ report() { } });
 	}
 }
 

@@ -15,7 +15,7 @@ import { Event } from '../../../base/common/event.js';
 import { URI } from '../../../base/common/uri.js';
 import { IConfigurationService } from '../../configuration/common/configuration.js';
 import { createDecorator } from '../../instantiation/common/instantiation.js';
-import { AgentSession } from './agent.js';
+import { AgentSession, type AuthenticateParams } from './agent.js';
 import { RemoteAgentHostsEnabledSettingId } from './remoteAgentHostService.js';
 import { IReplayedTaskHistory } from './taskEventReplay.js';
 import { SessionStatus } from './state/sessionState.js';
@@ -117,7 +117,8 @@ export interface ICloudSandboxCreatedSession {
 }
 
 /** Client task-creation provenance, not a claim about environment readiness. */
-export type CloudSandboxTaskCreationPath = 'newEnvironment' | 'existingEnvironment' | 'reservationClaimed' | 'reservationFallback' | 'reservationUnconfirmed' | 'unknown';
+export const cloudSandboxTaskCreationPaths = ['newEnvironment', 'existingEnvironment', 'reservationClaimed', 'reservationFallback', 'reservationUnconfirmed', 'unknown'] as const;
+export type CloudSandboxTaskCreationPath = typeof cloudSandboxTaskCreationPaths[number];
 
 /** The draft configuration to reserve without submitting a user turn. */
 export interface ICloudSandboxReserveSessionRequest {
@@ -330,6 +331,8 @@ export interface IMissionControlEnvironment {
 
 /** Identifies which sandbox environment/session credentials are being minted for. */
 export interface ICloudSandboxConnectionRequest {
+	/** Local reporting scope; user-local hosts must not emit cloud sandbox lifecycle events. Never sent to the server. */
+	readonly environmentKind?: 'user-local';
 	/** Stable environment identifier (`env_<uuid>`) of the sandbox. */
 	readonly environmentId: string;
 	/**
@@ -373,6 +376,9 @@ export interface ICloudSandboxSessionFeedConnection {
 	readonly group: string;
 	readonly expires_at: string;
 	readonly reconnect_after: string;
+	/** Server-relative milliseconds; omitted together by older servers. */
+	readonly expires_in?: number;
+	readonly reconnect_in?: number;
 	readonly frame_schema_version: 1;
 }
 
@@ -421,11 +427,13 @@ export interface ICloudSandboxApiService {
 	getEnvironment(environmentId: string, token: CancellationToken): Promise<ICloudSandboxEnvironment>;
 	/** Lists the authenticated account's environments without attaching or provisioning compute. */
 	listEnvironments(token: CancellationToken, options?: { readonly refresh?: boolean }): Promise<readonly IMissionControlEnvironment[]>;
+	/** Hard-delete an environment owned by the expected account; managed sandboxes also delete backing compute and storage. */
+	deleteEnvironment(environmentId: string, token: CancellationToken, expectedAccountKey: string): Promise<void>;
 	/** Returns fresh credential-free inventory for the current account without issuing a request. */
 	getCachedEnvironments(): readonly IMissionControlEnvironment[] | undefined;
 
 	/** Enumerate sandbox sessions, or refresh only the tasks named by feed notifications. */
-	listSessions(token: CancellationToken, options?: { readonly incremental?: boolean; readonly taskIds?: readonly string[] }): Promise<ICloudSandboxDiscoveryResult>;
+	listSessions(token: CancellationToken, options?: ICloudSandboxDiscoveryOptions): Promise<ICloudSandboxDiscoveryResult>;
 
 	/** Reserve or renew an unsubmitted task for the draft's repository or default compute scope. */
 	reserveSession(request: ICloudSandboxReserveSessionRequest, token: CancellationToken): Promise<ICloudSandboxReservedSession>;
@@ -458,14 +466,49 @@ export interface ICloudSandboxApiService {
 	clearSessionHistory(taskId?: string): void;
 }
 
-/** Only a complete scan permits removing absent sessions; other results may name explicit removals. */
+export const cloudSandboxDiscoveryTriggers = ['startup', 'automatic', 'poll', 'focus', 'selection', 'accountChange', 'configurationChange', 'manual', 'feedChange', 'feedRenewal', 'feedReconnect'] as const;
+export type CloudSandboxDiscoveryTrigger = typeof cloudSandboxDiscoveryTriggers[number];
+
+export const cloudSandboxFullScanReasons = ['notFull', 'initial', 'reconciliationDue', 'requestedFull', 'reconnectPolicy', 'accountChange', 'configurationChange', 'noCheckpoint', 'scopeInitialization'] as const;
+export type CloudSandboxFullScanReason = typeof cloudSandboxFullScanReasons[number];
+
+/** Coordinator decisions carried to the existing per-read telemetry event. */
+export interface ICloudSandboxDiscoveryDiagnostics {
+	readonly intentMode?: 'full' | 'incremental';
+	readonly fullScanReason?: CloudSandboxFullScanReason;
+	readonly previousInventoryAgeMs?: number;
+	readonly lastFullAgeMs?: number;
+	readonly queued?: boolean;
+	readonly coalescedRequestCount?: number;
+	readonly coalescedTrigger?: CloudSandboxDiscoveryTrigger | 'multiple';
+}
+
+export interface ICloudSandboxDiscoveryOptions {
+	readonly incremental?: boolean;
+	/** Defaults to including archived inventory. False omits archived discovery, not targeted reads of known tasks. */
+	readonly includeArchived?: boolean;
+	readonly taskIds?: readonly string[];
+	readonly trigger?: CloudSandboxDiscoveryTrigger;
+	readonly diagnostics?: ICloudSandboxDiscoveryDiagnostics;
+}
+
+/** Successful recent-window refreshes permit eviction only within their requested scope; removal IDs report confirmed changes. */
 export type ICloudSandboxDiscoveryResult =
-	/** Every task was scanned and resolved; absent sessions really are gone. */
-	| { readonly kind: 'complete'; readonly sessions: readonly ICloudSandboxDiscoveredSession[] }
+	/** A successful recent-window refresh; absent cached sessions may be evicted. Removal IDs report confirmed changes, not window eviction. */
+	| { readonly kind: 'complete'; readonly sessions: readonly ICloudSandboxDiscoveredSession[]; readonly removedTaskIds?: readonly string[] }
+	/** A successful non-archived recent-window refresh; absent cached archives must be retained. */
+	| { readonly kind: 'scoped'; readonly sessions: readonly ICloudSandboxDiscoveredSession[]; readonly removedTaskIds: readonly string[] }
 	/** Changes only; sessions absent from this result must be retained. */
 	| { readonly kind: 'incremental'; readonly sessions: readonly ICloudSandboxDiscoveredSession[]; readonly removedTaskIds: readonly string[] }
 	/** Some tasks could not be resolved; only explicitly removed tasks may be dropped. */
-	| { readonly kind: 'partial'; readonly sessions: readonly ICloudSandboxDiscoveredSession[]; readonly removedTaskIds?: readonly string[]; readonly failedTaskIds?: readonly string[] }
+	| {
+		readonly kind: 'partial';
+		readonly sessions: readonly ICloudSandboxDiscoveredSession[];
+		readonly removedTaskIds?: readonly string[];
+		readonly failedTaskIds?: readonly string[];
+		/** The recent inventory window was enumerated; unresolved details are retained for per-task retries. Does not authorize absence pruning. */
+		readonly inventoryComplete?: boolean;
+	}
 	/** Discovery could not run (auth not ready, request failed). Existing state must be left alone. */
 	| { readonly kind: 'failed'; readonly reason: string };
 
@@ -525,6 +568,8 @@ export interface ICloudSandboxConnectOptions {
 	readonly name: string;
 	/** Local identity that owns this staged user-local connection; never sent to MC. */
 	readonly accountKey?: string;
+	/** Recipient keys from this account's environment descriptor, fetched over authenticated HTTPS. */
+	readonly trustedEncryptionKeys?: readonly IHostEncryptionKey[];
 	/** Caller provenance, not a claim about warm or cold compute. */
 	readonly connectionSource?: 'created' | 'existing';
 	/** Local task-creation start time for end-to-end provisioning telemetry; never persisted or sent to MC. */
@@ -563,6 +608,9 @@ export interface ICloudSandboxAgentHostService {
 	 * `/connect` and refreshed by `/reconnect`, or `undefined` when there is no connection.
 	 */
 	getSealedGitHubToken(environmentId: string): string | undefined;
+
+	/** Resolves identity-only authentication for a user-local host; the protocol client seals it for each handshake. */
+	resolveUserLocalAuthentication(environmentId: string, resource: string, forceRefresh?: boolean): Promise<AuthenticateParams>;
 
 	/** Renew a live connection's sealed credential, rejecting missing or reused envelopes while sharing its refresh and retry budget. */
 	refreshSealedGitHubToken(environmentId: string): Promise<string | undefined>;

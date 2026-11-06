@@ -156,8 +156,8 @@
     }
   },
   "scripts": {
-    "compile": "npx gulp compile-extension:ipynb && npm run build-notebook",
-    "watch": "npx gulp watch-extension:ipynb",
+    "compile": "pnpm exec gulp compile-extension:ipynb && pnpm run build-notebook",
+    "watch": "pnpm exec gulp watch-extension:ipynb",
     "build-notebook": "node ./esbuild.notebook.mts"
   },
   "dependencies": {
@@ -167,7 +167,12 @@
   "devDependencies": {
     "@jupyterlab/nbformat": "^3.2.9",
     "@types/markdown-it": "12.2.3",
-    "@types/node": "24.x"
+    "@types/mocha": "^10.0.10",
+    "@types/node": "24.x",
+    "@types/sinon": "^10.0.2",
+    "@types/vscode-notebook-renderer": "^1.72.0",
+    "mocha": "^10.8.2",
+    "sinon": "^12.0.1"
   },
   "repository": {
     "type": "git",

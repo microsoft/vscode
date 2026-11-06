@@ -5,7 +5,7 @@
 
 import assert from 'assert';
 import { Event, Emitter } from '../../../../base/common/event.js';
-import { IDisposable } from '../../../../base/common/lifecycle.js';
+import { IDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { TestConfigurationService } from '../../../configuration/test/common/testConfigurationService.js';
@@ -76,7 +76,7 @@ class TestTunnelProcessCoordinator implements ITunnelProcessCoordinator {
 }
 
 suite('Remote tunnel', () => {
-	ensureNoDisposablesAreLeakedInTestSuite();
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('handles machine-status events through coordinator fan-out', async () => {
 		const coordinator = new TestTunnelProcessCoordinator();
@@ -205,28 +205,27 @@ suite('Remote tunnel', () => {
 			storageService,
 			coordinator,
 		);
-		try {
-			await service.initialize({
-				active: true,
-				asService: true,
-				session: { providerId: 'github', sessionId: 'session', accountLabel: 'account' },
-			});
-
-			// The session process that attaches to the installed service reports
-			// under `service`; dropping those events left the UI on "connecting".
-			coordinator.fireMachineStatus('service', { type: 'connected', tunnelName: 'test_host', isAttached: true });
-
-			assert.deepStrictEqual(await service.getTunnelStatus(), {
-				type: 'connected',
-				info: { tunnelName: 'test_host', isAttached: true },
-				serviceInstallFailed: false,
-			});
-		} finally {
+		store.add(toDisposable(() => {
 			service.dispose();
 			coordinator.dispose();
 			loggerService.dispose();
 			storageService.dispose();
-		}
+		}));
+		await service.initialize({
+			active: true,
+			asService: true,
+			session: { providerId: 'github', sessionId: 'session', accountLabel: 'account' },
+		});
+
+		// The session process that attaches to the installed service reports
+		// under `service`; dropping those events left the UI on "connecting".
+		coordinator.fireMachineStatus('service', { type: 'connected', tunnelName: 'test_host', isAttached: true });
+
+		assert.deepStrictEqual(await service.getTunnelStatus(), {
+			type: 'connected',
+			info: { tunnelName: 'test_host', isAttached: true },
+			serviceInstallFailed: false,
+		});
 	});
 
 	test('reports the intended tunnel name while access is inactive', async () => {
@@ -243,17 +242,16 @@ suite('Remote tunnel', () => {
 			storageService,
 			coordinator,
 		);
-		try {
-			coordinator.setIdle();
-			// The remote-extension recommendation compares the name this machine
-			// would use against a previously used one, and asks while no tunnel
-			// is running.
-			assert.strictEqual(await service.getTunnelName(), 'test_host');
-		} finally {
+		store.add(toDisposable(() => {
 			service.dispose();
 			coordinator.dispose();
 			loggerService.dispose();
 			storageService.dispose();
-		}
+		}));
+		coordinator.setIdle();
+		// The remote-extension recommendation compares the name this machine
+		// would use against a previously used one, and asks while no tunnel
+		// is running.
+		assert.strictEqual(await service.getTunnelName(), 'test_host');
 	});
 });

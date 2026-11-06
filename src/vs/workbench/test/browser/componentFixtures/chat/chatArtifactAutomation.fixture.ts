@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as dom from '../../../../../base/browser/dom.js';
+import { gitHubPullRequestArtifactOptions } from '../../../../../platform/agentHost/common/githubPullRequestArtifact.js';
 import { AgentHostArtifactNoticeMetaKey } from '../../../../../platform/agentHost/common/meta/agentHostArtifactIntegrationMeta.js';
 import { ArtifactAutomationOption } from '../../../../../platform/artifactIntegrations/common/artifactIntegration.js';
 import { getArtifactAutomationNotices } from '../../../../../platform/artifactIntegrations/common/artifactIntegrationNotices.js';
@@ -46,6 +47,11 @@ const notices = [
 	...getArtifactAutomationNotices(state(enabled), state(changed)),
 	...getArtifactAutomationNotices(state(changed), state(disabled)),
 ];
+const pullRequestInitial: ArtifactStoredBinding = {
+	...initial, options: gitHubPullRequestArtifactOptions, configuration: emptyArtifactConfiguration(gitHubPullRequestArtifactOptions),
+};
+const pullRequestEnabled = transition(pullRequestInitial, { addressReviews: true, fixCI: true, resolveConflicts: true, markReady: true, merge: 'always' });
+const pullRequestNotices = getArtifactAutomationNotices(state(pullRequestInitial), state(pullRequestEnabled));
 
 function message(notice: ArtifactAutomationNotice): IFixtureMessage {
 	const notification = systemNotificationToChatPart(notice.content, 'host', { [AgentHostArtifactNoticeMetaKey]: { kind: notice.kind, iconId: 'git-pull-request' } });
@@ -55,17 +61,17 @@ function message(notice: ArtifactAutomationNotice): IFixtureMessage {
 	return { user: notice.content.split('\n')[0], requestHidden: true, assistant: [{ kind: 'systemNotification', notification }] };
 }
 
-async function render(context: ComponentFixtureContext, expanded: boolean): Promise<void> {
+async function render(context: ComponentFixtureContext, expanded: boolean, automationNotices: readonly ArtifactAutomationNotice[] = notices, height = expanded ? 820 : 220): Promise<void> {
 	await renderChatWidget(context, {
-		messages: notices.map(message),
-		width: 720, height: expanded ? 820 : 220, listHeight: expanded ? 800 : 200,
+		messages: automationNotices.map(message),
+		width: 720, height, listHeight: height - 20,
 		inputVisible: false, responseFooterAction: true, verbose: true,
 	});
 	const targetWindow = dom.getWindow(context.container);
 	await new Promise<void>(resolve => targetWindow.requestAnimationFrame(() => resolve()));
 	const headers = [...context.container.querySelectorAll<HTMLElement>('.chat-system-notification-disclosure-header')];
-	if (headers.length !== notices.length) {
-		throw new Error(`Expected ${notices.length} automation notices, got ${headers.length}`);
+	if (headers.length !== automationNotices.length) {
+		throw new Error(`Expected ${automationNotices.length} automation notices, got ${headers.length}`);
 	}
 	for (const header of headers) {
 		if (expanded) {
@@ -86,5 +92,10 @@ export default defineThemedFixtureGroup({ path: 'chat/' }, {
 		labels: { kind: 'screenshot' },
 		additionalThemes: ['darkHighContrast', 'lightHighContrast'],
 		render: context => render(context, true),
+	}),
+	AllPullRequestAutopilotsExpanded: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		additionalThemes: ['darkHighContrast', 'lightHighContrast'],
+		render: context => render(context, true, pullRequestNotices, 440),
 	}),
 });
