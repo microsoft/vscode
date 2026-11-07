@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { DeferredPromise } from '../../../../../../base/common/async.js';
 import { VSBuffer } from '../../../../../../base/common/buffer.js';
 import { CancellationToken } from '../../../../../../base/common/cancellation.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
@@ -11,7 +12,7 @@ import { mock } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { ExtensionIdentifier } from '../../../../../../platform/extensions/common/extensions.js';
 import { NullLogService } from '../../../../../../platform/log/common/log.js';
-import type { IByokLmChatRequest } from '../../../../../../platform/agentHost/common/agentHostByokLm.js';
+import type { IByokLmChatRequest, IByokLmChatProgress } from '../../../../../../platform/agentHost/common/agentHostByokLm.js';
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { ContextKeyService } from '../../../../../../platform/contextkey/browser/contextKeyService.js';
 import { IContextKey, IContextKeyService } from '../../../../../../platform/contextkey/common/contextkey.js';
@@ -119,6 +120,38 @@ suite('AgentHostByokLmHandler', () => {
 		const { contextKeyService } = createPolicyContext(true);
 		return store.add(new AgentHostByokLmHandler(service, new NullLogService(), new TestChatEntitlementService(contextKeyService), contextKeyService));
 	}
+
+	test('reports thinking and text deltas while the LM request is still running', async () => {
+		const release = new DeferredPromise<void>();
+		const live = new DeferredPromise<void>();
+		const service = new TestLanguageModelsService(new Map([['id-acme', byokModel('acme', 'model')]]), () => ({
+			stream: (async function* () {
+				yield { type: 'thinking' as const, id: 'rs_live', value: 'think' };
+				yield { type: 'thinking' as const, id: 'rs_live', value: 'ing' };
+				yield { type: 'text' as const, value: 'hello' };
+				await release.p;
+				yield { type: 'text' as const, value: ' world' };
+			})(),
+			result: release.p,
+		}));
+		const progress: IByokLmChatProgress[] = [];
+		const pending = createHandler(service).chat({ vendor: 'acme', modelId: 'model', input: [] }, CancellationToken.None, part => {
+			progress.push(part);
+			if (progress.length === 3) { void live.complete(); }
+		});
+		try {
+			await live.p;
+			assert.deepStrictEqual(progress, [
+				{ outputIndex: 0, item: { type: 'reasoning', id: 'rs_live', summary: ['think'] }, appendToLastSummary: true },
+				{ outputIndex: 0, item: { type: 'reasoning', id: 'rs_live', summary: ['ing'] }, appendToLastSummary: true },
+				{ outputIndex: 1, item: { type: 'message', content: [{ type: 'text', text: 'hello' }] } },
+			]);
+		} finally {
+			await release.complete();
+		}
+		const result = await pending;
+		assert.deepStrictEqual(result.output.map(item => item.type === 'message' ? item.content : item.type === 'reasoning' ? item.summary : []), [['thinking'], [{ type: 'text', text: 'hello world' }]]);
+	});
 
 	test('updates model discovery and blocks requests when BYOK policy changes', async () => {
 		const service = new TestLanguageModelsService(
