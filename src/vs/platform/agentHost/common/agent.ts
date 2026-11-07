@@ -1957,6 +1957,8 @@ export interface IAgentTurnModelRequest {
 	readonly selection: ModelSelection;
 	readonly text: string;
 	readonly previousTurns: readonly Turn[];
+	/** The turn's custom agent, whose own model can take the place of a router's pick. */
+	readonly agent?: AgentSelection;
 }
 
 export interface IAgentTurnModelResolution {

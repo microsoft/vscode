@@ -23,7 +23,7 @@ import { basename as resourceBasename, extUriBiasedIgnorePathCase, getComparison
 import { URI } from '../../../../base/common/uri.js';
 import { hasKey } from '../../../../base/common/types.js';
 import { generateUuid, isUUID } from '../../../../base/common/uuid.js';
-import { parse as parseYaml, type YamlParseError } from '../../../../base/common/yaml.js';
+import { parseFrontMatter, parse as parseYaml, type YamlParseError } from '../../../../base/common/yaml.js';
 import { StopWatch } from '../../../../base/common/stopwatch.js';
 import { CopilotForkTiming } from './copilotForkTiming.js';
 import { rgDiskPath } from '../../../../base/node/ripgrep.js';
@@ -4136,6 +4136,10 @@ export class CopilotAgent extends Disposable implements IAgent {
 		if (!catalog || !this._modelRouter) {
 			return { selection: undefined, notices: [localize('modelRouter.disabled', "Model routers are turned off, so this chat kept its current model.")] };
 		}
+		const agentName = request.agent && await this._customAgentWithModel(request.agent.uri);
+		if (agentName) {
+			return { selection: undefined, notices: [localize('modelRouter.agentModel', "The {0} agent uses its own model, so the model router didn't pick one.", agentName)] };
+		}
 		const snapshot = await catalog.whenSettled(token);
 		const models = context.credentials ? await this._getTurnModels(chat, context.credentials, token) : this._models.get();
 		return this._modelRouter.resolve({
@@ -4147,6 +4151,20 @@ export class CopilotAgent extends Disposable implements IAgent {
 			previousTurns: request.previousTurns,
 			picker: new DecisionsModelRouterPicker(decisionsRequest => this.askDecisions(decisionsRequest, context.credentials, token)),
 		});
+	}
+
+	/** A custom agent's name when its file names a model, which the runtime runs it on instead of a router's pick. */
+	private async _customAgentWithModel(uri: string): Promise<string | undefined> {
+		try {
+			const resource = URI.parse(uri);
+			const frontMatter = parseFrontMatter((await this._fileService.readFile(resource)).value.toString());
+			if (!frontMatter?.getStringValue('model') && !frontMatter?.getStringArrayValue('model')?.length) {
+				return undefined;
+			}
+			return frontMatter.getStringValue('name')?.trim() || resourceBasename(resource).replace(/\.agent\.md$/i, '');
+		} catch {
+			return undefined;
+		}
 	}
 
 	/** Each send captures a new credential source, so reuse the chat's model list while the credential is the same, as `_captureChatCredential` does. */

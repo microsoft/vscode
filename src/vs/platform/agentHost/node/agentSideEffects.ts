@@ -47,7 +47,7 @@ import { getEffectiveChatConfig, withChatSchemaDefaults } from '../common/sessio
 import { ChatProvidersConfigKey, chatProvidersRootConfigSchema } from '../common/agentHostChatProviders.js';
 import { resolveChatAttachment } from '../common/state/chatAttachmentContext.js';
 import { buildOpenSessionLinkForChat } from '../common/openSessionLink.js';
-import { McpServerStatus, ToolCallContributorKind, type AgentInfo, type ModelSelection, type SessionActiveClient } from '../common/state/protocol/state.js';
+import { McpServerStatus, ToolCallContributorKind, type AgentInfo, type AgentSelection, type ModelSelection, type SessionActiveClient } from '../common/state/protocol/state.js';
 import { CustomizationEnablementKind, type CustomizationEnablement } from '../common/state/protocol/channels-session/state.js';
 import { ActionType, isChatAction, StateAction, type ChatDeltaAction, type ChatReasoningAction, type ChatResponsePartAction, type ChatToolCallCompleteAction, type ChatToolCallResultConfirmedAction, type ChatToolCallStartAction, type ChatTurnStartedAction } from '../common/state/sessionActions.js';
 import {
@@ -2262,7 +2262,7 @@ export class AgentSideEffects extends Disposable {
 			let model: ModelSelection | undefined;
 			let routed: IRoutedTurnModel | undefined;
 			if (message.model && isModelRouterModelId(message.model.id)) {
-				routed = await this._resolveRoutedTurnModel(agent, chatUri, turnChannel, turnId, message.model, message.text, clientOperationContext);
+				routed = await this._resolveRoutedTurnModel(agent, chatUri, turnChannel, turnId, message.model, message.text, message.agent, clientOperationContext);
 				if (this._cancelledTurnIds.get(turnChannel)?.has(turnId)) {
 					await this._discardPendingTurnStartCheckpoint(checkpointCapture, sessionChannel, chatUri, turnId);
 					return;
@@ -2405,14 +2405,14 @@ export class AgentSideEffects extends Disposable {
 	 * A chosen model's routing is published only once the model change succeeds, so a failed
 	 * change leaves no pick for the next turn to keep.
 	 */
-	private async _resolveRoutedTurnModel(agent: IAgent, chatUri: URI, turnChannel: ProtocolURI, turnId: string, selection: ModelSelection, text: string, context: IAgentChatContext): Promise<IRoutedTurnModel | undefined> {
+	private async _resolveRoutedTurnModel(agent: IAgent, chatUri: URI, turnChannel: ProtocolURI, turnId: string, selection: ModelSelection, text: string, customAgent: AgentSelection | undefined, context: IAgentChatContext): Promise<IRoutedTurnModel | undefined> {
 		if (!agent.resolveTurnModel || resolveSubagentChatParent(context) !== undefined) {
 			this._logService.info(`[AgentSideEffects] Chat ${turnChannel} keeps its model: ${agent.id} does not route ${selection.id} here`);
 			return undefined;
 		}
 		let resolution;
 		try {
-			resolution = await agent.resolveTurnModel(chatUri, { turnId, selection, text, previousTurns: this._stateManager.getChatState(turnChannel)?.turns ?? [] }, context, CancellationToken.None);
+			resolution = await agent.resolveTurnModel(chatUri, { turnId, selection, text, previousTurns: this._stateManager.getChatState(turnChannel)?.turns ?? [], ...(customAgent ? { agent: customAgent } : {}) }, context, CancellationToken.None);
 		} catch (err) {
 			this._logService.error(`[AgentSideEffects] Routing ${selection.id} failed for ${turnChannel}; keeping the chat's model`, err);
 			this._turnTracker.updateFusionTelemetry(turnChannel, turnId, { modelRouterOutcome: 'failed' satisfies ModelRouterOutcome });
