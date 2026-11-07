@@ -274,6 +274,30 @@ suite('PromptsService', () => {
 		});
 	});
 
+	suite('IAgentSource.fromPromptPath', () => {
+		test('labels extension and plugin agents by their source', () => {
+			const extension = (displayName: string | undefined) => ({ identifier: new ExtensionIdentifier('pub.reviewer'), name: 'reviewer', displayName } as IExtensionDescription);
+			const pluginUri = URI.file('/plugins/team-tools');
+			const agentUri = URI.joinPath(pluginUri, 'agents/reviewer.agent.md');
+
+			assert.deepStrictEqual([
+				IAgentSource.fromPromptPath({ uri: URI.file('/ext/reviewer.agent.md'), storage: PromptsStorage.extension, type: PromptsType.agent, extension: extension('Code Reviewer'), source: PromptFileSource.ExtensionContribution }),
+				IAgentSource.fromPromptPath({ uri: URI.file('/ext/reviewer.agent.md'), storage: PromptsStorage.extension, type: PromptsType.agent, extension: extension(undefined), source: PromptFileSource.ExtensionContribution }).label,
+				IAgentSource.fromPromptPath({ uri: agentUri, storage: PromptsStorage.plugin, type: PromptsType.agent, pluginUri, pluginLabel: 'Team Tools', source: PromptFileSource.Plugin }).label,
+				IAgentSource.fromPromptPath({ uri: agentUri, storage: PromptsStorage.plugin, type: PromptsType.agent, pluginUri, source: PromptFileSource.Plugin }).label,
+				IAgentSource.fromPromptPath({ uri: URI.file('/workspace/.github/agents/reviewer.agent.md'), storage: PromptsStorage.local, type: PromptsType.agent }),
+				IAgentSource.fromPromptPath({ uri: URI.file('/home/user/reviewer.agent.md'), storage: PromptsStorage.user, type: PromptsType.agent }),
+			], [
+				{ storage: PromptsStorage.extension, extensionId: new ExtensionIdentifier('pub.reviewer'), label: 'Extension: Code Reviewer' },
+				'Extension: reviewer',
+				'Plugin: Team Tools',
+				'Plugin: team-tools',
+				{ storage: PromptsStorage.local },
+				{ storage: PromptsStorage.user },
+			]);
+		});
+	});
+
 	suite('voice instructions', () => {
 		test('combines user and trusted workspace voice.md files', async () => {
 			const rootFolderUri = URI.file('/workspace');
