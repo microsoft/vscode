@@ -387,6 +387,13 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 			description: localize('scm.graph.pageOnScroll', "Controls whether the Source Control Graph view will load the next page of items when you scroll to the end of the list."),
 			default: true
 		},
+		'scm.graph.experimental.showIdentifiers': {
+			type: 'boolean',
+			markdownDescription: localize('scm.graph.experimental.showIdentifiers', "Controls whether to show identifiers supplied by extensions using the proposed SCM history item identifier API. Providers that do not supply identifiers are unaffected."),
+			default: false,
+			scope: ConfigurationScope.WINDOW,
+			tags: ['experimental']
+		},
 		'scm.graph.pageSize': {
 			type: 'number',
 			description: localize('scm.graph.pageSize', "The number of items to show in the Source Control Graph view by default and when loading more items."),
