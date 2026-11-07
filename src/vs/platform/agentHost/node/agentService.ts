@@ -918,8 +918,10 @@ export interface IAgentServiceCore {
 }
 
 /**
- * The model a chat runs on when `model` is a model router: the router's latest pick, so a chat it
- * creates runs on the same model rather than routing. Other selections are returned unchanged.
+ * The model a chat runs on when `model` is a model router: its newest turn's model, the router's
+ * pick or one chosen directly, so a chat it creates runs on the same model rather than routing.
+ * Turns that selected a router but weren't routed kept the model before them. Other selections
+ * are returned unchanged.
  */
 function withRoutedModel(chat: Pick<ChatState, 'turns' | 'activeTurn'>, model: ModelSelection | undefined): ModelSelection | undefined {
 	if (!isModelRouterModelId(model?.id)) {
@@ -930,6 +932,10 @@ function withRoutedModel(chat: Pick<ChatState, 'turns' | 'activeTurn'>, model: M
 		const routed = readUsageInfoMeta(turns[i].usage).modelRouted;
 		if (routed) {
 			return { id: routed.chosenModel, ...(routed.effort ? { config: { [ReasoningEffortConfigKey]: routed.effort } } : {}) };
+		}
+		const chosen = turns[i].message.model;
+		if (chosen && !isModelRouterModelId(chosen.id)) {
+			return chosen;
 		}
 	}
 	return undefined;
