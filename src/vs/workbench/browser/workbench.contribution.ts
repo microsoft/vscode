@@ -582,6 +582,20 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 				'description': localize('alwaysShowAdvancedSettings', "Controls whether advanced settings are always shown in the settings editor without requiring the `@tag:advanced` filter."),
 				'default': product.quality !== 'stable'
 			},
+			'workbench.sideBar.fontFamily': {
+				'type': 'string',
+				'default': '',
+				'scope': ConfigurationScope.APPLICATION,
+				'description': localize('sideBarFontFamily', "Controls the font family of content in the primary and secondary side bars. An empty value uses the default workbench font. Editors and extension webviews use their own font settings.")
+			},
+			'workbench.sideBar.fontSize': {
+				'type': 'number',
+				'default': 13,
+				'minimum': 9,
+				'maximum': 16,
+				'scope': ConfigurationScope.APPLICATION,
+				'description': localize('sideBarFontSize', "Controls the font size in pixels of content in the primary and secondary side bars. The range is limited to fit fixed-height tree rows. Editors and extension webviews use their own font settings.")
+			},
 			'workbench.sideBar.location': {
 				'type': 'string',
 				'enum': ['left', 'right'],
