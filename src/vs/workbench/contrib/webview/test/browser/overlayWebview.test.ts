@@ -111,6 +111,21 @@ suite('OverlayWebview', () => {
 		});
 	});
 
+	test('lets drag events through the overlay while a drag is running', () => {
+		const root = document.createElement('div');
+		const anchor = root.appendChild(document.createElement('div'));
+		const overlay = createOverlay(root);
+		overlay.setAnchorElement(anchor);
+
+		const before = overlay.container.style.pointerEvents;
+		overlay.windowDidDragStart();
+		const during = overlay.container.style.pointerEvents;
+		overlay.windowDidDragEnd();
+		const after = overlay.container.style.pointerEvents;
+
+		assert.deepStrictEqual({ before, during, after }, { before: 'auto', during: 'none', after: 'auto' });
+	});
+
 	test('rounds only webview anchors that reach a native corner across editor splits and moves', () => {
 		const root = document.createElement('div');
 		root.className = 'monaco-workbench modern-ui floating-panels mac macos-tahoe nostatusbar';

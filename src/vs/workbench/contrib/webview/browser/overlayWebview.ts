@@ -431,10 +431,18 @@ export class OverlayWebview extends Disposable implements IOverlayWebview {
 	}
 
 	windowDidDragStart() {
+		// The overlay sits outside the view that owns it, so it has to let drag events
+		// through too, otherwise drop targets under it (e.g. the view pane) never see them.
+		if (this._overlayLayout) {
+			this._overlayLayout.content.style.pointerEvents = 'none';
+		}
 		this._webview.value?.windowDidDragStart();
 	}
 
 	windowDidDragEnd() {
+		if (this._overlayLayout) {
+			this._overlayLayout.content.style.pointerEvents = 'auto';
+		}
 		this._webview.value?.windowDidDragEnd();
 	}
 
