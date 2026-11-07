@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import 'mocha';
-import { findGit, Git, GitStatusParser, parseGitCommits, parseGitFileLog, parseGitmodules, parseLsTree, parseLsFiles, parseGitRemotes, parseCoAuthors } from '../git';
+import { findGit, Git, GitStatusParser, parseGitCommits, parseGitFileLog, parseGitmodules, parseLsTree, parseLsFiles, parseGitRemotes, parseCoAuthors, parseWorktreeGitdir } from '../git';
 import * as assert from 'assert';
 import { LogOutputChannel, window } from 'vscode';
 import { splitInChunks } from '../util';
@@ -216,6 +216,22 @@ suite('git', () => {
 			assert.deepStrictEqual(parseGitmodules(sample), [
 				{ name: 'deps/spdlog', path: 'deps/spdlog', url: 'https://github.com/gabime/spdlog.git' }
 			]);
+		});
+	});
+
+	suite('parseWorktreeGitdir', () => {
+		test('strips the trailing .git', () => {
+			assert.strictEqual(parseWorktreeGitdir('/home/user/repo.worktrees/feature/.git'), '/home/user/repo.worktrees/feature');
+			assert.strictEqual(parseWorktreeGitdir('C:/src/repo.worktrees/feature/.git'), 'C:/src/repo.worktrees/feature');
+		});
+
+		test('keeps path segments that start with .git', () => {
+			assert.strictEqual(parseWorktreeGitdir('/home/user/.github-tools/feature/.git'), '/home/user/.github-tools/feature');
+			assert.strictEqual(parseWorktreeGitdir('/home/user/.gitworktrees/feature/.git'), '/home/user/.gitworktrees/feature');
+		});
+
+		test('keeps path segments that contain git after one character', () => {
+			assert.strictEqual(parseWorktreeGitdir('/home/user/agit/feature/.git'), '/home/user/agit/feature');
 		});
 	});
 
