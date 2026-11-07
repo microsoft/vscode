@@ -1048,6 +1048,10 @@ export class AgentHostAutomationService extends Disposable implements IAgentHost
 		this._requireOperation(automation, AutomationOperation.Run);
 		const activeRun = this._activeRunFor(automation.resource);
 		if (activeRun) {
+			const nextRequests = new Map(this._manualRunRequests);
+			nextRequests.set(params.requestId, { requestId: params.requestId, automation: params.automation, run: activeRun.resource });
+			await this._persist(catalog, this._runs, nextRequests);
+			this._manualRunRequests = nextRequests;
 			if (activeRun.lifecycle.status !== AutomationRunStatus.Pending) {
 				return { run: activeRun };
 			}
