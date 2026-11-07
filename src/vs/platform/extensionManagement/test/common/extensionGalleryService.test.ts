@@ -346,6 +346,44 @@ suite('Extension Gallery Service', () => {
 		});
 	});
 
+	for (const useResourceApi of [true, false]) {
+		test(`getExtensions preserves the selected stable platform date through the ${useResourceApi ? 'resource' : 'query'} API`, async () => {
+			const listingDate = '2026-01-04T23:00:00Z';
+			const selectedDate = '2026-01-02T00:00:00Z';
+			const version = {
+				...rawLatestExtension().versions[0],
+				properties: [{ key: 'Microsoft.VisualStudio.Code.Engine', value: '*' }],
+			};
+			const rawExtension = {
+				...rawLatestExtension(),
+				versions: [
+					{ ...version, version: '1.2.0', targetPlatform: TargetPlatform.WIN32_X64, lastUpdated: listingDate, properties: [...version.properties, { key: 'Microsoft.VisualStudio.Code.PreRelease', value: 'true' }] },
+					{ ...version, version: '1.1.0', targetPlatform: TargetPlatform.LINUX_X64, lastUpdated: '2026-01-03T00:00:00Z' },
+					{ ...version, version: '1.1.0', targetPlatform: TargetPlatform.WIN32_X64, lastUpdated: selectedDate },
+				],
+				lastUpdated: listingDate,
+			};
+			const requestService = new RecordingRequestService(options => requestContext(200, options.type === 'GET' ? rawExtension : galleryQueryResponse([rawExtension])));
+			const galleryService = createExtensionGalleryService(requestService);
+
+			const extensions = await galleryService.getExtensions([{ id: 'publisher.extension', uuid: useResourceApi ? 'extension-uuid' : undefined, preRelease: false }], { compatible: true, targetPlatform: TargetPlatform.WIN32_X64 }, CancellationToken.None);
+
+			assert.deepStrictEqual(extensions.map(extension => ({
+				version: extension.version,
+				targetPlatform: extension.properties.targetPlatform,
+				isPreReleaseVersion: extension.properties.isPreReleaseVersion,
+				lastUpdated: extension.lastUpdated,
+				versionLastUpdated: extension.versionLastUpdated,
+			})), [{
+				version: '1.1.0',
+				targetPlatform: TargetPlatform.WIN32_X64,
+				isPreReleaseVersion: false,
+				lastUpdated: Date.parse(listingDate),
+				versionLastUpdated: Date.parse(selectedDate),
+			}]);
+		});
+	}
+
 	test('getExtensions falls back to query API when latest resource response omits files', async () => {
 		const rawExtension = rawLatestExtension();
 		const invalidLatestExtension = {
