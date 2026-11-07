@@ -5,7 +5,7 @@
 
 import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
-import { $, append, addDisposableListener, EventType, clearNode, getActiveWindow } from '../../../../base/browser/dom.js';
+import { $, append, addDisposableListener, EventType, clearNode, getActiveWindow, isAncestorOfActiveElement } from '../../../../base/browser/dom.js';
 import { isCancellationError } from '../../../../base/common/errors.js';
 import { StopWatch } from '../../../../base/common/stopwatch.js';
 import { URI } from '../../../../base/common/uri.js';
@@ -160,7 +160,11 @@ export class OnboardingVariationA extends Disposable implements IOnboardingServi
 		this._register(autorun(reader => {
 			this.microsoftAccountSetup.read(reader);
 			if (this.overlay && this.currentStepIndex === 0) {
+				const restoreFocus = this.contentEl && isAncestorOfActiveElement(this.contentEl);
 				this._renderStep();
+				if (restoreFocus) {
+					this._focusCurrentStepElement();
+				}
 			}
 		}));
 

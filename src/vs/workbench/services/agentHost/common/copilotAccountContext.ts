@@ -7,7 +7,7 @@ import { CancellationToken, CancellationTokenSource } from '../../../../base/com
 import { Event, Relay } from '../../../../base/common/event.js';
 import { DisposableStore } from '../../../../base/common/lifecycle.js';
 import { structuralEquals } from '../../../../base/common/equals.js';
-import { IObservable, observableFromEventOpts, waitForState } from '../../../../base/common/observable.js';
+import { derivedOpts, IObservable, observableFromEvent, observableSignalFromEvent, waitForState } from '../../../../base/common/observable.js';
 import { IAgentHostService } from '../../../../platform/agentHost/common/agentService.js';
 import { CopilotAccountContext, copilotAccountContextKey, readCopilotAccountContext } from '../../../../platform/agentHost/common/copilotAccountContext.js';
 import { localize } from '../../../../nls.js';
@@ -27,16 +27,26 @@ export function observeCopilotAccountContext(host: IAgentHostService, store: Dis
 	};
 	bind();
 	store.add(host.onAgentHostStart(bind));
-	return observableFromEventOpts({
+	const lifecycleAvailable = observableFromEvent(store, Event.any(
+		Event.map(host.onAgentHostStart, () => true),
+		Event.map(host.onAgentHostExit, () => false),
+	), available => available);
+	const changed = observableSignalFromEvent(store, Event.any(relay.event, host.onAgentHostStart));
+	return derivedOpts({
 		owner: store,
 		equalsFn: structuralEquals<CopilotAccountContextView>,
-	}, Event.any(relay.event, host.onAgentHostStart, Event.map(host.onAgentHostExit, () => undefined)), () => {
+	}, reader => {
+		changed.read(reader);
+		const available = host.connectionAvailable?.read(reader) ?? lifecycleAvailable.read(reader);
 		if (!hasAgentHostConnection(host)) {
-			return undefined;
+			return available === false ? 'loading' : undefined;
 		}
 		const root = host.rootState.value;
-		if (!root || root instanceof Error) {
-			return root ?? 'loading';
+		if (root instanceof Error) {
+			return root;
+		}
+		if (!root || available === false) {
+			return 'loading';
 		}
 		const context = readCopilotAccountContext(root);
 		return context === undefined && root.config?.values[copilotAccountContextKey] !== undefined

@@ -276,19 +276,37 @@ export class ChatSetupController extends Disposable {
 
 	private async getMicrosoftSession(accountId: string | undefined, token: CancellationToken): Promise<AuthenticationSession | undefined> {
 		const authOptions = { clientId: copilotEntraClientId, authorizationServer: URI.parse(copilotEntraAuthorizationServer) };
-		const sessions = distinct(await this.authenticationService.getSessions('microsoft', undefined, { ...authOptions, silent: true }, true), session => session.account.id);
+		const available = await raceCancellation(this.authenticationService.getSessions('microsoft', undefined, { ...authOptions, silent: true }, true), token);
+		if (!available || token.isCancellationRequested) {
+			return undefined;
+		}
+		const sessions = distinct(available, session => session.account.id);
+		const session = sessions.find(session => session.account.id === accountId)
+			?? (accountId === undefined && sessions.length === 1 ? sessions[0] : undefined);
+		if (accountId && !session) {
+			throw new Error(localize('copilotMicrosoftIdentityMissing', "The signed-in Microsoft account is no longer available. Sign out and sign in with the intended account."));
+		}
+		return this.getMicrosoftCredential(session?.account, token);
+	}
+
+	private async getMicrosoftCredential(account: AuthenticationSession['account'] | undefined, token: CancellationToken): Promise<AuthenticationSession | undefined> {
+		const authOptions = { clientId: copilotEntraClientId, authorizationServer: URI.parse(copilotEntraAuthorizationServer), account };
+		let credential: AuthenticationSession | undefined;
+		if (account) {
+			const credentials = await raceCancellation(this.authenticationService.getSessions('microsoft', ['User.Read'], { ...authOptions, silent: true }, true), token);
+			credential = credentials?.find(session => session.account.id === account.id);
+		}
 		if (token.isCancellationRequested) {
 			return undefined;
 		}
-		const session = sessions.find(session => session.account.id === accountId)
-			?? (accountId === undefined && sessions.length === 1 ? sessions[0] : undefined);
-		if (session) {
-			return session;
+		credential ??= await raceCancellation(this.authenticationService.createSession('microsoft', ['User.Read'], authOptions), token);
+		if (!credential || token.isCancellationRequested) {
+			return undefined;
 		}
-		if (accountId) {
-			throw new Error(localize('copilotMicrosoftIdentityMissing', "The signed-in Microsoft account is no longer available. Sign out and sign in with the intended account."));
+		if (account && credential.account.id !== account.id || !credential.accessToken || !credential.scopes.includes('User.Read')) {
+			throw new Error(localize('copilotMicrosoftCredentialMismatch', "Authentication did not provide the requested permissions for the intended Microsoft account."));
 		}
-		return this.authenticationService.createSession('microsoft', ['User.Read'], authOptions);
+		return credential;
 	}
 
 	private async chooseCopilotService(discovered: Extract<CopilotAccountContext, { kind: 'choiceRequired' }>, token: CancellationToken): Promise<CopilotAccountContext | undefined> {
