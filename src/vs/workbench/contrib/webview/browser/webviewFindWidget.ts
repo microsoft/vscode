@@ -48,7 +48,6 @@ export class WebviewFindWidget extends SimpleFindWidget {
 
 		this._register(_delegate.hasFindResult(hasResult => {
 			this.updateButtons(hasResult);
-			this.focusFindBox();
 		}));
 
 		this._register(_delegate.onDidStopFind(() => {
