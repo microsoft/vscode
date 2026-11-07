@@ -509,6 +509,8 @@ export interface IBrowserViewModel extends IDisposable {
 	readonly screenshot: VSBuffer | undefined;
 	readonly loading: boolean;
 	readonly focused: boolean;
+	/** Whether the page has ever had focus: only then may the user have interacted with it. */
+	readonly hasBeenFocused: boolean;
 	readonly visible: boolean;
 	readonly canGoBack: boolean;
 	readonly isDevToolsOpen: boolean;
@@ -621,6 +623,7 @@ export class BrowserViewModel extends Disposable implements IBrowserViewModel {
 	private _screenshot: VSBuffer | undefined = undefined;
 	private _loading: boolean = false;
 	private _focused: boolean = false;
+	private _hasBeenFocused: boolean = false;
 	private _visible: boolean = false;
 	private _isDevToolsOpen: boolean = false;
 	private _canGoBack: boolean = false;
@@ -699,6 +702,7 @@ export class BrowserViewModel extends Disposable implements IBrowserViewModel {
 		this._title = initialState.title;
 		this._loading = initialState.loading;
 		this._focused = initialState.focused;
+		this._hasBeenFocused = initialState.hasBeenFocused;
 		this._visible = initialState.visible;
 		this._isDevToolsOpen = initialState.isDevToolsOpen;
 		this._canGoBack = initialState.canGoBack;
@@ -802,6 +806,7 @@ export class BrowserViewModel extends Disposable implements IBrowserViewModel {
 
 		this._register(this.onDidChangeFocus(({ focused }) => {
 			this._focused = focused;
+			this._hasBeenFocused ||= focused;
 		}));
 
 		this._register(this.onDidChangeVisibility(({ visible }) => {
@@ -844,6 +849,7 @@ export class BrowserViewModel extends Disposable implements IBrowserViewModel {
 	get favicon(): string | undefined { return this._favicon; }
 	get loading(): boolean { return this._loading; }
 	get focused(): boolean { return this._focused; }
+	get hasBeenFocused(): boolean { return this._hasBeenFocused; }
 	get visible(): boolean { return this._visible; }
 	get isDevToolsOpen(): boolean { return this._isDevToolsOpen; }
 	get canGoBack(): boolean { return this._canGoBack; }

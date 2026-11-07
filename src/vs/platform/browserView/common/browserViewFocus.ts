@@ -13,16 +13,26 @@ export class BrowserViewReportedFocus {
 	private _viewFocused: boolean;
 	private _windowFocused: boolean;
 	private _reported: boolean;
+	private _hasBeenFocused: boolean;
 
 	constructor(viewFocused: boolean, windowFocused: boolean, private readonly _report: (focused: boolean) => void) {
 		this._viewFocused = viewFocused;
 		this._windowFocused = windowFocused;
 		this._reported = viewFocused && windowFocused;
+		this._hasBeenFocused = this._reported;
 	}
 
 	/** Whether the view reports focus. */
 	get focused(): boolean {
 		return this._reported;
+	}
+
+	/**
+	 * Whether the view has ever reported focus. The user types into a page, or clicks it, only once it has focus,
+	 * whereas automation drives pages without focusing them.
+	 */
+	get hasBeenFocused(): boolean {
+		return this._hasBeenFocused;
 	}
 
 	/** The page of the view gained or lost focus within its window. */
@@ -41,6 +51,7 @@ export class BrowserViewReportedFocus {
 		const focused = this._viewFocused && this._windowFocused;
 		if (focused !== this._reported) {
 			this._reported = focused;
+			this._hasBeenFocused ||= focused;
 			this._report(focused);
 		}
 	}

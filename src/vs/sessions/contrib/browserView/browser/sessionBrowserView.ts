@@ -5,6 +5,7 @@
 
 import { Disposable, DisposableMap, DisposableStore } from '../../../../base/common/lifecycle.js';
 import { Emitter } from '../../../../base/common/event.js';
+import { isEqual } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
 import { IWorkbenchContribution } from '../../../../workbench/common/contributions.js';
 import { IBrowserViewWorkbenchService } from '../../../../workbench/contrib/browserView/common/browserView.js';
@@ -21,7 +22,7 @@ export class SessionBrowserViewController extends Disposable implements IWorkben
 	static readonly ID = 'workbench.contrib.sessionBrowserViewController';
 
 	/**
-	 * Tracks browser view inputs with their owning session. The
+	 * Tracks browser view inputs with the session they were first opened in. The
 	 * DisposableMap cleans up lifecycle listeners on deletion/disposal.
 	 */
 	private readonly _trackedInputs = this._register(new DisposableMap<string, { session: ISession; dispose: () => void }>());
@@ -89,23 +90,36 @@ export class SessionBrowserViewController extends Disposable implements IWorkben
 			},
 		}));
 
-		// Force-destroy browser views when sessions are removed.
+		// Force-destroy browser views when their owning session is archived or removed.
 		this._register(this._sessionManagementService.onDidChangeSessions(e => {
-			if (e.removed.length === 0 || this._trackedInputs.size === 0) {
+			const archived = e.changed.filter(session => session.isArchived.get());
+			if (e.removed.length === 0 && archived.length === 0) {
 				return;
 			}
 
-			const removedSessionIds = new Set(e.removed.map(s => s.resource.toString()));
-			const known = this._browserViewService.getKnownBrowserViews();
-			for (const [id, { session }] of this._trackedInputs) {
-				if (removedSessionIds.has(session.resource.toString())) {
-					const existingInput = known.get(id);
-					if (existingInput instanceof BrowserEditorInput) {
-						existingInput.dispose(true);
-					}
+			for (const input of [...this._browserViewService.getKnownBrowserViews().values()]) {
+				// Other pages close as the session they were opened in gets archived, see `_attachLifecycle`
+				const closedSessions = input.model?.owner.type === 'agent' ? [...e.removed, ...archived] : e.removed;
+				const owningSession = this._getOwningSession(input, e.removed);
+				if (owningSession && closedSessions.some(session => session.sessionId === owningSession.sessionId)) {
+					input.dispose(true);
 				}
 			}
 		}));
+	}
+
+	/**
+	 * The session that owns a browser view: for a page that an agent opened, the session of the agent's chat, also
+	 * when the page never had an editor in this window, such as when it was opened in the background or re-adopted
+	 * after a window reload. Otherwise, the session the page was first opened in.
+	 */
+	private _getOwningSession(input: BrowserEditorInput, removedSessions: readonly ISession[]): ISession | undefined {
+		const owner = input.model?.owner;
+		const agentOwner = owner?.type === 'agent' ? resolveBrowserOwnerSession(this._sessionManagementService, owner.sessionId) : undefined;
+		// A removed session is no longer known, so its chats are matched directly
+		return agentOwner?.session
+			?? (agentOwner && removedSessions.find(session => isChatOfSession(session, agentOwner.resource)))
+			?? this._trackedInputs.get(input.id)?.session;
 	}
 
 	private _attachLifecycle(input: BrowserEditorInput): void {
@@ -121,9 +135,10 @@ export class SessionBrowserViewController extends Disposable implements IWorkben
 		const store = new DisposableStore();
 		this._trackedInputs.set(input.id, { session, dispose: () => store.dispose() });
 
-		// When the owning session is archived, force-dispose the browser view.
+		// When the session is archived, force-dispose the browser view, unless an agent opened it: the page then belongs
+		// to the session of the agent, whatever session it was opened in.
 		store.add(runOnChange(session.isArchived, (isArchived) => {
-			if (isArchived) {
+			if (isArchived && input.model?.owner.type !== 'agent') {
 				input.dispose(true);
 			}
 		}));
@@ -160,4 +175,9 @@ export function resolveBrowserOwnerSession(sessionsManagementService: ISessionsM
 		return undefined;
 	}
 	return { resource, session: sessionsManagementService.getSessionForChatResource(resource)?.session ?? sessionsManagementService.getSession(resource) };
+}
+
+/** Whether `resource` is the resource of `session`, or of one of its chats. */
+function isChatOfSession(session: ISession, resource: URI): boolean {
+	return isEqual(session.resource, resource) || [session.mainChat.get(), ...session.chats.get()].some(chat => isEqual(chat.resource, resource));
 }

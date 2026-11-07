@@ -33,4 +33,18 @@ suite('BrowserViewReportedFocus', () => {
 			initiallyFocusedInInactiveWindow: false,
 		});
 	});
+
+	test('remembers that the page has had focus, which takes focus of its window too', () => {
+		const focus = new BrowserViewReportedFocus(true, false, () => { });
+		const steps = [focus.hasBeenFocused];	// the page has focus in an inactive window
+		focus.setWindowFocused(true);			// its window is activated
+		steps.push(focus.hasBeenFocused);
+		focus.setViewFocused(false);			// focus moves to the workbench of its window
+		steps.push(focus.hasBeenFocused);
+
+		assert.deepStrictEqual({ steps, initiallyFocused: new BrowserViewReportedFocus(true, true, () => { }).hasBeenFocused }, {
+			steps: [false, true, true],
+			initiallyFocused: true,
+		});
+	});
 });
