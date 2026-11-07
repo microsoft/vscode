@@ -17,6 +17,7 @@ import { Action2, IMenuItem, MenuId, MenuRegistry, registerAction2 } from '../..
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { ContextKeyExpr, ContextKeyExpression, IContextKey, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
+import { IDialogService } from '../../../../platform/dialogs/common/dialogs.js';
 import { IHoverService } from '../../../../platform/hover/browser/hover.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
@@ -36,6 +37,7 @@ const DISABLED_REMINDER_LAST_SHOWN_KEY = 'update/disabledReminderLastShown';
 const DISABLED_REMINDER_PERIOD = 30 * 24 * 60 * 60 * 1000; // 30 days
 
 const UPDATE_TITLE_BAR_SETTING = 'update.titleBar';
+const UPDATE_CONFIRM_RESTART_SETTING = 'update.confirmRestart';
 
 const ACTIONABLE_STATES: readonly StateType[] = [StateType.AvailableForDownload, StateType.Downloaded, StateType.Ready];
 const DETAILED_STATES: readonly StateType[] = [...ACTIONABLE_STATES, StateType.CheckingForUpdates, StateType.Downloading, StateType.Updating, StateType.Overwriting, StateType.Cancelling];
@@ -244,6 +246,8 @@ export class UpdateTitleBarEntry extends BaseActionViewItem {
 		private readonly onDidShowTooltip: (focus: boolean) => void,
 		private readonly onUserDismissedTooltip: () => void,
 		@ICommandService private readonly commandService: ICommandService,
+		@IConfigurationService private readonly configurationService: IConfigurationService,
+		@IDialogService private readonly dialogService: IDialogService,
 		@IHoverService private readonly hoverService: IHoverService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
 		@IUpdateService private readonly updateService: IUpdateService,
@@ -325,6 +329,9 @@ export class UpdateTitleBarEntry extends BaseActionViewItem {
 				commandId = 'update.install';
 				break;
 			case StateType.Ready:
+				if (!await this.confirmRestart()) {
+					return;
+				}
 				commandId = 'update.restart';
 				break;
 			default:
@@ -334,6 +341,32 @@ export class UpdateTitleBarEntry extends BaseActionViewItem {
 
 		this.telemetryService.publicLog2<WorkbenchActionExecutedEvent, WorkbenchActionExecutedClassification>('workbenchActionExecuted', { id: commandId, from: 'titlebar' });
 		await this.commandService.executeCommand(commandId);
+	}
+
+	/**
+	 * Asks the user to confirm restarting to apply the update, since restarting
+	 * closes and reopens all windows and is easy to trigger by accident.
+	 */
+	private async confirmRestart(): Promise<boolean> {
+		if (this.configurationService.getValue<boolean>(UPDATE_CONFIRM_RESTART_SETTING) === false) {
+			return true;
+		}
+
+		const { confirmed, checkboxChecked } = await this.dialogService.confirm({
+			type: 'info',
+			message: localize('updateIndicator.confirmRestart', "Are you sure you want to restart to update?"),
+			detail: localize('updateIndicator.confirmRestartDetail', "All windows will be closed and reopened to apply the update."),
+			primaryButton: localize({ key: 'updateIndicator.confirmRestartButton', comment: ['&& denotes a mnemonic'] }, "&&Restart"),
+			checkbox: {
+				label: localize('updateIndicator.confirmRestartDoNotAskAgain', "Do not ask me again")
+			}
+		});
+
+		if (confirmed && checkboxChecked) {
+			await this.configurationService.updateValue(UPDATE_CONFIRM_RESTART_SETTING, false);
+		}
+
+		return confirmed;
 	}
 
 	private onStateChange(state: State) {
