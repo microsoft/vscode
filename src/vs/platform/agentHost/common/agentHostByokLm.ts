@@ -254,7 +254,7 @@ export interface IAgentHostByokLmHandler {
  * pushes its models over {@link onDidChangeModels}; `chat` stays a round-trip.
  */
 export interface IByokLmBridgeConnection {
-	chat(request: IByokLmChatRequest): Promise<IByokLmChatResult>;
+	chat(request: IByokLmChatRequest, token?: CancellationToken): Promise<IByokLmChatResult>;
 	/** Emits the renderer's current BYOK model snapshot on subscribe and on every change. */
 	readonly onDidChangeModels: Event<IByokLmModelInfo[]>;
 }
