@@ -560,12 +560,23 @@ importers:
       '@octokit/graphql':
         specifier: ^5.0.1
         version: 5.0.6
+    devDependencies:
+      '@types/node':
+        specifier: 24.x
+        version: 24.12.4
 
   .vscode/extensions/vscode-selfhost-import-aid:
     dependencies:
       typescript:
         specifier: 5.5.4
         version: 5.5.4
+    devDependencies:
+      '@types/mocha':
+        specifier: ^10.0.10
+        version: 10.0.10
+      '@types/node':
+        specifier: 24.x
+        version: 24.12.4
 
   .vscode/extensions/vscode-selfhost-test-provider:
     dependencies:
@@ -581,6 +592,9 @@ importers:
       istanbul-to-vscode:
         specifier: ^2.0.1
         version: 2.0.1
+      typescript:
+        specifier: npm:@typescript/typescript6@^6.0.2
+        version: '@typescript/typescript6@6.0.2'
     devDependencies:
       '@types/mocha':
         specifier: ^10.0.6
@@ -597,6 +611,12 @@ importers:
 
   test/automation:
     dependencies:
+      '@playwright/test':
+        specifier: ^1.61.1
+        version: 1.61.1
+      '@vscode/v8-heap-parser':
+        specifier: ^0.1.0
+        version: 0.1.0
       axe-core:
         specifier: ^4.10.2
         version: 4.11.1
@@ -622,6 +642,9 @@ importers:
       npm-run-all2:
         specifier: ^8.0.4
         version: 8.0.4
+      playwright-core:
+        specifier: 1.61.0-alpha-2026-06-04
+        version: 1.61.0-alpha-2026-06-04
 
   test/componentFixtures/playwright:
     devDependencies:
@@ -637,6 +660,12 @@ importers:
 
   test/integration/browser:
     devDependencies:
+      '@playwright/test':
+        specifier: ^1.61.1
+        version: 1.61.1
+      '@types/minimist':
+        specifier: ^1.2.1
+        version: 1.2.1
       '@types/node':
         specifier: 24.x
         version: 24.12.4
@@ -646,6 +675,9 @@ importers:
       '@types/tmp':
         specifier: 0.1.0
         version: 0.1.0
+      minimist:
+        specifier: ^1.2.8
+        version: 1.2.8
       rimraf:
         specifier: ^2.6.1
         version: 2.7.1
@@ -661,15 +693,21 @@ importers:
 
   test/monaco:
     devDependencies:
+      '@playwright/test':
+        specifier: ^1.61.1
+        version: 1.61.1
       '@types/chai':
         specifier: ^4.2.14
         version: 4.2.14
+      '@types/mocha':
+        specifier: ^10.0.10
+        version: 10.0.10
       '@types/node':
         specifier: 24.12.4
         version: 24.12.4
       axe-playwright:
         specifier: ^2.1.0
-        version: 2.1.0
+        version: 2.1.0(playwright@1.61.1)
       chai:
         specifier: ^4.2.0
         version: 4.2.0
@@ -679,6 +717,12 @@ importers:
       file-loader:
         specifier: ^6.2.0
         version: 6.2.0(webpack@5.105.4)
+      glob:
+        specifier: ^5.0.13
+        version: 5.0.15
+      playwright:
+        specifier: ^1.61.1
+        version: 1.61.1
       style-loader:
         specifier: ^3.3.2
         version: 3.3.4(webpack@5.105.4)
@@ -691,41 +735,95 @@ importers:
       webpack-cli:
         specifier: ^5.1.4
         version: 5.1.4(webpack@5.105.4)
+      yaserver:
+        specifier: ^0.4.0
+        version: 0.4.0
 
   test/scenario:
     dependencies:
+      '@vscode/sqlite3':
+        specifier: 5.1.12-vscode
+        version: 5.1.12-vscode
       minimist:
         specifier: ^1.2.8
         version: 1.2.8
     devDependencies:
+      '@playwright/test':
+        specifier: ^1.61.1
+        version: 1.61.1
       npm-run-all2:
         specifier: ^8.0.4
         version: 8.0.4
 
   test/smoke:
     dependencies:
+      '@microsoft/dev-tunnels-contracts':
+        specifier: ^1.3.61
+        version: 1.3.61
+      '@microsoft/dev-tunnels-management':
+        specifier: ^1.3.61
+        version: 1.3.61
+      '@vscode/sqlite3':
+        specifier: 5.1.12-vscode
+        version: 5.1.12-vscode
       axios:
         specifier: ^1.20.0
         version: 1.20.0
       graceful-fs:
         specifier: ^4.2.11
         version: 4.2.11
+      kerberos:
+        specifier: 2.1.1
+        version: 2.1.1
+      minimist:
+        specifier: ^1.2.8
+        version: 1.2.8
       node-fetch:
         specifier: ^2.6.7
         version: 2.6.7
+      ssh2:
+        specifier: ^1.16.0
+        version: 1.17.0
       tree-kill:
         specifier: 1.2.2
         version: 1.2.2
       vscode-jsonrpc:
         specifier: ^8.2.1
         version: 8.2.1
+      ws:
+        specifier: ^8.19.0
+        version: 8.21.0
     devDependencies:
+      '@playwright/test':
+        specifier: ^1.61.1
+        version: 1.61.1
+      '@types/kerberos':
+        specifier: ^1.1.2
+        version: 1.1.2
+      '@types/minimist':
+        specifier: ^1.2.1
+        version: 1.2.1
+      '@types/mocha':
+        specifier: ^10.0.10
+        version: 10.0.10
       '@types/node':
         specifier: 24.x
         version: 24.12.4
       '@types/node-fetch':
         specifier: ^2.5.10
         version: 2.5.10
+      '@types/ssh2':
+        specifier: ^1.15.4
+        version: 1.15.5
+      '@types/ws':
+        specifier: ^8.18.1
+        version: 8.18.1
+      '@vscode/test-electron':
+        specifier: ^2.4.0
+        version: 2.4.0
+      mocha:
+        specifier: ^10.8.2
+        version: 10.8.2
       npm-run-all2:
         specifier: ^8.0.4
         version: 8.0.4
@@ -8793,13 +8891,14 @@ snapshots:
       axe-core: 4.10.3
       mustache: 4.2.0
 
-  axe-playwright@2.1.0:
+  axe-playwright@2.1.0(playwright@1.61.1):
     dependencies:
       '@types/junit-report-builder': 3.0.2
       axe-core: 4.10.3
       axe-html-reporter: 2.2.11(axe-core@4.10.3)
       junit-report-builder: 5.1.1
       picocolors: 1.1.1
+      playwright: 1.61.1
 
   axios@1.20.0:
     dependencies:
