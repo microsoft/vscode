@@ -163,7 +163,7 @@ export class DiffEditorViewModel extends Disposable implements IDiffEditorViewMo
 			let visibleRegions: LineRangeMapping[] | undefined = undefined;
 
 			const lastUnchangedRegions = this._unchangedRegions.get();
-			if (lastUnchangedRegions) {
+			if (lastUnchangedRegions && this._options.hideUnchangedRegions.get()) {
 				const lastUnchangedRegionsOrigRanges = lastUnchangedRegions.originalDecorationIds
 					.map(id => model.original.getDecorationRange(id))
 					.map(r => r ? LineRange.fromRangeInclusive(r) : undefined);
@@ -323,7 +323,7 @@ export class DiffEditorViewModel extends Disposable implements IDiffEditorViewMo
 	}
 
 	public ensureModifiedLineIsVisible(lineNumber: number, preference: RevealPreference, tx: ITransaction | undefined): void {
-		if (this.diff.get()?.mappings.length === 0) {
+		if (!this._options.hideUnchangedRegions.get() || this.diff.get()?.mappings.length === 0) {
 			return;
 		}
 		const unchangedRegions = this._unchangedRegions.get()?.regions || [];
@@ -336,7 +336,7 @@ export class DiffEditorViewModel extends Disposable implements IDiffEditorViewMo
 	}
 
 	public ensureOriginalLineIsVisible(lineNumber: number, preference: RevealPreference, tx: ITransaction | undefined): void {
-		if (this.diff.get()?.mappings.length === 0) {
+		if (!this._options.hideUnchangedRegions.get() || this.diff.get()?.mappings.length === 0) {
 			return;
 		}
 		const unchangedRegions = this._unchangedRegions.get()?.regions || [];
@@ -355,23 +355,27 @@ export class DiffEditorViewModel extends Disposable implements IDiffEditorViewMo
 	public serializeState(): SerializedState {
 		const regions = this._unchangedRegions.get();
 		return {
-			collapsedRegions: regions?.regions.map(r => ({ range: r.getHiddenModifiedRange(undefined).serialize() }))
+			collapsedRegions: regions?.regions.map(r => ({
+				range: r.getHiddenModifiedRange(undefined).serialize(),
+				unchangedRange: r.modifiedUnchangedRange.serialize(),
+			}))
 		};
 	}
 
 	public restoreSerializedState(state: SerializedState): void {
-		const ranges = state.collapsedRegions?.map(r => LineRange.deserialize(r.range));
 		const regions = this._unchangedRegions.get();
-		if (!regions || !ranges) {
+		if (!regions || !state.collapsedRegions || !this._options.hideUnchangedRegions.get()) {
 			return;
 		}
+		// The diff might have changed since the state was saved
+		const savedRegions = state.collapsedRegions
+			.filter(r => r.unchangedRange)
+			.map(r => ({ unchangedRange: LineRange.deserialize(r.unchangedRange!), hiddenRange: LineRange.deserialize(r.range) }));
 		transaction(tx => {
 			for (const r of regions.regions) {
-				for (const range of ranges) {
-					if (r.modifiedUnchangedRange.intersect(range)) {
-						r.setHiddenModifiedRange(range, tx);
-						break;
-					}
+				const saved = savedRegions.find(s => s.unchangedRange.equals(r.modifiedUnchangedRange));
+				if (saved) {
+					r.setHiddenModifiedRange(saved.hiddenRange, tx);
 				}
 			}
 		});
@@ -409,7 +413,7 @@ function normalizeRangeMapping(rangeMapping: RangeMapping, original: ITextModel,
 }
 
 interface SerializedState {
-	collapsedRegions: { range: ISerializedLineRange }[] | undefined;
+	collapsedRegions: { range: ISerializedLineRange; unchangedRange?: ISerializedLineRange }[] | undefined;
 }
 
 export class DiffState {
@@ -619,12 +623,12 @@ export class UnchangedRegion {
 	}
 
 	public showOriginalLine(lineNumber: number, preference: RevealPreference, tx: ITransaction | undefined): void {
-		const top = lineNumber - this.originalLineNumber;
-		const bottom = (this.originalLineNumber + this.lineCount) - lineNumber;
+		const top = lineNumber + 1 - (this.originalLineNumber + this._visibleLineCountTop.get());
+		const bottom = (this.originalLineNumber - this._visibleLineCountBottom.get() + this.lineCount) - lineNumber;
 		if (preference === RevealPreference.FromCloserSide && top < bottom || preference === RevealPreference.FromTop) {
-			this._visibleLineCountTop.set(Math.min(this._visibleLineCountTop.get() + bottom - top, this.getMaxVisibleLineCountTop()), tx);
+			this._visibleLineCountTop.set(Math.min(this._visibleLineCountTop.get() + top, this.getMaxVisibleLineCountTop()), tx);
 		} else {
-			this._visibleLineCountBottom.set(Math.min(this._visibleLineCountBottom.get() + top - bottom, this.getMaxVisibleLineCountBottom()), tx);
+			this._visibleLineCountBottom.set(Math.min(this._visibleLineCountBottom.get() + bottom, this.getMaxVisibleLineCountBottom()), tx);
 		}
 	}
 
