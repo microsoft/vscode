@@ -67,7 +67,6 @@
 .automations-cards-grid,
 .automations-cards-empty,
 .automations-cards-state,
-.automations-cards-partial-state,
 .automations-templates,
 .automations-disabled-section,
 .automations-history-state,
@@ -403,6 +402,9 @@
 }
 
 .automations-cards-empty-title {
+	display: inline-flex;
+	align-items: center;
+	gap: var(--vscode-spacing-size60);
 	font-size: var(--vscode-fontSize-heading3);
 	font-weight: var(--vscode-fontWeight-semiBold);
 	color: var(--vscode-foreground);
@@ -426,7 +428,7 @@
 	font-size: 12px;
 }
 
-/* Loading and error states */
+/* Loading state */
 .automations-cards-state {
 	display: flex;
 	flex-direction: column;
@@ -441,10 +443,6 @@
 .automations-cards-state-icon {
 	font-size: var(--vscode-codiconFontSize);
 	color: var(--vscode-descriptionForeground);
-}
-
-.automations-cards-error .automations-cards-state-icon {
-	color: var(--vscode-errorForeground);
 }
 
 .automations-cards-state-title {
@@ -466,7 +464,6 @@
 	max-width: 180px;
 }
 
-.automations-cards-unavailable .automations-cards-state-description,
 .automations-cards-partial-state-message {
 	white-space: pre-line;
 }
@@ -484,28 +481,13 @@
 	margin-top: var(--vscode-spacing-size40);
 }
 
-.automations-cards-partial-state {
-	display: flex;
-	align-items: center;
-	gap: var(--vscode-spacing-size80);
-	margin-top: var(--vscode-spacing-size120);
-	padding: var(--vscode-spacing-size80) var(--vscode-spacing-size120);
-	border: var(--vscode-strokeThickness) solid var(--vscode-editorWidget-border);
-	border-radius: var(--vscode-cornerRadius-small);
-	box-sizing: border-box;
-	font-size: var(--vscode-fontSize-label1);
+.automations-ownership-summary .codicon.automations-cards-partial-state,
+.automations-cards-empty-title .codicon.automations-cards-partial-state {
+	width: var(--vscode-codiconFontSize-compact);
+	height: var(--vscode-codiconFontSize-compact);
 	color: var(--vscode-descriptionForeground);
-}
-
-.automations-cards-partial-state-error {
-	border-color: var(--vscode-inputValidation-warningBorder);
-	background-color: var(--vscode-inputValidation-warningBackground);
-	color: var(--vscode-inputValidation-warningForeground);
-}
-
-.automations-cards-partial-state-icon {
-	flex-shrink: 0;
-	font-size: var(--vscode-codiconFontSize);
+	cursor: default;
+	font-size: var(--vscode-codiconFontSize-compact);
 }
 
 /* Disabled automations */
