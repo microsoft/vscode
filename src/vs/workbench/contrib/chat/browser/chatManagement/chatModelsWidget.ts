@@ -32,7 +32,7 @@ import { SuggestEnabledInput } from '../../../codeEditor/browser/suggestEnabledI
 import { Delayer } from '../../../../../base/common/async.js';
 import { settingsTextInputBorder } from '../../../preferences/common/settingsEditorColorRegistry.js';
 import { IChatEntitlementService, ChatEntitlement } from '../../../../services/chat/common/chatEntitlementService.js';
-import { getModelPickerEntitlement, isMicrosoft365ServiceActive, isModelPickerUsageBased } from '../widget/input/modelPicker/modelPickerPresentation.js';
+import { getModelPickerEntitlement, isMicrosoft365ServiceActive, isModelPickerUsageBased, shouldShowModelBilling } from '../widget/input/modelPicker/modelPickerPresentation.js';
 import { DropdownMenuActionViewItem } from '../../../../../base/browser/ui/dropdown/dropdownActionViewItem.js';
 import { IActionViewItemOptions } from '../../../../../base/browser/ui/actionbar/actionViewItems.js';
 import { AnchorAlignment } from '../../../../../base/browser/ui/contextview/contextview.js';
@@ -687,6 +687,7 @@ class CombinedCostColumnRenderer extends ModelsTableColumnRenderer<ICombinedCost
 
 	constructor(
 		@IHoverService private readonly hoverService: IHoverService,
+		@IChatEntitlementService private readonly chatEntitlementService: IChatEntitlementService,
 	) {
 		super();
 	}
@@ -725,6 +726,9 @@ class CombinedCostColumnRenderer extends ModelsTableColumnRenderer<ICombinedCost
 	}
 
 	override renderModelElement(entry: ILanguageModelEntry, index: number, templateData: ICombinedCostColumnTemplateData): void {
+		if (!shouldShowModelBilling(entry.model, this.chatEntitlementService)) {
+			return;
+		}
 		const { inputCost, outputCost, cacheCost, cacheWriteCost } = entry.model.metadata;
 		const hasCost = inputCost !== undefined || outputCost !== undefined || cacheCost !== undefined || cacheWriteCost !== undefined;
 
@@ -1466,6 +1470,9 @@ export class ChatModelsWidget extends Disposable {
 						}
 						if (e.model.metadata.capabilities) {
 							ariaLabels.push(localize('model.capabilities', 'Capabilities: {0}', Object.keys(e.model.metadata.capabilities).join(', ')));
+						}
+						if (!shouldShowModelBilling(e.model, this.chatEntitlementService)) {
+							return ariaLabels.join('. ');
 						}
 						const pricingText = e.model.metadata.pricing ?? '-';
 						if (pricingText !== '-') {

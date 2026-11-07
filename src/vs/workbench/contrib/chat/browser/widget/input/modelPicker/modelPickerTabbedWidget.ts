@@ -47,7 +47,7 @@ import { getPreferredSpeedVariant, IModelSpeedVariants } from './modelPickerVari
 import { getModelBadge, getOrganizationDefaultDescription, getOrganizationDefaultModel, organizationDefaultLabel } from './modelPickerBadges.js';
 import { buildModelToProviderGroupMap, createModelAction, createUnavailableModelItem, getUnavailableReason, IModelPickerOrganizationSupport, IProviderGroupInfo, requiresNewerVSCode } from './modelPickerItemPrimitives.js';
 import { getModelPickerAccessibilityProvider, getModelPickerControlModels } from './modelPickerItems.js';
-import { filterModelPickerControlModelsForEntitlement, filterModelPickerModelsForEntitlement, getFusionDiscountPercent, getFusionTierLabel, getHydraFusionTierLabel, getModelPickerEntitlement, getRoutingModelBadge, isAutoModel, isHydraFusionModel, isHydraFusionUpgradeOnly, isMicrosoft365ServiceActive, isModelComparisonSupported } from './modelPickerPresentation.js';
+import { filterModelPickerControlModelsForEntitlement, filterModelPickerModelsForEntitlement, getFusionDiscountPercent, getFusionTierLabel, getHydraFusionTierLabel, getModelPickerEntitlement, getRoutingModelBadge, isAutoModel, isHydraFusionModel, isHydraFusionUpgradeOnly, isMicrosoft365ServiceActive, isModelComparisonSupported, shouldShowModelBilling } from './modelPickerPresentation.js';
 import { buildModelPickerDestinations, buildModelPickerSections, getModelProviderLabel, hasPromotedModels, IModelPickerDestination, IModelPickerProviderPlaceholder, IModelPickerSections, IModelPickerUnavailableEntry, MODEL_PICKER_BUILT_IN_DESTINATION, MODEL_PICKER_ON_DEVICE_DESTINATION } from './modelPickerTabs.js';
 import { ModelPickerWelcome } from './modelPickerWelcome.js';
 import { IAgentModelPreferences, resolveAgentModelPreferences } from '../../../../common/promptSyntax/languageProviders/promptModelResolver.js';
@@ -787,7 +787,7 @@ export class TabbedModelPicker extends Disposable {
 			selectedModelId: context.selectedModelId,
 			organizationDefaultModelId: this._getOrganizationDefaultModel(context)?.identifier,
 			pinnedModelIds: context.pinnedModelIds,
-			controlModels: context.controlModels,
+			controlModels: isBuiltIn ? context.controlModels : {},
 			preferredSpeedVariants: this._preferredSpeedVariants,
 			// Only the built-in provider curates a shortlist. A provider the user added
 			// gets a tab of its own, which is already the whole of what it offers.
@@ -1263,6 +1263,7 @@ export class TabbedModelPicker extends Disposable {
 		const comparisonChecked = !!step?.selectedModelIds.includes(model.identifier);
 		const comparisonDisabled = !!step?.multiple && !comparisonChecked && step.selectedModelIds.length >= step.maxSelections;
 		const hydraFusionTier = !step && isAutoModel(model) ? this._selectedHydraFusionTier(context) : undefined;
+		const showBilling = shouldShowModelBilling(model, this._entitlementService);
 		// HydraFusion as Auto's tier is shown as Auto, with HydraFusion in place of its tier.
 		const { action, ariaDescription } = createModelAction(model, step ? undefined : hydraFusionTier ? model.identifier : context.selectedModelId, next => {
 			if (comparison && step) {
@@ -1287,9 +1288,9 @@ export class TabbedModelPicker extends Disposable {
 				? getPreferredSpeedVariant(pair, this._context?.selectedModelId, this._preferredSpeedVariants.get(pair.standard.identifier))
 				: next;
 			this._applyModelSelection(selected, this._context ?? context);
-		}, section, true);
+		}, section, true, showBilling);
 		const routingModel = isAutoModel(model) || isHydraFusionModel(model);
-		const modelBadge = getModelBadge(model, { providerLabel });
+		const modelBadge = getModelBadge(model, { providerLabel, showBilling });
 		// A routing model's detail, e.g. Auto's discount, is its badge when nothing outranks it.
 		// Auto with its HydraFusion tier shows HydraFusion's instead, and Copilot Fusion its saved effort level's.
 		const effort = !modelBadge && routingModel && !hydraFusionTier
@@ -1298,7 +1299,7 @@ export class TabbedModelPicker extends Disposable {
 		const routingBadge = !modelBadge && routingModel
 			? hydraFusionTier
 				? hydraFusionTier.metadata.detail
-				: getRoutingModelBadge(model.metadata, effort)
+				: showBilling || !isAutoModel(model) ? getRoutingModelBadge(model.metadata, effort) : undefined
 			: undefined;
 		// Copilot Fusion without a discount, or anything else to show, is recommended instead.
 		const fusionRecommendedBadge = !modelBadge && !routingBadge && model.metadata.autoModelFusion
@@ -1447,6 +1448,7 @@ export class TabbedModelPicker extends Disposable {
 			description: ownTiers[0]?.metadata.tooltip,
 			configurationAccess: context.configurationAccess,
 			isUBB: context.isUBB,
+			showBilling: shouldShowModelBilling(model, this._entitlementService),
 			openerService: this._openerService,
 			isPinned: this._pinnedVariantIds(model.identifier, context).length > 0,
 			organizationDefaultModel: this._getOrganizationDefaultForModel(model, context),

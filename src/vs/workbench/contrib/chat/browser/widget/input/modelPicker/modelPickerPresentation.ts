@@ -16,6 +16,13 @@ export function isMicrosoft365ServiceActive(entitlementService: Pick<IChatEntitl
 	return entitlementService.sentiment.copilotService === 'm365';
 }
 
+/** GitHub billing does not describe the selected Microsoft 365 native Copilot catalog. */
+export function shouldShowModelBilling(model: ILanguageModelChatMetadataAndIdentifier, entitlementService: Pick<IChatEntitlementService, 'sentiment'>): boolean {
+	return !(isMicrosoft365ServiceActive(entitlementService)
+		&& (model.metadata.modelGroup?.id ?? model.metadata.vendor) === COPILOT_CLI_AGENT_PROVIDER_ID
+		&& !model.metadata.isBYOK && !model.metadata.byokModelIdentifier);
+}
+
 /**
  * The GitHub entitlement that applies to the picker. While Microsoft 365 is the active Copilot
  * service the GitHub plan says nothing about it, so no GitHub entitlement applies.

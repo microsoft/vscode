@@ -41,6 +41,7 @@ const DEPRECATION_WARNING_CODES: ReadonlySet<string> = new Set(['model_pending_d
 export interface IModelBadgeContext {
 	/** The provider a model came from, when the list does not already group by it. */
 	readonly providerLabel?: string;
+	readonly showBilling?: boolean;
 }
 
 /**
@@ -54,7 +55,7 @@ export function getModelBadge(
 	if (isDeprecated(model)) {
 		return { text: localize('chat.modelPicker.badge.deprecated', "Retiring"), tone: ModelBadgeTone.Warning };
 	}
-	const promo = ILanguageModelChatMetadata.hasPromoDiscount(model.metadata) ? model.metadata.promo : undefined;
+	const promo = context.showBilling !== false && ILanguageModelChatMetadata.hasPromoDiscount(model.metadata) ? model.metadata.promo : undefined;
 	if (promo) {
 		return { text: localize('chat.modelPicker.badge.promo', "{0}% off", promo.discountPercent), tone: ModelBadgeTone.Promo };
 	}

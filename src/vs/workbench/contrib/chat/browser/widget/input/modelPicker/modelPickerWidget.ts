@@ -57,7 +57,7 @@ import { getModelConfigProperty, MODEL_CONFIG_GROUP_EFFORT, whenModelConfigValue
 import { IModelPickerProviderPlaceholder } from './modelPickerTabs.js';
 import { getOrganizationDefaultDescription, getOrganizationDefaultModel } from './modelPickerBadges.js';
 import { formatLocalModelOnDeviceName, ILocalModelPickerActionEvent, isLocalModelDirectRow, ModelPickerLocalModels } from './modelPickerLocalModelItems.js';
-import { getFusionTierLabel, getHydraFusionTierLabel, getModelPickerEntitlement, getModelPickerUnavailableReason, isAutoModel, isHydraFusionModel, isHydraFusionUpgradeOnly, isMicrosoft365ServiceActive, isModelPickerUsageBased, ModelPickerUnavailableReason, modelPickerRequiresSetup, shouldShowCacheBreakHint as computeShouldShowCacheBreakHint } from './modelPickerPresentation.js';
+import { getFusionTierLabel, getHydraFusionTierLabel, getModelPickerEntitlement, getModelPickerUnavailableReason, isAutoModel, isHydraFusionModel, isHydraFusionUpgradeOnly, isMicrosoft365ServiceActive, ModelPickerUnavailableReason, modelPickerRequiresSetup, shouldShowCacheBreakHint as computeShouldShowCacheBreakHint } from './modelPickerPresentation.js';
 
 /** Trusted caller options for opening a searchable picker without toggling it closed. */
 export interface IModelPickerOpenOptions {
@@ -441,8 +441,7 @@ export class ModelPickerWidget extends Disposable {
 	}
 
 	private _requiresSetup(): boolean {
-		// A ready Microsoft 365 account is already signed in; the GitHub entitlement does not describe it.
-		if (isMicrosoft365ServiceActive(this._entitlementService)) {
+		if (this._entitlementService.sentiment.copilotService !== undefined) {
 			return false;
 		}
 		return modelPickerRequiresSetup({
@@ -835,7 +834,7 @@ export class ModelPickerWidget extends Disposable {
 			pinnedModelIds: this._languageModelsService.getPinnedModelIds().filter(id => !this._languageModelsService.isModelHidden(id)),
 			controlModels: controlModelsForTier,
 			configurationAccess: this._delegate.modelConfiguration ?? this._languageModelsService,
-			isUBB: isModelPickerUsageBased(this._entitlementService),
+			isUBB: !!this._entitlementService.quotas.usageBasedBilling,
 			showManageModels: !!manageModelsAction && !restrictedMode,
 			manageModelsDisabledReason,
 			providerPlaceholders: placeholders,
