@@ -7,6 +7,7 @@ import * as assert from 'assert';
 import * as sinon from 'sinon';
 import { AsyncIterableObject, DeferredPromise, raceTimeout, timeout } from '../../../../../base/common/async.js';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
+import { isCancellationError } from '../../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { toDisposable } from '../../../../../base/common/lifecycle.js';
 import { autorun, observableValue, waitForState } from '../../../../../base/common/observable.js';
@@ -38,7 +39,7 @@ import { McpServerConnection } from '../../common/mcpServerConnection.js';
 import { McpServer } from '../../common/mcpServer.js';
 import { McpService } from '../../common/mcpService.js';
 import { McpSamplingService } from '../../common/mcpSamplingService.js';
-import { IMcpSamplingService, ISamplingResult, McpConnectionState, McpError, McpServerDefinition, McpServerLaunch, McpServerTransportType } from '../../common/mcpTypes.js';
+import { IMcpSamplingService, ISamplingResult, McpConnectionFailedError, McpConnectionState, McpError, McpServerDefinition, McpServerLaunch, McpServerTransportType } from '../../common/mcpTypes.js';
 import { MCP } from '../../common/modelContextProtocol.js';
 import { TestMcpMessageTransport, TestMcpRegistry } from './mcpRegistryTypes.js';
 
@@ -745,6 +746,30 @@ suite('Workbench - MCP - McpService', () => {
 			],
 			meta: originalMeta,
 		});
+	});
+
+	test('tool call interrupted by a lost connection fails instead of being cancelled', async () => {
+		const { mcpService, registry } = createMcpService();
+		const transport = store.add(new TestMcpMessageTransport());
+		registry.makeTestTransport = () => transport;
+		transport.setResponder('tools/list', message => ({
+			jsonrpc: MCP.JSONRPC_VERSION,
+			id: (message as MCP.JSONRPCRequest).id,
+			result: { tools: [{ name: 'offline_probe', inputSchema: { type: 'object' } }] },
+		}));
+		transport.setResponder('tools/call', () => {
+			transport.stop();
+			return undefined;
+		});
+		mcpService.updateCollectedServers();
+		const server = mcpService.servers.get()[0];
+		await server.start();
+		const [tool] = await waitForState(server.tools, tools => tools.length > 0);
+
+		await assert.rejects(
+			() => tool.call({}, undefined, CancellationToken.None),
+			(err: Error) => err instanceof McpConnectionFailedError && !isCancellationError(err),
+		);
 	});
 
 	test('app request metadata does not change sampling policy outside chat', async () => {

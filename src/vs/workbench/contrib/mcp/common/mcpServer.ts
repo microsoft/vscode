@@ -5,6 +5,7 @@
 
 import { AsyncIterableProducer, raceCancellationError, Sequencer } from '../../../../base/common/async.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
+import { isCancellationError } from '../../../../base/common/errors.js';
 import { Iterable } from '../../../../base/common/iterator.js';
 import * as json from '../../../../base/common/json.js';
 import { normalizeDriveLetter } from '../../../../base/common/labels.js';
@@ -1430,6 +1431,10 @@ export class McpTool implements IMcpTool {
 				const state = this._server.connectionState.get();
 				if (allowRetry && state.state === McpConnectionState.Kind.Error && state.shouldRetry) {
 					return this._callWithProgress(params, progress, context, requestMeta, token, false);
+				} else if (isCancellationError(err) && !token.isCancellationRequested) {
+					// The request handler cancels in-flight requests when the connection drops.
+					// That is a failure, not a user cancellation, so it must not stop the agent loop.
+					throw new McpConnectionFailedError(localize('mcpToolConnectionLost', "The connection to the MCP server was lost while running the tool."));
 				} else {
 					throw err;
 				}
