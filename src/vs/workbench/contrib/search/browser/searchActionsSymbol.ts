@@ -8,7 +8,8 @@ import { ServicesAccessor } from '../../../../platform/instantiation/common/inst
 import * as Constants from '../common/constants.js';
 import { Action2, MenuId, registerAction2 } from '../../../../platform/actions/common/actions.js';
 import { KeybindingWeight } from '../../../../platform/keybinding/common/keybindingsRegistry.js';
-import { KeyCode, KeyMod } from '../../../../base/common/keyCodes.js';
+import { KeyChord, KeyCode, KeyMod } from '../../../../base/common/keyCodes.js';
+import { IsWebContext } from '../../../../platform/contextkey/common/contextkeys.js';
 import { IQuickInputService } from '../../../../platform/quickinput/common/quickInput.js';
 
 //#region Actions
@@ -27,10 +28,18 @@ registerAction2(class ShowAllSymbolsAction extends Action2 {
 				mnemonicTitle: nls.localize({ key: 'miGotoSymbolInWorkspace', comment: ['&& denotes a mnemonic'] }, "Go to Symbol in &&Workspace..."),
 			},
 			f1: true,
-			keybinding: {
-				weight: KeybindingWeight.WorkbenchContrib,
-				primary: KeyMod.CtrlCmd | KeyCode.KeyT
-			},
+			keybinding: [
+				{
+					weight: KeybindingWeight.WorkbenchContrib,
+					primary: KeyMod.CtrlCmd | KeyCode.KeyT,
+					when: IsWebContext.toNegated()
+				},
+				{
+					weight: KeybindingWeight.WorkbenchContrib,
+					primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KeyK, KeyCode.KeyG),
+					when: IsWebContext
+				}
+			],
 			menu: {
 				id: MenuId.MenubarGoMenu,
 				group: '3_global_nav',
