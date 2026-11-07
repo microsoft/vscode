@@ -9,7 +9,32 @@ import { COPILOT_HYDRA_FUSION_MAX_MODEL_ID, COPILOT_HYDRA_FUSION_MODEL_ID, isCop
 import { COPILOT_CLI_AGENT_PROVIDER_ID } from '../../../../../../../platform/agentHost/common/agent.js';
 import { getFusionAutoModeTierLabel } from '../../../../../../../platform/agentHost/common/autoModeTiers.js';
 import { ILanguageModelChatMetadata, ILanguageModelChatMetadataAndIdentifier, ILanguageModelsService, IModelControlEntry, isAutoLanguageModel, isUserProvidedModel } from '../../../../common/languageModels.js';
-import { ChatEntitlement } from '../../../../../../services/chat/common/chatEntitlementService.js';
+import { ChatEntitlement, IChatEntitlementService } from '../../../../../../services/chat/common/chatEntitlementService.js';
+
+/** Whether the host confirms Microsoft 365 as the active Copilot service. */
+export function isMicrosoft365ServiceActive(entitlementService: Pick<IChatEntitlementService, 'sentiment'>): boolean {
+	return entitlementService.sentiment.copilotService === 'm365';
+}
+
+/** GitHub billing does not describe the selected Microsoft 365 native Copilot catalog. */
+export function shouldShowModelBilling(model: ILanguageModelChatMetadataAndIdentifier, entitlementService: Pick<IChatEntitlementService, 'sentiment'>): boolean {
+	return !(isMicrosoft365ServiceActive(entitlementService)
+		&& (model.metadata.modelGroup?.id ?? model.metadata.vendor) === COPILOT_CLI_AGENT_PROVIDER_ID
+		&& !model.metadata.isBYOK && !model.metadata.byokModelIdentifier);
+}
+
+/**
+ * The GitHub entitlement that applies to the picker. While Microsoft 365 is the active Copilot
+ * service the GitHub plan says nothing about it, so no GitHub entitlement applies.
+ */
+export function getModelPickerEntitlement(entitlementService: Pick<IChatEntitlementService, 'entitlement' | 'sentiment'>): ChatEntitlement {
+	return isMicrosoft365ServiceActive(entitlementService) ? ChatEntitlement.Unknown : entitlementService.entitlement;
+}
+
+/** Whether model costs are shown as GitHub credits. GitHub quotas do not describe Microsoft 365. */
+export function isModelPickerUsageBased(entitlementService: Pick<IChatEntitlementService, 'quotas' | 'sentiment'>): boolean {
+	return !isMicrosoft365ServiceActive(entitlementService) && !!entitlementService.quotas.usageBasedBilling;
+}
 
 export function isAutoModel(model: ILanguageModelChatMetadataAndIdentifier): boolean {
 	return isAutoLanguageModel(model);

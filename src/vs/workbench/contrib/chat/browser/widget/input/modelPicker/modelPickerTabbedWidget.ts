@@ -17,7 +17,7 @@ import { isThenable } from '../../../../../../../base/common/async.js';
 import { onUnexpectedError } from '../../../../../../../base/common/errors.js';
 import { AnchorPosition } from '../../../../../../../base/common/layout.js';
 import { Disposable, DisposableMap, DisposableStore, MutableDisposable, toDisposable } from '../../../../../../../base/common/lifecycle.js';
-import { autorun } from '../../../../../../../base/common/observable.js';
+import { autorun, observableFromEvent, runOnChange } from '../../../../../../../base/common/observable.js';
 import { ThemeIcon } from '../../../../../../../base/common/themables.js';
 import { localize } from '../../../../../../../nls.js';
 import { IAccessibilityService } from '../../../../../../../platform/accessibility/common/accessibility.js';
@@ -47,7 +47,7 @@ import { getPreferredSpeedVariant, IModelSpeedVariants } from './modelPickerVari
 import { getModelBadge, getOrganizationDefaultDescription, getOrganizationDefaultModel, organizationDefaultLabel } from './modelPickerBadges.js';
 import { buildModelToProviderGroupMap, createModelAction, createUnavailableModelItem, getUnavailableReason, IModelPickerOrganizationSupport, IProviderGroupInfo, requiresNewerVSCode } from './modelPickerItemPrimitives.js';
 import { getModelPickerAccessibilityProvider, getModelPickerControlModels } from './modelPickerItems.js';
-import { filterModelPickerControlModelsForEntitlement, filterModelPickerModelsForEntitlement, getFusionDiscountPercent, getFusionTierLabel, getHydraFusionTierLabel, getRoutingModelBadge, isAutoModel, isHydraFusionModel, isHydraFusionUpgradeOnly, isModelComparisonSupported } from './modelPickerPresentation.js';
+import { filterModelPickerControlModelsForEntitlement, filterModelPickerModelsForEntitlement, getFusionDiscountPercent, getFusionTierLabel, getHydraFusionTierLabel, getModelPickerEntitlement, getRoutingModelBadge, isAutoModel, isHydraFusionModel, isHydraFusionUpgradeOnly, isMicrosoft365ServiceActive, isModelComparisonSupported, shouldShowModelBilling } from './modelPickerPresentation.js';
 import { buildModelPickerDestinations, buildModelPickerSections, getModelProviderLabel, hasPromotedModels, IModelPickerDestination, IModelPickerProviderPlaceholder, IModelPickerSections, IModelPickerUnavailableEntry, MODEL_PICKER_BUILT_IN_DESTINATION, MODEL_PICKER_ON_DEVICE_DESTINATION } from './modelPickerTabs.js';
 import { ModelPickerWelcome } from './modelPickerWelcome.js';
 import { IAgentModelPreferences, resolveAgentModelPreferences } from '../../../../common/promptSyntax/languageProviders/promptModelResolver.js';
@@ -200,6 +200,8 @@ export class TabbedModelPicker extends Disposable {
 		super();
 		this._widget = this._register(instantiationService.createInstance(TabbedActionListWidget));
 		this._register(this._widget.onDidChangeTab(id => { this._activeDestination = id; }));
+		const copilotService = observableFromEvent(this, this._entitlementService.onDidChangeSentiment, () => this._entitlementService.sentiment.copilotService);
+		this._register(runOnChange(copilotService, () => this.hide()));
 		this._register(this._configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration(ChatConfiguration.DefaultModel)) {
 				// The organization default is read from the default model's policy.
@@ -214,7 +216,7 @@ export class TabbedModelPicker extends Disposable {
 			this._context = this._refreshContextForModels({
 				...this._context,
 				comparisonModels: this._comparisonModels
-					? filterModelPickerModelsForEntitlement(this._comparisonModels, this._entitlementService.entitlement, this._languageModelsService)
+					? filterModelPickerModelsForEntitlement(this._comparisonModels, getModelPickerEntitlement(this._entitlementService), this._languageModelsService)
 					: undefined,
 			}, this._models);
 			if (this._context.selectedModelId && !this._context.models.some(model => model.identifier === this._context?.selectedModelId)) {
@@ -387,7 +389,7 @@ export class TabbedModelPicker extends Disposable {
 			this._context = this._refreshContextForModels({
 				...this._context,
 				...(comparisonModels !== undefined ? {
-					comparisonModels: filterModelPickerModelsForEntitlement(comparisonModels, this._entitlementService.entitlement, this._languageModelsService),
+					comparisonModels: filterModelPickerModelsForEntitlement(comparisonModels, getModelPickerEntitlement(this._entitlementService), this._languageModelsService),
 				} : {}),
 			}, this._models);
 		}
@@ -420,11 +422,11 @@ export class TabbedModelPicker extends Disposable {
 	private _filterModelsForEntitlement(context: ITabbedModelPickerContext): ITabbedModelPickerContext {
 		return {
 			...context,
-			models: filterModelPickerModelsForEntitlement(context.models, this._entitlementService.entitlement, this._languageModelsService),
+			models: filterModelPickerModelsForEntitlement(context.models, getModelPickerEntitlement(this._entitlementService), this._languageModelsService),
 			comparisonModels: context.comparisonModels
-				? filterModelPickerModelsForEntitlement(context.comparisonModels, this._entitlementService.entitlement, this._languageModelsService)
+				? filterModelPickerModelsForEntitlement(context.comparisonModels, getModelPickerEntitlement(this._entitlementService), this._languageModelsService)
 				: undefined,
-			controlModels: filterModelPickerControlModelsForEntitlement(context.controlModels, context.models, this._entitlementService.entitlement, this._languageModelsService),
+			controlModels: filterModelPickerControlModelsForEntitlement(context.controlModels, context.models, getModelPickerEntitlement(this._entitlementService), this._languageModelsService),
 		};
 	}
 
@@ -437,7 +439,7 @@ export class TabbedModelPicker extends Disposable {
 	private _refreshContextForModels(context: ITabbedModelPickerContext, models: readonly ILanguageModelChatMetadataAndIdentifier[]): ITabbedModelPickerContext {
 		const controlModels = getModelPickerControlModels(
 			this._languageModelsService.getModelsControlManifest(),
-			this._entitlementService.entitlement,
+			getModelPickerEntitlement(this._entitlementService),
 			models,
 		);
 		return this._filterModelsForEntitlement({ ...context, models, controlModels });
@@ -634,7 +636,10 @@ export class TabbedModelPicker extends Disposable {
 		// the cloud models (even while status is unavailable), and comparisons don't offer them.
 		const localModels = context.localModels;
 		const models = context.models.filter(model => !isLocalModelDirectRow(model) && !localModels?.getDirectModel(model));
-		const destinations = buildModelPickerDestinations(models, this._languageModelsService, context.providerPlaceholders, model => model === autoModel || hydraFusionModels.includes(model) || fusionHydraFusion(model), this._hasBuiltInUpsells(context));
+		const destinations = buildModelPickerDestinations(models, this._languageModelsService, context.providerPlaceholders, model => model === autoModel || hydraFusionModels.includes(model) || fusionHydraFusion(model), this._hasBuiltInUpsells(context))
+			.map(destination => destination.id === MODEL_PICKER_BUILT_IN_DESTINATION && isMicrosoft365ServiceActive(this._entitlementService)
+				? { ...destination, label: localize('chat.modelPicker.copilot', "Copilot") }
+				: destination);
 		if (this._showsOnDeviceTab(context)) {
 			destinations.splice(destinations[0]?.id === MODEL_PICKER_BUILT_IN_DESTINATION ? 1 : 0, 0, {
 				id: MODEL_PICKER_ON_DEVICE_DESTINATION,
@@ -658,7 +663,7 @@ export class TabbedModelPicker extends Disposable {
 	 * selectable here, rather than the Copilot tab disappearing behind added providers.
 	 */
 	private _hasBuiltInUpsells(context: ITabbedModelPickerContext): boolean {
-		const entitlement = this._entitlementService.entitlement;
+		const entitlement = getModelPickerEntitlement(this._entitlementService);
 		return (entitlement === ChatEntitlement.Free || entitlement === ChatEntitlement.EDU)
 			&& this._buildSections({ id: MODEL_PICKER_BUILT_IN_DESTINATION, models: [] }, context).unavailable.length > 0;
 	}
@@ -782,14 +787,14 @@ export class TabbedModelPicker extends Disposable {
 			selectedModelId: context.selectedModelId,
 			organizationDefaultModelId: this._getOrganizationDefaultModel(context)?.identifier,
 			pinnedModelIds: context.pinnedModelIds,
-			controlModels: context.controlModels,
+			controlModels: isBuiltIn ? context.controlModels : {},
 			preferredSpeedVariants: this._preferredSpeedVariants,
 			// Only the built-in provider curates a shortlist. A provider the user added
 			// gets a tab of its own, which is already the whole of what it offers.
 			showSuggested: isBuiltIn,
 			// Only the built-in provider has a curated catalogue to compare against.
 			showUnavailable: isBuiltIn && context.unavailableContext.show,
-			alwaysShowUnavailableModelIds: isBuiltIn && isHydraFusionUpgradeOnly(this._entitlementService.entitlement)
+			alwaysShowUnavailableModelIds: isBuiltIn && isHydraFusionUpgradeOnly(getModelPickerEntitlement(this._entitlementService))
 				? new Set([COPILOT_HYDRA_FUSION_MODEL_ID])
 				: undefined,
 			currentVSCodeVersion: context.unavailableContext.currentVSCodeVersion,
@@ -1258,6 +1263,7 @@ export class TabbedModelPicker extends Disposable {
 		const comparisonChecked = !!step?.selectedModelIds.includes(model.identifier);
 		const comparisonDisabled = !!step?.multiple && !comparisonChecked && step.selectedModelIds.length >= step.maxSelections;
 		const hydraFusionTier = !step && isAutoModel(model) ? this._selectedHydraFusionTier(context) : undefined;
+		const showBilling = shouldShowModelBilling(model, this._entitlementService);
 		// HydraFusion as Auto's tier is shown as Auto, with HydraFusion in place of its tier.
 		const { action, ariaDescription } = createModelAction(model, step ? undefined : hydraFusionTier ? model.identifier : context.selectedModelId, next => {
 			if (comparison && step) {
@@ -1282,9 +1288,9 @@ export class TabbedModelPicker extends Disposable {
 				? getPreferredSpeedVariant(pair, this._context?.selectedModelId, this._preferredSpeedVariants.get(pair.standard.identifier))
 				: next;
 			this._applyModelSelection(selected, this._context ?? context);
-		}, section, true);
+		}, section, true, showBilling);
 		const routingModel = isAutoModel(model) || isHydraFusionModel(model);
-		const modelBadge = getModelBadge(model, { providerLabel });
+		const modelBadge = getModelBadge(model, { providerLabel, showBilling });
 		// A routing model's detail, e.g. Auto's discount, is its badge when nothing outranks it.
 		// Auto with its HydraFusion tier shows HydraFusion's instead, and Copilot Fusion its saved effort level's.
 		const effort = !modelBadge && routingModel && !hydraFusionTier
@@ -1293,7 +1299,7 @@ export class TabbedModelPicker extends Disposable {
 		const routingBadge = !modelBadge && routingModel
 			? hydraFusionTier
 				? hydraFusionTier.metadata.detail
-				: getRoutingModelBadge(model.metadata, effort)
+				: showBilling || !isAutoModel(model) ? getRoutingModelBadge(model.metadata, effort) : undefined
 			: undefined;
 		// Copilot Fusion without a discount, or anything else to show, is recommended instead.
 		const fusionRecommendedBadge = !modelBadge && !routingBadge && model.metadata.autoModelFusion
@@ -1442,6 +1448,7 @@ export class TabbedModelPicker extends Disposable {
 			description: ownTiers[0]?.metadata.tooltip,
 			configurationAccess: context.configurationAccess,
 			isUBB: context.isUBB,
+			showBilling: shouldShowModelBilling(model, this._entitlementService),
 			openerService: this._openerService,
 			isPinned: this._pinnedVariantIds(model.identifier, context).length > 0,
 			organizationDefaultModel: this._getOrganizationDefaultForModel(model, context),

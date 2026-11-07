@@ -40,7 +40,7 @@ import { IOpenerService } from '../../../../../../../../platform/opener/common/o
 import { NullOpenerService } from '../../../../../../../../platform/opener/test/common/nullOpenerService.js';
 import { InMemoryStorageService, IStorageService } from '../../../../../../../../platform/storage/common/storage.js';
 import { StateType } from '../../../../../../../../platform/update/common/update.js';
-import { ChatEntitlement, IChatEntitlementService } from '../../../../../../../services/chat/common/chatEntitlementService.js';
+import { ChatEntitlement, IChatEntitlementService, type IChatSentiment } from '../../../../../../../services/chat/common/chatEntitlementService.js';
 import { IEditorService } from '../../../../../../../services/editor/common/editorService.js';
 import { IResourceEditorInput } from '../../../../../../../../platform/editor/common/editor.js';
 import { ITabbedModelPickerContext, TabbedModelPicker } from '../../../../../browser/widget/input/modelPicker/modelPickerTabbedWidget.js';
@@ -174,6 +174,7 @@ suite('TabbedModelPicker', () => {
 		controlModels?: IStringDictionary<IModelControlEntry>;
 		controlManifest?: IModelsControlManifest;
 		entitlement?: ChatEntitlement;
+		copilotService?: IChatSentiment['copilotService'];
 		showUnavailable?: boolean;
 		organizationSupport?: IModelPickerOrganizationSupport;
 		manageSettingsUrl?: string;
@@ -261,10 +262,14 @@ suite('TabbedModelPicker', () => {
 		}));
 		instantiationService.set(IStorageService, disposables.add(new InMemoryStorageService()));
 		let entitlement = options.entitlement ?? ChatEntitlement.Pro;
+		let copilotService = options.copilotService;
 		const entitlementChanged = disposables.add(new Emitter<void>());
+		const sentimentChanged = disposables.add(new Emitter<void>());
 		instantiationService.set(IChatEntitlementService, upcastPartial<IChatEntitlementService>({
 			get entitlement() { return entitlement; },
+			get sentiment() { return upcastPartial<IChatSentiment>({ copilotService }); },
 			onDidChangeEntitlement: entitlementChanged.event,
+			onDidChangeSentiment: sentimentChanged.event,
 		}));
 		instantiationService.set(ILanguageModelsService, upcastPartial<ILanguageModelsService>({
 			getVendors: () => [
@@ -323,6 +328,10 @@ suite('TabbedModelPicker', () => {
 			setEntitlement: (value: ChatEntitlement) => {
 				entitlement = value;
 				entitlementChanged.fire();
+			},
+			setCopilotService: (value: IChatSentiment['copilotService']) => {
+				copilotService = value;
+				sentimentChanged.fire();
 			},
 			get hintDismissed() { return hintDismissed; },
 			get contextViewLayer() { return activeDelegate?.layer; },
@@ -2181,6 +2190,30 @@ suite('TabbedModelPicker', () => {
 			});
 		});
 	}
+
+	test('a ready Microsoft 365 catalog does not apply the GitHub Free plan and closes when its service context changes', () => {
+		const auto = createAutoModel();
+		const hydra = createHydraFusionModel();
+		const result = createPicker({
+			models: [auto, hydra, ...models],
+			selectedModelId: auto.identifier,
+			entitlement: ChatEntitlement.Free,
+			copilotService: 'm365',
+			showUnavailable: false,
+			controlModels: {},
+		});
+		const before = {
+			rows: listRows(result.popup),
+			upgrades: result.popup.querySelectorAll('.chat-model-picker-unavailable').length,
+		};
+		result.setCopilotService(undefined);
+
+		assert.deepStrictEqual({ before, visible: result.picker.isVisible, selections: result.selections }, {
+			before: { rows: ['Auto', 'HydraFusion', '--', 'First', 'Fixed', 'Second'], upgrades: 0 },
+			visible: false,
+			selections: [],
+		});
+	});
 
 	test('Free plans do not upsell HydraFusion while Fusion presents it', () => {
 		const fusion = createFusionModel();

@@ -4,13 +4,27 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import * as DOM from '../../../../../../base/browser/dom.js';
+import { Emitter, Event } from '../../../../../../base/common/event.js';
+import { toDisposable } from '../../../../../../base/common/lifecycle.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { ExtensionIdentifier } from '../../../../../../platform/extensions/common/extensions.js';
-import { Separator } from '../../../../../../base/common/actions.js';
-import { ILanguageModelChatMetadata, ILanguageModelProviderDescriptor } from '../../../common/languageModels.js';
-import { buildAddModelsDropdownActions, getModelHoverContent } from '../../../browser/chatManagement/chatModelsWidget.js';
+import { IAction, Separator } from '../../../../../../base/common/actions.js';
+import { ILanguageModelChatMetadata, ILanguageModelProviderDescriptor, ILanguageModelsService } from '../../../common/languageModels.js';
+import { buildAddModelsDropdownActions, ChatModelsWidget, getModelHoverContent } from '../../../browser/chatManagement/chatModelsWidget.js';
+import { ChatEntitlement, IChatEntitlementService, IChatSentiment } from '../../../../../services/chat/common/chatEntitlementService.js';
+import { workbenchInstantiationService } from '../../../../../test/browser/workbenchTestServices.js';
+import { NullLanguageModelsService } from '../../common/languageModels.js';
+import { IContextMenuService } from '../../../../../../platform/contextview/browser/contextView.js';
+import { IDefaultAccountService } from '../../../../../../platform/defaultAccount/common/defaultAccount.js';
+import { IEditorProgressService } from '../../../../../../platform/progress/common/progress.js';
+import { IExtensionsWorkbenchService } from '../../../../extensions/common/extensions.js';
+import { ICommandService } from '../../../../../../platform/commands/common/commands.js';
+import { IUserInteractionService, MockUserInteractionService } from '../../../../../../platform/userInteraction/browser/userInteractionService.js';
 import { ILanguageModel } from '../../../browser/chatManagement/chatModelsViewModel.js';
 import { ChatAgentLocation } from '../../../common/constants.js';
+import { IHoverService } from '../../../../../../platform/hover/browser/hover.js';
+import { NullHoverService } from '../../../../../../platform/hover/test/browser/nullHoverService.js';
 
 function createModel(overrides: Partial<ILanguageModelChatMetadata> = {}): ILanguageModel {
 	return {
@@ -43,7 +57,7 @@ function createVendor(vendor: string, displayName: string, deprecation?: { link?
 
 suite('ChatModelsWidget', () => {
 
-	ensureNoDisposablesAreLeakedInTestSuite();
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
 	suite('getModelHoverContent', () => {
 
@@ -287,6 +301,145 @@ suite('ChatModelsWidget', () => {
 				actions.map(a => a instanceof Separator ? 'separator' : a.id),
 				['enable-acme', 'enable-zebra', 'enable-ollama', 'enable-customoai', 'separator', 'enable-customendpoint'],
 			);
+		});
+	});
+
+	test('M365 hides only native Copilot table billing, cost hovers and accessible descriptions', async () => {
+		const instantiation = workbenchInstantiationService(undefined, store);
+		instantiation.stub(IUserInteractionService, new MockUserInteractionService());
+		const changed = store.add(new Emitter<void>());
+		const entitlement = {
+			onDidChangeSentiment: changed.event, onDidChangeEntitlement: Event.None, onDidChangeUsageBasedBilling: Event.None,
+			sentiment: {} as IChatSentiment, quotas: { usageBasedBilling: true },
+			clientByokEnabled: true, isInternal: false, entitlement: ChatEntitlement.Pro,
+		};
+		instantiation.stub(IChatEntitlementService, entitlement);
+		const models = ['native', 'legacy', 'byok'].map((name, index) => {
+			const model = createModel({
+				name, id: name, vendor: 'copilot', modelGroup: { id: ['copilotcli', 'copilot', 'acme'][index] },
+				pricing: '1x', multiplierNumeric: 1, inputCost: 2, outputCost: 3, cacheCost: 1, cacheWriteCost: 4,
+			});
+			return { ...model, identifier: name };
+		});
+		instantiation.stub(ILanguageModelsService, new class extends NullLanguageModelsService {
+			override getVendors() { return [{ ...createVendor('copilot', 'Copilot'), isDefault: true }]; }
+			override getLanguageModelGroups() { return [{ modelIdentifiers: models.map(model => model.identifier) }]; }
+			override lookupLanguageModel(id: string) { return models.find(model => model.identifier === id)?.metadata; }
+		}());
+		const hovers = new Map<HTMLElement, string>();
+		instantiation.stub(IHoverService, {
+			...NullHoverService,
+			setupDelayedHoverAtMouse: (target, options) => {
+				const content = (typeof options === 'function' ? options() : options).content;
+				if (typeof content === 'string') {
+					hovers.set(target, content);
+				}
+				return toDisposable(() => hovers.delete(target));
+			},
+		});
+		instantiation.stub(IDefaultAccountService, { currentDefaultAccount: null, onDidChangeDefaultAccount: Event.None, getDefaultAccount: async () => null });
+		instantiation.stub(IExtensionsWorkbenchService, {});
+		let loading: Promise<unknown> = Promise.resolve();
+		instantiation.stub(IEditorProgressService, { showWhile: async promise => { loading = promise; await promise; } });
+		const widget = store.add(instantiation.createInstance(ChatModelsWidget));
+		DOM.append(document.body, widget.element);
+		store.add(toDisposable(() => widget.element.remove()));
+		await loading;
+		widget.layout(800, 1600);
+		const snapshot = () => models.map(model => {
+			const row = Array.from(widget.element.querySelectorAll<HTMLElement>('.monaco-list-row')).find(row => row.getAttribute('aria-label')?.startsWith(model.metadata.name + ' from '));
+			const grid = row?.querySelector('.model-cost-grid');
+			return {
+				name: model.metadata.name,
+				cost: !!grid?.textContent,
+				credits: /credits? per/.test(row?.getAttribute('aria-label') ?? ''),
+				pricing: /Pricing:/.test(row?.getAttribute('aria-label') ?? ''),
+				hover: !!grid && hovers.has(grid.parentElement!),
+			};
+		});
+		const github = snapshot();
+		entitlement.sentiment = { copilotService: 'm365' };
+		changed.fire();
+		widget.layout(800, 1600);
+		const m365 = snapshot();
+		entitlement.sentiment = {};
+		changed.fire();
+		widget.layout(800, 1600);
+
+		const visible = models.map(model => ({ name: model.metadata.name, cost: true, credits: true, pricing: true, hover: true }));
+		assert.deepStrictEqual({ github, m365, restored: snapshot() }, {
+			github: visible,
+			m365: [{ name: 'native', cost: false, credits: false, pricing: false, hover: false }, ...visible.slice(1)],
+			restored: visible,
+		});
+	});
+
+	test('the Add Models button follows the active service without losing BYOK actions or rebuilding for unrelated sentiment', async () => {
+		const instantiation = workbenchInstantiationService(undefined, store);
+		instantiation.stub(IUserInteractionService, new MockUserInteractionService());
+		const changed = store.add(new Emitter<void>());
+		const entitlement = {
+			onDidChangeSentiment: changed.event,
+			onDidChangeEntitlement: Event.None,
+			onDidChangeUsageBasedBilling: Event.None,
+			sentiment: {} as IChatSentiment,
+			quotas: { usageBasedBilling: true },
+			clientByokEnabled: true,
+			isInternal: false,
+			entitlement: ChatEntitlement.Free,
+		};
+		instantiation.stub(IChatEntitlementService, entitlement);
+		const configured: string[] = [];
+		const vendors = ['acme', 'customendpoint'].map(vendor => ({ ...createVendor(vendor, vendor), managementCommand: 'configure' }));
+		instantiation.stub(ILanguageModelsService, new class extends NullLanguageModelsService {
+			override getVendors() { return vendors; }
+			override async configureLanguageModelsProviderGroup(vendor: string) { configured.push(vendor); }
+		}());
+		instantiation.stub(IDefaultAccountService, { currentDefaultAccount: null, onDidChangeDefaultAccount: Event.None, getDefaultAccount: async () => null });
+		instantiation.stub(IExtensionsWorkbenchService, {});
+		const commands: string[] = [];
+		instantiation.stub(ICommandService, { executeCommand: async command => { commands.push(command); } });
+		let loading: Promise<unknown> = Promise.resolve();
+		instantiation.stub(IEditorProgressService, { showWhile: async promise => { loading = promise; await promise; } });
+		let actions: readonly IAction[] = [];
+		instantiation.stub(IContextMenuService, { showContextMenu: delegate => { actions = delegate.getActions?.() ?? []; } });
+		const widget = store.add(instantiation.createInstance(ChatModelsWidget));
+		DOM.append(document.body, widget.element);
+		store.add(toDisposable(() => widget.element.remove()));
+		await loading;
+		const snapshot = () => {
+			widget.element.querySelector<HTMLElement>('.models-add-model-button')!.click();
+			return {
+				actions: actions.map(action => action instanceof Separator ? 'separator' : action.id),
+				credits: widget.element.textContent!.includes('Cost (Credits per 1M Tokens)'),
+			};
+		};
+		const gateOff = snapshot();
+		entitlement.sentiment = { copilotService: 'm365' };
+		changed.fire();
+		const m365 = snapshot();
+		await actions.find(action => action.id === 'enable-acme')!.run();
+		const table = widget.element.querySelector('.monaco-table');
+		entitlement.sentiment = { copilotService: 'm365', later: true };
+		changed.fire();
+		const sameTable = !!table && table === widget.element.querySelector('.monaco-table');
+		entitlement.sentiment = {};
+		changed.fire();
+		const lost = snapshot();
+		await actions.find(action => action.id === 'signIn-github-copilot')!.run();
+		entitlement.sentiment = { copilotService: 'github' };
+		changed.fire();
+		const github = snapshot();
+
+		const githubActions = ['signIn-github-copilot', 'separator', 'enable-acme', 'separator', 'enable-customendpoint'];
+		assert.deepStrictEqual({ gateOff, m365, lost, github, sameTable, configured, commands }, {
+			gateOff: { actions: githubActions, credits: true },
+			m365: { actions: ['enable-acme', 'separator', 'enable-customendpoint'], credits: false },
+			lost: { actions: githubActions, credits: true },
+			github: { actions: githubActions, credits: true },
+			sameTable: true,
+			configured: ['acme'],
+			commands: ['workbench.action.chat.triggerSetup'],
 		});
 	});
 });

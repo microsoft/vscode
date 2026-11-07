@@ -57,7 +57,7 @@ import { getModelConfigProperty, MODEL_CONFIG_GROUP_EFFORT, whenModelConfigValue
 import { IModelPickerProviderPlaceholder } from './modelPickerTabs.js';
 import { getOrganizationDefaultDescription, getOrganizationDefaultModel } from './modelPickerBadges.js';
 import { formatLocalModelOnDeviceName, ILocalModelPickerActionEvent, isLocalModelDirectRow, ModelPickerLocalModels } from './modelPickerLocalModelItems.js';
-import { getFusionTierLabel, getHydraFusionTierLabel, getModelPickerUnavailableReason, isAutoModel, isHydraFusionModel, isHydraFusionUpgradeOnly, ModelPickerUnavailableReason, modelPickerRequiresSetup, shouldShowCacheBreakHint as computeShouldShowCacheBreakHint } from './modelPickerPresentation.js';
+import { getFusionTierLabel, getHydraFusionTierLabel, getModelPickerEntitlement, getModelPickerUnavailableReason, isAutoModel, isHydraFusionModel, isHydraFusionUpgradeOnly, isMicrosoft365ServiceActive, ModelPickerUnavailableReason, modelPickerRequiresSetup, shouldShowCacheBreakHint as computeShouldShowCacheBreakHint } from './modelPickerPresentation.js';
 
 /** Trusted caller options for opening a searchable picker without toggling it closed. */
 export interface IModelPickerOpenOptions {
@@ -335,7 +335,7 @@ export class ModelPickerWidget extends Disposable {
 			return model;
 		}
 		const models = this._delegate.getModels();
-		if (isHydraFusionModel(model) && isHydraFusionUpgradeOnly(this._entitlementService.entitlement)) {
+		if (isHydraFusionModel(model) && isHydraFusionUpgradeOnly(getModelPickerEntitlement(this._entitlementService))) {
 			return models.find(model => isAutoModel(model) && !isUserProvidedModel(model, this._languageModelsService))
 				?? models.find(model => !isHydraFusionModel(model) || isUserProvidedModel(model, this._languageModelsService))
 				?? model;
@@ -348,7 +348,7 @@ export class ModelPickerWidget extends Disposable {
 	 * presented as Fusion, as that HydraFusion model, so the chat keeps HydraFusion rather than Auto's default tier.
 	 */
 	private _normalizeAutoHydraFusionTier(model: ILanguageModelChatMetadataAndIdentifier, models: readonly ILanguageModelChatMetadataAndIdentifier[]): ILanguageModelChatMetadataAndIdentifier | undefined {
-		if (!isAutoModel(model) || isHydraFusionUpgradeOnly(this._entitlementService.entitlement)) {
+		if (!isAutoModel(model) || isHydraFusionUpgradeOnly(getModelPickerEntitlement(this._entitlementService))) {
 			return undefined;
 		}
 		const configurationAccess = this._delegate.modelConfiguration ?? this._languageModelsService;
@@ -366,7 +366,7 @@ export class ModelPickerWidget extends Disposable {
 	 */
 	private _normalizeHydraFusionTier(model: ILanguageModelChatMetadataAndIdentifier, models: readonly ILanguageModelChatMetadataAndIdentifier[]): ILanguageModelChatMetadataAndIdentifier | undefined {
 		const scopedConfiguration = this._delegate.modelConfiguration;
-		if (!isHydraFusionModel(model) || !scopedConfiguration?.presentModelConfiguration || isHydraFusionUpgradeOnly(this._entitlementService.entitlement)) {
+		if (!isHydraFusionModel(model) || !scopedConfiguration?.presentModelConfiguration || isHydraFusionUpgradeOnly(getModelPickerEntitlement(this._entitlementService))) {
 			return undefined;
 		}
 		// Only a Fusion the picker offers can take the chat.
@@ -409,7 +409,7 @@ export class ModelPickerWidget extends Disposable {
 
 	/** Returns a predicate that tests whether the picker offers a built-in model: one this build can run, as the picker only offers those. */
 	private _getRunnablePredicate(models: readonly ILanguageModelChatMetadataAndIdentifier[]): (candidate: ILanguageModelChatMetadataAndIdentifier) => boolean {
-		const controlModels = getModelPickerControlModels(this._languageModelsService.getModelsControlManifest(), this._entitlementService.entitlement, models);
+		const controlModels = getModelPickerControlModels(this._languageModelsService.getModelsControlManifest(), getModelPickerEntitlement(this._entitlementService), models);
 		return candidate => !isUserProvidedModel(candidate, this._languageModelsService) && !requiresNewerVSCode(candidate, controlModels, this._productService.version);
 	}
 
@@ -441,6 +441,9 @@ export class ModelPickerWidget extends Disposable {
 	}
 
 	private _requiresSetup(): boolean {
+		if (this._entitlementService.sentiment.copilotService !== undefined) {
+			return false;
+		}
 		return modelPickerRequiresSetup({
 			entitlement: this._entitlementService.entitlement,
 			anonymous: this._entitlementService.anonymous,
@@ -597,7 +600,9 @@ export class ModelPickerWidget extends Disposable {
 	 */
 	private _providerPlaceholders(models: readonly ILanguageModelChatMetadataAndIdentifier[], { reason, activating }: IModelPickerAvailability, onLinkClick: (uri: URI) => void): IModelPickerProviderPlaceholder[] {
 		const vendor = COPILOT_VENDOR_ID;
-		const label = getLanguageModelProviderDisplayName(this._languageModelsService, COPILOT_VENDOR_ID);
+		const label = isMicrosoft365ServiceActive(this._entitlementService)
+			? localize('chat.modelPicker.copilot', "Copilot")
+			: getLanguageModelProviderDisplayName(this._languageModelsService, COPILOT_VENDOR_ID);
 		if (reason === ModelPickerUnavailableReason.Restricted) {
 			return [{
 				vendor,
@@ -630,7 +635,7 @@ export class ModelPickerWidget extends Disposable {
 		if (this._delegate.getPresentationOptions().showAutoModel) {
 			return [{ vendor, label, message: localize('chat.modelPicker.modelsPending', "Models will appear here once they are available.") }];
 		}
-		const entitlement = this._entitlementService.entitlement;
+		const entitlement = getModelPickerEntitlement(this._entitlementService);
 		const canUpgrade = entitlement === ChatEntitlement.Free || entitlement === ChatEntitlement.EDU;
 		return [{
 			vendor,
@@ -803,7 +808,7 @@ export class ModelPickerWidget extends Disposable {
 
 		const placeholders = this._providerPlaceholders(models, availability, onLinkClick);
 		const manifest = this._languageModelsService.getModelsControlManifest();
-		const controlModelsForTier: IStringDictionary<IModelControlEntry> = unavailable ? {} : getModelPickerControlModels(manifest, this._entitlementService.entitlement, models);
+		const controlModelsForTier: IStringDictionary<IModelControlEntry> = unavailable ? {} : getModelPickerControlModels(manifest, getModelPickerEntitlement(this._entitlementService), models);
 		const onDidToggleOtherModels = (collapsed: boolean) => {
 			if (!collapsed) {
 				telemetrySession.logOtherModelsExpanded();
@@ -834,7 +839,7 @@ export class ModelPickerWidget extends Disposable {
 			manageModelsDisabledReason,
 			providerPlaceholders: placeholders,
 			unavailableContext: {
-				show: presentation.showUnavailableFeatured,
+				show: presentation.showUnavailableFeatured && !isMicrosoft365ServiceActive(this._entitlementService),
 				currentVSCodeVersion: this._productService.version,
 				manageSettingsUrl,
 				organizationSupport,

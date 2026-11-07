@@ -13,7 +13,7 @@ import { IContextKeyService } from '../../../../../../platform/contextkey/common
 import { MockContextKeyService } from '../../../../../../platform/keybinding/test/common/mockKeybindingService.js';
 import { IDefaultAccountService } from '../../../../../../platform/defaultAccount/common/defaultAccount.js';
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
-import { ChatEntitlement, IChatEntitlementService } from '../../../../../services/chat/common/chatEntitlementService.js';
+import { ChatEntitlement, IChatEntitlementService, type IChatSentiment } from '../../../../../services/chat/common/chatEntitlementService.js';
 import { IExtensionService } from '../../../../../services/extensions/common/extensions.js';
 import { AgentHostSignedOutModelsNotificationContribution } from '../../../browser/agentSessions/agentHost/agentHostSignedOutModelsNotification.js';
 import { type IChatInputNotification, IChatInputNotificationService } from '../../../browser/widget/input/chatInputNotificationService.js';
@@ -101,6 +101,20 @@ suite('AgentHostSignedOutModelsNotification', () => {
 		fixture.clock.restore();
 	});
 
+	test('hides while the host confirms a ready Copilot service and returns when that context is lost', async () => {
+		const fixture = await createFixture();
+		const signedOut = fixture.notifications.isShown();
+
+		fixture.setCopilotService('m365');
+		const m365Ready = fixture.notifications.isShown();
+
+		fixture.setCopilotService(undefined);
+		const contextLost = fixture.notifications.isShown();
+
+		assert.deepStrictEqual({ signedOut, m365Ready, contextLost }, { signedOut: true, m365Ready: false, contextLost: true });
+		fixture.clock.restore();
+	});
+
 	test('gives a later wait its own grace period instead of the remainder of an earlier one', async () => {
 		const fixture = await createFixture({ configuredVendors: ['anthropic'], resolvedVendors: [] });
 		assert.strictEqual(fixture.notifications.isShown(), false);
@@ -170,6 +184,7 @@ suite('AgentHostSignedOutModelsNotification', () => {
 			addConfiguredVendor: (vendor: string) => languageModelsConfiguration.addVendor(vendor),
 			signIn: () => account.setSignedIn(),
 			setEntitlement: (entitlement: ChatEntitlement) => chatEntitlement.setEntitlement(entitlement),
+			setCopilotService: (copilotService: IChatSentiment['copilotService']) => chatEntitlement.setCopilotService(copilotService),
 		};
 	}
 });
@@ -269,16 +284,26 @@ class TestChatEntitlementService implements Partial<IChatEntitlementService> {
 	declare readonly _serviceBrand: undefined;
 	private readonly _onDidChangeEntitlement = new Emitter<void>();
 	readonly onDidChangeEntitlement = this._onDidChangeEntitlement.event;
+	private readonly _onDidChangeSentiment = new Emitter<void>();
+	readonly onDidChangeSentiment = this._onDidChangeSentiment.event;
 	readonly clientByokEnabled = true;
+	private _copilotService: IChatSentiment['copilotService'];
 
 	constructor(private _entitlement: ChatEntitlement) { }
 
 	get entitlement(): ChatEntitlement {
 		return this._entitlement;
 	}
+	get sentiment(): IChatSentiment {
+		return { copilotService: this._copilotService } as IChatSentiment;
+	}
 	setEntitlement(entitlement: ChatEntitlement): void {
 		this._entitlement = entitlement;
 		this._onDidChangeEntitlement.fire();
+	}
+	setCopilotService(copilotService: IChatSentiment['copilotService']): void {
+		this._copilotService = copilotService;
+		this._onDidChangeSentiment.fire();
 	}
 }
 

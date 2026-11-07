@@ -123,11 +123,12 @@ export function createModelAction(
 	onSelect: (model: ILanguageModelChatMetadataAndIdentifier) => void,
 	section?: string,
 	suppressVendorInDetail?: boolean,
+	showBilling = true,
 ): { action: IActionWidgetDropdownAction & { section?: string }; ariaDescription?: string } {
-	const pricingForDescription = isMultiplierPricing(model) ? model.metadata.pricing : undefined;
-	const priceCategoryLabel = getPriceCategoryLabel(model.metadata.priceCategory);
+	const pricingForDescription = showBilling && isMultiplierPricing(model) ? model.metadata.pricing : undefined;
+	const priceCategoryLabel = showBilling ? getPriceCategoryLabel(model.metadata.priceCategory) : undefined;
 	const detail = suppressVendorInDetail ? undefined : model.metadata.detail;
-	const promo = ILanguageModelChatMetadata.hasPromoDiscount(model.metadata) ? model.metadata.promo : undefined;
+	const promo = showBilling && ILanguageModelChatMetadata.hasPromoDiscount(model.metadata) ? model.metadata.promo : undefined;
 	const promoDetail = promo ? localize('chat.promo.discount', "{0}% discount", promo.discountPercent) : undefined;
 	const textParts = [detail, promoDetail, pricingForDescription].filter(Boolean);
 	const textDescription = textParts.length > 0 ? textParts.join(' · ') : undefined;

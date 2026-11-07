@@ -69,6 +69,7 @@ export interface IModelCardOptions {
 	readonly configurationAccess: IModelConfigurationAccess;
 	/** Whether the account is billed by credits, which is when cost numbers are shown. */
 	readonly isUBB: boolean;
+	readonly showBilling?: boolean;
 	readonly openerService: IOpenerService;
 	/** Called after a configuration value changes so the caller can report it and refresh its own label. */
 	readonly onDidChangeConfiguration?: ModelConfigChangeListener;
@@ -324,7 +325,7 @@ export class ModelCard extends DisposableStore {
 			this._renderDescription(description, isHydraFusionModel(model) ? HYDRA_FUSION_LEARN_MORE_URL : undefined);
 		}
 		// Without tiers to sit below, Auto's discount follows its description.
-		if (isAuto && !effort && metadata.autoModelDiscountPercent !== undefined) {
+		if (this._options.showBilling !== false && isAuto && !effort && metadata.autoModelDiscountPercent !== undefined) {
 			this._renderDescription(ILanguageModelChatMetadata.getAutoModelDiscountDescription(metadata.autoModelDiscountPercent));
 		}
 
@@ -336,10 +337,10 @@ export class ModelCard extends DisposableStore {
 				this.element.appendChild(createMessageBanner(message, 'chat-model-hover-info-text', Codicon.info, this._contentDisposables, openerService));
 			}
 		}
-		if (isAuto && effort) {
+		if (this._options.showBilling !== false && isAuto && effort) {
 			this._renderAutoTierPromotions(effort);
 		}
-		const promo = !isAuto && ILanguageModelChatMetadata.hasPromoDiscount(metadata) ? metadata.promo : undefined;
+		const promo = this._options.showBilling !== false && !isAuto && ILanguageModelChatMetadata.hasPromoDiscount(metadata) ? metadata.promo : undefined;
 		if (promo) {
 			const endsAtLabel = ILanguageModelChatMetadata.getPromoEndsAtLabel(promo.endsAt);
 			const message = endsAtLabel ? `${promo.message} ${endsAtLabel}` : promo.message;
@@ -362,10 +363,12 @@ export class ModelCard extends DisposableStore {
 		if (!isAuto) {
 			this._renderSpeedSection();
 		}
-		if (!isAuto && isUBB) {
-			this._renderCost(context);
-		} else if (!isAuto && metadata.pricing && isMultiplierPricing(model)) {
-			this._renderSection(localize('models.cost', "Cost: {0}", metadata.pricing));
+		if (this._options.showBilling !== false && !isAuto) {
+			if (isUBB) {
+				this._renderCost(context);
+			} else if (metadata.pricing && isMultiplierPricing(model)) {
+				this._renderSection(localize('models.cost', "Cost: {0}", metadata.pricing));
+			}
 		}
 	}
 
@@ -389,10 +392,10 @@ export class ModelCard extends DisposableStore {
 			this._updateRoutingBadge();
 		} else {
 			const badgeLabel = isRoutingModel
-				? metadata.detail
+				? (this._options.showBilling !== false || !isAutoModel(this._options.model) ? metadata.detail : undefined)
 				: this._showsPriceBadgeInPricing()
 					? undefined
-					: getPriceCategoryLabel(metadata.priceCategory) ?? getCategoryLabel(metadata.category);
+					: (this._options.showBilling !== false ? getPriceCategoryLabel(metadata.priceCategory) : undefined) ?? getCategoryLabel(metadata.category);
 			if (badgeLabel) {
 				this._renderBadge(header, badgeLabel, !isRoutingModel && isHighCostCategory(metadata.priceCategory));
 			}
@@ -644,7 +647,7 @@ export class ModelCard extends DisposableStore {
 				renderTierDescription(choice, false);
 				if (isAuto && group === MODEL_CONFIG_GROUP_EFFORT) {
 					this._routingBadgeTier = choice.value;
-					this._showRoutingBadge(getRoutingModelBadge(this._options.model.metadata, choice.value));
+					this._showRoutingBadge(this._options.showBilling !== false ? getRoutingModelBadge(this._options.model.metadata, choice.value) : undefined);
 				}
 			} else if (tierDescription) {
 				tierDescription.hidden = true;
@@ -759,7 +762,7 @@ export class ModelCard extends DisposableStore {
 	/** Shows the chosen alternative's badge, otherwise the routing model's own at the effort level shown as selected. */
 	private _updateRoutingBadge(): void {
 		const alternative = this._options.routingAlternatives?.find(alternative => alternative.selected);
-		this._showRoutingBadge(alternative ? alternative.model.metadata.detail : getRoutingModelBadge(this._options.model.metadata, this._routingBadgeTier));
+		this._showRoutingBadge(alternative ? alternative.model.metadata.detail : this._options.showBilling !== false ? getRoutingModelBadge(this._options.model.metadata, this._routingBadgeTier) : undefined);
 	}
 
 	private _showRoutingBadge(label: string | undefined): void {

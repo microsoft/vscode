@@ -32,7 +32,7 @@ import { TelemetryTrustedValue } from '../../../../../../../../platform/telemetr
 import { IUpdateService, StateType } from '../../../../../../../../platform/update/common/update.js';
 import { IUriIdentityService } from '../../../../../../../../platform/uriIdentity/common/uriIdentity.js';
 import { IWorkspaceTrustManagementService, IWorkspaceTrustRequestService } from '../../../../../../../../platform/workspace/common/workspaceTrust.js';
-import { ChatEntitlement, IChatEntitlementService } from '../../../../../../../services/chat/common/chatEntitlementService.js';
+import { ChatEntitlement, IChatEntitlementService, IChatSentiment } from '../../../../../../../services/chat/common/chatEntitlementService.js';
 import { TestChatEntitlementService, TestWorkspaceTrustManagementService } from '../../../../../../../test/common/workbenchTestServices.js';
 import { IModelConfigurationAccess, withoutFusionEffortLevel } from '../../../../../browser/widget/input/modelPicker/modelPickerModelConfig.js';
 import { ModelPickerTelemetrySession } from '../../../../../browser/widget/input/modelPicker/modelPickerTelemetry.js';
@@ -104,7 +104,9 @@ suite('ModelPickerTelemetry', () => {
 		let trustRequests = 0;
 		let renderWelcome: () => HTMLElement | undefined = () => assert.fail('Tabbed picker has not opened');
 		let tabBarActionIds: string[] = [];
+		let tabLabels: (string | undefined)[] = [];
 		let listLabels: (string | undefined)[] = [];
+		let listDescriptions: string[] = [];
 		const configurationAccess: IModelConfigurationAccess = {
 			getModelConfiguration: id => configurations.get(id),
 			setModelConfiguration: async (id, values) => {
@@ -152,6 +154,7 @@ suite('ModelPickerTelemetry', () => {
 
 		function setItems<T>(items: readonly IActionListItem<T>[], onSelect: (item: T) => void): void {
 			listLabels = items.map(item => item.label);
+			listDescriptions = items.map(item => [item.description, item.ariaDescription, item.badge].filter(Boolean).join(' '));
 			selectItem = label => {
 				if (detailsOptions) {
 					hideDetails();
@@ -196,6 +199,7 @@ suite('ModelPickerTelemetry', () => {
 				contextViewLayer = options.contextViewLayer;
 				let activeTab = options.initialTab;
 				tabBarActionIds = options.tabBarActions?.map(action => action.id) ?? [];
+				tabLabels = options.tabs.map(tab => tab.label);
 				renderWelcome = () => {
 					const body = dom.$('div');
 					const rendered = options.renderEmpty?.(body, activeTab);
@@ -303,8 +307,12 @@ suite('ModelPickerTelemetry', () => {
 		}());
 		instantiationService.stub(IProductService, { version: '1.100.0' });
 		const entitlementChanged = store.add(new Emitter<void>());
+		const sentimentChanged = store.add(new Emitter<void>());
 		const entitlementService = new class extends TestChatEntitlementService {
 			override readonly onDidChangeEntitlement = entitlementChanged.event;
+			override readonly onDidChangeSentiment = sentimentChanged.event;
+			override sentiment: IChatSentiment = {};
+			override readonly quotas = { usageBasedBilling: false };
 		}();
 		entitlementService.entitlement = entitlement;
 		instantiationService.stub(IChatEntitlementService, entitlementService);
@@ -336,13 +344,15 @@ suite('ModelPickerTelemetry', () => {
 		picker.show(container);
 
 		return {
-			events, pickerEvents, eventNames, openedLinks, openedExternally, picker, container, configurations, savedConfigurations, pinnedModelIds, delegateSelections, programmaticDelegateSelections, configurationService,
+			events, pickerEvents, eventNames, openedLinks, openedExternally, picker, container, configurations, savedConfigurations, pinnedModelIds, delegateSelections, programmaticDelegateSelections, configurationService, entitlementService,
 			get visible() { return visible; },
 			fireManagedSettingsChange: () => managedSettingsChange.fire(),
 			get tabbedShows() { return tabbedShows; },
 			get trustRequests() { return trustRequests; },
 			get tabBarActionIds() { return tabBarActionIds; },
+			get tabLabels() { return tabLabels; },
 			get listLabels() { return listLabels; },
+			get listDescriptions() { return listDescriptions; },
 			setTrusted: (trusted: boolean) => workspaceTrustManagementService.setWorkspaceTrust(trusted),
 			/** The welcome shown in place of the active tab's list, as its title, message, and action. */
 			welcome: () => {
@@ -357,6 +367,10 @@ suite('ModelPickerTelemetry', () => {
 				entitlementService.entitlement = entitlement;
 				entitlementChanged.fire();
 			},
+			setCopilotService: (copilotService: IChatSentiment['copilotService']) => {
+				entitlementService.sentiment = { copilotService };
+				sentimentChanged.fire();
+			},
 			selectItem: (label: string) => selectItem(label),
 			selectTab: (label: string) => selectTab(label),
 			hide: () => hideTabbedPicker(),
@@ -368,6 +382,41 @@ suite('ModelPickerTelemetry', () => {
 			},
 		};
 	}
+
+	test('a service change closes the assembled picker and reopening projects its native catalog without changing the remembered selection', () => {
+		const hydraFusion = createModel('hydrafusion', { modelGroup: { id: 'copilotcli' } });
+		const result = createPicker(autoModel, undefined, [autoModel, hydraFusion, thirdPartyModel], ChatEntitlement.Free);
+		const github = [...result.listLabels];
+		result.setCopilotService('m365');
+		const closedAfterChange = !result.visible;
+		result.picker.show(result.container);
+		const m365 = [...result.listLabels];
+		const m365Tabs = [...result.tabLabels];
+		result.selectTab('Third-party');
+		const unrelated = [...result.listLabels];
+		result.setCopilotService(undefined);
+		const closedAfterLoss = !result.visible;
+		result.picker.show(result.container);
+		result.selectTab('GitHub Copilot');
+
+		assert.deepStrictEqual({
+			github, m365, m365Tabs, unrelated, restored: result.listLabels, closedAfterChange, closedAfterLoss,
+			selected: result.picker.selectedModel?.identifier,
+			selections: result.delegateSelections,
+			programmatic: result.programmaticDelegateSelections,
+		}, {
+			github: ['auto', 'Upgrade for More Models', 'hydrafusion'],
+			m365: ['auto', 'hydrafusion'],
+			m365Tabs: ['Copilot', 'Third-party'],
+			unrelated: ['private-model'],
+			restored: ['auto', 'Upgrade for More Models', 'hydrafusion'],
+			closedAfterChange: true,
+			closedAfterLoss: true,
+			selected: autoModel.identifier,
+			selections: [],
+			programmatic: [],
+		});
+	});
 
 	for (const entitlement of [ChatEntitlement.Free, ChatEntitlement.EDU]) {
 		test(`${ChatEntitlement[entitlement]} entitlement replaces a persisted HydraFusion selection when the picker is constructed`, () => {
@@ -406,6 +455,120 @@ suite('ModelPickerTelemetry', () => {
 			list: [],
 			welcome: ['Copilot', 'Models will appear here once they are available.'],
 			tabBarActions: [],
+		});
+	});
+
+	test('a ready Microsoft 365 account with an empty catalog does not offer GitHub setup or upgrades and still respects workspace trust', async () => {
+		const result = createPicker(model, undefined, [], ChatEntitlement.Free, true, false);
+		await timeout(0);
+		result.setCopilotService('m365');
+		result.picker.show(result.container);
+		const empty = { welcome: result.welcome()?.text, setupRequired: result.picker.isSetupRequired() };
+		result.setTrusted(false);
+		result.picker.show(result.container);
+
+		assert.deepStrictEqual({ empty, restricted: result.welcome()?.text, openedLinks: result.openedLinks }, {
+			empty: { welcome: ['Copilot', 'No models are available.'], setupRequired: false },
+			restricted: ['Restricted Mode', 'Trust this workspace to enable models.', 'Trust Workspace'],
+			openedLinks: [],
+		});
+	});
+
+	test('a ready GitHub account with unknown legacy entitlement does not require setup for an empty catalog', async () => {
+		const result = createPicker(model, undefined, [], ChatEntitlement.Unknown, true, false);
+		await timeout(0);
+		result.setCopilotService('github');
+		result.picker.show(result.container);
+		const ready = result.picker.isSetupRequired();
+		const welcome = result.welcome()?.text;
+		await result.setTrusted(false);
+		result.picker.show(result.container);
+		const restricted = result.welcome()?.text;
+		await result.setTrusted(true);
+		result.setCopilotService(undefined);
+
+		assert.deepStrictEqual({ ready, welcome, restricted, withdrawn: result.picker.isSetupRequired() }, {
+			ready: false,
+			welcome: ['Copilot', 'No models are available.'],
+			restricted: ['Restricted Mode', 'Trust this workspace to enable models.', 'Trust Workspace'],
+			withdrawn: true,
+		});
+	});
+
+	test('M365 hides only native Copilot billing in assembled rows and model details', () => {
+		const billing = { pricing: '1x', multiplierNumeric: 1, inputCost: 2, outputCost: 3, priceCategory: 'high' };
+		const native = createModel('native', { ...billing, modelGroup: { id: 'copilotcli' } });
+		const legacy = createModel('legacy', billing);
+		const byok = createModel('byok', { ...billing, vendor: 'third-party' });
+		const result = createPicker(native, undefined, [native, legacy, byok]);
+		result.entitlementService.quotas.usageBasedBilling = true;
+		result.setCopilotService('m365');
+		result.picker.show(result.container);
+		const nativeRow = result.listDescriptions[result.listLabels.indexOf('native')];
+		const legacyRow = result.listDescriptions[result.listLabels.indexOf('legacy')];
+		const nativeCard = result.showCard('native').textContent ?? '';
+		result.backToModels();
+		const legacyCard = result.showCard('legacy').textContent ?? '';
+		result.backToModels();
+		result.selectTab('Third-party');
+		const byokRow = result.listDescriptions[result.listLabels.indexOf('byok')];
+		const byokCard = result.showCard('byok').textContent ?? '';
+		result.setCopilotService('github');
+		result.picker.show(result.container);
+		const restored = result.showCard('native').textContent ?? '';
+		result.entitlementService.quotas.usageBasedBilling = false;
+		result.setCopilotService('m365');
+		result.picker.show(result.container);
+		const nativeMultiplier = result.showCard('native').textContent ?? '';
+		const hasBilling = (text: string) => /1x|[Cc]ost|[Cc]redits|[Pp]ricing/.test(text);
+
+		assert.deepStrictEqual({
+			nativeRow: hasBilling(nativeRow), nativeCard: hasBilling(nativeCard),
+			nativeMultiplier: hasBilling(nativeMultiplier),
+			legacyRow: hasBilling(legacyRow), legacyCredits: /[Cc]redits/.test(legacyCard),
+			byokRow: hasBilling(byokRow), byokCredits: /[Cc]redits/.test(byokCard),
+			restoredCredits: /[Cc]redits/.test(restored),
+			metadata: native.metadata,
+		}, {
+			nativeRow: false, nativeCard: false, nativeMultiplier: false, legacyRow: true, legacyCredits: true,
+			byokRow: true, byokCredits: true, restoredCredits: true, metadata: { ...native.metadata, ...billing },
+		});
+	});
+
+	test('M365 retains version-blocked featured models as updates rather than selectable models', async () => {
+		const blocked = createModel('blocked', { modelGroup: { id: 'copilotcli' }, targetChatSessionType: 'copilotcli' });
+		const compatible = createModel('compatible', { modelGroup: { id: 'copilotcli' }, targetChatSessionType: 'copilotcli' });
+		const byok = createModel('blocked', { vendor: 'third-party' });
+		const result = createPicker(compatible, undefined, [blocked, compatible, byok], ChatEntitlement.Pro, true, false, {
+			free: {},
+			paid: {
+				blocked: { label: 'blocked', featured: true, exists: true, minVSCodeVersion: '99.0.0' },
+				compatible: { label: 'compatible', featured: true, exists: true },
+				missing: { label: 'Missing GitHub Upsell', featured: true, exists: false },
+			},
+		});
+		result.setCopilotService('m365');
+		result.picker.show(result.container);
+		const labels = [...result.listLabels];
+		const update = result.listDescriptions[result.listLabels.indexOf('blocked')].includes('Update VS Code');
+		const selections: string[] = [];
+		store.add(result.picker.onDidChangeSelection(model => selections.push(model.identifier)));
+		result.selectItem('blocked');
+		await timeout(0);
+		const blockedSelections = [...selections];
+		result.picker.show(result.container);
+		result.selectItem('compatible');
+		await timeout(0);
+		result.picker.show(result.container);
+		result.selectTab('Third-party');
+		result.selectItem('blocked');
+		await timeout(0);
+
+		assert.deepStrictEqual({ labels, update, blockedSelections, selections }, {
+			labels: ['compatible', 'blocked'],
+			update: true,
+			blockedSelections: [],
+			selections: [compatible.identifier, byok.identifier],
 		});
 	});
 
