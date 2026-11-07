@@ -10,9 +10,9 @@ import { Disposable, DisposableStore, MutableDisposable, type IDisposable } from
 import { ResourceMap } from '../../../../base/common/map.js';
 import { basename, dirname, extUriBiasedIgnorePathCase, isEqual } from '../../../../base/common/resources.js';
 import type { URI } from '../../../../base/common/uri.js';
-import { FileChangeType, IFileService, type FileChangesEvent } from '../../../files/common/files.js';
+import { FileChangeType, FileOperationResult, IFileService, toFileOperationResult, type FileChangesEvent } from '../../../files/common/files.js';
 import { ILogService } from '../../../log/common/log.js';
-import { modelRouterNameFromFileName, modelRouterNameFromModelId, ModelRouterDiagnosticSeverity, parseModelRouter, type IModelRouter, type IModelRouterDiagnostic } from '../../common/modelRouter.js';
+import { MODEL_ROUTER_MAX_FILE_BYTES, modelRouterNameFromFileName, modelRouterNameFromModelId, ModelRouterDiagnosticSeverity, parseModelRouter, type IModelRouter, type IModelRouterDiagnostic, type IModelRouterParseResult } from '../../common/modelRouter.js';
 
 export type ModelRouterScope = 'user' | 'workspace' | 'plugin';
 
@@ -82,14 +82,16 @@ export class UserModelRouterSource extends Disposable implements IModelRouterSou
 					return files;
 				}
 				const fileName = basename(child.resource);
-				let content: string;
+				let result: IModelRouterParseResult;
 				try {
-					content = (await this._fileService.readFile(child.resource)).value.toString();
+					result = parseModelRouter((await this._fileService.readFile(child.resource, { limits: { size: MODEL_ROUTER_MAX_FILE_BYTES } })).value.toString(), fileName);
 				} catch (error) {
-					this._logService.warn(`[ModelRouter] Could not read ${child.resource.toString()}`, error);
-					continue;
+					if (toFileOperationResult(error) !== FileOperationResult.FILE_TOO_LARGE) {
+						this._logService.warn(`[ModelRouter] Could not read ${child.resource.toString()}`, error);
+						continue;
+					}
+					result = { router: undefined, diagnostics: [{ severity: ModelRouterDiagnosticSeverity.Error, message: `A model router file is at most ${MODEL_ROUTER_MAX_FILE_BYTES / 1024} KiB.` }] };
 				}
-				const result = parseModelRouter(content, fileName);
 				const name = result.router?.name ?? result.name ?? this._lastNames.get(child.resource) ?? modelRouterNameFromFileName(fileName)!;
 				if (result.name) {
 					this._lastNames.set(child.resource, result.name);

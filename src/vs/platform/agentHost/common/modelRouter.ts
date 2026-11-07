@@ -434,6 +434,11 @@ const simpleEscapes = new Set(['0', 'a', 'b', 't', 'n', 'v', 'f', 'r', 'e', ' ',
 const hexEscapeLengths: Record<string, number> = { x: 2, u: 4, U: 8 };
 
 function checkQuotedScalar(content: string, node: YamlScalarNode, report: IReporter): void {
+	// The shared parser reads `&anchor` and `*alias` as plain text, which would send the alias, not what it names.
+	if (node.format === 'none' && (content[node.startOffset] === '&' || content[node.startOffset] === '*')) {
+		report.error('Anchors (`&`) and aliases (`*`) are not supported; quote text that starts with `&` or `*`.', node);
+		return;
+	}
 	if (node.format !== 'single' && node.format !== 'double') {
 		return;
 	}

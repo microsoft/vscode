@@ -139,6 +139,10 @@ export function buildModelRouterDecisionsRequest(request: IModelRouterPickReques
 		}
 		built = build();
 	}
+	// Routing without the user's request, or over the limit, would be a guess, so the router falls back instead.
+	if (escapedBytes(built) > modelRouterRequestLimits.request || (request.text.trim() && !prompt.trim())) {
+		throw new ModelRouterPickerError(ModelRouterPickerFailure.Unavailable, 'The route descriptions leave no room for the request');
+	}
 	return built;
 }
 

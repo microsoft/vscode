@@ -2263,6 +2263,10 @@ export class AgentSideEffects extends Disposable {
 			let routed: IRoutedTurnModel | undefined;
 			if (message.model && isModelRouterModelId(message.model.id)) {
 				routed = await this._resolveRoutedTurnModel(agent, chatUri, turnChannel, turnId, message.model, message.text, clientOperationContext);
+				if (this._cancelledTurnIds.get(turnChannel)?.has(turnId)) {
+					await this._discardPendingTurnStartCheckpoint(checkpointCapture, sessionChannel, chatUri, turnId);
+					return;
+				}
 				model = routed?.selection;
 			} else {
 				model = getApplicableTurnModel(agent, this._stateManager.getSessionState(sessionChannel)?.provider, message.model);
