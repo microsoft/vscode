@@ -8,7 +8,7 @@ import { $, reset, setVisibility } from '../../../../../base/browser/dom.js';
 import { onUnexpectedError } from '../../../../../base/common/errors.js';
 import { Event } from '../../../../../base/common/event.js';
 import { Disposable, toDisposable } from '../../../../../base/common/lifecycle.js';
-import { autorun, derived, IObservable, observableFromEvent, observableValue } from '../../../../../base/common/observable.js';
+import { autorun, derived, IObservable, observableFromEvent, observableValue, transaction } from '../../../../../base/common/observable.js';
 import { isEqual } from '../../../../../base/common/resources.js';
 import { localize } from '../../../../../nls.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
@@ -51,6 +51,14 @@ export class AgentsWindowGraphic extends Disposable {
 	private readonly _shownDesign = observableValue<AgentsWindowGraphicDesign | undefined>(this, undefined);
 	/** The graphic rendered in {@link element}, or `undefined` when none is. Changes after the element has been updated. */
 	readonly shownDesign: IObservable<AgentsWindowGraphicDesign | undefined> = this._shownDesign;
+
+	private readonly _laidOutDesign = observableValue<AgentsWindowGraphicDesign | undefined>(this, undefined);
+	/**
+	 * The graphic that {@link element} takes up space for: the {@link shownDesign shown graphic}, or while
+	 * {@link AgentsWindowGraphicVariant.Auto} still counts the editor windows, a hidden graphic that holds the
+	 * place of the likely one. Pages lay out with this one so that they don't shift once the graphic shows.
+	 */
+	readonly laidOutDesign: IObservable<AgentsWindowGraphicDesign | undefined> = this._laidOutDesign;
 
 	/**
 	 * How the graphic, its captions and the Agents window button should be set apart from the rest of the page,
@@ -98,11 +106,21 @@ export class AgentsWindowGraphic extends Disposable {
 		}));
 
 		const design = derived(this, reader => resolveAgentsWindowGraphicDesign(variant.read(reader), hasMultipleEditorWindows.read(reader)));
+		// While the editor windows are counted, hold the place of the graphic for a single window, the common case
+		const placeholderDesign = derived(this, reader => variant.read(reader) === AgentsWindowGraphicVariant.Auto && hasMultipleEditorWindows.read(reader) === undefined
+			? resolveAgentsWindowGraphicDesign(AgentsWindowGraphicVariant.Auto, false)
+			: undefined);
 		this._register(autorun(reader => {
 			const shownDesign = design.read(reader);
-			reset(this.element, ...(shownDesign ? [renderAgentsWindowGraphic(shownDesign)] : []));
-			setVisibility(!!shownDesign, this.element);
-			this._shownDesign.set(shownDesign, undefined);
+			const laidOutDesign = shownDesign ?? placeholderDesign.read(reader);
+			reset(this.element, ...(laidOutDesign ? [renderAgentsWindowGraphic(laidOutDesign)] : []));
+			setVisibility(!!laidOutDesign, this.element);
+			// `visibility: hidden` keeps the placeholder's size but hides it, also from screen readers
+			this.element.style.visibility = shownDesign ? '' : 'hidden';
+			transaction(tx => {
+				this._laidOutDesign.set(laidOutDesign, tx);
+				this._shownDesign.set(shownDesign, tx);
+			});
 		}));
 	}
 }
