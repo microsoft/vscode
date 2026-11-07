@@ -259,6 +259,7 @@
     "npm-run-all2": "^8.0.4",
     "p-all": "^1.0.0",
     "path-browserify": "^1.0.1",
+    "playwright": "^1.61.1",
     "rcedit": "^1.1.0",
     "readable-stream": "^3.6.0",
     "rimraf": "^2.2.8",
