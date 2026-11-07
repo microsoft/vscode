@@ -65,7 +65,7 @@ class TerminalHistoryContribution extends Disposable implements ITerminalContrib
 				case TerminalCapability.CommandDetection: {
 					const store = new DisposableStore();
 					store.add(e.capability.onCommandFinished(e => {
-						if (e.command.trim().length > 0) {
+						if (e.isTrusted && e.command.trim().length > 0) {
 							this._instantiationService.invokeFunction(getCommandHistory)?.add(e.command, { shellType: _ctx.instance.shellType });
 						}
 					}));
