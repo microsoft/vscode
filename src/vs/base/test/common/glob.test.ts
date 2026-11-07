@@ -580,6 +580,21 @@ suite('Glob', () => {
 
 		assertGlobMatch(p, 'foo.]');
 		assertGlobMatch(p, 'foo.-');
+
+		p = 'foo]';
+
+		assertGlobMatch(p, 'foo]');
+		assertNoGlobMatch(p, 'foo');
+
+		p = '**/[[]id]/**';
+
+		assertGlobMatch(p, 'app/[id]/page.tsx');
+		assertNoGlobMatch(p, 'app/i/page.tsx');
+
+		p = 'foo.[!]]';
+
+		assertGlobMatch(p, 'foo.a');
+		assertNoGlobMatch(p, 'foo.]');
 	});
 
 	test('full path', function () {

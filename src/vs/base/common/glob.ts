@@ -159,7 +159,7 @@ function parseRegExp(pattern: string): string {
 					}
 
 					// Support brackets
-					if (inBrackets && (char !== ']' || !bracketVal) /* ] is literally only allowed as first character in brackets to match it */) {
+					if (inBrackets && (char !== ']' || !bracketVal || bracketVal === '^') /* ] is literally only allowed as first character in brackets (after an optional negation) to match it */) {
 						let res: string;
 
 						// range operator
@@ -211,6 +211,12 @@ function parseRegExp(pattern: string): string {
 						}
 
 						case ']': {
+							// a ] that does not close a bracket expression matches itself
+							if (!inBrackets) {
+								regEx += escapeRegExpCharacters(char);
+								continue;
+							}
+
 							regEx += ('[' + bracketVal + ']');
 
 							inBrackets = false;
