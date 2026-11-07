@@ -680,6 +680,9 @@ export class NewChatWidget extends Disposable {
 			this._register(this._trackUserModelSelections());
 			this._register(this._trackUserAgentSelections());
 		}
+		if (this._draftHost) {
+			this._register(this._reseedAfterFailedSend(this._draftHost));
+		}
 
 		// Comment 2: Re-evaluate the tip when the selected model changes, because
 		// some tips (e.g. tip.switchToAuto) are only eligible for specific models.
@@ -1159,6 +1162,28 @@ export class NewChatWidget extends Disposable {
 		} else {
 			void this._restoreNoWorkspaceDraft();
 		}
+	}
+
+	/**
+	 * A hosted composer whose foreground request ended without starting its session, and without its slot taking the
+	 * draft back, such as one its provider removed, creates a fresh draft of what it aims for, so that sending again does
+	 * not ask for a workspace. Never over a draft its slot already holds, nor while it creates one.
+	 */
+	private _reseedAfterFailedSend(host: INewSessionDraftHost): IDisposable {
+		return this.sessionsManagementService.onDidEndNewSessionRequest(({ owner, started, readopted }) => {
+			if (owner !== host.slot || started || readopted || host.slot.newSession.get() || this._pendingWorkspaceCreation) {
+				return;
+			}
+			const target = host.requestedTarget?.get();
+			const folderUri = this._workspacePicker.selectedFolderUri;
+			if (target) {
+				this._seedRequestedTarget(target);
+			} else if (folderUri) {
+				void this._createNewSession(folderUri);
+			} else {
+				this.selectNoWorkspace(undefined, { userSelection: false });
+			}
+		});
 	}
 
 	private _seedRequestedTarget(target: INewSessionTarget): void {
@@ -2364,7 +2389,12 @@ export class NewChatWidget extends Disposable {
 			this._backgroundSendStatus.set(undefined, undefined);
 			this._lastBackgroundSendOptions = undefined;
 		}
-		const session = this._session.get();
+		let session = this._session.get();
+		// A hosted composer creating its draft again, such as after a send that failed, sends once it has it.
+		if (!session && this._draftHost && this._pendingWorkspaceCreation) {
+			await this._pendingWorkspaceCreation;
+			session = this._session.get();
+		}
 		if (!session) {
 			this._workspacePicker.showPicker();
 			return false;

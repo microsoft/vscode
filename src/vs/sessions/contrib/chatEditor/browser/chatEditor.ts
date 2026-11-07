@@ -23,7 +23,8 @@ import { IEditorPart } from '../../../../workbench/services/editor/common/editor
 import { decideStackedChatInputOnlyWhileDragging } from '../../../../workbench/contrib/chatWindow/common/chatWindowInputOnly.js';
 import { ChatWindowLayoutMode } from '../../../../workbench/contrib/chatWindow/common/chatWindowLayout.js';
 import { AbstractChatView, ISessionViewHostOptions } from '../../../../workbench/contrib/sessions/browser/parts/chatView.js';
-import { ChatEditorContent } from './chatEditorContent.js';
+import { ChatEditorContent, IChatEditorComposer } from './chatEditorContent.js';
+
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { URI } from '../../../../base/common/uri.js';
@@ -69,6 +70,8 @@ export interface ISessionChatViewHost {
 	 * chat in the window it shows in.
 	 */
 	readonly content: IObservable<ISessionPaneContent | undefined>;
+	/** A new-session composer that its pane shows while {@link content} is undefined, until the composer's session is created. */
+	readonly composer?: IObservable<IChatEditorComposer | undefined>;
 	/** The window the view shows in, once it shows. */
 	readonly window: IObservable<IChatEditorWindow | undefined>;
 	/** Whether its chat is the active one of its window: only that one shows the Session Activity Bar, also beside its window's chat. */
@@ -323,6 +326,7 @@ export class ChatEditorView extends Disposable implements IViewEditorView {
 			return;
 		}
 		this._register(host.attach(sessionView));
+		this._register(autorun(reader => sessionView.setComposer(host.composer?.read(reader))));
 		this._register(autorun(reader => sessionView.setContent(host.content.read(reader))));
 		// Without the chat, such as while its window shows only its main part, or while another editor beside it, as a tab,
 		// shows, its view is hidden; as with what hosts it hidden, its Session Activity Bar can still show outside of it.

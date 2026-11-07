@@ -2250,7 +2250,8 @@ registerAction2(class CloseSessionAction extends Action2 {
 			}, ...SessionHeaderMenus.map(id => ({
 				id,
 				when: ContextKeyExpr.and(
-					ContextKeyExpr.or(SessionIsCreatedContext, MultipleSessionsVisibleContext),
+					// Not a new session a chat editor shows, such as a chat window's, which its tab closes: it has no pane to close
+					ContextKeyExpr.or(SessionIsCreatedContext, ContextKeyExpr.and(MultipleSessionsVisibleContext, SessionInChatEditorContext.negate())),
 					SessionHeaderShowsChatContext.negate(),
 				),
 				group: 'secondary/0_pane',

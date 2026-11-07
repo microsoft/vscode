@@ -8,7 +8,7 @@ import { $, append } from '../../../../../base/browser/dom.js';
 import { mainWindow } from '../../../../../base/browser/window.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { DisposableStore, toDisposable } from '../../../../../base/common/lifecycle.js';
-import { constObservable, derived, IObservable, observableValue, transaction } from '../../../../../base/common/observable.js';
+import { constObservable, derived, IObservable, ISettableObservable, observableValue, transaction } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { mock, upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
@@ -37,8 +37,11 @@ import { ISessionsListModelService } from '../../../../../workbench/contrib/sess
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { ISessionsService } from '../../../../../workbench/contrib/sessions/browser/sessionsService.js';
 import { ChatHostOpenerService, IChatHostOpenerService } from '../../../../../workbench/services/sessions/browser/chatHostOpener.js';
-import { ChatInteractivity, IChat, ISession, ISessionChangeset, ISessionChangesetOperation, SessionChangesetOperationScope, SessionStatus } from '../../../../../workbench/services/sessions/common/session.js';
-import { ISessionsChangeEvent, ISessionsManagementService } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
+import { ChatInteractivity, IChat, ISession, ISessionChangeset, ISessionChangesetOperation, ISessionWorkspace, SessionChangesetOperationScope, SessionStatus } from '../../../../../workbench/services/sessions/common/session.js';
+import { INewSessionDraftSlot, INewSessionRequestAcceptedEvent, INewSessionRequestEndedEvent, ISessionsChangeEvent, ISessionsManagementService } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
+import { ISessionPaneContent } from '../../../../../workbench/services/sessions/common/sessionPane.js';
+import { ISessionGroupsService } from '../../../../../workbench/contrib/sessions/browser/sessionGroupsService.js';
+import { IChatEditorComposer } from '../../../chatEditor/browser/chatEditorContent.js';
 import { CHAT_WINDOWS_ENABLED_SETTING } from '../../common/chatWindows.js';
 import { SESSION_ACTIVITY_BAR_SETTING } from '../../../../../workbench/contrib/sessions/common/sessionConfig.js';
 import { SessionChangesEditorFileListContext } from '../../../../../workbench/contrib/sessions/common/changes.js';
@@ -61,7 +64,7 @@ import { ITestSessionWithChat, stubSessionHosts, testGridPanes } from '../../../
 import { ISessionHost } from '../../../../../workbench/services/sessions/browser/sessionHost.js';
 import { ITitleService } from '../../../../../workbench/services/title/browser/titleService.js';
 import { IAuxiliaryTitlebarPart } from '../../../../../workbench/browser/parts/titlebar/titlebarPart.js';
-import { ISessionPaneContent } from '../../../../../workbench/services/sessions/common/sessionPane.js';
+import { ViewEditorInput } from '../../../../../workbench/browser/parts/editor/viewEditorInput.js';
 
 suite('Sessions chat window provider', () => {
 
@@ -130,8 +133,27 @@ suite('Sessions chat window provider', () => {
 		instantiationService.stub(IChatEntitlementService, new class extends mock<IChatEntitlementService>() {
 			override readonly sentimentObs = sentiment as IObservable<IChatSentiment>;
 		}());
+		const onDidAcceptNewSessionRequest = store.add(new Emitter<INewSessionRequestAcceptedEvent>());
+		const onDidEndNewSessionRequest = store.add(new Emitter<INewSessionRequestEndedEvent>());
+		const slots: (INewSessionDraftSlot & { readonly newSession: ISettableObservable<ISession | undefined> })[] = [];
 		instantiationService.stub(ISessionsManagementService, new class extends mock<ISessionsManagementService>() {
 			override readonly onDidChangeSessions = onDidChangeSessions.event;
+			override readonly onDidAcceptNewSessionRequest = onDidAcceptNewSessionRequest.event;
+			override readonly onDidEndNewSessionRequest = onDidEndNewSessionRequest.event;
+			override readonly onDidReplaceNewDraftSession = Event.None;
+			override readonly onDidReplaceSession = Event.None;
+			override getNewSessionTarget() { return undefined; }
+			override isNewSessionTargetAvailable() { return true; }
+			override createNewSessionSlot() {
+				const id = `slot${slots.length + 1}`;
+				const slot = new class extends mock<INewSessionDraftSlot & { readonly newSession: ISettableObservable<ISession | undefined>; dispose(): void }>() {
+					override readonly id = id;
+					override readonly newSession = observableValue<ISession | undefined>(this, undefined);
+					override dispose() { events.push(`dispose ${id}`); }
+				}();
+				slots.push(slot);
+				return slot;
+			}
 			override getSession(resource: URI) { return sessions.find(session => session.resource.toString() === resource.toString()); }
 			override getSessions() { return sessions; }
 			override getSessionForChatResource(resource: URI) {
@@ -162,11 +184,21 @@ suite('Sessions chat window provider', () => {
 				events.push(`open ${session.sessionId} ${chat.path} beside ${options?.referenceChatResource?.path}${options?.preserveFocus ? ' preserving focus' : ''}`);
 			}
 		}());
+		/** What opening a chat in a window does besides recording it, such as resolving it in the window's content. */
+		const opening: { onOpen?: (chat: URI) => Promise<void> } = {};
 		instantiationService.stub(IChatWindowService, new class extends mock<IChatWindowService>() {
 			override readonly windows = constObservable([window]);
 			override async open(chat: URI, options?: IChatWindowOpenOptions) {
-				events.push(`window open ${chat.path}${options?.window ? ` in ${options.window.windowId}` : ''}${options?.beside ? ` beside ${options.beside.path}` : ''}`);
+				events.push(`window open ${chat.scheme === 'test' ? chat.path : chat.scheme}${options?.window ? ` in ${options.window.windowId}` : ''}${options?.beside ? ` beside ${options.beside.path}` : ''}${options?.tabOf ? ` tab of ${options.tabOf.scheme === 'test' ? options.tabOf.path : options.tabOf.scheme}` : ''}`);
+				await opening.onOpen?.(chat);
 				return undefined;
+			}
+		}());
+		instantiationService.stub(ISessionGroupsService, new class extends mock<ISessionGroupsService>() {
+			override getGroupOfSession(sessionId: string) { return sessionId === 'grouped' ? 'group' : undefined; }
+			override setDraftSlotGroup(slotId: string, groupId: string | undefined) {
+				events.push(`group ${slotId} ${groupId}`);
+				return toDisposable(() => events.push(`ungroup ${slotId}`));
 			}
 		}());
 		const chatHostOpenerService = new ChatHostOpenerService();
@@ -214,7 +246,7 @@ suite('Sessions chat window provider', () => {
 			}),
 		}));
 		const provider = store.add(instantiationService.createInstance(SessionsChatWindowProvider));
-		return { provider, storage, events, window, titleBars, windowInstantiationService: store.add(instantiationService.createChild(new ServiceCollection([IContextKeyService, store.add(new ContextKeyService(configuration))]))), onDidChangeSessions, sentiment, configuration, editorGroups, activeChat, chatHostOpenerService, visibleSessions };
+		return { provider, storage, events, window, titleBars, opening, slots, onDidAcceptNewSessionRequest, onDidEndNewSessionRequest, windowInstantiationService: store.add(instantiationService.createChild(new ServiceCollection([IContextKeyService, store.add(new ContextKeyService(configuration))]))), onDidChangeSessions, sentiment, configuration, editorGroups, activeChat, chatHostOpenerService, visibleSessions };
 	}
 
 	/** The window the chats show in: its active chat is `activeChat`. */
@@ -775,5 +807,104 @@ suite('Sessions chat window provider', () => {
 		const mainWindowOptions = (DesktopMainEditorPart.prototype as unknown as { getGroupViewOptions(this: object): IEditorGroupViewOptions }).getGroupViewOptions.call({});
 
 		assert.deepStrictEqual(CHAT_WINDOW_MAIN_PART_GROUP_VIEW_OPTIONS.menuIds, mainWindowOptions.menuIds);
+	});
+	/** The composer behind `chat`: what its editor shows while it has not sent its session. */
+	function asComposerChat(chat: IChatWindowChat) {
+		return chat as ReturnType<typeof asWindowChat> & { readonly composer: IObservable<IChatEditorComposer | undefined> };
+	}
+
+	/** A window showing `session`'s main chat, whose New Session opens composers, which the window resolves as it opens them. */
+	async function openWindowWithComposers(store: DisposableStore, sessions: ISession[]) {
+		const services = createProvider(store, sessions);
+		const content = store.add((await services.provider.resolveContent(sessions[0].resource))!);
+		await content.resolveChat(URI.parse('test:/main'));
+		store.add(content.bind!(window, services.windowInstantiationService));
+		const opened: IChatWindowChat[] = [];
+		services.opening.onOpen = async chat => {
+			const resolved = await content.resolveChat(chat);
+			if (resolved) {
+				opened.push(resolved);
+			}
+		};
+		return { ...services, content, opened };
+	}
+
+	test('New Session in a chat window opens a composer as a tab of its active chat, aimed at that chat\'s session and joining its custom group, in a draft slot of its own; while the active chat is that composer, it focuses it; closing it discards only its slot', async () => {
+		const store = disposables.add(new DisposableStore());
+		const main = Object.assign(createChat('main'), { modelId: constObservable('model'), mode: constObservable({ id: 'agent', kind: 'agent' }) });
+		const session = Object.assign(createSession('grouped', [main]), { providerId: 'provider', sessionType: 'type', workspace: constObservable(upcastPartial<ISessionWorkspace>({ uri: URI.file('/repo'), folders: [] })), isQuickChat: constObservable(false) });
+		const { provider, events, opened, slots } = await openWindowWithComposers(store, [session]);
+
+		await provider.openComposer(window);
+		const composer = asComposerChat(opened[0]);
+		const draftHost = composer.composer.get()!.draftHost;
+		const shown = { scheme: composer.chat.get().scheme, title: composer.title.get(), target: draftHost.requestedTarget?.get(), session: composer.session.get(), content: composer.content.get(), ownSlot: draftHost.slot === slots[0] };
+		activeChat.set(composer.chat.get(), undefined);
+		await provider.openComposer(window);
+		const again = { opened: opened.length, same: opened[1] === composer, slots: slots.length };
+		composer.dispose();
+		activeChat.set(URI.parse('test:/main'), undefined);
+
+		assert.deepStrictEqual({ shown, again, events }, {
+			shown: { scheme: 'vscode-agents-composer', title: 'New Session', target: { folderUri: URI.file('/repo'), providerId: 'provider', sessionTypeId: 'type', modelId: 'model', modeId: 'agent' }, session: undefined, content: undefined, ownSlot: true },
+			again: { opened: 2, same: true, slots: 1 },
+			events: ['hide grouped /main', 'group slot1 group', 'window open vscode-agents-composer in 42 tab of /main', 'window open vscode-agents-composer in 42', 'dispose slot1', 'ungroup slot1'],
+		});
+	});
+
+	test('a composer shows its draft without a chat, and the session of its foreground send once created; its chat becomes that session\'s main chat in the same editor once the send started it, only then held out of the grid, and the composer and its slot go', async () => {
+		const store = disposables.add(new DisposableStore());
+		const status = observableValue('status', SessionStatus.Untitled);
+		const draft = Object.assign(createSession('draft', [createChat('draft-main')]), { status });
+		const sessions = [createSession('session', [createChat('main')])];
+		const { provider, events, opened, slots, onDidAcceptNewSessionRequest, onDidEndNewSessionRequest } = await openWindowWithComposers(store, sessions);
+		await provider.openComposer(window);
+		const composer = asComposerChat(opened[0]);
+		const input = composer.input;
+		events.length = 0;
+		const read = () => ({
+			chat: composer.chat.get().scheme === 'test' ? composer.chat.get().path : composer.chat.get().scheme,
+			session: composer.session.get()?.sessionId,
+			content: composer.content.get()?.chat.get().resource.path,
+			composer: !!composer.composer.get(),
+			title: composer.title.get(),
+			// Its tab shows, with its close, until its session's chat shows.
+			rendersTitle: (composer.input as ViewEditorInput).rendersTitle,
+		});
+
+		slots[0].newSession.set(draft, undefined);
+		const drafting = read();
+		onDidAcceptNewSessionRequest.fire({ session: draft, owner: slots[0], background: false });
+		slots[0].newSession.set(undefined, undefined);
+		const sending = read();
+		status.set(SessionStatus.InProgress, undefined);
+		const created = read();
+		sessions.push(draft);
+		onDidEndNewSessionRequest.fire({ session: draft, owner: slots[0], started: true, readopted: false });
+		const started = read();
+
+		assert.deepStrictEqual({ drafting, sending, created, started, sameEditor: composer.input === input, events }, {
+			drafting: { chat: 'vscode-agents-composer', session: 'draft', content: undefined, composer: true, title: 'New Session', rendersTitle: false },
+			sending: { chat: 'vscode-agents-composer', session: 'draft', content: undefined, composer: true, title: 'New Session', rendersTitle: false },
+			created: { chat: 'vscode-agents-composer', session: 'draft', content: '/draft-main', composer: true, title: 'New Session', rendersTitle: false },
+			started: { chat: '/draft-main', session: 'draft', content: '/draft-main', composer: false, title: 'draft-main', rendersTitle: true },
+			sameEditor: true,
+			events: ['hide draft /draft-main', 'dispose slot1', 'ungroup slot1'],
+		});
+	});
+
+	test('a composer that its window did not take, such as when the window went away meanwhile, discards its slot; a composer it does not know resolves to nothing, and is not restored', async () => {
+		const store = disposables.add(new DisposableStore());
+		const { provider, content, events, opened, opening } = await openWindowWithComposers(store, [createSession('session', [createChat('main')])]);
+		events.length = 0;
+		opening.onOpen = undefined;
+		await provider.openComposer(window);
+		const unknown = await content.resolveChat(URI.parse('vscode-agents-composer:/unknown'));
+		const canRestore = await provider.canRestore(URI.parse('vscode-agents-composer:/unknown'));
+
+		assert.deepStrictEqual({ opened: opened.length, unknown, canRestore, events }, {
+			opened: 0, unknown: undefined, canRestore: false,
+			events: ['group slot1 undefined', 'window open vscode-agents-composer in 42 tab of /main', 'dispose slot1', 'ungroup slot1'],
+		});
 	});
 });

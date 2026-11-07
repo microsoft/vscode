@@ -12,26 +12,53 @@ import { IViewEditorRegistry, ViewEditorExtensions } from '../../../../../workbe
 import { ChatWindowLayoutMode } from '../../../../../workbench/contrib/chatWindow/common/chatWindowLayout.js';
 import { $ } from '../../../../../base/browser/dom.js';
 import { setARIAContainer } from '../../../../../base/browser/ui/aria/aria.js';
-import { Disposable } from '../../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, toDisposable } from '../../../../../base/common/lifecycle.js';
+import { mainWindow } from '../../../../../base/browser/window.js';
+import { INewSessionDraftHost } from '../../../../../workbench/contrib/sessions/browser/parts/chatView.js';
+import { ISessionPaneContent } from '../../../../../workbench/services/sessions/common/sessionPane.js';
 import { Event } from '../../../../../base/common/event.js';
-import { upcastPartial } from '../../../../../base/test/common/mock.js';
+import { mock, upcastPartial } from '../../../../../base/test/common/mock.js';
+import { runWithFakedTimers } from '../../../../../base/test/common/virtualScheduling/index.js';
+import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
+import { ILogService, NullLogService } from '../../../../../platform/log/common/log.js';
+import { ChatAgentLocation } from '../../../../../workbench/contrib/chat/common/constants.js';
+import { ChatModel } from '../../../../../workbench/contrib/chat/common/model/chatModel.js';
+import { ChatModelStore, IStartSessionProps } from '../../../../../workbench/contrib/chat/common/model/chatModelStore.js';
+import { IChatAgentService } from '../../../../../workbench/contrib/chat/common/participants/chatAgents.js';
+import { CHAT_MODEL_HOLD_TIMEOUT } from '../../../chatWindow/browser/chatWindowOpening.js';
+import { IChatModelReference, IChatService } from '../../../../../workbench/contrib/chat/common/chatService/chatService.js';
 import { IChatWindow } from '../../../../../workbench/contrib/chatWindow/browser/chatWindow.js';
 import { IContentPart, IEditorGroup } from '../../../../../workbench/services/editor/common/editorGroupsService.js';
 import { testPaneContentOf } from '../../../../../workbench/contrib/sessions/test/browser/sessionHostTestUtils.js';
 import { createSessionViewTestServices, createTestActiveSession } from '../../../../test/browser/sessionViewTestUtils.js';
+import { isIMenuItem, MenuRegistry } from '../../../../../platform/actions/common/actions.js';
+import { ChatContextKeys } from '../../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
+import { CLOSE_SESSION_COMMAND_ID } from '../../../../../workbench/contrib/sessions/common/sessionCommands.js';
+// The session header's actions, which the tab bar shows for a chat while its header hides
+import '../../../sessions/browser/sessionsActions.js';
 import { Menus } from '../../../../../workbench/contrib/sessions/browser/menus.js';
-import { SessionInChatEditorContext } from '../../../../../workbench/contrib/sessions/common/contextkeys.js';
+import { MultipleSessionsVisibleContext, SessionInChatEditorContext } from '../../../../../workbench/contrib/sessions/common/contextkeys.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { Verbosity } from '../../../../../workbench/common/editor.js';
-import { IChat, ISession, SessionStatus } from '../../../../../workbench/services/sessions/common/session.js';
+import { IChat, ISession, ISessionPreparationProgress, SessionStatus } from '../../../../../workbench/services/sessions/common/session.js';
 import { ISessionsListModelService } from '../../../../../workbench/contrib/sessions/browser/sessionsListModelService.js';
 import { ChatEditorInput, getChatEditorInputDetails, ChatEditorView, IInputOnlySessionView, ISessionChatViewHost, SESSION_CHAT_VIEW_HOST_OPTIONS, SESSION_CHAT_VIEW_MINIMUM_HEIGHT, SESSION_CHAT_VIEW_TYPE, SessionChatViewInputOnly } from '../../browser/chatEditor.js';
+import { IChatEditorComposer } from '../../browser/chatEditorContent.js';
 
 suite('Session chat view editor', () => {
 
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
+
+	/** The services of a chat editor's view, with a chat service that has no chat model loaded. */
+	function createServices() {
+		const services = createSessionViewTestServices(disposables);
+		services.instantiationService.stub(IChatService, new class extends mock<IChatService>() {
+			override acquireExistingSession() { return undefined; }
+		}());
+		return services;
+	}
 
 	const INPUT_HEIGHT = 100;
 	/** The top of the chat view while it shows only its input: below the bar of its group, the session header hidden then. */
@@ -199,7 +226,7 @@ suite('Session chat view editor', () => {
 	});
 
 	test('a chat editor shows exactly one chat, with no tabs of chats in it, also of a session of several chats: its chats are editors of their own', () => {
-		const { instantiationService, chatViews } = createSessionViewTestServices(disposables);
+		const { instantiationService, chatViews } = createServices();
 		const host: ISessionChatViewHost = {
 			content: constObservable(testPaneContentOf(createTestActiveSession('session', true, { chatCount: 3 }), () => { })),
 			window: constObservable(undefined),
@@ -215,7 +242,7 @@ suite('Session chat view editor', () => {
 	});
 
 	test('before its editor moves, the chat saves what it shows, such as where it is scrolled to, for the view where it moves to', () => {
-		const { instantiationService, chatViews } = createSessionViewTestServices(disposables);
+		const { instantiationService, chatViews } = createServices();
 		const host: ISessionChatViewHost = {
 			content: constObservable(testPaneContentOf(createTestActiveSession('session'), () => { })),
 			window: constObservable(undefined),
@@ -233,7 +260,7 @@ suite('Session chat view editor', () => {
 		assert.deepStrictEqual({ primary: view.sessionView.primaryChatView.get() === chatViews.at(-1), saved }, { primary: true, saved: ['chat'] });
 	});
 	test('only the window\'s active chat shows the Session Activity Bar: of two chats split in Stacked, the active one; with only its main part shown, still the active one, outside of its hidden chat', () => {
-		const { instantiationService } = createSessionViewTestServices(disposables);
+		const { instantiationService } = createServices();
 		const layoutMode = observableValue('layoutMode', ChatWindowLayoutMode.Stacked);
 		const window = upcastPartial<IChatWindow>({
 			layoutMode,
@@ -266,7 +293,7 @@ suite('Session chat view editor', () => {
 	});
 
 	test('the session header shows at the top of the chat\'s card, as in the main window, in every layout mode, and hides while the chat shows only its input in Stacked; its title drags the editor of the chat', () => {
-		const { instantiationService } = createSessionViewTestServices(disposables);
+		const { instantiationService } = createServices();
 		const layoutMode = observableValue('layoutMode', ChatWindowLayoutMode.SideBySide);
 		const inputOnly = observableValue('inputOnly', true);
 		const window = upcastPartial<IChatWindow>({
@@ -309,7 +336,7 @@ suite('Session chat view editor', () => {
 	});
 
 	test('while the group of its editor shows its tabs, as it holds other editors too, the chat hides its session header, whose actions the tab bar shows for it, in its scope and on its session; alone in its group again, it shows its header', () => {
-		const { instantiationService } = createSessionViewTestServices(disposables);
+		const { instantiationService } = createServices();
 		const session = createTestActiveSession('session');
 		const view = disposables.add(instantiationService.createInstance(ChatEditorView, {
 			content: constObservable(testPaneContentOf(session, () => { })),
@@ -382,5 +409,268 @@ suite('Session chat view editor', () => {
 		input.setName('Main');
 
 		assert.deepStrictEqual({ icon: input.getIcon().id, title: input.getTitle(Verbosity.LONG), ariaLabel: input.getAriaLabel() }, { icon: Codicon.commentDiscussion.id, title: 'Main', ariaLabel: 'Main' });
+	});
+
+	test('a chat editor shows a new-session composer until its session is created, without the session header: a send that prepares the session shows its chat, a failed one the composer again, and focus moves between them only where it was', () => {
+		const { instantiationService, chatViews } = createServices();
+		const inProgress = observableValue('inProgress', false);
+		const preparationProgress = observableValue<ISessionPreparationProgress | undefined>('preparationProgress', undefined);
+		const draft = createTestActiveSession('draft', false, { isNewSessionRequestInProgress: inProgress, preparationProgress });
+		const content = observableValue<ISessionPaneContent | undefined>('content', undefined);
+		const view = disposables.add(instantiationService.createInstance(ChatEditorView, {
+			content,
+			composer: constObservable({ draftHost: upcastPartial<INewSessionDraftHost>({}), session: constObservable(draft) }),
+			window: constObservable(undefined),
+			active: constObservable(true),
+			attach: () => Disposable.None,
+			view: constObservable(undefined),
+		}));
+		mainWindow.document.body.appendChild(view.element);
+		disposables.add(toDisposable(() => view.element.remove()));
+		view.layout(800, 600, 0, 0);
+		const read = () => {
+			const shown = chatViews.filter(chatView => !chatView.disposed && view.element.contains(chatView.element));
+			const header = view.element.querySelector<HTMLElement>('.session-header-bar');
+			return {
+				shown: shown.map(chatView => chatView.kind),
+				focused: shown.find(chatView => chatView.element.contains(mainWindow.document.activeElement))?.kind,
+				header: !!header && header.style.display !== 'none',
+				label: view.sessionView.element.getAttribute('aria-label'),
+			};
+		};
+		chatViews.find(chatView => chatView.kind === 'newSession')!.focus();
+
+		const composing = read();
+		transaction(tx => {
+			inProgress.set(true, tx);
+			preparationProgress.set({ message: 'Preparing', cancel: () => { } }, tx);
+		});
+		const preparing = read();
+		transaction(tx => {
+			inProgress.set(false, tx);
+			preparationProgress.set(undefined, tx);
+		});
+		const failed = read();
+		transaction(tx => {
+			draft.isCreated.set(true, tx);
+			content.set(testPaneContentOf(draft, () => { }), tx);
+		});
+		const created = read();
+
+		assert.deepStrictEqual({ composing, preparing, failed, created, composerViewsLeft: chatViews.filter(chatView => !chatView.disposed && chatView.kind === 'newSession').length }, {
+			composing: { shown: ['newSession'], focused: 'newSession', header: false, label: 'Chat: New Session' },
+			preparing: { shown: ['chat'], focused: 'chat', header: false, label: 'Chat: New Session' },
+			failed: { shown: ['newSession'], focused: 'newSession', header: false, label: 'Chat: New Session' },
+			created: { shown: ['chat'], focused: 'chat', header: true, label: 'Chat: Main Chat' },
+			composerViewsLeft: 0,
+		});
+	});
+
+	test('as its session\'s chat shows, the chat model the composer was bound to stays loaded, taken before the composer goes, until the chat editor shows other content, so the chat\'s view does not load the chat again from its provider; a composer that goes without its session showing takes nothing', () => {
+		const { instantiationService, chatViews } = createServices();
+		const events: string[] = [];
+		instantiationService.stub(IChatService, new class extends mock<IChatService>() {
+			override acquireExistingSession(resource: URI) {
+				events.push(`take ${resource.toString()}${chatViews.some(chatView => chatView.kind === 'newSession' && !chatView.disposed) ? ' while the composer shows' : ''}`);
+				return upcastPartial<IChatModelReference>({ dispose: () => events.push(`release ${resource.toString()}`) });
+			}
+		}());
+		const draft = createTestActiveSession('draft', false);
+		const content = observableValue<ISessionPaneContent | undefined>('content', undefined);
+		const composer = observableValue<IChatEditorComposer | undefined>('composer', { draftHost: upcastPartial<INewSessionDraftHost>({}), session: constObservable(draft) });
+		const view = disposables.add(instantiationService.createInstance(ChatEditorView, {
+			content,
+			composer,
+			window: constObservable(undefined),
+			active: constObservable(true),
+			attach: () => Disposable.None,
+			view: constObservable(undefined),
+		}));
+
+		transaction(tx => {
+			draft.isCreated.set(true, tx);
+			content.set(testPaneContentOf(draft, () => { }), tx);
+		});
+		const created = events.splice(0);
+		const other = createTestActiveSession('other');
+		content.set(testPaneContentOf(other, () => { }), undefined);
+		const otherContent = events.splice(0);
+
+		// A composer that goes while nothing shows in its place, such as when it is closed.
+		const unsent = createTestActiveSession('unsent', false);
+		content.set(undefined, undefined);
+		composer.set({ draftHost: upcastPartial<INewSessionDraftHost>({}), session: constObservable(unsent) }, undefined);
+		composer.set(undefined, undefined);
+		const closed = events.splice(0);
+
+		content.set(testPaneContentOf(draft, () => { }), undefined);
+		view.dispose();
+
+		assert.deepStrictEqual({ created, otherContent, closed, disposed: events }, {
+			created: ['take test-chat://draft while the composer shows'],
+			otherContent: ['release test-chat://draft'],
+			closed: [],
+			disposed: [],
+		});
+	});
+
+	test('the chat model of a composer\'s session stays held only until the chat\'s view has bound to it, so that once its provider is replaced the view lets go of it, it is evicted and the chat loads again, without the chat editor changing what it shows; a view that never binds lets go of it after a while', () => runWithFakedTimers({ useFakeTimers: true, maxTaskCount: 1_000 }, async () => {
+		const { instantiationService, chatViews } = createServices();
+		const models = disposables.add(new ChatModelStore({
+			createModel: props => {
+				const modelServices = disposables.add(new TestInstantiationService());
+				modelServices.stub(ILogService, new NullLogService());
+				modelServices.stub(IChatAgentService, new class extends mock<IChatAgentService>() {
+					override getDefaultAgent() { return undefined; }
+				}());
+				return modelServices.createInstance(ChatModel, undefined, { initialLocation: ChatAgentLocation.Chat, canUseTools: false, resource: props.sessionResource, disableBackgroundKeepAlive: true });
+			},
+			willDisposeModel: async () => { },
+		}, new NullLogService()));
+		instantiationService.stub(IChatService, new class extends mock<IChatService>() {
+			override acquireExistingSession(resource: URI) { return models.acquireExisting(resource); }
+		}());
+		const evicted: string[] = [];
+		disposables.add(models.onDidDisposeModel(model => evicted.push(model.sessionResource.toString())));
+
+		/** A chat editor whose composer, bound to its draft's chat model, sent its session: the session's chat shows instead. */
+		const graduate = (id: string) => {
+			const draft = createTestActiveSession(id, false);
+			const resource = draft.mainChat.get().resource;
+			const props: IStartSessionProps = { sessionResource: resource, location: ChatAgentLocation.Chat, canUseTools: false };
+			const composerModel = models.acquireOrCreate(props);
+			const original = composerModel.object;
+			const content = observableValue<ISessionPaneContent | undefined>('content', undefined);
+			const view = disposables.add(instantiationService.createInstance(ChatEditorView, {
+				content,
+				composer: constObservable<IChatEditorComposer | undefined>({ draftHost: upcastPartial<INewSessionDraftHost>({}), session: constObservable(draft) }),
+				window: constObservable(undefined),
+				active: constObservable(true),
+				attach: () => Disposable.None,
+				view: constObservable(undefined),
+			}));
+			transaction(tx => {
+				draft.isCreated.set(true, tx);
+				content.set(testPaneContentOf(draft, () => { }), tx);
+			});
+			// The composer's view went as the chat showed, and with it its model reference.
+			composerModel.dispose();
+			const chatView = chatViews.filter(chatView => chatView.kind === 'chat' && !chatView.disposed).at(-1)!;
+			return { resource, props, original, chatView, content, view };
+		};
+		const isLoaded = (resource: URI) => !!models.get(resource);
+
+		const bound = graduate('bound');
+		const handedOff = isLoaded(bound.resource);
+		// The chat's view loads its chat and binds to the model that is still loaded.
+		bound.chatView.isLoadingTranscript.set(true, undefined);
+		const viewModel = models.acquireExisting(bound.resource)!;
+		bound.chatView.isLoadingTranscript.set(false, undefined);
+		await timeout(100);
+		const contentBefore = bound.content.get();
+		// Its provider is replaced: the view lets go of the model and waits for it to be evicted before it loads the chat again.
+		viewModel.dispose();
+		await models.waitForModelDisposals();
+		const reloaded = disposables.add(models.acquireOrCreate(bound.props));
+		const boundResult = {
+			handedOff,
+			evicted: evicted.includes(bound.resource.toString()),
+			fresh: reloaded.object !== bound.original,
+			sameContent: bound.content.get() === contentBefore,
+			sameChatView: !bound.chatView.disposed,
+		};
+
+		const unbound = graduate('unbound');
+		await timeout(CHAT_MODEL_HOLD_TIMEOUT - 200);
+		const beforeTimeout = isLoaded(unbound.resource);
+		await timeout(200);
+		await models.waitForModelDisposals();
+		const afterTimeout = isLoaded(unbound.resource);
+
+		reloaded.dispose();
+		await models.waitForModelDisposals();
+		assert.deepStrictEqual({ bound: boundResult, unbound: { beforeTimeout, afterTimeout } }, {
+			bound: { handedOff: true, evicted: true, fresh: true, sameContent: true, sameChatView: true },
+			unbound: { beforeTimeout: true, afterTimeout: false },
+		});
+	}));
+
+	test('the actions its tab bar shows for a new-session composer do not offer Close Session, which has no pane to close there, also while the main window shows several sessions; once the session is created they do, as for any chat', () => {
+		const { instantiationService, contextKeyService } = createServices();
+		const draft = createTestActiveSession('draft', false);
+		const content = observableValue<ISessionPaneContent | undefined>('content', undefined);
+		const view = disposables.add(instantiationService.createInstance(ChatEditorView, {
+			content,
+			composer: constObservable({ draftHost: upcastPartial<INewSessionDraftHost>({}), session: constObservable(draft) }),
+			window: constObservable(undefined),
+			active: constObservable(true),
+			attach: () => Disposable.None,
+			view: constObservable(undefined),
+		}));
+		const multipleSessions = MultipleSessionsVisibleContext.bindTo(contextKeyService);
+		const aiEnabled = ChatContextKeys.enabled.bindTo(contextKeyService);
+		// Its entry among the session header's actions, as the tab bar shows them while the header hides
+		const close = MenuRegistry.getMenuItems(view.titleMenu.menuId).filter(isIMenuItem).find(item => item.command.id === CLOSE_SESSION_COMMAND_ID && item.group === 'secondary/0_pane');
+		const offersClose = (multiple: boolean, ai = true) => {
+			multipleSessions.set(multiple);
+			aiEnabled.set(ai);
+			return !!close && view.titleMenu.contextKeyService.contextMatchesRules(close.when);
+		};
+
+		const composer = { singleSession: offersClose(false), severalSessions: offersClose(true), aiHidden: offersClose(true, false) };
+		draft.isCreated.set(true, undefined);
+		content.set(testPaneContentOf(draft, () => { }), undefined);
+		const created = { singleSession: offersClose(false), severalSessions: offersClose(true) };
+
+		assert.deepStrictEqual({ composer, created }, {
+			composer: { singleSession: false, severalSessions: false, aiHidden: false },
+			created: { singleSession: true, severalSessions: true },
+		});
+	});
+
+	test('a send that reports more preparation progress keeps the chat it shows, and its focus; focus outside the chat editor stays there', () => {
+		const run = (focusOutside: boolean) => {
+			const store = disposables.add(new DisposableStore());
+			const { instantiationService, chatViews } = createSessionViewTestServices(store);
+			const inProgress = observableValue('inProgress', false);
+			const preparationProgress = observableValue<ISessionPreparationProgress | undefined>('preparationProgress', undefined);
+			const draft = createTestActiveSession('draft', false, { isNewSessionRequestInProgress: inProgress, preparationProgress });
+			const view = store.add(instantiationService.createInstance(ChatEditorView, {
+				content: constObservable(undefined),
+				composer: constObservable({ draftHost: upcastPartial<INewSessionDraftHost>({}), session: constObservable(draft) }),
+				window: constObservable(undefined),
+				active: constObservable(true),
+				attach: () => Disposable.None,
+				view: constObservable(undefined),
+			}));
+			const outside = mainWindow.document.createElement('button');
+			mainWindow.document.body.append(view.element, outside);
+			store.add(toDisposable(() => { view.element.remove(); outside.remove(); }));
+			view.layout(800, 600, 0, 0);
+			if (focusOutside) {
+				outside.focus();
+			} else {
+				chatViews.find(chatView => chatView.kind === 'newSession')!.focus();
+			}
+			const read = () => {
+				const preparation = chatViews.filter(chatView => chatView.kind === 'chat');
+				return { created: preparation.length, shown: preparation.filter(chatView => !chatView.disposed && view.element.contains(chatView.element)).length, focus: mainWindow.document.activeElement === outside ? 'outside' : preparation.some(chatView => chatView.element.contains(mainWindow.document.activeElement)) ? 'chat' : 'elsewhere' };
+			};
+
+			transaction(tx => {
+				inProgress.set(true, tx);
+				preparationProgress.set({ message: 'Cloning', cancel: () => { } }, tx);
+			});
+			const first = read();
+			preparationProgress.set({ message: 'Starting the container', cancel: () => { } }, undefined);
+			const second = read();
+			store.dispose();
+			return { first, second };
+		};
+
+		assert.deepStrictEqual({ focusedInside: run(false), focusedOutside: run(true) }, {
+			focusedInside: { first: { created: 1, shown: 1, focus: 'chat' }, second: { created: 1, shown: 1, focus: 'chat' } },
+			focusedOutside: { first: { created: 1, shown: 1, focus: 'outside' }, second: { created: 1, shown: 1, focus: 'outside' } },
+		});
 	});
 });

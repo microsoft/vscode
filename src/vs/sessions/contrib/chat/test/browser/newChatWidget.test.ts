@@ -4575,6 +4575,9 @@ suite('NewChatWidget', () => {
 				override createNewSession(folderUri: URI, sessionTypeId: string, options?: ISessionsProviderCreateSessionOptions): ISession { return this._draft(sessionTypeId, false, options, folderUri); }
 				override createQuickChat(sessionTypeId: string, options?: ISessionsProviderCreateSessionOptions): ISession { return this._draft(sessionTypeId, true, options); }
 				override deleteNewSession(): void { }
+				/** Holds the chat of a send until it settles, which fails it by default, as an agent that cannot start it does. */
+				chatOfSend: () => Promise<IChat> = () => Promise.reject(new Error('no agent'));
+				override createNewChat(): Promise<IChat> { return this.chatOfSend(); }
 				override getCustomAgents(): readonly AgentCustomization[] { return this.agents.map(uri => upcastPartial<AgentCustomization>({ uri, name: `name of ${uri}` })); }
 				override resolveCustomAgent(_sessionId: string, uri: string): AgentCustomization | undefined { return this.getCustomAgents().find(agent => agent.uri === (this.aliases.get(uri) ?? uri)); }
 				/** Binds the selected custom agent of `sessionId` again under `uri`, as an agent host does once it publishes it. */
@@ -4606,7 +4609,7 @@ suite('NewChatWidget', () => {
 					this._models.set(sessionId, { modelId, source, mode });
 					const chat = upcastPartial<IChat>({ resource: URI.parse(`test-chat:/${sessionId}`), modelId, modelSource: source });
 					return upcastPartial<ISession>({
-						sessionId, providerId: this.id, sessionType: sessionTypeId, status: constObservable(SessionStatus.Untitled),
+						sessionId, resource: URI.parse(`test-session:/${sessionId}`), providerId: this.id, sessionType: sessionTypeId, status: constObservable(SessionStatus.Untitled),
 						mainChat: constObservable(chat), modelId, mode, isQuickChat: constObservable(isQuickChat),
 						workspace: constObservable(folderUri && this._workspaceOfDraft(folderUri)),
 					});
@@ -5079,6 +5082,65 @@ suite('NewChatWidget', () => {
 
 				assert.deepStrictEqual({ draft: agents.slot.newSession.get()?.workspace.get()?.folders[0]?.root.toString(), selections: remounted._workspacePicker.selections, log: provider.log }, {
 					draft: 'github-remote-file://github/owner/repo/HEAD', selections: [], log: ['create t1'],
+				});
+			});
+
+			test('a composer whose foreground send failed without its slot taking its draft back creates a fresh draft of what it aims for, and sending again waits for that draft rather than asking for a workspace; never over a draft its slot holds', async () => {
+				const provider = new ModelProvider('p', ['t']);
+				const agents = createAgents([provider]);
+				const folder = URI.file('/project');
+				const target = observableValue<INewSessionTarget | undefined>('target', { folderUri: folder, providerId: 'p', sessionTypeId: 't' });
+				const asked: string[] = [];
+				/** Holds the creation of drafts, as a provider can take a while. */
+				let creating: DeferredPromise<void> | undefined;
+				const composer = withWidgetMethods(Object.assign(hostedComposer(agents, target), {
+					_preferredDevContainerFolderUri: undefined,
+					_pendingWorkspaceCreation: undefined as Promise<IOpenNewSessionResult> | undefined,
+					_createdSessionId: undefined,
+					_backgroundSend: false,
+					uriIdentityService: { extUri },
+					_newChatInput: { sessionTypePicker: { getPreferredSessionType: () => undefined, getUserPickedSessionType: () => undefined }, onDidSelectModel: agents.modelSelections.event },
+					_backgroundSendStatus: observableValue<string | undefined>('status', undefined),
+					_workspacePicker: {
+						selectedResolved: undefined, selectedFolderUri: folder, setSelectedWorkspace: () => { }, ...workspaceIdentity(agents.providers),
+						showPicker: () => asked.push('picker'),
+						validateSelectedWorkspace: async () => { asked.push(`send ${agents.slot.newSession.get()?.sessionId}`); return false; },
+					},
+					sessionsService: {
+						openNewSession: async (options: IOpenNewSessionOptions) => {
+							await creating?.p;
+							return { session: options.draftSlot!.createNewSession(options.folderUri!, options), trustDeclined: false };
+						},
+						openSession: async () => assert.fail('A hosted composer must not change the grid'),
+					},
+				}), ['_createNewSession', '_createSessionNow', '_applyPreferredDevContainer', '_seedRequestedTarget', '_reseedAfterFailedSend', '_isPreferredServable', '_scheduleRecreateOnProviderChange', '_recreateOnProviderChange', '_send']);
+				const reseeding = composer._reseedAfterFailedSend(composer._draftHost) as IDisposable;
+				await composer._createNewSession(folder, { providerId: 'p', sessionTypeId: 't' });
+
+				// The send fails; its slot does not take its draft back.
+				creating = new DeferredPromise<void>();
+				const failure = await agents.management.sendNewChatRequest(agents.slot.newSession.get()!, { query: 'fix it' }).then(() => 'sent', (error: Error) => error.message);
+				// Sending again while the fresh draft is created waits for it.
+				const sending = composer._send('again');
+				await timeout(0);
+				const whileCreating = [...asked];
+				creating.complete();
+				creating = undefined;
+				await sending;
+				const fresh = agents.slot.newSession.get()?.sessionId;
+				// A send that fails while the slot holds another draft leaves that one.
+				const chat = new DeferredPromise<IChat>();
+				provider.chatOfSend = () => chat.p;
+				const failing = agents.management.sendNewChatRequest(agents.slot.newSession.get()!, { query: 'fix it' }).catch(() => { });
+				await timeout(0);
+				await composer._createNewSession(folder, { providerId: 'p', sessionTypeId: 't' });
+				chat.error(new Error('no agent'));
+				await failing;
+				await timeout(0);
+				reseeding.dispose();
+
+				assert.deepStrictEqual({ failure, whileCreating, asked, fresh, kept: agents.slot.newSession.get()?.sessionId, log: provider.log }, {
+					failure: 'no agent', whileCreating: [], asked: ['send t2'], fresh: 't2', kept: 't3', log: ['create t1', 'create t2', 'create t3'],
 				});
 			});
 

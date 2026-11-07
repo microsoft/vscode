@@ -1441,7 +1441,7 @@ suite('Sessions - Actions', () => {
 				],
 				session: [
 					{ group: 'navigation', when: 'multipleSessionsVisible && sessionToolbarShowsSession' },
-					{ group: 'secondary/0_pane', when: 'multipleSessionsVisible && !sessionHeaderShowsChat || sessionIsCreated && !sessionHeaderShowsChat' },
+					{ group: 'secondary/0_pane', when: 'sessionIsCreated && !sessionHeaderShowsChat || multipleSessionsVisible && !sessionHeaderShowsChat && !sessionInChatEditor' },
 				],
 			},
 			contextMenu: {
@@ -1449,7 +1449,7 @@ suite('Sessions - Actions', () => {
 					{ group: 'secondary/0_pane', when: 'sessionActiveChatIsClosable && sessionHeaderShowsChat' },
 				],
 				session: [
-					{ group: 'secondary/0_pane', when: 'multipleSessionsVisible && !sessionHeaderShowsChat || sessionIsCreated && !sessionHeaderShowsChat' },
+					{ group: 'secondary/0_pane', when: 'sessionIsCreated && !sessionHeaderShowsChat || multipleSessionsVisible && !sessionHeaderShowsChat && !sessionInChatEditor' },
 				],
 			},
 		});
