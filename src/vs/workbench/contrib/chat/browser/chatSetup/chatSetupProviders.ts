@@ -244,6 +244,7 @@ export class SetupAgent extends Disposable implements IChatAgentImplementation {
 
 	private async doInvoke(request: IChatAgentRequest, progress: (part: IChatProgress) => void, chatService: IChatService, languageModelsService: ILanguageModelsService, chatWidgetService: IChatWidgetService, chatAgentService: IChatAgentService, languageModelToolsService: ILanguageModelToolsService, defaultAccountService: IDefaultAccountService): Promise<IChatAgentResult> {
 		if (chatRequiresSetup({
+			copilotAccountReady: this.context.state.copilotAccountReady,
 			completed: !!this.context.state.completed,
 			disabled: !!this.context.state.disabled,
 			untrusted: !!this.context.state.untrusted,
