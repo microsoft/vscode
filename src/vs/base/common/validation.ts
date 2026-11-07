@@ -46,8 +46,13 @@ class TypeofValidator<TKey extends keyof TypeOfMap> extends ValidatorBase<TypeOf
 	}
 
 	validate(content: unknown): { content: TypeOfMap[TKey]; error: undefined } | { content: undefined; error: ValidationError } {
-		if (typeof content !== this.type) {
-			return { content: undefined, error: { message: `Expected ${this.type}, but got ${typeof content}` } };
+		// `typeof null === 'object'`, so a bare typeof check would accept null for the
+		// 'object' type even though the validated type never includes it. Reject it
+		// explicitly, and report it as 'null' rather than 'object' so the message names
+		// what was actually received.
+		const actualType = content === null ? 'null' : typeof content;
+		if (actualType !== this.type) {
+			return { content: undefined, error: { message: `Expected ${this.type}, but got ${actualType}` } };
 		}
 
 		return { content: content as TypeOfMap[TKey], error: undefined };
