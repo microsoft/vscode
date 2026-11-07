@@ -181,7 +181,7 @@ export class CanvasService extends Disposable implements ICanvasService {
 						|| (presentation?.opened && (presentation.requestId === requestId || !request?.succeeded))) {
 						continue;
 					}
-					if (modalActive && request?.pending) {
+					if ((modalActive || context.background === true) && request?.pending) {
 						continue;
 					}
 					if (!existingInput && this.pendingCloses.has(key)) {

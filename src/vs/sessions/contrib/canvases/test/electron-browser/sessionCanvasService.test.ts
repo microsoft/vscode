@@ -1471,12 +1471,24 @@ suite('SessionCanvasService', () => {
 	});
 	suite('chat window chats', () => {
 		const createFixture = (focusedInWindow: boolean) => {
-			const observations = { count: 0 };
-			const createChat = (name: string) => upcastPartial<IChat>({
-				resource: URI.parse(`agent-host-chat:/session/${name}`),
-				canvases: constObservable([]),
-				observeCanvases: () => { observations.count++; return toDisposable(() => observations.count--); },
-			});
+			const observations = { count: 0, dropped: [] as string[] };
+			const createChat = (name: string) => {
+				let held = 0;
+				return upcastPartial<IChat>({
+					resource: URI.parse(`agent-host-chat:/session/${name}`),
+					canvases: constObservable([]),
+					observeCanvases: () => {
+						observations.count++;
+						held++;
+						return toDisposable(() => {
+							observations.count--;
+							if (--held === 0) {
+								observations.dropped.push(name);
+							}
+						});
+					},
+				});
+			};
 			const chatA = createChat('a');
 			const chatB = createChat('b');
 			const createSession = (name: string, chat: IChat, chats: IObservable<readonly IChat[]> = constObservable([chat])) => upcastPartial<ITestSessionWithChat>({
@@ -1562,6 +1574,13 @@ suite('SessionCanvasService', () => {
 			const joined = observations.count;
 			windowChats.set([chatA.resource], undefined);
 			assert.deepStrictEqual({ initial, joined, left: observations.count }, { initial: 1, joined: 2, left: 1 });
+		});
+
+		test('a chat joining or leaving a window never drops the observation of an unchanged chat', () => {
+			const { windowChats, observations, chatA, chatB } = createFixture(false);
+			windowChats.set([chatA.resource, chatB.resource], undefined);
+			windowChats.set([chatA.resource], undefined);
+			assert.deepStrictEqual(observations.dropped, ['b']);
 		});
 
 		test('an inactive chat replaced under the same resource contributes its new canvases', () => {

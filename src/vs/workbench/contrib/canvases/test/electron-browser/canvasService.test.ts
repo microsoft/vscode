@@ -277,6 +277,23 @@ suite('CanvasService', () => {
 		assert.deepStrictEqual(harness.openOptions, [{ pinned: true, revealIfOpened: true, preserveFocus: true, inactive: true, activation: EditorActivation.PRESERVE }]);
 	});
 
+	test('waits for a running model open in a background context before foregrounding it', async () => {
+		const harness = createHarness({ background: true });
+		harness.openRequests.set(new Map([['preview', { id: 'fresh-request', succeeded: false, pending: true }]]), undefined);
+		harness.canvases.set([harness.canvas], undefined);
+		const beforeSuccess = harness.opened.length;
+		harness.openRequests.set(new Map([['preview', { id: 'fresh-request', succeeded: true }]]), undefined);
+		await timeout(0);
+
+		assert.deepStrictEqual({
+			beforeSuccess,
+			options: harness.openOptions,
+		}, {
+			beforeSuccess: 0,
+			options: [{ pinned: true, revealIfOpened: true, preserveFocus: false }],
+		});
+	});
+
 	test('failed model opens still allow modal-safe background presentation', async () => {
 		const harness = createHarness();
 		harness.setModalActive(true);

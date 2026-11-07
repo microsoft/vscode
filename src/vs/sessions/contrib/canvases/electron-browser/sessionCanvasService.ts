@@ -113,7 +113,8 @@ export class SessionCanvasContextService extends Disposable implements ICanvasCo
 		this._register(autorun(reader => {
 			for (const chat of windowChats.read(reader)) {
 				if (chat.observeCanvases) {
-					reader.store.add(chat.observeCanvases());
+					// Released after the next run acquired its holds, so an unchanged chat never drops to zero observers.
+					reader.delayedStore.add(chat.observeCanvases());
 				}
 			}
 		}));
