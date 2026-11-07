@@ -35,7 +35,8 @@ import { IAgentWorkbenchLayoutService } from '../../../../browser/workbench.js';
 import { AgentWorkbenchLayout, ISessionsHostLayoutService } from '../../../../../workbench/services/sessions/browser/sessionsHostLayoutService.js';
 import { ITestSessionWithChat, stubSessionHosts } from '../../../../../workbench/contrib/sessions/test/browser/sessionHostTestUtils.js';
 import { ISessionsService } from '../../../../../workbench/contrib/sessions/browser/sessionsService.js';
-import { ISessionFileChange } from '../../../../../workbench/services/sessions/common/session.js';
+import { IChat, ISession, ISessionFileChange } from '../../../../../workbench/services/sessions/common/session.js';
+import { ISessionsManagementService } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import { IDiffEditorOptionsService, SessionsWordWrap } from '../../../../../workbench/services/editor/common/diffEditorOptionsService.js';
 import { SessionChangesEditor } from '../../../../../workbench/contrib/sessionChanges/browser/sessionChangesEditor.js';
 import { SessionChangesEditorInput } from '../../../../../workbench/contrib/sessionChanges/browser/sessionChangesEditorInput.js';
@@ -51,6 +52,12 @@ suite('SessionChangesEditorInput', () => {
 	};
 	const emptySessionChangesService = new class extends mock<ISessionChangesService>() {
 		override readonly activeSessionUncommittedChangesCountObs = constObservable(0);
+		override getSessionResource(): URI | undefined { return undefined; }
+		override getChatResource(): URI | undefined { return undefined; }
+	};
+	const noSessions = new class extends mock<ISessionsManagementService>() {
+		override readonly onDidChangeSessions = Event.None;
+		override getSession() { return undefined; }
 	};
 	const sessionChangesServiceWithResource = new class extends mock<ISessionChangesService>() {
 		override readonly activeSessionUncommittedChangesCountObs = constObservable(0);
@@ -343,6 +350,7 @@ suite('SessionChangesEditorInput', () => {
 			emptySessionChangesService,
 			layoutService,
 			new TestEditorGroupsService(),
+			noSessions,
 		));
 		let capabilitiesChanges = 0;
 		disposables.add(input.onDidChangeCapabilities(() => capabilitiesChanges++));
@@ -394,6 +402,7 @@ suite('SessionChangesEditorInput', () => {
 			emptySessionChangesService,
 			layoutService,
 			editorGroupsService,
+			noSessions,
 		));
 		const closable = () => (input.capabilities & EditorInputCapabilities.CannotClose) === 0;
 
@@ -430,6 +439,8 @@ suite('SessionChangesEditorInput', () => {
 		const resource = URI.parse('test-changes:session');
 		const sessionChangesService = new class extends mock<ISessionChangesService>() {
 			override readonly activeSessionUncommittedChangesCountObs = derived(reader => changes.read(reader).length);
+			override getSessionResource(): URI | undefined { return undefined; }
+			override getChatResource(): URI | undefined { return undefined; }
 		};
 		const input = disposables.add(new SessionChangesEditorInput(
 			resource,
@@ -437,6 +448,7 @@ suite('SessionChangesEditorInput', () => {
 			sessionChangesService,
 			layoutService,
 			new TestEditorGroupsService(),
+			noSessions,
 		));
 		let labelChanges = 0;
 		disposables.add(input.onDidChangeLabel(() => labelChanges++));
@@ -455,6 +467,49 @@ suite('SessionChangesEditorInput', () => {
 			tenChangesAriaLabel: 'Changes, 10 files',
 			labelExtraClasses: ['session-changes-editor-label'],
 			labelChanges: 2,
+		});
+	});
+
+	test('the Changes tab of a chat is described and titled by the chat, also once it is renamed; the tab of a session is described as the session', () => {
+		const sessionResource = URI.parse('agent-host-copilotcli:/session');
+		const chatResource = URI.parse('agent-host-copilotcli:/session#nested');
+		const chatTitle = observableValue('chatTitle', 'Fix the tests');
+		const chat = new class extends mock<IChat>() {
+			override readonly resource = chatResource;
+			override readonly title = chatTitle;
+		}();
+		const session = new class extends mock<ISession>() {
+			override readonly chats = constObservable([chat]);
+		}();
+		const changes = observableValue<readonly ISessionFileChange[]>('changes', [createFileChange(1)]);
+		const sessionChangesService = new class extends mock<ISessionChangesService>() {
+			override readonly activeSessionUncommittedChangesCountObs = derived(reader => changes.read(reader).length);
+			override getSessionResource(): URI | undefined { return sessionResource; }
+			override getChatResource(resource: URI): URI | undefined { return resource.query === 'chat' ? chatResource : undefined; }
+		};
+		const sessionsManagementService = new class extends mock<ISessionsManagementService>() {
+			override readonly onDidChangeSessions = Event.None;
+			override getSession(resource: URI) { return resource.toString() === sessionResource.toString() ? session : undefined; }
+		};
+		const layoutService = new class extends mock<IWorkbenchLayoutService>() {
+			override readonly onDidChangePartVisibility = Event.None;
+			override isVisible(): boolean { return true; }
+		};
+		const instantiationService = disposables.add(new TestInstantiationService());
+		const create = (query: string) => disposables.add(new SessionChangesEditorInput(URI.from({ scheme: 'test-changes', query }), instantiationService, sessionChangesService, layoutService, new TestEditorGroupsService(), sessionsManagementService));
+		const ofChat = create('chat');
+		const ofSession = create('session');
+		const labels = (input: SessionChangesEditorInput) => ({ name: input.getName(), description: input.getDescription(), title: input.getTitle(), ariaLabel: input.getAriaLabel() });
+		let chatLabelChanges = 0;
+		disposables.add(ofChat.onDidChangeLabel(() => chatLabelChanges++));
+		const named = labels(ofChat);
+		chatTitle.set('Fix the flaky tests', undefined);
+
+		assert.deepStrictEqual({ named, renamed: labels(ofChat), chatLabelChanges, ofSession: labels(ofSession) }, {
+			named: { name: 'Changes', description: 'Fix the tests', title: 'Changes · Fix the tests', ariaLabel: 'Changes · Fix the tests, 1 file' },
+			renamed: { name: 'Changes', description: 'Fix the flaky tests', title: 'Changes · Fix the flaky tests', ariaLabel: 'Changes · Fix the flaky tests, 1 file' },
+			chatLabelChanges: 1,
+			ofSession: { name: 'Changes', description: 'Session', title: 'Changes', ariaLabel: 'Changes, 1 file' },
 		});
 	});
 

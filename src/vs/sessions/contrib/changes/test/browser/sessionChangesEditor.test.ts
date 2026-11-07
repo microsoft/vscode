@@ -394,6 +394,8 @@ suite('SessionChangesEditor input', () => {
 		instantiationService.stub(ISessionsHostLayoutService, { agentWorkbenchLayout: AgentWorkbenchLayout.Desktop });
 		instantiationService.stub(ISessionChangesService, new class extends mock<ISessionChangesService>() {
 			override readonly activeSessionUncommittedChangesCountObs = constObservable(0);
+			override getSessionResource(): URI | undefined { return undefined; }
+			override getChatResource(): URI | undefined { return undefined; }
 		}());
 		instantiationService.stub(IDiffEditorOptionsService, new class extends mock<IDiffEditorOptionsService>() {
 			override readonly viewMode = constObservable<DiffEditorViewMode>('automatic');
