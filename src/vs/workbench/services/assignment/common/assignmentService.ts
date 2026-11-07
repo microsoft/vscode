@@ -15,7 +15,6 @@ import { InstantiationType, registerSingleton } from '../../../../platform/insta
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IProductService } from '../../../../platform/product/common/productService.js';
 import { ASSIGNMENT_REFETCH_INTERVAL, ASSIGNMENT_STORAGE_KEY, AssignmentFilterProvider, IAssignmentService, TargetPopulation, VSCodeCoreAssignmentsFilterProvider, WindowKind } from '../../../../platform/assignment/common/assignment.js';
-import { COPILOT_INTEGRATION_ID } from '../../../../platform/endpoint/common/licenseAgreement.js';
 import { Registry } from '../../../../platform/registry/common/platform.js';
 import { workbenchConfigurationNodeBase } from '../../../common/configuration.js';
 import { IConfigurationRegistry, Extensions as ConfigurationExtensions, ConfigurationScope } from '../../../../platform/configuration/common/configurationRegistry.js';
@@ -407,15 +406,15 @@ export class WorkbenchAssignmentService extends Disposable implements IAssignmen
 	}
 
 	/**
-	 * Transport for the new assignments endpoint, backed by the main-process request service
-	 * (avoids renderer CORS). Shape matches tas-client's injectable `assignmentsFetch`.
+	 * Transport for the new assignments endpoint, backed by the workbench request service.
+	 * The renderer requires CORS-allowed headers; targeting parameters belong in the JSON body.
 	 */
 	private readonly assignmentsFetch = async (url: string, init: { method: 'POST'; headers: Record<string, string>; body: string }): Promise<{ status: number; json(): Promise<unknown> }> => {
 		const context = await this.requestService.request({
 			type: init.method,
 			url,
 			data: init.body,
-			headers: { ...init.headers, integratorid: COPILOT_INTEGRATION_ID },
+			headers: init.headers,
 			disableCache: true,
 			callSite: 'assignmentService.assignments',
 		}, CancellationToken.None);
@@ -540,8 +539,6 @@ export class WorkbenchAssignmentService extends Disposable implements IAssignmen
 			extensionName: 'vscode-core',
 			assignmentsEndpoint,
 			assignmentsFilterProviders,
-			// Route the assignments request through the main-process request service so it is
-			// not subject to renderer CORS (parity with how core reaches api.github.com).
 			assignmentsFetch: assignmentsEndpoint
 				? (url, init) => (revoked ? Promise.resolve({ status: 0, json: async () => ({}) }) : service.assignmentsFetch(url, init))
 				: undefined,

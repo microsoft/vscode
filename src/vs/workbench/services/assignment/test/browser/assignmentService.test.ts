@@ -18,6 +18,7 @@ import { ASSIGNMENT_REFETCH_INTERVAL } from '../../../../../platform/assignment/
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { IDefaultAccountService } from '../../../../../platform/defaultAccount/common/defaultAccount.js';
+import { COPILOT_INTEGRATION_ID } from '../../../../../platform/endpoint/common/licenseAgreement.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { ILogService, NullLogService } from '../../../../../platform/log/common/log.js';
 import { IProductService } from '../../../../../platform/product/common/productService.js';
@@ -88,12 +89,14 @@ suite('WorkbenchAssignmentService polling', () => {
 
 		let value: string | undefined = 'initial';
 		const requestedFilters: Record<string, string>[] = [];
+		const requestedHeaders: IRequestOptions['headers'][] = [];
 		let waitForResponse = async () => { };
 		instantiationService.stub(IRequestService, new class extends mock<IRequestService>() {
 			override async request(options: IRequestOptions) {
 				assert.ok(options.data);
 				const body: { userParams: Record<string, string> } = JSON.parse(options.data);
 				requestedFilters.push(body.userParams);
+				requestedHeaders.push(options.headers);
 				const response = {
 					featureVariables: value === undefined ? {} : { [`/vscode/${treatmentName}`]: value },
 					assignmentContext: 'unchanged-context',
@@ -111,7 +114,7 @@ suite('WorkbenchAssignmentService polling', () => {
 			return client;
 		};
 		return {
-			service, ready, errors, requestedFilters,
+			service, ready, errors, requestedFilters, requestedHeaders,
 			requests: () => requestedFilters.length,
 			setValue: (next: string | undefined) => { value = next; },
 			setWaitForResponse: (wait: () => Promise<void>) => { waitForResponse = wait; },
@@ -134,6 +137,20 @@ suite('WorkbenchAssignmentService polling', () => {
 			},
 		};
 	}
+
+	test('keeps integration targeting in the body and only sends CORS-allowed headers', async () => {
+		const { service, ready, requestedFilters, requestedHeaders } = createService();
+		await ready();
+		assert.deepStrictEqual({
+			treatment: await service.getTreatment(treatmentName),
+			integratorId: requestedFilters.at(-1)?.integratorid,
+			headers: requestedHeaders.at(-1),
+		}, {
+			treatment: 'initial',
+			integratorId: COPILOT_INTEGRATION_ID,
+			headers: { 'Content-Type': 'application/json' },
+		});
+	});
 
 	test('refreshes consumed values every hour and publishes assignment removal with unchanged context', () => runWithFakedTimers({}, async () => {
 		const { service, ready, requests, setValue } = createService();
