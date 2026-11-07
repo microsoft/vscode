@@ -132,8 +132,9 @@ export class TreeProjection extends Disposable implements ITestTreeProjection {
 
 			for (const inTree of [...this.items.values()].sort((a, b) => b.depth - a.depth)) {
 				const lookup = this.results.getStateById(inTree.test.item.extId)?.[1];
+				inTree.ownState = lookup?.ownComputedState ?? TestResultState.Unset;
 				inTree.ownDuration = lookup?.ownDuration;
-				refreshComputedState(computedStateAccessor, inTree, lookup?.ownComputedState ?? TestResultState.Unset).forEach(i => i.fireChange());
+				refreshComputedState(computedStateAccessor, inTree).forEach(i => i.fireChange());
 			}
 		}));
 
@@ -161,10 +162,10 @@ export class TreeProjection extends Disposable implements ITestTreeProjection {
 
 			// Skip refreshing the duration if we can trivially tell it didn't change.
 			const refreshDuration = ev.reason === TestResultItemChangeReason.OwnStateChange && ev.previousOwnDuration !== result.ownDuration;
-			// For items without children, always use the computed state. They are
-			// either leaves (for which it's fine) or nodes where we haven't expanded
-			// children and should trust whatever the result service gives us.
-			const explicitComputed = item.children.size ? undefined : result.computedState;
+			// Child events already update parents; only recompute when the parent's own state changes.
+			const explicitComputed = item.children.size
+				? (item.ownState === result.ownComputedState ? item.state : undefined)
+				: result.computedState;
 
 			item.retired = !!result.retired;
 			item.ownState = result.ownComputedState;
@@ -240,7 +241,7 @@ export class TreeProjection extends Disposable implements ITestTreeProjection {
 					}
 
 					if (parent instanceof TreeTestItemElement) {
-						refreshComputedState(computedStateAccessor, parent, undefined, !!parent.duration).forEach(i => i.fireChange());
+						refreshComputedState(computedStateAccessor, parent, undefined, parent.duration !== undefined).forEach(i => i.fireChange());
 					}
 				}
 			}
@@ -322,7 +323,7 @@ export class TreeProjection extends Disposable implements ITestTreeProjection {
 			treeElement.ownState = prevState.computedState;
 			treeElement.ownDuration = prevState.ownDuration;
 
-			refreshComputedState(computedStateAccessor, treeElement, undefined, !!treeElement.ownDuration).forEach(i => i.fireChange());
+			refreshComputedState(computedStateAccessor, treeElement, undefined, treeElement.ownDuration !== undefined).forEach(i => i.fireChange());
 		}
 	}
 }

@@ -20,7 +20,7 @@ import { ITestResultService } from '../../contrib/testing/common/testResultServi
 import { IMainThreadTestController, ITestService } from '../../contrib/testing/common/testService.js';
 import { CoverageDetails, ExtensionRunTestsRequest, IFileCoverage, ITestItem, ITestMessage, ITestRunProfile, ITestRunTask, ResolvedTestRunRequest, TestControllerCapability, TestResultState, TestRunProfileBitset, TestsDiffOp } from '../../contrib/testing/common/testTypes.js';
 import { IExtHostContext, extHostNamedCustomer } from '../../services/extensions/common/extHostCustomers.js';
-import { ExtHostContext, ExtHostTestingShape, ILocationDto, ITestControllerPatch, MainContext, MainThreadTestingShape } from '../common/extHost.protocol.js';
+import { ExtHostContext, ExtHostTestingShape, ILocationDto, ITestControllerPatch, MainContext, MainThreadTestingShape, TestRunUpdate } from '../common/extHost.protocol.js';
 
 @extHostNamedCustomer(MainContext.MainThreadTesting)
 export class MainThreadTesting extends Disposable implements MainThreadTestingShape {
@@ -129,6 +129,25 @@ export class MainThreadTesting extends Disposable implements MainThreadTestingSh
 	/**
 	 * @inheritdoc
 	 */
+	$applyTestRunUpdates(controllerId: string, runId: string, updates: TestRunUpdate[]): void {
+		for (const update of updates) {
+			switch (update.type) {
+				case 'tests':
+					this.$addTestsToRun(controllerId, runId, update.tests);
+					break;
+				case 'state':
+					this.$updateTestStateInRun(runId, update.taskId, update.testId, update.state, update.duration);
+					break;
+				case 'messages':
+					this.$appendTestMessagesInRun(runId, update.taskId, update.testId, update.messages);
+					break;
+				case 'output':
+					this.$appendOutputToRun(runId, update.taskId, VSBuffer.fromString(update.output), update.location, update.testId);
+					break;
+			}
+		}
+	}
+
 	$addTestsToRun(controllerId: string, runId: string, tests: ITestItem.Serialized[]): void {
 		this.withLiveRun(runId, r => r.addTestChainToRun(controllerId,
 			tests.map(t => ITestItem.deserialize(this.uriIdentityService, t))));
