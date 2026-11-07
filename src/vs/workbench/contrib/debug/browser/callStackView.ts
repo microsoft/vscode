@@ -405,9 +405,14 @@ export class CallStackView extends ViewPane {
 	}
 
 	override focus(): void {
-		super.focus();
-		this.tree.domFocus();
+	super.focus();
+
+	if (!this.tree || !this.tree.getInput()) {
+		return;
 	}
+
+	this.tree.domFocus();
+}
 
 	collapseAll(): void {
 		this.tree.collapseAll();
