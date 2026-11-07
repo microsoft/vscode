@@ -11,6 +11,7 @@
 	"config.gitAuthentication": "Controls whether to enable automatic GitHub authentication for git commands within VS Code.",
 	"config.gitProtocol": "Controls which protocol is used to clone a GitHub repository",
 	"config.showAvatar": "Controls whether to show the GitHub avatar of the commit author in various hovers (ex: Git blame, Timeline, Source Control Graph, etc.)",
+	"config.openPROnCreate": "Controls whether to automatically open the pull request page in the browser after creating a pull request. Set to false to prevent the interruption if you prefer to navigate to the PR manually.",
 	"welcome.publishFolder": {
 		"message": "You can directly publish this folder to a GitHub repository. Once published, you'll have access to source control features powered by Git and GitHub.\n[$(github) Publish to GitHub](command:github.publish)",
 		"comment": [
