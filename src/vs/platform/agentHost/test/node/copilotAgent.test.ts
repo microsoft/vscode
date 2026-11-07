@@ -1701,7 +1701,7 @@ function createTestAgent(disposables: Pick<DisposableStore, 'add'>, options?: Pa
 
 type CopilotCreateSessionOptions = Parameters<CopilotClient['createSession']>[0];
 
-function createAgentSessionThroughAgent(agent: CopilotAgent, instantiationService: IInstantiationService, options?: { readonly mockSession?: MockCopilotSession; readonly managedSettings?: CopilotClient['rpc']['managedSettings']; readonly activeClientToolSet?: ActiveClientToolSet; readonly snapshot?: IActiveClientSnapshot; readonly workingDirectory?: URI; readonly additionalDirectories?: readonly URI[] }): { readonly session: CopilotAgentSession; readonly activeClient: unknown; readonly createOptions: () => CopilotCreateSessionOptions | undefined } {
+function createAgentSessionThroughAgent(agent: CopilotAgent, instantiationService: IInstantiationService, options?: { readonly mockSession?: MockCopilotSession; readonly managedSettings?: CopilotClient['rpc']['managedSettings']; readonly activeClientToolSet?: ActiveClientToolSet; readonly snapshot?: IActiveClientSnapshot; readonly workingDirectory?: URI; readonly additionalDirectories?: readonly URI[]; readonly owner?: IAgentChatOwnerRef }): { readonly session: CopilotAgentSession; readonly activeClient: unknown; readonly createOptions: () => CopilotCreateSessionOptions | undefined } {
 	const sessionUri = AgentSession.uri('copilotcli', 'test-session-1');
 	const shellManager = instantiationService.createInstance(ShellManager, sessionUri, sessionUri, sessionUri, options?.workingDirectory);
 	let createOptions: CopilotCreateSessionOptions | undefined;
@@ -1736,7 +1736,7 @@ function createAgentSessionThroughAgent(agent: CopilotAgent, instantiationServic
 		githubCredentials: CopilotGitHubSessionCredentials.fromToken('token'),
 		model: undefined,
 	};
-	return { session: agentInternals._createAgentSession(launchPlan, options?.workingDirectory, activeClient, { owner: fixedChatOwnerRef(sessionUri), chatChannelUri: sessionBackedChat('test-session-1'), resource: sessionUri }), activeClient, createOptions: () => createOptions };
+	return { session: agentInternals._createAgentSession(launchPlan, options?.workingDirectory, activeClient, { owner: options?.owner ?? fixedChatOwnerRef(sessionUri), chatChannelUri: sessionBackedChat('test-session-1'), resource: sessionUri }), activeClient, createOptions: () => createOptions };
 }
 
 function withoutUndefinedProperties(metadata: IAgentChatMetadata): Record<string, unknown> {
@@ -28606,6 +28606,44 @@ suite('CopilotAgent', () => {
 				kind: ToolCallContributorKind.Client,
 				clientId: 'client-A',
 			});
+		});
+
+		test('a moved chat stamps client tool calls only with clients of its destination session', async () => {
+			const sessionDataService = disposables.add(new TestSessionDataService());
+			const { agent, instantiationService } = createTestAgentContext(disposables, { environmentServiceRegistration: 'native', sessionDataService });
+			const actions: (SessionAction | ChatAction)[] = [];
+			disposables.add(agent.onDidChatProgress(signal => {
+				if (signal.kind === 'action') {
+					actions.push(signal.action);
+				}
+			}));
+			const source = AgentSession.uri('copilotcli', 'test-session-1');
+			const destination = AgentSession.uri('copilotcli', 'move-destination');
+			const chat = defaultChatUri(source);
+			const sharedTool: ToolDefinition = { name: 'shared', description: 'Shared tool', inputSchema: { type: 'object', properties: {} } };
+			agent.getOrCreateActiveClient(chat, source, { clientId: 'client-A' }).tools = [sharedTool];
+			const owner = disposables.add(new TestChatOwnerRef(source));
+
+			const mockSession = new MockCopilotSession();
+			const agentSession = disposables.add(createAgentSessionThroughAgent(agent, instantiationService, {
+				mockSession,
+				owner,
+				snapshot: { discoveredAgents: [], additionalRootInstructions: [], tools: [sharedTool], plugins: [], mcpServers: {} },
+			}).session);
+			afterTest(() => disposeAgent(agent));
+			await agentSession.initializeSession();
+			agentSession.resetTurnState('turn-1', 'client-A');
+
+			// The chat moves while client-A, which never joined the destination, still provides the tool.
+			owner.set(destination);
+			mockSession.emit({ type: 'tool.execution_start', data: { toolCallId: 'before-join', toolName: 'shared', arguments: {} } } as SessionEventPayload<'tool.execution_start'>);
+			agent.getOrCreateActiveClient(chat, destination, { clientId: 'client-B' }).tools = [sharedTool];
+			mockSession.emit({ type: 'tool.execution_start', data: { toolCallId: 'after-join', toolName: 'shared', arguments: {} } } as SessionEventPayload<'tool.execution_start'>);
+
+			assert.deepStrictEqual(actions.flatMap(action => action.type === ActionType.ChatToolCallStart ? [{ id: action.toolCallId, contributor: action.contributor }] : []), [
+				{ id: 'before-join', contributor: undefined },
+				{ id: 'after-join', contributor: { kind: ToolCallContributorKind.Client, clientId: 'client-B' } },
+			]);
 		});
 	});
 
