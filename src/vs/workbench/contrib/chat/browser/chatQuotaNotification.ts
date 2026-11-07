@@ -5,10 +5,14 @@
 
 import { safeIntl } from '../../../../base/common/date.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
+import { autorun, IObservable } from '../../../../base/common/observable.js';
+import { IAgentHostService } from '../../../../platform/agentHost/common/agentService.js';
+import { IDefaultAccountService } from '../../../../platform/defaultAccount/common/defaultAccount.js';
 import { localize } from '../../../../nls.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { IWorkbenchContribution } from '../../../common/contributions.js';
+import { CopilotAccountContextView, matchesCopilotGitHubAccount, observeCopilotAccountContext } from '../../../services/agentHost/common/copilotAccountContext.js';
 import { IWorkbenchAssignmentService } from '../../../services/assignment/common/assignmentService.js';
 import { ChatEntitlement, IChatEntitlementService, IQuotaSnapshot, IRateLimitSnapshot } from '../../../services/chat/common/chatEntitlementService.js';
 import { isByokModel } from '../common/chatSelectedModel.js';
@@ -66,6 +70,7 @@ export class ChatQuotaNotificationContribution extends Disposable implements IWo
 	private _switchToAutoTreatment: boolean | undefined;
 	private _switchToAutoAssignmentRequested = false;
 	private _activeQuotaWarning: { percentUsed: number; threshold: number } | undefined;
+	private readonly _copilotAccountContext: IObservable<CopilotAccountContextView>;
 
 	constructor(
 		@IChatEntitlementService private readonly _chatEntitlementService: IChatEntitlementService,
@@ -73,12 +78,17 @@ export class ChatQuotaNotificationContribution extends Disposable implements IWo
 		@IStorageService private readonly _storageService: IStorageService,
 		@IWorkbenchAssignmentService private readonly _assignmentService: IWorkbenchAssignmentService,
 		@ILogService private readonly _logService: ILogService,
+		@IAgentHostService agentHostService: IAgentHostService,
+		@IDefaultAccountService private readonly _defaultAccountService: IDefaultAccountService,
 	) {
 		super();
 
+		this._copilotAccountContext = observeCopilotAccountContext(agentHostService, this._store);
 		this._register(this._chatEntitlementService.onDidChangeQuotaRemaining(() => this._update()));
 		this._register(this._chatEntitlementService.onDidChangeQuotaExceeded(() => this._update()));
 		this._register(this._chatEntitlementService.onDidChangeEntitlement(() => this._update()));
+		this._register(this._chatEntitlementService.onDidChangeSentiment(() => this._update()));
+		this._register(this._defaultAccountService.onDidChangeDefaultAccount(() => this._update()));
 
 		// Remember when the user dismisses the quota-exceeded notification so it
 		// does not re-appear on the next window reload while quota is still
@@ -89,8 +99,10 @@ export class ChatQuotaNotificationContribution extends Disposable implements IWo
 			}
 		}));
 
-		// Check initial state in case quota is already exhausted at startup
-		this._update();
+		this._register(autorun(reader => {
+			this._copilotAccountContext.read(reader);
+			this._update();
+		}));
 	}
 
 	private async _resolveSwitchToAutoTreatment(): Promise<void> {
@@ -139,6 +151,16 @@ export class ChatQuotaNotificationContribution extends Disposable implements IWo
 	}
 
 	private _update(): void {
+		const context = this._copilotAccountContext.get();
+		if (this._chatEntitlementService.sentiment.hidden || context !== undefined && !matchesCopilotGitHubAccount(context, this._defaultAccountService.currentDefaultAccount?.accountName, this._defaultAccountService.resolveGitHubUrl(''))) {
+			this._hideNotification();
+			this._activeQuotaWarning = undefined;
+			this._prevQuotaPercentUsed = undefined;
+			this._prevAdditionalUsageEnabled = undefined;
+			this._prevSessionPercentUsed = undefined;
+			this._prevWeeklyPercentUsed = undefined;
+			return;
+		}
 		const entitlement = this._chatEntitlementService.entitlement;
 
 		// Drop the persisted dismissal once quota recovers, so the banner can show again.

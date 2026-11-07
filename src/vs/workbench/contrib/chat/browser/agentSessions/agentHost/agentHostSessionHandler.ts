@@ -6,6 +6,7 @@
 import { isMessageHiddenFromTranscript, isMessageRequestHiddenFromTranscript, readMessageReplacedTurn, readMessageSystemInitiatedLabel, withMessageHiddenFromTranscript, readAgentMessageRoundTripMetadata } from '../../../../../../platform/agentHost/common/meta/agentMessageMeta.js';
 import { withoutAgentMessageDelegationMeta } from '../../../../../../platform/agentHost/common/meta/agentMessageDelegationMeta.js';
 import { readUsageInfoMeta, readAgentContextUsage, readChatUsage } from '../../../../../../platform/agentHost/common/meta/agentUsageMeta.js';
+import { copilotAccountContextKey } from '../../../../../../platform/agentHost/common/copilotAccountContext.js';
 import { status } from '../../../../../../base/browser/ui/aria/aria.js';
 import { Delayer, disposableTimeout, raceCancellation, raceCancellationError } from '../../../../../../base/common/async.js';
 import { decodeBase64, encodeBase64, VSBuffer } from '../../../../../../base/common/buffer.js';
@@ -1670,6 +1671,11 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 	 * messages are personalized here from `IChatEntitlementService`.
 	 */
 	private _chatErrorContext(): IChatErrorContext {
+		const root = this._getRootState();
+		// A restored conversation need not belong to the profile's active GitHub account.
+		if (!root || root.config?.values[copilotAccountContextKey] !== undefined) {
+			return { useGitHubAccountFacts: false };
+		}
 		const quotas = this._chatEntitlementService.quotas;
 		return {
 			copilotPlan: getCopilotPlanFromEntitlement(this._chatEntitlementService.entitlement),
@@ -4464,6 +4470,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 					&& lastUsage.outputBuffer === usage.outputBuffer
 					&& lastUsage.copilotCredits === usage.copilotCredits
 					&& lastUsage.sessionCopilotCredits === usage.sessionCopilotCredits
+					&& lastUsage.sessionCopilotCreditsStatus === usage.sessionCopilotCreditsStatus
 					&& equals(lastUsage.promptTokenDetails, usage.promptTokenDetails)
 					// A subagent's call leaves the parent's own token counts unchanged, so
 					// without comparing the whole-turn totals its contribution never lands.
@@ -4481,7 +4488,13 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			// the extension-host CLI path). `acceptQuotas` replaces top-level state and merges fields
 			// within each provided category snapshot.
 			let lastQuotaSignature: string | undefined;
+			const rootState$ = observableFromSubscription(this, this._config.connection.rootState);
 			store.add(autorun(reader => {
+				const root = rootState$.read(reader);
+				// Restored conversation snapshots do not identify the selected account's current budget.
+				if (!root || root.config?.values[copilotAccountContextKey] !== undefined) {
+					return;
+				}
 				const quotaUpdate = usageInfoToQuotas(usage$.read(reader));
 				if (!quotaUpdate) {
 					return;

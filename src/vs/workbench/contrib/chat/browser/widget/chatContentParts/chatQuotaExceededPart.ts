@@ -9,14 +9,18 @@ import { WorkbenchActionExecutedClassification, WorkbenchActionExecutedEvent } f
 import { Codicon } from '../../../../../../base/common/codicons.js';
 import { MarkdownString } from '../../../../../../base/common/htmlContent.js';
 import { Disposable, IDisposable } from '../../../../../../base/common/lifecycle.js';
+import { autorun, derived, observableFromEvent } from '../../../../../../base/common/observable.js';
 import { ThemeIcon } from '../../../../../../base/common/themables.js';
 import { assertType } from '../../../../../../base/common/types.js';
 import { IMarkdownRenderer } from '../../../../../../platform/markdown/browser/markdownRenderer.js';
 import { localize } from '../../../../../../nls.js';
 import { ICommandService } from '../../../../../../platform/commands/common/commands.js';
+import { IAgentHostService } from '../../../../../../platform/agentHost/common/agentService.js';
+import { IDefaultAccountService } from '../../../../../../platform/defaultAccount/common/defaultAccount.js';
 import { ITelemetryService } from '../../../../../../platform/telemetry/common/telemetry.js';
 import { defaultButtonStyles } from '../../../../../../platform/theme/browser/defaultStyles.js';
 import { ChatEntitlement, IChatEntitlementService } from '../../../../../services/chat/common/chatEntitlementService.js';
+import { matchesCopilotGitHubAccount, observeCopilotAccountContext } from '../../../../../services/agentHost/common/copilotAccountContext.js';
 import { IChatErrorDetailsPart, IChatRendererContent, IChatResponseViewModel } from '../../../common/model/chatViewModel.js';
 import { IChatContentPart } from './chatContentParts.js';
 
@@ -32,7 +36,9 @@ export class ChatQuotaExceededPart extends Disposable implements IChatContentPar
 		renderer: IMarkdownRenderer,
 		@ICommandService commandService: ICommandService,
 		@ITelemetryService telemetryService: ITelemetryService,
-		@IChatEntitlementService chatEntitlementService: IChatEntitlementService
+		@IChatEntitlementService chatEntitlementService: IChatEntitlementService,
+		@IAgentHostService agentHostService: IAgentHostService,
+		@IDefaultAccountService defaultAccountService: IDefaultAccountService,
 	) {
 		super();
 
@@ -61,11 +67,24 @@ export class ChatQuotaExceededPart extends Disposable implements IChatContentPar
 		}
 
 		if (primaryButtonLabel) {
+			const accountContext = observeCopilotAccountContext(agentHostService, this._store);
+			const defaultAccount = observableFromEvent(this, defaultAccountService.onDidChangeDefaultAccount, () => defaultAccountService.currentDefaultAccount);
+			const canManageQuota = derived(reader => {
+				const context = accountContext.read(reader);
+				return !chatEntitlementService.sentimentObs.read(reader).hidden
+					&& (context === undefined || matchesCopilotGitHubAccount(context, defaultAccount.read(reader)?.accountName, defaultAccountService.resolveGitHubUrl('')));
+			});
 			const primaryButton = this._register(new Button(messageContainer, { ...defaultButtonStyles, supportIcons: true }));
 			primaryButton.label = primaryButtonLabel;
 			primaryButton.element.classList.add('chat-quota-error-button');
+			this._register(autorun(reader => {
+				primaryButton.element.style.display = canManageQuota.read(reader) ? '' : 'none';
+			}));
 
 			this._register(primaryButton.onDidClick(async () => {
+				if (!canManageQuota.get()) {
+					return;
+				}
 				const commandId = chatEntitlementService.entitlement === ChatEntitlement.Free ? 'workbench.action.chat.upgradePlan' : 'workbench.action.chat.manageAdditionalSpend';
 				telemetryService.publicLog2<WorkbenchActionExecutedEvent, WorkbenchActionExecutedClassification>('workbenchActionExecuted', { id: commandId, from: 'chat-response' });
 				await commandService.executeCommand(commandId);

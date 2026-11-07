@@ -764,6 +764,8 @@ export class TitleBarAccountWidget extends BaseActionViewItem {
 		actionBar.push(actions.personalize, { icon: true, label: false });
 		if (presentation.showUsage) {
 			this.appendCopilotUsage(account, panelStore);
+		} else if (this.chatEntitlementService.sentiment.copilotService === 'm365') {
+			append(account, $('div.sessions-account-titlebar-panel-provider-usage')).textContent = localize('m365UsageNotReported', "Account usage is not reported for Microsoft 365 Copilot.");
 		} else if (actions.signIn) {
 			actionBar.push(actions.signIn, { icon: false, label: true });
 		}

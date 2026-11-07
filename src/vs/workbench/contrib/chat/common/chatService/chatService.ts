@@ -199,8 +199,8 @@ export interface IChatUsage {
 		readonly providerCallId?: string;
 		readonly serviceRequestId?: string;
 	};
-	promptTokens: number;
-	completionTokens: number;
+	promptTokens?: number;
+	completionTokens?: number;
 	outputBuffer?: number;
 	promptTokenDetails?: readonly IChatUsagePromptTokenDetail[];
 	/**

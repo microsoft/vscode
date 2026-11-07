@@ -39,10 +39,10 @@ suite('ChatContextUsageDetails', () => {
 	});
 
 	test('groups session cost digits and refreshes the value in place', () => {
-		const { details, observable } = createDetails(data({ sessionCost: 12268 }));
+		const { details, observable } = createDetails(data({ sessionCost: 12268, sessionCostStatus: 'complete' }));
 		const initialCost = details.domNode.querySelector('.session-cost-value')?.textContent;
 
-		observable.set(data({ sessionCost: 12345.67 }), undefined);
+		observable.set(data({ sessionCost: 12345.67, sessionCostStatus: 'complete' }), undefined);
 
 		assert.deepStrictEqual({
 			initialCost,
@@ -62,5 +62,36 @@ suite('ChatContextUsageDetails', () => {
 		// Simulate a mid-session change (e.g. after /compact) while the popover instance stays alive.
 		observable.set(data({ percentage: 15 }), undefined);
 		assert.strictEqual(tokenText(details), '15%');
+	});
+
+	test('distinguishes zero, partial, unknown and unavailable credits and clears lost conversation data', () => {
+		const { details, observable } = createDetails(undefined);
+		const states: Partial<IChatContextUsageData>[] = [
+			{},
+			{ sessionCost: 0, sessionCostStatus: 'complete' },
+			{ sessionCost: 1, sessionCostStatus: 'partial' },
+			{ sessionCost: 1 },
+			{ sessionCost: 0, sessionCostStatus: 'unavailable' },
+			{ sessionCostStatus: 'partial' },
+		];
+		const results = states.map(state => {
+			observable.set(data(state), undefined);
+			return {
+				visible: details.domNode.querySelector<HTMLElement>('.session-cost-section')?.style.display !== 'none',
+				text: details.domNode.querySelector('.session-cost-value')?.textContent,
+			};
+		});
+		observable.set(undefined, undefined);
+		assert.deepStrictEqual({ results, hidden: details.domNode.style.display === 'none' }, {
+			results: [
+				{ visible: false, text: 'Not reported' },
+				{ visible: true, text: '0 credits' },
+				{ visible: true, text: '1 credit (partial)' },
+				{ visible: true, text: '1 credit (completeness not reported)' },
+				{ visible: true, text: 'Not reported' },
+				{ visible: true, text: 'Not reported' },
+			],
+			hidden: true,
+		});
 	});
 });

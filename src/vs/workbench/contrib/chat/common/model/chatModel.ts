@@ -1879,7 +1879,7 @@ export class ChatResponseModel extends Disposable implements IChatResponseModel 
 			return;
 		}
 		this._subagentCopilotCredits.set(subagentCallId, copilotCredits);
-		const usage = this._parentUsage ?? { kind: 'usage', promptTokens: 0, completionTokens: 0 };
+		const usage = this._parentUsage ?? { kind: 'usage' };
 		this._setUsage(this._withSubagentCopilotCredits(usage), false);
 	}
 
@@ -1922,7 +1922,7 @@ export class ChatResponseModel extends Disposable implements IChatResponseModel 
 		const reportedOutputTokens = sumModelOutputTokens(usage.modelTotals);
 		if (reportedOutputTokens !== undefined) {
 			this._completionTokenCountObs.set(reportedOutputTokens, undefined);
-		} else if (countCompletionTokens && isNewCall) {
+		} else if (countCompletionTokens && isNewCall && usage.completionTokens !== undefined) {
 			const previousCompletionTokens = this._completionTokenCountObs.get() ?? 0;
 			this._completionTokenCountObs.set(previousCompletionTokens + usage.completionTokens, undefined);
 		}
@@ -2083,7 +2083,7 @@ export class ChatResponseModel extends Disposable implements IChatResponseModel 
 			timeSpentWaiting: (pendingConfirmation ? Date.now() - pendingConfirmation.startedWaitingAt : 0) + this._timeSpentWaitingAccumulator,
 			promptTokens: this.usage?.promptTokens,
 			completionTokens: this.completionTokenCount,
-			lastCallCompletionTokens: this.usage && this._lastCallCompletionTokensKnown ? this.usage.completionTokens : undefined,
+			lastCallCompletionTokens: this.usage && this._lastCallCompletionTokensKnown ? this.usage.completionTokens ?? null : undefined,
 			outputBuffer: this.usage?.outputBuffer,
 			promptTokenDetails: this.usage?.promptTokenDetails,
 			...(this.usage?.latestModelCall ? { latestModelCall: this.usage.latestModelCall } : {}),
@@ -2114,7 +2114,7 @@ export interface IChatRequestNeedsInputInfo {
 }
 
 export interface IChatSessionCost {
-	readonly credits: number;
+	readonly credits?: number;
 	readonly status?: IChatUsage['sessionCopilotCreditsStatus'];
 }
 
@@ -2159,10 +2159,10 @@ export interface IChatModel extends IDisposable {
 	/** Whether this model will be kept alive while it is running or has edits */
 	readonly willKeepAlive: boolean;
 	readonly lastRequestObs: IObservable<IChatRequestModel | undefined>;
-	/** Total Copilot credits consumed by this conversation, including out-of-turn work. */
+	/** Known Copilot credit subtotal for this conversation, including reported out-of-turn work. */
 	readonly sessionCost: number;
 	readonly sessionCostStatus?: IChatUsage['sessionCopilotCreditsStatus'];
-	/** Aggregate-only billing, including charges received after a turn ended. */
+	/** Conversation credit subtotal and reporting status; absent when neither was reported. */
 	readonly sessionCostInfo?: IChatSessionCost;
 	setSessionCost(cost: IChatSessionCost): void;
 	getRequests(): IChatRequestModel[];
@@ -2211,8 +2211,8 @@ interface ISerializableChatResponseData {
 	timeSpentWaiting?: number;
 	promptTokens?: number;
 	completionTokens?: number;
-	/** Latest chat call's output, kept separate from whole-turn consumption on restore. Absent in older saves, where only the whole-turn total was kept. */
-	lastCallCompletionTokens?: number;
+	/** Latest call's output; null preserves a missing count, while absence keeps legacy aggregate-only semantics. */
+	lastCallCompletionTokens?: number | null;
 	outputBuffer?: number;
 	promptTokenDetails?: readonly IChatUsagePromptTokenDetail[];
 	latestModelCall?: IChatUsage['latestModelCall'];
@@ -3059,11 +3059,16 @@ export class ChatModel extends Disposable implements IChatModel {
 		return this._requests.at(-1);
 	}
 
-	private _sessionCostInfo: IChatSessionCost | undefined;
+	private _sessionCostInfo: (IChatSessionCost & { readonly credits: number }) | undefined;
 	private _sessionCostResponseStatus: IChatUsage['sessionCopilotCreditsStatus'];
 
 	get sessionCostInfo(): IChatSessionCost | undefined {
-		return this._sessionCostInfo ? { credits: this.sessionCost, status: this.sessionCostStatus } : undefined;
+		const hasReportedCredits = this._sessionCostInfo !== undefined || this._requests.some(request => {
+			const usage = request.response?.usage;
+			return usage?.copilotCredits !== undefined || usage?.sessionCopilotCredits !== undefined;
+		});
+		const status = this.sessionCostStatus;
+		return hasReportedCredits || status !== undefined ? { credits: hasReportedCredits ? this.sessionCost : undefined, status } : undefined;
 	}
 
 	setSessionCost(cost: IChatSessionCost): void {
@@ -3490,11 +3495,12 @@ export class ChatModel extends Disposable implements IChatModel {
 				codeBlockInfos: raw.responseMarkdownInfo?.map<ICodeBlockInfo>(info => ({ suggestionId: info.suggestionId })),
 			});
 			request.response.shouldBeRemovedOnSend = raw.isHidden ? { requestId: raw.requestId } : raw.shouldBeRemovedOnSend;
-			if (typeof raw.completionTokens === 'number' || typeof raw.promptTokens === 'number' || typeof raw.copilotCredits === 'number' || typeof raw.sessionCopilotCredits === 'number') {
+			if (typeof raw.completionTokens === 'number' || typeof raw.promptTokens === 'number' || typeof raw.copilotCredits === 'number' || typeof raw.sessionCopilotCredits === 'number' || raw.sessionCopilotCreditsStatus !== undefined || raw.modelTotals?.length || raw.contextUsage !== undefined) {
+				const lastCallKnown = raw.lastCallCompletionTokens !== undefined;
 				request.response.restoreUsage({
 					kind: 'usage',
-					promptTokens: raw.promptTokens ?? 0,
-					completionTokens: raw.lastCallCompletionTokens ?? (raw.modelTotals === undefined ? raw.completionTokens ?? 0 : 0),
+					promptTokens: raw.promptTokens,
+					completionTokens: lastCallKnown ? raw.lastCallCompletionTokens ?? undefined : raw.modelTotals === undefined ? raw.completionTokens : undefined,
 					outputBuffer: raw.outputBuffer,
 					promptTokenDetails: raw.promptTokenDetails,
 					latestModelCall: raw.latestModelCall,
@@ -3503,7 +3509,7 @@ export class ChatModel extends Disposable implements IChatModel {
 					modelTotals: raw.modelTotals,
 					sessionCopilotCredits: raw.sessionCopilotCredits,
 					sessionCopilotCreditsStatus: raw.sessionCopilotCreditsStatus,
-				}, raw.completionTokens, raw.lastCallCompletionTokens !== undefined);
+				}, raw.completionTokens, lastCallKnown);
 			}
 			if (raw.usedContext) { // @ulugbekna: if this's a new vscode sessions, doc versions are incorrect anyway?
 				request.response.applyReference(revive(raw.usedContext));

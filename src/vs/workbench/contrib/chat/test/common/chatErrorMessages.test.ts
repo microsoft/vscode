@@ -92,6 +92,22 @@ suite('ChatErrorMessages', () => {
 			assert.strictEqual(details?.message, 'You\'ve reached your monthly chat messages quota. Upgrade to Copilot Pro or wait for your allowance to renew.');
 		});
 
+		test('account-scoped quota and rate errors retain their own messages without profile billing facts or actions', () => {
+			const errors = [
+				errorInfo({ chatError: { fetchError: { type: ChatFetchResponseType.QuotaExceeded, capiError: { code: 'quota_exceeded' } }, copilotPlan: 'free', isUsageBasedBilling: true, quotaResetDate: '2027-01-01' } }),
+				errorInfo({ chatError: { fetchError: { type: ChatFetchResponseType.RateLimited, retryAfter: 60, capiError: { code: 'user_global_rate_limited' } }, copilotPlan: 'free' } }),
+				{ errorType: 'quota', message: 'Provider capacity unavailable', _meta: { 'copilot.errorDetail': { errorCode: 'limited', statusCode: 429, url: 'https://provider.example/capacity' } } },
+			];
+			assert.deepStrictEqual(errors.map(error => {
+				const details = getChatErrorDetailsFromMeta(error, { useGitHubAccountFacts: false, copilotPlan: 'business', isUsageBasedBilling: true });
+				return { message: details?.message, quotaAction: details?.isQuotaExceeded, rateLimited: details?.isRateLimited };
+			}), [
+				{ message: 'm', quotaAction: false, rateLimited: undefined },
+				{ message: 'm', quotaAction: false, rateLimited: true },
+				{ message: 'Provider&nbsp;capacity&nbsp;unavailable&nbsp;[Learn More](https://provider.example/capacity)', quotaAction: false, rateLimited: true },
+			]);
+		});
+
 		// Drift guard: the node layer (platform/agentHost/node/shared/forwardedChatError.ts)
 		// encodes IForwardedChatError independently of this consumer (the layers cannot
 		// share types). This pins the exact payload shape the node side emits — including

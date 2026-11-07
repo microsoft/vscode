@@ -29,7 +29,7 @@ import { createTestArtifactRequestPresentation } from '../../../../../../platfor
 import { AgentSystemNotificationKind, AgentSystemNotificationSeverity, AgentSystemNotificationWorkspaceKind, toAgentSystemNotificationMeta } from '../../../../../../platform/agentHost/common/meta/agentSystemNotificationMeta.js';
 import { toAgentWorkspaceContinuationMessageMeta } from '../../../../../../platform/agentHost/common/meta/agentWorkspaceContinuationMeta.js';
 import { getComputerUseActivationAnswers, withComputerUseActivationCard, withComputerUseSetupCard } from '../../../../../../platform/agentHost/common/meta/computerUse.js';
-import { ConfirmationOptionKind, McpAuthRequiredReason } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
+import { ConfirmationOptionKind, McpAuthRequiredReason, type UsageInfo } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
 import { createAgentHostResourceUriMapper, fromAgentHostUri, identityAgentHostResourceUriMapper, toAgentHostContentUri } from '../../../../../../platform/agentHost/common/agentHostUri.js';
 import { buildSubagentChatUri, ChatInputAnswerState, ChatInputAnswerValueKind, ChatInputQuestionKind, ChatInputResponseKind, createErrorResponsePart, MessageAttachmentKind, MessageKind, ToolCallContributorKind, ToolCallRiskAssessmentKind, ToolCallRiskAssessmentStatus, ToolCallStatus, ToolCallConfirmationReason, ToolResultContentType, TurnState, ResponsePartKind, readUsageInfoMeta, withMessageHiddenFromTranscript, withMessageRequestHiddenFromTranscript, withMessageSystemInitiatedLabel, type ActiveTurn, type ChatInputAnswer, type ICompletedToolCall, type ToolCallPendingConfirmationState, type ToolCallRunningState, type Turn, type ToolCallResponsePart, ToolCallCancellationReason, type Message, type ToolResultContent } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { ChatTranscriptContextAttachmentDisplayKind, IChatRequestTranscriptContextVariableEntry, toChatTranscriptContextAttachmentMeta } from '../../../common/attachments/chatVariableEntries.js';
@@ -1476,7 +1476,7 @@ suite('stateToProgressAdapter', () => {
 		});
 
 		test('Fusion footer identification is per-turn, including restored events without a selected model', () => {
-			const usage = { model: 'gpt-5', _meta: { cost: 0 } };
+			const usage = { model: 'gpt-5', _meta: { copilotUsage: { totalNanoAiu: 0 } } };
 			const turns = [
 				createTurn({ message: { ...message('Before usage'), model: { id: 'hydrafusion' } } }),
 				createTurn({
@@ -5896,8 +5896,8 @@ suite('stateToProgressAdapter', () => {
 			const result = {
 				resolvedModel: formatTurnResponseDetails(auto, 'raptor-mini', undefined),
 				withPricing: formatTurnResponseDetails({ ...auto, pricing: '0x' }, 'raptor-mini', undefined),
-				withCredits: formatTurnResponseDetails(auto, 'raptor-mini', { _meta: { cost: 2 } }),
-				oneCredit: formatTurnResponseDetails(auto, 'raptor-mini', { _meta: { cost: 1 } }),
+				withCredits: formatTurnResponseDetails(auto, 'raptor-mini', { _meta: { copilotUsage: { totalNanoAiu: 2_000_000_000 } } }),
+				oneCredit: formatTurnResponseDetails(auto, 'raptor-mini', { _meta: { copilotUsage: { totalNanoAiu: 1_000_000_000 } } }),
 				noBilledModel: formatTurnResponseDetails(auto, undefined, undefined),
 			};
 
@@ -5914,7 +5914,7 @@ suite('stateToProgressAdapter', () => {
 			const sonnet = { name: 'Claude Sonnet 4.5', pricing: '1x' };
 			const result = {
 				concrete: formatTurnResponseDetails(sonnet, undefined, undefined),
-				concreteWithCredits: formatTurnResponseDetails(sonnet, undefined, { _meta: { cost: 2 } }),
+				concreteWithCredits: formatTurnResponseDetails(sonnet, undefined, { _meta: { copilotUsage: { totalNanoAiu: 2_000_000_000 } } }),
 				unknown: formatTurnResponseDetails(undefined, 'raptor-mini', { _meta: { cost: 2 } }),
 			};
 
@@ -5943,6 +5943,39 @@ suite('stateToProgressAdapter', () => {
 	});
 
 	suite('usageInfoToChatUsage', () => {
+		test('preserves reported zero, missing tokens and credit completeness without treating multipliers as measurements', () => {
+			const inputs: (UsageInfo | undefined)[] = [
+				undefined,
+				{ _meta: { cost: 2 } },
+				{ inputTokens: 0, _meta: { cost: 2 } },
+				{ outputTokens: 4, _meta: { cost: 2 } },
+				{ _meta: { cost: 2, copilotUsage: { totalNanoAiu: 0, sessionTotalNanoAiu: 0, sessionAiCreditsStatus: 'complete' } } },
+				{ _meta: { copilotUsage: { sessionTotalNanoAiu: 500_000_000, sessionAiCreditsStatus: 'partial' } } },
+				{ _meta: { copilotUsage: { sessionAiCreditsStatus: 'unavailable' } } },
+				{ _meta: { copilotUsage: { totalNanoAiu: Infinity, sessionTotalNanoAiu: -1 } } },
+			];
+			assert.deepStrictEqual(inputs.map(input => {
+				const result = usageInfoToChatUsage(input);
+				return result && [result.promptTokens, result.completionTokens, result.copilotCredits, result.sessionCopilotCredits, result.sessionCopilotCreditsStatus];
+			}), [
+				undefined,
+				undefined,
+				[0, undefined, undefined, undefined, undefined],
+				[undefined, 4, undefined, undefined, undefined],
+				[undefined, undefined, 0, 0, 'complete'],
+				[undefined, undefined, undefined, 0.5, 'partial'],
+				[undefined, undefined, undefined, undefined, 'unavailable'],
+				undefined,
+			]);
+		});
+
+		test('does not label a model multiplier as credits in response details', () => {
+			assert.deepStrictEqual([
+				formatTurnResponseDetails({ name: 'Model' }, undefined, { _meta: { cost: 2 } }),
+				formatTurnResponseDetails({ name: 'Model', pricing: '2x' }, undefined, { _meta: { cost: 2 } }),
+			], ['Model', 'Model · 2x']);
+		});
+
 		test('carries whole-turn per-model token totals and resolves display names', () => {
 			const turnTokenTotals = [{ model: 'claude-opus-4.8', inputTokens: 110, cachedTokens: 4, outputTokens: 220 }];
 

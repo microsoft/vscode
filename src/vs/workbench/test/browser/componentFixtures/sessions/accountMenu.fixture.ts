@@ -125,7 +125,7 @@ async function renderAccountMenu(context: ComponentFixtureContext, usageState: U
 			});
 			registry.definePartialInstance(IChatEntitlementService, {
 				entitlement: ChatEntitlement.Enterprise,
-				sentiment: { completed: true, installed: true },
+				sentiment: { completed: true, installed: true, copilotService: copilotContext?.kind === 'ready' ? copilotContext.choice.service : undefined },
 				quotas: {
 					premiumChat: { unlimited: true, percentRemaining: 100, creditsUsed: 123456, resetAt: Date.UTC(2026, 5, 1) / 1000 },
 				},

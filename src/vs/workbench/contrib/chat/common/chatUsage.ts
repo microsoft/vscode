@@ -75,6 +75,6 @@ function isValidModelTotal(total: IChatUsageModelSummary): boolean {
 		&& isTokenCount(total.outputTokens);
 }
 
-function isTokenCount(value: number): boolean {
-	return Number.isFinite(value) && value >= 0;
+function isTokenCount(value: number | undefined): value is number {
+	return typeof value === 'number' && Number.isFinite(value) && value >= 0;
 }

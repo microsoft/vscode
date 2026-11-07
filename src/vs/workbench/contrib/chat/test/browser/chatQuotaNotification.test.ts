@@ -5,7 +5,14 @@
 
 import assert from 'assert';
 import { Emitter, Event } from '../../../../../base/common/event.js';
-import { IObservable, observableValue } from '../../../../../base/common/observable.js';
+import { constObservable, IObservable, observableValue } from '../../../../../base/common/observable.js';
+import { upcastPartial } from '../../../../../base/test/common/mock.js';
+import { NullAgentHostService } from '../../../../../platform/agentHost/browser/nullAgentHostService.js';
+import { CopilotAccountContext, copilotAccountContextKey } from '../../../../../platform/agentHost/common/copilotAccountContext.js';
+import { IAgentSubscription } from '../../../../../platform/agentHost/common/state/agentSubscription.js';
+import { RootState } from '../../../../../platform/agentHost/common/state/sessionState.js';
+import { IDefaultAccountService } from '../../../../../platform/defaultAccount/common/defaultAccount.js';
+import { IDefaultAccount } from '../../../../../base/common/defaultAccount.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { NullLogService } from '../../../../../platform/log/common/log.js';
 import { InMemoryStorageService } from '../../../../../platform/storage/common/storage.js';
@@ -230,13 +237,29 @@ suite('ChatQuotaNotificationContribution', () => {
 
 	function createContribution(
 		entitlementOpts?: Parameters<typeof createMockEntitlementService>[0],
-		modelOpts?: { switchToAutoTreatment?: boolean | Promise<boolean | undefined> },
+		modelOpts?: { switchToAutoTreatment?: boolean | Promise<boolean | undefined>; accountContext?: CopilotAccountContext },
 		sharedStorageService?: InMemoryStorageService,
 	) {
 		const entitlementMock = createMockEntitlementService(entitlementOpts);
 		const notificationMock = createMockNotificationService();
 		const assignmentMock = createMockAssignmentService(modelOpts?.switchToAutoTreatment);
 		const storageService = sharedStorageService ?? store.add(new InMemoryStorageService());
+		const rootChanged = store.add(new Emitter<RootState>());
+		let root: RootState | undefined = { agents: [], activeSessions: 0, config: { schema: { type: 'object', properties: {} }, values: { [copilotAccountContextKey]: modelOpts?.accountContext } } };
+		const host = new class extends NullAgentHostService {
+			override readonly authenticationPending = constObservable(true);
+			override get rootState(): IAgentSubscription<RootState> {
+				return upcastPartial<IAgentSubscription<RootState>>({
+					get value() { return root; },
+					onDidChange: rootChanged.event,
+				});
+			}
+		}();
+		const defaultAccountService = upcastPartial<IDefaultAccountService>({
+			onDidChangeDefaultAccount: Event.None,
+			currentDefaultAccount: upcastPartial<IDefaultAccount>({ accountName: 'github-user' }),
+			resolveGitHubUrl: () => 'https://github.example/',
+		});
 
 		// Track disposables for emitters
 		store.add(entitlementMock.onDidChangeQuotaRemaining);
@@ -249,9 +272,17 @@ suite('ChatQuotaNotificationContribution', () => {
 			storageService,
 			assignmentMock.service,
 			new NullLogService(),
+			host,
+			defaultAccountService,
 		));
 
-		return { contribution, entitlementMock, notificationMock, storageService, assignmentMock };
+		return {
+			contribution, entitlementMock, notificationMock, storageService, assignmentMock,
+			setAccountContext(context: CopilotAccountContext | 'loading' | undefined) {
+				root = context === 'loading' ? undefined : { agents: [], activeSessions: 0, config: { schema: { type: 'object', properties: {} }, values: { [copilotAccountContextKey]: context } } };
+				rootChanged.fire(root ?? { agents: [], activeSessions: 0 });
+			},
+		};
 	}
 
 	function updateQuotas(
@@ -268,6 +299,30 @@ suite('ChatQuotaNotificationContribution', () => {
 	}
 
 	// --- Quota exhausted ---------------------------------------------------
+
+	test('keeps cached GitHub billing and actions out of M365, mismatched accounts and lost context', () => {
+		const github: CopilotAccountContext = {
+			kind: 'ready', entraAccountId: 'synthetic-account', discoveryId: 'discovery', derivedFrom: 'credential',
+			choice: { service: 'github', selectionId: 'github', resource: 'https://github.example', host: 'https://github.example', accountName: 'github-user', displayName: 'Synthetic GitHub' },
+		};
+		const { notificationMock, setAccountContext } = createContribution({
+			entitlement: ChatEntitlement.Enterprise,
+			quotas: { premiumChat: makeQuotaSnapshot(0, { unlimited: true, hasQuota: false }) },
+		}, { accountContext: github });
+		const states: (CopilotAccountContext | 'loading' | undefined)[] = [
+			github,
+			{ ...github, choice: { ...github.choice, service: 'm365' } },
+			{ ...github, choice: { ...github.choice, accountName: 'another-account' } },
+			'loading',
+			{ kind: 'signedOut' },
+			github,
+			undefined,
+		];
+		assert.deepStrictEqual(states.map(context => {
+			setAccountContext(context);
+			return notificationMock.getNotification() !== undefined;
+		}), [true, false, false, false, false, true, true]);
+	});
 
 	suite('quota exhausted', () => {
 		test('shows exhausted notification at startup when premiumChat is at 0%', () => {
