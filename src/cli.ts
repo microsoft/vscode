@@ -9,18 +9,23 @@ import { bootstrapESM } from './bootstrap-esm.js';
 import { resolveNLSConfiguration } from './vs/base/node/nls.js';
 import { product } from './bootstrap-meta.js';
 
-// NLS
-const nlsConfiguration = await resolveNLSConfiguration({ userLocale: 'en', osLocale: 'en', commit: product.commit, nlsMetadataHash: product.nlsMetadataHash, userDataPath: '', nlsMetadataPath: import.meta.dirname });
-process.env['VSCODE_NLS_CONFIG'] = JSON.stringify(nlsConfiguration); // required for `bootstrap-esm` to pick up NLS messages
+try {
+	// NLS
+	const nlsConfiguration = await resolveNLSConfiguration({ userLocale: 'en', osLocale: 'en', commit: product.commit, nlsMetadataHash: product.nlsMetadataHash, userDataPath: '', nlsMetadataPath: import.meta.dirname });
+	process.env['VSCODE_NLS_CONFIG'] = JSON.stringify(nlsConfiguration); // required for `bootstrap-esm` to pick up NLS messages
 
-// Enable portable support
-configurePortable(product);
+	// Enable portable support
+	configurePortable(product);
 
-// Signal processes that we got launched as CLI
-process.env['VSCODE_CLI'] = '1';
+	// Signal processes that we got launched as CLI
+	process.env['VSCODE_CLI'] = '1';
 
-// Bootstrap ESM
-await bootstrapESM();
+	// Bootstrap ESM
+	await bootstrapESM();
 
-// Load Server
-await import('./vs/code/node/cli.js');
+	// Load Server
+	await import('./vs/code/node/cli.js');
+} catch (error) {
+	console.error('Fatal error during VS Code CLI bootstrap:', error);
+	process.exit(1);
+}
