@@ -10,7 +10,7 @@ import { Disposable, DisposableStore, MutableDisposable, type IDisposable } from
 import { ResourceMap } from '../../../../base/common/map.js';
 import { basename, dirname, extUriBiasedIgnorePathCase, isEqual } from '../../../../base/common/resources.js';
 import type { URI } from '../../../../base/common/uri.js';
-import { IFileService } from '../../../files/common/files.js';
+import { FileChangeType, IFileService, type FileChangesEvent } from '../../../files/common/files.js';
 import { ILogService } from '../../../log/common/log.js';
 import { modelRouterNameFromFileName, modelRouterNameFromModelId, ModelRouterDiagnosticSeverity, parseModelRouter, type IModelRouter, type IModelRouterDiagnostic } from '../../common/modelRouter.js';
 
@@ -50,7 +50,6 @@ export class UserModelRouterSource extends Disposable implements IModelRouterSou
 	readonly onDidChange = this._onDidChange.event;
 
 	private readonly _watchers = this._register(new MutableDisposable<DisposableStore>());
-	private readonly _rewatch = this._register(new RunOnceScheduler(() => this._watch(), RESCAN_DELAY_MS));
 	/** The `name` each file last parsed with, so a router keeps its id while an edit has errors. */
 	private readonly _lastNames = new ResourceMap<string>();
 
@@ -107,35 +106,41 @@ export class UserModelRouterSource extends Disposable implements IModelRouterSou
 		return files;
 	}
 
-	/** Watches each folder, or its nearest existing parent so a folder created later is noticed. */
+	/**
+	 * Watches each folder, or its nearest existing parent so a folder created later is noticed.
+	 * Events come from every watcher in the process, so a parent only counts the creation or
+	 * deletion of a folder on the way to a router folder, not every change beneath it.
+	 */
 	private async _watch(): Promise<void> {
 		const store = new DisposableStore();
 		const watched: URI[] = [];
-		let watchingParent = false;
+		/** Folders between a watched parent and a router folder, including the router folder. */
+		const pending: URI[] = [];
 		for (const folder of this._folders) {
 			let target = folder;
 			while (!(await this._fileService.exists(target)) && extUriBiasedIgnorePathCase.isEqualOrParent(dirname(target), this._watchRoot) && !isEqual(target, this._watchRoot)) {
+				pending.push(target);
 				target = dirname(target);
 			}
 			if (this._store.isDisposed) {
 				store.dispose();
 				return;
 			}
-			watchingParent ||= !isEqual(target, folder);
-			if (watched.some(uri => isEqual(uri, target))) {
-				continue;
+			if (!watched.some(uri => isEqual(uri, target))) {
+				watched.push(target);
+				store.add(this._fileService.watch(target, { recursive: false, excludes: [] }));
 			}
-			watched.push(target);
-			store.add(this._fileService.watch(target, { recursive: false, excludes: [] }));
 		}
+		const isRouterChange = (event: FileChangesEvent) => this._folders.some(folder => event.affects(folder));
+		const isFolderAddedOrRemoved = (event: FileChangesEvent) => pending.some(folder => event.contains(folder, FileChangeType.ADDED, FileChangeType.DELETED));
 		store.add(this._fileService.onDidFilesChange(event => {
-			if (!watched.some(target => event.affects(target))) {
+			const folderChanged = isFolderAddedOrRemoved(event);
+			if (!folderChanged && !isRouterChange(event)) {
 				return;
 			}
 			this._onDidChange.fire();
-			// A folder may have appeared or gone, so watch the nearest existing one again.
-			if (watchingParent) {
-				this._rewatch.schedule();
+			if (folderChanged) {
+				void this._watch();
 			}
 		}));
 		this._watchers.value = store;
