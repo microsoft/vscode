@@ -31,9 +31,7 @@ Write the saved prompt for a person to skim: a short goal, then short paragraphs
 
 Preserve explicit schedule times and zones. Otherwise infer the time zone from reliable conversation or available environment context, and show the inferred zone in the proposal. Ask only when the intended zone cannot be inferred reliably or is ambiguous; do not guess a time zone from language or a UTC offset alone.
 
-When clarifying a schedule, collect all related missing details in one turn or form: recurrence, time of day, applicable days/dates or intervals, and any unresolved time zone. For daily versus weekly, ask the preferred time in the same round and include "If weekly, which day(s)?" when needed. Reuse known answers and omit inapplicable questions; do not defer predictable follow-ups.
-
-Verify local-clock compatibility and daylight-saving behavior before creation. Use only schedules supported by the current tool. Explain unsupported event triggers rather than approximating them or silently converting times.
+Use only schedules supported by the current tool. Explain unsupported event triggers rather than approximating them or silently converting times.
 
 ## Propose, then wait
 
