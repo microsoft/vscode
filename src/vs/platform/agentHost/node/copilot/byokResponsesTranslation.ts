@@ -395,14 +395,21 @@ function toResponsesOutputItem(item: IByokLmOutputItem): ResponsesOutputItem {
 				status: 'completed',
 				content: item.content.map(part => ({ type: 'output_text', text: part.text, annotations: [], logprobs: [] })),
 			};
-		case 'reasoning':
+		case 'reasoning': {
+			const minted = !item.id?.startsWith('rs');
+			const id = minted ? nextId('rs') : item.id!;
+			const cipher = item.encryptedContent ?? null;
+			const localMarker = cipher?.startsWith('vscode-reasoning-metadata:') ?? false;
 			return {
-				id: item.id?.startsWith('rs') ? item.id : nextId('rs'),
+				id,
 				type: 'reasoning',
 				status: 'completed',
 				summary: item.summary.map(text => ({ type: 'summary_text', text })),
-				encrypted_content: item.encryptedContent ?? null,
+				// Provider ciphertext is bound to the upstream id. A minted
+				// rs_byok_* id plus that ciphertext 400s on replay.
+				encrypted_content: minted && cipher && !localMarker ? null : cipher,
 			};
+		}
 		case 'function_call':
 			return {
 				id: nextId('fc'),

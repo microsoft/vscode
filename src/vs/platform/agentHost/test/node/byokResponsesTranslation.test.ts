@@ -348,4 +348,17 @@ suite('byokResponsesTranslation', () => {
 		assert.match(body.output[0].id, /^rs_byok_/);
 		assert.strictEqual(body.output[0].encrypted_content, 'vscode-reasoning-metadata:{"signature":"sig"}');
 	});
+
+	test('does not pair a minted rs_byok_ id with provider encrypted_content', () => {
+		const body = JSON.parse(bridgeResultToResponsesBody({
+			responseId: 'resp_provider',
+			output: [
+				{ type: 'reasoning', id: 'thinking_1', summary: ['thought'], encryptedContent: 'provider-ciphertext' },
+			],
+			usage: { inputTokens: 1, outputTokens: 1, reasoningTokens: 1 },
+		}, 'gpt-5')) as { output: Array<{ id: string; encrypted_content?: string | null }> };
+
+		assert.match(body.output[0].id, /^rs_byok_/);
+		assert.strictEqual(body.output[0].encrypted_content, null);
+	});
 });
