@@ -25,7 +25,7 @@ import { CommandsRegistry, ICommandService } from '../../../../../platform/comma
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { ContextKeyService } from '../../../../../platform/contextkey/browser/contextKeyService.js';
-import { ContextKeyExpression, IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
+import { ContextKeyExpr, ContextKeyExpression, IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { ServiceIdentifier } from '../../../../../platform/instantiation/common/instantiation.js';
 import { IChatWidget, IChatWidgetService } from '../../../../../workbench/contrib/chat/browser/chat.js';
@@ -56,6 +56,7 @@ import { VisibleSessions } from '../../../../../workbench/services/sessions/brow
 import { mock, upcastPartial } from '../../../../../base/test/common/mock.js';
 
 import { Action } from '../../../../../base/common/actions.js';
+import { ActionBar } from '../../../../../base/browser/ui/actionbar/actionbar.js';
 import { getSessionsPickerChatWindow, NewSessionActionViewItem, openPickedNewSession, openPickedSessionInChatWindow, type NewSessionButtonStyle, PROMOTE_CHAT_TO_SESSION_ACTION_ID, SessionConversationActionsContribution, SessionListActionsExperimentContribution } from '../../browser/sessionsActions.js';
 import '../../../chat/browser/chat.contribution.js';
 import { NEW_SESSION_ACTION_ID, NEW_SESSION_IN_CHAT_WINDOW_COMMAND_ID } from '../../../../../workbench/contrib/sessions/common/chatConstants.js';
@@ -1992,7 +1993,36 @@ suite('Sessions - Actions', () => {
 		});
 	}
 
-	test('New button of a chat window\'s title bar starts the session in the window it is in, also on Alt-click, and offers the window\'s key', () => {
+	test('New button of a chat window\'s title bar starts the session in the window it is in also as its toolbar runs it by the keyboard, once', () => {
+		const instantiationService = disposables.add(workbenchInstantiationService(undefined, disposables));
+		const commandService = new TestCommandService();
+		instantiationService.stub(ICommandService, commandService);
+		const action = new MenuItemAction({ id: NEW_SESSION_IN_CHAT_WINDOW_COMMAND_ID, title: 'New Session' }, undefined, undefined, undefined, undefined, instantiationService.get(IContextKeyService), commandService);
+		const container = document.createElement('div');
+		mainWindow.document.body.appendChild(container);
+		disposables.add(toDisposable(() => container.remove()));
+		// As the title bar's toolbar shows it
+		const actionBar = disposables.add(new ActionBar(container, {
+			actionViewItemProvider: candidate => candidate === action ? instantiationService.createInstance(NewSessionActionViewItem, candidate, 'titleBar', constObservable<NewSessionButtonStyle>('default')) : undefined,
+		}));
+		actionBar.push(action);
+		actionBar.focus(0);
+		const focused = mainWindow.document.activeElement!;
+		for (const [key, keyCode] of [['Enter', 13], [' ', 32]] as const) {
+			focused.dispatchEvent(new KeyboardEvent('keydown', { key, keyCode, bubbles: true, cancelable: true }));
+			focused.dispatchEvent(new KeyboardEvent('keyup', { key, keyCode, bubbles: true, cancelable: true }));
+		}
+
+		assert.deepStrictEqual({
+			focusedIsItem: focused.classList.contains('action-item'),
+			commands: commandService.calls,
+		}, {
+			focusedIsItem: true,
+			commands: Array.from({ length: 2 }, () => ({ commandId: NEW_SESSION_IN_CHAT_WINDOW_COMMAND_ID, args: [{ windowId: mainWindow.vscodeWindowId }] })),
+		});
+	});
+
+	test('New button of a chat window\'s title bar starts the session in the window it is in, also on Alt-click, keys and Ctrl+click, and offers the window\'s key', () => {
 		const instantiationService = disposables.add(workbenchInstantiationService(undefined, disposables));
 		const commandService = new TestCommandService();
 		instantiationService.stub(ICommandService, commandService);
@@ -2017,6 +2047,15 @@ suite('Sessions - Actions', () => {
 
 		button.click();
 		button.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true, altKey: true }));
+		button.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', keyCode: 13, bubbles: true, cancelable: true }));
+		button.dispatchEvent(new KeyboardEvent('keydown', { key: ' ', keyCode: 32, bubbles: true, cancelable: true }));
+		// Activated otherwise than by the button's click, such as by Ctrl+click on macOS, which the item handles as its click
+		item.onClick(new MouseEvent('contextmenu', { bubbles: true, cancelable: true, ctrlKey: true, button: 0 }));
+		// Not while disabled
+		const disabled = new MenuItemAction({ id: NEW_SESSION_IN_CHAT_WINDOW_COMMAND_ID, title: 'New Session', precondition: ContextKeyExpr.false() }, undefined, undefined, undefined, undefined, instantiationService.get(IContextKeyService), commandService);
+		const disabledItem = disposables.add(instantiationService.createInstance(NewSessionActionViewItem, disabled, 'titleBar', constObservable<NewSessionButtonStyle>('default')));
+		disabledItem.render(container);
+		disabledItem.onClick(new MouseEvent('contextmenu', { bubbles: true, cancelable: true, ctrlKey: true, button: 0 }));
 
 		assert.deepStrictEqual({
 			label: button.querySelector('.new-session-button-label')?.textContent,
@@ -2029,10 +2068,8 @@ suite('Sessions - Actions', () => {
 			ariaLabel: 'New Session (Control+N)',
 			lookedUp: [NEW_SESSION_IN_CHAT_WINDOW_COMMAND_ID],
 			onboardingTarget: false,
-			commands: [
-				{ commandId: NEW_SESSION_IN_CHAT_WINDOW_COMMAND_ID, args: [{ windowId: mainWindow.vscodeWindowId }] },
-				{ commandId: NEW_SESSION_IN_CHAT_WINDOW_COMMAND_ID, args: [{ windowId: mainWindow.vscodeWindowId }] },
-			],
+			// Click, Alt-click, Enter, Space and Ctrl+click; not once disabled
+			commands: Array.from({ length: 5 }, () => ({ commandId: NEW_SESSION_IN_CHAT_WINDOW_COMMAND_ID, args: [{ windowId: mainWindow.vscodeWindowId }] })),
 		});
 	});
 
