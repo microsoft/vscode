@@ -1071,7 +1071,8 @@ export class FilesRenderer implements ICompressibleTreeRenderer<ExplorerItem, Fu
 			ariaLabel: cancelKeybinding
 				? localize('fileInputAriaLabel', "Type file name. Press Enter to confirm or {0} to cancel.", cancelKeybinding)
 				: localize('fileInputAriaLabelNoCancel', "Type file name. Press Enter to confirm."),
-			selection: { start: 0, end: lastDot > 0 && !stat.isDirectory ? lastDot : value.length }
+			selection: { start: 0, end: lastDot > 0 && !stat.isDirectory ? lastDot : value.length },
+			cancelOnEscape: false
 		})).inputBox;
 
 		let currentSelectionState = 'prefix';
