@@ -5,7 +5,7 @@
 
 import { URI } from '../../../base/common/uri.js';
 import type { ArtifactOrigin } from '../../artifactIntegrations/common/artifactIntegration.js';
-import { getSessionArtifactValue, isGitHubArtifactLink, SESSION_ARTIFACT_TYPES, SessionArtifactType, type ISessionArtifact } from './sessionArtifacts.js';
+import { getSessionArtifactValue, isGitHubArtifactLink, isSessionArtifactMode, SESSION_ARTIFACT_MODES, SESSION_ARTIFACT_TYPES, SessionArtifactType, type ISessionArtifact, type SessionArtifactMode } from './sessionArtifacts.js';
 
 /** The fields an agent supplies when adding an artifact or reference. */
 export interface ISessionArtifactInput {
@@ -16,6 +16,8 @@ export interface ISessionArtifactInput {
 	readonly link?: string;
 	readonly uri?: string;
 	readonly commitHash?: string;
+	/** How the chat should show the entry; see {@link SessionArtifactMode}. */
+	readonly mode?: SessionArtifactMode;
 }
 
 export interface IAddSessionArtifactResult {
@@ -66,15 +68,21 @@ function requireWebLink(value: unknown, field: string, toolName: string): string
  * all. Parsing it the same way here gives the agent an error it can act on
  * instead. A single-letter scheme is a Windows drive path (`C:\repo\plan.md`),
  * which parses into a nonsense URI rather than failing, so it is rejected too.
+ * So is a file URI with two slashes before a drive letter (`file://C:/repo/plan.md`), which names a file
+ * on a host called `C:`.
  */
 function requireUri(value: unknown, field: string, toolName: string): string {
 	const uri = requireString(value, field, toolName);
-	let scheme: string | undefined;
+	let parsed: URI | undefined;
 	try {
-		scheme = URI.parse(uri, /*strict*/ true).scheme;
+		parsed = URI.parse(uri, /*strict*/ true);
 	} catch {
-		scheme = undefined;
+		parsed = undefined;
 	}
+	if (parsed?.scheme === 'file' && /^[a-z]:$/i.test(parsed.authority)) {
+		throw new Error(`Invalid ${toolName} input: ${field} puts the drive letter where a host name goes; use three slashes: 'file:///${parsed.authority}${parsed.path}'.`);
+	}
+	const scheme = parsed?.scheme;
 	if (!scheme || scheme.length === 1) {
 		throw new Error(`Invalid ${toolName} input: ${field} must be an absolute URI including its scheme, such as 'file:///path/to/file' — not a plain file system path.`);
 	}
@@ -96,7 +104,12 @@ function parseSessionArtifactInputAt(rawArgs: unknown, toolName: string, fieldPr
 	}
 
 	const artifactType = type as SessionArtifactType;
-	const input: { type: SessionArtifactType; label: string; isArtifact: boolean; link?: string; uri?: string; commitHash?: string } = {
+	const mode = args['mode'];
+	if (mode !== undefined && !isSessionArtifactMode(mode)) {
+		throw new Error(`Invalid ${toolName} input: ${field('mode')} must be one of ${SESSION_ARTIFACT_MODES.join(', ')}.`);
+	}
+	const input: { type: SessionArtifactType; label: string; isArtifact: boolean; link?: string; uri?: string; commitHash?: string; mode?: SessionArtifactMode } = {
+		...(mode !== undefined ? { mode } : {}),
 		type: artifactType,
 		label: requireString(args['label'], field('label'), toolName),
 		isArtifact: args['isArtifact'],
@@ -155,6 +168,11 @@ export class SessionArtifactCollection {
 		const artifact = this._create(input, createId, origin);
 		const value = getSessionArtifactValue(artifact);
 		const existing = this._artifacts.find(candidate => getSessionArtifactValue(candidate) === value);
+		if (existing && input.mode !== undefined && existing.mode !== input.mode) {
+			// Recording an entry again with another mode changes how the chat shows it.
+			const updated = { ...existing, mode: input.mode };
+			return { artifacts: this._artifacts.map(candidate => candidate === existing ? updated : candidate), artifact: updated, added: false };
+		}
 		if (existing) {
 			return { artifacts: this._artifacts, artifact: existing, added: false };
 		}
@@ -194,7 +212,9 @@ export class SessionArtifactCollection {
 			commitHash?: string;
 			isGitHub?: boolean;
 			origin?: ArtifactOrigin;
+			mode?: SessionArtifactMode;
 		} = { id: createId(), type: input.type, label: input.label, isArtifact: input.isArtifact };
+		if (input.mode !== undefined) { artifact.mode = input.mode; }
 
 		if (input.link !== undefined) { artifact.link = input.link; }
 		if (input.uri !== undefined) { artifact.uri = input.uri; }

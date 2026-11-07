@@ -145,6 +145,11 @@ export class WebContentsViewHost extends Disposable {
 		void this._captureScreenshot();
 	}
 
+	/** Stops presenting the model without hiding its page, because another host, such as an editor, presents it now. */
+	releaseModel(): void {
+		this._detachModel(true);
+	}
+
 	private _detachModel(modelDisposing = false): void {
 		this._screenshotSequence++;
 		const model = this._model;
