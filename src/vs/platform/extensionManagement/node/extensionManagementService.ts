@@ -244,7 +244,7 @@ export class ExtensionManagementService extends AbstractExtensionManagementServi
 	async cleanUp(): Promise<void> {
 		this.logService.trace('ExtensionManagementService#cleanUp');
 		try {
-			await this.extensionsScanner.cleanUp();
+			await Promises.settled([this.extensionsScanner.cleanUp(), this.extensionsDownloader.cleanUpTemporaryDownloads()]);
 		} catch (error) {
 			this.logService.error(error);
 		}
