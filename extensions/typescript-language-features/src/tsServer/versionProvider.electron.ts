@@ -136,7 +136,8 @@ export class DiskTypeScriptVersionProvider implements ITypeScriptVersionProvider
 		for (const root of vscode.workspace.workspaceFolders) {
 			let label: string = relativePath;
 			if (vscode.workspace.workspaceFolders.length > 1) {
-				label = path.join(root.name, relativePath);
+				// The workspace name is a selector, so do not normalize it with relative path segments.
+				label = `${root.name}${path.sep}${relativePath}`;
 			}
 
 			const serverPath = path.join(root.uri.fsPath, relativePath, 'tsserver.js');
