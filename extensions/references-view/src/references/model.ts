@@ -64,7 +64,7 @@ export class ReferencesModel implements SymbolItemNavigation<FileItem | Referenc
 		for (const item of locations.sort(ReferencesModel._compareLocations)) {
 			const loc = item instanceof vscode.Location
 				? item
-				: new vscode.Location(item.targetUri, item.targetRange);
+				: new vscode.Location(item.targetUri, ReferencesModel._getRange(item));
 
 			if (!last || ReferencesModel._compareUriIgnoreFragment(last.uri, loc.uri) !== 0) {
 				last = new FileItem(loc.uri.with({ fragment: '' }), [], this);
@@ -94,8 +94,8 @@ export class ReferencesModel implements SymbolItemNavigation<FileItem | Referenc
 			return 1;
 		}
 
-		const aRange = a instanceof vscode.Location ? a.range : a.targetRange;
-		const bRange = b instanceof vscode.Location ? b.range : b.targetRange;
+		const aRange = ReferencesModel._getRange(a);
+		const bRange = ReferencesModel._getRange(b);
 		if (aRange.start.isBefore(bRange.start)) {
 			return -1;
 		} else if (aRange.start.isAfter(bRange.start)) {
@@ -107,6 +107,11 @@ export class ReferencesModel implements SymbolItemNavigation<FileItem | Referenc
 
 	// --- adapter
 
+	private static _getRange(location: vscode.Location | vscode.LocationLink): vscode.Range {
+		return location instanceof vscode.Location
+			? location.range
+			: location.targetSelectionRange ?? location.targetRange;
+	}
 	get message() {
 		if (this.items.length === 0) {
 			return vscode.l10n.t('No results.');
