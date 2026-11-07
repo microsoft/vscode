@@ -442,6 +442,20 @@ suite('setSessionContextKeys - changes', () => {
 		});
 	});
 
+	test('does not report the cached changes of a quick chat on its main chat, which has no workspace', () => {
+		const contextKeyService = disposables.add(new MockContextKeyService());
+		const cache = disposables.add(new SessionChangesStatsCache(disposables.add(new TestStorageService())));
+		cache.set('a', { files: 1, insertions: 4, deletions: 0 });
+		const mainChat = { ...stubChat, changesets: constObservable<readonly ISessionChangeset[] | undefined>(undefined) };
+		const session = (isQuickChat: boolean) => stubSession({ sessionId: 'a', mainChat: constObservable(mainChat), isQuickChat: constObservable(isQuickChat) });
+		const hasCachedChanges = (isQuickChat: boolean) => {
+			setHostSessionContextKeys(session(isQuickChat), mainChat, undefined, contextKeyService, undefined, cache);
+			return SessionHasCachedChangesContext.getValue(contextKeyService);
+		};
+
+		assert.deepStrictEqual({ quickChat: hasCachedChanges(true), workspaceSession: hasCachedChanges(false) }, { quickChat: false, workspaceSession: true });
+	});
+
 	test('uses active chat changes in active session scopes', () => {
 		const contextKeyService = disposables.add(new MockContextKeyService());
 		const chatChanges = observableValue<readonly IChatSessionFileChange[]>('chatChanges', []);

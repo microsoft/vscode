@@ -218,7 +218,7 @@ export function setHostSessionContextKeys(session: ISession | undefined, chat: I
 		keys.hasChanges.set(!worktreePending && !!activeChatStats && (activeChatStats.insertions > 0 || activeChatStats.deletions > 0));
 		const mainChat = session?.mainChat?.read(reader);
 		const isMainChat = mainChat && focusedChat && isEqual(mainChat.resource, focusedChat.resource);
-		const cachedFiles = activeChatStats === undefined && isMainChat && session ? changesStatsCache?.get(session.sessionId, reader)?.files ?? 0 : 0;
+		const cachedFiles = activeChatStats === undefined && isMainChat && session && !isWorkspacelessQuickChat(session, focusedChat, reader) ? changesStatsCache?.get(session.sessionId, reader)?.files ?? 0 : 0;
 		keys.hasCachedChanges.set(!worktreePending && cachedFiles > 0);
 
 		// Count committed (non-draft) chats: untitled in-composer drafts are excluded
