@@ -4,10 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 import 'mocha';
-import { findGit, Git, GitStatusParser, parseGitCommits, parseGitFileLog, parseGitmodules, parseLsTree, parseLsFiles, parseGitRemotes, parseCoAuthors } from '../git';
+import { findGit, Git, GitStatusParser, getWorktreePathFromGitDir, parseGitCommits, parseGitFileLog, parseGitmodules, parseLsTree, parseLsFiles, parseGitRemotes, parseCoAuthors } from '../git';
 import * as assert from 'assert';
 import { LogOutputChannel, window } from 'vscode';
 import { splitInChunks } from '../util';
+import * as path from 'path';
 
 suite('git', () => {
 	suite('Git process input', () => {
@@ -28,6 +29,25 @@ suite('git', () => {
 			// The input exceeds the pipe buffer, so the write fails with EPIPE once git exits.
 			const result = await git.exec2(['--version'], { input: 'x'.repeat(8 * 1024 * 1024) });
 			assert.match(result.stdout, /^git version /);
+		});
+	});
+
+	suite('getWorktreePathFromGitDir', () => {
+		const WORKTREE_METADATA_PATH = path.join('/repo.git', 'worktrees', 'story', 'gitdir');
+		const WORKTREE_PATH = path.join('/repo', 'story');
+
+		test('resolves absolute gitdir content', () => {
+			assert.strictEqual(getWorktreePathFromGitDir(WORKTREE_METADATA_PATH, path.join(WORKTREE_PATH, '.git')), WORKTREE_PATH);
+		});
+
+		test('resolves relative gitdir content #257396', () => {
+			assert.strictEqual(getWorktreePathFromGitDir(WORKTREE_METADATA_PATH, path.join('..', '..', '..', 'repo', 'story', '.git')), WORKTREE_PATH);
+		});
+
+		test('keeps path components that start with .git', () => {
+			const nestedWorktreePath = path.join('/repo', '.github');
+
+			assert.strictEqual(getWorktreePathFromGitDir(WORKTREE_METADATA_PATH, path.join(nestedWorktreePath, '.git')), nestedWorktreePath);
 		});
 	});
 
