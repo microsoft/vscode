@@ -30,7 +30,7 @@ import { ISelectOptionItem, SeparatorSelectOption } from '../../../../base/brows
 import { IActionViewItem } from '../../../../base/browser/ui/actionbar/actionbar.js';
 import { TerminalTabbedView } from './terminalTabbedView.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
-import { renderLabelWithIcons } from '../../../../base/browser/ui/iconLabel/iconLabels.js';
+import { renderIcon, renderLabelWithIcons } from '../../../../base/browser/ui/iconLabel/iconLabels.js';
 import { getColorForSeverity } from './terminalStatusList.js';
 import { getFlatContextMenuActions, MenuEntryActionViewItem } from '../../../../platform/actions/browser/menuEntryActionViewItem.js';
 import { DropdownWithPrimaryActionViewItem } from '../../../../platform/actions/browser/dropdownWithPrimaryActionViewItem.js';
@@ -453,6 +453,11 @@ class SingleTerminalTabActionViewItem extends MenuEntryActionViewItem {
 		this._register(toDisposable(() => dispose(this._elementDisposables)));
 	}
 
+	override render(container: HTMLElement): void {
+		container.classList.add('single-terminal-tab-container');
+		super.render(container);
+	}
+
 	override async onClick(event: MouseEvent): Promise<void> {
 		this._terminalGroupService.lastAccessedMenu = 'inline-tab';
 		if (event.altKey && this._menuItemAction.alt) {
@@ -516,7 +521,7 @@ class SingleTerminalTabActionViewItem extends MenuEntryActionViewItem {
 			}
 			label.style.color = colorStyle;
 			const primaryActionIcon = this._menuItemAction.item.icon;
-			dom.reset(label, ...renderLabelWithIcons(this._instantiationService.invokeFunction(getSingleTabLabel, instance, this._terminaConfigurationService.config.tabs.separator, ThemeIcon.isThemeIcon(primaryActionIcon) ? primaryActionIcon : undefined)));
+			dom.reset(label, ...this._instantiationService.invokeFunction(renderSingleTabLabel, instance, this._terminaConfigurationService.config.tabs.separator, ThemeIcon.isThemeIcon(primaryActionIcon) ? primaryActionIcon : undefined));
 
 			if (this._altCommand) {
 				label.classList.remove(this._altCommand);
@@ -565,20 +570,23 @@ class SingleTerminalTabActionViewItem extends MenuEntryActionViewItem {
 	}
 }
 
-function getSingleTabLabel(accessor: ServicesAccessor, instance: ITerminalInstance | undefined, separator: string, icon?: ThemeIcon) {
+function renderSingleTabLabel(accessor: ServicesAccessor, instance: ITerminalInstance | undefined, separator: string, icon?: ThemeIcon): HTMLElement[] {
 	// Don't even show the icon if there is no title as the icon would shift around when the title
 	// is added
 	if (!instance || !instance.title) {
-		return '';
+		return [];
 	}
 	const iconId = ThemeIcon.isThemeIcon(instance.icon) ? instance.icon.id : accessor.get(ITerminalProfileResolverService).getDefaultIcon().id;
-	const label = `$(${icon?.id || iconId}) ${getSingleTabTitle(instance, separator)}`;
+	const label = [
+		renderIcon(icon ?? { id: iconId }),
+		dom.$('span.single-terminal-tab-label', undefined, ...renderLabelWithIcons(getSingleTabTitle(instance, separator)))
+	];
 
 	const primaryStatus = instance.statusList.primary;
-	if (!primaryStatus?.icon) {
-		return label;
+	if (primaryStatus?.icon) {
+		label.push(renderIcon(primaryStatus.icon));
 	}
-	return `${label} $(${primaryStatus.icon.id})`;
+	return label;
 }
 
 function getSingleTabTitle(instance: ITerminalInstance | undefined, separator: string): string {
@@ -631,7 +639,7 @@ class TerminalThemeIconStyle extends Themable {
 			const iconClasses = getUriClasses(instance, colorTheme.type);
 			if (uri instanceof URI && iconClasses && iconClasses.length > 1) {
 				css += (
-					`.monaco-workbench .${iconClasses[0]} .monaco-highlighted-label .codicon, .monaco-action-bar .terminal-uri-icon.single-terminal-tab.action-label:not(.alt-command) .codicon` +
+					`.monaco-workbench .${iconClasses[0]} .monaco-highlighted-label .codicon, .monaco-action-bar .terminal-uri-icon.single-terminal-tab.action-label:not(.alt-command) > .codicon:first-child` +
 					`{background-image: ${cssJs.asCSSUrl(uri)};}`
 				);
 			}
