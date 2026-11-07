@@ -49,8 +49,8 @@ import { ActiveSessionContextKeys, SessionChangesEditorFileListContext } from '.
 import { ISessionHost, ISessionHostService } from '../../../services/sessions/browser/sessionHost.js';
 import { ISessionsManagementService } from '../../sessions/common/sessionsManagement.js';
 import { getChangesEditorChanges } from './changesMultiDiffSourceResolver.js';
-import { IChangesSessionScope, IChangesViewService } from '../../sessions/common/changesViewService.js';
-import { ChangesActionsBar, createChangesSessionScope } from './changesView.js';
+import { IChangesEditorScope, IChangesSessionScope, IChangesViewService } from '../../sessions/common/changesViewService.js';
+import { ChangesActionsBar, createChangesEditorScope } from './changesView.js';
 import { SessionChangesEditorInput } from './sessionChangesEditorInput.js';
 import { ISessionChangesService } from './sessionChangesService.js';
 import { ISessionFileChange, ISession } from '../../../services/sessions/common/session.js';
@@ -255,7 +255,7 @@ export class SessionChangesEditor extends AbstractEditorWithViewState<IMultiDiff
 	private readonly _logger: MultiDiffEditorLogger;
 	private _scopeInstance: IChangesSessionScope | undefined;
 	private get _scope(): IChangesSessionScope {
-		return this._scopeInstance ??= createChangesSessionScope(this.changesViewService, this.sessionHost);
+		return this._scopeInstance ??= createChangesEditorScope(this.changesViewService, this.sessionsManagementService, this.sessionHost, this._inputChangesSource);
 	}
 
 	/** The session whose changes it shows, and those changes. */
@@ -308,7 +308,7 @@ export class SessionChangesEditor extends AbstractEditorWithViewState<IMultiDiff
 		this._register(bindContextKey(ActiveSessionContextKeys.HasGitRepository, scopedContextKeyService, reader =>
 			this._scope.changes.hasGitRepositoryObs.read(reader)));
 		const scopedInstantiationService = this._register(this.instantiationService.createChild(
-			new ServiceCollection([IContextKeyService, scopedContextKeyService])));
+			new ServiceCollection([IContextKeyService, scopedContextKeyService], [IChangesEditorScope, { _serviceBrand: undefined, scope: this._scope } satisfies IChangesEditorScope])));
 		this._scopedInstantiationService = scopedInstantiationService;
 
 		// In desktop, the header (Branch Changes dropdown, diff stats and primary
