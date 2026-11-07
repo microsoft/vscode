@@ -15,6 +15,8 @@ export interface ICopilotSystemNotification {
 	readonly messageText: string;
 	/** Whether the runtime notification wakes the agent loop when it arrives while idle. */
 	readonly startsTurn: boolean;
+	/** Background agent whose subagent UX should transition to complete. */
+	readonly completedAgentId?: string;
 }
 
 function getCopilotSubagentDisplayInfo(event: SessionEvent, taskDescriptions?: ReadonlyMap<string, string>): { agentId: string; displayName: string } | undefined {
@@ -109,6 +111,7 @@ export function buildCopilotSystemNotification(event: SessionEventPayload<'syste
 						? localize('agentHost.copilot.systemNotification.agentCompleted', "Background agent {0} completed", formattedName)
 						: localize('agentHost.copilot.systemNotification.unnamedAgentCompleted', "Background agent completed"),
 				startsTurn: true,
+				completedAgentId: kind.agentId,
 			};
 		}
 		case 'workflow_completed':
@@ -121,6 +124,7 @@ export function buildCopilotSystemNotification(event: SessionEventPayload<'syste
 							? localize('agentHost.copilot.systemNotification.workflowCancelled', "Workflow {0} was cancelled", kind.workflowName)
 							: localize('agentHost.copilot.systemNotification.workflowCompleted', "Workflow {0} completed", kind.workflowName),
 				startsTurn: true,
+				completedAgentId: kind.agentId,
 			};
 		case 'new_inbox_message':
 			return {
