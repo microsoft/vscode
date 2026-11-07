@@ -545,6 +545,33 @@ suite('CloudSandboxApiService discovery telemetry', () => {
 		assert.deepStrictEqual(h.discoveryEvents.map(event => [event.outcome, event.listRequestCount]), [['failed', 1], ['complete', 4]]);
 	});
 
+	test('paces the credential refused after in-request authentication recovery', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		let accessToken = 'original';
+		const credentials: (IHeaders[string] | undefined)[] = [];
+		const h = createService(store, {
+			tasks: [], repositories: new Map(),
+			authenticationSessions: async () => [{ accessToken, id: 's', account: { id: 'a', label: 'a' }, scopes: [] }],
+			onRequest: (url, _token, options) => {
+				if (url.pathname !== '/agents/tasks') {
+					return undefined;
+				}
+				credentials.push(options.headers?.Authorization);
+				if (accessToken === 'original') {
+					accessToken = 'replacement';
+					return jsonResponse({}, 401);
+				}
+				return jsonResponse({}, 403, { 'retry-after': '1800' });
+			},
+		});
+		await h.service.listSessions(CancellationToken.None, { trigger: 'feedRenewal' });
+		await h.service.listSessions(CancellationToken.None, { trigger: 'feedRenewal' });
+		await timeout(15 * 60_000);
+		await h.service.listSessions(CancellationToken.None, { trigger: 'feedRenewal' });
+		assert.deepStrictEqual({ credentials, reads: h.discoveryEvents.map(event => event.listRequestCount) }, {
+			credentials: ['Bearer original', 'Bearer replacement'], reads: [2, 0, 0],
+		});
+	}));
+
 	for (const change of ['credential', 'account', 'scopes', 'profile', 'authentication event'] as const) {
 		test(`retries refused inventory immediately after a ${change} change`, async () => {
 			let accessToken = 'original';

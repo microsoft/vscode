@@ -209,6 +209,8 @@ export abstract class CloudSandboxSessionContribution<T extends ICloudSandboxSes
 	private _taskRefreshQueued: Promise<void> | undefined;
 	private readonly _pendingTaskIds = new Set<string>();
 	private _discoveryToken: CancellationToken | undefined;
+	private _discoveryTrigger: CloudSandboxDiscoveryTrigger | undefined;
+	private _lastDiscoveryFailed = false;
 	private _discoveryIncremental = false;
 	private _lastDiscoveryAttempt: number | undefined;
 	private _lastFullDiscovery: number | undefined;
@@ -384,7 +386,10 @@ export abstract class CloudSandboxSessionContribution<T extends ICloudSandboxSes
 					const previous = this._discoveryDiagnostics.coalescedTrigger;
 					this._discoveryDiagnostics.coalescedTrigger = previous === undefined || previous === trigger ? trigger : 'multiple';
 				}
-				return this._discoveryQueued ?? this._discoveryInFlight;
+				const pending = this._discoveryQueued ?? this._discoveryInFlight;
+				return trigger === 'manual' && this._discoveryTrigger !== 'manual'
+					? pending.then(() => this._lastDiscoveryFailed ? this._discoverAndSeed(request) : undefined)
+					: pending;
 			}
 			const coalescedRequestCount = this._queuedDiscoveryRequest ? (this._queuedDiscoveryRequest.diagnostics?.coalescedRequestCount ?? 0) + 1 : 0;
 			const previousTrigger = this._queuedDiscoveryRequest?.diagnostics?.coalescedTrigger;
@@ -414,6 +419,8 @@ export abstract class CloudSandboxSessionContribution<T extends ICloudSandboxSes
 		this._discoveryIncremental = incremental && this._lastFullDiscovery !== undefined
 			&& now - this._lastFullDiscovery < FULL_DISCOVERY_INTERVAL_MS;
 		this._discoveryToken = this._enabledCts.token;
+		this._discoveryTrigger = trigger;
+		this._lastDiscoveryFailed = false;
 		this._discoveryIncludesArchived = this._archivesRequested;
 		const diagnostics = {
 			intentMode: incremental ? 'incremental' : 'full',
@@ -431,6 +438,7 @@ export abstract class CloudSandboxSessionContribution<T extends ICloudSandboxSes
 			this._discoveryInFlight = undefined;
 			this._discoveryDiagnostics = undefined;
 			this._discoveryToken = undefined;
+			this._discoveryTrigger = undefined;
 			this._rearmDiscoveryPoll();
 		});
 		return this._discoveryInFlight;
@@ -573,6 +581,9 @@ export abstract class CloudSandboxSessionContribution<T extends ICloudSandboxSes
 		}
 		if (token.isCancellationRequested || !this._isEnabled()) {
 			return;
+		}
+		if (!taskIds) {
+			this._lastDiscoveryFailed = result.kind === 'failed';
 		}
 		if (includeArchived && !taskIds) {
 			const succeeded = result.kind === 'complete' || result.kind === 'incremental' || result.kind === 'partial' && result.inventoryComplete === true;

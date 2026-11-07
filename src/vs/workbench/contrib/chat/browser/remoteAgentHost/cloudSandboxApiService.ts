@@ -705,6 +705,7 @@ export class CloudSandboxApiService extends Disposable implements ICloudSandboxA
 			return { kind: 'failed', reason: toErrorMessage(error) };
 		}
 		const generation = this._discoveryGeneration;
+		let requestSession = session;
 		const targeted = options?.taskIds !== undefined;
 		const includeArchived = options?.includeArchived !== false;
 		const checkpointSince = includeArchived
@@ -807,7 +808,7 @@ export class CloudSandboxApiService extends Disposable implements ICloudSandboxA
 						throw new Error('Task list repeated a pagination URL');
 					}
 					requestedUrls.add(url);
-					const context = await this._sendTask(url, 'list', token, () => telemetry.listRequestCount++);
+					const context = await this._sendTask(url, 'list', token, () => telemetry.listRequestCount++, responseSession => requestSession = responseSession);
 					const response = await this._readJson<{ tasks?: readonly ITaskSummary[] }>(context);
 					if (!Array.isArray(response?.tasks)) {
 						throw new Error('listTasks returned no tasks array');
@@ -845,7 +846,7 @@ export class CloudSandboxApiService extends Disposable implements ICloudSandboxA
 					if (telemetry.pageCount === 0 && generation === this._discoveryGeneration && error instanceof CloudSandboxRequestError
 						&& (error.statusCode === 401 || error.statusCode === 403) && !isRetryableMissionControlError(error.statusCode, error.code)) {
 						this._discoveryAuthorizationFailure = {
-							session,
+							session: requestSession,
 							retryAt: Date.now() + Math.max(DISCOVERY_AUTHORIZATION_RETRY_INTERVAL_MS, (error.retryAfterSeconds ?? 0) * 1000),
 							error,
 						};
@@ -1591,11 +1592,11 @@ export class CloudSandboxApiService extends Disposable implements ICloudSandboxA
 	}
 
 	/** Issue a task API request, throwing on a non-success status. */
-	private async _sendTask(url: string, action: 'list' | 'get', token: CancellationToken, onRequest?: () => void): Promise<IRequestContext> {
+	private async _sendTask(url: string, action: 'list' | 'get', token: CancellationToken, onRequest?: () => void, onResponse?: (session: AuthenticationSession) => void): Promise<IRequestContext> {
 		const context = await this._retryWhileRateLimited(`task ${action}`, token, () => this._request(url, `mc.taskClient.${action}`, action === 'list' ? 'listTasks' : 'getTask', {
 			'Accept': 'application/json',
 			'Copilot-Integration-Id': COPILOT_INTEGRATION_ID,
-		}, token, DISCOVERY_TIMEOUT_MS, undefined, undefined, onRequest));
+		}, token, DISCOVERY_TIMEOUT_MS, undefined, undefined, onRequest, { onResponse }));
 		if (!isSuccess(context)) {
 			await this._throwForStatus(`task ${action}`, context);
 		}
@@ -1632,7 +1633,7 @@ export class CloudSandboxApiService extends Disposable implements ICloudSandboxA
 		}
 	}
 
-	private async _request(url: string, callSite: string, action: CloudSandboxRequestAction, headers: Record<string, string>, token: CancellationToken, timeoutMs: number = REQUEST_TIMEOUT_MS, body?: Record<string, unknown> | ((session: AuthenticationSession) => Record<string, unknown>), method?: 'GET' | 'POST' | 'DELETE' | 'PATCH', onRequest?: ICloudSandboxConnectionRequest['onRequest'], requestContext?: { readonly diagnosticId?: string; readonly authentication?: AuthenticationSession; readonly expectedAccountKey?: string }): Promise<IRequestContext> {
+	private async _request(url: string, callSite: string, action: CloudSandboxRequestAction, headers: Record<string, string>, token: CancellationToken, timeoutMs: number = REQUEST_TIMEOUT_MS, body?: Record<string, unknown> | ((session: AuthenticationSession) => Record<string, unknown>), method?: 'GET' | 'POST' | 'DELETE' | 'PATCH', onRequest?: ICloudSandboxConnectionRequest['onRequest'], requestContext?: { readonly diagnosticId?: string; readonly authentication?: AuthenticationSession; readonly expectedAccountKey?: string; readonly onResponse?: (session: AuthenticationSession) => void }): Promise<IRequestContext> {
 		let session = requestContext?.authentication ?? await this._resolveGitHubSession();
 		if (!session?.accessToken) {
 			// No request is issued, so there is no request outcome to count.
@@ -1691,6 +1692,7 @@ export class CloudSandboxApiService extends Disposable implements ICloudSandboxA
 						continue;
 					}
 				}
+				requestContext?.onResponse?.(session);
 				return context;
 			}
 		} catch (error) {
