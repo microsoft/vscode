@@ -43,8 +43,21 @@ export class DiffServiceImpl implements IDiffService {
 	}
 
 	async computeDiff(original: string, modified: string, options: ILinesDiffComputerOptions): Promise<IDocumentDiff> {
-		const result = this._useWorker ?
-			await this._worker.value.proxy.computeDiff(original, modified, options) :
+		let worker: WorkerWithRpcProxy<typeof diffWorker> | undefined;
+		if (this._useWorker) {
+			try {
+				worker = this._worker.value;
+			} catch {
+				// Constructing the diff worker can fail in some environments (e.g. `new Worker`
+				// throwing EINVAL when worker threads are unavailable). The worker is only a
+				// performance optimization, so disable it and fall back to the in-process diff
+				// computation, which produces identical results.
+				this._useWorker = false;
+			}
+		}
+
+		const result = worker ?
+			await worker.proxy.computeDiff(original, modified, options) :
 			await diffWorker.computeDiff(original, modified, options);
 
 		// Convert from space efficient JSON data to rich objects.
