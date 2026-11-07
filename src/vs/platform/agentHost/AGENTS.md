@@ -58,6 +58,8 @@ The restricted engine router retains the runtime notification's `sessionId` as `
 
 Copilot user/model text and offered-tools events carry the same `sdkSessionId` from the SDK wrapper that emitted the source event. Their existing resource-derived `conversationId` and scoped `chatSessionId` keep their meanings. Root and child trajectories must not be flattened: children use the root SDK conversation plus `sdkAgentId`. Engine `modelCallId` remains a per-call pairing identity, and `client_sessionid` remains a telemetry-process identity.
 
+Engine snapshots also carry the runtime's `interaction_id`, which the router passes through unchanged. It identifies the interaction (user message) the call serves; a subagent's calls carry the interaction that spawned the subagent. The runtime stamps the same value on its other forwarded events, such as `copilotSdk/response.success`, so `sdkSessionId` plus `interaction_id` joins engine snapshots to those events. The join is per interaction, not per call: the engine `modelCallId` is not the `model_call_id` on `response.success`.
+
 These are string `SystemMetaData` / `FeatureInsight` fields on the existing restricted destinations, under existing account/consent/content-exclusion controls. No host-supplied conversation key, SDK upgrade, new event, or broader population is required. CTS/schema/sharing must separately retain the properties before a curator can consume them; client emission alone does not establish backend availability or request eligibility.
 
 Per-call engine metadata comes from the runtime and passes through the router unchanged when the runtime supplies it. Older runtimes omit these fields; the router does not fill them in:
