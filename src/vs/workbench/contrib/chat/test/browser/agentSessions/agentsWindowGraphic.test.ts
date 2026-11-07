@@ -71,7 +71,7 @@ suite('AgentsWindowGraphic', () => {
 				['none', [undefined, undefined, undefined]],
 				['windowComparison', ['windowComparison', 'windowComparison', 'windowComparison']],
 				['manyWindowsToOne', ['manyWindowsToOne', 'manyWindowsToOne', 'manyWindowsToOne']],
-				['auto', [undefined, 'windowComparison', 'manyWindowsToOne']],
+				['auto', ['windowComparison', 'windowComparison', 'manyWindowsToOne']],
 			],
 		);
 	});
@@ -133,6 +133,12 @@ suite('AgentsWindowGraphic', () => {
 		await timeout(0);
 
 		assert.deepStrictEqual(graphic.state().shown, AgentsWindowGraphicVariant.WindowComparison);
+	});
+
+	test('picks the default comparison graphic immediately for auto while counting editor windows (#346722)', () => {
+		const pendingWindows = new DeferredPromise<IOpenedMainWindow[]>();
+		const graphic = createGraphic(AgentsWindowGraphicVariant.Auto, () => pendingWindows.p);
+		assert.strictEqual(graphic.state().shown, AgentsWindowGraphicVariant.WindowComparison);
 	});
 
 	test('hides the drawings from screen readers and gives every clip path a unique id', () => {
