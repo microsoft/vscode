@@ -41,6 +41,7 @@ import { IViewContainerModel, IViewDescriptor, IViewDescriptorService, ViewConta
 
 suite('Workbench - TerminalService', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
+	teardown(() => sinon.restore());
 
 	let terminalService: TerminalService;
 	let configurationService: TestConfigurationService;
