@@ -24,6 +24,34 @@ export interface CloneOptions {
 	returnRepositoryPath?: boolean;
 }
 
+export function resolveDefaultCloneDirectory(defaultCloneDirectory?: string | null): string {
+	if (!defaultCloneDirectory) {
+		return os.homedir();
+	}
+
+	let resolved = defaultCloneDirectory.replace(/^~/, os.homedir());
+
+	resolved = resolved.replace(/\${userHome}/g, os.homedir());
+
+	resolved = resolved.replace(/\${pathSeparator}/g, path.sep);
+
+	resolved = resolved.replace(/\${env:([^}]+)}/g, (_, name) => {
+		const env = process.env[name] ?? (process.platform === 'win32'
+			? Object.entries(process.env).find(([k]) => k.toLowerCase() === name.toLowerCase())?.[1]
+			: undefined);
+		return env ?? '';
+	});
+
+	if (workspace.workspaceFolders && workspace.workspaceFolders.length > 0) {
+		const folder = workspace.workspaceFolders[0];
+		resolved = resolved
+			.replace(/\${workspaceFolder}/g, folder.uri.fsPath)
+			.replace(/\${workspaceFolderBasename}/g, folder.name || path.basename(folder.uri.fsPath));
+	}
+
+	return resolved;
+}
+
 export class CloneManager {
 	constructor(private readonly model: Model,
 		private readonly telemetryReporter: TelemetryReporter,
@@ -61,8 +89,7 @@ export class CloneManager {
 	private async cloneRepository(url: string, parentPath?: string, options: { recursive?: boolean; ref?: string; postCloneAction?: ApiPostCloneAction } = {}): Promise<string | undefined> {
 		if (!parentPath) {
 			const config = workspace.getConfiguration('git');
-			let defaultCloneDirectory = config.get<string>('defaultCloneDirectory') || os.homedir();
-			defaultCloneDirectory = defaultCloneDirectory.replace(/^~/, os.homedir());
+			const defaultCloneDirectory = resolveDefaultCloneDirectory(config.get<string>('defaultCloneDirectory'));
 
 			const uris = await window.showOpenDialog({
 				canSelectFiles: false,
