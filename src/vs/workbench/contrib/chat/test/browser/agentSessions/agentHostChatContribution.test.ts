@@ -2216,12 +2216,14 @@ suite('AgentHostChatContribution', () => {
 				root: { config: { schema: { type: 'object', properties: {} }, values: { [copilotAccountContextKey]: { kind: 'signedOut' } } } },
 			});
 			const { turnId, result } = await startRequest();
-			fire({ type: ActionType.ChatError, turnId, duration: 125, part: {
-				kind: ResponsePartKind.Error, error: {
-					errorType: 'quota', message: 'Provider capacity unavailable',
-					_meta: { chatError: { fetchError: { type: 'quotaExceeded', capiError: { code: 'quota_exceeded' } }, copilotPlan: 'free', isUsageBasedBilling: true, quotaResetDate: '2027-01-01' } },
-				},
-			} });
+			fire({
+				type: ActionType.ChatError, turnId, duration: 125, part: {
+					kind: ResponsePartKind.Error, error: {
+						errorType: 'quota', message: 'Provider capacity unavailable',
+						_meta: { chatError: { fetchError: { type: 'quotaExceeded', capiError: { code: 'quota_exceeded' } }, copilotPlan: 'free', isUsageBasedBilling: true, quotaResetDate: '2027-01-01' } },
+					},
+				}
+			});
 			assert.deepStrictEqual((await result).errorDetails, {
 				code: 'quota_exceeded', message: 'Provider&nbsp;capacity&nbsp;unavailable', isQuotaExceeded: false,
 			});
@@ -2559,14 +2561,16 @@ suite('AgentHostChatContribution', () => {
 			});
 			const { turnId, finish, progress } = await startRequest();
 			for (const sessionAiCreditsStatus of ['unavailable', 'complete'] as const) {
-				fire({ type: ActionType.ChatUsage, turnId, usage: {
-					inputTokens: 0,
-					_meta: {
-						cost: 2,
-						copilotUsage: { sessionTotalNanoAiu: 0, sessionAiCreditsStatus },
-						quotaSnapshots: { premium_models: { entitlementRequests: 100, usedRequests: 25, remainingPercentage: 75 } },
-					},
-				} });
+				fire({
+					type: ActionType.ChatUsage, turnId, usage: {
+						inputTokens: 0,
+						_meta: {
+							cost: 2,
+							copilotUsage: { sessionTotalNanoAiu: 0, sessionAiCreditsStatus },
+							quotaSnapshots: { premium_models: { entitlementRequests: 100, usedRequests: 25, remainingPercentage: 75 } },
+						},
+					}
+				});
 			}
 			await finish();
 			assert.deepStrictEqual({
@@ -14881,12 +14885,12 @@ suite('AgentHostChatContribution', () => {
 					childState.turns[0] = {
 						...childState.turns[0],
 						startedAt: new Date(startedAt).toISOString(), duration: 40_000,
-						usage: { inputTokens: 10, outputTokens: 5, _meta: { cost: 0.5 } },
+						usage: { inputTokens: 10, outputTokens: 5, _meta: { copilotUsage: { totalNanoAiu: 500_000_000 } } },
 					};
 					childState.turns.push({
 						...childState.turns[0], id: 'followup',
 						startedAt: new Date(startedAt + 60_000).toISOString(), duration: 23_000,
-						usage: { inputTokens: 20, outputTokens: 10, _meta: { cost: 0.25 } },
+						usage: { inputTokens: 20, outputTokens: 10, _meta: { copilotUsage: { totalNanoAiu: 250_000_000 } } },
 					});
 					const { session, pills } = await scenario.open();
 					const pill = pills.find(part => part.toolCallId === 'launch-1');
@@ -14913,7 +14917,7 @@ suite('AgentHostChatContribution', () => {
 							turns: [{
 								...childState.turns[0], id: 'earlier',
 								startedAt: new Date(startedAt - 10_000).toISOString(), duration: 10_000,
-								usage: { inputTokens: 30, outputTokens: 15, _meta: { cost: 1.25 } },
+								usage: { inputTokens: 30, outputTokens: 15, _meta: { copilotUsage: { totalNanoAiu: 1_250_000_000 } } },
 							}],
 						},
 						serverSeq: 100, origin: undefined,
@@ -14948,7 +14952,7 @@ suite('AgentHostChatContribution', () => {
 					childState.turns[0] = {
 						...childState.turns[0],
 						...(duration !== undefined ? { startedAt: children[0].modifiedAt, duration } : {}),
-						usage: { inputTokens: 10, outputTokens: 5, _meta: { cost: 2.5 } },
+						usage: { inputTokens: 10, outputTokens: 5, _meta: { copilotUsage: { totalNanoAiu: 2_500_000_000 } } },
 					};
 					const childResource = getSubagentEditorResource({ chatResource: child, parentSessionResource: resource.toString() });
 					assert.ok(childResource);
@@ -14977,7 +14981,7 @@ suite('AgentHostChatContribution', () => {
 					const startedAt = Date.parse(children[0].modifiedAt);
 					const latestTurn: Turn = {
 						...childState.turns[0], startedAt: new Date(startedAt).toISOString(), duration: 20_000,
-						usage: { inputTokens: 10, outputTokens: 5, _meta: { cost: 0.5 } },
+						usage: { inputTokens: 10, outputTokens: 5, _meta: { copilotUsage: { totalNanoAiu: 500_000_000 } } },
 					};
 					const tail = { ...childState, turns: [latestTurn], turnsNextCursor: 'older' };
 					agentHostService.chatStates.set(child, tail);
@@ -14996,7 +15000,7 @@ suite('AgentHostChatContribution', () => {
 							type: ActionType.ChatTurnsLoaded,
 							turns: [{
 								...latestTurn, id: 'earlier', startedAt: new Date(startedAt - 60_000).toISOString(), duration: 30_000,
-								usage: { inputTokens: 20, outputTokens: 10, _meta: { cost: 1.5 } },
+								usage: { inputTokens: 20, outputTokens: 10, _meta: { copilotUsage: { totalNanoAiu: 1_500_000_000 } } },
 							}],
 							turnsNextCursor: hasMoreHistory ? 'oldest' : undefined,
 						},
@@ -15033,7 +15037,7 @@ suite('AgentHostChatContribution', () => {
 					assert.ok(childState);
 					childState.turns[0] = {
 						...childState.turns[0], startedAt: children[0].modifiedAt, duration: 40_000,
-						usage: { inputTokens: 10, outputTokens: 5, _meta: { cost: 2.5 } },
+						usage: { inputTokens: 10, outputTokens: 5, _meta: { copilotUsage: { totalNanoAiu: 2_500_000_000 } } },
 					};
 					const { pills } = await scenario.open();
 					const presentation = () => {
@@ -15049,7 +15053,7 @@ suite('AgentHostChatContribution', () => {
 						...childState,
 						turns: childState.turns.map(turn => ({
 							...turn,
-							usage: restoredCredits === undefined ? undefined : { inputTokens: 10, outputTokens: 5, _meta: { cost: restoredCredits } },
+							usage: restoredCredits === undefined ? undefined : { inputTokens: 10, outputTokens: 5, _meta: { copilotUsage: { totalNanoAiu: restoredCredits * 1_000_000_000 } } },
 						})),
 					});
 					const reopened = disposables.add(await sessionHandler.provideChatSessionContent(childResource, CancellationToken.None));
@@ -19717,6 +19721,7 @@ suite('AgentHostChatContribution', () => {
 			for (const quotaExceeded of [false, true]) {
 				test(`reconnected failures use structured error details (quota=${quotaExceeded}, publication=${publication})`, async () => {
 					const { sessionHandler, agentHostService, chatService, instantiationService } = createContribution(disposables, { backendSessionScheme: 'unused-allocation-scheme' });
+					agentHostService.setRootState({ agents: [], activeSessions: 0 });
 					const backendSession = URI.parse('ahp-session:/reconnected-failure');
 					const chatUri = 'ahp-chat:/host-assigned-failure-chat';
 					const resource = URI.parse('agent-host-copilot:/reconnected-failure');
