@@ -123,9 +123,10 @@ suite('View Editors', () => {
 	});
 
 	teardown(() => {
+		// What a test leaves open, such as after a failed assertion, closes before the logs reset, so that it does not log into the next test.
+		disposables.clear();
 		views.length = 0;
 		log.length = 0;
-		disposables.clear();
 	});
 
 	ensureNoDisposablesAreLeakedInTestSuite();
