@@ -46,7 +46,7 @@ extends:
   parameters:
     workingDirectory: ./extensions/copilot
     l10nSourcePaths: ./extensions/copilot/src
-    nodeVersion: 22.21.x
+    nodeVersion: 24.x
     # The copilot extension is bundled with esbuild and vendors prebuilt native
     # modules (e.g. @os-theme, @picovoice/pvrecorder-node) that depend on a
     # newer GLIBC than the template's sysroot check allows. The main product

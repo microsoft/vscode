@@ -1,7 +1,8 @@
 steps:
   - task: NodeTool@0
     inputs:
-      versionSpec: "22.21.x"
+      versionSpec: 24.x
+      checkLatest: true
 
   # Check out the private microsoft/vscode-capi repository using the agent's
   # GitHub App (Monaco) credentials instead of cloning it with a PAT. The
@@ -22,7 +23,7 @@ steps:
     condition: and(succeeded(), ne(variables['NPM_REGISTRY'], 'none'), not(contains(variables['Agent.OS'], 'windows')))
     displayName: Setup NPM Registry (non-Windows)
 
-  - script: mkdir -p .build && node build/azure-pipelines/common/computeNodeModulesCacheKey.ts $(node -p process.platform) $(node -p process.arch) > .build/packagelockhash
+  - script: mkdir -p .build && node build/azure-pipelines/common/computeNodeModulesCacheKey.ts $(node -p process.platform) $(node -p process.arch) $(node -p process.versions.node) > .build/packagelockhash
     displayName: Prepare node_modules cache key
 
   - task: Cache@2
