@@ -436,6 +436,19 @@ suite('URI', () => {
 		assert.strictEqual(URI.parse(value.toString()).authority, 'foo:pa:ss@localhost');
 	});
 
+	test('URI#toString, at sign in userinfo splits authority at the last at sign', () => {
+		let value = URI.parse('http://a%40b@example.com/p');
+		assert.strictEqual(value.toString(), 'http://a%40b@example.com/p');
+		assert.strictEqual(URI.parse(value.toString()).authority, 'a@b@example.com');
+
+		value = URI.parse('http://a%40b:p%40w@example.com:8080/p');
+		assert.strictEqual(value.toString(), 'http://a%40b:p%40w@example.com:8080/p');
+		assert.strictEqual(URI.parse(value.toString()).authority, 'a@b:p@w@example.com:8080');
+
+		value = URI.from({ scheme: 'http', authority: 'a@b@EXAMPLE.com', path: '/p' });
+		assert.strictEqual(value.toString(), 'http://a%40b@example.com/p');
+	});
+
 	test('correctFileUriToFilePath2', () => {
 
 		const test = (input: string, expected: string) => {
