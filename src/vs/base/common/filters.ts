@@ -19,6 +19,9 @@ export interface IMatch {
 	end: number;
 }
 
+/** Shared matches for an empty query. Neither the array nor its position may be mutated. */
+export const emptyMatches: IMatch[] = [{ start: 0, end: 0 }];
+
 // Combined filters
 
 /**
@@ -66,6 +69,10 @@ function _matchesPrefix(ignoreCase: boolean, word: string, wordToMatchAgainst: s
 // Contiguous Substring
 
 export function matchesContiguousSubString(word: string, wordToMatchAgainst: string): IMatch[] | null {
+	if (word.length === 0) {
+		return emptyMatches;
+	}
+
 	if (word.length > wordToMatchAgainst.length) {
 		return null;
 	}
@@ -79,6 +86,10 @@ export function matchesContiguousSubString(word: string, wordToMatchAgainst: str
 }
 
 export function matchesBaseContiguousSubString(word: string, wordToMatchAgainst: string): IMatch[] | null {
+	if (word.length === 0) {
+		return emptyMatches;
+	}
+
 	if (word.length > wordToMatchAgainst.length) {
 		return null;
 	}
@@ -459,6 +470,9 @@ const fuzzyRegExpCache = new LRUCache<string, RegExp>(10000); // bounded to 1000
 export function matchesFuzzy(word: string, wordToMatchAgainst: string, enableSeparateSubstringMatching = false): IMatch[] | null {
 	if (typeof word !== 'string' || typeof wordToMatchAgainst !== 'string') {
 		return null; // return early for invalid input
+	}
+	if (word.length === 0) {
+		return emptyMatches;
 	}
 
 	// Form RegExp for wildcard matches
