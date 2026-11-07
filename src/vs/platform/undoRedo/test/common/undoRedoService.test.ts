@@ -221,6 +221,79 @@ suite('UndoRedoService', () => {
 
 	});
 
+	function createWorkspaceElement(resources: URI[], onUndo: () => void): IUndoRedoElement {
+		return {
+			type: UndoRedoElementType.Workspace,
+			resources,
+			label: 'workspace edit',
+			code: 'workspaceEdit',
+			undo: onUndo,
+			redo: () => { },
+			split: () => resources.map(resource => ({
+				type: UndoRedoElementType.Resource,
+				resource,
+				label: 'split edit',
+				code: 'workspaceEdit',
+				undo: () => { },
+				redo: () => { }
+			}))
+		};
+	}
+
+	function createPromptCountingDialogService(counter: { prompts: number }): IDialogService {
+		return new class extends mock<IDialogService>() {
+			override async prompt<T = any>(prompt: IPrompt<any>) {
+				counter.prompts++;
+				const result = prompt.buttons?.[0].run({ checkboxChecked: false });
+				return { result };
+			}
+			override async confirm() {
+				return { confirmed: true };
+			}
+		};
+	}
+
+	test('undo of a grouped splittable workspace element alone in its group asks whether to undo across all files', async () => {
+		const resource1 = URI.file('test1.txt');
+		const resource2 = URI.file('test2.txt');
+		const counter = { prompts: 0 };
+		const service = createUndoRedoService(createPromptCountingDialogService(counter));
+
+		let undoCalls = 0;
+		const group = new UndoRedoGroup();
+		service.pushElement(createWorkspaceElement([resource1, resource2], () => { undoCalls++; }), group);
+
+		await service.undo(resource1);
+
+		assert.strictEqual(counter.prompts, 1);
+		assert.strictEqual(undoCalls, 1);
+	});
+
+	test('undo of a splittable workspace element that shares its group with an element on another resource does not ask', async () => {
+		const resource1 = URI.file('test1.txt');
+		const resource2 = URI.file('test2.txt');
+		const resource3 = URI.file('test3.txt');
+		const counter = { prompts: 0 };
+		const service = createUndoRedoService(createPromptCountingDialogService(counter));
+
+		let undoCalls = 0;
+		const group = new UndoRedoGroup();
+		service.pushElement({
+			type: UndoRedoElementType.Resource,
+			resource: resource3,
+			label: 'same group',
+			code: 'workspaceEdit',
+			undo: () => { },
+			redo: () => { }
+		}, group);
+		service.pushElement(createWorkspaceElement([resource1, resource2], () => { undoCalls++; }), group);
+
+		await service.undo(resource1);
+
+		assert.strictEqual(counter.prompts, 0);
+		assert.strictEqual(undoCalls, 1);
+	});
+
 	test('UndoRedoGroup.None uses id 0', () => {
 		assert.strictEqual(UndoRedoGroup.None.id, 0);
 		assert.strictEqual(UndoRedoGroup.None.nextOrder(), 0);
