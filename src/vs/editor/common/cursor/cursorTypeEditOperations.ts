@@ -843,8 +843,19 @@ export class TypeWithoutInterceptorsOperation {
 
 export class TabOperation {
 
-	public static getCommands(config: CursorConfiguration, model: ITextModel, selections: Selection[]) {
+	public static getCommands(config: CursorConfiguration, model: ITextModel, selections: Selection[]): ICommand[] {
 		const commands: ICommand[] = [];
+
+		if (!config.insertSpaces) {
+			const autoClosingPairClose = AutoClosingOpenCharTypeOperation.getAutoClosingPairClose(config, model, selections, '\t', false);
+			if (autoClosingPairClose !== null) {
+				for (let i = 0, len = selections.length; i < len; i++) {
+					commands[i] = new TypeWithAutoClosingCommand(selections[i], '\t', true, autoClosingPairClose);
+				}
+				return commands;
+			}
+		}
+
 		for (let i = 0, len = selections.length; i < len; i++) {
 			const selection = selections[i];
 			if (selection.isEmpty()) {
