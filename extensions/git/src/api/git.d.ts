@@ -241,6 +241,7 @@ export interface Repository {
 	readonly ui: RepositoryUIState;
 	readonly kind: RepositoryKind;
 	readonly isUsingVirtualFileSystem: boolean;
+	readonly isPartialClone?: boolean;
 
 	readonly onDidCommit: Event<void>;
 	readonly onDidCheckout: Event<void>;

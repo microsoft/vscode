@@ -81,6 +81,7 @@ export class ApiRepository implements Repository {
 	readonly state: RepositoryState;
 	readonly ui: RepositoryUIState;
 	readonly isUsingVirtualFileSystem: boolean;
+	readonly isPartialClone: boolean;
 
 	readonly onDidCommit: Event<void>;
 	readonly onDidCheckout: Event<void>;
@@ -94,6 +95,7 @@ export class ApiRepository implements Repository {
 		this.state = new ApiRepositoryState(this.#repository);
 		this.ui = new ApiRepositoryUIState(this.#repository.sourceControl);
 		this.isUsingVirtualFileSystem = this.#repository.isUsingVirtualFileSystem;
+		this.isPartialClone = this.#repository.isPartialClone;
 
 		this.onDidCommit = mapEvent<OperationResult, void>(
 			filterEvent(this.#repository.onDidRunOperation, e => e.operation.kind === OperationKind.Commit), () => null);
