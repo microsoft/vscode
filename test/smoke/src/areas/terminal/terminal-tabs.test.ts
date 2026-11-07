@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import assert from 'assert';
 import { Application, Terminal, TerminalCommandId, TerminalCommandIdWithValue, SettingsEditor } from '../../../../automation';
 import { setTerminalTestSettings } from './terminal-helpers';
 
@@ -34,6 +35,54 @@ export function setup(options?: { skipSuite: boolean }) {
 			const name = 'my terminal name';
 			await terminal.runCommandWithValue(TerminalCommandIdWithValue.Rename, name);
 			await terminal.assertSingleTab({ name });
+		});
+
+		it('should truncate a long single tab label without overflowing its actions', async function () {
+			const app = this.app as Application;
+			const name = 'Notification settings progress '.repeat(10).trim();
+			const description = 'Current task directory '.repeat(10).trim();
+			try {
+				await setTerminalTestSettings(app, [
+					['terminal.integrated.tabs.description', JSON.stringify(description)],
+					['terminal.integrated.enableVisualBell', 'true'],
+					['terminal.integrated.bellDuration', '60000']
+				]);
+				await terminal.createTerminal();
+				await app.workbench.quickaccess.runCommand('workbench.action.positionPanelRight');
+				await terminal.runCommandWithValue(TerminalCommandIdWithValue.Rename, name);
+				await terminal.assertSingleTab({ name });
+				await terminal.runCommandWithValue(TerminalCommandIdWithValue.WriteDataToTerminal, '\u0007');
+
+				const page = await terminal.getPage();
+				await page.waitForSelector('.single-terminal-tab .codicon-bell');
+				const layout = await page.locator('.single-terminal-tab').evaluate((label: HTMLElement) => {
+					const action = label.closest<HTMLElement>('.action-item')!;
+					const labelBounds = label.getBoundingClientRect();
+					const actionBounds = action.getBoundingClientRect();
+					const toolbarBounds = action.parentElement!.getBoundingClientRect();
+					return {
+						text: label.textContent?.replace(/\s+/g, ' ').trim(),
+						labelOverflows: label.scrollWidth > label.clientWidth,
+						actionOverflows: action.scrollWidth > action.clientWidth,
+						actionWithinToolbar: actionBounds.left >= toolbarBounds.left && actionBounds.right <= toolbarBounds.right,
+						iconsVisible: [...label.querySelectorAll('.codicon')].every(icon => {
+							const bounds = icon.getBoundingClientRect();
+							return bounds.width > 0 && bounds.left >= labelBounds.left && bounds.right <= labelBounds.right;
+						})
+					};
+				});
+				assert.deepStrictEqual(layout, {
+					text: `${name} - ${description}`,
+					labelOverflows: false,
+					actionOverflows: false,
+					actionWithinToolbar: true,
+					iconsVisible: true
+				});
+			} finally {
+				await app.workbench.quickaccess.runCommand('workbench.action.positionPanelBottom');
+				await settingsEditor.clearUserSettings();
+				await setTerminalTestSettings(app);
+			}
 		});
 
 		// DEBT: Flaky https://github.com/microsoft/vscode/issues/216564

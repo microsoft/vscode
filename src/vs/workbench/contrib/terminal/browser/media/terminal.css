@@ -438,16 +438,6 @@
 	display: none;
 }
 
-.monaco-workbench .pane-body.integrated-terminal .tabs-container.has-text .tabs-list .terminal-tabs-entry .monaco-icon-label {
-	min-width: 0;
-}
-
-.monaco-workbench .pane-body.integrated-terminal .tabs-container.has-text .tabs-list .terminal-tabs-entry .monaco-icon-description-container {
-	overflow: hidden;
-	text-overflow: ellipsis;
-	white-space: nowrap;
-}
-
 .monaco-workbench .pane-body.integrated-terminal .tabs-list .codicon {
 	vertical-align: text-bottom;
 }
@@ -497,16 +487,36 @@
 	display: block;
 }
 
+.monaco-action-bar .action-item.single-terminal-tab-container {
+	min-width: 0;
+}
+
 .monaco-action-bar .action-item .single-terminal-tab {
 	display: flex !important;
 	align-items: center;
 }
 
-.monaco-action-bar .action-item .single-terminal-tab .codicon:first-child {
+.monaco-action-bar .action-item .single-terminal-tab-label {
+	min-width: 0;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.monaco-action-bar .action-item .single-terminal-tab-label .codicon {
+	display: inline-block;
+	vertical-align: middle;
+}
+
+.monaco-action-bar .action-item .single-terminal-tab > .codicon {
+	flex-shrink: 0;
+}
+
+.monaco-action-bar .action-item .single-terminal-tab > .codicon:first-child {
 	margin-right: 4px;
 }
 
-.monaco-action-bar .action-item .single-terminal-tab .codicon:nth-child(2) {
+.monaco-action-bar .action-item .single-terminal-tab > .codicon:last-child {
 	margin-left: 4px;
 	color: inherit;
 }
@@ -519,11 +529,11 @@
 }
 
 .monaco-workbench .terminal-uri-icon .monaco-highlighted-label .codicon,
-.monaco-action-bar .terminal-uri-icon.single-terminal-tab.action-label .codicon {
+.monaco-action-bar .terminal-uri-icon.single-terminal-tab.action-label > .codicon:first-child {
 	background-size: 16px;
 }
 .monaco-workbench .terminal-uri-icon .monaco-highlighted-label .codicon::before,
-.monaco-action-bar .terminal-uri-icon.single-terminal-tab.action-label:not(.alt-command) .codicon::before {
+.monaco-action-bar .terminal-uri-icon.single-terminal-tab.action-label:not(.alt-command) > .codicon:first-child::before {
 	content: '';
 	display: inline-block;
 	width: 16px;
