@@ -78,12 +78,12 @@ suite('Notebook cell editor overflow widgets', () => {
 		return template;
 	}
 
-	async function withFixture(kind: CellKind, callback: (fixture: ReturnType<typeof createFixture>, cell: CellViewModel, store: DisposableStore) => Promise<void>) {
+	async function withFixture(kind: CellKind, callback: (fixture: ReturnType<typeof createFixture>, cell: CellViewModel, store: DisposableStore) => Promise<void>, contributionInstantiation = EditorContributionInstantiation.Eager) {
 		await withTestNotebook([['cell', 'plaintext', kind]], async (notebookEditor, viewModel, _store, notebookServices) => {
 			const fixtureStore = new DisposableStore();
 			const renderedCells = fixtureStore.add(new DisposableStore());
 			try {
-				const fixture = createFixture(notebookEditor, notebookServices, fixtureStore);
+				const fixture = createFixture(notebookEditor, notebookServices, fixtureStore, contributionInstantiation);
 				const cell = viewModel.viewCells[0];
 				assert.ok(cell instanceof CodeCellViewModel || cell instanceof MarkupCellViewModel);
 				await callback(fixture, cell, renderedCells);
@@ -94,7 +94,7 @@ suite('Notebook cell editor overflow widgets', () => {
 		});
 	}
 
-	function createFixture(notebookEditor: IActiveNotebookEditorDelegate, notebookServices: TestInstantiationService, store: DisposableStore) {
+	function createFixture(notebookEditor: IActiveNotebookEditorDelegate, notebookServices: TestInstantiationService, store: DisposableStore, contributionInstantiation: EditorContributionInstantiation) {
 		const root = DOM.append(mainWindow.document.body, DOM.$('.notebook-overflow-test'));
 		const overflowRoot = DOM.append(root, DOM.$('.notebook-overflow-root'));
 		store.add(toDisposable(() => root.remove()));
@@ -137,9 +137,9 @@ suite('Notebook cell editor overflow widgets', () => {
 				cellExecuteToolbar: MenuId.NotebookCellExecute,
 			},
 			cellEditorContributions: [
-				{ id: ContentHoverController.ID, ctor: ContentHoverController as EditorContributionCtor, instantiation: EditorContributionInstantiation.Eager },
-				{ id: ParameterHintsController.ID, ctor: ParameterHintsController as EditorContributionCtor, instantiation: EditorContributionInstantiation.Eager },
-				{ id: SuggestController.ID, ctor: SuggestController as EditorContributionCtor, instantiation: EditorContributionInstantiation.Eager },
+				{ id: ContentHoverController.ID, ctor: ContentHoverController as EditorContributionCtor, instantiation: contributionInstantiation },
+				{ id: ParameterHintsController.ID, ctor: ParameterHintsController as EditorContributionCtor, instantiation: contributionInstantiation },
+				{ id: SuggestController.ID, ctor: SuggestController as EditorContributionCtor, instantiation: contributionInstantiation },
 			]
 		};
 		const baseEditorOptions = new class extends mock<IBaseCellEditorOptions>() {
@@ -243,6 +243,36 @@ suite('Notebook cell editor overflow widgets', () => {
 
 	for (const kind of [CellKind.Code, CellKind.Markup]) {
 		const name = kind === CellKind.Code ? 'code' : 'Markdown';
+
+		test(`${name}: template disposal keeps services alive for lazy editor contributions`, async () => {
+			await runWithFakedTimers({}, async () => {
+				await withFixture(kind, async (fixture, cell, store) => {
+					let editor: ICodeEditor;
+					let disposeTemplate: () => void;
+					const container = DOM.append(fixture.root, DOM.$('.cell-row'));
+					if (cell instanceof CodeCellViewModel) {
+						const template = ownTemplate(fixture.codeRenderer.renderTemplate(container), store);
+						editor = template.editor;
+						disposeTemplate = () => fixture.codeRenderer.disposeTemplate(template);
+					} else {
+						const markupCell = cell as MarkupCellViewModel;
+						markupCell.updateEditState(CellEditState.Editing, 'test');
+						const template = ownTemplate(fixture.markupRenderer.renderTemplate(container), store);
+						template.cellParts = template.templateDisposables.add(new CellPartsCollection(mainWindow, [], []));
+						fixture.markupRenderer.renderElement(markupCell, 0, template, { height: 100 });
+						editor = template.currentEditor!;
+						disposeTemplate = () => fixture.markupRenderer.disposeTemplate(template);
+					}
+					const host = editor.getOverflowWidgetsDomNode()!;
+					let servicesAliveOnDispose = false;
+					store.add(editor.onDidDispose(() => {
+						servicesAliveOnDispose = editor.invokeWithinContext(() => true);
+					}));
+					disposeTemplate();
+					assert.deepStrictEqual({ servicesAliveOnDispose, hostRemoved: !host.isConnected }, { servicesAliveOnDispose: true, hostRemoved: true });
+				}, EditorContributionInstantiation.Eventually);
+			});
+		});
 
 		test(`${name}: mouse can enter the edge of a detached hover and leave it normally`, async () => {
 			await withFixture(kind, async (fixture, cell, store) => {
@@ -410,6 +440,37 @@ suite('Notebook cell editor overflow widgets', () => {
 				fixture.codeRenderer.disposeTemplate(template);
 				assert.strictEqual(host.isConnected, false);
 			});
+		});
+	});
+
+	test('Markdown: replacing an editor before model resolution keeps services alive during teardown', async () => {
+		await runWithFakedTimers({}, async () => {
+			await withFixture(CellKind.Markup, async (fixture, viewCell, store) => {
+				const cell = viewCell as MarkupCellViewModel;
+				cell.layoutChange({ outerWidth: 600 });
+				cell.updateEditState(CellEditState.Editing, 'test');
+				const template = ownTemplate(fixture.markupRenderer.renderTemplate(DOM.append(fixture.root, DOM.$('.cell-row'))), store);
+				template.cellParts = template.templateDisposables.add(new CellPartsCollection(mainWindow, [], []));
+				fixture.markupRenderer.renderElement(cell, 0, template, { height: 100 });
+				const editor = template.currentEditor!;
+				const host = editor.getOverflowWidgetsDomNode()!;
+				let servicesAliveOnDispose = false;
+				store.add(editor.onDidDispose(() => {
+					servicesAliveOnDispose = editor.invokeWithinContext(() => true);
+				}));
+
+				cell.isInputCollapsed = false;
+				const replacement = template.currentEditor!;
+				await timeout(0);
+
+				assert.deepStrictEqual({
+					servicesAliveOnDispose,
+					oldHostRemoved: !host.isConnected,
+					editorReplaced: replacement !== editor,
+					replacementHasModel: replacement.hasModel(),
+					replacementHostConnected: replacement.getOverflowWidgetsDomNode()!.isConnected
+				}, { servicesAliveOnDispose: true, oldHostRemoved: true, editorReplaced: true, replacementHasModel: true, replacementHostConnected: true });
+			}, EditorContributionInstantiation.Eventually);
 		});
 	});
 

@@ -326,12 +326,14 @@ export class MarkupCell extends Disposable {
 
 			this.templateData.editorContainer.innerText = '';
 
+			// Dispose widgets before the services used by their lazy contributions.
+			const editorWidgetDisposables = this.editorDisposables.add(new DisposableStore());
 			// create a special context key service that set the inCompositeEditor-contextkey
 			const editorContextKeyService = this.editorDisposables.add(this.contextKeyService.createScoped(this.templateData.editorPart));
 			EditorContextKeys.inCompositeEditor.bindTo(editorContextKeyService).set(true);
 			const editorInstaService = this.editorDisposables.add(this.instantiationService.createChild(new ServiceCollection([IContextKeyService, editorContextKeyService])));
-			this.editorOverflowWidgets = this.editorDisposables.add(new CellEditorOverflowWidgets(this.notebookEditor.getOverflowContainerDomNode()));
-			this.editor = this.editorDisposables.add(editorInstaService.createInstance(CodeEditorWidget, this.templateData.editorContainer, {
+			this.editorOverflowWidgets = editorWidgetDisposables.add(new CellEditorOverflowWidgets(this.notebookEditor.getOverflowContainerDomNode()));
+			this.editor = editorWidgetDisposables.add(editorInstaService.createInstance(CodeEditorWidget, this.templateData.editorContainer, {
 				...this.editorOptions,
 				overflowWidgetsDomNode: this.editorOverflowWidgets.domNode,
 				dimension: {
