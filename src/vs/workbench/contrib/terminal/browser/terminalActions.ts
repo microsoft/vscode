@@ -72,7 +72,7 @@ export const switchTerminalShowTabsTitle = localize('showTerminalTabs', "Show Ta
 
 const category = terminalStrings.actionCategory;
 
-const TERMINAL_TARGET_PROPERTIES: IJSONSchemaMap = {
+export const TERMINAL_TARGET_PROPERTIES: IJSONSchemaMap = {
 	terminalId: {
 		description: localize({ key: 'workbench.action.terminal.target.terminalId', comment: ['Do not translate the JSON argument names terminalId, resource, or tab.'] }, "The terminal instance ID. Use only one of terminalId, resource, or tab. Omit all selectors to use the active terminal."),
 		type: 'integer',
@@ -1748,7 +1748,7 @@ export function refreshTerminalActions(detectedProfiles: ITerminalProfile[]): ID
 /**
  * Resolves a terminal selector without changing focus or falling back from an explicit target.
  */
-function getTargetTerminal(c: ITerminalServicesCollection, options: Record<string, unknown>, notificationService: INotificationService): ITerminalInstance | undefined {
+export function getTargetTerminal(c: ITerminalServicesCollection, options: Record<string, unknown>, notificationService: INotificationService): ITerminalInstance | undefined {
 	const { terminalId, resource, tab, pane } = options;
 	const selectorCount = [terminalId, resource, tab].filter(value => value !== undefined).length;
 	const invalidIndex = [terminalId, tab, pane].some(value => value !== undefined && (typeof value !== 'number' || !Number.isSafeInteger(value) || value < 1));

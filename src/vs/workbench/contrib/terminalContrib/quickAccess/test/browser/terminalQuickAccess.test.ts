@@ -28,6 +28,11 @@ import { ITerminalConfigurationService, ITerminalEditorService, ITerminalEditing
 import '../../../../terminal/browser/terminal.contribution.js';
 import { ITerminalProfileResolverService, ITerminalProfileService, TerminalCommandId } from '../../../../terminal/common/terminal.js';
 import { TerminalQuickAccessProvider } from '../../browser/terminalQuickAccess.js';
+import { INotificationService } from '../../../../../../platform/notification/common/notification.js';
+import { TestNotificationService } from '../../../../../../platform/notification/test/common/testNotificationService.js';
+import { IQuickAccessController } from '../../../../../../platform/quickinput/common/quickAccess.js';
+import { getInstanceFromResource } from '../../../../terminal/browser/terminalUri.js';
+import '../../browser/terminal.quickAccess.contribution.js';
 
 suite('TerminalQuickAccess', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -479,5 +484,107 @@ suite('TerminalQuickAccess', () => {
 		]);
 		session.dispose();
 		deepStrictEqual(terminalPicks('Renamed').map(item => item.description), ['src (id:3, tab:2, pane:1)']);
+	});
+
+	suite('Switch Active Terminal command', () => {
+		let instantiationService: TestInstantiationService;
+		let instances: ITerminalInstance[];
+		let activeInstance: ITerminalInstance | undefined;
+		let events: string[];
+
+		setup(() => {
+			instantiationService = store.add(new TestInstantiationService());
+			events = [];
+			instances = [3, 12, 21, 99].map(id => new class extends mock<ITerminalInstance>() {
+				override readonly instanceId = id;
+				override readonly target = id === 99 ? TerminalLocation.Editor : TerminalLocation.Panel;
+				override readonly resource = URI.parse(id === 99 ? 'vscode-terminal:/previous-workspace/7' : `vscode-terminal:/workspace/${id}`);
+			}());
+			activeInstance = instances[2];
+			const groups = [
+				new class extends mock<ITerminalGroup>() {
+					override readonly terminalInstances = instances.slice(0, 2);
+					override readonly activeInstance = instances[1];
+				}(),
+				new class extends mock<ITerminalGroup>() {
+					override readonly terminalInstances = [instances[2]];
+					override readonly activeInstance = instances[2];
+				}()
+			];
+			instantiationService.stub(ITerminalService, {
+				get activeInstance() { return activeInstance; },
+				getInstanceFromId: id => instances.find(instance => instance.instanceId === id),
+				getInstanceFromResource: resource => getInstanceFromResource(instances, resource),
+				focusInstance: async instance => { activeInstance = instance; events.push(`focus:${instance.instanceId}`); }
+			});
+			instantiationService.stub(ITerminalGroupService, { groups, activeGroup: groups[1] });
+			instantiationService.stub(ITerminalConfigurationService, {});
+			instantiationService.stub(ITerminalInstanceService, {});
+			instantiationService.stub(ITerminalEditorService, {});
+			instantiationService.stub(ITerminalEditingService, {});
+			instantiationService.stub(ITerminalProfileService, {});
+			instantiationService.stub(ITerminalProfileResolverService, {});
+			instantiationService.stub(IQuickInputService, {
+				quickAccess: new class extends mock<IQuickAccessController>() {
+					override show(prefix: string): void { events.push(`picker:${prefix}`); }
+				}()
+			});
+			instantiationService.stub(INotificationService, new class extends TestNotificationService {
+				override warn(): void { events.push('warning'); }
+			}());
+		});
+
+		async function run(args?: unknown): Promise<void> {
+			const command = CommandsRegistry.getCommand('workbench.action.quickOpenTerm');
+			ok(command);
+			await instantiationService.invokeFunction(accessor => command.handler(accessor, args));
+		}
+
+		test('opens the picker without changing focus when no arguments are supplied', async () => {
+			await run();
+			deepStrictEqual({ events, activeId: activeInstance?.instanceId }, { events: ['picker:term '], activeId: 21 });
+		});
+
+		const selections = [
+			{ args: {}, expectedSelectedTerminalId: 21 },
+			{ args: { terminalId: 12 }, expectedSelectedTerminalId: 12 },
+			{ args: { resource: 'vscode-terminal:/workspace/12' }, expectedSelectedTerminalId: 12 },
+			{ args: { resource: 'vscode-terminal:/workspace/12#Old title' }, expectedSelectedTerminalId: 12 },
+			{ args: { terminalId: 99 }, expectedSelectedTerminalId: 99 },
+			{ args: { resource: 'vscode-terminal:/previous-workspace/7' }, expectedSelectedTerminalId: 99 },
+			{ args: { tab: 1 }, expectedSelectedTerminalId: 12 },
+			{ args: { tab: 2 }, expectedSelectedTerminalId: 21 },
+			{ args: { tab: 1, pane: 1 }, expectedSelectedTerminalId: 3 },
+			{ args: { tab: 1, pane: 2 }, expectedSelectedTerminalId: 12 },
+			{ args: { pane: 1 }, expectedSelectedTerminalId: 21 }
+		];
+		for (const { args, expectedSelectedTerminalId } of selections) {
+			test(`focuses the selected terminal for ${JSON.stringify(args)} without opening the picker`, async () => {
+				await run(args);
+				deepStrictEqual({ events, activeId: activeInstance?.instanceId }, { events: [`focus:${expectedSelectedTerminalId}`], activeId: expectedSelectedTerminalId });
+			});
+		}
+
+		const invalid = [null, 12, '12', [], true, { terminalId: 404 }, { terminalId: 0 }, { terminalId: '12' },
+			{ resource: 'file:/workspace/12' }, { resource: 'vscode-terminal:/wrong-workspace/12' },
+			{ tab: 3 }, { tab: 0 }, { pane: 2 }, { tab: 1, pane: 3 }, { terminalId: 12, tab: 1 }, { terminalId: 12, pane: 1 }];
+		for (const args of invalid) {
+			test(`rejects ${JSON.stringify(args)} without changing focus or opening the picker`, async () => {
+				await run(args);
+				deepStrictEqual({ events, activeId: activeInstance?.instanceId }, { events: ['warning'], activeId: 21 });
+			});
+		}
+
+		test('does not fall back when the target terminal has closed', async () => {
+			instances = instances.filter(instance => instance.instanceId !== 12);
+			await run({ terminalId: 12 });
+			deepStrictEqual({ events, activeId: activeInstance?.instanceId }, { events: ['warning'], activeId: 21 });
+		});
+
+		test('does nothing for an empty target when no terminal is active', async () => {
+			activeInstance = undefined;
+			await run({});
+			deepStrictEqual(events, []);
+		});
 	});
 });
