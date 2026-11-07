@@ -890,6 +890,51 @@ export class FindWidget extends Widget implements IOverlayWidget, IVerticalSashL
 		}
 	}
 
+	/**
+	 * Whether a find-widget control can receive keyboard focus. Enabled controls that are
+	 * `display: none` (e.g. under `.collapsed-find-widget`) must be skipped — otherwise Tab
+	 * appears to do nothing (#280340).
+	 */
+	private _canFocusControl(element: HTMLElement | undefined | null, enabled: boolean = true): boolean {
+		if (!element || !enabled) {
+			return false;
+		}
+		return element.getClientRects().length > 0;
+	}
+
+	/**
+	 * Focus case/regex/whole-word toggles when visible; otherwise the first visible action
+	 * control (prev/next/selection/close).
+	 */
+	private _focusFindOptionOrActionControl(): boolean {
+		const findControls = this._findInput.domNode.querySelector('.controls');
+		if (findControls instanceof HTMLElement && this._canFocusControl(findControls)) {
+			this._findInput.focusOnCaseSensitive();
+			return true;
+		}
+		return this._focusFirstVisibleFindActionControl();
+	}
+
+	private _focusFirstVisibleFindActionControl(): boolean {
+		if (this._canFocusControl(this._prevBtn.domNode, this._prevBtn.isEnabled())) {
+			this._prevBtn.focus();
+			return true;
+		}
+		if (this._canFocusControl(this._nextBtn.domNode, this._nextBtn.isEnabled())) {
+			this._nextBtn.focus();
+			return true;
+		}
+		if (this._canFocusControl(this._toggleSelectionFind.domNode, this._toggleSelectionFind.enabled)) {
+			this._toggleSelectionFind.focus();
+			return true;
+		}
+		if (this._canFocusControl(this._closeBtn.domNode, this._closeBtn.isEnabled())) {
+			this._closeBtn.focus();
+			return true;
+		}
+		return false;
+	}
+
 	private _onFindInputKeyDown(e: IKeyboardEvent): void {
 		if (e.equals(ctrlKeyMod | KeyCode.Enter)) {
 			if (this._keybindingService.dispatchEvent(e, e.target)) {
@@ -905,8 +950,8 @@ export class FindWidget extends Widget implements IOverlayWidget, IVerticalSashL
 		if (e.equals(KeyCode.Tab)) {
 			if (this._isReplaceVisible) {
 				this._replaceInput.focus();
-			} else {
-				this._findInput.focusOnCaseSensitive();
+			} else if (!this._focusFindOptionOrActionControl()) {
+				return;
 			}
 			e.preventDefault();
 			return;
@@ -943,7 +988,9 @@ export class FindWidget extends Widget implements IOverlayWidget, IVerticalSashL
 		}
 
 		if (e.equals(KeyCode.Tab)) {
-			this._findInput.focusOnCaseSensitive();
+			if (!this._focusFindOptionOrActionControl()) {
+				return;
+			}
 			e.preventDefault();
 			return;
 		}
@@ -1048,7 +1095,12 @@ export class FindWidget extends Widget implements IOverlayWidget, IVerticalSashL
 		this._register(this._findInput.onRegexKeyDown((e) => {
 			if (e.equals(KeyCode.Tab)) {
 				if (this._isReplaceVisible) {
-					this._replaceInput.focusOnPreserve();
+					const preserveControls = this._replaceInput.domNode.querySelector('.controls');
+					if (preserveControls instanceof HTMLElement && this._canFocusControl(preserveControls)) {
+						this._replaceInput.focusOnPreserve();
+					} else if (!this._focusFirstVisibleFindActionControl()) {
+						return;
+					}
 					e.preventDefault();
 				}
 			}
@@ -1145,8 +1197,10 @@ export class FindWidget extends Widget implements IOverlayWidget, IVerticalSashL
 			onKeyDown: (e) => {
 				if (e.equals(KeyCode.Tab)) {
 					if (this._isReplaceVisible) {
-						if (this._replaceBtn.isEnabled()) {
+						if (this._canFocusControl(this._replaceBtn.domNode, this._replaceBtn.isEnabled())) {
 							this._replaceBtn.focus();
+						} else if (this._canFocusControl(this._replaceAllBtn.domNode, this._replaceAllBtn.isEnabled())) {
+							this._replaceAllBtn.focus();
 						} else {
 							this._codeEditor.focus();
 						}
@@ -1187,16 +1241,9 @@ export class FindWidget extends Widget implements IOverlayWidget, IVerticalSashL
 		}));
 		this._register(this._replaceInput.onPreserveCaseKeyDown((e) => {
 			if (e.equals(KeyCode.Tab)) {
-				if (this._prevBtn.isEnabled()) {
-					this._prevBtn.focus();
-				} else if (this._nextBtn.isEnabled()) {
-					this._nextBtn.focus();
-				} else if (this._toggleSelectionFind.enabled) {
-					this._toggleSelectionFind.focus();
-				} else if (this._closeBtn.isEnabled()) {
-					this._closeBtn.focus();
+				if (!this._focusFirstVisibleFindActionControl()) {
+					return;
 				}
-
 				e.preventDefault();
 			}
 		}));
