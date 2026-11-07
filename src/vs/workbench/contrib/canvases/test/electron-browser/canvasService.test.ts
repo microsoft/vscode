@@ -74,8 +74,9 @@ suite('CanvasService', () => {
 				return true;
 			},
 		}));
-		let targetGroup = groups[0];
+		let targetGroup: IEditorGroup | undefined = groups[0];
 		let pendingOpen: DeferredPromise<void> | undefined;
+		let pendingClose: DeferredPromise<void> | undefined;
 		let failOpen = false;
 		const notifications: INotification[] = [];
 		const notificationService = new class extends TestNotificationService {
@@ -99,6 +100,12 @@ suite('CanvasService', () => {
 				if (failOpen) {
 					return undefined;
 				}
+				const options = args[1] as IEditorOptions | undefined;
+				// Without a group, an editor that is open already, such as one that matches it, is revealed instead.
+				const revealed = !args[2] && options?.revealIfOpened ? openEditors.find(editor => editor.editor.matches(input)) : undefined;
+				if (revealed) {
+					return upcastPartial<ITextDiffEditorPane>({ group: groups.find(group => group.id === revealed.groupId), input: revealed.editor });
+				}
 				const group = (args[2] as IEditorGroup | undefined) ?? groups[0];
 				openEditors.push({ groupId: group.id, editor: input });
 				return upcastPartial<ITextDiffEditorPane>({ group, input });
@@ -110,6 +117,9 @@ suite('CanvasService', () => {
 				return openEditors.some(editor => editor.editor === input && !input.isDisposed());
 			}
 			override async closeEditors(editors: readonly IEditorIdentifier[]): Promise<void> {
+				if (pendingClose) {
+					await pendingClose.p;
+				}
 				for (const editor of editors) {
 					if (editor.editor instanceof CanvasInput) {
 						closed.push(editor.editor);
@@ -142,6 +152,9 @@ suite('CanvasService', () => {
 			showAI: () => { hidden = false; sentiment.fire(); },
 			setModalActive: (value: boolean) => modalActive = value,
 			selectGroup: (id: number) => targetGroup = groups[id - 1],
+			/** Lets the editor service choose the group, as the main window's active group when it is active. */
+			selectNoGroup: () => targetGroup = undefined,
+			delayClose: () => pendingClose = new DeferredPromise<void>(),
 			/** Moves the open canvas into group `id`, as the user drags its tab, without the service opening it there. */
 			moveByUser: (id: number) => {
 				const moved = openEditors.find(editor => editor.editor instanceof CanvasInput)!;
@@ -541,6 +554,55 @@ suite('CanvasService', () => {
 			open: [3],
 			samePresentation: true,
 			restores: [false, false],
+		});
+	});
+
+	test('shows a canvas beside its chat in the main window once the chat moves there from a chat window, also while its editor there is still closing', async () => {
+		const harness = createHarness({ workingSets: true });
+		harness.selectGroup(3);
+		harness.canvases.set([harness.canvas], undefined);
+		await timeout(0);
+		const close = harness.delayClose();
+		// The chat moves to the main window, which is active and shows it.
+		harness.selectNoGroup();
+		harness.chatWindowOwners.set(new Set(), undefined);
+		await timeout(0);
+		const whileClosing = harness.openEditors.map(editor => editor.groupId);
+		close.complete();
+		await timeout(0);
+		await timeout(0);
+
+		assert.deepStrictEqual({ whileClosing, open: harness.openEditors.map(editor => editor.groupId), reopenable: harness.service.reopenableCanvases.get().length }, {
+			whileClosing: [3],
+			open: [1],
+			reopenable: 0,
+		});
+	});
+
+	test('revealing a canvas while its editor is closing reveals what the canvas is once that closed: nothing once it is gone, nor once the service is disposed', async () => {
+		const reveal = async (meanwhile: (harness: ReturnType<typeof createHarness>) => void) => {
+			const harness = createHarness({ workingSets: true });
+			harness.selectGroup(3);
+			harness.canvases.set([harness.canvas], undefined);
+			await timeout(0);
+			const close = harness.delayClose();
+			harness.selectNoGroup();
+			harness.chatWindowOwners.set(new Set(), undefined);
+			await timeout(0);
+			const revealed = harness.service.revealCanvas({ ...harness.owner, canvas: harness.canvas.resource });
+			meanwhile(harness);
+			close.complete();
+			await revealed;
+			await timeout(0);
+			return { opens: harness.opened.length, open: harness.openEditors.map(editor => editor.groupId) };
+		};
+
+		assert.deepStrictEqual({
+			canvasGone: await reveal(harness => harness.canvases.set([], undefined)),
+			serviceDisposed: await reveal(harness => harness.service.dispose()),
+		}, {
+			canvasGone: { opens: 1, open: [] },
+			serviceDisposed: { opens: 1, open: [] },
 		});
 	});
 });

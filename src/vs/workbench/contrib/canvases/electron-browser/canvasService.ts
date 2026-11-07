@@ -67,6 +67,8 @@ export class CanvasService extends Disposable implements ICanvasService {
 	private readonly pendingRequests = new Map<string, string>();
 	private readonly opening = new Map<CanvasInput, { readonly value: Promise<void>; readonly restoreFallback: boolean; readonly preserveFocus: boolean }>();
 	private readonly programmaticCloses = new Set<CanvasInput>();
+	/** The editor closes {@link closeInput} awaits, by canvas: until one completes, its canvas does not open again. */
+	private readonly pendingCloses = new Map<string, Promise<void>>();
 	private readonly workingSetSuspensions = new Set<CanvasInput>();
 	private readonly dismissedChanged = observableSignal(this);
 	private readonly presentationsChanged = observableSignal(this);
@@ -182,6 +184,10 @@ export class CanvasService extends Disposable implements ICanvasService {
 					if (modalActive && request?.pending) {
 						continue;
 					}
+					if (!existingInput && this.pendingCloses.has(key)) {
+						// Its editor is still closing, which a new one would reveal instead of opening; it opens once that closed.
+						continue;
+					}
 					const input = existingInput ?? this.getOrCreateInput(reference, canvas);
 					if (this.opening.has(input)) {
 						continue;
@@ -261,8 +267,21 @@ export class CanvasService extends Disposable implements ICanvasService {
 	}
 
 	async revealCanvas(reference: ICanvasReference): Promise<void> {
-		if (this.workingSetState.get().restoring && !await this.waitForWorkingSetRestore()) {
-			return;
+		const key = getCanvasReferenceKey(reference);
+		// After a working-set restore, and once an editor of the canvas that is closing closed, which a new one would reveal
+		// instead of opening; what to reveal is resolved after both.
+		while (true) {
+			if (this.workingSetState.get().restoring && !await this.waitForWorkingSetRestore()) {
+				return;
+			}
+			const pendingClose = this.pendingCloses.get(key);
+			if (!pendingClose) {
+				break;
+			}
+			await pendingClose;
+			if (this._store.isDisposed) {
+				return;
+			}
 		}
 		const context = this.isOwnerPresentable(reference)
 			? this.contextService.contexts.get().find(context => isCanvasOwner(context.owner, reference))
@@ -271,7 +290,6 @@ export class CanvasService extends Disposable implements ICanvasService {
 		if (!canvas) {
 			return;
 		}
-		const key = getCanvasReferenceKey(reference);
 		this.deleteDismissed(key);
 		if (canvas.source === undefined) {
 			return;
@@ -712,6 +730,9 @@ export class CanvasService extends Disposable implements ICanvasService {
 		}
 		this.workingSetSuspensions.delete(input);
 		this.programmaticCloses.add(input);
+		const closed = new DeferredPromise<void>();
+		// Before the presentation changes below, which reconcile it
+		this.pendingCloses.set(key, closed.p);
 		this.inputs.deleteAndLeak(key);
 		const lifetime = this.inputLifetimes.deleteAndLeak(key);
 		this.deleteDismissed(key);
@@ -732,6 +753,14 @@ export class CanvasService extends Disposable implements ICanvasService {
 			input.dispose();
 			lifetime?.dispose();
 			this.programmaticCloses.delete(input);
+			if (this.pendingCloses.get(key) === closed.p) {
+				this.pendingCloses.delete(key);
+			}
+			closed.complete();
+			if (!this._store.isDisposed) {
+				// Its canvas may show again meanwhile, such as beside its chat in another window.
+				this.presentationsChanged.trigger(undefined);
+			}
 		}
 	}
 
