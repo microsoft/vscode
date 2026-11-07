@@ -31077,12 +31077,12 @@ Use the attached image as context.
 				}, {
 					starts: [
 						{ id: 'original', owner: { kind: ToolCallContributorKind.Client, clientId: 'old-client' } },
-						{ id: 'during-grace', owner: { kind: ToolCallContributorKind.Client, clientId: 'old-client' } },
+						{ id: 'during-grace', owner: toolSearch ? undefined : { kind: ToolCallContributorKind.Client, clientId: 'old-client' } },
 						{ id: 'after-rejoin', owner: { kind: ToolCallContributorKind.Client, clientId: 'replacement' } },
 					],
 					ready: [
 						{ id: 'original', owner: { kind: ToolCallContributorKind.Client, clientId: 'old-client' } },
-						...(!toolSearch ? [{ id: 'during-grace', owner: { kind: ToolCallContributorKind.Client, clientId: 'old-client' } }] : []),
+						{ id: 'during-grace', owner: toolSearch ? undefined : { kind: ToolCallContributorKind.Client, clientId: 'old-client' } },
 						{ id: 'after-rejoin', owner: { kind: ToolCallContributorKind.Client, clientId: 'replacement' } },
 					],
 				});
