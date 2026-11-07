@@ -292,6 +292,35 @@ suite('EnvironmentVariable - MergedEnvironmentVariableCollection', () => {
 				});
 			}
 		});
+
+		test('should sanitize trailing/leading newlines when appending or prepending', async () => {
+			const merged = new MergedEnvironmentVariableCollection(new Map([
+				['ext', {
+					map: deserializeEnvironmentVariableCollection([
+						['A-key', { value: ';/path/a', type: EnvironmentVariableMutatorType.Append, variable: 'A' }],
+						['B-key', { value: ';/path/b', type: EnvironmentVariableMutatorType.Append, variable: 'B' }],
+						['C-key', { value: '/path/c;', type: EnvironmentVariableMutatorType.Prepend, variable: 'C' }],
+						['D-key', { value: ';D:\\追加パス\\bin', type: EnvironmentVariableMutatorType.Append, variable: 'D' }],
+						['E-key', { value: '/path/e;', type: EnvironmentVariableMutatorType.Prepend, variable: 'E' }]
+					])
+				}]
+			]));
+			const env: IProcessEnvironment = {
+				A: 'foo\r',
+				B: 'bar\r\n',
+				C: '\r\nbaz',
+				D: 'D:\\既存パス　全角\r',
+				E: '\r\n　全角先頭\\path'
+			};
+			await merged.applyToProcessEnvironment(env, undefined);
+			deepStrictEqual(env, {
+				A: 'foo;/path/a',
+				B: 'bar;/path/b',
+				C: '/path/c;baz',
+				D: 'D:\\既存パス　全角;D:\\追加パス\\bin',
+				E: '/path/e;　全角先頭\\path'
+			});
+		});
 	});
 
 	suite('diff', () => {
