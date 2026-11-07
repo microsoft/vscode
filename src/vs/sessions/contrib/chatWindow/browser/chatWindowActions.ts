@@ -273,14 +273,15 @@ export const chatWindowTabEntries: readonly IChatWindowTabEntry[] = [{
 		if (shown) {
 			const { session, chat } = shown;
 			const sessionChangesService = accessor.get(ISessionChangesService);
-			// An existing Changes tab of the session is activated in place, such as one that moved in with the chat or was
-			// restored, which may show the changes of the session rather than of the chat.
-			const existing = group.getEditors(EditorsOrder.SEQUENTIAL).find(editor => editor.resource && isEqual(sessionChangesService.getSessionResource(editor.resource), session.resource));
+			// The Changes tab of the chat the window shows is activated in place, such as one that moved in with the chat or
+			// was restored; not one of another chat, nor one of the session, whose changes need not be of this chat.
+			const resource = sessionChangesService.getChangesEditorResource(session.resource, chat?.resource);
+			const existing = group.getEditors(EditorsOrder.SEQUENTIAL).find(editor => isEqual(editor.resource, resource));
 			if (existing) {
 				await group.openEditor(existing);
 				return;
 			}
-			// Otherwise the window's own Changes editor, of the chat it shows, at the end.
+			// Otherwise a Changes editor of the chat it shows, at the end.
 			await sessionChangesService.openChangesEditor(session.resource, { index: group.count, chatResource: chat?.resource }, group);
 		}
 	},
