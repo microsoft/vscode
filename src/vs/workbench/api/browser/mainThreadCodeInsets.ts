@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { getWindow } from '../../../base/browser/dom.js';
-import { DisposableStore } from '../../../base/common/lifecycle.js';
+import { DisposableMap, DisposableStore } from '../../../base/common/lifecycle.js';
 import { isEqual } from '../../../base/common/resources.js';
 import { URI, UriComponents } from '../../../base/common/uri.js';
 import { IActiveCodeEditor, IViewZone } from '../../../editor/browser/editorBrowser.js';
@@ -57,7 +57,7 @@ export class MainThreadEditorInsets implements MainThreadEditorInsetsShape {
 
 	private readonly _proxy: ExtHostEditorInsetsShape;
 	private readonly _disposables = new DisposableStore();
-	private readonly _insets = new Map<number, EditorWebviewZone>();
+	private readonly _insets = this._disposables.add(new DisposableMap<number, { webviewZone: EditorWebviewZone; dispose(): void }>());
 
 	constructor(
 		context: IExtHostContext,
@@ -102,9 +102,8 @@ export class MainThreadEditorInsets implements MainThreadEditorInsetsShape {
 		const webviewZone = new EditorWebviewZone(editor, line, height, webview);
 
 		const remove = () => {
-			disposables.dispose();
+			this._insets.deleteAndDispose(handle);
 			this._proxy.$onDidDispose(handle);
-			this._insets.delete(handle);
 		};
 
 		disposables.add(editor.onDidChangeModel(remove));
@@ -113,13 +112,11 @@ export class MainThreadEditorInsets implements MainThreadEditorInsetsShape {
 		disposables.add(webview);
 		disposables.add(webview.onMessage(msg => this._proxy.$onDidReceiveMessage(handle, msg.message)));
 
-		this._insets.set(handle, webviewZone);
+		this._insets.set(handle, { webviewZone, dispose: () => disposables.dispose() });
 	}
 
 	$disposeEditorInset(handle: number): void {
-		const inset = this.getInset(handle);
-		this._insets.delete(handle);
-		inset.dispose();
+		this._insets.deleteAndDispose(handle);
 	}
 
 	$setHtml(handle: number, value: string): void {
@@ -143,6 +140,6 @@ export class MainThreadEditorInsets implements MainThreadEditorInsetsShape {
 		if (!inset) {
 			throw new Error('Unknown inset');
 		}
-		return inset;
+		return inset.webviewZone;
 	}
 }
