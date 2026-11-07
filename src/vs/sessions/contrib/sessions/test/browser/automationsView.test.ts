@@ -28,6 +28,8 @@ import { URI } from '../../../../../base/common/uri.js';
 import { mock, upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { AccessibleViewRegistry } from '../../../../../platform/accessibility/browser/accessibleViewRegistry.js';
+import { AgentChatAccessibilityHelp } from '../../../../../workbench/contrib/chat/browser/actions/chatAccessibilityHelp.js';
+import { ChatModeKind } from '../../../../../workbench/contrib/chat/common/constants.js';
 import { IAccessibilityService } from '../../../../../platform/accessibility/common/accessibility.js';
 import { TestAccessibilityService } from '../../../../../platform/accessibility/test/common/testAccessibilityService.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
@@ -2190,7 +2192,7 @@ suite('AutomationsCardsWidget', () => {
 	});
 
 	test('empty state is rendered once across repeated empty updates', () => {
-		const { automationService, widget } = setup();
+		const { automationService, widget, instantiationService, contextKeyService } = setup();
 
 		automationService.setCatalogueState('ready');
 		automationService.setAutomations([]);
@@ -2202,6 +2204,7 @@ suite('AutomationsCardsWidget', () => {
 			description: widget.element.querySelector('.automations-cards-empty-description')?.textContent,
 			buttons: widget.element.querySelectorAll('.automations-cards-create-button').length,
 			templateSections: widget.element.querySelectorAll('.automations-templates').length,
+			chatInputs: widget.element.querySelectorAll('.interactive-input-part, .automation-authoring-composer').length,
 			templateNames: Array.from(widget.element.querySelectorAll('.automations-template-card-name-text'), element => element.textContent),
 		}, {
 			titles: 1,
@@ -2209,7 +2212,20 @@ suite('AutomationsCardsWidget', () => {
 			description: 'Describe what you want to automate, then choose when it runs.',
 			buttons: 1,
 			templateSections: 1,
+			chatInputs: 0,
 			templateNames: ['Catch up on main', 'Issue triage', 'Find bugs'],
+		});
+		const hasNewAutomation = () => instantiationService.get(IMenuService).getMenuActions(AgentsWindowMenus.CustomViewAutomations, contextKeyService)
+			.flatMap(([, actions]) => actions).some(action => action.id === 'sessionsView.newAutomation' && action.enabled);
+		const empty = hasNewAutomation();
+		automationService.setAutomations([automation()]);
+		const populated = hasNewAutomation();
+		ChatContextKeys.enabled.bindTo(contextKeyService).set(false);
+		const aiDisabled = hasNewAutomation();
+		ChatContextKeys.enabled.bindTo(contextKeyService).set(true);
+		ChatAutomationsEnabledContext.bindTo(contextKeyService).set(false);
+		assert.deepStrictEqual({ empty, populated, aiDisabled, automationsDisabled: hasNewAutomation() }, {
+			empty: true, populated: true, aiDisabled: false, automationsDisabled: false,
 		});
 	});
 
@@ -4820,6 +4836,30 @@ suite('AutomationsCardsWidget', () => {
 		}, {
 			emptyCatalogueHelp: [true, true, true, true],
 			populatedCatalogueHelp: true,
+		});
+	});
+
+	test('automation dialog help takes precedence over generic agent input help only inside the modal', () => {
+		const { contextKeyService } = setup();
+		const inDialog = ChatContextKeys.inAutomationsDialog.bindTo(contextKeyService);
+		const inInput = ChatContextKeys.inChatInput.bindTo(contextKeyService);
+		ChatContextKeys.chatModeKind.bindTo(contextKeyService).set(ChatModeKind.Agent);
+		const implementations = [
+			...AccessibleViewRegistry.getImplementations().filter(implementation => implementation.name.startsWith('sessions-automations')),
+			new AgentChatAccessibilityHelp(),
+		];
+		const selected = () => implementations
+			.filter(implementation => contextKeyService.contextMatchesRules(implementation.when))
+			.sort((a, b) => b.priority - a.priority)[0]?.name;
+		inDialog.set(true);
+		inInput.set(true);
+		const input = selected();
+		inInput.set(false);
+		const footer = selected();
+		inDialog.set(false);
+		inInput.set(true);
+		assert.deepStrictEqual({ input, footer, outside: selected() }, {
+			input: 'sessions-automations-dialog-help', footer: 'sessions-automations-dialog-help', outside: 'agentView',
 		});
 	});
 

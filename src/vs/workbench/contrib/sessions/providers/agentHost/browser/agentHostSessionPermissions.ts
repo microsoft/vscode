@@ -15,6 +15,17 @@ import { type ISessionPermissionOption } from '../../../common/sessionsProvider.
 const COPILOT_CLI_AGENT_PROVIDER_ID = 'copilotcli';
 const policyLockedReason = () => localize('sessionComparison.permissions.policyLocked', "Disabled by your organization");
 
+/** Uses the backend's conservative permission option without inheriting remembered approvals. */
+export function getAgentHostAutomationAuthoringPermissions(agentProvider: string): { readonly permissionId: string; readonly modeId?: string } | undefined {
+	const permission = getAgentHostSessionPermissionOptions(agentProvider, false, true).find(option => option.isDefault && !option.isAllowAll);
+	if (!permission) {
+		return undefined;
+	}
+	const config = getAgentHostSessionPermissionConfig(agentProvider, permission.id, false, true);
+	const mode = config?.[SessionConfigKey.Mode];
+	return { permissionId: permission.id, ...(typeof mode === 'string' ? { modeId: mode } : {}) };
+}
+
 /** Reads the selected native permission without substituting a different permission choice. */
 export function getAgentHostSessionPermissionId(agentProvider: string, config: ResolveSessionConfigResult): string | undefined {
 	const key = agentProvider === CLAUDE_AGENT_PROVIDER_ID ? ClaudeSessionConfigKey.PermissionMode

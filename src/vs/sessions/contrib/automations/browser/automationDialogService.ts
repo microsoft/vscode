@@ -14,7 +14,9 @@ import { CancellationToken, CancellationTokenSource } from '../../../../base/com
 import { Codicon } from '../../../../base/common/codicons.js';
 import { getErrorMessage, isCancellationError } from '../../../../base/common/errors.js';
 import { DisposableStore, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
+import { autorun, observableValue } from '../../../../base/common/observable.js';
 import { isWindows } from '../../../../base/common/platform.js';
+import { isEqual, joinPath } from '../../../../base/common/resources.js';
 import { equals } from '../../../../base/common/objects.js';
 import { localize } from '../../../../nls.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
@@ -33,13 +35,21 @@ import { IAutomationSchedule } from '../../../../workbench/contrib/chat/common/a
 import { automationScheduleToLocal, automationScheduleToUTC } from '../../../../workbench/contrib/chat/common/automations/schedule.js';
 import { IAutomationDialogResult, IAutomationDialogService, IShowAutomationDialogOptions } from '../../../../workbench/contrib/chat/common/automations/automationDialogService.js';
 import { AutomationRepositoryOwnershipUnavailableError, IAutomationService, ICreateAutomationOptions, IUpdateAutomationOptions } from '../../../../workbench/contrib/chat/common/automations/automationService.js';
+import { PromptFileVariableKind, toPromptFileVariableEntry } from '../../../../workbench/contrib/chat/common/attachments/chatVariableEntries.js';
+import { ChatContextKeys } from '../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
+import { IPromptsService, PromptsStorage } from '../../../../workbench/contrib/chat/common/promptSyntax/service/promptsService.js';
+import { PromptsType } from '../../../../workbench/contrib/chat/common/promptSyntax/promptTypes.js';
 import { IHostService } from '../../../../workbench/services/host/browser/host.js';
 import { IWorkbenchLayoutService } from '../../../../workbench/services/layout/browser/layoutService.js';
-import { ISessionsManagementService } from '../../../../workbench/contrib/sessions/common/sessionsManagement.js';
+import { ISessionsManagementService, ICreateNewSessionOptions } from '../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import { IChatViewFactory } from '../../../../workbench/contrib/sessions/browser/chatViewFactory.js';
 import { IAutomationSessionConfiguration } from '../../../../workbench/contrib/sessions/common/sessionsProvider.js';
+import { ISessionsService } from '../../../../workbench/contrib/sessions/browser/sessionsService.js';
+import { ISessionsProvidersService } from '../../../../workbench/contrib/sessions/browser/sessionsProvidersService.js';
+import { ISession } from '../../../../workbench/services/sessions/common/session.js';
 import { AutomationDialogMessageSource, AutomationSessionConfigurationCapture, createAutomationTarget, getAutomationDialogProviders, IAutomationDialogMessage, IFormState, IValidationState, isAutomationDialogPopupTarget, registerAutomationDialogKeyboardNavigation, renderForm, shouldPassThroughAutomationDialogCommand, updateSaveButtonState } from './automationDialog.js';
 import { AutomationDialogTelemetry } from './automationTelemetry.js';
+import { BUILTIN_SKILLS_URI } from '../../chat/browser/promptsService.js';
 
 const $ = DOM.$;
 
@@ -94,6 +104,9 @@ export class AutomationDialogService implements IAutomationDialogService {
 		@IHoverService private readonly hoverService: IHoverService,
 		@IQuickInputService private readonly quickInputService: IQuickInputService,
 		@IChatViewFactory private readonly chatViewFactory: IChatViewFactory,
+		@IPromptsService private readonly promptsService: IPromptsService,
+		@ISessionsService private readonly sessionsService: ISessionsService,
+		@ISessionsProvidersService private readonly providersService: ISessionsProvidersService,
 	) { }
 
 	async showAutomationDialog(options: IShowAutomationDialogOptions): Promise<IAutomationDialogResult | undefined> {
@@ -105,6 +118,7 @@ export class AutomationDialogService implements IAutomationDialogService {
 		const timezoneOffset = new Date().getTimezoneOffset();
 		const initialSchedule = initial && automationScheduleToLocal(initial.schedule, timezoneOffset);
 		const isEdit = !!existing;
+		const manualMode = observableValue(this, isEdit || options.initialValues !== undefined);
 		const dialogTelemetry = new AutomationDialogTelemetry(this.telemetryService, isEdit ? 'update' : 'create');
 		const initialTarget = initial?.target;
 		const initialWorkspaceTarget = initialTarget?.kind === 'workspace' ? initialTarget : undefined;
@@ -144,12 +158,15 @@ export class AutomationDialogService implements IAutomationDialogService {
 
 		let saveButton: IButton | undefined;
 		let cancelButton: IButton | undefined;
+		let createWithAgentButton: IButton | undefined;
+		let authoringSession: ISession | undefined;
 		let revalidate: () => void = () => { };
 		let getPrompt: () => string = () => initial?.prompt ?? '';
 		let getSessionConfiguration: (token: CancellationToken) => Promise<AutomationSessionConfigurationCapture> = async () => ({ kind: 'preserved', configuration: initialSessionConfiguration });
 		let getBranch: () => string | undefined = () => initialWorkspaceTarget?.isolation.kind === 'worktree' ? initialWorkspaceTarget.isolation.branch : undefined;
 		let waitForAutomationSessionSync: (token: CancellationToken) => Promise<void> = async () => { };
 		let setSaving: (saving: boolean, committing?: boolean) => void = () => { };
+		let setManualMode: (manual: boolean) => void = () => { };
 		let setOwnership: (ownership: IFormState['ownership']) => void = () => { };
 		let getCustomizationIds: () => readonly string[] | undefined = () => undefined;
 		let waitForCustomizationChoices: (token: CancellationToken) => Promise<void> = async () => { };
@@ -172,6 +189,7 @@ export class AutomationDialogService implements IAutomationDialogService {
 		const messagePriority: readonly AutomationDialogMessageSource[] = ['operationError', 'saveError', 'targetValidation', 'scheduleValidation', 'toolCatalogError', 'immutableSettings', 'repositoryWarning'];
 		const updateNotificationCenter = () => {
 			const candidate = messagePriority
+				.filter(source => manualMode.get() || source === 'operationError' || source === 'saveError' || source === 'targetValidation')
 				.map(source => ({ source, message: dialogMessages.get(source) }))
 				.find(candidate => candidate.message !== undefined);
 			const message = candidate?.message;
@@ -286,7 +304,7 @@ export class AutomationDialogService implements IAutomationDialogService {
 			if (completion.isSettled || (commitInProgress && result === undefined)) {
 				return;
 			}
-			dialogTelemetry.complete(result !== undefined);
+			dialogTelemetry.complete(result !== undefined || authoringSession !== undefined);
 			saveCancellation.value?.cancel();
 			void completion.complete(result);
 			dialog.dispose();
@@ -296,16 +314,20 @@ export class AutomationDialogService implements IAutomationDialogService {
 			if (saveInProgress) {
 				return;
 			}
+			const manual = manualMode.get();
+			if (!manual && (!getPrompt().trim() || this.configurationService.getValue<boolean>('chat.disableAIFeatures'))) {
+				return;
+			}
 			revalidate();
 			if (state.targetPending) {
 				return;
 			}
-			if (validation.nameError || validation.promptError || validation.folderError || validation.sessionTypeError || validation.branchError || validation.scheduleError || validation.cronError
-				|| (state.interval === 'cron' && !state.cronExpression?.trim())) {
+			if (validation.promptError || validation.folderError || validation.sessionTypeError || validation.branchError || manual && (validation.nameError || validation.scheduleError || validation.cronError
+				|| state.interval === 'cron' && !state.cronExpression?.trim())) {
 				dialogTelemetry.validationFailed();
 				return;
 			}
-			if ((!state.isQuickChat && !state.folderUri) || !state.sessionTypeId || (state.isQuickChat && !state.providerId)) {
+			if ((manual && !state.isQuickChat && !state.folderUri) || !state.sessionTypeId || !state.providerId) {
 				dialogTelemetry.validationFailed();
 				return;
 			}
@@ -319,6 +341,9 @@ export class AutomationDialogService implements IAutomationDialogService {
 				saveButton.enabled = false;
 				saveButton.label = savingButtonLabel;
 			}
+			if (createWithAgentButton) {
+				createWithAgentButton.enabled = false;
+			}
 			cancelButton?.focus();
 			const cancellation = new CancellationTokenSource();
 			saveCancellation.value = cancellation;
@@ -326,16 +351,63 @@ export class AutomationDialogService implements IAutomationDialogService {
 			let shouldFocusError = false;
 			try {
 				await waitForAutomationSessionSync(cancellation.token);
-				await waitForCustomizationChoices(cancellation.token);
+				if (manual) {
+					await waitForCustomizationChoices(cancellation.token);
+				}
 				const sessionConfigurationCapture = await getSessionConfiguration(cancellation.token);
 				if (sessionConfigurationCapture.kind === 'failed') {
 					dialogTelemetry.captureFailed();
-					showSaveError(captureErrorMessage);
+					showSaveError(manual ? captureErrorMessage : localize('automation.dialog.sessionCaptureError', "The session wasn't started because its configuration couldn't be captured. Check the provider connection and try again."));
 					shouldFocusError = true;
 					return;
 				}
 				revalidate();
-				if (state.targetPending || validation.sessionTypeError || validation.scheduleError) {
+				if (state.targetPending || validation.sessionTypeError || manual && validation.scheduleError) {
+					return;
+				}
+				if (!manual) {
+					const skillUri = joinPath(BUILTIN_SKILLS_URI, 'automate', 'SKILL.md');
+					const skills = await this.promptsService.findAgentSkills(cancellation.token);
+					const skill = skills && (await this.promptsService.listPromptFilesForStorage(PromptsType.skill, PromptsStorage.builtIn, cancellation.token)).find(skill =>
+						skill.name === 'automate' && skill.storage === PromptsStorage.builtIn && isEqual(skill.uri, skillUri));
+					if (!skill || this.promptsService.getDisabledPromptFiles(PromptsType.skill).has(skill.uri)) {
+						throw new Error(localize('automation.dialog.skillUnavailable', "The built-in /automate skill is unavailable or disabled. Enable it before starting the walkthrough."));
+					}
+					if (cancellation.token.isCancellationRequested || this.configurationService.getValue<boolean>('chat.disableAIFeatures')) {
+						return;
+					}
+					const target = createAutomationTarget({ ...state, isQuickChat: true }, undefined);
+					if (!target || !state.providerId || !state.sessionTypeId) {
+						throw new Error(localize('automation.dialog.sessionTargetMissing', "Choose an available target before starting the session."));
+					}
+					const permissions = this.providersService.getProvider(state.providerId)?.getAutomationAuthoringPermissions?.(state.sessionTypeId);
+					if (!permissions) {
+						throw new Error(localize('automation.dialog.safePermissionsUnavailable', "The selected provider cannot confirm conservative permissions for this walkthrough. Choose another harness or use manual creation."));
+					}
+					const goal = getPrompt();
+					const request = {
+						query: /^\s*\/automate(?=\s|$)/.test(goal) ? goal : `/automate ${goal}`,
+						attachedContext: [toPromptFileVariableEntry(skillUri, PromptFileVariableKind.PromptFile)],
+					};
+					const createOptions: ICreateNewSessionOptions = {
+						providerId: state.providerId,
+						sessionTypeId: state.sessionTypeId,
+						...permissions,
+						...(sessionConfigurationCapture.configuration ? { automationConfiguration: sessionConfigurationCapture.configuration } : {}),
+						...(target.kind === 'workspace' ? {
+							isolationMode: target.isolation.kind === 'folder' ? 'workspace' : target.isolation.kind === 'worktree' ? 'worktree' : undefined,
+							branch: getBranch(),
+						} : {}),
+					};
+					const session = target.kind === 'workspace'
+						? await this.sessionsManagementService.createAndSendNewChatRequest(target.folderUri, request, createOptions, cancellation.token)
+						: await this.sessionsManagementService.createAndSendQuickChatRequest(request, createOptions, cancellation.token);
+					if (!session) {
+						throw new Error(localize('automation.dialog.sessionUnconfirmed', "The provider did not confirm the new session. Check your sessions before retrying."));
+					}
+					authoringSession = session;
+					shouldClose = true;
+					closeDialog(undefined);
 					return;
 				}
 				const result = buildResult(sessionConfigurationCapture);
@@ -361,7 +433,7 @@ export class AutomationDialogService implements IAutomationDialogService {
 					if (!commitInProgress) {
 						dialogTelemetry.captureFailed();
 					}
-					const message = commitInProgress ? getErrorMessage(error) : captureErrorMessage;
+					const message = commitInProgress || !manual ? getErrorMessage(error) : captureErrorMessage;
 					if (!isEdit && state.ownership === 'repository' && error instanceof AutomationRepositoryOwnershipUnavailableError) {
 						setOwnership('user');
 					}
@@ -384,6 +456,9 @@ export class AutomationDialogService implements IAutomationDialogService {
 					setSaving(false);
 					if (saveButton) {
 						saveButton.label = saveButtonLabel;
+					}
+					if (createWithAgentButton) {
+						createWithAgentButton.enabled = true;
 					}
 					revalidate();
 					if (shouldFocusError) {
@@ -408,6 +483,17 @@ export class AutomationDialogService implements IAutomationDialogService {
 				renderFooter: container => {
 					container.classList.add('dialog-buttons', 'automation-dialog-footer-actions');
 					container.parentElement?.classList.add('dialog-buttons-row', 'automation-dialog-footer-row');
+					if (!isEdit) {
+						createWithAgentButton = disposables.add(new Button(container, { ...defaultButtonStyles, secondary: true }));
+						createWithAgentButton.element.classList.add('automation-dialog-mode-switch');
+						disposables.add(createWithAgentButton.onDidClick(() => {
+							if (saveInProgress || completion.isSettled) {
+								return;
+							}
+							setManualMode(!manualMode.get());
+							focusFirst();
+						}));
+					}
 					notificationCenter = DOM.append(container, $('.automation-dialog-notification-center', {
 						id: 'automation-dialog-notification-center',
 						'aria-live': 'polite',
@@ -452,10 +538,27 @@ export class AutomationDialogService implements IAutomationDialogService {
 						createCancelButton();
 						createSaveButton();
 					}
+					disposables.add(autorun(reader => {
+						const manual = manualMode.read(reader);
+						if (createWithAgentButton) {
+							createWithAgentButton.label = manual
+								? localize('automation.dialog.createWithAgent', "Create with agent")
+								: localize('automation.dialog.createManually', "Create manually");
+							createWithAgentButton.element.classList.toggle('automation-dialog-create-with-agent', manual);
+							createWithAgentButton.element.classList.toggle('automation-dialog-create-manually', !manual);
+						}
+						if (saveButton) {
+							DOM.setVisibility(manual, saveButton.element);
+						}
+						updateNotificationCenter();
+						revalidate();
+					}));
 				},
 				renderBody: container => {
 					container.classList.add('automation-dialog-body');
 					dialogElement = container.closest<HTMLElement>('.monaco-dialog-box') ?? undefined;
+					const dialogContextKeyService = disposables.add(this.contextKeyService.createScoped(dialogElement ?? container));
+					ChatContextKeys.inAutomationsDialog.bindTo(dialogContextKeyService).set(true);
 					const progressHost = DOM.append(container, $('.automation-dialog-progress'));
 					progressBar = disposables.add(new ProgressBar(progressHost, defaultProgressBarStyles));
 					progressBar.hide();
@@ -466,8 +569,14 @@ export class AutomationDialogService implements IAutomationDialogService {
 
 					const scrollable = DOM.append(container, $('.automation-dialog-scrollable'));
 					const formPane = DOM.append(scrollable, $('.automation-form-pane'));
+					const description = DOM.append(formPane, $('p.automation-description.automation-creation-guidance'));
+					description.textContent = localize('automation.dialog.creationGuidance', "Describe your idea and let an agent guide the setup, or choose Create manually to fill in the details.");
+					disposables.add(autorun(reader => {
+						description.hidden = manualMode.read(reader);
+					}));
 					const form = DOM.append(formPane, $('.automation-form'));
-					const handle = renderForm(form, state, disposables, validation, () => revalidate(), this.instantiationService, this.contextKeyService, this.contextViewService, this.configurationService, this.layoutService, this.logService, this.sessionsManagementService, this.workspaceTrustRequestService, initial?.prompt ?? '', initialTarget, initialSessionConfiguration, allowedProviders, providerId => this.automationService.getProviderConfiguration?.(providerId), isEdit, { service: this.automationService, hoverService: this.hoverService, existingId: existing?.id }, error => setDialogMessage('operationError', { severity: 'error', text: getErrorMessage(error) }), this.quickInputService, setRepositoryWarningVisible, setDialogMessage, () => notificationCenter?.focus(), this.chatViewFactory.inputEditorOptions);
+					const handle = renderForm(form, state, disposables, validation, () => revalidate(), this.instantiationService, dialogContextKeyService, this.contextViewService, this.configurationService, this.layoutService, this.logService, this.sessionsManagementService, this.workspaceTrustRequestService, initial?.prompt ?? '', initialTarget, initialSessionConfiguration, allowedProviders, providerId => this.automationService.getProviderConfiguration?.(providerId), isEdit, { service: this.automationService, hoverService: this.hoverService, existingId: existing?.id }, error => setDialogMessage('operationError', { severity: 'error', text: getErrorMessage(error) }), this.quickInputService, setRepositoryWarningVisible, setDialogMessage, () => notificationCenter?.focus(), this.chatViewFactory.inputEditorOptions, manualMode, save);
+					setManualMode = handle.setManualMode;
 					getPrompt = handle.getPrompt;
 					getSessionConfiguration = handle.getSessionConfiguration;
 					getBranch = handle.getBranch;
@@ -483,6 +592,7 @@ export class AutomationDialogService implements IAutomationDialogService {
 						DOM.getWindow(container),
 						() => [
 							...getFocusableElements(),
+							...(createWithAgentButton ? [createWithAgentButton.element] : []),
 							...(notificationAction ? [notificationAction.element] : []),
 							...(saveButton ? [saveButton.element] : []),
 							...(cancelButton ? [cancelButton.element] : []),
@@ -491,7 +601,7 @@ export class AutomationDialogService implements IAutomationDialogService {
 						() => !saveInProgress && handle.acceptPromptSuggestion(),
 						() => !saveInProgress && handle.cancelInputPopup(),
 					));
-					focusFirst = keyboardNavigation.focusFirst;
+					focusFirst = () => manualMode.get() ? keyboardNavigation.focusFirst() : handle.focusPrompt();
 					for (const type of [DOM.EventType.KEY_DOWN, DOM.EventType.KEY_UP]) {
 						disposables.add(DOM.addDisposableListener(DOM.getWindow(container), type, (event: KeyboardEvent) => {
 							if (commitInProgress && event.key === 'Escape') {
@@ -509,11 +619,15 @@ export class AutomationDialogService implements IAutomationDialogService {
 					const saveBlockedHover = disposables.add(new MutableDisposable());
 					let saveBlockedMessage: string | undefined;
 					revalidate = () => {
+						const manual = manualMode.get();
 						const providerAvailable = state.providerId !== undefined && allowedProviders.get().includes(state.providerId);
-						updateSaveButtonState(saveButton, state, validation, form, getPrompt, getBranch, this.sessionsManagementService, providerAvailable, existing?.target.providerId, isEdit);
+						const targetState = manual ? state : { ...state, isQuickChat: true, folderUri: undefined, isolationMode: undefined, branch: undefined };
+						updateSaveButtonState(saveButton, targetState, validation, form, getPrompt, getBranch, this.sessionsManagementService, providerAvailable, existing?.target.providerId, isEdit);
+						handle.setCanSubmit(!manual && !!getPrompt().trim() && !validation.folderError && !validation.sessionTypeError && !validation.branchError && !state.targetPending
+							&& !this.configurationService.getValue<boolean>('chat.disableAIFeatures'));
 						handle.showTargetValidationError(validation.sessionTypeError);
-						handle.showScheduleValidationError(validation.scheduleError);
-						const blocked = handle.getSaveBlockedReason(validation.sessionTypeError, validation.scheduleError);
+						handle.showScheduleValidationError(manual ? validation.scheduleError : undefined);
+						const blocked = manual ? handle.getSaveBlockedReason(validation.sessionTypeError, validation.scheduleError) : undefined;
 						if (saveButton && blocked?.message !== saveBlockedMessage) {
 							saveBlockedMessage = blocked?.message;
 							saveBlockedHover.value = blocked ? this.hoverService.setupDelayedHover(saveButton.element, { content: blocked.message, appearance: { showPointer: true } }) : undefined;
@@ -527,6 +641,11 @@ export class AutomationDialogService implements IAutomationDialogService {
 							saveButton.enabled = false;
 						}
 					};
+					disposables.add(this.configurationService.onDidChangeConfiguration(event => {
+						if (event.affectsConfiguration('chat.disableAIFeatures')) {
+							revalidate();
+						}
+					}));
 					revalidate();
 				},
 			}, this.keybindingService, this.layoutService, this.hostService, automationDialogAllowableCommands,
@@ -536,15 +655,20 @@ export class AutomationDialogService implements IAutomationDialogService {
 		activeContainer.classList.add('automation-dialog-open');
 		disposables.add(toDisposable(() => activeContainer.classList.remove('automation-dialog-open')));
 
+		let result: IAutomationDialogResult | undefined;
 		try {
 			void dialog.show().then(() => closeDialog(undefined));
 			// eslint-disable-next-line no-restricted-syntax -- Dialog owns its close toolbar and exposes no enablement API.
 			closeToolbar = dialogElement?.querySelector<HTMLElement>('.dialog-toolbar') ?? undefined;
 			focusFirst();
-			return await completion.p;
+			result = await completion.p;
 		} finally {
 			disposables.dispose();
 		}
+		if (authoringSession) {
+			await this.sessionsService.openSession(authoringSession.resource);
+		}
+		return result;
 	}
 }
 

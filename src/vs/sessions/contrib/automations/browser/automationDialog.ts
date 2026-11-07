@@ -22,7 +22,7 @@ import { Emitter, Event } from '../../../../base/common/event.js';
 import { getErrorMessage, isCancellationError, onUnexpectedError } from '../../../../base/common/errors.js';
 import { KeyCode } from '../../../../base/common/keyCodes.js';
 import { Disposable, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
-import { autorun, constObservable, derived, IObservable, IReader, observableSignalFromEvent, observableValue, transaction, waitForState } from '../../../../base/common/observable.js';
+import { autorun, constObservable, derived, IObservable, IReader, ISettableObservable, observableSignalFromEvent, observableValue, transaction, waitForState } from '../../../../base/common/observable.js';
 import { extUriIgnorePathCase, getComparisonKey, isEqual } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
 import { isStringArray } from '../../../../base/common/types.js';
@@ -33,7 +33,7 @@ import { SuggestController } from '../../../../editor/contrib/suggest/browser/su
 import { Context as SuggestContext } from '../../../../editor/contrib/suggest/browser/suggest.js';
 import { State as SuggestState } from '../../../../editor/contrib/suggest/browser/suggestModel.js';
 import { localize, localize2 } from '../../../../nls.js';
-import { Action2, MenuId, registerAction2 } from '../../../../platform/actions/common/actions.js';
+import { Action2, MenuId, MenuRegistry, registerAction2 } from '../../../../platform/actions/common/actions.js';
 import { ActionListItemKind, IActionListItem, IActionListOptions } from '../../../../platform/actionWidget/browser/actionList.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { ContextKeyExpr, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
@@ -69,6 +69,7 @@ import { ChatAgentLocation } from '../../../../workbench/contrib/chat/common/con
 import { SessionType } from '../../../../workbench/contrib/chat/common/chatSessionsService.js';
 import { AgentSessionTarget } from '../../../../workbench/contrib/chat/browser/agentSessions/agentSessions.js';
 import { IChatWidget, ISessionTypePickerDelegate } from '../../../../workbench/contrib/chat/browser/chat.js';
+import { ChatSubmitAction } from '../../../../workbench/contrib/chat/browser/actions/chatExecuteActions.js';
 import { ChatInputPart, IChatInputPartOptions, IChatInputStyles } from '../../../../workbench/contrib/chat/browser/widget/input/chatInputPart.js';
 import { ChatInputPickerResponsiveLayout, IChatInputPickerResponsiveLayoutItem } from '../../../../workbench/contrib/chat/browser/widget/input/chatInputPickerResponsiveLayout.js';
 import { settingsTextInputBackground, settingsTextInputBorder, settingsTextInputForeground } from '../../../../workbench/contrib/preferences/common/settingsEditorColorRegistry.js';
@@ -85,7 +86,7 @@ import { createNewSessionControlToolbar } from '../../chat/browser/newSessionCon
 import { ISessionModelSelection, SessionModelSelection } from '../../../../workbench/contrib/sessions/browser/chat/sessionModelSelection.js';
 import { createSessionHostServices, getMainWindowHost, ISessionHostService, SessionHost, SessionHostKind } from '../../../../workbench/services/sessions/browser/sessionHost.js';
 import { setHostSessionContextKeys } from '../../../../workbench/contrib/sessions/common/sessionContextKeys.js';
-import { SessionUsesCombinedConfigPickerContext } from '../../../../workbench/contrib/sessions/common/contextkeys.js';
+import { SessionUsesCombinedConfigPickerContext, AutomationDialogAgentCreationContext } from '../../../../workbench/contrib/sessions/common/contextkeys.js';
 import { Menus } from '../../../../workbench/contrib/sessions/browser/menus.js';
 import { AgentsWindowMenus } from '../../../browser/agentsWindowMenus.js';
 
@@ -109,12 +110,14 @@ const INTERVALS: { readonly value: AutomationInterval; readonly label: string }[
 // Picker popups mount outside the dialog, so allow their focus targets through its focus trap.
 export function isAutomationDialogPopupTarget(relatedTarget: HTMLElement): boolean {
 	return isMobilePickerSheetTarget(relatedTarget) || !!relatedTarget.closest(
-		'.context-view, .quick-input-widget, .monaco-menu-container, .monaco-hover, .monaco-hover-content, .suggest-widget'
+		'.context-view, .quick-input-widget, .monaco-menu-container, .monaco-hover, .monaco-hover-content, .suggest-widget, .accessible-view'
 	);
 }
 
 export function shouldPassThroughAutomationDialogCommand(commandId: string, target: HTMLElement): boolean {
-	return commandId === 'acceptSelectedSuggestion'
+	return commandId === 'editor.action.accessibilityHelp'
+		|| !!target.closest('.accessible-view')
+		|| commandId === 'acceptSelectedSuggestion'
 		|| ((commandId === 'undo' || commandId === 'redo') && DOM.isEditableElement(target));
 }
 
@@ -279,6 +282,9 @@ export function getAutomationDialogProviders(automationService: IAutomationServi
 }
 
 interface IRenderFormHandle {
+	readonly focusPrompt: () => void;
+	readonly setManualMode: (manual: boolean) => void;
+	readonly setCanSubmit: (enabled: boolean) => void;
 	readonly getPrompt: () => string;
 	readonly getSessionConfiguration: (token: CancellationToken) => Promise<AutomationSessionConfigurationCapture>;
 	readonly getBranch: () => string | undefined;
@@ -309,9 +315,10 @@ export interface IAutomationDialogMessage {
 	};
 }
 
-export type AutomationSessionDraftTarget =
+export type AutomationSessionDraftTarget = (
 	| { readonly kind: 'workspace'; readonly folderUri: URI; readonly providerId: string | undefined; readonly sessionTypeId: string; readonly sessionConfiguration?: IAutomationSessionConfiguration }
-	| { readonly kind: 'quickChat'; readonly providerId: string; readonly sessionTypeId: string; readonly sessionConfiguration?: IAutomationSessionConfiguration };
+	| { readonly kind: 'quickChat'; readonly providerId: string; readonly sessionTypeId: string; readonly sessionConfiguration?: IAutomationSessionConfiguration }
+) & { readonly isAuthoring?: boolean };
 
 type AutomationSessionDraftService = Pick<
 	ISessionsManagementService,
@@ -427,6 +434,12 @@ export class AutomationSessionDraftSynchronizer extends Disposable {
 	private async sync(generation: number): Promise<void> {
 		const target = this.requestedTarget;
 		if (!target) {
+			if (this.session && this.appliedTarget) {
+				await this.captureSessionConfiguration(this.session, this.appliedTarget, this.retargetConfigurationCaptureTimeoutMs);
+			}
+			if (this.disposed || generation !== this.generation) {
+				return;
+			}
 			this.discardSession();
 			this.availability.set('idle', undefined);
 			return;
@@ -498,6 +511,7 @@ export class AutomationSessionDraftSynchronizer extends Disposable {
 			|| !this.appliedTarget
 			|| this.sessionsManagementService.automationSession.get()?.sessionId !== this.session.sessionId
 			|| this.appliedTarget.kind !== target.kind
+			|| this.appliedTarget.isAuthoring !== target.isAuthoring
 			|| this.appliedTarget.providerId !== target.providerId
 			|| this.appliedTarget.sessionTypeId !== target.sessionTypeId
 			|| this.appliedConfiguration !== this.configurationForTarget(target)) {
@@ -562,16 +576,17 @@ export class AutomationSessionDraftSynchronizer extends Disposable {
 		if (first === second) {
 			return true;
 		}
-		if (!first || !second || first.kind !== second.kind || first.providerId !== second.providerId || first.sessionTypeId !== second.sessionTypeId || first.sessionConfiguration !== second.sessionConfiguration) {
+		if (!first || !second || first.kind !== second.kind || first.isAuthoring !== second.isAuthoring || first.providerId !== second.providerId || first.sessionTypeId !== second.sessionTypeId || first.sessionConfiguration !== second.sessionConfiguration) {
 			return false;
 		}
 		return first.kind === 'quickChat' || (second.kind === 'workspace' && isEqual(first.folderUri, second.folderUri));
 	}
 
 	private targetKey(target: AutomationSessionDraftTarget): string {
+		const scope = target.isAuthoring ? 'authoring' : 'manual';
 		return target.kind === 'quickChat'
-			? `quickChat:${target.providerId}:${target.sessionTypeId}`
-			: `workspace:${target.folderUri.toString()}:${target.providerId ?? ''}:${target.sessionTypeId}`;
+			? `${scope}:quickChat:${target.providerId}:${target.sessionTypeId}`
+			: `${scope}:workspace:${target.folderUri.toString()}:${target.providerId ?? ''}:${target.sessionTypeId}`;
 	}
 
 	override dispose(): void {
@@ -1045,7 +1060,7 @@ registerAction2(class OpenAutomationsWorkspacePickerAction extends Action2 {
 				id: AgentsWindowMenus.AutomationsDialogTargetToolbar,
 				group: 'navigation',
 				order: -2,
-				when: ChatContextKeys.inAutomationsDialog,
+				when: ContextKeyExpr.and(ChatContextKeys.inAutomationsDialog, AutomationDialogAgentCreationContext.negate()),
 			}],
 		});
 	}
@@ -1070,6 +1085,17 @@ registerAction2(class OpenAutomationsIsolationGroupAction extends Action2 {
 	}
 
 	override async run(): Promise<void> { /* handled by action view item */ }
+});
+
+MenuRegistry.appendMenuItem(MenuId.AutomationsDialogInput, {
+	command: {
+		id: ChatSubmitAction.ID,
+		title: localize('automation.form.send', "Send"),
+		icon: Codicon.arrowUpCompact,
+		precondition: ContextKeyExpr.and(ChatContextKeys.inputHasSendableContent, ChatContextKeys.inputBlocked.negate()),
+	},
+	group: 'navigation',
+	when: ContextKeyExpr.and(ChatContextKeys.enabled, AutomationDialogAgentCreationContext),
 });
 
 export function renderForm(
@@ -1099,6 +1125,8 @@ export function renderForm(
 	setDialogMessage: (source: AutomationDialogMessageSource, message: IAutomationDialogMessage | undefined) => void = () => { },
 	focusDialogMessage: () => void = () => { },
 	inputEditorOptions?: IChatInputPartOptions['inputEditorOptions'],
+	manualMode: ISettableObservable<boolean> = observableValue(form, true),
+	onSubmit?: () => Promise<void>,
 ): IRenderFormHandle {
 	let reloadCustomizations: () => void = () => { };
 	const validateForm = revalidate;
@@ -1290,7 +1318,8 @@ export function renderForm(
 
 	// The execution mode constrains the harness before workspace selection.
 	const initialProviderConfiguration = getProviderConfiguration(state.providerId);
-	const runInCloud = observableValue(form, initialProviderConfiguration !== undefined);
+	const manualRunInCloud = observableValue(form, initialProviderConfiguration !== undefined);
+	const runInCloud = derived(reader => manualMode.read(reader) && manualRunInCloud.read(reader));
 	// New automations keep an enabled cloud provider reachable before its catalogue is ready, so the switch can
 	// offer to connect; saving stays gated on allowedProviders.
 	const findCloudProvider = (reader: IReader | undefined) => allowedProviders.read(reader).find(id => getProviderConfiguration(id) !== undefined)
@@ -1341,6 +1370,8 @@ export function renderForm(
 	// A cloud draft (for example a duplicated cloud automation) has no local target to restore.
 	let localTarget = initialProviderConfiguration ? { ...state, folderUri: undefined, providerId: undefined, sessionTypeId: undefined } : { ...state };
 	const isolationModel = new AutomationIsolationModel(state);
+	const targetQuickChat = derived(reader => !manualMode.read(reader) || isolationModel.isQuickChatObs.read(reader));
+	const targetFolder = derived(reader => manualMode.read(reader) ? isolationModel.folderUriObs.read(reader) : undefined);
 	disposables.add(autorun(reader => {
 		const configuration = cloudConfiguration.read(reader);
 		const catalog = configuration?.triggers?.read(reader);
@@ -1350,15 +1381,15 @@ export function renderForm(
 		}
 		triggerEditor.update(catalog, configuration !== undefined && configuration.triggers !== undefined, target?.allowReadAccessTriggers);
 	}));
-	const workspaceControlsVisible = derived(reader => !runInCloud.read(reader) && !isolationModel.isQuickChatObs.read(reader) && isolationModel.folderUriObs.read(reader)?.scheme !== GITHUB_REMOTE_FILE_SCHEME && isolationModel.folderUriObs.read(reader) !== undefined);
+	const workspaceControlsVisible = derived(reader => manualMode.read(reader) && !runInCloud.read(reader) && !isolationModel.isQuickChatObs.read(reader) && isolationModel.folderUriObs.read(reader)?.scheme !== GITHUB_REMOTE_FILE_SCHEME && isolationModel.folderUriObs.read(reader) !== undefined);
 	const sessionTypesChanged = observableSignalFromEvent(form, sessionsManagementService.onDidChangeSessionTypes);
 	const sessionTypes = derived(reader => {
 		sessionTypesChanged.read(reader);
 		if (runInCloud.read(reader)) {
 			return sessionsManagementService.getAllProviderSessionTypes().filter(type => type.providerId === cloudProvider.read(reader));
 		}
-		const folder = isolationModel.folderUriObs.read(reader);
-		const quickChat = isolationModel.isQuickChatObs.read(reader);
+		const folder = targetFolder.read(reader);
+		const quickChat = targetQuickChat.read(reader);
 		return quickChat ? sessionsManagementService.getQuickChatSessionTypes() : folder ? sessionsManagementService.getSessionTypesForFolder(folder) : [];
 	});
 	const pickerProviders = derived(reader => {
@@ -1377,8 +1408,10 @@ export function renderForm(
 		providerId: derived(reader => runInCloud.read(reader) ? cloudProvider.read(reader) : undefined),
 		prepareSessionTypeSelection: () => workspacePicker.onWillSelectWorkspace(),
 	}));
-	sessionTypePicker.setQuickChatSource(isolationModel.isQuickChatObs);
-	sessionTypePicker.setFolderSource(isolationModel.folderUriObs, {
+	let manualPick: typeof sessionTypePicker.selectedPick;
+	let authoringPick: typeof sessionTypePicker.selectedPick;
+	sessionTypePicker.setQuickChatSource(targetQuickChat);
+	sessionTypePicker.setFolderSource(targetFolder, {
 		initialPick: state.sessionTypeId
 			? { providerId: state.providerId, sessionTypeId: state.sessionTypeId }
 			: undefined,
@@ -1481,9 +1514,9 @@ export function renderForm(
 		if (switchingTarget || connectingCloud) {
 			return;
 		}
-		const folderUri = runInCloud.get() ? state.resolvedFolderUri : isolationModel.folderUriObs.get();
+		const folderUri = runInCloud.get() ? state.resolvedFolderUri : targetFolder.get();
 		const pick = sessionTypePicker.selectedPick;
-		const isQuickChat = isolationModel.isQuickChatObs.get();
+		const isQuickChat = targetQuickChat.get();
 		const diagnostic = JSON.stringify({
 			providerId: pick?.providerId,
 			sessionType: pick?.sessionTypeId,
@@ -1507,6 +1540,7 @@ export function renderForm(
 			if (providerId) {
 				automationSessionDraftSynchronizer.update({
 					kind: 'quickChat',
+					...(!manualMode.get() ? { isAuthoring: true } : {}),
 					providerId,
 					sessionTypeId: pick.sessionTypeId,
 					sessionConfiguration: getInitialSessionConfiguration(undefined, providerId, pick.sessionTypeId, true),
@@ -1515,6 +1549,7 @@ export function renderForm(
 		} else if (folderUri) {
 			automationSessionDraftSynchronizer.update({
 				kind: 'workspace',
+				...(!manualMode.get() ? { isAuthoring: true } : {}),
 				folderUri,
 				providerId: pick.providerId,
 				sessionTypeId: pick.sessionTypeId,
@@ -1535,6 +1570,8 @@ export function renderForm(
 		allowedProviders.read(reader);
 		pickerProviders.read(reader);
 		sessionTypes.read(reader);
+		targetQuickChat.read(reader);
+		targetFolder.read(reader);
 		cloudConfiguration.read(reader)?.getWorkspaceTarget(isolationModel.folderUriObs.read(reader)).read(reader);
 		syncStateFromPicker();
 		updateAutomationSessionTarget();
@@ -1552,7 +1589,7 @@ export function renderForm(
 		}
 		sessionConfigurationErrorMessage.set(undefined, undefined);
 		setDialogMessage('operationError', undefined);
-		if (!runInCloud.get()) {
+		if (manualMode.get() && !runInCloud.get()) {
 			localTarget = { ...state, branch: isolationModel.persistedBranch };
 		}
 		switchingTarget = true;
@@ -1606,7 +1643,7 @@ export function renderForm(
 				?? (restoreLocalTarget ? types.find(type => type.sessionType.id === SessionType.CopilotCLI) : undefined)
 				?? types[0];
 			const pick = first ? { providerId: first.providerId, sessionTypeId: first.sessionType.id } : undefined;
-			sessionTypePicker.setFolderSource(isolationModel.folderUriObs, { initialPick: pick });
+			sessionTypePicker.setFolderSource(targetFolder, { initialPick: pick });
 			state.providerId = pick?.providerId;
 			state.sessionTypeId = pick?.sessionTypeId;
 			if (restoreLocalTarget && isEqual(uri, localTarget.folderUri)) {
@@ -1638,7 +1675,7 @@ export function renderForm(
 		if (checked && state.interval === 'weekdays') {
 			state.interval = 'manual';
 		}
-		runInCloud.set(checked, undefined);
+		manualRunInCloud.set(checked, undefined);
 		if (folder) {
 			workspacePicker.setSelectedWorkspace(folder, { fireEvent: false, persist: false });
 		} else {
@@ -1750,6 +1787,8 @@ export function renderForm(
 	const activeAutomationSession = sessionsManagementService.automationSession;
 	const activeAutomationChat = derived(reader => activeAutomationSession.read(reader)?.mainChat.read(reader));
 	const scopedContextKeyService = disposables.add(contextKeyService.createScoped(sessionSection));
+	const agentCreationContext = AutomationDialogAgentCreationContext.bindTo(scopedContextKeyService);
+	disposables.add(autorun(reader => agentCreationContext.set(!manualMode.read(reader))));
 	ChatContextKeys.location.bindTo(scopedContextKeyService).set(ChatAgentLocation.Chat);
 	ChatContextKeys.inChatSession.bindTo(scopedContextKeyService).set(true);
 	ChatContextKeys.inAutomationsDialog.bindTo(scopedContextKeyService).set(true);
@@ -1839,6 +1878,9 @@ export function renderForm(
 		listForeground: 'var(--vscode-foreground)',
 		listBackground: 'var(--vscode-input-background)',
 	};
+	const submitEnabled = observableValue('automationSubmitEnabled', false);
+	const saving = observableValue('automationSaving', false);
+	const canSubmit = derived(reader => !manualMode.read(reader) && submitEnabled.read(reader) && !saving.read(reader));
 	const chatInputOptions: IChatInputPartOptions = {
 		renderFollowups: false,
 		renderInputToolbarBelowInput: false,
@@ -1847,6 +1889,7 @@ export function renderForm(
 		supportsChangingModes: false,
 		suppressModePreferredModel: true,
 		suppressModelPersistence: true,
+		hostSubmit: { canSubmit },
 		menus: {
 			executeToolbar: MenuId.AutomationsDialogInput,
 			inputToolbar: Menus.AutomationsDialogInputToolbar,
@@ -1869,7 +1912,7 @@ export function renderForm(
 	};
 
 	// Minimal subset of IChatWidget needed by ChatInputPart in dialog context
-	type IMinimalChatWidget = Pick<IChatWidget, 'onDidChangeViewModel' | 'viewModel' | 'contribs' | 'location' | 'viewContext' | 'lockToCodingAgent' | 'unlockFromCodingAgent'>;
+	type IMinimalChatWidget = Pick<IChatWidget, 'onDidChangeViewModel' | 'viewModel' | 'contribs' | 'location' | 'viewContext' | 'lockToCodingAgent' | 'unlockFromCodingAgent' | 'input' | 'isTranscriptProgressActive' | 'acceptInput'>;
 
 	const stubWidget: IMinimalChatWidget = {
 		onDidChangeViewModel: Event.None,
@@ -1879,13 +1922,38 @@ export function renderForm(
 		viewContext: {},
 		lockToCodingAgent: () => { },
 		unlockFromCodingAgent: () => { },
+		get input() { return chatInput; },
+		isTranscriptProgressActive: false,
+		acceptInput: async () => {
+			if (canSubmit.get()) {
+				await onSubmit?.();
+			}
+			return undefined;
+		},
 	};
 
 	const chatInput = disposables.add(
 		scopedInstantiationService.createInstance(ChatInputPart, ChatAgentLocation.Chat, chatInputOptions, chatInputStyles, false),
 	);
 	chatInput.render(promptHost, initialPrompt, stubWidget as IChatWidget);
+	disposables.add(DOM.addDisposableListener(promptHost, DOM.EventType.KEY_DOWN, (event: KeyboardEvent) => {
+		const key = new StandardKeyboardEvent(event);
+		if (manualMode.get() || !chatInput.inputEditor.hasTextFocus() || event.isComposing
+			|| key.keyCode !== KeyCode.Enter || key.shiftKey || key.altKey || key.ctrlKey || key.metaKey) {
+			return;
+		}
+		const suggestController = SuggestController.get(chatInput.inputEditor);
+		if (suggestController && suggestController.model.state !== SuggestState.Idle) {
+			return;
+		}
+		key.preventDefault();
+		key.stopPropagation();
+		void stubWidget.acceptInput().catch(onUnexpectedError);
+	}, true));
 	chatInput.inputEditor.updateOptions({ placeholder: localize('automation.form.prompt.placeholder', "Describe what you want to automate") });
+	disposables.add(autorun(reader => {
+		form.classList.toggle('agent-first', !manualMode.read(reader));
+	}));
 	disposables.add(scopedInstantiationService.createInstance(AutomationInputCompletions, chatInput.inputEditor));
 	const sessionConfigContainer = chatInput.inputToolbarElement;
 	sessionConfigContainer.classList.add('automation-session-config', 'sessions-chat-config-toolbar');
@@ -1904,19 +1972,28 @@ export function renderForm(
 		relayout: () => sessionControlsToolbar.relayout(),
 	}));
 	sessionControlsLayout.layout();
+	disposables.add(autorun(reader => {
+		manualMode.read(reader);
+		targetToolbar.refresh();
+		sessionControlsToolbar.refresh();
+		targetLayout.layout();
+		sessionControlsLayout.layout();
+	}));
 	const sessionConfigurationUnavailable = DOM.append(sessionConfiguration, $('span.automation-session-configuration-unavailable', {
 		role: 'status',
 		'aria-atomic': 'true',
 	}));
 	disposables.add(autorun(reader => {
-		const hasTarget = isolationModel.isQuickChatObs.read(reader) || isolationModel.folderUriObs.read(reader) !== undefined;
+		const hasTarget = targetQuickChat.read(reader) || targetFolder.read(reader) !== undefined;
 		const cloud = runInCloud.read(reader);
 		setAutomationControlVisible(sessionConfigContainer, hasTarget);
 		setAutomationControlVisible(sessionControlsContainer, hasTarget && !cloud);
 		const availability = automationSessionDraftSynchronizer.availability.read(reader);
 		const pending = availability === 'pending';
 		const controlsUnavailable = availability !== 'available';
-		setAutomationControlVisible(sessionConfiguration, hasTarget && (!cloud || controlsUnavailable));
+		const manual = manualMode.read(reader);
+		setAutomationControlVisible(sessionConfiguration, hasTarget && (manual ? !cloud || controlsUnavailable : controlsUnavailable));
+		sessionConfigurationUnavailable.classList.toggle('automation-visually-hidden', !manual);
 		for (const container of [sessionConfigContainer, sessionControlsContainer]) {
 			container.classList.toggle('controls-unavailable', controlsUnavailable);
 			container.toggleAttribute('inert', controlsUnavailable);
@@ -2161,6 +2238,33 @@ export function renderForm(
 	}));
 
 	return {
+		focusPrompt: () => chatInput.focus(),
+		setManualMode: manual => {
+			if (switchingTarget || manual === manualMode.get()) {
+				return;
+			}
+			if (manualMode.get()) {
+				manualPick = sessionTypePicker.selectedPick;
+			} else {
+				authoringPick = sessionTypePicker.selectedPick;
+			}
+			transaction(tx => {
+				switchingTarget = true;
+				try {
+					manualMode.set(manual, tx);
+					sessionTypePicker.setFolderSource(targetFolder, {
+						initialPick: manual ? manualPick : authoringPick,
+						preserveUnavailableInitialPick: true,
+					});
+				} finally {
+					switchingTarget = false;
+				}
+				syncStateFromPicker();
+				updateAutomationSessionTarget();
+				revalidate();
+			});
+		},
+		setCanSubmit: enabled => submitEnabled.set(enabled, undefined),
 		getPrompt: () => chatInput.inputEditor.getValue(),
 		getSessionConfiguration: async token => {
 			const captured = await automationSessionDraftSynchronizer.getSessionConfiguration(token);
@@ -2236,11 +2340,12 @@ export function renderForm(
 			updateAutomationSessionTarget();
 			return automationSessionDraftSynchronizer.waitForSync(token);
 		},
-		setSaving: saving => {
-			ownerRadio.setEnabled(!saving && !isEdit);
-			formContent.toggleAttribute('inert', saving);
-			formContent.setAttribute('aria-busy', String(saving));
-			form.classList.toggle('saving', saving);
+		setSaving: value => {
+			saving.set(value, undefined);
+			ownerRadio.setEnabled(!value && !isEdit);
+			formContent.toggleAttribute('inert', value);
+			formContent.setAttribute('aria-busy', String(value));
+			form.classList.toggle('saving', value);
 		},
 		showSaveError: message => {
 			sessionConfigurationErrorMessage.set(message, undefined);

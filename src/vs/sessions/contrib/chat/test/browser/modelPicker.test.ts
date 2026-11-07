@@ -34,7 +34,7 @@ import { SessionView } from '../../../../../workbench/contrib/sessions/browser/p
 import { ISessionsPartService } from '../../../../../workbench/services/sessions/browser/sessionsPartService.js';
 import { ISessionsService } from '../../../../../workbench/contrib/sessions/browser/sessionsService.js';
 import { Menus } from '../../../../../workbench/contrib/sessions/browser/menus.js';
-import { IsPhoneLayoutContext, SessionUsesCombinedConfigPickerContext } from '../../../../../workbench/contrib/sessions/common/contextkeys.js';
+import { IsPhoneLayoutContext, SessionUsesCombinedConfigPickerContext, AutomationDialogAgentCreationContext } from '../../../../../workbench/contrib/sessions/common/contextkeys.js';
 import { ModelPicker, ModelPickerActionViewItem } from '../../browser/modelPicker.js';
 import { INewChatModelPickerService, NewChatModelPickerService } from '../../../../../workbench/contrib/sessions/browser/chat/newChatModelPicker.js';
 import { ISessionModelSelection } from '../../../../../workbench/contrib/sessions/browser/chat/sessionModelSelection.js';
@@ -152,6 +152,7 @@ suite('ModelPicker automation toolbar', () => {
 		const inDialogKey = ChatContextKeys.inAutomationsDialog.bindTo(context);
 		const phoneKey = IsPhoneLayoutContext.bindTo(context);
 		const combinedKey = SessionUsesCombinedConfigPickerContext.bindTo(context);
+		const agentCreationKey = AutomationDialogAgentCreationContext.bindTo(context);
 		const visible = (enabled: boolean, inDialog: boolean, phone: boolean, combined: boolean) => {
 			enabledKey.set(enabled);
 			inDialogKey.set(inDialog);
@@ -159,18 +160,17 @@ suite('ModelPicker automation toolbar', () => {
 			combinedKey.set(combined);
 			return context.contextMatchesRules(item.when);
 		};
-		assert.deepStrictEqual({
+		const defaults = {
 			desktop: visible(true, true, false, true),
 			phone: visible(true, true, true, false),
 			combinedPhone: visible(true, true, true, true),
 			aiDisabled: visible(false, true, false, false),
 			outsideDialog: visible(true, false, false, false),
-		}, {
-			desktop: true,
-			phone: true,
-			combinedPhone: false,
-			aiDisabled: false,
-			outsideDialog: false,
+		};
+		agentCreationKey.set(true);
+		assert.deepStrictEqual({ defaults, agentCreationPhone: visible(true, true, true, true) }, {
+			defaults: { desktop: true, phone: true, combinedPhone: false, aiDisabled: false, outsideDialog: false },
+			agentCreationPhone: true,
 		});
 	});
 
