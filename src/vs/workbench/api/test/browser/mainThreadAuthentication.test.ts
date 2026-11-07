@@ -121,6 +121,41 @@ suite('MainThreadAuthentication', () => {
 			assert.deepStrictEqual(host.unregistered, []);
 		});
 
+		test('does not echo explicit provider unregistration to its owning host', async () => {
+			const host = createHost('first-host');
+			await registerDynamicProvider(host);
+			await host.mainThread.$unregisterAuthenticationProvider('dynamic-provider');
+			assert.strictEqual(authenticationService.isAuthenticationProviderRegistered('dynamic-provider'), false);
+			assert.strictEqual(host.clientRegistrationWrites, 1);
+			assert.deepStrictEqual(host.unregistered, []);
+			host.stop();
+			assert.deepStrictEqual(host.unregistered, []);
+		});
+
+		test('releases a registration when the provider is unregistered externally', async () => {
+			const firstHost = createHost('first-host');
+			await registerDynamicProvider(firstHost);
+			authenticationService.unregisterAuthenticationProvider('dynamic-provider');
+			assert.deepStrictEqual(firstHost.unregistered, ['dynamic-provider']);
+
+			const secondHost = createHost('second-host');
+			await registerDynamicProvider(secondHost);
+			firstHost.stop();
+			assert.deepStrictEqual(firstHost.unregistered, ['dynamic-provider']);
+			assert.deepStrictEqual(secondHost.unregistered, []);
+			const sessions = await authenticationService.getSessions('dynamic-provider');
+			assert.strictEqual(sessions[0].id, 'second-host');
+		});
+
+		test('notifies other hosts when the owning host stops', async () => {
+			const firstHost = createHost('first-host');
+			const secondHost = createHost('second-host');
+			await registerDynamicProvider(firstHost);
+			firstHost.stop();
+			assert.deepStrictEqual(firstHost.unregistered, []);
+			assert.deepStrictEqual(secondHost.unregistered, ['dynamic-provider']);
+		});
+
 		test('rediscovers dynamic providers after RPC and customer disposal', async () => {
 			function createRpcHost(sessionId: string) {
 				const mainMessages = disposables.add(new Emitter<VSBuffer>());
