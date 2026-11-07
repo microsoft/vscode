@@ -1616,7 +1616,6 @@ function createTestAgentContext(disposables: Pick<DisposableStore, 'add'>, optio
 	services.set(ILogService, logService);
 	services.set(IRequestService, new class extends mock<IRequestService>() { }());
 	services.set(IAgentHostAuthenticationService, authenticationService);
-	services.set(IAgentHostClientConnectionService, disposables.add(new AgentHostClientConnectionService()));
 	services.set(IFileService, fileService);
 	services.set(IAgentConfigurationService, configService);
 	services.set(IAgentHostManagedSettingsService, managedSettingsService);
