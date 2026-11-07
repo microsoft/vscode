@@ -61,10 +61,11 @@ export interface IReviewService {
 	isIntentEnabled(): boolean;
 	getDiagnosticCollection(): ReviewDiagnosticCollection;
 	getReviewComments(): ReviewComment[];
-	addReviewComments(comments: ReviewComment[]): void;
+	addReviewComments(comments: ReviewComment[], opts?: { suppressAutoReveal?: boolean }): void;
 	collapseReviewComment(comment: ReviewComment): void;
 	removeReviewComments(comments: ReviewComment[]): void;
 	updateReviewComment(comment: ReviewComment): void;
 	findReviewComment(threadOrComment: vscode.CommentThread | vscode.Comment): ReviewComment | undefined;
 	findCommentThread(comment: ReviewComment): vscode.CommentThread | undefined;
+	getActiveThread(): vscode.CommentThread | undefined;
 }
