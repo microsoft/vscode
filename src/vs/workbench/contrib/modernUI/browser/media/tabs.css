@@ -764,6 +764,7 @@
 
 .modern-ui-tabs .part-grid-card.part-grid-pointer-over-grabber .part.editor .tabs-and-actions-container > .monaco-scrollable-element > .scrollbar.horizontal {
 	opacity: 0;
+	transition: none;
 }
 
 .modern-ui-tabs .part.editor .tabs-and-actions-container > .monaco-scrollable-element > .scrollbar.horizontal > .slider {

@@ -739,14 +739,25 @@ suite('Part Grid', () => {
 		const overBody = over(body);
 		const overOtherTabs = over(cardOf('chat').querySelector('.tabs-and-actions-container .tab')!);
 		cardOf('chat').dispatchEvent(new PointerEvent('pointerout', { bubbles: true, relatedTarget: null, clientX: -10, clientY: -10 }));
+		const leftTheWindow = state().marks;
 
-		assert.deepStrictEqual({ overTabs, overGrabber, overBody, overOtherTabs, leftTheWindow: state().marks, geometryUnchanged: [tabsGeometry, grabberGeometry].every(g => g === initialGeometry) }, {
+		// With animations, the scrollbar fades out as the pointer leaves the tabs, but not over the grabber, which it hides at once
+		container.classList.remove('disable-animations');
+		scrollable.dispatchEvent(new MouseEvent('mouseleave'));
+		over(body);
+		const fadeOverBody = mainWindow.getComputedStyle(scrollbar).transitionDuration;
+		over(grabber);
+		const fadeOverGrabber = mainWindow.getComputedStyle(scrollbar).transitionDuration;
+
+		assert.deepStrictEqual({ overTabs, overGrabber, overBody, overOtherTabs, leftTheWindow, geometryUnchanged: [tabsGeometry, grabberGeometry].every(g => g === initialGeometry), fadeOverBody, fadeOverGrabber }, {
 			overTabs: { marks: { main: ['top-strip'], chat: [] }, grabberOpacity: '0', scrollbarOpacity: '1' },
 			overGrabber: { marks: { main: ['grabber'], chat: [] }, grabberOpacity: '1', scrollbarOpacity: '0' },
 			overBody: { marks: { main: [], chat: [] }, grabberOpacity: '1', scrollbarOpacity: '1' },
 			overOtherTabs: { marks: { main: [], chat: ['top-strip'] }, grabberOpacity: '0', scrollbarOpacity: '1' },
 			leftTheWindow: { main: [], chat: [] },
 			geometryUnchanged: true,
+			fadeOverBody: '0.8s',
+			fadeOverGrabber: '0s',
 		});
 	});
 
