@@ -573,6 +573,7 @@ export class DiffEditorWidget extends DelegatingEditor implements IDiffEditor {
 			: ('model' in model) ? RefCounted.create(model).createNewRef(this)
 				: RefCounted.create(this.createViewModel(model), this);
 		this.setDiffModel(vm);
+		vm?.dispose(); // setDiffModel holds its own reference
 	}
 
 	setDiffModel(viewModel: RefCounted<IDiffEditorViewModel> | null, tx?: ITransaction): void {
