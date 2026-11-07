@@ -18,6 +18,7 @@ import { EditorContextKeys } from '../../../../editor/common/editorContextKeys.j
 import { localize, localize2 } from '../../../../nls.js';
 import { Action2, MenuRegistry, MenuId, registerAction2, MenuItemAction } from '../../../../platform/actions/common/actions.js';
 import { IActionViewItemService } from '../../../../platform/actions/browser/actionViewItemService.js';
+import { MenuEntryActionViewItem } from '../../../../platform/actions/browser/menuEntryActionViewItem.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { IConfigurationService, isConfigured } from '../../../../platform/configuration/common/configuration.js';
 import { ContextKeyExpr, IContextKey, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
@@ -74,8 +75,8 @@ import { logSessionsInteraction, SessionsInteractionSource } from '../../../../w
 import { NEW_SESSION_ACTION_ID } from '../../../../workbench/contrib/sessions/common/chatConstants.js';
 import { groupSessionsForPicker } from './sessionsPicker.js';
 import { getSessionConversationActionId, SESSION_CONVERSATION_SIDE_CHATS_GROUP } from '../../../../workbench/contrib/sessions/browser/sessionConversationGroups.js';
-import { ISessionChatItem, SessionChatItemCanDeleteContext, SessionChatItemCanMoveContext, SessionChatItemCanRenameContext, SessionChatItemHasMoveDestinationContext, SessionChatItemIsUntitledContext, SessionItemHasMoveDestinationContext, SessionItemInExternalSectionContext, SessionItemIsCloudContext, SessionsList, SessionsListFocusedChatItemContext } from '../../../../workbench/contrib/sessions/browser/views/sessionsList.js';
-import { SessionsView, SessionsViewId } from '../../../../workbench/contrib/sessions/browser/views/sessionsView.js';
+import { ISessionChatItem, SessionChatItemCanDeleteContext, SessionChatItemCanMoveContext, SessionChatItemCanRenameContext, SessionChatItemHasMoveDestinationContext, SessionChatItemIsUntitledContext, SessionItemHasMoveDestinationContext, SessionItemInExternalSectionContext, SessionItemIsCloudContext, SessionsGrouping, SessionsList, SessionsListFocusedChatItemContext } from '../../../../workbench/contrib/sessions/browser/views/sessionsList.js';
+import { SessionsView, SessionsViewGroupingContext, SessionsViewId } from '../../../../workbench/contrib/sessions/browser/views/sessionsView.js';
 import './media/newSessionActionViewItem.css';
 import { INewSessionComposerService } from '../../../../workbench/contrib/sessions/browser/newSessionComposerService.js';
 import { SESSIONS_CHAT_TABS_SETTING, SessionsChatTabsMode } from '../../../../workbench/contrib/sessions/common/sessionConfig.js';
@@ -1842,6 +1843,9 @@ export class NewSessionActionViewItemContribution extends Disposable implements 
 			this._register(actionViewItemService.register(menu, NEW_SESSION_ACTION_ID, (action, _options, instantiationService) => {
 				if (!(action instanceof MenuItemAction)) {
 					return undefined;
+				}
+				if (source === 'sidebar' && SessionsViewGroupingContext.getValue(contextKeyService) === SessionsGrouping.Inbox) {
+					return instantiationService.createInstance(MenuEntryActionViewItem, action, _options);
 				}
 				return instantiationService.createInstance(NewSessionActionViewItem, action, source, this.newSessionButtonStyle);
 			}, onDidRegister.event));

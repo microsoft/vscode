@@ -280,6 +280,7 @@ interface ISessionOptionsPersistenceHarness {
 }
 
 interface ISendHarness {
+	readonly configurationService?: IConfigurationService;
 	readonly _backgroundSend?: boolean;
 	readonly _backgroundSendStatus?: ISettableObservable<string | undefined>;
 	_lastBackgroundSentSessionResource?: URI;
@@ -3937,48 +3938,53 @@ suite('NewChatWidget', () => {
 		});
 	});
 
-	test('Inbox sends in the background without an explicit background gesture and reseeds its workspace', async () => {
-		const onDidSendRequest = disposables.add(new Emitter<ISendRequestSentEvent>());
-		const pendingSends = disposables.add(new DisposableMap<object, IDisposable>());
-		const folderUri = URI.file('/dismissed');
-		const restored: URI[] = [];
-		const session = upcastPartial<ISession>({ sessionId: 'draft' });
-		const sentSession = upcastPartial<ISession>({ resource: URI.parse('test-session:/started') });
-		let sentOptions: ISendRequestOptions | undefined;
-		const picker = { selectedFolderUri: folderUri, validateSelectedWorkspace: async () => true, clearAttachedContext: () => { }, showPicker: () => { } };
-		const harness: ISendHarness = {
-			_backgroundSend: true,
-			_backgroundSendStatus: observableValue<string | undefined>('sendStatus', undefined),
-			_newChatInput: { hasInput: false },
-			notificationService: { error: () => assert.fail('Unexpected error') },
-			_pendingBackgroundSends: pendingSends,
-			recentWorkspacesService: { restoreDismissedWorkspace: uri => restored.push(uri) },
-			_session: constObservable(session),
-			_feedbackItems: constObservable([]),
-			_comparisonSelection: { enabled: constObservable(false) },
-			_workspacePicker: picker,
-			_isQuickChatComposer: constObservable(false),
-			agentFeedbackService: { removeFeedback: () => { } },
-			newSessionComposerService: { notifyWillSendRequest: () => { } },
-			sessionsManagementService: {
-				onDidSendRequest: onDidSendRequest.event,
-				sendNewChatRequest: async (_session, options) => { sentOptions = options; },
-			},
-			logService: { error: () => assert.fail('Unexpected error') },
-			_getWorkspaceRoots: () => [folderUri],
-			_createNewSession: async () => { picker.selectedFolderUri = URI.file('/different-workspace'); },
-		};
-		await send.call(harness, 'hello');
-		const beforeSuccess = { restored: [...restored], status: harness._backgroundSendStatus?.get() };
-		onDidSendRequest.fire(upcastPartial<ISendRequestSentEvent>({ options: { query: 'unrelated' } }));
-		const afterUnrelatedSend = { restored: [...restored], status: harness._backgroundSendStatus?.get() };
-		assert.ok(sentOptions);
-		onDidSendRequest.fire(upcastPartial<ISendRequestSentEvent>({ options: sentOptions, session: sentSession }));
-		assert.deepStrictEqual({ beforeSuccess, afterUnrelatedSend, restored, pending: pendingSends.size, background: sentOptions.background, status: harness._backgroundSendStatus?.get(), resource: harness._lastBackgroundSentSessionResource }, {
-			beforeSuccess: { restored: [], status: undefined }, afterUnrelatedSend: { restored: [], status: undefined },
-			restored: [folderUri], pending: 0, background: true, status: 'Message sent', resource: sentSession.resource,
+	for (const [backgroundSend, inboxEnabled] of [[false, false], [false, true], [true, false]]) {
+		test(`confirms opted-in background sends and reseeds the workspace (always background: ${backgroundSend}, Inbox enabled: ${inboxEnabled})`, async () => {
+			const onDidSendRequest = disposables.add(new Emitter<ISendRequestSentEvent>());
+			const pendingSends = disposables.add(new DisposableMap<object, IDisposable>());
+			const folderUri = URI.file('/dismissed');
+			const restored: URI[] = [];
+			const session = upcastPartial<ISession>({ sessionId: 'draft' });
+			const sentSession = upcastPartial<ISession>({ resource: URI.parse('test-session:/started') });
+			let sentOptions: ISendRequestOptions | undefined;
+			const picker = { selectedFolderUri: folderUri, validateSelectedWorkspace: async () => true, clearAttachedContext: () => { }, showPicker: () => { } };
+			const harness: ISendHarness = {
+				configurationService: new TestConfigurationService({ 'sessions.list.inboxEnabled': inboxEnabled }),
+				_backgroundSend: backgroundSend,
+				_backgroundSendStatus: observableValue<string | undefined>('sendStatus', undefined),
+				_newChatInput: { hasInput: false },
+				notificationService: { error: () => assert.fail('Unexpected error') },
+				_pendingBackgroundSends: pendingSends,
+				recentWorkspacesService: { restoreDismissedWorkspace: uri => restored.push(uri) },
+				_session: constObservable(session),
+				_feedbackItems: constObservable([]),
+				_comparisonSelection: { enabled: constObservable(false) },
+				_workspacePicker: picker,
+				_isQuickChatComposer: constObservable(false),
+				agentFeedbackService: { removeFeedback: () => { } },
+				newSessionComposerService: { notifyWillSendRequest: () => { } },
+				sessionsManagementService: {
+					onDidSendRequest: onDidSendRequest.event,
+					sendNewChatRequest: async (_session, options) => { sentOptions = options; },
+				},
+				logService: { error: () => assert.fail('Unexpected error') },
+				_getWorkspaceRoots: () => [folderUri],
+				_createNewSession: async () => { picker.selectedFolderUri = URI.file('/different-workspace'); },
+			};
+			await send.call(harness, 'hello', undefined, backgroundSend ? undefined : true);
+			const beforeSuccess = { restored: [...restored], status: harness._backgroundSendStatus?.get() };
+			onDidSendRequest.fire(upcastPartial<ISendRequestSentEvent>({ options: { query: 'unrelated' } }));
+			const afterUnrelatedSend = { restored: [...restored], status: harness._backgroundSendStatus?.get() };
+			assert.ok(sentOptions);
+			onDidSendRequest.fire(upcastPartial<ISendRequestSentEvent>({ options: sentOptions, session: sentSession }));
+			assert.deepStrictEqual({ beforeSuccess, afterUnrelatedSend, restored, pending: pendingSends.size, background: sentOptions.background, status: harness._backgroundSendStatus?.get(), resource: harness._lastBackgroundSentSessionResource }, {
+				beforeSuccess: { restored: [], status: undefined }, afterUnrelatedSend: { restored: [], status: undefined },
+				restored: [folderUri], pending: 0, background: true,
+				status: backgroundSend || inboxEnabled ? 'Message sent' : undefined,
+				resource: backgroundSend || inboxEnabled ? sentSession.resource : undefined,
+			});
 		});
-	});
+	}
 
 	for (const outcome of ['failed', 'new draft', 'superseded', 'disposed'] as const) {
 		test(`Inbox does not confirm a background send that is ${outcome}`, async () => {

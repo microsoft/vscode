@@ -123,7 +123,7 @@ suite('SharedChatInputComposer', () => {
 		return { composer, inputTransitions, state: () => ({ requests, commands, restoredReferences, input: { text, attachments: attachments.map(entry => entry.id), enabled: inputEnabled }, draftModelState, focusRestored }) };
 	}
 
-	for (const preserveInputFocusOnSend of [undefined, true]) {
+	for (const preserveInputFocusOnSend of [false, true]) {
 		test(`retains editor focus during confirmation and sending only when opted in (${preserveInputFocusOnSend})`, async () => {
 			const confirmation = new DeferredPromise<boolean>();
 			const { composer, inputTransitions } = createComposer({ confirmSend: confirmation, focused: true, preserveInputFocusOnSend });
@@ -132,9 +132,9 @@ suite('SharedChatInputComposer', () => {
 			confirmation.complete(true);
 			await sending;
 			assert.deepStrictEqual(inputTransitions, [
-				{ enabled: false, preserveFocus: !!preserveInputFocusOnSend },
+				{ enabled: false, preserveFocus: preserveInputFocusOnSend },
 				{ enabled: true, preserveFocus: false },
-				{ enabled: false, preserveFocus: !!preserveInputFocusOnSend },
+				{ enabled: false, preserveFocus: preserveInputFocusOnSend },
 				{ enabled: true, preserveFocus: false },
 			]);
 		});

@@ -356,6 +356,52 @@
 
 /* Session Item */
 
+.sessions-list-primary,
+.sessions-list-inbox-footer {
+	height: 100%;
+	min-height: 0;
+	overflow: hidden;
+}
+
+.sessions-list-inbox-resize {
+	position: absolute;
+	top: 0;
+	left: 0;
+	right: 0;
+	height: var(--vscode-spacing-size40);
+	pointer-events: none;
+	z-index: 1;
+
+	&:focus-visible {
+		outline: var(--vscode-strokeThickness) solid var(--vscode-focusBorder);
+		outline-offset: -1px;
+	}
+}
+
+.sessions-list-control.inbox-layout {
+	&:not(.compact) .session-item:not(.quick-chat, .session-comparison-attempt) {
+		padding-top: var(--vscode-spacing-size40);
+		padding-bottom: var(--vscode-spacing-size40);
+
+		.session-title-row {
+			padding-bottom: var(--vscode-spacing-size20);
+		}
+	}
+
+	.sessions-list-inbox-footer .session-section {
+		font-weight: var(--vscode-fontWeight-regular);
+
+		.session-section-count {
+			margin-left: auto;
+			font-variant-numeric: tabular-nums;
+		}
+
+		.session-section-toolbar.has-no-actions {
+			display: none;
+		}
+	}
+}
+
 .session-item {
 	display: flex;
 	flex-direction: row;

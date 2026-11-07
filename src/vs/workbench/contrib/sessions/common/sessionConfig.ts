@@ -20,6 +20,8 @@ export const LEGACY_SESSION_TOOLBAR_SETTING = 'sessions.showSessionToolbar';
 
 export const SESSIONS_LIST_GROUP_EXTERNAL_SESSIONS_SETTING = 'sessions.list.groupExternalSessions';
 
+export const SESSIONS_LIST_INBOX_ENABLED_SETTING = 'sessions.list.inboxEnabled';
+
 /** When automation sessions automatically also appear in the Sessions list. */
 export const SESSIONS_LIST_SHOW_AUTOMATION_SESSIONS_SETTING = 'sessions.list.showAutomationSessions';
 

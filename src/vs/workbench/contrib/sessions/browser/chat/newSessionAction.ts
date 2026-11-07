@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { KeyCode, KeyMod } from '../../../../../base/common/keyCodes.js';
+import { Codicon } from '../../../../../base/common/codicons.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ServicesAccessor } from '../../../../../editor/browser/editorExtensions.js';
 import { localize, localize2 } from '../../../../../nls.js';
@@ -35,6 +36,7 @@ export class NewChatInSessionsWindowAction extends Action2 {
 		super({
 			id: NEW_SESSION_ACTION_ID,
 			title: localize2('sessions.newSession.label', "New Session"),
+			icon: Codicon.add,
 			category: CHAT_CATEGORY,
 			f1: true,
 			keybinding: {
