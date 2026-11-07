@@ -242,8 +242,12 @@ export class DesktopDraftSessionStrategy extends DesktopLayoutStrategy {
 	}
 
 	private _registerQuickChatVisibility(): void {
+		let previousDraftKey: string | undefined;
 		this._register(autorun(reader => {
 			const activeSession = this._ctx.mainWindowSession.read(reader);
+			const draftKey = activeSession && !isSessionCreated(activeSession, reader) ? activeSession.resource.toString() : undefined;
+			const isDraftWorkspaceSelection = !!draftKey && !!previousDraftKey && draftKey !== previousDraftKey;
+			previousDraftKey = draftKey;
 			if (!activeSession || !(activeSession.isQuickChat?.read(reader) ?? false)) {
 				this._activeQuickChatKey = undefined;
 				this._pendingEditorRestoreKey = undefined;
@@ -259,14 +263,9 @@ export class DesktopDraftSessionStrategy extends DesktopLayoutStrategy {
 				this._activeQuickChatKey = sessionKey;
 				const hasSavedWorkingSet = this._ctx.hasSavedWorkingSet(activeSession.resource);
 				const isRestoringSessionLayout = this._ctx.isRestoringSessionLayout;
-				this._pendingEditorRestoreKey = !multipleSessionsVisible
-					? sessionKey
-					: undefined;
-				if (!multipleSessionsVisible && hasSavedWorkingSet) {
-					this._applyQuickChatVisibility();
-				} else if (!multipleSessionsVisible && !isRestoringSessionLayout && isMainPartEmpty(this._editorGroupsService)) {
-					this._pendingEditorRestoreKey = undefined;
-					this._hideQuickChatSidePaneTransiently();
+				this._pendingEditorRestoreKey = undefined;
+				if (!multipleSessionsVisible && !isDraftWorkspaceSelection) {
+					this._enterQuickChat(sessionKey, hasSavedWorkingSet, isRestoringSessionLayout);
 				}
 				this._detailPanel.sync(DetailPanelTarget.Files);
 			}
@@ -326,6 +325,21 @@ export class DesktopDraftSessionStrategy extends DesktopLayoutStrategy {
 			}
 		}));
 		this._register(this._editorService.onDidEditorsChange(() => this._captureQuickChatSharedVisibility()));
+	}
+
+	/**
+	 * Applies a Quick Chat's side-pane visibility when the main window starts showing it: at once when it has a saved
+	 * working set, or once its working-set restore settles.
+	 */
+	private _enterQuickChat(sessionKey: string, hasSavedWorkingSet: boolean, isRestoringSessionLayout: boolean): void {
+		if (!isRestoringSessionLayout && !hasSavedWorkingSet && isMainPartEmpty(this._editorGroupsService)) {
+			this._hideQuickChatSidePaneTransiently();
+			return;
+		}
+		this._pendingEditorRestoreKey = sessionKey;
+		if (hasSavedWorkingSet) {
+			this._applyQuickChatVisibility();
+		}
 	}
 
 	private _captureQuickChatSharedVisibility(): void {

@@ -1356,7 +1356,7 @@ suite('DesktopLayoutController', () => {
 		});
 	});
 
-	test('[desktop] does not reveal the editor part for a created quick chat on switch', async () => {
+	test('[desktop] does not reveal the editor part for a created editorless quick chat on switch', async () => {
 		createDesktopController({ desktopLayout: true });
 		const untitled = makeSession(URI.parse('session:new'), { status: SessionStatus.Untitled, isCreated: false });
 		const quickChat = makeSession(URI.parse('session:qc'), { isQuickChat: true });
@@ -1364,9 +1364,10 @@ suite('DesktopLayoutController', () => {
 		harness.activeSessionObs.set(untitled, undefined);
 		await timeout(0);
 		harness.partVisibility.set(Parts.EDITOR_PART, false);
+		harness.editorGroupsHaveContent = false;
 		harness.setPartHiddenCalls = [];
 
-		// A quick chat has no side pane, so switching to it must never auto-reveal
+		// An editorless quick chat has no side pane, so switching to it must never auto-reveal
 		// the editor part even though the session is created.
 		harness.activeSessionObs.set(quickChat, undefined);
 		await timeout(0);
@@ -1634,8 +1635,8 @@ suite('DesktopLayoutController', () => {
 			});
 			const existing = makeSession(URI.parse('session:existing'));
 			const isQuickChat = observableValue('isQuickChat', true);
-			const workspace = observableValue<ISessionWorkspace | undefined>('workspace', undefined);
-			const session = { ...makeSession(URI.parse('session:quick')), isQuickChat, workspace };
+			const session = { ...makeSession(URI.parse('session:quick'), { isQuickChat: true }), isQuickChat };
+			const workspace = session.workspace as ISettableObservable<ISessionWorkspace | undefined>;
 			transaction(tx => {
 				harness.activeSessionObs.set(session, tx);
 				harness.visibleSessionsObs.set(scenario.multiple ? [existing, session] : [session], tx);
@@ -1695,8 +1696,8 @@ suite('DesktopLayoutController', () => {
 		harness.activeSessionObs.set(existing, undefined);
 		await timeout(0);
 		const isQuickChat = observableValue('isQuickChat', true);
-		const workspace = observableValue<ISessionWorkspace | undefined>('workspace', undefined);
-		const session = { ...makeSession(URI.parse('session:quick')), isQuickChat, workspace };
+		const session = { ...makeSession(URI.parse('session:quick'), { isQuickChat: true }), isQuickChat };
+		const workspace = session.workspace as ISettableObservable<ISessionWorkspace | undefined>;
 		harness.activeSessionObs.set(session, undefined);
 		await timeout(0);
 		harness.activeGroupEditors.length = 0;
