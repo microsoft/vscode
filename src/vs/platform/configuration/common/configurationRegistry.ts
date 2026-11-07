@@ -332,6 +332,15 @@ export interface IConfigurationPropertySchema extends IJSONSchema {
 		 * The name of the experiment. By default, this is `config.${settingId}`
 		 */
 		name?: string;
+
+		/**
+		 * For object settings: when `true`, each key's default value is assigned by its own treatment,
+		 * `${name}.${key}`, instead of the whole default value by one treatment, so that separate experiments
+		 * can control separate keys. Treatments can't be enumerated, so a key's treatment is only resolved
+		 * once the key has been requested, and the mode applies to each key separately. Values that users set
+		 * for a key still win over its experiment value.
+		 */
+		keyed?: boolean;
 	};
 
 	/**
@@ -377,6 +386,14 @@ export type ConfigurationDefaultSource = IExtensionInfo | string;
  */
 export function getConfigurationExperimentName(key: string, experiment: { readonly name?: string } | undefined): string {
 	return experiment?.name ?? `config.${key}`;
+}
+
+/**
+ * The treatment through which an experiment assigns the default value of one key of a keyed
+ * experiment-controlled object setting, see {@link IConfigurationPropertySchema.experiment}.
+ */
+export function getConfigurationKeyExperimentName(key: string, experiment: { readonly name?: string } | undefined, objectKey: string): string {
+	return `${getConfigurationExperimentName(key, experiment)}.${objectKey}`;
 }
 
 export function isConfigurationDefaultSourceEquals(a: ConfigurationDefaultSource | undefined, b: ConfigurationDefaultSource | undefined): boolean {

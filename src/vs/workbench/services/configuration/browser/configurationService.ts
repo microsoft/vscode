@@ -17,7 +17,7 @@ import { IPolicyConfiguration, NullPolicyConfiguration, PolicyConfiguration } fr
 import { Configuration } from '../common/configurationModels.js';
 import { FOLDER_CONFIG_FOLDER_NAME, defaultSettingsSchemaId, userSettingsSchemaId, workspaceSettingsSchemaId, folderSettingsSchemaId, IConfigurationCache, machineSettingsSchemaId, LOCAL_MACHINE_SCOPES, IWorkbenchConfigurationService, RestrictedSettings, PROFILE_SCOPES, LOCAL_MACHINE_PROFILE_SCOPES, profileSettingsSchemaId, APPLY_ALL_PROFILES_SETTING, APPLICATION_SCOPES } from '../common/configuration.js';
 import { Registry } from '../../../../platform/registry/common/platform.js';
-import { IConfigurationRegistry, Extensions, allSettings, windowSettings, resourceSettings, applicationSettings, machineSettings, machineOverridableSettings, ConfigurationScope, IConfigurationPropertySchema, keyFromOverrideIdentifiers, OVERRIDE_PROPERTY_PATTERN, resourceLanguageSettingsSchemaId, configurationDefaultsSchemaId, applicationMachineSettings, isConfigurationDefaultSourceEquals, ConfigurationDefaultSource, IConfigurationDefaults, getConfigurationExperimentName } from '../../../../platform/configuration/common/configurationRegistry.js';
+import { IConfigurationRegistry, Extensions, allSettings, windowSettings, resourceSettings, applicationSettings, machineSettings, machineOverridableSettings, ConfigurationScope, IConfigurationPropertySchema, keyFromOverrideIdentifiers, OVERRIDE_PROPERTY_PATTERN, resourceLanguageSettingsSchemaId, configurationDefaultsSchemaId, applicationMachineSettings, isConfigurationDefaultSourceEquals, ConfigurationDefaultSource, IConfigurationDefaults, getConfigurationExperimentName, getConfigurationKeyExperimentName } from '../../../../platform/configuration/common/configurationRegistry.js';
 import { IStoredWorkspaceFolder, isStoredWorkspaceFolder, IWorkspaceFolderCreationData, getStoredWorkspaceFolder, toWorkspaceFolders } from '../../../../platform/workspaces/common/workspaces.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { ConfigurationEditing, EditableConfigurationTarget } from '../common/configurationEditing.js';
@@ -1348,6 +1348,24 @@ class RegisterConfigurationSchemasContribution extends Disposable implements IWo
 	}
 }
 
+/**
+ * The per-key state of a keyed experiment-controlled object setting, see {@link IConfigurationPropertySchema.experiment}.
+ */
+interface IKeyedExperimentalSetting {
+	/** The schema whose keys are resolved, to start over when the setting is replaced. */
+	readonly schema: IConfigurationPropertySchema;
+	/** Requested keys whose treatments were resolved or are resolving. */
+	readonly processed: Set<string>;
+	/** `startup` keys without a value yet, which are resolved again on each refetch until they have one. */
+	readonly pending: Set<string>;
+	/** Keys with a real ExP assignment. */
+	readonly assigned: Set<string>;
+	/** The latest read of each key, to ignore older reads that finish after newer ones. */
+	readonly requests: Map<string, object>;
+	/** The resolved experiment value of each key. */
+	readonly values: Map<string, unknown>;
+}
+
 export class ConfigurationDefaultOverridesContribution extends Disposable implements IWorkbenchContribution {
 
 	static readonly ID = 'workbench.contrib.configurationDefaultOverridesContribution';
@@ -1355,6 +1373,7 @@ export class ConfigurationDefaultOverridesContribution extends Disposable implem
 	private readonly processedExperimentalSettings = new Set<string>();
 	private readonly autoExperimentalSettings = new Set<string>();
 	private readonly pendingStartupExperimentalSettings = new Set<string>();
+	private readonly keyedExperimentalSettings = new Map<string, IKeyedExperimentalSetting>();
 	private readonly registeredExperimentalDefaults = new Map<string, IConfigurationDefaults>();
 	private readonly assignmentRequests = new Map<string, object>();
 	private readonly configurationRegistry = Registry.as<IConfigurationRegistry>(Extensions.Configuration);
@@ -1376,6 +1395,9 @@ export class ConfigurationDefaultOverridesContribution extends Disposable implem
 
 		// When configuration is updated make sure to apply experimental configuration overrides
 		this._register(this.configurationRegistry.onDidUpdateConfiguration(({ properties }) => this.processExperimentalSettings(properties, false)));
+
+		// Resolve the keys of keyed experiment settings as they are requested
+		this._register(experimentalSettingsService.onDidRequestKeys(setting => this.processExperimentalSettings([setting], false)));
 	}
 
 	private async updateDefaults(): Promise<void> {
@@ -1416,6 +1438,7 @@ export class ConfigurationDefaultOverridesContribution extends Disposable implem
 				this.processedExperimentalSettings.delete(property);
 				this.autoExperimentalSettings.delete(property);
 				this.pendingStartupExperimentalSettings.delete(property);
+				this.keyedExperimentalSettings.delete(property);
 				continue;
 			}
 			const defaultValueSource: ConfigurationDefaultSource | undefined = schema.defaultValueSource && !(schema.defaultValueSource instanceof Map) ? schema.defaultValueSource : undefined;
@@ -1429,8 +1452,14 @@ export class ConfigurationDefaultOverridesContribution extends Disposable implem
 				}
 				this.processedExperimentalSettings.delete(property);
 				this.pendingStartupExperimentalSettings.delete(property);
+				this.keyedExperimentalSettings.delete(property);
 				continue;
 			}
+			if (schema.experiment.keyed) {
+				await this.processKeyedExperimentalSetting(property, schema, schema.experiment, autoRefetch, assignmentUpdates);
+				continue;
+			}
+			this.keyedExperimentalSettings.delete(property);
 			const isAutoExperiment = schema.experiment.mode === 'auto';
 			if (this.processedExperimentalSettings.has(property) && (!autoRefetch || (!isAutoExperiment && !this.pendingStartupExperimentalSettings.has(property)))) {
 				continue;
@@ -1499,6 +1528,107 @@ export class ConfigurationDefaultOverridesContribution extends Disposable implem
 			});
 		}
 		await Promise.all(assignmentUpdates);
+	}
+
+	/**
+	 * Resolves the requested keys of a keyed experiment setting from their own treatments, and registers the resolved
+	 * values together as the setting's experiment default. Each key follows the mode on its own: a `startup` key latches
+	 * its first value and stays pending until it has one, while an `auto` key follows every refetch.
+	 */
+	private async processKeyedExperimentalSetting(property: string, schema: IConfigurationPropertySchema, experiment: NonNullable<IConfigurationPropertySchema['experiment']>, autoRefetch: boolean, assignmentUpdates: Promise<void>[]): Promise<void> {
+		const isAutoExperiment = experiment.mode === 'auto';
+		let setting = this.keyedExperimentalSettings.get(property);
+		if (setting?.schema !== schema) {
+			setting = { schema, processed: new Set(), pending: new Set(), assigned: new Set(), requests: new Map(), values: new Map() };
+			this.keyedExperimentalSettings.set(property, setting);
+		}
+		const current = setting;
+		if (isAutoExperiment) {
+			this.autoExperimentalSettings.add(property);
+		} else {
+			this.autoExperimentalSettings.delete(property);
+		}
+
+		const keys = [...this.experimentalSettingsService.getRequestedKeys(property)].filter(key => !current.processed.has(key) || (autoRefetch && (isAutoExperiment || current.pending.has(key))));
+		if (keys.length) {
+			// An `auto` key can be read again while an earlier read, such as the first read of a key requested late, is still
+			// resolving outside the refetch throttler.
+			const requests = keys.map(key => {
+				const request = {};
+				current.processed.add(key);
+				current.requests.set(key, request);
+				return request;
+			});
+			const treatments = await Promise.all(keys.map(async key => {
+				try {
+					return await this.workbenchAssignmentService.getTreatmentWithAssignment<string | number | boolean>(getConfigurationKeyExperimentName(property, experiment, key));
+				} catch (error) {
+					if (!isCancellationError(error)) {
+						this.logService.error('ConfigurationService#processExperimentalSettings', property, key, error);
+					}
+					return undefined;
+				}
+			}));
+			// The setting may have been removed or replaced while its treatments resolved.
+			if (this._store.isDisposed || this.keyedExperimentalSettings.get(property) !== current) {
+				return;
+			}
+			keys.forEach((key, index) => {
+				const request = requests[index];
+				if (current.requests.get(key) !== request) {
+					return;
+				}
+				const treatment = treatments[index];
+				if (treatment?.value !== undefined) {
+					current.pending.delete(key);
+					current.values.set(key, treatment.value);
+				} else if (!isAutoExperiment) {
+					current.pending.add(key);
+				} else if (treatment) {
+					// An `auto` key loses its value with its assignment, but keeps it when its treatment couldn't be read.
+					current.values.delete(key);
+				}
+				if (treatment) {
+					assignmentUpdates.push(treatment.hasAssignment.then(assigned => {
+						if (!this._store.isDisposed && this.keyedExperimentalSettings.get(property) === current && current.requests.get(key) === request) {
+							if (assigned) {
+								current.assigned.add(key);
+							} else {
+								current.assigned.delete(key);
+							}
+							this.experimentalSettingsService.setAssignment(property, current.assigned.size > 0);
+						}
+					}, error => {
+						if (!isCancellationError(error)) {
+							this.logService.error('ConfigurationService#processExperimentalSettings: assignment', property, key, error);
+						}
+					}));
+				}
+			});
+		}
+		if (current.pending.size) {
+			this.pendingStartupExperimentalSettings.add(property);
+		} else {
+			this.pendingStartupExperimentalSettings.delete(property);
+		}
+
+		// Registered right away, rather than with the other settings' defaults, so that concurrent resolutions of
+		// different keys always replace the latest registered default.
+		const value = Object.fromEntries(current.values);
+		const registeredDefault = this.registeredExperimentalDefaults.get(property);
+		if (registeredDefault ? equals(registeredDefault.overrides[property], value) : current.values.size === 0) {
+			return;
+		}
+		const nextDefault = current.values.size ? { overrides: { [property]: value }, source: 'experiments' } satisfies IConfigurationDefaults : undefined;
+		if (nextDefault) {
+			this.registeredExperimentalDefaults.set(property, nextDefault);
+		} else {
+			this.registeredExperimentalDefaults.delete(property);
+		}
+		this.configurationRegistry.deltaConfiguration({
+			removedDefaults: registeredDefault ? [registeredDefault] : undefined,
+			addedDefaults: nextDefault ? [nextDefault] : undefined,
+		});
 	}
 
 	/**
