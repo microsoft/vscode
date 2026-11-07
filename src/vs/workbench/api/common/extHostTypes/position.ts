@@ -84,23 +84,23 @@ export class Position {
 	}
 
 	isBefore(other: Position): boolean {
-		if (this._line < other._line) {
+		if (this.line < other.line) {
 			return true;
 		}
-		if (other._line < this._line) {
+		if (other.line < this.line) {
 			return false;
 		}
-		return this._character < other._character;
+		return this.character < other.character;
 	}
 
 	isBeforeOrEqual(other: Position): boolean {
-		if (this._line < other._line) {
+		if (this.line < other.line) {
 			return true;
 		}
-		if (other._line < this._line) {
+		if (other.line < this.line) {
 			return false;
 		}
-		return this._character <= other._character;
+		return this.character <= other.character;
 	}
 
 	isAfter(other: Position): boolean {
@@ -112,22 +112,20 @@ export class Position {
 	}
 
 	isEqual(other: Position): boolean {
-		return this._line === other._line && this._character === other._character;
+		return this.line === other.line && this.character === other.character;
 	}
 
 	compareTo(other: Position): number {
-		if (this._line < other._line) {
+		if (this.line < other.line) {
 			return -1;
-		} else if (this._line > other.line) {
+		} else if (this.line > other.line) {
 			return 1;
 		} else {
-			// equal line
-			if (this._character < other._character) {
+			if (this.character < other.character) {
 				return -1;
-			} else if (this._character > other._character) {
+			} else if (this.character > other.character) {
 				return 1;
 			} else {
-				// equal line and character
 				return 0;
 			}
 		}

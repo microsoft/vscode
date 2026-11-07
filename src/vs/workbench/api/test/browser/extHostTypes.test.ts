@@ -110,6 +110,10 @@ suite('ExtHostTypes', function () {
 		assert.ok(!p1.isBefore(p1));
 		assert.ok(p2.isBefore(p1));
 		assert.ok(p3.isBefore(p2));
+
+		const laterLike = { line: 2, character: 0 };
+		assert.ok(p3.isBefore(<types.Position>laterLike));
+		assert.ok(!p1.isBefore(<types.Position>{ line: 1, character: 3 }));
 	});
 
 	test('Position, isAfter(OrEqual)?', function () {
@@ -134,6 +138,10 @@ suite('ExtHostTypes', function () {
 		assert.strictEqual(p1.compareTo(p2), 1);
 		assert.strictEqual(p2.compareTo(p3), 1);
 		assert.strictEqual(p1.compareTo(p3), 1);
+
+		const laterLike = { line: 2, character: 0 };
+		assert.strictEqual(p1.compareTo(<types.Position>laterLike), -1);
+		assert.strictEqual(p1.compareTo(<types.Position>{ line: 1, character: 3 }), 0);
 	});
 
 	test('Position, translate', function () {
@@ -270,6 +278,13 @@ suite('ExtHostTypes', function () {
 		assert.ok(range.contains((<types.Position>startLike)));
 		assert.ok(range.contains((<types.Position>endLike)));
 		assert.ok(range.contains((<types.Range>rangeLike)));
+
+		const afterLike = { line: 3, character: 0 };
+		const beforeLike = { line: 0, character: 0 };
+		assert.ok(!range.contains((<types.Position>afterLike)));
+		assert.ok(!range.contains((<types.Position>beforeLike)));
+		assert.ok(!range.contains(new types.Position(3, 0)));
+		assert.ok(!range.contains((<types.Range>{ start: startLike, end: afterLike })));
 	});
 
 	test('Range, intersection', function () {
