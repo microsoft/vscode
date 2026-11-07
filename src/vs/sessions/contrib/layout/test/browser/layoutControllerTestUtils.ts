@@ -503,6 +503,7 @@ export function createTestHarness(store: DisposableStore, options: ICreateOption
 		override readonly activeSessionUncommittedChangesCountObs = harness.sessionChangesService.activeSessionUncommittedChangesCountObs;
 		override getChangesEditorResource(sessionResource: URI): URI { return harness.sessionChangesService.getChangesEditorResource(sessionResource); }
 		override getSessionResource(editorResource: URI): URI | undefined { return harness.sessionChangesService.getSessionResource(editorResource); }
+		override getChatResource(editorResource: URI): URI | undefined { return harness.sessionChangesService.getChatResource(editorResource); }
 		override async openChangesEditor(sessionResource: URI, options?: { index?: number; inactive?: boolean }): Promise<IEditorGroup> {
 			harness.openChangesEditorCalls.push({ sessionResource, active: !options?.inactive });
 			if (harness.onOpenChangesEditor) {
