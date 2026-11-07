@@ -56,7 +56,7 @@ import { GITHUB_DOT_COM_COPILOT_API_BASE_URI, deriveGitHubEndpoints } from '../.
 import { nextLink } from '../../../../../platform/github/common/githubResponse.js';
 import { GitHubRequestTimeoutError } from '../../../../../platform/github/common/githubTypes.js';
 import { RequestError } from '../../../../../platform/github/common/types.js';
-import { parseMissionControlError } from '../../../../../platform/github/common/missionControl/missionControlError.js';
+import { isRetryableMissionControlError, parseMissionControlError } from '../../../../../platform/github/common/missionControl/missionControlError.js';
 import { ApiRequestError, MutationUncertainError } from '../../../../../platform/github/common/missionControl/missionControlClient.js';
 import { SchemaError } from '../../../../../platform/github/common/client/schema.js';
 import type { TaskClient } from '../../../../../platform/github/common/missionControl/tasks.js';
@@ -211,6 +211,9 @@ const DISCOVERY_TASK_FETCH_CONCURRENCY = 5;
 
 const DISCOVERY_OVERLAP_MS = 60_000;
 
+/** Minimum automatic inventory retry interval after a first-page authorization refusal. */
+const DISCOVERY_AUTHORIZATION_RETRY_INTERVAL_MS = 15 * 60_000;
+
 /** HTTP status GitHub answers a rate-limited request with. */
 const HTTP_TOO_MANY_REQUESTS = 429;
 
@@ -241,6 +244,7 @@ export class CloudSandboxApiService extends Disposable implements ICloudSandboxA
 	private _discoverySince: string | undefined;
 	private _archivedDiscoverySince: string | undefined;
 	private _discoveryAuthorization: string | undefined;
+	private _discoveryAuthorizationFailure: { readonly session: AuthenticationSession; readonly retryAt: number; readonly error: CloudSandboxRequestError } | undefined;
 	private _discoveryGeneration = 0;
 	private _accountGeneration = 0;
 	private _historyRequestId = 0;
@@ -314,13 +318,13 @@ export class CloudSandboxApiService extends Disposable implements ICloudSandboxA
 		return session;
 	}
 
-	private async _resolveDiscoveryAuthorization(): Promise<string | undefined> {
+	private async _resolveDiscoveryAuthorization(): Promise<AuthenticationSession | undefined> {
 		const session = await this._resolveStableGitHubSession();
 		// Token rotation preserves the declared listing scope; unannounced access changes need full reconciliation.
 		this._updateDiscoveryAuthorization(session ? JSON.stringify([
 			this._authenticationProviderId, session.account.id, this._tasksBaseUrl(), this._userDataProfileService.currentProfile.id, [...new Set(session.scopes)].sort(),
 		]) : undefined);
-		return session ? this._accountKeyForSession(session) : undefined;
+		return session;
 	}
 
 	private _updateDiscoveryAuthorization(authorization: string | undefined): void {
@@ -331,6 +335,7 @@ export class CloudSandboxApiService extends Disposable implements ICloudSandboxA
 			this._discoveryGeneration++;
 		}
 		this._discoveryAuthorization = authorization;
+		this._discoveryAuthorizationFailure = undefined;
 		this._discoverySince = undefined;
 		this._archivedDiscoverySince = undefined;
 		this._discoveredTasks.clear();
@@ -540,6 +545,7 @@ export class CloudSandboxApiService extends Disposable implements ICloudSandboxA
 	}
 
 	private async _onAuthenticationChanged(invalidateDiscovery = false): Promise<void> {
+		this._discoveryAuthorizationFailure = undefined;
 		this._identityTokenProvider.clear();
 		this.clearSessionHistory();
 		const generation = ++this._accountGeneration;
@@ -549,9 +555,9 @@ export class CloudSandboxApiService extends Disposable implements ICloudSandboxA
 			this._updateDiscoveryAuthorization(undefined);
 		}
 		try {
-			const accountKey = await this._resolveDiscoveryAuthorization();
+			const session = await this._resolveDiscoveryAuthorization();
 			if (generation === this._accountGeneration && !this._store.isDisposed) {
-				this._onDidChangeAccount.fire(accountKey);
+				this._onDidChangeAccount.fire(session ? this._accountKeyForSession(session) : undefined);
 			}
 		} catch (error) {
 			if (generation === this._accountGeneration) {
@@ -645,7 +651,7 @@ export class CloudSandboxApiService extends Disposable implements ICloudSandboxA
 		this._discoveryGeneration++;
 	}
 
-	/** Full scans replace the recent task window; incremental scans preserve absent tasks. */
+	/** Full scans replace recent inventory; automatic retries of first-page authorization refusals are paced without blocking manual or targeted reads. */
 	async listSessions(token: CancellationToken, options?: ICloudSandboxDiscoveryOptions): Promise<ICloudSandboxDiscoveryResult> {
 		const stopwatch = StopWatch.create();
 		const requestedMode = options?.taskIds !== undefined ? 'targeted' : options?.incremental ? 'incremental' : 'full';
@@ -684,10 +690,13 @@ export class CloudSandboxApiService extends Disposable implements ICloudSandboxA
 		if (token.isCancellationRequested) {
 			throw new CancellationError();
 		}
+		let session: AuthenticationSession;
 		try {
-			if (!await this._resolveDiscoveryAuthorization()) {
+			const resolvedSession = await this._resolveDiscoveryAuthorization();
+			if (!resolvedSession) {
 				throw new CloudSandboxAuthenticationRequiredError();
 			}
+			session = resolvedSession;
 		} catch (error) {
 			if (isCancellationError(error) || token.isCancellationRequested) {
 				throw new CancellationError();
@@ -707,6 +716,13 @@ export class CloudSandboxApiService extends Disposable implements ICloudSandboxA
 		telemetry.fullScanReason = targeted || since ? 'notFull'
 			: options?.incremental ? this._discoverySince && includeArchived && !this._archivedDiscoverySince ? 'scopeInitialization' : 'noCheckpoint'
 				: options?.diagnostics?.fullScanReason ?? 'requestedFull';
+		const authorizationFailure = this._discoveryAuthorizationFailure;
+		if (!targeted && options?.trigger !== undefined && options.trigger !== 'manual' && authorizationFailure
+			&& authorizationFailure.session.accessToken === session.accessToken && authorizationFailure.session.id === session.id
+			&& Date.now() < authorizationFailure.retryAt) {
+			this._logService.debug(`${LOG_PREFIX} Deferring automatic inventory retry after an authorization refusal.`);
+			return { kind: 'failed', reason: authorizationFailure.error.message };
+		}
 		const tasks = new Map<string, IScannedTask>();
 		const details = new Map<string, ITaskDetail>();
 		const cache = new Map(this._discoveredTasks);
@@ -797,6 +813,9 @@ export class CloudSandboxApiService extends Disposable implements ICloudSandboxA
 						throw new Error('listTasks returned no tasks array');
 					}
 					telemetry.pageCount++;
+					if (generation === this._discoveryGeneration) {
+						this._discoveryAuthorizationFailure = undefined;
+					}
 					const date = context.res.headers?.date;
 					const serverTime = typeof date === 'string' ? Date.parse(date) : Number.NaN;
 					if (!Number.isNaN(serverTime)) {
@@ -823,6 +842,14 @@ export class CloudSandboxApiService extends Disposable implements ICloudSandboxA
 						throw new CancellationError();
 					}
 					telemetry.listPageFailureCount = (telemetry.listPageFailureCount ?? 0) + 1;
+					if (telemetry.pageCount === 0 && generation === this._discoveryGeneration && error instanceof CloudSandboxRequestError
+						&& (error.statusCode === 401 || error.statusCode === 403) && !isRetryableMissionControlError(error.statusCode, error.code)) {
+						this._discoveryAuthorizationFailure = {
+							session,
+							retryAt: Date.now() + Math.max(DISCOVERY_AUTHORIZATION_RETRY_INTERVAL_MS, (error.retryAfterSeconds ?? 0) * 1000),
+							error,
+						};
+					}
 					if (tasks.size === 0) {
 						return { kind: 'failed', reason: `listTasks failed: ${toErrorMessage(error)}` };
 					}

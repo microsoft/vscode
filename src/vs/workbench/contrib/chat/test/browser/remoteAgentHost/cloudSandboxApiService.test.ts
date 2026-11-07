@@ -466,6 +466,133 @@ suite('CloudSandboxApiService discovery telemetry', () => {
 		assert.deepStrictEqual(h.discoveryEvents.map(summarize), [{ ...emptyScan, listRequestCount: 6 }]);
 	}));
 
+	for (const status of [401, 403]) {
+		test(`paces automatic inventory after HTTP ${status} while preserving manual and targeted reads`, () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+			let refused = true;
+			const h = createService(store, {
+				tasks: [task('one', 'One', undefined, 'session', 'environment')], repositories: new Map(),
+				onRequest: url => refused && url.pathname === '/agents/tasks' ? jsonResponse({}, status) : undefined,
+			});
+			await h.service.listSessions(CancellationToken.None, { trigger: 'startup' });
+			await h.service.listSessions(CancellationToken.None, { trigger: 'feedRenewal', incremental: true });
+			await h.service.listSessions(CancellationToken.None, { trigger: 'feedReconnect' });
+			await h.service.listSessions(CancellationToken.None, { trigger: 'poll', incremental: true });
+			await h.service.listSessions(CancellationToken.None, { trigger: 'manual' });
+			await h.service.listSessions(CancellationToken.None, { trigger: 'feedChange', taskIds: ['one'] });
+			refused = false;
+			await timeout(15 * 60_000);
+			await h.service.listSessions(CancellationToken.None, { trigger: 'feedRenewal', incremental: true });
+			assert.deepStrictEqual(h.discoveryEvents.map(event => [event.outcome, event.listRequestCount]), [
+				['failed', 1], ['failed', 0], ['failed', 0], ['failed', 0], ['failed', 1], ['incremental', 0], ['complete', 4],
+			]);
+		}));
+	}
+
+	test('a successful manual refresh clears authorization pacing for automatic inventory', async () => {
+		let refused = true;
+		const h = createService(store, {
+			tasks: [], repositories: new Map(),
+			onRequest: url => refused && url.pathname === '/agents/tasks' ? jsonResponse({}, 403) : undefined,
+		});
+		await h.service.listSessions(CancellationToken.None, { trigger: 'feedRenewal' });
+		refused = false;
+		await h.service.listSessions(CancellationToken.None, { trigger: 'manual' });
+		await h.service.listSessions(CancellationToken.None, { trigger: 'feedRenewal', incremental: true });
+		assert.deepStrictEqual(h.discoveryEvents.map(event => [event.outcome, event.listRequestCount]), [
+			['failed', 1], ['complete', 4], ['incremental', 4],
+		]);
+	});
+
+	test('preserves a longer authorization Retry-After without extending it on deferred reads', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		let refused = true;
+		const h = createService(store, {
+			tasks: [], repositories: new Map(),
+			onRequest: url => refused && url.pathname === '/agents/tasks' ? jsonResponse({}, 403, { 'retry-after': '1800' }) : undefined,
+		});
+		await h.service.listSessions(CancellationToken.None, { trigger: 'feedRenewal' });
+		refused = false;
+		await timeout(15 * 60_000);
+		await h.service.listSessions(CancellationToken.None, { trigger: 'feedRenewal' });
+		await timeout(15 * 60_000);
+		await h.service.listSessions(CancellationToken.None, { trigger: 'feedRenewal' });
+		assert.deepStrictEqual(h.discoveryEvents.map(event => [event.outcome, event.listRequestCount]), [
+			['failed', 1], ['failed', 0], ['complete', 4],
+		]);
+	}));
+
+	test('an obsolete inventory refusal cannot pace the current authorization', async () => {
+		const entered = new DeferredPromise<void>();
+		const pending = new DeferredPromise<void>();
+		const h = createService(store, {
+			tasks: [], repositories: new Map(),
+			onRequest: async url => {
+				if (url.pathname === '/agents/tasks' && !entered.isSettled) {
+					await entered.complete();
+					await pending.p;
+					return jsonResponse({}, 403);
+				}
+				return undefined;
+			},
+		});
+		const stale = h.service.listSessions(CancellationToken.None, { trigger: 'feedRenewal' });
+		await entered.p;
+		const changed = Event.toPromise(h.service.onDidChangeAccount);
+		h.changeAuthentication();
+		await changed;
+		await pending.complete();
+		await stale;
+		await h.service.listSessions(CancellationToken.None, { trigger: 'feedRenewal' });
+		assert.deepStrictEqual(h.discoveryEvents.map(event => [event.outcome, event.listRequestCount]), [['failed', 1], ['complete', 4]]);
+	});
+
+	for (const change of ['credential', 'account', 'scopes', 'profile', 'authentication event'] as const) {
+		test(`retries refused inventory immediately after a ${change} change`, async () => {
+			let accessToken = 'original';
+			let accountId = 'a';
+			let scopes: string[] = [];
+			let refused = true;
+			const h = createService(store, {
+				tasks: [], repositories: new Map(),
+				authenticationSessions: async () => [{ accessToken, id: 's', account: { id: accountId, label: accountId }, scopes }],
+				onRequest: url => refused && url.pathname === '/agents/tasks' ? jsonResponse({}, 403) : undefined,
+			});
+			await h.service.listSessions(CancellationToken.None, { trigger: 'feedRenewal' });
+			if (change === 'credential') {
+				accessToken = 'replacement';
+			} else if (change === 'account') {
+				accountId = 'b';
+			} else if (change === 'scopes') {
+				scopes = ['repo'];
+			} else {
+				const changed = Event.toPromise(h.service.onDidChangeAccount);
+				if (change === 'profile') {
+					h.changeProfile('replacement');
+				} else {
+					h.changeAuthentication();
+				}
+				await changed;
+			}
+			refused = false;
+			await h.service.listSessions(CancellationToken.None, { trigger: 'feedRenewal' });
+			assert.deepStrictEqual(h.discoveryEvents.map(event => [event.outcome, event.listRequestCount]), [['failed', 1], ['complete', 4]]);
+		});
+	}
+
+	for (const response of [
+		{ status: 403, body: { error_code: 'rate_limit_exceeded' } },
+		{ status: 503, body: {} },
+	]) {
+		test(`does not apply authorization pacing to HTTP ${response.status} ${JSON.stringify(response.body)}`, async () => {
+			const h = createService(store, {
+				tasks: [], repositories: new Map(),
+				onRequest: url => url.pathname === '/agents/tasks' ? jsonResponse(response.body, response.status) : undefined,
+			});
+			await h.service.listSessions(CancellationToken.None, { trigger: 'feedRenewal' });
+			await h.service.listSessions(CancellationToken.None, { trigger: 'feedRenewal' });
+			assert.deepStrictEqual(h.discoveryEvents.map(event => [event.outcome, event.listRequestCount]), [['failed', 1], ['failed', 1]]);
+		});
+	}
+
 	test('detail endpoint failures do not block summary discovery or its checkpoint', async () => {
 		let fail = true;
 		const h = createService(store, {
