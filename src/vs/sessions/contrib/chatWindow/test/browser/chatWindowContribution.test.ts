@@ -221,34 +221,37 @@ suite('Chat window contribution', () => {
 		if (!CommandsRegistry.getCommand(NEW_SESSION_ACTION_ID)) {
 			disposables.add(registerAction2(NewChatInSessionsWindowAction));
 		}
-		const rules = KeybindingsRegistry.getDefaultKeybindings();
-		const ownRule = rules.find(rule => rule.command === NEW_SESSION_IN_CHAT_WINDOW_COMMAND_ID)!;
-		const [ownKeybinding] = USLayoutResolvedKeybinding.resolveKeybinding(ownRule.keybinding!, OperatingSystem.Macintosh);
-		const resolver = new KeybindingResolver(rules.flatMap(rule => rule.keybinding && rule.command
-			? USLayoutResolvedKeybinding.resolveKeybinding(rule.keybinding, OperatingSystem.Macintosh).map(resolved => new ResolvedKeybindingItem(resolved, rule.command, rule.commandArgs, rule.when ?? undefined, true, null, false))
-			: []), [], () => { });
-		const resolve = (values: Record<string, ContextKeyValue>) => {
-			const result = resolver.resolve({ getValue: <T extends ContextKeyValue>(key: string) => values[key] as T | undefined }, [], ownKeybinding.getDispatchChords()[0]!);
-			return result.kind === ResultKind.KbFound ? result.commandId : undefined;
-		};
-		const inWindow = (values: Record<string, ContextKeyValue>) => resolve(values) === NEW_SESSION_IN_CHAT_WINDOW_COMMAND_ID;
 		const chatWindow = { ...chatWindowKeys, [`config.${CHAT_WINDOWS_ENABLED_SETTING}`]: true };
 		const chat = { ...chatWindow, [EditorAreaFocusContext.key]: true, [SessionInChatEditorContext.key]: true, [ChatContextKeys.inChatSession.key]: true };
-
-		assert.deepStrictEqual({
-			key: ownKeybinding.getUserSettingsLabel(),
-			chat: inWindow(chat),
-			newSession: inWindow({ ...chatWindow, [EditorAreaFocusContext.key]: true, [SessionInChatEditorContext.key]: true }),
-			titleBar: inWindow({ ...chatWindow, [EditorAreaFocusContext.key]: false }),
-			otherEditor: inWindow({ ...chatWindow, [EditorAreaFocusContext.key]: true }),
-			emptyFileEditorPicker: inWindow({ ...chatWindow, [EditorAreaFocusContext.key]: false, [EmptyFileEditorSearchPickerFocusedContext.key]: true }),
-			// Its rule does not claim the key there at all, whichever rule of the same weight registered last
-			ownRuleInEmptyFileEditorPicker: evaluate(ownRule.when ?? undefined, { ...chatWindow, [EditorAreaFocusContext.key]: false, [EmptyFileEditorSearchPickerFocusedContext.key]: true }),
-			aiDisabled: inWindow({ ...chat, [ChatContextKeys.enabled.key]: false }),
-			chatWindowsOff: inWindow({ ...chat, [`config.${CHAT_WINDOWS_ENABLED_SETTING}`]: false }),
-			mainWindow: resolve({ [IsSessionsWindowContext.key]: true, [ChatContextKeys.enabled.key]: true, [`config.${CHAT_WINDOWS_ENABLED_SETTING}`]: true, [EditorAreaFocusContext.key]: false }),
-		}, {
-			key: 'cmd+n',
+		/** How the default keybindings of `os` resolve the key of New Session in a chat window in each context. */
+		const keyOn = (os: OperatingSystem) => {
+			const rules = KeybindingsRegistry.getDefaultKeybindingsForOS(os);
+			const ownRule = rules.find(rule => rule.command === NEW_SESSION_IN_CHAT_WINDOW_COMMAND_ID)!;
+			const [ownKeybinding] = USLayoutResolvedKeybinding.resolveKeybinding(ownRule.keybinding!, os);
+			const resolver = new KeybindingResolver(rules.flatMap(rule => rule.keybinding && rule.command
+				? USLayoutResolvedKeybinding.resolveKeybinding(rule.keybinding, os).map(resolved => new ResolvedKeybindingItem(resolved, rule.command, rule.commandArgs, rule.when ?? undefined, true, null, false))
+				: []), [], () => { });
+			const resolve = (values: Record<string, ContextKeyValue>) => {
+				const result = resolver.resolve({ getValue: <T extends ContextKeyValue>(key: string) => values[key] as T | undefined }, [], ownKeybinding.getDispatchChords()[0]!);
+				return result.kind === ResultKind.KbFound ? result.commandId : undefined;
+			};
+			const inWindow = (values: Record<string, ContextKeyValue>) => resolve(values) === NEW_SESSION_IN_CHAT_WINDOW_COMMAND_ID;
+			return {
+				key: ownKeybinding.getUserSettingsLabel(),
+				chat: inWindow(chat),
+				newSession: inWindow({ ...chatWindow, [EditorAreaFocusContext.key]: true, [SessionInChatEditorContext.key]: true }),
+				titleBar: inWindow({ ...chatWindow, [EditorAreaFocusContext.key]: false }),
+				otherEditor: inWindow({ ...chatWindow, [EditorAreaFocusContext.key]: true }),
+				emptyFileEditorPicker: inWindow({ ...chatWindow, [EditorAreaFocusContext.key]: false, [EmptyFileEditorSearchPickerFocusedContext.key]: true }),
+				// Its rule does not claim the key there at all, whichever rule of the same weight registered last
+				ownRuleInEmptyFileEditorPicker: evaluate(ownRule.when ?? undefined, { ...chatWindow, [EditorAreaFocusContext.key]: false, [EmptyFileEditorSearchPickerFocusedContext.key]: true }),
+				aiDisabled: inWindow({ ...chat, [ChatContextKeys.enabled.key]: false }),
+				chatWindowsOff: inWindow({ ...chat, [`config.${CHAT_WINDOWS_ENABLED_SETTING}`]: false }),
+				mainWindow: resolve({ [IsSessionsWindowContext.key]: true, [ChatContextKeys.enabled.key]: true, [`config.${CHAT_WINDOWS_ENABLED_SETTING}`]: true, [EditorAreaFocusContext.key]: false }),
+			};
+		};
+		const expected = (key: string) => ({
+			key,
 			chat: true,
 			newSession: true,
 			titleBar: true,
@@ -258,6 +261,17 @@ suite('Chat window contribution', () => {
 			aiDisabled: false,
 			chatWindowsOff: false,
 			mainWindow: NEW_SESSION_ACTION_ID,
+		});
+
+		// Cmd+N on macOS and Ctrl+N elsewhere, whichever platform the tests run on
+		assert.deepStrictEqual({
+			macOS: keyOn(OperatingSystem.Macintosh),
+			linux: keyOn(OperatingSystem.Linux),
+			windows: keyOn(OperatingSystem.Windows),
+		}, {
+			macOS: expected('cmd+n'),
+			linux: expected('ctrl+n'),
+			windows: expected('ctrl+n'),
 		});
 	});
 

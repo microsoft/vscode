@@ -4726,6 +4726,8 @@ suite('NewChatWidget', () => {
 					sessionsManagementService: agents.management,
 					sessionsProvidersService: agents.providers,
 					newSessionComposerService: agents.composerService,
+					// On the web, no agent host restricts which agents create drafts.
+					agentHostFilterService: { selectedHost: undefined },
 					// As the sessions service creates a draft of a slot (`openNewSession`).
 					sessionsService: { openNewSession: async (options: IOpenNewSessionOptions) => ({ session: options.draftSlot!.createNewSession(options.folderUri!, options), trustDeclined: false }) },
 					_isPreferredServable: () => true,
@@ -4823,10 +4825,15 @@ suite('NewChatWidget', () => {
 				const requested: string[] = [];
 				const target = observableValue<INewSessionTarget | undefined>('target', { folderUri: URI.file('/inherited'), providerId: LOCAL_AGENT_HOST_PROVIDER_ID, sessionTypeId: 't', modelId: 'available', modeId: 'agent:/x' });
 				const composer = withWidgetMethods(hostedComposer(agents, target, requested), ['_getNoWorkspaceOption']);
-				const option = composer._getNoWorkspaceOption() as IWorkspacePickerNoWorkspaceOption;
-				option.select();
+				const option = composer._getNoWorkspaceOption() as IWorkspacePickerNoWorkspaceOption | undefined;
+				if (isWeb) {
+					// The web offers no No Workspace option.
+					assert.deepStrictEqual({ option, requested }, { option: undefined, requested: [] });
+					return;
+				}
+				option!.select();
 				const sameAgent = draftOf(agents.slot.newSession.get());
-				option.submenuActions![1].run();
+				option!.submenuActions![1].run();
 
 				assert.deepStrictEqual({ requested, sameAgent, otherAgent: draftOf(agents.slot.newSession.get()) }, {
 					requested: [
