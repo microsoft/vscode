@@ -38,7 +38,7 @@ import { InstantiationService } from '../../../../../platform/instantiation/comm
 import { ServiceCollection } from '../../../../../platform/instantiation/common/serviceCollection.js';
 import { IDiffProviderFactoryService } from '../../../../../editor/browser/widget/diffEditor/diffProviderFactoryService.js';
 import { TestDiffProviderFactoryService } from '../../../../../editor/test/browser/diff/testDiffProviderFactoryService.js';
-import { IEditorProgressService } from '../../../../../platform/progress/common/progress.js';
+import { emptyProgressRunner, IEditorProgressService } from '../../../../../platform/progress/common/progress.js';
 import { IUserInteractionService, MockUserInteractionService } from '../../../../../platform/userInteraction/browser/userInteractionService.js';
 import { ITextModelService } from '../../../../../editor/common/services/resolverService.js';
 import { InMemoryTextModelService } from '../../../../../editor/common/services/inMemoryTextModelService.js';
@@ -343,7 +343,9 @@ suite('SessionChangesEditor disposal', () => {
 		}());
 		// The real diffs, as the multi-diff editor's tests create them
 		instantiationService.stub(IDiffProviderFactoryService, new TestDiffProviderFactoryService());
-		instantiationService.stub(IEditorProgressService, new class extends mock<IEditorProgressService>() { }());
+		instantiationService.stub(IEditorProgressService, new class extends mock<IEditorProgressService>() {
+			override show() { return emptyProgressRunner; }
+		}());
 		instantiationService.stub(IUserInteractionService, new MockUserInteractionService(false));
 		instantiationService.stub(ITextModelService, instantiationService.createInstance(InMemoryTextModelService));
 		// Instantiation services that dispose as the workbench's do, which those of the test services do not

@@ -2,7 +2,7 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-import { addDisposableListener, EventHelper, EventType, getWindow, h, scheduleAtNextAnimationFrame, trackFocus } from '../../../../base/browser/dom.js';
+import { addDisposableListener, EventHelper, EventType, getWindow, h, isAncestorOfActiveElement, scheduleAtNextAnimationFrame, trackFocus } from '../../../../base/browser/dom.js';
 import { Button } from '../../../../base/browser/ui/button/button.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { BugIndicatingError } from '../../../../base/common/errors.js';
@@ -119,7 +119,7 @@ export class DiffEditorItemTemplate extends VirtualizedItemTemplate<DocumentDiff
 				h('div.editorContainer@editor'),
 				h('div.binary-file-placeholder@binaryFilePlaceholder', { role: 'group', 'aria-label': binaryFileChangedLabel }, [
 					h('div.binary-file-placeholder-content', [
-						h('span', [binaryFileChangedLabel]),
+						h('span@placeholderLabel', [binaryFileChangedLabel]),
 						h('div.binary-file-placeholder-actions@binaryFilePlaceholderActions'),
 					]),
 				]),
@@ -244,12 +244,24 @@ export class DiffEditorItemTemplate extends VirtualizedItemTemplate<DocumentDiff
 		this._register(autorun(reader => {
 			const collapsed = this._collapsed.read(reader);
 			const item = this._viewModel.read(reader);
+			const loaded = item?.isLoaded.read(reader) === true;
+			const error = item?.loadError.read(reader);
 			const isBinary = item?.isBinary === true;
-			const canOpenDiff = !!(item?.originalUri && item.modifiedUri && this._openBinaryDiffButton);
-			this._elements.editor.style.display = collapsed || isBinary ? 'none' : 'block';
-			this._elements.binaryFilePlaceholder.style.display = !collapsed && isBinary ? 'grid' : 'none';
+			const restoreFocus = loaded && !isBinary && isAncestorOfActiveElement(this._elements.binaryFilePlaceholder);
+			const canOpenDiff = isBinary && !!(item?.originalUri && item.modifiedUri && this._openBinaryDiffButton);
+			const label = error ? localize('loadingFailed', "Unable to load this file.")
+				: !loaded ? localize('loading', "Loading...")
+					: binaryFileChangedLabel;
+			this._elements.placeholderLabel.textContent = label;
+			this._elements.binaryFilePlaceholder.setAttribute('aria-label', label);
+			this._elements.binaryFilePlaceholder.setAttribute('aria-busy', String(!loaded && !error));
+			this._elements.editor.style.display = collapsed || isBinary || !loaded ? 'none' : 'block';
+			this._elements.binaryFilePlaceholder.style.display = !collapsed && (isBinary || !loaded) ? 'grid' : 'none';
 			this._elements.binaryFilePlaceholder.tabIndex = canOpenDiff ? -1 : 0;
 			this._elements.binaryFilePlaceholderActions.style.display = canOpenDiff ? '' : 'none';
+			if (restoreFocus && !collapsed) {
+				this.editor.focus();
+			}
 			if (this._variantConfiguration.headerClickToCollapse) {
 				this._elements.header.setAttribute('aria-expanded', String(!collapsed));
 			}
@@ -271,7 +283,7 @@ export class DiffEditorItemTemplate extends VirtualizedItemTemplate<DocumentDiff
 				this._originalContentWidth.set(this.editor.getOriginalEditor().getContentWidth(), tx);
 			});
 			const viewModel = this._viewModel.get();
-			if (this._isSettingData || viewModel?.isBinary || !viewModel?.diffEditorViewModel.isDiffUpToDate.get()) {
+			if (this._isSettingData || !viewModel?.isLoaded.get() || viewModel.isBinary || !viewModel.diffEditorViewModel.isDiffUpToDate.get()) {
 				return;
 			}
 			this._observedEditorContentHeight = e.contentHeight;
@@ -440,12 +452,44 @@ export class DiffEditorItemTemplate extends VirtualizedItemTemplate<DocumentDiff
 				this._dataStore.clear();
 				this._viewModel.set(item, tx);
 				this.editor.updateOptions(updateOptions(value.options ?? {}));
-				this.editor.setDiffModel(item.diffEditorViewModelRef, tx);
+				this.editor.setDiffModel(null, tx);
 			});
 		} finally {
 			this._isSettingData = false;
 		}
 		this._dataStore.add(autorun(reader => {
+			if (!item.collapsed.read(reader)) {
+				void item.load().catch(() => { });
+			}
+		}));
+		this._dataStore.add(autorun(reader => {
+			if (!item.isLoaded.read(reader)) {
+				return;
+			}
+			const value = item.documentDiffItem;
+			this._isSettingData = true;
+			try {
+				this.editor.updateOptions(updateOptions(value.options ?? {}));
+				this.editor.setDiffModel(item.diffEditorViewModelRef);
+				const selections = item.lastTemplateData.read(undefined).selections;
+				if (selections) {
+					this.editor.setSelections(selections);
+				}
+			} finally {
+				this._isSettingData = false;
+			}
+			if (value.onOptionsDidChange) {
+				reader.store.add(value.onOptionsDidChange(() => this.editor.updateOptions(updateOptions(value.options ?? {}))));
+			}
+			if (item.isBinary) {
+				this._observedEditorContentHeight = binaryFilePlaceholderContentHeight;
+				this._scheduleVerticalStateUpdate();
+			}
+		}));
+		this._dataStore.add(autorun(reader => {
+			if (!item.isLoaded.read(reader)) {
+				return;
+			}
 			if (item.isBinary) {
 				return;
 			}
@@ -460,15 +504,10 @@ export class DiffEditorItemTemplate extends VirtualizedItemTemplate<DocumentDiff
 			this._observedEditorContentHeight = this.editor.getContentHeight();
 			this._scheduleVerticalStateUpdate();
 		}));
-		if (value.onOptionsDidChange) {
-			this._dataStore.add(value.onOptionsDidChange(() => {
-				this.editor.updateOptions(updateOptions(value.options ?? {}));
-			}));
-		}
 		if (optionsOverride) {
 			this._dataStore.add(autorun(reader => {
 				optionsOverride.read(reader);
-				this.editor.updateOptions(updateOptions(value.options ?? {}));
+				this.editor.updateOptions(updateOptions(item.documentDiffItem.options ?? {}));
 			}));
 		}
 		if (item.documentDiffItem.contextKeys) {
@@ -577,7 +616,7 @@ export class DiffEditorItemBinding extends VirtualizedItemBinding<DocumentDiffIt
 	}
 
 	focus(): void {
-		if (this.item.isBinary) {
+		if (!this.item.isLoaded.get() || this.item.isBinary) {
 			this._template.focusBinaryFilePlaceholder();
 		} else {
 			this.editor.focus();

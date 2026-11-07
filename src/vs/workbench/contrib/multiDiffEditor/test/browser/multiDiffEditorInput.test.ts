@@ -5,7 +5,7 @@
 
 import assert from 'assert';
 import { DeferredPromise, timeout } from '../../../../../base/common/async.js';
-import { CancellationError } from '../../../../../base/common/errors.js';
+import { CancellationError, errorHandler, setUnexpectedErrorHandler } from '../../../../../base/common/errors.js';
 import { Emitter, Event, ValueWithChangeEvent } from '../../../../../base/common/event.js';
 import { IReference, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { autorun, observableFromValueWithChangeEvent, observableValue, ValueWithChangeEventFromObservable, waitForState } from '../../../../../base/common/observable.js';
@@ -16,9 +16,9 @@ import { IDiffProviderFactoryService } from '../../../../../editor/browser/widge
 import { IResolvedTextEditorModel, ITextModelService } from '../../../../../editor/common/services/resolverService.js';
 import { ITextResourceConfigurationChangeEvent, ITextResourceConfigurationService } from '../../../../../editor/common/services/textResourceConfiguration.js';
 import { TestDiffProviderFactoryService } from '../../../../../editor/test/browser/diff/testDiffProviderFactoryService.js';
-import { createCodeEditorServices } from '../../../../../editor/test/browser/testCodeEditor.js';
+import { IDocumentDiffProvider } from '../../../../../editor/common/diff/documentDiffProvider.js';
 import { instantiateTextModel } from '../../../../../editor/test/common/testTextModel.js';
-import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
+import { createCodeEditorServices } from '../../../../../editor/test/browser/testCodeEditor.js';
 import { ServiceCollection } from '../../../../../platform/instantiation/common/serviceCollection.js';
 import { ITextFileEditorModelManager, ITextFileService, TextFileOperationError, TextFileOperationResult } from '../../../../services/textfile/common/textfiles.js';
 import { MultiDiffEditorInput } from '../../browser/multiDiffEditorInput.js';
@@ -27,6 +27,190 @@ import { IMultiDiffSourceResolverService, MultiDiffEditorItem } from '../../brow
 suite('MultiDiffEditorInput', () => {
 
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
+
+	function createLazyInput(count: number) {
+		const requests: string[] = [];
+		const diffs: string[] = [];
+		const released: string[] = [];
+		const pending = new Map<string, DeferredPromise<void>>();
+		const resources = observableValue('resources', Array.from({ length: count }, (_, index) => new MultiDiffEditorItem(
+			URI.parse(`test:///original/${index}`), URI.parse(`test:///modified/${index}`), undefined,
+		)));
+		const services = new ServiceCollection();
+		services.set(IDiffProviderFactoryService, new class extends TestDiffProviderFactoryService {
+			override createDiffProvider(): IDocumentDiffProvider {
+				const provider = super.createDiffProvider();
+				return {
+					onDidChange: provider.onDidChange,
+					computeDiff: (...args) => {
+						diffs.push(args[1].uri.path);
+						return provider.computeDiff(...args);
+					},
+				};
+			}
+		}());
+		const instantiationService = createCodeEditorServices(disposables, services);
+		const textModelService = new class extends mock<ITextModelService>() {
+			override async createModelReference(resource: URI): Promise<IReference<IResolvedTextEditorModel>> {
+				requests.push(resource.path);
+				await pending.get(resource.path)?.p;
+				const model = instantiateTextModel(instantiationService, resource.path, undefined, undefined, resource);
+				return {
+					object: new class extends mock<IResolvedTextEditorModel>() {
+						override readonly textEditorModel = model;
+						override isReadonly() { return true; }
+					}(),
+					dispose: () => {
+						released.push(resource.path);
+						model.dispose();
+					},
+				};
+			}
+		}();
+		const saved: string[] = [];
+		const dirty = new Set<string>();
+		const textFileService = new class extends mock<ITextFileService>() {
+			override readonly files = new class extends mock<ITextFileEditorModelManager>() {
+				override readonly onDidChangeDirty = Event.None;
+			}();
+			override isDirty(resource: URI) { return dirty.has(resource.path); }
+			override async save(resource: URI) { saved.push(resource.path); return undefined; }
+		}();
+		const input = disposables.add(new MultiDiffEditorInput(
+			URI.parse('multi-diff-editor:test'),
+			'Test',
+			undefined,
+			false,
+			textModelService,
+			new class extends mock<ITextResourceConfigurationService>() {
+				override readonly onDidChangeConfiguration = Event.None;
+				override getValue<T>(): T { return {} as T; }
+			}(),
+			instantiationService,
+			new class extends mock<IMultiDiffSourceResolverService>() {
+				override async resolve() {
+					return { resources: new ValueWithChangeEventFromObservable(resources) };
+				}
+			}(),
+			textFileService,
+		));
+		return { input, requests, diffs, released, pending, resources, saved, dirty };
+	}
+
+	test('loads and computes only the first five diffs until another item is requested', async () => {
+		const { input, requests, diffs } = createLazyInput(1000);
+		const viewModel = await input.getViewModel();
+		const initial = { items: viewModel.items.get().length, requests: [...requests], diffs: [...diffs] };
+		const last = viewModel.items.get()[999];
+		await Promise.all([last.load(), last.load()]);
+		await last.diffEditorViewModel.waitForDiff();
+		await timeout(0);
+		assert.deepStrictEqual({
+			initial,
+			additionalRequests: requests.slice(10),
+			additionalDiffs: diffs.slice(5),
+			unloaded: viewModel.items.get().slice(5, 999).every(item => !item.isLoaded.get() && !item.isBinary),
+		}, {
+			initial: {
+				items: 1000,
+				requests: Array.from({ length: 5 }, (_, i) => [`/original/${i}`, `/modified/${i}`]).flat(),
+				diffs: Array.from({ length: 5 }, (_, i) => `/modified/${i}`),
+			},
+			additionalRequests: ['/original/999', '/modified/999'],
+			additionalDiffs: ['/modified/999'],
+			unloaded: true,
+		});
+	});
+
+	test('releases a requested item removed while its contents are loading', async () => {
+		const { input, requests, diffs, released, pending, resources } = createLazyInput(10);
+		const viewModel = await input.getViewModel();
+		const finish = new DeferredPromise<void>();
+		pending.set('/modified/9', finish);
+		const item = viewModel.items.get()[9];
+		const loading = item.load();
+		resources.set(resources.get().slice(0, 9), undefined);
+		await finish.complete();
+		await loading;
+		assert.deepStrictEqual({
+			items: viewModel.items.get().length,
+			alive: item.isAlive.get(),
+			additionalRequests: requests.slice(10),
+			additionalDiffs: diffs.slice(5),
+			released: released.sort(),
+		}, {
+			items: 9, alive: false,
+			additionalRequests: ['/original/9', '/modified/9'],
+			additionalDiffs: [],
+			released: ['/modified/9', '/original/9'],
+		});
+	});
+
+	test('publishes all entries and ready diffs without waiting for a slow initial file', async () => {
+		const { input, requests, pending } = createLazyInput(1000);
+		const finish = new DeferredPromise<void>();
+		pending.set('/modified/0', finish);
+		const viewModel = await input.getViewModel();
+		const state = {
+			items: viewModel.items.get().length,
+			requests: requests.length,
+			loaded: viewModel.items.get().slice(0, 6).map(item => item.isLoaded.get()),
+		};
+		await finish.complete();
+		await viewModel.waitForDiffOr1s();
+		assert.deepStrictEqual(state, {
+			items: 1000,
+			requests: 10,
+			loaded: [false, true, true, true, true, false],
+		});
+	});
+
+	test('failed lazy resolution releases the other side and preserves the file entry', async () => {
+		const { input, requests, diffs, pending, released } = createLazyInput(10);
+		const viewModel = await input.getViewModel();
+		const finish = new DeferredPromise<void>();
+		pending.set('/modified/9', finish);
+		const item = viewModel.items.get()[9];
+		const error = new Error('File unavailable');
+		const previousErrorHandler = errorHandler.getUnexpectedErrorHandler();
+		const reportedErrors: unknown[] = [];
+		setUnexpectedErrorHandler(e => reportedErrors.push(e));
+		try {
+			const rejected = assert.rejects(item.load(), error);
+			await finish.error(error);
+			await rejected;
+			await assert.rejects(item.load(), error);
+		} finally {
+			setUnexpectedErrorHandler(previousErrorHandler);
+		}
+		assert.deepStrictEqual({
+			items: viewModel.items.get().length,
+			loaded: item.isLoaded.get(),
+			binary: item.isBinary,
+			error: item.loadError.get(),
+			reportedErrors,
+			requests: requests.slice(10),
+			diffs: diffs.slice(5),
+			released,
+		}, {
+			items: 10, loaded: false, binary: false, error,
+			reportedErrors: [error],
+			requests: ['/original/9', '/modified/9'],
+			diffs: [],
+			released: ['/original/9'],
+		});
+	});
+
+	test('saving dirty unloaded resources does not load their diffs', async () => {
+		const { input, requests, saved, dirty } = createLazyInput(10);
+		await input.getViewModel();
+		dirty.add('/modified/9');
+		await input.save(1);
+		assert.deepStrictEqual({ requests: requests.length, saved }, {
+			requests: 10,
+			saved: ['/modified/0', '/modified/1', '/modified/2', '/modified/3', '/modified/4', '/modified/9'],
+		});
+	});
 
 	test('updates its name from the resolved source label', async () => {
 		const sourceLabel = observableValue('sourceLabel', 'Current Turn Changes');
@@ -88,7 +272,7 @@ suite('MultiDiffEditorInput', () => {
 			false,
 			textModelService,
 			new class extends mock<ITextResourceConfigurationService>() { }(),
-			new class extends mock<IInstantiationService>() { }(),
+			createCodeEditorServices(disposables),
 			new class extends mock<IMultiDiffSourceResolverService>() { }(),
 			textFileService,
 		));
@@ -195,6 +379,7 @@ suite('MultiDiffEditorInput', () => {
 			}, {
 				publishedDocuments: [
 					['/modified/removed.ts'],
+					['/modified/removed.ts', '/modified/slow.ts'],
 					...(update === 'dispose' ? [] : [update === 'replace' ? ['/modified/current.ts'] : []]),
 				],
 				releasedReferences: ['/modified/removed.ts', '/modified/slow.ts', '/original/removed.ts', '/original/slow.ts'],
