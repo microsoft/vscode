@@ -4994,6 +4994,16 @@
               "readOnly": true
             }
           },
+          "github.copilot.chat.cli.legacyProvider.enabled": {
+            "type": "boolean",
+            "default": true,
+            "markdownDescription": "%github.copilot.config.cli.legacyProvider.enabled%",
+            "tags": [
+              "advanced",
+              "experimental",
+              "onExp"
+            ]
+          },
           "github.copilot.chat.cli.sessionControllerForSessionsApp.enabled": {
             "type": "boolean",
             "default": false,
@@ -5509,6 +5519,10 @@
         {
           "command": "github.copilot.report",
           "when": "false"
+        },
+        {
+          "command": "agents.github.copilot.cli.deleteSessions",
+          "when": "!github.copilot.chat.cli.legacyProviderDisabled"
         },
         {
           "command": "github.copilot.cli.openInCopilotCLI",
@@ -6557,7 +6571,7 @@
         "order": 1,
         "canDelegate": true,
         "description": "%github.copilot.session.providerDescription.background%",
-        "when": "config.github.copilot.chat.backgroundAgent.enabled",
+        "when": "config.github.copilot.chat.backgroundAgent.enabled && !github.copilot.chat.cli.legacyProviderDisabled",
         "supportsAutoModel": true,
         "requiresCopilotSignIn": true,
         "capabilities": {

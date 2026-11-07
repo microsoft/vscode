@@ -14,6 +14,7 @@ import { IGitService } from '../../../platform/git/common/gitService';
 import { IOctoKitService } from '../../../platform/github/common/githubService';
 import { OctoKitService } from '../../../platform/github/common/octoKitServiceImpl';
 import { ILogService } from '../../../platform/log/common/logService';
+import { IExperimentationService } from '../../../platform/telemetry/common/nullExperimentationService';
 import { Disposable, DisposableStore } from '../../../util/vs/base/common/lifecycle';
 import { SyncDescriptor } from '../../../util/vs/platform/instantiation/common/descriptors';
 import { IInstantiationService } from '../../../util/vs/platform/instantiation/common/instantiation';
@@ -126,10 +127,18 @@ export class ChatSessionsContrib extends Disposable implements IExtensionContrib
 		// The cloud agent does not depend on the extension-host Copilot CLI session provider, which
 		// only uses it to delegate a session to the cloud.
 		const cloudSessionProvider = this.registerCopilotCloudAgent();
+		const legacyProviderEnabled = instantiationService.invokeFunction(accessor =>
+			accessor.get(IConfigurationService).getExperimentBasedConfig(ConfigKey.Advanced.CLILegacyProviderEnabled, accessor.get(IExperimentationService))
+		);
+		if (!legacyProviderEnabled) {
+			// Hides the `copilotcli` session type; its sessions are migrated to the agent host when opened.
+			void vscode.commands.executeCommand('setContext', 'github.copilot.chat.cli.legacyProviderDisabled', true);
+			logService.info('[ChatSessions] Extension-host Copilot CLI session provider is disabled');
+			return;
+		}
 		useController
 			? this.registerCopilotCLIServices(copilotCLITerminalInstaService, delegationSummary, cloudSessionProvider, logService)
 			: this.registerCopilotCLIServicesV1(copilotCLITerminalInstaService, delegationSummary, cloudSessionProvider, logService);
-
 	}
 
 	private registerCopilotCLITerminal(instantiationService: IInstantiationService): IInstantiationService {

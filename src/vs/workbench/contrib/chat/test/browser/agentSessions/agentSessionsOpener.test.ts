@@ -106,7 +106,7 @@ suite('AgentSessionsOpener', () => {
 		const instantiationService = disposables.add(new TestInstantiationService());
 		instantiationService.stub(ILogService, new NullLogService());
 		instantiationService.stub(ITelemetryService, NullTelemetryService);
-		instantiationService.stub(IConfigurationService, new TestConfigurationService({ [ChatConfiguration.MigrateLegacyCopilotCliSessions]: true }));
+		instantiationService.stub(IConfigurationService, new TestConfigurationService());
 		instantiationService.stub(IProgressService, upcastPartial<IProgressService>({ withProgress: (_options, task) => task({ report() { } }) }));
 		// A host that answers the adoption probe with state, i.e. migration succeeded.
 		instantiationService.stub(IAgentHostConnectionsService, upcastPartial<IAgentHostConnectionsService>({
@@ -164,7 +164,7 @@ suite('AgentSessionsOpener', () => {
 		const instantiationService = disposables.add(new TestInstantiationService());
 		instantiationService.stub(ILogService, new NullLogService());
 		instantiationService.stub(ITelemetryService, NullTelemetryService);
-		instantiationService.stub(IConfigurationService, new TestConfigurationService({ [ChatConfiguration.MigrateLegacyCopilotCliSessions]: true }));
+		instantiationService.stub(IConfigurationService, new TestConfigurationService());
 		instantiationService.stub(IProgressService, upcastPartial<IProgressService>({ withProgress: (_options, task) => task({ report() { } }) }));
 		instantiationService.stub(IAgentHostConnectionsService, upcastPartial<IAgentHostConnectionsService>({
 			ambientConnection: new class extends mock<IAgentConnection>() {
@@ -255,7 +255,7 @@ suite('AgentSessionsOpener', () => {
 				events.push({ name, data });
 			}
 		});
-		instantiationService.stub(IConfigurationService, new TestConfigurationService({ [ChatConfiguration.MigrateLegacyCopilotCliSessions]: true }));
+		instantiationService.stub(IConfigurationService, new TestConfigurationService());
 		instantiationService.stub(IProgressService, upcastPartial<IProgressService>({ withProgress: (_options, task) => task({ report() { } }) }));
 		instantiationService.stub(IAgentHostConnectionsService, upcastPartial<IAgentHostConnectionsService>({
 			ambientConnection: new class extends mock<IAgentConnection>() {
@@ -291,7 +291,7 @@ suite('AgentSessionsOpener', () => {
 					events.push({ name, data });
 				}
 			});
-			instantiationService.stub(IConfigurationService, new TestConfigurationService({ [ChatConfiguration.MigrateLegacyCopilotCliSessions]: true }));
+			instantiationService.stub(IConfigurationService, new TestConfigurationService());
 			instantiationService.stub(IProgressService, upcastPartial<IProgressService>({ withProgress: (_options, task) => task({ report() { } }) }));
 			instantiationService.stub(IAgentHostConnectionsService, upcastPartial<IAgentHostConnectionsService>({
 				ambientConnection: new class extends mock<IAgentConnection>() {
@@ -363,7 +363,7 @@ suite('AgentSessionsOpener', () => {
 		const instantiationService = disposables.add(new TestInstantiationService());
 		instantiationService.stub(ILogService, new NullLogService());
 		instantiationService.stub(ITelemetryService, NullTelemetryService);
-		instantiationService.stub(IConfigurationService, new TestConfigurationService({ [ChatConfiguration.MigrateLegacyCopilotCliSessions]: true }));
+		instantiationService.stub(IConfigurationService, new TestConfigurationService());
 		instantiationService.stub(IProgressService, upcastPartial<IProgressService>({ withProgress: (_options, task) => task({ report() { } }) }));
 		instantiationService.stub(IAgentHostConnectionsService, upcastPartial<IAgentHostConnectionsService>({ ambientConnection: undefined }));
 		instantiationService.stub(IChatSessionsService, upcastPartial<IChatSessionsService>({

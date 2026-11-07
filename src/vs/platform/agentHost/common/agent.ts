@@ -233,12 +233,6 @@ export interface IAgentChatHistoryChange {
 /** Returns the candidate session URI keys already present in the host registry. */
 export type IAgentKnownSessionsFilter = (sessions: readonly URI[]) => Promise<ReadonlySet<string>>;
 
-/** Options for {@link IAgent.startChatDiscovery}. */
-export interface IAgentChatDiscoveryOptions {
-	/** The host's startup-frozen gate for publishing adoptable legacy chats. */
-	readonly migrateLegacyChats: boolean;
-}
-
 /** Lightweight ordered chat metadata for session-list presentation. */
 export interface IAgentSessionChatMetadata {
 	readonly chat: URI;
@@ -2246,7 +2240,7 @@ export interface IAgent {
 	 * The host passes its own startup-frozen legacy-migration gate so discovery
 	 * and listing always agree on whether legacy chats are adoptable.
 	 */
-	startChatDiscovery?(options?: IAgentChatDiscoveryOptions): Promise<void>;
+	startChatDiscovery?(): Promise<void>;
 
 	/** Lets discovery drop registered candidates before per-session I/O. */
 	setKnownSessionsFilter?(filter: IAgentKnownSessionsFilter): void;
