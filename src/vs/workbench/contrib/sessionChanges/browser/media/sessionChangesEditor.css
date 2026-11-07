@@ -40,6 +40,14 @@
 	display: flex;
 }
 
+.session-changes-editor-progress {
+	position: absolute;
+	top: 0;
+	left: 0;
+	right: 0;
+	z-index: 11;
+}
+
 .session-changes-editor-body.has-empty-state .multiDiffEditor .placeholder,
 .session-changes-editor-body.changes-loading .multiDiffEditor .placeholder {
 	display: none;

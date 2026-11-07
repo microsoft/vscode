@@ -518,7 +518,7 @@ suite('SessionChangesEditor chat changes observation', () => {
 suite('SessionChangesEditor chat changes loading', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
-	test('while the chat its input names loads its changes, shows progress rather than "No Changed Files", only while visible, and the empty state once loaded', async () => {
+	test('while the chat its input names loads its changes, past the time setInput waits for them, shows its own progress rather than "No Changed Files", only while visible, and the empty state once loaded', async () => {
 		const instantiationService = workbenchInstantiationService(undefined, store);
 		instantiationService.stub(IMenuService, store.add(instantiationService.createInstance(MenuService)));
 		const activeSession = constObservable<ITestSessionWithChat | undefined>(undefined);
@@ -528,7 +528,7 @@ suite('SessionChangesEditor chat changes loading', () => {
 			readonly windowSessions = constObservable<readonly ITestSessionWithChat[]>([]);
 		}());
 		stubSessionHosts(instantiationService, store, { session: activeSession });
-		const changesetLoading = observableValue('changesetLoading', false);
+		const changesetLoading = observableValue('changesetLoading', true);
 		instantiationService.stub(IChangesViewService, new class extends mock<IChangesViewService>() {
 			override readonly activeSessionHasGitRepositoryObs = constObservable(false);
 			override readonly activeSessionResourceObs = constObservable<URI | undefined>(undefined);
@@ -556,13 +556,7 @@ suite('SessionChangesEditor chat changes loading', () => {
 			override readonly diffEditorWordWrap = constObservable<SessionsWordWrap>('off');
 		}());
 		instantiationService.stub(IDiffProviderFactoryService, new TestDiffProviderFactoryService());
-		const progress = { shown: 0, done: 0 };
-		instantiationService.stub(IEditorProgressService, new class extends mock<IEditorProgressService>() {
-			override show() {
-				progress.shown++;
-				return { done: () => { progress.done++; }, total() { }, worked() { } };
-			}
-		}());
+		instantiationService.stub(IEditorProgressService, new class extends mock<IEditorProgressService>() { }());
 		instantiationService.stub(IUserInteractionService, new MockUserInteractionService(false));
 		instantiationService.stub(ITextModelService, instantiationService.createInstance(InMemoryTextModelService));
 		const editorInstantiationService = store.add(new InstantiationService(new ServiceCollection(), false, instantiationService));
@@ -577,36 +571,36 @@ suite('SessionChangesEditor chat changes loading', () => {
 		const input = store.add(instantiationService.createInstance(SessionChangesEditorInput, URI.parse('session-changes:/x')));
 		input.getViewModel = async () => viewModel;
 		input.clear = () => { };
-		editor.setVisible(true);
-		await editor.setInput(input, undefined, {}, CancellationToken.None);
-		await waitForState(viewModel.isLoading, isLoading => !isLoading);
-
 		const shown = (selector: string) => {
 			const element = parent.querySelector<HTMLElement>(selector);
 			return !!element && !element.hidden && mainWindow.getComputedStyle(element).display !== 'none';
 		};
-		const presentation = () => ({
-			noChangedFilesPlaceholder: shown('.multiDiffEditor .placeholder.visible'),
-			emptyState: shown('.session-changes-editor-empty-state'),
-			progressRunning: progress.shown - progress.done,
-		});
-		const loaded = presentation();
-		changesetLoading.set(true, undefined);
-		const loading = presentation();
-		editor.setVisible(false);
-		const loadingHidden = presentation();
+		const presentation = async () => {
+			await timeout(250);
+			return {
+				noChangedFilesPlaceholder: shown('.multiDiffEditor .placeholder.visible'),
+				emptyState: shown('.session-changes-editor-empty-state'),
+				progress: shown('.session-changes-editor-progress .monaco-progress-container.active'),
+			};
+		};
 		editor.setVisible(true);
-		const loadingShownAgain = presentation();
+		// Resolves the empty diffs once it stops waiting for the changes, which are still loading.
+		await editor.setInput(input, undefined, {}, CancellationToken.None);
+		await waitForState(viewModel.isLoading, isLoading => !isLoading);
+		const loading = await presentation();
+		editor.setVisible(false);
+		const loadingHidden = await presentation();
+		editor.setVisible(true);
+		const loadingShownAgain = await presentation();
 		changesetLoading.set(false, undefined);
-		const loadedAgain = presentation();
+		const loaded = await presentation();
 		editor.clearInput();
 
-		assert.deepStrictEqual({ loaded, loading, loadingHidden, loadingShownAgain, loadedAgain }, {
-			loaded: { noChangedFilesPlaceholder: false, emptyState: true, progressRunning: 0 },
-			loading: { noChangedFilesPlaceholder: false, emptyState: false, progressRunning: 1 },
-			loadingHidden: { noChangedFilesPlaceholder: false, emptyState: false, progressRunning: 0 },
-			loadingShownAgain: { noChangedFilesPlaceholder: false, emptyState: false, progressRunning: 1 },
-			loadedAgain: { noChangedFilesPlaceholder: false, emptyState: true, progressRunning: 0 },
+		assert.deepStrictEqual({ loading, loadingHidden, loadingShownAgain, loaded }, {
+			loading: { noChangedFilesPlaceholder: false, emptyState: false, progress: true },
+			loadingHidden: { noChangedFilesPlaceholder: false, emptyState: false, progress: false },
+			loadingShownAgain: { noChangedFilesPlaceholder: false, emptyState: false, progress: true },
+			loaded: { noChangedFilesPlaceholder: false, emptyState: true, progress: false },
 		});
 	});
 });

@@ -48,7 +48,6 @@ import { AgentWorkbenchLayout, ISessionsHostLayoutService } from '../../../servi
 import { ActiveSessionContextKeys, SessionChangesEditorFileListContext } from '../../sessions/common/changes.js';
 import { ISessionHost, ISessionHostService } from '../../../services/sessions/browser/sessionHost.js';
 import { ISessionsManagementService } from '../../sessions/common/sessionsManagement.js';
-import { IEditorProgressService } from '../../../../platform/progress/common/progress.js';
 import { getChangesEditorChanges, observeChangesEditorChat } from './changesMultiDiffSourceResolver.js';
 import { IChangesEditorScope, IChangesSessionScope, IChangesViewService } from '../../sessions/common/changesViewService.js';
 import { ChangesActionsBar, createChangesEditorScope } from './changesView.js';
@@ -61,7 +60,8 @@ import { IActionViewItemOptions } from '../../../../base/browser/ui/actionbar/ac
 import { IActionViewItem } from '../../../../base/browser/ui/actionbar/actionbar.js';
 import { MenuItemAction } from '../../../../platform/actions/common/actions.js';
 import { CheckboxActionViewItem } from '../../../../base/browser/ui/toggle/toggle.js';
-import { defaultCheckboxStyles } from '../../../../platform/theme/browser/defaultStyles.js';
+import { defaultCheckboxStyles, defaultProgressBarStyles } from '../../../../platform/theme/browser/defaultStyles.js';
+import { ProgressBar } from '../../../../base/browser/ui/progressbar/progressbar.js';
 import { localize } from '../../../../nls.js';
 import { getChangesEditorFileStats } from './changesEditorLabels.js';
 import { IDiffEditorOptionsService } from '../../../services/editor/common/diffEditorOptionsService.js';
@@ -298,7 +298,6 @@ export class SessionChangesEditor extends AbstractEditorWithViewState<IMultiDiff
 		@ISessionHostService private readonly sessionHostService: ISessionHostService,
 		@ISessionHost private readonly sessionHost: ISessionHost,
 		@ISessionsManagementService private readonly sessionsManagementService: ISessionsManagementService,
-		@IEditorProgressService private readonly editorProgressService: IEditorProgressService,
 	) {
 		super(
 			SessionChangesEditor.ID,
@@ -379,12 +378,15 @@ export class SessionChangesEditor extends AbstractEditorWithViewState<IMultiDiff
 				this.emptyState?.layout();
 			}
 		}));
+		const loadingProgressBar = this._register(new ProgressBar(append(this.bodyContainer, $('.session-changes-editor-progress')), defaultProgressBarStyles));
+		loadingProgressBar.stop().hide();
 		this._register(autorun(reader => {
 			const loading = this._inputChangesLoadingObs.read(reader);
 			this.bodyContainer?.classList.toggle('changes-loading', loading);
 			if (loading && this._paneVisible.read(reader)) {
-				const progress = this.editorProgressService.show(true, CHANGES_LOADING_PROGRESS_DELAY_MS);
-				reader.store.add(toDisposable(() => progress.done()));
+				loadingProgressBar.infinite().show(CHANGES_LOADING_PROGRESS_DELAY_MS);
+			} else {
+				loadingProgressBar.stop().hide();
 			}
 		}));
 		this._register(autorun(reader => {
