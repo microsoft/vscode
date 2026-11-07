@@ -695,6 +695,10 @@ export class WebviewElement extends Disposable implements IWebviewElement, Webvi
 		};
 	}
 
+	protected get localResourceRoots(): readonly URI[] {
+		return this._content.options.localResourceRoots ?? [];
+	}
+
 	public set state(state: string | undefined) {
 		this._content = { ...this._content, state };
 	}
@@ -849,7 +853,7 @@ export class WebviewElement extends Disposable implements IWebviewElement, Webvi
 				: undefined;
 			const result = await this._instantiationService.invokeFunction(loadLocalResource, uri, {
 				ifNoneMatch: options.ifNoneMatch,
-				roots: this._content.options.localResourceRoots || [],
+				roots: this.localResourceRoots,
 				range: options.range,
 				remoteOS,
 			}, token);

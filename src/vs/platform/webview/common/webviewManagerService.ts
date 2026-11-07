@@ -29,10 +29,18 @@ export interface FoundInFrameResult {
 	readonly finalUpdate: boolean;
 }
 
+export interface WebviewResourceDownload {
+	readonly url: string;
+	/** Chromium's origin of the initiating frame, not the downloaded resource. */
+	readonly origin: string;
+}
+
 export interface IWebviewManagerService {
 	_serviceBrand: unknown;
 
 	readonly onFoundInFrame: Event<FoundInFrameResult>;
+
+	onDynamicDidDownloadResource(webviewId: string): Event<WebviewResourceDownload>;
 
 	setIgnoreMenuShortcuts(id: WebviewWebContentsId | WebviewWindowId, enabled: boolean): Promise<void>;
 
