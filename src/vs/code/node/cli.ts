@@ -69,7 +69,8 @@ export async function main(argv: string[]): Promise<void> {
 			const tunnelArgs = argv.slice(argv.indexOf(subcommand) + 1); // all arguments behind `tunnel`
 			return new Promise((resolve, reject) => {
 				let tunnelProcess: ChildProcess;
-				const stdio: StdioOptions = ['ignore', 'pipe', 'pipe'];
+				// Preserve Windows console handles so the native CLI can detect its encoding.
+				const stdio: StdioOptions = isWindows ? 'inherit' : ['ignore', 'pipe', 'pipe'];
 				if (process.env['VSCODE_DEV']) {
 					tunnelProcess = spawn('cargo', ['run', '--', subcommand, ...tunnelArgs], { cwd: join(getAppRoot(), 'cli'), stdio, env });
 				} else {
@@ -81,8 +82,8 @@ export async function main(argv: string[]): Promise<void> {
 					tunnelProcess = spawn(tunnelCommand, [subcommand, ...tunnelArgs], { cwd: cwd(), stdio, env });
 				}
 
-				tunnelProcess.stdout!.pipe(process.stdout);
-				tunnelProcess.stderr!.pipe(process.stderr);
+				tunnelProcess.stdout?.pipe(process.stdout);
+				tunnelProcess.stderr?.pipe(process.stderr);
 				tunnelProcess.on('exit', resolve);
 				tunnelProcess.on('error', reject);
 			});
