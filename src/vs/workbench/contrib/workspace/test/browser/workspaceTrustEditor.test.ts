@@ -401,6 +401,42 @@ suite('WorkspaceTrustedUrisTable', () => {
 		}, { scrolledUp: true, rowVisible: true, focused: ['a-first'] });
 	});
 
+	test('reveals focused rows during keyboard navigation in the surrounding scrollable element', async () => {
+		const content = mainWindow.document.createElement('div');
+		const scrollableElement = store.add(new DomScrollableElement(content, { vertical: ScrollbarVisibility.Auto }));
+		const viewport = scrollableElement.getDomNode();
+		viewport.style.maxHeight = '200px';
+		content.style.maxHeight = '200px';
+		content.appendChild(container);
+		mainWindow.document.body.appendChild(viewport);
+		store.add(toDisposable(() => viewport.remove()));
+
+		createTable(Array.from({ length: 20 }, (_, i) => `n-${String(i).padStart(2, '0')}`), scrollableElement);
+		scrollableElement.scanDomNode();
+		scrollableElement.setScrollPosition({ scrollTop: 0 });
+
+		const list = container.querySelector<HTMLElement>('.monaco-list')!;
+		selectRow('n-00');
+		list.focus();
+
+		const initialScrollTop = scrollableElement.getScrollPosition().scrollTop;
+
+		// Navigate down past the visible area
+		for (let i = 0; i < 15; i++) {
+			(table as unknown as { readonly table: { focusNext(n?: number): void } }).table.focusNext(1);
+		}
+
+		const row = Array.from(container.querySelectorAll('.monaco-list-row')).find(row => label(row) === 'n-15')!;
+		const rowRect = row.getBoundingClientRect();
+		const viewportRect = viewport.getBoundingClientRect();
+
+		assert.deepStrictEqual({
+			scrolledDown: scrollableElement.getScrollPosition().scrollTop > initialScrollTop,
+			rowVisible: rowRect.top >= viewportRect.top && rowRect.bottom <= viewportRect.bottom,
+			focused: getState().focused,
+		}, { scrolledDown: true, rowVisible: true, focused: ['n-15'] });
+	});
+
 	test('moves focus only after the addition completes', async () => {
 		createTable(['c-two', 'z-last']);
 		selectRow('z-last');

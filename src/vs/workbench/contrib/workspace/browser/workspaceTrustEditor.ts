@@ -173,6 +173,19 @@ export class WorkspaceTrustedUrisTable extends Disposable {
 			}
 		}));
 
+		this._register(this.table.onDidChangeFocus(e => {
+			if (e.indexes.length > 0) {
+				this.revealInScrollableElement(e.indexes[0]);
+			}
+		}));
+
+		this._register(this.table.onDidFocus(() => {
+			const focus = this.table.getFocus();
+			if (focus.length > 0) {
+				this.revealInScrollableElement(focus[0]);
+			}
+		}));
+
 		const buttonBar = this._register(new ButtonBar(addButtonBarElement));
 		const addButton = this._register(buttonBar.addButton({ title: localize('addButton', "Add Folder"), ...defaultButtonStyles }));
 		addButton.label = localize('addButton', "Add Folder");
@@ -253,8 +266,9 @@ export class WorkspaceTrustedUrisTable extends Disposable {
 		this.scrollableElement.scanDomNode();
 		const viewportTop = this.scrollableElement.getDomNode().getBoundingClientRect().top;
 		const viewportHeight = this.scrollableElement.getScrollDimensions().height;
+		const headerHeight = TrustedUriTableVirtualDelegate.HEADER_ROW_HEIGHT + 1; // Includes 1px table header border
 		const rowTop = this.table.getHTMLElement().getBoundingClientRect().top - viewportTop
-			+ TrustedUriTableVirtualDelegate.HEADER_ROW_HEIGHT + index * TrustedUriTableVirtualDelegate.ROW_HEIGHT;
+			+ headerHeight + index * TrustedUriTableVirtualDelegate.ROW_HEIGHT;
 		const rowBottom = rowTop + TrustedUriTableVirtualDelegate.ROW_HEIGHT;
 		const { scrollTop } = this.scrollableElement.getScrollPosition();
 
