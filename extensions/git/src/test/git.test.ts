@@ -6,6 +6,9 @@
 import 'mocha';
 import { findGit, Git, GitStatusParser, parseGitCommits, parseGitFileLog, parseGitmodules, parseLsTree, parseLsFiles, parseGitRemotes, parseCoAuthors } from '../git';
 import * as assert from 'assert';
+import * as fs from 'fs';
+import * as os from 'os';
+import * as path from 'path';
 import { LogOutputChannel, window } from 'vscode';
 import { splitInChunks } from '../util';
 
@@ -22,6 +25,25 @@ suite('git', () => {
 
 		suiteTeardown(() => {
 			logger?.dispose();
+		});
+
+		test('lstree preserves non-ASCII filenames with Git pathname quoting enabled', async () => {
+			const repositoryPath = await fs.promises.mkdtemp(path.join(os.tmpdir(), 'git-ls-tree-'));
+			try {
+				await git.init(repositoryPath);
+				await git.exec(repositoryPath, ['config', 'core.quotePath', 'true']);
+				const files = ['café.txt', '日本語.txt', 'plain.txt'];
+				for (const file of files) {
+					await fs.promises.writeFile(path.join(repositoryPath, file), 'content');
+				}
+				await git.exec(repositoryPath, ['add', '--all']);
+				const { stdout } = await git.exec(repositoryPath, ['write-tree']);
+				const repository = git.open(repositoryPath, undefined, { path: path.join(repositoryPath, '.git'), isBare: false }, logger);
+				const entries = await repository.lstree(stdout.trim());
+				assert.deepStrictEqual(entries.map(entry => entry.file), [...files].sort());
+			} finally {
+				await fs.promises.rm(repositoryPath, { recursive: true, force: true });
+			}
 		});
 
 		test('does not raise an uncaught error when git exits before reading its input', async () => {
@@ -591,6 +613,13 @@ suite('git', () => {
 	});
 
 	suite('parseLsTree', function () {
+		test('preserves verbatim pathnames in NUL-terminated output', function () {
+			const files = ['café.txt', '日本語.txt', 'a"b.txt', ' leading.txt', '\ttab.txt', 'line\nbreak.txt'];
+			const object = '257cc5642cb1a054f08cc83f2d943e56fd3ebe99';
+			const input = files.map(file => `100644 blob ${object}       4\t${file}\0`).join('');
+			assert.deepStrictEqual(parseLsTree(input), files.map(file => ({ mode: '100644', type: 'blob', object, size: '4', file })));
+		});
+
 		test('sample', function () {
 			const input = `040000 tree 0274a81f8ee9ca3669295dc40f510bd2021d0043       -	.vscode
 100644 blob 1d487c1817262e4f20efbfa1d04c18f51b0046f6  491570	Screen Shot 2018-06-01 at 14.48.05.png
@@ -602,7 +631,7 @@ suite('git', () => {
 100644 blob ab8b86114a051f6490f1ec5e3141b9a632fb46b5       8	hello.js
 100644 blob 257cc5642cb1a054f08cc83f2d943e56fd3ebe99       4	what.js
 100644 blob be859e3f412fa86513cd8bebe8189d1ea1a3e46d      24	what.txt
-100644 blob 56ec42c9dc6fcf4534788f0fe34b36e09f37d085  261186	what.txt2`;
+100644 blob 56ec42c9dc6fcf4534788f0fe34b36e09f37d085  261186	what.txt2`.replace(/\n/g, '\0');
 
 			const output = parseLsTree(input);
 
