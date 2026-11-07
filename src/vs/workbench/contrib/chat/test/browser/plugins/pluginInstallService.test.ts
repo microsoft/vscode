@@ -1471,9 +1471,9 @@ suite('PluginInstallService', () => {
 			});
 		});
 
-		test('keeps legacy source handling for repository-root plugins', async () => {
+		test('preserves the requested revision for repository-root plugins', async () => {
 			const singlePlugin = createPlugin({
-				sourceDescriptor: { kind: PluginSourceKind.GitHub, repo: 'owner/catalog' },
+				sourceDescriptor: { kind: PluginSourceKind.GitHub, repo: 'owner/catalog', ref: 'release/v1' },
 			});
 			const { service, state } = createService({
 				singlePluginManifestResult: singlePlugin,
@@ -1488,10 +1488,10 @@ suite('PluginInstallService', () => {
 			}, {
 				success: true,
 				sources: [
-					{ kind: PluginSourceKind.GitHub, repo: 'owner/catalog' },
-					{ kind: PluginSourceKind.GitHub, repo: 'owner/catalog' },
+					{ kind: PluginSourceKind.GitHub, repo: 'owner/catalog', ref: 'release/v1' },
+					{ kind: PluginSourceKind.GitHub, repo: 'owner/catalog', ref: 'release/v1' },
 				],
-				installedSource: { kind: PluginSourceKind.GitHub, repo: 'owner/catalog' },
+				installedSource: { kind: PluginSourceKind.GitHub, repo: 'owner/catalog', ref: 'release/v1' },
 			});
 		});
 
