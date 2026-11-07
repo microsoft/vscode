@@ -7,6 +7,7 @@ import { findFirstIdxMonotonousOrArrLen } from '../../../../base/common/arraysFi
 import { RunOnceScheduler, TimeoutTimer } from '../../../../base/common/async.js';
 import { KeyCode, KeyMod } from '../../../../base/common/keyCodes.js';
 import { DisposableStore, dispose } from '../../../../base/common/lifecycle.js';
+import { containsUppercaseCharacter } from '../../../../base/common/strings.js';
 import { Constants } from '../../../../base/common/uint.js';
 import { IActiveCodeEditor } from '../../../browser/editorBrowser.js';
 import { ReplaceCommand, ReplaceCommandThatPreservesSelection } from '../../../common/commands/replaceCommand.js';
@@ -240,6 +241,22 @@ export class FindModelBoundToEditorModel {
 		return (this._state.matchesCount > 0);
 	}
 
+	/**
+	 * Resolves the case-sensitivity to actually search with. When `editor.find.smartCase`
+	 * is enabled and the user hasn't explicitly turned on "Match Case", the search string's
+	 * own casing decides: an all-lowercase pattern searches case-insensitively, while a
+	 * pattern containing an uppercase letter searches case-sensitively.
+	 */
+	private _getEffectiveMatchCase(): boolean {
+		if (this._state.matchCase) {
+			return true;
+		}
+		if (!this._editor.getOption(EditorOption.find).smartCase) {
+			return false;
+		}
+		return containsUppercaseCharacter(this._state.searchString, this._state.isRegex);
+	}
+
 	private _cannotFind(): boolean {
 		if (!this._hasMatches()) {
 			const findScope = this._decorations.getFindScope();
@@ -334,12 +351,12 @@ export class FindModelBoundToEditorModel {
 
 		let position = new Position(lineNumber, column);
 
-		let prevMatch = model.findPreviousMatch(this._state.searchString, position, this._state.isRegex, this._state.matchCase, this._state.wholeWord ? this._editor.getOption(EditorOption.wordSeparators) : null, false);
+		let prevMatch = model.findPreviousMatch(this._state.searchString, position, this._state.isRegex, this._getEffectiveMatchCase(), this._state.wholeWord ? this._editor.getOption(EditorOption.wordSeparators) : null, false);
 
 		if (prevMatch && prevMatch.range.isEmpty() && prevMatch.range.getStartPosition().equals(position)) {
 			// Looks like we're stuck at this position, unacceptable!
 			position = this._prevSearchPosition(position);
-			prevMatch = model.findPreviousMatch(this._state.searchString, position, this._state.isRegex, this._state.matchCase, this._state.wholeWord ? this._editor.getOption(EditorOption.wordSeparators) : null, false);
+			prevMatch = model.findPreviousMatch(this._state.searchString, position, this._state.isRegex, this._getEffectiveMatchCase(), this._state.wholeWord ? this._editor.getOption(EditorOption.wordSeparators) : null, false);
 		}
 
 		if (!prevMatch) {
@@ -436,12 +453,12 @@ export class FindModelBoundToEditorModel {
 
 		let position = new Position(lineNumber, column);
 
-		let nextMatch = model.findNextMatch(this._state.searchString, position, this._state.isRegex, this._state.matchCase, this._state.wholeWord ? this._editor.getOption(EditorOption.wordSeparators) : null, captureMatches);
+		let nextMatch = model.findNextMatch(this._state.searchString, position, this._state.isRegex, this._getEffectiveMatchCase(), this._state.wholeWord ? this._editor.getOption(EditorOption.wordSeparators) : null, captureMatches);
 
 		if (forceMove && nextMatch && nextMatch.range.isEmpty() && nextMatch.range.getStartPosition().equals(position)) {
 			// Looks like we're stuck at this position, unacceptable!
 			position = this._nextSearchPosition(position);
-			nextMatch = model.findNextMatch(this._state.searchString, position, this._state.isRegex, this._state.matchCase, this._state.wholeWord ? this._editor.getOption(EditorOption.wordSeparators) : null, captureMatches);
+			nextMatch = model.findNextMatch(this._state.searchString, position, this._state.isRegex, this._getEffectiveMatchCase(), this._state.wholeWord ? this._editor.getOption(EditorOption.wordSeparators) : null, captureMatches);
 		}
 
 		if (!nextMatch) {
@@ -509,7 +526,7 @@ export class FindModelBoundToEditorModel {
 			FindModelBoundToEditorModel._getSearchRange(this._editor.getModel(), scope)
 		);
 
-		return this._editor.getModel().findMatches(this._state.searchString, searchRanges, this._state.isRegex, this._state.matchCase, this._state.wholeWord ? this._editor.getOption(EditorOption.wordSeparators) : null, captureMatches, limitResultCount);
+		return this._editor.getModel().findMatches(this._state.searchString, searchRanges, this._state.isRegex, this._getEffectiveMatchCase(), this._state.wholeWord ? this._editor.getOption(EditorOption.wordSeparators) : null, captureMatches, limitResultCount);
 	}
 
 	public replaceAll(): void {
@@ -530,7 +547,7 @@ export class FindModelBoundToEditorModel {
 	}
 
 	private _largeReplaceAll(): void {
-		const searchParams = new SearchParams(this._state.searchString, this._state.isRegex, this._state.matchCase, this._state.wholeWord ? this._editor.getOption(EditorOption.wordSeparators) : null);
+		const searchParams = new SearchParams(this._state.searchString, this._state.isRegex, this._getEffectiveMatchCase(), this._state.wholeWord ? this._editor.getOption(EditorOption.wordSeparators) : null);
 		const searchData = searchParams.parseSearchRequest();
 		if (!searchData) {
 			return;
