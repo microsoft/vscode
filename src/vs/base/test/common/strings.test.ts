@@ -500,6 +500,8 @@ suite('Strings', () => {
 	test('truncate', () => {
 		assert.strictEqual('hello world', strings.truncate('hello world', 100));
 		assert.strictEqual('hello…', strings.truncate('hello world', 5));
+		assert.strictEqual('a…', strings.truncate('a😀bc', 2));
+		assert.strictEqual('a😀…', strings.truncate('a😀bc', 3));
 	});
 
 	test('truncateMiddle', () => {
