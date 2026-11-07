@@ -8,6 +8,8 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/tes
 import { CoreNavigationCommands } from '../../../../browser/coreCommands.js';
 import { IActiveCodeEditor, ICodeEditor } from '../../../../browser/editorBrowser.js';
 import { Position } from '../../../../common/core/position.js';
+import { CursorState } from '../../../../common/cursorCommon.js';
+import { CursorChangeReason } from '../../../../common/cursorEvents.js';
 import { Range } from '../../../../common/core/range.js';
 import { Selection } from '../../../../common/core/selection.js';
 import { PieceTreeTextBufferBuilder } from '../../../../common/model/pieceTreeTextBuffer/pieceTreeTextBufferBuilder.js';
@@ -2388,6 +2390,40 @@ suite('FindModel', () => {
 			assert.strictEqual(findState.matchesCount, 1001);
 			// With cursor selecting 'hello' at line 900, matchesPosition should be 900
 			assert.strictEqual(findState.matchesPosition, 900);
+		});
+	});
+
+	test('issue #211426: match index is restored when the editor view state is restored', () => {
+		withTestCodeEditor(['start', 'hello', 'hello', 'hello', 'hello'], {}, (_editor) => {
+			const editor = _editor as IActiveCodeEditor;
+			editor.setSelection(new Selection(1, 1, 1, 1));
+
+			const findState = disposables.add(new FindReplaceState());
+			findState.change({ searchString: 'hello' }, false);
+			disposables.add(new FindModelBoundToEditorModel(editor, findState));
+			assert.strictEqual(findState.matchesCount, 4);
+			assert.strictEqual(findState.matchesPosition, 0);
+
+			// The test editor has no view, so emit the same 'restoreState' cursor change that
+			// restoreViewState() produces directly through the view model.
+			editor._getViewModel().setCursorStates('restoreState', CursorChangeReason.NotSet, [CursorState.fromModelSelection(new Selection(3, 1, 3, 6))]);
+			assert.strictEqual(findState.matchesPosition, 2);
+		});
+	});
+
+	test('issue #211426: match index is restored for a zero-width regex match', () => {
+		withTestCodeEditor(['start', 'hello', 'hello', 'hello', 'hello'], {}, (_editor) => {
+			const editor = _editor as IActiveCodeEditor;
+			editor.setSelection(new Selection(1, 1, 1, 1));
+
+			const findState = disposables.add(new FindReplaceState());
+			findState.change({ searchString: '$', isRegex: true }, false);
+			disposables.add(new FindModelBoundToEditorModel(editor, findState));
+			assert.strictEqual(findState.matchesCount, 5);
+			assert.strictEqual(findState.matchesPosition, 0);
+
+			editor._getViewModel().setCursorStates('restoreState', CursorChangeReason.NotSet, [CursorState.fromModelSelection(new Selection(3, 6, 3, 6))]);
+			assert.strictEqual(findState.matchesPosition, 3);
 		});
 	});
 

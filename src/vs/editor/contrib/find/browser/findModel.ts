@@ -117,6 +117,10 @@ export class FindModelBoundToEditorModel {
 				|| e.reason === CursorChangeReason.Redo
 			) {
 				this._decorations.setStartPosition(this._editor.getPosition());
+			} else if (e.reason === CursorChangeReason.NotSet && e.source === 'restoreState') {
+				// The editor view state (e.g. when switching back to a tab) was restored after the
+				// initial search ran, so the selection may now sit on a match whose index is unknown.
+				this._syncCurrentMatchWithSelection();
 			}
 		}));
 
@@ -233,6 +237,22 @@ export class FindModelBoundToEditorModel {
 
 		if (moveCursor && this._editor.getOption(EditorOption.find).cursorMoveOnType) {
 			this._moveToNextMatch(this._decorations.getStartPosition());
+		}
+	}
+
+	private _syncCurrentMatchWithSelection(): void {
+		if (this._state.matchesPosition !== 0 || this._decorations.getCount() === 0) {
+			return;
+		}
+		// Empty selections are not skipped: zero-width regex matches have empty ranges too, and
+		// setCurrentFindMatch() only accepts a selection that exactly equals a match.
+		const selection = this._editor.getSelection();
+		if (this._decorations.getCurrentMatchesPosition(selection) === 0) {
+			return;
+		}
+		const matchesPosition = this._decorations.setCurrentFindMatch(selection);
+		if (matchesPosition !== 0) {
+			this._state.changeMatchInfo(matchesPosition, this._decorations.getCount(), selection);
 		}
 	}
 
