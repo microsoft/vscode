@@ -31,14 +31,14 @@ import { canvasOwnerKey, ICanvas, ICanvasOwner } from '../../../../common/canvas
 suite('CanvasService', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
-	function createHarness(options?: { readonly workingSets?: boolean; readonly presentedElsewhere?: boolean }) {
+	function createHarness(options?: { readonly workingSets?: boolean; readonly presentedElsewhere?: boolean; readonly background?: boolean }) {
 		const owner: ICanvasOwner = { providerId: 'local', session: URI.parse('session:/owner'), chat: URI.parse('chat:/owner') };
 		const canvas: ICanvas = {
 			resource: URI.parse('canvas:/preview'), instanceId: 'preview', title: 'Preview', source: URI.parse('https://example.test'),
 		};
 		const canvases = observableValue<readonly ICanvas[] | undefined>('canvases', []);
 		const openRequests = observableValue<ReadonlyMap<string, ICanvasOpenRequest>>('openRequests', new Map());
-		const contexts = observableValue<readonly ICanvasContext[]>('contexts', [{ owner, canvases, openRequests }]);
+		const contexts = observableValue<readonly ICanvasContext[]>('contexts', [{ owner, canvases, openRequests, background: options?.background }]);
 		const visible = observableValue<ReadonlySet<string>>('visible', new Set([canvasOwnerKey(owner)]));
 		const removed = store.add(new Emitter<ICanvasOwner>());
 		const groupRestores: boolean[] = [];
@@ -267,6 +267,14 @@ suite('CanvasService', () => {
 			beforeSuccess: 0,
 			options: [{ pinned: true, revealIfOpened: true, preserveFocus: false }],
 		});
+	});
+
+	test('a canvas of a background context opens without taking focus or the active tab', async () => {
+		const harness = createHarness({ background: true });
+		harness.canvases.set([harness.canvas], undefined);
+		await timeout(0);
+
+		assert.deepStrictEqual(harness.openOptions, [{ pinned: true, revealIfOpened: true, preserveFocus: true, inactive: true, activation: EditorActivation.PRESERVE }]);
 	});
 
 	test('failed model opens still allow modal-safe background presentation', async () => {
