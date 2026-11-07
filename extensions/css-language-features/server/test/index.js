@@ -11,7 +11,16 @@ import { PassThrough } from 'node:stream';
 import glob from 'glob';
 
 const testRoot = import.meta.dirname;
-const files = glob.sync(path.posix.join(testRoot, '../out/test/**/*.test.js'));
+const serverTests = glob.sync(path.posix.join(testRoot, '../out/test/**/*.test.js'));
+const clientTests = glob.sync(path.posix.join(testRoot, '../../client/out/test/**/*.test.js'));
+if (!serverTests.length) {
+	throw new Error('Compile the CSS server before running its tests.');
+}
+if (!clientTests.length) {
+	console.warn('CSS client tests are not compiled; running server tests only.');
+}
+
+const files = [...serverTests, ...clientTests];
 
 const stream = run({
 	files,
