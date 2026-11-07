@@ -396,7 +396,8 @@ export class SessionGroupsService extends Disposable implements ISessionGroupsSe
 				}
 			}
 			for (const session of e.removed) {
-				if (this.deleteInFlightSessionGroup(session.sessionId)) {
+				// A send of a draft slot keeps its group until its request ends, also while its session drops out of the list.
+				if (!this._slotSendSessionIds.has(session.sessionId) && this.deleteInFlightSessionGroup(session.sessionId)) {
 					transientMembershipChanged.add(session.sessionId);
 				}
 			}

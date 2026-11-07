@@ -1307,6 +1307,27 @@ suite('SessionGroupsService', () => {
 			assert.deepStrictEqual({ whileUnlisted, afterStart: service.getGroupOfSession('unlisted') }, { whileUnlisted: g.id, afterStart: g.id });
 		});
 
+		test('a send of a slot keeps its group while its session drops out of the list, such as while its provider is replaced, and joins it once started; one that ends without starting does not', () => {
+			const g = service.createGroup('G');
+			const s = slot('s');
+			disposables.add(service.setDraftSlotGroup(s.id, g.id));
+
+			accept(s, 'evicted', true);
+			sessionsChangedEmitter.fire({ added: [], removed: [createSession('evicted')], changed: [] });
+			const whileRemoved = service.getGroupOfSession('evicted');
+			end(s, 'evicted', true);
+			accept(s, 'deleted', true);
+			sessionsChangedEmitter.fire({ added: [], removed: [createSession('deleted')], changed: [] });
+			end(s, 'deleted', false);
+
+			assert.deepStrictEqual({ whileRemoved, started: service.getGroupOfSession('evicted'), ended: service.getGroupOfSession('deleted'), members: service.getSessionIdsInGroup(g.id) }, {
+				whileRemoved: g.id,
+				started: g.id,
+				ended: undefined,
+				members: ['evicted'],
+			});
+		});
+
 		test('a slot\'s sends stop joining its group once its group is disposed or deleted', () => {
 			const g = service.createGroup('G');
 			const h = service.createGroup('H');
