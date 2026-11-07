@@ -9,7 +9,7 @@ import { Emitter, Event } from '../../../../base/common/event.js';
 import { Disposable, DisposableMap, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { autorun, constObservable, derived, IObservable, IReader, ISettableObservable, observableFromEvent, observableSignalFromEvent, observableValue, transaction, waitForState } from '../../../../base/common/observable.js';
 import { onUnexpectedError } from '../../../../base/common/errors.js';
-import { isEqual } from '../../../../base/common/resources.js';
+import { extUri, isEqual } from '../../../../base/common/resources.js';
 import { DeepPartial } from '../../../../base/common/types.js';
 import { URI } from '../../../../base/common/uri.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
@@ -52,6 +52,7 @@ import { ChatEditorInput, getChatEditorInputDetails, ISessionChatViewHost, regis
 import { ISessionsListModelService } from '../../../../workbench/contrib/sessions/browser/sessionsListModelService.js';
 import { ISessionsProvidersService } from '../../../../workbench/contrib/sessions/browser/sessionsProvidersService.js';
 import { getSessionAgentMergeConfigurationObservable } from '../../../../workbench/contrib/sessions/browser/sessionAgentMerge.js';
+import { ShownChatReadMarker } from '../../../../workbench/contrib/sessions/browser/shownChatReadMarker.js';
 import { ChatEditorContent, IChatEditorComposer } from '../../chatEditor/browser/chatEditorContent.js';
 import { localize } from '../../../../nls.js';
 import { ISessionGroupsService } from '../../../../workbench/contrib/sessions/browser/sessionGroupsService.js';
@@ -222,6 +223,18 @@ class SessionsChatWindowChat extends Disposable implements IChatWindowChat, ISes
 			const shown = this._shown.read(reader);
 			this.input.setDetails(shown && getChatEditorInputDetails(shown.session, shown.chat, this.title.read(reader), reader, sessionsListModelService,
 				() => getSessionAgentMergeConfigurationObservable(shown.session, sessionsProvidersService, configurationService, shown.chat)));
+		}));
+		// It is read once it shows, as the active chat of the main window is: while it is the active chat of its window,
+		// focused or not, and its editor shows it.
+		const readMarker = new ShownChatReadMarker(_sessionsManagementService, extUri);
+		this._register(autorun(reader => {
+			const shown = this._shown.read(reader);
+			if (!shown) {
+				readMarker.reset();
+				return;
+			}
+			const visible = this.active.read(reader) && !!this._view.read(reader)?.visible.read(reader);
+			readMarker.update(shown.session, visible ? shown.chat : undefined, reader);
 		}));
 
 		// The loaded model of the chat bridges its move into the window, from the main window's grid, which lets go of it.

@@ -1654,11 +1654,12 @@ suite('Chat window', () => {
 		assert.deepStrictEqual({ editorOnly, chatOnly, sideBySide }, { editorOnly: 'tab', chatOnly: 'chat', sideBySide: 'chat' });
 	});
 
-	test('the groups of its chat part look as those of its main part, but for the header of the chat\'s group while the chat shows, as the chat shows its own', () => {
+	test('the groups of its chat part look as those of its main part, but for the header of the chat\'s group while the chat shows, as the chat shows its own, and for the Add Tab menu, which adds to the main part', () => {
 		const chatInput = editor();
 		const other = editor();
 		const headerPrimary = new MenuId('test.chatPart.headerPrimary');
-		const options = getChatPartGroupViewOptions({ menuIds: { headerPrimary }, showHeader: true, useModernUITabs: true }, candidate => candidate === chatInput);
+		const tabsBarAddTab = new MenuId('test.chatPart.tabsBarAddTab');
+		const options = getChatPartGroupViewOptions({ menuIds: { headerPrimary, tabsBarAddTab }, showHeader: true, useModernUITabs: true }, candidate => candidate === chatInput);
 
 		assert.deepStrictEqual({
 			menuIds: options?.menuIds,

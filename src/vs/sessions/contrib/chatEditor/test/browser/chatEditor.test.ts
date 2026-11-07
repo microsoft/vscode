@@ -292,6 +292,30 @@ suite('Session chat view editor', () => {
 		});
 	});
 
+	test('a chat editor tells its host whether it shows the chat from the moment it attaches: not in a window that shows only its main part, until the window shows its chat', () => {
+		const { instantiationService } = createSessionViewTestServices(disposables);
+		const layoutMode = observableValue('layoutMode', ChatWindowLayoutMode.EditorOnly);
+		const window = upcastPartial<IChatWindow>({
+			layoutMode,
+			inputOnly: constObservable(false),
+			resizing: constObservable(false),
+			mainPart: upcastPartial<IContentPart>({ activeGroup: upcastPartial<IEditorGroup>({ activeEditorPane: undefined, onDidActiveEditorChange: Event.None }), onDidChangeActiveGroup: Event.None }),
+		});
+		// What the host sees of the view's visibility, from the moment it attaches, as a chat window's chat marks it read
+		const seen: boolean[] = [];
+		disposables.add(instantiationService.createInstance(ChatEditorView, {
+			content: constObservable(testPaneContentOf(createTestActiveSession('session'), () => { })),
+			window: constObservable(window),
+			active: constObservable(true),
+			attach: view => autorun(reader => { seen.push(view.visible.read(reader)); }),
+			view: constObservable(undefined),
+		}));
+		const editorOnly = [...seen];
+		layoutMode.set(ChatWindowLayoutMode.SideBySide, undefined);
+
+		assert.deepStrictEqual({ editorOnly, sideBySide: seen }, { editorOnly: [false], sideBySide: [false, true] });
+	});
+
 	test('the session header shows at the top of the chat\'s card, as in the main window, in every layout mode, and hides while the chat shows only its input in Stacked; its title drags the editor of the chat', () => {
 		const { instantiationService } = createServices();
 		const layoutMode = observableValue('layoutMode', ChatWindowLayoutMode.SideBySide);

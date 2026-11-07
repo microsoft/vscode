@@ -80,6 +80,8 @@ interface IFixtureOptions {
 	readonly chats?: number;
 	/** Its parts show a single tab, as with `workbench.editor.showTabs` set to `single` or `none`: their groups draw no frames, their cards do. */
 	readonly singleTab?: boolean;
+	/** Its Session Activity Bar shows the layout actions, which leave the title bar: its session actions end the title bar. */
+	readonly layoutActionsInStrip?: boolean;
 }
 
 const WIDTH = 960;
@@ -108,6 +110,10 @@ export default defineThemedFixtureGroup({ path: 'sessions/chatWindow/titleBar/' 
 	SideBySideTwoChats: titleBarFixture({ mode: ChatWindowLayoutMode.SideBySide, density: ModernUIDensity.Default, chats: 2 }, highContrastThemes),
 	SideBySideTwoChatsCompact: titleBarFixture({ mode: ChatWindowLayoutMode.SideBySide, density: ModernUIDensity.Compact, chats: 2 }, highContrastThemes),
 	SideBySideSingleTab: titleBarFixture({ mode: ChatWindowLayoutMode.SideBySide, density: ModernUIDensity.Default, singleTab: true }, highContrastThemes),
+	// The layout actions in the Session Activity Bar: the session actions end the title bar, with the same inset to the
+	// window's edge as the layout actions have.
+	SideBySideLayoutActionsInStrip: titleBarFixture({ mode: ChatWindowLayoutMode.SideBySide, density: ModernUIDensity.Default, layoutActionsInStrip: true }, highContrastThemes),
+	SideBySideLayoutActionsInStripCompact: titleBarFixture({ mode: ChatWindowLayoutMode.SideBySide, density: ModernUIDensity.Compact, layoutActionsInStrip: true }, highContrastThemes),
 });
 
 interface IMenuEntry {
@@ -128,12 +134,22 @@ const CHAT_WINDOW_MENUS = new Map<MenuId, readonly IMenuEntry[]>([
 /** The entries of the chat's Session Activity Bar, as the strip's chat-window fixtures show them. */
 const sidePanelGroup = (entries: readonly IFixtureEntry[]) => entries.map(entry => ({ ...entry, group: SessionActivityBarGroup.SidePanel }));
 const ACTIVITY_BAR_ENTRIES: readonly IFixtureEntry[] = [fixtureToggleSidePanel, ...sidePanelGroup([fixtureChanges, fixtureFiles, fixtureBrowser, fixtureCanvas]), fixtureTerminal, fixtureTogglePanel];
+/** The entries of the Session Activity Bar while it shows the layout actions of the window, at its top. */
+const ACTIVITY_BAR_ENTRIES_WITH_LAYOUT_ACTIONS: readonly IFixtureEntry[] = [
+	...CHAT_WINDOW_MENUS.get(AgentsWindowMenus.TitleBarWindowLayout)!.map(({ id, title, icon }) => ({ id, title, icon, group: SessionActivityBarGroup.WindowLayout })),
+	...ACTIVITY_BAR_ENTRIES,
+];
 
 /** Each title bar menu of the window shows its own entries, as the menus of a chat window do, and the strip its entries. */
 class ChatWindowMenuService extends mock<IMenuService>() {
 
-	private readonly activityBarMenus = new FixtureMenuService(ACTIVITY_BAR_ENTRIES);
+	private readonly activityBarMenus: FixtureMenuService;
 	private _commandService: ICommandService | undefined;
+
+	constructor(private readonly layoutActionsInStrip: boolean) {
+		super();
+		this.activityBarMenus = new FixtureMenuService(layoutActionsInStrip ? ACTIVITY_BAR_ENTRIES_WITH_LAYOUT_ACTIONS : ACTIVITY_BAR_ENTRIES);
+	}
 
 	setCommandService(commandService: ICommandService): void {
 		this._commandService = commandService;
@@ -144,7 +160,7 @@ class ChatWindowMenuService extends mock<IMenuService>() {
 		if (id.id === Menus.SessionActivityBar.id) {
 			return this.activityBarMenus.createMenu(id, contextKeyService);
 		}
-		const entries = CHAT_WINDOW_MENUS.get(id) ?? [];
+		const entries = this.layoutActionsInStrip && id.id === AgentsWindowMenus.TitleBarWindowLayout.id ? [] : CHAT_WINDOW_MENUS.get(id) ?? [];
 		return {
 			onDidChange: Event.None,
 			dispose: () => { },
@@ -199,7 +215,7 @@ function renderChatWindow(context: ComponentFixtureContext, options: IFixtureOpt
 	container.classList.add('agent-sessions-workbench', 'modern-ui-tabs', CONNECTED_EDITOR_TABS_CLASS, 'dock-detail-panel');
 	container.classList.toggle('modern-ui-compact', compact);
 	const session = createSession();
-	const menuService = new ChatWindowMenuService();
+	const menuService = new ChatWindowMenuService(!!options.layoutActionsInStrip);
 	const size = options.size ?? MenuActivityBarSize.Compact;
 	const storage = disposableStore.add(new InMemoryStorageService());
 	setSessionActivityBarSize(storage, size);
@@ -214,7 +230,7 @@ function renderChatWindow(context: ComponentFixtureContext, options: IFixtureOpt
 			reg.defineInstance(IMenuService, menuService);
 			reg.defineInstance(IStorageService, storage);
 			reg.defineInstance(ISessionActivityBarActivityService, disposableStore.add(new SessionActivityBarActivityService()));
-			reg.defineInstance(IKeybindingService, new FixtureKeybindingService(ACTIVITY_BAR_ENTRIES));
+			reg.defineInstance(IKeybindingService, new FixtureKeybindingService(options.layoutActionsInStrip ? ACTIVITY_BAR_ENTRIES_WITH_LAYOUT_ACTIONS : ACTIVITY_BAR_ENTRIES));
 			reg.defineInstance(IContextViewService, contextViewService);
 			reg.defineInstance(IEditorGroupsService, new class extends mock<IEditorGroupsService>() { }());
 			reg.defineInstance(IWorkbenchLayoutService, new class extends mock<IAgentWorkbenchLayoutService>() {

@@ -48,10 +48,10 @@ import { Codicon } from '../../../../../base/common/codicons.js';
 import { ISessionsService } from '../../../../../workbench/contrib/sessions/browser/sessionsService.js';
 import { ChatHostOpenerService, IChatHostOpenerService } from '../../../../../workbench/services/sessions/browser/chatHostOpener.js';
 import { ChatInteractivity, IChat, ISession, ISessionChangeset, ISessionChangesetOperation, ISessionWorkspace, SessionChangesetOperationScope, SessionStatus } from '../../../../../workbench/services/sessions/common/session.js';
-import { INewSessionDraftSlot, INewSessionRequestAcceptedEvent, INewSessionRequestEndedEvent, ISessionsChangeEvent, ISessionsManagementService } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
+import { IMarkSessionReadOptions, INewSessionDraftSlot, INewSessionRequestAcceptedEvent, INewSessionRequestEndedEvent, ISessionsChangeEvent, ISessionsManagementService } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import { ISessionPaneContent } from '../../../../../workbench/services/sessions/common/sessionPane.js';
 import { ISessionGroupsService } from '../../../../../workbench/contrib/sessions/browser/sessionGroupsService.js';
-import { IChatEditorComposer } from '../../../chatEditor/browser/chatEditorContent.js';
+import { ChatEditorContent, IChatEditorComposer } from '../../../chatEditor/browser/chatEditorContent.js';
 import { CHAT_WINDOW_COMPOSERS_STORAGE_KEY } from '../../browser/chatWindowComposer.js';
 import { CHAT_WINDOWS_ENABLED_SETTING } from '../../common/chatWindows.js';
 import { SESSION_ACTIVITY_BAR_SETTING } from '../../../../../workbench/contrib/sessions/common/sessionConfig.js';
@@ -73,6 +73,7 @@ import { EditorInput } from '../../../../../workbench/common/editor/editorInput.
 import { IGroupModelChangeEvent } from '../../../../../workbench/common/editor/editorGroupModel.js';
 import { ITestSessionWithChat, stubSessionHosts, testGridPanes } from '../../../../../workbench/contrib/sessions/test/browser/sessionHostTestUtils.js';
 import { ISessionHost } from '../../../../../workbench/services/sessions/browser/sessionHost.js';
+import { ISessionChatViewHost } from '../../../chatEditor/browser/chatEditor.js';
 import { ITitleService } from '../../../../../workbench/services/title/browser/titleService.js';
 import { IAuxiliaryTitlebarPart } from '../../../../../workbench/browser/parts/titlebar/titlebarPart.js';
 import { ViewEditorInput } from '../../../../../workbench/browser/parts/editor/viewEditorInput.js';
@@ -181,6 +182,14 @@ suite('Sessions chat window provider', () => {
 				}
 				return undefined;
 			}
+			override async markRead(session: ISession, options?: IMarkSessionReadOptions) {
+				events.push(`read ${session.sessionId} ${session.mainChat.get().resource.path}${options?.preserveExplicitUnread ? ' preserving explicit unread' : ''}`);
+				return true;
+			}
+			override async markChatRead(session: ISession, chat: IChat, options?: IMarkSessionReadOptions) {
+				events.push(`read ${session.sessionId} ${chat.resource.path}${options?.preserveExplicitUnread ? ' preserving explicit unread' : ''}`);
+				return true;
+			}
 		}());
 		instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() {
 			readonly gridShown = visibleSessions;
@@ -214,6 +223,8 @@ suite('Sessions chat window provider', () => {
 		} else {
 			instantiationService.stub(IChatWindowService, new class extends mock<IChatWindowService>() {
 				override readonly windows = constObservable([window]);
+				// Another window has focus: the chat windows show in the background.
+				override readonly activeWindow = undefined;
 				override async open(chat: URI, options?: IChatWindowOpenOptions) {
 					events.push(`window open ${chat.scheme === 'test' ? chat.path : chat.scheme}${options?.window ? ` in ${options.window.windowId}` : ''}${options?.beside ? ` beside ${options.beside.path}` : ''}${options?.tabOf ? ` tab of ${options.tabOf.scheme === 'test' ? options.tabOf.path : options.tabOf.scheme}` : ''}${options?.preserveFocus ? ' preserving focus' : ''}`);
 					await opening.onOpen?.(chat);
@@ -373,6 +384,55 @@ suite('Sessions chat window provider', () => {
 		onDidChangeSessions.fire({ added: [], changed: [session], removed: [] });
 
 		assert.deepStrictEqual(ended, ['/archived', '/deleted']);
+	});
+
+	test('a chat is read once it shows: while it is the active chat of its window, also of a window without focus, and its editor shows it; a chat marked unread stays unread until its next turn ends, which marks it read while it shows', async () => {
+		const store = disposables.add(new DisposableStore());
+		const unreadChat = (path: string) => Object.assign(createChat(path), { isRead: observableValue(`${path}.isRead`, false), lastTurnEnd: observableValue<Date | undefined>(`${path}.lastTurnEnd`, new Date(1)), updatedAt: constObservable(new Date(1)) });
+		const main = unreadChat('main');
+		const side = unreadChat('side');
+		const session = createSession('session', [main, side]);
+		const { provider, events, windowInstantiationService } = createProvider(store, [session]);
+		const content = store.add((await provider.resolveContent(session.resource))!);
+		store.add(content.bind!(window, windowInstantiationService));
+		// The views of their editors: the side chat's shows, the main chat's while its layout shows the chat, not EditorOnly.
+		const mainVisible = observableValue('mainVisible', false);
+		for (const [resource, visible] of [['test:/main', mainVisible], ['test:/side', constObservable(true)]] as const) {
+			const chat = (await content.resolveChat(URI.parse(resource)))! as IChatWindowChat & ISessionChatViewHost;
+			store.add(chat.attach(upcastPartial<ChatEditorContent>({ visible, primaryChatView: constObservable(undefined) })));
+		}
+		const step = (name: string, change: () => void) => {
+			events.push(name);
+			change();
+		};
+		const turnEnds = (chat: typeof main, time: number) => transaction(tx => {
+			chat.lastTurnEnd.set(new Date(time), tx);
+			chat.isRead.set(false, tx);
+		});
+
+		step('main shows', () => mainVisible.set(true, undefined));
+		step('marked read', () => main.isRead.set(true, undefined));
+		step('marked unread', () => main.isRead.set(false, undefined));
+		step('turn ends', () => turnEnds(main, 2));
+		step('main hidden, turn ends', () => {
+			main.isRead.set(true, undefined);
+			mainVisible.set(false, undefined);
+			turnEnds(main, 3);
+		});
+		step('side active', () => activeChat.set(URI.parse('test:/side'), undefined));
+		activeChat.set(URI.parse('test:/main'), undefined);
+
+		assert.deepStrictEqual(events.filter(event => !event.startsWith('hide ')), [
+			'main shows',
+			'read session /main',
+			'marked read',
+			'marked unread',
+			'turn ends',
+			'read session /main preserving explicit unread',
+			'main hidden, turn ends',
+			'side active',
+			'read session /side',
+		]);
 	});
 
 	test('opening a chat a window shows reveals it there, and a chat opened beside one it shows opens beside it in that window; once the chat\'s editor closed, such as with its window, which is still going away, the window does not show it: it opens elsewhere, not in a new window', async () => {
