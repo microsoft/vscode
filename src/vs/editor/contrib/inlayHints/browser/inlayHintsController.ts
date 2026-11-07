@@ -532,7 +532,7 @@ export class InlayHintsController implements IEditorContribution {
 		}
 
 		// utils to collect/create injected text decorations
-		const { fontSize, fontFamily, padding, isUniform } = this._getLayoutInfo();
+		const { fontSize, fontFamily, padding, isUniform, inheritFontSize } = this._getLayoutInfo();
 		const editorFontSize = this._editor.getOption(EditorOption.fontSize);
 		const newDecorationsData: InlayHintDecorationRenderInfo[] = [];
 		const addInjectedText = (item: InlayHintItem, ref: ClassNameReference, content: string, cursorStops: InjectedTextCursorStops, attachedData?: RenderedInlayHintLabelPart | object, widthInEm?: number): void => {
@@ -612,7 +612,7 @@ export class InlayHintsController implements IEditorContribution {
 				const isLast = i === parts.length - 1;
 
 				const cssProperties: CssProperties = {
-					fontSize: `${fontSize}px`,
+					fontSize: inheritFontSize ? 'inherit' : `${fontSize}px`,
 					fontFamily: `var(${fontFamilyVar}), ${EDITOR_FONT_DEFAULTS.fontFamily}`,
 					verticalAlign: isUniform ? 'baseline' : 'middle',
 					unicodeBidi: 'isolate'
@@ -752,7 +752,8 @@ export class InlayHintsController implements IEditorContribution {
 		const editorFontFamily = this._editor.getOption(EditorOption.fontFamily);
 
 		let fontSize = options.fontSize;
-		if (!fontSize || fontSize < 5 || fontSize > editorFontSize) {
+		const inheritFontSize = !fontSize || fontSize < 5 || fontSize > editorFontSize;
+		if (inheritFontSize) {
 			fontSize = editorFontSize;
 		}
 
@@ -762,7 +763,7 @@ export class InlayHintsController implements IEditorContribution {
 			&& fontFamily === editorFontFamily
 			&& fontSize === editorFontSize;
 
-		return { fontSize, fontFamily, padding, isUniform };
+		return { fontSize, fontFamily, padding, isUniform, inheritFontSize };
 	}
 
 	private _removeAllDecorations(): void {

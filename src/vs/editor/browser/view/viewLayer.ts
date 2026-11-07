@@ -7,6 +7,7 @@ import { FastDomNode, createFastDomNode } from '../../../base/browser/fastDomNod
 import { createTrustedTypesPolicy } from '../../../base/browser/trustedTypes.js';
 import { BugIndicatingError } from '../../../base/common/errors.js';
 import { EditorOption } from '../../common/config/editorOptions.js';
+import { Position } from '../../common/core/position.js';
 import { StringBuilder } from '../../common/core/stringBuilder.js';
 import * as viewEvents from '../../common/viewEvents.js';
 import { ViewportData } from '../../common/viewLayout/viewLinesViewportData.js';
@@ -23,12 +24,12 @@ export interface IVisibleLine extends ILine {
 	 * Return null if the HTML should not be touched.
 	 * Return the new HTML otherwise.
 	 */
-	renderLine(lineNumber: number, deltaTop: number, lineHeight: number, viewportData: ViewportData, sb: StringBuilder): boolean;
+	renderLine(lineNumber: number, deltaTop: number, lineHeight: number, lineFontSize: string, viewportData: ViewportData, sb: StringBuilder): boolean;
 
 	/**
 	 * Layout the line.
 	 */
-	layoutLine(lineNumber: number, deltaTop: number, lineHeight: number): void;
+	layoutLine(lineNumber: number, deltaTop: number, lineHeight: number, lineFontSize: string): void;
 }
 
 export interface ILine {
@@ -472,7 +473,7 @@ class ViewLayerRenderer<T extends IVisibleLine> {
 
 		for (let i = startIndex; i <= endIndex; i++) {
 			const lineNumber = rendLineNumberStart + i;
-			lines[i].layoutLine(lineNumber, deltaTop[lineNumber - deltaLN], this._lineHeightForLineNumber(lineNumber));
+			lines[i].layoutLine(lineNumber, deltaTop[lineNumber - deltaLN], this._lineHeightForLineNumber(lineNumber), this._lineFontSizeForLineNumber(lineNumber));
 		}
 	}
 
@@ -577,7 +578,7 @@ class ViewLayerRenderer<T extends IVisibleLine> {
 				}
 
 				const renderedLineNumber = i + rendLineNumberStart;
-				const renderResult = line.renderLine(renderedLineNumber, deltaTop[i], this._lineHeightForLineNumber(renderedLineNumber), this._viewportData, sb);
+				const renderResult = line.renderLine(renderedLineNumber, deltaTop[i], this._lineHeightForLineNumber(renderedLineNumber), this._lineFontSizeForLineNumber(renderedLineNumber), this._viewportData, sb);
 				if (!renderResult) {
 					// line does not need rendering
 					continue;
@@ -608,7 +609,7 @@ class ViewLayerRenderer<T extends IVisibleLine> {
 				}
 
 				const renderedLineNumber = i + rendLineNumberStart;
-				const renderResult = line.renderLine(renderedLineNumber, deltaTop[i], this._lineHeightForLineNumber(renderedLineNumber), this._viewportData, sb);
+				const renderResult = line.renderLine(renderedLineNumber, deltaTop[i], this._lineHeightForLineNumber(renderedLineNumber), this._lineFontSizeForLineNumber(renderedLineNumber), this._viewportData, sb);
 				if (!renderResult) {
 					// line does not need rendering
 					continue;
@@ -626,5 +627,11 @@ class ViewLayerRenderer<T extends IVisibleLine> {
 
 	private _lineHeightForLineNumber(lineNumber: number): number {
 		return this._viewContext.viewLayout.getLineHeightForLineNumber(lineNumber);
+	}
+
+	private _lineFontSizeForLineNumber(lineNumber: number): string {
+		const viewModel = this._viewContext.viewModel;
+		const modelPosition = viewModel.coordinatesConverter.convertViewPositionToModelPosition(new Position(lineNumber, 1));
+		return viewModel.getLineFontSize(modelPosition.lineNumber);
 	}
 }

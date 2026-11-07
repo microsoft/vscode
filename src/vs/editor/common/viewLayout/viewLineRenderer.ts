@@ -70,6 +70,7 @@ export class RenderLineInput {
 	public readonly fontLigatures: boolean;
 	public readonly textDirection: TextDirection | null;
 	public readonly verticalScrollbarSize: number;
+	public readonly lineFontSize: string | null;
 
 	/**
 	 * Defined only when renderWhitespace is 'selection'. Selections are non-overlapping,
@@ -113,9 +114,11 @@ export class RenderLineInput {
 		verticalScrollbarSize: number,
 		renderNewLineWhenEmpty: boolean = false,
 		useTwoCellFullwidthCharacters = false,
+		lineFontSize: string | null = null,
 	) {
 		this.useMonospaceOptimizations = useMonospaceOptimizations;
 		this.canUseHalfwidthRightwardsArrow = canUseHalfwidthRightwardsArrow;
+		this.lineFontSize = lineFontSize;
 		this.lineContent = lineContent;
 		this.continuesWithWrappedLine = continuesWithWrappedLine;
 		this.isBasicASCII = isBasicASCII;
@@ -204,6 +207,7 @@ export class RenderLineInput {
 			&& this.verticalScrollbarSize === other.verticalScrollbarSize
 			&& this.renderNewLineWhenEmpty === other.renderNewLineWhenEmpty
 			&& this.useTwoCellFullwidthCharacters === other.useTwoCellFullwidthCharacters
+			&& this.lineFontSize === other.lineFontSize
 		);
 	}
 }

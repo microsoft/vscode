@@ -1070,6 +1070,13 @@ export interface ICodeEditor extends editorCommon.IEditor {
 	getFontSizeAtPosition(position: IPosition): string | null;
 
 	/**
+	 * Get the model line's font size, excluding inline-class decorations.
+	 * @param lineNumber The 1-based model line number.
+	 * @internal
+	 */
+	getLineFontSize(lineNumber: number): string | null;
+
+	/**
 	 * All decorations added through this call will get the ownerId of this editor.
 	 * @deprecated Use `createDecorationsCollection`
 	 * @see createDecorationsCollection

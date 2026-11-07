@@ -308,6 +308,74 @@ suite('Editor ViewLayout - LineHeightsManager (auto-commit on read)', () => {
 		assert.strictEqual(manager.getAccumulatedLineHeightsIncludingLineNumber(5), 70);
 	});
 
+	test('merges unordered batches with existing heights and recomputes overlapping maxima on removal', () => {
+		const manager = new LineHeightsManager(20, [
+			new CustomLineHeightData('existing3', 3, 3, 7),
+			new CustomLineHeightData('existing7', 7, 7, 8),
+		]);
+		manager.heightForLineNumber(3);
+
+		manager.insertOrChangeCustomLineHeight('last', 8, 8, 9);
+		manager.insertOrChangeCustomLineHeight('first', 1, 1, 5);
+		manager.insertOrChangeCustomLineHeight('middle', 5, 5, 6);
+		manager.insertOrChangeCustomLineHeight('overlap', 3, 5, 10);
+		manager.removeCustomLineHeight('existing7');
+
+		const snapshot = () => Array.from({ length: 8 }, (_, index) => ({
+			height: manager.heightForLineNumber(index + 1),
+			accumulated: manager.getAccumulatedLineHeightsIncludingLineNumber(index + 1),
+		}));
+		const results = [snapshot()];
+		manager.removeCustomLineHeight('overlap');
+		results.push(snapshot());
+
+		assert.deepStrictEqual(results, [
+			[
+				{ height: 5, accumulated: 5 },
+				{ height: 20, accumulated: 25 },
+				{ height: 10, accumulated: 35 },
+				{ height: 10, accumulated: 45 },
+				{ height: 10, accumulated: 55 },
+				{ height: 20, accumulated: 75 },
+				{ height: 20, accumulated: 95 },
+				{ height: 9, accumulated: 104 },
+			],
+			[
+				{ height: 5, accumulated: 5 },
+				{ height: 20, accumulated: 25 },
+				{ height: 7, accumulated: 32 },
+				{ height: 20, accumulated: 52 },
+				{ height: 6, accumulated: 58 },
+				{ height: 20, accumulated: 78 },
+				{ height: 20, accumulated: 98 },
+				{ height: 9, accumulated: 107 },
+			],
+		]);
+	});
+
+	test('commits large descending batches of shrinking heights and replacements', () => {
+		const lineCount = 20000;
+		const manager = new LineHeightsManager(20, []);
+		for (let lineNumber = lineCount; lineNumber >= 1; lineNumber--) {
+			manager.insertOrChangeCustomLineHeight(`line${lineNumber}`, lineNumber, lineNumber, lineNumber % 2 === 0 ? 5 : 9);
+		}
+		const snapshot = () => ({
+			accumulated: manager.getAccumulatedLineHeightsIncludingLineNumber(lineCount + 1),
+			heights: [1, lineCount / 2, lineCount, lineCount + 1].map(lineNumber => manager.heightForLineNumber(lineNumber)),
+		});
+		const results = [snapshot()];
+		for (let lineNumber = lineCount; lineNumber >= 1; lineNumber--) {
+			manager.removeCustomLineHeight(`line${lineNumber}`);
+			manager.insertOrChangeCustomLineHeight(`line${lineNumber}`, lineNumber, lineNumber, 3);
+		}
+		results.push(snapshot());
+
+		assert.deepStrictEqual(results, [
+			{ accumulated: 140020, heights: [9, 5, 5, 20] },
+			{ accumulated: 60020, heights: [3, 3, 3, 20] },
+		]);
+	});
+
 	test('read after remove without commit', () => {
 		const manager = new LineHeightsManager(10, []);
 		manager.insertOrChangeCustomLineHeight('dec1', 3, 3, 20);

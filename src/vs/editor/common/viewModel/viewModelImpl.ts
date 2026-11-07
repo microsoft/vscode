@@ -204,7 +204,7 @@ export class ViewModel extends Disposable implements IViewModel {
 			return [];
 		}
 		const decorations = this.model.getCustomLineHeightsDecorations(this._editorId);
-		return CustomLineHeightData.fromDecorations(decorations, this.coordinatesConverter, this._configuration);
+		return CustomLineHeightData.fromDecorations(decorations, this.coordinatesConverter, this._configuration, this._lines.getHiddenAreas());
 	}
 
 	private _getCustomLineHeightsForLines(fromLineNumber: number, toLineNumber: number): CustomLineHeightData[] {
@@ -214,7 +214,7 @@ export class ViewModel extends Disposable implements IViewModel {
 		}
 		const modelRange = new Range(fromLineNumber, 1, toLineNumber, this.model.getLineMaxColumn(toLineNumber));
 		const decorations = this.model.getCustomLineHeightsDecorationsInRange(modelRange, this._editorId);
-		return CustomLineHeightData.fromDecorations(decorations, this.coordinatesConverter, this._configuration);
+		return CustomLineHeightData.fromDecorations(decorations, this.coordinatesConverter, this._configuration, this._lines.getHiddenAreas());
 	}
 
 	private _updateConfigurationViewLineCountNow(): void {
@@ -481,8 +481,9 @@ export class ViewModel extends Disposable implements IViewModel {
 				this.viewLayout.changeSpecialLineHeights((accessor: ILineHeightChangeAccessor) => {
 					for (const change of filteredChanges) {
 						const { decorationId, lineNumber, lineHeightMultiplier } = change;
-						const viewRange = this.coordinatesConverter.convertModelRangeToViewRange(new Range(lineNumber, 1, lineNumber, this.model.getLineMaxColumn(lineNumber)));
-						if (lineHeightMultiplier !== null) {
+						// Hidden model lines can map to visible lines; their height changes must not resize those lines.
+						if (lineHeightMultiplier !== null && this.coordinatesConverter.modelPositionIsVisible(new Position(lineNumber, 1))) {
+							const viewRange = this.coordinatesConverter.convertModelRangeToViewRange(new Range(lineNumber, 1, lineNumber, this.model.getLineMaxColumn(lineNumber)));
 							accessor.insertOrChangeCustomLineHeight(decorationId, viewRange.startLineNumber, viewRange.endLineNumber, lineHeightMultiplier * this._configuration.options.get(EditorOption.lineHeight));
 						} else {
 							accessor.removeCustomLineHeight(decorationId);
@@ -582,6 +583,22 @@ export class ViewModel extends Disposable implements IViewModel {
 			if (fontDecoration.options.fontSize) {
 				fontSize = fontDecoration.options.fontSize;
 				break;
+			}
+		}
+		return fontSize;
+	}
+
+	public getLineFontSize(lineNumber: number): string {
+		const fontSize = this._configuration.options.get(EditorOption.fontInfo).fontSize + 'px';
+		if (!this._configuration.options.get(EditorOption.effectiveAllowVariableFonts)) {
+			return fontSize;
+		}
+		const range = new Range(lineNumber, 1, lineNumber, this.model.getLineMaxColumn(lineNumber));
+		const fontDecorations = this.model.getFontDecorationsInRange(range, this._editorId);
+		for (const fontDecoration of fontDecorations) {
+			const options = fontDecoration.options;
+			if (options.isWholeLine && !options.inlineClassName && options.fontSize) {
+				return options.fontSize;
 			}
 		}
 		return fontSize;

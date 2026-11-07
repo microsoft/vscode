@@ -50,6 +50,7 @@ import './contrib/rename/browser/rename.js';
 import './contrib/sectionHeaders/browser/sectionHeaders.js';
 import './contrib/semanticTokens/browser/documentSemanticTokens.js';
 import './contrib/semanticTokens/browser/viewportSemanticTokens.js';
+import './contrib/shrinkEmptyLines/browser/shrinkEmptyLines.js';
 import './contrib/smartSelect/browser/smartSelect.js';
 import './contrib/snippet/browser/snippetController2.js';
 import './contrib/stickyScroll/browser/stickyScrollContribution.js';

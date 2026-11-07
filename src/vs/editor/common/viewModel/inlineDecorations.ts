@@ -110,12 +110,16 @@ export class InlineModelDecorationsComputer implements IInlineDecorationsCompute
 
 			decorationsInViewport[decorationsInViewportLen++] = viewModelDecoration;
 
-			if (decorationOptions.inlineClassName) {
-				const inlineDecoration = new InlineDecoration(viewRange, decorationOptions.inlineClassName, decorationOptions.inlineClassNameAffectsLetterSpacing ? InlineDecorationType.RegularAffectingLetterSpacing : InlineDecorationType.Regular);
+			if (decorationOptions.inlineClassName || (decorationOptions.isWholeLine && decorationOptions.affectsFont)) {
+				const inlineDecoration = decorationOptions.inlineClassName
+					? new InlineDecoration(viewRange, decorationOptions.inlineClassName, decorationOptions.inlineClassNameAffectsLetterSpacing ? InlineDecorationType.RegularAffectingLetterSpacing : InlineDecorationType.Regular)
+					: null;
 				const intersectedStartLineNumber = Math.max(startLineNumber, viewRange.startLineNumber);
 				const intersectedEndLineNumber = Math.min(endLineNumber, viewRange.endLineNumber);
 				for (let j = intersectedStartLineNumber; j <= intersectedEndLineNumber; j++) {
-					inlineDecorations[j - startLineNumber].push(inlineDecoration);
+					if (inlineDecoration) {
+						inlineDecorations[j - startLineNumber].push(inlineDecoration);
+					}
 					if (decorationOptions.affectsFont) {
 						hasVariableFonts[j - startLineNumber] = true;
 					}
