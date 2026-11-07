@@ -81,6 +81,8 @@ suite('Files - ExplorerView', () => {
 		let opened: ExplorerItem[];
 		let controllers: Map<ExplorerItem, ICompressedNavigationController[]>;
 		let refreshGate: DeferredPromise<void> | undefined;
+		let rendered: ExplorerItem[];
+		let findClosest: (resource: URI) => ExplorerItem | null;
 
 		setup(async () => {
 			const createItem = (path: string, isDirectory = false) => new ExplorerItem(URI.file(path), fileService, configService, NullFilesConfigurationService, undefined, isDirectory);
@@ -98,6 +100,8 @@ suite('Files - ExplorerView', () => {
 			opened = [];
 			controllers = new Map();
 			refreshGate = undefined;
+			rendered = [];
+			findClosest = () => root;
 
 			const instantiationService = workbenchInstantiationService({
 				configurationService: () => new TestConfigurationService({ explorer: { autoReveal: false, compactFolders: false } }),
@@ -109,7 +113,7 @@ suite('Files - ExplorerView', () => {
 			instantiationService.stub(IExplorerService, {
 				roots: [root],
 				registerView: () => { },
-				findClosest: () => root,
+				findClosest: resource => findClosest(resource),
 				findClosestRoot: () => root,
 				isEditable: () => false,
 				getEditable: () => undefined,
@@ -143,6 +147,7 @@ suite('Files - ExplorerView', () => {
 					templateId: 'test',
 					renderTemplate: container => container,
 					renderElement: (node, _index, container) => {
+						rendered.push(node.element);
 						container.textContent = node.element.name;
 						container.dataset.resource = node.element.resource.toString();
 					},
@@ -235,6 +240,21 @@ suite('Files - ExplorerView', () => {
 				focus: [folder.resource],
 				selection: [folder.resource],
 			});
+		});
+
+		test('repaints the current items of a cut made before a refresh', async () => {
+			// A refresh replaces the folder's items, as ExplorerService.refresh does, and the first file has since moved away
+			const refreshedSecond = new ExplorerItem(second.resource, fileService, configService, NullFilesConfigurationService, folder, false);
+			folder.forgetChildren();
+			folder.addChild(refreshedSecond);
+			await tree.updateChildren(folder);
+			findClosest = resource => root.find(resource);
+			rendered = [];
+
+			view.itemsCopied([], false, [first, second]);
+
+			assert.strictEqual(rendered.length, 1);
+			assert.strictEqual(rendered[0], refreshedSecond);
 		});
 
 		function getContextMenuTarget(item: ExplorerItem | null): HTMLElement {
