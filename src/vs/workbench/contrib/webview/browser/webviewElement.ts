@@ -482,6 +482,10 @@ export class WebviewElement extends Disposable implements IWebviewElement, Webvi
 		this.element!.setAttribute('src', `${this.webviewContentEndpoint(encodedWebviewOrigin)}/${fileName}?${queryString}`);
 	}
 
+	protected hashParentOrigin(parentOrigin: string): Promise<string> {
+		return parentOriginHash(parentOrigin, this.origin);
+	}
+
 	public mountTo(element: HTMLElement, targetWindow: CodeWindow) {
 		if (!this.element) {
 			return;
@@ -489,9 +493,16 @@ export class WebviewElement extends Disposable implements IWebviewElement, Webvi
 
 		this._windowId = targetWindow.vscodeWindowId;
 		this._mountId = generateUuid();
-		this._encodedWebviewOriginPromise = parentOriginHash(targetWindow.origin, this.origin).then(id => this._encodedWebviewOrigin = id);
-		this._encodedWebviewOriginPromise.then(encodedWebviewOrigin => {
-			if (!this._disposed) {
+		const mountId = this._mountId;
+		const originPromise = this.hashParentOrigin(targetWindow.origin).then(id => {
+			if (this._mountId === mountId) {
+				this._encodedWebviewOrigin = id;
+			}
+			return id;
+		});
+		this._encodedWebviewOriginPromise = originPromise;
+		originPromise.then(encodedWebviewOrigin => {
+			if (!this._disposed && this._mountId === mountId) {
 				this._initElement(encodedWebviewOrigin, this.extension, this._options, targetWindow);
 			}
 		});
