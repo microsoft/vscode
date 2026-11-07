@@ -1997,6 +1997,12 @@ export interface FoldingContext {
 export interface FoldingRangeProvider {
 
 	/**
+	 * Whether this provider supplements indentation folding when all selected providers are secondary.
+	 * @internal
+	 */
+	readonly isSecondary?: boolean;
+
+	/**
 	 * @internal
 	 */
 	readonly id?: string;

@@ -2818,11 +2818,15 @@ export class ExtHostLanguageFeatures extends CoreDisposable implements extHostPr
 	}
 
 	registerFoldingRangeProvider(extension: IExtensionDescription, selector: vscode.DocumentSelector, provider: vscode.FoldingRangeProvider): vscode.Disposable {
+		const isSecondary = provider.isSecondary === true;
+		if (isSecondary) {
+			checkProposedApiEnabled(extension, 'foldingRangeProviderSecondary');
+		}
 		const handle = this._nextHandle();
 		const eventHandle = typeof provider.onDidChangeFoldingRanges === 'function' ? this._nextHandle() : undefined;
 
 		this._adapter.set(handle, new AdapterData(new FoldingProviderAdapter(this._documents, provider), extension));
-		this._proxy.$registerFoldingRangeProvider(handle, this._transformDocumentSelector(selector, extension), extension.identifier, eventHandle);
+		this._proxy.$registerFoldingRangeProvider(handle, this._transformDocumentSelector(selector, extension), extension.identifier, eventHandle, isSecondary);
 		let result = this._createDisposable(handle);
 
 		if (eventHandle !== undefined) {

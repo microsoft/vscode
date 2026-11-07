@@ -5,6 +5,7 @@
 
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { ITextModel } from '../../../common/model.js';
+import { FoldingRange } from '../../../common/languages.js';
 import { computeIndentLevel } from '../../../common/model/utils.js';
 import { FoldingMarkers } from '../../../common/languages/languageConfiguration.js';
 import { ILanguageConfigurationService } from '../../../common/languages/languageConfigurationRegistry.js';
@@ -26,11 +27,17 @@ export class IndentRangeProvider implements RangeProvider {
 
 	dispose() { }
 
-	compute(cancelationToken: CancellationToken,): Promise<FoldingRegions> {
+	compute(cancelationToken: CancellationToken): Promise<FoldingRegions> {
+		return Promise.resolve(this.collectRanges().toIndentRanges(this.editorModel));
+	}
+
+	computeRanges(): FoldingRange[] {
+		return this.collectRanges().toFoldingRanges();
+	}
+
+	private collectRanges(): RangesCollector {
 		const foldingRules = this.languageConfigurationService.getLanguageConfiguration(this.editorModel.getLanguageId()).foldingRules;
-		const offSide = foldingRules && !!foldingRules.offSide;
-		const markers = foldingRules && foldingRules.markers;
-		return Promise.resolve(computeRanges(this.editorModel, offSide, markers, this.foldingRangesLimit));
+		return collectRanges(this.editorModel, !!foldingRules?.offSide, foldingRules?.markers, this.foldingRangesLimit);
 	}
 }
 
@@ -61,6 +68,14 @@ export class RangesCollector {
 		if (indent < 1000) {
 			this._indentOccurrences[indent] = (this._indentOccurrences[indent] || 0) + 1;
 		}
+	}
+
+	public toFoldingRanges(): FoldingRange[] {
+		const ranges: FoldingRange[] = [];
+		for (let i = this._length - 1; i >= 0; i--) {
+			ranges.push({ start: this._startIndexes[i], end: this._endIndexes[i] });
+		}
+		return ranges;
 	}
 
 	public toIndentRanges(model: ITextModel) {
@@ -124,6 +139,10 @@ const foldingRangesLimitDefault: FoldingLimitReporter = {
 };
 
 export function computeRanges(model: ITextModel, offSide: boolean, markers?: FoldingMarkers, foldingRangesLimit: FoldingLimitReporter = foldingRangesLimitDefault): FoldingRegions {
+	return collectRanges(model, offSide, markers, foldingRangesLimit).toIndentRanges(model);
+}
+
+function collectRanges(model: ITextModel, offSide: boolean, markers: FoldingMarkers | undefined, foldingRangesLimit: FoldingLimitReporter): RangesCollector {
 	const tabSize = model.getOptions().tabSize;
 	const result = new RangesCollector(foldingRangesLimit);
 
@@ -221,5 +240,5 @@ export function computeRanges(model: ITextModel, offSide: boolean, markers?: Fol
 			previousRegions.push({ indent, endAbove: line, line });
 		}
 	}
-	return result.toIndentRanges(model);
+	return result;
 }
