@@ -60,6 +60,7 @@ import { CopilotCLITerminalIntegration, ICopilotCLITerminalIntegration } from '.
 import { registerCopilotCLITerminalCommands } from './copilotCLITerminalCommands';
 import { CopilotCloudSessionsProvider } from './copilotCloudSessionsProvider';
 import { CopilotCLIFolderRepositoryManager } from './folderRepositoryManagerImpl';
+import { LegacySessionMetadataBackfill } from './legacySessionMetadataBackfill';
 import { PRContentProvider } from './prContentProvider';
 import { IPullRequestCreationService, PullRequestCreationService } from './pullRequestCreationService';
 import { IPullRequestDetectionService, PullRequestDetectionService } from './pullRequestDetectionService';
@@ -96,6 +97,10 @@ export class ChatSessionsContrib extends Disposable implements IExtensionContrib
 		@IEnvService private readonly envService: IEnvService,
 	) {
 		super();
+		// Independent of the extension-host Copilot CLI session provider. Created before that
+		// provider's metadata store so it observes the store's one-time bulk-file merge flag as it
+		// was at startup.
+		this._register(instantiationService.createInstance(LegacySessionMetadataBackfill));
 		// Copilot Cloud Agent - conditionally register based on configuration
 		const summarizer = instantiationService.createInstance(ChatSummarizerProvider);
 		const delegationSummary = instantiationService.createInstance(ChatDelegationSummaryService, summarizer);
