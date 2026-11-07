@@ -109,10 +109,12 @@ export interface IAgentHostProxyResolver {
 	lookupClientKerberosAuthorization(proxyUrl: string): Promise<string | undefined>;
 
 	/**
-	 * A `Negotiate` `Proxy-Authorization` value for `proxyUrl` from a connected renderer or this machine's Kerberos
-	 * tickets, falling back to a client that shares this agent host's network. `undefined` when none supplies one.
+	 * A `Negotiate` `Proxy-Authorization` value for `proxyUrl` from this machine's Kerberos ticket for `spn`, falling back
+	 * to a client that shares this agent host's network, which derives the principal for `proxyUrl` itself. Connected
+	 * renderers are not asked: they run on this machine and would derive their own principal. `undefined` when none
+	 * supplies one.
 	 */
-	lookupKerberosAuthorization(proxyUrl: string): Promise<string | undefined>;
+	lookupKerberosAuthorization(proxyUrl: string, spn: string): Promise<string | undefined>;
 
 	getConfigurationValue<T>(key: AgentHostProxyConfigurationKey): T | undefined;
 
@@ -321,8 +323,8 @@ export class AgentHostProxyResolver extends Disposable implements IAgentHostProx
 		return undefined;
 	}
 
-	lookupKerberosAuthorization(proxyUrl: string): Promise<string | undefined> {
-		return this._hostLookupKerberosAuthorization(proxyUrl);
+	lookupKerberosAuthorization(proxyUrl: string, spn: string): Promise<string | undefined> {
+		return this._lookupMachineOrClientKerberosAuthorization(proxyUrl, spn);
 	}
 
 	resolveProxy(url: string): Promise<string | undefined> {
@@ -435,8 +437,12 @@ export class AgentHostProxyResolver extends Disposable implements IAgentHostProx
 			}
 		}
 		// Like a remote extension host, use this machine's tickets before falling back to a client sharing its network.
+		return this._lookupMachineOrClientKerberosAuthorization(url, this.getConfigurationValue<string>(AgentHostProxyConfigKey.ProxyKerberosServicePrincipal));
+	}
+
+	/** This machine's ticket for `spn`, or the one derived from `url`, else a ticket from a client sharing its network. */
+	private async _lookupMachineOrClientKerberosAuthorization(url: string, spn: string | undefined): Promise<string | undefined> {
 		try {
-			const spn = this.getConfigurationValue<string>(AgentHostProxyConfigKey.ProxyKerberosServicePrincipal);
 			return `Negotiate ${await this._lookupKerberosAuthorization(url, spn)}`;
 		} catch (error) {
 			this._logService.debug('AgentHostProxyResolver#lookupKerberosAuthorization Kerberos authentication failed', error);

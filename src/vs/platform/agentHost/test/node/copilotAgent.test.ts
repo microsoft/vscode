@@ -1422,9 +1422,9 @@ class TestProxyResolver implements IAgentHostProxyResolver {
 		return 'Negotiate client-ticket';
 	}
 
-	readonly kerberosLookups: string[] = [];
-	async lookupKerberosAuthorization(proxyUrl: string): Promise<string | undefined> {
-		this.kerberosLookups.push(proxyUrl);
+	readonly kerberosLookups: { readonly proxyUrl: string; readonly spn: string }[] = [];
+	async lookupKerberosAuthorization(proxyUrl: string, spn: string): Promise<string | undefined> {
+		this.kerberosLookups.push({ proxyUrl, spn });
 		return 'Negotiate ticket';
 	}
 
@@ -13840,6 +13840,37 @@ suite('CopilotAgent', () => {
 				},
 			});
 		});
+		test('restarts the Copilot runtime with an http.proxy setting with credentials, which its callbacks cannot carry, in its environment', async () => {
+			process.env['HTTPS_PROXY'] = 'http://ambient-proxy.example:8080';
+			process.env['NO_PROXY'] = 'intranet.example';
+			const client = new TestCopilotClient([]);
+			const proxyResolver = new TestProxyResolver();
+			const { agent, configurationService } = createTestAgentContext(disposables, {
+				copilotClient: client,
+				proxyResolver,
+				rootConfig: { [AgentHostProxyConfigKey.Proxy]: 'http://configured-proxy.example:8080' },
+			});
+			afterTest(() => disposeAgent(agent));
+			await agent.listChatsToMigrate();
+			const credentialedProxy = 'http://alice:s%40cret@configured-proxy.example:8080';
+			configurationService.updateRootConfig({ [AgentHostProxyConfigKey.Proxy]: credentialedProxy, [AgentHostProxyConfigKey.NoProxy]: ['localhost', '.corp.example'] });
+			proxyResolver.fireConfigurationChange();
+			await proxyRefresh(agent);
+			await agent.listChatsToMigrate();
+
+			assert.deepStrictEqual({
+				startCallCount: client.startCallCount,
+				stopCallCount: client.stopCallCount,
+				proxyEnvironments: getCreatedClientOptions(agent).map(options => Object.fromEntries(['HTTPS_PROXY', 'https_proxy', 'HTTP_PROXY', 'http_proxy', 'NO_PROXY', 'no_proxy'].map(key => [key, options.env?.[key]]))),
+			}, {
+				startCallCount: 2,
+				stopCallCount: 1,
+				proxyEnvironments: [
+					{ HTTPS_PROXY: 'http://ambient-proxy.example:8080', https_proxy: undefined, HTTP_PROXY: undefined, http_proxy: undefined, NO_PROXY: 'intranet.example', no_proxy: undefined },
+					{ HTTPS_PROXY: credentialedProxy, https_proxy: undefined, HTTP_PROXY: credentialedProxy, http_proxy: undefined, NO_PROXY: 'localhost,.corp.example', no_proxy: undefined },
+				],
+			});
+		});
 		(process.platform === 'win32' ? test : test.skip)('omits environment keys case-insensitively on Windows', () => {
 			const env = createCopilotCliEnvironment({
 				Http_Proxy: 'http://proxy.example:8080',
@@ -14113,7 +14144,8 @@ suite('CopilotAgent', () => {
 				clientDirect: await answer({ url: undefined, type: 'DIRECT', source: 'system', result: 'DIRECT' }),
 				clientNone: await answer({ url: undefined, type: 'EMPTY', source: 'system', result: undefined }),
 				noClient: await answer({ url: undefined, type: 'DIRECT', source: 'remote', result: 'DIRECT' }),
-				setting: await answer({ url: 'https://user:secret@secure-proxy.example', type: 'HTTPS', source: 'setting', result: 'HTTPS secure-proxy.example:443' }),
+				setting: await answer({ url: 'https://secure-proxy.example', type: 'HTTPS', source: 'setting', result: 'HTTPS secure-proxy.example:443' }),
+				settingWithCredentials: await answer({ url: 'https://user:secret@secure-proxy.example', type: 'HTTPS', source: 'setting', result: 'HTTPS secure-proxy.example:443' }),
 				noProxySetting: await answer({ url: undefined, type: 'DIRECT', source: 'noProxyConfig', result: 'DIRECT' }),
 			};
 			configurationService.updateRootConfig({ [AgentHostSystemProxyEnabledConfigKey]: false });
@@ -14121,6 +14153,7 @@ suite('CopilotAgent', () => {
 			const systemProxyDisabled = {
 				cachedClient: await answer({ url: 'http://proxy.example:8080', type: 'PROXY', source: 'system_cached', result: 'PROXY proxy.example:8080' }),
 				environment: await answer({ url: 'http://env-proxy.example:3128', type: 'PROXY', source: 'env', result: 'PROXY env-proxy.example:3128' }),
+				environmentWithCredentials: await answer({ url: 'http://user@env-proxy.example:3128', type: 'PROXY', source: 'env', result: 'PROXY env-proxy.example:3128' }),
 			};
 
 			assert.deepStrictEqual({ systemProxyEnabled, systemProxyDisabled }, {
@@ -14132,18 +14165,24 @@ suite('CopilotAgent', () => {
 					clientNone: undefined,
 					noClient: undefined,
 					setting: 'HTTPS secure-proxy.example:443',
+					settingWithCredentials: undefined,
 					noProxySetting: 'DIRECT',
 				},
 				systemProxyDisabled: {
 					cachedClient: undefined,
 					environment: 'PROXY env-proxy.example:3128',
+					environmentWithCredentials: undefined,
 				},
 			});
 		});
 
-		test('authenticates the Copilot runtime with this machine\'s or a client\'s Kerberos tickets', async () => {
+		test('authenticates the Copilot runtime with this machine\'s ticket for the principal it requests, or a client\'s', async () => {
 			const proxyResolver = new TestProxyResolver();
-			const { agent } = createTestAgentContext(disposables, { copilotClient: new TestCopilotClient([]), proxyResolver });
+			const { agent } = createTestAgentContext(disposables, {
+				copilotClient: new TestCopilotClient([]),
+				proxyResolver,
+				rootConfig: { [AgentHostProxyConfigKey.ProxyKerberosServicePrincipal]: 'HTTP/configured.proxy' },
+			});
 			afterTest(() => disposeAgent(agent));
 			await agent.listChatsToMigrate();
 			const authenticateNegotiate = getCreatedClientOptions(agent).at(-1)?.network?.authenticateNegotiate;
@@ -14151,13 +14190,20 @@ suite('CopilotAgent', () => {
 
 			assert.deepStrictEqual({
 				tokens: [
-					await authenticateNegotiate?.({ spn: 'HTTP/proxy.example@EXAMPLE.COM' }, signal),
+					await authenticateNegotiate?.({ spn: 'HTTP/environment.proxy@EXAMPLE.COM' }, signal),
+					await authenticateNegotiate?.({ spn: 'HTTP/proxy.example' }, signal),
+					await authenticateNegotiate?.({ spn: 'HTTP@alias.example' }, signal),
 					await authenticateNegotiate?.({ spn: 'ldap/directory.example' }, signal),
 				],
 				kerberosLookups: proxyResolver.kerberosLookups,
 			}, {
-				tokens: ['ticket', undefined],
-				kerberosLookups: ['http://proxy.example'],
+				tokens: ['ticket', 'ticket', 'ticket', undefined],
+				kerberosLookups: [
+					{ proxyUrl: 'http://environment.proxy', spn: 'HTTP/environment.proxy@EXAMPLE.COM' },
+					// GSSAPI, which the runtime uses outside Windows, takes host-based names.
+					{ proxyUrl: 'http://proxy.example', spn: process.platform === 'win32' ? 'HTTP/proxy.example' : 'HTTP@proxy.example' },
+					{ proxyUrl: 'http://alias.example', spn: 'HTTP@alias.example' },
+				],
 			});
 		});
 

@@ -273,13 +273,35 @@ function isCopilotConnectionClosedError(error: unknown): boolean {
 	return classifyCopilotClientOperationFailure(error) === 'connectionClosed';
 }
 
+/** The proxy environment variables the Copilot runtime reads. */
+const COPILOT_PROXY_ENV_KEYS = ['HTTPS_PROXY', 'https_proxy', 'HTTP_PROXY', 'http_proxy', 'ALL_PROXY', 'all_proxy', 'NO_PROXY', 'no_proxy'] as const;
+
+/** Whether a proxy URL carries credentials, which a PAC-style proxy list cannot. */
+function hasProxyCredentials(proxyUrl: string | undefined): boolean {
+	try {
+		const url = proxyUrl ? new URL(proxyUrl) : undefined;
+		return !!(url?.username || url?.password);
+	} catch {
+		return false;
+	}
+}
+
 /**
  * The proxy a Kerberos principal from the Copilot runtime names. The runtime asks for its proxy's principal, `HTTP/host`
- * or a configured override, optionally with `@REALM`; clients derive the principal for a proxy themselves.
+ * or a configured override such as `HTTP@host`, optionally with `@REALM`; clients derive the principal for a proxy
+ * themselves.
  */
 function getKerberosPrincipalProxyUrl(spn: string): string | undefined {
-	const host = /^HTTP\/(?<host>[^/@\s]+)(?:@\S+)?$/i.exec(spn)?.groups?.host;
+	const host = /^HTTP[/@](?<host>[^/@\s]+)(?:@\S+)?$/i.exec(spn)?.groups?.host;
 	return host ? `http://${host}` : undefined;
+}
+
+/**
+ * The name to acquire this machine's ticket for a principal of the Copilot runtime with, as the runtime does: GSSAPI
+ * outside Windows imports host-based names, so `HTTP/host` becomes `HTTP@host`, and a name with an `@` is kept.
+ */
+function getNativeKerberosPrincipal(spn: string): string {
+	return process.platform === 'win32' || spn.includes('@') ? spn : spn.replace('/', '@');
 }
 
 /** The PAC entry types the Copilot runtime understands. It skips the SOCKS ones. */
@@ -534,6 +556,10 @@ interface IScopedCopilotModelCatalog {
 }
 
 interface ICopilotClientProxyState {
+	/** An `http.proxy` setting with credentials, which reaches the Copilot runtime through its environment. */
+	readonly proxy: string | undefined;
+	/** The `NO_PROXY` the Copilot runtime gets with {@link proxy}. */
+	readonly noProxy: string | undefined;
 	readonly kerberosSpn: string | undefined;
 	readonly certificates: readonly string[];
 }
@@ -1287,7 +1313,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 	private _clientStopping: Promise<void> | undefined;
 	private _clientStartupAttemptCount = 0;
 	private _proxyRefresh: Promise<void> | undefined;
-	private _appliedProxyState: ICopilotClientProxyState = { kerberosSpn: undefined, certificates: [] };
+	private _appliedProxyState: ICopilotClientProxyState = { proxy: undefined, noProxy: undefined, kerberosSpn: undefined, certificates: [] };
 	/**
 	 * Reasons for a client restart that is parked until every chat is idle. See
 	 * {@link _requestClientRestart}; drained by {@link _applyPendingClientRestart}.
@@ -10093,6 +10119,20 @@ export class CopilotAgent extends Disposable implements IAgent {
 		return spn || undefined;
 	}
 
+	private _readNoProxy(env: Record<string, string | undefined>): string | undefined {
+		const configuredNoProxy = (this._configurationService.getRootValue(agentHostProxyConfigSchema, AgentHostProxyConfigKey.NoProxy) ?? [])
+			.map(value => value.trim())
+			.filter(Boolean)
+			.join(',');
+		return configuredNoProxy || (env['no_proxy'] || env['NO_PROXY'] || '').trim() || undefined;
+	}
+
+	/** The `http.proxy` setting when it has credentials, which the Copilot runtime only gets from its environment. */
+	private _readCredentialedProxy(): string | undefined {
+		const proxy = this._configurationService.getRootValue(agentHostProxyConfigSchema, AgentHostProxyConfigKey.Proxy)?.trim();
+		return hasProxyCredentials(proxy) ? proxy : undefined;
+	}
+
 	/** The network callbacks through which the Copilot runtime resolves proxies and Kerberos tickets. */
 	private _createRuntimeNetworkConfig(): NetworkConfig {
 		this._logService.info('[Copilot] The Copilot runtime resolves proxies and Kerberos tickets through this agent host');
@@ -10108,46 +10148,61 @@ export class CopilotAgent extends Disposable implements IAgent {
 	 * `http.noProxy`, `http.proxy`, the proxy environment variables, then the system proxy a client resolves, including
 	 * its fallback entries. `undefined` lets the runtime resolve the proxy itself, as it does without the callback, when no
 	 * client was connected to resolve the system proxy with, the client resolved none, or system proxy discovery is
-	 * disabled.
+	 * disabled. It does so too for a configured proxy with credentials, which a PAC-style list cannot carry: the runtime
+	 * reads that proxy, credentials included, from its environment.
 	 */
 	private async _resolveRuntimeProxy(url: string): Promise<string | undefined> {
-		const { result, source } = await this._proxyResolver.resolveProxyByURL(url);
+		const { url: proxyUrl, result, source } = await this._proxyResolver.resolveProxyByURL(url);
 		const fromClient = source === 'system' || source === 'system_cached' || source === 'fallback';
-		const proxy = source === 'remote' || !result || fromClient && !this._isSystemProxyEnabled()
+		const withCredentials = (source === 'setting' || source === 'env') && hasProxyCredentials(proxyUrl);
+		const proxy = source === 'remote' || !result || fromClient && !this._isSystemProxyEnabled() || withCredentials
 			? undefined
 			: getRuntimeProxyList(result);
-		this._logService.debug(`[Copilot] Resolved the Copilot runtime's proxy for ${originsOnlyForLog(url)} from ${source}: ${proxy ?? 'resolved by the runtime'}`);
+		this._logService.debug(`[Copilot] Resolved the Copilot runtime's proxy for ${originsOnlyForLog(url)} from ${source}: ${proxy ?? (withCredentials ? 'resolved by the runtime from its environment, to keep the credentials' : 'resolved by the runtime')}`);
 		return proxy;
 	}
 
-	/** A base64 initial SPNEGO token for a proxy principal of the Copilot runtime. */
+	/**
+	 * A base64 initial SPNEGO token for a proxy principal of the Copilot runtime: this machine's ticket for exactly that
+	 * principal, else one from a client sharing this agent host's network, which derives the principal for the proxy.
+	 */
 	private async _lookupKerberosToken(spn: string): Promise<string | undefined> {
 		const proxyUrl = getKerberosPrincipalProxyUrl(spn);
-		const authorization = proxyUrl ? await this._proxyResolver.lookupKerberosAuthorization(proxyUrl) : undefined;
+		const authorization = proxyUrl ? await this._proxyResolver.lookupKerberosAuthorization(proxyUrl, getNativeKerberosPrincipal(spn)) : undefined;
 		return authorization ? /^Negotiate (?<token>\S+)$/i.exec(authorization)?.groups?.token : undefined;
 	}
 
 	private _readCopilotProxyState(): ICopilotClientProxyState {
+		const proxy = this._readCredentialedProxy();
 		return {
+			proxy,
+			noProxy: proxy ? this._readNoProxy(process.env) ?? 'localhost,127.0.0.1,::1,::ffff:127.0.0.1' : undefined,
 			kerberosSpn: this._readKerberosSpn(process.env),
 			certificates: this._proxyResolver.clientCertificates,
 		};
 	}
 
 	private _createCopilotCliEnvironment(skillCharBudget = this._getSkillCharBudget(), omitAmbientAuthentication = false, proxyState = this._readCopilotProxyState(), executionSubagent = this._isExecutionSubagentEnabled(), executionSubagentModel = this._getExecutionSubagentModel()): Record<string, string | undefined> {
-		// Proxies reach the runtime only through its network callbacks: proxy environment variables would also apply to
-		// the tools it runs, which may need a different proxy or none, for example for intranet hosts.
+		// Proxies reach the runtime through its network callbacks: proxy environment variables would also apply to the
+		// tools it runs, which may need a different proxy or none, for example for intranet hosts. Only a configured proxy
+		// with credentials, which the callbacks cannot carry, is set in the environment.
+		const { proxy, noProxy, kerberosSpn } = proxyState;
 		const env = createCopilotCliEnvironment(
 			process.env,
-			[],
+			proxy ? COPILOT_PROXY_ENV_KEYS : [],
 			this._isClaudeAdvisorEnabled(),
 			skillCharBudget,
 			this._getSearchSubagentModel(),
 			omitAmbientAuthentication,
 			{ enabled: executionSubagent, model: executionSubagentModel },
 		);
-		if (proxyState.kerberosSpn && !env['COPILOT_PROXY_KERBEROS_SPN']) {
-			env['COPILOT_PROXY_KERBEROS_SPN'] = proxyState.kerberosSpn;
+		if (proxy) {
+			env['HTTP_PROXY'] = env['HTTPS_PROXY'] = proxy;
+			env['NO_PROXY'] = noProxy;
+			this._logService.info('[Copilot] Forwarded the http.proxy setting with credentials to the Copilot runtime as HTTP_PROXY/HTTPS_PROXY');
+		}
+		if (kerberosSpn && !env['COPILOT_PROXY_KERBEROS_SPN']) {
+			env['COPILOT_PROXY_KERBEROS_SPN'] = kerberosSpn;
 		}
 		return env;
 	}
@@ -10173,6 +10228,12 @@ export class CopilotAgent extends Disposable implements IAgent {
 				return;
 			}
 			const changes: string[] = [];
+			if (effectiveProxy.proxy !== this._appliedProxyState.proxy) {
+				changes.push('http.proxy with credentials changed');
+			}
+			if (effectiveProxy.noProxy !== this._appliedProxyState.noProxy) {
+				changes.push('NO_PROXY changed');
+			}
 			if (effectiveProxy.kerberosSpn !== this._appliedProxyState.kerberosSpn) {
 				changes.push('Kerberos SPN changed');
 			}
