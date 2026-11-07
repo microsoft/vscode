@@ -179,6 +179,76 @@ export function resolveRemotePlatform(unameS: string, unameM: string, libc = '')
 }
 
 /**
+ * Output of `cmd /c ver` on a Windows host, e.g.
+ * `Microsoft Windows [Version 10.0.19045.5737]`.
+ */
+const WINDOWS_VERSION_RE = /microsoft windows\s+\[version\s+[^\]]+\]/i;
+
+/**
+ * Returns true when `output` looks like the output of `cmd /c ver` on a
+ * Windows host.
+ */
+export function isWindowsVersionOutput(output: string): boolean {
+	return WINDOWS_VERSION_RE.test(output);
+}
+
+/**
+ * Resolve the remote platform from Windows detection output: the `ver`
+ * command output plus `%PROCESSOR_ARCHITECTURE%` (`AMD64`/`ARM64`).
+ * Returns `undefined` when the output is not from a Windows host, or when
+ * the architecture has no CLI artifact (e.g. 32-bit `x86`).
+ */
+export function resolveWindowsRemotePlatform(verOutput: string, processorArchitecture: string): { os: string; arch: string } | undefined {
+	if (!isWindowsVersionOutput(verOutput)) {
+		return undefined;
+	}
+	const arch = processorArchitecture.trim().toLowerCase();
+	if (arch === 'amd64') {
+		return { os: 'win32', arch: 'x64' };
+	}
+	if (arch === 'arm64') {
+		return { os: 'win32', arch: 'arm64' };
+	}
+	return undefined;
+}
+
+/**
+ * Detect the remote platform over `exec`, tolerating shells that lack
+ * POSIX utilities. `uname` does not exist when the remote OpenSSH default
+ * shell is PowerShell or cmd (Windows), so a failed `uname -s` falls back
+ * to `cmd /c ver` (plus `%PROCESSOR_ARCHITECTURE%`) instead of failing
+ * the connection with a cryptic `uname -s` error (#316712).
+ *
+ * Throws when the platform cannot be determined at all, or when `uname`
+ * succeeds but reports an OS/architecture with no CLI artifact.
+ */
+export async function detectRemotePlatform(exec: ISshExec): Promise<{ os: string; arch: string }> {
+	const { stdout: unameS, code: unameSCode } = await exec('uname -s', { ignoreExitCode: true });
+	if (unameSCode === 0 && unameS.trim()) {
+		const { stdout: unameM, code: unameMCode } = await exec('uname -m', { ignoreExitCode: true });
+		const platform = resolveRemotePlatform(unameS, unameMCode === 0 ? unameM : '');
+		if (platform) {
+			return platform;
+		}
+		const detail = [unameS.trim(), unameM.trim()].filter(part => part.length > 0).join(' ');
+		throw new Error(`Unsupported remote platform: ${detail}`);
+	}
+
+	const { stdout: verOutput, code: verCode } = await exec('cmd /c ver', { ignoreExitCode: true });
+	if (verCode === 0 && isWindowsVersionOutput(verOutput)) {
+		const { stdout: archOutput, code: archCode } = await exec('cmd /c echo %PROCESSOR_ARCHITECTURE%', { ignoreExitCode: true });
+		const platform = resolveWindowsRemotePlatform(verOutput, archCode === 0 ? archOutput : '');
+		if (platform) {
+			return platform;
+		}
+		throw new Error(`Unsupported remote platform: Windows (${archOutput.trim() || 'unknown architecture'})`);
+	}
+
+	throw new Error('Could not detect the remote operating system: '
+		+ `'uname -s' failed and the Windows detection command ('cmd /c ver') did not report a Windows host`);
+}
+
+/**
  * URL of the CLI download artifact.
  *
  * When `commit` is provided, uses the commit-pinned URL form so we get

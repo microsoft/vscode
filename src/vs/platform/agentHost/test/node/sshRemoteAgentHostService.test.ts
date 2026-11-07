@@ -1423,6 +1423,45 @@ suite('SSHRemoteAgentHostMainService - connect flow', () => {
 			'should download CLI when not installed');
 	});
 
+	// --- Remote platform detection ---
+
+	test('fails with a clear message for a Windows target instead of a cryptic uname error', async () => {
+		service.execResponses = [
+			{ stdout: '', code: 1 }, // uname -s fails: PowerShell has no uname
+			{ stdout: '\r\nMicrosoft Windows [Version 10.0.19045.5737]\r\n', code: 0 }, // cmd /c ver
+			{ stdout: 'AMD64\r\n', code: 0 }, // cmd /c echo %PROCESSOR_ARCHITECTURE%
+		];
+
+		await assert.rejects(
+			service.connect(makeConfig({ sshConfigHost: 'myhost' })),
+			/Remote host is running Windows \(x64\)\. Agent over SSH to Windows targets is not yet supported/,
+		);
+
+		// The probe ran the Windows fallback and stopped before the CLI install.
+		assert.deepStrictEqual(service.mockClients[0].execCalls, [
+			'uname -s',
+			'cmd /c ver',
+			'cmd /c echo %PROCESSOR_ARCHITECTURE%',
+		]);
+	});
+
+	test('fails clearly when the remote platform cannot be detected at all', async () => {
+		service.execResponses = [
+			{ stdout: '', code: 127 }, // uname -s fails
+			{ stdout: '', code: 127 }, // cmd /c ver fails too
+		];
+
+		await assert.rejects(
+			service.connect(makeConfig({ sshConfigHost: 'myhost' })),
+			/Could not detect the remote operating system/,
+		);
+
+		assert.deepStrictEqual(service.mockClients[0].execCalls, [
+			'uname -s',
+			'cmd /c ver',
+		]);
+	});
+
 	test('warns and reuses the installed CLI when refresh fails', async () => {
 		const logService = new RecordingLogService();
 		const productService: Pick<IProductService, '_serviceBrand' | 'quality' | 'dataFolderName'> = {
