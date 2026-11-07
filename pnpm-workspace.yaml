@@ -10,6 +10,7 @@ packages:
   - test/monaco
   - test/scenario
   - test/smoke
+  - test/unit
 pnpmfile: .pnpmfile.mjs
 nodeLinker: hoisted
 strictPeerDependencies: false

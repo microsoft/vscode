@@ -340,9 +340,6 @@ importers:
       '@vscode/test-web':
         specifier: ^0.0.81
         version: 0.0.81(kerberos@2.1.1)
-      '@vscode/v8-heap-parser':
-        specifier: ^0.1.0
-        version: 0.1.0
       '@vscode/vscode-perf':
         specifier: ^0.0.19
         version: 0.0.19
@@ -445,21 +442,6 @@ importers:
       innosetup:
         specifier: ^6.4.1
         version: 6.4.1
-      istanbul-lib-coverage:
-        specifier: ^3.2.0
-        version: 3.2.2
-      istanbul-lib-instrument:
-        specifier: ^6.0.1
-        version: 6.0.3
-      istanbul-lib-report:
-        specifier: ^3.0.0
-        version: 3.0.1
-      istanbul-lib-source-maps:
-        specifier: ^4.0.1
-        version: 4.0.1
-      istanbul-reports:
-        specifier: ^3.1.5
-        version: 3.1.6
       js-yaml:
         specifier: ^4.2.0
         version: 4.3.2
@@ -532,9 +514,6 @@ importers:
       xml2js:
         specifier: ^0.5.0
         version: 0.5.0
-      yaserver:
-        specifier: ^0.4.0
-        version: 0.4.0
     optionalDependencies:
       windows-foreground-love:
         specifier: 0.6.1
@@ -842,6 +821,48 @@ importers:
       npm-run-all2:
         specifier: ^8.0.4
         version: 8.0.4
+
+  test/unit:
+    devDependencies:
+      '@playwright/test':
+        specifier: ^1.61.1
+        version: 1.61.1
+      '@vscode/v8-heap-parser':
+        specifier: ^0.1.0
+        version: 0.1.0
+      glob:
+        specifier: ^5.0.13
+        version: 5.0.15
+      istanbul-lib-coverage:
+        specifier: ^3.2.0
+        version: 3.2.2
+      istanbul-lib-instrument:
+        specifier: ^6.0.1
+        version: 6.0.3
+      istanbul-lib-report:
+        specifier: ^3.0.0
+        version: 3.0.1
+      istanbul-lib-source-maps:
+        specifier: ^4.0.1
+        version: 4.0.1
+      istanbul-reports:
+        specifier: ^3.1.5
+        version: 3.1.6
+      minimatch:
+        specifier: ^3.1.5
+        version: 3.1.5
+      minimist:
+        specifier: ^1.2.8
+        version: 1.2.8
+      mocha:
+        specifier: ^10.8.2
+        version: 10.8.2
+      mocha-junit-reporter:
+        specifier: ^2.2.1
+        version: 2.2.1(mocha@10.8.2)
+      yaserver:
+        specifier: ^0.4.0
+        version: 0.4.0
 
 packages:
 
