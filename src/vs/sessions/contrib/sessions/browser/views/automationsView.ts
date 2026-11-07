@@ -351,8 +351,6 @@ class AutomationCardsSection extends Disposable {
 	private readonly container: HTMLElement;
 	private readonly emptyContainer: HTMLElement;
 	private readonly loadingContainer: HTMLElement;
-	private readonly unavailableContainer: HTMLElement;
-	private readonly errorContainer: HTMLElement;
 	private readonly templatesContainer: HTMLElement;
 	private readonly disabledSection: IAutomationOwnershipSection;
 	private readonly partialStateContainer: HTMLElement;
@@ -365,7 +363,6 @@ class AutomationCardsSection extends Disposable {
 	private readonly templateDisposables = this._register(new DisposableStore());
 	private readonly stateDisposables = this._register(new DisposableStore());
 	private readonly templateAriaId = generateUuid();
-	private emptyStateRendered = false;
 	private renderedTemplates: readonly IAutomationTemplate[] = [];
 	private builtInTemplatesSection: HTMLDetailsElement | undefined;
 	private builtInTemplatesExpanded: boolean | undefined;
@@ -378,12 +375,11 @@ class AutomationCardsSection extends Disposable {
 	private currentPluginTemplateIds = new Set<string>();
 	private seenPluginTemplateIds: Set<string>;
 	private emptyCreateButton: IButton | undefined;
+	private emptyStateTitle: HTMLElement | undefined;
 	private readonly loadingCreateButton: IButton;
-	private readonly unavailableCreateButton: IButton;
-	private readonly unavailableDescription: HTMLElement;
-	private readonly errorCreateButton: IButton;
 	private visibleContainer: HTMLElement | undefined;
 	private partialState: AutomationCatalogueState = 'ready';
+	private partialStateDescription = '';
 	private partialUnavailableProviders: readonly IAutomationProviderDescriptor[] = [];
 	private pendingFocusAutomationId: string | undefined;
 	private focusRequestGeneration = 0;
@@ -412,40 +408,27 @@ class AutomationCardsSection extends Disposable {
 		}));
 		this.container = DOM.append(parent, $('.automations-cards-grid'));
 		this.container.style.display = 'none';
-		const warningButton = this._register(new Button(parent, {
-			ariaLabel: localize('automationWarnings', "Automation warnings"),
-			supportIcons: true,
-		}));
-		warningButton.label = '$(warning)';
-		this.partialStateContainer = warningButton.element;
+		this.partialStateContainer = DOM.append(parent, renderIcon(Codicon.warning));
 		this.partialStateContainer.classList.add('automations-cards-partial-state');
+		this.partialStateContainer.setAttribute('aria-hidden', 'true');
 		this.partialStateContainer.style.display = 'none';
 		this.partialStateMessage = $('div.automations-cards-partial-state-message');
-		const warningHover = {
+		this._register(this.hoverService.setupDelayedHover(this.partialStateContainer, {
 			content: this.partialStateMessage,
-			appearance: { showPointer: true },
-			position: { hoverPosition: HoverPosition.BELOW },
-		};
-		this._register(this.hoverService.setupDelayedHover(this.partialStateContainer, warningHover, { groupId: this.templateAriaId }));
-		this._register(warningButton.onDidClick(event => {
-			if (event) {
-				DOM.EventHelper.stop(event, true);
-			}
-			this.hoverService.showInstantHover({ ...warningHover, target: this.partialStateContainer, trapFocus: true }, true);
+			style: HoverStyle.Pointer,
+		}, { groupId: this.templateAriaId }));
+		// Clicking the indicator must not focus or toggle the surrounding disclosure.
+		this._register(DOM.addDisposableListener(this.partialStateContainer, DOM.EventType.MOUSE_DOWN, event => {
+			DOM.EventHelper.stop(event, true);
+		}));
+		this._register(DOM.addDisposableListener(this.partialStateContainer, DOM.EventType.CLICK, event => {
+			DOM.EventHelper.stop(event, true);
 		}));
 		this.emptyContainer = DOM.append(parent, $('.automations-cards-empty'));
 		this.emptyContainer.style.display = 'none';
 		this.loadingContainer = DOM.append(parent, $('.automations-cards-state.automations-cards-loading'));
 		this.loadingContainer.style.display = 'none';
 		this.loadingCreateButton = this.renderLoadingState();
-		this.unavailableContainer = DOM.append(parent, $('.automations-cards-state.automations-cards-unavailable'));
-		this.unavailableContainer.style.display = 'none';
-		const unavailableState = this.renderUnavailableState();
-		this.unavailableCreateButton = unavailableState.createButton;
-		this.unavailableDescription = unavailableState.description;
-		this.errorContainer = DOM.append(parent, $('.automations-cards-state.automations-cards-error'));
-		this.errorContainer.style.display = 'none';
-		this.errorCreateButton = this.renderErrorState();
 		this.disabledSection = this.renderOwnershipSection('disabled', localize('disabledAutomations', "Disabled automations"));
 		this._register(this.disabledSection.disposables);
 		const disabledDetails = DOM.append(parent, this.disabledSection.section);
@@ -589,9 +572,6 @@ class AutomationCardsSection extends Disposable {
 				this.ownershipSections.set(group.ownership, rendered);
 			}
 			rendered.title.textContent = group.label;
-			if (group.ownership === 'user' && this.partialStateContainer.parentElement !== rendered.summary) {
-				rendered.summary.appendChild(this.partialStateContainer);
-			}
 			if (rendered.emptyState) {
 				rendered.emptyState.style.display = group.automations.length === 0 && enabledAutomations.length > 0 ? '' : 'none';
 			}
@@ -635,18 +615,25 @@ class AutomationCardsSection extends Disposable {
 		const showTemplateSections = templates.length > 0;
 		this.templatesContainer.style.display = showTemplateSections ? '' : 'none';
 
-		if (unavailableProviders.length > 0) {
-			this.renderUnavailableMessage(this.unavailableDescription, unavailableProviders);
-		} else {
-			this.unavailableDescription.textContent = localize('automationsUnavailableDescription', "One or more providers are disconnected, disabled, or do not support automations.");
-		}
 		const nextContainer = automations.length === 0 ? this.getEmptyStateContainer(catalogueState) : this.container;
 		const previousContainer = this.visibleContainer;
 		if (previousContainer !== nextContainer) {
 			nextContainer.style.display = '';
 			this.visibleContainer = nextContainer;
 		}
-		this.renderPartialState(automations.length > 0 ? catalogueState : 'ready', unavailableProviders);
+		this.renderPartialState(catalogueState, unavailableProviders);
+		const warningsSummary = this.ownershipSections.get('user')?.summary;
+		const warningHeading = automations.length === 0 ? this.emptyStateTitle : warningsSummary;
+		if (warningHeading && this.partialStateContainer.parentElement !== warningHeading) {
+			warningHeading.appendChild(this.partialStateContainer);
+		}
+		for (const heading of [this.emptyStateTitle, warningsSummary]) {
+			if (heading === warningHeading && this.partialStateDescription) {
+				heading?.setAttribute('aria-description', this.partialStateDescription);
+			} else {
+				heading?.removeAttribute('aria-description');
+			}
+		}
 
 		// Move focus before hiding its previous container.
 		if (!this.focusPendingAutomation() && contentOwnedFocus && DOM.isHTMLElement(activeElement)) {
@@ -739,13 +726,12 @@ class AutomationCardsSection extends Disposable {
 			case 'loading':
 				return this.loadingContainer;
 			case 'unavailable':
-				return this.unavailableContainer;
 			case 'error':
-				return this.errorContainer;
 			case 'ready':
-				if (!this.emptyStateRendered) {
-					this.emptyCreateButton = this.renderEmptyState(this.emptyContainer, this.emptyStateDisposables);
-					this.emptyStateRendered = true;
+				if (!this.emptyCreateButton) {
+					const emptyState = this.renderEmptyState(this.emptyContainer, this.emptyStateDisposables);
+					this.emptyCreateButton = emptyState.createButton;
+					this.emptyStateTitle = emptyState.title;
 				}
 				return this.emptyContainer;
 		}
@@ -1002,9 +988,9 @@ class AutomationCardsSection extends Disposable {
 		}
 	}
 
-	private renderEmptyState(container: HTMLElement, disposables: DisposableStore): IButton {
+	private renderEmptyState(container: HTMLElement, disposables: DisposableStore): { readonly createButton: IButton; readonly title: HTMLElement } {
 		const title = DOM.append(container, $('h3.automations-cards-empty-title'));
-		title.textContent = localize('noAutomationsYet', "No automations yet");
+		DOM.append(title, $('span', undefined, localize('noAutomationsYet', "No automations yet")));
 		const desc = DOM.append(container, $('p.automations-cards-empty-description'));
 		desc.textContent = localize('noAutomationsDesc', "Describe what you want to automate, then choose when it runs.");
 
@@ -1018,7 +1004,7 @@ class AutomationCardsSection extends Disposable {
 		disposables.add(markOnboardingTarget(createButton.element, CREATE_AUTOMATION_ONBOARDING_TARGET_ID, {
 			onDidActivate: Event.map(createButton.onDidClick, () => undefined),
 		}));
-		return createButton;
+		return { createButton, title };
 	}
 
 	private renderTemplates(templates: readonly IAutomationTemplate[]): void {
@@ -1158,29 +1144,6 @@ class AutomationCardsSection extends Disposable {
 		return this.renderStateCreateButton(this.loadingContainer);
 	}
 
-	private renderUnavailableState(): { readonly createButton: IButton; readonly description: HTMLElement } {
-		const icon = DOM.append(this.unavailableContainer, $('span.automations-cards-state-icon'));
-		icon.classList.add(...ThemeIcon.asClassNameArray(Codicon.debugDisconnect));
-		icon.setAttribute('aria-hidden', 'true');
-		const title = DOM.append(this.unavailableContainer, $('h3.automations-cards-state-title'));
-		title.textContent = localize('automationsUnavailable', "Some automations are unavailable");
-		const description = DOM.append(this.unavailableContainer, $('div.automations-cards-state-description'));
-		description.textContent = localize('automationsUnavailableDescription', "One or more providers are disconnected, disabled, or do not support automations.");
-		return { createButton: this.renderStateCreateButton(this.unavailableContainer), description };
-	}
-
-	private renderErrorState(): IButton {
-		this.errorContainer.setAttribute('role', 'alert');
-		const icon = DOM.append(this.errorContainer, $('span.automations-cards-state-icon'));
-		icon.classList.add(...ThemeIcon.asClassNameArray(Codicon.error));
-		icon.setAttribute('aria-hidden', 'true');
-		const title = DOM.append(this.errorContainer, $('h3.automations-cards-state-title'));
-		title.textContent = localize('automationsLoadError', "Unable to load automations");
-		const description = DOM.append(this.errorContainer, $('p.automations-cards-state-description'));
-		description.textContent = localize('automationsLoadErrorDescription', "The complete automation catalogue could not be read.");
-		return this.renderStateCreateButton(this.errorContainer);
-	}
-
 	private renderStateCreateButton(container: HTMLElement): IButton {
 		const createButton = this.stateDisposables.add(new Button(container, {
 			...defaultButtonStyles,
@@ -1206,9 +1169,7 @@ class AutomationCardsSection extends Disposable {
 		this.partialState = catalogueState;
 		this.partialUnavailableProviders = catalogueState === 'unavailable' ? [...unavailableProviders] : [];
 		if (catalogueState === 'ready' || catalogueState === 'loading') {
-			if (DOM.isActiveElement(this.partialStateContainer)) {
-				this.ownershipSections.get('user')?.summary.focus();
-			}
+			this.partialStateDescription = '';
 			this.partialStateContainer.style.display = 'none';
 			return;
 		}
@@ -1218,9 +1179,9 @@ class AutomationCardsSection extends Disposable {
 		} else {
 			this.partialStateMessage.textContent = localize('automationsPartialLoadError', "Some automations could not be loaded.");
 		}
-		this.partialStateContainer.setAttribute('aria-description', catalogueState === 'unavailable'
+		this.partialStateDescription = catalogueState === 'unavailable'
 			? formatUnavailableAutomationsMessage(unavailableProviders)
-			: this.partialStateMessage.textContent ?? '');
+			: this.partialStateMessage.textContent ?? '';
 	}
 
 	private renderUnavailableMessage(container: HTMLElement, unavailableProviders: readonly IAutomationProviderDescriptor[]): void {
@@ -1353,11 +1314,7 @@ class AutomationCardsSection extends Disposable {
 				this.loadingCreateButton.focus();
 				return;
 			case 'unavailable':
-				this.unavailableCreateButton.focus();
-				return;
 			case 'error':
-				this.errorCreateButton.focus();
-				return;
 			case 'ready':
 				(this.emptyCreateButton?.element ?? this.focusRoot).focus();
 		}

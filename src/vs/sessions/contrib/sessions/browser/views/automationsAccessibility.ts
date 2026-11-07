@@ -40,7 +40,7 @@ class AutomationsCustomViewAccessibilityHelp implements IAccessibleViewImplement
 		const builtInTemplatesVisible = templates.some(template => !template.source);
 		const pluginTemplatesVisible = templates.some(template => !!template.source);
 		const content = [
-			localize('automationsCustomView.help.overview', "You are in the Automations view. It contains available automation cards followed by run history. Loading, unavailable, and error messages indicate that the catalogue may be incomplete."),
+			localize('automationsCustomView.help.overview', "You are in the Automations view. It contains available automation cards followed by run history. While the catalogue loads, a loading message is shown. When no automation cards are available, it shows No automations yet. A warning indicator explains when the catalogue may be incomplete."),
 			localize('automationsCustomView.help.disabled', "Disabled automations are grouped above templates in the Disabled automations section, which starts collapsed. Press Enter or Space on its heading to expand or collapse it. The expansion state is remembered on this machine. Run history and the Accessible View still include disabled automations."),
 			localize('automationsCustomView.help.authority', "Automations run on their selected provider, not in this window. Creation and changes require an available provider that supports automations. Run now requests execution from that provider; a disconnected or unsupported provider never falls back to local execution. To use another provider, duplicate the automation. The original history stays with its provider, and an enabled original keeps scheduling until you disable it."),
 			...(builtInTemplatesVisible ? [
@@ -55,7 +55,7 @@ class AutomationsCustomViewAccessibilityHelp implements IAccessibleViewImplement
 			localize('automationsCustomView.help.cards2', "For saved automations, Tab to a card's Edit control and action buttons. Use Left Arrow and Right Arrow to move between Run now and More Actions. Press Enter or Space to activate a control. Edit, or clicking anywhere else on the card, opens the automation dialog. More Actions opens the automation menu. Duplicate opens a prefilled New automation dialog for portable schedules and is unavailable for event-triggered automations. Disable prevents future runs, and Delete asks for confirmation. When the provider supports it, clear Delete Run History in that confirmation to keep previous runs. Run now requests execution from the selected provider when available."),
 			localize('automationsCustomView.help.externalDefinition', "For cloud automation cards, More Actions also offers Open on GitHub to open the automation's details in your browser."),
 			localize('automationsCustomView.help.ownership', "Saved cards are grouped under collapsible Your automations and Shared automations sections. Press Enter or Space on a section header to expand or collapse it. The Shared automations info icon explains who can view and edit those automations. Cloud creation has an Owner control after Tools. Use the arrow keys to choose Only me or Repository; Only me is the default. Ownership cannot be changed when editing. Repository readers can view Shared automations; writers can manage them. A failed save leaves the dialog open with the server's explanation above Create."),
-			localize('automationsCustomView.help.warnings', "When some automations are unavailable or could not be loaded, a warning icon appears next to Your automations. Hover over it, or focus Automation warnings and press Enter or Space, to read the warnings. Press Escape to return. The warnings are also included in the accessible view."),
+			localize('automationsCustomView.help.warnings', "When some automations are unavailable or could not be loaded, a warning indicator appears next to Your automations, or next to No automations yet in the empty state. It is not a button. Hover over it to read the warnings. The warnings are also described on that heading and included in the accessible view."),
 			localize('automationsCustomView.help.dialog', "In the automation dialog, Target controls are above the prompt. Agent and model pickers are inside the prompt input, and execution mode and permission controls are below it. Use Tab and Shift+Tab to move between fields and pickers. When creating an automation, you only need to enter a prompt. An empty name is derived from the prompt, and the target defaults to No workspace unless one is already supplied. An available Agent Host that supports the target is still required."),
 			localize('automationsCustomView.help.weekdays', "For Agent Host automations, choose Weekdays to run Monday through Friday at the same local time, without choosing a day of the week. Weekdays is not available for Cloud automations."),
 			localize('automationsCustomView.help.cron', "For Agent Host automations, choose cron to enter minute, hour, day of month, month, and day of week. Cron accepts wildcards, lists, ranges, and steps on wildcards or ranges only. For example, 20-59/15 selects minutes 20, 35, and 50 of each hour; shorthand such as 20/15 is not supported. A line below the schedule explains the current valid expression and updates while editing. Day of month and day of week are alternatives when both are restricted. Tab moves between the five parts. Focusing a part shows and describes its allowed values. Escape dismisses that guidance without leaving the field. Up and Down step simple numeric values. Select All then Copy copies the entire expression; pasting a full expression fills the parts. Blank parts mean every value. Entirely empty input has no error, but cannot be saved. Cron is not available for Cloud automations."),
@@ -170,14 +170,13 @@ export function buildAutomationsAccessibleContent(automations: readonly IAutomat
 		}
 	} else if (catalogueState === 'loading') {
 		lines.push(localize('automationsAccessibleView.loading', "Loading automations."));
-	} else if (catalogueState === 'unavailable') {
-		lines.push(unavailableProviders.length > 0
-			? formatUnavailableAutomationsMessage(unavailableProviders)
-			: localize('automationsAccessibleView.unavailable', "Some automations are unavailable. One or more providers are disconnected, disabled, or do not support automations."));
-	} else if (catalogueState === 'error') {
-		lines.push(localize('automationsAccessibleView.loadError', "Unable to load automations."));
 	} else {
-		lines.push(localize('automationsAccessibleView.empty', "No automations."));
+		lines.push(localize('automationsAccessibleView.empty', "No automations yet."));
+		if (catalogueState === 'unavailable') {
+			lines.push(formatUnavailableAutomationsMessage(unavailableProviders));
+		} else if (catalogueState === 'error') {
+			lines.push(localize('automationsAccessibleView.partialLoadError', "Some automations could not be loaded."));
+		}
 	}
 	if (builtInTemplates.length > 0 || pluginTemplates.length > 0) {
 		lines.push('');

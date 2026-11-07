@@ -41,7 +41,7 @@ import { ContributionEnablementState } from '../../../../../workbench/contrib/ch
 import { IAgentPlugin, IAgentPluginService } from '../../../../../workbench/contrib/chat/common/plugins/agentPluginService.js';
 import { IVoicePlaybackService } from '../../../../../workbench/contrib/chat/common/voicePlaybackService.js';
 import { stubSessionHosts, testGridPanes } from '../../../../../workbench/contrib/sessions/test/browser/sessionHostTestUtils.js';
-import { ComponentFixtureContext, createEditorServices, defineComponentFixture, defineThemedFixtureGroup, registerWorkbenchServices } from '../../../../../workbench/test/browser/componentFixtures/fixtureUtils.js';
+import { ComponentFixtureContext, createEditorServices, defineComponentFixture, defineThemedFixtureGroup, registerWorkbenchServices, waitForFixtureCondition } from '../../../../../workbench/test/browser/componentFixtures/fixtureUtils.js';
 import { CustomViewNode } from '../../../../browser/parts/customViewNode.js';
 import { CustomViewService } from '../../../../services/customView/browser/customViewService.js';
 import { ICustomViewService } from '../../../../../workbench/contrib/sessions/browser/customView.js';
@@ -52,6 +52,7 @@ import { IChat, ISession, SessionStatus } from '../../../../../workbench/service
 import { ISessionsManagementService } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import { AUTOMATIONS_CUSTOM_VIEW_ID } from '../../../../../workbench/contrib/sessions/browser/automationsConstants.js';
 import { AutomationsCustomViewContribution } from '../../browser/views/automationsView.js';
+import { getUnavailableAutomationsReasons } from '../../browser/views/automationCataloguePresentation.js';
 
 const WORKSPACE = URI.parse('file:///workspaces/vscode');
 const ITestAgentSessionsService = createDecorator<object>('agentSessions');
@@ -198,6 +199,7 @@ interface IAutomationsFixtureOptions {
 	readonly followUp?: boolean;
 	readonly historyState?: AutomationCatalogueState;
 	readonly emptyHistory?: boolean;
+	readonly showWarningHover?: boolean;
 }
 
 const UNAVAILABLE_PROVIDERS: readonly IAutomationProviderDescriptor[] = [
@@ -206,6 +208,22 @@ const UNAVAILABLE_PROVIDERS: readonly IAutomationProviderDescriptor[] = [
 	{ id: 'windows-host', label: 'Windows host', unavailableReasonCode: 'disabled' },
 	{ id: 'linux-host', label: 'Linux host', unavailableReasonCode: 'unsupported' },
 	{ id: 'mac-host', label: 'Mac host', unavailableReasonCode: 'incompatible' },
+];
+
+const LONG_WARNING_PROVIDERS: readonly IAutomationProviderDescriptor[] = [{
+	id: 'remote-review-host',
+	label: 'Remote review host',
+	unavailableMessage: 'Automations on the remote review host are temporarily unavailable because the connection could not be restored after the host restarted. Saved automations and their schedules remain on that host, but this window cannot currently read their definitions, retrieve recent run history, or request a new run. Automations on other available hosts are still shown and can be managed normally. Check that the remote machine is running, that its network connection is available, and that the Agent Host version supports automations. If you recently changed the host address or credentials, reconnect using the updated configuration. Once the connection is restored, refresh the catalogue to see the latest definitions and run history. Do not create duplicate automations merely because they are absent from this partial catalogue; an existing automation may still run on its selected provider while this window is disconnected.',
+}];
+
+const SEVEN_WARNING_PROVIDERS: readonly IAutomationProviderDescriptor[] = [
+	{ id: 'review-host', label: 'Review host', unavailableMessage: 'Review host is disconnected. Reconnect to view its saved automations.' },
+	{ id: 'test-host', label: 'Test host', unavailableMessage: 'Test host is disabled. Enable it before managing its automations.' },
+	{ id: 'legacy-host', label: 'Legacy host', unavailableMessage: 'Legacy host does not support automations. Update the host to continue.' },
+	{ id: 'cloud', label: 'GitHub Cloud', unavailableMessage: 'GitHub Cloud automations are unavailable. Check your account connection.' },
+	{ id: 'build-host', label: 'Build host', unavailableMessage: 'Build host requires authentication. Sign in before refreshing its catalogue.' },
+	{ id: 'release-host', label: 'Release host', unavailableMessage: 'Release host could not read its automation catalogue. Retry after checking the host logs.' },
+	{ id: 'archive-host', label: 'Archive host', unavailableMessage: 'Archive host cannot be reached on this network. Connect to the network that provides access to it.' },
 ];
 
 export default defineThemedFixtureGroup({ path: 'sessions/automations/' }, {
@@ -278,6 +296,26 @@ export default defineThemedFixtureGroup({ path: 'sessions/automations/' }, {
 			unavailableProviders: UNAVAILABLE_PROVIDERS,
 		}),
 	}),
+	LongWarningHover: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		render: ctx => renderAutomations(ctx, { width: 1000, height: 720, populated: true, catalogueState: 'unavailable', unavailableProviders: LONG_WARNING_PROVIDERS, showWarningHover: true }),
+	}),
+	SevenWarningsHover: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		render: ctx => renderAutomations(ctx, { width: 1000, height: 720, populated: true, catalogueState: 'unavailable', unavailableProviders: SEVEN_WARNING_PROVIDERS, showWarningHover: true }),
+	}),
+	EmptySevenWarnings: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		render: ctx => renderAutomations(ctx, { width: 1000, height: 720, populated: false, catalogueState: 'unavailable', unavailableProviders: SEVEN_WARNING_PROVIDERS }),
+	}),
+	EmptyWarningHover: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		render: ctx => renderAutomations(ctx, { width: 1000, height: 620, populated: false, catalogueState: 'unavailable', unavailableProviders: [UNAVAILABLE_PROVIDERS[0]], showWarningHover: true }),
+	}),
+	EmptySevenWarningsHover: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		render: ctx => renderAutomations(ctx, { width: 1000, height: 720, populated: false, catalogueState: 'unavailable', unavailableProviders: SEVEN_WARNING_PROVIDERS, showWarningHover: true }),
+	}),
 	PartialError: defineComponentFixture({
 		labels: { kind: 'screenshot' },
 		render: ctx => renderAutomations(ctx, { width: 1000, height: 720, populated: true, catalogueState: 'error' }),
@@ -311,7 +349,7 @@ export default defineThemedFixtureGroup({ path: 'sessions/automations/' }, {
 	}),
 });
 
-function renderAutomations(ctx: ComponentFixtureContext, options: IAutomationsFixtureOptions): void {
+async function renderAutomations(ctx: ComponentFixtureContext, options: IAutomationsFixtureOptions): Promise<void> {
 	const data = options.repositoryOnly ? createRepositoryOnlyData() : options.cloud ? createCloudData() : options.populated ? createPopulatedData() : { automations: [], runs: [] };
 	const configurationService = new TestConfigurationService({
 		chat: { automations: { enabled: true } },
@@ -356,7 +394,22 @@ function renderAutomations(ctx: ComponentFixtureContext, options: IAutomationsFi
 				override readonly onDidLayoutContainer = Event.None;
 				override getContainer(): HTMLElement { return ctx.container; }
 			}());
-			reg.define(IHoverService, HoverService);
+			reg.define(IHoverService, class extends HoverService {
+				override showInstantHover(options: Parameters<IHoverService['showInstantHover']>[0], focus?: boolean) {
+					const hover = super.showInstantHover({ ...options, container: ctx.container, appearance: { ...options.appearance, skipFadeInAnimation: true } }, focus);
+					if (hover) {
+						ctx.disposableStore.add(hover);
+					}
+					return hover;
+				}
+				override showDelayedHover(options: Parameters<IHoverService['showDelayedHover']>[0], lifecycleOptions: Parameters<IHoverService['showDelayedHover']>[1]) {
+					const hover = super.showDelayedHover({ ...options, container: ctx.container, appearance: { ...options.appearance, skipFadeInAnimation: true } }, lifecycleOptions);
+					if (hover) {
+						ctx.disposableStore.add(hover);
+					}
+					return hover;
+				}
+			});
 			reg.defineInstance(IActionViewItemService, actionViewItemService);
 			reg.define(IListService, ListService);
 			reg.define(IMarkdownRendererService, MarkdownRendererService);
@@ -438,6 +491,18 @@ function renderAutomations(ctx: ComponentFixtureContext, options: IAutomationsFi
 			cancelable: true,
 			dataTransfer,
 		}));
+	}
+	if (options.showWarningHover) {
+		const warning = node.element.querySelector<HTMLElement>('.automations-cards-partial-state');
+		if (!warning || warning.style.display === 'none') {
+			throw new Error('The warning hover fixture requires a visible warning indicator');
+		}
+		warning.dispatchEvent(new MouseEvent('mouseover', { bubbles: true }));
+		const expectedMessages = getUnavailableAutomationsReasons(options.unavailableProviders ?? []);
+		await waitForFixtureCondition(() => {
+			const hover = ctx.container.querySelector<HTMLElement>('.monaco-hover');
+			return hover !== null && hover.getBoundingClientRect().height > 0 && expectedMessages.every(message => hover.textContent?.includes(message));
+		}, 'The automation warning hover did not render its expected content');
 	}
 }
 

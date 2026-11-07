@@ -14,7 +14,7 @@ import { IContextMenuDelegate } from '../../../../../base/browser/contextmenu.js
 import { DataTransfers } from '../../../../../base/browser/dnd.js';
 import { EventType, getWindow, ModifierKeyEmitter } from '../../../../../base/browser/dom.js';
 import { GestureEvent, EventType as TouchEventType } from '../../../../../base/browser/touch.js';
-import type { IDelayedHoverOptions } from '../../../../../base/browser/ui/hover/hover.js';
+import { HoverStyle, type IDelayedHoverOptions, type IHoverLifecycleOptions } from '../../../../../base/browser/ui/hover/hover.js';
 import { VSBuffer } from '../../../../../base/common/buffer.js';
 import { DeferredPromise, timeout } from '../../../../../base/common/async.js';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
@@ -2641,44 +2641,55 @@ suite('AutomationsCardsWidget', () => {
 		});
 	});
 
-	test('keeps templates available while distinguishing incomplete catalogues from confirmed empty', () => {
+	test('keeps the empty catalogue normal while surfacing issues through a warning indicator', () => {
 		const { automationService, widget } = setup();
-
-		const loadingState = {
-			loading: widget.element.querySelector<HTMLElement>('.automations-cards-loading')?.style.display,
-			error: widget.element.querySelector<HTMLElement>('.automations-cards-error')?.style.display,
-			createButton: widget.element.querySelector<HTMLButtonElement>('.automations-cards-loading .automations-cards-state-create-button')?.textContent,
-			templates: widget.element.querySelectorAll('.automations-template-card').length,
-		};
-		automationService.setCatalogueState('error');
-		const errorState = {
-			loading: widget.element.querySelector<HTMLElement>('.automations-cards-loading')?.style.display,
-			error: widget.element.querySelector<HTMLElement>('.automations-cards-error')?.style.display,
-			createButton: widget.element.querySelector<HTMLButtonElement>('.automations-cards-error .automations-cards-state-create-button')?.textContent,
-			description: widget.element.querySelector('.automations-cards-error .automations-cards-state-description')?.textContent,
-			templates: widget.element.querySelectorAll('.automations-template-card').length,
-		};
-		automationService.setCatalogueState('unavailable');
-		const unavailableState = {
-			loading: widget.element.querySelector<HTMLElement>('.automations-cards-loading')?.style.display,
-			unavailable: widget.element.querySelector<HTMLElement>('.automations-cards-unavailable')?.style.display,
-			error: widget.element.querySelector<HTMLElement>('.automations-cards-error')?.style.display,
-			createButton: widget.element.querySelector<HTMLButtonElement>('.automations-cards-unavailable .automations-cards-state-create-button')?.textContent,
-			templates: widget.element.querySelectorAll('.automations-template-card').length,
-		};
-		automationService.setCatalogueState('ready');
-		const readyState = {
-			loading: widget.element.querySelector<HTMLElement>('.automations-cards-loading')?.style.display,
-			error: widget.element.querySelector<HTMLElement>('.automations-cards-error')?.style.display,
-			templates: widget.element.querySelectorAll('.automations-template-card').length,
-		};
-
-		assert.deepStrictEqual({ loadingState, errorState, unavailableState, readyState }, {
-			loadingState: { loading: '', error: 'none', createButton: 'Create Automation', templates: AUTOMATION_TEMPLATES.length },
-			errorState: { loading: 'none', error: '', createButton: 'Create Automation', description: 'The complete automation catalogue could not be read.', templates: AUTOMATION_TEMPLATES.length },
-			unavailableState: { loading: 'none', unavailable: '', error: 'none', createButton: 'Create Automation', templates: AUTOMATION_TEMPLATES.length },
-			readyState: { loading: 'none', error: 'none', templates: AUTOMATION_TEMPLATES.length },
+		automationService.setUnavailableProviders([{ id: 'remote', label: 'Remote host', unavailableReasonCode: 'disconnected' }]);
+		const states = (['loading', 'error', 'unavailable', 'ready'] as const).map(state => {
+			automationService.setCatalogueState(state);
+			const empty = widget.element.querySelector<HTMLElement>('.automations-cards-empty')!;
+			const heading = empty.querySelector('.automations-cards-empty-title');
+			const visible = state === 'loading' ? '.automations-cards-loading' : '.automations-cards-empty';
+			return {
+				state: automationService.catalogueState.get(),
+				emptyVisible: empty.style.display === '',
+				loadingVisible: widget.element.querySelector<HTMLElement>('.automations-cards-loading')?.style.display === '',
+				title: heading?.textContent ?? null,
+				warning: heading?.getAttribute('aria-description') ?? null,
+				warningVisible: widget.element.querySelector<HTMLElement>('.automations-cards-partial-state')?.style.display === '',
+				disconnectedIcons: widget.element.querySelectorAll('.codicon-debug-disconnect').length,
+				createButton: widget.element.querySelector(`${visible} .monaco-button`)?.textContent,
+				templates: widget.element.querySelectorAll('.automations-template-card').length,
+			};
 		});
+		assert.deepStrictEqual(states, [
+			{ state: 'loading', emptyVisible: false, loadingVisible: true, title: null, warning: null, warningVisible: false, disconnectedIcons: 0, createButton: 'Create Automation', templates: AUTOMATION_TEMPLATES.length },
+			{ state: 'error', emptyVisible: true, loadingVisible: false, title: 'No automations yet', warning: 'Some automations could not be loaded.', warningVisible: true, disconnectedIcons: 0, createButton: 'Create Automation', templates: AUTOMATION_TEMPLATES.length },
+			{ state: 'unavailable', emptyVisible: true, loadingVisible: false, title: 'No automations yet', warning: 'The agent host is disconnected on Remote host.', warningVisible: true, disconnectedIcons: 0, createButton: 'Create Automation', templates: AUTOMATION_TEMPLATES.length },
+			{ state: 'ready', emptyVisible: true, loadingVisible: false, title: 'No automations yet', warning: null, warningVisible: false, disconnectedIcons: 0, createButton: 'Create Automation', templates: AUTOMATION_TEMPLATES.length },
+		]);
+	});
+
+	test('moves the same warning between empty and populated headings without losing its message', () => {
+		const { automationService, widget } = setup();
+		automationService.setCatalogueState('error');
+		const warning = widget.element.querySelector<HTMLElement>('.automations-cards-partial-state')!;
+		const emptyHeading = warning.parentElement!;
+		const snapshots = [[], [automation()], [], [automation({ ownership: 'repository' })], []].map(items => {
+			automationService.setAutomations(items);
+			return {
+				sameIcon: widget.element.querySelector('.automations-cards-partial-state') === warning,
+				heading: warning.previousElementSibling?.textContent,
+				description: warning.parentElement?.getAttribute('aria-description'),
+				emptyHeadingDescription: emptyHeading.getAttribute('aria-description'),
+			};
+		});
+		assert.deepStrictEqual(snapshots, [
+			{ sameIcon: true, heading: 'No automations yet', description: 'Some automations could not be loaded.', emptyHeadingDescription: 'Some automations could not be loaded.' },
+			{ sameIcon: true, heading: 'Your automations', description: 'Some automations could not be loaded.', emptyHeadingDescription: null },
+			{ sameIcon: true, heading: 'No automations yet', description: 'Some automations could not be loaded.', emptyHeadingDescription: 'Some automations could not be loaded.' },
+			{ sameIcon: true, heading: 'Your automations', description: 'Some automations could not be loaded.', emptyHeadingDescription: null },
+			{ sameIcon: true, heading: 'No automations yet', description: 'Some automations could not be loaded.', emptyHeadingDescription: 'Some automations could not be loaded.' },
+		]);
 	});
 
 	test('surfaces partial catalogue warnings as one icon next to Your automations', () => {
@@ -2688,18 +2699,24 @@ suite('AutomationsCardsWidget', () => {
 		automationService.setUnavailableProviders([{ id: 'remote-build-host', label: 'Remote build host' }]);
 		automationService.setCatalogueState('unavailable');
 		const partialState = widget.element.querySelector<HTMLElement>('.automations-cards-partial-state');
-		const unavailableMessage = partialState?.getAttribute('aria-description');
+		const summary = partialState?.closest('summary');
+		const unavailableMessage = summary?.getAttribute('aria-description');
 		automationService.setCatalogueState('error');
 
 		assert.deepStrictEqual({
 			loadingDisplay,
 			unavailableMessage,
-			errorMessage: partialState?.getAttribute('aria-description'),
+			errorMessage: summary?.getAttribute('aria-description'),
 			savedCards: widget.element.querySelectorAll('.automations-card').length,
 			header: partialState?.previousElementSibling?.textContent,
 			visibleText: partialState?.textContent,
-			icons: partialState?.querySelectorAll('.codicon-warning').length,
+			icons: widget.element.querySelectorAll('.automations-cards-partial-state.codicon-warning').length,
 			nativeTooltip: partialState?.getAttribute('title'),
+			tag: partialState?.tagName,
+			role: partialState?.getAttribute('role'),
+			label: partialState?.getAttribute('aria-label'),
+			hidden: partialState?.getAttribute('aria-hidden'),
+			tabIndex: partialState?.tabIndex,
 			templatesDisplay: widget.element.querySelector<HTMLElement>('.automations-templates')?.style.display,
 		}, {
 			loadingDisplay: 'none',
@@ -2710,26 +2727,32 @@ suite('AutomationsCardsWidget', () => {
 			visibleText: '',
 			icons: 1,
 			nativeTooltip: null,
+			tag: 'SPAN',
+			role: null,
+			label: null,
+			hidden: 'true',
+			tabIndex: -1,
 			templatesDisplay: '',
 		});
 	});
 
-	test('warning hover uses current messages, preserves section expansion and restores focus when resolved', () => {
+	test('warning indicator matches the info hover without click focus, activation or section toggling', () => {
 		let hoverOptions: IDelayedHoverOptions | undefined;
+		let hoverLifecycleOptions: IHoverLifecycleOptions | undefined;
 		let hoverDisposed = false;
-		const shown: { content: string | null; focus: boolean | undefined }[] = [];
+		let instantHoverCalls = 0;
 		const hoverService: IHoverService = {
 			...NullHoverService,
-			setupDelayedHover: (target, options) => {
+			setupDelayedHover: (target, options, lifecycleOptions) => {
 				if (!target.classList.contains('automations-cards-partial-state')) {
 					return toDisposable(() => { });
 				}
 				hoverOptions = typeof options === 'function' ? options() : options;
+				hoverLifecycleOptions = lifecycleOptions;
 				return toDisposable(() => { hoverDisposed = true; });
 			},
-			showInstantHover: (options, focus) => {
-				assert.ok(options.content instanceof HTMLElement);
-				shown.push({ content: options.content.textContent, focus });
+			showInstantHover: () => {
+				instantHoverCalls++;
 				return undefined;
 			},
 		};
@@ -2738,26 +2761,52 @@ suite('AutomationsCardsWidget', () => {
 		automationService.setCatalogueState('error');
 		const warning = widget.element.querySelector<HTMLElement>('.automations-cards-partial-state')!;
 		const section = warning.closest('details')!;
+		const summary = section.querySelector<HTMLElement>('summary')!;
 		section.open = false;
+		summary.focus();
 		warning.focus();
-		warning.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', keyCode: 13, bubbles: true, cancelable: true }));
+		const warningTakesFocus = document.activeElement === warning;
+		assert.ok(hoverOptions?.content instanceof HTMLElement);
+		const errorMessage = hoverOptions.content.textContent;
+		const mouseDownDefaultPrevented = !warning.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true }));
 		automationService.setUnavailableProviders([{ id: 'remote', label: 'Remote host', unavailableReasonCode: 'disconnected' }]);
 		automationService.setCatalogueState('unavailable');
+		const unavailableMessage = hoverOptions.content.textContent;
+		const clickDefaultPrevented = !warning.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
 		warning.click();
 		automationService.setCatalogueState('ready');
 		const resolved = {
 			display: warning.style.display,
-			focus: document.activeElement === section.querySelector('summary'),
+			focus: document.activeElement === summary,
 			open: section.open,
+			description: summary.getAttribute('aria-description'),
 		};
 		widget.dispose();
-		assert.deepStrictEqual({ shown, pointer: hoverOptions?.appearance?.showPointer, resolved, hoverDisposed }, {
-			shown: [
-				{ content: 'Some automations could not be loaded.', focus: true },
-				{ content: 'The agent host is disconnected on Remote host.', focus: true },
-			],
-			pointer: true,
-			resolved: { display: 'none', focus: true, open: false },
+		assert.deepStrictEqual({
+			errorMessage,
+			unavailableMessage,
+			instantHoverCalls,
+			warningTakesFocus,
+			mouseDownDefaultPrevented,
+			clickDefaultPrevented,
+			keyboardHover: hoverLifecycleOptions?.setupKeyboardEvents === true,
+			style: hoverOptions.style,
+			position: hoverOptions.position,
+			trapFocus: hoverOptions.trapFocus === true,
+			resolved,
+			hoverDisposed,
+		}, {
+			errorMessage: 'Some automations could not be loaded.',
+			unavailableMessage: 'The agent host is disconnected on Remote host.',
+			instantHoverCalls: 0,
+			warningTakesFocus: false,
+			mouseDownDefaultPrevented: true,
+			clickDefaultPrevented: true,
+			keyboardHover: false,
+			style: HoverStyle.Pointer,
+			position: undefined,
+			trapFocus: false,
+			resolved: { display: 'none', focus: true, open: false, description: null },
 			hoverDisposed: true,
 		});
 	});
@@ -2771,19 +2820,20 @@ suite('AutomationsCardsWidget', () => {
 			return warnings.map(warning => ({
 				header: warning.previousElementSibling?.textContent,
 				visible: warning.style.display !== 'none',
+				description: warning.parentElement?.getAttribute('aria-description'),
 			}));
 		});
 		assert.deepStrictEqual(snapshots, [
-			[{ header: 'Your automations', visible: true }],
-			[{ header: 'Your automations', visible: true }],
+			[{ header: 'Your automations', visible: true, description: 'Some automations could not be loaded.' }],
+			[{ header: 'Your automations', visible: true, description: 'Some automations could not be loaded.' }],
 		]);
 	});
 
 	test('initializing providers do not show load failures in visible or accessible output', () => {
 		const { automationService, widget } = setup();
 		const snapshot = () => ({
-			visibleError: widget.element.querySelector<HTMLElement>('.automations-cards-error')?.style.display !== 'none',
-			accessibleError: buildAutomationsAccessibleContent([], [], automationService.catalogueState.get()).includes('Unable to load automations.'),
+			visibleError: widget.element.querySelector<HTMLElement>('.automations-cards-partial-state')?.style.display === '',
+			accessibleError: buildAutomationsAccessibleContent([], [], automationService.catalogueState.get()).includes('Some automations could not be loaded.'),
 		});
 		const initializing = snapshot();
 		automationService.setCatalogueState('error');
@@ -2801,7 +2851,7 @@ suite('AutomationsCardsWidget', () => {
 		const { automationDialogService, automationService, widget } = setup();
 		automationService.setCatalogueState('error');
 
-		widget.element.querySelector<HTMLButtonElement>('.automations-cards-error .automations-cards-state-create-button')?.click();
+		widget.element.querySelector<HTMLElement>('.automations-cards-empty .automations-cards-create-button')?.click();
 		await Promise.resolve();
 
 		assert.strictEqual(automationDialogService.showCalls, 1);
@@ -2810,7 +2860,7 @@ suite('AutomationsCardsWidget', () => {
 	for (const hasSavedAutomations of [false, true]) {
 		test(`groups unavailable providers into visual and accessible bullet lists ${hasSavedAutomations ? 'with' : 'without'} saved automations`, () => {
 			let hoverContent: IDelayedHoverOptions['content'] | undefined;
-			const { automationService, widget } = setup('archive', {
+			const { automationService } = setup('archive', {
 				...NullHoverService,
 				setupDelayedHover: (target, options) => {
 					if (target.classList.contains('automations-cards-partial-state')) {
@@ -2828,7 +2878,7 @@ suite('AutomationsCardsWidget', () => {
 			];
 			automationService.setUnavailableProviders(providers);
 			automationService.setCatalogueState('unavailable');
-			const description = hasSavedAutomations ? hoverContent : widget.element.querySelector<HTMLElement>('.automations-cards-unavailable .automations-cards-state-description');
+			const description = hoverContent;
 			assert.ok(description instanceof HTMLElement);
 			const reasons = [
 				'The agent host is disconnected on Host 1, Host 3.',
@@ -3054,7 +3104,8 @@ suite('AutomationsCardsWidget', () => {
 			const beforeCreate = {
 				templatesVisible: templates.style.display === '',
 				emptyClaimVisible: widget.element.querySelector<HTMLElement>('.automations-cards-empty')?.style.display === '',
-				catalogueStatusVisible: widget.element.querySelector<HTMLElement>(`.automations-cards-${catalogueState}`)?.style.display === '',
+				loadingVisible: widget.element.querySelector<HTMLElement>('.automations-cards-loading')?.style.display === '',
+				warningVisible: widget.element.querySelector<HTMLElement>('.automations-cards-partial-state')?.style.display === '',
 			};
 			template.focus();
 			template.click();
@@ -3069,7 +3120,7 @@ suite('AutomationsCardsWidget', () => {
 				cardLabel: widget.element.querySelector('.automations-card-main')?.getAttribute('aria-label'),
 				warningVisible: widget.element.querySelector<HTMLElement>('.automations-cards-partial-state')?.style.display === '',
 			}, {
-				beforeCreate: { templatesVisible: true, emptyClaimVisible: false, catalogueStatusVisible: true },
+				beforeCreate: { templatesVisible: true, emptyClaimVisible: catalogueState !== 'loading', loadingVisible: catalogueState === 'loading', warningVisible: catalogueState !== 'loading' },
 				createCalls: [submitted],
 				catalogueState,
 				templateDisplay: '',
@@ -3102,8 +3153,7 @@ suite('AutomationsCardsWidget', () => {
 
 		const stateFocus = (['error', 'unavailable', 'ready'] as const).map(state => {
 			automationService.setCatalogueState(state);
-			const selector = state === 'ready' ? '.automations-cards-empty .automations-cards-create-button' : `.automations-cards-${state} .automations-cards-state-create-button`;
-			return widget.element.querySelector(selector) === document.activeElement;
+			return widget.element.querySelector('.automations-cards-empty .automations-cards-create-button') === document.activeElement;
 		});
 		const template = widget.element.querySelector<HTMLButtonElement>('.automations-template-card');
 		assert.ok(template);
@@ -3116,7 +3166,7 @@ suite('AutomationsCardsWidget', () => {
 		assert.deepStrictEqual({
 			stateFocus,
 			afterPopulated,
-			afterRemoval: widget.element.querySelector('.automations-cards-unavailable .automations-cards-state-create-button') === document.activeElement,
+			afterRemoval: widget.element.querySelector('.automations-cards-empty .automations-cards-create-button') === document.activeElement,
 		}, {
 			stateFocus: [true, true, true],
 			afterPopulated: 'Edit automation Daily review',
@@ -4980,15 +5030,15 @@ suite('AutomationsCardsWidget', () => {
 		}, { disabled: false, enabledBeforeCreation: true, triggerPlacement: true });
 	});
 
-	test('accessible view distinguishes loading, unavailable, and error from confirmed empty', () => {
+	test('accessible view preserves catalogue issues alongside the normal empty message', () => {
 		assert.deepStrictEqual({
 			loading: buildAutomationsAccessibleContent([], [], 'loading').split('\n').slice(0, 2),
-			unavailable: buildAutomationsAccessibleContent([], [], 'unavailable', undefined, [{ id: 'remote-build-host', label: 'Remote build host' }]).split('\n').slice(0, 2),
-			error: buildAutomationsAccessibleContent([], [], 'error').split('\n').slice(0, 2),
+			unavailable: buildAutomationsAccessibleContent([], [], 'unavailable', undefined, [{ id: 'remote-build-host', label: 'Remote build host' }]).split('\n').slice(0, 3),
+			error: buildAutomationsAccessibleContent([], [], 'error').split('\n').slice(0, 3),
 		}, {
 			loading: ['Automations', 'Loading automations.'],
-			unavailable: ['Automations', 'Automations are unavailable on Remote build host.'],
-			error: ['Automations', 'Unable to load automations.'],
+			unavailable: ['Automations', 'No automations yet.', 'Automations are unavailable on Remote build host.'],
+			error: ['Automations', 'No automations yet.', 'Some automations could not be loaded.'],
 		});
 	});
 
@@ -4996,27 +5046,27 @@ suite('AutomationsCardsWidget', () => {
 		const reason = 'Update this Agent Host to support autonomous automations.';
 		const providers = [{ id: 'remote', label: 'Remote host', unavailableReason: reason }];
 		const content = buildAutomationsAccessibleContent([], [], 'unavailable', [], providers);
-		assert.deepStrictEqual(content.split('\n').slice(0, 2), [
-			'Automations', `Automations are unavailable on Remote host. ${reason}`,
+		assert.deepStrictEqual(content.split('\n').slice(0, 3), [
+			'Automations', 'No automations yet.', `Automations are unavailable on Remote host. ${reason}`,
 		]);
 	});
 
-	test('accessible view offers templates without claiming an incomplete catalogue is empty', () => {
+	test('accessible view offers templates and the empty message after loading settles', () => {
 		const states: readonly AutomationCatalogueState[] = ['loading', 'unavailable', 'error', 'ready'];
 		const contents = states.map(state => {
 			const content = buildAutomationsAccessibleContent([], [], state);
 			return {
 				state,
-				claimsEmpty: content.includes('No automations.'),
+				emptyMessage: content.includes('No automations yet.'),
 				templatesIncluded: AUTOMATION_TEMPLATES.every(template => content.includes(template.name) && content.includes(template.description)),
 			};
 		});
 
 		assert.deepStrictEqual(contents, [
-			{ state: 'loading', claimsEmpty: false, templatesIncluded: true },
-			{ state: 'unavailable', claimsEmpty: false, templatesIncluded: true },
-			{ state: 'error', claimsEmpty: false, templatesIncluded: true },
-			{ state: 'ready', claimsEmpty: true, templatesIncluded: true },
+			{ state: 'loading', emptyMessage: false, templatesIncluded: true },
+			{ state: 'unavailable', emptyMessage: true, templatesIncluded: true },
+			{ state: 'error', emptyMessage: true, templatesIncluded: true },
+			{ state: 'ready', emptyMessage: true, templatesIncluded: true },
 		]);
 	});
 
