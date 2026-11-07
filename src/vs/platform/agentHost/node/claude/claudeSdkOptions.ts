@@ -8,6 +8,7 @@ import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js';
 import { tmpdir } from 'os';
 import { delimiter, dirname, normalize } from '../../../../base/common/path.js';
 import { URI } from '../../../../base/common/uri.js';
+import { isWindows } from '../../../../base/common/platform.js';
 import { rgDiskPath } from '../../../../base/node/ripgrep.js';
 import { AiAgentEnvValue, AiAgentEnvVar } from '../../../chat/common/aiAgentEnv.js';
 import { ClaudePermissionMode } from '../../common/claudeSessionConfigKeys.js';
@@ -293,36 +294,6 @@ export function buildModelEnumerationOptions(): Options {
 	};
 }
 
-/**
- * Build the {@link Options.env} payload for the Claude subprocess.
- *
- * SDK >= 0.3 **replaces** the subprocess environment with `Options.env` — it is
- * NOT merged with `process.env` (sdk.d.ts:1402-1405: "this value REPLACES the
- * subprocess environment entirely … Spread `process.env` yourself"). Keys whose
- * value is `undefined` are dropped from the spawned env.
- *
- * Two modes, gated by `proxied`:
- *
- * - **Proxied (Copilot-routed), `true` (default):** a *sparse* env. Credentials
- *   reach the CLI via `settings.env` (the per-session proxy bearer), so the
- *   subprocess env stays minimal and the user's personal `ANTHROPIC_API_KEY`
- *   must not leak to the Copilot proxy (stripped). `PATH` for ripgrep is
- *   supplied through `settings.env`, not here.
- *
- * - **Native (BYO-Anthropic), `false`:** inherit the real `process.env` so the
- *   user's own credentials (`CLAUDE_CODE_OAUTH_TOKEN` from `claude setup-token`,
- *   or `ANTHROPIC_API_KEY`) and `PATH` actually reach the `claude` subprocess.
- *   Without this spread, replace semantics wipe the inherited token and the CLI
- *   reports "Not logged in".
- *
- * In both modes the agent host's own `NODE_OPTIONS`, `ELECTRON_*`, and
- * `VSCODE_*` variables are stripped (they break the Electron-node subprocess),
- * `ELECTRON_RUN_AS_NODE=1` is set, and `AI_AGENT` is pinned so the sparse
- * proxied env still announces the originating VS Code surface. Mirror of the
- * strip pattern in `CopilotAgent._ensureClient()`.
- *
- * Exported for unit testing as a pure function over `process.env`.
- */
 export function buildClaudeTelemetryEnv(config: IAgentHostNativeOTelConfig | undefined, traceContext?: IAgentHostTraceContext): Record<string, string> {
 	if (!config) {
 		return {};
@@ -383,30 +354,65 @@ function resolveSignalEndpoint(endpoint: string, signal: 'logs' | 'metrics', pro
 	}
 }
 
+// Provider selectors are explicit: CLAUDE_CODE_USE_* also contains tool preferences.
+const proxyExcludedEnvVars = new Set([
+	'CLAUDE_CODE_USE_BEDROCK',
+	'CLAUDE_CODE_USE_VERTEX',
+	'CLAUDE_CODE_USE_FOUNDRY',
+	'CLAUDE_CODE_USE_ANTHROPIC_AWS',
+	'CLAUDE_CODE_USE_MANTLE',
+	'CLAUDE_CODE_USE_ANTHROPIC_GOOGLE_CLOUD',
+	'CLAUDE_CODE_USE_GATEWAY',
+	'AWS_BEARER_TOKEN_BEDROCK',
+	'CLAUDE_CODE_API_KEY_FILE_DESCRIPTOR',
+	'CLAUDE_CODE_GATEWAY_TOKEN_FILE_DESCRIPTOR',
+	'CLAUDE_CODE_CLIENT_CERT',
+	'CLAUDE_CODE_CLIENT_KEY',
+	'CLAUDE_CODE_CLIENT_KEY_PASSPHRASE',
+	'CLAUDE_CODE_EXTRA_BODY',
+	// Host telemetry is applied separately by buildOptions, after filtering.
+	'CLAUDE_CODE_ENABLE_TELEMETRY',
+	'CLAUDE_CODE_ENHANCED_TELEMETRY_BETA',
+	'TRACEPARENT',
+	'TRACESTATE',
+	'BETA_TRACING_ENDPOINT',
+	'ENABLE_BETA_TRACING_DETAILED',
+]);
+
+/**
+ * Build Options.env, which the SDK uses to replace the subprocess environment.
+ * Both transports inherit OS and tool configuration. Proxy mode removes personal
+ * Claude credentials, provider routing and ambient telemetry; buildOptions supplies
+ * the host's proxy credentials, telemetry and ripgrep PATH through settings.env.
+ * Native mode preserves the user's authentication and existing runtime filtering.
+ */
 export function buildSubprocessEnv(proxied: boolean = true): Record<string, string | undefined> {
-	// Proxy mode: a sparse env (creds arrive via settings.env), and the user's
-	// personal ANTHROPIC_API_KEY must not leak to the Copilot proxy.
-	// Native mode: inherit the real env so the user's own credentials + PATH
-	// reach the subprocess (replace semantics wipe anything not present here).
-	const env: Record<string, string | undefined> = proxied
-		? {
-			ELECTRON_RUN_AS_NODE: '1',
-			NODE_OPTIONS: undefined,
-			ANTHROPIC_API_KEY: undefined,
-			HOME: process.env['HOME'],
-			USERPROFILE: process.env['USERPROFILE'],
-			// Load rules from additional directories https://code.claude.com/docs/en/memory#load-from-additional-directories
-			CLAUDE_CODE_ADDITIONAL_DIRECTORIES_CLAUDE_MD: '1'
-		}
-		: { ...process.env, ELECTRON_RUN_AS_NODE: '1', NODE_OPTIONS: undefined };
-	// Replace semantics mean the sparse (proxied) env would otherwise drop the
-	// agent host's own marker, so set it in both modes. See `AiAgentEnvVar`.
+	const env: Record<string, string | undefined> = { ...process.env, ELECTRON_RUN_AS_NODE: '1', NODE_OPTIONS: undefined };
 	env[AiAgentEnvVar] = AiAgentEnvValue;
 	for (const key of Object.keys(process.env)) {
-		if (key === 'ELECTRON_RUN_AS_NODE') { continue; }
-		if (key.startsWith('VSCODE_') || key.startsWith('ELECTRON_')) {
-			env[key] = undefined;
+		if (proxied) {
+			const name = isWindows ? key.toUpperCase() : key;
+			if (name.startsWith('VSCODE_') || name.startsWith('ELECTRON_') || name === 'NODE_OPTIONS'
+				|| name.startsWith('ANTHROPIC_') || name.startsWith('CLAUDE_CODE_OAUTH_')
+				|| name.startsWith('OTEL_') || name.startsWith('ANT_OTEL_') || name.startsWith('CLAUDE_CODE_OTEL_')
+				|| proxyExcludedEnvVars.has(name) || name === AiAgentEnvVar || name === 'CLAUDE_CODE_ADDITIONAL_DIRECTORIES_CLAUDE_MD') {
+				// Delete aliases before stamping host-owned keys: Windows child envs
+				// deduplicate names case-insensitively, including undefined entries.
+				delete env[key];
+			}
+		} else {
+			if (key === 'ELECTRON_RUN_AS_NODE') { continue; }
+			if (key.startsWith('VSCODE_') || key.startsWith('ELECTRON_')) {
+				env[key] = undefined;
+			}
 		}
+	}
+	if (proxied) {
+		env.ELECTRON_RUN_AS_NODE = '1';
+		env.NODE_OPTIONS = undefined;
+		env[AiAgentEnvVar] = AiAgentEnvValue;
+		// Load rules from additional directories, as in the existing proxy transport.
+		env.CLAUDE_CODE_ADDITIONAL_DIRECTORIES_CLAUDE_MD = '1';
 	}
 	return env;
 }
