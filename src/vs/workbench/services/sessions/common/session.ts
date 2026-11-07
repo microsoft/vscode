@@ -873,6 +873,8 @@ export interface IChat {
 	readonly canvases?: IObservable<readonly ISessionCanvas[] | undefined>;
 	/** Keep canvas channels observed while this chat's session is inactive. Dispose when the external presentation closes. */
 	observeCanvases?(): IDisposable;
+	/** Keep {@link changesets} and their changes observed while no window shows this chat's session. Dispose when the external presentation, such as a Changes editor of the chat, closes. */
+	observeChanges?(): IDisposable;
 	/** Active background shells, including commands started in earlier turns. */
 	readonly backgroundShells?: IObservable<readonly IChatBackgroundShell[]>;
 	/** Checkpoints associated with the chat. */
