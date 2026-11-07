@@ -583,6 +583,51 @@ suite('resolveCustomizationRefs - built-in skills', () => {
 		assert.deepStrictEqual(refs.map(ref => ref.enablement), [globalEnablement(false)]);
 	});
 
+	test('managed-only hooks withhold unmanaged plugin directories on both discovery paths', async () => {
+		const managedUri = URI.file('/home/.copilot/installed-plugins/company/managed');
+		const unmanagedUri = URI.file('/plugins/unmanaged');
+		const unhydratedUri = URI.file('/plugins/unhydrated');
+		const hookOnlyUri = URI.file('/plugins/hook-only');
+		const plugins = [
+			makePlugin(managedUri, { agents: 1 }),
+			makePlugin(unmanagedUri, { agents: 1 }),
+			makePlugin(unhydratedUri, { mcpServers: 1 }),
+			{
+				...makePlugin(hookOnlyUri),
+				hooks: observableValue('hooks', [{
+					type: HookType.PreToolUse,
+					hooks: [{ command: 'echo hook' }],
+					uri: URI.joinPath(hookOnlyUri, 'hooks/hooks.json'),
+					originalId: 'preToolUse',
+				}]),
+			},
+		];
+		const prompts = makePromptsService(new Map([
+			[`${PromptsType.agent}/${PromptsStorage.plugin}`, [managedUri, unmanagedUri].map(uri =>
+				makePromptPath(URI.joinPath(uri, 'agents/agent-0.agent.md'), PromptsType.agent, PromptsStorage.plugin))],
+		]));
+		const results = [];
+		const policies: (Record<string, boolean> | undefined)[] = [undefined, {}, { 'managed@company': false }, { 'managed@company': true }];
+		for (const enabledPluginsPolicy of policies) {
+			const options = { managedHooksOnly: { enabledPluginsPolicy } };
+			const refs = await resolveCustomizationRefs(
+				makeFileService(), prompts, new FakeSyncProvider(), makeAgentPluginService(plugins),
+				makeMcpService(), makeConfigurationResolverService(), toBundlers(new FakeBundler()),
+				SessionType.CopilotCLI, options,
+			);
+			const agents = await resolveLocalCustomAgents(
+				makeFileService(), prompts, new FakeSyncProvider(), makeAgentPluginService(plugins), SessionType.CopilotCLI, options,
+			);
+			results.push({ directories: refs.map(ref => ref.uri), agents: agents.map(agent => agent.uri) });
+		}
+		assert.deepStrictEqual(results, [
+			{ directories: [], agents: [] },
+			{ directories: [], agents: [] },
+			{ directories: [], agents: [] },
+			{ directories: [managedUri.toString()], agents: [URI.joinPath(managedUri, 'agents/agent-0.agent.md').toString()] },
+		]);
+	});
+
 	test('publishes disabled plugins with agent contributions', async () => {
 		const pluginUri = URI.file('/plugins/agent-disabled');
 		const promptFile = URI.file('/plugins/agent-disabled/agents/foo.agent.md');
