@@ -3390,8 +3390,11 @@ export class CopilotAgentSession extends Disposable {
 			?? this._appliedSnapshot.tools.find(tool => tool.name === toolName);
 	}
 
-	/** Resolves the owning client for a chat-scoped tool call, honoring host-published chat membership. */
-	private _resolveClientToolOwner(toolName: string): string | undefined {
+	/**
+	 * Resolves the owning client for a chat-scoped tool call, honoring host-published chat membership.
+	 * When `hostCanRun` is set and no candidate is connected, returns `undefined` so the host runs the tool instead of waiting on a disconnected client.
+	 */
+	private _resolveClientToolOwner(toolName: string, hostCanRun: boolean): string | undefined {
 		const chat = this._chatChannelUri;
 		const applied = this._getClientToolDefinition(toolName);
 		const provides = (clientId: string) => !!applied && this._activeClientToolSet.get(clientId)
@@ -3400,14 +3403,14 @@ export class CopilotAgentSession extends Disposable {
 		const candidates = [...this._activeClientToolSet.clientIds()]
 			.filter(clientId => this._clientReachesChat(clientId, chat) && provides(clientId));
 		const connected = candidates.filter(clientId => this._clientConnections.isClientConnected(clientId));
-		const owners = connected.length > 0 ? connected : candidates;
+		const owners = connected.length > 0 || hostCanRun ? connected : candidates;
 		return preferred && owners.includes(preferred) ? preferred : owners[0];
 	}
 
 	private _getToolCallContributor(toolName: string, mcpServerName: string | undefined): ToolCallContributor | undefined {
 		const clientToolName = this._clientToolName(toolName);
 		if (this._clientToolNames.has(clientToolName)) {
-			const clientId = this._resolveClientToolOwner(clientToolName);
+			const clientId = this._resolveClientToolOwner(clientToolName, this._isToolSearchActive() && toolName === RUNTIME_TOOL_SEARCH_TOOL_NAME);
 			return clientId ? { kind: ToolCallContributorKind.Client, clientId } : undefined;
 		}
 		if (mcpServerName) {
