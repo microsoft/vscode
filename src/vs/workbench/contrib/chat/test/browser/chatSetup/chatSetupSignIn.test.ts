@@ -26,10 +26,12 @@ import { ChatSetupSource, ChatSetupStrategy, IChatSetupRunOptions } from '../../
 import { ChatSetupController } from '../../../browser/chatSetup/chatSetupController.js';
 import { ChatSetup, ChatSetupDialog } from '../../../browser/chatSetup/chatSetupRunner.js';
 import { IChatMicrosoftSignInProbeService } from '../../../browser/chatSetup/chatSetupMicrosoftProbe.js';
-import { constObservable } from '../../../../../../base/common/observable.js';
+import { constObservable, observableValue } from '../../../../../../base/common/observable.js';
 import { IAgentHostService } from '../../../../../../platform/agentHost/common/agentService.js';
 import { NullAgentHostService } from '../../../../../../platform/agentHost/browser/nullAgentHostService.js';
 import { copilotAccountContextKey } from '../../../../../../platform/agentHost/common/copilotAccountContext.js';
+import { RootState } from '../../../../../../platform/agentHost/common/state/sessionState.js';
+import { ChatAIDisabledSettingId } from '../../../../../../platform/chat/common/chatSettings.js';
 
 suite('Chat setup dialog external sign-in', () => {
 
@@ -42,7 +44,7 @@ suite('Chat setup dialog external sign-in', () => {
 		enterprise: false,
 	};
 
-	function createSetup(allowContinueWithoutSignIn = false, initialAccount: IDefaultAccount | null = null, setupResult: Promise<boolean> = Promise.resolve(true), host: IAgentHostService = new NullAgentHostService()) {
+	function createSetup(allowContinueWithoutSignIn = false, initialAccount: IDefaultAccount | null = null, setupResult: Promise<boolean> = Promise.resolve(true), host: IAgentHostService = new NullAgentHostService(), configuration = new TestConfigurationService()) {
 		const instantiationService = store.add(new TestInstantiationService());
 		instantiationService.stub(IAgentHostService, host);
 		const accountChanged = store.add(new Emitter<IDefaultAccount | null>());
@@ -51,6 +53,7 @@ suite('Chat setup dialog external sign-in', () => {
 		const dialogResult = new DeferredPromise<ChatSetupStrategy>();
 		const setupStarted = new DeferredPromise<void>();
 		const setupCalls: string[] = [];
+		const errors: (string | Error)[] = [];
 		let currentAccount = initialAccount;
 		let dialogDisposed = false;
 		let completed = false;
@@ -75,6 +78,9 @@ suite('Chat setup dialog external sign-in', () => {
 				if (hasKey(update, { completed: true })) {
 					completed = update.completed;
 				}
+				if (hasKey(update, { hidden: true })) {
+					state.hidden = update.hidden;
+				}
 			},
 		});
 		const controller = new Lazy(() => upcastPartial<ChatSetupController>({
@@ -92,7 +98,7 @@ suite('Chat setup dialog external sign-in', () => {
 			},
 		}));
 		instantiationService.stub(ITelemetryService, { telemetryLevel: TelemetryLevel.USAGE, publicLog2() { } });
-		instantiationService.stub(ILogService, { error: message => { if (!state.hidden) { assert.fail(message); } } });
+		instantiationService.stub(ILogService, { error: message => errors.push(message) });
 		instantiationService.stub(IChatEntitlementService, { entitlement: state.entitlement, anonymous: false });
 		instantiationService.stub(IChatWidgetService, { revealWidget: async () => undefined });
 		instantiationService.stub(IWorkspaceTrustManagementService, { isWorkspaceTrusted: () => true });
@@ -103,7 +109,7 @@ suite('Chat setup dialog external sign-in', () => {
 			getDefaultAccountAuthenticationProvider: () => currentAccount?.authenticationProvider ?? account.authenticationProvider,
 			resolveGitHubUrl: path => `https://github.com/${path}`,
 		});
-		instantiationService.stub(IConfigurationService, new TestConfigurationService());
+		instantiationService.stub(IConfigurationService, configuration);
 		instantiationService.stub(IChatMicrosoftSignInProbeService, { offerMicrosoftSignIn: constObservable(false), notifySignInShown() { } });
 		instantiationService.stub(ILayoutService, {});
 		instantiationService.stubInstance(ChatSetupDialog, {
@@ -130,6 +136,7 @@ suite('Chat setup dialog external sign-in', () => {
 			dialogShown,
 			dialogResult,
 			setupStarted,
+			errors,
 			setAccount,
 			hide: () => { state.hidden = true; },
 			cancel: () => cancellation.cancel(),
@@ -142,6 +149,97 @@ suite('Chat setup dialog external sign-in', () => {
 			snapshot: () => ({ dialogDisposed, completed, dismissed, setupCalls, listening: accountChanged.hasListeners(), listeningDuringProviderSetup }),
 		};
 	}
+
+	test('cold disabled-host setup enables AI before awaiting the root subscription', async () => {
+		const changed = store.add(new Emitter<RootState>());
+		const started = store.add(new Emitter<void>());
+		const available = observableValue('connectionAvailable', false);
+		let root: RootState | undefined;
+		const host = new class extends NullAgentHostService {
+			override readonly authenticationPending = constObservable(true);
+			readonly connectionAvailable = available;
+			override readonly onAgentHostStart = started.event;
+			override get rootState() {
+				return { value: root, verifiedValue: root, onDidChange: changed.event, onWillApplyAction: Event.None, onDidApplyAction: Event.None };
+			}
+		}();
+		const writes: string[] = [];
+		const configuration = new class extends TestConfigurationService {
+			override async updateValue(key: string, value: unknown): Promise<void> {
+				writes.push(key);
+				await this.setUserConfiguration(key, value);
+				if (key === ChatAIDisabledSettingId && value === false) {
+					root = { agents: [] };
+					available.set(true, undefined);
+					started.fire();
+					changed.fire(root);
+				}
+			}
+		}({ [ChatAIDisabledSettingId]: true });
+		const f = createSetup(false, null, Promise.resolve(true), host, configuration);
+		f.hide();
+		const pending = f.run({ setupStrategy: ChatSetupStrategy.DefaultSetup });
+		const result = await raceTimeout(pending, 100);
+		f.cancel();
+		await pending;
+		assert.deepStrictEqual({ success: result?.success, enabled: configuration.getValue(ChatAIDisabledSettingId), wroteEnablement: writes.includes(ChatAIDisabledSettingId) }, {
+			success: true, enabled: false, wroteEnablement: true,
+		});
+	});
+
+	test('legacy visibility reset errors use the shared handled-result boundary', async () => {
+		const configuration = new class extends TestConfigurationService {
+			override async updateValue(): Promise<void> { throw new Error('visibility reset failed'); }
+		}();
+		const f = createSetup(false, null, Promise.resolve(true), new NullAgentHostService(), configuration);
+		const result = await f.run({ setupStrategy: ChatSetupStrategy.DefaultSetup });
+		assert.deepStrictEqual({ success: result.success, error: result.error?.message, calls: f.snapshot().setupCalls, errors: f.errors.length }, {
+			success: false, error: 'visibility reset failed', calls: [], errors: 1,
+		});
+	});
+
+	test('root errors and unsupported account state return handled failures', async () => {
+		const observed = [];
+		for (const root of [
+			new Error('root unavailable'),
+			{ agents: [], config: { schema: { type: 'object' as const, properties: {} }, values: { [copilotAccountContextKey]: { kind: 'unsupported' } } } },
+		]) {
+			const host = new class extends NullAgentHostService {
+				override readonly authenticationPending = constObservable(true);
+				override get rootState() {
+					return { value: root, verifiedValue: root instanceof Error ? undefined : root, onDidChange: Event.None, onWillApplyAction: Event.None, onDidApplyAction: Event.None };
+				}
+			}();
+			const f = createSetup(false, null, Promise.resolve(true), host);
+			const result = await f.run({ setupStrategy: ChatSetupStrategy.DefaultSetup });
+			observed.push({ success: result.success, error: result.error?.message, calls: f.snapshot().setupCalls, errors: f.errors.length });
+		}
+		assert.deepStrictEqual(observed, [
+			{ success: false, error: 'root unavailable', calls: [], errors: 1 },
+			{ success: false, error: 'The agent host returned an unsupported Copilot account state.', calls: [], errors: 1 },
+		]);
+	});
+
+	test('canceling an enabled pending host returns a handled result without re-enabling AI', async () => {
+		const host = new class extends NullAgentHostService {
+			override readonly authenticationPending = constObservable(true);
+			readonly connectionAvailable = constObservable(false);
+			override get rootState() {
+				return { value: undefined, verifiedValue: undefined, onDidChange: Event.None, onWillApplyAction: Event.None, onDidApplyAction: Event.None };
+			}
+		}();
+		const writes: string[] = [];
+		const configuration = new class extends TestConfigurationService {
+			override async updateValue(key: string): Promise<void> { writes.push(key); }
+		}();
+		const f = createSetup(false, null, Promise.resolve(true), host, configuration);
+		const pending = f.run({ setupStrategy: ChatSetupStrategy.DefaultSetup });
+		f.cancel();
+		const result = await pending;
+		assert.deepStrictEqual({ result, writes, calls: f.snapshot().setupCalls, errors: f.errors }, {
+			result: { success: undefined, dialogSkipped: false }, writes: [], calls: [], errors: [],
+		});
+	});
 
 	test('Microsoft mode does not auto-dismiss or complete on external GitHub authentication', async () => {
 		const host = new class extends NullAgentHostService {

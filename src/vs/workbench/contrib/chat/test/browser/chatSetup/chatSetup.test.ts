@@ -585,6 +585,7 @@ suite('Chat setup strategy', () => {
 			undefined as never,
 			undefined as never,
 			new NullAgentHostService(),
+			new TestConfigurationService(),
 		);
 
 		const result = await setup.run({ setupStrategy: ChatSetupStrategy.SetupWithMicrosoftProvider, additionalScopes: ['repo'] });
@@ -684,6 +685,7 @@ suite('Chat setup dialog cancellation', () => {
 			undefined as never,
 			undefined as never,
 			new NullAgentHostService(),
+			new TestConfigurationService(),
 		);
 
 		const result = setup.run({ setupStrategy: ChatSetupStrategy.DefaultSetup, cancellationToken: cancellation.token });
@@ -703,6 +705,7 @@ suite('Chat setup dialog telemetry', () => {
 	function createSetup(entitlement = ChatEntitlement.Unknown, accountAvailable = false) {
 		const instantiationService = store.add(new TestInstantiationService());
 		instantiationService.stub(IAgentHostService, new NullAgentHostService());
+		instantiationService.stub(IConfigurationService, new TestConfigurationService());
 		const impressions: (ITelemetryData | undefined)[] = [];
 		const dialogShown = new DeferredPromise<void>();
 		const dialogResult = new DeferredPromise<ChatSetupStrategy>();

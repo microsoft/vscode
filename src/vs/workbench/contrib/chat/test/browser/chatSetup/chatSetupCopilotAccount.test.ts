@@ -7,7 +7,9 @@ import assert from 'assert';
 import { CancellationTokenSource } from '../../../../../../base/common/cancellation.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { Disposable, DisposableStore } from '../../../../../../base/common/lifecycle.js';
-import { autorun, constObservable } from '../../../../../../base/common/observable.js';
+import { autorun, constObservable, observableValue } from '../../../../../../base/common/observable.js';
+import { DeferredPromise, raceTimeout } from '../../../../../../base/common/async.js';
+import { Lazy } from '../../../../../../base/common/lazy.js';
 import { upcastPartial } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { IAgentHostService } from '../../../../../../platform/agentHost/common/agentService.js';
@@ -33,8 +35,11 @@ import { TestStorageService } from '../../../../../test/common/workbenchTestServ
 import { IExtensionsWorkbenchService } from '../../../../extensions/common/extensions.js';
 import { IAgentHostCopilotAccountService } from '../../../browser/agentSessions/agentHost/agentHostCopilotAccountService.js';
 import { ChatSetupController } from '../../../browser/chatSetup/chatSetupController.js';
-import { ChatSetupAnonymous } from '../../../browser/chatSetup/chatSetup.js';
+import { ChatSetupAnonymous, ChatSetupStrategy } from '../../../browser/chatSetup/chatSetup.js';
 import { observeCopilotAccountContext } from '../../../../../services/agentHost/common/copilotAccountContext.js';
+import { copilotEntraAuthorizationServer, copilotEntraClientId } from '../../../../../../platform/agentHost/common/copilotEntraAuthentication.js';
+import { IWorkspaceTrustManagementService, IWorkspaceTrustRequestService } from '../../../../../../platform/workspace/common/workspaceTrust.js';
+import { ChatSetup } from '../../../browser/chatSetup/chatSetupRunner.js';
 
 suite('Microsoft Copilot setup UI', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -47,9 +52,12 @@ suite('Microsoft Copilot setup UI', () => {
 
 	function fixture(initial: CopilotAccountContext = { kind: 'signedOut' }) {
 		const changed = store.add(new Emitter<RootState>());
+		const exited = store.add(new Emitter<number>());
+		const available = observableValue('connectionAvailable', true);
 		const root: RootState = { agents: [], config: { schema: { type: 'object', properties: {} }, values: { [copilotAccountContextKey]: initial } } };
 		const host = upcastPartial<IAgentHostService>({
-			authenticationPending: constObservable(true), onAgentHostStart: Event.None, onAgentHostExit: Event.None,
+			authenticationPending: constObservable(true), onAgentHostStart: Event.None, onAgentHostExit: exited.event,
+			connectionAvailable: available,
 			rootState: upcastPartial<IAgentHostService['rootState']>({ value: root, onDidChange: changed.event }),
 		});
 		const setContext = (value: CopilotAccountContext | undefined) => {
@@ -61,8 +69,12 @@ suite('Microsoft Copilot setup UI', () => {
 		context.setCopilotAccountContext(observeCopilotAccountContext(host, store.add(new DisposableStore())));
 		const session: AuthenticationSession = { id: 'microsoft-session', account: { id: 'account-a', label: 'Microsoft Account A' }, accessToken: 'synthetic', scopes: ['User.Read'] };
 		const calls: string[] = [];
+		const signInStarted = new DeferredPromise<void>();
 		const state = {
 			sessions: [] as AuthenticationSession[], discovery: offered, pick: undefined as number | undefined, retry: false,
+			credential: session as AuthenticationSession | undefined,
+			signInResult: undefined as Promise<AuthenticationSession> | undefined,
+			authRequests: [] as { scopes: readonly string[] | undefined; accountId: string | undefined; clientId: string | undefined; server: string | undefined; interactive: boolean }[],
 			picks: [] as readonly IQuickPickItem[][],
 			discoveryError: undefined as Error | undefined,
 			errorDetails: [] as Array<Parameters<IDialogService['confirm']>[0]['detail']>,
@@ -88,8 +100,20 @@ suite('Microsoft Copilot setup UI', () => {
 			}
 		});
 		instantiation.stub(IAuthenticationService, {
-			getSessions: async provider => { assert.strictEqual(provider, 'microsoft'); calls.push('sessions'); return state.sessions; },
-			createSession: async () => { calls.push('signIn'); state.sessions = [session]; return session; },
+			getSessions: async (provider, scopes, options) => {
+				assert.strictEqual(provider, 'microsoft');
+				calls.push(scopes ? 'credential' : 'sessions');
+				state.authRequests.push({ scopes: Array.isArray(scopes) ? scopes : undefined, accountId: options?.account?.id, clientId: options?.clientId, server: options?.authorizationServer?.toString(), interactive: false });
+				return scopes ? state.credential ? [state.credential] : [] : state.sessions;
+			},
+			createSession: async (_provider, scopes, options) => {
+				calls.push('signIn');
+				state.authRequests.push({ scopes: Array.isArray(scopes) ? scopes : undefined, accountId: options?.account?.id, clientId: options?.clientId, server: options?.authorizationServer?.toString(), interactive: true });
+				await signInStarted.complete();
+				const result = await (state.signInResult ?? Promise.resolve(session));
+				state.sessions = [result];
+				return result;
+			},
 		});
 		instantiation.stub(IAgentHostCopilotAccountService, {
 			discover: async (connection, sessionId) => {
@@ -111,8 +135,89 @@ suite('Microsoft Copilot setup UI', () => {
 		});
 		const requests = upcastPartial<ChatEntitlementRequests>({ signIn: async () => { calls.push('legacySignIn'); return {}; } });
 		const controller = store.add(instantiation.createInstance(ChatSetupController, context, requests));
-		return { context, controller, calls, state, setContext, config, session, host };
+		return { context, controller, calls, state, setContext, config, session, host, available, exited, signInStarted, instantiation };
 	}
+
+	test('disconnecting a host with a retained ready root clears readiness until reconnect', () => {
+		const f = fixture(ready());
+		const context = observeCopilotAccountContext(f.host, store.add(new DisposableStore()));
+		const observed: (string | undefined)[] = [];
+		store.add(autorun(reader => {
+			const value = context.read(reader);
+			observed.push(typeof value === 'object' && !(value instanceof Error) ? value.kind : value?.toString());
+		}));
+		f.available.set(false, undefined);
+		f.exited.fire(0);
+		f.setContext(ready());
+		f.available.set(true, undefined);
+		assert.deepStrictEqual(observed, ['ready', 'loading', 'ready']);
+	});
+
+	test('loading and failed readiness never use the legacy BYOK exemption', async () => {
+		const f = fixture(ready());
+		await f.context.update({ completed: true });
+		const states = [constObservable('loading' as const), constObservable(new Error('disconnected')), constObservable(undefined)];
+		const observed = states.map(context => {
+			f.context.setCopilotAccountContext(context);
+			return {
+				ready: f.context.state.copilotAccountReady,
+				required: chatRequiresSetup({
+					completed: !!f.context.state.completed, copilotAccountReady: f.context.state.copilotAccountReady,
+					entitlement: ChatEntitlement.Pro, disabled: false, untrusted: false, anonymous: true, hasByokModels: true,
+				}),
+			};
+		});
+		assert.deepStrictEqual(observed, [{ ready: false, required: true }, { ready: false, required: true }, { ready: undefined, required: false }]);
+	});
+
+	test('a cached Microsoft identity obtains Copilot client consent before discovery', async () => {
+		const f = fixture(offered);
+		f.state.sessions = [{ ...f.session, accessToken: 'account-only', scopes: [] }];
+		f.state.credential = undefined;
+		await f.controller.setup();
+		assert.deepStrictEqual({
+			calls: f.calls,
+			credentialRequests: f.state.authRequests.filter(request => request.scopes),
+		}, {
+			calls: ['sessions', 'credential', 'signIn', 'discover', 'pick'],
+			credentialRequests: [false, true].map(interactive => ({
+				scopes: ['User.Read'], accountId: 'account-a', clientId: copilotEntraClientId, server: copilotEntraAuthorizationServer, interactive,
+			})),
+		});
+	});
+
+	test('interactive consent cannot substitute another Microsoft account', async () => {
+		const f = fixture(offered);
+		f.state.sessions = [f.session];
+		f.state.credential = undefined;
+		f.state.signInResult = Promise.resolve({ ...f.session, account: { id: 'other', label: f.session.account.label } });
+		await assert.rejects(f.controller.setup(), /intended Microsoft account/);
+		assert.deepStrictEqual(f.calls, ['sessions', 'credential', 'signIn', 'retry']);
+	});
+
+	test('canceling pending Microsoft sign-in returns before the provider and ignores its late result', async () => {
+		const f = fixture();
+		const pending = new DeferredPromise<AuthenticationSession>();
+		f.state.signInResult = pending.p;
+		const cancellation = store.add(new CancellationTokenSource());
+		f.instantiation.stub(IWorkspaceTrustManagementService, { isWorkspaceTrusted: () => true });
+		f.instantiation.stub(IWorkspaceTrustRequestService, { requestWorkspaceTrust: async () => true });
+		f.instantiation.stub(IDefaultAccountService, { getDefaultAccountAuthenticationProvider: () => ({ id: 'github', name: 'GitHub', enterprise: false }) });
+		const runner = f.instantiation.createInstance(ChatSetup, f.context, new Lazy(() => f.controller));
+		const options = { setupStrategy: ChatSetupStrategy.DefaultSetup, disableChatViewReveal: true };
+		const setup = runner.run({ ...options, cancellationToken: cancellation.token });
+		await f.signInStarted.p;
+		cancellation.cancel();
+		const outcome = await raceTimeout(setup.then(result => ({ success: result.success })), 100);
+		await pending.complete(f.session);
+		await setup;
+		const beforeResume = [...f.calls];
+		await runner.run(options);
+		assert.deepStrictEqual({ outcome, beforeResume, calls: f.calls, sessions: f.state.sessions.map(session => session.id) }, {
+			outcome: { success: undefined }, beforeResume: ['sessions', 'signIn'],
+			calls: ['sessions', 'signIn', 'sessions', 'credential', 'discover', 'pick'], sessions: [f.session.id],
+		});
+	});
 
 	test('unrelated host updates do not invalidate the account presentation', () => {
 		const f = fixture(ready());
@@ -208,7 +313,7 @@ suite('Microsoft Copilot setup UI', () => {
 		const f = fixture();
 		f.state.sessions = [f.session, { ...f.session, id: 'resource-session', scopes: ['service/.default'] }];
 		await f.controller.setup();
-		assert.deepStrictEqual(f.calls, ['sessions', 'discover', 'pick']);
+		assert.deepStrictEqual(f.calls, ['sessions', 'credential', 'discover', 'pick']);
 	});
 
 	test('does not replace a missing intended account with another signed-in account', async () => {
@@ -237,7 +342,7 @@ suite('Microsoft Copilot setup UI', () => {
 			f.state.pick = 0;
 			const result = await f.controller.setup();
 			assert.deepStrictEqual({ result, calls: f.calls }, {
-				result: true, calls: ['sessions', 'signIn', 'discover', 'retry', 'sessions', 'discover', 'pick', 'select:github-handle', 'install'],
+				result: true, calls: ['sessions', 'signIn', 'discover', 'retry', 'sessions', 'credential', 'discover', 'pick', 'select:github-handle', 'install'],
 			});
 		});
 	}

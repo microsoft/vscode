@@ -1715,7 +1715,7 @@ export class ChatEntitlementContext extends Disposable {
 		const accountContext = this.copilotAccountContext?.get();
 		if (accountContext !== undefined) {
 			const ready = canCompleteCopilotAccountSetup(accountContext);
-			state = { ...state, copilotAccountReady: accountContext === 'loading' || accountContext instanceof Error ? undefined : ready, completed: !!state.completed && ready };
+			state = { ...state, copilotAccountReady: ready, completed: !!state.completed && ready };
 		}
 		if (this._forceHidden || this.configurationService.getValue(ChatAIDisabledSettingId) === true) {
 			return {

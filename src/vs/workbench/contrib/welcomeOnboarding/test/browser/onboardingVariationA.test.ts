@@ -8,7 +8,8 @@ import sinon from 'sinon';
 import { IAgentHostService } from '../../../../../platform/agentHost/common/agentService.js';
 import { NullAgentHostService } from '../../../../../platform/agentHost/browser/nullAgentHostService.js';
 import { copilotAccountContextKey } from '../../../../../platform/agentHost/common/copilotAccountContext.js';
-import { Event } from '../../../../../base/common/event.js';
+import { Emitter, Event } from '../../../../../base/common/event.js';
+import { RootState } from '../../../../../platform/agentHost/common/state/sessionState.js';
 import { $ } from '../../../../../base/browser/dom.js';
 import { mainWindow } from '../../../../../base/browser/window.js';
 import { DeferredPromise, timeout } from '../../../../../base/common/async.js';
@@ -88,6 +89,37 @@ suite('OnboardingVariationA', () => {
 			githubOffered: false,
 			stillOnSignIn: true,
 		});
+	});
+
+	test('account mode refresh restores content focus without stealing external dialog focus', () => {
+		const observed = [];
+		for (const externalFocus of [false, true]) {
+			const changed = store.add(new Emitter<RootState>());
+			const root: RootState = { agents: [], config: { schema: { type: 'object', properties: {} }, values: {} } };
+			const host = new class extends NullAgentHostService {
+				override readonly authenticationPending = constObservable(true);
+				override get rootState() {
+					return { value: root, verifiedValue: root, onDidChange: changed.event, onWillApplyAction: Event.None, onDidApplyAction: Event.None };
+				}
+			}();
+			const { container } = createOnboarding(undefined, undefined, true, undefined, host);
+			const externalButton = mainWindow.document.body.appendChild($('button'));
+			store.add(toDisposable(() => externalButton.remove()));
+			const original = container.querySelector<HTMLButtonElement>('[aria-label="Continue with GitHub"]')!;
+			(externalFocus ? externalButton : original).focus();
+			root.config!.values[copilotAccountContextKey] = { kind: 'signedOut' };
+			changed.fire(root);
+			const microsoft = container.querySelector<HTMLButtonElement>('[aria-label="Continue with Microsoft"]');
+			observed.push({ externalFocus, correctFocus: mainWindow.document.activeElement === (externalFocus ? externalButton : microsoft) });
+			if (!externalFocus) {
+				mainWindow.document.activeElement?.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', keyCode: 27, bubbles: true }));
+				container.querySelector('.onboarding-a-overlay.exiting')?.dispatchEvent(new mainWindow.Event('transitionend'));
+				observed.push({ dismissedByEscape: !container.querySelector('.onboarding-a-overlay') });
+			}
+		}
+		assert.deepStrictEqual(observed, [
+			{ externalFocus: false, correctFocus: true }, { dismissedByEscape: true }, { externalFocus: true, correctFocus: true },
+		]);
 	});
 
 	for (const settingsUrl of [undefined, 'https://tenant.ghe.com/settings/copilot/features']) {

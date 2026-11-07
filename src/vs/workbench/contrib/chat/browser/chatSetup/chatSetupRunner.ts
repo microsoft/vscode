@@ -42,6 +42,9 @@ import { IChatMicrosoftSignInProbeService } from './chatSetupMicrosoftProbe.js';
 import { isCancellationError } from '../../../../../base/common/errors.js';
 import { IAgentHostService } from '../../../../../platform/agentHost/common/agentService.js';
 import { canCompleteCopilotAccountSetup, resolveCopilotAccountContext } from '../../../../services/agentHost/common/copilotAccountContext.js';
+import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
+import { ChatAIDisabledSettingId } from '../../../../../platform/chat/common/chatSettings.js';
+import { CopilotAccountContext } from '../../../../../platform/agentHost/common/copilotAccountContext.js';
 
 type ChatSetupDialogShownEvent = {
 	source: ChatSetupSource;
@@ -334,6 +337,7 @@ export class ChatSetup {
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IChatMicrosoftSignInProbeService private readonly microsoftSignInProbeService: IChatMicrosoftSignInProbeService,
 		@IAgentHostService private readonly agentHostService: IAgentHostService,
+		@IConfigurationService private readonly configurationService: IConfigurationService,
 	) { }
 
 	skipDialog(): void {
@@ -370,7 +374,7 @@ export class ChatSetup {
 			return { dialogSkipped, success: undefined };
 		}
 
-		const accountContext = await resolveCopilotAccountContext(this.agentHostService, options?.cancellationToken ?? CancellationToken.None);
+		const accountContext = await this.prepareAccountSetup(options?.cancellationToken ?? CancellationToken.None);
 		if (accountContext && (this.context.state.hidden || this.context.state.disabled || this.context.state.disabledInWorkspace)) {
 			throw new Error(localize('copilotSetupUnavailable', "Copilot setup is unavailable. Check your AI feature and administrator settings."));
 		}
@@ -449,6 +453,22 @@ export class ChatSetup {
 		}
 
 		return { success, dialogSkipped, error: setupError, errorAlreadyHandled };
+	}
+
+	private async prepareAccountSetup(token: CancellationToken): Promise<CopilotAccountContext | undefined> {
+		if (this.configurationService.getValue(ChatAIDisabledSettingId) === true
+			&& this.agentHostService.connectionAvailable?.get() === false
+			&& !this.agentHostService.initializeResult.get()
+			&& this.agentHostService.rootState.value === undefined) {
+			// Enabling AI starts the cold host; its root cannot arrive before this write.
+			await this.configurationService.updateValue(ChatAIDisabledSettingId, false);
+		}
+		const context = await resolveCopilotAccountContext(this.agentHostService, token);
+		if (!context) {
+			await this.context.update({ hidden: false });
+			await this.configurationService.updateValue(ChatAIDisabledSettingId, false);
+		}
+		return context;
 	}
 
 	private async getSetupStrategy(options: IChatSetupRunOptions | undefined, dialogSkipped: boolean): Promise<ChatSetupStrategy> {
