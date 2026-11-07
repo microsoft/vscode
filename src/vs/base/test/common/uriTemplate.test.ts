@@ -118,6 +118,24 @@ suite('UriTemplate', () => {
 		testResolution('{name}', { name: '\u00e9!\'()*' }, '%C3%A9%21%27%28%29%2A');
 	});
 
+	test('list and associative array values are percent-encoded like string values', () => {
+		const variables = {
+			q: 'a b&c',
+			list: ['a b', 'c&d', '#e'],
+			keys: { 'a b': 'c&d' }
+		};
+
+		testResolution('{?q}', variables, '?q=a%20b%26c');
+		testResolution('{?list}', variables, '?list=a%20b,c%26d,%23e');
+		testResolution('{?list*}', variables, '?list=a%20b&list=c%26d&list=%23e');
+		testResolution('{&list*}', variables, '&list=a%20b&list=c%26d&list=%23e');
+		testResolution('{;list*}', variables, ';list=a%20b;list=c%26d;list=%23e');
+		testResolution('X{.list*}', variables, 'X.a%20b.c%26d.%23e');
+		testResolution('{?keys}', variables, '?keys=a%20b,c%26d');
+		testResolution('{?keys*}', variables, '?a%20b=c%26d');
+		testResolution('{/keys*}', variables, '/a%20b=c%26d');
+	});
+
 	test('prefix lengths count Unicode code points', () => {
 		testResolution('{name:1}', { name: '\u{1f680}mission' }, '%F0%9F%9A%80');
 		testResolution('{+name:1}', { name: '\u{1f680}/mission' }, '%F0%9F%9A%80');
@@ -328,8 +346,8 @@ suite('UriTemplate', () => {
 		testResolution('X{.var:3}', variables, 'X.val');
 		testResolution('X{.list}', variables, 'X.red,green,blue');
 		testResolution('X{.list*}', variables, 'X.red.green.blue');
-		testResolution('X{.keys}', variables, 'X.semi,;,dot,.,comma,,');
-		testResolution('X{.keys*}', variables, 'X.semi=;.dot=..comma=,');
+		testResolution('X{.keys}', variables, 'X.semi,%3B,dot,.,comma,%2C');
+		testResolution('X{.keys*}', variables, 'X.semi=%3B.dot=..comma=%2C');
 	});
 
 	test('Level 4 - Path expansion with value modifiers', () => {
@@ -349,7 +367,7 @@ suite('UriTemplate', () => {
 		testResolution('{/list}', variables, '/red,green,blue');
 		testResolution('{/list*}', variables, '/red/green/blue');
 		testResolution('{/list*,path:4}', variables, '/red/green/blue/%2Ffoo');
-		testResolution('{/keys}', variables, '/semi,;,dot,.,comma,,');
+		testResolution('{/keys}', variables, '/semi,%3B,dot,.,comma,%2C');
 		testResolution('{/keys*}', variables, '/semi=%3B/dot=./comma=%2C');
 	});
 
@@ -368,8 +386,8 @@ suite('UriTemplate', () => {
 		testResolution('{;hello:5}', { hello: 'Hello World!' }, ';hello=Hello');
 		testResolution('{;list}', variables, ';list=red,green,blue');
 		testResolution('{;list*}', variables, ';list=red;list=green;list=blue');
-		testResolution('{;keys}', variables, ';keys=semi,;,dot,.,comma,,');
-		testResolution('{;keys*}', variables, ';semi=;;dot=.;comma=,');
+		testResolution('{;keys}', variables, ';keys=semi,%3B,dot,.,comma,%2C');
+		testResolution('{;keys*}', variables, ';semi=%3B;dot=.;comma=%2C');
 	});
 
 	test('Level 4 - Form-style query with value modifiers', () => {
@@ -387,8 +405,8 @@ suite('UriTemplate', () => {
 		testResolution('{?var:3}', variables, '?var=val');
 		testResolution('{?list}', variables, '?list=red,green,blue');
 		testResolution('{?list*}', variables, '?list=red&list=green&list=blue');
-		testResolution('{?keys}', variables, '?keys=semi,;,dot,.,comma,,');
-		testResolution('{?keys*}', variables, '?semi=;&dot=.&comma=,');
+		testResolution('{?keys}', variables, '?keys=semi,%3B,dot,.,comma,%2C');
+		testResolution('{?keys*}', variables, '?semi=%3B&dot=.&comma=%2C');
 	});
 
 	test('Level 4 - Form-style query continuation with value modifiers', () => {
@@ -406,8 +424,8 @@ suite('UriTemplate', () => {
 		testResolution('?fixed=yes{&var:3}', variables, '?fixed=yes&var=val');
 		testResolution('?fixed=yes{&list}', variables, '?fixed=yes&list=red,green,blue');
 		testResolution('?fixed=yes{&list*}', variables, '?fixed=yes&list=red&list=green&list=blue');
-		testResolution('?fixed=yes{&keys}', variables, '?fixed=yes&keys=semi,;,dot,.,comma,,');
-		testResolution('?fixed=yes{&keys*}', variables, '?fixed=yes&semi=;&dot=.&comma=,');
+		testResolution('?fixed=yes{&keys}', variables, '?fixed=yes&keys=semi,%3B,dot,.,comma,%2C');
+		testResolution('?fixed=yes{&keys*}', variables, '?fixed=yes&semi=%3B&dot=.&comma=%2C');
 	});
 
 	test('handling undefined or null values', () => {
@@ -466,7 +484,7 @@ suite('UriTemplate', () => {
 		// Complex query parameters
 		testResolution('https://{domain}/search{?query,filters,coordinates*}',
 			variables,
-			'https://example.com/search?query=search&filters=color:blue,shape:square&lat=37.7&lon=-122.4');
+			'https://example.com/search?query=search&filters=color%3Ablue,shape%3Asquare&lat=37.7&lon=-122.4');
 
 		// Multiple expression types
 		testResolution('https://{domain}/users/{user}/profile{.lang}{?sessionId}{#path}',
