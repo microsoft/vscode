@@ -200,6 +200,12 @@ export class TerminalLinkManager extends DisposableStore {
 	private _setupLinkDetector(id: string, detector: ITerminalLinkDetector, isExternal: boolean = false): ILinkProvider {
 		const detectorAdapter = this.add(this._instantiationService.createInstance(TerminalLinkDetectorAdapter, detector));
 		this.add(detectorAdapter.onDidActivateLink(e => {
+			// xterm.js activates links on mouseup of any button, only the primary button should
+			// activate. Bail before preventDefault as that would block the middle click paste of
+			// the selection clipboard on Linux.
+			if (e.event && e.event.button !== 0) {
+				return;
+			}
 			// Prevent default electron link handling so Alt+Click mode works normally
 			e.event?.preventDefault();
 			// Require correct modifier on click unless event is coming from linkQuickPick selection
