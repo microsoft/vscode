@@ -495,8 +495,8 @@ export class SCMRepositoriesViewPane extends ViewPane {
 
 				// scm.repositories.visible setting
 				this.visibilityDisposables.add(autorun(reader => {
-					const visibleCount = this.visibleCountObs.read(reader);
-					this.updateBodySize(this.tree.contentHeight, visibleCount);
+					this.visibleCountObs.read(reader);
+					this.updateBodySize(this.tree.contentHeight);
 				}));
 
 				// scm.repositories.explorer setting
@@ -797,18 +797,14 @@ export class SCMRepositoriesViewPane extends ViewPane {
 		await this.expand(parentRepository);
 	}
 
-	private updateBodySize(contentHeight: number, visibleCount?: number): void {
+	private updateBodySize(contentHeight: number): void {
 		if (this.orientation === Orientation.HORIZONTAL) {
 			return;
 		}
 
 		if (this.scmViewService.explorerEnabledConfig.get() === false) {
-			visibleCount = visibleCount ?? this.visibleCountObs.get();
-			const empty = this.scmViewService.repositories.length === 0;
-			const size = Math.min(contentHeight / 22, visibleCount) * 22;
-
-			this.minimumBodySize = visibleCount === 0 ? 22 : size;
-			this.maximumBodySize = visibleCount === 0 ? Number.POSITIVE_INFINITY : empty ? Number.POSITIVE_INFINITY : size;
+			this.minimumBodySize = 22;
+			this.maximumBodySize = Number.POSITIVE_INFINITY;
 		} else {
 			this.minimumBodySize = 120;
 			this.maximumBodySize = Number.POSITIVE_INFINITY;
