@@ -47,8 +47,12 @@ export function assertResolveKeybinding(mapper: IKeyboardMapper, keybinding: Key
 }
 
 export function readRawMapping<T>(file: string): Promise<T> {
-	return fs.promises.readFile(FileAccess.asFileUri(`vs/workbench/services/keybinding/test/node/${file}.js`).fsPath).then((buff) => {
+	const isJSON = file.endsWith('.json');
+	return fs.promises.readFile(FileAccess.asFileUri(`vs/workbench/services/keybinding/test/node/${file}${isJSON ? '' : '.js'}`).fsPath).then((buff) => {
 		const contents = buff.toString();
+		if (isJSON) {
+			return JSON.parse(contents);
+		}
 		const func = new Function('define', contents);// CodeQL [SM01632] This is used in tests and we read the files as JS to avoid slowing down TS compilation
 		let rawMappings: T | null = null;
 		func(function (value: T) {

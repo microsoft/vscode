@@ -5,7 +5,7 @@
 
 import { illegalArgument } from '../../../base/common/errors.js';
 import { AriaLabelProvider, ElectronAcceleratorLabelProvider, UILabelProvider, UserSettingsLabelProvider } from '../../../base/common/keybindingLabels.js';
-import { Chord, SingleModifierChord, ResolvedKeybinding, ResolvedChord } from '../../../base/common/keybindings.js';
+import { Chord, SingleModifierChord, ResolvedKeybinding, ResolvedChord, ElectronAcceleratorPurpose } from '../../../base/common/keybindings.js';
 import { OperatingSystem } from '../../../base/common/platform.js';
 
 export abstract class BaseResolvedKeybinding<T extends Chord> extends ResolvedKeybinding {
@@ -30,7 +30,7 @@ export abstract class BaseResolvedKeybinding<T extends Chord> extends ResolvedKe
 		return AriaLabelProvider.toLabel(this._os, this._chords, (keybinding) => this._getAriaLabel(keybinding));
 	}
 
-	public getElectronAccelerator(): string | null {
+	public getElectronAccelerator(purpose: ElectronAcceleratorPurpose = 'menu'): string | null {
 		if (this._chords.length > 1) {
 			// [Electron Accelerators] Electron cannot handle chords
 			return null;
@@ -40,7 +40,7 @@ export abstract class BaseResolvedKeybinding<T extends Chord> extends ResolvedKe
 			// e.g. "shift shift"
 			return null;
 		}
-		return ElectronAcceleratorLabelProvider.toLabel(this._os, this._chords, (keybinding) => this._getElectronAccelerator(keybinding));
+		return ElectronAcceleratorLabelProvider.toLabel(this._os, this._chords, keybinding => this._getElectronAccelerator(keybinding, purpose));
 	}
 
 	public getUserSettingsLabel(): string | null {
@@ -80,7 +80,7 @@ export abstract class BaseResolvedKeybinding<T extends Chord> extends ResolvedKe
 
 	protected abstract _getLabel(keybinding: T): string | null;
 	protected abstract _getAriaLabel(keybinding: T): string | null;
-	protected abstract _getElectronAccelerator(keybinding: T): string | null;
+	protected abstract _getElectronAccelerator(keybinding: T, purpose: ElectronAcceleratorPurpose): string | null;
 	protected abstract _getUserSettingsLabel(keybinding: T): string | null;
 	protected abstract _isWYSIWYG(keybinding: T): boolean;
 	protected abstract _getChordDispatch(keybinding: T): string | null;
