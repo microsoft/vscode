@@ -10,7 +10,7 @@ import { BugIndicatingError, onUnexpectedError } from '../../../../base/common/e
 import { Event } from '../../../../base/common/event.js';
 import { readHotReloadableExport } from '../../../../base/common/hotReloadHelpers.js';
 import { DisposableStore, toDisposable } from '../../../../base/common/lifecycle.js';
-import { IObservable, ITransaction, autorun, autorunWithStore, derived, derivedDisposable, disposableObservableValue, observableFromEvent, observableValue, recomputeInitiallyAndOnChange, subtransaction, transaction } from '../../../../base/common/observable.js';
+import { IObservable, ITransaction, autorun, autorunWithStore, constObservable, derived, derivedDisposable, disposableObservableValue, observableFromEvent, observableValue, recomputeInitiallyAndOnChange, subtransaction, transaction } from '../../../../base/common/observable.js';
 import { AccessibilitySignal, IAccessibilitySignalService } from '../../../../platform/accessibilitySignal/browser/accessibilitySignalService.js';
 import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
@@ -458,7 +458,7 @@ export class DiffEditorWidget extends DelegatingEditor implements IDiffEditor {
 		const isInitializingDiff = this._diffModel.map(this, (m, reader) => {
 			/** @isInitializingDiff isDiffUpToDate */
 			if (!m) { return undefined; }
-			return m.diff.read(reader) === undefined && !m.isDiffUpToDate.read(reader);
+			return m.diff.read(reader) === undefined && !m.isDiffUpToDate.read(reader) && m.shouldComputeDiff.read(reader);
 		});
 		this._register(autorunWithStore((reader, store) => {
 			/** @description DiffEditorWidgetHelper.ShowProgress */
@@ -563,7 +563,7 @@ export class DiffEditorWidget extends DelegatingEditor implements IDiffEditor {
 	}
 
 	public createViewModel(model: IDiffEditorModel): IDiffEditorViewModel {
-		return this._instantiationService.createInstance(DiffEditorViewModel, model, this._options);
+		return this._instantiationService.createInstance(DiffEditorViewModel, model, this._options, constObservable(true));
 	}
 
 	override getModel(): IDiffEditorModel | null { return this._diffModel.get()?.model ?? null; }

@@ -519,6 +519,7 @@ suite('SessionChangesEditorInput', () => {
 					override toString() { return name; }
 				}();
 				instantiationService.stubInstance(MultiDiffEditorInput, {
+					restoreCollapsedDocuments: () => { },
 					getViewModel: async () => viewModel,
 					dispose: () => disposedViewModels.push(name),
 				});

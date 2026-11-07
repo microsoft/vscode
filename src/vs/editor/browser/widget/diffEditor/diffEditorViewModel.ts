@@ -6,7 +6,7 @@
 import { rejectIfNotCanceled, RunOnceScheduler } from '../../../../base/common/async.js';
 import { CancellationTokenSource } from '../../../../base/common/cancellation.js';
 import { Disposable, toDisposable } from '../../../../base/common/lifecycle.js';
-import { IObservable, IReader, ISettableObservable, ITransaction, autorun, derived, observableSignal, observableSignalFromEvent, observableValue, transaction, waitForState } from '../../../../base/common/observable.js';
+import { IObservable, IReader, ISettableObservable, ITransaction, autorun, autorunWithStoreHandleChanges, derived, observableSignal, observableSignalFromEvent, observableValue, transaction, waitForState } from '../../../../base/common/observable.js';
 import { IDiffProviderFactoryService } from './diffProviderFactoryService.js';
 import { filterWithPrevious } from './utils.js';
 import { readHotReloadableExport } from '../../../../base/common/hotReloadHelpers.js';
@@ -67,6 +67,15 @@ export class DiffEditorViewModel extends Disposable implements IDiffEditorViewMo
 
 	private readonly _cancellationTokenSource = new CancellationTokenSource();
 
+	/** How many {@link waitForDiff} calls are waiting for the diff. */
+	private readonly _diffRequests = observableValue<number>(this, 0);
+
+	/**
+	 * Whether the diff is computed. It isn't while the diff isn't needed and no one waits for it (see {@link waitForDiff}):
+	 * edits then only keep the last diff in sync, and the diff is computed again once it's needed.
+	 */
+	public readonly shouldComputeDiff: IObservable<boolean>;
+
 	private readonly _diffProvider = derived(this, reader => {
 		const diffProvider = this._diffProviderFactoryService.createDiffProvider({
 			diffAlgorithm: this._options.diffAlgorithm.read(reader)
@@ -78,12 +87,18 @@ export class DiffEditorViewModel extends Disposable implements IDiffEditorViewMo
 		};
 	});
 
+	/**
+	 * @param isDiffNeeded Whether the diff is needed, e.g. because it's shown.
+	 */
 	constructor(
 		public readonly model: IDiffEditorModel,
 		private readonly _options: DiffEditorOptions,
+		isDiffNeeded: IObservable<boolean>,
 		@IDiffProviderFactoryService private readonly _diffProviderFactoryService: IDiffProviderFactoryService,
 	) {
 		super();
+
+		this.shouldComputeDiff = derived(this, reader => isDiffNeeded.read(reader) || this._diffRequests.read(reader) > 0);
 
 		this._register(toDisposable(() => this._cancellationTokenSource.cancel()));
 
@@ -261,15 +276,26 @@ export class DiffEditorViewModel extends Disposable implements IDiffEditorViewMo
 			debouncer.schedule();
 		}));
 
-		this._register(autorun(async (reader) => {
+		/** Whether an input of the diff changed since its last computation started. */
+		let isDiffOutdated = true;
+		this._register(autorunWithStoreHandleChanges({
+			owner: this,
+			changeTracker: {
+				createChangeSummary: () => ({ didInputChange: false }),
+				handleChange: (ctx, changeSummary) => {
+					if (!ctx.didChange(this.shouldComputeDiff)) {
+						changeSummary.didInputChange = true;
+					}
+					return true;
+				},
+			},
+		}, async (reader, changeSummary, store) => {
 			/** @description compute diff */
-			const store = reader.store;
 
 			// So that they get recomputed when these settings change
 			this._options.hideUnchangedRegionsMinimumLineCount.read(reader);
 			this._options.hideUnchangedRegionsContextLineCount.read(reader);
 
-			debouncer.cancel();
 			contentChangedSignal.read(reader);
 			const documentDiffProvider = this._diffProvider.read(reader);
 			documentDiffProvider.onChangeSignal.read(reader);
@@ -277,6 +303,22 @@ export class DiffEditorViewModel extends Disposable implements IDiffEditorViewMo
 			readHotReloadableExport(DefaultLinesDiffComputer, reader);
 			readHotReloadableExport(optimizeSequenceDiffs, reader);
 
+			const computeOptions = {
+				ignoreTrimWhitespace: this._options.ignoreTrimWhitespace.read(reader),
+				maxComputationTimeMs: this._options.maxComputationTimeMs.read(reader),
+				computeMoves: this._options.showMoves.read(reader),
+			};
+
+			if (changeSummary.didInputChange) {
+				isDiffOutdated = true;
+				this._isDiffUpToDate.set(false, undefined);
+			}
+			if (!this.shouldComputeDiff.read(reader) || !isDiffOutdated) {
+				return;
+			}
+			isDiffOutdated = false;
+
+			debouncer.cancel();
 			this._isDiffUpToDate.set(false, undefined);
 
 			let originalTextEditInfos: TextEditInfo[] = [];
@@ -291,11 +333,7 @@ export class DiffEditorViewModel extends Disposable implements IDiffEditorViewMo
 				modifiedTextEditInfos = combineTextEditInfos(modifiedTextEditInfos, edits);
 			}));
 
-			let result = await documentDiffProvider.diffProvider.computeDiff(model.original, model.modified, {
-				ignoreTrimWhitespace: this._options.ignoreTrimWhitespace.read(reader),
-				maxComputationTimeMs: this._options.maxComputationTimeMs.read(reader),
-				computeMoves: this._options.showMoves.read(reader),
-			}, this._cancellationTokenSource.token).catch(rejectIfNotCanceled);
+			let result = await documentDiffProvider.diffProvider.computeDiff(model.original, model.modified, computeOptions, this._cancellationTokenSource.token).catch(rejectIfNotCanceled);
 
 			if (!result || this._cancellationTokenSource.token.isCancellationRequested) {
 				return;
@@ -315,7 +353,8 @@ export class DiffEditorViewModel extends Disposable implements IDiffEditorViewMo
 				this._lastDiff = result;
 				const state = DiffState.fromDiffResult(result);
 				this._diff.set(state, tx);
-				this._isDiffUpToDate.set(true, tx);
+				// An input can change while the diff isn't needed, which doesn't start another computation
+				this._isDiffUpToDate.set(!isDiffOutdated, tx);
 				const currentSyncedMovedText = this.movedTextToCompare.read(undefined);
 				this.movedTextToCompare.set(currentSyncedMovedText ? this._lastDiff.moves.find(m => m.lineRangeMapping.modified.intersect(currentSyncedMovedText.lineRangeMapping.modified)) : undefined, tx);
 			});
@@ -349,7 +388,13 @@ export class DiffEditorViewModel extends Disposable implements IDiffEditorViewMo
 	}
 
 	public async waitForDiff(): Promise<void> {
-		await waitForState(this.isDiffUpToDate, s => s, undefined, this._cancellationTokenSource.token).catch(rejectIfNotCanceled);
+		// Computes the diff while waiting for it, also when it isn't needed otherwise
+		this._diffRequests.set(this._diffRequests.get() + 1, undefined);
+		try {
+			await waitForState(this.isDiffUpToDate, s => s, undefined, this._cancellationTokenSource.token).catch(rejectIfNotCanceled);
+		} finally {
+			this._diffRequests.set(this._diffRequests.get() - 1, undefined);
+		}
 	}
 
 	public serializeState(): SerializedState {

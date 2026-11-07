@@ -151,7 +151,8 @@ export class DocumentDiffItemViewModel extends Disposable {
 		return this.diffEditorViewModelRef.object;
 	}
 	public readonly waitForInitialDiffOr1s: ObservablePromise<void>;
-	public readonly collapsed = observableValue<boolean>(this, false);
+	/** While collapsed, the diff isn't computed. */
+	public readonly collapsed = observableValue<boolean>(this, !!this._editorViewModel.model.collapsedDocumentKeys?.has(this.getKey()));
 
 	public readonly lastTemplateData = observableValue<{ expandedContentHeight: number; selections: Selection[] | undefined }>(
 		this,
@@ -220,13 +221,14 @@ export class DocumentDiffItemViewModel extends Disposable {
 			this._instantiationService.createInstance(DiffEditorViewModel, {
 				original: originalTextModel,
 				modified: modifiedTextModel,
-			}, options),
+			}, options, this.collapsed.map(this, collapsed => !collapsed)),
 			diffEditorViewModelStore,
 			this
 		));
 
-		this.waitForInitialDiffOr1s = new ObservablePromise(
-			Promise.race([
+		this.waitForInitialDiffOr1s = new ObservablePromise(this.collapsed.get()
+			? Promise.resolve() // its diff is computed once it expands
+			: Promise.race([
 				this.diffEditorViewModel.waitForDiff().catch(rejectIfNotCanceled),
 				timeout(1000, cancelOnDispose(this._store)).catch(rejectIfNotCanceled),
 			])
