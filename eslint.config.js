@@ -13,7 +13,6 @@ import tseslint from 'typescript-eslint';
 import stylistic from '@stylistic/eslint-plugin';
 import * as pluginLocal from './.eslint-plugin-local/index.ts';
 import * as pluginCopilotLocal from './extensions/copilot/.eslintplugin/index.ts';
-import pluginImport from 'eslint-plugin-import';
 import pluginJsdoc from 'eslint-plugin-jsdoc';
 
 import pluginHeader from 'eslint-plugin-header';
@@ -249,15 +248,7 @@ export default defineConfig(
 			],
 			'jsdoc/no-types': 'warn',
 			'local/code-no-static-self-ref': 'warn',
-			'@typescript-eslint/naming-convention': [
-				'warn',
-				{
-					'selector': 'class',
-					'format': [
-						'PascalCase'
-					]
-				}
-			]
+			'local/code-class-name-pascal-case': 'warn'
 		}
 	},
 	{
@@ -2682,6 +2673,8 @@ export default defineConfig(
 				{ 'selector': 'typeLike', 'format': ['PascalCase'] },
 				{ 'selector': 'interface', 'format': ['PascalCase'] }
 			],
+			// Covered by the `typeLike` naming convention above
+			'local/code-class-name-pascal-case': 'off',
 			'comma-dangle': ['warn', 'only-multiline']
 		}
 	},
@@ -2786,7 +2779,6 @@ export default defineConfig(
 			parser: tseslint.parser,
 		},
 		plugins: {
-			'import': fixupPluginRules(pluginImport),
 			'copilot-local': pluginCopilotLocal,
 		},
 		rules: {
@@ -2808,7 +2800,7 @@ export default defineConfig(
 				'vscode-tas-client',
 				'web-tree-sitter'
 			],
-			'import/no-restricted-paths': [
+			'local/code-no-restricted-zone-imports': [
 				'warn',
 				{
 					zones: [
@@ -3167,7 +3159,7 @@ export default defineConfig(
 			'extensions/copilot/src/lib/node/chatLibMain.ts',
 		],
 		rules: {
-			'import/no-restricted-paths': 'off'
+			'local/code-no-restricted-zone-imports': 'off'
 		}
 	},
 	// Allow querySelector/querySelectorAll in test files - it's acceptable for test assertions
