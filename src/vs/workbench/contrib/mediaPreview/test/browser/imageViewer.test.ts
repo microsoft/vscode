@@ -129,6 +129,7 @@ suite('ImageViewer', () => {
 			scale: viewer.scale,
 			zoomed: viewer.element.classList.contains('zoomed'),
 			pixelated: image.classList.contains('pixelated'),
+			zoomVariable: image.style.getPropertyValue('--image-viewer-zoom'),
 		});
 
 		const states = [snapshot()];
@@ -146,11 +147,11 @@ suite('ImageViewer', () => {
 			naturalSize: { width: 40, height: 20 },
 			alt: 'red',
 			states: [
-				{ scale: 'fit', zoomed: false, pixelated: false },
-				{ scale: 1.5, zoomed: true, pixelated: false },
-				{ scale: 5, zoomed: true, pixelated: true },
-				{ scale: 'fit', zoomed: false, pixelated: false },
-				{ scale: 0.9, zoomed: true, pixelated: false },
+				{ scale: 'fit', zoomed: false, pixelated: false, zoomVariable: '' },
+				{ scale: 1.5, zoomed: true, pixelated: false, zoomVariable: '1.5' },
+				{ scale: 5, zoomed: true, pixelated: true, zoomVariable: '5' },
+				{ scale: 'fit', zoomed: false, pixelated: false, zoomVariable: '' },
+				{ scale: 0.9, zoomed: true, pixelated: false, zoomVariable: '0.9' },
 			],
 			scales: [1.5, 5, 'fit', 0.9],
 		});

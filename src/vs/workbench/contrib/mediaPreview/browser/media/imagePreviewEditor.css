@@ -19,9 +19,9 @@
 	max-height: calc(100% - 2 * var(--vscode-spacing-size100));
 }
 
-/* Checkerboard behind transparent images */
+/* Checkerboard behind transparent images. Its size is divided by the zoom so it stays the same size on screen. */
 .image-preview-editor .image-viewer img {
-	background-size: 16px 16px;
+	background-size: calc(16px / var(--image-viewer-zoom, 1)) calc(16px / var(--image-viewer-zoom, 1));
 	background-image: conic-gradient(rgb(230, 230, 230) 25%, transparent 25% 50%, rgb(230, 230, 230) 50% 75%, transparent 75%);
 }
 
