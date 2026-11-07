@@ -62,7 +62,8 @@ export class ElectronPtyHostStarter extends Disposable implements IPtyHostStarte
 			entryPoint: 'vs/platform/terminal/node/ptyHostMain',
 			execArgv,
 			args: ['--logsPath', this._environmentMainService.logsHome.with({ scheme: Schemas.file }).fsPath],
-			env: this._createPtyHostConfiguration()
+			env: this._createPtyHostConfiguration(),
+			disclaim: true
 		});
 
 		const port = this.utilityProcess.connect();

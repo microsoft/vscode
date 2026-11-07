@@ -64,6 +64,12 @@ export interface IUtilityProcessConfiguration {
 	readonly allowLoadingUnsignedLibraries?: boolean;
 
 	/**
+	 * On macOS, the flag allows TCC prompts to be attributed
+	 * to the utility process instead of the main application.
+	 */
+	readonly disclaim?: boolean;
+
+	/**
 	 * Used in log messages to correlate the process
 	 * with other components.
 	 */
@@ -247,6 +253,7 @@ export class UtilityProcess extends Disposable {
 		const args = this.configuration.args ?? [];
 		const execArgv = [...(this.configuration.execArgv ?? [])];
 		const allowLoadingUnsignedLibraries = this.configuration.allowLoadingUnsignedLibraries;
+		const disclaim = this.configuration.disclaim;
 		const jsFlags = app.commandLine.getSwitchValue('js-flags');
 		if (jsFlags) {
 			execArgv.push(`--js-flags=${jsFlags}`);
@@ -263,6 +270,7 @@ export class UtilityProcess extends Disposable {
 			env,
 			execArgv, // !!! Add `--trace-warnings` for node.js tracing !!!
 			allowLoadingUnsignedLibraries,
+			disclaim,
 			respondToAuthRequestsFromMainProcess,
 			stdio
 		});
