@@ -3254,7 +3254,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 					return Promise.resolve(undefined);
 				}
 			});
-		});
+		}).catch(error => this._handleError(error));
 	}
 
 	/**

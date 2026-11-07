@@ -977,6 +977,24 @@ suite('ConfigurationResolverExpression', () => {
 		});
 	});
 
+	for (const value of ['$$', '$&', '$`', '$\'']) {
+		test(`preserves literal ${value} in resolved keys and values`, () => {
+			const expr = ConfigurationResolverExpression.parse({
+				'before-${input:literal}-after': 'prefix ${input:literal} suffix ${input:literal}',
+				nested: ['${input:literal}']
+			});
+
+			for (const replacement of expr.unresolved()) {
+				expr.resolve(replacement, value);
+			}
+
+			assert.deepStrictEqual(expr.toObject(), {
+				[`before-${value}-after`]: `prefix ${value} suffix ${value}`,
+				nested: [value]
+			});
+		});
+	}
+
 	test('keeps unresolved variables', () => {
 		const expr = ConfigurationResolverExpression.parse({
 			name: '${env:USERNAME}'
