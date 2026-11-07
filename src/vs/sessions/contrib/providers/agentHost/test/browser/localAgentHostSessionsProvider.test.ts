@@ -1558,6 +1558,54 @@ suite('LocalAgentHostSessionsProvider', () => {
 		});
 	});
 
+	test('an observed chat of a session no window shows lists its Last Turn changeset\'s files during a turn, as the turn changes it streams are not read while no window shows it', async () => {
+		const workingDirectory = URI.file('/repo');
+		agentHost.addSession(createSession('hidden-turn', { summary: 'Hidden Turn', workingDirectory }));
+		const activeSession = observableValue<ITestSessionWithChat | undefined>('activeSession', undefined);
+		const provider = createProvider(disposables, agentHost, undefined, { activeSession });
+		await timeout(0);
+		const session = provider.getSessions().find(candidate => candidate.title.get() === 'Hidden Turn')!;
+		const chatUri = buildDefaultChatUri(AgentSession.uri('copilotcli', 'hidden-turn').toString());
+		const summary: ChatSummary = { resource: chatUri, title: 'Default', status: ProtocolSessionStatus.InProgress, modifiedAt: new Date(0).toISOString() };
+		agentHost.setSessionState('hidden-turn', 'copilotcli', {
+			provider: 'copilotcli', title: 'Hidden Turn', status: ProtocolSessionStatus.InProgress, lifecycle: SessionLifecycle.Ready,
+			activeClients: [], defaultChat: chatUri, chats: [summary], workingDirectories: [workingDirectory.toString()],
+		});
+		const streamedFile = URI.file('/repo/streamed.ts').toString();
+		agentHost.setChatState(chatUri, {
+			...summary, workingDirectories: [workingDirectory.toString()], turns: [],
+			changesets: [{ label: 'Last Turn Changes', uriTemplate: `${chatUri}/changeset/turn/{turnId}`, changeKind: 'turn' }],
+			activeTurn: {
+				id: 'active-turn', startedAt: new Date().toISOString(), usage: undefined,
+				message: { text: 'Edit', origin: { kind: MessageKind.User } },
+				responseParts: [{
+					kind: ResponsePartKind.ToolCall,
+					toolCall: {
+						status: ToolCallStatus.Completed, toolCallId: 'edit', toolName: 'create', displayName: 'Create File', invocationMessage: 'Creating',
+						success: true, pastTenseMessage: 'Created', confirmed: ToolCallConfirmationReason.NotNeeded,
+						content: [{ type: ToolResultContentType.FileEdit, after: { uri: streamedFile, content: { uri: streamedFile } }, diff: { added: 1, removed: 0 } }],
+					},
+				}],
+			},
+		});
+		const changesetFile = 'file:///repo/changeset.ts';
+		agentHost.setChangesetState(`${chatUri}/changeset/turn/active-turn`, {
+			status: ChangesetStatus.Ready,
+			files: [{ id: changesetFile, edit: { after: { uri: changesetFile, content: { uri: changesetFile } }, diff: { added: 2, removed: 0 } } }],
+		});
+		const chat = session.mainChat.get();
+		const observation = chat.observeChanges?.();
+		let changes: readonly string[] | undefined;
+		disposables.add(autorun(reader => {
+			const lastTurn = chat.changesets.read(reader)?.find(changeset => changeset.id === TURN_CHANGES_CHANGESET_ID);
+			changes = lastTurn?.changes.read(reader).map(change => isIChatSessionFileChange2(change) ? change.uri.toString() : change.modifiedUri.toString());
+		}));
+		const observed = changes;
+		observation?.dispose();
+
+		assert.deepStrictEqual({ observed, activeSession: activeSession.get() }, { observed: [changesetFile], activeSession: undefined });
+	});
+
 	test('rebinds session types when Agent Host starts with a new root subscription', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
 		agentHost.clearRootState();
 		const provider = createProvider(disposables, agentHost);

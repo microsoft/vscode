@@ -1829,7 +1829,7 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 			defaultChatUriObs,
 			this._options,
 			defaultChatChangesGate.subscribed,
-			this._createChatCurrentTurnChangesObservable(defaultChatUriObs, defaultChatChangesGate.subscribed),
+			this._createChatCurrentTurnChangesObservable(defaultChatUriObs),
 		);
 		const defaultChatChanges = createChangesObservable(defaultChatChangesets);
 		const hasMultipleChats = metadata.chats?.some(chat => chat.kind === 'peer') === true;
@@ -2302,7 +2302,7 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 			summary,
 			this.createdAt,
 			// Nested chats default to their own Session Changes; the main chat keeps the provider default.
-			createChatChangesets(this.backendUri, constObservable(backendUri), this._options, changesGate.subscribed, this._createChatCurrentTurnChangesObservable(constObservable(backendUri), changesGate.subscribed), ChangesetKind.Session),
+			createChatChangesets(this.backendUri, constObservable(backendUri), this._options, changesGate.subscribed, this._createChatCurrentTurnChangesObservable(constObservable(backendUri)), ChangesetKind.Session),
 			this._createChatBackgroundShellsObservable(constObservable(backendUri)),
 			() => this._acquireChatDetails(this.sessionId),
 			this.workspace,
@@ -3211,10 +3211,11 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 		};
 	}
 
-	private _createChatCurrentTurnChangesObservable(chatUriObs: IObservable<URI | undefined>, subscribed: IObservable<boolean>): IObservable<IAgentHostCurrentTurnChanges | undefined> {
+	/** Live while a window shows this session, as are the turn changes it reads; otherwise the changesets' own files apply. */
+	private _createChatCurrentTurnChangesObservable(chatUriObs: IObservable<URI | undefined>): IObservable<IAgentHostCurrentTurnChanges | undefined> {
 		const chatStateObs = createActiveSessionSubscriptionObs<ChatState>(
 			this._options,
-			subscribed,
+			this.isActiveSessionObs,
 			StateComponents.Chat,
 			chatUriObs,
 		);

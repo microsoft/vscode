@@ -48,6 +48,7 @@ import { AgentWorkbenchLayout, ISessionsHostLayoutService } from '../../../servi
 import { ActiveSessionContextKeys, SessionChangesEditorFileListContext } from '../../sessions/common/changes.js';
 import { ISessionHost, ISessionHostService } from '../../../services/sessions/browser/sessionHost.js';
 import { ISessionsManagementService } from '../../sessions/common/sessionsManagement.js';
+import { IEditorProgressService } from '../../../../platform/progress/common/progress.js';
 import { getChangesEditorChanges, observeChangesEditorChat } from './changesMultiDiffSourceResolver.js';
 import { IChangesEditorScope, IChangesSessionScope, IChangesViewService } from '../../sessions/common/changesViewService.js';
 import { ChangesActionsBar, createChangesEditorScope } from './changesView.js';
@@ -90,6 +91,7 @@ interface IOutgoingChangesContent extends IDisposable {
 
 /** How long a replaced input's diffs stay on screen while the incoming session's changes load. */
 const INCOMING_CHANGES_LOAD_WAIT_MS = 1000;
+const CHANGES_LOADING_PROGRESS_DELAY_MS = 200;
 export class SessionChangesUIElementFactory implements IWorkbenchUIElementFactory {
 
 	constructor(
@@ -296,6 +298,7 @@ export class SessionChangesEditor extends AbstractEditorWithViewState<IMultiDiff
 		@ISessionHostService private readonly sessionHostService: ISessionHostService,
 		@ISessionHost private readonly sessionHost: ISessionHost,
 		@ISessionsManagementService private readonly sessionsManagementService: ISessionsManagementService,
+		@IEditorProgressService private readonly editorProgressService: IEditorProgressService,
 	) {
 		super(
 			SessionChangesEditor.ID,
@@ -374,6 +377,14 @@ export class SessionChangesEditor extends AbstractEditorWithViewState<IMultiDiff
 			this.bodyContainer?.classList.toggle('has-empty-state', empty);
 			if (empty) {
 				this.emptyState?.layout();
+			}
+		}));
+		this._register(autorun(reader => {
+			const loading = this._inputChangesLoadingObs.read(reader);
+			this.bodyContainer?.classList.toggle('changes-loading', loading);
+			if (loading && this._paneVisible.read(reader)) {
+				const progress = this.editorProgressService.show(true, CHANGES_LOADING_PROGRESS_DELAY_MS);
+				reader.store.add(toDisposable(() => progress.done()));
 			}
 		}));
 		this._register(autorun(reader => {
