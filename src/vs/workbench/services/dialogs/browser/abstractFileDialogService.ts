@@ -386,14 +386,18 @@ export abstract class AbstractFileDialogService implements IFileDialogService {
 	abstract showSaveDialog(options: ISaveDialogOptions): Promise<URI | undefined>;
 	abstract showOpenDialog(options: IOpenDialogOptions): Promise<URI[] | undefined>;
 
-	abstract pickFileToSave(defaultUri: URI, availableFileSystems?: string[]): Promise<URI | undefined>;
+	abstract pickFileToSave(defaultUri: URI, availableFileSystems?: string[], filters?: FileFilter[]): Promise<URI | undefined>;
 
-	protected getPickFileToSaveDialogOptions(defaultUri: URI, availableFileSystems?: string[]): ISaveDialogOptions {
+	protected getPickFileToSaveDialogOptions(defaultUri: URI, availableFileSystems?: string[], filters?: FileFilter[]): ISaveDialogOptions {
 		const options: ISaveDialogOptions = {
 			defaultUri,
 			title: nls.localize('saveAsTitle', "Save As"),
 			availableFileSystems
 		};
+
+		if (filters?.length) {
+			return { ...options, filters };
+		}
 
 		interface IFilter { name: string; extensions: string[] }
 

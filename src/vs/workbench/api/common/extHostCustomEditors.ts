@@ -195,6 +195,11 @@ export class ExtHostCustomEditors implements extHostProtocol.ExtHostCustomEditor
 		if (isCustomTextEditorProvider(provider) && provider.resolveCustomTextEditorNavigation) {
 			checkProposedApiEnabled(extension, 'customTextEditorNavigation');
 		}
+		let saveAsFilters: extHostProtocol.CustomEditorProviderCapabilities['saveAsFilters'];
+		if (!isCustomTextEditorProvider(provider) && provider.saveAsFilters !== undefined) {
+			checkProposedApiEnabled(extension, 'customEditorSaveAsFilters');
+			saveAsFilters = Object.entries(provider.saveAsFilters).map(([name, extensions]) => ({ name, extensions: [...extensions] }));
+		}
 		const disposables = new DisposableStore();
 		if (isCustomTextEditorProvider(provider)) {
 			disposables.add(this._editorProviders.addTextProvider(viewType, extension, provider));
@@ -221,6 +226,7 @@ export class ExtHostCustomEditors implements extHostProtocol.ExtHostCustomEditor
 			}
 
 			this._proxy.$registerCustomEditorProvider(toExtensionData(extension), viewType, options.webviewOptions || {}, {
+				saveAsFilters,
 				supportsInlineDiff: supportsCustomEditorDiffs && isCustomEditorProviderWithInlineDiffCapability(provider),
 				supportsSideBySideDiff: supportsCustomEditorDiffs && isCustomEditorProviderWithSideBySideDiffCapability(provider),
 			}, !!options.supportsMultipleEditorsPerDocument, shouldSerializeBuffersForPostMessage(extension));

@@ -111,10 +111,10 @@ export class FileDialogService extends AbstractFileDialogService implements IFil
 		throw new Error(localize('pickWorkspaceAndOpen', "Can't open workspaces, try adding a folder to the workspace instead."));
 	}
 
-	async pickFileToSave(defaultUri: URI, availableFileSystems?: string[]): Promise<URI | undefined> {
+	async pickFileToSave(defaultUri: URI, availableFileSystems?: string[], filters?: FileFilter[]): Promise<URI | undefined> {
 		const schema = this.getFileSystemSchema({ defaultUri, availableFileSystems });
 
-		const options = this.getPickFileToSaveDialogOptions(defaultUri, availableFileSystems);
+		const options = this.getPickFileToSaveDialogOptions(defaultUri, availableFileSystems, filters);
 		if (this.shouldUseSimplified(schema)) {
 			return super.pickFileToSaveSimplified(schema, options);
 		}
