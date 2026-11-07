@@ -14222,7 +14222,6 @@ suite('CopilotAgent', () => {
 			const renderer = proxyResolver.register('window', {
 				resolveProxy: async () => undefined,
 				lookupAuthorization: async () => undefined,
-				lookupKerberosAuthorization: async () => undefined,
 			});
 			await settle();
 			configurationService.updateRootConfig({ [AgentHostProxyConfigKey.Proxy]: 'http://proxy.example:8080', [AgentHostProxyConfigKey.NoProxy]: ['intranet.example'] });

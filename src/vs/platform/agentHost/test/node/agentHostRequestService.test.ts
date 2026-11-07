@@ -340,7 +340,6 @@ suite('AgentHostProxyResolver', () => {
 		const connection: IAgentHostClientProxyConnection = {
 			resolveProxy: async () => undefined,
 			lookupAuthorization: async () => undefined,
-			lookupKerberosAuthorization: async () => undefined,
 		};
 
 		const first = disposables.add(resolver.register('first', connection));
@@ -408,24 +407,32 @@ suite('AgentHostProxyResolver', () => {
 		});
 	});
 
-	test('uses manually configured Kerberos authentication without a renderer bridge', async () => {
+	test('authenticates its own requests with this machine\'s Kerberos ticket for the configured principal, then a client sharing the network', async () => {
 		const configurationService = createAgentConfigurationService(disposables);
-		configurationService.updateRootConfig({ [AgentHostProxyConfigKey.ProxyKerberosServicePrincipal]: 'HTTP/proxy.example' });
+		configurationService.updateRootConfig({ [AgentHostProxyConfigKey.ProxyKerberosServicePrincipal]: 'HTTP/configured.proxy' });
 		const resolver = disposables.add(new TestAgentHostProxyResolver(configurationService, new NullLogService()));
+		disposables.add(resolver.register('window', {
+			resolveProxy: async () => undefined,
+			lookupAuthorization: async () => undefined,
+		}));
+		disposables.add(resolver.registerSharedNetworkClient('wsl', {
+			resolveProxy: async () => undefined,
+			lookupKerberosAuthorization: async proxyUrl => `Negotiate client-token for ${proxyUrl}`,
+		}));
+		const { lookupProxyAuthorization } = (resolver as unknown as {
+			_getProxyResolver(): { readonly params: ProxyAgentParams };
+		})._getProxyResolver().params;
+		const lookup = () => lookupProxyAuthorization!('http://proxy.example:8080', 'Negotiate', {});
 
-		const authorization = await (resolver as unknown as {
-			_hostLookupKerberosAuthorization(url: string): Promise<string | undefined>;
-		})._hostLookupKerberosAuthorization('http://proxy.example:8080');
+		const native = await lookup();
+		const nativeLookup = resolver.kerberosLookup;
+		resolver.nativeKerberosFails = true;
+		const fallback = await lookup();
 
-		assert.deepStrictEqual({
-			authorization,
-			lookup: resolver.kerberosLookup,
-		}, {
-			authorization: 'Negotiate token',
-			lookup: {
-				url: 'http://proxy.example:8080',
-				spn: 'HTTP/proxy.example',
-			},
+		assert.deepStrictEqual({ native, nativeLookup, fallback }, {
+			native: 'Negotiate token',
+			nativeLookup: { url: 'http://proxy.example:8080', spn: 'HTTP/configured.proxy' },
+			fallback: 'Negotiate client-token for http://proxy.example:8080',
 		});
 	});
 
@@ -476,19 +483,11 @@ suite('AgentHostProxyResolver', () => {
 		assert.deepStrictEqual({ before, after, changes }, { before: 'http://first.example:8080', after: undefined, changes: 1 });
 	});
 
-	test('uses this machine\'s Kerberos ticket for the requested principal, not a renderer\'s, before those of clients sharing the network', async () => {
+	test('uses this machine\'s Kerberos ticket for the requested principal before those of clients sharing the network', async () => {
 		const configurationService = createAgentConfigurationService(disposables);
 		configurationService.updateRootConfig({ [AgentHostProxyConfigKey.ProxyKerberosServicePrincipal]: 'HTTP/configured.proxy' });
 		const resolver = disposables.add(new TestAgentHostProxyResolver(configurationService, new NullLogService()));
 		const lookups: string[] = [];
-		disposables.add(resolver.register('window', {
-			resolveProxy: async () => undefined,
-			lookupAuthorization: async () => undefined,
-			lookupKerberosAuthorization: async proxyUrl => {
-				lookups.push(`renderer ${proxyUrl}`);
-				return 'Negotiate renderer-token';
-			},
-		}));
 		disposables.add(resolver.registerSharedNetworkClient('failing', {
 			resolveProxy: async () => undefined,
 			lookupKerberosAuthorization: async () => { throw new Error('disconnected'); },
@@ -763,10 +762,6 @@ suite('AgentHostRequestService', () => {
 				calls.push(['lookupAuthorization', authInfo]);
 				return { username: 'user', password: 'password' };
 			},
-			lookupKerberosAuthorization: async (url: string) => {
-				calls.push(['lookupKerberosAuthorization', url]);
-				return 'Negotiate token';
-			},
 		} as IRequestService;
 		const server = new AgentHostClientProxyChannel(requestService);
 		const channel: IChannel = {
@@ -779,19 +774,16 @@ suite('AgentHostRequestService', () => {
 		const results = [
 			await connection.resolveProxy('https://example.com'),
 			await connection.lookupAuthorization(authInfo),
-			await connection.lookupKerberosAuthorization('http://proxy.example:8080'),
 		];
 
 		assert.deepStrictEqual({ calls, results }, {
 			calls: [
 				['resolveProxy', 'https://example.com'],
 				['lookupAuthorization', authInfo],
-				['lookupKerberosAuthorization', 'http://proxy.example:8080'],
 			],
 			results: [
 				'PROXY proxy.example:8080',
 				{ username: 'user', password: 'password' },
-				'Negotiate token',
 			],
 		});
 	});
