@@ -9,19 +9,20 @@ import { constObservable, derived, derivedOpts, IObservable, IReader } from '../
 import { isEqual } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
-import { CanvasInput, canvasOwnerKey, ICanvas, ICanvasContext, ICanvasContextService, ICanvasDefinition, ICanvasOwner, ICanvasReference, ICanvasService, ICanvasWorkingSets, isCanvasOwner } from '../../../../workbench/contrib/canvases/common/canvas.js';
+import { CanvasInput, ICanvasContext, ICanvasContextService, ICanvasDefinition, ICanvasService, ICanvasWorkingSets, isCanvasOwner } from '../../../../workbench/contrib/canvases/common/canvas.js';
 import { CanvasDefinitionStore } from '../../../../workbench/contrib/canvases/common/canvasDefinitionStore.js';
 import { IEditorGroup, IEditorGroupsService } from '../../../../workbench/services/editor/common/editorGroupsService.js';
 import { IChatService } from '../../../../workbench/contrib/chat/common/chatService/chatService.js';
 import { IChatWindowService } from '../../../../workbench/contrib/chatWindow/browser/chatWindow.js';
-import { IAgentWorkbenchLayoutService } from '../../../browser/workbench.js';
-import { getMainWindowHost, getWindowHost, IFocusedSessionHostService, ISessionHost, ISessionHostService, SessionHostKind } from '../../../services/sessions/browser/sessionHost.js';
-import { ICustomViewService } from '../../../services/customView/browser/customViewService.js';
-import { IChat, ISession, ISessionCanvasDefinition } from '../../../services/sessions/common/session.js';
-import { IHostSession, ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
+import { ISessionsHostLayoutService } from '../../../../workbench/services/sessions/browser/sessionsHostLayoutService.js';
+import { getMainWindowHost, getWindowHost, IFocusedSessionHostService, ISessionHost, ISessionHostService, SessionHostKind } from '../../../../workbench/services/sessions/browser/sessionHost.js';
+import { ICustomViewService } from '../../../../workbench/contrib/sessions/browser/customView.js';
+import { IChat, ISession, ISessionCanvasDefinition } from '../../../../workbench/services/sessions/common/session.js';
+import { ISessionsManagementService } from '../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import { ISessionEditorWorkingSetService } from '../../layout/common/sessionEditorWorkingSet.js';
 import { createSessionCanvasReference, getSessionCanvasDefinitionInstanceId, ISessionCanvasRegistryService } from '../common/sessionCanvas.js';
-import { IPinnedCanvasService } from '../browser/pinnedCanvases.js';
+import { IPinnedCanvasService } from '../../../../workbench/contrib/sessions/browser/pinnedCanvases.js';
+import { canvasOwnerKey, ICanvas, ICanvasOwner, ICanvasReference } from '../../../../workbench/common/canvasReference.js';
 
 export class SessionCanvasContextService extends Disposable implements ICanvasContextService {
 
@@ -40,7 +41,7 @@ export class SessionCanvasContextService extends Disposable implements ICanvasCo
 		@ISessionsManagementService private readonly sessionsManagementService: ISessionsManagementService,
 		@IEditorGroupsService private readonly editorGroupsService: IEditorGroupsService,
 		@ISessionEditorWorkingSetService editorWorkingSetService: ISessionEditorWorkingSetService,
-		@IAgentWorkbenchLayoutService layoutService: IAgentWorkbenchLayoutService,
+		@ISessionsHostLayoutService layoutService: ISessionsHostLayoutService,
 		@IChatService chatService: IChatService,
 		@ICustomViewService private readonly customViewService: ICustomViewService,
 		@IPinnedCanvasService private readonly pinnedCanvasService: IPinnedCanvasService,
@@ -116,7 +117,7 @@ export class SessionCanvasContextService extends Disposable implements ICanvasCo
 	 * The window that shows the session of the owner: the chat window that shows its chat, else the main window while it
 	 * shows the session.
 	 */
-	private getShowingWindow(owner: ICanvasOwner, reader: IReader | undefined): { readonly host: ISessionHost; readonly windowHost: ISessionHost; readonly session: IHostSession } | undefined {
+	private getShowingWindow(owner: ICanvasOwner, reader: IReader | undefined): { readonly host: ISessionHost; readonly windowHost: ISessionHost; readonly session: ISession } | undefined {
 		const chatHost = this.sessionHostService.getHostOfChat(owner.chat, reader);
 		const chatWindowHost = chatHost && getWindowHost(chatHost);
 		if (chatHost && chatWindowHost?.kind === SessionHostKind.ChatWindow) {
@@ -177,10 +178,10 @@ export class SessionCanvasContextService extends Disposable implements ICanvasCo
 		return part.groups.find(group => group.contains(input)) ?? part.activeGroup;
 	}
 
-	/** A chat window shows the canvases of the chat it shows, in any of its groups. */
+	/** A chat window shows the canvases of the chats it shows, in any of its groups, whichever of its chats is active. */
 	canPresentInGroup(owner: ICanvasOwner, group: IEditorGroup): boolean {
-		const chat = this.chatWindowService.getWindow(group.windowId)?.chat.get();
-		return !!chat && isEqual(chat, owner.chat);
+		const chats = this.chatWindowService.getWindow(group.windowId)?.chats.get() ?? [];
+		return chats.some(chat => isEqual(chat, owner.chat));
 	}
 
 	/** The canvases of a chat a chat window shows are that window's, whichever session the main window shows. */

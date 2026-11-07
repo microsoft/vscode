@@ -12,16 +12,17 @@ import { existsSync } from 'fs';
  */
 export const workspaceMembers = [
 	'',
-	'test/automation',
-	'test/componentFixtures/playwright',
-	'test/integration/browser',
-	'test/monaco',
-	'test/smoke',
-	'test/scenario',
+	'.eslint-plugin-local',
 	'.vscode/extensions/vscode-selfhost-import-aid',
 	'.vscode/extensions/vscode-selfhost-test-provider',
 	'.vscode/extensions/vscode-pr-pinger',
 	'src/vs/sessions/test/e2e',
+	'test/automation',
+	'test/componentFixtures/playwright',
+	'test/integration/browser',
+	'test/monaco',
+	'test/scenario',
+	'test/smoke',
 ];
 
 /**
@@ -102,15 +103,6 @@ export const separateRootMembers: Readonly<Record<string, readonly string[]>> = 
  */
 export const standaloneRoots = [
 	'test/sanity',
-];
-
-/**
- * Folders that are still installed with npm (`npm ci`), because their packaging relies on npm's
- * `npm_config_os`/`npm_config_cpu`/`npm_config_libc` handling.
- */
-export const npmFolders = [
-	'build/agent-sdk/agents/claude',
-	'build/agent-sdk/agents/codex',
 ];
 
 /**

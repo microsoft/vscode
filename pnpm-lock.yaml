@@ -245,8 +245,8 @@ importers:
         specifier: 0.163.0
         version: 0.163.0
       '@playwright/cli':
-        specifier: ^0.1.9
-        version: 0.1.9
+        specifier: ^0.1.22
+        version: 0.1.22
       '@playwright/test':
         specifier: ^1.61.1
         version: 1.61.1
@@ -259,9 +259,6 @@ importers:
       '@types/cookie':
         specifier: ^0.3.3
         version: 0.3.3
-      '@types/estree':
-        specifier: ^1.0.9
-        version: 1.0.9
       '@types/js-yaml':
         specifier: ^4.0.9
         version: 4.0.9
@@ -313,9 +310,6 @@ importers:
       '@types/yazl':
         specifier: ^2.4.2
         version: 2.4.2
-      '@typescript-eslint/utils':
-        specifier: 8.66.0
-        version: 8.66.0(@typescript/typescript6@6.0.2)(eslint@10.8.0)
       '@typescript/native':
         specifier: npm:typescript@^7.0.2
         version: typescript@7.0.2
@@ -394,9 +388,6 @@ importers:
       eslint-plugin-jsdoc:
         specifier: ^63.3.3
         version: 63.3.3(eslint@10.8.0)
-      eslint-visitor-keys:
-        specifier: ^5.0.1
-        version: 5.0.1
       event-stream:
         specifier: 3.3.4
         version: 3.3.4
@@ -478,9 +469,6 @@ importers:
       lazy.js:
         specifier: ^0.4.2
         version: 0.4.3
-      mime:
-        specifier: ^1.4.1
-        version: 1.6.0
       minimatch:
         specifier: ^3.1.5
         version: 3.1.5
@@ -506,8 +494,8 @@ importers:
         specifier: ^1.1.0
         version: 1.1.0
       readable-stream:
-        specifier: ^2.3.8
-        version: 2.3.8
+        specifier: ^3.6.0
+        version: 3.6.0
       rimraf:
         specifier: ^2.2.8
         version: 2.6.3
@@ -517,9 +505,6 @@ importers:
       sinon-test:
         specifier: ^3.1.3
         version: 3.1.3(sinon@12.0.1)
-      source-map:
-        specifier: 0.6.1
-        version: 0.6.1
       source-map-support:
         specifier: ^0.5.21
         version: 0.5.21
@@ -555,17 +540,58 @@ importers:
         specifier: 0.6.1
         version: 0.6.1
 
+  .eslint-plugin-local:
+    devDependencies:
+      '@types/estree':
+        specifier: ^1.0.9
+        version: 1.0.9
+      '@types/minimatch':
+        specifier: ^3.0.3
+        version: 3.0.3
+      '@types/node':
+        specifier: 24.x
+        version: 24.12.4
+      '@typescript-eslint/utils':
+        specifier: 8.66.0
+        version: 8.66.0(@typescript/typescript6@6.0.2)(eslint@10.8.0)
+      eslint:
+        specifier: 10.8.0
+        version: 10.8.0
+      eslint-visitor-keys:
+        specifier: ^5.0.1
+        version: 5.0.1
+      minimatch:
+        specifier: ^3.1.5
+        version: 3.1.5
+      typescript:
+        specifier: npm:@typescript/typescript6@^6.0.2
+        version: '@typescript/typescript6@6.0.2'
+      typescript-eslint:
+        specifier: 8.66.0
+        version: 8.66.0(@typescript/typescript6@6.0.2)(eslint@10.8.0)
+
   .vscode/extensions/vscode-pr-pinger:
     dependencies:
       '@octokit/graphql':
         specifier: ^5.0.1
         version: 5.0.6
+    devDependencies:
+      '@types/node':
+        specifier: 24.x
+        version: 24.12.4
 
   .vscode/extensions/vscode-selfhost-import-aid:
     dependencies:
       typescript:
         specifier: 5.5.4
         version: 5.5.4
+    devDependencies:
+      '@types/mocha':
+        specifier: ^10.0.10
+        version: 10.0.10
+      '@types/node':
+        specifier: 24.x
+        version: 24.12.4
 
   .vscode/extensions/vscode-selfhost-test-provider:
     dependencies:
@@ -581,6 +607,9 @@ importers:
       istanbul-to-vscode:
         specifier: ^2.0.1
         version: 2.0.1
+      typescript:
+        specifier: npm:@typescript/typescript6@^6.0.2
+        version: '@typescript/typescript6@6.0.2'
     devDependencies:
       '@types/mocha':
         specifier: ^10.0.6
@@ -590,13 +619,19 @@ importers:
         version: 24.12.4
 
   src/vs/sessions/test/e2e:
-    dependencies:
+    devDependencies:
       '@playwright/cli':
-        specifier: 0.1.1
-        version: 0.1.1
+        specifier: ^0.1.22
+        version: 0.1.22
 
   test/automation:
     dependencies:
+      '@playwright/test':
+        specifier: ^1.61.1
+        version: 1.61.1
+      '@vscode/v8-heap-parser':
+        specifier: ^0.1.0
+        version: 0.1.0
       axe-core:
         specifier: ^4.10.2
         version: 4.11.1
@@ -622,6 +657,9 @@ importers:
       npm-run-all2:
         specifier: ^8.0.4
         version: 8.0.4
+      playwright-core:
+        specifier: 1.61.0-alpha-2026-06-04
+        version: 1.61.0-alpha-2026-06-04
 
   test/componentFixtures/playwright:
     devDependencies:
@@ -637,6 +675,12 @@ importers:
 
   test/integration/browser:
     devDependencies:
+      '@playwright/test':
+        specifier: ^1.61.1
+        version: 1.61.1
+      '@types/minimist':
+        specifier: ^1.2.1
+        version: 1.2.1
       '@types/node':
         specifier: 24.x
         version: 24.12.4
@@ -646,6 +690,9 @@ importers:
       '@types/tmp':
         specifier: 0.1.0
         version: 0.1.0
+      minimist:
+        specifier: ^1.2.8
+        version: 1.2.8
       rimraf:
         specifier: ^2.6.1
         version: 2.7.1
@@ -661,15 +708,21 @@ importers:
 
   test/monaco:
     devDependencies:
+      '@playwright/test':
+        specifier: ^1.61.1
+        version: 1.61.1
       '@types/chai':
         specifier: ^4.2.14
         version: 4.2.14
+      '@types/mocha':
+        specifier: ^10.0.10
+        version: 10.0.10
       '@types/node':
         specifier: 24.12.4
         version: 24.12.4
       axe-playwright:
         specifier: ^2.1.0
-        version: 2.1.0
+        version: 2.1.0(playwright@1.61.1)
       chai:
         specifier: ^4.2.0
         version: 4.2.0
@@ -679,6 +732,12 @@ importers:
       file-loader:
         specifier: ^6.2.0
         version: 6.2.0(webpack@5.105.4)
+      glob:
+        specifier: ^5.0.13
+        version: 5.0.15
+      playwright:
+        specifier: ^1.61.1
+        version: 1.61.1
       style-loader:
         specifier: ^3.3.2
         version: 3.3.4(webpack@5.105.4)
@@ -691,41 +750,95 @@ importers:
       webpack-cli:
         specifier: ^5.1.4
         version: 5.1.4(webpack@5.105.4)
+      yaserver:
+        specifier: ^0.4.0
+        version: 0.4.0
 
   test/scenario:
     dependencies:
+      '@vscode/sqlite3':
+        specifier: 5.1.12-vscode
+        version: 5.1.12-vscode
       minimist:
         specifier: ^1.2.8
         version: 1.2.8
     devDependencies:
+      '@playwright/test':
+        specifier: ^1.61.1
+        version: 1.61.1
       npm-run-all2:
         specifier: ^8.0.4
         version: 8.0.4
 
   test/smoke:
     dependencies:
+      '@microsoft/dev-tunnels-contracts':
+        specifier: ^1.3.61
+        version: 1.3.61
+      '@microsoft/dev-tunnels-management':
+        specifier: ^1.3.61
+        version: 1.3.61
+      '@vscode/sqlite3':
+        specifier: 5.1.12-vscode
+        version: 5.1.12-vscode
       axios:
         specifier: ^1.20.0
         version: 1.20.0
       graceful-fs:
         specifier: ^4.2.11
         version: 4.2.11
+      kerberos:
+        specifier: 2.1.1
+        version: 2.1.1
+      minimist:
+        specifier: ^1.2.8
+        version: 1.2.8
       node-fetch:
         specifier: ^2.6.7
         version: 2.6.7
+      ssh2:
+        specifier: ^1.16.0
+        version: 1.17.0
       tree-kill:
         specifier: 1.2.2
         version: 1.2.2
       vscode-jsonrpc:
         specifier: ^8.2.1
         version: 8.2.1
+      ws:
+        specifier: ^8.19.0
+        version: 8.21.0
     devDependencies:
+      '@playwright/test':
+        specifier: ^1.61.1
+        version: 1.61.1
+      '@types/kerberos':
+        specifier: ^1.1.2
+        version: 1.1.2
+      '@types/minimist':
+        specifier: ^1.2.1
+        version: 1.2.1
+      '@types/mocha':
+        specifier: ^10.0.10
+        version: 10.0.10
       '@types/node':
         specifier: 24.x
         version: 24.12.4
       '@types/node-fetch':
         specifier: ^2.5.10
         version: 2.5.10
+      '@types/ssh2':
+        specifier: ^1.15.4
+        version: 1.15.5
+      '@types/ws':
+        specifier: ^8.18.1
+        version: 8.18.1
+      '@vscode/test-electron':
+        specifier: ^2.4.0
+        version: 2.4.0
+      mocha:
+        specifier: ^10.8.2
+        version: 10.8.2
       npm-run-all2:
         specifier: ^8.0.4
         version: 8.0.4
@@ -1448,13 +1561,8 @@ packages:
     resolution: {integrity: sha512-t3/zE0i9gik5R/NpRs7G2Xo/6NPeABW6ReplGdtkeWeAkaV764CgFgoKjJo21D2xgjnvDvRYubqBUu4xl0VCqA==}
     engines: {node: '>=18'}
 
-  '@playwright/cli@0.1.1':
-    resolution: {integrity: sha512-9k11ZfDwAfMVDDIuEVW1Wvs8SoDNXIY1dNQ+9C9/SS8ZmElkcxesu5eoL7vNa96ntibUGaq1TM2qQoqvdl/I9g==}
-    engines: {node: '>=18'}
-    hasBin: true
-
-  '@playwright/cli@0.1.9':
-    resolution: {integrity: sha512-WLpY7rb214LZpjrjFJ5iM+SeuwGdlgBupIlhlYgDOxVuMH/o9hG+4CkQMWEeBuQIxtuVWScQW3Lez7ck/oOq/A==}
+  '@playwright/cli@0.1.22':
+    resolution: {integrity: sha512-6WMkQNM4VEzqMkdr/l60X9Cr7i+tI/arK87IWz2K7pB6j8I2ZJ8KN+1JfhJDLnK+SXnab6Op8xGt4adcGLsyfA==}
     engines: {node: '>=18'}
     hasBin: true
 
@@ -5372,16 +5480,6 @@ packages:
     resolution: {integrity: sha512-HRDzbaKjC+AOWVXxAU/x54COGeIv9eb+6CkDSQoNTt4XyWoIJvuPsXizxu/Fr23EiekbtZwmh1IcIG/l/a10GQ==}
     engines: {node: '>=8'}
 
-  playwright-core@1.59.0-alpha-1771104257000:
-    resolution: {integrity: sha512-YiXup3pnpQUCBMSIW5zx8CErwRx4K6O5Kojkw2BzJui8MazoMUDU6E3xGsb1kzFviEAE09LFQ+y1a0RhIJQ5SA==}
-    engines: {node: '>=18'}
-    hasBin: true
-
-  playwright-core@1.60.0-alpha-1777077614000:
-    resolution: {integrity: sha512-cAEm1N5jh0WMr9/EG4nPDbR326paHfMFa2FyHibhIfDGTswbKv8sYvaa9S0UXkgITdv4h6lQfcsD9Dl73lFZsg==}
-    engines: {node: '>=18'}
-    hasBin: true
-
   playwright-core@1.61.0-alpha-2026-06-04:
     resolution: {integrity: sha512-OCdgxfcyRfuc79OcWc0Y019YoVvTqZWvtEYZxyXtwO+CpAln5s8hQH1bmgqOJd5vccKO6yOzfYYz0Vs2Zr8eIg==}
     engines: {node: '>=18'}
@@ -5392,19 +5490,19 @@ packages:
     engines: {node: '>=18'}
     hasBin: true
 
-  playwright@1.59.0-alpha-1771104257000:
-    resolution: {integrity: sha512-6SCMMMJaDRsSqiKVLmb2nhtLES7iTYawTWWrQK6UdIGNzXi8lka4sLKRec3L4DnTWwddAvCuRn8035dhNiHzbg==}
-    engines: {node: '>=18'}
-    hasBin: true
-
-  playwright@1.60.0-alpha-1777077614000:
-    resolution: {integrity: sha512-Uykk/hbDlIaw4aZZZHMni6I0Y9eBtC7+UzH3QwTh9pJEEuYVq14y7F3bcHNCNCI0sLkY0oEiWK+2VeOtB6vUDQ==}
-    engines: {node: '>=18'}
+  playwright-core@1.64.0-alpha-1790635538000:
+    resolution: {integrity: sha512-pNwaXirhXMRLaRQs4NQ18EpTdtDoFwyPH9FOaaDC7YXG4hpwE2xmwCic/1srbuExVQC7zT9LJSJpDBAru+Vo9A==}
+    engines: {node: '>=20'}
     hasBin: true
 
   playwright@1.61.1:
     resolution: {integrity: sha512-DWnY5o3YbLWK4GovuAVwpqL+1VwGNdUGrRr++8j8PtQQzvAVZUIMjKQ90fY689sEJZJBbZVw1rXaOKSTitkzPQ==}
     engines: {node: '>=18'}
+    hasBin: true
+
+  playwright@1.64.0-alpha-1790635538000:
+    resolution: {integrity: sha512-/5XDUMxpOd/9AojJtWDFIRV3EJZNQ0AwvK69wgt3CPzy8wTgiBG9pX45VfxtqtvIRGwfWzMhrvawNKreG69Snw==}
+    engines: {node: '>=20'}
     hasBin: true
 
   plist@3.1.0:
@@ -7751,14 +7849,10 @@ snapshots:
     dependencies:
       playwright-core: 1.61.1
 
-  '@playwright/cli@0.1.1':
+  '@playwright/cli@0.1.22':
     dependencies:
-      minimist: 1.2.8
-      playwright: 1.59.0-alpha-1771104257000
-
-  '@playwright/cli@0.1.9':
-    dependencies:
-      playwright: 1.60.0-alpha-1777077614000
+      playwright: 1.64.0-alpha-1790635538000
+      playwright-core: 1.64.0-alpha-1790635538000
 
   '@playwright/test@1.61.1':
     dependencies:
@@ -7852,6 +7946,7 @@ snapshots:
     dependencies:
       '@types/minimatch': 3.0.3
       '@types/node': 24.12.4
+    optional: true
 
   '@types/http-cache-semantics@4.2.0': {}
 
@@ -8811,13 +8906,14 @@ snapshots:
       axe-core: 4.10.3
       mustache: 4.2.0
 
-  axe-playwright@2.1.0:
+  axe-playwright@2.1.0(playwright@1.61.1):
     dependencies:
       '@types/junit-report-builder': 3.0.2
       axe-core: 4.10.3
       axe-html-reporter: 2.2.11(axe-core@4.10.3)
       junit-report-builder: 5.1.1
       picocolors: 1.1.1
+      playwright: 1.61.1
 
   axios@1.20.0:
     dependencies:
@@ -12114,31 +12210,21 @@ snapshots:
     dependencies:
       find-up: 4.1.0
 
-  playwright-core@1.59.0-alpha-1771104257000: {}
-
-  playwright-core@1.60.0-alpha-1777077614000: {}
-
   playwright-core@1.61.0-alpha-2026-06-04: {}
 
   playwright-core@1.61.1: {}
 
-  playwright@1.59.0-alpha-1771104257000:
-    dependencies:
-      playwright-core: 1.59.0-alpha-1771104257000
-    optionalDependencies:
-      fsevents: 2.3.2
-
-  playwright@1.60.0-alpha-1777077614000:
-    dependencies:
-      playwright-core: 1.60.0-alpha-1777077614000
-    optionalDependencies:
-      fsevents: 2.3.2
+  playwright-core@1.64.0-alpha-1790635538000: {}
 
   playwright@1.61.1:
     dependencies:
       playwright-core: 1.61.1
     optionalDependencies:
       fsevents: 2.3.2
+
+  playwright@1.64.0-alpha-1790635538000:
+    dependencies:
+      playwright-core: 1.64.0-alpha-1790635538000
 
   plist@3.1.0:
     dependencies:

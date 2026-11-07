@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
-import { ICustomViewDescriptor } from './customView.js';
+import { ICustomViewDescriptor } from '../../../../workbench/contrib/sessions/browser/customView.js';
 
 export const ICustomViewGridPartService = createDecorator<ICustomViewGridPartService>('customViewGridPartService');
 

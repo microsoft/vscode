@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { URI } from '../../../../base/common/uri.js';
-import { ISession } from '../../../services/sessions/common/session.js';
+import { ISession } from '../../../../workbench/services/sessions/common/session.js';
 
 export async function createAndOpenPullRequestSession(
 	createSession: (onSessionCreated: (session: ISession) => void) => Promise<ISession | undefined>,

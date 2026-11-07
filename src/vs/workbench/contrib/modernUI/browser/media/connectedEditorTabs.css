@@ -76,6 +76,11 @@
 	background-color: var(--modern-ui-connected-tab-surface);
 }
 
+/* Where the active tab meets the editor below it, the title shows the surface the tab flows into, which a part whose editors have a surface of their own sets. */
+.modern-ui-tabs.modern-ui-connected-editor-tabs.monaco-workbench .part.editor > .content .editor-group-container > .title.tabs {
+	--modern-ui-editor-title-background: var(--modern-ui-connected-tab-surface, var(--vscode-editor-background));
+}
+
 .modern-ui-tabs.modern-ui-connected-editor-tabs.monaco-workbench .part.editor > .content .editor-group-container > .title.tabs .tabs-container > .tab:not(.last-in-row) + .tab > .tab-divider {
 	display: none;
 }
@@ -307,11 +312,15 @@
 	box-sizing: border-box;
 }
 
-/* Keep the separator underneath the active fill without changing the tab,
- * scrollbar, pinned-tab or drag-and-drop stacking order. */
+/* Keep the separator below connected caps and the existing sticky, scrollbar and drag layers. */
 .modern-ui-tabs.modern-ui-connected-editor-tabs.monaco-workbench .part.editor > .content .editor-group-container > .title.tabs > .tabs-and-actions-container::after {
 	z-index: 0;
 	background-color: var(--modern-ui-connected-tab-border);
+}
+
+/* Add Tab clipping creates a stacking context, so lift the active tab as well as its fill. */
+.modern-ui-tabs.modern-ui-connected-editor-tabs.monaco-workbench .part.editor > .content .editor-group-container > .title.tabs .tabs-container > .tab.active.connected-tab-add-clipped {
+	z-index: 1;
 }
 
 /* Wrapped scrolling does not add the pill-style bottom gutter. */
