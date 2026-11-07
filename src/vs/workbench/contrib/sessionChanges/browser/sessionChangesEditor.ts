@@ -246,13 +246,16 @@ export class SessionChangesEditor extends AbstractEditorWithViewState<IMultiDiff
 
 	private readonly _hasInput = observableValue(this, false);
 	private readonly _paneVisible = observableValue(this, false);
-	/** The chat this editor shows the changes of while it is visible, whose changes it keeps observed though no window shows its session. */
+	/**
+	 * The chat this editor shows the changes of while it has its input, whose changes it keeps observed though no window
+	 * shows its session: also while the pane is hidden, so its diffs and their view state stay as they are.
+	 */
 	private readonly _observedChatSource = derivedOpts<{ readonly session: URI; readonly chat: URI } | undefined>({
 		owner: this,
 		equalsFn: (a, b) => a === b || (!!a && !!b && isEqual(a.session, b.session) && isEqual(a.chat, b.chat)),
 	}, reader => {
 		const source = this._inputChangesSource.read(reader);
-		return source?.chat && this._hasInput.read(reader) && this._paneVisible.read(reader) ? { session: source.session, chat: source.chat } : undefined;
+		return source?.chat && this._hasInput.read(reader) ? { session: source.session, chat: source.chat } : undefined;
 	});
 
 	/** Deferred focus request awaiting the active diff editor to be rendered. */

@@ -429,7 +429,7 @@ suite('SessionChangesEditor input', () => {
 suite('SessionChangesEditor chat changes observation', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
-	test('keeps the chat its input names observed only while it shows that input, letting go as the input changes or clears, the pane hides, or the editor closes', async () => {
+	test('keeps the chat its input names observed while it has that input, also while the pane hides so its diffs and their view state stay, letting go as the input changes or clears or the editor closes', async () => {
 		const instantiationService = workbenchInstantiationService(undefined, store);
 		instantiationService.stub(IMenuService, store.add(instantiationService.createInstance(MenuService)));
 		const activeSession = constObservable<ITestSessionWithChat | undefined>(undefined);
@@ -505,7 +505,7 @@ suite('SessionChangesEditor chat changes observation', () => {
 		assert.deepStrictEqual({ chatX, changedToChatY, hidden, shownAgain, cleared, sessionLevel, chatXAgain, closed: state() }, {
 			chatX: { x: 1, y: 0 },
 			changedToChatY: { x: 0, y: 1 },
-			hidden: { x: 0, y: 0 },
+			hidden: { x: 0, y: 1 },
 			shownAgain: { x: 0, y: 1 },
 			cleared: { x: 0, y: 0 },
 			sessionLevel: { x: 0, y: 0 },
