@@ -125,12 +125,12 @@ export class ViewGpuContext extends Disposable {
 			dprObs.set(getActiveWindow().devicePixelRatio, undefined);
 		}));
 		this.devicePixelRatio = dprObs;
-		this._register(runOnChange(this.devicePixelRatio, () => ViewGpuContext.atlas?.clear()));
+		this._register(runOnChange(this.devicePixelRatio, () => ViewGpuContext._atlas?.clear()));
 
 		// Clear decoration CSS caches when theme changes as CSS variables may have different values
 		this._register(this._themeService.onDidColorThemeChange(() => {
 			ViewGpuContext.decorationCssRuleExtractor.clear();
-			ViewGpuContext.atlas?.clear();
+			ViewGpuContext._atlas?.clear();
 		}));
 
 		const canvasDevicePixelDimensions = observableValue(this, { width: this.canvas.domNode.width, height: this.canvas.domNode.height });
