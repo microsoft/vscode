@@ -19,7 +19,7 @@ import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { EditorInputCapabilities } from '../../../../common/editor.js';
 import { DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { isReadable, isReadableStream } from '../../../../../base/common/stream.js';
-import { readableToBuffer, streamToBuffer, VSBufferReadable, VSBufferReadableStream } from '../../../../../base/common/buffer.js';
+import { bufferToReadable, readableToBuffer, streamToBuffer, VSBuffer, VSBufferReadable, VSBufferReadableStream } from '../../../../../base/common/buffer.js';
 import { LanguageDetectionLanguageEventSource } from '../../../languageDetection/common/languageDetectionWorkerService.js';
 import { Schemas } from '../../../../../base/common/network.js';
 import { UntitledTextEditorWorkingCopyEditorHandler } from '../../common/untitledTextEditorHandler.js';
@@ -173,6 +173,51 @@ suite('Untitled text editors', () => {
 		assert.ok(resolvedModel.hasAssociatedFilePath);
 		assert.strictEqual(untitled.isDirty(), true);
 	});
+
+	for (const dirtyWhenEmpty of [true, false]) {
+		test(`associated resource dirty state with dirtyWhenEmpty=${dirtyWhenEmpty}`, async () => {
+			accessor.testConfigurationService.setUserConfiguration('workbench.editor.untitled.dirtyWhenEmpty', dirtyWhenEmpty);
+			const model = disposables.add(accessor.untitledTextEditorService.create({ associatedResource: URI.file('/new-file.txt') }));
+			const input = disposables.add(instantiationService.createInstance(UntitledTextEditorInput, model));
+			const states = [input.isDirty()];
+			const changes: boolean[] = [];
+			disposables.add(model.onDidChangeDirty(() => changes.push(model.isDirty())));
+
+			await model.resolve();
+			states.push(input.isDirty());
+			model.textEditorModel!.setValue('content');
+			states.push(input.isDirty());
+			model.textEditorModel!.setValue('');
+			states.push(input.isDirty());
+
+			assert.deepStrictEqual({ states, changes, dirtyCount: accessor.workingCopyService.dirtyCount }, {
+				states: [dirtyWhenEmpty, dirtyWhenEmpty, true, dirtyWhenEmpty],
+				changes: dirtyWhenEmpty ? [] : [true, false],
+				dirtyCount: dirtyWhenEmpty ? 1 : 0
+			});
+		});
+	}
+
+	test('initial content remains dirty with dirtyWhenEmpty disabled', async () => {
+		accessor.testConfigurationService.setUserConfiguration('workbench.editor.untitled.dirtyWhenEmpty', false);
+		const model = disposables.add(accessor.untitledTextEditorService.create({ associatedResource: URI.file('/new-file.txt'), initialValue: 'content' }));
+		const dirtyBeforeResolve = model.isDirty();
+		await model.resolve();
+
+		assert.deepStrictEqual([dirtyBeforeResolve, model.isDirty(), model.textEditorModel!.getValue()], [true, true, 'content']);
+	});
+
+	for (const content of ['', 'restored content']) {
+		test(`backup remains dirty with dirtyWhenEmpty disabled (${content || 'empty'})`, async () => {
+			accessor.testConfigurationService.setUserConfiguration('workbench.editor.untitled.dirtyWhenEmpty', false);
+			const model = disposables.add(accessor.untitledTextEditorService.create({ associatedResource: URI.file('/new-file.txt') }));
+			await accessor.workingCopyBackupService.backup(model, bufferToReadable(VSBuffer.fromString(content)));
+			await model.resolve();
+			await model.resolve();
+
+			assert.deepStrictEqual([model.isDirty(), model.textEditorModel!.getValue(), accessor.workingCopyService.dirtyCount], [true, content, 1]);
+		});
+	}
 
 	test('no longer dirty when content gets empty (not with associated resource)', async () => {
 		const service = accessor.untitledTextEditorService;

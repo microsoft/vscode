@@ -138,6 +138,7 @@ suite('MainThreadEditors', () => {
 			};
 			// eslint-disable-next-line local/code-no-any-casts
 			override untitled = <any>{
+				onDidChangeDirty: Event.None,
 				onDidChangeEncoding: Event.None
 			};
 			override create(operations: { resource: URI }[]) {

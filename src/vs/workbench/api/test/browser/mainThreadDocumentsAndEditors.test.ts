@@ -96,6 +96,7 @@ suite('MainThreadDocumentsAndEditors', () => {
 			};
 			// eslint-disable-next-line local/code-no-any-casts
 			override untitled = <any>{
+				onDidChangeDirty: Event.None,
 				onDidChangeEncoding: Event.None
 			};
 			override getEncoding() { return 'utf8'; }
