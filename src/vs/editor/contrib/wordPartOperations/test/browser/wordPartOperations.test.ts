@@ -4,15 +4,18 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { isFirefox } from '../../../../../base/common/platform.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { ICodeEditor } from '../../../../browser/editorBrowser.js';
 import { EditorCommand } from '../../../../browser/editorExtensions.js';
 import { Position } from '../../../../common/core/position.js';
+import { Selection } from '../../../../common/core/selection.js';
 import { ILanguageConfigurationService } from '../../../../common/languages/languageConfigurationRegistry.js';
 import { deserializePipePositions, serializePipePositions, testRepeatedActionAndExtractPositions } from '../../../wordOperations/test/browser/wordTestUtils.js';
 import { CursorWordPartLeft, CursorWordPartLeftSelect, CursorWordPartRight, CursorWordPartRightSelect, DeleteWordPartLeft, DeleteWordPartRight } from '../../browser/wordPartOperations.js';
 import { StaticServiceAccessor } from './utils.js';
 import { TestLanguageConfigurationService } from '../../../../test/common/modes/testLanguageConfigurationService.js';
+import { withTestCodeEditor } from '../../../../test/browser/testCodeEditor.js';
 
 suite('WordPartOperations', () => {
 
@@ -44,6 +47,57 @@ suite('WordPartOperations', () => {
 	}
 	function deleteWordPartRight(editor: ICodeEditor): void {
 		runEditorCommand(editor, _deleteWordPartRight);
+	}
+
+	for (const [name, action, reverse] of [
+		['cursorWordPartLeft', cursorWordPartLeft, true],
+		['cursorWordPartRight', cursorWordPartRight, false]
+	] as const) {
+		test(`${name} - Intl punctuation`, function () {
+			if (isFirefox) {
+				// https://github.com/microsoft/vscode/issues/219843
+				return this.skip();
+			}
+			const [text, stops] = deserializePipePositions([
+				'|移動|し|なく|なり|ます|。|',
+				'|。|移動|し|ます|。|',
+				'|',
+				'|移動|し|ます|。|'
+			].join('\n'));
+			if (reverse) {
+				stops.reverse();
+			}
+			const anchor = stops[0];
+			for (const inSelectionMode of [false, true]) {
+				withTestCodeEditor(text, { wordSegmenterLocales: 'ja' }, editor => {
+					editor.setPosition(anchor);
+					for (const stop of [...stops.slice(1), stops[stops.length - 1]]) {
+						action(editor, inSelectionMode);
+						assert.deepStrictEqual(editor.getSelection(), Selection.fromPositions(inSelectionMode ? anchor : stop, stop));
+					}
+				});
+			}
+		});
+	}
+
+	for (const [name, action, before, after] of [
+		['deleteWordPartRight', deleteWordPartRight, '移動しなくなり|ます。', '移動しなくなり|。'],
+		['deleteWordPartLeft', deleteWordPartLeft, '。移動|します。', '。|します。']
+	] as const) {
+		test(`${name} - Intl punctuation`, function () {
+			if (isFirefox) {
+				// https://github.com/microsoft/vscode/issues/219843
+				return this.skip();
+			}
+			const [text, positions] = deserializePipePositions(before);
+			const [expectedText, expectedPositions] = deserializePipePositions(after);
+			withTestCodeEditor(text, { wordSegmenterLocales: 'ja' }, editor => {
+				editor.setPosition(positions[0]);
+				action(editor);
+				assert.deepStrictEqual(editor.getValue(), expectedText);
+				assert.deepStrictEqual(editor.getPosition(), expectedPositions[0]);
+			});
+		});
 	}
 
 	test('cursorWordPartLeft - basic', () => {
