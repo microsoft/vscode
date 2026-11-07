@@ -483,15 +483,19 @@ export class SCMRepositoriesViewPane extends ViewPane {
 		const viewState = this.loadTreeViewState();
 		this.createTree(treeContainer, viewState);
 
+		// Refresh this state when hidden so subsequent inputs preserve the current tree state.
+		let treeViewState = viewState;
+
 		this.onDidChangeBodyVisibility(async visible => {
 			if (!visible) {
+				treeViewState = this.tree.getViewState();
 				this.visibilityDisposables.clear();
 				return;
 			}
 
 			this.treeOperationSequencer.queue(async () => {
 				// Initial rendering
-				await this.tree.setInput(this.scmViewService, viewState);
+				await this.tree.setInput(this.scmViewService, treeViewState);
 
 				// scm.repositories.visible setting
 				this.visibilityDisposables.add(autorun(reader => {
@@ -524,7 +528,8 @@ export class SCMRepositoriesViewPane extends ViewPane {
 				this.scmService.onDidAddRepository(this.onDidAddRepository, this, this.visibilityDisposables);
 				this.scmService.onDidRemoveRepository(this.onDidRemoveRepository, this, this.visibilityDisposables);
 				for (const repository of this.scmService.repositories) {
-					this.onDidAddRepository(repository);
+					// Re-registration only, expanding would override the user's collapse state
+					this.onDidAddRepository(repository, false);
 				}
 
 				// Expand repository if there is only one
@@ -628,7 +633,7 @@ export class SCMRepositoriesViewPane extends ViewPane {
 		this._register(this.tree.onDidChangeContentHeight(this.onTreeContentHeightChange, this));
 	}
 
-	private async onDidAddRepository(repository: ISCMRepository): Promise<void> {
+	private async onDidAddRepository(repository: ISCMRepository, expandParent = true): Promise<void> {
 		const disposables = new DisposableStore();
 
 		// Artifact group changed
@@ -656,7 +661,7 @@ export class SCMRepositoriesViewPane extends ViewPane {
 			}));
 		}));
 
-		await this.updateRepository(repository);
+		await this.updateRepository(repository, expandParent);
 		this.repositoryDisposables.set(repository, disposables);
 	}
 
@@ -772,29 +777,35 @@ export class SCMRepositoriesViewPane extends ViewPane {
 		await this.treeOperationSequencer.queue(() => this.tree.expand(element, true));
 	}
 
-	private async updateRepository(repository: ISCMRepository): Promise<void> {
+	private async updateRepository(repository: ISCMRepository, expandParent = false): Promise<void> {
 		if (this.scmViewService.explorerEnabledConfig.get() === false) {
 			if (repository.provider.parentId === undefined) {
 				await this.updateChildren();
 				return;
 			}
 
-			await this.updateParentRepository(repository);
+			await this.updateParentRepository(repository, expandParent);
 		}
 
 		// Explorer mode
 		await this.updateChildren();
 	}
 
-	private async updateParentRepository(repository: ISCMRepository): Promise<void> {
+	private async updateParentRepository(repository: ISCMRepository, expandParent: boolean): Promise<void> {
 		const parentRepository = this.scmViewService.repositories
 			.find(r => r.provider.id === repository.provider.parentId);
 		if (!parentRepository) {
 			return;
 		}
 
+		// Already collapsible means this is not the first child, so it may have been collapsed by the user
+		const parentWasCollapsible = this.tree.hasNode(parentRepository) && this.tree.isCollapsible(parentRepository);
+
 		await this.updateChildren(parentRepository);
-		await this.expand(parentRepository);
+
+		if (expandParent && !parentWasCollapsible) {
+			await this.expand(parentRepository);
+		}
 	}
 
 	private updateBodySize(contentHeight: number, visibleCount?: number): void {
