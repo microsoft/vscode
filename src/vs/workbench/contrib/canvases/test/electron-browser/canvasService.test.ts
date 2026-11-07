@@ -7,7 +7,7 @@ import assert from 'assert';
 import { DeferredPromise, timeout } from '../../../../../base/common/async.js';
 import { Emitter } from '../../../../../base/common/event.js';
 import { Disposable } from '../../../../../base/common/lifecycle.js';
-import { constObservable, observableValue, transaction } from '../../../../../base/common/observable.js';
+import { observableValue, transaction } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { mock, upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
@@ -23,7 +23,7 @@ import { IChatEntitlementService } from '../../../../services/chat/common/chatEn
 import { IEditorGroup, IEditorGroupsService, IEditorPart, IModalEditorPart } from '../../../../services/editor/common/editorGroupsService.js';
 import { IEditorService, IEditorsChangeEvent } from '../../../../services/editor/common/editorService.js';
 import { IBrowserViewWorkbenchService } from '../../../browserView/common/browserView.js';
-import { CanvasInput, ICanvasContext, ICanvasContextService, ICanvasOpenRequest, isCanvasOwner } from '../../common/canvas.js';
+import { CanvasInput, ICanvasContext, ICanvasContextService, ICanvasOpenRequest, ICanvasWorkingSetOwner, isCanvasOwner } from '../../common/canvas.js';
 import { EditorInput } from '../../../../common/editor/editorInput.js';
 import { CanvasService } from '../../electron-browser/canvasService.js';
 import { canvasOwnerKey, ICanvas, ICanvasOwner } from '../../../../common/canvasReference.js';
@@ -44,6 +44,8 @@ suite('CanvasService', () => {
 		const groupRestores: boolean[] = [];
 		// The owners the groups of the chat window, window 2, present: those of the chats it shows.
 		const chatWindowOwners = observableValue<ReadonlySet<string>>('chatWindowOwners', new Set([canvasOwnerKey(owner)]));
+		const workingSetState = observableValue('workingSetState', { owner: undefined as ICanvasWorkingSetOwner | undefined, restoring: false, applying: false });
+		let activeInput: EditorInput | undefined;
 		const contextService = upcastPartial<ICanvasContextService>({
 			contexts, onDidRemoveOwner: removed.event,
 			isOwnerVisible: (owner, reader) => visible.read(reader).has(canvasOwnerKey(owner)),
@@ -54,7 +56,7 @@ suite('CanvasService', () => {
 			},
 			canPresentInGroup: (owner, group, reader) => group.windowId === 2 && chatWindowOwners.read(reader).has(canvasOwnerKey(owner)),
 			workingSets: options?.workingSets ? {
-				state: constObservable({ owner: undefined, restoring: false, applying: false }),
+				state: workingSetState,
 				registerEditorToRetain: () => Disposable.None,
 				suppressEditorPartAutoVisibility: () => Disposable.None,
 			} : undefined,
@@ -87,6 +89,7 @@ suite('CanvasService', () => {
 		}();
 		const editorService = new class extends mock<IEditorService>() {
 			override readonly onDidEditorsChange = editorsChanged.event;
+			override get activeEditor() { return activeInput; }
 			override async openEditor(...args: unknown[]): Promise<ITextDiffEditorPane | undefined> {
 				const input = args[0];
 				if (!(input instanceof CanvasInput)) {
@@ -145,6 +148,7 @@ suite('CanvasService', () => {
 		const service = store.add(new CanvasService(contextService, editorService, editorGroupsService, instantiationService, upcastPartial<IBrowserViewWorkbenchService>({}), entitlementService,
 			new TestConfigurationService({ [CanvasesEnabledSettingId]: true }), new NullLogService(), notificationService));
 		return {
+			workingSetState, setActiveInput: (input: EditorInput | undefined) => { activeInput = input; },
 			owner, canvas, canvases, contexts, openRequests, visible, removed, opened, openOptions, openEditors, closed, moves, groupRestores, notifications, service, chatWindowOwners,
 			delayOpen: () => pendingOpen = new DeferredPromise<void>(),
 			failOpen: (value: boolean) => failOpen = value,
@@ -275,6 +279,22 @@ suite('CanvasService', () => {
 		await timeout(0);
 
 		assert.deepStrictEqual(harness.openOptions, [{ pinned: true, revealIfOpened: true, preserveFocus: true, inactive: true, activation: EditorActivation.PRESERVE }]);
+	});
+
+	test('a canvas of a background context stays inactive when a working-set swap closed it while it was the active editor', async () => {
+		const harness = createHarness({ background: true, workingSets: true });
+		harness.canvases.set([harness.canvas], undefined);
+		await timeout(0);
+		const input = harness.opened[0];
+		harness.setActiveInput(input);
+		harness.workingSetState.set({ owner: undefined, restoring: false, applying: true }, undefined);
+		harness.openEditors.length = 0;
+		input.dispose();
+		harness.workingSetState.set({ owner: undefined, restoring: false, applying: false }, undefined);
+		await timeout(0);
+		await timeout(0);
+
+		assert.deepStrictEqual(harness.openOptions.slice(1), [{ pinned: true, preserveFocus: true, inactive: true, activation: EditorActivation.PRESERVE }]);
 	});
 
 	test('waits for a running model open in a background context before foregrounding it', async () => {
