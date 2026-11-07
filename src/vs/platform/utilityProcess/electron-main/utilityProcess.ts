@@ -148,6 +148,7 @@ export interface IUtilityProcessCrashEvent extends IUtilityProcessExitBaseEvent 
 export interface IUtilityProcessInfo {
 	readonly pid: number;
 	readonly name: string;
+	readonly type: string;
 }
 
 export class UtilityProcess extends Disposable {
@@ -323,7 +324,7 @@ export class UtilityProcess extends Disposable {
 			this.processPid = process.pid;
 
 			if (typeof process.pid === 'number') {
-				UtilityProcess.all.set(process.pid, { pid: process.pid, name: isWindowUtilityProcessConfiguration(configuration) ? `${configuration.name} [${configuration.responseWindowId}]` : configuration.name });
+				UtilityProcess.all.set(process.pid, { pid: process.pid, name: isWindowUtilityProcessConfiguration(configuration) ? `${configuration.name} [${configuration.responseWindowId}]` : configuration.name, type: configuration.type });
 			}
 
 			this.log('successfully created', Severity.Info);

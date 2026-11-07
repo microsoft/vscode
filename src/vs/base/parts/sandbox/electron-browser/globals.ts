@@ -5,7 +5,7 @@
 
 import { INodeProcess, IProcessEnvironment } from '../../../common/platform.js';
 import { ISandboxConfiguration } from '../common/sandboxTypes.js';
-import { IpcRenderer, ProcessMemoryInfo, WebFrame, WebUtils } from './electronTypes.js';
+import { BlinkMemoryInfo, HeapStatistics, IpcRenderer, ProcessMemoryInfo, WebFrame, WebUtils } from './electronTypes.js';
 
 /**
  * In Electron renderers we cannot expose all of the `process` global of node.js
@@ -68,6 +68,16 @@ export interface ISandboxNodeProcess extends INodeProcess {
 	 * process on macOS.
 	 */
 	getProcessMemoryInfo: () => Promise<ProcessMemoryInfo>;
+
+	/**
+	 * Returns V8 heap statistics of the current process in Kilobytes.
+	 */
+	getHeapStatistics: () => HeapStatistics;
+
+	/**
+	 * Returns the memory of Blink, which holds the DOM, in Kilobytes.
+	 */
+	getBlinkMemoryInfo: () => BlinkMemoryInfo;
 
 	/**
 	 * Returns a process environment that includes all shell environment variables even if
