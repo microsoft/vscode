@@ -1,0 +1,97 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+import type * as eslint from 'eslint';
+import type { TSESTree } from '@typescript-eslint/utils';
+import minimatch from 'minimatch';
+import { posix } from 'path';
+import { createImportRuleListener } from './utils.ts';
+
+interface RestrictedPath {
+	readonly pattern: string;
+	readonly message: string;
+}
+
+const repositoryRoot = normalizePath(`${import.meta.dirname}/..`);
+
+function normalizePath(value: string): string {
+	return posix.normalize(value.replace(/\\/g, '/'));
+}
+
+/**
+ * Resolves a module specifier to a repository-relative path, or `undefined` for node modules.
+ */
+function resolveImport(filename: string, specifier: string): string | undefined {
+	const value = specifier.replace(/\\/g, '/');
+	let resolved: string;
+	if (value.startsWith('.')) {
+		resolved = posix.join(posix.dirname(filename), value);
+	} else if (value.startsWith('vs/')) {
+		resolved = `${repositoryRoot}/src/${value}`;
+	} else {
+		return undefined;
+	}
+	return posix.relative(repositoryRoot, normalizePath(resolved));
+}
+
+export default new class NoRestrictedPathImports implements eslint.Rule.RuleModule {
+
+	readonly meta: eslint.Rule.RuleMetaData = {
+		messages: {
+			restricted: '{{message}}',
+		},
+		docs: {
+			description: 'Disallow imports whose resolved path matches a restricted repository path pattern.',
+		},
+		schema: [{
+			type: 'object',
+			properties: {
+				paths: {
+					type: 'array',
+					items: {
+						type: 'object',
+						properties: {
+							pattern: { type: 'string' },
+							message: { type: 'string' },
+						},
+						required: ['pattern', 'message'],
+						additionalProperties: false,
+					},
+				},
+			},
+			required: ['paths'],
+			additionalProperties: false,
+		}],
+	};
+
+	create(context: eslint.Rule.RuleContext): eslint.Rule.RuleListener {
+		const { paths } = context.options[0] as { paths: RestrictedPath[] };
+		const filename = normalizePath(context.filename);
+
+		const checkImport = (loc: TSESTree.SourceLocation | eslint.AST.SourceLocation | null | undefined, value: string): void => {
+			const resolved = resolveImport(filename, value);
+			if (resolved === undefined || !loc) {
+				return;
+			}
+			const restriction = paths.find(path => minimatch(resolved, path.pattern));
+			if (restriction) {
+				context.report({
+					loc,
+					messageId: 'restricted',
+					data: { message: restriction.message },
+				});
+			}
+		};
+
+		return {
+			...createImportRuleListener((node, value) => checkImport(node.loc, value)),
+			'ImportExpression > Literal, TSImportType > Literal, CallExpression[callee.type="Identifier"][callee.name="require"][arguments.length=1] > Literal': (node: eslint.Rule.Node) => {
+				if (node.type === 'Literal' && typeof node.value === 'string') {
+					checkImport(node.loc, node.value);
+				}
+			},
+		};
+	}
+};

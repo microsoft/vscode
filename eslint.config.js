@@ -2599,9 +2599,7 @@ export default defineConfig(
 		}
 	},
 	{
-		// Sessions depends on chat, never the reverse: contrib/chat must not import
-		// contrib/sessions. Imports are relative, so the pattern matches any `../sessions/`
-		// path segment that leaves contrib/chat (vs/sessions is off-limits by layering too).
+		// Sessions depends on chat, never the reverse: contrib/chat must not import contrib/sessions.
 		files: [
 			'src/vs/workbench/contrib/chat/**/*.ts'
 		],
@@ -2616,12 +2614,12 @@ export default defineConfig(
 			parser: tseslint.parser,
 		},
 		rules: {
-			'@typescript-eslint/no-restricted-imports': [
+			'local/code-no-restricted-path-imports': [
 				'error',
 				{
-					'patterns': [
+					'paths': [
 						{
-							'regex': '^(?:(?:\\.\\./)+|vs/workbench/contrib/)sessions/',
+							'pattern': 'src/vs/workbench/contrib/sessions/**',
 							'message': 'contrib/chat must not import from contrib/sessions: Sessions depends on chat, never the reverse. See https://github.com/microsoft/vscode/issues/346756'
 						}
 					]

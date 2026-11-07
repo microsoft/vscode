@@ -116,6 +116,12 @@ In these cases make sure to update the `meta.schema` property on your rule with 
 
 The rule checks static imports, re-exports, import types, literal dynamic imports, and literal `require` calls, resolving relative paths and `vs/` aliases. Run its tests with `node --test .eslint-plugin-local/tests/code-no-private-agent-host-meta-import.test.ts`.
 
+## Restricted import paths
+
+`local/code-no-restricted-path-imports` reports imports whose resolved repository path matches one of its `paths` globs, with that entry's `message`. It resolves relative paths and `vs/` aliases before matching, so non-canonical specifiers such as `./../..//sessions/x.js` are caught, and an unrelated folder with the same name is not. The rule checks static imports, re-exports, import types, literal dynamic imports, `import x = require()`, and literal `require` calls; node modules are ignored. Use the ESLint configuration's `files` and `ignores` to choose the importing files.
+
+It keeps `src/vs/workbench/contrib/chat/` from importing `src/vs/workbench/contrib/sessions/`, because Sessions depends on chat and never the reverse. Existing violations are listed in that configuration block's `ignores` and should be removed from the list once they are fixed ([#346756](https://github.com/microsoft/vscode/issues/346756)). Run its tests with `node --test .eslint-plugin-local/tests/code-no-restricted-path-imports.test.ts`.
+
 
 ## Asynchronous production filesystem operations
 

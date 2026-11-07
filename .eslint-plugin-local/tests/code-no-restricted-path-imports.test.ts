@@ -1,0 +1,61 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+import { RuleTester } from 'eslint';
+import { suite, test } from 'node:test';
+import { posix } from 'path';
+import tseslint from 'typescript-eslint';
+import rule from '../code-no-restricted-path-imports.ts';
+
+RuleTester.describe = suite;
+RuleTester.it = test;
+
+const repositoryRoot = posix.normalize(`${import.meta.dirname.replace(/\\/g, '/')}/../..`);
+const filename = `${repositoryRoot}/src/vs/workbench/contrib/chat/browser/chatTipCatalog.ts`;
+const message = 'contrib/chat must not import from contrib/sessions';
+const options = [{ paths: [{ pattern: 'src/vs/workbench/contrib/sessions/**', message }] }];
+
+const importForms = [
+	{ name: 'value import', code: (source: string) => `import { X } from '${source}';` },
+	{ name: 'side-effect import', code: (source: string) => `import '${source}';` },
+	{ name: 'type-only import', code: (source: string) => `import type { X } from '${source}';` },
+	{ name: 'named re-export', code: (source: string) => `export { X } from '${source}';` },
+	{ name: 'star re-export', code: (source: string) => `export * from '${source}';` },
+	{ name: 'dynamic import', code: (source: string) => `const x = import('${source}');` },
+	{ name: 'import type expression', code: (source: string) => `type X = import('${source}').X;` },
+	{ name: 'import equals', code: (source: string) => `import X = require('${source}');` },
+];
+
+const restrictedSources = [
+	'../../sessions/common/sessionCommands.js',
+	'./../..//sessions/common/sessionCommands.js',
+	'../../chat/../sessions/common/sessionCommands.js',
+	'vs/workbench/contrib/sessions/common/sessionCommands.js',
+];
+
+const allowedSources = [
+	'../../../../sessions/common/sessions.js', // src/vs/sessions
+	'../sessions/sessionsModel.js', // a chat-internal 'sessions' folder
+	'../../sessionChanges/common/sessionChanges.js',
+	'vs/sessions/common/sessions.js',
+	'../common/chatService.js',
+	'sessions',
+];
+
+new RuleTester({ languageOptions: { parser: tseslint.parser } }).run('code-no-restricted-path-imports', rule, {
+	valid: allowedSources.flatMap(source => importForms.map(form => ({
+		name: `${form.name} of ${source}`,
+		filename,
+		options,
+		code: form.code(source),
+	}))),
+	invalid: restrictedSources.flatMap(source => importForms.map(form => ({
+		name: `${form.name} of ${source}`,
+		filename,
+		options,
+		code: form.code(source),
+		errors: [{ messageId: 'restricted', data: { message } }],
+	}))),
+});
