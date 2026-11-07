@@ -35,6 +35,7 @@ export class TestWebglAddon implements WebglAddon {
 	static shouldThrow = false;
 	static isEnabled = false;
 	static readonly customGlyphOptions: (boolean | undefined)[] = [];
+	static lastInstance: TestWebglAddon | undefined;
 	private readonly _onChangeTextureAtlas = new Emitter<HTMLCanvasElement>();
 	private readonly _onAddTextureAtlasCanvas = new Emitter<HTMLCanvasElement>();
 	private readonly _onRemoveTextureAtlasCanvas = new Emitter<HTMLCanvasElement>();
@@ -45,6 +46,10 @@ export class TestWebglAddon implements WebglAddon {
 	readonly onContextLoss = this._onContextLoss.event as IEvent<void>;
 	constructor(options?: IWebglAddonOptions) {
 		TestWebglAddon.customGlyphOptions.push(options?.customGlyphs);
+		TestWebglAddon.lastInstance = this;
+	}
+	fireContextLoss(): void {
+		this._onContextLoss.fire();
 	}
 	activate(): void {
 		TestWebglAddon.isEnabled = !TestWebglAddon.shouldThrow;
