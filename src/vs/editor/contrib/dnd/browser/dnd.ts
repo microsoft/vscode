@@ -9,7 +9,7 @@ import { KeyCode } from '../../../../base/common/keyCodes.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import { isMacintosh } from '../../../../base/common/platform.js';
 import './dnd.css';
-import { ICodeEditor, IEditorMouseEvent, IMouseTarget, IPartialEditorMouseEvent, MouseTargetType } from '../../../browser/editorBrowser.js';
+import { ICodeEditor, IEditorMouseEvent, IMouseTarget, IMouseTargetContentEmpty, IMouseTargetContentText, IMouseTargetMargin, IPartialEditorMouseEvent, MouseTargetType } from '../../../browser/editorBrowser.js';
 import { EditorContributionInstantiation, registerEditorContribution } from '../../../browser/editorExtensions.js';
 import { CodeEditorWidget } from '../../../browser/widget/codeEditor/codeEditorWidget.js';
 import { EditorOption } from '../../../common/config/editorOptions.js';
@@ -50,7 +50,7 @@ export class DragAndDropController extends Disposable implements IEditorContribu
 		this._dndDecorationIds = this._editor.createDecorationsCollection();
 		this._register(this._editor.onMouseDown((e: IEditorMouseEvent) => this._onEditorMouseDown(e)));
 		this._register(this._editor.onMouseUp((e: IEditorMouseEvent) => this._onEditorMouseUp(e)));
-		this._register(this._editor.onMouseDrag((e: IEditorMouseEvent) => this._onEditorMouseDrag(e)));
+		this._register(this._editor.onMouseDrag((e: IPartialEditorMouseEvent) => this._onEditorMouseDrag(e)));
 		this._register(this._editor.onMouseDrop((e: IPartialEditorMouseEvent) => this._onEditorMouseDrop(e)));
 		this._register(this._editor.onMouseDropCanceled(() => this._onEditorMouseDropCanceled()));
 		this._register(this._editor.onKeyDown((e: IKeyboardEvent) => this.onEditorKeyDown(e)));
@@ -113,12 +113,16 @@ export class DragAndDropController extends Disposable implements IEditorContribu
 		});
 	}
 
-	private _onEditorMouseDrag(mouseEvent: IEditorMouseEvent): void {
+	private _onEditorMouseDrag(mouseEvent: IPartialEditorMouseEvent): void {
 		const target = mouseEvent.target;
+		if (!this._isValidDropTarget(target)) {
+			this._removeDecoration();
+			return;
+		}
 
 		if (this._dragSelection === null) {
 			const selections = this._editor.getSelections() || [];
-			const possibleSelections = selections.filter(selection => target.position && selection.containsPosition(target.position));
+			const possibleSelections = selections.filter(selection => selection.containsPosition(target.position));
 			if (possibleSelections.length === 1) {
 				this._dragSelection = possibleSelections[0];
 			} else {
@@ -136,12 +140,10 @@ export class DragAndDropController extends Disposable implements IEditorContribu
 			});
 		}
 
-		if (target.position) {
-			if (this._dragSelection.containsPosition(target.position)) {
-				this._removeDecoration();
-			} else {
-				this.showAt(target.position);
-			}
+		if (this._dragSelection.containsPosition(target.position)) {
+			this._removeDecoration();
+		} else {
+			this.showAt(target.position);
 		}
 	}
 
@@ -156,7 +158,7 @@ export class DragAndDropController extends Disposable implements IEditorContribu
 	}
 
 	private _onEditorMouseDrop(mouseEvent: IPartialEditorMouseEvent): void {
-		if (mouseEvent.target && (this._hitContent(mouseEvent.target) || this._hitMargin(mouseEvent.target)) && mouseEvent.target.position) {
+		if (this._isValidDropTarget(mouseEvent.target)) {
 			const newCursorPosition = new Position(mouseEvent.target.position.lineNumber, mouseEvent.target.position.column);
 
 			if (this._dragSelection === null) {
@@ -219,15 +221,14 @@ export class DragAndDropController extends Disposable implements IEditorContribu
 		this._dndDecorationIds.clear();
 	}
 
-	private _hitContent(target: IMouseTarget): boolean {
-		return target.type === MouseTargetType.CONTENT_TEXT ||
-			target.type === MouseTargetType.CONTENT_EMPTY;
-	}
-
-	private _hitMargin(target: IMouseTarget): boolean {
-		return target.type === MouseTargetType.GUTTER_GLYPH_MARGIN ||
+	private _isValidDropTarget(target: IMouseTarget | null): target is IMouseTargetContentText | IMouseTargetContentEmpty | IMouseTargetMargin {
+		return !!target?.position && (
+			target.type === MouseTargetType.CONTENT_TEXT ||
+			target.type === MouseTargetType.CONTENT_EMPTY ||
+			target.type === MouseTargetType.GUTTER_GLYPH_MARGIN ||
 			target.type === MouseTargetType.GUTTER_LINE_NUMBERS ||
-			target.type === MouseTargetType.GUTTER_LINE_DECORATIONS;
+			target.type === MouseTargetType.GUTTER_LINE_DECORATIONS
+		);
 	}
 
 	public override dispose(): void {
