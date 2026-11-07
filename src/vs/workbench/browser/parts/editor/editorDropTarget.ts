@@ -56,7 +56,7 @@ function isDropIntoEditorEnabledGlobally(configurationService: IConfigurationSer
 }
 
 function isDragIntoEditorEvent(e: DragEvent): boolean {
-	return e.shiftKey;
+	return e.shiftKey || containsDragType(e, 'text/x-moz-url');
 }
 
 /**
