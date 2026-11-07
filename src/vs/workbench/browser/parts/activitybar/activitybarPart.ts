@@ -599,6 +599,7 @@ export class ActivityBarCompositeBar extends PaneCompositeBar {
 
 	override create(parent: HTMLElement): HTMLElement {
 		this.element = parent;
+		const draggable = this.configurationService.getValue<boolean>('workbench.activityBar.dragAndDrop.enabled') ?? true;
 
 		// Install menubar if compact and not owned by the titlebar
 		if (this.shouldInstallMenubar()) {
@@ -606,7 +607,7 @@ export class ActivityBarCompositeBar extends PaneCompositeBar {
 		}
 
 		// View Containers action bar
-		this.compositeBarContainer = super.create(this.element);
+		this.compositeBarContainer = super.create(this.element, draggable);
 
 		// Global action bar
 		if (this.globalCompositeBar) {
