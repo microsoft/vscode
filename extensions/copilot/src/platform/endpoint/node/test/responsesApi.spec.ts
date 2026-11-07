@@ -481,13 +481,14 @@ describe('createResponsesRequestBody', () => {
 
 		expect(body.input?.filter(item => item.type === 'reasoning')).toEqual([
 			{ type: 'reasoning', id: 'rs_abc123', summary: [], encrypted_content: 'enc_blob' },
+			{ type: 'reasoning', id: 'rs_summary', summary: [], content: [{ type: 'reasoning_text', text: 'summary only' }] },
 		]);
 
 		accessor.dispose();
 		services.dispose();
 	});
 
-	it('drops thinking that carries no encrypted payload', () => {
+	it('replays plaintext reasoning as content for providers without encrypted payloads', () => {
 		const services = createPlatformServices();
 		const accessor = services.createTestingAccessor();
 		const instantiationService = accessor.get(IInstantiationService);
@@ -498,7 +499,114 @@ describe('createResponsesRequestBody', () => {
 
 		const body = instantiationService.invokeFunction(servicesAccessor => createResponsesRequestBody(servicesAccessor, createRequestOptions(messages, false), testEndpoint.model, testEndpoint));
 
-		expect(body.input?.some(item => item.type === 'reasoning')).toBe(false);
+		expect(body.input).toContainEqual({
+			type: 'reasoning',
+			id: 'rs_abc123',
+			summary: [],
+			content: [{ type: 'reasoning_text', text: 'summary only' }],
+		});
+
+		accessor.dispose();
+		services.dispose();
+	});
+
+	it('prefers plaintext reasoning for DeepSeek even when encrypted content is present', () => {
+		const services = createPlatformServices();
+		const accessor = services.createTestingAccessor();
+		const instantiationService = accessor.get(IInstantiationService);
+		const endpoint = { ...testEndpoint, family: 'deepseek-v4-pro', model: 'deepseek-v4-pro' };
+		const messages = [createThinkingAssistantMessage(
+			{ id: 'rs_byok_1', text: 'real reasoning', encrypted: 'enc_blob' },
+			'responses',
+		)];
+
+		const body = instantiationService.invokeFunction(servicesAccessor => createResponsesRequestBody(servicesAccessor, createRequestOptions(messages, false), endpoint.model, endpoint));
+
+		expect(body.input).toContainEqual({
+			type: 'reasoning',
+			id: 'rs_byok_1',
+			summary: [],
+			content: [{ type: 'reasoning_text', text: 'real reasoning' }],
+		});
+		expect(body.input?.some(item => item.type === 'reasoning' && 'encrypted_content' in item)).toBe(false);
+
+		accessor.dispose();
+		services.dispose();
+	});
+
+	it('reuses the latest real reasoning for DeepSeek tool-call messages without reasoning', () => {
+		const services = createPlatformServices();
+		const accessor = services.createTestingAccessor();
+		const instantiationService = accessor.get(IInstantiationService);
+		const endpoint = { ...testEndpoint, family: 'deepseek-v4-pro', model: 'deepseek-v4-pro' };
+		const messages: Raw.ChatMessage[] = [
+			createThinkingAssistantMessage({ id: 'rs_byok_1', text: 'earlier reasoning' }, 'responses'),
+			{
+				role: Raw.ChatRole.Assistant,
+				content: [],
+				toolCalls: [{ id: 'call_1', type: 'function', function: { name: 'read_file', arguments: '{}' } }],
+			},
+		];
+
+		const body = instantiationService.invokeFunction(servicesAccessor => createResponsesRequestBody(servicesAccessor, createRequestOptions(messages, false), endpoint.model, endpoint));
+
+		expect(body.input).toContainEqual({
+			type: 'reasoning',
+			id: 'rs_byok_1',
+			summary: [],
+			content: [{ type: 'reasoning_text', text: 'earlier reasoning' }],
+		});
+		expect(body.input).toContainEqual({
+			type: 'reasoning',
+			id: 'rs_byok_reused_call_1',
+			summary: [],
+			content: [{ type: 'reasoning_text', text: 'earlier reasoning' }],
+		});
+
+		accessor.dispose();
+		services.dispose();
+	});
+
+	it('emits a compatibility reasoning item for DeepSeek when no real reasoning exists', () => {
+		const services = createPlatformServices();
+		const accessor = services.createTestingAccessor();
+		const instantiationService = accessor.get(IInstantiationService);
+		const endpoint = { ...testEndpoint, family: 'deepseek-v4-pro', model: 'deepseek-v4-pro' };
+		const messages: Raw.ChatMessage[] = [{
+			role: Raw.ChatRole.Assistant,
+			content: [],
+			toolCalls: [{ id: 'call_1', type: 'function', function: { name: 'read_file', arguments: '{}' } }],
+		}];
+
+		const body = instantiationService.invokeFunction(servicesAccessor => createResponsesRequestBody(servicesAccessor, createRequestOptions(messages, false), endpoint.model, endpoint));
+
+		expect(body.input).toContainEqual({
+			type: 'reasoning',
+			id: 'rs_byok_compat_call_1',
+			summary: [],
+			content: [{ type: 'reasoning_text', text: 'Reasoning is unavailable for this historical tool call.' }],
+		});
+
+		accessor.dispose();
+		services.dispose();
+	});
+
+	it('does not reuse reasoning for non-DeepSeek endpoints', () => {
+		const services = createPlatformServices();
+		const accessor = services.createTestingAccessor();
+		const instantiationService = accessor.get(IInstantiationService);
+		const messages: Raw.ChatMessage[] = [
+			createThinkingAssistantMessage({ id: 'rs_abc123', text: 'earlier reasoning', encrypted: 'enc_blob' }, 'responses'),
+			{
+				role: Raw.ChatRole.Assistant,
+				content: [],
+				toolCalls: [{ id: 'call_1', type: 'function', function: { name: 'read_file', arguments: '{}' } }],
+			},
+		];
+
+		const body = instantiationService.invokeFunction(servicesAccessor => createResponsesRequestBody(servicesAccessor, createRequestOptions(messages, false), testEndpoint.model, testEndpoint));
+
+		expect(body.input?.some(item => item.type === 'reasoning' && 'id' in item && (item.id === 'rs_byok_reused_call_1' || item.id === 'rs_byok_compat_call_1'))).toBe(false);
 
 		accessor.dispose();
 		services.dispose();
@@ -2317,6 +2425,221 @@ describe('processResponseFromChatEndpoint terminal events', () => {
 				{ id: 'rs_1', text: 'first' },
 				{ id: 'rs_1', metadata: { vscode_reasoning_summary_part_done: true } },
 				{ id: 'rs_1', text: 'second' },
+			]);
+
+			accessor.dispose();
+			services.dispose();
+		});
+
+		it('captures DeepSeek reasoning_text deltas and skips duplicate done text', () => {
+			const services = createPlatformServices();
+			const accessor = services.createTestingAccessor();
+			const processor = accessor.get(IInstantiationService).createInstance(
+				OpenAIResponsesProcessor,
+				TelemetryData.createAndMarkAsIssued(),
+				new SpyingTelemetryService(),
+				'req-1',
+				'gh-req-1',
+				'svc-req-1',
+				'',
+				undefined,
+			);
+			const deltas: IResponseDelta[] = [];
+			const capture: FinishedCallback = async (_text, _index, delta) => {
+				deltas.push(delta);
+				return undefined;
+			};
+
+			processor.push({
+				type: 'response.reasoning_text.delta',
+				item_id: 'rs_text',
+				output_index: 0,
+				content_index: 0,
+				delta: 'thinking',
+				sequence_number: 0,
+			}, capture);
+			processor.push({
+				type: 'response.reasoning_text.done',
+				item_id: 'rs_text',
+				output_index: 0,
+				content_index: 0,
+				text: 'thinking (full)',
+				sequence_number: 1,
+			}, capture);
+
+			expect(deltas.map(delta => delta.thinking)).toEqual([
+				{ id: 'rs_text', text: 'thinking' },
+			]);
+
+			accessor.dispose();
+			services.dispose();
+		});
+
+		it('uses the full reasoning_text done payload when no deltas were streamed', () => {
+			const services = createPlatformServices();
+			const accessor = services.createTestingAccessor();
+			const processor = accessor.get(IInstantiationService).createInstance(
+				OpenAIResponsesProcessor,
+				TelemetryData.createAndMarkAsIssued(),
+				new SpyingTelemetryService(),
+				'req-1',
+				'gh-req-1',
+				'svc-req-1',
+				'',
+				undefined,
+			);
+			const deltas: IResponseDelta[] = [];
+			const capture: FinishedCallback = async (_text, _index, delta) => {
+				deltas.push(delta);
+				return undefined;
+			};
+
+			processor.push({
+				type: 'response.reasoning_text.done',
+				item_id: 'rs_text_full',
+				output_index: 0,
+				content_index: 0,
+				text: 'full reasoning',
+				sequence_number: 0,
+			}, capture);
+
+			expect(deltas.map(delta => delta.thinking)).toEqual([
+				{ id: 'rs_text_full', text: 'full reasoning' },
+			]);
+
+			accessor.dispose();
+			services.dispose();
+		});
+
+		it('captures plaintext reasoning from a reasoning output item', () => {
+			const services = createPlatformServices();
+			const accessor = services.createTestingAccessor();
+			const processor = accessor.get(IInstantiationService).createInstance(
+				OpenAIResponsesProcessor,
+				TelemetryData.createAndMarkAsIssued(),
+				new SpyingTelemetryService(),
+				'req-1',
+				'gh-req-1',
+				'svc-req-1',
+				'',
+				undefined,
+			);
+			const deltas: IResponseDelta[] = [];
+			const capture: FinishedCallback = async (_text, _index, delta) => {
+				deltas.push(delta);
+				return undefined;
+			};
+
+			processor.push({
+				type: 'response.output_item.done',
+				output_index: 0,
+				item: {
+					type: 'reasoning',
+					id: 'rs_plain',
+					summary: [],
+					content: [{ type: 'reasoning_text', text: 'plain reasoning' }],
+				},
+				sequence_number: 0,
+			}, capture);
+
+			expect(deltas.map(delta => delta.thinking)).toEqual([
+				{ id: 'rs_plain', text: ['plain reasoning'] },
+			]);
+
+			accessor.dispose();
+			services.dispose();
+		});
+
+		it('captures done-only reasoning parts that share an item id', () => {
+			const services = createPlatformServices();
+			const accessor = services.createTestingAccessor();
+			const processor = accessor.get(IInstantiationService).createInstance(
+				OpenAIResponsesProcessor,
+				TelemetryData.createAndMarkAsIssued(),
+				new SpyingTelemetryService(),
+				'req-1',
+				'gh-req-1',
+				'svc-req-1',
+				'',
+				undefined,
+			);
+			const deltas: IResponseDelta[] = [];
+			const capture: FinishedCallback = async (_text, _index, delta) => {
+				deltas.push(delta);
+				return undefined;
+			};
+
+			processor.push({
+				type: 'response.reasoning_text.done',
+				item_id: 'rs_multi',
+				output_index: 0,
+				content_index: 0,
+				text: 'part one',
+				sequence_number: 0,
+			}, capture);
+			processor.push({
+				type: 'response.reasoning_text.done',
+				item_id: 'rs_multi',
+				output_index: 0,
+				content_index: 1,
+				text: 'part two',
+				sequence_number: 1,
+			}, capture);
+
+			expect(deltas.map(delta => delta.thinking)).toEqual([
+				{ id: 'rs_multi', text: 'part one' },
+				{ id: 'rs_multi', text: 'part two' },
+			]);
+
+			accessor.dispose();
+			services.dispose();
+		});
+
+		it('recovers unreceived reasoning parts from the final item', () => {
+			const services = createPlatformServices();
+			const accessor = services.createTestingAccessor();
+			const processor = accessor.get(IInstantiationService).createInstance(
+				OpenAIResponsesProcessor,
+				TelemetryData.createAndMarkAsIssued(),
+				new SpyingTelemetryService(),
+				'req-1',
+				'gh-req-1',
+				'svc-req-1',
+				'',
+				undefined,
+			);
+			const deltas: IResponseDelta[] = [];
+			const capture: FinishedCallback = async (_text, _index, delta) => {
+				deltas.push(delta);
+				return undefined;
+			};
+
+			processor.push({
+				type: 'response.reasoning_text.done',
+				item_id: 'rs_partial',
+				output_index: 0,
+				content_index: 0,
+				text: 'received',
+				sequence_number: 0,
+			}, capture);
+			processor.push({
+				type: 'response.output_item.done',
+				output_index: 0,
+				item: {
+					type: 'reasoning',
+					id: 'rs_partial',
+					summary: [],
+					content: [
+						{ type: 'reasoning_text', text: 'received' },
+						{ type: 'reasoning_text', text: 'missing' },
+					],
+				},
+				sequence_number: 1,
+			}, capture);
+
+			expect(deltas.map(delta => delta.thinking)).toEqual([
+				{ id: 'rs_partial', text: 'received' },
+				{ id: 'rs_partial', text: ['missing'] },
 			]);
 
 			accessor.dispose();
