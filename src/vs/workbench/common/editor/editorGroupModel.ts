@@ -12,6 +12,9 @@ import { IConfigurationChangeEvent, IConfigurationService } from '../../../platf
 import { dispose, Disposable, DisposableStore } from '../../../base/common/lifecycle.js';
 import { Registry } from '../../../platform/registry/common/platform.js';
 import { coalesce } from '../../../base/common/arrays.js';
+import { groupByMap } from '../../../base/common/collections.js';
+import { generateUuid } from '../../../base/common/uuid.js';
+import { getGapAfterTabStack, getGapBeforeTabStack, getLeastUsedTabStackColor, getSurroundingTabStack, IAddEditorsToTabStackResult, ITabStack, ITabStackEditorMove, ITabStackOperationResult, TabStackColor, TabStackId } from './editorGroupTabStacks.js';
 
 const EditorOpenPositioning = {
 	LEFT: 'left',
@@ -19,6 +22,23 @@ const EditorOpenPositioning = {
 	FIRST: 'first',
 	LAST: 'last'
 };
+
+/**
+ * The state of a tab stack, whose `size` counts its editors and which is deleted when that reaches 0.
+ */
+interface ITabStackState {
+	label: string;
+	color: TabStackColor;
+	size: number;
+}
+
+/**
+ * The tab stacks of a group, cached until an editor joins or leaves one, or an editor of one moves.
+ */
+interface ITabStacksSnapshot {
+	readonly list: readonly ITabStack[];
+	readonly byId: ReadonlyMap<TabStackId, ITabStack>;
+}
 
 export interface IEditorOpenOptions {
 	readonly pinned?: boolean;
@@ -28,6 +48,12 @@ export interface IEditorOpenOptions {
 	readonly inactiveSelection?: EditorInput[];
 	readonly index?: number;
 	readonly supportSideBySide?: SideBySideEditor.ANY | SideBySideEditor.BOTH;
+
+	/**
+	 * The tab stack a new editor joins when one of its editors is next to the index, unless the
+	 * editor opens sticky. Otherwise a new editor joins no tab stack and never opens inside one.
+	 */
+	readonly tabStack?: TabStackId;
 }
 
 export interface IEditorOpenResult {
@@ -213,6 +239,14 @@ export class EditorGroupModel extends Disposable implements IEditorGroupModel {
 	private sticky = -1;									// index of first editor in sticky state
 	private readonly transient = new Set<EditorInput>(); 	// editors in transient state
 
+	private readonly tabStackOfEditor = new Map<EditorInput, TabStackId>();
+	private readonly tabStackStates = new Map<TabStackId, ITabStackState>();	// tab stacks with at least one editor
+	private readonly getTabStackId = (editor: EditorInput) => this.tabStackOfEditor.get(editor);
+	private tabStacksSnapshot: ITabStacksSnapshot | undefined;							// cached result of getTabStacksSnapshot()
+	private tabStacksChanged = false;											// a TAB_STACKS event is pending
+	private tabStackOperationDepth = 0;										// nesting of public operations that fire TAB_STACKS when done
+	private tabStacksEnabled = false;
+
 	private editorOpenPositioning: ('left' | 'right' | 'first' | 'last') | undefined;
 	private focusRecentEditorAfterClose: boolean | undefined;
 
@@ -288,6 +322,14 @@ export class EditorGroupModel extends Disposable implements IEditorGroupModel {
 	}
 
 	openEditor(candidate: EditorInput, options?: IEditorOpenOptions): IEditorOpenResult {
+		if (!this.hasTabStacks) {
+			return this.doOpenEditor(candidate, options); // no tab stack to join or open next to
+		}
+
+		return this.withTabStacksChangeEvent(() => this.doOpenEditor(candidate, options));
+	}
+
+	private doOpenEditor(candidate: EditorInput, options?: IEditorOpenOptions): IEditorOpenResult {
 		const makeSticky = options?.sticky || (typeof options?.index === 'number' && this.isSticky(options.index));
 		const makePinned = options?.pinned || options?.sticky;
 		const makeTransient = !!options?.transient;
@@ -357,7 +399,12 @@ export class EditorGroupModel extends Disposable implements IEditorGroupModel {
 			}
 
 			// Insert into our list of editors if pinned or we have no preview editor
+			let tabStack: TabStackId | undefined;
 			if (makePinned || !this.preview) {
+				if (!makeSticky && this.hasTabStacks) {
+					({ index: targetIndex, tabStack } = this.computeTabStackInsertion(this.editors, targetIndex, options));
+				}
+
 				this.splice(targetIndex, false, newEditor);
 			}
 
@@ -376,6 +423,11 @@ export class EditorGroupModel extends Disposable implements IEditorGroupModel {
 						targetIndex--; // accommodate for the fact that the preview editor closes
 					}
 
+					if (!makeSticky && this.hasTabStacks) {
+						const preview = this.preview;
+						({ index: targetIndex, tabStack } = this.computeTabStackInsertion(this.editors.filter(editor => editor !== preview), targetIndex, options));
+					}
+
 					this.replaceEditor(this.preview, newEditor, targetIndex, !makeActive);
 				}
 
@@ -392,6 +444,11 @@ export class EditorGroupModel extends Disposable implements IEditorGroupModel {
 				editorIndex: targetIndex
 			};
 			this._onDidModelChange.fire(event);
+
+			// Join only after the open event and the preview handling, since joining pins the editor
+			if (tabStack !== undefined) {
+				this.setTabStack(newEditor, tabStack);
+			}
 
 			// Handle active editor / selected editors
 			this.setSelection(makeActive ? newEditor : this.activeEditor, options?.inactiveSelection ?? []);
@@ -509,6 +566,14 @@ export class EditorGroupModel extends Disposable implements IEditorGroupModel {
 	}
 
 	closeEditor(candidate: EditorInput, context = EditorCloseContext.UNKNOWN, openNext = true): IEditorCloseResult | undefined {
+		if (!this.hasTabStacks) {
+			return this.doCloseEditorAndFireEvent(candidate, context, openNext); // no tab stack to leave
+		}
+
+		return this.withTabStacksChangeEvent(() => this.doCloseEditorAndFireEvent(candidate, context, openNext));
+	}
+
+	private doCloseEditorAndFireEvent(candidate: EditorInput, context: EditorCloseContext, openNext: boolean): IEditorCloseResult | undefined {
 		const closeResult = this.doCloseEditor(candidate, context, openNext);
 
 		if (closeResult) {
@@ -579,6 +644,9 @@ export class EditorGroupModel extends Disposable implements IEditorGroupModel {
 		// Remove from transient
 		this.transient.delete(editor);
 
+		// Remove from tab stack
+		this.setTabStack(editor, undefined);
+
 		// Remove from arrays
 		this.splice(index, true);
 
@@ -601,6 +669,23 @@ export class EditorGroupModel extends Disposable implements IEditorGroupModel {
 		}
 
 		const editor = this.editors[index];
+		if (!this.hasTabStacks) {
+			this.doMoveEditor(editor, index, toIndex);
+
+			return editor;
+		}
+
+		this.withTabStacksChangeEvent(() => {
+			this.doMoveEditor(editor, index, toIndex);
+
+			// Keep, join or leave a tab stack depending on where the editor lands
+			this.assignTabStacksAfterMove(new Set([editor]));
+		});
+
+		return editor;
+	}
+
+	private doMoveEditor(editor: EditorInput, index: number, toIndex: number): void {
 		const sticky = this.sticky;
 
 		// Adjust sticky index: editor moved out of sticky state into unsticky state
@@ -616,6 +701,9 @@ export class EditorGroupModel extends Disposable implements IEditorGroupModel {
 		// Move
 		this.editors.splice(index, 1);
 		this.editors.splice(toIndex, 0, editor);
+		if (this.tabStackOfEditor.has(editor)) {
+			this.tabStacksSnapshot = undefined;
+		}
 
 		// Move Event
 		const event: IGroupEditorMoveEvent = {
@@ -635,8 +723,6 @@ export class EditorGroupModel extends Disposable implements IEditorGroupModel {
 			};
 			this._onDidModelChange.fire(event);
 		}
-
-		return editor;
 	}
 
 	setActive(candidate: EditorInput | undefined): EditorInput | undefined {
@@ -829,6 +915,10 @@ export class EditorGroupModel extends Disposable implements IEditorGroupModel {
 			return; // can only unpin a pinned editor
 		}
 
+		if (this.tabStackOfEditor.has(editor)) {
+			return; // editors of a tab stack are never in preview
+		}
+
 		// Set new
 		const oldPreview = this.preview;
 		this.preview = editor;
@@ -866,7 +956,11 @@ export class EditorGroupModel extends Disposable implements IEditorGroupModel {
 
 		const [editor, editorIndex] = res;
 
-		this.doStick(editor, editorIndex);
+		if (this.hasTabStacks) {
+			this.withTabStacksChangeEvent(() => this.doStick(editor, editorIndex));
+		} else {
+			this.doStick(editor, editorIndex);
+		}
 
 		return editor;
 	}
@@ -875,6 +969,9 @@ export class EditorGroupModel extends Disposable implements IEditorGroupModel {
 		if (this.isSticky(editorIndex)) {
 			return; // can only stick a non-sticky editor
 		}
+
+		// Sticky editors never belong to a tab stack
+		this.setTabStack(editor, undefined);
 
 		// Pin editor
 		this.pin(editor);
@@ -1152,6 +1249,16 @@ export class EditorGroupModel extends Disposable implements IEditorGroupModel {
 		clone.selection = this.selection.slice(0);
 		clone.sticky = this.sticky;
 
+		for (const [editor, tabStack] of this.tabStackOfEditor) {
+			clone.tabStackOfEditor.set(editor, tabStack);
+		}
+
+		for (const [tabStack, state] of this.tabStackStates) {
+			clone.tabStackStates.set(tabStack, { ...state });
+		}
+
+		clone.tabStacksEnabled = this.tabStacksEnabled;
+
 		// Ensure to register listeners for each editor
 		for (const editor of clone.editors) {
 			clone.registerEditorListeners(editor);
@@ -1270,6 +1377,361 @@ export class EditorGroupModel extends Disposable implements IEditorGroupModel {
 
 		this.transient.clear();
 
+		this.tabStackOfEditor.clear();
+		this.tabStackStates.clear();
+		this.tabStacksSnapshot = undefined;
+
 		super.dispose();
 	}
+
+	//#region Tab Stacks
+
+	/**
+	 * Whether the group has a tab stack, without which opening, closing, moving and sticking
+	 * editors skip the tab stack rules.
+	 */
+	private get hasTabStacks(): boolean {
+		return this.tabStackStates.size > 0;
+	}
+
+	/**
+	 * The tab stacks of the group in the order of their first editor, none while
+	 * tab stacks are off.
+	 */
+	get tabStacks(): readonly ITabStack[] {
+		return this.getTabStacksSnapshot().list;
+	}
+
+	/**
+	 * Returns the tab stack of the editor, which is compared by identity.
+	 */
+	getTabStack(editor: EditorInput): ITabStack | undefined {
+		const tabStack = this.tabStackOfEditor.get(editor);
+
+		return tabStack !== undefined ? this.getTabStacksSnapshot().byId.get(tabStack) : undefined;
+	}
+
+	private getTabStacksSnapshot(): ITabStacksSnapshot {
+		if (!this.tabStacksSnapshot) {
+			const list: ITabStack[] = [];
+			const byId = new Map<TabStackId, ITabStack>();
+			for (const [id, editors] of groupByMap(this.editors, this.getTabStackId)) {
+				if (id === undefined) {
+					continue; // editors in no tab stack
+				}
+
+				const state = this.tabStackStates.get(id);
+				if (state) {
+					const tabStack: ITabStack = { id, label: state.label, color: state.color, editors };
+					list.push(tabStack);
+					byId.set(id, tabStack);
+				}
+			}
+
+			this.tabStacksSnapshot = { list, byId };
+		}
+
+		return this.tabStacksSnapshot;
+	}
+
+	/**
+	 * Turns tab stacks on or off. Turning them off removes every tab stack, leaving its editors in
+	 * place and pinned.
+	 */
+	setTabStacksEnabled(enabled: boolean): void {
+		this.withTabStacksChangeEvent(() => {
+			if (!enabled && this.hasTabStacks) {
+				this.tabStackOfEditor.clear();
+				this.tabStackStates.clear();
+				this.markTabStacksChanged();
+			}
+
+			this.tabStacksEnabled = enabled;
+		});
+	}
+
+	/**
+	 * Adds editors to a tab stack, or to a new one gathered after the first editor and its tab stack.
+	 * Editors left of the tab stack move to its start and those right of it to its end.
+	 */
+	addEditorsToTabStack(candidates: readonly EditorInput[], tabStackId?: TabStackId): IAddEditorsToTabStackResult {
+		return this.withTabStacksChangeEvent(() => {
+			const moves: ITabStackEditorMove[] = [];
+			const pinned: EditorInput[] = [];
+
+			if (!this.tabStacksEnabled || (tabStackId !== undefined && !this.tabStackStates.has(tabStackId))) {
+				return { moves, pinned, tabStack: undefined };
+			}
+
+			const editors = this.resolveEditors(candidates).filter(editor => !this.isSticky(editor) && (tabStackId === undefined || this.tabStackOfEditor.get(editor) !== tabStackId));
+			if (editors.length === 0) {
+				return { moves, pinned, tabStack: tabStackId !== undefined ? this.getTabStacksSnapshot().byId.get(tabStackId) : undefined };
+			}
+
+			let targetTabStack: TabStackId;
+			if (tabStackId === undefined) {
+				targetTabStack = generateUuid();
+
+				// The color is chosen before the editors leave their tab stacks
+				const color = getLeastUsedTabStackColor(Array.from(this.tabStackStates.values(), state => state.color));
+
+				const firstTabStack = this.tabStackOfEditor.get(editors[0]);
+				const indexAfterFirst = this.editors.indexOf(editors[0]) + 1;
+				const destination = firstTabStack !== undefined ? getGapAfterTabStack(this.editors, indexAfterFirst, firstTabStack, this.getTabStackId) : indexAfterFirst;
+
+				this.moveEditorsBefore(editors, destination, moves);
+				this.tabStackStates.set(targetTabStack, { label: '', color, size: 0 });
+			} else {
+				targetTabStack = tabStackId;
+
+				const { start, end } = this.getTabStackRange(tabStackId);
+
+				this.moveEditorsBefore(editors.filter(editor => this.editors.indexOf(editor) < start), start, moves);
+				this.moveEditorsBefore(editors.filter(editor => this.editors.indexOf(editor) > end), end + 1, moves);
+			}
+
+			for (const editor of editors) {
+				this.setTabStack(editor, targetTabStack, pinned);
+			}
+
+			return { moves, pinned, tabStack: this.getTabStacksSnapshot().byId.get(targetTabStack) };
+		});
+	}
+
+	/**
+	 * Removes editors from their tab stacks, each through the nearer edge, the end on ties.
+	 * Removing every editor of a tab stack moves nothing and deletes the tab stack.
+	 */
+	removeEditorsFromTabStack(candidates: readonly EditorInput[]): ITabStackOperationResult {
+		return this.withTabStacksChangeEvent(() => {
+			const moves: ITabStackEditorMove[] = [];
+
+			for (const [tabStack, editors] of groupByMap(this.resolveEditors(candidates), this.getTabStackId)) {
+				if (tabStack === undefined) {
+					continue; // editors in no tab stack
+				}
+
+				const { members, start, end } = this.getTabStackRange(tabStack);
+				const middle = Math.floor(members.length / 2);
+
+				this.moveEditorsBefore(editors.filter(editor => members.indexOf(editor) < middle), start, moves);
+				this.moveEditorsBefore(editors.filter(editor => members.indexOf(editor) >= middle), end + 1, moves);
+
+				for (const editor of editors) {
+					this.setTabStack(editor, undefined);
+				}
+			}
+
+			return { moves, pinned: [] };
+		});
+	}
+
+	/**
+	 * Changes the tab stack of one editor, or removes it from its tab stack for `undefined`, keeping
+	 * the invariants of {@link ITabStack} except adjacency, which callers keep by moving or closing
+	 * editors around the call.
+	 */
+	private setTabStack(editor: EditorInput, tabStack: TabStackId | undefined, pinned?: EditorInput[]): void {
+		const previousTabStack = this.tabStackOfEditor.get(editor);
+		if (previousTabStack === tabStack) {
+			return;
+		}
+
+		if (tabStack !== undefined) {
+			const state = this.tabStackStates.get(tabStack);
+			const index = this.editors.indexOf(editor);
+			if (!state || index < 0 || this.isSticky(index)) {
+				return;
+			}
+
+			if (!this.isPinned(editor)) {
+				this.doPin(editor, index);
+				pinned?.push(editor);
+			}
+
+			state.size++;
+			this.tabStackOfEditor.set(editor, tabStack);
+		} else {
+			this.tabStackOfEditor.delete(editor);
+		}
+
+		if (previousTabStack !== undefined) {
+			const previousState = this.tabStackStates.get(previousTabStack);
+			if (previousState && --previousState.size === 0) {
+				this.tabStackStates.delete(previousTabStack);
+			}
+		}
+
+		this.markTabStacksChanged();
+	}
+
+	/**
+	 * Decides the tab stack of each run of moved editors: the one it sits inside of, else the one
+	 * all its editors had if that stays adjacent, else none.
+	 */
+	private assignTabStacksAfterMove(movedEditors: ReadonlySet<EditorInput>): void {
+		const assignments: [EditorInput, TabStackId | undefined][] = [];
+
+		let runStart = -1;
+		for (let index = 0; index <= this.editors.length; index++) {
+			const editor = this.editors.at(index);
+			const isMoved = !!editor && movedEditors.has(editor);
+			const isInRun = isMoved && !this.isSticky(index);
+
+			if (editor && isMoved && !isInRun) {
+				assignments.push([editor, undefined]);
+			}
+
+			if (isInRun && runStart === -1) {
+				runStart = index;
+			} else if (!isInRun && runStart !== -1) {
+				const run = this.editors.slice(runStart, index);
+				const tabStack = this.getTabStackForRun(runStart, run);
+				for (const runEditor of run) {
+					assignments.push([runEditor, tabStack]);
+				}
+
+				runStart = -1;
+			}
+		}
+
+		for (const [editor, tabStack] of assignments) {
+			this.setTabStack(editor, tabStack);
+		}
+	}
+
+	private getTabStackForRun(runStart: number, run: readonly EditorInput[]): TabStackId | undefined {
+		const tabStackBefore = this.getTabStackAtIndex(runStart - 1);
+		const tabStackAfter = this.getTabStackAtIndex(runStart + run.length);
+		const surroundingTabStack = tabStackBefore === tabStackAfter ? tabStackBefore : undefined;
+		if (surroundingTabStack !== undefined) {
+			return surroundingTabStack;
+		}
+
+		const previousTabStack = this.tabStackOfEditor.get(run[0]);
+		const canKeepPreviousTabStack = previousTabStack !== undefined
+			&& run.every(editor => this.tabStackOfEditor.get(editor) === previousTabStack)
+			&& (tabStackBefore === previousTabStack || tabStackAfter === previousTabStack || !this.hasTabStackEditorOutsideRun(previousTabStack, runStart, run.length));
+
+		return canKeepPreviousTabStack ? previousTabStack : undefined;
+	}
+
+	/**
+	 * Returns whether an editor outside the run and the sticky editors belongs to the tab stack.
+	 */
+	private hasTabStackEditorOutsideRun(tabStack: TabStackId, runStart: number, runLength: number): boolean {
+		return this.editors.some((editor, index) => {
+			if ((index >= runStart && index < runStart + runLength) || this.isSticky(index)) {
+				return false;
+			}
+
+			return this.tabStackOfEditor.get(editor) === tabStack;
+		});
+	}
+
+	/**
+	 * Moves editors, sorted by index, next to each other right before the editor at `destination`, as
+	 * single moves whose indices are valid when each is made. Tab stack membership is left unchanged,
+	 * so a tab stack can be split between moves.
+	 */
+	private moveEditorsBefore(editors: readonly EditorInput[], destination: number, moves: ITabStackEditorMove[]): void {
+		const editorsMovingRight = editors.filter(editor => this.editors.indexOf(editor) < destination);
+		const editorsMovingLeft = editors.filter(editor => this.editors.indexOf(editor) >= destination);
+
+		for (let i = editorsMovingRight.length - 1; i >= 0; i--) {
+			this.moveEditorForTabStacks(editorsMovingRight[i], destination - editorsMovingRight.length + i, moves);
+		}
+
+		for (let i = 0; i < editorsMovingLeft.length; i++) {
+			this.moveEditorForTabStacks(editorsMovingLeft[i], destination + i, moves);
+		}
+	}
+
+	private moveEditorForTabStacks(editor: EditorInput, toIndex: number, moves: ITabStackEditorMove[]): void {
+		const index = this.editors.indexOf(editor);
+		if (index !== toIndex) {
+			this.doMoveEditor(editor, index, toIndex);
+			moves.push({ editor, from: index, to: toIndex });
+		}
+	}
+
+	/**
+	 * Returns where a new editor that would open at `index` opens, and the tab stack it joins. An index
+	 * inside a tab stack that is not the hinted one moves to its start when opening left of the active
+	 * editor, else to its end.
+	 */
+	private computeTabStackInsertion(editors: readonly EditorInput[], index: number, options: IEditorOpenOptions | undefined): { index: number; tabStack: TabStackId | undefined } {
+		const tabStackBefore = index > 0 ? this.tabStackOfEditor.get(editors[index - 1]) : undefined;
+		const tabStackAfter = index < editors.length ? this.tabStackOfEditor.get(editors[index]) : undefined;
+
+		const hintedTabStack = options?.tabStack;
+		const isHintedTabStackAdjacent = hintedTabStack !== undefined && this.tabStackStates.has(hintedTabStack) && (tabStackBefore === hintedTabStack || tabStackAfter === hintedTabStack);
+		if (isHintedTabStackAdjacent) {
+			return { index, tabStack: hintedTabStack };
+		}
+
+		const surroundingTabStack = getSurroundingTabStack(editors, index, this.getTabStackId);
+		if (surroundingTabStack === undefined) {
+			return { index, tabStack: undefined };
+		}
+
+		const opensLeftOfActiveEditor = typeof options?.index !== 'number' && this.editorOpenPositioning === EditorOpenPositioning.LEFT;
+		const edgeIndex = opensLeftOfActiveEditor ? getGapBeforeTabStack(editors, index, surroundingTabStack, this.getTabStackId) : getGapAfterTabStack(editors, index, surroundingTabStack, this.getTabStackId);
+
+		return { index: edgeIndex, tabStack: undefined };
+	}
+
+	private getTabStackAtIndex(index: number): TabStackId | undefined {
+		if (index < 0 || index >= this.editors.length || this.isSticky(index)) {
+			return undefined;
+		}
+
+		return this.tabStackOfEditor.get(this.editors[index]);
+	}
+
+	/**
+	 * Returns the editors of the tab stack in sequential order, with the indices of its first and
+	 * last editor.
+	 */
+	private getTabStackRange(tabStack: TabStackId): { members: EditorInput[]; start: number; end: number } {
+		const members = this.editors.filter(editor => this.tabStackOfEditor.get(editor) === tabStack);
+		const start = this.editors.indexOf(members[0]);
+
+		return { members, start, end: start + members.length - 1 };
+	}
+
+	/**
+	 * Returns the editors of the group that match the candidates, without duplicates and in
+	 * sequential order.
+	 */
+	private resolveEditors(candidates: readonly EditorInput[]): EditorInput[] {
+		const editors = new Set(coalesce(candidates.map(candidate => this.findEditor(candidate)?.[0])));
+
+		return this.editors.filter(editor => editors.has(editor));
+	}
+
+	private markTabStacksChanged(): void {
+		this.tabStacksSnapshot = undefined;
+		this.tabStacksChanged = true;
+	}
+
+	/**
+	 * Runs a public operation and fires one TAB_STACKS event for its pending change once the
+	 * outermost operation ends.
+	 */
+	private withTabStacksChangeEvent<T>(operation: () => T): T {
+		this.tabStackOperationDepth++;
+		try {
+			return operation();
+		} finally {
+			this.tabStackOperationDepth--;
+			if (this.tabStackOperationDepth === 0 && this.tabStacksChanged) {
+				this.tabStacksChanged = false;
+
+				this._onDidModelChange.fire({ kind: GroupModelChangeKind.TAB_STACKS });
+			}
+		}
+	}
+
+	//#endregion
 }
