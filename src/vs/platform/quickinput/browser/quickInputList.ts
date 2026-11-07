@@ -1411,13 +1411,32 @@ export class QuickInputList extends Disposable {
 			this.hoverDelegate.onDidHideHover?.();
 			this._lastHover.dispose();
 			if (hoverHadFocus) {
-				if (this._hoverFocusReturn?.isConnected) {
-					this._hoverFocusReturn.focus();
-				} else {
-					this._tree.domFocus();
-				}
+				this.returnFocusFromHover();
 			}
 		}
+	}
+
+	private returnFocusFromHover(): void {
+		if (this._hoverFocusReturn?.isConnected) {
+			this._hoverFocusReturn.focus();
+		} else {
+			this._tree.domFocus();
+		}
+	}
+
+	private getOrCreateHoverHost(): HTMLElement {
+		if (!this._hoverHost) {
+			const hoverHost = this._hoverHost = dom.append(this._container, $('.quick-input-list-hover-host'));
+			// The hover disposes itself on Escape, which would move focus to the body and hide the
+			// picker without restoring focus. Move focus back into the picker first and let the
+			// event continue so Escape still closes the hover and the picker.
+			this._register(dom.addDisposableListener(hoverHost, dom.EventType.KEY_DOWN, e => {
+				if (e.key === 'Escape' && dom.isAncestorOfActiveElement(hoverHost)) {
+					this.returnFocusFromHover();
+				}
+			}, true));
+		}
+		return this._hoverHost;
 	}
 
 	filter(query: string): boolean {
@@ -1632,7 +1651,7 @@ export class QuickInputList extends Disposable {
 			},
 			// Render inside the list so that focusing the hover does not hide the picker, but in
 			// a viewport-sized host so that the quick input widget neither clips nor sizes it
-			container: this._hoverHost ??= dom.append(this._container, $('.quick-input-list-hover-host')),
+			container: this.getOrCreateHoverHost(),
 			position: {
 				hoverPosition: HoverPosition.RIGHT
 			}
