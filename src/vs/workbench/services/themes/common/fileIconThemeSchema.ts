@@ -71,7 +71,7 @@ const schema: IJSONSchema = {
 		},
 		fileExtensions: {
 			type: 'object',
-			description: nls.localize('schema.fileExtensions', 'Associates file extensions to icons. The object key is the file extension name. The extension name is the last segment of a file name after the last dot (not including the dot). Extensions are compared case insensitive.'),
+			description: nls.localize('schema.fileExtensions', 'Associates file extensions to icons. The object key is the file extension name. The extension name is the last segment of a file name after the last dot (not including the dot). Extensions are compared case insensitive. Compound extensions with dots are supported (e.g. "test.ts" matches "foo.test.ts"). Underscore-suffixed extensions are also supported (e.g. "_test.go" matches "foo_test.go").'),
 
 			additionalProperties: {
 				type: 'string',
