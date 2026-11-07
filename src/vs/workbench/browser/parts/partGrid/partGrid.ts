@@ -536,7 +536,6 @@ export class PartGrid extends Disposable {
 				return;
 			}
 			this.setPointerOverCellAt(e.clientX + e.movementX, e.clientY + e.movementY);
-			this.markPointerTarget(undefined);
 		}, true));
 		// Out of the window from inside a webview, whose frame keeps its pointer events, the window has no pointerout
 		this._register(addDisposableListener(targetWindow.document.documentElement, EventType.MOUSE_LEAVE, e => this.setPointerOverCellAt(e.clientX, e.clientY)));
@@ -578,6 +577,7 @@ export class PartGrid extends Disposable {
 			return rect.width > 0 && rect.height > 0 && x >= rect.left && x < rect.right && y >= rect.top && y < rect.bottom;
 		});
 		this.setPointerOverCellOrChrome(cell);
+		this.markPointerTarget(undefined);
 	}
 
 	/** Whether the pointer is over what draws over a part, as {@link checkOverlayPointer} found, rather than over the window's elements. */
@@ -593,6 +593,7 @@ export class PartGrid extends Disposable {
 		if (anchor) {
 			this.pointerInOverlay = true;
 			this.setPointerOverCell(this.findCellAt(anchor));
+			this.markPointerTarget(undefined);
 			this.overlayPointerCheck.schedule(PART_GRID_OVERLAY_POINTER_POLL);
 		} else if (this.pointerInOverlay) {
 			this.pointerInOverlay = false;

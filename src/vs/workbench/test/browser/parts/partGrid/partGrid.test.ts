@@ -637,12 +637,27 @@ suite('Part Grid', () => {
 		const stillThere = showing();
 		pointerInWebview = false;
 		await timeout(300);
+		const leftTheWindow = showing();
 
-		assert.deepStrictEqual({ atOnce, once, stillThere, leftTheWindow: showing() }, {
+		// From the tabs of the main part into its own webview, again without an event of the window
+		const marksOfMain = () => ['top-strip', 'grabber'].filter(mark => cardOf('main').classList.contains(`part-grid-pointer-over-${mark}`));
+		const mainTab = cardOf('main').querySelector('.tabs-and-actions-container .tab')!;
+		mainTab.dispatchEvent(new PointerEvent('pointerover', { bubbles: true }));
+		mainTab.dispatchEvent(new PointerEvent('pointermove', { bubbles: true }));
+		const overMainTabs = { showing: showing(), marks: marksOfMain() };
+		pointerInWebview = true;
+		await timeout(150);
+		const inMainWebview = { showing: showing(), marks: marksOfMain() };
+		pointerInWebview = false;
+		await timeout(300);
+
+		assert.deepStrictEqual({ atOnce, once, stillThere, leftTheWindow, overMainTabs, inMainWebview }, {
 			atOnce: ['chat'],
 			once: ['main'],
 			stillThere: ['main'],
-			leftTheWindow: []
+			leftTheWindow: [],
+			overMainTabs: { showing: ['main'], marks: ['top-strip'] },
+			inMainWebview: { showing: ['main'], marks: [] },
 		});
 	});
 
