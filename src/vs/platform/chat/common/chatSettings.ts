@@ -7,7 +7,7 @@ export const ChatAIDisabledSettingId = 'chat.disableAIFeatures';
 
 /**
  * Gates the entire Copilot account-choice flow; off preserves EMU-only behavior.
- * The mirrored host value is requested configuration; consumers must capture one shared startup-effective value until VS Code restarts.
+ * The mirrored host value is requested configuration; AgentConfigurationService captures its effective value at host construction.
  */
 export const AgentHostCopilotM365EnabledSettingId = 'chat.agentHost.copilot.m365.enabled';
 
