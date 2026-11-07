@@ -72,6 +72,7 @@ suite('ChatContextUsageDetails', () => {
 			{ sessionCost: 1, sessionCostStatus: 'partial' },
 			{ sessionCost: 1 },
 			{ sessionCost: 0, sessionCostStatus: 'unavailable' },
+			{ sessionCostStatus: 'partial' },
 		];
 		const results = states.map(state => {
 			observable.set(data(state), undefined);
@@ -87,6 +88,7 @@ suite('ChatContextUsageDetails', () => {
 				{ visible: true, text: '0 credits' },
 				{ visible: true, text: '1 credit (partial)' },
 				{ visible: true, text: '1 credit (completeness not reported)' },
+				{ visible: true, text: 'Not reported' },
 				{ visible: true, text: 'Not reported' },
 			],
 			hidden: true,

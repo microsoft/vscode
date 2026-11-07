@@ -164,7 +164,7 @@ const requestSchema = Adapt.object<IChatRequestModel, ISerializableChatRequestDa
 	codeCitations: Adapt.v(m => m.response?.codeCitations, objectsEqual),
 	timeSpentWaiting: Adapt.v(m => m.response?.timestamp), // based on response timestamp
 	completionTokens: Adapt.v(m => m.response?.completionTokenCount),
-	lastCallCompletionTokens: Adapt.v(m => m.response?.usage && m.response.lastCallCompletionTokensKnown ? m.response.usage.completionTokens : undefined),
+	lastCallCompletionTokens: Adapt.v(m => m.response?.usage && m.response.lastCallCompletionTokensKnown ? m.response.usage.completionTokens ?? null : undefined, (a, b) => a === b),
 	promptTokens: Adapt.v(m => m.response?.usage?.promptTokens),
 	outputBuffer: Adapt.v(m => m.response?.usage?.outputBuffer),
 	promptTokenDetails: Adapt.v(m => m.response?.usage?.promptTokenDetails, objectsEqual),

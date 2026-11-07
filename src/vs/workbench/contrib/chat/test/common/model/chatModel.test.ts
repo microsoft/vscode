@@ -617,7 +617,63 @@ suite('ChatModel', () => {
 			[undefined, 0, 0, undefined],
 			[3, undefined, undefined, undefined],
 			[undefined, undefined, undefined, { credits: 0, status: undefined }],
-			[undefined, undefined, undefined, { credits: 0, status: 'unavailable' }],
+			[undefined, undefined, undefined, { credits: undefined, status: 'unavailable' }],
+		]);
+	});
+
+	test('preserves missing credits separately from measured zero and partial subtotals', () => {
+		const inputs: IChatUsage[] = [
+			{ kind: 'usage', sessionCopilotCreditsStatus: 'partial' },
+			{ kind: 'usage', copilotCredits: 0, sessionCopilotCreditsStatus: 'partial' },
+			{ kind: 'usage', copilotCredits: 0.5, sessionCopilotCreditsStatus: 'partial' },
+		];
+		const results = inputs.map(usage => {
+			const model = testDisposables.add(instantiationService.createInstance(ChatModel, undefined, { initialLocation: ChatAgentLocation.Chat, canUseTools: true }));
+			const request = model.addRequest({ text: 'usage', parts: [] }, { variables: [] }, 0);
+			model.acceptResponseProgress(request, usage);
+			const log = new ChatSessionOperationLog();
+			const saved = [
+				JSON.parse(JSON.stringify(model.toJSON())) as ISerializableChatData3,
+				log.read(log.createInitial(model)),
+			];
+			const restored = saved.map(value => testDisposables.add(instantiationService.createInstance(ChatModel,
+				{ value, serializer: undefined! }, { initialLocation: ChatAgentLocation.Chat, canUseTools: true })));
+			return [model, ...restored].map(item => item.sessionCostInfo);
+		});
+		assert.deepStrictEqual(results, [
+			[{ credits: undefined, status: 'partial' }, { credits: undefined, status: 'partial' }, { credits: undefined, status: 'partial' }],
+			[{ credits: 0, status: 'partial' }, { credits: 0, status: 'partial' }, { credits: 0, status: 'partial' }],
+			[{ credits: 0.5, status: 'partial' }, { credits: 0.5, status: 'partial' }, { credits: 0.5, status: 'partial' }],
+		]);
+	});
+
+	test('restores context-only usage without inventing token counters', () => {
+		const results = [0, 25].map(currentTokens => {
+			const model = testDisposables.add(instantiationService.createInstance(ChatModel, undefined, { initialLocation: ChatAgentLocation.Chat, canUseTools: true }));
+			const request = model.addRequest({ text: 'context', parts: [] }, { variables: [] }, 0);
+			model.acceptResponseProgress(request, { kind: 'usage', contextUsage: { currentTokens, tokenLimit: 100 } });
+			const log = new ChatSessionOperationLog();
+			return [JSON.parse(JSON.stringify(model.toJSON())) as ISerializableChatData3, log.read(log.createInitial(model))].map(value => {
+				const restored = testDisposables.add(instantiationService.createInstance(ChatModel,
+					{ value, serializer: undefined! }, { initialLocation: ChatAgentLocation.Chat, canUseTools: true }));
+				const response = restored.lastRequest?.response;
+				return {
+					context: response?.usage?.contextUsage,
+					input: response?.usage?.promptTokens,
+					output: response?.usage?.completionTokens,
+					totalOutput: response?.completionTokenCount,
+				};
+			});
+		});
+		assert.deepStrictEqual(results, [
+			[
+				{ context: { currentTokens: 0, tokenLimit: 100 }, input: undefined, output: undefined, totalOutput: undefined },
+				{ context: { currentTokens: 0, tokenLimit: 100 }, input: undefined, output: undefined, totalOutput: undefined },
+			],
+			[
+				{ context: { currentTokens: 25, tokenLimit: 100 }, input: undefined, output: undefined, totalOutput: undefined },
+				{ context: { currentTokens: 25, tokenLimit: 100 }, input: undefined, output: undefined, totalOutput: undefined },
+			],
 		]);
 	});
 
@@ -912,6 +968,45 @@ suite('ChatModel', () => {
 			olderSave: { latestCall: 250, total: 250, latestCallKnown: false },
 			olderResaved: undefined,
 		});
+	});
+
+	test('preserves known-missing latest output separately from aggregate output in both persistence paths', () => {
+		const results = [undefined, 0].map(completionTokens => {
+			const model = testDisposables.add(instantiationService.createInstance(ChatModel, undefined, { initialLocation: ChatAgentLocation.Chat, canUseTools: true }));
+			const request = model.addRequest({ text: 'two calls', parts: [] }, { variables: [] }, 0);
+			model.acceptResponseProgress(request, { kind: 'usage', promptTokens: 10, completionTokens: 4 });
+			const log = new ChatSessionOperationLog();
+			const initial = log.createInitial(model);
+			model.acceptResponseProgress(request, { kind: 'usage', promptTokens: 20, completionTokens });
+			const update = log.write(model);
+			log.confirmWrite();
+			const saved = [
+				JSON.parse(JSON.stringify(model.toJSON())) as ISerializableChatData3,
+				log.read(update.op === 'replace' ? update.data : VSBuffer.concat([initial, update.data])),
+			];
+			return saved.map(value => {
+				const restored = testDisposables.add(instantiationService.createInstance(ChatModel,
+					{ value, serializer: undefined! }, { initialLocation: ChatAgentLocation.Chat, canUseTools: true }));
+				const response = restored.lastRequest?.response;
+				return {
+					input: response?.usage?.promptTokens,
+					output: response?.usage?.completionTokens,
+					totalOutput: response?.completionTokenCount,
+					latestCallKnown: response?.lastCallCompletionTokensKnown,
+					resavedOutput: restored.toJSON().requests[0].lastCallCompletionTokens,
+				};
+			});
+		});
+		assert.deepStrictEqual(results, [
+			[
+				{ input: 20, output: undefined, totalOutput: 4, latestCallKnown: true, resavedOutput: null },
+				{ input: 20, output: undefined, totalOutput: 4, latestCallKnown: true, resavedOutput: null },
+			],
+			[
+				{ input: 20, output: 0, totalOutput: 4, latestCallKnown: true, resavedOutput: 0 },
+				{ input: 20, output: 0, totalOutput: 4, latestCallKnown: true, resavedOutput: 0 },
+			],
+		]);
 	});
 
 	test('the session total and the summed turns each provide a floor for session cost', () => {
