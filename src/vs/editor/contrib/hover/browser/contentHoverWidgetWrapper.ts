@@ -408,6 +408,10 @@ export class ContentHoverWidgetWrapper extends Disposable implements IHoverWidge
 		return this._renderedContentHover.value?.isColorPickerVisible() ?? false;
 	}
 
+	public get colorPickerRange(): Range | undefined {
+		return this._renderedContentHover.value?.getColorPickerRange();
+	}
+
 	public get isVisibleFromKeyboard(): boolean {
 		return this._contentHoverWidget.isVisibleFromKeyboard;
 	}
