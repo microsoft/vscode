@@ -656,6 +656,50 @@ suite('AsyncDataTree', function () {
 		assert(!tree.isCollapsed(a), 'a is expanded');
 	});
 
+	test('issue #331811 - node removed by reentrant refresh should not render', async () => {
+		const container = document.createElement('div');
+		const model = new Model({
+			id: 'root',
+			children: [{
+				id: 'a', children: [{
+					id: 'aa', children: [{ id: 'aaa' }]
+				}]
+			}]
+		});
+		const a = model.get('a');
+		const aa = model.get('aa');
+		let removeNode = false;
+		let ancestorRefresh: Promise<void> | undefined;
+		const dataSource = new class extends DataSource {
+			override hasChildren(element: Element): boolean {
+				if (element === aa && removeNode) {
+					removeNode = false;
+					ancestorRefresh = tree.updateChildren(a, true);
+				}
+				return super.hasChildren(element);
+			}
+		};
+
+		const tree = store.add(new CompressibleAsyncDataTree<Element, Element>('test', container, new VirtualDelegate(), { isIncompressible: () => true }, [new Renderer()], dataSource, { identityProvider: new IdentityProvider() }));
+		tree.layout(200);
+
+		await tree.setInput(model.root);
+		await tree.expand(a);
+		tree.collapse(a);
+
+		a.children = [];
+		// Reenter from hasChildren so the ancestor renders before the child's continuation.
+		removeNode = true;
+		const childRefresh = tree.updateChildren(aa, true);
+		assert.ok(ancestorRefresh);
+		await Promise.all([ancestorRefresh, childRefresh]);
+
+		assert.deepStrictEqual({
+			rows: Array.from(container.querySelectorAll('.monaco-list-row')).map(e => e.textContent),
+			hasChild: tree.hasNode(aa)
+		}, { rows: ['a'], hasChild: false });
+	});
+
 	test('issue #199441', async () => {
 		const container = document.createElement('div');
 
