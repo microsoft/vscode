@@ -38,7 +38,7 @@ import { IAuthenticationMcpUsageService } from '../../../../../services/authenti
 import { IAuthenticationService, type AuthenticationSession, type IAuthenticationProvider, type IAuthenticationProviderSessionOptions } from '../../../../../services/authentication/common/authentication.js';
 import { IDynamicAuthenticationProviderStorageService } from '../../../../../services/authentication/common/dynamicAuthenticationProviderStorage.js';
 import { CHAT_SETUP_ACTION_ID } from '../../../browser/actions/chatActions.js';
-import { AgentHostAuthenticationRecovery, authenticateCopilotConnectorCredential, autoAuthenticateMcpServer, authenticateProtectedResources, resolveAuthenticationInteractively, resolveSessionForResource, AgentHostAuthTokenCache, agentHostMcpServerId, resolveMcpServerAuthentication, modelRequiresAgentAuthentication, revokeAuthenticationForRemovedSessions, selectAuthenticationSession, type AuthenticationSessionSelection, type IAgentHostAuthenticationOptions, type IAgentHostAuthenticateRequest, AgentHostInteractiveAuthentication } from '../../../browser/agentSessions/agentHost/agentHostAuth.js';
+import { AgentHostAuthenticationRecovery, authenticateCopilotConnectorCredential, autoAuthenticateMcpServer, authenticateProtectedResources, resolveAuthenticationInteractively, resolveSessionForResource, AgentHostAuthTokenCache, agentHostMcpServerId, resolveMcpServerAuthentication, modelRequiresAgentAuthentication, revokeAuthenticationForRemovedSessions, selectAuthenticationSession, getStaleSelectedModelId, type AuthenticationSessionSelection, type IAgentHostAuthenticationOptions, type IAgentHostAuthenticateRequest, AgentHostInteractiveAuthentication } from '../../../browser/agentSessions/agentHost/agentHostAuth.js';
 import { createAgentModelByokMeta } from '../../../../../../platform/agentHost/common/agentModelByokMeta.js';
 
 const mcpAuthenticationTarget: McpServerAuthenticateTarget = {
@@ -2195,6 +2195,43 @@ suite('modelRequiresAgentAuthentication', () => {
 			optionalResourceUnknown: true,
 			optionalResourceWithoutByok: false,
 			noProtectedResource: false,
+		});
+	});
+});
+
+suite('getStaleSelectedModelId', () => {
+
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	const requiredResource: ProtectedResourceMetadata = { resource: 'https://api.github.com', required: true };
+	const byokModel = {
+		id: 'gemini/gemini-2.5-pro',
+		_meta: createAgentModelByokMeta('gemini/Gemini/gemini-2.5-pro'),
+	};
+	const copilotModel = { id: 'gpt-5' };
+	const agent = {
+		models: [byokModel, copilotModel],
+		protectedResources: [requiredResource],
+	} as AgentInfo;
+	const agentWithoutByok = { ...agent, models: [copilotModel] } as AgentInfo;
+
+	test('stale only for an unknown id on an agent with protected resources', () => {
+		assert.deepStrictEqual({
+			stale: getStaleSelectedModelId(agent, { id: 'removed-model' }),
+			knownByok: getStaleSelectedModelId(agent, { id: byokModel.id }),
+			knownCopilot: getStaleSelectedModelId(agent, { id: copilotModel.id }),
+			noSelection: getStaleSelectedModelId(agent, undefined),
+			withoutByokModels: getStaleSelectedModelId(agentWithoutByok, { id: 'removed-model' }),
+			noProtectedResource: getStaleSelectedModelId({ ...agent, protectedResources: [] }, { id: 'removed-model' }),
+			noAgent: getStaleSelectedModelId(undefined, { id: 'removed-model' }),
+		}, {
+			stale: 'removed-model',
+			knownByok: undefined,
+			knownCopilot: undefined,
+			noSelection: undefined,
+			withoutByokModels: 'removed-model',
+			noProtectedResource: undefined,
+			noAgent: undefined,
 		});
 	});
 });
