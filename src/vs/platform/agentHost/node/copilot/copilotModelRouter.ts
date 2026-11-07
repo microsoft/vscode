@@ -343,24 +343,27 @@ function finalResponseText(turn: Turn): string {
 }
 
 /**
- * The model and effort the chat last ran on, and the router the chat was last on. A router
- * selected later that couldn't route (one with errors, say) still counts as the chat's router,
- * so selecting the earlier one again routes afresh.
+ * The model and effort the chat last ran on, and the router that picked them. A pick counts as
+ * that router's only while no other selection came after it: a later turn that selected another
+ * router but couldn't route (one with errors, say) means the next router to run routes afresh.
  */
 function lastSelectionOf(turns: readonly Turn[]): { readonly model: string; readonly effort: string | undefined; readonly router?: string } | undefined {
-	let unroutedRouter: string | undefined;
+	const unroutedRouters = new Set<string>();
 	for (let i = turns.length - 1; i >= 0; i--) {
 		const routed = readUsageInfoMeta(turns[i].usage).modelRouted;
 		if (routed) {
-			return { model: routed.chosenModel, effort: routed.effort, router: unroutedRouter ?? routed.router };
+			const ownPick = [...unroutedRouters].every(name => name === routed.router);
+			return { model: routed.chosenModel, effort: routed.effort, ...(ownPick ? { router: routed.router } : {}) };
 		}
 		const requested = turns[i].message.model;
 		const requestedRouter = modelRouterNameFromModelId(requested?.id);
 		if (requested && !requestedRouter) {
 			const effort = requested.config?.[ReasoningEffortConfigKey];
-			return { model: requested.id, effort: typeof effort === 'string' ? effort : undefined, ...(unroutedRouter ? { router: unroutedRouter } : {}) };
+			return { model: requested.id, effort: typeof effort === 'string' ? effort : undefined };
 		}
-		unroutedRouter ??= requestedRouter;
+		if (requestedRouter) {
+			unroutedRouters.add(requestedRouter);
+		}
 	}
 	return undefined;
 }

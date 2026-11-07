@@ -123,4 +123,17 @@ suite('CopilotModelRouter', () => {
 			followUps: picker.requests.map(r => !!r.followUp),
 		}, { selections: ['opus', 'opus'], switchedFrom: ['haiku', 'haiku'], followUps: [false, false] });
 	});
+
+	test('a pick stays its router\'s only while no other router was selected after it', async () => {
+		const picker = new FakePicker({ model: 'opus', confidence: 0.9, probabilities: { opus: 0.9, haiku: 0.1 } });
+		const unrouted = (router: string) => ({ ...routedTurn({ router, chosenModel: 'x' }), usage: undefined, message: { text: 'earlier', origin: { kind: MessageKind.User }, model: { id: `model-router:${router}` } } } as Turn);
+		const file = routerFile('switching: first-turn\n');
+		const afterOtherFailed = await resolve({ file, picker, previousTurns: [routedTurn({ router: 'daily', chosenModel: 'haiku' }), unrouted('other')] });
+		const repairedAfterOtherPicked = await resolve({ file, picker, previousTurns: [routedTurn({ router: 'other', chosenModel: 'haiku' }), unrouted('daily')] });
+		const afterOwnFailed = await resolve({ file, picker, previousTurns: [routedTurn({ router: 'daily', chosenModel: 'haiku' }), unrouted('daily')] });
+		assert.deepStrictEqual({
+			selections: [afterOtherFailed.selection?.id, repairedAfterOtherPicked.selection?.id, afterOwnFailed.selection?.id],
+			picks: picker.requests.length,
+		}, { selections: ['opus', 'opus', 'haiku'], picks: 2 });
+	});
 });
