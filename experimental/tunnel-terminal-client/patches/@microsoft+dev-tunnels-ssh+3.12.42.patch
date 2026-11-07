@@ -1,0 +1,46 @@
+diff --git a/node_modules/@microsoft/dev-tunnels-ssh/algorithms/node/nodeRsa.js b/node_modules/@microsoft/dev-tunnels-ssh/algorithms/node/nodeRsa.js
+index 7ef8fe3..cee4255 100644
+--- a/node_modules/@microsoft/dev-tunnels-ssh/algorithms/node/nodeRsa.js
++++ b/node_modules/@microsoft/dev-tunnels-ssh/algorithms/node/nodeRsa.js
+@@ -13,6 +13,15 @@ const keyFormatters_1 = require("./keyFormatters");
+ const nodeVersionParts = process.versions.node.split('.').map((v) => parseInt(v, 10));
+ const nodeGenerateKeyPairSupport = nodeVersionParts[0] > 10 || (nodeVersionParts[0] === 10 && nodeVersionParts[1] >= 12);
+ const nodeKeyObjectSupport = nodeVersionParts[0] > 11 || (nodeVersionParts[0] === 11 && nodeVersionParts[1] >= 6);
++// Normalize through SPKI so Node 24/OpenSSL 3.5 can re-export imported RSA public keys.
++function importRsaPublicKey(key) {
++    const publicKey = crypto.createPublicKey({ key, type: 'pkcs1', format: 'der' });
++    return crypto.createPublicKey({
++        key: publicKey.export({ type: 'spki', format: 'der' }),
++        type: 'spki',
++        format: 'der',
++    });
++}
+ // Note this is exposed as an inner-class property below: `NodeRsa.KeyPair`.
+ // TypeScript requires that the class definition comes first.
+ class NodeRsaKeyPair {
+@@ -120,11 +129,7 @@ class NodeRsaKeyPair {
+         // Write public key in PKCS#1 format.
+         keyBytes = keyFormatters_1.Pkcs1KeyFormatter.formatRsaPublic({ modulus, exponent });
+         if (nodeKeyObjectSupport) {
+-            this.publicKey = crypto.createPublicKey({
+-                key: keyBytes,
+-                type: 'pkcs1',
+-                format: 'der',
+-            });
++            this.publicKey = importRsaPublicKey(keyBytes);
+         }
+         else {
+             this.publicKey = (0, keyFormatters_1.formatPem)(keyBytes, 'RSA PUBLIC KEY');
+@@ -159,11 +164,7 @@ class NodeRsaKeyPair {
+     }
+     async importParameters(parameters) {
+         if (nodeKeyObjectSupport) {
+-            this.publicKey = crypto.createPublicKey({
+-                key: keyFormatters_1.Pkcs1KeyFormatter.formatRsaPublic(parameters),
+-                format: 'der',
+-                type: 'pkcs1',
+-            });
++            this.publicKey = importRsaPublicKey(keyFormatters_1.Pkcs1KeyFormatter.formatRsaPublic(parameters));
+             if (parameters.d) {
+                 this.privateKey = crypto.createPrivateKey({
+                     key: keyFormatters_1.Pkcs1KeyFormatter.formatRsaPrivate(parameters),
