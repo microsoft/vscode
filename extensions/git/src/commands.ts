@@ -2458,9 +2458,15 @@ export class CommandCenter {
 			}
 		}
 
-		// Enable signing of commits if the setting is enabled. If the setting is not enabled,
-		// we set the option to undefined so that we let git use the repository/global config.
-		opts.signCommit = config.get<boolean>('enableCommitSigning') === true ? true : undefined;
+		// Enable signing of commits if the setting is enabled, unless signing has been explicitly
+		// disabled in the repository config. Otherwise, we set the option to undefined so that we
+		// let git use the repository/global config.
+		opts.signCommit = undefined;
+
+		if (config.get<boolean>('enableCommitSigning') === true) {
+			const commitGpgSign = await repository.getConfig('commit.gpgsign', 'bool');
+			opts.signCommit = commitGpgSign === 'false' ? undefined : true;
+		}
 
 		if (config.get<boolean>('alwaysSignOff')) {
 			opts.signoff = true;
