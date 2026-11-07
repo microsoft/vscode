@@ -13,6 +13,7 @@ import { combinedDisposable, Disposable, DisposableMap, DisposableStore, IDispos
 import { autorun, derived, derivedOpts, IObservable, ITransaction, observableValue, transaction } from '../../../../base/common/observable.js';
 import { arrayEqualsC } from '../../../../base/common/equals.js';
 import { isEqual } from '../../../../base/common/resources.js';
+import { DeepPartial } from '../../../../base/common/types.js';
 import { URI } from '../../../../base/common/uri.js';
 import { localize } from '../../../../nls.js';
 import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
@@ -22,7 +23,7 @@ import { ServiceCollection } from '../../../../platform/instantiation/common/ser
 import { IStorageService } from '../../../../platform/storage/common/storage.js';
 import { IEditorGroupView, IEditorGroupViewOptions } from '../../../browser/parts/editor/editor.js';
 import { IsAuxiliaryWindowContext } from '../../../common/contextkeys.js';
-import { EditorCloseContext, EditorsOrder, GroupIdentifier } from '../../../common/editor.js';
+import { EditorCloseContext, EditorsOrder, GroupIdentifier, IEditorPartOptions } from '../../../common/editor.js';
 import { EditorInput } from '../../../common/editor/editorInput.js';
 import { IAuxiliaryWindowService } from '../../../services/auxiliaryWindow/browser/auxiliaryWindowService.js';
 import { bindEditorPartsToWindow } from '../../../services/editor/browser/editorPartWindowBinding.js';
@@ -31,7 +32,7 @@ import { IHostService } from '../../../services/host/browser/host.js';
 import { ILifecycleService } from '../../../services/lifecycle/common/lifecycle.js';
 import { ChatWindowLayoutMode, ChatWindowSplitLayout, ChatWindowTerminalPosition } from '../common/chatWindowLayout.js';
 import { ChatWindowChatLayouts, ChatWindowChatSizes, ChatWindowDefaults, ChatWindowState } from '../common/chatWindowState.js';
-import { IChatWindow, IChatWindowChat, IChatWindowChatPart, IChatWindowContent, IChatWindowEditors, IChatWindowNewChatOptions, IChatWindowOpenOptions, IChatWindowProvider, IChatWindowService } from './chatWindow.js';
+import { CHAT_PART_OPTIONS, IChatWindow, IChatWindowChat, IChatWindowChatPart, IChatWindowContent, IChatWindowEditors, IChatWindowNewChatOptions, IChatWindowOpenOptions, IChatWindowProvider, IChatWindowService } from './chatWindow.js';
 import { bindWindowLayoutContext, bindWindowTerminalsContext } from './chatWindowContextKeys.js';
 import { captureChatPart, deserializeChatWindowEditors, getRestoredChatGroup, reopenChatWindow, serializeChatWindowEditorsBesideChat } from './chatWindowEditors.js';
 import { InFlightOperations, openCleaningUpOnFailure } from './chatWindowOpening.js';
@@ -71,6 +72,14 @@ export function getChatPartGroupViewOptions(mainPartGroupViewOptions: IEditorGro
 		menuIds = withoutAddTab;
 	}
 	return { ...mainPartGroupViewOptions, menuIds, showHeaderFor: editor => !(editor && isChat(editor)) && (showHeaderFor?.(editor) ?? true) };
+}
+
+/** Enforces the options of a chat window's chat part on it: those of its main part, as they change, and {@link CHAT_PART_OPTIONS}. */
+export function enforceChatPartOptions(part: IContentPart, mainPartOptions: IObservable<DeepPartial<IEditorPartOptions>> | undefined): IDisposable {
+	const store = new DisposableStore();
+	const enforced = store.add(new MutableDisposable());
+	store.add(autorun(reader => enforced.value = part.enforcePartOptions({ ...mainPartOptions?.read(reader), ...CHAT_PART_OPTIONS })));
+	return store;
 }
 
 /** The size of a chat window when it opens. */
@@ -1063,11 +1072,10 @@ export class ChatWindowService extends Disposable implements IChatWindowService 
 		const chatPart = this._editorGroupsService.createEditorPart({ container: chatPartElement, label: localize('chatWindow.chatPart', "Chat"), services, state: options?.chatPart?.state, groupViewOptions: getChatPartGroupViewOptions(look.mainPartGroupViewOptions, editor => !!window?.isChatEditor(editor) || editor === firstChat.input) });
 		if (look.mainPartOptions) {
 			const mainPartOptions = look.mainPartOptions;
-			for (const part of [mainPart, chatPart]) {
-				const enforced = disposables.add(new MutableDisposable());
-				disposables.add(autorun(reader => enforced.value = part.enforcePartOptions(mainPartOptions.read(reader))));
-			}
+			const enforced = disposables.add(new MutableDisposable());
+			disposables.add(autorun(reader => enforced.value = mainPart.enforcePartOptions(mainPartOptions.read(reader))));
 		}
+		disposables.add(enforceChatPartOptions(chatPart, look.mainPartOptions));
 		chatPartElement.setAttribute('role', 'main');
 		const mainPartContextKeyService = this._editorGroupsService.getScopedInstantiationService(mainPart).invokeFunction(accessor => accessor.get(IContextKeyService));
 		disposables.add(bindChatWindowPartsVisible(windowContextKeyService, mainPartContextKeyService, state.layoutMode));

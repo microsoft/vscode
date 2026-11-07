@@ -5,7 +5,7 @@
 
 import assert from 'assert';
 import { setARIAContainer } from '../../../../../base/browser/ui/aria/aria.js';
-import { $, addDisposableListener, append, registerWindow } from '../../../../../base/browser/dom.js';
+import { $, addDisposableListener, append, registerWindow, scheduleAtNextAnimationFrame } from '../../../../../base/browser/dom.js';
 import { ensureCodeWindow, mainWindow } from '../../../../../base/browser/window.js';
 import { timeout } from '../../../../../base/common/async.js';
 import { errorHandler } from '../../../../../base/common/errors.js';
@@ -38,6 +38,7 @@ import { IAuxiliaryWindowService } from '../../../../services/auxiliaryWindow/br
 import { GroupDirection, IContentPart, IEditorGroupsService } from '../../../../services/editor/common/editorGroupsService.js';
 import { IWorkbenchLayoutService } from '../../../../services/layout/browser/layoutService.js';
 import { createEditorParts, registerTestEditor, TestEditorParts, TestFileEditorInput, workbenchInstantiationService } from '../../workbenchTestServices.js';
+import '../../../../contrib/modernUI/browser/media/tabs.css';
 
 suite('Part Grid', () => {
 
@@ -636,12 +637,27 @@ suite('Part Grid', () => {
 		const stillThere = showing();
 		pointerInWebview = false;
 		await timeout(300);
+		const leftTheWindow = showing();
 
-		assert.deepStrictEqual({ atOnce, once, stillThere, leftTheWindow: showing() }, {
+		// From the tabs of the main part into its own webview, again without an event of the window
+		const marksOfMain = () => ['top-strip', 'grabber'].filter(mark => cardOf('main').classList.contains(`part-grid-pointer-over-${mark}`));
+		const mainTab = cardOf('main').querySelector('.tabs-and-actions-container .tab')!;
+		mainTab.dispatchEvent(new PointerEvent('pointerover', { bubbles: true }));
+		mainTab.dispatchEvent(new PointerEvent('pointermove', { bubbles: true }));
+		const overMainTabs = { showing: showing(), marks: marksOfMain() };
+		pointerInWebview = true;
+		await timeout(150);
+		const inMainWebview = { showing: showing(), marks: marksOfMain() };
+		pointerInWebview = false;
+		await timeout(300);
+
+		assert.deepStrictEqual({ atOnce, once, stillThere, leftTheWindow, overMainTabs, inMainWebview }, {
 			atOnce: ['chat'],
 			once: ['main'],
 			stillThere: ['main'],
-			leftTheWindow: []
+			leftTheWindow: [],
+			overMainTabs: { showing: ['main'], marks: ['top-strip'] },
+			inMainWebview: { showing: ['main'], marks: [] },
 		});
 	});
 
@@ -677,6 +693,71 @@ suite('Part Grid', () => {
 			overDragRegion: ['chat'],
 			afterQuiet: ['chat'],
 			leftTheWindow: []
+		});
+	});
+
+	test('the grabber and the top tab scrollbar of a card make way for each other: the card is marked while the pointer is over its tabs or its grabber, which hides the other, without moving anything', async () => {
+		const parts = await createParts();
+		const container = boxAt(0, 0, 600, 400);
+		container.classList.add('monaco-workbench', 'modern-ui-tabs', 'disable-animations');
+		const grid = disposables.add(new PartGrid(container, parts));
+		const [main, chat] = [createPart(parts), createPart(parts)];
+		for (let i = 0; i < 8; i++) {
+			await openEditor(main, `/a-long-editor-name-to-overflow-the-tabs-${i}.txt`);
+		}
+		await openEditor(chat, '/chat.txt');
+		grid.addPart('main', main);
+		grid.addPart('chat', chat, { reference: 'main', direction: Direction.Right });
+		grid.layout(600, 400);
+		for (let frame = 0; frame < 2; frame++) {
+			await new Promise<void>(resolve => disposables.add(scheduleAtNextAnimationFrame(mainWindow, () => resolve())));
+		}
+
+		const cardOf = (id: string) => container.querySelector<HTMLElement>(`[data-part-grid-cell="${id}"] > .part-grid-card`)!;
+		const grabber = cardOf('main').querySelector<HTMLElement>(':scope > .part-grid-drag-handle')!;
+		const scrollable = cardOf('main').querySelector<HTMLElement>('.tabs-and-actions-container > .monaco-scrollable-element')!;
+		const scrollbar = scrollable.querySelector<HTMLElement>(':scope > .scrollbar.horizontal')!;
+		const body = cardOf('main').querySelector<HTMLElement>('.editor-container')!;
+		const geometry = () => JSON.stringify([cardOf('main'), grabber, scrollable, scrollbar, body].map(element => element.getBoundingClientRect()));
+		const state = () => ({
+			marks: Object.fromEntries(['main', 'chat'].map(id => [id, ['top-strip', 'grabber'].filter(mark => cardOf(id).classList.contains(`part-grid-pointer-over-${mark}`))])),
+			grabberOpacity: mainWindow.getComputedStyle(grabber).opacity,
+			scrollbarOpacity: mainWindow.getComputedStyle(scrollbar).opacity,
+		});
+		const over = (target: Element) => {
+			target.dispatchEvent(new PointerEvent('pointerover', { bubbles: true }));
+			return state();
+		};
+		const initialGeometry = geometry();
+
+		// Over the tabs, which reveals their scrollbar at the top edge of the card
+		scrollable.dispatchEvent(new MouseEvent('mouseover', { bubbles: true }));
+		const overTabs = over(scrollable.querySelector('.tab')!);
+		const tabsGeometry = geometry();
+		const overGrabber = over(grabber);
+		const grabberGeometry = geometry();
+		const overBody = over(body);
+		const overOtherTabs = over(cardOf('chat').querySelector('.tabs-and-actions-container .tab')!);
+		cardOf('chat').dispatchEvent(new PointerEvent('pointerout', { bubbles: true, relatedTarget: null, clientX: -10, clientY: -10 }));
+		const leftTheWindow = state().marks;
+
+		// With animations, the scrollbar fades out as the pointer leaves the tabs, but not over the grabber, which it hides at once
+		container.classList.remove('disable-animations');
+		scrollable.dispatchEvent(new MouseEvent('mouseleave'));
+		over(body);
+		const fadeOverBody = mainWindow.getComputedStyle(scrollbar).transitionDuration;
+		over(grabber);
+		const fadeOverGrabber = mainWindow.getComputedStyle(scrollbar).transitionDuration;
+
+		assert.deepStrictEqual({ overTabs, overGrabber, overBody, overOtherTabs, leftTheWindow, geometryUnchanged: [tabsGeometry, grabberGeometry].every(g => g === initialGeometry), fadeOverBody, fadeOverGrabber }, {
+			overTabs: { marks: { main: ['top-strip'], chat: [] }, grabberOpacity: '0', scrollbarOpacity: '1' },
+			overGrabber: { marks: { main: ['grabber'], chat: [] }, grabberOpacity: '1', scrollbarOpacity: '0' },
+			overBody: { marks: { main: [], chat: [] }, grabberOpacity: '1', scrollbarOpacity: '1' },
+			overOtherTabs: { marks: { main: [], chat: ['top-strip'] }, grabberOpacity: '0', scrollbarOpacity: '1' },
+			leftTheWindow: { main: [], chat: [] },
+			geometryUnchanged: true,
+			fadeOverBody: '0.8s',
+			fadeOverGrabber: '0s',
 		});
 	});
 

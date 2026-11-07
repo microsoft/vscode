@@ -65,6 +65,8 @@ export interface ICanvasContext {
 	 * the owner's host cannot close canvases.
 	 */
 	readonly closeCanvas?: (canvas: ICanvas) => Promise<void>;
+	/** Whether the owner's canvases open without taking focus or the active tab, as their chat is not the focused one. */
+	readonly background?: boolean;
 }
 
 export interface ICanvasOpenRequest {

@@ -48,7 +48,7 @@ import { IResolvedSessionPullRequest, SessionPullRequestPresentationModel } from
 import { ISessionChatPillVisibilityService, SESSION_CHAT_PILL_KINDS, SessionChatPillKind } from '../../../chat/common/sessionChatPills.js';
 import { getWindowHost, ISessionHost, SessionHostKind } from '../../../../services/sessions/browser/sessionHost.js';
 import { ISessionsService } from '../sessionsService.js';
-import { BRANCH_CHANGES_CHANGESET_ID, ChatOriginKind, IChat, ISession, SESSION_CHANGES_CHANGESET_ID, type IGitHubIssueRef, type IGitHubPullRequestRef, type ISessionWorkspace } from '../../../../services/sessions/common/session.js';
+import { BRANCH_CHANGES_CHANGESET_ID, ChatOriginKind, IChat, ISession, isWorkspacelessQuickChat, SESSION_CHANGES_CHANGESET_ID, type IGitHubIssueRef, type IGitHubPullRequestRef, type ISessionWorkspace } from '../../../../services/sessions/common/session.js';
 import { ISessionsManagementService } from '../../common/sessionsManagement.js';
 import { ISessionsProvidersService } from '../sessionsProvidersService.js';
 import { logSessionArtifactOpen } from '../../common/sessionsTelemetry.js';
@@ -307,7 +307,8 @@ export function computeSessionInputPillStats(session: ISession | undefined, chat
 	}
 	const mainChat = session?.mainChat?.read(reader);
 	const isMainChat = mainChat && chat && isEqual(mainChat.resource, chat.resource);
-	return (isMainChat && session ? changesStatsCache?.get(session.sessionId, reader) : undefined) ?? EMPTY_DIFF_STATS;
+	// A workspace-less quick chat reports no changes of its own: the session's are those of its chats that work in folders.
+	return (isMainChat && session && !isWorkspacelessQuickChat(session, chat, reader) ? changesStatsCache?.get(session.sessionId, reader) : undefined) ?? EMPTY_DIFF_STATS;
 }
 
 /**
