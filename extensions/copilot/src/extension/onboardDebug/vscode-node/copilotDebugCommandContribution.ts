@@ -131,7 +131,20 @@ export class CopilotDebugCommandContribution extends Disposable implements vscod
 		if (this.chatSessionsUriHandler.canHandleUri(uri)) {
 			return this.chatSessionsUriHandler.handleUri(uri);
 		}
-		const pipePath = process.platform === 'win32' ? '\\\\.\\pipe\\' + uri.path.slice(1) : uri.path;
+		// The URI arrives from the untrusted external-URI boundary ($handleExternalUri),
+		// so any app or website can invoke this handler with an arbitrary payload. A URI
+		// without a usable path (e.g. `vscode://GitHub.copilot-chat/` or one with only
+		// leading slashes like `//`) yields an empty pipe name, which `net.connect`
+		// misinterprets as an (invalid) port and throws
+		// `RangeError: Port should be >= 0 and < 65536`. Strip leading slashes and reject
+		// the URI when nothing usable remains. Only the authority is logged (never the full
+		// URI) to avoid leaking query/fragment payloads from the untrusted caller.
+		const pipeName = uri.path.replace(/^\/+/, '');
+		if (!pipeName) {
+			this.logService.warn(`Ignoring copilot-debug URI without a pipe path (authority: ${uri.authority || 'none'})`);
+			return;
+		}
+		const pipePath = process.platform === 'win32' ? '\\\\.\\pipe\\' + pipeName : uri.path;
 		const cts = new CancellationTokenSource();
 
 		const queryParams = new URLSearchParams(uri.query);
