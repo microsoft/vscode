@@ -179,8 +179,8 @@ export class SessionCanvasContextService extends Disposable implements ICanvasCo
 	}
 
 	/** A chat window shows the canvases of the chats it shows, in any of its groups, whichever of its chats is active. */
-	canPresentInGroup(owner: ICanvasOwner, group: IEditorGroup): boolean {
-		const chats = this.chatWindowService.getWindow(group.windowId)?.chats.get() ?? [];
+	canPresentInGroup(owner: ICanvasOwner, group: IEditorGroup, reader?: IReader): boolean {
+		const chats = this.chatWindowService.windows.read(reader).find(window => window.windowId === group.windowId)?.chats.read(reader) ?? [];
 		return chats.some(chat => isEqual(chat, owner.chat));
 	}
 
