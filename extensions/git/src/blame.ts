@@ -379,7 +379,12 @@ export class GitBlameController {
 	@throttle
 	private async _updateTextEditorBlameInformation(textEditor: TextEditor | undefined, reason?: 'selection'): Promise<void> {
 		if (textEditor) {
-			if (!textEditor.diffInformation || textEditor !== window.activeTextEditor) {
+			if (textEditor !== window.activeTextEditor) {
+				return;
+			}
+
+			if (!textEditor.diffInformation) {
+				this.textEditorBlameInformation = undefined;
 				return;
 			}
 		} else {
@@ -389,6 +394,7 @@ export class GitBlameController {
 
 		const repository = this._model.getRepository(textEditor.document.uri);
 		if (!repository || !repository.HEAD?.commit) {
+			this.textEditorBlameInformation = undefined;
 			return;
 		}
 
@@ -483,7 +489,12 @@ export class GitBlameController {
 
 		// Git blame information
 		const resourceBlameInformation = await this._getBlameInformation(textEditor.document.uri, commit);
+		if (textEditor !== window.activeTextEditor) {
+			return;
+		}
+
 		if (!resourceBlameInformation) {
+			this.textEditorBlameInformation = undefined;
 			return;
 		}
 
