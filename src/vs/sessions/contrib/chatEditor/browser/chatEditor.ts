@@ -325,16 +325,17 @@ export class ChatEditorView extends Disposable implements IViewEditorView {
 		if (!host) {
 			return;
 		}
-		this._register(host.attach(sessionView));
-		this._register(autorun(reader => sessionView.setComposer(host.composer?.read(reader))));
-		this._register(autorun(reader => sessionView.setContent(host.content.read(reader))));
 		// Without the chat, such as while its window shows only its main part, or while another editor beside it, as a tab,
-		// shows, its view is hidden; as with what hosts it hidden, its Session Activity Bar can still show outside of it.
+		// shows, its view is hidden; as with what hosts it hidden, its Session Activity Bar can still show outside of it. Its
+		// host sees it shown or hidden from the moment the view attaches, such as to mark its chat read only while it shows.
 		this._register(autorun(reader => {
 			const mode = host.window.read(reader)?.layoutMode.read(reader);
 			const visible = mode !== ChatWindowLayoutMode.EditorOnly && this._visible.read(reader);
 			sessionView.setVisible(visible, visible);
 		}));
+		this._register(host.attach(sessionView));
+		this._register(autorun(reader => sessionView.setComposer(host.composer?.read(reader))));
+		this._register(autorun(reader => sessionView.setContent(host.content.read(reader))));
 		this._register(autorun(reader => sessionView.setActive(host.active.read(reader))));
 	}
 
