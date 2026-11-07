@@ -157,7 +157,7 @@ How rounded - and how raised - a surface is *means something*: it tells you wher
 
 Equivalent elements must look equivalent, because they pull from the same named scale. When two similar things differ, that difference should *mean* something; accidental drift is the enemy. This is why every size, radius, weight, and color is a **named token with a role**, not a literal - the literal is only ever a stand-in for the token it lands on.
 
-*Carried out by:* every move below - they *are* the shared scales. See especially [design tokens](#design-tokens), [the spacing ramp](#spacing-ramp), [the type ramp](#type-ramp), [icon sizes](#icon-sizes), [one stroke](#one-stroke).
+*Carried out by:* every move below - they *are* the shared scales. See especially [pattern decisions & prior-art](#pattern-decisions), [design tokens](#design-tokens), [the spacing ramp](#spacing-ramp), [the type ramp](#type-ramp), [icon sizes](#icon-sizes), [one stroke](#one-stroke).
 
 > **Worked example - two mismatched dialogs**
 > - **See:** two dialogs open side by side; one has 8px corners, the other 6px - both are floating overlays.
@@ -277,12 +277,70 @@ Chrome that used to carry a permanent fill now reads transparent at rest and onl
 
 ---
 
+<a id="pattern-decisions"></a>
+## Pattern decisions: consistency by default, intentional divergence
+
+VS Code is built by many contributors across many surfaces over time. Without explicit guidance on prior art and reuse, UI either accumulates accidental variation by copy-pasting outdated code, or drifts through uncoordinated reinvention.
+
+The operating rule is **consistency by default, intentional divergence**:
+
+> When introducing or changing a visual or interaction pattern, start by inspecting analogous experiences and canonical guidance. Reuse shared semantics, behavior, and component contracts when their roles match. Diverge when an explicit user need, accessibility requirement, simplification, or current design direction calls for it — and make that reason explicit.
+
+### Existing code is evidence, not authority
+
+When building or reviewing UI, existing code shows what was done historically, but it is **not authority for what should be done now**:
+
+- **Distinguish stable contracts from accidental presentation:** An existing component may carry historical decisions, local hacks, or styling overrides from its original host container (e.g. legacy padding, hardcoded title sizes, or non-standard border radii) that do not belong in a new context.
+- **Do not copy legacy debt:** Avoid preserving known debt, deprecated patterns, missing accessibility affordances, or accidental styling simply because another file uses them.
+- **Inspect call sites in context:** Check how a component behaves across different hosts (e.g. a standalone chip versus an item within a collection) to understand its core role versus its incidental host styling.
+
+### The proportional prior-art workflow
+
+A prior-art check should be concrete and lightweight. Routine changes do not require formal reports or exhaustive searches. Proportion the effort to the novelty and impact of the change:
+
+1. **Search for prior art:** Look for existing components, patterns, and meaningful call sites serving similar user tasks — do not rely on a single screenshot or memory.
+2. **Inspect analogous surfaces:** Observe how comparable workbench or editor features handle identity, hierarchy, interaction, and density.
+3. **Compare dimensions independently:**
+   - *Semantics & content:* Does this represent the same conceptual entity?
+   - *Hierarchy:* Does the title/description prominence match analogous surfaces?
+   - *Interaction & focus:* Do keyboard navigation, focus indicators, and click targets behave consistently?
+   - *Accessibility:* Are ARIA roles, labels, and contrast standards met?
+   - *Density & chrome:* Does padding, stroke, and outer radius match the surface's elevation tier?
+4. **Render in context & test fixtures:** Use component fixtures or real host paths to verify appearance rather than recomposing bespoke one-off wrappers.
+5. **Test stress states:** Check edge cases early: empty states, long text/labels, light/dark/high-contrast themes, keyboard-only operation, and screen readers.
+6. **Check computed ownership:** When spacing or borders look wrong, inspect parent/child boundaries before adding CSS overrides (e.g. double padding caused by container plus child inset).
+
+### When divergence is earned
+
+Consistency by default does not mean rigid uniformity or forced abstraction. Divergence is justified and encouraged when it serves:
+
+- **Accessibility improvements:** Adding necessary ARIA attributes, keyboard support, or contrast that older surfaces lacked.
+- **Modernization & simplification:** Adopting the modern Values→Principles→Moves design language, eliminating unneeded chrome, or moving to standard tokens.
+- **Genuine product differences:** Adapting density or presentation to match different contexts (e.g. an inline editor chip vs an auxiliary window header).
+- **Deliberate experimentation:** Clearly scoped, intentional experiments testing a new interaction model or user experience.
+
+When you intentionally diverge, state the reason clearly in your PR or design review:
+> *Review prompt:* **What is reused, what intentionally differs, and what user need earns the difference?**
+
+### Customer learning load
+
+Every unnecessary visual or interaction variant forces the user to learn and remember a distinction that provides no value. Ask:
+
+> *If the same user concept appears through two different paths, what difference does the user need to learn, and what useful job does that difference perform?*
+
+If the answer is "none," the difference is drift. Align with the shared pattern.
+
+---
+
 ## The phrasebook: describe the bug, name the principle
 
 Lead with the **role / tier / ramp**, not the number - then name the principle so the fix lands everywhere, not just here. The number is a symptom.
 
 | ❌ Don't say | ✅ Do say | Principle |
 |----------------------|--------------------------|-----------|
+| "I copied this styling from [old component]" | "existing code is **evidence, not authority** - check whether those styles are stable contracts or inherited overrides" | 6 · Sameness / Pattern decisions |
+| "we need a new custom card/pill variant here" | "**consistency by default, intentional divergence** - reuse the shared component contract unless a stated user need earns the difference" | 6 · Sameness / Pattern decisions |
+| "why does this view look slightly different from the rest?" | "**unnecessary variation increases customer learning load** - align to the shared pattern" | 6 · Sameness / Pattern decisions |
 | "border-radius should be 6, not 8" | "this is an **Inner** surface rounded at the **Outer** tier" | 5 · Elevation |
 | "this menu corner is too sharp" | "this **overlay** should be on the **Outer** radius tier" | 5 · Elevation |
 | "add 2px of padding" | "this content is **off the spacing ramp** / needs ramp breathing room" | 2 · Room to breathe |
