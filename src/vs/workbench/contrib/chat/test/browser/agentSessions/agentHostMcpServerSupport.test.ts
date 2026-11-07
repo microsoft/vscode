@@ -535,6 +535,49 @@ suite('agentHostMcpServerSupport', () => {
 		]);
 	});
 
+	test('preserves OAuth client ID in projected configuration for HTTP MCP servers', async () => {
+		const result = await assess([
+			makeMcpServer({
+				id: 'mcp.config.usrlocal.oauth',
+				collectionId: 'mcp.config.usrlocal',
+				provenance: McpCollectionProvenance.UserProfile,
+				launch: {
+					type: McpServerTransportType.HTTP,
+					uri: URI.parse('https://example.com/mcp'),
+					headers: [['X-Custom', 'header']],
+					oauth: { clientId: 'test-client-id' },
+				},
+			}),
+			makeMcpServer({
+				id: 'mcp.config.usrlocal.oauth-managed',
+				collectionId: 'mcp.config.usrlocal',
+				provenance: McpCollectionProvenance.UserProfile,
+				launch: {
+					type: McpServerTransportType.HTTP,
+					uri: URI.parse('https://example.com/mcp'),
+					headers: [],
+					oauth: { clientId: 'test-client-id', enterpriseManaged: true },
+				},
+			}),
+		], []);
+
+		assert.deepStrictEqual(result.servers[0].projectedConfiguration, {
+			type: McpServerType.REMOTE,
+			transport: 'http',
+			url: 'https://example.com/mcp',
+			headers: { 'X-Custom': 'header' },
+			oauth: { clientId: 'test-client-id' },
+		});
+		assert.deepStrictEqual(result.servers[0].compatibility, {
+			kind: 'supported',
+		});
+
+		assert.deepStrictEqual(result.servers[1].compatibility, {
+			kind: 'partiallySupported',
+			reasons: [AgentHostMcpSupportReason.OAuthClientConfigurationIgnored],
+		});
+	});
+
 	test('reports runtime server enablement separately from compatibility', async () => {
 		const result = await assess([
 			makeMcpServer({
