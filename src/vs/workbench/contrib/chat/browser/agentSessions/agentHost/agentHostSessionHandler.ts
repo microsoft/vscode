@@ -135,6 +135,7 @@ import { normalizeAgentHostApprovalConfig } from '../../../common/agentHostConfi
 import { IChatEditingService } from '../../../common/editing/chatEditingService.js';
 import { IChatSessionReviewPreferencesService } from '../../../common/editing/chatSessionReviewPreferences.js';
 import { HIDE_AUTO_EXPLAINABILITY_TREATMENT } from '../../../common/chatAutoModeExplainability.js';
+import { isModelRouterModelId, modelRouterNameFromModelId } from '../../../../../../platform/agentHost/common/modelRouter.js';
 import { AUTO_RAW_MODEL_ID, getLanguageModelDisplayNameWithProvider, ILanguageModelChatMetadata, ILanguageModelsService } from '../../../common/languageModels.js';
 import { getLanguageModelDisplayNameWithSubscriptionSource } from '../../../common/languageModelSourcePresentation.js';
 import { ChatInputStateOrigin, reviveSerializableInputState, type IChatModel, type IChatModelInputState, type IChatRequestModeInstructions, type IChatRequestVariableData, type IInputModel, type ISerializableChatModelInputState } from '../../../common/model/chatModel.js';
@@ -7856,6 +7857,24 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 				return modelId && modelName ? { modelId, modelName, ...(runtimeModelConfiguration ? { runtimeModelConfiguration } : {}) } : undefined;
 			},
 			toAutoModeResolution: usage => {
+				const routed = readUsageInfoMeta(usage).modelRouted;
+				if (routed) {
+					const routedModel = lookupRawModel(routed.chosenModel);
+					const previousModel = routed.switchedFrom ? lookupRawModel(routed.switchedFrom) : undefined;
+					return {
+						kind: 'autoModeResolution',
+						resolved: { id: routed.chosenModel, name: routedModel ? displayName(routedModel) : routed.chosenModel },
+						router: routed.router,
+						preference: routed.preference,
+						effort: routed.effort,
+						switchedFrom: routed.switchedFrom && (previousModel ? displayName(previousModel) : routed.switchedFrom),
+						defaulted: routed.defaulted,
+						kept: routed.kept,
+					};
+				}
+				if (isModelRouterModelId(fallbackRawModelId)) {
+					return { kind: 'autoModeResolution', router: modelRouterNameFromModelId(fallbackRawModelId) };
+				}
 				const resolution = readUsageInfoMeta(usage).autoModeResolved;
 				const isAutoTurn = fallbackRawModelId === AUTO_RAW_MODEL_ID || !!resolution;
 				// Also suppressed while the treatment is unknown; see the field.

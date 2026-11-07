@@ -26,7 +26,8 @@ import type { CanvasState } from './state/protocol/channels-canvas/state.js';
 import { subagentChatUri, type ChatUriFormat } from './agentHostChatMinting.js';
 import { ProtectedResourceMetadata, type BackgroundWork, type Changeset, type ChatInteractivity, type ChatOrigin, type ConfigSchema, type MessageAttachment, type ModelSelection, type AgentSelection, type SessionActiveClient, type SessionOrigin, type ToolCallPendingConfirmationState, type ToolDefinition, ChangesSummary } from './state/protocol/state.js';
 import type { ActionOrigin, AuthRequiredParams, SessionAction, ChatAction, ProgressParams } from './state/sessionActions.js';
-import { AHP_CHAT_SCHEME, ChatInputResponseKind, ChatOriginKind, SessionStatus, type AgentCapabilities, type ClientPluginCustomization, type Customization, type ErrorInfo, type ISessionFolderPickerDecision, type Message, type PendingMessage, type ChatInputAnswer, type SessionMeta, type ToolCallResult, type Turn, type PolicyState } from './state/sessionState.js';
+import { AHP_CHAT_SCHEME, ChatInputResponseKind, ChatOriginKind, SessionStatus, type AgentCapabilities, type ClientPluginCustomization, type Customization, type ErrorInfo, type ISessionFolderPickerDecision, type Message, type PendingMessage, type ChatInputAnswer, type SessionMeta, type ToolCallResult, type Turn, type PolicyState, type IModelRoutedInfo } from './state/sessionState.js';
+import type { IAgentDecisionsRequest, IAgentDecisionsResult } from './agentDecisions.js';
 
 /** Permission response provenance and its originating client. */
 export interface IAgentPermissionResponseContext {
@@ -1962,6 +1963,25 @@ export interface IAgentChatCanvasWatchHost {
  * The {@link IAgentService} dispatches to the appropriate agent based on
  * the agent id.
  */
+export interface IAgentTurnModelRequest {
+	readonly turnId: string;
+	/** The turn's selection, such as `model-router:<name>`. */
+	readonly selection: ModelSelection;
+	readonly text: string;
+	readonly previousTurns: readonly Turn[];
+	/** The turn's custom agent, whose own model can take the place of a router's pick. */
+	readonly agent?: AgentSelection;
+}
+
+export interface IAgentTurnModelResolution {
+	/** The concrete model for this turn, or `undefined` to keep the chat's current model. */
+	readonly selection: ModelSelection | undefined;
+	/** What was chosen and why, recorded on the turn's usage. */
+	readonly routed?: IModelRoutedInfo;
+	/** Short notices shown in the turn. */
+	readonly notices: readonly string[];
+}
+
 export interface IAgent {
 	/** Host-internal opt-in to client-backed, non-file working directories. */
 	readonly supportsVirtualWorkspaces?: true;
@@ -1985,6 +2005,20 @@ export interface IAgent {
 
 	/** Discovers models using only the requesting connection's credentials, without changing the shared catalog. */
 	getModelsForCredentials?(credentials: IAgentHostCredentialSource, token?: CancellationToken): Promise<readonly IAgentModelInfo[]>;
+
+	/**
+	 * Chooses the model for a main-agent turn that selected a model router
+	 * (`model-router:<name>`). The host never passes a router id to `changeModel`, and removes
+	 * it from turns of agents without this method.
+	 */
+	resolveTurnModel?(chat: URI, request: IAgentTurnModelRequest, context: IAgentChatContext, token: CancellationToken): Promise<IAgentTurnModelResolution>;
+
+	/**
+	 * Asks a decision model one-off yes/no, choice or score questions, as the given account (the
+	 * host's own when omitted). Calls are deduplicated and paused after failures, per account.
+	 * Rejects with typed error data (`agentDecisionErrorData`) when decisions are unavailable.
+	 */
+	askDecisions?(request: IAgentDecisionsRequest, credentials: IAgentHostCredentialSource | undefined, token: CancellationToken): Promise<IAgentDecisionsResult>;
 
 	/** Refresh live Connector state, optionally reinitializing only the named Connector. */
 	refreshConnectorSessions?(forceConnectorName?: string): Promise<void>;

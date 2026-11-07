@@ -31,6 +31,8 @@ export const enum AgentSystemNotificationKind {
 	ByokToolLimitExceeded = 'byokToolLimitExceeded',
 	/** Plugins required by the organization could not be checked or prepared; the turn continues without them. */
 	ManagedPluginPreparationFailure = 'managedPluginPreparationFailure',
+	/** A note from the model router about what it did for this turn. */
+	ModelRouterSuggestion = 'modelRouterSuggestion',
 }
 
 export const enum AgentSystemNotificationWorkspaceKind {
@@ -61,6 +63,7 @@ const knownKinds: ReadonlySet<string> = new Set<string>([
 	AgentSystemNotificationKind.ResponseRoundEnded,
 	AgentSystemNotificationKind.ByokToolLimitExceeded,
 	AgentSystemNotificationKind.ManagedPluginPreparationFailure,
+	AgentSystemNotificationKind.ModelRouterSuggestion,
 ]);
 
 interface IHasSystemNotificationMeta {

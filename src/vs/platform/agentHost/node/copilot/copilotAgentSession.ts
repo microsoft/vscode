@@ -745,6 +745,8 @@ export interface ICopilotAgentSessionOptions {
 	 * by the local macOS Agent Host. Without it, the plugin's permission prompts keep the ordinary elicitation UI.
 	 */
 	readonly computerUsePermissionSetup?: () => CopilotComputerUsePermissionSetup | undefined;
+	/** The model router check tool, when routers are on as the session launches. */
+	readonly modelRouterTools?: () => Tool<unknown>[];
 
 	/**
 	 * Platform used to compute the SDK sandbox policy. Defaults to
@@ -2060,6 +2062,7 @@ export class CopilotAgentSession extends Disposable {
 	private readonly _onTurnEnded: () => void;
 	private readonly _onSteeringReady: ((session: CopilotAgentSession) => void) | undefined;
 	private readonly _computerUseSetup: (() => CopilotComputerUsePermissionSetup | undefined) | undefined;
+	private readonly _modelRouterTools: (() => Tool<unknown>[]) | undefined;
 	/** This chat as the Computer Use setup sees it; one stable object, which the setup compares by identity. */
 	private readonly _computerUseSetupChat: ICopilotComputerUseSetupChat;
 	/** Lets the agent ask the user to turn on Computer Use; it outlives relaunches so a decline holds for the chat. */
@@ -2286,6 +2289,7 @@ export class CopilotAgentSession extends Disposable {
 		this._onTurnEnded = options.onTurnEnded ?? (() => { });
 		this._onSteeringReady = options.onSteeringReady;
 		this._computerUseSetup = options.computerUsePermissionSetup;
+		this._modelRouterTools = options.modelRouterTools;
 		this._computerUseSetupChat = {
 			chatUri: options.chatChannelUri.toString(),
 			requestInput: request => this._emitAction({ type: ActionType.ChatInputRequested, request }),
@@ -5688,6 +5692,7 @@ export class CopilotAgentSession extends Disposable {
 			setProgressUpdatesPromptEligible: eligible => { this._progressUpdatesPromptEligible = eligible; },
 			createServerSdkTools: toolSearchActive => this._createServerSdkTools(toolSearchActive),
 			createComputerUseActivationTools: () => this._computerUseActivation.createTools(),
+			createModelRouterTools: () => this._modelRouterTools?.() ?? [],
 			reloadExtensions: () => this.reloadExtensions(),
 			handlePreToolUse: input => this._handlePreToolUse(input),
 			handlePostToolUse: input => this._handlePostToolUse(input),
