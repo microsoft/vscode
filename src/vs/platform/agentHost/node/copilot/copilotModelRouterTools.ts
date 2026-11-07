@@ -68,7 +68,7 @@ export function createCopilotModelRouterTools(enabled: boolean, host: IModelRout
 		},
 		handler: async (args: unknown): Promise<ToolResultObject> => {
 			if (!host.isEnabled()) {
-				return { textResultForLlm: 'Model routers are turned off (setting chat.agentHost.modelRouter.enabled).', resultType: 'failure', error: 'Model routers are turned off' };
+				return { textResultForLlm: 'Model routers are turned off (setting chat.copilot.modelRouter.enabled).', resultType: 'failure', error: 'Model routers are turned off' };
 			}
 			try {
 				const path = typeof (args as { path?: unknown })?.path === 'string' ? (args as { path: string }).path : undefined;

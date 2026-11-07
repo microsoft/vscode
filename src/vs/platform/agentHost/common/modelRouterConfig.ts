@@ -5,4 +5,4 @@
 
 /** Root config key: whether model routers are offered as models. */
 export const ModelRouterEnabledConfigKey = 'modelRouter.enabled';
-export const ModelRouterEnabledSettingId = 'chat.agentHost.modelRouter.enabled';
+export const ModelRouterEnabledSettingId = 'chat.copilot.modelRouter.enabled';

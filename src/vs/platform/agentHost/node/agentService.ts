@@ -2708,6 +2708,10 @@ export class AgentService extends Disposable implements IAgentService {
 	 * client-initiated turn takes (which sends the message to the provider).
 	 */
 	private async _startSessionPrompt(session: URI, chat: URI, prompt: string, delegation?: IAgentMessageDelegationMeta, credentials?: IAgentHostCredentialSource, model?: ModelSelection): Promise<void> {
+		// A chat on a model router keeps routing the tasks other chats send it.
+		const chatState = this._stateManager.getChatState(chat.toString());
+		const previousModel = (chatState?.activeTurn ?? chatState?.turns.at(-1))?.message.model;
+		model ??= isModelRouterModelId(previousModel?.id) ? previousModel : undefined;
 		// The calling agent authored this prompt, not the user.
 		const message: Message = {
 			text: prompt,

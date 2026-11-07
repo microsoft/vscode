@@ -159,6 +159,13 @@ export function modelRouterNameFromModelId(modelId: string | undefined): string 
 	return isModelRouterModelId(modelId) ? modelId!.slice(MODEL_ROUTER_MODEL_ID_PREFIX.length) : undefined;
 }
 
+/** A valid `name` written once in the file, read even when other parts of it have errors. */
+function readExplicitName(root: YamlNode | undefined): string | undefined {
+	const names = root?.type === 'map' ? root.properties.filter(property => property.key.value === 'name') : [];
+	const name = names.length === 1 ? scalar(names[0].value) : undefined;
+	return name && NAME_PATTERN.test(name) ? name : undefined;
+}
+
 /** Parses and checks a router file. `fileName` supplies the name when the file doesn't. */
 export function parseModelRouter(content: string, fileName: string): IModelRouterParseResult {
 	const diagnostics: IModelRouterDiagnostic[] = [];
@@ -183,6 +190,7 @@ export function parseModelRouter(content: string, fileName: string): IModelRoute
 		report.error(`YAML: ${e instanceof Error ? e.message : String(e)}`);
 		return fail();
 	}
+	validName = readExplicitName(root);
 	for (const yamlError of yamlErrors) {
 		report.error(`YAML: ${yamlError.message}`, yamlError);
 	}
