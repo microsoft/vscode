@@ -85,6 +85,12 @@ interface IForwardedAuthenticationIdentity {
 	readonly accountId: string;
 }
 
+function assertAuthenticationAccepted(result: unknown): void {
+	if (isObject(result) && (result as Partial<AuthenticateResult>).authenticated === false) {
+		throw new Error(localize('agentHost.credentialRejected', "The agent host did not accept the authentication credential."));
+	}
+}
+
 /**
  * Tracks the last bearer token pushed to a given agent host connection
  * for each protected resource, so that redundant `authenticate` RPCs can
@@ -138,7 +144,7 @@ export class AgentHostAuthTokenCache {
 		}
 
 		const promise = (async () => {
-			await authenticate();
+			assertAuthenticationAccepted(await authenticate());
 			if (!this._isCurrentGeneration(key, globalGeneration, keyGeneration)) {
 				throw new CancellationError();
 			}
@@ -700,9 +706,6 @@ async function forwardAuthenticationToken(
 		const result = await options.authenticate(request);
 		if (options.copilotAccountContext) {
 			throwIfAuthenticationStale(options);
-			if (isObject(result) && (result as Partial<AuthenticateResult>).authenticated === false) {
-				throw new Error(localize('agentHost.copilotCredentialRejected', "The agent host did not accept the selected Copilot service credential."));
-			}
 		}
 		return result;
 	};
@@ -710,7 +713,7 @@ async function forwardAuthenticationToken(
 		const identity = session?.id && session.account ? { sessionId: session.id, accountId: session.account.id } : undefined;
 		return options.authTokenCache.authenticate(resource, scopes ?? [], token, authenticate, authenticationAccountId(readAuthenticationAccount(request)), readAgentEntitlementHint(request), options.target, identity);
 	}
-	await authenticate();
+	assertAuthenticationAccepted(await authenticate());
 	return true;
 }
 

@@ -3,10 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import type { CopilotClient, CopilotSession, SessionConfig } from '@github/copilot-sdk';
+import type { CopilotClient, CopilotSession, SessionConfig, SessionFsProvider } from '@github/copilot-sdk';
 import { raceCancellationError } from '../../../../base/common/async.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
-import { CancellationError } from '../../../../base/common/errors.js';
+import { CancellationError, isCancellationError } from '../../../../base/common/errors.js';
 import { Disposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { autorun, observableValue, type IObservable, type IReader } from '../../../../base/common/observable.js';
 import { localize } from '../../../../nls.js';
@@ -26,6 +26,7 @@ import { CopilotEntraAuthentication, copilotEntraDiscoveryMetadata } from './cop
 import { AGENT_HOST_COPILOT_CLIENT_NAME } from './copilotManagedSettings.js';
 
 type LoginStep = Awaited<ReturnType<CopilotSession['rpc']['accounts']['login']['advance']>>;
+type LoginFlow = Awaited<ReturnType<CopilotSession['rpc']['accounts']['login']['begin']>>;
 type LoginAccount = NonNullable<Extract<LoginStep, { kind: 'completed' }>['result']['accounts']>[number];
 
 interface ILoginAttempt {
@@ -41,6 +42,12 @@ interface IAccountSessionOptions {
 	readonly sessionId: string;
 	readonly workingDirectory?: string;
 	readonly enableSessionStore: boolean;
+	readonly sessionFs?: SessionFsProvider;
+}
+
+interface IAuthenticatedAccountSession {
+	readonly session: CopilotSession;
+	readonly choice: ICopilotServiceChoice;
 }
 
 export const ICopilotAccountService = createDecorator<ICopilotAccountService>('copilotAccountService');
@@ -54,9 +61,9 @@ export interface ICopilotAccountService {
 	acceptCredential(params: AuthenticateParams, connection: CancellationToken): boolean;
 	requireReady(): Extract<CopilotAccountContext, { kind: 'ready' }>;
 	getSession(context: Extract<CopilotAccountContext, { kind: 'ready' }>): Promise<CopilotSession>;
-	openSession(client: Pick<CopilotClient, 'createSession' | 'resumeSession' | 'deleteSession'>, options: IAccountSessionOptions, context: Extract<CopilotAccountContext, { kind: 'ready' }>, token: CancellationToken): Promise<CopilotSession>;
+	openSession(client: Pick<CopilotClient, 'createSession' | 'resumeSession' | 'deleteSession'>, options: IAccountSessionOptions, context: Extract<CopilotAccountContext, { kind: 'ready' }>, token: CancellationToken): Promise<IAuthenticatedAccountSession>;
 	isAuthenticationSession(sessionId: string): boolean;
-	verifySessionContext(session: CopilotSession, expectedContext: CopilotAccountContext | undefined): Promise<void>;
+	verifySessionContext(session: CopilotSession, expectedContext: CopilotAccountContext | undefined, choice?: ICopilotServiceChoice): Promise<void>;
 	reset(): Promise<void>;
 }
 
@@ -197,58 +204,70 @@ export class CopilotAccountService extends Disposable implements ICopilotAccount
 		return session;
 	}
 
-	async openSession(client: Pick<CopilotClient, 'createSession' | 'resumeSession' | 'deleteSession'>, options: IAccountSessionOptions, context: Extract<CopilotAccountContext, { kind: 'ready' }>, token: CancellationToken): Promise<CopilotSession> {
+	async openSession(client: Pick<CopilotClient, 'createSession' | 'resumeSession' | 'deleteSession'>, options: IAccountSessionOptions, context: Extract<CopilotAccountContext, { kind: 'ready' }>, token: CancellationToken): Promise<IAuthenticatedAccountSession> {
 		await this.getSession(context);
 		const attempt = this._attempt;
 		if (!attempt || this.state.get() !== context || token.isCancellationRequested) {
 			throw new CancellationError();
 		}
-		if (options.kind === 'create') {
-			this.requireSessionCredential(context);
-		}
-		const { kind, ...sessionOptions } = options;
+		this.requireSessionCredential(context);
+		const { kind, sessionFs, ...sessionOptions } = options;
+		const filesystem = sessionFs ? { createSessionFsProvider: () => sessionFs } : {};
 		const session = kind === 'create'
-			? await client.createSession({ ...accountSessionConfig(this._home.home.fsPath), ...sessionOptions })
-			: await client.resumeSession(options.sessionId, { clientName: AGENT_HOST_COPILOT_CLIENT_NAME, configDirectory: this._home.home.fsPath });
+			? await client.createSession({ ...accountSessionConfig(this._home.home.fsPath), ...sessionOptions, ...filesystem })
+			: await client.resumeSession(options.sessionId, { clientName: AGENT_HOST_COPILOT_CLIENT_NAME, configDirectory: this._home.home.fsPath, enableSessionStore: options.enableSessionStore, ...filesystem });
 		try {
 			this.assertCurrent(attempt);
-			if (kind === 'create') {
-				await this.authenticateSession(session, context, attempt.cancellation.token, token);
-			}
-			await this.verifySessionContext(session, context);
+			const choice = await this.authenticateSession(session, context, attempt.cancellation.token, token);
+			await this.verifySessionContext(session, context, choice);
 			if (token.isCancellationRequested) {
 				throw new CancellationError();
 			}
-			return session;
+			return { session, choice };
 		} catch (error) {
 			await this.releaseSession(client, session, kind === 'create').catch(cleanupError => this._logService.error('[Copilot] Failed to release rejected account session', cleanupError));
 			throw error;
 		}
 	}
 
-	private async authenticateSession(session: CopilotSession, context: Extract<CopilotAccountContext, { kind: 'ready' }>, authority: CancellationToken, token: CancellationToken): Promise<void> {
+	private async authenticateSession(session: CopilotSession, context: Extract<CopilotAccountContext, { kind: 'ready' }>, authority: CancellationToken, token: CancellationToken): Promise<ICopilotServiceChoice> {
 		if (token.isCancellationRequested || authority.isCancellationRequested) {
 			throw new CancellationError();
 		}
 		this.requireSessionCredential(context);
-		const flow = await session.rpc.accounts.login.begin({ kind: 'entra', accountId: context.derivedFrom });
+		const flow = await this.beginSessionLogin(session, context.derivedFrom, authority, token);
 		try {
+			if (token.isCancellationRequested || authority.isCancellationRequested) {
+				throw new CancellationError();
+			}
 			let step = flow.step;
 			while (step.kind === 'awaiting' || step.kind === 'needs-interaction') {
 				step = await raceCancellationError(raceCancellationError(session.rpc.accounts.login.advance({ flowId: flow.flowId }), authority), token);
 			}
+			let selected: ICopilotServiceChoice | undefined;
 			if (step.kind === 'completed' && step.result.status === 'needs-account-selection') {
-				const offered = step.result.accounts?.filter(account => account.selectionId === context.choice.selectionId);
-				if (offered?.length !== 1) {
-					throw new ProtocolError(AhpErrorCodes.AuthRequired, localize('copilot.serviceUnavailable', "The selected Copilot service is no longer available."));
-				}
-				step = await raceCancellationError(raceCancellationError(session.rpc.accounts.login.advance({ flowId: flow.flowId, input: offered[0].selectionId }), authority), token);
+				selected = selectConversationService(step.result.accounts ?? [], context.choice);
+				step = await raceCancellationError(raceCancellationError(session.rpc.accounts.login.advance({ flowId: flow.flowId, input: selected.selectionId }), authority), token);
 			}
 			if (step.kind !== 'completed' || step.result.status !== 'completed') {
 				throw new ProtocolError(AhpErrorCodes.AuthRequired, localize('copilot.serviceNotActivated', "The runtime did not activate the selected Copilot service."));
 			}
+			return await raceCancellationError(raceCancellationError(confirmConversationLogin(session, context.choice, step.result, selected), authority), token);
 		} finally {
 			await session.rpc.accounts.login.cancel({ flowId: flow.flowId });
+		}
+	}
+
+	private async beginSessionLogin(session: CopilotSession, accountId: string, authority: CancellationToken, token: CancellationToken): Promise<LoginFlow> {
+		const beginning = session.rpc.accounts.login.begin({ kind: 'entra', accountId });
+		try {
+			return await raceCancellationError(raceCancellationError(beginning, authority), token);
+		} catch (error) {
+			if (isCancellationError(error)) {
+				void beginning.then(flow => session.rpc.accounts.login.cancel({ flowId: flow.flowId }))
+					.catch(cleanupError => this._logService.error('[Copilot] Failed to cancel late conversation login', cleanupError));
+			}
+			throw error;
 		}
 	}
 
@@ -268,7 +287,7 @@ export class CopilotAccountService extends Disposable implements ICopilotAccount
 		}
 	}
 
-	async verifySessionContext(session: CopilotSession, expectedContext: CopilotAccountContext | undefined): Promise<void> {
+	async verifySessionContext(session: CopilotSession, expectedContext: CopilotAccountContext | undefined, choice?: ICopilotServiceChoice): Promise<void> {
 		if (!this.authentication) {
 			return;
 		}
@@ -276,7 +295,7 @@ export class CopilotAccountService extends Disposable implements ICopilotAccount
 		if (context !== expectedContext) {
 			throw new CancellationError();
 		}
-		await confirmAccount(session, context.choice);
+		await confirmAccount(session, choice ?? context.choice);
 		if (this.state.get() !== context) {
 			throw new CancellationError();
 		}
@@ -442,6 +461,29 @@ function resourceForChoice(choice: ICopilotServiceChoice): ProtectedResourceMeta
 function resourceForService(service: ICopilotServiceChoice['service']): ProtectedResourceMetadata {
 	const audience = service === 'github' ? copilotEntraEmuAudience : copilotEntraM365Audience;
 	return { resource: copilotEntraResources.get(audience)!, authorization_servers: [copilotEntraAuthorizationServer], scopes_supported: [`${audience}/${service === 'github' ? 'user_impersonation' : '.default'}`] };
+}
+
+function selectConversationService(accounts: readonly LoginAccount[], expected: ICopilotServiceChoice): ICopilotServiceChoice {
+	const kind = expected.service === 'm365' ? 'loki' : 'entraEmu';
+	const candidates = accounts.filter(account => account.kind === kind);
+	if (candidates.length !== 1) {
+		throw new ProtocolError(AhpErrorCodes.AuthRequired, localize('copilot.serviceAmbiguous', "The selected Copilot service is unavailable or ambiguous for this conversation."));
+	}
+	const choice = toServiceChoice(candidates[0]);
+	if (choice.host !== expected.host) {
+		throw new ProtocolError(AhpErrorCodes.AuthRequired, localize('copilot.serviceHostMismatch', "The runtime returned a different Copilot service host."));
+	}
+	return choice;
+}
+
+async function confirmConversationLogin(session: CopilotSession, expected: ICopilotServiceChoice, completed: { readonly host?: string; readonly login?: string }, selected: ICopilotServiceChoice | undefined): Promise<ICopilotServiceChoice> {
+	const active = await readActiveAccount(session);
+	if (active.choice.service !== expected.service || active.choice.host !== expected.host
+		|| active.choice.host !== completed.host || active.choice.accountName !== completed.login
+		|| selected && (active.choice.selectionId !== selected.selectionId || active.choice.accountName !== selected.accountName)) {
+		throw new ProtocolError(AhpErrorCodes.AuthRequired, localize('copilot.conversationAccountMismatch', "The runtime did not confirm this conversation's selected Copilot account and service."));
+	}
+	return active.choice;
 }
 
 async function readActiveAccount(session: CopilotSession): Promise<{ choice: ICopilotServiceChoice; derivedFrom: string }> {

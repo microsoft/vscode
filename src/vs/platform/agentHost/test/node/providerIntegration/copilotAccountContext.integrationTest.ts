@@ -52,155 +52,169 @@ class LocalAccountRequests extends CopilotRequestHandler {
 suite('Copilot account context native SDK', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
-	// Native Entra accounts support Windows/macOS only; see e2e/KNOWN_ISSUES.md.
-	(isLinux ? test.skip : test)('uses the confirmed setup account for the catalog, policy and a new conversation without global login', async function () {
-		this.timeout(60_000);
-		const { createServer } = await import('http');
-		const home = await mkdtemp(join(tmpdir(), 'copilot-account-context-'));
-		const modelId = 'account-fixture-model';
-		const accountId = 'host-owned-fixture-account';
-		const requests: { path: string; authenticated: boolean }[] = [];
-		const server = createServer((request, response) => {
-			if (request.method !== 'GET' || !['/models', '/quota'].includes(request.url ?? '')) {
-				response.writeHead(403);
-				response.end();
-				return;
-			}
-			const authenticated = request.headers.authorization === 'Bearer synthetic-m365-token';
-			requests.push({ path: request.url!, authenticated });
-			response.writeHead(authenticated ? 200 : 401, { 'content-type': 'application/json' });
-			response.end(JSON.stringify(request.url === '/quota' ? {} : {
-				data: [{ id: modelId, name: 'Account fixture model', capabilities: { type: 'chat', supports: { tool_calls: true } }, model_picker_enabled: true }],
-			}));
-		});
-		server.on('connect', (_request, socket) => socket.end('HTTP/1.1 403 Forbidden\r\nConnection: close\r\nContent-Length: 0\r\n\r\n'));
-		let client: CopilotClient | undefined;
-		let accounts: CopilotAccountService | undefined;
-		try {
-			server.listen(0, '127.0.0.1');
-			await once(server, 'listening');
-			const address = server.address();
-			assert.ok(address && typeof address !== 'string');
-			const origin = `http://127.0.0.1:${address.port}`;
-			await writeFile(join(home, 'config.json'), JSON.stringify({ staff: true }));
-			await writeFile(join(home, 'settings.json'), JSON.stringify({ storeTokenPlaintext: true }));
-			const env = createCopilotCliEnvironment(createIsolatedProviderEnvironment(home), [], false, undefined, undefined, true);
-			Object.assign(env, {
-				COPILOT_HOME: home, COPILOT_CACHE_HOME: join(home, 'cache'), GH_CONFIG_DIR: home,
-				COPILOT_DISABLE_KEYTAR: '1', COPILOT_ENTRA_ONEAUTH: '0',
-				COPILOT_LOKI_BASE_URL: origin, COPILOT_DEBUG_GITHUB_API_URL: origin, COPILOT_API_URL: origin,
-				HTTP_PROXY: origin, HTTPS_PROXY: origin, ALL_PROXY: origin, NO_PROXY: '127.0.0.1,localhost',
-			});
-			const connection = store.add(new CancellationTokenSource());
-			const connections = store.add(new AgentHostClientConnectionService());
-			const authentication = store.add(new AgentHostAuthenticationService(new NullLogService()));
-			store.add(connections.registerSource({
-				hasSeenClient: () => true, isClientConnected: () => true,
-				isLocalClient: () => true, usesLegacyChatUris: () => false,
-				getConnectedClientTransportCounts: () => new Map([['fixture', 1]]),
-				requestWorkspaceTrust: async () => false, requestMcpAuthentication: async () => false,
-			}));
-			const instantiation = store.add(new InstantiationService(new ServiceCollection(
-				[ILogService, new NullLogService()],
-				[IAgentHostAuthenticationService, authentication],
-				[IAgentHostClientConnectionService, connections],
-				[ICopilotHomeService, upcastPartial<ICopilotHomeService>({ home: URI.file(home) })],
-				[IAgentConfigurationService, upcastPartial<IAgentConfigurationService>({ copilotM365EnabledAtStartup: true })],
-			), true));
-			accounts = store.add(instantiation.createInstance(CopilotAccountService));
-			client = new CopilotClient({
-				connection: RuntimeConnection.forStdio(), env, useLoggedInUser: false,
-				requestHandler: new LocalAccountRequests(origin), logLevel: 'error',
-				entra: accounts.authentication!.options,
-			});
-			const accountService = accounts;
-			const runtime = client;
-			const provider = new class extends mock<IAgent>() {
-				override readonly id = 'copilotcli';
-				override getProtectedResources() { return accountService.getProtectedResources(); }
-				override async authenticate() { return false; }
-				override async handleAuthenticationToken(params: AuthenticateParams) {
-					if (readCopilotAccountOperation(params)) {
-						await accountService.authenticate(Promise.resolve(runtime), params, connection.token);
-						return true;
-					}
-					return accountService.acceptCredential(params, connection.token) || await accountService.authentication!.authenticate(params, connection.token);
+	for (const kind of ['create', 'resume'] as const) {
+		// Native Entra accounts support Windows/macOS only; see e2e/KNOWN_ISSUES.md.
+		(isLinux ? test.skip : test)(`${kind} uses the current selected account for conversation policy and configuration without global login`, async function () {
+			this.timeout(60_000);
+			const { createServer } = await import('http');
+			const home = await mkdtemp(join(tmpdir(), 'copilot-account-context-'));
+			const modelId = 'account-fixture-model';
+			let accountId = 'host-owned-fixture-account';
+			const requests: { path: string; authenticated: boolean }[] = [];
+			const server = createServer((request, response) => {
+				if (request.method !== 'GET' || !['/models', '/quota'].includes(request.url ?? '')) {
+					response.writeHead(403);
+					response.end();
+					return;
 				}
-			}();
-			const discovery: AuthenticateParams = {
-				resource: copilotEntraDiscoveryResource, scopes: ['User.Read'], token: 'synthetic-identity-token',
-				_meta: { ...authenticationAccountMeta({ providerId: 'microsoft', accountId, label: 'fixture@example.test' }), ...copilotAccountOperationMeta({ kind: 'discover' }) },
-			};
-			await authentication.authenticate(discovery, [provider], undefined, connection.token);
-			assert.deepStrictEqual({ kind: accounts.state.get().kind, requests }, { kind: 'incomplete', requests: [] });
-			assert.deepStrictEqual(await authentication.authenticate({
-				resource: copilotEntraResources.get(copilotEntraM365Audience)!, scopes: [`${copilotEntraM365Audience}/.default`], token: 'synthetic-m365-token',
-				_meta: authenticationAccountMeta({ providerId: 'microsoft', accountId, label: 'fixture@example.test' }),
-			}, [provider], undefined, connection.token), { authenticated: true });
-			assert.deepStrictEqual(await authentication.authenticate(discovery, [provider], undefined, connection.token), { authenticated: true });
-			const context = accounts.requireReady();
-			const setup = await accounts.getSession(context);
-			const catalog = toCopilotAccountModelCatalog(await setup.rpc.model.list());
-			await assert.rejects(client.rpc.models.list({ selectionId: context.choice.selectionId }), /Selected authentication is no longer available/);
-			await assert.rejects(client.rpc.managedSettings.resolve({ selectionId: context.choice.selectionId, clientName: 'vscode-agent-host' }), /Selected authentication is no longer available/);
-			const policy = await resolveCopilotManagedSettings(setup.rpc.managedSettings, undefined, 5000);
-			await accounts.verifySessionContext(setup, context);
-			assert.deepStrictEqual({
-				service: context.choice.service,
-				setupModels: catalog.models.map(model => model.id),
-				policyUnresolved: policy.resolved.failClosed,
-				globalAuthentication: (await client.getAuthStatus()).isAuthenticated,
-				sourceUnchanged: accounts.requireReady() === context,
-				catalogFetched: requests.some(request => request.path === '/models'),
-				authenticatedRequests: requests.every(request => request.authenticated),
-			}, {
-				service: 'm365', setupModels: [modelId],
-				policyUnresolved: false, globalAuthentication: false, sourceUnchanged: true, catalogFetched: true, authenticatedRequests: true,
+				const authenticated = request.headers.authorization === 'Bearer synthetic-m365-token';
+				requests.push({ path: request.url!, authenticated });
+				response.writeHead(authenticated ? 200 : 401, { 'content-type': 'application/json' });
+				response.end(JSON.stringify(request.url === '/quota' ? {} : {
+					data: [{ id: modelId, name: 'Account fixture model', capabilities: { type: 'chat', supports: { tool_calls: true } }, model_picker_enabled: true }],
+				}));
 			});
-			const launcher = createTestLauncher(undefined, { m365Enabled: true }, undefined, undefined, undefined, undefined, undefined, accounts);
-			const wrapper = store.add(await launcher.launch({
-				kind: 'create', client, sessionId: generateUuid(), model: { id: modelId },
-				workingDirectory: URI.file(home), resolvedAgentName: undefined, isEphemeral: true,
-				snapshot: { discoveredAgents: [], additionalRootInstructions: [], tools: [], plugins: [], mcpServers: {} },
-				activeClientToolSet: new ActiveClientToolSet(), shellManager: undefined,
-				githubCredentials: CopilotGitHubSessionCredentials.fromClientAuthentication(undefined),
-			}, testRuntime));
-			await accounts.verifySessionContext(wrapper.session, context);
-			const chatCatalog = toCopilotAccountModelCatalog(await wrapper.session.rpc.model.list());
-			const chatPolicy = await resolveCopilotManagedSettings(wrapper.session.rpc.managedSettings, undefined, 5000);
-			const currentModel = await wrapper.session.rpc.model.getCurrent();
-			const builtinTools = await wrapper.session.rpc.tools.getBuiltinDescriptors({});
-			assert.deepStrictEqual({
-				chatModels: chatCatalog.models.map(model => model.id),
-				selectedModel: currentModel.modelId,
-				readToolAvailable: builtinTools.tools.some(tool => tool.name === 'view'),
-				policyUnresolved: chatPolicy.resolved.failClosed,
-				globalAuthentication: (await client.getAuthStatus()).isAuthenticated,
-				sourceUnchanged: accounts.requireReady() === context,
-			}, {
-				chatModels: [modelId], selectedModel: modelId, readToolAvailable: true,
-				policyUnresolved: false, globalAuthentication: false, sourceUnchanged: true,
-			});
-			await wrapper.session.disconnect();
-			await accounts.reset();
-			await assert.rejects(accounts.getSession(context), /no longer available/);
-		} finally {
+			server.on('connect', (_request, socket) => socket.end('HTTP/1.1 403 Forbidden\r\nConnection: close\r\nContent-Length: 0\r\n\r\n'));
+			let client: CopilotClient | undefined;
+			let accounts: CopilotAccountService | undefined;
 			try {
-				await accounts?.reset();
+				server.listen(0, '127.0.0.1');
+				await once(server, 'listening');
+				const address = server.address();
+				assert.ok(address && typeof address !== 'string');
+				const origin = `http://127.0.0.1:${address.port}`;
+				await writeFile(join(home, 'config.json'), JSON.stringify({ staff: true }));
+				await writeFile(join(home, 'settings.json'), JSON.stringify({ storeTokenPlaintext: true }));
+				const env = createCopilotCliEnvironment(createIsolatedProviderEnvironment(home), [], false, undefined, undefined, true);
+				Object.assign(env, {
+					COPILOT_HOME: home, COPILOT_CACHE_HOME: join(home, 'cache'), GH_CONFIG_DIR: home,
+					COPILOT_DISABLE_KEYTAR: '1', COPILOT_ENTRA_ONEAUTH: '0',
+					COPILOT_LOKI_BASE_URL: origin, COPILOT_DEBUG_GITHUB_API_URL: origin, COPILOT_API_URL: origin,
+					HTTP_PROXY: origin, HTTPS_PROXY: origin, ALL_PROXY: origin, NO_PROXY: '127.0.0.1,localhost',
+				});
+				const connection = store.add(new CancellationTokenSource());
+				const connections = store.add(new AgentHostClientConnectionService());
+				const authentication = store.add(new AgentHostAuthenticationService(new NullLogService()));
+				store.add(connections.registerSource({
+					hasSeenClient: () => true, isClientConnected: () => true,
+					isLocalClient: () => true, usesLegacyChatUris: () => false,
+					getConnectedClientTransportCounts: () => new Map([['fixture', 1]]),
+					requestWorkspaceTrust: async () => false, requestMcpAuthentication: async () => false,
+				}));
+				const instantiation = store.add(new InstantiationService(new ServiceCollection(
+					[ILogService, new NullLogService()],
+					[IAgentHostAuthenticationService, authentication],
+					[IAgentHostClientConnectionService, connections],
+					[ICopilotHomeService, upcastPartial<ICopilotHomeService>({ home: URI.file(home) })],
+					[IAgentConfigurationService, upcastPartial<IAgentConfigurationService>({ copilotM365EnabledAtStartup: true })],
+				), true));
+				accounts = store.add(instantiation.createInstance(CopilotAccountService));
+				client = new CopilotClient({
+					connection: RuntimeConnection.forStdio(), env, useLoggedInUser: false,
+					requestHandler: new LocalAccountRequests(origin), logLevel: 'error',
+					entra: accounts.authentication!.options,
+				});
+				const accountService = accounts;
+				const runtime = client;
+				const provider = new class extends mock<IAgent>() {
+					override readonly id = 'copilotcli';
+					override getProtectedResources() { return accountService.getProtectedResources(); }
+					override async authenticate() { return false; }
+					override async handleAuthenticationToken(params: AuthenticateParams) {
+						if (readCopilotAccountOperation(params)) {
+							await accountService.authenticate(Promise.resolve(runtime), params, connection.token);
+							return true;
+						}
+						return accountService.acceptCredential(params, connection.token) || await accountService.authentication!.authenticate(params, connection.token);
+					}
+				}();
+				const prepareAccount = async () => {
+					const requestsBeforeNative = requests.length;
+					const discovery: AuthenticateParams = {
+						resource: copilotEntraDiscoveryResource, scopes: ['User.Read'], token: 'synthetic-identity-token',
+						_meta: { ...authenticationAccountMeta({ providerId: 'microsoft', accountId, label: 'fixture@example.test' }), ...copilotAccountOperationMeta({ kind: 'discover' }) },
+					};
+					await authentication.authenticate(discovery, [provider], undefined, connection.token);
+					assert.deepStrictEqual({ kind: accountService.state.get().kind, requests: requests.length }, { kind: 'incomplete', requests: requestsBeforeNative });
+					assert.deepStrictEqual(await authentication.authenticate({
+						resource: copilotEntraResources.get(copilotEntraM365Audience)!, scopes: [`${copilotEntraM365Audience}/.default`], token: 'synthetic-m365-token',
+						_meta: authenticationAccountMeta({ providerId: 'microsoft', accountId, label: 'fixture@example.test' }),
+					}, [provider], undefined, connection.token), { authenticated: true });
+					assert.deepStrictEqual(await authentication.authenticate(discovery, [provider], undefined, connection.token), { authenticated: true });
+					return accountService.requireReady();
+				};
+				let context = await prepareAccount();
+				const setup = await accounts.getSession(context);
+				const catalog = toCopilotAccountModelCatalog(await setup.rpc.model.list());
+				await assert.rejects(client.rpc.models.list({ selectionId: context.choice.selectionId }), /Selected authentication is no longer available/);
+				await assert.rejects(client.rpc.managedSettings.resolve({ selectionId: context.choice.selectionId, clientName: 'vscode-agent-host' }), /Selected authentication is no longer available/);
+				const policy = await resolveCopilotManagedSettings(setup.rpc.managedSettings, undefined, 5000);
+				await accounts.verifySessionContext(setup, context);
+				assert.deepStrictEqual({
+					service: context.choice.service,
+					setupModels: catalog.models.map(model => model.id),
+					policyUnresolved: policy.resolved.failClosed,
+					globalAuthentication: (await client.getAuthStatus()).isAuthenticated,
+					sourceUnchanged: accounts.requireReady() === context,
+					catalogFetched: requests.some(request => request.path === '/models'),
+					authenticatedRequests: requests.every(request => request.authenticated),
+				}, {
+					service: 'm365', setupModels: [modelId],
+					policyUnresolved: false, globalAuthentication: false, sourceUnchanged: true, catalogFetched: true, authenticatedRequests: true,
+				});
+				const launcher = createTestLauncher(undefined, { m365Enabled: true }, undefined, undefined, undefined, undefined, undefined, accounts);
+				const plan = {
+					client, sessionId: generateUuid(),
+					workingDirectory: URI.file(home), resolvedAgentName: undefined, isEphemeral: true,
+					snapshot: { discoveredAgents: [], additionalRootInstructions: [], tools: [], plugins: [], mcpServers: {} },
+					activeClientToolSet: new ActiveClientToolSet(), shellManager: undefined,
+					githubCredentials: CopilotGitHubSessionCredentials.fromClientAuthentication(undefined),
+				};
+				let wrapper = store.add(await launcher.launch({ ...plan, kind: 'create', model: { id: modelId } }, testRuntime));
+				if (kind === 'resume') {
+					await authentication.authenticate({ resource: copilotEntraDiscoveryResource, token: '' }, [provider], undefined, connection.token);
+					accountId = 'another-host-owned-fixture-account';
+					context = await prepareAccount();
+					wrapper = store.add(await launcher.launch({ ...plan, kind: 'resume', fallback: { model: { id: modelId } } }, testRuntime));
+				}
+				const chatCatalog = toCopilotAccountModelCatalog(await wrapper.session.rpc.model.list());
+				const chatPolicy = await resolveCopilotManagedSettings(wrapper.session.rpc.managedSettings, undefined, 5000);
+				const currentModel = await wrapper.session.rpc.model.getCurrent();
+				const builtinTools = await wrapper.session.rpc.tools.getBuiltinDescriptors({});
+				assert.deepStrictEqual({
+					chatModels: chatCatalog.models.map(model => model.id),
+					selectedModel: currentModel.modelId,
+					readToolAvailable: builtinTools.tools.some(tool => tool.name === 'view'),
+					policyUnresolved: chatPolicy.resolved.failClosed,
+					globalAuthentication: (await client.getAuthStatus()).isAuthenticated,
+					sourceUnchanged: accounts.requireReady() === context,
+					currentAccount: context.entraAccountId,
+				}, {
+					chatModels: [modelId], selectedModel: modelId, readToolAvailable: true,
+					policyUnresolved: false, globalAuthentication: false, sourceUnchanged: true,
+					currentAccount: accountId,
+				});
+				await wrapper.session.disconnect();
+				await accounts.reset();
+				await assert.rejects(accounts.getSession(context), /no longer available/);
 			} finally {
 				try {
-					assert.deepStrictEqual(await client?.stop() ?? [], []);
+					await accounts?.reset();
 				} finally {
 					try {
-						server.closeAllConnections();
-						if (server.listening) {
-							await new Promise<void>((resolve, reject) => server.close(error => error ? reject(error) : resolve()));
-						}
+						assert.deepStrictEqual(await client?.stop() ?? [], []);
 					} finally {
-						await rm(home, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 });
+						try {
+							server.closeAllConnections();
+							if (server.listening) {
+								await new Promise<void>((resolve, reject) => server.close(error => error ? reject(error) : resolve()));
+							}
+						} finally {
+							await rm(home, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 });
+						}
 					}
 				}
 			}
-		}
-	});
+		});
+	}
 });

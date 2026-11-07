@@ -318,6 +318,54 @@ suite('Agent Host Microsoft credential acquisition', () => {
 		await assert.rejects(preflight, isCancellationError);
 	});
 
+	for (const phase of ['in-flight', 'completed'] as const) {
+		test(`chat-start cannot reuse a rejected ${phase} background credential delivery`, async () => {
+			const f = fixture();
+			const target: ProtectedResourceMetadata = { ...resource, resource: copilotEntraResources.get(copilotEntraM365Audience)!, scopes_supported: [`${copilotEntraM365Audience}/.default`] };
+			f.authentication.sessions = [{ ...selected, scopes: target.scopes_supported! }];
+			const context: CopilotAccountContext = {
+				kind: 'ready', entraAccountId: selected.account.id, discoveryId: 'discovery', derivedFrom: 'runtime-base',
+				choice: { service: 'm365', resource: target.resource, host: 'https://service.example', accountName: 'account', displayName: 'Account', selectionId: 'selected-service' },
+			};
+			const delivery = new DeferredPromise<{ authenticated: boolean }>();
+			const joined = new DeferredPromise<void>();
+			let observeJoin = false;
+			const cache = new class extends AgentHostAuthTokenCache {
+				override authenticate(...args: Parameters<AgentHostAuthTokenCache['authenticate']>): Promise<boolean> {
+					const result = super.authenticate(...args);
+					if (observeJoin) {
+						joined.complete();
+					}
+					return result;
+				}
+			}();
+			const background = cache.authenticate(target.resource, target.scopes_supported, selected.accessToken, () => delivery.p,
+				authenticationAccountId({ providerId: 'microsoft', accountId: selected.account.id }));
+			const backgroundAccepted = background.then(() => true, () => false);
+			if (phase === 'completed') {
+				delivery.complete({ authenticated: false });
+				await backgroundAccepted;
+			}
+			let forwarded = 0;
+			const options = {
+				logPrefix: '[test]', copilotAccountContext: context, authTokenCache: cache,
+				authenticate: async () => { forwarded++; return { authenticated: true }; },
+			};
+			observeJoin = true;
+			const preflight = f.instantiation.invokeFunction(resolveAuthenticationInteractively, [target], options);
+			const preflightAccepted = preflight.then(result => result, () => false);
+			if (phase === 'in-flight') {
+				await joined.p;
+				delivery.complete({ authenticated: false });
+			}
+			const firstAccepted = await preflightAccepted;
+			await f.instantiation.invokeFunction(resolveAuthenticationInteractively, [target], options);
+			assert.deepStrictEqual({ backgroundAccepted: await backgroundAccepted, firstAccepted, forwarded }, {
+				backgroundAccepted: false, firstAccepted: phase === 'completed', forwarded: 1,
+			});
+		});
+	}
+
 	for (const scenario of ['unadvertised', 'rejected', 'stale'] as const) {
 		test(`chat-start does not proceed with ${scenario} selected-service authentication`, async () => {
 			const f = fixture();
@@ -342,7 +390,7 @@ suite('Agent Host Microsoft credential acquisition', () => {
 			if (scenario === 'unadvertised') {
 				assert.strictEqual(await opening, false);
 			} else {
-				await assert.rejects(opening, scenario === 'stale' ? isCancellationError : /did not accept the selected/);
+				await assert.rejects(opening, scenario === 'stale' ? isCancellationError : /did not accept the authentication/);
 			}
 			assert.deepStrictEqual({ forwarded, cachedSession: cache.getSessionId(target.resource, target.scopes_supported), interactive: f.authentication.created }, {
 				forwarded: scenario === 'unadvertised' ? [] : [target.resource], cachedSession: undefined, interactive: [],
