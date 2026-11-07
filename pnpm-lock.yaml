@@ -259,9 +259,6 @@ importers:
       '@types/cookie':
         specifier: ^0.3.3
         version: 0.3.3
-      '@types/estree':
-        specifier: ^1.0.9
-        version: 1.0.9
       '@types/js-yaml':
         specifier: ^4.0.9
         version: 4.0.9
@@ -313,9 +310,6 @@ importers:
       '@types/yazl':
         specifier: ^2.4.2
         version: 2.4.2
-      '@typescript-eslint/utils':
-        specifier: 8.66.0
-        version: 8.66.0(@typescript/typescript6@6.0.2)(eslint@10.8.0)
       '@typescript/native':
         specifier: npm:typescript@^7.0.2
         version: typescript@7.0.2
@@ -394,9 +388,6 @@ importers:
       eslint-plugin-jsdoc:
         specifier: ^63.3.3
         version: 63.3.3(eslint@10.8.0)
-      eslint-visitor-keys:
-        specifier: ^5.0.1
-        version: 5.0.1
       event-stream:
         specifier: 3.3.4
         version: 3.3.4
@@ -554,6 +545,36 @@ importers:
       windows-foreground-love:
         specifier: 0.6.1
         version: 0.6.1
+
+  .eslint-plugin-local:
+    devDependencies:
+      '@types/estree':
+        specifier: ^1.0.9
+        version: 1.0.9
+      '@types/minimatch':
+        specifier: ^3.0.3
+        version: 3.0.3
+      '@types/node':
+        specifier: 24.x
+        version: 24.12.4
+      '@typescript-eslint/utils':
+        specifier: 8.66.0
+        version: 8.66.0(@typescript/typescript6@6.0.2)(eslint@10.8.0)
+      eslint:
+        specifier: 10.8.0
+        version: 10.8.0
+      eslint-visitor-keys:
+        specifier: ^5.0.1
+        version: 5.0.1
+      minimatch:
+        specifier: ^3.1.5
+        version: 3.1.5
+      typescript:
+        specifier: npm:@typescript/typescript6@^6.0.2
+        version: '@typescript/typescript6@6.0.2'
+      typescript-eslint:
+        specifier: 8.66.0
+        version: 8.66.0(@typescript/typescript6@6.0.2)(eslint@10.8.0)
 
   .vscode/extensions/vscode-pr-pinger:
     dependencies:

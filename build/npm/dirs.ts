@@ -22,6 +22,7 @@ export const workspaceMembers = [
 	'.vscode/extensions/vscode-selfhost-test-provider',
 	'.vscode/extensions/vscode-pr-pinger',
 	'src/vs/sessions/test/e2e',
+	'.eslint-plugin-local',
 ];
 
 /**
