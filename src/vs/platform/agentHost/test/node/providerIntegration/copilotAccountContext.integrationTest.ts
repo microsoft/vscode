@@ -10,6 +10,7 @@ import { tmpdir } from 'os';
 import { CopilotClient, CopilotRequestHandler, RuntimeConnection } from '@github/copilot-sdk';
 import { CancellationTokenSource } from '../../../../../base/common/cancellation.js';
 import { join } from '../../../../../base/common/path.js';
+import { isLinux } from '../../../../../base/common/platform.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { mock, upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
@@ -47,7 +48,8 @@ class LocalAccountRequests extends CopilotRequestHandler {
 suite('Copilot account context native SDK', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
-	test('uses the confirmed setup account for the catalog and policy without global login', async function () {
+	// Native Entra accounts support Windows/macOS only; see e2e/KNOWN_ISSUES.md.
+	(isLinux ? test.skip : test)('uses the confirmed setup account for the catalog and policy without global login', async function () {
 		this.timeout(60_000);
 		const { createServer } = await import('http');
 		const home = await mkdtemp(join(tmpdir(), 'copilot-account-context-'));
@@ -131,7 +133,7 @@ suite('Copilot account context native SDK', () => {
 				resource: copilotEntraResources.get(copilotEntraM365Audience)!, scopes: [`${copilotEntraM365Audience}/.default`], token: 'synthetic-m365-token',
 				_meta: authenticationAccountMeta({ providerId: 'microsoft', accountId, label: 'fixture@example.test' }),
 			}, [provider], undefined, connection.token), { authenticated: true });
-			await authentication.authenticate(discovery, [provider], undefined, connection.token);
+			assert.deepStrictEqual(await authentication.authenticate(discovery, [provider], undefined, connection.token), { authenticated: true });
 			const context = accounts.requireReady();
 			const setup = await accounts.getSession(context);
 			const catalog = toCopilotAccountModelCatalog(await setup.rpc.model.list());
