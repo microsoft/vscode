@@ -70,6 +70,7 @@ export class BrowserViewInspector extends Disposable {
 	readonly onDidChangeElementSelectionState: Event<IBrowserElementSelectionState> = this._onDidChangeElementSelectionState.event;
 
 	private _elementSelectionActive = false;
+	private _pageMouseEventsSuppressed = false;
 	get isElementSelectionActive(): boolean { return this._elementSelectionActive; }
 	get elementSelectionState(): IBrowserElementSelectionState {
 		return {
@@ -280,6 +281,7 @@ export class BrowserViewInspector extends Disposable {
 			void this._queueInspectionOperation(async () => {
 				const activeSelection = this._activeSelection.value;
 				if (activeSelection) {
+					inspector.setElementPickerPageMouseEventsSuppressed(this._pageMouseEventsSuppressed);
 					await inspector.startInspection(activeSelection.options);
 				}
 			}).catch(() => { });
@@ -293,6 +295,13 @@ export class BrowserViewInspector extends Disposable {
 		// Broadcast to all known inspectors
 		for (const inspector of this._registry.inspectors) {
 			inspector.setTheme(theme);
+		}
+	}
+
+	setElementPickerPageMouseEventsSuppressed(suppressed: boolean): void {
+		this._pageMouseEventsSuppressed = suppressed;
+		for (const inspector of this._registry.inspectors) {
+			inspector.setElementPickerPageMouseEventsSuppressed(suppressed);
 		}
 	}
 
@@ -335,6 +344,7 @@ export class BrowserViewInspector extends Disposable {
 					this._onDidChangeElementSelectionState.fire({ active: false, options: selection.options });
 					this._activeSelection.clearAndLeak();
 					void this._queueInspectionOperation(async () => {
+						await this.browser.emulator.setElementSelectionActive(false);
 						await Promise.all([...this._registry.inspectors].map(i => i.stopInspection()));
 					}).catch(() => { });
 				}
@@ -358,7 +368,14 @@ export class BrowserViewInspector extends Disposable {
 			if (this._activeSelection.value !== selection || selection.options !== options) {
 				return;
 			}
+			this._pageMouseEventsSuppressed = !!this.browser.emulator.device?.mobile;
+			for (const inspector of this._registry.inspectors) {
+				inspector.setElementPickerPageMouseEventsSuppressed(this._pageMouseEventsSuppressed);
+			}
 			await Promise.all([...this._registry.inspectors].map(i => i.startInspection(options)));
+			if (this._activeSelection.value === selection && selection.options === options) {
+				await this.browser.emulator.setElementSelectionActive(true);
+			}
 		});
 		return this._activeSelection.value === selection && selection.options === options;
 	}
