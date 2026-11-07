@@ -88,7 +88,11 @@ export class ContentHoverComputer implements IHoverComputer<ContentHoverComputer
 			return [];
 		}
 
+		const model = this._editor.getModel();
 		const anchor = options.anchor;
+		if (anchor.range.startLineNumber < 1 || anchor.range.startLineNumber > model.getLineCount()) {
+			return [];
+		}
 		const lineDecorations = ContentHoverComputer._getLineDecorations(this._editor, anchor);
 
 		let result: IHoverPart[] = [];
