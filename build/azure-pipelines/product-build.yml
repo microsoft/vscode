@@ -327,6 +327,13 @@ extends:
         enabled: true
         enableExclusions: true
         exclusionsFilePath: $(Build.SourcesDirectory)/.eslint-ignore
+      # Defender for Linux can block the scan of a job's outputs for the length
+      # of a background scan of the agent, and without a timeout the scan runs
+      # until the job limit. On a timeout, 1ES logs an error and the publish
+      # still runs. This is the default for the jobs that don't set their own
+      # cap; 2 min matches those jobs until the Defender issue is fixed.
+      antimalwareScan:
+        scanTimeoutInMinutes: '2'
       sourceAnalysisPool: ${{ variables.VSCODE_WINDOWS_POOL }}
       createAdoIssuesForJustificationsForDisablement: false
     containers:
