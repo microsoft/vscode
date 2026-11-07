@@ -283,17 +283,20 @@ suite('ChatToolProgressSubPart', () => {
 
 		carousel.activateFirstToolForSubagent('subagent-two');
 		const agentLabel = carousel.domNode.querySelector<HTMLButtonElement>('.chat-tool-carousel-agent-label');
+		const agentSeparator = carousel.domNode.querySelector<HTMLElement>('.chat-tool-carousel-agent-separator');
 		agentLabel?.click();
 
 		assert.deepStrictEqual({
 			active,
 			revealed,
+			separator: agentSeparator?.textContent,
 			text: agentLabel?.textContent,
 			label: agentLabel?.title,
 		}, {
 			active: ['subagent-one', 'subagent-two'],
 			revealed: ['subagent-two'],
-			text: '\u2014 Review current branch',
+			separator: '\u2014',
+			text: 'Review current branch',
 			label: 'Open Review current branch Chat',
 		});
 	});

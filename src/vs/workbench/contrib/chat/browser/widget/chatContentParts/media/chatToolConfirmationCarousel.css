@@ -64,6 +64,13 @@
 		color: var(--vscode-foreground);
 	}
 
+	.chat-tool-carousel-agent-separator {
+		flex: 0 0 auto;
+		font-size: var(--vscode-chat-font-size-body-s);
+		color: var(--vscode-descriptionForeground);
+		user-select: none;
+	}
+
 	.chat-tool-carousel-agent-label {
 		flex: 0 1 auto;
 		min-width: 0;
