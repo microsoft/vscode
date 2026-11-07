@@ -154,6 +154,7 @@ export type IChatModelInformation = IModelAPIResponse & {
 	urlOrRequestMetadata?: string | RequestMetadata;
 	requestHeaders?: Readonly<Record<string, string>>;
 	modelOptions?: Readonly<IChatModelRequestOptions>;
+	extraBody?: Readonly<Record<string, Object>>;
 	zeroDataRetentionEnabled?: boolean;
 	/**
 	 * BYOK Custom Endpoint setting declaring whether the Responses API server retains prior
