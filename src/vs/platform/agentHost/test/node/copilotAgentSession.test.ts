@@ -31058,6 +31058,9 @@ Use the attached image as context.
 				const originalResult = invokeClientToolHandler(tool, 'original');
 				connectedClientIds.clear();
 				mockSession.fire('tool.execution_start', { toolCallId: 'during-grace', toolName, arguments: {} });
+				const duringGraceResult = toolSearch
+					? await invokeClientToolHandler(tool, 'during-grace', { query: 'sum' }, [{ name: 'everything-get-sum', description: 'Adds numbers', deferLoading: true } as CurrentToolMetadata])
+					: undefined;
 				activeClientToolSet.set('replacement', tools);
 				connectedClientIds.add('replacement');
 				mockSession.fire('tool.execution_start', { toolCallId: 'after-rejoin', toolName, arguments: {} });
@@ -31074,10 +31077,11 @@ Use the attached image as context.
 						? [{ id: action.toolCallId, owner: action.contributor }] : []),
 					ready: getActions(signals).flatMap(action => action.type === ActionType.ChatToolCallReady
 						? [{ id: action.toolCallId, owner: action.contributor }] : []),
+					duringGraceHostResult: duringGraceResult && { resultType: duringGraceResult.resultType, toolReferences: duringGraceResult.toolReferences },
 				}, {
 					starts: [
 						{ id: 'original', owner: { kind: ToolCallContributorKind.Client, clientId: 'old-client' } },
-						{ id: 'during-grace', owner: { kind: ToolCallContributorKind.Client, clientId: 'old-client' } },
+						{ id: 'during-grace', owner: toolSearch ? undefined : { kind: ToolCallContributorKind.Client, clientId: 'old-client' } },
 						{ id: 'after-rejoin', owner: { kind: ToolCallContributorKind.Client, clientId: 'replacement' } },
 					],
 					ready: [
@@ -31085,6 +31089,7 @@ Use the attached image as context.
 						...(!toolSearch ? [{ id: 'during-grace', owner: { kind: ToolCallContributorKind.Client, clientId: 'old-client' } }] : []),
 						{ id: 'after-rejoin', owner: { kind: ToolCallContributorKind.Client, clientId: 'replacement' } },
 					],
+					duringGraceHostResult: toolSearch ? { resultType: 'success', toolReferences: ['everything-get-sum'] } : undefined,
 				});
 			});
 		}
