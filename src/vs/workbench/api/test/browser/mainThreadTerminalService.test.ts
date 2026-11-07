@@ -315,6 +315,77 @@ suite('MainThreadTerminalService', () => {
 		}
 	});
 
+	for (const identifier of ['extension identifier', 'instance id'] as const) {
+		test(`falls back to the default location for a hidden parent referenced by its ${identifier}`, async () => {
+			await service.$createTerminal('parent-terminal', { name: 'Parent', hideFromUser: true, isExtensionCustomPtyTerminal: true });
+			const parent = store.add(terminals.instances[0]);
+			await service.$createTerminal('child-terminal', {
+				name: 'Child',
+				isExtensionCustomPtyTerminal: true,
+				location: { parentTerminal: identifier === 'extension identifier' ? 'parent-terminal' : parent.instanceId }
+			});
+			const child = store.add(terminals.foregroundInstances[0]);
+			try {
+				assert.deepStrictEqual({
+					parentGroup: groups.getGroupForInstance(parent),
+					groups: groups.groups.map(group => group.terminalInstances),
+					foreground: terminals.foregroundInstances
+				}, {
+					parentGroup: undefined,
+					groups: [[child]],
+					foreground: [child]
+				});
+			} finally {
+				child.dispose();
+				parent.dispose();
+			}
+		});
+
+		test(`splits from a previously hidden parent after it is shown using its ${identifier}`, async () => {
+			await service.$createTerminal('parent-terminal', { name: 'Parent', hideFromUser: true, isExtensionCustomPtyTerminal: true });
+			const parent = store.add(terminals.instances[0]);
+			await terminals.showBackgroundTerminal(parent);
+			await service.$createTerminal('child-terminal', {
+				name: 'Child',
+				isExtensionCustomPtyTerminal: true,
+				location: { parentTerminal: identifier === 'extension identifier' ? 'parent-terminal' : parent.instanceId }
+			});
+			const child = store.add(terminals.foregroundInstances[1]);
+			try {
+				assert.deepStrictEqual(groups.groups.map(group => group.terminalInstances), [[parent, child]]);
+			} finally {
+				child.dispose();
+				parent.dispose();
+			}
+		});
+	}
+
+	test('falls back to the default location for a parent moved to the background', async () => {
+		await service.$createTerminal('parent-terminal', { name: 'Parent', isExtensionCustomPtyTerminal: true });
+		const parent = store.add(terminals.instances[0]);
+		terminals.moveToBackground(parent);
+		await service.$createTerminal('child-terminal', {
+			name: 'Child',
+			isExtensionCustomPtyTerminal: true,
+			location: { parentTerminal: parent.instanceId }
+		});
+		const child = store.add(terminals.foregroundInstances[0]);
+		try {
+			assert.deepStrictEqual({
+				parentGroup: groups.getGroupForInstance(parent),
+				groups: groups.groups.map(group => group.terminalInstances),
+				foreground: terminals.foregroundInstances
+			}, {
+				parentGroup: undefined,
+				groups: [[child]],
+				foreground: [child]
+			});
+		} finally {
+			child.dispose();
+			parent.dispose();
+		}
+	});
+
 	test('a terminal closed during creation releases its extension identifier', async () => {
 		store.add(terminals.onDidChangeInstances(() => terminals.instances[0]?.dispose()));
 		await service.$createTerminal('early-closed-terminal', { name: 'Early close', shellPath: '/test-shell', hideFromUser: true });
