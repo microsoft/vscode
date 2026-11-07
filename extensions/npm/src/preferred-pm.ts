@@ -14,6 +14,12 @@ interface PreferredProperties {
 	hasLockfile: boolean;
 }
 
+type PreferredPMResult = { name: string; multipleLockFilesDetected: boolean };
+
+const SUPPORTED_PACKAGE_MANAGERS = new Set(['npm', 'pnpm', 'yarn', 'bun']);
+
+const preferredPMCache = new Map<string, Promise<PreferredPMResult>>();
+
 async function pathExists(filePath: string) {
 	try {
 		await workspace.fs.stat(Uri.file(filePath));
@@ -21,6 +27,38 @@ async function pathExists(filePath: string) {
 		return false;
 	}
 	return true;
+}
+
+async function readPackageManagerField(packageJsonPath: string): Promise<string | undefined> {
+	try {
+		const bytes = await workspace.fs.readFile(Uri.file(packageJsonPath));
+		const json = JSON.parse(new TextDecoder().decode(bytes));
+		const value = json?.packageManager;
+		if (typeof value !== 'string') {
+			return undefined;
+		}
+		// Corepack format: "<name>@<version>[+<hash>]"
+		const name = value.split('@', 1)[0].trim();
+		return SUPPORTED_PACKAGE_MANAGERS.has(name) ? name : undefined;
+	} catch {
+		return undefined;
+	}
+}
+
+async function findPackageManagerFromField(pkgPath: string): Promise<string | undefined> {
+	let result: string | undefined;
+	await findUp(async directory => {
+		const candidate = path.join(directory, 'package.json');
+		if (await pathExists(candidate)) {
+			const name = await readPackageManagerField(candidate);
+			if (name) {
+				result = name;
+				return candidate;
+			}
+		}
+		return undefined;
+	}, { cwd: pkgPath });
+	return result;
 }
 
 async function isBunPreferred(pkgPath: string): Promise<PreferredProperties> {
@@ -68,9 +106,28 @@ async function isNPMPreferred(pkgPath: string): Promise<PreferredProperties> {
 	return { isPreferred: lockfileExists, hasLockfile: lockfileExists };
 }
 
-export async function findPreferredPM(pkgPath: string): Promise<{ name: string; multipleLockFilesDetected: boolean }> {
+export function invalidatePreferredPMCache() {
+	preferredPMCache.clear();
+}
+
+export function findPreferredPM(pkgPath: string): Promise<PreferredPMResult> {
+	let cached = preferredPMCache.get(pkgPath);
+	if (!cached) {
+		cached = computePreferredPM(pkgPath);
+		preferredPMCache.set(pkgPath, cached);
+	}
+	return cached;
+}
+
+async function computePreferredPM(pkgPath: string): Promise<PreferredPMResult> {
 	const detectedPackageManagerNames: string[] = [];
 	const detectedPackageManagerProperties: PreferredProperties[] = [];
+
+	const fromField = await findPackageManagerFromField(pkgPath);
+	if (fromField) {
+		detectedPackageManagerNames.push(fromField);
+		detectedPackageManagerProperties.push({ isPreferred: true, hasLockfile: false });
+	}
 
 	const npmPreferred = await isNPMPreferred(pkgPath);
 	if (npmPreferred.isPreferred) {
