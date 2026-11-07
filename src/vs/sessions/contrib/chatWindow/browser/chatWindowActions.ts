@@ -31,8 +31,9 @@ import { IEditorGroup, IEditorGroupsService } from '../../../../workbench/servic
 import { IEditorService } from '../../../../workbench/services/editor/common/editorService.js';
 import { Menus, SessionActivityBarGroup } from '../../../../workbench/contrib/sessions/browser/menus.js';
 import { AgentsWindowMenus } from '../../../browser/agentsWindowMenus.js';
-import { SessionInChatEditorContext, SessionWithWorkspaceContext } from '../../../../workbench/contrib/sessions/common/contextkeys.js';
-import { SessionActivityBarLayoutActionsContext } from '../../../common/agentsWindowContextKeys.js';
+import { SessionInChatEditorContext, SessionsWelcomeVisibleContext, SessionWithWorkspaceContext } from '../../../../workbench/contrib/sessions/common/contextkeys.js';
+import { SessionActivityBarLayoutActionsContext, SessionsTitleBarNewSessionEnabledContext } from '../../../common/agentsWindowContextKeys.js';
+import { NEW_SESSION_IN_CHAT_WINDOW_COMMAND_ID } from '../../../../workbench/contrib/sessions/common/chatConstants.js';
 import { CHAT_WINDOW_OPEN_BROWSER_COMMAND_ID, CHAT_WINDOW_OPEN_CHANGES_COMMAND_ID, CHAT_WINDOW_OPEN_FILES_COMMAND_ID } from '../../../../workbench/contrib/sessions/common/sessionCommands.js';
 import { ISessionHostService, SessionHostKind } from '../../../../workbench/services/sessions/browser/sessionHost.js';
 import { IChat, ISession } from '../../../../workbench/services/sessions/common/session.js';
@@ -79,12 +80,11 @@ registerAction2(class CloseChatWindowAction extends Action2 {
 
 //#region New Session
 
-export const NEW_SESSION_IN_CHAT_WINDOW_COMMAND_ID = 'sessions.chatWindow.newSession';
-
 // A new session in a chat window opens in that window, as a tab of its active chat, starting from that chat's session.
 // Its key is that of New Session in the main window, while the window's chat or its title bar has focus; not in its other
-// editors, where it creates a new file, nor in the search picker of an empty file editor, which does the same. The window's
-// title bar has no New Session button: the command, its key and the Sessions picker start one.
+// editors, where it creates a new file, nor in the search picker of an empty file editor, which does the same. Its button
+// shows at the left of the window's title bar, where the main window's New Session shows: a chat window has no sessions
+// list, so it always shows, in every layout mode.
 registerAction2(class NewSessionInChatWindowAction extends Action2 {
 	constructor() {
 		super({
@@ -94,6 +94,12 @@ registerAction2(class NewSessionInChatWindowAction extends Action2 {
 			icon: Codicon.plus,
 			f1: true,
 			precondition: ContextKeyExpr.and(ChatWindowsEnabledContext, ChatWindowLayoutCommandsContext),
+			menu: {
+				id: AgentsWindowMenus.TitleBarLeftLayout,
+				group: 'navigation',
+				order: 1,
+				when: ContextKeyExpr.and(ChatWindowsEnabledContext, ChatWindowLayoutCommandsContext, SessionsWelcomeVisibleContext.toNegated(), SessionsTitleBarNewSessionEnabledContext),
+			},
 			keybinding: {
 				primary: KeyMod.CtrlCmd | KeyCode.KeyN,
 				weight: KeybindingWeight.SessionsContrib + 1,
