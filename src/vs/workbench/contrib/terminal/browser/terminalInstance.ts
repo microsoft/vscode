@@ -70,7 +70,7 @@ import { LineDataEventAddon } from './xterm/lineDataEventAddon.js';
 import { XtermTerminal, getXtermScaledDimensions } from './xterm/xtermTerminal.js';
 import { IEnvironmentVariableInfo } from '../common/environmentVariable.js';
 import { ITerminalProcessManager, ITerminalProfileResolverService, ProcessState, TERMINAL_VIEW_ID, TerminalCommandId } from '../common/terminal.js';
-import { TERMINAL_BACKGROUND_COLOR } from '../common/terminalColorRegistry.js';
+import { ansiColorMap, TERMINAL_BACKGROUND_COLOR } from '../common/terminalColorRegistry.js';
 import { TerminalContextKeys } from '../common/terminalContextKey.js';
 import { getUriLabelForShell, getShellIntegrationTimeout, getWorkspaceForTerminal, preparePathForShell } from '../common/terminalEnvironment.js';
 import { IEditorService } from '../../../services/editor/common/editorService.js';
@@ -2504,6 +2504,8 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 
 	async changeColor(color?: string, skipQuickPick?: boolean): Promise<string | undefined> {
 		if (color) {
+			const ansiColor = `terminal.ansi${color.charAt(0).toUpperCase()}${color.slice(1).toLowerCase()}`;
+			color = Object.hasOwn(ansiColorMap, ansiColor) ? ansiColor : color;
 			this.shellLaunchConfig.color = color;
 			this._onIconChanged.fire({ instance: this, userInitiated: true });
 			return color;

@@ -234,6 +234,21 @@ suite('Workbench - TerminalInstance', () => {
 			});
 		});
 
+		test('resolves ANSI color aliases and preserves explicit color IDs', async () => {
+			const instance = await createTerminalInstance();
+			const colors = ['black', 'red', 'green', 'yellow', 'blue', 'magenta', 'cyan', 'white', 'RED', 'Blue', 'terminal.ansiBlue', 'editorWarning.foreground'];
+			const results: { result: string | undefined; storedColor: string | undefined }[] = [];
+			for (const color of colors) {
+				const result = await instance.changeColor(color);
+				results.push({ result, storedColor: instance.shellLaunchConfig.color });
+			}
+			deepStrictEqual(results, [
+				'terminal.ansiBlack', 'terminal.ansiRed', 'terminal.ansiGreen', 'terminal.ansiYellow',
+				'terminal.ansiBlue', 'terminal.ansiMagenta', 'terminal.ansiCyan', 'terminal.ansiWhite',
+				'terminal.ansiRed', 'terminal.ansiBlue', 'terminal.ansiBlue', 'editorWarning.foreground'
+			].map(color => ({ result: color, storedColor: color })));
+		});
+
 		test('cancelling the shared icon picker preserves the terminal icon', async () => {
 			const sandbox = createSandbox();
 			store.add(toDisposable(() => sandbox.restore()));

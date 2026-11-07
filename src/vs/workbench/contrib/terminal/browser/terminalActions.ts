@@ -799,7 +799,7 @@ export function registerTerminalActions() {
 						type: 'object',
 						properties: {
 							color: {
-								description: localize('workbench.action.terminal.changeColor.color', "A terminal color ID. When omitted, the color picker is shown unless skipQuickPick is true."),
+								description: localize('workbench.action.terminal.changeColor.color', "A terminal color ID or an ANSI color name such as {0} or {1}. When omitted, the color picker is shown unless skipQuickPick is true.", 'red', 'blue'),
 								type: 'string'
 							},
 							skipQuickPick: {
