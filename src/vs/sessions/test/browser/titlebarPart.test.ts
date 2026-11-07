@@ -177,7 +177,9 @@ suite('Sessions - Titlebar Part', () => {
 			layout: part.element.querySelector<HTMLElement>('.titlebar-window-layout-container')!,
 		};
 		const titleBarContainer = part.element.querySelector<HTMLElement>('.sessions-titlebar-container')!;
-		// The groups that show, their insets, and how far the last action that shows is from the window's edge.
+		// The groups that show, their insets, and how far the last action that shows is from the end of the title bar: the
+		// window's edge, or the window controls after the actions, such as of a title bar in a browser.
+		const shownWindowControls = () => [...part.element.querySelectorAll<HTMLElement>('.titlebar-right > .window-controls-container')].find(element => element.getClientRects().length > 0);
 		const read = (state: { customWindowControls?: boolean; fullscreen?: boolean } = {}) => {
 			titleBarContainer.classList.toggle('custom-window-controls', !!state.customWindowControls);
 			container.classList.toggle('fullscreen', !!state.fullscreen);
@@ -187,7 +189,7 @@ suite('Sessions - Titlebar Part', () => {
 			return {
 				last: Object.entries(groups).filter(([, element]) => element.classList.contains('titlebar-last-actions')).map(([name]) => name),
 				insets: Object.fromEntries(shown.map(([name, element]) => [name, mainWindow.getComputedStyle(element).paddingRight])),
-				edge: part.element.getBoundingClientRect().right - lastItem.getBoundingClientRect().right,
+				edge: (shownWindowControls()?.getBoundingClientRect().left ?? part.element.getBoundingClientRect().right) - lastItem.getBoundingClientRect().right,
 			};
 		};
 		const setLayoutActionsInTitleBar = (inTitleBar: boolean) => {
