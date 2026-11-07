@@ -61,6 +61,7 @@ suite('AgentHostFileMonitorService', () => {
 			fileService.fire(URI.file('/repo/.git/objects/12/abcdef'));
 			fileService.fire(URI.file('/repo/.git/index.lock'));
 			fileService.fire(URI.file('/repo/.watchman-cookie-123'));
+			fileService.fire(URI.file('/repo/nested/.git/objects/12/abcdef'));
 			await timeout(11);
 			assert.strictEqual(calls, 0);
 
