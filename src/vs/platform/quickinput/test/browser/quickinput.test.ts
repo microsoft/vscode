@@ -1271,8 +1271,8 @@ suite('QuickInput item hover layout', () => {
 		}, { focusedBeforeHoverInPicker: true, hoverFocused: true, hoverShown: false, focusReturned: true });
 	});
 
-	function pressEscape(target: HTMLElement): void {
-		target.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', code: 'Escape', keyCode: 27, bubbles: true, cancelable: true }));
+	function pressEscape(target: HTMLElement, shiftKey = false): void {
+		target.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', code: 'Escape', keyCode: 27, shiftKey, bubbles: true, cancelable: true }));
 	}
 
 	/**
@@ -1338,6 +1338,24 @@ suite('QuickInput item hover layout', () => {
 		// The hover is not dismissed by Escape here, but hidden along with the picker that contains it
 		const { targetFocused, pickerHidden, focusRestored } = await pressEscapeOn(input, outside, hidden);
 		assert.deepStrictEqual({ targetFocused, pickerHidden, focusRestored }, { targetFocused: true, pickerHidden: true, focusRestored: true });
+	});
+
+	test('keeps focus on a link in the item hover when Shift+Escape is pressed', async () => {
+		ignoreFocusOut = false;
+		await showPicker(['first'], label => new MarkdownString(`[Link of ${label}](https://example.com)`));
+		await settle();
+		controller.toggleHover();
+		const link = fixture.querySelector<HTMLElement>('.workbench-hover a');
+		assert.ok(link);
+		link.focus();
+
+		pressEscape(link, true);
+		await timeout(50);
+
+		assert.deepStrictEqual({
+			hoverShown: !!fixture.querySelector('.workbench-hover'),
+			linkFocused: mainWindow.document.activeElement === link,
+		}, { hoverShown: true, linkFocused: true });
 	});
 
 	test('focuses the list when Escape is pressed in the item hover after the previously focused element was removed', async () => {

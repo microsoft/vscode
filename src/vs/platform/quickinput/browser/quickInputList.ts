@@ -25,6 +25,7 @@ import { memoize } from '../../../base/common/decorators.js';
 import { isCancellationError } from '../../../base/common/errors.js';
 import { Emitter, Event, EventBufferer, IValueWithChangeEvent } from '../../../base/common/event.js';
 import { IMatch } from '../../../base/common/filters.js';
+import { KeyCode } from '../../../base/common/keyCodes.js';
 import { IMarkdownString } from '../../../base/common/htmlContent.js';
 import { IParsedLabelWithIcons, getCodiconAriaLabel, matchesFuzzyIconAware, parseLabelWithIcons } from '../../../base/common/iconLabels.js';
 import { Lazy } from '../../../base/common/lazy.js';
@@ -1429,9 +1430,10 @@ export class QuickInputList extends Disposable {
 			const hoverHost = this._hoverHost = dom.append(this._container, $('.quick-input-list-hover-host'));
 			// The hover disposes itself on Escape, which would move focus to the body and hide the
 			// picker without restoring focus. Move focus back into the picker first and let the
-			// event continue so Escape still closes the hover and the picker.
+			// event continue so Escape still closes the hover and the picker. Match the hover's
+			// own unmodified Escape check so other combinations leave focus in the hover.
 			this._register(dom.addDisposableListener(hoverHost, dom.EventType.KEY_DOWN, e => {
-				if (e.key === 'Escape' && dom.isAncestorOfActiveElement(hoverHost)) {
+				if (new StandardKeyboardEvent(e).equals(KeyCode.Escape) && dom.isAncestorOfActiveElement(hoverHost)) {
 					this.returnFocusFromHover();
 				}
 			}, true));
