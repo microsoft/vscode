@@ -5,6 +5,18 @@
 
 declare module 'vscode' {
 
+	export interface LanguageModelChatRequestOptions {
+		/**
+		 * Per-request overrides for the model's configuration. These values take precedence
+		 * over the user's per-model configuration and schema defaults. Omitted properties
+		 * retain their configured values.
+		 *
+		 * The merged configuration is passed to the provider as
+		 * {@linkcode ProvideLanguageModelChatResponseOptions.modelConfiguration}.
+		 */
+		configuration?: { readonly [key: string]: any };
+	}
+
 	/**
 	* The provider version of {@linkcode LanguageModelChatRequestOptions}
 	*/
@@ -17,9 +29,8 @@ declare module 'vscode' {
 		readonly requestInitiator: string;
 
 		/**
-		 * Per-model configuration provided by the user. This contains values configured
-		 * in the user's language models configuration file, validated against the model's
-		 * {@linkcode LanguageModelChatInformation.configurationSchema configurationSchema}.
+		 * Resolved per-model configuration, including schema defaults, user settings, and
+		 * {@linkcode LanguageModelChatRequestOptions.configuration per-request overrides}.
 		 */
 		readonly modelConfiguration?: {
 			readonly [key: string]: any;

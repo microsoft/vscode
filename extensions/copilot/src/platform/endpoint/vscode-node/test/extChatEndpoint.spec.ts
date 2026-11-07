@@ -68,6 +68,44 @@ describe('ExtensionContributedChatEndpoint', () => {
 		expect(capturedOptions.map(options => options.modelOptions?._enableThinking)).toEqual([true, false, undefined]);
 	});
 
+	it('forwards per-request reasoning effort without overriding defaults when absent', async () => {
+		const capturedOptions: vscode.LanguageModelChatRequestOptions[] = [];
+		const languageModel = createLanguageModel(options => capturedOptions.push(options));
+		const endpoint = new ExtensionContributedChatEndpoint(
+			languageModel,
+			createInstantiationService(),
+			new NoopOTelService(resolveOTelConfig({ env: {}, extensionVersion: '1.0.0', sessionId: 'test' })),
+			new DefaultsOnlyConfigurationService(),
+		);
+		const tokenSource = new vscode.CancellationTokenSource();
+		try {
+			for (const reasoningEffort of ['low', 'high', 'low', 'medium', undefined]) {
+				const result = await endpoint.makeChatRequest2({
+					debugName: 'test',
+					messages: [{
+						role: Raw.ChatRole.User,
+						content: [{ type: Raw.ChatCompletionContentPartKind.Text, text: 'hello' }]
+					}],
+					finishedCb: undefined,
+					location: ChatLocation.Panel,
+					requestOptions: {},
+					modelCapabilities: { reasoningEffort },
+				}, tokenSource.token);
+				expect(result.type).toBe(ChatFetchResponseType.Success);
+			}
+		} finally {
+			tokenSource.dispose();
+		}
+
+		expect(capturedOptions.map(options => options.configuration)).toEqual([
+			{ reasoningEffort: 'low' },
+			{ reasoningEffort: 'high' },
+			{ reasoningEffort: 'low' },
+			{ reasoningEffort: 'medium' },
+			undefined,
+		]);
+	});
+
 	it('only forwards telemetry turn for base-10 non-negative integer request properties', async () => {
 		const capturedOptions: vscode.LanguageModelChatRequestOptions[] = [];
 		const languageModel = createLanguageModel(options => capturedOptions.push(options));
