@@ -8,7 +8,7 @@ import { DeferredPromise, timeout } from '../../../../../base/common/async.js';
 import { CancellationError } from '../../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { Disposable, IReference } from '../../../../../base/common/lifecycle.js';
-import { autorun, constObservable, derived, IReader, observableValue, transaction } from '../../../../../base/common/observable.js';
+import { autorun, constObservable, derived, IObservable, IReader, observableValue, transaction } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { mock, upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
@@ -36,7 +36,7 @@ import { IChatDeletedEvent, ISessionsChangeEvent, ISessionsManagementService } f
 import { ISessionEditorWorkingSetOwner, SessionEditorWorkingSetService } from '../../../layout/common/sessionEditorWorkingSet.js';
 import { ISessionCanvasRegistryService } from '../../common/sessionCanvas.js';
 import { registerSessionCanvasActions, REOPEN_SESSION_CANVAS_COMMAND_ID } from '../../electron-browser/sessionCanvasActions.js';
-import { CanvasInput, canPresentCanvasInGroup, ICanvasModelResolution } from '../../../../../workbench/contrib/canvases/common/canvas.js';
+import { CanvasInput, canPresentCanvasInGroup, ICanvasContext, ICanvasModelResolution } from '../../../../../workbench/contrib/canvases/common/canvas.js';
 import { CanvasService } from '../../../../../workbench/contrib/canvases/electron-browser/canvasService.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { TestNotificationService } from '../../../../../platform/notification/test/common/testNotificationService.js';
@@ -1469,20 +1469,21 @@ suite('SessionCanvasService', () => {
 		assert.deepStrictEqual({ chatWindowFocused, otherWindowFocused }, { chatWindowFocused: expected, otherWindowFocused: expected });
 	});
 	suite('chat window chats', () => {
-		const setup = (focusedInWindow: boolean) => {
+		const createFixture = (focusedInWindow: boolean) => {
 			const createChat = (name: string) => upcastPartial<IChat>({ resource: URI.parse(`agent-host-chat:/session/${name}`), canvases: constObservable([]) });
 			const chatA = createChat('a');
 			const chatB = createChat('b');
-			const createSession = (name: string, chat: IChat) => upcastPartial<ITestSessionWithChat>({
+			const createSession = (name: string, chat: IChat, chats: IObservable<readonly IChat[]> = constObservable([chat])) => upcastPartial<ITestSessionWithChat>({
 				providerId: 'local-agent-host',
 				resource: URI.parse(`agent-host-session:/${name}`),
 				activeChat: constObservable(chat),
-				chats: constObservable([chat]),
+				chats,
 				capabilities: constObservable<ISessionCapabilities>({ supportsCanvases: true, supportsMultipleChats: true }),
 			});
 			// The chats belong to different sessions, as the chats of one chat window may.
 			const session = createSession('session', chatA);
-			const sessionB = createSession('sessionB', chatB);
+			const sessionBChats = observableValue<readonly IChat[]>('sessionBChats', [chatB]);
+			const sessionB = createSession('sessionB', chatB, sessionBChats);
 			const windowHost = upcastPartial<ISessionHost>({ kind: SessionHostKind.ChatWindow, parent: undefined, windowId: constObservable(2), session: constObservable(session), chat: constObservable(chatA) });
 			const chatWindowGroup = upcastPartial<IEditorGroup>({ id: 2, windowId: 2, contains: () => false });
 			const windowChats = observableValue<readonly URI[]>('windowChats', [chatA.resource]);
@@ -1500,7 +1501,7 @@ suite('SessionCanvasService', () => {
 				// Focus is elsewhere, in a window that shows no session.
 				focusedInWindow ? upcastPartial<IFocusedSessionHostService>({ focusedHost: constObservable(windowHost) }) : focusedSessionHostServiceOf(constObservable(undefined)),
 				upcastPartial<ISessionsManagementService>({
-					getSessionForChatResource: resource => isEqual(resource, chatA.resource) ? { session, chat: chatA } : isEqual(resource, chatB.resource) ? { session: sessionB, chat: chatB } : undefined,
+					getSessionForChatResource: resource => isEqual(resource, chatA.resource) ? { session, chat: chatA } : isEqual(resource, chatB.resource) ? { session: sessionB, chat: sessionBChats.get()[0] } : undefined,
 					onDidChangeSessions: Event.None,
 					onDidDeleteChat: Event.None,
 				}),
@@ -1521,9 +1522,13 @@ suite('SessionCanvasService', () => {
 				visible: [chatA, chatB].map(chat => contextService.isOwnerVisible(ownerOf(chat))),
 				group: [chatA, chatB].map(chat => contextService.getEditorGroup(ownerOf(chat), upcastPartial<CanvasInput>({}), false)?.id),
 			});
+			return { contextService, snapshot, windowChats, sessionBChats, chatA, chatB };
+		};
+		const setup = (focusedInWindow: boolean) => {
+			const fixture = createFixture(focusedInWindow);
 			// Another chat joins the window while it is not the active chat.
-			windowChats.set([chatA.resource, chatB.resource], undefined);
-			return snapshot();
+			fixture.windowChats.set([fixture.chatA.resource, fixture.chatB.resource], undefined);
+			return fixture.snapshot();
 		};
 
 		test('a chat window contributes a context for each of its chats, whichever session owns them, and opens in its own group', () => {
@@ -1536,6 +1541,19 @@ suite('SessionCanvasService', () => {
 
 		test('a focused chat window restores its canvases without taking focus', () => {
 			assert.deepStrictEqual(setup(true).contexts, [{ chat: '/session/a', background: true }, { chat: '/session/b', background: true }]);
+		});
+
+		test('an inactive chat replaced under the same resource contributes its new canvases', () => {
+			const { contextService, windowChats, sessionBChats, chatA, chatB } = createFixture(false);
+			windowChats.set([chatA.resource, chatB.resource], undefined);
+			// The context is observed before the replacement, as in a running window.
+			let observed: ICanvasContext | undefined;
+			store.add(autorun(reader => {
+				observed = contextService.contexts.read(reader).find(context => context.owner.chat.path === '/session/b');
+			}));
+			const replacementCanvases = constObservable<readonly ICanvas[]>([]);
+			sessionBChats.set([upcastPartial<IChat>({ resource: chatB.resource, canvases: replacementCanvases })], undefined);
+			assert.strictEqual(observed?.canvases, replacementCanvases);
 		});
 	});
 

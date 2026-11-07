@@ -5,7 +5,7 @@
 
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
-import { constObservable, derived, derivedOpts, IObservable, IReader } from '../../../../base/common/observable.js';
+import { constObservable, derived, derivedOpts, IObservable, IReader, observableSignalFromEvent } from '../../../../base/common/observable.js';
 import { isEqual } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
@@ -55,8 +55,11 @@ export class SessionCanvasContextService extends Disposable implements ICanvasCo
 		};
 		this.chatWindowChats = derivedOpts<readonly URI[]>({ owner: this, equalsFn: (a, b) => a.length === b.length && a.every((chat, index) => isEqual(chat, b[index])) },
 			reader => this.chatWindowService.windows.read(reader).flatMap(window => window.chats.read(reader)));
+		// The owner lookup is not observable: re-resolve on session changes, and read each owner's chats below.
+		const sessionsChanged = observableSignalFromEvent(this, this.sessionsManagementService.onDidChangeSessions);
 		this.contexts = derived<readonly ICanvasContext[]>(this, reader => {
 			chatService.chatModels.read(reader);
+			sessionsChanged.read(reader);
 			const contexts: ICanvasContext[] = [];
 			const add = (session: ISession, chat: IChat, background: boolean) => {
 				const owner: ICanvasOwner = { providerId: session.providerId, session: session.resource, chat: chat.resource };
@@ -87,6 +90,7 @@ export class SessionCanvasContextService extends Disposable implements ICanvasCo
 			for (const resource of this.chatWindowChats.read(reader)) {
 				const owner = this.sessionsManagementService.getSessionForChatResource(resource);
 				if (owner) {
+					owner.session.chats.read(reader);
 					add(owner.session, owner.chat, true);
 				}
 			}
