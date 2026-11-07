@@ -20,13 +20,18 @@ import { localize, localize2 } from '../../../../../nls.js';
 import { MenuWorkbenchToolBar } from '../../../../../platform/actions/browser/toolbar.js';
 import { Action2, MenuId, MenuRegistry, registerAction2 } from '../../../../../platform/actions/common/actions.js';
 import { IBrowserDeviceProfile } from '../../../../../platform/browserView/common/browserView.js';
+import { IConfigurationRegistry, Extensions as ConfigurationExtensions, ConfigurationScope } from '../../../../../platform/configuration/common/configurationRegistry.js';
+import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { ContextKeyExpr, IContextKey, IContextKeyService, RawContextKey } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IContextViewService } from '../../../../../platform/contextview/browser/contextView.js';
 import { IHoverService, WorkbenchHoverDelegate } from '../../../../../platform/hover/browser/hover.js';
 import { IInstantiationService, ServicesAccessor } from '../../../../../platform/instantiation/common/instantiation.js';
-import { IQuickInputService, IQuickPickItem } from '../../../../../platform/quickinput/common/quickInput.js';
+import { IQuickInputService, IQuickPickItem, IQuickPickSeparator } from '../../../../../platform/quickinput/common/quickInput.js';
+import { Registry } from '../../../../../platform/registry/common/platform.js';
 import { defaultInputBoxStyles, defaultSelectBoxStyles } from '../../../../../platform/theme/browser/defaultStyles.js';
+import { workbenchConfigurationNodeBase } from '../../../../common/configuration.js';
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
+import { BROWSER_DEVICE_MAX_DIMENSION, BROWSER_DEVICE_MAX_SCALE_FACTOR, BROWSER_DEVICE_MIN_DIMENSION, BROWSER_DEVICE_MIN_SCALE_FACTOR, BrowserCustomDevicePresetsSettingId, IBrowserDevicePreset, resolveBrowserDevicePresets } from '../../common/browserDevicePresets.js';
 import { IBrowserViewModel } from '../../common/browserView.js';
 import { BrowserEditor, BrowserEditorContribution, BrowserWidgetLocation, IBrowserEditorWidget, IContainerLayout, IContainerLayoutOverride, BROWSER_EDITOR_ACTIVE, BrowserActionCategory, BrowserActionGroup } from '../browserEditor.js';
 
@@ -47,16 +52,6 @@ const CONTEXT_BROWSER_EMULATION_HAS_USER_AGENT = new RawContextKey<boolean>(
 	false,
 	localize('browser.emulationHasUserAgent', "Whether the browser emulation has a custom user agent")
 );
-
-/**
- * A named device preset. Applying a preset stamps its `device` (including
- * any embedded viewport width/height) onto the active device profile, while
- * preserving the user's current scale.
- */
-export interface IBrowserDevicePreset {
-	readonly name: string;
-	readonly device?: IBrowserDeviceProfile;
-}
 
 /**
  * Keep track of the last used device + scale so we can restore them when the
@@ -776,25 +771,6 @@ MenuRegistry.appendMenuItem(MenuId.BrowserEmulationToolbar, {
 	order: 20,
 });
 
-const DEFAULT_BROWSER_DEVICE_PRESETS: readonly IBrowserDevicePreset[] = [
-	{
-		name: 'iPhone 15 Pro',
-		device: { width: 393, height: 852, mobile: true, deviceScaleFactor: 3, userAgent: 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1' },
-	},
-	{
-		name: 'iPhone SE',
-		device: { width: 375, height: 667, mobile: true, deviceScaleFactor: 2, userAgent: 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1' },
-	},
-	{
-		name: 'Pixel 8',
-		device: { width: 412, height: 915, mobile: true, deviceScaleFactor: 2.625, userAgent: 'Mozilla/5.0 (Linux; Android 14; Pixel 8) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Mobile Safari/537.36' },
-	},
-	{
-		name: 'iPad Mini',
-		device: { width: 768, height: 1024, mobile: true, deviceScaleFactor: 2, userAgent: 'Mozilla/5.0 (iPad; CPU OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1' },
-	},
-];
-
 class PickBrowserDevicePresetAction extends Action2 {
 	static readonly ID = 'workbench.action.browser.pickDevicePreset';
 
@@ -818,15 +794,22 @@ class PickBrowserDevicePresetAction extends Action2 {
 			return;
 		}
 		const quickInputService = accessor.get(IQuickInputService);
+		const configurationService = accessor.get(IConfigurationService);
+		const resolved = resolveBrowserDevicePresets(configurationService.getValue(BrowserCustomDevicePresetsSettingId));
 
 		type PresetItem = IQuickPickItem & { preset: IBrowserDevicePreset };
-		const items: PresetItem[] = DEFAULT_BROWSER_DEVICE_PRESETS.map(p => ({
-			label: p.name,
-			description: p.device?.width && p.device?.height
-				? `${p.device.width}\u00D7${p.device.height}${p.device?.mobile ? ` \u2022 ${localize('browser.devicePresets.mobileTag', "mobile")}` : ''}`
+		const toItem = (preset: IBrowserDevicePreset): PresetItem => ({
+			label: preset.name,
+			description: preset.device?.width && preset.device?.height
+				? `${preset.device.width}\u00D7${preset.device.height}${preset.device?.mobile ? ` \u2022 ${localize('browser.devicePresets.mobileTag', "mobile")}` : ''}`
 				: undefined,
-			preset: p,
-		}));
+			preset,
+		});
+		const items: (PresetItem | IQuickPickSeparator)[] = resolved.builtins.map(toItem);
+		if (resolved.custom.length > 0) {
+			items.push({ type: 'separator', label: localize('browser.devicePresets.custom', "Custom") });
+			items.push(...resolved.custom.map(toItem));
+		}
 
 		const picked = await quickInputService.pick(items, {
 			placeHolder: localize('browser.devicePresets.placeholder', "Select a device preset"),
@@ -924,3 +907,63 @@ registerAction2(PickBrowserDevicePresetAction);
 registerAction2(SetBrowserUserAgentAction);
 registerAction2(ToggleBrowserMobileEmulationAction);
 registerAction2(ResetBrowserEmulationAction);
+
+Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).registerConfiguration({
+	...workbenchConfigurationNodeBase,
+	properties: {
+		[BrowserCustomDevicePresetsSettingId]: {
+			type: 'array',
+			default: [],
+			scope: ConfigurationScope.WINDOW,
+			markdownDescription: localize(
+				{ comment: ['This is the description for a setting. Values surrounded by backticks are not to be translated.'], key: 'browser.customDevicePresets' },
+				"Custom device presets shown in the Integrated Browser **Emulate Device...** picker, after the built-in phones and tablets. A preset whose `name` matches a built-in preset replaces that built-in."
+			),
+			items: {
+				type: 'object',
+				additionalProperties: false,
+				required: ['name', 'width', 'height'],
+				default: {
+					name: 'MacBook Pro 14"',
+					width: 1512,
+					height: 982,
+					deviceScaleFactor: 2,
+					mobile: false,
+				},
+				properties: {
+					name: {
+						type: 'string',
+						description: localize('browser.customDevicePresets.name', "Name shown in the device picker."),
+					},
+					width: {
+						type: 'integer',
+						minimum: BROWSER_DEVICE_MIN_DIMENSION,
+						maximum: BROWSER_DEVICE_MAX_DIMENSION,
+						description: localize('browser.customDevicePresets.width', "Viewport width in CSS pixels."),
+					},
+					height: {
+						type: 'integer',
+						minimum: BROWSER_DEVICE_MIN_DIMENSION,
+						maximum: BROWSER_DEVICE_MAX_DIMENSION,
+						description: localize('browser.customDevicePresets.height', "Viewport height in CSS pixels."),
+					},
+					deviceScaleFactor: {
+						type: 'number',
+						minimum: BROWSER_DEVICE_MIN_SCALE_FACTOR,
+						maximum: BROWSER_DEVICE_MAX_SCALE_FACTOR,
+						description: localize('browser.customDevicePresets.deviceScaleFactor', "Device pixel ratio. Omit to use the host default."),
+					},
+					mobile: {
+						type: 'boolean',
+						default: false,
+						description: localize('browser.customDevicePresets.mobile', "Whether the preset emulates a mobile device."),
+					},
+					userAgent: {
+						type: 'string',
+						description: localize('browser.customDevicePresets.userAgent', "User agent string. Omit to use the VS Code default."),
+					},
+				}
+			}
+		}
+	}
+});
