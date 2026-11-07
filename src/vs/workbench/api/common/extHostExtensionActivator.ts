@@ -156,6 +156,34 @@ class FailedExtension extends ActivatedExtension {
 	}
 }
 
+/**
+ * Returns true only for host-restart IPC failures (renderer SIGTERM followed
+ * by the known `Channel has been closed` host-channel error, or a
+ * CancellationError), which must not permanently poison dependency
+ * activation. Extension-owned connection errors (e.g. `RPC connection
+ * closed` from an extension worker) return false and stay cached/reported.
+ */
+export function isTransientActivationError(err: unknown): boolean {
+	if (!err || typeof err !== 'object') {
+		return false;
+	}
+	if (errors.isCancellationError(err)) {
+		return true;
+	}
+	const seen = new Set<unknown>();
+	let current: unknown = err;
+	while (current && typeof current === 'object' && !seen.has(current)) {
+		seen.add(current);
+		const message = (current as Error).message;
+		if (typeof message === 'string' && /channel has been closed/i.test(message)) {
+			return true;
+		}
+		const detail = (current as { detail?: unknown }).detail;
+		current = detail ?? (current as Error).cause;
+	}
+	return false;
+}
+
 export interface IExtensionsActivatorHost {
 	onExtensionActivationError(extensionId: ExtensionIdentifier, error: Error | null, missingExtensionDependency: MissingExtensionDependency | null): void;
 	actualActivateExtension(extensionId: ExtensionIdentifier, reason: ExtensionActivationReason): Promise<ActivatedExtension>;
@@ -225,6 +253,23 @@ export class ExtensionsActivator implements IDisposable {
 			reason: { startup, extensionId: e.identifier, activationEvent }
 		})));
 
+		// Do not mark the event as completed while any involved operation
+		// deferred on a transient host-restart failure or cached such a
+		// transient failure. Otherwise `*` (used by vscode.git/git-base)
+		// would never retry after dependencies recover.
+		for (const e of activateExtensions) {
+			const op = this._operations.get(e.identifier);
+			if (!op) {
+				continue;
+			}
+			if (!op.value) {
+				return;
+			}
+			if (op.value.activationFailed && op.value.activationFailedError && isTransientActivationError(op.value.activationFailedError)) {
+				return;
+			}
+		}
+
 		this._alreadyActivatedEvents[activationEvent] = true;
 	}
 
@@ -238,9 +283,21 @@ export class ExtensionsActivator implements IDisposable {
 
 	private async _activateExtensions(extensions: ActivationIdAndReason[]): Promise<void> {
 		const operations = extensions
-			.filter((p) => !this.isActivated(p.id))
+			.filter((p) => !this.isActivated(p.id) || this.isTransientFailure(p.id))
 			.map(ext => this._handleActivationRequest(ext));
 		await Promise.all(operations.map(op => op.wait()));
+	}
+
+	/**
+	 * Returns true when the cached operation for `extensionId` is a transient
+	 * host-restart failure that is safe to retry. `isActivated` intentionally
+	 * keeps returning true for these so external callers are unaffected;
+	 * only the activator's internal retry paths consult this.
+	 */
+	private isTransientFailure(extensionId: ExtensionIdentifier): boolean {
+		const op = this._operations.get(extensionId);
+		const value = op?.value;
+		return Boolean(value && value.activationFailed && value.activationFailedError && isTransientActivationError(value.activationFailedError));
 	}
 
 	/**
@@ -248,8 +305,25 @@ export class ExtensionsActivator implements IDisposable {
 	 * We don't need to worry about dependency loops because they are handled by the registry.
 	 */
 	private _handleActivationRequest(currentActivation: ActivationIdAndReason): ActivationOperation {
-		if (this._operations.has(currentActivation.id)) {
-			return this._operations.get(currentActivation.id)!;
+		const existing = this._operations.get(currentActivation.id);
+		if (existing) {
+			// A previous attempt may have deferred on a transient host-channel
+			// error during restart (completed with value null) or cached such a
+			// transient failure. Drop it so a later activateById/Event can retry
+			// once dependencies recover. Permanent failures stay cached, and
+			// in-progress operations (value null, barrier closed) are reused to
+			// preserve single-activation semantics.
+			const value = existing.value;
+			if (!value) {
+				if (!existing.isDone()) {
+					return existing;
+				}
+				this._operations.delete(currentActivation.id);
+			} else if (value.activationFailed && value.activationFailedError && isTransientActivationError(value.activationFailedError)) {
+				this._operations.delete(currentActivation.id);
+			} else {
+				return existing;
+			}
 		}
 
 		if (this._isHostExtension(currentActivation.id)) {
@@ -280,8 +354,21 @@ export class ExtensionsActivator implements IDisposable {
 
 			const dep = this._operations.get(depId);
 			if (dep) {
-				deps.push(dep);
-				continue;
+				const depValue = dep.value;
+				if (depValue && depValue.activationFailed && depValue.activationFailedError && isTransientActivationError(depValue.activationFailedError)) {
+					// Cached dependency failed transiently during host restart.
+					// Drop it and fall through to recreate a fresh operation below
+					// instead of reusing the poisoned one.
+					this._operations.delete(depId);
+				} else if (depValue || !dep.isDone()) {
+					// Reuse successful, permanently failed, or still in-progress
+					// dependencies. A completed null-value dependency means a
+					// prior transient deferral; fall through to recreate it.
+					deps.push(dep);
+					continue;
+				} else {
+					this._operations.delete(depId);
+				}
 			}
 
 			if (this._isHostExtension(depId)) {
@@ -376,9 +463,16 @@ class ActivationOperation {
 		return this._barrier.wait();
 	}
 
+	public isDone(): boolean {
+		return this._barrier.isOpen();
+	}
+
 	private async _initialize(): Promise<void> {
-		await this._waitForDepsThenActivate();
-		this._barrier.open();
+		try {
+			await this._waitForDepsThenActivate();
+		} finally {
+			this._barrier.open();
+		}
 	}
 
 	private async _waitForDepsThenActivate(): Promise<void> {
@@ -399,8 +493,30 @@ class ActivationOperation {
 					continue;
 				}
 
-				if (dep.value && dep.value.activationFailed) {
+				if (!dep.value) {
+					if (dep.isDone()) {
+						// Dependency deferred on a transient host-restart failure.
+						// Defer as well (leaving _value null with an open barrier)
+						// so a later activateById/Event can retry both.
+						this._logService.warn(`Activation of '${this.friendlyName}' deferred: transient failure in dependency '${dep.friendlyName}'.`);
+						return;
+					}
+					// Dependency still in progress; fall through to wait below.
+					continue;
+				}
+
+				if (dep.value.activationFailed) {
 					// Error condition 2: a dependency has already failed activation
+					const depError = dep.value.activationFailedError;
+					if (depError && isTransientActivationError(depError)) {
+						// Transient IPC/channel failure during host restart (e.g.
+						// renderer SIGTERM + `Channel has been closed`). Do not
+						// cache a permanent FailedExtension; leave _value as null
+						// so ExtensionsActivator can drop and retry this operation
+						// once dependencies recover.
+						this._logService.warn(`Activation of '${this.friendlyName}' deferred: transient failure in dependency '${dep.friendlyName}'.`);
+						return;
+					}
 					const error = new Error(`Cannot activate the '${this.friendlyName}' extension because its dependency '${dep.friendlyName}' failed to activate`);
 					// eslint-disable-next-line local/code-no-any-casts
 					(<any>error).detail = dep.value.activationFailedError;
