@@ -17,7 +17,7 @@ import { hasKey } from '../../../../base/common/types.js';
 import { localize } from '../../../../nls.js';
 import { GroupsOrder, IContentPart, IEditorGroup, IEditorGroupsService, IEditorPart } from '../../../services/editor/common/editorGroupsService.js';
 import { IEditorGroupView } from '../editor/editor.js';
-import { PART_GRID_CLASS } from '../editor/partGridClass.js';
+import { PART_GRID_CLASS, PART_GRID_TOP_STRIP_CLASS } from '../editor/partGridClass.js';
 import { EditorPartInPartGridContext } from '../../../common/contextkeys.js';
 import { EditorsOrder, IEditorIdentifier } from '../../../common/editor.js';
 import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
@@ -33,6 +33,13 @@ import { getGridEdgeInsets, IGridEdgeInsets, NO_GRID_EDGE_INSETS, updateGridGapS
  * grabber to show.
  */
 const PART_GRID_POINTER_OVER_CLASS = 'part-grid-pointer-over';
+
+/**
+ * The classes of the card of the part the pointer is over, while it is over the part's top strip ({@link PART_GRID_TOP_STRIP_CLASS}),
+ * or over the card's grabber: what shares the top edge of the card with the grabber can make way for it, and it for that.
+ */
+const PART_GRID_POINTER_OVER_TOP_STRIP_CLASS = 'part-grid-pointer-over-top-strip';
+const PART_GRID_POINTER_OVER_GRABBER_CLASS = 'part-grid-pointer-over-grabber';
 
 /**
  * How far, in pixels, from where the pointer heads as it leaves the window's elements, what draws over an element, such
@@ -511,7 +518,9 @@ export class PartGrid extends Disposable {
 		this._register(addDisposableListener(targetWindow.document, 'pointerover', e => {
 			this.pointerInOverlay = false;
 			this.overlayPointerCheck.schedule(PART_GRID_OVERLAY_POINTER_QUIET);
-			this.setPointerOverCellOrChrome(isHTMLElement(e.target) ? this.findCellAt(e.target) : undefined);
+			const target = isHTMLElement(e.target) ? e.target : undefined;
+			this.setPointerOverCellOrChrome(target ? this.findCellAt(target) : undefined);
+			this.markPointerTarget(target);
 		}, true));
 		// Into the frame of a webview the window may have no event at all: once its events stop, the grid looks for what
 		// draws over a part that the pointer is over
@@ -523,9 +532,11 @@ export class PartGrid extends Disposable {
 			this.overlayPointerCheck.schedule(PART_GRID_OVERLAY_POINTER_QUIET);
 			if (isHTMLElement(e.relatedTarget)) {
 				this.setPointerOverCellOrChrome(this.findCellAt(e.relatedTarget));
+				this.markPointerTarget(e.relatedTarget);
 				return;
 			}
 			this.setPointerOverCellAt(e.clientX + e.movementX, e.clientY + e.movementY);
+			this.markPointerTarget(undefined);
 		}, true));
 		// Out of the window from inside a webview, whose frame keeps its pointer events, the window has no pointerout
 		this._register(addDisposableListener(targetWindow.document.documentElement, EventType.MOUSE_LEAVE, e => this.setPointerOverCellAt(e.clientX, e.clientY)));
@@ -595,9 +606,26 @@ export class PartGrid extends Disposable {
 			return;
 		}
 
-		this.pointerOverCard?.classList.remove(PART_GRID_POINTER_OVER_CLASS);
+		this.pointerOverCard?.classList.remove(PART_GRID_POINTER_OVER_CLASS, PART_GRID_POINTER_OVER_TOP_STRIP_CLASS, PART_GRID_POINTER_OVER_GRABBER_CLASS);
 		this.pointerOverCard = card;
+		this.pointerOverDragHandle = cell?.part ? cell.dragHandle : undefined;
 		card?.classList.add(PART_GRID_POINTER_OVER_CLASS);
+	}
+
+	private pointerOverDragHandle: HTMLElement | undefined;
+
+	/**
+	 * Marks the card the pointer is over while `target`, what the pointer is over, is the top strip of its part or its
+	 * grabber; changing the classes only as the pointer moves between them.
+	 */
+	private markPointerTarget(target: HTMLElement | undefined): void {
+		const card = this.pointerOverCard;
+		if (!card) {
+			return;
+		}
+		const topStrip = target?.closest(`.${PART_GRID_TOP_STRIP_CLASS}`);
+		card.classList.toggle(PART_GRID_POINTER_OVER_TOP_STRIP_CLASS, !!topStrip && card.contains(topStrip));
+		card.classList.toggle(PART_GRID_POINTER_OVER_GRABBER_CLASS, !!target && !!this.pointerOverDragHandle?.contains(target));
 	}
 
 	/**
