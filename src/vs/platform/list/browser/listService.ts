@@ -1246,7 +1246,16 @@ class WorkbenchTreeInternals<TInput, T, TFilterData> {
 				return;
 			}
 
-			const node = tree.getNode(focus);
+			let node;
+			try {
+				node = tree.getNode(focus);
+			} catch {
+				// The focused element may have been removed during a concurrent
+				// tree update (e.g. setChildren fires events mid-splice). In that
+				// case the node lookup throws TreeError — safely bail out since the
+				// context keys will be updated again once the tree settles.
+				return;
+			}
 			this.treeElementCanCollapse.set(node.collapsible && !node.collapsed);
 			this.treeElementHasParent.set(!!tree.getParentElement(focus));
 			this.treeElementCanExpand.set(node.collapsible && node.collapsed);
