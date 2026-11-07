@@ -165,7 +165,7 @@ export class EditNotebookTool implements ICopilotTool<IEditNotebookToolParams> {
 				} else {
 					const cell = cellId ? cellMap.get(cellId) : undefined;
 					if (!cell) {
-						throw new ErrorWithTelemetrySafeReason(getInvalidCellErrorMessage(cellId), 'invalid_cell_id_insert_after', cellId);
+						throw new ErrorWithTelemetrySafeReason(getInvalidCellErrorMessage(cellId, notebook), 'invalid_cell_id_insert_after', cellId);
 					}
 					const entry = cells.find(item => item.cell === cell)!;
 					cellsCellIndex = cells.indexOf(entry) + 1;
@@ -192,11 +192,11 @@ export class EditNotebookTool implements ICopilotTool<IEditNotebookToolParams> {
 			} else {
 				const cell = cellId ? cellMap.get(cellId) : undefined;
 				if (!cell) {
-					throw new ErrorWithTelemetrySafeReason(getInvalidCellErrorMessage(cellId), 'invalid_cell_id_empty', cellId);
+					throw new ErrorWithTelemetrySafeReason(getInvalidCellErrorMessage(cellId, notebook), 'invalid_cell_id_empty', cellId);
 				}
 				const cellIndex = cells.find(i => i.cell === cell)!.index;
 				if (cellIndex === -1) {
-					throw new ErrorWithTelemetrySafeReason(getInvalidCellErrorMessage(cellId), 'invalid_cell_id_edit_or_delete');
+					throw new ErrorWithTelemetrySafeReason(getInvalidCellErrorMessage(cellId, notebook), 'invalid_cell_id_edit_or_delete');
 				}
 
 				if (editType === 'delete') {
@@ -340,7 +340,7 @@ export class EditNotebookTool implements ICopilotTool<IEditNotebookToolParams> {
 		const cellMap = getCellIdMap(notebook);
 		const cell = (id && id !== 'top' && id !== 'bottom') ? cellMap.get(id) : undefined;
 		if (id && id !== 'top' && id !== 'bottom' && !cell) {
-			throw new ErrorWithTelemetrySafeReason(getInvalidCellErrorMessage(id), `invalidCellId${editType}`, cellId);
+			throw new ErrorWithTelemetrySafeReason(getInvalidCellErrorMessage(id, notebook), `invalidCellId${editType}`, cellId);
 		}
 		switch (editType) {
 			case 'insert':
@@ -357,12 +357,12 @@ export class EditNotebookTool implements ICopilotTool<IEditNotebookToolParams> {
 				break;
 			case 'delete':
 				if (!id) {
-					throw new ErrorWithTelemetrySafeReason(getInvalidCellErrorMessage(id), 'missingCellId', id);
+					throw new ErrorWithTelemetrySafeReason(getInvalidCellErrorMessage(id, notebook), 'missingCellId', id);
 				}
 				break;
 			case 'edit':
 				if (!id) {
-					throw new ErrorWithTelemetrySafeReason(getInvalidCellErrorMessage(id), 'missingCellId', id);
+					throw new ErrorWithTelemetrySafeReason(getInvalidCellErrorMessage(id, notebook), 'missingCellId', id);
 				}
 				if (newCode === undefined) {
 					throw new ErrorWithTelemetrySafeReason('None of the edits were applied as newCode is required for edit operation', 'missingNewCode');
@@ -495,9 +495,16 @@ export class EditNotebookTool implements ICopilotTool<IEditNotebookToolParams> {
 	}
 }
 
-function getInvalidCellErrorMessage(cellId: string) {
+function getInvalidCellErrorMessage(cellId: string, notebook?: vscode.NotebookDocument) {
 	if (cellId) {
-		return `None of the edits were applied as provided cell id: '${cellId}' is invalid. Notebook may have been modified, try reading the Notebook file again or use the ${ToolName.GetNotebookSummary} to get a list of the notebook cells, types and Cell Ids`;
+		let msg = `None of the edits were applied as provided cell id: '${cellId}' is invalid. Notebook may have been modified, try reading the Notebook file again or use the ${ToolName.GetNotebookSummary} to get a list of the notebook cells, types and Cell Ids`;
+		if (notebook) {
+			const validIds = notebook.getCells().map(cell => getCellId(cell)).join(', ');
+			msg += validIds
+				? `. Valid cell Ids in the current notebook are: ${validIds}`
+				: '. The current notebook has no cells.';
+		}
+		return msg;
 	}
 	return `None of the edits were applied as the cell id was not provided or was empty`;
 }
