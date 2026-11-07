@@ -6,6 +6,23 @@ import assert from 'assert';
 import * as strings from '../../common/strings.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from './utils.js';
 
+function assertGraphemes(str: string, expected: string[]): void {
+	const forward: string[] = [];
+	for (let offset = 0; offset < str.length;) {
+		const length = strings.nextCharLength(str, offset);
+		forward.push(str.substring(offset, offset + length));
+		offset += length;
+	}
+	const backward: string[] = [];
+	for (let offset = str.length; offset > 0;) {
+		const length = strings.prevCharLength(str, offset);
+		backward.unshift(str.substring(offset - length, offset));
+		offset -= length;
+	}
+	assert.deepStrictEqual(forward, expected);
+	assert.deepStrictEqual(backward, expected);
+}
+
 suite('Strings', () => {
 	test('equalsIgnoreCase', () => {
 		assert(strings.equalsIgnoreCase('', ''));
@@ -495,6 +512,72 @@ suite('Strings', () => {
 
 	test('getGraphemeBreakType', () => {
 		assert.strictEqual(strings.getGraphemeBreakType(0xBC1), strings.GraphemeBreakType.SpacingMark);
+	});
+
+	test('nextCharLength and prevCharLength keep Indic conjuncts together (GB9c)', () => {
+		// Devanagari
+		assertGraphemes('क्षत्रिय', ['क्ष', 'त्रि', 'य']);
+		assertGraphemes('स्त्री', ['स्त्री']);
+		assertGraphemes('नमस्ते', ['न', 'म', 'स्ते']);
+		// Bengali, Gujarati, Oriya, Telugu, Malayalam
+		assertGraphemes('ক্ষ', ['ক্ষ']);
+		assertGraphemes('ક્ષ', ['ક્ષ']);
+		assertGraphemes('କ୍ଷ', ['କ୍ଷ']);
+		assertGraphemes('క్ష', ['క్ష']);
+		assertGraphemes('ക്ഷ', ['ക്ഷ']);
+		// Khmer COENG, Myanmar VIRAMA, and the spacing-mark linkers of Balinese and Javanese
+		assertGraphemes('\u1780\u17D2\u1780', ['\u1780\u17D2\u1780']);
+		assertGraphemes('\u1000\u1039\u1000', ['\u1000\u1039\u1000']);
+		assertGraphemes('\u1B13\u1B44\u1B13', ['\u1B13\u1B44\u1B13']);
+		assertGraphemes('\uA98F\uA9C0\uA98F', ['\uA98F\uA9C0\uA98F']);
+		// Chakma, outside the BMP
+		assertGraphemes('\u{11107}\u{11133}\u{11107}', ['\u{11107}\u{11133}\u{11107}']);
+		// Consonants at the start of the first range, in a single-code-point range, and at the end of a range
+		assertGraphemes('\u0915\u094D\u0915', ['\u0915\u094D\u0915']);
+		assertGraphemes('\u0995\u09CD\u09B2', ['\u0995\u09CD\u09B2']);
+		assertGraphemes('\uABC0\uAAF6\uABDA', ['\uABC0\uAAF6\uABDA']);
+		// U+0914 is just before the first consonant range, so the cluster ends
+		assertGraphemes('\u0915\u094D\u0914', ['\u0915\u094D', '\u0914']);
+		// Tamil has no conjunct linker, so its virama still ends the cluster
+		assertGraphemes('\u0B95\u0BCD\u0BB7', ['\u0B95\u0BCD', '\u0BB7']);
+		// A virama that is not followed by a consonant still ends the cluster
+		assertGraphemes('\u0915\u094D a', ['\u0915\u094D', ' ', 'a']);
+
+		assert.strictEqual(strings.charCount('नमस्ते'), 3);
+	});
+
+	test('nextCharLength and prevCharLength match the GB9c lines of GraphemeBreakTest.txt', () => {
+		// The lines of https://www.unicode.org/Public/17.0.0/ucd/auxiliary/GraphemeBreakTest.txt that use rule 9.3 (GB9c)
+		const unicodeTestLines = [
+			'÷ 0915 × 094D × 0924 ÷',
+			'÷ 0915 × 094D × 094D × 0924 ÷',
+			'÷ 0915 × 094D × 200D × 0924 ÷',
+			'÷ 0915 × 093C × 200D × 094D × 0924 ÷',
+			'÷ 0915 × 093C × 094D × 200D × 0924 ÷',
+			'÷ 0915 × 094D × 0924 × 094D × 092F ÷',
+			'÷ 0AB8 × 0AFB × 0ACD × 0AB8 × 0AFB ÷',
+			'÷ 1019 × 1039 × 1018 ÷ 102C × 1037 ÷',
+			'÷ 1004 × 103A × 1039 × 1011 × 1039 × 1011 ÷',
+			'÷ 1B12 × 1B01 ÷ 1B32 × 1B44 × 1B2F ÷ 1B32 × 1B44 × 1B22 × 1B44 × 1B2C ÷ 1B32 × 1B44 × 1B22 × 1B38 ÷',
+			'÷ 179F × 17D2 × 178F × 17D2 × 179A × 17B8 ÷',
+			'÷ 1B26 ÷ 1B17 × 1B44 × 1B13 ÷',
+			'÷ 1B27 ÷ 1B13 × 1B44 × 1B0B ÷ 1B0B × 1B04 ÷',
+			'÷ 1795 × 17D2 × 17AF ÷ 1798 ÷',
+			'÷ 17A0 × 17D2 × 17AB ÷ 1791 × 17D0 ÷ 1799 ÷',
+		];
+		// Without state, a ZWJ between the linker and the consonant still ends the cluster
+		const notImplemented = new Set([
+			'÷ 0915 × 094D × 200D × 0924 ÷',
+			'÷ 0915 × 093C × 094D × 200D × 0924 ÷',
+		]);
+		for (const line of unicodeTestLines) {
+			if (notImplemented.has(line)) {
+				continue;
+			}
+			const expected = line.split('÷').map(cluster => cluster.trim()).filter(cluster => cluster.length > 0)
+				.map(cluster => cluster.split(' × ').map(hex => String.fromCodePoint(parseInt(hex, 16))).join(''));
+			assertGraphemes(expected.join(''), expected);
+		}
 	});
 
 	test('truncate', () => {
