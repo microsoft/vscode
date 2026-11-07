@@ -217,5 +217,34 @@ suite('DiffEditorWidget2', () => {
 				3,
 			)), (['[1,96) - [1,96)']));
 		});
+
+		test('Minimum hidden line count is maintained when revealing lines', () => {
+			const region = new UnchangedRegion(1, 1, 10, 0, 0, 3);
+
+			region.showMoreAbove(7, undefined);
+			const hiddenAtMinimum = region.getHiddenModifiedRange(undefined).length;
+			region.showMoreAbove(1, undefined);
+			const hiddenAfterRevealAbove = region.getHiddenModifiedRange(undefined).length;
+			region.collapseAll(undefined);
+			region.showMoreBelow(8, undefined);
+
+			assert.deepStrictEqual({
+				hiddenAtMinimum,
+				hiddenAfterRevealAbove,
+				hiddenAfterRevealBelow: region.getHiddenModifiedRange(undefined).length,
+			}, {
+				hiddenAtMinimum: 3,
+				hiddenAfterRevealAbove: 0,
+				hiddenAfterRevealBelow: 0,
+			});
+		});
+
+		test('Minimum of one preserves single-line placeholders', () => {
+			const region = new UnchangedRegion(1, 1, 10, 0, 0, 1);
+
+			region.showMoreAbove(9, undefined);
+
+			assert.strictEqual(region.getHiddenModifiedRange(undefined).length, 1);
+		});
 	});
 });
