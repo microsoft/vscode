@@ -495,6 +495,58 @@ suite('PromptFilesLocator', () => {
 	});
 
 	suite('single-root workspace', () => {
+		suite('literal search roots', () => {
+			for (const type of [PromptsType.prompt, PromptsType.instructions]) {
+				for (const location of ['.github/custom', '.github/custom/**/*.md', '../shared/**/*.md', '~/custom/**/*.md']) {
+					testT(`${type}: ${location}`, async () => {
+						const workspace = '/repos/[new-scripts]/{ai-ui}/ox_lib';
+						const home = '/Users/[user]';
+						setWorkspaceFolders([workspace]);
+						setLocations({ [location]: true });
+						instantiationService.stub(IPathService, {
+							userHome: async () => URI.file(home),
+						} as IPathService);
+						const queries: { root: string; pattern: string | undefined }[] = [];
+						instantiationService.stub(ISearchService, {
+							schemeHasFileSearchProvider: () => true,
+							async fileSearch(query: IFileQuery) {
+								queries.push({ root: query.folderQueries[0].folder.path, pattern: query.filePattern });
+								return { results: [], messages: [] };
+							}
+						});
+						const locator = instantiationService.createInstance(PromptFilesLocator);
+						await locator.listFiles(type, location.startsWith('~/') ? PromptsStorage.user : PromptsStorage.local, CancellationToken.None);
+						const root = location.startsWith('~/') ? `${home}/custom`
+							: location.startsWith('../') ? '/repos/[new-scripts]/{ai-ui}/shared'
+								: `${workspace}/.github/custom`;
+						assert.deepStrictEqual(queries, location.includes('*') ? [{ root, pattern: '**/*.md' }] : []);
+					});
+				}
+			}
+
+			for (const type of [PromptsType.prompt, PromptsType.instructions]) {
+				testT(`${type}: default location in a bracketed workspace`, async () => {
+					const workspace = '/repos/[scripts]/[jobs]/wtp-jobs';
+					const folder = type === PromptsType.prompt ? 'prompts' : 'instructions';
+					const file = `${workspace}/.github/${folder}/example.${type}.md`;
+					setWorkspaceFolders([workspace]);
+					setLocations({});
+					await mockFiles(fileService, [{ path: file, contents: ['Example customization'] }]);
+					const queries: IFileQuery[] = [];
+					instantiationService.stub(ISearchService, {
+						schemeHasFileSearchProvider: () => true,
+						async fileSearch(query: IFileQuery) {
+							queries.push(query);
+							return { results: [], messages: [] };
+						}
+					});
+					const locator = instantiationService.createInstance(PromptFilesLocator);
+					const files = await locator.listFiles(type, PromptsStorage.local, CancellationToken.None);
+					assert.deepStrictEqual({ files: files.map(file => file.path), queries }, { files: [file], queries: [] });
+				});
+			}
+		});
+
 		suite('glob pattern', () => {
 			suite('relative', () => {
 				testT('wild card', async () => {
