@@ -239,6 +239,8 @@ export class NativeLocalProcessExtensionHost extends Disposable implements IExte
 		removeDangerousEnvVariables(env);
 
 		if (this._isExtensionDevHost) {
+			env['VSCODE_ENABLE_SOURCE_MAPS'] = 'true';
+
 			// Unset `VSCODE_CODE_CACHE_PATH` when developing extensions because it might
 			// be that dependencies, that otherwise would be cached, get modified.
 			delete env['VSCODE_CODE_CACHE_PATH'];
