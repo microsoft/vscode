@@ -91,10 +91,12 @@ suite('Agent Host Provider Integration - Copilot BYOK Responses', function () {
 			report?.({ outputIndex: 0, item: { type: 'reasoning', id: 'rs_live', summary: ['thinking'] } });
 			report?.({ outputIndex: 1, item: { type: 'message', content: [{ type: 'text', text: 'hello' }] } });
 			await release.p;
-			return { responseId: 'provider-live', output: [
-				{ type: 'reasoning', id: 'rs_live', summary: ['thinking'], encryptedContent: 'opaque' },
-				{ type: 'message', content: [{ type: 'text', text: 'hello world' }] },
-			] };
+			return {
+				responseId: 'provider-live', output: [
+					{ type: 'reasoning', id: 'rs_live', summary: ['thinking'], encryptedContent: 'opaque' },
+					{ type: 'message', content: [{ type: 'text', text: 'hello world' }] },
+				]
+			};
 		}, async session => {
 			const deltas: string[] = [];
 			const reasoning: string[] = [];
