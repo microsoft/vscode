@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { CharCode } from '../../../base/common/charCode.js';
 import { Iterable } from '../../../base/common/iterator.js';
 import { toDisposable } from '../../../base/common/lifecycle.js';
 import { LinkedList } from '../../../base/common/linkedList.js';
@@ -48,6 +49,24 @@ function createWordRegExp(allowInWords: string = ''): RegExp {
 
 // catches numbers (including floating numbers) in the first group, and alphanum in the second
 export const DEFAULT_WORD_REGEXP = createWordRegExp();
+const defaultWordRegExpSource = DEFAULT_WORD_REGEXP.source;
+
+function isDefaultWordSeparator(text: string, offset: number): boolean {
+	if (offset < 0 || offset >= text.length) {
+		return true;
+	}
+
+	const ch = text.charCodeAt(offset);
+	if (ch === CharCode.Period || ch === CharCode.Dash) {
+		let next = text.charCodeAt(offset + 1);
+		if (ch === CharCode.Dash && next === CharCode.Period) {
+			next = text.charCodeAt(offset + 2);
+		}
+		return !(next >= CharCode.Digit0 && next <= CharCode.Digit9);
+	}
+
+	return USUAL_WORD_SEPARATORS.includes(text[offset]) || /\s/.test(text[offset]);
+}
 
 export function ensureValidWordDefinition(wordDefinition?: RegExp | null): RegExp {
 	let result: RegExp = DEFAULT_WORD_REGEXP;
@@ -99,6 +118,14 @@ export function getWordAtText(column: number, wordDefinition: RegExp, text: stri
 	// Ensure the regex has the 'g' flag, otherwise this will loop forever
 	wordDefinition = ensureValidWordDefinition(wordDefinition);
 
+	const pos = column - 1 - textOffset;
+	// Neither side can belong to a default word, so avoid repeatedly searching the surrounding text.
+	if (pos >= 0 && pos <= text.length
+		&& wordDefinition.source === defaultWordRegExpSource && wordDefinition.flags === 'g'
+		&& isDefaultWordSeparator(text, pos - 1) && isDefaultWordSeparator(text, pos)) {
+		return null;
+	}
+
 	if (!config) {
 		config = Iterable.first(_defaultConfig)!;
 	}
@@ -117,7 +144,6 @@ export function getWordAtText(column: number, wordDefinition: RegExp, text: stri
 	}
 
 	const t1 = Date.now();
-	const pos = column - 1 - textOffset;
 
 	let prevRegexIndex = -1;
 	let match: RegExpExecArray | null = null;
