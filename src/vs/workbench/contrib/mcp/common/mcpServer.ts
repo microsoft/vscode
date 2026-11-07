@@ -1374,7 +1374,7 @@ export class McpTool implements IMcpTool {
 		const progressToken = progress ? generateUuid() : undefined;
 		const store = new DisposableStore();
 
-		return McpServer.callOn(this._server, async h => {
+		return McpServer.callOn(this._server, async (h, connection) => {
 			if (progress) {
 				store.add(h.onDidReceiveProgressNotification((e) => {
 					if (e.params.progressToken === progressToken) {
@@ -1432,9 +1432,12 @@ export class McpTool implements IMcpTool {
 				if (allowRetry && state.state === McpConnectionState.Kind.Error && state.shouldRetry) {
 					return this._callWithProgress(params, progress, context, requestMeta, token, false);
 				} else if (isCancellationError(err) && !token.isCancellationRequested) {
-					// The request handler cancels in-flight requests when the connection drops.
-					// That is a failure, not a user cancellation, so it must not stop the agent loop.
-					throw new McpConnectionFailedError(localize('mcpToolConnectionLost', "The connection to the MCP server was lost while running the tool."));
+					// Cancellation can also come from the server or a task timeout while the
+					// connection is healthy. Neither should be treated as user cancellation.
+					if (this._server.connection.get() !== connection || connection.handler.get() !== h || connection.state.get().state !== McpConnectionState.Kind.Running) {
+						throw new McpConnectionFailedError(localize('mcpToolConnectionLost', "The connection to the MCP server was lost while running the tool."));
+					}
+					throw new Error(localize('mcpToolInterrupted', "The MCP tool call was interrupted by the server or timed out."));
 				} else {
 					throw err;
 				}
