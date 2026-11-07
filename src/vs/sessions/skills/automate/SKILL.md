@@ -15,7 +15,7 @@ description: 'Propose an automation from a completed task or a new idea, then cr
 
 Establish task and result before setup/discovery. Ask what success should produce or do only when unclear; reuse known answers.
 
-Ask one concept per question, titled by the missing input, such as "Repositories to check". Suggest answers; mark unresolved choices as undecided. Read discovery output with file/search tools, not shell. Do not inspect task files, execute tasks, or request permissions merely to draft.
+Ask one concept per question, titled by the missing input, such as "Repositories to check". Batch related questions in the same turn or form instead of serial follow-ups. Suggest answers; mark unresolved choices as undecided. Read discovery output with file/search tools, not shell. Do not inspect task files, execute tasks, or request permissions merely to draft.
 
 ## Shape the draft
 
@@ -29,7 +29,11 @@ Request no optional tools or customizations, using explicit empty selections onl
 
 Write the saved prompt for a person to skim: a short goal, then short paragraphs or bullets for steps, output, and necessary limits. Use headings only when useful. Preserve exact filenames, commands, thresholds, and stated constraints without setup narration or unrelated boilerplate. Use paths relative to a configured folder; Chat tasks need sufficient absolute inputs. Do not invent consequential behavior: offer assumptions as suggestions or clarify them.
 
-Reflect requested schedule times and zones; verify local-clock compatibility and daylight-saving behavior before creation. Use only schedules supported by the current tool. Explain unsupported event triggers rather than approximating them or silently converting times.
+Preserve explicit schedule times and zones. Otherwise infer the time zone from reliable conversation or available environment context, and show the inferred zone in the proposal. Ask only when the intended zone cannot be inferred reliably or is ambiguous; do not guess a time zone from language or a UTC offset alone.
+
+When clarifying a schedule, collect all related missing details in one turn or form: recurrence, time of day, applicable days/dates or intervals, and any unresolved time zone. For daily versus weekly, ask the preferred time in the same round and include "If weekly, which day(s)?" when needed. Reuse known answers and omit inapplicable questions; do not defer predictable follow-ups.
+
+Verify local-clock compatibility and daylight-saving behavior before creation. Use only schedules supported by the current tool. Explain unsupported event triggers rather than approximating them or silently converting times.
 
 ## Propose, then wait
 
