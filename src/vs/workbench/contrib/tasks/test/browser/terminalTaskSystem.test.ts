@@ -45,6 +45,12 @@ suite('TerminalTaskSystem process executable', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 	const workspaceFolder = toWorkspaceFolder(URI.file('C:\\work'));
 
+	async function assertRejectsWithMessage<T>(promise: Promise<T>, expected: RegExp): Promise<void> {
+		const error: unknown = await promise.then(() => undefined, reason => reason);
+		assert.ok(error instanceof Error, 'Expected an Error rejection');
+		assert.match(error.message, expected);
+	}
+
 	function createSystem(values: Map<string, string>, options: { withSystemInfo?: boolean; platform?: Platform; foundExecutable?: string; configurationProperties?: IConfigurationProperties; args?: string[]; runtime?: RuntimeType; asDependency?: boolean } = {}) {
 		const instantiationService = workbenchInstantiationService(undefined, store);
 		instantiationService.stubInstance(TaskProblemMonitor, { dispose() { }, addTerminal() { } });
@@ -166,15 +172,19 @@ suite('TerminalTaskSystem process executable', () => {
 					modelListeners, events: [...events]
 				};
 			},
-			execute(command: string, cwd = 'C:\\work', env?: { [key: string]: string }, alreadyResolved = new Map<string, string>()) {
+			execute(command: string, cwd = 'C:\\work', env?: { [key: string]: string }, alreadyResolved?: Map<string, string>) {
 				return runWithFakedTimers({ useFakeTimers: true }, async () => {
 					const task = createTask(command, cwd, env);
 					const resolver = { resolve: async () => task };
 					const root = options.asDependency ? new InMemoryTask('parent', { kind: 'inMemory', label: 'test' }, 'parent', 'composite', RunOptions.defaults, {
 						dependsOn: [{ uri: workspaceFolder.uri, task: 'test' }]
 					}) : task;
-					system['_currentTask'] = new VerifiedTask(task, resolver, 'test');
-					await system['_executeTask'](root, resolver, 'test', new Set(), new Map(), alreadyResolved);
+					if (alreadyResolved) {
+						system['_currentTask'] = new VerifiedTask(task, resolver, 'test');
+						await system['_executeTask'](root, resolver, 'test', new Set(), new Map(), alreadyResolved);
+					} else {
+						await system.run(root, resolver, 'test').promise;
+					}
 					await timeout(100);
 					return launchConfig;
 				});
@@ -200,10 +210,37 @@ suite('TerminalTaskSystem process executable', () => {
 
 		test(`${variable} rejects an empty executable before creating a terminal`, async () => {
 			const system = createSystem(new Map([[variable, '']]));
-			await assert.rejects(system.execute('${' + variable + '}'), /process task command resolved to an empty string/i);
+			await assertRejectsWithMessage(system.execute('${' + variable + '}'), /process task command resolved to an empty string/i);
 			assert.deepStrictEqual(system.state, { taskEnded: true, terminalCreated: false });
 		});
 	}
+
+	test('public run returns the summary and records the successful task for rerun', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		const fixture = createSystem(new Map());
+		const task = fixture.createTask('C:\\tools\\run.exe');
+		const result = fixture.system.run(task, { resolve: async () => task });
+		const summary = await result.promise;
+		await timeout(100);
+		assert.deepStrictEqual({
+			summary, kind: result.kind,
+			lastTask: fixture.system.lastTask?.task === result.task,
+			verified: fixture.system.lastTask?.verify()
+		}, {
+			summary: { exitCode: 0 }, kind: TaskExecuteKind.Started,
+			lastTask: true, verified: true
+		});
+	}));
+
+	test('public run rejects an empty input without an unhandled bookkeeping rejection', async () => {
+		const fixture = createSystem(new Map([['input:tool', '']]));
+		const task = fixture.createTask('${input:tool}');
+		const result = fixture.system.run(task, { resolve: async () => task });
+		await assertRejectsWithMessage(result.promise, /process task command resolved to an empty string/i);
+		await timeout(0);
+		assert.deepStrictEqual({ ...fixture.state, endedTasks: fixture.endedTasks, lastTask: fixture.system.lastTask }, {
+			taskEnded: true, terminalCreated: false, endedTasks: ['test'], lastTask: undefined
+		});
+	});
 
 	test('resolves command, cwd and mixed-case PATH before executable lookup', async () => {
 		const { execute, lookupCalls } = createSystem(new Map([
@@ -351,7 +388,7 @@ suite('TerminalTaskSystem process executable', () => {
 
 		test('propagates nested configuration errors without task system info', async () => {
 			const system = createSystem(new Map([['config:tool', '${config:missing}']]), { withSystemInfo: false });
-			await assert.rejects(system.execute('${config:tool}'), /setting 'missing' not found/);
+			await assertRejectsWithMessage(system.execute('${config:tool}'), /setting 'missing' not found/);
 			assert.deepStrictEqual({ ...system.state, endedTasks: system.endedTasks }, {
 				taskEnded: true, terminalCreated: false, endedTasks: ['test']
 			});
@@ -394,7 +431,7 @@ suite('TerminalTaskSystem process executable', () => {
 				const initialListeners = system.taskListeners;
 				const attempts = [];
 				for (let i = 0; i < 2; i++) {
-					await assert.rejects(system.execute('${config:tool}'), /setting 'missing' not found/);
+					await assertRejectsWithMessage(system.execute('${config:tool}'), /setting 'missing' not found/);
 					const { events, ...lifecycle } = system.lifecycle;
 					attempts.push({
 						...system.state, ...lifecycle,
@@ -417,7 +454,7 @@ suite('TerminalTaskSystem process executable', () => {
 			platform: Platform.Linux,
 			configurationProperties: { isBackground: true, problemMatchers: [backgroundMatcher] }
 		});
-		await assert.rejects(system.execute('${input:tool}'), /setting 'missing' not found/);
+		await assertRejectsWithMessage(system.execute('${input:tool}'), /setting 'missing' not found/);
 		assert.deepStrictEqual({ ...system.state, ...system.lifecycle, endedTasks: system.endedTasks }, {
 			taskEnded: true, terminalCreated: false, activeTasks: 0, busyTasks: 0, modelListeners: 0,
 			events: [TaskEventKind.AcquiredInput, TaskEventKind.End], endedTasks: ['test']
@@ -439,7 +476,7 @@ suite('TerminalTaskSystem process executable', () => {
 						}
 					});
 					const env = location === 'environment' ? { VALUE: '${input:value}' } : undefined;
-					await assert.rejects(system.execute('C:\\tools\\run.exe', 'C:\\work', env), /setting 'missing' not found/);
+					await assertRejectsWithMessage(system.execute('C:\\tools\\run.exe', 'C:\\work', env), /setting 'missing' not found/);
 					assert.deepStrictEqual({ ...system.state, ...system.lifecycle, endedTasks: system.endedTasks }, {
 						taskEnded: true, terminalCreated: false, activeTasks: 0, busyTasks: 0, modelListeners: 0,
 						events: [TaskEventKind.AcquiredInput, TaskEventKind.End], endedTasks: ['test']
@@ -461,7 +498,7 @@ suite('TerminalTaskSystem process executable', () => {
 				values.set('config:tool', '${config:missing}');
 				const initialCalls = system.resolutionCalls;
 				const initialEvents = system.lifecycle.events.length;
-				await assert.rejects(system.execute('${config:tool}'), /setting 'missing' not found/);
+				await assertRejectsWithMessage(system.execute('${config:tool}'), /setting 'missing' not found/);
 				const { events, ...lifecycle } = system.lifecycle;
 				assert.deepStrictEqual({
 					...lifecycle, endedTasks: system.endedTasks, acquisitionCalls: system.resolutionCalls - initialCalls,
@@ -518,6 +555,38 @@ suite('TerminalTaskSystem process executable', () => {
 		assert.strictEqual(system.system['_isRerun'], false);
 	});
 
+	for (const reevaluateOnRerun of [false, true]) {
+		test(`public rerun handles an empty ${reevaluateOnRerun ? 'reevaluated' : 'cached'} input rejection`, async () => {
+			const values = new Map([
+				['input:tool', 'C:\\tools\\run.exe'],
+				['workspaceFolder', normalizeDriveLetter(workspaceFolder.uri.fsPath)]
+			]);
+			const fixture = createSystem(values);
+			await fixture.execute('${input:tool}');
+			const lastTask = fixture.system.lastTask!;
+			lastTask.task.runOptions = { ...lastTask.task.runOptions, reevaluateOnRerun };
+			if (reevaluateOnRerun) {
+				values.set('input:tool', '');
+			} else {
+				lastTask.resolvedVariables!.variables.set('input:tool', '');
+			}
+			const initialCalls = fixture.resolutionCalls;
+			const result = fixture.system.rerun();
+			assert.ok(result);
+			await assertRejectsWithMessage(result.promise, /process task command resolved to an empty string/i);
+			await timeout(0);
+			assert.deepStrictEqual({
+				rerunning: fixture.system['_isRerun'],
+				lastTaskPreserved: fixture.system.lastTask === lastTask,
+				acquisitionCalls: fixture.resolutionCalls - initialCalls,
+				endedTasks: fixture.endedTasks
+			}, {
+				rerunning: false, lastTaskPreserved: true,
+				acquisitionCalls: reevaluateOnRerun ? 1 : 0, endedTasks: ['test', 'test']
+			});
+		});
+	}
+
 	test('balances background task events and disposes model listeners on successful execution', async () => {
 		const system = createSystem(new Map(), {
 			configurationProperties: { isBackground: true, problemMatchers: [backgroundMatcher] }
@@ -539,7 +608,7 @@ suite('TerminalTaskSystem process executable', () => {
 		});
 		const attempts = [];
 		for (let i = 0; i < 2; i++) {
-			await assert.rejects(system.execute('${input:tool}'), /process task command resolved to an empty string/i);
+			await assertRejectsWithMessage(system.execute('${input:tool}'), /process task command resolved to an empty string/i);
 			attempts.push({ ...system.state, ...system.lifecycle });
 		}
 		assert.deepStrictEqual(attempts, [{
@@ -558,7 +627,7 @@ suite('TerminalTaskSystem process executable', () => {
 		const initialListeners = system.taskListeners;
 		const attempts = [];
 		for (let i = 0; i < 2; i++) {
-			await assert.rejects(system.execute('${input:tool}'), /process task command resolved to an empty string/i);
+			await assertRejectsWithMessage(system.execute('${input:tool}'), /process task command resolved to an empty string/i);
 			attempts.push({
 				extraListeners: system.taskListeners - initialListeners,
 				activeTasks: system.lifecycle.activeTasks,
@@ -600,7 +669,7 @@ suite('TerminalTaskSystem process executable', () => {
 			const listenersAfterUnrelatedEvent = fixture.taskListeners - initialListeners;
 			let result: ITaskSummary | string;
 			if (outcome === 'reject') {
-				const rejection = assert.rejects(dependency, /dependency failed/);
+				const rejection = assertRejectsWithMessage(dependency, /dependency failed/);
 				await completion.error(new Error('dependency failed'));
 				await rejection;
 				result = 'rejected';

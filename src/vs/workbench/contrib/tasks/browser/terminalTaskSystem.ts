@@ -269,8 +269,9 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 
 		try {
 			const executeResult = { kind: TaskExecuteKind.Started, task, started: {}, promise: this._executeTask(task, resolver, trigger, new Set(), new Map(), undefined) };
-			executeResult.promise.then(summary => {
+			executeResult.promise = executeResult.promise.then(summary => {
 				this._lastTask = this._currentTask;
+				return summary;
 			});
 			return executeResult;
 		} catch (error) {
