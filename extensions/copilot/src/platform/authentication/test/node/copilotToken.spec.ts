@@ -395,6 +395,33 @@ describe('Token envelope validators', function () {
 			}
 		});
 
+		it('keeps billable_owner in a strictly valid token envelope', function () {
+			const result = validateTokenEnvelope({
+				token: 'test-token',
+				expires_at: 1234567890,
+				refresh_in: 300,
+				billable_owner: { universal_key: 'ea:dotcom:42', account_type: 'Enterprise Account' },
+			});
+			expect(result.strategy).toBe('strict');
+			if (result.strategy === 'strict') {
+				expect(result.envelope.billable_owner).toEqual({ universal_key: 'ea:dotcom:42', account_type: 'Enterprise Account' });
+			}
+		});
+
+		it('ignores a billable_owner key that is not a string', function () {
+			const result = validateTokenEnvelope({
+				token: 'test-token',
+				expires_at: 1234567890,
+				refresh_in: 300,
+				billable_owner: { universal_key: 42 },
+			});
+			expect(result.valid).toBe(true);
+			if (result.valid) {
+				const token = new CopilotToken(createTestExtendedTokenInfo({ billable_owner: result.envelope.billable_owner }));
+				expect(token.billableOwnerUniversalKey).toBeUndefined();
+			}
+		});
+
 		it('returns fallback strategy when optional field has wrong type', function () {
 			// Server changes sku from string to number - strict fails, fallback succeeds
 			const tokenWithWrongOptionalType = {
