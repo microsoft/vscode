@@ -304,6 +304,10 @@ export class DiffEditorViewModel extends Disposable implements IDiffEditorViewMo
 				// TODO@hediet fishy?
 				return;
 			}
+			if (originalTextEditInfos.length > 0 || modifiedTextEditInfos.length > 0) {
+				// The result is for older text. The edit already scheduled a recompute.
+				return;
+			}
 			result = normalizeDocumentDiff(result, model.original, model.modified);
 			result = applyOriginalEdits(result, originalTextEditInfos, model.original, model.modified) ?? result;
 			result = applyModifiedEdits(result, modifiedTextEditInfos, model.original, model.modified) ?? result;
