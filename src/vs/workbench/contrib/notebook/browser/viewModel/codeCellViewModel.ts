@@ -453,25 +453,20 @@ export class CodeCellViewModel extends BaseCellViewModel implements ICellViewMod
 	}
 
 	updateOutputHeight(index: number, height: number, source?: string) {
-		if (index >= this._outputCollection.length) {
-			throw new Error('Output index out of range!');
+		if (index >= this._outputCollection.length || index >= this._outputViewModels.length || !this._outputViewModels[index]) {
+			return;
 		}
 
 		this._ensureOutputsTop();
 
-		try {
-			if (index === 0 || height > 0) {
-				this._outputViewModels[index].setVisible(true);
-			} else if (height === 0) {
-				this._outputViewModels[index].setVisible(false);
-			}
-		} catch (e) {
-			const errorMessage = `Failed to update output height for cell ${this.handle}, output ${index}. `
-				+ `this.outputCollection.length: ${this._outputCollection.length}, this._outputViewModels.length: ${this._outputViewModels.length}`;
-			throw new Error(`${errorMessage}.\n Error: ${e.message}`);
+		const outputViewModel = this._outputViewModels[index];
+		if (index === 0 || height > 0) {
+			outputViewModel.setVisible(true);
+		} else if (height === 0) {
+			outputViewModel.setVisible(false);
 		}
 
-		if (this._outputViewModels[index].visible.get() && height < 28) {
+		if (outputViewModel.visible.get() && height < 28) {
 			height = 28;
 		}
 
