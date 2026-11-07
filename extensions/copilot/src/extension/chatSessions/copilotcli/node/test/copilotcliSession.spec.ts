@@ -10,7 +10,7 @@ import { ConfigKey, IConfigurationService } from '../../../../../platform/config
 import { QuotaSnapshots } from '../../../../../platform/chat/common/chatQuotaService';
 import { MockGitService } from '../../../../../platform/ignore/node/test/mockGitService';
 import { ILogService } from '../../../../../platform/log/common/logService';
-import { GenAiAttr, IOTelService, NoopOTelService, resolveOTelConfig, SpanKind } from '../../../../../platform/otel/common/index';
+import { GenAiAttr, GitHubCopilotAttr, IOTelService, NoopOTelService, resolveOTelConfig, SpanKind } from '../../../../../platform/otel/common/index';
 import { CapturingOTelService } from '../../../../../platform/otel/common/test/capturingOTelService';
 import { IRequestLogger } from '../../../../../platform/requestLogger/common/requestLogger';
 import { NullRequestLogger } from '../../../../../platform/requestLogger/node/nullRequestLogger';
@@ -367,6 +367,34 @@ describe('CopilotCLISession', () => {
 				result: 'file.txt',
 				parent: true,
 			},
+		});
+	});
+
+	it('marks invoke_agent and synthesized chat spans with auto_mode only for the Auto model', async () => {
+		sdkSession.send = async ({ prompt }) => {
+			sdkSession.emit('user.message', { content: prompt });
+			sdkSession.emit('assistant.turn_start', {});
+			sdkSession.emit('assistant.usage', { model: 'claude-x', inputTokens: 100, outputTokens: 20 });
+			sdkSession.emit('assistant.message', { messageId: 'm1', content: 'Done!' });
+			sdkSession.emit('assistant.turn_end', {});
+		};
+
+		const autoMode = async (model: string) => {
+			const otel = new CapturingOTelService();
+			const session = await createSessionWith(otel);
+			session.attachStream(new MockChatResponseStream());
+			await session.handleRequest({ id: '', toolInvocationToken: undefined as never }, { prompt: 'Hi' }, [], { model }, authInfo, CancellationToken.None);
+			const [agentSpan] = otel.findSpans('invoke_agent');
+			const [chatSpan] = otel.findSpans('chat');
+			return {
+				invokeAgent: agentSpan?.attributes[GitHubCopilotAttr.AUTO_MODE],
+				chat: chatSpan?.attributes[GitHubCopilotAttr.AUTO_MODE],
+			};
+		};
+
+		expect({ auto: await autoMode('auto'), pinned: await autoMode('modelB') }).toEqual({
+			auto: { invokeAgent: true, chat: true },
+			pinned: { invokeAgent: undefined, chat: undefined },
 		});
 	});
 
