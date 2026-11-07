@@ -340,9 +340,6 @@ importers:
       '@vscode/test-web':
         specifier: ^0.0.81
         version: 0.0.81(kerberos@2.1.1)
-      '@vscode/vscode-perf':
-        specifier: ^0.0.19
-        version: 0.0.19
       '@webgpu/types':
         specifier: ^0.1.66
         version: 0.1.66
@@ -596,6 +593,42 @@ importers:
       '@types/node':
         specifier: 24.x
         version: 24.12.4
+
+  scripts:
+    devDependencies:
+      '@playwright/test':
+        specifier: ^1.61.1
+        version: 1.61.1
+      '@vscode/test-electron':
+        specifier: ^2.4.0
+        version: 2.4.0
+      '@vscode/test-web':
+        specifier: ^0.0.81
+        version: 0.0.81(kerberos@2.1.1)
+      '@vscode/vscode-perf':
+        specifier: ^0.0.19
+        version: 0.0.19
+      ansi-colors:
+        specifier: ^3.2.3
+        version: 3.2.3
+      fancy-log:
+        specifier: ^1.3.3
+        version: 1.3.3
+      kerberos:
+        specifier: 2.1.1
+        version: 2.1.1
+      minimist:
+        specifier: ^1.2.8
+        version: 1.2.8
+      open:
+        specifier: ^10.1.2
+        version: 10.1.2
+      typescript:
+        specifier: npm:@typescript/typescript6@^6.0.2
+        version: '@typescript/typescript6@6.0.2'
+      ws:
+        specifier: ^8.19.0
+        version: 8.21.0
 
   src/vs/sessions/test/e2e:
     devDependencies:
