@@ -12,16 +12,17 @@ import { existsSync } from 'fs';
  */
 export const workspaceMembers = [
 	'',
-	'test/automation',
-	'test/componentFixtures/playwright',
-	'test/integration/browser',
-	'test/monaco',
-	'test/smoke',
-	'test/scenario',
+	'.eslint-plugin-local',
 	'.vscode/extensions/vscode-selfhost-import-aid',
 	'.vscode/extensions/vscode-selfhost-test-provider',
 	'.vscode/extensions/vscode-pr-pinger',
 	'src/vs/sessions/test/e2e',
+	'test/automation',
+	'test/componentFixtures/playwright',
+	'test/integration/browser',
+	'test/monaco',
+	'test/scenario',
+	'test/smoke',
 ];
 
 /**
