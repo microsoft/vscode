@@ -128,6 +128,8 @@ List-owned state is removed only when:
 
 Stale entries that match no current session are inert and may be compacted by their owning service.
 
+A new session joins the custom group its draft's owner chose. The main window's New Session composer keeps one pending group, such as from New Session on a group. A composer with a draft slot of its own, such as a chat window's, keeps the group of the session it was opened from for its slot (`ISessionGroupsService.setDraftSlotGroup`), and never takes the main composer's pending group. A slot's intent belongs to its owner, not to one draft: it applies to every send of the slot until its registration (the disposable `setDraftSlotGroup` returns) is disposed. Each accepted request copies it into an association of its own with the accepted session, which becomes membership once that session starts and is dropped when the request ends without starting it; the slot's intent stays as it is either way.
+
 ## Sorting and filtering
 
 The list supports created-time and updated-time sorting. Manual ordering stores list-owned sort keys for each mode without changing provider timestamps.

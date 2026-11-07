@@ -56,6 +56,8 @@ export class TestChatView extends AbstractChatView {
 	readonly input = document.createElement('textarea');
 	readonly layouts: { width: number; height: number }[] = [];
 	onLayout: (() => void) | undefined;
+	/** Whether it loads its chat, as a chat view shows while it binds to its chat's model. */
+	override readonly isLoadingTranscript = observableValue(this, false);
 
 	constructor(
 		readonly kind: ChatViewKind,

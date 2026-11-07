@@ -274,6 +274,42 @@ suite('View Editors', () => {
 		});
 	});
 
+	test('a view that stops rendering its title for now has its group show its title area, also alone, and is told not to show its title; rendering it again, it is as before; beside other editors nothing changes; editors opened from its group still go to the main part', async () => {
+		const { parts, part } = await createServices();
+		const group = groupViewOf(parts, part.activeGroup);
+		const titleShown = () => group.element.querySelector<HTMLElement>(':scope > .title')!.style.display !== 'none' && !group.element.classList.contains('title-provided-by-editor');
+		const read = () => ({ title: titleShown(), told: views[0].providedTitleVisible });
+		const titled = createViewInput('test.titled', '/chat/a');
+		titled.setRendersTitle(false);
+		await part.activeGroup.openEditor(titled, { pinned: true });
+		const aloneNotRendering = read();
+		titled.setRendersTitle(true);
+		const aloneRendering = read();
+		titled.setRendersTitle(false);
+		const aloneStopped = read();
+
+		const file = disposables.add(new TestFileEditorInput(URI.file('/beside.txt'), TEST_EDITOR_INPUT_ID));
+		await part.activeGroup.openEditor(file, { pinned: true });
+		await part.activeGroup.openEditor(titled);
+		const besideNotRendering = read();
+		titled.setRendersTitle(true);
+		const besideRendering = read();
+
+		titled.setRendersTitle(false);
+		const opened = disposables.add(new TestFileEditorInput(URI.file('/from-view.txt'), TEST_EDITOR_INPUT_ID));
+		await views[0].instantiationService.invokeFunction(accessor => accessor.get(IEditorService)).openEditor(opened);
+
+		assert.deepStrictEqual({ aloneNotRendering, aloneRendering, aloneStopped, besideNotRendering, besideRendering, capabilityKept: titled.hasCapability(EditorInputCapabilities.ProvidesTitle), openedInMainPart: parts.mainPart.groups.some(group => group.contains(opened)) }, {
+			aloneNotRendering: { title: true, told: false },
+			aloneRendering: { title: false, told: true },
+			aloneStopped: { title: true, told: false },
+			besideNotRendering: { title: true, told: false },
+			besideRendering: { title: true, told: false },
+			capabilityKept: true,
+			openedInMainPart: true,
+		});
+	});
+
 	test('the tab bar shows the actions of the active view\'s own title menu, in its context and with its arguments, and follows it as another view shows; other editors, and other menus of the group, keep the group\'s', async () => {
 		const created: { readonly menu: string; readonly ownContext: boolean; options?: IMenuActionOptions }[] = [];
 		const menuService = new class extends TestMenuService {

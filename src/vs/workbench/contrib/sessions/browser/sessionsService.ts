@@ -21,7 +21,7 @@ import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uri
 import { IWorkspaceTrustManagementService, IWorkspaceTrustRequestService } from '../../../../platform/workspace/common/workspaceTrust.js';
 import { localize } from '../../../../nls.js';
 import { ChatInteractivity, ChatOriginKind, IChat, ISession, isSessionCreated, SessionStatus } from '../../../services/sessions/common/session.js';
-import { ICreateNewChatInSessionOptions, ICreateNewSessionOptions, inheritableSessionTarget, IRecentlyOpenedSessions, ISessionsChangeEvent, ISessionsManagementService, IToggleSessionStickinessEvent } from '../common/sessionsManagement.js';
+import { ICreateNewChatInSessionOptions, ICreateNewSessionOptions, inheritableSessionTarget, INewSessionDraftSlot, IRecentlyOpenedSessions, ISessionsChangeEvent, ISessionsManagementService, IToggleSessionStickinessEvent } from '../common/sessionsManagement.js';
 import { IChatMovedEvent } from '../common/sessionsProvider.js';
 import { ISessionsProvidersService } from './sessionsProvidersService.js';
 import { ensureSessionWorktreesTrusted } from '../../../services/sessions/browser/worktreeTrust.js';
@@ -105,6 +105,11 @@ export interface IOpenNewSessionOptions extends ICreateNewSessionOptions {
 	readonly toSide?: boolean;
 	/** Require the created draft to start in a Dev Container rather than falling back to host execution. */
 	readonly requireDevContainer?: boolean;
+	/**
+	 * Create the draft in this slot instead of the main composer's. Like {@link preserveCustomView}, the Sessions grid,
+	 * navigation and custom view are left alone; the result is the slot's draft.
+	 */
+	readonly draftSlot?: INewSessionDraftSlot;
 }
 
 /**
@@ -650,7 +655,11 @@ export class SessionsService extends Disposable implements ISessionsService {
 		// While a foreground send materialises new chats, keep the newest chat
 		// active in the visible slot so the user sees the chat being sent.
 		this._register(this.sessionsManagementService.onWillSendRequest(session => this._startSendFollow(session)));
-		this._register(this.sessionsManagementService.onDidSendRequest(() => this._sendFollow.clear()));
+		this._register(this.sessionsManagementService.onDidSendRequest(({ session }) => {
+			if (!this._isIndependentDraftSlotSession(session)) {
+				this._sendFollow.clear();
+			}
+		}));
 
 		// Drive the part: reconcile the grid and move focus into the active
 		// session whenever the visible sessions or the active session change.
@@ -980,7 +989,17 @@ export class SessionsService extends Disposable implements ISessionsService {
 		}
 	}
 
+	/** Whether a send is from a composer outside the main window, which never shows in the grid. */
+	private _isIndependentDraftSlotSession(session: ISession): boolean {
+		const owner = this.sessionsManagementService.getNewSessionOwner(session.sessionId);
+		return !!owner && owner !== this.sessionsManagementService.defaultNewSessionSlot;
+	}
+
 	private _startSendFollow(session: ISession): void {
+		// Neither starts nor ends the grid's follow (see the onDidSendRequest listener).
+		if (this._isIndependentDraftSlotSession(session)) {
+			return;
+		}
 		const store = new DisposableStore();
 		let followId = session.sessionId;
 		// A foreground send can replace the session id (draft graduating into a
@@ -1989,7 +2008,10 @@ export class SessionsService extends Disposable implements ISessionsService {
 	}
 
 	private async _openNewSession(options: IOpenNewSessionOptions | undefined, token: CancellationToken, intent: SessionNavigationIntent): Promise<IOpenNewSessionResult> {
-		if (options?.preserveCustomView) {
+		// A draft of another slot is never shown in the grid, so it does not navigate, like a preserved custom view.
+		const draftSlot = options?.draftSlot && options.draftSlot !== this.sessionsManagementService.defaultNewSessionSlot ? options.draftSlot : undefined;
+		const preserveCustomView = options?.preserveCustomView || !!draftSlot;
+		if (preserveCustomView) {
 			intent = 'automatic';
 		}
 		if (options?.cancelRestore) {
@@ -2022,26 +2044,27 @@ export class SessionsService extends Disposable implements ISessionsService {
 			if (token.isCancellationRequested) {
 				return { session: undefined, trustDeclined: false };
 			}
-			if (!options?.preserveCustomView) {
+			if (!preserveCustomView) {
 				this._beginNavigation(intent, token, options?.preserveNavigation);
 				this._startOpenSession();
 			}
 			try {
-				const session = this.sessionsManagementService.createNewSession(folderUri, options);
+				const session = draftSlot ? draftSlot.createNewSession(folderUri, options) : this.sessionsManagementService.createNewSession(folderUri, options);
+				const discard = () => draftSlot ? draftSlot.discardNewSession(session) : this.sessionsManagementService.discardNewSession(session);
 				if (options?.requireDevContainer) {
 					const provider = this.sessionsProvidersService.getProvider(session.providerId, session.sessionId);
 					if (!provider || !isAgentHostProvider(provider) || !provider.preferDevContainer) {
-						this.sessionsManagementService.discardNewSession(session);
+						discard();
 						throw new Error(`Session provider '${session.providerId}' does not support Dev Container drafts.`);
 					}
 					try {
 						provider.preferDevContainer(session.sessionId, { required: true });
 					} catch (error) {
-						this.sessionsManagementService.discardNewSession(session);
+						discard();
 						throw error;
 					}
 				}
-				if (!options?.preserveCustomView) {
+				if (!preserveCustomView) {
 					this._activateOrInsert(session, options?.toSide, intent);
 				}
 				if (intent === 'explicit' && !options?.preserveNavigation) {
@@ -2056,8 +2079,8 @@ export class SessionsService extends Disposable implements ISessionsService {
 			}
 		}
 
-		if (options?.preserveCustomView) {
-			return { session: this.sessionsManagementService.newSession.get(), trustDeclined: false };
+		if (preserveCustomView) {
+			return { session: (draftSlot ?? this.sessionsManagementService).newSession.get(), trustDeclined: false };
 		}
 
 		// Without a folder (or when folder resolution failed above): switch to

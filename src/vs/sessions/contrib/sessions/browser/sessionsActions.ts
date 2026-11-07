@@ -114,6 +114,20 @@ export function openPickedSessionInChatWindow(accessor: ServicesAccessor, sessio
 	return openChatInWindow(accessor, session, undefined, { window, preserveFocus: options.preserveFocus, beside: options.toSide ? window.chat.get() : undefined });
 }
 
+/**
+ * Opens a new session, picked in the Sessions picker: in the chat window `window` it runs in, as a new session of that
+ * window, as a tab of its active chat or beside it to the side; elsewhere in the main window.
+ */
+export async function openPickedNewSession(accessor: ServicesAccessor, window: IChatWindow | undefined, options: { readonly preserveFocus: boolean; readonly toSide: boolean }): Promise<void> {
+	if (window) {
+		await accessor.get(IChatWindowService).openNewChat(window, { beside: options.toSide, preserveFocus: options.preserveFocus });
+		return;
+	}
+	const sessionsService = accessor.get(ISessionsService);
+	sessionsService.openNewSession();
+	sessionsService.focusActiveSession();
+}
+
 export const SHOW_SESSIONS_PICKER_COMMAND_ID = 'sessions.showSessionsPicker';
 
 registerAction2(class ShowSessionsPickerAction extends Action2 {
@@ -246,9 +260,7 @@ registerAction2(class ShowSessionsPickerAction extends Action2 {
 		const openSelected = (selected: ISessionPickItem, inBackground: boolean, toSide: boolean): void => {
 			composerService.notifyUserNavigation();
 			if (!selected.session) {
-				// A new session opens in the main window, also when picked in a chat window, for now
-				sessionsService.openNewSession();
-				sessionsService.focusActiveSession();
+				void instantiationService.invokeFunction(accessor => openPickedNewSession(accessor, chatWindow, { preserveFocus: inBackground, toSide })).catch(onUnexpectedError);
 				return;
 			}
 
@@ -2250,7 +2262,8 @@ registerAction2(class CloseSessionAction extends Action2 {
 			}, ...SessionHeaderMenus.map(id => ({
 				id,
 				when: ContextKeyExpr.and(
-					ContextKeyExpr.or(SessionIsCreatedContext, MultipleSessionsVisibleContext),
+					// Not a new session a chat editor shows, such as a chat window's, which its tab closes: it has no pane to close
+					ContextKeyExpr.or(SessionIsCreatedContext, ContextKeyExpr.and(MultipleSessionsVisibleContext, SessionInChatEditorContext.negate())),
 					SessionHeaderShowsChatContext.negate(),
 				),
 				group: 'secondary/0_pane',

@@ -17,6 +17,9 @@ import { IAgentsWindowDraft } from '../../../../../platform/window/common/window
 import { defaultProgressBarStyles } from '../../../../../platform/theme/browser/defaultStyles.js';
 import { IProgressScope, ScopedProgressIndicator } from '../../../../services/progress/browser/progressIndicator.js';
 import { IChat, ISession } from '../../../../services/sessions/common/session.js';
+import { INewSessionDraftSlot } from '../../common/sessionsManagement.js';
+import { IComposerInputSnapshot } from '../../common/newChatDraftState.js';
+import { IChatRequestVariableEntry } from '../../../chat/common/attachments/chatVariableEntries.js';
 import { ISelectNoWorkspaceOptions, ISelectWorkspaceOptions, WorkspaceSelectionResult } from '../../../../services/sessions/common/workspaceSelection.js';
 import { ISessionPickerVisibility, noSessionPickerVisibility } from '../../common/sessionPickerVisibility.js';
 import type { IChatSessionHistoryStatus } from '../../../../../platform/chat/common/chatSessionHistory.js';
@@ -60,6 +63,71 @@ export interface IChatViewOptions {
 	readonly session?: IObservable<ISession | undefined>;
 	/** The chat the pane shows of {@link session}; its main chat while undefined. */
 	readonly chat?: IObservable<IChat | undefined>;
+	/**
+	 * Hosts a new-session composer outside the main window's grid, such as in a chat window. Its drafts are held in the
+	 * host's slot, so they never replace or take the main window composer's draft, and the grid is never changed.
+	 */
+	readonly newSessionDraft?: INewSessionDraftHost;
+}
+
+/**
+ * The host of a new-session composer outside the main window's grid ({@link IChatViewOptions.newSessionDraft}).
+ */
+export interface INewSessionDraftHost {
+	/** Holds the composer's drafts. */
+	readonly slot: INewSessionDraftSlot;
+	/** Keeps the composer's input, instead of the main composer's saved draft. */
+	readonly input?: IComposerInputSnapshot;
+	/**
+	 * What the composer creates its drafts for, such as the defaults inherited from another chat, instead of the main
+	 * composer's last workspace. The composer aims for it also when an agent becomes available only later.
+	 */
+	readonly requestedTarget?: IObservable<INewSessionTarget | undefined>;
+	/**
+	 * Replaces {@link requestedTarget}: the user changed the composer's workspace, agent, model or mode, or the composer
+	 * starts its next draft from the selection of a background send.
+	 */
+	setRequestedTarget?(target: INewSessionTarget, reason: 'user' | 'background'): void;
+	/** Opens a session the composer started in the background, in the composer's own window. */
+	openStartedSession(session: ISession): Promise<void>;
+	/**
+	 * Called before the composer sends a request in the background. The host follows the request until it ends (see
+	 * `trackNewSessionRequestEnd`), also after the composer is gone, and reports a failure and recovers the prompt: the
+	 * management service does not notify failures of an independent slot. The composer disposes the result only when
+	 * the send is rejected before it is dispatched.
+	 */
+	trackBackgroundSend(send: INewSessionBackgroundSend): IDisposable;
+}
+
+/** What a hosted composer creates its drafts for ({@link INewSessionDraftHost.requestedTarget}). */
+export interface INewSessionTarget {
+	/** The folder of the drafts; none for a workspace-less quick chat. */
+	readonly folderUri?: URI;
+	readonly providerId?: string;
+	readonly sessionTypeId?: string;
+	/** Applied when the session type offers it; otherwise the agent's default model. */
+	readonly modelId?: string;
+	/**
+	 * The mode the chat shows (`IChat.mode`): for an Agent Host agent, its custom agent's URI, which is selected when the
+	 * agent offers it. Not the session mode a creation takes. Undefined for the agent's default selection.
+	 */
+	readonly modeId?: string;
+	/**
+	 * Whether the drafts of {@link folderUri} run in a Dev Container, as the session they inherit from does, or as the user
+	 * picked; a draft that cannot is not created elsewhere.
+	 */
+	readonly requireDevContainer?: boolean;
+}
+
+/** A background send of a composer ({@link INewSessionDraftHost.trackBackgroundSend}). */
+export interface INewSessionBackgroundSend {
+	/** The draft being sent; the request can replace it. */
+	readonly session: ISession;
+	/** The prompt as the user wrote it. */
+	readonly query: string;
+	readonly attachedContext: readonly IChatRequestVariableEntry[] | undefined;
+	/** Whether it is still the composer's latest send; never once the composer is gone. */
+	isLatest(): boolean;
 }
 
 /**
