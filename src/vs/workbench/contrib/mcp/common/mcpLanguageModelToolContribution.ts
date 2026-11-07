@@ -200,7 +200,7 @@ export class McpLanguageModelToolContribution extends Disposable implements IWor
 	}
 }
 
-class McpToolImplementation implements IToolImpl {
+export class McpToolImplementation implements IToolImpl {
 	constructor(
 		private readonly _tool: IMcpTool,
 		private readonly _server: IMcpServer,
@@ -328,9 +328,7 @@ class McpToolImplementation implements IToolImpl {
 			const isForModel = !audience || audience.includes(LanguageModelPartAudience.Assistant);
 			if (item.type === 'text') {
 				details.output.push({ type: 'embed', isText: true, value: item.text });
-				// structured content 'represents the result of the tool call', so take
-				// that in place of any textual description when present.
-				if (isForModel && !callResult.structuredContent) {
+				if (isForModel) {
 					result.content.push({
 						kind: 'text',
 						audience,
@@ -388,7 +386,12 @@ class McpToolImplementation implements IToolImpl {
 
 		if (callResult.structuredContent) {
 			details.output.push({ type: 'embed', isText: true, value: JSON.stringify(callResult.structuredContent, null, 2), audience: [LanguageModelPartAudience.Assistant] });
-			result.content.push({ kind: 'text', value: JSON.stringify(callResult.structuredContent), audience: [LanguageModelPartAudience.Assistant] });
+			// The model sees the content blocks, while structuredContent is for
+			// programmatic use and MCP Apps. Only fall back to it when nothing in
+			// content was meant for the model, such as structured only results.
+			if (result.content.length === 0) {
+				result.content.push({ kind: 'text', value: JSON.stringify(callResult.structuredContent), audience: [LanguageModelPartAudience.Assistant] });
+			}
 		}
 
 		// Add raw MCP output for MCP App UI rendering if this tool has UI
