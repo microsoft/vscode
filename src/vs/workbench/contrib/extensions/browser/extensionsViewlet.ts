@@ -877,7 +877,8 @@ export class ExtensionsViewPaneContainer extends ViewPaneContainer<IExtensionsVi
 		return this.searchMarketplaceExtensionsContextKey.get() === true
 			&& Query.parse(this.searchBox?.getValue() ?? '').containsMcpTerm()
 			&& this.configurationService.getValue<boolean>(CustomizationMarketplaceConfiguration.MarketplaceEnabled) === true
-			&& !this.chatEntitlementService.sentiment.hidden;
+			&& !this.chatEntitlementService.sentiment.hidden
+			&& !this.chatEntitlementService.sentiment.disabledInWorkspace;
 	}
 
 	private getMcpSearchNotification(isEligible: boolean): IExtensionsNotification | undefined {
