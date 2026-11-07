@@ -5,14 +5,15 @@
 
 import assert from 'assert';
 import { execFileSync } from 'child_process';
-import { mkdirSync, mkdtempSync, readdirSync, realpathSync, rmSync, symlinkSync, writeFileSync } from 'fs';
+import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, realpathSync, rmSync, statSync, symlinkSync, writeFileSync } from 'fs';
 import { realpath } from 'fs/promises';
 import { tmpdir } from 'os';
 import { toDisposable } from '../../../../base/common/lifecycle.js';
 import { basename, dirname, join } from '../../../../base/common/path.js';
+import { Promises } from '../../../../base/node/pfs.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { createTestDirectory } from './e2e/harness/testDirectories.js';
-import { disableTestGitMaintenance, initTestGitRepo } from './e2e/harness/agentHostE2ETestHarness.js';
+import { disableTestGitMaintenance, initTestGitRepo, removeTempDirs } from './e2e/harness/agentHostE2ETestHarness.js';
 
 suite('Agent Host E2E test directories', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -86,6 +87,99 @@ suite('Agent Host E2E test directories', () => {
 		const directory = createTestDirectory(join(shortPath, 'workspace-'));
 
 		assert.strictEqual(dirname(directory), target);
+	});
+
+	test('removes homes with chained directory links without touching external targets', async () => {
+		const root = createTestDirectory(join(tmpdir(), 'agent-host-cleanup-test-'));
+		const directory = join(root, 'home', 'readonly');
+		try {
+			const home = join(root, 'home');
+			const external = join(root, 'external');
+			const alias = join(root, 'default');
+			const sentinel = join(external, 'sentinel.txt');
+			const linkType = process.platform === 'win32' ? 'junction' : 'dir';
+			mkdirSync(directory, { recursive: true });
+			mkdirSync(external);
+			writeFileSync(sentinel, 'keep external content');
+			chmodSync(sentinel, 0o400);
+			const originalMode = statSync(sentinel).mode;
+			const originalDirectoryMode = statSync(external).mode;
+			symlinkSync(external, alias, linkType);
+			symlinkSync(alias, join(directory, 'multishell'), linkType);
+			writeFileSync(join(directory, 'owned.txt'), 'owned content');
+			chmodSync(directory, 0o500);
+
+			await removeTempDirs([home]);
+
+			const sentinelExists = existsSync(sentinel);
+			assert.deepStrictEqual({
+				homeExists: existsSync(home),
+				externalContent: sentinelExists ? readFileSync(sentinel, 'utf8') : undefined,
+				externalMode: sentinelExists ? statSync(sentinel).mode : undefined,
+				externalDirectoryMode: existsSync(external) ? statSync(external).mode : undefined,
+			}, {
+				homeExists: false,
+				externalContent: 'keep external content',
+				externalMode: originalMode,
+				externalDirectoryMode: originalDirectoryMode,
+			});
+		} finally {
+			if (existsSync(directory)) {
+				chmodSync(directory, 0o700);
+			}
+			await Promises.rm(root);
+		}
+	});
+
+	test('removes homes containing dangling directory links', async () => {
+		const root = createTestDirectory(join(tmpdir(), 'agent-host-cleanup-test-'));
+		try {
+			const home = join(root, 'home');
+			mkdirSync(home);
+			symlinkSync(join(root, 'missing'), join(home, 'dangling'), process.platform === 'win32' ? 'junction' : 'dir');
+
+			await removeTempDirs([home]);
+
+			assert.strictEqual(existsSync(home), false);
+		} finally {
+			await Promises.rm(root);
+		}
+	});
+
+	test('removes read-only files owned by a temporary directory', async () => {
+		const home = createTestDirectory(join(tmpdir(), 'agent-host-cleanup-test-'));
+		try {
+			const objects = join(home, '.git', 'objects');
+			mkdirSync(objects, { recursive: true });
+			const file = join(objects, 'readonly');
+			writeFileSync(file, 'owned content');
+			chmodSync(file, 0o400);
+
+			await removeTempDirs([home]);
+
+			assert.strictEqual(existsSync(home), false);
+		} finally {
+			await Promises.rm(home);
+		}
+	});
+
+	test('removes read-only directories owned by a temporary directory', async () => {
+		const home = createTestDirectory(join(tmpdir(), 'agent-host-cleanup-test-'));
+		const directory = join(home, 'readonly');
+		try {
+			mkdirSync(directory);
+			writeFileSync(join(directory, 'owned.txt'), 'owned content');
+			chmodSync(directory, 0o500);
+
+			await removeTempDirs([home]);
+
+			assert.strictEqual(existsSync(home), false);
+		} finally {
+			if (existsSync(directory)) {
+				chmodSync(directory, 0o700);
+			}
+			await Promises.rm(home);
+		}
 	});
 
 	test('test repositories prevent both automatic garbage collection and maintenance', () => {
