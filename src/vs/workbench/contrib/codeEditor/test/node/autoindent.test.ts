@@ -35,7 +35,8 @@ function getIRange(range: IRange): IRange {
 }
 
 const enum LanguageId {
-	TypeScript = 'ts-test'
+	TypeScript = 'ts-test',
+	Yaml = 'yaml-test'
 }
 
 function forceTokenizationFromLineToLine(model: ITextModel, startLine: number, endLine: number): void {
@@ -58,6 +59,9 @@ function registerLanguageConfiguration(instantiationService: TestInstantiationSe
 	switch (languageId) {
 		case LanguageId.TypeScript:
 			configPath = FileAccess.asFileUri('vs/workbench/contrib/codeEditor/test/node/language-configuration.json').fsPath;
+			break;
+		case LanguageId.Yaml:
+			configPath = join(FileAccess.asFileUri('').fsPath, '..', 'extensions', 'yaml', 'language-configuration.json');
 			break;
 		default:
 			throw new Error('Unknown languageId');
@@ -546,5 +550,43 @@ suite('Auto-Reindentation - TypeScript/JavaScript', () => {
 		const model = disposables.add(instantiateTextModel(instantiationService, fileContents, languageId, options));
 		const editOperations = getReindentEditOperations(model, languageConfigurationService, 1, model.getLineCount());
 		assert.deepStrictEqual(editOperations.length, 0);
+	});
+});
+
+suite('Auto-Reindentation - YAML', () => {
+
+	const languageId = LanguageId.Yaml;
+	const options: IRelaxedTextModelCreationOptions = { tabSize: 2, indentSize: 2, insertSpaces: true };
+	let disposables: DisposableStore;
+	let instantiationService: TestInstantiationService;
+	let languageConfigurationService: ILanguageConfigurationService;
+
+	setup(() => {
+		disposables = new DisposableStore();
+		instantiationService = createModelServices(disposables);
+		languageConfigurationService = instantiationService.get(ILanguageConfigurationService);
+		disposables.add(instantiationService);
+		disposables.add(registerLanguage(instantiationService, languageId));
+	});
+
+	teardown(() => {
+		disposables.dispose();
+	});
+
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('Issue #330394: indent after a key with an anchor', () => {
+		// issue: https://github.com/microsoft/vscode/issues/330394
+
+		const fileContents = [
+			'foo: &anchor',
+			'bar: 1',
+		].join('\n');
+		const model = disposables.add(instantiateTextModel(instantiationService, fileContents, languageId, options));
+		const editOperations = getReindentEditOperations(model, languageConfigurationService, 1, model.getLineCount());
+		assert.deepStrictEqual(editOperations.map(operation => ({ range: getIRange(operation.range), text: operation.text })), [{
+			range: { startLineNumber: 2, startColumn: 1, endLineNumber: 2, endColumn: 1 },
+			text: '  '
+		}]);
 	});
 });
