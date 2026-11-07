@@ -18,6 +18,7 @@ import { defaultProgressBarStyles } from '../../../../../platform/theme/browser/
 import { IProgressScope, ScopedProgressIndicator } from '../../../../services/progress/browser/progressIndicator.js';
 import { IChat, ISession } from '../../../../services/sessions/common/session.js';
 import { INewSessionDraftSlot } from '../../common/sessionsManagement.js';
+import { IComposerInputSnapshot } from '../../common/newChatDraftState.js';
 import { IChatRequestVariableEntry } from '../../../chat/common/attachments/chatVariableEntries.js';
 import { ISelectNoWorkspaceOptions, ISelectWorkspaceOptions, WorkspaceSelectionResult } from '../../../../services/sessions/common/workspaceSelection.js';
 import { ISessionPickerVisibility, noSessionPickerVisibility } from '../../common/sessionPickerVisibility.js';
@@ -75,6 +76,8 @@ export interface IChatViewOptions {
 export interface INewSessionDraftHost {
 	/** Holds the composer's drafts. */
 	readonly slot: INewSessionDraftSlot;
+	/** Keeps the composer's input, instead of the main composer's saved draft. */
+	readonly input?: IComposerInputSnapshot;
 	/** Opens a session the composer started in the background, in the composer's own window. */
 	openStartedSession(session: ISession): Promise<void>;
 	/**

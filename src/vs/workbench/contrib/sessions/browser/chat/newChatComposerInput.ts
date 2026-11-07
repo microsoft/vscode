@@ -15,6 +15,7 @@ import { IModelPickerComparison } from '../../../chat/browser/widget/input/model
 import { getGitHubIssueOrPullRequestAttachments } from '../../../chat/browser/widget/input/editor/chatPasteProviders.js';
 import { IChatRequestVariableEntry, isExplicitFileOrImageVariableEntry } from '../../../chat/common/attachments/chatVariableEntries.js';
 import { IWorkspaceSelectionSnapshot } from '../../../../services/sessions/common/workspaceSelection.js';
+import { IComposerInputSnapshot } from '../../common/newChatDraftState.js';
 import { isInputGitHubContext, toInputGitHubContextMetadata } from '../../common/newChatContextIds.js';
 import type { IChat, ISession } from '../../../../services/sessions/common/session.js';
 import { NewSessionWorkspacePreselectionSource } from '../newSessionComposerService.js';
@@ -98,6 +99,8 @@ export interface INewChatInputSendRequest {
 	readonly attachments?: IChatRequestVariableEntry[];
 	readonly background?: boolean;
 	readonly userInteraction?: NewChatUserInteraction;
+	/** The send's attempt in the composer's {@link INewChatComposerInputOptions.inputSnapshot}, when it has one. */
+	readonly attemptId?: string;
 }
 
 /** Repository controls a host renders in place of the session provider's. */
@@ -121,6 +124,11 @@ export interface INewChatComposerInputOptions {
 	readonly onDidChangeWorkspaceSelection?: Event<void>;
 	readonly canApplyWorkspaceDefault?: () => boolean;
 	readonly sendRequest: (request: INewChatInputSendRequest) => Promise<boolean>;
+	/**
+	 * Keeps the composer's input for a host outside the main window, instead of the main composer's saved draft: the
+	 * composer restores from it, writes every change to it and brackets each send with an attempt.
+	 */
+	readonly inputSnapshot?: IComposerInputSnapshot;
 	/** Keep an in-place composer's read-only editor focusable while confirming and sending. */
 	readonly preserveInputFocusOnSend?: boolean;
 	/**
