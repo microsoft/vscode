@@ -980,10 +980,13 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 
 			promise = new Promise<ITaskSummary>((resolve, reject) => {
 				const boundTerminal = terminal!;
-				const onExit = terminal!.onExit((terminalLaunchResult) => {
+				const onExit = terminal!.onExit(async (terminalLaunchResult) => {
 					const exitCode = typeof terminalLaunchResult === 'number' ? terminalLaunchResult : terminalLaunchResult?.code;
 					onData?.dispose();
 					onExit.dispose();
+					// Wait for the problems of the last lines before the task is
+					// released, so that a new run can't be affected by this one.
+					await watchingProblemMatcher.done();
 					const key = task.getMapKey();
 					if (this._busyTasks[mapKey]) {
 						delete this._busyTasks[mapKey];
@@ -1016,7 +1019,6 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 							// There is nothing else to do here.
 						}
 					}
-					watchingProblemMatcher.done();
 					watchingProblemMatcher.dispose();
 					if (!processStartedSignaled) {
 						this._fireTaskEvent(TaskEvent.processStarted(task, terminal!.instanceId, terminal!.processId!));
