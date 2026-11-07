@@ -61,11 +61,21 @@ export async function scanClaudeCustomizationScope(
 	includeCommands: boolean = true,
 ): Promise<readonly (IParsedAgent | IParsedSkill)[]> {
 	const { agents: agentsDir, skills: skillsDir, commands: commandsDir } = scopeRoots(scope);
-	const [agentResources, skillResources, commandResources] = await Promise.all([
-		readAgentComponents([agentsDir], fileService),
+	const [claudeSkills, agentsSkills, githubSkills, claudeAgents, nonClaudeAgents, commandResources] = await Promise.all([
 		readSkills(skillsDir, [skillsDir], fileService),
+		readSkills(skillsDir, [URI.joinPath(scope, '.agents', 'skills')], fileService),
+		readSkills(skillsDir, [URI.joinPath(scope, '.github', 'skills')], fileService),
+		readAgentComponents([agentsDir], fileService),
+		readAgentComponents([
+			URI.joinPath(scope, '.agents', 'agents'),
+			URI.joinPath(scope, '.github', 'agents'),
+		], fileService),
 		includeCommands ? readAgentComponents([commandsDir], fileService) : [],
 	]);
+	const filteredNonClaudeAgents = nonClaudeAgents.filter(a => a.uri.path.toLowerCase().endsWith('.agent.md'));
+	const agentResources = [...claudeAgents, ...filteredNonClaudeAgents];
+	const skillResources = [...claudeSkills, ...agentsSkills, ...githubSkills];
+
 	const agents = new Map<string, IParsedAgent>();
 	const skills = new Map<string, IParsedSkill>();
 	collectByName(agents, agentResources.map(toParsedAgent));
