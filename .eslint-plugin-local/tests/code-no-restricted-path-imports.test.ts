@@ -3,11 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import assert from 'assert';
 import { RuleTester } from 'eslint';
 import { suite, test } from 'node:test';
 import { posix } from 'path';
 import tseslint from 'typescript-eslint';
-import rule from '../code-no-restricted-path-imports.ts';
+import rule, { resolveImport } from '../code-no-restricted-path-imports.ts';
 
 RuleTester.describe = suite;
 RuleTester.it = test;
@@ -83,4 +84,37 @@ new RuleTester({ languageOptions: { parser: tseslint.parser } }).run('code-no-re
 		code: form.code(source),
 		errors: [{ messageId: 'restricted', data: { message } }],
 	}))),
+});
+
+suite('code-no-restricted-path-imports resolveImport', () => {
+	const target = 'src/vs/workbench/contrib/sessions/common/x.js';
+	const resolveAll = (root: string, filename: string, specifiers: string[]) => specifiers.map(specifier => resolveImport(root, filename, specifier));
+
+	test('Windows drive roots compare drive letters case-insensitively', () => {
+		assert.deepStrictEqual(resolveAll('C:\\vscode', 'C:\\vscode\\src\\vs\\workbench\\contrib\\chat\\browser\\a.ts', [
+			`c:/vscode/${target}`,
+			`C:/vscode/${target}`,
+			`c:\\vscode\\src\\vs\\workbench\\contrib\\sessions\\common\\x.js`,
+			'../../sessions/common/x.js',
+			'vs/workbench/contrib/sessions/common/x.js',
+			'D:/vscode/src/vs/workbench/contrib/sessions/common/x.js',
+			'sessions',
+		]), [target, target, target, target, target, 'D:/vscode/src/vs/workbench/contrib/sessions/common/x.js', undefined]);
+	});
+
+	test('UNC roots compare host and share case-insensitively', () => {
+		assert.deepStrictEqual(resolveAll('//server/share/vscode', '//server/share/vscode/src/vs/workbench/contrib/chat/browser/a.ts', [
+			`//SERVER/SHARE/vscode/${target}`,
+			`\\\\Server\\Share\\vscode\\src\\vs\\workbench\\contrib\\sessions\\common\\x.js`,
+			'../../sessions/common/x.js',
+		]), [target, target, target]);
+	});
+
+	test('POSIX roots stay case-sensitive', () => {
+		assert.deepStrictEqual(resolveAll('/repo', '/repo/src/vs/workbench/contrib/chat/browser/a.ts', [
+			`/repo/${target}`,
+			`/REPO/${target}`,
+			'../../sessions/common/x.js',
+		]), [target, `../REPO/${target}`, target]);
+	});
 });

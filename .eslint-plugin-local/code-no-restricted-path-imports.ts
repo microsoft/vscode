@@ -7,7 +7,7 @@ import type * as eslint from 'eslint';
 import type * as ESTree from 'estree';
 import type { TSESTree } from '@typescript-eslint/utils';
 import minimatch from 'minimatch';
-import { posix } from 'path';
+import { posix, resolve, win32 } from 'path';
 import { createImportRuleListener } from './utils.ts';
 
 interface RestrictedPath {
@@ -15,28 +15,27 @@ interface RestrictedPath {
 	readonly message: string;
 }
 
-const repositoryRoot = normalizePath(`${import.meta.dirname}/..`);
-
-function normalizePath(value: string): string {
-	return posix.normalize(value.replace(/\\/g, '/'));
-}
+const repositoryRoot = resolve(import.meta.dirname, '..');
 
 /**
- * Resolves a module specifier to a repository-relative path, or `undefined` for node modules.
+ * Resolves a module specifier to a `/`-separated path relative to `root`, or `undefined` for
+ * node modules. Windows roots (drive letter or UNC) use Windows path semantics, where drive
+ * letters and UNC host/share names compare case-insensitively.
  */
-function resolveImport(filename: string, specifier: string): string | undefined {
+export function resolveImport(root: string, filename: string, specifier: string): string | undefined {
+	const pathApi = /^[a-zA-Z]:[\\/]|^[\\/]{2}[^\\/]/.test(root) ? win32 : posix;
 	const value = specifier.replace(/\\/g, '/');
 	let resolved: string;
 	if (value.startsWith('.')) {
-		resolved = posix.join(posix.dirname(filename), value);
-	} else if (value.startsWith('/') || /^[a-zA-Z]:\//.test(value)) {
+		resolved = pathApi.resolve(pathApi.dirname(filename), value);
+	} else if (pathApi.isAbsolute(value)) {
 		resolved = value;
 	} else if (value.startsWith('vs/')) {
-		resolved = `${repositoryRoot}/src/${value}`;
+		resolved = pathApi.join(root, 'src', value);
 	} else {
 		return undefined;
 	}
-	return posix.relative(repositoryRoot, normalizePath(resolved));
+	return pathApi.relative(root, resolved).replace(/\\/g, '/');
 }
 
 export default new class NoRestrictedPathImports implements eslint.Rule.RuleModule {
@@ -71,10 +70,9 @@ export default new class NoRestrictedPathImports implements eslint.Rule.RuleModu
 
 	create(context: eslint.Rule.RuleContext): eslint.Rule.RuleListener {
 		const { paths } = context.options[0] as { paths: RestrictedPath[] };
-		const filename = normalizePath(context.filename);
 
 		const checkImport = (loc: TSESTree.SourceLocation | eslint.AST.SourceLocation | null | undefined, value: string): void => {
-			const resolved = resolveImport(filename, value);
+			const resolved = resolveImport(repositoryRoot, context.filename, value);
 			if (resolved === undefined || !loc) {
 				return;
 			}
