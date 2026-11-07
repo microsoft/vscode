@@ -650,6 +650,30 @@ suite('ExtHostTreeView', function () {
 		treeView2.dispose();
 	});
 
+	test('repeated node creations and refreshes do not leak DisposableStores into the tree view store (#346620)', async () => {
+		const treeDataProvider = aNodeTreeDataProvider();
+		const treeView = testObject.createTreeView('leakTestProvider', { treeDataProvider }, extensionsDescription);
+		const treeViews: Map<string, IDisposable> = Reflect.get(testObject, '_treeViews');
+		const internalView = treeViews.get('leakTestProvider')!;
+		const viewStore: { _toDispose: Set<IDisposable> } = Reflect.get(internalView, '_store');
+		const initialDisposablesCount = viewStore._toDispose.size;
+
+		await testObject.$getChildren('leakTestProvider');
+		const afterFirstFetchCount = viewStore._toDispose.size;
+		assert.strictEqual(afterFirstFetchCount, initialDisposablesCount, 'Fetching nodes should not add per-node DisposableStores to the view store');
+
+		// Fire refresh multiple times and fetch children again
+		for (let i = 0; i < 5; i++) {
+			onDidChangeTreeNode.fire(undefined);
+			await testObject.$getChildren('leakTestProvider');
+		}
+
+		const afterRefreshesCount = viewStore._toDispose.size;
+		assert.strictEqual(afterRefreshesCount, initialDisposablesCount, 'Repeated node fetches/refreshes should not grow the view disposable store');
+
+		treeView.dispose();
+	});
+
 	test('reveal will throw an error if getParent is not implemented', () => {
 		const treeView = testObject.createTreeView('treeDataProvider', { treeDataProvider: aNodeTreeDataProvider() }, extensionsDescription);
 		return treeView.reveal({ key: 'a' })

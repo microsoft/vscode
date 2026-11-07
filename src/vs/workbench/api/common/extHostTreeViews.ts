@@ -944,7 +944,7 @@ class ExtHostTreeView<T> extends Disposable {
 
 	private _createTreeNode(element: T, extensionTreeItem: vscode.TreeItem, parent: TreeNode | Root): TreeNode {
 		this._validateTreeItem(extensionTreeItem);
-		const disposableStore = this._register(new DisposableStore());
+		const disposableStore = new DisposableStore();
 		const handle = this._createHandle(element, extensionTreeItem, parent);
 		const icon = this._getLightIconPath(extensionTreeItem);
 		const item: ITreeItem = {
@@ -1124,9 +1124,8 @@ class ExtHostTreeView<T> extends Disposable {
 	}
 
 	override dispose() {
-		super.dispose();
-		this._refreshCancellationSource.dispose();
-
 		this._clearAll();
+		this._refreshCancellationSource.dispose();
+		super.dispose();
 	}
 }
