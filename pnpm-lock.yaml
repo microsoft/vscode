@@ -318,7 +318,7 @@ importers:
         version: 0.2.1-161
       '@vscode/component-explorer-cli':
         specifier: ^0.2.1-163
-        version: 0.2.1-163(typanion@3.14.0)
+        version: 0.2.1-163(playwright@1.61.1)(typanion@3.14.0)
       '@vscode/gulp-electron':
         specifier: ^1.43.0
         version: 1.43.1
@@ -469,6 +469,9 @@ importers:
       path-browserify:
         specifier: ^1.0.1
         version: 1.0.1
+      playwright:
+        specifier: ^1.61.1
+        version: 1.61.1
       rcedit:
         specifier: ^1.1.0
         version: 1.1.0
@@ -8259,12 +8262,13 @@ snapshots:
 
   '@vscode/codicons@0.0.46-49': {}
 
-  '@vscode/component-explorer-cli@0.2.1-163(typanion@3.14.0)':
+  '@vscode/component-explorer-cli@0.2.1-163(playwright@1.61.1)(typanion@3.14.0)':
     dependencies:
       '@modelcontextprotocol/sdk': 1.29.0(zod@4.4.3)
       clipanion: 4.0.0-rc.4(typanion@3.14.0)
       express: 5.2.1
       istanbul-lib-coverage: 3.2.2
+      playwright: 1.61.1
       v8-to-istanbul: 9.3.0
       vite-plugin-istanbul: 7.2.1
       zod: 4.4.3
