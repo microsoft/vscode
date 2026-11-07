@@ -1049,6 +1049,8 @@ interface IChatOutputObs {
 	readonly customizations: IObservable<readonly ISessionChatCustomization[]>;
 	readonly canvases: IObservable<readonly ISessionCanvas[] | undefined>;
 	readonly observeCanvases: () => IDisposable;
+	/** Keeps the chat's changesets observed while no window shows its session. */
+	readonly observeChanges: () => IDisposable;
 	/** Resolves the GitHub info each folder of the chat's workspace reports. */
 	readonly getFolderGitHubInfo: (reader: IReader) => IFolderGitHubInfoResolver;
 	/** Resolves the Git state persisted for the chat's working-directory scope. */
@@ -1199,6 +1201,7 @@ class AdditionalChat extends Disposable {
 			customizations: output?.customizations,
 			canvases: output?.canvases,
 			observeCanvases: output?.observeCanvases,
+			observeChanges: output?.observeChanges,
 			backgroundShells,
 			checkpoints: observableValue(this, undefined),
 			modelId: this._withDetails(this._modelId),
@@ -1809,9 +1812,10 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 				false,
 			);
 		});
+		const defaultChatChangesGate = this._createObservedSubscriptionGate();
 		const sessionStateObs = createActiveSessionSubscriptionObs<SessionState>(
 			this._options,
-			this.isActiveSessionObs,
+			defaultChatChangesGate.subscribed,
 			StateComponents.Session,
 			constObservable(this.backendUri),
 		);
@@ -1824,8 +1828,8 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 			this.backendUri,
 			defaultChatUriObs,
 			this._options,
-			this.isActiveSessionObs,
-			this._createChatCurrentTurnChangesObservable(defaultChatUriObs),
+			defaultChatChangesGate.subscribed,
+			this._createChatCurrentTurnChangesObservable(defaultChatUriObs, defaultChatChangesGate.subscribed),
 		);
 		const defaultChatChanges = createChangesObservable(defaultChatChangesets);
 		const hasMultipleChats = metadata.chats?.some(chat => chat.kind === 'peer') === true;
@@ -1852,6 +1856,7 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 				return chatUri ? sessionOutput.getChatCustomizations(chatUri).read(reader) : [];
 			}),
 			...this._createChatCanvases(),
+			observeChanges: defaultChatChangesGate.observe,
 			backgroundShells: this._createChatBackgroundShellsObservable(defaultChatUriObs),
 			checkpoints: observableValue(this, undefined),
 			modelId: this.modelId,
@@ -2280,10 +2285,12 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 	private _createAdditionalChat(chatId: string, summary: AgentHostChatSummary): AdditionalChat {
 		const resource = this.resource.with({ fragment: chatId });
 		const backendUri = URI.parse(summary.resource);
+		const changesGate = this._createObservedSubscriptionGate();
 		const output: IChatOutputObs = {
 			lastTurnChanges: this._sessionOutput.getLastTurnChanges(backendUri),
 			customizations: this._sessionOutput.getChatCustomizations(backendUri),
 			...this._createChatCanvases(backendUri),
+			observeChanges: changesGate.observe,
 			getFolderGitHubInfo: reader => this._getFolderGitHubInfoResolver(reader),
 			getScopeGitState: (reader, workingDirectories) => this._getChatScopeGitState(reader, workingDirectories),
 			scratchFolders: this._scratchFolders,
@@ -2295,7 +2302,7 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 			summary,
 			this.createdAt,
 			// Nested chats default to their own Session Changes; the main chat keeps the provider default.
-			createChatChangesets(this.backendUri, constObservable(backendUri), this._options, this.isActiveSessionObs, this._createChatCurrentTurnChangesObservable(constObservable(backendUri)), ChangesetKind.Session),
+			createChatChangesets(this.backendUri, constObservable(backendUri), this._options, changesGate.subscribed, this._createChatCurrentTurnChangesObservable(constObservable(backendUri), changesGate.subscribed), ChangesetKind.Session),
 			this._createChatBackgroundShellsObservable(constObservable(backendUri)),
 			() => this._acquireChatDetails(this.sessionId),
 			this.workspace,
@@ -3192,10 +3199,22 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 			: undefined;
 	}
 
-	private _createChatCurrentTurnChangesObservable(chatUriObs: IObservable<URI | undefined>): IObservable<IAgentHostCurrentTurnChanges | undefined> {
+	/** Subscribed while a window shows this session, or while an external presentation observes it, until it disposes the observation. */
+	private _createObservedSubscriptionGate(): { readonly subscribed: IObservable<boolean>; observe(): IDisposable } {
+		const externalObservers = observableValue(this, 0);
+		return {
+			subscribed: derived(this, reader => this.isActiveSessionObs.read(reader) || externalObservers.read(reader) > 0),
+			observe: () => {
+				externalObservers.set(externalObservers.get() + 1, undefined);
+				return toDisposable(() => externalObservers.set(externalObservers.get() - 1, undefined));
+			},
+		};
+	}
+
+	private _createChatCurrentTurnChangesObservable(chatUriObs: IObservable<URI | undefined>, subscribed: IObservable<boolean>): IObservable<IAgentHostCurrentTurnChanges | undefined> {
 		const chatStateObs = createActiveSessionSubscriptionObs<ChatState>(
 			this._options,
-			this.isActiveSessionObs,
+			subscribed,
 			StateComponents.Chat,
 			chatUriObs,
 		);
@@ -3228,8 +3247,7 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 	}
 
 	private _createChatCanvases(chatUri?: URI): Required<Pick<IChat, 'canvases' | 'observeCanvases'>> {
-		const externalObservers = observableValue(this, 0);
-		const subscribed = derived(this, reader => this.isActiveSessionObs.read(reader) || externalObservers.read(reader) > 0);
+		const { subscribed, observe } = this._createObservedSubscriptionGate();
 		const sessionStateObs = createActiveSessionSubscriptionObs<SessionState>(
 			this._options, subscribed, StateComponents.Session, constObservable(this.backendUri),
 		);
@@ -3266,10 +3284,7 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 				}
 				return canvasStates.read(reader).map(canvas => canvas.read(reader));
 			}),
-			observeCanvases: () => {
-				externalObservers.set(externalObservers.get() + 1, undefined);
-				return toDisposable(() => externalObservers.set(externalObservers.get() - 1, undefined));
-			},
+			observeCanvases: observe,
 		};
 	}
 

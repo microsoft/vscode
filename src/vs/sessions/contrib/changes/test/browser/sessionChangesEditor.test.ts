@@ -33,7 +33,10 @@ import { IConfigurationService } from '../../../../../platform/configuration/com
 import { ISessionChangesService } from '../../../../../workbench/contrib/sessionChanges/browser/sessionChangesService.js';
 import { ITestSessionWithChat, stubSessionHosts } from '../../../../../workbench/contrib/sessions/test/browser/sessionHostTestUtils.js';
 import { ISessionsService } from '../../../../../workbench/contrib/sessions/browser/sessionsService.js';
-import { IChangesViewService } from '../../../../../workbench/contrib/sessions/common/changesViewService.js';
+import { IChangesSessionObservables, IChangesViewService } from '../../../../../workbench/contrib/sessions/common/changesViewService.js';
+import { ISessionsManagementService } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
+import { IChat, ISession } from '../../../../../workbench/services/sessions/common/session.js';
+import { timeout } from '../../../../../base/common/async.js';
 import { InstantiationService } from '../../../../../platform/instantiation/common/instantiationService.js';
 import { ServiceCollection } from '../../../../../platform/instantiation/common/serviceCollection.js';
 import { IDiffProviderFactoryService } from '../../../../../editor/browser/widget/diffEditor/diffProviderFactoryService.js';
@@ -420,5 +423,94 @@ suite('SessionChangesEditor input', () => {
 		};
 
 		assert.deepStrictEqual({ movedToAnotherGroup: clearWith(true), closed: clearWith(false) }, { movedToAnotherGroup: 0, closed: 1 });
+	});
+});
+
+suite('SessionChangesEditor chat changes observation', () => {
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('keeps the chat its input names observed only while it shows that input, letting go as the input changes or clears, the pane hides, or the editor closes', async () => {
+		const instantiationService = workbenchInstantiationService(undefined, store);
+		instantiationService.stub(IMenuService, store.add(instantiationService.createInstance(MenuService)));
+		const activeSession = constObservable<ITestSessionWithChat | undefined>(undefined);
+		instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() {
+			readonly activeSession = activeSession;
+			readonly mainWindowActiveSession = activeSession;
+			readonly windowSessions = constObservable<readonly ITestSessionWithChat[]>([]);
+		}());
+		stubSessionHosts(instantiationService, store, { session: activeSession });
+		instantiationService.stub(IChangesViewService, new class extends mock<IChangesViewService>() {
+			override readonly activeSessionHasGitRepositoryObs = constObservable(false);
+			override readonly activeSessionResourceObs = constObservable<URI | undefined>(undefined);
+			override readonly activeSessionChangesetLoadingObs = constObservable(false);
+			override getSessionChanges(): IChangesSessionObservables {
+				return upcastPartial<IChangesSessionObservables>({ changesObs: constObservable([]), changesetLoadingObs: constObservable(false) });
+			}
+		}());
+		instantiationService.stub(IAgentWorkbenchLayoutService, { agentWorkbenchLayout: AgentWorkbenchLayout.Desktop, onDidChangePartVisibility: Event.None, isVisible: () => true });
+		instantiationService.stub(ISessionsHostLayoutService, { agentWorkbenchLayout: AgentWorkbenchLayout.Desktop });
+		const sessionResource = URI.parse('agent-host:/session');
+		const live = new Map<string, number>();
+		const chat = (name: string) => upcastPartial<IChat>({
+			resource: URI.parse(`agent-host-chat:/session/${name}`),
+			title: constObservable(name),
+			observeChanges: () => {
+				live.set(name, (live.get(name) ?? 0) + 1);
+				return toDisposable(() => live.set(name, live.get(name)! - 1));
+			},
+		});
+		const chats = [chat('x'), chat('y')];
+		const session = upcastPartial<ISession>({ sessionId: 'session', resource: sessionResource, chats: constObservable(chats) });
+		instantiationService.stub(ISessionsManagementService, new class extends mock<ISessionsManagementService>() {
+			override readonly onDidChangeSessions = Event.None;
+			override getSession(resource: URI): ISession | undefined { return resource.toString() === sessionResource.toString() ? session : undefined; }
+		}());
+		instantiationService.stub(ISessionChangesService, new class extends mock<ISessionChangesService>() {
+			override readonly activeSessionUncommittedChangesCountObs = constObservable(0);
+			override getSessionResource(): URI | undefined { return sessionResource; }
+			override getChatResource(resource: URI): URI | undefined { return resource.path === '/session' ? undefined : chats.find(chat => chat.resource.path.endsWith(resource.path))?.resource; }
+		}());
+		instantiationService.stub(IDiffEditorOptionsService, new class extends mock<IDiffEditorOptionsService>() {
+			override readonly viewMode = constObservable<DiffEditorViewMode>('automatic');
+			override readonly diffEditorWordWrap = constObservable<SessionsWordWrap>('off');
+		}());
+		const input = (path: string) => {
+			const input = store.add(instantiationService.createInstance(SessionChangesEditorInput, URI.parse(`session-changes:${path}`)));
+			input.getViewModel = () => new Promise<MultiDiffEditorViewModel>(() => { });
+			input.clear = () => { };
+			return input;
+		};
+		const [inputX, inputY, inputSession] = [input('/x'), input('/y'), input('/session')];
+		const editor = store.add(instantiationService.createInstance(SessionChangesEditor, new TestEditorGroupView(1)));
+		const state = () => ({ x: live.get('x') ?? 0, y: live.get('y') ?? 0 });
+		const show = async (input: SessionChangesEditorInput) => {
+			void editor.setInput(input, undefined, {}, CancellationToken.None);
+			await timeout(0);
+			return state();
+		};
+
+		editor.setVisible(true);
+		const chatX = await show(inputX);
+		const changedToChatY = await show(inputY);
+		editor.setVisible(false);
+		const hidden = state();
+		editor.setVisible(true);
+		const shownAgain = state();
+		editor.clearInput();
+		const cleared = state();
+		const sessionLevel = await show(inputSession);
+		const chatXAgain = await show(inputX);
+		editor.dispose();
+
+		assert.deepStrictEqual({ chatX, changedToChatY, hidden, shownAgain, cleared, sessionLevel, chatXAgain, closed: state() }, {
+			chatX: { x: 1, y: 0 },
+			changedToChatY: { x: 0, y: 1 },
+			hidden: { x: 0, y: 0 },
+			shownAgain: { x: 0, y: 1 },
+			cleared: { x: 0, y: 0 },
+			sessionLevel: { x: 0, y: 0 },
+			chatXAgain: { x: 1, y: 0 },
+			closed: { x: 0, y: 0 },
+		});
 	});
 });

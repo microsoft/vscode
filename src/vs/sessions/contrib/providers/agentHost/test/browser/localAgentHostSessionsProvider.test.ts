@@ -1510,6 +1510,54 @@ suite('LocalAgentHostSessionsProvider', () => {
 		});
 	});
 
+	test('a chat whose changes are observed shows them while no window shows its session, as a Changes editor of the chat does, and releases them after', async () => {
+		const activeSession = observableValue<ITestSessionWithChat | undefined>('activeSession', undefined);
+		const main = URI.parse('conversation://opaque/hidden-main');
+		const peer = URI.parse('conversation://opaque/hidden-peer');
+		agentHost.addSession(createSession('hidden-changes', { chats: [{ chat: main, kind: 'default' }, { chat: peer, kind: 'peer' }] }));
+		const provider = createProvider(disposables, agentHost, undefined, { activeSession });
+		await timeout(0);
+		const session = provider.getSessions()[0];
+		const summaries = [main, peer].map((resource, index): ChatSummary => ({ resource: resource.toString(), title: `Chat ${index}`, status: ProtocolSessionStatus.Idle, modifiedAt: new Date(0).toISOString() }));
+		agentHost.setSessionState('hidden-changes', 'copilotcli', {
+			provider: 'copilotcli', title: 'Hidden changes', status: ProtocolSessionStatus.Idle, lifecycle: SessionLifecycle.Ready,
+			activeClients: [], chats: summaries, defaultChat: main.toString(),
+		});
+		for (const [index, summary] of summaries.entries()) {
+			const changesetUri = `${summary.resource}/changeset/session`;
+			agentHost.setChatState(summary.resource, { ...summary, turns: [], changesets: [{ label: 'Session Changes', uriTemplate: changesetUri, changeKind: 'session' }] });
+			agentHost.setChangesetState(changesetUri, {
+				status: ChangesetStatus.Ready,
+				files: [{ id: `file:///repo/chat-${index}.ts`, edit: { after: { uri: `file:///repo/chat-${index}.ts`, content: { uri: `file:///repo/chat-${index}.ts` } }, diff: { added: 1, removed: 0 } } }],
+			});
+		}
+		const chats = session.chats.get();
+		assert.strictEqual(chats.length, 2);
+		for (const chat of chats) {
+			disposables.add(autorun(reader => chat.changes.read(reader)));
+		}
+		const read = () => chats.map(chat => chat.changes.get().map(change => isIChatSessionFileChange2(change) ? change.uri.path : change.modifiedUri.path));
+		const liveChangesets = () => summaries.map(summary => {
+			const changesetUri = `${summary.resource}/changeset/session`;
+			return (agentHost.sessionSubscribeCounts.get(changesetUri) ?? 0) - (agentHost.sessionUnsubscribeCounts.get(changesetUri) ?? 0);
+		});
+
+		const notShown = { changes: read(), live: liveChangesets() };
+		const observations = chats.map(chat => chat.observeChanges?.());
+		const observed = { changes: read(), live: liveChangesets() };
+		for (const observation of observations) {
+			observation?.dispose();
+		}
+		const released = { changes: read(), live: liveChangesets() };
+
+		assert.deepStrictEqual({ notShown, observed, released, activeSession: activeSession.get() }, {
+			notShown: { changes: [[], []], live: [0, 0] },
+			observed: { changes: [['/repo/chat-0.ts'], ['/repo/chat-1.ts']], live: [1, 1] },
+			released: { changes: [[], []], live: [0, 0] },
+			activeSession: undefined,
+		});
+	});
+
 	test('rebinds session types when Agent Host starts with a new root subscription', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
 		agentHost.clearRootState();
 		const provider = createProvider(disposables, agentHost);
