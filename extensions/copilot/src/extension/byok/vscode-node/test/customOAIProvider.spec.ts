@@ -232,8 +232,8 @@ describe('Custom OpenAI reasoning replay through the tool loop', () => {
 		}))).toEqual([0, 1, 2, 3].map(count => ({
 			assistant: Array.from({ length: count }, (_, round) => ({
 				calls: [`call-${round}`],
-				reasoning: scenario.thinking && scenario.emitReasoning ? reasoningParts(round).join('') : undefined,
-				alias: scenario.thinking && scenario.emitReasoning ? reasoningParts(round).join('') : undefined,
+				reasoning: scenario.thinking ? (scenario.emitReasoning ? reasoningParts(round).join('') : '') : undefined,
+				alias: scenario.thinking ? (scenario.emitReasoning ? reasoningParts(round).join('') : '') : undefined,
 				id: scenario.id && scenario.emitReasoning ? `${scenario.id}-${round}` : undefined,
 			})),
 			results: Array.from({ length: count }, (_, round) => `call-${round}`),

@@ -13,7 +13,7 @@ import { ChatEndpoint, normalizeKimiToolCallIds } from '../../../platform/endpoi
 import { ILogService } from '../../../platform/log/common/logService';
 import { isOpenAiFunctionTool } from '../../../platform/networking/common/fetch';
 import { createCapiRequestBody, IChatEndpoint, ICreateEndpointBodyOptions, IEndpointBody, IMakeChatRequestOptions } from '../../../platform/networking/common/networking';
-import { RawMessageConversionCallback } from '../../../platform/networking/common/openai';
+import { CAPIChatMessage, RawMessageConversionCallback } from '../../../platform/networking/common/openai';
 import { IChatWebSocketManager } from '../../../platform/networking/node/chatWebSocketManager';
 import { IExperimentationService } from '../../../platform/telemetry/common/nullExperimentationService';
 import { ITokenizerProvider } from '../../../platform/tokenizer/node/tokenizer';
@@ -42,6 +42,33 @@ function hydrateBYOKErrorMessages(response: ChatResponse): ChatResponse {
 		};
 	}
 	return response;
+}
+
+/**
+ * Thinking-mode Chat Completions providers (e.g. DeepSeek, Kimi) reject requests whose
+ * assistant `tool_calls` messages omit `reasoning_content`. A step can produce tool calls
+ * without any streamed reasoning text (including tool calls the runtime inserts itself, such
+ * as a background terminal read), in which case no thinking part exists to replay, so echo an
+ * empty reasoning string for those messages.
+ *
+ * Current-turn messages (after the latest user message) are always backfilled. Earlier
+ * messages are backfilled only when the request already replays reasoning from history, so a
+ * model whose history reasoning is stripped (e.g. a `thinkingInHistory` opt-out) is unchanged.
+ */
+function ensureReasoningOnToolCallMessages(messages: CAPIChatMessage[]): void {
+	let lastUserIndex = messages.length - 1;
+	while (lastUserIndex >= 0 && messages[lastUserIndex].role !== 'user') {
+		lastUserIndex--;
+	}
+	const replaysHistoryReasoning = messages.slice(0, lastUserIndex).some(message => message.role === 'assistant' && message.reasoning_content !== undefined);
+	const start = replaysHistoryReasoning ? 0 : lastUserIndex + 1;
+	for (const message of messages.slice(start)) {
+		if (message.role !== 'assistant' || !message.tool_calls?.length || message.reasoning_content !== undefined) {
+			continue;
+		}
+		message.reasoning_content = '';
+		message.reasoning ??= '';
+	}
 }
 
 /**
@@ -319,6 +346,9 @@ export class OpenAIEndpoint extends ChatEndpoint {
 			const body = createCapiRequestBody(options, this.model, this.getCompletionsCallback());
 			if (body.messages && isKimiFamily(this)) {
 				body.messages = normalizeKimiToolCallIds(body.messages);
+			}
+			if (body.messages && this.modelMetadata.capabilities.supports.thinking) {
+				ensureReasoningOnToolCallMessages(body.messages);
 			}
 			this._applyReasoningEffort(body, options);
 			return this._applyConfiguredModelOptions(body, options);

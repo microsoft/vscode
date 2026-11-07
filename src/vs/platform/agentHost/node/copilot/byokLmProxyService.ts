@@ -114,6 +114,19 @@ function emptyResponseMessage(modelId: string): string {
 	return `The model '${modelId}' returned an empty response with no text or tool calls. This can happen when the conversation exceeds the model's context window or output token limit. Try again, start a new session, or choose a different model.`;
 }
 
+/**
+ * Returns the provider status to forward when it is a deterministic client
+ * error, so the runtime surfaces it instead of retrying. Transient 4xx
+ * statuses (408, 429) and 401 (reserved for the proxy's own authentication)
+ * return `undefined` and are reported as 502.
+ */
+function clientErrorStatus(status: number | undefined): number | undefined {
+	if (status === undefined || !Number.isInteger(status) || status < 400 || status >= 500) {
+		return undefined;
+	}
+	return status === 401 || status === 408 || status === 429 ? undefined : status;
+}
+
 /** Provider state awaiting the SDK's immediate tool-result request. */
 type ByokLmProxyState = Set<IPendingToolContinuation>;
 
@@ -302,7 +315,8 @@ export class ByokLmProxyService extends LoopbackProxyServer<ByokLmProxyState> im
 				return;
 			}
 			if (result.error) {
-				this._writeJsonError(res, 502, result.error, 'api_error');
+				const status = clientErrorStatus(result.errorStatus);
+				this._writeJsonError(res, status ?? 502, result.error, status ? 'invalid_request_error' : 'api_error');
 				return;
 			}
 			if (endsWithUserMessage(bridgeRequest.input) && !hasVisibleBridgeOutput(result.output)) {
