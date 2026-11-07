@@ -31,7 +31,7 @@ import { IDefaultAccountService } from '../../../../../platform/defaultAccount/c
 import { RemoteAgentHostConnectionStatus } from '../../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { getSessionWorkspaceProperties } from '../../../../../platform/agentHost/common/sessionConfigProperties.js';
 import { localize } from '../../../../../nls.js';
-import { ICreateNewSessionOptions, ISendRequestOptions, ISessionsManagementService, WorkspaceNotTrustedError } from '../../common/sessionsManagement.js';
+import { ICreateNewSessionOptions, INewSessionDraftSlot, ISendRequestOptions, ISessionsManagementService, trackNewSessionRequestEnd, WorkspaceNotTrustedError } from '../../common/sessionsManagement.js';
 import { GITHUB_REMOTE_FILE_SCHEME, ISession, ISessionWorkspace, isSessionCreated, SESSION_WORKSPACE_GROUP_GITHUB } from '../../../../services/sessions/common/session.js';
 import { IOpenNewSessionResult, ISessionsService } from '../sessionsService.js';
 import { getMainWindowHost, ISessionHostService } from '../../../../services/sessions/browser/sessionHost.js';
@@ -54,7 +54,7 @@ import { getDefaultSessionCreationEnvironment, getEnvironmentWorkspaceProvider, 
 import { NoAgentHostEmptyState } from './noAgentHostEmptyState.js';
 import { IChatRequestVariableEntry } from '../../../chat/common/attachments/chatVariableEntries.js';
 import { IAgentHostFilterService } from '../../common/agentHostFilter.js';
-import { IChatViewOptions } from '../parts/chatView.js';
+import { IChatViewOptions, INewSessionDraftHost } from '../parts/chatView.js';
 import { NewChatUserInteraction } from './newChatUserInteraction.js';
 import { WorkspaceSelectionOrigin, ISelectNoWorkspaceOptions, ISelectWorkspaceOptions, WorkspaceSelectionResult } from '../../../../services/sessions/common/workspaceSelection.js';
 import { ISessionPickerFocusOptions, ISessionPickerVisibility, noSessionPickerVisibility } from '../../common/sessionPickerVisibility.js';
@@ -151,9 +151,16 @@ export class NewChatWidget extends Disposable {
 	private readonly _newChatInput: SharedChatInputComposer;
 	private _inputContentElement: HTMLElement | undefined;
 	private readonly _preserveCustomView: boolean;
+	/** The host of a composer outside the main window's grid, which holds its drafts ({@link IChatViewOptions.newSessionDraft}). */
+	private readonly _draftHost: INewSessionDraftHost | undefined;
+	/** Whether the composer prepares drafts without changing the grid: for a custom view, or for a {@link _draftHost}. */
+	private readonly _detached: boolean;
+	/** The slot of a {@link _detached} composer's drafts. */
+	private readonly _draftSlot: INewSessionDraftSlot;
 	private readonly _backgroundSend: boolean;
 	private readonly _backgroundSendStatus = observableValue<string | undefined>(this, undefined);
 	private _lastBackgroundSentSessionResource: URI | undefined;
+	private _lastBackgroundSentSession: ISession | undefined;
 	private _lastBackgroundSendOptions: ISendRequestOptions | undefined;
 	private readonly _pickedEnvironment = observableValue<ISessionCreationEnvironment | undefined>(this, undefined);
 	private readonly _environmentWorkspaces = new Map<string, URI>();
@@ -260,17 +267,22 @@ export class NewChatWidget extends Disposable {
 	) {
 		super();
 		this._preserveCustomView = options.preserveCustomView === true;
+		this._draftHost = options.newSessionDraft;
+		this._detached = this._preserveCustomView || !!this._draftHost;
+		this._draftSlot = this._draftHost?.slot ?? this.sessionsManagementService.defaultNewSessionSlot;
 		this._backgroundSend = options.backgroundSend === true;
 		this._welcomePhraseIndex = NewChatWidget._takeNextWelcomePhraseIndex(storageService);
 		this._usage = new AgentsWindowUsage(storageService);
 		this._register(this._pendingPreferredUpgrade);
 		this._register(this._newSessionCreation);
+		// A send outlives the composer, which is then no longer the latest place of any send.
+		this._register(toDisposable(() => this._lastBackgroundSendOptions = undefined));
 
 		this._restoreSessionOptionsExpanded();
 
 		// The session of the pane that hosts the composer, which shows its draft.
 		this._paneSession = options.session ?? constObservable(undefined);
-		this._session = this._preserveCustomView ? this.sessionsManagementService.newSession : this._paneSession;
+		this._session = this._detached ? this._draftSlot.newSession : this._paneSession;
 
 		// A quick chat is workspace-less; the composer hides the workspace picker
 		// (nothing to pick) and surfaces the session-type picker in the controls.
@@ -421,7 +433,8 @@ export class NewChatWidget extends Disposable {
 		}));
 
 		const feedbackChanged = observableSignalFromEvent(this, this.agentFeedbackService.onDidChangeFeedback);
-		this._feedbackItems = derived(this, reader => {
+		// Accepted feedback belongs to the main window's composer, so a hosted composer neither sends nor clears it.
+		this._feedbackItems = this._draftHost ? constObservable([]) : derived(this, reader => {
 			feedbackChanged.read(reader);
 			return this.agentFeedbackService.getFeedback(AGENT_FEEDBACK_NEW_SESSION_RESOURCE)
 				.filter(item => item.state === AgentFeedbackState.Accepted);
@@ -1147,7 +1160,7 @@ export class NewChatWidget extends Disposable {
 				&& !await this._workspacePicker.whenWorkspaceRestored(cancellation.token)) {
 				return;
 			}
-			if (cancellation.token.isCancellationRequested || (this._preserveCustomView ? this._session.get() : this._paneSession.get())
+			if (cancellation.token.isCancellationRequested || (this._detached ? this._session.get() : this._paneSession.get())
 				|| this._newSessionCreation.value || this._workspacePicker.selectedFolderUri) {
 				return;
 			}
@@ -1163,7 +1176,7 @@ export class NewChatWidget extends Disposable {
 					this.selectNoWorkspace(target, { userSelection: false, preserveNavigation: true });
 				} else {
 					// An automatic fallback must not persist a user choice or supersede a window-open workspace.
-					this._createdSessionId = (this._preserveCustomView ? this._openQuickChat(target, true) : this.sessionsService.openQuickChat(target, true))?.sessionId;
+					this._createdSessionId = (this._detached ? this._openQuickChat(target, true) : this.sessionsService.openQuickChat(target, true))?.sessionId;
 				}
 			}
 		} catch (error) {
@@ -1345,7 +1358,7 @@ export class NewChatWidget extends Disposable {
 			return await this.sessionsService.openNewSession({
 				folderUri,
 				preserveNavigation: true,
-				...(this._preserveCustomView ? { preserveCustomView: true } : {}),
+				...(this._draftHost ? { draftSlot: this._draftHost.slot } : this._preserveCustomView ? { preserveCustomView: true } : {}),
 				...(environment?.kind === 'container' ? { requireDevContainer: true } : undefined),
 				...(preferredPick
 					? { providerId: preferredPick.providerId, sessionTypeId: preferredPick.sessionTypeId }
@@ -1423,9 +1436,9 @@ export class NewChatWidget extends Disposable {
 	}
 
 	private _createQuickChat(options?: ICreateNewSessionOptions, preserveNavigation?: boolean): ISession | undefined {
-		if (this._preserveCustomView) {
+		if (this._detached) {
 			try {
-				this.sessionsManagementService.createQuickChat(options);
+				this._draftSlot.createQuickChat(options);
 				return this._session.get();
 			} catch (error) {
 				this.logService.error('Failed to prepare quick chat:', error);
@@ -1704,6 +1717,10 @@ export class NewChatWidget extends Disposable {
 	}
 
 	private _shouldShowComparisonAction(reader?: IReader): boolean {
+		// A comparison opens in the main window, so only its composer offers it.
+		if (this._draftHost) {
+			return false;
+		}
 		const session = this._session.get();
 		const provider = session ? this.sessionsProvidersService.getProvider(session.providerId, session.sessionId) : undefined;
 		const selectedFolderUri = this._workspacePicker.selectedFolderUri;
@@ -1995,9 +2012,11 @@ export class NewChatWidget extends Disposable {
 
 	private async _send(query: string, attachedContext?: IChatRequestVariableEntry[], background?: boolean, userInteraction?: NewChatUserInteraction): Promise<boolean> {
 		background = this._backgroundSend || background;
-		const showBackgroundSendStatus = this._backgroundSend || !!background && this.configurationService.getValue<boolean>(SESSIONS_LIST_INBOX_ENABLED_SETTING) === true;
+		// A composer of a host of its own, such as a chat window's, shows the status of its background sends.
+		const showBackgroundSendStatus = this._backgroundSend || !!background && (!!this._draftHost || this.configurationService.getValue<boolean>(SESSIONS_LIST_INBOX_ENABLED_SETTING) === true);
 		if (showBackgroundSendStatus) {
 			this._lastBackgroundSentSessionResource = undefined;
+			this._lastBackgroundSentSession = undefined;
 			this._backgroundSendStatus.set(undefined, undefined);
 			this._lastBackgroundSendOptions = undefined;
 		}
@@ -2025,6 +2044,11 @@ export class NewChatWidget extends Disposable {
 		}
 
 		if (this._comparisonSelection.enabled.get()) {
+			if (this._draftHost) {
+				// Only a stale command gets here: the comparison is not offered outside the main window.
+				this.notificationService.info(localize('newSession.comparisonInMainWindow', "Compare Agents is available from the new session in the main window."));
+				return false;
+			}
 			const started = await this._sendComparison(session, request, requestContext, showBackgroundSendStatus);
 			if (showBackgroundSendStatus && started && !this._newChatInput.hasInput) {
 				this._backgroundSendStatus.set(localize('newSession.comparisonStarted', "Comparison started"), undefined);
@@ -2064,18 +2088,30 @@ export class NewChatWidget extends Disposable {
 			if (showBackgroundSendStatus) {
 				this._lastBackgroundSendOptions = sendOptions;
 			}
-			this._pendingBackgroundSends.set(sendOptions, Event.once(
+			const pending = new DisposableStore();
+			pending.add(Event.once(
 				Event.filter(this.sessionsManagementService.onDidSendRequest, event => event.options === sendOptions)
 			)(event => {
 				clearFeedback();
 				restoreWorkspace();
 				if (showBackgroundSendStatus && this._lastBackgroundSendOptions === sendOptions && !this._newChatInput.hasInput) {
 					this._lastBackgroundSentSessionResource = event.session.resource;
+					this._lastBackgroundSentSession = event.session;
 					this._backgroundSendStatus.set(localize('newSession.messageSent', "Message sent"), undefined);
 				}
 				this._pendingBackgroundSends.deleteAndDispose(sendOptions);
 			}));
+			if (this._draftHost) {
+				pending.add(this._clearBackgroundSendOnFailure(this._draftHost.slot, session, sendOptions));
+			}
+			this._pendingBackgroundSends.set(sendOptions, pending);
 		}
+		// The host follows the request, also after this composer is gone; registered before the send so it cannot miss its end.
+		// It holds the composer weakly, so a request that outlives the composer does not keep it alive.
+		const composer = new WeakRef(this);
+		const hostTracking = background && this._draftHost
+			? this._draftHost.trackBackgroundSend({ session, query, attachedContext: attachedContext?.slice(), isLatest: () => composer.deref()?._lastBackgroundSendOptions === sendOptions })
+			: undefined;
 
 		try {
 			userInteraction?.handoff(session, session.mainChat.get());
@@ -2083,6 +2119,7 @@ export class NewChatWidget extends Disposable {
 			await this.sessionsManagementService.sendNewChatRequest(session, sendOptions);
 		} catch (e) {
 			userInteraction?.cancel(isCancellationError(e) || e instanceof WorkspaceNotTrustedError ? 'cancelled' : 'error');
+			hostTracking?.dispose();
 			this._pendingBackgroundSends.deleteAndDispose(sendOptions);
 			if (!isCancellationError(e) && !(e instanceof WorkspaceNotTrustedError)) {
 				this.logService.error('Failed to send request:', e);
@@ -2111,6 +2148,23 @@ export class NewChatWidget extends Disposable {
 			}
 		}
 		return true;
+	}
+
+	/**
+	 * Clears the status and pending entry of a hosted composer's background send that does not start its session. Its
+	 * host reports the failure, whenever its own listener runs, so the send stays the composer's latest (the `isLatest`
+	 * its host reads) until a newer send, typing or the composer's disposal.
+	 */
+	private _clearBackgroundSendOnFailure(slot: INewSessionDraftSlot, session: ISession, sendOptions: ISendRequestOptions): IDisposable {
+		return trackNewSessionRequestEnd(this.sessionsManagementService, slot, session, event => {
+			if (event.started) {
+				return;
+			}
+			if (this._lastBackgroundSendOptions === sendOptions) {
+				this._backgroundSendStatus.set(undefined, undefined);
+			}
+			this._pendingBackgroundSends.deleteAndDispose(sendOptions);
+		});
 	}
 
 	private _canSendRequestToWorkspace(session: ISession, environment: ISessionCreationEnvironment, reader: IReader): boolean {
@@ -2189,12 +2243,20 @@ export class NewChatWidget extends Disposable {
 				dom.append(status, dom.$('span.new-session-send-status-message', undefined, message), checkmark);
 				this.accessibilityService.status(message);
 				const sessionResource = this._lastBackgroundSentSessionResource;
+				const sentSession = this._lastBackgroundSentSession;
+				const draftHost = this._draftHost;
 				if (sessionResource) {
 					reader.store.add(this.instantiationService.createInstance(Link, status, {
 						label: localize('newSession.openSentSession', "Open Session"),
 						href: sessionResource.toString(),
 					}, {
-						opener: () => { void this.sessionsService.openSession(sessionResource, { source: this._backgroundSend ? 'inbox' : 'link', forceMainChat: true }).catch(onUnexpectedError); },
+						opener: () => {
+							// A hosted composer opens the session in its own window, never in the main window.
+							const opened = draftHost && sentSession
+								? draftHost.openStartedSession(sentSession)
+								: this.sessionsService.openSession(sessionResource, { source: this._backgroundSend ? 'inbox' : 'link', forceMainChat: true });
+							void opened.catch(onUnexpectedError);
+						},
 					}));
 					const dismissal = reader.store.add(new MutableDisposable<IDisposable>());
 					let remaining = 8000;
@@ -2211,6 +2273,7 @@ export class NewChatWidget extends Disposable {
 							startedAt = Date.now();
 							dismissal.value = disposableTimeout(() => {
 								this._lastBackgroundSentSessionResource = undefined;
+								this._lastBackgroundSentSession = undefined;
 								this._backgroundSendStatus.set(undefined, undefined);
 							}, Math.max(0, remaining));
 						}
@@ -2228,6 +2291,7 @@ export class NewChatWidget extends Disposable {
 		this._register(this._newChatInput.onDidChangeInput(() => {
 			if (this._newChatInput.hasInput) {
 				this._lastBackgroundSentSessionResource = undefined;
+				this._lastBackgroundSentSession = undefined;
 				this._backgroundSendStatus.set(undefined, undefined);
 				this._lastBackgroundSendOptions = undefined;
 			}
@@ -2300,8 +2364,8 @@ export class NewChatWidget extends Disposable {
 			this._newSessionCreation.clear();
 			if (workspaceOptOutTarget) {
 				if (!this.selectNoWorkspace(workspaceOptOutTarget, { userSelection: false, preserveNavigation: true })) {
-					if (this._preserveCustomView) {
-						this.sessionsManagementService.discardNewSession();
+					if (this._detached) {
+						this._draftSlot.discardNewSession();
 					} else {
 						this.sessionsService.unsetNewSession();
 					}
@@ -2309,8 +2373,8 @@ export class NewChatWidget extends Disposable {
 				}
 				return;
 			}
-			if (this._preserveCustomView) {
-				this.sessionsManagementService.discardNewSession();
+			if (this._detached) {
+				this._draftSlot.discardNewSession();
 			} else {
 				this.sessionsService.unsetNewSession();
 			}
@@ -2350,7 +2414,7 @@ export class NewChatWidget extends Disposable {
 	setHostVisible(visible: boolean): void {
 		this._aquariumToggle?.setHostVisible(visible);
 		// Another composer can consume the shared draft while this host is hidden.
-		if (visible && this._preserveCustomView && !this._session.get() && !this._newSessionCreation.value) {
+		if (visible && this._detached && !this._session.get() && !this._newSessionCreation.value) {
 			this._seedWorkspaceDraft();
 		}
 	}

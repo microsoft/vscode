@@ -58,7 +58,7 @@ import { IAutomationSessionTemplate } from '../../../../../workbench/contrib/cha
 import { IChatMovedEvent, ISessionChatMoveDestination, type IForkChatOptions, type INestedChatWorkspace, NestedChatWorkspaceError, ISessionChangeEvent, ISessionChangesetOperationInvokedEvent, ISendRequestOptions, ISessionModelsSnapshot, ISessionModelPickerOptions, ISessionsProvider, ISessionsProviderCreateSessionOptions, ISessionWorktreeConfiguration, type ICreateNewChatOptions } from '../../../../../workbench/contrib/sessions/common/sessionsProvider.js';
 import { SessionsManagementService } from '../../../../../workbench/contrib/sessions/browser/sessionsManagementService.js';
 import { VisibleSessions } from '../../../../../workbench/services/sessions/browser/visibleSessions.js';
-import { ISessionsManagementService, IChatDeletedEvent, ICreateNewSessionOptions, inheritableSessionTarget, INewSessionDraftSlot, ISendRequestSentEvent, WorkspaceNotTrustedError } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
+import { ISessionsManagementService, IChatDeletedEvent, ICreateNewSessionOptions, inheritableSessionTarget, INewSessionDraftSlot, ISendRequestSentEvent, trackNewSessionRequestEnd, WorkspaceNotTrustedError } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import { ISessionsService, SessionsService } from '../../../../../workbench/contrib/sessions/browser/sessionsService.js';
 import { ISessionGridState } from '../../../../../workbench/browser/parts/sessions/sessionGridState.js';
 import { ISessionOpenTelemetryService, SessionOpenTelemetryService } from '../../../../../workbench/contrib/sessions/browser/sessionOpenTelemetryService.js';
@@ -10807,6 +10807,29 @@ suite('SessionsManagementService', () => {
 			await sendingInMain;
 
 			assert.strictEqual(activeChat, nextChat.resource.toString());
+		});
+
+		test('trackNewSessionRequestEnd follows a background request of a slot through its replacement to its end, also after the slot is gone', async () => {
+			const provider = disposables.add(new PreparingProvider([draft('a1'), draft('b1')]));
+			provider.onSend = sessionId => { throw new Error(`${sessionId} failed`); };
+			const { service, notifications } = createSessionsManagementService(listed, disposables, provider);
+			const slot = service.createNewSessionSlot();
+			const other = disposables.add(service.createNewSessionSlot());
+			const sent = slot.createNewSession(folder);
+			other.createNewSession(folder);
+			const ends: string[] = [];
+			const tracking = disposables.add(trackNewSessionRequestEnd(service, slot, sent, event => ends.push(`${event.session.sessionId} started=${event.started} error=${event.error instanceof Error ? event.error.message : undefined}`)));
+
+			const otherEnded = Event.toPromise(Event.filter(service.onDidEndNewSessionRequest, event => event.owner === other));
+			await service.sendNewChatRequest(other.newSession.get()!, { query: 'other', background: true });
+			await otherEnded;
+			const ended = Event.toPromise(Event.filter(service.onDidEndNewSessionRequest, event => event.owner === slot));
+			await service.sendNewChatRequest(sent, { query: 'hi', background: true });
+			slot.dispose();
+			await ended;
+			tracking.dispose();
+
+			assert.deepStrictEqual({ ends, notifications }, { ends: ['a1-prepared started=false error=a1-prepared failed'], notifications: [] });
 		});
 
 		test('openNewSession creates the draft of the given slot without navigating or changing the main composer\'s draft', async () => {

@@ -6,7 +6,7 @@
 import { Event } from '../../../../base/common/event.js';
 import type { IAgentHostManagedWorktree, IAgentHostWorktreeCleanupStatus } from '../../../../platform/agentHost/common/agentHostWorktreeCleanup.js';
 
-import { IDisposable, IReference } from '../../../../base/common/lifecycle.js';
+import { DisposableStore, IDisposable, IReference } from '../../../../base/common/lifecycle.js';
 import { IChatSessionItemArchiveState } from '../../chat/common/chatSessionsService.js';
 import { IArtifactModel } from '../../../../platform/artifactIntegrations/common/artifactIntegration.js';
 import { IObservable } from '../../../../base/common/observable.js';
@@ -777,6 +777,30 @@ export function inheritableSessionTarget(
 	}
 	const target = { providerId: session.providerId, sessionTypeId: session.sessionType };
 	return sessionsManagementService.isNewSessionTargetAvailable(folderUri, target) ? target : {};
+}
+
+/**
+ * Calls `onEnd` once when the new-session request of `session` from `owner` ends, following the session's replacements
+ * from before its acceptance on. Register it before sending, and keep it alive for the request rather than for the UI
+ * that sent it, which can be gone by then. It disposes itself after the end.
+ */
+export function trackNewSessionRequestEnd(sessionsManagementService: ISessionsManagementService, owner: INewSessionDraftSlot, session: ISession, onEnd: (event: INewSessionRequestEndedEvent) => void): IDisposable {
+	let sessionId = session.sessionId;
+	const follow = ({ from, to }: { readonly from: ISession; readonly to: ISession }) => {
+		if (from.sessionId === sessionId) {
+			sessionId = to.sessionId;
+		}
+	};
+	const store = new DisposableStore();
+	store.add(sessionsManagementService.onDidReplaceNewDraftSession(follow));
+	store.add(sessionsManagementService.onDidReplaceSession(follow));
+	store.add(sessionsManagementService.onDidEndNewSessionRequest(event => {
+		if (event.owner === owner && event.session.sessionId === sessionId) {
+			store.dispose();
+			onEnd(event);
+		}
+	}));
+	return store;
 }
 
 //#endregion
