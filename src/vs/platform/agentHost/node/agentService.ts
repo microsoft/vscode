@@ -918,10 +918,9 @@ export interface IAgentServiceCore {
 }
 
 /**
- * The model a chat runs on when `model` is a model router: its newest turn's model, the router's
- * pick or one chosen directly, so a chat it creates runs on the same model rather than routing.
- * Turns that selected a router but weren't routed kept the model before them. Other selections
- * are returned unchanged.
+ * For a chat whose provider can't report its model: the model it runs on when `model` is a model
+ * router, from its newest turn that ran on a model: the router's pick or one chosen directly.
+ * Other selections are returned unchanged.
  */
 function withRoutedModel(chat: Pick<ChatState, 'turns' | 'activeTurn'>, model: ModelSelection | undefined): ModelSelection | undefined {
 	if (!isModelRouterModelId(model?.id)) {
@@ -933,8 +932,9 @@ function withRoutedModel(chat: Pick<ChatState, 'turns' | 'activeTurn'>, model: M
 		if (routed) {
 			return { id: routed.chosenModel, ...(routed.effort ? { config: { [ReasoningEffortConfigKey]: routed.effort } } : {}) };
 		}
+		// A turn with usage reached its model; one whose model change failed never did.
 		const chosen = turns[i].message.model;
-		if (chosen && !isModelRouterModelId(chosen.id)) {
+		if (chosen && !isModelRouterModelId(chosen.id) && turns[i].usage) {
 			return chosen;
 		}
 	}
@@ -2695,15 +2695,20 @@ export class AgentService extends Disposable implements IAgentService {
 			return undefined;
 		}
 
-		const model = withRoutedModel(session, session.activeTurn
+		const requestedModel = session.activeTurn
 			? session.activeTurn.message.model
 			: session.draft
 				? session.draft.model
-				: session.turns.at(-1)?.message.model);
+				: session.turns.at(-1)?.message.model;
 		const chatProvider = this._stateManager.getChatProvider(source.toString()) ?? session.provider;
 		// The calling chat's own effective config: a chat's values are its complete config, and a chat on another
 		// agent never hands on the session's values, which belong to the session's agent.
 		const owner = this._stateManager.getChatOwner(source.toString()) ?? source.toString();
+		// A router isn't a model: a chat it creates runs on the model the caller is running now.
+		const ownerUri = URI.parse(owner);
+		const model = isModelRouterModelId(requestedModel?.id)
+			? this._providerService.getProvider(chatProvider)?.chats.getModel?.(source, this._chatContext(ownerUri, source, this._chatStorageResource(ownerUri, source))) ?? withRoutedModel(session, requestedModel)
+			: requestedModel;
 		const sourceConfig = getNonMergeSessionConfigValues(chatProvider !== session.provider
 			? this._stateManager.getChatConfig(source.toString())?.values ?? {}
 			: this._configurationService.getChatConfigValues({ session: owner, chat: source.toString() }) ?? session.config?.values);
