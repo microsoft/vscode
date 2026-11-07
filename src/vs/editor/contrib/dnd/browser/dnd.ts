@@ -156,7 +156,21 @@ export class DragAndDropController extends Disposable implements IEditorContribu
 	}
 
 	private _onEditorMouseDrop(mouseEvent: IPartialEditorMouseEvent): void {
-		if (mouseEvent.target && (this._hitContent(mouseEvent.target) || this._hitMargin(mouseEvent.target)) && mouseEvent.target.position) {
+		let isValidTarget = false;
+		if (mouseEvent.target && mouseEvent.target.position) {
+			isValidTarget = this._hitContent(mouseEvent.target) || this._hitMargin(mouseEvent.target);
+			if (!isValidTarget && mouseEvent.target.type === MouseTargetType.OUTSIDE_EDITOR) {
+				const editorPos = mouseEvent.event.editorPos;
+				isValidTarget = (
+					mouseEvent.event.posx >= editorPos.x &&
+					mouseEvent.event.posx <= editorPos.x + editorPos.width &&
+					mouseEvent.event.posy >= editorPos.y &&
+					mouseEvent.event.posy <= editorPos.y + editorPos.height
+				);
+			}
+		}
+
+		if (isValidTarget && mouseEvent.target?.position) {
 			const newCursorPosition = new Position(mouseEvent.target.position.lineNumber, mouseEvent.target.position.column);
 
 			if (this._dragSelection === null) {

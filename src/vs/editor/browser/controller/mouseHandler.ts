@@ -485,7 +485,7 @@ class MouseDownOperation extends Disposable {
 					} else {
 						this._viewController.emitMouseDrop({
 							event: this._lastMouseEvent!,
-							target: (position ? this._createMouseTarget(this._lastMouseEvent!, true) : null) // Ignoring because position is unknown, e.g., Content View Zone
+							target: position
 						});
 					}
 
