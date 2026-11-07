@@ -132,7 +132,7 @@ class MainThreadAuthenticationProviderWithChallenges extends MainThreadAuthentic
 export class MainThreadAuthentication extends Disposable implements MainThreadAuthenticationShape {
 	private readonly _proxy: Proxied<ExtHostAuthenticationShape>;
 
-	private readonly _registrations = this._register(new DisposableMap<string, { provider: IAuthenticationProvider; emitter: Emitter<AuthenticationSessionsChangeEvent>; dispose(): void }>());
+	private readonly _registrations = this._register(new DisposableMap<string, { emitter: Emitter<AuthenticationSessionsChangeEvent>; dispose(): void }>());
 	private _sentProviderUsageEvents = new Set<string>();
 	private _suppressUnregisterEvent = false;
 
@@ -162,6 +162,7 @@ export class MainThreadAuthentication extends Disposable implements MainThreadAu
 		this._register(this.authenticationService.onDidChangeSessions(e => this._proxy.$onDidChangeAuthenticationSessions(e.providerId, e.label)));
 		this._register(this.authenticationService.onDidUnregisterAuthenticationProvider(e => {
 			if (!this._suppressUnregisterEvent) {
+				this._registrations.deleteAndDispose(e.id);
 				this._proxy.$onDidUnregisterAuthenticationProvider(e.id);
 			}
 		}));
@@ -237,16 +238,6 @@ export class MainThreadAuthentication extends Disposable implements MainThreadAu
 		}));
 	}
 
-	override dispose(): void {
-		const registrations = [...this._registrations];
-		super.dispose();
-		for (const [id, { provider }] of registrations) {
-			if (this.authenticationService.isAuthenticationProviderRegistered(id) && this.authenticationService.getProvider(id) === provider) {
-				this.authenticationService.unregisterAuthenticationProvider(id);
-			}
-		}
-	}
-
 	async $registerAuthenticationProvider({ id, label, supportsMultipleAccounts, resourceServer, supportedAuthorizationServers, supportsChallenges }: IRegisterAuthenticationProviderDetails): Promise<void> {
 		if (!this.authenticationService.declaredProviders.find(p => p.id === id)) {
 			// If telemetry shows that this is not happening much, we can instead throw an error here.
@@ -280,19 +271,24 @@ export class MainThreadAuthentication extends Disposable implements MainThreadAu
 					resourceServer ? URI.revive(resourceServer) : undefined,
 					emitter
 				);
-		this._registrations.set(id, { provider, emitter, dispose: () => emitter.dispose() });
+		this._registrations.set(id, {
+			emitter,
+			dispose: () => {
+				emitter.dispose();
+				// Suppress the owning host's unregister event during cleanup.
+				this._suppressUnregisterEvent = true;
+				try {
+					this.authenticationService.unregisterAuthenticationProvider(id);
+				} finally {
+					this._suppressUnregisterEvent = false;
+				}
+			}
+		});
 		this.authenticationService.registerAuthenticationProvider(id, provider);
 	}
 
 	async $unregisterAuthenticationProvider(id: string): Promise<void> {
 		this._registrations.deleteAndDispose(id);
-		// The ext host side already unregisters the provider, so we can suppress the event here.
-		this._suppressUnregisterEvent = true;
-		try {
-			this.authenticationService.unregisterAuthenticationProvider(id);
-		} finally {
-			this._suppressUnregisterEvent = false;
-		}
 	}
 
 	async $ensureProvider(id: string): Promise<void> {
