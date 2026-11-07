@@ -411,6 +411,10 @@ body.wordWrap pre {
 	white-space: pre-wrap;
 }
 
+body.wordWrap pre code {
+	display: block;
+}
+
 pre:not(.hljs),
 pre.hljs code > div {
 	padding: 16px;
