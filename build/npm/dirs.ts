@@ -23,6 +23,7 @@ export const workspaceMembers = [
 	'test/monaco',
 	'test/scenario',
 	'test/smoke',
+	'test/unit',
 ];
 
 /**
