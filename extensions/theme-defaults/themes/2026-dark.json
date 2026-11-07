@@ -377,7 +377,10 @@
 			}
 		},
 		{
-			"scope": "keyword",
+			"scope": [
+				"keyword",
+				"keyword.control"
+			],
 			"settings": {
 				"foreground": "#ff7b72"
 			}
