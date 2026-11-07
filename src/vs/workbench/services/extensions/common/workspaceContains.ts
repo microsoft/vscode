@@ -122,6 +122,8 @@ export function checkGlobFileExists(
 	const query = queryBuilder.file(folders.map(folder => toWorkspaceFolder(URI.revive(folder))), {
 		_reason: 'checkExists',
 		includePattern: includes,
+		disregardIgnoreFiles: true,
+		disregardExcludeSettings: true,
 		exists: true
 	});
 
