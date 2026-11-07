@@ -7,7 +7,8 @@ import { deepStrictEqual } from 'assert';
 import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { IWorkspaceFolder } from '../../../../../platform/workspace/common/workspace.js';
-import { WorkspaceFolderCwdPair, shrinkWorkspaceFolderCwdPairs } from '../../browser/terminalActions.js';
+import { WorkspaceFolderCwdPair, shrinkWorkspaceFolderCwdPairs, toggleTerminalVisibility } from '../../browser/terminalActions.js';
+import { TERMINAL_VIEW_ID } from '../../common/terminal.js';
 
 function makeFakeFolder(name: string, uri: URI): IWorkspaceFolder {
 	return {
@@ -81,6 +82,33 @@ suite('terminalActions', () => {
 				const pairC = makePair(c);
 				deepStrictEqual(shrinkWorkspaceFolderCwdPairs([pairA, pairB, pairC, pairD]), [pairA, pairC]);
 			});
+		});
+	});
+
+	suite('toggleTerminalVisibility', () => {
+		function createViewsService(visible: boolean) {
+			const calls: string[] = [];
+			const viewsService = {
+				isViewVisible: (id: string) => id === TERMINAL_VIEW_ID && visible,
+				closeView: (id: string) => { calls.push(`closeView ${id}`); },
+				openView: async (id: string, focus?: boolean) => {
+					calls.push(`openView ${id} focus=${focus}`);
+					return null;
+				}
+			};
+			return { viewsService, calls };
+		}
+
+		test('should hide the terminal view when it is visible', async () => {
+			const { viewsService, calls } = createViewsService(true);
+			await toggleTerminalVisibility(viewsService);
+			deepStrictEqual(calls, [`closeView ${TERMINAL_VIEW_ID}`]);
+		});
+
+		test('should show and focus the terminal view when it is hidden', async () => {
+			const { viewsService, calls } = createViewsService(false);
+			await toggleTerminalVisibility(viewsService);
+			deepStrictEqual(calls, [`openView ${TERMINAL_VIEW_ID} focus=true`]);
 		});
 	});
 });
