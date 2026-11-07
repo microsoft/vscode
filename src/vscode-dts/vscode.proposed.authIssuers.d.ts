@@ -48,6 +48,12 @@ declare module 'vscode' {
 		/**
 		 * When specified, the authentication provider will use the provided authorization server URL to
 		 * authenticate the user. This is only used when a provider has `supportedAuthorizationServers` set
+		 * @example
+		 * ```ts
+		 * const session = await vscode.authentication.getSession('github', ['repo'], {
+		 *     authorizationServer: Uri.parse('[https://login.example.com](https://login.example.com)')
+		 * });
+		 * ```
 		 */
 		authorizationServer?: Uri;
 
@@ -61,6 +67,12 @@ declare module 'vscode' {
 		 * When specified, the authentication provider will request a token bound to this resource URI
 		 * (RFC 8707 resource indicator). The provider should forward this to the authorization server
 		 * so the issued access token is audience-restricted to the given resource.
+		 * @example
+		 * ```ts
+		 * const session = await vscode.authentication.getSession('azure', ['/.default'], {
+		 *     resource: '[https://database.windows.net/](https://database.windows.net/)'
+		 * });
+		 * ```
 		 */
 		resource?: string;
 	}
