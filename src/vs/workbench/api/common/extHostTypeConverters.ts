@@ -418,10 +418,45 @@ export namespace MarkdownString {
 				if (typeof token.href === 'string') {
 					collectUri(htmlContent.parseHrefAndDimensions(token.href));
 				}
+			} else if (token.type === 'html' && res.supportHtml) {
+				// media in html tags is rendered too, so its sources need mapping as well (#137632)
+				for (const src of _htmlMediaSources(token.raw)) {
+					collectUri({ href: src });
+				}
 			}
 		});
 
 		return res;
+	}
+
+	const _htmlMediaTag = /<(?:img|audio|video|source)\b((?:[^>"']|"[^"]*"|'[^']*')*)>/gi;
+	const _htmlAttribute = /([^\s"'>\/=]+)(?:\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s"'=<>`]+)))?/g;
+	// Names are case-sensitive; uppercase legacy variants exist only for these four (`&Lt;`/`&Gt;` are `≪`/`≫`, `&APOS;` is invalid)
+	const _htmlNamedCharRefs: Record<string, string> = { amp: '&', AMP: '&', lt: '<', LT: '<', gt: '>', GT: '>', quot: '"', QUOT: '"', apos: '\'' };
+
+	/**
+	 * Returns the decoded `src` attribute values of media tags, matching what the
+	 * renderer later reads back from the DOM.
+	 */
+	function* _htmlMediaSources(html: string): Iterable<string> {
+		for (const [, attributes] of html.matchAll(_htmlMediaTag)) {
+			for (const [, name, ...values] of attributes.matchAll(_htmlAttribute)) {
+				if (name.toLowerCase() === 'src') {
+					yield _decodeHtmlCharRefs(values.find(value => value !== undefined) ?? '');
+					break;
+				}
+			}
+		}
+	}
+
+	function _decodeHtmlCharRefs(value: string): string {
+		return value.replace(/&(?:#(\d+)|#x([\da-f]+)|([a-z]+));/gi, (match, dec: string | undefined, hex: string | undefined, name: string | undefined) => {
+			if (name) {
+				return _htmlNamedCharRefs[name] ?? match;
+			}
+			const codePoint = parseInt(dec ?? hex!, dec ? 10 : 16);
+			return codePoint <= 0x10FFFF ? String.fromCodePoint(codePoint) : match;
+		});
 	}
 
 	function _uriMassage(part: string, bucket: { [n: string]: UriComponents }): string {

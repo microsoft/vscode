@@ -78,6 +78,22 @@ suite('ExtHostTypeConverter', function () {
 		assert.ok(!!data.uris!['file:///somepath/here2']);
 	});
 
+	test('MarkdownConvert - uris of html media (#137632)', function () {
+		const md = new extHostTypes.MarkdownString(`1 <img src="file:///a.png"> <video controls src='file:///b.mp4'><source src=file:///c.webm></video> <a href="file:///d">d</a>`);
+
+		assert.deepStrictEqual(Object.keys(MarkdownString.from(md).uris!), []);
+
+		md.supportHtml = true;
+		assert.deepStrictEqual(Object.keys(MarkdownString.from(md).uris!), ['file:///a.png', 'file:///b.mp4', 'file:///c.webm']);
+	});
+
+	test('MarkdownConvert - uris of html media with quoted attributes and char refs (#137632)', function () {
+		const md = new extHostTypes.MarkdownString(`<img alt="a > b" src="file:///a.png"> <img alt="x src='file:///wrong.png'" src='file:///b.png'> <img src="file:///c&amp;d.png"> <img src="file:///e&#38;f&#x26;g.png"> <img src="file:///h&AMP;i&LT;j.png">`);
+		md.supportHtml = true;
+
+		assert.deepStrictEqual(Object.keys(MarkdownString.from(md).uris!), ['file:///a.png', 'file:///b.png', 'file:///c&d.png', 'file:///e&f&g.png', 'file:///h&i<j.png']);
+	});
+
 	test('LanguageModelChatMessage2 converters preserve tool-result data parts across the provider boundary #313920', function () {
 
 		// Platform converters round-trip data parts unchanged (unknown mime types aren't stripped), so the producer must gate emission (#313920).
