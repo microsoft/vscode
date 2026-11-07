@@ -45,6 +45,16 @@ export class GhostText {
 		}
 		const lastPart = this.parts[this.parts.length - 1];
 
+		// The ghost text parts are positioned against the line they were computed
+		// for. If the current line is shorter than the last part expects, this ghost
+		// text is stale relative to `lineText` (the document changed between computing
+		// the suggestion and this delayed screen reader announcement). Building the
+		// edit anyway would place a replacement past the capped line's end and throw
+		// `start must be before end` from `TextEdit.apply`. Skip the stale announcement.
+		if (lastPart.column - 1 > lineText.length) {
+			return '';
+		}
+
 		const cappedLineText = lineText.substr(0, lastPart.column - 1);
 		const text = new TextEdit([
 			...this.parts.map(p => new TextReplacement(
