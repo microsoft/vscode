@@ -8,7 +8,7 @@ import { DeferredPromise, timeout } from '../../../../../base/common/async.js';
 import { CancellationError } from '../../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { Disposable, IReference } from '../../../../../base/common/lifecycle.js';
-import { constObservable, derived, IReader, observableValue, transaction } from '../../../../../base/common/observable.js';
+import { autorun, constObservable, derived, IReader, observableValue, transaction } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { mock, upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
@@ -168,6 +168,7 @@ suite('SessionCanvasService', () => {
 		const editorGroupsService = upcastPartial<IEditorGroupsService>({
 			activeGroup: editorGroup,
 			mainPart: upcastPartial<IEditorGroupsService['mainPart']>({ activeGroup: editorGroup, windowId: 1 }),
+			getGroup: id => id === editorGroup.id ? editorGroup : undefined,
 		});
 		const pinnedCanvases = createPinnedCanvases();
 		const contextService = store.add(new SessionCanvasContextService(
@@ -1348,7 +1349,7 @@ suite('SessionCanvasService', () => {
 	test('a chat window presents the canvases of the chat it shows, in any of its groups, whichever session the main window shows; other windows and chats do not', () => {
 		const chatWindowChat = URI.parse('agent-host-chat:/session/main');
 		const chatWindows = new Map([
-			[2, upcastPartial<IChatWindow>({ chat: constObservable(chatWindowChat), chats: constObservable([chatWindowChat]) })],
+			[2, upcastPartial<IChatWindow>({ windowId: 2, chat: constObservable(chatWindowChat), chats: constObservable([chatWindowChat]) })],
 		]);
 		const contextService = store.add(new SessionCanvasContextService(
 			sessionHostServiceOf(store, { mainWindowActiveSession: constObservable(undefined), gridShown: constObservable([]), windowSessions: constObservable([]) }),
@@ -1380,7 +1381,7 @@ suite('SessionCanvasService', () => {
 		const nestedChat = URI.parse('agent-host-chat:/session/nested');
 		const activeChat = observableValue<URI>('activeChat', ownerChat);
 		const windowChats = observableValue<readonly URI[]>('windowChats', [ownerChat]);
-		const chatWindow = upcastPartial<IChatWindow>({ chat: activeChat, chats: windowChats });
+		const chatWindow = upcastPartial<IChatWindow>({ windowId: 2, chat: activeChat, chats: windowChats });
 		const editorGroupsService = upcastPartial<IEditorGroupsService>({ mainPart: upcastPartial<IEditorGroupsService['mainPart']>({ windowId: 1 }) });
 		const contextService = store.add(new SessionCanvasContextService(
 			sessionHostServiceOf(store, { mainWindowActiveSession: constObservable(undefined), gridShown: constObservable([]), windowSessions: constObservable([]) }),
@@ -1400,6 +1401,10 @@ suite('SessionCanvasService', () => {
 			mainWindow: canPresentCanvasInGroup(owner, upcastPartial<IEditorGroup>({ windowId: 1 }), editorGroupsService, contextService),
 		});
 
+		// What a reader of the chat window's answer sees as it changes, so that canvases close where they no longer show.
+		const observed: boolean[] = [];
+		store.add(autorun(reader => observed.push(canPresentCanvasInGroup(owner, upcastPartial<IEditorGroup>({ windowId: 2 }), editorGroupsService, contextService, reader))));
+
 		const ownerActive = canPresent();
 		transaction(tx => {
 			windowChats.set([ownerChat, nestedChat], tx);
@@ -1409,10 +1414,11 @@ suite('SessionCanvasService', () => {
 		windowChats.set([nestedChat], undefined);
 		const ownerLeft = canPresent();
 
-		assert.deepStrictEqual({ ownerActive, anotherChatActive, ownerLeft }, {
+		assert.deepStrictEqual({ ownerActive, anotherChatActive, ownerLeft, observed }, {
 			ownerActive: { chatWindow: true, mainWindow: true },
 			anotherChatActive: { chatWindow: true, mainWindow: true },
 			ownerLeft: { chatWindow: false, mainWindow: true },
+			observed: [true, true, false],
 		});
 	});
 

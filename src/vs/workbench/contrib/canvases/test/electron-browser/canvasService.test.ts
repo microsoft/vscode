@@ -6,7 +6,7 @@
 import assert from 'assert';
 import { DeferredPromise, timeout } from '../../../../../base/common/async.js';
 import { Emitter } from '../../../../../base/common/event.js';
-import { observableValue } from '../../../../../base/common/observable.js';
+import { observableValue, transaction } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { mock, upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
@@ -41,6 +41,8 @@ suite('CanvasService', () => {
 		const visible = observableValue<ReadonlySet<string>>('visible', new Set([canvasOwnerKey(owner)]));
 		const removed = store.add(new Emitter<ICanvasOwner>());
 		const groupRestores: boolean[] = [];
+		// The owners the groups of the chat window, window 2, present: those of the chats it shows.
+		const chatWindowOwners = observableValue<ReadonlySet<string>>('chatWindowOwners', new Set([canvasOwnerKey(owner)]));
 		const contextService = upcastPartial<ICanvasContextService>({
 			contexts, onDidRemoveOwner: removed.event,
 			isOwnerVisible: (owner, reader) => visible.read(reader).has(canvasOwnerKey(owner)),
@@ -49,14 +51,15 @@ suite('CanvasService', () => {
 				groupRestores.push(restore);
 				return targetGroup;
 			},
+			canPresentInGroup: (owner, group, reader) => group.windowId === 2 && chatWindowOwners.read(reader).has(canvasOwnerKey(owner)),
 		});
 		const opened: CanvasInput[] = [];
 		const openOptions: (IEditorOptions | undefined)[] = [];
 		const openEditors: IEditorIdentifier[] = [];
 		const closed: CanvasInput[] = [];
 		const moves: string[] = [];
-		const groups = [1, 2].map(id => upcastPartial<IEditorGroup>({
-			id, windowId: 1,
+		const groups = [1, 2, 3].map(id => upcastPartial<IEditorGroup>({
+			id, windowId: id === 3 ? 2 : 1,
 			moveEditor: (editor, target) => {
 				openEditors.splice(openEditors.findIndex(candidate => candidate.editor === editor && candidate.groupId === id), 1, { groupId: target.id, editor });
 				moves.push(`${id}->${target.id}`);
@@ -123,7 +126,7 @@ suite('CanvasService', () => {
 		const service = store.add(new CanvasService(contextService, editorService, editorGroupsService, instantiationService, upcastPartial<IBrowserViewWorkbenchService>({}), entitlementService,
 			new TestConfigurationService({ [CanvasesEnabledSettingId]: true }), new NullLogService(), notificationService));
 		return {
-			owner, canvas, canvases, contexts, openRequests, visible, removed, opened, openOptions, openEditors, closed, moves, groupRestores, notifications, service,
+			owner, canvas, canvases, contexts, openRequests, visible, removed, opened, openOptions, openEditors, closed, moves, groupRestores, notifications, service, chatWindowOwners,
 			delayOpen: () => pendingOpen = new DeferredPromise<void>(),
 			failOpen: (value: boolean) => failOpen = value,
 			hideAI: () => { hidden = true; sentiment.fire(); },
@@ -420,5 +423,40 @@ suite('CanvasService', () => {
 			disposed: harness.opened[0].isDisposed(),
 			reopenable: harness.service.reopenableCanvases.get().length,
 		}, { openCalls: 1, moves: ['1->2'], groups: [2], disposed: false, reopenable: 0 });
+	});
+
+	test('closes a canvas in a chat window once its chat leaves the window, without dismissing it, and shows it again beside its chat', async () => {
+		const harness = createHarness();
+		harness.selectGroup(3);
+		harness.canvases.set([harness.canvas], undefined);
+		await timeout(0);
+		const inChatWindow = harness.openEditors.map(editor => editor.groupId);
+		// The chat leaves the chat window, and no window shows it.
+		transaction(tx => {
+			harness.chatWindowOwners.set(new Set(), tx);
+			harness.visible.set(new Set(), tx);
+		});
+		await timeout(0);
+		const afterLeaving = { open: harness.openEditors.map(editor => editor.groupId), closed: harness.closed.length, reopenable: harness.service.reopenableCanvases.get().length };
+		// The main window shows the chat.
+		harness.selectGroup(1);
+		harness.visible.set(new Set([canvasOwnerKey(harness.owner)]), undefined);
+		await timeout(0);
+
+		assert.deepStrictEqual({ inChatWindow, afterLeaving, shownAgain: harness.openEditors.map(editor => editor.groupId) }, {
+			inChatWindow: [3],
+			afterLeaving: { open: [], closed: 1, reopenable: 0 },
+			shownAgain: [1],
+		});
+	});
+
+	test('keeps a canvas open in a main window group whichever chats the chat windows show', async () => {
+		const harness = createHarness();
+		harness.canvases.set([harness.canvas], undefined);
+		await timeout(0);
+		harness.chatWindowOwners.set(new Set(), undefined);
+		await timeout(0);
+
+		assert.deepStrictEqual({ open: harness.openEditors.map(editor => editor.groupId), closed: harness.closed.length }, { open: [1], closed: 0 });
 	});
 });

@@ -23,7 +23,7 @@ import { IChatEntitlementService } from '../../../services/chat/common/chatEntit
 import { IEditorGroup, IEditorGroupsService } from '../../../services/editor/common/editorGroupsService.js';
 import { IEditorService } from '../../../services/editor/common/editorService.js';
 import { IBrowserViewModel, IBrowserViewWorkbenchService } from '../../browserView/common/browserView.js';
-import { CanvasInput, ICanvasContextService, ICanvasModelResolution, ICanvasReopenTarget, ICanvasService, ICanvasWorkingSetOwner, ICanvasWorkingSetState, isCanvasOwner } from '../common/canvas.js';
+import { CanvasInput, canPresentCanvasInGroup, ICanvasContextService, ICanvasModelResolution, ICanvasReopenTarget, ICanvasService, ICanvasWorkingSetOwner, ICanvasWorkingSetState, isCanvasOwner } from '../common/canvas.js';
 import { canvasOwnerKey, getCanvasReferenceKey, ICanvas, ICanvasOwner, ICanvasReference } from '../../../common/canvasReference.js';
 
 interface ICanvasPresentation {
@@ -221,6 +221,23 @@ export class CanvasService extends Disposable implements ICanvasService {
 			for (const [key, input] of this.inputs) {
 				if (!enabled || (knownOwners.has(canvasOwnerKey(input.reference)) && !liveKeys.has(key))) {
 					void this.closeInput(key, input).catch(error => this.reportError('Failed to close canvas', error));
+				}
+			}
+		}));
+		// A group outside the main window presents the canvases of the chats its window shows: once a chat leaves the
+		// window, its canvases there close, rather than show an error, to show again beside the chat where it shows next.
+		this._register(autorun(reader => {
+			this.presentationsChanged.read(reader);
+			for (const [key, input] of this.inputs) {
+				if (this.opening.has(input)) {
+					continue;
+				}
+				const presentable = this.editorService.findEditors(input.resource).every(({ editor, groupId }) => {
+					const group = editor === input ? this.editorGroupsService.getGroup(groupId) : undefined;
+					return !group || canPresentCanvasInGroup(input.reference, group, this.editorGroupsService, contextService, reader);
+				});
+				if (!presentable) {
+					void this.closeInput(key, input, contextService.workingSets !== undefined).catch(error => this.reportError('Failed to close canvas', error));
 				}
 			}
 		}));
