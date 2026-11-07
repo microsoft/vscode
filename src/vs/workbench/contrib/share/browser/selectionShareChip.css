@@ -1,0 +1,48 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+.monaco-editor .selection-share-chip {
+	display: none;
+	align-items: center;
+	gap: 4px;
+	margin-top: 4px;
+	margin-left: 4px;
+	padding: 2px 8px 2px 6px;
+	height: 22px;
+	border-radius: 999px;
+	border: 1px solid var(--vscode-button-border, var(--vscode-widget-border, transparent));
+	background-color: var(--vscode-button-background);
+	color: var(--vscode-button-foreground);
+	box-shadow: 0 2px 8px var(--vscode-widget-shadow);
+	cursor: pointer;
+	user-select: none;
+	font-size: 12px;
+	line-height: 18px;
+	white-space: nowrap;
+	pointer-events: auto;
+}
+
+.monaco-editor .selection-share-chip.visible {
+	display: inline-flex !important;
+}
+
+.monaco-editor .selection-share-chip:hover {
+	background-color: var(--vscode-button-hoverBackground);
+}
+
+.monaco-editor .selection-share-chip:focus-visible {
+	outline: 1px solid var(--vscode-focusBorder);
+	outline-offset: 1px;
+}
+
+.monaco-editor .selection-share-chip-icon {
+	font-size: 14px;
+	display: inline-flex;
+	align-items: center;
+}
+
+.monaco-editor .selection-share-chip-label {
+	font-weight: 600;
+}
