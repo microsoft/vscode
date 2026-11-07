@@ -371,8 +371,7 @@ export class SharedChatInputComposer extends Disposable implements INewSessionCo
 			const inputRow = tipContainer.nextElementSibling;
 			this._promptOptions.attach(widget.inputEditor, tipContainer.parentElement, dom.isHTMLElement(inputRow) ? inputRow : undefined);
 		}
-		this._register(this.newChatVoiceTargetService.registerComposer(this));
-		this._register(this.onDidFocus(() => this.newChatVoiceTargetService.setActive(this)));
+		this._register(this._registerVoiceTarget());
 		const inputContainer = widget.inputPart.inputContainerElement;
 		if (inputContainer) {
 			this._register(this.instantiationService.createInstance(NewChatVoiceInputDecorations, inputContainer, this.options.inputVisible ?? constObservable(true), ownsDraftVoiceSession));
@@ -649,6 +648,17 @@ export class SharedChatInputComposer extends Disposable implements INewSessionCo
 
 	get onDidChangeWorkspaceSelection(): Event<void> {
 		return this.options.onDidChangeWorkspaceSelection ?? Event.None;
+	}
+
+	/** Makes it a target of Voice Mode, the active one as it mounts and once it gains focus, unless its host keeps it out of Voice Mode. */
+	private _registerVoiceTarget(): IDisposable {
+		if (this.options.voiceTarget === false) {
+			return Disposable.None;
+		}
+		const store = new DisposableStore();
+		store.add(this.newChatVoiceTargetService.registerComposer(this));
+		store.add(this.onDidFocus(() => this.newChatVoiceTargetService.setActive(this)));
+		return store;
 	}
 
 	get routesWhileSessionActive(): boolean {

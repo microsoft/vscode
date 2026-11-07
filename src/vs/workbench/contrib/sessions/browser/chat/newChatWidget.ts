@@ -48,7 +48,7 @@ import { WebWorkspacePicker } from './webWorkspacePicker.js';
 import { getStoredSessionOptionsExpanded, SessionOptionsRow, storeSessionOptionsExpanded } from './sessionOptionsRow.js';
 import { IconOnlySessionPickers } from './iconOnlySessionPickers.js';
 import { IPickedSessionType, IPreferredSessionType } from './sessionTypePicker.js';
-import { NEW_SESSION_PROMPT_PLACEHOLDER } from './newChatComposerInput.js';
+import { INewChatComposerInputOptions, NEW_SESSION_PROMPT_PLACEHOLDER } from './newChatComposerInput.js';
 import { SharedChatInputComposer } from './sharedChatInputComposer.js';
 import { getDefaultSessionCreationEnvironment, getEnvironmentWorkspaceProvider, getRemoteSessionCreationEnvironment, getSessionCreationEnvironments, ISessionCreationEnvironment, SessionEnvironmentPicker } from './sessionEnvironmentPicker.js';
 import { NoAgentHostEmptyState } from './noAgentHostEmptyState.js';
@@ -542,6 +542,7 @@ export class NewChatWidget extends Disposable {
 			placeholder: NEW_SESSION_PROMPT_PLACEHOLDER,
 			onboardingTargetId: 'sessions.newSession.input',
 			supportsBackground: true,
+			...this._globalTargetOptions(),
 			deferredNotificationsEnabled,
 			petHostPreferred: this.options.petHostPreferred,
 			renderChatPet: this.options.renderChatPet,
@@ -585,8 +586,7 @@ export class NewChatWidget extends Disposable {
 			this._newChatInput.addAttachments(...this.options.initialAttachments);
 		}
 
-		this._register(newSessionComposerService.registerComposer(this._newChatInput, derived(this, reader =>
-			(this.options.hostVisible?.read(reader) ?? true) && (this.options.inputVisible?.read(reader) ?? true))));
+		this._register(newSessionComposerService.registerComposer(this._newChatInput, derived(this, reader => this._takesGlobalComposerActions(reader))));
 
 		// Comment 3: Bind Agent mode in the scoped context so that Agent-only tips
 		// (messageQueueing, subagents, etc.) are eligible and chatModeKind-based
@@ -1682,6 +1682,25 @@ export class NewChatWidget extends Disposable {
 	}
 
 	/** Whether the host of a hosted composer requests the drafts of `folderUri` in a Dev Container. */
+	/**
+	 * Whether it takes the global composer actions, such as tours or the folder picker, and gives the workspace selection,
+	 * while it shows: not a composer of a host of its own, such as a chat window's, whose drafts are still tracked; those
+	 * apply to the main window's.
+	 */
+	private _takesGlobalComposerActions(reader: IReader): boolean {
+		return this._isMainWindowComposer() && (this.options.hostVisible?.read(reader) ?? true) && (this.options.inputVisible?.read(reader) ?? true);
+	}
+
+	/** Whether it is not a composer of a host of its own, such as a chat window's: those take neither the global composer actions nor Voice Mode. */
+	private _isMainWindowComposer(): boolean {
+		return !this._draftHost;
+	}
+
+	/** What its input composer is a global target of: Voice Mode only for a composer of the main window. */
+	private _globalTargetOptions(): Pick<INewChatComposerInputOptions, 'voiceTarget'> {
+		return { voiceTarget: this._isMainWindowComposer() };
+	}
+
 	private _requestsDevContainer(folderUri: URI | undefined): boolean {
 		const target = this._draftHost?.requestedTarget?.get();
 		return !!folderUri && !!target?.requireDevContainer && !!target.folderUri && this.uriIdentityService.extUri.isEqual(target.folderUri, folderUri);

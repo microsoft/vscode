@@ -170,4 +170,10 @@ export interface INewChatComposerInputOptions {
 	 * chat widget. The welcome composer leaves this unset.
 	 */
 	readonly voiceRoutesWhileSessionActive?: boolean;
+	/**
+	 * Whether it can be the target of Voice Mode, which addresses one composer of the whole workbench: the composer it last
+	 * mounted or focused. Unset, it can; a composer of a host of its own, such as a chat window's, cannot, so that it never
+	 * takes Voice Mode from the main window's composer.
+	 */
+	readonly voiceTarget?: boolean;
 }

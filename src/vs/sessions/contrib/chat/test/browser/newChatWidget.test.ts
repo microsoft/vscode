@@ -146,6 +146,10 @@ const createSessionNow = Reflect.get(NewChatWidget.prototype, '_createSessionNow
 	token: CancellationToken,
 ) => Promise<IOpenNewSessionResult>;
 const canApplyWorkspaceDefault = Reflect.get(NewChatWidget.prototype, '_canApplyWorkspaceDefault') as (this: NewChatWidget) => boolean;
+const takesGlobalComposerActions = Reflect.get(NewChatWidget.prototype, '_takesGlobalComposerActions') as (this: {
+	readonly _draftHost?: object;
+	readonly options: { readonly hostVisible?: IObservable<boolean>; readonly inputVisible?: IObservable<boolean> };
+}, reader: IReader | undefined) => boolean;
 const isPreferredServable = Reflect.get(NewChatWidget.prototype, '_isPreferredServable') as (
 	this: {
 		readonly _environment: IObservable<ISessionCreationEnvironment | undefined>;
@@ -4231,6 +4235,27 @@ suite('NewChatWidget', () => {
 	}
 
 	suite('a composer with a draft host', () => {
+		test('only the main window\'s composers take the global composer actions, such as tours or the folder picker, while they show; a composer of a host of its own, such as a chat window\'s, never does', () => {
+			const takes = (draftHost: boolean, hostVisible?: boolean, inputVisible?: boolean) => takesGlobalComposerActions.call(Object.assign(Object.create(NewChatWidget.prototype), {
+				_draftHost: draftHost ? {} : undefined,
+				options: { hostVisible: hostVisible === undefined ? undefined : constObservable(hostVisible), inputVisible: inputVisible === undefined ? undefined : constObservable(inputVisible) },
+			}), undefined);
+
+			assert.deepStrictEqual({ main: takes(false), hostHidden: takes(false, false), inputHidden: takes(false, true, false), hosted: takes(true), hostedShowing: takes(true, true, true) }, {
+				main: true,
+				hostHidden: false,
+				inputHidden: false,
+				hosted: false,
+				hostedShowing: false,
+			});
+		});
+
+		test('only the main window\'s composers can be the target of Voice Mode; a composer of a host of its own, such as a chat window\'s, tells its input it cannot', () => {
+			const options = (draftHost: boolean) => Reflect.get(NewChatWidget.prototype, '_globalTargetOptions').call(Object.assign(Object.create(NewChatWidget.prototype), { _draftHost: draftHost ? {} : undefined }));
+
+			assert.deepStrictEqual({ main: options(false), hosted: options(true) }, { main: { voiceTarget: true }, hosted: { voiceTarget: false } });
+		});
+
 
 		function host(slot: INewSessionDraftSlot, opened: ISession[] = [], tracked: { send: INewSessionBackgroundSend; cancelled: boolean }[] = []): INewSessionDraftHost {
 			return {
