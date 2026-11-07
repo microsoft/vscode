@@ -222,7 +222,7 @@ export class FindModelBoundToEditorModel {
 			// current selection is not on top of a match
 			// try to find its nearest result from the top of the document
 			const matchAfterSelection = findFirstIdxMonotonousOrArrLen(findMatches.map(match => match.range), range => Range.compareRangesUsingStarts(range, editorSelection) >= 0);
-			currentMatchesPosition = matchAfterSelection > 0 ? matchAfterSelection - 1 + 1 /** match position is one based */ : currentMatchesPosition;
+			currentMatchesPosition = matchAfterSelection < findMatches.length ? matchAfterSelection + 1 /** match position is one based */ : currentMatchesPosition;
 		}
 
 		this._state.changeMatchInfo(
