@@ -16,7 +16,7 @@ import { IEditorDecorationsCollection } from '../../../../editor/common/editorCo
 import { OverviewRulerLane, IModelDecorationOptions, MinimapPosition, IModelDeltaDecoration } from '../../../../editor/common/model.js';
 import * as domStylesheetsJs from '../../../../base/browser/domStylesheets.js';
 import { IEditorService } from '../../../services/editor/common/editorService.js';
-import { ChangeType, getChangeType, IQuickDiffService, QuickDiffProvider, minimapGutterAddedBackground, minimapGutterDeletedBackground, minimapGutterModifiedBackground, overviewRulerAddedForeground, overviewRulerDeletedForeground, overviewRulerModifiedForeground } from '../common/quickDiff.js';
+import { ChangeType, clampDiffDecorationsGutterWidth, getChangeType, IQuickDiffService, QuickDiffProvider, minimapGutterAddedBackground, minimapGutterDeletedBackground, minimapGutterModifiedBackground, overviewRulerAddedForeground, overviewRulerDeletedForeground, overviewRulerModifiedForeground, scmDiffDecorationsGutterWidthDefault } from '../common/quickDiff.js';
 import { QuickDiffModel, IQuickDiffModelService } from './quickDiffModel.js';
 import { IWorkbenchContribution } from '../../../common/contributions.js';
 import { ResourceMap } from '../../../../base/common/map.js';
@@ -225,7 +225,7 @@ export class QuickDiffWorkbenchController extends Disposable implements IWorkben
 
 	// Resource URI -> Code Editor Id -> Decoration (Disposable)
 	private readonly decorators = new ResourceMap<DisposableMap<string>>();
-	private viewState: QuickDiffWorkbenchControllerViewState = { width: 3, visibility: 'always' };
+	private viewState: QuickDiffWorkbenchControllerViewState = { width: scmDiffDecorationsGutterWidthDefault, visibility: 'always' };
 	private readonly transientDisposables = this._register(new DisposableStore());
 	private readonly stylesheet: HTMLStyleElement;
 
@@ -272,12 +272,7 @@ export class QuickDiffWorkbenchController extends Disposable implements IWorkben
 	}
 
 	private onDidChangeDiffWidthConfiguration(): void {
-		let width = this.configurationService.getValue<number>('scm.diffDecorationsGutterWidth');
-
-		if (isNaN(width) || width <= 0 || width > 5) {
-			width = 3;
-		}
-
+		const width = clampDiffDecorationsGutterWidth(this.configurationService.getValue<number>('scm.diffDecorationsGutterWidth'));
 		this.setViewState({ ...this.viewState, width });
 	}
 
