@@ -362,7 +362,10 @@ export abstract class AbstractListSettingWidget<TDataItem extends object> extend
 			return;
 		}
 
-		e.preventDefault();
+		// Cancelling pointerdown on a draggable row also cancels the native drag
+		if (!this.rowElements[targetIdx]?.draggable) {
+			e.preventDefault();
+		}
 		e.stopImmediatePropagation();
 		if (this.model.getSelected() === targetIdx) {
 			return;
