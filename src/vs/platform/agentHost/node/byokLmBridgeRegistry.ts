@@ -15,16 +15,9 @@ export const IByokLmBridgeRegistry = createDecorator<IByokLmBridgeRegistry>('byo
  * connected renderer) and consumed by {@link IByokLmProxyService} (inference
  * routing) and {@link CopilotAgent} (model catalogue).
  *
- * **Single serving window, multiple connections.** BYOK is serviced by the
- * renderer LM API, whose BYOK models are a property of the user's installed
- * extensions, not of a particular window — so every window that registers the
- * handler exposes the same set. Both the main workbench and the dedicated Agents
- * app register it (each runs a full extension host whose LM API holds the same
- * BYOK models), so either can serve. A connection that connects without binding
- * the handler never pushes a snapshot and is treated as non-serving. The registry
- * therefore does NOT aggregate per-window model sets; it surfaces the models from
- * any one *serving* window (preferring one that actually has models) and routes
- * inference there, automatically excluding non-serving windows.
+ * The model catalogue comes from one serving window; inference can instead
+ * select the client that initiated the turn. Connections without a model
+ * snapshot are non-serving and cannot handle inference.
  *
  * **Push, not pull.** Each connection pushes its current model snapshot over
  * {@link IByokLmBridgeConnection.onDidChangeModels} (on subscribe and on every
@@ -45,10 +38,10 @@ export interface IByokLmBridgeRegistry {
 	getModels(): readonly IByokLmModelInfo[];
 
 	/**
-	 * A connection that can serve BYOK inference, or `undefined` when none can.
-	 * All serving windows expose the same models, so any one is a valid target.
+	 * A serving connection for the specified client, without fallback if it is
+	 * unavailable. Without a client id, selects the default serving connection.
 	 */
-	getServingConnection(): IByokLmBridgeConnection | undefined;
+	getServingConnection(clientId?: string): IByokLmBridgeConnection | undefined;
 
 	/**
 	 * Subscribe to changes in the set of registered connections (a renderer
@@ -129,14 +122,17 @@ export class ByokLmBridgeRegistry implements IByokLmBridgeRegistry {
 		return this._servingEntry()?.models ?? [];
 	}
 
-	getServingConnection(): IByokLmBridgeConnection | undefined {
+	getServingConnection(clientId?: string): IByokLmBridgeConnection | undefined {
+		if (clientId !== undefined) {
+			const entry = this._entries.get(clientId);
+			return entry?.models !== undefined ? entry.connection : undefined;
+		}
 		return this._servingEntry()?.connection;
 	}
 
 	/**
 	 * A serving connection (`models` defined), preferring one whose model set is
-	 * non-empty. All serving windows expose the same models, so any populated one
-	 * is equivalent; the preference matters when a still-starting window pushes an
+	 * non-empty. The preference matters when a still-starting window pushes an
 	 * empty list first — it must not shadow a peer that already has them. Falls
 	 * back to a serving-but-empty window; non-serving windows are skipped.
 	 */
