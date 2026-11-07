@@ -418,9 +418,19 @@ export class ExtHostNotebookKernels implements ExtHostNotebookKernelsShape {
 			return;
 		}
 
+		// The document may already be gone when its cancellation arrives, e.g when the
+		// notebook was closed or the extension host restarted while cancellation was in
+		// flight. There is nothing left to cancel then.
+		// (https://github.com/microsoft/vscode/issues/187448)
+		const revivedUri = URI.revive(uri);
+		const document = this._extHostNotebook.getNotebookDocument(revivedUri, true);
+		if (!document) {
+			this._logService.trace(`NotebookController[${handle}] cancel cells ignored, notebook is gone`, revivedUri.toString());
+			return;
+		}
+
 		// cancel or interrupt depends on the controller. When an interrupt handler is used we
 		// don't trigger the cancelation token of executions.
-		const document = this._extHostNotebook.getNotebookDocument(URI.revive(uri));
 		if (obj.controller.interruptHandler) {
 			await obj.controller.interruptHandler.call(obj.controller, document.apiNotebook);
 
