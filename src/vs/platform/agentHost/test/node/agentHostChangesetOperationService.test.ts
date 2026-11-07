@@ -133,6 +133,7 @@ class TestGitStateService implements IAgentHostGitStateService {
  */
 class TestConfigurationService implements IAgentConfigurationService {
 	declare readonly _serviceBrand: undefined;
+	readonly copilotM365EnabledAtStartup = false;
 
 	readonly onDidRootConfigChange = Event.None;
 	readonly onDidSessionConfigChange = Event.None;
