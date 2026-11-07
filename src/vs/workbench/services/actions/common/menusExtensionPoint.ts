@@ -587,6 +587,7 @@ namespace schema {
 		alt?: string;
 		when?: string;
 		group?: string;
+		toggled?: string;
 	}
 
 	export interface IUserFriendlySubmenuItem {
@@ -620,6 +621,10 @@ namespace schema {
 		}
 		if (item.group && typeof item.group !== 'string') {
 			collector.error(localize('optstring', "property `{0}` can be omitted or must be of type `string`", 'group'));
+			return false;
+		}
+		if (item.toggled && typeof item.toggled !== 'string') {
+			collector.error(localize('optstring', "property `{0}` can be omitted or must be of type `string`", 'toggled'));
 			return false;
 		}
 
@@ -700,6 +705,10 @@ namespace schema {
 			},
 			group: {
 				description: localize('vscode.extension.contributes.menuItem.group', 'Group into which this item belongs'),
+				type: 'string'
+			},
+			toggled: {
+				description: localize('vscode.extension.contributes.menuItem.toggled', 'Condition which marks this item as toggled'),
 				type: 'string'
 			}
 		}
@@ -1105,7 +1114,15 @@ menusExtensionPoint.setHandler(extensions => {
 						collector.info(localize('dupe.command', "Menu item references the same command as default and alt-command"));
 					}
 
-					item = { command, alt, group: undefined, order: undefined, when: undefined };
+					item = {
+						command: menuItem.toggled
+							? { ...command, toggled: ContextKeyExpr.deserialize(menuItem.toggled) }
+							: command,
+						alt,
+						group: undefined,
+						order: undefined,
+						when: undefined
+					};
 				} else {
 					if (menu.supportsSubmenus === false) {
 						collector.error(localize('unsupported.submenureference', "Menu item references a submenu for a menu which doesn't have submenu support."));

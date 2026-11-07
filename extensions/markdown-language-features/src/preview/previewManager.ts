@@ -82,12 +82,14 @@ export class MarkdownPreviewManager extends Disposable implements vscode.Webview
 	readonly #staticPreviews = this._register(new PreviewStore<StaticMarkdownPreview>());
 
 	#activePreview: IManagedMarkdownPreview | undefined = undefined;
+	#tocVisible: boolean;
 
 	readonly #contentProvider: MdDocumentRenderer;
 	readonly #logger: ILogger;
 	readonly #contributions: MarkdownContributionProvider;
 	readonly #opener: MdLinkOpener;
 	readonly #renderedDiffWarning: RenderedDiffWarningManager;
+	readonly #globalState: vscode.Memento;
 
 	public constructor(
 		contentProvider: MdDocumentRenderer,
@@ -95,6 +97,7 @@ export class MarkdownPreviewManager extends Disposable implements vscode.Webview
 		contributions: MarkdownContributionProvider,
 		opener: MdLinkOpener,
 		workspaceState: vscode.Memento,
+		globalState: vscode.Memento,
 	) {
 		super();
 
@@ -102,6 +105,8 @@ export class MarkdownPreviewManager extends Disposable implements vscode.Webview
 		this.#logger = logger;
 		this.#contributions = contributions;
 		this.#opener = opener;
+		this.#globalState = globalState;
+		this.#tocVisible = globalState.get('markdown.preview.tocVisible', true);
 		this.#renderedDiffWarning = this._register(new RenderedDiffWarningManager(workspaceState));
 
 		this._register(vscode.window.registerWebviewPanelSerializer(DynamicMarkdownPreview.viewType, this));
@@ -188,6 +193,16 @@ export class MarkdownPreviewManager extends Disposable implements vscode.Webview
 		}
 	}
 
+	public toggleTableOfContents() {
+		this.#tocVisible = !this.#tocVisible;
+		this.#globalState.update('markdown.preview.tocVisible', this.#tocVisible);
+		this.#activePreview?.toggleTableOfContents();
+	}
+
+	public isTableOfContentsVisible(): boolean {
+		return this.#tocVisible;
+	}
+
 	public openDocumentLink(linkText: string, fromResource: vscode.Uri) {
 		const viewColumn = this.findPreview(fromResource)?.resourceColumn;
 		return this.#opener.openDocumentLink(linkText, fromResource, viewColumn);
@@ -211,10 +226,11 @@ export class MarkdownPreviewManager extends Disposable implements vscode.Webview
 				this.#logger,
 				this.#topmostLineMonitor,
 				this.#contributions,
-				this.#opener);
+					this.#opener,
+					this.#tocVisible);
 
-			this.#registerDynamicPreview(preview);
-		} catch (e) {
+				this.#registerDynamicPreview(preview);
+			} catch (e) {
 			console.error(e);
 
 			webview.webview.html = /* html */`<!DOCTYPE html>
@@ -311,12 +327,13 @@ export class MarkdownPreviewManager extends Disposable implements vscode.Webview
 			this.#opener,
 			lineNumber,
 			getLineChanges,
-			getDiffScrollSync
-		);
-		this.#registerStaticPreview(preview);
-		this.#setActivePreview(preview);
-		return preview;
-	}
+				getDiffScrollSync,
+				this.#tocVisible
+			);
+			this.#registerStaticPreview(preview);
+			this.#setActivePreview(preview);
+			return preview;
+		}
 
 	#refreshPreviewWhenDocumentChanges(preview: StaticMarkdownPreview, document: vscode.TextDocument): void {
 		const listener = vscode.workspace.onDidChangeTextDocument(event => {
@@ -345,11 +362,12 @@ export class MarkdownPreviewManager extends Disposable implements vscode.Webview
 			this.#logger,
 			this.#topmostLineMonitor,
 			this.#contributions,
-			this.#opener);
+				this.#opener,
+				this.#tocVisible);
 
-		this.#setActivePreview(preview);
-		return this.#registerDynamicPreview(preview);
-	}
+			this.#setActivePreview(preview);
+			return this.#registerDynamicPreview(preview);
+		}
 
 	#getActiveTextEditorScrollLocation(resource: vscode.Uri): StartingScrollLine | undefined {
 		const editor = vscode.window.activeTextEditor;
@@ -403,6 +421,7 @@ export class MarkdownPreviewManager extends Disposable implements vscode.Webview
 	#setActivePreview(preview: IManagedMarkdownPreview | undefined): void {
 		this.#activePreview = preview;
 		this.#renderedDiffWarning.setActiveDiffPreview(!!preview?.isDiffView);
+		void vscode.commands.executeCommand('setContext', 'markdown.tocVisible', this.#tocVisible);
 	}
 
 }

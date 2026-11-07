@@ -123,11 +123,16 @@ export namespace ToWebviewMessage {
 		readonly imageSource: string;
 	}
 
+	export interface ToggleTableOfContents extends BaseMessage {
+		readonly type: 'toggleTableOfContents';
+	}
+
 	export type Type =
 		| OnDidChangeTextEditorSelection
 		| UpdateView
 		| UpdateContent
 		| CopyImageContent
 		| OpenImageContent
+		| ToggleTableOfContents
 		;
 }
