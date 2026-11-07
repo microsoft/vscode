@@ -4,7 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { Dimension } from '../../../../base/browser/dom.js';
+import { Dimension, getWindow } from '../../../../base/browser/dom.js';
+import { StandardMouseEvent } from '../../../../base/browser/mouseEvent.js';
 import { toDisposable } from '../../../../base/common/lifecycle.js';
 import { mock } from '../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
@@ -15,6 +16,10 @@ import { emptyProgressRunner, IEditorProgressService } from '../../../../platfor
 import { IDiffProviderFactoryService } from '../../../browser/widget/diffEditor/diffProviderFactoryService.js';
 import { DiffEditorOptions } from '../../../browser/widget/diffEditor/diffEditorOptions.js';
 import { DiffEditorWidget } from '../../../browser/widget/diffEditor/diffEditorWidget.js';
+import { CodeEditorWidget } from '../../../browser/widget/codeEditor/codeEditorWidget.js';
+import { MouseTargetType } from '../../../browser/editorBrowser.js';
+import { Position } from '../../../common/core/position.js';
+import { Range } from '../../../common/core/range.js';
 import { DiffEditorViewModel, UnchangedRegion } from '../../../browser/widget/diffEditor/diffEditorViewModel.js';
 import { RefCounted } from '../../../browser/widget/diffEditor/utils.js';
 import { LineRange } from '../../../common/core/ranges/lineRange.js';
@@ -26,6 +31,80 @@ import { createCodeEditorServices } from '../testCodeEditor.js';
 suite('DiffEditorWidget2', () => {
 
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('inline deleted margins share the editor mouse move listener', async () => {
+		const services = new ServiceCollection();
+		services.set(IAccessibilitySignalService, new class extends mock<IAccessibilitySignalService>() { }());
+		services.set(IEditorProgressService, new class extends mock<IEditorProgressService>() {
+			override show() { return emptyProgressRunner; }
+		}());
+		services.set(IDiffProviderFactoryService, new TestDiffProviderFactoryService());
+		const instantiationService = createCodeEditorServices(disposables, services);
+		const container = document.createElement('div');
+		document.body.appendChild(container);
+		disposables.add(toDisposable(() => container.remove()));
+		const lines = Array.from({ length: 40 }, (_, i) => `unchanged ${i}\nkeep ${i}\nmore ${i}\n`);
+		const original = disposables.add(instantiateTextModel(instantiationService, lines.map((line, i) => `deleted ${i}\n${line}`).join('')));
+		const modified = disposables.add(instantiateTextModel(instantiationService, lines.join('')));
+		const widget = disposables.add(instantiationService.createInstance(DiffEditorWidget, container, {
+			renderSideBySide: true,
+			useInlineViewWhenSpaceIsLimited: false,
+			renderGutterMenu: false,
+			experimental: { useTrueInlineView: false },
+		}, {
+			originalEditor: { contributions: [] },
+			modifiedEditor: { contributions: [] },
+		}));
+		const model = disposables.add(RefCounted.create(widget.createViewModel({ original, modified })));
+		widget.layout(new Dimension(800, 500));
+		widget.setDiffModel(model);
+		try {
+			await widget.waitForDiff();
+			const editor = widget.getModifiedEditor();
+			assert.ok(editor instanceof CodeEditorWidget);
+			// eslint-disable-next-line local/code-no-bracket-notation-for-identifiers
+			const mouseMoveEmitter = editor['_onMouseMove'];
+			// eslint-disable-next-line local/code-no-bracket-notation-for-identifiers
+			const listenerCount = () => mouseMoveEmitter['_size'];
+			const sideBySideListeners = listenerCount();
+			widget.updateOptions({ renderSideBySide: false });
+			const inlineListeners = listenerCount();
+			const margins = container.querySelectorAll<HTMLElement>('.inline-deleted-margin-view-zone');
+			const visibility = () => Array.from(margins).slice(0, 2).map(margin => margin.querySelector<HTMLElement>('.lightbulb-glyph')!.style.visibility);
+			const moveToMargin = (index: number, type: MouseTargetType.CONTENT_VIEW_ZONE | MouseTargetType.GUTTER_VIEW_ZONE, viewZoneId = margins[index].getAttribute('monaco-view-zone')!) => {
+				const position = new Position(1, 1);
+				mouseMoveEmitter.fire({
+					event: new StandardMouseEvent(getWindow(container), new MouseEvent('mousemove', { clientY: margins[index].getBoundingClientRect().top + 2 })),
+					target: {
+						type, element: margins[index], mouseColumn: 1, position, range: Range.fromPositions(position),
+						detail: { viewZoneId, position, positionBefore: null, positionAfter: position, afterLineNumber: 0 },
+					},
+				});
+			};
+			moveToMargin(0, MouseTargetType.CONTENT_VIEW_ZONE);
+			const firstHovered = visibility();
+			moveToMargin(1, MouseTargetType.GUTTER_VIEW_ZONE);
+			const secondHovered = visibility();
+			moveToMargin(1, MouseTargetType.GUTTER_VIEW_ZONE, 'unrelated-view-zone');
+			const leftMargins = visibility();
+			widget.updateOptions({ renderSideBySide: true });
+			assert.deepStrictEqual({
+				marginCount: margins.length,
+				inlineListeners,
+				sideBySideAgainListeners: listenerCount(),
+				firstHovered, secondHovered, leftMargins,
+			}, {
+				marginCount: 40,
+				inlineListeners: sideBySideListeners,
+				sideBySideAgainListeners: sideBySideListeners,
+				firstHovered: ['visible', 'hidden'],
+				secondHovered: ['hidden', 'visible'],
+				leftMargins: ['hidden', 'hidden'],
+			});
+		} finally {
+			widget.setDiffModel(null);
+		}
+	});
 
 	for (const renderSideBySide of [true, false]) {
 		test(`compact disclosures expand and collapse with a persistent keyboard target (side by side: ${renderSideBySide})`, async () => {
