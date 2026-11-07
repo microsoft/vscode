@@ -54,7 +54,8 @@ import { IAgentHostCustomizationService } from './agentHostCustomizationService.
 import { IAgentHostProtectedResourcesService } from './agentHostProtectedResourcesService.js';
 import { AICustomizationManagementSection } from '../../../common/aiCustomizationWorkspaceService.js';
 import { readAgentModelCatalogStatus } from '../../../../../../platform/agentHost/common/agentModelCatalogStatus.js';
-import { readCopilotAccountContext } from '../../../../../../platform/agentHost/common/copilotAccountContext.js';
+import { readCopilotAccountContext, type CopilotAccountContext } from '../../../../../../platform/agentHost/common/copilotAccountContext.js';
+import { equals } from '../../../../../../base/common/objects.js';
 import './agentHostCopilotAccountService.js';
 import { observableConfigValue } from '../../../../../../platform/observable/common/platformObservableUtils.js';
 import { BrowserRemoteProxyEnabledSettingId } from '../../../../browserView/common/browserView.js';
@@ -567,7 +568,7 @@ export class AgentHostContribution extends Disposable implements IWorkbenchContr
 	private _copilotAccountContext() {
 		const root = this._agentHostService.rootState.value;
 		const context = root && !(root instanceof Error) ? readCopilotAccountContext(root) : undefined;
-		return context ? { ...context, entraAccountId: context.kind === 'signedOut' ? undefined : context.entraAccountId } : undefined;
+		return context?.kind === 'signedOut' ? { ...context, entraAccountId: undefined } : context;
 	}
 
 	/**
@@ -577,7 +578,7 @@ export class AgentHostContribution extends Disposable implements IWorkbenchContr
 	 * to the server. Returns true if authentication succeeded.
 	 */
 	private async _resolveAuthenticationInteractively(protectedResources: readonly ProtectedResourceMetadata[]): Promise<boolean> {
-		return this._resolveAuthenticationInteractivelyForSession(protectedResources);
+		return this._resolveAuthenticationInteractivelyForSession(protectedResources, undefined, this._copilotAccountContext());
 	}
 
 	private async _resolveMarketplaceAuthenticationInteractively(protectedResources: readonly ProtectedResourceMetadata[]): Promise<boolean> {
@@ -590,7 +591,7 @@ export class AgentHostContribution extends Disposable implements IWorkbenchContr
 		return account ? this._resolveAuthenticationInteractivelyForSession(protectedResources, account.sessionId) : false;
 	}
 
-	private async _resolveAuthenticationInteractivelyForSession(protectedResources: readonly ProtectedResourceMetadata[], preferredSessionId?: string): Promise<boolean> {
+	private async _resolveAuthenticationInteractivelyForSession(protectedResources: readonly ProtectedResourceMetadata[], preferredSessionId?: string, copilotAccountContext?: CopilotAccountContext): Promise<boolean> {
 		const generation = this._authenticationGeneration;
 		if (!this._isAuthenticationCurrent(generation)) {
 			return false;
@@ -606,9 +607,11 @@ export class AgentHostContribution extends Disposable implements IWorkbenchContr
 		}
 		return this._instantiationService.invokeFunction(resolveAuthenticationInteractively, protectedResources, {
 			authTokenCache: this._authTokenCache,
+			copilotAccountContext,
+			microsoftAccountId: this._copilotAccountContext()?.entraAccountId,
 			logPrefix: '[AgentHost]',
 			preferredSessionId,
-			isCurrent: () => this._isAuthenticationCurrent(generation),
+			isCurrent: () => this._isAuthenticationCurrent(generation) && (!copilotAccountContext || equals(copilotAccountContext, this._copilotAccountContext())),
 			authenticate: request => this._authenticateIfCurrent(request, generation),
 		});
 	}

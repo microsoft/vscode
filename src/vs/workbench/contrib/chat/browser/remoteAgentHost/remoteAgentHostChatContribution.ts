@@ -28,6 +28,7 @@ import { Registry } from '../../../../../platform/registry/common/platform.js';
 import { IWorkbenchContribution } from '../../../../common/contributions.js';
 import { autoAuthenticateMcpServer, authenticateAgentProtectedResourcesWithToken, authenticateProtectedResources, authenticateProtectedResourcesWithToken, AgentHostAuthenticationRecovery, AgentHostAuthTokenCache, resolveAuthenticationInteractively, revokeAuthenticationForRemovedSessions } from '../agentSessions/agentHost/agentHostAuth.js';
 import { readCopilotAccountContext } from '../../../../../platform/agentHost/common/copilotAccountContext.js';
+import { equals } from '../../../../../base/common/objects.js';
 import { AgentHostLanguageModelProvider, agentHostProviderSupportsAutoModel } from '../agentSessions/agentHost/agentHostLanguageModelProvider.js';
 import { AgentHostSessionHandler } from '../agentSessions/agentHost/agentHostSessionHandler.js';
 import { AgentHostDownloadProgress } from '../agentSessions/agentHost/agentHostDownloadProgress.js';
@@ -635,7 +636,7 @@ export class RemoteAgentHostContribution extends Disposable implements IWorkbenc
 	private _copilotAccountContext(connection: IAgentConnection) {
 		const root = connection.rootState.value;
 		const context = root && !(root instanceof Error) ? readCopilotAccountContext(root) : undefined;
-		return context ? { ...context, entraAccountId: context.kind === 'signedOut' ? undefined : context.entraAccountId } : undefined;
+		return context?.kind === 'signedOut' ? { ...context, entraAccountId: undefined } : context;
 	}
 
 	private _handleAuthenticationRequiredNotification(address: string, connection: IAgentConnection, notification: INotification): void {
@@ -700,7 +701,9 @@ export class RemoteAgentHostContribution extends Disposable implements IWorkbenc
 	 * Returns true if authentication succeeded.
 	 */
 	private async _resolveAuthenticationInteractively(address: string, connection: IAgentConnection, protectedResources: readonly ProtectedResourceMetadata[]): Promise<boolean> {
-		const authTokenCache = this._connections.get(address)?.authTokenCache;
+		const connState = this._connections.get(address);
+		const authTokenCache = connState?.authTokenCache;
+		const copilotAccountContext = this._copilotAccountContext(connection);
 		const testToken = this._getScenarioAutomationToken();
 		if (testToken !== undefined) {
 			await authenticateProtectedResourcesWithToken(protectedResources, testToken, {
@@ -711,7 +714,10 @@ export class RemoteAgentHostContribution extends Disposable implements IWorkbenc
 		}
 		return this._instantiationService.invokeFunction(resolveAuthenticationInteractively, protectedResources, {
 			authTokenCache,
+			copilotAccountContext,
+			microsoftAccountId: copilotAccountContext?.entraAccountId,
 			logPrefix: '[RemoteAgentHost]',
+			isCurrent: () => this._connections.get(address) === connState && equals(copilotAccountContext, this._copilotAccountContext(connection)),
 			authenticate: this._authenticateCallback(address, connection),
 		});
 	}
