@@ -4,8 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
+import { renderMarkdown } from '../../../../../../../base/browser/markdownRenderer.js';
 import { CancellationToken } from '../../../../../../../base/common/cancellation.js';
 import { VSBuffer } from '../../../../../../../base/common/buffer.js';
+import { isMarkdownString } from '../../../../../../../base/common/htmlContent.js';
+import { toDisposable } from '../../../../../../../base/common/lifecycle.js';
 import { URI } from '../../../../../../../base/common/uri.js';
 import { ResourceMap } from '../../../../../../../base/common/map.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../../base/test/common/utils.js';
@@ -24,6 +27,7 @@ import { Event } from '../../../../../../../base/common/event.js';
 import { AgentNetworkFilterService, IAgentNetworkFilterService } from '../../../../../../../platform/networkFilter/common/networkFilterService.js';
 import { AgentNetworkDomainSettingId } from '../../../../../../../platform/networkFilter/common/settings.js';
 import { TestConfigurationService } from '../../../../../../../platform/configuration/test/common/testConfigurationService.js';
+import { getChatMarkdownRenderOptions } from '../../../../browser/widget/chatContentMarkdownRenderer.js';
 
 class TestWebContentExtractorService implements IWebContentExtractorService {
 	_serviceBrand: undefined;
@@ -348,6 +352,189 @@ suite('FetchWebPageTool', () => {
 		const messageText = typeof preparation.pastTenseMessage === 'string' ? preparation.pastTenseMessage : preparation.pastTenseMessage!.value;
 		assert.ok(messageText.includes('Fetched'), 'Should mention fetched resources');
 		assert.ok(messageText.includes('invalid://invalid'), 'Should mention invalid URL');
+	});
+
+	test('preserves complete confirmation links for mouse and keyboard activation', async () => {
+		const cases = [
+			{
+				url: 'https://registry.npmjs.org/-/v1/search?text=foo bar&size=20',
+				label: 'https://registry.npmjs.org/-/v1/search?text=foo bar&size=20',
+				target: 'https://registry.npmjs.org/-/v1/search?text=foo%20bar&size=20',
+			},
+			{
+				url: 'https://example.com/a (b)?text=[foo] *bar* `baz`&size=20',
+				label: 'https://example.com/a%20(b)?text=[foo] *bar* `baz`&size=20',
+				target: 'https://example.com/a%20(b)?text=[foo]%20*bar*%20`baz`&size=20',
+			},
+			{
+				url: 'https://example.com/caf\u00e9?text=\u732b \u72ac&size=20',
+				label: 'https://example.com/caf%C3%A9?text=\u732b \u72ac&size=20',
+				target: 'https://example.com/caf%C3%A9?text=\u732b%20\u72ac&size=20',
+			},
+			{
+				url: 'https://example.com/search?text=foo%20bar&size=20',
+				label: 'https://example.com/search?text=foo bar&size=20',
+				target: 'https://example.com/search?text=foo%20bar&size=20',
+			},
+			{
+				url: 'https://example.com/search?text=<b>foo</b> [run](command:run)&icon=$(zap)',
+				label: 'https://example.com/search?text=<b>foo</b> [run](command:run)&icon=$(zap)',
+				target: 'https://example.com/search?text=<b>foo</b>%20[run](command:run)&icon=$(zap)',
+			},
+		];
+
+		for (const group of [...cases.map(value => [value]), cases]) {
+			const urls = group.map(value => value.url);
+			const requestedUris: URI[] = [];
+			const extractor: IWebContentExtractorService = {
+				_serviceBrand: undefined,
+				extract: async uris => {
+					requestedUris.push(...uris);
+					return uris.map(() => ({ status: 'ok', result: 'Fetched content' }));
+				},
+			};
+			const tool = new FetchWebPageTool(
+				extractor,
+				new ExtendedTestFileService(new ResourceMap<string | VSBuffer>()),
+				new MockTrustedDomainService([]),
+				new MockChatService(),
+				new TestContextService(),
+				new MockAgentNetworkFilterService(),
+			);
+			const preparation = await tool.prepareToolInvocation(
+				{ parameters: { urls }, toolCallId: 'confirmation-links', chatSessionResource: undefined },
+				CancellationToken.None
+			);
+			const message = preparation?.confirmationMessages?.message;
+			assert.ok(isMarkdownString(message));
+			const opened: string[] = [];
+			const { element } = disposables.add(renderMarkdown(message, getChatMarkdownRenderOptions({
+				actionHandler: link => { opened.push(link); },
+			})));
+			disposables.add(toDisposable(() => element.remove()));
+			document.body.appendChild(element);
+			const links = Array.from(element.querySelectorAll('a'), anchor => {
+				anchor.click();
+				anchor.focus();
+				anchor.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', keyCode: 13, bubbles: true, cancelable: true }));
+				return {
+					label: anchor.textContent,
+					target: anchor.dataset.href,
+					href: anchor.getAttribute('href'),
+					tabIndex: anchor.tabIndex,
+					focused: document.activeElement === anchor,
+				};
+			});
+			const requestsBeforeInvocation = requestedUris.length;
+			await tool.invoke(
+				{ callId: 'confirmation-links', toolId: InternalFetchWebPageToolId, parameters: { urls }, context: undefined },
+				() => Promise.resolve(0),
+				{ report: () => { } },
+				CancellationToken.None
+			);
+
+			assert.deepStrictEqual({
+				title: preparation?.confirmationMessages?.title,
+				links,
+				listItems: element.querySelectorAll('li').length,
+				injectedMarkup: element.querySelectorAll('b, img, code, em, strong, .codicon').length,
+				trusted: !!message.isTrusted,
+				opened,
+				requestsBeforeInvocation,
+				fetched: requestedUris.map(uri => uri.toString(true)),
+			}, {
+				title: group.length === 1 ? 'Fetch web page?' : 'Fetch web pages?',
+				links: group.map(({ label, target }) => ({ label, target, href: target, tabIndex: 0, focused: true })),
+				listItems: group.length === 1 ? 0 : group.length,
+				injectedMarkup: 0,
+				trusted: false,
+				opened: group.flatMap(({ target }) => [target, target]),
+				requestsBeforeInvocation: 0,
+				fetched: group.map(({ label }) => label),
+			});
+		}
+	});
+
+	test('confirmation links exclude unsupported schemes and preserve trusted-domain approval', async () => {
+		const url = 'https://example.com/search?text=foo bar&size=20';
+		const unsupportedUrls = ['javascript:alert(1)', 'command:run', 'data:text/html,test', 'ftp://example.com/file'];
+		for (const trustedDomains of [[], ['https://example.com']]) {
+			const tool = new FetchWebPageTool(
+				new TestWebContentExtractorService(new ResourceMap<string>()),
+				new ExtendedTestFileService(new ResourceMap<string | VSBuffer>()),
+				new MockTrustedDomainService(trustedDomains),
+				new MockChatService(),
+				new TestContextService(),
+				new MockAgentNetworkFilterService(),
+			);
+			const preparation = await tool.prepareToolInvocation(
+				{ parameters: { urls: [url, ...unsupportedUrls] }, toolCallId: 'confirmation-schemes', chatSessionResource: undefined },
+				CancellationToken.None
+			);
+			const message = preparation?.confirmationMessages?.message;
+			const links = isMarkdownString(message)
+				? Array.from(disposables.add(renderMarkdown(message, getChatMarkdownRenderOptions())).element.querySelectorAll('a'), anchor => ({
+					label: anchor.textContent,
+					target: anchor.dataset.href,
+				}))
+				: [];
+			assert.deepStrictEqual({
+				title: preparation?.confirmationMessages?.title,
+				links,
+			}, trustedDomains.length ? {
+				title: undefined,
+				links: [],
+			} : {
+				title: 'Fetch web page?',
+				links: [{ label: url, target: 'https://example.com/search?text=foo%20bar&size=20' }],
+			});
+		}
+	});
+
+	test('file confirmation links open the same percent-containing path that approval reads', async () => {
+		const uri = URI.file('/outside/report%20final [copy].txt');
+		const readUris: URI[] = [];
+		const fileService = new class extends ExtendedTestFileService {
+			override async readFile(resource: URI, options?: IReadFileOptions): Promise<IFileContent> {
+				readUris.push(resource);
+				return super.readFile(resource, options);
+			}
+		}(new ResourceMap<string | VSBuffer>([[uri, 'File content']]));
+		const tool = new FetchWebPageTool(
+			new TestWebContentExtractorService(new ResourceMap<string>()),
+			fileService,
+			new MockTrustedDomainService([]),
+			new MockChatService(),
+			new TestContextService(),
+			new MockAgentNetworkFilterService(),
+		);
+		const urls = [uri.toString()];
+		const preparation = await tool.prepareToolInvocation(
+			{ parameters: { urls }, toolCallId: 'file-link', chatSessionResource: undefined },
+			CancellationToken.None
+		);
+		const message = preparation?.confirmationMessages?.message;
+		assert.ok(isMarkdownString(message));
+		const anchor = disposables.add(renderMarkdown(message, getChatMarkdownRenderOptions())).element.querySelector('a');
+		assert.ok(anchor?.dataset.href);
+		await tool.invoke(
+			{ callId: 'file-link', toolId: InternalFetchWebPageToolId, parameters: { urls }, context: undefined },
+			async () => 0,
+			{ report: () => { } },
+			CancellationToken.None
+		);
+
+		assert.deepStrictEqual({
+			label: anchor.textContent,
+			target: anchor.dataset.href,
+			openedPath: URI.parse(anchor.dataset.href).path,
+			readPaths: readUris.map(resource => resource.path),
+		}, {
+			label: 'file:///outside/report%20final [copy].txt',
+			target: 'file:///outside/report%2520final%20%5Bcopy%5D.txt',
+			openedPath: '/outside/report%20final [copy].txt',
+			readPaths: ['/outside/report%20final [copy].txt'],
+		});
 	});
 
 	test('authorityless HTTPS URL with encoded user information requires confirmation', async () => {

@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { escapeMarkdownLinkText, MarkdownString } from '../../../../../base/common/htmlContent.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { AccessibleViewRegistry } from '../../../../../platform/accessibility/browser/accessibleViewRegistry.js';
@@ -66,6 +67,27 @@ suite('InboxNotificationsAccessibility', () => {
 			},
 		}]);
 		assert.deepStrictEqual(['npm test', 'Runs outside the sandbox', 'Open the session to review the full request and respond.'].map(text => content.includes(text)), [true, true, true]);
+	});
+
+	test('preserves literal URL labels in single and multiple fetch confirmations', () => {
+		const urls = [
+			'https://registry.npmjs.org/-/v1/search?text=foo bar&size=20',
+			'https://example.com/?text=<b>[foo]</b>&icon=$(zap)',
+		];
+		const renderedUrls = [urls.slice(0, 1), urls].map(group => {
+			const links = group.map(url => new MarkdownString().appendLink(url, escapeMarkdownLinkText(url)).value);
+			const content = buildInboxNotificationsAccessibleContent([{
+				kind: InboxNotificationKind.NeedsInput, priority: InboxNotificationPriority.Now, title: 'Fetch resources', description: '',
+				needsInputPart: {
+					kind: 'toolConfirmation', chatResource: URI.parse('test:///chat'), requestId: 'request', toolCallId: 'fetch',
+					confirmationKind: 'execution', title: 'Fetch resources?', buttons: [],
+					message: new MarkdownString(group.length === 1 ? links[0] : links.map(link => `- ${link}`).join('\n')),
+				},
+			}]);
+			return content.split('\n').filter(line => line.includes('https'));
+		});
+
+		assert.deepStrictEqual(renderedUrls, [urls.slice(0, 1), urls]);
 	});
 
 	test('describes a synthetic Working row by its workflow rather than Completed', () => {

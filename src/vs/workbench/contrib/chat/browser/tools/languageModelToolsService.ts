@@ -735,7 +735,10 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 					? undefined
 					: fallbackAutoConfirmed ?? (preToolUseHookResult?.permissionDecision === 'ask' ? undefined : dto.preApproved);
 				if (preparedInvocation?.confirmationMessages?.title && !autoConfirmed) {
-					const result = await this._dialogService.confirm({ message: renderAsPlaintext(preparedInvocation.confirmationMessages.title), detail: renderAsPlaintext(preparedInvocation.confirmationMessages.message!) });
+					const result = await this._dialogService.confirm({
+						message: renderAsPlaintext(preparedInvocation.confirmationMessages.title),
+						detail: renderAsPlaintext(preparedInvocation.confirmationMessages.message!, { omitMarkdownSyntax: true }),
+					});
 					if (!result.confirmed) {
 						throw new CancellationError();
 					}

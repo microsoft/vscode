@@ -363,8 +363,12 @@ export interface IChatResponsePlaintextPart {
  * icons. Shared by the accessible view and chat transcript Find so both
  * present the exact same text for a given message.
  */
-export function renderChatMessageAsPlaintext(message: string | IMarkdownString): string {
-	return typeof message === 'string' ? message : stripIcons(renderAsPlaintext(message, { useLinkFormatter: true }));
+export function renderChatMessageAsPlaintext(message: string | IMarkdownString, options?: { readonly omitMarkdownSyntax?: boolean }): string {
+	if (typeof message === 'string') {
+		return message;
+	}
+	const text = renderAsPlaintext(message, { useLinkFormatter: true, ...options });
+	return message.supportThemeIcons === false ? text : stripIcons(text);
 }
 
 /**
@@ -478,7 +482,7 @@ export function getChatResponsePlaintextParts(item: IChatResponseViewModel, incl
 				const originMessage = part.originMessage ? renderChatMessageAsPlaintext(part.originMessage) : undefined;
 				if (state.type === IChatToolInvocation.StateKind.WaitingForConfirmation && state.confirmationMessages?.title) {
 					const title = renderChatMessageAsPlaintext(state.confirmationMessages.title);
-					const message = state.confirmationMessages.message ? renderChatMessageAsPlaintext(state.confirmationMessages.message) : '';
+					const message = state.confirmationMessages.message ? renderChatMessageAsPlaintext(state.confirmationMessages.message, { omitMarkdownSyntax: true }) : '';
 					const toolDataDesc = getToolSpecificDataDescription(part.toolSpecificData);
 					let toolContent = title;
 					if (toolDataDesc) {
