@@ -213,7 +213,7 @@ class MinimapOptions {
 	}
 }
 
-class MinimapLayout {
+export class MinimapLayout {
 
 	constructor(
 		/**
@@ -280,10 +280,11 @@ class MinimapLayout {
 	}
 
 	public static create(
-		options: MinimapOptions,
+		options: Pick<MinimapOptions, 'pixelRatio' | 'minimapLineHeight' | 'canvasInnerHeight' | 'lineHeight' | 'minimapHeightIsEditorHeight' | 'minimapHeight' | 'paddingTop' | 'paddingBottom' | 'scrollBeyondLastLine'>,
 		viewportStartLineNumber: number,
 		viewportEndLineNumber: number,
 		viewportStartLineNumberVerticalOffset: number,
+		viewportStartLineNumberLineHeight: number,
 		viewportHeight: number,
 		viewportContainsWhitespaceGaps: boolean,
 		lineCount: number,
@@ -401,7 +402,9 @@ class MinimapLayout {
 			}
 
 			const endLineNumber = Math.min(lineCount, startLineNumber - topPaddingLineCount + minimapLinesFitting - 1);
-			const partialLine = (scrollTop - viewportStartLineNumberVerticalOffset) / lineHeight;
+			// When the viewport starts inside a view zone, the top padding or a taller line, the first
+			// visible line does not start at `scrollTop`; clamp so the slider never moves backwards
+			const partialLine = Math.min(Math.max(0, scrollTop - viewportStartLineNumberVerticalOffset), viewportStartLineNumberLineHeight) / viewportStartLineNumberLineHeight;
 
 			let sliderTopAligned: number;
 			if (scrollTop >= options.paddingTop) {
@@ -587,6 +590,7 @@ interface IMinimapRenderingContext {
 	readonly viewportStartLineNumber: number;
 	readonly viewportEndLineNumber: number;
 	readonly viewportStartLineNumberVerticalOffset: number;
+	readonly viewportStartLineNumberLineHeight: number;
 
 	readonly scrollTop: number;
 	readonly scrollLeft: number;
@@ -979,6 +983,7 @@ export class Minimap extends ViewPart implements IMinimapModel {
 			viewportStartLineNumber: viewportStartLineNumber,
 			viewportEndLineNumber: viewportEndLineNumber,
 			viewportStartLineNumberVerticalOffset: ctx.getVerticalOffsetForLineNumber(viewportStartLineNumber),
+			viewportStartLineNumberLineHeight: ctx.getLineHeightForLineNumber(viewportStartLineNumber),
 
 			scrollTop: ctx.scrollTop,
 			scrollLeft: ctx.scrollLeft,
@@ -1530,6 +1535,7 @@ class InnerMinimap extends Disposable {
 			renderingCtx.viewportStartLineNumber,
 			renderingCtx.viewportEndLineNumber,
 			renderingCtx.viewportStartLineNumberVerticalOffset,
+			renderingCtx.viewportStartLineNumberLineHeight,
 			renderingCtx.viewportHeight,
 			renderingCtx.viewportContainsWhitespaceGaps,
 			this._model.getLineCount(),
