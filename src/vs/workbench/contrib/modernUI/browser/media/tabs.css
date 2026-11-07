@@ -34,7 +34,7 @@
 	--modern-ui-editor-tab-unfocused-active-hover-background: var(--modern-ui-editor-tab-active-hover-background);
 	--modern-ui-editor-tab-active-foreground: var(--vscode-modernEditorTab-activeForeground);
 	--modern-ui-editor-tab-unfocused-active-foreground: var(--modern-ui-editor-tab-active-foreground);
-	--modern-ui-editor-tab-inactive-foreground: color-mix(in srgb, var(--vscode-foreground) 50%, transparent);
+	--modern-ui-editor-tab-inactive-foreground: var(--vscode-modernEditorTab-inactiveForeground);
 	--modern-ui-editor-tab-unfocused-inactive-foreground: var(--modern-ui-editor-tab-inactive-foreground);
 	--modern-ui-editor-tab-hover-foreground: var(--vscode-modernEditorTab-hoverForeground);
 	--modern-ui-editor-tab-unfocused-hover-foreground: var(--modern-ui-editor-tab-hover-foreground);
