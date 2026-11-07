@@ -7,6 +7,7 @@ import 'mocha';
 import * as assert from 'assert';
 import { workspace, extensions, Uri, commands } from 'vscode';
 import { findPullRequestTemplates, pickPullRequestTemplate } from '../pushErrorHandler.js';
+import { getUniqueRemoteName } from '../util.js';
 
 suite('github smoke test', function () {
 	const cwd = workspace.workspaceFolders![0].uri;
@@ -61,5 +62,15 @@ suite('github smoke test', function () {
 		await commands.executeCommand('workbench.action.acceptSelectedQuickOpenItem');
 
 		assert.ok(await pick === undefined);
+	});
+
+	test('getUniqueRemoteName should return the preferred name when it is not taken', () => {
+		assert.strictEqual(getUniqueRemoteName([], 'upstream'), 'upstream');
+		assert.strictEqual(getUniqueRemoteName(['origin'], 'upstream'), 'upstream');
+	});
+
+	test('getUniqueRemoteName should suffix the preferred name when it is taken', () => {
+		assert.strictEqual(getUniqueRemoteName(['origin', 'upstream'], 'upstream'), 'upstream-1');
+		assert.strictEqual(getUniqueRemoteName(['origin', 'upstream', 'upstream-1'], 'upstream'), 'upstream-2');
 	});
 });
