@@ -43,7 +43,7 @@ export class BrowserClipboardService extends BaseBrowserClipboardService {
 			type = 'vscode-tests'; // force in-memory clipboard for tests to avoid permission issues
 		}
 
-		if (type) {
+		if (type && type !== 'clipboard') {
 			this.logService.trace('BrowserClipboardService#super.readText');
 			return super.readText(type);
 		}
