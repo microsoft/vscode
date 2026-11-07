@@ -54,7 +54,7 @@ import { WindowCanvasInput } from '../../../../workbench/contrib/sessions/browse
 import { ChatOriginKind, getChatCapabilities, getGitHubPullRequestRefs, getHighestPriorityPullRequestIcon, getSessionPresentationWorkspace, getSessionWorkspaceKind, getUntitledSessionTitle, IChat, isSideChatOf, ISession, SessionStatus, SessionWorkspaceKind } from '../../../../workbench/services/sessions/common/session.js';
 import { ISessionsPartService } from '../../../../workbench/services/sessions/browser/sessionsPartService.js';
 import { ISessionsListModelService } from '../../../../workbench/contrib/sessions/browser/sessionsListModelService.js';
-import { $, append, EventHelper, isMouseEvent, ModifierKeyEmitter, reset } from '../../../../base/browser/dom.js';
+import { $, append, EventHelper, getWindow, isMouseEvent, ModifierKeyEmitter, reset } from '../../../../base/browser/dom.js';
 import { BaseActionViewItem } from '../../../../base/browser/ui/actionbar/actionViewItems.js';
 import { Button } from '../../../../base/browser/ui/button/button.js';
 import { HoverPosition } from '../../../../base/browser/ui/hover/hoverWidget.js';
@@ -72,7 +72,8 @@ import { IWorkbenchAssignmentService } from '../../../../workbench/services/assi
 import { registerViewNavigationCommand } from '../../../../workbench/browser/actions/navigationActions.js';
 import { agentsNewSessionButtonBackground, agentsNewSessionButtonBorder, agentsNewSessionButtonForeground, agentsNewSessionButtonHoverBackground } from '../../../../workbench/contrib/sessions/common/theme.js';
 import { logSessionsInteraction, SessionsInteractionSource } from '../../../../workbench/contrib/sessions/common/sessionsTelemetry.js';
-import { NEW_SESSION_ACTION_ID } from '../../../../workbench/contrib/sessions/common/chatConstants.js';
+import { NEW_SESSION_ACTION_ID, NEW_SESSION_IN_CHAT_WINDOW_COMMAND_ID } from '../../../../workbench/contrib/sessions/common/chatConstants.js';
+import { IWindowCommandContext } from '../../../../workbench/common/windowCommandContext.js';
 import { groupSessionsForPicker } from './sessionsPicker.js';
 import { getSessionConversationActionId, SESSION_CONVERSATION_SIDE_CHATS_GROUP } from '../../../../workbench/contrib/sessions/browser/sessionConversationGroups.js';
 import { ISessionChatItem, SessionChatItemCanDeleteContext, SessionChatItemCanMoveContext, SessionChatItemCanRenameContext, SessionChatItemHasMoveDestinationContext, SessionChatItemIsUntitledContext, SessionItemHasMoveDestinationContext, SessionItemInExternalSectionContext, SessionItemIsCloudContext, SessionsGrouping, SessionsList, SessionsListFocusedChatItemContext } from '../../../../workbench/contrib/sessions/browser/views/sessionsList.js';
@@ -1768,16 +1769,17 @@ export class NewSessionActionViewItem extends CompactButtonActionViewItem {
 		super(action, keybindingService, hoverService, contextKeyService);
 	}
 
+	/** New Session, or New Session in a chat window, which starts the session in the window the button is in. */
 	protected override get commandId(): string {
-		return NEW_SESSION_ACTION_ID;
+		return this.action.id;
 	}
 
 	protected override get label(): string {
 		return localize('newCompact', "New");
 	}
 
-	protected override get onboardingTargetId(): string {
-		return 'sessions.newSession.button';
+	protected override get onboardingTargetId(): string | undefined {
+		return this.action.id === NEW_SESSION_ACTION_ID ? 'sessions.newSession.button' : undefined;
 	}
 
 	protected override configureButton(button: Button): void {
@@ -1805,7 +1807,12 @@ export class NewSessionActionViewItem extends CompactButtonActionViewItem {
 	}
 
 	protected override runAction(event: MouseEvent | undefined): void {
-		if (event?.altKey) {
+		if (this.action.id === NEW_SESSION_IN_CHAT_WINDOW_COMMAND_ID) {
+			// In the window of the button, which may not have focus yet: the title bar's menu actions run their commands
+			// without the arguments they are run with, so the command runs with the window directly.
+			const context: IWindowCommandContext = { windowId: getWindow(this.element).vscodeWindowId };
+			this.commandService.executeCommand(NEW_SESSION_IN_CHAT_WINDOW_COMMAND_ID, context).catch(onUnexpectedError);
+		} else if (event?.altKey) {
 			this.commandService.executeCommand(NEW_SESSION_ACTION_ID, { toSide: true }).catch(onUnexpectedError);
 		} else {
 			super.runAction(event);
@@ -1849,10 +1856,11 @@ export class NewSessionActionViewItemContribution extends Disposable implements 
 		}));
 
 		const onDidRegister = this._register(new Emitter<void>());
-		const menus: MenuId[] = [Menus.SidebarSessionsHeader, AgentsWindowMenus.TitleBarLeftLayout];
-		for (const menu of menus) {
+		// The title bar of a chat window shows the window's own New Session, in place of the main window's.
+		const entries: [MenuId, string][] = [[Menus.SidebarSessionsHeader, NEW_SESSION_ACTION_ID], [AgentsWindowMenus.TitleBarLeftLayout, NEW_SESSION_ACTION_ID], [AgentsWindowMenus.TitleBarLeftLayout, NEW_SESSION_IN_CHAT_WINDOW_COMMAND_ID]];
+		for (const [menu, commandId] of entries) {
 			const source: SessionsInteractionSource = menu === AgentsWindowMenus.TitleBarLeftLayout ? 'titleBar' : 'sidebar';
-			this._register(actionViewItemService.register(menu, NEW_SESSION_ACTION_ID, (action, _options, instantiationService) => {
+			this._register(actionViewItemService.register(menu, commandId, (action, _options, instantiationService) => {
 				if (!(action instanceof MenuItemAction)) {
 					return undefined;
 				}

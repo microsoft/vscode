@@ -8,9 +8,10 @@ import { Direction } from '../../../../../base/browser/ui/grid/grid.js';
 import { mainWindow } from '../../../../../base/browser/window.js';
 import { DeferredPromise, timeout } from '../../../../../base/common/async.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
-import { Emitter } from '../../../../../base/common/event.js';
+import { Emitter, Event } from '../../../../../base/common/event.js';
 import { KeyCode, KeyMod } from '../../../../../base/common/keyCodes.js';
-import { decodeKeybinding } from '../../../../../base/common/keybindings.js';
+import { decodeKeybinding, KeyCodeChord } from '../../../../../base/common/keybindings.js';
+import { IKeybindingService } from '../../../../../platform/keybinding/common/keybinding.js';
 import { DisposableStore, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { constObservable, observableValue } from '../../../../../base/common/observable.js';
 import { OperatingSystem } from '../../../../../base/common/platform.js';
@@ -19,7 +20,7 @@ import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import '../../../../../editor/contrib/wordOperations/browser/wordOperations.js';
 import { isICommandActionToggleInfo } from '../../../../../platform/action/common/action.js';
-import { isIMenuItem, isISubmenuItem, MenuId, MenuRegistry, registerAction2 } from '../../../../../platform/actions/common/actions.js';
+import { isIMenuItem, isISubmenuItem, MenuId, MenuItemAction, MenuRegistry, registerAction2 } from '../../../../../platform/actions/common/actions.js';
 import { CommandsRegistry, ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
@@ -57,7 +58,7 @@ import { mock, upcastPartial } from '../../../../../base/test/common/mock.js';
 import { Action } from '../../../../../base/common/actions.js';
 import { getSessionsPickerChatWindow, NewSessionActionViewItem, openPickedNewSession, openPickedSessionInChatWindow, type NewSessionButtonStyle, PROMOTE_CHAT_TO_SESSION_ACTION_ID, SessionConversationActionsContribution, SessionListActionsExperimentContribution } from '../../browser/sessionsActions.js';
 import '../../../chat/browser/chat.contribution.js';
-import { NEW_SESSION_ACTION_ID } from '../../../../../workbench/contrib/sessions/common/chatConstants.js';
+import { NEW_SESSION_ACTION_ID, NEW_SESSION_IN_CHAT_WINDOW_COMMAND_ID } from '../../../../../workbench/contrib/sessions/common/chatConstants.js';
 import { ArchiveChatAction, ArchiveSessionAction } from '../../browser/views/sessionsViewActions.js';
 import { createTestSession, TestCommandService } from './sessionsListTestUtils.js';
 import { INewSessionComposerService, NewSessionComposerService } from '../../../../../workbench/contrib/sessions/browser/newSessionComposerService.js';
@@ -1990,6 +1991,50 @@ suite('Sessions - Actions', () => {
 			}, { lightweight: false, keybindingBackground: false });
 		});
 	}
+
+	test('New button of a chat window\'s title bar starts the session in the window it is in, also on Alt-click, and offers the window\'s key', () => {
+		const instantiationService = disposables.add(workbenchInstantiationService(undefined, disposables));
+		const commandService = new TestCommandService();
+		instantiationService.stub(ICommandService, commandService);
+		const keybinding = new USLayoutResolvedKeybinding([new KeyCodeChord(true, false, false, false, KeyCode.KeyN)], OperatingSystem.Windows);
+		const lookedUp: string[] = [];
+		instantiationService.stub(IKeybindingService, new class extends mock<IKeybindingService>() {
+			override readonly onDidUpdateKeybindings = Event.None;
+			override lookupKeybinding(commandId: string) {
+				lookedUp.push(commandId);
+				return commandId === NEW_SESSION_IN_CHAT_WINDOW_COMMAND_ID ? keybinding : undefined;
+			}
+			override lookupKeybindings() { return []; }
+		}());
+		// As the title bar's menu creates it: without forwarding the arguments it runs with
+		const action = new MenuItemAction({ id: NEW_SESSION_IN_CHAT_WINDOW_COMMAND_ID, title: 'New Session' }, undefined, undefined, undefined, undefined, instantiationService.get(IContextKeyService), commandService);
+		const item = disposables.add(instantiationService.createInstance(NewSessionActionViewItem, action, 'titleBar', constObservable<NewSessionButtonStyle>('default')));
+		const container = document.createElement('div');
+		mainWindow.document.body.appendChild(container);
+		disposables.add(toDisposable(() => container.remove()));
+		item.render(container);
+		const button = container.querySelector<HTMLElement>('.agent-sessions-compact-new-button.monaco-button')!;
+
+		button.click();
+		button.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true, altKey: true }));
+
+		assert.deepStrictEqual({
+			label: button.querySelector('.new-session-button-label')?.textContent,
+			ariaLabel: button.getAttribute('aria-label'),
+			lookedUp: [...new Set(lookedUp)],
+			onboardingTarget: !!resolveOnboardingTarget(mainWindow, 'sessions.newSession.button'),
+			commands: commandService.calls,
+		}, {
+			label: 'New',
+			ariaLabel: 'New Session (Control+N)',
+			lookedUp: [NEW_SESSION_IN_CHAT_WINDOW_COMMAND_ID],
+			onboardingTarget: false,
+			commands: [
+				{ commandId: NEW_SESSION_IN_CHAT_WINDOW_COMMAND_ID, args: [{ windowId: mainWindow.vscodeWindowId }] },
+				{ commandId: NEW_SESSION_IN_CHAT_WINDOW_COMMAND_ID, args: [{ windowId: mainWindow.vscodeWindowId }] },
+			],
+		});
+	});
 
 	test('New Session prefills a supplied prompt and only inherits available quick-chat targets', async () => {
 		const instantiationService = disposables.add(new TestInstantiationService());
