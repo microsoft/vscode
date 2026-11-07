@@ -2519,14 +2519,11 @@ async function confirmAndDeleteAutomation(
 		await showAutomationsDisabled(dialogService);
 		return;
 	}
-	const supportsHistoryChoice = automationService.supportsDeleteHistoryChoice?.(automation.id) === true;
 	const confirmed = await dialogService.confirm({
+		type: 'warning',
 		message: localize('confirmDeleteAutomation', "Delete automation \"{0}\"?", automation.name),
-		detail: supportsHistoryChoice
-			? localize('confirmDeleteHistoryChoice', "This will permanently delete the automation. Clear the checkbox to keep its run history.")
-			: localize('confirmDeleteDetail', "This will permanently delete the automation and its run history."),
+		detail: localize('confirmDeleteDetail', "This will permanently delete the automation and all of its run history."),
 		primaryButton: localize('delete', "Delete"),
-		...(supportsHistoryChoice ? { checkbox: { label: localize('deleteAutomationHistory', "Delete Run History"), checked: true } } : {}),
 	});
 	if (!confirmed.confirmed) {
 		return;
@@ -2540,7 +2537,7 @@ async function confirmAndDeleteAutomation(
 			if (!isEnabled()) {
 				throw new Error(localize('automationsDisabledBeforeDelete', "Automations were disabled before the automation could be deleted."));
 			}
-		}, supportsHistoryChoice ? { deleteHistory: confirmed.checkboxChecked !== false } : undefined);
+		}, automationService.supportsDeleteHistoryChoice?.(automation.id) === true ? { deleteHistory: true } : undefined);
 		status(localize('automationDeletedStatus', "Deleted automation {0}", automation.name));
 	} catch (error) {
 		logService.error('[AutomationsCards] Failed to delete automation', error);
