@@ -904,16 +904,16 @@ export class WorkspaceService extends Disposable implements IWorkbenchConfigurat
 
 	private async updateWorkspaceConfiguration(workspaceFolders: WorkspaceFolder[], configuration: ConfigurationModel, fromCache: boolean): Promise<void> {
 		const previous = { data: this._configuration.toData(), workspace: this.workspace };
-		const change = this._configuration.compareAndUpdateWorkspaceConfiguration(configuration);
+		const workspaceConfigurationChange = this._configuration.compareAndUpdateWorkspaceConfiguration(configuration);
 		const changes = this.compareFolders(this.workspace.folders, workspaceFolders);
 		if (changes.added.length || changes.removed.length || changes.changed.length) {
 			this.workspace.folders = workspaceFolders;
-			const change = await this.onFoldersChanged();
+			const folderConfigurationChange = await this.onFoldersChanged();
 			await this.handleWillChangeWorkspaceFolders(changes, fromCache);
-			this.triggerConfigurationChange(change, previous, ConfigurationTarget.WORKSPACE_FOLDER);
+			this.triggerConfigurationChange(mergeChanges(workspaceConfigurationChange, folderConfigurationChange), previous, ConfigurationTarget.WORKSPACE_FOLDER);
 			this._onDidChangeWorkspaceFolders.fire(changes);
 		} else {
-			this.triggerConfigurationChange(change, previous, ConfigurationTarget.WORKSPACE);
+			this.triggerConfigurationChange(workspaceConfigurationChange, previous, ConfigurationTarget.WORKSPACE);
 		}
 		this.updateRestrictedSettings();
 	}
