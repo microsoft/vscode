@@ -528,8 +528,23 @@ export class ChatService extends Disposable implements IChatService {
 			model.setCustomTitle(title);
 		}
 
-		// Update the title in the file storage
 		const localSessionId = LocalChatSessionUri.parseLocalSessionId(sessionResource);
+		if (!model && localSessionId) {
+			// Restore the session so the custom title is persisted with its data. Only
+			// updating the index would let the stored session data override it the
+			// next time the session is loaded, reverting the rename.
+			const reference = await this.acquireOrRestoreLocalSession(sessionResource, 'ChatService#setChatSessionTitle');
+			if (reference) {
+				try {
+					this._sessionModels.get(sessionResource)?.setCustomTitle(title);
+				} finally {
+					reference.dispose();
+				}
+				return;
+			}
+		}
+
+		// Update the title in the file storage
 		if (localSessionId) {
 			await this._chatSessionStore.setSessionTitle(localSessionId, title);
 			// Trigger immediate save to ensure consistency
