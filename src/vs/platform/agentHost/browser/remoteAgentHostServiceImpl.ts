@@ -142,6 +142,14 @@ class WebSocketConnectionFactory extends Disposable implements IRemoteAgentHostC
 				? { logsHome: this._environmentService.logsHome, logId: address, connectionId: address, transport: 'websocket' }
 				: undefined,
 		);
+		if (entry.trusted === false) {
+			return Promise.resolve({
+				connection: this._instantiationService.createInstance(AgentHostProtocolClient, address, transportFactory, {
+					clientInfo: this._clientInfo(),
+					withholdCredentials: true,
+				}),
+			});
+		}
 		const authentication = this._authenticationResolver.createResolver(address);
 		try {
 			const connection = this._instantiationService.createInstance(AgentHostProtocolClient, address, transportFactory, {
@@ -216,6 +224,8 @@ export class RemoteAgentHostService extends Disposable implements IRemoteAgentHo
 	private readonly _names = new Map<string, string>();
 	private readonly _displayNameOwners = new Map<string, { readonly name: IObservable<string | undefined>; readonly setName: (name: string | undefined) => void }>();
 	private readonly _tokens = new Map<string, string | undefined>();
+	/** Whether each configured host may receive credentials, as of the last reconciliation. */
+	private readonly _trust = new Map<string, boolean>();
 	private readonly _operatingSystems = new Map<string, OperatingSystem>();
 	private readonly _pendingConnectionWaits = new Map<string, DeferredPromise<IRemoteAgentHostConnectionInfo>>();
 	/** Errors from reconnects that could not start a dial. */
@@ -634,6 +644,7 @@ export class RemoteAgentHostService extends Disposable implements IRemoteAgentHo
 			}
 			this._names.clear();
 			this._tokens.clear();
+			this._trust.clear();
 			this._operatingSystems.clear();
 			this._reconnectAttempts.clear();
 			// Drop label formatters for entries no longer represented by an active connection.
@@ -659,12 +670,23 @@ export class RemoteAgentHostService extends Disposable implements IRemoteAgentHo
 		// Update name map and detect name changes for existing connections
 		let namesChanged = false;
 		const oldNames = new Map(this._names);
+		const oldTrust = new Map(this._trust);
 		this._names.clear();
 		this._tokens.clear();
+		this._trust.clear();
 		for (const { entry, address } of entriesWithAddress) {
 			this._names.set(address, entry.name);
 			this._tokens.set(address, entry.connectionToken);
+			const trusted = entry.trusted !== false;
+			this._trust.set(address, trusted);
 			this._updateHostLabelFormatter(address, entry.name);
+			if (oldTrust.has(address) && oldTrust.get(address) !== trusted && (this._entries.has(address) || this._pendingConnects.has(address))) {
+				// The credential policy is fixed per connection, so redial with the new one.
+				this._logService.info(`[RemoteAgentHost] Trust changed for ${address}; reconnecting`);
+				this._cancelReconnect(address);
+				this._reconnectAttempts.delete(address);
+				this._removeConnection(address);
+			}
 			if (this._entries.has(address) && oldNames.get(address) !== entry.name) {
 				namesChanged = true;
 			}

@@ -62,7 +62,7 @@ suite('Remote Agent Host silent MCP authentication', () => {
 		},
 	};
 
-	function fixture(customization?: IRemoteAgentHostConnectionCustomization, allowed = true, isSessionsWindow = true, address = 'cloudsandbox:remote') {
+	function fixture(customization?: IRemoteAgentHostConnectionCustomization, allowed = true, isSessionsWindow = true, address = 'cloudsandbox:remote', withholdsCredentials?: boolean) {
 		const instantiation = store.add(new TestInstantiationService());
 		const connectionsChanged = store.add(new Emitter<void>());
 		const notifications = store.add(new Emitter<INotification>());
@@ -76,6 +76,7 @@ suite('Remote Agent Host silent MCP authentication', () => {
 		let registered = true;
 		const connection = new class extends mock<IAgentConnection>() {
 			override readonly clientId = 'client';
+			override readonly withholdsCredentials = withholdsCredentials;
 			override readonly rootState = {
 				value: undefined, verifiedValue: undefined,
 				onDidChange: Event.None, onWillApplyAction: Event.None, onDidApplyAction: Event.None,
@@ -193,6 +194,15 @@ suite('Remote Agent Host silent MCP authentication', () => {
 		const authenticated = await context.authenticate(request);
 		assert.deepStrictEqual({ authenticated, sent: context.sent }, {
 			authenticated: true, sent: [{ target: request.target, resource: 'https://docs.example/mcp', scopes: ['read'], token: 'docs-token' }],
+		});
+	});
+
+	test('untrusted remotes never resolve or send credentials', async () => {
+		const context = fixture(undefined, true, true, 'ws://remote.example:8081', true);
+		const authenticated = await context.authenticate(request);
+		context.notifications.fire({ type: 'auth/required', channel: 'ahp-root://', reason: AuthRequiredReason.Expired, resource: request.auth.resource });
+		assert.deepStrictEqual({ authenticated, sent: context.sent, sessionOptions: context.sessionOptions, errors: context.errors }, {
+			authenticated: false, sent: [], sessionOptions: [], errors: [],
 		});
 	});
 
