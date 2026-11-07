@@ -59,7 +59,7 @@ export function fileLinkToUri(uri: URI, pathSeparator: string): URI {
 }
 
 type LinkKind = 'web' | 'path' | 'text';
-type LinkPart = {
+export type LinkPart = {
 	kind: LinkKind;
 	value: string;
 	captures: string[];
@@ -138,7 +138,7 @@ export class LinkDetector implements ILinkDetector {
 		}
 
 		const container = document.createElement('span');
-		for (const part of this.detectLinks(text)) {
+		for (const part of detectLinks(text)) {
 			try {
 				let node: Node;
 				switch (part.kind) {
@@ -377,46 +377,49 @@ export class LinkDetector implements ILinkDetector {
 			}
 		}));
 	}
+}
 
-	private detectLinks(text: string): LinkPart[] {
-		if (text.length > MAX_LENGTH) {
-			return [{ kind: 'text', value: text, captures: [], index: 0 }];
-		}
-
-		const regexes: RegExp[] = [WEB_LINK_REGEX, PATH_LINK_REGEX];
-		const kinds: LinkKind[] = ['web', 'path'];
-		const result: LinkPart[] = [];
-
-		const splitOne = (text: string, regexIndex: number, baseIndex: number) => {
-			if (regexIndex >= regexes.length) {
-				result.push({ value: text, kind: 'text', captures: [], index: baseIndex });
-				return;
-			}
-			const regex = regexes[regexIndex];
-			let currentIndex = 0;
-			let match;
-			regex.lastIndex = 0;
-			while ((match = regex.exec(text)) !== null) {
-				const stringBeforeMatch = text.substring(currentIndex, match.index);
-				if (stringBeforeMatch) {
-					splitOne(stringBeforeMatch, regexIndex + 1, baseIndex + currentIndex);
-				}
-				const value = match[0];
-				result.push({
-					value: value,
-					kind: kinds[regexIndex],
-					captures: match.slice(1),
-					index: baseIndex + match.index
-				});
-				currentIndex = match.index + value.length;
-			}
-			const stringAfterMatches = text.substring(currentIndex);
-			if (stringAfterMatches) {
-				splitOne(stringAfterMatches, regexIndex + 1, baseIndex + currentIndex);
-			}
-		};
-
-		splitOne(text, 0, 0);
-		return result;
+/**
+ * Splits the text into web links, path links and the text between them.
+ */
+export function detectLinks(text: string): LinkPart[] {
+	if (text.length > MAX_LENGTH) {
+		return [{ kind: 'text', value: text, captures: [], index: 0 }];
 	}
+
+	const regexes: RegExp[] = [WEB_LINK_REGEX, PATH_LINK_REGEX];
+	const kinds: LinkKind[] = ['web', 'path'];
+	const result: LinkPart[] = [];
+
+	const splitOne = (text: string, regexIndex: number, baseIndex: number) => {
+		if (regexIndex >= regexes.length) {
+			result.push({ value: text, kind: 'text', captures: [], index: baseIndex });
+			return;
+		}
+		const regex = regexes[regexIndex];
+		let currentIndex = 0;
+		let match;
+		regex.lastIndex = 0;
+		while ((match = regex.exec(text)) !== null) {
+			const stringBeforeMatch = text.substring(currentIndex, match.index);
+			if (stringBeforeMatch) {
+				splitOne(stringBeforeMatch, regexIndex + 1, baseIndex + currentIndex);
+			}
+			const value = match[0];
+			result.push({
+				value: value,
+				kind: kinds[regexIndex],
+				captures: match.slice(1),
+				index: baseIndex + match.index
+			});
+			currentIndex = match.index + value.length;
+		}
+		const stringAfterMatches = text.substring(currentIndex);
+		if (stringAfterMatches) {
+			splitOne(stringAfterMatches, regexIndex + 1, baseIndex + currentIndex);
+		}
+	};
+
+	splitOne(text, 0, 0);
+	return result;
 }
