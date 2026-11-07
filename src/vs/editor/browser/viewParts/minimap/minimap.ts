@@ -403,8 +403,11 @@ export class MinimapLayout {
 
 			const endLineNumber = Math.min(lineCount, startLineNumber - topPaddingLineCount + minimapLinesFitting - 1);
 			// When the viewport starts inside a view zone, the top padding or a taller line, the first
-			// visible line does not start at `scrollTop`; clamp so the slider never moves backwards
-			const partialLine = Math.min(Math.max(0, scrollTop - viewportStartLineNumberVerticalOffset), viewportStartLineNumberLineHeight) / viewportStartLineNumberLineHeight;
+			// visible line does not start at `scrollTop`; clamp so the slider never moves backwards.
+			// A custom line height can round to 0px, and such a line has no partial progress
+			const partialLine = viewportStartLineNumberLineHeight > 0
+				? Math.min(Math.max(0, scrollTop - viewportStartLineNumberVerticalOffset), viewportStartLineNumberLineHeight) / viewportStartLineNumberLineHeight
+				: 0;
 
 			let sliderTopAligned: number;
 			if (scrollTop >= options.paddingTop) {

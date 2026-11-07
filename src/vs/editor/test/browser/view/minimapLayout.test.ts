@@ -76,12 +76,14 @@ suite('MinimapLayout', () => {
 		return linesLayout;
 	}
 
-	test('slider moves only forward when scrolling down through view zones, padding and taller lines', () => {
+	test('slider moves only forward when scrolling down through view zones, padding, taller and zero-height lines', () => {
 		const noZones = createLinesLayout(0, [], []);
 		const tallZone = createLinesLayout(0, [], [[100, 3000]]);
 		const manyZones = createLinesLayout(0, [], Array.from({ length: 99 }, (_, i) => [(i + 1) * 10, 72]));
 		const paddingAndTallerLines = createLinesLayout(30, [new CustomLineHeightData('a', 50, 50, 300), new CustomLineHeightData('b', 400, 400, 120)], [[200, 500], [600, 1000]]);
 		const trailingZone = createLinesLayout(0, [], [[lineCount, 3000]]);
+		// A custom line height of 0.2px rounds to 0px, so line 101 is the first visible line while the zone above it scrolls by
+		const zeroHeightLineAfterZone = createLinesLayout(0, [new CustomLineHeightData('z', 101, 101, 0.2)], [[100, 3000]]);
 
 		assert.deepStrictEqual({
 			noZones: scrollDown(noZones, 0, noZones.getLinesTotalHeight() - viewportHeight),
@@ -89,12 +91,14 @@ suite('MinimapLayout', () => {
 			manyZones: scrollDown(manyZones, 0, manyZones.getLinesTotalHeight() - viewportHeight),
 			paddingAndTallerLines: scrollDown(paddingAndTallerLines, 30, paddingAndTallerLines.getLinesTotalHeight() - viewportHeight),
 			trailingZone: scrollDown(trailingZone, 0, trailingZone.getLinesTotalHeight() - viewportHeight),
+			zeroHeightLineAfterZone: scrollDown(zeroHeightLineAfterZone, 0, zeroHeightLineAfterZone.getLinesTotalHeight() - viewportHeight),
 		}, {
 			noZones: { backwardMoves: 0, minSliderTop: 0, maxSliderBottom: 401 },
 			tallZone: { backwardMoves: 0, minSliderTop: 0, maxSliderBottom: 401 },
 			manyZones: { backwardMoves: 0, minSliderTop: 0, maxSliderBottom: 401 },
 			paddingAndTallerLines: { backwardMoves: 0, minSliderTop: 0, maxSliderBottom: 401 },
 			trailingZone: { backwardMoves: 0, minSliderTop: 0, maxSliderBottom: 362 },
+			zeroHeightLineAfterZone: { backwardMoves: 0, minSliderTop: 0, maxSliderBottom: 401 },
 		});
 	});
 });
