@@ -452,9 +452,9 @@ export class ChatStatusDashboard extends DomWidget {
 						if (!token.isCancellationRequested) {
 							updateIndicators();
 						}
-					} catch (error) {
+					} catch {
 						resetRefreshTriggered = false;
-						throw error;
+						
 					}
 				}
 			}, 1000));
