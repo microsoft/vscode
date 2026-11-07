@@ -1,0 +1,112 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+/* The window behind the cards of a chat window, as behind the main window's. */
+.monaco-workbench .agents-chat-window {
+	background-color: var(--vscode-agents-background);
+}
+
+/* The parts of a chat window are cards, as the main window's are. */
+.monaco-workbench .agents-chat-window .part-grid-cell > .part-grid-card {
+	--part-grid-card-background: var(--vscode-agentsPanel-background);
+	--part-grid-card-border-color: var(--vscode-agentsCard-border, var(--vscode-agentsPanel-border, transparent));
+	--part-grid-card-border-width: 1px;
+	--part-grid-card-radius: var(--agents-part-corner-radius);
+}
+
+/* The main part's card has the background of the main window's side pane: the editor's. So do the cards of the parts the grid creates, which are like the main part. */
+.monaco-workbench .agents-chat-window .part-grid-cell:is([data-part-grid-cell="main"], [data-part-grid-created]) > .part-grid-card {
+	--part-grid-card-background: var(--vscode-editor-background);
+}
+
+/* With connected tabs, the groups of the parts draw their frames, around their tabs and their editors, as those of the main window's side pane do: the cards leave their frames to them. */
+.monaco-workbench.agent-sessions-workbench.modern-ui-tabs.modern-ui-connected-editor-tabs.dock-detail-panel:not(.phone-layout) .agents-chat-window .part-grid-cell:is([data-part-grid-cell="main"], [data-part-grid-cell="chat"], [data-part-grid-created]) > .part-grid-card {
+	--part-grid-card-frame-owner: content;
+}
+
+/* Only the groups of parts that show multiple tabs draw frames (`editorPart.css`), as in the main window's side pane: the cards of the others draw them, where the terminals' card does. A part split into groups is framed by its card (below). */
+.monaco-workbench.agent-sessions-workbench.modern-ui-tabs.modern-ui-connected-editor-tabs.dock-detail-panel:not(.phone-layout) .agents-chat-window .part-grid-cell:is([data-part-grid-cell="main"], [data-part-grid-cell="chat"], [data-part-grid-created]):not([data-part-grid-split]) > .part-grid-card:has(> .part.editor.editor-tabs-multiple:not(.modal-editor-part)) {
+	--part-grid-card-border-color: transparent;
+}
+
+/* The terminals' card draws its frame at its edges, as the main window's panel does, and is as wide as the cards beside it, as the panel is as wide as the chat above it. */
+.monaco-workbench.agent-sessions-workbench.modern-ui-tabs.modern-ui-connected-editor-tabs.dock-detail-panel:not(.phone-layout) .agents-chat-window .part-grid-cell[data-part-grid-cell="terminals"] > .part-grid-card {
+	--part-grid-card-frame-owner: content;
+}
+
+/* The cards draw the frames of the parts in them, which draw none of their own, as they do in the main window. */
+.monaco-workbench .agents-chat-window .part-grid-card > .part.editor:not(.modal-editor-part) {
+	border: 0;
+}
+
+/* The chat's card is the chat's surface, as the main window's is: the editor part that holds the chat, and its editor, show it through. */
+.monaco-workbench .agents-chat-window .part-grid-cell[data-part-grid-cell="chat"] > .part-grid-card :is(.part.editor, .part.editor > .content, .editor-container) {
+	/* Over the inline backgrounds of the part and of its editor. */
+	background-color: transparent !important;
+}
+
+/* The active tab of the chat's part flows into the chat, as an editor's tab flows into the editor: it has the chat's surface. */
+.monaco-workbench .agents-chat-window .part-grid-cell[data-part-grid-cell="chat"] > .part-grid-card {
+	--modern-ui-connected-tab-surface: var(--part-grid-card-background);
+}
+
+/* The title row and the strip are not cards: they take the chat's background. */
+.monaco-workbench .agents-chat-window .part-grid-cell:is([data-part-grid-cell="titleRow"], [data-part-grid-cell="strip"]) > .part-grid-card {
+	--part-grid-card-border-width: 0;
+	--part-grid-card-radius: 0;
+}
+
+/* The strip's column shows the window behind the strip, as the main window's column does: only the strip is framed. */
+.monaco-workbench .agents-chat-window .part-grid-cell[data-part-grid-cell="strip"] > .part-grid-card {
+	--part-grid-card-background: transparent;
+}
+
+/* Compact density keeps the cards flush, without frames. */
+.monaco-workbench.modern-ui-compact .agents-chat-window .part-grid-cell > .part-grid-card {
+	--part-grid-card-border-width: 0;
+	--part-grid-card-radius: 0;
+}
+
+/* The card of the terminals frames them, and the groups of its part, as groups of the main window's panel would, draw none. */
+.monaco-workbench.agent-sessions-workbench.modern-ui-tabs.modern-ui-connected-editor-tabs.dock-detail-panel:not(.phone-layout) .agents-chat-window .part-grid-cell[data-part-grid-cell="terminals"] .part.editor.editor-tabs-multiple:not(.modal-editor-part) > .content .editor-group-container::after {
+	content: none;
+}
+
+/*
+ * A part split into groups is one card, as editor groups are one editor area in VS Code: its card frames all its groups
+ * once, and the part divides them; its groups, and the chat in one of them, draw no frames of their own.
+ */
+.monaco-workbench.agent-sessions-workbench.modern-ui-tabs:not(.phone-layout):not(.modern-ui-compact) .agents-chat-window .part-grid-cell[data-part-grid-split]:is([data-part-grid-cell]) > .part-grid-card {
+	--part-grid-card-frame-owner: card;
+	--part-grid-card-border-color: var(--vscode-agentsCard-border, var(--vscode-agentsPanel-border, transparent));
+	background-clip: border-box;
+}
+
+.monaco-workbench.agent-sessions-workbench.modern-ui-tabs:not(.phone-layout):not(.modern-ui-compact) .agents-chat-window .part-grid-cell[data-part-grid-split] .part.editor:not(.modal-editor-part) > .content .editor-group-container::after,
+.monaco-workbench.agent-sessions-workbench.modern-ui-tabs:not(.phone-layout):not(.modern-ui-compact) .agents-chat-window .part-grid-cell[data-part-grid-split] .session-view::after {
+	content: none;
+}
+
+/*
+ * The strip fills its column from top to bottom, as the main window's does (`sessionActivityBar.css`), to the right of
+ * the gap the column keeps to the cards (`getChatWindowStripWidth`). By rules of its own: those of the main window's
+ * column follow the state of the main window, whose classes the workbench element of a chat window mirrors.
+ */
+.monaco-workbench .agents-chat-window .chat-window-strip {
+	width: 100%;
+	height: 100%;
+}
+
+.monaco-workbench .agents-chat-window .chat-window-strip > .session-activity-bar.docked {
+	top: 0;
+	bottom: 0;
+	right: 0;
+}
+
+/* The cards beside it show their frames inset within them by the stroke, as the main window's chat does: moved toward
+ * them by as much, as beside that chat, so that the gap between them shows as wide as the gap between cards. */
+.monaco-workbench:not(.modern-ui-compact) .agents-chat-window .chat-window-strip > .session-activity-bar.docked {
+	right: var(--vscode-strokeThickness);
+}

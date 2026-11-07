@@ -46,6 +46,8 @@ export function createFrostedGlassOverlays(store: Pick<DisposableStore, 'add'>, 
 	menuContainer.style.top = '160px';
 	const menu = store.add(new Menu(menuContainer, [store.add(new Action('test.action', 'Test action'))], {}, defaultMenuStyles));
 	const menuBackground = menuContainer.querySelector<HTMLElement>('.monaco-scrollable-element')!;
+	const menubarMenuContainer = append(root, 'menubar-menu-items-holder');
+	store.add(new Menu(menubarMenuContainer, [store.add(new Action('test.menubarAction', 'Menubar menu action'))], {}, defaultMenuStyles));
 	const shadowRoot = append(root, 'shadow-root-host').attachShadow({ mode: 'open' });
 	const shadowMenuContainer = append(shadowRoot, 'context-view');
 	shadowMenuContainer.style.cssText = 'position: fixed; left: 120px; top: 160px;';
@@ -67,7 +69,7 @@ export function createFrostedGlassOverlays(store: Pick<DisposableStore, 'add'>, 
 	toast.style.background = 'var(--vscode-notifications-background)';
 	const toastList = append(toast, 'notifications-list-container');
 	return {
-		root, quickInput, menu, menuContainer, shadowMenuContainer, picker, pickerFilter, pickerRows, pickerFooter, hover, dialog, toast, toastList,
+		root, quickInput, menu, menuContainer, menubarMenuContainer, shadowMenuContainer, picker, pickerFilter, pickerRows, pickerFooter, hover, dialog, toast, toastList,
 		surfaces: [quickInput, menuContainer, shadowMenuContainer, picker, hover, dialog, center, toast],
 		backgrounds: [quickInput, menuBackground, shadowMenuBackground, picker, pickerRows, hover, dialog, centerBackground, toast, toastList],
 	};

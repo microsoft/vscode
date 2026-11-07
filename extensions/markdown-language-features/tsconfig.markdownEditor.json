@@ -1,0 +1,3 @@
+{
+	"extends": "./markdown-editor-src/tsconfig.json"
+}

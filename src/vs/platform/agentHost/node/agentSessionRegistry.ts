@@ -11,6 +11,7 @@ import { URI } from '../../../base/common/uri.js';
 import { createDecorator } from '../../instantiation/common/instantiation.js';
 import { AgentProvider, AgentSession } from '../common/agent.js';
 import { AgentSessionRegistrationSource, IAgentHostDatabase, IAgentHostDatabaseExternalUpdate, IAgentHostDatabaseRegisterOptions, IAgentHostDatabaseSessionsV2Exclusion, IAgentHostDatabaseSessionOptions } from './agentHostDatabase.js';
+import type { IWorktreeRemovalRequest } from './agentHostWorktreeRemovalDatabase.js';
 
 export const IAgentSessionRegistry = createDecorator<AgentSessionRegistry>('agentSessionRegistry');
 
@@ -45,7 +46,8 @@ export type IResolvedDiscoveredSessionIdentity =
 		readonly message: string;
 	};
 
-export type RegisteredSessionMigration = (entry: IStoredRegisteredSession) => Promise<IRegisteredSession | undefined>;
+/** Resolves an entry's provenance; `entries` is the whole batch being resolved with it. */
+export type RegisteredSessionMigration = (entry: IStoredRegisteredSession, entries: readonly IStoredRegisteredSession[]) => Promise<IRegisteredSession | undefined>;
 
 /**
  * A durable, orchestrator-owned index of the sessions that exist, keyed by
@@ -70,13 +72,11 @@ export type RegisteredSessionMigration = (entry: IStoredRegisteredSession) => Pr
  * `markBackfilled` remains callable for tests and any explicit migration
  * tooling, but nothing in the per-provider sweep invokes it automatically.
  *
- * Sessions passed to {@link tombstone} are durably tombstoned so a forced
- * or repeated native discovery pass — which re-reads a provider's catalog from
- * scratch — cannot register them. This covers both a session the user
- * explicitly deleted and one that must never be listed at all (e.g. a
- * throwaway chat surface, tombstoned at creation). Only {@link register} with
- * `checkTombstone: false` clears a tombstone; restore, discovery, and adoption
- * leave it intact.
+ * Deleted sessions are tombstoned; live throwaway sessions carry a separate
+ * hidden marker. Both prevent discovery and restore from registering them.
+ * An explicit {@link register} with `checkTombstone: false` or
+ * {@link clearTombstone} clears both markers; restore, discovery, and adoption
+ * leave them intact.
  */
 export class AgentSessionRegistry extends Disposable {
 	declare readonly _serviceBrand: undefined;
@@ -88,7 +88,7 @@ export class AgentSessionRegistry extends Disposable {
 		super();
 	}
 
-	/** Records a session using source-aware provenance and tombstone behavior. */
+	/** Records a session using source-aware provenance and suppression behavior. */
 	register(session: URI, sessionOptions: IAgentHostDatabaseSessionOptions, registerOptions: IAgentHostDatabaseRegisterOptions): Promise<boolean> {
 		return this._database.registerRuntimeSession(session.toString(), sessionOptions, registerOptions);
 	}
@@ -128,14 +128,29 @@ export class AgentSessionRegistry extends Disposable {
 	}
 
 	/**
-	 * Removes any registry entry for `session` (a true delete) and durably
-	 * tombstones it so discovery cannot register it. Used both to delete a
-	 * session the user explicitly removed and to keep a session that must never
-	 * be listed (e.g. a throwaway chat surface) out of the registry entirely.
-	 * No-op on the registry entry if absent; the tombstone is still written.
+	 * Deletes `session`, including hidden-session teardown, and atomically records its tombstone and worktree removals.
+	 * Any hidden marker remains until {@link clearTombstone} clears it.
 	 */
-	async tombstone(session: URI): Promise<void> {
-		await this._database.tombstoneAndUnregisterSession(session.toString());
+	async tombstone(session: URI, worktreeRemovals?: readonly IWorktreeRemovalRequest[]): Promise<void> {
+		await this._database.tombstoneAndUnregisterSession(session.toString(), worktreeRemovals);
+	}
+
+	/**
+	 * Unregisters `session` and marks it hidden, not deleted: its state stays writable, but it is never discovered, listed or restored.
+	 * Records `provider` so a later host can clean up after a crash ({@link listHidden}).
+	 */
+	hide(session: URI, provider: string): Promise<void> {
+		return this._database.hideSession(session.toString(), provider);
+	}
+
+	/** Whether `session` is hidden (see {@link hide}). */
+	isHidden(session: URI): Promise<boolean> {
+		return this._database.isSessionHidden(session.toString());
+	}
+
+	/** The hidden sessions recorded, with their providers. */
+	async listHidden(): Promise<readonly { readonly session: URI; readonly provider: string }[]> {
+		return (await this._database.listHiddenSessions()).map(({ session, provider }) => ({ session: URI.parse(session), provider }));
 	}
 
 	/** Advances the durable last-observed provider modification time. */
@@ -254,7 +269,7 @@ export class AgentSessionRegistry extends Disposable {
 		}));
 		const limiter = new Limiter<IRegisteredSession | undefined>(4);
 		const migrations: readonly (IRegisteredSession | undefined)[] = migrate
-			? await Promise.all(entries.map(entry => limiter.queue(() => migrate(entry))))
+			? await Promise.all(entries.map(entry => limiter.queue(() => migrate(entry, entries))))
 			: entries.map(() => undefined);
 		const updates: IAgentHostDatabaseExternalUpdate[] = [];
 		const result = entries.map((entry, index): IRegisteredSession => {
@@ -294,7 +309,7 @@ export class AgentSessionRegistry extends Disposable {
 			external: stored.external,
 			source: stored.source,
 		};
-		const migrated = await migrate?.(entry);
+		const migrated = await migrate?.(entry, [entry]);
 		if (migrated) {
 			await this._database.updateRuntimeSessionExternal([{ session: migrated.session.toString(), external: migrated.external }]);
 			return migrated;
@@ -383,7 +398,12 @@ export class AgentSessionRegistry extends Disposable {
 		return this._database.isSessionTombstoned(session.toString());
 	}
 
-	/** Clears an explicit-deletion tombstone for `session` (used on explicit create/restore). */
+	/** Whether `session` is deleted or hidden, so it must not be discovered, restored, surfaced or reused. */
+	async isSuppressed(session: URI): Promise<boolean> {
+		return this._database.isSessionSuppressed(session.toString());
+	}
+
+	/** Clears the tombstone and hidden marker for `session` (used after teardown or on explicit creation). */
 	async clearTombstone(session: URI): Promise<void> {
 		await this._database.clearSessionTombstone(session.toString());
 	}

@@ -100,6 +100,7 @@ suite('RepositoryPicker', () => {
 			queries.push(query);
 			return ['microsoft/vscode-docs', 'microsoft/vscode'];
 		});
+
 		await clock.tickAsync(0);
 		const quickPick = quickPicks[0];
 		const presentation = {
@@ -131,6 +132,20 @@ suite('RepositoryPicker', () => {
 			selection: { repository: 'microsoft/vscode' },
 			disposed: true,
 		});
+	});
+
+	test('supports private repository wording without changing URL selection', async () => {
+		const { picker, quickPicks } = createPicker();
+		const placeholder = 'Search for a private repository or paste a repository URL...';
+		const result = picker.pickRepository(async () => [], { allowRepositoryUrl: true, placeholder });
+		await clock.tickAsync(0);
+		const quickPick = quickPicks[0];
+		quickPick.changeValue('https://github.com/owner/repository');
+		await clock.tickAsync(300);
+		quickPick.acceptItem();
+		assert.deepStrictEqual({
+			placeholder: quickPick.placeholder, ariaLabel: quickPick.ariaLabel, result: await result,
+		}, { placeholder, ariaLabel: placeholder, result: { cloneUrl: 'https://github.com/owner/repository' } });
 	});
 
 	for (const allowRepositoryUrl of [false, true]) {

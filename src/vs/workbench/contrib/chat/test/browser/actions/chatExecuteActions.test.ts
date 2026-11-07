@@ -4,23 +4,31 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { decodeKeybinding } from '../../../../../../base/common/keybindings.js';
+import { KeyCode, KeyMod } from '../../../../../../base/common/keyCodes.js';
 import { DisposableStore } from '../../../../../../base/common/lifecycle.js';
 import { constObservable, observableValue } from '../../../../../../base/common/observable.js';
+import { OperatingSystem } from '../../../../../../base/common/platform.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { upcastPartial } from '../../../../../../base/test/common/mock.js';
+import { pasteWidgetVisibleCtx } from '../../../../../../editor/contrib/dropOrPasteInto/browser/copyPasteController.js';
+import { dropWidgetVisibleCtx } from '../../../../../../editor/contrib/dropOrPasteInto/browser/dropIntoEditorController.js';
 import { CommandsRegistry } from '../../../../../../platform/commands/common/commands.js';
-import { IMenuItem, isIMenuItem, MenuId, MenuRegistry } from '../../../../../../platform/actions/common/actions.js';
-import { AgentHostAllowSignedOutWhenUsableSettingId } from '../../../../../../platform/agentHost/common/agentService.js';
+import { MenuId, registerAction2 } from '../../../../../../platform/actions/common/actions.js';
 import { ContextKeyValue } from '../../../../../../platform/contextkey/common/contextkey.js';
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
+import { KeybindingResolver, ResultKind } from '../../../../../../platform/keybinding/common/keybindingResolver.js';
+import { KeybindingsRegistry } from '../../../../../../platform/keybinding/common/keybindingsRegistry.js';
+import { ResolvedKeybindingItem } from '../../../../../../platform/keybinding/common/resolvedKeybindingItem.js';
+import { USLayoutResolvedKeybinding } from '../../../../../../platform/keybinding/common/usLayoutResolvedKeybinding.js';
 import { ITelemetryService } from '../../../../../../platform/telemetry/common/telemetry.js';
 import { NullTelemetryService } from '../../../../../../platform/telemetry/common/telemetryUtils.js';
 import { ILogService, NullLogService } from '../../../../../../platform/log/common/log.js';
 import { IsSessionsWindowContext } from '../../../../../common/contextkeys.js';
 import { AGENT_HOST_EXISTING_SESSION_HARNESS_PICKER_ENABLED_CONTEXT_KEY } from '../../../../../../platform/agentHost/common/agentHostEnablementService.js';
 import { type IChatAcceptInputOptions, IChatWidget, IChatWidgetService } from '../../../browser/chat.js';
-import { CancelAction, ChatEditingSessionSubmitAction, ChatSubmitAction, ExecuteHandoffActionId, GetHandoffsActionId, OpenDelegationPickerAction, OpenModelPickerAction, OpenSessionTargetPickerAction, registerChatExecuteActions } from '../../../browser/actions/chatExecuteActions.js';
+import { CancelAction, ChatEditingSessionSubmitAction, ChatSubmitAction, ExecuteHandoffActionId, GetHandoffsActionId, OpenDelegationPickerAction, OpenModePickerAction, OpenSessionTargetPickerAction, registerChatExecuteActions } from '../../../browser/actions/chatExecuteActions.js';
 import { ChatQueueMessageAction, ChatSteerWithMessageAction } from '../../../browser/actions/chatQueueActions.js';
 import { AgentSessionProviders } from '../../../browser/agentSessions/agentSessions.js';
 import { ChatContextKeys } from '../../../common/actions/chatContextKeys.js';
@@ -54,6 +62,74 @@ function createMockMode(overrides: Partial<IChatMode> & { id: string; kind: Chat
 		...overrides,
 	} as IChatMode;
 }
+
+suite('OpenModePickerAction keybinding', () => {
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
+
+	setup(() => {
+		store.add(registerAction2(OpenModePickerAction));
+	});
+
+	function createResolver(os: OperatingSystem, overrides: ResolvedKeybindingItem[] = []): KeybindingResolver {
+		const items: ResolvedKeybindingItem[] = [];
+		for (const item of KeybindingsRegistry.getDefaultKeybindingsForOS(os)) {
+			if (item.command === OpenModePickerAction.ID && item.keybinding) {
+				const resolved = USLayoutResolvedKeybinding.resolveKeybinding(item.keybinding, os)[0];
+				items.push(new ResolvedKeybindingItem(resolved, item.command, item.commandArgs, item.when ?? undefined, true, null, false));
+			}
+		}
+		return new KeybindingResolver(items, overrides, () => { });
+	}
+
+	function resolve(resolver: KeybindingResolver, chord: string, values: Record<string, ContextKeyValue> = {}) {
+		const context = {
+			[ChatContextKeys.enabled.key]: true,
+			[ChatContextKeys.inChatInput.key]: true,
+			[ChatContextKeys.location.key]: ChatAgentLocation.Chat,
+			...values,
+		};
+		const result = resolver.resolve({
+			getValue: <T extends ContextKeyValue = ContextKeyValue>(key: string) => context[key] as T,
+		}, [], chord);
+		return result.kind === ResultKind.KbFound ? result.commandId : undefined;
+	}
+
+	for (const [os, platform, chord] of [
+		[OperatingSystem.Windows, 'Windows', 'ctrl+.'],
+		[OperatingSystem.Linux, 'Linux', 'ctrl+.'],
+		[OperatingSystem.Macintosh, 'macOS', 'meta+.'],
+	] as const) {
+		test(`yields to paste and drop selectors without changing ordinary chat or editor shortcuts (${platform})`, () => {
+			const resolver = createResolver(os);
+			assert.deepStrictEqual({
+				chat: resolve(resolver, chord),
+				paste: resolve(resolver, chord, { [pasteWidgetVisibleCtx.key]: true }),
+				drop: resolve(resolver, chord, { [dropWidgetVisibleCtx.key]: true }),
+				editor: resolve(resolver, chord, { [ChatContextKeys.inChatInput.key]: false }),
+				inlineChat: resolve(resolver, chord, { [ChatContextKeys.location.key]: ChatAgentLocation.EditorInline }),
+				aiDisabled: resolve(resolver, chord, { [ChatContextKeys.enabled.key]: false }),
+			}, {
+				chat: OpenModePickerAction.ID,
+				paste: undefined,
+				drop: undefined,
+				editor: undefined,
+				inlineChat: undefined,
+				aiDisabled: undefined,
+			});
+		});
+
+		test(`preserves an explicit user binding while a paste selector is visible (${platform})`, () => {
+			const keybinding = decodeKeybinding(KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.Period, os);
+			assert.ok(keybinding);
+			const resolved = USLayoutResolvedKeybinding.resolveKeybinding(keybinding, os)[0];
+			const override = new ResolvedKeybindingItem(resolved, OpenModePickerAction.ID, undefined, ChatContextKeys.inChatInput, false, null, false);
+			const resolver = createResolver(os, [override]);
+			const customChord = resolved.getDispatchChords()[0];
+			assert.ok(customChord);
+			assert.strictEqual(resolve(resolver, customChord, { [pasteWidgetVisibleCtx.key]: true }), OpenModePickerAction.ID);
+		});
+	}
+});
 
 suite('OpenDelegationPickerAction', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
@@ -182,40 +258,12 @@ suite('OpenDelegationPickerAction', () => {
 });
 
 suite('GetHandoffsAction', () => {
-	const store = new DisposableStore();
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
 	let instantiationService: TestInstantiationService;
 
 	let chatExecuteActions: DisposableStore;
 	suiteSetup(() => {
 		chatExecuteActions = registerChatExecuteActions();
-	});
-
-	test('shows Copilot Agent Host models in the signed-out Agents welcome view', () => {
-		const item = MenuRegistry.getMenuItems(MenuId.ChatInput)
-			.find((candidate): candidate is IMenuItem => isIMenuItem(candidate) && candidate.command.id === OpenModelPickerAction.ID);
-		assert.ok(item?.when);
-
-		const evaluate = (values: Record<string, ContextKeyValue>) => item.when!.evaluate({
-			getValue: <T extends ContextKeyValue = ContextKeyValue>(key: string) => values[key] as T,
-		});
-		const context = {
-			[ChatContextKeys.location.key]: ChatAgentLocation.Chat,
-			[ChatContextKeys.inAgentSessionsWelcome.key]: true,
-			[ChatContextKeys.agentSessionType.key]: AgentSessionProviders.AgentHostCopilot,
-			[IsSessionsWindowContext.key]: true,
-		};
-
-		assert.deepStrictEqual({
-			enabled: evaluate({ ...context, [`config.${AgentHostAllowSignedOutWhenUsableSettingId}`]: true }),
-			disabled: evaluate({ ...context, [`config.${AgentHostAllowSignedOutWhenUsableSettingId}`]: false }),
-			editorWindow: evaluate({ ...context, [IsSessionsWindowContext.key]: false, [`config.${AgentHostAllowSignedOutWhenUsableSettingId}`]: true }),
-			claude: evaluate({ ...context, [ChatContextKeys.agentSessionType.key]: AgentSessionProviders.AgentHostClaude, [`config.${AgentHostAllowSignedOutWhenUsableSettingId}`]: true }),
-		}, {
-			enabled: true,
-			disabled: false,
-			editorWindow: false,
-			claude: false,
-		});
 	});
 
 	suiteTeardown(() => {
@@ -225,12 +273,6 @@ suite('GetHandoffsAction', () => {
 	setup(() => {
 		instantiationService = store.add(new TestInstantiationService());
 	});
-
-	teardown(() => {
-		store.clear();
-	});
-
-	ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('should return all modes when no sourceCustomAgent is specified', async () => {
 		const askMode = createMockMode({ id: 'ask', kind: ChatModeKind.Ask, isBuiltin: true });
@@ -290,7 +332,7 @@ suite('GetHandoffsAction', () => {
 });
 
 suite('ExecuteHandoffAction', () => {
-	const store = new DisposableStore();
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
 	let instantiationService: TestInstantiationService;
 
 	let chatExecuteActions: DisposableStore;
@@ -305,12 +347,6 @@ suite('ExecuteHandoffAction', () => {
 	setup(() => {
 		instantiationService = store.add(new TestInstantiationService());
 	});
-
-	teardown(() => {
-		store.clear();
-	});
-
-	ensureNoDisposablesAreLeakedInTestSuite();
 
 	const testHandoffs: IHandOff[] = [
 		{ agent: 'implement', label: 'Start Implementation', prompt: 'Implement the plan', send: true },
@@ -506,7 +542,7 @@ suite('ExecuteHandoffAction', () => {
 });
 
 suite('SwitchToNextPinnedModelAction', () => {
-	const store = new DisposableStore();
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
 	let instantiationService: TestInstantiationService;
 
 	let chatExecuteActions: DisposableStore;
@@ -521,12 +557,6 @@ suite('SwitchToNextPinnedModelAction', () => {
 	setup(() => {
 		instantiationService = store.add(new TestInstantiationService());
 	});
-
-	teardown(() => {
-		store.clear();
-	});
-
-	ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('invokes switchToNextPinnedModel on the last focused widget', async () => {
 		let switchCalls = 0;
@@ -562,7 +592,7 @@ suite('SwitchToNextPinnedModelAction', () => {
 });
 
 suite('ChatSubmitAction', () => {
-	const store = new DisposableStore();
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
 	let instantiationService: TestInstantiationService;
 
 	let chatExecuteActions: DisposableStore;
@@ -662,12 +692,6 @@ suite('ChatSubmitAction', () => {
 	setup(() => {
 		instantiationService = store.add(new TestInstantiationService());
 	});
-
-	teardown(() => {
-		store.clear();
-	});
-
-	ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('passes acceptInputOptions to the widget', async () => {
 		let acceptedOptions: unknown;

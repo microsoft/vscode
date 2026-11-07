@@ -126,6 +126,7 @@ export class AgentHostStorageService extends Disposable implements IAgentHostSto
 		}
 
 		try {
+			// eslint-disable-next-line local/code-no-sync-fs -- TODO: add an awaited storage-ready boundary; constructor consumers call get immediately and must not read defaults before persisted data is loaded.
 			const value: unknown = JSON.parse(fs.readFileSync(this._resource.fsPath, 'utf8'));
 			if (value && typeof value === 'object' && !Array.isArray(value)) {
 				return value as Record<string, unknown>;

@@ -29,7 +29,8 @@ import { IAgentHostReviewService } from '../../common/agentHostReviewService.js'
 import { IAgentHostStartupPerformance } from '../../node/agentHostStartupPerformance.js';
 import { IAgentHostDatabase } from '../../node/agentHostDatabase.js';
 import { AgentHostManagedSettingsService, IAgentHostManagedSettingsService } from '../../node/agentHostManagedSettingsService.js';
-import { SessionStatus } from '../../common/state/sessionState.js';
+import { buildDefaultChatUri, SessionStatus } from '../../common/state/sessionState.js';
+import { getGitHubClientInternals } from '../../../github/test/common/githubClientTestUtils.js';
 
 suite('agentHostBootstrap', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
@@ -141,6 +142,7 @@ suite('agentHostBootstrap', () => {
 		foundation.stateManager.createSession({
 			resource: session, provider: 'copilot', title: 'Policy', status: SessionStatus.Idle,
 			createdAt: '2026-01-01T00:00:00Z', modifiedAt: '2026-01-01T00:00:00Z',
+			defaultChat: buildDefaultChatUri(session),
 		});
 		foundation.stateManager.setSessionConfig(session, { schema: platformSessionSchema.toProtocol(), values: {} });
 		managedSettings.setClientPermissions('client', { ask: ['Shell'] });
@@ -183,7 +185,7 @@ suite('agentHostBootstrap', () => {
 		const reason = new Error('cancelled');
 		controller.abort(reason);
 		const client = disposables.add(service.acquireRepositoryClient(new AbortController().signal)).object;
-		await assert.rejects(client.transport.rest({ host: 'api.github.com', accountId: '1' }, 'token', {
+		await assert.rejects(getGitHubClientInternals(client).transport.rest({ host: 'api.github.com', accountId: '1' }, 'token', {
 			method: 'GET', url: 'https://api.github.com/user',
 		}, controller.signal), error => error === reason);
 		foundation.configurationService.updateRootConfig({ [AgentHostTelemetryLevelConfigKey]: 'off' });

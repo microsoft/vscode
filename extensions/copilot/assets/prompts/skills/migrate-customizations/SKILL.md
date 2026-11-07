@@ -1,6 +1,6 @@
 ---
 name: migrate-customizations
-description: Guide a safe, reversible migration of VS Code local agent customizations when launched from the Agent Customizations Migrations page with VS Code-generated migration context.
+description: Guide a safe, reversible migration of VS Code agent customizations when launched from the Agent Customizations Migrations page with VS Code-generated migration context.
 argument-hint: Launch from Agent Customizations > Migrations > Migrate with Agent
 user-invocable: true
 disable-model-invocation: true
@@ -16,7 +16,6 @@ Before doing anything else, verify that the invoking prompt includes all of the 
 
 - Selected harness
 - Migration telemetry flow
-- Recovery bundle folder and filesystem path
 - Customizations that need migration
 - Valid target folders reported by the selected harness
 
@@ -26,18 +25,14 @@ Read [migration techniques](./references/migration-techniques.md) before proposi
 
 ## Safety Contract
 
-1. Never modify a customization before creating a recovery bundle.
-2. Use the recovery bundle folder supplied in the invoking prompt. VS Code created and is watching this folder; do not move it or substitute another location.
-3. In the recovery bundle, create:
-   - `migration-log.md`, containing the selected harness, scope, timestamps, source and destination paths, commands or tools used, validation results, and every user decision.
-   - `backups/`, containing a byte-for-byte copy of every file before its first modification or deletion.
-   - `restore.md`, containing exact steps for restoring the backups and reverting newly created files.
-   - `migration-results.json`, containing only the privacy-safe aggregate schema described in Finish. VS Code watches this file for the final migration outcome.
-4. Append to the log after every attempted operation, including failures and rollbacks.
-5. Approval to migrate a group authorizes destination writes only; it does not authorize deleting source files, removing source MCP entries, or clearing location settings. Preserve sources by default. After the destination is validated, ask separately for explicit approval for each kind of cleanup. If runtime validation is not possible, explain what was and was not verified, keep the source, and ask whether to defer cleanup.
-6. Stop on an unexpected source change, destination conflict, invalid configuration, failed backup, or failed validation. Explain the problem instead of guessing.
-7. Never include customization names, paths, contents, MCP configuration, or other user data in telemetry.
-8. Classify each inventory item exactly once using its supplied category and scope. Do not offer the same item again in another group; if groups overlap, explain the overlap and use the item's inventory category to decide where it is handled.
+1. VS Code created and verified a private recovery bundle before starting this workflow. Do not search for, inspect, modify, move, or replace its manifest or backups.
+2. The recovery bundle restores original sources only. It does not remove or revert destination files created or changed during migration.
+3. Call `report_customization_migration` exactly once using the privacy-safe aggregate schema described in Finish. This internal tool is available only in the migration chat and does not require filesystem access.
+4. Approval to migrate a group authorizes destination writes only; it does not authorize deleting source files, removing source MCP entries, or clearing location settings. Preserve sources by default. After the destination is validated, ask separately for explicit approval for each kind of cleanup. If runtime validation is not possible, explain what was and was not verified, keep the source, and ask whether to defer cleanup.
+5. Stop on an unexpected source change, destination conflict, invalid configuration, or failed validation. Explain the problem instead of guessing.
+6. Never include customization names, paths, contents, MCP configuration, or other user data in telemetry.
+7. Classify each inventory item exactly once using its supplied category and scope. Do not offer the same item again in another group; if groups overlap, explain the overlap and use the item's inventory category to decide where it is handled.
+8. When using `ask_user`, keep the question short and write it as a single sentence so it remains readable in the chat viewer.
 
 ## Workflow
 
@@ -76,7 +71,7 @@ Work one group at a time. Do not request approval for all writes at once.
 
 ### 3. Migrate Prompt Files to Skills
 
-Explain the compatibility reason for converting each prompt to a skill. Convert each selected prompt into a skill directory with a `SKILL.md`, preserving supported name, description, argument guidance, invocation semantics, and body content. Add `disable-model-invocation: true` when needed to preserve an explicit-invocation-only prompt. Record unsupported frontmatter in the log for review; do not silently drop behavior.
+Explain the compatibility reason for converting each prompt to a skill. Convert each selected prompt into a skill directory with a `SKILL.md`, preserving supported name, description, argument guidance, invocation semantics, and body content. Add `disable-model-invocation: true` when needed to preserve an explicit-invocation-only prompt. Report unsupported frontmatter for review; do not silently drop behavior.
 
 Validate that each skill has valid frontmatter, a meaningful description, and a folder name that matches the skill name. Distinguish structural validation from runtime validation: test discovery and representative invocation in the selected destination harness when possible. A file inspection or a test against a different harness is not proof that the destination harness loads the skill. If runtime validation requires a new session or is otherwise unavailable, say so, leave the source in place, and defer cleanup unless the user explicitly chooses otherwise after hearing the limitation.
 
@@ -101,7 +96,7 @@ Handle only items reported as `configuredLocations` and not already handled in a
 
 ### 7. Finish
 
-Before the final summary, write `migration-results.json` in the recovery bundle:
+Before the final summary, call `report_customization_migration` with:
 
 ```json
 {
@@ -127,11 +122,11 @@ Aggregate results by:
 - customization type: `agent`, `instructions`, `skill`, or `mcpServer`;
 - outcome: `migrated`, `skipped`, or `failed`.
 
-The total reported for each category, scope, and customization type must not exceed the inventory supplied by VS Code. The result file must never include names, paths, contents, configuration values, error messages, or other user data.
+The total reported for each category, scope, and customization type must not exceed the inventory supplied by VS Code. The tool input must never include names, paths, contents, configuration values, error messages, or other user data.
 
-Write the validated JSON to the exact recovery bundle supplied by VS Code. Do not write a result file when no migration telemetry flow was supplied.
+Do not print this payload in the chat response and do not write it to a file. If the tool call fails, explain the failure and retry once with a corrected payload. Do not claim that VS Code recorded the outcome unless the tool succeeds. Do not call the tool when no migration telemetry flow was supplied.
 
-If the user stops the workflow, set `cancelled` to `true`, record completed work with its actual outcome, mark the remaining inventory as `skipped`, and still validate and write the result file before the final cancellation summary.
+If the user stops the workflow, set `cancelled` to `true`, record completed work with its actual outcome, mark the remaining inventory as `skipped`, and still call the tool before the final cancellation summary.
 
 Summarize:
 
@@ -139,7 +134,7 @@ Summarize:
 - created, modified, deleted, and retained files;
 - validation performed;
 - cleanup still pending;
-- recovery bundle and restoration instructions;
+- recovery bundle, noting that VS Code can restore original sources but does not revert destination files;
 - pull request URL when one was requested.
 
 Keep the recovery bundle until the user confirms the migrated customizations work.

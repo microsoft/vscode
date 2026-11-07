@@ -64,6 +64,7 @@ interface IAgentHostResourceRoute {
 export interface IPreparedAgentHostEditAttributionFlush {
 	readonly flushToken: string;
 	readonly agentModifiedCount: number;
+	readonly coarseDiffCount?: number;
 	readonly lastSequence?: number;
 	readonly coverageGapThroughSequence?: number;
 	readonly deferCoverageGap?: boolean;
@@ -203,6 +204,7 @@ export class AgentHostEditMarkerService extends Disposable implements IAgentHost
 					prepared.flushToken !== flushToken ||
 					!Number.isSafeInteger(prepared.agentModifiedCount) ||
 					prepared.agentModifiedCount < 0 ||
+					(prepared.coarseDiffCount !== undefined && (!Number.isSafeInteger(prepared.coarseDiffCount) || prepared.coarseDiffCount < 0)) ||
 					(prepared.lastSequence !== undefined && (!Number.isSafeInteger(prepared.lastSequence) || prepared.lastSequence < 0)) ||
 					(prepared.coverageGapThroughSequence !== undefined && (!Number.isSafeInteger(prepared.coverageGapThroughSequence) || prepared.coverageGapThroughSequence < 0 || prepared.lastSequence === undefined || prepared.coverageGapThroughSequence > prepared.lastSequence)) ||
 					(prepared.standaloneCoverageGapAcknowledgements !== undefined && prepared.lastSequence === undefined) ||
@@ -289,6 +291,7 @@ export class AgentHostEditMarkerService extends Disposable implements IAgentHost
 			return {
 				flushToken,
 				agentModifiedCount: cancelResult.agentModifiedCount,
+				coarseDiffCount: cancelResult.coarseDiffCount,
 				lastSequence: cancelResult.lastSequence,
 				coverageGapThroughSequence: cancelResult.coverageGapThroughSequence,
 				deferCoverageGap,
@@ -329,6 +332,7 @@ export class AgentHostEditMarkerService extends Disposable implements IAgentHost
 		if (
 			(parsed.outcome !== 'committed' && parsed.outcome !== 'cancelled' && parsed.outcome !== 'missing') ||
 			typeof parsed.agentModifiedCount !== 'number' ||
+			(parsed.coarseDiffCount !== undefined && (!Number.isSafeInteger(parsed.coarseDiffCount) || parsed.coarseDiffCount < 0)) ||
 			(parsed.lastSequence !== undefined && (!Number.isSafeInteger(parsed.lastSequence) || parsed.lastSequence < 0)) ||
 			(parsed.coverageGapThroughSequence !== undefined && (!Number.isSafeInteger(parsed.coverageGapThroughSequence) || parsed.coverageGapThroughSequence < 0 || parsed.lastSequence === undefined || parsed.coverageGapThroughSequence > parsed.lastSequence)) ||
 			(parsed.standaloneCoverageGapAcknowledgements !== undefined && parsed.lastSequence === undefined) ||
@@ -339,6 +343,7 @@ export class AgentHostEditMarkerService extends Disposable implements IAgentHost
 		return {
 			outcome: parsed.outcome,
 			agentModifiedCount: parsed.agentModifiedCount,
+			coarseDiffCount: parsed.coarseDiffCount,
 			lastSequence: parsed.lastSequence,
 			coverageGapThroughSequence: parsed.coverageGapThroughSequence,
 			standaloneCoverageGapAcknowledgements: parsed.standaloneCoverageGapAcknowledgements,
@@ -373,6 +378,7 @@ export class AgentHostEditMarkerService extends Disposable implements IAgentHost
 					if (!marker || !resourceUri) {
 						continue;
 					}
+					// eslint-disable-next-line local/code-agent-host-uri-mapping -- TODO(agent-host-uri): edit-marker resource identity bypasses the available connection.resourceUris mapper
 					const resource = toAgentHostUri(URI.parse(resourceUri), connectionInfo.authority);
 					const resourceKey = this._key(resource);
 					const previousRoute = this._routes.get(resourceKey);
@@ -579,12 +585,18 @@ export class AgentHostEditMarkerService extends Disposable implements IAgentHost
 			const source = firstSource && sources.every(candidate =>
 				candidate !== undefined &&
 				candidate.modelId === firstSource.modelId &&
+				candidate.autoTier === firstSource.autoTier &&
+				candidate.fusionModel === firstSource.fusionModel &&
+				candidate.agentSessionId === firstSource.agentSessionId &&
 				(firstSource.chatSessionId === undefined || candidate.conversationId === firstSource.conversationId) &&
 				candidate.chatSessionId === firstSource.chatSessionId &&
 				candidate.harness === firstSource.harness
 			) ? EditSources.agentHostChatApplyEdits({
 				modelId: firstSource.modelId,
+				autoTier: firstSource.autoTier,
+				fusionModel: firstSource.fusionModel,
 				sessionId: firstSource.conversationId,
+				agentSessionId: firstSource.agentSessionId,
 				chatSessionId: firstSource.chatSessionId,
 				requestId: firstSource.requestId,
 				harness: firstSource.harness,
@@ -682,6 +694,7 @@ export class AgentHostEditMarkerService extends Disposable implements IAgentHost
 	}
 
 	private _key(resource: URI): string {
+		// eslint-disable-next-line local/code-agent-host-uri-mapping -- TODO(agent-host-uri): edit-marker keys strip editor-remote identity instead of comparing in the owning connection URI space
 		const normalizedResource = resource.scheme === Schemas.vscodeRemote
 			? URI.from({ scheme: Schemas.file, path: resource.path })
 			: resource;

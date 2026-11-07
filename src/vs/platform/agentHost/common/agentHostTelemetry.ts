@@ -3,8 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { vEnum } from '../../../base/common/validation.js';
 import { TelemetryConfiguration, TelemetryLevel } from '../../telemetry/common/telemetry.js';
 import type { AgentHostClientType } from './agentHostClientInfo.js';
+import type { AgentHostProviderMilestone, AgentHostProviderOperation, IAgentProviderOperationTiming } from './agentHostProviderTiming.js';
 
 export const enum AgentHostLaunchKind {
 	VSCodeMainProcess = 'vscode_main_process',
@@ -23,8 +25,22 @@ export const enum AgentHostClientConnectionKind {
 	WSL = 'wsl',
 	RemoteExtensionHost = 'remote_extension_host',
 	WebPubSub = 'web_pub_sub',
+	MissionControl = 'mission_control',
 	Unknown = 'unknown',
 }
+
+export const agentHostClientConnectionKindValidator = vEnum(
+	AgentHostClientConnectionKind.Local,
+	AgentHostClientConnectionKind.DirectWebSocket,
+	AgentHostClientConnectionKind.DevTunnel,
+	AgentHostClientConnectionKind.DevContainer,
+	AgentHostClientConnectionKind.SSH,
+	AgentHostClientConnectionKind.WSL,
+	AgentHostClientConnectionKind.RemoteExtensionHost,
+	AgentHostClientConnectionKind.WebPubSub,
+	AgentHostClientConnectionKind.MissionControl,
+	AgentHostClientConnectionKind.Unknown,
+);
 
 export const enum AgentHostTransportKind {
 	MessagePort = 'message_port',
@@ -101,7 +117,7 @@ export type AgentHostProviderSendStage =
 	| 'refresh'
 	/** Per-turn preparation after the session is ready and before the SDK send. */
 	| 'turnPrepare'
-	/** From the SDK send until the first visible progress (model latency). */
+	/** From the SDK send until the first visible progress, including runtime and model waiting. */
 	| 'modelResponse';
 
 /**
@@ -110,6 +126,8 @@ export type AgentHostProviderSendStage =
  */
 export interface IAgentProviderSendStageRecorder {
 	mark(stage: AgentHostProviderSendStage): void;
+	startOperation?(operation: AgentHostProviderOperation): IAgentProviderOperationTiming | undefined;
+	markMilestone?(milestone: AgentHostProviderMilestone): void;
 }
 
 export interface IAgentHostClientTelemetryContext {
@@ -119,6 +137,11 @@ export interface IAgentHostClientTelemetryContext {
 	readonly hostLaunchKind: AgentHostLaunchKind;
 	readonly machineId?: string;
 	readonly devDeviceId?: string;
+}
+
+export interface IAgentHostSessionSubscribeTelemetryContext extends IAgentHostClientTelemetryContext {
+	readonly clientId: string;
+	readonly isReconnect: boolean;
 }
 
 /** Bounded account context at Codex turn admission, independent of the turn's model provider. */
@@ -142,7 +165,41 @@ export interface IAgentTurnTelemetryCorrelation {
 /** Provider-owned, immutable context captured without I/O when a turn starts. */
 export interface IAgentProviderTurnTelemetryContext {
 	readonly codex?: ICodexAccountTelemetryContext;
+	/**
+	 * Whether this turn used a pre-warmed provider session instead of
+	 * launching one. Captured as unknown at turn start and set by the provider
+	 * through {@link IAgentChatContext.reportPrewarmedSession}; absent
+	 * otherwise.
+	 */
+	readonly usedPrewarmedSession?: boolean;
+	/**
+	 * Why this turn's send discarded a pre-warmed provider session and
+	 * launched one instead, reported through
+	 * {@link IAgentChatContext.reportPrewarmedSession}; absent otherwise.
+	 */
+	readonly prewarmedSessionDiscardReason?: string;
+	/**
+	 * Why this turn's send materialized a deferred provider session without a
+	 * pre-warmed one to claim or discard, reported through
+	 * {@link IAgentChatContext.reportPrewarmSkipped}; absent otherwise.
+	 */
+	readonly prewarmSkipReason?: AgentHostPrewarmSkipReason;
 }
+
+/**
+ * Why a draft had no pre-warmed provider session when its first send
+ * materialized it:
+ * - `notRequested`: the host never considered warming the draft;
+ * - `awaitingActiveClient`, `customizationsPending`: the send arrived while
+ *   the warm gate still waited for the client's tools or the customization
+ *   enablement, or enablement stayed pending (as for a worktree draft);
+ * - `untrustedFolder`: one of the draft's folders is not trusted;
+ * - `disabled`: the prewarm experiment setting is off;
+ * - `warmFailed`: the warm launch failed;
+ * - `expired`: the warm launch stayed unclaimed for its lifetime;
+ * - `released`: the runtime that held the warm launch was torn down.
+ */
+export type AgentHostPrewarmSkipReason = 'notRequested' | 'awaitingActiveClient' | 'customizationsPending' | 'untrustedFolder' | 'disabled' | 'warmFailed' | 'expired' | 'released';
 
 export function createUnknownAgentHostClientTelemetryContext(clientType: AgentHostClientType): IAgentHostClientTelemetryContext {
 	return {
@@ -175,20 +232,7 @@ export function toAgentHostClientMeta(connectionKind: AgentHostClientConnectionK
 }
 
 export function readClientConnectionKind(meta: Record<string, unknown> | undefined): AgentHostClientConnectionKind {
-	const value = meta?.[CLIENT_CONNECTION_KIND_META_KEY];
-	switch (value) {
-		case AgentHostClientConnectionKind.Local:
-		case AgentHostClientConnectionKind.DirectWebSocket:
-		case AgentHostClientConnectionKind.DevTunnel:
-		case AgentHostClientConnectionKind.DevContainer:
-		case AgentHostClientConnectionKind.SSH:
-		case AgentHostClientConnectionKind.WSL:
-		case AgentHostClientConnectionKind.RemoteExtensionHost:
-		case AgentHostClientConnectionKind.WebPubSub:
-			return value;
-		default:
-			return AgentHostClientConnectionKind.Unknown;
-	}
+	return agentHostClientConnectionKindValidator.validate(meta?.[CLIENT_CONNECTION_KIND_META_KEY]).content ?? AgentHostClientConnectionKind.Unknown;
 }
 
 export function readClientTelemetryLevel(meta: Record<string, unknown> | undefined): TelemetryLevel | undefined {

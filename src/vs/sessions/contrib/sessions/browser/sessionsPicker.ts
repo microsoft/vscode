@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IReader } from '../../../../base/common/observable.js';
-import { isActiveSessionStatus, ISession, SessionStatus } from '../../../services/sessions/common/session.js';
+import { isActiveSessionStatus, ISession, SessionStatus } from '../../../../workbench/services/sessions/common/session.js';
 
 export interface ISessionsPickerGroups {
 	readonly needsInput: readonly ISession[];

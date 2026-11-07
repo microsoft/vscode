@@ -6,8 +6,14 @@
 /** Host-supplied fetch implementation for one request attempt and its response body. */
 export type RequestFetch = typeof globalThis.fetch;
 
-/** Wire operation category used for scheduling and diagnostics. */
-export type RequestKind = 'rest' | 'graphql' | 'download';
+/** Fixed API domains for request attribution, independent of callers and quota identities. */
+export const gitHubRequestDomains = [
+	'actions', 'automations', 'capabilities', 'checks', 'connectors', 'content', 'credentials', 'environments',
+	'gists', 'issues', 'notifications', 'organizations', 'pullRequests', 'repositories', 'reviews',
+	'search', 'tasks', 'users', 'other',
+] as const;
+
+export type GitHubRequestDomain = typeof gitHubRequestDomains[number];
 
 /** Stable account quota identity at a service host, independent of its credential. */
 export interface AccountHandle {
@@ -37,6 +43,21 @@ export type RequestAccount = AccountHandle | AnonymousAccount | BootstrapAccount
 /** Internal scheduling lanes, ordered independently from caller authentication. */
 export type RequestPriority = 'mutationReconciliation' | 'mutation' | 'interactive' | 'mergeGate' | 'visible' | 'background' | 'enrichment';
 
+const priorityOrder: Record<RequestPriority, number> = {
+	mutationReconciliation: 0,
+	mutation: 1,
+	interactive: 2,
+	mergeGate: 3,
+	visible: 4,
+	background: 5,
+	enrichment: 6,
+};
+
+/** Compares scheduling lanes from highest to lowest priority. */
+export function compareRequestPriority(left: RequestPriority, right: RequestPriority): number {
+	return priorityOrder[left] - priorityOrder[right];
+}
+
 /** Content-free transport and admission failure categories shared by API services. */
 export type RequestErrorKind = 'authentication' | 'authorization' | 'notFound' | 'validation' | 'schema' | 'rateLimit' | 'network' | 'server' | 'overloaded' | 'timeout' | 'responseTooLarge' | 'malformedResponse' | 'unknown';
 
@@ -48,9 +69,9 @@ export interface RequestOptions {
 
 /** Immutable admission context for one governed operation and its owning consumer. */
 export interface RequestContext {
-	readonly kind: RequestKind;
 	readonly account: RequestAccount;
 	readonly caller: string;
+	readonly domain?: GitHubRequestDomain;
 	readonly resource: string;
 	readonly priority: RequestPriority;
 	readonly deadline: number;
@@ -99,7 +120,7 @@ export interface IRequestTiming {
 /** Optional diagnostics supplied by the domain owning a request queue. */
 export interface IRequestQueueTelemetry {
 	startQueue(context: RequestContext): IRequestTiming | undefined;
-	recordRejection(reason: 'engine' | 'account' | 'caller' | 'waiter'): void;
+	recordRejection(reason: 'engine' | 'account' | 'caller' | 'waiter', domain?: GitHubRequestDomain): void;
 	recordQueueSize(active: number, pending: number): void;
 }
 

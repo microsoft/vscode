@@ -72,6 +72,10 @@ export class RemoteEmbeddingsComputer implements IEmbeddingsComputer {
 				// Determine endpoint type: use CAPI for no-auth users, otherwise use GitHub
 				const copilotToken = await this._authService.getCopilotToken();
 				if (copilotToken.isNoAuthUser) {
+					// CAPI does not expose Metis to anonymous users, so Metis-backed features are auth-gated.
+					if (getWellKnownEmbeddingTypeInfo(embeddingType)?.model === LEGACY_EMBEDDING_MODEL_ID.Metis_I16_Binary) {
+						return { type: embeddingType, values: [] };
+					}
 					const embeddings = await this.computeCAPIEmbeddings(embeddingType, inputs, options, cancellationToken);
 					return embeddings ?? { type: embeddingType, values: [] };
 				}

@@ -21,6 +21,7 @@ import { IJSONEditingService } from '../../../services/configuration/common/json
 import { INotificationService, Severity } from '../../../../platform/notification/common/notification.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { McpCommandIds } from '../common/mcpCommandIds.js';
+import type { IOpenUserMcpConfigurationOptions } from './mcpCommands.js';
 import { localize } from '../../../../nls.js';
 
 interface IMcpConfiguration {
@@ -112,7 +113,12 @@ export class McpConfigMigrationContribution extends Disposable implements IWorkb
 				label: localize('mcp.migration.update', 'Update Now'),
 				run: async () => {
 					await this.migrateMcpConfig();
-					await this.commandService.executeCommand(commandId);
+					if (isRemote) {
+						await this.commandService.executeCommand(commandId);
+					} else {
+						// Servers are migrated into VS Code's user mcp.json, so open it rather than offering other user configurations.
+						await this.commandService.executeCommand(commandId, { legacy: true } satisfies IOpenUserMcpConfigurationOptions);
+					}
 				},
 			}, {
 				label: openConfigLabel,

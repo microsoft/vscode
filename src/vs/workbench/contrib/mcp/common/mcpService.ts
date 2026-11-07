@@ -14,6 +14,8 @@ import { ILogService } from '../../../../platform/log/common/log.js';
 import { mcpAutoStartConfig, McpAutoStartValue } from '../../../../platform/mcp/common/mcpManagement.js';
 import { observableConfigValue } from '../../../../platform/observable/common/platformObservableUtils.js';
 import { IStorageService, StorageScope } from '../../../../platform/storage/common/storage.js';
+import { IUserDataProfileService } from '../../../services/userDataProfile/common/userDataProfile.js';
+import { MCP_ENABLEMENT_STORAGE_KEY, migrateCustomizationEnablementToApplicationStorage } from '../../chat/common/customizationEnablementStorage.js';
 import { CollisionEnablementModel, EnablementModel, isContributionEnabled } from '../../chat/common/enablement.js';
 import { McpCollisionBehavior, mcpServerCollisionBehaviorSection } from './mcpConfiguration.js';
 import { IMcpRegistry } from './mcpRegistryTypes.js';
@@ -46,10 +48,12 @@ export class McpService extends Disposable implements IMcpService {
 		@ILogService private readonly _logService: ILogService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IStorageService storageService: IStorageService,
+		@IUserDataProfileService userDataProfileService: IUserDataProfileService,
 	) {
 		super();
 
-		const baseEnablement = this._register(new EnablementModel('mcp.enablement', storageService));
+		migrateCustomizationEnablementToApplicationStorage(storageService, userDataProfileService.currentProfile);
+		const baseEnablement = this._register(new EnablementModel(MCP_ENABLEMENT_STORAGE_KEY, storageService));
 		const collisionBehavior = observableConfigValue(mcpServerCollisionBehaviorSection, McpCollisionBehavior.Disable, configurationService);
 		this.enablementModel = new McpCollisionEnablementModel(baseEnablement, this._mcpRegistry, collisionBehavior);
 

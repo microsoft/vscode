@@ -237,7 +237,7 @@ task.task('monacodts-check', task.define('monacodts-check', () => {
 	const normalizedCurrentEnums = currentEnums.replace(/\r\n/g, '\n');
 	const normalizedGeneratedEnums = result.enums.replace(/\r\n/g, '\n');
 	if (!result.isTheSame || normalizedCurrentEnums !== normalizedGeneratedEnums) {
-		throw new Error('Monaco declarations are no longer up to date. Run `npm run gulp monacodts` and commit the generated files.');
+		throw new Error('Monaco declarations are no longer up to date. Run `pnpm run gulp monacodts` and commit the generated files.');
 	}
 	return Promise.resolve(true);
 }));

@@ -8,6 +8,8 @@ import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { Emitter } from '../../../../../base/common/event.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { MockContextKeyService } from '../../../../../platform/keybinding/test/common/mockKeybindingService.js';
+import { NullLogService } from '../../../../../platform/log/common/log.js';
+import { UnattendedRestartService } from '../../../../services/lifecycle/common/unattendedRestart.js';
 import { mock, TestStorageService } from '../../../../test/common/workbenchTestServices.js';
 import { ITestingContinuousRunService, TestingContinuousRunService } from '../../common/testingContinuousRunService.js';
 import { ITestProfileService } from '../../common/testProfileService.js';
@@ -17,6 +19,7 @@ import { ITestRunProfile, ResolvedTestRunRequest, TestRunProfileBitset } from '.
 suite('TestingContinuousRunService', () => {
 	const ds = ensureNoDisposablesAreLeakedInTestSuite();
 	let testService: MockTestService;
+	let unattendedRestartService: UnattendedRestartService;
 	let cr: ITestingContinuousRunService;
 
 	const profile1: ITestRunProfile = { profileId: 1, controllerId: 'ctrl', group: TestRunProfileBitset.Run, label: 'label', supportsContinuousRun: true, isDefault: false, hasConfigurationHandler: true, tag: null };
@@ -48,12 +51,27 @@ suite('TestingContinuousRunService', () => {
 
 	setup(() => {
 		testService = new MockTestService();
+		unattendedRestartService = new UnattendedRestartService(ds.add(new NullLogService()));
 		cr = ds.add(new TestingContinuousRunService(
 			testService,
 			ds.add(new TestStorageService()),
 			ds.add(new MockContextKeyService()),
 			new MockProfilesService(),
+			unattendedRestartService,
 		));
+	});
+
+	test('blocks an unattended restart while a continuous run is on, which the restart would not turn back on', async () => {
+		const whenOff = await unattendedRestartService.canRestartUnattended();
+		cr.start([profile1], 'testId');
+		const whenOnForATest = await unattendedRestartService.canRestartUnattended();
+		cr.stop();
+
+		assert.deepStrictEqual({ whenOff, whenOnForATest, afterStop: await unattendedRestartService.canRestartUnattended() }, {
+			whenOff: { blockers: [] },
+			whenOnForATest: { blockers: ['testing.continuousRun'] },
+			afterStop: { blockers: [] },
+		});
 	});
 
 	test('isSpecificallyEnabledFor', () => {

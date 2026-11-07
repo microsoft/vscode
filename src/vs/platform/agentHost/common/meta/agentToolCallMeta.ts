@@ -8,9 +8,9 @@ import { ToolCallStatus, type StringOrMarkdown, type ToolCallState, type ToolDef
 import type { IAgentMetadataSource } from './metadata.js';
 import { hasVSCodeToolCallMeta, readToolCallMeta as readVSCodeToolCallMeta, type ToolKind } from './vscode/agentToolCallMeta.js';
 import { readCopilotToolOutputDelta, withCopilotToolPreferences } from './copilotd/copilotdMetadataReader.js';
-import { readCopilotToolPresentation, readCopilotWritePermissionPresentation } from './copilotd/toolPresentation.js';
+import { readCopilotToolPresentation, readCopilotUrlPermissionPresentation, readCopilotWritePermissionPresentation } from './copilotd/toolPresentation.js';
 
-export { isPresentationOnlyToolCall, toToolCallMeta } from './vscode/agentToolCallMeta.js';
+export { copilotCliToolInputContract, isPresentationOnlyToolCall, toToolCallMeta } from './vscode/agentToolCallMeta.js';
 export type { AgentFusionPhaseStatus, IFusionPhaseMeta, IToolCallMeta, IToolCallUiMeta, IToolSearchCandidate, ToolKind } from './vscode/agentToolCallMeta.js';
 
 export interface IAgentToolOutputChunk {
@@ -27,6 +27,12 @@ export function readToolCallMeta(source: IAgentMetadataSource) {
 	return readVSCodeToolCallMeta(source);
 }
 
+/** Returns an elapsed duration only when both provider timestamps are valid and ordered. */
+export function getToolCallDurationMs(startedAt: string | undefined, completedAt: string | undefined): number | undefined {
+	const duration = startedAt && completedAt ? Date.parse(completedAt) - Date.parse(startedAt) : NaN;
+	return Number.isFinite(duration) && duration >= 0 ? duration : undefined;
+}
+
 export interface IToolCallPresentation {
 	readonly toolKind?: ToolKind;
 	readonly invocationMessage?: StringOrMarkdown;
@@ -37,7 +43,7 @@ export interface IToolCallPresentation {
 export function readToolCallPresentation(call: ToolCallState): IToolCallPresentation {
 	const metadata = readVSCodeToolCallMeta(call);
 	const fallback = hasVSCodeToolCallMeta(call) ? undefined : readCopilotToolPresentation(call);
-	const permission = hasVSCodeToolCallMeta(call) ? undefined : readCopilotWritePermissionPresentation(call);
+	const permission = hasVSCodeToolCallMeta(call) ? undefined : readCopilotWritePermissionPresentation(call) ?? readCopilotUrlPermissionPresentation(call);
 	const invocation = permission?.invocationMessage ?? call.invocationMessage;
 	const pastTense = hasKey(call, { pastTenseMessage: true }) ? call.pastTenseMessage : undefined;
 	const genericInvocation = invocation === undefined || typeof invocation === 'string'

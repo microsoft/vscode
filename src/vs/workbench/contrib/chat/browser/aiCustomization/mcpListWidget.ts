@@ -19,7 +19,7 @@ import { IObjectTreeElement, ObjectTreeElementCollapseState } from '../../../../
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { Button } from '../../../../../base/browser/ui/button/button.js';
-import { defaultInputBoxStyles, getButtonStyles } from '../../../../../platform/theme/browser/defaultStyles.js';
+import { defaultButtonStyles, defaultInputBoxStyles, getButtonStyles } from '../../../../../platform/theme/browser/defaultStyles.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { CustomizationMarketplaceIcon, ICustomizationMarketplaceService } from '../../../../../platform/customizationMarketplace/common/customizationMarketplaceService.js';
@@ -37,7 +37,11 @@ import { ICustomizationMarketplaceInstallService, IRecordedCustomizationMarketpl
 import { McpCommandIds } from '../../../../contrib/mcp/common/mcpCommandIds.js';
 import { autorun, derived, IObservable, IReader, observableSignalFromEvent, observableValue } from '../../../../../base/common/observable.js';
 import { IOpenerService } from '../../../../../platform/opener/common/opener.js';
+import { getManagedSupportUrl, IManagedSettingsService } from '../../../../../platform/policy/common/copilotManagedSettings.js';
+import { appendContactAdministratorLink } from '../../../../services/policies/browser/organizationSupportLink.js';
+import { Link } from '../../../../../platform/opener/browser/link.js';
 import { URI } from '../../../../../base/common/uri.js';
+import { isEqual, isEqualOrParent } from '../../../../../base/common/resources.js';
 import { InputBox, MessageType } from '../../../../../base/browser/ui/inputbox/inputBox.js';
 import { IContextMenuService, IContextViewService } from '../../../../../platform/contextview/browser/contextView.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../../base/common/cancellation.js';
@@ -48,9 +52,10 @@ import { LocalMcpServerScope } from '../../../../services/mcp/common/mcpWorkbenc
 import { IAgentPlugin, IAgentPluginService } from '../../common/plugins/agentPluginService.js';
 import { IDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
 import { mcpServerIcon } from './aiCustomizationIcons.js';
+import { createMcpSignInButton, registerMcpInlineButtonAction, registerMcpSignInButtonAction, resetMcpSignInButton } from './mcpServerSignInButton.js';
 import { formatDisplayName, truncateToFirstLine } from './aiCustomizationListWidget.js';
 import { MiddleEllipsisPathLabel } from './aiCustomizationListWidgetUtils.js';
-import { getDefaultHoverDelegate } from '../../../../../base/browser/ui/hover/hoverDelegateFactory.js';
+import { createInstantHoverDelegate, getDefaultHoverDelegate } from '../../../../../base/browser/ui/hover/hoverDelegateFactory.js';
 import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
 import { IManagedHover } from '../../../../../base/browser/ui/hover/hover.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
@@ -58,19 +63,21 @@ import { IAICustomizationWorkspaceService } from '../../common/aiCustomizationWo
 import { AgentPluginItemKind, IAgentPluginItem } from '../agentPluginEditor/agentPluginItems.js';
 import { CustomizationMcpServerCompatibilityKind, getCustomizationDisabledLabel, ICustomizationHarnessService } from '../../common/customizationHarnessService.js';
 import { getMcpServerDisplayLabel, IAgentHostCustomizationService } from '../agentSessions/agentHost/agentHostCustomizationService.js';
-import { CustomizationEnablementKind, McpServerStatus } from '../../../../../platform/agentHost/common/state/protocol/state.js';
+import { CustomizationEnablementKind, CustomizationLoadStatus, CustomizationType, McpServerStatus } from '../../../../../platform/agentHost/common/state/protocol/state.js';
 import { IOutputService } from '../../../../services/output/common/output.js';
 import { ChatConfiguration } from '../../common/constants.js';
+import { IMcpServerCustomizationMigrationCandidate } from '../../common/promptSyntax/service/customizationMigrationService.js';
 import { getAvailableCustomizationMarketplaceInstallTelemetryContext, runCustomizationMarketplaceInstallWithTelemetry } from '../../common/customizationMarketplaceInstallTelemetry.js';
+import { customizationSearchMatchesAny } from '../../common/aiCustomizationSearch.js';
 import { getCustomizationDisabledReason, getCustomizationEnablementDecision, getCustomizationScopeEnablement, type CustomizationDisabledReason } from '../../../../../platform/agentHost/common/customizationEnablement.js';
-import { createAgentHostEnablePluginAction, removePluginWithMarketplaceOwnership } from '../agentPluginActions.js';
+import { createAgentHostEnablePluginAction, getPluginManagedByOrganizationMessage, isPluginRequiredByPolicy, removePluginWithMarketplaceOwnership } from '../agentPluginActions.js';
 import { INotificationService } from '../../../../../platform/notification/common/notification.js';
 import { getErrorMessage, isCancellationError } from '../../../../../base/common/errors.js';
 import { status } from '../../../../../base/browser/ui/aria/aria.js';
 import { Range } from '../../../../../editor/common/core/range.js';
 import { IMcpServerConfiguration, McpServerType } from '../../../../../platform/mcp/common/mcpPlatformTypes.js';
-import { createWorkbenchMcpServerDetailInput, IMcpServerDefinitionUnavailable, IMcpServerDetailInput, IMcpServerProvenance } from './embeddedMcpServerDetail.js';
-import { createCustomizationCardPrimaryAction, CustomizationCardListController, getVirtualizedSectionMinimumHeight, layoutVirtualizedSections, setVirtualizedRowActionsTabbable, trackCustomizationCardPrimaryActionFocus } from './customizationCardList.js';
+import { createWorkbenchMcpServerDetailInput, IMcpServerDefinitionUnavailable, IMcpServerDetailInput, IMcpServerProvenance, isMcpServerDetailMigratable } from './embeddedMcpServerDetail.js';
+import { createCustomizationCardPrimaryAction, CustomizationCardListController, focusFirstCustomizationTreeItem, getVirtualizedSectionMinimumHeight, layoutVirtualizedSections, setVirtualizedRowActionsTabbable, stopListRowActionKeyDownPropagation, trackCustomizationCardPrimaryActionFocus } from './customizationCardList.js';
 import { DomScrollableElement } from '../../../../../base/browser/ui/scrollbar/scrollableElement.js';
 import { ScrollbarVisibility } from '../../../../../base/common/scrollable.js';
 import { WorkbenchList, WorkbenchObjectTree } from '../../../../../platform/list/browser/listService.js';
@@ -79,11 +86,14 @@ import { ExtensionEditorTab, IExtensionsWorkbenchService } from '../../../extens
 import { ActiveSessionMcpServerMatcher, type AgentHostMcpServer, getRuntimeServerMatchKeys, getUniqueMcpMatchKeys, isMcpServerInUse } from './mcpServerCount.js';
 import { getConnectorActionLabel } from './connectorPresentation.js';
 import { ICopilotConnector, ICopilotConnectorsService, IConnectedCopilotConnectorMcpServer } from './copilotConnectorsService.js';
-import { CustomizationGroupHeaderRenderer, CUSTOMIZATION_GROUP_HEADER_HEIGHT, CUSTOMIZATION_GROUP_HEADER_HEIGHT_WITH_SEPARATOR, ICustomizationGroupHeaderEntry } from './customizationGroupHeaderRenderer.js';
+import { CustomizationGroupHeaderRenderer, CUSTOMIZATION_GROUP_HEADER_HEIGHT, CUSTOMIZATION_GROUP_HEADER_HEIGHT_WITH_SEPARATOR, getCustomizationGroupAriaLabel, ICustomizationGroupHeaderEntry } from './customizationGroupHeaderRenderer.js';
 import { asTreeRenderer, customizationTreeStyles, getCustomizationTreeContentHeight, ICustomizationTreeGroup } from './customizationTree.js';
+import { getCustomizationContributionSourceLabel } from './customizationContributionSource.js';
 import { CustomizationToggle } from './customizationToggle.js';
 import { affectsCustomizationDiscoveryAvailability, isCustomizationDiscoveryAvailable } from './customizationMarketplaceConfiguration.js';
 import { renderCustomizationMarketplaceIcon } from './aiCustomizationPresentation.js';
+import { findAICustomizationWorkspaceGroupContaining, getAICustomizationWorkspaceGroups, isAICustomizationWorkspaceGroupKey, isInAICustomizationWorkspaceFolder } from './aiCustomizationWorkspaceGroups.js';
+import { IWorkspaceContextService } from '../../../../../platform/workspace/common/workspace.js';
 
 export type { AgentHostMcpServer } from './mcpServerCount.js';
 
@@ -125,7 +135,7 @@ function getPluginUriFromCollectionId(collectionId: string | undefined): string 
 	return collectionId?.startsWith(PLUGIN_COLLECTION_PREFIX) ? collectionId.slice(PLUGIN_COLLECTION_PREFIX.length) : undefined;
 }
 
-function createInstalledPluginItem(plugin: IAgentPlugin): IAgentPluginItem {
+export function createInstalledPluginItem(plugin: IAgentPlugin): IAgentPluginItem {
 	return {
 		kind: AgentPluginItemKind.Installed,
 		name: plugin.label,
@@ -143,6 +153,7 @@ interface IMcpServerItemEntry {
 	readonly server: IWorkbenchMcpServer;
 	readonly activeSessionServer?: AgentHostMcpServer;
 	readonly localServer?: IMcpServer;
+	readonly localEnablement?: IObservable<ContributionEnablementState>;
 	/**
 	 * Whether this entry originates from a marketplace browse result. Marketplace rows always use
 	 * the gallery row presentation (with an Install/Installed button), even when the server is
@@ -181,6 +192,17 @@ interface IMcpConnectorItemEntry {
 	readonly connector: IConnectedCopilotConnectorMcpServer;
 }
 
+export interface IMcpProviderItemEntry {
+	readonly type: 'provider-item';
+	readonly id: string;
+	readonly name: string;
+	readonly label: string;
+	readonly description: string;
+	readonly marketplaceRecord: IRecordedCustomizationMarketplaceResource;
+	readonly activeSessionServer?: undefined;
+	readonly localServer?: undefined;
+}
+
 export function createBuiltinActiveSessionMcpEntries(servers: readonly AgentHostMcpServer[]): readonly IMcpSessionServerItemEntry[] {
 	return servers.map(server => ({ type: 'session-server-item', server }));
 }
@@ -189,7 +211,7 @@ export function isMcpServerCollectionVisible(collectionId: string, hiddenCollect
 	return !hiddenCollectionIds?.includes(collectionId);
 }
 
-export type IMcpInstalledEntry = IMcpServerItemEntry | IMcpSessionServerItemEntry | IMcpBuiltinItemEntry | IMcpConnectorItemEntry;
+export type IMcpInstalledEntry = IMcpServerItemEntry | IMcpSessionServerItemEntry | IMcpBuiltinItemEntry | IMcpConnectorItemEntry | IMcpProviderItemEntry;
 
 function hasMcpInstalledEntryIcon(entry: IMcpInstalledEntry): boolean {
 	return getMcpInstalledEntryIcon(entry) !== undefined;
@@ -198,6 +220,9 @@ function hasMcpInstalledEntryIcon(entry: IMcpInstalledEntry): boolean {
 function getMcpInstalledEntryIcon(entry: IMcpInstalledEntry): CustomizationMarketplaceIcon | undefined {
 	if (entry.type === 'connector-item') {
 		return entry.connector.connector.icon;
+	}
+	if (entry.type === 'provider-item') {
+		return entry.marketplaceRecord.resource.icon;
 	}
 	if (entry.type !== 'server-item') {
 		return undefined;
@@ -216,6 +241,7 @@ interface IMcpMarketplaceEntry {
 
 interface IMcpGroupHeaderEntry extends ICustomizationGroupHeaderEntry {
 	readonly group: string;
+	readonly workspaceFolder?: URI;
 }
 
 type IMcpSectionEntry = IMcpGroupHeaderEntry | IMcpInstalledEntry | IMcpMarketplaceEntry;
@@ -261,7 +287,13 @@ export function preserveMcpEntryOrder(entries: readonly IMcpInstalledPresentatio
 	return [...entries].sort((left, right) => order.get(getMcpRowKey(left.entry))! - order.get(getMcpRowKey(right.entry))!);
 }
 
-export type McpStatusKind = McpConnectionState.Kind | McpServerStatus | 'disabled';
+export type McpStatusKind = McpConnectionState.Kind | McpServerStatus | 'disabled' | 'authenticating';
+
+function isMcpServerStartable(state: McpStatusKind | undefined): boolean {
+	return typeof state === 'number'
+		? McpConnectionState.canBeStarted(state)
+		: state === McpServerStatus.Stopped || state === McpServerStatus.Error;
+}
 
 export function getToggledMcpEnablementState(state: ContributionEnablementState): ContributionEnablementState {
 	switch (state) {
@@ -288,6 +320,8 @@ interface IMcpServerItemTemplateData {
 	readonly sourcePath: HTMLElement;
 	readonly sourcePathLabel: MiddleEllipsisPathLabel;
 	readonly sourcePathHover: IManagedHover;
+	readonly skillsLink: Link;
+	readonly skillsLinkElement: HTMLAnchorElement;
 	readonly description: HTMLElement;
 	readonly descriptionHover: IManagedHover;
 	readonly issue: HTMLElement;
@@ -315,13 +349,16 @@ interface IMcpServerItemTemplateData {
 export class McpServerItemRenderer extends Disposable implements IListRenderer<IMcpInstalledEntry, IMcpServerItemTemplateData> {
 	readonly templateId = 'mcpServerItem';
 	private readonly _templates = new Set<IMcpServerItemTemplateData>();
+	private readonly _sourceHoverDelegate = this._register(createInstantHoverDelegate());
 	private _focusedRowKey: string | undefined;
 
 	constructor(
 		private readonly _renderManagementActions: (getEntry: () => IMcpInstalledEntry | undefined, actions: HTMLElement, disposables: DisposableStore, updateTabbability: () => void) => void,
 		private readonly _getCompatibilityKind: (entry: IMcpInstalledEntry, reader?: IReader) => CustomizationMcpServerCompatibilityKind | undefined,
+		private readonly _isMigratable: (entry: IMcpInstalledEntry, reader?: IReader) => boolean,
 		private readonly _openPlugin: (plugin: IAgentPlugin) => void,
 		private readonly _openMigrations: () => void,
+		private readonly _showSkillBundle: (bundleId: string) => void,
 		@IAICustomizationWorkspaceService private readonly workspaceService: IAICustomizationWorkspaceService,
 		@IAgentPluginService private readonly agentPluginService: IAgentPluginService,
 		@IHoverService private readonly hoverService: IHoverService,
@@ -330,6 +367,7 @@ export class McpServerItemRenderer extends Disposable implements IListRenderer<I
 		@ILabelService private readonly labelService: ILabelService,
 		@IExtensionsWorkbenchService private readonly extensionsWorkbenchService: IExtensionsWorkbenchService,
 		@IThemeService private readonly themeService: IThemeService,
+		@IOpenerService private readonly openerService: IOpenerService,
 	) {
 		super();
 		this._register(this.themeService.onDidColorThemeChange(() => {
@@ -357,13 +395,28 @@ export class McpServerItemRenderer extends Disposable implements IListRenderer<I
 		const compatibilityMessageDisposables = templateDisposables.add(new DisposableStore());
 		const sourcePath = DOM.append(secondaryLine, $('a.mcp-server-source-path'));
 		const sourcePathLabel = templateDisposables.add(new MiddleEllipsisPathLabel(sourcePath));
-		const sourcePathHover = templateDisposables.add(this.hoverService.setupManagedHover(getDefaultHoverDelegate('element'), sourcePath, ''));
-		const description = DOM.append(details, $('.mcp-server-description'));
+		const sourcePathHover = templateDisposables.add(this.hoverService.setupManagedHover(this._sourceHoverDelegate, sourcePath, ''));
+		const description = DOM.append(secondaryLine, $('.mcp-server-description'));
 		const descriptionHover = templateDisposables.add(this.hoverService.setupManagedHover(getDefaultHoverDelegate('element'), description, ''));
+		const skillsLink = templateDisposables.add(new Link(secondaryLine, { label: '', href: '#', tabIndex: -1 }, {
+			hoverDelegate: this._sourceHoverDelegate,
+			opener: () => {
+				const entry = template.currentElement && resolveMcpEntry(template.currentElement, this.agentHostCustomizationService, this.customizationHarnessService.activeSessionResource.get());
+				const bundle = entry && getActiveSessionServer(entry)?.skillBundle;
+				if (bundle?.count) {
+					this._showSkillBundle(bundle.id);
+				}
+			},
+		}, this.hoverService, this.openerService));
+		const skillsLinkElement = secondaryLine.lastElementChild as HTMLAnchorElement;
+		skillsLinkElement.classList.add('mcp-server-source-path', 'source-link', 'mcp-server-skills');
+		skillsLinkElement.style.display = 'none';
+		templateDisposables.add(DOM.addDisposableListener(skillsLinkElement, DOM.EventType.MOUSE_DOWN, event => event.stopPropagation()));
 		const issue = DOM.append(details, $('.mcp-server-issue'));
 		const issueHover = templateDisposables.add(this.hoverService.setupManagedHover(getDefaultHoverDelegate('element'), issue, ''));
 
 		const actions = DOM.append(container, $('.mcp-server-actions'));
+		templateDisposables.add(stopListRowActionKeyDownPropagation(actions));
 
 		const template: IMcpServerItemTemplateData = {
 			container,
@@ -376,6 +429,8 @@ export class McpServerItemRenderer extends Disposable implements IListRenderer<I
 			sourcePath,
 			sourcePathLabel,
 			sourcePathHover,
+			skillsLink,
+			skillsLinkElement,
 			description,
 			descriptionHover,
 			issue,
@@ -456,6 +511,14 @@ export class McpServerItemRenderer extends Disposable implements IListRenderer<I
 		templateData.sourcePath.tabIndex = source?.open && rowKey === this._focusedRowKey ? 0 : -1;
 		this.renderDescription(templateData, element, !!source);
 
+		if (element.type === 'provider-item') {
+			templateData.container.classList.remove('builtin');
+			templateData.container.classList.add('has-detail');
+			templateData.name.textContent = formatDisplayName(element.label);
+			this.updateStatus(templateData, element, element, undefined, undefined, false);
+			return;
+		}
+
 		if (element.type === 'connector-item') {
 			templateData.container.classList.remove('builtin');
 			templateData.container.classList.add('has-detail');
@@ -511,10 +574,10 @@ export class McpServerItemRenderer extends Disposable implements IListRenderer<I
 			this.updateKnownServerStatus(templateData, element);
 		} else {
 			templateData.elementDisposables.add(autorun(reader => {
-				const disabled = element.localServer ? isContributionDisabled(element.localServer.enablement.read(reader)) : false;
+				const disabled = isContributionDisabled(getMcpLocalEnablement(element, reader));
 				const connectionState = element.localServer?.connectionState.read(reader);
 				templateData.container.classList.toggle('disabled', disabled);
-				this.updateStatus(templateData, element, element, disabled ? 'disabled' : connectionState?.state, this._getCompatibilityKind(element, reader));
+				this.updateStatus(templateData, element, element, disabled ? 'disabled' : connectionState?.state, this._getCompatibilityKind(element, reader), this._isMigratable(element, reader));
 			}));
 		}
 	}
@@ -526,19 +589,20 @@ export class McpServerItemRenderer extends Disposable implements IListRenderer<I
 			const currentEntry = resolveMcpEntry(element, this.agentHostCustomizationService, this.customizationHarnessService.activeSessionResource.get());
 			const activeSessionServer = currentEntry && getActiveSessionServer(currentEntry);
 			const compatibilityKind = this._getCompatibilityKind(element, reader);
+			const migratable = this._isMigratable(element, reader);
 			if (element.activeSessionServer !== undefined) {
 				const presentation = activeSessionServer && getActiveSessionServerPresentation(activeSessionServer);
 				templateData.container.classList.toggle('disabled', presentation?.enabled === false);
-				this.updateStatus(templateData, element, currentEntry, presentation?.status, compatibilityKind, presentation?.enabled ? undefined : activeSessionServer?.disabledReason);
+				this.updateStatus(templateData, element, currentEntry, presentation?.status, compatibilityKind, migratable, presentation?.enabled ? undefined : activeSessionServer?.disabledReason);
 				return;
 			}
 			templateData.container.classList.toggle('disabled', localDisabled);
 			const localState = !this.workspaceService.isSessionsWindow ? connectionState?.state : undefined;
-			this.updateStatus(templateData, element, currentEntry, localDisabled ? 'disabled' : localState, compatibilityKind);
+			this.updateStatus(templateData, element, currentEntry, localDisabled ? 'disabled' : localState, compatibilityKind, migratable);
 		};
 		templateData.elementDisposables.add(autorun(reader => {
 			this.customizationHarnessService.activeSessionResource.read(reader);
-			localDisabled = element.localServer ? isContributionDisabled(element.localServer.enablement.read(reader)) : false;
+			localDisabled = isContributionDisabled(getMcpLocalEnablement(element, reader));
 			connectionState = element.localServer?.connectionState.read(reader);
 			update(reader);
 		}));
@@ -551,7 +615,7 @@ export class McpServerItemRenderer extends Disposable implements IListRenderer<I
 			const server = currentEntry && getActiveSessionServer(currentEntry);
 			const presentation = server && getActiveSessionServerPresentation(server);
 			templateData.container.classList.toggle('disabled', presentation?.enabled === false);
-			this.updateStatus(templateData, element, currentEntry, presentation?.status, this._getCompatibilityKind(element, reader), server?.disabledReason);
+			this.updateStatus(templateData, element, currentEntry, presentation?.status, this._getCompatibilityKind(element, reader), this._isMigratable(element, reader), server?.disabledReason);
 		};
 		templateData.elementDisposables.add(autorun(reader => {
 			this.customizationHarnessService.activeSessionResource.read(reader);
@@ -560,20 +624,33 @@ export class McpServerItemRenderer extends Disposable implements IListRenderer<I
 		templateData.elementDisposables.add(this.agentHostCustomizationService.onDidChangeCustomizations(() => update()));
 	}
 
-	private updateStatus(templateData: IMcpServerItemTemplateData, element: IMcpInstalledEntry, currentEntry: IMcpInstalledEntry | undefined, state: McpStatusKind | undefined, compatibilityKind: CustomizationMcpServerCompatibilityKind | undefined, disabledReason?: CustomizationDisabledReason): void {
+	private updateStatus(templateData: IMcpServerItemTemplateData, element: IMcpInstalledEntry, currentEntry: IMcpInstalledEntry | undefined, state: McpStatusKind | undefined, compatibilityKind: CustomizationMcpServerCompatibilityKind | undefined, migratable: boolean, disabledReason?: CustomizationDisabledReason): void {
 		const isError = state === McpServerStatus.Error || state === McpConnectionState.Kind.Error;
-		templateData.compatibilityLink = updateMcpCompatibilityMessage(templateData.compatibilityMessage, compatibilityKind, templateData.compatibilityMessageDisposables, this._openMigrations);
-		this.updateActionsTabbability(templateData);
+		templateData.compatibilityLink = updateMcpCompatibilityMessage(templateData.compatibilityMessage, compatibilityKind, templateData.compatibilityMessageDisposables, this._openMigrations, migratable);
 		if (isError) {
 			templateData.compatibilityMessage.style.display = 'none';
 		}
 
 		const presentation = getMcpStatusPresentation(state, disabledReason);
 		const activeSessionServer = currentEntry && getActiveSessionServer(currentEntry);
+		const bundle = activeSessionServer?.skillBundle;
+		templateData.skillsLinkElement.style.display = bundle?.count ? '' : 'none';
+		if (bundle?.count && activeSessionServer) {
+			const ariaLabel = bundle.count === 1
+				? localize('showMcpSkill', "Show {0} skill from {1}", bundle.count, activeSessionServer.name)
+				: localize('showMcpSkills', "Show {0} skills from {1}", bundle.count, activeSessionServer.name);
+			templateData.skillsLink.link = {
+				label: bundle.count === 1 ? localize('mcpSkillCount', "• {0} Skill", bundle.count) : localize('mcpSkillsCount', "• {0} Skills", bundle.count),
+				href: '#',
+				title: ariaLabel,
+			};
+			templateData.skillsLinkElement.setAttribute('aria-label', ariaLabel);
+		}
+		this.updateActionsTabbability(templateData);
 		templateData.issue.textContent = '';
 		templateData.issue.style.display = 'none';
 		templateData.issueHover.update('');
-		templateData.description.style.display = compatibilityKind && compatibilityKind !== 'supported' ? 'none' : templateData.description.textContent ? '' : 'none';
+		templateData.description.style.display = templateData.compatibilityMessage.style.display !== 'none' ? 'none' : templateData.description.textContent ? '' : 'none';
 		const label = getMcpEntryLabel(currentEntry ?? element);
 		const activeSessionResource = this.customizationHarnessService.activeSessionResource.get();
 		const localServer = element.type === 'session-server-item' ? undefined : element.localServer;
@@ -605,39 +682,19 @@ export class McpServerItemRenderer extends Disposable implements IListRenderer<I
 		}
 
 		const getEntry = () => resolveMcpEntry(currentEntry, this.agentHostCustomizationService, activeSessionResource);
-		if (state === McpServerStatus.AuthRequired && activeSessionServer !== undefined) {
-			const signInButton = createMcpSignInButton(templateData.actions, templateData.actionDisposables, label);
-			registerMcpSignInButtonAction(templateData.actionDisposables, signInButton, label, () => authenticateMcpServer(this.agentHostCustomizationService, activeSessionResource, activeSessionServer.id), {
-				updateTabbability: () => this.updateActionsTabbability(templateData),
-			});
-		}
-		if (state === McpServerStatus.Stopped || state === McpConnectionState.Kind.Stopped) {
-			const startButton = createMcpStartButton(templateData.actions, templateData.actionDisposables, label);
-			registerMcpInlineButtonAction(templateData.actionDisposables, startButton, async () => {
+		renderMcpServerStatusActions(templateData.actions, templateData.actionDisposables, this.hoverService, {
+			label,
+			state,
+			signIn: activeSessionServer ? () => authenticateMcpServer(this.agentHostCustomizationService, activeSessionResource, activeSessionServer.id) : undefined,
+			start: async () => {
 				const entry = getEntry();
-				if (!entry) {
-					return;
-				}
-				startButton.enabled = false;
-				try {
+				if (entry) {
 					await startMcpEntry(entry);
-				} finally {
-					startButton.enabled = true;
 				}
-			});
-		}
-
-		if (!presentation?.icon) {
-			this._renderManagementActions(getEntry, templateData.actions, templateData.actionDisposables, () => this.updateActionsTabbability(templateData));
-			this.updateActionsTabbability(templateData);
-			return;
-		}
-
-		const statusContainer = isError ? DOM.append(templateData.actions, $('.mcp-server-error-actions')) : templateData.actions;
-		const statusElement = DOM.append(statusContainer, $('.mcp-server-status.mcp-server-state-icon'));
-		statusElement.classList.add(presentation.className, ...ThemeIcon.asClassNameArray(presentation.icon));
-		statusElement.setAttribute('aria-hidden', 'true');
-		templateData.actionDisposables.add(this.hoverService.setupManagedHover(getDefaultHoverDelegate('element'), statusElement, presentation.label));
+			},
+			statusHover: presentation?.label,
+			updateTabbability: () => this.updateActionsTabbability(templateData),
+		});
 		this._renderManagementActions(getEntry, templateData.actions, templateData.actionDisposables, () => this.updateActionsTabbability(templateData));
 		this.updateActionsTabbability(templateData);
 	}
@@ -653,6 +710,7 @@ export class McpServerItemRenderer extends Disposable implements IListRenderer<I
 		const focused = templateData.currentElement !== undefined && getMcpRowKey(templateData.currentElement) === this._focusedRowKey;
 		setVirtualizedRowActionsTabbable(templateData.actions, focused);
 		templateData.sourcePath.tabIndex = templateData.sourcePath.classList.contains('source-link') && focused ? 0 : -1;
+		templateData.skillsLinkElement.tabIndex = templateData.skillsLinkElement.style.display !== 'none' && focused ? 0 : -1;
 		if (templateData.compatibilityLink) {
 			templateData.compatibilityLink.tabIndex = focused ? 0 : -1;
 		}
@@ -661,7 +719,7 @@ export class McpServerItemRenderer extends Disposable implements IListRenderer<I
 	private renderDescription(template: IMcpServerItemTemplateData, element: IMcpInstalledEntry, hasSource: boolean): void {
 		const description = hasSource || element.type === 'session-server-item'
 			? ''
-			: element.type === 'builtin-item' || element.type === 'connector-item'
+			: element.type === 'builtin-item' || element.type === 'connector-item' || element.type === 'provider-item'
 				? element.description
 				: element.server.description?.trim() ?? '';
 		template.description.textContent = truncateToFirstLine(description);
@@ -762,21 +820,6 @@ class McpMarketplaceItemRenderer implements IListRenderer<IMcpMarketplaceEntry, 
 	}
 }
 
-function createMcpSignInButton(parent: HTMLElement, store: Pick<DisposableStore, 'add'>, serverLabel: string): Button {
-	const signInLabel = localize('signInToMcpServer', "Sign in to {0}", serverLabel);
-	const signInButton = store.add(new Button(parent, {
-		...getButtonStyles({ buttonSecondaryHoverBackground: undefined }),
-		secondary: true,
-		small: true,
-		title: signInLabel,
-		ariaLabel: signInLabel,
-		supportIcons: true,
-	}));
-	signInButton.label = localize('signIn', "Sign In");
-	signInButton.element.classList.add('mcp-server-sign-in');
-	return signInButton;
-}
-
 function createMcpStartButton(parent: HTMLElement, store: Pick<DisposableStore, 'add'>, serverLabel: string): Button {
 	const startLabel = localize('startMcpServer', "Start {0}", serverLabel);
 	const startButton = store.add(new Button(parent, {
@@ -816,59 +859,66 @@ async function startMcpEntry(entry: IMcpInstalledEntry): Promise<void> {
 	}
 }
 
-interface IMcpSignInButtonActionOptions {
+export interface IMcpServerStatusActionsOptions {
+	readonly label: string;
+	readonly state: McpStatusKind | undefined;
+	readonly signIn?: () => Promise<void | boolean>;
+	readonly start?: () => Promise<void>;
+	readonly statusHover?: string;
+	readonly openStatus?: () => void;
 	readonly updateTabbability?: () => void;
 }
 
-export function registerMcpSignInButtonAction(store: Pick<DisposableStore, 'add'>, button: Button, serverLabel: string, action: () => Promise<void | boolean>, options?: IMcpSignInButtonActionOptions): void {
-	const signingInLabel = localize('signingIn', "Signing In...");
-	const signingInAriaLabel = localize('signingInToMcpServer', "Signing in to {0}", serverLabel);
-	let pending = false;
-	let disposed = false;
-	store.add(toDisposable(() => disposed = true));
-	registerMcpInlineButtonAction(store, button, async () => {
-		if (pending) {
-			return;
-		}
-
-		pending = true;
-		const wasEnabled = button.enabled;
-		button.label = `$(${Codicon.loading.id}) ${signingInLabel}`;
-		button.setTitle(signingInAriaLabel);
-		button.setAriaLabel(signingInAriaLabel);
-		button.element.setAttribute('aria-busy', 'true');
-		button.enabled = false;
-		status(localize('mcpServerSigningInStatus', "Signing in to {0}.", serverLabel));
-		try {
-			await action();
-		} finally {
-			if (!disposed) {
-				pending = false;
-				const tabIndex = button.element.tabIndex;
-				resetMcpSignInButton(button, serverLabel, wasEnabled);
-				button.element.tabIndex = tabIndex;
-				options?.updateTabbability?.();
+export function renderMcpServerStatusActions(container: HTMLElement, store: DisposableStore, hoverService: IHoverService, options: IMcpServerStatusActionsOptions): void {
+	const { label, state, signIn, start, openStatus } = options;
+	if (state === McpServerStatus.AuthRequired && signIn) {
+		const signInButton = createMcpSignInButton(container, store, label);
+		signInButton.element.tabIndex = -1;
+		registerMcpSignInButtonAction(store, signInButton, label, signIn, options);
+	}
+	if (isMcpServerStartable(state) && start) {
+		const startButton = createMcpStartButton(container, store, label);
+		startButton.element.tabIndex = -1;
+		let disposed = false;
+		store.add(toDisposable(() => disposed = true));
+		registerMcpInlineButtonAction(store, startButton, async () => {
+			if (!startButton.enabled) {
+				return;
 			}
+			const tabIndex = startButton.element.tabIndex;
+			startButton.enabled = false;
+			try {
+				await start();
+			} finally {
+				if (!disposed) {
+					startButton.enabled = true;
+					startButton.element.tabIndex = tabIndex;
+					options.updateTabbability?.();
+				}
+			}
+		});
+	}
+
+	const presentation = getMcpStatusPresentation(state);
+	if (presentation?.icon) {
+		const isError = state === McpServerStatus.Error || state === McpConnectionState.Kind.Error;
+		const statusContainer = isError ? DOM.append(container, $('.mcp-server-error-actions')) : container;
+		const statusElement = DOM.append(statusContainer, $(openStatus ? 'button.mcp-server-status.mcp-server-state-icon.mcp-server-status-action' : '.mcp-server-status.mcp-server-state-icon'));
+		statusElement.classList.add(presentation.className, ...ThemeIcon.asClassNameArray(presentation.icon));
+		if (openStatus) {
+			statusElement.setAttribute('type', 'button');
+			statusElement.setAttribute('aria-label', localize('openMcpServerDetails', "Show details for {0}", label));
+			statusElement.tabIndex = -1;
+			store.add(DOM.addDisposableGenericMouseDownListener(statusElement, event => DOM.EventHelper.stop(event, true)));
+			store.add(DOM.addDisposableListener(statusElement, DOM.EventType.CLICK, event => {
+				DOM.EventHelper.stop(event, true);
+				openStatus();
+			}));
+		} else {
+			statusElement.setAttribute('aria-hidden', 'true');
 		}
-	});
-}
-
-function resetMcpSignInButton(button: Button, serverLabel: string, enabled: boolean): void {
-	const signInAriaLabel = localize('signInToMcpServer', "Sign in to {0}", serverLabel);
-	button.label = localize('signIn', "Sign In");
-	button.setTitle(signInAriaLabel);
-	button.setAriaLabel(signInAriaLabel);
-	button.element.removeAttribute('aria-busy');
-	button.enabled = enabled;
-}
-
-/** Registers an inline MCP button without allowing its pointer or click events to open the containing list row. */
-export function registerMcpInlineButtonAction(store: Pick<DisposableStore, 'add'>, button: Button, action: () => void | Promise<void>): void {
-	store.add(DOM.addDisposableGenericMouseDownListener(button.element, event => DOM.EventHelper.stop(event, true)));
-	store.add(button.onDidClick(event => {
-		DOM.EventHelper.stop(event, true);
-		void action();
-	}));
+		store.add(hoverService.setupManagedHover(getDefaultHoverDelegate('element'), statusElement, options.statusHover ?? presentation.label));
+	}
 }
 
 /** Runs authentication for one active-session MCP server. */
@@ -922,20 +972,50 @@ export function getMcpCompatibilityPresentation(kind: CustomizationMcpServerComp
 	}
 }
 
-export function updateMcpCompatibilityMessage(message: HTMLElement, kind: CustomizationMcpServerCompatibilityKind | undefined, disposables: DisposableStore, openMigrations: () => void): HTMLAnchorElement | undefined {
-	const presentation = getMcpCompatibilityPresentation(kind);
-	disposables.clear();
-	message.className = 'mcp-server-compatibility-message';
+export function getMcpRowMessagePresentation(kind: CustomizationMcpServerCompatibilityKind | undefined, migratable: boolean): IMcpCompatibilityPresentation | undefined {
+	return getMcpCompatibilityPresentation(kind)
+		?? (kind === 'supported' && migratable
+			? { label: localize('mcpMigrationAvailable', "Migration available"), className: 'migration-available' }
+			: undefined);
+}
+
+const mcpCompatibilityLinks = new WeakMap<HTMLElement, HTMLAnchorElement>();
+
+export function updateMcpCompatibilityMessage(message: HTMLElement, kind: CustomizationMcpServerCompatibilityKind | undefined, disposables: DisposableStore, openMigrations: () => void, migratable = false): HTMLAnchorElement | undefined {
+	const presentation = getMcpRowMessagePresentation(kind, migratable);
 	message.style.display = presentation ? '' : 'none';
-	DOM.clearNode(message);
 	if (!presentation) {
+		if (message.dataset.mcpPresentationSignature !== undefined || message.childNodes.length > 0) {
+			disposables.clear();
+			message.className = 'mcp-server-compatibility-message';
+			DOM.clearNode(message);
+			delete message.dataset.mcpPresentationSignature;
+			mcpCompatibilityLinks.delete(message);
+		}
 		return undefined;
 	}
+	const formattedMessage = presentation.className === 'migration-available'
+		? localize({
+			key: 'mcpMigrationAvailableHint',
+			comment: ['Preserve the double square brackets: they mark the migration indication as a link.'],
+		}, "[[{0}]]", presentation.label)
+		: localize({
+			key: 'mcpCompatibilityMigrationHint',
+			comment: ['Preserve the double square brackets: they mark Migrations as a link.'],
+		}, "{0}. See [[Migrations]] for details.", presentation.label);
+	const iconTheme = kind === 'unsupported' ? Codicon.error : Codicon.warning;
+	const presentationSignature = JSON.stringify([presentation.className, formattedMessage, iconTheme.id]);
+	if (message.dataset.mcpPresentationSignature === presentationSignature) {
+		return mcpCompatibilityLinks.get(message);
+	}
+
+	disposables.clear();
+	mcpCompatibilityLinks.delete(message);
+	message.className = 'mcp-server-compatibility-message';
+	DOM.clearNode(message);
 	message.classList.add(presentation.className);
-	renderFormattedText(localize({
-		key: 'mcpCompatibilityMigrationHint',
-		comment: ['Preserve the double square brackets: they mark Migrations as a link.'],
-	}, "{0}. See [[Migrations]] for details.", presentation.label), {
+	message.dataset.mcpPresentationSignature = presentationSignature;
+	renderFormattedText(formattedMessage, {
 		actionHandler: {
 			callback: (_content, event) => {
 				event.preventDefault();
@@ -946,7 +1026,6 @@ export function updateMcpCompatibilityMessage(message: HTMLElement, kind: Custom
 		},
 	}, message);
 	const migrationLink = message.firstElementChild as HTMLAnchorElement | null;
-	const iconTheme = kind === 'unsupported' ? Codicon.error : Codicon.warning;
 	const icon = $('span.mcp-server-compatibility-icon');
 	icon.classList.add(...ThemeIcon.asClassNameArray(iconTheme));
 	icon.setAttribute('aria-hidden', 'true');
@@ -956,6 +1035,12 @@ export function updateMcpCompatibilityMessage(message: HTMLElement, kind: Custom
 		migrationLink.tabIndex = -1;
 		migrationLink.classList.add('mcp-server-compatibility-link');
 		disposables.add(DOM.addDisposableListener(migrationLink, DOM.EventType.MOUSE_DOWN, event => event.stopPropagation()));
+		disposables.add(DOM.addStandardDisposableListener(migrationLink, DOM.EventType.KEY_DOWN, event => {
+			if (event.keyCode === KeyCode.Enter) {
+				event.stopPropagation();
+			}
+		}));
+		mcpCompatibilityLinks.set(message, migrationLink);
 	}
 	return migrationLink ?? undefined;
 }
@@ -974,6 +1059,8 @@ export function getMcpStatusPresentation(state: McpStatusKind | undefined, disab
 		case McpConnectionState.Kind.Starting:
 		case McpServerStatus.Starting:
 			return { label: localize('starting', "Starting"), className: 'starting', icon: ThemeIcon.modify(Codicon.loading, 'spin') };
+		case 'authenticating':
+			return { label: localize('authenticating', "Authenticating"), className: 'starting', icon: ThemeIcon.modify(Codicon.loading, 'spin') };
 		case McpServerStatus.AuthRequired:
 			return { label: localize('authRequired', "Authentication required"), className: 'auth-required' };
 		case McpConnectionState.Kind.Error:
@@ -1005,7 +1092,7 @@ function getMcpEntryErrorMessage(entry: IMcpInstalledEntry): string | undefined 
 	return getMcpErrorMessage(connectionState?.state, connectionState?.state === McpConnectionState.Kind.Error ? connectionState.message : undefined);
 }
 
-function getMcpErrorMessage(state: McpStatusKind | undefined, message: string | undefined): string | undefined {
+export function getMcpErrorMessage(state: McpStatusKind | undefined, message: string | undefined): string | undefined {
 	if (state !== McpServerStatus.Error && state !== McpConnectionState.Kind.Error) {
 		return undefined;
 	}
@@ -1018,6 +1105,9 @@ function getActiveSessionServer(entry: IMcpInstalledEntry): AgentHostMcpServer |
 
 /** A missing host snapshot invalidates the row's actions, rather than falling back to its local twin. */
 function resolveMcpEntry(entry: IMcpInstalledEntry, customizations: IAgentHostCustomizationService, sessionResource: URI): IMcpInstalledEntry | undefined {
+	if (entry.type === 'provider-item') {
+		return entry;
+	}
 	const activeSessionServer = getActiveSessionServer(entry);
 	if (!activeSessionServer) {
 		return entry;
@@ -1040,22 +1130,35 @@ export function getMcpRowKey(entry: IMcpInstalledEntry): string {
 			return `builtin:${entry.id}`;
 		case 'connector-item':
 			return `connector:${entry.id}`;
+		case 'provider-item':
+			return `provider:${entry.id}`;
 	}
 }
 
-export function getMcpEntryGroup(entry: IMcpInstalledEntry): 'user' | 'workspace' | 'plugins' | 'extensions' | 'builtin' {
+export type McpEntryGroup = 'user' | 'workspace' | 'application';
+
+/**
+ * Returns the scope group an installed MCP server is listed under. Plugins and
+ * extensions belong to the user who installed them, as do servers supplied by
+ * the signed-in account, connectors, and a host-managed catalog; servers built
+ * into VS Code or the agent belong to the application (Built-in).
+ */
+export function getMcpEntryGroup(entry: IMcpInstalledEntry): McpEntryGroup {
+	if (entry.type === 'provider-item') {
+		return 'user';
+	}
 	if (entry.type === 'server-item') {
 		return entry.server.local?.scope === LocalMcpServerScope.Workspace ? 'workspace' : 'user';
 	}
 	if (entry.type === 'connector-item') {
-		return 'plugins';
+		return 'user';
 	}
 	if (entry.type === 'builtin-item') {
 		if (entry.collectionId?.startsWith(PLUGIN_COLLECTION_PREFIX)) {
-			return 'plugins';
+			return 'user';
 		}
 		if (entry.extensionId) {
-			return isCopilotExtension(entry.extensionId) ? 'builtin' : 'extensions';
+			return isCopilotExtension(entry.extensionId) ? 'application' : 'user';
 		}
 		const collection = entry.localServer?.readDefinitions().get().collection;
 		if (collection?.provenance === McpCollectionProvenance.ExternalConfiguration) {
@@ -1065,18 +1168,64 @@ export function getMcpEntryGroup(entry: IMcpInstalledEntry): 'user' | 'workspace
 	const activeSessionServer = getActiveSessionServer(entry);
 	switch (activeSessionServer?.source) {
 		case 'user':
+		case 'plugin':
 			return 'user';
 		case 'workspace':
 			return 'workspace';
-		case 'plugin':
-			return 'plugins';
+		case 'account':
+		case 'managed':
+			return 'user';
+		case 'builtin':
+			return 'application';
 		case undefined:
 			// The agent host's own configuration applies to all of its sessions, like user configuration.
 			if (activeSessionServer?.hostConfiguration) {
 				return 'user';
 			}
+			// A host-reported server with no reported source is not known to be built in
+			// (for example a workspace server the host still advertises after removal).
+			if (activeSessionServer) {
+				return 'user';
+			}
 	}
-	return 'builtin';
+	return 'application';
+}
+
+/** Returns the scope group of a server an agent host reports, as on the MCP Servers page. */
+export function getAgentHostMcpServerGroup(server: AgentHostMcpServer): McpEntryGroup {
+	return getMcpEntryGroup({ type: 'session-server-item', server });
+}
+
+/**
+ * Returns the origin an installed MCP server is subgrouped under within its
+ * scope group, or `undefined` for servers configured directly in the scope.
+ */
+export function getMcpEntryOrigin(entry: IMcpInstalledEntry): { readonly id: string; readonly kind: 'plugin' | 'extension' | 'vscode' | 'harness' | 'account'; readonly label: string | undefined } | undefined {
+	if (entry.type === 'connector-item') {
+		return { id: 'account:connectors', kind: 'account', label: undefined };
+	}
+	if (entry.type === 'builtin-item') {
+		if (entry.collectionId?.startsWith(PLUGIN_COLLECTION_PREFIX)) {
+			const plugin = entry.collectionId.slice(PLUGIN_COLLECTION_PREFIX.length);
+			return { id: `plugin:${plugin}`, kind: 'plugin', label: undefined };
+		}
+		if (entry.extensionId) {
+			return isCopilotExtension(entry.extensionId)
+				? { id: 'vscode:', kind: 'vscode', label: undefined }
+				: { id: `extension:${entry.extensionId.value.toLowerCase()}`, kind: 'extension', label: undefined };
+		}
+	}
+	const activeSessionServer = getActiveSessionServer(entry);
+	switch (activeSessionServer?.source) {
+		case 'plugin':
+			return activeSessionServer.sourcePluginName ? { id: `plugin:${activeSessionServer.sourcePluginName}`, kind: 'plugin', label: activeSessionServer.sourcePluginName } : undefined;
+		case 'builtin':
+			return { id: 'harness:', kind: 'harness', label: undefined };
+		case 'account':
+		case 'managed':
+			return { id: `account:${activeSessionServer.source}`, kind: 'account', label: undefined };
+	}
+	return entry.type === 'builtin-item' && getMcpEntryGroup(entry) === 'application' ? { id: 'vscode:', kind: 'vscode', label: undefined } : undefined;
 }
 
 /** Everything the status actions of a row are built from: what they show, and what they act on. */
@@ -1132,13 +1281,18 @@ function getMcpEntryLabel(element: IMcpInstalledEntry): string {
 			return getMcpServerDisplayLabel(element.server);
 		case 'builtin-item':
 		case 'connector-item':
+		case 'provider-item':
 			return element.label;
 	}
 }
 
 /** The server's configuration key, which a managed catalog's display name can differ from. */
 function getMcpEntryName(element: IMcpInstalledEntry): string {
-	return element.type === 'session-server-item' ? element.server.name : getMcpEntryLabel(element);
+	return element.type === 'session-server-item'
+		? element.server.name
+		: element.type === 'provider-item'
+			? element.name
+			: getMcpEntryLabel(element);
 }
 
 function getMcpEntrySourceUri(element: IMcpInstalledEntry): URI | undefined {
@@ -1153,22 +1307,44 @@ function getMcpEntrySourceUri(element: IMcpInstalledEntry): URI | undefined {
 			return element.activeSessionServer?.sourceUri
 				?? element.localServer?.readDefinitions().get().server?.presentation?.origin?.uri
 				?? element.localServer?.collection?.presentation?.origin;
+		case 'provider-item':
+			return undefined;
 	}
 }
 
 function getMcpEntrySource(element: IMcpInstalledEntry, labelService: ILabelService, agentPluginService: IAgentPluginService, extensionsWorkbenchService?: IExtensionsWorkbenchService, openPlugin?: (plugin: IAgentPlugin) => void): { label: string; hover: string; ariaLabel?: string; open?(): void } | undefined {
 	const sourceUri = getMcpEntrySourceUri(element);
-	if (element.type === 'builtin-item') {
-		const pluginUri = getPluginUriFromCollectionId(element.collectionId);
+	const origin = getMcpEntryOrigin(element);
+	if (origin?.kind === 'plugin') {
+		const pluginUri = element.type === 'builtin-item' ? getPluginUriFromCollectionId(element.collectionId) : undefined;
 		const plugin = pluginUri ? agentPluginService.plugins.get().find(plugin => plugin.uri.toString() === pluginUri) : undefined;
-		if (plugin) {
+		const name = plugin?.label ?? origin.label;
+		if (name) {
+			const label = getCustomizationContributionSourceLabel('plugin', name);
 			return {
-				label: localize('fromPlugin', "Plugin: {0}", plugin.label),
-				hover: localize('openPluginDetails', "Open plugin details for {0}", plugin.label),
-				ariaLabel: localize('openPluginDetails', "Open plugin details for {0}", plugin.label),
-				open: openPlugin ? () => openPlugin(plugin) : undefined,
+				label,
+				hover: plugin ? localize('openPluginDetails', "Open plugin details for {0}", name) : label,
+				ariaLabel: plugin ? localize('openPluginDetails', "Open plugin details for {0}", name) : undefined,
+				open: plugin && openPlugin ? () => openPlugin(plugin) : undefined,
 			};
 		}
+	}
+	if (origin?.kind === 'extension' && element.type === 'builtin-item' && element.extensionId && extensionsWorkbenchService) {
+		const extensionId = element.extensionId;
+		const extension = extensionsWorkbenchService.local.find(extension => ExtensionIdentifier.equals(extension.identifier.id, extensionId));
+		const name = extension?.displayName || extensionId.value;
+		return {
+			label: getCustomizationContributionSourceLabel('extension', name),
+			hover: localize('openExtensionDetails', "Open extension details for {0}", name),
+			ariaLabel: localize('openExtensionDetails', "Open extension details for {0}", name),
+			open: () => extensionsWorkbenchService.open(extensionId.value, { tab: ExtensionEditorTab.Features, feature: 'mcp' }),
+		};
+	}
+	if (origin?.kind === 'account' && origin.label) {
+		const label = getCustomizationContributionSourceLabel('organization', origin.label);
+		return { label, hover: label };
+	}
+	if (element.type === 'builtin-item') {
 		if (element.extensionId && extensionsWorkbenchService) {
 			const extensionId = element.extensionId;
 			const extension = extensionsWorkbenchService.local.find(extension => ExtensionIdentifier.equals(extension.identifier.id, extensionId));
@@ -1192,6 +1368,46 @@ function getMcpEntrySource(element: IMcpInstalledEntry, labelService: ILabelServ
 	};
 }
 
+/**
+ * Resolves a server's source like the MCP Servers page: its plugin's details when the plugin is
+ * installed on this client, otherwise its plugin name or config file, opened at the server's definition.
+ */
+export function getAgentHostMcpServerSource(server: AgentHostMcpServer, plugin: { readonly name: string; readonly uri: string } | undefined, labelService: ILabelService, agentPluginService: IAgentPluginService, openPlugin?: (plugin: IAgentPlugin) => void, openFile?: (source: NonNullable<IMcpServerDetailInput['source']>) => void, clientPluginUri?: URI): ReturnType<typeof getMcpEntrySource> {
+	const entry: IMcpSessionServerItemEntry = { type: 'session-server-item', server };
+	const fileSource = createInstalledMcpServerDetailInput(entry).source;
+	const openFileSource = fileSource && openFile ? () => openFile(fileSource) : undefined;
+	if (plugin) {
+		const clientPlugin = clientPluginUri && agentPluginService.plugins.get().find(candidate => isEqual(candidate.uri, clientPluginUri));
+		if (clientPlugin && openPlugin) {
+			return {
+				label: getCustomizationContributionSourceLabel('plugin', clientPlugin.label),
+				hover: localize('openPluginDetails', "Open plugin details for {0}", clientPlugin.label),
+				ariaLabel: localize('openPluginDetails', "Open plugin details for {0}", clientPlugin.label),
+				open: () => openPlugin(clientPlugin),
+			};
+		}
+		return {
+			label: getCustomizationContributionSourceLabel('plugin', plugin.name),
+			hover: fileSource ? labelService.getUriLabel(fileSource.uri, { noPrefix: true }) : plugin.name,
+			ariaLabel: openFileSource ? localize('openMcpServerSource', "Open {0}", plugin.name) : undefined,
+			open: openFileSource,
+		};
+	}
+	// A plugin installed only on the agent host is still named, like other plugin servers.
+	if (server.source === 'plugin' && server.sourcePluginName) {
+		return {
+			label: getCustomizationContributionSourceLabel('plugin', server.sourcePluginName),
+			hover: fileSource ? labelService.getUriLabel(fileSource.uri, { noPrefix: true }) : localize('mcpServerHostPlugin', "Plugin {0} on the agent host", server.sourcePluginName),
+			ariaLabel: openFileSource ? localize('openMcpServerSource', "Open {0}", server.sourcePluginName) : undefined,
+			open: openFileSource,
+		};
+	}
+	const source = getMcpEntrySource(entry, labelService, agentPluginService);
+	return source && openFileSource
+		? { ...source, ariaLabel: localize('openMcpServerSource', "Open {0}", source.label), open: openFileSource }
+		: source;
+}
+
 function getMcpEntryLabelWithSource(element: IMcpInstalledEntry, labelService: ILabelService, agentPluginService: IAgentPluginService, extensionsWorkbenchService?: IExtensionsWorkbenchService): string {
 	const label = getMcpEntryLabel(element);
 	const source = getMcpEntrySource(element, labelService, agentPluginService, extensionsWorkbenchService);
@@ -1207,7 +1423,7 @@ function getMcpEntryLabelWithSource(element: IMcpInstalledEntry, labelService: I
  * workspace level the host does not locate.
  */
 export function getActiveSessionServerProvenance(server: AgentHostMcpServer, agentLabel: string): IMcpServerProvenance | undefined {
-	if (server.hostConfiguration && server.source !== 'builtin' && server.source !== 'managed') {
+	if (server.hostConfiguration && server.source !== 'builtin' && server.source !== 'managed' && server.source !== 'account') {
 		return { label: localize('mcpSourceAgentHost', "Agent host configuration") };
 	}
 	switch (server.source) {
@@ -1219,6 +1435,8 @@ export function getActiveSessionServerProvenance(server: AgentHostMcpServer, age
 			};
 		case 'managed':
 			return { label: localize('mcpSourceManaged', "Managed by {0}", agentLabel) };
+		case 'account':
+			return { label: localize('mcpSourceAccount', "Signed-in account") };
 		case 'plugin':
 			return server.sourcePluginName ? { label: localize('fromPlugin', "Plugin: {0}", server.sourcePluginName) } : undefined;
 		case 'workspace':
@@ -1248,6 +1466,11 @@ export function getActiveSessionServerDefinitionUnavailable(server: AgentHostMcp
 				message: localize('mcpDefinitionManaged', "{0} manages this server, so its definition can't be viewed or edited.", agentLabel),
 				...(settingId ? { settingId } : {}),
 			};
+		case 'account':
+			return {
+				message: localize('mcpDefinitionAccount', "Your signed-in account provides this server, so its definition can't be viewed or edited."),
+				...(settingId ? { settingId } : {}),
+			};
 		default:
 			return undefined;
 	}
@@ -1260,6 +1483,12 @@ function getMcpServerCompatibilityId(element: IMcpInstalledEntry): string | unde
 	return element.localServer?.definition.id ?? (element.type === 'server-item' ? element.server.id : element.type === 'connector-item' ? element.connector.serverName : undefined);
 }
 
+function getMcpLocalEnablement(entry: Exclude<IMcpInstalledEntry, IMcpSessionServerItemEntry>, reader?: IReader): ContributionEnablementState {
+	return (entry.type === 'server-item' ? entry.localEnablement?.read(reader) : undefined)
+		?? entry.localServer?.enablement.read(reader)
+		?? ContributionEnablementState.EnabledProfile;
+}
+
 function getMcpStatusKind(entry: IMcpInstalledEntry, isSessionsWindow: boolean): McpStatusKind | undefined {
 	if (entry.type === 'session-server-item') {
 		return getActiveSessionServerPresentation(entry.server).status;
@@ -1267,7 +1496,7 @@ function getMcpStatusKind(entry: IMcpInstalledEntry, isSessionsWindow: boolean):
 	if (entry.activeSessionServer !== undefined) {
 		return getActiveSessionServerPresentation(entry.activeSessionServer).status;
 	}
-	if (entry.localServer && isContributionDisabled(entry.localServer.enablement.get())) {
+	if (isContributionDisabled(getMcpLocalEnablement(entry))) {
 		return 'disabled';
 	}
 	if (!isSessionsWindow) {
@@ -1277,12 +1506,12 @@ function getMcpStatusKind(entry: IMcpInstalledEntry, isSessionsWindow: boolean):
 	return undefined;
 }
 
-function getMcpEntryAriaLabel(element: IMcpInstalledEntry, isSessionsWindow: boolean, compatibilityKind: CustomizationMcpServerCompatibilityKind | undefined, labelService: ILabelService, agentPluginService: IAgentPluginService, extensionsWorkbenchService?: IExtensionsWorkbenchService): string {
+function getMcpEntryAriaLabel(element: IMcpInstalledEntry, isSessionsWindow: boolean, compatibilityKind: CustomizationMcpServerCompatibilityKind | undefined, migratable: boolean, labelService: ILabelService, agentPluginService: IAgentPluginService, extensionsWorkbenchService?: IExtensionsWorkbenchService): string {
 	const label = getMcpEntryLabelWithSource(element, labelService, agentPluginService, extensionsWorkbenchService);
 	const statusKind = getMcpStatusKind(element, isSessionsWindow);
 	const disabledReason = statusKind === 'disabled' ? getMcpDisabledReason(element) : undefined;
 	const status = getMcpStatusPresentation(statusKind, disabledReason);
-	const compatibility = getMcpCompatibilityPresentation(compatibilityKind);
+	const compatibility = getMcpRowMessagePresentation(compatibilityKind, migratable);
 	const errorMessage = statusKind === McpServerStatus.Error || statusKind === McpConnectionState.Kind.Error ? getMcpEntryErrorMessage(element) : undefined;
 	return [compatibility?.label, status?.label, errorMessage].reduce<string>(
 		(result, detail) => detail ? localize('mcpServerAriaLabelWithStatus', "{0}, {1}", result, detail) : result,
@@ -1297,52 +1526,60 @@ function getMcpDisabledReason(entry: IMcpInstalledEntry): CustomizationDisabledR
 	if (entry.activeSessionServer !== undefined) {
 		return entry.activeSessionServer.disabledReason ?? getCustomizationDisabledReason(entry.activeSessionServer);
 	}
-	if (entry.localServer) {
-		switch (entry.localServer.enablement.get()) {
-			case ContributionEnablementState.DisabledWorkspace:
-				return { source: 'scope', scope: CustomizationEnablementKind.Workspace };
-			case ContributionEnablementState.DisabledProfile:
-				return { source: 'scope', scope: CustomizationEnablementKind.Global };
-		}
+	switch (getMcpLocalEnablement(entry)) {
+		case ContributionEnablementState.DisabledWorkspace:
+			return { source: 'scope', scope: CustomizationEnablementKind.Workspace };
+		case ContributionEnablementState.DisabledProfile:
+			return { source: 'scope', scope: CustomizationEnablementKind.Global };
 	}
 	return undefined;
-}
-
-class LocalMcpServerMatcher {
-	private readonly byKey = new Map<string, IMcpServer[]>();
-
-	constructor(servers: readonly IMcpServer[]) {
-		for (const server of servers) {
-			for (const key of getRuntimeServerMatchKeys(server)) {
-				let matches = this.byKey.get(key);
-				if (!matches) {
-					matches = [];
-					this.byKey.set(key, matches);
-				}
-				matches.push(server);
-			}
-		}
-	}
-
-	find(keys: readonly (string | undefined)[]): IMcpServer | undefined {
-		for (const key of getUniqueMcpMatchKeys(keys)) {
-			const matches = this.byKey.get(key);
-			if (matches?.length === 1) {
-				return matches[0];
-			}
-		}
-		return undefined;
-	}
 }
 
 function getWorkbenchServerMatchKeys(server: IWorkbenchMcpServer): string[] {
 	return getUniqueMcpMatchKeys([server.id, server.name, server.label]);
 }
 
+export function createProviderMcpEntries(
+	installations: readonly IRecordedCustomizationMarketplaceResource[],
+	existingMatchKeys: readonly string[],
+	query: string,
+): readonly IMcpProviderItemEntry[] {
+	const occupied = new Set(existingMatchKeys.map(key => key.toLowerCase()));
+	const normalizedQuery = query.toLowerCase().trim();
+	const result: IMcpProviderItemEntry[] = [];
+	for (const installation of installations) {
+		const target = installation.state.target;
+		if (!installation.installationId || installation.state.kind !== 'installed' || target.kind !== 'mcp') {
+			continue;
+		}
+		const matchKeys = getUniqueMcpMatchKeys([target.id, target.name]);
+		if (matchKeys.length === 0 || matchKeys.some(key => occupied.has(key.toLowerCase()))) {
+			continue;
+		}
+		const resource = installation.resource;
+		const name = target.name ?? target.id!;
+		if (!customizationSearchMatchesAny(normalizedQuery, [name, resource.displayName, resource.description])) {
+			continue;
+		}
+		for (const key of matchKeys) {
+			occupied.add(key.toLowerCase());
+		}
+		result.push({
+			type: 'provider-item',
+			id: installation.installationId,
+			name,
+			label: resource.displayName,
+			description: resource.description,
+			marketplaceRecord: installation,
+		});
+	}
+	return result;
+}
+
 export function getActiveSessionServerPresentation(server: AgentHostMcpServer): { readonly enabled: boolean; readonly status: McpStatusKind } {
 	return {
 		enabled: server.enabled,
-		status: server.enabled ? server.status : 'disabled',
+		status: server.enabled ? server.authenticating ? 'authenticating' : server.status : 'disabled',
 	};
 }
 
@@ -1372,6 +1609,10 @@ export function shouldLoadMcpGallerySnapshot(visible: boolean, query: string, it
 	return accessEnabled && visible && !query.trim() && itemCount === 0 && !failed && !loading;
 }
 
+export function shouldShowLegacyMcpGallery(configurationService: IConfigurationService): boolean {
+	return configurationService.getValue<boolean>(CustomizationMarketplaceConfiguration.MarketplaceEnabled) !== true;
+}
+
 export function hasSameMcpMembership(previous: string, current: string): boolean {
 	return previous === current;
 }
@@ -1380,7 +1621,7 @@ export function getActiveSessionServerLifecycleAction(server: AgentHostMcpServer
 	if (!getActiveSessionServerPresentation(server).enabled) {
 		return undefined;
 	}
-	return server.status === McpServerStatus.Stopped || server.status === McpServerStatus.Error
+	return isMcpServerStartable(server.status)
 		? new Action(
 			'mcpServer.activeSession.start',
 			localize('activeSessionMcpServerStart', "Start Server"),
@@ -1400,7 +1641,21 @@ export function getActiveSessionServerLifecycleAction(server: AgentHostMcpServer
 type AgentHostMcpServerEnablementScope = 'global' | 'workspace' | 'session';
 
 function isHostOwnedPluginMcpServer(server: AgentHostMcpServer): boolean {
-	return server.isPluginProvided === true && !server.isClientBundled;
+	return server.isPluginProvided === true && isHostOwnedMcpServer(server);
+}
+
+/**
+ * Whether the agent host owns the server's global decision because it discovered the server itself
+ * (for example from Copilot home), rather than receiving it in a client bundle. A same-named local
+ * server is then only a twin whose window-local enablement never reaches the host.
+ */
+function isHostOwnedMcpServer(server: AgentHostMcpServer): boolean {
+	return !server.isClientBundled;
+}
+
+/** Returns the local server whose enablement drives the row, or `undefined` when the agent host owns it. */
+function getLocalEnablementServerId(localServerId: string | undefined, activeSessionServer: AgentHostMcpServer | undefined): string | undefined {
+	return activeSessionServer && isHostOwnedMcpServer(activeSessionServer) ? undefined : localServerId;
 }
 
 const agentHostMcpServerEnablementActionInfo = {
@@ -1429,7 +1684,7 @@ const agentHostMcpServerEnablementActionInfo = {
 export function getAgentHostMcpServerEnablementActions(agentHostCustomizations: IAgentHostCustomizationService, agentPluginService: IAgentPluginService, sessionResource: URI, server: AgentHostMcpServer, scopes: readonly AgentHostMcpServerEnablementScope[] = ['global', 'workspace', 'session']): IAction[] {
 	if (server.disabledReason?.source === 'plugin') {
 		const decision = server.disabledReason.plugin.enablement?.[0];
-		if (!decision) {
+		if (!decision || (decision.kind === CustomizationEnablementKind.Global && server.disabledReason.plugin.clientId !== undefined && !agentHostCustomizations.getClientPluginUri(sessionResource, server.disabledReason.plugin))) {
 			return [];
 		}
 		const action = createAgentHostEnablePluginAction(agentHostCustomizations, agentPluginService, sessionResource, server.disabledReason.plugin, decision.kind);
@@ -1480,13 +1735,14 @@ export function setPrimaryMcpServerEnablement(
 		);
 		return;
 	}
-	if (localServerId) {
-		const current = mcpService.enablementModel.readEnabled(localServerId);
+	const localEnablementServerId = getLocalEnablementServerId(localServerId, activeSessionServer);
+	if (localEnablementServerId) {
+		const current = mcpService.enablementModel.readEnabled(localEnablementServerId);
 		const next = getToggledMcpEnablementState(current);
 		if (isContributionEnabled(next) !== enabled) {
-			throw new Error(`Unexpected MCP enablement transition for ${localServerId}.`);
+			throw new Error(`Unexpected MCP enablement transition for ${localEnablementServerId}.`);
 		}
-		mcpService.enablementModel.setEnabled(localServerId, next);
+		mcpService.enablementModel.setEnabled(localEnablementServerId, next);
 		return;
 	}
 	if (!activeSessionServer) {
@@ -1512,8 +1768,9 @@ export function isPrimaryMcpServerEnabled(
 	if (activeSessionServer && !activeSessionServer.enabled) {
 		return false;
 	}
-	if (localServerId) {
-		return isContributionEnabled(mcpService.enablementModel.readEnabled(localServerId));
+	const localEnablementServerId = getLocalEnablementServerId(localServerId, activeSessionServer);
+	if (localEnablementServerId) {
+		return isContributionEnabled(mcpService.enablementModel.readEnabled(localEnablementServerId));
 	}
 	if (activeSessionServer) {
 		return getCustomizationScopeEnablement(activeSessionServer).global;
@@ -1566,7 +1823,7 @@ export function getBuiltinMcpServerEnablementActions(mcpService: IMcpService, se
 	if (activeSessionServer === undefined) {
 		return getLocalMcpServerEnablementActions(mcpService, serverId, isEmptyWorkbench);
 	}
-	if (isHostOwnedPluginMcpServer(activeSessionServer)) {
+	if (isHostOwnedMcpServer(activeSessionServer)) {
 		return getAgentHostMcpServerEnablementActions(agentHostCustomizations, agentPluginService, sessionResource, activeSessionServer);
 	}
 	return [
@@ -1630,16 +1887,18 @@ function isLocalMcpServerWorkspaceEnablementAction(action: IAction): boolean {
 export function getServerItemContextMenuActions(menuActionGroups: readonly (readonly IAction[])[], activeSessionServer: AgentHostMcpServer | undefined, activeSessionLifecycleAction: IAction | undefined, agentHostEnablementActions: readonly IAction[]): IAction[] {
 	const actions: IAction[] = [];
 	const hasActiveSession = activeSessionServer !== undefined;
+	// The host's actions replace every local enablement action when the local server is only a twin of a host-owned one.
+	const hideLocalEnablement = activeSessionServer !== undefined && isHostOwnedMcpServer(activeSessionServer);
 	let agentHostEnablementAdded = false;
 	if (activeSessionLifecycleAction) {
 		actions.push(activeSessionLifecycleAction, new Separator());
 	}
 	for (const menuActions of menuActionGroups) {
 		const visibleMenuActions = hasActiveSession
-			? menuActions.filter(action => !shouldHideLocalActionForActiveSessionServer(action))
+			? menuActions.filter(action => !shouldHideLocalActionForActiveSessionServer(action) && !(hideLocalEnablement && isLocalMcpServerEnablementAction(action)))
 			: menuActions;
 		actions.push(...visibleMenuActions);
-		if (hasActiveSession && menuActions.some(isLocalMcpServerEnablementAction)) {
+		if (hasActiveSession && !agentHostEnablementAdded && menuActions.some(isLocalMcpServerEnablementAction)) {
 			actions.push(...agentHostEnablementActions);
 			agentHostEnablementAdded = true;
 		}
@@ -1723,6 +1982,7 @@ export function createInstalledMcpServerDetailInput(entry: IMcpInstalledEntry, e
 		id: getMcpRowKey(entry),
 		name: getMcpEntryName(entry),
 		label: getMcpEntryLabel(entry),
+		icon: entry.type === 'provider-item' ? entry.marketplaceRecord.resource.icon : undefined,
 		installState: McpServerInstallState.Installed,
 		config: localDefinition ? getMcpServerConfiguration(localDefinition) : activeSessionServer?.hostConfiguration,
 		compatibilityId: localDefinition?.id,
@@ -1731,6 +1991,23 @@ export function createInstalledMcpServerDetailInput(entry: IMcpInstalledEntry, e
 		...(presentation?.provenance ? { provenance: presentation.provenance } : {}),
 		...(presentation?.definitionUnavailable ? { definitionUnavailable: presentation.definitionUnavailable } : {}),
 	};
+}
+
+export function createAgentHostMcpServerDetailInput(server: AgentHostMcpServer, agentHostCustomizationService: IAgentHostCustomizationService, harnessService: ICustomizationHarnessService, customizationsChanged: IObservable<unknown>): IMcpServerDetailInput {
+	const agentLabel = harnessService.getActiveDescriptor().label;
+	return createInstalledMcpServerDetailInput({ type: 'session-server-item', server }, derived(agentHostCustomizationService, reader => {
+		customizationsChanged.read(reader);
+		const sessionResource = harnessService.activeSessionResource.read(reader);
+		const currentServer = agentHostCustomizationService.getMcpServers(sessionResource).find(candidate => candidate.id === server.id);
+		if (!currentServer?.enabled) {
+			return undefined;
+		}
+		const errorMessage = currentServer.state?.kind === McpServerStatus.Error ? currentServer.state.error?.message : undefined;
+		return getMcpErrorMessage(getActiveSessionServerPresentation(currentServer).status, errorMessage);
+	}), {
+		provenance: getActiveSessionServerProvenance(server, agentLabel),
+		definitionUnavailable: getActiveSessionServerDefinitionUnavailable(server, agentLabel),
+	});
 }
 
 function getMcpServerConfiguration(definition: McpServerDefinition): IMcpServerConfiguration {
@@ -1786,7 +2063,9 @@ export class McpListWidget extends Disposable {
 	readonly onDidRequestBrowse = this._onDidRequestBrowse.event;
 
 	private sectionTitleHeader!: HTMLElement;
+	private discoveryMessage!: HTMLElement;
 	private sectionLink!: HTMLAnchorElement;
+	private browseCustomizationsButton!: Button;
 	private searchAndButtonContainer!: HTMLElement;
 	private searchInput!: InputBox;
 	private cardContainer!: HTMLElement;
@@ -1802,9 +2081,12 @@ export class McpListWidget extends Disposable {
 	private disabledIcon!: HTMLElement;
 	private disabledMessage!: HTMLElement;
 	private readonly disabledLinkListener = this._register(new MutableDisposable());
+	/** Identifies the message in `disabledMessage`, so unchanged state doesn't rebuild it and drop focus. */
+	private renderedDisabledMessage: string | undefined;
 
 	private filteredServers: IWorkbenchMcpServer[] = [];
 	private installedEntries: IMcpInstalledPresentation[] = [];
+	private readonly installedEntryEnablementListener = this._register(new MutableDisposable());
 	private readonly installedEntryOrder = new Map<string, number>();
 	private gallerySnapshotServers: IWorkbenchMcpServer[] = [];
 	private galleryServers: IWorkbenchMcpServer[] = [];
@@ -1833,9 +2115,11 @@ export class McpListWidget extends Disposable {
 	private readonly delayedFilter = new Delayer<void>(200);
 	private readonly delayedGallerySearch = new Delayer<void>(400);
 	private _closeCustomizationEditor: () => Promise<void> = () => Promise.resolve();
+	private _showSkillBundle: (bundleId: string) => void = () => { };
 	private readonly agentHostCustomizationsChanged: IObservable<void>;
 	private readonly mcpServerCompatibility = observableValue<ReadonlyMap<string, CustomizationMcpServerCompatibilityKind>>(this, new Map());
 	private readonly mcpServerCompatibilityScope = this._register(new MutableDisposable<DisposableStore>());
+	private readonly mcpServerMigrationCandidates = observableValue<readonly IMcpServerCustomizationMigrationCandidate[]>(this, []);
 
 	constructor(
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
@@ -1863,6 +2147,8 @@ export class McpListWidget extends Disposable {
 		@IExtensionsWorkbenchService private readonly extensionsWorkbenchService: IExtensionsWorkbenchService,
 		@ILogService private readonly logService: ILogService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
+		@IWorkspaceContextService private readonly workspaceContextService: IWorkspaceContextService,
+		@IManagedSettingsService private readonly managedSettingsService: IManagedSettingsService,
 	) {
 		super();
 		this.agentHostCustomizationsChanged = observableSignalFromEvent(this, this.agentHostCustomizationService.onDidChangeCustomizations);
@@ -1879,6 +2165,7 @@ export class McpListWidget extends Disposable {
 		));
 		this._register(resizeObserver.observe(this.element));
 		this.updateAccessState();
+		this._register(this.managedSettingsService.onDidChangeManagedSettings(() => this.updateAccessState()));
 		this._register(mcpGalleryManifestService.onDidChangeMcpGalleryManifest(() => {
 			if (this.isGalleryDiscoveryEnabled()) {
 				return;
@@ -1903,6 +2190,7 @@ export class McpListWidget extends Disposable {
 
 		this._register(this.configurationService.onDidChangeConfiguration(e => {
 			if (affectsCustomizationDiscoveryAvailability(e, this.customizationMarketplaceService)) {
+				this.updateHeaderActions();
 				this.galleryCts?.dispose(true);
 				this.galleryCts = undefined;
 				this.delayedGallerySearch.cancel();
@@ -1933,8 +2221,12 @@ export class McpListWidget extends Disposable {
 			}
 		}));
 		if (this.customizationMarketplaceService.onDidChangeSources) {
-			this._register(this.customizationMarketplaceService.onDidChangeSources(() => void this.refresh()));
+			this._register(this.customizationMarketplaceService.onDidChangeSources(() => {
+				this.updateHeaderActions();
+				void this.refresh();
+			}));
 		}
+		this._register(this.workspaceContextService.onDidChangeWorkspaceFolders(() => this.renderMcpTree()));
 		this._register({
 			dispose: () => {
 				this.delayedFilter.cancel();
@@ -1943,6 +2235,11 @@ export class McpListWidget extends Disposable {
 				this.connectorsCancellation.value?.cancel();
 			}
 		});
+	}
+
+	/** Sets navigation from a server's skill count to its Skills bundle. */
+	setShowSkillBundle(showSkillBundle: (bundleId: string) => void): void {
+		this._showSkillBundle = showSkillBundle;
 	}
 
 	setCloseCustomizationEditor(closeCustomizationEditor: () => Promise<void>): void {
@@ -1955,6 +2252,18 @@ export class McpListWidget extends Disposable {
 		const titleRow = DOM.append(this.sectionTitleHeader, $('.section-title-row'));
 		const sectionTitle = DOM.append(titleRow, $('h2.section-title'));
 		sectionTitle.textContent = localize('mcpServers', "MCP Servers");
+		const titleActions = DOM.append(titleRow, $('.section-title-actions'));
+		const browseLabel = localize('browseMcps', "Browse");
+		this.browseCustomizationsButton = this._register(new Button(titleActions, {
+			...defaultButtonStyles,
+			secondary: true,
+			small: true,
+			title: browseLabel,
+			ariaLabel: browseLabel,
+		}));
+		this.browseCustomizationsButton.label = browseLabel;
+		this._register(this.browseCustomizationsButton.onDidClick(() => this._onDidRequestBrowse.fire()));
+		this.updateHeaderActions();
 		const sectionTitleDescription = DOM.append(this.sectionTitleHeader, $('p.section-title-description'));
 		const sectionTitleDescriptionText = DOM.append(sectionTitleDescription, $('span.section-title-description-text'));
 		sectionTitleDescriptionText.textContent = localize('mcpServersDescription', "An open standard that lets AI use external tools and services. MCP servers provide tools for file operations, databases, APIs, and more.");
@@ -1971,6 +2280,8 @@ export class McpListWidget extends Disposable {
 				this.openerService.open(URI.parse(href));
 			}
 		}));
+		this.discoveryMessage = DOM.append(this.sectionTitleHeader, $('p.section-title-description.mcp-discovery-message', { role: 'status' }));
+		this.discoveryMessage.style.display = 'none';
 
 		// Re-layout when the header height changes so the list's allotted
 		// height stays in sync with the actual on-screen header size. Only
@@ -1999,7 +2310,8 @@ export class McpListWidget extends Disposable {
 		// Search container
 		const searchContainer = DOM.append(this.searchAndButtonContainer, $('.list-search-container'));
 		this.searchInput = this._register(new InputBox(searchContainer, this.contextViewService, {
-			placeholder: localize('searchMcpPlaceholder', "Type to search..."),
+			placeholder: localize('searchMcpPlaceholder', "Search MCP servers..."),
+			ariaLabel: localize('searchMcpAriaLabel', "Search MCP servers..."),
 			inputBoxStyles: defaultInputBoxStyles,
 		}));
 
@@ -2075,8 +2387,10 @@ export class McpListWidget extends Disposable {
 			McpServerItemRenderer,
 			(getEntry, actions, disposables, updateTabbability) => this.renderMcpListActions(getEntry, actions, disposables, updateTabbability),
 			(entry, reader) => this.getMcpServerCompatibilityKind(entry, reader),
+			(entry, reader) => this.isMcpServerMigratable(entry, reader),
 			plugin => this._onDidRequestShowPlugin.fire(createInstalledPluginItem(plugin)),
 			() => this._onDidRequestOpenMigrations.fire(),
+			bundleId => this._showSkillBundle(bundleId),
 		));
 		const marketplaceRenderer = new McpMarketplaceItemRenderer((server, button) => this.installMarketplaceServer(server, button));
 		this.list = this._register(this.instantiationService.createInstance(
@@ -2100,7 +2414,7 @@ export class McpListWidget extends Disposable {
 				accessibilityProvider: {
 					getAriaLabel: entry => {
 						if (entry.type === 'group-header') {
-							return localize('mcpGroupAriaLabel', "{0}, {1} items", entry.label, entry.count);
+							return getCustomizationGroupAriaLabel(entry.label, entry.count, entry.description);
 						}
 						return entry.type === 'connector-item'
 							? localize('connectorMcpServerAriaLabel', "{0}. Connector: {1}.", entry.connector.serverName, entry.connector.connector.displayName)
@@ -2128,14 +2442,18 @@ export class McpListWidget extends Disposable {
 				: this.createInstalledMcpServerDetailInput(entry));
 		}));
 		this._register(this.list.onContextMenu(event => {
-			if (event.element && event.element.type !== 'group-header' && event.element.type !== 'marketplace-item') {
-				this.showMcpServerActions(event.element, event.anchor);
+			const element = event.element;
+			if (element && element.type !== 'group-header' && element.type !== 'marketplace-item') {
+				this.showMcpServerActions(element, event.anchor);
 			}
 		}));
 		this._register(this.list.onDidChangeFocus(event => {
 			const entry = event.elements[0];
 			itemRenderer.setFocusedRowKey(entry && entry.type !== 'group-header' && entry.type !== 'marketplace-item' ? getMcpRowKey(entry) : undefined);
 			marketplaceRenderer.setFocusedServerId(entry?.type === 'marketplace-item' ? entry.server.id : undefined);
+		}));
+		this._register(this.list.onDidFocus(() => {
+			focusFirstCustomizationTreeItem<IMcpSectionEntry>(this.list, this.getVisibleMcpEntries(), entry => entry.type !== 'group-header');
 		}));
 
 		// Listen to MCP service changes
@@ -2156,6 +2474,7 @@ export class McpListWidget extends Disposable {
 			this.refresh();
 		}));
 		this._register(this.agentHostCustomizationService.onDidChangeCustomizations(() => {
+			this.updateDiscoveryMessage();
 			const previousMembership = this.getInstalledEntryMembershipSignature();
 			this.filterServers(false);
 			if (!hasSameMcpMembership(previousMembership, this.getInstalledEntryMembershipSignature())) {
@@ -2168,10 +2487,24 @@ export class McpListWidget extends Disposable {
 	}
 
 	private async refresh(): Promise<void> {
+		this.updateDiscoveryMessage();
 		this.filterServers();
 		if (!this.isGalleryDiscoveryEnabled() && shouldLoadMcpGallerySnapshot(this.visible, this.searchQuery, this.gallerySnapshotServers.length, this.gallerySnapshotFailed, this.gallerySnapshotLoading, this.mcpAccessEnabled)) {
 			await this.queryGallerySnapshot();
 		}
+	}
+
+	private updateDiscoveryMessage(): void {
+		const session = this.customizationHarnessService.activeSessionResource.get();
+		const messages = this.agentHostCustomizationService.getCustomizations(session).flatMap(customization =>
+			customization.type === CustomizationType.Directory && customization.contents === CustomizationType.McpServer
+				&& (customization.load?.kind === CustomizationLoadStatus.Error || customization.load?.kind === CustomizationLoadStatus.Degraded)
+				? [customization.load.message] : []);
+		const message = messages.length ? localize('mcpDiscoveryFailed', "MCP server discovery needs attention: {0}", messages.join('\n')) : '';
+		if (this.discoveryMessage.textContent !== message) {
+			this.discoveryMessage.textContent = message;
+		}
+		this.discoveryMessage.style.display = message ? '' : 'none';
 	}
 
 	private async refreshConnectors(): Promise<void> {
@@ -2215,7 +2548,7 @@ export class McpListWidget extends Disposable {
 	}
 
 	private isGalleryDiscoveryEnabled(): boolean {
-		return this.configurationService.getValue<boolean>(CustomizationMarketplaceConfiguration.MarketplaceEnabled) === true;
+		return !shouldShowLegacyMcpGallery(this.configurationService);
 	}
 
 	setVisible(visible: boolean): void {
@@ -2236,6 +2569,10 @@ export class McpListWidget extends Disposable {
 			this.connectorActionCancellation.clear();
 			this.clearMcpServerCompatibilityScope();
 		}
+	}
+
+	setMcpServerMigrationCandidates(candidates: readonly IMcpServerCustomizationMigrationCandidate[]): void {
+		this.mcpServerMigrationCandidates.set(candidates, undefined);
 	}
 
 	override dispose(): void {
@@ -2281,6 +2618,9 @@ export class McpListWidget extends Disposable {
 		this.mcpAccessEnabled = !disabled;
 
 		this.element.classList.toggle('access-disabled', disabled);
+		if (!disabled) {
+			this.renderedDisabledMessage = undefined;
+		}
 
 		if (disabled) {
 			this.connectorsCancellation.value?.cancel();
@@ -2296,20 +2636,36 @@ export class McpListWidget extends Disposable {
 			this.disabledIcon.className = 'empty-icon';
 			this.disabledIcon.classList.add(...ThemeIcon.asClassNameArray(policyLocked ? Codicon.shield : mcpServerIcon));
 
-			DOM.clearNode(this.disabledMessage);
-			this.disabledLinkListener.clear();
-			if (policyLocked) {
-				this.disabledMessage.textContent = localize('mcpAccessDisabledByPolicy', "Access to MCP servers is disabled by your organization. Contact your organization administrator for more information.");
-			} else {
-				this.disabledMessage.appendChild(document.createTextNode(localize('mcpAccessDisabledBySettingPrefix', "MCP servers are disabled in settings. ")));
-				const link = DOM.append(this.disabledMessage, $('a.mcp-disabled-settings-link')) as HTMLAnchorElement;
-				link.textContent = localize('mcpAccessDisabledSettingLink', "Configure in settings.");
-				link.href = '#';
-				link.setAttribute('role', 'button');
-				this.disabledLinkListener.value = DOM.addDisposableListener(link, 'click', (e) => {
-					e.preventDefault();
-					this.commandService.executeCommand('workbench.action.openSettings', `@id:${mcpAccessConfig}`);
-				});
+			const supportUrl = policyLocked ? getManagedSupportUrl(this.managedSettingsService) : undefined;
+			const messageKey = `${policyLocked}:${supportUrl ?? ''}`;
+			if (this.renderedDisabledMessage !== messageKey) {
+				this.renderedDisabledMessage = messageKey;
+				const hadFocus = DOM.isAncestorOfActiveElement(this.disabledMessage);
+				DOM.clearNode(this.disabledMessage);
+				this.disabledLinkListener.clear();
+				let link: HTMLElement | undefined;
+				if (supportUrl) {
+					this.disabledMessage.appendChild(document.createTextNode(localize('mcpAccessDisabledByPolicyPrefix', "Access to MCP servers is disabled by your organization. ")));
+					const supportLink = appendContactAdministratorLink(this.disabledMessage, 'mcp-disabled-settings-link', supportUrl, this.openerService, this.hoverService);
+					this.disabledLinkListener.value = supportLink;
+					link = supportLink.element;
+				} else if (policyLocked) {
+					this.disabledMessage.textContent = localize('mcpAccessDisabledByPolicy', "Access to MCP servers is disabled by your organization. Contact your administrator for more information.");
+				} else {
+					this.disabledMessage.appendChild(document.createTextNode(localize('mcpAccessDisabledBySettingPrefix', "MCP servers are disabled in settings. ")));
+					const settingsLink = DOM.append(this.disabledMessage, $('a.mcp-disabled-settings-link')) as HTMLAnchorElement;
+					settingsLink.textContent = localize('mcpAccessDisabledSettingLink', "Configure in settings.");
+					settingsLink.href = '#';
+					settingsLink.setAttribute('role', 'button');
+					this.disabledLinkListener.value = DOM.addDisposableListener(settingsLink, 'click', (e) => {
+						e.preventDefault();
+						this.commandService.executeCommand('workbench.action.openSettings', `@id:${mcpAccessConfig}`);
+					});
+					link = settingsLink;
+				}
+				if (hadFocus) {
+					link?.focus();
+				}
 			}
 		} else if (accessChanged && this.visible) {
 			if (this.searchQuery.trim() && !this.isGalleryDiscoveryEnabled()) {
@@ -2451,26 +2807,21 @@ export class McpListWidget extends Disposable {
 	}
 
 	private createInstalledMcpServerDetailInput(entry: IMcpInstalledEntry): IMcpServerDetailInput {
+		const activeSessionServer = getActiveSessionServer(entry);
+		if (activeSessionServer) {
+			const detail = createAgentHostMcpServerDetailInput(activeSessionServer, this.agentHostCustomizationService, this.customizationHarnessService, this.agentHostCustomizationsChanged);
+			return createInstalledMcpServerDetailInput(entry, detail.error, this.getMcpEntryDetailPresentation(entry));
+		}
 		return createInstalledMcpServerDetailInput(entry, derived(this, reader => {
-			const activeSessionServer = getActiveSessionServer(entry);
-			if (activeSessionServer) {
-				this.agentHostCustomizationsChanged.read(reader);
-				const sessionResource = this.customizationHarnessService.activeSessionResource.read(reader);
-				const server = this.agentHostCustomizationService.getMcpServers(sessionResource).find(server => server.id === activeSessionServer.id);
-				if (!server?.enabled) {
-					return undefined;
-				}
-				const errorMessage = server?.state?.kind === McpServerStatus.Error ? server.state.error?.message : undefined;
-				return getMcpErrorMessage(server?.state?.kind ?? server?.status, errorMessage);
+			if (entry.type === 'session-server-item') {
+				return undefined;
 			}
-			if (entry.type === 'session-server-item' || !entry.localServer) {
+			const serverId = entry.type === 'server-item' ? entry.server.id : entry.localServer?.definition.id;
+			if (!serverId) {
 				return undefined;
 			}
 			const runtimeServers = this.mcpService.servers.read(reader);
-			const matchKeys = entry.type === 'server-item'
-				? getWorkbenchServerMatchKeys(entry.server)
-				: getRuntimeServerMatchKeys(entry.localServer);
-			const localServer = new LocalMcpServerMatcher(runtimeServers).find(matchKeys);
+			const localServer = runtimeServers.find(server => server.definition.id === serverId);
 			if (!localServer || isContributionDisabled(localServer.enablement.read(reader))) {
 				return undefined;
 			}
@@ -2486,6 +2837,15 @@ export class McpListWidget extends Disposable {
 	private getMcpEntryDetailPresentation(entry: IMcpInstalledEntry): Pick<IMcpServerDetailInput, 'provenance' | 'definitionUnavailable'> {
 		const activeSessionServer = getActiveSessionServer(entry);
 		const agentLabel = this.customizationHarnessService.getActiveDescriptor().label;
+		if (entry.type === 'provider-item') {
+			const source = this.customizationMarketplaceService.sources.find(source => source.id === entry.marketplaceRecord.resource.sourceId);
+			return {
+				provenance: { label: source?.displayName ?? agentLabel },
+				definitionUnavailable: {
+					message: localize('mcpDefinitionProviderInstallation', "{0} manages this server installation, so its definition can't be viewed or edited here.", agentLabel),
+				},
+			};
+		}
 		const definitionUnavailable = activeSessionServer && getActiveSessionServerDefinitionUnavailable(activeSessionServer, agentLabel);
 		const source = getMcpEntrySource(entry, this.labelService, this.agentPluginService, this.extensionsWorkbenchService, plugin => this._onDidRequestShowPlugin.fire(createInstalledPluginItem(plugin)));
 		const open = source?.open;
@@ -2499,7 +2859,8 @@ export class McpListWidget extends Disposable {
 		return derived(this, reader => {
 			this.agentHostCustomizationsChanged.read(reader);
 			const label = getMcpEntryLabelWithSource(entry, this.labelService, this.agentPluginService, this.extensionsWorkbenchService);
-			const compatibility = getMcpCompatibilityPresentation(this.getMcpServerCompatibilityKind(entry, reader));
+			const compatibilityKind = this.getMcpServerCompatibilityKind(entry, reader);
+			const compatibility = getMcpRowMessagePresentation(compatibilityKind, this.isMcpServerMigratable(entry, reader));
 			const activeSessionResource = this.customizationHarnessService.activeSessionResource.read(reader);
 			let statusKind: McpStatusKind | undefined;
 			let disabledReason: CustomizationDisabledReason | undefined;
@@ -2512,7 +2873,7 @@ export class McpListWidget extends Disposable {
 				disabledReason = presentation?.enabled ? undefined : server?.disabledReason;
 				const message = server?.state?.kind === McpServerStatus.Error ? server.state.error?.message : undefined;
 				errorMessage = getMcpErrorMessage(statusKind, message);
-			} else if (entry.type !== 'session-server-item' && entry.localServer && isContributionDisabled(entry.localServer.enablement.read(reader))) {
+			} else if (entry.type !== 'session-server-item' && isContributionDisabled(getMcpLocalEnablement(entry, reader))) {
 				statusKind = 'disabled';
 				disabledReason = getMcpDisabledReason(entry);
 			} else if (entry.type !== 'session-server-item' && !this.workspaceService.isSessionsWindow) {
@@ -2520,6 +2881,7 @@ export class McpListWidget extends Disposable {
 				statusKind = entry.type === 'server-item' || connectionState?.state === McpConnectionState.Kind.Error ? connectionState?.state : undefined;
 				errorMessage = getMcpErrorMessage(statusKind, connectionState?.state === McpConnectionState.Kind.Error ? connectionState.message : undefined);
 			}
+
 			const status = getMcpStatusPresentation(statusKind, disabledReason);
 			return [compatibility?.label, status?.label, errorMessage].reduce<string>(
 				(result, detail) => detail ? localize('mcpServerAriaLabelWithStatus', "{0}, {1}", result, detail) : result,
@@ -2528,13 +2890,22 @@ export class McpListWidget extends Disposable {
 		});
 	}
 
+	private isMcpServerMigratable(entry: IMcpInstalledEntry, reader?: IReader): boolean {
+		const candidates = reader ? this.mcpServerMigrationCandidates.read(reader) : this.mcpServerMigrationCandidates.get();
+		const sourceUri = getMcpEntrySourceUri(entry);
+		return isMcpServerDetailMigratable({
+			compatibilityId: getMcpServerCompatibilityId(entry),
+			source: sourceUri ? { uri: sourceUri } : undefined,
+		}, candidates);
+	}
+
 	private renderMcpListActions(getEntry: () => IMcpInstalledEntry | undefined, actions: HTMLElement, disposables: DisposableStore, updateTabbability: () => void): void {
 		const entry = getEntry();
 		if (!entry) {
 			return;
 		}
 		const label = getMcpEntryLabel(entry);
-		if (!isConnectorMcpEntry(entry)) {
+		if (!isConnectorMcpEntry(entry) && entry.type !== 'provider-item') {
 			let enabled = this.isInstalledEntryEnabled(entry);
 			const disabledLabel = DOM.append(actions, $('.mcp-server-disabled-label'));
 			const toggle = disposables.add(this.instantiationService.createInstance(CustomizationToggle, { ariaLabel: label, checked: enabled }));
@@ -2566,9 +2937,9 @@ export class McpListWidget extends Disposable {
 				update();
 				status(enabled ? localize('mcpServerEnabledStatus', "{0} enabled.", label) : localize('mcpServerDisabledStatus', "{0} disabled.", label));
 			}));
-			if (entry.type !== 'session-server-item' && entry.localServer) {
+			if (entry.type !== 'session-server-item') {
 				disposables.add(autorun(reader => {
-					entry.localServer?.enablement.read(reader);
+					getMcpLocalEnablement(entry, reader);
 					update();
 				}));
 			}
@@ -2637,8 +3008,11 @@ export class McpListWidget extends Disposable {
 						installedKeys.add(key.toLowerCase());
 					}
 				}
-			} else {
+			} else if (entry.type === 'session-server-item') {
 				installedKeys.add(entry.server.name.toLowerCase());
+			} else {
+				installedKeys.add(entry.name.toLowerCase());
+				installedKeys.add(entry.label.toLowerCase());
 			}
 		}
 		return this.galleryServers.filter(server =>
@@ -2648,9 +3022,7 @@ export class McpListWidget extends Disposable {
 	}
 
 	private matchesGalleryServerQuery(server: IWorkbenchMcpServer, query: string): boolean {
-		return server.label.toLowerCase().includes(query)
-			|| server.description.toLowerCase().includes(query)
-			|| server.publisherDisplayName?.toLowerCase().includes(query) === true;
+		return customizationSearchMatchesAny(query, [server.label, server.description, server.publisherDisplayName]);
 	}
 
 	private renderMcpTree(): void {
@@ -2660,48 +3032,58 @@ export class McpListWidget extends Disposable {
 
 		const showGallery = !this.isGalleryDiscoveryEnabled();
 		const allInstalledEntries = this.installedEntries.map(presentation => presentation.entry);
+		const workspaceGroups = getAICustomizationWorkspaceGroups(this.workspaceContextService);
 		const grouped = new Map<string, IMcpSectionEntry[]>([
 			['user', []],
+			...workspaceGroups.map(group => [group.key, []] as [string, IMcpSectionEntry[]]),
 			['workspace', []],
-			['plugins', []],
-			['extensions', []],
 			['builtin', []],
 			['available', showGallery ? this.getAvailableGalleryServers().map(server => ({ type: 'marketplace-item', server })) : []],
 		]);
 
 		for (const entry of allInstalledEntries) {
-			grouped.get(getMcpEntryGroup(entry))!.push(entry);
+			const sourceUri = getMcpEntrySourceUri(entry);
+			let group = getMcpEntryGroup(entry);
+			// A host server with no reported source still has a known location; one
+			// configured inside a workspace folder belongs to that workspace.
+			const hostServer = getActiveSessionServer(entry);
+			if (group === 'user' && sourceUri && hostServer && hostServer.source === undefined && !hostServer.hostConfiguration && this.isInActiveWorkspace(sourceUri)) {
+				group = 'workspace';
+			}
+			grouped.get(this.getMcpTreeGroupKey(entry, group, sourceUri, workspaceGroups.length > 0))!.push(entry);
 		}
 
+		const workspaceDescription = localize('workspaceMcpServersGroupDescription', "MCP servers configured by this workspace.");
 		const definitions = [
-			{ id: 'user', label: localize('userMcpServersGroup', "User"), description: localize('userMcpServersGroupDescription', "MCP servers configured for your profile and available across workspaces."), icon: Codicon.account },
-			{ id: 'workspace', label: localize('workspaceMcpServersGroup', "Workspace"), description: localize('workspaceMcpServersGroupDescription', "MCP servers configured by this workspace."), icon: Codicon.folder },
-			{ id: 'plugins', label: localize('pluginMcpServersGroup', "Plugins"), description: localize('pluginMcpServersGroupDescription', "MCP servers provided by installed plugins or connected connectors."), icon: Codicon.plug },
-			{ id: 'extensions', label: localize('extensionMcpServersGroup', "Extensions"), description: localize('extensionMcpServersGroupDescription', "MCP servers provided by installed extensions."), icon: Codicon.extensions },
-			{ id: 'builtin', label: localize('builtinMcpServersGroup', "Built-In"), description: localize('builtinMcpServersGroupDescription', "MCP servers built into the application or active agent host."), icon: mcpServerIcon },
+			...workspaceGroups.map(group => ({ id: group.key, label: localize('workspaceFolderMcpServersGroup', "Workspace · {0}", group.label), description: workspaceDescription, icon: Codicon.folder, workspaceFolder: group.uri })),
+			{ id: 'workspace', label: localize('workspaceMcpServersGroup', "Workspace"), description: workspaceDescription, icon: Codicon.folder, workspaceFolder: undefined },
+			{ id: 'user', label: localize('userMcpServersGroup', "User"), description: localize('userScopeMcpServersGroupDescription', "MCP servers configured for your profile, connected from your account, or provided by plugins and extensions you installed. Available across workspaces."), icon: Codicon.account },
+			{ id: 'builtin', label: localize('builtinMcpServersGroup', "Built-in"), description: localize('builtinMcpServersGroupDescription', "MCP servers built into VS Code or the agent."), icon: Codicon.vscode },
 			{ id: 'available', label: localize('availableMcpServersSection', "Available"), description: localize('availableMcpServersSectionDescription', "Browse and install MCP servers from the marketplace."), icon: Codicon.globe },
 		].filter(group => group.id === 'available'
 			? showGallery
-			: group.id === 'user' || group.id === 'workspace' || grouped.get(group.id)!.length > 0);
+			: group.id === 'user' || (group.id === 'workspace' && workspaceGroups.length === 0) || isAICustomizationWorkspaceGroupKey(group.id) || grouped.get(group.id)!.length > 0);
 
 		this.currentTreeGroups = definitions.map((group, index): ICustomizationTreeGroup<IMcpSectionEntry> => {
 			const entries = grouped.get(group.id)!;
+			const count = entries.length;
 			const element: IMcpGroupHeaderEntry = {
 				type: 'group-header',
 				id: `mcp-group-${group.id}`,
 				group: group.id,
 				label: group.label,
 				icon: group.icon,
-				count: entries.length,
+				count,
 				isFirst: index === 0,
 				description: group.description,
 				collapsed: false,
+				workspaceFolder: group.workspaceFolder,
 			};
 			return {
 				id: group.id,
 				label: group.label,
 				description: group.description,
-				count: entries.length,
+				count,
 				element,
 				children: entries,
 			};
@@ -2717,7 +3099,31 @@ export class McpListWidget extends Disposable {
 		}));
 		this.list.setChildren(null);
 		this.list.setChildren(null, children);
-		this.updateMcpTreeEmptyState(this.currentTreeGroups.reduce((count, group) => count + group.children.length, 0));
+		this.updateMcpTreeEmptyState(this.currentTreeGroups.reduce((count, group) => count + group.count, 0));
+	}
+
+	/**
+	 * Returns the tree group for a server: its scope, a specific workspace folder
+	 * for multi-root workspaces, or Built-in.
+	 */
+	private getMcpTreeGroupKey(entry: IMcpInstalledEntry, group: McpEntryGroup, sourceUri: URI | undefined, isMultiRoot: boolean): string {
+		if (group === 'application') {
+			return 'builtin';
+		}
+		// Servers outside every workspace folder stay in a plain Workspace group.
+		if (group === 'workspace' && isMultiRoot && sourceUri) {
+			return findAICustomizationWorkspaceGroupContaining(sourceUri, this.workspaceContextService)?.key ?? group;
+		}
+		return group;
+	}
+
+	/** Whether a resource lives in one of the window's workspace folders or the active session's project. */
+	private isInActiveWorkspace(resource: URI): boolean {
+		if (isInAICustomizationWorkspaceFolder(resource, this.workspaceContextService)) {
+			return true;
+		}
+		const projectRoot = this.workspaceService.getActiveProjectRoot();
+		return !!projectRoot && isEqualOrParent(resource, projectRoot);
 	}
 
 	private updateMcpTreeEmptyState(itemCount: number): void {
@@ -2742,7 +3148,7 @@ export class McpListWidget extends Disposable {
 	}
 
 	private getVisibleMcpEntries(): readonly IMcpSectionEntry[] {
-		return this.currentTreeGroups.flatMap(group => [group.element, ...group.children]);
+		return this.currentTreeGroups.flatMap((group): IMcpSectionEntry[] => [group.element, ...group.children]);
 	}
 
 	private renderMcpHome(): void {
@@ -2754,13 +3160,13 @@ export class McpListWidget extends Disposable {
 	}
 
 	private renderMcpTreeGroupActions(entry: IMcpGroupHeaderEntry, container: HTMLElement, disposables: DisposableStore): void {
-		if (entry.group !== 'user' && entry.group !== 'workspace') {
+		if (entry.group !== 'user' && entry.group !== 'workspace' && !isAICustomizationWorkspaceGroupKey(entry.group)) {
 			return;
 		}
-		this.renderInstalledSectionActionsWithDisposables(container, disposables, entry.group === 'user');
+		this.renderInstalledSectionActionsWithDisposables(container, disposables, entry.workspaceFolder);
 	}
 
-	private renderInstalledSectionActionsWithDisposables(header: HTMLElement, disposables: DisposableStore, showBrowse: boolean): void {
+	private renderInstalledSectionActionsWithDisposables(header: HTMLElement, disposables: DisposableStore, workspaceFolder?: URI): void {
 		const actions = DOM.append(header, $('.plugin-card-section-actions'));
 		const addLabel = localize('addServer', "Add Server");
 		const add = disposables.add(new Button(actions, {
@@ -2778,24 +3184,15 @@ export class McpListWidget extends Disposable {
 		add.element.classList.add('plugin-installed-action', 'plugin-card-ghost-button', 'plugin-card-icon-button');
 		add.icon = Codicon.add;
 		this.firstCardFocusElement ??= add.element;
-		disposables.add(add.onDidClick(() => this.commandService.executeCommand(McpCommandIds.AddConfiguration)));
-		if (showBrowse && isCustomizationDiscoveryAvailable(this.configurationService, this.customizationMarketplaceService)) {
-			const browseLabel = localize('browseMcps', "Browse MCPs");
-			const browse = disposables.add(new Button(actions, {
-				...getButtonStyles({
-					buttonSecondaryBackground: undefined,
-					buttonSecondaryForeground: undefined,
-					buttonSecondaryHoverBackground: undefined,
-					buttonSecondaryBorder: undefined,
-				}),
-				secondary: true,
-				title: browseLabel,
-				ariaLabel: browseLabel,
-			}));
-			browse.element.classList.add('plugin-installed-action', 'plugin-card-ghost-button');
-			browse.label = browseLabel;
-			disposables.add(browse.onDidClick(() => this._onDidRequestBrowse.fire()));
-		}
+		disposables.add(add.onDidClick(() => this.addServer(workspaceFolder)));
+	}
+
+	addServer(workspaceFolder?: URI): Promise<void> {
+		return this.commandService.executeCommand(McpCommandIds.AddConfiguration, workspaceFolder);
+	}
+
+	private updateHeaderActions(): void {
+		this.browseCustomizationsButton.element.style.display = isCustomizationDiscoveryAvailable(this.configurationService, this.customizationMarketplaceService) ? '' : 'none';
 	}
 
 	private startConnectorAction(): CancellationTokenSource {
@@ -2849,7 +3246,7 @@ export class McpListWidget extends Disposable {
 		row.classList.toggle('disabled', !enabled);
 
 		const content = DOM.append(row, $('.mcp-installed-card-content'));
-		const primaryAction = this.addSurfaceActivation(content, getMcpEntryAriaLabel(entry, this.workspaceService.isSessionsWindow, this.getMcpServerCompatibilityKind(entry), this.labelService, this.agentPluginService, this.extensionsWorkbenchService), () => this._onDidSelectServer.fire(this.createInstalledMcpServerDetailInput(entry)));
+		const primaryAction = this.addSurfaceActivation(content, getMcpEntryAriaLabel(entry, this.workspaceService.isSessionsWindow, this.getMcpServerCompatibilityKind(entry), this.isMcpServerMigratable(entry), this.labelService, this.agentPluginService, this.extensionsWorkbenchService), () => this._onDidSelectServer.fire(this.createInstalledMcpServerDetailInput(entry)));
 		const details = DOM.append(primaryAction, $('.plugin-list-item-details'));
 		const nameRow = DOM.append(details, $('.plugin-list-item-name-row'));
 		const name = DOM.append(nameRow, $('.plugin-list-item-name'));
@@ -2866,7 +3263,7 @@ export class McpListWidget extends Disposable {
 		const errorActions = DOM.append(actions, $('.mcp-server-error-actions'));
 		const statusIcon = DOM.append(errorActions, $('span.mcp-server-state-icon'));
 		const showOutput = this.appendInstalledServerShowOutput(errorActions, getEntry);
-		const toggle = this.appendInstalledServerToggle(actions, getEntry);
+		const toggle = entry.type === 'provider-item' ? undefined : this.appendInstalledServerToggle(actions, getEntry);
 		const more = this.cardDisposables.add(new Button(actions, {
 			...getButtonStyles({
 				buttonSecondaryBackground: undefined,
@@ -2884,27 +3281,31 @@ export class McpListWidget extends Disposable {
 			row,
 			primaryAction,
 			label,
-			actions: [compatibilityMessage, signIn?.element, start.element, showOutput.element, toggle.element, more.element].filter((action): action is HTMLElement => action !== undefined),
+			actions: [compatibilityMessage, signIn?.element, start.element, showOutput.element, toggle?.element, more.element].filter((action): action is HTMLElement => action !== undefined),
 			contextMenuAction: more.element,
 		});
 
 		this.cardDisposables.add(autorun(reader => {
 			if (entry.type !== 'session-server-item') {
+				getMcpLocalEnablement(entry, reader);
 				entry.localServer?.connectionState.read(reader);
 			}
 			const compatibilityKind = this.getMcpServerCompatibilityKind(entry, reader);
-			updateMcpCompatibilityMessage(compatibilityMessage, compatibilityKind, compatibilityMessageDisposables, () => this._onDidRequestOpenMigrations.fire());
+			const migratable = this.isMcpServerMigratable(entry, reader);
+			updateMcpCompatibilityMessage(compatibilityMessage, compatibilityKind, compatibilityMessageDisposables, () => this._onDidRequestOpenMigrations.fire(), migratable);
 			updateMcpCardRuntimePresentation(
 				statusIcon,
 				primaryAction,
 				description,
 				getMcpStatusKind(entry, this.workspaceService.isSessionsWindow),
 				getMcpDisabledReason(entry),
-				getMcpEntryAriaLabel(entry, this.workspaceService.isSessionsWindow, compatibilityKind, this.labelService, this.agentPluginService, this.extensionsWorkbenchService),
+				getMcpEntryAriaLabel(entry, this.workspaceService.isSessionsWindow, compatibilityKind, migratable, this.labelService, this.agentPluginService, this.extensionsWorkbenchService),
 				this.getInstalledEntryDescription(entry),
 			);
 			start.update();
 			showOutput.update();
+			toggle?.update();
+			row.classList.toggle('disabled', !this.isInstalledEntryEnabled(entry));
 		}));
 		this.cardDisposables.add(this.agentHostCustomizationService.onDidChangeCustomizations(() => {
 			const updated = this.installedEntries.find(candidate => getMcpRowKey(candidate.entry) === rowKey)?.entry;
@@ -2913,20 +3314,21 @@ export class McpListWidget extends Disposable {
 			}
 			entry = updated;
 			const compatibilityKind = this.getMcpServerCompatibilityKind(entry);
-			updateMcpCompatibilityMessage(compatibilityMessage, compatibilityKind, compatibilityMessageDisposables, () => this._onDidRequestOpenMigrations.fire());
+			const migratable = this.isMcpServerMigratable(entry);
+			updateMcpCompatibilityMessage(compatibilityMessage, compatibilityKind, compatibilityMessageDisposables, () => this._onDidRequestOpenMigrations.fire(), migratable);
 			updateMcpCardRuntimePresentation(
 				statusIcon,
 				primaryAction,
 				description,
 				getMcpStatusKind(entry, this.workspaceService.isSessionsWindow),
 				getMcpDisabledReason(entry),
-				getMcpEntryAriaLabel(entry, this.workspaceService.isSessionsWindow, compatibilityKind, this.labelService, this.agentPluginService, this.extensionsWorkbenchService),
+				getMcpEntryAriaLabel(entry, this.workspaceService.isSessionsWindow, compatibilityKind, migratable, this.labelService, this.agentPluginService, this.extensionsWorkbenchService),
 				this.getInstalledEntryDescription(entry),
 			);
 			signIn?.update();
 			start.update();
 			showOutput.update();
-			toggle.update();
+			toggle?.update();
 			row.classList.toggle('disabled', !this.isInstalledEntryEnabled(entry));
 		}));
 	}
@@ -2979,7 +3381,7 @@ export class McpListWidget extends Disposable {
 		});
 		const update = () => {
 			const state = getMcpStatusKind(getEntry(), this.workspaceService.isSessionsWindow);
-			startButton.element.style.display = state === McpServerStatus.Stopped || state === McpConnectionState.Kind.Stopped ? '' : 'none';
+			startButton.element.style.display = isMcpServerStartable(state) ? '' : 'none';
 		};
 		update();
 		return { element: startButton.element, update };
@@ -3083,16 +3485,18 @@ export class McpListWidget extends Disposable {
 	private getInstalledEntryDescription(entry: IMcpInstalledEntry): string {
 		const description = entry.type === 'server-item'
 			? entry.server.description
-			: entry.type === 'builtin-item' || entry.type === 'connector-item'
+			: entry.type === 'builtin-item' || entry.type === 'connector-item' || entry.type === 'provider-item'
 				? entry.description
 				: '';
 		return truncateToFirstLine(description || localize('mcpNoDescription', "No description provided."));
 	}
 
 	private isInstalledEntryEnabled(entry: IMcpInstalledEntry): boolean {
+		if (entry.type === 'provider-item') {
+			return true;
+		}
 		const activeSessionServer = getActiveSessionServer(entry);
-		const localServer = entry.type === 'session-server-item' ? undefined : entry.localServer;
-		const serverId = localServer?.definition.id ?? (entry.type === 'server-item' ? entry.server.id : undefined);
+		const serverId = entry.type === 'server-item' ? entry.server.id : entry.type === 'session-server-item' ? undefined : entry.localServer?.definition.id;
 		return isPrimaryMcpServerEnabled(this.mcpService, serverId, activeSessionServer);
 	}
 
@@ -3101,9 +3505,11 @@ export class McpListWidget extends Disposable {
 	}
 
 	private setInstalledEntryEnabled(entry: IMcpInstalledEntry, enabled: boolean): void {
+		if (entry.type === 'provider-item') {
+			return;
+		}
 		const activeSessionServer = getActiveSessionServer(entry);
-		const localServer = entry.type === 'session-server-item' ? undefined : entry.localServer;
-		const serverId = localServer?.definition.id ?? (entry.type === 'server-item' ? entry.server.id : undefined);
+		const serverId = entry.type === 'server-item' ? entry.server.id : entry.type === 'session-server-item' ? undefined : entry.localServer?.definition.id;
 		setPrimaryMcpServerEnablement(
 			this.mcpService,
 			this.agentHostCustomizationService,
@@ -3119,28 +3525,36 @@ export class McpListWidget extends Disposable {
 	}
 
 	private filterServers(render = true): void {
+		if (this._store.isDisposed) {
+			return;
+		}
 		const query = this.searchQuery.toLowerCase().trim();
 		const activeSessionResource = this.customizationHarnessService.activeSessionResource.get();
-		const activeSessionMatcher = new ActiveSessionMcpServerMatcher(this.agentHostCustomizationService.getMcpServers(activeSessionResource));
-		const localServerMatcher = new LocalMcpServerMatcher(this.mcpService.servers.get());
+		const activeSessionServers = this.agentHostCustomizationService.getMcpServers(activeSessionResource);
+		const localServers = this.mcpWorkbenchService.local;
+		const runtimeServers = this.mcpService.servers.get();
+		const activeSessionMatcher = new ActiveSessionMcpServerMatcher(activeSessionServers);
+		const runtimeServersById = new Map(runtimeServers.map(server => [server.definition.id, server]));
 		const marketplaceInstallations = this.marketplaceInstallService.installations.get();
+		const providerEntries = createProviderMcpEntries(marketplaceInstallations.installations, [
+			...localServers.flatMap(getWorkbenchServerMatchKeys),
+			...runtimeServers.flatMap(getRuntimeServerMatchKeys),
+			...activeSessionServers.flatMap(server => getUniqueMcpMatchKeys([server.id, server.name, server.displayName])),
+		], query);
 
 		if (query) {
-			this.filteredServers = this.mcpWorkbenchService.local.filter(server =>
-				server.label.toLowerCase().includes(query) ||
-				(server.description?.toLowerCase().includes(query))
-			);
+			this.filteredServers = localServers.filter(server => customizationSearchMatchesAny(query, [server.label, server.description]));
 		} else {
-			this.filteredServers = [...this.mcpWorkbenchService.local];
+			this.filteredServers = [...localServers];
 		}
 
 		// Find extension-provided servers not in the local list (e.g. GitHub MCP)
 		const localIds = new Set(this.filteredServers.map(s => s.id));
 		const hiddenCollectionIds = this.customizationHarnessService.getActiveDescriptor().hiddenMcpServerCollectionIds;
-		const builtinServers = this.mcpService.servers.get()
+		const builtinServers = runtimeServers
 			.filter(s => !localIds.has(s.definition.id))
 			.filter(s => isMcpServerCollectionVisible(s.collection.id, hiddenCollectionIds))
-			.filter(s => !query || s.definition.label.toLowerCase().includes(query));
+			.filter(s => customizationSearchMatchesAny(query, [s.definition.label]));
 
 		const groups: { entries: Array<IMcpServerItemEntry | IMcpSessionServerItemEntry> }[] = [
 			{ entries: [] },
@@ -3148,12 +3562,16 @@ export class McpListWidget extends Disposable {
 		];
 
 		for (const server of this.filteredServers) {
+			const localServer = runtimeServersById.get(server.id);
+			// A shadowed configuration must not claim another source's agent-host server by name.
+			const canMatchSessionByName = localServer !== undefined || !localServers.some(other => other.id !== server.id && other.name === server.name);
 			const entry: IMcpServerItemEntry = {
 				type: 'server-item',
 				server,
 				marketplaceRecord: marketplaceInstallations.findByTarget({ kind: 'mcp', id: server.id }),
-				activeSessionServer: activeSessionMatcher.take(getWorkbenchServerMatchKeys(server)),
-				localServer: localServerMatcher.find(getWorkbenchServerMatchKeys(server)),
+				activeSessionServer: activeSessionMatcher.take(canMatchSessionByName ? getWorkbenchServerMatchKeys(server) : [server.id]),
+				localServer,
+				localEnablement: derived(this, reader => this.mcpService.enablementModel.readEnabled(server.id, reader)),
 			};
 			const scope = server.local?.scope;
 			if (scope === LocalMcpServerScope.Workspace) {
@@ -3190,11 +3608,11 @@ export class McpListWidget extends Disposable {
 		const connectorMcpEntries = this.isConnectorsEnabled()
 			? this.connectorsService.connectedMcpServers
 				.filter(server => !regularMatchKeys.has(server.serverName.toLowerCase()))
-				.filter(server => !query || [
+				.filter(server => customizationSearchMatchesAny(query, [
 					server.connector.displayName,
 					server.connector.description,
 					server.serverName,
-				].some(value => value.toLowerCase().includes(query)))
+				]))
 				.map(server => createConnectorMcpEntry(server, activeSessionMatcher.takeConnector([server.serverName], [server.connector.name, server.connector.displayName])))
 			: [];
 		const activeSessionOnlyServers = activeSessionMatcher.unmatched(query);
@@ -3206,11 +3624,19 @@ export class McpListWidget extends Disposable {
 			...otherBuiltinServers.map(({ server, activeSessionServer, extensionId }) => ({ entry: createBuiltinEntry(server, activeSessionServer, extensionId) })),
 			...connectorMcpEntries.map(entry => ({ entry })),
 			...activeSessionBuiltinEntries.map(entry => ({ entry })),
+			...providerEntries.map(entry => ({ entry })),
 		];
 		this.installedEntries = preserveMcpEntryOrder(this.installedEntries, this.installedEntryOrder);
 		this.element.classList.toggle('show-mcp-item-icons', this.installedEntries.some(({ entry }) => hasMcpInstalledEntryIcon(entry)));
 
-		this._onDidChangeItemCount.fire(this.itemCount);
+		this.installedEntryEnablementListener.value = autorun(reader => {
+			for (const { entry } of this.installedEntries) {
+				if (entry.type !== 'session-server-item') {
+					getMcpLocalEnablement(entry, reader);
+				}
+			}
+			this._onDidChangeItemCount.fire(this.itemCount);
+		});
 		if (render) {
 			this.renderFilteredServers();
 		}
@@ -3302,6 +3728,10 @@ export class McpListWidget extends Disposable {
 		this.searchInput.focus();
 	}
 
+	setSearchQuery(query: string): void {
+		this.searchInput.value = query;
+	}
+
 	/**
 	 * Scrolls the list so the last item is visible.
 	 */
@@ -3332,6 +3762,8 @@ export class McpListWidget extends Disposable {
 					case 'builtin-item':
 					case 'connector-item':
 						return entry.id === serverId || entry.activeSessionServer?.id === serverId;
+					case 'provider-item':
+						return entry.id === serverId || entry.name === serverId;
 					case 'group-header':
 					case 'marketplace-item':
 						return false;
@@ -3346,6 +3778,8 @@ export class McpListWidget extends Disposable {
 					return entry.label === serverName;
 				case 'connector-item':
 					return entry.label === serverName || entry.connector.connector.displayName === serverName;
+				case 'provider-item':
+					return entry.name === serverName || entry.label === serverName;
 				case 'group-header':
 				case 'marketplace-item':
 					return false;
@@ -3353,6 +3787,9 @@ export class McpListWidget extends Disposable {
 		});
 		if (!entry) {
 			return false;
+		}
+		for (let parent = this.list.getParentElement(entry); parent; parent = this.list.getParentElement(parent)) {
+			this.list.expand(parent);
 		}
 		this.list.reveal(entry);
 		this.list.setFocus([entry]);
@@ -3445,6 +3882,16 @@ export class McpListWidget extends Disposable {
 	}
 
 	private getMcpServerManagementActions(entry: IMcpInstalledEntry, disposables: DisposableStore): IAction[] {
+		if (entry.type === 'provider-item') {
+			return [disposables.add(new Action(
+				MCP_UNINSTALL_ACTION_ID,
+				localize('uninstall', "Uninstall"),
+				undefined,
+				true,
+				() => this.marketplaceInstallService.uninstall(entry.marketplaceRecord.resource),
+			))];
+		}
+
 		if (entry.type === 'session-server-item') {
 			const actions = getActiveSessionServerOptionsActions(this.commandService, this.agentHostCustomizationService, this.agentPluginService, this.customizationHarnessService.activeSessionResource.get(), entry.server);
 			actions.forEach(action => isDisposable(action) && disposables.add(action));
@@ -3511,11 +3958,12 @@ export class McpListWidget extends Disposable {
 						this._onDidRequestShowPlugin.fire(createInstalledPluginItem(plugin));
 					}
 				)));
-				actions.push(disposables.add(new Action(
+				const requiredByOrganization = isPluginRequiredByPolicy(plugin);
+				const uninstallPluginAction = disposables.add(new Action(
 					'mcpServer.uninstallPlugin',
 					localize('uninstallPlugin', "Uninstall Plugin"),
 					undefined,
-					true,
+					!requiredByOrganization,
 					async () => {
 						const result = await this.dialogService.confirm({
 							message: localize('confirmUninstallPluginMcp', "This MCP server is provided by the plugin '{0}'", plugin.label),
@@ -3527,7 +3975,11 @@ export class McpListWidget extends Disposable {
 							await removePluginWithMarketplaceOwnership(plugin, this.marketplaceInstallService);
 						}
 					}
-				)));
+				));
+				if (requiredByOrganization) {
+					uninstallPluginAction.tooltip = getPluginManagedByOrganizationMessage();
+				}
+				actions.push(uninstallPluginAction);
 			}
 			return actions;
 		}
@@ -3538,7 +3990,7 @@ export class McpListWidget extends Disposable {
 		const activeSessionServer = entry.activeSessionServer;
 		const activeSessionLifecycleAction = activeSessionServer !== undefined ? getActiveSessionServerLifecycleAction(activeSessionServer) : undefined;
 		const agentHostEnablementActions = activeSessionServer !== undefined
-			? getAgentHostMcpServerEnablementActions(this.agentHostCustomizationService, this.agentPluginService, this.customizationHarnessService.activeSessionResource.get(), activeSessionServer, ['workspace', 'session'])
+			? getAgentHostMcpServerEnablementActions(this.agentHostCustomizationService, this.agentPluginService, this.customizationHarnessService.activeSessionResource.get(), activeSessionServer, isHostOwnedMcpServer(activeSessionServer) ? ['global', 'workspace', 'session'] : ['workspace', 'session'])
 			: [];
 		for (const menuActions of groups) {
 			for (let index = 0; index < menuActions.length; index++) {

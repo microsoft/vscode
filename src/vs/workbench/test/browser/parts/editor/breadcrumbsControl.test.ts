@@ -4,28 +4,30 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { restore, SinonSpy, spy } from 'sinon';
+import { restore, SinonSpy, spy, stub } from 'sinon';
 import { Dimension } from '../../../../../base/browser/dom.js';
 import { BreadcrumbsWidget } from '../../../../../base/browser/ui/breadcrumbs/breadcrumbsWidget.js';
 import { mainWindow } from '../../../../../base/browser/window.js';
 import { DeferredPromise, timeout } from '../../../../../base/common/async.js';
 import { Event } from '../../../../../base/common/event.js';
-import { Disposable, DisposableStore } from '../../../../../base/common/lifecycle.js';
+import { DisposableStore, toDisposable } from '../../../../../base/common/lifecycle.js';
+import { Schemas } from '../../../../../base/common/network.js';
 import { URI } from '../../../../../base/common/uri.js';
-import { mock } from '../../../../../base/test/common/mock.js';
+import { mock, upcastPartial } from '../../../../../base/test/common/mock.js';
 import { runWithFakedTimers } from '../../../../../base/test/common/timeTravelScheduler.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { CommandsRegistry } from '../../../../../platform/commands/common/commands.js';
+import { IConfigurationChangeEvent } from '../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { IContextViewService } from '../../../../../platform/contextview/browser/contextView.js';
-import { IFileStatWithMetadata } from '../../../../../platform/files/common/files.js';
+import { IFileService, IFileStatWithMetadata } from '../../../../../platform/files/common/files.js';
 import { IQuickAccessController } from '../../../../../platform/quickinput/common/quickAccess.js';
 import { IQuickInputService } from '../../../../../platform/quickinput/common/quickInput.js';
 import { BreadcrumbsService, IBreadcrumbsService } from '../../../../browser/parts/editor/breadcrumbs.js';
-import { BreadcrumbsControl } from '../../../../browser/parts/editor/breadcrumbsControl.js';
+import { BreadcrumbsControl, BreadcrumbsControlFactory, IBreadcrumbsControlOptions } from '../../../../browser/parts/editor/breadcrumbsControl.js';
 import { BreadcrumbsPicker } from '../../../../browser/parts/editor/breadcrumbsPicker.js';
 import { IEditorGroupsView, IEditorGroupView } from '../../../../browser/parts/editor/editor.js';
-import { IVisibleEditorPane } from '../../../../common/editor.js';
+import { IEditorPartOptions, IVisibleEditorPane } from '../../../../common/editor.js';
 import { IEditorGroupsService } from '../../../../services/editor/common/editorGroupsService.js';
 import { ACTIVE_GROUP, IEditorService, SIDE_GROUP } from '../../../../services/editor/common/editorService.js';
 import { IOutline, IOutlineService } from '../../../../services/outline/browser/outline.js';
@@ -51,12 +53,14 @@ suite('BreadcrumbsControl', () => {
 	let pickerShow: SinonSpy<Parameters<typeof BreadcrumbsPicker.prototype.show>, Promise<void>>;
 	let outlineReveals: boolean[];
 	let quickAccessPrefixes: string[];
+	let outlineViewEvents: string[];
 
 	setup(() => {
 		editorFocusCalls = 0;
 		pendingEditorFocus = [];
 		outlineReveals = [];
 		quickAccessPrefixes = [];
+		outlineViewEvents = [];
 		fileRead = new DeferredPromise<void>();
 		pickerShow = spy(BreadcrumbsPicker.prototype, 'show');
 		configurationService = new TestConfigurationService({
@@ -100,7 +104,7 @@ suite('BreadcrumbsControl', () => {
 
 	ensureNoDisposablesAreLeakedInTestSuite();
 
-	async function createControl(withOutline = false): Promise<void> {
+	async function createControl(withOutline = false, nestedOutline = false, editorResource = resource, viaFactory = false): Promise<BreadcrumbsControlFactory | undefined> {
 		const outline: IOutline<string> = {
 			uri: resource,
 			outlineKind: 'test',
@@ -110,7 +114,7 @@ suite('BreadcrumbsControl', () => {
 			config: {
 				breadcrumbsDataSource: { getBreadcrumbElements: () => [{ element: 'symbol', label: 'symbol' }] },
 				quickPickDataSource: { getQuickPickElements: () => [] },
-				treeDataSource: { getChildren: element => element === outline ? ['symbol'] : [] },
+				treeDataSource: { getChildren: element => element === outline ? ['symbol'] : nestedOutline && element === 'symbol' ? ['child'] : [] },
 				delegate: { getHeight: () => 22, getTemplateId: () => 'symbol' },
 				renderers: [{
 					templateId: 'symbol',
@@ -127,20 +131,25 @@ suite('BreadcrumbsControl', () => {
 				}
 			},
 			reveal: (_element, _options, sideBySide) => { outlineReveals.push(sideBySide); },
-			preview: () => Disposable.None,
-			captureViewState: () => Disposable.None,
+			preview: () => {
+				outlineViewEvents.push('preview');
+				return toDisposable(() => outlineViewEvents.push('clearPreview'));
+			},
+			captureViewState: () => disposables.add(toDisposable(() => outlineViewEvents.push('restore'))),
 			dispose: () => { }
 		};
 		instantiationService.stub(IOutlineService, new class extends mock<IOutlineService>() {
 			override readonly onDidChange = Event.None;
 			override async createOutline() { return withOutline ? outline : undefined; }
 		});
-		const input = disposables.add(new TestFileEditorInput(resource, 'testEditorInput'));
+		const input = disposables.add(new TestFileEditorInput(editorResource, 'testEditorInput'));
 		const pane = new class extends mock<IVisibleEditorPane>() {
 			override readonly onDidChangeControl = Event.None;
 			override focus() { group.focus(); }
 		};
 		const groupsView = new class extends mock<IEditorGroupsView>() {
+			override readonly partOptions = upcastPartial<IEditorPartOptions>({});
+			override readonly onDidChangeEditorPartOptions = Event.None;
 			override activateGroup(target: IEditorGroupView) {
 				activeGroup = target;
 				return target;
@@ -165,18 +174,28 @@ suite('BreadcrumbsControl', () => {
 		instantiationService.stub(IEditorGroupsService, new class extends mock<IEditorGroupsService>() {
 			override get activeGroup() { return activeGroup; }
 		});
-		control = disposables.add(instantiationService.createInstance(BreadcrumbsControl, container, {
+		const options: IBreadcrumbsControlOptions = {
 			showFileIcons: false,
 			showSymbolIcons: true,
 			showDecorationColors: false,
 			showPlaceholder: false,
 			dragEditor: false
-		}, group));
+		};
+		let factory: BreadcrumbsControlFactory | undefined;
+		if (viaFactory) {
+			factory = disposables.add(instantiationService.createInstance(BreadcrumbsControlFactory, container, group, options));
+			control = factory.control!;
+		} else {
+			control = disposables.add(instantiationService.createInstance(BreadcrumbsControl, container, options, group));
+		}
 		control.update();
 		control.layout(new Dimension(600, BreadcrumbsControl.HEIGHT));
 		widget = instantiationService.get(IBreadcrumbsService).getWidget(group.id)!;
-		await Event.toPromise(control.model!.onDidUpdate);
+		if (control.model) {
+			await Event.toPromise(control.model.onDidUpdate);
+		}
 		focusEditor();
+		return factory;
 	}
 
 	async function waitForPicker(): Promise<void> {
@@ -210,6 +229,16 @@ suite('BreadcrumbsControl', () => {
 		}, { activeGroup: group.id, editorFocusCalls: 0, pickerFocused: true });
 	}
 
+	for (const theme of ['vs', 'vs-dark', 'hc-black', 'hc-light']) {
+		test(`does not draw a bottom border in ${theme}`, async () => {
+			container.classList.add('monaco-workbench', theme);
+			container.style.setProperty('--vscode-editorWidget-border', 'currentColor');
+			await createControl();
+
+			assert.strictEqual(mainWindow.getComputedStyle(control.domNode).borderBottomWidth, '0px');
+		});
+	}
+
 	for (const input of ['mouse', 'keyboard'] as const) {
 		for (const delivery of ['before', 'after'] as const) {
 			test(`file picker keeps focus with ${input} input and editor focus delivery ${delivery} loading`, async () => {
@@ -234,6 +263,36 @@ suite('BreadcrumbsControl', () => {
 		}
 	}
 
+	test('enabling breadcrumbs.showInUntitledFiles shows untitled files and notifies the owner', async () => {
+		await configurationService.setUserConfiguration('breadcrumbs.enabled', true);
+		const factory = (await createControl(true, false, URI.from({ scheme: Schemas.untitled, path: 'Untitled-1' }), true))!;
+		const hiddenByDefault = control.isHidden();
+		let ownerNotifications = 0;
+		disposables.add(factory.onDidEnablementChange(() => ownerNotifications++));
+
+		await configurationService.setUserConfiguration('breadcrumbs.showInUntitledFiles', true);
+		configurationService.onDidChangeConfigurationEmitter.fire(upcastPartial<IConfigurationChangeEvent>({ affectsConfiguration: section => section === 'breadcrumbs.showInUntitledFiles' }));
+
+		assert.deepStrictEqual({ hiddenByDefault, hiddenWhenEnabled: control.isHidden(), ownerNotifications }, { hiddenByDefault: true, hiddenWhenEnabled: false, ownerNotifications: 1 });
+	});
+
+	test('untitled files show their symbol path without file path elements', async () => {
+		await configurationService.setUserConfiguration('breadcrumbs.showInUntitledFiles', true);
+		await createControl(true, false, URI.from({ scheme: Schemas.untitled, path: 'Untitled-1' }));
+
+		assert.deepStrictEqual({
+			hidden: control.isHidden(),
+			items: Array.from(control.domNode.querySelectorAll('.monaco-breadcrumb-item'), item => item.textContent)
+		}, { hidden: false, items: ['symbol'] });
+	});
+
+	test('does not show a placeholder when there are no elements and showPlaceholder is false', async () => {
+		await configurationService.setUserConfiguration('breadcrumbs.showInUntitledFiles', true);
+		await createControl(false, false, URI.from({ scheme: Schemas.untitled, path: 'Untitled-1' }));
+
+		assert.deepStrictEqual(Array.from(control.domNode.querySelectorAll('.monaco-breadcrumb-item'), item => item.textContent), []);
+	});
+
 	test('outline picker activates its group without focusing the editor', async () => {
 		await createControl(true);
 		widget.setSelection(widget.getItems().at(-1), BreadcrumbsControl.Payload_Pick);
@@ -244,6 +303,29 @@ suite('BreadcrumbsControl', () => {
 	});
 
 	for (const withOutline of [false, true]) {
+		for (const altKey of [false, true]) {
+			test(`${altKey ? 'Alt-clicking' : 'clicking'} a ${withOutline ? 'symbol' : 'file'} in the picker`, async () => {
+				await createControl(withOutline);
+				const openEditor = spy(instantiationService.get(IEditorService), 'openEditor');
+				widget.setSelection(widget.getItems().at(-1), BreadcrumbsControl.Payload_Pick);
+				await fileRead.complete();
+				await waitForPicker();
+				contextViewService.getContextViewElement().querySelector('.monaco-list-row')!.dispatchEvent(new MouseEvent('click', { altKey, bubbles: true }));
+				await timeout(0);
+				assert.deepStrictEqual({
+					group: activeGroup.id,
+					destination: withOutline ? outlineReveals : openEditor.firstCall?.args[1],
+					viewEvents: outlineViewEvents,
+					picker: contextViewService.getContextViewElement().querySelector('.monaco-breadcrumbs-picker')
+				}, {
+					group: group.id,
+					destination: withOutline ? [altKey] : altKey ? SIDE_GROUP : undefined,
+					viewEvents: withOutline ? ['preview', 'clearPreview', ...(altKey ? ['restore'] : [])] : [],
+					picker: null
+				});
+			});
+		}
+
 		test(`picking a ${withOutline ? 'symbol' : 'file'} closes the picker and reveals the selection`, async () => {
 			await createControl(withOutline);
 			const openEditor = spy(instantiationService.get(IEditorService), 'openEditor');
@@ -297,6 +379,38 @@ suite('BreadcrumbsControl', () => {
 		deliverEditorFocus();
 		await timeout(0);
 		assertPickerFocused();
+	});
+
+	test('Alt-clicking a folder only expands the hierarchy', async () => {
+		const folder = URI.file('/path/folder');
+		stub(instantiationService.get(IFileService), 'resolve').callsFake(async uri => createFileStat(uri, false, false, true, false,
+			uri.path === folder.path ? [{ resource }] : [{ resource: folder, isFile: false, isDirectory: true }]));
+		await createControl();
+		const openEditor = spy(instantiationService.get(IEditorService), 'openEditor');
+		widget.setSelection(widget.getItems().at(-1), BreadcrumbsControl.Payload_Pick);
+		await waitForPicker();
+		const row = contextViewService.getContextViewElement().querySelector<HTMLElement>('.monaco-list-row')!;
+		row.dispatchEvent(new MouseEvent('click', { altKey: true, bubbles: true }));
+		await timeout(0);
+		assert.deepStrictEqual({
+			expanded: row.getAttribute('aria-expanded'),
+			opens: openEditor.callCount,
+			pickerVisible: !!contextViewService.getContextViewElement().querySelector('.monaco-breadcrumbs-picker')
+		}, { expanded: 'true', opens: 0, pickerVisible: true });
+	});
+
+	test('Alt-clicking a symbol twistie only expands the hierarchy', async () => {
+		await createControl(true, true);
+		widget.setSelection(widget.getItems().at(-1), BreadcrumbsControl.Payload_Pick);
+		await waitForPicker();
+		const row = contextViewService.getContextViewElement().querySelector<HTMLElement>('.monaco-list-row')!;
+		row.querySelector<HTMLElement>('.monaco-tl-twistie')!.dispatchEvent(new MouseEvent('click', { altKey: true, bubbles: true }));
+		await timeout(0);
+		assert.deepStrictEqual({
+			expanded: row.getAttribute('aria-expanded'),
+			reveals: outlineReveals,
+			pickerVisible: !!contextViewService.getContextViewElement().querySelector('.monaco-breadcrumbs-picker')
+		}, { expanded: 'true', reveals: [], pickerVisible: true });
 	});
 
 	test('Escape returns focus to the owning editor', async () => {

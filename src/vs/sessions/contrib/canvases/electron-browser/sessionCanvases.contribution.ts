@@ -3,53 +3,59 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import '../../../../workbench/contrib/canvases/electron-browser/canvases.contribution.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
-import { localize } from '../../../../nls.js';
-import { AccessibleViewType } from '../../../../platform/accessibility/browser/accessibleView.js';
-import { AccessibleViewRegistry } from '../../../../platform/accessibility/browser/accessibleViewRegistry.js';
-import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
-import { SyncDescriptor } from '../../../../platform/instantiation/common/descriptors.js';
+import { observableFromEvent } from '../../../../base/common/observable.js';
+import { IMenuService } from '../../../../platform/actions/common/actions.js';
+import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
+import { INotificationService } from '../../../../platform/notification/common/notification.js';
+import { bindContextKey } from '../../../../platform/observable/common/platformObservableUtils.js';
 import { Registry } from '../../../../platform/registry/common/platform.js';
-import { EditorPaneDescriptor, IEditorPaneRegistry } from '../../../../workbench/browser/editor.js';
-import { EditorExtensions } from '../../../../workbench/common/editor.js';
+import { EditorExtensions, IEditorFactoryRegistry } from '../../../../workbench/common/editor.js';
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../../workbench/common/contributions.js';
-import { ChatContextKeys } from '../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
+import { IChatContextPickService } from '../../../../workbench/contrib/chat/browser/attachments/chatContextPickService.js';
+import { registerCanvasContextPicker } from '../../../../workbench/contrib/canvases/browser/canvasContextPicker.js';
+import { CanvasInput, ICanvasContextService, ICanvasService } from '../../../../workbench/contrib/canvases/common/canvas.js';
 import { IEditorService } from '../../../../workbench/services/editor/common/editorService.js';
-import { ISessionCanvasService, SessionCanvasInput } from '../common/sessionCanvas.js';
-import { registerSessionCanvasAddTabActions } from './sessionCanvasActions.js';
-import { SessionCanvasEditor, SessionCanvasFocusedContext } from './sessionCanvasEditor.js';
-import { SessionCanvasService } from './sessionCanvasService.js';
+import { AgentsWindowMenus } from '../../../browser/agentsWindowMenus.js';
+import { ActiveSessionCanvasReferenceContext } from '../../../common/agentsWindowContextKeys.js';
+import { ISessionCanvasRegistryService } from '../common/sessionCanvas.js';
+import { registerSessionCanvasActions } from './sessionCanvasActions.js';
+import { SessionCanvasContextService, SessionCanvasRegistryService } from './sessionCanvasService.js';
+import { SessionCanvasSerializer } from './sessionCanvasSerializer.js';
+import { PinnedCanvasPageContribution } from './pinnedCanvasPage.js';
+import './pinnedCanvasActions.js';
+import { getCanvasReferenceKey } from '../../../../workbench/common/canvasReference.js';
 
-registerSingleton(ISessionCanvasService, SessionCanvasService, InstantiationType.Delayed);
+registerSingleton(ICanvasContextService, SessionCanvasContextService, InstantiationType.Delayed);
+registerSingleton(ISessionCanvasRegistryService, SessionCanvasRegistryService, InstantiationType.Delayed);
 
-Registry.as<IEditorPaneRegistry>(EditorExtensions.EditorPane).registerEditorPane(
-	EditorPaneDescriptor.create(SessionCanvasEditor, SessionCanvasInput.EDITOR_ID, localize('canvas.editor', "Canvas")),
-	[new SyncDescriptor(SessionCanvasInput)],
-);
+Registry.as<IEditorFactoryRegistry>(EditorExtensions.EditorFactory).registerEditorSerializer(CanvasInput.ID, SessionCanvasSerializer);
 
-class SessionCanvasesContribution extends Disposable implements IWorkbenchContribution {
-
-	static readonly ID = 'sessions.contrib.canvases';
+class SessionCanvasAddTabContribution extends Disposable implements IWorkbenchContribution {
+	static readonly ID = 'sessions.contrib.canvasAddTab';
 
 	constructor(
-		@ISessionCanvasService canvasService: ISessionCanvasService,
+		@ICanvasService canvasService: ICanvasService,
+		@ISessionCanvasRegistryService registryService: ISessionCanvasRegistryService,
+		@ICanvasContextService contextService: ICanvasContextService,
+		@IChatContextPickService contextPickService: IChatContextPickService,
+		@IMenuService menuService: IMenuService,
+		@INotificationService notificationService: INotificationService,
+		@IEditorService editorService: IEditorService,
+		@IContextKeyService contextKeyService: IContextKeyService,
 	) {
 		super();
-		this._register(registerSessionCanvasAddTabActions(canvasService));
-		for (const type of [AccessibleViewType.Help, AccessibleViewType.View]) {
-			this._register(AccessibleViewRegistry.register({
-				type,
-				priority: 200,
-				name: `sessionCanvas-${type}`,
-				when: ContextKeyExpr.and(ChatContextKeys.enabled, SessionCanvasFocusedContext),
-				getProvider: accessor => {
-					const pane = accessor.get(IEditorService).activeEditorPane;
-					return pane instanceof SessionCanvasEditor ? pane.createAccessibleProvider(type) : undefined;
-				},
-			}));
-		}
+		const activeEditor = observableFromEvent(this, editorService.onDidActiveEditorChange, () => editorService.activeEditor);
+		this._register(bindContextKey(ActiveSessionCanvasReferenceContext, contextKeyService, reader => {
+			const input = activeEditor.read(reader);
+			return input instanceof CanvasInput ? getCanvasReferenceKey(input.reference) : '';
+		}));
+		this._register(registerSessionCanvasActions(canvasService, registryService, contextService));
+		this._register(registerCanvasContextPicker(contextPickService, menuService, notificationService, AgentsWindowMenus.SessionsEditorTabsBarAddTabCanvas));
 	}
 }
 
-registerWorkbenchContribution2(SessionCanvasesContribution.ID, SessionCanvasesContribution, WorkbenchPhase.BlockRestore);
+registerWorkbenchContribution2(SessionCanvasAddTabContribution.ID, SessionCanvasAddTabContribution, WorkbenchPhase.BlockRestore);
+registerWorkbenchContribution2(PinnedCanvasPageContribution.ID, PinnedCanvasPageContribution, WorkbenchPhase.BlockRestore);

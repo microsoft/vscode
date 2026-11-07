@@ -9,15 +9,16 @@ import { URI } from '../../../../../base/common/uri.js';
 import { mock, upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { AUTHORITATIVE_EMPTY_CHAT_RESPONSE_FILE_CHANGES } from '../../../../../workbench/contrib/chat/browser/chatResponseFileChangesService.js';
-import { isIChatSessionFileChange2 } from '../../../../../workbench/contrib/chat/common/chatSessionsService.js';
 import { IEditorService } from '../../../../../workbench/services/editor/common/editorService.js';
 import { IAgentWorkbenchLayoutService } from '../../../../browser/workbench.js';
-import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
-import { IChat, ISession, ISessionChangeset, ISessionFileChange, ISessionFolder, ISessionTurnFileChange, ISessionWorkspace, TURN_CHANGES_CHANGESET_ID } from '../../../../services/sessions/common/session.js';
-import { IActiveSession, ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
-import { ISessionChangesEditorOptions, ISessionChangesService } from '../../../changes/browser/sessionChangesService.js';
-import { IChangesViewService } from '../../../changes/common/changesViewService.js';
+import { ISessionsService } from '../../../../../workbench/contrib/sessions/browser/sessionsService.js';
+import { IChat, ISession, ISessionChangeset, ISessionFileChange, ISessionFolder, ISessionTurnFileChange, ISessionWorkspace, TURN_CHANGES_CHANGESET_ID } from '../../../../../workbench/services/sessions/common/session.js';
+import { ISessionsManagementService } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
+import { ISessionChangesEditorOptions, ISessionChangesService } from '../../../../../workbench/contrib/sessionChanges/browser/sessionChangesService.js';
+import { IChangesViewService } from '../../../../../workbench/contrib/sessions/common/changesViewService.js';
 import { SessionsChatResponseFileChangesService } from '../../browser/sessionTurnChanges.js';
+import { focusedSessionHostServiceOf, ITestSessionWithChat } from '../../../../../workbench/contrib/sessions/test/browser/sessionHostTestUtils.js';
+import { isIChatSessionFileChange2 } from '../../../../../workbench/common/chatSessionFileChange.js';
 
 suite('SessionTurnChanges', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
@@ -43,7 +44,7 @@ suite('SessionTurnChanges', () => {
 			updatedAt: constObservable(new Date('2026-08-13T10:00:00Z')),
 			lastTurnChanges,
 		});
-		const session = upcastPartial<IActiveSession>({
+		const session = upcastPartial<ITestSessionWithChat>({
 			resource: URI.parse('agent-host:session'),
 			providerId: 'local-agent-host',
 			chats: constObservable([chat]),
@@ -58,7 +59,7 @@ suite('SessionTurnChanges', () => {
 			}
 		}();
 		const sessionsService = new class extends mock<ISessionsService>() {
-			override readonly activeSession = observableValue<IActiveSession | undefined>('activeSession', undefined);
+			readonly activeSession = observableValue<ITestSessionWithChat | undefined>('activeSession', undefined);
 			override async openChat(targetSession: ISession, chatResource: URI, options?: { preserveFocus?: boolean }): Promise<void> {
 				calls.push({ openChat: targetSession.resource.toString(), chatResource: chatResource.toString(), preserveFocus: options?.preserveFocus });
 				this.activeSession.set(session, undefined);
@@ -86,6 +87,7 @@ suite('SessionTurnChanges', () => {
 			new class extends mock<IEditorService>() { }(),
 			sessionsManagementService,
 			sessionsService,
+			focusedSessionHostServiceOf(sessionsService.activeSession),
 			sessionChangesService,
 			layoutService,
 			createChangesViewService(),
@@ -123,7 +125,7 @@ suite('SessionTurnChanges', () => {
 
 	test('opens exact historical request changes as a transient changeset', () => {
 		const workspaceFolder = URI.file('/workspace');
-		const session = upcastPartial<IActiveSession>({
+		const session = upcastPartial<ITestSessionWithChat>({
 			resource: URI.parse('agent-host:session'),
 			workspace: constObservable(upcastPartial<ISessionWorkspace>({
 				folders: [upcastPartial<ISessionFolder>({
@@ -140,7 +142,7 @@ suite('SessionTurnChanges', () => {
 			}
 		}();
 		const sessionsService = new class extends mock<ISessionsService>() {
-			override readonly activeSession = constObservable<IActiveSession | undefined>(session);
+			readonly activeSession = constObservable<ITestSessionWithChat | undefined>(session);
 		}();
 		const sessionChangesService = new class extends mock<ISessionChangesService>() {
 			override async openChangesEditor(sessionResource: URI, options?: ISessionChangesEditorOptions): Promise<undefined> {
@@ -174,6 +176,7 @@ suite('SessionTurnChanges', () => {
 			new class extends mock<IEditorService>() { }(),
 			sessionsManagementService,
 			sessionsService,
+			focusedSessionHostServiceOf(sessionsService.activeSession),
 			sessionChangesService,
 			layoutService,
 			createChangesViewService(),
@@ -245,7 +248,7 @@ suite('SessionTurnChanges', () => {
 			resource: chatResource,
 			updatedAt: constObservable(new Date('2026-08-13T10:00:00Z')),
 		});
-		const session = upcastPartial<IActiveSession>({
+		const session = upcastPartial<ITestSessionWithChat>({
 			resource: URI.parse('agent-host:session'),
 			chats: constObservable([chat]),
 			mainChat: constObservable(chat),
@@ -258,7 +261,7 @@ suite('SessionTurnChanges', () => {
 			}
 		}();
 		const sessionsService = new class extends mock<ISessionsService>() {
-			override readonly activeSession = constObservable<IActiveSession | undefined>(session);
+			readonly activeSession = constObservable<ITestSessionWithChat | undefined>(session);
 		}();
 		const sessionChangesService = new class extends mock<ISessionChangesService>() {
 			override async openChangesEditor(_sessionResource: URI, options?: ISessionChangesEditorOptions): Promise<undefined> {
@@ -276,6 +279,7 @@ suite('SessionTurnChanges', () => {
 			new class extends mock<IEditorService>() { }(),
 			sessionsManagementService,
 			sessionsService,
+			focusedSessionHostServiceOf(sessionsService.activeSession),
 			sessionChangesService,
 			layoutService,
 			createChangesViewService(),
@@ -309,7 +313,7 @@ suite('SessionTurnChanges', () => {
 			updatedAt: constObservable(new Date('2026-08-13T11:00:00Z')),
 		});
 		const workspaceFolder = URI.file('/workspace');
-		const session = upcastPartial<IActiveSession>({
+		const session = upcastPartial<ITestSessionWithChat>({
 			resource: URI.parse('agent-host:session'),
 			providerId: 'local-agent-host',
 			workspace: constObservable(upcastPartial<ISessionWorkspace>({
@@ -331,8 +335,9 @@ suite('SessionTurnChanges', () => {
 				}
 			}(),
 			new class extends mock<ISessionsService>() {
-				override readonly activeSession = constObservable<IActiveSession | undefined>(session);
+				readonly activeSession = constObservable<ITestSessionWithChat | undefined>(session);
 			}(),
+			focusedSessionHostServiceOf(constObservable<ITestSessionWithChat | undefined>(session)),
 			new class extends mock<ISessionChangesService>() {
 				override async openChangesEditor(_sessionResource: URI, options?: ISessionChangesEditorOptions): Promise<undefined> {
 					const selection = options?.changesetSelection;
@@ -396,6 +401,7 @@ suite('SessionTurnChanges', () => {
 				}
 			}(),
 			new class extends mock<ISessionsService>() { }(),
+			focusedSessionHostServiceOf(constObservable(undefined)),
 			new class extends mock<ISessionChangesService>() { }(),
 			new class extends mock<IAgentWorkbenchLayoutService>() { }(),
 			createChangesViewService(),
@@ -436,7 +442,7 @@ suite('SessionTurnChanges', () => {
 			updatedAt: constObservable(new Date('2026-08-13T10:00:00Z')),
 			changesets: constObservable([changeset]),
 		});
-		const session = upcastPartial<IActiveSession>({
+		const session = upcastPartial<ITestSessionWithChat>({
 			resource: URI.parse('agent-host:session'),
 			chats: constObservable([chat]),
 			mainChat: constObservable(chat),
@@ -449,6 +455,7 @@ suite('SessionTurnChanges', () => {
 				}
 			}(),
 			new class extends mock<ISessionsService>() { }(),
+			focusedSessionHostServiceOf(constObservable(undefined)),
 			new class extends mock<ISessionChangesService>() { }(),
 			new class extends mock<IAgentWorkbenchLayoutService>() { }(),
 			new class extends mock<IChangesViewService>() {
@@ -483,7 +490,7 @@ suite('SessionTurnChanges', () => {
 			updatedAt: constObservable(new Date('2026-08-13T10:00:00Z')),
 			changesets: constObservable([changeset]),
 		});
-		const session = upcastPartial<IActiveSession>({
+		const session = upcastPartial<ITestSessionWithChat>({
 			resource: URI.parse('agent-host:session'),
 			chats: constObservable([chat]),
 			mainChat: constObservable(chat),
@@ -499,6 +506,7 @@ suite('SessionTurnChanges', () => {
 				}
 			}(),
 			new class extends mock<ISessionsService>() { }(),
+			focusedSessionHostServiceOf(constObservable(undefined)),
 			new class extends mock<ISessionChangesService>() { }(),
 			new class extends mock<IAgentWorkbenchLayoutService>() { }(),
 			changesViewService,
@@ -560,7 +568,7 @@ suite('SessionTurnChanges', () => {
 			resource: URI.parse('chat:newer'),
 			updatedAt: newerChatUpdatedAt,
 		});
-		const session = upcastPartial<IActiveSession>({
+		const session = upcastPartial<ITestSessionWithChat>({
 			resource: URI.parse('agent-host:session'),
 			chats: constObservable([chat, newerChat]),
 			mainChat: constObservable(chat),
@@ -573,6 +581,7 @@ suite('SessionTurnChanges', () => {
 				}
 			}(),
 			new class extends mock<ISessionsService>() { }(),
+			focusedSessionHostServiceOf(constObservable(undefined)),
 			new class extends mock<ISessionChangesService>() { }(),
 			new class extends mock<IAgentWorkbenchLayoutService>() { }(),
 			new class extends mock<IChangesViewService>() {
@@ -629,7 +638,7 @@ suite('SessionTurnChanges', () => {
 			updatedAt: constObservable(new Date('2026-08-13T10:00:00Z')),
 			changesets: constObservable([changeset]),
 		});
-		const session = upcastPartial<IActiveSession>({
+		const session = upcastPartial<ITestSessionWithChat>({
 			resource: URI.parse('agent-host:session'),
 			chats: constObservable([chat]),
 			mainChat: constObservable(chat),
@@ -642,6 +651,7 @@ suite('SessionTurnChanges', () => {
 				}
 			}(),
 			new class extends mock<ISessionsService>() { }(),
+			focusedSessionHostServiceOf(constObservable(undefined)),
 			new class extends mock<ISessionChangesService>() { }(),
 			new class extends mock<IAgentWorkbenchLayoutService>() { }(),
 			new class extends mock<IChangesViewService>() {

@@ -14,6 +14,7 @@ import { ICopilotTokenStore } from '../../../authentication/common/copilotTokenS
 import { IConfigurationService } from '../../../configuration/common/configurationService';
 import { IVSCodeExtensionContext } from '../../../extContext/common/extensionContext';
 import { ILogService } from '../../../log/common/logService';
+import { INTEGRATION_ID } from '../../../endpoint/common/licenseAgreement';
 import { FetchOptions, HeadersImpl, IFetcherService, Response } from '../../../networking/common/fetcherService';
 import { createPlatformServices, ITestingServicesAccessor } from '../../../test/node/services';
 import { TreatmentsChangeEvent } from '../../common/nullExperimentationService';
@@ -873,7 +874,7 @@ describe('ExP Service scoped treatment resolution', () => {
  * endpoints go through it (proxy-aware transport) with the expected method and call site.
  */
 class RecordingFetcherService extends mock<IFetcherService>() {
-	public readonly calls: { url: string; method: string; callSite: string; body?: string }[] = [];
+	public readonly calls: { url: string; method: string; callSite: string; headers: FetchOptions['headers']; body?: string }[] = [];
 
 	override readonly onDidFetch = Event.None;
 	override readonly onDidCompleteFetch = Event.None;
@@ -883,7 +884,7 @@ class RecordingFetcherService extends mock<IFetcherService>() {
 	}
 
 	override fetch(url: string, options: FetchOptions): Promise<Response> {
-		this.calls.push({ url, method: options.method ?? 'GET', callSite: options.callSite, body: options.body });
+		this.calls.push({ url, method: options.method ?? 'GET', callSite: options.callSite, headers: options.headers, body: options.body });
 		return Promise.resolve(Response.fromText(200, 'OK', new HeadersImpl({}), '{}', 'test-stub'));
 	}
 }
@@ -898,8 +899,8 @@ describe('TAS proxy transport adapter', () => {
 		await tasFetch('https://exp.example.test/vscode/api/v1/assignments', { method: 'POST', headers: { 'X-New': '1' }, body: '{"parameters":{}}' });
 
 		expect(fetcher.calls).toEqual([
-			{ url: 'https://default.exp-tas.com/vscode/ab', method: 'GET', callSite: 'exp.legacy', body: undefined },
-			{ url: 'https://exp.example.test/vscode/api/v1/assignments', method: 'POST', callSite: 'exp.assignments', body: '{"parameters":{}}' },
+			{ url: 'https://default.exp-tas.com/vscode/ab', method: 'GET', callSite: 'exp.legacy', headers: { 'X-Legacy': '1', integratorid: INTEGRATION_ID }, body: undefined },
+			{ url: 'https://exp.example.test/vscode/api/v1/assignments', method: 'POST', callSite: 'exp.assignments', headers: { 'X-New': '1', integratorid: INTEGRATION_ID }, body: '{"parameters":{}}' },
 		]);
 	});
 });

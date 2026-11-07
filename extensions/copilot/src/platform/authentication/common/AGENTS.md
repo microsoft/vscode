@@ -108,6 +108,21 @@ Most callers just need a valid CAPI token. `getCopilotToken()` handles refresh a
 const token = await authService.getCopilotToken();
 ```
 
+For quota rejections, create a `QuotaTokenRefreshRequest` before sending, keyed by
+endpoint/model (shared across HTTP and WebSocket). Report initial and mid-stream
+quota errors via `onQuotaExceeded(knownQuotaExceeded)`; call `onSuccess` only after
+confirmed success (including WebSocket completion). Refreshes are coalesced and
+latched per account/scope; stale responses are ignored.
+Success rearms only its scope; a five-minute backstop bounds failed refreshes
+and recovery retries. Neither token rotation nor elapsed time clears the latch.
+
+Identity uses account/issuer, static-session ID snapshots, or token-only usernames,
+never telemetry `tid`. Missing GitHub credentials mean no static session.
+Successful inference must not reset tokens based on unrelated legacy quota fields.
+
+`github.copilot.refreshToken` forces renewal for plan changes; background context
+inspection uses the cache. Normal token expiry is unchanged.
+
 ## Minimal Mode
 
 When `authService.isMinimalMode` is `true`, the service will not fetch permissive tokens:

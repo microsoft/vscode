@@ -43,7 +43,7 @@ type CustomizationsDefinedClassification = {
 	owner: 'aeschli';
 	comment: 'Tracks how many customizations of each type and source are defined when a new Agent Host chat session is first used.';
 	customizationType: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The bounded customization type being counted.' };
-	userCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'The number of user-level customizations of this type.' };
+	userCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'The number of user-level customizations of this type, including MCP servers contributed by the signed-in account.' };
 	workspaceCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'The number of workspace-level customizations of this type.' };
 	extensionCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'The number of extension-contributed customizations of this type.' };
 	pluginCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'The number of plugin-contributed customizations of this type.' };
@@ -102,7 +102,7 @@ export class CustomizationsTelemetryService implements ICustomizationsTelemetryS
 					const type = toTelemetryType(child.type);
 					if (type && type !== 'mcpServer') {
 						const source = syntheticBundle
-							? this.getSyncedChildSource(customization, child)
+							? this.getSyncedChildSource(sessionResource, customization, child)
 							: AICustomizationSources.plugin;
 						incrementSource(counts[type], source);
 					}
@@ -131,6 +131,7 @@ export class CustomizationsTelemetryService implements ICustomizationsTelemetryS
 					counts.mcpServer.builtinCount++;
 					break;
 				case 'user':
+				case 'account':
 					counts.mcpServer.userCount++;
 					break;
 				case undefined: {
@@ -155,8 +156,11 @@ export class CustomizationsTelemetryService implements ICustomizationsTelemetryS
 		}
 	}
 
-	private getSyncedChildSource(plugin: PluginCustomization, child: ChildCustomization): AICustomizationSource {
-		const pluginUri = URI.parse(plugin.uri);
+	private getSyncedChildSource(sessionResource: URI, plugin: PluginCustomization, child: ChildCustomization): AICustomizationSource {
+		const pluginUri = this.agentHostCustomizationService.getClientPluginUri(sessionResource, plugin);
+		if (!pluginUri) {
+			return AICustomizationSources.plugin;
+		}
 		const childUri = URI.parse(child.uri);
 		const syncedUri = child.type === CustomizationType.Skill
 			? URI.joinPath(pluginUri, 'skills', basename(dirname(childUri)), basename(childUri))

@@ -141,6 +141,7 @@ export class ChatHarnessSwitchFeedbackSurveyService extends Disposable implement
 
 		widget.input.renderQuestionCarousel(carousel, undefined, {
 			shouldAutoFocus: true,
+			shouldAutoSelectFirstOption: false,
 			dismissLabel: localize('chat.harnessSwitchFeedbackSurvey.dismiss', "Dismiss Survey"),
 			submissionAcknowledgement: {
 				message: localize('chat.harnessSwitchFeedbackSurvey.acknowledgement', "Thanks, your feedback has been recorded."),

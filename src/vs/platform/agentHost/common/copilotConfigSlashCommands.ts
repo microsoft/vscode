@@ -140,9 +140,9 @@ export function isCopilotConfigSlashCommand(command: string): boolean {
  * is hidden while already in autopilot mode).
  */
 export interface ICopilotConfigSlashCommandState {
-	/** The session's current `mode` axis value (e.g. `interactive` / `plan` / `autopilot`). */
+	/** The completing chat's current `mode` axis value (e.g. `interactive` / `plan` / `autopilot`). */
 	readonly mode?: string;
-	/** The session's current `autoApprove` axis value (e.g. `default` / `autoApprove`). */
+	/** The completing chat's current `autoApprove` axis value (e.g. `default` / `autoApprove`). */
 	readonly autoApprove?: string;
 }
 
@@ -175,7 +175,7 @@ function shouldOfferOption(option: IConfigSlashOption, state: ICopilotConfigSlas
  * name fuzzy matches `typed` (the text after the leading `/`, case-insensitive).
  * When `typed` is empty, all items are returned.
  *
- * When `state` (the session's current config values) is provided, pure toggle
+ * When `state` (the completing chat's current config values) is provided, pure toggle
  * forms that would be a no-op are filtered out so only the state-changing forms
  * are offered (see {@link shouldOfferOption}).
  */

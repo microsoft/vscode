@@ -15,6 +15,7 @@ import { InstantiationType, registerSingleton } from '../../../../platform/insta
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IProductService } from '../../../../platform/product/common/productService.js';
 import { ASSIGNMENT_REFETCH_INTERVAL, ASSIGNMENT_STORAGE_KEY, AssignmentFilterProvider, IAssignmentService, TargetPopulation, VSCodeCoreAssignmentsFilterProvider, WindowKind } from '../../../../platform/assignment/common/assignment.js';
+import { COPILOT_INTEGRATION_ID } from '../../../../platform/endpoint/common/licenseAgreement.js';
 import { Registry } from '../../../../platform/registry/common/platform.js';
 import { workbenchConfigurationNodeBase } from '../../../common/configuration.js';
 import { IConfigurationRegistry, Extensions as ConfigurationExtensions, ConfigurationScope } from '../../../../platform/configuration/common/configurationRegistry.js';
@@ -22,7 +23,7 @@ import { IWorkbenchEnvironmentService } from '../../environment/common/environme
 import { resolveAmdNodeModulePath } from '../../../../amdX.js';
 import { asJson, IRequestService } from '../../../../platform/request/common/request.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
-import { timeout } from '../../../../base/common/async.js';
+import { RunOnceScheduler, timeout } from '../../../../base/common/async.js';
 import { StopWatch } from '../../../../base/common/stopwatch.js';
 import { CopilotAssignmentFilterProvider, GitHubCoreAssignmentsFilterProvider } from './assignmentFilters.js';
 import { IDefaultAccountService } from '../../../../platform/defaultAccount/common/defaultAccount.js';
@@ -32,6 +33,7 @@ import { Emitter, Event } from '../../../../base/common/event.js';
 import { experimentsEnabled } from '../../telemetry/common/workbenchTelemetryUtils.js';
 import { CancellationError } from '../../../../base/common/errors.js';
 import { mapsStrictEqualIgnoreOrder } from '../../../../base/common/map.js';
+import { ILogService } from '../../../../platform/log/common/log.js';
 
 export interface IAssignmentFilter {
 	/**
@@ -250,6 +252,9 @@ export class WorkbenchAssignmentService extends Disposable implements IAssignmen
 
 	private tasClient: Promise<TASClient> | undefined;
 	private readonly tasSetupDisposables = this._register(new DisposableStore());
+	private readonly refetchScheduler = this._register(new RunOnceScheduler(() => this.refetchAssignments(), ASSIGNMENT_REFETCH_INTERVAL));
+	private refetchPromise: Promise<void> | undefined;
+	private refetchAfterFilterChange = false;
 
 	private assignmentsEndpoint: string | undefined;
 
@@ -277,6 +282,7 @@ export class WorkbenchAssignmentService extends Disposable implements IAssignmen
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IDefaultAccountService private readonly defaultAccountService: IDefaultAccountService,
 		@IRequestService private readonly requestService: IRequestService,
+		@ILogService private readonly logService: ILogService,
 	) {
 		super();
 
@@ -292,7 +298,7 @@ export class WorkbenchAssignmentService extends Disposable implements IAssignmen
 			this.defaultAccountService.getDefaultAccount().then(() => this.recreateTasClientIfEndpointChanged());
 			this._register(this.defaultAccountService.onDidChangeDefaultAccount(() => this.recreateTasClientIfEndpointChanged()));
 
-			// Stop the final client's auto-polling and revoke its wrappers when the service is disposed.
+			// Revoke the final client's wrappers before disposing it.
 			this._register(toDisposable(() => {
 				this.revokeCurrentSetup?.();
 				WorkbenchAssignmentService.disposeTasClient(this.tasClient);
@@ -409,7 +415,7 @@ export class WorkbenchAssignmentService extends Disposable implements IAssignmen
 			type: init.method,
 			url,
 			data: init.body,
-			headers: init.headers,
+			headers: { ...init.headers, integratorid: COPILOT_INTEGRATION_ID },
 			disableCache: true,
 			callSite: 'assignmentService.assignments',
 		}, CancellationToken.None);
@@ -421,6 +427,9 @@ export class WorkbenchAssignmentService extends Disposable implements IAssignmen
 
 	private async setupTASClient(): Promise<TASClient> {
 		this.tasSetupDisposables.clear();
+		this.refetchScheduler.cancel();
+		this.refetchPromise = undefined;
+		this.refetchAfterFilterChange = false;
 
 		// Each setup supersedes the previous client; track a generation so a stale client's
 		// initialFetch cannot flip networkInitialized for a newer client.
@@ -481,7 +490,7 @@ export class WorkbenchAssignmentService extends Disposable implements IAssignmen
 
 		const extensionsFilterProvider = this.instantiationService.createInstance(CopilotAssignmentFilterProvider);
 		this.tasSetupDisposables.add(extensionsFilterProvider);
-		this.tasSetupDisposables.add(extensionsFilterProvider.onDidChangeFilters(() => this.refetchAssignments()));
+		this.tasSetupDisposables.add(extensionsFilterProvider.onDidChangeFilters(() => this.refetchAssignments(true)));
 
 		// New TAS assignments API. Its endpoint is sourced from account entitlements and it
 		// uses dedicated providers that emit the new userParam key names, so the legacy filter
@@ -500,7 +509,7 @@ export class WorkbenchAssignmentService extends Disposable implements IAssignmen
 			);
 			const githubAssignmentsFilterProvider = this.instantiationService.createInstance(GitHubCoreAssignmentsFilterProvider);
 			this.tasSetupDisposables.add(githubAssignmentsFilterProvider);
-			this.tasSetupDisposables.add(githubAssignmentsFilterProvider.onDidChangeFilters(() => this.refetchAssignments()));
+			this.tasSetupDisposables.add(githubAssignmentsFilterProvider.onDidChangeFilters(() => this.refetchAssignments(true)));
 			assignmentsFilterProviders = [
 				coreAssignmentsFilterProvider,
 				githubAssignmentsFilterProvider,
@@ -536,16 +545,20 @@ export class WorkbenchAssignmentService extends Disposable implements IAssignmen
 			assignmentsFetch: assignmentsEndpoint
 				? (url, init) => (revoked ? Promise.resolve({ status: 0, json: async () => ({}) }) : service.assignmentsFetch(url, init))
 				: undefined,
-			refetchInterval: ASSIGNMENT_REFETCH_INTERVAL,
+			// TAS polling only updates persistent storage after treatments have been consumed.
+			refetchInterval: 0,
 		});
 
 		await tasClient.initializePromise;
 		tasClient.initialFetch.then(() => {
-			if (generation !== this.setupGeneration) {
+			if (this._store.isDisposed || generation !== this.setupGeneration) {
 				return; // superseded by a newer setup
 			}
 			this.networkInitialized = true;
 			this.logFetchLatency('initial', fetchStopWatch.elapsed());
+			if (!this.refetchPromise) {
+				this.refetchScheduler.schedule();
+			}
 		}).catch(() => undefined);
 
 		return tasClient;
@@ -570,19 +583,42 @@ export class WorkbenchAssignmentService extends Disposable implements IAssignmen
 		});
 	}
 
-	private async refetchAssignments(): Promise<void> {
-		if (!this.tasClient) {
-			return; // Setup has not started, assignments will use latest filters
+	private refetchAssignments(filtersChanged = false): Promise<void> {
+		if (!this.tasClient || this._store.isDisposed) {
+			return Promise.resolve();
 		}
 
-		// Await the client to be setup and the initial fetch to complete
-		const tasClient = await this.tasClient;
-		await tasClient.initialFetch;
+		if (this.refetchPromise) {
+			this.refetchAfterFilterChange ||= filtersChanged;
+		} else {
+			this.refetchScheduler.cancel();
+			this.refetchAfterFilterChange = false;
+			this.refetchPromise = this.doRefetchAssignments(this.tasClient);
+		}
+		return this.refetchPromise;
+	}
 
-		// Refresh the assignments and measure the network latency of the refetch.
-		const refetchStopWatch = StopWatch.create();
-		await tasClient.getTreatmentVariableAsync('vscode', 'refresh', false);
-		this.logFetchLatency('refetch', refetchStopWatch.elapsed());
+	private async doRefetchAssignments(client: Promise<TASClient>): Promise<void> {
+		try {
+			const tasClient = await client;
+			await tasClient.initialFetch;
+			if (this._store.isDisposed || client !== this.tasClient) {
+				return;
+			}
+
+			const refetchStopWatch = StopWatch.create();
+			await tasClient.getTreatmentVariableAsync('vscode', 'refresh', false);
+			if (!this._store.isDisposed && client === this.tasClient) {
+				this.logFetchLatency('refetch', refetchStopWatch.elapsed());
+			}
+		} catch (error) {
+			this.logService.error('WorkbenchAssignmentService: Failed to refresh assignments', error);
+		} finally {
+			if (!this._store.isDisposed && client === this.tasClient) {
+				this.refetchPromise = undefined;
+				this.refetchScheduler.schedule(this.refetchAfterFilterChange ? 0 : ASSIGNMENT_REFETCH_INTERVAL);
+			}
+		}
 	}
 
 	async getCurrentExperiments(): Promise<string[] | undefined> {
@@ -603,7 +639,7 @@ export class WorkbenchAssignmentService extends Disposable implements IAssignmen
 		this.contextFilter.addFilter(filter);
 	}
 
-	/** Stops a TAS client's auto-polling once it resolves. Safe to call with `undefined`. */
+	/** Disposes a TAS client once it resolves. Safe to call with `undefined`. */
 	private static disposeTasClient(client: Promise<TASClient> | undefined): void {
 		client?.then(c => c.dispose()).catch(() => undefined);
 	}
