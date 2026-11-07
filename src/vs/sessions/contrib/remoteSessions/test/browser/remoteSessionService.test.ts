@@ -6,6 +6,7 @@
 import assert from 'assert';
 import { DeferredPromise } from '../../../../../base/common/async.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../../base/common/cancellation.js';
+import { IStringDictionary } from '../../../../../base/common/collections.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { Event } from '../../../../../base/common/event.js';
 import { IReference } from '../../../../../base/common/lifecycle.js';
@@ -130,10 +131,12 @@ suite('RemoteSessionService', () => {
 			] as const);
 		})));
 		const hiddenModels = new Set<string>();
+		const modelConfigurations = new Map<string, IStringDictionary<unknown>>();
 		const languageModels = new class extends mock<ILanguageModelsService>() {
 			override getLanguageModelIds() { return [...models.keys()]; }
 			override lookupLanguageModel(identifier: string) { return models.get(identifier); }
 			override isModelHidden(identifier: string) { return hiddenModels.has(identifier); }
+			override getModelConfiguration(identifier: string) { return modelConfigurations.get(identifier); }
 		}();
 		const autoModelSessionTypes = new Set<string>();
 		const management = new class extends mock<ISessionsManagementService>() {
@@ -240,7 +243,7 @@ suite('RemoteSessionService', () => {
 			}(),
 		);
 		const create = (input: object = {}, id = 'request') => service.createSession(parseCreateRemoteSessionOptions({ prompt: 'Run tests', ...input }), sourceChat.resource, id, CancellationToken.None);
-		return { service, create, calls, source, sourceChat, state, configuration, backgroundEvents, models, hiddenModels, autoModelSessionTypes };
+		return { service, create, calls, source, sourceChat, state, configuration, backgroundEvents, models, hiddenModels, modelConfigurations, autoModelSessionTypes };
 	}
 
 	test('lists resources, models, host identity and workload without connecting hosts', () => {
@@ -348,6 +351,14 @@ suite('RemoteSessionService', () => {
 			permissionLevel: calls[0].options?.permissionLevel,
 			sessionTemplate: calls[0].options?.sessionTemplate,
 		}, { hostId: hosts[1].id, modelId: `${hosts[1].sessionTypes[0].chatSessionType}:test-model`, permissionLevel: undefined, sessionTemplate: undefined });
+	});
+
+	test('applies the configured model configuration to the created session', async () => {
+		const host = new RemoteProvider('host');
+		const { create, calls, modelConfigurations } = setup([host]);
+		modelConfigurations.set(`${host.sessionTypes[0].chatSessionType}:test-model`, { contextTier: 'long_context', reasoningEffort: 'high' });
+		await create({ model: { provider: 'copilot', id: 'test-model' } });
+		assert.deepStrictEqual(calls[0].options?.modelConfiguration, { contextTier: 'long_context', reasoningEffort: 'high' });
 	});
 
 	for (const id of ['claude-haiku-4.5', 'openrouter/aion-labs/aion-3.0']) {
