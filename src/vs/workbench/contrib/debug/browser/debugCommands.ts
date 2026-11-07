@@ -29,9 +29,7 @@ import { IListService } from '../../../../platform/list/browser/listService.js';
 import { INotificationService } from '../../../../platform/notification/common/notification.js';
 import { IQuickInputService, IQuickPickItem } from '../../../../platform/quickinput/common/quickInput.js';
 import { ActiveEditorContext, PanelFocusContext, ResourceContextKey } from '../../../common/contextkeys.js';
-import { ViewContainerLocation } from '../../../common/views.js';
 import { IEditorService } from '../../../services/editor/common/editorService.js';
-import { IPaneCompositePartService } from '../../../services/panecomposite/browser/panecomposite.js';
 import { IViewsService } from '../../../services/views/common/viewsService.js';
 import { ChatContextKeys } from '../../chat/common/actions/chatContextKeys.js';
 import { IExtensionsWorkbenchService } from '../../extensions/common/extensions.js';
@@ -1169,8 +1167,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	primary: KeyCode.F5,
 	secondary: [KeyMod.CtrlCmd | KeyCode.F5],
 	handler: async (accessor) => {
-		const paneCompositeService = accessor.get(IPaneCompositePartService);
-		await paneCompositeService.openPaneComposite(VIEWLET_ID, ViewContainerLocation.Sidebar, true);
+		await accessor.get(IViewsService).openViewContainer(VIEWLET_ID, true);
 	}
 });
 
