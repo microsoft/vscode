@@ -13,7 +13,7 @@ import { isWindows } from '../../../../common/platform.js';
 import { URI } from '../../../../common/uri.js';
 import { generateUuid } from '../../../../common/uuid.js';
 import { Promises } from '../../../../node/pfs.js';
-import { isStorageItemsChangeEvent, IStorageDatabase, IStorageItemsChangeEvent, Storage } from '../../common/storage.js';
+import { isStorageItemsChangeEvent, IStorageDatabase, IStorageItemsChangeEvent, IStorageUpdateResult, IUpdateRequest, Storage, StorageHint } from '../../common/storage.js';
 import { ISQLiteStorageDatabaseOptions, SQLiteStorageDatabase } from '../../node/storage.js';
 import { runWithFakedTimers } from '../../../../test/common/timeTravelScheduler.js';
 import { flakySuite, getRandomTestPath } from '../../../../test/node/testUtils.js';
@@ -192,6 +192,118 @@ flakySuite('Storage Library', function () {
 
 			await storage.close();
 		});
+	});
+
+	test('external change during pending local write does not overwrite local value', async () => {
+		class EchoDatabase extends SQLiteStorageDatabase {
+			private readonly _onDidChangeItemsExternal = new Emitter<IStorageItemsChangeEvent>();
+			override get onDidChangeItemsExternal(): Event<IStorageItemsChangeEvent> {
+				return this._onDidChangeItemsExternal.event;
+			}
+
+			fireDidChangeItemsExternal(event: IStorageItemsChangeEvent): void {
+				this._onDidChangeItemsExternal.fire(event);
+			}
+
+			dispose(): void {
+				this._onDidChangeItemsExternal.dispose();
+			}
+		}
+
+		const database = new EchoDatabase(join(testDir, 'storage.db'));
+		const storage = new Storage(database);
+
+		try {
+			await storage.init();
+
+			const first = storage.set('example.extension', 'older');
+			await storage.flush(0);
+			await first;
+
+			const second = storage.set('example.extension', 'newer');
+			database.fireDidChangeItemsExternal({ changed: new Map([['example.extension', 'older']]) });
+
+			strictEqual(storage.get('example.extension'), 'newer');
+
+			await storage.flush(0);
+			await second;
+
+			strictEqual(storage.get('example.extension'), 'newer');
+		} finally {
+			await storage.close();
+			storage.dispose();
+			database.dispose();
+		}
+	});
+
+	test('external changes during an in-flight write are reconciled by revision', async () => {
+		class ControlledDatabase implements IStorageDatabase {
+			private readonly _onDidChangeItemsExternal = new Emitter<IStorageItemsChangeEvent>();
+			readonly onDidChangeItemsExternal = this._onDidChangeItemsExternal.event;
+
+			private revision = 0;
+			private pendingUpdate: (() => void) | undefined = undefined;
+
+			completePendingUpdate(): void {
+				this.pendingUpdate!();
+			}
+
+			fireDidChangeItemsExternal(value: string, revision: number): void {
+				this._onDidChangeItemsExternal.fire({
+					changed: new Map([['key', value]]),
+					revisions: new Map([['key', revision]])
+				});
+			}
+
+			async getItems(): Promise<Map<string, string>> {
+				return new Map();
+			}
+
+			updateItems(request: IUpdateRequest): Promise<IStorageUpdateResult> {
+				const revisions = new Map<string, number>();
+				request.insert?.forEach((_, key) => revisions.set(key, ++this.revision));
+				request.delete?.forEach(key => revisions.set(key, ++this.revision));
+
+				return new Promise(resolve => {
+					this.pendingUpdate = () => resolve({ revisions });
+				});
+			}
+
+			async optimize(): Promise<void> { }
+			async close(): Promise<void> { }
+
+			dispose(): void {
+				this._onDidChangeItemsExternal.dispose();
+			}
+		}
+
+		const database = new ControlledDatabase();
+		const storage = new Storage(database, { hint: StorageHint.STORAGE_IN_MEMORY });
+
+		try {
+			await storage.init();
+
+			const setPromise = storage.set('key', 'local');
+
+			// A notification that arrives while the local write is in flight
+			// and belongs to a newer external change is applied afterwards
+			database.fireDidChangeItemsExternal('external-newer', 2);
+			database.completePendingUpdate();
+			await setPromise;
+
+			strictEqual(storage.get('key'), 'external-newer');
+
+			// A delayed notification of an older change is ignored
+			database.fireDidChangeItemsExternal('external-older', 1);
+			strictEqual(storage.get('key'), 'external-newer');
+
+			// A newer external change is still applied
+			database.fireDidChangeItemsExternal('external-latest', 3);
+			strictEqual(storage.get('key'), 'external-latest');
+		} finally {
+			storage.dispose();
+			database.dispose();
+		}
 	});
 
 	test('close flushes data', async () => {

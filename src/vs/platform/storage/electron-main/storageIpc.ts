@@ -8,7 +8,7 @@ import { Disposable } from '../../../base/common/lifecycle.js';
 import { revive } from '../../../base/common/marshalling.js';
 import { IServerChannel } from '../../../base/parts/ipc/common/ipc.js';
 import { ILogService } from '../../log/common/log.js';
-import { IBaseSerializableStorageRequest, ISerializableCompareAndSwapRequest, ISerializableCompareAndSwapResult, ISerializableGetValueRequest, ISerializableItemsChangeEvent, ISerializableUpdateRequest, Key, Value } from '../common/storageIpc.js';
+import { IBaseSerializableStorageRequest, ISerializableCompareAndSwapRequest, ISerializableCompareAndSwapResult, ISerializableGetValueRequest, ISerializableItemsChangeEvent, ISerializableUpdateRequest, ISerializableUpdateResult, Key, Revision, RevisionItem, Value } from '../common/storageIpc.js';
 import { ApplicationSharedStorageMain, IStorageChangeEvent, IStorageMain } from './storageMain.js';
 import { IStorageMainService } from './storageMainService.js';
 import { IUserDataProfile } from '../../userDataProfile/common/userDataProfile.js';
@@ -22,6 +22,14 @@ export class StorageDatabaseChannel extends Disposable implements IServerChannel
 	private readonly onDidChangeApplicationSharedStorageEmitter = this._register(new Emitter<ISerializableItemsChangeEvent>());
 
 	private readonly mapProfileToOnDidChangeProfileStorageEmitter = new Map<string /* profile ID */, Emitter<ISerializableItemsChangeEvent>>();
+
+	/**
+	 * Revisions are assigned per key in the order in which the main
+	 * process applies changes. They allow clients to ignore delayed
+	 * notifications of changes that are older than their own writes.
+	 */
+	private readonly mapStorageToRevisions = new WeakMap<IStorageMain, Map<Key, Revision>>();
+	private revisionCounter = 0;
 
 	constructor(
 		private readonly logService: ILogService,
@@ -37,10 +45,14 @@ export class StorageDatabaseChannel extends Disposable implements IServerChannel
 
 	private registerStorageChangeListeners(storage: IStorageMain, emitter: Emitter<ISerializableItemsChangeEvent>): void {
 
+		const revisions = this.getOrCreateRevisions(storage);
+
 		// Listen for changes in provided storage to send to listeners
 		// that are listening. Use a debouncer to reduce IPC traffic.
 
 		this._register(Event.debounce(storage.onDidChangeStorage, (prev: IStorageChangeEvent[] | undefined, cur: IStorageChangeEvent) => {
+			revisions.set(cur.key, ++this.revisionCounter);
+
 			if (!prev) {
 				prev = [cur];
 			} else {
@@ -50,14 +62,25 @@ export class StorageDatabaseChannel extends Disposable implements IServerChannel
 			return prev;
 		}, StorageDatabaseChannel.STORAGE_CHANGE_DEBOUNCE_TIME)(events => {
 			if (events.length) {
-				emitter.fire(this.serializeStorageChangeEvents(events, storage));
+				emitter.fire(this.serializeStorageChangeEvents(events, storage, revisions));
 			}
 		}));
 	}
 
-	private serializeStorageChangeEvents(events: IStorageChangeEvent[], storage: IStorageMain): ISerializableItemsChangeEvent {
+	private getOrCreateRevisions(storage: IStorageMain): Map<Key, Revision> {
+		let revisions = this.mapStorageToRevisions.get(storage);
+		if (!revisions) {
+			revisions = new Map<Key, Revision>();
+			this.mapStorageToRevisions.set(storage, revisions);
+		}
+
+		return revisions;
+	}
+
+	private serializeStorageChangeEvents(events: IStorageChangeEvent[], storage: IStorageMain, revisions: Map<Key, Revision>): ISerializableItemsChangeEvent {
 		const changed = new Map<Key, Value>();
 		const deleted = new Set<Key>();
+		const changedRevisions = new Map<Key, Revision>();
 		events.forEach(event => {
 			const existing = storage.get(event.key);
 			if (typeof existing === 'string') {
@@ -65,11 +88,17 @@ export class StorageDatabaseChannel extends Disposable implements IServerChannel
 			} else {
 				deleted.add(event.key);
 			}
+
+			const revision = revisions.get(event.key);
+			if (typeof revision === 'number') {
+				changedRevisions.set(event.key, revision);
+			}
 		});
 
 		return {
 			changed: Array.from(changed.entries()),
-			deleted: Array.from(deleted.values())
+			deleted: Array.from(deleted.values()),
+			revisions: Array.from(changedRevisions.entries())
 		};
 	}
 
@@ -135,16 +164,40 @@ export class StorageDatabaseChannel extends Disposable implements IServerChannel
 
 			case 'updateItems': {
 				const items: ISerializableUpdateRequest = arg;
+				const keys = new Set<Key>();
 
 				if (items.insert) {
 					for (const [key, value] of items.insert) {
 						storage.set(key, value);
+						keys.add(key);
 					}
 				}
 
-				items.delete?.forEach(key => storage.delete(key));
+				items.delete?.forEach(key => {
+					storage.delete(key);
+					keys.add(key);
+				});
 
-				break;
+				// Report the revisions of the applied changes so that the
+				// client can ignore delayed notifications of older changes.
+				// Workspace storage never reports external changes.
+				const revisionsMap = workspace ? undefined : this.getOrCreateRevisions(storage);
+				const revisions: RevisionItem[] = [];
+				if (revisionsMap) {
+					keys.forEach(key => {
+						let revision = revisionsMap.get(key);
+						if (typeof revision !== 'number') {
+							revision = ++this.revisionCounter;
+							revisionsMap.set(key, revision);
+						}
+
+						revisions.push([key, revision]);
+					});
+				}
+
+				const result: ISerializableUpdateResult = { revisions };
+
+				return result;
 			}
 
 			case 'compareAndSwap': {
