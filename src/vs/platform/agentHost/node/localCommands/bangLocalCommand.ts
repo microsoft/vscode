@@ -10,7 +10,7 @@ import { localize } from '../../../../nls.js';
 import type { CreateTerminalParams } from '../../common/state/protocol/commands.js';
 import { TerminalClaimKind, type TerminalSessionClaim } from '../../common/state/protocol/state.js';
 import { ActionType } from '../../common/state/sessionActions.js';
-import { ToolCallConfirmationReason, ToolResultContentType, type ToolResultContent, type URI as ProtocolURI } from '../../common/state/sessionState.js';
+import { MessageKind, ToolCallConfirmationReason, ToolResultContentType, type ToolResultContent, type URI as ProtocolURI } from '../../common/state/sessionState.js';
 import { parseBangCommand } from '../agentHostBangCommand.js';
 import { DEFAULT_SHELL_COMMAND_TIMEOUT_MS, executeShellCommand, shellTypeForExecutable, type IShellCommandResult } from '../shared/shellCommandExecution.js';
 import { ILocalChatCommand, ILocalChatCommandContext, ILocalChatCommandHandling, ILocalChatCommandRequest, LocalChatCommandRegistry } from './localChatCommand.js';
@@ -40,6 +40,9 @@ export class BangLocalCommand extends Disposable implements ILocalChatCommand {
 	}
 
 	tryHandle(request: ILocalChatCommandRequest): ILocalChatCommandHandling | undefined {
+		if (request.origin.kind !== MessageKind.User) {
+			return undefined;
+		}
 		const command = parseBangCommand(request.text);
 		if (command === undefined) {
 			return undefined;
