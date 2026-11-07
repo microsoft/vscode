@@ -7,8 +7,11 @@ import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { IEditorOptions } from '../../../common/config/editorOptions.js';
 import { Range } from '../../../common/core/range.js';
+import { EditorTheme } from '../../../common/editorTheme.js';
+import { OverviewRulerLane } from '../../../common/model.js';
 import { testViewModel } from './testViewModel.js';
 import { InlineDecoration, InlineDecorationType } from '../../../common/viewModel/inlineDecorations.js';
+import { TestColorTheme } from '../../../../platform/theme/test/common/testThemeService.js';
 
 suite('ViewModelDecorations', () => {
 
@@ -242,5 +245,36 @@ suite('ViewModelDecorations', () => {
 				new InlineDecoration(new Range(1, 1, 1, 1), 'after1', InlineDecorationType.After)
 			]);
 		});
+	});
+
+	test('filters overview ruler decorations by overviewRulerEnabled mode', () => {
+		const theme = new EditorTheme(new TestColorTheme());
+		const cases: { mode: 'on' | 'minimal' | 'off'; expectedColors: string[] }[] = [
+			{ mode: 'on', expectedColors: ['#111111', '#222222', '#333333'] },
+			{ mode: 'minimal', expectedColors: ['#111111', '#222222'] },
+			{ mode: 'off', expectedColors: [] },
+		];
+
+		for (const testCase of cases) {
+			testViewModel(['line1', 'line2', 'line3'], { overviewRulerEnabled: testCase.mode }, (viewModel, model) => {
+				model.changeDecorations(accessor => {
+					accessor.addDecoration(new Range(1, 1, 1, 2), {
+						description: 'marker-decoration',
+						overviewRuler: { color: '#111111', position: OverviewRulerLane.Center }
+					});
+					accessor.addDecoration(new Range(2, 1, 2, 2), {
+						description: 'find-match',
+						overviewRuler: { color: '#222222', position: OverviewRulerLane.Center }
+					});
+					accessor.addDecoration(new Range(3, 1, 3, 2), {
+						description: 'custom-overview-decoration',
+						overviewRuler: { color: '#333333', position: OverviewRulerLane.Center }
+					});
+				});
+
+				const actualColors = viewModel.getAllOverviewRulerDecorations(theme).map(group => group.color).sort();
+				assert.deepStrictEqual(actualColors, testCase.expectedColors);
+			});
+		}
 	});
 });
