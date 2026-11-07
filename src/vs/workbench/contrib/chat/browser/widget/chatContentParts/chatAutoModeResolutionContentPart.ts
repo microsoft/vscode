@@ -51,6 +51,7 @@ export class ChatAutoModeResolutionContentPart extends ChatThinkingStyleContentP
 		if (reason && button) {
 			// The hover holds the reason, so the line joins the tab order and Enter or Space can show it.
 			button.tabIndex = 0;
+			button.setAttribute('role', 'button');
 			button.setAttribute('aria-label', `${autoModeRoutingTitle(content)}. ${reason}`);
 			this._register(hoverService.setupDelayedHover(button, { content: reason, appearance: { showPointer: true } }, { setupKeyboardEvents: true }));
 		}
