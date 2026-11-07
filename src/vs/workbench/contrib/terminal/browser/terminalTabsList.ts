@@ -35,7 +35,7 @@ import { getColorClass, getIconId, getUriClasses } from './terminalIcon.js';
 import { IEditableData } from '../../../common/views.js';
 import { InlineEditInputBox } from '../../../browser/parts/views/inlineEditInputBox.js';
 import { CodeDataTransfers, containsDragType, getPathForFile } from '../../../../platform/dnd/browser/dnd.js';
-import { terminalStrings } from '../common/terminalStrings.js';
+import { getTerminalAccessibleTitle, terminalStrings } from '../common/terminalStrings.js';
 import { ILifecycleService } from '../../../services/lifecycle/common/lifecycle.js';
 import { IProcessDetails } from '../../../../platform/terminal/common/terminalProcess.js';
 import { TerminalContextKeys } from '../common/terminalContextKey.js';
@@ -514,7 +514,7 @@ interface ITerminalTabEntryTemplate {
 }
 
 
-class TerminalTabsAccessibilityProvider implements IListAccessibilityProvider<ITerminalInstance> {
+export class TerminalTabsAccessibilityProvider implements IListAccessibilityProvider<ITerminalInstance> {
 	constructor(
 		@ITerminalGroupService private readonly _terminalGroupService: ITerminalGroupService,
 	) { }
@@ -525,6 +525,7 @@ class TerminalTabsAccessibilityProvider implements IListAccessibilityProvider<IT
 
 	getAriaLabel(instance: ITerminalInstance): string {
 		let ariaLabel: string = '';
+		const title = getTerminalAccessibleTitle(instance.title, instance.shellLaunchConfig.hostLabel);
 		const tab = this._terminalGroupService.getGroupForInstance(instance);
 		if (tab && tab.terminalInstances?.length > 1) {
 			const terminalIndex = tab.terminalInstances.indexOf(instance);
@@ -536,7 +537,7 @@ class TerminalTabsAccessibilityProvider implements IListAccessibilityProvider<IT
 					`The terminal's split number`,
 					`The terminal group's total split number`
 				]
-			}, "Terminal {0} {1}, split {2} of {3}", instance.instanceId, instance.title, terminalIndex + 1, tab.terminalInstances.length);
+			}, "Terminal {0} {1}, split {2} of {3}", instance.instanceId, title, terminalIndex + 1, tab.terminalInstances.length);
 		} else {
 			ariaLabel = localize({
 				key: 'terminalAriaLabel',
@@ -544,7 +545,7 @@ class TerminalTabsAccessibilityProvider implements IListAccessibilityProvider<IT
 					`The terminal's ID`,
 					`The terminal's title`
 				]
-			}, "Terminal {0} {1}", instance.instanceId, instance.title);
+			}, "Terminal {0} {1}", instance.instanceId, title);
 		}
 		return ariaLabel;
 	}

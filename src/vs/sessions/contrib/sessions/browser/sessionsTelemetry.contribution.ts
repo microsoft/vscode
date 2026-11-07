@@ -21,15 +21,17 @@ import { isChatRequestFileEntry, isImageVariableEntry } from '../../../../workbe
 import { EditorChatUsage } from '../../../../workbench/contrib/chat/common/editorChatUsage.js';
 import { IChatEntitlementService } from '../../../../workbench/services/chat/common/chatEntitlementService.js';
 import { getExcludes, ISearchConfiguration, ISearchService, QueryType } from '../../../../workbench/services/search/common/search.js';
-import { AgentFeedbackKind, IAgentFeedbackAddedEvent, IAgentFeedbackConvertedEvent, IAgentFeedbackReplyAddedEvent, IAgentFeedbackService, IAgentFeedbackSubmittedEvent } from '../../agentFeedback/browser/agentFeedbackService.js';
+import { IAgentFeedbackAddedEvent, IAgentFeedbackConvertedEvent, IAgentFeedbackReplyAddedEvent, IAgentFeedbackService, IAgentFeedbackSubmittedEvent } from '../../../../workbench/contrib/sessions/browser/agentFeedback.js';
+import { AgentFeedbackKind } from '../../../../workbench/contrib/sessions/browser/agentFeedbackModel.js';
 import { ISessionsTasksService } from '../../chat/browser/sessionsTasksService.js';
-import { IChat, ISession, ISessionWorkspace, SessionStatus } from '../../../services/sessions/common/session.js';
-import { ISendRequestSentEvent, ISessionsChangeEvent, ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
-import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
-import { ISendRequestOptions, ISessionChangesetOperationInvokedEvent, ISessionsProvider } from '../../../services/sessions/common/sessionsProvider.js';
-import { ISessionsProvidersService } from '../../../services/sessions/browser/sessionsProvidersService.js';
-import { classifySessionWorkspaceTopology, getNonArchivedSessionListCount, getSessionsTelemetryProviderId, hashSessionIdForTelemetry } from '../../../common/sessionsTelemetry.js';
-import { ISessionsPartService } from '../../../services/sessions/browser/sessionsPartService.js';
+import { IChat, ISession, ISessionWorkspace, SessionStatus } from '../../../../workbench/services/sessions/common/session.js';
+import { ISendRequestSentEvent, ISessionsChangeEvent, ISessionsManagementService } from '../../../../workbench/contrib/sessions/common/sessionsManagement.js';
+import { ISessionsService } from '../../../../workbench/contrib/sessions/browser/sessionsService.js';
+import { IFocusedSessionHostService } from '../../../../workbench/services/sessions/browser/sessionHost.js';
+import { ISendRequestOptions, ISessionChangesetOperationInvokedEvent, ISessionsProvider } from '../../../../workbench/contrib/sessions/common/sessionsProvider.js';
+import { ISessionsProvidersService } from '../../../../workbench/contrib/sessions/browser/sessionsProvidersService.js';
+import { classifySessionWorkspaceTopology, getNonArchivedSessionListCount, getSessionsTelemetryProviderId, hashSessionIdForTelemetry } from '../../../../workbench/contrib/sessions/common/sessionsTelemetry.js';
+import { ISessionsPartService } from '../../../../workbench/services/sessions/browser/sessionsPartService.js';
 import { ISessionsWindowUsageService } from '../../../services/sessions/browser/sessionsWindowUsageService.js';
 import { getSessionsTelemetryCopilotSku } from './sessionsAccountTelemetry.js';
 import { ISessionLifecycleSummary, SessionDoneReason, SessionsLifecycleTracker } from './sessionsLifecycleTracker.js';
@@ -89,6 +91,7 @@ export class SessionsTelemetryContribution extends Disposable implements IWorkbe
 	constructor(
 		@ISessionsManagementService private readonly _sessionsManagementService: ISessionsManagementService,
 		@ISessionsService private readonly _sessionsService: ISessionsService,
+		@IFocusedSessionHostService private readonly _focusedSessionHostService: IFocusedSessionHostService,
 		@ITelemetryService private readonly _telemetryService: ITelemetryService,
 		@IUriIdentityService private readonly _uriIdentityService: IUriIdentityService,
 		@IStorageService private readonly _storageService: IStorageService,
@@ -110,7 +113,7 @@ export class SessionsTelemetryContribution extends Disposable implements IWorkbe
 		// registered: disposing flushes buffered typing, which needs a live
 		// lifecycle tracker to attribute it to.
 		this._typedCharactersTracker = this._register(new SessionsTypedCharactersTracker(
-			() => this._sessionsService.activeSession.get(),
+			() => this._focusedSessionHostService.focusedHost.get().session.get(),
 			entries => this._recordTypedCharacters(entries),
 			modelService,
 		));
@@ -145,11 +148,11 @@ export class SessionsTelemetryContribution extends Disposable implements IWorkbe
 			this._trackProviderForReconciliation(provider);
 		}
 		this._register(sessionsProvidersService.onDidChangeProviders(e => {
-			for (const provider of e.added) {
-				this._trackProviderForReconciliation(provider);
-			}
 			for (const provider of e.removed) {
 				this._providerReconcileListeners.deleteAndDispose(provider.id);
+			}
+			for (const provider of e.added) {
+				this._trackProviderForReconciliation(provider);
 			}
 		}));
 
@@ -318,7 +321,7 @@ export class SessionsTelemetryContribution extends Disposable implements IWorkbe
 		}
 
 		const allSessions = this._sessionsManagementService.getSessions();
-		const visibleSessionsCount = this._sessionsService.visibleSessions.get().filter(s => s !== undefined).length;
+		const visibleSessionsCount = this._sessionsService.slotPanes.get().filter(pane => pane.session.get() !== undefined).length;
 		const nonArchivedSessionListCount = getNonArchivedSessionListCount(allSessions);
 		// Snapshot all synchronous fields now so the event reflects the state at
 		// the time of the send, not when the async file-count fetch resolves.

@@ -18,21 +18,10 @@ import { EditorInput } from '../../../common/editor/editorInput.js';
 import { IEditorGroup, IEditorGroupsService } from '../../../services/editor/common/editorGroupsService.js';
 import { IWorkbenchEnvironmentService } from '../../../services/environment/common/environmentService.js';
 import type { IBrowserViewModel } from '../../browserView/common/browserView.js';
+import { ICanvas, ICanvasOwner, ICanvasReference } from '../../../common/canvasReference.js';
 
 /** Reveals a live canvas beside its owning chat, reopening its closed tab. Takes an {@link ICanvasReference}. */
 export const REVEAL_CANVAS_COMMAND_ID = 'workbench.action.agentSessions.revealCanvas';
-
-export interface ICanvas {
-	readonly resource: URI;
-	readonly instanceId: string | undefined;
-	readonly title: string;
-	readonly status?: string;
-	readonly source: URI | undefined;
-	/** Owning extension identifier, when the host reports it. */
-	readonly extensionId?: string;
-	/** Provider-local canvas type identifier, when the host reports it. */
-	readonly canvasId?: string;
-}
 
 /** Where a registered canvas definition was contributed from. */
 export type CanvasExtensionSource = 'user' | 'project' | 'session' | 'plugin' | 'unknown';
@@ -57,16 +46,6 @@ export interface ICanvasDefinitionProvider {
 	/** Returns `undefined` while unsettled, then fires {@link onDidChangeDefinitions} when an authoritative snapshot is available. */
 	listCanvases(): Promise<CanvasDefinitionSnapshot>;
 	openCanvas(canvas: ICanvasDefinition, instanceId: string): Promise<void>;
-}
-
-export interface ICanvasOwner {
-	readonly providerId: string;
-	readonly session: URI;
-	readonly chat: URI;
-}
-
-export interface ICanvasReference extends ICanvasOwner {
-	readonly canvas: URI;
 }
 
 export interface ICanvasReopenTarget {
@@ -212,14 +191,6 @@ export interface ICanvasService {
 	 * loads the next source in place.
 	 */
 	resolveCanvasModel(reference: ICanvasReference, source: URI): Promise<ICanvasModelResolution>;
-}
-
-export function canvasOwnerKey(owner: ICanvasOwner): string {
-	return `${owner.providerId}\u0000${owner.session.toString()}\u0000${owner.chat.toString()}`;
-}
-
-export function getCanvasReferenceKey(reference: ICanvasReference): string {
-	return `${canvasOwnerKey(reference)}\u0000${reference.canvas.toString()}`;
 }
 
 export function isCanvasOwner(first: ICanvasOwner, second: ICanvasOwner): boolean {
@@ -399,7 +370,16 @@ export class CanvasInput extends EditorInput {
 		const group = this.editorGroupsService.getGroup(targetGroup);
 		return group && canPresentCanvasInGroup(this.reference, group, this.editorGroupsService, this.contextService)
 			? true
-			: localize('canvas.mainWindowOnly', "Canvases can only be shown in the main window beside their owning conversation.");
+			: this.getMoveVeto();
+	}
+
+	override canMoveToNewWindow(_sourceGroup: GroupIdentifier): true | string {
+		// A new window is never the owning conversation's
+		return this.getMoveVeto();
+	}
+
+	private getMoveVeto(): string {
+		return localize('canvas.mainWindowOnly', "Canvases can only be shown in the main window beside their owning conversation.");
 	}
 
 	get serializationId(): string | undefined {

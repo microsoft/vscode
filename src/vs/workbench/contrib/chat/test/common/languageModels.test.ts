@@ -15,7 +15,7 @@ import Severity from '../../../../../base/common/severity.js';
 import { SubmenuAction } from '../../../../../base/common/actions.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { NullLogService } from '../../../../../platform/log/common/log.js';
-import { ChatMessageRole, LanguageModelsService, IChatMessage, IChatResponsePart, ILanguageModelChatMetadata, createModelConfigurationActions, ILanguageModelConfigurationSchema, getAutoModelTier, getByokProviderTelemetryName, THIRD_PARTY_PROVIDER_TELEMETRY_NAME, COPILOT_VENDOR_ID, getLanguageModelDisplayNameWithProvider, ILanguageModelChatMetadataAndIdentifier, ILanguageModelsService, resolveLanguageModelProviderIcon } from '../../common/languageModels.js';
+import { ChatMessageRole, LanguageModelsService, IChatMessage, IChatResponsePart, ILanguageModelChatMetadata, createModelConfigurationActions, ILanguageModelConfigurationSchema, getAutoModelTier, getByokProviderTelemetryName, THIRD_PARTY_PROVIDER_TELEMETRY_NAME, COPILOT_VENDOR_ID, getLanguageModelDisplayNameWithProvider, getTelemetryModelIdentifier, ILanguageModelChatMetadataAndIdentifier, ILanguageModelsService, resolveLanguageModelProviderIcon } from '../../common/languageModels.js';
 import { IPromptChoice, IPromptOptions } from '../../../../../platform/notification/common/notification.js';
 import { TestNotificationService } from '../../../../../platform/notification/test/common/testNotificationService.js';
 import { NullOpenerService } from '../../../../../platform/opener/test/common/nullOpenerService.js';
@@ -803,7 +803,6 @@ suite('LanguageModels', function () {
 	function readModelPreferences(storageService: IStorageService, scope: StorageScope) {
 		return {
 			pinned: storageService.getObject('chatModelPinned', scope),
-			recent: storageService.getObject('chatModelRecentlyUsed', scope),
 			hidden: storageService.getObject('chatModelVisibility', scope),
 		};
 	}
@@ -818,17 +817,14 @@ suite('LanguageModels', function () {
 
 		storageService.storeAll([
 			{ key: 'chatModelPinned', value: ['other/pinned'], scope: StorageScope.PROFILE, target: StorageTarget.USER },
-			{ key: 'chatModelRecentlyUsed', value: ['other/recent'], scope: StorageScope.PROFILE, target: StorageTarget.USER },
 			{ key: 'chatModelVisibility', value: { hiddenModels: ['other/hidden'] }, scope: StorageScope.PROFILE, target: StorageTarget.USER },
 		], true);
 		service.pinModel('this/pinned');
-		service.addToRecentlyUsedList('this/recent');
 		service.setModelHidden('this/hidden', true);
 
 		assert.deepStrictEqual({ events, ...readModelPreferences(storageService, StorageScope.PROFILE) }, {
 			events: ['pinned', 'visibility', 'pinned', 'visibility'],
 			pinned: ['other/pinned', 'this/pinned'],
-			recent: ['this/recent', 'other/recent'],
 			hidden: { hiddenModels: ['other/hidden', 'this/hidden'] },
 		});
 	});
@@ -892,9 +888,7 @@ suite('LanguageModels', function () {
 		const agentsProfileService = createTestProfileService(createTestProfile('agents'));
 		agentsStorage.storeAll([
 			{ key: 'chatModelPinned', value: ['both', 'application'], scope: StorageScope.APPLICATION, target: StorageTarget.USER },
-			{ key: 'chatModelRecentlyUsed', value: ['application/recent'], scope: StorageScope.APPLICATION, target: StorageTarget.USER },
 			{ key: 'chatModelPinned', value: ['agents', 'both'], scope: StorageScope.PROFILE, target: StorageTarget.USER },
-			{ key: 'chatModelRecentlyUsed', value: ['agents/recent'], scope: StorageScope.PROFILE, target: StorageTarget.USER },
 			{ key: 'chatModelVisibility', value: { hiddenModels: ['agents/hidden'] }, scope: StorageScope.PROFILE, target: StorageTarget.USER },
 		], false);
 
@@ -904,9 +898,53 @@ suite('LanguageModels', function () {
 
 		assert.deepStrictEqual({ ...readModelPreferences(agentsStorage, StorageScope.APPLICATION), laterPinned: service.isModelPinned('agents/later') }, {
 			pinned: ['both', 'application', 'agents'],
-			recent: ['application/recent', 'agents/recent'],
 			hidden: { hiddenModels: ['agents/hidden'] },
 			laterPinned: false,
+		});
+	});
+
+	test('pins — copies of a model match across vendors, so the Agents window shows pins from the editor\'s picker', async function () {
+		languageModels.dispose();
+		const storageService = store.add(new TestStorageService());
+		// Pinned in the editor's local picker, where extensions provide the models.
+		storageService.store('chatModelPinned', ['copilot/gpt-5', 'openai/gpt-5', 'copilot/gpt-5.6-sol'], StorageScope.PROFILE, StorageTarget.USER);
+		const service = store.add(createLanguageModelsService(storageService));
+		// Agent-host copies, as [id, model group, original identifier of a model the user brought].
+		const copies: Record<string, [string, string, string?][]> = {
+			'agent-host-copilotcli': [['gpt-5', 'copilot'], ['claude', 'copilot'], ['auto', 'copilot'], ['openai/gpt-5', 'openai', 'openai/gpt-5']],
+			// Codex and Claude qualify ids with the provider; only their Copilot transports serve Copilot's models.
+			'codex': [['@provider=vscode-proxy:gpt-5.6-sol', 'copilot'], ['@provider=openai:gpt-5.6-sol', 'chatgpt']],
+			'claude': [['@provider=copilot:claude-opus-4.6', 'copilot'], ['@provider=anthropic:claude-opus-4.6', 'anthropic']],
+		};
+		for (const [vendor, models] of Object.entries(copies)) {
+			service.deltaLanguageModelChatProviderDescriptors([{ vendor, displayName: vendor, configuration: undefined, managementCommand: undefined, when: undefined }], []);
+			store.add(service.registerLanguageModelProvider(vendor, {
+				onDidChange: Event.None,
+				provideLanguageModelChatInfo: async () => models.map(([id, modelGroupId, byokModelIdentifier]) => ({
+					identifier: `${vendor}:${id}`,
+					metadata: { extension: nullExtensionDescription.identifier, name: id, vendor, family: id, version: '1.0', id, maxInputTokens: 100, maxOutputTokens: 100, isDefaultForLocation: {}, modelGroup: { id: modelGroupId }, byokModelIdentifier },
+				})),
+				sendChatRequest: async () => { throw new Error(); },
+				provideTokenCount: async () => { throw new Error(); },
+			}));
+			await service.selectLanguageModels({ vendor });
+		}
+
+		const pinnedFromEditor = service.getPinnedModelIds();
+		service.pinModel('agent-host-copilotcli:claude');
+		service.pinModel('claude:@provider=copilot:claude-opus-4.6');
+		service.pinModel('agent-host-copilotcli:auto');
+		service.unpinModel('agent-host-copilotcli:gpt-5');
+
+		assert.deepStrictEqual({
+			pinnedFromEditor,
+			pinned: service.getPinnedModelIds(),
+			// Stored under the extension's identifiers, so the editor's picker matches them too.
+			stored: storageService.getObject('chatModelPinned', StorageScope.PROFILE),
+		}, {
+			pinnedFromEditor: ['agent-host-copilotcli:gpt-5', 'agent-host-copilotcli:openai/gpt-5', 'codex:@provider=vscode-proxy:gpt-5.6-sol'],
+			pinned: ['agent-host-copilotcli:openai/gpt-5', 'codex:@provider=vscode-proxy:gpt-5.6-sol', 'agent-host-copilotcli:claude', 'claude:@provider=copilot:claude-opus-4.6', 'agent-host-copilotcli:auto'],
+			stored: ['openai/gpt-5', 'copilot/gpt-5.6-sol', 'copilot/claude', 'copilot/claude-opus-4.6', 'agent-host-copilotcli:auto'],
 		});
 	});
 });
@@ -2956,5 +2994,21 @@ suite('LanguageModels - pin telemetry', function () {
 			{ model: 'unknown', pinned: true, pickerSessionId: undefined },
 			{ model: 'unknown', pinned: false, pickerSessionId: undefined },
 		]);
+	});
+});
+
+suite('LanguageModels - telemetry identifiers', function () {
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('model routers report as modelRouter, matched on the model id rather than the vendor-prefixed identifier', function () {
+		const service = { getVendors: () => [] } as unknown as ILanguageModelsService;
+		const model = (id: string): ILanguageModelChatMetadataAndIdentifier => ({
+			identifier: `copilotcli:${id}`,
+			metadata: { id, name: id, vendor: 'copilotcli' } as ILanguageModelChatMetadata,
+		});
+		assert.deepStrictEqual([
+			getTelemetryModelIdentifier(model('model-router:secret'), service),
+			getTelemetryModelIdentifier(model('claude-opus-5'), service),
+		], [new TelemetryTrustedValue('modelRouter'), new TelemetryTrustedValue('copilotcli:claude-opus-5')]);
 	});
 });

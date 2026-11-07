@@ -1,0 +1,456 @@
+name: Code OSS (workspace images)
+
+# Builds the workspace images for the test jobs of pull requests (pr-linux-test.yml and
+# pr-win32-test.yml): a disk image of a workspace of main, with its
+# dependencies, Electron and the Playwright browsers installed, at the path of the workspaces of the
+# jobs, and with a .git that their checkouts reuse. A job that mounts an image installs only what
+# changed since. The macOS job is commented out with the macOS test jobs of pr.yml, which never
+# adopted the images. See .github/workflows/workspace_image/README.md.
+# The daily and manual runs also prepare the WSL distribution of the Windows smoke tests (the
+# wsl-distro job), and cache the apt packages of the Linux test jobs (the linux-packages job).
+on:
+  # Every day, so that there is always a recent image of main: the images are kept for 2 days
+  schedule:
+    - cron: '0 5 * * *'
+  # On pushes, only when an input of the images changes: the source code doesn't need to be current,
+  # as the checkout of a job fetches and writes only what changed since the commit of its image
+  push:
+    branches:
+      - main
+    # The inputs of the install (the pnpm-lock.yaml, pnpm settings and pnpmfile of the install roots,
+    # and the install scripts in build/npm), of the native builds (see NATIVE_BUILD_INPUTS in
+    # workspace_image/image.ts) and of the prepared Electron (see the stamp in
+    # .github/actions/setup-electron/action.yml)
+    paths:
+      - '**/pnpm-lock.yaml'
+      - '**/pnpm-workspace.yaml'
+      - '**/.pnpmfile.mjs'
+      - package.json
+      - remote/package.json
+      - .nvmrc
+      - extensions/copilot/.nvmrc
+      - build/npm/**
+      - build/checksums/electron.txt
+      - build/lib/electron.ts
+      - build/lib/electronVersion.ts
+      - product.json
+      - resources/darwin/*.icns
+      - resources/win32/code.ico
+      - build/.cachesalt
+      - .github/workflows/pr-workspace-images.yml
+      - .github/workflows/workspace_image/**
+  workflow_dispatch:
+  # Lets a temporary workflow on a branch build the images of the branch, to test the steps of a job
+  # that uses them (image.ts restore --branch)
+  workflow_call:
+
+permissions:
+  contents: read
+
+# Unlike `github.workflow`, the name of the group differs from that of a calling workflow
+concurrency:
+  group: workspace-images-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  linux:
+    name: Linux
+    runs-on: vscode-large-runners-ubuntu-8-core
+    timeout-minutes: 60
+    env:
+      NPM_ARCH: x64
+      VSCODE_ARCH: x64
+    steps:
+      # The volume of an image exists before the checkout, so the jobs download the scripts the way
+      # a job that uses an image does
+      - &download-scripts
+        name: Download the workspace image scripts
+        id: image-scripts
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          dir="$RUNNER_TEMP/workspace-image"
+          mkdir -p "$dir"
+          echo '{ "type": "module" }' > "$dir/package.json"
+          # The scripts keep their folders below workspace_image, such as win32/vhd.ps1
+          files=(.nvmrc .github/workflows/workspace_image/{image.ts,win32/vhd.ps1,win32/Vhd.cs})
+          args=()
+          for file in "${files[@]}"; do
+            args+=(-o "$dir/${file#.github/workflows/workspace_image/}" "$GITHUB_API_URL/repos/$GITHUB_REPOSITORY/contents/$file?ref=$GITHUB_SHA")
+          done
+          curl -fsSL --retry 3 --parallel --create-dirs -H "Authorization: Bearer $GH_TOKEN" -H 'Accept: application/vnd.github.raw' "${args[@]}"
+          for file in "${files[@]}"; do
+            [ -s "$dir/${file#.github/workflows/workspace_image/}" ]
+          done
+          echo "node-version=$(tr -d '[:space:]' < "$dir/.nvmrc")" >> "$GITHUB_OUTPUT"
+
+      - &setup-node
+        name: Setup Node.js
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: ${{ steps.image-scripts.outputs.node-version }}
+
+      # An ext4 volume in a sparse file, mounted at the parent folder of the workspace like in the jobs:
+      # without a journal or reserved blocks, and with the inode tables left to initialize, so that
+      # they stay zeros, which the image doesn't store
+      - name: Create the volume of the image
+        working-directory: ${{ runner.temp }}
+        run: |
+          set -euo pipefail
+          root="$(dirname "$GITHUB_WORKSPACE")"
+          truncate -s 64G "$RUNNER_TEMP/workspace-image.ext4"
+          mkfs.ext4 -q -F -O ^has_journal -m 0 -E "lazy_itable_init=1,root_owner=$(id -u):$(id -g)" "$RUNNER_TEMP/workspace-image.ext4"
+          sudo mount -o loop,noatime,noinit_itable "$RUNNER_TEMP/workspace-image.ext4" "$root"
+          mkdir "$GITHUB_WORKSPACE"
+
+      - &checkout
+        name: Checkout microsoft/vscode
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          lfs: true
+          # No credentials in the .git of an image
+          persist-credentials: false
+
+      # pnpm/action-setup itself instead of .github/actions/setup-pnpm: the runner reads the action.yml
+      # of a local action again for its post step, after the jobs unmounted the volume of the workspace
+      - &setup-pnpm
+        name: Setup pnpm
+        uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
+
+      - &tool-folders
+        name: Put the pnpm store and the Playwright browsers into the image
+        shell: bash
+        run: node "$RUNNER_TEMP/workspace-image/image.ts" env
+
+      # The same packages as in pr-node-modules.yml, for the native modules
+      - name: Install build tools
+        run: |
+          set -e
+          ./build/azure-pipelines/linux/apt-retry.sh sudo apt-get update
+          ./build/azure-pipelines/linux/apt-retry.sh sudo apt-get install -y pkg-config libxkbfile-dev libkrb5-dev
+
+      - name: Install build dependencies
+        working-directory: build
+        run: |
+          set -e
+
+          for i in {1..5}; do # try 5 times
+            pnpm install --frozen-lockfile && break
+            if [ $i -eq 5 ]; then
+              echo "pnpm install failed too many times" >&2
+              exit 1
+            fi
+            echo "pnpm install failed $i, trying again..."
+          done
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      # The sysroots, compilers and headers of setup-env.sh stay in .build, for the install steps of
+      # the jobs
+      - name: Install dependencies
+        run: |
+          set -e
+
+          source ./build/azure-pipelines/linux/setup-env.sh
+
+          for i in {1..5}; do # try 5 times
+            pnpm install --frozen-lockfile && break
+            if [ $i -eq 5 ]; then
+              echo "pnpm install failed too many times" >&2
+              exit 1
+            fi
+            echo "pnpm install failed $i, trying again..."
+          done
+        env:
+          npm_config_arch: ${{ env.NPM_ARCH }}
+          VSCODE_ARCH: ${{ env.VSCODE_ARCH }}
+          ELECTRON_SKIP_BINARY_DOWNLOAD: 1
+          PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: 1
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      # pnpm doesn't fail when it skips an optional dependency, such as a native binary, which the
+      # jobs would then keep using
+      - &check-native-optional-deps
+        name: Verify native optional dependency binaries
+        run: node build/azure-pipelines/common/checkNativeOptionalDeps.ts
+
+      - &setup-electron
+        name: Setup Electron
+        uses: ./.github/actions/setup-electron
+        with:
+          arch: ${{ env.VSCODE_ARCH }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Install Playwright Chromium
+        run: pnpm exec playwright install --only-shell chromium
+
+      - &seed
+        name: Prepare the workspace for the image
+        shell: bash
+        run: node "$RUNNER_TEMP/workspace-image/image.ts" seed
+
+      - name: Build the image
+        working-directory: ${{ runner.temp }}
+        run: |
+          set -euo pipefail
+          root="$(dirname "$GITHUB_WORKSPACE")"
+          du -sh "$root"/.[!.]* "$root"/*/node_modules "$root"/*/.build "$root"/*/.git || true
+          df -h "$root"
+          sudo umount "$root"
+          node "$RUNNER_TEMP/workspace-image/image.ts" pack --in "$RUNNER_TEMP/workspace-image.ext4" --out "$RUNNER_TEMP/workspace-image-linux-x64.img"
+
+      - name: Upload the image
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          path: ${{ runner.temp }}/workspace-image-linux-x64.img
+          archive: false
+          retention-days: 2
+          if-no-files-found: error
+
+  # The .deb files of the apt packages of the Linux test jobs (see .github/actions/install-linux-packages), so that
+  # they install them without apt-get, whose mirrors are at times slow. The packages that a runner lacks depend on its
+  # image, which changes every week or so: the key holds the image, and the jobs on a runner with an image that has no
+  # entry yet use apt-get. The files only need to be recent, so they are downloaded with the daily images and on manual
+  # runs, but not on pushes.
+  linux-packages:
+    name: Linux (apt packages)
+    if: ${{ github.event_name == 'schedule' || github.event_name == 'workflow_dispatch' }}
+    runs-on: vscode-large-runners-ubuntu-8-core
+    timeout-minutes: 15
+    steps:
+      - name: Checkout microsoft/vscode
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          sparse-checkout: |
+            .github/actions/install-linux-packages
+            build/azure-pipelines/linux
+
+      - name: Cache the apt packages
+        uses: ./.github/actions/install-linux-packages
+        with:
+          save-cache: 'true'
+
+  # Commented out with the macOS test jobs of pr.yml, which never adopted the images (see macos-tests
+  # there).
+  # macOS:
+  #   name: macOS
+  #   runs-on: vscode-large-runners-macos-5-core-0
+  #   timeout-minutes: 60
+  #   env:
+  #     NPM_ARCH: arm64
+  #     VSCODE_ARCH: arm64
+  #   steps:
+  #     - *download-scripts
+  #     - *setup-node
+  #
+  #     # An APFS volume in a sparse ASIF image, mounted at the parent folder of the workspace like in the jobs
+  #     - name: Create the volume of the image
+  #       working-directory: ${{ runner.temp }}
+  #       run: |
+  #         set -euo pipefail
+  #         root="$(dirname "$GITHUB_WORKSPACE")"
+  #         diskutil image create blank --fs APFS --format ASIF --size 100G --volumeName vscode-workspace "$RUNNER_TEMP/workspace-image.asif"
+  #         diskutil image attach --nobrowse --mountPoint "$root" "$RUNNER_TEMP/workspace-image.asif"
+  #         # Spotlight leaves the volume alone
+  #         touch "$root/.metadata_never_index"
+  #         mkdir "$GITHUB_WORKSPACE"
+  #
+  #     - *checkout
+  #     - *setup-pnpm
+  #     - *tool-folders
+  #
+  #     - name: Install dependencies
+  #       run: |
+  #         set -e
+  #         c++ --version
+  #         xcode-select -print-path
+  #         python3 -m pip install --break-system-packages setuptools
+  #
+  #         for i in {1..5}; do # try 5 times
+  #           pnpm install --frozen-lockfile && break
+  #           if [ $i -eq 5 ]; then
+  #             echo "pnpm install failed too many times" >&2
+  #             exit 1
+  #           fi
+  #           echo "pnpm install failed $i, trying again..."
+  #         done
+  #       env:
+  #         npm_config_arch: ${{ env.NPM_ARCH }}
+  #         VSCODE_ARCH: ${{ env.VSCODE_ARCH }}
+  #         ELECTRON_SKIP_BINARY_DOWNLOAD: 1
+  #         PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: 1
+  #         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+  #         # Same as in pr-darwin-test.yml
+  #         GYP_DEFINES: "kerberos_use_rtld=false"
+  #
+  #     - *check-native-optional-deps
+  #
+  #     - *setup-electron
+  #
+  #     - name: Install Playwright Chromium and WebKit
+  #       run: pnpm exec playwright install --only-shell chromium webkit
+  #
+  #     - *seed
+  #
+  #     - name: Build the image
+  #       working-directory: ${{ runner.temp }}
+  #       run: |
+  #         set -euo pipefail
+  #         root="$(dirname "$GITHUB_WORKSPACE")"
+  #         du -sh "$root"/.[!.]* "$root"/*/node_modules "$root"/*/.build "$root"/*/.git || true
+  #         df -h "$root"
+  #         # Retried, in case Spotlight or a process that just ended still holds a file
+  #         hdiutil detach "$root" || { sleep 5; hdiutil detach -force "$root"; }
+  #         ls -la "$RUNNER_TEMP/workspace-image.asif"
+  #         node "$RUNNER_TEMP/workspace-image/image.ts" pack --in "$RUNNER_TEMP/workspace-image.asif" --out "$RUNNER_TEMP/workspace-image-darwin-arm64.img"
+  #
+  #     - name: Upload the image
+  #       uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+  #       with:
+  #         path: ${{ runner.temp }}/workspace-image-darwin-arm64.img
+  #         archive: false
+  #         retention-days: 2
+  #         if-no-files-found: error
+
+  windows:
+    name: Windows
+    runs-on: vscode-large-runners-windows-8-core
+    timeout-minutes: 90
+    env:
+      NPM_ARCH: x64
+      VSCODE_ARCH: x64
+    steps:
+      - *download-scripts
+      - *setup-node
+
+      # A Dev Drive in a VHDX with blocks of 1 MB, mounted at the parent folder of the workspace like
+      # in the jobs: pnpm links the packages of different folders with junctions, whose targets are
+      # absolute paths. 64 GB leave the jobs room, and less of the VHDX to ReFS's metadata than 200 GB.
+      - name: Create the volume of the image
+        shell: pwsh
+        working-directory: ${{ runner.temp }}
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $workspace = $env:GITHUB_WORKSPACE
+          $root = Split-Path $workspace -Parent
+          if (Get-ChildItem -Force $workspace) { throw "$workspace is not empty" }
+          Remove-Item $workspace
+          if (Get-ChildItem -Force $root) { throw "$root holds more than the workspace" }
+          & "$env:RUNNER_TEMP\workspace-image\win32\vhd.ps1" -Path "$env:RUNNER_TEMP\workspace-image.vhdx" -Create -MaximumSizeGB 64 -MountFolder $root
+          New-Item -ItemType Directory -Path $workspace | Out-Null
+
+      - *checkout
+      - *setup-pnpm
+      - *tool-folders
+
+      - name: Install dependencies
+        shell: pwsh
+        run: |
+          . build/azure-pipelines/win32/exec.ps1
+          $ErrorActionPreference = "Stop"
+
+          # Run preinstall script before root dependencies are installed
+          # so that Electron/v8 headers are patched correctly for native modules.
+          exec { pnpm run preinstall }
+
+          for ($i = 1; $i -le 5; $i++) {
+            try {
+              exec { pnpm install --frozen-lockfile }
+              break
+            }
+            catch {
+              if ($i -eq 5) {
+                Write-Error "pnpm install failed after 5 attempts"
+                throw
+              }
+              Write-Host "pnpm install failed attempt $i, retrying..."
+              Start-Sleep -Seconds 2
+            }
+          }
+        env:
+          npm_config_arch: ${{ env.NPM_ARCH }}
+          VSCODE_ARCH: ${{ env.VSCODE_ARCH }}
+          ELECTRON_SKIP_BINARY_DOWNLOAD: 1
+          PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: 1
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - *check-native-optional-deps
+
+      - *setup-electron
+
+      - name: Install Playwright Chromium
+        shell: pwsh
+        run: |
+          . build/azure-pipelines/win32/exec.ps1
+          $ErrorActionPreference = "Stop"
+          exec { pnpm exec playwright install --only-shell chromium }
+
+      - *seed
+
+      - name: Build the image
+        shell: pwsh
+        working-directory: ${{ runner.temp }}
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $root = Split-Path $env:GITHUB_WORKSPACE -Parent
+          fsutil volume diskfree $root | Out-Host
+          & "$env:RUNNER_TEMP\workspace-image\win32\vhd.ps1" -Path "$env:RUNNER_TEMP\workspace-image.vhdx" -MountFolder $root -Detach
+          # The next steps start in the workspace
+          New-Item -ItemType Directory -Path $env:GITHUB_WORKSPACE -Force | Out-Null
+          Get-Item "$env:RUNNER_TEMP\workspace-image.vhdx" | Format-List Name, Length
+          node "$env:RUNNER_TEMP\workspace-image\image.ts" pack --in "$env:RUNNER_TEMP\workspace-image.vhdx" --out "$env:RUNNER_TEMP\workspace-image-win32-x64.img"
+          if ($LASTEXITCODE -ne 0) { throw "image.ts pack exited with $LASTEXITCODE" }
+
+      - name: Upload the image
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          path: ${{ runner.temp }}/workspace-image-win32-x64.img
+          archive: false
+          retention-days: 2
+          if-no-files-found: error
+
+  # The WSL distribution that the Windows WSL smoke test job imports instead of building it (see
+  # test/smoke/wslDevContainer.ps1 and electron-smoke-wsl in pr-win32-test.yml). It only needs to be recent, so it is
+  # rebuilt with the daily images and on manual runs, but not on pushes. It runs on the 1ES pool like that job, as
+  # GitHub-hosted Windows runners intermittently freeze while WSL2 provisions a distribution. JobId must be unique per
+  # job. The cache key hashes the files that define the distribution, so that the WSL job of a commit that changes them
+  # builds the distribution instead; the WSL job restores the newest entry of its key.
+  wsl-distro:
+    name: Windows (WSL distro)
+    if: ${{ github.event_name == 'schedule' || github.event_name == 'workflow_dispatch' }}
+    runs-on: [ self-hosted, 1ES.Pool=1es-vscode-oss-windows-2022-x64, "JobId=wsl-distro-${{ github.run_id }}-${{ github.run_number }}-${{ github.run_attempt }}" ]
+    timeout-minutes: 30
+    steps:
+      - name: Checkout microsoft/vscode
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Restore WSL installer
+        uses: ./.github/actions/restore-wsl-installer
+
+      - name: Prepare the WSL distribution
+        timeout-minutes: 20
+        shell: pwsh
+        run: .\test\smoke\wslDevContainer.ps1 -Operation Prepare -Destination "$env:GITHUB_WORKSPACE\.build\wsl-distro\vscode-wsl-smoke.vhdx"
+        env:
+          WSL_INSTALLER_CACHE_DIR: ${{ github.workspace }}\.build\wsl-installer
+
+      - name: Save the WSL distribution
+        uses: actions/cache/save@caa296126883cff596d87d8935842f9db880ef25 # v5.1.0
+        with:
+          path: .build/wsl-distro
+          key: "wsl-distro-v1-${{ runner.os }}-${{ hashFiles('test/smoke/wslDevContainer.ps1', 'build/checksums/wsl.txt') }}-${{ github.run_id }}-${{ github.run_attempt }}"
+
+      - name: Publish Log Files
+        if: failure()
+        continue-on-error: true
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: logs-windows-x64-wsl-distro-${{ github.run_attempt }}
+          path: .build/logs
+          if-no-files-found: ignore

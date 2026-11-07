@@ -1,0 +1,81 @@
+# The built-in extensions, except extensions/copilot (a separate install root). The product build
+# bundles them, so the layout of this root's node_modules doesn't ship (see build/lib/extensions.ts).
+packages:
+  - configuration-editing
+  - css-language-features
+  - css-language-features/server
+  - debug-auto-launch
+  - debug-server-ready
+  - emmet
+  - extension-editing
+  - git
+  - git-base
+  - github
+  - github-authentication
+  - grunt
+  - gulp
+  - html-language-features
+  - html-language-features/server
+  - ipynb
+  - jake
+  - json-language-features
+  - json-language-features/server
+  - markdown-language-features
+  - markdown-language-features/test-workspace/checkbox-count-extension
+  - markdown-math
+  - merge-conflict
+  - mermaid-markdown-features
+  - microsoft-authentication
+  - notebook-renderers
+  - npm
+  - php-language-features
+  - references-view
+  - search-result
+  - simple-browser
+  - tunnel-forwarding
+  - terminal-suggest
+  - typescript-language-features
+  - vscode-api-tests
+  - vscode-colorize-tests
+  - vscode-colorize-perf-tests
+  - vscode-test-resolver
+pnpmfile: .pnpmfile.mjs
+nodeLinker: hoisted
+# Don't link the extensions into extensions/node_modules by their names (emmet, gulp, npm, git, ...),
+# where they would hide the npm packages of the same name.
+hoistWorkspacePackages: false
+strictPeerDependencies: false
+autoInstallPeers: false
+dedupePeerDependents: false
+fetchTimeout: 180000
+engineStrict: false
+minimumReleaseAge: 10080
+minimumReleaseAgeExclude:
+  - '@vscode/*'
+  - playwright*
+  - typescript
+  - vscode-*-languageservice
+strictDepBuilds: true
+sideEffectsCache: false
+verifyDepsBeforeRun: false
+pmOnFail: ignore
+skills:
+  dirs: []
+ignoredOptionalDependencies:
+  - '@parcel/watcher-*'
+allowBuilds:
+  '@azure/msal-node-extensions@5.3.2': true
+  '@azure/msal-node-runtime@0.20.1': true
+  '@parcel/watcher@2.5.6': true
+  '@vscode/fs-copyfile@2.0.0': true
+  esbuild@0.27.2: true
+  esbuild@0.28.1: true
+  fsevents@2.3.2: true
+overrides:
+  serialize-javascript: ^7.0.3
+  vscode-css-languageservice>vscode-languageserver-types: 3.18.3
+  lodash-es: 4.18.1
+  '@vscode/web-editors@0.0.2-76>@vscode/hubrpc': 0.0.2-20
+  '@vscode/web-editors@0.0.2-104>@vscode/hubrpc': 0.0.2-54
+  '@vscode/web-editors@0.0.2-41>@vscode/hubrpc': 0.0.2-15
+  '@azure/msal-node-extensions@5.3.2>keytar': file:microsoft-authentication/packageMocks/keytar

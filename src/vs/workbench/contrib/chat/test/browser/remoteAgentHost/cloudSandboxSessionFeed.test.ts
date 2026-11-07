@@ -11,7 +11,9 @@ import { StopWatch } from '../../../../../../base/common/stopwatch.js';
 import { mock } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { runWithFakedTimers } from '../../../../../../base/test/common/virtualScheduling/index.js';
-import { CloudSandboxRequestError, ICloudSandboxApiService, ICloudSandboxSessionFeedConnection } from '../../../../../../platform/agentHost/common/cloudSandboxAgentHost.js';
+import { CloudSandboxAuthenticationRequiredError, CloudSandboxRequestError, ICloudSandboxApiService, ICloudSandboxSessionFeedConnection } from '../../../../../../platform/agentHost/common/cloudSandboxAgentHost.js';
+import { RequestError } from '../../../../../../platform/github/common/types.js';
+import { SchemaError } from '../../../../../../platform/github/common/client/schema.js';
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { ILogService, NullLogService } from '../../../../../../platform/log/common/log.js';
 import { CloudSandboxSessionFeed, type CloudSandboxSessionFeedRefresh } from '../../../browser/remoteAgentHost/cloudSandboxSessionFeed.js';
@@ -29,8 +31,8 @@ class TestSocket {
 		this.onmessage?.(new MessageEvent('message', { data: typeof data === 'string' ? data : JSON.stringify(data) }));
 	}
 
-	disconnect(): void {
-		this.onclose?.(new CloseEvent('close'));
+	disconnect(code = 1006): void {
+		this.onclose?.(new CloseEvent('close', { code, reason: 'private server close text' }));
 	}
 }
 
@@ -141,6 +143,19 @@ suite('CloudSandboxSessionFeed', () => {
 		});
 	}));
 
+	test('drains buffered hints before disposal without replaying the debounce', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+		const h = createFeed(store);
+		await h.feed.start();
+		h.sockets[0].receive(changed('removed'));
+		h.sockets[0].receive(changed('inaccessible'));
+		const taskIds = h.feed.takePendingTaskIds();
+		h.feed.dispose();
+		await timeout(501);
+		assert.deepStrictEqual({ taskIds, reasons: h.reasons }, {
+			taskIds: ['removed', 'inaccessible'], reasons: [],
+		});
+	}));
+
 	test('a continuous stream still refreshes every debounce interval', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
 		const h = createFeed(store);
 		await h.feed.start();
@@ -196,7 +211,10 @@ suite('CloudSandboxSessionFeed', () => {
 					'[CloudSandboxSessionFeed] Connected to task status feed.',
 					'[CloudSandboxSessionFeed] Invalid or unsupported feed message; using discovery polling until the next account or feature lifetime.',
 				],
-				telemetry: [{ outcome: 'connected', consecutiveFailures: 0 }, { outcome: 'invalidMessage', consecutiveFailures: 0 }],
+				telemetry: [
+					{ outcome: 'connected', reason: 'initial', consecutiveFailures: 0 },
+					{ outcome: 'invalidMessage', reason: 'invalidMessage', consecutiveFailures: 0, connectionDurationMs: 0, lastMessageAgeMs: 0 },
+				],
 			});
 		}));
 	}
@@ -216,17 +234,20 @@ suite('CloudSandboxSessionFeed', () => {
 		});
 	}));
 
-	test('repeated seamless renewals never request full recovery', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+	test('repeated seamless renewals report renewal catch-up', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
 		const h = createFeed(store);
 		await h.feed.start();
 		await timeout(24 * 60_000 + 501);
 		assert.deepStrictEqual({ requests: h.requests.length, reasons: h.reasons, taskBatches: h.taskBatches, telemetry: h.telemetry }, {
 			requests: 4, reasons: ['renewal', 'renewal', 'renewal'], taskBatches: [undefined, undefined, undefined],
-			telemetry: [{ outcome: 'connected', consecutiveFailures: 0 }],
+			telemetry: [
+				{ outcome: 'connected', reason: 'initial', consecutiveFailures: 0 },
+				...Array.from({ length: 3 }, () => ({ outcome: 'renewed', reason: 'renewal', consecutiveFailures: 0, connectionDurationMs: 480_000, lastMessageAgeMs: 480_000 })),
+			],
 		});
 	}));
 
-	test('a connection gap during renewal still requests full recovery', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+	test('a connection gap during renewal reports reconnect catch-up', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
 		const h = createFeed(store, { autoReady: false });
 		const initial = h.feed.start();
 		await timeout(0);
@@ -241,20 +262,26 @@ suite('CloudSandboxSessionFeed', () => {
 		});
 	}));
 
-	test('renewal preserves coalesced task hints for targeted removal checks', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
-		const h = createFeed(store, { autoReady: false });
-		const initial = h.feed.start();
-		await timeout(0);
-		h.sockets[0].receive({ type: 'system', event: 'connected' });
-		await initial;
-		await timeout(8 * 60_000 + 1);
-		h.sockets[0].receive(changed('removed'));
-		h.sockets[1].receive({ type: 'system', event: 'connected' });
-		await timeout(501);
-		assert.deepStrictEqual({ reasons: h.reasons, taskBatches: h.taskBatches }, {
-			reasons: ['renewal', 'change'], taskBatches: [undefined, ['removed']],
-		});
-	}));
+	for (const reason of ['renewal', 'reconnect'] as const) {
+		test(`${reason} preserves coalesced hints from both sockets for targeted removal checks`, () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+			const h = createFeed(store, { autoReady: false });
+			const initial = h.feed.start();
+			await timeout(0);
+			h.sockets[0].receive({ type: 'system', event: 'connected' });
+			await initial;
+			await timeout(8 * 60_000 + 1);
+			h.sockets[0].receive(changed('removed'));
+			if (reason === 'reconnect') {
+				h.sockets[0].disconnect();
+			}
+			h.sockets[1].receive({ type: 'system', event: 'connected' });
+			h.sockets[1].receive(changed('inaccessible'));
+			await timeout(501);
+			assert.deepStrictEqual({ reasons: h.reasons, taskBatches: h.taskBatches }, {
+				reasons: [reason, 'change'], taskBatches: [undefined, ['removed', 'inaccessible']],
+			});
+		}));
+	}
 
 	test('uses server-relative renewal timing despite clock skew', () => runWithFakedTimers<void>({ useFakeTimers: true, maxTaskCount: 10_000 }, async () => {
 		const results: { skew: number; negotiations: number; refreshes: number }[] = [];
@@ -302,7 +329,7 @@ suite('CloudSandboxSessionFeed', () => {
 		assert.deepStrictEqual({ beforeRenewal, negotiations }, { beforeRenewal: 1, negotiations: [0, 480_000] });
 	}));
 
-	test('reconnects after disconnection and requests an authoritative full refresh', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+	test('reconnects after disconnection and requests inventory catch-up', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
 		const h = createFeed(store);
 		await h.feed.start();
 		h.sockets[0].disconnect();
@@ -315,6 +342,42 @@ suite('CloudSandboxSessionFeed', () => {
 			disconnected: false, sockets: 2, connected: true, refreshes: [false],
 			telemetry: [['connected', 0], ['disconnected', 1], ['connected', 1]],
 		});
+	}));
+
+	for (const [code, reason] of [[1000, 'normalClose'], [1001, 'goingAway'], [1006, 'abnormalClose'], [1008, 'policyClose'], [4321, 'otherClose']] as const) {
+		test(`reports observed close category ${reason}, active lifetime and recovery gap without close text`, () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+			const h = createFeed(store);
+			await h.feed.start();
+			await timeout(10_000);
+			h.sockets[0].receive(changed('private-task'));
+			await timeout(20_000);
+			h.sockets[0].disconnect(code);
+			const dropped = h.telemetry[1];
+			await timeout(1_501);
+			assert.deepStrictEqual({
+				dropped: { reason: dropped.reason, lifetime: dropped.connectionDurationMs, lastMessage: dropped.lastMessageAgeMs },
+				recovered: { reason: h.telemetry[2].reason, gapMatchesRetry: h.telemetry[2].gapDurationMs === dropped.retryDelayMs },
+				privateContent: JSON.stringify(h.telemetry).includes('private'),
+			}, {
+				dropped: { reason, lifetime: 30_000, lastMessage: 20_000 },
+				recovered: { reason: 'recovery', gapMatchesRetry: true },
+				privateContent: false,
+			});
+		}));
+	}
+
+	test('distinguishes socket errors, server disconnects and handshake timeout', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+		const socketError = createFeed(store);
+		await socketError.feed.start();
+		socketError.sockets[0].onerror?.(new Event('error'));
+		const serverDisconnect = createFeed(store);
+		await serverDisconnect.feed.start();
+		serverDisconnect.sockets[0].receive({ type: 'system', event: 'disconnected', message: 'private' });
+		const handshake = createFeed(store, { autoReady: false });
+		await handshake.feed.start();
+		assert.deepStrictEqual([
+			socketError.telemetry[1].reason, serverDisconnect.telemetry[1].reason, handshake.telemetry[0].reason,
+		], ['socketError', 'serverDisconnect', 'handshakeTimeout']);
 	}));
 
 	test('backs off short-lived sockets toward the negotiation ceiling and resets only after a healthy connection', () => runWithFakedTimers<void>({ useFakeTimers: true, maxTaskCount: 1000 }, async () => {
@@ -362,7 +425,7 @@ suite('CloudSandboxSessionFeed', () => {
 		await timeout(60 * 60_000);
 		await h.feed.start();
 		assert.deepStrictEqual({ requests: h.requests.length, sockets: h.sockets.length, connected: h.feed.connected, warnings: h.warnings, telemetry: h.telemetry }, {
-			requests: 1, sockets: 0, connected: false, warnings: [], telemetry: [{ outcome: 'unavailable', consecutiveFailures: 0 }],
+			requests: 1, sockets: 0, connected: false, warnings: [], telemetry: [{ outcome: 'unavailable', reason: 'unavailable', consecutiveFailures: 0 }],
 		});
 	}));
 
@@ -410,9 +473,9 @@ suite('CloudSandboxSessionFeed', () => {
 		assert.deepStrictEqual({ attemptTimes, connected: h.feed.connected, reasons: h.reasons, telemetry: h.telemetry }, {
 			attemptTimes: [0, 600_000, 1_200_000], connected: true, reasons: ['reconnect'],
 			telemetry: [
-				{ outcome: 'negotiationFailed', consecutiveFailures: 1, retryDelayMs: 600_000, statusCode: 503 },
-				{ outcome: 'negotiationFailed', consecutiveFailures: 2, retryDelayMs: 600_000, statusCode: 503 },
-				{ outcome: 'connected', consecutiveFailures: 2 },
+				{ outcome: 'negotiationFailed', reason: 'negotiationRejected', consecutiveFailures: 1, retryDelayMs: 600_000, statusCode: 503 },
+				{ outcome: 'negotiationFailed', reason: 'negotiationRejected', consecutiveFailures: 2, retryDelayMs: 600_000, statusCode: 503 },
+				{ outcome: 'connected', reason: 'recovery', consecutiveFailures: 2, gapDurationMs: 1_200_000 },
 			],
 		});
 	}));
@@ -434,6 +497,23 @@ suite('CloudSandboxSessionFeed', () => {
 			reported: true,
 		});
 	}));
+
+	test('distinguishes known pre-socket authentication, network and schema failures from unknown negotiation errors', async () => {
+		const reasons = [];
+		for (const error of [
+			new CloudSandboxAuthenticationRequiredError(),
+			new RequestError('private', 'network'),
+			new RequestError('private', 'timeout'),
+			new RequestError('private', 'schema'),
+			new SchemaError('private'),
+			new Error('private'),
+		]) {
+			const h = createFeed(store, { connect: async () => { throw error; } });
+			await h.feed.start();
+			reasons.push(h.telemetry[0].reason);
+		}
+		assert.deepStrictEqual(reasons, ['authenticationUnavailable', 'networkFailure', 'negotiationTimeout', 'invalidMetadata', 'invalidMetadata', 'negotiationError']);
+	});
 
 	test('a reconnect that finds the feed disabled stops attempts', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
 		let attempts = 0;
@@ -481,7 +561,10 @@ suite('CloudSandboxSessionFeed', () => {
 		await timeout(60 * 60_000);
 		assert.deepStrictEqual({ attempts, connected: h.feed.connected, closed: h.sockets[0].closed, warnings: h.warnings, telemetry: h.telemetry }, {
 			attempts: 2, connected: false, closed: true, warnings: [],
-			telemetry: [{ outcome: 'connected', consecutiveFailures: 0 }, { outcome: 'unavailable', consecutiveFailures: 0 }],
+			telemetry: [
+				{ outcome: 'connected', reason: 'initial', consecutiveFailures: 0 },
+				{ outcome: 'unavailable', reason: 'unavailable', consecutiveFailures: 0, connectionDurationMs: 480_000, lastMessageAgeMs: 480_000 },
+			],
 		});
 	}));
 

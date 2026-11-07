@@ -17,12 +17,13 @@ import { TERMINAL_VIEW_ID } from '../../../../../workbench/contrib/terminal/comm
 import { BaseLayoutController } from '../../browser/baseSessionLayoutController.js';
 import { IMenuItem, isIMenuItem, MenuId, MenuRegistry } from '../../../../../platform/actions/common/actions.js';
 import { ContextKeyValue, IContext } from '../../../../../platform/contextkey/common/contextkey.js';
-import { SESSION_ACTIVITY_BAR_LAYOUT_ACTIONS_SETTING, SESSION_ACTIVITY_BAR_SETTING } from '../../../../common/sessionConfig.js';
-import { Menus } from '../../../../browser/menus.js';
+import { SESSION_ACTIVITY_BAR_LAYOUT_ACTIONS_SETTING, SESSION_ACTIVITY_BAR_SETTING } from '../../../../../workbench/contrib/sessions/common/sessionConfig.js';
+import { Menus } from '../../../../../workbench/contrib/sessions/browser/menus.js';
+import { AgentsWindowMenus } from '../../../../browser/agentsWindowMenus.js';
 import { SessionEditorWorkingSetService } from '../../common/sessionEditorWorkingSet.js';
-import { SessionStatus } from '../../../../services/sessions/common/session.js';
+import { SessionStatus } from '../../../../../workbench/services/sessions/common/session.js';
 import { KeyCode, KeyMod } from '../../../../../base/common/keyCodes.js';
-import { observableValue } from '../../../../../base/common/observable.js';
+import { constObservable, observableValue } from '../../../../../base/common/observable.js';
 import { OS } from '../../../../../base/common/platform.js';
 import { mock } from '../../../../../base/test/common/mock.js';
 import { CommandsRegistry } from '../../../../../platform/commands/common/commands.js';
@@ -37,9 +38,10 @@ import { ChatContextKeys } from '../../../../../workbench/contrib/chat/common/ac
 import { IChatWindow, IChatWindowService } from '../../../../../workbench/contrib/chatWindow/browser/chatWindow.js';
 import { ChatWindowLayoutMode } from '../../../../../workbench/contrib/chatWindow/common/chatWindowLayout.js';
 import { IAgentWorkbenchLayoutService } from '../../../../browser/workbench.js';
-import { CustomViewVisibleContext } from '../../../../common/contextkeys.js';
-import { TOGGLE_SIDE_PANEL_COMMAND_ID } from '../../../../common/sessionCommands.js';
+import { CustomViewVisibleContext } from '../../../../common/agentsWindowContextKeys.js';
+import { TOGGLE_SIDE_PANEL_COMMAND_ID } from '../../../../../workbench/contrib/sessions/common/sessionCommands.js';
 import { addPeerChat, createTestHarness, ICreateOptions, ITestLayoutHarness, makePaneComposite, makeSession, setActiveChat, TestStubEditorInput } from './layoutControllerTestUtils.js';
+import { stubSessionsHostLayout } from '../../../../test/browser/sessionsHostLayoutTestUtils.js';
 
 /** Concrete, behaviourless subclass so the abstract base (its view-state hook is a no-op) can be instantiated. */
 class TestBaseLayoutController extends BaseLayoutController { }
@@ -99,6 +101,7 @@ suite('BaseLayoutController', () => {
 		instantiationService.stub(IAgentWorkbenchLayoutService, new class extends mock<IAgentWorkbenchLayoutService>() {
 			override toggleSidePane() { sidePaneToggles.push(true); return true; }
 		}());
+		stubSessionsHostLayout(instantiationService);
 		instantiationService.stub(ITelemetryService, NullTelemetryService);
 		const run = () => instantiationService.invokeFunction(accessor => CommandsRegistry.getCommand(TOGGLE_SIDE_PANEL_COMMAND_ID)!.handler(accessor));
 
@@ -133,7 +136,7 @@ suite('BaseLayoutController', () => {
 	test('shows the side panel toggle at the top of the session activity bar only while it can show there', () => {
 		disposables.add(BaseLayoutController.registerSidePaneToggleAction());
 		const find = (menu: MenuId) => MenuRegistry.getMenuItems(menu).filter(isIMenuItem).filter(item => item.command.id === 'workbench.action.agentToggleSidePanel');
-		const titleBar = find(Menus.TitleBarSessionMenu)[0];
+		const titleBar = find(AgentsWindowMenus.TitleBarSessionMenu)[0];
 		const activityBar = find(Menus.SessionActivityBar)[0];
 		const appearance = find(MenuId.MenubarAppearanceMenu)[0];
 		// Where the toggle shows in each layout, for a hidden panel and a closed welcome view in the main window.
@@ -881,6 +884,46 @@ suite('BaseLayoutController', () => {
 			whileHydrating: { owner: { session: 'session:2', chat: undefined }, restoring: true, applying: false },
 			settled: { owner: { session: 'session:2', chat: undefined }, restoring: false, applying: false },
 			applies: ['empty'],
+		});
+	});
+
+	test('[R16] a held-back restore settles when its session switches to a chat with another workspace, and a later same-session switch does not restore again', async () => {
+		const otherWorkspace = {
+			uri: URI.file('/other'),
+			label: 'other',
+			icon: Codicon.repo,
+			folders: [{ root: URI.file('/other'), workingDirectory: URI.file('/other'), name: 'other', description: undefined, gitRepository: undefined }],
+			requiresWorkspaceTrust: false,
+			isVirtualWorkspace: false,
+		};
+		createController({ useModal: 'some', workspaceFolders: [{ uri: URI.file('/repo') }] });
+		const session1 = makeSession(URI.parse('session:1'));
+		const session2 = makeSession(URI.parse('session:2'), { workspace: otherWorkspace });
+		const main = session2.activeChat.get();
+		const peer = { ...addPeerChat(session2, URI.parse('session:2#peer')), workspace: constObservable(undefined) };
+		harness.activeSessionObs.set(session1, undefined);
+		await timeout(0);
+		harness.applyWorkingSetCalls = [];
+
+		// Session 2's restore waits for its main chat's workspace, which the folders never get: the user switches to a chat without one.
+		harness.activeSessionObs.set(session2, undefined);
+		await timeout(0);
+		const whileHydrating = describeWorkingSetRestore();
+		setActiveChat(session2, peer);
+		harness.onDidChangeWorkspaceFolders.fire();
+		await timeout(0);
+		const settled = { restore: describeWorkingSetRestore(), applies: harness.applyWorkingSetCalls.length };
+
+		// Back to the main chat, whose workspace now arrives: the session's working set stays, rather than restoring again.
+		harness.workspaceFolders = [...harness.workspaceFolders, { uri: otherWorkspace.uri }];
+		setActiveChat(session2, main);
+		harness.onDidChangeWorkspaceFolders.fire();
+		await timeout(0);
+
+		assert.deepStrictEqual({ whileHydrating, settled, appliesAfterSwitchBack: harness.applyWorkingSetCalls.length }, {
+			whileHydrating: { owner: { session: 'session:2', chat: undefined }, restoring: true, applying: false },
+			settled: { restore: { owner: { session: 'session:2', chat: undefined }, restoring: false, applying: false }, applies: 1 },
+			appliesAfterSwitchBack: 1,
 		});
 	});
 

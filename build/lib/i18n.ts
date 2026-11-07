@@ -396,6 +396,7 @@ const editorProject: string = 'vscode-editor',
 
 export function getResource(sourceFile: string): Resource {
 	let resource: string;
+	const sessionsHome = /^(?<home>vs\/workbench\/(?:contrib\/sessions|contrib\/sessionChanges|services\/sessions|browser\/parts\/sessions))\//.exec(sourceFile)?.groups?.home;
 
 	if (/^vs\/platform/.test(sourceFile)) {
 		return { name: 'vs/platform', project: editorProject };
@@ -409,6 +410,9 @@ export function getResource(sourceFile: string): Resource {
 		return { name: 'vs/code', project: workbenchProject };
 	} else if (/^vs\/server/.test(sourceFile)) {
 		return { name: 'vs/server', project: serverProject };
+	} else if (sessionsHome) {
+		// The shared sessions code moved here from vs/sessions; its strings stay in the Agents window's project.
+		return { name: sessionsHome, project: sessionsProject };
 	} else if (/^vs\/workbench\/contrib/.test(sourceFile)) {
 		resource = sourceFile.split('/', 4).join('/');
 		return { name: resource, project: workbenchProject };

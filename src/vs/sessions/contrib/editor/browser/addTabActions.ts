@@ -23,14 +23,16 @@ import { IEditorGroupsService } from '../../../../workbench/services/editor/comm
 import { IEditorService } from '../../../../workbench/services/editor/common/editorService.js';
 import { EditorsOrder, isEditorCommandsContext } from '../../../../workbench/common/editor.js';
 import { ActiveEditorContext, AuxiliaryBarVisibleContext, EditorTabsVisibleContext, IsAuxiliaryWindowContext, IsSessionsWindowContext, IsTopRightEditorGroupContext, MainEditorAreaVisibleContext } from '../../../../workbench/common/contextkeys.js';
-import { IsQuickChatSessionContext, DesktopChangesTabAvailableContext, DesktopChangesTabMissingContext, DesktopFilesTabAvailableContext, DesktopFilesTabMissingContext, SessionWithWorkspaceContext } from '../../../common/contextkeys.js';
-import { SessionsCategories } from '../../../common/categories.js';
-import { CHAT_WINDOW_OPEN_BROWSER_COMMAND_ID, CHAT_WINDOW_OPEN_CHANGES_COMMAND_ID, CHAT_WINDOW_OPEN_FILES_COMMAND_ID, NEW_FILE_TAB_COMMAND_ID } from '../../../common/sessionCommands.js';
-import { ISessionChangesService } from '../../changes/browser/sessionChangesService.js';
-import { SessionChangesEditorInput } from '../../changes/browser/sessionChangesEditorInput.js';
-import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
-import { EmptyFileEditorInput } from './emptyFileEditorInput.js';
-import { Menus, SessionActivityBarGroup } from '../../../browser/menus.js';
+import { IsQuickChatSessionContext, SessionWithWorkspaceContext } from '../../../../workbench/contrib/sessions/common/contextkeys.js';
+import { DesktopChangesTabAvailableContext, DesktopChangesTabMissingContext, DesktopFilesTabAvailableContext, DesktopFilesTabMissingContext } from '../../../common/agentsWindowContextKeys.js';
+import { SessionsCategories } from '../../../../workbench/contrib/sessions/common/categories.js';
+import { CHAT_WINDOW_OPEN_BROWSER_COMMAND_ID, CHAT_WINDOW_OPEN_CHANGES_COMMAND_ID, CHAT_WINDOW_OPEN_FILES_COMMAND_ID, NEW_FILE_TAB_COMMAND_ID } from '../../../../workbench/contrib/sessions/common/sessionCommands.js';
+import { ISessionChangesService } from '../../../../workbench/contrib/sessionChanges/browser/sessionChangesService.js';
+import { SessionChangesEditorInput } from '../../../../workbench/contrib/sessionChanges/browser/sessionChangesEditorInput.js';
+import { getMainWindowHost, ISessionHostService } from '../../../../workbench/services/sessions/browser/sessionHost.js';
+import { EmptyFileEditorInput } from '../../../../workbench/contrib/sessions/browser/emptyFileEditorInput.js';
+import { Menus, SessionActivityBarGroup } from '../../../../workbench/contrib/sessions/browser/menus.js';
+import { AgentsWindowMenus } from '../../../browser/agentsWindowMenus.js';
 import { ChatWindowLayoutCommandsContext, resolveChatWindowOfContext } from '../../../../workbench/contrib/chatWindow/browser/chatWindowLayoutActions.js';
 import { IChatWindow, IChatWindowService } from '../../../../workbench/contrib/chatWindow/browser/chatWindow.js';
 
@@ -127,12 +129,12 @@ export class NewFileTabAction extends Action2 {
 				primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KeyE,
 			},
 			menu: [{
-				id: Menus.SessionsEditorTabsBarAddTab,
+				id: AgentsWindowMenus.SessionsEditorTabsBarAddTab,
 				group: 'navigation',
 				order: 1,
 				when: filesAddTabWhen
 			}, {
-				id: Menus.SessionsEmptyEditorGroupAddTab,
+				id: AgentsWindowMenus.SessionsEmptyEditorGroupAddTab,
 				group: 'navigation',
 				order: 1,
 				when: filesAddTabWhen
@@ -149,9 +151,10 @@ export class NewFileTabAction extends Action2 {
 		const editorService = accessor.get(IEditorService);
 		const editorGroupsService = accessor.get(IEditorGroupsService);
 		const instantiationService = accessor.get(IInstantiationService);
-		const sessionsService = accessor.get(ISessionsService);
 		const group = editorGroupsService.mainPart.activeGroup;
-		const workspace = sessionsService.activeSession.get()?.activeChat.get().workspace.get();
+		// The main part shows the tabs of the session and chat of the main window.
+		const mainWindowHost = getMainWindowHost(accessor.get(ISessionHostService));
+		const workspace = (mainWindowHost.chat.get() ?? mainWindowHost.session.get()?.mainChat.get())?.workspace.get();
 
 		// An existing Files tab is activated in place rather than moved to the end.
 		const index = group.editors.some(editor => editor instanceof EmptyFileEditorInput) ? undefined : group.count;
@@ -175,12 +178,12 @@ export class NewBrowserTabAction extends Action2 {
 				primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KeyB,
 			},
 			menu: [{
-				id: Menus.SessionsEditorTabsBarAddTab,
+				id: AgentsWindowMenus.SessionsEditorTabsBarAddTab,
 				group: 'navigation',
 				order: 2,
 				when: addTabLayoutWhen
 			}, {
-				id: Menus.SessionsEmptyEditorGroupAddTab,
+				id: AgentsWindowMenus.SessionsEmptyEditorGroupAddTab,
 				group: 'navigation',
 				order: 2,
 				when: addTabLayoutWhen
@@ -262,7 +265,7 @@ export class NewSearchTabAction extends Action2 {
 				primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KeyF,
 			},
 			menu: {
-				id: Menus.SessionsEditorTabsBarAddTab,
+				id: AgentsWindowMenus.SessionsEditorTabsBarAddTab,
 				group: 'navigation',
 				order: 3,
 				// Only offered from the Add Tab dropdown.
@@ -299,12 +302,12 @@ export class NewChangesTabAction extends Action2 {
 				mac: { primary: KeyMod.WinCtrl | KeyMod.Shift | KeyCode.KeyG },
 			},
 			menu: [{
-				id: Menus.SessionsEditorTabsBarAddTab,
+				id: AgentsWindowMenus.SessionsEditorTabsBarAddTab,
 				group: 'navigation',
 				order: 0,
 				when: changesAddTabWhen
 			}, {
-				id: Menus.SessionsEmptyEditorGroupAddTab,
+				id: AgentsWindowMenus.SessionsEmptyEditorGroupAddTab,
 				group: 'navigation',
 				order: 0,
 				when: changesAddTabWhen
@@ -319,10 +322,10 @@ export class NewChangesTabAction extends Action2 {
 			return;
 		}
 		const editorGroupsService = accessor.get(IEditorGroupsService);
-		const sessionsService = accessor.get(ISessionsService);
 		const sessionChangesService = accessor.get(ISessionChangesService);
 
-		const session = sessionsService.activeSession.get();
+		// The main part shows the tabs of the session of the main window.
+		const session = getMainWindowHost(accessor.get(ISessionHostService)).session.get();
 		if (session) {
 			const group = editorGroupsService.mainPart.activeGroup;
 			// An existing Changes tab is activated in place rather than moved to the end.

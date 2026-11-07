@@ -12,45 +12,6 @@ import { existsSync } from 'fs';
  */
 export const workspaceMembers = [
 	'',
-	'extensions',
-	'extensions/configuration-editing',
-	'extensions/css-language-features',
-	'extensions/css-language-features/server',
-	'extensions/debug-auto-launch',
-	'extensions/debug-server-ready',
-	'extensions/emmet',
-	'extensions/extension-editing',
-	'extensions/git',
-	'extensions/git-base',
-	'extensions/github',
-	'extensions/github-authentication',
-	'extensions/grunt',
-	'extensions/gulp',
-	'extensions/html-language-features',
-	'extensions/html-language-features/server',
-	'extensions/ipynb',
-	'extensions/jake',
-	'extensions/json-language-features',
-	'extensions/json-language-features/server',
-	'extensions/markdown-language-features',
-	'extensions/markdown-language-features/test-workspace/checkbox-count-extension',
-	'extensions/markdown-math',
-	'extensions/merge-conflict',
-	'extensions/mermaid-markdown-features',
-	'extensions/microsoft-authentication',
-	'extensions/notebook-renderers',
-	'extensions/npm',
-	'extensions/php-language-features',
-	'extensions/references-view',
-	'extensions/search-result',
-	'extensions/simple-browser',
-	'extensions/tunnel-forwarding',
-	'extensions/terminal-suggest',
-	'extensions/typescript-language-features',
-	'extensions/vscode-api-tests',
-	'extensions/vscode-colorize-tests',
-	'extensions/vscode-colorize-perf-tests',
-	'extensions/vscode-test-resolver',
 	'test/automation',
 	'test/componentFixtures/playwright',
 	'test/integration/browser',
@@ -67,14 +28,16 @@ export const workspaceMembers = [
  * Separate pnpm install roots (each with its own `pnpm-workspace.yaml` and `pnpm-lock.yaml`) that
  * the root postinstall installs after the workspace, in this order. `build` and `remote` build
  * native modules for a different runtime than the workspace (see the `nativeBuild` field of their
- * `package.json`, and their `.pnpmfile.mjs`). `extensions/copilot` keeps its own `node_modules`
- * because its build scripts and runtime code use paths inside it; it builds native modules for
- * Electron like the workspace.
+ * `package.json`, and their `.pnpmfile.mjs`). `extensions` holds the built-in extensions, which the
+ * product build bundles, so the layout of their `node_modules` doesn't ship; its `.pnpmfile.mjs`
+ * builds native modules for Electron like the workspace. `extensions/copilot` keeps its own
+ * `node_modules` because its build scripts and runtime code use paths inside it; it builds native
+ * modules for Electron like the workspace.
  */
 export const separateRoots = [
 	'build',
 	'remote',
-	'remote/web',
+	'extensions',
 	'extensions/copilot',
 ];
 
@@ -83,29 +46,62 @@ export const separateRoots = [
  * are installed by its `pnpm install`. pnpm uses the nearest `pnpm-workspace.yaml` above a folder,
  * so folders inside a separate root can't be members of the main workspace. `chat-lib` is extracted
  * from the Copilot extension's sources and published as an npm package; its dependencies are
- * Copilot's (see `extract-chat-lib`).
+ * Copilot's (see `extract-chat-lib`). `remote/web` holds the dependencies of the web build: the
+ * hoisted layout installs them in `remote/node_modules`, and the web build packages them flat (see
+ * `getFlatProductionDependencies`).
  */
 export const separateRootMembers: Readonly<Record<string, readonly string[]>> = {
 	'build': ['build/rspack', 'build/vite'],
+	'remote': ['remote/web'],
+	'extensions': [
+		'extensions/configuration-editing',
+		'extensions/css-language-features',
+		'extensions/css-language-features/server',
+		'extensions/debug-auto-launch',
+		'extensions/debug-server-ready',
+		'extensions/emmet',
+		'extensions/extension-editing',
+		'extensions/git',
+		'extensions/git-base',
+		'extensions/github',
+		'extensions/github-authentication',
+		'extensions/grunt',
+		'extensions/gulp',
+		'extensions/html-language-features',
+		'extensions/html-language-features/server',
+		'extensions/ipynb',
+		'extensions/jake',
+		'extensions/json-language-features',
+		'extensions/json-language-features/server',
+		'extensions/markdown-language-features',
+		'extensions/markdown-language-features/test-workspace/checkbox-count-extension',
+		'extensions/markdown-math',
+		'extensions/merge-conflict',
+		'extensions/mermaid-markdown-features',
+		'extensions/microsoft-authentication',
+		'extensions/notebook-renderers',
+		'extensions/npm',
+		'extensions/php-language-features',
+		'extensions/references-view',
+		'extensions/search-result',
+		'extensions/simple-browser',
+		'extensions/tunnel-forwarding',
+		'extensions/terminal-suggest',
+		'extensions/typescript-language-features',
+		'extensions/vscode-api-tests',
+		'extensions/vscode-colorize-tests',
+		'extensions/vscode-colorize-perf-tests',
+		'extensions/vscode-test-resolver',
+	],
 	'extensions/copilot': ['extensions/copilot/chat-lib'],
 };
 
 /**
- * Separate pnpm install roots that are installed on demand, not by the root postinstall:
- * `build/npm/gyp` by the root preinstall, the others by the scripts or CI jobs that use them.
+ * Separate pnpm install roots that are installed on demand, not by the root postinstall, by the
+ * scripts or CI jobs that use them.
  */
 export const standaloneRoots = [
-	'build/npm/gyp',
 	'test/sanity',
-];
-
-/**
- * Folders that are still installed with npm (`npm ci`), because their packaging relies on npm's
- * `npm_config_os`/`npm_config_cpu`/`npm_config_libc` handling.
- */
-export const npmFolders = [
-	'build/agent-sdk/agents/claude',
-	'build/agent-sdk/agents/codex',
 ];
 
 /**

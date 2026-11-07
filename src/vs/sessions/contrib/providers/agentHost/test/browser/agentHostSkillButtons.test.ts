@@ -15,19 +15,21 @@ import { ContextKeyExpression, IContextKeyService } from '../../../../../../plat
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { MockContextKeyService } from '../../../../../../platform/keybinding/test/common/mockKeybindingService.js';
 import { ChatSendResult, IChatService } from '../../../../../../workbench/contrib/chat/common/chatService/chatService.js';
-import { ChatInteractivity, IChat } from '../../../../../services/sessions/common/session.js';
-import { ISessionsProvidersService } from '../../../../../services/sessions/browser/sessionsProvidersService.js';
-import { ISessionsProvider } from '../../../../../services/sessions/common/sessionsProvider.js';
-import { IActiveSession } from '../../../../../services/sessions/common/sessionsManagement.js';
-import { ISessionsService } from '../../../../../services/sessions/browser/sessionsService.js';
-import { IsAgentHostSession } from '../../../../../services/sessions/browser/sessionScopedContextKeys.js';
-import { AGENT_HOST_SKILL_BUTTON_UPDATE_PR_ID, IsAgentHostSessionContextContribution, isAgentHostSkillButtonId } from '../../browser/agentHostSkillButtons.js';
-import { BaseAgentHostSessionsProvider } from '../../browser/baseAgentHostSessionsProvider.js';
+import { ChatInteractivity, IChat } from '../../../../../../workbench/services/sessions/common/session.js';
+import { ISessionsProvidersService } from '../../../../../../workbench/contrib/sessions/browser/sessionsProvidersService.js';
+import { ISessionsProvider } from '../../../../../../workbench/contrib/sessions/common/sessionsProvider.js';
+import { ISessionsService } from '../../../../../../workbench/contrib/sessions/browser/sessionsService.js';
+import { IsAgentHostSession } from '../../../../../../workbench/contrib/sessions/browser/sessionScopedContextKeys.js';
+import { AGENT_HOST_SKILL_BUTTON_UPDATE_PR_ID, IsAgentHostSessionContextContribution, isAgentHostSkillButtonId } from '../../../../../../workbench/contrib/sessions/providers/agentHost/browser/agentHostSkillButtons.js';
+import '../../browser/agentHostSkillButtons.contribution.js';
+import { BaseAgentHostSessionsProvider } from '../../../../../../workbench/contrib/sessions/providers/agentHost/browser/baseAgentHostSessionsProvider.js';
 // Importing this contribution registers the apply submenu on the changes toolbar,
 // which is the slot that hosts our skill buttons as a dropdown.
 import '../../../../applyCommitsToParentRepo/browser/applyChangesToParentRepo.js';
+import { ITestSessionsService, ITestSessionWithChat, stubFocusedSessionHostFromSessionsService, stubSessionHostsFromSessionsService } from '../../../../../../workbench/contrib/sessions/test/browser/sessionHostTestUtils.js';
+import { ISessionHostService, SessionHostKind } from '../../../../../../workbench/services/sessions/browser/sessionHost.js';
 
-function makeActiveSession(providerId: string): IActiveSession {
+function makeActiveSession(providerId: string): ITestSessionWithChat {
 	const chat = {
 		resource: URI.parse('file:///session'),
 		createdAt: new Date(),
@@ -79,7 +81,7 @@ function makeActiveSession(providerId: string): IActiveSession {
 		lastClosedChat: undefined,
 		visibleChatTabs: constObservable([chat]),
 		shouldShowChatTabs: constObservable(false),
-	} satisfies IActiveSession;
+	} satisfies ITestSessionWithChat;
 }
 
 class FakeAgentHostProvider {
@@ -94,10 +96,9 @@ class FakeNonAgentHostProvider {
 
 class FakeSessionsService extends mock<ISessionsService>() {
 	declare readonly _serviceBrand: undefined;
-	override readonly activeSession = observableValue<IActiveSession | undefined>('activeSession', undefined);
-	override readonly mainWindowActiveSession = this.activeSession;
-	override readonly windowSessions = constObservable<readonly IActiveSession[]>([]);
-	setActiveSession(s: IActiveSession | undefined): void {
+	readonly activeSession = observableValue<ITestSessionWithChat | undefined>('activeSession', undefined);
+	readonly windowSessions = constObservable<readonly ITestSessionWithChat[]>([]);
+	setActiveSession(s: ITestSessionWithChat | undefined): void {
 		this.activeSession.set(s, undefined);
 	}
 }
@@ -128,6 +129,8 @@ suite('agentHostSkillButtons - IsAgentHostSession context key', () => {
 		const instantiationService = store.add(new TestInstantiationService());
 		instantiationService.stub(IContextKeyService, contextKeyService);
 		instantiationService.stub(ISessionsService, sessions);
+		stubSessionHostsFromSessionsService(instantiationService);
+		stubFocusedSessionHostFromSessionsService(instantiationService);
 		instantiationService.stub(ISessionsProvidersService, providers);
 
 		store.add(instantiationService.createInstance(IsAgentHostSessionContextContribution));
@@ -252,7 +255,8 @@ suite('agentHostSkillButtons - target', () => {
 		(chatWindowSession.activeChat as ReturnType<typeof observableValue<IChat>>).set(otherChat, undefined);
 		const sent: string[] = [];
 		const instantiationService = store.add(new TestInstantiationService());
-		instantiationService.stub(ISessionsService, sessions);
+		instantiationService.stub(ISessionsService, upcastPartial<ITestSessionsService>({ activeSession: sessions.activeSession, mainWindowActiveSession: sessions.activeSession, windowSessions: constObservable([chatWindowSession]) }));
+		stubSessionHostsFromSessionsService(instantiationService);
 		instantiationService.stub(IChatService, new class extends mock<IChatService>() {
 			override async acquireOrLoadSession() { return undefined; }
 			override async sendRequest(resource: URI, message: string) {
@@ -261,7 +265,9 @@ suite('agentHostSkillButtons - target', () => {
 			}
 		}());
 
-		await instantiationService.invokeFunction(accessor => CommandsRegistry.getCommand(AGENT_HOST_SKILL_BUTTON_UPDATE_PR_ID)!.handler(accessor, chatWindowSession));
+		// The window's Changes bar passes the session and its window's host, which names the window.
+		const chatWindowHost = instantiationService.get(ISessionHostService).hosts.get().find(host => host.kind === SessionHostKind.ChatWindow)!;
+		await instantiationService.invokeFunction(accessor => CommandsRegistry.getCommand(AGENT_HOST_SKILL_BUTTON_UPDATE_PR_ID)!.handler(accessor, chatWindowSession, undefined, { sessionHostId: chatWindowHost.id }));
 
 		assert.deepStrictEqual(sent, ['agent-host-chat:/session/other /update-pr']);
 	});

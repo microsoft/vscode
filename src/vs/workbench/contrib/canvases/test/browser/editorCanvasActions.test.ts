@@ -20,7 +20,8 @@ import { ChatContextKeys } from '../../../chat/common/actions/chatContextKeys.js
 import { IChatModel } from '../../../chat/common/model/chatModel.js';
 import { IChatViewModel } from '../../../chat/common/model/chatViewModel.js';
 import { ChatNewCanvasMenuId, OPEN_EDITOR_CANVAS_COMMAND_ID, registerEditorCanvasActions, REOPEN_EDITOR_CANVAS_COMMAND_ID } from '../../browser/editorCanvasActions.js';
-import { getCanvasDefinitionInstanceId, ICanvas, ICanvasContext, ICanvasDefinition, ICanvasReopenTarget, ICanvasService } from '../../common/canvas.js';
+import { getCanvasDefinitionInstanceId, ICanvasContext, ICanvasDefinition, ICanvasReopenTarget, ICanvasService } from '../../common/canvas.js';
+import { ICanvas } from '../../../../common/canvasReference.js';
 
 suite('EditorCanvasActions', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();

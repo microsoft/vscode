@@ -22,6 +22,7 @@ import {
 	CloudSandboxConnectionHealthClassification,
 	CloudSandboxConnectionOutcomeClassification,
 	CloudSandboxDiscoveryClassification,
+	CloudSandboxSessionFeedClassification,
 	CloudSandboxFirstSessionRequestClassification,
 	CloudSandboxProvisioningOutcomeClassification,
 	CloudSandboxTelemetryService,
@@ -68,6 +69,11 @@ suite('cloudSandbox telemetry', () => {
 			trigger: 'feedRenewal', requestedMode: 'incremental', mode: 'full', outcome: 'partial',
 			durationMs: 150, pageCount: 4, listRequestCount: 5, taskCount: 30, sandboxTaskCount: 2,
 			changedSandboxTaskCount: 1, checkpointAdvanced: false,
+			intentMode: 'incremental', fullScanReason: 'reconciliationDue',
+			previousInventoryAgeMs: 480_000, lastFullAgeMs: 960_000, queued: true, coalescedRequestCount: 2, coalescedTrigger: 'feedRenewal',
+			checkpointAvailable: true, checkpointSource: 'serverDate',
+			listPageFailureCount: 1, taskDetailFailureCount: 2, repositoryEnrichmentMissCount: 3,
+			unresolvedTaskCount: 2, unreadPageScopeCount: 1, generationInvalidated: false,
 		} satisfies ICloudSandboxDiscoveryTelemetryData;
 		const classified: ClassifiedSample = data;
 		const telemetry = new TestTelemetryService();
@@ -81,15 +87,39 @@ suite('cloudSandbox telemetry', () => {
 			trigger: 'manual', requestedMode: 'full', mode: 'full', outcome: 'complete',
 			durationMs: 0, pageCount: 0, listRequestCount: 0, taskCount: 0, sandboxTaskCount: 0,
 			changedSandboxTaskCount: 0, checkpointAdvanced: false,
+			intentMode: 'incremental', fullScanReason: 'noCheckpoint', checkpointSource: 'unavailable',
+			previousInventoryAgeMs: undefined, lastFullAgeMs: undefined, queued: undefined, coalescedRequestCount: undefined,
+			checkpointAvailable: undefined, listPageFailureCount: undefined, taskDetailFailureCount: undefined,
+			repositoryEnrichmentMissCount: undefined, unresolvedTaskCount: undefined, unreadPageScopeCount: undefined, generationInvalidated: undefined,
 		};
-		Object.assign(data, { trigger: 'private-trigger', requestedMode: 'private-mode', mode: 'private-mode', outcome: 'private-outcome' });
+		Object.assign(data, { trigger: 'private-trigger', requestedMode: 'private-mode', mode: 'private-mode', outcome: 'private-outcome', intentMode: 'private-intent', fullScanReason: 'private-reason', checkpointSource: 'private-source', coalescedTrigger: 'private-trigger' });
 		const telemetry = new TestTelemetryService();
 		const service = store.add(new CloudSandboxTelemetryService(telemetry));
 		service.reportDiscovery(data);
 		assert.deepStrictEqual(telemetry.events, [{
 			eventName: 'cloudSandboxDiscovery',
-			data: { ...data, trigger: 'unknown', requestedMode: 'unknown', mode: 'unknown', outcome: 'unknown' },
+			data: { ...data, trigger: 'unknown', requestedMode: 'unknown', mode: 'unknown', outcome: 'unknown', intentMode: 'unknown', fullScanReason: 'unknown', checkpointSource: 'unknown', coalescedTrigger: 'unknown' },
 		}]);
+	});
+
+	test('feed diagnostics classify every measure and exclude raw close text and credentials', () => {
+		type ClassifiedSample = {
+			[K in keyof Omit<CloudSandboxSessionFeedClassification, 'owner' | 'comment'>]:
+			CloudSandboxSessionFeedClassification[K] extends { isMeasurement: true } ? number | boolean : string
+		};
+		const data = {
+			outcome: 'disconnected', reason: 'abnormalClose', consecutiveFailures: 1, retryDelayMs: 800, statusCode: undefined,
+			connectionDurationMs: 20_000, lastMessageAgeMs: 5_000, gapDurationMs: undefined,
+		} as const;
+		const classified: { [K in keyof ClassifiedSample]: ClassifiedSample[K] | undefined } = data;
+		const telemetry = new TestTelemetryService();
+		const service = store.add(new CloudSandboxTelemetryService(telemetry));
+		service.reportSessionFeed({ ...data, ...{ closeReason: 'private-close', url: 'wss://private-token' } });
+		service.reportSessionFeed({ ...data, ...JSON.parse('{"reason":"private-reason","outcome":"private-outcome"}') });
+		assert.deepStrictEqual(telemetry.events, [
+			{ eventName: 'cloudSandboxSessionFeed', data: classified },
+			{ eventName: 'cloudSandboxSessionFeed', data: { ...classified, reason: 'unknown', outcome: 'unknown' } },
+		]);
 	});
 
 	test('discovery keeps initial, automatic and manual attribution distinct', () => {
