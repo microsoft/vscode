@@ -18,6 +18,7 @@ import { EditorContextKeys } from '../../../../editor/common/editorContextKeys.j
 import { localize, localize2 } from '../../../../nls.js';
 import { Action2, MenuRegistry, MenuId, registerAction2, MenuItemAction } from '../../../../platform/actions/common/actions.js';
 import { IActionViewItemService } from '../../../../platform/actions/browser/actionViewItemService.js';
+import { MenuEntryActionViewItem } from '../../../../platform/actions/browser/menuEntryActionViewItem.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { IConfigurationService, isConfigured } from '../../../../platform/configuration/common/configuration.js';
 import { ContextKeyExpr, IContextKey, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
@@ -74,8 +75,8 @@ import { logSessionsInteraction, SessionsInteractionSource } from '../../../../w
 import { NEW_SESSION_ACTION_ID } from '../../../../workbench/contrib/sessions/common/chatConstants.js';
 import { groupSessionsForPicker } from './sessionsPicker.js';
 import { getSessionConversationActionId, SESSION_CONVERSATION_SIDE_CHATS_GROUP } from '../../../../workbench/contrib/sessions/browser/sessionConversationGroups.js';
-import { ISessionChatItem, SessionChatItemCanDeleteContext, SessionChatItemCanMoveContext, SessionChatItemCanRenameContext, SessionChatItemHasMoveDestinationContext, SessionChatItemIsUntitledContext, SessionItemHasMoveDestinationContext, SessionItemInExternalSectionContext, SessionItemIsCloudContext, SessionsList, SessionsListFocusedChatItemContext } from '../../../../workbench/contrib/sessions/browser/views/sessionsList.js';
-import { SessionsView, SessionsViewId } from '../../../../workbench/contrib/sessions/browser/views/sessionsView.js';
+import { ISessionChatItem, SessionChatItemCanDeleteContext, SessionChatItemCanMoveContext, SessionChatItemCanRenameContext, SessionChatItemHasMoveDestinationContext, SessionChatItemIsUntitledContext, SessionItemHasMoveDestinationContext, SessionItemInExternalSectionContext, SessionItemIsCloudContext, SessionsGrouping, SessionsList, SessionsListFocusedChatItemContext } from '../../../../workbench/contrib/sessions/browser/views/sessionsList.js';
+import { SessionsView, SessionsViewGroupingContext, SessionsViewId } from '../../../../workbench/contrib/sessions/browser/views/sessionsView.js';
 import './media/newSessionActionViewItem.css';
 import { INewSessionComposerService } from '../../../../workbench/contrib/sessions/browser/newSessionComposerService.js';
 import { SESSIONS_CHAT_TABS_SETTING, SessionsChatTabsMode } from '../../../../workbench/contrib/sessions/common/sessionConfig.js';
@@ -111,6 +112,20 @@ export function getSessionsPickerChatWindow(target: ISessionCommandTarget | unde
  */
 export function openPickedSessionInChatWindow(accessor: ServicesAccessor, session: ISession, window: IChatWindow, options: { readonly preserveFocus: boolean; readonly toSide: boolean }): Promise<void> {
 	return openChatInWindow(accessor, session, undefined, { window, preserveFocus: options.preserveFocus, beside: options.toSide ? window.chat.get() : undefined });
+}
+
+/**
+ * Opens a new session, picked in the Sessions picker: in the chat window `window` it runs in, as a new session of that
+ * window, as a tab of its active chat or beside it to the side; elsewhere in the main window.
+ */
+export async function openPickedNewSession(accessor: ServicesAccessor, window: IChatWindow | undefined, options: { readonly preserveFocus: boolean; readonly toSide: boolean }): Promise<void> {
+	if (window) {
+		await accessor.get(IChatWindowService).openNewChat(window, { beside: options.toSide, preserveFocus: options.preserveFocus });
+		return;
+	}
+	const sessionsService = accessor.get(ISessionsService);
+	sessionsService.openNewSession();
+	sessionsService.focusActiveSession();
 }
 
 export const SHOW_SESSIONS_PICKER_COMMAND_ID = 'sessions.showSessionsPicker';
@@ -245,9 +260,7 @@ registerAction2(class ShowSessionsPickerAction extends Action2 {
 		const openSelected = (selected: ISessionPickItem, inBackground: boolean, toSide: boolean): void => {
 			composerService.notifyUserNavigation();
 			if (!selected.session) {
-				// A new session opens in the main window, also when picked in a chat window, for now
-				sessionsService.openNewSession();
-				sessionsService.focusActiveSession();
+				void instantiationService.invokeFunction(accessor => openPickedNewSession(accessor, chatWindow, { preserveFocus: inBackground, toSide })).catch(onUnexpectedError);
 				return;
 			}
 
@@ -1843,6 +1856,9 @@ export class NewSessionActionViewItemContribution extends Disposable implements 
 				if (!(action instanceof MenuItemAction)) {
 					return undefined;
 				}
+				if (source === 'sidebar' && SessionsViewGroupingContext.getValue(contextKeyService) === SessionsGrouping.Inbox) {
+					return instantiationService.createInstance(MenuEntryActionViewItem, action, _options);
+				}
 				return instantiationService.createInstance(NewSessionActionViewItem, action, source, this.newSessionButtonStyle);
 			}, onDidRegister.event));
 		}
@@ -2246,7 +2262,8 @@ registerAction2(class CloseSessionAction extends Action2 {
 			}, ...SessionHeaderMenus.map(id => ({
 				id,
 				when: ContextKeyExpr.and(
-					ContextKeyExpr.or(SessionIsCreatedContext, MultipleSessionsVisibleContext),
+					// Not a new session a chat editor shows, such as a chat window's, which its tab closes: it has no pane to close
+					ContextKeyExpr.or(SessionIsCreatedContext, ContextKeyExpr.and(MultipleSessionsVisibleContext, SessionInChatEditorContext.negate())),
 					SessionHeaderShowsChatContext.negate(),
 				),
 				group: 'secondary/0_pane',

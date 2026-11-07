@@ -57,6 +57,7 @@ export class TestSessionsManagementService extends mock<ISessionsManagementServi
 		return toDisposable(() => this.archiveRequests--);
 	}
 	override readonly onDidChangeSessions = Event.None;
+	override readonly onDidDeleteSession = Event.None;
 	override canMoveChat(_session: ISession, _chat: IChat): boolean { return false; }
 	override canMoveSessionUnder(_session: ISession): boolean { return false; }
 	sessions: ISession[];
@@ -504,6 +505,8 @@ export function createListHarness(disposables: Pick<DisposableStore, 'add'>, ses
 	});
 	instantiationService.stub(IInboxNotificationsService, new class extends mock<IInboxNotificationsService>() {
 		override readonly notifications = constObservable([]);
+		override readonly sessionAttention = constObservable(new Map());
+		override acquireSessionAttention() { return toDisposable(() => { }); }
 		override readonly attentionCount = constObservable(0);
 		override readonly isLoading = constObservable(false);
 		override readonly sortMode = constObservable(InboxNotificationsSortMode.Priority);

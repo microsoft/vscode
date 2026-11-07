@@ -762,7 +762,7 @@ All fields are measurements: `catalogSessionCount`, `evaluatedSessionCount`, `al
 
 The estimate covers unowned candidates reached by Agent Host discovery before age, workspace, archive, or migration visibility filters. Already-owned sessions and candidates skipped before marker inspection are outside `evaluatedSessionCount`; they remain in `catalogSessionCount`. It is a snapshot, not successful recovery or migration, and incomplete/changing files may be missed. Restarts or independent hosts can recount the same disk sessions: analyze per-host snapshots and affected-host rates, not the sum as globally unique recovered sessions. No identifiers, paths, titles, or conversation contents are emitted.
 
-Migration remains adopt-on-open/restore, gated by the startup-frozen setting; unsuccessful probes are not cached. The `agentHost.legacyCopilotCliMigrationProbe` event records a bounded `reason`, the startup/current setting values, and the original subscription/exception `errorCode` and `errorMessage` when available. A timeout is not an eligibility rejection.
+Migration remains adopt-on-open/restore and is not gated by a setting; unsuccessful probes are not cached. The `agentHost.legacyCopilotCliMigrationProbe` event records a bounded `reason` and the original subscription/exception `errorCode` and `errorMessage` when available. A timeout is not an eligibility rejection.
 
 The host's `agentHost.legacyCopilotCliMigration` event records the provider's adoption `reason` separately from the `stage` reached. `declined` records an unregistered, non-adoptable session; `skipped` still means an eligible session was not adopted. `failed` covers adoption, registration, and restoration exceptions, including eligible sessions that were not adopted. A `reason` of `adopted` can therefore accompany a later failure. Early failures before adoption may only be visible in the client probe's error.
 
@@ -787,7 +787,6 @@ Use `diagnosticCategory` for conservative triage, not as a code-bug verdict:
 | Category | Evidence |
 |---|---|
 | `expectedExclusion` | A valid marker explicitly identifies an external session, the session directory or default `userHome` storage root is absent on disk, or a missing marker has a known non-extension-host `lastKnownClient`, with no conflicting adoptable advertisement. |
-| `configurationDisabled` | The host's frozen migration setting is disabled. Compare the client setting fields to investigate startup/configuration disagreement. |
 | `needsInvestigation` | An exception, invalid/unreadable marker, missing storage root under an environment-provided Copilot home (`copilotHomeSource=environment`), an eligible session that did not migrate, or a rejection contradicting an adoptable advertisement. Causes may include environmental/data problems, not only code defects. |
 | `unknown` | Insufficient evidence: for example, a missing marker, ambiguous provenance, or an older provider with no diagnostic details. A missing marker is not proof that the session is external. |
 | `notApplicable` | Migration completed. |

@@ -205,6 +205,14 @@ suite('AgentHost legacy Copilot CLI migration', () => {
 		assert.deepStrictEqual({ resolved, subscribed, outcomes }, { resolved: undefined, subscribed: [], outcomes: [] });
 	});
 
+	test('never probes an unsaved legacy draft', async () => {
+		const { connection, subscribed } = createConnection('adopted');
+
+		const resolved = await adoptLegacyCopilotCliResource(connection, URI.from({ scheme: COPILOT_CLI_EH_SCHEME, path: '/untitled-draft' }), new NullLogService(), telemetry, 'restore');
+
+		assert.deepStrictEqual({ resolved, subscribed, outcomes }, { resolved: undefined, subscribed: [], outcomes: [] });
+	});
+
 	test('declines without probing when there is no connection', async () => {
 		assert.strictEqual(await adoptLegacyCopilotCliResource(undefined, legacyResource, new NullLogService(), telemetry, 'open'), undefined);
 	});

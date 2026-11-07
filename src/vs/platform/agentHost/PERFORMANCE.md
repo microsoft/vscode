@@ -268,7 +268,6 @@ For process readiness by **provider-wide** volume, join `hostReady` to a success
 `hostReady`, `firstSessionList`, and `startupSettled` include a small snapshot:
 
 - `copilotRegistered`, `claudeRegistered`, `codexRegistered`: whether each provider is registered at that milestone, not whether it is authenticated, connected, or has its SDK installed.
-- `migrateLegacyEnabled`: the frozen decision, when known. Taking the snapshot does not initialize or freeze the decision.
 - `externalSessionsMode`: the mode at the milestone; on `firstSessionList`, this is the winning computation's mode rather than a concurrent request's mode.
 
 Each observed `sessionMigration` end marker carries `migrationState`: `backfilled`, `required`, or `unknown` if the existing backfill check failed. `migrationForced` distinguishes forced enumeration of an already-backfilled catalog. The values come from the migration's existing decision, before work runs, and survive deferred/unavailable/error outcomes; telemetry does not repeat the database read. These describe catalog warmness, not OS cache state.

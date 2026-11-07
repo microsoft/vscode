@@ -15,6 +15,7 @@ import { IAgentSubscription } from '../../../../../../platform/agentHost/common/
 import { StateComponents } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import type { SessionState } from '../../../../../../platform/agentHost/common/state/protocol/channels-session/state.js';
 import { COPILOT_CLI_AGENT_PROVIDER, getCopilotCliSessionRawId, migratedCopilotCliResource } from '../../copilotCliEventsUri.js';
+import { isUntitledChatSession } from '../../../common/model/chatUri.js';
 
 /**
  * How long an adoption probe may take before falling back to the legacy resource.
@@ -88,7 +89,8 @@ export async function adoptLegacyCopilotCliResource(
 	timeoutMs: number = LEGACY_MIGRATION_TIMEOUT_MS,
 ): Promise<URI | undefined> {
 	const twin = migratedCopilotCliResource(resource);
-	if (!twin) {
+	// An unsaved draft has no history to migrate, and probing it can wait on a cold host.
+	if (!twin || isUntitledChatSession(resource)) {
 		return undefined;
 	}
 	const startedAt = Date.now();

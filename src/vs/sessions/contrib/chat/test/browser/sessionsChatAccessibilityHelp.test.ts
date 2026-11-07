@@ -152,7 +152,7 @@ suite('SessionsChatAccessibilityHelp', () => {
 		}
 	}
 
-	test('documents chat windows only when enabled', () => {
+	test('documents chat windows, and New Session in them, only when enabled', () => {
 		const help = [false, true].map(enabled => {
 			const instantiationService = store.add(new TestInstantiationService());
 			const configuration = new TestConfigurationService({ [CHAT_WINDOWS_ENABLED_SETTING]: enabled });
@@ -167,12 +167,16 @@ suite('SessionsChatAccessibilityHelp', () => {
 			instantiationService.stub(IAgentWorkbenchLayoutService, { agentWorkbenchLayout: AgentWorkbenchLayout.Desktop, mainContainer: container });
 			instantiationService.stub(ISessionsHostLayoutService, { agentWorkbenchLayout: AgentWorkbenchLayout.Desktop });
 			const content = store.add(new SessionsChatAccessibilityHelp().getProvider(instantiationService)).provideContent();
-			return content.split('\n').find(line => line.startsWith('To show a chat in a window of its own')) ?? null;
+			const lines = content.split('\n');
+			return [lines.find(line => line.startsWith('To show a chat in a window of its own')) ?? null, lines.find(line => line.startsWith('In a chat window, New Session')) ?? null];
 		});
 
 		assert.deepStrictEqual(help, [
-			null,
-			'To show a chat in a window of its own, choose New Window in the Open in submenu of its session or chat context menu in the sessions list, choose Open in New Window in the More Actions menu of its session header, or use the Open Chat in New Window command. The chat shows beside an editor area, which takes the editors it had open in the main window and shows what is opened from the chat. Use the Layout menu in the window\'s title bar to show the chat, the editor area or both, side by side or stacked<keybinding:workbench.action.chatWindow.toggleArrangement>. While a chat window has focus, its session is the active session, selecting a session shown only in a chat window in the sessions list focuses that window, closing the window closes the session there, and chat windows reopen after a restart. Move to Main Window shows the chat in the main window again.',
+			[null, null],
+			[
+				'To show a chat in a window of its own, choose New Window in the Open in submenu of its session or chat context menu in the sessions list, choose Open in New Window in the More Actions menu of its session header, or use the Open Chat in New Window command. The chat shows beside an editor area, which takes the editors it had open in the main window and shows what is opened from the chat. Use the Layout menu in the window\'s title bar to show the chat, the editor area or both, side by side or stacked<keybinding:workbench.action.chatWindow.toggleArrangement>. While a chat window has focus, its session is the active session, selecting a session shown only in a chat window in the sessions list focuses that window, closing the window closes the session there, and chat windows reopen after a restart. Move to Main Window shows the chat in the main window again.',
+				'In a chat window, New Session<keybinding:sessions.chatWindow.newSession> opens a new session as a tab of the window\'s active chat. It starts with that chat\'s workspace, agent, model and mode, which you can change before sending, and joins the group of that chat\'s session in the sessions list. While the window\'s active chat is a new session that has not been sent, New Session moves focus to it instead. Choosing New Session in the Sessions picker of a chat window opens it in that window too, beside the active chat when opened to the side. Press Enter to send its first prompt: the tab becomes the session\'s chat. Use Send in Background<keybinding:sessions.sendInBackground> to start the session in the background: the tab stays a new session, and its status offers Open Session, which opens the started session beside it. If a background start fails, its prompt goes back into the new session when nothing changed there since; otherwise a notification offers Copy Prompt, and Restore Prompt while the new session is still open. A new session that has not been sent can\'t move to the main window or to another window: send it first, or close it to discard it. It reopens with its prompt after a restart. Compare Agents is available in the main window\'s new session.',
+			],
 		]);
 	});
 
@@ -250,7 +254,7 @@ suite('SessionsChatAccessibilityHelp', () => {
 
 		assert.deepStrictEqual({
 			description: content.includes('the confirmation title includes that description, such as Run in terminal: followed by the description'),
-			explain: content.includes('use Tab to reach Explain and press Enter or Space to open a side chat'),
+			explain: content.includes('use Tab to reach Explain and press Enter or Space to open a fresh side chat that explains only the terminal command, without the prior conversation as context'),
 			pending: content.includes('The confirmation stays pending until you allow or skip it'),
 		}, { description: true, explain: true, pending: true });
 	});

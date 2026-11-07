@@ -130,9 +130,10 @@ export class ChatSessionsContrib extends Disposable implements IExtensionContrib
 		const legacyProviderEnabled = instantiationService.invokeFunction(accessor =>
 			accessor.get(IConfigurationService).getExperimentBasedConfig(ConfigKey.Advanced.CLILegacyProviderEnabled, accessor.get(IExperimentationService))
 		);
+		// Set on every activation: an extension host restart without a window reload keeps context keys.
+		void vscode.commands.executeCommand('setContext', 'github.copilot.chat.cli.legacyProviderDisabled', !legacyProviderEnabled);
 		if (!legacyProviderEnabled) {
-			// Hides the `copilotcli` session type; its sessions are migrated to the agent host when opened.
-			void vscode.commands.executeCommand('setContext', 'github.copilot.chat.cli.legacyProviderDisabled', true);
+			// The `copilotcli` session type is hidden; its sessions are migrated to the agent host when opened.
 			logService.info('[ChatSessions] Extension-host Copilot CLI session provider is disabled');
 			return;
 		}

@@ -715,6 +715,11 @@ export interface ICopilotAgentSessionOptions {
 	 */
 	readonly activeClientToolSet?: ActiveClientToolSet;
 	/**
+	 * Registry to read instead of {@link activeClientToolSet} when the chat has moved
+	 * to another session, so owner selection sees the destination's clients.
+	 */
+	readonly currentActiveClientToolSet?: () => ActiveClientToolSet | undefined;
+	/**
 	 * Server-side host for the agent host's server tools. When provided, the
 	 * session advertises the server tools (feedback "comments" today, more in
 	 * the future) and exposes SDK tool handlers that execute them in-process.
@@ -745,6 +750,8 @@ export interface ICopilotAgentSessionOptions {
 	 * by the local macOS Agent Host. Without it, the plugin's permission prompts keep the ordinary elicitation UI.
 	 */
 	readonly computerUsePermissionSetup?: () => CopilotComputerUsePermissionSetup | undefined;
+	/** The model router check tool, when routers are on as the session launches. */
+	readonly modelRouterTools?: () => Tool<unknown>[];
 
 	/**
 	 * Platform used to compute the SDK sandbox policy. Defaults to
@@ -1955,6 +1962,7 @@ export class CopilotAgentSession extends Disposable {
 	 * frozen into {@link _appliedSnapshot}.
 	 */
 	private readonly _activeClientToolSet: ActiveClientToolSet;
+	private readonly _currentActiveClientToolSet: () => ActiveClientToolSet | undefined;
 	/** Whether a client's host-published membership includes this chat. */
 	private readonly _clientReachesChat: (clientId: string, chat: URI) => boolean;
 	/** Tool names that are client-provided, derived from snapshot. */
@@ -2060,6 +2068,7 @@ export class CopilotAgentSession extends Disposable {
 	private readonly _onTurnEnded: () => void;
 	private readonly _onSteeringReady: ((session: CopilotAgentSession) => void) | undefined;
 	private readonly _computerUseSetup: (() => CopilotComputerUsePermissionSetup | undefined) | undefined;
+	private readonly _modelRouterTools: (() => Tool<unknown>[]) | undefined;
 	/** This chat as the Computer Use setup sees it; one stable object, which the setup compares by identity. */
 	private readonly _computerUseSetupChat: ICopilotComputerUseSetupChat;
 	/** Lets the agent ask the user to turn on Computer Use; it outlives relaunches so a decline holds for the chat. */
@@ -2286,6 +2295,7 @@ export class CopilotAgentSession extends Disposable {
 		this._onTurnEnded = options.onTurnEnded ?? (() => { });
 		this._onSteeringReady = options.onSteeringReady;
 		this._computerUseSetup = options.computerUsePermissionSetup;
+		this._modelRouterTools = options.modelRouterTools;
 		this._computerUseSetupChat = {
 			chatUri: options.chatChannelUri.toString(),
 			requestInput: request => this._emitAction({ type: ActionType.ChatInputRequested, request }),
@@ -2356,6 +2366,7 @@ export class CopilotAgentSession extends Disposable {
 		// Standalone / test construction uses a fresh empty registry, which
 		// leaves client tool calls unstamped (no owning client).
 		this._activeClientToolSet = options.activeClientToolSet ?? new ActiveClientToolSet();
+		this._currentActiveClientToolSet = options.currentActiveClientToolSet ?? (() => undefined);
 		this._clientReachesChat = options.clientReachesChat ?? (() => true);
 
 		// Keep the connection warm; asynchronous consumers acquire their own references.
@@ -3390,24 +3401,28 @@ export class CopilotAgentSession extends Disposable {
 			?? this._appliedSnapshot.tools.find(tool => tool.name === toolName);
 	}
 
-	/** Resolves the owning client for a chat-scoped tool call, honoring host-published chat membership. */
-	private _resolveClientToolOwner(toolName: string): string | undefined {
+	/**
+	 * Resolves the owning client for a chat-scoped tool call, honoring host-published chat membership.
+	 * When `hostCanRun` is set and no candidate is connected, returns `undefined` so the host runs the tool instead of waiting on a disconnected client.
+	 */
+	private _resolveClientToolOwner(toolName: string, hostCanRun: boolean): string | undefined {
 		const chat = this._chatChannelUri;
 		const applied = this._getClientToolDefinition(toolName);
-		const provides = (clientId: string) => !!applied && this._activeClientToolSet.get(clientId)
+		const toolSet = this._currentActiveClientToolSet() ?? this._activeClientToolSet;
+		const provides = (clientId: string) => !!applied && toolSet.get(clientId)
 			.some(tool => tool.name === toolName && structuralToolsEqual([applied], [tool]));
 		const preferred = this._currentTurn.value?.senderClientId;
-		const candidates = [...this._activeClientToolSet.clientIds()]
+		const candidates = [...toolSet.clientIds()]
 			.filter(clientId => this._clientReachesChat(clientId, chat) && provides(clientId));
 		const connected = candidates.filter(clientId => this._clientConnections.isClientConnected(clientId));
-		const owners = connected.length > 0 ? connected : candidates;
+		const owners = connected.length > 0 || hostCanRun ? connected : candidates;
 		return preferred && owners.includes(preferred) ? preferred : owners[0];
 	}
 
 	private _getToolCallContributor(toolName: string, mcpServerName: string | undefined): ToolCallContributor | undefined {
 		const clientToolName = this._clientToolName(toolName);
 		if (this._clientToolNames.has(clientToolName)) {
-			const clientId = this._resolveClientToolOwner(clientToolName);
+			const clientId = this._resolveClientToolOwner(clientToolName, this._isToolSearchActive() && toolName === RUNTIME_TOOL_SEARCH_TOOL_NAME);
 			return clientId ? { kind: ToolCallContributorKind.Client, clientId } : undefined;
 		}
 		if (mcpServerName) {
@@ -5685,6 +5700,7 @@ export class CopilotAgentSession extends Disposable {
 			setProgressUpdatesPromptEligible: eligible => { this._progressUpdatesPromptEligible = eligible; },
 			createServerSdkTools: toolSearchActive => this._createServerSdkTools(toolSearchActive),
 			createComputerUseActivationTools: () => this._computerUseActivation.createTools(),
+			createModelRouterTools: () => this._modelRouterTools?.() ?? [],
 			reloadExtensions: () => this.reloadExtensions(),
 			handlePreToolUse: input => this._handlePreToolUse(input),
 			handlePostToolUse: input => this._handlePostToolUse(input),

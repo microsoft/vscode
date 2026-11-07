@@ -55,7 +55,7 @@ import { VisibleSessions } from '../../../../../workbench/services/sessions/brow
 import { mock, upcastPartial } from '../../../../../base/test/common/mock.js';
 
 import { Action } from '../../../../../base/common/actions.js';
-import { getSessionsPickerChatWindow, NewSessionActionViewItem, openPickedSessionInChatWindow, type NewSessionButtonStyle, PROMOTE_CHAT_TO_SESSION_ACTION_ID, SessionConversationActionsContribution, SessionListActionsExperimentContribution } from '../../browser/sessionsActions.js';
+import { getSessionsPickerChatWindow, NewSessionActionViewItem, openPickedNewSession, openPickedSessionInChatWindow, type NewSessionButtonStyle, PROMOTE_CHAT_TO_SESSION_ACTION_ID, SessionConversationActionsContribution, SessionListActionsExperimentContribution } from '../../browser/sessionsActions.js';
 import '../../../chat/browser/chat.contribution.js';
 import { NEW_SESSION_ACTION_ID } from '../../../../../workbench/contrib/sessions/common/chatConstants.js';
 import { ArchiveChatAction, ArchiveSessionAction } from '../../browser/views/sessionsViewActions.js';
@@ -212,13 +212,15 @@ suite('Sessions - Actions', () => {
 		}, {
 			toolbar: [
 				{ id: 'sessions.chatCompositeBar.addChat', group: 'navigation', order: 1, when: 'sessionSupportsMultipleChats && sessionsListPromoteNewChatAction && !sessionIsArchived && !sessionItem.inExternalSection && !sessionItem.isCloud' },
-				{ id: ARCHIVE_SESSION_COMMAND_ID, group: 'navigation', order: 2, when: '!sessionIsArchived' },
+				{ id: ARCHIVE_SESSION_COMMAND_ID, group: 'navigation', order: 3, when: 'chatIsEnabled && !sessionIsArchived && sessionsViewPane.grouping == \'inbox\'' },
+				{ id: ARCHIVE_SESSION_COMMAND_ID, group: 'navigation', order: 2, when: '!sessionIsArchived && sessionsViewPane.grouping != \'inbox\'' },
 				{ id: 'sessionsViewPane.pinSession', group: 'navigation', order: 1, when: '!sessionIsArchived && !sessionItem.isPinned && !sessionsListPromoteNewChatAction' },
 				{ id: 'sessionsViewPane.unpinSession', group: 'navigation', order: 1, when: 'sessionItem.isPinned && !sessionIsArchived && !sessionsListPromoteNewChatAction' },
 			],
 			contextMenu: [
 				{ id: 'sessions.chatCompositeBar.addChat', group: 'navigation', order: 2, when: 'sessionSupportsMultipleChats && !sessionIsArchived && !sessionItem.inExternalSection' },
-				{ id: ARCHIVE_SESSION_COMMAND_ID, group: '1_state', order: 3, when: '!sessionIsArchived' },
+				{ id: ARCHIVE_SESSION_COMMAND_ID, group: '4_manage', order: 2.5, when: 'chatIsEnabled && !sessionIsArchived && sessionsViewPane.grouping == \'inbox\'' },
+				{ id: ARCHIVE_SESSION_COMMAND_ID, group: '1_state', order: 3, when: '!sessionIsArchived && sessionsViewPane.grouping != \'inbox\'' },
 				{ id: 'sessionsViewPane.pinSession', group: '2_organize', order: 1, when: '!sessionIsArchived && !sessionItem.isPinned' },
 				{ id: 'sessionsViewPane.unpinSession', group: '2_organize', order: 1, when: 'sessionItem.isPinned && !sessionIsArchived' },
 			],
@@ -1439,7 +1441,7 @@ suite('Sessions - Actions', () => {
 				],
 				session: [
 					{ group: 'navigation', when: 'multipleSessionsVisible && sessionToolbarShowsSession' },
-					{ group: 'secondary/0_pane', when: 'multipleSessionsVisible && !sessionHeaderShowsChat || sessionIsCreated && !sessionHeaderShowsChat' },
+					{ group: 'secondary/0_pane', when: 'sessionIsCreated && !sessionHeaderShowsChat || multipleSessionsVisible && !sessionHeaderShowsChat && !sessionInChatEditor' },
 				],
 			},
 			contextMenu: {
@@ -1447,7 +1449,7 @@ suite('Sessions - Actions', () => {
 					{ group: 'secondary/0_pane', when: 'sessionActiveChatIsClosable && sessionHeaderShowsChat' },
 				],
 				session: [
-					{ group: 'secondary/0_pane', when: 'multipleSessionsVisible && !sessionHeaderShowsChat || sessionIsCreated && !sessionHeaderShowsChat' },
+					{ group: 'secondary/0_pane', when: 'sessionIsCreated && !sessionHeaderShowsChat || multipleSessionsVisible && !sessionHeaderShowsChat && !sessionInChatEditor' },
 				],
 			},
 		});
@@ -2711,5 +2713,27 @@ suite('Sessions - Actions', () => {
 			windows: { mainWindow: undefined, paneOfMainWindow: undefined, chatWindow: 7, paneOfChatWindow: 7, noHost: undefined },
 			opened: ['/picked in 7', '/picked in 7 beside /in-window preserving focus'],
 		});
+	});
+
+	test('New Session, picked in the Sessions picker of a chat window, opens a new session of that window: as a tab of its active chat, or beside it to the side, without focus in the background; in the main window it opens in the main window', async () => {
+		const opened: string[] = [];
+		const chatWindow = upcastPartial<IChatWindow>({ windowId: 7 });
+		const instantiationService = disposables.add(new TestInstantiationService());
+		instantiationService.stub(IChatWindowService, upcastPartial<IChatWindowService>({
+			openNewChat: async (window, options) => { opened.push(`new chat in ${window.windowId}${options?.beside ? ' beside' : ''}${options?.preserveFocus ? ' preserving focus' : ''}`); },
+		}));
+		instantiationService.stub(ISessionsService, upcastPartial<ISessionsService>({
+			openNewSession: async () => {
+				opened.push('new session in the main window');
+				return { session: undefined, trustDeclined: false } satisfies IOpenNewSessionResult;
+			},
+			focusActiveSession: () => { opened.push('focus the active session'); },
+		}));
+
+		await instantiationService.invokeFunction(accessor => openPickedNewSession(accessor, chatWindow, { preserveFocus: false, toSide: false }));
+		await instantiationService.invokeFunction(accessor => openPickedNewSession(accessor, chatWindow, { preserveFocus: true, toSide: true }));
+		await instantiationService.invokeFunction(accessor => openPickedNewSession(accessor, undefined, { preserveFocus: true, toSide: true }));
+
+		assert.deepStrictEqual(opened, ['new chat in 7', 'new chat in 7 beside preserving focus', 'new session in the main window', 'focus the active session']);
 	});
 });

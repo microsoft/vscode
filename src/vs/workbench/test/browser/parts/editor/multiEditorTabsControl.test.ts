@@ -5,6 +5,7 @@
 
 import assert from 'assert';
 import { stub } from 'sinon';
+import { isSafari } from '../../../../../base/browser/browser.js';
 import { $, Dimension, EventType, ModifierKeyEmitter, reset, scheduleAtNextAnimationFrame } from '../../../../../base/browser/dom.js';
 import { mainWindow } from '../../../../../base/browser/window.js';
 import { timeout } from '../../../../../base/common/async.js';
@@ -39,6 +40,9 @@ import '../../../../contrib/modernUI/browser/media/tabs.css';
 import '../../../../contrib/modernUI/browser/connectedEditorTabs.js';
 
 suite('MultiEditorTabsControl', () => {
+
+	// WebKit mispositions RTL sticky Add controls: https://bugs.webkit.org/show_bug.cgi?id=203120
+	const stickyAddTabDirections = isSafari ? ['ltr'] : ['ltr', 'rtl'];
 
 	let disposables: DisposableStore;
 
@@ -516,7 +520,7 @@ suite('MultiEditorTabsControl', () => {
 			};
 		};
 		const results = [];
-		for (const direction of ['ltr', 'rtl']) {
+		for (const direction of stickyAddTabDirections) {
 			for (const zoom of [1, 1.25]) {
 				const root = group.closest<HTMLElement>('.monaco-workbench')!;
 				root.dir = direction;
@@ -571,7 +575,7 @@ suite('MultiEditorTabsControl', () => {
 			for (let activeIndex = 0; activeIndex < count; activeIndex++) {
 				model.setActive(editors[activeIndex]);
 				control.openEditor(editors[activeIndex]);
-				for (const direction of ['ltr', 'rtl']) {
+				for (const direction of stickyAddTabDirections) {
 					root.dir = direction;
 					for (const width of [600, 100, 600]) {
 						await layoutConnectedGroup(group, width);
@@ -620,7 +624,7 @@ suite('MultiEditorTabsControl', () => {
 		control.updateOptions(oldOptions, partOptions);
 		openNamedEditors(['first.ts', 'middle.ts', 'last.ts']);
 		const results = [];
-		for (const direction of ['ltr', 'rtl']) {
+		for (const direction of stickyAddTabDirections) {
 			root.dir = direction;
 			for (const zoom of [1, 1.25]) {
 				root.style.zoom = String(zoom);

@@ -73,6 +73,7 @@ import { getWindowHost, ISessionHost, SessionHostKind } from '../../../services/
 import { CIStatusWidget } from './checksWidget.js';
 import { BRANCH_CHANGES_CHANGESET_ID, GITHUB_REMOTE_FILE_SCHEME, IChat, ISessionChangeset, ISessionFolder, ISessionChangesetOperation, ISessionChangesSummary, ISessionWorkspace, isSessionCreated, SESSION_CHANGES_CHANGESET_ID, SessionChangesetOperationScope, SessionChangesetOperationStatus, SessionStatus, TURN_CHANGES_CHANGESET_ID, UNCOMMITTED_CHANGES_CHANGESET_ID, ISession } from '../../../services/sessions/common/session.js';
 import { isAgentHostProviderId } from '../../sessions/common/agentHostSessionsProvider.js';
+import { ISessionsManagementService } from '../../sessions/common/sessionsManagement.js';
 import { Orientation } from '../../../../base/browser/ui/sash/sash.js';
 import { IView, LayoutPriority, Sizing, SplitView } from '../../../../base/browser/ui/splitview/splitview.js';
 import { Color } from '../../../../base/common/color.js';
@@ -152,6 +153,35 @@ export function createChangesSessionScope(changesViewService: IChangesViewServic
 	const isMainWindow = windowHost.kind === SessionHostKind.MainWindow;
 	const { session, chat } = windowHost;
 	return { session, chat, isMainWindow, hostCommandContext: windowHost.commandContext, changes: isMainWindow ? getActiveSessionChanges(changesViewService) : changesViewService.getSessionChanges(session, chat) };
+}
+
+/**
+ * The scope of a Changes editor that shows the changes of `source`. Outside the main window, one that names a chat is the scope
+ * of that chat, as are its diffs, whichever chat its window shows; otherwise it is the scope of the window of `host`.
+ */
+export function createChangesEditorScope(changesViewService: IChangesViewService, sessionsManagementService: ISessionsManagementService, host: ISessionHost, source: IObservable<{ readonly session: URI; readonly chat: URI | undefined } | undefined>): IChangesSessionScope {
+	const windowHost = getWindowHost(host);
+	if (windowHost.kind === SessionHostKind.MainWindow) {
+		return createChangesSessionScope(changesViewService, host);
+	}
+	const sessionsChanged = observableSignalFromEvent('changesEditorScope.sessions', sessionsManagementService.onDidChangeSessions);
+	const named = derived(reader => {
+		const value = source.read(reader);
+		if (!value?.chat) {
+			return undefined;
+		}
+		sessionsChanged.read(reader);
+		return { session: sessionsManagementService.getSession(value.session), chat: value.chat };
+	});
+	const session = derived(reader => {
+		const value = named.read(reader);
+		return value ? value.session : windowHost.session.read(reader);
+	});
+	const chat = derived(reader => {
+		const value = named.read(reader);
+		return value ? value.session?.chats.read(reader).find(candidate => isEqual(candidate.resource, value.chat)) : windowHost.chat.read(reader);
+	});
+	return { session, chat, isMainWindow: false, hostCommandContext: windowHost.commandContext, changes: changesViewService.getSessionChanges(session, chat) };
 }
 
 class ChangesMenuWorkbenchButtonBarWidget extends Disposable implements IChangesButtonBarWidget {

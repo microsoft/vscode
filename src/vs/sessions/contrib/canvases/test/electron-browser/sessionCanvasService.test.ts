@@ -8,7 +8,7 @@ import { DeferredPromise, timeout } from '../../../../../base/common/async.js';
 import { CancellationError } from '../../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { Disposable, IReference } from '../../../../../base/common/lifecycle.js';
-import { constObservable, derived, IReader, observableValue, transaction } from '../../../../../base/common/observable.js';
+import { autorun, constObservable, derived, IReader, observableValue, transaction } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { mock, upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
@@ -36,7 +36,7 @@ import { IChatDeletedEvent, ISessionsChangeEvent, ISessionsManagementService } f
 import { ISessionEditorWorkingSetOwner, SessionEditorWorkingSetService } from '../../../layout/common/sessionEditorWorkingSet.js';
 import { ISessionCanvasRegistryService } from '../../common/sessionCanvas.js';
 import { registerSessionCanvasActions, REOPEN_SESSION_CANVAS_COMMAND_ID } from '../../electron-browser/sessionCanvasActions.js';
-import { CanvasInput, ICanvasModelResolution } from '../../../../../workbench/contrib/canvases/common/canvas.js';
+import { CanvasInput, canPresentCanvasInGroup, ICanvasModelResolution } from '../../../../../workbench/contrib/canvases/common/canvas.js';
 import { CanvasService } from '../../../../../workbench/contrib/canvases/electron-browser/canvasService.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { TestNotificationService } from '../../../../../platform/notification/test/common/testNotificationService.js';
@@ -139,6 +139,7 @@ suite('SessionCanvasService', () => {
 		const closeSettled: Promise<void>[] = [];
 		let closeCount = 0;
 		const editorService = new class extends mock<IEditorService>() {
+			override readonly onDidEditorsChange = Event.None;
 			override openEditor(...args: unknown[]): Promise<ITextDiffEditorPane | undefined> {
 				const input = args[0] as CanvasInput;
 				opened.push(input);
@@ -168,6 +169,7 @@ suite('SessionCanvasService', () => {
 		const editorGroupsService = upcastPartial<IEditorGroupsService>({
 			activeGroup: editorGroup,
 			mainPart: upcastPartial<IEditorGroupsService['mainPart']>({ activeGroup: editorGroup, windowId: 1 }),
+			getGroup: id => id === editorGroup.id ? editorGroup : undefined,
 		});
 		const pinnedCanvases = createPinnedCanvases();
 		const contextService = store.add(new SessionCanvasContextService(
@@ -1348,7 +1350,7 @@ suite('SessionCanvasService', () => {
 	test('a chat window presents the canvases of the chat it shows, in any of its groups, whichever session the main window shows; other windows and chats do not', () => {
 		const chatWindowChat = URI.parse('agent-host-chat:/session/main');
 		const chatWindows = new Map([
-			[2, upcastPartial<IChatWindow>({ chat: constObservable(chatWindowChat) })],
+			[2, upcastPartial<IChatWindow>({ windowId: 2, chat: constObservable(chatWindowChat), chats: constObservable([chatWindowChat]) })],
 		]);
 		const contextService = store.add(new SessionCanvasContextService(
 			sessionHostServiceOf(store, { mainWindowActiveSession: constObservable(undefined), gridShown: constObservable([]), windowSessions: constObservable([]) }),
@@ -1373,6 +1375,52 @@ suite('SessionCanvasService', () => {
 			ownChatOutsideWorkingSets: contextService.presentsOutsideWorkingSets(owner),
 			otherChatOutsideWorkingSets: contextService.presentsOutsideWorkingSets(otherChat),
 		}, { ownChatInItsWindow: true, otherChatInTheWindow: false, inAnotherWindow: false, ownChatOutsideWorkingSets: true, otherChatOutsideWorkingSets: false });
+	});
+
+	test('a chat window keeps presenting the canvases of its chat while another of its chats is active, until the chat leaves it', () => {
+		const ownerChat = URI.parse('agent-host-chat:/session/main');
+		const nestedChat = URI.parse('agent-host-chat:/session/nested');
+		const activeChat = observableValue<URI>('activeChat', ownerChat);
+		const windowChats = observableValue<readonly URI[]>('windowChats', [ownerChat]);
+		const chatWindow = upcastPartial<IChatWindow>({ windowId: 2, chat: activeChat, chats: windowChats });
+		const editorGroupsService = upcastPartial<IEditorGroupsService>({ mainPart: upcastPartial<IEditorGroupsService['mainPart']>({ windowId: 1 }) });
+		const contextService = store.add(new SessionCanvasContextService(
+			sessionHostServiceOf(store, { mainWindowActiveSession: constObservable(undefined), gridShown: constObservable([]), windowSessions: constObservable([]) }),
+			focusedSessionHostServiceOf(constObservable(undefined)),
+			upcastPartial<ISessionsManagementService>({ onDidChangeSessions: Event.None, onDidDeleteChat: Event.None }),
+			editorGroupsService,
+			new SessionEditorWorkingSetService(),
+			upcastPartial<IAgentWorkbenchLayoutService>({ suppressEditorPartAutoVisibility: () => Disposable.None }),
+			upcastPartial<IChatService>({ chatModels: constObservable([]), getSession: () => undefined }),
+			upcastPartial<ICustomViewService>({ activeCustomView: constObservable(undefined) }),
+			createPinnedCanvases().service,
+			upcastPartial<IChatWindowService>({ getWindow: windowId => windowId === 2 ? chatWindow : undefined, windows: constObservable([chatWindow]) }),
+		));
+		const owner = { providerId: 'local-agent-host', session: URI.parse('agent-host-session:/session'), chat: ownerChat };
+		const canPresent = () => ({
+			chatWindow: canPresentCanvasInGroup(owner, upcastPartial<IEditorGroup>({ windowId: 2 }), editorGroupsService, contextService),
+			mainWindow: canPresentCanvasInGroup(owner, upcastPartial<IEditorGroup>({ windowId: 1 }), editorGroupsService, contextService),
+		});
+
+		// What a reader of the chat window's answer sees as it changes, so that canvases close where they no longer show.
+		const observed: boolean[] = [];
+		store.add(autorun(reader => observed.push(canPresentCanvasInGroup(owner, upcastPartial<IEditorGroup>({ windowId: 2 }), editorGroupsService, contextService, reader))));
+
+		const ownerActive = canPresent();
+		transaction(tx => {
+			windowChats.set([ownerChat, nestedChat], tx);
+			activeChat.set(nestedChat, tx);
+		});
+		const anotherChatActive = canPresent();
+		windowChats.set([nestedChat], undefined);
+		const ownerLeft = canPresent();
+
+		assert.deepStrictEqual({ ownerActive, anotherChatActive, ownerLeft, observed }, {
+			ownerActive: { chatWindow: true, mainWindow: true },
+			anotherChatActive: { chatWindow: true, mainWindow: true },
+			ownerLeft: { chatWindow: false, mainWindow: true },
+			observed: [true, true, false],
+		});
 	});
 
 	test('the canvases of the chat a chat window shows, and of the main window\'s chat, stay presentable while another window has focus', () => {

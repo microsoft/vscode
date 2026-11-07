@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Disposable, MutableDisposable } from '../../../../../base/common/lifecycle.js';
-import { Emitter } from '../../../../../base/common/event.js';
+import { Emitter, Event } from '../../../../../base/common/event.js';
 import { LRUCache } from '../../../../../base/common/map.js';
 import { autorun, IObservable, observableValue } from '../../../../../base/common/observable.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
@@ -103,6 +103,9 @@ export class SessionModelSelection extends Disposable implements ISessionModelSe
 	private readonly _providerListener = this._register(new MutableDisposable());
 	private readonly _modelConfigurationListener = this._register(new MutableDisposable());
 	private readonly _onDidChangeModelConfiguration = this._register(new Emitter<readonly string[]>());
+	private readonly _onDidSelectModel = this._register(new Emitter<string>());
+	/** Fires with the model the user selected ({@link selectModel} as a user action), once it applied it. */
+	readonly onDidSelectModel: Event<string> = this._onDidSelectModel.event;
 	private _modelConfigurationAccess: IModelConfigurationAccess | undefined;
 	private readonly _diagnostics: ChatModelSelectionDiagnostics;
 	private readonly _controller: ChatInputModelSelectionController;
@@ -252,6 +255,9 @@ export class SessionModelSelection extends Disposable implements ISessionModelSe
 			providerModelAfter: chat.modelId.get(),
 			storedModelAfter: this._storageService.get(storageKey, StorageScope.PROFILE),
 		}, 'info');
+		if (isUserAction) {
+			this._onDidSelectModel.fire(model.identifier);
+		}
 		return true;
 	}
 

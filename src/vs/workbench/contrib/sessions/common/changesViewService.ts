@@ -90,6 +90,23 @@ export interface IChangesSessionScope {
 	readonly hostCommandContext?: { readonly sessionHostId: string };
 }
 
+/**
+ * The scope of the Changes editor that UI is created in, such as the header that shows its picker: UI injects it as it does
+ * its session host. `undefined` outside a Changes editor, where UI takes the scope of its window.
+ */
+export interface IChangesEditorScope {
+	readonly _serviceBrand: undefined;
+	readonly scope: IChangesSessionScope | undefined;
+}
+
+export const IChangesEditorScope = createDecorator<IChangesEditorScope>('changesEditorScope');
+
+/** The {@link IChangesEditorScope} of UI outside a Changes editor. */
+export class NoChangesEditorScope implements IChangesEditorScope {
+	declare readonly _serviceBrand: undefined;
+	readonly scope = undefined;
+}
+
 /** The changes observables of the active session, assembled from the service's `activeSession*` observables. */
 export function getActiveSessionChanges(service: IChangesViewService): IChangesSessionObservables {
 	return {
