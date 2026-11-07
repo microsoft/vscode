@@ -7,7 +7,7 @@ import assert from 'assert';
 import { URI } from '../../../../base/common/uri.js';
 import { mock } from '../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
-import { IDialogService, IPrompt } from '../../../dialogs/common/dialogs.js';
+import { IDialogService, IPrompt, IPromptResult, IPromptResultWithCancel, IPromptWithCustomCancel, IPromptWithDefaultCancel } from '../../../dialogs/common/dialogs.js';
 import { TestDialogService } from '../../../dialogs/test/common/testDialogService.js';
 import { TestNotificationService } from '../../../notification/test/common/testNotificationService.js';
 import { IUndoRedoElement, UndoRedoElementType, UndoRedoGroup } from '../../common/undoRedo.js';
@@ -242,10 +242,12 @@ suite('UndoRedoService', () => {
 
 	function createPromptCountingDialogService(counter: { prompts: number }): IDialogService {
 		return new class extends mock<IDialogService>() {
-			override async prompt<T = any>(prompt: IPrompt<any>) {
+			override prompt<T>(prompt: IPromptWithCustomCancel<T>): Promise<IPromptResultWithCancel<T>>;
+			override prompt<T>(prompt: IPromptWithDefaultCancel<T>): Promise<IPromptResult<T>>;
+			override prompt<T>(prompt: IPrompt<T>): Promise<IPromptResult<T>>;
+			override async prompt<T>(prompt: IPrompt<T> | IPromptWithCustomCancel<T>): Promise<IPromptResult<T> | IPromptResultWithCancel<T>> {
 				counter.prompts++;
-				const result = prompt.buttons?.[0].run({ checkboxChecked: false });
-				return { result };
+				return { result: await prompt.buttons?.[0].run({ checkboxChecked: false }) };
 			}
 			override async confirm() {
 				return { confirmed: true };
