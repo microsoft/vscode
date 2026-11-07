@@ -15,13 +15,17 @@ import { Emitter, Event } from '../../../base/common/event.js';
 import { IHostService } from '../../../workbench/services/host/browser/host.js';
 import { toDisposable } from '../../../base/common/lifecycle.js';
 import { isMacintosh, isNative } from '../../../base/common/platform.js';
-import { mock } from '../../../base/test/common/mock.js';
+import { mock, upcastPartial } from '../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../base/test/common/utils.js';
 import { ConfigurationTarget } from '../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../platform/configuration/test/common/testConfigurationService.js';
 import { IEditorGroupsContainer } from '../../../workbench/services/editor/common/editorGroupsService.js';
 import { IWorkbenchLayoutService, LayoutSettings, ModernUIDensity, Parts } from '../../../workbench/services/layout/browser/layoutService.js';
-import { TestLayoutService, workbenchInstantiationService } from '../../../workbench/test/browser/workbenchTestServices.js';
+import { TestLayoutService, TestMenuService, workbenchInstantiationService } from '../../../workbench/test/browser/workbenchTestServices.js';
+import { IMenu, IMenuChangeEvent, IMenuService, MenuId, MenuItemAction } from '../../../platform/actions/common/actions.js';
+import { ICommandService } from '../../../platform/commands/common/commands.js';
+import { IContextKeyService } from '../../../platform/contextkey/common/contextkey.js';
+import { AgentsWindowMenus } from '../../browser/agentsWindowMenus.js';
 import { TitlebarPart, TitleService } from '../../browser/parts/titlebarPart.js';
 // eslint-disable-next-line local/code-import-patterns -- Test the title-bar styling supplied by the Modern UI contribution.
 import '../../../workbench/contrib/modernUI/browser/media/titlebar.css';
@@ -139,6 +143,72 @@ suite('Sessions - Titlebar Part', () => {
 		assert.deepStrictEqual({ initial, compact: read() }, {
 			initial: { height: 44, containerHeight: '44px', notificationTop: '49px' },
 			compact: { height: 35, containerHeight: '35px', notificationTop: '40px' },
+		});
+	});
+
+	test('the last shown actions of a chat window\'s title bar keep its inset to the window\'s edge: its layout actions, or its session actions while the layout actions show in its Session Activity Bar; the main window\'s title bar marks none', () => {
+		const { instantiationService } = createTitlebar();
+		const container = append(mainWindow.document.body, $('.monaco-workbench.agent-sessions-workbench.mac'));
+		store.add(toDisposable(() => container.remove()));
+		container.style.cssText = 'width: 800px; --vscode-agents-layout-floatingPanelGap: 4px; --vscode-spacing-size80: 8px; --vscode-spacing-size40: 4px;';
+		instantiationService.stub(IWorkbenchLayoutService, new class extends TestLayoutService {
+			override getContainer(): HTMLElement { return container; }
+		}());
+		const onDidChangeLayoutActions = store.add(new Emitter<IMenuChangeEvent>());
+		let layoutActionsInTitleBar = true;
+		const contextKeyService = instantiationService.get(IContextKeyService);
+		const commandService = instantiationService.get(ICommandService);
+		const actions = (...ids: string[]) => [['navigation', ids.map(id => new MenuItemAction({ id, title: id }, undefined, undefined, undefined, undefined, contextKeyService, commandService))]] as [string, MenuItemAction[]][];
+		instantiationService.stub(IMenuService, new class extends TestMenuService {
+			override createMenu(id: MenuId, menuContextKeyService: IContextKeyService): IMenu {
+				if (id === AgentsWindowMenus.TitleBarSessionMenu) {
+					return { onDidChange: Event.None, dispose: () => { }, getActions: () => actions('createPullRequest') };
+				}
+				if (id === AgentsWindowMenus.TitleBarWindowLayout) {
+					return { onDidChange: onDidChangeLayoutActions.event, dispose: () => { }, getActions: () => layoutActionsInTitleBar ? actions('toggleEditor', 'configureLayout') : [] };
+				}
+				return super.createMenu(id, menuContextKeyService);
+			}
+		}());
+		const titleService = store.add(instantiationService.createInstance(TitleService));
+		const part = store.add(titleService.createAuxiliaryTitlebarPart(container, new class extends mock<IEditorGroupsContainer>() { }(), instantiationService));
+		const groups = {
+			session: part.element.querySelector<HTMLElement>('.titlebar-session-actions-container')!,
+			layout: part.element.querySelector<HTMLElement>('.titlebar-window-layout-container')!,
+		};
+		const titleBarContainer = part.element.querySelector<HTMLElement>('.sessions-titlebar-container')!;
+		// The groups that show, their insets, and how far the last action that shows is from the window's edge.
+		const read = (state: { customWindowControls?: boolean; fullscreen?: boolean } = {}) => {
+			titleBarContainer.classList.toggle('custom-window-controls', !!state.customWindowControls);
+			container.classList.toggle('fullscreen', !!state.fullscreen);
+			part.layout(800, part.height, 0, 0);
+			const shown = Object.entries(groups).filter(([, element]) => element.offsetWidth > 0);
+			const lastItem = shown.at(-1)![1].querySelector('.action-item:last-child')!;
+			return {
+				last: Object.entries(groups).filter(([, element]) => element.classList.contains('titlebar-last-actions')).map(([name]) => name),
+				insets: Object.fromEntries(shown.map(([name, element]) => [name, mainWindow.getComputedStyle(element).paddingRight])),
+				edge: part.element.getBoundingClientRect().right - lastItem.getBoundingClientRect().right,
+			};
+		};
+		const setLayoutActionsInTitleBar = (inTitleBar: boolean) => {
+			layoutActionsInTitleBar = inTitleBar;
+			onDidChangeLayoutActions.fire({ menu: upcastPartial<IMenu>({}), isStructuralChange: true, isEnablementChange: false, isToggleChange: false });
+		};
+		const states = () => ({ default: read(), customWindowControls: read({ customWindowControls: true }), customWindowControlsFullscreen: read({ customWindowControls: true, fullscreen: true }) });
+		const inTitleBar = states();
+		setLayoutActionsInTitleBar(false);
+		const inStrip = states();
+		setLayoutActionsInTitleBar(true);
+		const backInTitleBar = read();
+		const mainPart = store.add(instantiationService.createInstance(TitlebarPart, Parts.TITLEBAR_PART, mainWindow));
+		mainPart.create(append(container, $('.part.titlebar')));
+
+		const lastIs = (name: string, inset: number) => ({ last: [name], insets: name === 'layout' ? { session: '0px', layout: `${inset}px` } : { session: `${inset}px` }, edge: inset });
+		assert.deepStrictEqual({ inTitleBar, inStrip, backInTitleBar, mainMarked: mainPart.element.querySelectorAll('.titlebar-last-actions').length }, {
+			inTitleBar: { default: lastIs('layout', 12), customWindowControls: lastIs('layout', 8), customWindowControlsFullscreen: lastIs('layout', 12) },
+			inStrip: { default: lastIs('session', 12), customWindowControls: lastIs('session', 8), customWindowControlsFullscreen: lastIs('session', 12) },
+			backInTitleBar: lastIs('layout', 12),
+			mainMarked: 0,
 		});
 	});
 

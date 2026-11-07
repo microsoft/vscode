@@ -44,6 +44,7 @@ import { ISessionGridState, isSessionGridState, projectSessionGrid } from '../..
 import { IWorkbenchLayoutService, Parts } from '../../../services/layout/browser/layoutService.js';
 import { ISessionGridPanes, ISessionHost, SessionHost, SessionHostKind } from '../../../services/sessions/browser/sessionHost.js';
 import { ISessionGridPane, paneViewStateOf, SessionGridPaneKind } from '../../../services/sessions/browser/sessionGridPane.js';
+import { ShownChatReadMarker } from './shownChatReadMarker.js';
 
 const ACTIVE_SESSION_STATES_KEY = 'agentSessions.activeSessionStates';
 const SESSION_GRID_STATE_KEY = 'agentSessions.gridState';
@@ -896,57 +897,15 @@ export class SessionsService extends Disposable implements ISessionsService {
 			}
 		}));
 
-		let previousActiveChat: URI | undefined;
-		let lastReadRequest: { readonly chat: URI; readonly version: number | undefined } | undefined;
+		const readMarker = new ShownChatReadMarker(this.sessionsManagementService, this.uriIdentityService.extUri);
 		disposables.add(autorun(reader => {
 			if (this.customViewService.activeCustomViewOpen.read(reader)) {
-				previousActiveChat = undefined;
-				lastReadRequest = undefined;
+				readMarker.reset();
 				return;
 			}
-			const chat = paneChat.read(reader);
-			const mainChat = activeSession.mainChat.read(reader);
-			const activeChatChanged = !chat || !previousActiveChat || !this.uriIdentityService.extUri.isEqual(chat.resource, previousActiveChat);
-			previousActiveChat = chat?.resource;
-			if (activeChatChanged) {
-				lastReadRequest = undefined;
-			}
-			if (activeSession.loading.read(reader)) {
-				lastReadRequest = undefined;
-				return;
-			}
-			if (!chat || chat.isRead.read(reader)) {
-				return;
-			}
-			const pendingExplicitChat = this._pendingExplicitChatOpens.get(activeSession.resource)?.chatResource;
-			if (pendingExplicitChat && !this.uriIdentityService.extUri.isEqual(chat.resource, pendingExplicitChat)) {
-				return;
-			}
-			const version = (chat.lastTurnEnd?.read(reader) ?? chat.updatedAt.read(reader))?.getTime();
-			// Deduplicate stale read-state echoes without suppressing the next completed turn in the active chat.
-			if (lastReadRequest
-				&& this.uriIdentityService.extUri.isEqual(lastReadRequest.chat, chat.resource)
-				&& lastReadRequest.version === version) {
-				return;
-			}
-			const readRequest = { chat: chat.resource, version };
-			lastReadRequest = readRequest;
-			const accepted = this.uriIdentityService.extUri.isEqual(chat.resource, mainChat.resource)
-				? this.sessionsManagementService.markRead(activeSession, {
-					preserveExplicitUnread: !activeChatChanged,
-				})
-				: this.sessionsManagementService.markChatRead(activeSession, chat, {
-					preserveExplicitUnread: !activeChatChanged,
-				});
-			accepted.then(result => {
-				if (result === false && lastReadRequest === readRequest) {
-					lastReadRequest = undefined;
-				}
-			}, error => {
-				if (lastReadRequest === readRequest) {
-					lastReadRequest = undefined;
-				}
-				onUnexpectedError(error);
+			readMarker.update(activeSession, paneChat.read(reader), reader, chat => {
+				const pendingExplicitChat = this._pendingExplicitChatOpens.get(activeSession.resource)?.chatResource;
+				return !pendingExplicitChat || this.uriIdentityService.extUri.isEqual(chat.resource, pendingExplicitChat);
 			});
 		}));
 

@@ -68,6 +68,8 @@ export class ChatEditorContent extends Disposable {
 	/** Tracks whether the chat's view has bound to the model {@link _shownChatModel} holds. */
 	private readonly _shownChatBinding = this._register(new MutableDisposable());
 	private _moveFocusToGroup = false;
+	/** Whether it shows the chat: not while another editor of its group, as a tab, shows, nor while its window shows only its main part. */
+	readonly visible: IObservable<boolean> = this._visible;
 
 	/** The host of what it shows: its chat, nested in the host of its window. */
 	readonly host: ISessionHost;

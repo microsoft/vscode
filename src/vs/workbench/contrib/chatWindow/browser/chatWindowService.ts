@@ -57,14 +57,20 @@ export function getTerminalsPartGroupViewOptions(mainPartGroupViewOptions: IEdit
 
 /**
  * The options of the groups of a chat window's chat part: those of its main part, but for the header of the group of a
- * chat while the chat shows, as the chat shows its own; such as with another editor beside it, as a tab.
+ * chat while the chat shows, as the chat shows its own; such as with another editor beside it, as a tab. Its tab bar
+ * offers no Add Tab menu: what that menu adds opens in the main part.
  */
 export function getChatPartGroupViewOptions(mainPartGroupViewOptions: IEditorGroupViewOptions | undefined, isChat: (editor: EditorInput) => boolean): IEditorGroupViewOptions | undefined {
 	if (!mainPartGroupViewOptions) {
 		return undefined;
 	}
 	const showHeaderFor = mainPartGroupViewOptions.showHeaderFor;
-	return { ...mainPartGroupViewOptions, showHeaderFor: editor => !(editor && isChat(editor)) && (showHeaderFor?.(editor) ?? true) };
+	let menuIds = mainPartGroupViewOptions.menuIds;
+	if (menuIds) {
+		const { tabsBarAddTab: _tabsBarAddTab, ...withoutAddTab } = menuIds;
+		menuIds = withoutAddTab;
+	}
+	return { ...mainPartGroupViewOptions, menuIds, showHeaderFor: editor => !(editor && isChat(editor)) && (showHeaderFor?.(editor) ?? true) };
 }
 
 /** The size of a chat window when it opens. */
