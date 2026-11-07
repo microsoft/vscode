@@ -795,6 +795,7 @@ suite('ProtocolServerHandler', () => {
 				'vscode.ahpChatUris': true,
 				'vscode.detachedWorktrees': true,
 				'vscode.createChatWorkspace': true,
+				'vscode.sideChatWithoutContext': true,
 				'vscode.createSessionImport': true,
 				'vscode.worktreeDiskUsage': true,
 				'vscode.autonomousAutomations': true,
@@ -9745,6 +9746,50 @@ suite('ProtocolServerHandler', () => {
 				created: [],
 			});
 		});
+
+		test('createChat retains side-chat provenance when source context is excluded', async () => {
+			stateManager.createSession(makeSessionSummary());
+			const transport = connectClient('client-cc');
+			transport.sent.length = 0;
+			const response = waitForResponse(transport, 2);
+
+			transport.simulateMessage(request(2, 'createChat', {
+				channel: sessionUri,
+				chat: peerChat,
+				source: { kind: ChatSourceKind.SideChat, chat: buildDefaultChatUri(sessionUri), turnId: 'turn-active' },
+				_meta: { 'vscode.sideChatWithoutContext': true },
+			}));
+			await response;
+
+			assert.deepStrictEqual(agentService.createdChats, [{
+				session: sessionUri,
+				chat: peerChat,
+				options: { sideChat: { source: URI.parse(buildDefaultChatUri(sessionUri)), turnId: 'turn-active', includeSourceContext: false } },
+			}]);
+		});
+
+		for (const context of [{ value: 'true', sideChat: true }, { value: {}, sideChat: true }, { value: true, sideChat: false }]) {
+			test(`createChat rejects invalid side-chat context metadata ${JSON.stringify(context)}`, async () => {
+				stateManager.createSession(makeSessionSummary());
+				const transport = connectClient('client-cc');
+				const response = waitForResponse(transport, 2);
+				transport.simulateMessage(request(2, 'createChat', {
+					channel: sessionUri,
+					chat: peerChat,
+					...(context.sideChat ? { source: { kind: ChatSourceKind.SideChat, chat: buildDefaultChatUri(sessionUri), turnId: 'turn-active' } } : {}),
+					_meta: { 'vscode.sideChatWithoutContext': context.value },
+				}));
+				const result = await response;
+
+				assert.deepStrictEqual({
+					error: hasKey(result, { error: true }) ? result.error : undefined,
+					created: agentService.createdChats,
+				}, {
+					error: { code: JsonRpcErrorCodes.InvalidParams, message: 'Invalid createChat side-chat context metadata' },
+					created: [],
+				});
+			});
+		}
 
 		test('createChat for an unknown session fails with SESSION_NOT_FOUND', async () => {
 			const transport = connectClient('client-cc');
