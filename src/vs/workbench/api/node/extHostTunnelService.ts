@@ -105,12 +105,11 @@ export function loadConnectionTable(stdout: string): Record<string, string>[] {
 	return table;
 }
 
-function knownExcludeCmdline(command: string): boolean {
-	if (command.length > 500) {
-		return false;
-	}
-	return !!command.match(/.*\.vscode-server-[a-zA-Z]+\/bin.*/)
+export function knownExcludeCmdline(command: string): boolean {
+	return /\.vscode-server-[a-zA-Z]+\/bin/.test(command)
+		|| /\/vscode\/bin\//.test(command)
 		|| (command.indexOf('out/server-main.js') !== -1)
+		|| (command.indexOf('out/bootstrap-fork') !== -1)
 		|| (command.indexOf('_productName=VSCode') !== -1);
 }
 

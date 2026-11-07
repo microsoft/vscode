@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { findPorts, getRootProcesses, getSockets, loadConnectionTable, loadListeningPorts, parseIpAddress, tryFindRootPorts } from '../../node/extHostTunnelService.js';
+import { findPorts, getRootProcesses, getSockets, knownExcludeCmdline, loadConnectionTable, loadListeningPorts, parseIpAddress, tryFindRootPorts } from '../../node/extHostTunnelService.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 
 const tcp =
@@ -279,6 +279,23 @@ suite('ExtHostTunnelService', () => {
 		assert.strictEqual(result[0].host, '0.0.0.0');
 		assert.strictEqual(result[0].port, 3002);
 		assert.strictEqual(result[0].detail, 'http-server');
+	});
+
+	test('knownExcludeCmdline excludes long agent hosts independently of installation path', function () {
+		const agentHost = '/opt/code-server/node /opt/code-server/out/bootstrap-fork --type=agentHost'.padEnd(600, ' ');
+		assert.strictEqual(agentHost.length > 500, true);
+		assert.strictEqual(knownExcludeCmdline(agentHost), true);
+		assert.strictEqual(knownExcludeCmdline(agentHost.replace('out/bootstrap-fork', 'out/custom-server')), false);
+	});
+
+	test('knownExcludeCmdline excludes VS Code server and agent host processes regardless of length', function () {
+		const codespacesServer = '/vscode/bin/linux-x64/0123456789abcdef0123456789abcdef01234567/node /vscode/bin/linux-x64/0123456789abcdef0123456789abcdef01234567/out/server-main.js --log trace --force-disable-user-env --server-data-dir /home/codespace/.vscode-remote --connection-token-file /tmp/token --extensions-download-dir /home/codespace/.vscode-remote/extensionsCache --start-server --enable-remote-auto-shutdown --skip-requirements-check'.padEnd(600, ' ');
+		const codespacesAgentHost = '/vscode/bin/linux-x64/0123456789abcdef0123456789abcdef01234567/node /vscode/bin/linux-x64/0123456789abcdef0123456789abcdef01234567/out/bootstrap-fork --type=agentHost';
+		assert.deepStrictEqual([
+			knownExcludeCmdline(codespacesServer),
+			knownExcludeCmdline(codespacesAgentHost),
+			knownExcludeCmdline('/usr/bin/python3 -m http.server 8000'),
+		], [true, true, false]);
 	});
 
 	test('parseIpAddress', function () {
