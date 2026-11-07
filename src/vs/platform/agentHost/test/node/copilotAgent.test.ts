@@ -91,6 +91,8 @@ import { ActionType, AuthRequiredReason, type ChatAction, type SessionAction } f
 import { AgentConfigurationService, IAgentConfigurationService } from '../../node/agentConfigurationService.js';
 import { AgentHostAuthenticationService, IAgentHostAuthenticationService } from '../../node/agentHostAuthenticationService.js';
 import { AgentHostClientConnectionService, IAgentHostClientConnectionService } from '../../node/agentHostClientConnectionService.js';
+import { copilotEntraClientId, copilotEntraDiscoveryResource } from '../../common/copilotEntraAuthentication.js';
+import { authenticationAccountMeta } from '../../common/meta/agentAuthenticationAccount.js';
 import { AgentHostAuthenticationScope } from '../../node/agentHostAuthenticationScope.js';
 import type { IAgentHostPullRequestResolver } from '../../node/shared/pullRequestResolver.js';
 import { detachedWorktreeRecordUri, IAgentHostWorktreeIsolation, NullAgentHostWorktreeIsolation, SessionWorkingDirectoryMissingError, WorktreeIsolation } from '../../node/shared/worktreeIsolation.js';
@@ -1606,6 +1608,7 @@ function createTestAgentContext(disposables: Pick<DisposableStore, 'add'>, optio
 	const authenticationService = disposables.add(new AgentHostAuthenticationService(logService));
 	const fileService = options?.fileService ?? disposables.add(new FileService(logService));
 	const stateManager = disposables.add(new AgentHostStateManager(logService));
+	stateManager.rootState.config = { schema: { type: 'object', properties: {} }, values: { ...options?.rootConfig } };
 	const configService = disposables.add(new AgentConfigurationService(stateManager, logService));
 	configService.updateRootConfig(options?.rootConfig ?? {});
 	const managedSettingsService = disposables.add(new AgentHostManagedSettingsService());
@@ -5053,6 +5056,81 @@ suite('CopilotAgent', () => {
 			onGitHubTelemetry: 'function',
 		});
 	});
+
+	for (const enabled of [false, true]) {
+		test(`keeps the startup Microsoft bridge choice (${enabled}) across live configuration changes`, async () => {
+			const { agent, configurationService } = createTestAgentContext(disposables, {
+				copilotClient: new TestCopilotClient([]),
+				rootConfig: { [CopilotCliConfigKey.M365Enabled]: enabled },
+			});
+			afterTest(() => disposeAgent(agent));
+			configurationService.updateRootConfig({ [CopilotCliConfigKey.M365Enabled]: !enabled });
+			await agent.listChatsToMigrate();
+			const options = getCreatedClientOptions(agent).at(-1);
+			assert.deepStrictEqual({
+				effective: configurationService.copilotM365EnabledAtStartup,
+				clientId: options?.entra?.clientId,
+				provider: typeof options?.entra?.tokenProvider,
+				loggedInUser: options?.useLoggedInUser,
+			}, {
+				effective: enabled,
+				clientId: enabled ? copilotEntraClientId : undefined,
+				provider: enabled ? 'function' : 'undefined',
+				loggedInUser: false,
+			});
+		});
+	}
+
+	for (const withdrawal of ['signOut', 'disconnect'] as const) {
+		test(`Microsoft ${withdrawal} settles shared-runtime turns and removes stopped sessions immediately`, async () => {
+			const client = new TestCopilotClient([]);
+			const { agent, instantiationService } = createTestAgentContext(disposables, { copilotClient: client, rootConfig: { [CopilotCliConfigKey.M365Enabled]: true } });
+			afterTest(() => disposeAgent(agent));
+			const connection = disposables.add(new CancellationTokenSource());
+			disposables.add(instantiationService.invokeFunction(accessor => accessor.get(IAgentHostClientConnectionService)).registerSource({
+				hasSeenClient: () => true,
+				isClientConnected: () => !connection.token.isCancellationRequested,
+				isLocalClient: () => true,
+				usesLegacyChatUris: () => false,
+				getConnectedClientTransportCounts: () => new Map([['client', 1]]),
+				requestWorkspaceTrust: async () => false,
+				requestMcpAuthentication: async () => false,
+			}));
+			await agent.listChatsToMigrate();
+			const provider = getCreatedClientOptions(agent).at(-1)?.entra?.tokenProvider;
+			assert.ok(provider);
+			const acquisition = provider({ kind: 'identity', clientId: copilotEntraClientId, reason: 'signIn' }, { isCancellationRequested: false, onCancellationRequested: Event.None });
+			assert.deepStrictEqual(await acquisition, { kind: 'unavailable' });
+			await agent.handleAuthenticationToken({
+				resource: copilotEntraDiscoveryResource, scopes: ['User.Read'], token: 'synthetic-identity',
+				_meta: authenticationAccountMeta({ providerId: 'microsoft', accountId: 'selected' }),
+			}, connection.token);
+			assert.deepStrictEqual(await provider({ kind: 'identity', clientId: copilotEntraClientId, accountId: 'selected', reason: 'renewal' }, { isCancellationRequested: false, onCancellationRequested: Event.None }), { kind: 'identity', accountId: 'selected' });
+
+			const settled: string[] = [];
+			const disposed: string[] = [];
+			for (const [id, scoped, workingDirectory] of [
+				['shared', false, undefined],
+				['scoped', true, undefined],
+				['virtual', false, URI.from({ scheme: 'testfs', path: '/workspace' })],
+			] as const) {
+				setDefaultSessionStub(agent, id, {
+					usesScopedGitHubCredentials: scoped,
+					workingDirectory,
+					hasActiveTurn: true,
+					failActiveTurn: () => { settled.push(id); return `${id}-turn`; },
+					dispose: () => { disposed.push(id); },
+				});
+			}
+			if (withdrawal === 'signOut') {
+				await agent.handleAuthenticationToken({ resource: copilotEntraDiscoveryResource, token: '' }, connection.token);
+			} else {
+				connection.cancel();
+			}
+			await client.waitForCalls(() => client.stopCallCount === 1);
+			assert.deepStrictEqual({ settled, disposed, remaining: [...chatEntriesBySdkId(agent).keys()] }, { settled: ['shared'], disposed: ['shared'], remaining: ['scoped', 'virtual'] });
+		});
+	}
 
 	test('uses injected Copilot homes for SDK startup and plan files despite an inherited override', async () => {
 		const previous = process.env.COPILOT_HOME;

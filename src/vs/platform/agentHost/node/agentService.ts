@@ -2184,7 +2184,7 @@ export class AgentService extends Disposable implements IAgentService {
 		return agent.getModelsForCredentials?.(credentials, token) ?? [];
 	}
 
-	async authenticate(params: AuthenticateParams, scope?: IAgentHostAuthenticationScope): Promise<AuthenticateResult> {
+	async authenticate(params: AuthenticateParams, scope?: IAgentHostAuthenticationScope, connectionToken?: CancellationToken): Promise<AuthenticateResult> {
 		if (params.target) {
 			if (params.target.kind !== AuthenticateTargetKind.McpServer) {
 				throw new ProtocolError(JsonRpcErrorCodes.InvalidParams, 'Unsupported authentication target kind');
@@ -2194,7 +2194,7 @@ export class AgentService extends Disposable implements IAgentService {
 				throw new ProtocolError(JsonRpcErrorCodes.InvalidParams, 'Authentication target must identify an MCP server in an existing session');
 			}
 		}
-		const result = await this._providerService.authenticate(params, scope);
+		const result = await this._providerService.authenticate(params, scope, connectionToken);
 		if (result.authenticated && !scope && !params.target) {
 			this._agentMergeController.refresh();
 		}

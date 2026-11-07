@@ -11,7 +11,7 @@ import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { DisposableStore, toDisposable } from '../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../base/common/network.js';
-import { observableValue } from '../../../../base/common/observable.js';
+import { observableValue, type IReader } from '../../../../base/common/observable.js';
 import { resolve } from '../../../../base/common/path.js';
 import { hasKey } from '../../../../base/common/types.js';
 import { URI } from '../../../../base/common/uri.js';
@@ -480,6 +480,22 @@ suite('AgentSideEffects', () => {
 		disposables.clear();
 	});
 	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('publishes changing protected resources without requiring a model or authentication-notification change', () => {
+		const resources = observableValue<{ resource: string }[]>('protectedResources', []);
+		const reactiveAgent = disposables.add(new class extends MockAgent {
+			override getProtectedResources(reader?: IReader) {
+				return resources.read(reader);
+			}
+		}());
+		agentList.set([reactiveAgent], undefined);
+		const published = [];
+		for (const value of [[{ resource: 'https://resource.example' }], []]) {
+			resources.set(value, undefined);
+			published.push(stateManager.rootState.agents[0].protectedResources);
+		}
+		assert.deepStrictEqual(published, [[{ resource: 'https://resource.example' }], undefined]);
+	});
 
 	// ---- handleAction: session/turnStarted ------------------------------
 
