@@ -42,6 +42,8 @@ export const COPILOT_ENABLED_BUILTIN_TOOL_NAMES: readonly string[] = [
 	'sql', 'session_store_sql', 'store_memory', 'vote_memory',
 	// Canvases
 	'list_canvas_capabilities', 'open_canvas', 'invoke_canvas_action',
+	// Context management and session rollover
+	'session_artifacts', 'get_context_remaining', 'session_history', 'new_context',
 ];
 
 /**
