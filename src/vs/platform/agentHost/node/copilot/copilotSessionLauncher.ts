@@ -50,7 +50,7 @@ import { IByokLmProxyService, type IByokLmProxyHandle } from './byokLmProxyServi
 import type { ICopilotMcpServerInfo, ICopilotPluginInfo } from './copilotAgent.js';
 import { CopilotGitHubSessionCredentials } from './copilotGitHubCredentials.js';
 import { ICopilotAccountService } from './copilotAccountService.js';
-import { isMicrosoftCopilotAccountContext, type CopilotAccountContext } from '../../common/copilotAccountContext.js';
+import { isMicrosoftCopilotAccountContext, type CopilotAccountContext, type ICopilotServiceChoice } from '../../common/copilotAccountContext.js';
 import { reconcileCopilotConnectors, type ICopilotConnectorServers } from './copilotConnectors.js';
 import { getSdkCustomAgentName, mapCopilotCustomAgentTools, toSdkClientToolName, toSdkCustomAgents, toSdkHooks, toSdkInstructionDirectories, toSdkMcpServers, toSdkMcpServersFromConfigMap, toSdkSkillDirectories, type ISdkCustomAgentResource } from './copilotPluginConverters.js';
 import { buildCopilotBuiltinAgents, COPILOT_BUILTIN_AGENT_NAMES } from './copilotBuiltinAgents.js';
@@ -484,6 +484,7 @@ interface ICopilotSessionLaunchBase {
 	readonly githubCredentials: CopilotGitHubSessionCredentials;
 	readonly accountContext?: Extract<CopilotAccountContext, { kind: 'ready' }>;
 	readonly accountSession?: CopilotSession;
+	readonly accountSelection?: ICopilotServiceChoice;
 	/** Receives launch stage timing for the turn that triggered this launch, if any. */
 	readonly stageRecorder?: IAgentProviderSendStageRecorder;
 	/** The on-device model provider installed on {@link client} when the user opted in: replaceable direct-selection rows and turn attribution. */
@@ -1206,11 +1207,12 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 		if (isMicrosoftCopilotAccountContext(this._accountService.state.get()) && !plan.githubCredentials.usesScopedCredential) {
 			const context = this._accountService.requireReady();
 			try {
-				const accountSession = await this._accountService.openSession(plan.client, {
+				const authenticated = await this._accountService.openSession(plan.client, {
 					kind: plan.kind, sessionId: plan.sessionId, workingDirectory: plan.virtualSessionFs?.pathMapper.rootSdkPath ?? plan.workingDirectory?.fsPath,
 					enableSessionStore: this.shouldStoreSession(plan),
+					sessionFs: plan.virtualSessionFs,
 				}, context, runtime.cancellationToken ?? CancellationToken.None);
-				plan = { ...plan, accountContext: context, accountSession };
+				plan = { ...plan, accountContext: context, accountSession: authenticated.session, accountSelection: authenticated.choice };
 			} catch (error) {
 				if (plan.kind !== 'resume' || !shouldCreateEmptySessionAfterResumeError(error) || this._accountService.state.get() !== context) {
 					throw error;
@@ -1249,7 +1251,7 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 			throw new CancellationError();
 		}
 		if (plan.accountSession) {
-			await this._accountService.verifySessionContext(plan.accountSession, plan.accountContext);
+			await this._accountService.verifySessionContext(plan.accountSession, plan.accountContext, plan.accountSelection);
 		}
 		const modelPolicy = built.modelPolicy;
 		// Applied during construction so MCP servers start sandboxed; the launch apply below still repeats it for runtimes without open-time support.
@@ -1379,7 +1381,7 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 		plan.stageRecorder?.mark('finalize');
 		try {
 			if (plan.accountContext) {
-				await this._accountService.verifySessionContext(raw, plan.accountContext);
+				await this._accountService.verifySessionContext(raw, plan.accountContext, plan.accountSelection);
 			}
 			// Avoid unpublished lazy-discovery events blocking native OTel: github/copilot-agent-runtime#27963.
 			await raw.rpc.agent.list();
