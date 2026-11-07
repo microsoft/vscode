@@ -54,7 +54,7 @@ import { externalUriOpenersSettingId } from '../../../../../workbench/contrib/ex
 import { IAgentWorkbenchLayoutService } from '../../../../browser/workbench.js';
 import { IAgentHostSessionsProvider, LOCAL_AGENT_HOST_PROVIDER_ID, REMOTE_AGENT_HOST_PROVIDER_PREFIX } from '../../../../../workbench/contrib/sessions/common/agentHostSessionsProvider.js';
 import { ISessionsProvidersService } from '../../../../../workbench/contrib/sessions/browser/sessionsProvidersService.js';
-import { ISessionHost } from '../../../../../workbench/services/sessions/browser/sessionHost.js';
+import { ISessionHost, SessionHostKind } from '../../../../../workbench/services/sessions/browser/sessionHost.js';
 import { ISessionsService } from '../../../../../workbench/contrib/sessions/browser/sessionsService.js';
 import { ISessionGridPane } from '../../../../../workbench/services/sessions/browser/sessionGridPane.js';
 import { ISessionChangesStatsCache } from '../../../../../workbench/services/sessions/common/sessionChangesStatsCache.js';
@@ -881,7 +881,7 @@ suite('SessionChatInputToolbar', () => {
 				assert.deepStrictEqual(calls, [worktree, !worktree].flatMap(currentWorktree => [
 					{ action: 'activate', resource: session.resource },
 					{ action: 'reveal' },
-					{ action: 'open', resource: session.resource, options: { changesetSelection: { kind: 'id', id: currentWorktree ? BRANCH_CHANGES_CHANGESET_ID : SESSION_CHANGES_CHANGESET_ID } } },
+					{ action: 'open', resource: session.resource, options: { changesetSelection: { kind: 'id', id: currentWorktree ? BRANCH_CHANGES_CHANGESET_ID : SESSION_CHANGES_CHANGESET_ID }, chatResource: undefined } },
 				]));
 			});
 		}
@@ -941,6 +941,8 @@ suite('SessionChatInputToolbar', () => {
 				workspace,
 			});
 			const opened: (string | undefined)[] = [];
+			instantiationService.stub(ISessionHost, upcastPartial<ISessionHost>({ kind: SessionHostKind.MainWindow, parent: undefined }));
+			instantiationService.stub(ISessionsService, 'getPaneOfHost', () => undefined);
 			instantiationService.stub(ISessionsService, 'panes', constObservable([]));
 			instantiationService.stub(ISessionsService, 'setActive', () => { });
 			instantiationService.stub(IAgentWorkbenchLayoutService, upcastPartial<IAgentWorkbenchLayoutService>({
@@ -1025,6 +1027,8 @@ suite('SessionChatInputToolbar', () => {
 			workspace,
 		});
 		const opened: (string | undefined)[] = [];
+		instantiationService.stub(ISessionHost, upcastPartial<ISessionHost>({ kind: SessionHostKind.MainWindow, parent: undefined }));
+		instantiationService.stub(ISessionsService, 'getPaneOfHost', () => undefined);
 		instantiationService.stub(ISessionsService, 'panes', constObservable([]));
 		instantiationService.stub(ISessionsService, 'setActive', () => { });
 		instantiationService.stub(IAgentWorkbenchLayoutService, upcastPartial<IAgentWorkbenchLayoutService>({
@@ -1059,6 +1063,71 @@ suite('SessionChatInputToolbar', () => {
 			},
 			opened: [BRANCH_CHANGES_CHANGESET_ID, SESSION_CHANGES_CHANGESET_ID],
 		});
+	});
+
+	test('opens the Changes editor of its own chat from a pill in a chat window', () => {
+		const { instantiationService } = createServices();
+		const createWorkspace = (folder: string) => constObservable(upcastPartial<ISessionWorkspace>({
+			folders: [{
+				root: URI.file('/repo'),
+				name: 'repo',
+				description: undefined,
+				workingDirectory: URI.file(folder),
+				gitRepository: {
+					uri: URI.file('/repo'),
+					workTreeUri: URI.file(folder),
+					baseBranchName: 'main',
+					branchName: folder,
+					gitHubInfo: constObservable(undefined),
+				},
+			}],
+		}));
+		const createChat = (resource: string, folder: string) => upcastPartial<IChat>({
+			resource: URI.parse(resource),
+			workspace: createWorkspace(folder),
+			changesets: constObservable([]),
+			changes: constObservable([{ modifiedUri: URI.file(`${folder}/change.ts`), insertions: 1, deletions: 0 }]),
+		});
+		const mainChat = createChat('chat:main', '/worktrees/main');
+		const nestedChat = createChat('chat:nested', '/worktrees/nested');
+		const session = upcastPartial<ITestSessionWithChat>({
+			loading: constObservable(false),
+			sessionId: 'provider:session',
+			capabilities: constObservable({ supportsMultipleChats: true }),
+			resource: URI.parse('session:1'),
+			chats: constObservable([mainChat, nestedChat]),
+			mainChat: constObservable(mainChat),
+			workspace: mainChat.workspace,
+		});
+		const opened: { resource: string; chatResource: string | undefined }[] = [];
+		instantiationService.stub(ISessionHost, upcastPartial<ISessionHost>({ kind: SessionHostKind.ChatWindow, parent: undefined }));
+		instantiationService.stub(ISessionsService, 'getPaneOfHost', () => undefined);
+		instantiationService.stub(ISessionsService, 'panes', constObservable([]));
+		instantiationService.stub(ISessionsService, 'setActive', () => { });
+		instantiationService.stub(IAgentWorkbenchLayoutService, upcastPartial<IAgentWorkbenchLayoutService>({
+			// The dropdowns of the pills show in the container of their window.
+			getContainer: window => window.document.body,
+			revealEditorPartExplicitly: () => { },
+		}));
+		stubSessionsHostLayout(instantiationService);
+		instantiationService.stub(ISessionChangesService, upcastPartial<ISessionChangesService>({
+			openChangesEditor: async (resource, options) => {
+				opened.push({ resource: resource.toString(), chatResource: options?.chatResource?.toString() });
+				return undefined;
+			},
+		}));
+		for (const chat of [nestedChat, mainChat]) {
+			const toolbar = store.add(instantiationService.createInstance(SessionChatInputToolbar, false, undefined, undefined));
+			toolbar.setSession(session, chat);
+			const pill = toolbar.element.querySelector<HTMLElement>('.chat-changes-pill-button');
+			assert.ok(pill);
+			pill.click();
+		}
+
+		assert.deepStrictEqual(opened, [
+			{ resource: 'session:1', chatResource: 'chat:nested' },
+			{ resource: 'session:1', chatResource: 'chat:main' },
+		]);
 	});
 
 	test('uses one GitHub row presentation in dedicated, artifact, and reference collections', () => {
