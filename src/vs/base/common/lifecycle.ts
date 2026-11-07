@@ -485,6 +485,18 @@ export class DisposableStore implements IDisposable {
 	}
 
 	/**
+	 * Like {@link add}, but disposes `o` instead if this store was already disposed, for example while awaiting the
+	 * creation of `o`.
+	 */
+	public addOrDispose<T extends IDisposable>(o: T): T {
+		if (this._isDisposed) {
+			o?.dispose();
+			return o;
+		}
+		return this.add(o);
+	}
+
+	/**
 	 * Deletes a disposable from store and disposes of it. This will not throw or warn and proceed to dispose the
 	 * disposable even when the disposable is not part in the store.
 	 */
@@ -553,6 +565,17 @@ export abstract class Disposable implements IDisposable {
 			throw new Error('Cannot register a disposable on itself!');
 		}
 		return this._store.add(o);
+	}
+
+	/**
+	 * Like {@link _register}, but disposes `o` instead if this object was already disposed, for example while awaiting
+	 * the creation of `o`.
+	 */
+	protected _registerOrDispose<T extends IDisposable>(o: T): T {
+		if ((o as unknown as Disposable) === this) {
+			throw new Error('Cannot register a disposable on itself!');
+		}
+		return this._store.addOrDispose(o);
 	}
 }
 
@@ -957,14 +980,7 @@ export function thenIfNotDisposed<T>(promise: Promise<T>, then: (result: T) => v
  * disposed or not.
  */
 export function thenRegisterOrDispose<T extends IDisposable>(promise: Promise<T>, store: DisposableStore): Promise<T> {
-	return promise.then(disposable => {
-		if (store.isDisposed) {
-			disposable.dispose();
-		} else {
-			store.add(disposable);
-		}
-		return disposable;
-	});
+	return promise.then(disposable => store.addOrDispose(disposable));
 }
 
 export class DisposableResourceMap<V extends IDisposable = IDisposable> extends DisposableMap<URI, V> {

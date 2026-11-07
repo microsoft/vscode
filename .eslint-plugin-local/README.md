@@ -146,6 +146,31 @@ See the [Double quoted to single quoted string conversion fix](https://github.co
 
 The fixes can be run using `pnpm exec eslint --fix` in the VS Code repo.
 
+## Registering disposables after `await`
+
+`local/code-no-register-after-await` reports code that registers a disposable on `this` after an `await` when nothing between the await and the registration checks whether the object was disposed, or the operation cancelled, in the meantime. Adding to a disposed `DisposableStore` only logs a warning and leaks the added object, and setting the value of a disposed `MutableDisposable` silently drops it. The leak then shows up later, often as a failure in the leak check of an unrelated test.
+
+Registrations are `this._register(x)`, `.add(x)` on a store held by `this` (a field the class declares as a `DisposableStore` or `DisposableSet`, or one named like `_store`, `_disposables` or `renderDisposables`), and `.value = x` or `.set(key, x)` on a field the class declares as a `MutableDisposable` or `DisposableMap`. Checks are conditions on `isDisposed`/`disposed`-style members or variables, `isCancellationRequested` or `aborted` that keep the registration from running once the object is gone, such as `if (this._store.isDisposed) { ...; return; }`, `if (!this._store.isDisposed) { ... }` or a conditional expression. `signal.throwIfAborted()` counts as a check too. Awaiting `raceCancellationError(...)` does not: it can resolve after the token was cancelled, and the token may not track disposal. The analysis is syntactic and per function. It follows branches, loops (including `for await`) and `try`/`finally`, so an await inside a branch that returns does not affect the code after the branch, and nested functions are analyzed on their own. It does not see a check inside a called helper, or a staleness check that works only because `dispose()` resets the compared field. Suppress such a report with an `eslint-disable-next-line` comment that names the check.
+
+When the awaited value is all there is to register, use `_registerOrDispose` (or `addOrDispose` on a `DisposableStore`). It disposes the value instead if the object was disposed while awaiting:
+
+```ts
+this._registerOrDispose(await this.doCreate());
+```
+
+When more work follows, re-check after the await, dispose what was created and return:
+
+```ts
+const storage = await this.doCreate();
+if (this._store.isDisposed) {
+	storage.dispose();
+	return;
+}
+this._register(storage);
+```
+
+Files that already registered after `await` when the rule was added are listed in `.eslint-allowed-register-after-await-files`. Do not add new entries, and remove a file once it no longer reports the rule. Run its tests with `node --test .eslint-plugin-local/tests/code-no-register-after-await.test.ts`.
+
 ## Tests nested inside tests
 
 `local/code-no-nested-test` reports a `test(...)` or `suite(...)` declared inside the body of another test. Mocha only collects tests while a suite runs, so a test registered from within a running test is silently dropped and never runs. This is almost always a misplaced closing brace. Only Mocha's globals are checked: a local helper named `test` is ignored, and so is anything imported from `node:test`, which runs a nested test as a subtest. Run its tests with `node --test .eslint-plugin-local/tests/code-no-nested-test.test.ts`.

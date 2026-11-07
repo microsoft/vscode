@@ -34,6 +34,7 @@ const eslintFullCheckPaths = [
 	'.eslint-ignore',
 	'.eslint-allowed-javascript-files',
 	'.eslint-allowed-bracket-notation-files',
+	'.eslint-allowed-register-after-await-files',
 	'.eslint-plugin-local/',
 	'extensions/copilot/.eslintplugin/',
 	// The plugin and parser versions. local/code-amd-node-module also reads package.json.
