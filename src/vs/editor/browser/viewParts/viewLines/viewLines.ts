@@ -698,9 +698,11 @@ export class ViewLines extends ViewPart implements IViewLines {
 		let boxStartY: number;
 		let boxEndY: number;
 
+		let minLineNumber: number;
+		let maxLineNumber: number;
 		if (selections && selections.length > 0) {
-			let minLineNumber = selections[0].startLineNumber;
-			let maxLineNumber = selections[0].endLineNumber;
+			minLineNumber = selections[0].startLineNumber;
+			maxLineNumber = selections[0].endLineNumber;
 			for (let i = 1, len = selections.length; i < len; i++) {
 				const selection = selections[i];
 				minLineNumber = Math.min(minLineNumber, selection.startLineNumber);
@@ -710,9 +712,11 @@ export class ViewLines extends ViewPart implements IViewLines {
 			boxStartY = this._context.viewLayout.getVerticalOffsetForLineNumber(minLineNumber);
 			boxEndY = this._context.viewLayout.getVerticalOffsetForLineNumber(maxLineNumber) + this._lineHeight;
 		} else if (range) {
+			minLineNumber = range.startLineNumber;
+			maxLineNumber = range.endLineNumber;
 			boxIsSingleRange = true;
-			boxStartY = this._context.viewLayout.getVerticalOffsetForLineNumber(range.startLineNumber);
-			boxEndY = this._context.viewLayout.getVerticalOffsetForLineNumber(range.endLineNumber) + this._lineHeight;
+			boxStartY = this._context.viewLayout.getVerticalOffsetForLineNumber(minLineNumber);
+			boxEndY = this._context.viewLayout.getVerticalOffsetForLineNumber(maxLineNumber) + this._lineHeight;
 		} else {
 			return -1;
 		}
@@ -743,6 +747,28 @@ export class ViewLines extends ViewPart implements IViewLines {
 
 		boxStartY -= paddingTop;
 		boxEndY += paddingBottom;
+
+		const isCenteredReveal = (
+			verticalType === viewEvents.VerticalRevealType.Center ||
+			verticalType === viewEvents.VerticalRevealType.CenterIfOutsideViewport
+		);
+
+		if (!isCenteredReveal) {
+			const editorPadding = this._context.configuration.options.get(EditorOption.padding);
+			if (minLineNumber === 1 && editorPadding.top > 0) {
+				const availableSpace = viewportHeight - (boxEndY - boxStartY);
+				if (availableSpace > 0) {
+					boxStartY = Math.max(0, boxStartY - Math.min(editorPadding.top, availableSpace));
+				}
+			}
+			if (maxLineNumber === this._context.viewModel.getLineCount() && editorPadding.bottom > 0) {
+				const availableSpace = viewportHeight - (boxEndY - boxStartY);
+				if (availableSpace > 0) {
+					boxEndY += Math.min(editorPadding.bottom, availableSpace);
+				}
+			}
+		}
+
 		let newScrollTop: number;
 
 		if (boxEndY - boxStartY > viewportHeight) {
