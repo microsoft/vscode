@@ -80,20 +80,14 @@ export class SessionCanvasContextService extends Disposable implements ICanvasCo
 			const focusedSession = focusedHost.session.read(reader);
 			const focusedChat = focusedHost.chat.read(reader);
 			if (focusedSession && focusedChat) {
-				add(focusedSession, focusedChat, false);
+				// A chat window restores and reconciles its canvases without taking focus, as an unfocused one does.
+				add(focusedSession, focusedChat, getWindowHost(focusedHost)?.kind === SessionHostKind.ChatWindow);
 			}
 			// Every chat of every chat window presents its canvases there, whichever chat is active or focused.
-			for (const window of this.chatWindowService.windows.read(reader)) {
-				const session = this.sessionHostService.getHostOfWindow(window.windowId, reader)?.session.read(reader);
-				if (!session) {
-					continue;
-				}
-				const chats = session.chats.read(reader);
-				for (const resource of window.chats.read(reader)) {
-					const chat = chats.find(candidate => isEqual(candidate.resource, resource));
-					if (chat) {
-						add(session, chat, true);
-					}
+			for (const resource of this.chatWindowChats.read(reader)) {
+				const owner = this.sessionsManagementService.getSessionForChatResource(resource);
+				if (owner) {
+					add(owner.session, owner.chat, true);
 				}
 			}
 			return contexts;
@@ -150,7 +144,8 @@ export class SessionCanvasContextService extends Disposable implements ICanvasCo
 		const chatWindow = this.chatWindowService.windows.read(reader).find(window => window.chats.read(reader).some(chat => isEqual(chat, owner.chat)));
 		const inactiveChatHost = chatWindow && this.sessionHostService.getHostOfWindow(chatWindow.windowId, reader);
 		if (inactiveChatHost?.kind === SessionHostKind.ChatWindow) {
-			const session = inactiveChatHost.session.read(reader);
+			// The owner's own session, which differs from the window host's when the window mixes sessions.
+			const session = this.sessionsManagementService.getSessionForChatResource(owner.chat)?.session;
 			return session && ownsSession(owner, session) ? { host: inactiveChatHost, windowHost: inactiveChatHost, session } : undefined;
 		}
 		const mainWindowHost = getMainWindowHost(this.sessionHostService);
