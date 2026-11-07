@@ -36,6 +36,7 @@ const restrictedSources = [
 	'./../..//sessions/common/sessionCommands.js',
 	'../../chat/../sessions/common/sessionCommands.js',
 	'vs/workbench/contrib/sessions/common/sessionCommands.js',
+	`${repositoryRoot}/src/vs/workbench/contrib/sessions/common/sessionCommands.js`,
 ];
 
 const allowedSources = [
@@ -43,6 +44,7 @@ const allowedSources = [
 	'../sessions/sessionsModel.js', // a chat-internal 'sessions' folder
 	'../../sessionChanges/common/sessionChanges.js',
 	'vs/sessions/common/sessions.js',
+	`${repositoryRoot}/src/vs/sessions/common/sessions.js`,
 	'../common/chatService.js',
 	'sessions',
 ];

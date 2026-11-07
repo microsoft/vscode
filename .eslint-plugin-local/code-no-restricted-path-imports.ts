@@ -29,6 +29,8 @@ function resolveImport(filename: string, specifier: string): string | undefined 
 	let resolved: string;
 	if (value.startsWith('.')) {
 		resolved = posix.join(posix.dirname(filename), value);
+	} else if (value.startsWith('/') || /^[a-zA-Z]:\//.test(value)) {
+		resolved = value;
 	} else if (value.startsWith('vs/')) {
 		resolved = `${repositoryRoot}/src/${value}`;
 	} else {
