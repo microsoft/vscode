@@ -327,6 +327,21 @@ export class DecorationsService implements IDecorationsService {
 		return map;
 	}
 
+	clearCachedDecorations(uri: URI): void {
+		const map = this._data.get(uri);
+		if (!map) {
+			return;
+		}
+		this._data.delete(uri);
+		for (const entry of map.values()) {
+			if (entry instanceof DecorationDataRequest) {
+				entry.source.cancel();
+			}
+		}
+		map.clear();
+		this._onDidChangeDecorationsDelayed.fire(uri);
+	}
+
 	getDecoration(uri: URI, includeChildren: boolean): IDecoration | undefined {
 
 		const all: IDecorationData[] = [];

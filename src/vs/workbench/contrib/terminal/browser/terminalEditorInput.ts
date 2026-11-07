@@ -94,6 +94,11 @@ export class TerminalEditorInput extends EditorInput implements IEditorCloseHand
 		return this._isDetached ? undefined : this._terminalInstance;
 	}
 
+	/** Whether the terminal has been disposed, including after detachment from this input. */
+	get isTerminalDisposed(): boolean {
+		return this._terminalInstance?.isDisposed ?? false;
+	}
+
 	showConfirm(): boolean {
 		if (this._isReverted) {
 			return false;
