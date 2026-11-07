@@ -5,6 +5,7 @@
 
 import { CancellationToken } from '../../../util/vs/base/common/cancellation';
 import { CancellationError, isCancellationError } from '../../../util/vs/base/common/errors';
+import { Disposable, isDisposable } from '../../../util/vs/base/common/lifecycle';
 import { escapeRegExpCharacters } from '../../../util/vs/base/common/strings';
 import { LinkifiedPart, LinkifiedText, coalesceParts } from './linkifiedText';
 import type { IContributedLinkifier, ILinkifier, LinkifierContext } from './linkifyService';
@@ -60,7 +61,7 @@ namespace LinkifierState {
  *
  * Make sure to create a new linkifier for each response.
  */
-export class Linkifier implements ILinkifier {
+export class Linkifier extends Disposable implements ILinkifier {
 
 	private _state: LinkifierState.State = LinkifierState.Default;
 	private _appliedText = '';
@@ -71,7 +72,14 @@ export class Linkifier implements ILinkifier {
 		private readonly context: LinkifierContext,
 		private readonly productUriScheme: string,
 		private readonly linkifiers: readonly IContributedLinkifier[] = [],
-	) { }
+	) {
+		super();
+		for (const linkifier of linkifiers) {
+			if (isDisposable(linkifier)) {
+				this._register(linkifier);
+			}
+		}
+	}
 
 	get totalAddedLinkCount(): number {
 		return this._totalAddedLinkCount;
@@ -248,7 +256,7 @@ export class Linkifier implements ILinkifier {
 		let parts: LinkifiedPart[] = [newText];
 		for (const linkifier of this.linkifiers) {
 			parts = coalesceParts(await this.runLinkifier(parts, linkifier, token));
-			if (token.isCancellationRequested) {
+			if (this._store.isDisposed || token.isCancellationRequested) {
 				throw new CancellationError();
 			}
 		}
@@ -278,7 +286,7 @@ export class Linkifier implements ILinkifier {
 	private async runLinkifier(parts: readonly LinkifiedPart[], linkifier: IContributedLinkifier, token: CancellationToken): Promise<LinkifiedPart[]> {
 		const out: LinkifiedPart[] = [];
 		for (const part of parts) {
-			if (token.isCancellationRequested) {
+			if (this._store.isDisposed || token.isCancellationRequested) {
 				throw new CancellationError();
 			}
 
