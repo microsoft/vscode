@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import type * as eslint from 'eslint';
+import type * as ESTree from 'estree';
 import type { TSESTree } from '@typescript-eslint/utils';
 import minimatch from 'minimatch';
 import { posix } from 'path';
@@ -85,13 +86,45 @@ export default new class NoRestrictedPathImports implements eslint.Rule.RuleModu
 			}
 		};
 
+		const checkSource = (node: eslint.Rule.Node | ESTree.Node | undefined): void => {
+			const value = getStaticString(node);
+			if (node && value !== undefined) {
+				checkImport(node.loc, value);
+			}
+		};
+
+		const isGlobalRequire = (node: ESTree.Node): boolean => {
+			for (let scope: eslint.Scope.Scope | null = context.sourceCode.getScope(node); scope; scope = scope.upper) {
+				const variable = scope.set.get('require');
+				if (variable) {
+					return variable.defs.length === 0;
+				}
+			}
+			return true;
+		};
+
 		return {
 			...createImportRuleListener((node, value) => checkImport(node.loc, value)),
-			'ImportExpression > Literal, TSImportType > Literal, CallExpression[callee.type="Identifier"][callee.name="require"][arguments.length=1] > Literal': (node: eslint.Rule.Node) => {
-				if (node.type === 'Literal' && typeof node.value === 'string') {
-					checkImport(node.loc, node.value);
+			ImportExpression: (node: ESTree.ImportExpression) => checkSource(node.source),
+			'TSImportType > Literal': (node: eslint.Rule.Node) => checkSource(node),
+			CallExpression: (node: ESTree.CallExpression) => {
+				if (node.callee.type === 'Identifier' && node.callee.name === 'require' && node.arguments.length === 1 && isGlobalRequire(node)) {
+					checkSource(node.arguments[0]);
 				}
 			},
 		};
 	}
 };
+
+/**
+ * Returns the value of a string literal or of a template literal without substitutions.
+ */
+function getStaticString(node: eslint.Rule.Node | ESTree.Node | undefined): string | undefined {
+	if (node?.type === 'Literal' && typeof node.value === 'string') {
+		return node.value;
+	}
+	if (node?.type === 'TemplateLiteral' && node.expressions.length === 0) {
+		return node.quasis[0].value.cooked ?? undefined;
+	}
+	return undefined;
+}

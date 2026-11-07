@@ -24,6 +24,9 @@ const importForms = [
 	{ name: 'named re-export', code: (source: string) => `export { X } from '${source}';` },
 	{ name: 'star re-export', code: (source: string) => `export * from '${source}';` },
 	{ name: 'dynamic import', code: (source: string) => `const x = import('${source}');` },
+	{ name: 'dynamic import of a template literal', code: (source: string) => `const x = import(\`${source}\`);` },
+	{ name: 'require', code: (source: string) => `const x = require('${source}');` },
+	{ name: 'require of a template literal', code: (source: string) => `const x = require(\`${source}\`);` },
 	{ name: 'import type expression', code: (source: string) => `type X = import('${source}').X;` },
 	{ name: 'import equals', code: (source: string) => `import X = require('${source}');` },
 ];
@@ -45,12 +48,32 @@ const allowedSources = [
 ];
 
 new RuleTester({ languageOptions: { parser: tseslint.parser } }).run('code-no-restricted-path-imports', rule, {
-	valid: allowedSources.flatMap(source => importForms.map(form => ({
-		name: `${form.name} of ${source}`,
-		filename,
-		options,
-		code: form.code(source),
-	}))),
+	valid: [
+		...allowedSources.flatMap(source => importForms.map(form => ({
+			name: `${form.name} of ${source}`,
+			filename,
+			options,
+			code: form.code(source),
+		}))),
+		{
+			name: 'locally declared require',
+			filename,
+			options,
+			code: `const require = (source: string) => source; require('${restrictedSources[0]}');`,
+		},
+		{
+			name: 'require parameter',
+			filename,
+			options,
+			code: `function load(require: (source: string) => unknown) { return require('${restrictedSources[0]}'); }`,
+		},
+		{
+			name: 'computed dynamic import is not resolved statically',
+			filename,
+			options,
+			code: 'const name = \'sessionCommands\'; const x = import(`../../sessions/common/${name}.js`);',
+		},
+	],
 	invalid: restrictedSources.flatMap(source => importForms.map(form => ({
 		name: `${form.name} of ${source}`,
 		filename,
