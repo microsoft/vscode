@@ -1018,6 +1018,8 @@
 		"--chat-window-controls-width",
 		"--session-chat-base-height",
 		"--session-group-depth",
+		"--session-group-foreground",
+		"--session-group-hover-foreground",
 		"--session-group-indent",
 		"--session-group-insertion-depth",
 		"--editor-font-size",
