@@ -273,6 +273,8 @@ export type RemoteAgentHostProtocolClientState = 'connecting' | 'incompatible' |
  */
 export interface IRemoteAgentHostProtocolClient extends IAgentConnection, IDisposable {
 	readonly defaultDirectory: string | undefined;
+	/** Terminal failure, when exposed by the protocol client. */
+	readonly connectionError?: ProtocolError;
 	/** Deadline for the next scheduled reconnect attempt, if one is pending. */
 	readonly nextReconnectAt: number | undefined;
 	readonly onDidClose: Event<AgentHostTransportFailureReason | undefined>;

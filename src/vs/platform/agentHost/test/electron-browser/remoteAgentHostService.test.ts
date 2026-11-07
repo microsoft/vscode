@@ -22,7 +22,7 @@ import { AgentsWindowRemoteAgentHostService, EditorWindowRemoteAgentHostService,
 import { InitialAuthenticationError, type IAgentHostProtocolClientOptions } from '../../browser/agentHostProtocolClient.js';
 import { addSSHRemoteAgentHostEntry, addWebSocketRemoteAgentHostEntry, getEntryAddress, getEntryTypeConfig, parseRemoteAgentHostInput, removeWebSocketRemoteAgentHostEntry, RemoteAgentHostAutoConnectSettingId, RemoteAgentHostConnectionStatus, RemoteAgentHostEntryType, RemoteAgentHostsEnabledSettingId, RemoteAgentHostsSettingId, WorkspaceRemoteAgentHostsSettingId, type IRawRemoteAgentHostEntry, type IRemoteAgentHostConnectionFactory, type IRemoteAgentHostConnectOptions, type IRemoteAgentHostCreatedConnection, type IRemoteAgentHostEntry, type IRemoteAgentHostProtocolClient, type RemoteAgentHostConnectionObserver } from '../../common/remoteAgentHostService.js';
 import { AGENT_HOST_SCHEME, agentHostAuthority } from '../../common/agentHostUri.js';
-import { DeferredPromise, timeout } from '../../../../base/common/async.js';
+import { DeferredPromise, raceTimeout, timeout } from '../../../../base/common/async.js';
 import { InMemoryStorageService, IStorageService, StorageScope, StorageTarget } from '../../../storage/common/storage.js';
 import type { StorageValue } from '../../../../base/parts/storage/common/storage.js';
 import type { Implementation } from '../../common/state/protocol/common/commands.js';
@@ -79,16 +79,19 @@ class MockProtocolClient extends Disposable {
 	/** Completes when the first network diagnostics request (the host operating system lookup) is issued. */
 	readonly networkDiagnosticsRequested = new DeferredPromise<void>();
 	nextReconnectAt: number | undefined;
+	connectionError: ProtocolError | undefined;
 	reconnectNowCalls = 0;
 	reconnectNowResult = false;
 
 	public connectDeferred = new DeferredPromise<void>();
+	readonly connectRequested = new DeferredPromise<void>();
 
 	constructor(public readonly mockAddress: string) {
 		super();
 	}
 
 	async connect(): Promise<void> {
+		this.connectRequested.complete();
 		return this.connectDeferred.p;
 	}
 
@@ -1469,6 +1472,93 @@ suite('RemoteAgentHostService', () => {
 			client.fireConnectionState('incompatible');
 			await recovered;
 			await assert.rejects(service.waitForConnection(address), /Authentication failed/);
+		}));
+
+		test('protocol mismatch during recovery retains its versions and advertised upgrade method', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const factory = createFactory();
+			const entry = cloudSandboxEntry('Environment', 'cloudsandbox:incompatible-recovery');
+			const address = getEntryAddress(entry);
+			const client = disposables.add(new MockProtocolClient(address));
+			await reconnectStagedConnection(factory, entry, client);
+			client.fireConnectionState('reconnecting');
+			const recovered = assert.rejects(service.waitForConnection(address), /Server accepts/);
+			client.connectionError = new ProtocolError(AHP_UNSUPPORTED_PROTOCOL_VERSION, 'Server accepts ^0.8.0', {
+				supportedVersions: ['0.8.0'],
+				_meta: { vscodeUpgradeMethod: '_vscodeUpgrade' },
+			});
+			client.fireConnectionState('incompatible');
+			await recovered;
+			await timeout(30_000);
+			assert.deepStrictEqual({
+				status: service.connections[0].status,
+				dials: factory.observations.filter(event => event.state === 'connecting').length,
+			}, {
+				status: RemoteAgentHostConnectionStatus.incompatible('Server accepts ^0.8.0', ['1.0.0', '0.10.0', '0.9.0'], ['0.8.0'], '_vscodeUpgrade'),
+				dials: 1,
+			});
+		}));
+
+		for (const initiallyConnected of [false, true]) {
+			test(`a rejected peer closing stays incompatible until explicit reconnect (initiallyConnected=${initiallyConnected})`, () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+				const factory = createFactory();
+				const entry = cloudSandboxEntry('Environment', 'cloudsandbox:rejected-peer');
+				const address = getEntryAddress(entry);
+				const client = disposables.add(new MockProtocolClient(address));
+				if (initiallyConnected) {
+					await reconnectStagedConnection(factory, entry, client);
+					client.fireConnectionState('reconnecting');
+				} else {
+					factory.stage(entry, client);
+					service.reconnect(address);
+					await client.connectRequested.p;
+				}
+				const rejected = assert.rejects(service.waitForConnection(address), /Server accepts/);
+				client.connectionError = new ProtocolError(AHP_UNSUPPORTED_PROTOCOL_VERSION, 'Server accepts ^0.8.0', {
+					supportedVersions: ['0.8.0'],
+					_meta: { vscodeUpgradeMethod: '_vscodeUpgrade' },
+				});
+				client.fireConnectionState('incompatible');
+				if (!initiallyConnected) {
+					client.connectDeferred.error(client.connectionError);
+				}
+				client.fireClose();
+				const joinedAfterClose = assert.rejects(service.waitForConnection(address), /Server accepts/).then(() => true);
+				await rejected;
+				assert.strictEqual(await raceTimeout(joinedAfterClose, 1000), true);
+				await timeout(30_000);
+				assert.deepStrictEqual({
+					status: service.connections[0].status,
+					dials: factory.observations.filter(event => event.state === 'connecting').length,
+					disposed: client.isDisposed,
+				}, {
+					status: RemoteAgentHostConnectionStatus.incompatible('Server accepts ^0.8.0', ['1.0.0', '0.10.0', '0.9.0'], ['0.8.0']),
+					dials: 1,
+					disposed: true,
+				});
+
+				await reconnectStagedConnection(factory, entry, disposables.add(new MockProtocolClient(address)));
+				assert.deepStrictEqual({ status: service.connections[0].status.kind, dials: factory.observations.filter(event => event.state === 'connecting').length }, { status: 'connected', dials: 2 });
+			}));
+		}
+
+		test('waiters joining the terminal connection notification are rejected', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const factory = createFactory();
+			const entry = cloudSandboxEntry('Environment', 'cloudsandbox:terminal-notification');
+			const address = getEntryAddress(entry);
+			const client = disposables.add(new MockProtocolClient(address));
+			factory.stage(entry, client);
+			service.reconnect(address);
+			await client.connectRequested.p;
+			const error = new ProtocolError(AHP_UNSUPPORTED_PROTOCOL_VERSION, 'Server accepts ^0.8.0');
+			const original = assert.rejects(service.waitForConnection(address), actual => actual === error);
+			let joined: Promise<boolean> | undefined;
+			disposables.add(Event.once(service.onDidChangeConnections)(() => {
+				joined = assert.rejects(service.waitForConnection(address), /Server accepts/).then(() => true);
+			}));
+			client.connectDeferred.error(error);
+			await original;
+
+			assert.strictEqual(await raceTimeout(joined ?? Promise.resolve(false), 1000), true);
 		}));
 
 		test('authentication restoration failure is terminal rather than an outer retry', () => runWithFakedTimers({}, async () => {
