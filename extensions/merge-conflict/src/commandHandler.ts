@@ -259,6 +259,8 @@ export default class CommandHandler implements vscode.Disposable {
 		const conflicts = await this.tracker.getConflicts(editor.document);
 
 		if (!conflicts || conflicts.length === 0) {
+			// No markers to edit. Leave the file unmerged. Take Current/Incoming File
+			// is the separate command for a markerless conflict.
 			vscode.window.showWarningMessage(vscode.l10n.t("No merge conflicts found in this file"));
 			return;
 		}
@@ -273,9 +275,15 @@ export default class CommandHandler implements vscode.Disposable {
 	}
 
 	private async acceptAllResources(type: interfaces.CommitType, resources: vscode.Uri[]): Promise<void> {
-		const documents = await Promise.all(resources.map(resource => vscode.workspace.openTextDocument(resource)));
 		const edit = new vscode.WorkspaceEdit();
-		for (const document of documents) {
+		for (const resource of resources) {
+			let document: vscode.TextDocument;
+			try {
+				document = await vscode.workspace.openTextDocument(resource);
+			} catch {
+				// Not a text file, so there are no markers to edit. Leave it unmerged.
+				continue;
+			}
 			const conflicts = await this.tracker.getConflicts(document);
 
 			if (!conflicts || conflicts.length === 0) {
@@ -290,7 +298,7 @@ export default class CommandHandler implements vscode.Disposable {
 				conflict.applyEdit(type, document, { replace: (range, newText) => edit.replace(document.uri, range, newText) });
 			});
 		}
-		vscode.workspace.applyEdit(edit);
+		await vscode.workspace.applyEdit(edit);
 	}
 
 	private async findConflictContainingSelection(editor: vscode.TextEditor, conflicts?: interfaces.IDocumentMergeConflict[]): Promise<interfaces.IDocumentMergeConflict | null> {
