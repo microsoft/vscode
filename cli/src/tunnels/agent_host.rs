@@ -21,8 +21,9 @@ use serde::{Deserialize, Serialize};
 use tokio::io::{AsyncBufReadExt, BufReader};
 use tokio::net::TcpListener;
 use tokio::sync::{oneshot, Mutex};
-use tokio_tungstenite::tungstenite::protocol::Role;
-use tokio_tungstenite::tungstenite::Message;
+use tokio_tungstenite::tungstenite::protocol::frame::coding::CloseCode;
+use tokio_tungstenite::tungstenite::protocol::{CloseFrame, Role, WebSocketConfig};
+use tokio_tungstenite::tungstenite::{Error as WsError, Message};
 use tokio_tungstenite::{MaybeTlsStream, WebSocketStream};
 
 use crate::async_pipe::{
@@ -1916,7 +1917,9 @@ async fn handle_gateway_select_request(
 		match hyper::upgrade::on(&mut req).await {
 			Ok(upgraded) => {
 				let io = TokioIo::new(upgraded);
-				let ws = WebSocketStream::from_raw_socket(io, Role::Server, None).await;
+				let ws =
+					WebSocketStream::from_raw_socket(io, Role::Server, Some(gateway_ws_config()))
+						.await;
 				run_gateway_session(
 					svc_log,
 					launcher_paths,
@@ -2231,9 +2234,10 @@ async fn dial_gateway_target(
 		AgentHostEndpointAddress::Tcp { host, port } => {
 			let dial_host = crate::commands::agent_host::dial_host(Some(host));
 			let url = format!("ws://{dial_host}:{port}/{token_query}");
-			let (ws, _) = tokio_tungstenite::connect_async(url)
-				.await
-				.map_err(|e| wrap(e, "Failed to connect to selected agent host"))?;
+			let (ws, _) =
+				tokio_tungstenite::connect_async_with_config(url, Some(gateway_ws_config()), false)
+					.await
+					.map_err(|e| wrap(e, "Failed to connect to selected agent host"))?;
 			Ok(GatewayTargetWs::Tcp(Box::new(ws)))
 		}
 		AgentHostEndpointAddress::Socket { path } => {
@@ -2246,19 +2250,59 @@ async fn dial_gateway_target(
 					)
 				})?;
 			let url = format!("ws://localhost/{token_query}");
-			let (ws, _) = tokio_tungstenite::client_async(url, pipe)
-				.await
-				.map_err(|e| {
-					wrap(
-						e,
-						format!(
-							"WebSocket handshake over selected agent host socket {path} failed"
-						),
-					)
-				})?;
+			let (ws, _) =
+				tokio_tungstenite::client_async_with_config(url, pipe, Some(gateway_ws_config()))
+					.await
+					.map_err(|e| {
+						wrap(
+							e,
+							format!(
+								"WebSocket handshake over selected agent host socket {path} failed"
+							),
+						)
+					})?;
 			Ok(GatewayTargetWs::Socket(Box::new(ws)))
 		}
 	}
+}
+
+/// Matches the 100 MiB frame and message limit the agent host client uses
+/// (`defaultMaxPayloadLength` in `webSocketOverDuplex.ts`). Tungstenite's
+/// default 16 MiB frame limit rejects large chat snapshots that both ends
+/// accept.
+const GATEWAY_MAX_WS_PAYLOAD: usize = 100 * 1024 * 1024;
+
+/// Bounds the best-effort Close frame sent when the other side of the proxy
+/// fails, so a stalled peer cannot keep both streams alive.
+const GATEWAY_CLOSE_TIMEOUT: Duration = Duration::from_secs(5);
+
+fn gateway_ws_config() -> WebSocketConfig {
+	WebSocketConfig::default()
+		.max_frame_size(Some(GATEWAY_MAX_WS_PAYLOAD))
+		.max_message_size(Some(GATEWAY_MAX_WS_PAYLOAD))
+}
+
+fn gateway_close_frame(err: &WsError) -> CloseFrame {
+	match err {
+		WsError::Capacity(_) => CloseFrame {
+			code: CloseCode::Size,
+			reason: "Message exceeds the agent host gateway size limit".into(),
+		},
+		_ => CloseFrame {
+			code: CloseCode::Error,
+			reason: "Agent host gateway connection failed".into(),
+		},
+	}
+}
+
+/// Closes `ws` with `frame` when the other side of the proxy fails, so the
+/// peer learns about the failure right away instead of waiting for its
+/// heartbeat to time out.
+async fn close_gateway_peer<S>(ws: &mut WebSocketStream<S>, frame: CloseFrame)
+where
+	S: tokio::io::AsyncRead + tokio::io::AsyncWrite + Unpin,
+{
+	let _ = tokio::time::timeout(GATEWAY_CLOSE_TIMEOUT, ws.close(Some(frame))).await;
 }
 
 /// Bidirectionally forwards WebSocket frames between the tunnel client
@@ -2283,11 +2327,13 @@ async fn proxy_gateway_frames<A, B>(
 				Some(Ok(m)) => {
 					if let Err(e) = target.send(m).await {
 						debug!(log, "Gateway proxy: failed forwarding client frame to target: {:?}", e);
+						close_gateway_peer(&mut client, gateway_close_frame(&e)).await;
 						return;
 					}
 				}
 				Some(Err(e)) => {
 					debug!(log, "Gateway proxy: client connection error: {:?}", e);
+					close_gateway_peer(&mut target, gateway_close_frame(&e)).await;
 					return;
 				}
 			},
@@ -2299,11 +2345,13 @@ async fn proxy_gateway_frames<A, B>(
 				Some(Ok(m)) => {
 					if let Err(e) = client.send(m).await {
 						debug!(log, "Gateway proxy: failed forwarding target frame to client: {:?}", e);
+						close_gateway_peer(&mut target, gateway_close_frame(&e)).await;
 						return;
 					}
 				}
 				Some(Err(e)) => {
 					debug!(log, "Gateway proxy: target connection error: {:?}", e);
+					close_gateway_peer(&mut client, gateway_close_frame(&e)).await;
 					return;
 				}
 			}
@@ -3970,5 +4018,149 @@ mod tests {
 		let endpoints = inventory["endpoints"].as_array().unwrap();
 		assert_eq!(endpoints.len(), 1);
 		assert_eq!(endpoints[0]["instanceId"], "instance-direct-tunnel");
+	}
+
+	/// Binds a target agent host that completes the WebSocket handshake with
+	/// the gateway's limits and hands each connection to `serve`. Keeps
+	/// accepting because registry reachability probes connect without a
+	/// handshake.
+	async fn spawn_target_endpoint_with<F, Fut>(serve: F) -> u16
+	where
+		F: Fn(WebSocketStream<tokio::net::TcpStream>) -> Fut + Send + Sync + 'static,
+		Fut: std::future::Future<Output = ()> + Send + 'static,
+	{
+		let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+		let port = listener.local_addr().unwrap().port();
+		let serve = Arc::new(serve);
+		tokio::spawn(async move {
+			loop {
+				let (stream, _) = listener.accept().await.unwrap();
+				let serve = serve.clone();
+				tokio::spawn(async move {
+					if let Ok(ws) = tokio_tungstenite::accept_async_with_config(
+						stream,
+						Some(gateway_ws_config()),
+					)
+					.await
+					{
+						serve(ws).await;
+					}
+				});
+			}
+		});
+		port
+	}
+
+	/// Opens the selection route through [`serve_agent_host_tunnel_connection`],
+	/// selects the target on `target_port`, and returns the client end once
+	/// the gateway starts proxying.
+	async fn select_through_tunnel_route(
+		target_port: u16,
+	) -> (tempfile::TempDir, WebSocketStream<tokio::io::DuplexStream>) {
+		let dir = tempfile::tempdir().unwrap();
+		let user_data_path = dir.path().join("user-data");
+		let launcher_paths = LauncherPaths::new_without_replacements(dir.path().to_path_buf());
+		let entry = make_tcp_endpoint("instance-large-frames", target_port, "");
+		agent_host_registry::publish_agent_host_endpoint(
+			&log::Logger::test(),
+			&user_data_path,
+			&entry,
+		)
+		.unwrap();
+
+		let active_agent_host =
+			ready_active_agent_host(crate::commands::agent_host::ActiveAgentHost {
+				pid: 0,
+				host: Some("127.0.0.1".to_string()),
+				port: 1,
+				token: None,
+			});
+
+		let (client_io, server_io) = tokio::io::duplex(64 * 1024);
+		tokio::spawn(async move {
+			serve_agent_host_tunnel_connection(
+				log::Logger::test(),
+				server_io,
+				active_agent_host,
+				launcher_paths,
+				user_data_path,
+				false,
+			)
+			.await;
+		});
+
+		let (mut client_ws, _resp) = tokio_tungstenite::client_async_with_config(
+			format!("ws://localhost{AGENT_HOST_GATEWAY_SELECT_PATH}"),
+			client_io,
+			Some(gateway_ws_config()),
+		)
+		.await
+		.expect("gateway select upgrade should succeed");
+
+		match client_ws.next().await {
+			Some(Ok(Message::Text(_))) => {}
+			other => panic!("expected inventory message, got {other:?}"),
+		}
+		client_ws
+			.send(Message::Text(
+				r#"{"instanceId":"instance-large-frames"}"#.into(),
+			))
+			.await
+			.unwrap();
+		match client_ws.next().await {
+			Some(Ok(Message::Text(t))) => assert!(t.contains(r#""ok":true"#), "got: {t}"),
+			other => panic!("expected selection ack, got {other:?}"),
+		}
+		(dir, client_ws)
+	}
+
+	/// Chat snapshots larger than tungstenite's default 16 MiB frame limit
+	/// must pass through the gateway in both directions.
+	#[tokio::test]
+	async fn gateway_proxies_frames_larger_than_16_mib() {
+		let port = spawn_target_endpoint_with(|mut ws| async move {
+			if let Some(Ok(msg)) = ws.next().await {
+				let _ = ws.send(msg).await;
+			}
+			let _ = ws.close(None).await;
+		})
+		.await;
+		let (_dir, mut client_ws) = select_through_tunnel_route(port).await;
+
+		let payload = vec![7u8; 17 * 1024 * 1024];
+		client_ws
+			.send(Message::Binary(payload.clone().into()))
+			.await
+			.unwrap();
+		match client_ws.next().await {
+			Some(Ok(Message::Binary(echoed))) => assert_eq!(echoed.len(), payload.len()),
+			other => panic!("expected echoed binary frame, got {other:?}"),
+		}
+	}
+
+	/// A target frame above the gateway limit must close the client with
+	/// 1009 right away instead of leaving it to time out.
+	#[tokio::test]
+	async fn gateway_closes_client_when_target_frame_exceeds_limit() {
+		use tokio::io::AsyncWriteExt;
+
+		let port = spawn_target_endpoint_with(|mut ws| async move {
+			// Unmasked binary frame header announcing a payload one byte over
+			// the limit; the gateway rejects it from the header alone.
+			let mut header = vec![0x82, 0x7f];
+			header.extend_from_slice(&(GATEWAY_MAX_WS_PAYLOAD as u64 + 1).to_be_bytes());
+			ws.get_mut().write_all(&header).await.unwrap();
+			let _ = ws.next().await;
+		})
+		.await;
+		let (_dir, mut client_ws) = select_through_tunnel_route(port).await;
+
+		let msg = tokio::time::timeout(Duration::from_secs(5), client_ws.next())
+			.await
+			.expect("gateway should close the client promptly");
+		match msg {
+			Some(Ok(Message::Close(Some(frame)))) => assert_eq!(frame.code, CloseCode::Size),
+			other => panic!("expected close frame with code 1009, got {other:?}"),
+		}
 	}
 }
