@@ -167,7 +167,8 @@ import { AgentHostPeerChatStore, CHAT_PROVIDER_DATA_METADATA_KEY, CHAT_WORKING_D
 import { chatCatalogAwaitsReprojection, migrateChatCatalogV2 } from './agentHostChatCatalogMigration.js';
 import { IAgentHostChatContributions } from '../common/agentHostChatContributionsService.js';
 import { IAgentHostTurnService, type IDeferredAgentHostTurn } from './agentHostTurnService.js';
-import { isModelRouterModelId } from '../common/modelRouter.js';
+import { readUsageInfoMeta } from '../common/meta/agentUsageMeta.js';
+import { isModelRouterModelId, modelRouterModelId } from '../common/modelRouter.js';
 
 /**
  * Grace period before an empty, unsubscribed session is garbage-collected
@@ -913,6 +914,26 @@ export interface IAgentServiceCore {
 	readonly stateManager: AgentHostStateManager;
 	readonly configurationService: AgentConfigurationService;
 	readonly callbackBinder: IAgentServiceCallbackBinder;
+}
+
+/**
+ * The model router a chat is on, from its newest turn that chose a model. A routed turn keeps
+ * its router in its persisted usage, so this survives a restart; turns that chose no model,
+ * like host notices, are skipped, and a concrete model means the chat left its router.
+ */
+function modelRouterSelectionOf(chat: ChatState | undefined): ModelSelection | undefined {
+	const turns = chat ? [...chat.turns, ...(chat.activeTurn ? [chat.activeTurn] : [])] : [];
+	for (let i = turns.length - 1; i >= 0; i--) {
+		const routed = readUsageInfoMeta(turns[i].usage).modelRouted;
+		if (routed) {
+			return { id: modelRouterModelId(routed.router) };
+		}
+		const model = turns[i].message.model;
+		if (model) {
+			return isModelRouterModelId(model.id) ? model : undefined;
+		}
+	}
+	return undefined;
 }
 
 function findNonPtyTerminalContent(chat: ChatState, toolCallId: string, resource: URI): ToolResultTerminalContent | undefined {
@@ -2709,9 +2730,7 @@ export class AgentService extends Disposable implements IAgentService {
 	 */
 	private async _startSessionPrompt(session: URI, chat: URI, prompt: string, delegation?: IAgentMessageDelegationMeta, credentials?: IAgentHostCredentialSource, model?: ModelSelection): Promise<void> {
 		// A chat on a model router keeps routing the tasks other chats send it.
-		const chatState = this._stateManager.getChatState(chat.toString());
-		const previousModel = (chatState?.activeTurn ?? chatState?.turns.at(-1))?.message.model;
-		model ??= isModelRouterModelId(previousModel?.id) ? previousModel : undefined;
+		model ??= modelRouterSelectionOf(this._stateManager.getChatState(chat.toString()));
 		// The calling agent authored this prompt, not the user.
 		const message: Message = {
 			text: prompt,
