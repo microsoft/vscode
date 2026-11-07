@@ -392,8 +392,9 @@ export class McpServerRequestHandler extends Disposable {
 	}
 
 	private handleCancelledNotification(request: MCP.CancelledNotification): void {
-		if (request.params.requestId) {
-			this._rpc.cancelPendingRequest(request.params.requestId);
+		// The ID refers to a request the server sent to us, not one of our own pending requests
+		if (request.params.requestId !== undefined) {
+			this._rpc.cancelIncomingRequest(request.params.requestId);
 		}
 	}
 
