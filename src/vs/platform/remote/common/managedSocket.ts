@@ -8,8 +8,13 @@ import { Emitter, Event, PauseableEmitter } from '../../../base/common/event.js'
 import { Disposable, DisposableStore } from '../../../base/common/lifecycle.js';
 import { ISocket, SocketCloseEvent, SocketDiagnostics, SocketDiagnosticsEventType } from '../../../base/parts/ipc/common/ipc.net.js';
 
-export const makeRawSocketHeaders = (path: string, query: string, deubgLabel: string) => {
-	// https://tools.ietf.org/html/rfc6455#section-4
+ export const makeRawSocketHeaders = (path: string, query: string, debugLabel: string) => {
+ 
+	if (/[\r\n]/.test(path) || /[\r\n]/.test(query)) {
+		throw new Error('Invalid characters detected in path or query parameters.');
+	}
+
+ 
 	const buffer = new Uint8Array(16);
 	for (let i = 0; i < 16; i++) {
 		buffer[i] = Math.round(Math.random() * 256);
