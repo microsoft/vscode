@@ -277,6 +277,7 @@ suite('AgentHostGitHubTelemetryRouter', () => {
 					message_direction: direction,
 					headerRequestId: `${direction}-${sessionId}`,
 					agent_id: 'child-1',
+					interaction_id: `interaction-${sessionId}`,
 					messagesJson: JSON.stringify([{ role: direction === 'input' ? 'user' : 'assistant', content: 'synthetic' }]),
 				};
 				await router.route(source, internalContext);
@@ -288,6 +289,7 @@ suite('AgentHostGitHubTelemetryRouter', () => {
 			name: baseData.name,
 			session: baseData.properties.sdkSessionId,
 			agent: baseData.properties.sdkAgentId,
+			interaction: baseData.properties.interaction_id,
 			call: baseData.properties.modelCallId,
 			direction: baseData.properties.message_direction,
 			header: baseData.properties.headerRequestId,
@@ -296,6 +298,7 @@ suite('AgentHostGitHubTelemetryRouter', () => {
 			name: 'copilot-chat/engine.messages',
 			session,
 			agent: 'child-1',
+			interaction: `interaction-${session}`,
 			call: `engine-${session}`,
 			direction,
 			header: `${direction}-${session}`,
