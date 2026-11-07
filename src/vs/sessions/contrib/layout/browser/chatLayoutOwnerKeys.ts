@@ -7,7 +7,7 @@ import { ResourceMap } from '../../../../base/common/map.js';
 import { isEqual } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
 import { IChatLayoutOwner, getChatLayoutOwnerAfterReplacement } from '../../../common/chatLayout.js';
-import { ISession } from '../../../services/sessions/common/session.js';
+import { ISession } from '../../../../workbench/services/sessions/common/session.js';
 
 const CHAT_LAYOUT_OWNER_KEY_SCHEME = 'vscode-chat-layout-owner';
 

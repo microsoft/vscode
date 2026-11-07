@@ -47,6 +47,7 @@ export const enum CopilotCliConfigKey {
 	ClaudeAdvisor = 'claudeAdvisor',
 	/** Offer the runtime's `search_code_subagent` tool to Copilot SDK sessions. Off by default. */
 	SearchSubagent = 'searchSubagent',
+	SearchSubagentGrepNudge = 'searchSubagentGrepNudge',
 	/** CAPI model override for the runtime's search subagent. Empty uses the runtime default. */
 	SearchSubagentModel = 'searchSubagentModel',
 	/** Offer the runtime's built-in Explore agent. On by default. */
@@ -69,10 +70,6 @@ export const enum CopilotCliConfigKey {
 	ProgressUpdatesPrompt = 'progressUpdatesPrompt',
 	/** Whether the workbench progress-update prompt value is controlled by its configuration default. */
 	ProgressUpdatesPromptDefaultControlled = 'progressUpdatesPromptDefaultControlled',
-	/** Enable runtime tool search (deferred-tool loading) for Copilot SDK sessions. On by default. */
-	ToolSearchEnabled = 'toolSearchEnabled',
-	/** Minimum tool count before MCP/external tools are deferred behind tool search. 0 = always defer. */
-	ToolSearchDeferThreshold = 'toolSearchDeferThreshold',
 	/** Store Copilot Memory in the repository instead of GitHub's cloud memory service. Off by default. */
 	LocalMemory = 'localMemory',
 	/** Character budget for skill descriptions included in the Copilot SDK system message. */
@@ -125,6 +122,7 @@ export function normalizeCopilotPolicyHelperConfig(value: unknown): ICopilotPoli
 export const CopilotClaudeAdvisorEnabledSettingId = 'chat.copilot.claudeAdvisor.enabled';
 
 export const CopilotSearchSubagentEnabledSettingId = 'chat.copilot.searchSubagent.enabled';
+export const CopilotSearchSubagentGrepNudgeSettingId = 'chat.copilot.searchSubagent.grepNudge.enabled';
 /** Selects the image model offered to Copilot agents, or turns image generation off. */
 export const CopilotImageGenerationModelSettingId = 'chat.copilot.imageGeneration.model';
 /** Legacy boolean setting, migrated to {@link CopilotImageGenerationModelSettingId}. */
@@ -148,10 +146,6 @@ export const AgentHostOpus48PromptEnabledSettingId = 'chat.agentHost.opus48Promp
 export const CopilotStabilityOrderedPromptEnabledSettingId = 'chat.copilot.stabilityOrderedPrompt.enabled';
 
 export const AgentHostCopilotProgressUpdatesPromptSettingId = 'chat.agentHost.copilot.progressUpdatesPrompt.enabled';
-
-export const AgentHostToolSearchEnabledSettingId = 'chat.agentHost.copilot.toolSearch.enabled';
-
-export const AgentHostToolSearchDeferThresholdSettingId = 'chat.agentHost.copilot.toolSearch.deferThreshold';
 
 /**
  * Root config key that hosts before Auto's tiers always came from the Copilot service read to launch the runtime
@@ -178,11 +172,6 @@ export const DEFAULT_COPILOT_SKILL_CHAR_BUDGET = 30_000;
 /** Floors valid skill character budgets and returns the default for invalid values. */
 export function normalizeSkillCharBudget(value: number | undefined): number {
 	return value !== undefined && Number.isFinite(value) && value >= 1 ? Math.floor(value) : DEFAULT_COPILOT_SKILL_CHAR_BUDGET;
-}
-
-/** Floors valid tool-search thresholds and returns the default for invalid values. */
-export function normalizeToolSearchDeferThreshold(value: number | undefined): number {
-	return value !== undefined && Number.isFinite(value) && value >= 0 ? Math.floor(value) : 1;
 }
 
 /** Per-model capability override; the agent-host equivalent of the extension's `IModelCapabilityOverride`. */
@@ -315,6 +304,12 @@ export const copilotCliConfigSchema = createSchema({
 		description: localize('agentHost.config.searchSubagent.description', "When enabled, Copilot SDK sessions are offered the runtime's search subagent tool for codebase search. Applied when a session launches or resumes."),
 		default: false,
 	}),
+	[CopilotCliConfigKey.SearchSubagentGrepNudge]: schemaProperty<boolean>({
+		type: 'boolean',
+		title: localize('agentHost.config.searchSubagentGrepNudge.title', "Search Subagent Grep Nudge"),
+		description: localize('agentHost.config.searchSubagentGrepNudge.description', "During the first two user messages, defer at most one grep search per message to suggest the available search subagent. Further grep calls proceed through normal permissions. Does not affect searches inside subagents."),
+		default: false,
+	}),
 	[CopilotCliConfigKey.SearchSubagentModel]: schemaProperty<string>({
 		type: 'string',
 		title: localize('agentHost.config.searchSubagentModel.title', "Search Subagent Model"),
@@ -380,18 +375,6 @@ export const copilotCliConfigSchema = createSchema({
 		title: localize('agentHost.config.progressUpdatesPromptDefaultControlled.title', "Progress Updates Prompt Default Control"),
 		description: localize('agentHost.config.progressUpdatesPromptDefaultControlled.description', "Whether the workbench progress updates prompt setting has no explicit override. Used only to gate setting experiment telemetry."),
 		default: false,
-	}),
-	[CopilotCliConfigKey.ToolSearchEnabled]: schemaProperty<boolean>({
-		type: 'boolean',
-		title: localize('agentHost.config.toolSearchEnabled.title', "Agent Host Tool Search"),
-		description: localize('agentHost.config.toolSearchEnabled.description', "When enabled, Copilot SDK sessions defer MCP and non-core VS Code tools behind a tool-search tool so the model discovers them on demand instead of loading every tool definition up front."),
-		default: true,
-	}),
-	[CopilotCliConfigKey.ToolSearchDeferThreshold]: schemaProperty<number>({
-		type: 'number',
-		title: localize('agentHost.config.toolSearchDeferThreshold.title', "Tool Search Defer Threshold"),
-		description: localize('agentHost.config.toolSearchDeferThreshold.description', "Minimum number of tools before MCP and external tools are deferred behind tool search. Set to 0 to always defer external tools. Only effective when tool search is enabled."),
-		default: 1,
 	}),
 	[CopilotCliConfigKey.LocalMemory]: schemaProperty<boolean>({
 		type: 'boolean',

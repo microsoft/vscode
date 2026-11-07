@@ -17,7 +17,7 @@ import { IProductService } from '../../../../../platform/product/common/productS
 import { IWorkspaceContextService } from '../../../../../platform/workspace/common/workspace.js';
 import { IPathService } from '../../../../services/path/common/pathService.js';
 import { IAICustomizationWorkspaceService, AICustomizationManagementSection } from '../../common/aiCustomizationWorkspaceService.js';
-import { ICustomizationHarnessService, IHarnessDescriptor, isPluginCustomizationItem } from '../../common/customizationHarnessService.js';
+import { ICustomizationHarnessService, IHarnessDescriptor, isPluginCustomizationItem, isSyncedFromClientCustomizationItem } from '../../common/customizationHarnessService.js';
 import { ICustomizationMarketplaceInstallService } from '../../common/customizationMarketplaceInstallService.js';
 import { IAgentPluginService } from '../../common/plugins/agentPluginService.js';
 import { PromptsType } from '../../common/promptSyntax/promptTypes.js';
@@ -342,7 +342,7 @@ export class AICustomizationItemsModel extends Disposable implements IAICustomiz
 		const seq = ++this.pluginFetchSeq;
 		const pending = source.fetchProviderItems().then(items => {
 			return items
-				.filter(item => isPluginCustomizationItem(item) && item.groupKey !== 'remote-client')
+				.filter(item => isPluginCustomizationItem(item) && !isSyncedFromClientCustomizationItem(item))
 				.map(item => ({ name: item.name ?? '', enabled: item.enabled !== false }));
 		});
 

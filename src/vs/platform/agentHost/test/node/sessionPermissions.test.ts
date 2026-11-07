@@ -1444,6 +1444,31 @@ suite('SessionPermissionManager', () => {
 		});
 	});
 
+	test('requires confirmation for Dev Container configurations despite explicit edit approval', async () => {
+		configService.updateRootConfig({
+			[AgentHostEditAutoApprovePatternsConfigKey]: {
+				'**/*': true,
+				'**/.devcontainer/**': true,
+				'**/.devcontainer.json': true,
+			},
+		});
+		const files = [
+			'.devcontainer.json',
+			join('.devcontainer', 'devcontainer.json'),
+			join('.devcontainer', 'python', 'devcontainer.json'),
+		];
+		const results = await Promise.all(['', 'nested'].flatMap(directory =>
+			files.map(file => permissions.getAutoApproval(writeEvent(join(workDir, directory, file)), sessionUri))));
+
+		assert.deepStrictEqual({
+			protectedFiles: results,
+			ordinaryFile: await permissions.getAutoApproval(writeEvent(join(workDir, '.devcontainer', 'Dockerfile')), sessionUri),
+		}, {
+			protectedFiles: [...files, ...files].map(() => undefined),
+			ordinaryFile: ToolCallConfirmationReason.NotNeeded,
+		});
+	});
+
 	test('requires confirmation for configured custom hook file location', async () => {
 		const sensitiveEditLocations = getChatSensitiveEditLocations({
 			'custom-hooks/hooks.json': true,

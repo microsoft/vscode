@@ -7,9 +7,9 @@ import assert from 'assert';
 import { URI } from '../../../../../base/common/uri.js';
 import { upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { ISessionFileChange } from '../../../../services/sessions/common/session.js';
+import { ISessionFileChange } from '../../../../../workbench/services/sessions/common/session.js';
 import { getFeedbackSessionCandidates, getSessionChangeForResource } from '../../browser/agentFeedbackEditorUtils.js';
-import { IAgentFeedbackService } from '../../browser/agentFeedbackService.js';
+import { IAgentFeedbackService } from '../../../../../workbench/contrib/sessions/browser/agentFeedback.js';
 
 suite('AgentFeedbackEditorUtils', () => {
 

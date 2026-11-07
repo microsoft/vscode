@@ -188,7 +188,7 @@ export class ReleaseNotesManager extends Disposable {
 		const codeBlocks: IReleaseNotesCodeBlock[] = [];
 		let html: string;
 		try {
-			html = await this.renderBody({ text: releaseNotes.text, base }, tryouts, codeBlocks, telemetry);
+			html = await this.renderBody({ text: releaseNotes.text, base, mediaBaseUrl: useCurrentFile ? undefined : 'https://code.visualstudio.com/assets/updates/' }, tryouts, codeBlocks, telemetry);
 		} catch (error) {
 			if (this._pendingDocument.value === tryouts) {
 				this._pendingDocument.clear();
@@ -480,10 +480,10 @@ export class ReleaseNotesManager extends Disposable {
 		return uri;
 	}
 
-	private async renderBody(fileContent: { text: string; base: URI }, tryouts: ReleaseNotesTryouts, codeBlocks: IReleaseNotesCodeBlock[], telemetry?: ReleaseNotesTelemetry) {
+	private async renderBody(fileContent: { text: string; base: URI; mediaBaseUrl?: string }, tryouts: ReleaseNotesTryouts, codeBlocks: IReleaseNotesCodeBlock[], telemetry?: ReleaseNotesTelemetry) {
 		const nonce = generateUuid();
 
-		const processedContent = await renderReleaseNotesMarkdown(fileContent.text, this._extensionService, this._languageService, this._simpleSettingRenderer, this._productService.quality, tryouts, codeBlocks, telemetry);
+		const processedContent = await renderReleaseNotesMarkdown(fileContent.text, this._extensionService, this._languageService, this._simpleSettingRenderer, this._productService.quality, tryouts, codeBlocks, telemetry, fileContent.mediaBaseUrl);
 
 		const colorMap = TokenizationRegistry.getColorMap();
 		const css = colorMap ? generateTokensCSSForColorMap(colorMap) : '';
@@ -966,6 +966,7 @@ export function processConditionalBlocks(text: string, activeConditions: Readonl
 	);
 }
 
+/** Renders release notes, optionally resolving images/ media paths against mediaBaseUrl without changing links. */
 export async function renderReleaseNotesMarkdown(
 	text: string,
 	extensionService: IExtensionService,
@@ -975,6 +976,7 @@ export async function renderReleaseNotesMarkdown(
 	tryouts?: ReleaseNotesTryouts,
 	codeBlocks?: IReleaseNotesCodeBlock[],
 	telemetry?: ReleaseNotesTelemetry,
+	mediaBaseUrl?: string,
 ): Promise<TrustedHTML> {
 	// Remove HTML comment markers around table of contents navigation
 	text = text
@@ -1036,7 +1038,7 @@ export async function renderReleaseNotesMarkdown(
 			}
 		}]
 	});
-	if (!telemetry && (!tryouts || !tryouts.needsRender(content))) {
+	if (!mediaBaseUrl && !telemetry && (!tryouts || !tryouts.needsRender(content))) {
 		return content;
 	}
 	const tryoutSanitizerConfig = {
@@ -1049,6 +1051,17 @@ export async function renderReleaseNotesMarkdown(
 	};
 	const container = $('div');
 	safeSetInnerHtml(container, content.toString(), tryoutSanitizerConfig);
+	if (mediaBaseUrl) {
+		// eslint-disable-next-line no-restricted-syntax -- These media elements are authored in the release note Markdown.
+		for (const element of container.querySelectorAll('img, video, source')) {
+			for (const attribute of ['src', 'poster']) {
+				const value = element.getAttribute(attribute);
+				if (value) {
+					element.setAttribute(attribute, value.replace(/^(?:\.\/)?images\//, mediaBaseUrl));
+				}
+			}
+		}
+	}
 	tryouts?.render(container);
 	if (telemetry) {
 		telemetry.manifest = indexReleaseNotesContent(container);

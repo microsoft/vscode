@@ -16,11 +16,10 @@ import { automationTriggerSummary } from '../../../../../workbench/contrib/chat/
 import { IAgentPluginService } from '../../../../../workbench/contrib/chat/common/plugins/agentPluginService.js';
 import { IChatService } from '../../../../../workbench/contrib/chat/common/chatService/chatService.js';
 import { IChatModel } from '../../../../../workbench/contrib/chat/common/model/chatModel.js';
-import { Parts } from '../../../../../workbench/services/layout/browser/layoutService.js';
-import { IAgentWorkbenchLayoutService } from '../../../../browser/workbench.js';
-import { AutomationsCustomViewFocusContext } from '../../../../common/contextkeys.js';
-import { SESSIONS_LIST_SHOW_AUTOMATION_SESSIONS_SETTING } from '../../../../common/sessionConfig.js';
-import { ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
+import { IWorkbenchLayoutService, Parts } from '../../../../../workbench/services/layout/browser/layoutService.js';
+import { AutomationsCustomViewFocusContext } from '../../../../common/agentsWindowContextKeys.js';
+import { SESSIONS_LIST_SHOW_AUTOMATION_SESSIONS_SETTING } from '../../../../../workbench/contrib/sessions/common/sessionConfig.js';
+import { ISessionsManagementService } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import { IAutomationTemplate, readAutomationTemplates } from './automationTemplates.js';
 import { formatUnavailableAutomationsMessage, getAutomationOwnershipGroups } from './automationCataloguePresentation.js';
 import { automationRunWithLocalProgress } from './automationRunProgress.js';
@@ -32,7 +31,7 @@ class AutomationsCustomViewAccessibilityHelp implements IAccessibleViewImplement
 	readonly when = AutomationsCustomViewFocusContext;
 
 	getProvider(accessor: ServicesAccessor): AccessibleContentProvider {
-		const layoutService = accessor.get(IAgentWorkbenchLayoutService);
+		const layoutService = accessor.get(IWorkbenchLayoutService);
 		const automationService = accessor.get(IAutomationService);
 		const agentPluginService = accessor.get(IAgentPluginService);
 		const restoreFocus = createFocusRestorer(layoutService);
@@ -88,7 +87,7 @@ class AutomationsCustomViewAccessibleView implements IAccessibleViewImplementati
 
 	getProvider(accessor: ServicesAccessor): AccessibleContentProvider {
 		const automationService = accessor.get(IAutomationService);
-		const layoutService = accessor.get(IAgentWorkbenchLayoutService);
+		const layoutService = accessor.get(IWorkbenchLayoutService);
 		const sessionsManagementService = accessor.get(ISessionsManagementService);
 		const chatService = accessor.get(IChatService);
 		const agentPluginService = accessor.get(IAgentPluginService);
@@ -120,7 +119,7 @@ class AutomationsCustomViewAccessibleView implements IAccessibleViewImplementati
 	}
 }
 
-function createFocusRestorer(layoutService: IAgentWorkbenchLayoutService): () => void {
+function createFocusRestorer(layoutService: IWorkbenchLayoutService): () => void {
 	const focusedElement = getActiveElement();
 	return () => {
 		if (isHTMLElement(focusedElement) && focusedElement.isConnected) {
