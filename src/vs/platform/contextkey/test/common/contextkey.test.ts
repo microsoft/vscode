@@ -49,6 +49,16 @@ suite('ContextKeyExpr', () => {
 		assert(a.equals(b), 'expressions should be equal');
 	});
 
+	test('regex expressions with different flags are not equal', () => {
+		const insensitive = ContextKeyExpr.deserialize('a =~ /x/i')!;
+		const sensitive = ContextKeyExpr.deserialize('a =~ /x/')!;
+		assert.strictEqual(insensitive.equals(sensitive), false);
+
+		// AND normalization must not drop one of the two terms
+		const expr = ContextKeyExpr.deserialize('a =~ /x/i && a =~ /x/')!;
+		assert.strictEqual(expr.evaluate(createContext({ a: 'X' })), false);
+	});
+
 	test('issue #134942: Equals in comparator expressions', () => {
 		function testEquals(expr: ContextKeyExpression | undefined, str: string): void {
 			const deserialized = ContextKeyExpr.deserialize(str);
