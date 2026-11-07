@@ -273,8 +273,9 @@ export function defineCopilotRuntimeMcpTests(context: IAgentHostE2ETestContext):
 		assert.deepStrictEqual({
 			processStarts: readFileSync(session.starts, 'utf8').trim().split('\n').filter(Boolean).length,
 			restartStates,
+			republishedState: relocatedServer.state.kind,
 			state: (await serverState(session.sessionUri, pluginUri)).state.kind,
-		}, { processStarts: 1, restartStates: [], state: McpServerStatus.Ready });
+		}, { processStarts: 1, restartStates: [], republishedState: McpServerStatus.Ready, state: McpServerStatus.Ready });
 	});
 
 	test('runtime MCP: invalid sibling images are omitted before model requests and cold resume', async function () {
