@@ -1,0 +1,685 @@
+openapi: 3.0.3
+info:
+  title: Blockchain.com Pay Partner API
+  description: |
+    The Partner API enables Blockchain.com Pay partners to integrate crypto purchase flows
+    into their backends. It provides eligibility data (currencies, regions, payment methods),
+    real-time buy quotes, and order management.
+
+    All endpoints require the `X-Public-API-Key` header to identify the partner.
+    Order endpoints additionally require the `X-Private-API-Key` header.
+  termsOfService: ''
+  license:
+    name: ''
+    url: ''
+  version: '1.0'
+servers:
+  - url: https://api.blockchain.info/partner-gateway/partner-api
+    description: Production
+tags:
+  - name: Eligibility
+    description: Available currencies, regions, and payment methods for the partner account.
+  - name: Quote
+    description: Real-time buy quotes.
+  - name: Orders
+    description: Order listing and lookup.
+paths:
+  /v1/currencies:
+    get:
+      summary: Get currencies
+      description: Returns an array of all currencies enabled on your account. Contact your account executive to customise your account settings.
+      operationId: GetCurrencies
+      tags:
+        - Eligibility
+      security:
+        - PublicApiKeyAuth: []
+        - PrivateApiKeyAuth: []
+      responses:
+        '200':
+          description: List of fiat and crypto currencies available for trading.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Currency'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+  /v1/regions:
+    get:
+      summary: Get countries and states
+      description: Returns an array of all countries and states supported by BcPay.
+      operationId: GetRegions
+      tags:
+        - Eligibility
+      security:
+        - PublicApiKeyAuth: []
+        - PrivateApiKeyAuth: []
+      parameters:
+        - name: onlyBuyAllowed
+          in: query
+          description: If true, only returns countries and states where buying is permitted.
+          schema:
+            type: boolean
+            default: true
+      responses:
+        '200':
+          description: Eligible regions.
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - countries
+                  - usStates
+                properties:
+                  countries:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Country'
+                  usStates:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/UsState'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+  /v1/payment-methods:
+    get:
+      summary: Get payment methods
+      description: Returns an array of all payment methods enabled on your account. Contact your account executive to customise your account settings.
+      operationId: GetPaymentMethods
+      tags:
+        - Eligibility
+      security:
+        - PublicApiKeyAuth: []
+        - PrivateApiKeyAuth: []
+      responses:
+        '200':
+          description: List of eligible payment methods and their supported currencies.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/PartnerPaymentMethodResponse'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+  /v1/orders:
+    get:
+      summary: Get orders
+      description: |
+        Returns either:
+        - A list of recent orders, limited to a maximum of 50 orders, sorted by descending creation date.
+        - If `externalReference` is provided, returns all orders matching that reference.
+        - If `walletAddress` is provided, returns all orders for that wallet address.
+      operationId: ListOrders
+      tags:
+        - Orders
+      security:
+        - PrivateApiKeyAuth: []
+      parameters:
+        - name: limit
+          in: query
+          description: The number of orders to return. Default and maximum is 50. Ignored when `externalReference` is provided.
+          schema:
+            type: integer
+            default: 50
+            maximum: 50
+          required: false
+          example: 10
+        - name: offset
+          in: query
+          description: The number of orders to skip. Use together with `limit` for pagination.
+          schema:
+            type: integer
+          required: false
+          example: 20
+        - name: externalReference
+          in: query
+          description: External reference of the order(s) set by the partner.
+          schema:
+            type: string
+          required: false
+          example: external_order_id
+        - name: walletAddress
+          in: query
+          description: User wallet address.
+          schema:
+            type: string
+          required: false
+          example: bc1q897va9he4zcppqgp3h7ue8hj7448ra0mr6xqtu
+        - name: outputCurrency
+          in: query
+          description: Filter by output (crypto) currency code.
+          required: false
+          schema:
+            type: string
+          example: BTC
+        - name: from
+          in: query
+          description: "Start of the date range, inclusive. Format: `YYYY-MM-DD`."
+          schema:
+            type: string
+            format: date
+          required: false
+          example: '2024-10-01'
+        - name: to
+          in: query
+          description: "End of the date range, exclusive. Format: `YYYY-MM-DD`."
+          schema:
+            type: string
+            format: date
+          required: false
+          example: '2024-10-02'
+      responses:
+        '200':
+          description: List of orders.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/PartnerOrderResponse'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+  /v1/orders/{id}:
+    get:
+      summary: Get order by id
+      description: Returns order details for the given order id.
+      operationId: GetOrderById
+      tags:
+        - Orders
+      security:
+        - PrivateApiKeyAuth: []
+      parameters:
+        - in: path
+          name: id
+          description: Unique identifier of the order.
+          required: true
+          schema:
+            type: string
+            format: uuid
+          example: f41a3e45-6392-457c-8566-a282b5f3e177
+      responses:
+        '200':
+          description: Order details.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PartnerOrderResponse'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '404':
+          description: Order not found.
+  /v1/quote/buy:
+    get:
+      summary: Get buy quote
+      description: |-
+        Returns a real-time buy quote for a currency pair.
+        Supply `quoteCurrencyCode`, `baseCurrencyCode`, and `quoteCurrencyAmount` (fiat amount) to get a
+        detailed buy quote including fees and the amount of crypto the user will receive.
+      operationId: GetQuoteBuy
+      tags:
+        - Quote
+      security:
+        - PublicApiKeyAuth: []
+        - PrivateApiKeyAuth: []
+      parameters:
+        - name: quoteCurrencyCode
+          in: query
+          description: The fiat currency to buy with.
+          schema:
+            type: string
+          required: true
+          example: USD
+        - name: baseCurrencyCode
+          in: query
+          description: The crypto currency to buy.
+          schema:
+            type: string
+          required: true
+          example: BTC
+        - name: quoteCurrencyAmount
+          in: query
+          description: The fiat amount the customer wants to spend. Must be a positive decimal with precision no higher than the currency precision.
+          schema:
+            type: number
+          required: true
+          example: "100.00"
+        - $ref: '#/components/parameters/PaymentMethodParam'
+        - name: countryCode
+          in: query
+          description: ISO 3166-1 alpha-2 country code, e.g. `US`.
+          example: US
+          schema:
+            type: string
+            minLength: 2
+            maxLength: 2
+        - name: usStateCode
+          in: query
+          description: US state code, e.g. `AL`. Ignored if `countryCode` is not `US`.
+          example: AL
+          schema:
+            type: string
+        - name: walletAddress
+          in: query
+          description: The wallet address where the user wants to receive the crypto.
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Buy quote with price, fees, and resulting crypto amount.
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - quoteCurrencyAmount
+                  - quoteCurrencyCode
+                  - quoteCurrency
+                  - baseCurrencyAmount
+                  - baseCurrencyCode
+                  - baseCurrency
+                  - price
+                  - processingFeeAmount
+                  - partnerFeeAmount
+                  - networkFeeAmount
+                  - totalAmount
+                properties:
+                  quoteCurrencyAmount:
+                    type: string
+                    description: The fiat amount the user pays for the transaction.
+                    example: '63.00'
+                  quoteCurrencyCode:
+                    type: string
+                    description: The fiat currency being spent.
+                    example: USD
+                  quoteCurrency:
+                    description: Details about the quote (fiat) currency.
+                    allOf:
+                      - $ref: '#/components/schemas/Currency'
+                    example:
+                      type: FIAT
+                      name: US Dollar
+                      code: USD
+                      precision: 2
+                      minBuyAmount: 20.00
+                      maxBuyAmount: 1200.00
+                  baseCurrencyAmount:
+                    type: string
+                    description: The amount of crypto converted from `quoteCurrencyAmount` at `price`, before fees. See `totalAmount` for the net amount after fees.
+                    example: '0.001'
+                  baseCurrencyCode:
+                    type: string
+                    description: The crypto currency being purchased.
+                    example: BTC
+                  baseCurrency:
+                    description: Details about the base (crypto) currency.
+                    allOf:
+                      - $ref: '#/components/schemas/Currency'
+                    example:
+                      type: CRYPTO
+                      name: Bitcoin
+                      code: BTC
+                      precision: 8
+                      network: BTC
+                      supportsDestinationTag: false
+                      isSupportedInUS: true
+                      allowedUSStates:
+                        - AL
+                        - CT
+                  price:
+                    type: string
+                    description: The buy-side price of the base currency denominated in the quote currency.
+                    example: '62451.29'
+                  processingFeeAmount:
+                    type: string
+                    description: Blockchain.com processing fee denominated in the quote (fiat) currency.
+                    example: '1.00'
+                  partnerFeeAmount:
+                    type: string
+                    description: Partner fee denominated in the quote (fiat) currency.
+                    example: '1.00'
+                  networkFeeAmount:
+                    type: string
+                    description: Network (blockchain transaction) fee denominated in the quote (fiat) currency.
+                    example: '1.00'
+                  totalAmount:
+                    type: string
+                    description: Net amount of crypto the user receives after all fees.
+                    example: '0.0009'
+                  paymentMethod:
+                    description: Payment method used for the quote. Null if not provided in the request.
+                    allOf:
+                      - $ref: '#/components/schemas/PaymentMethod'
+                    nullable: true
+                    example: CARD
+        default:
+          description: |-
+            Returns 400 when:
+            1. Any required query parameter is missing.
+            2. `baseCurrencyCode` or `quoteCurrencyCode` is not supported.
+            3. `baseCurrencyCode` is not of type CRYPTO.
+            4. `quoteCurrencyCode` is not of type FIAT.
+            5. `baseCurrencyCode` is not allowed for trading in the given `countryCode`.
+            6. `baseCurrencyCode` is not allowed for trading in the given `usStateCode`.
+            7. `quoteCurrencyCode` is not allowed for any region.
+            8. `baseCurrencyCode` is not allowed for any region.
+
+            Returns 422 when:
+            1. Fee profile for partner not found.
+            2. Quote not available for the requested parameters.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  errors:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Error'
+components:
+  schemas:
+    Currency:
+      type: object
+      required:
+        - type
+        - name
+        - code
+        - precision
+      properties:
+        type:
+          type: string
+          description: Whether this is a fiat or crypto currency.
+          enum:
+            - FIAT
+            - CRYPTO
+          example: FIAT
+        name:
+          type: string
+          description: Full name of the currency.
+          example: US Dollar
+        code:
+          type: string
+          description: Alphabetical ticker code for the currency. Case sensitive.
+          example: USD
+        precision:
+          type: integer
+          description: Number of decimal places supported. For example, BTC has precision 8 (smallest unit 0.00000001 BTC).
+          example: 2
+        minBuyAmount:
+          type: string
+          description: Minimum fiat amount allowed per order. Only present for fiat currencies.
+          example: '20.00'
+        maxBuyAmount:
+          type: string
+          description: Maximum fiat amount allowed per order. Only present for fiat currencies.
+          example: '1200.00'
+        network:
+          type: string
+          description: The blockchain network the currency runs on (e.g. BTC, ETH). Always null for fiat.
+          example: BTC
+        supportsDestinationTag:
+          type: boolean
+          description: Whether the currency supports destination tags or memo fields (e.g. XLM, XRP). Always null for fiat.
+        isSupportedInUS:
+          type: boolean
+          description: Whether purchases of this currency are supported in the US. Always null for fiat.
+        allowedUSStates:
+          type: array
+          description: US states where this currency can be purchased, using the last 2 characters of ISO 3166-2:US codes. Always null for fiat.
+          items:
+            type: string
+            minLength: 2
+            maxLength: 2
+          example:
+            - AL
+            - CT
+    PartnerPaymentMethodResponse:
+      type: object
+      required:
+        - type
+        - supportedCurrencies
+      properties:
+        type:
+          allOf:
+            - $ref: '#/components/schemas/PaymentMethod'
+          description: Payment method type.
+        supportedCurrencies:
+          type: array
+          description: Fiat currency codes supported for this payment method.
+          items:
+            type: string
+      example:
+        - type: CARD
+          supportedCurrencies:
+            - USD
+            - GBP
+            - EUR
+    PaymentMethod:
+      type: string
+      description: Payment method to be used for the order.
+      enum:
+        - CARD
+        - APPLE_PAY
+        - GOOGLE_PAY
+        - BANK_TRANSFER_NIP
+      example: CARD
+    Error:
+      type: object
+      required:
+        - type
+        - message
+      properties:
+        type:
+          type: string
+          description: Machine-readable error type.
+          example: RequestValidation.BadRequest.MissingParam
+        message:
+          type: string
+          description: Human-readable description of the error.
+          example: "Missing parameter 'quoteCurrencyCode'. Required params: [quoteCurrencyCode, baseCurrencyCode, quoteCurrencyAmount]"
+    Country:
+      type: object
+      required:
+        - alpha2
+        - alpha3
+        - isBuyAllowed
+        - name
+      properties:
+        alpha2:
+          type: string
+          description: ISO 3166-1 alpha-2 country code.
+          minLength: 2
+          maxLength: 2
+          example: US
+        alpha3:
+          type: string
+          description: ISO 3166-1 alpha-3 country code.
+          minLength: 3
+          maxLength: 3
+          example: USA
+        isBuyAllowed:
+          type: boolean
+          description: Whether residents of this country can buy cryptocurrencies.
+          example: true
+        name:
+          type: string
+          description: Country name in English.
+          example: United States
+    UsState:
+      type: object
+      required:
+        - alpha2
+        - isBuyAllowed
+        - name
+      properties:
+        alpha2:
+          type: string
+          description: ISO 3166-2:US state code (last 2 characters), e.g. `CA`.
+          minLength: 2
+          maxLength: 2
+          example: CA
+        isBuyAllowed:
+          type: boolean
+          description: Whether residents of this state can buy crypto.
+          example: true
+        name:
+          type: string
+          description: State name in English.
+          example: California
+    PartnerOrderResponse:
+      type: object
+      required:
+        - orderId
+        - orderType
+        - createdAt
+        - orderState
+        - orderStateUpdatedAt
+        - paymentMethod
+        - inputCurrency
+        - inputAmount
+        - outputCurrency
+        - outputAmount
+        - amountUsd
+        - processingFee
+        - processingFeeUsd
+        - partnerFee
+        - partnerFeeUsd
+        - networkFee
+        - networkFeeUsd
+        - userId
+        - targetWalletAddress
+      properties:
+        orderId:
+          type: string
+          format: uuid
+          description: Unique identifier of the order.
+          example: f41a3e45-6392-457c-8566-a282b5f3e177
+        externalReference:
+          type: string
+          description: External order reference set by the partner. Limited to 100 characters.
+          example: your_order_id
+        subPartnerId:
+          type: string
+          description: Optional third-party reference set by the partner. Limited to 50 characters.
+          example: your_sub_partner_id
+        orderType:
+          type: string
+          enum:
+            - BUY
+            - SELL
+          description: Order direction. BUY for on-ramp, SELL for off-ramp.
+          example: BUY
+        createdAt:
+          type: string
+          format: date-time
+          description: Timestamp when the order was created.
+          example: '2024-10-01T12:00:00Z'
+        orderState:
+          type: string
+          enum:
+            - PENDING
+            - WITHDRAWING
+            - COMPLETED
+            - FAILED
+          description: Current state of the order.
+          example: COMPLETED
+        orderStateUpdatedAt:
+          type: string
+          format: date-time
+          description: Timestamp of the last order state change.
+          example: '2024-10-01T13:00:00Z'
+        paymentMethod:
+          allOf:
+            - $ref: '#/components/schemas/PaymentMethod'
+          description: Payment method used for the order.
+          example: CARD
+        inputCurrency:
+          type: string
+          description: Fiat currency used to fund the order.
+          example: USD
+        inputAmount:
+          type: string
+          description: Fiat amount used to fund the order.
+          example: '100.00'
+        outputCurrency:
+          type: string
+          description: Crypto currency purchased.
+          example: BTC
+        outputAmount:
+          type: string
+          description: Amount of crypto received.
+          example: '0.001'
+        amountUsd:
+          type: string
+          description: Transaction value in USD. Approximate when `inputCurrency` is not USD.
+          example: '100.00'
+        processingFee:
+          type: string
+          description: Blockchain.com Pay processing fee denominated in `inputCurrency`.
+          example: '1.00'
+        processingFeeUsd:
+          type: string
+          description: Blockchain.com Pay processing fee in USD. Approximate when `inputCurrency` is not USD.
+          example: '1.00'
+        partnerFee:
+          type: string
+          description: Partner fee denominated in `inputCurrency`.
+          example: '0.50'
+        partnerFeeUsd:
+          type: string
+          description: Partner fee in USD. Approximate when `inputCurrency` is not USD.
+          example: '0.50'
+        networkFee:
+          type: string
+          description: Blockchain network fee denominated in `inputCurrency`.
+          example: '1.50'
+        networkFeeUsd:
+          type: string
+          description: Blockchain network fee in USD. Approximate when `inputCurrency` is not USD.
+          example: '1.50'
+        userId:
+          type: string
+          format: uuid
+          description: Unique identifier of the user who placed the order.
+          example: 2b6f0cc9-7b0c-4f3b-8f3b-6f0cc97b0c4f
+        targetWalletAddress:
+          type: string
+          description: Crypto wallet address that received the output currency.
+          example: bc1q897va9he4zcppqgp3h7ue8hj7448ra0mr6xqtu
+        transactionHash:
+          type: string
+          description: Blockchain transaction hash. Only present for COMPLETED orders.
+          example: 4b1549abe58cface17d400bf50ff0fe0c2e2ca8121f4e3764d807dc841a2ab80
+  securitySchemes:
+    PublicApiKeyAuth:
+      type: apiKey
+      in: header
+      name: X-Public-API-Key
+      description: Partner's public API key. Required on all endpoints to identify the partner.
+    PrivateApiKeyAuth:
+      type: apiKey
+      in: header
+      name: X-Private-API-Key
+      description: Partner's private API key. Required on order endpoints; indicates a server-to-server call.
+  responses:
+    UnauthorizedError:
+      description: Missing or invalid API key.
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              errors:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Error'
+  parameters:
+    PaymentMethodParam:
+      in: query
+      name: paymentMethod
+      required: false
+      description: Payment method to be used for the order. If omitted, the quote will not factor in payment method fees.
+      schema:
+        $ref: '#/components/schemas/PaymentMethod'
