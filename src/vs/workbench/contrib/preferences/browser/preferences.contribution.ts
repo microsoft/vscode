@@ -879,6 +879,9 @@ class PreferencesActionsContribution extends Disposable implements IWorkbenchCon
 					id,
 					title: nls.localize2('openGlobalKeybindings', "Open Keyboard Shortcuts"),
 					shortTitle: nls.localize('keyboardShortcuts', "Keyboard Shortcuts"),
+					metadata: {
+						description: nls.localize2('openGlobalKeybindings.description', "Opens the keyboard shortcuts editor to view and edit keybindings")
+					},
 					category,
 					icon: preferencesOpenSettingsIcon,
 					keybinding: {
@@ -940,6 +943,9 @@ class PreferencesActionsContribution extends Disposable implements IWorkbenchCon
 				super({
 					id: 'workbench.action.openGlobalKeybindingsFile',
 					title: nls.localize2('openGlobalKeybindingsFile', "Open Keyboard Shortcuts (JSON)"),
+					metadata: {
+						description: nls.localize2('openGlobalKeybindingsFile.description', "Opens the keybindings.json file to directly edit keybindings")
+					},
 					category,
 					icon: preferencesOpenSettingsIcon,
 					menu: [
