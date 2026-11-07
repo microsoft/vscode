@@ -458,9 +458,19 @@ function prepareResponse(result: IByokLmChatResult, model: string) {
 	const output = result.output.map(toResponsesOutputItem);
 	const inputTokens = result.usage?.inputTokens ?? 0;
 	const outputTokens = result.usage?.outputTokens ?? 0;
+	const cacheReadTokens = result.usage?.cacheReadTokens;
+	const cacheWriteTokens = result.usage?.cacheWriteTokens;
+	// Only report cache details the provider actually supplied: consumers treat
+	// an explicit `cached_tokens: 0` as a confirmed cache miss.
+	const inputTokensDetails = cacheReadTokens !== undefined || cacheWriteTokens !== undefined
+		? {
+			...(cacheReadTokens !== undefined ? { cached_tokens: cacheReadTokens } : {}),
+			...(cacheWriteTokens !== undefined ? { cache_write_tokens: cacheWriteTokens } : {}),
+		}
+		: undefined;
 	const usage = {
 		input_tokens: inputTokens,
-		input_tokens_details: { cached_tokens: 0 },
+		...(inputTokensDetails ? { input_tokens_details: inputTokensDetails } : {}),
 		output_tokens: outputTokens,
 		output_tokens_details: { reasoning_tokens: result.usage?.reasoningTokens ?? 0 },
 		total_tokens: inputTokens + outputTokens,

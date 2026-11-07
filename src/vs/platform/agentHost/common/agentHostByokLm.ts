@@ -139,6 +139,10 @@ export interface IByokLmChatResult {
 		readonly inputTokens?: number;
 		readonly outputTokens?: number;
 		readonly reasoningTokens?: number;
+		/** Input tokens served from the provider's prompt cache. Absent when the provider did not report cache details. */
+		readonly cacheReadTokens?: number;
+		/** Input tokens written to the provider's prompt cache. Absent when the provider did not report cache writes. */
+		readonly cacheWriteTokens?: number;
 	};
 	readonly error?: string;
 }

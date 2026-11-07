@@ -342,7 +342,7 @@ suite('AgentHostByokLmHandler', () => {
 				{ type: 'tool_use', name: 'getWeather', toolCallId: 't1', parameters: { city: 'NYC' } },
 				{ type: 'tool_use', name: 'apply_patch', toolCallId: 't2', parameters: { input: 'patch' } },
 				{ type: 'data', mimeType: 'stateful_marker', data: VSBuffer.fromString('claude\\resp_provider') },
-				{ type: 'data', mimeType: 'usage', data: VSBuffer.fromString('{"prompt_tokens":10,"completion_tokens":5,"completion_tokens_details":{"reasoning_tokens":2}}') },
+				{ type: 'data', mimeType: 'usage', data: VSBuffer.fromString('{"prompt_tokens":10,"completion_tokens":5,"prompt_tokens_details":{"cached_tokens":6,"cache_creation_input_tokens":3},"completion_tokens_details":{"reasoning_tokens":2}}') },
 			]),
 		);
 		const handler = createHandler(service);
@@ -370,7 +370,7 @@ suite('AgentHostByokLmHandler', () => {
 				{ type: 'custom_tool_call', callId: 't2', name: 'apply_patch', input: 'patch' },
 			],
 			responseId: 'resp_provider',
-			usage: { inputTokens: 10, outputTokens: 5, reasoningTokens: 2 },
+			usage: { inputTokens: 10, outputTokens: 5, reasoningTokens: 2, cacheReadTokens: 6, cacheWriteTokens: 3 },
 		});
 	});
 

@@ -430,17 +430,25 @@ export class AgentHostByokLmHandler extends Disposable implements IAgentHostByok
 	private _decodeUsage(data: VSBuffer): IByokLmChatResult['usage'] {
 		try {
 			const value = JSON.parse(data.toString()) as Record<string, unknown>;
-			const outputDetails = typeof value.completion_tokens_details === 'object' && value.completion_tokens_details !== null
-				? value.completion_tokens_details as Record<string, unknown>
-				: undefined;
+			const outputDetails = this._objectProperty(value, 'completion_tokens_details');
+			const promptDetails = this._objectProperty(value, 'prompt_tokens_details');
+			const cacheReadTokens = promptDetails ? this._numberProperty(promptDetails, 'cached_tokens') : undefined;
+			const cacheWriteTokens = promptDetails ? this._numberProperty(promptDetails, 'cache_creation_input_tokens') : undefined;
 			return {
 				inputTokens: this._numberProperty(value, 'prompt_tokens'),
 				outputTokens: this._numberProperty(value, 'completion_tokens'),
 				reasoningTokens: outputDetails ? this._numberProperty(outputDetails, 'reasoning_tokens') : undefined,
+				...(cacheReadTokens !== undefined ? { cacheReadTokens } : {}),
+				...(cacheWriteTokens !== undefined ? { cacheWriteTokens } : {}),
 			};
 		} catch {
 			return undefined;
 		}
+	}
+
+	private _objectProperty(value: Record<string, unknown>, key: string): Record<string, unknown> | undefined {
+		const property = value[key];
+		return typeof property === 'object' && property !== null ? property as Record<string, unknown> : undefined;
 	}
 
 	private _numberProperty(value: Record<string, unknown>, key: string): number | undefined {
