@@ -7,7 +7,7 @@ import assert from 'assert';
 import { DeferredPromise, timeout } from '../../../../../base/common/async.js';
 import { CancellationError } from '../../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
-import { Disposable, IReference } from '../../../../../base/common/lifecycle.js';
+import { Disposable, IReference, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { autorun, constObservable, derived, IObservable, IReader, observableValue, transaction } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { mock, upcastPartial } from '../../../../../base/test/common/mock.js';
@@ -1355,7 +1355,7 @@ suite('SessionCanvasService', () => {
 		const contextService = store.add(new SessionCanvasContextService(
 			sessionHostServiceOf(store, { mainWindowActiveSession: constObservable(undefined), gridShown: constObservable([]), windowSessions: constObservable([]) }),
 			focusedSessionHostServiceOf(constObservable(undefined)),
-			upcastPartial<ISessionsManagementService>({ onDidChangeSessions: Event.None, onDidDeleteChat: Event.None }),
+			upcastPartial<ISessionsManagementService>({ onDidChangeSessions: Event.None, onDidDeleteChat: Event.None, getSessionForChatResource: () => undefined }),
 			upcastPartial<IEditorGroupsService>({}),
 			new SessionEditorWorkingSetService(),
 			upcastPartial<IAgentWorkbenchLayoutService>({ suppressEditorPartAutoVisibility: () => Disposable.None }),
@@ -1387,7 +1387,7 @@ suite('SessionCanvasService', () => {
 		const contextService = store.add(new SessionCanvasContextService(
 			sessionHostServiceOf(store, { mainWindowActiveSession: constObservable(undefined), gridShown: constObservable([]), windowSessions: constObservable([]) }),
 			focusedSessionHostServiceOf(constObservable(undefined)),
-			upcastPartial<ISessionsManagementService>({ onDidChangeSessions: Event.None, onDidDeleteChat: Event.None }),
+			upcastPartial<ISessionsManagementService>({ onDidChangeSessions: Event.None, onDidDeleteChat: Event.None, getSessionForChatResource: () => undefined }),
 			editorGroupsService,
 			new SessionEditorWorkingSetService(),
 			upcastPartial<IAgentWorkbenchLayoutService>({ suppressEditorPartAutoVisibility: () => Disposable.None }),
@@ -1445,6 +1445,7 @@ suite('SessionCanvasService', () => {
 			upcastPartial<ISessionsManagementService>({
 				onDidChangeSessions: Event.None,
 				onDidDeleteChat: Event.None,
+				getSessionForChatResource: () => undefined,
 				getSession: resource => [mainWindowSession, chatWindowSession, otherSession].find(session => session.resource.toString() === resource.toString()),
 			}),
 			upcastPartial<IEditorGroupsService>({}),
@@ -1470,7 +1471,12 @@ suite('SessionCanvasService', () => {
 	});
 	suite('chat window chats', () => {
 		const createFixture = (focusedInWindow: boolean) => {
-			const createChat = (name: string) => upcastPartial<IChat>({ resource: URI.parse(`agent-host-chat:/session/${name}`), canvases: constObservable([]) });
+			const observations = { count: 0 };
+			const createChat = (name: string) => upcastPartial<IChat>({
+				resource: URI.parse(`agent-host-chat:/session/${name}`),
+				canvases: constObservable([]),
+				observeCanvases: () => { observations.count++; return toDisposable(() => observations.count--); },
+			});
 			const chatA = createChat('a');
 			const chatB = createChat('b');
 			const createSession = (name: string, chat: IChat, chats: IObservable<readonly IChat[]> = constObservable([chat])) => upcastPartial<ITestSessionWithChat>({
@@ -1522,7 +1528,7 @@ suite('SessionCanvasService', () => {
 				visible: [chatA, chatB].map(chat => contextService.isOwnerVisible(ownerOf(chat))),
 				group: [chatA, chatB].map(chat => contextService.getEditorGroup(ownerOf(chat), upcastPartial<CanvasInput>({}), false)?.id),
 			});
-			return { contextService, snapshot, windowChats, sessionBChats, chatA, chatB };
+			return { contextService, snapshot, windowChats, sessionBChats, chatA, chatB, observations, ownerOf };
 		};
 		const setup = (focusedInWindow: boolean) => {
 			const fixture = createFixture(focusedInWindow);
@@ -1541,6 +1547,21 @@ suite('SessionCanvasService', () => {
 
 		test('a focused chat window restores its canvases without taking focus', () => {
 			assert.deepStrictEqual(setup(true).contexts, [{ chat: '/session/a', background: true }, { chat: '/session/b', background: true }]);
+		});
+
+		test('a restored canvas of a chat in a chat window opens in that window, not the main window', () => {
+			const { contextService, windowChats, chatA, chatB, ownerOf } = createFixture(false);
+			windowChats.set([chatA.resource, chatB.resource], undefined);
+			assert.deepStrictEqual([chatA, chatB].map(chat => contextService.getEditorGroup(ownerOf(chat), upcastPartial<CanvasInput>({}), true)?.id), [2, 2]);
+		});
+
+		test('canvases of every chat a chat window shows are observed, and released when the chat leaves', () => {
+			const { windowChats, observations, chatA, chatB } = createFixture(false);
+			const initial = observations.count;
+			windowChats.set([chatA.resource, chatB.resource], undefined);
+			const joined = observations.count;
+			windowChats.set([chatA.resource], undefined);
+			assert.deepStrictEqual({ initial, joined, left: observations.count }, { initial: 1, joined: 2, left: 1 });
 		});
 
 		test('an inactive chat replaced under the same resource contributes its new canvases', () => {

@@ -5,7 +5,7 @@
 
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
-import { constObservable, derived, derivedOpts, IObservable, IReader, observableSignalFromEvent } from '../../../../base/common/observable.js';
+import { autorun, constObservable, derived, derivedOpts, IObservable, IReader, observableSignalFromEvent } from '../../../../base/common/observable.js';
 import { isEqual } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
@@ -96,6 +96,27 @@ export class SessionCanvasContextService extends Disposable implements ICanvasCo
 			}
 			return contexts;
 		});
+		// Canvas membership is only known for observed chats: hold it for every chat a chat window shows, so the canvases of
+		// its inactive chats restore after a reload. Re-subscribes only when a chat object itself changes.
+		const windowChats = derivedOpts<readonly IChat[]>({ owner: this, equalsFn: (a, b) => a.length === b.length && a.every((chat, index) => chat === b[index]) }, reader => {
+			sessionsChanged.read(reader);
+			const chats: IChat[] = [];
+			for (const resource of this.chatWindowChats.read(reader)) {
+				const owner = this.sessionsManagementService.getSessionForChatResource(resource);
+				if (owner?.session.capabilities.read(reader).supportsCanvases === true) {
+					owner.session.chats.read(reader);
+					chats.push(owner.chat);
+				}
+			}
+			return chats;
+		});
+		this._register(autorun(reader => {
+			for (const chat of windowChats.read(reader)) {
+				if (chat.observeCanvases) {
+					reader.store.add(chat.observeCanvases());
+				}
+			}
+		}));
 		this._register(this.sessionsManagementService.onDidChangeSessions(event => {
 			const archived = event.changed.filter(session => session.isArchived.read(undefined));
 			for (const session of [...event.removed, ...archived]) {
@@ -190,9 +211,6 @@ export class SessionCanvasContextService extends Disposable implements ICanvasCo
 
 	getEditorGroup(owner: ICanvasOwner, input: CanvasInput, restore: boolean): IEditorGroup | undefined {
 		const mainPart = this.editorGroupsService.mainPart;
-		if (restore) {
-			return mainPart.activeGroup;
-		}
 		// The window that shows the owner's chat, whichever window has focus: a chat window keeps its canvases in its own
 		// main part, as the main window does.
 		const host = this.sessionHostService.getHostOfChat(owner.chat);
@@ -201,6 +219,9 @@ export class SessionCanvasContextService extends Disposable implements ICanvasCo
 			? windowHost.windowId.get()
 			: this.chatWindowService.windows.get().find(window => window.chats.get().some(chat => isEqual(chat, owner.chat)))?.windowId;
 		const part = (windowId !== undefined ? this.chatWindowService.getWindow(windowId)?.mainPart : undefined) ?? mainPart;
+		if (part === mainPart && restore) {
+			return mainPart.activeGroup;
+		}
 		if (part === mainPart && this.editorGroupsService.activeGroup.windowId === mainPart.windowId) {
 			// The main window is active: its active group is where editors open by default.
 			return undefined;
