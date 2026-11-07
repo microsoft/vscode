@@ -17,6 +17,8 @@ import { URI } from '../../../../../base/common/uri.js';
 import { mock, upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
+import { TestColorTheme } from '../../../../../platform/theme/test/common/testThemeService.js';
+import { createColorStyleElement, getColorStyleContent, getStandardColors } from '../../browser/terminalIcon.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { CodeDataTransfers } from '../../../../../platform/dnd/browser/dnd.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
@@ -236,7 +238,7 @@ suite('Workbench - TerminalInstance', () => {
 
 		test('resolves ANSI color aliases and preserves explicit color IDs', async () => {
 			const instance = await createTerminalInstance();
-			const colors = ['black', 'red', 'green', 'yellow', 'blue', 'magenta', 'cyan', 'white', 'RED', 'Blue', 'terminal.ansiBlue', 'editorWarning.foreground'];
+			const colors = ['black', 'red', 'green', 'yellow', 'blue', 'magenta', 'cyan', 'white', 'RED', 'Blue', 'brightBlack', 'brightRed', 'brightGreen', 'brightYellow', 'brightBlue', 'brightMagenta', 'brightCyan', 'brightWhite', 'BRIGHTBLUE', 'terminal.ansiBrightRed', 'terminal.ansiBlue', 'editorWarning.foreground'];
 			const results: { result: string | undefined; storedColor: string | undefined }[] = [];
 			for (const color of colors) {
 				const result = await instance.changeColor(color);
@@ -245,8 +247,28 @@ suite('Workbench - TerminalInstance', () => {
 			deepStrictEqual(results, [
 				'terminal.ansiBlack', 'terminal.ansiRed', 'terminal.ansiGreen', 'terminal.ansiYellow',
 				'terminal.ansiBlue', 'terminal.ansiMagenta', 'terminal.ansiCyan', 'terminal.ansiWhite',
-				'terminal.ansiRed', 'terminal.ansiBlue', 'terminal.ansiBlue', 'editorWarning.foreground'
+				'terminal.ansiRed', 'terminal.ansiBlue', 'terminal.ansiBrightBlack', 'terminal.ansiBrightRed',
+				'terminal.ansiBrightGreen', 'terminal.ansiBrightYellow', 'terminal.ansiBrightBlue', 'terminal.ansiBrightMagenta',
+				'terminal.ansiBrightCyan', 'terminal.ansiBrightWhite', 'terminal.ansiBrightBlue', 'terminal.ansiBrightRed',
+				'terminal.ansiBlue', 'editorWarning.foreground'
 			].map(color => ({ result: color, storedColor: color })));
+		});
+
+		test('includes normal and bright ANSI colors in the picker and panel, editor, and picker styles', () => {
+			const theme = new TestColorTheme({
+				'terminal.ansiRed': '#aa0000',
+				'terminal.ansiBrightRed': '#ff0000',
+				'terminal.ansiBrightBlue': '#0000ff'
+			});
+			const colorIds = ['terminal.ansiRed', 'terminal.ansiBrightRed', 'terminal.ansiBrightBlue'];
+			const styleCount = document.querySelectorAll('style').length;
+			store.add(createColorStyleElement(theme));
+			const pickerStyles = Array.from(document.querySelectorAll('style')).slice(styleCount).map(style => style.textContent).join('');
+			const styles = [getColorStyleContent(theme), getColorStyleContent(theme, true), pickerStyles];
+			deepStrictEqual({ colors: getStandardColors(theme), coverage: styles.map(style => colorIds.map(id => style.includes(`terminal-icon-${id.replace(/\./g, '_')}`))) }, {
+				colors: colorIds,
+				coverage: [[true, true, true], [true, true, true], [true, true, true]]
+			});
 		});
 
 		test('cancelling the shared icon picker preserves the terminal icon', async () => {

@@ -23,6 +23,7 @@ import * as path from '../../../../base/common/path.js';
 import { OS, OperatingSystem, isMacintosh, isWindows } from '../../../../base/common/platform.js';
 import { ScrollbarVisibility } from '../../../../base/common/scrollable.js';
 import { URI } from '../../../../base/common/uri.js';
+import { uppercaseFirstLetter } from '../../../../base/common/strings.js';
 import { TabFocus } from '../../../../editor/browser/config/tabFocus.js';
 import * as nls from '../../../../nls.js';
 import { IAccessibilityService } from '../../../../platform/accessibility/common/accessibility.js';
@@ -2504,8 +2505,14 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 
 	async changeColor(color?: string, skipQuickPick?: boolean): Promise<string | undefined> {
 		if (color) {
-			const ansiColor = `terminal.ansi${color.charAt(0).toUpperCase()}${color.slice(1).toLowerCase()}`;
-			color = Object.hasOwn(ansiColorMap, ansiColor) ? ansiColor : color;
+			// Support color shorthands like "brightRed" and "blue"
+			if (!Object.hasOwn(ansiColorMap, color)) {
+				const colorName = color.toLowerCase();
+				const ansiColor = colorName.startsWith('bright')
+					? `terminal.ansiBright${uppercaseFirstLetter(colorName.slice(6))}`
+					: `terminal.ansi${uppercaseFirstLetter(colorName)}`;
+				color = Object.hasOwn(ansiColorMap, ansiColor) ? ansiColor : color;
+			}
 			this.shellLaunchConfig.color = color;
 			this._onIconChanged.fire({ instance: this, userInitiated: true });
 			return color;
