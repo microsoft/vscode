@@ -57,7 +57,8 @@ suite('Microsoft Copilot setup UI', () => {
 			changed.fire(root);
 		};
 		const config = new TestConfigurationService();
-		const context = store.add(new ChatEntitlementContext(store.add(new MockContextKeyService()), store.add(new TestStorageService()), new NullLogService(), config, NullTelemetryService, host));
+		const context = store.add(new ChatEntitlementContext(store.add(new MockContextKeyService()), store.add(new TestStorageService()), new NullLogService(), config, NullTelemetryService));
+		context.setCopilotAccountContext(observeCopilotAccountContext(host, store.add(new DisposableStore())));
 		const session: AuthenticationSession = { id: 'microsoft-session', account: { id: 'account-a', label: 'Microsoft Account A' }, accessToken: 'synthetic', scopes: ['User.Read'] };
 		const calls: string[] = [];
 		const state = {
