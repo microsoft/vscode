@@ -29,7 +29,8 @@ import { ITelemetryService } from '../../../../platform/telemetry/common/telemet
 import { AccessibilityVerbositySettingId } from '../../accessibility/browser/accessibilityConfiguration.js';
 import { IBrowserViewModel } from '../../browserView/common/browserView.js';
 import { focusWebContentsViewContainer, WebContentsViewHost } from '../../browserView/electron-browser/webContentsViewHost.js';
-import { getCanvasReferenceKey, ICanvas, ICanvasReference, ICanvasService } from '../common/canvas.js';
+import { ICanvasService } from '../common/canvas.js';
+import { getCanvasReferenceKey, ICanvas, ICanvasReference } from '../../../common/canvasReference.js';
 
 export const SessionCanvasFocusedContext = new RawContextKey<boolean>('sessionCanvasFocused', false);
 

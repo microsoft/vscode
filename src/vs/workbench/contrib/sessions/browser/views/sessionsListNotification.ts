@@ -34,6 +34,8 @@ export interface ISessionsListNotice {
 	readonly message: string;
 	/** Tells accessibility help readers what led to the notice and, with {@link undo}, what Undo restores. */
 	readonly help: string;
+	/** Whether to show the Undo expiry bar. Defaults to true. */
+	readonly showCountdown?: boolean;
 	/**
 	 * Reverts the change; without it, the notice only reports. A failure is reported and leaves Undo available to try
 	 * again. It may replace the notice, e.g. with its own result.
@@ -69,7 +71,7 @@ export class SessionsListNotification extends Disposable {
 	/** Shows a change or result for ten seconds, offering Undo when the notice can revert it. */
 	show(notice: ISessionsListNotice): void {
 		const { message } = notice;
-		const { store, element, closeBar, dismiss: dismissItem, progress } = this.createNotice(message, !!notice.undo);
+		const { store, element, closeBar, dismiss: dismissItem, progress } = this.createNotice(message, !!notice.undo && notice.showCountdown !== false);
 		let undoButton: Button | undefined;
 		if (notice.undo) {
 			undoButton = store.add(new Button(element, { ...defaultButtonStyles, secondary: true, small: true }));
@@ -146,9 +148,12 @@ export class SessionsListNotification extends Disposable {
 			const provider = new AccessibleContentProvider(
 				AccessibleViewProviderId.SessionsListNotification,
 				{ type: AccessibleViewType.Help },
-				() => notice.undo
-					? localize('sessionsListNoticeHelp', "{0}\n{1}\nUse Tab and Shift+Tab to reach Undo and Dismiss. Press Enter or Space to activate them, or Escape to dismiss the notice.\nThe notice disappears after 10 seconds. The countdown pauses while the notice is hovered, focused, or this help is open. The bar along the bottom shows the remaining time.", message, notice.help)
-					: localize('sessionsListResultNoticeHelp', "{0}\n{1}\nUse Tab and Shift+Tab to reach Dismiss. Press Enter or Space to activate it, or Escape to dismiss the notice.\nThe notice disappears after 10 seconds. The countdown pauses while the notice is hovered, focused, or this help is open.", message, notice.help),
+				() => [
+					notice.undo
+						? localize('sessionsListNoticeHelp', "{0}\n{1}\nUse Tab and Shift+Tab to reach Undo and Dismiss. Press Enter or Space to activate them, or Escape to dismiss the notice.\nThe notice disappears after 10 seconds. The countdown pauses while the notice is hovered, focused, or this help is open.", message, notice.help)
+						: localize('sessionsListResultNoticeHelp', "{0}\n{1}\nUse Tab and Shift+Tab to reach Dismiss. Press Enter or Space to activate it, or Escape to dismiss the notice.\nThe notice disappears after 10 seconds. The countdown pauses while the notice is hovered, focused, or this help is open.", message, notice.help),
+					...(progress ? [localize('sessionsListNoticeCountdownHelp', "The bar along the bottom shows the remaining time.")] : []),
+				].join('\n'),
 				() => {
 					this.restoreFocusAfterHelp(store, element, activeElement, () => undoButton ? undoButton.focus() : closeBar.focus());
 					closeHelp();

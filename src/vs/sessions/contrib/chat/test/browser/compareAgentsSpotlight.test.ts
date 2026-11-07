@@ -63,7 +63,7 @@ suite('CompareAgentsSpotlight', () => {
 			instantiationService.set(IOnboardingScenarioService, onboarding);
 			instantiationService.set(IChatEntitlementService, entitlement);
 			instantiationService.set(IStorageService, store.add(new InMemoryStorageService()));
-			const createSelection = () => store.add(instantiationService.createInstance(SessionComparisonModelSelection, constObservable(true), undefined, undefined, undefined));
+			const createSelection = () => store.add(instantiationService.createInstance(SessionComparisonModelSelection, constObservable(true), undefined, undefined, undefined, undefined));
 			const selection = createSelection();
 			if (previouslyOpened) {
 				selection.start();

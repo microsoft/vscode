@@ -22,7 +22,7 @@ import { URI } from '../../base/common/uri.js';
 import { Disposable } from '../../base/common/lifecycle.js';
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../workbench/common/contributions.js';
 import { IChatProgress } from '../../workbench/contrib/chat/common/chatService/chatService.js';
-import { IChatSessionsService, IChatSessionItem, IChatSessionFileChange, ChatSessionStatus, IChatSessionHistoryItem, IChatSessionItemsDelta } from '../../workbench/contrib/chat/common/chatSessionsService.js';
+import { IChatSessionsService, IChatSessionItem, ChatSessionStatus, IChatSessionHistoryItem, IChatSessionItemsDelta } from '../../workbench/contrib/chat/common/chatSessionsService.js';
 import { IGitService, IGitExtensionDelegate, IGitRepository } from '../../workbench/contrib/git/common/gitService.js';
 import { IFileService } from '../../platform/files/common/files.js';
 import { ITerminalService } from '../../workbench/contrib/terminal/browser/terminal.js';
@@ -36,6 +36,7 @@ import { getSingletonServiceDescriptors } from '../../platform/instantiation/com
 import { ServiceIdentifier } from '../../platform/instantiation/common/instantiation.js';
 import { IWorkbench } from '../../workbench/browser/web.api.js';
 import { isEqual } from '../../base/common/resources.js';
+import { IChatSessionFileChange } from '../../workbench/common/chatSessionFileChange.js';
 
 /**
  * Mock files pre-seeded in the in-memory file system. These match the

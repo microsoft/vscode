@@ -8,6 +8,7 @@ import { EventHelper, EventLike, getActiveElement, getWindow, isHTMLElement, sch
 import { ActionViewItem, IActionViewItemOptions } from '../../../../../base/browser/ui/actionbar/actionViewItems.js';
 import { AnchorAlignment } from '../../../../../base/browser/ui/contextview/contextview.js';
 import { HoverPosition } from '../../../../../base/browser/ui/hover/hoverWidget.js';
+import { IManagedHoverContent } from '../../../../../base/browser/ui/hover/hover.js';
 import { KeyCode } from '../../../../../base/common/keyCodes.js';
 import { Disposable, DisposableMap, DisposableStore, MutableDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { autorun, constObservable, derived, IObservable, observableFromEvent, observableValue } from '../../../../../base/common/observable.js';
@@ -31,15 +32,15 @@ import { IInstantiationService } from '../../../../../platform/instantiation/com
 import { IKeybindingService } from '../../../../../platform/keybinding/common/keybinding.js';
 import { Menus, SessionActivityBarGroup } from '../menus.js';
 import { IWorkbenchLayoutService } from '../../../../services/layout/browser/layoutService.js';
-import { AgentWorkbenchLayout, ISessionsHostLayoutService } from '../sessionsHostLayoutService.js';
+import { AgentWorkbenchLayout, ISessionsHostLayoutService } from '../../../../services/sessions/browser/sessionsHostLayoutService.js';
 import { SESSION_ACTIVITY_BAR_SETTING } from '../../common/sessionConfig.js';
 import { TOGGLE_SIDE_PANEL_COMMAND_ID } from '../../common/sessionCommands.js';
 import { sessionActivityBarChatActionContext } from '../../common/contextkeys.js';
 import { LayoutModeContext } from '../../../../common/contextkeys.js';
 import { IWindowCommandContext } from '../../../../common/windowCommandContext.js';
-import { isPhoneLayout } from '../mobileLayout.js';
-import { findSessionActivityBarExternalHost, ISessionActivityBarExternalHost, observeSessionActivityBarSize, SESSION_ACTIVITY_BAR_COLUMN_WIDTH } from './sessionActivityBarHost.js';
-import { SubmenuFlyout } from './submenuFlyout.js';
+import { isPhoneLayout } from '../../../../browser/parts/sessions/mobileLayout.js';
+import { findSessionActivityBarExternalHost, ISessionActivityBarExternalHost, observeSessionActivityBarSize, SESSION_ACTIVITY_BAR_COLUMN_WIDTH } from '../../../../browser/parts/sessions/sessionActivityBarHost.js';
+import { SubmenuFlyout } from '../../../../browser/parts/sessions/submenuFlyout.js';
 
 /**
  * A vertical activity bar of icon-only actions that open session tabs and toggle the panel and side panel, docked by {@link ChatViewSessionActivityBar}:
@@ -434,6 +435,14 @@ class SessionActivityBarSubmenuViewItem extends ActionViewItem {
 			// Opens toward the chat, matching the arrow keys, even when there is room to the right.
 			anchorAlignment: AnchorAlignment.RIGHT,
 		}));
+		this._register(this.submenuFlyout.onDidChangeOpen(() => {
+			this.hideHover();
+			this.updateTooltip();
+		}));
+	}
+
+	protected override getHoverContents(): IManagedHoverContent | undefined {
+		return this.submenuFlyout?.isOpen ? undefined : super.getHoverContents();
 	}
 
 	override onClick(event: EventLike): void {

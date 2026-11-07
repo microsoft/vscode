@@ -86,7 +86,13 @@ export class WindowCanvasInput extends EditorInput {
 	override canMove(_source: GroupIdentifier, target: GroupIdentifier): true | string {
 		return this.editorGroupsService.getGroup(target)?.windowId === this.editorGroupsService.mainPart.windowId
 			? true
-			: localize('windowCanvas.mainWindowOnly', "This canvas can only be shown in the main window.");
+			: WindowCanvasInput.getMainWindowOnlyMessage();
+	}
+	override canMoveToNewWindow(_source: GroupIdentifier): true | string {
+		return WindowCanvasInput.getMainWindowOnlyMessage(); // a new window is never the main window
+	}
+	private static getMainWindowOnlyMessage(): string {
+		return localize('windowCanvas.mainWindowOnly', "This canvas can only be shown in the main window.");
 	}
 	override matches(other: EditorInput | IUntypedEditorInput): boolean {
 		return other instanceof WindowCanvasInput ? other.descriptor.id === this.descriptor.id : super.matches(other);

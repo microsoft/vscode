@@ -28,15 +28,18 @@ import { ContextKeyService } from '../../../platform/contextkey/browser/contextK
 import { IConfigurationChangeEvent, IConfigurationService } from '../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../platform/configuration/test/common/testConfigurationService.js';
 import { IContextMenuMenuDelegate, IContextMenuService, IContextViewService } from '../../../platform/contextview/browser/contextView.js';
+import { IHoverService } from '../../../platform/hover/browser/hover.js';
+import { HoverService } from '../../../platform/hover/browser/hoverService.js';
+import { ILayoutService } from '../../../platform/layout/browser/layoutService.js';
 import { workbenchInstantiationService } from '../../../workbench/test/browser/workbenchTestServices.js';
 import { ChatViewSessionActivityBar, SessionActivityBar } from '../../../workbench/contrib/sessions/browser/parts/sessionActivityBar.js';
 import { MenuActivityBar, MenuActivityBarSize } from '../../../workbench/browser/parts/activitybar/menuActivityBar.js';
 import { IStorageService } from '../../../platform/storage/common/storage.js';
-import { registerSessionActivityBarExternalHost, SESSION_ACTIVITY_BAR_COLUMN_WIDTH, setSessionActivityBarSize } from '../../../workbench/contrib/sessions/browser/parts/sessionActivityBarHost.js';
+import { registerSessionActivityBarExternalHost, SESSION_ACTIVITY_BAR_COLUMN_WIDTH, setSessionActivityBarSize } from '../../../workbench/browser/parts/sessions/sessionActivityBarHost.js';
 import { Menus, SessionActivityBarGroup } from '../../../workbench/contrib/sessions/browser/menus.js';
 import { TogglePanelAction } from '../../../workbench/browser/parts/panel/panelActions.js';
 import { IAgentWorkbenchLayoutService } from '../../browser/workbench.js';
-import { AgentWorkbenchLayout } from '../../../workbench/contrib/sessions/browser/sessionsHostLayoutService.js';
+import { AgentWorkbenchLayout } from '../../../workbench/services/sessions/browser/sessionsHostLayoutService.js';
 import { SESSION_ACTIVITY_BAR_SETTING } from '../../../workbench/contrib/sessions/common/sessionConfig.js';
 import { TOGGLE_SIDE_PANEL_COMMAND_ID } from '../../../workbench/contrib/sessions/common/sessionCommands.js';
 import { sessionActivityBarChatActionContext } from '../../../workbench/contrib/sessions/common/contextkeys.js';
@@ -69,7 +72,7 @@ suite('Sessions - Session Activity Bar', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 	teardown(() => sinon.restore());
 
-	function createActivityBar(disposables: Pick<DisposableStore, 'add'>, initialEntries: readonly ITestEntry[]) {
+	function createActivityBar(disposables: Pick<DisposableStore, 'add'>, initialEntries: readonly ITestEntry[], options?: { readonly realHovers?: boolean }) {
 		const testStore = disposables.add(new DisposableStore());
 		const instantiationService = workbenchInstantiationService(undefined, testStore);
 
@@ -163,10 +166,19 @@ suite('Sessions - Session Activity Bar', () => {
 			}
 		});
 
-		const configurationService = new TestConfigurationService({ [SESSION_ACTIVITY_BAR_SETTING]: true });
+		const configurationService = new TestConfigurationService({ [SESSION_ACTIVITY_BAR_SETTING]: true, 'workbench.hover.delay': 500 });
 		instantiationService.stub(IConfigurationService, configurationService);
 		const contextKeyService = testStore.add(instantiationService.createInstance(ContextKeyService));
 		instantiationService.stub(IContextKeyService, contextKeyService);
+
+		if (options?.realHovers) {
+			instantiationService.stub(ILayoutService, upcastPartial<ILayoutService>({ activeContainer: root, mainContainer: root, getContainer: () => root, onDidLayoutContainer: Event.None }));
+			const hoverService = testStore.add(instantiationService.createInstance(HoverService));
+			instantiationService.stub(IHoverService, hoverService);
+			const previousHoverDelegate = getBaseLayerHoverDelegate();
+			setBaseLayerHoverDelegate(hoverService);
+			testStore.add(toDisposable(() => setBaseLayerHoverDelegate(previousHoverDelegate)));
+		}
 
 		const activityService = testStore.add(new SessionActivityBarActivityService());
 		instantiationService.stub(ISessionActivityBarActivityService, activityService);
@@ -756,6 +768,46 @@ suite('Sessions - Session Activity Bar', () => {
 			afterRightArrow: { shown: undefined, expanded: 'false', highlighted: false, anchorFocused: true },
 			afterLeftArrow: { shown: { items: ['Kusto'], focused: true }, expanded: 'true', highlighted: true },
 			afterRun: { shown: undefined, expanded: 'false', highlighted: false, ran: ['test.canvas.kusto'] },
+		});
+	}));
+
+	test('does not show the Canvas entry\'s hover over its submenu, nor after the pointer leaves, and shows it again after the submenu closes', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		const { root, label } = createActivityBar(store, [browser, canvas], { realHovers: true });
+		const hover = () => [...root.querySelectorAll('.monaco-hover')].map(element => element.textContent?.trim());
+		const enter = (target: HTMLElement) => {
+			target.dispatchEvent(new MouseEvent('mouseover', { bubbles: true }));
+			target.dispatchEvent(new MouseEvent('mouseenter'));
+		};
+		const leave = (target: HTMLElement) => {
+			target.dispatchEvent(new MouseEvent('mouseleave'));
+			target.parentElement!.dispatchEvent(new MouseEvent('mouseleave'));
+		};
+		const browserLabel = label('Browser');
+		const canvasLabel = label('Canvas');
+
+		enter(canvasLabel);
+		await timeout(1000);
+		const hoveredUntilSubmenuOpens = { submenu: canvasLabel.getAttribute('aria-expanded'), hover: hover() };
+		leave(canvasLabel);
+		await timeout(1000);
+		const afterLeaving = { submenu: canvasLabel.getAttribute('aria-expanded'), hover: hover() };
+
+		enter(browserLabel);
+		await timeout(1000);
+		const browserHover = hover();
+		leave(browserLabel);
+		enter(canvasLabel);
+		await timeout(0);
+		const instantHoverAfterSubmenuClosed = hover();
+		await timeout(300);
+		const instantHoverOnceSubmenuOpens = { submenu: canvasLabel.getAttribute('aria-expanded'), hover: hover() };
+
+		assert.deepStrictEqual({ hoveredUntilSubmenuOpens, afterLeaving, browserHover, instantHoverAfterSubmenuClosed, instantHoverOnceSubmenuOpens }, {
+			hoveredUntilSubmenuOpens: { submenu: 'true', hover: [] },
+			afterLeaving: { submenu: 'false', hover: [] },
+			browserHover: ['Browser'],
+			instantHoverAfterSubmenuClosed: ['Canvas'],
+			instantHoverOnceSubmenuOpens: { submenu: 'true', hover: [] },
 		});
 	}));
 });

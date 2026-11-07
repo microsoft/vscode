@@ -22,7 +22,7 @@ import { IsAuxiliaryWindowContext, IsWindowAlwaysOnTopContext, LayoutModeContext
 import { IWorkbenchLayoutService, Parts } from '../../workbench/services/layout/browser/layoutService.js';
 import { SessionsWelcomeVisibleContext, DesktopLayoutContext, IsPhoneLayoutContext, SessionActivityBarSizeContext } from '../../workbench/contrib/sessions/common/contextkeys.js';
 import { MenuActivityBarSize } from '../../workbench/browser/parts/activitybar/menuActivityBar.js';
-import { setSessionActivityBarSize } from '../../workbench/contrib/sessions/browser/parts/sessionActivityBarHost.js';
+import { setSessionActivityBarSize } from '../../workbench/browser/parts/sessions/sessionActivityBarHost.js';
 import { IStorageService } from '../../platform/storage/common/storage.js';
 import { CustomViewVisibleContext, SessionActivityBarLayoutActionsContext } from '../common/agentsWindowContextKeys.js';
 import { IConfigurationService } from '../../platform/configuration/common/configuration.js';

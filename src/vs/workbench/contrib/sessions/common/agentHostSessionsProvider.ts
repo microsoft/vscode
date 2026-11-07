@@ -19,7 +19,7 @@ import { type CustomizationDisabledReason } from '../../../../platform/agentHost
 import { type McpServerSource } from '../../../../platform/agentHost/common/meta/mcpCustomizationMeta.js';
 import type { IMcpServerConfiguration } from '../../../../platform/mcp/common/mcpPlatformTypes.js';
 import { ISessionConfigProvider, ISessionsProvider } from './sessionsProvider.js';
-import { ISessionAgentRef } from './session.js';
+import { ISessionAgentRef } from '../../../services/sessions/common/session.js';
 import type { AgentMergeSessionOverrides, AgentMergeSessionState } from '../../../../platform/agentHost/common/agentMerge.js';
 import type { ISessionSandboxPolicy } from '../../../../platform/agentHost/common/meta/agentSandboxPolicyMeta.js';
 
@@ -100,6 +100,8 @@ export interface IAgentHostGroup {
 	readonly connectable?: boolean;
 	/** Provider that creates new environments for this group, without requiring an existing connection. */
 	readonly sessionCreationProviderId?: string;
+	/** Catalog providers whose rows belong to the group without representing a connected host. */
+	readonly sessionProviderIds?: readonly string[];
 }
 
 /** A tool reported by an agent-host MCP server's `tools/list`. */

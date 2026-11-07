@@ -17,11 +17,12 @@ import { IChatService } from '../../../../workbench/contrib/chat/common/chatServ
 import { IChatSideChatOrigin, IChatSideChatProvider, IChatSideChatRequestOptions, IChatSideChatSelection, IChatSideChatService } from '../../../../workbench/contrib/chat/common/chatSideChatService.js';
 import { IWorkbenchEnvironmentService } from '../../../../workbench/services/environment/common/environmentService.js';
 import { ISessionsService } from '../../../../workbench/contrib/sessions/browser/sessionsService.js';
-import { ISessionsPartService } from '../../../../workbench/contrib/sessions/browser/sessionsPartService.js';
-import { ChatInteractivity, ChatOriginKind, IChat, ISession, SessionStatus } from '../../../../workbench/contrib/sessions/common/session.js';
+import { ISessionsPartService } from '../../../../workbench/services/sessions/browser/sessionsPartService.js';
+import { ChatInteractivity, ChatOriginKind, IChat, ISession, SessionStatus } from '../../../../workbench/services/sessions/common/session.js';
 import { ISessionsManagementService } from '../../../../workbench/contrib/sessions/common/sessionsManagement.js';
-import { ISessionHostService } from '../../../../workbench/contrib/sessions/browser/sessionHost.js';
+import { ISessionHostService } from '../../../../workbench/services/sessions/browser/sessionHost.js';
 import { createAndSendSideChat } from './sideChatOrchestration.js';
+import { readPaneSessions } from '../../../../workbench/services/sessions/browser/sessionGridPane.js';
 
 const SIDE_CHAT_SOURCE_REVEAL_TIMEOUT = 2_000;
 
@@ -65,7 +66,7 @@ export class SessionsSideChatProviderContribution extends Disposable implements 
 			throw new Error(`Side chats are not supported for ${sessionResource.toString()}`);
 		}
 		const { session, chatResource, turnId } = source;
-		await createAndSendSideChat(this.sessionsManagementService, this.sessionsService, this.sessionsPartService, this.sessionHostService, session, chatResource, turnId, { query, attachedContext: options?.attachedContext }, selection);
+		await createAndSendSideChat(this.sessionsManagementService, this.sessionsService, this.sessionsPartService, this.sessionHostService, session, chatResource, turnId, { query, attachedContext: options?.attachedContext }, selection, options?.includeSourceContext);
 	}
 
 	/** Observes the source metadata for a side chat. */
@@ -139,11 +140,7 @@ export class SessionsSideChatProviderContribution extends Disposable implements 
 	}
 
 	private _resolveSessionChat(sessionResource: URI, reader?: IReader): { session: ISession; chat: IChat } | undefined {
-		const visibleSessions = reader ? this.sessionsService.visibleSessions.read(reader) : this.sessionsService.visibleSessions.get();
-		for (const session of visibleSessions) {
-			if (!session) {
-				continue;
-			}
+		for (const session of readPaneSessions(this.sessionsService.slotPanes, reader)) {
 
 			const chats = reader ? session.chats.read(reader) : session.chats.get();
 			const chat = chats.find(chat => this.uriIdentityService.extUri.isEqual(chat.resource, sessionResource));

@@ -24,8 +24,8 @@ import { ILifecycleService, LifecyclePhase } from '../../../../workbench/service
 import { IViewsService } from '../../../../workbench/services/views/common/viewsService.js';
 import { NewSessionOnboardingHandoffContext } from '../../../common/agentsWindowContextKeys.js';
 import { ISessionsService } from '../../../../workbench/contrib/sessions/browser/sessionsService.js';
-import { IFocusedSessionHostService } from '../../../../workbench/contrib/sessions/browser/sessionHost.js';
-import { ISession } from '../../../../workbench/contrib/sessions/common/session.js';
+import { IFocusedSessionHostService } from '../../../../workbench/services/sessions/browser/sessionHost.js';
+import { ISession, isSessionCreated } from '../../../../workbench/services/sessions/common/session.js';
 import { getSessionOnboardingTargetId } from '../../../../workbench/contrib/sessions/browser/views/sessionsList.js';
 import { SessionsView, SessionsViewId } from '../../../../workbench/contrib/sessions/browser/views/sessionsView.js';
 import { createAgentsWindowInvitationTour, IAgentsWindowInvitationTourCopy } from './tours/agentsWindowInvitationTour.js';
@@ -100,7 +100,7 @@ export class AgentsWindowInvitationOnboarding extends Disposable {
 				const activeSession = this._focusedSessionHostService.focusedHost.get().session.get();
 				return this._sessionsService.navigationRequest.get() === navigationRequest && (revealSession
 					? isEqual(activeSession?.resource, session.resource)
-					: !activeSession?.isCreated.get());
+					: !isSessionCreated(activeSession));
 			};
 			if (!isCurrentSession()) {
 				return;
@@ -123,7 +123,7 @@ export class AgentsWindowInvitationOnboarding extends Disposable {
 				this._chatEntitlementService.sentimentObs.read(reader);
 				this._chatEntitlementService.entitlementObs.read(reader);
 				this._sessionsService.navigationRequest.read(reader);
-				this._focusedSessionHostService.focusedHost.read(reader).session.read(reader)?.isCreated.read(reader);
+				isSessionCreated(this._focusedSessionHostService.focusedHost.read(reader).session.read(reader), reader);
 				// Target activation is reported after the owning control starts navigation.
 				queueMicrotask(() => {
 					if (!store.isDisposed && (!this._canShow() || !activatedNewSession && !isCurrentSession())) {

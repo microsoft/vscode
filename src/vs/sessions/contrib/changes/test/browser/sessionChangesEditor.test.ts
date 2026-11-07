@@ -19,9 +19,9 @@ import { IContextKeyService } from '../../../../../platform/contextkey/common/co
 import { MockContextKeyService } from '../../../../../platform/keybinding/test/common/mockKeybindingService.js';
 import { TestEditorGroupView, workbenchInstantiationService } from '../../../../../workbench/test/browser/workbenchTestServices.js';
 import { IAgentWorkbenchLayoutService } from '../../../../browser/workbench.js';
-import { AgentWorkbenchLayout, ISessionsHostLayoutService } from '../../../../../workbench/contrib/sessions/browser/sessionsHostLayoutService.js';
-import { IDiffEditorOptionsService, SessionsWordWrap } from '../../../../../workbench/contrib/sessions/common/diffEditorOptionsService.js';
-import { SessionChangesEditor } from '../../../../../workbench/contrib/sessions/browser/changes/sessionChangesEditor.js';
+import { AgentWorkbenchLayout, ISessionsHostLayoutService } from '../../../../../workbench/services/sessions/browser/sessionsHostLayoutService.js';
+import { IDiffEditorOptionsService, SessionsWordWrap } from '../../../../../workbench/services/editor/common/diffEditorOptionsService.js';
+import { SessionChangesEditor } from '../../../../../workbench/contrib/sessionChanges/browser/sessionChangesEditor.js';
 import { MultiDiffEditorWithFileListWidget } from '../../../../../workbench/contrib/multiDiffEditor/browser/multiDiffEditorWithFileListWidget.js';
 import { MultiDiffEditorFileList } from '../../../../../workbench/contrib/multiDiffEditor/browser/multiDiffEditorFileList.js';
 import { FocusFileListAction } from '../../../../../workbench/contrib/multiDiffEditor/browser/actions.js';
@@ -30,10 +30,9 @@ import { SessionChangesEditorFileListContext } from '../../../../../workbench/co
 import { isMultiDiffEditorFileListHost, multiDiffEditorExperimentalFileListSetting, MultiDiffEditorFileListAvailableContext, MultiDiffEditorFileListEnabledContext, MultiDiffEditorFileListVisibleContext, toggleMultiDiffEditorFileList } from '../../../../../workbench/contrib/multiDiffEditor/common/multiDiffEditor.js';
 import { IStorageService } from '../../../../../platform/storage/common/storage.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
-import { ISessionChangesService } from '../../../../../workbench/contrib/sessions/browser/changes/sessionChangesService.js';
-import { stubSessionHosts } from '../../../../../workbench/contrib/sessions/test/browser/sessionHostTestUtils.js';
+import { ISessionChangesService } from '../../../../../workbench/contrib/sessionChanges/browser/sessionChangesService.js';
+import { ITestSessionWithChat, stubSessionHosts } from '../../../../../workbench/contrib/sessions/test/browser/sessionHostTestUtils.js';
 import { ISessionsService } from '../../../../../workbench/contrib/sessions/browser/sessionsService.js';
-import { IActiveSession } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import { IChangesViewService } from '../../../../../workbench/contrib/sessions/common/changesViewService.js';
 import { InstantiationService } from '../../../../../platform/instantiation/common/instantiationService.js';
 import { ServiceCollection } from '../../../../../platform/instantiation/common/serviceCollection.js';
@@ -48,14 +47,14 @@ import { DiffItemSource, IDocumentDiffItem } from '../../../../../editor/browser
 import { Event, ValueWithChangeEvent } from '../../../../../base/common/event.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { errorHandler, setUnexpectedErrorHandler } from '../../../../../base/common/errors.js';
-import { SessionChangesEditorInput } from '../../../../../workbench/contrib/sessions/browser/changes/sessionChangesEditorInput.js';
+import { SessionChangesEditorInput } from '../../../../../workbench/contrib/sessionChanges/browser/sessionChangesEditorInput.js';
 import { IEditorGroup, IEditorGroupsService } from '../../../../../workbench/services/editor/common/editorGroupsService.js';
 import { EditorPane } from '../../../../../workbench/browser/parts/editor/editorPane.js';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { EditorInput } from '../../../../../workbench/common/editor/editorInput.js';
 import { IMatchEditorOptions, IUntypedEditorInput } from '../../../../../workbench/common/editor.js';
 import '../../../../../editor/browser/widget/multiDiffEditor/style.css';
-import '../../../../../workbench/contrib/sessions/browser/changes/media/sessionChangesEditor.css';
+import '../../../../../workbench/contrib/sessionChanges/browser/media/sessionChangesEditor.css';
 
 suite('SessionChangesEditor empty state layout', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -66,11 +65,11 @@ suite('SessionChangesEditor empty state layout', () => {
 			override contextMatchesRules(): boolean { return true; }
 		});
 		instantiationService.stub(IMenuService, store.add(instantiationService.createInstance(MenuService)));
-		const activeSession = constObservable<IActiveSession | undefined>(undefined);
+		const activeSession = constObservable<ITestSessionWithChat | undefined>(undefined);
 		instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() {
 			readonly activeSession = activeSession;
 			readonly mainWindowActiveSession = activeSession;
-			readonly windowSessions = constObservable<readonly IActiveSession[]>([]);
+			readonly windowSessions = constObservable<readonly ITestSessionWithChat[]>([]);
 		}());
 		stubSessionHosts(instantiationService, store, { session: activeSession });
 		instantiationService.stub(IChangesViewService, new class extends mock<IChangesViewService>() {
@@ -242,11 +241,11 @@ suite('SessionChangesEditor changed files list', () => {
 		const hostContextKeyService = store.add(store.add(new ContextKeyService(instantiationService.get(IConfigurationService))).createScoped(parent));
 		instantiationService.stub(IContextKeyService, hostContextKeyService);
 		instantiationService.stub(IMenuService, store.add(instantiationService.createInstance(MenuService)));
-		const activeSession = constObservable<IActiveSession | undefined>(undefined);
+		const activeSession = constObservable<ITestSessionWithChat | undefined>(undefined);
 		instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() {
 			readonly activeSession = activeSession;
 			readonly mainWindowActiveSession = activeSession;
-			readonly windowSessions = constObservable<readonly IActiveSession[]>([]);
+			readonly windowSessions = constObservable<readonly ITestSessionWithChat[]>([]);
 		}());
 		stubSessionHosts(instantiationService, store, { session: activeSession });
 		instantiationService.stub(IChangesViewService, new class extends mock<IChangesViewService>() {
@@ -325,11 +324,11 @@ suite('SessionChangesEditor disposal', () => {
 	test('the diffs it shows do not render again as they dispose, such as with the services they render with disposed', async () => {
 		const instantiationService = workbenchInstantiationService(undefined, store);
 		instantiationService.stub(IMenuService, store.add(instantiationService.createInstance(MenuService)));
-		const activeSession = constObservable<IActiveSession | undefined>(undefined);
+		const activeSession = constObservable<ITestSessionWithChat | undefined>(undefined);
 		instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() {
 			readonly activeSession = activeSession;
 			readonly mainWindowActiveSession = activeSession;
-			readonly windowSessions = constObservable<readonly IActiveSession[]>([]);
+			readonly windowSessions = constObservable<readonly ITestSessionWithChat[]>([]);
 		}());
 		stubSessionHosts(instantiationService, store, { session: activeSession });
 		instantiationService.stub(IChangesViewService, new class extends mock<IChangesViewService>() {
@@ -381,11 +380,11 @@ suite('SessionChangesEditor input', () => {
 	test('lets go of what its input resolved only when no other group shows the input, such as the one its tab moved to, whose diffs would otherwise empty', () => {
 		const instantiationService = workbenchInstantiationService(undefined, store);
 		instantiationService.stub(IMenuService, store.add(instantiationService.createInstance(MenuService)));
-		const activeSession = constObservable<IActiveSession | undefined>(undefined);
+		const activeSession = constObservable<ITestSessionWithChat | undefined>(undefined);
 		instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() {
 			readonly activeSession = activeSession;
 			readonly mainWindowActiveSession = activeSession;
-			readonly windowSessions = constObservable<readonly IActiveSession[]>([]);
+			readonly windowSessions = constObservable<readonly ITestSessionWithChat[]>([]);
 		}());
 		stubSessionHosts(instantiationService, store, { session: activeSession });
 		instantiationService.stub(IChangesViewService, new class extends mock<IChangesViewService>() {
@@ -395,6 +394,8 @@ suite('SessionChangesEditor input', () => {
 		instantiationService.stub(ISessionsHostLayoutService, { agentWorkbenchLayout: AgentWorkbenchLayout.Desktop });
 		instantiationService.stub(ISessionChangesService, new class extends mock<ISessionChangesService>() {
 			override readonly activeSessionUncommittedChangesCountObs = constObservable(0);
+			override getSessionResource(): URI | undefined { return undefined; }
+			override getChatResource(): URI | undefined { return undefined; }
 		}());
 		instantiationService.stub(IDiffEditorOptionsService, new class extends mock<IDiffEditorOptionsService>() {
 			override readonly viewMode = constObservable<DiffEditorViewMode>('automatic');

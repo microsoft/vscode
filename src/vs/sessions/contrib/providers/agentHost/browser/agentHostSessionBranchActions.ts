@@ -14,7 +14,7 @@ import { buildExternalOpenSessionLinkUri } from '../../../../../platform/agentHo
 import { ANY_AGENT_HOST_PROVIDER_RE, isAgentHostProviderId } from '../../../../../workbench/contrib/sessions/common/agentHostSessionsProvider.js';
 import { SessionIsCreatedContext, SessionProviderIdContext } from '../../../../../workbench/contrib/sessions/common/contextkeys.js';
 import { COPY_AGENT_HOST_CHAT_LINK_COMMAND_ID, COPY_AGENT_HOST_SESSION_LINK_COMMAND_ID } from '../../../../../workbench/contrib/sessions/common/sessionCommands.js';
-import { IChat, ISession } from '../../../../../workbench/contrib/sessions/common/session.js';
+import { IChat, ISession } from '../../../../../workbench/services/sessions/common/session.js';
 import { Menus, SessionHeaderMenus } from '../../../../../workbench/contrib/sessions/browser/menus.js';
 
 interface ISessionChatLinkContext {

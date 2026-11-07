@@ -17,7 +17,7 @@ import { ICommandService } from '../../../../../platform/commands/common/command
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { Link } from '../../../../../platform/opener/browser/link.js';
 import { UNARCHIVE_CHAT_COMMAND_ID, UNARCHIVE_SESSION_COMMAND_ID } from '../../common/sessionCommands.js';
-import { IChat, ISession } from '../../common/session.js';
+import { IChat, ISession } from '../../../../services/sessions/common/session.js';
 
 /**
  * Content shown by a {@link SessionReadOnlyBanner}: an optional icon, message,

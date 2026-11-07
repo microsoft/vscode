@@ -37,7 +37,7 @@ import { ChatContextKeys } from '../../../../../workbench/contrib/chat/common/ac
 import { ContributionEnablementState } from '../../../../../workbench/contrib/chat/common/enablement.js';
 import { IAgentPlugin, IAgentPluginService } from '../../../../../workbench/contrib/chat/common/plugins/agentPluginService.js';
 import { IVoicePlaybackService } from '../../../../../workbench/contrib/chat/common/voicePlaybackService.js';
-import { stubSessionHosts } from '../../../../../workbench/contrib/sessions/test/browser/sessionHostTestUtils.js';
+import { stubSessionHosts, testGridPanes } from '../../../../../workbench/contrib/sessions/test/browser/sessionHostTestUtils.js';
 import { ComponentFixtureContext, createEditorServices, defineComponentFixture, defineThemedFixtureGroup, registerWorkbenchServices } from '../../../../../workbench/test/browser/componentFixtures/fixtureUtils.js';
 import { CustomViewNode } from '../../../../browser/parts/customViewNode.js';
 import { CustomViewService } from '../../../../services/customView/browser/customViewService.js';
@@ -45,7 +45,7 @@ import { ICustomViewService } from '../../../../../workbench/contrib/sessions/br
 import { ISessionsListModelService } from '../../../../../workbench/contrib/sessions/browser/sessionsListModelService.js';
 import { ISessionsProvidersService } from '../../../../../workbench/contrib/sessions/browser/sessionsProvidersService.js';
 import { ISessionsService } from '../../../../../workbench/contrib/sessions/browser/sessionsService.js';
-import { IChat, ISession, SessionStatus } from '../../../../../workbench/contrib/sessions/common/session.js';
+import { IChat, ISession, SessionStatus } from '../../../../../workbench/services/sessions/common/session.js';
 import { ISessionsManagementService } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import { AUTOMATIONS_CUSTOM_VIEW_ID } from '../../../../../workbench/contrib/sessions/browser/automationsConstants.js';
 import { AutomationsCustomViewContribution } from '../../browser/views/automationsView.js';
@@ -364,7 +364,8 @@ function renderAutomations(ctx: ComponentFixtureContext, options: IAutomationsFi
 			reg.defineInstance(ICustomViewService, customViewService);
 			reg.defineInstance(ISessionsManagementService, sessionsManagementService);
 			reg.defineInstance(ISessionsService, new class extends mock<ISessionsService>() {
-				override readonly visibleSessions = constObservable([]);
+				readonly gridShown = constObservable([]);
+				override readonly slotPanes = testGridPanes(this.gridShown);
 				readonly activeSession = constObservable(undefined);
 				override async openSession(): Promise<void> { }
 			}());

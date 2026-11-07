@@ -29,7 +29,7 @@ import { SESSIONS_MARK_AS_DONE_CONFETTI_SETTING } from '../../../../platform/cha
 import { SessionsWindowNotifier } from './sessionsWindowNotifier.js';
 import { AutomationSessionsListingContribution } from './automationSessionsListing.js';
 import { SessionsUnattendedRestartParticipant } from './sessionsUnattendedRestart.js';
-import { AutomationSessionsListMode, ExternalSessionApplicationBadgeMode, SESSIONS_CHAT_TABS_DEFAULT, SESSIONS_CHAT_TABS_SETTING, SESSIONS_LIST_AGENT_TOOLS_SETTING, SESSIONS_LIST_EXTERNAL_APPLICATION_BADGE_SETTING, SESSIONS_LIST_EXTERNAL_APPLICATION_BADGE_SHOW_FROM_SETTING, SESSIONS_LIST_GROUP_EXTERNAL_SESSIONS_SETTING, SESSIONS_LIST_SHOW_AUTOMATION_SESSIONS_SETTING, SESSIONS_SIDEBAR_SEPARATE_NAVIGATION_SETTING, SESSIONS_LIST_REARRANGE_TREATMENT, SessionsChatTabsMode, USE_WORKTREE_SETTING } from '../../../../workbench/contrib/sessions/common/sessionConfig.js';
+import { AutomationSessionsListMode, ExternalSessionApplicationBadgeMode, SESSIONS_CHAT_TABS_DEFAULT, SESSIONS_CHAT_TABS_SETTING, SESSIONS_LIST_AGENT_TOOLS_SETTING, SESSIONS_LIST_EXTERNAL_APPLICATION_BADGE_SETTING, SESSIONS_LIST_EXTERNAL_APPLICATION_BADGE_SHOW_FROM_SETTING, SESSIONS_LIST_GROUP_EXTERNAL_SESSIONS_SETTING, SESSIONS_LIST_INBOX_ENABLED_SETTING, SESSIONS_LIST_SHOW_AUTOMATION_SESSIONS_SETTING, SESSIONS_SIDEBAR_SEPARATE_NAVIGATION_SETTING, SESSIONS_LIST_REARRANGE_TREATMENT, SessionsChatTabsMode, USE_WORKTREE_SETTING, SESSIONS_LIST_INLINE_ACTIONS_SETTING } from '../../../../workbench/contrib/sessions/common/sessionConfig.js';
 
 const agentSessionsViewIcon = registerIcon('chat-sessions-icon', Codicon.commentDiscussionSparkle, localize('agentSessionsViewIcon', 'Icon for Agent Sessions View'));
 const AGENT_SESSIONS_VIEW_TITLE = localize2('agentSessions.view.label', "Sessions");
@@ -70,6 +70,13 @@ Registry.as<IViewsRegistry>(ViewContainerExtensions.ViewsRegistry).registerViews
 export const sessionsConfiguration = {
 	id: 'sessions',
 	properties: {
+		[SESSIONS_LIST_INLINE_ACTIONS_SETTING]: {
+			type: 'boolean',
+			tags: ['experimental'],
+			description: localize('sessions.list.inlineActions', "Show Fix Checks, Address Comments, or their combined action below eligible sessions and chats in the Sessions list. Actions run in the background. This does not enable Agent Merge or change action permissions."),
+			default: false,
+			scope: ConfigurationScope.APPLICATION,
+		},
 		[SESSIONS_SIDEBAR_SEPARATE_NAVIGATION_SETTING]: {
 			type: 'boolean',
 			tags: ['experimental'],
@@ -86,6 +93,12 @@ export const sessionsConfiguration = {
 			description: localize('sessions.list.groupExternalSessions', "Controls whether external sessions are shown in a separate External section instead of workspace or time groups. Pinned sessions and custom groups keep their placement."),
 			default: false,
 			experiment: { mode: 'auto' }
+		},
+		[SESSIONS_LIST_INBOX_ENABLED_SETTING]: {
+			type: 'boolean',
+			tags: ['experimental'],
+			description: localize('sessions.list.inboxEnabled', "Enables Inbox Mode in the Sessions list Grouping menu. Disabling it temporarily shows workspace grouping without clearing saved Inbox triage or grouping choices."),
+			default: false,
 		},
 		[SESSIONS_LIST_AGENT_TOOLS_SETTING]: {
 			type: 'boolean',
