@@ -711,6 +711,7 @@ class DefaultToolCallingLoop extends ToolCallingLoop<IDefaultToolLoopOptions> {
 		return this.options.invocation.endpoint.makeChatRequest2({
 			...opts,
 			modeChanged,
+			modelConfiguration: this.options.request.modelConfiguration,
 			modelCapabilities: {
 				...opts.modelCapabilities,
 				enableThinking: isThinkingLocation && opts.modelCapabilities?.enableThinking,

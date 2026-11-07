@@ -57,15 +57,16 @@ export class CodebaseToolCallingLoop extends ToolCallingLoop<ICodebaseToolCallin
 	}
 
 	private async getEndpoint(request: ChatRequest) {
-		let endpoint = await this.endpointProvider.getChatEndpoint(this.options.request);
+		let endpoint = await this.endpointProvider.getChatEndpoint(request);
 		if (!endpoint.supportsToolCalls) {
 			endpoint = await this.endpointProvider.getChatEndpoint('copilot-utility');
+			return { endpoint, modelConfiguration: undefined };
 		}
-		return endpoint;
+		return { endpoint, modelConfiguration: request.modelConfiguration };
 	}
 
 	protected async buildPrompt(buildPromptContext: IBuildPromptContext, progress: Progress<ChatResponseReferencePart | ChatResponseProgressPart>, token: CancellationToken): Promise<IBuildPromptResult> {
-		const endpoint = await this.getEndpoint(this.options.request);
+		const { endpoint } = await this.getEndpoint(this.options.request);
 		const renderer = PromptRenderer.create(
 			this.instantiationService,
 			endpoint,
@@ -78,29 +79,28 @@ export class CodebaseToolCallingLoop extends ToolCallingLoop<ICodebaseToolCallin
 	}
 
 	protected async getAvailableTools(): Promise<LanguageModelToolInformation[]> {
-		const endpoint = await this.getEndpoint(this.options.request);
+		const { endpoint } = await this.getEndpoint(this.options.request);
 		return this.toolsService.getEnabledTools(this.options.request, endpoint, tool => tool.tags.includes('vscode_codesearch'));
 	}
 
 	protected async fetch({ messages, finishedCb, requestOptions }: ToolCallingLoopFetchOptions, token: CancellationToken): Promise<ChatResponse> {
-		const endpoint = await this.getEndpoint(this.options.request);
-		return endpoint.makeChatRequest(
-			CodebaseToolCallingLoop.ID,
+		const { endpoint, modelConfiguration } = await this.getEndpoint(this.options.request);
+		return endpoint.makeChatRequest2({
+			debugName: CodebaseToolCallingLoop.ID,
 			messages,
+			modelConfiguration,
 			finishedCb,
-			token,
-			this.options.location,
-			undefined,
-			{
+			location: this.options.location,
+			requestOptions: {
 				...requestOptions,
 				temperature: 0
 			},
 			// This loop is inside a tool called from another request, so never user initiated
-			false,
-			{
+			userInitiatedRequest: false,
+			telemetryProperties: {
 				messageId: randomUUID(), // @TODO@joyceerhl
 				messageSource: CodebaseToolCallingLoop.ID
 			},
-		);
+		}, token);
 	}
 }

@@ -191,6 +191,7 @@ export class NewNotebookResponseProcessor {
 				const generateResponse = await this.endpoint.makeChatRequest2({
 					debugName: 'newNotebookCodeCell',
 					messages: generateMessages,
+					modelConfiguration: this.context?.request?.modelConfiguration,
 					finishedCb,
 					location: ChatLocation.Panel,
 				}, token);
