@@ -110,7 +110,7 @@
   "dependencies": {
     "@anthropic-ai/sdk": "^0.82.0",
     "@devcontainers/cli": "0.88.0",
-    "@github/copilot-sdk": "1.0.29-preview.10",
+    "@github/copilot-sdk": "1.0.30-preview.0",
     "@hpke/core": "^1.9.0",
     "@microsoft/1ds-core-js": "^3.2.13",
     "@microsoft/1ds-post-js": "^3.2.13",
@@ -130,7 +130,7 @@
     "@vscode/native-watchdog": "^1.4.6",
     "@vscode/os-proxy-resolver": "^0.4.0",
     "@vscode/policy-watcher": "^1.7.0",
-    "@vscode/proxy-agent": "^0.45.0",
+    "@vscode/proxy-agent": "^0.46.0",
     "@vscode/ripgrep-universal": "^1.18.0",
     "@vscode/sandbox-runtime": "0.0.1",
     "@vscode/spdlog": "^0.15.8",
@@ -285,5 +285,5 @@
   "optionalDependencies": {
     "windows-foreground-love": "0.6.1"
   },
-  "copilotRuntimeVersion": "1.0.106-11"
+  "copilotRuntimeVersion": "1.0.108-0"
 }
