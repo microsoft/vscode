@@ -500,6 +500,37 @@ suite('Strings', () => {
 	test('truncate', () => {
 		assert.strictEqual('hello world', strings.truncate('hello world', 100));
 		assert.strictEqual('hello…', strings.truncate('hello world', 5));
+		assert.strictEqual('a…', strings.truncate('a😀b', 2));
+		assert.strictEqual('😀…', strings.truncate('😀😀', 3));
+	});
+
+	test('truncate does not split surrogate pairs', () => {
+		assert.strictEqual(strings.truncate('😀abc', 1), '…');
+		assert.strictEqual(strings.truncate('ab😀😀cd', 5), 'ab😀…');
+		assert.strictEqual(strings.truncate('a😀b', 2, '...'), 'a...');
+		assert.strictEqual(strings.truncate('a😀b', 2, ''), 'a');
+	});
+
+	test('truncate keeps complete surrogate pairs at the boundary', () => {
+		assert.strictEqual(strings.truncate('a😀b', 3), 'a😀…');
+		assert.strictEqual(strings.truncate('😀😀', 2), '😀…');
+		assert.strictEqual(strings.truncate('😀', 2), '😀');
+		assert.strictEqual(strings.truncate('😀', 0), '…');
+	});
+
+	test('truncate leaves unpaired surrogates untouched', () => {
+		assert.strictEqual(strings.truncate('a\uD83Dxyz', 2), 'a\uD83D…');
+		assert.strictEqual(strings.truncate('a\uDE00xyz', 1), 'a…');
+		assert.strictEqual(strings.truncate('a\uDE00xyz', 2), 'a\uDE00…');
+	});
+
+	test('truncate result never ends with a lone high surrogate', () => {
+		const value = 'x😀y🎉z🚀';
+		for (let maxLength = 0; maxLength < value.length; maxLength++) {
+			const result = strings.truncate(value, maxLength, '');
+			assert.ok(result.length <= maxLength);
+			assert.ok(result.length === 0 || !strings.isHighSurrogate(result.charCodeAt(result.length - 1)), `maxLength ${maxLength} produced a split surrogate pair`);
+		}
 	});
 
 	test('truncateMiddle', () => {
