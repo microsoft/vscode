@@ -536,10 +536,9 @@ export async function renderPicker(context: ComponentFixtureContext, options: IP
 				registration.defineInstance(IContextViewService, createInlineContextViewService(container, disposableStore));
 			}
 			registration.defineInstance(ILanguageModelsService, createLanguageModelsService());
-			registration.defineInstance(IChatEntitlementService, upcastPartial<IChatEntitlementService>({
-				entitlement: options.entitlement ?? ChatEntitlement.Free,
-				onDidChangeEntitlement: Event.None,
-			}));
+			const entitlement = new TestChatEntitlementService();
+			entitlement.entitlement = options.entitlement ?? ChatEntitlement.Free;
+			registration.defineInstance(IChatEntitlementService, entitlement);
 			// The shared harness discards writes, so the picker cannot remember anything.
 			registration.defineInstance(IStorageService, disposableStore.add(new InMemoryStorageService()));
 		},
