@@ -139,6 +139,7 @@ suite('SessionCanvasService', () => {
 		const closeSettled: Promise<void>[] = [];
 		let closeCount = 0;
 		const editorService = new class extends mock<IEditorService>() {
+			override readonly onDidEditorsChange = Event.None;
 			override openEditor(...args: unknown[]): Promise<ITextDiffEditorPane | undefined> {
 				const input = args[0] as CanvasInput;
 				opened.push(input);

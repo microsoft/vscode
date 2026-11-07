@@ -7,7 +7,7 @@ import { DeferredPromise } from '../../../../base/common/async.js';
 import { CancellationError } from '../../../../base/common/errors.js';
 import { Event } from '../../../../base/common/event.js';
 import { Disposable, DisposableMap, DisposableStore, IDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
-import { autorun, constObservable, derived, IObservable, IReader, observableFromEvent, observableSignal, runOnChange } from '../../../../base/common/observable.js';
+import { autorun, constObservable, derived, IObservable, IReader, observableFromEvent, observableSignal, observableSignalFromEvent, runOnChange } from '../../../../base/common/observable.js';
 import { isEqual } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
@@ -16,6 +16,7 @@ import { CanvasesEnabledSettingId } from '../../../../platform/agentHost/common/
 import { IBrowserViewNetwork } from '../../../../platform/browserView/common/browserView.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { EditorActivation, IEditorOptions } from '../../../../platform/editor/common/editor.js';
+import { GroupModelChangeKind } from '../../../common/editor.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { INotificationService } from '../../../../platform/notification/common/notification.js';
@@ -226,8 +227,13 @@ export class CanvasService extends Disposable implements ICanvasService {
 		}));
 		// A group outside the main window presents the canvases of the chats its window shows: once a chat leaves the
 		// window, its canvases there close, rather than show an error, to show again beside the chat where it shows next.
+		// Not suspended for a working set to restore: that restores into the main window, wherever the chat shows next. A
+		// canvas another surface shows, such as a pinned canvas page, keeps its model there.
+		// Also as a canvas opens in another group, such as one the user moved it to.
+		const canvasOpened = observableSignalFromEvent(this, Event.filter(this.editorService.onDidEditorsChange, ({ event }) => event.kind === GroupModelChangeKind.EDITOR_OPEN && event.editor instanceof CanvasInput));
 		this._register(autorun(reader => {
 			this.presentationsChanged.read(reader);
+			canvasOpened.read(reader);
 			for (const [key, input] of this.inputs) {
 				if (this.opening.has(input)) {
 					continue;
@@ -237,7 +243,7 @@ export class CanvasService extends Disposable implements ICanvasService {
 					return !group || canPresentCanvasInGroup(input.reference, group, this.editorGroupsService, contextService, reader);
 				});
 				if (!presentable) {
-					void this.closeInput(key, input, contextService.workingSets !== undefined).catch(error => this.reportError('Failed to close canvas', error));
+					void this.closeInput(key, input, false, true).catch(error => this.reportError('Failed to close canvas', error));
 				}
 			}
 		}));
@@ -695,7 +701,12 @@ export class CanvasService extends Disposable implements ICanvasService {
 		}
 	}
 
-	private async closeInput(key: string, input: CanvasInput, suspend = false): Promise<void> {
+	/**
+	 * Closes the editor of `input` without recording a dismissal. With `suspend`, an admitted presentation stays for its
+	 * working set to restore. With `retainElsewhere`, a presentation another surface shows, such as a pinned canvas page,
+	 * keeps its model there, as when the user closes the editor.
+	 */
+	private async closeInput(key: string, input: CanvasInput, suspend = false, retainElsewhere = false): Promise<void> {
 		if (this.programmaticCloses.has(input) || this.inputs.get(key) !== input) {
 			return;
 		}
@@ -708,6 +719,8 @@ export class CanvasService extends Disposable implements ICanvasService {
 		if (suspend && presentation?.admitted) {
 			presentation.opened = false;
 			this.presentationsChanged.trigger(undefined);
+		} else if (retainElsewhere && presentation && this.contextService.isPresentedElsewhere?.(input.reference) === true) {
+			this.retainExternally(presentation);
 		} else {
 			this.deletePresentation(key);
 			this.requests.delete(key);

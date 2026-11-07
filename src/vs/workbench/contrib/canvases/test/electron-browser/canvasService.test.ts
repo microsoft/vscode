@@ -6,7 +6,8 @@
 import assert from 'assert';
 import { DeferredPromise, timeout } from '../../../../../base/common/async.js';
 import { Emitter } from '../../../../../base/common/event.js';
-import { observableValue, transaction } from '../../../../../base/common/observable.js';
+import { Disposable } from '../../../../../base/common/lifecycle.js';
+import { constObservable, observableValue, transaction } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { mock, upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
@@ -17,10 +18,10 @@ import { TestInstantiationService } from '../../../../../platform/instantiation/
 import { NullLogService } from '../../../../../platform/log/common/log.js';
 import { INotification, INotificationHandle } from '../../../../../platform/notification/common/notification.js';
 import { TestNotificationService } from '../../../../../platform/notification/test/common/testNotificationService.js';
-import { IEditorIdentifier, ITextDiffEditorPane } from '../../../../common/editor.js';
+import { GroupModelChangeKind, IEditorIdentifier, ITextDiffEditorPane } from '../../../../common/editor.js';
 import { IChatEntitlementService } from '../../../../services/chat/common/chatEntitlementService.js';
 import { IEditorGroup, IEditorGroupsService, IEditorPart, IModalEditorPart } from '../../../../services/editor/common/editorGroupsService.js';
-import { IEditorService } from '../../../../services/editor/common/editorService.js';
+import { IEditorService, IEditorsChangeEvent } from '../../../../services/editor/common/editorService.js';
 import { IBrowserViewWorkbenchService } from '../../../browserView/common/browserView.js';
 import { CanvasInput, ICanvasContext, ICanvasContextService, ICanvasOpenRequest, isCanvasOwner } from '../../common/canvas.js';
 import { EditorInput } from '../../../../common/editor/editorInput.js';
@@ -30,7 +31,7 @@ import { canvasOwnerKey, ICanvas, ICanvasOwner } from '../../../../common/canvas
 suite('CanvasService', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
-	function createHarness() {
+	function createHarness(options?: { readonly workingSets?: boolean; readonly presentedElsewhere?: boolean }) {
 		const owner: ICanvasOwner = { providerId: 'local', session: URI.parse('session:/owner'), chat: URI.parse('chat:/owner') };
 		const canvas: ICanvas = {
 			resource: URI.parse('canvas:/preview'), instanceId: 'preview', title: 'Preview', source: URI.parse('https://example.test'),
@@ -52,7 +53,14 @@ suite('CanvasService', () => {
 				return targetGroup;
 			},
 			canPresentInGroup: (owner, group, reader) => group.windowId === 2 && chatWindowOwners.read(reader).has(canvasOwnerKey(owner)),
+			workingSets: options?.workingSets ? {
+				state: constObservable({ owner: undefined, restoring: false, applying: false }),
+				registerEditorToRetain: () => Disposable.None,
+				suppressEditorPartAutoVisibility: () => Disposable.None,
+			} : undefined,
+			isPresentedElsewhere: options?.presentedElsewhere ? () => true : undefined,
 		});
+		const editorsChanged = store.add(new Emitter<IEditorsChangeEvent>());
 		const opened: CanvasInput[] = [];
 		const openOptions: (IEditorOptions | undefined)[] = [];
 		const openEditors: IEditorIdentifier[] = [];
@@ -77,6 +85,7 @@ suite('CanvasService', () => {
 			}
 		}();
 		const editorService = new class extends mock<IEditorService>() {
+			override readonly onDidEditorsChange = editorsChanged.event;
 			override async openEditor(...args: unknown[]): Promise<ITextDiffEditorPane | undefined> {
 				const input = args[0];
 				if (!(input instanceof CanvasInput)) {
@@ -133,6 +142,12 @@ suite('CanvasService', () => {
 			showAI: () => { hidden = false; sentiment.fire(); },
 			setModalActive: (value: boolean) => modalActive = value,
 			selectGroup: (id: number) => targetGroup = groups[id - 1],
+			/** Moves the open canvas into group `id`, as the user drags its tab, without the service opening it there. */
+			moveByUser: (id: number) => {
+				const moved = openEditors.find(editor => editor.editor instanceof CanvasInput)!;
+				openEditors.splice(openEditors.indexOf(moved), 1, { groupId: id, editor: moved.editor });
+				editorsChanged.fire({ groupId: id, event: { kind: GroupModelChangeKind.EDITOR_OPEN, editor: moved.editor, editorIndex: 0 } });
+			},
 		};
 	}
 
@@ -458,5 +473,74 @@ suite('CanvasService', () => {
 		await timeout(0);
 
 		assert.deepStrictEqual({ open: harness.openEditors.map(editor => editor.groupId), closed: harness.closed.length }, { open: [1], closed: 0 });
+	});
+
+	test('closes a canvas the user moved into a chat window once its chat leaves the window', async () => {
+		const harness = createHarness();
+		harness.canvases.set([harness.canvas], undefined);
+		await timeout(0);
+		harness.moveByUser(3);
+		await timeout(0);
+		const moved = { open: harness.openEditors.map(editor => editor.groupId), closed: harness.closed.length };
+		transaction(tx => {
+			harness.chatWindowOwners.set(new Set(), tx);
+			harness.visible.set(new Set(), tx);
+		});
+		await timeout(0);
+
+		assert.deepStrictEqual({ moved, afterLeaving: { open: harness.openEditors.map(editor => editor.groupId), closed: harness.closed.length } }, {
+			moved: { open: [3], closed: 0 },
+			afterLeaving: { open: [], closed: 1 },
+		});
+	});
+
+	test('with working sets, shows a canvas closed as its chat left a chat window beside the chat where it shows next, not as a working-set restore', async () => {
+		const harness = createHarness({ workingSets: true });
+		harness.selectGroup(3);
+		harness.canvases.set([harness.canvas], undefined);
+		await timeout(0);
+		transaction(tx => {
+			harness.chatWindowOwners.set(new Set(), tx);
+			harness.visible.set(new Set(), tx);
+		});
+		await timeout(0);
+		// The chat shows in the chat window again.
+		transaction(tx => {
+			harness.chatWindowOwners.set(new Set([canvasOwnerKey(harness.owner)]), tx);
+			harness.visible.set(new Set([canvasOwnerKey(harness.owner)]), tx);
+		});
+		await timeout(0);
+
+		assert.deepStrictEqual({ open: harness.openEditors.map(editor => editor.groupId), restores: harness.groupRestores, reopenable: harness.service.reopenableCanvases.get().length }, {
+			open: [3],
+			restores: [false, false],
+			reopenable: 0,
+		});
+	});
+
+	test('keeps the presentation of a canvas another surface shows once its chat leaves a chat window, and shows it again with it', async () => {
+		const harness = createHarness({ workingSets: true, presentedElsewhere: true });
+		harness.selectGroup(3);
+		harness.canvases.set([harness.canvas], undefined);
+		await timeout(0);
+		const shownFirst = harness.opened[0].serializationId;
+		transaction(tx => {
+			harness.chatWindowOwners.set(new Set(), tx);
+			harness.visible.set(new Set(), tx);
+		});
+		await timeout(0);
+		const afterLeaving = { open: harness.openEditors.length, closed: harness.closed.length };
+		transaction(tx => {
+			harness.chatWindowOwners.set(new Set([canvasOwnerKey(harness.owner)]), tx);
+			harness.visible.set(new Set([canvasOwnerKey(harness.owner)]), tx);
+		});
+		await timeout(0);
+
+		assert.deepStrictEqual({ afterLeaving, open: harness.openEditors.map(editor => editor.groupId), samePresentation: harness.opened.at(-1)?.serializationId === shownFirst, restores: harness.groupRestores }, {
+			afterLeaving: { open: 0, closed: 1 },
+			open: [3],
+			samePresentation: true,
+			restores: [false, false],
+		});
 	});
 });
