@@ -417,6 +417,47 @@ suite('Tests for Expand Abbreviations (HTML)', () => {
 		await workspace.getConfiguration('emmet').update('excludeLanguages', oldConfig, ConfigurationTarget.Global);
 	});
 
+	test('Expand html when inside script tag with javascript type if js is mapped to array with html (HTML)', async () => {
+		const oldConfig = workspace.getConfiguration('emmet').inspect('includeLanguages')?.globalValue;
+		await workspace.getConfiguration('emmet').update('includeLanguages', { 'javascript': ['html', 'css'] }, ConfigurationTarget.Global);
+		await withRandomFileEditor(htmlContents, 'html', async (editor, _doc) => {
+			editor.selection = new Selection(24, 10, 24, 10);
+			const expandPromise = expandEmmetAbbreviation(null);
+			if (!expandPromise) {
+				return Promise.resolve();
+			}
+			await expandPromise;
+			assert.strictEqual(editor.document.getText(), htmlContents.replace('span.bye', '<span class="bye"></span>'));
+		});
+		await workspace.getConfiguration('emmet').update('includeLanguages', oldConfig, ConfigurationTarget.Global);
+	});
+
+	test('Expand html in completion list when inside script tag with javascript type if js is mapped to array with html (HTML)', async () => {
+		const abbreviation = 'span.bye';
+		const expandedText = '<span class="bye"></span>';
+		const oldConfig = workspace.getConfiguration('emmet').inspect('includeLanguages')?.globalValue;
+		await workspace.getConfiguration('emmet').update('includeLanguages', { 'javascript': ['html', 'css'] }, ConfigurationTarget.Global);
+		await withRandomFileEditor(htmlContents, 'html', async (editor, _doc) => {
+			editor.selection = new Selection(24, 10, 24, 10);
+			const cancelSrc = new CancellationTokenSource();
+			const completionPromise = completionProvider.provideCompletionItems(editor.document, editor.selection.active, cancelSrc.token, invokeCompletionContext);
+			if (!completionPromise) {
+				assert.strictEqual(1, 2, `Problem with expanding span.bye`);
+				return Promise.resolve();
+			}
+			const completionList = await completionPromise;
+			if (!completionList || !completionList.items || !completionList.items.length) {
+				assert.strictEqual(1, 2, `Problem with expanding span.bye`);
+				return Promise.resolve();
+			}
+			const emmetCompletionItem = completionList.items[0];
+			assert.strictEqual(emmetCompletionItem.label, abbreviation, `Label of completion item (${emmetCompletionItem.label}) doesnt match.`);
+			assert.strictEqual(((<string>emmetCompletionItem.documentation) || '').replace(/\|/g, ''), expandedText, `Docs of completion item doesnt match.`);
+			return Promise.resolve();
+		});
+		await workspace.getConfiguration('emmet').update('includeLanguages', oldConfig, ConfigurationTarget.Global);
+	});
+
 	// test('No expanding when php (mapped syntax) is excluded in the settings', () => {
 	// 	return workspace.getConfiguration('emmet').update('excludeLanguages', ['php'], ConfigurationTarget.Global).then(() => {
 	// 		return testExpandAbbreviation('php', new Selection(9, 6, 9, 6), '', '', true).then(() => {
