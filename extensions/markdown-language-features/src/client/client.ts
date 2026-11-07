@@ -12,6 +12,7 @@ import { FileWatcherManager } from './fileWatchingManager';
 import { InMemoryDocument } from './inMemoryDocument';
 import * as proto from './protocol';
 import { VsCodeMdWorkspace } from './workspace';
+import { createWorkspaceSymbolMiddleware } from './workspaceSymbols';
 
 export type LanguageClientConstructor = (name: string, description: string, clientOptions: lsp.LanguageClientOptions) => lsp.BaseLanguageClient;
 
@@ -88,7 +89,8 @@ export async function startClient(factory: LanguageClientConstructor, parser: IM
 		},
 		markdown: {
 			supportHtml: true,
-		}
+		},
+		middleware: createWorkspaceSymbolMiddleware(() => vscode.workspace.getConfiguration('markdown').get('workspaceSymbols.enabled', true)),
 	};
 
 	const client = factory('markdown', vscode.l10n.t("Markdown Language Server"), clientOptions);
