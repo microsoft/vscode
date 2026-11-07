@@ -65,6 +65,10 @@ suite('modelRouter', () => {
 			});
 		});
 
+		test('reads a file saved with a byte order mark', () => {
+			assert.deepStrictEqual(parseModelRouter(`\uFEFF${valid}`, 'daily-driver.model-router.yaml'), parseModelRouter(valid, 'daily-driver.model-router.yaml'));
+		});
+
 		test('reads names from .yml files and ids', () => {
 			assert.strictEqual(modelRouterNameFromFileName('fast.model-router.yml'), 'fast');
 			assert.strictEqual(modelRouterNameFromFileName('fast.yaml'), undefined);

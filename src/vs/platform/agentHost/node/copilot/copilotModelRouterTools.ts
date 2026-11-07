@@ -96,7 +96,7 @@ async function checkFile(host: IModelRouterToolHost, uri: URI, models: readonly 
 	}
 	const content = await host.readFile(uri);
 	const parsed = parseModelRouter(content, fileName);
-	return check(parsed.router?.name ?? modelRouterNameFromFileName(fileName)!, uri, parsed.router, parsed.diagnostics, models, content);
+	return check(parsed.router?.name ?? parsed.name ?? modelRouterNameFromFileName(fileName)!, uri, parsed.router, parsed.diagnostics, models, content);
 }
 
 async function checkRouter(host: IModelRouterToolHost, file: IModelRouterFile, models: readonly IAgentModelInfo[]): Promise<IModelRouterCheck> {

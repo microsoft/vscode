@@ -1836,7 +1836,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 		if (!usable(available)) {
 			throw new ProtocolError(AhpErrorCodes.AuthRequired, 'Scoped Copilot authentication is required', { resources: [resource] });
 		}
-		if (previousCatalog?.credentials.isCurrentCredential(available)) {
+		if (previousCatalog?.credentials.isCurrentCredential(available) && !this._scopedModelCatalogs.has(source)) {
 			this._scopedModelCatalogs.set(source, previousCatalog);
 		}
 		const credential = !preparing && turnId !== undefined && prepared?.turnId === turnId ? prepared.credential : available;
@@ -4153,7 +4153,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 	private _getTurnModels(chat: URI, credentials: IAgentHostCredentialSource, token: CancellationToken): Promise<readonly IAgentModelInfo[]> {
 		const previous = this._credentialSources.get(chat.toString());
 		const previousCatalog = previous && previous !== credentials ? this._scopedModelCatalogs.get(previous) : undefined;
-		if (previousCatalog && !this._scopedModelCatalogs.has(credentials)) {
+		if (previousCatalog && !this._scopedModelCatalogs.has(credentials) && previousCatalog.startup.equals(this._readClientStartupConfig())) {
 			const resource = this._gitHubEndpointService.getCopilotResource();
 			const credential = credentials.getCredential({ resource: resource.resource, scopes: resource.scopes_supported });
 			if (credential && previousCatalog.credentials.isCurrentCredential(credential)) {

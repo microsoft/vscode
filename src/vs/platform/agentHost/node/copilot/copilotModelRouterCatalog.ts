@@ -91,9 +91,9 @@ export class UserModelRouterSource extends Disposable implements IModelRouterSou
 					continue;
 				}
 				const result = parseModelRouter(content, fileName);
-				const name = result.router?.name ?? this._lastNames.get(child.resource) ?? modelRouterNameFromFileName(fileName)!;
-				if (result.router) {
-					this._lastNames.set(child.resource, result.router.name);
+				const name = result.router?.name ?? result.name ?? this._lastNames.get(child.resource) ?? modelRouterNameFromFileName(fileName)!;
+				if (result.name) {
+					this._lastNames.set(child.resource, result.name);
 				}
 				const shadowing = seen.get(name);
 				if (shadowing) {
@@ -180,7 +180,7 @@ export class CopilotModelRouterCatalog extends Disposable {
 			this._rescan.flush();
 			const generation = this._generation;
 			const snapshot = await raceCancellation(this._scan, token);
-			if (generation === this._generation || snapshot === undefined) {
+			if (snapshot === undefined || (generation === this._generation && !this._rescan.isScheduled())) {
 				return snapshot;
 			}
 		}

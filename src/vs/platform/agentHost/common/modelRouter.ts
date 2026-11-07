@@ -102,6 +102,8 @@ export interface IModelRouterParseResult {
 	/** Undefined when any diagnostic is an error. */
 	readonly router: IModelRouter | undefined;
 	readonly diagnostics: readonly IModelRouterDiagnostic[];
+	/** The router's name, when it could be read, even if the file has other errors. */
+	readonly name?: string;
 }
 
 interface IRange {
@@ -161,7 +163,12 @@ export function modelRouterNameFromModelId(modelId: string | undefined): string 
 export function parseModelRouter(content: string, fileName: string): IModelRouterParseResult {
 	const diagnostics: IModelRouterDiagnostic[] = [];
 	const report = { error: diagnosticReporter(diagnostics, ModelRouterDiagnosticSeverity.Error), warning: diagnosticReporter(diagnostics, ModelRouterDiagnosticSeverity.Warning) };
-	const fail = () => ({ router: undefined, diagnostics });
+	let validName: string | undefined;
+	const fail = (): IModelRouterParseResult => ({ router: undefined, diagnostics, ...(validName ? { name: validName } : {}) });
+	// Editors can save UTF-8 with a byte order mark, which YAML would read as part of the first key.
+	if (content.charCodeAt(0) === 0xFEFF) {
+		content = content.slice(1);
+	}
 
 	if (VSBuffer.fromString(content).byteLength > MODEL_ROUTER_MAX_FILE_BYTES) {
 		report.error(`A model router file is at most ${MODEL_ROUTER_MAX_FILE_BYTES / 1024} KiB.`);
@@ -210,6 +217,8 @@ export function parseModelRouter(content: string, fileName: string): IModelRoute
 	const name = nameProperty ? scalar(nameProperty.value) : fileNameRouter;
 	if (!name || !NAME_PATTERN.test(name)) {
 		report.error('The name must be lowercase letters, digits and single hyphens, like `daily-driver`.', nameProperty?.value);
+	} else {
+		validName = name;
 	}
 
 	const descriptionProperty = values.get('description');
@@ -278,7 +287,7 @@ export function parseModelRouter(content: string, fileName: string): IModelRoute
 	if (hasError(diagnostics) || !name || !description || guidance === undefined) {
 		return fail();
 	}
-	return { router: { name, description, effort, switching, guidance, routes }, diagnostics };
+	return { router: { name, description, effort, switching, guidance, routes }, diagnostics, name };
 }
 
 /** The size of the router text sent with each decision, measured as the runtime measures requests. */

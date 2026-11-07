@@ -2260,8 +2260,10 @@ export class AgentSideEffects extends Disposable {
 			this._turnTracker.setCurrentStage(turnChannel, turnId, 'modelSelection');
 			this._turnTracker.markSendStage(turnChannel, turnId, 'modelSelection');
 			let model: ModelSelection | undefined;
+			let routed: IRoutedTurnModel | undefined;
 			if (message.model && isModelRouterModelId(message.model.id)) {
-				model = await this._resolveRoutedTurnModel(agent, chatUri, turnChannel, turnId, message.model, message.text, clientOperationContext);
+				routed = await this._resolveRoutedTurnModel(agent, chatUri, turnChannel, turnId, message.model, message.text, clientOperationContext);
+				model = routed?.selection;
 			} else {
 				model = getApplicableTurnModel(agent, this._stateManager.getSessionState(sessionChannel)?.provider, message.model);
 				if (message.model && !model) {
@@ -2281,6 +2283,7 @@ export class AgentSideEffects extends Disposable {
 				await this._discardPendingTurnStartCheckpoint(checkpointCapture, sessionChannel, chatUri, turnId);
 				return;
 			}
+			routed?.publish();
 			if (agent.id === CODEX_AGENT_PROVIDER_ID) {
 				const state = this._stateManager.getSessionState(sessionChannel);
 				if (state?.defaultChat === chat) {
@@ -2395,8 +2398,10 @@ export class AgentSideEffects extends Disposable {
 	 * Lets the agent choose the model for a turn that selected a model router. The router id
 	 * itself never reaches `changeModel`: agents that can't route, subagents, a failed or
 	 * superseded resolution, and a resolution without a model all keep the chat's current model.
+	 * A chosen model's routing is published only once the model change succeeds, so a failed
+	 * change leaves no pick for the next turn to keep.
 	 */
-	private async _resolveRoutedTurnModel(agent: IAgent, chatUri: URI, turnChannel: ProtocolURI, turnId: string, selection: ModelSelection, text: string, context: IAgentChatContext): Promise<ModelSelection | undefined> {
+	private async _resolveRoutedTurnModel(agent: IAgent, chatUri: URI, turnChannel: ProtocolURI, turnId: string, selection: ModelSelection, text: string, context: IAgentChatContext): Promise<IRoutedTurnModel | undefined> {
 		if (!agent.resolveTurnModel || resolveSubagentChatParent(context) !== undefined) {
 			this._logService.info(`[AgentSideEffects] Chat ${turnChannel} keeps its model: ${agent.id} does not route ${selection.id} here`);
 			return undefined;
@@ -2413,24 +2418,29 @@ export class AgentSideEffects extends Disposable {
 			return undefined;
 		}
 		this._turnTracker.updateFusionTelemetry(turnChannel, turnId, { modelRouterOutcome: modelRouterOutcomeOf(resolution.routed) });
-		if (resolution.routed) {
-			this._routedTurns.set(this._routedTurnKey(turnChannel, turnId), resolution.routed);
-			// Name the pick now; the model's own usage report can arrive much later.
-			this._stateManager.dispatchServerAction(turnChannel, { type: ActionType.ChatUsage, turnId, usage: { _meta: { modelRouted: resolution.routed } } });
-		}
-		for (const notice of resolution.notices) {
-			this._stateManager.dispatchServerAction(turnChannel, {
-				type: ActionType.ChatResponsePart,
-				turnId,
-				part: { kind: ResponsePartKind.SystemNotification, content: notice, _meta: toAgentSystemNotificationMeta({ kind: AgentSystemNotificationKind.ModelRouterSuggestion }) },
-			});
-		}
-		const chosen = resolution.selection;
-		if (!chosen || isModelRouterModelId(chosen.id)) {
+		const chosen = resolution.selection && !isModelRouterModelId(resolution.selection.id) ? resolution.selection : undefined;
+		const publish = () => {
+			if (resolution.routed) {
+				this._routedTurns.set(this._routedTurnKey(turnChannel, turnId), resolution.routed);
+				// Name the pick now; the model's own usage report can arrive much later.
+				this._stateManager.dispatchServerAction(turnChannel, { type: ActionType.ChatUsage, turnId, usage: { _meta: { modelRouted: resolution.routed } } });
+			}
+			for (const notice of resolution.notices) {
+				this._stateManager.dispatchServerAction(turnChannel, {
+					type: ActionType.ChatResponsePart,
+					turnId,
+					part: { kind: ResponsePartKind.SystemNotification, content: notice, _meta: toAgentSystemNotificationMeta({ kind: AgentSystemNotificationKind.ModelRouterSuggestion }) },
+				});
+			}
+			if (chosen) {
+				this._updateTurnModel(agent, turnChannel, turnId, chosen.id);
+			}
+		};
+		if (!chosen) {
+			publish();
 			return undefined;
 		}
-		this._updateTurnModel(agent, turnChannel, turnId, chosen.id);
-		return chosen;
+		return { selection: chosen, publish };
 	}
 
 	private _routedTurnKey(channel: ProtocolURI, turnId: string): string {
@@ -2668,6 +2678,12 @@ function buildTurnFailureError(stage: AgentHostTurnFailureStage, err: unknown): 
 		return { errorType, message: stripProxyErrorMarker(message), _meta: toChatErrorMeta(forwarded) };
 	}
 	return { errorType, message };
+}
+
+/** A routed turn's model, and the routing to publish once the chat is on it. */
+interface IRoutedTurnModel {
+	readonly selection: ModelSelection;
+	publish(): void;
 }
 
 function modelRouterOutcomeOf(routed: IModelRoutedInfo | undefined): ModelRouterOutcome {

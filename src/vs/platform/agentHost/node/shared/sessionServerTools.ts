@@ -16,6 +16,7 @@ import { SessionStatus } from '../../common/state/protocol/channels-session/stat
 import { ActionType } from '../../common/state/sessionActions.js';
 import type { IAgentServerToolDefinition } from '../../common/agentServerTools.js';
 import { ChatInteractivity, ChatOriginKind, DEFAULT_CHAT_ID, getAgentHostChatId, getInlineToolInput, getSessionRelatedPullRequestUrls, isAhpChatChannel, isSessionStatusArchived, isSessionStatusRead, MessageKind, PendingMessageKind, readSessionGitState, readSessionGitHubState, getAllSessionRelatedPullRequestUrls, readSessionWorkspaceless, ResponsePartKind, ToolCallStatus, TurnState, withSessionCreationReference, type Message, type ModelSelection, type PendingMessage, type ResponsePart, type SessionActiveClient, type ToolCallState, type ToolDefinition, type Turn, type URI as ProtocolURI } from '../../common/state/sessionState.js';
+import { isModelRouterModelId } from '../../common/modelRouter.js';
 import { AGENT_HOST_CHAT_LINK_PATTERN, buildOpenSessionLinkForChat, buildOpenSessionLinkUri, parseOpenSessionLinkChatId, parseOpenSessionLinkUri } from '../../common/openSessionLink.js';
 import { SessionServerToolName } from '../../common/serverToolNames.js';
 import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
@@ -441,7 +442,8 @@ export interface IAgentServiceSessionServerToolAccessor {
 	readonly createSession: (config: IAgentCreateSessionConfig) => Promise<URI>;
 	readonly getModels: () => readonly IAgentModelInfo[];
 	readonly getCreationDefaults: (source: URI, sourceTurnId?: string) => ISessionCreationDefaults | undefined;
-	readonly startPrompt: (session: URI, chat: URI, prompt: string, delegation?: IAgentMessageDelegationMeta, credentials?: IAgentHostCredentialSource) => Promise<void>;
+	/** `model` is set only for a model router, which is chosen when the prompt is sent rather than when the chat is created. */
+	readonly startPrompt: (session: URI, chat: URI, prompt: string, delegation?: IAgentMessageDelegationMeta, credentials?: IAgentHostCredentialSource, model?: ModelSelection) => Promise<void>;
 	readonly createChat: (session: URI, chat: URI, options?: { title?: string; model?: ModelSelection; workingDirectories?: readonly URI[]; provider?: AgentProvider }, credentials?: IAgentHostCredentialSource) => Promise<void>;
 	/**
 	 * The agents a new chat of `session` may use (`create_session`'s `harness`): `undefined` unless chats of one session
@@ -1253,7 +1255,7 @@ export async function applyCreateSessionTool(accessor: ISessionServerToolAccesso
 		sourceSession: currentSession.toString(),
 		sourceChat: source?.toString(),
 		...(sourceTurnId !== undefined ? { sourceTurnId } : {}),
-	} : undefined, credentials);
+	} : undefined, credentials, isModelRouterModelId(config.model?.id) ? config.model : undefined);
 	return { relationship: args.relationship, session: session.toString(), chat: chat.toString(), openLink: buildOpenSessionLinkUri(session) };
 }
 
@@ -1391,7 +1393,7 @@ async function createChat(accessor: ISessionServerToolAccessor, args: IResolvedC
 		sourceSession: currentSession.toString(),
 		sourceChat: source?.toString(),
 		...(sourceTurnId !== undefined ? { sourceTurnId } : {}),
-	} : undefined, credentials);
+	} : undefined, credentials, isModelRouterModelId(model?.id) ? model : undefined);
 	return { session: args.session.toString(), chat: chat.toString(), openLink: buildOpenSessionLinkUri(args.session, getAgentHostChatId(chat)) };
 }
 
