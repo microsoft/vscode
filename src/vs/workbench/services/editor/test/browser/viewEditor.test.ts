@@ -542,6 +542,23 @@ suite('View Editors', () => {
 		}
 	});
 
+	test('an editor opened by the id of a group that holds a view with its own title does not go into a locked group of the main part it is handed off to', async () => {
+		const { parts, editorService, part } = await createServices();
+		const viewGroup = part.activeGroup;
+		await viewGroup.openEditor(createViewInput('test.titled', '/chat/a'), { pinned: true });
+		const lockedGroup = parts.mainPart.activeGroup;
+		lockedGroup.lock(true);
+
+		const input = disposables.add(new TestFileEditorInput(URI.file('/locked.txt'), TEST_EDITOR_INPUT_ID));
+		await editorService.openEditor(input, { pinned: true }, viewGroup.id);
+
+		const target = parts.mainPart.groups.find(group => group.contains(input));
+		assert.deepStrictEqual({ inLocked: lockedGroup.contains(input), inMainPart: !!target, targetLocked: target?.isLocked }, { inLocked: false, inMainPart: true, targetLocked: false });
+		for (const group of [...parts.mainPart.groups, ...part.groups]) {
+			await group.closeAllEditors();
+		}
+	});
+
 	test('a view saves its state before its editor moves to another group, where it is created again, and before its pane clears its input', async () => {
 		const { parts, part } = await createServices();
 		const view = createViewInput('test.titled', '/chat/a');

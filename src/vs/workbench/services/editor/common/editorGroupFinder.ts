@@ -126,6 +126,15 @@ function doFindGroup(input: EditorInputWithOptions | IUntypedEditorInput, prefer
 	else if (typeof preferredGroup === 'number' && preferredGroup >= 0) {
 		const specificGroup = editorGroupService.getGroup(preferredGroup);
 		group = specificGroup && handOffFromSelfTitledEditorFor(editor, specificGroup, editorGroupService);
+
+		// A handoff target that is locked for the editor is replaced by an
+		// unlocked group of its part, or a new one, as the caller did not
+		// select the locked group.
+		if (group && group !== specificGroup && isGroupLockedForEditor(group, editor)) {
+			const destinationPart = editorGroupService.getPart(group);
+			group = destinationPart.getGroups(GroupsOrder.MOST_RECENTLY_ACTIVE).find(candidate => !isGroupLockedForEditor(candidate, editor))
+				?? destinationPart.addGroup(group, preferredSideBySideGroupDirection(configurationService));
+		}
 	}
 
 	// Group: Side by Side, of the active group or of the group it hands
