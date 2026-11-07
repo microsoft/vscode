@@ -973,7 +973,8 @@ export class GettingStartedPage extends EditorPane {
 
 		const footer = $('.footer', {}, ...footerChildren);
 		const categoriesContainer = $('.gettingStartedCategoriesContainer', {}, header, leftColumn, rightColumn, footer,);
-		const graphic = derived(reader => agentsBanner.visible.read(reader) ? agentsWindowGraphic.shownDesign.read(reader) : undefined);
+		// Lay out with the graphic's placeholder too, so that the page doesn't shift once the graphic shows
+		const graphic = derived(reader => agentsBanner.visible.read(reader) ? agentsWindowGraphic.laidOutDesign.read(reader) : undefined);
 		const layoutAgentsWindowGraphic = () => this.fitAgentsWindowGraphic(categoriesContainer, graphic.get() !== undefined);
 
 		const layoutLists = () => {
@@ -1010,8 +1011,10 @@ export class GettingStartedPage extends EditorPane {
 
 		// The graphics and section styles differ in height, so fit again whenever either changes
 		this.categoriesSlideDisposables.add(autorun(reader => {
-			graphic.read(reader);
+			const laidOutDesign = graphic.read(reader);
 			categoriesContainer.setAttribute('data-agents-window-section-style', agentsWindowGraphic.sectionStyle.read(reader));
+			// While only the graphic's placeholder is laid out, the section keeps its size but doesn't show its surface
+			categoriesContainer.classList.toggle('agents-window-graphic-pending', laidOutDesign !== undefined && agentsWindowGraphic.shownDesign.read(reader) === undefined);
 			layoutAgentsWindowGraphic();
 		}));
 		this.layoutAgentsWindowGraphic = layoutAgentsWindowGraphic;

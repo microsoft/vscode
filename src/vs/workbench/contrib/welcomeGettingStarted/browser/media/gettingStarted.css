@@ -1065,6 +1065,16 @@
 	border-block: var(--vscode-strokeThickness) solid var(--vscode-welcomePage-tileBorder);
 }
 
+/* While the Agents window graphic is only laid out but not yet shown, the section takes up its space without showing its surface, so that the surface and graphic appear together. */
+.monaco-workbench .part.editor > .content .gettingStartedContainer .gettingStartedSlideCategories > .gettingStartedCategoriesContainer.agents-window-graphic-shown.agents-window-graphic-pending[data-agents-window-section-style] > .footer > .agents-banner {
+	background-color: transparent;
+	border-color: transparent;
+}
+
+.monaco-workbench .part.editor > .content .gettingStartedContainer .gettingStartedSlideCategories > .gettingStartedCategoriesContainer.agents-window-graphic-shown.agents-window-graphic-pending[data-agents-window-section-style] > .footer > .agents-banner::before {
+	visibility: hidden;
+}
+
 .monaco-workbench .part.editor > .content .gettingStartedContainer .gettingStartedSlideCategories > .gettingStartedCategoriesContainer > .footer > .agents-banner .agents-banner-button {
 	display: flex;
 	align-items: center;
