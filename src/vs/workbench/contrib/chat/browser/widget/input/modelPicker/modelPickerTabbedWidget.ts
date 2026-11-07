@@ -1332,6 +1332,8 @@ export class TabbedModelPicker extends Disposable {
 			&& !getModelConfigProperty(model, context.configurationAccess, MODEL_CONFIG_GROUP_EFFORT, useModelConfigurationSchema)
 			&& !getModelConfigProperty(model, context.configurationAccess, MODEL_CONFIG_GROUP_CONTEXT, useModelConfigurationSchema);
 		const hasDetails = (!isHydraFusionModel(model) || !!ownTierLabel) && !fusionWithoutConfiguration;
+		// A router's Details opens its file, so its description, or its error, is shown on the row.
+		const fileDescription = model.metadata.detailsResource ? model.metadata.tooltip : undefined;
 		return {
 			item: {
 				...action,
@@ -1352,7 +1354,7 @@ export class TabbedModelPicker extends Disposable {
 			],
 			ariaDescription: localDirect
 				? localDirect.ariaDescription
-				: [ariaDescription, configDescription].filter(Boolean).join(', '),
+				: [ariaDescription, configDescription, fileDescription].filter(Boolean).join(', '),
 			// Right Arrow on the row opens the same details as its button.
 			opensDialog: hasDetails,
 			group: { title: '', icon: step ? (comparisonChecked ? Codicon.check : Codicon.blank) : action.icon ?? ThemeIcon.fromId(action.checked ? Codicon.check.id : Codicon.blank.id) },
@@ -1372,7 +1374,7 @@ export class TabbedModelPicker extends Disposable {
 			toolbarDialogActionIds: [MODEL_DETAILS_ACTION_ID, LOCAL_MODEL_DETAILS_ACTION_ID],
 			tooltip: isAutoModel(model) && model.metadata.autoModelFusion
 				? [ILanguageModelChatMetadata.getFusionSummary(), defaultDescription].filter(Boolean).join('\n')
-				: [rowLabel, summary, defaultDescription].filter(Boolean).join(' \u00b7 '),
+				: [rowLabel, summary, defaultDescription, fileDescription].filter(Boolean).join(' \u00b7 '),
 		};
 	}
 

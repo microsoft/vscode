@@ -2421,9 +2421,9 @@ export class AgentSideEffects extends Disposable {
 		if (this._cancelledTurnIds.get(turnChannel)?.has(turnId)) {
 			return undefined;
 		}
-		this._turnTracker.updateFusionTelemetry(turnChannel, turnId, { modelRouterOutcome: modelRouterOutcomeOf(resolution.routed) });
 		const chosen = resolution.selection && !isModelRouterModelId(resolution.selection.id) ? resolution.selection : undefined;
 		const publish = () => {
+			this._turnTracker.updateFusionTelemetry(turnChannel, turnId, { modelRouterOutcome: modelRouterOutcomeOf(resolution.routed) });
 			if (resolution.routed) {
 				this._routedTurns.set(this._routedTurnKey(turnChannel, turnId), resolution.routed);
 				// Name the pick now; the model's own usage report can arrive much later.

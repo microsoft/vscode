@@ -166,6 +166,15 @@ function readExplicitName(root: YamlNode | undefined): string | undefined {
 	return name && NAME_PATTERN.test(name) ? name : undefined;
 }
 
+/** A valid top-level `name:` line written once, for a file the YAML parser couldn't read. */
+function readExplicitNameLine(content: string): string | undefined {
+	const names = content.split(/\r?\n/).flatMap(line => {
+		const match = /^name:[ \t]*(['"]?)([^'"#\s]*)\1[ \t]*(?:#.*)?$/.exec(line);
+		return match ? [match[2]] : [];
+	});
+	return names.length === 1 && NAME_PATTERN.test(names[0]) ? names[0] : undefined;
+}
+
 /** Parses and checks a router file. `fileName` supplies the name when the file doesn't. */
 export function parseModelRouter(content: string, fileName: string): IModelRouterParseResult {
 	const diagnostics: IModelRouterDiagnostic[] = [];
@@ -188,6 +197,7 @@ export function parseModelRouter(content: string, fileName: string): IModelRoute
 		root = parse(content, yamlErrors);
 	} catch (e) {
 		report.error(`YAML: ${e instanceof Error ? e.message : String(e)}`);
+		validName = readExplicitNameLine(content);
 		return fail();
 	}
 	validName = readExplicitName(root);

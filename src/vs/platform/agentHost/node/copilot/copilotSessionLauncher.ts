@@ -67,6 +67,7 @@ import { describeSystemMessageConfig, fullSystemPrompt } from './prompts/systemM
 import type { SandboxConfig } from './sandboxConfigForSdk.js';
 import { CLIENT_TOOL_SEARCH_REFERENCE_NAME, TOOL_SEARCH_DEFER_THRESHOLD, agentHostModelSupportsToolSearch } from './toolSearchDeferral.js';
 import { createCopilotExtensionTools } from './copilotExtensionTools.js';
+import { isModelRouterModelId } from '../../common/modelRouter.js';
 import { ModelRouterEnabledConfigKey } from '../../common/modelRouterConfig.js';
 import type { CopilotWorkspace } from './copilotWorkspace.js';
 import type { CopilotVirtualSessionFs } from './copilotVirtualSessionFs.js';
@@ -1488,7 +1489,8 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 		// An ephemeral session skips the explicit enumeration (and its file I/O). The SDK can
 		// still discover agents from `pluginDirectories`; suppressing that too would also drop
 		// skills and instructions, so it is left alone.
-		const availableModelIds = new Set(plan.availableModels?.().map(model => model.id));
+		// Custom agents run on the model they name, without routing, so a router is never one of their models.
+		const availableModelIds = new Set(plan.availableModels?.().filter(model => !isModelRouterModelId(model.id)).map(model => model.id));
 		const customAgentsPromise = plan.isEphemeral || plan.workspace?.kind === 'virtual' ? Promise.resolve([]) : toSdkCustomAgents(getCopilotCustomAgents(plan.snapshot), this._fileService, availableModelIds);
 		const byokPromise = this.resolveByokSessionConfig(plan.sessionId);
 		const computerUseToolsPromise = plan.isEphemeral ? Promise.resolve([]) : runtime.createComputerUseActivationTools?.() ?? Promise.resolve([]);
