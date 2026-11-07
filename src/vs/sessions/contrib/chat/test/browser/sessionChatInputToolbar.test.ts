@@ -602,6 +602,22 @@ suite('SessionChatInputToolbar', () => {
 		});
 	});
 
+	test('does not report the cached changes of a quick chat on its main chat, which has no workspace', () => {
+		const cache = upcastPartial<ISessionChangesStatsCache>({ get: () => ({ files: 1, insertions: 4, deletions: 0 }) });
+		const chat = upcastPartial<IChat>({ resource: URI.parse('chat:main'), workspace: constObservable(undefined) });
+		const session = (isQuickChat: boolean) => upcastPartial<ITestSessionWithChat>({
+			sessionId: 'provider:session',
+			mainChat: constObservable(chat),
+			isQuickChat: constObservable(isQuickChat),
+		});
+		const stats = (isQuickChat: boolean) => derived(reader => computeSessionInputPillStats(session(isQuickChat), chat, reader, cache)).get();
+
+		assert.deepStrictEqual({ quickChat: stats(true), workspaceSession: stats(false) }, {
+			quickChat: { files: 0, insertions: 0, deletions: 0 },
+			workspaceSession: { files: 1, insertions: 4, deletions: 0 },
+		});
+	});
+
 	test('uses Session Changes for folders and Branch Changes for worktrees', () => {
 		const createWorkspace = (worktree: boolean) => upcastPartial<ISessionWorkspace>({
 			folders: [upcastPartial<ISessionFolder>({
