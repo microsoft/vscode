@@ -21,7 +21,7 @@ import { IChat, ISessionWorkspace, SessionStatus } from '../../../../../workbenc
 import { DesktopLayoutController } from '../../browser/desktopLayoutController.js';
 import { EmptyFileEditorInput } from '../../../../../workbench/contrib/sessions/browser/emptyFileEditorInput.js';
 import { ChatLayoutOwnerKeyRegistry } from '../../browser/chatLayoutOwnerKeys.js';
-import { addPeerChat, createTestHarness, ICreateOptions, ITestLayoutHarness, makePaneComposite, makeSession, makeTestWorkspace, setActiveChat, TestStubEditorInput } from './layoutControllerTestUtils.js';
+import { addPeerChat, createTestHarness, ICreateOptions, ITestLayoutHarness, makePaneComposite, makeQuickChatWithWorkspaceChild, makeSession, makeTestWorkspace, setActiveChat, TestStubEditorInput } from './layoutControllerTestUtils.js';
 import { ITestSessionWithChat, withCreatedStatus } from '../../../../../workbench/contrib/sessions/test/browser/sessionHostTestUtils.js';
 
 const SIDE_PANE_COMPOSITION_STORAGE_KEY = 'sessions.chatLayout.sidePaneComposition';
@@ -638,6 +638,31 @@ suite('Chat-owned layout (R1/R5/R8/R13)', () => {
 				});
 			});
 		}
+	}
+
+	for (const mode of ['chat', 'chat-shared'] as const) {
+		test(`${mode}: switching between a workspace child of a quick chat and the quick chat swaps their own compositions`, async () => {
+			createDesktopController({ chatLayoutMode: mode });
+			harness.onApplyWorkingSet = () => harness.editorGroupsHaveContent = harness.activeGroupEditors.length > 0;
+			const { session, parent, child } = makeQuickChatWithWorkspaceChild();
+			setActiveChat(session, child);
+			harness.activeSessionObs.set(session, undefined);
+			await settle();
+			openOrdinaryEditors('child');
+			setVisible(true, false);
+			await settle();
+
+			setActiveChat(session, parent);
+			await settle();
+			const parentShown = editorState();
+			setActiveChat(session, child);
+			await settle();
+
+			assert.deepStrictEqual({ parentShown, childShownAgain: editorState() }, {
+				parentShown: { resources: [], active: undefined, composition: { editor: false, auxiliaryBar: false }, panel: false },
+				childShownAgain: { resources: ['/child-one.txt', '/child-two.txt'], active: '/child-two.txt', composition: { editor: mode === 'chat', auxiliaryBar: false }, panel: false },
+			});
+		});
 	}
 
 	test('per-chat same-session switching captures ordinary editor resources and active tab without a shutdown save', async () => {

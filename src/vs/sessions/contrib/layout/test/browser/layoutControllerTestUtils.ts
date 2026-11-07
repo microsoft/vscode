@@ -160,12 +160,12 @@ export function makeSession(resource: URI, opts?: {
 	};
 }
 
-export function addPeerChat(session: ITestSessionWithChat, resource: URI, opts?: { readonly title?: string; readonly status?: IObservable<SessionStatus> }): IChat {
+export function addPeerChat(session: ITestSessionWithChat, resource: URI, opts?: { readonly title?: string; readonly status?: IObservable<SessionStatus>; readonly workspace?: ISessionWorkspace }): IChat {
 	const mainChat = session.mainChat.get();
 	const chat: IChat = {
 		resource,
 		createdAt: new Date(),
-		workspace: mainChat.workspace,
+		workspace: opts?.workspace ? constObservable(opts.workspace) : mainChat.workspace,
 		title: observableValue('title', opts?.title ?? 'Peer'),
 		updatedAt: observableValue('updatedAt', new Date()),
 		status: opts?.status ?? observableValue('status', SessionStatus.Completed),
@@ -187,6 +187,13 @@ export function addPeerChat(session: ITestSessionWithChat, resource: URI, opts?:
 
 export function setActiveChat(session: ITestSessionWithChat, chat: IChat): void {
 	(session.activeChat as ISettableObservable<IChat>).set(chat, undefined);
+}
+
+/** A quick chat, without a workspace, with a child chat that works in a folder of its own, such as a nested session started in a folder. */
+export function makeQuickChatWithWorkspaceChild(): { readonly session: ITestSessionWithChat; readonly parent: IChat; readonly child: IChat } {
+	const session = makeSession(URI.parse('session:quick'), { isQuickChat: true });
+	const child = addPeerChat(session, URI.parse('session:quick-child'), { title: 'Child', workspace: makeTestWorkspace() });
+	return { session, parent: session.mainChat.get(), child };
 }
 
 export interface ICreateOptions {

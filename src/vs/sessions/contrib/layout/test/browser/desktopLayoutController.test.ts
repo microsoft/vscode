@@ -52,7 +52,7 @@ import { NewChangesTabAction, NewFileTabAction } from '../../../editor/browser/a
 import { ISessionsService } from '../../../../../workbench/contrib/sessions/browser/sessionsService.js';
 import { IFocusedSessionHostService, ISessionHostService } from '../../../../../workbench/services/sessions/browser/sessionHost.js';
 import { focusedSessionHostServiceOf, ITestSessionWithChat, sessionHostServiceOf, testGridPanes } from '../../../../../workbench/contrib/sessions/test/browser/sessionHostTestUtils.js';
-import { addPeerChat, createTestHarness, ICreateOptions, ITestLayoutHarness, makeChange, makeSession, setActiveChat, TestStubEditorInput } from './layoutControllerTestUtils.js';
+import { addPeerChat, createTestHarness, ICreateOptions, ITestLayoutHarness, makeChange, makeQuickChatWithWorkspaceChild, makeSession, setActiveChat, TestStubEditorInput } from './layoutControllerTestUtils.js';
 import '../../../editor/browser/editor.contribution.js';
 
 /** The editor parts of a Files tab of the main window: no part other than the main part. */
@@ -2149,6 +2149,76 @@ suite('DesktopLayoutController', () => {
 			});
 		});
 	}
+
+	test('[managed tabs] a workspace child of a quick chat keeps the Changes and Files tabs it opens', async () => {
+		createDesktopController({ activateAux: true, workspaceFolders: [{ uri: URI.file('/repo') }] });
+		await settle();
+		const { session, child } = makeQuickChatWithWorkspaceChild();
+		setActiveChat(session, child);
+		harness.activeSessionObs.set(session, undefined);
+		await settle();
+
+		await openManagedTabs();
+		harness.onDidActiveEditorChange.fire();
+		await settle();
+
+		assert.deepStrictEqual({
+			changesTabAvailable: harness.contextKeyService.getContextKeyValue(DesktopChangesTabAvailableContext.key),
+			filesTabAvailable: harness.contextKeyService.getContextKeyValue(DesktopFilesTabAvailableContext.key),
+			changesTab: hasChangesTab(),
+			filesTab: hasFilesTab(),
+		}, { changesTabAvailable: true, filesTabAvailable: true, changesTab: true, filesTab: true });
+	});
+
+	test('[managed tabs] switching from a workspace child of a quick chat to the quick chat leaves only the chat, and switching back offers its tabs again', async () => {
+		createDesktopController({ activateAux: true, workspaceFolders: [{ uri: URI.file('/repo') }] });
+		await settle();
+		const { session, parent, child } = makeQuickChatWithWorkspaceChild();
+		setActiveChat(session, child);
+		harness.activeSessionObs.set(session, undefined);
+		await settle();
+		await openManagedTabs();
+		harness.layoutService.setPartHidden(false, Parts.EDITOR_PART);
+		harness.layoutService.setPartHidden(false, Parts.AUXILIARYBAR_PART);
+		await settle();
+		const describe = () => ({
+			changesTabAvailable: harness.contextKeyService.getContextKeyValue(DesktopChangesTabAvailableContext.key),
+			changesTab: hasChangesTab(),
+			filesTab: hasFilesTab(),
+			editor: harness.layoutService.isVisible(Parts.EDITOR_PART, mainWindow),
+			details: harness.layoutService.isVisible(Parts.AUXILIARYBAR_PART),
+		});
+
+		setActiveChat(session, parent);
+		await settle();
+		const parentShown = describe();
+		setActiveChat(session, child);
+		await settle();
+		const childShownAgain = describe();
+		await openManagedTabs();
+		const childChangesOpened = { changesTabAvailable: describe().changesTabAvailable, changesTab: hasChangesTab(), filesTab: hasFilesTab() };
+
+		assert.deepStrictEqual({ parentShown, childShownAgain, childChangesOpened }, {
+			parentShown: { changesTabAvailable: false, changesTab: false, filesTab: false, editor: false, details: false },
+			childShownAgain: { changesTabAvailable: true, changesTab: false, filesTab: false, editor: false, details: false },
+			childChangesOpened: { changesTabAvailable: true, changesTab: true, filesTab: true },
+		});
+	});
+
+	test('[managed tabs] a plain quick chat still offers no Changes or Files tabs', async () => {
+		createDesktopController({ activateAux: true, workspaceFolders: [{ uri: URI.file('/repo') }] });
+		await settle();
+
+		harness.activeSessionObs.set(makeSession(URI.parse('session:quick'), { isQuickChat: true }), undefined);
+		await settle();
+		await openManagedTabs();
+
+		assert.deepStrictEqual({
+			changesTabAvailable: harness.contextKeyService.getContextKeyValue(DesktopChangesTabAvailableContext.key),
+			filesTabAvailable: harness.contextKeyService.getContextKeyValue(DesktopFilesTabAvailableContext.key),
+			changesTab: hasChangesTab(),
+		}, { changesTabAvailable: false, filesTabAvailable: false, changesTab: false });
+	});
 
 	test('[managed tabs / session switch] does not retain the Changes header for a quick chat', async () => {
 		createDesktopController({ activateAux: true, workspaceFolders: [{ uri: URI.file('/repo') }] });

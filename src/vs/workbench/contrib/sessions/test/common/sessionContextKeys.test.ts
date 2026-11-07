@@ -12,7 +12,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/tes
 import { ContextKeyValue, IContextKey, IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { MockContextKeyService } from '../../../../../platform/keybinding/test/common/mockKeybindingService.js';
 import { TestStorageService } from '../../../../test/common/workbenchTestServices.js';
-import { SessionActiveChatCanArchiveContext, SessionActiveChatCanvasReferenceKeysContext, SessionActiveChatHasSideChatsContext, SessionActiveChatResourceContext, SessionHasCachedChangesContext, SessionHasChangesContext, SessionHasGitRepositoryContext, SessionHasMultipleCommittedChatsContext, SessionHasWorkspaceContext, SessionIsActiveContext, SessionIsCreatedContext, SessionIsReadContext, SessionProviderIdContext, SessionSupportsSideChatContext, SessionWorkspaceIsVirtualContext } from '../../common/contextkeys.js';
+import { IsQuickChatSessionContext, SessionActiveChatCanArchiveContext, SessionActiveChatCanvasReferenceKeysContext, SessionActiveChatHasSideChatsContext, SessionActiveChatResourceContext, SessionHasCachedChangesContext, SessionHasChangesContext, SessionHasGitRepositoryContext, SessionHasMultipleCommittedChatsContext, SessionHasWorkspaceContext, SessionIsActiveContext, SessionIsCreatedContext, SessionIsReadContext, SessionProviderIdContext, SessionSupportsSideChatContext, SessionWorkspaceIsVirtualContext } from '../../common/contextkeys.js';
 import { ChatInteractivity, ChatOriginKind, IChat, ISession, ISessionChangeset, ISessionWorkspace, SessionStatus } from '../../../../services/sessions/common/session.js';
 import { setHostSessionContextKeys, setSessionContextKeys } from '../../common/sessionContextKeys.js';
 import { ISessionChangesStatsCache, SessionChangesStatsCache } from '../../../../services/sessions/common/sessionChangesStatsCache.js';
@@ -239,6 +239,41 @@ suite('Session Context Keys', () => {
 			hasWorkspace: true,
 			isVirtualWorkspace: true,
 			hasGitRepository: true,
+		});
+	});
+
+	test('publishes a chat of a quick chat that works in a folder of its own as a chat with a workspace', () => {
+		const contextKeyService = store.add(new MockContextKeyService());
+		const listContextKeyService = store.add(new MockContextKeyService());
+		const parent = stubChat;
+		const child = {
+			...stubChat,
+			resource: URI.parse('test:///child'),
+			workspace: constObservable<ISessionWorkspace>({
+				uri: URI.file('/child'),
+				label: 'child',
+				icon: Codicon.rootFolder,
+				folders: [{ root: URI.file('/child'), workingDirectory: URI.file('/child'), name: 'child', description: undefined }],
+				requiresWorkspaceTrust: false,
+				isVirtualWorkspace: false,
+			}),
+		};
+		const session = stubSession({ sessionId: 'quick', isQuickChat: constObservable(true), chats: constObservable([parent, child]) });
+		const shownChat = observableValue<IChat>('shownChat', child);
+		store.add(autorun(reader => setHostSessionContextKeys(session, shownChat.read(reader), undefined, contextKeyService, reader)));
+		setSessionContextKeys(session, listContextKeyService, undefined);
+		const describe = () => ({
+			isQuickChat: IsQuickChatSessionContext.getValue(contextKeyService),
+			hasWorkspace: SessionHasWorkspaceContext.getValue(contextKeyService),
+		});
+
+		const childShown = describe();
+		shownChat.set(parent, undefined);
+
+		assert.deepStrictEqual({ childShown, parentShown: describe(), session: IsQuickChatSessionContext.getValue(listContextKeyService) }, {
+			childShown: { isQuickChat: false, hasWorkspace: true },
+			parentShown: { isQuickChat: true, hasWorkspace: false },
+			session: true,
 		});
 	});
 
