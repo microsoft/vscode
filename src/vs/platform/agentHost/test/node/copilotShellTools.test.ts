@@ -171,6 +171,7 @@ suite('CopilotShellTools', () => {
 			getRootValue: ((_schema: unknown, key: string) => configValues[key]) as IAgentConfigurationService['getRootValue'],
 			updateRootConfig: () => { /* no-op */ },
 			persistRootConfig: () => { /* no-op */ },
+			prepareRootConfigUpdate: patch => patch,
 			whenIdle: async () => { /* no-op */ },
 		};
 		return {

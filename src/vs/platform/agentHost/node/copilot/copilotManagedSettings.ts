@@ -3,12 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import type { CopilotClient } from '@github/copilot-sdk';
+import type { CopilotClient, CopilotSession } from '@github/copilot-sdk';
 import { disposableTimeout, raceCancellationError, raceTimeout } from '../../../../base/common/async.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
 import { CancellationError, getErrorMessage, isCancellationError } from '../../../../base/common/errors.js';
 import { Disposable, MutableDisposable } from '../../../../base/common/lifecycle.js';
 import { StopWatch } from '../../../../base/common/stopwatch.js';
+import { hasKey } from '../../../../base/common/types.js';
 import { localize } from '../../../../nls.js';
 import { ILogService } from '../../../log/common/log.js';
 import { AgentPolicyError } from '../../common/agent.js';
@@ -18,8 +19,10 @@ export const AGENT_HOST_COPILOT_CLIENT_NAME = 'vscode-agent-host';
 const COPILOT_MANAGED_SETTINGS_PROGRESS_DELAY_MS = 3500;
 const COPILOT_MANAGED_SETTINGS_TIMEOUT_MS = 30_000;
 
-type ManagedSettingsRpc = Pick<CopilotClient['rpc']['managedSettings'], 'resolve'>;
-type ManagedSettingsResult = Awaited<ReturnType<ManagedSettingsRpc['resolve']>>;
+type ManagedSettingsRpc = Pick<CopilotClient['rpc']['managedSettings'], 'resolve'> | Pick<CopilotSession['rpc']['managedSettings'], 'get'>;
+type GlobalManagedSettingsResult = Awaited<ReturnType<CopilotClient['rpc']['managedSettings']['resolve']>>;
+type ManagedSettingsResult = Pick<GlobalManagedSettingsResult, 'resolved' | 'values' | 'meta'> & Partial<Pick<GlobalManagedSettingsResult, 'layers'>>;
+type ManagedSettingsAuthentication = string | undefined;
 
 /**
  * Receives the localized activity to show while a caller is still waiting on a
@@ -62,7 +65,7 @@ export class CopilotManagedSettingsResolver extends Disposable {
 		this._pending = new WeakMap();
 	}
 
-	async resolve(rpc: ManagedSettingsRpc, token: string | undefined, workingDirectory?: string, cancellationToken = CancellationToken.None, reportActivity?: CopilotManagedSettingsActivityReporter): Promise<ManagedSettingsResult> {
+	async resolve(rpc: ManagedSettingsRpc, authentication: ManagedSettingsAuthentication, workingDirectory?: string, cancellationToken = CancellationToken.None, reportActivity?: CopilotManagedSettingsActivityReporter): Promise<ManagedSettingsResult> {
 		if (cancellationToken.isCancellationRequested || this._store.isDisposed) {
 			throw new CancellationError();
 		}
@@ -71,13 +74,13 @@ export class CopilotManagedSettingsResolver extends Disposable {
 			requests = new Map();
 			this._pending.set(rpc, requests);
 		}
-		const key = JSON.stringify([token, workingDirectory]);
+		const key = JSON.stringify([authentication, workingDirectory]);
 		let pending = requests.get(key);
 		if (!pending) {
 			const generation = this._generation.value!.token;
 			const progress: IManagedSettingsQueryProgress = { elapsed: StopWatch.create(false), delayed: false, waiters: new Set() };
 			pending = {
-				promise: this._resolve(rpc, token, workingDirectory, generation, progress).finally(() => requests.delete(key)),
+				promise: this._resolve(rpc, authentication, workingDirectory, generation, progress).finally(() => requests.delete(key)),
 				progress,
 			};
 			requests.set(key, pending);
@@ -110,7 +113,7 @@ export class CopilotManagedSettingsResolver extends Disposable {
 		}
 	}
 
-	private async _resolve(rpc: ManagedSettingsRpc, token: string | undefined, workingDirectory: string | undefined, generation: CancellationToken, progress: IManagedSettingsQueryProgress): Promise<ManagedSettingsResult> {
+	private async _resolve(rpc: ManagedSettingsRpc, authentication: ManagedSettingsAuthentication, workingDirectory: string | undefined, generation: CancellationToken, progress: IManagedSettingsQueryProgress): Promise<ManagedSettingsResult> {
 		this._activeProgress.add(progress);
 		const timer = disposableTimeout(() => {
 			progress.delayed = true;
@@ -120,7 +123,7 @@ export class CopilotManagedSettingsResolver extends Disposable {
 			}
 		}, COPILOT_MANAGED_SETTINGS_PROGRESS_DELAY_MS);
 		try {
-			return await resolveCopilotManagedSettings(rpc, token, COPILOT_MANAGED_SETTINGS_TIMEOUT_MS, workingDirectory, generation);
+			return await resolveCopilotManagedSettings(rpc, authentication, COPILOT_MANAGED_SETTINGS_TIMEOUT_MS, workingDirectory, generation);
 		} catch (error) {
 			if (generation.isCancellationRequested && !this._store.isDisposed) {
 				throw new AgentPolicyError(localize('copilot.managedSettings.changed', "Your account or organization settings changed while loading. Please try again."));
@@ -149,9 +152,23 @@ export class CopilotManagedSettingsResolver extends Disposable {
 }
 
 /** Resolves policy through the runtime without independently composing or validating model options. */
+export function resolveCopilotManagedSettings(
+	managedSettings: Pick<CopilotClient['rpc']['managedSettings'], 'resolve'>,
+	authentication: ManagedSettingsAuthentication,
+	timeoutMs: number,
+	workingDirectory?: string,
+	cancellationToken?: CancellationToken,
+): Promise<GlobalManagedSettingsResult>;
+export function resolveCopilotManagedSettings(
+	managedSettings: ManagedSettingsRpc,
+	authentication: ManagedSettingsAuthentication,
+	timeoutMs: number,
+	workingDirectory?: string,
+	cancellationToken?: CancellationToken,
+): Promise<ManagedSettingsResult>;
 export async function resolveCopilotManagedSettings(
 	managedSettings: ManagedSettingsRpc,
-	token: string | undefined,
+	authentication: ManagedSettingsAuthentication,
 	timeoutMs: number,
 	workingDirectory?: string,
 	cancellationToken = CancellationToken.None,
@@ -160,11 +177,14 @@ export async function resolveCopilotManagedSettings(
 		throw new CancellationError();
 	}
 	try {
-		const result = await raceCancellationError(raceTimeout(managedSettings.resolve({
-			clientName: AGENT_HOST_COPILOT_CLIENT_NAME,
-			...(token ? { gitHubToken: token } : {}),
-			...(workingDirectory ? { workingDirectory } : {}),
-		}), timeoutMs), cancellationToken);
+		const query = hasKey(managedSettings, { get: true })
+			? managedSettings.get().then(resolved => ({ resolved }))
+			: managedSettings.resolve({
+				clientName: AGENT_HOST_COPILOT_CLIENT_NAME,
+				...(authentication ? { gitHubToken: authentication } : {}),
+				...(workingDirectory ? { workingDirectory } : {}),
+			});
+		const result = await raceCancellationError(raceTimeout(query, timeoutMs), cancellationToken);
 		if (!result) {
 			throw new AgentPolicyError(localize('copilot.managedSettings.timeout', "Loading your organization's managed settings took longer than {0} seconds. Please try again.", timeoutMs / 1000));
 		}

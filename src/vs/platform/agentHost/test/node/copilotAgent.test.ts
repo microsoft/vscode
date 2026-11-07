@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import type { CopilotClient, CopilotClientOptions, CopilotSession, GitHubTelemetryNotification, PermissionMode, PermissionRequest, ResumeSessionConfig, SessionConfig, SessionEvent, SessionEventHandler, SessionEventPayload, SessionEventType, TypedSessionEventHandler } from '@github/copilot-sdk';
-import { mock } from '../../../../base/test/common/mock.js';
+import { mock, upcastPartial } from '../../../../base/test/common/mock.js';
 import type Anthropic from '@anthropic-ai/sdk';
 import type { CCAModel } from '@vscode/copilot-api';
 import assert from 'assert';
@@ -93,6 +93,8 @@ import { AgentHostAuthenticationService, IAgentHostAuthenticationService } from 
 import { AgentHostClientConnectionService, IAgentHostClientConnectionService } from '../../node/agentHostClientConnectionService.js';
 import { copilotEntraClientId, copilotEntraDiscoveryResource } from '../../common/copilotEntraAuthentication.js';
 import { authenticationAccountMeta } from '../../common/meta/agentAuthenticationAccount.js';
+import { CopilotAccountService, ICopilotAccountService } from '../../node/copilot/copilotAccountService.js';
+import { SyncDescriptor } from '../../../instantiation/common/descriptors.js';
 import { AgentHostAuthenticationScope } from '../../node/agentHostAuthenticationScope.js';
 import type { IAgentHostPullRequestResolver } from '../../node/shared/pullRequestResolver.js';
 import { detachedWorktreeRecordUri, IAgentHostWorktreeIsolation, NullAgentHostWorktreeIsolation, SessionWorkingDirectoryMissingError, WorktreeIsolation } from '../../node/shared/worktreeIsolation.js';
@@ -1478,8 +1480,9 @@ class ResumePathCopilotAgent extends CopilotAgent {
 		@IAgentHostSessionStateStore sessionStateStore: IAgentHostSessionStateStore,
 		@ICopilotHomeService copilotHomeService: ICopilotHomeService,
 		@IRequestService requestService: IRequestService,
+		@ICopilotAccountService accountService: ICopilotAccountService,
 	) {
-		super(logService, instantiationService, sessionDataService, gitService, configurationService, sessionTitleSignal, managedSettingsService, gitHubEndpointService, otelService, completions, NULL_CHECKPOINT_SERVICE, NULL_REVIEW_SERVICE, customizationEnablementService, environmentService, productService, byokBridgeRegistry, telemetryService, copilotApiService, proxyResolver, fileService, worktreeIsolation, startupPerformance, byokLmProxyService, localModelSetupService, sessionStateStore, copilotHomeService, requestService);
+		super(logService, instantiationService, sessionDataService, gitService, configurationService, sessionTitleSignal, managedSettingsService, gitHubEndpointService, otelService, completions, NULL_CHECKPOINT_SERVICE, NULL_REVIEW_SERVICE, customizationEnablementService, environmentService, productService, byokBridgeRegistry, telemetryService, copilotApiService, proxyResolver, fileService, worktreeIsolation, startupPerformance, byokLmProxyService, localModelSetupService, sessionStateStore, copilotHomeService, requestService, accountService);
 	}
 
 	protected override _createCopilotClient(options: CopilotClientOptions): CopilotClient {
@@ -1527,8 +1530,9 @@ class TestableCopilotAgent extends CopilotAgent {
 		@IAgentHostSessionStateStore sessionStateStore: IAgentHostSessionStateStore,
 		@ICopilotHomeService copilotHomeService: ICopilotHomeService,
 		@IRequestService requestService: IRequestService,
+		@ICopilotAccountService accountService: ICopilotAccountService,
 	) {
-		super(logService, instantiationService, sessionDataService, gitService, configurationService, sessionTitleSignal, managedSettingsService, gitHubEndpointService, otelService, completions, NULL_CHECKPOINT_SERVICE, NULL_REVIEW_SERVICE, customizationEnablementService, environmentService, productService, byokBridgeRegistry, telemetryService, copilotApiService, proxyResolver, fileService, worktreeIsolation, startupPerformance, byokLmProxyService, localModelSetupService, sessionStateStore, copilotHomeService, requestService);
+		super(logService, instantiationService, sessionDataService, gitService, configurationService, sessionTitleSignal, managedSettingsService, gitHubEndpointService, otelService, completions, NULL_CHECKPOINT_SERVICE, NULL_REVIEW_SERVICE, customizationEnablementService, environmentService, productService, byokBridgeRegistry, telemetryService, copilotApiService, proxyResolver, fileService, worktreeIsolation, startupPerformance, byokLmProxyService, localModelSetupService, sessionStateStore, copilotHomeService, requestService, accountService);
 		this._now = now;
 	}
 
@@ -1618,6 +1622,7 @@ function createTestAgentContext(disposables: Pick<DisposableStore, 'add'>, optio
 	services.set(IAgentHostAuthenticationService, authenticationService);
 	services.set(IFileService, fileService);
 	services.set(IAgentConfigurationService, configService);
+	services.set(ICopilotAccountService, new SyncDescriptor(CopilotAccountService));
 	services.set(IAgentHostManagedSettingsService, managedSettingsService);
 	services.set(IAgentHostStateManager, stateManager);
 	services.set(IAgentHostClientConnectionService, disposables.add(new AgentHostClientConnectionService()));
@@ -5065,7 +5070,7 @@ suite('CopilotAgent', () => {
 			});
 			afterTest(() => disposeAgent(agent));
 			configurationService.updateRootConfig({ [CopilotCliConfigKey.M365Enabled]: !enabled });
-			await agent.listChatsToMigrate();
+			await agent.getManagedSettingsDiagnostics();
 			const options = getCreatedClientOptions(agent).at(-1);
 			assert.deepStrictEqual({
 				effective: configurationService.copilotM365EnabledAtStartup,
@@ -5096,7 +5101,7 @@ suite('CopilotAgent', () => {
 				requestWorkspaceTrust: async () => false,
 				requestMcpAuthentication: async () => false,
 			}));
-			await agent.listChatsToMigrate();
+			await agent.getManagedSettingsDiagnostics();
 			const provider = getCreatedClientOptions(agent).at(-1)?.entra?.tokenProvider;
 			assert.ok(provider);
 			const acquisition = provider({ kind: 'identity', clientId: copilotEntraClientId, reason: 'signIn' }, { isCancellationRequested: false, onCancellationRequested: Event.None });
@@ -7415,6 +7420,23 @@ suite('CopilotAgent', () => {
 			});
 		}
 
+		test('Microsoft shared-context rollout leaves explicitly scoped conversation credentials unchanged', async () => {
+			const { agent, options, launches } = setup(undefined, [], [], { [CopilotCliConfigKey.M365Enabled]: true });
+			afterTest(() => disposeAgent(agent));
+			const session = AgentSession.uri('copilotcli', 'microsoft-scoped-credentials');
+			const chat = defaultChatUri(session);
+			const directory = URI.file(process.cwd());
+			const credentials = { getCredential: () => ({ resource: 'https://api.github.com', token: 'sponsor', expiresAt: undefined, revision: 1 }) };
+			const context = { ...exactChatContext(session, chat, session), credentials };
+			await provisionSession(agent, { session, credentials, model: { id: 'gpt-4o' }, workingDirectories: [directory] });
+			await agent.chats.prepareTurn!(chat, 'turn', [directory], context);
+			await agent.chats.sendMessage(chat, 'first', [directory], undefined, 'turn', undefined, context);
+			assert.deepStrictEqual({
+				launchTokens: launches.map(launch => launch.config.gitHubToken),
+				entraCallbacks: options.filter(option => option.gitHubToken === 'sponsor').map(option => option.entra),
+			}, { launchTokens: ['sponsor'], entraCallbacks: [undefined] });
+		});
+
 		test('discovers and caches models without a host token using only the caller credential', async () => {
 			const { agent, clients, options } = setup();
 			const credentials = { getCredential: () => ({ resource: 'https://api.github.com', token: 'caller-token', expiresAt: undefined, revision: 1 }) };
@@ -9584,6 +9606,22 @@ suite('CopilotAgent', () => {
 		assert.deepStrictEqual({ initial, whileApplying, authenticated, revoked, restored: agent.isReadyForAutomation(undefined) }, {
 			initial: false, whileApplying: false, authenticated: true, revoked: false, restored: true,
 		});
+	});
+
+	test('Microsoft discovery readiness does not enable automation execution', () => {
+		const { agent, instantiationService } = createTestAgentContext(disposables, {
+			copilotClient: new TestCopilotClient([], []),
+			rootConfig: { [CopilotCliConfigKey.M365Enabled]: true },
+		});
+		afterTest(() => disposeAgent(agent));
+		const accountService = instantiationService.invokeFunction(accessor => accessor.get(ICopilotAccountService));
+		const context = upcastPartial<ReturnType<ICopilotAccountService['requireReady']>>({ kind: 'ready' });
+		const read = stub(accountService.state, 'read').returns(context);
+		try {
+			assert.strictEqual(agent.isReadyForAutomation(undefined), false);
+		} finally {
+			read.restore();
+		}
 	});
 
 	test('keeps the requirement raised when a second revocation arrives while tokenless', async () => {
@@ -24558,6 +24596,8 @@ suite('CopilotAgent', () => {
 			services.set(ILogService, logService);
 			services.set(IFileService, disposables.add(new FileService(logService)));
 			services.set(IAgentConfigurationService, disposables.add(new AgentConfigurationService(stateManager, logService)));
+			services.set(IAgentHostAuthenticationService, disposables.add(new AgentHostAuthenticationService(logService)));
+			services.set(ICopilotAccountService, new SyncDescriptor(CopilotAccountService));
 			services.set(IAgentHostManagedSettingsService, disposables.add(new AgentHostManagedSettingsService()));
 			services.set(IAgentHostGitHubEndpointService, createTestGitHubEndpointService());
 			services.set(ISessionDataService, createNullSessionDataService());
@@ -24847,6 +24887,8 @@ suite('CopilotAgent', () => {
 			services.set(ILogService, logService);
 			services.set(IFileService, disposables.add(new FileService(logService)));
 			services.set(IAgentConfigurationService, disposables.add(new AgentConfigurationService(stateManager, logService)));
+			services.set(IAgentHostAuthenticationService, disposables.add(new AgentHostAuthenticationService(logService)));
+			services.set(ICopilotAccountService, new SyncDescriptor(CopilotAccountService));
 			services.set(IAgentHostManagedSettingsService, disposables.add(new AgentHostManagedSettingsService()));
 			services.set(IAgentHostStateManager, stateManager);
 			services.set(IAgentHostChatOwnershipService, createTestChatOwnershipService(stateManager));

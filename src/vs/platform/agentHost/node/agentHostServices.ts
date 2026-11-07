@@ -31,6 +31,7 @@ import { IAgentHostSessionStateStore } from '../common/agentHostSessionStateStor
 import { IAgentHostReviewService } from '../common/agentHostReviewService.js';
 import { IAgentHostSubscriptionService } from '../common/agentHostSubscriptionService.js';
 import { CopilotApiService, ICopilotApiService } from './shared/copilotApiService.js';
+import { CopilotAccountService, ICopilotAccountService } from './copilot/copilotAccountService.js';
 import { AgentHostUtilityModelService, IAgentHostUtilityModelService } from './agentHostUtilityModelService.js';
 import { AgentHostFileMonitorService, IAgentHostFileMonitorService } from './agentHostFileMonitorService.js';
 import { AgentHostGitService } from './agentHostGitService.js';
@@ -162,6 +163,7 @@ export interface IAgentHostHostServiceInputs {
 
 export function registerAgentHostHostServices(services: ServiceCollection, inputs: IAgentHostHostServiceInputs): void {
 	services.set(ICopilotHomeService, new SyncDescriptor(CopilotHomeService));
+	services.set(ICopilotAccountService, new SyncDescriptor(CopilotAccountService));
 	services.set(IDevContainerAgentHostMainService, new SyncDescriptor(RemoteDevContainerAgentHostService));
 	services.set(ISandboxHelperService, new SyncDescriptor(SandboxHelperService));
 	services.set(IAgentHostGitService, new SyncDescriptor(AgentHostGitService));

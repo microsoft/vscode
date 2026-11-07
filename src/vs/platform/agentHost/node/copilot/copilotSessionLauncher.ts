@@ -49,6 +49,7 @@ import { IByokLmBridgeRegistry } from '../byokLmBridgeRegistry.js';
 import { IByokLmProxyService, type IByokLmProxyHandle } from './byokLmProxyService.js';
 import type { ICopilotMcpServerInfo, ICopilotPluginInfo } from './copilotAgent.js';
 import { CopilotGitHubSessionCredentials } from './copilotGitHubCredentials.js';
+import { ICopilotAccountService } from './copilotAccountService.js';
 import { reconcileCopilotConnectors, type ICopilotConnectorServers } from './copilotConnectors.js';
 import { getSdkCustomAgentName, mapCopilotCustomAgentTools, toSdkClientToolName, toSdkCustomAgents, toSdkHooks, toSdkInstructionDirectories, toSdkMcpServers, toSdkMcpServersFromConfigMap, toSdkSkillDirectories, type ISdkCustomAgentResource } from './copilotPluginConverters.js';
 import { buildCopilotBuiltinAgents, COPILOT_BUILTIN_AGENT_NAMES } from './copilotBuiltinAgents.js';
@@ -1101,6 +1102,7 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 		@IAgentHostSessionOpenTelemetry private readonly _sessionOpenTelemetry: IAgentHostSessionOpenTelemetry,
 		@ITelemetryService private readonly _telemetryService: ITelemetryService,
 		@ICopilotHomeService private readonly _copilotHomeService: ICopilotHomeService,
+		@ICopilotAccountService private readonly _accountService: ICopilotAccountService,
 	) { }
 
 	async createCustomizationPolicySession(client: CopilotClient, sessionId: string, workingDirectory: string, githubCredentials: CopilotGitHubSessionCredentials, githubHostUri: string): Promise<CopilotSession> {
@@ -1174,10 +1176,18 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 		return session;
 	}
 
+	private _assertConversationAuthentication(plan: CopilotSessionLaunchPlan): void {
+		if (this._configurationService.copilotM365EnabledAtStartup && !plan.githubCredentials.usesScopedCredential) {
+			this._accountService.requireReady();
+			throw new Error(localize('copilot.microsoftConversationUnavailable', "Microsoft Copilot conversation authentication is not yet available."));
+		}
+	}
+
 	async launch(plan: CopilotSessionLaunchPlan, runtime: ICopilotSessionRuntime): Promise<CopilotSessionWrapper> {
 		if (plan.workspace?.kind === 'virtual' && !plan.virtualSessionFs) {
 			throw new Error('Virtual Copilot sessions require an editor-backed filesystem provider');
 		}
+		this._assertConversationAuthentication(plan);
 		this._logService.info(`[Copilot:${plan.sessionId}] Preparing SDK session: kind=${plan.kind}, configuration=${runtime.launchOwner.toString()}, chat=${runtime.chatUri.toString()}`);
 		let managedSettingsResolved = false;
 		plan.stageRecorder?.mark('config');

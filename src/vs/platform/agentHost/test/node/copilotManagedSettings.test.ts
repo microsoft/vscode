@@ -39,6 +39,25 @@ suite('Copilot managed settings resolution', () => {
 		assert.deepStrictEqual(requests, [{ clientName: 'vscode-agent-host' }]);
 	});
 
+	test('reads the authenticated session policy without a global account lookup', async () => {
+		const rpc = createUnmanagedCopilotSettings();
+		const result = await rpc.resolve({ clientName: 'vscode-agent-host' });
+		const gate = new DeferredPromise<typeof result.resolved>();
+		let calls = 0;
+		const sessionPolicy = { get: () => { calls++; return gate.p; } };
+		const resolver = disposables.add(new CopilotManagedSettingsResolver(new NullLogService()));
+		const pending = [
+			resolver.resolve(sessionPolicy, undefined),
+			resolver.resolve(sessionPolicy, undefined),
+		];
+		gate.complete({ ...result.resolved, failClosed: true, serverManaged: true, source: 'server' });
+		const results = await Promise.all(pending);
+		assert.deepStrictEqual({ calls, snapshots: results.map(value => value.resolved) }, {
+			calls: 1,
+			snapshots: [await gate.p, await gate.p],
+		});
+	});
+
 	test('preserves composed model options without treating them as catalog-validated selections', async () => {
 		const rpc = createUnmanagedCopilotSettings();
 		const result = {
