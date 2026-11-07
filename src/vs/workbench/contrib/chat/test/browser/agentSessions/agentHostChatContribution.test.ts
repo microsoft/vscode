@@ -1188,6 +1188,12 @@ function createTestServices(disposables: DisposableStore, workingDirectoryResolv
 			this.syncPendingRequestsFromRemoteCalls.push({ sessionResource, requests });
 			this.applyRemotePendingRequests?.(sessionResource, requests);
 		},
+		modelHolds: [] as { sessionResource: string; owner: string | undefined; released: boolean }[],
+		acquireExistingSession(sessionResource: URI, debugOwner?: string) {
+			const hold = { sessionResource: sessionResource.toString(), owner: debugOwner, released: false };
+			this.modelHolds.push(hold);
+			return { object: chatModels.get(sessionResource.toString()) ?? upcastPartial<IChatModel>({ sessionResource }), dispose: () => { hold.released = true; } };
+		},
 	};
 	instantiationService.stub(IChatService, chatService);
 	instantiationService.stub(IAgentHostFileSystemService, {
@@ -22492,6 +22498,71 @@ suite('AgentHostChatContribution', () => {
 			const removedQueueIds = chatService.removePendingRequestCalls.filter(c => c.requestId === 'q-1');
 			assert.strictEqual(removedQueueIds.length, 1, 'consumed queued message should be removed from chat model');
 			assert.deepStrictEqual(chatService.consumePendingRequestCalls, [{ sessionResource, pendingRequestId: 'q-1', requestId: 'server-turn-q' }]);
+		}));
+
+		for (const ending of ['complete', 'cancelled', 'error'] as const) {
+			test(`keeps the chat loaded for the host's next queued turn only after a successful turn (${ending})`, () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+				const { sessionHandler, agentHostService, chatAgentService, chatService } = createContribution(disposables);
+				const sessionResource = URI.from({ scheme: 'agent-host-copilot', path: `/queued-handoff-${ending}` });
+				const chatSession = await sessionHandler.provideChatSessionContent(sessionResource, CancellationToken.None);
+				disposables.add(toDisposable(() => chatSession.dispose()));
+				const registered = chatAgentService.registeredAgents.get('agent-host-copilot')!;
+
+				const turnPromise = registered.impl.invoke(makeRequest({ message: 'Init', sessionResource }), () => { }, [], CancellationToken.None);
+				await timeout(10);
+				const dispatch = agentHostService.turnActions[0];
+				const turnId = (dispatch.action as ITurnStartedAction).turnId;
+				const session = dispatch.channel.toString();
+				agentHostService.fireAction({ channel: session, action: dispatch.action, serverSeq: 1, origin: { clientId: agentHostService.clientId, clientSeq: dispatch.clientSeq } });
+				agentHostService.fireAction({
+					channel: session,
+					action: { type: 'chat/pendingMessageSet', session, kind: 'queued', id: 'q-1', message: { text: 'next', origin: { kind: MessageKind.User } } } as ChatAction,
+					serverSeq: 2, origin: undefined,
+				});
+				const endedAt = '2025-01-01T00:00:00.000Z';
+				agentHostService.fireAction({
+					channel: session,
+					action: (ending === 'complete' ? { type: 'chat/turnComplete', endedAt, session, turnId }
+						: ending === 'cancelled' ? { type: 'chat/turnCancelled', endedAt, turnId }
+							: { type: 'chat/error', endedAt, turnId, part: { kind: ResponsePartKind.Error, error: { errorType: 'test', message: 'failed' } } }) as ChatAction,
+					serverSeq: 3, origin: undefined,
+				});
+				await turnPromise;
+				const holds = () => chatService.modelHolds.filter(hold => hold.owner === 'AgentHostSessionHandler#queuedTurnHandoff').map(hold => hold.released);
+
+				const afterTurn = holds();
+				await timeout(AgentHostSessionHandler.QUEUED_TURN_HANDOFF_MS);
+				const afterHandoff = holds();
+
+				assert.deepStrictEqual({ afterTurn, afterHandoff }, ending === 'complete'
+					? { afterTurn: [false], afterHandoff: [true] }
+					: { afterTurn: [], afterHandoff: [] });
+			}));
+		}
+
+		test('releases the queued-turn hold when the chat session is disposed', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const { sessionHandler, agentHostService, chatAgentService, chatService } = createContribution(disposables);
+			const sessionResource = URI.from({ scheme: 'agent-host-copilot', path: '/queued-handoff-dispose' });
+			const chatSession = await sessionHandler.provideChatSessionContent(sessionResource, CancellationToken.None);
+			const registered = chatAgentService.registeredAgents.get('agent-host-copilot')!;
+
+			const turnPromise = registered.impl.invoke(makeRequest({ message: 'Init', sessionResource }), () => { }, [], CancellationToken.None);
+			await timeout(10);
+			const dispatch = agentHostService.turnActions[0];
+			const turnId = (dispatch.action as ITurnStartedAction).turnId;
+			const session = dispatch.channel.toString();
+			agentHostService.fireAction({ channel: session, action: dispatch.action, serverSeq: 1, origin: { clientId: agentHostService.clientId, clientSeq: dispatch.clientSeq } });
+			agentHostService.fireAction({
+				channel: session,
+				action: { type: 'chat/pendingMessageSet', session, kind: 'queued', id: 'q-1', message: { text: 'next', origin: { kind: MessageKind.User } } } as ChatAction,
+				serverSeq: 2, origin: undefined,
+			});
+			agentHostService.fireAction({ channel: session, action: { type: 'chat/turnComplete', endedAt: '2025-01-01T00:00:00.000Z', session, turnId } as ChatAction, serverSeq: 3, origin: undefined });
+			await turnPromise;
+
+			chatSession.dispose();
+
+			assert.deepStrictEqual(chatService.modelHolds.filter(hold => hold.owner === 'AgentHostSessionHandler#queuedTurnHandoff').map(hold => hold.released), [true]);
 		}));
 
 		test('a server-initiated turn names the removed notice turn it replaces', () => runWithFakedTimers({ useFakeTimers: true }, async () => {

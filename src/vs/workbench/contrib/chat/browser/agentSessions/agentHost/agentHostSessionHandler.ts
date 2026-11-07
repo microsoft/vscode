@@ -1352,6 +1352,13 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 
 	private static readonly DRAFT_SYNC_DEBOUNCE_MS = 500;
 	private static readonly ACTIVE_CLIENT_RECONCILIATION_DEBOUNCE_MS = 5;
+	/**
+	 * How long a chat stays loaded after a turn completes while the host still
+	 * has messages queued for it. The host starts the next queued message
+	 * itself, and only a loaded chat observes that turn and runs its client
+	 * tools; the started request then keeps the chat loaded on its own.
+	 */
+	static readonly QUEUED_TURN_HANDOFF_MS = 10_000;
 
 	private readonly _activeSessions = new ResourceMap<AgentHostChatSession>();
 	private readonly _chatURIsBySessionResource = new ResourceMap<string>();
@@ -2962,6 +2969,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		// MutableDisposable for per-turn progress tracking (replaced each turn)
 		const turnProgressDisposable = new MutableDisposable<DisposableStore>();
 		disposables.add(turnProgressDisposable);
+		const queuedTurnHandoff = disposables.add(new MutableDisposable<DisposableStore>());
 
 		const sessionSub = this._ensureSessionSubscription(sessionStr);
 		const chatSub = this._ensureChatSubscription(sessionStr, chatURI);
@@ -3064,6 +3072,11 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			const activeTurn = e.state.activeTurn;
 			const currentTurnIds = new Set(e.state.turns.map(turn => turn.id));
 			if (!activeTurn) {
+				// Like the host, which starts queued work only after a turn succeeds.
+				if (lastSeenTurnId !== undefined && e.state.turns.at(-1)?.state === TurnState.Complete
+					&& (currentQueuedIds.size > 0 || currentSteeringIds.size > 0)) {
+					this._holdForQueuedTurnHandoff(sessionResource, queuedTurnHandoff);
+				}
 				lastSeenTurnId = undefined;
 				previousQueuedIds = currentQueuedIds;
 				previousTurnIds = currentTurnIds;
@@ -3142,6 +3155,19 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		disposables.add(chatSub.onDidChange(onChange));
 
 		this._serverTurnWatchers.set(sessionResource, disposables);
+	}
+
+	/** Keeps the chat loaded for {@link QUEUED_TURN_HANDOFF_MS} so it observes the host starting the next queued message. */
+	private _holdForQueuedTurnHandoff(sessionResource: URI, holder: MutableDisposable<DisposableStore>): void {
+		const reference = this._chatService.acquireExistingSession(sessionResource, 'AgentHostSessionHandler#queuedTurnHandoff');
+		if (!reference) {
+			holder.clear();
+			return;
+		}
+		const store = new DisposableStore();
+		store.add(reference);
+		disposableTimeout(() => holder.clear(), AgentHostSessionHandler.QUEUED_TURN_HANDOFF_MS, store);
+		holder.value = store;
 	}
 
 	private _watchForMcpAuthentication(backendSession: URI, sessionResource: URI, chatURI: string): void {
