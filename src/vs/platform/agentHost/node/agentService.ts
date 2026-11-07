@@ -168,7 +168,8 @@ import { chatCatalogAwaitsReprojection, migrateChatCatalogV2 } from './agentHost
 import { IAgentHostChatContributions } from '../common/agentHostChatContributionsService.js';
 import { IAgentHostTurnService, type IDeferredAgentHostTurn } from './agentHostTurnService.js';
 import { readUsageInfoMeta } from '../common/meta/agentUsageMeta.js';
-import { isModelRouterModelId, modelRouterModelId } from '../common/modelRouter.js';
+import { isModelRouterModelId } from '../common/modelRouter.js';
+import { ReasoningEffortConfigKey } from '../common/reasoningEffort.js';
 
 /**
  * Grace period before an empty, unsubscribed session is garbage-collected
@@ -917,20 +918,18 @@ export interface IAgentServiceCore {
 }
 
 /**
- * The model router a chat is on, from its newest turn that chose a model. A routed turn keeps
- * its router in its persisted usage, so this survives a restart; turns that chose no model,
- * like host notices, are skipped, and a concrete model means the chat left its router.
+ * The model a chat runs on when `model` is a model router: the router's latest pick, so a chat it
+ * creates runs on the same model rather than routing. Other selections are returned unchanged.
  */
-function modelRouterSelectionOf(chat: ChatState | undefined): ModelSelection | undefined {
-	const turns = chat ? [...chat.turns, ...(chat.activeTurn ? [chat.activeTurn] : [])] : [];
+function withRoutedModel(chat: Pick<ChatState, 'turns' | 'activeTurn'>, model: ModelSelection | undefined): ModelSelection | undefined {
+	if (!isModelRouterModelId(model?.id)) {
+		return model;
+	}
+	const turns = chat.activeTurn ? [...chat.turns, chat.activeTurn] : chat.turns;
 	for (let i = turns.length - 1; i >= 0; i--) {
 		const routed = readUsageInfoMeta(turns[i].usage).modelRouted;
 		if (routed) {
-			return { id: modelRouterModelId(routed.router) };
-		}
-		const model = turns[i].message.model;
-		if (model) {
-			return isModelRouterModelId(model.id) ? model : undefined;
+			return { id: routed.chosenModel, ...(routed.effort ? { config: { [ReasoningEffortConfigKey]: routed.effort } } : {}) };
 		}
 	}
 	return undefined;
@@ -2264,7 +2263,7 @@ export class AgentService extends Disposable implements IAgentService {
 				return models;
 			},
 			getCreationDefaults: (source, sourceTurnId) => this._getServerToolCreationDefaults(source, sourceTurnId),
-			startPrompt: (session, chat, prompt, delegation, credentials, model) => this._startSessionPrompt(session, chat, prompt, delegation, credentials, model),
+			startPrompt: (session, chat, prompt, delegation, credentials) => this._startSessionPrompt(session, chat, prompt, delegation, credentials),
 			getChatHarnesses: session => this._getServerToolChatHarnesses(session),
 			canCreateSessions: provider => this._canCreateServerToolSessions(provider),
 			createChat: (session, chat, options, credentials) => this.createChat(session, chat, (options?.title !== undefined || options?.model !== undefined || options?.workingDirectories !== undefined || options?.provider !== undefined)
@@ -2690,11 +2689,11 @@ export class AgentService extends Disposable implements IAgentService {
 			return undefined;
 		}
 
-		const model = session.activeTurn
+		const model = withRoutedModel(session, session.activeTurn
 			? session.activeTurn.message.model
 			: session.draft
 				? session.draft.model
-				: session.turns.at(-1)?.message.model;
+				: session.turns.at(-1)?.message.model);
 		const chatProvider = this._stateManager.getChatProvider(source.toString()) ?? session.provider;
 		// The calling chat's own effective config: a chat's values are its complete config, and a chat on another
 		// agent never hands on the session's values, which belong to the session's agent.
@@ -2728,14 +2727,11 @@ export class AgentService extends Disposable implements IAgentService {
 	 * `ChatTurnStarted` and routing it through the same side-effects path a
 	 * client-initiated turn takes (which sends the message to the provider).
 	 */
-	private async _startSessionPrompt(session: URI, chat: URI, prompt: string, delegation?: IAgentMessageDelegationMeta, credentials?: IAgentHostCredentialSource, model?: ModelSelection): Promise<void> {
-		// A chat on a model router keeps routing the tasks other chats send it.
-		model ??= modelRouterSelectionOf(this._stateManager.getChatState(chat.toString()));
+	private async _startSessionPrompt(session: URI, chat: URI, prompt: string, delegation?: IAgentMessageDelegationMeta, credentials?: IAgentHostCredentialSource): Promise<void> {
 		// The calling agent authored this prompt, not the user.
 		const message: Message = {
 			text: prompt,
 			origin: { kind: MessageKind.Agent },
-			...(model ? { model } : {}),
 			...(delegation ? { _meta: toAgentMessageDelegationMeta(delegation) } : {}),
 		};
 		await this._startSessionMessage(chat, message, credentials);
