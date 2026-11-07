@@ -174,13 +174,16 @@ export class MultiDiffEditor extends AbstractEditorWithViewState<IMultiDiffEdito
 		if (fileListResourceOrder) {
 			this._inputResourceOrder.value = autorun(reader => input.setResourceOrder(fileListResourceOrder.read(reader)));
 		}
+		// Restore which documents are collapsed before the view model creates them, so that it
+		// doesn't compute their diffs.
+		const viewState = this.loadEditorViewState(input, context);
+		input.restoreCollapsedDocuments(viewState);
 		this._viewModel = await input.getViewModel();
 		this._contentOverlay.value?.updateResource(input.resource);
 
 		// Apply the view model and any restored view state together so the widget's
 		// automatic first-change navigation sees the restored state instead of
 		// navigating to the first file.
-		const viewState = this.loadEditorViewState(input, context);
 		this._logger.log('editor set input', {
 			resource: input.resource,
 			preserveFocus: !!options?.preserveFocus,

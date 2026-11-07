@@ -23,6 +23,7 @@ import { IDiffEditor } from '../../../common/editorCommon.js';
 import { IMultiDiffResourceId } from '../../../common/multiDiffEditor.js';
 import { EditorContextKeys } from '../../../common/editorContextKeys.js';
 import { ICodeEditor } from '../../editorBrowser.js';
+import { DiffEditorWidget } from '../diffEditor/diffEditorWidget.js';
 import { CompressedVirtualizedScrollView, ICompressedVirtualizedScrollItem, ICompressedVirtualizedScrollItemContext } from './compressedVirtualizedScrollView.js';
 import { ICompressedVirtualizedScrollLayout } from './compressedVirtualizedScrollLayout.js';
 import { binaryFilePlaceholderContentHeight, DiffEditorItemBinding, DiffEditorItemTemplate } from './diffEditorItemTemplate.js';
@@ -648,12 +649,22 @@ export class MultiDiffEditorWidgetImpl extends Disposable {
 
 		// Try current file first - expand if collapsed
 		const currentItem = viewItems[currentIndex];
-		if (currentItem.viewModel.collapsed.get()) {
+		const wasCollapsed = currentItem.viewModel.collapsed.get();
+		if (wasCollapsed) {
 			this._logger.log('expanding collapsed item to navigate within it', { file: currentItem.getLabel() });
 			currentItem.viewModel.collapsed.set(false, undefined);
 		}
 
 		const editor = currentItem.template.get()?.editor;
+		if (wasCollapsed && editor && !editor.getDiffComputationResult()) {
+			// The diff of a collapsed file is only computed once it expands
+			editor.waitForDiff().then(() => {
+				if (currentItem.template.get()?.editor === editor) {
+					this._navigateToChange(direction, focusEditor);
+				}
+			});
+			return;
+		}
 		if (editor?.getDiffComputationResult()?.changes2?.length) {
 			const pos = editor.getModifiedEditor().getPosition()?.lineNumber || 1;
 			const changes = editor.getDiffComputationResult()!.changes2!;
@@ -681,18 +692,33 @@ export class MultiDiffEditorWidgetImpl extends Disposable {
 		this.reveal({ original: item.viewModel.originalUri, modified: item.viewModel.modifiedUri });
 
 		const editor = item.template.get()?.editor;
-		if (editor?.getDiffComputationResult()?.changes2?.length) {
-			if (position === 'first') {
-				editor.revealFirstDiff();
-			} else {
-				const lastChange = editor.getDiffComputationResult()!.changes2!.at(-1)!;
-				const modifiedEditor = editor.getModifiedEditor();
-				modifiedEditor.setPosition({ lineNumber: lastChange.modified.startLineNumber, column: 1 });
-				modifiedEditor.revealLineInCenter(lastChange.modified.startLineNumber);
-			}
+		if (wasCollapsed && editor && !editor.getDiffComputationResult()) {
+			// The diff of a collapsed file is only computed once it expands
+			editor.waitForDiff().then(() => {
+				if (item.template.get()?.editor === editor) {
+					this._revealChange(editor, position);
+				}
+			});
+		} else if (editor) {
+			this._revealChange(editor, position);
 		}
 		if (focusEditor) {
 			item.binding.get()?.focus();
+		}
+	}
+
+	private _revealChange(editor: DiffEditorWidget, position: 'first' | 'last'): void {
+		const changes = editor.getDiffComputationResult()?.changes2;
+		if (!changes?.length) {
+			return;
+		}
+		if (position === 'first') {
+			editor.revealFirstDiff();
+		} else {
+			const lastChange = changes.at(-1)!;
+			const modifiedEditor = editor.getModifiedEditor();
+			modifiedEditor.setPosition({ lineNumber: lastChange.modified.startLineNumber, column: 1 });
+			modifiedEditor.revealLineInCenter(lastChange.modified.startLineNumber);
 		}
 	}
 

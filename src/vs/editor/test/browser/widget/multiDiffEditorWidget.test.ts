@@ -7,6 +7,7 @@ import assert from 'assert';
 import sinon from 'sinon';
 import { Dimension } from '../../../../base/browser/dom.js';
 import { Button } from '../../../../base/browser/ui/button/button.js';
+import { timeout } from '../../../../base/common/async.js';
 import { Emitter, Event, ValueWithChangeEvent } from '../../../../base/common/event.js';
 import { toDisposable } from '../../../../base/common/lifecycle.js';
 import { autorun, waitForState } from '../../../../base/common/observable.js';
@@ -28,6 +29,7 @@ import { RefCounted } from '../../../browser/widget/diffEditor/utils.js';
 import { DiffItemSource, IDocumentDiffItem, IMultiDiffEditorModel } from '../../../browser/widget/multiDiffEditor/model.js';
 import { getMultiDiffEditorVariantConfiguration, multiDiffEditorVariants } from '../../../browser/widget/multiDiffEditor/multiDiffEditorOptions.js';
 import { MultiDiffEditorWidget } from '../../../browser/widget/multiDiffEditor/multiDiffEditorWidget.js';
+import { MultiDiffEditorViewModel } from '../../../browser/widget/multiDiffEditor/multiDiffEditorViewModel.js';
 import { IWorkbenchUIElementFactory } from '../../../browser/widget/multiDiffEditor/workbenchUIElementFactory.js';
 import { EditorOption } from '../../../common/config/editorOptions.js';
 import { IDocumentDiff, IDocumentDiffProvider } from '../../../common/diff/documentDiffProvider.js';
@@ -757,7 +759,154 @@ suite('MultiDiffEditorWidget', () => {
 			}
 		}
 	}));
+
+	test('computes the diff of a collapsed file once it expands or is waited for', () => runWithFakedTimers({}, async () => {
+		const diffProviderFactoryService = new CountingDiffProviderFactoryService();
+		const services = new ServiceCollection();
+		services.set(IDiffProviderFactoryService, diffProviderFactoryService);
+		const instantiationService = createCodeEditorServices(disposables, services);
+		const originalUri = URI.parse('inmemory://original/collapsed.js');
+		const modifiedUri = URI.parse('inmemory://modified/collapsed.js');
+		const original = disposables.add(instantiateTextModel(instantiationService, 'const value = 1;', undefined, undefined, originalUri));
+		const modified = disposables.add(instantiateTextModel(instantiationService, 'const value = 2;', undefined, undefined, modifiedUri));
+		const documentItem = RefCounted.createOfNonDisposable<IDocumentDiffItem>({
+			original: new DiffItemSource(originalUri, original),
+			modified: new DiffItemSource(modifiedUri, modified),
+		}, { dispose() { } });
+		const viewModel = instantiationService.createInstance(MultiDiffEditorViewModel, { documents: ValueWithChangeEvent.const([documentItem]) });
+		try {
+			await waitForState(viewModel.items, items => items.length === 1);
+			const item = viewModel.items.get()[0];
+			const states: { step: string; computations: number; isDiffUpToDate: boolean }[] = [];
+			const record = async (step: string) => {
+				await timeout(500); // longer than the diff waits for edits
+				states.push({ step, computations: diffProviderFactoryService.computations, isDiffUpToDate: item.diffEditorViewModel.isDiffUpToDate.get() });
+			};
+
+			await record('opened');
+			item.collapsed.set(true, undefined);
+			modified.setValue('const value = 3;');
+			await record('edited while collapsed');
+			item.collapsed.set(false, undefined);
+			await record('expanded');
+			item.collapsed.set(true, undefined);
+			item.collapsed.set(false, undefined);
+			await record('expanded again without edits');
+			item.collapsed.set(true, undefined);
+			modified.setValue('const value = 4;');
+			await item.diffEditorViewModel.waitForDiff();
+			await record('waited for while collapsed');
+
+			assert.deepStrictEqual(states, [
+				{ step: 'opened', computations: 1, isDiffUpToDate: true },
+				{ step: 'edited while collapsed', computations: 1, isDiffUpToDate: false },
+				{ step: 'expanded', computations: 2, isDiffUpToDate: true },
+				{ step: 'expanded again without edits', computations: 2, isDiffUpToDate: true },
+				{ step: 'waited for while collapsed', computations: 3, isDiffUpToDate: true },
+			]);
+		} finally {
+			viewModel.dispose();
+			documentItem.dispose();
+		}
+	}));
+
+	for (const navigation of ['on load', 'Go to Next Change'] as const) {
+		test(`navigates to the first change of a file that starts collapsed once its diff is computed (${navigation})`, () => runWithFakedTimers({}, async () => {
+			const diffProviderFactoryService = new CountingDiffProviderFactoryService();
+			const services = new ServiceCollection();
+			services.set(IAccessibilitySignalService, new class extends mock<IAccessibilitySignalService>() {
+				override async playSignal(): Promise<void> { }
+			}());
+			services.set(IActionViewItemService, new NullActionViewItemService());
+			services.set(IEditorProgressService, new class extends mock<IEditorProgressService>() {
+				override show() { return emptyProgressRunner; }
+			}());
+			services.set(IDiffProviderFactoryService, diffProviderFactoryService);
+			services.set(IStorageService, disposables.add(new InMemoryStorageService()));
+			services.set(IMenuService, new class extends mock<IMenuService>() {
+				override createMenu(): IMenu {
+					return new class extends mock<IMenu>() {
+						override readonly onDidChange = Event.None;
+						override getActions() { return []; }
+						override dispose(): void { }
+					}();
+				}
+			}());
+			const instantiationService = createCodeEditorServices(disposables, services);
+			const container = document.createElement('div');
+			document.body.appendChild(container);
+			disposables.add(toDisposable(() => container.remove()));
+
+			const originalUri = URI.parse('inmemory://original/starts-collapsed.js');
+			const modifiedUri = URI.parse('inmemory://modified/starts-collapsed.js');
+			const original = disposables.add(instantiateTextModel(instantiationService, 'line 1\nline 2\nline 3\nline 4\nline 5', undefined, undefined, originalUri));
+			const modified = disposables.add(instantiateTextModel(instantiationService, 'line 1\nline 2\nline 3\nline 4\nline five', undefined, undefined, modifiedUri));
+			const documentItem = RefCounted.createOfNonDisposable<IDocumentDiffItem>({
+				original: new DiffItemSource(originalUri, original),
+				modified: new DiffItemSource(modifiedUri, modified),
+			}, { dispose() { } });
+			const widget = disposables.add(instantiationService.createInstance(
+				MultiDiffEditorWidget,
+				container,
+				{} satisfies IWorkbenchUIElementFactory,
+				{ variant: 'noCardsNonCompact' },
+			));
+			widget.layout(new Dimension(800, 600));
+			const documentKey = JSON.stringify([originalUri.toString(), modifiedUri.toString()]); // as in a view state
+			const viewModel = disposables.add(widget.createViewModel({
+				documents: ValueWithChangeEvent.const([documentItem]),
+				collapsedDocumentKeys: new Set([documentKey]),
+			}));
+			try {
+				await waitForState(viewModel.items, items => items.length === 1);
+				const item = viewModel.items.get()[0];
+				const startedCollapsed = item.collapsed.get();
+				const computationsWhileCollapsed = diffProviderFactoryService.computations;
+
+				if (navigation === 'on load') {
+					widget.setViewModel(viewModel); // navigates to the first change, which expands the file
+				} else {
+					// A restored active file suppresses the navigation on load
+					widget.setViewModel(viewModel, { viewState: { scrollState: { top: 0, left: 0 }, activeDiffItemKey: documentKey } });
+					widget.goToNextChange();
+				}
+				await timeout(10);
+
+				assert.deepStrictEqual({
+					startedCollapsed,
+					computationsWhileCollapsed,
+					collapsed: item.collapsed.get(),
+					computations: diffProviderFactoryService.computations,
+					cursorLineNumber: widget.getActiveControl()?.getModifiedEditor().getPosition()?.lineNumber,
+				}, {
+					startedCollapsed: true,
+					computationsWhileCollapsed: 0,
+					collapsed: false,
+					computations: 1,
+					cursorLineNumber: 5,
+				});
+			} finally {
+				widget.setViewModel(undefined);
+				documentItem.dispose();
+			}
+		}));
+	}
 });
+
+class CountingDiffProviderFactoryService extends TestDiffProviderFactoryService {
+	public computations = 0;
+
+	override createDiffProvider(): IDocumentDiffProvider {
+		const diffProvider = super.createDiffProvider();
+		return {
+			onDidChange: diffProvider.onDidChange,
+			computeDiff: (original, modified, options, cancellationToken) => {
+				this.computations++;
+				return diffProvider.computeDiff(original, modified, options, cancellationToken);
+			},
+		};
+	}
+}
 
 class PendingDiffProviderFactoryService implements IDiffProviderFactoryService {
 	declare readonly _serviceBrand: undefined;

@@ -19,6 +19,7 @@ import { URI } from '../../../../base/common/uri.js';
 import { RefCounted } from '../../../../editor/browser/widget/diffEditor/utils.js';
 import { DiffItemSource, IDocumentDiffItem, IMultiDiffEditorModel } from '../../../../editor/browser/widget/multiDiffEditor/model.js';
 import { MultiDiffEditorViewModel } from '../../../../editor/browser/widget/multiDiffEditor/multiDiffEditorViewModel.js';
+import { IMultiDiffEditorViewState } from '../../../../editor/browser/widget/multiDiffEditor/multiDiffEditorWidgetImpl.js';
 import { IDiffEditorOptions } from '../../../../editor/common/config/editorOptions.js';
 import { IResolvedTextEditorModel, ITextModelService } from '../../../../editor/common/services/resolverService.js';
 import { ITextResourceConfigurationService } from '../../../../editor/common/services/textResourceConfiguration.js';
@@ -212,6 +213,22 @@ export class MultiDiffEditorInput extends EditorInput implements ILanguageSuppor
 		this._resourceOrder.set(order, undefined);
 	}
 
+	/** The documents to collapse when the view model creates them, by their keys in a view state. */
+	private readonly _collapsedDocumentKeys = new Set<string>();
+
+	/**
+	 * Collapses the documents that are collapsed in `viewState` when the view model creates them,
+	 * so that their diffs are only computed once they expand.
+	 */
+	public restoreCollapsedDocuments(viewState: IMultiDiffEditorViewState | undefined): void {
+		this._collapsedDocumentKeys.clear();
+		for (const [key, docState] of Object.entries(viewState?.docStates ?? {})) {
+			if (docState.collapsed) {
+				this._collapsedDocumentKeys.add(key);
+			}
+		}
+	}
+
 	private async _createModel(): Promise<IMultiDiffEditorModel & IDisposable> {
 		const source = await this._resolvedSource.getPromise();
 		const textResourceConfigurationService = this._textResourceConfigurationService;
@@ -310,6 +327,7 @@ export class MultiDiffEditorInput extends EditorInput implements ILanguageSuppor
 			dispose: () => a.dispose(),
 			documents: new ValueWithChangeEventFromObservable(orderedDocuments),
 			contextKeys: source.source?.contextKeys,
+			collapsedDocumentKeys: this._collapsedDocumentKeys,
 		};
 		return result;
 	}

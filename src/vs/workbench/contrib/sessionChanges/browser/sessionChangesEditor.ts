@@ -482,9 +482,14 @@ export class SessionChangesEditor extends AbstractEditorWithViewState<IMultiDiff
 			}
 		}
 
+		const viewState = this.loadEditorViewState(input, context);
+
 		let viewModel: MultiDiffEditorViewModel | undefined;
 		while (!viewModel) {
 			try {
+				// Restore which documents are collapsed before the view model creates them, so that it
+				// doesn't compute their diffs.
+				input.multiDiffInput.restoreCollapsedDocuments(viewState);
 				viewModel = await input.getViewModel();
 			} catch (error) {
 				if (!isCancellationError(error)) {
@@ -504,7 +509,6 @@ export class SessionChangesEditor extends AbstractEditorWithViewState<IMultiDiff
 		// Apply the model and any restored view state together so the widget's
 		// automatic first-change navigation sees the restored active item instead
 		// of navigating to (and focusing) the first file.
-		const viewState = this.loadEditorViewState(input, context);
 		this._logger.log('changes editor set input', {
 			session: this.sessionChangesService.getSessionResource(input.multiDiffSource),
 			preserveFocus: !!options?.preserveFocus,

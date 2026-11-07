@@ -13,6 +13,11 @@ import { ContextKeyValue } from '../../../../platform/contextkey/common/contextk
 export interface IMultiDiffEditorModel {
 	readonly documents: IValueWithChangeEvent<readonly RefCounted<IDocumentDiffItem>[] | 'loading'>;
 	readonly contextKeys?: Record<string, ContextKeyValue>;
+	/**
+	 * The keys of the documents that start out collapsed, as the keys of a multi diff editor view state's documents.
+	 * The diffs of collapsed documents are only computed once they expand.
+	 */
+	readonly collapsedDocumentKeys?: ReadonlySet<string>;
 }
 
 /**
