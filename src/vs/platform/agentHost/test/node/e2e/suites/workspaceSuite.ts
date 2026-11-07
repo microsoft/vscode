@@ -5,7 +5,7 @@
 
 import assert from 'assert';
 import { execSync } from 'child_process';
-import { mkdirSync, mkdtempSync, readFileSync, realpathSync, writeFileSync } from 'fs';
+import { mkdirSync, readFileSync, realpathSync, writeFileSync } from 'fs';
 import { tmpdir } from 'os';
 import { URI } from '../../../../../../base/common/uri.js';
 import { generateUuid } from '../../../../../../base/common/uuid.js';
@@ -13,7 +13,7 @@ import { type ListSessionsResult, SubscribeResult } from '../../../../common/sta
 import { PROTOCOL_VERSION } from '../../../../common/state/protocol/version/registry.js';
 import { ActionType, NotificationType, type IToolCallContentChangedAction, type IToolCallStartAction } from '../../../../common/state/sessionActions.js';
 import type { SessionAddedParams } from '../../../../common/state/protocol/notifications.js';
-import { buildDefaultChatUri, readSessionGitState, ROOT_STATE_URI, type SessionState, type TerminalState, type ToolResultContent } from '../../../../common/state/sessionState.js';
+import { readSessionGitState, ROOT_STATE_URI, type SessionState, type TerminalState, type ToolResultContent } from '../../../../common/state/sessionState.js';
 import { CopilotCliConfigKey } from '../../../../common/copilotCliConfig.js';
 import {
 	dispatchTurn,
@@ -25,8 +25,9 @@ import {
 	textFromContent,
 	initTestGitRepo,
 } from '../harness/agentHostE2ETestHarness.js';
-import { getActionEnvelope, isActionNotification } from '../../serverIntegrationTestHelpers.js';
+import { getActionEnvelope, isActionNotification, defaultChatChannel } from '../../serverIntegrationTestHelpers.js';
 import type { IAgentHostE2ETestContext } from './e2eTestContext.js';
+import { createTestDirectory } from '../harness/testDirectories.js';
 
 export function defineWorkspaceTests(context: IAgentHostE2ETestContext): void {
 	/**
@@ -42,7 +43,7 @@ export function defineWorkspaceTests(context: IAgentHostE2ETestContext): void {
 	test('session is created with the correct working directory', async function () {
 		this.timeout(120_000);
 
-		const tempDir = mkdtempSync(`${tmpdir()}/ahp-test-`);
+		const tempDir = createTestDirectory(`${tmpdir()}/ahp-test-`);
 		tempDirs.push(tempDir);
 		const workingDirUri = URI.file(tempDir).toString();
 
@@ -62,7 +63,7 @@ export function defineWorkspaceTests(context: IAgentHostE2ETestContext): void {
 
 	(context.runKnownIssueTests && config.supportsWorktreeIncludeFilesE2E ? test : test.skip)('worktree materialization copies configured ignored files', async function () {
 		this.timeout(180_000);
-		const repository = mkdtempSync(`${tmpdir()}/ahp-wt-include-`);
+		const repository = createTestDirectory(`${tmpdir()}/ahp-wt-include-`);
 		tempDirs.push(repository, `${repository}.worktrees`);
 		initTestGitRepo(repository);
 		writeFileSync(`${repository}/tracked.txt`, 'tracked');
@@ -97,7 +98,7 @@ export function defineWorkspaceTests(context: IAgentHostE2ETestContext): void {
 		});
 		createdSessions.push(sessionUri);
 		await context.client.call<SubscribeResult>('subscribe', { channel: sessionUri });
-		await context.client.call<SubscribeResult>('subscribe', { channel: buildDefaultChatUri(sessionUri) });
+		await context.client.call<SubscribeResult>('subscribe', { channel: defaultChatChannel(sessionUri) });
 		await driveTurnToCompletion(context.client, sessionUri, 'turn-worktree-include', 'Reply exactly "materialized".', 1);
 		const state = (await context.client.call<SubscribeResult>('subscribe', { channel: sessionUri })).snapshot!.state as SessionState;
 		const worktree = URI.parse(state.workingDirectories![0]).fsPath;
@@ -123,7 +124,7 @@ export function defineWorkspaceTests(context: IAgentHostE2ETestContext): void {
 	(config.supportsWorktreeIsolation && !isWindows && portableShellToolReplayEnabled && !config.shellToolResultTextUnreliable ? test : test.skip)('worktree session uses the resolved worktree as working directory', async function () {
 		this.timeout(120_000);
 
-		const tempDir = mkdtempSync(`${tmpdir()}/ahp-wt-test-`);
+		const tempDir = createTestDirectory(`${tmpdir()}/ahp-wt-test-`);
 		tempDirs.push(tempDir, `${tempDir}.worktrees`);
 		initTestGitRepo(tempDir);
 		execSync('git commit --allow-empty -m "init"', { cwd: tempDir });
@@ -165,7 +166,7 @@ export function defineWorkspaceTests(context: IAgentHostE2ETestContext): void {
 		// Conversation contents (turns, tool calls, …) live on the
 		// session's default chat channel in the multi-chat protocol;
 		// subscribe to it so `chat/*` action notifications are delivered.
-		await context.client.call<SubscribeResult>('subscribe', { channel: buildDefaultChatUri(sessionUri) });
+		await context.client.call<SubscribeResult>('subscribe', { channel: defaultChatChannel(sessionUri) });
 
 		context.client.dispatch({
 			channel: sessionUri,
@@ -216,7 +217,7 @@ export function defineWorkspaceTests(context: IAgentHostE2ETestContext): void {
 			|| isActionNotification(n, ActionType.SessionWorkingDirectoryReplaced)
 			|| isActionNotification(n, ActionType.ChatTurnComplete))
 			.map(n => getActionEnvelope(n))
-			.filter(envelope => envelope.channel === sessionUri || envelope.channel === buildDefaultChatUri(sessionUri))
+			.filter(envelope => envelope.channel === sessionUri || envelope.channel === defaultChatChannel(sessionUri))
 			.map(({ action }) => action.type === ActionType.SessionWorkingDirectoryReplaced
 				? { type: action.type, directory: action.directory, replacement: action.replacement }
 				: { type: action.type });

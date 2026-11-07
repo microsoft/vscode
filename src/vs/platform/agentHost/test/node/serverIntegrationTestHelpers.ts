@@ -46,7 +46,7 @@ import {
 } from '../../common/state/protocol/commands.js';
 import { ActionType, type ActionEnvelope } from '../../common/state/sessionActions.js';
 import type { SessionAddedParams } from '../../common/state/protocol/notifications.js';
-import { MessageKind, buildDefaultChatUri, mergeSessionWithDefaultChat, parseDefaultChatUri, type ChatState, type ISessionWithDefaultChat, type SessionState } from '../../common/state/sessionState.js';
+import { MessageKind, mergeSessionWithDefaultChat, type ChatState, type ISessionWithDefaultChat, type SessionState } from '../../common/state/sessionState.js';
 import { PROTOCOL_VERSION } from '../../common/state/protocol/version/registry.js';
 import { AgentHostCodexAgentBinaryArgsEnvVar, AgentHostCodexAgentCodexHomeEnvVar, AgentHostCodexAgentEnabledEnvVar } from '../../common/agentService.js';
 import {
@@ -68,6 +68,9 @@ import { recordAhpSurface } from './ahpSurfaceCoverage.js';
 import { isCI, isWindows } from '../../../../base/common/platform.js';
 import { killTree } from '../../../../base/node/processes.js';
 import { createIsolatedProviderEnvironment } from './providerTestEnvironment.js';
+import { defaultChatChannel, rememberDefaultChats, rememberSubscribedDefaultChat } from './hostDefaultChats.js';
+
+export { defaultChatChannel };
 
 const AGENT_HOST_E2E_COVERAGE = process.env['AGENT_HOST_E2E_COVERAGE'] === '1';
 
@@ -188,6 +191,7 @@ export class TestProtocolClient {
 				if (errResp.error) {
 					pending.reject(new ProtocolError(errResp.error.code, errResp.error.message, errResp.error.data));
 				} else {
+					rememberDefaultChats((msg as JsonRpcSuccessResponse).result);
 					pending.resolve((msg as JsonRpcSuccessResponse).result);
 				}
 			}
@@ -201,6 +205,7 @@ export class TestProtocolClient {
 				const envelope = notif.params as unknown as ActionEnvelope | undefined;
 				recordAhpSurface('action', envelope?.action?.type ?? '');
 			}
+			rememberDefaultChats(notif.params);
 			this._notifications.push(notif);
 			this._flushNotificationWaiters();
 		}
@@ -499,7 +504,13 @@ export class TestProtocolClient {
 			}, timeoutMs);
 
 			this._pendingCalls.set(id, {
-				resolve: result => { clearTimeout(timer); resolve(result as T); },
+				resolve: result => {
+					clearTimeout(timer);
+					if (method === 'subscribe') {
+						rememberSubscribedDefaultChat((params as { channel: string }).channel, result);
+					}
+					resolve(result as T);
+				},
 				reject: err => { clearTimeout(timer); reject(err); },
 			});
 			try {
@@ -663,6 +674,19 @@ export interface IServerHandle {
 }
 
 const SERVER_SHUTDOWN_TIMEOUT_MS = isCI || isWindows || AGENT_HOST_E2E_COVERAGE ? 30_000 : 5_000;
+/**
+ * Part of {@link SERVER_SHUTDOWN_TIMEOUT_MS} kept back from the server's own
+ * graceful-shutdown budget: capturing its descendants before stdin is closed,
+ * and its disposal and exit after the budget ends, share the same deadline.
+ */
+const SERVER_SHUTDOWN_RESERVE_MS = 5_000;
+/**
+ * The server's own graceful-shutdown budget. A restart must persist what the
+ * replacement server restores, and on a loaded CI machine that can take longer
+ * than the server's 4.5s default, so it gets the time {@link stopServer}
+ * already waits, less {@link SERVER_SHUTDOWN_RESERVE_MS}.
+ */
+const SERVER_GRACEFUL_SHUTDOWN_TIMEOUT_MS = Math.max(4_500, SERVER_SHUTDOWN_TIMEOUT_MS - SERVER_SHUTDOWN_RESERVE_MS);
 const SERVER_EXIT_TIMEOUT_MS = 1_000;
 const SERVER_DESCENDANT_CLEANUP_TIMEOUT_MS = 5_000;
 
@@ -806,7 +830,7 @@ const defaultServerProcessOperations: IServerProcessOperations = {
 			// Only terminate verified descendants, never let taskkill /T follow stale PPIDs.
 			process.kill(pid);
 		} else {
-			await killTree(pid, forceful);
+			await killTree(pid, forceful, message => logServerCleanup(pid, message));
 		}
 	},
 	killProcess: pid => { process.kill(pid); },
@@ -1022,7 +1046,7 @@ async function startMockLlmServer(scenarios?: readonly IMockScenario[]): Promise
 export async function startServer(options?: { readonly quiet?: boolean; readonly userDataDir?: string; readonly env?: NodeJS.ProcessEnv; readonly startupTimeoutMs?: number }): Promise<IServerHandle> {
 	return new Promise((resolve, reject) => {
 		const serverPath = fileURLToPath(new URL('../../node/agentHostServerMain.js', import.meta.url));
-		const args = ['--enable-mock-agent', '--port', '0', '--without-connection-token'];
+		const args = ['--enable-mock-agent', '--port', '0', '--without-connection-token', '--shutdown-timeout', String(SERVER_GRACEFUL_SHUTDOWN_TIMEOUT_MS)];
 		if (options?.quiet ?? true) {
 			args.push('--quiet');
 		}
@@ -1109,7 +1133,7 @@ export async function startRealServer(options: { readonly homeDir: string; reado
 	const capiUrl = capiReplayProxy?.url ?? mockLlmServer?.url;
 	return new Promise((resolve, reject) => {
 		const serverPath = fileURLToPath(new URL('../../node/agentHostServerMain.js', import.meta.url));
-		const args = ['--port', '0', '--without-connection-token'];
+		const args = ['--port', '0', '--without-connection-token', '--shutdown-timeout', String(SERVER_GRACEFUL_SHUTDOWN_TIMEOUT_MS)];
 		if (options.claudeSdkRoot) {
 			args.push('--claude-sdk-root', options.claudeSdkRoot);
 		}
@@ -1129,7 +1153,10 @@ export async function startRealServer(options: { readonly homeDir: string; reado
 			// codex SDK root is supplied so the provider actually registers.
 			...(options.codexSdkRoot ? { [AgentHostCodexAgentEnabledEnvVar]: String(options.codexAgentEnabled ?? true) } : {}),
 			// Fixtures use Codex's unified exec tool, so keep record and replay on the same shell protocol.
-			...(options.codexSdkRoot && options.capiReplay ? { [AgentHostCodexAgentBinaryArgsEnvVar]: JSON.stringify(['-c', 'features.unified_exec=true']) } : {}),
+			// Native marketplace plugins start a background Git sync outside the replay proxy, which can
+			// leave clone directories locked on Windows after shutdown. Client plugins use host-provided
+			// skills, agents, and MCP configuration independently of this native marketplace feature.
+			...(options.codexSdkRoot && options.capiReplay ? { [AgentHostCodexAgentBinaryArgsEnvVar]: JSON.stringify(['-c', 'features.unified_exec=true', '-c', 'features.plugins=false']) } : {}),
 			...(realCapture ? {
 				// Real-CAPI capture/replay: route all CAPI + GitHub-API traffic through
 				// the proxy. The real GitHub token flows via the `authenticate`
@@ -1232,9 +1259,6 @@ export function nextSessionUri(): string {
 	return URI.from({ scheme: 'mock', path: `/test-session-${++sessionCounter}` }).toString();
 }
 
-export function defaultChatChannel(sessionUri: string): string {
-	return buildDefaultChatUri(sessionUri);
-}
 
 export function isActionNotification(n: AhpNotification, actionType: string): boolean {
 	if (n.method !== 'action') {
@@ -1264,7 +1288,7 @@ export async function createAndSubscribeSession(c: TestProtocolClient, clientId:
 	// chat channel in the multi-chat protocol; subscribe to it as well so
 	// `chat/*` action notifications (responsePart, turnComplete, …) are
 	// delivered to this client.
-	await c.call<SubscribeResult>('subscribe', { channel: buildDefaultChatUri(realSessionUri) });
+	await c.call<SubscribeResult>('subscribe', { channel: defaultChatChannel(realSessionUri) });
 	c.clearReceived();
 
 	return realSessionUri;
@@ -1294,9 +1318,17 @@ export function dispatchTurnStarted(c: TestProtocolClient, session: string, turn
  * requires merging the session snapshot with its default chat snapshot.
  */
 export async function fetchSessionWithChat(c: TestProtocolClient, sessionUri: string, timeoutMs?: number): Promise<ISessionWithDefaultChat> {
-	const owningSession = parseDefaultChatUri(sessionUri) ?? sessionUri;
-	const chatUri = parseDefaultChatUri(sessionUri) ? sessionUri : buildDefaultChatUri(sessionUri);
-	const sessionSnap = await c.call<SubscribeResult>('subscribe', { channel: owningSession }, timeoutMs);
+	const sessionSnap = await c.call<SubscribeResult>('subscribe', { channel: sessionUri }, timeoutMs);
+	return fetchSessionWithGivenChat(c, sessionSnap, defaultChatChannel(sessionUri), timeoutMs);
+}
+
+/** Like {@link fetchSessionWithChat}, for a specific recorded chat of `sessionUri` (for example a subagent chat). */
+export async function fetchSessionWithRecordedChat(c: TestProtocolClient, sessionUri: string, chatUri: string, timeoutMs?: number): Promise<ISessionWithDefaultChat> {
+	const sessionSnap = await c.call<SubscribeResult>('subscribe', { channel: sessionUri }, timeoutMs);
+	return fetchSessionWithGivenChat(c, sessionSnap, chatUri, timeoutMs);
+}
+
+async function fetchSessionWithGivenChat(c: TestProtocolClient, sessionSnap: SubscribeResult, chatUri: string, timeoutMs: number | undefined): Promise<ISessionWithDefaultChat> {
 	const chatSnap = await c.call<SubscribeResult>('subscribe', { channel: chatUri }, timeoutMs);
 	return mergeSessionWithDefaultChat(
 		sessionSnap.snapshot!.state as SessionState,

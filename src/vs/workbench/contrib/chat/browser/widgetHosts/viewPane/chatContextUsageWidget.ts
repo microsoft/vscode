@@ -345,11 +345,11 @@ export class ChatContextUsageWidget extends Disposable {
 	 */
 	setModelConfigurationResolver(
 		resolver: (modelId: string) => IStringDictionary<unknown> | undefined,
-		onDidChange: Event<string>,
+		onDidChange: Event<readonly string[]>,
 	): void {
 		this._modelConfigurationResolver = resolver;
-		this._modelConfigurationListener.value = onDidChange(modelId => {
-			const affectsDisplayedModel = this._currentModelId === modelId || this._selectedModelId === modelId;
+		this._modelConfigurationListener.value = onDidChange(modelIds => {
+			const affectsDisplayedModel = modelIds.some(modelId => this._currentModelId === modelId || this._selectedModelId === modelId);
 			if (this._currentResponse && this._currentModelId && affectsDisplayedModel) {
 				this.updateFromResponse(this._currentResponse, this._currentModelId);
 			}
@@ -408,19 +408,24 @@ export class ChatContextUsageWidget extends Disposable {
 		// immediately; the numerator (usage) still comes from the last response. A meta-model such as "auto" has no
 		// context window of its own, so fall back to the model that actually served the request (see issue #321781).
 		const contextWindow = this.resolveContextWindow(this._selectedModelId) ?? this.resolveContextWindow(effectiveModelId);
-		if (!usage || !contextWindow) {
+		const reportedContext = usage?.contextUsage
+			&& Number.isFinite(usage.contextUsage.currentTokens) && usage.contextUsage.currentTokens >= 0
+			&& Number.isFinite(usage.contextUsage.tokenLimit) && usage.contextUsage.tokenLimit > 0
+			? usage.contextUsage : undefined;
+		if (!usage || (!contextWindow && !reportedContext)) {
 			if (!this._currentData.get()) {
 				this.hide();
 			}
 			return;
 		}
 
-		const { maxOutputTokens, totalContextWindow } = contextWindow;
+		const maxOutputTokens = contextWindow?.maxOutputTokens;
+		const totalContextWindow = reportedContext?.tokenLimit ?? contextWindow!.totalContextWindow;
 
 		const promptTokens = usage.promptTokens;
 		const completionTokens = usage.completionTokens;
 		const promptTokenDetails = usage.promptTokenDetails;
-		const usedTokens = promptTokens + completionTokens;
+		const usedTokens = reportedContext?.currentTokens ?? promptTokens + completionTokens;
 		const percentage = (usedTokens / totalContextWindow) * 100;
 
 		// The reserve band is a property of the model the user currently has

@@ -15,9 +15,9 @@ import { HiddenItemStrategy, MenuWorkbenchToolBar } from '../../../../platform/a
 import { MenuRegistry } from '../../../../platform/actions/common/actions.js';
 import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
-import { Menus } from '../../../browser/menus.js';
-import { ISession, SessionStatus } from '../../../services/sessions/common/session.js';
-import { IApprovedSession, ISessionCIFixModel, SessionsFlatList, SessionItemStatusContext } from './views/sessionsList.js';
+import { Menus } from '../../../../workbench/contrib/sessions/browser/menus.js';
+import { ISession, SessionStatus } from '../../../../workbench/services/sessions/common/session.js';
+import { IApprovedSession, ISessionCIFixModel, SessionsFlatList, SessionItemStatusContext } from '../../../../workbench/contrib/sessions/browser/views/sessionsList.js';
 import { AgentSessionApprovalModel } from '../../../../workbench/contrib/chat/browser/agentSessions/agentSessionApprovalModel.js';
 
 export const IGNORE_INPUT_NEEDED_COMMAND_ID = 'sessions.blockedSessions.ignoreInputNeeded';
@@ -35,7 +35,7 @@ export function registerBlockedSessionsItemActions(): IDisposable {
 		MenuRegistry.appendMenuItem(Menus.BlockedSessionsItem, {
 			command: {
 				id: IGNORE_INPUT_NEEDED_COMMAND_ID,
-				title: localize('ignoreInputNeeded', "Ignore Input Needed"),
+				title: localize('ignoreInputNeeded', "Ignore Needs Attention Alert"),
 				icon: Codicon.bellSlash,
 			},
 			group: 'navigation',
@@ -119,7 +119,7 @@ export class BlockedSessionsList extends Disposable {
 		// right (e.g. the action that opens the full sessions picker).
 		const header = append(element, $('.agent-sessions-blocked-list-header'));
 		const title = append(header, $('.agent-sessions-blocked-list-title'));
-		title.textContent = localize('sessionsRequiringInput', "Sessions requiring input");
+		title.textContent = localize('sessionsRequiringInput', "Sessions needing attention");
 		const headerActions = append(header, $('.agent-sessions-blocked-list-header-actions'));
 		this._register(instantiationService.createInstance(MenuWorkbenchToolBar, headerActions, Menus.BlockedSessionsHeader, {
 			hiddenItemStrategy: HiddenItemStrategy.NoHide,
@@ -153,7 +153,7 @@ export class BlockedSessionsList extends Disposable {
 				}
 				options.onIgnoreSession(session);
 				status(action.id === IGNORE_INPUT_NEEDED_COMMAND_ID
-					? localize('inputNeededIgnored', "Input needed ignored until this session needs input again.")
+					? localize('inputNeededIgnored', "Needs attention alert ignored until this session needs attention again.")
 					: localize('ciFailureIgnored', "CI failure ignored until this session has another CI failure."));
 				return true;
 			},

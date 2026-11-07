@@ -19,9 +19,7 @@ import { IConfigurationService } from '../../../../../../platform/configuration/
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { IFileService } from '../../../../../../platform/files/common/files.js';
-import { FileService } from '../../../../../../platform/files/common/fileService.js';
-import { InMemoryFileSystemProvider } from '../../../../../../platform/files/common/inMemoryFilesystemProvider.js';
-import { NullLogService } from '../../../../../../platform/log/common/log.js';
+import { createInMemoryFileService } from '../../../../../../platform/files/test/common/inMemoryFileService.js';
 import { IProductService } from '../../../../../../platform/product/common/productService.js';
 import { CommandsRegistry } from '../../../../../../platform/commands/common/commands.js';
 import { IDialogService } from '../../../../../../platform/dialogs/common/dialogs.js';
@@ -30,10 +28,12 @@ import { IQuickInputService, IQuickPick, IQuickPickItem, QuickInputHideReason } 
 import { IRemoteTunnelService } from '../../../../../../platform/remoteTunnel/common/remoteTunnel.js';
 import { IAuthenticationService } from '../../../../../../workbench/services/authentication/common/authentication.js';
 import { IWorkbenchEnvironmentService } from '../../../../../../workbench/services/environment/common/environmentService.js';
-import { ConnectionDiagnosticsService } from '../../browser/connectionDiagnosticsService.js';
-import { AgentHostFilterConnectionStatus, IAgentHostFilterEntry, IAgentHostFilterService } from '../../../../../services/agentHostFilter/common/agentHostFilter.js';
-import { IConnectionDiagnosticsService, IConnectionDiagnosticsSnapshot } from '../../browser/connectionDiagnostics.js';
-import { RemoteAgentHostCommandIds } from '../../browser/remoteAgentHostActions.js';
+import { ConnectionDiagnosticsService } from '../../../../../../workbench/contrib/sessions/providers/remoteAgentHost/browser/connectionDiagnosticsService.js';
+import { AgentHostFilterConnectionStatus, IAgentHostFilterEntry, IAgentHostFilterService } from '../../../../../../workbench/contrib/sessions/common/agentHostFilter.js';
+import { IConnectionDiagnosticsService, IConnectionDiagnosticsSnapshot } from '../../../../../../workbench/contrib/sessions/providers/remoteAgentHost/browser/connectionDiagnostics.js';
+import { RemoteAgentHostCommandIds } from '../../../../../../workbench/contrib/sessions/providers/remoteAgentHost/browser/remoteAgentHostCommandIds.js';
+// Registers the commands that the tests run
+import '../../browser/remoteAgentHostActions.js';
 
 suite('ConnectionDiagnosticsService', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -97,8 +97,7 @@ suite('ConnectionDiagnosticsService', () => {
 		}();
 		instantiation.stub(IAgentHostFilterService, filter);
 		instantiation.stub(IProductService, { version: '1.139.0', commit: 'test-commit' });
-		const files = store.add(new FileService(new NullLogService()));
-		store.add(files.registerProvider('test', store.add(new InMemoryFileSystemProvider())));
+		const files = createInMemoryFileService(store, 'test');
 		const logFile = URI.parse('test:/window.log');
 		instantiation.stub(IFileService, files);
 		instantiation.stub(IWorkbenchEnvironmentService, { logFile });

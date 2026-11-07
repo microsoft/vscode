@@ -34,6 +34,7 @@ suite('CopilotExtensionTools', () => {
 				name: enabled.name,
 				defer: enabled.defer,
 				overridesBuiltInTool: enabled.overridesBuiltInTool,
+				metadata: enabled.metadata,
 			},
 			missingDescriptionPhrases: requiredDescriptionPhrases.filter(phrase => !enabled.description?.includes(phrase)),
 		}, {
@@ -42,6 +43,7 @@ suite('CopilotExtensionTools', () => {
 				name: CopilotExtensionsReloadToolName,
 				defer: 'never',
 				overridesBuiltInTool: true,
+				metadata: { 'github.com/copilot:safeForTelemetry': { name: true, inputsNames: false } },
 			},
 			missingDescriptionPhrases: [],
 		});

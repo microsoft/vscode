@@ -188,7 +188,7 @@ export abstract class ExtHostDebugServiceBase extends DisposableCls implements I
 		this._debugServiceProxy.$registerDebugVisualizerTree(key, !!provider.editItem);
 		return toDisposable(() => {
 			this._debugServiceProxy.$unregisterDebugVisualizerTree(key);
-			this._debugVisualizationTrees.delete(id);
+			this._debugVisualizationTrees.delete(key);
 		});
 	}
 
@@ -407,7 +407,7 @@ export abstract class ExtHostDebugServiceBase extends DisposableCls implements I
 		this._debugServiceProxy.$registerDebugVisualizer(extensionId, id);
 		return toDisposable(() => {
 			this._debugServiceProxy.$unregisterDebugVisualizer(extensionId, id);
-			this._debugVisualizationProviders.delete(id);
+			this._debugVisualizationProviders.delete(key);
 		});
 	}
 

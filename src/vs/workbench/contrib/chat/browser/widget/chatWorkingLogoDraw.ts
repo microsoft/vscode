@@ -6,6 +6,14 @@
 type Point = [number, number];
 export type ChatWorkingLogoDrawBand = 'leg1' | 'leg3' | 'bar';
 
+export const chatWorkingLogoFacePaths = [
+	'M87.0275 15.0688L69.7198 6.73546C67.7164 5.77087 65.3223 6.17776 63.75 7.75L7.09081 59.4099C5.56682 60.7994 5.56857 63.1987 7.09459 64.586L11.7227 68.7934C12.9703 69.9275 14.8491 70.011 16.1924 68.992L84.4232 17.2307C86.7122 15.4942 90 17.1268 90 20V19.7991C90 17.7823 88.8447 15.9437 87.0275 15.0688Z',
+	'M87.0275 80.9312L69.7198 89.2646C67.7164 90.2292 65.3223 89.8223 63.75 88.25L7.09081 36.5902C5.56682 35.2007 5.56857 32.8013 7.09459 31.414L11.7227 27.2067C12.9703 26.0725 14.8491 25.989 16.1924 27.008L84.4232 78.7693C86.7122 80.5058 90 78.8732 90 76V76.201C90 78.2178 88.8447 80.0563 87.0275 80.9312Z',
+	'M69.7206 89.2661C67.7166 90.2298 65.3224 89.8223 63.75 88.25C65.6874 90.1873 69 88.8152 69 86.0753V9.92459C69 7.18472 65.6874 5.81259 63.75 7.74996C65.3224 6.17757 67.7166 5.77012 69.7206 6.73385L87.0253 15.0558C88.8437 15.9302 90 17.7694 90 19.7871V76.2131C90 78.2309 88.8436 80.07 87.0253 80.9445L69.7206 89.2661Z',
+] as const;
+
+export const chatWorkingLogoDrawDuration = 2667;
+
 export interface IChatWorkingLogoDrawFrame {
 	readonly paths: Readonly<Record<ChatWorkingLogoDrawBand, string>>;
 	readonly tail: number;
@@ -143,6 +151,7 @@ class Chain {
 
 class Span {
 	private sectionLengths: number[] = [];
+	private readonly vertexFractions: readonly number[];
 	sLength = 0;
 
 	constructor(
@@ -150,6 +159,7 @@ class Span {
 		readonly sideB: Chain,
 		readonly band: SpanBand,
 	) {
+		this.vertexFractions = sideA.vertexFractions().concat(sideB.vertexFractions()).sort((a, b) => a - b);
 		this.measure();
 	}
 
@@ -160,11 +170,11 @@ class Span {
 	breaks(start: number, end: number): number[] {
 		const low = Math.min(start, end);
 		const high = Math.max(start, end);
-		const values = this.sideA.vertexFractions().concat(this.sideB.vertexFractions())
-			.filter(value => value > low + 1e-9 && value < high - 1e-9)
-			.sort((a, b) => a - b);
 		const result: number[] = [];
-		for (const value of values) {
+		for (const value of this.vertexFractions) {
+			if (value <= low + 1e-9 || value >= high - 1e-9) {
+				continue;
+			}
 			if (!result.length || value - result[result.length - 1] > 1e-6) {
 				result.push(value);
 			}
@@ -235,6 +245,7 @@ class Ribbon {
 	readonly spanStarts: number[] = [];
 	readonly length: number;
 	private readonly marks: DrawMark[];
+	private readonly fullBandPaths = new Map<DrawMark, string[]>();
 
 	constructor(private readonly bleed = 0.35) {
 		let totalLength = 0;
@@ -277,7 +288,8 @@ class Ribbon {
 		const points: Point[] = [];
 		for (let index = 0; index <= 8; index++) {
 			const amount = index / 8;
-			const bow = 4 * amount * (1 - amount) * width * 0.03;
+			// Cover the mark's rounded tips before the reveal cap starts moving.
+			const bow = amount * (1 - amount) * width;
 			points.push(add(interpolate(start, end, amount), multiply(forward, bow)));
 		}
 		return points;
@@ -347,18 +359,29 @@ class Ribbon {
 		const buckets = new Map<ChatWorkingLogoDrawBand, string[]>(
 			CHAT_WORKING_LOGO_DRAW_PAINT_ORDER.map(band => [band, []]),
 		);
-		for (const [markStart, markEnd, band] of this.marks) {
+		for (const mark of this.marks) {
+			const [markStart, markEnd, band] = mark;
 			const low = Math.max(start, markStart);
 			const high = Math.min(end, markEnd);
 			if (high - low <= 1e-6) {
 				continue;
 			}
-			buckets.get(band)!.push(this.strip(
-				low,
-				high,
-				Math.abs(low - start) < 1e-9,
-				Math.abs(high - end) < 1e-9,
-			));
+			const capStart = Math.abs(low - start) < 1e-9;
+			const capEnd = Math.abs(high - end) < 1e-9;
+			let path: string;
+			if (low === markStart && high === markEnd) {
+				let paths = this.fullBandPaths.get(mark);
+				if (!paths) {
+					paths = [];
+					this.fullBandPaths.set(mark, paths);
+				}
+				// Four cap combinations per fixed band; moving endpoints are never cached.
+				const capIndex = (capStart ? 1 : 0) | (capEnd ? 2 : 0);
+				path = paths[capIndex] ??= this.strip(low, high, capStart, capEnd);
+			} else {
+				path = this.strip(low, high, capStart, capEnd);
+			}
+			buckets.get(band)!.push(path);
 		}
 		return {
 			leg1: buckets.get('leg1')!.join(''),

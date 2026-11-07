@@ -121,51 +121,6 @@ export function createRanTestsFilter(): FilterPredicate {
 }
 
 /**
- * Filter tests by specific result types (failures, regressions, improvements, differences)
- */
-export function createResultTypeFilter(resultType: string | undefined): FilterPredicate {
-	if (!resultType) {
-		return () => true;
-	}
-
-	return (test) => {
-		const passRate = test.runnerStatus?.runs.map<number>(r => r.pass ? 1 : 0).reduce((a, b) => a + b, 0);
-		const baselinePassRate = test.baseline?.runs.map<number>(r => r.pass ? 1 : 0).reduce((a, b) => a + b, 0);
-
-		switch (resultType) {
-			case 'failures':
-				return test.runnerStatus?.runs.some(r => !r.pass) ?? true;
-			case 'regressions':
-				return baselinePassRate !== undefined &&
-					passRate !== undefined &&
-					passRate < baselinePassRate;
-			case 'improvements':
-				return baselinePassRate !== undefined &&
-					passRate !== undefined &&
-					passRate > baselinePassRate;
-			case 'differences':
-				return baselinePassRate !== undefined &&
-					passRate !== undefined &&
-					passRate !== baselinePassRate;
-			default:
-				return true;
-		}
-	};
-}
-
-/**
- * Filter tests by language ID
- */
-export function createLanguageFilter(languageId: string | undefined): FilterPredicate {
-	if (!languageId) {
-		return () => true;
-	}
-
-	return (test) => test.activeEditorLangId !== undefined &&
-		test.activeEditorLangId === languageId;
-}
-
-/**
  * Filter tests by annotations
  */
 export function createAnnotationFilter(selectedAnnotations: Set<string> | undefined): FilterPredicate {
@@ -176,11 +131,4 @@ export function createAnnotationFilter(selectedAnnotations: Set<string> | undefi
 	return (test) => test.runnerStatus?.runs.some(
 		r => r.annotations.some(a => selectedAnnotations.has(a.label))
 	) === true;
-}
-
-/**
- * Filter tests by test name
- */
-export function createTestNameFilter(testName: string | undefined): FilterPredicate {
-	return (test) => testName === undefined || test.name.includes(testName);
 }

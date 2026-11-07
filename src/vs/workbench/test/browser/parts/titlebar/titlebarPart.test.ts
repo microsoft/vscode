@@ -4,20 +4,59 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { setFullscreen } from '../../../../../base/browser/browser.js';
 import { CodeWindow, mainWindow } from '../../../../../base/browser/window.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
+import { DisposableStore, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { mock } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { IConfigurationChangeEvent, IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
+import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
+import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
+import { IMenu, IMenuService } from '../../../../../platform/actions/common/actions.js';
+import { IActionViewItemFactory, IActionViewItemService } from '../../../../../platform/actions/browser/actionViewItemService.js';
+import { ActionViewItem } from '../../../../../base/browser/ui/actionbar/actionViewItems.js';
 import { IContextMenuService } from '../../../../../platform/contextview/browser/contextView.js';
 import { IThemeService } from '../../../../../platform/theme/common/themeService.js';
 import { TestColorTheme, TestThemeService } from '../../../../../platform/theme/test/common/testThemeService.js';
+import { IUpdateService, StateType } from '../../../../../platform/update/common/update.js';
+import { isMacintosh, isWeb } from '../../../../../base/common/platform.js';
+import { getMenuBarVisibility, hasNativeMenu } from '../../../../../platform/window/common/window.js';
+import { CustomMenubarControl } from '../../../../browser/parts/titlebar/menubarControl.js';
 import { BrowserTitlebarPart } from '../../../../browser/parts/titlebar/titlebarPart.js';
 import { WindowTitle } from '../../../../browser/parts/titlebar/windowTitle.js';
+import { IEditorPartOptions } from '../../../../common/editor.js';
 import { MODERN_UI_INACTIVE_SHELL_BACKGROUND, MODERN_UI_SHELL_BACKGROUND, TITLE_BAR_ACTIVE_BACKGROUND, TITLE_BAR_INACTIVE_BACKGROUND } from '../../../../common/theme.js';
+import { IActivityService } from '../../../../services/activity/common/activity.js';
+import { ACCOUNTS_ACTIVITY_ID, GLOBAL_ACTIVITY_ID } from '../../../../common/activity.js';
 import { IEditorGroupsContainer } from '../../../../services/editor/common/editorGroupsService.js';
 import { IHostService } from '../../../../services/host/browser/host.js';
-import { IWorkbenchLayoutService, Parts } from '../../../../services/layout/browser/layoutService.js';
-import { TestContextMenuService, TestHostService, TestLayoutService, workbenchInstantiationService } from '../../workbenchTestServices.js';
+import { ActivityBarPosition, EditorActionsLocation, EditorTabsMode, isCompactMenuInTitlebar, IWorkbenchLayoutService, Parts } from '../../../../services/layout/browser/layoutService.js';
+import { TestContextMenuService, TestHostService, TestLayoutService, TestMenuService, workbenchInstantiationService } from '../../workbenchTestServices.js';
+import { TestActivityService } from '../../../common/workbenchTestServices.js';
+
+function stubMenubarServices(instantiationService: TestInstantiationService): void {
+	// The custom menu bar expects the main menu to have at least one (possibly empty) group.
+	instantiationService.stub(IMenuService, new class extends TestMenuService {
+		override createMenu(): IMenu {
+			return { onDidChange: Event.None, dispose: () => undefined, getActions: () => [['', []]] };
+		}
+	}());
+	instantiationService.stub(IUpdateService, new class extends mock<IUpdateService>() {
+		override readonly onStateChange = Event.None;
+		override get state() { return { type: StateType.Uninitialized as const }; }
+	}());
+}
+
+// On web, the first CustomMenubarControl lazily registers a global focus action that is never
+// unregistered. Create one before the suite snapshots the registries so it is not reported as a leak.
+{
+	const disposables = new DisposableStore();
+	const instantiationService = workbenchInstantiationService(undefined, disposables);
+	stubMenubarServices(instantiationService);
+	disposables.add(instantiationService.createInstance(CustomMenubarControl));
+	disposables.dispose();
+}
 
 suite('TitlebarPart colors', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -26,6 +65,11 @@ suite('TitlebarPart colors', () => {
 		protected override createContentArea(parent: HTMLElement): HTMLElement {
 			this.element = parent;
 			return parent;
+		}
+
+		installTestMenubar(leftContent: HTMLElement): void {
+			Reflect.set(this, 'leftContent', leftContent);
+			this.installMenubar();
 		}
 	}
 
@@ -55,6 +99,11 @@ suite('TitlebarPart colors', () => {
 		instantiationService.stub(IWorkbenchLayoutService, new class extends TestLayoutService {
 			override getContainer(): HTMLElement { return root; }
 		}());
+		instantiationService.stub(IUpdateService, new class extends mock<IUpdateService>() {
+			override readonly onStateChange = Event.None;
+			override get state() { return { type: StateType.Uninitialized as const }; }
+		}());
+		instantiationService.stub(IActivityService, new TestActivityService());
 		instantiationService.stubInstance(WindowTitle, { dispose() { } });
 		const groups = new class extends mock<IEditorGroupsContainer>() {
 			override onDidChangeEditorPartOptions = Event.None;
@@ -114,23 +163,83 @@ suite('TitlebarPart colors', () => {
 		workbench.appendChild(titlebar);
 		document.body.appendChild(workbench);
 
-		try {
-			const active = mainWindow.getComputedStyle(icon).color;
-			titlebar.classList.add('inactive');
-			const inactive = mainWindow.getComputedStyle(icon).color;
+		store.add(toDisposable(() => workbench.remove()));
+		const active = mainWindow.getComputedStyle(icon).color;
+		titlebar.classList.add('inactive');
+		const inactive = mainWindow.getComputedStyle(icon).color;
 
-			assert.deepStrictEqual({ active, inactive }, {
-				active: 'rgb(17, 34, 51)',
-				inactive: 'rgb(68, 85, 102)',
-			});
-		} finally {
-			workbench.remove();
-		}
+		assert.deepStrictEqual({ active, inactive }, {
+			active: 'rgb(17, 34, 51)',
+			inactive: 'rgb(68, 85, 102)',
+		});
+	});
+
+	test('updates inactive title bar opacity from menubar focus state', () => {
+		const workbench = mainWindow.document.createElement('div');
+		workbench.className = 'monaco-workbench';
+		const titlebar = mainWindow.document.createElement('div');
+		titlebar.className = 'part titlebar';
+		const titlebarContainer = mainWindow.document.createElement('div');
+		titlebarContainer.className = 'titlebar-container';
+		titlebar.appendChild(titlebarContainer);
+		workbench.appendChild(titlebar);
+		mainWindow.document.body.appendChild(workbench);
+
+		const focusStateEmitter = store.add(new Emitter<boolean>());
+		const instantiationService = workbenchInstantiationService(undefined, store);
+		instantiationService.stub(IContextMenuService, new TestContextMenuService());
+		instantiationService.stub(IWorkbenchLayoutService, new class extends TestLayoutService {
+			override getContainer(): HTMLElement { return workbench; }
+		}());
+		instantiationService.stubInstance(WindowTitle, { dispose() { } });
+		instantiationService.stubInstance(CustomMenubarControl, {
+			onVisibilityChange: Event.None,
+			onFocusStateChange: focusStateEmitter.event,
+			create(parent) { return parent; },
+			dispose() { },
+		});
+
+		const groups = new class extends mock<IEditorGroupsContainer>() {
+			override onDidChangeEditorPartOptions = Event.None;
+		}();
+		const part = store.add(instantiationService.createInstance(TestTitlebarPart, Parts.TITLEBAR_PART, mainWindow, groups));
+
+		store.add(toDisposable(() => workbench.remove()));
+		part.create(titlebar);
+		titlebar.classList.add('inactive');
+		part.installTestMenubar(titlebarContainer);
+
+		const state = () => ({
+			focused: titlebar.classList.contains('menubar-focused'),
+			opacity: mainWindow.getComputedStyle(titlebarContainer).opacity,
+		});
+		const initial = state();
+		focusStateEmitter.fire(true);
+		const focused = state();
+		focusStateEmitter.fire(false);
+		const blurred = state();
+		focusStateEmitter.fire(true);
+		const refocused = state();
+
+		const uninstallMenubar = Reflect.get(BrowserTitlebarPart.prototype, 'uninstallMenubar') as (this: BrowserTitlebarPart) => void;
+		uninstallMenubar.call(part);
+		const uninstalled = state();
+		focusStateEmitter.fire(true);
+		const afterUninstallEvent = state();
+
+		assert.deepStrictEqual({ initial, focused, blurred, refocused, uninstalled, afterUninstallEvent }, {
+			initial: { focused: false, opacity: '0.6' },
+			focused: { focused: true, opacity: '1' },
+			blurred: { focused: false, opacity: '0.6' },
+			refocused: { focused: true, opacity: '1' },
+			uninstalled: { focused: false, opacity: '0.6' },
+			afterUninstallEvent: { focused: false, opacity: '0.6' },
+		});
 	});
 });
 
 suite('Workbench - Titlebar Part', () => {
-	ensureNoDisposablesAreLeakedInTestSuite();
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
 	const updateTitleBarToolBarOverflow = Reflect.get(BrowserTitlebarPart.prototype, 'updateTitleBarToolBarOverflow') as (this: BrowserTitlebarPart) => void;
 
@@ -164,6 +273,239 @@ suite('Workbench - Titlebar Part', () => {
 			bothVisible: [false, false],
 		});
 	});
+
+	test('compact menu is owned by the titlebar only when the activity bar is at the top or bottom', () => {
+		const config = (menuBarVisibility: string, location: string) => new TestConfigurationService({
+			window: { menuBarVisibility },
+			workbench: { activityBar: { location } }
+		});
+		const owner = (menuBarVisibility: string, location: string) => isCompactMenuInTitlebar(config(menuBarVisibility, location));
+		// Native macOS (and native menus) force the classic menu bar, in which case nothing is compact.
+		const compactSupported = getMenuBarVisibility(config('compact', ActivityBarPosition.TOP)) === 'compact';
+
+		assert.deepStrictEqual({
+			compactTop: owner('compact', ActivityBarPosition.TOP),
+			compactDefault: owner('compact', ActivityBarPosition.DEFAULT),
+			compactBottom: owner('compact', ActivityBarPosition.BOTTOM),
+			compactHidden: owner('compact', ActivityBarPosition.HIDDEN),
+			classicTop: owner('classic', ActivityBarPosition.TOP),
+			classicBottom: owner('classic', ActivityBarPosition.BOTTOM),
+		}, {
+			compactTop: compactSupported,
+			compactDefault: false,
+			compactBottom: compactSupported,
+			compactHidden: false,
+			classicTop: false,
+			classicBottom: false,
+		});
+	});
+
+	function createHandoffConfiguration(): TestConfigurationService {
+		// A native title bar with a custom menu keeps the compact menu bar while allowing the custom title bar to be hidden.
+		return new TestConfigurationService({
+			window: { titleBarStyle: 'native', menuStyle: 'custom', menuBarVisibility: 'compact', customTitleBarVisibility: 'auto' },
+			workbench: { activityBar: { location: ActivityBarPosition.TOP } }
+		});
+	}
+
+	function isHandoffSupported(configurationService: TestConfigurationService): boolean {
+		// The custom title bar visibility setting does not apply on web, and native macOS always uses the native menu.
+		return !isWeb && !isMacintosh && !hasNativeMenu(configurationService) && getMenuBarVisibility(configurationService) === 'compact';
+	}
+
+	function setSetting(configurationService: TestConfigurationService, key: string, value: string): void {
+		configurationService.setUserConfiguration(key, value);
+		configurationService.onDidChangeConfigurationEmitter.fire({ affectsConfiguration: (k: string) => k === key } as IConfigurationChangeEvent);
+	}
+
+	test('compact menu leaves the titlebar when the custom title bar is hidden and returns when it is shown', function () {
+		const configurationService = createHandoffConfiguration();
+		if (!isHandoffSupported(configurationService)) {
+			this.skip();
+		}
+		const { part, container } = createTitlebar(configurationService);
+
+		const states: Record<string, { owner: boolean; count: number; compact: boolean }> = {};
+		const record = (name: string) => states[name] = { owner: isCompactMenuInTitlebar(configurationService), ...menubarState(container) };
+		try {
+			record('initial');
+			setSetting(configurationService, 'window.customTitleBarVisibility', 'never');
+			record('hidden');
+			setSetting(configurationService, 'window.customTitleBarVisibility', 'auto');
+			record('shown');
+			setSetting(configurationService, 'window.customTitleBarVisibility', 'never');
+			record('hiddenAgain');
+			setSetting(configurationService, 'window.customTitleBarVisibility', 'auto');
+			record('shownAgain');
+
+			// 'windowed' hides the custom title bar only while the window is fullscreen.
+			setSetting(configurationService, 'window.customTitleBarVisibility', 'windowed');
+			record('windowed');
+			setFullscreen(true, mainWindow);
+			record('fullscreen');
+			setFullscreen(false, mainWindow);
+			record('exitFullscreen');
+			setFullscreen(true, mainWindow);
+			record('fullscreenAgain');
+			setFullscreen(false, mainWindow);
+			record('exitFullscreenAgain');
+		} finally {
+			setFullscreen(false, mainWindow);
+			part.dispose();
+		}
+
+		const owned = { owner: true, count: 1, compact: true };
+		const released = { owner: false, count: 0, compact: false };
+		assert.deepStrictEqual(states, {
+			initial: owned,
+			hidden: released,
+			shown: owned,
+			hiddenAgain: released,
+			shownAgain: owned,
+			windowed: owned,
+			fullscreen: released,
+			exitFullscreen: owned,
+			fullscreenAgain: released,
+			exitFullscreenAgain: owned,
+		});
+	});
+
+	function createTitlebar(configurationService: TestConfigurationService, partCtor: typeof BrowserTitlebarPart = BrowserTitlebarPart) {
+		const root = document.createElement('div');
+		const instantiationService = workbenchInstantiationService(undefined, store);
+		instantiationService.stub(IConfigurationService, configurationService);
+		instantiationService.stub(IHostService, new TestHostService());
+		instantiationService.stub(IContextMenuService, new TestContextMenuService());
+		instantiationService.stub(IWorkbenchLayoutService, new class extends TestLayoutService {
+			override getContainer(): HTMLElement { return root; }
+		}());
+		stubMenubarServices(instantiationService);
+		instantiationService.stub(IActivityService, new TestActivityService());
+		// Render the activity actions as plain items: their real view items need account services.
+		instantiationService.stub(IActionViewItemService, new class extends mock<IActionViewItemService>() {
+			override readonly onDidChange = Event.None;
+			override lookUp(_menu: unknown, id: unknown): IActionViewItemFactory | undefined {
+				return id === ACCOUNTS_ACTIVITY_ID || id === GLOBAL_ACTIVITY_ID ? (action, options) => new ActionViewItem(undefined, action, options) : undefined;
+			}
+		}());
+		instantiationService.stubInstance(WindowTitle, { dispose() { } });
+		const groups = new class extends mock<IEditorGroupsContainer>() {
+			override onDidChangeEditorPartOptions = Event.None;
+			override partOptions = { editorActionsLocation: EditorActionsLocation.DEFAULT, showTabs: EditorTabsMode.MULTIPLE } as IEditorPartOptions;
+		}();
+		const part = instantiationService.createInstance(partCtor, Parts.TITLEBAR_PART, mainWindow, groups);
+		const container = document.createElement('div');
+		part.create(container);
+		return { part, container };
+	}
+
+	function setConfiguration(configurationService: TestConfigurationService, menuBarVisibility: string, location: string): void {
+		configurationService.setUserConfiguration('window.menuBarVisibility', menuBarVisibility);
+		configurationService.setUserConfiguration('workbench.activityBar.location', location);
+		const keys = ['window.menuBarVisibility', 'workbench.activityBar.location'];
+		configurationService.onDidChangeConfigurationEmitter.fire({ affectsConfiguration: (key: string) => keys.includes(key) } as IConfigurationChangeEvent);
+	}
+
+	function menubarState(container: HTMLElement) {
+		const menubars = container.querySelectorAll('.menubar');
+		return { count: menubars.length, compact: menubars.length === 1 && menubars[0].classList.contains('compact') };
+	}
+
+	test('installs, recreates and removes the menu bar as compact ownership changes', () => {
+		const configurationService = new TestConfigurationService({
+			window: { menuBarVisibility: 'classic' },
+			workbench: { activityBar: { location: ActivityBarPosition.DEFAULT } }
+		});
+		const compactSupported = getMenuBarVisibility(new TestConfigurationService({ window: { menuBarVisibility: 'compact' } })) === 'compact';
+		// Mirrors the production install guard: native menus (e.g. native macOS) never get a custom menu bar.
+		const customSupported = !hasNativeMenu(new TestConfigurationService({ window: { menuBarVisibility: 'classic' } })) && (!isMacintosh || isWeb);
+		const { part, container } = createTitlebar(configurationService);
+
+		const states: Record<string, { count: number; compact: boolean }> = { classic: menubarState(container) };
+		setConfiguration(configurationService, 'compact', ActivityBarPosition.TOP);
+		states.compactTop = menubarState(container);
+		setConfiguration(configurationService, 'compact', ActivityBarPosition.DEFAULT);
+		states.compactDefault = menubarState(container);
+		setConfiguration(configurationService, 'compact', ActivityBarPosition.TOP);
+		states.compactTopAgain = menubarState(container);
+		setConfiguration(configurationService, 'classic', ActivityBarPosition.TOP);
+		states.classicAgain = menubarState(container);
+		setConfiguration(configurationService, 'compact', ActivityBarPosition.TOP);
+		states.compactTopThird = menubarState(container);
+		setConfiguration(configurationService, 'compact', ActivityBarPosition.BOTTOM);
+		states.compactBottom = menubarState(container);
+		setConfiguration(configurationService, 'compact', ActivityBarPosition.DEFAULT);
+		states.compactDefaultAgain = menubarState(container);
+		part.dispose();
+
+		const none = { count: 0, compact: false };
+		const classic = customSupported ? { count: 1, compact: false } : none;
+		const titlebarCompact = customSupported ? { count: 1, compact: compactSupported } : none;
+		assert.deepStrictEqual(states, {
+			classic,
+			compactTop: titlebarCompact,
+			compactDefault: compactSupported ? none : classic,
+			compactTopAgain: titlebarCompact,
+			classicAgain: classic,
+			compactTopThird: titlebarCompact,
+			compactBottom: titlebarCompact,
+			compactDefaultAgain: compactSupported ? none : classic,
+		});
+	});
+
+	test('does not install a custom menu bar when the platform does not support one', () => {
+		class UnsupportedTitlebarPart extends BrowserTitlebarPart {
+			protected override get supportsCustomMenubar(): boolean { return false; }
+		}
+		const configurationService = new TestConfigurationService({
+			window: { menuBarVisibility: 'classic' },
+			workbench: { activityBar: { location: ActivityBarPosition.DEFAULT } }
+		});
+		const { part, container } = createTitlebar(configurationService, UnsupportedTitlebarPart);
+
+		const initial = menubarState(container);
+		setConfiguration(configurationService, 'compact', ActivityBarPosition.TOP);
+		const compactTop = menubarState(container);
+		part.dispose();
+
+		assert.deepStrictEqual({ initial, compactTop }, {
+			initial: { count: 0, compact: false },
+			compactTop: { count: 0, compact: false },
+		});
+	});
+
+	for (const location of [ActivityBarPosition.TOP, ActivityBarPosition.BOTTOM]) {
+		test(`titlebar-owned compact menu opens rightward and downward with the activity bar at the ${location} and the sidebar on the right`, function () {
+			const compactSupported = getMenuBarVisibility(new TestConfigurationService({ window: { menuBarVisibility: 'compact' } })) === 'compact';
+			const customSupported = !hasNativeMenu(new TestConfigurationService({ window: { menuBarVisibility: 'classic' } })) && (!isMacintosh || isWeb);
+			if (!compactSupported || !customSupported) {
+				this.skip();
+			}
+			const configurationService = new TestConfigurationService({
+				window: { menuBarVisibility: 'compact' },
+				workbench: { activityBar: { location }, sideBar: { location: 'right' } }
+			});
+			const { part, container } = createTitlebar(configurationService);
+			mainWindow.document.body.appendChild(container);
+
+			try {
+				const button = container.querySelector<HTMLElement>('.menubar.compact .menubar-menu-button');
+				const title = button?.querySelector<HTMLElement>('.menubar-menu-title');
+				button?.dispatchEvent(new MouseEvent('mousedown', { button: 0, bubbles: true }));
+				const holder = container.querySelector<HTMLElement>('.menubar-menu-items-holder');
+				const result = {
+					opened: !!holder,
+					opensLeftward: holder?.style.left === 'auto',
+					opensDownward: holder?.style.top === `${title?.getBoundingClientRect().top}px`,
+				};
+
+				assert.deepStrictEqual(result, { opened: true, opensLeftward: false, opensDownward: true });
+			} finally {
+				container.remove();
+				part.dispose();
+			}
+		});
+	}
 });
 
 function createMeasuredElement(clientWidth: () => number, scrollWidth: () => number): HTMLElement {

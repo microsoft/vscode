@@ -261,11 +261,11 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 				'type': 'string',
 				'enum': [ModernUIDensity.Default, ModernUIDensity.Compact],
 				'enumDescriptions': [
-					localize('windowDensityLayout.default', "Uses the standard spacing between workbench parts."),
-					localize('windowDensityLayout.compact', "Removes the gaps between workbench parts and reduces their internal spacing to provide more room for content."),
+					localize('windowDensityLayout.default', "Uses the standard spacing between workbench parts and a taller title bar in the Agents window."),
+					localize('windowDensityLayout.compact', "Removes the gaps between workbench parts and reduces their internal spacing to provide more room for content. Uses a shorter title bar in the Agents window."),
 				],
 				'default': ModernUIDensity.Default,
-				'markdownDescription': localize({ key: 'windowDensityLayout', comment: ['{0} is a placeholder for a setting identifier.'] }, "Controls the spacing density of the workbench layout. Only applies when {0} is enabled.", '`#workbench.experimental.modernUI#`'),
+				'markdownDescription': localize({ key: 'windowDensityLayout', comment: ['{0} is a placeholder for a setting identifier.'] }, "Controls the spacing density of the workbench layout. Applies in the Agents window and when {0} is enabled in the editor window.", '`#workbench.experimental.modernUI#`'),
 			},
 			'workbench.editor.pinnedTabSizing': {
 				'type': 'string',

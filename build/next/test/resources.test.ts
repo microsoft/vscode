@@ -30,6 +30,21 @@ globalThis.answer = calculateAnswer(41);
 `;
 
 suite('production resources', () => {
+	test('includes animated and reduced-motion koi backgrounds in every UI target', async () => {
+		const directory = 'vs/sessions/services/chatBackground/browser/media';
+		const images = ['koi-dark-static.webp', 'koi-dark.webp', 'koi-light-static.webp', 'koi-light.webp'].map(file => `${directory}/${file}`);
+		const inventory = await Promise.all(targets.map(async target => ({
+			target,
+			images: (await getResourcePaths(path.join(repoRoot, 'src'), target)).filter(file => file.startsWith(`${directory}/`)),
+		})));
+		assert.deepStrictEqual(inventory, [
+			{ target: 'desktop', images },
+			{ target: 'server', images: [] },
+			{ target: 'server-web', images },
+			{ target: 'web', images },
+		]);
+	});
+
 	test('covers every currently copied JavaScript resource for each target', async () => {
 		const inventory = await Promise.all(targets.map(async target => ({
 			target,

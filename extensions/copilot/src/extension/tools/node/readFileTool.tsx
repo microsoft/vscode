@@ -28,6 +28,7 @@ import { URI } from '../../../util/vs/base/common/uri';
 import { IInstantiationService } from '../../../util/vs/platform/instantiation/common/instantiation';
 import { LanguageModelPromptTsxPart, LanguageModelToolResult, Location, MarkdownString, Range } from '../../../vscodeTypes';
 import { IBuildPromptContext } from '../../prompt/common/intents';
+import { getGitHubCopilotRequestTeForToolCall } from '../../prompt/common/toolCallRound';
 import { renderPromptElementJSON } from '../../prompts/node/base/promptRenderer';
 import { BinaryFileHexdump, hexdumpIfBinary } from '../../prompts/node/panel/binaryFileHexdump';
 import { CodeBlock } from '../../prompts/node/panel/safeElements';
@@ -519,7 +520,7 @@ export class ReadFileTool extends Disposable implements ICopilotTool<ReadFilePar
 		return TextDocumentSnapshot.create(await this.workspaceService.openTextDocument(uri));
 	}
 
-	private async sendReadFileTelemetry(outcome: string, options: Pick<vscode.LanguageModelToolInvocationOptions<ReadFileParams>, 'model' | 'chatRequestId' | 'input'>, { start, end, truncated }: IParamRanges, uri: URI | undefined, documentSnapshot?: TextDocumentSnapshot | NotebookDocumentSnapshot) {
+	private async sendReadFileTelemetry(outcome: string, options: Pick<vscode.LanguageModelToolInvocationOptions<ReadFileParams>, 'model' | 'chatRequestId' | 'input' | 'chatStreamToolCallId'>, { start, end, truncated }: IParamRanges, uri: URI | undefined, documentSnapshot?: TextDocumentSnapshot | NotebookDocumentSnapshot) {
 		const model = options.model && (await this.endpointProvider.getChatEndpoint(options.model)).model;
 		const extensionSkillInfo = uri && this.customInstructionsService.getExtensionSkillInfo(uri);
 		const skillInfo = extensionSkillInfo || (uri && this.customInstructionsService.getSkillInfo(uri));
@@ -566,7 +567,7 @@ export class ReadFileTool extends Disposable implements ICopilotTool<ReadFilePar
 		// Reuses extensionSkillInfo/skillInfo already computed above.
 		if (skillInfo && documentSnapshot && uri && this.customInstructionsService.isSkillMdFile(uri)) {
 			const content = documentSnapshot instanceof TextDocumentSnapshot ? documentSnapshot.getText() : '';
-			sendSkillContentReadTelemetry(this.telemetryService, this.customInstructionsService, this.extensionsService, uri, skillInfo, content);
+			sendSkillContentReadTelemetry(this.telemetryService, this.customInstructionsService, this.extensionsService, uri, skillInfo, content, getGitHubCopilotRequestTeForToolCall(this._promptContext?.toolCallRounds, options.chatStreamToolCallId));
 		}
 	}
 

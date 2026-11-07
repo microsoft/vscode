@@ -16,6 +16,9 @@ import { IOpenerService } from '../../../platform/opener/common/opener.js';
 import { NotificationAccessibleView } from '../../browser/parts/notifications/notificationAccessibleView.js';
 import { INotificationViewItem, NotificationsModel } from '../../common/notifications.js';
 import { workbenchInstantiationService } from './workbenchTestServices.js';
+import { ITelemetryService } from '../../../platform/telemetry/common/telemetry.js';
+import { NotificationActionTelemetryId, NotificationTelemetryId, withNotificationActionTelemetry } from '../../../platform/notification/common/notificationTelemetry.js';
+import { TestNotificationTelemetryService } from '../common/testNotificationTelemetry.js';
 
 suite('NotificationAccessibleView', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -25,6 +28,8 @@ suite('NotificationAccessibleView', () => {
 		document.body.appendChild(container);
 		store.add(toDisposable(() => container.remove()));
 		const instantiationService = workbenchInstantiationService(undefined, store);
+		const telemetry = new TestNotificationTelemetryService();
+		instantiationService.stub(ITelemetryService, telemetry);
 		const model = store.add(new NotificationsModel());
 		const handles = [...notifications].reverse().map(notification => {
 			const handle = model.addNotification(notification);
@@ -64,6 +69,7 @@ suite('NotificationAccessibleView', () => {
 		});
 		const implementation = new NotificationAccessibleView();
 		return {
+			telemetry,
 			handle: handles[0],
 			handles,
 			opened,
@@ -78,6 +84,34 @@ suite('NotificationAccessibleView', () => {
 			}
 		};
 	}
+
+	for (const role of ['primary', 'secondary'] as const) {
+		test(`records accessible-view exposure and ${role} action once without collecting content`, async () => {
+			let invoked = 0;
+			const action = withNotificationActionTelemetry(toAction({ id: 'private ID', label: 'Private label', run: () => invoked++ }), NotificationActionTelemetryId.Continue);
+			const notification = setupNotification([{
+				severity: Severity.Info, message: 'private message', telemetry: NotificationTelemetryId.AuthenticationContinue,
+				actions: { [role]: [action] }
+			}]);
+			notification.createProvider().showing.dispose();
+			const { provider } = notification.createProvider();
+			await provider.actions!.find(candidate => candidate.id === action.id)!.run();
+			assert.deepStrictEqual({
+				invoked,
+				shown: notification.telemetry.shown.map(event => event.surface),
+				actions: notification.telemetry.interactions.map(event => [event.interaction, event.actionRole, event.actionId, event.surface]),
+				privatePayload: JSON.stringify(notification.telemetry.events).includes('private')
+			}, { invoked: 1, shown: ['accessibleView'], actions: [[`${role}Action`, role, 'continue', 'accessibleView']], privatePayload: false });
+		});
+	}
+
+	test('accessible-view clear is a dismissal, not progress cancellation or an automatic-close event', async () => {
+		const notification = setupNotification([{ severity: Severity.Info, message: 'Progress', progress: { infinite: true } }]);
+		const { provider } = notification.createProvider();
+		await provider.actions!.find(action => action.id === 'clearNotification')!.run();
+		notification.handle.close();
+		assert.deepStrictEqual(notification.telemetry.interactions.map(event => [event.interaction, event.surface]), [['dismiss', 'accessibleView']]);
+	});
 
 	test('releases close listeners when show resources are disposed while the notification survives', () => {
 		const notification = setupNotification();

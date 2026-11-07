@@ -59,7 +59,11 @@
 }
 
 .monaco-editor .minimap {
-	z-index: 5;
+	/*
+	 * Same z-index as sticky scroll: the minimap still paints above it because it comes later in the DOM,
+	 * but stays below the editor group border (z-index 5), which it would otherwise cover when on the left.
+	 */
+	z-index: 4;
 }
 
 .monaco-editor .minimap canvas {

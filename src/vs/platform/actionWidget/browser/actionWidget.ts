@@ -62,6 +62,14 @@ export interface IActionWidgetService {
 	 */
 	focusItemById(itemId: string): void;
 
+	/** Collapses the section that contains the focused item. */
+	collapseSection(): void;
+
+	/** Expands the section that contains the focused item. */
+	expandSection(): void;
+
+	setFilter(value: string, focusItemId?: string): void;
+
 	hide(didCancel?: boolean): void;
 
 	readonly isVisible: boolean;
@@ -143,6 +151,10 @@ export class ActionWidgetService extends Disposable implements IActionWidgetServ
 
 	toggleSection(): boolean {
 		return this._list?.value?.toggleFocusedSection() ?? false;
+	}
+
+	setFilter(value: string, focusItemId?: string): void {
+		this._list.value?.setFilter(value, focusItemId);
 	}
 
 	clearFilter(): boolean {

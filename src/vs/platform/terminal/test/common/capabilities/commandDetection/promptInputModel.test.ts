@@ -8,8 +8,10 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/
 import { NullLogService } from '../../../../../log/common/log.js';
 import { PromptInputModel, type IPromptInputModelState } from '../../../../common/capabilities/commandDetection/promptInputModel.js';
 import { Emitter } from '../../../../../../base/common/event.js';
+import { toDisposable } from '../../../../../../base/common/lifecycle.js';
 import type { ITerminalCommand } from '../../../../common/capabilities/capabilities.js';
 import { ok, notDeepStrictEqual, strictEqual } from 'assert';
+import { useFakeTimers } from 'sinon';
 import { timeout } from '../../../../../../base/common/async.js';
 import { importAMDNodeModule } from '../../../../../../amdX.js';
 import { GeneralShellType, PosixShellType } from '../../../../common/terminal.js';
@@ -157,6 +159,20 @@ suite('PromptInputModel', () => {
 
 		fireCommandFinished();
 		strictEqual(promptInputModel.value, '');
+	});
+
+	test('should update input when the system clock moves backwards', async () => {
+		await writePromise('$ ');
+		fireCommandStart();
+		await assertPromptInput('|');
+
+		await writePromise('foo');
+		await assertPromptInput('foo|');
+
+		const clock = useFakeTimers({ now: Date.now() - 10_000, toFake: ['Date'] });
+		store.add(toDisposable(() => clock.restore()));
+		await writePromise(' bar');
+		await assertPromptInput('foo bar|');
 	});
 
 	test('cursor navigation', async () => {

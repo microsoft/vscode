@@ -55,6 +55,9 @@ import { CONFIGURE_VOICE_INSTRUCTIONS_ACTION_ID } from '../../chat/browser/actio
 import { IVoiceModeOnboardingService } from './voiceModeOnboarding.js';
 import { SHOW_VOICE_MODE_ONBOARDING_COMMAND } from '../../chat/browser/speechToText/micButtonMenuActions.js';
 import { IsSessionsWindowContext } from '../../../common/contextkeys.js';
+import { IWorkbenchEnvironmentService } from '../../../services/environment/common/environmentService.js';
+import { IChatWidgetService } from '../../chat/browser/chat.js';
+import { IChatExecuteActionContext } from '../../chat/browser/actions/chatExecuteActions.js';
 
 // --- Context Keys ---
 
@@ -256,7 +259,7 @@ registerAction2(class extends Action2 {
 			},
 		});
 	}
-	async run(accessor: ServicesAccessor): Promise<void> {
+	async run(accessor: ServicesAccessor, context?: IChatExecuteActionContext): Promise<void> {
 		const voiceController = accessor.get(IVoiceSessionController);
 		const keybindingService = accessor.get(IKeybindingService);
 		const handsFree = accessor.get(IConfigurationService).getValue<boolean>('agents.voice.handsFree') === true;
@@ -275,7 +278,10 @@ registerAction2(class extends Action2 {
 
 		// An explicit press in another composer transfers Voice Mode ownership to
 		// that composer. The draft sentinel deliberately clears the concrete target.
-		const currentSession = await accessor.get(ICommandService).executeCommand<string | undefined>('_chat.voice.getCurrentSession');
+		const widget = accessor.get(IWorkbenchEnvironmentService).isSessionsWindow
+			? undefined : context?.widget ?? accessor.get(IChatWidgetService).lastFocusedWidget;
+		const currentSession = widget?.viewModel?.sessionResource.toString()
+			?? await accessor.get(ICommandService).executeCommand<string | undefined>('_chat.voice.getCurrentSession');
 		if (currentSession) {
 			try {
 				const resource = URI.parse(currentSession);
@@ -469,7 +475,7 @@ registerAction2(class extends Action2 {
 // The Disconnect-on-Escape action above deliberately does NOTHING while a
 // request is running (its `when` negates hasActiveRequest) so it doesn't tear
 // down the voice session mid-turn. But the built-in Cancel action is bound to
-// Cmd/Ctrl+Escape (Alt+Backspace on Windows), so plain Escape would otherwise
+// Ctrl+Escape (Alt+Backspace on Windows), so plain Escape would otherwise
 // be a no-op there. Restore the expected behavior: plain Escape cancels the
 // in-flight request while leaving the idle-only disconnect intact.
 
@@ -659,6 +665,21 @@ configurationRegistry.registerConfiguration({
 			default: true,
 			tags: ['experimental'],
 			scope: ConfigurationScope.APPLICATION,
+		},
+		[AgentsVoiceSettingId.UseBYOKVoiceModel]: {
+			type: 'string',
+			markdownDescription: nls.localize('agents.voice.useBYOKVoiceModel', "The OpenAI live model ID to use for Voice Mode with your configured API key. Add the key in Models Management. Voice Mode uses this model when client BYOK is allowed and the key has access to it; leave empty to use the hosted voice model, which requires a paid Copilot plan."),
+			default: '',
+			tags: ['experimental'],
+			scope: ConfigurationScope.APPLICATION,
+		},
+		[AgentsVoiceSettingId.SessionAwareness]: {
+			type: 'boolean',
+			markdownDescription: nls.localize('agents.voice.sessionAwareness', "Share a bounded briefing of tracked sessions and the active chat's recent conversation with OpenAI BYOK Voice Mode, so it can answer session status questions directly. This includes session titles, response summaries, pending prompt details, the selected model, and attachment names, but not attachment contents. Disable to restore input-only context. Changes take effect when Voice Mode reconnects."),
+			default: true,
+			tags: ['experimental'],
+			scope: ConfigurationScope.APPLICATION,
+			restricted: true,
 		},
 		'agents.voice.backendUrl': {
 			type: 'string',

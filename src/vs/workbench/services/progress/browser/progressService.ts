@@ -20,6 +20,7 @@ import { IKeybindingService } from '../../../../platform/keybinding/common/keybi
 import { parseLinkedText } from '../../../../base/common/linkedText.js';
 import { isLegacyExtensionLinkParsing } from '../../../../platform/notification/common/notificationLegacy.js';
 import { NotificationText } from '../../../../platform/notification/common/notificationMessage.js';
+import { NotificationActionTelemetryId, withNotificationActionTelemetry } from '../../../../platform/notification/common/notificationTelemetry.js';
 import { IViewDescriptorService, ViewContainerLocation } from '../../../common/views.js';
 import { IViewsService } from '../../views/common/viewsService.js';
 import { IPaneCompositePartService } from '../../panecomposite/browser/panecomposite.js';
@@ -327,11 +328,13 @@ export class ProgressService extends Disposable implements IProgressService {
 					}
 				};
 				notificationDisposables.add(cancelAction);
+				withNotificationActionTelemetry(cancelAction, NotificationActionTelemetryId.ProgressCancel);
 
 				primaryActions.push(cancelAction);
 			}
 
 			const notification = this.notificationService.notify({
+				telemetry: options.telemetry,
 				severity: Severity.Info,
 				message: typeof message === 'string' ? stripIcons(message) : message.mapText(stripIcons),
 				legacyExtensionLinkParsing: options.legacyExtensionLinkParsing,

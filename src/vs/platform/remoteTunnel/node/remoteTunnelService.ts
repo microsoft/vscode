@@ -37,12 +37,16 @@ type RemoteTunnelConnectedClassification = {
 	owner: 'aeschli';
 	comment: 'Reporting when a Remote Tunnel connection is established';
 	tunnelName: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The name of the connected tunnel' };
-	isAttached: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the connection is attached to an existing tunnel process' };
+	isAttached: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Whether the connection is attached to an existing tunnel process' };
+	tunnelSessionId?: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The VS Code telemetry session ID supplied to the CLI.' };
+	operationId?: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The operation ID supplied to the CLI for tunnel service requests.' };
 };
 
 type RemoteTunnelConnectedEvent = {
 	tunnelName: string;
 	isAttached: boolean;
+	tunnelSessionId?: string;
+	operationId?: string;
 };
 
 const restartTunnelOnConfigurationChanges: readonly string[] = [
@@ -231,6 +235,7 @@ export class RemoteTunnelService extends Disposable implements IRemoteTunnelServ
 			this.telemetryService.publicLog2<RemoteTunnelConnectedEvent, RemoteTunnelConnectedClassification>('remoteTunnel.connected', {
 				tunnelName: info.tunnelName,
 				isAttached: info.isAttached,
+				...(event.correlation ? { tunnelSessionId: event.correlation.sessionId, operationId: event.correlation.operationId } : {}),
 			});
 			this.setTunnelStatus(TunnelStates.connected(info, this.tunnelProcessCoordinator.getStatus().serviceInstallFailed));
 		} else if (event.status.type === 'tokenError') {

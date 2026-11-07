@@ -33,6 +33,10 @@ run({
 	srcDir,
 	outdir: outDir,
 	additionalOptions: {
-		external: ['vscode', '@vscode/fs-copyfile'],
+		// `debug` (through `file-type`) loads its optional peer `supports-color` in a try/catch. The
+		// extension doesn't depend on it, so the bundle would otherwise get whichever copy is
+		// hoisted to the repository root for the dev tools. At runtime the require fails and `debug`
+		// uses its basic colors.
+		external: ['vscode', '@vscode/fs-copyfile', 'supports-color'],
 	},
 }, process.argv, copyNonTsFiles);

@@ -20,13 +20,7 @@ export const enum AgentHostConfigKey {
 	 * TODO: revisit magic key in config; refine into a dedicated typed channel. https://github.com/microsoft/vscode/issues/313812
 	 */
 	DefaultShell = 'defaultShell',
-	/**
-	 * Experimentation flag for conditional Agent Host auth. When true, session
-	 * types that are usable without GitHub remain available to signed-out users
-	 * instead of forcing GitHub sign-in. The workbench forwards it here from the
-	 * `chat.agentHost.allowSignedOutWhenUsable` VS Code setting; when unset the
-	 * feature is dark (today's always-proxy behavior).
-	 */
+	/** Legacy wire key; remove once all supported hosts allow signed-out operation unconditionally. */
 	AllowSignedOutWhenUsable = 'allowSignedOutWhenUsable',
 	/**
 	 * Optional GitHub Enterprise base URI (e.g. `https://ghe.example.com` for a
@@ -83,12 +77,6 @@ export const agentHostCustomizationConfigSchema = createSchema({
 		type: 'string',
 		title: localize('agentHost.config.defaultShell.title', "Default Shell"),
 		description: localize('agentHost.config.defaultShell.description', "Absolute path to the shell executable used by host-managed terminals. Normally pushed by the connected VS Code client from `terminal.integrated.agentHostProfile.<os>` (falling back to `terminal.integrated.defaultProfile.<os>`); when unset, the agent host falls back to the system shell. Only the path is supported; `args` and `env` from the workbench profile are not piped through yet. The workbench only pushes this for the local agent host — remote agent host operators should set this directly in the remote machine's `agent-host-config.json`."),
-	}),
-	[AgentHostConfigKey.AllowSignedOutWhenUsable]: schemaProperty<boolean>({
-		type: 'boolean',
-		title: localize('agentHost.config.allowSignedOutWhenUsable.title', "Allow Signed-Out Agent Host"),
-		description: localize('agentHost.config.allowSignedOutWhenUsable.description', "Experimental. When enabled, Agent Host sessions remain available while signed out as long as the selected agent has a usable model and authentication (for example Codex with ChatGPT authentication or Claude in native mode with your own Anthropic credentials). When disabled (the default), GitHub sign-in is required."),
-		default: false,
 	}),
 	[AgentHostConfigKey.GithubEnterpriseUri]: schemaProperty<string>({
 		type: 'string',

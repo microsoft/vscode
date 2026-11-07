@@ -192,7 +192,14 @@ export function createAnchoredSizeEditBatch(
 	};
 }
 
-export function mapLogicalPosition(position: ILogicalPosition, edit: IAnchoredSizeEditBatch): ILogicalPosition {
+/**
+ * Where a position inside the removed tail of a shrunk item is mapped to.
+ * A viewport edge should keep the shrunk item on its viewport side: the top edge
+ * keeps the item's new start, the bottom edge keeps the item's new end.
+ */
+export type RemovedPositionAffinity = 'itemStart' | 'itemEnd';
+
+export function mapLogicalPosition(position: ILogicalPosition, edit: IAnchoredSizeEditBatch, removedPositionAffinity: RemovedPositionAffinity = 'itemStart'): ILogicalPosition {
 	if (position.revision !== edit.fromRevision) {
 		throw new BugIndicatingError(`Cannot map layout revision ${position.revision} through revision ${edit.fromRevision}`);
 	}
@@ -205,7 +212,7 @@ export function mapLogicalPosition(position: ILogicalPosition, edit: IAnchoredSi
 			const relativeOffset = position.offset - sizeEdit.oldRange.start;
 			mappedOffset = relativeOffset < sizeEdit.newRange.length
 				? sizeEdit.newRange.start + relativeOffset
-				: sizeEdit.newRange.start;
+				: removedPositionAffinity === 'itemEnd' ? sizeEdit.newRange.endExclusive : sizeEdit.newRange.start;
 			return { revision: edit.toRevision, offset: mappedOffset };
 		}
 		mappedOffset = position.offset + sizeEdit.newRange.endExclusive - sizeEdit.oldRange.endExclusive;

@@ -2,12 +2,12 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-import elkLayouts from '@mermaid-js/layout-elk';
 import tidyTreeLayouts from '@mermaid-js/layout-tidy-tree';
 import zenuml from '@mermaid-js/mermaid-zenuml';
 import mermaid, { MermaidConfig } from 'mermaid';
 import { iconPacks } from './iconPackConfig';
 import { ClickDragMode, MermaidExtensionConfig, ShowControlsMode } from './config';
+import { subgraphTitleMargin } from './subgraphTitles';
 import { vsCodeMermaidTheme, VsCodeMermaidThemeTracker } from './vsCodeTheme';
 
 /**
@@ -152,7 +152,6 @@ export async function renderMermaidBlocksInElement(
 
 export async function registerMermaidAddons() {
 	mermaid.registerIconPacks(iconPacks);
-	mermaid.registerLayoutLoaders(elkLayouts);
 	mermaid.registerLayoutLoaders(tidyTreeLayouts);
 	await mermaid.registerExternalDiagrams([zenuml]);
 }
@@ -187,6 +186,8 @@ export function buildMermaidConfig(
 ): MermaidConfig {
 	return {
 		startOnLoad: false,
+		look: 'classic',
+		flowchart: { subGraphTitleMargin: { ...subgraphTitleMargin } },
 		...vsCodeThemeTracker.resolveMermaidTheme(extensionConfig),
 	};
 }

@@ -1486,12 +1486,12 @@ registerThemingParticipant((theme, collector) => {
 	if (hcBorder) {
 		collector.addRule(`.monaco-editor .find-widget { border: 1px solid ${hcBorder}; }`);
 	}
-	const findMatchForeground = theme.getColor(editorFindMatchForeground);
-	if (findMatchForeground) {
-		collector.addRule(`.monaco-editor .findMatchInline { color: ${findMatchForeground}; }`);
-	}
 	const findMatchHighlightForeground = theme.getColor(editorFindMatchHighlightForeground);
 	if (findMatchHighlightForeground) {
-		collector.addRule(`.monaco-editor .currentFindMatchInline { color: ${findMatchHighlightForeground}; }`);
+		collector.addRule(`.monaco-editor .findMatchInline { color: ${findMatchHighlightForeground}; }`);
+	}
+	const findMatchForeground = theme.getColor(editorFindMatchForeground);
+	if (findMatchForeground) {
+		collector.addRule(`.monaco-editor .currentFindMatchInline { color: ${findMatchForeground}; }`);
 	}
 });

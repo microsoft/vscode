@@ -4,25 +4,35 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { DeferredPromise } from '../../../../base/common/async.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { VSBuffer, bufferToStream } from '../../../../base/common/buffer.js';
 import { Event } from '../../../../base/common/event.js';
 import { DisposableStore } from '../../../../base/common/lifecycle.js';
+import { mock } from '../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
-import { agentFinderMcpRegistryManifest, getAgentFinderMcpServerUrl } from '../../../agentFinder/common/agentFinderMcpRegistry.js';
 import { IFileService } from '../../../files/common/files.js';
 import { NullLogService } from '../../../log/common/log.js';
 import { IRequestContext, IRequestOptions } from '../../../../base/parts/request/common/request.js';
 import { IRequestService } from '../../../request/common/request.js';
 import { IGalleryMcpServer, IMcpServerInput, McpGalleryResolveStatus } from '../../common/mcpManagement.js';
 import { IMcpGalleryManifest, IMcpGalleryManifestService, McpGalleryManifestStatus, McpGalleryResourceType } from '../../common/mcpGalleryManifest.js';
-import { McpGalleryService, UnsupportedMcpGalleryPackageError } from '../../common/mcpGalleryService.js';
+import { McpGalleryInvalidCursorError, McpGalleryService, UnsupportedMcpGalleryPackageError } from '../../common/mcpGalleryService.js';
+import { CustomizationMarketplaceService } from '../../../customizationMarketplace/common/customizationMarketplaceService.js';
+import { McpGalleryMarketplaceProvider } from '../../../customizationMarketplace/common/mcpGalleryMarketplaceProvider.js';
+import { TestConfigurationService } from '../../../configuration/test/common/testConfigurationService.js';
+import { IProductService } from '../../../product/common/productService.js';
 
 const SERVERS_URL = 'https://registry.test/servers';
 const NAMED_TEMPLATE = 'https://registry.test/servers/{name}';
+const DIRECT_MANIFEST: IMcpGalleryManifest = { version: 'v0.1', url: SERVERS_URL, resources: [] };
 
 function serverUrl(name: string): string {
 	return `https://registry.test/servers/${name}`;
+}
+
+function versionedServerUrl(name: string, version: string): string {
+	return `${SERVERS_URL}/${encodeURIComponent(name)}/versions/${encodeURIComponent(version)}`;
 }
 
 function serverDocumentData(name: string, registryTypes: readonly string[], remotes?: readonly { type: string; url: string; variables?: Record<string, IMcpServerInput> }[]) {
@@ -100,13 +110,17 @@ class StatusRequestService implements IRequestService {
 	readonly onDidCompleteRequest = Event.None;
 	readonly requests: IRequestOptions[] = [];
 
-	constructor(private readonly statusCode: number, private readonly body: string = '') { }
+	constructor(
+		private readonly statusCode: number | ((options: IRequestOptions) => number),
+		private readonly body: string | ((options: IRequestOptions) => string) = '',
+		private readonly headers: IRequestContext['res']['headers'] = {},
+	) { }
 
 	async request(options: IRequestOptions): Promise<IRequestContext> {
 		this.requests.push(options);
 		return {
-			res: { statusCode: this.statusCode, headers: {} },
-			stream: bufferToStream(VSBuffer.fromString(this.body)),
+			res: { statusCode: typeof this.statusCode === 'number' ? this.statusCode : this.statusCode(options), headers: this.headers },
+			stream: bufferToStream(VSBuffer.fromString(typeof this.body === 'string' ? this.body : this.body(options))),
 		};
 	}
 
@@ -142,7 +156,7 @@ suite('McpGalleryService - marketplace pages', () => {
 	test('uses the gallery cursor and bounded page size without replaying the search text', async () => {
 		const requests = new StatusRequestService(200, JSON.stringify({
 			servers: [serverDocumentData('io.github.owner/server', ['npm'])],
-			metadata: { count: 2, nextCursor: 'opaque+/=' },
+			metadata: { count: 1, total: 2, nextCursor: 'opaque+/=' },
 		}));
 		const service = disposables.add(new McpGalleryService(requests, {} as IFileService, new NullLogService(), createManifestService(manifest)));
 		const first = await service.queryPage({ text: 'server', pageSize: 2 }, CancellationToken.None);
@@ -157,6 +171,69 @@ suite('McpGalleryService - marketplace pages', () => {
 			next: { names: ['io.github.owner/server'], cursor: 'opaque+/=' },
 		});
 	});
+
+	for (const total of [undefined, 491]) {
+		test(`preserves 100-item registry pages with ${total === undefined ? 'unknown' : 'explicit'} totals`, async () => {
+			const requests = new StatusRequestService(200, options => JSON.stringify({
+				servers: Array.from({ length: 100 }, (_, index) => serverDocumentData(`io.github.owner/server-${options.url?.includes('cursor=') ? index + 100 : index}`, ['npm'])),
+				metadata: { count: 100, total, nextCursor: options.url?.includes('cursor=') ? undefined : 'next-page' },
+			}));
+			const manifests = createManifestService(manifest);
+			const gallery = disposables.add(new McpGalleryService(requests, {} as IFileService, new NullLogService(), manifests));
+			const provider = new McpGalleryMarketplaceProvider('default', gallery, manifests, new TestConfigurationService(), {} as IProductService);
+			const platform = new CustomizationMarketplaceService([provider]);
+			const workbench = new CustomizationMarketplaceService([{
+				id: 'platform.mcpGallery',
+				query: async (options, token) => {
+					const page = await platform.query({ ...options, sourceIds: ['mcpGallery'], cursor: options.cursor ? { token: options.cursor } : undefined }, token);
+					return { ...page, nextCursor: page.nextCursor?.token };
+				},
+			}]);
+			const page = await workbench.query({ sourceIds: ['platform.mcpGallery'], pageSize: 100 }, CancellationToken.None);
+			const next = await workbench.query({ sourceIds: ['platform.mcpGallery'], pageSize: 100, cursor: page.nextCursor }, CancellationToken.None);
+			assert.deepStrictEqual({
+				requests: requests.requests.map(request => request.url),
+				items: page.items.length,
+				total: page.total,
+				hasNextCursor: !!page.nextCursor,
+				sourceErrors: page.sourceErrors,
+				next: { items: next.items.length, total: next.total, cursor: next.nextCursor },
+			}, {
+				requests: [`${SERVERS_URL}?limit=100&version=latest`, `${SERVERS_URL}?limit=100&version=latest&cursor=next-page`],
+				items: 100,
+				total,
+				hasNextCursor: true,
+				sourceErrors: undefined,
+				next: { items: 100, total, cursor: undefined },
+			});
+		});
+	}
+
+	for (const version of ['v0', 'v0.1']) {
+		for (const total of [undefined, 2]) {
+			test(`uses only explicit catalog totals for ${version} pages (${total ?? 'unknown'})`, async () => {
+				const requests = new StatusRequestService(200, JSON.stringify({
+					servers: [serverDocumentData('io.github.owner/server', ['npm'])],
+					metadata: { count: 1, total },
+				}));
+				const service = disposables.add(new McpGalleryService(requests, {} as IFileService, new NullLogService(), createManifestService({ ...manifest, version })));
+				const page = await service.queryPage({ pageSize: 2 }, CancellationToken.None);
+				assert.deepStrictEqual({ items: page.items.length, total: page.total }, { items: 1, total });
+			});
+		}
+	}
+
+	for (const total of [-1, 0, 1.5, '2', Number.MAX_SAFE_INTEGER + 1]) {
+		test(`does not report an invalid registry total (${total})`, async () => {
+			const requests = new StatusRequestService(200, JSON.stringify({
+				servers: [serverDocumentData('io.github.owner/server', ['npm'])],
+				metadata: { count: 1, total },
+			}));
+			const service = disposables.add(new McpGalleryService(requests, {} as IFileService, new NullLogService(), createManifestService(manifest)));
+			const page = await service.queryPage({ pageSize: 2 }, CancellationToken.None);
+			assert.strictEqual(page.total, undefined);
+		});
+	}
 
 	test('pins marketplace pages to the supplied custom registry while legacy queries use the active manifest', async () => {
 		const requests = new StatusRequestService(200, JSON.stringify({ servers: [], metadata: { count: 0 } }));
@@ -179,6 +256,94 @@ suite('McpGalleryService - marketplace pages', () => {
 		await assert.rejects(service.queryPage({ pageSize: 30 }, CancellationToken.None), /HTTP 503/);
 		const legacy = await service.query(undefined, CancellationToken.None);
 		assert.deepStrictEqual(legacy.firstPage, { items: [], hasMore: false });
+	});
+
+	test('classifies a registry-issued invalid continuation cursor', async () => {
+		const requests = new StatusRequestService(400, 'Invalid cursor parameter');
+		const service = disposables.add(new McpGalleryService(requests, {} as IFileService, new NullLogService(), createManifestService(manifest)));
+
+		await assert.rejects(
+			service.queryPage({ pageSize: 30, cursor: 'registry-cursor' }, CancellationToken.None),
+			error => error instanceof McpGalleryInvalidCursorError,
+		);
+	});
+
+	test('reports rate limits with a bounded retry delay and suppresses requests during the cooldown', async () => {
+		const requests = new StatusRequestService(429, '', { 'retry-after': '7200' });
+		const service = disposables.add(new McpGalleryService(requests, {} as IFileService, new NullLogService(), createManifestService(manifest)));
+
+		await assert.rejects(service.queryPage({ pageSize: 30 }, CancellationToken.None), /Try again in 3600 seconds/);
+		await assert.rejects(service.queryPage({ pageSize: 30 }, CancellationToken.None), /Try again in 3600 seconds/);
+
+		assert.strictEqual(requests.requests.length, 1);
+	});
+
+	test('scopes rate-limit cooldowns to the gallery query endpoint', async () => {
+		const otherServersUrl = 'https://other-registry.test/servers';
+		const requestedUrls: string[] = [];
+		const requests = new class extends mock<IRequestService>() {
+			override async request(options: IRequestOptions): Promise<IRequestContext> {
+				requestedUrls.push(options.url ?? '');
+				const rateLimited = options.url?.startsWith(SERVERS_URL);
+				return {
+					res: { statusCode: rateLimited ? 429 : 200, headers: rateLimited ? { 'retry-after': '60' } : {} },
+					stream: bufferToStream(VSBuffer.fromString(rateLimited ? '' : JSON.stringify({
+						servers: [serverDocumentData('io.github.owner/server', ['npm'])],
+						metadata: { count: 1 },
+					}))),
+				};
+			}
+		}();
+		const service = disposables.add(new McpGalleryService(requests, {} as IFileService, new NullLogService(), createManifestService(manifest)));
+		const otherManifest: IMcpGalleryManifest = {
+			...manifest,
+			resources: [{ id: otherServersUrl, type: McpGalleryResourceType.McpServersQueryService }],
+		};
+
+		await assert.rejects(service.queryPage({ pageSize: 30 }, CancellationToken.None), /Try again in 60 seconds/);
+		const healthy = await service.queryPage({ pageSize: 30 }, CancellationToken.None, otherManifest);
+		await assert.rejects(service.queryPage({ pageSize: 30 }, CancellationToken.None), /Try again in 60 seconds/);
+
+		assert.deepStrictEqual({
+			requestedUrls,
+			healthy: healthy.items.map(item => item.name),
+		}, {
+			requestedUrls: [
+				`${SERVERS_URL}?limit=30&version=latest`,
+				`${otherServersUrl}?limit=30&version=latest`,
+			],
+			healthy: ['io.github.owner/server'],
+		});
+	});
+
+	test('keeps a live cooldown after an overlapping request succeeds', async () => {
+		const responses: DeferredPromise<IRequestContext>[] = [];
+		const requests = new class extends mock<IRequestService>() {
+			override request(): Promise<IRequestContext> {
+				const response = new DeferredPromise<IRequestContext>();
+				responses.push(response);
+				return response.p;
+			}
+		}();
+		const service = disposables.add(new McpGalleryService(requests, {} as IFileService, new NullLogService(), createManifestService(manifest)));
+		const rateLimited = service.queryPage({ pageSize: 30 }, CancellationToken.None, manifest);
+		const successful = service.queryPage({ pageSize: 30 }, CancellationToken.None, manifest);
+		await responses[0].complete({
+			res: { statusCode: 429, headers: { 'retry-after': '60' } },
+			stream: bufferToStream(VSBuffer.fromString('')),
+		});
+		await assert.rejects(rateLimited, /Try again in 60 seconds/);
+		await responses[1].complete({
+			res: { statusCode: 200, headers: {} },
+			stream: bufferToStream(VSBuffer.fromString(JSON.stringify({
+				servers: [serverDocumentData('io.github.owner/server', ['npm'])],
+				metadata: { count: 1 },
+			}))),
+		});
+		await successful;
+		await assert.rejects(service.queryPage({ pageSize: 30 }, CancellationToken.None, manifest), /Try again in 60 seconds/);
+
+		assert.strictEqual(responses.length, 2);
 	});
 
 	test('does not invent a zero total when older registry responses omit count', async () => {
@@ -279,16 +444,17 @@ suite('McpGalleryService - getMcpServer HTTP status classification', () => {
 
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
-	function resolveStatusFor(statusCode: number, body: string = ''): Promise<McpGalleryResolveStatus> {
+	async function resolveStatusFor(statusCode: number, body: string = ''): Promise<{ status: McpGalleryResolveStatus; requests: number }> {
 		const store = disposables.add(new DisposableStore());
+		const requestService = new StatusRequestService(statusCode, body);
 		const service = store.add(new McpGalleryService(
-			new StatusRequestService(statusCode, body),
+			requestService,
 			{} as IFileService,
 			new NullLogService(),
 			createManifestService(manifest),
 		));
-		return service.resolveMcpServersFromGallery([{ name: 'io.github.owner/server' }])
-			.then(resolved => resolved.get('io.github.owner/server')!.status);
+		const resolved = await service.resolveMcpServersFromGallery([{ name: 'io.github.owner/server' }]);
+		return { status: resolved.get('io.github.owner/server')!.status, requests: requestService.requests.length };
 	}
 
 	test('only a definitive 404 is treated as not-found; every other status is undetermined', async () => {
@@ -304,14 +470,14 @@ suite('McpGalleryService - getMcpServer HTTP status classification', () => {
 		]);
 
 		assert.deepStrictEqual(results, [
-			McpGalleryResolveStatus.NotFound,
-			McpGalleryResolveStatus.Failed,
-			McpGalleryResolveStatus.Failed,
-			McpGalleryResolveStatus.Failed,
-			McpGalleryResolveStatus.Failed,
-			McpGalleryResolveStatus.Failed,
-			McpGalleryResolveStatus.Failed,
-			McpGalleryResolveStatus.Failed,
+			{ status: McpGalleryResolveStatus.NotFound, requests: 1 },
+			{ status: McpGalleryResolveStatus.Failed, requests: 1 },
+			{ status: McpGalleryResolveStatus.Failed, requests: 1 },
+			{ status: McpGalleryResolveStatus.Failed, requests: 1 },
+			{ status: McpGalleryResolveStatus.Failed, requests: 1 },
+			{ status: McpGalleryResolveStatus.Failed, requests: 1 },
+			{ status: McpGalleryResolveStatus.Failed, requests: 1 },
+			{ status: McpGalleryResolveStatus.Failed, requests: 1 },
 		]);
 	});
 });
@@ -365,10 +531,10 @@ suite('McpGalleryService - getMcpServer validation', () => {
 		assert.deepStrictEqual(requestService.requests, []);
 	});
 
-	test('does not follow redirects when requesting a gallery server', async () => {
+	test('does not retry or follow redirects from an already slash-terminated gallery server URL', async () => {
 		const requestService = new StatusRequestService(302, serverDocument());
 		const service = createService(requestService);
-		const url = serverUrl('io.github.owner/server');
+		const url = `${serverUrl('io.github.owner/server')}/`;
 
 		await assert.rejects(() => service.getMcpServer(url), /302/);
 
@@ -379,6 +545,98 @@ suite('McpGalleryService - getMcpServer validation', () => {
 			url,
 			followRedirects: 0
 		}]);
+	});
+
+	for (const statusCode of [0, 301, 302, 303, 307, 308]) {
+		test(`resolves a slash-terminated gallery server after status ${statusCode}`, async () => {
+			const name = 'io.github.owner/server';
+			const url = `${versionedServerUrl(name, 'latest')}?source=registry#details`;
+			const canonicalUrl = `${versionedServerUrl(name, 'latest')}/?source=registry#details`;
+			const requestService = new StatusRequestService(
+				options => options.url === canonicalUrl ? 200 : statusCode,
+				JSON.stringify(serverDocumentData(name, ['npm'])),
+			);
+			const service = createService(requestService);
+
+			const server = await service.getMcpServer(url, DIRECT_MANIFEST);
+
+			assert.deepStrictEqual({
+				name: server?.name,
+				requests: requestService.requests.map(request => ({
+					url: request.url, followRedirects: request.followRedirects, timeout: request.timeout,
+				})),
+			}, {
+				name,
+				requests: [
+					{ url, followRedirects: 0, timeout: 30_000 },
+					{ url: canonicalUrl, followRedirects: 0, timeout: 30_000 },
+				],
+			});
+		});
+	}
+
+	for (const statusCode of [0, 302, 308]) {
+		test(`does not retry again when the slash-terminated URL returns ${statusCode}`, async () => {
+			const url = versionedServerUrl('io.github.owner/server', 'latest');
+			const requestService = new StatusRequestService(statusCode);
+			const service = createService(requestService);
+
+			await assert.rejects(() => service.getMcpServer(url, DIRECT_MANIFEST), new RegExp(`responded with ${statusCode}`));
+
+			assert.deepStrictEqual(requestService.requests.map(request => request.url), [url, `${url}/`]);
+		});
+	}
+
+	for (const statusCode of [0, 302]) {
+		test(`does not treat a missing canonical URL after status ${statusCode} as authoritative absence`, async () => {
+			const name = 'io.github.owner/server';
+			const url = serverUrl(name);
+			const requestService = new StatusRequestService(options => options.url === `${url}/` ? 404 : statusCode);
+			const service = createService(requestService);
+
+			const resolved = await service.resolveMcpServersFromGallery([{ name }]);
+
+			assert.deepStrictEqual({
+				status: resolved.get(name)?.status,
+				requests: requestService.requests.map(request => request.url),
+			}, {
+				status: McpGalleryResolveStatus.Failed,
+				requests: [url, `${url}/`],
+			});
+		});
+	}
+
+	test('only probes the slash-terminated URL, never the redirect location', async () => {
+		const url = versionedServerUrl('io.github.owner/server', 'latest');
+		const requestService = new StatusRequestService(
+			options => options.url === `${url}/` ? 200 : 302,
+			serverDocument('npm'),
+			{ location: 'https://outside.test/server' },
+		);
+		const service = createService(requestService);
+
+		const server = await service.getMcpServer(url, DIRECT_MANIFEST);
+
+		assert.deepStrictEqual({
+			name: server?.name,
+			requests: requestService.requests.map(request => ({ url: request.url, followRedirects: request.followRedirects })),
+		}, {
+			name: 'io.github.owner/server',
+			requests: [{ url, followRedirects: 0 }, { url: `${url}/`, followRedirects: 0 }],
+		});
+	});
+
+	test('rejects unusable metadata from the slash-terminated URL', async () => {
+		const url = versionedServerUrl('io.github.owner/server', 'latest');
+		const requestService = new StatusRequestService(
+			options => options.url === `${url}/` ? 200 : 0,
+			serverDocument(),
+		);
+		const service = createService(requestService);
+
+		await assert.rejects(() => service.getMcpServer(url, DIRECT_MANIFEST), /Failed to serialize MCP server/);
+
+		assert.deepStrictEqual(requestService.requests.map(request => request.url), [url, `${url}/`]);
 	});
 
 	test('rejects unsupported v0.1 package registry types', async () => {
@@ -433,12 +691,12 @@ suite('McpGalleryService - getMcpServer validation', () => {
 		});
 	});
 
-	test('resolves a pinned GitHub Feed version with the supported package parser rather than the configured registry', async () => {
+	test('resolves a pinned registry version with the supported package parser', async () => {
 		const name = 'io.github.owner/server';
 		const requestService = new StatusRequestService(200, JSON.stringify(serverDocumentData(name, ['npm'])));
 		const service = createService(requestService);
-		const url = getAgentFinderMcpServerUrl(name, '1.0.0');
-		const server = await service.getMcpServer(url, agentFinderMcpRegistryManifest);
+		const url = versionedServerUrl(name, '1.0.0');
+		const server = await service.getMcpServer(url, DIRECT_MANIFEST);
 		assert.deepStrictEqual({
 			name: server?.name,
 			version: server?.version,
@@ -450,15 +708,15 @@ suite('McpGalleryService - getMcpServer validation', () => {
 		});
 	});
 
-	test('bounds versioned feed MCP records without truncating an allowed response', async () => {
+	test('bounds versioned MCP records without truncating an allowed response', async () => {
 		const name = 'io.github.owner/server';
-		const url = getAgentFinderMcpServerUrl(name, '1.0.0');
+		const url = versionedServerUrl(name, '1.0.0');
 		const document = JSON.stringify(serverDocumentData(name, ['npm']));
 		const size = 5 * 1024 * 1024;
 		const allowed = createService(new StatusRequestService(200, document.padEnd(size, ' ')));
 		const oversized = createService(new StatusRequestService(200, document.padEnd(size + 1, ' ')));
-		const server = await allowed.getMcpServer(url, agentFinderMcpRegistryManifest);
-		await assert.rejects(oversized.getMcpServer(url, agentFinderMcpRegistryManifest), /response is too large/);
+		const server = await allowed.getMcpServer(url, DIRECT_MANIFEST);
+		await assert.rejects(oversized.getMcpServer(url, DIRECT_MANIFEST), /response is too large/);
 		assert.strictEqual(server?.name, name);
 	});
 

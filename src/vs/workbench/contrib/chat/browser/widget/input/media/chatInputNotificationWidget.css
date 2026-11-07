@@ -45,6 +45,12 @@
 	color: var(--chat-input-notice-severity);
 }
 
+/* A running operation shows the in-progress indicator of an active session, in its colour. */
+.chat-input-notification-widget .chat-input-notification-icon.busy,
+.chat-input-notification-widget .chat-input-notification-icon.busy .codicon {
+	color: var(--vscode-textLink-foreground);
+}
+
 /*
  * Title and description share their type and wrapping; only weight, colour and
  * how they take space differ.
@@ -189,6 +195,30 @@
 .chat-input-notification-widget .chat-input-notification-action-button.secondary:not(.filled):hover {
 	background: var(--vscode-toolbar-hoverBackground);
 	opacity: 1;
+}
+
+/* Progress of a running operation: the standard progress bar under the title, aligned with it. */
+.chat-input-notification-widget .chat-input-notification-progress {
+	margin: var(--vscode-spacing-size40) 0 var(--vscode-spacing-size60) calc(var(--vscode-codiconFontSize) + var(--vscode-spacing-size60));
+}
+
+/* The bar's bit is positioned absolutely: keep it within the bar. */
+.chat-input-notification-widget .chat-input-notification-progress .monaco-progress-container {
+	position: relative;
+}
+
+/* Determinate progress is reported about once a second: the fill glides between updates. */
+.chat-input-notification-widget .chat-input-notification-progress .monaco-progress-container.discrete .progress-bit {
+	transition: width 1s linear;
+}
+
+/* Reduced motion: the fill jumps to each update, and indeterminate progress moves in coarse steps. */
+.monaco-reduce-motion .chat-input-notification-widget .chat-input-notification-progress .monaco-progress-container.discrete .progress-bit {
+	transition: none;
+}
+
+.monaco-reduce-motion .chat-input-notification-widget .chat-input-notification-progress .monaco-progress-container.infinite .progress-bit {
+	animation-timing-function: steps(10, end);
 }
 
 /* Dismiss + mute icon buttons are styled by `.chat-input-notice-action`. */

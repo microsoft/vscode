@@ -13,6 +13,8 @@ export interface IEditArcTelemetryEvent {
 	editSessionId: string | undefined;
 	requestId: string | undefined;
 	modelId: string | undefined;
+	autoTier?: string;
+	fusionModel?: string;
 	languageId: string | undefined;
 	mode: string | undefined;
 	uniqueEditId: string | undefined;
@@ -41,6 +43,8 @@ export type IEditArcTelemetryClassification = {
 	editSessionId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The session id.' };
 	requestId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The request id.' };
 	modelId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The model id.' };
+	autoTier?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The Auto routing tier committed when the edit was produced under Auto, e.g. balance, or hydrafusion or hydrafusion-max for Copilot Fusion High or Max. Omitted when the edit was not produced under Auto.' };
+	fusionModel?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The HydraFusion model (hydrafusion or hydrafusion-max) that routed the edit, as attributed by the runtime. Omitted when the edit was not produced by HydraFusion.' };
 	languageId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The language id of the document.' };
 	mode: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The mode chat was in.' };
 	uniqueEditId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The unique identifier for the edit.' };

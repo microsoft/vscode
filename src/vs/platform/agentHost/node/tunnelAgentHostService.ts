@@ -9,6 +9,8 @@ import type WebSocket from 'ws';
 import { Emitter, Event } from '../../../base/common/event.js';
 import { Disposable, toDisposable } from '../../../base/common/lifecycle.js';
 import { ILogService } from '../../log/common/log.js';
+import { ITelemetryService } from '../../telemetry/common/telemetry.js';
+import { createTunnelServiceCorrelation, tunnelServiceHeaders } from '../../remoteTunnel/common/tunnelServiceHeaders.js';
 import {
 	PendingGatewaySelection,
 	TunnelAgentHostConnector,
@@ -185,10 +187,11 @@ export class TunnelAgentHostMainService extends Disposable implements ITunnelAge
 
 	constructor(
 		@ILogService private readonly _logService: ILogService,
+		@ITelemetryService private readonly _telemetryService: ITelemetryService,
 	) {
 		super();
 		this._connector = this._register(new TunnelAgentHostConnector(
-			new NodeTunnelRelayClientFactory((token, authProvider) => this._createManagementClient(token, authProvider)),
+			new NodeTunnelRelayClientFactory((token, authProvider) => this._createManagementClient(token, authProvider, 'connect')),
 			new NodeTunnelSocketFactory(),
 			this._logService,
 		));
@@ -198,7 +201,7 @@ export class TunnelAgentHostMainService extends Disposable implements ITunnelAge
 	}
 
 	async listTunnels(token: string, authProvider: 'github' | 'microsoft', additionalTunnelNames?: string[]): Promise<ITunnelInfo[]> {
-		const client = await this._createManagementClient(token, authProvider);
+		const client = await this._createManagementClient(token, authProvider, 'list');
 		const results: ITunnelInfo[] = [];
 		const seen = new Set<string>();
 
@@ -248,7 +251,7 @@ export class TunnelAgentHostMainService extends Disposable implements ITunnelAge
 	}
 
 	async deleteTunnel(token: string, authProvider: 'github' | 'microsoft', tunnelId: string, clusterId: string): Promise<void> {
-		const client = await this._createManagementClient(token, authProvider);
+		const client = await this._createManagementClient(token, authProvider, 'delete');
 		this._logService.info(`${LOG_PREFIX} Deleting tunnel ${tunnelId} in cluster ${clusterId}...`);
 		await client.deleteTunnel({ tunnelId, clusterId });
 		this._connector.closeTunnelConnections(tunnelId, 'deleting');
@@ -279,14 +282,16 @@ export class TunnelAgentHostMainService extends Disposable implements ITunnelAge
 		return this._connector.disconnect(connectionId);
 	}
 
-	private async _createManagementClient(token: string, authProvider: 'github' | 'microsoft'): Promise<TunnelManagementHttpClient> {
+	private async _createManagementClient(token: string, authProvider: 'github' | 'microsoft', operation: 'list' | 'connect' | 'delete'): Promise<TunnelManagementHttpClient> {
 		const management = await import('@microsoft/dev-tunnels-management');
 		const authHeader = authProvider === 'github' ? `github ${token}` : `Bearer ${token}`;
-		return new management.TunnelManagementHttpClient(
+		const client = new management.TunnelManagementHttpClient(
 			'vscode-sessions',
 			management.ManagementApiVersions.Version20230927preview,
 			async () => authHeader,
 		);
+		client.additionalRequestHeaders = tunnelServiceHeaders(createTunnelServiceCorrelation(this._telemetryService, operation));
+		return client;
 	}
 }
 

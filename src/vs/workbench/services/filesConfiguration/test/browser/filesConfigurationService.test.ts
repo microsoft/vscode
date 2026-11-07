@@ -107,6 +107,65 @@ suite('FilesConfigurationService', () => {
 		assert.strictEqual(eventCount, 0);
 	});
 
+	test('updateReadonly only notifies when the session override changes', async () => {
+		const resource = URI.file('/test/file.txt');
+		let eventCount = 0;
+		const eventCounts: number[] = [];
+		disposables.add(service.onDidChangeReadonly(() => eventCount++));
+
+		for (const readonly of ['reset', true, true, false, false, 'reset', 'reset'] as const) {
+			await service.updateReadonly(resource, readonly);
+			eventCounts.push(eventCount);
+		}
+
+		assert.deepStrictEqual(eventCounts, [0, 1, 1, 2, 2, 3, 3]);
+	});
+
+	test('updateReadonly with arrays only notifies for changed overrides and applies every resource', async () => {
+		const first = URI.file('/test/file1.txt');
+		const second = URI.file('/test/file2.txt');
+		const third = URI.file('/test/file3.txt');
+		let eventCount = 0;
+		const eventCounts: number[] = [];
+		disposables.add(service.onDidChangeReadonly(() => eventCount++));
+
+		await service.updateReadonly(first, true);
+		for (const readonly of [true, true, false, false, 'reset', 'reset'] as const) {
+			await service.updateReadonly([first, second, third, first], readonly);
+			eventCounts.push(eventCount);
+		}
+
+		assert.deepStrictEqual({
+			eventCounts,
+			readonly: [first, second, third].map(resource => service.isReadonly(resource))
+		}, {
+			eventCounts: [2, 2, 3, 3, 4, 4],
+			readonly: [false, false, false]
+		});
+	});
+
+	test('updateReadonly only notifies for changes to a custom reason', async () => {
+		const resource = URI.file('/test/file.txt');
+		let eventCount = 0;
+		const eventCounts: number[] = [];
+		disposables.add(service.onDidChangeReadonly(() => eventCount++));
+		const trustedReason = new MarkdownString('Updated read-only reason');
+		trustedReason.isTrusted = true;
+
+		for (const reason of [
+			new MarkdownString('Custom read-only reason'),
+			new MarkdownString('Custom read-only reason'),
+			new MarkdownString('Updated read-only reason'),
+			trustedReason,
+			trustedReason
+		]) {
+			await service.updateReadonly(resource, reason);
+			eventCounts.push(eventCount);
+		}
+
+		assert.deepStrictEqual(eventCounts, [1, 1, 2, 3, 3]);
+	});
+
 	test('updateReadonly with array supports reset', async () => {
 		const resources = [
 			URI.file('/test/file1.txt'),

@@ -8,10 +8,10 @@ import { localize } from '../../../nls.js';
 import { IInstantiationService } from '../../instantiation/common/instantiation.js';
 import type { IChangesetOperationContribution, IChangesetOperationContext, IChangesetOperationRegistry } from '../common/agentHostChangesetOperationService.js';
 import { ChangesetKind } from '../common/changesetUri.js';
-import { SessionConfigKey } from '../common/sessionConfigKeys.js';
-import { ChangesetOperationScope, ChangesetOperationStatus, hasSessionPullRequestForBranch, type ChangesetOperation } from '../common/state/sessionState.js';
+import { ChangesetOperationScope, ChangesetOperationStatus, type ChangesetOperation } from '../common/state/sessionState.js';
 import { AgentHostCommitOperationHandler } from './agentHostCommitOperationHandler.js';
 import { AgentHostStateManager, IAgentHostStateManager } from './agentHostStateManager.js';
+import type { IAgentHostCredentialSource } from '../common/agentHostCredentials.js';
 
 export class AgentHostCommitOperationContribution extends Disposable implements IChangesetOperationContribution {
 
@@ -28,20 +28,21 @@ export class AgentHostCommitOperationContribution extends Disposable implements 
 		this._registry = registry;
 		const store = new DisposableStore();
 		const getSessionState = (sessionKey: string) => this._stateManager.getSessionState(sessionKey);
-		const handler = this._instantiationService.createInstance(AgentHostCommitOperationHandler, getSessionState, (sessionKey: string) => this._onCommitted(sessionKey));
+		const handler = this._instantiationService.createInstance(AgentHostCommitOperationHandler, getSessionState, (sessionKey: string, source?: IAgentHostCredentialSource) => this._onCommitted(sessionKey, source));
 		store.add(registry.registerChangesetOperationHandler(AgentHostCommitOperationHandler.OPERATION_COMMIT, handler));
 		store.add({ dispose: () => { this._registry = undefined; } });
 		return store;
 	}
 
-	getOperations({ sessionKey, changesetKind, gitHubState, gitState }: IChangesetOperationContext): ChangesetOperation[] {
-		const isNewSession = this._stateManager.isUnusedDraft(sessionKey) === true;
-		if (!isNewSession && (gitState?.uncommittedChanges ?? 0) <= 0) {
+	getOperations({ sessionKey, changesetKind, gitState }: IChangesetOperationContext): ChangesetOperation[] {
+		// Commit always commits every uncommitted change in the working directory,
+		// so it is only advertised on the changeset that shows exactly those changes.
+		if (changesetKind !== ChangesetKind.Uncommitted) {
 			return [];
 		}
 
-		const isFolderSession = this._stateManager.getSessionState(sessionKey)?.config?.values[SessionConfigKey.Isolation] === 'folder';
-		if (!isFolderSession && !hasSessionPullRequestForBranch(gitHubState, gitState?.branchName) && changesetKind !== ChangesetKind.Uncommitted) {
+		const isNewSession = this._stateManager.isUnusedDraft(sessionKey) === true;
+		if (!isNewSession && (gitState?.uncommittedChanges ?? 0) <= 0) {
 			return [];
 		}
 
@@ -55,8 +56,8 @@ export class AgentHostCommitOperationContribution extends Disposable implements 
 		} satisfies ChangesetOperation];
 	}
 
-	private async _onCommitted(sessionKey: string): Promise<void> {
+	private async _onCommitted(sessionKey: string, source?: IAgentHostCredentialSource): Promise<void> {
 		this._registry?.onDidChangeOperations(sessionKey);
-		await this._registry?.refreshSessionGitState(sessionKey);
+		await this._registry?.refreshSessionGitState(sessionKey, source);
 	}
 }

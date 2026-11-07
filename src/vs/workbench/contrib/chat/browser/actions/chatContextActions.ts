@@ -65,7 +65,7 @@ export function registerChatContextActions(): DisposableStore {
 	store.add(registerAction2(AttachSearchResultAction));
 	store.add(registerAction2(AttachPinnedEditorsToChatAction));
 	store.add(registerCreatePluginAction());
-	registerPromptActions(); // TODO@jrieken: should also return a DisposableStore
+	store.add(registerPromptActions());
 	return store;
 }
 

@@ -1,0 +1,42 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+.agent-sessions-list-notice {
+	display: flex;
+	flex-shrink: 0;
+	flex-direction: column;
+	gap: var(--vscode-spacing-size80);
+	margin: var(--vscode-spacing-size80) var(--vscode-spacing-size100);
+	padding: var(--vscode-spacing-size100);
+	border: var(--vscode-strokeThickness) solid var(--vscode-sideBarSectionHeader-border, transparent);
+	border-radius: var(--vscode-cornerRadius-medium);
+	background-color: var(--vscode-sideBarSectionHeader-background, var(--vscode-sideBar-background));
+}
+
+.agent-sessions-list-notice-content {
+	display: flex;
+	align-items: flex-start;
+	gap: var(--vscode-spacing-size80);
+	min-width: 0;
+}
+
+.agent-sessions-list-notice-description {
+	flex: 1;
+	min-width: 0;
+	line-height: 18px;
+	color: var(--vscode-foreground);
+}
+
+.agent-sessions-list-notice .agent-sessions-list-notice-dismiss {
+	flex-shrink: 0;
+	width: auto;
+	padding: var(--vscode-spacing-size20);
+}
+
+.agent-sessions-list-notice-actions {
+	display: flex;
+	flex-wrap: wrap;
+	gap: var(--vscode-spacing-size40);
+}

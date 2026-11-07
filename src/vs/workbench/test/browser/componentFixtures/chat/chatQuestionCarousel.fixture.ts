@@ -12,7 +12,7 @@ import { IMarkdownRendererService, MarkdownRendererService } from '../../../../.
 import { IChatQuestion, IChatQuestionCarousel } from '../../../../contrib/chat/common/chatService/chatService.js';
 import { ChatQuestionCarouselPart, IChatQuestionCarouselOptions } from '../../../../contrib/chat/browser/widget/chatContentParts/chatQuestionCarouselPart.js';
 import { IChatContentPartRenderContext, InlineTextModelCollection } from '../../../../contrib/chat/browser/widget/chatContentParts/chatContentParts.js';
-import { ComponentFixtureContext, createEditorServices, defineComponentFixture, defineThemedFixtureGroup } from '../fixtureUtils.js';
+import { ComponentFixtureContext, createEditorServices, defineComponentFixture, defineThemedFixtureGroup, waitForFixtureCondition } from '../fixtureUtils.js';
 import { Event } from '../../../../../base/common/event.js';
 import { observableValue } from '../../../../../base/common/observable.js';
 import { IChatRequestViewModel } from '../../../../contrib/chat/common/model/chatViewModel.js';
@@ -93,6 +93,53 @@ function renderCarousel(context: ComponentFixtureContext, carousel: IChatQuestio
 	afterRender?.(part);
 }
 
+interface ICarouselLayout {
+	readonly card: HTMLElement;
+	readonly title: HTMLElement;
+	readonly body: HTMLElement;
+	readonly content: HTMLElement;
+	readonly answers: HTMLElement;
+	readonly maxHeight: number;
+}
+
+async function renderLayoutCarousel(
+	context: ComponentFixtureContext,
+	carousel: IChatQuestionCarousel,
+	expectedLayout: (layout: ICarouselLayout) => boolean,
+	afterRender?: (part: ChatQuestionCarouselPart) => void,
+): Promise<void> {
+	renderCarousel(context, carousel, false, {}, afterRender);
+	const card = context.container.querySelector<HTMLElement>('.chat-question-carousel-container')!;
+	const title = card.querySelector<HTMLElement>('.chat-question-title-row')!;
+	const body = card.querySelector<HTMLElement>('.chat-question-body-scrollable')!;
+	const content = body.querySelector<HTMLElement>('.chat-question-input-container')!;
+	const answers = content.querySelector<HTMLElement>('.chat-question-answers')!;
+	const footer = card.querySelector<HTMLElement>('.chat-question-footer-row')!;
+	const validation = card.querySelector<HTMLElement>('.chat-question-validation-message')!;
+	let previousLayout = '';
+	await waitForFixtureCondition(() => {
+		const layoutState = {
+			card, title, body, content, answers,
+			maxHeight: Math.min(420, dom.getWindow(card).innerHeight * 0.45),
+		};
+		const layout = [card.clientHeight, title.clientHeight, body.clientHeight, content.clientHeight, content.scrollHeight, content.scrollTop, footer.offsetHeight, validation.offsetHeight].join(',');
+		const stable = layout === previousLayout;
+		previousLayout = layout;
+		const bodyLaidOut = body.clientHeight > 0 || card.classList.contains('chat-question-carousel-collapsed');
+		return stable && bodyLaidOut &&
+			footer.getBoundingClientRect().bottom <= card.getBoundingClientRect().bottom &&
+			expectedLayout(layoutState);
+	}, 'Question carousel did not reach the expected height allocation');
+}
+
+function hasOverflowingBody({ card, content, maxHeight }: ICarouselLayout): boolean {
+	return card.offsetHeight >= maxHeight - 1 && content.scrollHeight > content.clientHeight;
+}
+
+function hasFullyVisibleBody({ content }: ICarouselLayout): boolean {
+	return content.scrollHeight === content.clientHeight;
+}
+
 // ============================================================================
 // Sample questions
 // ============================================================================
@@ -148,6 +195,81 @@ const markdownLinksQuestion: IChatQuestion = {
 	].join('\n')),
 };
 
+// Boolean schema fields from MCP elicitation and the agent host are emitted as a required true/false single select.
+const booleanOptions: IChatQuestion['options'] = [
+	{ id: 'true', label: 'True', value: 'true' },
+	{ id: 'false', label: 'False', value: 'false' },
+];
+
+const deleteBranchesQuestion: IChatQuestion = {
+	id: 'delete-branches',
+	type: 'singleSelect',
+	title: 'Delete these 14 branches?',
+	options: booleanOptions,
+	allowFreeformInput: false,
+	required: true,
+};
+
+const experimentGateQuestion: IChatQuestion = {
+	id: 'experiment-gate',
+	type: 'singleSelect',
+	title: 'Gate the new layout behind an experiment?',
+	description: 'Users in the control group keep the current layout until the experiment concludes.',
+	options: booleanOptions,
+	allowFreeformInput: false,
+	required: true,
+};
+
+const rolloutQuestion: IChatQuestion = {
+	id: 'rollout',
+	type: 'singleSelect',
+	title: 'Rollout strategy',
+	options: [
+		{ id: 'canary', label: 'Canary rollout', value: 'canary' },
+		{ id: 'staged', label: 'Staged rollout', value: 'staged' },
+		{ id: 'all', label: 'Everyone at once', value: 'all' },
+	],
+	allowFreeformInput: false,
+};
+
+const telemetryQuestion: IChatQuestion = {
+	id: 'telemetry',
+	type: 'multiSelect',
+	title: 'Telemetry to collect',
+	options: [
+		{ id: 'exposure', label: 'Exposure events', value: 'exposure' },
+		{ id: 'interaction', label: 'Interaction events', value: 'interaction' },
+		{ id: 'performance', label: 'Performance timings', value: 'performance' },
+	],
+	allowFreeformInput: false,
+};
+
+const longContextMessage = [
+	'I found several merged feature branches and a few stale ones that have not been touched in months. Before I continue, I want to make sure the cleanup is safe for the whole team.',
+	'The change touches the release pipeline, the nightly build configuration, and the shared tooling scripts. Each of these is consumed by other repositories, so a mistake here could block unrelated work until it is reverted.',
+	'Here is what the proposed change would do:',
+	[
+		'- Rename `build/lib/release.ts` to `build/lib/publish.ts` and update every import of `releaseVersion()`',
+		'- Replace the `--legacy-publish` flag in `scripts/nightly.sh` with the new `--channel` option',
+		'- Remove the deprecated `product.json#quality` fallback used by `getProductQuality()`',
+		'- Regenerate the lockfile so `pnpm-lock.yaml` matches the updated workspace manifests',
+	].join('\n'),
+	'None of these steps can be undone automatically once the changes are pushed. If you are unsure, I can open a draft pull request first so the team can review it before anything is merged.',
+].join('\n\n');
+
+const longContextQuestion: IChatQuestion = {
+	id: 'proceed',
+	type: 'singleSelect',
+	title: 'Proceed?',
+	options: [
+		{ id: 'apply', label: 'Apply the changes directly to the main branch and push them right away', value: 'apply' },
+		{ id: 'draft', label: 'Open a draft pull request so the whole team can review the changes first', value: 'draft' },
+		{ id: 'split', label: 'Split the work into smaller pull requests, one for each affected area', value: 'split' },
+		{ id: 'cancel', label: 'Do not make any changes and keep the repository exactly as it is today', value: 'cancel' },
+	],
+	allowFreeformInput: true,
+};
+
 const harnessSwitchQuestions: IChatQuestion[] = [{
 	id: 'reason',
 	type: 'singleSelect',
@@ -161,32 +283,57 @@ const harnessSwitchQuestions: IChatQuestion[] = [{
 	],
 	allowFreeformInput: false,
 	required: true,
-}, {
-	id: 'feedback',
-	type: 'text',
-	title: 'Any feedback?',
-	description: 'Share any additional feedback (optional).',
-	required: false,
-	validation: { maxLength: 1000 },
 }];
 
-function createHarnessSwitchCarousel(currentIndex: number): ChatQuestionCarouselData {
-	const carousel = new ChatQuestionCarouselData(harnessSwitchQuestions, true, 'fixture.harnessSwitchSurvey');
-	carousel.draftCurrentIndex = currentIndex;
-	if (currentIndex > 0) {
-		carousel.draftAnswers = { reason: { selectedValue: 'preferLocal' } };
-	}
-	return carousel;
+function createHarnessSwitchCarousel(): ChatQuestionCarouselData {
+	return new ChatQuestionCarouselData(harnessSwitchQuestions, true, 'fixture.harnessSwitchSurvey');
 }
 
 const harnessSwitchCarouselOptions: Partial<IChatQuestionCarouselOptions> = {
 	dismissLabel: 'Dismiss Survey',
 	submissionAcknowledgement: {
 		message: 'Thanks, your feedback has been recorded.',
+		description: new MarkdownString('Have specific feedback? [Share it on GitHub](https://github.com/microsoft/vscode/issues).'),
 		dismissLabel: 'Dismiss Feedback Acknowledgement',
 		onDidDismiss: () => { },
 	},
 };
+
+const deploymentDescription = [
+	'Review the requirements before choosing a deployment strategy. The application serves several regions and must remain available during the rollout.',
+	'This release updates the database, background workers, and public API. Old and new clients must continue working while the release is in progress.',
+	'Monitor error rates, latency, and resource usage before increasing traffic. A rollback must preserve customer data and active requests.',
+	'Choose the approach that gives the team the best balance of safety and delivery speed.',
+].join('\n\n');
+
+function createDeploymentCarousel(optionCount: number, description: string | undefined = deploymentDescription): ChatQuestionCarouselData {
+	const labels = [
+		'Canary rollout',
+		'Blue-green deployment',
+		'Rolling update',
+		'Manual approval',
+		'Scheduled release',
+		'Feature-flag rollout',
+		'Regional rollout',
+		'Shadow deployment',
+		'Recreate deployment',
+		'Staged rollout',
+		'Gradual traffic shift',
+		'Maintenance window',
+	];
+	return new ChatQuestionCarouselData([{
+		id: 'strategy',
+		type: 'singleSelect',
+		title: 'How should we deploy this release?',
+		description,
+		options: labels.slice(0, optionCount).map((label, index) => ({ id: `strategy-${index}`, label, value: `strategy-${index}` })),
+		allowFreeformInput: false,
+	}, {
+		id: 'reviewer',
+		type: 'text',
+		title: 'Who should review the release?',
+	}], true);
+}
 
 // ============================================================================
 // Fixtures
@@ -208,6 +355,39 @@ export default defineThemedFixtureGroup({ path: 'chat/' }, {
 		render: (context) => renderCarousel(context, createCarousel([multiSelectQuestion])),
 	}),
 
+	BooleanQuestion: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		render: (context) => {
+			const carousel = createCarousel([deleteBranchesQuestion]);
+			carousel.message = new MarkdownString([
+				'These branches have already been merged into `main`:',
+				'',
+				'- `connor/fix-terminal-links`',
+				'- `connor/chat-carousel-fixtures`',
+				'- `alex/update-codicons`',
+			].join('\n'));
+			renderCarousel(context, carousel);
+		},
+	}),
+
+	MultiStepWithBoolean: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		render: (context) => renderCarousel(context, createCarousel([
+			experimentGateQuestion,
+			rolloutQuestion,
+			telemetryQuestion,
+		])),
+	}),
+
+	LongContext: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		render: context => {
+			const carousel = createCarousel([longContextQuestion]);
+			carousel.message = new MarkdownString(longContextMessage);
+			renderCarousel(context, carousel);
+		},
+	}),
+
 	MultipleQuestions: defineComponentFixture({
 		labels: { kind: 'screenshot' },
 		render: (context) => renderCarousel(context, createCarousel([
@@ -217,20 +397,123 @@ export default defineThemedFixtureGroup({ path: 'chat/' }, {
 		])),
 	}),
 
-	HarnessSwitchSurveyReason: defineComponentFixture({
+	LongBodyOverflow: defineComponentFixture({
 		labels: { kind: 'screenshot' },
-		render: context => renderCarousel(context, createHarnessSwitchCarousel(0), true, harnessSwitchCarouselOptions),
+		virtualTime: { enabled: false },
+		expectedVisualDescriptions: ['The pinned title is followed by a single scrolling body containing the long question details and all answers, with the navigation footer below it.'],
+		render: context => renderLayoutCarousel(context, createDeploymentCarousel(12), hasOverflowingBody),
 	}),
 
-	HarnessSwitchSurveyFeedback: defineComponentFixture({
+	CarouselMessageOverflow: defineComponentFixture({
 		labels: { kind: 'screenshot' },
-		render: context => renderCarousel(context, createHarnessSwitchCarousel(1), true, harnessSwitchCarouselOptions),
+		virtualTime: { enabled: false },
+		render: context => {
+			const carousel = createDeploymentCarousel(12, '');
+			carousel.message = new MarkdownString(deploymentDescription);
+			return renderLayoutCarousel(context, carousel, hasOverflowingBody);
+		},
+	}),
+
+	AnswersBorrowUnusedHeight: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		virtualTime: { enabled: false },
+		expectedVisualDescriptions: ['With no question details, the card is available to the seven fully visible answers without scrolling.'],
+		render: context => renderLayoutCarousel(context, createDeploymentCarousel(7, ''), layout =>
+			hasFullyVisibleBody(layout) && layout.answers.offsetHeight > layout.maxHeight / 2),
+	}),
+
+	CompactQuestion: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		virtualTime: { enabled: false },
+		render: context => renderLayoutCarousel(context, createDeploymentCarousel(2, ''), layout =>
+			hasFullyVisibleBody(layout) && layout.card.offsetHeight < layout.maxHeight),
+	}),
+
+	CollapsedQuestions: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		virtualTime: { enabled: false },
+		render: context => {
+			const carousel = createDeploymentCarousel(12);
+			carousel.draftCollapsed = true;
+			return renderLayoutCarousel(context, carousel, ({ title, content }) => title.clientHeight > 0 && content.clientHeight === 0);
+		},
+	}),
+
+	ValidationError: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		virtualTime: { enabled: false },
+		render: context => renderLayoutCarousel(context, createCarousel([{
+			id: 'owner',
+			type: 'text',
+			title: 'Who owns this release?',
+			description: deploymentDescription,
+			detailedMessage: new MarkdownString('Provide a release owner before continuing.'),
+			required: true,
+		}], false), ({ title, content }) =>
+			title.clientHeight > 0 && content.clientHeight > 0 &&
+			context.container.querySelector<HTMLElement>('.chat-question-validation-message')!.offsetHeight > 0,
+			part => {
+				const submit = part.domNode.querySelector<HTMLElement>('.chat-question-submit-button');
+				if (!submit) {
+					throw new Error('Expected a Submit button');
+				}
+				submit.click();
+			}),
+	}),
+
+	CompletedConversation: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		render: context => {
+			const carousel = createCarousel(Array.from({ length: 10 }, (_, index) => ({
+				id: `review-${index}`,
+				type: 'text',
+				title: `Release checklist item ${index + 1}`,
+			})));
+			carousel.answerPresentation = 'conversation';
+			carousel.isUsed = true;
+			carousel.data = Object.fromEntries(carousel.questions.map(question => [question.id, 'Reviewed and approved']));
+			renderCarousel(context, carousel);
+		},
+	}),
+
+	ExpandedCompletedConversation: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		virtualTime: { enabled: false },
+		render: async context => {
+			const carousel = createDeploymentCarousel(12, '');
+			carousel.questions.splice(1);
+			carousel.answerPresentation = 'conversation';
+			carousel.isUsed = true;
+			carousel.data = { strategy: { selectedValue: 'strategy-0' } };
+			renderCarousel(context, carousel, false, {}, part => {
+				const answer = part.domNode.querySelector<HTMLElement>('.chat-question-answer-collapsible .monaco-button');
+				if (!answer) {
+					throw new Error('Expected an expandable answer');
+				}
+				answer.click();
+			});
+			await waitForFixtureCondition(() => {
+				const card = context.container.querySelector<HTMLElement>('.chat-question-carousel-container')!;
+				const options = card.querySelectorAll('.chat-question-summary-option');
+				return options.length === 12 && card.clientHeight > Math.min(420, dom.getWindow(card).innerHeight * 0.45);
+			}, 'Completed answer options must expand beyond the interactive height limit');
+		},
+	}),
+
+	HarnessSwitchSurveyReason: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		render: context => renderCarousel(context, createHarnessSwitchCarousel(), true, harnessSwitchCarouselOptions),
 	}),
 
 	HarnessSwitchSurveySubmitted: defineComponentFixture({
 		labels: { kind: 'screenshot' },
-		render: context => renderCarousel(context, createHarnessSwitchCarousel(1), true, harnessSwitchCarouselOptions, part => {
-			part.domNode.querySelector<HTMLElement>('.chat-question-submit-button')?.click();
+		additionalThemes: ['darkHighContrast', 'lightHighContrast'],
+		render: context => renderCarousel(context, createHarnessSwitchCarousel(), true, harnessSwitchCarouselOptions, part => {
+			const option = part.domNode.querySelector<HTMLElement>('.chat-question-list-item');
+			if (!option) {
+				throw new Error('Expected the harness switch survey reason option.');
+			}
+			option.click();
 		}),
 	}),
 

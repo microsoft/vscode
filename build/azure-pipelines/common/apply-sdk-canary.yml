@@ -1,7 +1,7 @@
 # Copilot product dependency integration (no-op unless an override is set).
 # Overrides @github/copilot-sdk with a version published to the private feed,
 # records its bundled runtime version, and refreshes the lockfile so the
-# node_modules cache key below misses and `npm ci` installs the canary.
+# node_modules cache key below misses and `pnpm install` installs the canary.
 # Authenticates before the standard npmAuthenticate step.
 # See microsoft/vscode-engineering specs/sdk-vscode-integration.spec.md.
 
@@ -31,6 +31,7 @@ steps:
     condition: and(succeeded(), or(ne(variables['VSCODE_SDK_CANARY_VERSION'], ''), ne(variables['VSCODE_CLI_CANARY_VERSION'], '')))
     displayName: SDK canary — authenticate feed
 
+  # The override installs pnpm itself (installPnpm.ts) and refreshes the lockfile with it.
   - ${{ if eq(parameters.windows, true) }}:
       - powershell: node build/azure-pipelines/common/apply-sdk-canary-override.ts
         condition: and(succeeded(), or(ne(variables['VSCODE_SDK_CANARY_VERSION'], ''), ne(variables['VSCODE_CLI_CANARY_VERSION'], '')))

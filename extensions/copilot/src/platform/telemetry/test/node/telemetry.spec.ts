@@ -501,6 +501,16 @@ suite('multiplexProperties compression', function () {
 		});
 	});
 
+	test.each([0, 100, 8192, 8193, 20000])('always compresses messageText of length %i while preserving its raw prefix', async length => {
+		const messageText = 'x'.repeat(length);
+		const result = await multiplexProperties({ messageText }, gzipBase64);
+
+		expect(result).toEqual({
+			messageText: messageText.slice(0, 8192),
+			messageTextChunk: await gzipBase64(messageText),
+		});
+	});
+
 	test('always emits a compressed chunk family for known-large fields even when they fit', async () => {
 		const result = await multiplexProperties({ diffsJSON: 'small', messagesJson: 'tiny', other: 'x' }, gzipBase64) as { [key: string]: string };
 

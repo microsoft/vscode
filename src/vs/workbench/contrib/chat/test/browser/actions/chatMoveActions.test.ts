@@ -5,6 +5,8 @@
 
 import assert from 'assert';
 import { Event } from '../../../../../../base/common/event.js';
+import { NullManagedSettingsService } from '../../../../../../platform/policy/common/copilotManagedSettings.js';
+import { AccountPolicyGateState } from '../../../../../services/policies/common/accountPolicyService.js';
 import { IReference, MutableDisposable, ReferenceCollection } from '../../../../../../base/common/lifecycle.js';
 import { mockObject, upcastPartial } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
@@ -109,6 +111,8 @@ suite('Chat move actions', () => {
 				upcastPartial<IAgentHostConnectionsService>({}),
 				NullTelemetryService,
 				upcastPartial<IProgressService>({}),
+				new NullManagedSettingsService(),
+				{ _serviceBrand: undefined, gateInfo: { state: AccountPolicyGateState.Inactive }, onDidChangeGateInfo: Event.None, whenInitialized: async () => { } },
 			));
 			sourceEditor.updateModel(model);
 			sourceRef.dispose();

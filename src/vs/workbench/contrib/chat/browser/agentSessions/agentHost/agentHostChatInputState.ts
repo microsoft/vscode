@@ -3,11 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { status } from '../../../../../../base/browser/ui/aria/aria.js';
 import { toErrorMessage } from '../../../../../../base/common/errorMessage.js';
 import { CancellationToken } from '../../../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
 import { escapeMarkdownSyntaxTokens, MarkdownString } from '../../../../../../base/common/htmlContent.js';
 import { Disposable } from '../../../../../../base/common/lifecycle.js';
+import { equals } from '../../../../../../base/common/objects.js';
 import { autorun, derived, observableValue, type IObservable } from '../../../../../../base/common/observable.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { localize } from '../../../../../../nls.js';
@@ -15,7 +17,7 @@ import { CommandsRegistry } from '../../../../../../platform/commands/common/com
 import type { AgentChatInputState } from '../../../../../../platform/agentHost/common/meta/agentHostChatInputState.js';
 import type { ErrorInfo } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { IChatSessionsService } from '../../../common/chatSessionsService.js';
-import { ChatInputNotificationActionKind, ChatInputNotificationSeverity, IChatInputNotificationService } from '../../widget/input/chatInputNotificationService.js';
+import { ChatInputNotificationActionKind, ChatInputNotificationSeverity, type IChatInputNotification, IChatInputNotificationService } from '../../widget/input/chatInputNotificationService.js';
 
 export const RETRY_CHAT_PREPARATION_COMMAND = 'workbench.action.chat.retryPreparation';
 
@@ -36,6 +38,7 @@ export class AgentHostChatInputState extends Disposable {
 	private readonly _retrying = observableValue(this, false);
 	private readonly _retryError = observableValue<{ readonly state: AgentChatInputState; readonly error: ErrorInfo } | undefined>(this, undefined);
 	private _pending: Promise<void> | undefined;
+	private _notification: IChatInputNotification | undefined;
 
 	constructor(
 		private readonly _sessionResource: URI,
@@ -61,6 +64,7 @@ export class AgentHostChatInputState extends Disposable {
 			this._pending = Promise.resolve().then(async () => {
 				try {
 					if (!this._store.isDisposed) {
+						status(localize('agentHost.checkingConversation', "Checking whether this conversation is available…"));
 						await this._refresh();
 						this._retryError.set(undefined, undefined);
 					}
@@ -80,13 +84,19 @@ export class AgentHostChatInputState extends Disposable {
 
 	private _updateNotification(state: AgentChatInputState | undefined, retrying: boolean, retryError: ErrorInfo | undefined): void {
 		if (!state && !retrying && !retryError) {
+			this._notification = undefined;
 			this._notifications.deleteNotification(this._notificationId);
 			return;
 		}
 		const checking = retrying || state?.kind === 'checking';
+		// Keep the explanation and Retry button in place until the check finishes.
+		// Replacing them with a shorter progress message makes the input jump.
+		if (checking && this._notification) {
+			return;
+		}
 		const error = retryError ?? (state?.kind === 'blocked' ? state.error : undefined);
 		const locked = error?.errorType === 'CodexThreadInUse';
-		this._notifications.setNotification({
+		const notification: IChatInputNotification = {
 			id: this._notificationId,
 			telemetryId: 'agentHost.chatInput',
 			severity: ChatInputNotificationSeverity.Error,
@@ -109,7 +119,12 @@ export class AgentHostChatInputState extends Disposable {
 			dismissible: false,
 			autoDismissOnMessage: false,
 			sessionResources: [this._sessionResource],
-		});
+		};
+		// An unchanged result must not rebuild the banner and move keyboard focus.
+		if (!equals(this._notification, notification)) {
+			this._notification = notification;
+			this._notifications.setNotification(notification);
+		}
 	}
 
 	override dispose(): void {

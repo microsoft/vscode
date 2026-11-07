@@ -12,13 +12,15 @@ import { ILogService } from '../../log/common/log.js';
 import { AgentSession } from '../common/agent.js';
 import { buildFolderChangesetOwnerUri, ChangesetKind, parseChangesetUri, parseFolderChangesetOwnerUri } from '../common/changesetUri.js';
 import { getWorkingDirectoryScopeId } from '../common/agentHostWorkingDirectories.js';
-import { EMPTY_TREE_OBJECT, IAgentHostGitService, META_DIFF_BASE_BRANCH, resolveDiffBaseBranchName } from '../common/agentHostGitService.js';
+import { EMPTY_TREE_OBJECT, IAgentHostGitService, resolveDiffBaseBranchName } from '../common/agentHostGitService.js';
 import { IAgentHostGitStateService } from '../common/agentHostGitStateService.js';
 import { buildReviewedRefName, IAgentHostReviewService } from '../common/agentHostReviewService.js';
 import { ISessionDataService } from '../common/sessionDataService.js';
-import { isAhpChatChannel, isDefaultChatUri, parseChatUri, readSessionGitState, type URI as ProtocolURI } from '../common/state/sessionState.js';
+import { IAgentHostSessionStateStore, readSessionBaseBranch } from '../common/agentHostSessionStateStore.js';
+import { isAhpChatChannel, readSessionGitState, type URI as ProtocolURI } from '../common/state/sessionState.js';
 import { AgentHostStateManager, IAgentHostStateManager } from './agentHostStateManager.js';
 import { resolveBranchChangesetScopeForOwner, resolveBranchChangesetScopeForSource } from './agentHostBranchChangesetScope.js';
+import { IAgentHostChatOwnershipService } from './agentHostChatOwnershipService.js';
 
 /**
  * Resolved git context shared by the review operations: the repository root,
@@ -49,8 +51,10 @@ export class AgentHostReviewService extends Disposable implements IAgentHostRevi
 		@IAgentHostStateManager private readonly _stateManager: AgentHostStateManager,
 		@IAgentHostGitService private readonly _gitService: IAgentHostGitService,
 		@ISessionDataService private readonly _sessionDataService: ISessionDataService,
+		@IAgentHostSessionStateStore private readonly _sessionStateStore: IAgentHostSessionStateStore,
 		@IAgentHostGitStateService private readonly _gitStateService: IAgentHostGitStateService,
 		@ILogService private readonly _logService: ILogService,
+		@IAgentHostChatOwnershipService private readonly _chatOwnership: IAgentHostChatOwnershipService,
 	) {
 		super();
 
@@ -82,18 +86,11 @@ export class AgentHostReviewService extends Disposable implements IAgentHostRevi
 			throw new Error(`Changeset owner has no working directory: ${parsed.ownerUri}`);
 		}
 
-		const databaseOwner = isDefaultChatUri(scope.sourceUri) ? scope.sessionUri : scope.sourceUri;
-		const databaseRef = this._sessionDataService.openDatabase(URI.parse(databaseOwner));
-		let persistedBaseBranch: string | undefined;
-		try {
-			persistedBaseBranch = await databaseRef.object.getMetadata(META_DIFF_BASE_BRANCH);
-		} finally {
-			databaseRef.dispose();
-		}
+		const persistedBaseBranch = readSessionBaseBranch(await this._sessionStateStore.load(URI.parse(scope.sessionUri)), this._chatOwnership.isRegisteredDefaultChat(scope.sourceUri) ? undefined : scope.sourceUri);
 
 		const workingDirectory = URI.parse(scope.workingDirectories[0]);
 		const gitStateBaseBranch = this._gitStateService.getSessionGitState?.(scope.sourceUri)?.baseBranchName
-			?? (!isAhpChatChannel(scope.sourceUri) || isDefaultChatUri(scope.sourceUri) ? readSessionGitState(sessionState._meta)?.baseBranchName : undefined);
+			?? (!isAhpChatChannel(scope.sourceUri) || this._chatOwnership.isRegisteredDefaultChat(scope.sourceUri) ? readSessionGitState(sessionState._meta)?.baseBranchName : undefined);
 		const baseBranch = resolveDiffBaseBranchName(persistedBaseBranch, gitStateBaseBranch);
 		await this._sequencer.queue(parsed.ownerUri, async () => {
 			for (const resource of resources) {
@@ -123,15 +120,15 @@ export class AgentHostReviewService extends Disposable implements IAgentHostRevi
 			return;
 		}
 		const sourceOwner = buildFolderChangesetOwnerUri(
-			parseChatUri(sourceSession)?.session ?? sourceSession,
+			this._containingSession(sourceSession),
 			getWorkingDirectoryScopeId(sourceWorkingDirectories.map(uri => uri.toString())),
 		);
 		const targetOwner = buildFolderChangesetOwnerUri(
-			parseChatUri(targetSession)?.session ?? targetSession,
+			this._containingSession(targetSession),
 			getWorkingDirectoryScopeId(targetWorkingDirectories.map(uri => uri.toString())),
 		);
 		const sourceRef = buildReviewedRefName(this._sanitizedOwnerId(sourceOwner));
-		const legacySourceRef = buildReviewedRefName(this._sanitizedOwnerId(parseChatUri(sourceSession)?.session ?? sourceSession));
+		const legacySourceRef = buildReviewedRefName(this._sanitizedOwnerId(this._containingSession(sourceSession)));
 		const targetRef = buildReviewedRefName(this._sanitizedOwnerId(targetOwner));
 		const seenRepositories = new Set<string>();
 		for (const workingDirectory of targetWorkingDirectories) {
@@ -273,7 +270,7 @@ export class AgentHostReviewService extends Disposable implements IAgentHostRevi
 			return;
 		}
 
-		const containingSession = parseChatUri(session)?.session ?? session;
+		const containingSession = this._containingSession(session);
 		const reviewedOwners = new Set<ProtocolURI>([
 			session,
 			buildFolderChangesetOwnerUri(containingSession, getWorkingDirectoryScopeId(workingDirectories)),
@@ -283,7 +280,8 @@ export class AgentHostReviewService extends Disposable implements IAgentHostRevi
 			reviewedOwners.add(resolveBranchChangesetScopeForSource(this._stateManager, chat.resource).ownerUri);
 		}
 		const reviewedRefs = new Set([...reviewedOwners].map(owner => buildReviewedRefName(this._sanitizedOwnerId(owner))));
-		const sessionOwnerPrefix = `refs/agents/${this._sanitizedOwnerId(containingSession)}-`;
+		const sessionRefPrefix = `refs/agents/${this._sanitizedOwnerId(containingSession)}`;
+		const sessionOwnerPrefix = `${sessionRefPrefix}-`;
 
 		for (const workingDirectory of workingDirectories) {
 			try {
@@ -293,21 +291,33 @@ export class AgentHostReviewService extends Disposable implements IAgentHostRevi
 					continue;
 				}
 
+				let refsToDelete = [...reviewedRefs];
 				if (this._gitService.listRefNamesWithOids) {
-					for (const { ref } of await this._gitService.listRefNamesWithOids(repositoryRootUri, `${sessionOwnerPrefix}*/reviewed`)) {
-						if (ref.startsWith(sessionOwnerPrefix) && ref.endsWith('/reviewed')) {
-							reviewedRefs.add(ref);
-						}
+					try {
+						const existingRefs = await this._gitService.listRefNamesWithOids(repositoryRootUri, `${sessionRefPrefix}*/reviewed`, { throwOnError: true });
+						refsToDelete = existingRefs
+							.filter(({ ref }) => reviewedRefs.has(ref) || ref.startsWith(sessionOwnerPrefix) && ref.endsWith('/reviewed'))
+							.map(({ ref }) => ref);
+					} catch (err) {
+						this._logService.warn(`[AgentHostReview][_disposeSessionData] Git ref enumeration failed; cleanup is limited to known reviewed refs for ${session}`, err);
 					}
 				} else {
 					this._logService.warn(`[AgentHostReview][_disposeSessionData] Git ref enumeration is unavailable; cleanup is limited to known reviewed refs for ${session}`);
 				}
-				await this._gitService.deleteRefs(repositoryRootUri, [...reviewedRefs]);
+				if (refsToDelete.length === 0) {
+					continue;
+				}
+				await this._gitService.deleteRefs(repositoryRootUri, refsToDelete);
 				this._logService.trace(`[AgentHostReview][_disposeSessionData] Deleted reviewed ref for ${session} in working directory ${workingDirectory}`);
 			} catch (err) {
 				this._logService.warn(`[AgentHostReview][_disposeSessionData] Failed to dispose reviewed ref for ${session} in working directory ${workingDirectory}`, err);
 			}
 		}
+	}
+
+	/** The session that owns a chat (from the registry), or the session itself. */
+	private _containingSession(sessionOrChat: ProtocolURI): ProtocolURI {
+		return isAhpChatChannel(sessionOrChat) ? this._chatOwnership.requireChatOwner(sessionOrChat) : sessionOrChat;
 	}
 
 	private _sanitizedOwnerId(owner: ProtocolURI): string {
@@ -316,8 +326,8 @@ export class AgentHostReviewService extends Disposable implements IAgentHostRevi
 			const sessionId = AgentSession.id(workspace.sessionUri).replace(/[^a-zA-Z0-9_.-]/g, '-');
 			return `${sessionId}-workspace-${workspace.scopeId}`;
 		}
-		const chat = parseChatUri(owner);
-		const sessionId = AgentSession.id(chat?.session ?? owner).replace(/[^a-zA-Z0-9_.-]/g, '-');
+		const chat = isAhpChatChannel(owner);
+		const sessionId = AgentSession.id(this._containingSession(owner)).replace(/[^a-zA-Z0-9_.-]/g, '-');
 		if (!chat) {
 			return sessionId;
 		}

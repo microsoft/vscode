@@ -13,7 +13,9 @@ import { TestConfigurationService } from '../../../configuration/test/common/tes
 import { IEnvironmentMainService } from '../../../environment/electron-main/environmentMainService.js';
 import { NullLogService } from '../../../log/common/log.js';
 import { InMemoryTestStateMainService } from '../../../test/electron-main/workbenchTestServices.js';
-import { DEFAULT_CUSTOM_TITLEBAR_HEIGHT } from '../../../window/common/window.js';
+import { DEFAULT_CUSTOM_TITLEBAR_HEIGHT, getMacOSWindowControlsPosition } from '../../../window/common/window.js';
+import { IWindowState, WindowMode } from '../../../window/electron-main/window.js';
+import { release } from 'os';
 import { BaseWindow } from '../../electron-main/windowImpl.js';
 
 class TestWindow extends BaseWindow {
@@ -21,6 +23,10 @@ class TestWindow extends BaseWindow {
 
 	override setWin(win: BrowserWindow, options?: BrowserWindowConstructorOptions): void {
 		super.setWin(win, options);
+	}
+
+	override applyState(state: IWindowState, hasMultipleDisplays?: boolean, minimized?: boolean): void {
+		super.applyState(state, hasMultipleDisplays, minimized);
 	}
 
 	matches(_webContents: WebContents): boolean {
@@ -43,16 +49,17 @@ suite('BaseWindow - window controls overlay', () => {
 			store.add(new NullLogService())
 		));
 		const setTitleBarOverlay = sinon.stub();
+		const setWindowButtonPosition = sinon.stub();
 		const on = sinon.stub();
 		const removeListener = sinon.stub();
 		const nativeWindow = upcastPartial<BrowserWindow>({
 			on,
 			removeListener,
 			setSheetOffset: sinon.stub(),
-			setWindowButtonPosition: sinon.stub(),
+			setWindowButtonPosition,
 			setTitleBarOverlay,
 		});
-		return { window, nativeWindow, configurationService, setTitleBarOverlay };
+		return { window, nativeWindow, configurationService, setTitleBarOverlay, setWindowButtonPosition };
 	}
 
 	const windowsWithoutOverlay: { name: string; options?: BrowserWindowConstructorOptions }[] = [
@@ -94,4 +101,66 @@ suite('BaseWindow - window controls overlay', () => {
 			assert.deepStrictEqual(setTitleBarOverlay.args, enabled ? [[{ color: '#ffffff', symbolColor: '#000000', height: 39 }]] : []);
 		});
 	}
+
+	(isMacintosh ? test : test.skip)('honors a fixed horizontal inset when the title-bar height changes', () => {
+		const { window, nativeWindow, setWindowButtonPosition } = createWindow();
+		window.setWin(nativeWindow, { titleBarStyle: 'hidden' });
+		setWindowButtonPosition.resetHistory();
+		const horizontalInset = getMacOSWindowControlsPosition(DEFAULT_CUSTOM_TITLEBAR_HEIGHT, release())!.x;
+
+		for (const height of [35, 44, 35]) {
+			window.updateWindowControls({ height, horizontalInset });
+		}
+
+		assert.deepStrictEqual(setWindowButtonPosition.args, [35, 44, 35].map(height => [{
+			x: horizontalInset,
+			y: getMacOSWindowControlsPosition(height, release())!.y,
+		}]));
+	});
+});
+
+suite('BaseWindow - restoring a window state', () => {
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
+
+	function restore(mode: WindowMode, minimized = false): string[] {
+		const configurationService = new TestConfigurationService({ window: { titleBarStyle: 'custom' } });
+		store.add(configurationService.onDidChangeConfigurationEmitter);
+		const window = store.add(new TestWindow(
+			configurationService,
+			new InMemoryTestStateMainService(),
+			upcastPartial<IEnvironmentMainService>({ args: { _: [] } }),
+			store.add(new NullLogService())
+		));
+
+		const calls: string[] = [];
+		const on = sinon.stub();
+		const removeListener = sinon.stub();
+		const setSheetOffset = sinon.stub();
+		window.setWin(upcastPartial<BrowserWindow>({
+			on,
+			removeListener,
+			setSheetOffset,
+			isVisible: () => false,
+			show: () => calls.push('show'),
+			showInactive: () => calls.push('showInactive'),
+			maximize: () => calls.push('maximize'),
+			minimize: () => calls.push('minimize'),
+		}));
+
+		window.applyState({ mode }, false, minimized);
+
+		return calls;
+	}
+
+	test('restores minimized windows without taking focus', () => {
+		assert.deepStrictEqual({
+			maximized: restore(WindowMode.Maximized),
+			minimized: restore(WindowMode.Normal, true),
+			maximizedMinimized: restore(WindowMode.Maximized, true),
+		}, {
+			maximized: ['maximize', 'show'],
+			minimized: ['showInactive', 'minimize'],
+			maximizedMinimized: ['maximize', 'showInactive', 'minimize'],
+		});
+	});
 });

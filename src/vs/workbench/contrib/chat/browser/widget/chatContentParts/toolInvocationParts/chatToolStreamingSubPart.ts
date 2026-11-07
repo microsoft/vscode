@@ -13,6 +13,7 @@ import { IChatCodeBlockInfo } from '../../../chat.js';
 import { IChatContentPartRenderContext } from '../chatContentParts.js';
 import { ChatProgressContentPart } from '../chatProgressContentPart.js';
 import { BaseChatToolInvocationSubPart } from './chatToolInvocationSubPart.js';
+import { isImageGenerationToolInvocation } from './chatToolPartUtilities.js';
 
 /**
  * Sub-part for rendering a tool invocation in the streaming state.
@@ -65,7 +66,7 @@ export class ChatToolStreamingSubPart extends BaseChatToolInvocationSubPart {
 
 			// Don't render anything if there's no meaningful content
 			const messageText = typeof displayMessage === 'string' ? displayMessage : displayMessage.value;
-			const isHidden = !messageText || messageText.trim().length === 0;
+			const isHidden = isImageGenerationToolInvocation(toolInvocation) || !messageText || messageText.trim().length === 0;
 			this.isHidden.set(isHidden, undefined);
 			if (isHidden) {
 				dom.clearNode(container);

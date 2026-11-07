@@ -19,7 +19,7 @@ suite('ConfigurationMigrationWorkbenchContribution', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
 	async function migrate(includeApplication: boolean | undefined): Promise<ConfigurationTarget[]> {
-		const key = includeApplication ? 'agents.voice.voice' : 'configurationMigration.test.default';
+		const key = includeApplication ? 'configurationMigration.test.application' : 'configurationMigration.test.default';
 		const migration = {
 			key,
 			includeApplication,
@@ -61,7 +61,7 @@ suite('ConfigurationMigrationWorkbenchContribution', () => {
 		assert.deepStrictEqual(await migrate(undefined), [ConfigurationTarget.USER]);
 	});
 
-	test('includes application configuration for the opted-in voice migration', async () => {
+	test('includes application configuration when the migration opts in', async () => {
 		assert.deepStrictEqual(await migrate(true), [ConfigurationTarget.APPLICATION, ConfigurationTarget.USER]);
 	});
 });
