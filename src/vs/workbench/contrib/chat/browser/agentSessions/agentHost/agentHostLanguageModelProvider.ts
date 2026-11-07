@@ -10,6 +10,7 @@ import { Disposable, MutableDisposable } from '../../../../../../base/common/lif
 import { equals } from '../../../../../../base/common/objects.js';
 import { disposableTimeout } from '../../../../../../base/common/async.js';
 import { localize } from '../../../../../../nls.js';
+import { ExtensionIdentifier } from '../../../../../../platform/extensions/common/extensions.js';
 import { readAgentModelNoticesMeta } from '../../../../../../platform/agentHost/common/agentModelNotices.js';
 import { isCopilotHydraFusionModelId } from '../../../../../../platform/agentHost/common/copilotCliConfig.js';
 import { COPILOT_CLI_AGENT_PROVIDER_ID } from '../../../../../../platform/agentHost/common/agent.js';
@@ -22,8 +23,10 @@ import { readAgentManagedModelDefaults, readAgentModelConfigurationDefaults } fr
 import { readAgentModelByokIdentifier } from '../../../../../../platform/agentHost/common/agentModelByokMeta.js';
 import { readAgentModelGroupId, readAgentModelSourceId } from '../../../../../../platform/agentHost/common/agentModelSource.js';
 import { getReasoningEffortDescription, getReasoningEffortLabel } from '../../../../../../platform/agentHost/common/reasoningEffort.js';
+import { IAuthenticationAccessService } from '../../../../../services/authentication/browser/authenticationAccessService.js';
+import { INTERNAL_AUTH_PROVIDER_PREFIX } from '../../../../../services/authentication/common/authentication.js';
 import { nullExtensionDescription } from '../../../../../services/extensions/common/extensions.js';
-import { AUTO_RAW_MODEL_ID, COPILOT_VENDOR_ID, ILanguageModelChatMetadata, ILanguageModelChatMetadataAndIdentifier, ILanguageModelChatProvider, ILanguageModelConfigurationSchema, ILanguageModelsService } from '../../../common/languageModels.js';
+import { AUTO_RAW_MODEL_ID, COPILOT_VENDOR_ID, getLanguageModelAccessAccountName, IChatMessage, ILanguageModelChatMetadata, ILanguageModelChatMetadataAndIdentifier, ILanguageModelChatProvider, ILanguageModelChatRequestOptions, ILanguageModelChatResponse, ILanguageModelConfigurationSchema, ILanguageModelsService } from '../../../common/languageModels.js';
 
 /**
  * Returns whether an agent host provider exposes a synthetic "Auto" model to
@@ -55,6 +58,12 @@ export function agentHostProviderSupportsAutoModel(provider: string): boolean {
 export type IAgentHostModelCatalogue = Pick<ILanguageModelsService, 'getLanguageModelIds' | 'lookupLanguageModel' | 'onDidChangeLanguageModels'>;
 
 /**
+ * Sends requests and token counts to workbench models. Lets extensions use an agent-host model
+ * directly by running the request on the workbench model the host model stands for.
+ */
+export type IAgentHostModelRequestTarget = IAgentHostModelCatalogue & Pick<ILanguageModelsService, 'selectLanguageModels' | 'sendChatRequest' | 'computeTokenLength'>;
+
+/**
  * Exposes models available from the agent host process as selectable
  * language models in the chat model picker. Models are provided from
  * root state (via {@link AgentInfo.models}) rather than via RPC.
@@ -73,6 +82,8 @@ export class AgentHostLanguageModelProvider extends Disposable implements ILangu
 		private readonly _sessionType: string,
 		private readonly _vendor: string,
 		private readonly _catalogue?: IAgentHostModelCatalogue,
+		private readonly _requestTarget?: IAgentHostModelRequestTarget,
+		private readonly _authenticationAccessService?: Pick<IAuthenticationAccessService, 'isAccessAllowed'>,
 	) {
 		super();
 
@@ -80,12 +91,14 @@ export class AgentHostLanguageModelProvider extends Disposable implements ILangu
 		// before the Copilot vendor has resolved, and CAPI can refresh prices later — so re-publish
 		// whenever it changes to pick up the enrichment.
 		//
-		// Scoped to the enriched-from vendor, which also keeps this from looping: the service fires
-		// this event for every provider that publishes, including this one, but a host's vendor is
-		// always a session-type id (`agent-host-…`) and never `copilot`.
+		// Only observe source vendors, never agent-host aliases, to avoid publication feedback loops.
 		if (this._catalogue) {
 			this._register(this._catalogue.onDidChangeLanguageModels(vendor => {
-				if (vendor === COPILOT_VENDOR_ID) {
+				const referencesVendor = [...this._models, ...this._additionalModels].some(model => {
+					const identifier = readAgentModelByokIdentifier(model);
+					return identifier !== undefined && (identifier.startsWith(`${vendor}/`) || this._catalogue?.lookupLanguageModel(identifier)?.vendor === vendor);
+				});
+				if (vendor !== this._vendor && !vendor.startsWith('agent-host-') && (vendor === COPILOT_VENDOR_ID || referencesVendor)) {
 					this._onDidChange.fire();
 				}
 			}));
@@ -141,6 +154,9 @@ export class AgentHostLanguageModelProvider extends Disposable implements ILangu
 	}
 
 	async provideLanguageModelChatInfo(_options: unknown, _token: CancellationToken): Promise<ILanguageModelChatMetadataAndIdentifier[]> {
+		if (this._requestTarget) {
+			await this._resolveRequestTargets([...this._models, ...this._additionalModels]);
+		}
 		const hostModelIds = new Set(this._models.map(model => model.id));
 		const additionalModels = new Map(this._additionalModels.map(model => [model.id, model]));
 		return [...this._models, ...this._additionalModels.filter(model => !hostModelIds.has(model.id))]
@@ -182,6 +198,7 @@ export class AgentHostLanguageModelProvider extends Disposable implements ILangu
 				// token counts, so fall back to the workbench's own catalogue entry for the same
 				// model. See `_catalogueEntryFor`.
 				const known = this._catalogueEntryFor(m, modelGroup);
+				const requestTarget = this._requestTargetFor(`${this._vendor}:${m.id}`);
 				const maxOutputTokens = m.maxOutputTokens ?? known?.maxOutputTokens ?? 0;
 				// BYOK models can advertise only a total window; the workbench expects separate input/output limits.
 				const maxInputTokens = m.maxPromptTokens
@@ -190,7 +207,8 @@ export class AgentHostLanguageModelProvider extends Disposable implements ILangu
 				return {
 					identifier: `${this._vendor}:${m.id}`,
 					metadata: {
-						extension: nullExtensionDescription.identifier,
+						extension: requestTarget?.metadata.extension ?? nullExtensionDescription.identifier,
+						auth: requestTarget?.metadata.auth,
 						name: m.name,
 						id: m.id,
 						vendor: this._vendor,
@@ -468,11 +486,98 @@ export class AgentHostLanguageModelProvider extends Disposable implements ILangu
 		return { id: groupVendorId, ...(sourceId !== undefined && { sourceId }) };
 	}
 
-	async sendChatRequest(): Promise<never> {
-		throw new Error('Agent-host models do not support direct chat requests');
+	async sendChatRequest(modelId: string, messages: IChatMessage[], from: ExtensionIdentifier | undefined, options: ILanguageModelChatRequestOptions, token: CancellationToken): Promise<ILanguageModelChatResponse> {
+		await this._resolveRequestTargets(this._modelsForRequest(modelId));
+		const target = this._requestTargetFor(modelId);
+		if (!target || !this._requestTarget) {
+			throw new Error(`Agent-host model '${modelId}' does not support direct chat requests`);
+		}
+		if (from && target.metadata.auth && !ExtensionIdentifier.equals(from, target.metadata.extension)) {
+			const providerId = INTERNAL_AUTH_PROVIDER_PREFIX + target.metadata.extension.value;
+			const accountLabel = getLanguageModelAccessAccountName(target.metadata.auth);
+			if (this._authenticationAccessService?.isAccessAllowed(providerId, accountLabel, from.value) !== true) {
+				throw Object.assign(new Error(localize('agentHost.modelAccessDenied', "Language model '{0}' cannot be used by '{1}' without permission.", modelId, from.value)), { name: 'LanguageModelError', code: 'NoPermissions' });
+			}
+		}
+		// Keep only the configuration the target model understands; the service adds the target's own.
+		const properties = target.metadata.configurationSchema?.properties ?? {};
+		const sourceConfiguration = options.configuration && { ...options.configuration };
+		const isNativeCopilot = readAgentModelByokIdentifier(target.model) === undefined && target.metadata.vendor === COPILOT_VENDOR_ID;
+		const isByokEffortAlias = readAgentModelByokIdentifier(target.model) !== undefined && !!properties.reasoningEffort && !properties.thinkingLevel;
+		if (sourceConfiguration?.thinkingLevel !== undefined && target.model.provider === COPILOT_CLI_AGENT_PROVIDER_ID && (isNativeCopilot || isByokEffortAlias)) {
+			const reasoningEffort = properties.reasoningEffort;
+			const hostEfforts = target.model.configSchema?.properties.thinkingLevel?.enum;
+			const isFixedEffort = !reasoningEffort && hostEfforts?.length === 1 && hostEfforts[0] === sourceConfiguration.thinkingLevel;
+			if (typeof sourceConfiguration.thinkingLevel !== 'string' || (!reasoningEffort && !isFixedEffort) || (reasoningEffort?.enum && !reasoningEffort.enum.includes(sourceConfiguration.thinkingLevel))) {
+				throw new Error(localize('agentHost.unsupportedReasoningEffort', "The selected reasoning effort is not supported for direct requests to model '{0}'.", modelId));
+			}
+			if (reasoningEffort) {
+				sourceConfiguration.reasoningEffort = sourceConfiguration.thinkingLevel;
+			}
+			delete sourceConfiguration.thinkingLevel;
+		}
+		const configuration = sourceConfiguration && Object.fromEntries(Object.entries(sourceConfiguration).filter(([key]) => Object.hasOwn(properties, key)));
+		return this._requestTarget.sendChatRequest(target.identifier, from, messages, { ...options, configuration }, token);
 	}
 
-	async provideTokenCount(): Promise<number> {
-		return 0;
+	async provideTokenCount(modelId: string, message: string | IChatMessage, token: CancellationToken): Promise<number> {
+		await this._resolveRequestTargets(this._modelsForRequest(modelId));
+		const target = this._requestTargetFor(modelId);
+		return target && this._requestTarget ? this._requestTarget.computeTokenLength(target.identifier, message, token) : 0;
+	}
+
+	private _modelsForRequest(modelId: string): SessionModelInfo[] {
+		const prefix = `${this._vendor}:`;
+		const rawId = modelId.startsWith(prefix) ? modelId.slice(prefix.length) : modelId;
+		const model = [...this._models, ...this._additionalModels].find(candidate => candidate.id === rawId);
+		return model ? [model] : [];
+	}
+
+	private async _resolveRequestTargets(models: readonly SessionModelInfo[]): Promise<void> {
+		if (!this._requestTarget) {
+			return;
+		}
+		const vendors = new Set<string>();
+		for (const model of models) {
+			if (model.id === AUTO_RAW_MODEL_ID || model.policyState === 'disabled' || this._requestTargetFor(model.id)) {
+				continue;
+			}
+			const byokIdentifier = readAgentModelByokIdentifier(model);
+			const slash = byokIdentifier?.indexOf('/') ?? -1;
+			const vendor = byokIdentifier !== undefined ? (slash > 0 ? byokIdentifier.slice(0, slash) : undefined) :
+				model.provider === COPILOT_CLI_AGENT_PROVIDER_ID || this._modelGroupFor(model)?.id === COPILOT_VENDOR_ID ? COPILOT_VENDOR_ID : undefined;
+			if (vendor && vendor !== this._vendor && !vendor.startsWith('agent-host-')) {
+				vendors.add(vendor);
+			}
+		}
+		await Promise.all([...vendors].map(vendor => this._requestTarget?.selectLanguageModels({ vendor })));
+	}
+
+	/**
+	 * The workbench model that runs direct requests for an agent-host model: its BYOK original, or
+	 * the Copilot model with the same id. Auto and models without an exact counterpart have none,
+	 * so requests for them fail rather than silently running on a different model.
+	 */
+	private _requestTargetFor(modelId: string): { identifier: string; metadata: ILanguageModelChatMetadata; model: SessionModelInfo } | undefined {
+		const target = this._requestTarget;
+		const [model] = this._modelsForRequest(modelId);
+		if (!target || !model || model.id === AUTO_RAW_MODEL_ID || model.policyState === 'disabled') {
+			return undefined;
+		}
+		const byokIdentifier = readAgentModelByokIdentifier(model);
+		if (byokIdentifier !== undefined) {
+			const metadata = target.lookupLanguageModel(byokIdentifier);
+			return metadata && !metadata.targetChatSessionType ? { identifier: byokIdentifier, metadata, model } : undefined;
+		}
+		if (model.provider !== COPILOT_CLI_AGENT_PROVIDER_ID && this._modelGroupFor(model)?.id !== COPILOT_VENDOR_ID) {
+			return undefined;
+		}
+		for (const identifier of target.getLanguageModelIds()) {
+			const metadata = target.lookupLanguageModel(identifier);
+			if (metadata?.vendor === COPILOT_VENDOR_ID && metadata.id === model.id && !metadata.targetChatSessionType) {
+				return { identifier, metadata, model };
+			}
+		}
+		return undefined;
 	}
 }
