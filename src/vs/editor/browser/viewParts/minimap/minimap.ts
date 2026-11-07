@@ -33,7 +33,7 @@ import { Selection } from '../../../common/core/selection.js';
 import { Color } from '../../../../base/common/color.js';
 import { GestureEvent, EventType, Gesture } from '../../../../base/browser/touch.js';
 import { MinimapCharRendererFactory } from './minimapCharRendererFactory.js';
-import { findDirtyRows } from './minimapDirtyRows.js';
+import { RecordedFrame, RowSignatures } from './minimapDirtyRows.js';
 import { MinimapPosition, MinimapSectionHeaderStyle, TextModelResolvedOptions } from '../../../common/model.js';
 import { createSingleCallFunction } from '../../../../base/common/functional.js';
 import { LRUCache } from '../../../../base/common/map.js';
@@ -205,6 +205,7 @@ class MinimapOptions {
 			&& this.minimapCharWidth === other.minimapCharWidth
 			&& this.sectionHeaderFontSize === other.sectionHeaderFontSize
 			&& this.sectionHeaderLetterSpacing === other.sectionHeaderLetterSpacing
+			&& this.sectionHeaderFontColor.equals(other.sectionHeaderFontColor)
 			&& this.defaultBackgroundColor && this.defaultBackgroundColor.equals(other.defaultBackgroundColor)
 			&& this.backgroundColor && this.backgroundColor.equals(other.backgroundColor)
 			&& this.foregroundAlpha === other.foregroundAlpha
@@ -1160,11 +1161,10 @@ class InnerMinimap extends Disposable {
 	private readonly _canvas: FastDomNode<HTMLCanvasElement>;
 	private readonly _decorationsCanvas: FastDomNode<HTMLCanvasElement>;
 	/**
-	 * Decorations are drawn here first, and only the rows that changed are copied to
-	 * `_decorationsCanvas`. Drawing on a visible canvas makes the browser repaint all of it.
+	 * What each row of `_decorationsCanvas` shows, so that the next frame only redraws
+	 * the rows that change. Drawing on all of a visible canvas makes the browser repaint all of it.
 	 */
-	private readonly _decorationsBuffer: HTMLCanvasElement;
-	private _lastDecorationsImage: ImageData | null = null;
+	private _lastDecorationsRows: RowSignatures | null = null;
 	private readonly _slider: FastDomNode<HTMLElement>;
 	private readonly _sliderHorizontal: FastDomNode<HTMLElement>;
 	private readonly _pointerDownListener: IDisposable;
@@ -1217,7 +1217,6 @@ class InnerMinimap extends Disposable {
 		this._decorationsCanvas.setClassName('minimap-decorations-layer');
 		this._decorationsCanvas.setLeft(0);
 		this._domNode.appendChild(this._decorationsCanvas);
-		this._decorationsBuffer = document.createElement('canvas');
 
 		this._slider = createFastDomNode(document.createElement('div'));
 		this._slider.setPosition('absolute');
@@ -1428,9 +1427,7 @@ class InnerMinimap extends Disposable {
 		this._decorationsCanvas.setHeight(this._model.options.canvasOuterHeight);
 		this._decorationsCanvas.domNode.width = this._model.options.canvasInnerWidth;
 		this._decorationsCanvas.domNode.height = this._model.options.canvasInnerHeight;
-		this._decorationsBuffer.width = this._model.options.canvasInnerWidth;
-		this._decorationsBuffer.height = this._model.options.canvasInnerHeight;
-		this._lastDecorationsImage = null;
+		this._lastDecorationsRows = null;
 
 		this._slider.setWidth(this._model.options.minimapWidth);
 	}
@@ -1571,9 +1568,8 @@ class InnerMinimap extends Disposable {
 			if (canvasInnerWidth === 0 || canvasInnerHeight === 0) {
 				return;
 			}
-			const canvasContext = this._decorationsBuffer.getContext('2d', { willReadFrequently: true })!;
-
-			canvasContext.clearRect(0, 0, canvasInnerWidth, canvasInnerHeight);
+			const canvasContext = this._decorationsCanvas.domNode.getContext('2d')!;
+			const frame = new RecordedFrame(canvasInnerHeight);
 
 			// We first need to render line highlights and then render decorations on top of those.
 			// But we need to pick a single color for each line, and use that as a line highlight.
@@ -1581,41 +1577,42 @@ class InnerMinimap extends Disposable {
 			// is given to the selection.
 
 			const highlightedLines = new ContiguousLineMap<boolean>(layout.startLineNumber, layout.endLineNumber, false);
-			this._renderSelectionLineHighlights(canvasContext, selections, highlightedLines, layout, minimapLineHeight);
-			this._renderDecorationsLineHighlights(canvasContext, decorations, highlightedLines, layout, minimapLineHeight);
+			this._renderSelectionLineHighlights(frame, selections, highlightedLines, layout, minimapLineHeight, canvasInnerWidth);
+			this._renderDecorationsLineHighlights(frame, decorations, highlightedLines, layout, minimapLineHeight, canvasInnerWidth);
 
 			const lineOffsetMap = new ContiguousLineMap<number[] | null>(layout.startLineNumber, layout.endLineNumber, null);
-			this._renderSelectionsHighlights(canvasContext, selections, lineOffsetMap, layout, minimapLineHeight, tabSize, minimapCharWidth, canvasInnerWidth);
-			this._renderDecorationsHighlights(canvasContext, decorations, lineOffsetMap, layout, minimapLineHeight, tabSize, minimapCharWidth, canvasInnerWidth);
-			this._renderSectionHeaders(canvasContext, layout);
+			this._renderSelectionsHighlights(frame, selections, lineOffsetMap, layout, minimapLineHeight, tabSize, minimapCharWidth, canvasInnerWidth);
+			this._renderDecorationsHighlights(frame, decorations, lineOffsetMap, layout, minimapLineHeight, tabSize, minimapCharWidth, canvasInnerWidth);
+			this._renderSectionHeaders(frame, canvasContext, layout);
 
-			this._copyChangedDecorationRows(canvasContext.getImageData(0, 0, canvasInnerWidth, canvasInnerHeight));
-		}
-	}
-
-	private _copyChangedDecorationRows(image: ImageData): void {
-		const previous = this._lastDecorationsImage;
-		const dirty = previous
-			? findDirtyRows(previous.data, image.data, image.width, image.height)
-			: { start: 0, end: image.height };
-		this._lastDecorationsImage = image;
-		if (dirty) {
-			this._decorationsCanvas.domNode.getContext('2d')!.putImageData(image, 0, 0, 0, dirty.start, image.width, dirty.end - dirty.start);
+			// Only redraw the rows that look different from the last frame
+			const dirty = RowSignatures.diff(this._lastDecorationsRows, frame.rows);
+			this._lastDecorationsRows = frame.rows;
+			if (dirty) {
+				canvasContext.save();
+				canvasContext.beginPath();
+				canvasContext.rect(0, dirty.start, canvasInnerWidth, dirty.end - dirty.start);
+				canvasContext.clip();
+				canvasContext.clearRect(0, dirty.start, canvasInnerWidth, dirty.end - dirty.start);
+				frame.replay(canvasContext, dirty);
+				canvasContext.restore();
+			}
 		}
 	}
 
 	private _renderSelectionLineHighlights(
-		canvasContext: CanvasRenderingContext2D,
+		frame: RecordedFrame,
 		selections: Selection[],
 		highlightedLines: ContiguousLineMap<boolean>,
 		layout: MinimapLayout,
-		minimapLineHeight: number
+		minimapLineHeight: number,
+		canvasInnerWidth: number
 	): void {
 		if (!this._selectionColor || this._selectionColor.isTransparent()) {
 			return;
 		}
 
-		canvasContext.fillStyle = this._selectionColor.transparent(0.5).toString();
+		const fillStyle = this._selectionColor.transparent(0.5).toString();
 
 		let y1 = 0;
 		let y2 = 0;
@@ -1641,7 +1638,7 @@ class InnerMinimap extends Disposable {
 			} else {
 				if (y2 > y1) {
 					// flush
-					canvasContext.fillRect(MINIMAP_GUTTER_WIDTH, y1, canvasContext.canvas.width, y2 - y1);
+					frame.fillRect(fillStyle, MINIMAP_GUTTER_WIDTH, y1, canvasInnerWidth, y2 - y1);
 				}
 				y1 = yy1;
 				y2 = yy2;
@@ -1650,16 +1647,17 @@ class InnerMinimap extends Disposable {
 
 		if (y2 > y1) {
 			// flush
-			canvasContext.fillRect(MINIMAP_GUTTER_WIDTH, y1, canvasContext.canvas.width, y2 - y1);
+			frame.fillRect(fillStyle, MINIMAP_GUTTER_WIDTH, y1, canvasInnerWidth, y2 - y1);
 		}
 	}
 
 	private _renderDecorationsLineHighlights(
-		canvasContext: CanvasRenderingContext2D,
+		frame: RecordedFrame,
 		decorations: ViewModelDecoration[],
 		highlightedLines: ContiguousLineMap<boolean>,
 		layout: MinimapLayout,
-		minimapLineHeight: number
+		minimapLineHeight: number,
+		canvasInnerWidth: number
 	): void {
 
 		const highlightColors = new Map<string, string>();
@@ -1691,20 +1689,19 @@ class InnerMinimap extends Disposable {
 				highlightColors.set(decorationColor.toString(), highlightColor);
 			}
 
-			canvasContext.fillStyle = highlightColor;
 			for (let line = startLineNumber; line <= endLineNumber; line++) {
 				if (highlightedLines.has(line)) {
 					continue;
 				}
 				highlightedLines.set(line, true);
 				const y = layout.getYForLineNumber(line, minimapLineHeight);
-				canvasContext.fillRect(MINIMAP_GUTTER_WIDTH, y, canvasContext.canvas.width, minimapLineHeight);
+				frame.fillRect(highlightColor, MINIMAP_GUTTER_WIDTH, y, canvasInnerWidth, minimapLineHeight);
 			}
 		}
 	}
 
 	private _renderSelectionsHighlights(
-		canvasContext: CanvasRenderingContext2D,
+		frame: RecordedFrame,
 		selections: Selection[],
 		lineOffsetMap: ContiguousLineMap<number[] | null>,
 		layout: MinimapLayout,
@@ -1725,13 +1722,13 @@ class InnerMinimap extends Disposable {
 			const [startLineNumber, endLineNumber] = intersection;
 
 			for (let line = startLineNumber; line <= endLineNumber; line++) {
-				this.renderDecorationOnLine(canvasContext, lineOffsetMap, selection, this._selectionColor, layout, line, lineHeight, lineHeight, tabSize, characterWidth, canvasInnerWidth);
+				this.renderDecorationOnLine(frame, lineOffsetMap, selection, this._selectionColor, layout, line, lineHeight, lineHeight, tabSize, characterWidth, canvasInnerWidth);
 			}
 		}
 	}
 
 	private _renderDecorationsHighlights(
-		canvasContext: CanvasRenderingContext2D,
+		frame: RecordedFrame,
 		decorations: ViewModelDecoration[],
 		lineOffsetMap: ContiguousLineMap<number[] | null>,
 		layout: MinimapLayout,
@@ -1764,13 +1761,13 @@ class InnerMinimap extends Disposable {
 				switch (minimapOptions.position) {
 
 					case MinimapPosition.Inline:
-						this.renderDecorationOnLine(canvasContext, lineOffsetMap, decoration.range, decorationColor, layout, line, minimapLineHeight, minimapLineHeight, tabSize, characterWidth, canvasInnerWidth);
+						this.renderDecorationOnLine(frame, lineOffsetMap, decoration.range, decorationColor, layout, line, minimapLineHeight, minimapLineHeight, tabSize, characterWidth, canvasInnerWidth);
 						continue;
 
 					case MinimapPosition.Gutter: {
 						const y = layout.getYForLineNumber(line, minimapLineHeight);
 						const x = 2;
-						this.renderDecoration(canvasContext, decorationColor, x, y, GUTTER_DECORATION_WIDTH, minimapLineHeight);
+						this.renderDecoration(frame, decorationColor, x, y, GUTTER_DECORATION_WIDTH, minimapLineHeight);
 						continue;
 					}
 				}
@@ -1779,7 +1776,7 @@ class InnerMinimap extends Disposable {
 	}
 
 	private renderDecorationOnLine(
-		canvasContext: CanvasRenderingContext2D,
+		frame: RecordedFrame,
 		lineOffsetMap: ContiguousLineMap<number[] | null>,
 		decorationRange: Range,
 		decorationColor: Color | undefined,
@@ -1805,7 +1802,7 @@ class InnerMinimap extends Disposable {
 		const x1 = this.getXOffsetForPosition(lineOffsetMap, lineNumber, startColumn, tabSize, charWidth, canvasInnerWidth);
 		const x2 = this.getXOffsetForPosition(lineOffsetMap, lineNumber, endColumn, tabSize, charWidth, canvasInnerWidth);
 
-		this.renderDecoration(canvasContext, decorationColor, x1, y, x2 - x1, height);
+		this.renderDecoration(frame, decorationColor, x1, y, x2 - x1, height);
 	}
 
 	private getXOffsetForPosition(
@@ -1862,12 +1859,13 @@ class InnerMinimap extends Disposable {
 		return canvasInnerWidth;
 	}
 
-	private renderDecoration(canvasContext: CanvasRenderingContext2D, decorationColor: Color | undefined, x: number, y: number, width: number, height: number) {
-		canvasContext.fillStyle = decorationColor && decorationColor.toString() || '';
-		canvasContext.fillRect(x, y, width, height);
+	private renderDecoration(frame: RecordedFrame, decorationColor: Color | undefined, x: number, y: number, width: number, height: number) {
+		if (decorationColor) {
+			frame.fillRect(decorationColor.toString(), x, y, width, height);
+		}
 	}
 
-	private _renderSectionHeaders(canvasContext: CanvasRenderingContext2D, layout: MinimapLayout) {
+	private _renderSectionHeaders(frame: RecordedFrame, canvasContext: CanvasRenderingContext2D, layout: MinimapLayout) {
 		const minimapLineHeight = this._model.options.minimapLineHeight;
 		const sectionHeaderFontSize = this._model.options.sectionHeaderFontSize;
 		const sectionHeaderLetterSpacing = this._model.options.sectionHeaderLetterSpacing;
@@ -1883,12 +1881,20 @@ class InnerMinimap extends Disposable {
 		const foregroundFill = `rgb(${foregroundColor.r} ${foregroundColor.g} ${foregroundColor.b})`;
 		const separatorStroke = foregroundFill;
 
-		canvasContext.letterSpacing = sectionHeaderLetterSpacing + 'px';
-		canvasContext.font = '500 ' + sectionHeaderFontSize + 'px ' + this._model.options.sectionHeaderFontFamily;
-		canvasContext.strokeStyle = separatorStroke;
-		canvasContext.lineWidth = 0.4;
+		const letterSpacing = sectionHeaderLetterSpacing + 'px';
+		const font = '500 ' + sectionHeaderFontSize + 'px ' + this._model.options.sectionHeaderFontFamily;
+		const style = `${letterSpacing}:${font}:${backgroundFill}:${foregroundFill}:${horizontalScale}:${labelAreaWidth}`;
+		const setStyle = (target: CanvasRenderingContext2D) => {
+			target.letterSpacing = letterSpacing;
+			target.font = font;
+			target.strokeStyle = separatorStroke;
+			target.lineWidth = 0.4;
+			target.scale(horizontalScale, 1);
+		};
+
+		// Measure the labels with the style they are drawn with
 		canvasContext.save();
-		canvasContext.scale(horizontalScale, 1);
+		setStyle(canvasContext);
 
 		const decorations = this._model.getSectionHeaderDecorationsInViewport(layout.startLineNumber, layout.endLineNumber);
 		decorations.sort((a, b) => a.range.startLineNumber - b.range.startLineNumber);
@@ -1910,17 +1916,29 @@ class InnerMinimap extends Disposable {
 				nextLabelY = backgroundFillY + backgroundFillHeight;
 			}
 
-			InnerMinimap._renderSectionLabel(
-				canvasContext,
-				headerText,
-				decoration.options.minimap?.sectionHeaderStyle === MinimapSectionHeaderStyle.Underlined,
-				backgroundFill,
-				foregroundFill,
-				labelAreaWidth,
-				backgroundFillY,
-				backgroundFillHeight,
-				y,
-				separatorY);
+			const hasSeparatorLine = decoration.options.minimap?.sectionHeaderStyle === MinimapSectionHeaderStyle.Underlined;
+			if (!headerText && !hasSeparatorLine) {
+				continue;
+			}
+			// Glyphs can reach out of the label background, so give the label some room
+			const top = backgroundFillY - sectionHeaderFontSize;
+			const bottom = backgroundFillY + backgroundFillHeight + sectionHeaderFontSize;
+			frame.add(top, bottom - top, `label:${style}:${hasSeparatorLine}:${headerText}`, false, target => {
+				target.save();
+				setStyle(target);
+				InnerMinimap._renderSectionLabel(
+					target,
+					headerText,
+					hasSeparatorLine,
+					backgroundFill,
+					foregroundFill,
+					labelAreaWidth,
+					backgroundFillY,
+					backgroundFillHeight,
+					y,
+					separatorY);
+				target.restore();
+			});
 		}
 
 		canvasContext.restore();
