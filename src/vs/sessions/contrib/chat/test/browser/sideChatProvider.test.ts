@@ -97,6 +97,7 @@ suite('SessionsSideChatProviderContribution', () => {
 
 		const callOrder: string[] = [];
 		const requests: ISendRequestOptions[] = [];
+		const contextInheritance: (boolean | undefined)[] = [];
 		const sendRequest: ISessionsManagementService['sendRequest'] = async (_session, chat, requestOptions) => {
 			callOrder.push(`send:${chat.resource.toString()}:${requestOptions.query}`);
 			requests.push(requestOptions);
@@ -109,8 +110,9 @@ suite('SessionsSideChatProviderContribution', () => {
 				const resolvedChat = [chat, parentChat].find(candidate => extUri.isEqual(candidate.resource, resource));
 				return resolvedChat ? { session, chat: resolvedChat } : undefined;
 			},
-			createSideChatInSession: async (_session, _sourceChat, turnId, selection) => {
+			createSideChatInSession: async (_session, _sourceChat, turnId, selection, includeSourceContext) => {
 				callOrder.push(`create:${turnId}:${selection?.text ?? ''}`);
+				contextInheritance.push(includeSourceContext);
 				if (options.fail === 'create') {
 					throw new Error('Create failed');
 				}
@@ -147,16 +149,16 @@ suite('SessionsSideChatProviderContribution', () => {
 		}));
 
 		store.add(instantiationService.createInstance(SessionsSideChatProviderContribution));
-		return { provider: () => registered, callOrder, requests, activeSession, activeChat, navigationRequest, session, mainWindowSession, gridSession };
+		return { provider: () => registered, callOrder, requests, contextInheritance, activeSession, activeChat, navigationRequest, session, mainWindowSession, gridSession };
 	}
 
 	test('registers a provider that branches, opens, then sends on the side chat', async () => {
-		const { provider, callOrder, requests } = setup();
+		const { provider, callOrder, requests, contextInheritance } = setup();
 		const attachedContext = [toPasteVariableEntry('Pasted text #1', 'Long pasted text')];
 
 		await provider()!.askInSideChat(sourceChat.resource, 'what about this?', { text: 'selected text' }, { attachedContext });
 
-		assert.deepStrictEqual({ callOrder, requests }, {
+		assert.deepStrictEqual({ callOrder, requests, contextInheritance }, {
 			callOrder: [
 				'create:turn-1:selected text',
 				`open:${sideChat.resource.toString()}`,
@@ -164,6 +166,25 @@ suite('SessionsSideChatProviderContribution', () => {
 				`send:${sideChat.resource.toString()}:what about this?`,
 			],
 			requests: [{ query: 'what about this?', attachedContext }],
+			contextInheritance: [undefined],
+		});
+	});
+
+	test('opens a fresh side chat and sends only the supplied prompt when source context is disabled', async () => {
+		const { provider, callOrder, requests, contextInheritance } = setup();
+		const query = 'Explain this command: git status';
+
+		await provider()!.askInSideChat(sourceChat.resource, query, undefined, { includeSourceContext: false });
+
+		assert.deepStrictEqual({ callOrder, requests, contextInheritance }, {
+			callOrder: [
+				'create:turn-1:',
+				`open:${sideChat.resource.toString()}`,
+				`split:${sideChat.resource.toString()}`,
+				`send:${sideChat.resource.toString()}:${query}`,
+			],
+			requests: [{ query, attachedContext: undefined }],
+			contextInheritance: [false],
 		});
 	});
 
