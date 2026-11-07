@@ -2231,9 +2231,11 @@ suite('LanguageModels - Provider Group Management', function () {
 	let languageModelsService: LanguageModelsService;
 	let providerGroups: ILanguageModelsProviderGroup[];
 	let updateCalls: { from: ILanguageModelsProviderGroup; to: ILanguageModelsProviderGroup }[];
+	let removeCalls: ILanguageModelsProviderGroup[];
 	let configureCalls: (ConfigureLanguageModelsOptions | undefined)[];
 	let acceptedInputValues: string[];
 	let secretStorageService: TestSecretStorageService;
+	let initialConfigLoad: DeferredPromise<void> | undefined;
 
 	setup(function () {
 		providerGroups = [{
@@ -2243,9 +2245,11 @@ suite('LanguageModels - Provider Group Management', function () {
 			settings: { model: { temperature: 0.7 } }
 		}];
 		updateCalls = [];
+		removeCalls = [];
 		configureCalls = [];
 		acceptedInputValues = [];
 		secretStorageService = new TestSecretStorageService();
+		initialConfigLoad = undefined;
 
 		languageModelsService = new LanguageModelsService(
 			new class extends mock<IExtensionService>() {
@@ -2257,7 +2261,11 @@ suite('LanguageModels - Provider Group Management', function () {
 			new TestStorageService(),
 			new MockContextKeyService(),
 			new class extends mock<ILanguageModelsConfigurationService>() {
+				private _whenReady: Promise<void> | undefined;
 				override onDidChangeLanguageModelGroups = Event.None;
+				override get whenReady(): Promise<void> {
+					return this._whenReady ??= initialConfigLoad ? initialConfigLoad.p : Promise.resolve();
+				}
 				override getLanguageModelsProviderGroups() {
 					return providerGroups;
 				}
@@ -2265,6 +2273,10 @@ suite('LanguageModels - Provider Group Management', function () {
 					updateCalls.push({ from, to });
 					providerGroups = providerGroups.map(group => group === from ? to : group);
 					return to;
+				}
+				override async removeLanguageModelsProviderGroup(group: ILanguageModelsProviderGroup): Promise<void> {
+					removeCalls.push(group);
+					providerGroups = providerGroups.filter(g => g !== group);
 				}
 				override async configureLanguageModels(options?: ConfigureLanguageModelsOptions): Promise<void> {
 					configureCalls.push(options);
@@ -2405,6 +2417,22 @@ suite('LanguageModels - Provider Group Management', function () {
 		await languageModelsService.openLanguageModelsProviderGroupSettings('custom-vendor', 'Custom Group');
 
 		assert.deepStrictEqual(configureCalls, [{ group: providerGroups[0] }]);
+	});
+
+	test('removeLanguageModelsProviderGroup waits for the initial configuration load', async function () {
+		const groupsOnDisk = providerGroups;
+		providerGroups = [];
+		initialConfigLoad = new DeferredPromise<void>();
+
+		const remove = languageModelsService.removeLanguageModelsProviderGroup('custom-vendor', 'Custom Group');
+		await timeout(0);
+		assert.deepStrictEqual(removeCalls, []);
+
+		providerGroups = groupsOnDisk;
+		initialConfigLoad.complete();
+		await remove;
+
+		assert.deepStrictEqual(removeCalls, [groupsOnDisk[0]]);
 	});
 });
 
