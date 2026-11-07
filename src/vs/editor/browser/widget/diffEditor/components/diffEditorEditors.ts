@@ -138,10 +138,16 @@ export class DiffEditorEditors extends Disposable {
 		return editor;
 	}
 
+	private _originalWordWrapOverride2BeforeInlineView: IEditorOptions['wordWrapOverride2'] = undefined;
+
 	private _adjustOptionsForLeftHandSide(_reader: IReader | undefined, changedOptions: Readonly<IDiffEditorConstructionOptions>): IEditorConstructionOptions {
 		const result = this._adjustOptionsForSubEditor(changedOptions);
 		if (!this._options.renderSideBySide.get()) {
 			// never wrap hidden editor
+			this._originalWordWrapOverride2BeforeInlineView = result.wordWrapOverride2
+				?? this._originalWordWrapOverride2BeforeInlineView
+				?? this.original?.getRawOptions().wordWrapOverride2
+				?? 'inherit';
 			result.wordWrapOverride1 = 'off';
 			result.wordWrapOverride2 = 'off';
 			result.stickyScroll = { enabled: false };
@@ -151,6 +157,10 @@ export class DiffEditorEditors extends Disposable {
 		} else {
 			result.unicodeHighlight = this._options.editorOptions.get().unicodeHighlight || {};
 			result.wordWrapOverride1 = this._options.diffWordWrap.get();
+			if (this._originalWordWrapOverride2BeforeInlineView !== undefined) {
+				result.wordWrapOverride2 ??= this._originalWordWrapOverride2BeforeInlineView;
+				this._originalWordWrapOverride2BeforeInlineView = undefined;
+			}
 		}
 		result.glyphMargin = this._options.renderSideBySide.get();
 
