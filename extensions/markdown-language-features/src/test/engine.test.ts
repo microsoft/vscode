@@ -28,6 +28,19 @@ suite('markdown.engine', () => {
 			const engine = createNewMarkdownEngine();
 			assert.strictEqual((await engine.render(input)).html, output);
 		});
+
+		test('Does not reuse cached tokens across document instances', async () => {
+			const engine = createNewMarkdownEngine();
+			const firstDocument = new InMemoryDocument(testFileName, '# first', 1);
+			const reopenedDocument = new InMemoryDocument(testFileName, '# reopened', 1);
+
+			await engine.render(firstDocument);
+
+			assert.strictEqual(
+				(await engine.render(reopenedDocument)).html,
+				'<h1 data-line="0" class="code-line" dir="auto" id="reopened">reopened</h1>\n'
+			);
+		});
 	});
 
 	suite('image-caching', () => {
