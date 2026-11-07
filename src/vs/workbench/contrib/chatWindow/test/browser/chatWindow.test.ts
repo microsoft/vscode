@@ -7,25 +7,29 @@ import assert from 'assert';
 import { IDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
 import { DeferredPromise, timeout } from '../../../../../base/common/async.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
-import { DisposableStore } from '../../../../../base/common/lifecycle.js';
+import { DisposableStore, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { autorun, constObservable, ISettableObservable, observableValue } from '../../../../../base/common/observable.js';
 import { errorHandler, setUnexpectedErrorHandler } from '../../../../../base/common/errors.js';
 import { isEqual } from '../../../../../base/common/resources.js';
+import { DeepPartial } from '../../../../../base/common/types.js';
 import { URI } from '../../../../../base/common/uri.js';
+import { mainWindow } from '../../../../../base/browser/window.js';
 import { mock, upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { InMemoryStorageService } from '../../../../../platform/storage/common/storage.js';
-import { EditorCloseContext, GroupIdentifier, GroupModelChangeKind, IActiveEditorChangeEvent, IEditorCloseEvent, IEditorWillMoveEvent, IMatchEditorOptions, IUntypedEditorInput } from '../../../../common/editor.js';
+import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
+import { Registry } from '../../../../../platform/registry/common/platform.js';
+import { EditorCloseContext, EditorExtensions, GroupIdentifier, GroupModelChangeKind, IEditorFactoryRegistry, IEditorPartOptions, IActiveEditorChangeEvent, IEditorCloseEvent, IEditorWillMoveEvent, IMatchEditorOptions, IUntypedEditorInput } from '../../../../common/editor.js';
 import { IGroupModelChangeEvent } from '../../../../common/editor/editorGroupModel.js';
 import { EditorInput } from '../../../../common/editor/editorInput.js';
 import { MenuId } from '../../../../../platform/actions/common/actions.js';
 import { IContentPart, IEditorGroup, IEditorGroupsService, IEditorPart } from '../../../../services/editor/common/editorGroupsService.js';
-import { workbenchInstantiationService } from '../../../../test/browser/workbenchTestServices.js';
+import { createEditorParts, workbenchInstantiationService } from '../../../../test/browser/workbenchTestServices.js';
 import { IChatWindow, IChatWindowChat, IChatWindowContent, IChatWindowOpenOptions, IChatWindowProvider } from '../../browser/chatWindow.js';
 import { showChatInsteadOfEmptyMainPart } from '../../browser/chatWindowParts.js';
 import { TERMINAL_EDITOR_TYPE_ID } from '../../browser/chatWindowGrid.js';
 import { reopenChatWindow } from '../../browser/chatWindowEditors.js';
-import { ChatWindow, ChatWindowService, findGroupShowing, getChatPartGroupViewOptions, getLastChatDestination, getTerminalsPartGroupViewOptions } from '../../browser/chatWindowService.js';
+import { ChatWindow, ChatWindowService, enforceChatPartOptions, findGroupShowing, getChatPartGroupViewOptions, getLastChatDestination, getTerminalsPartGroupViewOptions } from '../../browser/chatWindowService.js';
 import { ChatWindowLayoutMode, ChatWindowTerminalPosition } from '../../common/chatWindowLayout.js';
 import { ChatWindowDefaults, ChatWindowState } from '../../common/chatWindowState.js';
 
@@ -1669,6 +1673,39 @@ suite('Chat window', () => {
 			other: options?.showHeaderFor?.(other),
 			withoutMainPartOptions: getChatPartGroupViewOptions(undefined, candidate => candidate === chatInput),
 		}, { menuIds: { headerPrimary }, showHeader: true, useModernUITabs: true, chat: false, other: true, withoutMainPartOptions: undefined });
+	});
+
+	test('the tabs of its chat part, of chats with long titles, are all as wide, at most as an editor tab is by default, whatever sizing editor tabs have and as the options of its main part change; the tabs of other parts size as editor tabs do', async () => {
+		const store = disposables.add(new DisposableStore());
+		const instantiationService = workbenchInstantiationService({ configurationService: () => new TestConfigurationService({ workbench: { editor: { tabSizing: 'shrink', tabSizingFixedMinWidth: 50, tabSizingFixedMaxWidth: 300 } } }) }, store);
+		instantiationService.invokeFunction(accessor => Registry.as<IEditorFactoryRegistry>(EditorExtensions.EditorFactory).start(accessor));
+		const parts = await createEditorParts(instantiationService, store);
+		const createPart = (label: string) => {
+			const container = mainWindow.document.body.appendChild(mainWindow.document.createElement('div'));
+			const part = parts.createEditorPart({ container, label });
+			store.add(toDisposable(() => { part.close(); container.remove(); }));
+			return part;
+		};
+		const mainPart = createPart('Editor');
+		const chatPart = createPart('Chat');
+		const mainPartOptions = observableValue<DeepPartial<IEditorPartOptions>>('mainPartOptions', { showTabs: 'multiple' });
+		store.add(enforceChatPartOptions(chatPart, mainPartOptions));
+		const sizing = (part: IEditorPart) => {
+			const { showTabs, tabSizing, tabSizingFixedMinWidth, tabSizingFixedMaxWidth } = part.partOptions;
+			return { showTabs, tabSizing, tabSizingFixedMinWidth, tabSizingFixedMaxWidth };
+		};
+
+		const initial = { main: sizing(mainPart), chat: sizing(chatPart) };
+		mainPartOptions.set({ showTabs: 'single', tabSizing: 'fit' }, undefined);
+		const afterMainPartOptionsChange = sizing(chatPart);
+
+		assert.deepStrictEqual({ initial, afterMainPartOptionsChange }, {
+			initial: {
+				main: { showTabs: 'multiple', tabSizing: 'shrink', tabSizingFixedMinWidth: 50, tabSizingFixedMaxWidth: 300 },
+				chat: { showTabs: 'multiple', tabSizing: 'fixed', tabSizingFixedMinWidth: 80, tabSizingFixedMaxWidth: 160 },
+			},
+			afterMainPartOptionsChange: { showTabs: 'single', tabSizing: 'fixed', tabSizingFixedMinWidth: 80, tabSizingFixedMaxWidth: 160 },
+		});
 	});
 
 	test('an editor beside the chat in its own group, as a tab, moves into the main part before the parts close; when it cannot move, the window stays as it was', () => {
