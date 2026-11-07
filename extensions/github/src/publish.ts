@@ -96,6 +96,11 @@ export async function publishRepository(gitAPI: GitAPI, repository?: Repository)
 		repo = pick?.repo;
 		isPrivate = pick?.isPrivate ?? true;
 
+		if (!pick) {
+			// User has dismissed the quick pick
+			break;
+		}
+
 		if (repo) {
 			try {
 				quickpick.busy = true;
