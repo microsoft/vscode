@@ -10,6 +10,8 @@ import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { CancellationError, errorHandler, setUnexpectedErrorHandler } from '../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
+import { Schemas } from '../../../../base/common/network.js';
+import { isEqual } from '../../../../base/common/resources.js';
 import { URI, UriComponents } from '../../../../base/common/uri.js';
 import { mock } from '../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
@@ -105,6 +107,10 @@ suite('MainThreadCustomEditors', () => {
 				calls.push(`$disposeCustomDocument(${URI.revive(resource).path})`);
 			}
 
+			override async $onSaveAs(resource: UriComponents, _viewType: string, target: UriComponents) {
+				calls.push(`$onSaveAs(${URI.revive(resource)}, ${URI.revive(target)})`);
+			}
+
 			override $resolveCustomEditor(resource: UriComponents, handle: string) {
 				calls.push(`$resolveCustomEditor(${URI.revive(resource).path}, ${handleName(handle)})`);
 				return extHost.resolveCustomEditor?.() ?? Promise.resolve();
@@ -165,7 +171,7 @@ suite('MainThreadCustomEditors', () => {
 		instantiationService.stub(IWebviewWorkbenchService, webviewWorkbenchService);
 		instantiationService.stub(IExtensionService, { activateByEvent: async () => { }, onWillStop: Event.None });
 		instantiationService.stub(IStorageService, store.add(new InMemoryStorageService()));
-		instantiationService.stub(IWorkingCopyService, { workingCopies: [] });
+		instantiationService.stub(IWorkingCopyService, { workingCopies: [], registerWorkingCopy: () => Disposable.None });
 		instantiationService.stub(IWorkingCopyFileService, { registerWorkingCopyProvider: () => Disposable.None, onWillRunWorkingCopyFileOperation: Event.None });
 		instantiationService.stub(IEditorGroupsService, { getGroup: () => undefined, getGroups: () => [] });
 		instantiationService.stub(IEditorService, { activeEditor: undefined });
@@ -177,7 +183,7 @@ suite('MainThreadCustomEditors', () => {
 		instantiationService.stub(IFilesConfigurationService, { onDidChangeReadonly: Event.None, isReadonly: () => false });
 		instantiationService.stub(ICustomEditorLabelService, { onDidChange: Event.None, getName: () => undefined });
 		instantiationService.stub(IFileDialogService, {});
-		instantiationService.stub(IUndoRedoService, {});
+		instantiationService.stub(IUndoRedoService, { removeElements: () => { } });
 		instantiationService.stub(IWorkbenchEnvironmentService, {});
 		instantiationService.stub(IPathService, {});
 		instantiationService.stub(IWorkbenchLayoutService, {});
@@ -228,9 +234,9 @@ suite('MainThreadCustomEditors', () => {
 			};
 		}
 
-		function createInput() {
+		function createInput(inputResource = resource) {
 			const webview = createWebview();
-			const input = store.add(instantiationService.createInstance(CustomEditorInput, { resource, viewType, webviewTitle: undefined, preferredName: 'file.custom', iconPath: undefined }, webview, {}));
+			const input = store.add(instantiationService.createInstance(CustomEditorInput, { resource: inputResource, viewType, webviewTitle: undefined, preferredName: 'file.custom', iconPath: undefined }, webview, {}));
 			return { input, webview };
 		}
 
@@ -239,7 +245,87 @@ suite('MainThreadCustomEditors', () => {
 			return { input };
 		}
 
-		return { calls, models, resolvers, createInput, createDiffInput, customEditors, outlineChanges: () => outlineChanges };
+		return { calls, models, resolvers, createInput, createDiffInput, customEditors, instantiationService, outlineChanges: () => outlineChanges };
+	}
+
+	for (const saveAs of [false, true]) {
+		test(`untitled custom editor ${saveAs ? 'Save As' : 'Save'} uses the virtual workspace save location`, async () => {
+			const fixture = createCustomEditors({ createCustomDocument: async () => ({ editable: true }) });
+			const untitled = URI.from({ scheme: Schemas.untitled, path: 'Untitled-1.custom' });
+			const defaultFolder = URI.parse('vscode-test://repository/workspace');
+			const target = URI.joinPath(defaultFolder, 'saved.custom');
+			const availableFileSystems = [defaultFolder.scheme];
+			const dialogs: { resource: URI; availableFileSystems: string[] | undefined }[] = [];
+			fixture.instantiationService.stub(IPathService, { defaultUriScheme: defaultFolder.scheme });
+			fixture.instantiationService.stub(IFileDialogService, {
+				defaultFilePath: async () => defaultFolder,
+				pickFileToSave: async (resource, availableFileSystems) => {
+					dialogs.push({ resource, availableFileSystems });
+					return target;
+				}
+			});
+			const { input } = fixture.createInput(untitled);
+			await input.resolve();
+			await (saveAs ? input.saveAs(0, { availableFileSystems }) : input.save(0, { availableFileSystems }));
+			assert.ok(isEqual(dialogs[0]?.resource, URI.joinPath(defaultFolder, 'Untitled-1.custom')));
+			assert.deepStrictEqual({ dialogs: dialogs.map(dialog => dialog.availableFileSystems), save: fixture.calls.at(-1), unexpectedErrors }, {
+				dialogs: [availableFileSystems],
+				save: `$onSaveAs(${untitled}, ${target})`,
+				unexpectedErrors: []
+			});
+			input.dispose();
+			await timeout(0);
+		});
+
+		for (const target of [URI.file('/explicit/location/file.custom'), URI.parse('vscode-test://other-repository/explicit/file.custom')]) {
+			test(`untitled custom editor ${saveAs ? 'Save As' : 'Save'} preserves an explicit ${target.scheme} path`, async () => {
+				const fixture = createCustomEditors({ createCustomDocument: async () => ({ editable: true }) });
+				const untitled = target.with({ scheme: Schemas.untitled });
+				const dialogs: URI[] = [];
+				fixture.instantiationService.stub(IPathService, { defaultUriScheme: target.scheme });
+				fixture.instantiationService.stub(IFileDialogService, {
+					defaultFilePath: async () => { throw new Error('An explicit path should not use the default directory'); },
+					pickFileToSave: async resource => {
+						dialogs.push(resource);
+						return target;
+					}
+				});
+				const { input } = fixture.createInput(untitled);
+				await input.resolve();
+				await (saveAs ? input.saveAs(0) : input.save(0));
+				assert.ok(isEqual(dialogs[0], saveAs ? untitled : target));
+				assert.deepStrictEqual({ dialogs: dialogs.length, save: fixture.calls.at(-1), unexpectedErrors }, {
+					dialogs: 1,
+					save: `$onSaveAs(${untitled}, ${target})`,
+					unexpectedErrors: []
+				});
+				input.dispose();
+				await timeout(0);
+			});
+		}
+
+		test(`canceling untitled custom editor ${saveAs ? 'Save As' : 'Save'} keeps its changes`, async () => {
+			const fixture = createCustomEditors({ createCustomDocument: async () => ({ editable: true }) });
+			const untitled = URI.from({ scheme: Schemas.untitled, path: 'Untitled-1.custom' });
+			fixture.instantiationService.stub(IPathService, { defaultUriScheme: 'vscode-test' });
+			fixture.instantiationService.stub(IFileDialogService, {
+				defaultFilePath: async () => URI.parse('vscode-test://repository/workspace'),
+				pickFileToSave: async () => undefined
+			});
+			const { input } = fixture.createInput(untitled);
+			await input.resolve();
+			await fixture.customEditors.$onContentChange(untitled, viewType);
+			const result = await (saveAs ? input.saveAs(0) : input.save(0));
+			assert.deepStrictEqual({ result, dirty: input.isDirty(), saves: fixture.calls.filter(call => call.startsWith('$onSaveAs')), unexpectedErrors }, {
+				result: undefined,
+				dirty: true,
+				saves: [],
+				unexpectedErrors: []
+			});
+			await input.revert(0, { soft: true });
+			input.dispose();
+			await timeout(0);
+		});
 	}
 
 	test('custom text navigation resolves only after its editor and invalidates Outline capability on disposal', async () => {
