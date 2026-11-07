@@ -131,6 +131,13 @@ export class LocalAgentsSessionsController extends Disposable implements IChatSe
 			addModelListeners(model).catch(onUnexpectedError);
 		}
 
+		this._register(this.chatService.onDidChangeSessionTitle(resource => {
+			if (getChatSessionType(resource) === this.chatSessionType) {
+				this._refreshCancellation.value?.cancel();
+				this.refresh(CancellationToken.None).catch(onUnexpectedError);
+			}
+		}));
+
 		this._register(this.chatService.onDidDisposeSession(e => {
 			for (const sessionResource of e.sessionResources) {
 				this._modelListeners.deleteAndDispose(sessionResource);

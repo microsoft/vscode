@@ -7423,8 +7423,17 @@ suite('ChatService', () => {
 		await testService.waitForModelDisposals();
 		assert.strictEqual(testService.getSession(resource), undefined);
 
+		const disposed: URI[] = [];
+		testDisposables.add(testService.onDidDisposeSession(e => disposed.push(...e.sessionResources)));
+		const renamed: URI[] = [];
+		testDisposables.add(testService.onDidChangeSessionTitle(resource => renamed.push(resource)));
 		await testService.setChatSessionTitle(resource, 'My custom title');
 		await testService.waitForModelDisposals();
+
+		assert.strictEqual(testService.getSession(resource), undefined);
+
+		assert.deepStrictEqual(disposed, []);
+		assert.deepStrictEqual(renamed, [resource]);
 
 		const restartedService = createChatService();
 		const history = await restartedService.getHistorySessionItems();
