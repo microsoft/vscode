@@ -4,6 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import * as sinon from 'sinon';
+import { DeferredPromise } from '../../../../../base/common/async.js';
 import { bufferToStream, encodeBase64, VSBuffer } from '../../../../../base/common/buffer.js';
 import { IDefaultAccount, IEntitlementsData } from '../../../../../base/common/defaultAccount.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
@@ -1121,6 +1123,303 @@ suite('WorkbenchExtensionGalleryManifestService', () => {
 		assert.strictEqual(await authorizationService.getAccessToken(MARKETPLACE_URL), 'resource-token');
 	});
 
+	// --- Gated service index, GitHub (RFC 8693 token exchange) ---
+
+	const GITHUB_AUTHORIZATION_SERVER = 'https://marketplace.example.com/oauth';
+	const GITHUB_PROTECTED_RESOURCE_METADATA = {
+		resource: 'https://marketplace.example.com',
+		authorization_servers: [GITHUB_AUTHORIZATION_SERVER],
+		scopes_supported: ['marketplace.read'],
+	};
+
+	function stubGitHubSession(): void {
+		instantiationService.stub(IAuthenticationService, new class extends mock<IAuthenticationService>() {
+			override readonly onDidChangeSessions = onDidChangeSessions.event;
+			override async getSessions(providerId: string) {
+				return providerId === 'github'
+					? [{ id: 'session-1', accessToken: 'github-token', account: { id: 'gh-1', label: 'testuser' }, scopes: [] }]
+					: [];
+			}
+		}());
+	}
+
+	/** A gated index whose authorization server exchanges `github-token` for `exchanged-token`. */
+	function gatedGitHubMarketplace(exchangeRequests: IRequestOptions[], options: { issuer?: string; tokenEndpoint?: string; exchangeStatus?: number } = {}): (request: IRequestOptions) => IRequestContext {
+		const tokenEndpoint = options.tokenEndpoint ?? `${GITHUB_AUTHORIZATION_SERVER}/token`;
+		return request => {
+			if (request.url?.includes('/.well-known/oauth-protected-resource')) {
+				return mockResponse(200, GITHUB_PROTECTED_RESOURCE_METADATA);
+			}
+			if (request.url?.includes('/.well-known/oauth-authorization-server') || request.url?.includes('/.well-known/openid-configuration')) {
+				return mockResponse(200, { issuer: options.issuer ?? GITHUB_AUTHORIZATION_SERVER, token_endpoint: tokenEndpoint, response_types_supported: ['code'] });
+			}
+			if (request.url === tokenEndpoint) {
+				exchangeRequests.push(request);
+				return options.exchangeStatus && options.exchangeStatus !== 200
+					? mockResponse(options.exchangeStatus, { error: 'invalid_grant' })
+					: mockResponse(200, { access_token: 'exchanged-token', token_type: 'Bearer', expires_in: 3600 });
+			}
+			return request.headers?.Authorization === 'Bearer exchanged-token'
+				? mockResponse(200, createGalleryManifest())
+				: mockResponse(401, { message: 'authentication required' });
+		};
+	}
+
+	test('GitHub — gated index exchanges the session token (RFC 8693) and becomes Available', async () => {
+		defaultAccount = createDefaultAccount({ enterprise: true });
+		stubGitHubSession();
+		const exchangeRequests: IRequestOptions[] = [];
+		requestHandler = gatedGitHubMarketplace(exchangeRequests);
+
+		const service = createService();
+		await service.getExtensionGalleryManifest();
+
+		assert.deepStrictEqual({
+			status: service.extensionGalleryManifestStatus,
+			token: await authorizationService.getAccessToken(MARKETPLACE_URL),
+			exchanges: exchangeRequests.map(request => ({ type: request.type, followRedirects: request.followRedirects, body: Object.fromEntries(new URLSearchParams(request.data as string)) })),
+		}, {
+			status: ExtensionGalleryManifestStatus.Available,
+			token: 'exchanged-token',
+			exchanges: [{
+				type: 'POST',
+				followRedirects: 0,
+				body: {
+					grant_type: 'urn:ietf:params:oauth:grant-type:token-exchange',
+					subject_token: 'github-token',
+					subject_token_type: 'urn:ietf:params:oauth:token-type:access_token',
+					resource: 'https://marketplace.example.com',
+					scope: 'marketplace.read',
+				}
+			}],
+		});
+	});
+
+	test('GitHub — an index that is not gated needs no exchange', async () => {
+		defaultAccount = createDefaultAccount({ enterprise: true });
+		stubGitHubSession();
+		const exchangeRequests: IRequestOptions[] = [];
+		requestHandler = request => request.url?.includes('/oauth/') ? (exchangeRequests.push(request), mockResponse(500, {})) : mockResponse(200, createGalleryManifest());
+
+		const service = createService();
+		await service.getExtensionGalleryManifest();
+
+		assert.strictEqual(service.extensionGalleryManifestStatus, ExtensionGalleryManifestStatus.Available);
+		assert.strictEqual(exchangeRequests.length, 0);
+		assert.strictEqual(await authorizationService.getAccessToken(MARKETPLACE_URL), undefined);
+	});
+
+	test('GitHub — the session token is never sent to a token endpoint on another origin', async () => {
+		defaultAccount = createDefaultAccount({ enterprise: true });
+		stubGitHubSession();
+		const exchangeRequests: IRequestOptions[] = [];
+		requestHandler = gatedGitHubMarketplace(exchangeRequests, { tokenEndpoint: 'https://attacker.example.com/token' });
+
+		const service = createService();
+		await service.getExtensionGalleryManifest();
+
+		assert.strictEqual(service.extensionGalleryManifestStatus, ExtensionGalleryManifestStatus.RequiresSignIn);
+		assert.strictEqual(exchangeRequests.length, 0);
+		assert.strictEqual(await authorizationService.getAccessToken(MARKETPLACE_URL), undefined);
+	});
+
+	test('GitHub — rejects authorization server metadata with a mismatched issuer', async () => {
+		defaultAccount = createDefaultAccount({ enterprise: true });
+		stubGitHubSession();
+		const exchangeRequests: IRequestOptions[] = [];
+		requestHandler = gatedGitHubMarketplace(exchangeRequests, { issuer: 'https://identity.example.com/oauth' });
+
+		const service = createService();
+		await service.getExtensionGalleryManifest();
+
+		assert.deepStrictEqual({
+			status: service.extensionGalleryManifestStatus,
+			exchanges: exchangeRequests.length,
+			token: await authorizationService.getAccessToken(MARKETPLACE_URL),
+		}, {
+			status: ExtensionGalleryManifestStatus.RequiresSignIn,
+			exchanges: 0,
+			token: undefined,
+		});
+	});
+
+	suite('GitHub token renewal', () => {
+		let clock: sinon.SinonFakeTimers;
+
+		setup(() => {
+			clock = sinon.useFakeTimers();
+			defaultAccount = createDefaultAccount({ enterprise: true });
+			stubGitHubSession();
+		});
+
+		teardown(() => clock.restore());
+
+		test('keeps the marketplace available through a transient renewal failure', async () => {
+			let failing = false;
+			const requests: IRequestOptions[] = [];
+			const marketplace = gatedGitHubMarketplace(requests);
+			requestHandler = request => failing && request.url?.includes('/.well-known/oauth-protected-resource')
+				? mockResponse(503, {})
+				: marketplace(request);
+			const service = createService();
+			await service.getExtensionGalleryManifest();
+			const refreshed = new Promise<void>(resolve => {
+				disposableStore.add(service.onDidChangeExtensionGalleryManifest(() => resolve()));
+			});
+			failing = true;
+			clock.tick(2_700_000);
+			await refreshed;
+			assert.deepStrictEqual({
+				status: service.extensionGalleryManifestStatus,
+				token: await authorizationService.getAccessToken(MARKETPLACE_URL),
+				exchanges: requests.length,
+			}, {
+				status: ExtensionGalleryManifestStatus.Available,
+				token: 'exchanged-token',
+				exchanges: 1,
+			});
+		});
+
+		for (const failingStep of ['resource discovery', 'server discovery', 'exchange', 'network'] as const) {
+			test(`retains the token and retries after a transient ${failingStep} failure`, async () => {
+				let failing = false;
+				let exchangeCount = 0;
+				let notifications = 0;
+				requestHandler = request => {
+					if (request.url?.includes('/.well-known/oauth-protected-resource')) {
+						if (failing && failingStep === 'network') {
+							throw new Error('network down');
+						}
+						return failing && failingStep === 'resource discovery' ? mockResponse(503, {}) : mockResponse(200, GITHUB_PROTECTED_RESOURCE_METADATA);
+					}
+					if (request.url?.includes('/.well-known/oauth-authorization-server') || request.url?.includes('/.well-known/openid-configuration')) {
+						return failing && failingStep === 'server discovery' ? mockResponse(503, {}) : mockResponse(200, { issuer: GITHUB_AUTHORIZATION_SERVER, token_endpoint: `${GITHUB_AUTHORIZATION_SERVER}/token` });
+					}
+					exchangeCount++;
+					return failing && failingStep === 'exchange' ? mockResponse(503, {}) : mockResponse(200, { access_token: `token-${exchangeCount}`, token_type: 'Bearer', expires_in: 120 });
+				};
+				const provider = disposableStore.add(instantiationService.createInstance(GitHubGalleryAccountProvider));
+				disposableStore.add(provider.onDidChangeAccount(() => notifications++));
+				assert.strictEqual((await provider.getAccount(MARKETPLACE_URL))?.accessToken, 'token-1');
+				clock.tick(90_000);
+				failing = true;
+				assert.strictEqual((await provider.getAccount(MARKETPLACE_URL))?.accessToken, 'token-1');
+				clock.tick(5_000);
+				failing = false;
+				const recovered = await provider.getAccount(MARKETPLACE_URL);
+				assert.deepStrictEqual({ token: recovered?.accessToken, notifications }, { token: `token-${exchangeCount}`, notifications: 2 });
+				assert.notStrictEqual(recovered?.accessToken, 'token-1');
+			});
+		}
+
+		test('stops retaining the token at expiry and keeps retrying', async () => {
+			let failing = false;
+			let notifications = 0;
+			requestHandler = request => {
+				if (request.url?.includes('/.well-known/oauth-protected-resource')) {
+					return failing ? mockResponse(503, {}) : mockResponse(200, GITHUB_PROTECTED_RESOURCE_METADATA);
+				}
+				if (request.url?.includes('/.well-known/oauth-authorization-server')) {
+					return mockResponse(200, { issuer: GITHUB_AUTHORIZATION_SERVER, token_endpoint: `${GITHUB_AUTHORIZATION_SERVER}/token` });
+				}
+				return mockResponse(200, { access_token: 'token-1', token_type: 'Bearer', expires_in: 120 });
+			};
+			const provider = disposableStore.add(instantiationService.createInstance(GitHubGalleryAccountProvider));
+			disposableStore.add(provider.onDidChangeAccount(() => notifications++));
+			await provider.getAccount(MARKETPLACE_URL);
+			clock.tick(90_000);
+			failing = true;
+			assert.strictEqual((await provider.getAccount(MARKETPLACE_URL))?.accessToken, 'token-1');
+			clock.tick(30_000);
+			assert.strictEqual((await provider.getAccount(MARKETPLACE_URL))?.accessToken, undefined);
+			clock.tick(10_000);
+			assert.deepStrictEqual({ notifications }, { notifications: 3 });
+		});
+
+		test('does not retain a token after session changes or a rejected exchange', async () => {
+			let status = 200;
+			requestHandler = request => {
+				if (request.url?.includes('/.well-known/oauth-protected-resource')) {
+					return mockResponse(200, GITHUB_PROTECTED_RESOURCE_METADATA);
+				}
+				if (request.url?.includes('/.well-known/oauth-authorization-server')) {
+					return mockResponse(200, { issuer: GITHUB_AUTHORIZATION_SERVER, token_endpoint: `${GITHUB_AUTHORIZATION_SERVER}/token` });
+				}
+				return status === 200 ? mockResponse(200, { access_token: 'token-1', token_type: 'Bearer', expires_in: 120 }) : mockResponse(status, {});
+			};
+			const provider = disposableStore.add(instantiationService.createInstance(GitHubGalleryAccountProvider));
+			await provider.getAccount(MARKETPLACE_URL);
+			status = 400;
+			assert.strictEqual((await provider.getAccount(MARKETPLACE_URL))?.accessToken, undefined);
+			status = 200;
+			await provider.getAccount(MARKETPLACE_URL);
+			onDidChangeSessions.fire({ providerId: 'github', label: 'GitHub', event: { added: [], removed: [], changed: [] } });
+			status = 503;
+			assert.strictEqual((await provider.getAccount(MARKETPLACE_URL))?.accessToken, undefined);
+		});
+
+		test('does not retain a token without a known expiry on renewal failure', async () => {
+			let failing = false;
+			requestHandler = request => {
+				if (request.url?.includes('/.well-known/oauth-protected-resource')) {
+					return failing ? mockResponse(503, {}) : mockResponse(200, GITHUB_PROTECTED_RESOURCE_METADATA);
+				}
+				if (request.url?.includes('/.well-known/oauth-authorization-server')) {
+					return mockResponse(200, { issuer: GITHUB_AUTHORIZATION_SERVER, token_endpoint: `${GITHUB_AUTHORIZATION_SERVER}/token` });
+				}
+				return mockResponse(200, { access_token: 'token-1', token_type: 'Bearer' });
+			};
+			const provider = disposableStore.add(instantiationService.createInstance(GitHubGalleryAccountProvider));
+			assert.strictEqual((await provider.getAccount(MARKETPLACE_URL))?.accessToken, 'token-1');
+			failing = true;
+			assert.strictEqual((await provider.getAccount(MARKETPLACE_URL))?.accessToken, undefined);
+		});
+
+		test('ignores an exchange that completes after a session change', async () => {
+			const exchangeStarted = new DeferredPromise<void>();
+			const exchangeResponse = new DeferredPromise<IRequestContext>();
+			requestHandler = request => {
+				if (request.url?.includes('/.well-known/oauth-protected-resource')) {
+					return mockResponse(200, GITHUB_PROTECTED_RESOURCE_METADATA);
+				}
+				if (request.url?.includes('/.well-known/oauth-authorization-server')) {
+					return mockResponse(200, { issuer: GITHUB_AUTHORIZATION_SERVER, token_endpoint: `${GITHUB_AUTHORIZATION_SERVER}/token` });
+				}
+				exchangeStarted.complete();
+				return exchangeResponse.p;
+			};
+			const provider = disposableStore.add(instantiationService.createInstance(GitHubGalleryAccountProvider));
+			const pending = provider.getAccount(MARKETPLACE_URL);
+			await exchangeStarted.p;
+			onDidChangeSessions.fire({ providerId: 'github', label: 'GitHub', event: { added: [], removed: [], changed: [] } });
+			exchangeResponse.complete(mockResponse(200, { access_token: 'stale-token', token_type: 'Bearer', expires_in: 120 }));
+			assert.strictEqual((await pending)?.accessToken, undefined);
+		});
+	});
+
+	test('GitHub — a rejected exchange asks to sign in without publishing a token', async () => {
+		defaultAccount = createDefaultAccount({ enterprise: true });
+		stubGitHubSession();
+		requestHandler = gatedGitHubMarketplace([], { exchangeStatus: 400 });
+
+		const service = createService();
+		await service.getExtensionGalleryManifest();
+
+		assert.strictEqual(service.extensionGalleryManifestStatus, ExtensionGalleryManifestStatus.RequiresSignIn);
+		assert.strictEqual(await authorizationService.getAccessToken(MARKETPLACE_URL), undefined);
+	});
+
+	test('GitHub — no session token for the account → RequiresSignIn without an exchange', async () => {
+		defaultAccount = createDefaultAccount({ enterprise: true });
+		const exchangeRequests: IRequestOptions[] = [];
+		requestHandler = gatedGitHubMarketplace(exchangeRequests);
+
+		const service = createService();
+		await service.getExtensionGalleryManifest();
+
+		assert.strictEqual(service.extensionGalleryManifestStatus, ExtensionGalleryManifestStatus.RequiresSignIn);
+		assert.strictEqual(exchangeRequests.length, 0);
+	});
 	test('Microsoft — an index without protected resource metadata uses the sign-in token', async () => {
 		configurationService.setUserConfiguration(ExtensionGalleryAuthProviderConfigKey, 'microsoft');
 		microsoftSessions = [createMicrosoftSession('signin-token')];
