@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { CancellationTokenSource } from '../../../../base/common/cancellation.js';
-import { Limiter, Promises, RunOnceScheduler, raceTimeout } from '../../../../base/common/async.js';
+import { Limiter, Promises, RunOnceScheduler, raceCancellation, raceTimeout } from '../../../../base/common/async.js';
 import { CancellationError, isCancellationError } from '../../../../base/common/errors.js';
 import { Emitter } from '../../../../base/common/event.js';
 import { Disposable, DisposableMap, DisposableStore } from '../../../../base/common/lifecycle.js';
@@ -404,13 +404,17 @@ export class SCMStructuralDiffModel extends Disposable {
 		return model;
 	}
 
-	/** Loads within the time budget, so a load that never completes cannot occupy one of the limited load slots forever. */
+	/**
+	 * Loads within the time budget, so a load that never completes cannot occupy one of the limited load slots forever.
+	 * Cancelling an entry does not interrupt loading its documents, so a cancelled load stops waiting for them and frees
+	 * its slot right away. Documents that are loaded later are released when they arrive.
+	 */
 	private async loadWithinBudget(entry: StructuralDiffEntry): Promise<readonly SCMStructuralDiffElement[]> {
-		const children = await raceTimeout(this.load(entry), MAX_LOAD_TIME_MS, () => {
+		const children = await raceTimeout(raceCancellation(this.load(entry), entry.cancellation.token, []), MAX_LOAD_TIME_MS, () => {
 			entry.timedOut = true;
 			entry.cancellation.cancel();
 		});
-		return children ?? this.fail(entry, 'timedOut');
+		return children && !entry.timedOut ? children : this.fail(entry, 'timedOut');
 	}
 
 	private async load(entry: StructuralDiffEntry): Promise<readonly SCMStructuralDiffElement[]> {
