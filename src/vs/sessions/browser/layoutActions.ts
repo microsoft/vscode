@@ -26,7 +26,7 @@ import { setSessionActivityBarSize } from '../../workbench/browser/parts/session
 import { IStorageService } from '../../platform/storage/common/storage.js';
 import { CustomViewVisibleContext, SessionActivityBarLayoutActionsContext } from '../common/agentsWindowContextKeys.js';
 import { IConfigurationService } from '../../platform/configuration/common/configuration.js';
-import { SESSION_ACTIVITY_BAR_LAYOUT_ACTIONS_SETTING, SESSION_ACTIVITY_BAR_SETTING } from '../../workbench/contrib/sessions/common/sessionConfig.js';
+import { SESSION_ACTIVITY_BAR_FIXED_COLUMN_SETTING, SESSION_ACTIVITY_BAR_LAYOUT_ACTIONS_SETTING, SESSION_ACTIVITY_BAR_SETTING } from '../../workbench/contrib/sessions/common/sessionConfig.js';
 
 MenuRegistry.appendMenuItem(AgentsWindowMenus.TitleBarContext, {
 	title: localize('layoutDensity', "Layout Density"),
@@ -86,10 +86,10 @@ registerAction2(class ToggleSessionActivityBarAction extends Action2 {
 MenuRegistry.appendMenuItem(Menus.SessionActivityBarContext, {
 	command: {
 		id: TOGGLE_SESSION_ACTIVITY_BAR_COMMAND_ID,
-		title: localize('hideSessionActivityBar', "Hide Session Activity Bar"),
+		title: localize('hideSessionActivityBarShort', "Hide"),
 	},
-	group: 'navigation',
-	order: 1,
+	group: '3_visibility',
+	order: 0,
 });
 
 export const TOGGLE_SESSION_ACTIVITY_BAR_LAYOUT_ACTIONS_COMMAND_ID = 'workbench.action.agentSessions.toggleSessionActivityBarLayoutActions';
@@ -118,17 +118,68 @@ MenuRegistry.appendMenuItem(Menus.SessionActivityBarContext, {
 		title: localize('showSessionActivityBarLayoutActions', "Show Layout Actions"),
 		toggled: ContextKeyExpr.equals(`config.${SESSION_ACTIVITY_BAR_LAYOUT_ACTIONS_SETTING}`, true),
 	},
-	group: 'navigation',
+	group: '1_layoutActions',
 	order: 0,
 });
 
 MenuRegistry.appendMenuItem(Menus.SessionActivityBarContext, {
 	title: localize('sessionActivityBarSize', "Size"),
 	submenu: Menus.SessionActivityBarSize,
-	group: 'navigation',
-	order: -1,
-	when: DesktopLayoutContext,
+	group: '2_configure',
+	order: 1,
+	// The column of a chat window always shows the bar at the chosen size; the main window's only while docked.
+	when: ContextKeyExpr.and(DesktopLayoutContext, ContextKeyExpr.or(LayoutModeContext, ContextKeyExpr.equals(`config.${SESSION_ACTIVITY_BAR_FIXED_COLUMN_SETTING}`, true))),
 });
+
+export const TOGGLE_SESSION_ACTIVITY_BAR_FIXED_COLUMN_COMMAND_ID = 'workbench.action.agentSessions.toggleSessionActivityBarFixedColumn';
+
+registerAction2(class ToggleSessionActivityBarFixedColumnAction extends Action2 {
+	constructor() {
+		super({
+			id: TOGGLE_SESSION_ACTIVITY_BAR_FIXED_COLUMN_COMMAND_ID,
+			title: localize2('toggleSessionActivityBarFixedColumn', "Toggle Session Activity Bar Docked or Floating"),
+			category: Categories.View,
+			f1: true,
+			precondition: ContextKeyExpr.and(DesktopLayoutContext, ContextKeyExpr.equals(`config.${SESSION_ACTIVITY_BAR_SETTING}`, true)),
+			toggled: ContextKeyExpr.equals(`config.${SESSION_ACTIVITY_BAR_FIXED_COLUMN_SETTING}`, true),
+		});
+	}
+
+	override run(accessor: ServicesAccessor): Promise<void> {
+		const configurationService = accessor.get(IConfigurationService);
+		return configurationService.updateValue(SESSION_ACTIVITY_BAR_FIXED_COLUMN_SETTING, !configurationService.getValue<boolean>(SESSION_ACTIVITY_BAR_FIXED_COLUMN_SETTING));
+	}
+});
+
+MenuRegistry.appendMenuItem(Menus.SessionActivityBarContext, {
+	title: localize('sessionActivityBarPosition', "Position"),
+	submenu: Menus.SessionActivityBarPosition,
+	group: '2_configure',
+	order: 0,
+	// Chat windows always show the bar in a column of their own.
+	when: ContextKeyExpr.and(DesktopLayoutContext, LayoutModeContext.toNegated()),
+});
+
+for (const [docked, order, title] of [
+	[true, 0, localize2('sessionActivityBarPosition.docked', "Docked")],
+	[false, 1, localize2('sessionActivityBarPosition.floating', "Floating")],
+] as const) {
+	registerAction2(class extends Action2 {
+		constructor() {
+			super({
+				id: `workbench.action.agentSessions.setSessionActivityBarPosition.${docked ? 'docked' : 'floating'}`,
+				title,
+				precondition: DesktopLayoutContext,
+				toggled: ContextKeyExpr.equals(`config.${SESSION_ACTIVITY_BAR_FIXED_COLUMN_SETTING}`, docked),
+				menu: { id: Menus.SessionActivityBarPosition, order },
+			});
+		}
+
+		override run(accessor: ServicesAccessor): Promise<void> {
+			return accessor.get(IConfigurationService).updateValue(SESSION_ACTIVITY_BAR_FIXED_COLUMN_SETTING, docked);
+		}
+	});
+}
 
 for (const [size, order, title] of [
 	[MenuActivityBarSize.Normal, 0, localize2('sessionActivityBarSize.normal', "Normal")],
