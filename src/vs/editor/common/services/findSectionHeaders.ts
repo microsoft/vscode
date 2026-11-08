@@ -47,6 +47,7 @@ export interface SectionHeader {
 }
 
 const trimDashesRegex = /^-+|-+$/g;
+const regionKeywordRegex = /region\b/i;
 
 const CHUNK_SIZE = 100;
 const MAX_SECTION_LINES = 5;
@@ -78,11 +79,12 @@ function collectRegionHeaders(model: ISectionHeaderFinderTarget, options: FindSe
 		const lineContent = model.getLineContent(lineNumber);
 		const match = lineContent.match(options.foldingRules!.markers!.start);
 		if (match) {
-			const range = { startLineNumber: lineNumber, startColumn: match[0].length + 1, endLineNumber: lineNumber, endColumn: lineContent.length + 1 };
-			if (range.endColumn > range.startColumn) {
+			const label = getRegionLabel(lineContent, match[0].length, options.blockCommentEndToken);
+			if (label) {
+				const range = { startLineNumber: lineNumber, startColumn: label.offset + 1, endLineNumber: lineNumber, endColumn: lineContent.length + 1 };
 				const sectionHeader = {
 					range,
-					...getHeaderText(lineContent.substring(match[0].length)),
+					...getHeaderText(label.text),
 					shouldBeInComments: false
 				};
 				if (sectionHeader.text || sectionHeader.hasSeparatorLine) {
@@ -92,6 +94,27 @@ function collectRegionHeaders(model: ISectionHeaderFinderTarget, options: FindSe
 		}
 	}
 	return regionHeaders;
+}
+
+/**
+ * Finds the label of a region marker. It is usually the text after the marker match, but some
+ * markers consume the whole line, e.g. `<!-- #region Label -->` or `/* #region Label *\/`.
+ * Then the label is the text after the `region` keyword, without the block comment end token.
+ */
+function getRegionLabel(lineContent: string, matchLength: number, blockCommentEndToken: string | undefined): { text: string; offset: number } | undefined {
+	if (lineContent.substring(matchLength).trim()) {
+		return { text: lineContent.substring(matchLength), offset: matchLength };
+	}
+	const keyword = regionKeywordRegex.exec(lineContent.substring(0, matchLength));
+	if (!keyword) {
+		return undefined;
+	}
+	const keywordEnd = keyword.index + keyword[0].length;
+	let text = lineContent.substring(keywordEnd).trimEnd();
+	if (blockCommentEndToken && text.endsWith(blockCommentEndToken)) {
+		text = text.substring(0, text.length - blockCommentEndToken.length);
+	}
+	return text.trim() ? { text, offset: keywordEnd } : undefined;
 }
 
 export function collectMarkHeaders(model: ISectionHeaderFinderTarget, options: FindSectionHeaderOptions): SectionHeader[] {

@@ -547,4 +547,41 @@ suite('FindSectionHeaders', () => {
 			customRegex: ['Html Section'],
 		});
 	});
+
+	test('finds region section header labels inside markers that consume the whole line', () => {
+		const findRegionHeaders = (lines: string[], start: string, end: string, blockCommentStartToken?: string, blockCommentEndToken?: string) => findSectionHeaders(new TestSectionHeaderFinderTarget(lines), {
+			findRegionSectionHeaders: true,
+			findMarkSectionHeaders: false,
+			foldingRules: { markers: { start: new RegExp(start), end: new RegExp(end) } },
+			blockCommentStartToken,
+			blockCommentEndToken,
+		}).map(h => ({ text: h.text, line: h.range.startLineNumber, startColumn: h.range.startColumn }));
+
+		assert.deepStrictEqual({
+			html: findRegionHeaders([
+				'<!-- #region Html Section -->',
+				'<!-- #region -->',
+				'  <!--#region Indented-->',
+			], '^\\s*<!--\\s*#?region\\b.*-->', '^\\s*<!--\\s*#?endregion\\b.*-->', '<!--', '-->'),
+			css: findRegionHeaders([
+				'/* #region Css Section */',
+				'/* #region */',
+			], '^\\s*\\/\\*\\s*#region\\b\\s*(.*?)\\s*\\*\\/', '^\\s*\\/\\*\\s*#endregion\\b.*\\*\\/', '/*', '*/'),
+			shell: findRegionHeaders([
+				'# region Shell Section',
+			], '^\\s*#\\s*#?region\\b.*', '^\\s*#\\s*#?endregion\\b.*', undefined, undefined),
+			typescript: findRegionHeaders([
+				'// #region Ts Section',
+				'// #region',
+			], '^\\s*//\\s*#?region\\b', '^\\s*//\\s*#?endregion\\b', '/*', '*/'),
+		}, {
+			html: [
+				{ text: 'Html Section', line: 1, startColumn: 13 },
+				{ text: 'Indented', line: 3, startColumn: 14 },
+			],
+			css: [{ text: 'Css Section', line: 1, startColumn: 11 }],
+			shell: [{ text: 'Shell Section', line: 1, startColumn: 9 }],
+			typescript: [{ text: 'Ts Section', line: 1, startColumn: 11 }],
+		});
+	});
 });
