@@ -605,6 +605,7 @@ suite('SCM structural diff model', () => {
 		const pending = model.getChildren(resource);
 		model.setVisible(false);
 		await resolver.blockOriginal.complete();
+		await timeout(0);
 		assert.deepStrictEqual({
 			children: await pending, requested: resolver.requested, released: resolver.released, calls: provider.calls,
 		}, { children: [], requested: [original.uri, modified.uri], released: [modified.uri, original.uri], calls: 0 });
@@ -865,6 +866,31 @@ suite('SCM structural diff model', () => {
 		const loaded = (await Promise.all(loads)).map(children => children.length);
 		assert.deepStrictEqual({ calls: provider.calls, loaded }, { calls: 3, loaded: [1, 1, 1, 0] });
 	});
+
+	for (const cancel of ['collapse', 'hide'] as const) {
+		test(`frees the load slots of files whose documents are still loading when ${cancel === 'collapse' ? 'they are collapsed' : 'the view is hidden'}`, () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+			resolver.blockOriginal = new DeferredPromise<void>();
+			const loading = createResources(3);
+			const loads = loading.map(file => model.getChildren(file));
+			if (cancel === 'collapse') {
+				for (const file of loading) {
+					model.release(file);
+				}
+			} else {
+				model.setVisible(false);
+				model.setVisible(true);
+			}
+			const start = Date.now();
+			const other = await model.getChildren(createWorkingTreeResource('other.ts'));
+			const elapsed = Date.now() - start;
+			await resolver.blockOriginal.complete();
+			await timeout(0);
+			assert.deepStrictEqual({
+				elapsed, other: other.map(getSCMStructuralDiffLabel), loads: (await Promise.all(loads)).map(children => children.length),
+				lateReleases: resolver.released.filter(uri => extUri.isEqual(uri, original.uri)).length,
+			}, { elapsed: 0, other: ['Calculator'], loads: [0, 0, 0], lateReleases: 3 });
+		}));
+	}
 
 	test('shows a status row and stops the provider when loading takes too long', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 		provider.pending = new DeferredPromise<StructuralDiff | undefined>();
