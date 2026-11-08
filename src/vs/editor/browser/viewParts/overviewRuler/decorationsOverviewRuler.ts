@@ -251,7 +251,7 @@ export class DecorationsOverviewRuler extends ViewPart {
 		this._domNode.setClassName('decorationsOverviewRuler');
 		this._domNode.setPosition('absolute');
 		this._domNode.setLayerHinting(true);
-		this._domNode.setContain('strict');
+		this._domNode.setContain('size');
 		this._domNode.setAttribute('aria-hidden', 'true');
 
 		this._updateSettings(false);
