@@ -17,7 +17,7 @@ export function mock<T>(): Ctor<T> {
 
 export type MockObject<T, ExceptProps = never> = { [K in keyof T]: K extends ExceptProps ? T[K] : SinonStub };
 
-// Creates an object object that returns sinon mocks for every property. Optionally
+// Creates an object that returns sinon mocks for every property. Optionally
 // takes base properties.
 export const mockObject = <T extends object>() => <TP extends Partial<T> = {}>(properties?: TP): MockObject<T, keyof TP> => {
 	// eslint-disable-next-line local/code-no-any-casts

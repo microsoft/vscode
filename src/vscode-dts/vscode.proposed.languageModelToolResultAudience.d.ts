@@ -15,7 +15,7 @@ declare module 'vscode' {
 		 */
 		User = 1,
 		/**
-		 * The part should should be retained for internal bookkeeping within
+		 * The part should be retained for internal bookkeeping within
 		 * extensions.
 		 */
 		Extension = 2,
