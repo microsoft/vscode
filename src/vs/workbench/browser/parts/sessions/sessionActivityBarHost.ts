@@ -7,7 +7,7 @@ import { $ } from '../../../../base/browser/dom.js';
 import { ISerializableView } from '../../../../base/browser/ui/grid/grid.js';
 import { Emitter } from '../../../../base/common/event.js';
 import { DisposableStore, IDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
-import { IObservable, observableFromEvent, observableValue } from '../../../../base/common/observable.js';
+import { constObservable, IObservable, observableFromEvent, observableValue } from '../../../../base/common/observable.js';
 import { MenuActivityBar, MenuActivityBarSize } from '../activitybar/menuActivityBar.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 
@@ -33,6 +33,16 @@ export interface ISessionActivityBarExternalHost {
 	readonly element: HTMLElement;
 	/** Whether the active strip shows in the host rather than beside its chat. */
 	readonly active: IObservable<boolean>;
+	/**
+	 * Whether the host is turned on. While it is off, the strip stays beside its chat even while the host is
+	 * {@link active}. Defaults to on.
+	 */
+	readonly enabled?: IObservable<boolean>;
+	/**
+	 * Called while a shown strip would show in the host if it were {@link enabled}, whether or not it is, so the host
+	 * knows when turning it on or off makes a difference.
+	 */
+	offer?(): void;
 	/**
 	 * Whether the strip shows at the full size of a {@link MenuActivityBar} in the host, like the workbench activity bar,
 	 * rather than at the slim size it has beside a chat.
@@ -138,7 +148,20 @@ export class SessionActivityBarColumn implements ISerializableView, ISessionActi
 	/** Whether a shown strip is in the column. */
 	readonly occupied = this.occupancy.occupied;
 
-	constructor(readonly active: IObservable<boolean>) { }
+	/**
+	 * @param active Whether the strip of the active chat can show in the column now.
+	 * @param enabled Whether the column is turned on; see {@link ISessionActivityBarExternalHost.enabled}.
+	 * @param onDidOffer Called while a shown strip would show in the column if it were turned on.
+	 */
+	constructor(
+		readonly active: IObservable<boolean>,
+		readonly enabled: IObservable<boolean> = constObservable(true),
+		private readonly onDidOffer?: () => void,
+	) { }
+
+	offer(): void {
+		this.onDidOffer?.();
+	}
 
 	setOccupied(occupant: object, occupied: boolean): void {
 		this.occupancy.set(occupant, occupied);

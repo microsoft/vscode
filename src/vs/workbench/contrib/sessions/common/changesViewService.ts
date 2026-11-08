@@ -97,6 +97,11 @@ export interface IChangesSessionScope {
 export interface IChangesEditorScope {
 	readonly _serviceBrand: undefined;
 	readonly scope: IChangesSessionScope | undefined;
+	/**
+	 * Whether the Changes editor does not show the changes of its scope yet: while it resolves the diffs of an input it
+	 * switched to, or while those changes load. Its header shows no stats meanwhile, which could be of other changes.
+	 */
+	readonly changesPendingObs?: IObservable<boolean>;
 }
 
 export const IChangesEditorScope = createDecorator<IChangesEditorScope>('changesEditorScope');
