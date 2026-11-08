@@ -1335,8 +1335,8 @@ export interface IAgentService {
 	onResourceWatchUnsubscribed(channel: string): boolean;
 }
 
-/** Options for {@link IAgentService.importSession}. */
-export type IAgentImportSessionOptions = IAgentImportChatOptions;
+/** Options for {@link IAgentService.importSession}. Whether to reload a loaded chat is the host's decision. */
+export type IAgentImportSessionOptions = Pick<IAgentImportChatOptions, 'takeOver'>;
 
 /**
  * Consumer-facing connection to an agent host. Session handlers, terminal

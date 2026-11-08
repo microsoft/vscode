@@ -1,6 +1,5 @@
 # The built-in extensions, except extensions/copilot (a separate install root). The product build
 # bundles them, so the layout of this root's node_modules doesn't ship (see build/lib/extensions.ts).
-# Setting names must be in knownSettingNames in build/npm/pnpm/workspaceConfig.ts.
 packages:
   - configuration-editing
   - css-language-features

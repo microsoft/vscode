@@ -169,7 +169,11 @@ export class IssueReporterEditorInput extends EditorInput {
 	}
 
 	override canMove(sourceGroup: GroupIdentifier, targetGroup: GroupIdentifier): true | string {
-		return sourceGroup !== targetGroup && this.hasPendingOperationsFn?.()
+		return sourceGroup !== targetGroup ? this.canMoveToNewWindow(sourceGroup) : true;
+	}
+
+	override canMoveToNewWindow(_sourceGroup: GroupIdentifier): true | string {
+		return this.hasPendingOperationsFn?.()
 			? localize('waitBeforeMovingReporter', "Wait for attachments and captures to finish before moving the issue reporter.")
 			: true;
 	}

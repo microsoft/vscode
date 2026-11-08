@@ -19,11 +19,11 @@ import { IChatService } from '../../../../workbench/contrib/chat/common/chatServ
 import { ChatNotificationKind, getChatNotificationDedupeKey, getChatNotificationResource } from '../../../../workbench/contrib/chat/common/chatNotification.js';
 import { ChatConfiguration, ChatNotificationMode } from '../../../../workbench/contrib/chat/common/constants.js';
 import { IHostService } from '../../../../workbench/services/host/browser/host.js';
-import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
-import { IFocusedSessionHostService } from '../../../services/sessions/browser/sessionHost.js';
-import { IChat, ISession, SessionStatus } from '../../../services/sessions/common/session.js';
-import { ISessionComparisonService } from '../../../services/sessions/common/sessionComparison.js';
-import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
+import { ISessionsService } from '../../../../workbench/contrib/sessions/browser/sessionsService.js';
+import { IFocusedSessionHostService } from '../../../../workbench/services/sessions/browser/sessionHost.js';
+import { IChat, ISession, SessionStatus } from '../../../../workbench/services/sessions/common/session.js';
+import { ISessionComparisonService } from '../../../../workbench/contrib/sessions/common/sessionComparison.js';
+import { ISessionsManagementService } from '../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 
 export class SessionsWindowNotifier extends Disposable implements IWorkbenchContribution {
 
@@ -232,12 +232,12 @@ export class SessionsWindowNotifier extends Disposable implements IWorkbenchCont
 		if (status !== SessionStatus.NeedsInput || mode !== ChatNotificationMode.WindowNotFocused || !this._hostService.hasFocus) {
 			return false;
 		}
-		const visibleSessions = this._sessionsService.visibleSessionPanes.get();
+		const panes = this._sessionsService.panes.get();
 		const focusedHost = this._focusedSessionHostService.focusedHost.get();
 		const activeSession = focusedHost.session.get();
 		const activeChat = focusedHost.chat.get();
-		return visibleSessions.length > 1
-			&& visibleSessions.some(candidate => candidate?.sessionId === session.sessionId && (!chat || isEqual(candidate.activeChat.get().resource, chat.resource)))
+		return panes.length > 1
+			&& panes.some(candidate => candidate.session.get()?.sessionId === session.sessionId && (!chat || isEqual(candidate.chat.get()?.resource, chat.resource)))
 			&& (chat ? !isEqual(activeChat?.resource, chat.resource) : activeSession?.sessionId !== session.sessionId)
 			&& !!activeSession
 			&& this._sessionComparisonService.comparisons.get().some(comparison => comparison.archivedAt === undefined

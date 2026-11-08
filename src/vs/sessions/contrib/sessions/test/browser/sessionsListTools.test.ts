@@ -14,16 +14,17 @@ import { TestConfigurationService } from '../../../../../platform/configuration/
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
 import { IToolImpl, IToolResult } from '../../../../../workbench/contrib/chat/common/tools/languageModelToolsService.js';
 import { IViewsService } from '../../../../../workbench/services/views/common/viewsService.js';
-import { SESSIONS_LIST_AGENT_TOOLS_SETTING } from '../../../../common/sessionConfig.js';
-import { ISessionGroup, ISessionGroupsService, SessionGroupsService } from '../../../../services/sessions/browser/sessionGroupsService.js';
-import { ISessionSectionOrderService, SessionSectionOrderService } from '../../../../services/sessions/browser/sessionSectionOrderService.js';
-import { ISession } from '../../../../services/sessions/common/session.js';
-import { ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
+import { SESSIONS_LIST_AGENT_TOOLS_SETTING, SESSIONS_LIST_INBOX_ENABLED_SETTING } from '../../../../../workbench/contrib/sessions/common/sessionConfig.js';
+import { ISessionGroup, ISessionGroupsService, SessionGroupsService } from '../../../../../workbench/contrib/sessions/browser/sessionGroupsService.js';
+import { ISessionsListModelService, SessionsListModelService } from '../../../../../workbench/contrib/sessions/browser/sessionsListModelService.js';
+import { ISessionSectionOrderService, SessionSectionOrderService } from '../../../../../workbench/services/sessions/browser/sessionSectionOrderService.js';
+import { ISession } from '../../../../../workbench/services/sessions/common/session.js';
+import { ISessionsManagementService } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import { OrganizeSessionsListTool, ReadSessionsListTool } from '../../browser/sessionsListTools.js';
-import { SessionsGrouping, SessionsSorting } from '../../browser/views/sessionsList.js';
-import { SessionsView } from '../../browser/views/sessionsView.js';
+import { SessionsGrouping, SessionsSorting } from '../../../../../workbench/contrib/sessions/browser/views/sessionsList.js';
+import { SessionsView } from '../../../../../workbench/contrib/sessions/browser/views/sessionsView.js';
 import { createListHarness, createTestSession } from './sessionsListTestUtils.js';
-import { TestSessionsList } from './testSessionsList.js';
+import { TestSessionsList } from '../../../../../workbench/contrib/sessions/test/browser/views/testSessionsList.js';
 
 interface ITreeNodeOutput {
 	readonly type: string;
@@ -51,8 +52,11 @@ function parse(result: IToolResult): { readonly view: Record<string, unknown>; r
 suite('Sessions - Sessions list tools', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
-	function setup(sessions: ISession[], options: { readonly groups?: readonly ISessionGroup[]; readonly memberships?: Record<string, string>; readonly pinnedSessionIds?: ReadonlySet<string> } = {}) {
+	function setup(sessions: ISession[], options: { readonly groups?: readonly ISessionGroup[]; readonly memberships?: Record<string, string>; readonly pinnedSessionIds?: ReadonlySet<string>; readonly realListModel?: boolean } = {}) {
 		const harness = createListHarness(disposables, sessions, { liveListModel: true, pinnedSessionIds: options.pinnedSessionIds });
+		if (options.realListModel) {
+			harness.instantiationService.stub(ISessionsListModelService, harness.store.add(harness.instantiationService.createInstance(SessionsListModelService)));
+		}
 		const configurationService = harness.instantiationService.get(IConfigurationService) as TestConfigurationService;
 		void configurationService.setUserConfiguration(SESSIONS_LIST_AGENT_TOOLS_SETTING, true);
 		const storageService = harness.instantiationService.get(IStorageService);
@@ -68,6 +72,8 @@ suite('Sessions - Sessions list tools', () => {
 			onDidReplaceNewDraftSession: Event.None,
 			onDidStartSession: Event.None,
 			onDidDiscardNewSession: Event.None,
+			onDidAcceptNewSessionRequest: Event.None,
+			onDidEndNewSessionRequest: Event.None,
 			onDidMoveChat: Event.None,
 			getSessions: () => harness.managementService.sessions,
 			getInFlightNewSessionRequests: () => [],
@@ -211,6 +217,21 @@ suite('Sessions - Sessions list tools', () => {
 			skippedOperations: 1,
 			hint: 'Operations after the failure did not run. Call readSessionsList to see the current state before retrying.',
 			groups: [],
+		});
+	});
+
+	test('rejects disabled inbox grouping before changing filters and allows it after opt-in', async () => {
+		const { organize, read, list, configurationService } = setup([session('Alpha', 1)], { realListModel: true });
+		list.filters.setExcluded({ kind: 'harness', id: 'claude' }, true);
+		const rejected = await organize({ action: 'setView', grouping: 'inbox', resetFilters: true });
+		const unchanged = { grouping: (await read()).view.grouping, excluded: list.filters.isExcluded({ kind: 'harness', id: 'claude' }) };
+		await configurationService.setUserConfiguration(SESSIONS_LIST_INBOX_ENABLED_SETTING, true);
+		const accepted = await organize({ action: 'setView', grouping: 'inbox' });
+		assert.deepStrictEqual({ rejected: rejected.results, unchanged, accepted: accepted.results, grouping: (await read()).view.grouping }, {
+			rejected: [{ action: 'setView', ok: false, error: 'Inbox Mode requires "sessions.list.inboxEnabled" to be enabled.' }],
+			unchanged: { grouping: 'workspace', excluded: true },
+			accepted: [{ action: 'setView', ok: true }],
+			grouping: 'inbox',
 		});
 	});
 

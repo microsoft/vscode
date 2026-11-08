@@ -14,15 +14,16 @@ import { EditorGroupView } from '../../../../workbench/browser/parts/editor/edit
 import { ViewEditorInput } from '../../../../workbench/browser/parts/editor/viewEditorInput.js';
 import { IEditorGroup, IEditorGroupsService } from '../../../../workbench/services/editor/common/editorGroupsService.js';
 import { AgentEditorCommentsOverlayWidget } from '../../../../workbench/services/agentEditorComments/browser/agentEditorCommentsOverlayWidget.js';
-import { IAgentFeedbackService, shouldIncludeRawPRReviewComments } from './agentFeedbackService.js';
+import { shouldIncludeRawPRReviewComments } from './agentFeedbackService.js';
+import { IAgentFeedbackService } from '../../../../workbench/contrib/sessions/browser/agentFeedback.js';
 import { hasUnsubmittedAgentFeedback, hasSessionEditorComments, navigateNextFeedbackActionId, navigatePreviousFeedbackActionId, navigationBearingFakeActionId, submitFeedbackActionId } from './agentFeedbackEditorActions.js';
 import { getActiveResourceCandidates, getFeedbackSessionCandidates } from './agentFeedbackEditorUtils.js';
-import { Menus } from '../../../browser/menus.js';
-import { ICodeReviewService } from '../../codeReview/browser/codeReviewService.js';
-import { EmptyFileEditorInput } from '../../editor/browser/emptyFileEditorInput.js';
+import { Menus } from '../../../../workbench/contrib/sessions/browser/menus.js';
+import { ICodeReviewService } from '../../../../workbench/contrib/sessions/browser/codeReviewService.js';
+import { EmptyFileEditorInput } from '../../../../workbench/contrib/sessions/browser/emptyFileEditorInput.js';
 import { getAcceptedAgentFeedbackCommentCount, getSessionEditorComments } from './sessionEditorComments.js';
-import { ISessionHostService, SessionHostKind } from '../../../services/sessions/browser/sessionHost.js';
-import { ISession } from '../../../services/sessions/common/session.js';
+import { ISessionHostService, SessionHostKind } from '../../../../workbench/services/sessions/browser/sessionHost.js';
+import { ISession } from '../../../../workbench/services/sessions/common/session.js';
 
 export interface IAgentFeedbackOverlayEditorGroup extends IEditorGroup {
 	readonly editorPaneContainer: HTMLElement;

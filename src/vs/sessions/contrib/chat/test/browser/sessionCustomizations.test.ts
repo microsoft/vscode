@@ -7,7 +7,7 @@ import assert from 'assert';
 import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { buildSessionCustomizationSections } from '../../../../../workbench/contrib/chat/browser/sessionCustomizations.js';
-import { ISessionChatCustomization, ISessionFolder, SessionCustomizationKind } from '../../../../services/sessions/common/session.js';
+import { ISessionChatCustomization, ISessionFolder, SessionCustomizationKind } from '../../../../../workbench/services/sessions/common/session.js';
 
 suite('Session Customizations', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();

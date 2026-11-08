@@ -19,11 +19,12 @@ import { ILogService, NullLogService } from '../../../../../platform/log/common/
 import { IOpenerService } from '../../../../../platform/opener/common/opener.js';
 import { IBrowserViewModel, IBrowserViewWorkbenchService } from '../../../../../workbench/contrib/browserView/common/browserView.js';
 import { WebContentsViewHost } from '../../../../../workbench/contrib/browserView/electron-browser/webContentsViewHost.js';
-import { ICanvas, ICanvasService } from '../../../../../workbench/contrib/canvases/common/canvas.js';
-import { IChat, ISession } from '../../../../services/sessions/common/session.js';
-import { ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
-import { CHAT_INBOX_ENABLED_SETTING } from '../../browser/inboxNotificationsConstants.js';
+import { ICanvasService } from '../../../../../workbench/contrib/canvases/common/canvas.js';
+import { IChat, ISession } from '../../../../../workbench/services/sessions/common/session.js';
+import { ISessionsManagementService } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
+import { CHAT_INBOX_ENABLED_SETTING } from '../../../../../workbench/contrib/sessions/browser/inboxNotificationsConstants.js';
 import { InboxCanvasHostService } from '../../electron-browser/inboxCanvasHost.js';
+import { ICanvas } from '../../../../../workbench/common/canvasReference.js';
 
 suite('Inbox native canvas presentation', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();

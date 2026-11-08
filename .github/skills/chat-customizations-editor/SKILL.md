@@ -100,14 +100,15 @@ Each customization type requires its own mock path in `createMockPromptsService`
 
 All test data lives in `allFiles` (prompt-based items) and the `mcpWorkspace/UserServers` arrays. Add enough items per category (8+) to invoke scrolling.
 
-### Exercising built-in grouping
+### Exercising scope grouping
 
-The list widget regroups items from the default chat extension under a "Built-in" header. Three things must be in place for fixtures to exercise this:
-1. Include `BUILTIN_STORAGE` in the harness descriptor's visible sources
-2. Mock `IProductService.defaultChatAgent.chatExtensionId` (e.g., `'GitHub.copilot-chat'`)
-3. Give mock items extension provenance via `extensionId` / `extensionDisplayName` matching that ID
+Items are grouped by scope: User, Workspace (one group per folder in a multi-root workspace), and Built-in. Items supplied by a plugin, an extension, or an organization are nested under one row per supplier inside the scope they apply to (extensions and organizations under User); the row is tagged Plugin, Extension, or Organization and links to the plugin or extension details. In Built-in, items the agent provides are tagged with the agent's name (for example Copilot). The MCP Servers, Plugins, and Tools pages follow the same model. `aiCustomizationOrganization.fixture.ts` covers these states for the local harness (prompts-service discovery) and a remote Agent Host harness (the real `AgentCustomizationItemProvider` over an in-memory file system), including synced items, multi-root workspaces, many plugins, search, and narrow layouts.
 
-Without all three, built-in regrouping silently doesn't run and the fixture only shows flat lists.
+Items from the default chat extension appear in the Built-in group, and its organization files (`…/github/<org>/…`) under Account. For fixtures to exercise this:
+1. Mock `IProductService.defaultChatAgent.chatExtensionId` (e.g., `'GitHub.copilot-chat'`)
+2. Give mock items extension provenance via `extensionId` / `extensionDisplayName` matching that ID
+
+Without both, these items fall back to the generic extension origin.
 
 ### Editor contribution service mocks
 
