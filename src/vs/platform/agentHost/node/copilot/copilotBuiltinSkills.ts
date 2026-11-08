@@ -319,7 +319,7 @@ Only plain YAML is accepted: maps and lists written one item per line, \`[a, b]\
 ## Workflow
 
 1. Call \`check_model_router\` with no arguments to see the existing routers and the models this account can use, with their ids and effort levels. Only use ids from that list.
-2. Offer to look at the user's recent Copilot chats to see what work they do. Only if they agree, read the \`user.message\` events (their \`content\`) in \`{{COPILOT_SESSION_STATE}}/*/events.jsonl\` from the last few weeks, and ignore the agent's replies and tool output. List the kinds of work they do and how often, and how they phrase short requests and hand-offs.
+2. Offer to look at the user's recent Copilot chats to see what work they do. Only if they agree, read the \`user.message\` events in \`{{COPILOT_SESSION_STATE}}/*/events.jsonl\` from the last few weeks that have no \`agentId\` and whose \`data.source\` is missing, empty or \`user\`; the others are subagent prompts and injected content. Take the user's request from \`data.content\`, leaving out the \`<reminder>\`, \`<attachments>\`, \`<context>\`, \`<current_datetime>\` and similar blocks the host adds. Ignore the agent's replies and tool output. List the kinds of work they do and how often, and how they phrase short requests and hand-offs.
 3. Make sure every kind of work the user does often is named in some route's \`when\` or examples. Write the examples in their style, but never copy file paths, names, links or other details from their messages into the router.
 4. Write or edit the file with your normal file tools.
 5. **After every edit, call \`check_model_router\` with the file's path and fix every error.** Fix warnings too unless the user wants them (for example, a fallback that is intentionally unavailable).
