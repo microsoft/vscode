@@ -17,7 +17,7 @@ import { stripIcons } from '../../../../base/common/iconLabels.js';
 import { Disposable, DisposableStore, IDisposable, MutableDisposable } from '../../../../base/common/lifecycle.js';
 import { RunOnceScheduler } from '../../../../base/common/async.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
-import { autorun, derived, derivedObservableWithCache, IObservable, IReader, observableFromEvent, observableSignalFromEvent, observableValue } from '../../../../base/common/observable.js';
+import { autorun, constObservable, derived, derivedObservableWithCache, IObservable, IReader, observableFromEvent, observableSignalFromEvent, observableValue } from '../../../../base/common/observable.js';
 import { CountBadge } from '../../../../base/browser/ui/countBadge/countBadge.js';
 import { ProgressBar } from '../../../../base/browser/ui/progressbar/progressbar.js';
 import { basename, isEqual } from '../../../../base/common/resources.js';
@@ -93,7 +93,7 @@ import { compareFileNames, comparePaths } from '../../../../base/common/comparer
 import { IViewsService } from '../../../services/views/common/viewsService.js';
 import { ServiceCollection } from '../../../../platform/instantiation/common/serviceCollection.js';
 import { IMarkdownString } from '../../../../base/common/htmlContent.js';
-import { ChangesViewSection, findDefaultChangeset, IChangesDetailsViewState, IChangesDetailsViewStateTransfer, IChangesSessionObservables, IChangesSessionScope, IChangesViewService, getActiveSessionChanges } from '../../sessions/common/changesViewService.js';
+import { ChangesViewSection, findDefaultChangeset, IChangesDetailsViewState, IChangesDetailsViewStateTransfer, IChangesSessionObservables, IChangesEditorScope, IChangesSessionScope, IChangesViewService, getActiveSessionChanges } from '../../sessions/common/changesViewService.js';
 import { ChangesSummaryWidget } from './changesSummaryWidget.js';
 import { ChangesStatsWidget, IChangesStats } from '../../../browser/changesStatsWidget.js';
 import { Menus } from '../../sessions/browser/menus.js';
@@ -2252,6 +2252,8 @@ export class ChangesPickerSummary extends Disposable {
 export class ChangesPickerActionItem extends ActionWidgetDropdownActionViewItem {
 	private readonly _labelObs: IObservable<IChangesPickerLabel | undefined>;
 	private readonly _summaryObs: IObservable<ISessionChangesSummary | undefined> | undefined;
+	/** Whether the Changes editor of this picker does not show the changes its summary is of yet. */
+	private readonly _changesPendingObs: IObservable<boolean>;
 	private readonly _pickerEnabledObs: IObservable<boolean>;
 	private readonly _summaryLease = this._register(new MutableDisposable());
 	private _container: HTMLElement | undefined;
@@ -2267,6 +2269,7 @@ export class ChangesPickerActionItem extends ActionWidgetDropdownActionViewItem 
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IChangesViewService changesViewService: IChangesViewService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
+		@IChangesEditorScope editorScope: IChangesEditorScope,
 	) {
 		// Without an explicit scope the picker follows the active session.
 		const changes = scope?.changes ?? getActiveSessionChanges(changesViewService);
@@ -2318,13 +2321,16 @@ export class ChangesPickerActionItem extends ActionWidgetDropdownActionViewItem 
 			return changesets?.some(changeset => changeset.isEnabled.read(reader)) ?? false;
 		});
 
+		const changesPendingObs = this._changesPendingObs = editorScope.changesPendingObs ?? constObservable(false);
+		// Stats of other changes must not show over the editor's diffs, nor be announced, while it does not show these.
 		this._summaryObs = this._summary
-			? changes.changesSummaryObs
+			? derived(reader => changesPendingObs.read(reader) ? undefined : changes.changesSummaryObs.read(reader))
 			: undefined;
 		this._register(autorun(reader => {
 			this._labelObs.read(reader);
 			this._summaryObs?.read(reader);
 			const pickerEnabled = this._pickerEnabledObs.read(reader);
+			this._container?.classList.toggle('changes-pending', changesPendingObs.read(reader));
 
 			if (this.element) {
 				this.updatePickerLabel();
@@ -2345,6 +2351,7 @@ export class ChangesPickerActionItem extends ActionWidgetDropdownActionViewItem 
 
 		container.classList.add('changes-picker-action-rich');
 		container.classList.toggle('changes-picker-action-with-summary', !!this._summary);
+		container.classList.toggle('changes-pending', this._changesPendingObs.get());
 		this.updateAvailability(this._pickerEnabledObs.get());
 	}
 

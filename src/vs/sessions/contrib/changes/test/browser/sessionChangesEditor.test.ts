@@ -603,4 +603,79 @@ suite('SessionChangesEditor chat changes loading', () => {
 			loaded: { noChangedFilesPlaceholder: false, emptyState: true, progress: false },
 		});
 	});
+
+	test('waits and is pending for the changes of the chat its input names only, not for those of another chat of its session that the main window shows', async () => {
+		const instantiationService = workbenchInstantiationService(undefined, store);
+		instantiationService.stub(IMenuService, store.add(instantiationService.createInstance(MenuService)));
+		const activeSession = constObservable<ITestSessionWithChat | undefined>(undefined);
+		instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() {
+			readonly activeSession = activeSession;
+			readonly mainWindowActiveSession = activeSession;
+			readonly windowSessions = constObservable<readonly ITestSessionWithChat[]>([]);
+		}());
+		stubSessionHosts(instantiationService, store, { session: activeSession });
+		const sessionResource = URI.parse('agent-host:/session');
+		const chatLoading = observableValue('chatLoading', false);
+		// The main window shows the session, with the changes of its chat there still loading.
+		instantiationService.stub(IChangesViewService, new class extends mock<IChangesViewService>() {
+			override readonly activeSessionHasGitRepositoryObs = constObservable(false);
+			override readonly activeSessionResourceObs = constObservable<URI | undefined>(sessionResource);
+			override readonly activeSessionChangesetLoadingObs = constObservable(true);
+			override getSessionChanges(): IChangesSessionObservables {
+				return upcastPartial<IChangesSessionObservables>({ changesObs: constObservable([]), changesetLoadingObs: chatLoading, hasGitRepositoryObs: constObservable(false) });
+			}
+		}());
+		instantiationService.stub(IAgentWorkbenchLayoutService, { agentWorkbenchLayout: AgentWorkbenchLayout.Desktop, onDidChangePartVisibility: Event.None, isVisible: () => true });
+		instantiationService.stub(ISessionsHostLayoutService, { agentWorkbenchLayout: AgentWorkbenchLayout.Desktop });
+		const chat = upcastPartial<IChat>({ resource: URI.parse('agent-host-chat:/session/x'), title: constObservable('x') });
+		const session = upcastPartial<ISession>({ sessionId: 'session', resource: sessionResource, chats: constObservable([chat]) });
+		instantiationService.stub(ISessionsManagementService, new class extends mock<ISessionsManagementService>() {
+			override readonly onDidChangeSessions = Event.None;
+			override getSession(): ISession | undefined { return session; }
+		}());
+		instantiationService.stub(ISessionChangesService, new class extends mock<ISessionChangesService>() {
+			override readonly activeSessionUncommittedChangesCountObs = constObservable(0);
+			override getSessionResource(): URI | undefined { return sessionResource; }
+			override getChatResource(): URI | undefined { return chat.resource; }
+		}());
+		instantiationService.stub(IDiffEditorOptionsService, new class extends mock<IDiffEditorOptionsService>() {
+			override readonly viewMode = constObservable<DiffEditorViewMode>('automatic');
+			override readonly diffEditorWordWrap = constObservable<SessionsWordWrap>('off');
+		}());
+		instantiationService.stub(IDiffProviderFactoryService, new TestDiffProviderFactoryService());
+		instantiationService.stub(IEditorProgressService, new class extends mock<IEditorProgressService>() { }());
+		instantiationService.stub(IUserInteractionService, new MockUserInteractionService(false));
+		instantiationService.stub(ITextModelService, instantiationService.createInstance(InMemoryTextModelService));
+		const editorInstantiationService = store.add(new InstantiationService(new ServiceCollection(), false, instantiationService));
+
+		const parent = append(mainWindow.document.body, $('.editor-instance'));
+		store.add(toDisposable(() => parent.remove()));
+		const editor = store.add(editorInstantiationService.createInstance(SessionChangesEditor, new TestEditorGroupView(1)));
+		editor.create(parent);
+		editor.layout(new Dimension(800, 400));
+		const widget = (editor as unknown as { widget: MultiDiffEditorWidget }).widget;
+		const viewModel = store.add(widget.createViewModel({ documents: ValueWithChangeEvent.const([]) }));
+		const input = store.add(instantiationService.createInstance(SessionChangesEditorInput, URI.parse('session-changes:/x')));
+		input.getViewModel = async () => viewModel;
+		input.clear = () => { };
+		const state = () => ({ shown: widget.viewModel.get() === viewModel, pending: !!parent.querySelector('.session-changes-editor-body.changes-loading') });
+		editor.setVisible(true);
+
+		const opened = editor.setInput(input, undefined, {}, CancellationToken.None);
+		// Well before the time setInput waits for changes that load.
+		await timeout(50);
+		const whileOtherChatLoads = state();
+		chatLoading.set(true, undefined);
+		const whileChatLoads = state();
+		chatLoading.set(false, undefined);
+		const chatLoaded = state();
+		await opened;
+		editor.clearInput();
+
+		assert.deepStrictEqual({ whileOtherChatLoads, whileChatLoads, chatLoaded }, {
+			whileOtherChatLoads: { shown: true, pending: false },
+			whileChatLoads: { shown: true, pending: true },
+			chatLoaded: { shown: true, pending: false },
+		});
+	});
 });

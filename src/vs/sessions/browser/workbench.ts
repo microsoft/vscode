@@ -86,6 +86,9 @@ import { ICustomViewService, ICustomViewDescriptor } from '../../workbench/contr
 import { ICustomViewGridPartService } from '../services/customView/browser/customViewGridPartService.js';
 import { ISessionsSetUpService } from './sessionsSetUpService.js';
 import { AGENTS_FLOATING_PANEL_GAP } from '../../workbench/contrib/sessions/common/layoutConstants.js';
+import { SESSION_ACTIVITY_BAR_FIXED_COLUMN_SETTING } from '../../workbench/contrib/sessions/common/sessionConfig.js';
+import { observableConfigValue } from '../../platform/observable/common/platformObservableUtils.js';
+import { logSettingExperimentTrigger } from '../../platform/telemetry/common/experimentTrigger.js';
 import { ITelemetryService } from '../../platform/telemetry/common/telemetry.js';
 import { createMainWindowInstantiationService } from '../../workbench/services/sessions/browser/sessionHost.js';
 import { AgentWorkbenchLayout, ISessionsHostLayoutService, ISessionsHostSidePane } from '../../workbench/services/sessions/browser/sessionsHostLayoutService.js';
@@ -517,6 +520,8 @@ export abstract class Workbench extends Disposable implements IAgentWorkbenchLay
 	private customViewGridPartService!: ICustomViewGridPartService;
 	private instantiationService!: IInstantiationService;
 	private storageService!: IStorageService;
+	private configurationService!: IConfigurationService;
+	private telemetryService!: ITelemetryService;
 
 	//#endregion
 
@@ -1297,6 +1302,8 @@ export abstract class Workbench extends Disposable implements IAgentWorkbenchLay
 		this.customViewGridPartService = accessor.get(ICustomViewGridPartService);
 		this.instantiationService = accessor.get(IInstantiationService);
 		this.storageService = accessor.get(IStorageService);
+		this.configurationService = accessor.get(IConfigurationService);
+		this.telemetryService = accessor.get(ITelemetryService);
 		this._panelAlignment = this._loadPanelAlignment(this.storageService);
 		accessor.get(ITitleService);
 
@@ -1640,7 +1647,7 @@ export abstract class Workbench extends Disposable implements IAgentWorkbenchLay
 		};
 
 		if (this.agentWorkbenchLayout === AgentWorkbenchLayout.Desktop) {
-			const column = this.sessionActivityBarColumn = this._register(new SessionActivityBarColumn(this._isSessionActivityBarColumnActive()));
+			const column = this.sessionActivityBarColumn = this._register(this._createSessionActivityBarColumn());
 			const size = this.sessionActivityBarSize = observeSessionActivityBarSize(this, this.storageService, this._register(new DisposableStore()));
 			this._register(autorun(reader => {
 				const value = size.read(reader);
@@ -1737,6 +1744,18 @@ export abstract class Workbench extends Disposable implements IAgentWorkbenchLay
 		this._register(this.workbenchGrid.onDidChangeViewMaximized(() => {
 			this._fireDidChangePartVisibility(Parts.PANEL_PART, this.isVisible(Parts.PANEL_PART));
 		}));
+	}
+
+	/**
+	 * The Session Activity Bar column, turned on by {@link SESSION_ACTIVITY_BAR_FIXED_COLUMN_SETTING}, whose experiment
+	 * triggers once a shown strip would show in the column, whether the setting is on or off.
+	 */
+	private _createSessionActivityBarColumn(): SessionActivityBarColumn {
+		return new SessionActivityBarColumn(
+			this._isSessionActivityBarColumnActive(),
+			observableConfigValue(SESSION_ACTIVITY_BAR_FIXED_COLUMN_SETTING, false, this.configurationService),
+			() => logSettingExperimentTrigger(this.telemetryService, SESSION_ACTIVITY_BAR_FIXED_COLUMN_SETTING),
+		);
 	}
 
 	/**
