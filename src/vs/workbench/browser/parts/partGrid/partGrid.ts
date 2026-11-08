@@ -708,6 +708,7 @@ export class PartGrid extends Disposable {
 	}
 
 	private mergeAllowed: (id: string, targetId: string) => boolean = () => true;
+	private splitAllowed: (targetId: string, direction: Direction) => boolean = () => true;
 	private previewLayoutAllowed: (id: string, part: IContentPart) => boolean = () => true;
 
 	private movable: (id: string) => boolean = () => true;
@@ -769,6 +770,24 @@ export class PartGrid extends Disposable {
 	 */
 	setMergeAllowed(allowed: boolean | ((id: string, targetId: string) => boolean)): void {
 		this.mergeAllowed = typeof allowed === 'boolean' ? () => allowed : allowed;
+	}
+
+	/**
+	 * Whether a part dropped beside another part, on a side of it, splits the
+	 * cell of that part there. By default it does; a window can say where it
+	 * does not, such as beside a part that shows only a little of itself
+	 * across the row it is in, which the row would hold the dropped part to:
+	 * there, with no other part beyond that side, the dropped part goes to
+	 * that edge of the window, as a drop at that edge does. Moves by command,
+	 * such as Move Part, are not drops.
+	 */
+	setSplitAllowed(allowed: (targetId: string, direction: Direction) => boolean): void {
+		this.splitAllowed = allowed;
+	}
+
+	private keepsSize(id: string): boolean {
+		const cell = this.cells.get(id);
+		return !!cell?.part && !!cell.options.keepsSize;
 	}
 
 	private canMergeCell(id: string, targetId: string): boolean {
@@ -886,6 +905,8 @@ export class PartGrid extends Disposable {
 				get grid() { return grid; },
 				isPart: cellId => cellId === added?.id || !!this.cells.get(cellId)?.part,
 				edgeChromeOf: cellId => this.cells.get(cellId)?.options.edgeChrome,
+				keepsSize: cellId => cellId !== added?.id && this.keepsSize(cellId),
+				splits: (cellId, direction) => this.splitAllowed(cellId, direction),
 				replace: serialized => {
 					const next = deserialize(serialized);
 					grid.dispose();
@@ -1197,6 +1218,8 @@ export class PartGrid extends Disposable {
 			get grid() { return partGrid.grid!; },
 			isPart: id => !!this.cells.get(id)?.part,
 			edgeChromeOf: id => this.cells.get(id)?.options.edgeChrome,
+			keepsSize: id => this.keepsSize(id),
+			splits: (id, direction) => this.splitAllowed(id, direction),
 			replace: state => this.setGrid(this.deserialize(state))
 		};
 	}
@@ -1715,6 +1738,10 @@ interface IArrangement<T extends IArrangedView> {
 	isPart(id: string): boolean;
 	/** The edge of the window the view is chrome along, if it is; see {@link IPartGridViewOptions.edgeChrome}. */
 	edgeChromeOf(id: string): Direction | undefined;
+	/** Whether the view keeps its size; see {@link IPartGridPartOptions.keepsSize}. */
+	keepsSize(id: string): boolean;
+	/** Whether a part dropped beside the view `id` on the side `direction` splits its cell; see {@link PartGrid.setSplitAllowed}. */
+	splits(id: string, direction: Direction): boolean;
 	replace(state: ISerializedGrid): void;
 }
 
@@ -2084,14 +2111,18 @@ function moveInArrangement<T extends IArrangedView>(arrangement: IArrangement<T>
  * Puts a part where the user puts it, beside another view or at an edge of
  * the window, moved there (`adding` false) or added: the same way for every
  * gesture, a drop or a command, so that the same place gives the same size.
- * Dropped beside a part with no part beyond it on that side, it goes to
- * that edge of the window, as a drop there does. It then takes an even
- * share of the row or column it joins (see {@link giveEvenShare}).
+ * Dropped beside a part, it splits the cell of that part, unless the part
+ * takes no part beside it on that side (see {@link IArrangement.splits}):
+ * then, with no part beyond it on that side, it goes to that edge of the
+ * window, as a drop there does. It then takes an even share of the row or
+ * column it joins (see {@link giveEvenShare}), or, for a part that keeps its
+ * size, moved along a row or column as the one it was in, that size.
  */
 function placeInArrangement<T extends IArrangedView>(arrangement: IArrangement<T>, view: T, getView: (id: string) => T, location: PartGridLocation, adding: boolean, dropped: boolean): void {
-	const resolved = dropped ? toEdgeIfAtEdge(arrangement, view, getView, location) : location;
+	const resolved = dropped ? toEdgeIfNotSplit(arrangement, view, getView, location) : location;
 	// The sizes before, which the other parts make room in proportion to
 	const before = getViewSizes(arrangement.grid);
+	const keptAlong = !adding && arrangement.keepsSize(view.id) ? findLineOfView(arrangement.grid.serialize(), view.id)?.orientation : undefined;
 	if (hasKey(resolved, { reference: true })) {
 		if (adding) {
 			arrangement.grid.addView(view, Sizing.Split, getView(resolved.reference), resolved.direction);
@@ -2105,7 +2136,7 @@ function placeInArrangement<T extends IArrangedView>(arrangement: IArrangement<T
 		addAtEdge(arrangement, view, resolved.edge, undefined);
 	}
 
-	giveEvenShare(arrangement, view, before, getView);
+	giveEvenShare(arrangement, view, before, getView, keptAlong);
 }
 
 function getViewSizes<T extends IArrangedView>(grid: SerializableGrid<T>): Map<string, IViewSize> {
@@ -2122,11 +2153,11 @@ function getViewSizes<T extends IArrangedView>(grid: SerializableGrid<T>): Map<s
 }
 
 /**
- * Beside a part with no other part beyond it on that side, the edge of the
- * window on that side.
+ * Beside a part that takes no part beside it on that side, with no other
+ * part beyond it on that side, the edge of the window on that side.
  */
-function toEdgeIfAtEdge<T extends IArrangedView>(arrangement: IArrangement<T>, view: T, getView: (id: string) => T, location: PartGridLocation): PartGridLocation {
-	if (!hasKey(location, { reference: true })) {
+function toEdgeIfNotSplit<T extends IArrangedView>(arrangement: IArrangement<T>, view: T, getView: (id: string) => T, location: PartGridLocation): PartGridLocation {
+	if (!hasKey(location, { reference: true }) || arrangement.splits(location.reference, location.direction)) {
 		return location;
 	}
 
@@ -2137,21 +2168,16 @@ function toEdgeIfAtEdge<T extends IArrangedView>(arrangement: IArrangement<T>, v
 }
 
 /**
- * Gives a part an even share of the row or column it is in, of the parts
- * that show there: the other parts make room in proportion to their sizes,
- * and views that are not parts, such as a title row, keep theirs. Its least
- * and most sizes hold.
+ * The row or column the view `id` is in, in a serialized grid: the path of
+ * its branch and its orientation.
  */
-function giveEvenShare<T extends IArrangedView>(arrangement: IArrangement<T>, view: T, before: ReadonlyMap<string, IViewSize>, getView: (id: string) => T): void {
-	const state = arrangement.grid.serialize();
-	const id = view.id;
+function findLineOfView(state: ISerializedGrid, id: string): { readonly path: number[]; readonly orientation: Orientation } | undefined {
 	const isView = (node: ISerializedNode) => node.type === 'leaf' && (node.data as { id: string }).id === id;
 	const findLine = (node: ISerializedNode, orientation: Orientation, path: number[]): { readonly path: number[]; readonly orientation: Orientation } | undefined => {
 		if (node.type !== 'branch') {
 			return undefined;
 		}
-		const index = node.data.findIndex(isView);
-		if (index >= 0) {
+		if (node.data.some(isView)) {
 			return { path, orientation };
 		}
 		for (let i = 0; i < node.data.length; i++) {
@@ -2162,7 +2188,22 @@ function giveEvenShare<T extends IArrangedView>(arrangement: IArrangement<T>, vi
 		}
 		return undefined;
 	};
-	const line = findLine(state.root, state.orientation, []);
+	return findLine(state.root, state.orientation, []);
+}
+
+/**
+ * Gives a part an even share of the row or column it is in, of the parts
+ * that show there: the other parts make room in proportion to their sizes,
+ * and views that are not parts, such as a title row, keep theirs. A part that
+ * keeps its size, in a row or column along `keptAlong`, the orientation of
+ * the one it was in, keeps the size it had along it instead. Its least and
+ * most sizes hold.
+ */
+function giveEvenShare<T extends IArrangedView>(arrangement: IArrangement<T>, view: T, before: ReadonlyMap<string, IViewSize>, getView: (id: string) => T, keptAlong?: Orientation): void {
+	const state = arrangement.grid.serialize();
+	const id = view.id;
+	const isView = (node: ISerializedNode) => node.type === 'leaf' && (node.data as { id: string }).id === id;
+	const line = findLineOfView(state, id);
 	if (!line) {
 		return;
 	}
@@ -2209,8 +2250,10 @@ function giveEvenShare<T extends IArrangedView>(arrangement: IArrangement<T>, vi
 		return;
 	}
 
-	// The share leaves the others room for their least sizes
-	const share = Math.round(Math.max(Math.min(total / shown.length, maximum, total - minimums.reduce((sum, value) => sum + value, 0)), minimum));
+	// The share leaves the others room for their least sizes; a part that keeps its size along the line keeps it instead
+	const kept = keptAlong === line.orientation ? before.get(id) : undefined;
+	const requested = kept ? (horizontal ? kept.width : kept.height) : total / shown.length;
+	const share = Math.round(Math.max(Math.min(requested, maximum, total - minimums.reduce((sum, value) => sum + value, 0)), minimum));
 
 	// The others make room in proportion to their sizes, those that would get less than their least size keeping that,
 	// the last taking what rounding leaves, and so do the parts in them
