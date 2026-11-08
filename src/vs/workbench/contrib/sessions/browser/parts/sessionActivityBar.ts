@@ -11,7 +11,7 @@ import { HoverPosition } from '../../../../../base/browser/ui/hover/hoverWidget.
 import { IManagedHoverContent } from '../../../../../base/browser/ui/hover/hover.js';
 import { KeyCode } from '../../../../../base/common/keyCodes.js';
 import { Disposable, DisposableMap, DisposableStore, MutableDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
-import { autorun, constObservable, derived, IObservable, observableFromEvent, observableValue } from '../../../../../base/common/observable.js';
+import { autorun, constObservable, derived, IObservable, IReader, observableFromEvent, observableValue } from '../../../../../base/common/observable.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { Action, IAction, toAction } from '../../../../../base/common/actions.js';
 import { localize } from '../../../../../nls.js';
@@ -174,6 +174,11 @@ const TOGGLE_WINDOW_EDITOR_COMMAND_ID = 'workbench.action.chatWindow.toggleEdito
 /** How many frames the active strip of a chat that is not attached yet looks for its host; see `probeExternalHost`. */
 const MAX_PROBE_RETRIES = 3;
 
+/** Whether the strip of an active chat shows in `host`, which then keeps the column for it. */
+function isHosting(host: ISessionActivityBarExternalHost | undefined, reader: IReader): boolean {
+	return !!host && host.active.read(reader) && (host.enabled?.read(reader) ?? true);
+}
+
 /**
  * Docks the {@link SessionActivityBar} strip at the right edge of a chat area in the
  * desktop layout, in a column of its own: hosts lay the chat out to the left of the
@@ -230,11 +235,13 @@ export class ChatViewSessionActivityBar extends Disposable {
 
 		const phoneLayout = observableFromEvent(this, layoutService.onDidLayoutMainContainer, () => isPhoneLayout(layoutService));
 		// While the strip shows in a host outside the chat, the host keeps the column for it.
-		this.reservedWidth = derived(this, reader => activityBar.visible.read(reader) && !phoneLayout.read(reader) && !this.externalHost.read(reader)?.active.read(reader) ? SESSION_ACTIVITY_BAR_COLUMN_WIDTH : 0);
+		this.reservedWidth = derived(this, reader => activityBar.visible.read(reader) && !phoneLayout.read(reader) && !isHosting(this.externalHost.read(reader), reader) ? SESSION_ACTIVITY_BAR_COLUMN_WIDTH : 0);
 
 		this._register(autorun(reader => {
 			activityBar.visible.read(reader);
-			this.externalHost.read(reader)?.active.read(reader);
+			const host = this.externalHost.read(reader);
+			host?.active.read(reader);
+			host?.enabled?.read(reader);
 			this.relocate();
 		}));
 		this._register(toDisposable(() => {
@@ -275,7 +282,11 @@ export class ChatViewSessionActivityBar extends Disposable {
 			return;
 		}
 		const host = this.externalHost.get();
-		const hostedIn = host && this.active && host.active.get() ? host : undefined;
+		const available = host && this.active && host.active.get() ? host : undefined;
+		if (available && activityBar.visible.get()) {
+			available.offer?.();
+		}
+		const hostedIn = available && (available.enabled?.get() ?? true) ? available : undefined;
 		this.element?.classList.toggle('inactive', !this.isShown(hostedIn));
 		// Beside a chat, and in hosts that keep a narrow column for it, the strip floats at the compact size.
 		this.activityBar?.setFloating(!hostedIn?.fullSize);

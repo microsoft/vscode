@@ -537,6 +537,36 @@ suite('Sessions - Session Activity Bar', () => {
 		});
 	});
 
+	test('stays beside the chat while its host is turned off, as when the fixed column setting is off, and offers itself to the host whether it is on or off', () => {
+		const { createDocked, root } = createActivityBar(store, [changes]);
+		const hostElement = append(root, $('.external-host'));
+		const active = observableValue('active', true);
+		const enabled = observableValue('enabled', false);
+		let offers = 0;
+		store.add(registerSessionActivityBarExternalHost(root, { element: hostElement, active, enabled, offer: () => offers++, setOccupied: () => { } }));
+		const docked = createDocked();
+		const element = docked.element!;
+		const state = () => ({ inHost: hostElement.contains(element), shown: !element.classList.contains('inactive'), reserved: docked.reservedWidth.get(), offered: offers > 0 });
+
+		docked.layout(40);
+		const inactiveChat = state();
+		docked.setActive(true);
+		const off = state();
+		offers = 0;
+		enabled.set(true, undefined);
+		const on = state();
+		offers = 0;
+		active.set(false, undefined);
+		const hostInactive = state();
+
+		assert.deepStrictEqual({ inactiveChat, off, on, hostInactive }, {
+			inactiveChat: { inHost: false, shown: false, reserved: SESSION_ACTIVITY_BAR_COLUMN_WIDTH, offered: false },
+			off: { inHost: false, shown: true, reserved: SESSION_ACTIVITY_BAR_COLUMN_WIDTH, offered: true },
+			on: { inHost: true, shown: true, reserved: 0, offered: true },
+			hostInactive: { inHost: false, shown: true, reserved: SESSION_ACTIVITY_BAR_COLUMN_WIDTH, offered: false },
+		});
+	});
+
 	test('in the main window\'s column, fills the column from top to bottom after the gap between cards, with entries the size of the Modern UI workbench activity bar\'s at the normal size, and offers the context menu anywhere', () => {
 		const { createDocked, root, contextMenus, setSize } = createActivityBar(store, [changes, browser]);
 		setSize(MenuActivityBarSize.Normal);
