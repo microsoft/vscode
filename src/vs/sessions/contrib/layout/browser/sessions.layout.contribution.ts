@@ -55,7 +55,7 @@ Registry.as<IConfigurationRegistry>(Extensions.Configuration).registerConfigurat
 				localize('sessionsLayoutScope.chatShared', "Keep editors and selected panel views separate for each chat, with shared Editor, Details, and bottom-panel visibility across existing workspace chats."),
 				localize('sessionsLayoutScope.chat', "Keep editors, Editor and Details composition, bottom-panel visibility, and selected panel views separate for each chat."),
 			],
-			default: 'session-shared',
+			default: 'chat',
 			scope: ConfigurationScope.WINDOW,
 			tags: ['experimental'],
 			experiment: { mode: 'startup' },
