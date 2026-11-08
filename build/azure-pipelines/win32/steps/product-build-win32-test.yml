@@ -192,21 +192,21 @@ steps:
     continueOnError: true
     condition: succeededOrFailed()
 
-  - ${{ if or(containsValue(parameters.VSCODE_TEST_IDS, 'smoke-electron'), containsValue(parameters.VSCODE_TEST_IDS, 'smoke-wsl-kerberos-proxy'), containsValue(parameters.VSCODE_TEST_IDS, 'smoke-browser-chromium'), containsValue(parameters.VSCODE_TEST_IDS, 'smoke-remote')) }}:
+  - ${{ if or(containsValue(parameters.VSCODE_TEST_IDS, 'smoke-electron'), containsValue(parameters.VSCODE_TEST_IDS, 'smoke-wsl-kerberos-proxy'), containsValue(parameters.VSCODE_TEST_IDS, 'smoke-wsl-basic-proxy'), containsValue(parameters.VSCODE_TEST_IDS, 'smoke-browser-chromium'), containsValue(parameters.VSCODE_TEST_IDS, 'smoke-remote')) }}:
     - powershell: .\build\azure-pipelines\win32\listprocesses.bat
       displayName: Diagnostics before smoke test run
       continueOnError: true
       condition: succeededOrFailed()
 
-  # The WSL Dev Container setup only serves the Electron and WSL Kerberos proxy smoke tests, so it is skipped together
-  # with them when they already passed in this run.
-  - ${{ if and(eq(parameters.VSCODE_ARCH, 'x64'), or(containsValue(parameters.VSCODE_TEST_IDS, 'smoke-electron'), containsValue(parameters.VSCODE_TEST_IDS, 'smoke-wsl-kerberos-proxy'))) }}:
+  # The WSL Dev Container setup only serves the Electron and WSL proxy smoke tests, so it is skipped together with them
+  # when they already passed in this run.
+  - ${{ if and(eq(parameters.VSCODE_ARCH, 'x64'), or(containsValue(parameters.VSCODE_TEST_IDS, 'smoke-electron'), containsValue(parameters.VSCODE_TEST_IDS, 'smoke-wsl-kerberos-proxy'), containsValue(parameters.VSCODE_TEST_IDS, 'smoke-wsl-basic-proxy'))) }}:
     - task: Cache@2
       displayName: Restore WSL installer cache
       inputs:
         key: '"wsl-installer" | "win32-x64" | build/checksums/wsl.txt'
         path: $(Build.SourcesDirectory)/.build/wsl-installer
-      condition: and(succeeded(), or(ne(variables['TEST_CHECKPOINT_SMOKE_ELECTRON_HIT'], 'true'), ne(variables['TEST_CHECKPOINT_SMOKE_WSL_KERBEROS_PROXY_HIT'], 'true')))
+      condition: and(succeeded(), or(ne(variables['TEST_CHECKPOINT_SMOKE_ELECTRON_HIT'], 'true'), ne(variables['TEST_CHECKPOINT_SMOKE_WSL_KERBEROS_PROXY_HIT'], 'true'), ne(variables['TEST_CHECKPOINT_SMOKE_WSL_BASIC_PROXY_HIT'], 'true')))
       retryCountOnTaskFailure: 2
 
     - pwsh: .\test\smoke\wslDevContainer.ps1 -CI AzureDevOps
@@ -214,7 +214,7 @@ steps:
       timeoutInMinutes: 15
       env:
         WSL_INSTALLER_CACHE_DIR: $(Build.SourcesDirectory)/.build/wsl-installer
-      condition: and(succeeded(), or(ne(variables['TEST_CHECKPOINT_SMOKE_ELECTRON_HIT'], 'true'), ne(variables['TEST_CHECKPOINT_SMOKE_WSL_KERBEROS_PROXY_HIT'], 'true')))
+      condition: and(succeeded(), or(ne(variables['TEST_CHECKPOINT_SMOKE_ELECTRON_HIT'], 'true'), ne(variables['TEST_CHECKPOINT_SMOKE_WSL_KERBEROS_PROXY_HIT'], 'true'), ne(variables['TEST_CHECKPOINT_SMOKE_WSL_BASIC_PROXY_HIT'], 'true')))
 
   - ${{ if containsValue(parameters.VSCODE_TEST_IDS, 'smoke-electron') }}:
     - template: ../../common/run-test-with-checkpoint.yml@self
@@ -232,33 +232,33 @@ steps:
           displayName: 🧪 Run smoke tests (Electron)
           timeoutInMinutes: 30
 
-  # The packaged client can only open an editor window on a server of its own commit, so the editor window suite runs
-  # with the Linux server of this run's Linux x64 compile job, and only the Agents Window suite runs without one. The
-  # script configures a test Kerberos realm, CA and PAC on the elevated agent and reverts them.
+  # The packaged client can only open an editor window on a server of its own commit, so the editor window suites run
+  # with the Linux server of this run's Linux x64 compile job. Without one, only the Kerberos Agents Window suite runs.
+  - ${{ if and(eq(parameters.VSCODE_ARCH, 'x64'), eq(parameters.VSCODE_LINUX_X64_COMPILATION_ARTIFACT, true), or(containsValue(parameters.VSCODE_TEST_IDS, 'smoke-wsl-kerberos-proxy'), containsValue(parameters.VSCODE_TEST_IDS, 'smoke-wsl-basic-proxy'))) }}:
+    - powershell: node build/azure-pipelines/common/waitForArtifacts.ts "--producer=compilation_linux_x64=Linux (X64) - Compile"
+      env:
+        SYSTEM_ACCESSTOKEN: $(System.AccessToken)
+      displayName: Wait for the Linux x64 compilation artifact
+      timeoutInMinutes: 65
+      condition: and(succeeded(), or(ne(variables['TEST_CHECKPOINT_SMOKE_WSL_KERBEROS_PROXY_HIT'], 'true'), ne(variables['TEST_CHECKPOINT_SMOKE_WSL_BASIC_PROXY_HIT'], 'true')))
+
+    - task: DownloadPipelineArtifact@2
+      inputs:
+        artifact: compilation_linux_x64
+        patterns: builds.tar.gz
+        path: $(Agent.TempDirectory)/compilation-linux-x64
+      displayName: Download the Linux x64 compilation artifact
+      condition: and(succeeded(), or(ne(variables['TEST_CHECKPOINT_SMOKE_WSL_KERBEROS_PROXY_HIT'], 'true'), ne(variables['TEST_CHECKPOINT_SMOKE_WSL_BASIC_PROXY_HIT'], 'true')))
+
+    - pwsh: .\test\smoke\wslDevContainer.ps1 -CI AzureDevOps -Operation AddServer -Distribution $env:WSL_SMOKE_DISTRO -Archive "$(Agent.TempDirectory)\compilation-linux-x64\builds.tar.gz"
+      displayName: Add the Linux x64 server to the WSL distribution
+      timeoutInMinutes: 15
+      env:
+        WSL_SMOKE_DISTRO: $(WSL_SMOKE_DISTRO)
+      condition: and(succeeded(), or(ne(variables['TEST_CHECKPOINT_SMOKE_WSL_KERBEROS_PROXY_HIT'], 'true'), ne(variables['TEST_CHECKPOINT_SMOKE_WSL_BASIC_PROXY_HIT'], 'true')))
+
+  # The script configures a test Kerberos realm, CA and PAC on the elevated agent and reverts them.
   - ${{ if and(eq(parameters.VSCODE_ARCH, 'x64'), containsValue(parameters.VSCODE_TEST_IDS, 'smoke-wsl-kerberos-proxy')) }}:
-    - ${{ if eq(parameters.VSCODE_LINUX_X64_COMPILATION_ARTIFACT, true) }}:
-      - powershell: node build/azure-pipelines/common/waitForArtifacts.ts "--producer=compilation_linux_x64=Linux (X64) - Compile"
-        env:
-          SYSTEM_ACCESSTOKEN: $(System.AccessToken)
-        displayName: Wait for the Linux x64 compilation artifact
-        timeoutInMinutes: 65
-        condition: and(succeeded(), ne(variables['TEST_CHECKPOINT_SMOKE_WSL_KERBEROS_PROXY_HIT'], 'true'))
-
-      - task: DownloadPipelineArtifact@2
-        inputs:
-          artifact: compilation_linux_x64
-          patterns: builds.tar.gz
-          path: $(Agent.TempDirectory)/compilation-linux-x64
-        displayName: Download the Linux x64 compilation artifact
-        condition: and(succeeded(), ne(variables['TEST_CHECKPOINT_SMOKE_WSL_KERBEROS_PROXY_HIT'], 'true'))
-
-      - pwsh: .\test\smoke\wslDevContainer.ps1 -CI AzureDevOps -Operation AddServer -Distribution $env:WSL_SMOKE_DISTRO -Archive "$(Agent.TempDirectory)\compilation-linux-x64\builds.tar.gz"
-        displayName: Add the Linux x64 server to the WSL distribution
-        timeoutInMinutes: 15
-        env:
-          WSL_SMOKE_DISTRO: $(WSL_SMOKE_DISTRO)
-        condition: and(succeeded(), ne(variables['TEST_CHECKPOINT_SMOKE_WSL_KERBEROS_PROXY_HIT'], 'true'))
-
     - template: ../../common/run-test-with-checkpoint.yml@self
       parameters:
         testId: smoke-wsl-kerberos-proxy
@@ -275,7 +275,21 @@ steps:
           displayName: 🧪 Run WSL Kerberos proxy smoke tests (Electron)
           timeoutInMinutes: 30
 
-  - ${{ if and(eq(parameters.VSCODE_ARCH, 'x64'), or(containsValue(parameters.VSCODE_TEST_IDS, 'smoke-electron'), containsValue(parameters.VSCODE_TEST_IDS, 'smoke-wsl-kerberos-proxy'))) }}:
+  # Only the editor window suite runs, with the proxy and its credentials in the http.proxy setting. The script trusts a
+  # test CA on the elevated agent and reverts it.
+  - ${{ if and(eq(parameters.VSCODE_ARCH, 'x64'), eq(parameters.VSCODE_LINUX_X64_COMPILATION_ARTIFACT, true), containsValue(parameters.VSCODE_TEST_IDS, 'smoke-wsl-basic-proxy')) }}:
+    - template: ../../common/run-test-with-checkpoint.yml@self
+      parameters:
+        testId: smoke-wsl-basic-proxy
+        testStep:
+          pwsh: .\test\smoke\scripts\run-agents-window-wsl-kerberos-proxy.ps1 -ProxyAuth Basic -Distribution $env:WSL_SMOKE_DISTRO -WslServerPath $env:WSL_SMOKE_BUILD_SERVER_PATH --build "$(agent.builddirectory)\test\VSCode-win32-$(VSCODE_ARCH)" --skip-stable-build
+          env:
+            WSL_SMOKE_DISTRO: $(WSL_SMOKE_DISTRO)
+            WSL_SMOKE_BUILD_SERVER_PATH: $(WSL_SMOKE_BUILD_SERVER_PATH)
+          displayName: 🧪 Run WSL Basic proxy smoke tests (Electron)
+          timeoutInMinutes: 20
+
+  - ${{ if and(eq(parameters.VSCODE_ARCH, 'x64'), or(containsValue(parameters.VSCODE_TEST_IDS, 'smoke-electron'), containsValue(parameters.VSCODE_TEST_IDS, 'smoke-wsl-kerberos-proxy'), containsValue(parameters.VSCODE_TEST_IDS, 'smoke-wsl-basic-proxy'))) }}:
     - pwsh: .\test\smoke\wslDevContainer.ps1 -CI AzureDevOps -Operation Cleanup -Distribution $env:WSL_SMOKE_DISTRO -Root $env:WSL_SMOKE_ROOT
       displayName: Clean up WSL Dev Container smoke tests
       condition: and(always(), ne(variables['WSL_SMOKE_ROOT'], ''))
@@ -306,7 +320,7 @@ steps:
           displayName: 🧪 Run smoke tests (Remote)
           timeoutInMinutes: 30
 
-  - ${{ if or(containsValue(parameters.VSCODE_TEST_IDS, 'smoke-electron'), containsValue(parameters.VSCODE_TEST_IDS, 'smoke-wsl-kerberos-proxy'), containsValue(parameters.VSCODE_TEST_IDS, 'smoke-browser-chromium'), containsValue(parameters.VSCODE_TEST_IDS, 'smoke-remote')) }}:
+  - ${{ if or(containsValue(parameters.VSCODE_TEST_IDS, 'smoke-electron'), containsValue(parameters.VSCODE_TEST_IDS, 'smoke-wsl-kerberos-proxy'), containsValue(parameters.VSCODE_TEST_IDS, 'smoke-wsl-basic-proxy'), containsValue(parameters.VSCODE_TEST_IDS, 'smoke-browser-chromium'), containsValue(parameters.VSCODE_TEST_IDS, 'smoke-remote')) }}:
     - powershell: .\build\azure-pipelines\win32\listprocesses.bat
       displayName: Diagnostics after smoke test run
       continueOnError: true
