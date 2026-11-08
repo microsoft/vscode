@@ -251,6 +251,8 @@ export class DecorationsOverviewRuler extends ViewPart {
 		this._domNode.setClassName('decorationsOverviewRuler');
 		this._domNode.setPosition('absolute');
 		this._domNode.setLayerHinting(true);
+		// Not 'strict': with paint containment, Chromium rounds the layer down at fractional zoom,
+		// leaving the last device pixel column unpainted, and the editor text shows through it (#213309)
 		this._domNode.setContain('size');
 		this._domNode.setAttribute('aria-hidden', 'true');
 
