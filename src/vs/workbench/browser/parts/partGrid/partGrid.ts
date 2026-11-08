@@ -2116,13 +2116,13 @@ function moveInArrangement<T extends IArrangedView>(arrangement: IArrangement<T>
  * then, with no part beyond it on that side, it goes to that edge of the
  * window, as a drop there does. It then takes an even share of the row or
  * column it joins (see {@link giveEvenShare}), or, for a part that keeps its
- * size, moved along a row or column as the one it was in, that size.
+ * size dropped into a row or column as the one it was in, that size.
  */
 function placeInArrangement<T extends IArrangedView>(arrangement: IArrangement<T>, view: T, getView: (id: string) => T, location: PartGridLocation, adding: boolean, dropped: boolean): void {
 	const resolved = dropped ? toEdgeIfNotSplit(arrangement, view, getView, location) : location;
 	// The sizes before, which the other parts make room in proportion to
 	const before = getViewSizes(arrangement.grid);
-	const keptAlong = !adding && arrangement.keepsSize(view.id) ? findLineOfView(arrangement.grid.serialize(), view.id)?.orientation : undefined;
+	const keptAlong = dropped && !adding && arrangement.keepsSize(view.id) ? findLineOfView(arrangement.grid.serialize(), view.id)?.orientation : undefined;
 	if (hasKey(resolved, { reference: true })) {
 		if (adding) {
 			arrangement.grid.addView(view, Sizing.Split, getView(resolved.reference), resolved.direction);

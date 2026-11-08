@@ -1379,6 +1379,27 @@ suite('Part Grid', () => {
 		});
 	});
 
+	test('Move Part gives a part that keeps its size an even share of the column it joins too: only a drop keeps its size', async () => {
+		const parts = await createParts();
+		const grid = createGrid();
+		const [chat, main, terminals] = [createPart(parts), createPart(parts), createPart(parts)];
+		await Promise.all([openEditor(chat, '/chat.txt'), openEditor(main, '/main.txt'), openEditor(terminals, '/terminals.txt')]);
+		grid.addPart('chat', chat);
+		grid.addPart('main', main, { reference: 'chat', direction: Direction.Right });
+		grid.addPart('terminals', terminals, { edge: Direction.Down }, undefined, { keepsSize: true });
+		grid.resizeCell('terminals', { height: 200 });
+		const heights = () => ({ shape: grid.describe(), chat: grid.getCellSize('chat').height, terminals: grid.getCellSize('terminals').height });
+		const before = heights();
+
+		const up = grid.moveCellInDirection('terminals', Direction.Up);
+
+		assert.deepStrictEqual({ before, up, movedUp: heights() }, {
+			before: { shape: 'column(row(chat, main), terminals)', chat: 600, terminals: 200 },
+			up: true,
+			movedUp: { shape: 'row(column(terminals, chat), main)', chat: 400, terminals: 400 }
+		});
+	});
+
 	test('as the grid is resized, its parts keep their shares of it, views that are not parts, such as a title row, keep their sizes, and the way back gives the sizes it had', async () => {
 		const parts = await createParts();
 		const grid = createGrid();
