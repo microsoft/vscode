@@ -127,7 +127,7 @@ suite('Chat window contribution', () => {
 			off: offered({ [ChatContextKeys.enabled.key]: true, [`config.${CHAT_WINDOWS_ENABLED_SETTING}`]: false }),
 			on: offered({ [ChatContextKeys.enabled.key]: true, [`config.${CHAT_WINDOWS_ENABLED_SETTING}`]: true }),
 			aiDisabled: offered({ [ChatContextKeys.enabled.key]: false, [`config.${CHAT_WINDOWS_ENABLED_SETTING}`]: true }),
-		}, { default: product.quality !== 'stable', scope: ConfigurationScope.APPLICATION, tags: ['preview', 'onExP'], experiment: { mode: 'auto' }, off: false, on: true, aiDisabled: false });
+		}, { default: product.quality !== 'stable', scope: ConfigurationScope.APPLICATION, tags: ['preview', 'onExP'], experiment: { mode: 'startup' }, off: false, on: true, aiDisabled: false });
 	});
 
 	test('the session header offers Open in New Window in the main window and Move to Main Window in a chat window', () => {

@@ -144,7 +144,7 @@ export class SessionChangesEditorInput extends DockedEditorInput {
 	/**
 	 * Keeps the resolved view model alive, even after this input is disposed, until the
 	 * returned handle is disposed. The Changes editor retains the input it is showing
-	 * while it resolves the next one, so replacing the input does not blank the diffs.
+	 * while it is cleared, so setting the same input again does not blank the diffs.
 	 */
 	retainViewModel(): IDisposable {
 		this._viewModelRetainers++;
